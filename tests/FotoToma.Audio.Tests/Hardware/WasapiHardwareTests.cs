@@ -87,8 +87,14 @@ public class WasapiHardwareTests(ITestOutputHelper output)
         Assert.Equal(0, stats.ControlTimeouts);
         Assert.Equal(0, stats.DeviceRestarts);
 
+        clock.Start();
         audio.Dispose();
         audio.Dispose();
+        Time disposed = clock.Position;
+        Thread.Sleep(50);
+        Assert.Equal(disposed, clock.Position);
+        clock.Pause();
+        Assert.Throws<ObjectDisposedException>(() => clock.Seek(Time.Zero));
         Assert.Throws<ObjectDisposedException>(() => clock.Start());
     }
 

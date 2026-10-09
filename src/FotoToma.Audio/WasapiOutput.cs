@@ -201,6 +201,8 @@ public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
             stopped = _thread.Join(ControlTimeoutMilliseconds * 2);
         }
 
+        _model.Stop(Now());
+
         // Si el hilo quedó colgado dentro del controlador, sus eventos se dejan abiertos: cerrarlos bajo él sería peor.
         if (stopped)
         {
