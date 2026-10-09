@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Criterios de aceptación de la fase 2 con el decodificador real sobre los medios con código de cuadro:
+    seek exacto al cuadro (suite normal) y deriva A/V en 10 minutos (RODAJE_PRUEBAS_LARGAS=1, ABRIR.bat aceptacion).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1707;CA1515;CA1861</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Rodaje.Audio\Rodaje.Audio.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Media\Rodaje.Media.csproj" />
+    <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

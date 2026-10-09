@@ -72,6 +72,21 @@
       "notas": "Necesita Visual Studio Build Tools 2022 con C++ (Native AOT usa su enlazador link.exe). La primera vez descarga el compilador AOT de NuGet (unos 50 MB); después funciona sin conexión."
     },
     {
+      "id": "aceptacion",
+      "nombre": "Aceptación de la fase 2: seek exacto y sincronía audio/video",
+      "tipo": "powershell",
+      "script": "herramientas/aceptacion.ps1",
+      "args": [],
+      "cwd": ".",
+      "descripcion": "Activa RODAJE_PRUEBAS_LARGAS=1 y corre, una suite tras otra y sin nada más en paralelo, las pruebas de aceptación con el decodificador real y luego las del reloj de audio con el dispositivo real (reproduce silencio). Comprueba que el seek es exacto al cuadro en H.264 y HEVC, por hardware y por software (cada cuadro lleva su número dibujado), que en 10 minutos de reproducción el cuadro que se ve nunca se aparta un cuadro del audio (reloj nominal, +0,1 % y −0,1 %), la sincronía en 30 s de tiempo real y la deriva y el jitter del reloj de audio. Al final muestra cada criterio con PASA o FALLA y sus cifras.",
+      "cubre": [],
+      "duracion": "~8-15 min (la primera vez, unos minutos más para generar los videos de prueba)",
+      "duracion_es": "total",
+      "progreso_regex": "Fase (\\d+)/(\\d+)",
+      "si_falla": "El resumen dice qué criterio falló y con qué cifras; debajo, cada prueba fallida con su mensaje y la línea. Si un criterio sale SIN DATOS es porque sus pruebas se omitieron (sin GPU con D3D11VA, sin dispositivo de audio o sin ffmpeg): el motivo está en 'Pruebas omitidas'. No uses el equipo para cosas pesadas mientras corre: las medidas en tiempo real se falsean con la carga.",
+      "notas": "Necesita las DLL y el ffmpeg.exe LGPL de .entorno\\ffmpeg. Los videos de prueba (unos 160 MB) se generan una vez en TestResults\\media-cache."
+    },
+    {
       "id": "preparar-entorno",
       "nombre": "Reconstruir el entorno (SDK de .NET y FFmpeg)",
       "tipo": "powershell",
@@ -87,7 +102,7 @@
     }
   ],
   "notas": [
-    "Doble clic en ABRIR.bat corre la acción 'pruebas'; 'ABRIR.bat cobertura', 'ABRIR.bat aot' y 'ABRIR.bat preparar-entorno' corren las otras.",
+    "Doble clic en ABRIR.bat corre la acción 'pruebas'; 'ABRIR.bat cobertura', 'ABRIR.bat aot', 'ABRIR.bat aceptacion' y 'ABRIR.bat preparar-entorno' corren las otras.",
     "El tipo 'powershell' es propio de Rodaje: corre el script con powershell -NoProfile -ExecutionPolicy Bypass -File, con los mismos campos que las acciones 'python' de Sensores-Teoria (script, args, cwd).",
     "Todavía no hay interfaz gráfica: llega en una fase posterior."
   ]

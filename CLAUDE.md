@@ -5,9 +5,10 @@ Editor de video nativo para Windows, inspirado en la experiencia de uso de CapCu
 ## Cómo se trabaja aquí
 
 - **Entorno propio.** El SDK de .NET 10.0.401 vive en `.entorno\dotnet` (ignorado por git) y lo instala `herramientas\preparar-entorno.ps1`, verificando su SHA-512. Para cualquier comando de .NET se usa `herramientas\dotnet-local.cmd <args>`, nunca un `dotnet` global. La variable `RODAJE_ENTORNO` permite apuntar a otro `.entorno`, por ejemplo desde un worktree de agente.
-- **Probar.** `ABRIR.bat` corre todas las pruebas. Acepta tres argumentos:
+- **Probar.** `ABRIR.bat` corre todas las pruebas. Acepta cuatro argumentos:
   - `ABRIR.bat cobertura`: pruebas más cobertura.
   - `ABRIR.bat aot`: publica la prueba de humo con Native AOT y la ejecuta.
+  - `ABRIR.bat aceptacion`: con `RODAJE_PRUEBAS_LARGAS=1`, corre solas y en serie `Rodaje.Acceptance.Tests` y las pruebas de audio con el dispositivo real, y resume cada criterio de la fase 2 con sus cifras.
   - `ABRIR.bat preparar-entorno`: rehace `.entorno`.
 - **GitHub.** Git se autentica a través de `gh` (`gh auth setup-git`), así que `git push` funciona directo.
 - **Worktrees de agentes.** Los agentes en paralelo trabajan en `.claude\worktrees\` (ignorado). Su trabajo se une a `main` con `git merge`.
