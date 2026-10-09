@@ -210,12 +210,7 @@ public sealed class ProjectFileTests : IDisposable
         Assert.Contains(ex.Problems, p => p.EndsWith("tiene tiempos fuera de rango.", StringComparison.Ordinal));
     }
 
-    // --- Fallos del reemplazo atómico, simulados con un sistema de archivos de prueba ---
-
-    /// <summary>
-    /// Imita a File.Replace cuando falla con ERROR_UNABLE_TO_MOVE_REPLACEMENT_2: el original ya se movió a
-    /// .bak, pero el temporal no llegó a su sitio. Opcionalmente, el renombrado de recuperación también falla.
-    /// </summary>
+    /// <summary>Imita File.Replace con ERROR_UNABLE_TO_MOVE_REPLACEMENT_2: el original ya está en .bak y el nuevo no llegó.</summary>
     private sealed class ReplaceFailsAfterBackup(Exception? moveFailure) : ProjectSerializer.SaveFileSystem
     {
         public int Moves { get; private set; }

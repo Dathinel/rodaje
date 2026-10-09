@@ -13,10 +13,7 @@ internal sealed record MediaSpec(int Kind, int Frames, int ExtraTicks);
 /// <summary>Un clip inicial: qué medio, qué tramo, en qué pista, con qué fábrica (0 añadir al final, 1 colocar, 2 insertar, 3 sobrescribir) y dónde.</summary>
 internal sealed record PlacementSpec(int Media, int InFrames, int LengthFrames, int Track, int Mode, int AtFrames, bool Linked);
 
-/// <summary>
-/// Receta de un proyecto aleatorio. Se guarda como números (y no como el proyecto armado) para que
-/// CsCheck pueda achicar un caso que falla hasta el más simple.
-/// </summary>
+/// <summary>Receta de un proyecto aleatorio, en números para que CsCheck pueda achicar un caso que falla.</summary>
 internal sealed record ProjectSpec(int Rate, int VideoTracks, int AudioTracks, MediaSpec[] Media, PlacementSpec[] Placements, int LockBits)
 {
     public override string ToString() => string.Create(
@@ -24,10 +21,7 @@ internal sealed record ProjectSpec(int Rate, int VideoTracks, int AudioTracks, M
         $"Proyecto(tasa {Rate}, {VideoTracks}V {AudioTracks}A, bloqueos {LockBits}, medios [{string.Join("; ", Media.Select(m => m.ToString()))}], clips [{string.Join("; ", Placements.Select(p => p.ToString()))}])");
 }
 
-/// <summary>
-/// Una operación aleatoria en bruto. Los números se interpretan contra el estado del proyecto en el
-/// momento de ejecutarla (qué clips y pistas existen), así casi siempre nombran objetos reales.
-/// </summary>
+/// <summary>Operación en bruto; sus números se interpretan contra el estado del proyecto al ejecutarla.</summary>
 internal sealed record OpSpec(int Kind, int A, int B, int C, int D, int E);
 
 /// <summary>Las operaciones que se prueban: todas las fábricas de <see cref="Edits"/> más deshacer y rehacer.</summary>
@@ -58,7 +52,6 @@ internal enum OpKind
     Redo,
 }
 
-/// <summary>Un proyecto armado a partir de su receta, con su secuencia y su fuente de identificadores.</summary>
 internal sealed class BuiltProject(Project project, Rational rate, IIdGenerator ids)
 {
     public const string SequenceId = "seq";
@@ -75,7 +68,6 @@ internal sealed class BuiltProject(Project project, Rational rate, IIdGenerator 
 /// <summary>Una operación ya resuelta contra el estado actual: el comando (nulo para deshacer y rehacer) y sus datos.</summary>
 internal sealed record ResolvedOp(OpKind Kind, SequenceEditCommand? Command, string Text, string? ClipId = null, Time Delta = default, Time At = default);
 
-/// <summary>Generadores de proyectos y operaciones aleatorias para las pruebas de propiedades.</summary>
 internal static class RandomTimeline
 {
     public static readonly Rational[] Rates =
@@ -113,11 +105,7 @@ internal static class RandomTimeline
         Gen.Int[0, 99], Gen.Int[0, 1000], Gen.Int[0, 1000], Gen.Int[0, 1000], Gen.Int[0, 1000], Gen.Int[-40, 40],
         (k, a, b, c, d, e) => new OpSpec(k, a, b, c, d, e));
 
-    /// <summary>
-    /// Arma el proyecto: una secuencia con sus pistas, los medios y los clips iniciales colocados con
-    /// <see cref="Edits.AppendMedia"/> e <see cref="Edits.InsertMedia"/> (los que no caben se saltan), y al
-    /// final bloquea algunas pistas.
-    /// </summary>
+    /// <summary>Arma el proyecto de la receta; los clips iniciales que no caben se saltan.</summary>
     public static BuiltProject Build(ProjectSpec spec)
     {
         ArgumentNullException.ThrowIfNull(spec);
@@ -191,7 +179,7 @@ internal static class RandomTimeline
             }
             catch (EditException)
             {
-                // El lugar estaba ocupado: ese clip inicial simplemente no se coloca.
+                // Lugar ocupado: ese clip inicial no se coloca.
             }
         }
 
@@ -205,11 +193,7 @@ internal static class RandomTimeline
         return built;
     }
 
-    /// <summary>
-    /// Traduce la operación en bruto a un comando concreto según el estado actual. Los parámetros salen
-    /// casi siempre de clips y pistas que existen y de instantes cerca de los bordes de los clips; de vez
-    /// en cuando nombran algo que no existe o piden algo imposible, para probar los rechazos.
-    /// </summary>
+    /// <summary>Traduce la operación a un comando; a veces pide algo inexistente o imposible para probar los rechazos.</summary>
     public static ResolvedOp Resolve(BuiltProject built, OpSpec op)
     {
         ArgumentNullException.ThrowIfNull(built);
@@ -406,18 +390,12 @@ internal static class RandomTimeline
             return candidates.Count == 0 ? null : candidates[d % candidates.Count].Id;
         }
 
-        /// <summary>
-        /// Desplazamiento: casi siempre un número entero de cuadros entre -40 y 40; a veces unos pocos ticks
-        /// (fuera de la cuadrícula) para probar los valores que no caen en un cuadro.
-        /// </summary>
+        /// <summary>Casi siempre cuadros enteros entre -40 y 40; a veces unos ticks fuera de la cuadrícula.</summary>
         public Time Delta(int e, int c) => c % 10 == 0
             ? Time.FromTicks(e * 997L)
             : Time.FromFrames(e, built.Rate);
 
-        /// <summary>
-        /// Un instante: casi siempre el inicio, el final o el medio de un clip más unos pocos cuadros; a
-        /// veces un instante cualquiera de la línea de tiempo (o un poco después del final).
-        /// </summary>
+        /// <summary>Casi siempre cerca de un borde o del medio de un clip; a veces un instante cualquiera.</summary>
         public Time Instant(int a, int b, int e, int c)
         {
             if (_clips.Count == 0 || b % 7 == 6)

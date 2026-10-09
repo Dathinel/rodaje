@@ -100,7 +100,6 @@ public class RationalTests
             Assert.Equal(1, System.Numerics.BigInteger.GreatestCommonDivisor(r.Num, r.Den));
             // n/d == r.Num/r.Den  <=>  n * r.Den == d * r.Num
             Assert.Equal((Int128)n * r.Den, (Int128)d * r.Num);
-            // Multiplicar arriba y abajo por k da la misma tasa
             Assert.Equal(r, new Rational(n * k, d * k));
         });
     }

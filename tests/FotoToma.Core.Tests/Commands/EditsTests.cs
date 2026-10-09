@@ -6,18 +6,10 @@ using static FotoToma.Core.Tests.Commands.CommandFixtures;
 
 namespace FotoToma.Core.Tests.Commands;
 
-/// <summary>
-/// Cada fábrica de <see cref="Edits"/>: descripción, clave de fusión, que haga exactamente lo mismo que
-/// la operación de <see cref="TimelineEdits"/> que envuelve, los identificadores creados y que se pueda
-/// deshacer y rehacer con la pila.
-/// </summary>
+/// <summary>Cada fábrica de <see cref="Edits"/> equivale a su operación de <see cref="TimelineEdits"/>.</summary>
 public class EditsTests
 {
-    /// <summary>
-    /// Ejecuta el comando en un proyecto de prueba con la pila y la operación directa en otro idéntico, y
-    /// comprueba que ambos quedan iguales, que los identificadores creados coinciden y que deshacer y
-    /// rehacer recorren los dos estados.
-    /// </summary>
+    /// <summary>Compara el comando con la operación directa en un proyecto idéntico, con deshacer y rehacer.</summary>
     private static SequenceEditCommand Check(
         Func<IIdGenerator, SequenceEditCommand> factory,
         Func<EditContext, IReadOnlyList<string>> direct,
@@ -141,8 +133,7 @@ public class EditsTests
     [Fact]
     public void ArrastreEnModoSobrescribir_NoSeFundeYNoDejaRecortadoLoQueSoloSePaso()
     {
-        // Si un arrastre en sobrescribir se fundiera, pasar por encima de clip-1 lo dejaría recortado
-        // aunque la posición final esté libre. Sin clave, cada paso es su propio deshacer.
+        // Fundido, pasar por encima de clip-1 lo dejaría recortado aunque el destino final esté libre.
         Project project = Create();
         string before = ProjectDump.Of(project);
         var stack = new UndoStack(project);
@@ -452,10 +443,7 @@ public class EditsTests
     }
 }
 
-/// <summary>
-/// Identificadores predecibles que no chocan con los del proyecto de prueba (que ya usa «clip-1»…):
-/// <c>clip-n1</c>, <c>clip-n2</c>…
-/// </summary>
+/// <summary>Identificadores <c>clip-n1</c>, <c>clip-n2</c>… que no chocan con los del proyecto de prueba.</summary>
 internal sealed class FreshIds : IIdGenerator
 {
     private int _next;

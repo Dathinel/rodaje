@@ -34,7 +34,6 @@ public class ProjectSerializerTests
         Project copy = ProjectSerializer.Deserialize(ProjectSerializer.Serialize(original));
         SerializationSamples.AssertDeepEqual(original, copy);
 
-        // Comprobaciones explícitas de los casos delicados.
         Assert.Null(copy.FindMedia("media-image")!.FrameRate);
         Assert.Equal(new Rational(30000, 1001), copy.Sequences[0].FrameRate);
         Assert.Equal(Rational.Ntsc24, copy.Sequences[1].FrameRate);
@@ -267,7 +266,7 @@ public class ProjectSerializerTests
         Assert.Throws<ArgumentNullException>(() => ProjectSerializer.Deserialize(null!));
     }
 
-    // --- Valores extremos: un archivo dañado puede traer cualquier entero de 64 bits ---
+    // Valores extremos: un archivo dañado puede traer cualquier entero de 64 bits.
 
     public static TheoryData<string, Action<JsonObject>> ExtremeTimes => new()
     {
@@ -356,8 +355,7 @@ public class ProjectSerializerTests
     [Fact]
     public void Deserialize_ValidatorThatThrows_BecomesFormatException()
     {
-        // Red de seguridad: si algún día el validador lanza con un dato no previsto, abrir el archivo
-        // sigue terminando en ProjectFormatException, con la causa original dentro.
+        // Si el validador lanzara con un dato no previsto, abrir sigue terminando en ProjectFormatException.
         var boom = new OverflowException("simulado");
         string json = ProjectSerializer.Serialize(SerializationSamples.Rich());
 

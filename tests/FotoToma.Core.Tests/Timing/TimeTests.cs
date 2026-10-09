@@ -6,7 +6,7 @@ public class TimeTests
 {
     private const long T = Time.TicksPerSecond;
 
-    // Tasas que, según la documentación de Time, caen en ticks exactos: base y variante NTSC (×1000/1001)
+    // Tasas que caen en ticks exactos: base y variante NTSC (×1000/1001).
     public static TheoryData<long, long> ExactFrameRates()
     {
         var data = new TheoryData<long, long>();
@@ -36,7 +36,6 @@ public class TimeTests
             Time start = Time.FromFrames(n, rate);
             Assert.Equal(n * frameTicks, start.Ticks);
             Assert.Equal(n, start.ToFrames(rate));
-            // El último tick del cuadro sigue siendo el mismo cuadro y el siguiente es el que sigue
             Assert.Equal(n, Time.FromTicks(start.Ticks + frameTicks - 1).ToFrames(rate));
             Assert.Equal(n + 1, Time.FromTicks(start.Ticks + frameTicks).ToFrames(rate));
         }

@@ -1,13 +1,5 @@
-// Prueba de humo de Native AOT para FotoToma.Core.
-//
-// Este programa se publica compilado de antemano (Native AOT) y recorre la API pública del núcleo
-// tal como la usará el editor: crea un proyecto, importa medios, hace una serie de ediciones con
-// deshacer y rehacer, guarda y abre el proyecto en una carpeta con espacios y tildes, exporta el
-// esquema JSON y evalúa un parámetro animado. Si algo del núcleo dependiera de reflexión que el
-// compilador AOT recorta, aquí fallaría en tiempo de ejecución aunque las pruebas normales (que corren
-// con JIT) pasen.
-//
-// Termina con código 0 si todo salió bien y con 1 y un mensaje claro si algo falló.
+// Prueba de humo: recorre la API pública del núcleo compilado con Native AOT. Si algo dependiera de
+// reflexión que el compilador recorta, falla aquí aunque las pruebas con JIT pasen.
 
 using System.Diagnostics;
 using System.Text;
@@ -24,7 +16,7 @@ try
 }
 catch (IOException)
 {
-    // Sin consola (salida redirigida en algunos lanzadores): no importa.
+    // Sin consola (salida redirigida): no importa.
 }
 
 var reloj = Stopwatch.StartNew();
@@ -50,7 +42,6 @@ try
         .Any(m => string.Equals(m.ModuleName, "coreclr.dll", StringComparison.OrdinalIgnoreCase));
     Console.WriteLine($"  Modo: {(jit ? "JIT (sin compilar de antemano; esto no prueba Native AOT)" : "Native AOT")}");
 
-    // --- Proyecto y medios -----------------------------------------------------------------------
     var ids = new SequentialIdGenerator();
     Project project = ProjectFactory.CreateDefault("Prueba AOT ñandú", ids, Rational.Fps30);
     Sequence sequence = project.Sequences[0];
@@ -112,7 +103,6 @@ try
     Exigir(project.Media.Count == 2, "hay 2 medios importados");
     Avance("Dos medios importados con AddMediaCommand.");
 
-    // --- Ediciones ---------------------------------------------------------------------------------
     // a: A[0,5) en 0 con su audio enlazado
     string a = Editar("Insertar", ctx => TimelineEdits.InsertMedia(ctx, mediaA.Id, S(0), S(5), v1, S(0), PlacementMode.Strict, a1))[0];
     // b: B[2,10) al final -> [5,13)
@@ -191,7 +181,6 @@ try
     Exigir(ModelValidator.Validate(project).Count == 0, "el proyecto editado es válido: " + string.Join("; ", ModelValidator.Validate(project)));
     Avance($"Efecto con keyframes y renombre agrupados en un paso; {undo.Count} pasos en el historial.");
 
-    // --- Deshacer y rehacer todo ---------------------------------------------------------------
     Exigir(undo.Count == states.Count - 1, $"el historial tiene {states.Count - 1} pasos (tiene {undo.Count})");
     for (int i = states.Count - 2; i >= 0; i--)
     {
@@ -208,7 +197,6 @@ try
 
     Avance($"Deshacer todo ({states.Count - 1} pasos) y rehacer todo: cada estado coincide texto a texto.");
 
-    // --- Guardar y abrir ---------------------------------------------------------------------------
     string folder = Path.Combine(Path.GetTempPath(), "FotoToma prueba AOT ñ");
     Directory.CreateDirectory(folder);
     string file = Path.Combine(folder, "proyecto de prueba ñ.ftoma");
@@ -234,7 +222,7 @@ try
         }
         catch (IOException)
         {
-            // Si el antivirus tiene el archivo abierto, se queda en la carpeta temporal.
+            // El antivirus puede tener el archivo abierto; se queda en la carpeta temporal.
         }
     }
 
@@ -252,7 +240,6 @@ try
     Exigir(rejected, "un JSON que no es proyecto se rechaza con ProjectFormatException");
     Avance("Un archivo inválido se rechaza con ProjectFormatException.");
 
-    // --- Esquema JSON -----------------------------------------------------------------------------
     string schema = ProjectSchema.Export();
     Exigir(!string.IsNullOrWhiteSpace(schema), "el esquema exportado no está vacío");
     using (JsonDocument doc = JsonDocument.Parse(schema))
@@ -264,7 +251,6 @@ try
 
     Avance($"Esquema JSON exportado: {schema.Length} caracteres, JSON válido.");
 
-    // --- Parámetro animado ------------------------------------------------------------------------
     Exigir(opacity.Evaluate(S(1)) == 0, "antes del primer keyframe vale el primero");
     Exigir(Math.Abs(opacity.Evaluate(S(2.5)) - 0.5) < 1e-12, "a mitad de una rampa lineal vale la mitad");
     Exigir(Math.Abs(opacity.Evaluate(S(3.5)) - 0.75) < 1e-12, "a mitad de un EaseInOut vale la mitad del salto");
@@ -273,7 +259,6 @@ try
     Exigir(saved.Effects[0].Parameters["opacidad"].Evaluate(S(2.5)) == opacity.Evaluate(S(2.5)), "el parámetro del clip evalúa igual que el original");
     Avance("Parámetro con keyframes evaluado (lineal, EaseInOut y extremos).");
 
-    // --- Tiempo exacto ----------------------------------------------------------------------------
     Time frame = Time.FromFrames(1, Rational.Ntsc30);
     Exigir(Time.FromFrames(30000, Rational.Ntsc30).ToFrames(Rational.Ntsc30) == 30000, "30000 cuadros a 29,97 fps vuelven a ser 30000");
     Exigir(frame + frame == Time.FromFrames(2, Rational.Ntsc30), "sumar cuadros NTSC no acumula error");
