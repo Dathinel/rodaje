@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>FotoToma.Playback</RootNamespace>
+    <!-- Lógica de reproducción sin dependencias de plataforma: ni FFmpeg ni dispositivos de audio -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FotoToma.Playback.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FotoToma.Core\FotoToma.Core.csproj" />
+  </ItemGroup>
+
+</Project>
