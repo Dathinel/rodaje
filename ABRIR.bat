@@ -75,14 +75,31 @@ shift
 goto juntar
 
 rem --- Entorno propio: el SDK de .NET dentro de .entorno\ ----------------------------
+rem Listo = existe la marca .sdk-<version> que preparar-entorno.ps1 deja al final de una
+rem instalacion completa; la version sale de global.json. Que exista dotnet.exe no basta:
+rem un apagon a mitad de la descompresion tambien lo deja.
 :entorno
-if exist "%DOTNET%" goto probar
+set "SDKVER="
+for /f "usebackq tokens=2 delims=:, " %%v in (`findstr /i /c:"\"version\"" "%RAIZ%\global.json"`) do if not defined SDKVER set "SDKVER=%%~v"
+set "MARCA=%ENTORNO%\dotnet\.sdk-%SDKVER%"
+if exist "%MARCA%" if exist "%DOTNET%" goto probar
+if exist "%DOTNET%" goto entorno_incompleto
 echo   Primera vez: falta el SDK de .NET del proyecto. Se va a descargar dentro de
 echo   la carpeta .entorno\ (unos 280 MB, solo esta vez; no se instala nada en Windows).
 echo   Según la conexión puede tardar varios minutos. No cierres esta ventana.
 echo.
+goto preparar
+
+:entorno_incompleto
+echo   El SDK de .NET del proyecto quedó a medias (seguramente una instalación que se
+echo   cortó, por ejemplo por un apagón). Se va a reinstalar dentro de .entorno\.
+echo   Si hace falta descargarlo otra vez son unos 280 MB. No cierres esta ventana.
+echo.
+
+:preparar
 "%PS%" -NoProfile -ExecutionPolicy Bypass -File "%PREPARAR%"
 if errorlevel 1 goto fallo_entorno
+if not exist "%MARCA%" goto fallo_entorno
 if not exist "%DOTNET%" goto fallo_entorno
 
 :probar
