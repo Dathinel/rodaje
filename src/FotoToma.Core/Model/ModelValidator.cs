@@ -1,0 +1,190 @@
+using FotoToma.Core.Timing;
+
+namespace FotoToma.Core.Model;
+
+/// <summary>
+/// Comprueba las reglas que todo proyecto válido cumple. Las operaciones de edición lo usan como red
+/// de seguridad y las pruebas lo ejecutan después de cada comando.
+/// </summary>
+public static class ModelValidator
+{
+    /// <summary>Devuelve la lista de problemas encontrados, en español; vacía si el proyecto es válido.</summary>
+    public static IReadOnlyList<string> Validate(Project project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        var errors = new List<string>();
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+
+        void CheckId(string id, string what)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                errors.Add($"Hay {what} sin identificador.");
+            }
+            else if (!ids.Add(id))
+            {
+                errors.Add($"El identificador «{id}» está repetido ({what}).");
+            }
+        }
+
+        if (project.SchemaVersion != Project.CurrentSchemaVersion)
+        {
+            errors.Add($"La versión de formato es {project.SchemaVersion} y se esperaba {Project.CurrentSchemaVersion}.");
+        }
+
+        CheckId(project.Id, "un proyecto");
+
+        foreach (MediaRef media in project.Media)
+        {
+            CheckId(media.Id, "un medio");
+            if (media.Duration <= Time.Zero)
+            {
+                errors.Add($"El medio «{media.Id}» tiene una duración no positiva.");
+            }
+        }
+
+        foreach (Sequence sequence in project.Sequences)
+        {
+            CheckId(sequence.Id, "una secuencia");
+            ValidateSequence(project, sequence, errors, CheckId);
+        }
+
+        return errors;
+    }
+
+    public static void ThrowIfInvalid(Project project)
+    {
+        IReadOnlyList<string> errors = Validate(project);
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException("El proyecto no es válido:\n- " + string.Join("\n- ", errors));
+        }
+    }
+
+    /// <summary>Problemas de una sola secuencia; útil después de una edición.</summary>
+    public static IReadOnlyList<string> ValidateSequence(Project project, Sequence sequence)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(sequence);
+        var errors = new List<string>();
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        ValidateSequence(project, sequence, errors, (id, what) =>
+        {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                errors.Add($"Hay {what} sin identificador.");
+            }
+            else if (!ids.Add(id))
+            {
+                errors.Add($"El identificador «{id}» está repetido ({what}).");
+            }
+        });
+        return errors;
+    }
+
+    private static void ValidateSequence(Project project, Sequence sequence, List<string> errors, Action<string, string> checkId)
+    {
+        if (sequence.Width <= 0 || sequence.Height <= 0 || sequence.SampleRate <= 0)
+        {
+            errors.Add($"La secuencia «{sequence.Id}» tiene dimensiones o frecuencia de muestreo no positivas.");
+        }
+
+        CheckTrackKinds(sequence.VideoTracks, TrackKind.Video, sequence, errors);
+        CheckTrackKinds(sequence.AudioTracks, TrackKind.Audio, sequence, errors);
+
+        var linkTracks = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+
+        foreach (Track track in sequence.AllTracks)
+        {
+            checkId(track.Id, "una pista");
+            Clip? previous = null;
+            foreach (Clip clip in track.Clips)
+            {
+                checkId(clip.Id, "un clip");
+                string where = $"El clip «{clip.Id}» de la pista «{track.Name}»";
+
+                MediaRef? media = project.FindMedia(clip.MediaId);
+                if (media is null)
+                {
+                    errors.Add($"{where} usa el medio «{clip.MediaId}», que no existe.");
+                }
+                else
+                {
+                    if (clip.SourceOut > media.Duration)
+                    {
+                        errors.Add($"{where} termina en {clip.SourceOut} y el medio solo dura {media.Duration}.");
+                    }
+
+                    if (track.Kind == TrackKind.Video && !media.HasVideo)
+                    {
+                        errors.Add($"{where} está en una pista de video pero su medio no tiene imagen.");
+                    }
+
+                    if (track.Kind == TrackKind.Audio && !media.HasAudio)
+                    {
+                        errors.Add($"{where} está en una pista de audio pero su medio no tiene sonido.");
+                    }
+                }
+
+                if (clip.SourceIn < Time.Zero)
+                {
+                    errors.Add($"{where} tiene un punto de entrada negativo.");
+                }
+
+                if (clip.SourceOut <= clip.SourceIn)
+                {
+                    errors.Add($"{where} tiene duración cero o negativa.");
+                }
+
+                if (clip.Start < Time.Zero)
+                {
+                    errors.Add($"{where} empieza antes del inicio de la línea de tiempo.");
+                }
+
+                if (previous is not null && clip.Start < previous.End)
+                {
+                    errors.Add($"{where} se solapa con «{previous.Id}» o está fuera de orden.");
+                }
+
+                foreach (EffectInstance effect in clip.Effects)
+                {
+                    checkId(effect.Id, "un efecto");
+                    foreach ((string name, Parameter parameter) in effect.Parameters)
+                    {
+                        for (int i = 1; i < parameter.Keyframes.Count; i++)
+                        {
+                            if (parameter.Keyframes[i].Time <= parameter.Keyframes[i - 1].Time)
+                            {
+                                errors.Add($"Los keyframes de «{name}» en el efecto «{effect.Id}» no están en orden estricto.");
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (clip.LinkId is not null)
+                {
+                    if (!linkTracks.TryGetValue(clip.LinkId, out HashSet<string>? tracks))
+                    {
+                        linkTracks[clip.LinkId] = tracks = new HashSet<string>(StringComparer.Ordinal);
+                    }
+
+                    if (!tracks.Add(track.Id))
+                    {
+                        errors.Add($"El enlace «{clip.LinkId}» tiene dos clips en la misma pista «{track.Name}».");
+                    }
+                }
+
+                previous = clip;
+            }
+        }
+    }
+
+    private static void CheckTrackKinds(List<Track> tracks, TrackKind expected, Sequence sequence, List<string> errors)
+    {
+        foreach (Track track in tracks.Where(t => t.Kind != expected))
+        {
+            errors.Add($"La pista «{track.Name}» de la secuencia «{sequence.Id}» está en la lista equivocada (es de tipo {track.Kind}).");
+        }
+    }
+}
