@@ -3,10 +3,7 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Model;
 
-/// <summary>
-/// Una línea de tiempo con sus pistas. Las pistas de video se componen de abajo hacia arriba:
-/// el índice 0 de <see cref="VideoTracks"/> es la capa de más abajo.
-/// </summary>
+/// <summary>Línea de tiempo; el índice 0 de <see cref="VideoTracks"/> es la capa de más abajo.</summary>
 public sealed class Sequence
 {
     public string Id { get; set; } = "";
@@ -55,10 +52,7 @@ public sealed class Sequence
     public (Track Track, Clip Clip) GetClip(string clipId) =>
         FindClip(clipId) ?? throw new KeyNotFoundException($"No existe el clip «{clipId}» en la secuencia.");
 
-    /// <summary>
-    /// Devuelve el clip y los que están enlazados con él (por ejemplo el video y su audio), que se
-    /// editan juntos. El clip pedido va primero.
-    /// </summary>
+    /// <summary>El clip y los enlazados con él; el clip pedido va primero.</summary>
     public List<(Track Track, Clip Clip)> GetLinkGroup(string clipId)
     {
         (Track track, Clip clip) = GetClip(clipId);

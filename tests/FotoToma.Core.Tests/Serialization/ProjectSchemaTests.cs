@@ -9,10 +9,7 @@ public class ProjectSchemaTests
 
     private static string SchemaPath => Path.Combine(FindRepoRoot(), "schema", "fototoma-proyecto.v1.schema.json");
 
-    /// <summary>
-    /// El esquema versionado debe coincidir con el que genera el código. Para regenerarlo después de
-    /// cambiar el modelo: definir FOTOTOMA_REGENERAR_ESQUEMA=1 y correr las pruebas una vez.
-    /// </summary>
+    /// <summary>Para regenerar el esquema versionado: FOTOTOMA_REGENERAR_ESQUEMA=1 y correr las pruebas.</summary>
     [Fact]
     public void CommittedSchema_MatchesExport()
     {

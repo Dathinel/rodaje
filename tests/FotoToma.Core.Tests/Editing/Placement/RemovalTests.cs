@@ -3,7 +3,6 @@ using static FotoToma.Core.Tests.Editing.Placement.PlacementBuilder;
 
 namespace FotoToma.Core.Tests.Editing.Placement;
 
-/// <summary>Pruebas de levantar, borrar con ripple y cerrar huecos.</summary>
 public class RemovalTests
 {
     private static void Fails(PlacementBuilder b, Action action, string expectedMessagePart)
@@ -13,8 +12,6 @@ public class RemovalTests
         Assert.Contains(expectedMessagePart, ex.Message, StringComparison.Ordinal);
         Assert.Equal(before, b.Snapshot());
     }
-
-    // ---------- Lift ----------
 
     [Fact]
     public void Lift_leaves_gap()
@@ -69,8 +66,6 @@ public class RemovalTests
         b.Track("a1").Locked = true;
         Fails(b, () => TimelineEdits.Lift(b.Context(), ["v"]), "La pista «Audio 1» está bloqueada.");
     }
-
-    // ---------- RippleDelete ----------
 
     [Fact]
     public void RippleDelete_track_scope_closes_gap_only_in_that_track()
@@ -236,8 +231,6 @@ public class RemovalTests
         Fails(b, () => TimelineEdits.RippleDelete(b.Context(), ["x"], RippleScope.Track), "No existe el clip «x»");
         Fails(b, () => TimelineEdits.RippleDelete(b.Context(), [], RippleScope.AllTracks), "No hay ningún clip seleccionado.");
     }
-
-    // ---------- CloseGap ----------
 
     [Fact]
     public void CloseGap_middle_gap_track_scope()

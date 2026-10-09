@@ -8,22 +8,16 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Serialization;
 
-/// <summary>
-/// Genera el esquema JSON (draft 2020-12) del formato <c>.ftoma</c> a partir de los mismos metadatos que
-/// usa el lector, de modo que el esquema publicado no se puede desincronizar del código.
-/// </summary>
+/// <summary>Genera el esquema JSON (draft 2020-12) de <c>.ftoma</c> desde los mismos metadatos que usa el lector.</summary>
 /// <remarks>
-/// El esquema describe la forma del archivo, no todas sus reglas: que los clips de una pista no se
-/// solapen o que los identificadores no se repitan lo comprueba <see cref="ModelValidator"/> y está
-/// explicado en <c>docs/formato-proyecto.md</c>. La copia versionada vive en
-/// <c>schema/fototoma-proyecto.v1.schema.json</c>; una prueba verifica que coincide con este método.
+/// Describe la forma, no las invariantes (<see cref="ModelValidator"/>). Una prueba verifica que
+/// <c>schema/fototoma-proyecto.v1.schema.json</c> coincide con <see cref="Export"/>.
 /// </remarks>
 public static class ProjectSchema
 {
-    /// <summary>Identificador estable del esquema de la versión actual.</summary>
     public const string SchemaId = "https://github.com/Dathinel/fototoma/schema/fototoma-proyecto.v1.schema.json";
 
-    /// <summary>Devuelve el esquema como texto JSON indentado con saltos de línea LF.</summary>
+    /// <summary>Esquema como JSON indentado con saltos de línea LF.</summary>
     public static string Export()
     {
         var exporterOptions = new JsonSchemaExporterOptions

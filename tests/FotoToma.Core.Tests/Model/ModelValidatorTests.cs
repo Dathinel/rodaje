@@ -324,7 +324,7 @@ public class ModelValidatorTests
             ModelValidator.ValidateSequence(p, loose));
     }
 
-    // --- Valores extremos: el validador recibe tiempos leídos de un archivo y nunca debe lanzar ---
+    // Valores extremos: el validador recibe tiempos leídos de un archivo y nunca debe lanzar.
 
     private const string C1OutOfRange = "El clip «c1» de la pista «V1» tiene tiempos fuera de rango.";
 

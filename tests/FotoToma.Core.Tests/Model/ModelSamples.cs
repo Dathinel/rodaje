@@ -3,7 +3,6 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Tests.Model;
 
-/// <summary>Proyectos pequeños y válidos construidos a mano para las pruebas del modelo.</summary>
 internal static class ModelSamples
 {
     public static Time Sec(double seconds) => Time.FromSeconds(seconds);
@@ -18,10 +17,7 @@ internal static class ModelSamples
         LinkId = linkId,
     };
 
-    /// <summary>
-    /// Proyecto válido: un medio con video y audio (60 s), uno solo de audio (30 s), una secuencia con
-    /// dos pistas de video y una de audio, clips enlazados y un efecto con keyframes ordenados.
-    /// </summary>
+    /// <summary>Medios AV (60 s) y de audio (30 s), dos pistas de video y una de audio, enlaces y un efecto con keyframes.</summary>
     public static Project ValidProject()
     {
         var withEffect = MakeClip("c1", "m1", 0, 0, 10, "L1");

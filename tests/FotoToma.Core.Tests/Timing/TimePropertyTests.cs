@@ -3,7 +3,6 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Tests.Timing;
 
-/// <summary>Propiedades de <see cref="Time"/> comprobadas con muchos valores generados al azar.</summary>
 public class TimePropertyTests
 {
     // Tasas arbitrarias acotadas para que FromFrames quepa en un long:
@@ -78,16 +77,14 @@ public class TimePropertyTests
             Time floor = Time.FromFrames(frame, rate);
             Time next = Time.FromFrames(frame + 1, rate);
 
-            // El resultado es el inicio de un cuadro, uno de los dos que rodean el instante
             Assert.True(snapped == floor || snapped == next);
             Assert.Equal(snapped, Time.FromFrames(snapped.ToFrames(rate), rate));
 
-            // y está a una distancia mínima; en empate gana el posterior
+            // En empate gana el cuadro posterior.
             long toFloor = ticks - floor.Ticks;
             long toNext = next.Ticks - ticks;
             Assert.Equal(toFloor < toNext ? floor : next, snapped);
 
-            // Ajustar dos veces no cambia nada
             Assert.Equal(snapped, snapped.SnapToFrame(rate));
         });
     }

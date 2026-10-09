@@ -5,11 +5,7 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Tests.Editing.Placement;
 
-/// <summary>
-/// Proyecto de prueba: una secuencia a 25 fps con dos pistas de video (v1, v2) y dos de audio (a1, a2),
-/// y tres medios de duración conocida: «av» (100 cuadros, imagen y sonido), «vid» (50 cuadros, solo
-/// imagen) y «aud» (80 cuadros, solo sonido).
-/// </summary>
+/// <summary>Secuencia a 25 fps con v1, v2, a1, a2 y medios «av» (100 cuadros), «vid» (50, solo imagen) y «aud» (80, solo sonido).</summary>
 internal sealed class PlacementBuilder
 {
     /// <summary>Un cuadro a 25 fps son 705 600 000 / 25 = 28 224 000 ticks.</summary>
@@ -79,10 +75,7 @@ internal sealed class PlacementBuilder
         return clip;
     }
 
-    /// <summary>
-    /// Describe la pista como «id@inicio[entrada,salida)» en cuadros, separados por espacios, después de
-    /// comprobar que cada posición cae exacta en ticks de cuadro.
-    /// </summary>
+    /// <summary>Describe la pista como «id@inicio[entrada,salida)» en cuadros, comprobando que cada posición sea exacta.</summary>
     public string Layout(string trackId) =>
         string.Join(" ", Track(trackId).Clips.Select(c =>
             string.Create(CultureInfo.InvariantCulture, $"{c.Id}@{Frames(c.Start)}[{Frames(c.SourceIn)},{Frames(c.SourceOut)})")));

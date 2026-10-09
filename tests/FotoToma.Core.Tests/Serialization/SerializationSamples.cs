@@ -8,10 +8,7 @@ internal static class SerializationSamples
 {
     private static Time S(double seconds) => Time.FromSeconds(seconds);
 
-    /// <summary>
-    /// Proyecto que usa todo el modelo: efectos, keyframes con cada interpolación, clips enlazados, una
-    /// imagen sin tasa de cuadros, tasas NTSC, pistas silenciadas, ocultas y bloqueadas, texto con tildes.
-    /// </summary>
+    /// <summary>Proyecto que usa todo el modelo, incluidas imagen fija, tasas NTSC, marcas de pista y tildes.</summary>
     public static Project Rich()
     {
         var position = new Parameter

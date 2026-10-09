@@ -2,15 +2,11 @@ using System.Globalization;
 
 namespace FotoToma.Core.Timing;
 
-/// <summary>
-/// Instante o duración exacta, contada en ticks enteros de 1/705 600 000 de segundo.
-/// </summary>
+/// <summary>Instante o duración exacta, en ticks enteros de 1/705 600 000 de segundo.</summary>
 /// <remarks>
-/// Ese número es divisible entre la duración de un cuadro a 24, 25, 30, 48, 50, 60, 90, 100 y 120 fps,
-/// también en sus variantes NTSC (×1000/1001), y entre la duración de una muestra a 8, 16, 22,05, 24,
-/// 32, 44,1, 48, 88,2, 96 y 192 kHz. Así las posiciones de video y de audio caen en ticks exactos y
-/// sumar o restar tiempos nunca acumula error de redondeo, que es lo que pasa con segundos en double.
-/// Un <c>long</c> alcanza para más de 400 años.
+/// 705 600 000 es divisible entre las tasas de cuadro comunes (24 a 120 fps) y las de muestreo
+/// (8 a 192 kHz), así que video y audio caen en ticks exactos sin error acumulado. Un <c>long</c>
+/// alcanza para más de 400 años.
 /// </remarks>
 public readonly record struct Time : IComparable<Time>
 {
@@ -31,9 +27,8 @@ public readonly record struct Time : IComparable<Time>
 
     /// <summary>Instante en que empieza el cuadro <paramref name="frame"/> a la tasa dada.</summary>
     /// <remarks>
-    /// Se redondea hacia arriba para que <c>FromFrames(n).ToFrames() == n</c> también con tasas
-    /// cuyo cuadro no dura un número entero de ticks. Lanza <see cref="OverflowException"/> si el
-    /// resultado no cabe en un <c>long</c>, igual que los operadores.
+    /// Redondea hacia arriba para que <c>FromFrames(n).ToFrames() == n</c> con tasas cuyo cuadro
+    /// no dura un número entero de ticks.
     /// </remarks>
     public static Time FromFrames(long frame, Rational rate)
     {
@@ -95,7 +90,7 @@ public readonly record struct Time : IComparable<Time>
 
     public Time Negate() => -this;
 
-    /// <summary>Formato legible hh:mm:ss.mmm, pensado para mensajes de error y depuración.</summary>
+    /// <summary>Formato hh:mm:ss.mmm.</summary>
     public override string ToString()
     {
         // Int128 porque Math.Abs(long.MinValue) desborda; el cociente sí cabe en un long

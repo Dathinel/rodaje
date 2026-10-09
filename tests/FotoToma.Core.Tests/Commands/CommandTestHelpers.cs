@@ -13,10 +13,7 @@ internal static class CommandFixtures
 
     public static Time S(double seconds) => Time.FromSeconds(seconds);
 
-    /// <summary>
-    /// Un medio, una secuencia con dos pistas de video (la segunda bloqueada) y una de audio. El clip
-    /// «clip-2» lleva un efecto con un parámetro animado para que las comparaciones profundas lo cubran.
-    /// </summary>
+    /// <summary>Un medio, dos pistas de video (la segunda bloqueada) y una de audio; «clip-2» lleva un parámetro animado.</summary>
     public static Project Create()
     {
         var media = new MediaRef
@@ -110,10 +107,7 @@ internal static class CommandFixtures
         new() { Id = id, MediaId = "media-1", SourceIn = S(30), SourceOut = S(30 + length), Start = S(start) };
 }
 
-/// <summary>
-/// Volcado de texto de todo el proyecto, campo por campo y en orden. Dos proyectos son
-/// estructuralmente iguales si sus volcados coinciden, y si no, la diferencia de texto dice dónde.
-/// </summary>
+/// <summary>Volcado de texto del proyecto campo por campo; si dos difieren, el diff dice dónde.</summary>
 internal static class ProjectDump
 {
     public static string Of(Project project)
@@ -170,10 +164,7 @@ internal sealed class CommandLog
     public List<string> Entries { get; } = [];
 }
 
-/// <summary>
-/// Comando falso para probar la mecánica de la pila: suma su valor al nombre del proyecto al aplicarse
-/// y lo quita al revertirse, así el estado observable cambia de verdad.
-/// </summary>
+/// <summary>Comando falso que suma su valor al nombre del proyecto al aplicarse y lo quita al revertirse.</summary>
 internal sealed class FakeCommand(string name, CommandLog? log = null) : ICommand
 {
     public string Description => name;

@@ -4,11 +4,7 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Tests.Editing.Trimming;
 
-/// <summary>
-/// Escenario de prueba para recortes y pistas: un proyecto con una secuencia a 25 fps, dos pistas de
-/// video (v1, v2) y dos de audio (a1, a2), y tres medios de duración conocida en cuadros:
-/// m1 (100 cuadros, video y audio), m2 (200, video y audio) y m3 (50, solo audio).
-/// </summary>
+/// <summary>Secuencia a 25 fps con v1, v2, a1, a2 y medios m1 (100 cuadros, AV), m2 (200, AV) y m3 (50, audio).</summary>
 internal sealed class TrimFixture
 {
     public TrimFixture()
@@ -97,10 +93,7 @@ internal sealed class TrimFixture
         Assert.True(errors.Count == 0, string.Join(Environment.NewLine, errors));
     }
 
-    /// <summary>
-    /// Ejecuta una edición que debe fallar y comprueba que el mensaje sea una frase en español
-    /// (no vacía, con mayúscula inicial y punto final) y que contenga el texto esperado.
-    /// </summary>
+    /// <summary>La edición debe fallar con una frase (mayúscula inicial, punto final) que contenga el texto esperado.</summary>
     public static EditException AssertFails(Action edit, string expectedFragment)
     {
         EditException ex = Assert.Throws<EditException>(edit);

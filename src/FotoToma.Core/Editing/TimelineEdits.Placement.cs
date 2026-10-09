@@ -3,18 +3,10 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Editing;
 
-/// <summary>
-/// Operaciones de edición sobre la línea de tiempo. Cada una modifica <see cref="EditContext.Sequence"/>
-/// directamente; el comando que la envuelve guarda el estado anterior para poder deshacerla.
-/// </summary>
+/// <summary>Operaciones de edición que modifican <see cref="EditContext.Sequence"/> en el sitio.</summary>
 public static partial class TimelineEdits
 {
-    /// <summary>
-    /// Mueve un clip (y su grupo enlazado) para que empiece en <paramref name="newStart"/>. Solo el clip
-    /// pedido puede cambiar de pista (<paramref name="targetTrackId"/>, o <c>null</c> para dejarlo en la
-    /// suya); los enlazados se corren lo mismo pero se quedan en las suyas. <paramref name="mode"/> decide
-    /// qué pasa con lo que ya ocupa el lugar de destino.
-    /// </summary>
+    /// <summary>Mueve un clip y su grupo enlazado; solo el clip pedido puede cambiar de pista.</summary>
     public static void Move(EditContext ctx, string clipId, Time newStart, string? targetTrackId, PlacementMode mode)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -85,11 +77,7 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>
-    /// Coloca un fragmento de un medio en la pista <paramref name="trackId"/> a partir de <paramref name="at"/>.
-    /// Si se da <paramref name="linkedTrackId"/>, crea además el clip del otro tipo (por ejemplo el audio
-    /// del mismo video) en esa pista, enlazado con el primero.
-    /// </summary>
+    /// <summary>Coloca un fragmento de un medio; con <paramref name="linkedTrackId"/> crea también el clip enlazado del otro tipo.</summary>
     /// <returns>Los identificadores de los clips creados; el de <paramref name="trackId"/> va primero.</returns>
     public static IReadOnlyList<string> InsertMedia(
         EditContext ctx,
@@ -145,10 +133,7 @@ public static partial class TimelineEdits
         return [.. created.Select(c => c.Clip.Id)];
     }
 
-    /// <summary>
-    /// Agrega un fragmento de un medio al final: después del último clip de la pista (o de la más larga
-    /// de las dos, si también se crea el clip enlazado).
-    /// </summary>
+    /// <summary>Agrega un fragmento de un medio después del último clip de la(s) pista(s) de destino.</summary>
     /// <returns>Los identificadores de los clips creados; el de <paramref name="trackId"/> va primero.</returns>
     public static IReadOnlyList<string> AppendMedia(
         EditContext ctx,
@@ -183,15 +168,10 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>
-    /// Quita los clips (con sus enlazados) y cierra el hueco que dejan, corriendo a la izquierda lo que
-    /// venía después.
-    /// </summary>
+    /// <summary>Quita los clips (con sus enlazados) y cierra el hueco que dejan.</summary>
     /// <remarks>
-    /// Con <see cref="RippleScope.Track"/> cada clip cierra su hueco solo en su pista. Con
-    /// <see cref="RippleScope.AllTracks"/> se cierran los tramos que ocupaban los clips quitados (unidos si
-    /// se tocan, para no correr dos veces el mismo tramo cuando se borran un video y su audio) en todas las
-    /// pistas no bloqueadas, y falla si en alguna queda un clip dentro de ese tramo.
+    /// Con <see cref="RippleScope.AllTracks"/> los tramos se unen antes de correr, para no correr dos veces
+    /// el mismo tramo (video y su audio), y falla si otro clip queda a caballo de un tramo.
     /// </remarks>
     public static void RippleDelete(EditContext ctx, IEnumerable<string> clipIds, RippleScope scope)
     {
@@ -235,11 +215,7 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>
-    /// Cierra el hueco de la pista que contiene el instante <paramref name="at"/>, corriendo a la izquierda
-    /// todo lo que viene después. El hueco va del final del clip anterior (o del inicio de la línea de
-    /// tiempo) al inicio del siguiente; después del último clip no hay hueco que cerrar.
-    /// </summary>
+    /// <summary>Cierra el hueco que contiene <paramref name="at"/>; después del último clip no hay hueco.</summary>
     public static void CloseGap(EditContext ctx, string trackId, Time at, RippleScope scope)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -274,7 +250,6 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>Valida el medio, el rango de origen y las pistas de destino de una colocación.</summary>
     private static (MediaRef Media, Track Track, Track? LinkedTrack) PlacementResolveMediaTargets(
         EditContext ctx,
         string mediaId,
@@ -347,7 +322,6 @@ public static partial class TimelineEdits
         Start = at,
     };
 
-    /// <summary>Prepara el tramo donde va a caer un clip según el modo de colocación.</summary>
     private static void PlacementMakeRoom(EditContext ctx, Track track, Time at, Time duration, PlacementMode mode)
     {
         switch (mode)

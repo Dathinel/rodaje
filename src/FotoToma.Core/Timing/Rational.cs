@@ -1,9 +1,6 @@
 namespace FotoToma.Core.Timing;
 
-/// <summary>
-/// Fracción positiva y normalizada (numerador/denominador), usada para las tasas de cuadros.
-/// 29,97 fps se representa exacto como 30000/1001 en lugar de un double que arrastra error.
-/// </summary>
+/// <summary>Fracción positiva y normalizada para tasas de cuadro exactas, como 30000/1001.</summary>
 public readonly record struct Rational
 {
     public long Num { get; }

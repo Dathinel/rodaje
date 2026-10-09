@@ -4,11 +4,7 @@ using FotoToma.Core.Model;
 
 namespace FotoToma.Core.Tests.Editing.Trimming;
 
-/// <summary>
-/// La limpieza de enlaces huérfanos nunca toca un clip de una pista bloqueada: ese clip conserva su
-/// enlace (ya de un solo miembro) y la operación sigue adelante, tanto llamada directa como envuelta
-/// en el comando que comprueba que las pistas bloqueadas no cambien.
-/// </summary>
+/// <summary>La limpieza de enlaces huérfanos nunca toca un clip de una pista bloqueada.</summary>
 public sealed class LockedOrphanLinkTests
 {
     private static TrimFixture RemoveScenario() => new TrimFixture()

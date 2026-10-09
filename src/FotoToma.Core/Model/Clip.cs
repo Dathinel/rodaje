@@ -3,15 +3,7 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Model;
 
-/// <summary>
-/// Un fragmento de un medio colocado en la línea de tiempo.
-/// </summary>
-/// <remarks>
-/// Guarda tres instantes: dónde empieza y termina el fragmento dentro del archivo de origen
-/// (<see cref="SourceIn"/>, <see cref="SourceOut"/>) y dónde se coloca en la pista
-/// (<see cref="Start"/>). Todas las operaciones de edición son cambios de estos tres números, por eso
-/// la edición es no destructiva.
-/// </remarks>
+/// <summary>Fragmento de un medio, <c>[SourceIn, SourceOut)</c>, colocado en <see cref="Start"/> de su pista.</summary>
 public sealed class Clip
 {
     public string Id { get; set; } = "";
@@ -27,10 +19,7 @@ public sealed class Clip
     /// <summary>Posición del clip en la pista.</summary>
     public Time Start { get; set; }
 
-    /// <summary>
-    /// Los clips con el mismo identificador de enlace se mueven y recortan juntos, como el video y el
-    /// audio de una misma toma. <c>null</c> si el clip va suelto.
-    /// </summary>
+    /// <summary>Los clips con el mismo enlace se editan juntos; <c>null</c> si el clip va suelto.</summary>
     public string? LinkId { get; set; }
 
     public bool Enabled { get; set; } = true;

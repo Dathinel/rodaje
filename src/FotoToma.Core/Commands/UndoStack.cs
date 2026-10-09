@@ -2,27 +2,10 @@ using FotoToma.Core.Model;
 
 namespace FotoToma.Core.Commands;
 
-/// <summary>
-/// Historial de deshacer y rehacer de un proyecto. Toda modificación pasa por <see cref="Execute"/>.
-/// </summary>
+/// <summary>Historial de deshacer y rehacer; toda modificación pasa por <see cref="Execute"/>.</summary>
 /// <remarks>
-/// <para>
-/// Fusión: si el comando nuevo puede fundirse con el último (<see cref="ICommand.TryMerge"/>), ambos
-/// quedan como un solo paso; así un arrastre con cientos de movimientos se deshace de una vez. Nunca
-/// se funde dentro de un grupo ni sobre el punto limpio, para que «guardado» siga significando el
-/// estado que se guardó.
-/// </para>
-/// <para>
-/// Grupos: entre <see cref="BeginGroup"/> y <see cref="EndGroup"/> los comandos se aplican al momento
-/// y, al cerrar el grupo más externo, quedan como un único <see cref="CompositeCommand"/>. Los grupos
-/// se pueden anidar; manda la descripción del más externo.
-/// </para>
-/// <para>
-/// Punto limpio: <see cref="MarkClean"/> recuerda la posición actual del historial (por ejemplo al
-/// guardar). Si ese paso se pierde, porque se descartó por el límite o porque se borró al ejecutar
-/// algo después de deshacer, el historial ya no puede volver a estar limpio hasta el próximo
-/// <see cref="MarkClean"/>.
-/// </para>
+/// Nunca se funde sobre el punto limpio, para que «guardado» siga significando el estado guardado. Si el
+/// punto limpio se pierde (por el límite o al ejecutar tras deshacer), no vuelve hasta otro <see cref="MarkClean"/>.
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Naming",
@@ -36,10 +19,9 @@ public sealed class UndoStack
     private string _groupDescription = "";
     private int _groupDepth;
 
-    /// <summary>Si es <c>true</c>, el próximo comando no se funde con el último (fin de un gesto).</summary>
     private bool _mergeBarrier;
 
-    /// <summary>Cantidad de pasos de deshacer en el punto limpio; <c>null</c> si ya no se puede alcanzar.</summary>
+    // Pasos de deshacer en el punto limpio; null si ya no se puede alcanzar.
     private int? _cleanIndex = 0;
 
     public UndoStack(Project project, int limit = 500)
@@ -50,21 +32,17 @@ public sealed class UndoStack
         Limit = limit;
     }
 
-    /// <summary>Se dispara después de cada cambio del historial o del proyecto hecho a través de la pila.</summary>
     public event EventHandler? Changed;
 
     public Project Project { get; }
 
-    /// <summary>Máximo de pasos de deshacer que se guardan; los más antiguos se descartan.</summary>
+    /// <summary>Máximo de pasos de deshacer; los más antiguos se descartan.</summary>
     public int Limit { get; }
 
-    /// <summary>Pasos que se pueden deshacer.</summary>
     public int Count => _undo.Count;
 
-    /// <summary>Pasos que se pueden rehacer.</summary>
     public int RedoCount => _redo.Count;
 
-    /// <summary>Indica si hay un grupo abierto.</summary>
     public bool IsInGroup => _groupDepth > 0;
 
     public bool CanUndo => !IsInGroup && _undo.Count > 0;
@@ -78,10 +56,7 @@ public sealed class UndoStack
     /// <summary>Indica si el proyecto está como en el último <see cref="MarkClean"/>.</summary>
     public bool IsClean => _groupCommands.Count == 0 && _cleanIndex == _undo.Count;
 
-    /// <summary>
-    /// Aplica el comando y lo guarda en el historial. Si el comando lanza una excepción, no se guarda
-    /// nada y la excepción sigue su camino (el comando ya dejó el proyecto como estaba).
-    /// </summary>
+    /// <summary>Aplica el comando y lo guarda, fundiéndolo con el último si se puede.</summary>
     public void Execute(ICommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -101,7 +76,6 @@ public sealed class UndoStack
         OnChanged();
     }
 
-    /// <summary>Deshace el último paso. Devuelve <c>false</c> si no había nada que deshacer.</summary>
     public bool Undo()
     {
         EnsureNoGroup();
@@ -119,7 +93,6 @@ public sealed class UndoStack
         return true;
     }
 
-    /// <summary>Rehace el último paso deshecho. Devuelve <c>false</c> si no había nada que rehacer.</summary>
     public bool Redo()
     {
         EnsureNoGroup();
@@ -137,15 +110,10 @@ public sealed class UndoStack
         return true;
     }
 
-    /// <summary>
-    /// Marca el fin de un gesto: el próximo comando no se fundirá con el último aunque tengan la misma
-    /// clave de fusión. La interfaz lo llama al soltar el ratón después de un arrastre, para que dos
-    /// arrastres seguidos del mismo clip sean dos pasos de deshacer. Deshacer y rehacer también cortan
-    /// la fusión.
-    /// </summary>
+    /// <summary>Fin de un gesto: el próximo comando no se funde con el último aunque comparta clave.</summary>
     public void BreakMerge() => _mergeBarrier = true;
 
-    /// <summary>Abre un grupo (o un nivel más de anidamiento).</summary>
+    /// <summary>Abre un grupo anidable; manda la descripción del más externo.</summary>
     public void BeginGroup(string description)
     {
         ArgumentNullException.ThrowIfNull(description);
@@ -159,10 +127,7 @@ public sealed class UndoStack
         OnChanged();
     }
 
-    /// <summary>
-    /// Cierra un nivel de grupo. Al cerrar el más externo, lo ejecutado dentro queda como un solo paso;
-    /// un grupo vacío no deja nada.
-    /// </summary>
+    /// <summary>Cierra un nivel; al cerrar el más externo, lo ejecutado queda como un solo paso.</summary>
     public void EndGroup()
     {
         if (_groupDepth == 0)
@@ -181,10 +146,7 @@ public sealed class UndoStack
         OnChanged();
     }
 
-    /// <summary>
-    /// Cancela el grupo abierto con todos sus niveles: revierte en orden inverso lo ejecutado dentro y
-    /// no deja nada en el historial.
-    /// </summary>
+    /// <summary>Revierte todo el grupo abierto, con todos sus niveles, sin dejar nada en el historial.</summary>
     public void CancelGroup()
     {
         EnsureGroup();
@@ -198,10 +160,7 @@ public sealed class UndoStack
         OnChanged();
     }
 
-    /// <summary>
-    /// Marca el estado actual como limpio, por ejemplo al guardar el proyecto. No se puede con un grupo
-    /// abierto, porque el estado intermedio de un grupo no es un paso del historial.
-    /// </summary>
+    /// <summary>Marca el estado actual como limpio (al guardar); no se permite con un grupo abierto.</summary>
     public void MarkClean()
     {
         EnsureNoGroup();
@@ -217,7 +176,6 @@ public sealed class UndoStack
             _undo.RemoveAt(0);
             if (_cleanIndex is int clean)
             {
-                // Si el paso descartado era el punto limpio, ya no se puede volver a él.
                 _cleanIndex = clean > 0 ? clean - 1 : null;
             }
         }
@@ -225,7 +183,7 @@ public sealed class UndoStack
 
     private void ClearRedo()
     {
-        // Si el punto limpio estaba entre los pasos deshechos, se pierde con ellos.
+        // Un punto limpio entre los pasos deshechos se pierde con ellos.
         if (_cleanIndex > _undo.Count)
         {
             _cleanIndex = null;

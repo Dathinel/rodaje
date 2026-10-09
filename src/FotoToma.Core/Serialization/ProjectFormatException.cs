@@ -1,9 +1,6 @@
 namespace FotoToma.Core.Serialization;
 
-/// <summary>
-/// El archivo no se pudo leer como proyecto de FotoToma. El mensaje está escrito para mostrarse tal
-/// cual a quien usa el programa; <see cref="Problems"/> trae el detalle cuando hay varios.
-/// </summary>
+/// <summary>El archivo no es un proyecto válido; el mensaje se puede mostrar tal cual al usuario.</summary>
 public sealed class ProjectFormatException : Exception
 {
     public ProjectFormatException()
@@ -28,6 +25,6 @@ public sealed class ProjectFormatException : Exception
         Problems = problems;
     }
 
-    /// <summary>Lista de problemas concretos encontrados; vacía si el mensaje ya lo dice todo.</summary>
+    /// <summary>Problemas concretos; vacía si el mensaje ya lo dice todo.</summary>
     public IReadOnlyList<string> Problems { get; }
 }

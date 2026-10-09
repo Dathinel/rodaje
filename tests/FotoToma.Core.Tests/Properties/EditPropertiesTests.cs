@@ -10,16 +10,7 @@ using Xunit.Sdk;
 
 namespace FotoToma.Core.Tests.Properties;
 
-/// <summary>
-/// Pruebas de propiedades: miles de proyectos aleatorios con listas aleatorias de operaciones, que
-/// comprueban reglas que deben cumplirse siempre, no casos sueltos.
-/// </summary>
-/// <remarks>
-/// Si una falla, CsCheck achica el caso al más simple que encuentra y el mensaje trae la semilla
-/// (<c>Set seed: "…" to reproduce</c>). Para repetirlo exacto se pasa esa semilla en el parámetro
-/// <c>seed</c> de <c>Sample</c>, o en la variable de entorno <c>CsCheck_Seed</c> al correr las pruebas.
-/// El mensaje también trae la lista de operaciones que se ejecutaron hasta el fallo.
-/// </remarks>
+/// <remarks>Para reproducir un fallo, pasar la semilla que reporta CsCheck en <c>seed</c> o en <c>CsCheck_Seed</c>.</remarks>
 public class EditPropertiesTests(ITestOutputHelper output)
 {
     private const string Seq = BuiltProject.SequenceId;
@@ -254,10 +245,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
 
     private static long SumDurations(Track track) => track.Clips.Sum(c => c.Duration.Ticks);
 
-    /// <summary>
-    /// Revisa que slip, roll, slide y cortar conserven lo que deben. Devuelve el problema encontrado o
-    /// <c>null</c> si todo cuadra.
-    /// </summary>
+    /// <summary>Revisa que slip, roll, slide y cortar conserven lo que deben; devuelve el problema o <c>null</c>.</summary>
     private static string? CheckConservation(ResolvedOp op, List<GroupMember> group, Dictionary<string, Track> before, Sequence after)
     {
         if (op.Kind is not (OpKind.Slip or OpKind.Roll or OpKind.Slide or OpKind.Split))
@@ -340,10 +328,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
         return null;
     }
 
-    /// <summary>
-    /// Compara qué se ve u oye en la pista antes y después de cortar: en cada instante de prueba (bordes,
-    /// mitades y alrededor del corte) el mismo medio en el mismo instante del origen.
-    /// </summary>
+    /// <summary>En cada instante de prueba, antes y después de cortar, se ve u oye el mismo instante del mismo medio.</summary>
     private static string? CheckSameContent(Track old, Track now, Time at)
     {
         var samples = new HashSet<long> { at.Ticks, at.Ticks - 1, at.Ticks + 1 };

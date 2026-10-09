@@ -2,11 +2,7 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Model;
 
-/// <summary>
-/// Un efecto aplicado a un clip: un tipo (por ejemplo <c>fototoma.transform</c>) y sus parámetros.
-/// La lista de tipos y su procesamiento llegan en la fase de efectos; el modelo ya los admite para que
-/// el formato del proyecto no tenga que cambiar.
-/// </summary>
+/// <summary>Efecto aplicado a un clip: un tipo (por ejemplo <c>fototoma.transform</c>) y sus parámetros.</summary>
 public sealed class EffectInstance
 {
     public string Id { get; set; } = "";
@@ -39,10 +35,7 @@ public enum Interpolation
 /// <summary>Un valor fijado en un instante (tiempo del origen del clip).</summary>
 public sealed record Keyframe(Time Time, double Value, Interpolation Interpolation = Interpolation.Linear);
 
-/// <summary>
-/// Parámetro numérico animable. Sin keyframes vale <see cref="Value"/>; con keyframes se interpola.
-/// Los vectores (posición x/y, color) se guardan como varios parámetros escalares.
-/// </summary>
+/// <summary>Parámetro escalar animable; sin keyframes vale <see cref="Value"/>.</summary>
 public sealed class Parameter
 {
     public double Value { get; set; }
@@ -50,10 +43,7 @@ public sealed class Parameter
     /// <summary>Keyframes ordenados por tiempo. Vacío si el parámetro es constante.</summary>
     public List<Keyframe> Keyframes { get; set; } = [];
 
-    /// <summary>
-    /// Valor en el instante dado. Antes del primer keyframe vale el primero y después del último vale el
-    /// último. Entre dos, la curva la decide la interpolación del keyframe de la izquierda.
-    /// </summary>
+    /// <summary>Valor en el instante dado; entre dos keyframes manda la interpolación del de la izquierda.</summary>
     public double Evaluate(Time sourceTime)
     {
         if (Keyframes.Count == 0)

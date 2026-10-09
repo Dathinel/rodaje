@@ -3,10 +3,7 @@ using FotoToma.Core.Model;
 
 namespace FotoToma.Core.Commands;
 
-/// <summary>
-/// Agrega un medio a la biblioteca del proyecto. Falla con <see cref="EditException"/> si el medio deja
-/// el proyecto inválido (por ejemplo, duración cero o un identificador que ya usa otro objeto).
-/// </summary>
+/// <summary>Agrega un medio; falla con <see cref="EditException"/> si deja el proyecto inválido.</summary>
 public sealed class AddMediaCommand : ICommand
 {
     private readonly MediaRef _media;
@@ -43,10 +40,7 @@ public sealed class AddMediaCommand : ICommand
     public bool TryMerge(ICommand following) => false;
 }
 
-/// <summary>
-/// Quita un medio de la biblioteca. Falla si algún clip de cualquier secuencia lo usa; al deshacer
-/// vuelve a su misma posición en la lista.
-/// </summary>
+/// <summary>Quita un medio que ningún clip use.</summary>
 public sealed class RemoveMediaCommand : ICommand
 {
     private readonly string _mediaId;
@@ -98,11 +92,7 @@ public sealed class RemoveMediaCommand : ICommand
     public bool TryMerge(ICommand following) => false;
 }
 
-/// <summary>
-/// Agrega una secuencia al proyecto, al final o en la posición indicada. Falla con
-/// <see cref="EditException"/> si la secuencia deja el proyecto inválido (identificadores de pistas o
-/// clips que ya existen, clips que usan medios que no están, solapes…).
-/// </summary>
+/// <summary>Agrega una secuencia; falla con <see cref="EditException"/> si deja el proyecto inválido.</summary>
 public sealed class AddSequenceCommand : ICommand
 {
     private readonly Sequence _sequence;
@@ -151,7 +141,6 @@ public sealed class AddSequenceCommand : ICommand
     public bool TryMerge(ICommand following) => false;
 }
 
-/// <summary>Quita una secuencia del proyecto; al deshacer vuelve a su misma posición.</summary>
 public sealed class RemoveSequenceCommand : ICommand
 {
     private readonly string _sequenceId;
@@ -194,7 +183,6 @@ public sealed class RemoveSequenceCommand : ICommand
     public bool TryMerge(ICommand following) => false;
 }
 
-/// <summary>Cambia el nombre del proyecto.</summary>
 public sealed class RenameProjectCommand : ICommand
 {
     private readonly string _name;
@@ -234,18 +222,8 @@ public sealed class RenameProjectCommand : ICommand
     public bool TryMerge(ICommand following) => false;
 }
 
-/// <summary>
-/// Red de seguridad de los comandos que meten objetos enteros en el proyecto: aplican el cambio,
-/// validan con <see cref="ModelValidator"/> y, si aparece algún problema que antes no estaba, deshacen
-/// el cambio y lo rechazan. Así no se puede guardar un archivo que luego <c>Load</c> rechace.
-/// </summary>
-/// <remarks>
-/// Solo cuentan los problemas <em>nuevos</em> (se comparan las listas como multiconjuntos), para que un
-/// proyecto que ya era inválido al abrirlo no bloquee comandos que no tienen nada que ver.
-/// Quitar un medio, quitar una secuencia o renombrar el proyecto no pasan por aquí: quitar un medio ya
-/// comprueba que ningún clip lo use, quitar una secuencia no puede crear problemas nuevos y el nombre
-/// del proyecto no lo valida <see cref="ModelValidator"/>.
-/// </remarks>
+// Rechaza un cambio que introduce problemas nuevos, para no guardar un archivo que Load rechazaría.
+// Solo cuentan los nuevos (multiconjunto): un proyecto ya inválido no bloquea comandos ajenos.
 internal static class ProjectGuard
 {
     public static void ApplyValidated(Project project, string what, Action apply, Action revert)
@@ -260,7 +238,6 @@ internal static class ProjectGuard
         }
     }
 
-    /// <summary>El primer problema de <paramref name="after"/> que no estaba en <paramref name="before"/>, contando repeticiones.</summary>
     internal static string? FirstNewProblem(IReadOnlyList<string> before, IReadOnlyList<string> after)
     {
         var pending = new Dictionary<string, int>(StringComparer.Ordinal);

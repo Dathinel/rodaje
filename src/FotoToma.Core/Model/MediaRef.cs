@@ -2,10 +2,7 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Model;
 
-/// <summary>
-/// Referencia a un archivo de origen. El proyecto nunca guarda video ni audio: solo dónde está el
-/// archivo y lo que se sabe de él, de modo que editar no toca el original.
-/// </summary>
+/// <summary>Referencia a un archivo de origen y sus metadatos; el proyecto nunca copia el medio.</summary>
 public sealed class MediaRef
 {
     public string Id { get; set; } = "";
@@ -35,8 +32,8 @@ public sealed class MediaRef
 
     /// <summary>Devuelve la ruta absoluta, resolviendo las relativas contra la carpeta del proyecto.</summary>
     /// <remarks>
-    /// En Windows <c>\Videos\a.mp4</c> o <c>C:a.mp4</c> tienen raíz pero no son absolutas; también se
-    /// resuelven contra la carpeta del proyecto (su unidad) y no contra el directorio actual del proceso.
+    /// <c>\Videos\a.mp4</c> y <c>C:a.mp4</c> tienen raíz pero no son absolutas: se resuelven contra la
+    /// carpeta del proyecto, nunca contra el directorio actual del proceso.
     /// </remarks>
     public string ResolvePath(string projectDirectory) =>
         System.IO.Path.IsPathFullyQualified(Path)

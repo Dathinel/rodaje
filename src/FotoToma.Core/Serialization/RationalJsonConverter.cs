@@ -4,13 +4,7 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Serialization;
 
-/// <summary>
-/// Escribe un <see cref="Rational"/> como <c>{"num":30000,"den":1001}</c>.
-/// </summary>
-/// <remarks>
-/// Al leer, los dos campos son obligatorios, enteros y positivos; la fracción se normaliza, así que
-/// <c>{"num":60,"den":2}</c> se lee como 30/1. Los campos desconocidos dentro del objeto se ignoran.
-/// </remarks>
+/// <summary>Escribe un <see cref="Rational"/> como <c>{"num":30000,"den":1001}</c>.</summary>
 public sealed class RationalJsonConverter : JsonConverter<Rational>
 {
     private const string InvalidMessage =
@@ -26,8 +20,7 @@ public sealed class RationalJsonConverter : JsonConverter<Rational>
         long? num = null;
         long? den = null;
 
-        // El serializador entrega a los convertidores el valor completo, así que leer nunca se queda sin
-        // datos; dentro del objeto siempre viene un nombre de propiedad seguido de su valor.
+        // El serializador entrega el valor completo: Read() nunca se queda sin datos.
         reader.Read();
         while (reader.TokenType != JsonTokenType.EndObject)
         {

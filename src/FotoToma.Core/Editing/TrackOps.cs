@@ -3,20 +3,10 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Editing;
 
-/// <summary>
-/// Piezas básicas que comparten las operaciones de colocación: vaciar un tramo de una pista, abrir
-/// espacio en ella, partir un clip y ubicar un clip en su lugar según la posición.
-/// </summary>
-/// <remarks>
-/// Ninguna de estas funciones valida bloqueos ni deja la secuencia comprobada; eso lo hace la operación
-/// pública que las usa, que termina con <see cref="EditContext.EnsureValid"/>.
-/// </remarks>
+// No comprueban bloqueos ni validan: eso lo hace la operación pública que las llama.
 internal static class TrackOps
 {
-    /// <summary>
-    /// Deja vacío el tramo [<paramref name="from"/>, <paramref name="to"/>) de la pista: quita los clips que
-    /// caen dentro, recorta los que entran o salen del tramo y parte en dos el que lo cubre entero.
-    /// </summary>
+    /// <summary>Vacía [<paramref name="from"/>, <paramref name="to"/>): quita, recorta o parte los clips que lo tocan.</summary>
     public static void ClearRange(EditContext ctx, Track track, Time from, Time to)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -38,7 +28,6 @@ internal static class TrackOps
 
             if (startsBefore && endsAfter)
             {
-                // El clip cubre todo el tramo: la parte de la derecha pasa a ser un clip nuevo.
                 Clip right = SplitOff(ctx, clip, to);
                 clip.SourceOut = clip.ToSourceTime(from);
                 AddClipSorted(track, right);
@@ -59,10 +48,7 @@ internal static class TrackOps
         }
     }
 
-    /// <summary>
-    /// Abre un espacio de <paramref name="duration"/> en <paramref name="at"/>: si un clip pasa por ese
-    /// instante se parte ahí, y todo lo que empieza en <paramref name="at"/> o después se corre a la derecha.
-    /// </summary>
+    /// <summary>Abre un espacio en <paramref name="at"/>, partiendo el clip que pase por ahí.</summary>
     public static void InsertSpace(EditContext ctx, Track track, Time at, Time duration)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -82,7 +68,6 @@ internal static class TrackOps
         EditContext.ShiftClips(track, at, duration);
     }
 
-    /// <summary>Agrega el clip a la pista en la posición que le corresponde según su inicio.</summary>
     public static void AddClipSorted(Track track, Clip clip)
     {
         ArgumentNullException.ThrowIfNull(track);
@@ -98,11 +83,7 @@ internal static class TrackOps
         }
     }
 
-    /// <summary>
-    /// Parte el clip en <paramref name="at"/>: el original se queda con la parte izquierda y se devuelve la
-    /// derecha como clip nuevo (sin agregarlo a ninguna pista), con identificador propio, enlace derivado y
-    /// efectos copiados con identificadores nuevos.
-    /// </summary>
+    /// <summary>Recorta el clip a la izquierda de <paramref name="at"/> y devuelve la derecha sin agregarla a ninguna pista.</summary>
     public static Clip SplitOff(EditContext ctx, Clip clip, Time at)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -121,7 +102,6 @@ internal static class TrackOps
         return right;
     }
 
-    /// <summary>Busca el clip y su grupo enlazado; si no existe lanza un error para el usuario.</summary>
     public static List<(Track Track, Clip Clip)> ResolveLinkGroup(EditContext ctx, string clipId)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -133,10 +113,7 @@ internal static class TrackOps
         return ctx.Sequence.GetLinkGroup(clipId);
     }
 
-    /// <summary>
-    /// Une los grupos enlazados de todos los clips pedidos, sin repetir ninguno. Lanza un error si la
-    /// selección está vacía o nombra un clip que no existe.
-    /// </summary>
+    /// <summary>Une sin repetir los grupos enlazados de los clips pedidos.</summary>
     public static List<(Track Track, Clip Clip)> ExpandSelection(EditContext ctx, IEnumerable<string> clipIds)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -162,14 +139,12 @@ internal static class TrackOps
         return result;
     }
 
-    /// <summary>Busca el primer clip de la pista, fuera de <paramref name="ignore"/>, que toca el tramo [from, to).</summary>
     public static Clip? FindOverlap(Track track, Time from, Time to, IReadOnlySet<Clip>? ignore = null)
     {
         ArgumentNullException.ThrowIfNull(track);
         return track.Clips.Find(c => c.Start < to && c.End > from && (ignore is null || !ignore.Contains(c)));
     }
 
-    /// <summary>Lanza un error que nombra al clip que ya ocupa el tramo, si lo hay.</summary>
     public static void EnsureFree(Track track, Time from, Time to, IReadOnlySet<Clip>? ignore = null)
     {
         Clip? blocking = FindOverlap(track, from, to, ignore);
@@ -179,11 +154,7 @@ internal static class TrackOps
         }
     }
 
-    /// <summary>
-    /// Antes de cerrar el tramo [from, to) en todas las pistas, comprueba que ninguna pista no bloqueada
-    /// tenga ahí un clip que se quede (fuera de <paramref name="ignore"/>); si lo tuviera, al correr lo de
-    /// la derecha quedaría encima de él.
-    /// </summary>
+    /// <summary>Falla si una pista no bloqueada tiene un clip que se queda dentro del tramo a cerrar.</summary>
     public static void EnsureNothingStraddles(EditContext ctx, Time from, Time to, IReadOnlySet<Clip>? ignore = null)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -197,7 +168,7 @@ internal static class TrackOps
         }
     }
 
-    /// <summary>Une tramos que se tocan o se solapan y los devuelve ordenados de izquierda a derecha.</summary>
+    /// <summary>Une tramos que se tocan o se solapan, ordenados.</summary>
     public static List<(Time Start, Time End)> MergeSpans(IEnumerable<(Time Start, Time End)> spans)
     {
         var merged = new List<(Time Start, Time End)>();
@@ -216,6 +187,5 @@ internal static class TrackOps
         return merged;
     }
 
-    /// <summary>Nombre del tipo de pista para los mensajes.</summary>
     public static string KindName(TrackKind kind) => kind == TrackKind.Video ? "video" : "audio";
 }

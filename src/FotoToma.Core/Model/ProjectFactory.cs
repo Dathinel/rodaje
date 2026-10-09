@@ -2,13 +2,10 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Model;
 
-/// <summary>Crea proyectos nuevos con la estructura con la que se empieza a editar.</summary>
+/// <summary>Crea proyectos nuevos.</summary>
 public static class ProjectFactory
 {
-    /// <summary>
-    /// Proyecto vacío con una secuencia «Secuencia 1» de 1920×1080 y 48 kHz, con dos pistas de video y
-    /// dos de audio.
-    /// </summary>
+    /// <summary>Proyecto vacío con una secuencia 1920×1080, 48 kHz, dos pistas de video y dos de audio.</summary>
     /// <param name="name">Nombre visible del proyecto.</param>
     /// <param name="ids">Fuente de identificadores.</param>
     /// <param name="frameRate">Tasa de la secuencia; 30 fps si no se indica.</param>

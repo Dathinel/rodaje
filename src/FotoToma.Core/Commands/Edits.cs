@@ -4,27 +4,10 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Commands;
 
-/// <summary>
-/// Fábricas de comandos de edición listos para <see cref="UndoStack.Execute"/>: una por cada operación
-/// de <see cref="TimelineEdits"/>, con su texto para el menú de deshacer. Es lo que llama la interfaz.
-/// </summary>
+/// <summary>Fábricas de comandos para cada operación de <see cref="TimelineEdits"/>.</summary>
 /// <remarks>
-/// <para>
-/// Cada fábrica recibe primero la secuencia que se edita, luego los parámetros de la operación y al
-/// final, opcional, la fuente de identificadores (por omisión, GUID). El comando no toca el proyecto
-/// hasta que se ejecuta.
-/// </para>
-/// <para>
-/// Las operaciones que se hacen arrastrando (mover, recortar, roll, slip, slide) llevan una clave de
-/// fusión con el clip y el borde, así los muchos comandos pequeños de un mismo arrastre se funden en
-/// un solo paso de deshacer (mover, solo en modo estricto; ver <see cref="Move"/>). Sus parámetros son relativos al estado actual cuando son un
-/// <c>delta</c>, de modo que cada comando del arrastre aplica solo el tramo que se movió desde el
-/// anterior.
-/// </para>
-/// <para>
-/// Las operaciones que crean objetos (cortar, colocar medios, añadir pista, enlazar) dejan sus
-/// identificadores en <see cref="SequenceEditCommand.CreatedIds"/> después de ejecutarse.
-/// </para>
+/// Las operaciones de arrastre llevan clave de fusión por clip y borde, y sus <c>delta</c> son relativos
+/// al estado actual, así un arrastre entero se deshace en un paso.
 /// </remarks>
 public static class Edits
 {
@@ -69,18 +52,10 @@ public static class Edits
     public static SequenceEditCommand Slide(string sequenceId, string clipId, Time delta, IIdGenerator? ids = null) =>
         new("Slide", sequenceId, ctx => TimelineEdits.Slide(ctx, clipId, delta), ids, $"slide:{clipId}");
 
-    /// <summary>
-    /// Mueve el clip (y su grupo enlazado) para que empiece en <paramref name="newStart"/>, opcionalmente a
-    /// otra pista del mismo tipo.
-    /// </summary>
+    /// <summary>Mueve el clip y su grupo enlazado, opcionalmente a otra pista del mismo tipo.</summary>
     /// <remarks>
-    /// Solo el modo <see cref="PlacementMode.Strict"/> lleva clave de fusión (<c>move:{clipId}</c>), así
-    /// que los pasos de un arrastre estricto se funden en un deshacer. En
-    /// <see cref="PlacementMode.Overwrite"/> e <see cref="PlacementMode.Insert"/> cada paso tapa o corre
-    /// de verdad los clips por los que pasa: fundir un arrastre dejaría recortado o desplazado lo que solo
-    /// se cruzó aunque la posición final estuviera libre. Por eso esos modos no llevan clave y la
-    /// interfaz debe mandar un único comando al soltar el ratón (mientras arrastra, solo muestra la
-    /// vista previa).
+    /// Solo <see cref="PlacementMode.Strict"/> se fusiona: en los otros modos cada paso del arrastre
+    /// alteraría los clips que solo se cruzaron, así que la interfaz manda un único comando al soltar.
     /// </remarks>
     public static SequenceEditCommand Move(
         string sequenceId,
@@ -96,10 +71,7 @@ public static class Edits
             ids,
             mode == PlacementMode.Strict ? $"move:{clipId}" : null);
 
-    /// <summary>
-    /// Coloca un fragmento de un medio en <paramref name="at"/>. La descripción depende del modo:
-    /// «Insertar» corre lo que había, «Sobrescribir» lo tapa y «Colocar clip» exige el lugar libre.
-    /// </summary>
+    /// <summary>Coloca un fragmento de un medio en <paramref name="at"/> según el modo.</summary>
     /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: los clips creados, el de <paramref name="trackId"/> primero.</remarks>
     public static SequenceEditCommand InsertMedia(
         string sequenceId,
@@ -241,10 +213,7 @@ public static class Edits
         _ => "Colocar clip",
     };
 
-    /// <summary>
-    /// Copia la selección al crear el comando, para que cambiarla después (por ejemplo, la interfaz
-    /// limpiando su lista de seleccionados) no altere lo que el comando hace.
-    /// </summary>
+    // Copia: si la interfaz cambia su selección después, el comando no se altera.
     private static string[] CopySelection(IEnumerable<string> clipIds)
     {
         ArgumentNullException.ThrowIfNull(clipIds);
