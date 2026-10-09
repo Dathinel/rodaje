@@ -61,7 +61,7 @@ public class CompositeCommandTests
             new SequenceEditCommand("Tocar bloqueada", SequenceId, ctx => ctx.Sequence.GetClip("clip-3").Clip.Start = S(50)),
         ]);
 
-        Assert.Throws<Editing.EditException>(() => composite.Apply(project));
+        Assert.Throws<FotoToma.Core.Editing.EditException>(() => composite.Apply(project));
         Assert.Equal(before, ProjectDump.Of(project));
     }
 
