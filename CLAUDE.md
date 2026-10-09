@@ -51,7 +51,8 @@ Editor de video nativo para Windows, inspirado en la experiencia de uso de CapCu
 
 - **Montaje del entorno.** Las DLL de FFmpeg LGPL-shared de BtbN van en `.entorno\ffmpeg`, con URL y hash fijados en `preparar-entorno.ps1`. Se usan con FFmpeg.AutoGen (MIT).
 - **Decodificación.** D3D11VA en un hilo propio, con una caché de frames.
-- **Audio.** WASAPI con NAudio, y el audio hace de reloj maestro.
+- **Audio.** WASAPI propio con `[GeneratedComInterface]`; el audio hace de reloj maestro (posición + QPC).
+- **Interop elegido** (`docs/sondeo-interop-aot.md`): `FFmpeg.AutoGen.Bindings.DynamicallyLinked` 9.0.1.1 y `TerraFX.Interop.Windows`, con 0 advertencias de AOT.
 - **Criterio de terminado.** El seek debe ser exacto al cuadro en H.264 y HEVC de prueba, y la deriva entre audio y video debe quedar por debajo de 1 cuadro en 10 minutos.
 - **Verificación de la fase.** Al cerrarla, la revisa un agente distinto.
 - **Fase 3.** En la reproducción con varias capas hay que detenerse y decirle a Daniel exactamente qué probar.

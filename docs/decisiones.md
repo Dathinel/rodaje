@@ -177,3 +177,17 @@ Este registro guarda el porqué de cada elección importante de FotoToma. Cada d
 **Alternativas.** Usar libmpv como motor de vista previa, imposible para la composición multipista.
 
 **Consecuencias.** La reproducción fluida depende del motor propio, lo que concentra el trabajo de rendimiento en un solo lugar.
+
+## D-013. Interop nativo para la reproducción (9 de octubre de 2026)
+
+**Decisión.**
+- FFmpeg se usa con `FFmpeg.AutoGen.Bindings.DynamicallyLinked` 9.0.1.1. Las DLL se cargan por ruta absoluta con `NativeLibrary.SetDllImportResolver`, para no tomar nunca una FFmpeg GPL del PATH.
+- Direct3D 11 y DXGI se usan con `TerraFX.Interop.Windows`.
+- El audio sale por un WASAPI propio con `[GeneratedComInterface]`, y el reloj maestro es `IAudioClock::GetPosition` interpolado con QPC.
+
+**Alternativas.**
+- Vortice: funciona, pero SharpGen produce las advertencias IL2067 e IL2072 al compilar con AOT.
+- XAudio2: su posición avanza en saltos de 10 ms, insuficiente para el reloj maestro.
+- NAudio: es compatible con AOT, pero no da marca de tiempo QPC.
+
+**Consecuencias.** La API de TerraFX trabaja con punteros crudos, así que el motor la envuelve en clases propias. Las evidencias están en `docs/sondeo-interop-aot.md`.
