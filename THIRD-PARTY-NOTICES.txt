@@ -1,0 +1,76 @@
+FotoToma - Avisos de terceros
+=============================
+
+FotoToma es software libre bajo la licencia MIT (ver LICENSE).
+Copyright (c) 2026 Daniel (Dathinel).
+
+Este archivo reúne los avisos de licencia de los componentes de terceros que
+viajan dentro de la carpeta dist\ junto con FotoToma.exe. Debe acompañar
+siempre al ejecutable: si se copia, comprime o entrega FotoToma.exe, este
+archivo va con él.
+
+Se regenera en cada versión publicada a partir de las dependencias reales de
+esa versión (ver LICENCIAS.md). Las dependencias que solo se usan para compilar
+o probar no aparecen aquí porque no se redistribuyen.
+
+Versión de este archivo: fase 1 (sin versión publicada todavía).
+Componentes incluidos: runtime de .NET 10 (embebido por la publicación
+autocontenida / Native AOT).
+
+
+===============================================================================
+1. .NET Runtime y compilador Native AOT, serie 10.0
+   (paquetes Microsoft.NETCore.App.Runtime.win-x64 y
+   Microsoft.DotNet.ILCompiler, compilados con el SDK 10.0.401)
+   https://github.com/dotnet/runtime
+   Licencia: MIT
+===============================================================================
+
+The MIT License (MIT)
+
+Copyright (c) .NET Foundation and Contributors
+
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+-------------------------------------------------------------------------------
+Componentes de terceros contenidos en el runtime de .NET
+-------------------------------------------------------------------------------
+
+El runtime de .NET incorpora bibliotecas de terceros (por ejemplo zlib-ng,
+Brotli, datos de Unicode y otras) cuyas licencias se enumeran en el archivo
+de avisos oficial del runtime:
+
+    https://github.com/dotnet/runtime/blob/main/THIRD-PARTY-NOTICES.TXT
+
+Al preparar cada versión publicada, el texto completo de ese archivo, en la
+versión correspondiente al runtime usado (también incluido en el SDK de
+.entorno\dotnet como ThirdPartyNotices.txt), se pega en esta sección.
+
+
+===============================================================================
+Componentes previstos (todavía no incluidos)
+===============================================================================
+
+Cuando se incorporen, sus avisos se añadirán aquí: bibliotecas de FFmpeg
+(LGPL, con la ubicación de su código fuente y su línea de configuración),
+FFmpeg.AutoGen, Vortice.Windows, Windows App SDK, NAudio, Whisper.net,
+whisper.cpp, ONNX Runtime, DirectML y los modelos de IA que se distribuyan.
