@@ -13,12 +13,17 @@ internal static class AudioHardware
             ? null
             : $"No hay un dispositivo de salida de audio usable en este equipo: {description}");
 
-    /// <summary>Nulo si hay dispositivo; si no, el motivo para saltar la prueba.</summary>
-    public static string? SkipReason => MissingDevice.Value;
+    public const string LongVariable = "FOTOTOMA_PRUEBAS_LARGAS";
+
+    /// <summary>Mediciones en tiempo real: la carga de otras suites en paralelo las falsea, así que van en la corrida de aceptación.</summary>
+    public static string? SkipReason =>
+        Environment.GetEnvironmentVariable(LongVariable) == "1"
+            ? MissingDevice.Value
+            : $"Medición de audio en tiempo real; se activa con {LongVariable}=1 (ABRIR.bat aceptacion).";
 
     public static string? ToneSkipReason =>
         Environment.GetEnvironmentVariable(ToneVariable) == "1"
-            ? SkipReason
+            ? MissingDevice.Value
             : $"Esta prueba hace sonar un tono de 3 s; se activa con la variable de entorno {ToneVariable}=1.";
 }
 
