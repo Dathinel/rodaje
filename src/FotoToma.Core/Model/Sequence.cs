@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Model;
@@ -24,9 +25,11 @@ public sealed class Sequence
 
     public List<Track> AudioTracks { get; set; } = [];
 
+    [JsonIgnore]
     public IEnumerable<Track> AllTracks => VideoTracks.Concat(AudioTracks);
 
     /// <summary>Final del último clip de cualquier pista.</summary>
+    [JsonIgnore]
     public Time Duration => AllTracks.SelectMany(t => t.Clips).Select(c => c.End).DefaultIfEmpty(Time.Zero).Max();
 
     public Track? FindTrack(string trackId) => AllTracks.FirstOrDefault(t => t.Id == trackId);
