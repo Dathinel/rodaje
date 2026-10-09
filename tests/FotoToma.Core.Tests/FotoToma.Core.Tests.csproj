@@ -4,6 +4,8 @@
     <IsPackable>false</IsPackable>
     <!-- Las pruebas no exigen el analizador estricto de nombres del núcleo -->
     <NoWarn>$(NoWarn);CA1707;CA1515;CA1861</NoWarn>
+    <!-- La cobertura excluye el código generado (System.Text.Json); ver coverlet.runsettings -->
+    <RunSettingsFilePath>$(MSBuildThisFileDirectory)coverlet.runsettings</RunSettingsFilePath>
   </PropertyGroup>
 
   <ItemGroup>

@@ -266,4 +266,113 @@ public class ProjectSerializerTests
         Assert.Throws<ArgumentNullException>(() => ProjectSerializer.Serialize(null!));
         Assert.Throws<ArgumentNullException>(() => ProjectSerializer.Deserialize(null!));
     }
+
+    // --- Valores extremos: un archivo dañado puede traer cualquier entero de 64 bits ---
+
+    public static TheoryData<string, Action<JsonObject>> ExtremeTimes => new()
+    {
+        { "start = long.MaxValue − 10", r => FirstClip(r)["start"] = long.MaxValue - 10 },
+        { "start = long.MaxValue", r => FirstClip(r)["start"] = long.MaxValue },
+        { "start = long.MinValue", r => FirstClip(r)["start"] = long.MinValue },
+        { "sourceIn = long.MinValue", r => FirstClip(r)["sourceIn"] = long.MinValue },
+        { "sourceIn = long.MaxValue", r => FirstClip(r)["sourceIn"] = long.MaxValue },
+        { "sourceOut = long.MaxValue", r => FirstClip(r)["sourceOut"] = long.MaxValue },
+        { "sourceOut = long.MinValue", r => FirstClip(r)["sourceOut"] = long.MinValue },
+        {
+            "sourceIn = MinValue, sourceOut = MaxValue",
+            r =>
+            {
+                FirstClip(r)["sourceIn"] = long.MinValue;
+                FirstClip(r)["sourceOut"] = long.MaxValue;
+            }
+        },
+        {
+            "todo al máximo, medio incluido",
+            r =>
+            {
+                r["media"]![0]!["duration"] = long.MaxValue;
+                FirstClip(r)["start"] = long.MaxValue;
+                FirstClip(r)["sourceIn"] = long.MinValue;
+                FirstClip(r)["sourceOut"] = long.MaxValue;
+            }
+        },
+        { "duración del medio = long.MinValue", r => r["media"]![0]!["duration"] = long.MinValue },
+        {
+            "todas las pistas con tiempos extremos",
+            r =>
+            {
+                foreach (JsonNode? track in r["sequences"]![0]!["videoTracks"]!.AsArray().Concat(r["sequences"]![0]!["audioTracks"]!.AsArray()))
+                {
+                    foreach (JsonNode clip in track!["clips"]!.AsArray().OfType<JsonNode>())
+                    {
+                        clip["start"] = long.MaxValue - 10;
+                        clip["sourceIn"] = long.MinValue;
+                        clip["sourceOut"] = long.MaxValue;
+                    }
+                }
+            }
+        },
+    };
+
+    [Theory]
+    [MemberData(nameof(ExtremeTimes))]
+    public void Deserialize_ExtremeTimes_ThrowsFormatExceptionNotOverflow(string description, Action<JsonObject> corrupt)
+    {
+        JsonObject root = RichNode();
+        corrupt(root);
+        string json = root.ToJsonString();
+
+        Exception? ex = Record.Exception(() => ProjectSerializer.Deserialize(json));
+
+        // Exactamente ProjectFormatException (no OverflowException ni otra), con la lista de problemas.
+        var format = ex as ProjectFormatException;
+        Assert.True(format is not null, $"{description}: se esperaba ProjectFormatException y llegó {ex?.GetType().Name ?? "nada"}.");
+        Assert.NotEmpty(format.Problems);
+    }
+
+    [Fact]
+    public void Deserialize_MediaDurationLongMax_IsStillValid()
+    {
+        // Un medio larguísimo es raro pero no inconsistente: no debe confundirse con un dato dañado.
+        JsonObject root = RichNode();
+        root["media"]![0]!["duration"] = long.MaxValue;
+
+        Project project = ProjectSerializer.Deserialize(root.ToJsonString());
+
+        Assert.Equal(long.MaxValue, project.Media[0].Duration.Ticks);
+    }
+
+    [Fact]
+    public void Deserialize_StartNearLongMax_ReportsOutOfRangeInSpanish()
+    {
+        JsonObject root = RichNode();
+        FirstClip(root)["start"] = long.MaxValue - 10;
+
+        var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize(root.ToJsonString()));
+
+        Assert.Contains(ex.Problems, p => p.StartsWith("El clip «clip-1»", StringComparison.Ordinal) && p.EndsWith("tiene tiempos fuera de rango.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Deserialize_ValidatorThatThrows_BecomesFormatException()
+    {
+        // Red de seguridad: si algún día el validador lanza con un dato no previsto, abrir el archivo
+        // sigue terminando en ProjectFormatException, con la causa original dentro.
+        var boom = new OverflowException("simulado");
+        string json = ProjectSerializer.Serialize(SerializationSamples.Rich());
+
+        var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize(json, _ => throw boom));
+
+        Assert.Same(boom, ex.InnerException);
+        Assert.Contains("no se pudieron comprobar", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Deserialize_ValidatorOutOfMemory_IsNotWrapped()
+    {
+        string json = ProjectSerializer.Serialize(SerializationSamples.Rich());
+#pragma warning disable CA2201 // Se simula a propósito la excepción reservada del runtime.
+        Assert.Throws<OutOfMemoryException>(() => ProjectSerializer.Deserialize(json, _ => throw new OutOfMemoryException()));
+#pragma warning restore CA2201
+    }
 }

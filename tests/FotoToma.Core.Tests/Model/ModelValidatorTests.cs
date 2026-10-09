@@ -323,4 +323,105 @@ public class ModelValidatorTests
             ["El clip «x» de la pista «A» termina en 00:00:31.000 y el medio solo dura 00:00:30.000."],
             ModelValidator.ValidateSequence(p, loose));
     }
+
+    // --- Valores extremos: el validador recibe tiempos leídos de un archivo y nunca debe lanzar ---
+
+    private const string C1OutOfRange = "El clip «c1» de la pista «V1» tiene tiempos fuera de rango.";
+
+    [Fact]
+    public void ExtremeStart_IsReportedWithoutOverflow()
+    {
+        Project p = ValidProject();
+        ClipOf(p, "c1").Start = Time.FromTicks(long.MaxValue - 10);
+
+        IReadOnlyList<string> errors = ModelValidator.Validate(p);
+
+        Assert.Contains(C1OutOfRange, errors);
+        // El final de c1 se sigue calculando (en 128 bits) y c2 queda fuera de orden detrás de él.
+        Assert.Contains("El clip «c2» de la pista «V1» se solapa con «c1» o está fuera de orden.", errors);
+    }
+
+    [Fact]
+    public void ExtremeSourceIn_IsReportedWithoutOverflow()
+    {
+        Project p = ValidProject();
+        ClipOf(p, "c1").SourceIn = Time.FromTicks(long.MinValue);
+
+        IReadOnlyList<string> errors = ModelValidator.Validate(p);
+
+        Assert.Contains(C1OutOfRange, errors);
+        Assert.Contains("El clip «c1» de la pista «V1» tiene un punto de entrada negativo.", errors);
+    }
+
+    [Fact]
+    public void ExtremeSourceOutBelowSourceIn_IsReportedWithoutOverflow()
+    {
+        Project p = ValidProject();
+        ClipOf(p, "c1").SourceIn = Time.FromTicks(long.MaxValue);
+        ClipOf(p, "c1").SourceOut = Time.FromTicks(long.MinValue);
+
+        IReadOnlyList<string> errors = ModelValidator.Validate(p);
+
+        Assert.Contains(C1OutOfRange, errors);
+        Assert.Contains("El clip «c1» de la pista «V1» tiene duración cero o negativa.", errors);
+    }
+
+    [Fact]
+    public void EndPastLongMax_IsOutOfRange()
+    {
+        // La duración cabe en 64 bits, pero el final (inicio + duración) no.
+        Project p = ValidProject();
+        Clip c2 = ClipOf(p, "c2");
+        c2.SourceIn = Time.Zero;
+        c2.SourceOut = Time.FromTicks(long.MaxValue);
+
+        IReadOnlyList<string> errors = ModelValidator.Validate(p);
+
+        Assert.Contains("El clip «c2» de la pista «V1» tiene tiempos fuera de rango.", errors);
+    }
+
+    [Fact]
+    public void EndExactlyLongMax_IsNotOutOfRange()
+    {
+        // Límite exacto: inicio 0 y duración long.MaxValue terminan justo en long.MaxValue, que cabe.
+        Project p = ValidProject();
+        Seq(p).VideoTracks[1].Clips[0].Start = Time.Zero;
+        Seq(p).VideoTracks[1].Clips[0].SourceIn = Time.Zero;
+        Seq(p).VideoTracks[1].Clips[0].SourceOut = Time.FromTicks(long.MaxValue);
+        p.Media[0].Duration = Time.FromTicks(long.MaxValue);
+
+        Assert.Empty(ModelValidator.Validate(p));
+        Assert.Equal(long.MaxValue, Seq(p).VideoTracks[1].Clips[0].End.Ticks);
+    }
+
+    [Fact]
+    public void ExtremeMediaDuration_IsReportedWithoutOverflow()
+    {
+        Project p = ValidProject();
+        p.Media[0].Duration = Time.FromTicks(long.MinValue);
+
+        IReadOnlyList<string> errors = ModelValidator.Validate(p);
+
+        Assert.Contains("El medio «m1» tiene una duración no positiva.", errors);
+    }
+
+    [Theory]
+    [InlineData(long.MinValue, long.MinValue, long.MinValue)]
+    [InlineData(long.MaxValue, long.MaxValue, long.MaxValue)]
+    [InlineData(long.MinValue, long.MaxValue, long.MinValue)]
+    [InlineData(long.MaxValue, long.MinValue, long.MaxValue)]
+    [InlineData(-1, long.MinValue, long.MaxValue)]
+    public void AnyCombinationOfExtremes_NeverThrows(long start, long sourceIn, long sourceOut)
+    {
+        Project p = ValidProject();
+        foreach (Clip clip in Seq(p).AllTracks.SelectMany(t => t.Clips))
+        {
+            clip.Start = Time.FromTicks(start);
+            clip.SourceIn = Time.FromTicks(sourceIn);
+            clip.SourceOut = Time.FromTicks(sourceOut);
+        }
+
+        Assert.NotEmpty(ModelValidator.Validate(p));
+        Assert.NotEmpty(ModelValidator.ValidateSequence(p, Seq(p)));
+    }
 }
