@@ -89,6 +89,12 @@ public static class ModelValidator
             errors.Add($"La secuencia «{sequence.Id}» tiene dimensiones o frecuencia de muestreo no positivas.");
         }
 
+        // default(Rational) es 0/0: el constructor lo impide, pero puede llegar desde un archivo
+        if (sequence.FrameRate.Num <= 0 || sequence.FrameRate.Den <= 0)
+        {
+            errors.Add($"La secuencia «{sequence.Id}» tiene una tasa de cuadros no válida.");
+        }
+
         CheckTrackKinds(sequence.VideoTracks, TrackKind.Video, sequence, errors);
         CheckTrackKinds(sequence.AudioTracks, TrackKind.Audio, sequence, errors);
 

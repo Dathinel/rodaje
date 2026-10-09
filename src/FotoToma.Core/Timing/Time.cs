@@ -32,19 +32,20 @@ public readonly record struct Time : IComparable<Time>
     /// <summary>Instante en que empieza el cuadro <paramref name="frame"/> a la tasa dada.</summary>
     /// <remarks>
     /// Se redondea hacia arriba para que <c>FromFrames(n).ToFrames() == n</c> también con tasas
-    /// cuyo cuadro no dura un número entero de ticks.
+    /// cuyo cuadro no dura un número entero de ticks. Lanza <see cref="OverflowException"/> si el
+    /// resultado no cabe en un <c>long</c>, igual que los operadores.
     /// </remarks>
     public static Time FromFrames(long frame, Rational rate)
     {
         Int128 numerator = (Int128)frame * TicksPerSecond * rate.Den;
-        return new((long)CeilDiv(numerator, rate.Num));
+        return new(checked((long)CeilDiv(numerator, rate.Num)));
     }
 
     /// <summary>Cuadro que se está mostrando en este instante (redondeo hacia abajo).</summary>
     public long ToFrames(Rational rate)
     {
         Int128 numerator = (Int128)Ticks * rate.Num;
-        return (long)FloorDiv(numerator, (Int128)TicksPerSecond * rate.Den);
+        return checked((long)FloorDiv(numerator, (Int128)TicksPerSecond * rate.Den));
     }
 
     /// <summary>Lleva el instante al inicio del cuadro más cercano.</summary>
@@ -59,13 +60,13 @@ public readonly record struct Time : IComparable<Time>
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
         Int128 numerator = (Int128)sample * TicksPerSecond;
-        return new((long)CeilDiv(numerator, sampleRate));
+        return new(checked((long)CeilDiv(numerator, sampleRate)));
     }
 
     public long ToSamples(int sampleRate)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
-        return (long)FloorDiv((Int128)Ticks * sampleRate, TicksPerSecond);
+        return checked((long)FloorDiv((Int128)Ticks * sampleRate, TicksPerSecond));
     }
 
     public static Time Min(Time a, Time b) => a.Ticks <= b.Ticks ? a : b;
@@ -97,8 +98,8 @@ public readonly record struct Time : IComparable<Time>
     /// <summary>Formato legible hh:mm:ss.mmm, pensado para mensajes de error y depuración.</summary>
     public override string ToString()
     {
-        long ticks = Math.Abs(Ticks);
-        long totalMs = ticks / (TicksPerSecond / 1000);
+        // Int128 porque Math.Abs(long.MinValue) desborda; el cociente sí cabe en un long
+        long totalMs = (long)(Int128.Abs(Ticks) / (TicksPerSecond / 1000));
         string sign = Ticks < 0 ? "-" : "";
         return string.Create(CultureInfo.InvariantCulture,
             $"{sign}{totalMs / 3_600_000:00}:{totalMs / 60_000 % 60:00}:{totalMs / 1000 % 60:00}.{totalMs % 1000:000}");
