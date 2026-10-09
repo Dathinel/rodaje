@@ -233,6 +233,62 @@ public class SequenceEditCommandTests
     }
 
     [Fact]
+    public void Apply_SiLaOperacionDesbloqueaLaPista_PermiteCualquierCambioEnLaMismaLlamada()
+    {
+        Project project = Create();
+        string before = ProjectDump.Of(project);
+        var command = new SequenceEditCommand("Desbloquear y editar", SequenceId, ctx =>
+        {
+            Track track = ctx.Sequence.GetTrack("track-v2");
+            track.Locked = false;
+            track.Name = "Fondo";
+            track.Clips[0].Start = S(30);
+        });
+
+        command.Apply(project);
+        Track v2 = Seq(project).GetTrack("track-v2");
+        Assert.Equal("Fondo", v2.Name);
+        Assert.Equal(S(30), v2.Clips[0].Start);
+
+        command.Revert(project);
+        Assert.Equal(before, ProjectDump.Of(project));
+    }
+
+    [Fact]
+    public void Apply_SiLaOperacionDesbloqueaLaPista_PermiteQuitarla()
+    {
+        Project project = Create();
+        var command = new SequenceEditCommand("Desbloquear y quitar", SequenceId, ctx =>
+        {
+            Track track = ctx.Sequence.GetTrack("track-v2");
+            track.Locked = false;
+            ctx.Sequence.VideoTracks.Remove(track);
+        });
+
+        command.Apply(project);
+        Assert.Null(Seq(project).FindTrack("track-v2"));
+    }
+
+    [Fact]
+    public void Apply_ElNombreNoEsContenidoVigilado_PeroLosClipsDeUnaPistaQueSigueBloqueadaSi()
+    {
+        // El nombre de una pista que sigue bloqueada lo protege la operación (SetTrackState), no esta red.
+        Project project = Create();
+        var rename = new SequenceEditCommand("Renombrar", SequenceId, ctx => ctx.Sequence.GetTrack("track-v2").Name = "Otra");
+        rename.Apply(project);
+        Assert.Equal("Otra", Seq(project).GetTrack("track-v2").Name);
+
+        var edit = new SequenceEditCommand("Editar", SequenceId, ctx =>
+        {
+            Track track = ctx.Sequence.GetTrack("track-v2");
+            track.Name = "Tercera";
+            track.Clips[0].Enabled = false;
+        });
+        Assert.Throws<EditException>(() => edit.Apply(project));
+        Assert.Equal("Otra", Seq(project).GetTrack("track-v2").Name);
+    }
+
+    [Fact]
     public void ApplyYRevert_FallanSiLaSecuenciaNoExiste()
     {
         Project project = Create();

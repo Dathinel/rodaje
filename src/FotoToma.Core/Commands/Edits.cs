@@ -17,7 +17,7 @@ namespace FotoToma.Core.Commands;
 /// <para>
 /// Las operaciones que se hacen arrastrando (mover, recortar, roll, slip, slide) llevan una clave de
 /// fusión con el clip y el borde, así los muchos comandos pequeños de un mismo arrastre se funden en
-/// un solo paso de deshacer. Sus parámetros son relativos al estado actual cuando son un
+/// un solo paso de deshacer (mover, solo en modo estricto; ver <see cref="Move"/>). Sus parámetros son relativos al estado actual cuando son un
 /// <c>delta</c>, de modo que cada comando del arrastre aplica solo el tramo que se movió desde el
 /// anterior.
 /// </para>
@@ -73,6 +73,15 @@ public static class Edits
     /// Mueve el clip (y su grupo enlazado) para que empiece en <paramref name="newStart"/>, opcionalmente a
     /// otra pista del mismo tipo.
     /// </summary>
+    /// <remarks>
+    /// Solo el modo <see cref="PlacementMode.Strict"/> lleva clave de fusión (<c>move:{clipId}</c>), así
+    /// que los pasos de un arrastre estricto se funden en un deshacer. En
+    /// <see cref="PlacementMode.Overwrite"/> e <see cref="PlacementMode.Insert"/> cada paso tapa o corre
+    /// de verdad los clips por los que pasa: fundir un arrastre dejaría recortado o desplazado lo que solo
+    /// se cruzó aunque la posición final estuviera libre. Por eso esos modos no llevan clave y la
+    /// interfaz debe mandar un único comando al soltar el ratón (mientras arrastra, solo muestra la
+    /// vista previa).
+    /// </remarks>
     public static SequenceEditCommand Move(
         string sequenceId,
         string clipId,
@@ -85,7 +94,7 @@ public static class Edits
             sequenceId,
             ctx => TimelineEdits.Move(ctx, clipId, newStart, targetTrackId, mode),
             ids,
-            $"move:{clipId}");
+            mode == PlacementMode.Strict ? $"move:{clipId}" : null);
 
     /// <summary>
     /// Coloca un fragmento de un medio en <paramref name="at"/>. La descripción depende del modo:
