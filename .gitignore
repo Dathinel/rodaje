@@ -31,3 +31,6 @@ muestras/
 *.mov
 *.mkv
 *.proxy.*
+
+# --- Worktrees de agentes de Claude Code ---
+.claude/
