@@ -121,6 +121,156 @@ public class ProjectCommandsTests
     }
 
     [Fact]
+    public void AddMedia_RechazaMedioQueDejaElProyectoInvalido()
+    {
+        Project project = Create();
+        string before = ProjectDump.Of(project);
+
+        MediaRef zero = Media("media-2");
+        zero.Duration = S(0);
+        EditException error = Assert.Throws<EditException>(() => new AddMediaCommand(zero).Apply(project));
+        Assert.Contains("No se puede importar el medio", error.Message, StringComparison.Ordinal);
+        Assert.Contains("duración no positiva", error.Message, StringComparison.Ordinal);
+
+        // Un identificador que ya usa otro objeto (aquí, la secuencia) también se rechaza.
+        EditException clash = Assert.Throws<EditException>(() => new AddMediaCommand(Media(SequenceId)).Apply(project));
+        Assert.Contains("repetido", clash.Message, StringComparison.Ordinal);
+
+        Assert.Throws<EditException>(() => new AddMediaCommand(Media(" ")).Apply(project));
+
+        Assert.Equal(before, ProjectDump.Of(project));
+        Assert.Empty(ModelValidator.Validate(project));
+    }
+
+    [Fact]
+    public void AddMedia_EnUnProyectoYaInvalido_SoloCuentanLosProblemasNuevos()
+    {
+        Project project = Create();
+        project.Media[0].Duration = S(0); // problema previo, ajeno al comando
+        int previous = ModelValidator.Validate(project).Count;
+        Assert.True(previous > 0);
+
+        new AddMediaCommand(Media("media-2")).Apply(project);
+        Assert.NotNull(project.FindMedia("media-2"));
+        Assert.Equal(previous, ModelValidator.Validate(project).Count);
+
+        // Repetir exactamente un problema que ya existía cuenta como nuevo (se cuentan repeticiones).
+        MediaRef sameProblem = Media("media-3");
+        sameProblem.Duration = S(0);
+        Assert.Throws<EditException>(() => new AddMediaCommand(sameProblem).Apply(project));
+        Assert.Null(project.FindMedia("media-3"));
+    }
+
+    [Fact]
+    public void AddMedia_ConLaPila_ValidoSeDeshaceEInvalidoNoEntra()
+    {
+        Project project = Create();
+        string before = ProjectDump.Of(project);
+        var stack = new UndoStack(project);
+
+        stack.Execute(new AddMediaCommand(Media("media-2")));
+        Assert.Throws<EditException>(() => stack.Execute(new AddMediaCommand(Media("media-2"))));
+        Assert.Equal(1, stack.Count);
+
+        Assert.True(stack.Undo());
+        Assert.Equal(before, ProjectDump.Of(project));
+        Assert.True(stack.Redo());
+        Assert.Empty(ModelValidator.Validate(project));
+    }
+
+    public static TheoryData<string, Func<Sequence>, string> InvalidSequences => new()
+    {
+        {
+            "pista con id existente",
+            () => new Sequence { Id = "seq-2", VideoTracks = [new Track { Id = "track-v1", Kind = TrackKind.Video, Name = "V" }] },
+            "«track-v1» está repetido"
+        },
+        {
+            "clip con id existente",
+            () => new Sequence
+            {
+                Id = "seq-2",
+                VideoTracks = [new Track { Id = "t-nueva", Kind = TrackKind.Video, Name = "V", Clips = [NewClip("clip-1", 0)] }],
+            },
+            "«clip-1» está repetido"
+        },
+        {
+            "clip con medio inexistente",
+            () =>
+            {
+                Clip clip = NewClip("c-nuevo", 0);
+                clip.MediaId = "no-existe";
+                return new Sequence
+                {
+                    Id = "seq-2",
+                    VideoTracks = [new Track { Id = "t-nueva", Kind = TrackKind.Video, Name = "V", Clips = [clip] }],
+                };
+            },
+            "que no existe"
+        },
+        {
+            "clips solapados",
+            () => new Sequence
+            {
+                Id = "seq-2",
+                VideoTracks = [new Track { Id = "t-nueva", Kind = TrackKind.Video, Name = "V", Clips = [NewClip("c-a", 0, 2), NewClip("c-b", 1, 2)] }],
+            },
+            "se solapa"
+        },
+        {
+            "dimensiones no positivas",
+            () => new Sequence { Id = "seq-2", Width = 0 },
+            "dimensiones"
+        },
+        {
+            "sin identificador",
+            () => new Sequence { Id = "" },
+            "sin identificador"
+        },
+    };
+
+    [Theory]
+    [MemberData(nameof(InvalidSequences))]
+    public void AddSequence_RechazaSecuenciaQueDejaElProyectoInvalido(string caseName, Func<Sequence> make, string expected)
+    {
+        Project project = Create();
+        string before = ProjectDump.Of(project);
+        var stack = new UndoStack(project);
+
+        EditException error = Assert.Throws<EditException>(() => stack.Execute(new AddSequenceCommand(make(), 0)));
+
+        Assert.Contains("No se puede agregar la secuencia", error.Message, StringComparison.Ordinal);
+        Assert.True(error.Message.Contains(expected, StringComparison.Ordinal), $"{caseName}: {error.Message}");
+        Assert.Equal(before, ProjectDump.Of(project));
+        Assert.Equal(0, stack.Count);
+    }
+
+    [Fact]
+    public void AddSequence_ValidaConClipsDeMediosExistentes_Entra()
+    {
+        Project project = Create();
+        var sequence = new Sequence
+        {
+            Id = "seq-2",
+            VideoTracks = [new Track { Id = "t-nueva", Kind = TrackKind.Video, Name = "V", Clips = [NewClip("c-a", 0, 2), NewClip("c-b", 2, 2)] }],
+        };
+
+        new AddSequenceCommand(sequence).Apply(project);
+
+        Assert.Same(sequence, project.Sequences[^1]);
+        Assert.Empty(ModelValidator.Validate(project));
+    }
+
+    [Fact]
+    public void FirstNewProblem_CuentaRepeticiones()
+    {
+        Assert.Null(ProjectGuard.FirstNewProblem(["a", "b"], ["b", "a"]));
+        Assert.Null(ProjectGuard.FirstNewProblem(["a", "b"], ["a"]));
+        Assert.Equal("c", ProjectGuard.FirstNewProblem(["a"], ["a", "c"]));
+        Assert.Equal("a", ProjectGuard.FirstNewProblem(["a"], ["a", "a"]));
+    }
+
+    [Fact]
     public void RemoveSequence_VuelveALaMismaPosicionComoElMismoObjeto()
     {
         Project project = Create();
