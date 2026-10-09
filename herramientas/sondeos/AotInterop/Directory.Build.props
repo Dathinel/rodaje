@@ -1,0 +1,13 @@
+<Project>
+  <!-- Hereda las reglas del repositorio y separa obj\ por variante, para poder publicar las cuatro
+       sin que una restauración pise los activos de otra. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..'))" />
+  <PropertyGroup>
+    <Variante Condition="'$(Variante)' == ''">Enlazado</Variante>
+    <Graficos Condition="'$(Graficos)' == ''">TerraFX</Graficos>
+    <Sabor>$(Variante)</Sabor>
+    <Sabor Condition="'$(Graficos)' != 'Vortice'">$(Variante)-$(Graficos)</Sabor>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)obj\$(Sabor)\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)bin\$(Sabor)\</BaseOutputPath>
+  </PropertyGroup>
+</Project>
