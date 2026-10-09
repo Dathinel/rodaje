@@ -26,14 +26,13 @@ Editor de video nativo para Windows, inspirado en la experiencia de uso de CapCu
   - `UndoStack` con grupos, fusión por clave, `BreakMerge`, punto limpio y límite.
   - `Edits`, las fábricas que usará la interfaz.
 - **Formato `.ftoma`** (`Serialization/`): JSON versionado con migraciones encadenadas, guardado atómico con `.bak` y esquema en `schema/`.
-- **Pruebas:** 678, entre unitarias, de propiedades con CsCheck (10 000 escenarios aleatorios) y la prueba de humo con Native AOT (ejecutable de 3,37 MB, 0 advertencias). Cobertura del núcleo: 99,6 % de líneas y de ramas.
-- **Revisión independiente:** encontró 5 defectos, todos corregidos con su prueba de regresión.
+- **Pruebas:** 685, entre unitarias, de propiedades con CsCheck (10 000 escenarios aleatorios) y la prueba de humo con Native AOT (ejecutable de 3,37 MB, 0 advertencias). Cobertura del núcleo: 99,6 % de líneas y de ramas.
+- **Revisión independiente:** encontró 5 defectos, todos corregidos con su prueba de regresión. El guardado reintenta ante bloqueos breves del antivirus.
 - **Estilo:** README corto con evidencias y comentarios mínimos en el código; el detalle vive en `docs/guia-tecnica.md`.
 - **Documentación:** `docs/investigacion.md`, `docs/decisiones.md`, `docs/legal.md` y `docs/formato-proyecto.md`, más `LICENCIAS.md`, `THIRD-PARTY-NOTICES.txt`, `SECURITY.md` y `CONTRIBUTING.md`.
 
 ## Decisiones pendientes para Daniel
 
-- **Guardado y antivirus.** `ProjectSerializer.Save` todavía no reintenta cuando Windows Defender bloquea por un instante el `.tmp` (error de archivo en uso). Convendría añadir reintentos cortos antes de la fase 4.
 
 - **Ripple con clips enlazados de distinto largo.** Pasa, por ejemplo, después de sobrescribir solo el audio. En `RippleTrim` con alcance de pista, hoy todas las pistas se corren desde el final original del clip principal. La alternativa es que cada pista se corra desde el final de su propio clip. Conviene decidirlo al probar la interfaz (fase 4).
 - **Enlaces huérfanos.** Sobrescribir o cortar parcialmente puede dejar un `LinkId` que ya no comparte ningún otro clip. No rompe nada; falta decidir si se limpia automáticamente.

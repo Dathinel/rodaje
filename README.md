@@ -42,7 +42,7 @@ Medido el 9 de octubre de 2026 en un Ryzen 7 7435HS:
 
 | Prueba | Resultado |
 |---|---|
-| Pruebas automáticas | **678 de 678 pasan** en unos 5 s |
+| Pruebas automáticas | **685 de 685 pasan** en unos 5 s |
 | Cobertura del núcleo | **99,6 % de líneas y 99,6 % de ramas** |
 | Pruebas de propiedades | 10 000 proyectos aleatorios con hasta 40 ediciones cada uno, más 5 000 arrastres. Tras cada paso el modelo sigue siendo válido, las pistas bloqueadas no cambian y deshacer todo devuelve el proyecto idéntico, byte a byte |
 | Native AOT | Ejecutable de **3,37 MB**, **0 advertencias**; arranque más recorrido completo del núcleo en **115 ms** |
