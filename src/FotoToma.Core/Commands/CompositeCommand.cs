@@ -2,11 +2,7 @@ using FotoToma.Core.Model;
 
 namespace FotoToma.Core.Commands;
 
-/// <summary>
-/// Varios comandos que se aplican y se deshacen como uno solo. Si uno falla al aplicarse, los que ya se
-/// habían aplicado se revierten en orden inverso y el error se relanza, así que el conjunto es todo o
-/// nada.
-/// </summary>
+/// <summary>Varios comandos que se aplican todo o nada y se deshacen como uno solo.</summary>
 public sealed class CompositeCommand : ICommand
 {
     private readonly ICommand[] _commands;
@@ -25,17 +21,12 @@ public sealed class CompositeCommand : ICommand
         _commands = list;
     }
 
-    /// <summary>
-    /// Construye un compuesto con comandos que <em>ya</em> se aplicaron, en ese orden (por ejemplo los
-    /// de un grupo de la pila de deshacer). No hay que volver a llamar <see cref="Apply"/> antes de
-    /// guardarlo: queda en estado aplicado y la próxima llamada útil es <see cref="Revert"/>.
-    /// </summary>
+    /// <summary>Compuesto de comandos ya aplicados; la siguiente llamada válida es <see cref="Revert"/>.</summary>
     public static CompositeCommand FromApplied(string description, IEnumerable<ICommand> appliedCommands) =>
         new(description, appliedCommands);
 
     public string Description { get; }
 
-    /// <summary>Los comandos que forman el compuesto, en orden de aplicación.</summary>
     public IReadOnlyList<ICommand> Commands => _commands;
 
     public void Apply(Project project)
@@ -69,6 +60,5 @@ public sealed class CompositeCommand : ICommand
         }
     }
 
-    /// <summary>Un compuesto nunca absorbe otros comandos.</summary>
     public bool TryMerge(ICommand following) => false;
 }

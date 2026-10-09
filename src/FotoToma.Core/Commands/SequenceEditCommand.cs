@@ -3,25 +3,10 @@ using FotoToma.Core.Model;
 
 namespace FotoToma.Core.Commands;
 
-/// <summary>
-/// Comando que envuelve cualquier operación de edición sobre una secuencia y la hace deshacible con
-/// fotos completas (<see cref="SequenceSnapshot"/>) de antes y de después.
-/// </summary>
+/// <summary>Hace deshacible una operación de edición con instantáneas de la secuencia antes y después.</summary>
 /// <remarks>
-/// <para>
-/// La primera vez que se aplica corre la operación. Si la operación lanza cualquier excepción, la
-/// secuencia vuelve a la foto de antes y la misma excepción se relanza: una edición que falla a medias
-/// nunca deja el proyecto a medio cambiar.
-/// </para>
-/// <para>
-/// Al terminar comprueba que ninguna pista que estaba bloqueada y sigue bloqueada cambió de clips ni
-/// desapareció. Si la operación la desbloqueó, todo lo demás que haya hecho en la misma llamada vale,
-/// para que se pueda, por ejemplo, desbloquear y renombrar una pista de una sola vez.
-/// </para>
-/// <para>
-/// Rehacer no vuelve a correr la operación: restaura la foto de después. Así los identificadores de los
-/// objetos creados (<see cref="CreatedIds"/>) son idénticos en cada rehacer.
-/// </para>
+/// Instantáneas en vez de operaciones inversas: si la operación falla a medias se restaura la de antes,
+/// y rehacer restaura la de después sin volver a correrla, así <see cref="CreatedIds"/> no cambia.
 /// </remarks>
 public sealed class SequenceEditCommand : ICommand
 {
@@ -34,10 +19,7 @@ public sealed class SequenceEditCommand : ICommand
     /// <param name="sequenceId">Secuencia que se edita.</param>
     /// <param name="operation">La edición; devuelve los identificadores de lo que creó.</param>
     /// <param name="ids">Fuente de identificadores; por omisión, GUID.</param>
-    /// <param name="mergeKey">
-    /// Si dos comandos seguidos tienen la misma clave (no nula) y la misma secuencia, se funden en un
-    /// solo paso de deshacer, como los movimientos sucesivos de un arrastre.
-    /// </param>
+    /// <param name="mergeKey">Comandos seguidos con la misma clave no nula y la misma secuencia se funden.</param>
     public SequenceEditCommand(
         string description,
         string sequenceId,
@@ -55,7 +37,6 @@ public sealed class SequenceEditCommand : ICommand
         MergeKey = mergeKey;
     }
 
-    /// <summary>Igual que el otro constructor, para operaciones que no crean objetos.</summary>
     public SequenceEditCommand(
         string description,
         string sequenceId,
@@ -72,13 +53,9 @@ public sealed class SequenceEditCommand : ICommand
 
     public string? MergeKey { get; }
 
-    /// <summary>
-    /// Identificadores de los objetos que creó la operación (vacío antes de aplicarse). Si se fundieron
-    /// varios comandos, incluye los de todos, en orden.
-    /// </summary>
+    /// <summary>Identificadores creados por la operación, incluidos los de comandos fundidos.</summary>
     public IReadOnlyList<string> CreatedIds { get; private set; } = [];
 
-    /// <summary>Indica si la operación ya corrió con éxito al menos una vez.</summary>
     public bool HasRun => _after is not null;
 
     public void Apply(Project project)
@@ -143,24 +120,8 @@ public sealed class SequenceEditCommand : ICommand
         project.FindSequence(SequenceId)
         ?? throw new EditException($"La secuencia «{SequenceId}» ya no está en el proyecto.");
 
-    /// <summary>
-    /// Lanza <see cref="EditException"/> si alguna pista que estaba bloqueada antes de la operación y
-    /// <em>sigue</em> bloqueada después cambió de contenido o dejó de estar en su lista (sí puede cambiar
-    /// de orden).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Si la operación desbloqueó la pista, cualquier otro cambio hecho en la misma llamada se acepta:
-    /// es lo que permite, por ejemplo, desbloquear y renombrar a la vez con
-    /// <see cref="TimelineEdits.SetTrackState"/>.
-    /// </para>
-    /// <para>
-    /// El «contenido» que se vigila es el identificador, el tipo y los clips (con efectos, parámetros y
-    /// keyframes). El nombre y las marcas de silencio y visibilidad no entran: cambiarlos en una pista
-    /// que sigue bloqueada ya lo rechaza la propia operación, y esta comprobación es solo la red de
-    /// seguridad para los clips.
-    /// </para>
-    /// </remarks>
+    // Red de seguridad: una pista bloqueada antes y después no puede cambiar de clips ni desaparecer.
+    // Si la operación la desbloqueó, el resto de cambios de esa llamada vale (desbloquear y renombrar).
     private static void EnsureLockedTracksUntouched(SequenceSnapshot before, Sequence sequence)
     {
         Check(before.VideoTracks, sequence.VideoTracks);
@@ -180,7 +141,7 @@ public sealed class SequenceEditCommand : ICommand
         }
     }
 
-    /// <summary>Compara identificador, tipo y clips de dos pistas; no mira el nombre ni las marcas.</summary>
+    // El nombre y las marcas no cuentan: la propia operación ya rechaza cambiarlos en una pista bloqueada.
     private static bool LockedContentEquals(Track a, Track b)
     {
         if (a.Id != b.Id || a.Kind != b.Kind || a.Clips.Count != b.Clips.Count)

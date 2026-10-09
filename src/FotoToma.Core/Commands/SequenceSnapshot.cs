@@ -3,23 +3,10 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Commands;
 
-/// <summary>
-/// Foto completa del estado de una secuencia: sus propiedades, qué pistas tiene y en qué orden, y una
-/// copia profunda de cada pista con sus clips. Es la base del deshacer de las ediciones: en vez de
-/// escribir a mano la operación inversa de cada edición, se guarda la foto de antes y la de después.
-/// </summary>
+/// <summary>Copia profunda del estado de una secuencia, base del deshacer.</summary>
 /// <remarks>
-/// <para>
-/// Al restaurar, las pistas vuelven a ser los mismos <em>objetos</em> <see cref="Track"/> que había al
-/// tomar la foto, en las mismas listas y el mismo orden, así que una referencia a una pista que guarde
-/// la interfaz sigue siendo válida después de deshacer o rehacer.
-/// </para>
-/// <para>
-/// Los clips, en cambio, se restauran como copias nuevas: un objeto <see cref="Clip"/> guardado fuera
-/// del modelo deja de pertenecer a la secuencia tras deshacer o rehacer. La interfaz debe referirse a
-/// los clips por su identificador (<see cref="Clip.Id"/>), que sí se conserva, y buscarlos de nuevo con
-/// <see cref="Sequence.FindClip"/>.
-/// </para>
+/// Al restaurar, las pistas conservan su identidad de objeto, pero los clips son copias nuevas: fuera del
+/// modelo, los clips se referencian por <see cref="Clip.Id"/>.
 /// </remarks>
 public sealed class SequenceSnapshot
 {
@@ -44,27 +31,19 @@ public sealed class SequenceSnapshot
         _audioTracks = [.. sequence.AudioTracks.Select(t => new TrackEntry(t, t.Clone()))];
     }
 
-    /// <summary>Identificador de la secuencia fotografiada.</summary>
     public string SequenceId => _id;
 
-    /// <summary>Pistas de video fotografiadas: el objeto original y la copia de su estado.</summary>
     internal IReadOnlyList<TrackEntry> VideoTracks => _videoTracks;
 
-    /// <summary>Pistas de audio fotografiadas: el objeto original y la copia de su estado.</summary>
     internal IReadOnlyList<TrackEntry> AudioTracks => _audioTracks;
 
-    /// <summary>Toma la foto del estado actual de la secuencia.</summary>
     public static SequenceSnapshot Capture(Sequence sequence)
     {
         ArgumentNullException.ThrowIfNull(sequence);
         return new SequenceSnapshot(sequence);
     }
 
-    /// <summary>
-    /// Deja la secuencia exactamente como estaba al tomar la foto. Las listas de pistas se vacían y se
-    /// vuelven a llenar (no se reemplazan), y cada pista recupera su estado con clips recién copiados,
-    /// así que la foto puede restaurarse cuantas veces haga falta.
-    /// </summary>
+    /// <summary>Restaura el estado capturado; se puede llamar cuantas veces haga falta.</summary>
     public void Restore(Sequence sequence)
     {
         ArgumentNullException.ThrowIfNull(sequence);
@@ -78,10 +57,7 @@ public sealed class SequenceSnapshot
         RestoreTracks(sequence.AudioTracks, _audioTracks);
     }
 
-    /// <summary>
-    /// Indica si la secuencia está igual que en la foto: mismas propiedades, mismos objetos de pista en
-    /// el mismo orden y mismo estado profundo de cada pista.
-    /// </summary>
+    /// <summary>Igualdad profunda con el estado capturado, incluida la identidad de las pistas.</summary>
     public bool Matches(Sequence sequence)
     {
         ArgumentNullException.ThrowIfNull(sequence);
@@ -95,7 +71,7 @@ public sealed class SequenceSnapshot
             && TracksMatch(sequence.AudioTracks, _audioTracks);
     }
 
-    /// <summary>Compara todo el estado de dos pistas, incluidas las marcas de bloqueo, silencio y visibilidad.</summary>
+    /// <summary>Compara contenido y marcas de bloqueo, silencio y visibilidad.</summary>
     public static bool TrackStateEquals(Track a, Track b)
     {
         ArgumentNullException.ThrowIfNull(a);
@@ -106,10 +82,7 @@ public sealed class SequenceSnapshot
             && TrackContentEquals(a, b);
     }
 
-    /// <summary>
-    /// Compara el contenido editable de dos pistas: identificador, tipo, nombre y clips (con efectos,
-    /// parámetros y keyframes). No mira las marcas de bloqueo, silencio ni visibilidad.
-    /// </summary>
+    /// <summary>Compara identificador, tipo, nombre y clips, sin las marcas.</summary>
     public static bool TrackContentEquals(Track a, Track b)
     {
         ArgumentNullException.ThrowIfNull(a);
@@ -120,7 +93,6 @@ public sealed class SequenceSnapshot
             && SequenceEqual(a.Clips, b.Clips, ClipStateEquals);
     }
 
-    /// <summary>Compara todos los campos de dos clips, incluidos sus efectos.</summary>
     public static bool ClipStateEquals(Clip a, Clip b)
     {
         ArgumentNullException.ThrowIfNull(a);
@@ -135,7 +107,6 @@ public sealed class SequenceSnapshot
             && SequenceEqual(a.Effects, b.Effects, EffectStateEquals);
     }
 
-    /// <summary>Compara dos efectos con todos sus parámetros.</summary>
     public static bool EffectStateEquals(EffectInstance a, EffectInstance b)
     {
         ArgumentNullException.ThrowIfNull(a);
@@ -156,13 +127,10 @@ public sealed class SequenceSnapshot
         return true;
     }
 
-    /// <summary>Compara el valor y los keyframes de dos parámetros.</summary>
     public static bool ParameterStateEquals(Parameter a, Parameter b)
     {
         ArgumentNullException.ThrowIfNull(a);
         ArgumentNullException.ThrowIfNull(b);
-
-        // Keyframe es un record: su igualdad ya compara tiempo, valor e interpolación.
         return a.Value.Equals(b.Value) && a.Keyframes.SequenceEqual(b.Keyframes);
     }
 
@@ -212,6 +180,5 @@ public sealed class SequenceSnapshot
         return true;
     }
 
-    /// <summary>Una pista fotografiada: el objeto vivo y la copia de su estado en ese momento.</summary>
     internal readonly record struct TrackEntry(Track Track, Track State);
 }
