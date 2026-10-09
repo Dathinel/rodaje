@@ -1,22 +1,6 @@
-﻿# Corre todas las pruebas de FotoToma con el SDK de .NET del entorno propio y explica el
-# resultado en español sencillo: cuántas pruebas pasaron, cuáles fallaron y por qué, cuánto
-# tardó y, con -Cobertura, qué parte del núcleo (FotoToma.Core) recorren las pruebas.
-#
-# Uso:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\probar.ps1 [-Cobertura] [-Filtro "texto"]
-#
-#   -Cobertura  además mide la cobertura de líneas y ramas de FotoToma.Core (coverlet).
-#   -Filtro     solo corre las pruebas cuyo nombre completo contiene ese texto
-#               (se traduce a --filter "FullyQualifiedName~texto").
-#
-# El entorno (SDK y caché de NuGet) está en <repo>\.entorno, salvo que la variable de entorno
-# FOTOTOMA_ENTORNO apunte a otra carpeta (útil para worktrees de git que comparten el entorno
-# de la copia principal sin volver a descargar el SDK).
-#
-# Los resultados (.trx, cobertura y registros completos de cada fase) quedan en
-# TestResults\<fecha-hora>\, que git ignora. Se conservan las últimas 10 corridas.
-#
-# Código de salida: 0 si todo pasó (o no hay pruebas todavía), 1 si algo falló.
+﻿# Corre las pruebas con el SDK de .entorno\ (o FOTOTOMA_ENTORNO) y resume el resultado.
+# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\probar.ps1 [-Cobertura] [-Filtro "texto"]
+# Los registros quedan en TestResults\<fecha-hora>\ (se conservan 10). Sale con 0 si todo pasó.
 
 param(
     [switch]$Cobertura,
@@ -32,8 +16,7 @@ $Solucion = Join-Path $Raiz 'FotoToma.slnx'
 if ($env:FOTOTOMA_ENTORNO) { $Entorno = $env:FOTOTOMA_ENTORNO } else { $Entorno = Join-Path $Raiz '.entorno' }
 $DotnetDir = Join-Path $Entorno 'dotnet'
 $Dotnet = Join-Path $DotnetDir 'dotnet.exe'
-# El SDK está listo solo si existe la marca .sdk-<versión> que deja preparar-entorno.ps1 al terminar
-# (la versión sale de global.json); dotnet.exe solo no basta, porque un apagón a medias también lo deja.
+# Listo = existe la marca .sdk-<versión> de preparar-entorno.ps1; dotnet.exe no basta tras un apagón.
 try { $SdkVersion = (Get-Content -LiteralPath (Join-Path $Raiz 'global.json') -Raw -Encoding UTF8 | ConvertFrom-Json).sdk.version } catch { $SdkVersion = '' }
 $MarcaSdk = Join-Path $DotnetDir ".sdk-$SdkVersion"
 $Reloj = [System.Diagnostics.Stopwatch]::StartNew()
@@ -56,13 +39,11 @@ function Terminar([int]$codigo) {
     exit $codigo
 }
 
-# Corre dotnet con el entorno propio. Guarda toda la salida en un .log y la devuelve como
-# lista de líneas. $AlVuelo recibe cada línea mientras llega (para mostrar progreso).
+# $AlVuelo recibe cada línea mientras llega, para mostrar progreso.
 function Invocar-Dotnet([string]$log, [string[]]$argumentos, [scriptblock]$AlVuelo = $null) {
     $lineas = New-Object System.Collections.Generic.List[string]
     $anterior = $ErrorActionPreference
-    # En Windows PowerShell 5.1, lo que un programa escribe en stderr llega como ErrorRecord;
-    # con 'Stop' eso cortaría el script. Aquí se trata como texto normal.
+    # En PowerShell 5.1 el stderr de un programa llega como ErrorRecord y 'Stop' cortaría el script.
     $ErrorActionPreference = 'Continue'
     try {
         & $Dotnet @argumentos 2>&1 | ForEach-Object {
@@ -78,8 +59,7 @@ function Invocar-Dotnet([string]$log, [string[]]$argumentos, [scriptblock]$AlVue
     return [pscustomobject]@{ Codigo = $codigo; Lineas = $lineas }
 }
 
-# Saca los errores de MSBuild/NuGet/compilador ("archivo(12,5): error CS1002: ...") sin repetir:
-# MSBuild los imprime dos veces (en el momento y en el resumen final).
+# Sin repetir: MSBuild imprime cada error dos veces (al momento y en el resumen).
 function Errores-De([System.Collections.Generic.List[string]]$lineas) {
     $vistos = @{}
     $lista = New-Object System.Collections.Generic.List[string]
@@ -92,7 +72,6 @@ function Errores-De([System.Collections.Generic.List[string]]$lineas) {
     return ,$lista
 }
 
-# Quita la ruta del repositorio de un mensaje para que se lea mejor.
 function Corto([string]$texto) {
     return $texto.Replace($Raiz + '\', '').Replace($Raiz, '.')
 }
@@ -100,7 +79,6 @@ function Corto([string]$texto) {
 Titulo 'FotoToma - pruebas automáticas del núcleo'
 Nota "Proyecto: $Raiz"
 
-# --- Comprobaciones previas -------------------------------------------------------------------
 if (-not (Test-Path -LiteralPath $Dotnet) -or -not (Test-Path -LiteralPath $MarcaSdk)) {
     Write-Host ''
     if (Test-Path -LiteralPath $Dotnet) {
@@ -121,7 +99,7 @@ if (-not (Test-Path -LiteralPath $Solucion)) {
     Terminar 1
 }
 
-# Las mismas variables que fija herramientas\dotnet-local.cmd: nada global, nada de telemetría.
+# Las mismas variables que herramientas\dotnet-local.cmd.
 $env:DOTNET_ROOT = $DotnetDir
 $env:NUGET_PACKAGES = Join-Path $Entorno 'nuget'
 $env:DOTNET_CLI_HOME = $Entorno
@@ -129,12 +107,9 @@ $env:DOTNET_MULTILEVEL_LOOKUP = '0'
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $env:DOTNET_NOLOGO = '1'
 $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
-# dotnet escribe en UTF-8 y PowerShell lo lee en UTF-8: así las tildes de los mensajes en
-# español (los del SDK y los del compilador) llegan bien a la pantalla y a los .log.
 $env:DOTNET_CLI_FORCE_UTF8_ENCODING = '1'
 $env:PATH = "$DotnetDir;$env:PATH"
 
-# Carpeta de esta corrida, y limpieza de las viejas (se guardan las 10 últimas).
 $Resultados = Join-Path $Raiz 'TestResults'
 New-Item -ItemType Directory -Force -Path $Resultados | Out-Null
 $script:Corrida = Join-Path $Resultados (Get-Date -Format 'yyyyMMdd-HHmmss')
@@ -143,7 +118,6 @@ Get-ChildItem -LiteralPath $Resultados -Directory | Where-Object { $_.Name -matc
     Sort-Object Name -Descending | Select-Object -Skip 10 |
     ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
 
-# --- Fase 1: restaurar paquetes ---------------------------------------------------------------
 Fase 1 'restaurando paquetes NuGet (la primera vez los descarga; luego salen de la caché local)...'
 $r = Invocar-Dotnet (Join-Path $script:Corrida '1-restaurar.log') @('restore', $Solucion, '--nologo')
 if ($r.Codigo -ne 0) {
@@ -161,7 +135,6 @@ if ($r.Codigo -ne 0) {
 }
 Bien 'Paquetes listos.'
 
-# --- Fase 2: compilar -------------------------------------------------------------------------
 Fase 2 'compilando el núcleo y las pruebas...'
 $r = Invocar-Dotnet (Join-Path $script:Corrida '2-compilar.log') @('build', $Solucion, '--no-restore', '-c', 'Debug', '--nologo')
 if ($r.Codigo -ne 0) {
@@ -182,7 +155,6 @@ if ($r.Codigo -ne 0) {
 }
 Bien 'Compila sin errores ni advertencias.'
 
-# --- Fase 3: probar ---------------------------------------------------------------------------
 Fase 3 $(if ($Cobertura) { 'corriendo las pruebas y midiendo la cobertura...' } else { 'corriendo las pruebas...' })
 $argumentos = @('test', $Solucion, '--no-build', '-c', 'Debug', '--nologo',
     '--results-directory', $script:Corrida,
@@ -202,7 +174,6 @@ $alVuelo = {
 $r = Invocar-Dotnet (Join-Path $script:Corrida '3-probar.log') $argumentos $alVuelo
 if ($script:Hechas -ge 25) { Write-Host ("`r    pruebas ejecutadas: {0}" -f $script:Hechas) }
 
-# Resumen a partir de los .trx (uno por proyecto de pruebas).
 $trx = @(Get-ChildItem -LiteralPath $script:Corrida -Recurse -Filter '*.trx' -ErrorAction SilentlyContinue)
 $total = 0; $pasaron = 0; $fallaron = 0; $omitidas = 0
 $fallidas = New-Object System.Collections.Generic.List[object]
@@ -256,13 +227,11 @@ if ($fallidas.Count -gt 0) {
         if ($f.Mensaje) {
             ($f.Mensaje -split "`r?`n") | Select-Object -First 8 | ForEach-Object { Nota ('   ' + $_) }
         }
-        # La primera línea de la pila que apunta a un archivo dice dónde falló.
         $donde = ($f.Pila -split "`r?`n") | Where-Object { $_ -match ' in .+:line \d+' -or $_ -match ' en .+:l.nea \d+' } | Select-Object -First 1
         if ($donde) { Nota ('   Dónde: ' + (Corto $donde.Trim())) }
     }
 }
 
-# --- Cobertura --------------------------------------------------------------------------------
 if ($Cobertura) {
     Titulo 'Cobertura de FotoToma.Core'
     $xmlCob = Get-ChildItem -LiteralPath $script:Corrida -Recurse -Filter 'coverage.cobertura.xml' -ErrorAction SilentlyContinue |
@@ -271,8 +240,7 @@ if ($Cobertura) {
         Nota 'No se generó el informe de cobertura (sin pruebas no hay nada que medir).'
     } else {
         [xml]$c = [System.IO.File]::ReadAllText($xmlCob.FullName)
-        # Se suman las líneas de todas las clases del paquete FotoToma.Core. Una misma línea puede
-        # aparecer en dos clases (clases parciales, lambdas): se cuenta una vez, con su mejor dato.
+        # Una línea puede aparecer en dos clases (parciales, lambdas): se cuenta una vez, con su mejor dato.
         $lineas = @{}
         foreach ($p in @($c.coverage.packages.package)) {
             if (-not $p -or $p.name -ne 'FotoToma.Core') { continue }
@@ -315,7 +283,6 @@ if ($Cobertura) {
     }
 }
 
-# --- Veredicto --------------------------------------------------------------------------------
 Write-Host ''
 if ($fallaron -gt 0) {
     Mal 'RESULTADO: hay pruebas que fallan. El mensaje de cada una dice qué esperaba y qué obtuvo.'

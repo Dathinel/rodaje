@@ -1,19 +1,6 @@
-﻿# Publica la prueba de humo de Native AOT (tests\FotoToma.AotSmoke) y la ejecuta, para comprobar que
-# el núcleo FotoToma.Core funciona compilado de antemano a código nativo, que es como se va a
-# entregar el editor. Explica el resultado en español sencillo: si hubo advertencias de recorte o de
-# AOT (con archivo y línea), cuánto pesa el .exe y cuánto tardó en arrancar y terminar.
-#
-# Uso:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\publicar-aot-prueba.ps1
-#
-# El ejecutable queda en dist\prueba-aot\ (git lo ignora). El entorno (SDK y caché de NuGet) está en
-# <repo>\.entorno, salvo que la variable de entorno FOTOTOMA_ENTORNO apunte a otra carpeta (útil
-# para worktrees de git que comparten el entorno de la copia principal).
-#
-# Native AOT necesita el enlazador de C++ de Microsoft (link.exe), que viene con Visual Studio Build
-# Tools y la carga de trabajo "Desarrollo para el escritorio con C++". El SDK lo encuentra solo.
-#
-# Código de salida: 0 si publicó sin advertencias y la prueba pasó, 1 si algo falló.
+﻿# Publica tests\FotoToma.AotSmoke con Native AOT en dist\prueba-aot\ y lo ejecuta.
+# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\publicar-aot-prueba.ps1
+# Requiere link.exe (Build Tools con C++). Sale con 0 solo si no hubo advertencias y la prueba pasó.
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -26,8 +13,7 @@ $Exe = Join-Path $Salida 'FotoToma.AotSmoke.exe'
 if ($env:FOTOTOMA_ENTORNO) { $Entorno = $env:FOTOTOMA_ENTORNO } else { $Entorno = Join-Path $Raiz '.entorno' }
 $DotnetDir = Join-Path $Entorno 'dotnet'
 $Dotnet = Join-Path $DotnetDir 'dotnet.exe'
-# El SDK está listo solo si existe la marca .sdk-<versión> que deja preparar-entorno.ps1 al terminar
-# (la versión sale de global.json); dotnet.exe solo no basta, porque un apagón a medias también lo deja.
+# Listo = existe la marca .sdk-<versión> de preparar-entorno.ps1; dotnet.exe no basta tras un apagón.
 try { $SdkVersion = (Get-Content -LiteralPath (Join-Path $Raiz 'global.json') -Raw -Encoding UTF8 | ConvertFrom-Json).sdk.version } catch { $SdkVersion = '' }
 $MarcaSdk = Join-Path $DotnetDir ".sdk-$SdkVersion"
 $Reloj = [System.Diagnostics.Stopwatch]::StartNew()
@@ -53,12 +39,10 @@ function Corto([string]$texto) {
     return $texto.Replace($Raiz + '\', '').Replace($Raiz, '.')
 }
 
-# Corre dotnet con el entorno propio, guarda toda la salida en un .log y la devuelve.
 function Invocar-Dotnet([string]$log, [string[]]$argumentos) {
     $lineas = New-Object System.Collections.Generic.List[string]
     $anterior = $ErrorActionPreference
-    # En Windows PowerShell 5.1, lo que un programa escribe en stderr llega como ErrorRecord;
-    # con 'Stop' eso cortaría el script. Aquí se trata como texto normal.
+    # En PowerShell 5.1 el stderr de un programa llega como ErrorRecord y 'Stop' cortaría el script.
     $ErrorActionPreference = 'Continue'
     try {
         & $Dotnet @argumentos 2>&1 | ForEach-Object { $lineas.Add("$_") }
@@ -70,9 +54,7 @@ function Invocar-Dotnet([string]$log, [string[]]$argumentos) {
     return [pscustomobject]@{ Codigo = $codigo; Lineas = $lineas }
 }
 
-# Diagnósticos de MSBuild/compilador/ILC ("archivo(12,5): warning IL2026: ...") sin repetir: MSBuild
-# los imprime dos veces (en el momento y en el resumen final). La palabra clave puede venir en inglés
-# (formato canónico de MSBuild) o traducida.
+# Sin repetir (MSBuild los imprime dos veces); la palabra clave puede venir en inglés o traducida.
 function Diagnosticos-De([System.Collections.Generic.List[string]]$lineas, [string]$tipo) {
     $vistos = @{}
     $lista = New-Object System.Collections.Generic.List[string]
@@ -86,13 +68,11 @@ function Diagnosticos-De([System.Collections.Generic.List[string]]$lineas, [stri
     return ,$lista
 }
 
-# Los avisos de recorte (IL2xxx), de AOT (IL3xxx) y de archivo único (IL3000-IL3003) empiezan por IL.
 function Es-De-Aot([string]$diagnostico) { return $diagnostico -match '(?i)\b(warning|advertencia|error)\s+IL\d+' }
 
 Titulo 'FotoToma - prueba de humo del núcleo compilado con Native AOT'
 Nota "Proyecto: $Raiz"
 
-# --- Comprobaciones previas -------------------------------------------------------------------
 if (-not (Test-Path -LiteralPath $Dotnet) -or -not (Test-Path -LiteralPath $MarcaSdk)) {
     Write-Host ''
     if (Test-Path -LiteralPath $Dotnet) {
@@ -113,7 +93,7 @@ if (-not (Test-Path -LiteralPath $Proyecto)) {
     Terminar 1
 }
 
-# Las mismas variables que fija herramientas\dotnet-local.cmd: nada global, nada de telemetría.
+# Las mismas variables que herramientas\dotnet-local.cmd.
 $env:DOTNET_ROOT = $DotnetDir
 $env:NUGET_PACKAGES = Join-Path $Entorno 'nuget'
 $env:DOTNET_CLI_HOME = $Entorno
@@ -124,16 +104,11 @@ $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
 $env:DOTNET_CLI_FORCE_UTF8_ENCODING = '1'
 $env:PATH = "$DotnetDir;$env:PATH"
 
-# Para hallar link.exe, el compilador AOT llama a vcvarsall.bat de Visual Studio, y este (VsDevCmd.bat)
-# hace "pushd" a la carpeta del instalador y corre "vswhere.exe" contando con que Windows lo busque en
-# la carpeta actual. Si la variable NoDefaultCurrentDirectoryInExePath está puesta (algunas terminales
-# y herramientas la ponen por seguridad), no lo encuentra, el error se cuela en la ruta del enlazador y
-# la publicación falla con "vswhere.exe no se reconoce". Poner esa carpeta en el PATH de este proceso lo
-# evita sin tocar nada del sistema.
+# VsDevCmd.bat corre vswhere.exe desde la carpeta actual; con NoDefaultCurrentDirectoryInExePath
+# puesto falla y daña la ruta de link.exe. Añadir la carpeta al PATH del proceso lo evita.
 $instaladorVs = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer'
 if (Test-Path -LiteralPath (Join-Path $instaladorVs 'vswhere.exe')) { $env:PATH = "$env:PATH;$instaladorVs" }
 
-# Registro de esta corrida, junto a los de las pruebas (se guardan los 5 últimos de AOT).
 $Resultados = Join-Path $Raiz 'TestResults'
 New-Item -ItemType Directory -Force -Path $Resultados | Out-Null
 $script:Corrida = Join-Path $Resultados ('aot-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
@@ -142,10 +117,8 @@ Get-ChildItem -LiteralPath $Resultados -Directory | Where-Object { $_.Name -matc
     Sort-Object Name -Descending | Select-Object -Skip 5 |
     ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
 
-# --- Fase 1: publicar con Native AOT ------------------------------------------------------------
-# El RID (win-x64) ya está fijado en el .csproj. No se pasa -r en la línea de comandos porque así se
-# volvería una propiedad global que llega también a FotoToma.Core, y su packages.lock.json ganaría una
-# sección win-x64 que la compilación normal vuelve a quitar: el archivo cambiaría en cada corrida.
+# Sin -r: el RID ya está en el .csproj; como propiedad global llegaría a FotoToma.Core y su
+# packages.lock.json cambiaría en cada corrida.
 Fase 1 'compilando el núcleo y la prueba a código nativo (Native AOT, puede tardar un minuto)...'
 if (Test-Path -LiteralPath $Salida) { Remove-Item -LiteralPath $Salida -Recurse -Force }
 $r = Invocar-Dotnet (Join-Path $script:Corrida 'publicar.log') @(
@@ -216,7 +189,6 @@ if ($tamCarpeta -gt $tamExe) {
     Nota ("Carpeta completa sin símbolos de depuración (.pdb): {0:0.00} MB" -f ($tamCarpeta / 1MB))
 }
 
-# --- Fase 2: ejecutar el .exe nativo ------------------------------------------------------------
 Fase 2 'ejecutando el programa nativo (no usa el SDK ni el runtime de .NET instalados)...'
 Write-Host ''
 $salidaExe = New-Object System.Collections.Generic.List[string]

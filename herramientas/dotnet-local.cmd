@@ -1,6 +1,5 @@
 @echo off
 rem Ejecuta el SDK de .NET del entorno propio (.entorno\dotnet) con la caché NuGet local.
-rem Uso: herramientas\dotnet-local.cmd test   (cualquier argumento de dotnet)
 setlocal
 set "RAIZ=%~dp0.."
 set "ENTORNO=%RAIZ%\.entorno"
@@ -14,8 +13,7 @@ set "DOTNET_CLI_TELEMETRY_OPTOUT=1"
 set "DOTNET_NOLOGO=1"
 set "DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1"
 set "PATH=%DOTNET_ROOT%;%PATH%"
-rem El entorno esta listo cuando existe la marca .sdk-<version> (la version sale de global.json).
-rem Que exista dotnet.exe no basta: una instalacion cortada por un apagon tambien lo tiene.
+rem Listo = existe la marca .sdk-<version> (de global.json); dotnet.exe no basta tras un apagon.
 set "SDKVER="
 for /f "usebackq tokens=2 delims=:, " %%v in (`findstr /i /c:"\"version\"" "%RAIZ%\global.json"`) do if not defined SDKVER set "SDKVER=%%~v"
 if not exist "%DOTNET_ROOT%\.sdk-%SDKVER%" goto preparar
