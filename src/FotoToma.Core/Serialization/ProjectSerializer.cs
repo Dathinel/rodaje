@@ -26,7 +26,7 @@ public static class ProjectSerializer
     public static string Serialize(Project project)
     {
         ArgumentNullException.ThrowIfNull(project);
-        return JsonSerializer.Serialize(project, ProjectJsonContext.ProjectInfo);
+        return JsonSerializer.Serialize(project, ProjectJson.ProjectInfo);
     }
 
     /// <summary>
@@ -44,13 +44,13 @@ public static class ProjectSerializer
         Project? project;
         try
         {
-            project = root.Deserialize(ProjectJsonContext.ProjectInfo);
+            project = root.Deserialize(ProjectJson.ProjectInfo);
         }
         catch (JsonException ex)
         {
-            string where = string.IsNullOrEmpty(ex.Path) ? "" : $" en «{ex.Path}»";
+            // El serializador siempre indica la ruta del dato (por ejemplo $.sequences[0].frameRate).
             throw new ProjectFormatException(
-                $"El archivo tiene un dato con un tipo o un valor que no corresponde{where}. " +
+                $"El archivo tiene un dato con un tipo o un valor que no corresponde en «{ex.Path}». " +
                 "Es posible que se haya editado a mano o que esté dañado.",
                 ex);
         }
@@ -150,13 +150,15 @@ public static class ProjectSerializer
         JsonNode? node;
         try
         {
-            node = JsonNode.Parse(json);
+            // Un campo repetido en el mismo objeto es ambiguo (¿cuál vale?), así que se rechaza al analizar.
+            node = JsonNode.Parse(json, documentOptions: new JsonDocumentOptions { AllowDuplicateProperties = false });
         }
         catch (JsonException ex)
         {
+            string where = ex.LineNumber is { } line ? $" (error cerca de la línea {line + 1})" : "";
             throw new ProjectFormatException(
-                "El archivo no es un proyecto de FotoToma válido: su contenido no es JSON bien formado " +
-                $"(error cerca de la línea {ex.LineNumber + 1}). Puede estar incompleto o dañado; si existe, " +
+                "El archivo no es un proyecto de FotoToma válido: su contenido no es JSON bien formado o tiene " +
+                $"campos repetidos{where}. Puede estar incompleto o dañado; si existe, " +
                 $"prueba con la copia «{BackupSuffix}» que deja cada guardado.",
                 ex);
         }

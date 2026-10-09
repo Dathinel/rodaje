@@ -26,9 +26,11 @@ public sealed class RationalJsonConverter : JsonConverter<Rational>
         long? num = null;
         long? den = null;
 
-        while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+        // El serializador entrega a los convertidores el valor completo, así que leer nunca se queda sin
+        // datos; dentro del objeto siempre viene un nombre de propiedad seguido de su valor.
+        reader.Read();
+        while (reader.TokenType != JsonTokenType.EndObject)
         {
-            // Dentro de un objeto, el lector siempre entrega un nombre de propiedad seguido de su valor.
             string? name = reader.GetString();
             reader.Read();
 
@@ -52,6 +54,8 @@ public sealed class RationalJsonConverter : JsonConverter<Rational>
             {
                 reader.Skip();
             }
+
+            reader.Read();
         }
 
         if (num is not { } n || den is not { } d || n <= 0 || d <= 0)

@@ -32,7 +32,7 @@ public static class ProjectSchema
             TransformSchemaNode = Transform,
         };
 
-        JsonNode schema = ProjectJsonContext.ProjectInfo.GetJsonSchemaAsNode(exporterOptions);
+        JsonNode schema = ProjectJson.ProjectInfo.GetJsonSchemaAsNode(exporterOptions);
 
         using var buffer = new MemoryStream();
         using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions

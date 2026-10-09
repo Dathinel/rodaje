@@ -37,20 +37,29 @@ namespace FotoToma.Core.Serialization;
 [JsonSerializable(typeof(Project))]
 public sealed partial class ProjectJsonContext : JsonSerializerContext
 {
+}
+
+/// <summary>
+/// Opciones y metadatos listos para leer y escribir el archivo. Van aparte del contexto porque el
+/// orden de inicialización de los campos estáticos entre las partes de una clase parcial no está
+/// definido y el contexto generado declara los suyos en otro archivo.
+/// </summary>
+internal static class ProjectJson
+{
     /// <summary>
-    /// Opciones con las que se lee y escribe el archivo. Son las del atributo más un codificador que
-    /// deja las tildes y la ñ legibles en lugar de escaparlas como <c>ñ</c>; un archivo en disco no
-    /// corre el riesgo de inyección HTML para el que existe el escape estricto.
+    /// Las opciones del atributo más un codificador que deja las tildes y la ñ legibles en lugar de
+    /// escaparlas con secuencias <c>\u</c>; un archivo en disco no corre el riesgo de inyección HTML para el
+    /// que existe el escape estricto.
     /// </summary>
-    internal static JsonSerializerOptions FileOptions { get; } = CreateFileOptions();
+    public static JsonSerializerOptions FileOptions { get; } = CreateFileOptions();
 
     /// <summary>Metadatos de <see cref="Project"/> ligados a <see cref="FileOptions"/>.</summary>
-    internal static JsonTypeInfo<Project> ProjectInfo { get; } =
+    public static JsonTypeInfo<Project> ProjectInfo { get; } =
         (JsonTypeInfo<Project>)FileOptions.GetTypeInfo(typeof(Project));
 
     private static JsonSerializerOptions CreateFileOptions()
     {
-        var options = new JsonSerializerOptions(Default.Options)
+        var options = new JsonSerializerOptions(ProjectJsonContext.Default.Options)
         {
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
