@@ -31,6 +31,15 @@ Editor de video nativo para Windows, inspirado en la experiencia de uso de CapCu
 - **Estilo:** README corto con evidencias y comentarios mínimos en el código; el detalle vive en `docs/guia-tecnica.md`.
 - **Documentación:** `docs/investigacion.md`, `docs/decisiones.md`, `docs/legal.md` y `docs/formato-proyecto.md`, más `LICENCIAS.md`, `THIRD-PARTY-NOTICES.txt`, `SECURITY.md` y `CONTRIBUTING.md`.
 
+## Decisiones tomadas
+
+- **Arquitectura modular** (`docs/propuesta-modulos.md`, aprobada el 9-oct-2026):
+  - núcleo y motor en el exe;
+  - contenido en paquetes `.ftpack` sin código;
+  - IA como módulos C# en procesos aparte;
+  - formato de paquete y protocolo compartidos con otros programas;
+  - distribución en zip base y zip completo, más el gestor.
+
 ## Decisiones pendientes para Daniel
 
 
