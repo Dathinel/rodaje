@@ -13,9 +13,9 @@ Se regenera en cada versión publicada a partir de las dependencias reales de
 esa versión (ver LICENCIAS.md). Las dependencias que solo se usan para compilar
 o probar no aparecen aquí porque no se redistribuyen.
 
-Versión de este archivo: fase 1 (sin versión publicada todavía).
+Versión de este archivo: fase 2 (sin versión publicada todavía).
 Componentes incluidos: runtime de .NET 10 (embebido por la publicación
-autocontenida / Native AOT).
+autocontenida / Native AOT) y bibliotecas de FFmpeg (DLL separadas, LGPL).
 
 
 ===============================================================================
@@ -67,10 +67,46 @@ versión correspondiente al runtime usado (también incluido en el SDK de
 
 
 ===============================================================================
+2. FFmpeg 9.0 (avcodec-63, avformat-63, avutil-61, swresample-7, swscale-10,
+   avfilter-12, avdevice-63)
+   https://ffmpeg.org
+   Licencia: GNU Lesser General Public License, versión 3 o posterior
+===============================================================================
+
+FotoToma usa bibliotecas del proyecto FFmpeg (https://ffmpeg.org), Copyright
+(c) 2000-2026 los desarrolladores de FFmpeg, bajo la licencia LGPL versión 3
+o posterior. FFmpeg es una marca de Fabrice Bellard. FotoToma no es parte de
+FFmpeg ni está respaldado por él.
+
+Las bibliotecas se distribuyen como DLL separadas y sin modificar; se pueden
+reemplazar por otra compilación compatible de la misma versión mayor.
+
+Compilación: ffmpeg-n9.0.2-17-g2a571b6068-win64-lgpl-shared-9.0 de BtbN
+  https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-30-13-08
+  SHA-256 del zip: 7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646
+Código fuente correspondiente:
+  FFmpeg, commit 2a571b606854520cf89804d8030c8b328e621689 (n9.0.2-17-g2a571b6068)
+    https://git.ffmpeg.org/ffmpeg.git
+    https://github.com/FFmpeg/FFmpeg/commit/2a571b606854520cf89804d8030c8b328e621689
+  Scripts de compilación y versiones de las bibliotecas externas:
+    https://github.com/BtbN/FFmpeg-Builds/tree/autobuild-2026-09-30-13-08
+Línea de configuración: docs/ffmpeg-configure.txt (sin --enable-gpl ni
+--enable-nonfree).
+
+El texto de la LGPL versión 3 viaja en el LICENSE.txt de la compilación. Como
+la LGPLv3 incorpora la GPL versión 3, al publicar se copian junto a las DLL
+los dos textos: https://www.gnu.org/licenses/lgpl-3.0.txt y
+https://www.gnu.org/licenses/gpl-3.0.txt.
+
+Las DLL contienen bibliotecas externas con licencias propias (dav1d, libvpx,
+opus, openh264, SVT-AV1, kvazaar, libaom, freetype, harfbuzz, fribidi, libass,
+lame, zimg, zlib y otras). Sus avisos se añadirán aquí antes de publicar una
+versión.
+
+
+===============================================================================
 Componentes previstos (todavía no incluidos)
 ===============================================================================
 
-Cuando se incorporen, sus avisos se añadirán aquí: bibliotecas de FFmpeg
-(LGPL, con la ubicación de su código fuente y su línea de configuración),
-FFmpeg.AutoGen, Vortice.Windows, Windows App SDK, NAudio, Whisper.net,
+Cuando se incorporen, sus avisos se añadirán aquí: FFmpeg.AutoGen, Vortice.Windows, Windows App SDK, NAudio, Whisper.net,
 whisper.cpp, ONNX Runtime, DirectML y los modelos de IA que se distribuyan.

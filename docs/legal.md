@@ -25,6 +25,18 @@ La página legal de FFmpeg ofrece una lista de comprobación para cumplir la LGP
 7. **EULA y ingeniería inversa.** Si algún día FotoToma tiene términos de uso, no pueden prohibir la ingeniería inversa de la parte LGPL ni reclamar la propiedad de FFmpeg; deben indicar quiénes son sus autores. La licencia MIT actual no impone ninguna prohibición de ese tipo.
 8. **Mismo cuidado con las bibliotecas que FFmpeg incluye.** Cada biblioteca externa compilada dentro de las DLL de BtbN tiene su propia licencia, que se revisa y se lista en `THIRD-PARTY-NOTICES.txt` en la versión en que FFmpeg se distribuya.
 
+### Compilación fijada y su código fuente
+
+Desde la fase 2, `herramientas\preparar-entorno.ps1` instala en `.entorno\ffmpeg` esta compilación exacta, verificando su huella:
+
+- **Archivo:** `ffmpeg-n9.0.2-17-g2a571b6068-win64-lgpl-shared-9.0.zip`, de la release https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-30-13-08, con SHA-256 `7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646` (el de `checksums.sha256` de esa release, recalculado al descargar). Se eligió una release de fin de mes porque BtbN borra las diarias a las dos semanas y conserva las mensuales.
+- **Licencia efectiva:** LGPL-3.0-or-later. `ffmpeg -buildconf` muestra `--enable-version3` y ni `--enable-gpl` ni `--enable-nonfree`; además desactiva explícitamente libx264, libx265, libxvid y libfdk-aac. La línea completa está en [`docs/ffmpeg-configure.txt`](ffmpeg-configure.txt).
+- **Código fuente de FFmpeg:** la cadena de versión `n9.0.2-17-g2a571b6068` corresponde al commit `2a571b606854520cf89804d8030c8b328e621689` del repositorio oficial (17 commits después de la etiqueta `n9.0.2`, en la rama `release/9.0`): https://git.ffmpeg.org/ffmpeg.git y su espejo https://github.com/FFmpeg/FFmpeg/commit/2a571b606854520cf89804d8030c8b328e621689.
+- **Scripts de compilación:** la etiqueta de la release apunta al commit `6c9aec5fc9a72ec3abedd1fa84db141fa18cf52b` de BtbN/FFmpeg-Builds (https://github.com/BtbN/FFmpeg-Builds/tree/autobuild-2026-09-30-13-08), que fija también las versiones de las bibliotecas externas compiladas dentro de las DLL.
+- **Antes de distribuir:** archivar en un lugar propio el tarball de ese commit de FFmpeg y el de los scripts de BtbN (los enlaces de terceros pueden desaparecer), y ofrecerlos junto a `dist\` o mediante oferta escrita.
+
+Las DLL incluyen bibliotecas externas con licencias propias (dav1d, libvpx, opus, openh264, SVT-AV1, kvazaar, libaom, freetype, harfbuzz, fribidi, libass, lame, zimg, zlib y otras; la lista sale de la línea de configure). Ninguna es GPL-only, pero el punto 8 de la lista anterior sigue pendiente. La OpenH264 de estas DLL está compilada desde el código fuente, así que no trae la licencia de patentes que Cisco concede solo a su binario oficial; para exportar H.264 se prefieren NVENC o Media Foundation (ver "Patentes de códecs").
+
 Una advertencia específica del equipo de desarrollo: el FFmpeg 9.0 de gyan.dev instalado con winget es una compilación GPL. Sirve para pruebas y para preparar material, pero nunca debe copiarse a `dist\`, incluirse en un paquete ni entregarse junto con FotoToma.
 
 ## Patentes de códecs
