@@ -114,20 +114,29 @@ internal static class TestClips
         return samples;
     }
 
-    /// <summary>Audio solo, mono a 44,1 kHz: obliga a remuestrear.</summary>
-    public static string MonoAudio44k() => Generated.GetOrAdd("mono-44k.m4a", name => new Lazy<string>(() =>
-        Produce(name, temp => Try(MediaTestEnvironment.FfmpegExe, "-v", "error", "-y", "-f", "lavfi",
-            "-i", "sine=frequency=997:sample_rate=44100:duration=4", "-c:a", "aac", "-b:a", "96k", temp)))).Value;
+    /// <summary>Audio solo, AAC mono a 44,1 kHz: obliga a remuestrear.</summary>
+    public static string MonoAudio44k() => AudioOnly("mono-44k.m4a", "sine=frequency=997:sample_rate=44100:duration=4", "aac");
+
+    /// <summary>FLAC estéreo a 48 kHz: sin pérdida y sin estado entre bloques, así que el seek debe ser exacto al bit.</summary>
+    public static string FlacStereo48k() =>
+        AudioOnly("flac-48k-estereo.mkv", "aevalsrc=exprs=0.5*sin(2*PI*440*t)|0.4*sin(2*PI*(600+150*t)*t):s=48000:d=6", "flac");
+
+    /// <summary>FLAC mono a 44,1 kHz, para medir el remuestreo sin el ruido del códec.</summary>
+    public static string FlacMono44k() =>
+        AudioOnly("flac-44k-mono.mkv", "aevalsrc=exprs=0.6*sin(2*PI*997*t)+0.2*sin(2*PI*3001*t):s=44100:d=4", "flac");
+
+    private static string AudioOnly(string fileName, string source, string codec) => Generated.GetOrAdd(fileName, name => new Lazy<string>(() =>
+        Produce(name, temp => Try(MediaTestEnvironment.FfmpegExe, "-v", "error", "-y", "-f", "lavfi", "-i", source, "-c:a", codec, temp)))).Value;
 
     /// <summary>Video de tasa variable: cada quinto cuadro llega 10 ms tarde.</summary>
-    public static string VariableFrameRate() => Generated.GetOrAdd("vfr.mp4", name => new Lazy<string>(() =>
+    public static string VariableFrameRate() => Generated.GetOrAdd("vfr-30.mp4", name => new Lazy<string>(() =>
         Produce(name, temp => EncodeVideo(temp, ClipCodec.H264, gop: 30, bFrames: 0,
             ["-f", "lavfi", "-i", "testsrc2=size=320x240:rate=30", "-frames:v", "90"],
-            ["-vf", "setpts=N/30/TB+eq(mod(N\\,5)\\,0)*0.01/TB", "-fps_mode", "vfr", "-video_track_timescale", "3000"])))).Value;
+            ["-vf", "settb=1/3000,setpts=N/30/TB+eq(mod(N\\,5)\\,0)*0.01/TB", "-fps_mode", "vfr", "-enc_time_base:v", "filter", "-video_track_timescale", "3000"])))).Value;
 
-    /// <summary>El clip H.264 reempaquetado con rotación de 90° y SAR 4:3.</summary>
-    public static string RotatedAnamorphic() => Generated.GetOrAdd("rotado-sar.mp4", name => new Lazy<string>(() =>
-        Produce(name, temp => Try(MediaTestEnvironment.FfmpegExe, "-v", "error", "-y", "-display_rotation", "90",
+    /// <summary>El clip H.264 reempaquetado con rotación de 90° en sentido horario (270° antihorario para ffmpeg) y SAR 4:3.</summary>
+    public static string RotatedAnamorphic() => Generated.GetOrAdd("rotado90-sar43.mp4", name => new Lazy<string>(() =>
+        Produce(name, temp => Try(MediaTestEnvironment.FfmpegExe, "-v", "error", "-y", "-display_rotation", "270",
             "-i", PathOf(H264), "-c", "copy", "-bsf:v", "h264_metadata=sample_aspect_ratio=4/3", temp)))).Value;
 
     /// <summary>Copia del clip con bloques de bytes basura en medio de los datos.</summary>

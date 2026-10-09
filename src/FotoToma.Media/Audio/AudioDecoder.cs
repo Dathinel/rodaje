@@ -262,8 +262,56 @@ public sealed unsafe class AudioDecoder : IDisposable
         }
     }
 
-    private long OutputPositionOf(long timestamp) =>
-        (long)Av.RoundDiv((Int128)(timestamp - _originTs) * _timeBase.num * OutputSampleRate, _timeBase.den);
+    /// <summary>Muestra de entrada (contada desde el origen) en la que empieza un cuadro con esa marca.</summary>
+    /// <remarks>
+    /// Si la base de tiempo es más gruesa que una muestra (Matroska usa milisegundos), la marca solo ubica el
+    /// cuadro con ±media unidad; entonces se ajusta a la rejilla de cuadros del códec, que en audio es de
+    /// tamaño fijo desde el inicio del flujo. Con códecs de tamaño de cuadro variable ese ajuste no aplica.
+    /// </remarks>
+    private long InputSampleIndex(long timestamp, int inputRate, int frameSamples)
+    {
+        long index = (long)Av.RoundDiv((Int128)(timestamp - _originTs) * _timeBase.num * inputRate, _timeBase.den);
+        int grid = _codec->frame_size > 0 ? _codec->frame_size : frameSamples;
+        if ((long)_timeBase.num * inputRate > _timeBase.den && grid > 0)
+        {
+            long start = (long)Av.RoundDiv((Int128)(_streamStartTs - _originTs) * _timeBase.num * inputRate, _timeBase.den);
+            index = start + ((long)Av.RoundDiv(index - start, grid) * grid);
+        }
+
+        return index;
+    }
+
+    private static int Gcd(int a, int b)
+    {
+        while (b != 0)
+        {
+            (a, b) = (b, a % b);
+        }
+
+        return a;
+    }
+
+    private void ResampleFrame(int skip)
+    {
+        if (skip == 0)
+        {
+            Resample(_frame->extended_data, _frame->nb_samples);
+            return;
+        }
+
+        var format = (AVSampleFormat)_frame->format;
+        int bytes = ffmpeg.av_get_bytes_per_sample(format);
+        int channels = _frame->ch_layout.nb_channels;
+        bool planar = ffmpeg.av_sample_fmt_is_planar(format) != 0;
+        int planes = planar ? channels : 1;
+        byte** shifted = stackalloc byte*[planes];
+        for (int p = 0; p < planes; p++)
+        {
+            shifted[p] = _frame->extended_data[p] + ((long)skip * bytes * (planar ? 1 : channels));
+        }
+
+        Resample(shifted, _frame->nb_samples - skip);
+    }
 
     /// <summary>Agrega al FIFO lo que salga del siguiente cuadro; <c>false</c> cuando ya no hay más audio.</summary>
     private bool DecodeMore()
@@ -275,22 +323,35 @@ public sealed unsafe class AudioDecoder : IDisposable
             {
                 _consecutiveErrors = 0;
                 long ts = _frame->pts != ffmpeg.AV_NOPTS_VALUE ? _frame->pts : _frame->best_effort_timestamp;
-                if (_syncPending && ts != ffmpeg.AV_NOPTS_VALUE)
+                int skip = 0;
+                if (_syncPending && ts != ffmpeg.AV_NOPTS_VALUE && _frame->sample_rate > 0)
                 {
-                    long first = OutputPositionOf(ts);
+                    int inputRate = _frame->sample_rate;
+                    long inputIndex = InputSampleIndex(ts, inputRate, _frame->nb_samples);
                     // El índice del contenedor dejó el seek después del objetivo: se busca más atrás.
-                    if (first > _seekTarget && _seekTs > _streamStartTs && _seekRetries < MaxSeekRetries)
+                    if (inputIndex * OutputSampleRate > _seekTarget * inputRate && _seekTs > _streamStartTs && _seekRetries < MaxSeekRetries)
                     {
                         _seekRetries++;
                         SeekTo(_seekTs - (_prerollTs << _seekRetries));
                         continue;
                     }
 
-                    _nextAppend = first;
+                    // El remuestreador recién reiniciado pone su primera salida sobre la primera entrada. Para que
+                    // la fase coincida con la de una lectura continua desde el origen, se empieza en una muestra
+                    // de entrada que cae exactamente sobre una de salida (cada 147 a 44,1 kHz, cada una a 48 kHz).
+                    long period = inputRate / (long)Gcd(inputRate, OutputSampleRate);
+                    skip = (int)((((-inputIndex) % period) + period) % period);
+                    if (skip >= _frame->nb_samples)
+                    {
+                        ffmpeg.av_frame_unref(_frame);
+                        continue;
+                    }
+
+                    _nextAppend = (inputIndex + skip) * OutputSampleRate / inputRate;
                 }
 
                 _syncPending = false;
-                Resample(_frame->extended_data, _frame->nb_samples);
+                ResampleFrame(skip);
                 ffmpeg.av_frame_unref(_frame);
                 return true;
             }

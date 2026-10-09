@@ -133,17 +133,16 @@ public static unsafe class MediaProbe
         Rational? average = ToRational(stream->avg_frame_rate);
         Rational? real = ToRational(stream->r_frame_rate);
         Rational? chosen = ChooseFrameRate(average, real);
-        bool vfr = false;
+        bool vfr = average is { } a && real is { } r && Math.Abs(a.ToDouble() - r.ToDouble()) / r.ToDouble() > 0.02;
         if (scan)
         {
             (Rational? measured, bool irregular) = ScanTimestamps(format, index);
-            chosen ??= measured;
-            vfr = irregular;
-        }
-
-        if (average is { } a && real is { } r && Math.Abs(a.ToDouble() - r.ToDouble()) / r.ToDouble() > 0.02)
-        {
-            vfr = true;
+            vfr |= irregular;
+            // Con tasa variable el promedio (29,87…) numeraría mal; el intervalo más común es la tasa nominal.
+            if (measured is not null && (chosen is null || vfr))
+            {
+                chosen = measured;
+            }
         }
 
         Rational rate = chosen ?? Rational.Fps30;
@@ -255,6 +254,13 @@ public static unsafe class MediaProbe
         }
 
         timestamps.Sort();
+        // Los paquetes llegan en orden de decodificación: con B-frames, los últimos leídos pueden dejar
+        // huecos en el orden de presentación que no son de la tasa.
+        if (timestamps.Count > 32)
+        {
+            timestamps.RemoveRange(timestamps.Count - 16, 16);
+        }
+
         var deltas = new List<long>(timestamps.Count - 1);
         for (int i = 1; i < timestamps.Count; i++)
         {
