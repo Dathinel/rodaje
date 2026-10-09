@@ -1,11 +1,13 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/FotoToma.Core/FotoToma.Core.csproj" />
+    <Project Path="src/FotoToma.Media/FotoToma.Media.csproj" />
     <Project Path="src/FotoToma.Playback/FotoToma.Playback.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/FotoToma.AotSmoke/FotoToma.AotSmoke.csproj" />
     <Project Path="tests/FotoToma.Core.Tests/FotoToma.Core.Tests.csproj" />
+    <Project Path="tests/FotoToma.Media.Tests/FotoToma.Media.Tests.csproj" />
     <Project Path="tests/FotoToma.Playback.Tests/FotoToma.Playback.Tests.csproj" />
   </Folder>
 </Solution>
