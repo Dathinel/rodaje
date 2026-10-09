@@ -1,10 +1,12 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/FotoToma.Audio/FotoToma.Audio.csproj" />
     <Project Path="src/FotoToma.Core/FotoToma.Core.csproj" />
     <Project Path="src/FotoToma.Playback/FotoToma.Playback.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/FotoToma.AotSmoke/FotoToma.AotSmoke.csproj" />
+    <Project Path="tests/FotoToma.Audio.Tests/FotoToma.Audio.Tests.csproj" />
     <Project Path="tests/FotoToma.Core.Tests/FotoToma.Core.Tests.csproj" />
     <Project Path="tests/FotoToma.Playback.Tests/FotoToma.Playback.Tests.csproj" />
     <Project Path="tests/FotoToma.TestMedia.Tests/FotoToma.TestMedia.Tests.csproj" />
