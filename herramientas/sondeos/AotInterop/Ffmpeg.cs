@@ -26,8 +26,9 @@ internal static unsafe class Ffmpeg
         ffmpeg.RootPath = carpeta;
 #elif VARIANTE_ENLAZADO
         // DllImport("avcodec-63") no mira la carpeta de FFmpeg: el resolver la traduce a ruta absoluta.
+        // Devolver 0 dejaría que Windows la buscara en el PATH (donde puede haber un FFmpeg GPL), así que falla.
         NativeLibrary.SetDllImportResolver(typeof(FFmpeg.AutoGen.Bindings.DynamicallyLinked.DynamicallyLinkedBindings).Assembly,
-            (nombre, _, _) => NativeLibrary.TryLoad(Path.Combine(carpeta, nombre + ".dll"), out nint h) ? h : 0);
+            (nombre, _, _) => NativeLibrary.Load(Path.Combine(carpeta, nombre + ".dll")));
         FFmpeg.AutoGen.Bindings.DynamicallyLinked.DynamicallyLinkedBindings.Initialize();
 #else
         FFmpeg.AutoGen.Bindings.DynamicallyLoaded.DynamicallyLoadedBindings.LibrariesPath = carpeta;
@@ -53,6 +54,21 @@ internal static unsafe class Ffmpeg
     }
 
     public static string Version() => ffmpeg.av_version_info();
+
+    // Costo fijo de una llamada nativa trivial según el tipo de enlace (delegado frente a DllImport).
+    public static void MedirLlamadas()
+    {
+        const int N = 10_000_000;
+        uint suma = 0;
+        for (int i = 0; i < 1000; i++)
+            suma += ffmpeg.avutil_version();
+        var reloj = Stopwatch.StartNew();
+        for (int i = 0; i < N; i++)
+            suma += ffmpeg.avutil_version();
+        reloj.Stop();
+        Console.WriteLine($"Llamadas: {N:N0} x avutil_version() en {reloj.Elapsed.TotalMilliseconds:0} ms = " +
+            $"{reloj.Elapsed.TotalMilliseconds * 1e6 / N:0.0} ns por llamada (control {suma % 10})");
+    }
 
     internal static void Ok(int r, string que)
     {

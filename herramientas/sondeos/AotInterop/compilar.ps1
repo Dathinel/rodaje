@@ -1,6 +1,6 @@
 # Compila (build, sin AOT) una variante y muestra solo errores y advertencias.
 # Uso: compilar.ps1 [-Variante Cargado] [-Graficos Vortice|TerraFX]
-param([string]$Variante = 'Cargado', [string]$Graficos = 'Vortice')
+param([string]$Variante = 'Enlazado', [string]$Graficos = 'TerraFX')
 $ErrorActionPreference = 'Continue'
 $raiz = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $dotnet = Join-Path $raiz 'herramientas\dotnet-local.cmd'

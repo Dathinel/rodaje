@@ -20,6 +20,8 @@ if (-not $env:FOTOTOMA_ENTORNO -and -not (Test-Path (Join-Path $raiz '.entorno\d
 # vcvarsall.bat necesita vswhere.exe en el PATH para encontrar link.exe (ver publicar-aot-prueba.ps1).
 $instaladorVs = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer'
 if (Test-Path (Join-Path $instaladorVs 'vswhere.exe')) { $env:PATH = "$env:PATH;$instaladorVs" }
+# Con -File, "A,B" llega como una sola cadena.
+$Combinaciones = @($Combinaciones | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $argFfmpeg = @()
 if ($Ffmpeg) { $argFfmpeg = @('--ffmpeg', $Ffmpeg) }
 
@@ -55,6 +57,7 @@ foreach ($combinacion in $Combinaciones) {
         $r = [System.Diagnostics.Stopwatch]::StartNew(); & $exe version @argFfmpeg | Out-Null; $r.Elapsed.TotalMilliseconds }
     Write-Host ("  arranque + carga de FFmpeg + salida (modo version), 5 corridas: {0} ms" -f (($tiempos | ForEach-Object { '{0:0}' -f $_ }) -join ', '))
     Ejecutar $exe (@('version') + $argFfmpeg) | Out-Null
+    Ejecutar $exe (@('llamadas') + $argFfmpeg) | Out-Null
     Ejecutar $exe (@('d3d') + $argFfmpeg) | Out-Null
     Ejecutar $exe (@('decodificar', (Join-Path $Muestras 'corto.mp4')) + $argFfmpeg) | Out-Null
     Ejecutar $exe (@('compartir', (Join-Path $Muestras 'corto.mp4')) + $argFfmpeg) | Out-Null

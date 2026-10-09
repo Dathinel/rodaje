@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using AotInterop;
 
 // Uso: AotInterop <modo> [archivo] [--ffmpeg <carpeta con las DLL>]
-// Modos: version, decodificar, compartir, d3d, audio-xaudio2, audio-wasapi, audio-naudio, medir, todo.
+// Modos: version, llamadas, decodificar, compartir, d3d, audio-xaudio2, audio-wasapi, audio-naudio, medir, todo.
 
 var reloj = Stopwatch.StartNew();
 var argumentos = args.ToList();
@@ -26,6 +26,10 @@ try
         case "version":
             Ffmpeg.Iniciar(carpetaFfmpeg);
             Console.WriteLine($"FFmpeg {Ffmpeg.Version()} cargado en {reloj.Elapsed.TotalMilliseconds:0.0} ms desde Main");
+            break;
+        case "llamadas":
+            Ffmpeg.Iniciar(carpetaFfmpeg);
+            Ffmpeg.MedirLlamadas();
             break;
         case "decodificar":
             Ffmpeg.Iniciar(carpetaFfmpeg);
