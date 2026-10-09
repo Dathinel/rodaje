@@ -20,13 +20,14 @@ $SdkVersion = '10.0.401'
 $SdkUrl     = "https://builds.dotnet.microsoft.com/dotnet/Sdk/$SdkVersion/dotnet-sdk-$SdkVersion-win-x64.zip"
 $SdkSha512  = '24b670ad3d923bfcf47df6c3b034152398b42f6dbc388e10d783aee1cfb5e5817d399fc0ae2a12cfa822a55e61d34830ccb15c50ef6efee437ab874bb7c79430'
 
-# Compilación lgpl-shared de BtbN con fecha (las "latest" cambian cada día). Hash de checksums.sha256 de esa release.
-# La serie mayor debe coincidir con FFmpeg.AutoGen (9.x: avcodec-63, avformat-63, avutil-61, swresample-7, swscale-10).
+# Compilación lgpl-shared de BtbN de fin de mes: BtbN borra las diarias a las ~2 semanas y conserva las de fin de mes.
+# Hash de checksums.sha256 de esa release. La serie mayor debe coincidir con FFmpeg.AutoGen
+# (9.x: avcodec-63, avformat-63, avutil-61, swresample-7, swscale-10).
 # dotnet-local.cmd, ABRIR.bat y probar.ps1 leen la versión de la línea siguiente: debe empezar por "$FfmpegVersion = '".
-$FfmpegVersion = 'n9.0.2-23-g27b46f0fbc'
-$FfmpegRelease = 'autobuild-2026-10-08-13-05'
+$FfmpegVersion = 'n9.0.2-17-g2a571b6068'
+$FfmpegRelease = 'autobuild-2026-09-30-13-08'
 $FfmpegUrl     = "https://github.com/BtbN/FFmpeg-Builds/releases/download/$FfmpegRelease/ffmpeg-$FfmpegVersion-win64-lgpl-shared-9.0.zip"
-$FfmpegSha256  = 'a168ed7b315366354df532a755a93341b6e7e66b65834f56ce36b3ee8be0d6f0'
+$FfmpegSha256  = '7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646'
 
 function Paso([string]$texto) { Write-Host "[entorno] $texto" }
 
