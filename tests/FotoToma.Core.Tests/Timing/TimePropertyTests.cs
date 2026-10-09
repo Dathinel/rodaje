@@ -133,7 +133,9 @@ public class TimePropertyTests
         Gen.Double[-100_000, 100_000].Sample(seconds =>
         {
             double back = Time.FromSeconds(seconds).ToSeconds();
-            Assert.True(Math.Abs(back - seconds) <= (0.5 / Time.TicksPerSecond) + 1e-12);
+            // Medio tick por el redondeo, más unos ulp del double (crecen con la magnitud).
+            double tolerance = (0.5 / Time.TicksPerSecond) + (8 * double.Epsilon) + (8e-16 * Math.Abs(seconds));
+            Assert.True(Math.Abs(back - seconds) <= tolerance);
         });
     }
 }
