@@ -4,7 +4,7 @@
 # Resistente a apagones: descarga a .zip.part, verifica la huella, descomprime en una carpeta temporal
 # que ya trae la marca (.sdk-<versión> o .ffmpeg-<versión>) y la renombra (atómico). Los demás scripts miran esas marcas.
 #
-# Solo para probar este script: FOTOTOMA_SDK_URL (URL o ruta de un .zip) y FOTOTOMA_SDK_SHA512, juntas.
+# Solo para probar este script: RODAJE_SDK_URL (URL o ruta de un .zip) y RODAJE_SDK_SHA512, juntas.
 
 param(
     [switch]$Forzar,
@@ -32,7 +32,7 @@ $FfmpegSha256  = '7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b8806
 function Paso([string]$texto) { Write-Host "[entorno] $texto" }
 
 $Raiz    = Split-Path -Parent $PSScriptRoot
-$Entorno = if ($env:FOTOTOMA_ENTORNO) { $env:FOTOTOMA_ENTORNO } else { Join-Path $Raiz '.entorno' }
+$Entorno = if ($env:RODAJE_ENTORNO) { $env:RODAJE_ENTORNO } else { Join-Path $Raiz '.entorno' }
 
 $GlobalJson = Join-Path $Raiz 'global.json'
 try {
@@ -48,13 +48,13 @@ if ($VersionGlobal -ne $SdkVersion) {
     exit 1
 }
 
-if ($env:FOTOTOMA_SDK_URL -or $env:FOTOTOMA_SDK_SHA512) {
-    if (-not ($env:FOTOTOMA_SDK_URL -and $env:FOTOTOMA_SDK_SHA512)) {
-        Write-Host "FOTOTOMA_SDK_URL y FOTOTOMA_SDK_SHA512 son solo para pruebas y van juntas; falta una de las dos."
+if ($env:RODAJE_SDK_URL -or $env:RODAJE_SDK_SHA512) {
+    if (-not ($env:RODAJE_SDK_URL -and $env:RODAJE_SDK_SHA512)) {
+        Write-Host "RODAJE_SDK_URL y RODAJE_SDK_SHA512 son solo para pruebas y van juntas; falta una de las dos."
         exit 1
     }
-    $SdkUrl = $env:FOTOTOMA_SDK_URL
-    $SdkSha512 = $env:FOTOTOMA_SDK_SHA512.ToLowerInvariant()
+    $SdkUrl = $env:RODAJE_SDK_URL
+    $SdkSha512 = $env:RODAJE_SDK_SHA512.ToLowerInvariant()
     Paso "AVISO: modo de prueba, el SDK sale de $SdkUrl en vez de la descarga oficial."
 }
 
@@ -139,7 +139,7 @@ function Instalar($c) {
             Remove-Item -LiteralPath $temporal -Recurse -Force -ErrorAction SilentlyContinue
             Write-Host ""
             Write-Host "No se pudo borrar la carpeta .entorno\$($c.Carpeta) anterior. Suele pasar cuando algún programa"
-            Write-Host "la está usando (una compilación abierta, un proceso dotnet colgado o FotoToma abierto)."
+            Write-Host "la está usando (una compilación abierta, un proceso dotnet colgado o Rodaje abierto)."
             Write-Host "Cierra Visual Studio, las consolas que estén compilando, o reinicia, y vuelve a intentarlo."
             Write-Host "Detalle técnico: $($_.Exception.Message)"
             exit 1

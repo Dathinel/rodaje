@@ -1,4 +1,4 @@
-﻿# Corre las pruebas con el SDK de .entorno\ (o FOTOTOMA_ENTORNO) y resume el resultado.
+﻿# Corre las pruebas con el SDK de .entorno\ (o RODAJE_ENTORNO) y resume el resultado.
 # Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\probar.ps1 [-Cobertura] [-Filtro "texto"]
 # Los registros quedan en TestResults\<fecha-hora>\ (se conservan 10). Sale con 0 si todo pasó.
 
@@ -12,8 +12,8 @@ $ProgressPreference = 'SilentlyContinue'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 $Raiz = Split-Path -Parent $PSScriptRoot
-$Solucion = Join-Path $Raiz 'FotoToma.slnx'
-if ($env:FOTOTOMA_ENTORNO) { $Entorno = $env:FOTOTOMA_ENTORNO } else { $Entorno = Join-Path $Raiz '.entorno' }
+$Solucion = Join-Path $Raiz 'Rodaje.slnx'
+if ($env:RODAJE_ENTORNO) { $Entorno = $env:RODAJE_ENTORNO } else { $Entorno = Join-Path $Raiz '.entorno' }
 $DotnetDir = Join-Path $Entorno 'dotnet'
 $Dotnet = Join-Path $DotnetDir 'dotnet.exe'
 # Listo = existe la marca .sdk-<versión> de preparar-entorno.ps1; dotnet.exe no basta tras un apagón.
@@ -80,7 +80,7 @@ function Corto([string]$texto) {
     return $texto.Replace($Raiz + '\', '').Replace($Raiz, '.')
 }
 
-Titulo 'FotoToma - pruebas automáticas del núcleo'
+Titulo 'Rodaje - pruebas automáticas del núcleo'
 Nota "Proyecto: $Raiz"
 
 if (-not (Test-Path -LiteralPath $Dotnet) -or -not (Test-Path -LiteralPath $MarcaSdk)) {
@@ -247,7 +247,7 @@ if ($fallidas.Count -gt 0) {
 }
 
 if ($Cobertura) {
-    Titulo 'Cobertura de FotoToma.Core'
+    Titulo 'Cobertura de Rodaje.Core'
     $xmlCob = Get-ChildItem -LiteralPath $script:Corrida -Recurse -Filter 'coverage.cobertura.xml' -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $xmlCob) {
@@ -257,7 +257,7 @@ if ($Cobertura) {
         # Una línea puede aparecer en dos clases (parciales, lambdas): se cuenta una vez, con su mejor dato.
         $lineas = @{}
         foreach ($p in @($c.coverage.packages.package)) {
-            if (-not $p -or $p.name -ne 'FotoToma.Core') { continue }
+            if (-not $p -or $p.name -ne 'Rodaje.Core') { continue }
             foreach ($cl in @($p.classes.class)) {
                 if (-not $cl) { continue }
                 foreach ($ln in @($cl.lines.line)) {
@@ -280,7 +280,7 @@ if ($Cobertura) {
             }
         }
         if ($lineas.Count -eq 0) {
-            Nota 'El informe no trae datos de FotoToma.Core.'
+            Nota 'El informe no trae datos de Rodaje.Core.'
         } else {
             $lt = $lineas.Count
             $lc = @($lineas.Values | Where-Object { $_.Hits -gt 0 }).Count

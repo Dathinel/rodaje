@@ -1,19 +1,19 @@
 @echo off
 rem Prepara .entorno\ la primera vez y corre las pruebas del nucleo.
 rem   ABRIR.bat                    todas las pruebas
-rem   ABRIR.bat cobertura          pruebas + cobertura de FotoToma.Core
+rem   ABRIR.bat cobertura          pruebas + cobertura de Rodaje.Core
 rem   ABRIR.bat aot                publica con Native AOT y ejecuta el .exe
 rem   ABRIR.bat preparar-entorno   vuelve a descargar el SDK y FFmpeg
 rem   ABRIR.bat -Filtro Recorte    otros argumentos pasan tal cual a probar.ps1
-rem Variables: FOTOTOMA_ENTORNO (otro entorno), FOTOTOMA_SIN_PAUSA=1 (sin pausa final).
+rem Variables: RODAJE_ENTORNO (otro entorno), RODAJE_SIN_PAUSA=1 (sin pausa final).
 setlocal EnableExtensions
 chcp 65001 >nul
-title FotoToma - pruebas del nucleo
+title Rodaje - pruebas del nucleo
 
 set "RAIZ=%~dp0"
 if "%RAIZ:~-1%"=="\" set "RAIZ=%RAIZ:~0,-1%"
 set "ENTORNO=%RAIZ%\.entorno"
-if defined FOTOTOMA_ENTORNO set "ENTORNO=%FOTOTOMA_ENTORNO%"
+if defined RODAJE_ENTORNO set "ENTORNO=%RODAJE_ENTORNO%"
 set "DOTNET=%ENTORNO%\dotnet\dotnet.exe"
 set "PROBAR=%RAIZ%\herramientas\probar.ps1"
 set "PREPARAR=%RAIZ%\herramientas\preparar-entorno.ps1"
@@ -22,7 +22,7 @@ set "SCRIPT=%PROBAR%"
 
 echo.
 echo  ==============================================================================
-echo   FotoToma - editor de video para Windows (fase 1: el núcleo, sin ventana aún)
+echo   Rodaje - editor de video para Windows (fase 1: el núcleo, sin ventana aún)
 echo  ==============================================================================
 echo.
 echo   Lo que se puede probar ahora es el corazón del editor: la línea de tiempo con
@@ -111,7 +111,7 @@ echo   Entorno listo. Haz doble clic en ABRIR.bat para correr las pruebas.
 goto fin_bien
 
 :sin_powershell
-echo   No pude usar Windows PowerShell, y FotoToma lo necesita para preparar el
+echo   No pude usar Windows PowerShell, y Rodaje lo necesita para preparar el
 echo   entorno y correr las pruebas.
 echo.
 echo   Puede que esté deshabilitado o bloqueado por una directiva del sistema (en
@@ -133,10 +133,10 @@ echo   Los registros completos quedaron en la carpeta TestResults\ del proyecto.
 goto fin_mal
 
 :fin_bien
-if not "%FOTOTOMA_SIN_PAUSA%"=="1" pause
+if not "%RODAJE_SIN_PAUSA%"=="1" pause
 exit /b 0
 
 :fin_mal
 echo.
-if not "%FOTOTOMA_SIN_PAUSA%"=="1" pause
+if not "%RODAJE_SIN_PAUSA%"=="1" pause
 exit /b 1

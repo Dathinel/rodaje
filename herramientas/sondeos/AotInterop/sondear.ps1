@@ -12,10 +12,10 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $raiz = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $proyecto = Join-Path $PSScriptRoot 'AotInterop.csproj'
 $dotnet = Join-Path $raiz 'herramientas\dotnet-local.cmd'
-if (-not $env:FOTOTOMA_ENTORNO -and -not (Test-Path (Join-Path $raiz '.entorno\dotnet'))) {
+if (-not $env:RODAJE_ENTORNO -and -not (Test-Path (Join-Path $raiz '.entorno\dotnet'))) {
     # Worktree de agente (.claude\worktrees\x): usa el .entorno del repositorio principal.
     $principal = Join-Path $raiz '..\..\..\.entorno'
-    if (Test-Path $principal) { $env:FOTOTOMA_ENTORNO = (Resolve-Path $principal).Path }
+    if (Test-Path $principal) { $env:RODAJE_ENTORNO = (Resolve-Path $principal).Path }
 }
 # vcvarsall.bat necesita vswhere.exe en el PATH para encontrar link.exe (ver publicar-aot-prueba.ps1).
 $instaladorVs = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer'

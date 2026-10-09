@@ -1,8 +1,8 @@
-# Cómo contribuir a FotoToma
+# Cómo contribuir a Rodaje
 
-> **Preparado para una futura publicación.** Hoy el repositorio de FotoToma es privado y no acepta contribuciones externas. Este documento se deja escrito para que, el día que el repositorio se haga público, las reglas ya estén claras. Al publicar, se quita este aviso (ver la lista de `docs/legal.md`).
+> **Preparado para una futura publicación.** Hoy el repositorio de Rodaje es privado y no acepta contribuciones externas. Este documento se deja escrito para que, el día que el repositorio se haga público, las reglas ya estén claras. Al publicar, se quita este aviso (ver la lista de `docs/legal.md`).
 
-Gracias por tu interés en FotoToma. Es un editor de video nativo para Windows que construye una sola persona, así que las contribuciones son bienvenidas, pero siguen algunas reglas que protegen la licencia del proyecto y la calidad del código.
+Gracias por tu interés en Rodaje. Es un editor de video nativo para Windows que construye una sola persona, así que las contribuciones son bienvenidas, pero siguen algunas reglas que protegen la licencia del proyecto y la calidad del código.
 
 ## Antes de empezar
 
@@ -10,13 +10,13 @@ Para cambios grandes, como una función nueva o una reorganización del código,
 
 ## Preparar el entorno
 
-FotoToma no depende de nada instalado globalmente salvo Git. La primera vez, el script `herramientas\preparar-entorno.ps1` descarga el SDK de .NET fijado en `global.json` dentro de la carpeta `.entorno\` del proyecto y verifica su huella SHA-512. Después, `herramientas\dotnet-local.cmd` ejecuta ese SDK local; por ejemplo, `herramientas\dotnet-local.cmd test` compila y corre todas las pruebas. La ruta del proyecto puede contener espacios y tildes, así que cualquier script que añadas debe manejarlas.
+Rodaje no depende de nada instalado globalmente salvo Git. La primera vez, el script `herramientas\preparar-entorno.ps1` descarga el SDK de .NET fijado en `global.json` dentro de la carpeta `.entorno\` del proyecto y verifica su huella SHA-512. Después, `herramientas\dotnet-local.cmd` ejecuta ese SDK local; por ejemplo, `herramientas\dotnet-local.cmd test` compila y corre todas las pruebas. La ruta del proyecto puede contener espacios y tildes, así que cualquier script que añadas debe manejarlas.
 
 ## Reglas del código
 
 Los identificadores (tipos, métodos, propiedades y campos del formato de proyecto) se escriben en inglés. Los comentarios, la documentación, los mensajes para el usuario y los mensajes de commit se escriben en español.
 
-El núcleo (`src\FotoToma.Core`) no tiene interfaz y debe seguir siendo compatible con Native AOT: nada de reflexión, y serialización JSON solo mediante el generador de código. Los avisos del compilador se tratan como errores, así que una contribución debe compilar sin advertencias.
+El núcleo (`src\Rodaje.Core`) no tiene interfaz y debe seguir siendo compatible con Native AOT: nada de reflexión, y serialización JSON solo mediante el generador de código. Los avisos del compilador se tratan como errores, así que una contribución debe compilar sin advertencias.
 
 Toda lógica nueva o corregida lleva pruebas. Las pruebas viven en `tests\` y usan xUnit y, para las propiedades que deben cumplirse con cualquier entrada, CsCheck. Si cambias el formato del archivo de proyecto, debes subir `schemaVersion`, escribir la migración desde la versión anterior y añadir pruebas con un archivo de ejemplo de esa versión.
 

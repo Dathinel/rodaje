@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- WASAPI y MMCSS solo existen en Windows: el destino -windows deja que el analizador de plataforma lo sepa -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Rodaje.Audio</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rodaje.Audio.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rodaje.Playback\Rodaje.Playback.csproj" />
+  </ItemGroup>
+
+</Project>

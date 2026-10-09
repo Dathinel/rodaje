@@ -1,7 +1,7 @@
 {
-  "id": "fototoma",
-  "titulo": "FotoToma, fase 1: el núcleo de la línea de tiempo",
-  "resumen": "FotoToma es un editor de video nativo para Windows. En la fase 1 todavía no hay ventana: lo que existe es el núcleo que cualquier editor necesita, la línea de tiempo con tiempo exacto y todas las operaciones de edición con deshacer y rehacer, y se comprueba con pruebas automáticas que explican en español qué pasó.",
+  "id": "rodaje",
+  "titulo": "Rodaje, fase 1: el núcleo de la línea de tiempo",
+  "resumen": "Rodaje es un editor de video nativo para Windows. En la fase 1 todavía no hay ventana: lo que existe es el núcleo que cualquier editor necesita, la línea de tiempo con tiempo exacto y todas las operaciones de edición con deshacer y rehacer, y se comprueba con pruebas automáticas que explican en español qué pasó.",
   "pide": [
     "Modelo de línea de tiempo con tiempo exacto (números racionales, sin errores de redondeo entre fotogramas)",
     "Operaciones de edición: cortar, recortar, ripple, roll, slip, slide, mover, insertar, sobrescribir, levantar y borrar con ripple",
@@ -43,7 +43,7 @@
       "script": "herramientas/probar.ps1",
       "args": ["-Cobertura"],
       "cwd": ".",
-      "descripcion": "Lo mismo que 'Correr todas las pruebas' y además mide qué porcentaje de las líneas y de las ramas (los caminos de cada if o switch) de FotoToma.Core se ejecutan en alguna prueba. El informe completo en formato Cobertura queda en TestResults\\.",
+      "descripcion": "Lo mismo que 'Correr todas las pruebas' y además mide qué porcentaje de las líneas y de las ramas (los caminos de cada if o switch) de Rodaje.Core se ejecutan en alguna prueba. El informe completo en formato Cobertura queda en TestResults\\.",
       "cubre": [
         "Todo cubierto por pruebas automáticas que pasan"
       ],
@@ -88,7 +88,7 @@
   ],
   "notas": [
     "Doble clic en ABRIR.bat corre la acción 'pruebas'; 'ABRIR.bat cobertura', 'ABRIR.bat aot' y 'ABRIR.bat preparar-entorno' corren las otras.",
-    "El tipo 'powershell' es propio de FotoToma: corre el script con powershell -NoProfile -ExecutionPolicy Bypass -File, con los mismos campos que las acciones 'python' de Sensores-Teoria (script, args, cwd).",
+    "El tipo 'powershell' es propio de Rodaje: corre el script con powershell -NoProfile -ExecutionPolicy Bypass -File, con los mismos campos que las acciones 'python' de Sensores-Teoria (script, args, cwd).",
     "Todavía no hay interfaz gráfica: llega en una fase posterior."
   ]
 }

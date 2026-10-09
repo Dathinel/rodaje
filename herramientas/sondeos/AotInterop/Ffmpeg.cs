@@ -41,7 +41,7 @@ internal static unsafe class Ffmpeg
     {
         if (File.Exists(Path.Combine(AppContext.BaseDirectory, DllPrueba)))
             return AppContext.BaseDirectory;
-        string? env = Environment.GetEnvironmentVariable("FOTOTOMA_FFMPEG");
+        string? env = Environment.GetEnvironmentVariable("RODAJE_FFMPEG");
         if (!string.IsNullOrEmpty(env))
             return env;
         for (var d = new DirectoryInfo(AppContext.BaseDirectory); d is not null; d = d.Parent)
@@ -50,7 +50,7 @@ internal static unsafe class Ffmpeg
             if (File.Exists(Path.Combine(c, DllPrueba)))
                 return c;
         }
-        throw new DirectoryNotFoundException("No encuentro las DLL de FFmpeg: usa --ffmpeg <carpeta> o FOTOTOMA_FFMPEG.");
+        throw new DirectoryNotFoundException("No encuentro las DLL de FFmpeg: usa --ffmpeg <carpeta> o RODAJE_FFMPEG.");
     }
 
     public static string Version() => ffmpeg.av_version_info();

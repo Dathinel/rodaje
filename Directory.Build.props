@@ -8,7 +8,7 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <Deterministic>true</Deterministic>
     <Authors>Daniel (Dathinel)</Authors>
-    <Product>FotoToma</Product>
+    <Product>Rodaje</Product>
     <Copyright>Copyright (c) 2026 Daniel (Dathinel). MIT.</Copyright>
     <!-- Ninguna telemetría ni restauración desde orígenes no declarados -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>

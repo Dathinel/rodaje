@@ -9,17 +9,17 @@ Afecta las fases 5 a 7.
 
 ## Principio
 
-El ejecutable contiene solo lo que es *código del motor*. Todo lo que es *contenido* (transiciones, estilos de texto, filtros, plantillas, música, stickers) y toda la *IA* viven fuera, en paquetes que se pueden instalar o no. El mismo `FotoToma.exe` sirve para la edición «solo editor» y para la «completa»: lo único que cambia es qué hay instalado en las carpetas de paquetes y de módulos.
+El ejecutable contiene solo lo que es *código del motor*. Todo lo que es *contenido* (transiciones, estilos de texto, filtros, plantillas, música, stickers) y toda la *IA* viven fuera, en paquetes que se pueden instalar o no. El mismo `Rodaje.exe` sirve para la edición «solo editor» y para la «completa»: lo único que cambia es qué hay instalado en las carpetas de paquetes y de módulos.
 
 ```
-FotoToma.exe            motor + primitivas (siempre)
+Rodaje.exe            motor + primitivas (siempre)
 paquetes\               contenido: datos, sin código ejecutable (opcional)
 modulos\                IA local: procesos aparte con sus modelos (opcional)
 ```
 
 ## 1. Núcleo y motor (el ejecutable)
 
-- **`FotoToma.Core`** ya está preparado para esto: un efecto es `{ type: "texto", parameters }` y el núcleo no sabe qué hace cada tipo. Un tipo desconocido se conserva al guardar.
+- **`Rodaje.Core`** ya está preparado para esto: un efecto es `{ type: "texto", parameters }` y el núcleo no sabe qué hace cada tipo. Un tipo desconocido se conserva al guardar.
 - **El motor trae un conjunto pequeño y fijo de primitivas en código**, que son el «vocabulario» con el que se construye todo lo demás:
   - transformar, opacidad, recorte y modos de mezcla;
   - color básico y LUT;
@@ -29,7 +29,7 @@ modulos\                IA local: procesos aparte con sus modelos (opcional)
   - ganancia y fade de audio.
 - Con eso, la edición «solo editor» ya es un editor completo y profesional, aunque sin catálogo de efectos listos.
 
-## 2. Paquetes de contenido (`.ftpack`)
+## 2. Paquetes de contenido (`.paquete`)
 
 Un paquete es un zip con un `paquete.json` (id, versión, autor, **licencia**, lista de elementos) y sus recursos. **No contiene código**, así que no hay riesgo de seguridad y es compatible con Native AOT.
 
@@ -38,7 +38,7 @@ Un paquete es un zip con un `paquete.json` (id, versión, autor, **licencia**, l
 | Transición | Curvas de keyframes sobre primitivas (deslizar, zoom, fundido…) o, para las especiales, un *shader* HLSL corto con parámetros declarados que el motor compila en la GPU |
 | Estilo y animación de texto | Fuente, colores y keyframes de entrada y salida en JSON |
 | Filtro | LUT `.cube` más ajustes de color |
-| Plantilla | Un proyecto `.ftoma` con «huecos» marcados (clip, texto o música para reemplazar) |
+| Plantilla | Un proyecto `.rodaje` con «huecos» marcados (clip, texto o música para reemplazar) |
 | Música, efectos de sonido, stickers y fuentes | Archivos con su licencia declarada |
 
 - **Referencias estables.** Un proyecto que usa contenido de un paquete guarda `paquete@versión/elemento`. Si al abrirlo el paquete no está, el proyecto abre igual: el efecto se muestra como «falta el paquete X» y se ofrece instalarlo.
@@ -69,7 +69,7 @@ Un **gestor de modelos** carga un modelo a la vez y lo descarga al terminar, por
 
 | | Solo editor | Completo |
 |---|---|---|
-| Contenido | `FotoToma.exe` + DLL de FFmpeg | Lo mismo + `paquetes\` con el catálogo propio + `modulos\` con la IA |
+| Contenido | `Rodaje.exe` + DLL de FFmpeg | Lo mismo + `paquetes\` con el catálogo propio + `modulos\` con la IA |
 | Tamaño aproximado | 40–70 MB | 1–4 GB, según los modelos |
 | Internet | No hace falta | Solo para actualizar paquetes y módulos |
 
@@ -92,6 +92,6 @@ Se plantean dos formas de distribuirlo, y no se excluyen entre sí:
 
 ## Impacto en la hoja de ruta
 
-- **Fase 5:** añade el registro de tipos de efecto, el cargador de `.ftpack` y un primer paquete propio de transiciones y textos.
+- **Fase 5:** añade el registro de tipos de efecto, el cargador de `.paquete` y un primer paquete propio de transiciones y textos.
 - **Fase 7:** queda definida como el protocolo de módulos más los cuatro módulos.
 - **Gestor de complementos:** va con la fase 7.

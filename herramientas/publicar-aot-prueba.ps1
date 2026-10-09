@@ -1,4 +1,4 @@
-﻿# Publica tests\FotoToma.AotSmoke con Native AOT en dist\prueba-aot\ y lo ejecuta.
+﻿# Publica tests\Rodaje.AotSmoke con Native AOT en dist\prueba-aot\ y lo ejecuta.
 # Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\publicar-aot-prueba.ps1
 # Requiere link.exe (Build Tools con C++). Sale con 0 solo si no hubo advertencias y la prueba pasó.
 
@@ -7,10 +7,10 @@ $ProgressPreference = 'SilentlyContinue'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 $Raiz = Split-Path -Parent $PSScriptRoot
-$Proyecto = Join-Path $Raiz 'tests\FotoToma.AotSmoke\FotoToma.AotSmoke.csproj'
+$Proyecto = Join-Path $Raiz 'tests\Rodaje.AotSmoke\Rodaje.AotSmoke.csproj'
 $Salida = Join-Path $Raiz 'dist\prueba-aot'
-$Exe = Join-Path $Salida 'FotoToma.AotSmoke.exe'
-if ($env:FOTOTOMA_ENTORNO) { $Entorno = $env:FOTOTOMA_ENTORNO } else { $Entorno = Join-Path $Raiz '.entorno' }
+$Exe = Join-Path $Salida 'Rodaje.AotSmoke.exe'
+if ($env:RODAJE_ENTORNO) { $Entorno = $env:RODAJE_ENTORNO } else { $Entorno = Join-Path $Raiz '.entorno' }
 $DotnetDir = Join-Path $Entorno 'dotnet'
 $Dotnet = Join-Path $DotnetDir 'dotnet.exe'
 # Listo = existe la marca .sdk-<versión> de preparar-entorno.ps1; dotnet.exe no basta tras un apagón.
@@ -70,7 +70,7 @@ function Diagnosticos-De([System.Collections.Generic.List[string]]$lineas, [stri
 
 function Es-De-Aot([string]$diagnostico) { return $diagnostico -match '(?i)\b(warning|advertencia|error)\s+IL\d+' }
 
-Titulo 'FotoToma - prueba de humo del núcleo compilado con Native AOT'
+Titulo 'Rodaje - prueba de humo del núcleo compilado con Native AOT'
 Nota "Proyecto: $Raiz"
 
 if (-not (Test-Path -LiteralPath $Dotnet) -or -not (Test-Path -LiteralPath $MarcaSdk)) {
@@ -117,7 +117,7 @@ Get-ChildItem -LiteralPath $Resultados -Directory | Where-Object { $_.Name -matc
     Sort-Object Name -Descending | Select-Object -Skip 5 |
     ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
 
-# Sin -r: el RID ya está en el .csproj; como propiedad global llegaría a FotoToma.Core y su
+# Sin -r: el RID ya está en el .csproj; como propiedad global llegaría a Rodaje.Core y su
 # packages.lock.json cambiaría en cada corrida.
 Fase 1 'compilando el núcleo y la prueba a código nativo (Native AOT, puede tardar un minuto)...'
 if (Test-Path -LiteralPath $Salida) { Remove-Item -LiteralPath $Salida -Recurse -Force }
@@ -163,7 +163,7 @@ if ($r.Codigo -ne 0 -or -not (Test-Path -LiteralPath $Exe)) {
         Nota 'Parece un problema de conexión: la primera vez hay que descargar el compilador AOT (unos 50 MB).'
     } elseif ($texto -match 'NU1004|NU1403|lock file|packages.lock.json') {
         Nota 'Los paquetes no coinciden con packages.lock.json. Corre herramientas\dotnet-local.cmd restore'
-        Nota 'tests\FotoToma.AotSmoke --force-evaluate y revisa el cambio.'
+        Nota 'tests\Rodaje.AotSmoke --force-evaluate y revisa el cambio.'
     }
     if ($errores.Count -gt 0) {
         Nota ''; Nota 'Primer error:'; Nota ('  ' + (Corto $errores[0]))

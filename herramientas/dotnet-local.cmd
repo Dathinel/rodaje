@@ -3,7 +3,7 @@ rem Ejecuta el SDK de .NET del entorno propio (.entorno\dotnet) con la caché Nu
 setlocal
 set "RAIZ=%~dp0.."
 set "ENTORNO=%RAIZ%\.entorno"
-if defined FOTOTOMA_ENTORNO set "ENTORNO=%FOTOTOMA_ENTORNO%"
+if defined RODAJE_ENTORNO set "ENTORNO=%RODAJE_ENTORNO%"
 set "DOTNET_ROOT=%ENTORNO%\dotnet"
 set "NUGET_PACKAGES=%ENTORNO%\nuget"
 set "DOTNET_CLI_HOME=%ENTORNO%"

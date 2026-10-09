@@ -4,9 +4,9 @@ param([string]$Variante = 'Enlazado', [string]$Graficos = 'TerraFX')
 $ErrorActionPreference = 'Continue'
 $raiz = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $dotnet = Join-Path $raiz 'herramientas\dotnet-local.cmd'
-if (-not $env:FOTOTOMA_ENTORNO -and -not (Test-Path (Join-Path $raiz '.entorno\dotnet'))) {
+if (-not $env:RODAJE_ENTORNO -and -not (Test-Path (Join-Path $raiz '.entorno\dotnet'))) {
     $principal = Join-Path $raiz '..\..\..\.entorno'
-    if (Test-Path $principal) { $env:FOTOTOMA_ENTORNO = (Resolve-Path $principal).Path }
+    if (Test-Path $principal) { $env:RODAJE_ENTORNO = (Resolve-Path $principal).Path }
 }
 $out = & $dotnet build (Join-Path $PSScriptRoot 'AotInterop.csproj') -c Release "-p:Variante=$Variante" "-p:Graficos=$Graficos" 2>&1 | ForEach-Object { "$_" }
 $codigo = $LASTEXITCODE

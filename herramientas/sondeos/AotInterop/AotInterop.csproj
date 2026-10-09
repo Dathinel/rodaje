@@ -2,7 +2,7 @@
 
   <!--
     Sondeo técnico de la fase 2: qué interop nativa compila con Native AOT sin advertencias y funciona.
-    No forma parte de FotoToma.slnx. Variantes (-p:Variante=...):
+    No forma parte de Rodaje.slnx. Variantes (-p:Variante=...):
       Cargado  : FFmpeg.AutoGen.Bindings.DynamicallyLoaded (punteros a función resueltos con GetProcAddress)
       Enlazado : FFmpeg.AutoGen.Bindings.DynamicallyLinked (DllImport)
       AutoGen  : paquete FFmpeg.AutoGen todo en uno (delegados)

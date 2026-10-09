@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Rodaje.Audio/Rodaje.Audio.csproj" />
+    <Project Path="src/Rodaje.Core/Rodaje.Core.csproj" />
+    <Project Path="src/Rodaje.Media/Rodaje.Media.csproj" />
+    <Project Path="src/Rodaje.Playback/Rodaje.Playback.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Rodaje.AotSmoke/Rodaje.AotSmoke.csproj" />
+    <Project Path="tests/Rodaje.Audio.Tests/Rodaje.Audio.Tests.csproj" />
+    <Project Path="tests/Rodaje.Core.Tests/Rodaje.Core.Tests.csproj" />
+    <Project Path="tests/Rodaje.Media.Tests/Rodaje.Media.Tests.csproj" />
+    <Project Path="tests/Rodaje.Playback.Tests/Rodaje.Playback.Tests.csproj" />
+    <Project Path="tests/Rodaje.TestMedia.Tests/Rodaje.TestMedia.Tests.csproj" />
+    <Project Path="tests/Rodaje.TestMedia/Rodaje.TestMedia.csproj" />
+  </Folder>
+</Solution>

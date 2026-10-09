@@ -1,10 +1,10 @@
-# Investigación: cómo resuelven otros editores los problemas que FotoToma va a enfrentar
+# Investigación: cómo resuelven otros editores los problemas que Rodaje va a enfrentar
 
-Este documento recoge lo que se aprendió al estudiar editores de video de código abierto antes de escribir una sola línea del núcleo de FotoToma. El objetivo no era encontrar código para reutilizar, sino entender qué decisiones de diseño tomaron otros proyectos, qué consecuencias tuvieron con los años y qué errores conviene no repetir. Cada sección describe la arquitectura de un proyecto a nivel conceptual: cómo modela la línea de tiempo, cómo guarda el proyecto, cómo deshace las operaciones, cómo reproduce y cómo exporta. Al final se explica qué toma FotoToma de cada uno y por qué.
+Este documento recoge lo que se aprendió al estudiar editores de video de código abierto antes de escribir una sola línea del núcleo de Rodaje. El objetivo no era encontrar código para reutilizar, sino entender qué decisiones de diseño tomaron otros proyectos, qué consecuencias tuvieron con los años y qué errores conviene no repetir. Cada sección describe la arquitectura de un proyecto a nivel conceptual: cómo modela la línea de tiempo, cómo guarda el proyecto, cómo deshace las operaciones, cómo reproduce y cómo exporta. Al final se explica qué toma Rodaje de cada uno y por qué.
 
 ## Declaración de sala limpia
 
-Todo lo que aparece aquí se obtuvo leyendo documentación pública, formatos de archivo documentados, discusiones de los propios proyectos y la estructura general de su código, con el único fin de comprender la arquitectura y el comportamiento. No se copió, tradujo ni adaptó código de ninguno de estos proyectos, y FotoToma no comparte con ellos ni nombres internos de clases ni algoritmos transcritos. Varios de los proyectos estudiados tienen licencia GPL; si en algún momento se considerara tomar un fragmento literal de uno de ellos, el trabajo se detiene y se consulta, porque eso obligaría a cambiar la licencia MIT de FotoToma (ver `docs/legal.md`).
+Todo lo que aparece aquí se obtuvo leyendo documentación pública, formatos de archivo documentados, discusiones de los propios proyectos y la estructura general de su código, con el único fin de comprender la arquitectura y el comportamiento. No se copió, tradujo ni adaptó código de ninguno de estos proyectos, y Rodaje no comparte con ellos ni nombres internos de clases ni algoritmos transcritos. Varios de los proyectos estudiados tienen licencia GPL; si en algún momento se considerara tomar un fragmento literal de uno de ellos, el trabajo se detiene y se consulta, porque eso obligaría a cambiar la licencia MIT de Rodaje (ver `docs/legal.md`).
 
 Los programas comerciales que inspiran la experiencia de uso, en especial el estilo de edición rápida popularizado por las aplicaciones móviles de video corto, solo aportan ideas de producto. Ninguno de sus binarios se ha descompilado ni analizado, y ningún recurso suyo se ha extraído.
 
@@ -100,7 +100,7 @@ El tiempo se representa con números racionales (numerador y denominador enteros
 
 ### La lección de Olive
 
-La arquitectura de Olive es probablemente la más ambiciosa y limpia de las estudiadas, y precisamente por eso su historia es una advertencia. El proyecto pasó más de seis años sin una versión estable mientras perseguía la arquitectura ideal, y durante ese tiempo los usuarios se quedaron sin un editor utilizable. Para un proyecto de una sola persona, como FotoToma, la conclusión es clara: un grafo de nodos general es más de lo que se necesita para el tipo de edición que se busca, y el riesgo de no terminar nunca es mayor que el beneficio de la flexibilidad.
+La arquitectura de Olive es probablemente la más ambiciosa y limpia de las estudiadas, y precisamente por eso su historia es una advertencia. El proyecto pasó más de seis años sin una versión estable mientras perseguía la arquitectura ideal, y durante ese tiempo los usuarios se quedaron sin un editor utilizable. Para un proyecto de una sola persona, como Rodaje, la conclusión es clara: un grafo de nodos general es más de lo que se necesita para el tipo de edición que se busca, y el riesgo de no terminar nunca es mayor que el beneficio de la flexibilidad.
 
 ## LosslessCut
 
@@ -108,11 +108,11 @@ LosslessCut no es un editor de línea de tiempo multipista sino una herramienta 
 
 Su función principal son los cortes sin pérdida con `-c copy`, que copian los paquetes comprimidos sin decodificarlos. El problema es que un corte solo puede empezar limpiamente en un fotograma clave, así que el programa ofrece dos modos según dónde se coloque la opción `-ss` en la línea de comandos: antes de la entrada, la búsqueda salta al fotograma clave más cercano y es rápida; después de la entrada, es precisa pero más lenta. Para evitar marcas de tiempo negativas al cortar usa `-avoid_negative_ts make_zero`, y para unir segmentos usa el demultiplexor concat de FFmpeg. Como función experimental ofrece un "corte inteligente" que recodifica únicamente el tramo entre el punto de corte y el siguiente fotograma clave, y copia el resto sin pérdida. También aprovecha los filtros de detección de FFmpeg (silencio, negro y cambio de escena) para proponer puntos de corte automáticamente.
 
-Para FotoToma estas técnicas son valiosas como modo de exportación rápida: cuando un proyecto consiste en recortes de un único archivo sin efectos, se puede exportar sin recodificar, y las detecciones automáticas son la base de funciones como "quitar silencios".
+Para Rodaje estas técnicas son valiosas como modo de exportación rápida: cuando un proyecto consiste en recortes de un único archivo sin efectos, se puede exportar sin recodificar, y las detecciones automáticas son la base de funciones como "quitar silencios".
 
-## Qué adopta FotoToma y por qué
+## Qué adopta Rodaje y por qué
 
-Ninguno de los proyectos estudiados es un modelo a copiar entero; cada uno resolvió bien algunos problemas y pagó caro otros. FotoToma toma las siguientes posiciones.
+Ninguno de los proyectos estudiados es un modelo a copiar entero; cada uno resolvió bien algunos problemas y pagó caro otros. Rodaje toma las siguientes posiciones.
 
 **Posiciones explícitas y huecos implícitos.** Cada clip guarda su instante de inicio en la línea de tiempo, como en OpenShot, y los huecos no son objetos sino simplemente el espacio donde no hay clips. Así la colocación libre es directa, y el rizado se implementa como una operación explícita que desplaza los clips posteriores, en vez de ser un efecto secundario del formato como en MLT.
 

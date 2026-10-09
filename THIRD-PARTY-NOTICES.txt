@@ -1,12 +1,12 @@
-FotoToma - Avisos de terceros
+Rodaje - Avisos de terceros
 =============================
 
-FotoToma es software libre bajo la licencia MIT (ver LICENSE).
+Rodaje es software libre bajo la licencia MIT (ver LICENSE).
 Copyright (c) 2026 Daniel (Dathinel).
 
 Este archivo reúne los avisos de licencia de los componentes de terceros que
-viajan dentro de la carpeta dist\ junto con FotoToma.exe. Debe acompañar
-siempre al ejecutable: si se copia, comprime o entrega FotoToma.exe, este
+viajan dentro de la carpeta dist\ junto con Rodaje.exe. Debe acompañar
+siempre al ejecutable: si se copia, comprime o entrega Rodaje.exe, este
 archivo va con él.
 
 Se regenera en cada versión publicada a partir de las dependencias reales de
@@ -73,9 +73,9 @@ versión correspondiente al runtime usado (también incluido en el SDK de
    Licencia: GNU Lesser General Public License, versión 3 o posterior
 ===============================================================================
 
-FotoToma usa bibliotecas del proyecto FFmpeg (https://ffmpeg.org), Copyright
+Rodaje usa bibliotecas del proyecto FFmpeg (https://ffmpeg.org), Copyright
 (c) 2000-2026 los desarrolladores de FFmpeg, bajo la licencia LGPL versión 3
-o posterior. FFmpeg es una marca de Fabrice Bellard. FotoToma no es parte de
+o posterior. FFmpeg es una marca de Fabrice Bellard. Rodaje no es parte de
 FFmpeg ni está respaldado por él.
 
 Las bibliotecas se distribuyen como DLL separadas y sin modificar; se pueden

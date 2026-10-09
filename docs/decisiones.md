@@ -1,10 +1,10 @@
 # Registro de decisiones
 
-Este registro guarda el porqué de cada elección importante de FotoToma. Cada decisión sigue la misma forma: el contexto que la motivó, lo que se decidió, las alternativas que se consideraron y las consecuencias que se aceptan al elegirla. Una decisión no se borra cuando cambia; se marca como reemplazada y se añade una nueva que explique el cambio, para que el historial de razonamiento no se pierda.
+Este registro guarda el porqué de cada elección importante de Rodaje. Cada decisión sigue la misma forma: el contexto que la motivó, lo que se decidió, las alternativas que se consideraron y las consecuencias que se aceptan al elegirla. Una decisión no se borra cuando cambia; se marca como reemplazada y se añade una nueva que explique el cambio, para que el historial de razonamiento no se pierda.
 
 ---
 
-## D-001. Nombre del programa: FotoToma
+## D-001. Nombre del programa: FotoToma (reemplazada por D-014)
 
 **Fecha:** 2026-10-09 · **Estado:** aceptada, con verificación pendiente antes de publicar
 
@@ -22,7 +22,7 @@ Este registro guarda el porqué de cada elección importante de FotoToma. Cada d
 
 **Fecha:** 2026-10-09 · **Estado:** aceptada
 
-**Contexto.** Las reglas de la carpeta de programas indican que, sin otra indicación, cada repositorio es privado y usa MIT. FotoToma está en sus primeras fases y no tiene sentido exponerlo todavía, pero se quiere poder publicarlo más adelante sin rehacer nada.
+**Contexto.** Las reglas de la carpeta de programas indican que, sin otra indicación, cada repositorio es privado y usa MIT. Rodaje está en sus primeras fases y no tiene sentido exponerlo todavía, pero se quiere poder publicarlo más adelante sin rehacer nada.
 
 **Decisión.** El repositorio `Dathinel/fototoma` es privado y el código propio se licencia bajo MIT, con el aviso de copyright a nombre de Daniel (Dathinel). Desde el principio se mantiene el fondo legal completo (`LICENCIAS.md`, `THIRD-PARTY-NOTICES.txt`, `docs/legal.md`) como si fuera público.
 
@@ -45,7 +45,7 @@ Este registro guarda el porqué de cada elección importante de FotoToma. Cada d
 | Opción | A favor | En contra |
 |---|---|---|
 | WPF | Muy madura, mucha documentación | La integración con D3D11 pasa por `D3DImage`, pensado para D3D9, con copias y sincronización delicada |
-| Avalonia | Multiplataforma, MIT | Presentación de superficies D3D11 sin copia menos directa; FotoToma solo apunta a Windows |
+| Avalonia | Multiplataforma, MIT | Presentación de superficies D3D11 sin copia menos directa; Rodaje solo apunta a Windows |
 | C++ con Qt 6 | Rendimiento máximo, lo usan Kdenlive, Shotcut y Olive | Productividad menor para una persona; Qt comercial o LGPL con sus obligaciones |
 | Rust | Seguridad de memoria, rendimiento | Ecosistema de interfaz en Windows inmaduro para una aplicación de esta escala |
 | Python | Rapidez de prototipado, ecosistema de IA | Rendimiento insuficiente para composición y reproducción; empaquetado nativo pobre |
@@ -60,11 +60,11 @@ Este registro guarda el porqué de cada elección importante de FotoToma. Cada d
 
 **Contexto.** Las reglas de la carpeta piden que cada programa se entregue lo más parecido posible a un ejecutable nativo, sin instalador, en una carpeta `dist\` que se pueda copiar a otro PC.
 
-**Decisión.** FotoToma se publica como aplicación autocontenida compilada con Native AOT, lo que produce código máquina sin JIT, arranque rápido y ninguna dependencia de un runtime de .NET instalado. El núcleo se marca como compatible con AOT desde el primer día (sin reflexión, con serialización JSON por generador de código). Si alguna biblioteca necesaria resulta incompatible con AOT, se recurre a ReadyToRun autocontenido, que precompila casi todo pero conserva el JIT como respaldo.
+**Decisión.** Rodaje se publica como aplicación autocontenida compilada con Native AOT, lo que produce código máquina sin JIT, arranque rápido y ninguna dependencia de un runtime de .NET instalado. El núcleo se marca como compatible con AOT desde el primer día (sin reflexión, con serialización JSON por generador de código). Si alguna biblioteca necesaria resulta incompatible con AOT, se recurre a ReadyToRun autocontenido, que precompila casi todo pero conserva el JIT como respaldo.
 
 **Alternativas.** Publicación dependiente del framework, que exigiría instalar .NET en cada equipo; un instalador MSIX, que añade un paso y depende de componentes que AtlasOS puede no traer.
 
-**Consecuencias.** Algunas bibliotecas basadas en reflexión no podrán usarse o necesitarán configuración extra. El runtime de .NET viaja dentro del ejecutable, así que su aviso de licencia MIT debe acompañar a `FotoToma.exe` (ver `THIRD-PARTY-NOTICES.txt`).
+**Consecuencias.** Algunas bibliotecas basadas en reflexión no podrán usarse o necesitarán configuración extra. El runtime de .NET viaja dentro del ejecutable, así que su aviso de licencia MIT debe acompañar a `Rodaje.exe` (ver `THIRD-PARTY-NOTICES.txt`).
 
 ---
 
@@ -88,7 +88,7 @@ Este registro guarda el porqué de cada elección importante de FotoToma. Cada d
 
 **Contexto.** FFmpeg es la única opción realista para leer casi cualquier formato de video y audio. Su licencia depende de cómo se compile: con `--enable-gpl` o `--enable-nonfree` el resultado es GPL o no redistribuible, y eso es incompatible con un programa MIT. El FFmpeg 9.0 de gyan.dev instalado en el equipo de desarrollo es una compilación GPL.
 
-**Decisión.** FotoToma usará las compilaciones `lgpl-shared` de BtbN (https://github.com/BtbN/FFmpeg-Builds), que excluyen bibliotecas GPL como libx264 y libx265 y entregan las bibliotecas `avcodec`, `avformat` y demás como DLL separadas. Esas compilaciones se configuran con `--enable-version3`, así que la licencia efectiva es LGPL versión 3 (el archivo de licencia que incluyen es `COPYING.LGPLv3`). Las DLL se cargan dinámicamente mediante FFmpeg.AutoGen, cuyas vinculaciones son MIT. La codificación H.264 y HEVC se hará con codificadores por hardware (NVENC) o con los de Media Foundation del sistema, nunca enlazando libx264.
+**Decisión.** Rodaje usará las compilaciones `lgpl-shared` de BtbN (https://github.com/BtbN/FFmpeg-Builds), que excluyen bibliotecas GPL como libx264 y libx265 y entregan las bibliotecas `avcodec`, `avformat` y demás como DLL separadas. Esas compilaciones se configuran con `--enable-version3`, así que la licencia efectiva es LGPL versión 3 (el archivo de licencia que incluyen es `COPYING.LGPLv3`). Las DLL se cargan dinámicamente mediante FFmpeg.AutoGen, cuyas vinculaciones son MIT. La codificación H.264 y HEVC se hará con codificadores por hardware (NVENC) o con los de Media Foundation del sistema, nunca enlazando libx264.
 
 **Alternativas.** Usar el FFmpeg GPL del sistema, imposible de redistribuir con MIT; compilar FFmpeg propio, más control pero mucho trabajo de mantenimiento; Media Foundation sola, que cubre menos formatos; libmpv, ver D-012.
 
@@ -172,7 +172,7 @@ Este registro guarda el porqué de cada elección importante de FotoToma. Cada d
 
 **Contexto.** libmpv es un reproductor excelente, con decodificación por hardware muy probada, y sería tentador usarlo para la vista previa. Sin embargo, reproduce un archivo, no compone varias pistas con efectos y transiciones. Además, sus compilaciones habituales para Windows suelen incluir componentes GPL.
 
-**Decisión.** La vista previa de la línea de tiempo usa el compositor propio de FotoToma. libmpv solo podría usarse, de forma opcional, como visor de un archivo de origen individual, y únicamente con una compilación LGPL verificada.
+**Decisión.** La vista previa de la línea de tiempo usa el compositor propio de Rodaje. libmpv solo podría usarse, de forma opcional, como visor de un archivo de origen individual, y únicamente con una compilación LGPL verificada.
 
 **Alternativas.** Usar libmpv como motor de vista previa, imposible para la composición multipista.
 
@@ -191,3 +191,22 @@ Este registro guarda el porqué de cada elección importante de FotoToma. Cada d
 - NAudio: es compatible con AOT, pero no da marca de tiempo QPC.
 
 **Consecuencias.** La API de TerraFX trabaja con punteros crudos, así que el motor la envuelve en clases propias. Las evidencias están en `docs/sondeo-interop-aot.md`.
+
+## D-014. Nuevo nombre: Rodaje (9 de octubre de 2026, reemplaza a D-001)
+
+**Contexto.** «FotoToma» no sonaba a editor de video.
+
+**Decisión.** El programa pasa a llamarse **Rodaje**. Eso cambia:
+- el repositorio, que pasa a `Dathinel/rodaje`;
+- los espacios de nombres, que pasan a `Rodaje.*`;
+- la extensión de proyecto, que pasa a `.rodaje`;
+- las variables de entorno, que pasan a `RODAJE_*`.
+
+Los paquetes de contenido usan la extensión neutral `.paquete`, porque el formato se comparte con otros programas.
+
+**Alternativas.**
+- Claqueta: descartada por parecerse a «Claquette», un editor de video para Mac y Windows que ya existe.
+- Montaje: descartada por parecerse a «Montaj», un editor para Mac e iPhone que ya existe.
+- Fotograma y Encuadre: no tenían conflictos, pero Daniel eligió Rodaje.
+
+**Consecuencias.** Antes de hacer público el repositorio hay que repetir la búsqueda de marcas en USPTO, EUIPO y SIC Colombia.

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Medios de prueba deterministas para la fase 2: cada cuadro lleva su número dibujado en bloques
+    que sobreviven a la compresión y el audio lleva marcas de tiempo detectables tras AAC u Opus.
+    Los archivos se generan con un ffmpeg.exe externo (solo desarrollo; nunca viaja con el editor).
+  -->
+  <PropertyGroup>
+    <RootNamespace>Rodaje.TestMedia</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <!-- Biblioteca de apoyo a pruebas: sin las reglas de nombres ni de localización del núcleo -->
+    <NoWarn>$(NoWarn);CA1303;CA1515</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rodaje.TestMedia.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Rodaje.Core\Rodaje.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Solo para los atributos [FfmpegFact], que omiten las pruebas cuando falta ffmpeg -->
+    <PackageReference Include="xunit.extensibility.core" Version="2.9.3" />
+  </ItemGroup>
+
+</Project>

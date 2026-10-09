@@ -1,17 +1,17 @@
-# FotoToma: estado del proyecto
+# Rodaje: estado del proyecto
 
-Editor de video nativo para Windows, inspirado en la experiencia de uso de CapCut, con todo el código propio. Repositorio privado `Dathinel/fototoma`, licencia MIT. Las reglas generales están en `D:\Programas de uso libre\CLAUDE.md`; este archivo cuenta dónde va este programa.
+Editor de video nativo para Windows, inspirado en la experiencia de uso de CapCut, con todo el código propio. Repositorio privado `Dathinel/rodaje`, licencia MIT. Las reglas generales están en `D:\Programas de uso libre\CLAUDE.md`; este archivo cuenta dónde va este programa.
 
 ## Cómo se trabaja aquí
 
-- **Entorno propio.** El SDK de .NET 10.0.401 vive en `.entorno\dotnet` (ignorado por git) y lo instala `herramientas\preparar-entorno.ps1`, verificando su SHA-512. Para cualquier comando de .NET se usa `herramientas\dotnet-local.cmd <args>`, nunca un `dotnet` global. La variable `FOTOTOMA_ENTORNO` permite apuntar a otro `.entorno`, por ejemplo desde un worktree de agente.
+- **Entorno propio.** El SDK de .NET 10.0.401 vive en `.entorno\dotnet` (ignorado por git) y lo instala `herramientas\preparar-entorno.ps1`, verificando su SHA-512. Para cualquier comando de .NET se usa `herramientas\dotnet-local.cmd <args>`, nunca un `dotnet` global. La variable `RODAJE_ENTORNO` permite apuntar a otro `.entorno`, por ejemplo desde un worktree de agente.
 - **Probar.** `ABRIR.bat` corre todas las pruebas. Acepta tres argumentos:
   - `ABRIR.bat cobertura`: pruebas más cobertura.
   - `ABRIR.bat aot`: publica la prueba de humo con Native AOT y la ejecuta.
   - `ABRIR.bat preparar-entorno`: rehace `.entorno`.
 - **GitHub.** Git se autentica a través de `gh` (`gh auth setup-git`), así que `git push` funciona directo.
 - **Worktrees de agentes.** Los agentes en paralelo trabajan en `.claude\worktrees\` (ignorado). Su trabajo se une a `main` con `git merge`.
-- **Choques de espacios de nombres.** Las pruebas viven en espacios como `FotoToma.Core.Tests.Timing`, que tapan a `FotoToma.Core.Timing` cuando se escribe `Timing.Time`. Por eso, en las pruebas, los tipos del núcleo se escriben con su nombre completo o con `using`.
+- **Choques de espacios de nombres.** Las pruebas viven en espacios como `Rodaje.Core.Tests.Timing`, que tapan a `Rodaje.Core.Timing` cuando se escribe `Timing.Time`. Por eso, en las pruebas, los tipos del núcleo se escriben con su nombre completo o con `using`.
 
 ## Estado al 9 de octubre de 2026
 
@@ -25,7 +25,7 @@ Editor de video nativo para Windows, inspirado en la experiencia de uso de CapCu
 - **Comandos con instantáneas de secuencia** (`Commands/`):
   - `UndoStack` con grupos, fusión por clave, `BreakMerge`, punto limpio y límite.
   - `Edits`, las fábricas que usará la interfaz.
-- **Formato `.ftoma`** (`Serialization/`): JSON versionado con migraciones encadenadas, guardado atómico con `.bak` y esquema en `schema/`.
+- **Formato `.rodaje`** (`Serialization/`): JSON versionado con migraciones encadenadas, guardado atómico con `.bak` y esquema en `schema/`.
 - **Pruebas:** 685, entre unitarias, de propiedades con CsCheck (10 000 escenarios aleatorios) y la prueba de humo con Native AOT (ejecutable de 3,37 MB, 0 advertencias). Cobertura del núcleo: 99,6 % de líneas y de ramas.
 - **Revisión independiente:** encontró 5 defectos, todos corregidos con su prueba de regresión. El guardado reintenta ante bloqueos breves del antivirus.
 - **Estilo:** README corto con evidencias y comentarios mínimos en el código; el detalle vive en `docs/guia-tecnica.md`.
@@ -35,7 +35,7 @@ Editor de video nativo para Windows, inspirado en la experiencia de uso de CapCu
 
 - **Arquitectura modular** (`docs/propuesta-modulos.md`, aprobada el 9-oct-2026):
   - núcleo y motor en el exe;
-  - contenido en paquetes `.ftpack` sin código;
+  - contenido en paquetes `.paquete` sin código;
   - IA como módulos C# en procesos aparte;
   - formato de paquete y protocolo compartidos con otros programas;
   - distribución en zip base y zip completo, más el gestor.

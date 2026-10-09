@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ajustes de la cobertura (coverlet.collector). El proyecto de pruebas los referencia con
+  RunSettingsFilePath, así que se aplican solos con dotnet test - -collect:"XPlat Code Coverage"
+  y con herramientas\probar.ps1 -Cobertura.
+
+  Se excluye solo el código que escribe un generador, no el que escribe una persona:
+  - GeneratedCodeAttribute: lo pone el generador de System.Text.Json en todo lo que emite para
+    ProjectJsonContext (metadatos de cada tipo, rutas rápidas de escritura y propiedades).
+  - **/*.g.cs: los archivos de los generadores de código, por si alguno no lleva el atributo.
+  No se excluye CompilerGeneratedAttribute: lo llevan también las lambdas, los iteradores y las
+  clases de cierre del código propio, y esas líneas sí deben medirse.
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[Rodaje.Core]*</Include>
+          <ExcludeByAttribute>GeneratedCodeAttribute</ExcludeByAttribute>
+          <ExcludeByFile>**/*.g.cs</ExcludeByFile>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

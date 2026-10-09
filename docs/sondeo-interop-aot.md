@@ -2,7 +2,7 @@
 
 Fecha: 9 de octubre de 2026. Equipo: Ryzen 7 7435HS (16 hilos), RTX 3050 Laptop 4 GB (driver 610.62), AtlasOS 11. SDK .NET 10.0.401. FFmpeg n9.0.2 `lgpl-shared` de BtbN (`avcodec-63`, `avformat-63`, `avutil-61`, `swresample-7`).
 
-El código está en `herramientas/sondeos/AotInterop/`. Es un proyecto de consola fuera de `FotoToma.slnx` con `PublishAot`, `IsAotCompatible`, los analizadores de recorte, AOT y archivo único, y `TreatWarningsAsErrors` heredado. Dos propiedades de MSBuild eligen qué se compila:
+El código está en `herramientas/sondeos/AotInterop/`. Es un proyecto de consola fuera de `Rodaje.slnx` con `PublishAot`, `IsAotCompatible`, los analizadores de recorte, AOT y archivo único, y `TreatWarningsAsErrors` heredado. Dos propiedades de MSBuild eligen qué se compila:
 
 - `-p:Variante=` elige los enlaces de FFmpeg: `Enlazado`, `Cargado`, `AutoGen` o `NAudio`.
 - `-p:Graficos=` elige la biblioteca de D3D11 y XAudio2: `TerraFX` o `Vortice`.
@@ -62,7 +62,7 @@ Hay dos defectos de XAudio2 como reloj maestro. `SamplesPlayed` avanza a saltos 
 
 ## Recomendación (versiones para fijar)
 
-1. **FFmpeg: `FFmpeg.AutoGen.Bindings.DynamicallyLinked` 9.0.1.1**, que trae como dependencia `FFmpeg.AutoGen.Abstractions` 9.0.1.1. Es la opción de exe más pequeño y usa P/Invoke directo resuelto en la compilación AOT, sin delegados. Con un `NativeLibrary.SetDllImportResolver` FotoToma controla la ruta exacta de cada DLL. `DynamicallyLoaded` es una alternativa equivalente: también da cero advertencias, cuesta 0,2 MB más y se configura con `LibrariesPath`. El paquete `FFmpeg.AutoGen` todo en uno también funciona, pero no tiene ventaja. Las tres variantes exigen exactamente FFmpeg 9 (`avcodec-63`).
+1. **FFmpeg: `FFmpeg.AutoGen.Bindings.DynamicallyLinked` 9.0.1.1**, que trae como dependencia `FFmpeg.AutoGen.Abstractions` 9.0.1.1. Es la opción de exe más pequeño y usa P/Invoke directo resuelto en la compilación AOT, sin delegados. Con un `NativeLibrary.SetDllImportResolver` Rodaje controla la ruta exacta de cada DLL. `DynamicallyLoaded` es una alternativa equivalente: también da cero advertencias, cuesta 0,2 MB más y se configura con `LibrariesPath`. El paquete `FFmpeg.AutoGen` todo en uno también funciona, pero no tiene ventaja. Las tres variantes exigen exactamente FFmpeg 9 (`avcodec-63`).
 2. **D3D11, DXGI y XAudio2: `TerraFX.Interop.Windows` 10.0.26100.6.** Es la única opción probada con cero advertencias. El precio es una API de punteros crudos (`ID3D11Device*`, `->Release()`), que conviene envolver en pocas clases propias del motor. Vortice 3.8.3 tiene la API más cómoda, pero sus 2 advertencias de SharpGen.Runtime incumplen la regla de cero advertencias. Solo se podría usar silenciando IL2067 e IL2072 en todo el proyecto, y eso taparía también los errores propios.
 3. **Audio y reloj maestro: WASAPI propio con `[GeneratedComInterface]`**, que es `AudioWasapi.cs` del sondeo. No añade dependencias, da la posición con marca QPC y deja controlar el buffer y el periodo. Si más adelante hacen falta elegir dispositivo, recibir notificaciones de cambio de salida o IAudioClient3, **NAudio.Wasapi 3.1.0** (`WasapiPlayerBuilder`) es una alternativa válida y ya compatible con AOT. Su `GetPosition()` no da QPC: habría que pedir el `AudioClockClient` aparte. XAudio2 queda descartado como reloj maestro.
 
@@ -101,7 +101,7 @@ Después se ejecuta:
 powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\sondeos\AotInterop\sondear.ps1 -Muestras <carpeta> [-Ffmpeg <carpeta con las DLL>]
 ```
 
-Sin `-Ffmpeg`, el exe busca las DLL junto a sí mismo, en `FOTOTOMA_FFMPEG` o en el primer `.entorno\ffmpeg\bin` que encuentre subiendo de carpeta. La combinación por defecto (`Enlazado` y `TerraFX`) se publica en modo estricto con `dotnet-local.cmd publish herramientas\sondeos\AotInterop\AotInterop.csproj -c Release`, sin errores ni advertencias.
+Sin `-Ffmpeg`, el exe busca las DLL junto a sí mismo, en `RODAJE_FFMPEG` o en el primer `.entorno\ffmpeg\bin` que encuentre subiendo de carpeta. La combinación por defecto (`Enlazado` y `TerraFX`) se publica en modo estricto con `dotnet-local.cmd publish herramientas\sondeos\AotInterop\AotInterop.csproj -c Release`, sin errores ni advertencias.
 
 ## Pendiente para la fase 2
 

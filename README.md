@@ -1,4 +1,4 @@
-# FotoToma
+# Rodaje
 
 Editor de video nativo para Windows, rápido y por capas, con la comodidad de los editores móviles y la precisión de un editor profesional. Se distribuye como un único ejecutable compilado con Native AOT, sin instalador y sin depender de .NET instalado.
 
@@ -34,7 +34,7 @@ Doble clic en **`ABRIR.bat`**. La primera vez descarga el SDK de .NET en `.entor
 
   Las pistas bloqueadas son intocables.
 - **Deshacer y rehacer** con el patrón comando. Cada edición guarda una instantánea y, si falla a mitad, el proyecto vuelve solo a como estaba. Los arrastres se funden en un único paso de deshacer.
-- **Formato abierto `.ftoma`:** JSON versionado con migraciones y [esquema publicado](schema/fototoma-proyecto.v1.schema.json), pensado para que otros programas lo lean y lo escriban. El guardado es atómico, con copia `.bak`, así que un apagón no corrompe el proyecto.
+- **Formato abierto `.rodaje`:** JSON versionado con migraciones y [esquema publicado](schema/rodaje-proyecto.v1.schema.json), pensado para que otros programas lo lean y lo escriban. El guardado es atómico, con copia `.bak`, así que un apagón no corrompe el proyecto.
 
 ## Evidencias
 
