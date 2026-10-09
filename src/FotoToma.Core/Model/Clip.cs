@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Model;
@@ -37,8 +38,10 @@ public sealed class Clip
     /// <summary>Efectos aplicados en orden. Sus keyframes están en tiempo del origen.</summary>
     public List<EffectInstance> Effects { get; set; } = [];
 
+    [JsonIgnore]
     public Time Duration => SourceOut - SourceIn;
 
+    [JsonIgnore]
     public Time End => Start + Duration;
 
     /// <summary>Convierte un instante de la línea de tiempo al instante correspondiente del origen.</summary>

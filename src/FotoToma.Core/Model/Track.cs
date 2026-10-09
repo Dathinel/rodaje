@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Model;
@@ -30,6 +31,7 @@ public sealed class Track
     public List<Clip> Clips { get; set; } = [];
 
     /// <summary>Final del último clip de la pista.</summary>
+    [JsonIgnore]
     public Time End => Clips.Count == 0 ? Time.Zero : Clips[^1].End;
 
     /// <summary>Clip que cubre el instante dado, si lo hay (el inicio cuenta, el final no).</summary>
