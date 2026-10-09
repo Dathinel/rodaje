@@ -1,6 +1,11 @@
 # Propuesta: núcleo, contenido e IA como piezas separadas
 
-Estado: **propuesta para decidir con Daniel** (9 de octubre de 2026). Afecta las fases 5 a 7.
+Estado: **aprobada** (9 de octubre de 2026). Daniel decidió:
+- módulos de IA en **C#**;
+- formato de paquete y protocolo de módulos **compartidos** con los demás programas, en su propio repositorio cuando llegue el segundo;
+- **las dos distribuciones**: zip base y zip completo, más el gestor de complementos.
+
+Afecta las fases 5 a 7.
 
 ## Principio
 
