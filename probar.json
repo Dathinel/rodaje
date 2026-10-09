@@ -54,6 +54,24 @@
       "notas": "La cobertura la mide coverlet, que viene como paquete del proyecto de pruebas; no hay que instalar nada aparte."
     },
     {
+      "id": "aot",
+      "nombre": "Prueba del núcleo compilado con Native AOT",
+      "tipo": "powershell",
+      "script": "herramientas/publicar-aot-prueba.ps1",
+      "args": [],
+      "cwd": ".",
+      "descripcion": "Compila de antemano a código nativo (Native AOT, como se va a entregar el editor) un programa de consola que usa todo el núcleo: crea un proyecto, importa medios, hace cortes, recortes, ripple, roll, slip, slide, mover y borrar con ripple, deshace y rehace todo comparando cada estado, guarda y abre el proyecto en una carpeta con espacios y tildes, exporta el esquema JSON y evalúa un parámetro animado. Falla si el compilador avisa de cualquier cosa incompatible con AOT (con archivo y línea). Al final dice cuánto pesa el .exe y cuánto tardó en arrancar y terminar. El ejecutable queda en dist\\prueba-aot\\.",
+      "cubre": [
+        "Deshacer y rehacer con comandos",
+        "Formato de proyecto en JSON con versión"
+      ],
+      "duracion": "~10-90 s",
+      "duracion_es": "total",
+      "progreso_regex": "Fase (\\d+)/(\\d+)",
+      "si_falla": "Si dice que hubo avisos de recorte o de AOT, cada uno trae archivo(línea,columna) y el código IL2026/IL3050: ahí hay reflexión o JSON sin el generador de código. Si dice que falta el enlazador de C++, hay que instalar Visual Studio Build Tools 2022 con 'Desarrollo para el escritorio con C++'. Si el programa nativo falla en un paso, el mensaje dice qué se esperaba.",
+      "notas": "Necesita Visual Studio Build Tools 2022 con C++ (Native AOT usa su enlazador link.exe). La primera vez descarga el compilador AOT de NuGet (unos 50 MB); después funciona sin conexión."
+    },
+    {
       "id": "preparar-entorno",
       "nombre": "Reconstruir el entorno (SDK de .NET)",
       "tipo": "powershell",
@@ -69,7 +87,7 @@
     }
   ],
   "notas": [
-    "Doble clic en ABRIR.bat corre la acción 'pruebas'; 'ABRIR.bat cobertura' y 'ABRIR.bat preparar-entorno' corren las otras dos.",
+    "Doble clic en ABRIR.bat corre la acción 'pruebas'; 'ABRIR.bat cobertura', 'ABRIR.bat aot' y 'ABRIR.bat preparar-entorno' corren las otras.",
     "El tipo 'powershell' es propio de FotoToma: corre el script con powershell -NoProfile -ExecutionPolicy Bypass -File, con los mismos campos que las acciones 'python' de Sensores-Teoria (script, args, cwd).",
     "Todavía no hay interfaz gráfica: llega en una fase posterior."
   ]

@@ -10,6 +10,7 @@ rem
 rem  Uso:
 rem    ABRIR.bat                    corre todas las pruebas
 rem    ABRIR.bat cobertura          pruebas + cobertura de FotoToma.Core
+rem    ABRIR.bat aot                compila el nucleo con Native AOT y prueba el .exe nativo
 rem    ABRIR.bat preparar-entorno   vuelve a descargar el SDK desde cero
 rem    ABRIR.bat -Filtro Recorte    cualquier otro argumento pasa tal cual a probar.ps1
 rem
@@ -29,6 +30,8 @@ if defined FOTOTOMA_ENTORNO set "ENTORNO=%FOTOTOMA_ENTORNO%"
 set "DOTNET=%ENTORNO%\dotnet\dotnet.exe"
 set "PROBAR=%RAIZ%\herramientas\probar.ps1"
 set "PREPARAR=%RAIZ%\herramientas\preparar-entorno.ps1"
+set "AOT=%RAIZ%\herramientas\publicar-aot-prueba.ps1"
+set "SCRIPT=%PROBAR%"
 
 echo.
 echo  ==============================================================================
@@ -55,6 +58,8 @@ if /i "%ACCION%"=="preparar-entorno" goto preparar_forzado
 if /i "%ACCION%"=="cobertura" set "EXTRA=-Cobertura"
 if /i "%ACCION%"=="cobertura" goto resto
 if /i "%ACCION%"=="pruebas" goto resto
+if /i "%ACCION%"=="aot" set "SCRIPT=%AOT%"
+if /i "%ACCION%"=="aot" goto resto
 rem Ninguna accion conocida: todos los argumentos pasan tal cual a probar.ps1.
 set ARGS=%*
 goto entorno
@@ -81,7 +86,7 @@ if errorlevel 1 goto fallo_entorno
 if not exist "%DOTNET%" goto fallo_entorno
 
 :probar
-"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%PROBAR%" %EXTRA% %ARGS%
+"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%" %EXTRA% %ARGS%
 if errorlevel 1 goto fallo_pruebas
 goto fin_bien
 
