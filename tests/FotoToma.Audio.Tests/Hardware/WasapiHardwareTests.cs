@@ -93,6 +93,54 @@ public class WasapiHardwareTests(ITestOutputHelper output)
     }
 
     [AudioDeviceFact]
+    public void PerderElDispositivoNoHaceRetrocederNiSaltarAlReloj()
+    {
+        var source = new RecordingSource();
+        using var audio = WasapiOutput.Open(source);
+        var messages = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        audio.DeviceChanged += (_, e) => messages.Enqueue(e.Message);
+        var trace = new ClockTrace(audio.Clock);
+
+        audio.Clock.Start();
+        trace.SampleFor(TimeSpan.FromMilliseconds(300));
+
+        audio.SimulateDeviceLoss(blockReopen: false);
+        trace.SampleFor(TimeSpan.FromMilliseconds(300));
+        Assert.NotNull(audio.Device);
+
+        audio.SimulateDeviceLoss(blockReopen: true);
+        trace.SampleFor(TimeSpan.FromMilliseconds(100));
+        Assert.Null(audio.Device);
+        double freeRunStart = audio.Clock.Position.ToSeconds();
+        trace.SampleFor(TimeSpan.FromMilliseconds(300));
+        double freeRunAdvance = audio.Clock.Position.ToSeconds() - freeRunStart;
+
+        audio.AllowReopen();
+        trace.SampleUntil(() => audio.Device is not null, TimeSpan.FromSeconds(3));
+        Assert.NotNull(audio.Device);
+        trace.SampleFor(TimeSpan.FromMilliseconds(300));
+        audio.Clock.Pause();
+        SpinWait.SpinUntil(() => messages.Count >= 3, TimeSpan.FromSeconds(2));
+
+        output.WriteLine(trace.Describe());
+        output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Avance sin dispositivo en 300 ms: {freeRunAdvance * 1_000:0.0} ms."));
+        foreach (string message in messages)
+        {
+            output.WriteLine("Aviso: " + message);
+        }
+
+        output.WriteLine(Describe(audio.Stats));
+        Assert.Equal(0, trace.Backwards);
+        Assert.InRange(trace.MaxForwardJumpMs, 0, 30);
+        Assert.InRange(trace.MaxStallMs, 0, 50);
+        Assert.InRange(freeRunAdvance, 0.27, 0.33);
+        Assert.Equal(2, audio.Stats.DeviceRestarts);
+        Assert.Equal(3, messages.Count);
+        Assert.Contains(messages, m => m.Contains("sin sonido", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("volvió", StringComparison.Ordinal));
+    }
+
+    [AudioDeviceFact]
     public void LaFabricaDevuelveLaSalidaRealCuandoHayDispositivo()
     {
         using IAudioOutput audio = AudioOutput.Open(new RecordingSource());

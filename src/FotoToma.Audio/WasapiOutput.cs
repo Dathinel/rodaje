@@ -12,9 +12,10 @@ namespace FotoToma.Audio;
 /// <para>Hilos: todo lo que toca COM vive en un único hilo de audio (MTA). Start, Pause y Seek del reloj
 /// dejan una orden y esperan, con tope, a que ese hilo la aplique; así el hilo de alta prioridad nunca
 /// espera un candado que tenga la interfaz. <see cref="Volume"/> y <see cref="Stats"/> se leen sin esperar.</para>
-/// <para>Si el dispositivo se pierde o cambia el predeterminado, se reabre en el nuevo y se repite lo que
-/// quedó en cola sin oírse, de modo que ni el audio ni el reloj saltan. Sin ningún dispositivo, el reloj
-/// sigue con el reloj de pared, la fuente se consume a ese ritmo y se reintenta cada segundo.</para>
+/// <para>Si el dispositivo se pierde o cambia el predeterminado, el reloj pasa en el acto al reloj de pared y
+/// la fuente se consume a ese ritmo, así que ni el reloj ni el video se detienen ni saltan. Al abrir el nuevo
+/// dispositivo el audio retoma en la posición del reloj; lo que estaba en cola sin oírse se repite si el reloj
+/// aún no lo pasó. Sin ningún dispositivo se reintenta cada segundo y con cada aviso de Windows.</para>
 /// </remarks>
 public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
 {
@@ -53,6 +54,8 @@ public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
     private int _reopenDepth;
     private int _defaultChanged;
     private int _devicesChanged;
+    private int _simulateLoss;
+    private int _blockReopen;
 
     private AudioDeviceInfo? _device;
     private long _starvations;
@@ -225,6 +228,21 @@ public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
     {
         Interlocked.Exchange(ref _defaultChanged, 1);
         NativeMethods.SetEvent(_wakeEvent);
+    }
+
+    /// <summary>Para pruebas con hardware: el hilo de audio actúa como si el dispositivo se hubiera desconectado.</summary>
+    /// <param name="blockReopen">Si es verdadero, no hay dispositivo al que volver hasta <see cref="AllowReopen"/>.</param>
+    internal void SimulateDeviceLoss(bool blockReopen)
+    {
+        Volatile.Write(ref _blockReopen, blockReopen ? 1 : 0);
+        Interlocked.Exchange(ref _simulateLoss, 1);
+        NativeMethods.SetEvent(_wakeEvent);
+    }
+
+    internal void AllowReopen()
+    {
+        Volatile.Write(ref _blockReopen, 0);
+        OnDevicesChanged();
     }
 
     internal void OnDevicesChanged()
@@ -588,8 +606,20 @@ public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
 
     private void HandleNotifications()
     {
+        if (Interlocked.Exchange(ref _simulateLoss, 0) != 0 && _session is not null)
+        {
+            Reopen(AudioHResults.DeviceInvalidated, lost: true);
+            return;
+        }
+
+        // Sin dispositivo, FreeRun consume estas marcas para reintentar enseguida.
+        if (_session is not { } session)
+        {
+            return;
+        }
+
         Interlocked.Exchange(ref _devicesChanged, 0);
-        if (_session is not { } session || Interlocked.Exchange(ref _defaultChanged, 0) == 0)
+        if (Interlocked.Exchange(ref _defaultChanged, 0) == 0)
         {
             return;
         }
@@ -609,14 +639,17 @@ public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
         }
     }
 
-    /// <summary>Cierra el dispositivo actual y abre el predeterminado, repitiendo lo que estaba en cola sin oírse.</summary>
+    /// <summary>Cierra el dispositivo actual y abre el predeterminado.</summary>
+    /// <remarks>
+    /// Mientras se abre el nuevo (unos 200 ms en este equipo) el reloj sigue con el reloj de pared, para que el
+    /// video no se congele; el audio retoma en la posición del reloj y repite lo que quedó en cola sin oírse.
+    /// </remarks>
     private void Reopen(int hr, bool lost)
     {
-        long now = Now();
-        long heard = _model.ReadHeard(now);
         string previous = _session?.Info.Name ?? "el dispositivo de audio";
         CloseSession();
         Interlocked.Increment(ref _restarts);
+        EnterFreeRun(Now());
 
         string? error = "se intentó reabrir demasiadas veces seguidas";
         if (_reopenDepth < MaxReopenDepth && TryOpenSession(out error))
@@ -624,14 +657,14 @@ public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
             _reopenDepth++;
             try
             {
-                ResumeOn(_session!, heard);
+                Resume(_session!);
             }
             finally
             {
                 _reopenDepth--;
             }
 
-            // Si el dispositivo nuevo también falló, la llamada anidada ya avisó y pasó a correr libre.
+            // Si el dispositivo nuevo también falló, la llamada anidada ya avisó y quedó corriendo libre.
             if (_session?.Info is not { } info)
             {
                 return;
@@ -643,28 +676,35 @@ public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
             return;
         }
 
-        EnterFreeRun(now);
         RaiseDeviceChanged(null, $"Se perdió {previous} ({(lost ? Com.Describe(hr) : error)}). " +
             "La reproducción sigue sin sonido y FotoToma volverá a intentarlo solo.");
     }
 
     private void TryRecover()
     {
-        long heard = _model.ReadHeard(Now());
         if (!TryOpenSession(out _))
         {
             return;
         }
 
-        ResumeOn(_session!, heard);
+        Resume(_session!);
         if (_session?.Info is { } info)
         {
             RaiseDeviceChanged(info, $"El audio volvió: suena por {info.Name}.");
         }
     }
 
-    private void ResumeOn(WasapiSession session, long heard)
+    /// <summary>Pasa de correr libre al dispositivo recién abierto, empezando en el cuadro que marca el reloj.</summary>
+    private void Resume(WasapiSession session)
     {
+        long heard = _model.ReadHeard(Now());
+        long missing = heard - _renderer.Written;
+        if (missing > 0)
+        {
+            _renderer.Discard(missing);
+            _model.AddWritten(missing);
+        }
+
         long start = _renderer.BeginReplay(heard);
         _model.BeginSegment(start, discontinuity: false);
         if (_running)
@@ -699,6 +739,12 @@ public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
 
     private bool TryOpenSession(out string? error)
     {
+        if (Volatile.Read(ref _blockReopen) != 0)
+        {
+            error = Com.Describe(AudioHResults.ENotFound);
+            return false;
+        }
+
         try
         {
             OpenSession();

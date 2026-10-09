@@ -61,6 +61,71 @@ internal sealed class ToneSource(int sampleRate, double frequency, float amplitu
     }
 }
 
+/// <summary>Registro continuo del reloj para ver saltos y paradas a lo largo de varios eventos.</summary>
+internal sealed class ClockTrace(IAudioClock clock)
+{
+    private readonly long _origin = Stopwatch.GetTimestamp();
+    private double _lastWall = double.NaN;
+    private double _lastPosition;
+
+    public int Backwards { get; private set; }
+
+    /// <summary>Lo máximo que avanzó la posición por encima del reloj de pared entre dos muestras.</summary>
+    public double MaxForwardJumpMs { get; private set; }
+
+    /// <summary>El tramo más largo con el reloj quieto mientras debía correr (por ejemplo, al reabrir el dispositivo).</summary>
+    public double MaxStallMs { get; private set; }
+
+    private double _stallStart = double.NaN;
+
+    public void SampleFor(TimeSpan duration)
+    {
+        long end = Stopwatch.GetTimestamp() + (long)(duration.TotalSeconds * Stopwatch.Frequency);
+        SampleUntil(() => Stopwatch.GetTimestamp() >= end, duration + TimeSpan.FromSeconds(1));
+    }
+
+    public void SampleUntil(Func<bool> done, TimeSpan limit)
+    {
+        long end = Stopwatch.GetTimestamp() + (long)(limit.TotalSeconds * Stopwatch.Frequency);
+        while (!done() && Stopwatch.GetTimestamp() < end)
+        {
+            Sample();
+            Thread.SpinWait(2_000);
+        }
+    }
+
+    public string Describe() => string.Create(
+        CultureInfo.InvariantCulture,
+        $"Salto máximo hacia adelante {MaxForwardJumpMs:0.00} ms; parada más larga {MaxStallMs:0.0} ms; {Backwards} retrocesos.");
+
+    private void Sample()
+    {
+        double position = clock.Position.ToSeconds();
+        double wall = Stopwatch.GetElapsedTime(_origin).TotalSeconds;
+        if (!double.IsNaN(_lastWall))
+        {
+            if (position < _lastPosition)
+            {
+                Backwards++;
+            }
+
+            MaxForwardJumpMs = Math.Max(MaxForwardJumpMs, ((position - _lastPosition) - (wall - _lastWall)) * 1_000);
+            if (position == _lastPosition)
+            {
+                _stallStart = double.IsNaN(_stallStart) ? _lastWall : _stallStart;
+                MaxStallMs = Math.Max(MaxStallMs, (wall - _stallStart) * 1_000);
+            }
+            else
+            {
+                _stallStart = double.NaN;
+            }
+        }
+
+        _lastWall = wall;
+        _lastPosition = position;
+    }
+}
+
 /// <summary>Muestrea el reloj contra un Stopwatch y resume deriva, jitter y monotonía.</summary>
 internal sealed record ClockMeasurement(
     double StartCallMs,
