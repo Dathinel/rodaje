@@ -22,6 +22,10 @@ public sealed class ProjectFileTests : IDisposable
         {
             // Una carpeta temporal sobrante no afecta a otras pruebas.
         }
+        catch (UnauthorizedAccessException)
+        {
+            // Igual: el antivirus puede tener abierto un archivo recién escrito.
+        }
     }
 
     private string PathFor(string name = "Mi edición final") => Path.Combine(_dir, name + ProjectSerializer.FileExtension);
@@ -104,7 +108,9 @@ public sealed class ProjectFileTests : IDisposable
         Directory.CreateDirectory(path + ".tmp");
         File.WriteAllText(Path.Combine(path + ".tmp", "dentro.txt"), "x");
 
-        Assert.ThrowsAny<UnauthorizedAccessException>(() => ProjectSerializer.Save(SerializationSamples.Rich(), path));
+        var fs = new NoDelay();
+        Assert.ThrowsAny<UnauthorizedAccessException>(() => ProjectSerializer.Save(SerializationSamples.Rich(), path, fs));
+        Assert.Equal(4, fs.Sleeps.Count);
         Assert.True(Directory.Exists(path + ".tmp"));
         Assert.False(File.Exists(path));
     }
@@ -118,7 +124,9 @@ public sealed class ProjectFileTests : IDisposable
 
         using (new FileStream(path + ".tmp", FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            Assert.ThrowsAny<IOException>(() => ProjectSerializer.Save(new Project { Id = "otro" }, path));
+            var fs = new NoDelay();
+            Assert.ThrowsAny<IOException>(() => ProjectSerializer.Save(new Project { Id = "otro" }, path, fs));
+            Assert.Equal(4, fs.Sleeps.Count);
         }
 
         Assert.Equal(before, File.ReadAllText(path));
@@ -216,7 +224,7 @@ public sealed class ProjectFileTests : IDisposable
     /// Imita a File.Replace cuando falla con ERROR_UNABLE_TO_MOVE_REPLACEMENT_2: el original ya se movió a
     /// .bak, pero el temporal no llegó a su sitio. Opcionalmente, el renombrado de recuperación también falla.
     /// </summary>
-    private sealed class ReplaceFailsAfterBackup(Exception? moveFailure) : ProjectSerializer.SaveFileSystem
+    private sealed class ReplaceFailsAfterBackup(Exception? moveFailure) : NoDelay
     {
         public int Moves { get; private set; }
 
@@ -239,7 +247,7 @@ public sealed class ProjectFileTests : IDisposable
     }
 
     /// <summary>File.Replace falla sin tocar nada: el original sigue en su ruta.</summary>
-    private sealed class ReplaceFailsCleanly(Exception failure) : ProjectSerializer.SaveFileSystem
+    private sealed class ReplaceFailsCleanly(Exception failure) : NoDelay
     {
         public override void Replace(string source, string destination, string backup) => throw failure;
     }
@@ -305,5 +313,120 @@ public sealed class ProjectFileTests : IDisposable
         Assert.Equal(oldText, File.ReadAllText(path));
         Assert.False(File.Exists(path + ".tmp"));
         Assert.False(File.Exists(path + ".bak"));
+    }
+
+    // --- Reintentos ante bloqueos pasajeros ---
+
+    private static IOException Sharing() => new("en uso (simulado)", unchecked((int)0x80070020));
+
+    /// <summary>Sin esperas reales; anota las que se pidieron.</summary>
+    private class NoDelay : ProjectSerializer.SaveFileSystem
+    {
+        public List<TimeSpan> Sleeps { get; } = [];
+
+        public override void Sleep(TimeSpan delay) => Sleeps.Add(delay);
+    }
+
+    /// <summary>Replace o Move fallan <paramref name="failures"/> veces con <paramref name="error"/> y luego funcionan.</summary>
+    private sealed class FlakyFileSystem(int failures, Func<Exception> error) : NoDelay
+    {
+        public int Calls { get; private set; }
+
+        public override void Replace(string source, string destination, string backup)
+        {
+            Fail();
+            base.Replace(source, destination, backup);
+        }
+
+        public override void Move(string source, string destination)
+        {
+            Fail();
+            base.Move(source, destination);
+        }
+
+        private void Fail()
+        {
+            if (++Calls <= failures)
+            {
+                throw error();
+            }
+        }
+    }
+
+    [Fact]
+    public void RetryPolicy_DefaultIsFiveAttemptsWithBackoff()
+    {
+        Assert.Equal(
+            [50, 100, 200, 400],
+            ProjectSerializer.SaveFileSystem.Real.RetryDelays.Select(d => (int)d.TotalMilliseconds));
+        ProjectSerializer.SaveFileSystem.Real.Sleep(TimeSpan.Zero);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Save_TransientSharingViolation_IsRetriedAndSucceeds(bool fileExists)
+    {
+        string path = PathFor(fileExists ? "reintento reemplazo" : "reintento nuevo");
+        if (fileExists)
+        {
+            ProjectSerializer.Save(new Project { Id = "vieja" }, path);
+        }
+
+        var fs = new FlakyFileSystem(2, Sharing);
+        ProjectSerializer.Save(SerializationSamples.Rich(), path, fs);
+
+        Assert.Equal(3, fs.Calls);
+        Assert.Equal([TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(100)], fs.Sleeps);
+        Assert.Equal("project-1", ProjectSerializer.Load(path).Id);
+        Assert.False(File.Exists(path + ".tmp"));
+    }
+
+    [Fact]
+    public void Save_TransientAccessDenied_IsRetried()
+    {
+        string path = PathFor("antivirus");
+        var fs = new FlakyFileSystem(1, () => new UnauthorizedAccessException("escaneando (simulado)"));
+
+        ProjectSerializer.Save(SerializationSamples.Rich(), path, fs);
+
+        Assert.Equal(2, fs.Calls);
+        Assert.True(File.Exists(path));
+    }
+
+    [Fact]
+    public void Save_PersistentLockViolation_GivesUpAfterFiveAttempts()
+    {
+        string path = PathFor("bloqueo persistente");
+        var fs = new FlakyFileSystem(int.MaxValue, () => new IOException("bloqueado (simulado)", unchecked((int)0x80070021)));
+
+        Assert.Throws<IOException>(() => ProjectSerializer.Save(SerializationSamples.Rich(), path, fs));
+
+        Assert.Equal(5, fs.Calls);
+        Assert.Equal(4, fs.Sleeps.Count);
+        Assert.False(File.Exists(path + ".tmp"));
+    }
+
+    [Fact]
+    public void Save_OtherIOError_IsNotRetried()
+    {
+        string path = PathFor("sin reintento");
+        var fs = new FlakyFileSystem(int.MaxValue, () => new IOException("disco lleno (simulado)", unchecked((int)0x80070070)));
+
+        Assert.Throws<IOException>(() => ProjectSerializer.Save(SerializationSamples.Rich(), path, fs));
+
+        Assert.Equal(1, fs.Calls);
+        Assert.Empty(fs.Sleeps);
+    }
+
+    [Fact]
+    public void IsTransient_OnlySharingLockAndAccessDenied()
+    {
+        Assert.True(ProjectSerializer.IsTransient(Sharing()));
+        Assert.True(ProjectSerializer.IsTransient(new IOException("x", unchecked((int)0x80070021))));
+        Assert.True(ProjectSerializer.IsTransient(new UnauthorizedAccessException()));
+        Assert.False(ProjectSerializer.IsTransient(new IOException("x")));
+        Assert.False(ProjectSerializer.IsTransient(new FileNotFoundException()));
+        Assert.False(ProjectSerializer.IsTransient(new InvalidOperationException()));
     }
 }

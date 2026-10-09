@@ -70,8 +70,7 @@ public static class ProjectSerializer
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            // Último recurso: el validador está pensado para no lanzar con ningún dato, pero si un caso no
-            // previsto lo hace, quien abre el archivo recibe el error de formato de siempre y no un fallo.
+            // Último recurso: el validador no debería lanzar con ningún dato.
             throw new ProjectFormatException(
                 "El proyecto tiene datos que no se pudieron comprobar y no se puede abrir. " +
                 "Es posible que se haya editado a mano o que esté dañado.",
@@ -99,18 +98,14 @@ public static class ProjectSerializer
     /// dejando la versión anterior en <c>ruta.bak</c>; si no existía, solo renombra el temporal. No valida
     /// el proyecto: guardar nunca rechaza el trabajo de quien edita.
     /// <para>
-    /// Si algo falla, el temporal se borra solo cuando no hace falta: el proyecto sigue en su ruta o nunca
-    /// existió. Si el reemplazo alcanzó a mover el original a <c>ruta.bak</c> pero no a poner el nuevo en
-    /// su lugar, se intenta renombrar el temporal; si tampoco se puede, se conserva y la
-    /// <see cref="IOException"/> dice dónde está para recuperarlo a mano.
+    /// Los bloqueos pasajeros (antivirus, indexador) se reintentan unas veces. Si el reemplazo deja el
+    /// original en <c>ruta.bak</c> sin poner el nuevo, se renombra el temporal; si no se puede, se conserva
+    /// y la <see cref="IOException"/> dice dónde está.
     /// </para>
     /// </remarks>
     public static void Save(Project project, string path) => Save(project, path, SaveFileSystem.Real);
 
-    /// <summary>
-    /// Igual que <see cref="Save(Project, string)"/>, pero con las operaciones de archivo inyectables para
-    /// que las pruebas simulen fallos que en un disco real son casi imposibles de provocar.
-    /// </summary>
+    /// <summary>Igual que <see cref="Save(Project, string)"/>, con las operaciones de archivo inyectables.</summary>
     internal static void Save(Project project, string path, SaveFileSystem fileSystem)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -125,28 +120,27 @@ public static class ProjectSerializer
 
         try
         {
-            using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            Retry(fileSystem, () =>
             {
+                using var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough);
                 stream.Write(bytes);
                 stream.Flush(flushToDisk: true);
-            }
+            });
 
             tempComplete = true;
             hadOriginal = fileSystem.FileExists(fullPath);
             if (hadOriginal)
             {
-                fileSystem.Replace(tempPath, fullPath, backupPath);
+                Retry(fileSystem, () => fileSystem.Replace(tempPath, fullPath, backupPath));
             }
             else
             {
-                fileSystem.Move(tempPath, fullPath);
+                Retry(fileSystem, () => fileSystem.Move(tempPath, fullPath));
             }
         }
         catch (Exception ex) when (tempComplete && hadOriginal && !fileSystem.FileExists(fullPath))
         {
-            // File.Replace puede fallar después de mover el original a .bak (por ejemplo con
-            // ERROR_UNABLE_TO_MOVE_REPLACEMENT_2): entonces el temporal es la única copia de la versión
-            // nueva y no se borra. Primero se intenta ponerlo en su sitio.
+            // El original ya está en .bak: el temporal es la única copia de la versión nueva.
             if (TryMove(fileSystem, tempPath, fullPath))
             {
                 return;
@@ -161,7 +155,7 @@ public static class ProjectSerializer
         }
         catch
         {
-            // El destino sigue en su sitio (con la versión anterior) o nunca existió: el temporal sobra.
+            // El destino sigue intacto o nunca existió: el temporal sobra.
             TryDelete(fileSystem, tempPath);
             throw;
         }
@@ -283,11 +277,36 @@ public static class ProjectSerializer
         }
     }
 
+    // Antivirus o indexador que abren el archivo recién escrito: ERROR_SHARING_VIOLATION,
+    // ERROR_LOCK_VIOLATION o acceso denegado pasajero.
+    private const int SharingViolation = unchecked((int)0x80070020);
+    private const int LockViolation = unchecked((int)0x80070021);
+
+    internal static bool IsTransient(Exception ex) =>
+        ex is UnauthorizedAccessException || (ex is IOException && ex.HResult is SharingViolation or LockViolation);
+
+    private static void Retry(SaveFileSystem fileSystem, Action action)
+    {
+        IReadOnlyList<TimeSpan> delays = fileSystem.RetryDelays;
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                action();
+                return;
+            }
+            catch (Exception ex) when (attempt < delays.Count && IsTransient(ex))
+            {
+                fileSystem.Sleep(delays[attempt]);
+            }
+        }
+    }
+
     private static bool TryMove(SaveFileSystem fileSystem, string source, string destination)
     {
         try
         {
-            fileSystem.Move(source, destination);
+            Retry(fileSystem, () => fileSystem.Move(source, destination));
             return true;
         }
         catch (IOException)
@@ -300,13 +319,18 @@ public static class ProjectSerializer
         }
     }
 
-    /// <summary>
-    /// Las operaciones de archivo que hace <see cref="Save(Project, string)"/> después de escribir el
-    /// temporal. La implementación real llama a <see cref="File"/>; las pruebas la reemplazan.
-    /// </summary>
+    /// <summary>Operaciones de archivo de <see cref="Save(Project, string)"/>; las pruebas las reemplazan.</summary>
     internal class SaveFileSystem
     {
         public static readonly SaveFileSystem Real = new();
+
+        private static readonly TimeSpan[] DefaultDelays =
+            [TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(200), TimeSpan.FromMilliseconds(400)];
+
+        /// <summary>Esperas entre intentos ante un bloqueo pasajero (5 intentos en total).</summary>
+        public virtual IReadOnlyList<TimeSpan> RetryDelays => DefaultDelays;
+
+        public virtual void Sleep(TimeSpan delay) => Thread.Sleep(delay);
 
         public virtual bool FileExists(string path) => File.Exists(path);
 

@@ -148,8 +148,7 @@ public static class ModelValidator
                     errors.Add($"{where} empieza antes del inicio de la línea de tiempo.");
                 }
 
-                // Los tiempos llegan de un archivo y pueden ser cualquier long: el final se calcula en 128 bits
-                // para que un valor extremo se informe como problema y no lance OverflowException.
+                // En 128 bits: un archivo puede traer cualquier long y aquí no se debe lanzar OverflowException.
                 Int128 duration = (Int128)clip.SourceOut.Ticks - clip.SourceIn.Ticks;
                 Int128 end = clip.Start.Ticks + duration;
                 if (!FitsInLong(duration) || !FitsInLong(end))
