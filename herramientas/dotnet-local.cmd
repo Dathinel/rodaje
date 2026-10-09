@@ -3,9 +3,12 @@ rem Ejecuta el SDK de .NET del entorno propio (.entorno\dotnet) con la caché Nu
 rem Uso: herramientas\dotnet-local.cmd test   (cualquier argumento de dotnet)
 setlocal
 set "RAIZ=%~dp0.."
-set "DOTNET_ROOT=%RAIZ%\.entorno\dotnet"
-set "NUGET_PACKAGES=%RAIZ%\.entorno\nuget"
-set "DOTNET_CLI_HOME=%RAIZ%\.entorno"
+set "ENTORNO=%RAIZ%\.entorno"
+if defined FOTOTOMA_ENTORNO set "ENTORNO=%FOTOTOMA_ENTORNO%"
+set "DOTNET_ROOT=%ENTORNO%\dotnet"
+set "NUGET_PACKAGES=%ENTORNO%\nuget"
+set "DOTNET_CLI_HOME=%ENTORNO%"
+set "DOTNET_CLI_FORCE_UTF8_ENCODING=1"
 set "DOTNET_MULTILEVEL_LOOKUP=0"
 set "DOTNET_CLI_TELEMETRY_OPTOUT=1"
 set "DOTNET_NOLOGO=1"

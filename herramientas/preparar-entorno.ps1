@@ -17,7 +17,8 @@ $SdkUrl     = "https://builds.dotnet.microsoft.com/dotnet/Sdk/$SdkVersion/dotnet
 $SdkSha512  = '24b670ad3d923bfcf47df6c3b034152398b42f6dbc388e10d783aee1cfb5e5817d399fc0ae2a12cfa822a55e61d34830ccb15c50ef6efee437ab874bb7c79430'
 
 $Raiz    = Split-Path -Parent $PSScriptRoot
-$Entorno = Join-Path $Raiz '.entorno'
+# FOTOTOMA_ENTORNO permite usar un entorno de otra carpeta (por ejemplo desde un worktree).
+$Entorno = if ($env:FOTOTOMA_ENTORNO) { $env:FOTOTOMA_ENTORNO } else { Join-Path $Raiz '.entorno' }
 $DotnetDir = Join-Path $Entorno 'dotnet'
 $Marca   = Join-Path $DotnetDir ".sdk-$SdkVersion"
 
