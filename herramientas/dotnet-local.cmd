@@ -14,8 +14,15 @@ set "DOTNET_CLI_TELEMETRY_OPTOUT=1"
 set "DOTNET_NOLOGO=1"
 set "DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1"
 set "PATH=%DOTNET_ROOT%;%PATH%"
-if not exist "%DOTNET_ROOT%\dotnet.exe" (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0preparar-entorno.ps1" || exit /b 1
-)
+rem El entorno esta listo cuando existe la marca .sdk-<version> (la version sale de global.json).
+rem Que exista dotnet.exe no basta: una instalacion cortada por un apagon tambien lo tiene.
+set "SDKVER="
+for /f "usebackq tokens=2 delims=:, " %%v in (`findstr /i /c:"\"version\"" "%RAIZ%\global.json"`) do if not defined SDKVER set "SDKVER=%%~v"
+if not exist "%DOTNET_ROOT%\.sdk-%SDKVER%" goto preparar
+if not exist "%DOTNET_ROOT%\dotnet.exe" goto preparar
+goto ejecutar
+:preparar
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0preparar-entorno.ps1" || exit /b 1
+:ejecutar
 "%DOTNET_ROOT%\dotnet.exe" %*
 exit /b %errorlevel%

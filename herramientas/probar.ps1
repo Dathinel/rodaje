@@ -32,6 +32,10 @@ $Solucion = Join-Path $Raiz 'FotoToma.slnx'
 if ($env:FOTOTOMA_ENTORNO) { $Entorno = $env:FOTOTOMA_ENTORNO } else { $Entorno = Join-Path $Raiz '.entorno' }
 $DotnetDir = Join-Path $Entorno 'dotnet'
 $Dotnet = Join-Path $DotnetDir 'dotnet.exe'
+# El SDK está listo solo si existe la marca .sdk-<versión> que deja preparar-entorno.ps1 al terminar
+# (la versión sale de global.json); dotnet.exe solo no basta, porque un apagón a medias también lo deja.
+try { $SdkVersion = (Get-Content -LiteralPath (Join-Path $Raiz 'global.json') -Raw -Encoding UTF8 | ConvertFrom-Json).sdk.version } catch { $SdkVersion = '' }
+$MarcaSdk = Join-Path $DotnetDir ".sdk-$SdkVersion"
 $Reloj = [System.Diagnostics.Stopwatch]::StartNew()
 $TotalFases = 3
 
@@ -97,10 +101,15 @@ Titulo 'FotoToma - pruebas automáticas del núcleo'
 Nota "Proyecto: $Raiz"
 
 # --- Comprobaciones previas -------------------------------------------------------------------
-if (-not (Test-Path -LiteralPath $Dotnet)) {
+if (-not (Test-Path -LiteralPath $Dotnet) -or -not (Test-Path -LiteralPath $MarcaSdk)) {
     Write-Host ''
-    Mal 'No encuentro el SDK de .NET del proyecto, y sin él no se pueden compilar ni correr las pruebas.'
-    Nota "Lo busqué en: $Dotnet"
+    if (Test-Path -LiteralPath $Dotnet) {
+        Mal 'El SDK de .NET del proyecto está a medias (falta su marca de instalación completa), y así no es fiable.'
+        Nota "Falta: $MarcaSdk"
+    } else {
+        Mal 'No encuentro el SDK de .NET del proyecto, y sin él no se pueden compilar ni correr las pruebas.'
+        Nota "Lo busqué en: $Dotnet"
+    }
     Nota ''
     Nota 'Cómo arreglarlo (una sola vez, descarga unos 280 MB):'
     Nota '  - Haz doble clic en ABRIR.bat, que lo prepara solo, o'
