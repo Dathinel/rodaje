@@ -3,25 +3,16 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Editing;
 
-/// <summary>
-/// Operaciones de edición sobre la secuencia de un <see cref="EditContext"/>. Cambian el modelo en el
-/// sitio y lanzan <see cref="EditException"/> cuando la edición no se puede hacer; el comando que las
-/// envuelve guarda una copia antes y la restaura si algo falla.
-/// </summary>
 /// <remarks>
-/// Convención de signos para los recortes: un borde, un corte o un clip se mueve <c>delta</c> en la
-/// línea de tiempo, y un <c>delta</c> positivo lo lleva hacia la derecha (más tarde). Los clips
-/// enlazados, como un video y su audio, se editan siempre juntos y con el mismo <c>delta</c>.
+/// Un <c>delta</c> positivo mueve el borde, corte o clip hacia la derecha; los clips enlazados se editan
+/// juntos con el mismo <c>delta</c>.
 /// </remarks>
 public static partial class TimelineEdits
 {
-    /// <summary>
-    /// Corta el clip, y sus enlazados que también pasen por ese instante, en dos piezas.
-    /// </summary>
+    /// <summary>Corta en dos el clip y los enlazados que pasen por <paramref name="at"/>.</summary>
     /// <remarks>
-    /// La pieza izquierda conserva el identificador. La derecha recibe uno nuevo, un enlace derivado
-    /// (para que el video y el audio cortados sigan unidos entre sí) y una copia de los efectos con
-    /// identificadores nuevos; los keyframes están en tiempo del origen y no cambian.
+    /// La pieza izquierda conserva el identificador; la derecha recibe uno nuevo, un enlace derivado y
+    /// copias de los efectos. Los keyframes están en tiempo del origen y no cambian.
     /// </remarks>
     /// <returns>Identificadores de las piezas derechas nuevas; la del clip pedido va primero.</returns>
     public static IReadOnlyList<string> Split(EditContext ctx, string clipId, Time at)
@@ -69,10 +60,7 @@ public static partial class TimelineEdits
         return newIds;
     }
 
-    /// <summary>
-    /// Recorte simple: mueve el borde de entrada o de salida sin correr nada más, así que puede abrir un
-    /// hueco o cerrar uno, pero nunca montarse sobre el clip vecino.
-    /// </summary>
+    /// <summary>Mueve un borde sin correr nada más; nunca se monta sobre el vecino.</summary>
     public static void Trim(EditContext ctx, string clipId, TrimEdge edge, Time delta)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
@@ -81,11 +69,7 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>
-    /// Recorte con ripple: el clip se alarga o se acorta y todo lo que viene después se corre para que no
-    /// queden huecos ni solapes. En el borde de entrada el clip sigue empezando en el mismo lugar y lo que
-    /// cambia es qué parte del archivo muestra.
-    /// </summary>
+    /// <summary>Recorta y corre lo que viene después; en el borde de entrada el clip no cambia de inicio.</summary>
     public static void RippleTrim(EditContext ctx, string clipId, TrimEdge edge, Time delta, RippleScope scope)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
@@ -115,11 +99,7 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>
-    /// Mueve el corte entre el clip y el que va pegado justo después: uno se alarga lo que el otro se
-    /// acorta, y la duración total no cambia. Si no hay un clip pegado se comporta como un recorte del
-    /// borde de salida.
-    /// </summary>
+    /// <summary>Mueve el corte con el clip pegado a la derecha; sin vecino equivale a recortar la salida.</summary>
     public static void Roll(EditContext ctx, string clipId, Time delta)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
@@ -140,10 +120,7 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>
-    /// Desliza el contenido dentro del clip: muestra otra parte del archivo sin cambiar dónde está ni
-    /// cuánto dura en la línea de tiempo.
-    /// </summary>
+    /// <summary>Muestra otra parte del origen sin cambiar posición ni duración.</summary>
     public static void Slip(EditContext ctx, string clipId, Time delta)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
@@ -157,11 +134,7 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>
-    /// Mueve el clip entre sus vecinos pegados: el de antes se alarga o se acorta para seguir tocándolo y
-    /// el de después hace lo contrario, así el clip conserva su contenido y la secuencia su duración. Si
-    /// no tiene vecinos pegados el clip simplemente se mueve.
-    /// </summary>
+    /// <summary>Mueve el clip entre sus vecinos pegados, que se ajustan para conservar la duración total.</summary>
     public static void Slide(EditContext ctx, string clipId, Time delta)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);

@@ -5,16 +5,11 @@ using FotoToma.Core.Model;
 
 namespace FotoToma.Core.Serialization;
 
-/// <summary>
-/// Lee y escribe proyectos en el formato <c>.ftoma</c>: JSON en UTF-8 descrito en
-/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/fototoma-proyecto.v1.schema.json</c>.
-/// </summary>
+/// <summary>Lee y escribe proyectos <c>.ftoma</c> (JSON UTF-8, ver <c>docs/formato-proyecto.md</c>).</summary>
 public static class ProjectSerializer
 {
-    /// <summary>Extensión de los archivos de proyecto, con el punto.</summary>
     public const string FileExtension = ".ftoma";
 
-    /// <summary>Sufijo del archivo temporal que se escribe antes de reemplazar el proyecto.</summary>
     public const string TempSuffix = ".tmp";
 
     /// <summary>Sufijo de la copia de la versión anterior que deja cada guardado.</summary>
@@ -22,21 +17,17 @@ public static class ProjectSerializer
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
-    /// <summary>Convierte el proyecto en texto JSON indentado con saltos de línea LF.</summary>
+    /// <summary>JSON indentado con saltos de línea LF.</summary>
     public static string Serialize(Project project)
     {
         ArgumentNullException.ThrowIfNull(project);
         return JsonSerializer.Serialize(project, ProjectJson.ProjectInfo);
     }
 
-    /// <summary>
-    /// Lee un proyecto desde texto JSON: lo analiza, lo migra a la versión actual, lo convierte en objetos
-    /// y comprueba sus reglas con <see cref="ModelValidator"/>.
-    /// </summary>
-    /// <exception cref="ProjectFormatException">Si el texto no es un proyecto válido; el mensaje lo explica.</exception>
+    /// <summary>Analiza, migra a la versión actual y valida un proyecto.</summary>
+    /// <exception cref="ProjectFormatException">Si el texto no es un proyecto válido.</exception>
     public static Project Deserialize(string json) => Deserialize(json, ModelValidator.Validate);
 
-    /// <summary>Igual que <see cref="Deserialize(string)"/> con el validador inyectable, para las pruebas.</summary>
     internal static Project Deserialize(string json, Func<Project, IReadOnlyList<string>> validate)
     {
         ArgumentNullException.ThrowIfNull(json);
@@ -51,14 +42,13 @@ public static class ProjectSerializer
         }
         catch (JsonException ex)
         {
-            // El serializador siempre indica la ruta del dato (por ejemplo $.sequences[0].frameRate).
             throw new ProjectFormatException(
                 $"El archivo tiene un dato con un tipo o un valor que no corresponde en «{ex.Path}». " +
                 "Es posible que se haya editado a mano o que esté dañado.",
                 ex);
         }
 
-        // La raíz ya se comprobó como objeto, así que el resultado nunca es null.
+        // La raíz ya se comprobó como objeto: el resultado nunca es null.
         IReadOnlyList<string> problems;
         try
         {
@@ -70,8 +60,7 @@ public static class ProjectSerializer
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            // Último recurso: el validador está pensado para no lanzar con ningún dato, pero si un caso no
-            // previsto lo hace, quien abre el archivo recibe el error de formato de siempre y no un fallo.
+            // Último recurso: un caso no previsto en el validador se informa como error de formato.
             throw new ProjectFormatException(
                 "El proyecto tiene datos que no se pudieron comprobar y no se puede abrir. " +
                 "Es posible que se haya editado a mano o que esté dañado.",
@@ -88,29 +77,13 @@ public static class ProjectSerializer
         return project!;
     }
 
-    /// <summary>
-    /// Guarda el proyecto de forma atómica: si el equipo se apaga a mitad de camino, en disco queda la
-    /// versión anterior completa o la nueva completa, nunca un archivo a medias.
-    /// </summary>
+    /// <summary>Guarda de forma atómica: en disco queda la versión anterior completa o la nueva, nunca una a medias.</summary>
     /// <remarks>
-    /// Primero escribe <c>ruta.tmp</c> en la misma carpeta pidiendo al sistema que lo lleve hasta el disco
-    /// (<see cref="FileOptions.WriteThrough"/> y <see cref="FileStream.Flush(bool)"/>). Después, si el
-    /// proyecto ya existía, lo cambia por el nuevo con <see cref="File.Replace(string, string, string)"/>
-    /// dejando la versión anterior en <c>ruta.bak</c>; si no existía, solo renombra el temporal. No valida
-    /// el proyecto: guardar nunca rechaza el trabajo de quien edita.
-    /// <para>
-    /// Si algo falla, el temporal se borra solo cuando no hace falta: el proyecto sigue en su ruta o nunca
-    /// existió. Si el reemplazo alcanzó a mover el original a <c>ruta.bak</c> pero no a poner el nuevo en
-    /// su lugar, se intenta renombrar el temporal; si tampoco se puede, se conserva y la
-    /// <see cref="IOException"/> dice dónde está para recuperarlo a mano.
-    /// </para>
+    /// Orden: escribir <c>ruta.tmp</c> con write-through y flush a disco, luego <see cref="File.Replace(string, string, string)"/>
+    /// dejando la anterior en <c>ruta.bak</c> (o renombrar si no existía). No valida: guardar nunca rechaza el trabajo.
     /// </remarks>
     public static void Save(Project project, string path) => Save(project, path, SaveFileSystem.Real);
 
-    /// <summary>
-    /// Igual que <see cref="Save(Project, string)"/>, pero con las operaciones de archivo inyectables para
-    /// que las pruebas simulen fallos que en un disco real son casi imposibles de provocar.
-    /// </summary>
     internal static void Save(Project project, string path, SaveFileSystem fileSystem)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -144,9 +117,8 @@ public static class ProjectSerializer
         }
         catch (Exception ex) when (tempComplete && hadOriginal && !fileSystem.FileExists(fullPath))
         {
-            // File.Replace puede fallar después de mover el original a .bak (por ejemplo con
-            // ERROR_UNABLE_TO_MOVE_REPLACEMENT_2): entonces el temporal es la única copia de la versión
-            // nueva y no se borra. Primero se intenta ponerlo en su sitio.
+            // File.Replace movió el original a .bak y falló (ERROR_UNABLE_TO_MOVE_REPLACEMENT_2):
+            // el temporal es la única copia de la versión nueva y no se borra.
             if (TryMove(fileSystem, tempPath, fullPath))
             {
                 return;
@@ -161,7 +133,7 @@ public static class ProjectSerializer
         }
         catch
         {
-            // El destino sigue en su sitio (con la versión anterior) o nunca existió: el temporal sobra.
+            // El destino sigue intacto o nunca existió: el temporal sobra.
             TryDelete(fileSystem, tempPath);
             throw;
         }
@@ -201,7 +173,6 @@ public static class ProjectSerializer
         JsonNode? node;
         try
         {
-            // Un campo repetido en el mismo objeto es ambiguo (¿cuál vale?), así que se rechaza al analizar.
             node = JsonNode.Parse(json, documentOptions: new JsonDocumentOptions { AllowDuplicateProperties = false });
         }
         catch (JsonException ex)
@@ -223,10 +194,7 @@ public static class ProjectSerializer
         return root;
     }
 
-    /// <summary>
-    /// El lector respeta las anotaciones de nulabilidad en las propiedades, pero no dentro de las listas:
-    /// <c>"clips": [null]</c> llega como un elemento nulo. Se detecta aquí, antes de validar.
-    /// </summary>
+    // System.Text.Json respeta la nulabilidad de las propiedades pero no la de los elementos de una lista.
     private static List<string> FindNullItems(Project project)
     {
         var problems = new List<string>();
@@ -275,11 +243,10 @@ public static class ProjectSerializer
         }
         catch (IOException)
         {
-            // El temporal sobrante no daña nada: el próximo guardado lo sobrescribe.
+            // El próximo guardado lo sobrescribe.
         }
         catch (UnauthorizedAccessException)
         {
-            // Igual que arriba.
         }
     }
 
@@ -300,10 +267,7 @@ public static class ProjectSerializer
         }
     }
 
-    /// <summary>
-    /// Las operaciones de archivo que hace <see cref="Save(Project, string)"/> después de escribir el
-    /// temporal. La implementación real llama a <see cref="File"/>; las pruebas la reemplazan.
-    /// </summary>
+    /// <summary>Operaciones de archivo de <see cref="Save(Project, string)"/>, reemplazables en pruebas.</summary>
     internal class SaveFileSystem
     {
         public static readonly SaveFileSystem Real = new();

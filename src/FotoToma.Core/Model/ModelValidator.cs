@@ -2,10 +2,7 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Model;
 
-/// <summary>
-/// Comprueba las reglas que todo proyecto válido cumple. Las operaciones de edición lo usan como red
-/// de seguridad y las pruebas lo ejecutan después de cada comando.
-/// </summary>
+/// <summary>Comprueba las invariantes de un proyecto.</summary>
 public static class ModelValidator
 {
     /// <summary>Devuelve la lista de problemas encontrados, en español; vacía si el proyecto es válido.</summary>
@@ -61,7 +58,7 @@ public static class ModelValidator
         }
     }
 
-    /// <summary>Problemas de una sola secuencia; útil después de una edición.</summary>
+    /// <summary>Problemas de una sola secuencia.</summary>
     public static IReadOnlyList<string> ValidateSequence(Project project, Sequence sequence)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -148,8 +145,7 @@ public static class ModelValidator
                     errors.Add($"{where} empieza antes del inicio de la línea de tiempo.");
                 }
 
-                // Los tiempos llegan de un archivo y pueden ser cualquier long: el final se calcula en 128 bits
-                // para que un valor extremo se informe como problema y no lance OverflowException.
+                // 128 bits: un valor extremo leído de un archivo se informa como problema, no como OverflowException.
                 Int128 duration = (Int128)clip.SourceOut.Ticks - clip.SourceIn.Ticks;
                 Int128 end = clip.Start.Ticks + duration;
                 if (!FitsInLong(duration) || !FitsInLong(end))

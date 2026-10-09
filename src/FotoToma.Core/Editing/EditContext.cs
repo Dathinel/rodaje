@@ -3,10 +3,7 @@ using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Editing;
 
-/// <summary>
-/// Lo que necesita una operación de edición: el proyecto (para consultar los medios), la secuencia que
-/// se modifica y la fuente de identificadores para los objetos nuevos.
-/// </summary>
+/// <summary>Proyecto, secuencia editada y fuente de identificadores de una operación de edición.</summary>
 public sealed class EditContext
 {
     private readonly Dictionary<string, string> _derivedLinks = new(StringComparer.Ordinal);
@@ -34,7 +31,6 @@ public sealed class EditContext
             ?? throw new EditException($"El clip «{clip.Id}» usa un medio que ya no está en el proyecto.");
     }
 
-    /// <summary>Lanza <see cref="EditException"/> si la pista está bloqueada.</summary>
     public static void EnsureUnlocked(Track track)
     {
         ArgumentNullException.ThrowIfNull(track);
@@ -44,11 +40,7 @@ public sealed class EditContext
         }
     }
 
-    /// <summary>
-    /// Enlace para la mitad derecha de un clip que se partió. Todas las mitades derechas que venían del
-    /// mismo enlace dentro de una misma operación comparten el enlace nuevo, así el video y su audio
-    /// cortados siguen unidos.
-    /// </summary>
+    /// <summary>Enlace de la mitad derecha de un clip partido, compartido por las mitades del mismo enlace en esta operación.</summary>
     public string? DerivedLinkId(string? originalLinkId)
     {
         if (originalLinkId is null)
@@ -65,11 +57,7 @@ public sealed class EditContext
         return derived;
     }
 
-    /// <summary>
-    /// Corre (ripple) en <paramref name="delta"/> todos los clips que empiezan en <paramref name="from"/>
-    /// o después, en las pistas que indique el alcance. Los clips de <paramref name="exclude"/> no se
-    /// mueven. Las pistas bloqueadas se saltan cuando el alcance es <see cref="RippleScope.AllTracks"/>.
-    /// </summary>
+    /// <summary>Corre en <paramref name="delta"/> los clips desde <paramref name="from"/>; con <see cref="RippleScope.AllTracks"/> salta las pistas bloqueadas.</summary>
     public void RippleShift(IEnumerable<Track> editedTracks, Time from, Time delta, RippleScope scope, IReadOnlySet<Clip>? exclude = null)
     {
         ArgumentNullException.ThrowIfNull(editedTracks);
@@ -83,7 +71,6 @@ public sealed class EditContext
         }
     }
 
-    /// <summary>Corre en <paramref name="delta"/> los clips de una pista que empiezan en <paramref name="from"/> o después.</summary>
     public static void ShiftClips(Track track, Time from, Time delta, IReadOnlySet<Clip>? exclude = null)
     {
         ArgumentNullException.ThrowIfNull(track);
@@ -103,10 +90,7 @@ public sealed class EditContext
         track.SortClips();
     }
 
-    /// <summary>
-    /// Comprueba la secuencia al terminar una operación y lanza <see cref="EditException"/> con el primer
-    /// problema si quedó inválida (por ejemplo un solape). El comando que la envuelve restaura el estado.
-    /// </summary>
+    /// <summary>Lanza <see cref="EditException"/> con el primer problema si la secuencia quedó inválida.</summary>
     public void EnsureValid()
     {
         IReadOnlyList<string> errors = ModelValidator.ValidateSequence(Project, Sequence);

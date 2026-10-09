@@ -1,13 +1,9 @@
 namespace FotoToma.Core.Model;
 
-/// <summary>
-/// Raíz del documento: un proyecto tiene una biblioteca de medios y una o más secuencias.
-/// </summary>
+/// <summary>Raíz del documento: biblioteca de medios y secuencias.</summary>
 /// <remarks>
-/// El modelo es un árbol de objetos simples (sin lógica de edición) para que se serialice tal cual a
-/// JSON y otros programas lo puedan leer. Toda modificación durante la edición pasa por comandos
-/// (<see cref="Commands.ICommand"/>) para que se pueda deshacer; las invariantes las comprueba
-/// <see cref="ModelValidator"/>.
+/// Árbol de datos sin lógica de edición; los cambios pasan por <see cref="Commands.ICommand"/> y las
+/// invariantes las comprueba <see cref="ModelValidator"/>.
 /// </remarks>
 public sealed class Project
 {

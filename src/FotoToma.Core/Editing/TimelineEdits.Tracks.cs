@@ -4,10 +4,7 @@ namespace FotoToma.Core.Editing;
 
 public static partial class TimelineEdits
 {
-    /// <summary>
-    /// Agrega una pista vacía en la posición dada de la lista de su tipo. En video el índice 0 es la
-    /// capa de más abajo.
-    /// </summary>
+    /// <summary>Agrega una pista vacía en la posición dada de la lista de su tipo.</summary>
     /// <returns>Identificador de la pista nueva.</returns>
     public static string AddTrack(EditContext ctx, TrackKind kind, int index, string name)
     {
@@ -29,11 +26,7 @@ public static partial class TimelineEdits
         return track.Id;
     }
 
-    /// <summary>
-    /// Borra la pista con todos sus clips. Los clips de otras pistas que se queden sin pareja de enlace
-    /// pasan a ir sueltos, salvo los que estén en una pista bloqueada: esos conservan su enlace, ya
-    /// huérfano e inofensivo, para no modificar una pista bloqueada.
-    /// </summary>
+    /// <summary>Borra la pista con sus clips; los enlaces que queden huérfanos se limpian fuera de pistas bloqueadas.</summary>
     public static void RemoveTrack(EditContext ctx, string trackId)
     {
         Track track = TrimmingSupport.ResolveTrack(ctx, trackId);
@@ -44,10 +37,7 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>
-    /// Cambia el orden de la pista dentro de la lista de su tipo. Una pista bloqueada no se mueve, porque
-    /// en video el orden decide qué capa tapa a cuál.
-    /// </summary>
+    /// <summary>Reordena la pista; una bloqueada no se mueve porque el orden decide qué capa tapa a cuál.</summary>
     public static void MoveTrack(EditContext ctx, string trackId, int newIndex)
     {
         Track track = TrimmingSupport.ResolveTrack(ctx, trackId);
@@ -63,11 +53,7 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>
-    /// Cambia el estado de una pista; los parámetros en <c>null</c> se dejan como están. Bloquear y
-    /// desbloquear siempre se puede; lo demás de una pista bloqueada no cambia salvo que en la misma
-    /// llamada se desbloquee.
-    /// </summary>
+    /// <summary>Cambia los campos no nulos; en una pista bloqueada solo se permite (des)bloquear, salvo que se desbloquee en la misma llamada.</summary>
     public static void SetTrackState(
         EditContext ctx,
         string trackId,
@@ -97,7 +83,7 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>Activa o desactiva el clip y sus enlazados. Un clip desactivado no se ve ni se oye.</summary>
+    /// <summary>Activa o desactiva el clip y sus enlazados.</summary>
     public static void SetClipEnabled(EditContext ctx, string clipId, bool enabled)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
@@ -114,12 +100,7 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>
-    /// Enlaza los clips para que se muevan y recorten juntos. Deben ser al menos dos y estar en pistas
-    /// distintas. Si alguno ya tenía enlace lo pierde, y la pareja que quede sola pasa a ir suelta, salvo
-    /// que esté en una pista bloqueada: entonces conserva su enlace, ya huérfano e inofensivo, para no
-    /// modificar una pista bloqueada.
-    /// </summary>
+    /// <summary>Enlaza dos o más clips de pistas distintas; los enlaces anteriores que queden huérfanos se limpian.</summary>
     /// <returns>Identificador del enlace nuevo.</returns>
     public static string LinkClips(EditContext ctx, IReadOnlyCollection<string> clipIds)
     {
@@ -158,7 +139,7 @@ public static partial class TimelineEdits
         return linkId;
     }
 
-    /// <summary>Deshace el enlace del clip: él y todos sus enlazados pasan a ir sueltos.</summary>
+    /// <summary>El clip y todos sus enlazados pasan a ir sueltos.</summary>
     public static void UnlinkClips(EditContext ctx, string clipId)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
@@ -181,7 +162,6 @@ public static partial class TimelineEdits
     }
 }
 
-/// <summary>Piezas de la gestión de pistas.</summary>
 internal static class TracksSupport
 {
     public static List<Track> ListOf(Sequence sequence, TrackKind kind) => kind switch
