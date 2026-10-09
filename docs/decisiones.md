@@ -210,3 +210,20 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - Fotograma y Encuadre: no tenían conflictos, pero Daniel eligió Rodaje.
 
 **Consecuencias.** Antes de hacer público el repositorio hay que repetir la búsqueda de marcas en USPTO, EUIPO y SIC Colombia.
+
+## D-015. Visor de la fase 2: Win32 propio, shaders compilados al arrancar y caché de 2 × adelanto (9 de octubre de 2026)
+
+**Contexto.** La fase 2 se cierra con una prueba humana de fluidez y sincronía, y para eso hace falta una ventana que use el motor real antes de que exista la interfaz WinUI 3 de la fase 4.
+
+**Decisión.**
+- El visor (`src/Rodaje.Visor`) es una ventana Win32 con TerraFX, una cadena de intercambio flip-model (`FLIP_DISCARD`, objeto de espera y latencia máxima de 1 cuadro) y `Present` con vsync. Pantalla completa sin bordes; no se usa el modo exclusivo.
+- La conversión NV12/P010 a RGB (BT.709, rango limitado) se hace en un pixel shader que lee la capa del arreglo de texturas del decodificador con dos vistas (Y y UV), sin copias. El shader se compila al arrancar con `d3dcompiler_47.dll`, que viene con Windows desde 8.1, en vez de con `fxc.exe` en la compilación: así construir no depende del Windows SDK. Cuesta unos milisegundos al abrir la ventana y es compatible con Native AOT (P/Invoke de TerraFX).
+- `ClipPlayer` vive en `src/Rodaje.Engine` para que la fase 3 lo convierta en una sesión de varias pistas. El audio se decodifica por delante en un hilo propio (`BufferedAudioSource`), para que el hilo de WASAPI solo copie memoria; si algo llega tarde se descarta en vez de sonar desplazado.
+- La caché de cuadros guarda al menos `2 × adelanto + 2` cuadros (por defecto 16 y 6). `FrameCache` es LRU y mostrar un cuadro lo renueva, así que un cuadro adelantado envejece mientras se muestran los anteriores; con la proporción que sugería `PlaybackOptions` (adelanto + 2), el visor expulsaba lo adelantado antes de verlo y cada cuadro terminaba en un seek al keyframe (59 seeks y 1733 cuadros decodificados en 10 s de un H.264 de 23,976 fps, frente a 4 y 280 después del cambio).
+
+**Alternativas.**
+- fxc.exe en la compilación con el bytecode como recurso: arranque algo más rápido, pero obliga a tener el Windows SDK para compilar.
+- Cambiar la política de `FrameCache` (expulsar primero lo ya mostrado). Es la corrección de fondo y conviene hacerla en la fase 3 junto con las capas; mientras tanto el tamaño mínimo lo garantiza `ClipPlayerOptions`.
+- Esperar a WinUI 3 para la prueba humana: retrasaría la verificación de la sincronía hasta la fase 4.
+
+**Consecuencias.** El visor es una herramienta de prueba, no la interfaz del editor. HDR (BT.2020, PQ, HLG) queda fuera. Durante un seek en reproducción la GPU decodifica desde el keyframe y la presentación se retrasa dos o tres refrescos; el audio sigue corriendo y el video lo alcanza.

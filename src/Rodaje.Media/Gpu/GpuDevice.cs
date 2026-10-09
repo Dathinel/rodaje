@@ -56,6 +56,22 @@ public sealed unsafe class GpuDevice : IDisposable
 
     public bool IsDisposed => _device == null;
 
+    /// <summary><c>ID3D11Device*</c> para el renderizador, sin referencia propia: vale hasta <see cref="Dispose"/>.</summary>
+    public nint NativeDevice => (nint)Device;
+
+    /// <summary>
+    /// <c>ID3D11DeviceContext*</c> inmediato, compartido con el decodificador. Las secuencias de llamadas que
+    /// dependen del estado del pipeline van entre <see cref="LockContext"/> y <see cref="UnlockContext"/>.
+    /// </summary>
+    public nint NativeContext
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_context == null, this);
+            return (nint)_context;
+        }
+    }
+
     internal FF.AVBufferRef* HardwareDeviceContext => _hardwareDevice;
 
     internal ID3D11Device* Device
@@ -128,7 +144,7 @@ public sealed unsafe class GpuDevice : IDisposable
     }
 
     /// <summary>Entra al candado del contexto inmediato (recursivo). Siempre en pareja con <see cref="UnlockContext"/>.</summary>
-    internal void LockContext()
+    public void LockContext()
     {
         if (_lock != null)
         {
@@ -140,7 +156,7 @@ public sealed unsafe class GpuDevice : IDisposable
         }
     }
 
-    internal void UnlockContext()
+    public void UnlockContext()
     {
         if (_unlock != null)
         {

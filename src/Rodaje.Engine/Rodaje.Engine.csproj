@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Rodaje.Engine</RootNamespace>
+    <!-- Une decodificación, audio y programación de cuadros en una sesión de reproducción -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rodaje.Engine.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rodaje.Audio\Rodaje.Audio.csproj" />
+    <ProjectReference Include="..\Rodaje.Media\Rodaje.Media.csproj" />
+    <ProjectReference Include="..\Rodaje.Playback\Rodaje.Playback.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -5,7 +5,10 @@ namespace Rodaje.Playback;
 public sealed class PlaybackOptions
 {
     /// <summary>Cuadros que se piden por adelantado, contando el que toca mostrar.</summary>
-    /// <remarks>La caché debería caber al menos <c>PrefetchFrames + 2</c> cuadros; si no, lo adelantado se pierde.</remarks>
+    /// <remarks>
+    /// La caché debería caber al menos <c>2 * PrefetchFrames + 2</c> cuadros: es LRU y mostrar un cuadro lo renueva,
+    /// así que un cuadro adelantado envejece mientras se muestran los anteriores y, con menos lugar, se expulsa antes de verse.
+    /// </remarks>
     public int PrefetchFrames { get; init; } = 8;
 }
 
