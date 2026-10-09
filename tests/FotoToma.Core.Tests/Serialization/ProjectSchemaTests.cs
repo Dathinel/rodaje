@@ -49,6 +49,21 @@ public class ProjectSchemaTests
         Assert.DoesNotContain("\r", ProjectSchema.Export(), StringComparison.Ordinal);
     }
 
+    /// <summary>El ejemplo de docs/formato-proyecto.md es válido y está escrito tal como lo guarda FotoToma.</summary>
+    [Fact]
+    public void DocumentationExample_LoadsAndIsCanonical()
+    {
+        string doc = File.ReadAllText(Path.Combine(FindRepoRoot(), "docs", "formato-proyecto.md")).ReplaceLineEndings("\n");
+        int start = doc.IndexOf("```json\n", StringComparison.Ordinal) + "```json\n".Length;
+        int end = doc.IndexOf("\n```", start, StringComparison.Ordinal);
+        string example = doc[start..end];
+
+        var project = ProjectSerializer.Deserialize(example);
+
+        Assert.Equal(example, ProjectSerializer.Serialize(project));
+        Assert.Equal(2, project.Sequences[0].GetLinkGroup("clip-1").Count);
+    }
+
     /// <summary>Sube desde la carpeta de la prueba hasta la que contiene FotoToma.slnx.</summary>
     internal static string FindRepoRoot()
     {
