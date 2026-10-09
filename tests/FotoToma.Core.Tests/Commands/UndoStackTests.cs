@@ -377,6 +377,7 @@ public class UndoStackTests
         stack.Redo();
         stack.Redo();
         stack.Execute(new FakeCommand("d"));
+        stack.Execute(new FakeCommand("e"));
         while (stack.Undo())
         {
             Assert.False(stack.IsClean);

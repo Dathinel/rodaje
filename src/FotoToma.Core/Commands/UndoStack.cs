@@ -201,7 +201,11 @@ public sealed class UndoStack
         while (_undo.Count > Limit)
         {
             _undo.RemoveAt(0);
-            _cleanIndex = _cleanIndex is > 0 ? _cleanIndex - 1 : null;
+            if (_cleanIndex is int clean)
+            {
+                // Si el paso descartado era el punto limpio, ya no se puede volver a él.
+                _cleanIndex = clean > 0 ? clean - 1 : null;
+            }
         }
     }
 
