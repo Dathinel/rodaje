@@ -68,6 +68,7 @@ Medido el 9 de octubre de 2026 en un Ryzen 7 7435HS:
 - [Decisiones](docs/decisiones.md)
 - [Investigación de editores abiertos](docs/investigacion.md)
 - [Fondo legal](docs/legal.md)
+- [Propuesta de módulos: núcleo, contenido e IA](docs/propuesta-modulos.md)
 
 ## Licencia
 
