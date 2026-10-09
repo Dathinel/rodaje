@@ -3,6 +3,7 @@
     <Project Path="src/FotoToma.Core/FotoToma.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/FotoToma.AotSmoke/FotoToma.AotSmoke.csproj" />
     <Project Path="tests/FotoToma.Core.Tests/FotoToma.Core.Tests.csproj" />
   </Folder>
 </Solution>
