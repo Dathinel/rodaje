@@ -3,7 +3,10 @@ using FotoToma.Core.Model;
 
 namespace FotoToma.Core.Commands;
 
-/// <summary>Agrega un medio a la biblioteca del proyecto.</summary>
+/// <summary>
+/// Agrega un medio a la biblioteca del proyecto. Falla con <see cref="EditException"/> si el medio deja
+/// el proyecto inválido (por ejemplo, duración cero o un identificador que ya usa otro objeto).
+/// </summary>
 public sealed class AddMediaCommand : ICommand
 {
     private readonly MediaRef _media;
@@ -24,7 +27,11 @@ public sealed class AddMediaCommand : ICommand
             throw new EditException($"Ya hay un medio con el identificador «{_media.Id}» en el proyecto.");
         }
 
-        project.Media.Add(_media);
+        ProjectGuard.ApplyValidated(
+            project,
+            "No se puede importar el medio",
+            () => project.Media.Add(_media),
+            () => project.Media.Remove(_media));
     }
 
     public void Revert(Project project)
@@ -91,7 +98,11 @@ public sealed class RemoveMediaCommand : ICommand
     public bool TryMerge(ICommand following) => false;
 }
 
-/// <summary>Agrega una secuencia al proyecto, al final o en la posición indicada.</summary>
+/// <summary>
+/// Agrega una secuencia al proyecto, al final o en la posición indicada. Falla con
+/// <see cref="EditException"/> si la secuencia deja el proyecto inválido (identificadores de pistas o
+/// clips que ya existen, clips que usan medios que no están, solapes…).
+/// </summary>
 public sealed class AddSequenceCommand : ICommand
 {
     private readonly Sequence _sequence;
@@ -122,13 +133,13 @@ public sealed class AddSequenceCommand : ICommand
                 throw new EditException(
                     $"No se puede poner la secuencia en la posición {index}: el proyecto tiene {project.Sequences.Count}.");
             }
+        }
 
-            project.Sequences.Insert(index, _sequence);
-        }
-        else
-        {
-            project.Sequences.Add(_sequence);
-        }
+        ProjectGuard.ApplyValidated(
+            project,
+            "No se puede agregar la secuencia",
+            () => project.Sequences.Insert(_index ?? project.Sequences.Count, _sequence),
+            () => project.Sequences.Remove(_sequence));
     }
 
     public void Revert(Project project)
@@ -221,4 +232,54 @@ public sealed class RenameProjectCommand : ICommand
     }
 
     public bool TryMerge(ICommand following) => false;
+}
+
+/// <summary>
+/// Red de seguridad de los comandos que meten objetos enteros en el proyecto: aplican el cambio,
+/// validan con <see cref="ModelValidator"/> y, si aparece algún problema que antes no estaba, deshacen
+/// el cambio y lo rechazan. Así no se puede guardar un archivo que luego <c>Load</c> rechace.
+/// </summary>
+/// <remarks>
+/// Solo cuentan los problemas <em>nuevos</em> (se comparan las listas como multiconjuntos), para que un
+/// proyecto que ya era inválido al abrirlo no bloquee comandos que no tienen nada que ver.
+/// Quitar un medio, quitar una secuencia o renombrar el proyecto no pasan por aquí: quitar un medio ya
+/// comprueba que ningún clip lo use, quitar una secuencia no puede crear problemas nuevos y el nombre
+/// del proyecto no lo valida <see cref="ModelValidator"/>.
+/// </remarks>
+internal static class ProjectGuard
+{
+    public static void ApplyValidated(Project project, string what, Action apply, Action revert)
+    {
+        IReadOnlyList<string> before = ModelValidator.Validate(project);
+        apply();
+        string? problem = FirstNewProblem(before, ModelValidator.Validate(project));
+        if (problem is not null)
+        {
+            revert();
+            throw new EditException($"{what}: {problem}");
+        }
+    }
+
+    /// <summary>El primer problema de <paramref name="after"/> que no estaba en <paramref name="before"/>, contando repeticiones.</summary>
+    internal static string? FirstNewProblem(IReadOnlyList<string> before, IReadOnlyList<string> after)
+    {
+        var pending = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (string problem in before)
+        {
+            pending[problem] = pending.GetValueOrDefault(problem) + 1;
+        }
+
+        foreach (string problem in after)
+        {
+            int count = pending.GetValueOrDefault(problem);
+            if (count == 0)
+            {
+                return problem;
+            }
+
+            pending[problem] = count - 1;
+        }
+
+        return null;
+    }
 }

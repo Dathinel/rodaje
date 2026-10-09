@@ -14,9 +14,9 @@ namespace FotoToma.Core.Commands;
 /// nunca deja el proyecto a medio cambiar.
 /// </para>
 /// <para>
-/// Al terminar comprueba que ninguna pista que estaba bloqueada cambió de contenido ni desapareció. Las
-/// marcas de bloqueo, silencio y visibilidad sí pueden cambiar, para que una operación pueda, por
-/// ejemplo, desbloquear o silenciar una pista bloqueada.
+/// Al terminar comprueba que ninguna pista que estaba bloqueada y sigue bloqueada cambió de clips ni
+/// desapareció. Si la operación la desbloqueó, todo lo demás que haya hecho en la misma llamada vale,
+/// para que se pueda, por ejemplo, desbloquear y renombrar una pista de una sola vez.
 /// </para>
 /// <para>
 /// Rehacer no vuelve a correr la operación: restaura la foto de después. Así los identificadores de los
@@ -144,9 +144,23 @@ public sealed class SequenceEditCommand : ICommand
         ?? throw new EditException($"La secuencia «{SequenceId}» ya no está en el proyecto.");
 
     /// <summary>
-    /// Lanza <see cref="EditException"/> si alguna pista bloqueada antes de la operación cambió de
-    /// contenido o dejó de estar en su lista (puede cambiar de orden).
+    /// Lanza <see cref="EditException"/> si alguna pista que estaba bloqueada antes de la operación y
+    /// <em>sigue</em> bloqueada después cambió de contenido o dejó de estar en su lista (sí puede cambiar
+    /// de orden).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Si la operación desbloqueó la pista, cualquier otro cambio hecho en la misma llamada se acepta:
+    /// es lo que permite, por ejemplo, desbloquear y renombrar a la vez con
+    /// <see cref="TimelineEdits.SetTrackState"/>.
+    /// </para>
+    /// <para>
+    /// El «contenido» que se vigila es el identificador, el tipo y los clips (con efectos, parámetros y
+    /// keyframes). El nombre y las marcas de silencio y visibilidad no entran: cambiarlos en una pista
+    /// que sigue bloqueada ya lo rechaza la propia operación, y esta comprobación es solo la red de
+    /// seguridad para los clips.
+    /// </para>
+    /// </remarks>
     private static void EnsureLockedTracksUntouched(SequenceSnapshot before, Sequence sequence)
     {
         Check(before.VideoTracks, sequence.VideoTracks);
@@ -157,12 +171,32 @@ public sealed class SequenceEditCommand : ICommand
             foreach (SequenceSnapshot.TrackEntry entry in entries)
             {
                 if (entry.State.Locked
-                    && (!current.Contains(entry.Track) || !SequenceSnapshot.TrackContentEquals(entry.Track, entry.State)))
+                    && entry.Track.Locked
+                    && (!current.Contains(entry.Track) || !LockedContentEquals(entry.Track, entry.State)))
                 {
                     throw new EditException($"La pista «{entry.State.Name}» está bloqueada. Desbloquéala para editarla.");
                 }
             }
         }
+    }
+
+    /// <summary>Compara identificador, tipo y clips de dos pistas; no mira el nombre ni las marcas.</summary>
+    private static bool LockedContentEquals(Track a, Track b)
+    {
+        if (a.Id != b.Id || a.Kind != b.Kind || a.Clips.Count != b.Clips.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < a.Clips.Count; i++)
+        {
+            if (!SequenceSnapshot.ClipStateEquals(a.Clips[i], b.Clips[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static Func<EditContext, IReadOnlyList<string>> Wrap(Action<EditContext> operation)

@@ -128,13 +128,71 @@ public class EditsTests
             "Mover clip",
             "move:clip-2");
 
-    [Fact]
-    public void Move_ConPistaYModo_Delega() =>
+    [Theory]
+    [InlineData(PlacementMode.Overwrite)]
+    [InlineData(PlacementMode.Insert)]
+    public void Move_ConModoQueTocaOtrosClips_DelegaYNoLlevaClaveDeFusion(PlacementMode mode) =>
         Check(
-            ids => Edits.Move(SequenceId, "clip-2", S(3), null, PlacementMode.Overwrite, ids),
-            ctx => None(() => TimelineEdits.Move(ctx, "clip-2", S(3), null, PlacementMode.Overwrite)),
+            ids => Edits.Move(SequenceId, "clip-2", S(3), null, mode, ids),
+            ctx => None(() => TimelineEdits.Move(ctx, "clip-2", S(3), null, mode)),
             "Mover clip",
-            "move:clip-2");
+            null);
+
+    [Fact]
+    public void ArrastreEnModoSobrescribir_NoSeFundeYNoDejaRecortadoLoQueSoloSePaso()
+    {
+        // Si un arrastre en sobrescribir se fundiera, pasar por encima de clip-1 lo dejaría recortado
+        // aunque la posición final esté libre. Sin clave, cada paso es su propio deshacer.
+        Project project = Create();
+        string before = ProjectDump.Of(project);
+        var stack = new UndoStack(project);
+
+        stack.Execute(Edits.Move(SequenceId, "clip-2", S(3), mode: PlacementMode.Overwrite));
+        stack.Execute(Edits.Move(SequenceId, "clip-2", S(30), mode: PlacementMode.Overwrite));
+        Assert.Equal(2, stack.Count);
+
+        Assert.True(stack.Undo());
+        Assert.True(stack.Undo());
+        Assert.Equal(before, ProjectDump.Of(project));
+    }
+
+    [Fact]
+    public void SetTrackState_DesbloquearYRenombrarALaVez_FuncionaYDeshacerRestaura()
+    {
+        Project project = Create();
+        string before = ProjectDump.Of(project);
+        var stack = new UndoStack(project);
+
+        stack.Execute(Edits.SetTrackState(SequenceId, "track-v2", locked: false, name: "Fondo"));
+        Track v2 = Seq(project).GetTrack("track-v2");
+        Assert.False(v2.Locked);
+        Assert.Equal("Fondo", v2.Name);
+
+        Assert.True(stack.Undo());
+        Assert.Equal(before, ProjectDump.Of(project));
+        Assert.True(Seq(project).GetTrack("track-v2").Locked);
+        Assert.Equal("Video 2", Seq(project).GetTrack("track-v2").Name);
+
+        Assert.True(stack.Redo());
+        Assert.False(Seq(project).GetTrack("track-v2").Locked);
+        Assert.Equal("Fondo", Seq(project).GetTrack("track-v2").Name);
+    }
+
+    [Fact]
+    public void PistaQueSigueBloqueada_SusClipsYSuNombreSiguenProtegidos()
+    {
+        Project project = Create();
+        string before = ProjectDump.Of(project);
+        var stack = new UndoStack(project);
+
+        Assert.Throws<EditException>(() => stack.Execute(Edits.Move(SequenceId, "clip-3", S(40))));
+        Assert.Throws<EditException>(() => stack.Execute(Edits.SetClipEnabled(SequenceId, "clip-3", false)));
+        Assert.Throws<EditException>(() => stack.Execute(Edits.SetTrackState(SequenceId, "track-v2", name: "Otra")));
+        Assert.Throws<EditException>(() => stack.Execute(Edits.SetTrackState(SequenceId, "track-v2", locked: true, name: "Otra")));
+
+        Assert.Equal(0, stack.Count);
+        Assert.Equal(before, ProjectDump.Of(project));
+    }
 
     [Theory]
     [InlineData(PlacementMode.Insert, "Insertar")]
