@@ -34,7 +34,10 @@ public static class ProjectSerializer
     /// y comprueba sus reglas con <see cref="ModelValidator"/>.
     /// </summary>
     /// <exception cref="ProjectFormatException">Si el texto no es un proyecto válido; el mensaje lo explica.</exception>
-    public static Project Deserialize(string json)
+    public static Project Deserialize(string json) => Deserialize(json, ModelValidator.Validate);
+
+    /// <summary>Igual que <see cref="Deserialize(string)"/> con el validador inyectable, para las pruebas.</summary>
+    internal static Project Deserialize(string json, Func<Project, IReadOnlyList<string>> validate)
     {
         ArgumentNullException.ThrowIfNull(json);
 
@@ -56,10 +59,23 @@ public static class ProjectSerializer
         }
 
         // La raíz ya se comprobó como objeto, así que el resultado nunca es null.
-        IReadOnlyList<string> problems = FindNullItems(project!);
-        if (problems.Count == 0)
+        IReadOnlyList<string> problems;
+        try
         {
-            problems = ModelValidator.Validate(project!);
+            problems = FindNullItems(project!);
+            if (problems.Count == 0)
+            {
+                problems = validate(project!);
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Último recurso: el validador está pensado para no lanzar con ningún dato, pero si un caso no
+            // previsto lo hace, quien abre el archivo recibe el error de formato de siempre y no un fallo.
+            throw new ProjectFormatException(
+                "El proyecto tiene datos que no se pudieron comprobar y no se puede abrir. " +
+                "Es posible que se haya editado a mano o que esté dañado.",
+                ex);
         }
 
         if (problems.Count > 0)
@@ -82,15 +98,30 @@ public static class ProjectSerializer
     /// proyecto ya existía, lo cambia por el nuevo con <see cref="File.Replace(string, string, string)"/>
     /// dejando la versión anterior en <c>ruta.bak</c>; si no existía, solo renombra el temporal. No valida
     /// el proyecto: guardar nunca rechaza el trabajo de quien edita.
+    /// <para>
+    /// Si algo falla, el temporal se borra solo cuando no hace falta: el proyecto sigue en su ruta o nunca
+    /// existió. Si el reemplazo alcanzó a mover el original a <c>ruta.bak</c> pero no a poner el nuevo en
+    /// su lugar, se intenta renombrar el temporal; si tampoco se puede, se conserva y la
+    /// <see cref="IOException"/> dice dónde está para recuperarlo a mano.
+    /// </para>
     /// </remarks>
-    public static void Save(Project project, string path)
+    public static void Save(Project project, string path) => Save(project, path, SaveFileSystem.Real);
+
+    /// <summary>
+    /// Igual que <see cref="Save(Project, string)"/>, pero con las operaciones de archivo inyectables para
+    /// que las pruebas simulen fallos que en un disco real son casi imposibles de provocar.
+    /// </summary>
+    internal static void Save(Project project, string path, SaveFileSystem fileSystem)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         string fullPath = Path.GetFullPath(path);
         string tempPath = fullPath + TempSuffix;
+        string backupPath = fullPath + BackupSuffix;
         byte[] bytes = Utf8NoBom.GetBytes(Serialize(project) + "\n");
+        bool tempComplete = false;
+        bool hadOriginal = false;
 
         try
         {
@@ -100,18 +131,38 @@ public static class ProjectSerializer
                 stream.Flush(flushToDisk: true);
             }
 
-            if (File.Exists(fullPath))
+            tempComplete = true;
+            hadOriginal = fileSystem.FileExists(fullPath);
+            if (hadOriginal)
             {
-                File.Replace(tempPath, fullPath, fullPath + BackupSuffix);
+                fileSystem.Replace(tempPath, fullPath, backupPath);
             }
             else
             {
-                File.Move(tempPath, fullPath);
+                fileSystem.Move(tempPath, fullPath);
             }
+        }
+        catch (Exception ex) when (tempComplete && hadOriginal && !fileSystem.FileExists(fullPath))
+        {
+            // File.Replace puede fallar después de mover el original a .bak (por ejemplo con
+            // ERROR_UNABLE_TO_MOVE_REPLACEMENT_2): entonces el temporal es la única copia de la versión
+            // nueva y no se borra. Primero se intenta ponerlo en su sitio.
+            if (TryMove(fileSystem, tempPath, fullPath))
+            {
+                return;
+            }
+
+            throw new IOException(
+                $"No se pudo terminar de guardar «{fullPath}»: el sistema movió la versión anterior a " +
+                $"«{backupPath}» pero no pudo poner la nueva en su lugar. La versión nueva está completa en " +
+                $"«{tempPath}»; para recuperarla, cámbiale el nombre a «{Path.GetFileName(fullPath)}». " +
+                $"Detalle: {ex.Message}",
+                ex);
         }
         catch
         {
-            TryDelete(tempPath);
+            // El destino sigue en su sitio (con la versión anterior) o nunca existió: el temporal sobra.
+            TryDelete(fileSystem, tempPath);
             throw;
         }
     }
@@ -216,11 +267,11 @@ public static class ProjectSerializer
         return problems;
     }
 
-    private static void TryDelete(string path)
+    private static void TryDelete(SaveFileSystem fileSystem, string path)
     {
         try
         {
-            File.Delete(path);
+            fileSystem.Delete(path);
         }
         catch (IOException)
         {
@@ -230,5 +281,39 @@ public static class ProjectSerializer
         {
             // Igual que arriba.
         }
+    }
+
+    private static bool TryMove(SaveFileSystem fileSystem, string source, string destination)
+    {
+        try
+        {
+            fileSystem.Move(source, destination);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Las operaciones de archivo que hace <see cref="Save(Project, string)"/> después de escribir el
+    /// temporal. La implementación real llama a <see cref="File"/>; las pruebas la reemplazan.
+    /// </summary>
+    internal class SaveFileSystem
+    {
+        public static readonly SaveFileSystem Real = new();
+
+        public virtual bool FileExists(string path) => File.Exists(path);
+
+        public virtual void Replace(string source, string destination, string backup) => File.Replace(source, destination, backup);
+
+        public virtual void Move(string source, string destination) => File.Move(source, destination);
+
+        public virtual void Delete(string path) => File.Delete(path);
     }
 }

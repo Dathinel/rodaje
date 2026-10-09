@@ -1,6 +1,7 @@
 using System.Text;
 using FotoToma.Core.Model;
 using FotoToma.Core.Serialization;
+using FotoToma.Core.Timing;
 
 namespace FotoToma.Core.Tests.Serialization;
 
@@ -192,5 +193,117 @@ public sealed class ProjectFileTests : IDisposable
         Assert.Throws<ArgumentNullException>(() => ProjectSerializer.Save(new Project(), null!));
         Assert.Throws<ArgumentException>(() => ProjectSerializer.Save(new Project(), " "));
         Assert.Throws<ArgumentException>(() => ProjectSerializer.Load(""));
+    }
+
+    [Fact]
+    public void Load_ExtremeTimes_ThrowsFormatExceptionNamingTheFile()
+    {
+        Project project = SerializationSamples.Rich();
+        project.Sequences[0].VideoTracks[0].Clips[0].Start = Time.FromTicks(long.MaxValue - 10);
+        project.Sequences[0].VideoTracks[0].Clips[0].SourceIn = Time.FromTicks(long.MinValue);
+        string path = PathFor("tiempos extremos");
+        ProjectSerializer.Save(project, path);
+
+        var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Load(path));
+
+        Assert.StartsWith("No se pudo abrir «tiempos extremos.ftoma».", ex.Message, StringComparison.Ordinal);
+        Assert.Contains(ex.Problems, p => p.EndsWith("tiene tiempos fuera de rango.", StringComparison.Ordinal));
+    }
+
+    // --- Fallos del reemplazo atómico, simulados con un sistema de archivos de prueba ---
+
+    /// <summary>
+    /// Imita a File.Replace cuando falla con ERROR_UNABLE_TO_MOVE_REPLACEMENT_2: el original ya se movió a
+    /// .bak, pero el temporal no llegó a su sitio. Opcionalmente, el renombrado de recuperación también falla.
+    /// </summary>
+    private sealed class ReplaceFailsAfterBackup(Exception? moveFailure) : ProjectSerializer.SaveFileSystem
+    {
+        public int Moves { get; private set; }
+
+        public override void Replace(string source, string destination, string backup)
+        {
+            File.Move(destination, backup, overwrite: true);
+            throw new IOException("No se pudo mover el archivo de reemplazo (simulado).");
+        }
+
+        public override void Move(string source, string destination)
+        {
+            Moves++;
+            if (moveFailure is not null)
+            {
+                throw moveFailure;
+            }
+
+            base.Move(source, destination);
+        }
+    }
+
+    /// <summary>File.Replace falla sin tocar nada: el original sigue en su ruta.</summary>
+    private sealed class ReplaceFailsCleanly(Exception failure) : ProjectSerializer.SaveFileSystem
+    {
+        public override void Replace(string source, string destination, string backup) => throw failure;
+    }
+
+    private (string Path, string OldText, Project Second) SavedTwiceSetup(string name)
+    {
+        string path = PathFor(name);
+        ProjectSerializer.Save(SerializationSamples.Rich(), path);
+        Project second = SerializationSamples.Rich();
+        second.Name = "Versión nueva";
+        return (path, File.ReadAllText(path), second);
+    }
+
+    [Fact]
+    public void Save_ReplaceFailsAfterBackup_RecoversByRenamingTemp()
+    {
+        (string path, string oldText, Project second) = SavedTwiceSetup("recuperable");
+        var fs = new ReplaceFailsAfterBackup(moveFailure: null);
+
+        ProjectSerializer.Save(second, path, fs);
+
+        Assert.Equal(1, fs.Moves);
+        Assert.Equal("Versión nueva", ProjectSerializer.Load(path).Name);
+        Assert.Equal(oldText, File.ReadAllText(path + ".bak"));
+        Assert.False(File.Exists(path + ".tmp"));
+    }
+
+    public static TheoryData<Exception> RecoveryFailures => new()
+    {
+        new IOException("renombrado bloqueado (simulado)"),
+        new UnauthorizedAccessException("sin permiso (simulado)"),
+    };
+
+    [Theory]
+    [MemberData(nameof(RecoveryFailures))]
+    public void Save_ReplaceAndRecoveryFail_KeepsTempAndSaysWhereItIs(Exception moveFailure)
+    {
+        (string path, string oldText, Project second) = SavedTwiceSetup("irrecuperable");
+
+        var ex = Assert.Throws<IOException>(() => ProjectSerializer.Save(second, path, new ReplaceFailsAfterBackup(moveFailure)));
+
+        // El temporal es la única copia de la versión nueva: se conserva intacto y el mensaje lo nombra.
+        Assert.True(File.Exists(path + ".tmp"));
+        Assert.Equal("Versión nueva", ProjectSerializer.Load(path + ".tmp").Name);
+        Assert.Equal(oldText, File.ReadAllText(path + ".bak"));
+        Assert.False(File.Exists(path));
+        Assert.Contains($"«{path}.tmp»", ex.Message, StringComparison.Ordinal);
+        Assert.Contains($"«{path}.bak»", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("cámbiale el nombre", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("(simulado)", ex.Message, StringComparison.Ordinal);
+        Assert.IsType<IOException>(ex.InnerException);
+    }
+
+    [Fact]
+    public void Save_ReplaceFailsWithOriginalInPlace_DeletesTempAndRethrows()
+    {
+        (string path, string oldText, Project second) = SavedTwiceSetup("intacto");
+        var failure = new IOException("reemplazo rechazado (simulado)");
+
+        var ex = Assert.Throws<IOException>(() => ProjectSerializer.Save(second, path, new ReplaceFailsCleanly(failure)));
+
+        Assert.Same(failure, ex);
+        Assert.Equal(oldText, File.ReadAllText(path));
+        Assert.False(File.Exists(path + ".tmp"));
+        Assert.False(File.Exists(path + ".bak"));
     }
 }
