@@ -201,8 +201,13 @@ public static class ModelValidator
 
     private static void CheckTrackKinds(List<Track> tracks, TrackKind expected, Sequence sequence, List<string> errors)
     {
-        foreach (Track track in tracks.Where(t => t.Kind != expected))
+        foreach (Track track in tracks)
         {
+            if (track.Kind == expected)
+            {
+                continue;
+            }
+
             errors.Add($"La pista «{track.Name}» de la secuencia «{sequence.Id}» está en la lista equivocada (es de tipo {track.Kind}).");
         }
     }
