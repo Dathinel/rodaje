@@ -6,6 +6,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/FotoToma.AotSmoke/FotoToma.AotSmoke.csproj" />
+    <Project Path="tests/FotoToma.Audio.Tests/FotoToma.Audio.Tests.csproj" />
     <Project Path="tests/FotoToma.Core.Tests/FotoToma.Core.Tests.csproj" />
     <Project Path="tests/FotoToma.Playback.Tests/FotoToma.Playback.Tests.csproj" />
   </Folder>
