@@ -482,4 +482,29 @@ public class UndoStackTests
 
         Assert.Equal(s3, ProjectDump.Of(project));
     }
+    [Fact]
+    public void BreakMerge_separa_dos_gestos_con_la_misma_clave()
+    {
+        (UndoStack stack, _) = NewStack();
+        stack.Execute(new FakeCommand("a1") { MergeKey = "k" });
+        stack.Execute(new FakeCommand("a2") { MergeKey = "k" });
+        Assert.Equal(1, stack.Count);
+
+        stack.BreakMerge();
+        stack.Execute(new FakeCommand("b1") { MergeKey = "k" });
+        stack.Execute(new FakeCommand("b2") { MergeKey = "k" });
+        Assert.Equal(2, stack.Count);
+    }
+
+    [Fact]
+    public void Deshacer_corta_la_fusion_con_el_paso_anterior()
+    {
+        (UndoStack stack, _) = NewStack();
+        stack.Execute(new FakeCommand("a") { MergeKey = "k" });
+        stack.Execute(new FakeCommand("b") { MergeKey = "k" });
+        stack.Undo();
+        stack.Redo();
+        stack.Execute(new FakeCommand("c") { MergeKey = "k" });
+        Assert.Equal(2, stack.Count);
+    }
 }

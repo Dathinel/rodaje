@@ -36,6 +36,9 @@ public sealed class UndoStack
     private string _groupDescription = "";
     private int _groupDepth;
 
+    /// <summary>Si es <c>true</c>, el próximo comando no se funde con el último (fin de un gesto).</summary>
+    private bool _mergeBarrier;
+
     /// <summary>Cantidad de pasos de deshacer en el punto limpio; <c>null</c> si ya no se puede alcanzar.</summary>
     private int? _cleanIndex = 0;
 
@@ -89,11 +92,12 @@ public sealed class UndoStack
         {
             _groupCommands.Add(command);
         }
-        else if (_undo.Count == 0 || _cleanIndex == _undo.Count || !_undo[^1].TryMerge(command))
+        else if (_mergeBarrier || _undo.Count == 0 || _cleanIndex == _undo.Count || !_undo[^1].TryMerge(command))
         {
             Push(command);
         }
 
+        _mergeBarrier = false;
         OnChanged();
     }
 
@@ -110,6 +114,7 @@ public sealed class UndoStack
         command.Revert(Project);
         _undo.RemoveAt(_undo.Count - 1);
         _redo.Add(command);
+        _mergeBarrier = true;
         OnChanged();
         return true;
     }
@@ -127,9 +132,18 @@ public sealed class UndoStack
         command.Apply(Project);
         _redo.RemoveAt(_redo.Count - 1);
         _undo.Add(command);
+        _mergeBarrier = true;
         OnChanged();
         return true;
     }
+
+    /// <summary>
+    /// Marca el fin de un gesto: el próximo comando no se fundirá con el último aunque tengan la misma
+    /// clave de fusión. La interfaz lo llama al soltar el ratón después de un arrastre, para que dos
+    /// arrastres seguidos del mismo clip sean dos pasos de deshacer. Deshacer y rehacer también cortan
+    /// la fusión.
+    /// </summary>
+    public void BreakMerge() => _mergeBarrier = true;
 
     /// <summary>Abre un grupo (o un nivel más de anidamiento).</summary>
     public void BeginGroup(string description)
