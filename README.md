@@ -2,7 +2,7 @@
 
 Editor de video nativo para Windows, rápido y por capas, con la comodidad de los editores móviles y la precisión de un editor profesional. Se distribuye como un único ejecutable compilado con Native AOT, sin instalador y sin depender de .NET instalado.
 
-> **Estado:** fase 1 de 8 completada. El núcleo de edición está terminado y probado. La reproducción, la interfaz y la exportación vienen en las fases siguientes.
+> **Estado:** fases 1 y 2 de 8 completadas. El núcleo de edición y la reproducción de un clip (GPU, audio como reloj maestro y visor de prueba) están terminados y probados. La interfaz de edición y la exportación vienen en las fases siguientes.
 
 ## Cómo se usa
 
@@ -13,6 +13,7 @@ Doble clic en **`ABRIR.bat`**. La primera vez descarga el SDK de .NET en `.entor
 | `ABRIR.bat` | Ejecuta todas las pruebas |
 | `ABRIR.bat cobertura` | Pruebas más cobertura de código |
 | `ABRIR.bat aot` | Compila el núcleo a código nativo y lo ejecuta de punta a punta |
+| `ABRIR.bat visor -Archivo video.mp4` | Abre el visor de prueba y reproduce un video con audio |
 | `ABRIR.bat aceptacion` | Criterios de la fase 2 con video y audio reales: seek exacto al cuadro y sincronía audio/video en 10 minutos (varios minutos) |
 | `ABRIR.bat preparar-entorno` | Reconstruye el entorno local desde cero |
 
@@ -43,7 +44,10 @@ Medido el 9 de octubre de 2026 en un Ryzen 7 7435HS:
 
 | Prueba | Resultado |
 |---|---|
-| Pruebas automáticas | **685 de 685 pasan** en unos 5 s |
+| Pruebas automáticas | **980 pasan, 0 fallan** (8 largas se reservan para la aceptación) |
+| Salto exacto al cuadro (fase 2) | **2 864 de 2 864** saltos aleatorios aterrizan en el cuadro exacto, en H.264 y HEVC, por GPU y por software |
+| Sincronía audio/video (fase 2) | **0 cuadros de error en 10 minutos**, con el reloj de audio un 0,1 % adelantado o atrasado; en tiempo real con el dispositivo, 1 801 de 1 801 refrescos muestran el cuadro debido |
+| Reloj de audio | Jitter máximo 0,7 ms frente al reloj del sistema |
 | Cobertura del núcleo | **99,6 % de líneas y 99,6 % de ramas** |
 | Pruebas de propiedades | 10 000 proyectos aleatorios con hasta 40 ediciones cada uno, más 5 000 arrastres. Tras cada paso el modelo sigue siendo válido, las pistas bloqueadas no cambian y deshacer todo devuelve el proyecto idéntico, byte a byte |
 | Native AOT | Ejecutable de **3,39 MB**, **0 advertencias**; arranque más recorrido completo del núcleo en **117 ms** |
@@ -54,7 +58,7 @@ Medido el 9 de octubre de 2026 en un Ryzen 7 7435HS:
 | Fase | Contenido |
 |---|---|
 | 1 ✔ | Modelo de línea de tiempo, edición, deshacer y formato de proyecto |
-| 2 | Reproducción de un clip: FFmpeg (LGPL) con decodificación por GPU y el audio como reloj maestro |
+| 2 ✔ | Reproducción de un clip: FFmpeg (LGPL) con decodificación por GPU y el audio como reloj maestro |
 | 3 | Varias capas, compositor en GPU (Direct3D 11) y proxies |
 | 4 | Interfaz de línea de tiempo en WinUI 3 |
 | 5 | Efectos, modos de mezcla y keyframes |
