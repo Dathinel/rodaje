@@ -19,6 +19,10 @@ $Dotnet = Join-Path $DotnetDir 'dotnet.exe'
 # Listo = existe la marca .sdk-<versión> de preparar-entorno.ps1; dotnet.exe no basta tras un apagón.
 try { $SdkVersion = (Get-Content -LiteralPath (Join-Path $Raiz 'global.json') -Raw -Encoding UTF8 | ConvertFrom-Json).sdk.version } catch { $SdkVersion = '' }
 $MarcaSdk = Join-Path $DotnetDir ".sdk-$SdkVersion"
+$FfmpegVersion = ''
+$lineaFf = Select-String -LiteralPath (Join-Path $PSScriptRoot 'preparar-entorno.ps1') -Pattern "^\`$FfmpegVersion = '([^']+)'" | Select-Object -First 1
+if ($lineaFf) { $FfmpegVersion = $lineaFf.Matches[0].Groups[1].Value }
+$MarcaFfmpeg = Join-Path $Entorno "ffmpeg\.ffmpeg-$FfmpegVersion"
 $Reloj = [System.Diagnostics.Stopwatch]::StartNew()
 $TotalFases = 3
 
@@ -90,6 +94,16 @@ if (-not (Test-Path -LiteralPath $Dotnet) -or -not (Test-Path -LiteralPath $Marc
     }
     Nota ''
     Nota 'Cómo arreglarlo (una sola vez, descarga unos 280 MB):'
+    Nota '  - Haz doble clic en ABRIR.bat, que lo prepara solo, o'
+    Nota '  - corre: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-entorno.ps1'
+    Terminar 1
+}
+if (-not $FfmpegVersion -or -not (Test-Path -LiteralPath $MarcaFfmpeg)) {
+    Write-Host ''
+    Mal 'Faltan las bibliotecas de FFmpeg del proyecto, o quedaron a medias (falta su marca de instalación completa).'
+    Nota "Falta: $MarcaFfmpeg"
+    Nota ''
+    Nota 'Cómo arreglarlo (una sola vez, descarga unos 75 MB):'
     Nota '  - Haz doble clic en ABRIR.bat, que lo prepara solo, o'
     Nota '  - corre: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-entorno.ps1'
     Terminar 1

@@ -73,17 +73,17 @@
     },
     {
       "id": "preparar-entorno",
-      "nombre": "Reconstruir el entorno (SDK de .NET)",
+      "nombre": "Reconstruir el entorno (SDK de .NET y FFmpeg)",
       "tipo": "powershell",
       "script": "herramientas/preparar-entorno.ps1",
       "args": ["-Forzar"],
       "cwd": ".",
-      "descripcion": "Borra y vuelve a descargar el SDK de .NET 10.0.401 dentro de .entorno\\dotnet, comprobando su huella SHA-512. Solo hace falta si el entorno se dañó o se quiere empezar de cero: ABRIR.bat ya lo prepara solo la primera vez.",
+      "descripcion": "Borra y vuelve a descargar el SDK de .NET 10.0.401 dentro de .entorno\\dotnet (huella SHA-512) y las DLL de FFmpeg LGPL dentro de .entorno\\ffmpeg (huella SHA-256). Solo hace falta si el entorno se dañó o se quiere empezar de cero: ABRIR.bat ya lo prepara solo la primera vez.",
       "cubre": [],
       "duracion": "~2-10 min",
       "duracion_es": "total",
-      "si_falla": "Casi siempre es la conexión a internet. Si dice que la huella no coincide, Microsoft cambió el archivo publicado y hay que actualizar la versión y el hash en preparar-entorno.ps1 y global.json.",
-      "notas": "Descarga unos 280 MB. No instala nada en Windows: todo queda dentro de la carpeta del proyecto."
+      "si_falla": "Casi siempre es la conexión a internet. Si dice que la huella no coincide, el archivo publicado cambió y hay que actualizar la versión y el hash en preparar-entorno.ps1 (y en global.json si es el SDK).",
+      "notas": "Descarga unos 355 MB (280 del SDK y 75 de FFmpeg). No instala nada en Windows: todo queda dentro de la carpeta del proyecto."
     }
   ],
   "notas": [

@@ -13,11 +13,15 @@ set "DOTNET_CLI_TELEMETRY_OPTOUT=1"
 set "DOTNET_NOLOGO=1"
 set "DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1"
 set "PATH=%DOTNET_ROOT%;%PATH%"
-rem Listo = existe la marca .sdk-<version> (de global.json); dotnet.exe no basta tras un apagon.
+rem Listo = existen las marcas .sdk-<version> (de global.json) y .ffmpeg-<version> (de preparar-entorno.ps1);
+rem dotnet.exe no basta tras un apagon.
 set "SDKVER="
 for /f "usebackq tokens=2 delims=:, " %%v in (`findstr /i /c:"\"version\"" "%RAIZ%\global.json"`) do if not defined SDKVER set "SDKVER=%%~v"
+set "FFVER="
+for /f "usebackq tokens=2 delims='" %%v in (`findstr /b /c:"$FfmpegVersion = " "%~dp0preparar-entorno.ps1"`) do if not defined FFVER set "FFVER=%%v"
 if not exist "%DOTNET_ROOT%\.sdk-%SDKVER%" goto preparar
 if not exist "%DOTNET_ROOT%\dotnet.exe" goto preparar
+if not exist "%ENTORNO%\ffmpeg\.ffmpeg-%FFVER%" goto preparar
 goto ejecutar
 :preparar
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0preparar-entorno.ps1" || exit /b 1

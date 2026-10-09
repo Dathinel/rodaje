@@ -3,7 +3,7 @@ rem Prepara .entorno\ la primera vez y corre las pruebas del nucleo.
 rem   ABRIR.bat                    todas las pruebas
 rem   ABRIR.bat cobertura          pruebas + cobertura de FotoToma.Core
 rem   ABRIR.bat aot                publica con Native AOT y ejecuta el .exe
-rem   ABRIR.bat preparar-entorno   vuelve a descargar el SDK
+rem   ABRIR.bat preparar-entorno   vuelve a descargar el SDK y FFmpeg
 rem   ABRIR.bat -Filtro Recorte    otros argumentos pasan tal cual a probar.ps1
 rem Variables: FOTOTOMA_ENTORNO (otro entorno), FOTOTOMA_SIN_PAUSA=1 (sin pausa final).
 setlocal EnableExtensions
@@ -58,17 +58,28 @@ set ARGS=%ARGS% %1
 shift
 goto juntar
 
-rem Listo = existe la marca .sdk-<version> (de global.json). dotnet.exe no basta: un apagon
-rem a mitad de la descompresion tambien lo deja.
+rem Listo = existen las marcas .sdk-<version> (de global.json) y .ffmpeg-<version> (de
+rem preparar-entorno.ps1). dotnet.exe no basta: un apagon a mitad de la descompresion tambien lo deja.
 :entorno
 set "SDKVER="
 for /f "usebackq tokens=2 delims=:, " %%v in (`findstr /i /c:"\"version\"" "%RAIZ%\global.json"`) do if not defined SDKVER set "SDKVER=%%~v"
+set "FFVER="
+for /f "usebackq tokens=2 delims='" %%v in (`findstr /b /c:"$FfmpegVersion = " "%PREPARAR%"`) do if not defined FFVER set "FFVER=%%v"
 set "MARCA=%ENTORNO%\dotnet\.sdk-%SDKVER%"
-if exist "%MARCA%" if exist "%DOTNET%" goto probar
+set "MARCAFF=%ENTORNO%\ffmpeg\.ffmpeg-%FFVER%"
+if exist "%MARCA%" if exist "%DOTNET%" if exist "%MARCAFF%" goto probar
+if exist "%MARCA%" if exist "%DOTNET%" goto falta_ffmpeg
 if exist "%DOTNET%" goto entorno_incompleto
-echo   Primera vez: falta el SDK de .NET del proyecto. Se va a descargar dentro de
-echo   la carpeta .entorno\ (unos 280 MB, solo esta vez; no se instala nada en Windows).
+echo   Primera vez: falta el entorno del proyecto (el SDK de .NET, unos 280 MB, y las
+echo   bibliotecas de FFmpeg, unos 75 MB). Se va a descargar dentro de la carpeta
+echo   .entorno\, solo esta vez; no se instala nada en Windows.
 echo   Según la conexión puede tardar varios minutos. No cierres esta ventana.
+echo.
+goto preparar
+
+:falta_ffmpeg
+echo   Faltan las bibliotecas de FFmpeg del proyecto (o quedaron a medias). Se van a
+echo   descargar dentro de .entorno\ffmpeg (unos 75 MB, solo esta vez). No cierres esta ventana.
 echo.
 goto preparar
 
@@ -83,6 +94,7 @@ echo.
 if errorlevel 1 goto fallo_entorno
 if not exist "%MARCA%" goto fallo_entorno
 if not exist "%DOTNET%" goto fallo_entorno
+if not exist "%MARCAFF%" goto fallo_entorno
 
 :probar
 "%PS%" -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%" %EXTRA% %ARGS%
@@ -90,7 +102,7 @@ if errorlevel 1 goto fallo_pruebas
 goto fin_bien
 
 :preparar_forzado
-echo   Se va a borrar y volver a descargar el SDK de .NET del proyecto (unos 280 MB).
+echo   Se va a borrar y volver a descargar el SDK de .NET y FFmpeg del proyecto (unos 355 MB).
 echo.
 "%PS%" -NoProfile -ExecutionPolicy Bypass -File "%PREPARAR%" -Forzar
 if errorlevel 1 goto fallo_entorno
@@ -110,7 +122,7 @@ goto fin_mal
 
 :fallo_entorno
 echo.
-echo   No se pudo preparar el entorno (el SDK de .NET del proyecto).
+echo   No se pudo preparar el entorno (el SDK de .NET o FFmpeg del proyecto).
 echo   Arriba está el motivo. Lo más común es no tener internet en la primera vez;
 echo   cuando haya conexión, vuelve a hacer doble clic en ABRIR.bat.
 goto fin_mal
