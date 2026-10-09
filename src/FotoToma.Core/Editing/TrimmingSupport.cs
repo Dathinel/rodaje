@@ -150,14 +150,24 @@ internal static class TrimmingSupport
     /// Quita el enlace a los clips que se quedaron solos en su grupo, por ejemplo cuando se borró la
     /// pista de su pareja o cuando su pareja pasó a otro enlace.
     /// </summary>
+    /// <remarks>
+    /// Esta limpieza nunca toca un clip de una pista bloqueada: ese clip conserva su enlace aunque se
+    /// haya quedado solo. Un enlace con un único miembro es inofensivo (el validador lo admite y el clip
+    /// se edita como si fuera suelto), y así la operación que lo dejó huérfano no modifica en silencio una
+    /// pista bloqueada ni la rechaza el comando que comprueba que las pistas bloqueadas no cambien. No hace
+    /// falta limpiarlo después: el enlace huérfano puede quedarse indefinidamente.
+    /// </remarks>
     public static void DropOrphanLinks(Sequence sequence, IEnumerable<string?> linkIds)
     {
         foreach (string linkId in linkIds.OfType<string>().Distinct(StringComparer.Ordinal))
         {
-            List<Clip> members = [.. sequence.AllTracks.SelectMany(t => t.Clips).Where(c => c.LinkId == linkId)];
-            if (members.Count == 1)
+            List<(Track Track, Clip Clip)> members =
+            [
+                .. sequence.AllTracks.SelectMany(t => t.Clips.Where(c => c.LinkId == linkId).Select(c => (t, c))),
+            ];
+            if (members.Count == 1 && !members[0].Track.Locked)
             {
-                members[0].LinkId = null;
+                members[0].Clip.LinkId = null;
             }
         }
     }

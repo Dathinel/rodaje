@@ -31,7 +31,8 @@ public static partial class TimelineEdits
 
     /// <summary>
     /// Borra la pista con todos sus clips. Los clips de otras pistas que se queden sin pareja de enlace
-    /// pasan a ir sueltos.
+    /// pasan a ir sueltos, salvo los que estén en una pista bloqueada: esos conservan su enlace, ya
+    /// huérfano e inofensivo, para no modificar una pista bloqueada.
     /// </summary>
     public static void RemoveTrack(EditContext ctx, string trackId)
     {
@@ -115,7 +116,9 @@ public static partial class TimelineEdits
 
     /// <summary>
     /// Enlaza los clips para que se muevan y recorten juntos. Deben ser al menos dos y estar en pistas
-    /// distintas. Si alguno ya tenía enlace lo pierde, y la pareja que quede sola pasa a ir suelta.
+    /// distintas. Si alguno ya tenía enlace lo pierde, y la pareja que quede sola pasa a ir suelta, salvo
+    /// que esté en una pista bloqueada: entonces conserva su enlace, ya huérfano e inofensivo, para no
+    /// modificar una pista bloqueada.
     /// </summary>
     /// <returns>Identificador del enlace nuevo.</returns>
     public static string LinkClips(EditContext ctx, IReadOnlyCollection<string> clipIds)
