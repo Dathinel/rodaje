@@ -130,11 +130,11 @@ Este registro guarda el porqué de cada elección importante de FotoToma. Cada d
 
 **Contexto.** Los deshaceres basados en operaciones inversas escritas a mano, o en diferencias que guardan el valor anterior, fallan de forma sutil cuando alguna operación olvida registrar algo. Kdenlive y Shotcut dedican mucho código a este problema.
 
-**Decisión.** Cada operación es un comando tipado que, antes de ejecutarse, guarda una instantánea completa e inmutable de la secuencia afectada. Deshacer es restaurar esa instantánea. Si el comando falla a mitad de camino, la instantánea se restaura automáticamente. Los comandos que forman parte de un gesto continuo, como un arrastre, llevan una clave de fusión, y los comandos consecutivos con la misma clave se fusionan en un solo paso del historial.
+**Decisión.** Cada operación es un comando tipado que, antes de ejecutarse, guarda una instantánea completa (una copia profunda de las pistas y sus clips) de la secuencia afectada. Deshacer es restaurar esa instantánea. Si el comando falla a mitad de camino, la instantánea se restaura automáticamente. Los comandos que forman parte de un gesto continuo, como un arrastre, llevan una clave de fusión, y los comandos consecutivos con la misma clave se fusionan en un solo paso del historial.
 
 **Alternativas.** Lambdas de hacer y deshacer como Kdenlive; comandos con inversa manual como Shotcut; diferencias de JSON como OpenShot.
 
-**Consecuencias.** El costo es memoria: una secuencia de miles de clips ocupa algo en cada paso del historial. En la medida en que el modelo sea inmutable, las instantáneas comparten las partes que no cambiaron y el costo real es bajo; si las mediciones muestran lo contrario, se limitará la profundidad del historial.
+**Consecuencias.** El costo es memoria: una secuencia de miles de clips ocupa algo en cada paso del historial. El modelo es mutable, así que cada instantánea copia todos los clips de la secuencia; con cientos de clips eso son kilobytes por paso y el historial tiene un límite configurable (500 pasos por defecto). Si una medición con proyectos grandes muestra que pesa demasiado, el siguiente paso es guardar solo las pistas que la operación tocó.
 
 ---
 

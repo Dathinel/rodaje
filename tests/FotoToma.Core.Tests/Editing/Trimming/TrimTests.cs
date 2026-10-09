@@ -77,7 +77,7 @@ public sealed class TrimTests
     {
         var f = new TrimFixture().Add("v1", "c1", "m1", 10, 60, 20);
 
-        TimelineEdits.Trim(f.Ctx, "c1", TrimEdge.In, Timing.Time.Zero);
+        TimelineEdits.Trim(f.Ctx, "c1", TrimEdge.In, FotoToma.Core.Timing.Time.Zero);
 
         f.AssertClip("c1", 10, 60, 20);
         f.AssertValid();
