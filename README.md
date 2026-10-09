@@ -13,6 +13,7 @@ Doble clic en **`ABRIR.bat`**. La primera vez descarga el SDK de .NET en `.entor
 | `ABRIR.bat` | Ejecuta todas las pruebas |
 | `ABRIR.bat cobertura` | Pruebas más cobertura de código |
 | `ABRIR.bat aot` | Compila el núcleo a código nativo y lo ejecuta de punta a punta |
+| `ABRIR.bat aceptacion` | Criterios de la fase 2 con video y audio reales: seek exacto al cuadro y sincronía audio/video en 10 minutos (varios minutos) |
 | `ABRIR.bat preparar-entorno` | Reconstruye el entorno local desde cero |
 
 **Requisitos:**

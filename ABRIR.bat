@@ -3,6 +3,7 @@ rem Prepara .entorno\ la primera vez y corre las pruebas del nucleo.
 rem   ABRIR.bat                    todas las pruebas
 rem   ABRIR.bat cobertura          pruebas + cobertura de Rodaje.Core
 rem   ABRIR.bat aot                publica con Native AOT y ejecuta el .exe
+rem   ABRIR.bat aceptacion         criterios de la fase 2 con video y audio reales (varios minutos)
 rem   ABRIR.bat preparar-entorno   vuelve a descargar el SDK y FFmpeg
 rem   ABRIR.bat -Filtro Recorte    otros argumentos pasan tal cual a probar.ps1
 rem Variables: RODAJE_ENTORNO (otro entorno), RODAJE_SIN_PAUSA=1 (sin pausa final).
@@ -18,6 +19,7 @@ set "DOTNET=%ENTORNO%\dotnet\dotnet.exe"
 set "PROBAR=%RAIZ%\herramientas\probar.ps1"
 set "PREPARAR=%RAIZ%\herramientas\preparar-entorno.ps1"
 set "AOT=%RAIZ%\herramientas\publicar-aot-prueba.ps1"
+set "ACEPTACION=%RAIZ%\herramientas\aceptacion.ps1"
 set "SCRIPT=%PROBAR%"
 
 echo.
@@ -45,6 +47,8 @@ if /i "%ACCION%"=="cobertura" goto resto
 if /i "%ACCION%"=="pruebas" goto resto
 if /i "%ACCION%"=="aot" set "SCRIPT=%AOT%"
 if /i "%ACCION%"=="aot" goto resto
+if /i "%ACCION%"=="aceptacion" set "SCRIPT=%ACEPTACION%"
+if /i "%ACCION%"=="aceptacion" goto resto
 set ARGS=%*
 goto entorno
 

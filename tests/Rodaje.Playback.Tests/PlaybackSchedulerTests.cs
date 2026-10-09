@@ -315,6 +315,24 @@ public class PlaybackSchedulerTests
     }
 
     [Fact]
+    public void CacheDeVentanaMasDos_LoAdelantadoNoSeExpulsaPorLoYaMostrado()
+    {
+        // Regresión de la aceptación con el decodificador real: con LRU, los cuadros ya mostrados (tocados al
+        // mostrarse) expulsaban a los adelantados aún sin mostrar, y cada cuadro debido llegaba tarde.
+        using var h = new PlaybackHarness(Clip25, _ => Ms(2), prefetch: 8, budget: 10);
+        Assert.True(h.SettleAndTick().IsExact);
+        h.Scheduler.Play();
+        for (int i = 0; i < 300; i++)
+        {
+            FramePresentation p = h.Refresh();
+            Assert.True(p.IsExact, $"Refresco {i}: debía verse {p.TargetFrame} y se vio {p.Frame?.Index}.");
+        }
+
+        Assert.Equal(0, h.Scheduler.Stats.LateRefreshes);
+        Assert.True(h.Cache.CostBytes <= h.Cache.BudgetBytes);
+    }
+
+    [Fact]
     public void RelojMovidoHaciaAtrasSinSeek_ElProgramadorLoSigue()
     {
         using var h = new PlaybackHarness(Clip25);
