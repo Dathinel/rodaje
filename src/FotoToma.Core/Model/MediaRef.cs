@@ -34,8 +34,14 @@ public sealed class MediaRef
     public int AudioChannels { get; set; }
 
     /// <summary>Devuelve la ruta absoluta, resolviendo las relativas contra la carpeta del proyecto.</summary>
+    /// <remarks>
+    /// En Windows <c>\Videos\a.mp4</c> o <c>C:a.mp4</c> tienen raíz pero no son absolutas; también se
+    /// resuelven contra la carpeta del proyecto (su unidad) y no contra el directorio actual del proceso.
+    /// </remarks>
     public string ResolvePath(string projectDirectory) =>
-        System.IO.Path.IsPathRooted(Path) ? Path : System.IO.Path.GetFullPath(System.IO.Path.Combine(projectDirectory, Path));
+        System.IO.Path.IsPathFullyQualified(Path)
+            ? Path
+            : System.IO.Path.GetFullPath(Path, System.IO.Path.GetFullPath(projectDirectory));
 
     public MediaRef Clone() => (MediaRef)MemberwiseClone();
 }
