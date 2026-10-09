@@ -1,0 +1,76 @@
+{
+  "id": "fototoma",
+  "titulo": "FotoToma, fase 1: el núcleo de la línea de tiempo",
+  "resumen": "FotoToma es un editor de video nativo para Windows. En la fase 1 todavía no hay ventana: lo que existe es el núcleo que cualquier editor necesita, la línea de tiempo con tiempo exacto y todas las operaciones de edición con deshacer y rehacer, y se comprueba con pruebas automáticas que explican en español qué pasó.",
+  "pide": [
+    "Modelo de línea de tiempo con tiempo exacto (números racionales, sin errores de redondeo entre fotogramas)",
+    "Operaciones de edición: cortar, recortar, ripple, roll, slip, slide, mover, insertar, sobrescribir, levantar y borrar con ripple",
+    "Deshacer y rehacer con comandos",
+    "Formato de proyecto en JSON con versión",
+    "Todo cubierto por pruebas automáticas que pasan"
+  ],
+  "dotnet": {
+    "sdk": "10.0.401",
+    "entorno": ".entorno",
+    "preparar": "herramientas/preparar-entorno.ps1"
+  },
+  "acciones": [
+    {
+      "id": "pruebas",
+      "nombre": "Correr todas las pruebas",
+      "tipo": "powershell",
+      "script": "herramientas/probar.ps1",
+      "args": [],
+      "cwd": ".",
+      "descripcion": "Restaura los paquetes, compila el núcleo y las pruebas, y las corre todas. Al final muestra cuántas pasaron, cuáles fallaron con su mensaje y la línea donde fallaron, y cuánto tardó. Si el código no compila, muestra el primer error y cómo leerlo. Los registros completos quedan en TestResults\\.",
+      "cubre": [
+        "Modelo de línea de tiempo con tiempo exacto (números racionales, sin errores de redondeo entre fotogramas)",
+        "Operaciones de edición: cortar, recortar, ripple, roll, slip, slide, mover, insertar, sobrescribir, levantar y borrar con ripple",
+        "Deshacer y rehacer con comandos",
+        "Formato de proyecto en JSON con versión",
+        "Todo cubierto por pruebas automáticas que pasan"
+      ],
+      "duracion": "~10-60 s",
+      "duracion_es": "total",
+      "progreso_regex": "Fase (\\d+)/(\\d+)",
+      "si_falla": "Lee el bloque 'Pruebas que fallaron': cada prueba dice qué esperaba y qué obtuvo, y en qué archivo y línea. Si dice que el código no compila, el primer error trae archivo(línea,columna) y la explicación del compilador.",
+      "notas": "La primera vez necesita internet para descargar el SDK de .NET (unos 280 MB) y los paquetes NuGet; después funciona sin conexión."
+    },
+    {
+      "id": "cobertura",
+      "nombre": "Pruebas + cobertura del núcleo",
+      "tipo": "powershell",
+      "script": "herramientas/probar.ps1",
+      "args": ["-Cobertura"],
+      "cwd": ".",
+      "descripcion": "Lo mismo que 'Correr todas las pruebas' y además mide qué porcentaje de las líneas y de las ramas (los caminos de cada if o switch) de FotoToma.Core se ejecutan en alguna prueba. El informe completo en formato Cobertura queda en TestResults\\.",
+      "cubre": [
+        "Todo cubierto por pruebas automáticas que pasan"
+      ],
+      "duracion": "~15-90 s",
+      "duracion_es": "total",
+      "progreso_regex": "Fase (\\d+)/(\\d+)",
+      "si_falla": "Igual que en 'Correr todas las pruebas'. Si no aparece la cobertura, es porque no hubo pruebas que la midieran.",
+      "notas": "La cobertura la mide coverlet, que viene como paquete del proyecto de pruebas; no hay que instalar nada aparte."
+    },
+    {
+      "id": "preparar-entorno",
+      "nombre": "Reconstruir el entorno (SDK de .NET)",
+      "tipo": "powershell",
+      "script": "herramientas/preparar-entorno.ps1",
+      "args": ["-Forzar"],
+      "cwd": ".",
+      "descripcion": "Borra y vuelve a descargar el SDK de .NET 10.0.401 dentro de .entorno\\dotnet, comprobando su huella SHA-512. Solo hace falta si el entorno se dañó o se quiere empezar de cero: ABRIR.bat ya lo prepara solo la primera vez.",
+      "cubre": [],
+      "duracion": "~2-10 min",
+      "duracion_es": "total",
+      "si_falla": "Casi siempre es la conexión a internet. Si dice que la huella no coincide, Microsoft cambió el archivo publicado y hay que actualizar la versión y el hash en preparar-entorno.ps1 y global.json.",
+      "notas": "Descarga unos 280 MB. No instala nada en Windows: todo queda dentro de la carpeta del proyecto."
+    }
+  ],
+  "notas": [
+    "Doble clic en ABRIR.bat corre la acción 'pruebas'; 'ABRIR.bat cobertura' y 'ABRIR.bat preparar-entorno' corren las otras dos.",
+    "El tipo 'powershell' es propio de FotoToma: corre el script con powershell -NoProfile -ExecutionPolicy Bypass -File, con los mismos campos que las acciones 'python' de Sensores-Teoria (script, args, cwd).",
+    "Todavía no hay interfaz gráfica: llega en una fase posterior."
+  ]
+}
