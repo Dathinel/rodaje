@@ -104,6 +104,7 @@ public static class ModelValidator
         {
             checkId(track.Id, "una pista");
             Clip? previous = null;
+            Int128 previousEnd = 0;
             foreach (Clip clip in track.Clips)
             {
                 checkId(clip.Id, "un clip");
@@ -147,7 +148,16 @@ public static class ModelValidator
                     errors.Add($"{where} empieza antes del inicio de la línea de tiempo.");
                 }
 
-                if (previous is not null && clip.Start < previous.End)
+                // Los tiempos llegan de un archivo y pueden ser cualquier long: el final se calcula en 128 bits
+                // para que un valor extremo se informe como problema y no lance OverflowException.
+                Int128 duration = (Int128)clip.SourceOut.Ticks - clip.SourceIn.Ticks;
+                Int128 end = clip.Start.Ticks + duration;
+                if (!FitsInLong(duration) || !FitsInLong(end))
+                {
+                    errors.Add($"{where} tiene tiempos fuera de rango.");
+                }
+
+                if (previous is not null && clip.Start.Ticks < previousEnd)
                 {
                     errors.Add($"{where} se solapa con «{previous.Id}» o está fuera de orden.");
                 }
@@ -182,9 +192,12 @@ public static class ModelValidator
                 }
 
                 previous = clip;
+                previousEnd = end;
             }
         }
     }
+
+    private static bool FitsInLong(Int128 value) => value >= long.MinValue && value <= long.MaxValue;
 
     private static void CheckTrackKinds(List<Track> tracks, TrackKind expected, Sequence sequence, List<string> errors)
     {
