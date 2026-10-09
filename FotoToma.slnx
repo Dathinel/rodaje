@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/FotoToma.Audio/FotoToma.Audio.csproj" />
     <Project Path="src/FotoToma.Core/FotoToma.Core.csproj" />
     <Project Path="src/FotoToma.Playback/FotoToma.Playback.csproj" />
   </Folder>
