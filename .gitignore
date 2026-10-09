@@ -1,0 +1,33 @@
+# --- Entorno propio (se reconstruye con herramientas/preparar-entorno.ps1) ---
+.entorno/
+
+# --- Salidas de compilación y distribución ---
+bin/
+obj/
+dist/
+artifacts/
+TestResults/
+coverage/
+*.coverage
+*.trx
+
+# --- Secretos ---
+.env
+.env.*
+!.env.example
+
+# --- IDEs y SO ---
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+Thumbs.db
+desktop.ini
+
+# --- Material de prueba pesado (videos, proxies, cachés de render) ---
+muestras/
+*.mp4
+*.mov
+*.mkv
+*.proxy.*
