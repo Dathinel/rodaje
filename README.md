@@ -44,9 +44,9 @@ Medido el 9 de octubre de 2026 en un Ryzen 7 7435HS:
 
 | Prueba | Resultado |
 |---|---|
-| Pruebas automáticas | **980 pasan, 0 fallan** (8 largas se reservan para la aceptación) |
+| Pruebas automáticas | **1 016 pasan, 0 fallan** (9 largas se reservan para la aceptación) |
 | Salto exacto al cuadro (fase 2) | **2 864 de 2 864** saltos aleatorios aterrizan en el cuadro exacto, en H.264 y HEVC, por GPU y por software |
-| Sincronía audio/video (fase 2) | **0 cuadros de error en 10 minutos**, con el reloj de audio un 0,1 % adelantado o atrasado; en tiempo real con el dispositivo, 1 801 de 1 801 refrescos muestran el cuadro debido |
+| Sincronía audio/video (fase 2) | **0 cuadros de error en 10 minutos**, con el reloj de audio un 0,1 % adelantado o atrasado; en tiempo real con el dispositivo de audio, 10 minutos completos con 0 cuadros de error, 0 tarde y 0 perdidos |
 | Reloj de audio | Jitter máximo 0,7 ms frente al reloj del sistema |
 | Cobertura del núcleo | **99,6 % de líneas y 99,6 % de ramas** |
 | Pruebas de propiedades | 10 000 proyectos aleatorios con hasta 40 ediciones cada uno, más 5 000 arrastres. Tras cada paso el modelo sigue siendo válido, las pistas bloqueadas no cambian y deshacer todo devuelve el proyecto idéntico, byte a byte |

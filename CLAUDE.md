@@ -48,12 +48,19 @@ Editor de video nativo para Windows, inspirado en la experiencia de uso de CapCu
 - **Enlaces huérfanos.** Sobrescribir o cortar parcialmente puede dejar un `LinkId` que ya no comparte ningún otro clip. No rompe nada; falta decidir si se limpia automáticamente.
 - **Código compartido entre programas.** Cuando exista el segundo programa habrá que decidir cómo compartir el formato de proyecto y el lanzador: paquete NuGet desde su propio repo, submódulo u otra opción.
 
-## Siguiente paso: fase 2, reproducción de un clip
+## Fase 2: reproducción de un clip (terminada técnicamente, falta la prueba humana)
 
-- **Montaje del entorno.** Las DLL de FFmpeg LGPL-shared de BtbN van en `.entorno\ffmpeg`, con URL y hash fijados en `preparar-entorno.ps1`. Se usan con FFmpeg.AutoGen (MIT).
-- **Decodificación.** D3D11VA en un hilo propio, con una caché de frames.
-- **Audio.** WASAPI propio con `[GeneratedComInterface]`; el audio hace de reloj maestro (posición + QPC).
-- **Interop elegido** (`docs/sondeo-interop-aot.md`): `FFmpeg.AutoGen.Bindings.DynamicallyLinked` 9.0.1.1 y `TerraFX.Interop.Windows`, con 0 advertencias de AOT.
-- **Criterio de terminado.** El seek debe ser exacto al cuadro en H.264 y HEVC de prueba, y la deriva entre audio y video debe quedar por debajo de 1 cuadro en 10 minutos.
-- **Verificación de la fase.** Al cerrarla, la revisa un agente distinto.
-- **Fase 3.** En la reproducción con varias capas hay que detenerse y decirle a Daniel exactamente qué probar.
+- **Componentes:** `Rodaje.Media` (FFmpeg LGPL y D3D11VA), `Rodaje.Audio` (WASAPI y reloj), `Rodaje.Playback` (programador y caché), `Rodaje.Engine` (`ClipPlayer`), `Rodaje.Visor` y la aceptación en `tests/Rodaje.Acceptance.Tests`.
+- **Aceptación:** `ABRIR.bat aceptacion` tarda unos 9 min; `-Completa` añade 10 min reales con el dispositivo.
+  - Seek exacto: 2864 de 2864.
+  - Deriva de audio y video en 10 min: 0 cuadros de error, tanto con el reloj simulado como con el reloj real del dispositivo.
+- **Revisión independiente:** encontró 3 defectos menores y 5 preocupaciones; todo corregido con pruebas, que incluyen la guarda LGPL, la resincronización de audio, el color BT.601/709 y el rango completo.
+- **Pendiente:** Daniel prueba el visor con `ABRIR.bat visor -Archivo <video>` siguiendo `docs/prueba-visor.md`. Sus observaciones cierran la fase.
+
+## Siguiente paso: fase 3, varias capas
+
+- **Motor multipista:** `ClipPlayer` evoluciona a una sesión con varias capas.
+- **Composición:** compositor D3D11 que dibuja las capas de abajo arriba.
+- **Proxies:** se generan con NVENC.
+- **Caché:** pasa a ser por fuente.
+- **Prueba humana:** al terminar hay que detenerse y decirle a Daniel exactamente qué probar respecto a la fluidez con varias capas.
