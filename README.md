@@ -75,7 +75,7 @@ Medido el 9 de octubre de 2026 en un Ryzen 7 7435HS:
 - [Guía técnica](docs/guia-tecnica.md): arquitectura, operaciones con diagramas y recorrido del código.
 - [Formato de proyecto](docs/formato-proyecto.md)
 - [Decisiones](docs/decisiones.md)
-- [Investigación de editores abiertos](docs/investigacion.md)
+- [Investigación de editores abiertos](docs/archivo/investigacion.md)
 - [Fondo legal](docs/legal.md)
 - [Propuesta de módulos: núcleo, contenido e IA](docs/propuesta-modulos.md)
 

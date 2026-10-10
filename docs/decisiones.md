@@ -1,182 +1,80 @@
 # Registro de decisiones
 
-Este registro guarda el porqué de cada elección importante de Rodaje. Cada decisión sigue la misma forma: el contexto que la motivó, lo que se decidió, las alternativas que se consideraron y las consecuencias que se aceptan al elegirla. Una decisión no se borra cuando cambia; se marca como reemplazada y se añade una nueva que explique el cambio, para que el historial de razonamiento no se pierda.
+Este registro guarda el porqué de cada elección importante de Rodaje. Una decisión no se borra cuando cambia: se marca como reemplazada y se añade otra que explique el cambio. Todas las de esta página son del 9 de octubre de 2026.
 
 ---
 
-## D-001. Nombre del programa: FotoToma (reemplazada por D-014)
+## D-001. Nombre: FotoToma (reemplazada por D-014)
 
-**Fecha:** 2026-10-09 · **Estado:** aceptada, con verificación pendiente antes de publicar
-
-**Contexto.** El nombre de trabajo inicial era "FotoShot". Una búsqueda básica mostró que ya existen varias aplicaciones de edición de fotos llamadas "PhotoShot" en tiendas de aplicaciones móviles (por ejemplo, las de Vyro AI y H-Tech Labs), y que "FotoShot" queda a una sola letra de distancia de Photoshop, marca registrada de Adobe. Un nombre tan cercano a una marca famosa y a productos existentes de la misma categoría es un riesgo innecesario si el proyecto se hace público algún día.
-
-**Decisión.** El programa se llama FotoToma. Combina "foto" con "toma", la palabra que en español se usa para cada plano filmado, lo que describe bien un editor de video y suena natural en el idioma del proyecto. Una búsqueda web básica realizada el 9 de octubre de 2026 no encontró software llamado "FotoToma".
-
-**Alternativas.** Mantener "FotoShot", descartado por la cercanía a marcas existentes; un nombre en inglés, descartado porque el proyecto se piensa y documenta en español.
-
-**Consecuencias.** La búsqueda básica no equivale a una búsqueda de marcas. Antes de hacer público el repositorio hay que consultar las bases de la USPTO (Estados Unidos), la EUIPO (Unión Europea) y la Superintendencia de Industria y Comercio de Colombia en las clases de software (clase 9 de Niza) y servicios relacionados (clase 42). Este paso está en la lista de `docs/legal.md`.
-
----
+- **Decisión.** El nombre de trabajo "FotoShot" pasa a FotoToma ("toma" es cada plano filmado). Una búsqueda web básica no encontró software con ese nombre.
+- **Por qué.** "FotoShot" queda a una letra de Photoshop (marca de Adobe) y ya existen apps de fotos llamadas "PhotoShot" (Vyro AI, H-Tech Labs). Se descartó un nombre en inglés porque el proyecto se piensa en español.
+- **Consecuencia.** Una búsqueda básica no es una búsqueda de marcas: antes de publicar hay que consultar USPTO, EUIPO y SIC Colombia en las clases 9 y 42 de Niza (lista en `docs/legal.md`).
 
 ## D-002. Repositorio privado con licencia MIT
 
-**Fecha:** 2026-10-09 · **Estado:** aceptada
-
-**Contexto.** Las reglas de la carpeta de programas indican que, sin otra indicación, cada repositorio es privado y usa MIT. Rodaje está en sus primeras fases y no tiene sentido exponerlo todavía, pero se quiere poder publicarlo más adelante sin rehacer nada.
-
-**Decisión.** El repositorio `Dathinel/fototoma` es privado y el código propio se licencia bajo MIT, con el aviso de copyright a nombre de Daniel (Dathinel). Desde el principio se mantiene el fondo legal completo (`LICENCIAS.md`, `THIRD-PARTY-NOTICES.txt`, `docs/legal.md`) como si fuera público.
-
-**Alternativas.** GPL-3, que habría permitido estudiar y reutilizar código de Kdenlive, Shotcut u Olive, pero obligaría a que cualquier distribución del programa fuera también GPL; Apache-2.0, que añade una licencia explícita de patentes pero es más larga y no aporta mucho a un proyecto personal; dejarlo sin licencia, que impediría cualquier uso por terceros.
-
-**Consecuencias.** MIT es compatible con enlazar dinámicamente bibliotecas LGPL como FFmpeg, siempre que se cumplan sus condiciones. A cambio, no se puede copiar código GPL de los editores estudiados: solo se estudia su diseño (ver `docs/investigacion.md`).
-
----
+- **Decisión.** Repositorio privado (creado como `Dathinel/fototoma`, hoy `Dathinel/rodaje` por D-014), código propio bajo MIT a nombre de Daniel (Dathinel), con el fondo legal completo (`LICENCIAS.md`, `THIRD-PARTY-NOTICES.txt`, `docs/legal.md`) desde el principio.
+- **Por qué.** Es la regla por defecto de la carpeta de programas. GPL-3 permitiría reutilizar código de Kdenlive, Shotcut u Olive pero obligaría a distribuir todo como GPL; Apache-2.0 aporta poco a un proyecto personal; sin licencia nadie podría usarlo.
+- **Consecuencia.** MIT es compatible con enlazar dinámicamente bibliotecas LGPL como FFmpeg. No se puede copiar código GPL de los editores estudiados, solo estudiar su diseño (ver [`archivo/investigacion.md`](archivo/investigacion.md)).
 
 ## D-003. Stack: .NET 10 LTS con WinUI 3
 
-**Fecha:** 2026-10-09 · **Estado:** aceptada
+- **Decisión.** C# sobre .NET 10 (LTS) con interfaz WinUI 3 (Windows App SDK). Lo decisivo es `SwapChainPanel`, que muestra una cadena de intercambio de Direct3D 11 dentro de la interfaz sin copias. Solo se escribirá C++ donde una medición demuestre que C# no alcanza.
+- **Por qué.** WPF integra D3D11 mediante `D3DImage` (pensado para D3D9, con copias); Avalonia presenta D3D11 de forma menos directa y su ventaja multiplataforma no aplica; C++ con Qt 6 rinde más pero rinde menos a una sola persona y trae las obligaciones de Qt; Rust tiene un ecosistema de interfaz inmaduro en Windows; Python no da el rendimiento ni el empaquetado nativo.
+- **Consecuencia.** El programa queda ligado a Windows. Los binarios del Windows App SDK se redistribuyen bajo los términos de licencia de Microsoft, no MIT (anotado en `LICENCIAS.md`).
 
-**Contexto.** Un editor de video necesita presentar en pantalla cuadros que ya están en la GPU sin copiarlos a la memoria del sistema y de vuelta, porque esas copias son las que destruyen la fluidez a resoluciones altas. También necesita una interfaz moderna en Windows, buena productividad para una sola persona y la posibilidad de compilar de antemano a código nativo.
+## D-004. Entrega autocontenida con Native AOT
 
-**Decisión.** El programa se escribe en C# sobre .NET 10, que es versión de soporte extendido (LTS), con la interfaz en WinUI 3 a través del Windows App SDK. La razón decisiva es el control `SwapChainPanel`, que permite que una cadena de intercambio de Direct3D 11 se muestre directamente dentro de la interfaz, sin copias. Las partes críticas que las mediciones demuestren que C# no puede cubrir se escribirán en C++ y se llamarán desde .NET, pero solo cuando haya una medición que lo justifique.
-
-**Alternativas.**
-
-| Opción | A favor | En contra |
-|---|---|---|
-| WPF | Muy madura, mucha documentación | La integración con D3D11 pasa por `D3DImage`, pensado para D3D9, con copias y sincronización delicada |
-| Avalonia | Multiplataforma, MIT | Presentación de superficies D3D11 sin copia menos directa; Rodaje solo apunta a Windows |
-| C++ con Qt 6 | Rendimiento máximo, lo usan Kdenlive, Shotcut y Olive | Productividad menor para una persona; Qt comercial o LGPL con sus obligaciones |
-| Rust | Seguridad de memoria, rendimiento | Ecosistema de interfaz en Windows inmaduro para una aplicación de esta escala |
-| Python | Rapidez de prototipado, ecosistema de IA | Rendimiento insuficiente para composición y reproducción; empaquetado nativo pobre |
-
-**Consecuencias.** El programa queda ligado a Windows, lo que está bien porque es su objetivo. Los binarios del Windows App SDK que se distribuyen por NuGet no están bajo MIT sino bajo los términos de licencia de software de Microsoft, que permiten redistribuirlos con la aplicación con ciertas condiciones; esto queda anotado en `LICENCIAS.md`.
-
----
-
-## D-004. Entrega como ejecutable autocontenido con Native AOT
-
-**Fecha:** 2026-10-09 · **Estado:** aceptada
-
-**Contexto.** Las reglas de la carpeta piden que cada programa se entregue lo más parecido posible a un ejecutable nativo, sin instalador, en una carpeta `dist\` que se pueda copiar a otro PC.
-
-**Decisión.** Rodaje se publica como aplicación autocontenida compilada con Native AOT, lo que produce código máquina sin JIT, arranque rápido y ninguna dependencia de un runtime de .NET instalado. El núcleo se marca como compatible con AOT desde el primer día (sin reflexión, con serialización JSON por generador de código). Si alguna biblioteca necesaria resulta incompatible con AOT, se recurre a ReadyToRun autocontenido, que precompila casi todo pero conserva el JIT como respaldo.
-
-**Alternativas.** Publicación dependiente del framework, que exigiría instalar .NET en cada equipo; un instalador MSIX, que añade un paso y depende de componentes que AtlasOS puede no traer.
-
-**Consecuencias.** Algunas bibliotecas basadas en reflexión no podrán usarse o necesitarán configuración extra. El runtime de .NET viaja dentro del ejecutable, así que su aviso de licencia MIT debe acompañar a `Rodaje.exe` (ver `THIRD-PARTY-NOTICES.txt`).
-
----
+- **Decisión.** Rodaje se publica autocontenido con Native AOT: código máquina, arranque rápido y sin runtime de .NET instalado. El núcleo es compatible con AOT desde el primer día (sin reflexión, JSON por generador de código). Si una biblioteca necesaria no lo es, se recurre a ReadyToRun autocontenido.
+- **Por qué.** La regla de la carpeta pide un ejecutable copiable en `dist\` sin instalador. La publicación dependiente del framework exige instalar .NET; MSIX añade un paso y depende de componentes que AtlasOS puede no traer.
+- **Consecuencia.** Algunas bibliotecas con reflexión quedan fuera o necesitan configuración. El aviso MIT del runtime de .NET viaja con `Rodaje.exe` (`THIRD-PARTY-NOTICES.txt`).
 
 ## D-005. Entorno propio en `.entorno\`
 
-**Fecha:** 2026-10-09 · **Estado:** aceptada
-
-**Contexto.** El equipo de desarrollo solo tiene los runtimes 6 y 8 de .NET, sin SDK. Instalar un SDK global mezclaría versiones entre programas y haría que la compilación dependiera del estado de la máquina.
-
-**Decisión.** El SDK de .NET 10.0.401 se descarga dentro de `.entorno\dotnet` mediante `herramientas\preparar-entorno.ps1`, que comprueba la huella SHA-512 publicada por Microsoft antes de descomprimirlo. La versión queda fijada en `global.json`. La caché de paquetes NuGet también vive en `.entorno\`, y la restauración usa archivos de bloqueo. Solo `git` y `gh` son herramientas globales.
-
-**Alternativas.** Instalar el SDK con winget de forma global, más sencillo pero contrario a la regla de entorno propio; usar un contenedor, excesivo para una aplicación de escritorio con interfaz.
-
-**Consecuencias.** La primera ejecución descarga unos 280 MB. `.entorno\` nunca se versiona; lo que se versiona es el script que lo reconstruye.
-
----
+- **Decisión.** El SDK de .NET 10.0.401 se descarga a `.entorno\dotnet` con `herramientas\preparar-entorno.ps1`, que verifica el SHA-512 publicado por Microsoft. La versión se fija en `global.json`; la caché de NuGet también vive en `.entorno\` y la restauración usa archivos de bloqueo. Solo `git` y `gh` son globales.
+- **Por qué.** El equipo solo tiene los runtimes 6 y 8, y un SDK global mezclaría versiones entre programas. Un contenedor sería excesivo para una aplicación de escritorio.
+- **Consecuencia.** La primera ejecución descarga unos 280 MB. `.entorno\` no se versiona; se versiona el script que lo reconstruye.
 
 ## D-006. FFmpeg como DLL compartidas LGPL cargadas dinámicamente
 
-**Fecha:** 2026-10-09 · **Estado:** aceptada (implementación prevista en fases posteriores)
+- **Decisión.** Se usan las compilaciones `lgpl-shared` de BtbN (https://github.com/BtbN/FFmpeg-Builds), sin libx264 ni libx265 y con `--enable-version3`, así que la licencia efectiva es LGPL v3 (`COPYING.LGPLv3`). Las DLL se cargan con FFmpeg.AutoGen (MIT). H.264 y HEVC se codifican con NVENC o Media Foundation, nunca con libx264.
+- **Por qué.** FFmpeg es la única opción realista para leer casi cualquier formato, pero compilado con `--enable-gpl` o `--enable-nonfree` es incompatible con MIT, como el FFmpeg 9.0 de gyan.dev del equipo. Compilar uno propio cuesta mantenimiento; Media Foundation sola cubre menos formatos; libmpv, ver D-012.
+- **Consecuencia.** Hay que cumplir la lista LGPL de `docs/legal.md`: DLL sin renombrar, fuente exacta u oferta escrita, línea de configuración, créditos y sin prohibir la ingeniería inversa de esa parte. El FFmpeg de gyan.dev es solo herramienta de desarrollo y nunca va a `dist\`.
 
-**Contexto.** FFmpeg es la única opción realista para leer casi cualquier formato de video y audio. Su licencia depende de cómo se compile: con `--enable-gpl` o `--enable-nonfree` el resultado es GPL o no redistribuible, y eso es incompatible con un programa MIT. El FFmpeg 9.0 de gyan.dev instalado en el equipo de desarrollo es una compilación GPL.
+## D-007. Unidad de tiempo: ticks de 1/705 600 000 s
 
-**Decisión.** Rodaje usará las compilaciones `lgpl-shared` de BtbN (https://github.com/BtbN/FFmpeg-Builds), que excluyen bibliotecas GPL como libx264 y libx265 y entregan las bibliotecas `avcodec`, `avformat` y demás como DLL separadas. Esas compilaciones se configuran con `--enable-version3`, así que la licencia efectiva es LGPL versión 3 (el archivo de licencia que incluyen es `COPYING.LGPLv3`). Las DLL se cargan dinámicamente mediante FFmpeg.AutoGen, cuyas vinculaciones son MIT. La codificación H.264 y HEVC se hará con codificadores por hardware (NVENC) o con los de Media Foundation del sistema, nunca enlazando libx264.
+- **Decisión.** Todo el tiempo del modelo es un entero de 64 bits en ticks de 1/705 600 000 s (la idea de los "flicks"), divisible por las cadencias habituales, incluidas las NTSC (1000/1001), y por las frecuencias de audio de 8 a 192 kHz. Cubre más de 400 años.
+- **Por qué.** `double` acumula errores; los cuadros atan el proyecto a una cadencia y no representan bien el audio; los racionales de Olive son exactos pero cuestan más en cada operación.
+- **Consecuencia.** Convertir a cuadros y muestras son divisiones enteras exactas. Una cadencia exótica se redondea al tick más cercano, documentado en el código.
 
-**Alternativas.** Usar el FFmpeg GPL del sistema, imposible de redistribuir con MIT; compilar FFmpeg propio, más control pero mucho trabajo de mantenimiento; Media Foundation sola, que cubre menos formatos; libmpv, ver D-012.
+## D-008. Posiciones explícitas, huecos implícitos y grupos de enlace
 
-**Consecuencias.** Hay que cumplir la lista de LGPL detallada en `docs/legal.md`: DLL sin renombrar, código fuente exacto o una oferta escrita, línea de configuración, créditos y ninguna prohibición de ingeniería inversa de esa parte. El FFmpeg de gyan.dev sigue siendo útil como herramienta de desarrollo, pero nunca se copia a `dist\`.
-
----
-
-## D-007. Unidad de tiempo: ticks de 1/705 600 000 de segundo
-
-**Fecha:** 2026-10-09 · **Estado:** aceptada
-
-**Contexto.** Representar el tiempo en segundos con coma flotante acumula errores de redondeo, y representarlo en cuadros ata el proyecto a una sola cadencia. Mezclar material de 24, 25, 30 y 29,97 cuadros por segundo con audio de 44,1 y 48 kHz exige una unidad común exacta.
-
-**Decisión.** Todo el tiempo del modelo es un entero de 64 bits que cuenta ticks de 1/705 600 000 de segundo, la misma idea de los "flicks". Ese número es divisible exactamente por las cadencias habituales de video, incluidas las de NTSC con su factor 1000/1001, y por las frecuencias de muestreo de audio comunes desde 8 kHz hasta 192 kHz. Un entero de 64 bits con esta unidad cubre más de 400 años.
-
-**Alternativas.** Números racionales como Olive, exactos pero con más costo en cada operación y normalización de fracciones; segundos en `double`, sencillos pero inexactos; cuadros del proyecto, que no representan bien el audio.
-
-**Consecuencias.** Las conversiones a cuadros y a muestras son divisiones enteras exactas. Una cadencia exótica que no divida al número exige redondear al tick más cercano, lo cual se documenta en el código.
-
----
-
-## D-008. Modelo con posiciones explícitas, huecos implícitos y grupos de enlace
-
-**Fecha:** 2026-10-09 · **Estado:** aceptada
-
-**Contexto.** El formato de MLT da a cada clip una posición implícita, que hace difícil la colocación libre; el de OpenShot usa posiciones explícitas. Además, los clips de video y su audio deben poder moverse juntos, y los fotogramas clave deben comportarse bien al recortar.
-
-**Decisión.** Cada clip guarda su posición de inicio en la línea de tiempo; el espacio entre clips no es un objeto. Los clips que deben moverse juntos, como un video y su audio, comparten un grupo de enlace. Los fotogramas clave se expresan en tiempo de la fuente, no en tiempo del clip ni de la línea de tiempo, de modo que al recortar el inicio de un clip la animación sigue pegada al mismo contenido en vez de desplazarse respecto a él.
-
-**Alternativas.** Posición implícita al estilo MLT; fotogramas clave relativos al inicio del clip, que se desplazan al recortar y sorprenden al usuario.
-
-**Consecuencias.** El rizado es una operación explícita que mueve los clips posteriores. El validador del modelo debe comprobar que no haya solapamientos dentro de una pista.
-
----
+- **Decisión.** Cada clip guarda su inicio en la línea de tiempo y el espacio entre clips no es un objeto. Los clips que se mueven juntos (video y su audio) comparten un grupo de enlace. Los fotogramas clave van en tiempo de la fuente, así que recortar el inicio no desplaza la animación respecto al contenido.
+- **Por qué.** La posición implícita de MLT dificulta la colocación libre (OpenShot usa posiciones explícitas), y los fotogramas clave relativos al clip se desplazan al recortar y sorprenden al usuario.
+- **Consecuencia.** El ripple es una operación explícita que mueve los clips posteriores, y el validador comprueba que no haya solapamientos dentro de una pista.
 
 ## D-009. Deshacer con instantáneas completas de la secuencia
 
-**Fecha:** 2026-10-09 · **Estado:** aceptada
+- **Decisión.** Cada operación es un comando tipado que guarda una copia profunda de la secuencia antes de ejecutarse; deshacer la restaura, y un fallo a mitad de camino también. Los comandos de un gesto continuo llevan una clave de fusión y se funden en un solo paso.
+- **Por qué.** Las inversas escritas a mano (Shotcut), las lambdas de hacer y deshacer (Kdenlive) o las diferencias de JSON (OpenShot) fallan de forma sutil cuando una operación olvida registrar algo.
+- **Consecuencia.** Cuesta memoria: kilobytes por paso con cientos de clips, con un límite configurable (500 pasos por omisión). Si pesa demasiado con proyectos grandes, el siguiente paso es copiar solo las pistas que la operación tocó.
 
-**Contexto.** Los deshaceres basados en operaciones inversas escritas a mano, o en diferencias que guardan el valor anterior, fallan de forma sutil cuando alguna operación olvida registrar algo. Kdenlive y Shotcut dedican mucho código a este problema.
+## D-010. JSON con `schemaVersion` entero y guardado atómico
 
-**Decisión.** Cada operación es un comando tipado que, antes de ejecutarse, guarda una instantánea completa (una copia profunda de las pistas y sus clips) de la secuencia afectada. Deshacer es restaurar esa instantánea. Si el comando falla a mitad de camino, la instantánea se restaura automáticamente. Los comandos que forman parte de un gesto continuo, como un arrastre, llevan una clave de fusión, y los comandos consecutivos con la misma clave se fusionan en un solo paso del historial.
-
-**Alternativas.** Lambdas de hacer y deshacer como Kdenlive; comandos con inversa manual como Shotcut; diferencias de JSON como OpenShot.
-
-**Consecuencias.** El costo es memoria: una secuencia de miles de clips ocupa algo en cada paso del historial. El modelo es mutable, así que cada instantánea copia todos los clips de la secuencia; con cientos de clips eso son kilobytes por paso y el historial tiene un límite configurable (500 pasos por defecto). Si una medición con proyectos grandes muestra que pesa demasiado, el siguiente paso es guardar solo las pistas que la operación tocó.
-
----
-
-## D-010. Formato JSON con `schemaVersion` entero y guardado atómico
-
-**Fecha:** 2026-10-09 · **Estado:** aceptada
-
-**Contexto.** El formato del proyecto va a cambiar muchas veces. OpenShot sufrió un error al comparar versiones como cadenas, y Olive acumuló un serializador completo por versión. El portátil de desarrollo ha tenido apagados inesperados, y un apagado durante el guardado no puede dejar un proyecto corrupto.
-
-**Decisión.** El proyecto se guarda en JSON legible con un campo `schemaVersion` entero. Al abrir un archivo antiguo se aplican en cadena las migraciones de cada versión a la siguiente, cada una con sus pruebas y archivos de ejemplo. El guardado escribe primero un archivo temporal, lo vacía a disco, conserva la versión anterior como `.bak` y luego reemplaza el original en una operación atómica del sistema de archivos.
-
-**Alternativas.** Un formato binario, más compacto pero opaco y difícil de depurar; SQLite, robusto pero excesivo para un documento que se carga entero en memoria.
-
-**Consecuencias.** Un archivo de una versión más nueva que la del programa se rechaza con un mensaje claro en lugar de abrirse a medias.
-
----
+- **Decisión.** El proyecto es JSON legible con `schemaVersion` entero; al abrir uno antiguo se encadenan migraciones de versión en versión, cada una con pruebas y archivos de ejemplo. El guardado escribe un temporal, lo vacía a disco, conserva el anterior como `.bak` y reemplaza el original de forma atómica.
+- **Por qué.** OpenShot sufrió por comparar versiones como cadenas y Olive acumuló un serializador por versión; el portátil ha tenido apagados inesperados. Un binario sería opaco y SQLite excesivo para un documento que se carga entero.
+- **Consecuencia.** Un archivo de una versión más nueva que el programa se rechaza con un mensaje claro en vez de abrirse a medias.
 
 ## D-011. Identificadores en inglés, documentación y mensajes en español
 
-**Fecha:** 2026-10-09 · **Estado:** aceptada
-
-**Contexto.** El proyecto se piensa en español, pero el ecosistema de .NET, las bibliotecas y los ejemplos están en inglés, y mezclar idiomas en los nombres de tipos y métodos hace el código más difícil de leer junto a las API del sistema.
-
-**Decisión.** Los identificadores del código (tipos, métodos, propiedades, campos del JSON) se escriben en inglés. La documentación, los comentarios explicativos, los mensajes de error para el usuario, los mensajes de commit y la interfaz se escriben en español.
-
-**Alternativas.** Todo en español, que choca con las API de .NET; todo en inglés, que va contra la forma de trabajo del proyecto.
-
-**Consecuencias.** Si la interfaz se traduce algún día, los textos ya estarán separados del código.
-
----
+- **Decisión.** Tipos, métodos, propiedades y campos del JSON en inglés; documentación, comentarios, mensajes al usuario, commits e interfaz en español.
+- **Por qué.** El ecosistema de .NET está en inglés y mezclar idiomas en los nombres dificulta leer el código junto a sus API; todo en inglés iría contra la forma de trabajo del proyecto.
+- **Consecuencia.** Si la interfaz se traduce algún día, los textos ya están separados del código.
 
 ## D-012. libmpv solo como visor opcional de fuentes
 
-**Fecha:** 2026-10-09 · **Estado:** aceptada
-
-**Contexto.** libmpv es un reproductor excelente, con decodificación por hardware muy probada, y sería tentador usarlo para la vista previa. Sin embargo, reproduce un archivo, no compone varias pistas con efectos y transiciones. Además, sus compilaciones habituales para Windows suelen incluir componentes GPL.
-
-**Decisión.** La vista previa de la línea de tiempo usa el compositor propio de Rodaje. libmpv solo podría usarse, de forma opcional, como visor de un archivo de origen individual, y únicamente con una compilación LGPL verificada.
-
-**Alternativas.** Usar libmpv como motor de vista previa, imposible para la composición multipista.
-
-**Consecuencias.** La reproducción fluida depende del motor propio, lo que concentra el trabajo de rendimiento en un solo lugar.
+- **Decisión.** La vista previa de la línea de tiempo usa el compositor propio. libmpv solo podría usarse, opcionalmente, para ver un archivo de origen suelto y con una compilación LGPL verificada.
+- **Por qué.** libmpv reproduce un archivo, no compone pistas con efectos y transiciones, y sus compilaciones habituales para Windows suelen incluir componentes GPL.
+- **Consecuencia.** El trabajo de rendimiento de la reproducción se concentra en el motor propio.
 
 ## D-013. Interop nativo para la reproducción (9 de octubre de 2026)
 
@@ -190,7 +88,7 @@ Este registro guarda el porqué de cada elección importante de Rodaje. Cada dec
 - XAudio2: su posición avanza en saltos de 10 ms, insuficiente para el reloj maestro.
 - NAudio: es compatible con AOT, pero no da marca de tiempo QPC.
 
-**Consecuencias.** La API de TerraFX trabaja con punteros crudos, así que el motor la envuelve en clases propias. Las evidencias están en `docs/sondeo-interop-aot.md`.
+**Consecuencias.** La API de TerraFX trabaja con punteros crudos, así que el motor la envuelve en clases propias. Las evidencias están en [`archivo/sondeo-interop-aot.md`](archivo/sondeo-interop-aot.md), y el código del sondeo en la etiqueta de git `sondeo-interop-aot`.
 
 ## D-014. Nuevo nombre: Rodaje (9 de octubre de 2026, reemplaza a D-001)
 
