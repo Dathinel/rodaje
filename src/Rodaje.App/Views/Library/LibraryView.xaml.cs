@@ -324,9 +324,18 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
     private async void OnImportClick(object sender, RoutedEventArgs e)
     {
-        if (_services is not null)
+        if (_services is null)
+        {
+            return;
+        }
+
+        try
         {
             await _services.Session.ImportMediaAsync();
+        }
+        catch (Exception ex)
+        {
+            _services.Session.Notify(NotificationSeverity.Error, "No se pudo importar", ex.Message);
         }
     }
 
@@ -528,22 +537,34 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
 
         e.Handled = true;
-        IReadOnlyList<IStorageItem> items = await e.DataView.GetStorageItemsAsync();
+        try
+        {
+            await DropFilesAsync(_services, e.DataView);
+        }
+        catch (Exception ex)
+        {
+            _services.Session.Notify(NotificationSeverity.Error, "No se pudo abrir lo soltado", ex.Message);
+        }
+    }
+
+    private static async Task DropFilesAsync(EditorServices services, DataPackageView data)
+    {
+        IReadOnlyList<IStorageItem> items = await data.GetStorageItemsAsync();
         string[] paths = [.. items.OfType<StorageFile>().Select(f => f.Path).Where(p => !string.IsNullOrEmpty(p))];
         string[] packages = [.. paths.Where(p => p.EndsWith(PackageManifest.FileExtension, StringComparison.OrdinalIgnoreCase))];
         string[] media = [.. paths.Except(packages)];
         if (media.Any(ProjectPaths.IsProjectFile))
         {
-            await _services.Session.OpenFilesAsync(media);
+            await services.Session.OpenFilesAsync(media);
         }
         else if (media.Length > 0)
         {
-            await _services.Session.ImportMediaAsync(media);
+            await services.Session.ImportMediaAsync(media);
         }
 
         foreach (string package in packages)
         {
-            await PluginActions.InstallAsync(_services, package);
+            await PluginActions.InstallAsync(services, package);
         }
     }
 }

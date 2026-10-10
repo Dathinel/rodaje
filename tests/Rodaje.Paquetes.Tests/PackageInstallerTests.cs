@@ -265,6 +265,28 @@ public sealed class PackageInstallerTests : IDisposable
         ManifestReader.ReadFile(Path.Combine(_locations.Packages, "rodaje-transiciones", "paquete.json")).Manifest?.Version.ToString();
 
     [Fact]
+    public void Disk_errors_become_install_errors_and_leave_nothing_behind()
+    {
+        string archive = Samples.ValidPackage(_folder.Combine("bloqueado.paquete"));
+        string notZip = _folder.Combine("texto.paquete");
+        File.WriteAllText(notZip, "no es un zip");
+
+        using (new FileStream(archive, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.Throws<PackageInstallException>(() => _installer.Install(archive));
+            Assert.Throws<PackageInstallException>(() => _installer.Install(archive, expectedSha256: new string('0', 64)));
+        }
+
+        Assert.Throws<PackageInstallException>(() => _installer.Install(notZip));
+        Assert.Throws<PackageInstallException>(() => _installer.Install(_folder.Combine("no-existe.paquete")));
+        Assert.Empty(Directory.GetDirectories(_locations.Packages));
+
+        Directory.Delete(_locations.Packages);
+        File.WriteAllText(_locations.Packages, "un archivo donde va la carpeta");
+        Assert.Throws<PackageInstallException>(() => _installer.Install(archive));
+    }
+
+    [Fact]
     public void The_own_id_is_reserved()
     {
         string archive = Samples.ValidPackage(_folder.Combine("p.paquete"), id: PackageLibrary.OwnPackageId);

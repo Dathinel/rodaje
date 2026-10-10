@@ -81,7 +81,18 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     public InstallResult Install(string archivePath, string? expectedSha256 = null, bool allowDowngrade = false, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(archivePath);
-        string archive = Path.GetFullPath(archivePath);
+        try
+        {
+            return InstallCore(Path.GetFullPath(archivePath), expectedSha256, allowDowngrade, cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or NotSupportedException or System.Security.SecurityException)
+        {
+            throw new PackageInstallException("No se pudo instalar: " + ex.Message, ex);
+        }
+    }
+
+    private InstallResult InstallCore(string archive, string? expectedSha256, bool allowDowngrade, CancellationToken cancellationToken)
+    {
         if (!File.Exists(archive))
         {
             throw new PackageInstallException($"No existe {archive}.");
@@ -164,10 +175,6 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             }
 
             return new InstallResult(new InstalledPackage(manifest, Path.GetFullPath(target), PackageOrigin.Installed), outcome, previous, read.Warnings);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            throw new PackageInstallException("No se pudo instalar: " + ex.Message, ex);
         }
         finally
         {
@@ -385,11 +392,18 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
 
         // Al disco antes del cambio de nombre, para que un apagón no deje la carpeta nueva con archivos vacíos. En paralelo:
         // de a uno, cada vaciado espera al disco y un paquete de miles de archivos tardaría minutos.
-        Parallel.ForEach(written, new ParallelOptions { CancellationToken = cancellationToken, MaxDegreeOfParallelism = 16 }, file =>
+        try
         {
-            using var stream = new FileStream(file, FileMode.Open, FileAccess.Write, FileShare.None);
-            stream.Flush(flushToDisk: true);
-        });
+            Parallel.ForEach(written, new ParallelOptions { CancellationToken = cancellationToken, MaxDegreeOfParallelism = 16 }, file =>
+            {
+                using var stream = new FileStream(file, FileMode.Open, FileAccess.Write, FileShare.None);
+                stream.Flush(flushToDisk: true);
+            });
+        }
+        catch (AggregateException ex)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(ex.InnerExceptions[0]);
+        }
     }
 
     /// <summary>Las releases de GitHub suelen envolver todo en una carpeta: si el manifiesto está ahí y no en la raíz, se quita.</summary>
