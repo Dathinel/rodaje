@@ -332,6 +332,47 @@ public class PlaybackSchedulerTests
         Assert.True(h.Cache.CostBytes <= h.Cache.BudgetBytes);
     }
 
+    [Theory]
+    [InlineData(1_000_000L)]
+    [InlineData(10_000_000_000L)]
+    public async Task SeekLejosReproduciendo_CuestaLoMismoQueUnSaltoCorto(long jump)
+    {
+        // Regresión: al pasar al cuadro nuevo se sacaba de la caché uno por uno cada índice saltado, O(salto)
+        // con el candado tomado; con 10^10 cuadros eso son minutos.
+        var timing = new ClipTiming(Time.Zero, Time.Zero, Time.FromFrames(jump + 100, Rational.Fps25), Rational.Fps25);
+        using var h = new PlaybackHarness(timing, prefetch: 4, budget: 16);
+        h.Scheduler.Play();
+        for (int i = 0; i < 10; i++)
+        {
+            Assert.True(h.Refresh().IsExact);
+        }
+
+        long before = h.Scheduler.Tick().Frame!.Index;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var work = Task.Run(() =>
+        {
+            h.Scheduler.SeekToFrame(before + jump);
+            return h.SettleAndTick();
+        });
+        FramePresentation landed = await work.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"El seek de {jump} cuadros tardó {watch.Elapsed}.");
+        Assert.True(landed.IsExact);
+        Assert.Equal(before + jump, landed.Frame!.Index);
+        Assert.False(h.Cache.Contains(before), "El cuadro que quedó atrás sigue en la caché.");
+        Assert.True(h.Scheduler.IsPlaying);
+        Assert.True(h.Refresh().IsExact);
+    }
+
+    [Fact]
+    public void EnPausa_ElCuadroAnteriorSeQuedaEnLaCacheTrasUnSeek()
+    {
+        using var h = new PlaybackHarness(Clip25, prefetch: 4, budget: 16);
+        Assert.Equal(50, h.SettleAndTick().Frame!.Index);
+        h.Scheduler.SeekToFrame(120);
+        Assert.Equal(120, h.SettleAndTick().Frame!.Index);
+        Assert.True(h.Cache.Contains(50));
+    }
+
     [Fact]
     public void RelojMovidoHaciaAtrasSinSeek_ElProgramadorLoSigue()
     {

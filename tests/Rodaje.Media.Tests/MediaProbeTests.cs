@@ -130,4 +130,20 @@ public sealed class MediaProbeTests
         Assert.Equal(new Rational(25, 1), MediaProbe.ChooseFrameRate(new Rational(90000, 1), new Rational(25, 1)));
         Assert.Null(MediaProbe.ChooseFrameRate(new Rational(1, 2), null));
     }
+
+    [Fact]
+    public void Measured_rate_of_a_variable_stream_passes_the_same_sanity_rules()
+    {
+        Rational avg = new(2987, 100);
+        Rational real = new(30, 1);
+        Assert.Equal(new Rational(30000, 1001), MediaProbe.ResolveFrameRate(avg, real, new Rational(2997, 100), variable: true));
+        Assert.Equal(new Rational(30, 1), MediaProbe.ResolveFrameRate(new Rational(30, 1), real, new Rational(25, 1), variable: false));
+        Assert.Equal(new Rational(25, 1), MediaProbe.ResolveFrameRate(null, null, new Rational(25, 1), variable: false));
+
+        // Marcas casi pegadas (intervalo de 1 en base 1/90000) o muy separadas: la medida no es una tasa creíble.
+        Assert.Equal(avg, MediaProbe.ResolveFrameRate(avg, real, new Rational(90000, 1), variable: true));
+        Assert.Equal(real, MediaProbe.ResolveFrameRate(null, real, new Rational(1, 3), variable: true));
+        Assert.Equal(new Rational(2987, 100), MediaProbe.ResolveFrameRate(new Rational(2987, 100), new Rational(90000, 1), new Rational(48000, 1), variable: true));
+        Assert.Null(MediaProbe.ResolveFrameRate(null, null, new Rational(5000, 1), variable: true));
+    }
 }

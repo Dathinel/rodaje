@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using FFmpeg.AutoGen.Abstractions;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Interop;
+using Rodaje.Media.Video;
 
 namespace Rodaje.Media.Probe;
 
@@ -52,7 +53,6 @@ public static unsafe class MediaProbe
     /// <summary>Reglas de cordura: se ignoran tasas fuera de [1, 1000]; si avg y r coinciden se toma r.</summary>
     public static Rational? ChooseFrameRate(Rational? average, Rational? real)
     {
-        static Rational? Sane(Rational? r) => r is { } v && v.ToDouble() is >= 1 and <= 1000 ? SnapFrameRate(v) : null;
         Rational? avg = Sane(average);
         Rational? r = Sane(real);
         if (avg is { } a && r is { } b)
@@ -62,6 +62,19 @@ public static unsafe class MediaProbe
 
         return avg ?? r;
     }
+
+    /// <summary>
+    /// Tasa con la que se numeran los cuadros: la declarada (<see cref="ChooseFrameRate"/>) o, si no hay o la tasa
+    /// es variable, la medida en las marcas. La medida pasa por las mismas reglas de cordura que la declarada.
+    /// </summary>
+    public static Rational? ResolveFrameRate(Rational? average, Rational? real, Rational? measured, bool variable)
+    {
+        Rational? chosen = ChooseFrameRate(average, real);
+        // Con tasa variable el promedio (29,87…) numeraría mal; el intervalo más común es la tasa nominal.
+        return Sane(measured) is { } m && (chosen is null || variable) ? m : chosen;
+    }
+
+    private static Rational? Sane(Rational? rate) => rate is { } v && v.ToDouble() is >= 1 and <= 1000 ? SnapFrameRate(v) : null;
 
     internal static MediaInfo Probe(AVFormatContext* format, string path, bool scanTimestamps)
     {
@@ -132,20 +145,15 @@ public static unsafe class MediaProbe
 
         Rational? average = ToRational(stream->avg_frame_rate);
         Rational? real = ToRational(stream->r_frame_rate);
-        Rational? chosen = ChooseFrameRate(average, real);
         bool vfr = average is { } a && real is { } r && Math.Abs(a.ToDouble() - r.ToDouble()) / r.ToDouble() > 0.02;
+        Rational? measured = null;
         if (scan)
         {
-            (Rational? measured, bool irregular) = ScanTimestamps(format, index);
+            (measured, bool irregular) = ScanTimestamps(format, index);
             vfr |= irregular;
-            // Con tasa variable el promedio (29,87…) numeraría mal; el intervalo más común es la tasa nominal.
-            if (measured is not null && (chosen is null || vfr))
-            {
-                chosen = measured;
-            }
         }
 
-        Rational rate = chosen ?? Rational.Fps30;
+        Rational rate = ResolveFrameRate(average, real, measured, vfr) ?? Rational.Fps30;
         Time start = StreamStart(stream, containerStart);
         Time? streamDuration = StreamDuration(stream, start, containerStart, containerDuration);
         long frameCount = stream->nb_frames > 0
@@ -168,6 +176,7 @@ public static unsafe class MediaProbe
             Codec = Av.CodecName(par->codec_id),
             PixelFormat = Av.PixelFormatName(pixelFormat),
             BitDepth = bitDepth,
+            Color = VideoColor.Resolve(par->color_space, par->color_range, pixelFormat, par->height),
             Width = par->width,
             Height = par->height,
             SampleAspectRatio = sar,

@@ -9,9 +9,10 @@ public sealed unsafe class CpuFramePayload : IDisposable
     private static long s_live;
     private AVFrame* _frame;
 
-    internal CpuFramePayload(AVFrame* frame)
+    internal CpuFramePayload(AVFrame* frame, VideoColor color)
     {
         _frame = frame;
+        Color = color;
         Width = frame->width;
         Height = frame->height;
         PixelFormat = (AVPixelFormat)frame->format switch
@@ -31,6 +32,9 @@ public sealed unsafe class CpuFramePayload : IDisposable
     public int Height { get; }
 
     public FramePixelFormat PixelFormat { get; }
+
+    /// <summary>Matriz y rango con que se deben convertir las muestras a RGB.</summary>
+    public VideoColor Color { get; }
 
     /// <summary>Nombre del formato según FFmpeg, útil cuando <see cref="PixelFormat"/> es <c>Other</c>.</summary>
     public string FfmpegPixelFormat { get; }

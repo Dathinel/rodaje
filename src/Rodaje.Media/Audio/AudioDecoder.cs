@@ -16,6 +16,10 @@ namespace Rodaje.Media.Audio;
 /// <see cref="Seek"/> retrocede un margen de pre-roll (el códec necesita el bloque anterior para
 /// reconstruir el primero), decodifica y descarta hasta la muestra pedida. No es seguro entre hilos.
 /// </para>
+/// <para>
+/// La salida sigue a las marcas de tiempo también a mitad del archivo: si un cuadro llega con un hueco o un
+/// solape respecto del anterior, el hueco suena como silencio y lo solapado se descarta.
+/// </para>
 /// </remarks>
 public sealed unsafe class AudioDecoder : IDisposable
 {
@@ -47,6 +51,10 @@ public sealed unsafe class AudioDecoder : IDisposable
     private long _position;
     private long _nextAppend;
     private bool _syncPending = true;
+    private bool _seekVerify;
+    private bool _frameHeld;
+    private long _expectedInput;
+    private int _expectedRate;
     private bool _inputEnded;
     private bool _finished;
     private int _consecutiveErrors;
@@ -248,6 +256,9 @@ public sealed unsafe class AudioDecoder : IDisposable
         _position = _seekTarget;
         _nextAppend = _seekTarget;
         _syncPending = true;
+        _seekVerify = true;
+        _frameHeld = false;
+        _expectedRate = 0;
         _inputEnded = _finished = false;
         _consecutiveErrors = 0;
     }
@@ -274,11 +285,39 @@ public sealed unsafe class AudioDecoder : IDisposable
         int grid = _codec->frame_size > 0 ? _codec->frame_size : frameSamples;
         if ((long)_timeBase.num * inputRate > _timeBase.den && grid > 0)
         {
+            // Tras un hueco la rejilla ya no parte del inicio del flujo: solo se ajusta si el ajuste cabe en el
+            // redondeo de la marca.
             long start = (long)Av.RoundDiv((Int128)(_streamStartTs - _originTs) * _timeBase.num * inputRate, _timeBase.den);
-            index = start + ((long)Av.RoundDiv(index - start, grid) * grid);
+            long snapped = start + ((long)Av.RoundDiv(index - start, grid) * grid);
+            if (Math.Abs(snapped - index) <= ((long)_timeBase.num * inputRate / _timeBase.den / 2) + 1)
+            {
+                index = snapped;
+            }
         }
 
         return index;
+    }
+
+    /// <summary>La marca del cuadro se aparta de donde termina el anterior, o cambió la tasa.</summary>
+    /// <remarks>
+    /// Se toleran 5 ms o dos redondeos de la base de tiempo (lo que sea mayor): menos que un cuadro de audio, para
+    /// que un salto no deje un corrimiento permanente de hasta un cuadro, y más que el baile de marcas redondeadas.
+    /// </remarks>
+    private bool IsDiscontinuity(long timestamp)
+    {
+        if (_expectedRate == 0)
+        {
+            return false;
+        }
+
+        if (_frame->sample_rate != _expectedRate)
+        {
+            return true;
+        }
+
+        long drift = InputSampleIndex(timestamp, _expectedRate, _frame->nb_samples) - _expectedInput;
+        long rounding = ((long)_timeBase.num * _expectedRate / _timeBase.den) + 1;
+        return Math.Abs(drift) > Math.Max(2 * rounding, _expectedRate / 200);
     }
 
     private static int Gcd(int a, int b)
@@ -318,18 +357,41 @@ public sealed unsafe class AudioDecoder : IDisposable
     {
         while (!_finished)
         {
-            int r = ffmpeg.avcodec_receive_frame(_codec, _frame);
+            int r = _frameHeld ? 0 : ffmpeg.avcodec_receive_frame(_codec, _frame);
+            _frameHeld = false;
             if (r == 0)
             {
                 _consecutiveErrors = 0;
                 long ts = _frame->pts != ffmpeg.AV_NOPTS_VALUE ? _frame->pts : _frame->best_effort_timestamp;
+                bool timed = ts != ffmpeg.AV_NOPTS_VALUE && _frame->sample_rate > 0;
+                if (!_syncPending && timed && IsDiscontinuity(ts))
+                {
+                    // Hueco o solape en las marcas: lo pendiente en el remuestreador sale con su posición y el
+                    // cuadro se ubica en su marca como tras un seek. Read rellena el hueco con silencio o
+                    // descarta lo solapado, porque la posición de cada muestra la da el FIFO.
+                    if (_resampler != null)
+                    {
+                        Resample(null, 0);
+                        ffmpeg.swr_close(_resampler);
+                        Av.Check(ffmpeg.swr_init(_resampler), "swr_init");
+                    }
+
+                    _syncPending = true;
+                    _seekVerify = false;
+                    if (_fifoLength > 0)
+                    {
+                        _frameHeld = true;
+                        return true;
+                    }
+                }
+
                 int skip = 0;
-                if (_syncPending && ts != ffmpeg.AV_NOPTS_VALUE && _frame->sample_rate > 0)
+                if (_syncPending && timed)
                 {
                     int inputRate = _frame->sample_rate;
                     long inputIndex = InputSampleIndex(ts, inputRate, _frame->nb_samples);
                     // El índice del contenedor dejó el seek después del objetivo: se busca más atrás.
-                    if (inputIndex * OutputSampleRate > _seekTarget * inputRate && _seekTs > _streamStartTs && _seekRetries < MaxSeekRetries)
+                    if (_seekVerify && inputIndex * OutputSampleRate > _seekTarget * inputRate && _seekTs > _streamStartTs && _seekRetries < MaxSeekRetries)
                     {
                         _seekRetries++;
                         SeekTo(_seekTs - (_prerollTs << _seekRetries));
@@ -348,9 +410,17 @@ public sealed unsafe class AudioDecoder : IDisposable
                     }
 
                     _nextAppend = (inputIndex + skip) * OutputSampleRate / inputRate;
+                    _expectedInput = inputIndex;
+                    _expectedRate = inputRate;
+                }
+                else if (_syncPending)
+                {
+                    _expectedRate = 0;
                 }
 
                 _syncPending = false;
+                _seekVerify = false;
+                _expectedInput += _frame->nb_samples;
                 ResampleFrame(skip);
                 ffmpeg.av_frame_unref(_frame);
                 return true;

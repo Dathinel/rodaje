@@ -4,7 +4,8 @@ namespace Rodaje.Media;
 /// <remarks>
 /// Orden: carpeta explícita; <c>RODAJE_FFMPEG</c>; <c>ffmpeg\</c> junto al ejecutable (distribución);
 /// <c>RODAJE_ENTORNO\ffmpeg\bin</c>; el primer <c>.entorno\ffmpeg\bin</c> subiendo desde el ejecutable; y,
-/// si en ese camino hay un worktree de git, el <c>.entorno</c> de su checkout principal.
+/// si en ese camino hay un worktree de git, el <c>.entorno</c> de su checkout principal. Si junto al ejecutable
+/// existe <c>ffmpeg\</c>, <c>RODAJE_FFMPEG</c> se ignora: la distribución usa siempre el FFmpeg LGPL que trae.
 /// </remarks>
 public static class FfmpegLocator
 {
@@ -32,9 +33,14 @@ public static class FfmpegLocator
             }
         }
 
+        string bundled = Path.Combine(baseDirectory, "ffmpeg");
         Add(explicitDirectory);
-        Add(getEnvironmentVariable("RODAJE_FFMPEG"));
-        Add(Path.Combine(baseDirectory, "ffmpeg"));
+        if (!Directory.Exists(bundled))
+        {
+            Add(getEnvironmentVariable("RODAJE_FFMPEG"));
+        }
+
+        Add(bundled);
         string? entorno = getEnvironmentVariable("RODAJE_ENTORNO");
         if (!string.IsNullOrWhiteSpace(entorno))
         {

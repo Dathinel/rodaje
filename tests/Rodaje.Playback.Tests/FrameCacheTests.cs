@@ -112,6 +112,32 @@ public class FrameCacheTests
     }
 
     [Fact]
+    public void RemoveRange_SacaSoloLoDelRangoYNoRecorreElRangoEntero()
+    {
+        using var cache = new FrameCache(1_000);
+        foreach (long i in new long[] { 3, 4, 7, 10, 2_000_000_000 })
+        {
+            cache.Add(Make(i));
+        }
+
+        Assert.Equal(2, cache.RemoveRange(4, 10));
+        Assert.True(cache.Contains(3));
+        Assert.False(cache.Contains(4));
+        Assert.False(cache.Contains(7));
+        Assert.True(cache.Contains(10));
+        Assert.Equal(0, cache.RemoveRange(10, 10));
+        Assert.Equal(0, cache.RemoveRange(11, 5));
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        Assert.Equal(2, cache.RemoveRange(5, long.MaxValue));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"Sacar un rango enorme tardó {watch.Elapsed}.");
+        Assert.Equal(1, cache.Count);
+        Assert.True(cache.Contains(3));
+        Assert.Equal(1, _tracker.Live);
+        Assert.Equal(10, cache.CostBytes);
+    }
+
+    [Fact]
     public void AccesoConcurrente_RespetaPresupuestoYNoFiltra()
     {
         using (var cache = new FrameCache(200))

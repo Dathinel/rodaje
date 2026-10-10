@@ -198,18 +198,30 @@ public sealed class AvDriftTests(ITestOutputHelper output)
     /// render a 60 Hz: se mide la distancia entre el reloj y el cuadro que se ve.
     /// </summary>
     [AcceptanceFact(longRunning: true)]
-    public void Treinta_segundos_en_tiempo_real_con_el_reloj_del_dispositivo()
+    public void Treinta_segundos_en_tiempo_real_con_el_reloj_del_dispositivo() =>
+        RealTime(TimeSpan.FromSeconds(30), "tiempo_real");
+
+    /// <summary>
+    /// El criterio 2 de punta a punta con el dispositivo real: el clip de 10 minutos entero en tiempo real, con
+    /// el reloj del dispositivo de audio (volumen 0). Solo con <c>herramientasceptacion.ps1 -Completa</c>.
+    /// </summary>
+    [AcceptanceFact(complete: true)]
+    public void Diez_minutos_en_tiempo_real_con_el_reloj_del_dispositivo() =>
+        RealTime(null, "tiempo_real_10min");
+
+    /// <param name="requested">Cuánto reproducir; <c>null</c> es el clip entero menos medio segundo.</param>
+    private void RealTime(TimeSpan? requested, string key)
     {
         MediaSpec spec = TestMediaPresets.Drift720p10Min;
         string file = AcceptanceEnvironment.MediaPath(spec);
         DecodePath path = AcceptanceEnvironment.HasHardwareDecoding ? DecodePath.Hardware : DecodePath.Software;
-        TimeSpan duration = TimeSpan.FromSeconds(30);
 
         using VideoDecoder decoder = VideoDecoder.Open(file, AcceptanceEnvironment.Options(path));
         using AudioDecoder audioDecoder = AudioDecoder.Open(file);
         using IAudioOutput audio = AudioOutput.Open(new DecoderSource(audioDecoder), new AudioOutputOptions { Volume = 0f });
         Rational rate = decoder.FrameRate;
         Time frame = Time.FromFrames(1, rate);
+        TimeSpan duration = requested ?? TimeSpan.FromSeconds(Time.FromFrames(decoder.FrameCount, rate).ToSeconds() - 0.5);
 
         var options = new PlaybackOptions();
         var timing = new ClipTiming(Time.Zero, Time.Zero, Time.FromFrames(decoder.FrameCount, rate), rate);
@@ -227,6 +239,7 @@ public sealed class AvDriftTests(ITestOutputHelper output)
         long ticks = 0;
         long inSync = 0;
         long codeErrors = 0;
+        long maxFrameError = 0;
         Time maxOffset = Time.Zero;
         long distinct = 0;
         long codeChecks = 0;
@@ -266,6 +279,7 @@ public sealed class AvDriftTests(ITestOutputHelper output)
                 }
             }
 
+            maxFrameError = Math.Max(maxFrameError, Math.Abs(shown.TargetFrame - shown.Frame.Index));
             Time offset = shown.SourceTime - shown.Frame.Pts;
             maxOffset = Time.Max(maxOffset, offset < Time.Zero ? -offset : offset);
             if (offset >= Time.Zero && offset < frame)
@@ -274,27 +288,34 @@ public sealed class AvDriftTests(ITestOutputHelper output)
             }
         }
 
+        double wallSeconds = Stopwatch.GetElapsedTime(origin).TotalSeconds;
         scheduler.Pause();
         PlaybackStats stats = scheduler.Stats;
         AudioOutputStats audioStats = audio.Stats;
         double frameMs = frame.ToSeconds() * 1000;
         double inSyncPercent = 100.0 * inSync / Math.Max(1, ticks);
-        output.Report("tiempo_real.dispositivo", $"{(audio.HasDevice ? audio.Device!.Name : "sin dispositivo: " + audio.FallbackReason)}");
-        output.Report("tiempo_real.desfase_max_ms", $"{maxOffset.ToSeconds() * 1000:0.000}");
-        output.Report("tiempo_real.desfase_max_cuadros", $"{maxOffset.ToSeconds() * 1000 / frameMs:0.000}");
-        output.Report("tiempo_real.refrescos_en_sincronia", $"{inSyncPercent:0.00}");
-        output.Report("tiempo_real.refrescos_tarde", $"{stats.LateRefreshes}/{ticks}");
+        double clockVsWallMs = (audio.Clock.Position.ToSeconds() - wallSeconds) * 1000;
+        output.Report(key + ".dispositivo", $"{(audio.HasDevice ? audio.Device!.Name : "sin dispositivo: " + audio.FallbackReason)}");
+        output.Report(key + ".duracion_s", $"{duration.TotalSeconds:0.0}");
+        output.Report(key + ".desfase_max_ms", $"{maxOffset.ToSeconds() * 1000:0.000}");
+        output.Report(key + ".desfase_max_cuadros", $"{maxOffset.ToSeconds() * 1000 / frameMs:0.000}");
+        output.Report(key + ".error_max_cuadros", $"{maxFrameError}");
+        output.Report(key + ".refrescos_en_sincronia", $"{inSyncPercent:0.00}");
+        output.Report(key + ".refrescos_tarde", $"{stats.LateRefreshes}/{ticks}");
+        output.Report(key + ".cuadros_saltados", $"{stats.FramesDropped}/{stats.FramesShown + stats.FramesDropped}");
+        output.Report(key + ".reloj_menos_pared_ms", $"{clockVsWallMs:+0.0;-0.0}");
         output.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"{spec.Name} [{path}], {duration.TotalSeconds:0} s en tiempo real: {ticks} refrescos, {inSyncPercent:0.00} % con el cuadro debido; {codeChecks} cuadros con el número comprobado; " +
-            $"desfase máximo {maxOffset.ToSeconds() * 1000:0.000} ms ({maxOffset.ToSeconds() * 1000 / frameMs:0.000} cuadros); reloj final {audio.Clock.Position}; " +
-            $"{stats}; audio: {audioStats}."));
+            $"{spec.Name} [{path}], {duration.TotalSeconds:0.0} s en tiempo real: {ticks} refrescos, {inSyncPercent:0.00} % con el cuadro debido; {codeChecks} cuadros con el número comprobado; " +
+            $"desfase máximo {maxOffset.ToSeconds() * 1000:0.000} ms ({maxOffset.ToSeconds() * 1000 / frameMs:0.000} cuadros), error máximo {maxFrameError} cuadros; " +
+            $"reloj final {audio.Clock.Position} ({clockVsWallMs:+0.0;-0.0} ms frente al reloj de pared); {stats}; audio: {audioStats}."));
 
-        Assert.True(codeChecks >= 20, $"Solo se comprobó el número de {codeChecks} cuadros.");
+        Assert.True(codeChecks >= duration.TotalSeconds * 2 / 3, $"Solo se comprobó el número de {codeChecks} cuadros.");
         Assert.Equal(0, codeErrors);
         Assert.Equal(0, stats.DecodeErrors);
         Assert.InRange(audio.Clock.Position.ToSeconds(), duration.TotalSeconds - 0.5, duration.TotalSeconds + 0.5);
         Assert.True(inSyncPercent >= 99.5, $"Solo {inSyncPercent:0.00} % de los refrescos mostraron el cuadro debido.");
         Assert.True(maxOffset < frame + frame, $"Desfase máximo {maxOffset}, un cuadro dura {frame}.");
+        Assert.True(maxFrameError <= 1, $"Llegó a verse un cuadro a {maxFrameError} del debido.");
     }
 
     private static bool NextMark(AudioMarkReader marks, List<int> missing, out SecondMark mark)

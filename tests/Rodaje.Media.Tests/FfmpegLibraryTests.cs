@@ -88,6 +88,56 @@ public sealed class FfmpegLibraryTests : IDisposable
         Assert.Null(FfmpegLocator.Find([partial]));
     }
 
+    [Fact]
+    public void A_bundled_ffmpeg_folder_ignores_RODAJE_FFMPEG()
+    {
+        string app = Path.Combine(_root, "dist");
+        string elsewhere = Path.Combine(_root, "gpl");
+        var env = new Dictionary<string, string?> { ["RODAJE_FFMPEG"] = elsewhere };
+
+        Assert.Equal(elsewhere, FfmpegLocator.Candidates(null, app, k => env.GetValueOrDefault(k))[0]);
+
+        Directory.CreateDirectory(Path.Combine(app, "ffmpeg"));
+        IReadOnlyList<string> candidates = FfmpegLocator.Candidates(null, app, k => env.GetValueOrDefault(k));
+        Assert.Equal(Path.Combine(app, "ffmpeg"), candidates[0]);
+        Assert.DoesNotContain(elsewhere, candidates);
+    }
+
+    [Fact]
+    public void License_check_refuses_gpl_and_nonfree_builds()
+    {
+        const string Lgpl = "--prefix=/ffbuild/prefix --enable-version3 --enable-shared --disable-libx264 --enable-libopenh264";
+        (string, string?)[] Configurations(string avcodec) =>
+            [("avutil", Lgpl), ("avcodec", avcodec), ("avformat", Lgpl), ("swresample", Lgpl), ("swscale", Lgpl)];
+
+        Assert.Null(FfmpegLibrary.LicenseProblem("LGPL version 3 or later", Configurations(Lgpl)));
+        Assert.Null(FfmpegLibrary.LicenseProblem("LGPL version 2.1 or later", Configurations(Lgpl + " --disable-gpl")));
+
+        string? gpl = FfmpegLibrary.LicenseProblem("LGPL version 3 or later", Configurations(Lgpl + " --enable-gpl --enable-libx264"));
+        Assert.NotNull(gpl);
+        Assert.Contains("--enable-gpl", gpl, StringComparison.Ordinal);
+        Assert.Contains("avcodec", gpl, StringComparison.Ordinal);
+
+        Assert.Contains("--enable-nonfree",
+            FfmpegLibrary.LicenseProblem("LGPL version 3 or later", Configurations("--enable-nonfree --enable-libfdk-aac")),
+            StringComparison.Ordinal);
+        Assert.Contains("GPL version 3 or later",
+            FfmpegLibrary.LicenseProblem("GPL version 3 or later", Configurations(Lgpl)),
+            StringComparison.Ordinal);
+        Assert.NotNull(FfmpegLibrary.LicenseProblem("nonfree and unredistributable", Configurations(Lgpl)));
+        Assert.NotNull(FfmpegLibrary.LicenseProblem(null, Configurations(Lgpl)));
+    }
+
+    [FfmpegFact]
+    public void The_loaded_ffmpeg_is_lgpl()
+    {
+        Assert.True(FfmpegLibrary.IsInitialized);
+        Assert.StartsWith("LGPL", FFmpeg.AutoGen.Abstractions.ffmpeg.avcodec_license(), StringComparison.Ordinal);
+        Assert.Null(FfmpegLibrary.LicenseProblem(
+            FFmpeg.AutoGen.Abstractions.ffmpeg.avcodec_license(),
+            [("avcodec", FFmpeg.AutoGen.Abstractions.ffmpeg.avcodec_configuration())]));
+    }
+
     [FfmpegFact]
     public void Loads_ffmpeg_9_by_absolute_path()
     {

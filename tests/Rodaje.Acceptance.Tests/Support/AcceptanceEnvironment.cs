@@ -22,6 +22,8 @@ internal static class AcceptanceEnvironment
 {
     public const string LongVariable = "RODAJE_PRUEBAS_LARGAS";
 
+    public const string CompleteVariable = "RODAJE_PRUEBAS_COMPLETAS";
+
     private static readonly Lazy<string?> MediaReason = new(() =>
     {
         FfmpegTool? tool = FfmpegTool.Default;
@@ -67,12 +69,17 @@ internal static class AcceptanceEnvironment
     private static readonly Lazy<TestMediaGenerator> SharedGenerator = new(() =>
         TestMediaGenerator.CreateDefault() ?? throw new InvalidOperationException(FfmpegTool.UnavailableReason));
 
-    public static string? SkipReason(bool hardware, bool longRunning)
+    public static string? SkipReason(bool hardware, bool longRunning, bool complete = false)
     {
         string? reason = hardware ? SharedGpu.Value.Reason : MediaReason.Value;
         if (reason is null && longRunning && !LongRuns)
         {
             reason = $"Omitida: prueba larga; se activa con {LongVariable}=1 (ABRIR.bat aceptacion).";
+        }
+
+        if (reason is null && complete && Environment.GetEnvironmentVariable(CompleteVariable) != "1")
+        {
+            reason = $"Omitida: prueba de 10 minutos en tiempo real; se activa con {CompleteVariable}=1 (herramientas\\aceptacion.ps1 -Completa).";
         }
 
         return reason;
@@ -152,8 +159,8 @@ internal static class AcceptanceEnvironment
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 internal sealed class AcceptanceFactAttribute : FactAttribute
 {
-    public AcceptanceFactAttribute(bool hardware = false, bool longRunning = false) =>
-        Skip = AcceptanceEnvironment.SkipReason(hardware, longRunning);
+    public AcceptanceFactAttribute(bool hardware = false, bool longRunning = false, bool complete = false) =>
+        Skip = AcceptanceEnvironment.SkipReason(hardware, longRunning || complete, complete);
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]

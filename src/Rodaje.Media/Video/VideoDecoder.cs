@@ -37,6 +37,8 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private readonly AVRational _timeBase;
     private readonly long _originTs;
     private readonly long _frameDurationTs;
+    private readonly AVColorSpace _streamColorSpace;
+    private readonly AVColorRange _streamColorRange;
     private GCHandle _self;
     private AVFormatContext* _format;
     private AVCodecContext* _codec;
@@ -81,6 +83,8 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
             }
 
             _timeBase = stream->time_base;
+            _streamColorSpace = stream->codecpar->color_space;
+            _streamColorRange = stream->codecpar->color_range;
             FrameRate = Stream.FrameRate;
             _originTs = Av.FromTime(Stream.StartTime, _timeBase);
             _frameDurationTs = Math.Max(1, (long)Av.RoundDiv((Int128)FrameRate.Den * _timeBase.den, (Int128)FrameRate.Num * _timeBase.num));
@@ -645,24 +649,25 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
         IDisposable payload;
         long sizeBytes;
+        VideoColor color = VideoColor.Resolve(clone, _streamColorSpace, _streamColorRange);
         try
         {
             if ((AVPixelFormat)clone->format == AVPixelFormat.AV_PIX_FMT_D3D11 && _device is not null)
             {
-                D3D11TexturePayload texture = D3D11TexturePayload.FromDecoderFrame(_device, clone);
+                D3D11TexturePayload texture = D3D11TexturePayload.FromDecoderFrame(_device, clone, color);
                 clone = null;
                 payload = texture;
                 sizeBytes = TextureBytes(texture);
             }
             else if (_device is not null && _uploader is not null && FrameUploader.CanUpload(_device, clone))
             {
-                D3D11TexturePayload texture = _uploader.Upload(_device, clone);
+                D3D11TexturePayload texture = _uploader.Upload(_device, clone, color);
                 payload = texture;
                 sizeBytes = TextureBytes(texture);
             }
             else
             {
-                var cpu = new CpuFramePayload(clone);
+                var cpu = new CpuFramePayload(clone, color);
                 clone = null;
                 payload = cpu;
                 AVPixFmtDescriptor* desc = ffmpeg.av_pix_fmt_desc_get((AVPixelFormat)source->format);

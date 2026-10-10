@@ -220,11 +220,9 @@ public sealed class PlaybackScheduler : IDisposable
                     // sería más reciente que lo adelantado aún sin mostrar, y el LRU expulsaría lo adelantado.
                     if (running && released is not null && released.Index < frame.Index)
                     {
-                        for (long behind = released.Index; behind < frame.Index; behind++)
-                        {
-                            _cache.Remove(behind);
-                        }
+                        _cache.RemoveRange(released.Index, frame.Index);
                     }
+
                     _shown++;
                     _lowerBound = frame.Index + 1;
                     _countDrops = true;

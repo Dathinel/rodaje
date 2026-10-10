@@ -1,11 +1,14 @@
 ﻿# Corre la aceptación de la fase 2 con el decodificador real y resume cada criterio con sus cifras.
-# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\aceptacion.ps1 [-Resumir <carpeta>]
+# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\aceptacion.ps1 [-Completa] [-Resumir <carpeta>]
+#   -Completa agrega (con RODAJE_PRUEBAS_COMPLETAS=1) el clip de 10 minutos entero en tiempo real con el reloj
+#             del dispositivo de audio a volumen 0; suma unos 11 minutos.
 #   -Resumir rehace solo el resumen de una corrida anterior (TestResults\aceptacion-<fecha-hora>), sin volver a medir.
 # Activa RODAJE_PRUEBAS_LARGAS=1 y corre, una suite tras otra y sin nada más en paralelo (las medidas en
 # tiempo real se falsean con carga): Rodaje.Acceptance.Tests y las pruebas de audio con el dispositivo real.
 # Los registros quedan en TestResults\aceptacion-<fecha-hora>\ (se conservan 5). Sale con 0 si todo pasó.
 
 param(
+    [switch]$Completa,
     [string]$Resumir = ''
 )
 
@@ -202,6 +205,12 @@ $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
 $env:DOTNET_CLI_FORCE_UTF8_ENCODING = '1'
 $env:PATH = "$DotnetDir;$env:PATH"
 $env:RODAJE_PRUEBAS_LARGAS = '1'
+if ($Completa) {
+    $env:RODAJE_PRUEBAS_COMPLETAS = '1'
+    Nota 'Corrida completa: incluye 10 minutos de reproducción en tiempo real con el dispositivo de audio.'
+} else {
+    Remove-Item Env:\RODAJE_PRUEBAS_COMPLETAS -ErrorAction SilentlyContinue
+}
 
 $Resultados = Join-Path $Raiz 'TestResults'
 New-Item -ItemType Directory -Force -Path $Resultados | Out-Null
@@ -265,7 +274,7 @@ if ($pedidos -gt 0) {
 }
 
 # Criterio 2: deriva A/V en 10 minutos.
-$deriva = @($a.Resultados | Where-Object { $_.Nombre -like '*Diez_minutos*' })
+$deriva = @($a.Resultados | Where-Object { $_.Nombre -like '*Diez_minutos_con_reloj_manual*' })
 Write-Host ''
 Mostrar-Estado 'Deriva entre audio y video menor que 1 cuadro en 10 minutos' (Estado $deriva)
 $peorMs = 0.0; $peorCuadros = 0.0
@@ -286,12 +295,24 @@ if ($medidas.ContainsKey('deriva.manual.nominal.desfase_max_ms')) {
     Nota 'un cuadro por definición (un cuadro se ve durante toda su duración); la deriva real es el error en cuadros.'
 }
 
-$real = @($a.Resultados | Where-Object { $_.Nombre -like '*tiempo_real*' })
+$real = @($a.Resultados | Where-Object { $_.Nombre -like '*Treinta_segundos_en_tiempo_real*' })
 Write-Host ''
 Mostrar-Estado 'Sincronía en tiempo real (30 s con el reloj del dispositivo de audio)' (Estado $real)
 if ($medidas.ContainsKey('tiempo_real.desfase_max_ms')) {
     Nota ('Dispositivo: {0}' -f $medidas['tiempo_real.dispositivo'])
     Nota ('Desfase máximo reloj-cuadro {0} ms ({1} cuadros); {2} % de los refrescos con el cuadro debido; refrescos tarde {3}' -f (Formato (Num $medidas['tiempo_real.desfase_max_ms']) '0.000'), (Formato (Num $medidas['tiempo_real.desfase_max_cuadros']) '0.000'), (Formato (Num $medidas['tiempo_real.refrescos_en_sincronia']) '0.00'), $medidas['tiempo_real.refrescos_tarde'])
+}
+
+$diez = @($a.Resultados | Where-Object { $_.Nombre -like '*Diez_minutos_en_tiempo_real*' })
+$diezCorrio = @($diez | Where-Object { $_.Resultado -ne 'NotExecuted' }).Count -gt 0
+if ($Completa -or $diezCorrio) {
+    Write-Host ''
+    Mostrar-Estado 'Deriva en 10 minutos de punta a punta: el clip entero en tiempo real con el reloj del dispositivo' (Estado $diez)
+    if ($medidas.ContainsKey('tiempo_real_10min.desfase_max_ms')) {
+        Nota ('Dispositivo: {0}; {1} s reproducidos' -f $medidas['tiempo_real_10min.dispositivo'], (Formato (Num $medidas['tiempo_real_10min.duracion_s']) '0.0'))
+        Nota ('Error máximo {0} cuadros; desfase máximo reloj-cuadro {1} ms ({2} cuadros); {3} % de los refrescos con el cuadro debido' -f $medidas['tiempo_real_10min.error_max_cuadros'], (Formato (Num $medidas['tiempo_real_10min.desfase_max_ms']) '0.000'), (Formato (Num $medidas['tiempo_real_10min.desfase_max_cuadros']) '0.000'), (Formato (Num $medidas['tiempo_real_10min.refrescos_en_sincronia']) '0.00'))
+        Nota ('Refrescos tarde {0}; cuadros saltados {1}; reloj del dispositivo frente al de pared al final: {2} ms' -f $medidas['tiempo_real_10min.refrescos_tarde'], $medidas['tiempo_real_10min.cuadros_saltados'], (Formato (Num $medidas['tiempo_real_10min.reloj_menos_pared_ms']) '+0.0;-0.0'))
+    }
 }
 
 # Reloj de audio: deriva frente a QPC y jitter, de la salida de WasapiHardwareTests.
@@ -308,7 +329,7 @@ foreach ($r in ($audio | Where-Object { $_.Nombre -like '*ElRelojSigueAlDisposit
 }
 
 $fallidas = @($todas | Where-Object { $_.Resultado -ne 'Passed' -and $_.Resultado -ne 'NotExecuted' })
-$omitidas = @($todas | Where-Object { $_.Resultado -eq 'NotExecuted' -and $_.Nombre -notlike '*Tono*' })
+$omitidas = @($todas | Where-Object { $_.Resultado -eq 'NotExecuted' -and $_.Nombre -notlike '*Tono*' -and ($Completa -or $_.Nombre -notlike '*Diez_minutos_en_tiempo_real*') })
 if ($omitidas.Count -gt 0) {
     Titulo 'Pruebas omitidas'
     foreach ($o in $omitidas) { Aviso ("{0}: {1}" -f ($o.Nombre -replace '^Rodaje\.[A-Za-z]+\.Tests\.', ''), $o.Mensaje) }
@@ -327,6 +348,7 @@ if ($fallidas.Count -gt 0) {
 }
 
 $estados = @((Estado $seek), (Estado $deriva), (Estado $real), (Estado $audio))
+if ($Completa) { $estados += (Estado $diez) }
 Write-Host ''
 if ($fallidas.Count -gt 0 -or $estados -contains 'FALLA') {
     Mal 'RESULTADO: la fase 2 NO cumple todos los criterios. Arriba está qué falló y con qué cifras.'

@@ -128,6 +128,57 @@ internal static class TestClips
     private static string AudioOnly(string fileName, string source, string codec) => Generated.GetOrAdd(fileName, name => new Lazy<string>(() =>
         Produce(name, temp => Try(MediaTestEnvironment.FfmpegExe, "-v", "error", "-y", "-f", "lavfi", "-i", source, "-c:a", codec, temp)))).Value;
 
+    /// <summary>
+    /// AAC con las marcas de <see cref="Rodaje.TestMedia.AudioCode"/> en dos tramos unidos con el demuxer concat: el
+    /// primero cubre [0 s, 3 s) y el segundo empieza en <c>3 s + desplazamiento</c> con el contenido que corresponde
+    /// a ese instante. Un desplazamiento positivo deja un hueco en las marcas; uno negativo, un solape.
+    /// </summary>
+    public static string AacWithTimestampJump(double offsetSeconds, string extension) => Generated.GetOrAdd(
+        string.Create(CultureInfo.InvariantCulture, $"aac-salto{offsetSeconds:+0.000;-0.000}.{extension}"),
+        name => new Lazy<string>(() => Produce(name, temp =>
+        {
+            const int Rate = 48_000;
+            string work = Path.Combine(MediaTestEnvironment.CacheDirectory, $"tmp-salto-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(work);
+            try
+            {
+                double second = 3 + offsetSeconds;
+                (string Name, long First, long Count)[] parts = [("a", 0, 3L * Rate), ("b", (long)Math.Round(second * Rate), 4L * Rate)];
+                foreach ((string part, long first, long count) in parts)
+                {
+                    var samples = new float[count * 2];
+                    Rodaje.TestMedia.AudioCode.Generate(samples, first, Rate, 2);
+                    var bytes = new byte[samples.Length * sizeof(float)];
+                    Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
+                    File.WriteAllBytes(Path.Combine(work, part + ".raw"), bytes);
+                    if (!Try(MediaTestEnvironment.FfmpegExe, "-v", "error", "-y", "-f", "f32le", "-ar", "48000", "-ac", "2",
+                        "-i", Path.Combine(work, part + ".raw"), "-c:a", "aac", "-b:a", "192k", Path.Combine(work, part + ".mkv")))
+                    {
+                        return false;
+                    }
+                }
+
+                File.WriteAllText(Path.Combine(work, "lista.txt"), string.Create(CultureInfo.InvariantCulture,
+                    $"file 'a.mkv'\nduration {second:0.000}\nfile 'b.mkv'\n"));
+                return Try(MediaTestEnvironment.FfmpegExe, "-v", "error", "-y", "-f", "concat", "-safe", "0",
+                    "-i", Path.Combine(work, "lista.txt"), "-c", "copy", temp);
+            }
+            finally
+            {
+                Directory.Delete(work, recursive: true);
+            }
+        }))).Value;
+
+    /// <summary>El clip H.264 reempaquetado con la matriz y el rango que declara su VUI cambiados (sin recodificar).</summary>
+    /// <param name="matrixCoefficients">Código H.273: 1 = BT.709, 6 = BT.601 (SMPTE 170M).</param>
+    public static string TaggedColor(int matrixCoefficients, bool fullRange) => Generated.GetOrAdd(
+        string.Create(CultureInfo.InvariantCulture, $"color-m{matrixCoefficients}-{(fullRange ? "pc" : "tv")}.mp4"),
+        name => new Lazy<string>(() => Produce(name, temp => Try(MediaTestEnvironment.FfmpegExe, "-v", "error", "-y",
+            "-i", PathOf(H264), "-map", "0:v", "-c", "copy",
+            "-bsf:v", string.Create(CultureInfo.InvariantCulture,
+                $"h264_metadata=video_full_range_flag={(fullRange ? 1 : 0)}:matrix_coefficients={matrixCoefficients}:colour_primaries={matrixCoefficients}:transfer_characteristics={matrixCoefficients}"),
+            temp)))).Value;
+
     /// <summary>Video de tasa variable: cada quinto cuadro llega 10 ms tarde.</summary>
     public static string VariableFrameRate() => Generated.GetOrAdd("vfr-30.mp4", name => new Lazy<string>(() =>
         Produce(name, temp => EncodeVideo(temp, ClipCodec.H264, gop: 30, bFrames: 0,
@@ -139,24 +190,73 @@ internal static class TestClips
         Produce(name, temp => Try(MediaTestEnvironment.FfmpegExe, "-v", "error", "-y", "-display_rotation", "270",
             "-i", PathOf(H264), "-c", "copy", "-bsf:v", "h264_metadata=sample_aspect_ratio=4/3", temp)))).Value;
 
-    /// <summary>Copia del clip con bloques de bytes basura en medio de los datos.</summary>
-    public static string Corrupted(ClipSpec spec) => Generated.GetOrAdd("danado-" + spec.FileName, name => new Lazy<string>(() =>
+    /// <summary>Cuadros (en orden de presentación) cuyos paquetes de video daña <see cref="Corrupted"/>.</summary>
+    public static IReadOnlyList<int> CorruptedFrames { get; } = [100, 105, 110, 121, 130, 150, 151, 165, 170, 180];
+
+    /// <summary>
+    /// Copia del clip con paquetes de video dañados por dentro: a la mitad se les rompe el prefijo de longitud de
+    /// la primera NAL (el decodificador rechaza el paquete) y a la otra mitad se les llena de basura el centro.
+    /// </summary>
+    public static string Corrupted(ClipSpec spec) => Generated.GetOrAdd("danado-paquetes-" + spec.FileName, name => new Lazy<string>(() =>
         Produce(name, temp =>
         {
-            byte[] bytes = File.ReadAllBytes(PathOf(spec));
+            string clip = PathOf(spec);
+            byte[] bytes = File.ReadAllBytes(clip);
             var random = new Random(1234);
-            foreach (double at in new[] { 0.3, 0.5, 0.7 })
+            List<(double Pts, long Position, int Size)> packets = VideoPackets(clip);
+            double first = packets.Min(p => p.Pts);
+            double rate = (double)spec.RateNum / spec.RateDen;
+            int damaged = 0;
+            foreach ((double pts, long position, int size) in packets)
             {
-                int start = (int)(bytes.Length * at);
-                for (int i = 0; i < 1500 && start + i < bytes.Length; i++)
+                int which = CorruptedFrames.ToList().IndexOf((int)Math.Round((pts - first) * rate));
+                if (which < 0 || size < 64)
                 {
-                    bytes[start + i] = (byte)random.Next(256);
+                    continue;
                 }
+
+                if (which % 2 == 0)
+                {
+                    bytes.AsSpan((int)position, 4).Fill(0xFF);
+                }
+                else
+                {
+                    int from = (int)position + (size / 4);
+                    for (int i = 0; i < size / 2; i++)
+                    {
+                        bytes[from + i] = (byte)random.Next(256);
+                    }
+                }
+
+                damaged++;
+            }
+
+            if (damaged != CorruptedFrames.Count)
+            {
+                throw new InvalidOperationException($"Solo se encontraron {damaged} de {CorruptedFrames.Count} paquetes para dañar en {clip}.");
             }
 
             File.WriteAllBytes(temp, bytes);
             return true;
         }))).Value;
+
+    /// <summary>Paquetes del primer video según ffprobe: marca de presentación en segundos, posición y tamaño.</summary>
+    private static List<(double Pts, long Position, int Size)> VideoPackets(string clip)
+    {
+        string output = RunTool(MediaTestEnvironment.FfprobeExe, "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "packet=pts_time,pos,size", "-of", "csv=p=0", clip);
+        var packets = new List<(double, long, int)>();
+        foreach (string line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            string[] fields = line.Split(',');
+            packets.Add((
+                double.Parse(fields[0], CultureInfo.InvariantCulture),
+                long.Parse(fields[2], CultureInfo.InvariantCulture),
+                int.Parse(fields[1], CultureInfo.InvariantCulture)));
+        }
+
+        return packets;
+    }
 
     public static ulong HashLuma(ReadOnlySpan<byte> luma)
     {

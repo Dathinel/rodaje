@@ -103,6 +103,8 @@ public sealed class VideoDecoderBehaviorTests
     public void Corrupted_packets_are_skipped_without_throwing()
     {
         string clip = TestClips.Corrupted(TestClips.H264);
+        IReadOnlyList<ulong> reference = TestClips.LumaReference(TestClips.H264);
+        int recovered = FirstKeyFrameAfterCorruption();
         using VideoDecoder decoder = VideoDecoder.Open(clip, DecodeModes.Options(DecodeMode.SoftwareCpu));
         int delivered = 0;
         for (int n = 0; n < TestClips.H264.Frames; n++)
@@ -111,15 +113,25 @@ public sealed class VideoDecoderBehaviorTests
             if (frame is not null)
             {
                 Assert.Equal(n, frame.Index);
-                FrameReadback.ReadLuma(frame);
+                ulong hash = Hash(frame);
+                if (n < TestClips.CorruptedFrames[0] - TestClips.H264.BFrames - 1 || n >= recovered)
+                {
+                    Assert.True(reference[n] == hash, $"El cuadro {n}, fuera de la zona dañada, no coincide con la referencia.");
+                }
+
                 delivered++;
             }
         }
 
+        Assert.True(decoder.Statistics.DecodeErrors > 0, "El archivo dañado no produjo ningún error de decodificación.");
         Assert.True(delivered > TestClips.H264.Frames / 2, $"Solo se entregaron {delivered} cuadros.");
-        foreach (int n in new[] { 200, 3, 150, 95, 299 })
+        foreach (int n in new[] { 200, 3, 150, 95, 299, 121 })
         {
-            decoder.GetFrame(n)?.Dispose();
+            using DecodedFrame? frame = decoder.GetFrame(n);
+            if (n >= recovered || n < TestClips.CorruptedFrames[0] - TestClips.H264.BFrames - 1)
+            {
+                Assert.Equal(reference[n], Hash(frame!));
+            }
         }
     }
 
@@ -127,15 +139,29 @@ public sealed class VideoDecoderBehaviorTests
     public void Corrupted_packets_are_skipped_in_hardware_too()
     {
         string clip = TestClips.Corrupted(TestClips.H264);
+        IReadOnlyList<ulong> reference = TestClips.LumaReference(TestClips.H264);
+        int recovered = FirstKeyFrameAfterCorruption();
         using VideoDecoder decoder = VideoDecoder.Open(clip, DecodeModes.Options(DecodeMode.Hardware));
         int delivered = 0;
         foreach (int n in Enumerable.Range(0, TestClips.H264.Frames).Concat([10, 280, 140]))
         {
             using DecodedFrame? frame = decoder.GetFrame(n);
             delivered += frame is null ? 0 : 1;
+            if (n >= recovered)
+            {
+                Assert.True(frame is not null && reference[n] == Hash(frame), $"El cuadro {n}, después de la zona dañada, no coincide con la referencia.");
+            }
         }
 
+        Assert.True(decoder.UsesHardwareDecoding);
+        Assert.True(decoder.Statistics.DecodeErrors > 0, "El archivo dañado no produjo ningún error de decodificación.");
         Assert.True(delivered > TestClips.H264.Frames / 2, $"Solo se entregaron {delivered} cuadros.");
+    }
+
+    private static int FirstKeyFrameAfterCorruption()
+    {
+        int last = TestClips.CorruptedFrames.Max();
+        return TestClips.KeyFrames(TestClips.H264).First(k => k > last + 2);
     }
 
     [FfmpegFact]

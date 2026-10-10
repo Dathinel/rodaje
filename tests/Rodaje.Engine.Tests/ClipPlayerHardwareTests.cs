@@ -37,9 +37,10 @@ public sealed class ClipPlayerHardwareTests
     {
         GeneratedMedia clip = TestMediaGenerator.CreateDefault()!.GetOrCreate(TestMediaPresets.H264Ntsc24Aac);
         using GpuDevice gpu = GpuDevice.Create();
-        using ClipPlayer player = ClipPlayer.Open(clip.Path, new ClipPlayerOptions { Device = gpu });
+        using ClipPlayer player = ClipPlayer.Open(clip.Path, new ClipPlayerOptions { Device = gpu, EnableAudio = false });
 
         Assert.Equal(clip.Spec.FrameCount, player.FrameCount);
+        Assert.False(player.HasAudioDevice);
         foreach (long frame in new long[] { 0, 100, 37, 500, 501 })
         {
             player.SeekToFrame(frame);

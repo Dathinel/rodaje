@@ -141,6 +141,43 @@ public sealed class FrameCache : IDisposable
         return removed is not null;
     }
 
+    /// <summary>Saca los cuadros de <c>[fromIndex, toIndex)</c>; cuesta lo menor entre el rango y lo guardado.</summary>
+    public int RemoveRange(long fromIndex, long toIndex)
+    {
+        List<DecodedFrame>? removed = null;
+        lock (_gate)
+        {
+            if (toIndex > fromIndex && toIndex - fromIndex <= _byIndex.Count)
+            {
+                for (long i = fromIndex; i < toIndex; i++)
+                {
+                    if (_byIndex.TryGetValue(i, out LinkedListNode<DecodedFrame>? node))
+                    {
+                        (removed ??= []).Add(node.Value);
+                        RemoveNode(node);
+                    }
+                }
+            }
+            else if (toIndex > fromIndex)
+            {
+                for (LinkedListNode<DecodedFrame>? node = _recency.First; node is not null;)
+                {
+                    LinkedListNode<DecodedFrame>? next = node.Next;
+                    if (node.Value.Index >= fromIndex && node.Value.Index < toIndex)
+                    {
+                        (removed ??= []).Add(node.Value);
+                        RemoveNode(node);
+                    }
+
+                    node = next;
+                }
+            }
+        }
+
+        removed?.ForEach(f => f.Dispose());
+        return removed?.Count ?? 0;
+    }
+
     public void Clear()
     {
         List<DecodedFrame> all;

@@ -128,6 +128,13 @@
         "dependencies": {
           "Rodaje.Core": "[1.0.0, )"
         }
+      },
+      "rodaje.testmedia": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Core": "[1.0.0, )",
+          "xunit.extensibility.core": "[2.9.3, )"
+        }
       }
     }
   }

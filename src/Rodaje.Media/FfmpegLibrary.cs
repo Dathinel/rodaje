@@ -5,7 +5,7 @@ using FFmpeg.AutoGen.Bindings.DynamicallyLinked;
 
 namespace Rodaje.Media;
 
-/// <summary>Carga única de las DLL de FFmpeg 9 por ruta absoluta, con comprobación de versión.</summary>
+/// <summary>Carga única de las DLL de FFmpeg 9 por ruta absoluta, con comprobación de versión y de licencia LGPL.</summary>
 /// <remarks>
 /// El resolver de DllImport nunca devuelve 0: si lo hiciera, Windows buscaría la DLL en el <c>PATH</c>,
 /// donde puede haber un FFmpeg GPL o de otra versión.
@@ -115,8 +115,47 @@ public static class FfmpegLibrary
         CheckMajor("avformat", ffmpeg.avformat_version());
         CheckMajor("swresample", ffmpeg.swresample_version());
         CheckMajor("swscale", ffmpeg.swscale_version());
+        string? licenseProblem = LicenseProblem(
+            ffmpeg.avcodec_license(),
+            [
+                ("avutil", ffmpeg.avutil_configuration()),
+                ("avcodec", ffmpeg.avcodec_configuration()),
+                ("avformat", ffmpeg.avformat_configuration()),
+                ("swresample", ffmpeg.swresample_configuration()),
+                ("swscale", ffmpeg.swscale_configuration()),
+            ]);
+        if (licenseProblem is not null)
+        {
+            throw new FfmpegNotFoundException($"{licenseProblem} Rodaje es MIT y solo puede cargar un FFmpeg LGPL. "
+                + $"Bibliotecas en {directory}. {MissingMessage}");
+        }
+
         ffmpeg.av_log_set_level(ffmpeg.AV_LOG_FATAL);
         _directory = directory;
+    }
+
+    /// <summary>Motivo en español por el que un FFmpeg no es LGPL, o <c>null</c> si lo es.</summary>
+    /// <remarks>Rechaza <c>--enable-gpl</c> o <c>--enable-nonfree</c> en la configuración de cualquier biblioteca.</remarks>
+    internal static string? LicenseProblem(string? license, IReadOnlyList<(string Library, string? Configuration)> configurations)
+    {
+        foreach ((string library, string? configuration) in configurations)
+        {
+            string[] flags = (configuration ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string forbidden in (string[])["--enable-gpl", "--enable-nonfree"])
+            {
+                if (flags.Contains(forbidden, StringComparer.Ordinal))
+                {
+                    return $"El FFmpeg encontrado se compiló con {forbidden} ({library}).";
+                }
+            }
+        }
+
+        if (license is null || !license.StartsWith("LGPL", StringComparison.Ordinal))
+        {
+            return $"El FFmpeg encontrado tiene licencia \"{license}\" y no LGPL.";
+        }
+
+        return null;
     }
 
     private static nint LoadFrom(string directory, string name)

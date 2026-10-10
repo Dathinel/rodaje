@@ -18,7 +18,8 @@ internal sealed unsafe class FrameUploader : IDisposable
     public static bool CanUpload(GpuDevice device, AVFrame* frame) =>
         TargetIsTenBit(frame) ? device.SupportsP010Textures : device.SupportsNv12Textures;
 
-    public D3D11TexturePayload Upload(GpuDevice device, AVFrame* frame)
+    /// <summary>Sube el cuadro; <paramref name="color"/> dice cómo leer sus muestras y se ajusta si hay conversión.</summary>
+    public D3D11TexturePayload Upload(GpuDevice device, AVFrame* frame, VideoColor color)
     {
         var format = (AVPixelFormat)frame->format;
         bool tenBit = TargetIsTenBit(frame);
@@ -27,6 +28,7 @@ internal sealed unsafe class FrameUploader : IDisposable
             or AVPixelFormat.AV_PIX_FMT_YUV420P10LE or AVPixelFormat.AV_PIX_FMT_P010LE))
         {
             source = Convert(frame, tenBit ? AVPixelFormat.AV_PIX_FMT_P010LE : AVPixelFormat.AV_PIX_FMT_NV12);
+            color = ConvertedColor(format, color);
         }
 
         int width = source->width;
@@ -52,7 +54,7 @@ internal sealed unsafe class FrameUploader : IDisposable
 
                 var texture = device.CreateTexture(tenBit ? DXGI_FORMAT.DXGI_FORMAT_P010 : DXGI_FORMAT.DXGI_FORMAT_NV12,
                     (uint)evenWidth, (uint)evenHeight, destination, (uint)pitch);
-                return D3D11TexturePayload.FromOwnedTexture(device, texture, width, height);
+                return D3D11TexturePayload.FromOwnedTexture(device, texture, width, height, color);
             }
         }
         finally
@@ -152,6 +154,23 @@ internal sealed unsafe class FrameUploader : IDisposable
                 row[(2 * x) + 1] = (ushort)(v[x] << 6);
             }
         }
+    }
+
+    /// <summary>
+    /// swscale sin rangos explícitos lleva los <c>yuvj</c> a rango limitado, deja igual el resto de Y'CbCr y pasa
+    /// RGB a BT.601 limitado.
+    /// </summary>
+    internal static VideoColor ConvertedColor(AVPixelFormat source, VideoColor color)
+    {
+        AVPixFmtDescriptor* desc = ffmpeg.av_pix_fmt_desc_get(source);
+        if (desc != null && (desc->flags & (ulong)ffmpeg.AV_PIX_FMT_FLAG_RGB) != 0)
+        {
+            return new VideoColor(YuvMatrix.Bt601, false);
+        }
+
+        bool jpeg = source is AVPixelFormat.AV_PIX_FMT_YUVJ420P or AVPixelFormat.AV_PIX_FMT_YUVJ422P
+            or AVPixelFormat.AV_PIX_FMT_YUVJ444P or AVPixelFormat.AV_PIX_FMT_YUVJ440P or AVPixelFormat.AV_PIX_FMT_YUVJ411P;
+        return jpeg ? color with { FullRange = false } : color;
     }
 
     private AVFrame* Convert(AVFrame* frame, AVPixelFormat target)

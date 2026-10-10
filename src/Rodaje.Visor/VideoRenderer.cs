@@ -306,10 +306,12 @@ internal sealed unsafe class VideoRenderer : IDisposable
         float uMax = (float)frame.Width / frame.CodedWidth;
         float vMax = (float)frame.Height / frame.CodedHeight;
         QuadTexCoords uv = VideoLayout.Corners(request.Rotation, uMax, vMax);
-        YuvRange range = YuvRange.For(frame.PixelFormat == FramePixelFormat.P010);
+        YuvRange range = YuvRange.For(frame.PixelFormat == FramePixelFormat.P010, frame.Color.FullRange);
+        YuvToRgb toRgb = YuvToRgb.For(frame.Color.Matrix);
         var constants = new FrameConstants
         {
             Range = new(range.LumaScale, range.LumaBias, range.ChromaScale, range.ChromaBias),
+            ToRgb = new(toRgb.RedFromCr, toRgb.GreenFromCb, toRgb.GreenFromCr, toRgb.BlueFromCb),
             Limits = new(
                 (frame.Width - 0.5f) / frame.CodedWidth,
                 (frame.Height - 0.5f) / frame.CodedHeight,
@@ -454,6 +456,7 @@ internal sealed unsafe class VideoRenderer : IDisposable
         public Float4 Range;
         public Float4 Limits;
         public Float4 Color;
+        public Float4 ToRgb;
     }
 
     [StructLayout(LayoutKind.Sequential)]

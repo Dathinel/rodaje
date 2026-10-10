@@ -1,5 +1,6 @@
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
+using Rodaje.Media.Video;
 
 namespace Rodaje.Media.Probe;
 
@@ -57,6 +58,9 @@ public sealed record VideoStreamInfo
     public required string PixelFormat { get; init; }
 
     public required int BitDepth { get; init; }
+
+    /// <summary>Matriz y rango que declara el flujo, o los habituales para su tamaño si no los declara.</summary>
+    public VideoColor Color { get; init; } = VideoColor.Bt709Limited;
 
     /// <summary>Tamaño del cuadro decodificado, antes de aplicar rotación o relación de aspecto del píxel.</summary>
     public required int Width { get; init; }

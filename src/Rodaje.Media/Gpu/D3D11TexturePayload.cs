@@ -70,6 +70,9 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
 
     public int Height { get; }
 
+    /// <summary>Matriz y rango con que el renderizador debe convertir las muestras a RGB.</summary>
+    public VideoColor Color { get; private init; } = VideoColor.Bt709Limited;
+
     /// <summary>La textura es del pool de D3D11VA (y no una subida desde la CPU).</summary>
     public bool IsDecoderSurface => _frame != null;
 
@@ -119,16 +122,16 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
     }
 
     /// <summary>Envuelve un cuadro de D3D11VA y se queda con <paramref name="frame"/>.</summary>
-    internal static D3D11TexturePayload FromDecoderFrame(GpuDevice device, FF.AVFrame* frame)
+    internal static D3D11TexturePayload FromDecoderFrame(GpuDevice device, FF.AVFrame* frame, VideoColor color)
     {
         var texture = (ID3D11Texture2D*)frame->data[0];
         int slice = (int)(nint)frame->data[1];
-        return new D3D11TexturePayload(device, texture, slice, frame->width, frame->height) { _frame = frame };
+        return new D3D11TexturePayload(device, texture, slice, frame->width, frame->height) { _frame = frame, Color = color };
     }
 
     /// <summary>Envuelve una textura propia y se queda con su referencia.</summary>
-    internal static D3D11TexturePayload FromOwnedTexture(GpuDevice device, ID3D11Texture2D* texture, int width, int height) =>
-        new(device, texture, 0, width, height) { _ownedTexture = texture };
+    internal static D3D11TexturePayload FromOwnedTexture(GpuDevice device, ID3D11Texture2D* texture, int width, int height, VideoColor color) =>
+        new(device, texture, 0, width, height) { _ownedTexture = texture, Color = color };
 
     private void Free()
     {

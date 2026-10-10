@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Media\Rodaje.Media.csproj" />
+    <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -16,7 +16,8 @@ internal static unsafe class Shaders
     // corners[i]: xy = posición en NDC, zw = coordenada de textura; orden TL, TR, BL, BR (tira de triángulos).
     // range: escala y desplazamiento de luma y croma (YuvRange). limits: tope de uv para luma (xy) y croma (zw),
     // a medio texel del borde visible, para que el filtro no mezcle el relleno del decodificador.
-    // BT.709 en rango limitado; BT.2020 y PQ/HLG quedan fuera de la fase 2.
+    // toRgb: coeficientes de la matriz del cuadro (YuvToRgb: BT.601, BT.709 o BT.2020). Las curvas PQ/HLG y la
+    // conversión de primarios quedan fuera de la fase 2.
     private const string Source = """
         cbuffer Frame : register(b0)
         {
@@ -24,6 +25,7 @@ internal static unsafe class Shaders
             float4 range;
             float4 limits;
             float4 color;
+            float4 toRgb;
         };
 
         Texture2DArray<float> lumaPlane : register(t0);
@@ -50,9 +52,9 @@ internal static unsafe class Shaders
             float y = lumaPlane.SampleLevel(linearClamp, float3(min(i.uv, limits.xy), 0), 0) * range.x + range.y;
             float2 c = chromaPlane.SampleLevel(linearClamp, float3(min(i.uv, limits.zw), 0), 0) * range.z + range.w;
             float3 rgb = float3(
-                y + 1.5748 * c.y,
-                y - 0.187324 * c.x - 0.468124 * c.y,
-                y + 1.8556 * c.x);
+                y + toRgb.x * c.y,
+                y - toRgb.y * c.x - toRgb.z * c.y,
+                y + toRgb.w * c.x);
             return float4(saturate(rgb), 1);
         }
 

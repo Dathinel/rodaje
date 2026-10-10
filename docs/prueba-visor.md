@@ -38,7 +38,7 @@ Usa al menos un video tuyo de teléfono o cámara (H.264 o HEVC, idealmente uno 
 6. **Ventana.** Cambia el tamaño de la ventana, maximízala, pulsa F y luego Esc.
    - Bien: la imagen conserva su proporción con barras negras arriba y abajo o a los lados, nunca se estira; un video vertical se ve vertical.
 7. **Colores.** Compara con el reproductor de Windows.
-   - Bien: los colores y el contraste se ven iguales (negros negros, sin tono lavado). Un video HDR (HLG o PQ) se verá lavado: es esperado, esta fase solo convierte BT.709 (ver abajo).
+   - Bien: los colores y el contraste se ven iguales (negros negros, sin tono lavado). Un video HDR (HLG o PQ) se verá lavado: es esperado, esta fase convierte BT.601, BT.709 y la matriz de BT.2020, pero no las curvas HDR (ver abajo).
 8. **Sin audio.** Desconecta los audífonos o desactiva la salida mientras suena.
    - Bien: el video sigue; al volver el dispositivo, vuelve el sonido sincronizado. Con I, el título dice el dispositivo o por qué no hay sonido.
 
@@ -60,6 +60,6 @@ Cómo leer las cifras:
 
 ## Fuera de esta fase
 
-- Solo BT.709 en rango limitado. BT.2020, PQ y HLG (HDR) se ven con colores incorrectos; el croma se muestrea en el centro, sin corregir el desplazamiento de 4:2:0.
+- Matrices BT.601, BT.709 y BT.2020 en rango limitado o completo; las curvas PQ y HLG (HDR) y los primarios de BT.2020 no se convierten, así que el HDR se ve con colores incorrectos; el croma se muestrea en el centro, sin corregir el desplazamiento de 4:2:0.
 - Un solo archivo, sin línea de tiempo ni capas (fase 3).
 - Mientras se arrastra o redimensiona la ventana con el ratón, Windows detiene el bucle de la ventana y la imagen se congela un momento; el audio sigue.
