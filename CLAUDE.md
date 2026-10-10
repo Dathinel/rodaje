@@ -61,14 +61,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
    - el armazón: servicios, tema y atajos;
    - las vistas en paralelo: línea de tiempo con la barra estilo Vegas y la pista principal magnética, biblioteca y complementos, inspector de keyframes, página de atajos, medidores y paneles.
 2. **Cuando la interfaz esté usable, Daniel la prueba.** Se para y se le dice qué probar.
-3. **Pendiente de la mini revisión:**
-   - centralizar las `RODAJE_*`;
-   - unificar los atributos de salto;
-   - un módulo común para los scripts;
-   - mover `TestMedia` a `testing/`;
-   - dividir la guía técnica por capas;
-   - actualizar `probar.json`;
-   - retirar el visor cuando la app lo reemplace.
+3. Retirar el visor cuando la app lo reemplace.
 
 ## Decisiones
 
