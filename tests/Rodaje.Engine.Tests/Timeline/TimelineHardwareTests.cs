@@ -78,6 +78,7 @@ public sealed class TimelineHardwareTests(ITestOutputHelper output)
     }
 
     [HardwareFact(VideoCodec.H264, Audio = AudioCodec.Aac)]
+    [Trait("Categoria", "TiempoReal")]
     public void Cuts_with_pre_roll_arrive_on_time_when_playing_at_60_hz()
     {
         (Project project, TimelinePlan plan) = BuildProject();
@@ -88,13 +89,15 @@ public sealed class TimelineHardwareTests(ITestOutputHelper output)
         session.ResetStats();
 
         session.Play();
-        Time refresh = Time.FromFrames(1, Rational.Fps60);
-        int refreshes = (int)(plan.Duration.Ticks / refresh.Ticks) - 2;
-        var watch = Stopwatch.StartNew();
+        Time start = backend.Clock.Position;
+        long lastRefresh = (plan.Duration.Ticks / Time.FromFrames(1, Rational.Fps60).Ticks) - 2;
+        var pacer = new WallClockPacer(60);
+        long refreshes = 0;
         long wrong = 0;
-        for (int i = 0; i < refreshes; i++)
+        for (long slot = pacer.Next(); slot <= lastRefresh; slot = pacer.Next())
         {
-            backend.Clock.Advance(refresh);
+            backend.Clock.Advance(start + Time.FromFrames(slot, Rational.Fps60) - backend.Clock.Position);
+            refreshes++;
             using (CompositionFrame shown = session.Tick())
             {
                 foreach (LayerFrame layer in shown.Layers)
@@ -106,16 +109,10 @@ public sealed class TimelineHardwareTests(ITestOutputHelper output)
                     }
                 }
             }
-
-            TimeSpan due = TimeSpan.FromTicks((long)((i + 1) * (TimeSpan.TicksPerSecond / 60.0)));
-            while (watch.Elapsed < due)
-            {
-                Thread.Sleep(1);
-            }
         }
 
         TimelineStats stats = session.Stats;
-        output.WriteLine($"{refreshes} refrescos a 60 Hz; cortes {stats.Cuts}, pre-roll {stats.PreRollHits}/{stats.PreRollHits + stats.PreRollMisses} " +
+        output.WriteLine($"{refreshes} refrescos a 60 Hz ({pacer.Skipped} saltados por llegar tarde el bucle); cortes {stats.Cuts}, pre-roll {stats.PreRollHits}/{stats.PreRollHits + stats.PreRollMisses} " +
             $"({stats.PreRollHitRate:P0}), tarde en cortes {stats.LateAtCuts}, tarde en total {stats.LateRefreshes}, cuadros saltados {stats.FramesDropped}, " +
             $"mostrados {stats.FramesShown}, refrescos con cuadro distinto del debido {wrong}, decodificadores {stats.DecodersOpen}, " +
             $"seeks de keyframe {stats.DecoderSeeks}, caché {stats.CacheBytes / (1024 * 1024)} MB de {stats.CacheBudgetBytes / (1024 * 1024)} MB.");

@@ -40,18 +40,20 @@ internal static class AcceptanceEnvironment
 
     public static string MediaPath(MediaSpec spec) => Generator.GetOrCreate(spec).Path;
 
+    /// <remarks>Por software usa la mitad de los hilos: la otra mitad queda para el reloj y el resto del equipo.</remarks>
     public static VideoDecoderOptions Options(DecodePath path) => path == DecodePath.Hardware
         ? new VideoDecoderOptions { Device = Gpu ?? throw new InvalidOperationException("No hay GPU con D3D11VA.") }
-        : new VideoDecoderOptions();
+        : new VideoDecoderOptions { SoftwareThreads = Math.Max(1, Environment.ProcessorCount / 2) };
 
     /// <summary>
-    /// Caché con lugar para la ventana adelantada más unos cuadros, medida con el tamaño real que el
-    /// decodificador declara (en GPU es el de la textura del pool, que puede ser mayor que el cuadro visible).
+    /// Caché con lugar para dos ventanas adelantadas más dos cuadros (y nunca menos de 18), medida con el tamaño real
+    /// que el decodificador declara (en GPU es el de la textura del pool, que puede ser mayor que el cuadro visible).
     /// </summary>
+    /// <remarks>La caché es LRU: con menos lugar, lo adelantado se expulsa antes de verse (D-015).</remarks>
     public static Rodaje.Playback.FrameCache CacheFor(VideoDecoder decoder, Rodaje.Playback.PlaybackOptions options)
     {
         using Rodaje.Playback.DecodedFrame first = decoder.GetFrame(0) ?? throw new InvalidOperationException("El medio no tiene cuadro 0.");
-        return new Rodaje.Playback.FrameCache(first.SizeBytes * (options.PrefetchFrames + 4));
+        return new Rodaje.Playback.FrameCache(first.SizeBytes * Math.Max(18, (2 * options.PrefetchFrames) + 2));
     }
 
     /// <summary>Lee el código dibujado en el cuadro; null si no se distingue.</summary>
