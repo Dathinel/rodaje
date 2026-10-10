@@ -185,6 +185,27 @@ public class ClipPropertyEditorTests
     });
 
     [Fact]
+    public void Esc_EnElPrimerArrastre_RevierteSinRomperAlSoltar() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        int steps = h.Session.History.Count;
+        h.Editor.BeginChange(h.Video, Transform, P.Scale, "Cambiar escala");
+        Assert.True(h.Editor.Change(2));
+
+        h.Session.CancelGesture();
+        Assert.False(h.Editor.Change(3));
+        h.Editor.EndChange();
+
+        Assert.Null(ClipPropertyEditor.FindEffect(h.Video, Transform));
+        Assert.Equal(steps, h.Session.History.Count);
+        Assert.False(h.Session.IsInGesture);
+
+        h.Drag(P.Scale, 1.5);
+        Assert.Equal(1.5, h.Parameter(P.Scale)!.Value);
+        Assert.Equal(steps + 1, h.Session.History.Count);
+    });
+
+    [Fact]
     public void FueraDelClip_NoSePonenKeyframesNiSeEditaLoAnimado() => UiThread.Run(async () =>
     {
         Harness h = await Harness.WithClip();

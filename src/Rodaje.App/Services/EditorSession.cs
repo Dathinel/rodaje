@@ -269,10 +269,15 @@ public sealed partial class EditorSession : ObservableObject
         History.BeginGroup(description);
     }
 
+    /// <summary>Cierra el gesto abierto; si ya se canceló (Esc), no hace nada más que cortar la fusión.</summary>
     public void EndGesture()
     {
         VerifyAccess();
-        History.EndGroup();
+        if (History.IsInGroup)
+        {
+            History.EndGroup();
+        }
+
         History.BreakMerge();
     }
 
