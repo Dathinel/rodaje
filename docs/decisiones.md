@@ -173,3 +173,23 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - Un decodificador por clip: evita los seeks cuando un mismo medio está en dos pistas a la vez, a costa de más VRAM; se puede añadir si la prueba humana lo pide.
 
 **Consecuencias.** Un mismo medio visible en dos pistas en posiciones lejanas obliga a su decodificador a buscar keyframes alternando entre ellas. Con un presupuesto muy justo la caché no reduce las ventanas: degrada a cuadros tarde, nunca a decodificar sin fin.
+
+## D-018. Dirección de la interfaz (9 de octubre de 2026)
+
+**Decisión.** La interfaz de la fase 4 sigue la maqueta aprobada en la conversación (artefacto «Rodaje — maqueta de interfaz»):
+- **Distribución estilo CapCut:** riel de íconos con biblioteca a la izquierda, reproductor al centro, propiedades a la derecha y línea de tiempo abajo.
+- **Pista principal magnética:** se puede desactivar.
+- **Barra de la línea de tiempo estilo Vegas:**
+  - herramientas normal, envolvente, selección y zoom;
+  - ajuste;
+  - ripple automático con tres modos;
+  - fundido cruzado automático;
+  - bloquear envolventes e ignorar grupos;
+  - cortar y recortar inicio o final en el cursor;
+  - marcadores y regiones.
+- **Inspector como editor de keyframes:** cada parámetro tiene un rombo y una curva, y el botón «Guardar como transición» la deja lista para publicarla como paquete.
+- **Atajos:** una página con búsqueda, cambio de tecla con un clic, intercambio cuando hay conflicto y estilos Rodaje, CapCut y Vegas.
+- **Gestor de complementos:** paquetes y módulos de IA, cada uno en su propio repositorio de GitHub (Dathinel), con los programas en los que funciona.
+- **Estética:** paleta grafito tipo DaVinci Resolve, acento naranja, esquinas casi rectas (2 px) y transiciones de 60 ms para que se sienta rápida.
+
+**Por qué.** Daniel quiere la facilidad de CapCut con un toque profesional y rápido, y extras que se instalen aparte y sirvan a varios programas.
