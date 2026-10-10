@@ -130,16 +130,70 @@ public sealed class ProxyStoreTests : IDisposable
     }
 
     [Fact]
-    public void Committing_again_replaces_the_previous_proxy()
+    public void Committing_again_keeps_a_valid_proxy_and_discards_the_new_one()
     {
         SourceFingerprint fingerprint = SourceFingerprint.Compute(WriteSource("d.mp4", 2048));
-        CommitFake(fingerprint, ProxySettings.Default, bytes: 1000);
+        ProxyEntry first = CommitFake(fingerprint, ProxySettings.Default, bytes: 1000);
+
+        ProxyEntry second = CommitFake(fingerprint, ProxySettings.Default, bytes: 2000, encoder: "h264_mf");
+
+        Assert.Equal(first.Metadata, second.Metadata);
+        Assert.Equal(1000, new FileInfo(second.ProxyPath).Length);
+        Assert.Equal(2, Directory.EnumerateFiles(_store.Directory).Count());
+    }
+
+    [Fact]
+    public void Committing_replaces_a_proxy_whose_metadata_no_longer_matches()
+    {
+        SourceFingerprint fingerprint = SourceFingerprint.Compute(WriteSource("d2.mp4", 2048));
+        ProxyEntry first = CommitFake(fingerprint, ProxySettings.Default, bytes: 1000);
+        File.WriteAllBytes(first.ProxyPath, new byte[10]);
 
         ProxyEntry second = CommitFake(fingerprint, ProxySettings.Default, bytes: 2000, encoder: "h264_mf");
 
         Assert.Equal(2000, new FileInfo(second.ProxyPath).Length);
         Assert.Equal("h264_mf", _store.TryGet(fingerprint, ProxySettings.Default)!.Metadata.Encoder);
         Assert.Equal(2, Directory.EnumerateFiles(_store.Directory).Count());
+    }
+
+    [Fact]
+    public void Committing_while_the_final_proxy_is_open_keeps_it_and_its_metadata()
+    {
+        SourceFingerprint fingerprint = SourceFingerprint.Compute(WriteSource("abierto.mp4", 2048));
+        ProxyEntry first = CommitFake(fingerprint, ProxySettings.Default, bytes: 1000);
+        string temporary = _store.CreateTemporaryPath(fingerprint, ProxySettings.Default);
+        File.WriteAllBytes(temporary, new byte[3000]);
+
+        using (new FileStream(first.ProxyPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            ProxyEntry result = _store.Commit(temporary, FakeMetadata(fingerprint, ProxySettings.Default, "h264_mf"), ProxySettings.Default);
+
+            Assert.Equal(first.Metadata, result.Metadata);
+            Assert.True(File.Exists(first.MetadataPath));
+        }
+
+        Assert.False(File.Exists(temporary));
+        Assert.Equal(first.Metadata, _store.TryGet(fingerprint, ProxySettings.Default)!.Metadata);
+    }
+
+    [Fact]
+    public void Committing_over_an_open_proxy_without_valid_metadata_fails_without_losing_the_old_file()
+    {
+        SourceFingerprint fingerprint = SourceFingerprint.Compute(WriteSource("bloqueado.mp4", 2048));
+        string proxyPath = _store.ProxyPath(fingerprint, ProxySettings.Default);
+        Directory.CreateDirectory(_store.Directory);
+        File.WriteAllBytes(proxyPath, new byte[500]);
+        string temporary = _store.CreateTemporaryPath(fingerprint, ProxySettings.Default);
+        File.WriteAllBytes(temporary, new byte[3000]);
+
+        using (new FileStream(proxyPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            Exception ex = Assert.ThrowsAny<Exception>(() => _store.Commit(temporary, FakeMetadata(fingerprint, ProxySettings.Default), ProxySettings.Default));
+            Assert.True(ex is IOException or UnauthorizedAccessException, ex.ToString());
+        }
+
+        Assert.Equal(500, new FileInfo(proxyPath).Length);
+        Assert.False(File.Exists(_store.MetadataPath(fingerprint, ProxySettings.Default)));
     }
 
     [Fact]

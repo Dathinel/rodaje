@@ -181,6 +181,12 @@ internal sealed unsafe class VisorWindow : IDisposable
         }
 
         UpdateTitle(force: true);
+        if (project.Skipped.Count > 0)
+        {
+            ShowStatus($"Se omitieron {project.Skipped.Count} archivo(s) que el visor no puede reproducir.", seconds: 10);
+            ReportNotice("Estos archivos se dejaron fuera de la demostración:\n\n" + VisorProject.DescribeSkipped(project.Skipped));
+        }
+
         return true;
     }
 
@@ -978,7 +984,9 @@ internal sealed unsafe class VisorWindow : IDisposable
         }
 
         string state = _session.IsPlaying ? "" : " (pausa)";
-        string name = _project.IsDemo && !File.Exists(_project.SavePath) ? $"{_project.Project.Name} (sin guardar, Ctrl+S)" : Path.GetFileName(_project.SavePath);
+        string name = _project.IsSaved
+            ? Path.GetFileName(_project.SavePath)
+            : $"{_project.Project.Name} (demo sin guardar; Ctrl+S la guarda como {Path.GetFileName(_project.SavePath)})";
         string changed = _project.History.IsClean ? "" : "*";
         int tracks = _project.Sequence.VideoTracks.Count;
         if (!_overlay)
@@ -1005,6 +1013,21 @@ internal sealed unsafe class VisorWindow : IDisposable
             + $" | pre-roll {stats.PreRollHitRate * 100:0} % ({stats.PreRollHits}/{stats.PreRollHits + stats.PreRollMisses})"
             + $" | audio: {stats.Audio.Status} | V{SelectedTrack + 1} sel. | {name}{changed}");
         return title.ToString();
+    }
+
+    /// <summary>Aviso informativo; en la prueba automática no se muestra (el informe ya lo lista).</summary>
+    private void ReportNotice(string message)
+    {
+        if (_args.TestDuration is not null)
+        {
+            return;
+        }
+
+        fixed (char* text = message)
+        fixed (char* caption = AppTitle)
+        {
+            _ = MessageBoxW(_hwnd, text, caption, MB_OK | MB_ICONINFORMATION);
+        }
     }
 
     private void ReportError(string message)

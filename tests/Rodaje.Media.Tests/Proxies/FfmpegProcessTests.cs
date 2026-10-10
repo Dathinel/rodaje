@@ -97,6 +97,53 @@ public sealed class FfmpegProcessTests
     }
 
     [Fact]
+    public void Companion_libraries_must_come_from_the_same_lgpl_build()
+    {
+        const uint Avfilter12 = (12u << 16) | (3u << 8) | 100u;
+
+        Assert.Null(FfmpegLibrary.CompanionProblem("avfilter-12", 12, Avfilter12, LgplConfiguration, "LGPL version 3 or later", LgplConfiguration));
+        Assert.Contains("misma compilación", FfmpegLibrary.CompanionProblem(
+            "avfilter-12", 12, Avfilter12, LgplConfiguration + " --enable-libzimg", "LGPL version 3 or later", LgplConfiguration), StringComparison.Ordinal);
+        Assert.Contains("--enable-gpl", FfmpegLibrary.CompanionProblem(
+            "avfilter-12", 12, Avfilter12, LgplConfiguration + " --enable-gpl", "GPL version 3 or later", LgplConfiguration + " --enable-gpl"), StringComparison.Ordinal);
+        Assert.Contains("GPL", FfmpegLibrary.CompanionProblem("avfilter-12", 12, Avfilter12, LgplConfiguration, "GPL version 3 or later", LgplConfiguration), StringComparison.Ordinal);
+        Assert.Contains("11.", FfmpegLibrary.CompanionProblem("avfilter-12", 12, 11u << 16, LgplConfiguration, "LGPL version 3 or later", LgplConfiguration), StringComparison.Ordinal);
+    }
+
+    [ProxyFact]
+    public void The_bundled_companion_libraries_pass_the_same_build_check() =>
+        Assert.All(FfmpegExecutable.ExtraLibraries, l =>
+            Assert.Null(FfmpegLibrary.CompanionLibraryProblem(Path.Combine(FfmpegLibrary.Directory!, l + ".dll"))));
+
+    [ProxyFact]
+    public void A_changed_executable_or_companion_library_is_verified_again()
+    {
+        using var temp = new TempDirectory();
+        foreach (string file in Directory.EnumerateFiles(FfmpegLibrary.Directory!)
+            .Where(f => f.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(f).Equals("ffmpeg.exe", StringComparison.OrdinalIgnoreCase)))
+        {
+            File.Copy(file, temp.Combine(Path.GetFileName(file)));
+        }
+
+        string exePath = temp.Combine("ffmpeg.exe");
+        FfmpegExecutable first = FfmpegExecutable.Open(exePath);
+        Assert.Same(first, FfmpegExecutable.Open(exePath));
+        Assert.Same(first, first.EnsureUnchanged());
+
+        File.SetLastWriteTimeUtc(exePath, File.GetLastWriteTimeUtc(exePath).AddMinutes(1));
+        Assert.False(first.IsUnchanged);
+        FfmpegExecutable second = first.EnsureUnchanged();
+        Assert.NotSame(first, second);
+        Assert.Same(second, FfmpegExecutable.Open(exePath));
+
+        string avfilter = temp.Combine("avfilter-12.dll");
+        File.WriteAllBytes(avfilter, new byte[4096]);
+        var ex = Assert.Throws<FfmpegNotFoundException>(() => second.EnsureUnchanged());
+        Assert.Contains("avfilter-12", ex.Message, StringComparison.Ordinal);
+        Assert.Throws<FfmpegNotFoundException>(() => FfmpegExecutable.Open(exePath));
+    }
+
+    [Fact]
     public void A_missing_executable_is_reported_in_spanish()
     {
         using var temp = new TempDirectory();

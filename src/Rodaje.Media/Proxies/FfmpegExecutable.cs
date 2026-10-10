@@ -8,7 +8,9 @@ namespace Rodaje.Media.Proxies;
 /// <remarks>
 /// Solo se acepta el exe de la misma carpeta de la que <see cref="FfmpegLibrary"/> cargó las DLL (nunca el del
 /// <c>PATH</c>), y solo si su <c>-buildconf</c> no lleva <c>--enable-gpl</c> ni <c>--enable-nonfree</c>, su
-/// <c>-L</c> declara la LGPL y su libavcodec es de la serie que exige Rodaje.
+/// <c>-L</c> declara la LGPL, su libavcodec es de la serie que exige Rodaje y las DLL que importa además
+/// (<see cref="ExtraLibraries"/>) son de la misma compilación LGPL que las que cargó Rodaje. La verificación se repite
+/// si el exe o esas DLL cambian de tamaño o de fecha.
 /// </remarks>
 public sealed class FfmpegExecutable
 {
@@ -21,11 +23,14 @@ public sealed class FfmpegExecutable
 
     private readonly ConcurrentDictionary<string, Lazy<string?>> _encoderProbes = new(StringComparer.Ordinal);
 
-    private FfmpegExecutable(string path, string version, string configuration)
+    private readonly string _stamp;
+
+    private FfmpegExecutable(string path, string version, string configuration, string stamp)
     {
         Path = path;
         Version = version;
         Configuration = configuration;
+        _stamp = stamp;
     }
 
     public string Path { get; }
@@ -62,24 +67,45 @@ public sealed class FfmpegExecutable
         }
     }
 
-    /// <summary>Verifica un <c>ffmpeg.exe</c> concreto (una vez por ruta y proceso).</summary>
+    /// <summary>
+    /// Verifica un <c>ffmpeg.exe</c> concreto (una vez por ruta y proceso, y otra vez si el exe o sus DLL extra
+    /// cambiaron de tamaño o de fecha desde la última verificación).
+    /// </summary>
     /// <exception cref="FfmpegNotFoundException">El exe falta, no arranca o no es LGPL.</exception>
     public static FfmpegExecutable Open(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         string full = System.IO.Path.GetFullPath(path);
-        Lazy<FfmpegExecutable> entry = Verified.GetOrAdd(full, p => new Lazy<FfmpegExecutable>(() => Verify(p)));
-        try
+        while (true)
         {
-            return entry.Value;
-        }
-        catch (FfmpegNotFoundException)
-        {
-            // Si el exe aparece después (preparar-entorno), un nuevo intento debe volver a verificar.
+            Lazy<FfmpegExecutable> entry = Verified.GetOrAdd(full, p => new Lazy<FfmpegExecutable>(() => Verify(p)));
+            FfmpegExecutable executable;
+            try
+            {
+                executable = entry.Value;
+            }
+            catch (FfmpegNotFoundException)
+            {
+                // Si el exe aparece después (preparar-entorno), un nuevo intento debe volver a verificar.
+                Verified.TryRemove(new KeyValuePair<string, Lazy<FfmpegExecutable>>(full, entry));
+                throw;
+            }
+
+            if (executable.IsUnchanged)
+            {
+                return executable;
+            }
+
             Verified.TryRemove(new KeyValuePair<string, Lazy<FfmpegExecutable>>(full, entry));
-            throw;
         }
     }
+
+    /// <summary>Si el exe y sus DLL extra siguen siendo los que se verificaron (mismo tamaño y fecha).</summary>
+    public bool IsUnchanged => Stamp(Path) == _stamp;
+
+    /// <summary>Este mismo exe si no cambió desde que se verificó; si cambió, lo vuelve a verificar.</summary>
+    /// <exception cref="FfmpegNotFoundException">Cambió y ya no pasa la verificación.</exception>
+    public FfmpegExecutable EnsureUnchanged() => IsUnchanged ? this : Open(Path);
 
     /// <summary>Motivo en español por el que la salida de <c>-buildconf</c>, <c>-L</c> y <c>-version</c> no es aceptable.</summary>
     internal static string? BuildProblem(string buildConfiguration, string licenseText, string versionText)
@@ -138,6 +164,16 @@ public sealed class FfmpegExecutable
             throw new FfmpegNotFoundException($"Falta {missing}.dll junto a {path}; ffmpeg.exe la necesita para arrancar.");
         }
 
+        // Antes de ejecutar nada: si el exe cambia durante la verificación, la siguiente apertura lo vuelve a verificar.
+        string stamp = Stamp(path);
+        foreach (string library in ExtraLibraries)
+        {
+            if (FfmpegLibrary.CompanionLibraryProblem(System.IO.Path.Combine(directory, library + ".dll")) is { } companion)
+            {
+                throw new FfmpegNotFoundException($"{companion} Rodaje es MIT y solo puede usar un FFmpeg LGPL ({path}).");
+            }
+        }
+
         TimeSpan timeout = TimeSpan.FromSeconds(20);
         (string buildconf, string license, string version) = (
             Capture(path, ["-hide_banner", "-buildconf"], timeout),
@@ -152,7 +188,18 @@ public sealed class FfmpegExecutable
         }
 
         string firstLine = version.Split('\n', 2)[0].Trim();
-        return new FfmpegExecutable(path, firstLine, configuration);
+        return new FfmpegExecutable(path, firstLine, configuration, stamp);
+    }
+
+    // Tamaño y fecha del exe y de las DLL extra; una cadena vacía en la parte de un archivo que falta.
+    private static string Stamp(string path)
+    {
+        string directory = System.IO.Path.GetDirectoryName(path)!;
+        return string.Join('|', ExtraLibraries.Select(l => System.IO.Path.Combine(directory, l + ".dll")).Prepend(path).Select(file =>
+        {
+            var info = new FileInfo(file);
+            return info.Exists ? $"{info.Length}:{info.LastWriteTimeUtc.Ticks}" : "";
+        }));
     }
 
     private static string Capture(string path, string[] arguments, TimeSpan timeout)
@@ -208,6 +255,7 @@ public sealed class FfmpegExecutable
             throw new FfmpegNotFoundException($"No se pudo ejecutar {path}: {ex.Message}", ex);
         }
 
+        ChildProcessJob.TryAssign(process);
         process.StandardInput.Close();
         Task<string> output = process.StandardOutput.ReadToEndAsync();
         Task<string> error = process.StandardError.ReadToEndAsync();

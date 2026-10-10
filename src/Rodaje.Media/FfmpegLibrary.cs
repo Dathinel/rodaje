@@ -158,6 +158,74 @@ public static class FfmpegLibrary
         return null;
     }
 
+    /// <summary>
+    /// Motivo en español por el que una DLL de FFmpeg que Rodaje no carga (por ejemplo <c>avfilter-12.dll</c>, que
+    /// importa <c>ffmpeg.exe</c>) no es de la misma compilación LGPL que las ya cargadas, o <c>null</c> si lo es.
+    /// </summary>
+    /// <param name="path">Ruta absoluta de la DLL, con el nombre <c>&lt;biblioteca&gt;-&lt;mayor&gt;.dll</c>.</param>
+    internal static unsafe string? CompanionLibraryProblem(string path)
+    {
+        EnsureInitialized();
+        string name = Path.GetFileNameWithoutExtension(path);
+        string[] parts = name.Split('-', 2);
+        if (parts.Length != 2 || !int.TryParse(parts[1], out int expectedMajor))
+        {
+            return $"{name}.dll no tiene el nombre de una biblioteca de FFmpeg.";
+        }
+
+        string library = parts[0];
+        nint handle;
+        try
+        {
+            handle = NativeLibrary.Load(path);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or BadImageFormatException)
+        {
+            return $"No se pudo cargar {path}: {ex.Message}";
+        }
+
+        try
+        {
+            if (!NativeLibrary.TryGetExport(handle, library + "_version", out nint version)
+                || !NativeLibrary.TryGetExport(handle, library + "_configuration", out nint configuration)
+                || !NativeLibrary.TryGetExport(handle, library + "_license", out nint license))
+            {
+                return $"{path} no exporta {library}_version, {library}_configuration y {library}_license.";
+            }
+
+            return CompanionProblem(
+                name,
+                expectedMajor,
+                ((delegate* unmanaged<uint>)version)(),
+                Marshal.PtrToStringUTF8((nint)((delegate* unmanaged<byte*>)configuration)()),
+                Marshal.PtrToStringUTF8((nint)((delegate* unmanaged<byte*>)license)()),
+                ffmpeg.avcodec_configuration());
+        }
+        finally
+        {
+            NativeLibrary.Free(handle);
+        }
+    }
+
+    /// <summary>Compara una DLL compañera con la compilación cargada: misma serie, misma configuración y LGPL.</summary>
+    internal static string? CompanionProblem(string name, int expectedMajor, uint version, string? configuration, string? license, string? reference)
+    {
+        int major = (int)(version >> 16);
+        if (major != expectedMajor)
+        {
+            return $"{name}.dll es la versión {major}.{(version >> 8) & 0xFF}.{version & 0xFF} y su nombre dice {expectedMajor}.";
+        }
+
+        if (LicenseProblem(license, [(name, configuration)]) is { } problem)
+        {
+            return problem;
+        }
+
+        return string.Equals(configuration?.Trim(), reference?.Trim(), StringComparison.Ordinal)
+            ? null
+            : $"{name}.dll no es de la misma compilación de FFmpeg que las bibliotecas cargadas (su configuración es distinta).";
+    }
+
     private static nint LoadFrom(string directory, string name)
     {
         string file = name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? name : name + ".dll";

@@ -16,6 +16,7 @@ namespace Rodaje.Visor;
 /// Recorrido sin persona para <c>--prueba</c>: reproduce la secuencia, oculta y muestra una capa, mueve, escala y
 /// gira otra con las mismas teclas que una persona, deshace y rehace, busca, avanza y retrocede cuadro a cuadro, y al
 /// final imprime las estadísticas. Lo que mide es objetivo; si se ve fluido lo juzga Daniel (docs/prueba-visor.md).
+/// Si la secuencia no tiene clips de video (solo audio), los pasos de edición de capas se omiten y se anotan.
 /// </summary>
 internal sealed class AutomatedRun
 {
@@ -25,7 +26,7 @@ internal sealed class AutomatedRun
 
     private readonly TimeSpan _duration;
     private readonly string? _logPath;
-    private readonly List<(double At, string Name, Func<VisorWindow, Check?> Act)> _script;
+    private readonly List<(double At, string Name, bool NeedsVideo, Func<VisorWindow, Check?> Act)> _script;
     private readonly List<string> _log = [];
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly TimeSpan _cpuAtStart = Process.GetCurrentProcess().TotalProcessorTime;
@@ -33,6 +34,7 @@ internal sealed class AutomatedRun
     private Check? _check;
     private int _checksOk;
     private int _checksFailed;
+    private int _checksExpected;
     private int _nextStep = -1;
     private long _expectedFrame = -1;
     private long _stepStarted;
@@ -46,40 +48,47 @@ internal sealed class AutomatedRun
         _logPath = logPath;
         _script =
         [
-            (0.12, "ocultar la capa de arriba (tecla de su número)", w =>
+            (0.12, "ocultar la capa de arriba (tecla de su número)", true, w =>
             {
                 NoteStats(w, "antes de editar (arranque y reproducción continua)");
                 return ToggleTop(w, visible: false);
             }),
-            (0.20, "mostrarla de nuevo", w => ToggleTop(w, visible: true)),
-            (0.28, "seleccionarla (Ctrl+número) y moverla: Alt+→ ×3, Alt+↓ ×2", Move),
-            (0.36, "escalar (+) y girar (R)", ScaleAndRotate),
-            (0.44, "deshacer ×3 (Ctrl+Z)", UndoAll),
-            (0.48, "rehacer el movimiento (Ctrl+Y)", Redo),
-            (0.52, "seek al 50 %", w =>
+            (0.20, "mostrarla de nuevo", true, w => ToggleTop(w, visible: true)),
+            (0.28, "seleccionarla (Ctrl+número) y moverla: Alt+→ ×3, Alt+↓ ×2", true, Move),
+            (0.36, "escalar (+) y girar (R)", true, ScaleAndRotate),
+            (0.44, "deshacer ×3 (Ctrl+Z)", true, UndoAll),
+            (0.48, "rehacer el movimiento (Ctrl+Y)", true, Redo),
+            (0.52, "seek al 50 %", false, w =>
             {
                 NoteStats(w, "antes del primer seek (con las ediciones)");
                 return Seek(w, 0.5);
             }),
-            (0.60, "seek al 10 %", w => Seek(w, 0.1)),
-            (0.68, "pausa y pasos de cuadro", w =>
+            (0.60, "seek al 10 %", false, w => Seek(w, 0.1)),
+            (0.68, "pausa y pasos de cuadro", false, w =>
             {
                 w.Session!.Pause();
                 _nextStep = 0;
                 return null;
             }),
-            (0.84, "reproducir", w =>
+            (0.84, "reproducir", false, w =>
             {
                 w.Session!.Play();
                 return null;
             }),
-            (0.90, "Shift+→ (+5 s)", w =>
+            (0.90, "Shift+→ (+5 s)", false, w =>
             {
                 w.PressKey(VK_RIGHT, KeyModifiers.Shift);
                 return null;
             }),
         ];
     }
+
+    /// <summary>Si alguna pista de video tiene clips: sin ellos no hay capa que ocultar, mover ni deshacer.</summary>
+    public static bool HasVideoClips(Sequence sequence) => sequence.VideoTracks.Any(t => t.Clips.Count > 0);
+
+    /// <summary>Nombres de los pasos que se harán con esa secuencia, en orden.</summary>
+    public IReadOnlyList<string> StepsFor(Sequence sequence) =>
+        [.. _script.Where(s => !s.NeedsVideo || HasVideoClips(sequence)).Select(s => s.Name)];
 
     public void Update(VisorWindow window)
     {
@@ -101,7 +110,13 @@ internal sealed class AutomatedRun
         }
         else if (_nextAction < _script.Count && fraction >= _script[_nextAction].At)
         {
-            (_, string name, Func<VisorWindow, Check?> act) = _script[_nextAction++];
+            (_, string name, bool needsVideo, Func<VisorWindow, Check?> act) = _script[_nextAction++];
+            if (needsVideo && !HasVideoClips(window.Project.Sequence))
+            {
+                Note(Invariant($"{_clock.Elapsed.TotalSeconds,5:0.00} s  {name}: omitido, la secuencia no tiene clips de video"));
+                return;
+            }
+
             TimelineStats so = session.Stats;
             long before = Stopwatch.GetTimestamp();
             _check = act(window);
@@ -110,6 +125,7 @@ internal sealed class AutomatedRun
             if (_check is not null)
             {
                 _check.Started = before;
+                _checksExpected++;
             }
         }
 
@@ -239,7 +255,7 @@ internal sealed class AutomatedRun
         if (_expectedFrame >= 0)
         {
             ShownFrame shown = window.LastFrame;
-            bool baseExact = !window.Project!.IsDemo || shown.Layer(0)?.FrameIndex == _expectedFrame;
+            bool baseExact = !window.Project!.IsDemo || !HasVideoClips(window.Project.Sequence) || shown.Layer(0)?.FrameIndex == _expectedFrame;
             bool arrived = !session.IsSeekPending && shown.SequenceFrame == _expectedFrame && baseExact;
             bool timedOut = Stopwatch.GetElapsedTime(_stepStarted) > StepTimeout;
             if (!arrived && !timedOut)
@@ -298,6 +314,10 @@ internal sealed class AutomatedRun
         GpuSummary gpu = window.GpuTimes.Summarize();
         (int compositeWidth, int compositeHeight) = window.CompositeSize;
         Line($"Proyecto: {(project.IsDemo ? "demostración armada con los videos" : project.SavePath)}");
+        foreach (SkippedInput skipped in project.Skipped)
+        {
+            Line($"  omitido {Path.GetFileName(skipped.Path)}: {skipped.Reason}");
+        }
         foreach (MediaRef media in project.Project.Media)
         {
             Line($"  {media.Name}: {media.Width}x{media.Height} a {media.FrameRate?.ToDouble() ?? 0:0.###} fps, {media.Duration.ToSeconds():0.0} s{(media.HasAudio ? ", con audio" : "")}");
@@ -326,9 +346,10 @@ internal sealed class AutomatedRun
         Line($"CPU del proceso: {cpu / wall * 100:0.0} % de un núcleo ({cpu / wall * 100 / Environment.ProcessorCount:0.0} % de los {Environment.ProcessorCount} hilos) durante {wall:0.0} s");
 
         bool saved = CheckSaveAndReload(project, Line);
-        bool ok = saved && failure is null && _checksFailed == 0 && _checksOk == 6 && _stepsFailed == 0 && _stepsOk == StepPlan.Length
-            && stats.DecodeErrors == 0 && window.DecodeFailures == 0;
-        Line($"Comprobaciones de edición: {_checksOk} de 6; pasos de cuadro: {_stepsOk} de {StepPlan.Length}");
+        int expectedChecks = HasVideoClips(sequence) ? 6 : 0;
+        bool ok = saved && failure is null && _checksFailed == 0 && _checksExpected == expectedChecks && _checksOk == expectedChecks
+            && _stepsFailed == 0 && _stepsOk == StepPlan.Length && stats.DecodeErrors == 0 && window.DecodeFailures == 0;
+        Line($"Comprobaciones de edición: {_checksOk} de {expectedChecks}{(expectedChecks == 0 ? " (sin clips de video)" : "")}; pasos de cuadro: {_stepsOk} de {StepPlan.Length}");
         report.AppendLine(ok
             ? "RESULTADO: correcto (la fluidez la juzga una persona: docs/prueba-visor.md)"
             : "RESULTADO: FALLÓ (ver las comprobaciones, los pasos de cuadro y los errores de arriba)");
