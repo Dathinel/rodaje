@@ -51,7 +51,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 - Pruebas: 1299 pasan.
 
 **Fase 4: interfaz WinUI 3 (construida; en pausa por corrección de la revisión).**
-- `src/Rodaje.App` (abre con `Rodaje.bat` / `herramientaspp.ps1`):
+- `src/Rodaje.App` (abre con `Rodaje.bat` / `herramientas\app.ps1`):
   - **Armazón:** `EditorSession`, atajos con 3 estilos, ajustes y tema grafito.
   - **Línea de tiempo:** barra estilo Vegas, pista principal magnética, arrastres como gestos, marcadores y regiones (formato v2).
   - **Biblioteca:** miniaturas y formas de onda reales.
