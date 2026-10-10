@@ -23,7 +23,6 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     private (int Width, int Height) _transformRange;
     private double _audioRange = -1;
     private Time _shownPosition;
-    private bool _dialogOpen;
 
     public PropertiesPanel()
     {
@@ -242,7 +241,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private async void OnSavePresetClick(object sender, RoutedEventArgs e)
     {
-        if (_dialogOpen || _services is not { } services || _videoClipId is null
+        if (DialogGate.IsOpen || _services is not { } services || _videoClipId is null
             || services.Session.Sequence.FindClip(_videoClipId) is not { } found
             || ClipPropertyEditor.FindEffect(found.Clip, BuiltInEffects.Transform) is not { } transform
             || !AnimationPreset.CanExport(transform))
@@ -271,18 +270,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             RequestedTheme = ElementTheme.Dark,
         };
 
-        _dialogOpen = true;
-        ContentDialogResult result;
-        try
-        {
-            result = await dialog.ShowAsync();
-        }
-        finally
-        {
-            _dialogOpen = false;
-        }
-
-        if (result != ContentDialogResult.Primary)
+        if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary)
         {
             return;
         }

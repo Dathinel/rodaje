@@ -184,10 +184,52 @@ public static partial class TimelineEdits
 
         if (scope == RippleScope.Track)
         {
-            foreach ((Track track, Clip clip) in targets.OrderByDescending(t => t.Clip.Start))
+            var removed = new HashSet<Clip>(targets.Select(t => t.Clip));
+
+            // Cada hueco se cierra en su pista y en las de los enlazados de lo que se corre; un mismo tramo que llega a
+            // una pista por dos caminos (el video y su audio) se cierra una sola vez.
+            var spansByTrack = new Dictionary<Track, List<(Time Start, Time End)>>();
+            var addedTracks = new HashSet<Track>();
+            foreach ((Track track, Clip clip) in targets)
+            {
+                List<Track> tracks = ctx.LinkedRippleTracks([track], clip.End, removed);
+                foreach (Track t in tracks)
+                {
+                    if (!spansByTrack.TryGetValue(t, out List<(Time Start, Time End)>? spans))
+                    {
+                        spans = [];
+                        spansByTrack[t] = spans;
+                    }
+
+                    spans.Add((clip.Start, clip.End));
+                    if (t != track)
+                    {
+                        addedTracks.Add(t);
+                    }
+                }
+            }
+
+            var merged = spansByTrack.ToDictionary(p => p.Key, p => TrackOps.MergeSpans(p.Value));
+            foreach (Track track in addedTracks)
+            {
+                foreach ((Time start, Time end) in merged[track])
+                {
+                    EditContext.EnsureCanClose(track, end, start - end, removed);
+                }
+            }
+
+            foreach ((Track track, Clip clip) in targets)
             {
                 track.Clips.Remove(clip);
-                ctx.RippleShift([track], clip.End, -clip.Duration, scope);
+            }
+
+            foreach ((Track track, List<(Time Start, Time End)> spans) in merged)
+            {
+                for (int i = spans.Count - 1; i >= 0; i--)
+                {
+                    (Time start, Time end) = spans[i];
+                    EditContext.ShiftClips(track, end, start - end);
+                }
             }
         }
         else

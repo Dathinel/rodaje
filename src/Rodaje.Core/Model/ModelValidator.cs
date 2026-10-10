@@ -38,6 +38,11 @@ public static class ModelValidator
             {
                 errors.Add($"El medio «{media.Id}» tiene una duración no positiva.");
             }
+
+            if (!IsUsablePath(media.Path))
+            {
+                errors.Add($"El medio «{media.Id}» tiene una ruta con caracteres que no puede tener una ruta de archivo.");
+            }
         }
 
         foreach (Sequence sequence in project.Sequences)
@@ -217,6 +222,10 @@ public static class ModelValidator
     }
 
     private static bool FitsInLong(Int128 value) => value >= long.MinValue && value <= long.MaxValue;
+
+    // Un archivo editado a mano puede traer caracteres que Windows no admite en una ruta; resolverla lanzaría al abrir.
+    private static bool IsUsablePath(string? path) =>
+        path is not null && !path.Any(c => c < ' ' || c is '"' or '<' or '>' or '|');
 
     private static void CheckTrackKinds(List<Track> tracks, TrackKind expected, Sequence sequence, List<string> errors)
     {

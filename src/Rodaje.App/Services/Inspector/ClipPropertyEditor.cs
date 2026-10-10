@@ -24,11 +24,18 @@ public sealed record ParameterState(double Value, int KeyframeCount, Keyframe? K
 /// cambios se funden por clave, o van en un gesto si antes hay que crear el efecto. El instante se fija al empezar,
 /// así un arrastre durante la reproducción no siembra keyframes por el camino.
 /// </remarks>
-public sealed class ClipPropertyEditor(EditorSession session)
+public sealed class ClipPropertyEditor
 {
     private Drag? _drag;
 
-    public EditorSession Session { get; } = session ?? throw new ArgumentNullException(nameof(session));
+    public ClipPropertyEditor(EditorSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        Session = session;
+        session.ProjectEdited += OnProjectEdited;
+    }
+
+    public EditorSession Session { get; }
 
     public bool IsDragging => _drag is not null;
 
@@ -278,6 +285,15 @@ public sealed class ClipPropertyEditor(EditorSession session)
     private Time HalfFrame() => Time.FromTicks(Time.FromFrames(1, Session.Sequence.FrameRate).Ticks / 2);
 
     private static Time ToTimeline(Clip clip, Time sourceTime) => clip.Start + (sourceTime - clip.SourceIn);
+
+    // Esc revirtió el gesto (con el efecto recién creado): el resto del arrastre no hace nada y al soltar no hay grupo que cerrar.
+    private void OnProjectEdited(object? sender, ProjectEditedEventArgs e)
+    {
+        if (e.Kind == EditKind.GestureCancelled && _drag is { Grouped: true } drag)
+        {
+            _drag = drag with { Grouped = false, Failed = true };
+        }
+    }
 
     private sealed record Drag(string ClipId, string EffectType, string Name, string Description, Time SourceTime, bool Inside, bool Grouped)
     {

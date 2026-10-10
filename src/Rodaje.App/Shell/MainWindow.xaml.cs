@@ -38,12 +38,14 @@ internal sealed partial class MainWindow : Window, IShellHost
     private readonly DispatcherQueue _dispatcher;
     private readonly DispatcherQueueTimer _transportTimer;
     private readonly DispatcherQueueTimer _notificationTimer;
+    private readonly DispatcherQueueTimer _settingsTimer;
     private readonly nint _hwnd;
     private readonly EditorServices _services;
     private readonly ClipVisuals _visuals;
     private readonly List<IDisposable> _bindings = [];
     private ShortcutsView? _shortcutsView;
     private PluginsView? _pluginsView;
+    private IDisposable? _pageShortcuts;
     private bool _activatedOnce;
     private bool _allowClose;
     private bool _closing;
@@ -124,6 +126,12 @@ internal sealed partial class MainWindow : Window, IShellHost
             _transportTimer.Start();
         }
 
+        // Los ajustes se guardan poco después de cambiar (no solo al cerrar): un apagón no se lleva los últimos.
+        _settingsTimer = _dispatcher.CreateTimer();
+        _settingsTimer.Interval = TimeSpan.FromSeconds(2);
+        _settingsTimer.Tick += (_, _) => SaveSettingsIfChanged();
+        _settingsTimer.Start();
+
         LibrarySplitter.Resized += (_, size) => settings.Current.LibraryWidth = size;
         InspectorSplitter.Resized += (_, size) => settings.Current.InspectorWidth = size;
         TimelineSplitter.Resized += (_, size) => settings.Current.TimelineHeight = size;
@@ -187,12 +195,17 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         ModalContent.Content = view;
         ModalLayer.Visibility = Visibility.Visible;
+
+        // Con una página encima, el editor de detrás no recibe teclas; Esc (la cierra) y Archivo siguen.
+        _pageShortcuts ??= _router.Restrict(action => action.Group == ShortcutGroups.File);
     }
 
     public void ClosePage()
     {
         ModalLayer.Visibility = Visibility.Collapsed;
         ModalContent.Content = null;
+        _pageShortcuts?.Dispose();
+        _pageShortcuts = null;
     }
 
     public void SetPlayerFullScreen(bool fullScreen)
@@ -314,6 +327,24 @@ internal sealed partial class MainWindow : Window, IShellHost
         s.ShortcutPreset = _router.Registry.Preset;
     }
 
+    private void SaveSettingsIfChanged()
+    {
+        // En pantalla completa o minimizada los paneles miden 0: se guarda lo de antes.
+        if (_closed || !_activatedOnce || _playerFullScreen || AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized })
+        {
+            return;
+        }
+
+        SaveLayout();
+        try
+        {
+            _settings.SaveIfChanged();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     private void RememberProject()
     {
         if (Session.FilePath is { } path)
@@ -389,22 +420,36 @@ internal sealed partial class MainWindow : Window, IShellHost
             return;
         }
 
-        IReadOnlyList<IStorageItem> items = await e.DataView.GetStorageItemsAsync();
-        string[] paths = [.. items.OfType<StorageFile>().Select(f => f.Path).Where(p => !string.IsNullOrEmpty(p))];
-        if (paths.Length == 0)
+        try
         {
-            return;
-        }
+            IReadOnlyList<IStorageItem> items = await e.DataView.GetStorageItemsAsync();
+            string[] paths = [.. items.OfType<StorageFile>().Select(f => f.Path).Where(p => !string.IsNullOrEmpty(p))];
+            if (paths.Length == 0)
+            {
+                return;
+            }
 
-        if (paths.Any(ProjectPaths.IsProjectFile))
-        {
-            await Session.OpenFilesAsync(paths);
+            if (paths.Any(ProjectPaths.IsProjectFile))
+            {
+                await Session.OpenFilesAsync(paths);
+            }
+            else
+            {
+                await Session.ImportMediaAsync(paths);
+            }
         }
-        else
+#pragma warning disable CA1031 // Soltar archivos no debe tumbar la aplicación: el error se muestra en la ventana.
+        catch (Exception ex)
+#pragma warning restore CA1031
         {
-            await Session.ImportMediaAsync(paths);
+            Program.WriteCrash(ex.ToString());
+            ReportUnexpectedError(ex.Message);
         }
     }
+
+    /// <summary>Avisa de un error que nadie esperaba; los detalles quedan en <c>rodaje-error.txt</c>.</summary>
+    internal void ReportUnexpectedError(string message) =>
+        Session.Notify(NotificationSeverity.Error, "Algo falló", $"{message} Los detalles quedaron en rodaje-error.txt, junto al programa.");
 
     private void OnCloseModal(object sender, RoutedEventArgs e) => ClosePage();
 
@@ -430,6 +475,13 @@ internal sealed partial class MainWindow : Window, IShellHost
                 Close();
             }
         }
+#pragma warning disable CA1031 // Si preguntar falla, la ventana sigue abierta con el trabajo, no se cae.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            Program.WriteCrash(ex.ToString());
+            ReportUnexpectedError(ex.Message);
+        }
         finally
         {
             _closing = false;
@@ -446,6 +498,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _closed = true;
         CompositionTarget.Rendering -= OnRendering;
         _transportTimer.Stop();
+        _settingsTimer.Stop();
         _keyboard.Dispose();
         foreach (IDisposable binding in _bindings)
         {

@@ -8,6 +8,8 @@ public sealed class SettingsStore
 {
     public const string FileName = "ajustes.json";
 
+    private string? _written;
+
     public SettingsStore(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
@@ -39,6 +41,7 @@ public sealed class SettingsStore
             {
                 loaded.Normalize();
                 Current = loaded;
+                _written = JsonSerializer.Serialize(loaded, SettingsJsonContext.Default.AppSettings);
                 return null;
             }
         }
@@ -54,10 +57,21 @@ public sealed class SettingsStore
         return "El archivo de ajustes estaba dañado; se usan los de fábrica" + (aside is null ? "." : $" y el archivo quedó en {aside}.");
     }
 
-    public void Save()
+    public void Save() => SaveIfChanged(force: true);
+
+    /// <summary>Guarda solo si algo cambió desde lo último que se leyó o escribió; <c>true</c> si escribió.</summary>
+    public bool SaveIfChanged(bool force = false)
     {
         Current.Normalize();
-        AppDataPaths.WriteAllTextAtomic(Path, JsonSerializer.Serialize(Current, SettingsJsonContext.Default.AppSettings));
+        string text = JsonSerializer.Serialize(Current, SettingsJsonContext.Default.AppSettings);
+        if (!force && text == _written)
+        {
+            return false;
+        }
+
+        AppDataPaths.WriteAllTextAtomic(Path, text);
+        _written = text;
+        return true;
     }
 }
 

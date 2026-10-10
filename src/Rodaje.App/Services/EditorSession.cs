@@ -55,6 +55,7 @@ public sealed partial class EditorSession : ObservableObject
     private string _originDescription = "Proyecto nuevo";
     private string? _filePath;
     private int _busy;
+    private Task _saving = Task.CompletedTask;
     private long _editVersion;
 
     public EditorSession(IPlaybackEngine playback, IMediaProber prober, IEditorDialogs dialogs, IIdGenerator? ids = null)
@@ -198,6 +199,27 @@ public sealed partial class EditorSession : ObservableObject
         return true;
     }
 
+    /// <summary>
+    /// Como <see cref="Execute"/>, pero si la edición no es posible no avisa: un paso intermedio de un arrastre que no
+    /// cabe se descarta en silencio. El comando deja el proyecto como estaba si falla.
+    /// </summary>
+    public bool TryExecute(ICommand command)
+    {
+        VerifyAccess();
+        ArgumentNullException.ThrowIfNull(command);
+        try
+        {
+            History.Execute(command);
+        }
+        catch (Exception ex) when (ex is EditException or KeyNotFoundException)
+        {
+            return false;
+        }
+
+        AfterEdit(EditKind.Execute, command);
+        return true;
+    }
+
     public bool Undo()
     {
         VerifyAccess();
@@ -269,10 +291,15 @@ public sealed partial class EditorSession : ObservableObject
         History.BeginGroup(description);
     }
 
+    /// <summary>Cierra el gesto abierto; si ya se canceló (Esc), no hace nada más que cortar la fusión.</summary>
     public void EndGesture()
     {
         VerifyAccess();
-        History.EndGroup();
+        if (History.IsInGroup)
+        {
+            History.EndGroup();
+        }
+
         History.BreakMerge();
     }
 

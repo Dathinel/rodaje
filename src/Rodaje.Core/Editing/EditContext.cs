@@ -60,13 +60,26 @@ public sealed class EditContext
     /// <summary>
     /// Corre en <paramref name="delta"/> los clips desde <paramref name="from"/>; con <see cref="RippleScope.AllTracks"/>
     /// salta las pistas bloqueadas, y con <see cref="RippleScope.AllTracksAndMarkers"/> corre también marcadores y regiones.
+    /// Con <see cref="RippleScope.Track"/> corre además las pistas de los enlazados de lo que se corre.
     /// </summary>
-    public void RippleShift(IEnumerable<Track> editedTracks, Time from, Time delta, RippleScope scope, IReadOnlySet<Clip>? exclude = null)
+    /// <returns>Las pistas corridas.</returns>
+    public IReadOnlyList<Track> RippleShift(IEnumerable<Track> editedTracks, Time from, Time delta, RippleScope scope, IReadOnlySet<Clip>? exclude = null)
     {
         ArgumentNullException.ThrowIfNull(editedTracks);
-        IEnumerable<Track> tracks = scope.IncludesAllTracks()
-            ? Sequence.AllTracks.Where(t => !t.Locked)
-            : editedTracks.Distinct();
+        List<Track> tracks;
+        if (scope.IncludesAllTracks())
+        {
+            tracks = [.. Sequence.AllTracks.Where(t => !t.Locked)];
+        }
+        else
+        {
+            List<Track> edited = [.. editedTracks.Distinct()];
+            tracks = LinkedRippleTracks(edited, from, exclude);
+            foreach (Track added in tracks.Skip(edited.Count))
+            {
+                EnsureCanClose(added, from, delta, exclude);
+            }
+        }
 
         foreach (Track track in tracks)
         {
@@ -77,6 +90,89 @@ public sealed class EditContext
         {
             ShiftMarkers(Sequence, from, delta);
         }
+
+        return tracks;
+    }
+
+    /// <summary>
+    /// <paramref name="edited"/> seguidas de las pistas de los enlazados de los clips que se corren desde
+    /// <paramref name="from"/>, y así hasta no sumar más, para que ningún grupo enlazado se desincronice.
+    /// </summary>
+    internal List<Track> LinkedRippleTracks(IReadOnlyList<Track> edited, Time from, IReadOnlySet<Clip>? exclude)
+    {
+        List<Track> tracks = [.. edited];
+        Dictionary<string, List<Track>>? linkTracks = null;
+        for (int i = 0; i < tracks.Count; i++)
+        {
+            foreach (Clip clip in tracks[i].Clips)
+            {
+                if (clip.LinkId is null || clip.Start < from || (exclude is not null && exclude.Contains(clip)))
+                {
+                    continue;
+                }
+
+                linkTracks ??= IndexLinkTracks();
+                foreach (Track partnerTrack in linkTracks[clip.LinkId])
+                {
+                    if (!tracks.Contains(partnerTrack))
+                    {
+                        tracks.Add(partnerTrack);
+                    }
+                }
+            }
+        }
+
+        return tracks;
+    }
+
+    /// <summary>
+    /// Falla si <paramref name="track"/> está bloqueada o si, al cerrar el tramo, un clip que no se corre quedaría
+    /// debajo de los que sí.
+    /// </summary>
+    internal static void EnsureCanClose(Track track, Time from, Time delta, IReadOnlySet<Clip>? exclude)
+    {
+        EnsureUnlocked(track);
+        if (delta >= Time.Zero)
+        {
+            return;
+        }
+
+        Time closedStart = from + delta;
+        Clip? straddling = track.Clips.Find(c =>
+            c.Start < from && c.End > closedStart && (exclude is null || !exclude.Contains(c)));
+        if (straddling is not null)
+        {
+            throw new EditException(
+                $"No se puede correr la pista «{track.Name}», que tiene clips enlazados con lo que se corre, porque el clip «{straddling.Id}» atraviesa el tramo que se cierra.");
+        }
+    }
+
+    private Dictionary<string, List<Track>> IndexLinkTracks()
+    {
+        var index = new Dictionary<string, List<Track>>(StringComparer.Ordinal);
+        foreach (Track track in Sequence.AllTracks)
+        {
+            foreach (Clip clip in track.Clips)
+            {
+                if (clip.LinkId is null)
+                {
+                    continue;
+                }
+
+                if (!index.TryGetValue(clip.LinkId, out List<Track>? list))
+                {
+                    list = [];
+                    index[clip.LinkId] = list;
+                }
+
+                if (!list.Contains(track))
+                {
+                    list.Add(track);
+                }
+            }
+        }
+
+        return index;
     }
 
     /// <summary>

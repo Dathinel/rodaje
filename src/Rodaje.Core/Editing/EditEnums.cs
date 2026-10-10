@@ -26,7 +26,7 @@ public enum PlacementMode
 /// <summary>Qué pistas se corren cuando una edición en modo ripple cambia la duración.</summary>
 public enum RippleScope
 {
-    /// <summary>Solo las pistas de los clips editados (y de sus enlazados).</summary>
+    /// <summary>Las pistas de los clips editados y de sus enlazados, más las de los enlazados de lo que se corre.</summary>
     Track,
 
     /// <summary>Todas las pistas no bloqueadas, para mantener la sincronía entre capas.</summary>
