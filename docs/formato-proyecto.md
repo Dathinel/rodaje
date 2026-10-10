@@ -1,6 +1,6 @@
 # Formato de proyecto `.rodaje`
 
-Un proyecto de Rodaje se guarda en un archivo con extensión `.rodaje`. Es texto JSON en UTF-8, sin marca BOM, indentado con dos espacios y con saltos de línea LF. Se eligió JSON legible y no un formato binario por dos razones. La primera es que el proyecto es el trabajo de quien edita y debe poder abrirse, revisarse e incluso repararse con un editor de texto si algo sale mal. La segunda es que Daniel quiere que sus otros programas, como un futuro editor de audio o herramientas en Python, puedan leer y escribir el mismo proyecto sin depender del código de Rodaje. Por eso este documento describe el formato completo, con sus reglas, y junto a él se publica un esquema JSON en `schema/rodaje-proyecto.v1.schema.json` que cualquier validador del estándar draft 2020-12 entiende.
+Un proyecto de Rodaje se guarda en un archivo con extensión `.rodaje`. Es texto JSON en UTF-8, sin marca BOM, indentado con dos espacios y con saltos de línea LF. Se eligió JSON legible y no un formato binario por dos razones. La primera es que el proyecto es el trabajo de quien edita y debe poder abrirse, revisarse e incluso repararse con un editor de texto si algo sale mal. La segunda es que Daniel quiere que sus otros programas, como un futuro editor de audio o herramientas en Python, puedan leer y escribir el mismo proyecto sin depender del código de Rodaje. Por eso este documento describe el formato completo, con sus reglas, y junto a él se publica un esquema JSON en `schema/rodaje-proyecto.v2.schema.json` (el de la versión 1 se conserva para los archivos viejos) que cualquier validador del estándar draft 2020-12 entiende.
 
 El archivo nunca contiene video, audio ni imágenes. Solo guarda dónde están los archivos de origen y cómo se usan, de modo que editar jamás modifica el material original y un proyecto pesa unos pocos kilobytes.
 
@@ -18,7 +18,7 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "project-6c1f0a2e",
   "name": "Paseo en bicicleta",
   "media": [
@@ -158,21 +158,36 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
           "hidden": false,
           "clips": []
         }
+      ],
+      "markers": [
+        {
+          "id": "marker-1",
+          "time": 1411200000,
+          "name": "Entra la foto"
+        }
+      ],
+      "regions": [
+        {
+          "id": "region-1",
+          "start": 0,
+          "end": 3528000000,
+          "name": "Intro"
+        }
       ]
     }
   ]
 }
 ```
 
-Leído en voz alta, el ejemplo dice lo siguiente. La toma dura 300 cuadros a 29,97 fps, que son 300 × 23 543 520 = 7 063 056 000 ticks. El clip `clip-1` usa de esa toma desde el cuadro 30 (`sourceIn` = 706 305 600) hasta el cuadro 180 (`sourceOut` = 4 237 833 600, excluido), es decir 150 cuadros, unos cinco segundos, y los coloca en el instante cero de la pista. El clip `clip-3` hace exactamente lo mismo con el sonido de la misma toma, y como los dos comparten `linkId` el editor los mueve y recorta juntos. La foto no tiene tasa de cuadros, por eso su `frameRate` es `null`, y se le asigna una duración larga (una hora) para que se pueda estirar en la línea de tiempo; el clip `clip-2` usa tres segundos de ella y empieza en el segundo 2. Como la pista `Video 2` está por encima de `Video 1`, la foto tapa el video mientras dura. El efecto de transformación del primer clip anima la opacidad de 0 a 1 durante el primer segundo del clip, con una curva que arranca rápido y frena al final.
+Leído en voz alta, el ejemplo dice lo siguiente. La toma dura 300 cuadros a 29,97 fps, que son 300 × 23 543 520 = 7 063 056 000 ticks. El clip `clip-1` usa de esa toma desde el cuadro 30 (`sourceIn` = 706 305 600) hasta el cuadro 180 (`sourceOut` = 4 237 833 600, excluido), es decir 150 cuadros, unos cinco segundos, y los coloca en el instante cero de la pista. El clip `clip-3` hace exactamente lo mismo con el sonido de la misma toma, y como los dos comparten `linkId` el editor los mueve y recorta juntos. La foto no tiene tasa de cuadros, por eso su `frameRate` es `null`, y se le asigna una duración larga (una hora) para que se pueda estirar en la línea de tiempo; el clip `clip-2` usa tres segundos de ella y empieza en el segundo 2. Como la pista `Video 2` está por encima de `Video 1`, la foto tapa el video mientras dura. El efecto de transformación del primer clip anima la opacidad de 0 a 1 durante el primer segundo del clip, con una curva que arranca rápido y frena al final. Un marcador señala el segundo 2, donde entra la foto, y la región «Intro» cubre los primeros cinco segundos.
 
 ## Qué significa cada campo
 
-La raíz del archivo es el proyecto. `schemaVersion` es la versión del formato y hoy vale 1; es el primer dato que se lee y decide cómo se interpreta el resto. `id` identifica al proyecto y `name` es el nombre que ve quien edita. `media` es la biblioteca de medios y `sequences` son las líneas de tiempo, que pueden ser varias, por ejemplo una horizontal y otra vertical del mismo material.
+La raíz del archivo es el proyecto. `schemaVersion` es la versión del formato y hoy vale 2; es el primer dato que se lee y decide cómo se interpreta el resto. `id` identifica al proyecto y `name` es el nombre que ve quien edita. `media` es la biblioteca de medios y `sequences` son las líneas de tiempo, que pueden ser varias, por ejemplo una horizontal y otra vertical del mismo material.
 
 Cada medio describe un archivo de origen. `path` es su ruta; se prefiere relativa a la carpeta donde está el `.rodaje`, para que el proyecto se pueda mover junto con su material a otro PC, aunque se aceptan rutas absolutas. Se admiten tanto `/` como `\` como separador. `name` es el nombre visible, `duration` la duración total del archivo en ticks, `hasVideo` y `hasAudio` dicen qué contiene, `frameRate` es la tasa de su video o `null` si no tiene (una imagen fija o un archivo de solo audio), `width` y `height` son las dimensiones de la imagen en píxeles y `sampleRate` y `audioChannels` describen su sonido. Los campos que no aplican valen 0.
 
-Cada secuencia tiene su propio `id` y `name`, su tasa de cuadros `frameRate`, su resolución `width` × `height` y la frecuencia de muestreo `sampleRate` a la que se mezcla el audio. Las pistas van en dos listas separadas, `videoTracks` y `audioTracks`, y el orden dentro de cada lista importa: en `videoTracks` el primer elemento es la capa de más abajo y cada pista siguiente se compone encima de la anterior, de abajo hacia arriba, como en cualquier editor de video. Una pista tiene `id`, `kind` (que vale `"video"` o `"audio"` y debe coincidir con la lista en la que está), `name`, y tres interruptores: `muted` la silencia, `hidden` la oculta de la imagen y `locked` impide editarla. Su lista `clips` está ordenada por posición.
+Cada secuencia tiene su propio `id` y `name`, su tasa de cuadros `frameRate`, su resolución `width` × `height` y la frecuencia de muestreo `sampleRate` a la que se mezcla el audio. Las pistas van en dos listas separadas, `videoTracks` y `audioTracks`, y el orden dentro de cada lista importa: en `videoTracks` el primer elemento es la capa de más abajo y cada pista siguiente se compone encima de la anterior, de abajo hacia arriba, como en cualquier editor de video. Una pista tiene `id`, `kind` (que vale `"video"` o `"audio"` y debe coincidir con la lista en la que está), `name`, y tres interruptores: `muted` la silencia, `hidden` la oculta de la imagen y `locked` impide editarla. Su lista `clips` está ordenada por posición. Después de las pistas, `markers` guarda los marcadores, cada uno con `id`, el instante `time` y un `name` que puede ir vacío, ordenados por tiempo; y `regions` guarda las regiones, tramos con nombre `[start, end)` que pueden solaparse, ordenadas por inicio. Los dos están en tiempo de la secuencia: con el ripple en el modo «pistas, marcadores y regiones», cerrar un hueco o recortar los corre junto con los clips.
 
 El clip es el corazón del formato y se describe con tres instantes. `sourceIn` es el punto de entrada dentro del archivo de origen, incluido; `sourceOut` es el punto de salida, excluido; y `start` es el lugar de la pista donde se coloca el clip. Su duración es `sourceOut − sourceIn` y su final en la pista es `start + duración`. Estos dos valores no se guardan porque se calculan, y un programa externo no debe escribirlos. Toda la edición no destructiva consiste en cambiar estos tres números: recortar mueve `sourceIn` o `sourceOut`, deslizar mueve `start`. `mediaId` dice qué medio usa, `enabled` permite apagar un clip sin borrarlo, y `linkId`, si no es `null`, agrupa clips que se editan juntos; normalmente el video y el audio de una misma toma. El valor de `linkId` es un texto cualquiera que comparten los clips del grupo y no tiene que aparecer en ningún otro lugar.
 
@@ -182,13 +197,13 @@ Los efectos de un clip están en `effects` y se aplican en el orden de la lista.
 
 El esquema JSON describe la forma del archivo, pero hay reglas que relacionan unos datos con otros y que el esquema no puede expresar. Rodaje las comprueba todas al abrir un proyecto y lo rechaza con un mensaje que las enumera si alguna falla, así que un programa que escriba un `.rodaje` debe cumplirlas.
 
-Todos los identificadores (`id`) del proyecto, de los medios, de las secuencias, de las pistas, de los clips y de los efectos deben ser textos no vacíos y únicos en todo el archivo, compartiendo un mismo espacio: un clip no puede llamarse igual que una pista. Rodaje genera identificadores del tipo `clip-3f2a…` y otros programas pueden usar cualquier texto, por ejemplo un UUID.
+Todos los identificadores (`id`) del proyecto, de los medios, de las secuencias, de las pistas, de los clips, de los efectos, de los marcadores y de las regiones deben ser textos no vacíos y únicos en todo el archivo, compartiendo un mismo espacio: un clip no puede llamarse igual que una pista. Rodaje genera identificadores del tipo `clip-3f2a…` y otros programas pueden usar cualquier texto, por ejemplo un UUID.
 
 Cada medio debe tener una duración positiva. Cada secuencia debe tener ancho, alto y frecuencia de muestreo positivos. Una pista de `videoTracks` debe ser de tipo `video` y una de `audioTracks` de tipo `audio`.
 
 Cada clip debe apuntar con `mediaId` a un medio que exista en `media`. Su `sourceIn` no puede ser negativo, su `sourceOut` debe ser mayor que su `sourceIn` y no puede pasar de la duración del medio, y su `start` no puede ser negativo. Un clip en una pista de video necesita un medio con imagen (`hasVideo`) y uno en una pista de audio, un medio con sonido (`hasAudio`). Dentro de una pista, los clips van ordenados por `start` y no se solapan: cada uno empieza en el final del anterior o después. Los huecos entre clips no se guardan; son simplemente el espacio que queda entre uno y el siguiente.
 
-Los keyframes de cada parámetro van en orden estrictamente creciente de `time`, sin dos en el mismo instante. Un mismo `linkId` puede repetirse en varias pistas, pero nunca en dos clips de la misma pista.
+Un marcador no puede estar antes del instante cero, y una región tampoco puede empezar antes y debe terminar después de empezar. Los keyframes de cada parámetro van en orden estrictamente creciente de `time`, sin dos en el mismo instante. Un mismo `linkId` puede repetirse en varias pistas, pero nunca en dos clips de la misma pista.
 
 Además, el archivo debe ser JSON estricto: sin comentarios, sin comas sobrantes y sin el mismo campo repetido dentro de un objeto, porque no habría forma de saber cuál vale. Las listas no pueden contener `null`, y los campos de texto, listas y objetos tampoco; los únicos campos que admiten `null` son `linkId` y el `frameRate` de un medio.
 
@@ -196,7 +211,7 @@ Un campo que falta toma su valor por defecto: listas vacías, números en 0, `en
 
 ## Versiones y migraciones
 
-`schemaVersion` es un entero que solo crece. Cuando el formato cambia de una manera que una versión anterior de Rodaje no podría leer correctamente, por ejemplo al agregar la velocidad de los clips, que cambia la relación entre la duración en la pista y el tramo usado del origen, se sube la versión. Al abrir un archivo, Rodaje lee primero ese número. Si falta, no es un entero o es menor que 1, el archivo no es un proyecto de Rodaje. Si es mayor que la versión que el programa conoce, el archivo fue creado con una versión más nueva y se pide actualizar el programa en lugar de abrirlo a medias. Si es menor, se aplican en cadena las migraciones de la versión 1 a la 2, de la 2 a la 3 y así hasta la actual, trabajando sobre el árbol JSON antes de convertirlo en objetos, y después se valida el resultado como cualquier otro proyecto. Cada versión tiene su propio esquema con el número en el nombre del archivo, de modo que `rodaje-proyecto.v1.schema.json` no cambia nunca una vez publicado. Una migración publicada tampoco se modifica: si tuviera un error se corrige con otra migración.
+`schemaVersion` es un entero que solo crece. Cuando el formato cambia de una manera que una versión anterior de Rodaje no podría leer correctamente, por ejemplo al agregar la velocidad de los clips, que cambia la relación entre la duración en la pista y el tramo usado del origen, se sube la versión. Al abrir un archivo, Rodaje lee primero ese número. Si falta, no es un entero o es menor que 1, el archivo no es un proyecto de Rodaje. Si es mayor que la versión que el programa conoce, el archivo fue creado con una versión más nueva y se pide actualizar el programa en lugar de abrirlo a medias. Si es menor, se aplican en cadena las migraciones de la versión 1 a la 2, de la 2 a la 3 y así hasta la actual, trabajando sobre el árbol JSON antes de convertirlo en objetos, y después se valida el resultado como cualquier otro proyecto. Cada versión tiene su propio esquema con el número en el nombre del archivo, de modo que `rodaje-proyecto.v1.schema.json` no cambia nunca una vez publicado. La única migración hasta hoy, de la 1 a la 2, agrega a cada secuencia las listas `markers` y `regions` vacías. Una migración publicada tampoco se modifica: si tuviera un error se corrige con otra migración.
 
 Al volver a guardar, Rodaje siempre escribe la versión actual, así que un proyecto abierto y guardado con una versión nueva ya no se puede abrir con una anterior. La copia `.bak` descrita abajo conserva la versión previa del archivo.
 

@@ -19,6 +19,9 @@ public static class EnvironmentVariables
     /// <summary>Carpeta de los ajustes y atajos de la app; sin ella, <c>%LOCALAPPDATA%\Rodaje</c>.</summary>
     public const string Datos = "RODAJE_DATOS";
 
+    /// <summary>Ruta de un informe: la línea de tiempo arma un proyecto de 200 clips, mide desplazamiento, zoom y arrastre, lo escribe y cierra.</summary>
+    public const string MedirLinea = "RODAJE_MEDIR_LINEA";
+
     /// <summary>El valor de la variable, o <c>null</c> si no está definida o está en blanco.</summary>
     public static string? Read(string name)
     {

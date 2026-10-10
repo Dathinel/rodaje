@@ -191,6 +191,29 @@ public static class ModelValidator
                 previousEnd = end;
             }
         }
+
+        foreach (Marker marker in sequence.Markers)
+        {
+            checkId(marker.Id, "un marcador");
+            if (marker.Time < Time.Zero)
+            {
+                errors.Add($"El marcador «{marker.Id}» está antes del inicio de la línea de tiempo.");
+            }
+        }
+
+        foreach (Region region in sequence.Regions)
+        {
+            checkId(region.Id, "una región");
+            if (region.Start < Time.Zero)
+            {
+                errors.Add($"La región «{region.Id}» empieza antes del inicio de la línea de tiempo.");
+            }
+
+            if (region.End <= region.Start)
+            {
+                errors.Add($"La región «{region.Id}» tiene duración cero o negativa.");
+            }
+        }
     }
 
     private static bool FitsInLong(Int128 value) => value >= long.MinValue && value <= long.MaxValue;

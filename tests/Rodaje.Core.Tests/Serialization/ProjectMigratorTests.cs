@@ -35,7 +35,7 @@ public class ProjectMigratorTests
     [Fact]
     public void Deserialize_NewerVersion_ThrowsUpdateMessage()
     {
-        var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize("""{"schemaVersion": 2, "id": "p"}"""));
+        var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize("""{"schemaVersion": 3, "id": "p"}"""));
         Assert.Contains("versión más nueva", ex.Message, StringComparison.Ordinal);
     }
 
@@ -43,11 +43,34 @@ public class ProjectMigratorTests
     public void Default_TargetsCurrentVersionAndLeavesCurrentFilesUntouched()
     {
         Assert.Equal(Project.CurrentSchemaVersion, ProjectMigrator.Default.TargetVersion);
-        JsonObject root = Doc("""{"schemaVersion": 1, "id": "p"}""");
+        JsonObject root = Doc("""{"schemaVersion": 2, "id": "p"}""");
         string before = root.ToJsonString();
 
-        Assert.Equal(1, ProjectMigrator.Default.Migrate(root));
+        Assert.Equal(2, ProjectMigrator.Default.Migrate(root));
         Assert.Equal(before, root.ToJsonString());
+    }
+
+    [Fact]
+    public void Migrate_V1_AddsEmptyMarkersAndRegionsToEverySequence()
+    {
+        JsonObject root = Doc("""{"schemaVersion": 1, "id": "p", "sequences": [{"id": "a"}, {"id": "b", "markers": [{"id": "m", "time": 5}]}]}""");
+
+        Assert.Equal(1, ProjectMigrator.Default.Migrate(root));
+
+        Assert.Equal(2, (int)root["schemaVersion"]!);
+        Assert.Equal("[]", root["sequences"]![0]!["markers"]!.ToJsonString());
+        Assert.Equal("[]", root["sequences"]![0]!["regions"]!.ToJsonString());
+        Assert.Equal("m", (string)root["sequences"]![1]!["markers"]![0]!["id"]!);
+    }
+
+    [Fact]
+    public void Deserialize_V1File_OpensWithEmptyMarkers()
+    {
+        Project project = ProjectSerializer.Deserialize("""{"schemaVersion": 1, "id": "p", "sequences": [{"id": "s"}]}""");
+
+        Assert.Equal(Project.CurrentSchemaVersion, project.SchemaVersion);
+        Assert.Empty(project.Sequences[0].Markers);
+        Assert.Empty(project.Sequences[0].Regions);
     }
 
     [Fact]

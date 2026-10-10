@@ -131,6 +131,16 @@ internal static class ProjectDump
             {
                 DumpTrack(sb, "A", t);
             }
+
+            foreach (Marker m in s.Markers)
+            {
+                Line(sb, 2, $"marcador {m.Id} {m.Time.Ticks} «{m.Name}»");
+            }
+
+            foreach (Region r in s.Regions)
+            {
+                Line(sb, 2, $"región {r.Id} {r.Start.Ticks}-{r.End.Ticks} «{r.Name}»");
+            }
         }
 
         return sb.ToString();

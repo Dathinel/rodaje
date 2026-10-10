@@ -77,7 +77,11 @@ public sealed class UndoStack
 
         if (IsInGroup)
         {
-            _groupCommands.Add(command);
+            // Un arrastre dentro de un gesto ejecuta un paso por movimiento: los que se funden no se acumulan.
+            if (_mergeBarrier || _groupCommands.Count == 0 || !_groupCommands[^1].TryMerge(command))
+            {
+                _groupCommands.Add(command);
+            }
         }
         else if (_mergeBarrier || _undo.Count == 0 || _cleanIndex == _undo.Count || !_undo[^1].TryMerge(command))
         {

@@ -40,7 +40,7 @@ Doble clic en **`ABRIR.bat`**. La primera vez descarga el SDK de .NET en `.entor
 
   Las pistas bloqueadas son intocables.
 - **Deshacer y rehacer** con el patrón comando. Cada edición guarda una instantánea y, si falla a mitad, el proyecto vuelve solo a como estaba. Los arrastres se funden en un único paso de deshacer.
-- **Formato abierto `.rodaje`:** JSON versionado con migraciones y [esquema publicado](schema/rodaje-proyecto.v1.schema.json), pensado para que otros programas lo lean y lo escriban. El guardado es atómico, con copia `.bak`, así que un apagón no corrompe el proyecto.
+- **Formato abierto `.rodaje`:** JSON versionado con migraciones y [esquema publicado](schema/rodaje-proyecto.v2.schema.json), pensado para que otros programas lo lean y lo escriban. El guardado es atómico, con copia `.bak`, así que un apagón no corrompe el proyecto.
 
 ## Evidencias
 

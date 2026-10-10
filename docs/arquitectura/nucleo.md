@@ -29,9 +29,9 @@ flowchart TB
 
 | Tipo | Qué guarda |
 |---|---|
-| [`Project`](../../src/Rodaje.Core/Model/Project.cs) | `SchemaVersion` (hoy 1), la biblioteca de medios y las secuencias |
+| [`Project`](../../src/Rodaje.Core/Model/Project.cs) | `SchemaVersion` (hoy 2), la biblioteca de medios y las secuencias |
 | [`MediaRef`](../../src/Rodaje.Core/Model/MediaRef.cs) | Ruta (relativa al proyecto si se puede), duración, si tiene video o audio, fps, tamaño y Hz; `ResolvePath` también resuelve casos raros de Windows como `\Videos\a.mp4` |
-| [`Sequence`](../../src/Rodaje.Core/Model/Sequence.cs) | fps, tamaño, Hz, `VideoTracks` (el índice 0 es el fondo) y `AudioTracks`; `FindClip` y `GetLinkGroup` |
+| [`Sequence`](../../src/Rodaje.Core/Model/Sequence.cs) | fps, tamaño, Hz, `VideoTracks` (el índice 0 es el fondo), `AudioTracks`, `Markers` (`Time`, `Name`) y `Regions` (`[Start, End)`, `Name`); `FindClip` y `GetLinkGroup` |
 | [`Track`](../../src/Rodaje.Core/Model/Track.cs) | `Muted`, `Hidden`, `Locked` y los clips ordenados por `Start` y sin solaparse; los huecos no son objetos |
 | [`Clip`](../../src/Rodaje.Core/Model/Clip.cs) | `SourceIn` (incluido), `SourceOut` (excluido), `Start`, `LinkId`, `Enabled` y efectos; `ToSourceTime(t) = SourceIn + (t − Start)` |
 | [`Effects`](../../src/Rodaje.Core/Model/Effects.cs) | Parámetros animables con keyframes en tiempo del origen (al recortar, la animación sigue pegada al material) e interpolación `Hold`, `Linear`, `EaseIn`, `EaseOut` o `EaseInOut`; [`BuiltInEffects.Transform`](../../src/Rodaje.Core/Model/BuiltInEffects.cs) (x, y, scale, rotation, opacity) es el que usa el compositor |
@@ -57,7 +57,7 @@ En los diagramas cada carácter es un segundo, con A de 0 a 4 s, B de 4 a 10 s, 
 | `Overwrite` X en 6 s | `AAAABBBBBBCCCC` | `AAAABBXXXBCCCC` |
 | `Lift` B / `RippleDelete` B | `AAAABBBBBBCCCC` | `AAAA······CCCC` / `AAAACCCC` |
 
-`Move` tiene tres modos (`PlacementMode`: `Strict`, `Overwrite`, `Insert`); también existen `AppendMedia` y `CloseGap`. El ripple tiene alcance (`RippleScope`): `Track` corre solo las pistas del grupo editado y `AllTracks` corre todas las no bloqueadas. A eso se suman las operaciones de pistas y estado: `AddTrack`, `RemoveTrack`, `MoveTrack`, `SetTrackState`, `SetClipEnabled`, `LinkClips` y `UnlinkClips`. Las piezas comunes están en [`TrackOps`](../../src/Rodaje.Core/Editing/TrackOps.cs) y [`TrimmingSupport`](../../src/Rodaje.Core/Editing/TrimmingSupport.cs).
+`Move` tiene tres modos (`PlacementMode`: `Strict`, `Overwrite`, `Insert`); también existen `AppendMedia` y `CloseGap`. El ripple tiene alcance (`RippleScope`): `Track` corre solo las pistas del grupo editado, `AllTracks` corre todas las no bloqueadas y `AllTracksAndMarkers` además corre marcadores y regiones (lo que cae dentro de un tramo cerrado queda en su inicio y una región que queda vacía se borra). `ReorderOnMainTrack` lleva un clip a otra posición de su pista y la deja sin huecos, con sus enlazados; es el arrastre de la pista principal magnética. Los marcadores y regiones tienen `AddMarker`, `RemoveMarker`, `MoveMarker`, `AddRegion` y `RemoveRegion`. A eso se suman las operaciones de pistas y estado: `AddTrack`, `RemoveTrack`, `MoveTrack`, `SetTrackState`, `SetClipEnabled`, `LinkClips` y `UnlinkClips`. Las piezas comunes están en [`TrackOps`](../../src/Rodaje.Core/Editing/TrackOps.cs) y [`TrimmingSupport`](../../src/Rodaje.Core/Editing/TrimmingSupport.cs).
 
 ## Deshacer y rehacer (`Commands/`)
 
@@ -79,14 +79,14 @@ sequenceDiagram
 ```
 
 - **Instantáneas, no inversas.** [`SequenceEditCommand`](../../src/Rodaje.Core/Commands/SequenceEditCommand.cs) fotografía la secuencia antes y después ([`SequenceSnapshot`](../../src/Rodaje.Core/Commands/SequenceSnapshot.cs)). Deshacer restaura la foto de antes; rehacer restaura la de después sin repetir la operación, así que los ids creados (`CreatedIds`) no cambian. Si la operación falla a mitad, se restaura la foto de antes: una edición fallida nunca deja el proyecto a medias. Las pistas vuelven a ser los mismos objetos, pero los clips son copias nuevas, así que fuera del núcleo un clip se refiere por su id.
-- **Fusión.** Los arrastres llevan una clave (`trim:clip-3:out`, `move:clip-3`...); comandos seguidos con la misma clave se funden en un paso, y `BreakMerge` al soltar el ratón corta la fusión.
+- **Fusión.** Los arrastres llevan una clave (`trim:clip-3:out`, `move:clip-3`...); comandos seguidos con la misma clave se funden en un paso, y `BreakMerge` al soltar el ratón corta la fusión. Dentro de un grupo (un gesto de la interfaz) también se funden, así un arrastre largo guarda un paso y no uno por cada movimiento del ratón.
 - **Grupos.** `BeginGroup`/`EndGroup` dejan varios comandos como un único [`CompositeCommand`](../../src/Rodaje.Core/Commands/CompositeCommand.cs), que se aplica todo o nada; `CancelGroup` revierte lo hecho.
 - **Punto limpio.** `MarkClean`/`IsClean` dicen si el proyecto está como en el último guardado; nunca se funde un comando sobre ese punto.
 - El historial guarda 500 pasos por omisión. [`ProjectCommands`](../../src/Rodaje.Core/Commands/ProjectCommands.cs) cubre medios y secuencias (no deja quitar un medio en uso).
 
 ## Formato `.rodaje` (`Serialization/`)
 
-JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`; la especificación está en [`docs/formato-proyecto.md`](../formato-proyecto.md) y el esquema en [`schema/`](../../schema/rodaje-proyecto.v1.schema.json).
+JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`; la especificación está en [`docs/formato-proyecto.md`](../formato-proyecto.md) y el esquema en [`schema/`](../../schema/rodaje-proyecto.v2.schema.json).
 
 - **Abrir** ([`ProjectSerializer.Load`](../../src/Rodaje.Core/Serialization/ProjectSerializer.cs)) sigue cinco pasos:
   1. Lee UTF-8 estricto.

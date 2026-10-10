@@ -204,6 +204,31 @@ public static partial class Edits
     public static SequenceEditCommand UnlinkClips(string sequenceId, string clipId, IIdGenerator? ids = null) =>
         new("Desenlazar", sequenceId, ctx => TimelineEdits.UnlinkClips(ctx, clipId), ids);
 
+    /// <summary>Reordena el clip dentro de su pista y la deja sin huecos (pista principal magnética).</summary>
+    /// <remarks>Se funde por clip: al arrastrar, cada cambio de posición se ejecuta y todo se deshace en un paso.</remarks>
+    public static SequenceEditCommand ReorderOnMainTrack(string sequenceId, string clipId, int newIndex, IIdGenerator? ids = null) =>
+        new("Reordenar clip", sequenceId, ctx => TimelineEdits.ReorderOnMainTrack(ctx, clipId, newIndex), ids, $"reorder:{clipId}");
+
+    /// <summary>Agrega un marcador.</summary>
+    /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: el identificador del marcador nuevo.</remarks>
+    public static SequenceEditCommand AddMarker(string sequenceId, Time at, string name = "", IIdGenerator? ids = null) =>
+        new("Añadir marcador", sequenceId, ctx => (IReadOnlyList<string>)[TimelineEdits.AddMarker(ctx, at, name)], ids);
+
+    public static SequenceEditCommand RemoveMarker(string sequenceId, string markerId, IIdGenerator? ids = null) =>
+        new("Quitar marcador", sequenceId, ctx => TimelineEdits.RemoveMarker(ctx, markerId), ids);
+
+    /// <summary>Lleva el marcador a otro instante; se funde por marcador para arrastrarlo.</summary>
+    public static SequenceEditCommand MoveMarker(string sequenceId, string markerId, Time newTime, IIdGenerator? ids = null) =>
+        new("Mover marcador", sequenceId, ctx => TimelineEdits.MoveMarker(ctx, markerId, newTime), ids, $"marker:{markerId}");
+
+    /// <summary>Agrega una región <c>[start, end)</c>.</summary>
+    /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: el identificador de la región nueva.</remarks>
+    public static SequenceEditCommand AddRegion(string sequenceId, Time start, Time end, string name = "", IIdGenerator? ids = null) =>
+        new("Añadir región", sequenceId, ctx => (IReadOnlyList<string>)[TimelineEdits.AddRegion(ctx, start, end, name)], ids);
+
+    public static SequenceEditCommand RemoveRegion(string sequenceId, string regionId, IIdGenerator? ids = null) =>
+        new("Quitar región", sequenceId, ctx => TimelineEdits.RemoveRegion(ctx, regionId), ids);
+
     private static string EdgeKey(TrimEdge edge) => edge == TrimEdge.In ? "in" : "out";
 
     private static string PlacementDescription(PlacementMode mode) => mode switch

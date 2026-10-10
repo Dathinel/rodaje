@@ -212,3 +212,15 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 **Resultado** (RTX 3050 Laptop, cuatro pistas a 60 Hz durante 24 s, seis archivos HEVC con cortes cada 3 s): en 4K el pico de VRAM del proceso pasó de 3708 a 1417 MB (presupuesto 1485), los refrescos tarde de 359 a 14 y la peor espera de una capa de 483 a 134 ms, con 89 % de pre-roll a tiempo; en 1080p, 100 % de pre-roll y 0 tarde con 1003 MB. Un archivo en cuatro pistas con 2 s de desfase pasó de 3285 refrescos tarde (una capa esperó 6 s) a 0.
 
 **Consecuencias.** En 4K el presupuesto deja cuatro capas y dos pre-roll: si en un mismo corte entran más medios nuevos que eso, alguno llega un poco tarde. Los saltos de más de 50 ms que se ven al presentar con cuatro capas 4K ya estaban antes y no vienen del motor (el `Tick` tarda 0,1 ms de mediana): son la GPU repartida entre cuatro flujos de NVDEC; para eso están los proxies.
+
+## D-020. Línea de tiempo: marcadores en el formato, gestos que se funden y dibujo con XAML reciclado (10 de octubre de 2026)
+
+**Decisión.**
+- **Formato 2.** Las secuencias tienen `markers` y `regions`; la migración 1 → 2 agrega las listas vacías y el esquema de la versión 1 se conserva. El modo de ripple «pistas, marcadores y regiones» es `RippleScope.AllTracksAndMarkers`: lo que cae dentro de un tramo que se cierra queda en su inicio y una región vacía se borra.
+- **Gestos.** Dentro de un grupo del historial los comandos con la misma clave también se funden: un arrastre ejecuta un paso por movimiento para que el reproductor lo vea en vivo, pero guarda una sola copia antes y otra después, no una por movimiento.
+- **Pista principal magnética.** Reordenar es `ReorderOnMainTrack` (empaqueta desde donde empezaba la pista y corre los enlazados lo mismo); entrar o salir de ella abre o cierra el hueco también en las pistas de los enlazados, así el audio no se desincroniza aunque el clip que entra no tenga sonido.
+- **Dibujo.** Elementos de XAML reciclados en una ventana de tres anchos de pantalla y no Win2D ni una cadena de intercambio propia: es apto para AOT, no suma dependencias y deja el texto y la accesibilidad a WinUI. Bloques sin trazo ni esquinas y tira de película como degradado repetido, porque lo que se rasteriza vuelve a rasterizarse en cada cambio de zoom.
+
+**Por qué.** Arrastrar debe sentirse inmediato y deshacerse de una vez; el formato necesitaba marcadores para el ripple de Vegas.
+
+**Consecuencias.** Desplazarse va a 60 cuadros por segundo con 200 clips; el zoom continuo queda en unos 45 (estirando lo dibujado y rearmándolo al terminar), con el tiempo en el dibujo de XAML y no en el código propio. Si hiciera falta más, el siguiente paso es dibujar las pistas con `SpriteVisual` de composición como los medidores.

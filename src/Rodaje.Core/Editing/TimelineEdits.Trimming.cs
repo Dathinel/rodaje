@@ -95,7 +95,7 @@ public static partial class TimelineEdits
         List<Track> editedTracks = plans.ConvertAll(p => p.Track);
         ctx.RippleShift(editedTracks, originalEnd, shift, scope, new HashSet<Clip>(plans.Select(p => p.Clip)));
 
-        TrimmingSupport.EnsureNoOverlaps(scope == RippleScope.AllTracks ? ctx.Sequence.AllTracks : editedTracks);
+        TrimmingSupport.EnsureNoOverlaps(scope.IncludesAllTracks() ? ctx.Sequence.AllTracks : editedTracks);
         ctx.EnsureValid();
     }
 

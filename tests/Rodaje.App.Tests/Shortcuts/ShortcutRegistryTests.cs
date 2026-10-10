@@ -61,7 +61,8 @@ public class ShortcutRegistryTests
         ShortcutRegistry registry = Catalog();
         Assert.Equal("Ctrl+Mayús+Z", registry.GetKeyText(ActionIds.Redo));
         Assert.Equal("Espacio", registry.GetKeyText(ActionIds.TogglePlay));
-        Assert.Equal("", registry.GetKeyText(ActionIds.EnvelopeTool));
+        Assert.Equal("E", registry.GetKeyText(ActionIds.EnvelopeTool));
+        Assert.Equal("", registry.GetKeyText(ActionIds.SelectionTool));
         Assert.Equal("", registry.GetKeyText("no.existe"));
     }
 

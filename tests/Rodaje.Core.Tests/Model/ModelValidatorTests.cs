@@ -46,10 +46,11 @@ public class ModelValidatorTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(2)]
+    [InlineData(1)]
+    [InlineData(3)]
     [InlineData(-1)]
     public void WrongSchemaVersion(int version) =>
-        AssertSingleError(p => p.SchemaVersion = version, $"La versión de formato es {version} y se esperaba 1.");
+        AssertSingleError(p => p.SchemaVersion = version, $"La versión de formato es {version} y se esperaba 2.");
 
     [Theory]
     [InlineData("")]
@@ -259,12 +260,12 @@ public class ModelValidatorTests
     public void ThrowIfInvalid_ListsEveryError()
     {
         Project p = ValidProject();
-        p.SchemaVersion = 2;
+        p.SchemaVersion = 1;
         ClipOf(p, "c3").SourceIn = Sec(-1);
 
         var ex = Assert.Throws<InvalidOperationException>(() => ModelValidator.ThrowIfInvalid(p));
         Assert.Equal(
-            "El proyecto no es válido:\n- La versión de formato es 2 y se esperaba 1.\n- El clip «c3» de la pista «V2» tiene un punto de entrada negativo.",
+            "El proyecto no es válido:\n- La versión de formato es 1 y se esperaba 2.\n- El clip «c3» de la pista «V2» tiene un punto de entrada negativo.",
             ex.Message);
     }
 

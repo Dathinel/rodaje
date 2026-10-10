@@ -18,6 +18,8 @@ public sealed class SequenceSnapshot
     private readonly int _sampleRate;
     private readonly TrackEntry[] _videoTracks;
     private readonly TrackEntry[] _audioTracks;
+    private readonly Marker[] _markers;
+    private readonly Region[] _regions;
 
     private SequenceSnapshot(Sequence sequence)
     {
@@ -29,6 +31,8 @@ public sealed class SequenceSnapshot
         _sampleRate = sequence.SampleRate;
         _videoTracks = [.. sequence.VideoTracks.Select(t => new TrackEntry(t, t.Clone()))];
         _audioTracks = [.. sequence.AudioTracks.Select(t => new TrackEntry(t, t.Clone()))];
+        _markers = [.. sequence.Markers.Select(m => m.Clone())];
+        _regions = [.. sequence.Regions.Select(r => r.Clone())];
     }
 
     public string SequenceId => _id;
@@ -55,6 +59,10 @@ public sealed class SequenceSnapshot
         sequence.SampleRate = _sampleRate;
         RestoreTracks(sequence.VideoTracks, _videoTracks);
         RestoreTracks(sequence.AudioTracks, _audioTracks);
+        sequence.Markers.Clear();
+        sequence.Markers.AddRange(_markers.Select(m => m.Clone()));
+        sequence.Regions.Clear();
+        sequence.Regions.AddRange(_regions.Select(r => r.Clone()));
     }
 
     /// <summary>Igualdad profunda con el estado capturado, incluida la identidad de las pistas.</summary>
@@ -68,7 +76,25 @@ public sealed class SequenceSnapshot
             && sequence.Height == _height
             && sequence.SampleRate == _sampleRate
             && TracksMatch(sequence.VideoTracks, _videoTracks)
-            && TracksMatch(sequence.AudioTracks, _audioTracks);
+            && TracksMatch(sequence.AudioTracks, _audioTracks)
+            && sequence.Markers.Count == _markers.Length
+            && sequence.Markers.Zip(_markers).All(p => MarkerEquals(p.First, p.Second))
+            && sequence.Regions.Count == _regions.Length
+            && sequence.Regions.Zip(_regions).All(p => RegionEquals(p.First, p.Second));
+    }
+
+    public static bool MarkerEquals(Marker a, Marker b)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+        return a.Id == b.Id && a.Time == b.Time && a.Name == b.Name;
+    }
+
+    public static bool RegionEquals(Region a, Region b)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+        return a.Id == b.Id && a.Start == b.Start && a.End == b.End && a.Name == b.Name;
     }
 
     /// <summary>Compara contenido y marcas de bloqueo, silencio y visibilidad.</summary>

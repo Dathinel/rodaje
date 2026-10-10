@@ -98,7 +98,12 @@ public sealed partial class TimelineState : ObservableObject
         set => SetProperty(ref _pixelsPerSecond, Math.Clamp(double.IsFinite(value) ? value : DefaultPixelsPerSecond, MinPixelsPerSecond, MaxPixelsPerSecond));
     }
 
-    public RippleScope RippleScope => RippleMode == RippleMode.AffectedTracks ? RippleScope.Track : RippleScope.AllTracks;
+    public RippleScope RippleScope => RippleMode switch
+    {
+        RippleMode.AllTracks => RippleScope.AllTracks,
+        RippleMode.AllTracksAndMarkers => RippleScope.AllTracksAndMarkers,
+        _ => RippleScope.Track,
+    };
 
     public void ZoomIn() => PixelsPerSecond *= ZoomStep;
 

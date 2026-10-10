@@ -241,7 +241,7 @@ public static partial class TimelineEdits
             throw new EditException($"No hay un hueco en la pista «{track.Name}» en {at}.");
         }
 
-        if (scope == RippleScope.AllTracks)
+        if (scope.IncludesAllTracks())
         {
             TrackOps.EnsureNothingStraddles(ctx, gapStart, next.Start);
         }

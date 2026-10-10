@@ -93,7 +93,7 @@ public static partial class EditorShortcuts
         new(ActionIds.ToggleMagneticMain, "Pista principal magnética", ShortcutGroups.Timeline, []) { ShortLabel = "Magnética", Description = "Mantiene los clips de la pista principal pegados unos a otros." },
 
         new(ActionIds.NormalTool, "Herramienta normal", ShortcutGroups.Tools, ["V"], capCut: ["A"], vegas: ["Ctrl+D"]) { ShortLabel = "Normal", Description = "Seleccionar, mover y recortar clips con el ratón." },
-        new(ActionIds.EnvelopeTool, "Herramienta de envolvente", ShortcutGroups.Tools, []) { ShortLabel = "Envolvente", Description = "Dibuja curvas de volumen u opacidad sobre los clips." },
+        new(ActionIds.EnvelopeTool, "Herramienta de envolvente", ShortcutGroups.Tools, ["E"], capCut: []) { ShortLabel = "Envolvente", Description = "Dibuja curvas de volumen u opacidad sobre los clips." },
         new(ActionIds.SelectionTool, "Herramienta de selección", ShortcutGroups.Tools, []) { ShortLabel = "Selección", Description = "Arrastra un recuadro para seleccionar varios clips." },
         new(ActionIds.ZoomTool, "Herramienta de zoom", ShortcutGroups.Tools, ["Z"], capCut: []) { ShortLabel = "Zoom", Description = "Haz clic o arrastra en la línea de tiempo para acercar ese tramo." },
 

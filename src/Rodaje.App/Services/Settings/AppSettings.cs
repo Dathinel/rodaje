@@ -43,6 +43,9 @@ public sealed class AppSettings
     /// <summary>El reproductor muestra los márgenes seguros de acción y de títulos.</summary>
     public bool ShowSafeAreas { get; set; }
 
+    /// <summary>Interruptores y zoom de la línea de tiempo.</summary>
+    public TimelinePreferences Timeline { get; set; } = new();
+
     /// <summary>Pone el proyecto el primero de los recientes, sin repetirlo y con un máximo.</summary>
     public void AddRecentProject(string path)
     {
@@ -70,6 +73,8 @@ public sealed class AppSettings
             ShortcutPreset = ShortcutPreset.Rodaje;
         }
 
+        Timeline ??= new TimelinePreferences();
+        Timeline.Normalize();
         if (!Enum.IsDefined(ProxyUsage))
         {
             ProxyUsage = ProxyUsage.Auto;
@@ -78,4 +83,62 @@ public sealed class AppSettings
 
     private static double Clamp(double value, double min, double max, double fallback) =>
         double.IsFinite(value) ? Math.Clamp(value, min, max) : fallback;
+}
+
+/// <summary>Lo que se recuerda de la barra de la línea de tiempo (<see cref="TimelineState"/>), salvo la herramienta.</summary>
+public sealed class TimelinePreferences
+{
+    public bool MagneticMainTrack { get; set; } = true;
+
+    public bool Snapping { get; set; } = true;
+
+    public bool AutoRipple { get; set; }
+
+    public RippleMode RippleMode { get; set; } = RippleMode.AffectedTracks;
+
+    public bool AutoCrossfade { get; set; }
+
+    public bool LockEnvelopes { get; set; }
+
+    public bool IgnoreGroups { get; set; }
+
+    public double PixelsPerSecond { get; set; } = TimelineState.DefaultPixelsPerSecond;
+
+    public void ApplyTo(TimelineState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        state.MagneticMainTrack = MagneticMainTrack;
+        state.Snapping = Snapping;
+        state.AutoRipple = AutoRipple;
+        state.RippleMode = RippleMode;
+        state.AutoCrossfade = AutoCrossfade;
+        state.LockEnvelopes = LockEnvelopes;
+        state.IgnoreGroups = IgnoreGroups;
+        state.PixelsPerSecond = PixelsPerSecond;
+    }
+
+    public void CopyFrom(TimelineState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        MagneticMainTrack = state.MagneticMainTrack;
+        Snapping = state.Snapping;
+        AutoRipple = state.AutoRipple;
+        RippleMode = state.RippleMode;
+        AutoCrossfade = state.AutoCrossfade;
+        LockEnvelopes = state.LockEnvelopes;
+        IgnoreGroups = state.IgnoreGroups;
+        PixelsPerSecond = state.PixelsPerSecond;
+    }
+
+    public void Normalize()
+    {
+        if (!Enum.IsDefined(RippleMode))
+        {
+            RippleMode = RippleMode.AffectedTracks;
+        }
+
+        PixelsPerSecond = double.IsFinite(PixelsPerSecond)
+            ? Math.Clamp(PixelsPerSecond, TimelineState.MinPixelsPerSecond, TimelineState.MaxPixelsPerSecond)
+            : TimelineState.DefaultPixelsPerSecond;
+    }
 }

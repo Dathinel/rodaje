@@ -14,7 +14,10 @@ public sealed class ProjectMigrator
     private const string VersionProperty = "schemaVersion";
 
     // Clave: versión de origen.
-    private static readonly Dictionary<int, Action<JsonObject>> DefaultChain = [];
+    private static readonly Dictionary<int, Action<JsonObject>> DefaultChain = new()
+    {
+        [1] = AddMarkersAndRegions,
+    };
 
     private readonly IReadOnlyDictionary<int, Action<JsonObject>> _chain;
 
@@ -63,6 +66,21 @@ public sealed class ProjectMigrator
         }
 
         return original;
+    }
+
+    /// <summary>1 → 2: las secuencias ganan <c>markers</c> y <c>regions</c>, vacías.</summary>
+    internal static void AddMarkersAndRegions(JsonObject root)
+    {
+        if (root["sequences"] is JsonArray sequences)
+        {
+            foreach (JsonObject sequence in sequences.OfType<JsonObject>())
+            {
+                sequence["markers"] ??= new JsonArray();
+                sequence["regions"] ??= new JsonArray();
+            }
+        }
+
+        root[VersionProperty] = 2;
     }
 
     private static int ReadVersion(JsonObject root)

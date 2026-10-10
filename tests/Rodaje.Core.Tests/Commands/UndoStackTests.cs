@@ -189,7 +189,7 @@ public class UndoStackTests
     }
 
     [Fact]
-    public void Group_NoFundeDentroNiElGrupoConElAnterior()
+    public void Group_FundeDentroPeroNoConElAnterior()
     {
         (UndoStack stack, _) = NewStack();
         var outside = new FakeCommand("x") { MergeKey = "k" };
@@ -201,8 +201,9 @@ public class UndoStackTests
         stack.EndGroup();
 
         Assert.Empty(outside.Merged);
-        Assert.Empty(first.Merged);
+        Assert.Equal("b", Assert.Single(first.Merged).Description);
         Assert.Equal(2, stack.Count);
+        Assert.Equal("Prueba+x+a+b", stack.Project.Name);
         stack.Undo();
         Assert.Equal("Prueba+x", stack.Project.Name);
     }

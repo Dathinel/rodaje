@@ -31,4 +31,13 @@ public enum RippleScope
 
     /// <summary>Todas las pistas no bloqueadas, para mantener la sincronía entre capas.</summary>
     AllTracks,
+
+    /// <summary>Como <see cref="AllTracks"/>, y además se corren los marcadores y las regiones.</summary>
+    AllTracksAndMarkers,
+}
+
+public static class RippleScopeExtensions
+{
+    /// <summary>El ripple corre todas las pistas no bloqueadas, no solo las editadas.</summary>
+    public static bool IncludesAllTracks(this RippleScope scope) => scope != RippleScope.Track;
 }

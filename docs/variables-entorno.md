@@ -8,12 +8,13 @@ Todas las variables que lee Rodaje empiezan con `RODAJE_`. Ninguna es obligatori
 | `RODAJE_FFMPEG` | Carpeta con las DLL de FFmpeg (o ruta de `ffmpeg.exe` para las pruebas). El editor la ignora si junto a su ejecutable hay una carpeta `ffmpeg\`: la distribución usa siempre el FFmpeg LGPL que trae | `FfmpegLocator` (Rodaje.Media); `FfmpegTool` (testing) | Desarrollo y editor |
 | `RODAJE_PROXIES` | Carpeta de los proxies; sin ella, `%LOCALAPPDATA%\Rodaje\proxies` | `ProxyStore.DefaultDirectory` (Rodaje.Media) | Editor |
 | `RODAJE_DATOS` | Carpeta de `ajustes.json` y `atajos.json` de la app; sin ella, `%LOCALAPPDATA%\Rodaje`. Sirve para probar la app sin tocar los ajustes de siempre | `AppDataPaths.Root` (Rodaje.App) | Editor |
+| `RODAJE_MEDIR_LINEA` | Ruta de un informe: al abrir, la línea de tiempo arma un proyecto de 200 clips con el primer video abierto (o uno sintético), mide desplazamiento, zoom y arrastre, escribe el informe y cierra la app | `TimelineBenchmark` (Rodaje.App) | Desarrollo |
 | `RODAJE_SIN_PAUSA` | Con `1`, `ABRIR.bat` no espera una tecla al final (para lanzarlo desde otro programa) | `ABRIR.bat` | Desarrollo |
 | `RODAJE_SDK_URL`, `RODAJE_SDK_SHA512` | Juntas, cambian la descarga del SDK por otro `.zip` con su huella; solo para probar `preparar-entorno.ps1` | `herramientas\preparar-entorno.ps1` | Solo pruebas del script |
 | `RODAJE_PRUEBAS_LARGAS` | Con `1`, corren las pruebas largas y las medidas en tiempo real (aceptación, carga, NVENC, reloj de audio) y las rápidas de aceptación hacen la medida completa. `herramientas\aceptacion.ps1` la pone sola | `Skip.LongRun` y `Skip.AudioDevice` (testing) | Solo pruebas |
 | `RODAJE_PRUEBAS_COMPLETAS` | Con `1`, corre además el clip de 10 minutos en tiempo real con el dispositivo de audio. La pone `aceptacion.ps1 -Completa` | `Skip.CompleteRun` (testing) | Solo pruebas |
 | `RODAJE_PRUEBAS_AUDIO` | Con `1`, corre la prueba que hace sonar un tono de 3 s | `Skip.AudioTone` (testing) | Solo pruebas |
 | `RODAJE_MEDIA_CACHE` | Carpeta de los medios de prueba generados; sin ella, `TestResults\media-cache` en la raíz del repositorio | `TestMediaGenerator.DefaultCacheDirectory` (testing) | Solo pruebas |
-| `RODAJE_REGENERAR_ESQUEMA` | Con `1`, la prueba del esquema reescribe `schema/rodaje-proyecto.v1.schema.json` desde el código en vez de solo compararlo | `ProjectSchemaTests` (Rodaje.Core.Tests) | Solo pruebas |
+| `RODAJE_REGENERAR_ESQUEMA` | Con `1`, la prueba del esquema reescribe `schema/rodaje-proyecto.v2.schema.json` (el de la versión actual) desde el código en vez de solo compararlo | `ProjectSchemaTests` (Rodaje.Core.Tests) | Solo pruebas |
 
 Las variables `DOTNET_*` y `NUGET_PACKAGES` no son de Rodaje: las fijan `dotnet-local.cmd` y `Usar-DotnetLocal` de `comun.psm1` para que el SDK local no use nada global.

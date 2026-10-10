@@ -7,7 +7,7 @@ namespace Rodaje.Core.Serialization;
 
 /// <summary>
 /// Lee y escribe proyectos en el formato <c>.rodaje</c>: JSON en UTF-8 descrito en
-/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v1.schema.json</c>.
+/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v2.schema.json</c>.
 /// </summary>
 public static class ProjectSerializer
 {
@@ -240,6 +240,8 @@ public static class ProjectSerializer
         {
             Check(sequence.VideoTracks, "pistas de video");
             Check(sequence.AudioTracks, "pistas de audio");
+            Check(sequence.Markers, "marcadores");
+            Check(sequence.Regions, "regiones");
             foreach (Track track in sequence.VideoTracks.Concat(sequence.AudioTracks).OfType<Track>())
             {
                 Check(track.Clips, "clips");

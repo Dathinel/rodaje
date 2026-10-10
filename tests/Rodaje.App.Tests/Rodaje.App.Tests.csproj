@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Pruebas de la lógica de la app que no depende de WinUI: compila aquí los fuentes de src\Rodaje.App\Services, que por
-    contrato no usan WinUI (si alguno lo hiciera, este proyecto dejaría de compilar).
+    Pruebas de la lógica de la app que no depende de WinUI: compila aquí los fuentes de src\Rodaje.App\Services y de
+    src\Rodaje.App\Views\Timeline\Logic, que por contrato no usan WinUI (si alguno lo hiciera, este proyecto dejaría de compilar).
   -->
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <Compile Include="..\..\src\Rodaje.App\Services\**\*.cs" Link="Services\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Rodaje.App\Views\Timeline\Logic\**\*.cs" Link="Timeline\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

@@ -22,6 +22,12 @@ public sealed class Sequence
 
     public List<Track> AudioTracks { get; set; } = [];
 
+    /// <summary>Marcadores ordenados por tiempo.</summary>
+    public List<Marker> Markers { get; set; } = [];
+
+    /// <summary>Regiones ordenadas por inicio; pueden solaparse.</summary>
+    public List<Region> Regions { get; set; } = [];
+
     [JsonIgnore]
     public IEnumerable<Track> AllTracks => VideoTracks.Concat(AudioTracks);
 
@@ -34,6 +40,8 @@ public sealed class Sequence
         Sequence copy = (Sequence)MemberwiseClone();
         copy.VideoTracks = VideoTracks.ConvertAll(t => t.Clone());
         copy.AudioTracks = AudioTracks.ConvertAll(t => t.Clone());
+        copy.Markers = Markers.ConvertAll(m => m.Clone());
+        copy.Regions = Regions.ConvertAll(r => r.Clone());
         return copy;
     }
 
