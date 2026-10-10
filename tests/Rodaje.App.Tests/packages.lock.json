@@ -137,6 +137,9 @@
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
       },
+      "rodaje.paquetes": {
+        "type": "Project"
+      },
       "rodaje.playback": {
         "type": "Project",
         "dependencies": {

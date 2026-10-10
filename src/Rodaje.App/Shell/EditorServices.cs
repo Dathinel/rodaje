@@ -1,5 +1,7 @@
 using Microsoft.UI.Xaml;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Media;
+using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Views.Player;
@@ -52,6 +54,12 @@ internal sealed class EditorServices(
     public PlayerEngine Player { get; } = player;
 
     public IShellHost Shell { get; } = shell;
+
+    /// <summary>Miniaturas y formas de onda de los medios (biblioteca y línea de tiempo).</summary>
+    public required IClipVisuals Visuals { get; init; }
+
+    /// <summary>Paquetes y módulos instalados, el catálogo e instalar o desinstalar.</summary>
+    public required PackageService Packages { get; init; }
 }
 
 /// <summary>Una vista del editor. <see cref="Attach"/> se llama una vez, en el hilo de la interfaz, tras crearla.</summary>

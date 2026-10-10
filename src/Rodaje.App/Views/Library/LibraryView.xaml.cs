@@ -1,49 +1,183 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Media;
+using Rodaje.App.Services.Packages;
+using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Plugins;
+using Rodaje.App.Views.Shared;
+using Rodaje.Engine.Timeline;
+using Rodaje.Media.Proxies;
+using Rodaje.Media.Video;
+using Rodaje.Paquetes;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.Foundation;
+using Windows.Storage;
 
 namespace Rodaje.App.Views.Library;
 
-/// <summary>Riel de categorías y biblioteca de medios del proyecto.</summary>
+/// <summary>Riel de categorías y biblioteca: medios del proyecto, elementos de los paquetes y módulos de IA.</summary>
+// CA1001: la vista vive lo mismo que la ventana; el vigilante de carpeta y los proxies terminan con el proceso.
+#pragma warning disable CA1001
 internal sealed partial class LibraryView : UserControl, IEditorView
+#pragma warning restore CA1001
 {
-    private EditorSession? _session;
-    private bool _mediaCategory = true;
+    /// <summary>Formato del arrastre de un medio hacia la línea de tiempo; el texto es el id del medio.</summary>
+    public const string MediaDragFormat = "rodaje/media-id";
+
+    private const int CoverHeight = 96;
+
+    private readonly MenuFlyout _mediaMenu = new();
+    private readonly MenuFlyoutItem _addItem;
+    private readonly MenuFlyoutItem _proxyItem;
+    private readonly MenuFlyoutItem _revealItem;
+    private readonly MenuFlyoutItem _removeItem;
+    private EditorServices? _services;
+    private DispatcherQueue? _dispatcher;
+    private DispatcherQueueTimer? _ownRefresh;
+    private FileSystemWatcher? _ownWatcher;
+    private readonly HashSet<MediaSourceResolver> _watchedResolvers = [];
+    private ScrollViewer? _mediaScroller;
+    private bool _coverScanScheduled;
+    private PreviewProxies? _proxies;
+    private LibraryCategory _category = LibraryCategory.Media;
+    private MediaItem? _menuTarget;
 
     public LibraryView()
     {
         InitializeComponent();
+        _addItem = MenuItem("Añadir a la línea de tiempo", "\uE710", (_, _) => AppendTarget());
+        _proxyItem = MenuItem("Generar proxy", "\uE8B1", (_, _) => _ = GenerateProxyAsync());
+        _revealItem = MenuItem("Mostrar en el Explorador", "\uEC50", (_, _) => RevealTarget());
+        _removeItem = MenuItem("Quitar del proyecto", "\uE74D", (_, _) => RemoveTarget());
+        _mediaMenu.Items.Add(_addItem);
+        _mediaMenu.Items.Add(_proxyItem);
+        _mediaMenu.Items.Add(_revealItem);
+        _mediaMenu.Items.Add(new MenuFlyoutSeparator());
+        _mediaMenu.Items.Add(_removeItem);
     }
 
-    public ObservableCollection<MediaItem> Items { get; } = [];
+    public ObservableCollection<MediaItem> Media { get; } = [];
+
+    public ObservableCollection<MediaItem> AudioMedia { get; } = [];
+
+    public ObservableCollection<ElementItem> Elements { get; } = [];
+
+    /// <summary>Lo que hizo la persona (por ejemplo, «Guardar como transición» del inspector) en la categoría abierta.</summary>
+    public ObservableCollection<ElementItem> OwnElements { get; } = [];
+
+    public ObservableCollection<ElementItem> Sounds { get; } = [];
+
+    public ObservableCollection<ModuleItem> Modules { get; } = [];
 
     public void Attach(EditorServices services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        _session = services.Session;
-        _session.ProjectOpened += (_, _) => Refresh();
-        _session.ProjectEdited += (_, _) => Refresh();
-        Refresh();
+        _services = services;
+        _dispatcher = DispatcherQueue;
+        services.Session.ProjectOpened += (_, _) => RefreshMedia();
+        services.Session.ProjectEdited += (_, _) => RefreshMedia();
+        services.Visuals.Changed += OnVisualsChanged;
+        services.Packages.Changed += (_, _) => RefreshPackages();
+        WatchOwnElements(services.Packages.Locations.Own);
+        RefreshMedia();
+        RefreshPackages();
+        _ = services.Packages.RefreshAsync();
+        if (Rodaje.Media.EnvironmentVariables.Read(LibraryScrollMeasurement.Variable) is { } report)
+        {
+            _ = LibraryScrollMeasurement.RunAsync(this, MediaGrid, report);
+        }
     }
 
-    private void Refresh()
+    private static MenuFlyoutItem MenuItem(string text, string glyph, RoutedEventHandler click)
     {
-        if (_session is null)
+        var item = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
+        item.Click += click;
+        return item;
+    }
+
+    private void RefreshMedia()
+    {
+        if (_services is null)
         {
             return;
         }
 
-        var media = _session.Project.Media;
-        if (!media.Select(m => m.Id).SequenceEqual(Items.Select(i => i.Id), StringComparer.Ordinal))
+        EditorSession session = _services.Session;
+        var used = new HashSet<string>(
+            session.Project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Select(c => c.MediaId), StringComparer.Ordinal);
+        Sync(Media, session.Project.Media.Select(m => new MediaItem(m, used.Contains(m.Id))).ToList());
+        Sync(AudioMedia, session.Project.Media.Where(m => m.HasAudio && !m.HasVideo).Select(m => new MediaItem(m, used.Contains(m.Id))).ToList());
+        UpdateVisibility();
+    }
+
+    /// <summary>Reemplaza la colección solo si cambió algo que se ve, para no perder portadas ni la posición del scroll.</summary>
+    private static void Sync(ObservableCollection<MediaItem> target, List<MediaItem> next)
+    {
+        bool same = target.Count == next.Count && target.Zip(next).All(p =>
+            p.First.Id == p.Second.Id && p.First.Name == p.Second.Name && p.First.Path == p.Second.Path);
+        if (same)
         {
-            Items.Clear();
-            foreach (var m in media)
+            for (int i = 0; i < next.Count; i++)
             {
-                Items.Add(new MediaItem(m));
+                target[i].IsUsed = next[i].IsUsed;
             }
+
+            return;
+        }
+
+        Dictionary<string, MediaItem> previous = target.GroupBy(i => i.Id).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        target.Clear();
+        foreach (MediaItem item in next)
+        {
+            if (previous.TryGetValue(item.Id, out MediaItem? old) && old.Path == item.Path)
+            {
+                item.Thumbnail = old.Thumbnail;
+                item.Badge = old.Badge;
+            }
+
+            // La portada se pide al hacerse visible (OnMediaContainerChanging), no aquí: con cientos de medios se haría todo.
+            target.Add(item);
+        }
+    }
+
+    private void RefreshPackages()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        PackageService packages = _services.Packages;
+        Elements.Clear();
+        OwnElements.Clear();
+        if (_category is not (LibraryCategory.Media or LibraryCategory.Audio or LibraryCategory.Ai))
+        {
+            foreach (LibraryElement element in LibraryElements.For(_category, packages.Installed))
+            {
+                (element.Origin == PackageOrigin.Own ? OwnElements : Elements).Add(new ElementItem(element));
+            }
+        }
+
+        OwnTitle.Text = LibraryElements.OwnTitle(_category);
+
+        Sounds.Clear();
+        foreach (LibraryElement element in LibraryElements.For(LibraryCategory.Audio, packages.Installed))
+        {
+            Sounds.Add(new ElementItem(element));
+        }
+
+        Modules.Clear();
+        foreach (PluginEntry entry in packages.Entries().Where(e => e.Kind == PackageKind.Module))
+        {
+            Modules.Add(new ModuleItem(entry));
         }
 
         UpdateVisibility();
@@ -51,42 +185,365 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
     private void UpdateVisibility()
     {
-        MediaGrid.Visibility = _mediaCategory && Items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        EmptyText.Visibility = _mediaCategory && Items.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
-        ImportButton.Visibility = _mediaCategory ? Visibility.Visible : Visibility.Collapsed;
-        if (!_mediaCategory)
+        bool media = _category == LibraryCategory.Media;
+        bool audio = _category == LibraryCategory.Audio;
+        bool ai = _category == LibraryCategory.Ai;
+        bool elements = !media && !audio && !ai;
+        MediaGrid.Visibility = media && Media.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        AudioPanel.Visibility = audio && (AudioMedia.Count > 0 || Sounds.Count > 0) ? Visibility.Visible : Visibility.Collapsed;
+        AudioGrid.Visibility = AudioMedia.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SoundsPanel.Visibility = Sounds.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ElementsPanel.Visibility = elements && Elements.Count + OwnElements.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        OwnPanel.Visibility = OwnElements.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        AiPanel.Visibility = ai ? Visibility.Visible : Visibility.Collapsed;
+        ImportButton.Visibility = media || audio ? Visibility.Visible : Visibility.Collapsed;
+        string? empty = _category switch
         {
-            EmptyText.Text = $"{CategoryTitle.Text}: en construcción.";
-        }
-        else
-        {
-            EmptyText.Text = "Importa videos o audios, o arrástralos a la ventana. Doble clic en uno lo añade al final de la pista principal.";
-        }
+            LibraryCategory.Media when Media.Count == 0 =>
+                "Importa videos o audios, o arrástralos aquí. Doble clic en uno lo añade al final de la pista principal; también puedes arrastrarlo a la línea de tiempo.",
+            LibraryCategory.Audio when AudioMedia.Count == 0 && Sounds.Count == 0 =>
+                "Importa música o efectos de sonido, o instala un paquete de sonidos desde Complementos.",
+            _ when elements && Elements.Count + OwnElements.Count == 0 => "Instala un paquete desde Complementos para ver más elementos aquí.",
+            _ => null,
+        };
+        EmptyText.Text = empty ?? "";
+        EmptyText.Visibility = empty is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void OnCategoryChecked(object sender, RoutedEventArgs e)
     {
-        if (sender is RadioButton { Tag: string category } && CategoryTitle is not null && MediaGrid is not null && EmptyText is not null)
+        if (sender is not RadioButton { Tag: string tag } button || !Enum.TryParse(tag, out LibraryCategory category) || CategoryTitle is null)
         {
-            CategoryTitle.Text = category;
-            _mediaCategory = ReferenceEquals(sender, MediaTab);
-            UpdateVisibility();
+            return;
         }
+
+        _category = category;
+        CategoryTitle.Text = ToolTipService.GetToolTip(button) as string ?? tag;
+        RefreshPackages();
+    }
+
+    private void OnVisualsChanged(object? sender, ClipVisualsChangedEventArgs e)
+    {
+        if (e.Kind != ClipVisualKind.Thumbnails || _services is null)
+        {
+            return;
+        }
+
+        foreach (MediaItem item in Media)
+        {
+            if (item.Id == e.MediaId && item.Thumbnail is null && item.HasVideo
+                && _services.Visuals.GetThumbnail(item.Id, item.CoverTime, CoverHeight) is { } image)
+            {
+                item.Thumbnail = BgraBitmaps.From(image);
+            }
+        }
+    }
+
+    /// <summary>Pide la portada solo de los medios que se hacen visibles (la cuadrícula virtualiza).</summary>
+    /// <summary>Cada vez que la cuadrícula crea o recicla un contenedor, se revisa qué portadas faltan a la vista.</summary>
+    private void OnMediaContainerChanging(ListViewBase sender, ContainerContentChangingEventArgs args) => ScheduleCoverScan();
+
+    private void ScheduleCoverScan()
+    {
+        if (!_coverScanScheduled && _dispatcher is not null)
+        {
+            _coverScanScheduled = _dispatcher.TryEnqueue(DispatcherQueuePriority.Low, ScanVisibleCovers);
+        }
+    }
+
+    /// <summary>
+    /// Pide la portada de los medios que se ven (su contenedor cae dentro de la cuadrícula), de abajo hacia arriba: el
+    /// último pedido es el primero que se atiende, así salen primero las de arriba. Lo que la cuadrícula prepara fuera de
+    /// la vista espera a que se desplace hasta ahí.
+    /// </summary>
+    private void ScanVisibleCovers()
+    {
+        _coverScanScheduled = false;
+        if (_services is null || MediaGrid.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        EnsureScroller();
+        double height = MediaGrid.ActualHeight;
+        var visible = new List<MediaItem>();
+        for (int i = 0; i < Media.Count; i++)
+        {
+            if (Media[i] is not { HasVideo: true, Thumbnail: null } item || MediaGrid.ContainerFromIndex(i) is not { } container)
+            {
+                continue;
+            }
+
+            double top = WinRT.CastExtensions.As<UIElement>(container).TransformToVisual(MediaGrid).TransformPoint(default).Y;
+            if (top > -CoverHeight && top < height)
+            {
+                visible.Add(item);
+            }
+        }
+
+        for (int i = visible.Count - 1; i >= 0; i--)
+        {
+            if (_services.Visuals.GetThumbnail(visible[i].Id, visible[i].CoverTime, CoverHeight) is { } image)
+            {
+                visible[i].Thumbnail = BgraBitmaps.From(image);
+            }
+        }
+    }
+
+    private void OnMediaGridLoaded(object sender, RoutedEventArgs e) => EnsureScroller();
+
+    /// <summary>Al desplazar se vuelve a revisar qué portadas faltan; la plantilla existe recién cuando la cuadrícula se ve.</summary>
+    private void EnsureScroller()
+    {
+        if (_mediaScroller is null && FindScroller(MediaGrid) is { } scroller)
+        {
+            _mediaScroller = scroller;
+            scroller.ViewChanged += (_, _) => ScheduleCoverScan();
+        }
+    }
+
+    /// <summary>El ScrollViewer de la plantilla; con AOT su envoltorio puede quedar con un tipo base, así que se busca por nombre.</summary>
+    internal static ScrollViewer? FindScroller(DependencyObject root)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(root, i);
+            if (child is FrameworkElement { Name: "ScrollViewer" })
+            {
+                return WinRT.CastExtensions.As<ScrollViewer>(child);
+            }
+
+            if (FindScroller(child) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private async void OnImportClick(object sender, RoutedEventArgs e)
     {
-        if (_session is not null)
+        if (_services is not null)
         {
-            await _session.ImportMediaAsync();
+            await _services.Session.ImportMediaAsync();
         }
     }
 
+    private void OnPluginsClick(object sender, RoutedEventArgs e) => _services?.Shortcuts.Invoke(ActionIds.ShowPlugins);
+
     private void OnMediaDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
-        if (_session is not null && (e.OriginalSource as FrameworkElement)?.DataContext is MediaItem item)
+        if (_services is not null && (e.OriginalSource as FrameworkElement)?.DataContext is MediaItem item)
         {
-            _session.AppendToTimeline(item.Id);
+            _services.Session.AppendToTimeline(item.Id);
+        }
+    }
+
+    private void OnMediaDragStarting(object sender, DragItemsStartingEventArgs e)
+    {
+        if (e.Items.FirstOrDefault() is not MediaItem item)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        e.Data.SetData(MediaDragFormat, item.Id);
+        e.Data.SetText(item.Id);
+        e.Data.RequestedOperation = DataPackageOperation.Copy;
+    }
+
+    private void OnElementDragStarting(object sender, DragItemsStartingEventArgs e)
+    {
+        if (e.Items.FirstOrDefault() is not ElementItem { Element.IsAvailable: true } item)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        e.Data.SetData(LibraryElement.DragFormat, item.Element.Reference);
+        e.Data.SetText(item.Element.Reference);
+        e.Data.RequestedOperation = DataPackageOperation.Copy;
+    }
+
+    private void OnMediaContextRequested(UIElement sender, ContextRequestedEventArgs args)
+    {
+        FrameworkElement? element = args.OriginalSource as FrameworkElement;
+        MediaItem? item = element switch
+        {
+            GridViewItem { Content: MediaItem content } => content,
+            { DataContext: MediaItem context } => context,
+            _ => null,
+        };
+        if (item is null || element is null || _services is null)
+        {
+            return;
+        }
+
+        _menuTarget = item;
+        _proxyItem.IsEnabled = item.HasVideo;
+        _removeItem.IsEnabled = !item.IsUsed;
+        _removeItem.Text = item.IsUsed ? "Quitar del proyecto (está en uso)" : "Quitar del proyecto";
+        if (args.TryGetPosition(element, out Point point))
+        {
+            _mediaMenu.ShowAt(element, new FlyoutShowOptions { Position = point });
+        }
+        else
+        {
+            _mediaMenu.ShowAt(element);
+        }
+
+        args.Handled = true;
+    }
+
+    private void AppendTarget()
+    {
+        if (_menuTarget is { } item)
+        {
+            _services?.Session.AppendToTimeline(item.Id);
+        }
+    }
+
+    private void RevealTarget()
+    {
+        if (_menuTarget is not { } item || _services is null)
+        {
+            return;
+        }
+
+        if (!File.Exists(item.Path))
+        {
+            _services.Session.Notify(NotificationSeverity.Warning, "No se encuentra el archivo", item.Path);
+            return;
+        }
+
+        try
+        {
+            using Process? _ = Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.Path}\"") { UseShellExecute = false });
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            _services.Session.Notify(NotificationSeverity.Warning, "No se pudo abrir el Explorador", ex.Message);
+        }
+    }
+
+    private void RemoveTarget()
+    {
+        if (_menuTarget is { IsUsed: false } item && _services is not null)
+        {
+            _services.Session.Execute(new Rodaje.Core.Commands.RemoveMediaCommand(item.Id));
+        }
+    }
+
+    private async Task GenerateProxyAsync()
+    {
+        if (_menuTarget is not { HasVideo: true } item || _services is null)
+        {
+            return;
+        }
+
+        EditorSession session = _services.Session;
+        // El del reproductor si existe: así el proxy aparece en Trabajos y la vista previa lo toma al instante.
+        MediaSourceResolver? resolver = _services.Player.ProxyResolver;
+        if (resolver is null)
+        {
+            _proxies ??= PreviewProxies.Create(generate: false);
+            resolver = _proxies.Resolver;
+        }
+
+        if (_watchedResolvers.Add(resolver))
+        {
+            resolver.StatusChanged += (_, e) => _dispatcher?.TryEnqueue(() => ShowProxyStatus(e.Status));
+        }
+
+        try
+        {
+            await resolver.RequestProxyAsync(item.Path);
+            session.Notify(NotificationSeverity.Success, "Proxy listo", $"La vista previa de «{item.Name}» usa el proxy en cuanto se actualiza.");
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex) when (ex is ProxyGenerationException or IOException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            session.Notify(NotificationSeverity.Error, $"No se pudo generar el proxy de «{item.Name}»", ex.Message);
+        }
+    }
+
+    private void ShowProxyStatus(ProxyStatus status)
+    {
+        string badge = status.State switch
+        {
+            ProxyState.Queued => "Proxy en cola",
+            ProxyState.Generating => $"Proxy {status.Progress * 100:0} %",
+            ProxyState.Ready => "Proxy",
+            ProxyState.Failed => "Proxy falló",
+            _ => "",
+        };
+        foreach (MediaItem item in Media.Where(i => string.Equals(i.Path, status.SourcePath, StringComparison.OrdinalIgnoreCase)))
+        {
+            item.Badge = badge;
+        }
+    }
+
+    /// <summary>Las transiciones que guarda el inspector en <c>complementos\propios</c> aparecen sin reiniciar.</summary>
+    private void WatchOwnElements(string folder)
+    {
+        try
+        {
+            Directory.CreateDirectory(folder);
+            _ownRefresh = DispatcherQueue.CreateTimer();
+            _ownRefresh.Interval = TimeSpan.FromMilliseconds(400);
+            _ownRefresh.IsRepeating = false;
+            _ownRefresh.Tick += (_, _) => _ = _services?.Packages.RefreshAsync();
+            _ownWatcher = new FileSystemWatcher(folder) { IncludeSubdirectories = true, EnableRaisingEvents = true };
+            FileSystemEventHandler changed = (_, _) => _dispatcher?.TryEnqueue(() => _ownRefresh?.Start());
+            _ownWatcher.Created += changed;
+            _ownWatcher.Changed += changed;
+            _ownWatcher.Deleted += changed;
+            _ownWatcher.Renamed += (_, _) => _dispatcher?.TryEnqueue(() => _ownRefresh?.Start());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            _ownWatcher?.Dispose();
+            _ownWatcher = null;
+        }
+    }
+
+    private void OnFilesDragOver(object sender, DragEventArgs e)
+    {
+        if (e.DataView.Contains(StandardDataFormats.StorageItems))
+        {
+            e.AcceptedOperation = DataPackageOperation.Copy;
+            e.DragUIOverride.Caption = "Importar a la biblioteca";
+            e.Handled = true;
+        }
+    }
+
+    private async void OnFilesDrop(object sender, DragEventArgs e)
+    {
+        if (_services is null || !e.DataView.Contains(StandardDataFormats.StorageItems))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        IReadOnlyList<IStorageItem> items = await e.DataView.GetStorageItemsAsync();
+        string[] paths = [.. items.OfType<StorageFile>().Select(f => f.Path).Where(p => !string.IsNullOrEmpty(p))];
+        string[] packages = [.. paths.Where(p => p.EndsWith(PackageManifest.FileExtension, StringComparison.OrdinalIgnoreCase))];
+        string[] media = [.. paths.Except(packages)];
+        if (media.Any(ProjectPaths.IsProjectFile))
+        {
+            await _services.Session.OpenFilesAsync(media);
+        }
+        else if (media.Length > 0)
+        {
+            await _services.Session.ImportMediaAsync(media);
+        }
+
+        foreach (string package in packages)
+        {
+            await PluginActions.InstallAsync(_services, package);
         }
     }
 }

@@ -5,6 +5,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Media;
+using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Views.Player;
@@ -38,6 +40,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     private readonly DispatcherQueueTimer _notificationTimer;
     private readonly nint _hwnd;
     private readonly EditorServices _services;
+    private readonly ClipVisuals _visuals;
     private readonly List<IDisposable> _bindings = [];
     private ShortcutsView? _shortcutsView;
     private PluginsView? _pluginsView;
@@ -69,7 +72,11 @@ internal sealed partial class MainWindow : Window, IShellHost
         _router = new ShortcutRouter(registry);
 
         var session = new EditorSession(engine, prober, new ShellDialogs(this, _hwnd, settings));
-        _services = new EditorServices(session, _router, settings, engine, this);
+        _visuals = new ClipVisuals(id => session.Project.FindMedia(id)?.Path, new FfmpegVisualsSources(),
+            new ClipVisualsOptions { CacheDirectory = ClipVisualsOptions.DefaultCacheDirectory }, SynchronizationContext.Current);
+        _ = _visuals.TrimDiskCacheAsync();
+        var packages = new PackageService(PackageService.DefaultLocations(), PackageService.LoadBundledCatalog());
+        _services = new EditorServices(session, _router, settings, engine, this) { Visuals = _visuals, Packages = packages };
         _bindings.Add(EditorShortcuts.Bind(_router, session));
         _bindings.Add(_router.Bind(ActionIds.Export, () => session.Notify(NotificationSeverity.Informational, "Exportar",
             "La exportación llega en la fase 5. Por ahora puedes guardar el proyecto.")));
@@ -84,6 +91,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         Player.Attach(_services);
         Inspector.Attach(_services);
         Timeline.Attach(_services);
+        Timeline.ClipVisuals = new Views.Shared.TimelineClipVisuals(_visuals);
 
         session.Notified += (_, n) => ShowNotification(n);
         session.ProjectOpened += (_, _) => RememberProject();
@@ -468,6 +476,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _engine.Dispose();
+        _visuals.Dispose();
         MeasurementRun.WriteReportIfMeasuring(_options, _engine, Program.Metrics, VideoPanel.CompositionScaleX);
     }
 }

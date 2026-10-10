@@ -51,6 +51,8 @@ Tolera 64 errores seguidos antes de lanzar `MediaException`.
 
 El color se resuelve en [`VideoColor`](../../src/Rodaje.Media/Video/VideoColor.cs). Sin declaración se usa BT.601 hasta 576 líneas y BT.709 por encima, y los formatos `yuvj` son de rango completo. [`FrameReadback.ReadLuma`](../../src/Rodaje.Media/Video/FrameReadback.cs) lee la luma, para pruebas y miniaturas.
 
+**Miniaturas.** [`ThumbnailDecoder`](../../src/Rodaje.Media/Video/ThumbnailDecoder.cs) no es exacto al cuadro a propósito: decodifica en la CPU sin filtro de desbloqueo (`skip_loop_filter`) y saltándose los cuadros que no son referencia (`skip_frame`), devuelve el último cuadro que no pasa del instante pedido y lo reduce con swscale (área, con la matriz y el rango del cuadro; BT.709 desde 720 líneas si no lo declara) a BGRA del alto pedido, con la rotación de pantalla aplicada. Si el siguiente pedido queda hasta 4 s más adelante sigue decodificando sin buscar y guarda el primer cuadro que se pasó para la próxima llamada. En 1080p una miniatura con búsqueda tarda unos 47 ms en H.264 y 66 ms en HEVC (mediana, GOP 50), y en una tira en orden unos 26 y 38 ms cada una. Lo usa `ClipVisuals` de la [app](app.md).
+
 **Propiedad.** Un decodificador no es seguro entre hilos (detecta llamadas solapadas y lanza). Quien pide un cuadro recibe su única referencia, y el cuadro puede liberarse en cualquier hilo, incluso después de cerrar el decodificador. Retener un cuadro D3D11VA ocupa una superficie del pool.
 
 ## Audio y análisis

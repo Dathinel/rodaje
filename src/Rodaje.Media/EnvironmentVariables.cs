@@ -16,8 +16,11 @@ public static class EnvironmentVariables
     /// <summary>Carpeta de los proxies; sin ella, <c>%LOCALAPPDATA%\Rodaje\proxies</c>.</summary>
     public const string Proxies = "RODAJE_PROXIES";
 
-    /// <summary>Carpeta de los ajustes y atajos de la app; sin ella, <c>%LOCALAPPDATA%\Rodaje</c>.</summary>
+    /// <summary>Carpeta de los ajustes, atajos, complementos y cachés de la app; sin ella, <c>%LOCALAPPDATA%\Rodaje</c>.</summary>
     public const string Datos = "RODAJE_DATOS";
+
+    /// <summary>Archivo donde la biblioteca escribe su medida de desplazamiento; con ella, la app mide y se cierra.</summary>
+    public const string MedirBiblioteca = "RODAJE_MEDIR_BIBLIOTECA";
 
     /// <summary>Ruta de un informe: la línea de tiempo arma un proyecto de 200 clips, mide desplazamiento, zoom y arrastre, lo escribe y cierra.</summary>
     public const string MedirLinea = "RODAJE_MEDIR_LINEA";

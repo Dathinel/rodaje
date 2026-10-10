@@ -13,7 +13,7 @@ Es la interfaz final, sin paquete MSIX, autocontenida y con Native AOT (el [sond
 | Carpeta | Qué hay | Depende de WinUI |
 |---|---|---|
 | `Views/Timeline/Logic/` | La lógica de la línea de tiempo (ventana, regla, filas, clic, ajuste, arrastres, soltar medios) | **No**: también la compila `tests/Rodaje.App.Tests` |
-| `Services/` | `EditorSession` (fuente única de verdad), `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
+| `Services/` | `EditorSession` (fuente única de verdad), `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), miniaturas y formas de onda (`Media/`), complementos (`Packages/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
 | `Shell/` | `MainWindow` (distribución con separadores), `TitleBar`, `KeyboardShortcutHost` (atajos en el túnel de la raíz), `PaneSplitter`, `ShellDialogs` y `FileDialogs` (diálogos de Windows por su vtable), `EditorServices` e `IEditorView`, `MeasurementRun` | Sí |
 | `Theme/` | `Palette.xaml` (colores de D-018 y claves de WinUI redefinidas), `Typography.xaml`, `Controls.xaml` (estilos con esquinas de 2 px y transiciones de 60 ms) | Sí |
 | `Views/<Área>/` | Una vista por carpeta: `Library`, `Player` (con `PlayerEngine` y la cadena de intercambio), `Meters`, `Inspector` (pestañas `Properties`, `Filters`, `History`, `Jobs`), `Timeline`, `Shortcuts`, `Plugins` | Sí |
@@ -38,6 +38,32 @@ flowchart LR
 - **Teclas de signos y distribución.** Los archivos y el catálogo nombran las teclas VK_OEM_* por su posición estadounidense («Alt+[»). Para mostrarlas, `KeyNames.DisplayLayout` (la ventana pone `SystemKeyboardLayout`, que consulta `MapVirtualKeyEx` con la distribución activa) da el carácter impreso: en un teclado español esa misma tecla se ve «Alt+'». El teclado dibujado pide a la distribución la tecla virtual de cada posición física (código de exploración), así cada acción cae en la tecla correcta.
 - **Ajustes.** `ajustes.json` guarda carpetas, recientes, tamaños de paneles y ventana, estilo de atajos y proxies. Los dos archivos se escriben de forma atómica y, si están dañados, se apartan con el sufijo `.dañado`.
 - **Cerrar.** Con cambios sin guardar se pregunta (Guardar, No guardar, Cancelar).
+
+### Miniaturas y formas de onda (`Services/Media`)
+
+`IClipVisuals` es lo que la línea de tiempo y la biblioteca usan para dibujar medios. Las tres llamadas se hacen desde el hilo de la interfaz y nunca esperan: devuelven lo que ya está en memoria, piden lo que falta y, cuando llega, `Changed` avisa (también en el hilo de la interfaz, una vez por cada medio que usa el mismo archivo) para que se vuelva a pedir.
+
+```csharp
+event EventHandler<ClipVisualsChangedEventArgs>? Changed;                 // MediaId, Kind (Thumbnails | Waveform)
+Filmstrip GetFilmstrip(string mediaId, Time sourceStart, Time sourceEnd, int count, int height);
+WaveformSlice GetWaveform(string mediaId, Time sourceStart, Time sourceEnd, int buckets);
+BgraImage? GetThumbnail(string mediaId, Time sourceTime, int height);
+```
+
+- **Miniaturas.** `ThumbnailDecoder` (en `Rodaje.Media`) decodifica en la CPU sin filtro de desbloqueo y saltándose los cuadros que nadie usa como referencia, y reduce con swscale a BGRA del alto pedido con la rotación aplicada. Va en la CPU a propósito: así no toca el presupuesto de VRAM de la reproducción ([D-019](../decisiones.md)) y una miniatura de 1080p sale en unos 50 ms. Si el siguiente instante queda poco más adelante sigue decodificando sin buscar, así una tira en orden recorre el archivo una vez.
+- **Rejilla.** Los instantes de una tira se ajustan a una rejilla de potencias de dos (1/32 s, 1/16 s… según la separación) y los altos a unas pocas clases (32 a 256): al hacer zoom la rejilla fina contiene a la gruesa y al desplazar casi todo ya está hecho.
+- **Hilos.** Uno de baja prioridad para miniaturas, con hasta tres decodificadores abiertos que se cierran tras 20 s sin uso, y otro para formas de onda. Los pedidos llegan en tandas; la más reciente va primero y una tanda vieja cede el paso en cuanto llega otra.
+- **Cachés.** En memoria, 128 MB con expulsión de la menos usada; en disco, `cache\miniaturas` (512 MB) y `cache\ondas` (128 MB), con la huella del original en el nombre: si el archivo cambia, no se reutiliza nada viejo. Al arrancar se recorta lo que pase del presupuesto.
+- **Formas de onda.** `WaveformPeaks` guarda mínimo y máximo por cada 256 muestras a 48 kHz y niveles reducidos de 4 en 4; cada pedido usa el más grueso que todavía da un pico por tramo. Mientras se calcula crece por el final y se puede leer a la vez.
+- **Adaptador WinUI.** `Views/Shared/BgraBitmaps` convierte un `BgraImage` en `WriteableBitmap` una sola vez por imagen.
+- **Para la línea de tiempo.** Su contrato es otro (`Views/Timeline/IClipVisuals`: una miniatura por llamada y la forma de onda entera); `Views/Shared/TimelineClipVisuals` lo cumple con `ClipVisuals` y la ventana lo asigna a `TimelineView.ClipVisuals`. La separación entre miniaturas se deduce de dos pedidos seguidos del mismo medio y decide la rejilla (`GetNearestThumbnail`); mientras falta, se devuelve la más cercana que ya esté en memoria. La forma de onda llega completa, con picos de 1024 muestras (21 ms).
+
+### Complementos (`Services/Packages`)
+
+`PackageService` junta el catálogo que viaja en el ejecutable (`catalogo.json`), lo instalado y el instalador de [`Rodaje.Paquetes`](../formato-paquete.md); lee el disco fuera del hilo de la interfaz y avisa con `Changed`. `LibraryElements` decide qué muestra cada categoría de la biblioteca: lo que trae el motor (con «Próximamente» lo que llega en la fase 5), lo de los paquetes y lo propio. Las dos cosas llegan a las vistas por `EditorServices.Visuals` y `EditorServices.Packages`.
+
+- **Biblioteca** (`Views/Library`). Medios con portada real, duración y resolución; importar, soltar archivos (un `.paquete` soltado se instala), doble clic para añadir a la pista principal, arrastrar a la línea de tiempo con el formato `rodaje/media-id` (el texto es el id del medio) y menú contextual: añadir, generar proxy (con el avance sobre la portada), mostrar en el Explorador y quitar si no se usa. Las portadas se piden solo para lo que la cuadrícula hace visible. Texto, Efectos, Transiciones y Filtros se arrastran con `rodaje/elemento`. Con `RODAJE_MEDIR_BIBLIOTECA=archivo` la vista mide el desplazamiento y cierra la app (`LibraryScrollMeasurement`).
+- **Complementos** (`Views/Plugins`). Contenido y módulos de IA con su estado, «Funciona en», enlace al repositorio, Instalar desde archivo y Desinstalar; la descarga desde GitHub queda para la fase 7 detrás de `IPackageDownloader`.
 
 ### Reproductor y medidores
 

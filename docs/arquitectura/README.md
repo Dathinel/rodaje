@@ -11,7 +11,9 @@ flowchart TB
     Media["Medios: Rodaje.Media<br/>FFmpeg LGPL, D3D11VA, proxies"]
     Playback["Reproducción: Rodaje.Playback<br/>programador, caché, composición"]
     Core["Núcleo: Rodaje.Core<br/>tiempo, modelo, ediciones, .rodaje"]
+    Paquetes["Paquetes: Rodaje.Paquetes<br/>formato .paquete, sin dependencias"]
     App --> Engine
+    App --> Paquetes
     App --> Render
     Engine --> Audio
     Engine --> Media
@@ -32,7 +34,8 @@ flowchart TB
 | Reproducción | [reproduccion.md](reproduccion.md) | Qué cuadro se muestra en cada refresco, siguiendo al audio sin bloquear nunca |
 | Motor | [motor.md](motor.md) | Varias capas con pre-roll, varios decodificadores por medio, presupuesto de VRAM, mezcla y proxies |
 | Render | [render.md](render.md) | Composición en Direct3D 11 sin copias, con el color y la geometría de cada capa |
-| App | [app.md](app.md) | La interfaz WinUI 3 en construcción y el visor provisional |
+| Paquetes | [formato-paquete.md](../formato-paquete.md) | Manifiesto, instalación segura y catálogo de los complementos, para compartir con los demás programas |
+| App | [app.md](app.md) | La interfaz WinUI 3 en construcción (con miniaturas, formas de onda, biblioteca y complementos) y el visor provisional |
 
 ## Reglas que atraviesan todas las capas
 

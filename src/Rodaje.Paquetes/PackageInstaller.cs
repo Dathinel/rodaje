@@ -1,0 +1,371 @@
+using System.IO.Compression;
+using System.Security.Cryptography;
+
+namespace Rodaje.Paquetes;
+
+/// <summary>Un paquete que no se pudo instalar o desinstalar; el mensaje se le puede mostrar a la persona.</summary>
+public sealed class PackageInstallException : Exception
+{
+    public PackageInstallException()
+    {
+    }
+
+    public PackageInstallException(string message)
+        : base(message)
+    {
+    }
+
+    public PackageInstallException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
+
+/// <summary>Qué pasó al instalar.</summary>
+public enum InstallOutcome
+{
+    Installed,
+    Updated,
+    Reinstalled,
+    Downgraded,
+}
+
+public sealed record InstallResult(InstalledPackage Package, InstallOutcome Outcome, PackageVersion? PreviousVersion, IReadOnlyList<string> Warnings);
+
+/// <summary>Límites contra zips malformados o «bombas» de compresión.</summary>
+public sealed record InstallLimits
+{
+    public int MaxEntries { get; init; } = 20_000;
+
+    /// <summary>Lo que puede ocupar descomprimido (los módulos de IA traen modelos de varios GB).</summary>
+    public long MaxTotalBytes { get; init; } = 8L << 30;
+
+    /// <summary>Tasa de compresión máxima de una entrada grande.</summary>
+    public int MaxCompressionRatio { get; init; } = 200;
+
+    public static InstallLimits Default { get; } = new();
+}
+
+/// <summary>
+/// Instala un <c>.paquete</c> (zip con <c>paquete.json</c>) y desinstala paquetes. Nunca escribe fuera de la carpeta del
+/// paquete: cada entrada del zip se valida (<see cref="SafePaths"/>) y se comprueba la ruta final. La carpeta definitiva se
+/// reemplaza con un cambio de nombre, así un corte deja la versión anterior o la nueva, nunca una mezcla.
+/// </summary>
+public sealed class PackageInstaller(PackageLocations locations, string appId, InstallLimits? limits = null)
+{
+    private const string InstallingPrefix = ".instalando-";
+    private const string RemovingPrefix = ".desinstalando-";
+
+    private readonly InstallLimits _limits = limits ?? InstallLimits.Default;
+
+    public PackageLocations Locations { get; } = locations ?? throw new ArgumentNullException(nameof(locations));
+
+    public string AppId { get; } = string.IsNullOrEmpty(appId) ? throw new ArgumentException("Falta el programa.", nameof(appId)) : appId;
+
+    /// <summary>SHA-256 de un archivo en hexadecimal en minúsculas.</summary>
+    public static string ComputeSha256(string path)
+    {
+        using FileStream stream = File.OpenRead(path);
+        return Convert.ToHexStringLower(SHA256.HashData(stream));
+    }
+
+    /// <summary>Instala o actualiza desde un archivo local.</summary>
+    /// <param name="archivePath">El <c>.paquete</c>.</param>
+    /// <param name="expectedSha256">Si se da (hexadecimal), el archivo debe tener ese hash; así se instala lo que se descargó.</param>
+    /// <param name="allowDowngrade">Permite reemplazar una versión instalada más nueva.</param>
+    /// <param name="cancellationToken">Cancela la extracción.</param>
+    /// <exception cref="PackageInstallException">No se pudo instalar; nada cambió.</exception>
+    public InstallResult Install(string archivePath, string? expectedSha256 = null, bool allowDowngrade = false, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archivePath);
+        string archive = Path.GetFullPath(archivePath);
+        if (!File.Exists(archive))
+        {
+            throw new PackageInstallException($"No existe {archive}.");
+        }
+
+        if (expectedSha256 is not null)
+        {
+            string actual = ComputeSha256(archive);
+            if (!string.Equals(actual, expectedSha256.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new PackageInstallException($"El archivo no es el esperado: su SHA-256 es {actual}.");
+            }
+        }
+
+        // Se extrae primero bajo la carpeta de paquetes (mismo volumen, para mover sin copiar) y luego se decide dónde va.
+        Directory.CreateDirectory(Locations.Packages);
+        string staging = Path.Combine(Locations.Packages, InstallingPrefix + Guid.NewGuid().ToString("N")[..12]);
+        try
+        {
+            Extract(archive, staging, cancellationToken);
+            ManifestResult read = ManifestReader.ReadFile(Path.Combine(staging, PackageManifest.FileName));
+            if (read.Manifest is not { } manifest)
+            {
+                throw new PackageInstallException("El paquete no es válido: " + string.Join(" ", read.Errors));
+            }
+
+            if (!manifest.WorksIn(AppId))
+            {
+                throw new PackageInstallException($"«{manifest.Name}» funciona en {string.Join(", ", manifest.Apps)}, no en este programa.");
+            }
+
+            if (manifest.Id == PackageLibrary.OwnPackageId)
+            {
+                throw new PackageInstallException($"El id «{PackageLibrary.OwnPackageId}» está reservado para los elementos propios.");
+            }
+
+            string root = Locations.InstallRoot(manifest.Kind);
+            Directory.CreateDirectory(root);
+            string target = Path.Combine(root, manifest.Id);
+            string? movedAside = null;
+            PackageVersion? previous = null;
+            InstallOutcome outcome = InstallOutcome.Installed;
+            string? otherRoot = manifest.Kind == PackageKind.Module ? Locations.Packages : Locations.Modules;
+            if (Directory.Exists(Path.Combine(otherRoot, manifest.Id)))
+            {
+                throw new PackageInstallException($"Ya hay instalado otro complemento con el id «{manifest.Id}» de distinto tipo; desinstálalo primero.");
+            }
+
+            if (Directory.Exists(target))
+            {
+                previous = ManifestReader.ReadFile(Path.Combine(target, PackageManifest.FileName), checkFiles: false).Manifest?.Version;
+                int order = previous is null ? 1 : manifest.Version.CompareTo(previous);
+                if (order < 0 && !allowDowngrade)
+                {
+                    throw new PackageInstallException($"Ya está instalada la versión {previous}, más nueva que la {manifest.Version}.");
+                }
+
+                outcome = order > 0 ? InstallOutcome.Updated : order == 0 ? InstallOutcome.Reinstalled : InstallOutcome.Downgraded;
+                movedAside = Path.Combine(root, RemovingPrefix + Guid.NewGuid().ToString("N")[..12]);
+                Directory.Move(target, movedAside);
+            }
+
+            try
+            {
+                Directory.Move(staging, target);
+            }
+            catch
+            {
+                if (movedAside is not null)
+                {
+                    Directory.Move(movedAside, target);
+                }
+
+                throw;
+            }
+
+            if (movedAside is not null)
+            {
+                TryDelete(movedAside);
+            }
+
+            return new InstallResult(new InstalledPackage(manifest, Path.GetFullPath(target), PackageOrigin.Installed), outcome, previous, read.Warnings);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            throw new PackageInstallException("No se pudo instalar: " + ex.Message, ex);
+        }
+        finally
+        {
+            if (Directory.Exists(staging))
+            {
+                TryDelete(staging);
+            }
+        }
+    }
+
+    /// <summary>Borra un paquete instalado por la persona. Los incluidos con el programa y los propios no se tocan.</summary>
+    /// <exception cref="PackageInstallException">No está instalado o no se pudo borrar.</exception>
+    public void Uninstall(string packageId)
+    {
+        if (!Identifiers.IsValid(packageId) || packageId == PackageLibrary.OwnPackageId)
+        {
+            throw new PackageInstallException($"«{packageId}» no es un paquete que se pueda desinstalar.");
+        }
+
+        foreach (string root in new[] { Locations.Packages, Locations.Modules })
+        {
+            string target = Path.Combine(root, packageId);
+            if (!Directory.Exists(target))
+            {
+                continue;
+            }
+
+            string aside = Path.Combine(root, RemovingPrefix + Guid.NewGuid().ToString("N")[..12]);
+            try
+            {
+                Directory.Move(target, aside);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                throw new PackageInstallException($"No se pudo desinstalar «{packageId}»: {ex.Message}", ex);
+            }
+
+            TryDelete(aside);
+            return;
+        }
+
+        throw new PackageInstallException($"«{packageId}» no está instalado.");
+    }
+
+    /// <summary>Borra restos de instalaciones o desinstalaciones cortadas (por ejemplo, por un apagón).</summary>
+    public int CleanUpLeftovers()
+    {
+        int removed = 0;
+        foreach (string root in new[] { Locations.Packages, Locations.Modules })
+        {
+            if (!Directory.Exists(root))
+            {
+                continue;
+            }
+
+            foreach (string directory in Directory.EnumerateDirectories(root))
+            {
+                string name = Path.GetFileName(directory);
+                if ((name.StartsWith(InstallingPrefix, StringComparison.Ordinal) || name.StartsWith(RemovingPrefix, StringComparison.Ordinal)) && TryDelete(directory))
+                {
+                    removed++;
+                }
+            }
+        }
+
+        return removed;
+    }
+
+    private void Extract(string archive, string destination, CancellationToken cancellationToken)
+    {
+        using ZipArchive zip = ZipFile.OpenRead(archive);
+        if (zip.Entries.Count > _limits.MaxEntries)
+        {
+            throw new PackageInstallException($"El paquete tiene más de {_limits.MaxEntries} archivos.");
+        }
+
+        string prefix = CommonWrapperFolder(zip);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        long total = 0;
+        Directory.CreateDirectory(destination);
+        foreach (ZipArchiveEntry entry in zip.Entries)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string name = entry.FullName;
+            if (prefix.Length > 0)
+            {
+                name = name[prefix.Length..];
+                if (name.Length == 0)
+                {
+                    continue;
+                }
+            }
+
+            bool isDirectory = name.EndsWith('/') || name.EndsWith('\\');
+            string trimmed = isDirectory ? name.TrimEnd('/', '\\') : name;
+            if (!SafePaths.TryNormalizeRelative(trimmed, out string? relative))
+            {
+                throw new PackageInstallException($"El paquete tiene una ruta no permitida: «{entry.FullName}».");
+            }
+
+            string path = Path.GetFullPath(Path.Combine(destination, relative));
+            if (!SafePaths.IsInside(path, destination))
+            {
+                throw new PackageInstallException($"El paquete intenta escribir fuera de su carpeta: «{entry.FullName}».");
+            }
+
+            if (!seen.Add(relative))
+            {
+                throw new PackageInstallException($"El paquete repite el archivo «{relative}».");
+            }
+
+            if (isDirectory)
+            {
+                Directory.CreateDirectory(path);
+                continue;
+            }
+
+            total += entry.Length;
+            if (entry.Length < 0 || total > _limits.MaxTotalBytes)
+            {
+                throw new PackageInstallException("El paquete descomprimido ocupa demasiado.");
+            }
+
+            if (entry.Length > (1 << 20) && entry.CompressedLength > 0 && entry.Length / entry.CompressedLength > _limits.MaxCompressionRatio)
+            {
+                throw new PackageInstallException($"«{relative}» está comprimido de forma sospechosa.");
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            using Stream source = entry.Open();
+            using var target = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            CopyLimited(source, target, entry.Length, cancellationToken);
+        }
+    }
+
+    /// <summary>Las releases de GitHub suelen envolver todo en una carpeta: si el manifiesto está ahí y no en la raíz, se quita.</summary>
+    private static string CommonWrapperFolder(ZipArchive zip)
+    {
+        if (zip.Entries.Any(e => string.Equals(e.FullName, PackageManifest.FileName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return "";
+        }
+
+        string? first = null;
+        foreach (ZipArchiveEntry entry in zip.Entries)
+        {
+            int slash = entry.FullName.IndexOfAny(['/', '\\']);
+            if (slash <= 0)
+            {
+                return "";
+            }
+
+            string folder = entry.FullName[..(slash + 1)];
+            if (first is null)
+            {
+                first = folder;
+            }
+            else if (!string.Equals(first, folder, StringComparison.Ordinal))
+            {
+                return "";
+            }
+        }
+
+        return first is not null && zip.Entries.Any(e => string.Equals(e.FullName, first + PackageManifest.FileName, StringComparison.OrdinalIgnoreCase))
+            ? first
+            : "";
+    }
+
+    /// <summary>Copia sin pasar del tamaño declarado: un zip que miente sobre el tamaño no llena el disco.</summary>
+    private static void CopyLimited(Stream source, Stream target, long declared, CancellationToken cancellationToken)
+    {
+        byte[] buffer = new byte[81920];
+        long copied = 0;
+        int read;
+        while ((read = source.Read(buffer)) > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            copied += read;
+            if (copied > declared)
+            {
+                throw new PackageInstallException("Una entrada del paquete es más grande de lo que declara.");
+            }
+
+            target.Write(buffer, 0, read);
+        }
+    }
+
+    private static bool TryDelete(string directory)
+    {
+        try
+        {
+            Directory.Delete(directory, recursive: true);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+}

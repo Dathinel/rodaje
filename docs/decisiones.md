@@ -224,3 +224,17 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 **Por qué.** Arrastrar debe sentirse inmediato y deshacerse de una vez; el formato necesitaba marcadores para el ripple de Vegas.
 
 **Consecuencias.** Desplazarse va a 60 cuadros por segundo con 200 clips; el zoom continuo queda en unos 45 (estirando lo dibujado y rearmándolo al terminar), con el tiempo en el dibujo de XAML y no en el código propio. Si hiciera falta más, el siguiente paso es dibujar las pistas con `SpriteVisual` de composición como los medidores.
+
+## D-021. Miniaturas en la CPU y formato `.paquete` v0 (10 de octubre de 2026)
+
+**Contexto.** La biblioteca y la línea de tiempo necesitan portadas, tiras de miniaturas y formas de onda sin frenar la interfaz ni la reproducción, y la propuesta de módulos aprobada pide un formato de paquete compartible entre programas.
+
+**Decisión.**
+- **Miniaturas por software.** Un `ThumbnailDecoder` propio en la CPU, sin filtro de desbloqueo y saltándose los cuadros que no son referencia, con swscale a BGRA. D3D11VA más un escalado en la GPU daría miniaturas algo más rápidas, pero gastaría superficies del presupuesto de VRAM de la reproducción (D-019) y obligaría a leer la textura de vuelta; en la CPU una miniatura 1080p sale en unos 50 ms, que alcanza.
+- **No exactas al cuadro.** Una miniatura muestra el último cuadro decodificado que no pasa del instante. Exactitud al cuadro es cosa del reproductor.
+- **Rejilla de potencias de dos** para los instantes de una tira y **clases de alto** (32 a 256 px): al hacer zoom o desplazar se reutiliza casi todo.
+- **Caché en memoria y en disco** con la huella del original (la misma de los proxies) en la clave; un archivo que cambia no reutiliza nada viejo.
+- **`IClipVisuals` no bloquea nunca:** devuelve lo que hay, pide lo que falta y avisa con `Changed` en el hilo de la interfaz.
+- **`.paquete` v0** en una biblioteca sin dependencias (`Rodaje.Paquetes`), con manifiesto validado con `JsonDocument` (apto para AOT), instalación que nunca escribe fuera de su carpeta y referencias estables `paquete@versión/elemento` ([formato](formato-paquete.md)). Los módulos de IA se declaran pero no se ejecutan hasta la fase 7.
+
+**Resultado.** Biblioteca con 200 medios 1080p: 60 cuadros por segundo al desplazar despacio y de golpe, sin ningún intervalo de más de 33 ms; portadas de la primera pantalla en 169 ms en frío y 107 ms con la caché en disco.

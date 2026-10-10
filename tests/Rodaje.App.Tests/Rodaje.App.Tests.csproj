@@ -18,11 +18,13 @@
 
   <ItemGroup>
     <Compile Include="..\..\src\Rodaje.App\Services\**\*.cs" Link="Services\%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\src\Rodaje.App\Services\Packages\catalogo.json" LogicalName="Rodaje.App.catalogo.json" Link="Services\Packages\catalogo.json" />
     <Compile Include="..\..\src\Rodaje.App\Views\Timeline\Logic\**\*.cs" Link="Timeline\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Engine\Rodaje.Engine.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
   </ItemGroup>
 
   <ItemGroup>

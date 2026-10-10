@@ -75,6 +75,7 @@ Medido el 9 de octubre de 2026 en un Ryzen 7 7435HS:
 - [Arquitectura por capas](docs/arquitectura/README.md): núcleo, medios, audio, reproducción, motor, render y app, con diagramas y recorrido del código.
 - [Variables de entorno](docs/variables-entorno.md)
 - [Formato de proyecto](docs/formato-proyecto.md)
+- [Formato de paquete](docs/formato-paquete.md): complementos `.paquete` y módulos de IA
 - [Decisiones](docs/decisiones.md)
 - [Investigación de editores abiertos](docs/archivo/investigacion.md)
 - [Fondo legal](docs/legal.md)

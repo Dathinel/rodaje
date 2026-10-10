@@ -1,0 +1,64 @@
+{
+  "formatVersion": 1,
+  "apps": [
+    { "id": "rodaje", "name": "Rodaje" },
+    { "id": "editor-audio", "name": "Editor de audio", "planned": true },
+    { "id": "editor-fotos", "name": "Editor de fotos", "planned": true }
+  ],
+  "entries": [
+    {
+      "id": "rodaje-transiciones",
+      "kind": "content",
+      "name": "Transiciones",
+      "description": "Fundidos, deslizamientos, zooms y barridos hechos con curvas de keyframes sobre las primitivas del motor.",
+      "repository": "https://github.com/Dathinel/rodaje-transiciones",
+      "apps": ["rodaje"],
+      "provides": ["transition"]
+    },
+    {
+      "id": "rodaje-titulos",
+      "kind": "content",
+      "name": "Títulos",
+      "description": "Estilos de texto con fuente, colores, borde y sombra, y animaciones de entrada y salida.",
+      "repository": "https://github.com/Dathinel/rodaje-titulos",
+      "apps": ["rodaje"],
+      "provides": ["text-style"]
+    },
+    {
+      "id": "modulo-subtitulos",
+      "kind": "module",
+      "name": "Subtítulos automáticos",
+      "description": "Transcribe la voz con Whisper en local y propone clips de texto con sus tiempos.",
+      "repository": "https://github.com/Dathinel/modulo-subtitulos",
+      "apps": ["rodaje", "editor-audio"],
+      "provides": ["subtitulos"]
+    },
+    {
+      "id": "modulo-quitar-fondo",
+      "kind": "module",
+      "name": "Quitar fondo",
+      "description": "Separa a la persona del fondo con un modelo de segmentación en la GPU y devuelve una máscara.",
+      "repository": "https://github.com/Dathinel/modulo-quitar-fondo",
+      "apps": ["rodaje", "editor-fotos"],
+      "provides": ["quitar-fondo"]
+    },
+    {
+      "id": "modulo-ritmo",
+      "kind": "module",
+      "name": "Cortes al ritmo",
+      "description": "Detecta los golpes de la música y pone marcadores para cortar al ritmo.",
+      "repository": "https://github.com/Dathinel/modulo-ritmo",
+      "apps": ["rodaje", "editor-audio"],
+      "provides": ["ritmo"]
+    },
+    {
+      "id": "modulo-silencios",
+      "kind": "module",
+      "name": "Quitar silencios",
+      "description": "Encuentra los silencios y los propone como borrado con ripple, para revisar antes de aplicar.",
+      "repository": "https://github.com/Dathinel/modulo-silencios",
+      "apps": ["rodaje", "editor-audio"],
+      "provides": ["silencios"]
+    }
+  ]
+}
