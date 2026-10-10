@@ -45,6 +45,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     private readonly EditorServices _services;
     private readonly ClipVisuals _visuals;
     private readonly List<IDisposable> _bindings = [];
+    private readonly InstanceRegistry _instance = InstanceRegistry.Register(InstanceRegistry.DefaultDirectory);
     private ShortcutsView? _shortcutsView;
     private NotificationAction? _notificationAction;
     private PluginsView? _pluginsView;
@@ -80,7 +81,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _visuals = new ClipVisuals(id => session.Project.FindMedia(id)?.Path, new FfmpegVisualsSources(),
             new ClipVisualsOptions { CacheDirectory = ClipVisualsOptions.DefaultCacheDirectory }, SynchronizationContext.Current);
         _ = _visuals.TrimDiskCacheAsync();
-        var packages = new PackageService(PackageService.DefaultLocations(), PackageService.LoadBundledCatalog());
+        var packages = new PackageService(PackageService.DefaultLocations(), PackageService.LoadBundledCatalog(), instances: _instance);
         _services = new EditorServices(session, _router, settings, engine, this) { Visuals = _visuals, Packages = packages };
         _bindings.Add(EditorShortcuts.Bind(_router, session));
         _bindings.Add(_router.Bind(ActionIds.Export, () => session.Notify(NotificationSeverity.Informational, "Exportar",
@@ -552,6 +553,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         _engine.Dispose();
         _visuals.Dispose();
+        _instance.Dispose();
         MeasurementRun.WriteReportIfMeasuring(_options, _engine, Program.Metrics, VideoPanel.CompositionScaleX);
     }
 }

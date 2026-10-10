@@ -94,7 +94,16 @@ Los tiempos van relativos al primer keyframe y las posiciones en píxeles de la 
 
 Desinstalar aparta la carpeta como `.desinstalando-<aleatorio>` y la borra. Solo se desinstala lo instalado por la persona: lo incluido con el programa y lo propio no.
 
-**Cortes de luz.** `PackageService` hace las operaciones de a una (instalar, desinstalar y releer). Antes de la primera, y solo entonces, se resuelven los restos: `.instalando-*` y `.desinstalando-*` se borran; una `.anterior-*` se borra si la versión nueva quedó completa (manifiesto válido con su id y todos sus archivos) y, si no, vuelve a su sitio y la nueva a medias se descarta. Así un apagón en mitad de una actualización deja la versión vieja o la nueva, nunca ninguna.
+**Cortes de luz.** `PackageService` hace las operaciones de a una (instalar, desinstalar y releer). Antes de la primera que se hace sin otras ventanas de Rodaje abiertas, y solo entonces, se resuelven los restos: `.instalando-*` y `.desinstalando-*` se borran; una `.anterior-*` se borra si la versión nueva quedó completa (manifiesto válido con su id y todos sus archivos) y, si no, vuelve a su sitio y la nueva a medias se descarta. Así un apagón en mitad de una actualización deja la versión vieja o la nueva, nunca ninguna.
+
+**Varias ventanas de Rodaje.** Cada instancia abre sin compartir `%LOCALAPPDATA%\Rodaje\instancias\<pid>-<aleatorio>.lock` con `DeleteOnClose`: el sistema lo borra al cerrarse el proceso, también si se mata o se cuelga. Para contar las instancias (`InstanceRegistry`) se intenta abrir cada archivo: si se deja, es de un proceso que ya no existe (un apagón) y se borra; si da violación de uso compartido, la instancia está viva. Con más de una instancia:
+
+- desinstalar está desactivado en la página de Complementos, que lo explica con un aviso («Cierra las otras ventanas de Rodaje para desinstalar o actualizar complementos») y mira el número de instancias cada 2 s mientras está abierta;
+- `PackageService` rechaza desinstalar y también instalar sobre un paquete ya instalado (actualizar, reinstalar o volver atrás), aunque la interfaz falle, porque la otra ventana podría estar usando sus archivos;
+- instalar un paquete nuevo sí se puede: no pisa nada de nadie;
+- la limpieza de restos no corre; queda para la primera operación que se haga con esta ventana sola.
+
+Además, instalar, desinstalar y limpiar toman `complementos\.operacion.lock` (abierto sin compartir mientras dura la operación; si otro proceso lo tiene, se espera hasta 10 s y luego se avisa). Así la limpieza nunca ve como resto la extracción en curso de otra ventana, aunque esa ventana se abra justo después de contar, y dos instalaciones del mismo id no se cruzan. El archivo se queda en la carpeta y no molesta.
 
 ## Módulos de IA
 

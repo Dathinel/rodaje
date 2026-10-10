@@ -25,7 +25,9 @@ public sealed record PluginEntry(
 /// <c>%LOCALAPPDATA%\Rodaje\complementos</c> (y en <c>paquetes\</c> y <c>modulos\</c> junto al exe, en la distribución
 /// completa), instalar desde un archivo y desinstalar. El disco se toca fuera del hilo de la interfaz y de a una operación
 /// por vez; el estado y <see cref="Changed"/> se publican en el hilo que llamó. Los restos de un corte se resuelven una sola
-/// vez, antes de la primera operación: después podrían ser la extracción de una instalación en curso.
+/// vez, antes de la primera operación hecha sin otras instancias abiertas: después podrían ser la extracción de una
+/// instalación en curso. Con otras instancias abiertas (<see cref="InstanceRegistry"/>) no se desinstala ni se reemplaza
+/// un paquete instalado, porque la otra podría estar usando sus archivos; instalar uno nuevo sí se puede.
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "SemaphoreSlim sin AvailableWaitHandle no reserva nada que liberar.")]
 public sealed class PackageService
@@ -33,11 +35,15 @@ public sealed class PackageService
     public const string AppId = "rodaje";
     public const string CatalogResourceName = "Rodaje.App.catalogo.json";
 
+    public const string OtherInstancesMessage = "Cierra las otras ventanas de Rodaje para desinstalar o actualizar complementos.";
+
     private readonly PackageInstaller _installer;
+    private readonly InstanceRegistry? _instances;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _leftoversResolved;
 
-    public PackageService(PackageLocations locations, PackageCatalog catalog, IPackageDownloader? downloader = null)
+    /// <param name="instances">Para saber si hay otras instancias abiertas; sin él, esta se cree sola.</param>
+    public PackageService(PackageLocations locations, PackageCatalog catalog, IPackageDownloader? downloader = null, InstanceRegistry? instances = null)
     {
         ArgumentNullException.ThrowIfNull(locations);
         ArgumentNullException.ThrowIfNull(catalog);
@@ -45,6 +51,7 @@ public sealed class PackageService
         Catalog = catalog;
         Downloader = downloader ?? new UnavailablePackageDownloader("Descarga desde GitHub: próximamente.");
         _installer = new PackageInstaller(locations, AppId);
+        _instances = instances;
     }
 
     /// <summary>Cambió lo instalado.</summary>
@@ -57,6 +64,9 @@ public sealed class PackageService
     public IPackageDownloader Downloader { get; }
 
     public PackageScan Installed { get; private set; } = PackageScan.Empty;
+
+    /// <summary>Instancias de Rodaje abiertas, contando esta. Lee el disco, pero es barato (un archivo por instancia).</summary>
+    public int ActiveInstances() => _instances?.CountActive() ?? 1;
 
     /// <summary>Carpetas de siempre: los datos de la persona y, junto al exe, las de la distribución completa.</summary>
     public static PackageLocations DefaultLocations() =>
@@ -114,7 +124,17 @@ public sealed class PackageService
 
     /// <exception cref="PackageInstallException">No se pudo instalar.</exception>
     public Task<InstallResult> InstallFromFileAsync(string path, string? expectedSha256 = null, bool allowDowngrade = false) =>
-        ExclusiveAsync(() => _installer.Install(path, expectedSha256, allowDowngrade));
+        ExclusiveAsync(() =>
+        {
+            try
+            {
+                return _installer.Install(path, expectedSha256, allowDowngrade, allowReplace: ActiveInstances() == 1);
+            }
+            catch (PackageReplaceBlockedException ex)
+            {
+                throw new PackageInstallException($"«{ex.PackageName}» ya está instalado. {OtherInstancesMessage}", ex);
+            }
+        });
 
     /// <summary>Descarga e instala una entrada del catálogo con <see cref="Downloader"/> (desde la fase 7).</summary>
     /// <exception cref="NotSupportedException">No hay descarga todavía.</exception>
@@ -134,6 +154,11 @@ public sealed class PackageService
     /// <exception cref="PackageInstallException">No se pudo desinstalar.</exception>
     public Task UninstallAsync(string packageId) => ExclusiveAsync(() =>
     {
+        if (ActiveInstances() > 1)
+        {
+            throw new PackageInstallException(OtherInstancesMessage);
+        }
+
         _installer.Uninstall(packageId);
         return true;
     });
@@ -163,21 +188,26 @@ public sealed class PackageService
 
     private void ResolveLeftoversOnce()
     {
-        if (_leftoversResolved)
+        if (_leftoversResolved || ActiveInstances() > 1)
         {
             return;
         }
 
-        _leftoversResolved = true;
         try
         {
             _installer.CleanUpLeftovers();
+            _leftoversResolved = true;
+        }
+        catch (PackageInstallException)
+        {
         }
         catch (IOException)
         {
+            _leftoversResolved = true;
         }
         catch (UnauthorizedAccessException)
         {
+            _leftoversResolved = true;
         }
     }
 }
