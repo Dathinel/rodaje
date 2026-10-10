@@ -67,7 +67,6 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 2. **Que confirme Daniel:** las flechas sobre un deslizador enfocado (también el del zoom) lo mueven a él; Ctrl izquierdo + Alt derecho ya no lanza atajos Ctrl+Alt; los guardados van en fila en lugar de `.tmp` únicos.
 3. **Pendientes conocidos:**
    - pico de ~600 ms en la primera edición tras importar: el motor no lo causa, falta medirlo en la interfaz;
-   - dos instancias de Rodaje: la segunda puede borrar una instalación en curso de la primera (falta un bloqueo entre procesos);
    - una forma de onda quitada mientras se calcula vuelve a la memoria hasta que la expulsa el límite de 64.
 4. **Después:** fase 5 (efectos, LUT, blend, render de filtros, audio con volumen y fundidos).
 
