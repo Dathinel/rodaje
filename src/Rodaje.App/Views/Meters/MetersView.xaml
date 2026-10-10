@@ -1,27 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Medidores de pico L/R estilo Shotcut, a la derecha del reproductor. Por ahora muestran silencio: el motor todavía no publica niveles. -->
+<!--
+    Medidores de audio L/R al estilo de Shotcut, a la derecha del reproductor: escala en dB (IEC 60268-18), barras verde,
+    amarillo y rojo, pico retenido, aviso de saturación que queda encendido hasta hacer clic y la lectura del mayor pico.
+    Las barras son SpriteVisuals de composición (BarsHost) que se mueven en cada cuadro sin pasar por el diseño de XAML.
+-->
 <UserControl
     x:Class="Rodaje.App.Views.Meters.MetersView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Width="36">
+    Width="60">
 
-    <Grid Background="{StaticResource BarBrush}" Padding="4,8" ColumnSpacing="3">
+    <Grid Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1,0,0,0" Padding="2,8,6,6" RowSpacing="4">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="22" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <Border Background="{StaticResource ControlBrush}" CornerRadius="1">
-            <Rectangle x:Name="LeftLevel" VerticalAlignment="Bottom" Height="0" Fill="{StaticResource MeterLowBrush}" />
-        </Border>
-        <Border Grid.Column="1" Background="{StaticResource ControlBrush}" CornerRadius="1">
-            <Rectangle x:Name="RightLevel" VerticalAlignment="Bottom" Height="0" Fill="{StaticResource MeterLowBrush}" />
-        </Border>
-        <TextBlock Grid.Row="1" Text="L" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Center" />
-        <TextBlock Grid.Row="1" Grid.Column="1" Text="R" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Center" />
+        <Grid.ContextFlyout>
+            <MenuFlyout>
+                <RadioMenuFlyoutItem x:Name="SlowDecayItem" Text="Caída lenta (12 dB/s)" GroupName="MeterDecay" Click="OnDecayClick" />
+                <RadioMenuFlyoutItem x:Name="NormalDecayItem" Text="Caída normal (20 dB/s)" GroupName="MeterDecay" Click="OnDecayClick" />
+                <RadioMenuFlyoutItem x:Name="FastDecayItem" Text="Caída rápida (40 dB/s)" GroupName="MeterDecay" Click="OnDecayClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Borrar picos y saturación" Click="OnResetClick" />
+            </MenuFlyout>
+        </Grid.ContextFlyout>
+
+        <Grid x:Name="ClipIndicators" Grid.Column="1" ColumnSpacing="2" Height="6" Background="{StaticResource TransparentBrush}"
+              Tapped="OnResetTapped" ToolTipService.ToolTip="Saturación: se enciende si la mezcla pasa de 0 dB. Clic para apagarla.">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border x:Name="ClipLeft" Background="{StaticResource ControlBrush}" CornerRadius="1" />
+            <Border x:Name="ClipRight" Grid.Column="1" Background="{StaticResource ControlBrush}" CornerRadius="1" />
+        </Grid>
+
+        <Canvas x:Name="ScaleCanvas" Grid.Row="1" />
+        <Grid x:Name="BarsHost" Grid.Row="1" Grid.Column="1" />
+
+        <Grid Grid.Row="2" Grid.Column="1">
+            <TextBlock Text="L" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Left" Margin="3,0,0,0" />
+            <TextBlock Text="R" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Right" Margin="0,0,3,0" />
+        </Grid>
+
+        <TextBlock x:Name="PeakText" Grid.Row="3" Grid.ColumnSpan="2" Text="−∞" HorizontalAlignment="Center"
+                   Style="{StaticResource TimecodeTextStyle}" FontSize="{StaticResource CaptionFontSize}" Foreground="{StaticResource TextMutedBrush}"
+                   Tapped="OnResetTapped" ToolTipService.ToolTip="Mayor pico desde el último clic, en dBFS (pico real estimado)" />
     </Grid>
 </UserControl>

@@ -36,6 +36,14 @@ flowchart LR
 - **Ajustes.** `ajustes.json` guarda carpetas, recientes, tamaños de paneles y ventana, estilo de atajos y proxies. Los dos archivos se escriben de forma atómica y, si están dañados, se apartan con el sufijo `.dañado`.
 - **Cerrar.** Con cambios sin guardar se pregunta (Guardar, No guardar, Cancelar).
 
+### Reproductor y medidores
+
+- **Cabecera:** proporción (con resolución y cuadros por segundo en la ayuda), avisos de lanzadera («▶ ×4») y de «Proxy» cuando una capa en pantalla sale de un proxy, zoom (Ajustar, 50 %, 100 %: píxeles de la secuencia por píxel físico, centrado), márgenes seguros (acción 93 %, títulos 90 %, EBU R 95) y pantalla completa (F, doble clic o el botón; Esc sale). En pantalla completa la ventana oculta los demás paneles y queda solo la imagen.
+- **Transporte:** código de tiempo en el acento, cuadro anterior, reproducir o pausar (botón de acento), cuadro siguiente y duración.
+- **Lanzadera J/K/L:** L reproduce y luego dobla hasta ×8, J va hacia atrás desde ×1, K detiene. A ×1 reproduce de verdad; a otras velocidades `PlayerEngine` hace un seek por refresco en pausa en cuanto el anterior muestra su cuadro, hacia la posición que corresponde a la velocidad (sin audio).
+- **Medidores** (`Views/Meters`): barras L/R con la escala IEC, verde hasta −18 dB, amarillo hasta −6 y rojo encima, franja del RMS (300 ms), raya del pico retenido, aviso de saturación que queda encendido hasta hacer clic y lectura del mayor pico. Se dibujan con `SpriteVisual` en `CompositionTarget.Rendering`, sin diseño de XAML ni reservas por cuadro, y se desuscriben cuando no queda nada que animar. La caída (12, 20 o 40 dB/s) se elige con clic derecho y se guarda en `ajustes.json`. Ver [Audio](audio.md#medidores-de-nivel-metering).
+- **Ediciones mientras reproduce:** el hilo de render vuelve a tomar la última copia del proyecto después de esperar el vsync, justo antes de componer: de 24 a 10 ms de mediana entre `Reload` y el cuadro presentado (`edicion.a_present` en `app.ps1 -Medir`).
+
 ### Cómo se suma una vista
 
 1. Un `UserControl` en `Views/<Área>/` que implementa `IEditorView`; `MainWindow` (o el anfitrión, como `InspectorView`) lo crea desde XAML y llama a `Attach(EditorServices)` una vez.

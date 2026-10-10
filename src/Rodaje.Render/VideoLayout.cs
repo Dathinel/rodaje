@@ -42,6 +42,19 @@ public static class VideoLayout
         return new PixelRect((targetWidth - width) / 2, (targetHeight - height) / 2, width, height);
     }
 
+    /// <summary>La imagen a <paramref name="scale"/> píxeles del destino por píxel propio, centrada; puede salirse del destino.</summary>
+    public static PixelRect Centered(int targetWidth, int targetHeight, int displayWidth, int displayHeight, double scale)
+    {
+        if (targetWidth <= 0 || targetHeight <= 0 || displayWidth <= 0 || displayHeight <= 0 || !(scale > 0))
+        {
+            return default;
+        }
+
+        int width = Math.Max(1, (int)Math.Round(displayWidth * scale));
+        int height = Math.Max(1, (int)Math.Round(displayHeight * scale));
+        return new PixelRect((targetWidth - width) / 2, (targetHeight - height) / 2, width, height);
+    }
+
     /// <summary>Qué punto de la textura va en cada esquina de la pantalla.</summary>
     /// <param name="rotation">Rotación de pantalla en grados en sentido horario: 0, 90, 180 o 270.</param>
     /// <param name="uMax">Ancho visible entre ancho de la textura (recorta el relleno de la derecha).</param>

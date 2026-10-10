@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
+using Rodaje.Audio.Metering;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Timeline;
@@ -22,12 +23,24 @@ namespace Rodaje.App.Views.Player;
 /// Reproduciendo, el hilo espera el objeto de latencia de la cadena (uno por refresco) y luego hace Tick, compone y
 /// presenta. En pausa duerme hasta una orden o 15 ms, y solo pinta si cambió el cuadro (por ejemplo, tras un seek).
 /// Los proyectos que llegan con <see cref="Load"/> y <see cref="Reload"/> son copias: este hilo es el único que las lee.
+/// <para>
+/// Medidores: en cada vuelta este hilo publica la posición del reloj (la muestra que suena) con su marca de tiempo, y
+/// <see cref="TakeAudioLevels"/>, desde el hilo de la interfaz, la extrapola al instante en que dibuja y lee los niveles
+/// de ese tramo en los bloques que la mezcla publicó por delante. Ninguno de los dos espera al otro más que una copia.
+/// </para>
+/// <para>
+/// Lanzadera: a ×1 reproduce de verdad; a otras velocidades (×2 a ×8 o hacia atrás) recorre con seeks en pausa, uno
+/// por refresco en cuanto el anterior muestra su cuadro, hacia la posición que corresponde a la velocidad pedida.
+/// </para>
 /// </remarks>
 internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 {
     private static readonly Func<LayerFrame, SourceGeometry> Geometry = l => new SourceGeometry(l.SampleAspectRatio, l.Rotation);
     private static readonly TimeSpan GpuSampleInterval = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan StatsInterval = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan RmsWindow = TimeSpan.FromMilliseconds(300);
+    private static readonly Time MaxExtrapolation = Time.FromSeconds(0.1);
+    private static readonly Time MeterJump = Time.FromSeconds(0.25);
 
     private readonly bool _enableAudio;
     private readonly Metrics _metrics;
@@ -41,6 +54,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private SizeRequest? _pendingSize;
     private (Project Project, string SequenceId)? _pendingLoad;
     private Project? _pendingReload;
+    private long _pendingReloadAt;
 
     private GpuDevice? _gpu;
     private TimelineSession? _session;
@@ -60,6 +74,23 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private int _lastSignature;
     private long _awaitingPresentSince;
     private long _resizeSince;
+    private long _reloadSince;
+    private bool _usesProxy;
+    private int _shuttleRate;
+    private Time _shuttleAnchor;
+    private long _shuttleAnchorStamp;
+    private double _zoom;
+
+    private readonly Lock _meterLock = new();
+    private TimelineSession? _meterSession;
+    private Time _meterPosition;
+    private long _meterStamp;
+    private bool _meterPlaying;
+
+    // Solo del hilo de la interfaz (el único lector de niveles).
+    private TimelineSession? _meterReadSession;
+    private Time _meterLastRead;
+    private Time _meterRmsFloor;
 
     public PlayerEngine(bool enableAudio, ProxyUsage proxyUsage, Metrics metrics)
     {
@@ -128,6 +159,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         {
             // Solo cuenta el último: si llegan varios entre dos refrescos, los anteriores ya no importan.
             _pendingReload = project;
+            _pendingReloadAt = Stopwatch.GetTimestamp();
         }
 
         _wake.Set();
@@ -144,6 +176,61 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     public void StepFrames(int frames) => Post(new Command(CommandKind.Step, Frames: frames));
 
     public void SetProxyUsage(ProxyUsage usage) => Post(new Command(CommandKind.Proxies, Proxies: usage));
+
+    /// <summary>J, K o L: la velocidad siguiente se decide en el hilo de render, con el estado real del transporte.</summary>
+    public void ShuttleKey(ShuttleKey key) => Post(new Command(CommandKind.Shuttle, Key: key));
+
+    /// <summary>Escala de la imagen: 0 la ajusta al panel; 0,5 o 1 son píxeles de la secuencia por píxel físico.</summary>
+    public void SetZoom(double zoom) => Post(new Command(CommandKind.Zoom, Zoom: zoom));
+
+    /// <summary>
+    /// Niveles de lo que sonó desde la llamada anterior: picos de ese tramo y RMS de los últimos 300 ms, leídos en la
+    /// posición que suena ahora. Solo desde el hilo de la interfaz; no espera al render ni reserva memoria.
+    /// </summary>
+    public AudioLevels TakeAudioLevels()
+    {
+        TimelineSession? session;
+        Time position;
+        long stamp;
+        bool playing;
+        lock (_meterLock)
+        {
+            session = _meterSession;
+            position = _meterPosition;
+            stamp = _meterStamp;
+            playing = _meterPlaying;
+        }
+
+        if (session is null || !session.HasAudioLevels)
+        {
+            _meterReadSession = null;
+            return AudioLevels.Silence;
+        }
+
+        if (playing)
+        {
+            // Entre dos vueltas del render el reloj del dispositivo sigue avanzando al ritmo del reloj de pared.
+            Time elapsed = Time.FromSeconds(Stopwatch.GetElapsedTime(stamp).TotalSeconds);
+            position += elapsed < MaxExtrapolation ? elapsed : MaxExtrapolation;
+        }
+
+        Time last = _meterLastRead;
+        bool jumped = session != _meterReadSession || position - last > MeterJump || last - position > MeterJump;
+        if (jumped)
+        {
+            _meterReadSession = session;
+            _meterRmsFloor = position;
+            last = position;
+        }
+        else if (position < last)
+        {
+            // La extrapolación anterior se pasó un poco: no se vuelve a medir lo ya medido.
+            position = last;
+        }
+
+        _meterLastRead = position;
+        return session.MeasureAudio(last, position, RmsWindow, _meterRmsFloor);
+    }
 
     public void Dispose()
     {
@@ -186,11 +273,19 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                     continue;
                 }
 
-                bool active = _session.IsPlaying || _session.IsSeekPending || _dirty;
+                bool active = _session.IsPlaying || _session.IsSeekPending || _dirty || IsScrubbing;
                 if (active)
                 {
                     // Uno por refresco: la cadena tiene latencia máxima 1, así que esto marca el ritmo del vsync.
                     _ = WaitForSingleObjectEx((HANDLE)_swapChain.FrameWaitHandle, 100, true);
+
+                    // Una edición que llegó durante la espera entra en este mismo cuadro y no en el siguiente.
+                    ApplyProject();
+                    if (_session is null)
+                    {
+                        continue;
+                    }
+
                     RenderFrame();
                 }
                 else
@@ -253,6 +348,11 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
 
         FinalStats = _session.Stats;
+        lock (_meterLock)
+        {
+            _meterSession = null;
+        }
+
         _session.Dispose();
         _session = null;
     }
@@ -291,10 +391,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     {
         (Project Project, string SequenceId)? load;
         Project? reload;
+        long reloadAt;
         lock (_pendingLock)
         {
             load = _pendingLoad;
             reload = _pendingReload;
+            reloadAt = _pendingReloadAt;
             _pendingLoad = null;
             _pendingReload = null;
         }
@@ -320,13 +422,18 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
             EnsureCompositor();
             _dirty = true;
+            _reloadSince = reloadAt;
         }
     }
+
+    private bool IsScrubbing => _shuttleRate is not (0 or 1);
 
     private void OpenSession()
     {
         CloseSession();
         _framesDropped = 0;
+        _usesProxy = false;
+        _shuttleRate = 0;
         if (_project is null || _sequenceId is null || _gpu is null)
         {
             return;
@@ -378,11 +485,27 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 continue;
             }
 
+            if (command.Kind == CommandKind.Zoom)
+            {
+                _zoom = command.Zoom;
+                EnsureCompositor();
+                _dirty = true;
+                continue;
+            }
+
             if (_session is null)
             {
                 continue;
             }
 
+            if (command.Kind == CommandKind.Shuttle)
+            {
+                ApplyShuttle(Shuttle.Next(EffectiveShuttleRate(_session), command.Key));
+                _dirty = true;
+                continue;
+            }
+
+            _shuttleRate = 0;
             switch (command.Kind)
             {
                 case CommandKind.TogglePlay:
@@ -409,6 +532,46 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
     }
 
+    private int EffectiveShuttleRate(TimelineSession session) => IsScrubbing ? _shuttleRate : session.IsPlaying ? 1 : 0;
+
+    private void ApplyShuttle(int rate)
+    {
+        TimelineSession session = _session!;
+        _shuttleRate = rate;
+        if (rate == 1)
+        {
+            session.Play();
+            return;
+        }
+
+        session.Pause();
+        _shuttleAnchor = session.Position;
+        _shuttleAnchorStamp = Stopwatch.GetTimestamp();
+    }
+
+    /// <summary>Recorre a la velocidad de la lanzadera: un seek nuevo solo cuando el anterior ya muestra su cuadro.</summary>
+    private void AdvanceScrub()
+    {
+        TimelineSession session = _session!;
+        if (!IsScrubbing || session.IsSeekPending)
+        {
+            return;
+        }
+
+        double seconds = Stopwatch.GetElapsedTime(_shuttleAnchorStamp).TotalSeconds * _shuttleRate;
+        Time target = _shuttleAnchor + Time.FromSeconds(seconds);
+        if (target <= Time.Zero || target >= session.Duration)
+        {
+            target = target <= Time.Zero ? Time.Zero : session.Duration;
+            _shuttleRate = 0;
+        }
+
+        if (target != session.Position)
+        {
+            session.Seek(target);
+        }
+    }
+
     /// <summary>Compone a tamaño de secuencia, o a la mitad si el panel no llega ni a la mitad (igual que el visor).</summary>
     private void EnsureCompositor()
     {
@@ -419,7 +582,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         int width = _session.Width;
         int height = _session.Height;
-        if (_swapChain.Width * 2 <= width && _swapChain.Height * 2 <= height)
+        bool halve = _zoom > 0 ? _zoom <= 0.5 : _swapChain.Width * 2 <= width && _swapChain.Height * 2 <= height;
+        if (halve)
         {
             width = Math.Max(1, width / 2);
             height = Math.Max(1, height / 2);
@@ -439,6 +603,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     {
         long start = Stopwatch.GetTimestamp();
         CollectGpuSample();
+        AdvanceScrub();
         using CompositionFrame frame = _session!.Tick();
         int drawn = 0;
         if (_compositor is not null)
@@ -459,7 +624,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
 
         _lastSignature = Signature(frame);
-        _swapChain!.Render(_presenter!, _compositor);
+        PixelRect? placement = _zoom > 0 ? VideoLayout.Centered(_swapChain!.Width, _swapChain.Height, _session.Width, _session.Height, _zoom) : null;
+        _swapChain!.Render(_presenter!, _compositor, placement);
         long presented = Stopwatch.GetTimestamp();
         _metrics.Presented(_session.IsPlaying && !_session.IsSeekPending, Stopwatch.GetElapsedTime(start, presented).TotalMilliseconds);
         if (drawn > 0)
@@ -477,6 +643,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         {
             _metrics.ResizeToPresent(Stopwatch.GetElapsedTime(_resizeSince, presented).TotalMilliseconds);
             _resizeSince = 0;
+        }
+
+        if (_reloadSince != 0)
+        {
+            _metrics.ReloadToPresent(Stopwatch.GetElapsedTime(_reloadSince, presented).TotalMilliseconds);
+            _reloadSince = 0;
         }
 
         _dirty = false;
@@ -512,11 +684,32 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         if (Stopwatch.GetElapsedTime(_lastStats) >= StatsInterval)
         {
             _lastStats = Stopwatch.GetTimestamp();
-            _framesDropped = s.Stats.FramesDropped;
+            TimelineStats stats = s.Stats;
+            _framesDropped = stats.FramesDropped;
+            _usesProxy = false;
+            foreach (LayerStats layer in stats.Layers)
+            {
+                _usesProxy |= layer.UsesProxy;
+            }
         }
 
-        string status = s.IsPlaying ? "Reproduciendo" : "En pausa";
-        var next = new PlaybackSnapshot(s.Position, s.Duration, s.IsPlaying, s.CurrentFrame, s.FrameCount, status) { FramesDropped = _framesDropped };
+        Time position = s.Position;
+        bool playing = s.IsPlaying;
+        lock (_meterLock)
+        {
+            _meterSession = s;
+            _meterPosition = position;
+            _meterStamp = Stopwatch.GetTimestamp();
+            _meterPlaying = playing;
+        }
+
+        string status = playing ? "Reproduciendo" : "En pausa";
+        var next = new PlaybackSnapshot(position, s.Duration, playing, s.CurrentFrame, s.FrameCount, status)
+        {
+            FramesDropped = _framesDropped,
+            UsesProxy = _usesProxy,
+            ShuttleRate = EffectiveShuttleRate(s),
+        };
         if (!next.Equals(_snapshot))
         {
             _snapshot = next;
@@ -546,9 +739,18 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         Seek,
         Step,
         Proxies,
+        Shuttle,
+        Zoom,
     }
 
-    private readonly record struct Command(CommandKind Kind, long PostedAt = 0, Time Position = default, int Frames = 0, ProxyUsage Proxies = ProxyUsage.Auto);
+    private readonly record struct Command(
+        CommandKind Kind,
+        long PostedAt = 0,
+        Time Position = default,
+        int Frames = 0,
+        ProxyUsage Proxies = ProxyUsage.Auto,
+        ShuttleKey Key = default,
+        double Zoom = 0);
 
     private readonly record struct SizeRequest(int Width, int Height, float ScaleX, float ScaleY, long RequestedAt);
 }

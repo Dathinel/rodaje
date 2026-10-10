@@ -18,6 +18,7 @@ internal sealed class Metrics
     private readonly List<double> _handlerToAppliedMs = [];
     private readonly List<double> _appliedToPresentMs = [];
     private readonly List<double> _resizeToPresentMs = [];
+    private readonly List<double> _reloadToPresentMs = [];
     private readonly List<string> _notes = [];
     private long _lastPresent;
     private bool _frozen;
@@ -97,6 +98,8 @@ internal sealed class Metrics
 
     public void ResizeToPresent(double ms) => Add(_resizeToPresentMs, ms);
 
+    public void ReloadToPresent(double ms) => Add(_reloadToPresentMs, ms);
+
     /// <summary>Descarta lo medido en reproducción (para empezar a contar ya en régimen).</summary>
     public void ResetSteadyState()
     {
@@ -129,6 +132,7 @@ internal sealed class Metrics
             Summary(sb, "entrada.keydown_a_sesion", _handlerToAppliedMs, hitches: false);
             Summary(sb, "entrada.sesion_a_present", _appliedToPresentMs, hitches: false);
             Summary(sb, "redimensionar.a_present", _resizeToPresentMs, hitches: false);
+            Summary(sb, "edicion.a_present", _reloadToPresentMs, hitches: false);
             foreach (string note in _notes)
             {
                 sb.AppendLine(c, $"nota: {note}");
