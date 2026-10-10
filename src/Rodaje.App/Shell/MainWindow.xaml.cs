@@ -44,6 +44,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     private readonly List<IDisposable> _bindings = [];
     private ShortcutsView? _shortcutsView;
     private PluginsView? _pluginsView;
+    private IDisposable? _pageShortcuts;
     private bool _activatedOnce;
     private bool _allowClose;
     private bool _closing;
@@ -185,12 +186,17 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         ModalContent.Content = view;
         ModalLayer.Visibility = Visibility.Visible;
+
+        // Con una página encima, el editor de detrás no recibe teclas; Esc (la cierra) y Archivo siguen.
+        _pageShortcuts ??= _router.Restrict(action => action.Group == ShortcutGroups.File);
     }
 
     public void ClosePage()
     {
         ModalLayer.Visibility = Visibility.Collapsed;
         ModalContent.Content = null;
+        _pageShortcuts?.Dispose();
+        _pageShortcuts = null;
     }
 
     public void SetPlayerFullScreen(bool fullScreen)

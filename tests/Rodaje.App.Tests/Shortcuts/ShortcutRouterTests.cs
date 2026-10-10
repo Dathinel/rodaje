@@ -123,6 +123,27 @@ public class ShortcutRouterTests
     }
 
     [Fact]
+    public void Restrict_SoloDejaPasarLasAccionesPermitidas()
+    {
+        ShortcutRouter router = Router();
+        int plays = 0;
+        int saves = 0;
+        router.Bind("play", () => plays++);
+        router.Bind("save", () => saves++);
+
+        using (router.Restrict(a => a.Group == "A"))
+        {
+            Assert.False(router.Dispatch(K("Espacio"), false, false));
+            Assert.True(router.Dispatch(K("Ctrl+S"), false, false));
+            Assert.True(router.Invoke("play"));
+        }
+
+        Assert.True(router.Dispatch(K("Espacio"), false, false));
+        Assert.Equal(2, plays);
+        Assert.Equal(1, saves);
+    }
+
+    [Fact]
     public void Rebind_CambiaLaTeclaQueLanza()
     {
         ShortcutRouter router = Router();

@@ -12,6 +12,7 @@ namespace Rodaje.App.Services.Shortcuts;
 public sealed partial class ShortcutRouter
 {
     private readonly Dictionary<string, List<Binding>> _bindings = new(StringComparer.Ordinal);
+    private readonly List<Func<ShortcutAction, bool>> _restrictions = [];
     private int _suspended;
 
     public ShortcutRouter(ShortcutRegistry registry)
@@ -77,6 +78,11 @@ public sealed partial class ShortcutRouter
             return false;
         }
 
+        if (_restrictions.Exists(allowed => !allowed(action)))
+        {
+            return false;
+        }
+
         if (isRepeat && !action.Repeats)
         {
             // Se consume para que la repetición no llegue a un control, pero no se lanza otra vez.
@@ -91,6 +97,17 @@ public sealed partial class ShortcutRouter
     {
         _suspended++;
         return new Resume(this);
+    }
+
+    /// <summary>
+    /// Hasta que se libera lo devuelto, el teclado solo lanza las acciones que cumplen <paramref name="allowed"/> (por
+    /// ejemplo, con una página encima del editor); los menús no cambian.
+    /// </summary>
+    public IDisposable Restrict(Func<ShortcutAction, bool> allowed)
+    {
+        ArgumentNullException.ThrowIfNull(allowed);
+        _restrictions.Add(allowed);
+        return new Lift(this, allowed);
     }
 
     private Binding? FindHandler(string actionId)
@@ -132,6 +149,11 @@ public sealed partial class ShortcutRouter
                 list.Remove(this);
             }
         }
+    }
+
+    private sealed partial class Lift(ShortcutRouter router, Func<ShortcutAction, bool> allowed) : IDisposable
+    {
+        public void Dispose() => router._restrictions.Remove(allowed);
     }
 
     private sealed partial class Resume(ShortcutRouter router) : IDisposable
