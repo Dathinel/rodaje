@@ -21,6 +21,7 @@ public sealed class ShortcutAction
     private readonly KeyChord[] _rodaje;
     private readonly KeyChord[]? _capCut;
     private readonly KeyChord[]? _vegas;
+    private readonly string? _shortLabel;
 
     public ShortcutAction(string id, string label, string group, string[] rodaje, string[]? capCut = null, string[]? vegas = null)
     {
@@ -40,6 +41,16 @@ public sealed class ShortcutAction
 
     /// <summary>Lo que hace, en español, como se ve en menús y en la página de atajos.</summary>
     public string Label { get; }
+
+    /// <summary>Qué hace, en una frase corta y sencilla, para la página de atajos; vacío si no hace falta explicarlo.</summary>
+    public string Description { get; init; } = "";
+
+    /// <summary>Una o dos palabras para el teclado dibujado («Cortar», «Ver todo»); si no se da, el texto completo.</summary>
+    public string ShortLabel
+    {
+        get => string.IsNullOrWhiteSpace(_shortLabel) ? Label : _shortLabel;
+        init => _shortLabel = value;
+    }
 
     /// <summary>Grupo de la página de atajos («Edición», «Reproducción»...).</summary>
     public string Group { get; }

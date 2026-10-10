@@ -42,15 +42,21 @@ public static class ActionIds
     public const string ShowPlugins = "view.plugins";
 }
 
-/// <summary>Grupos de la página de atajos.</summary>
+/// <summary>Grupos de la página de atajos, en el orden en que se muestran.</summary>
 public static class ShortcutGroups
 {
-    public const string File = "Archivo";
-    public const string Edit = "Edición";
     public const string Playback = "Reproducción";
+    public const string Edit = "Edición";
     public const string Timeline = "Línea de tiempo";
     public const string Tools = "Herramientas";
-    public const string Windows = "Ventanas";
+    public const string View = "Vista";
+    public const string File = "Archivo";
+
+    /// <summary>Páginas y paneles: ahora forman parte de <see cref="View"/>.</summary>
+    public const string Windows = View;
+
+    /// <summary>Orden de la página; los grupos que registren las vistas y no estén aquí van al final.</summary>
+    public static IReadOnlyList<string> Order { get; } = [Playback, Edit, Timeline, Tools, View, File];
 }
 
 /// <summary>Las acciones del armazón con sus teclas de fábrica en cada estilo, y su unión con la sesión.</summary>
@@ -59,43 +65,43 @@ public static partial class EditorShortcuts
     /// <summary>Acciones del armazón. Las vistas registran las suyas aparte (<see cref="ShortcutRegistry.Register"/>).</summary>
     public static IReadOnlyList<ShortcutAction> Catalog { get; } =
     [
-        new(ActionIds.NewProject, "Proyecto nuevo", ShortcutGroups.File, ["Ctrl+N"]) { WorksInTextInput = true },
-        new(ActionIds.OpenProject, "Abrir proyecto", ShortcutGroups.File, ["Ctrl+O"]) { WorksInTextInput = true },
-        new(ActionIds.Save, "Guardar", ShortcutGroups.File, ["Ctrl+S"]) { WorksInTextInput = true },
-        new(ActionIds.SaveAs, "Guardar como", ShortcutGroups.File, ["Ctrl+Mayús+S"]) { WorksInTextInput = true },
-        new(ActionIds.Import, "Importar medios", ShortcutGroups.File, ["Ctrl+I"]),
-        new(ActionIds.Export, "Exportar", ShortcutGroups.File, ["Ctrl+E"]) { WorksInTextInput = true },
+        new(ActionIds.NewProject, "Proyecto nuevo", ShortcutGroups.File, ["Ctrl+N"]) { ShortLabel = "Nuevo", WorksInTextInput = true, Description = "Empieza un proyecto vacío; si hay cambios sin guardar, pregunta antes." },
+        new(ActionIds.OpenProject, "Abrir proyecto", ShortcutGroups.File, ["Ctrl+O"]) { ShortLabel = "Abrir", WorksInTextInput = true, Description = "Abre un archivo .rodaje guardado." },
+        new(ActionIds.Save, "Guardar", ShortcutGroups.File, ["Ctrl+S"]) { WorksInTextInput = true, Description = "Guarda el proyecto en su archivo." },
+        new(ActionIds.SaveAs, "Guardar como", ShortcutGroups.File, ["Ctrl+Mayús+S"]) { ShortLabel = "Guardar como", WorksInTextInput = true, Description = "Guarda una copia con otro nombre o en otra carpeta." },
+        new(ActionIds.Import, "Importar medios", ShortcutGroups.File, ["Ctrl+I"]) { ShortLabel = "Importar", Description = "Trae videos, audios o imágenes a la biblioteca." },
+        new(ActionIds.Export, "Exportar", ShortcutGroups.File, ["Ctrl+E"]) { WorksInTextInput = true, Description = "Convierte el proyecto en un video terminado." },
 
-        new(ActionIds.Undo, "Deshacer", ShortcutGroups.Edit, ["Ctrl+Z"]) { Repeats = true },
-        new(ActionIds.Redo, "Rehacer", ShortcutGroups.Edit, ["Ctrl+Mayús+Z", "Ctrl+Y"], capCut: ["Ctrl+Mayús+Z"], vegas: ["Ctrl+Y", "Ctrl+Mayús+Z"]) { Repeats = true },
-        new(ActionIds.Split, "Cortar en el cursor", ShortcutGroups.Edit, ["S", "Ctrl+B"], capCut: ["Ctrl+B"], vegas: ["S"]),
-        new(ActionIds.Delete, "Borrar", ShortcutGroups.Edit, ["Supr", "Retroceso"], vegas: ["Supr"]),
-        new(ActionIds.TrimStart, "Recortar el inicio hasta el cursor", ShortcutGroups.Edit, ["Q"], vegas: ["Alt+["]),
-        new(ActionIds.TrimEnd, "Recortar el final hasta el cursor", ShortcutGroups.Edit, ["W"], vegas: ["Alt+]"]),
-        new(ActionIds.SelectAll, "Seleccionar todo", ShortcutGroups.Edit, ["Ctrl+A"]),
+        new(ActionIds.Undo, "Deshacer", ShortcutGroups.Edit, ["Ctrl+Z"]) { Repeats = true, Description = "Vuelve atrás el último cambio." },
+        new(ActionIds.Redo, "Rehacer", ShortcutGroups.Edit, ["Ctrl+Mayús+Z", "Ctrl+Y"], capCut: ["Ctrl+Mayús+Z"], vegas: ["Ctrl+Y", "Ctrl+Mayús+Z"]) { Repeats = true, Description = "Repite lo que acabas de deshacer." },
+        new(ActionIds.Split, "Cortar en el cursor", ShortcutGroups.Edit, ["S", "Ctrl+B"], capCut: ["Ctrl+B"], vegas: ["S"]) { ShortLabel = "Cortar", Description = "Parte en dos el clip que está bajo el cursor de reproducción." },
+        new(ActionIds.Delete, "Borrar", ShortcutGroups.Edit, ["Supr", "Retroceso"], vegas: ["Supr"]) { Description = "Quita de la línea de tiempo los clips seleccionados." },
+        new(ActionIds.TrimStart, "Recortar el inicio hasta el cursor", ShortcutGroups.Edit, ["Q"], vegas: ["Alt+["]) { ShortLabel = "Recortar inicio", Description = "Quita lo que hay del clip antes del cursor." },
+        new(ActionIds.TrimEnd, "Recortar el final hasta el cursor", ShortcutGroups.Edit, ["W"], vegas: ["Alt+]"]) { ShortLabel = "Recortar final", Description = "Quita lo que hay del clip después del cursor." },
+        new(ActionIds.SelectAll, "Seleccionar todo", ShortcutGroups.Edit, ["Ctrl+A"]) { ShortLabel = "Todo", Description = "Selecciona todos los clips de la secuencia." },
 
-        new(ActionIds.TogglePlay, "Reproducir o pausar", ShortcutGroups.Playback, ["Espacio"]),
-        new(ActionIds.PreviousFrame, "Cuadro anterior", ShortcutGroups.Playback, ["←"], vegas: ["Alt+←"]) { Repeats = true },
-        new(ActionIds.NextFrame, "Cuadro siguiente", ShortcutGroups.Playback, ["→"], vegas: ["Alt+→"]) { Repeats = true },
-        new(ActionIds.GoToStart, "Ir al inicio", ShortcutGroups.Playback, ["Inicio"]),
-        new(ActionIds.GoToEnd, "Ir al final", ShortcutGroups.Playback, ["Fin"]),
+        new(ActionIds.TogglePlay, "Reproducir o pausar", ShortcutGroups.Playback, ["Espacio"]) { ShortLabel = "Reproducir", Description = "Arranca o detiene la reproducción desde el cursor." },
+        new(ActionIds.PreviousFrame, "Cuadro anterior", ShortcutGroups.Playback, ["←"], vegas: ["Alt+←"]) { ShortLabel = "Cuadro atrás", Repeats = true, Description = "Retrocede una imagen; mantenla para ir más atrás." },
+        new(ActionIds.NextFrame, "Cuadro siguiente", ShortcutGroups.Playback, ["→"], vegas: ["Alt+→"]) { ShortLabel = "Cuadro adelante", Repeats = true, Description = "Avanza una imagen; mantenla para seguir avanzando." },
+        new(ActionIds.GoToStart, "Ir al inicio", ShortcutGroups.Playback, ["Inicio"]) { ShortLabel = "Inicio", Description = "Lleva el cursor al principio de la secuencia." },
+        new(ActionIds.GoToEnd, "Ir al final", ShortcutGroups.Playback, ["Fin"]) { ShortLabel = "Final", Description = "Lleva el cursor al final del último clip." },
 
-        new(ActionIds.AddMarker, "Añadir marcador", ShortcutGroups.Timeline, ["M"]),
-        new(ActionIds.AddRegion, "Añadir región", ShortcutGroups.Timeline, ["R"], capCut: []),
-        new(ActionIds.ZoomIn, "Acercar", ShortcutGroups.Timeline, ["Ctrl++", "Ctrl+Num +"], vegas: ["↑"]) { Repeats = true },
-        new(ActionIds.ZoomOut, "Alejar", ShortcutGroups.Timeline, ["Ctrl+-", "Ctrl+Num -"], vegas: ["↓"]) { Repeats = true },
-        new(ActionIds.ZoomToFit, "Ver toda la secuencia", ShortcutGroups.Timeline, ["Mayús+Z"]),
-        new(ActionIds.ToggleSnapping, "Ajuste", ShortcutGroups.Timeline, ["N"], vegas: ["F8"]),
-        new(ActionIds.ToggleAutoRipple, "Ripple automático", ShortcutGroups.Timeline, ["Ctrl+L"], capCut: []),
-        new(ActionIds.ToggleMagneticMain, "Pista principal magnética", ShortcutGroups.Timeline, []),
+        new(ActionIds.AddMarker, "Añadir marcador", ShortcutGroups.Timeline, ["M"]) { ShortLabel = "Marcador", Description = "Deja una marca en el cursor para volver a ese punto." },
+        new(ActionIds.AddRegion, "Añadir región", ShortcutGroups.Timeline, ["R"], capCut: []) { ShortLabel = "Región", Description = "Marca un tramo de la secuencia con nombre." },
+        new(ActionIds.ToggleSnapping, "Ajuste", ShortcutGroups.Timeline, ["N"], vegas: ["F8"]) { Description = "Activa o quita el imán que pega los clips a bordes y al cursor." },
+        new(ActionIds.ToggleAutoRipple, "Ripple automático", ShortcutGroups.Timeline, ["Ctrl+L"], capCut: []) { ShortLabel = "Ripple", Description = "Al borrar o mover, corre lo que viene detrás para no dejar huecos." },
+        new(ActionIds.ToggleMagneticMain, "Pista principal magnética", ShortcutGroups.Timeline, []) { ShortLabel = "Magnética", Description = "Mantiene los clips de la pista principal pegados unos a otros." },
 
-        new(ActionIds.NormalTool, "Herramienta normal", ShortcutGroups.Tools, ["V"], capCut: ["A"], vegas: ["Ctrl+D"]),
-        new(ActionIds.EnvelopeTool, "Herramienta de envolvente", ShortcutGroups.Tools, []),
-        new(ActionIds.SelectionTool, "Herramienta de selección", ShortcutGroups.Tools, []),
-        new(ActionIds.ZoomTool, "Herramienta de zoom", ShortcutGroups.Tools, ["Z"], capCut: []),
+        new(ActionIds.NormalTool, "Herramienta normal", ShortcutGroups.Tools, ["V"], capCut: ["A"], vegas: ["Ctrl+D"]) { ShortLabel = "Normal", Description = "Seleccionar, mover y recortar clips con el ratón." },
+        new(ActionIds.EnvelopeTool, "Herramienta de envolvente", ShortcutGroups.Tools, []) { ShortLabel = "Envolvente", Description = "Dibuja curvas de volumen u opacidad sobre los clips." },
+        new(ActionIds.SelectionTool, "Herramienta de selección", ShortcutGroups.Tools, []) { ShortLabel = "Selección", Description = "Arrastra un recuadro para seleccionar varios clips." },
+        new(ActionIds.ZoomTool, "Herramienta de zoom", ShortcutGroups.Tools, ["Z"], capCut: []) { ShortLabel = "Zoom", Description = "Haz clic o arrastra en la línea de tiempo para acercar ese tramo." },
 
-        new(ActionIds.ShowShortcuts, "Atajos de teclado", ShortcutGroups.Windows, ["Ctrl+Alt+K"]),
-        new(ActionIds.ShowPlugins, "Complementos", ShortcutGroups.Windows, []),
+        new(ActionIds.ZoomIn, "Acercar", ShortcutGroups.View, ["Ctrl++", "Ctrl+Num +"], vegas: ["↑"]) { Repeats = true, Description = "Agranda la línea de tiempo para ver más detalle." },
+        new(ActionIds.ZoomOut, "Alejar", ShortcutGroups.View, ["Ctrl+-", "Ctrl+Num -"], vegas: ["↓"]) { Repeats = true, Description = "Achica la línea de tiempo para ver más tiempo a la vez." },
+        new(ActionIds.ZoomToFit, "Ver toda la secuencia", ShortcutGroups.View, ["Mayús+Z"]) { ShortLabel = "Ver todo", Description = "Ajusta el zoom para que la secuencia quepa entera." },
+        new(ActionIds.ShowShortcuts, "Atajos de teclado", ShortcutGroups.View, ["Ctrl+Alt+K"]) { ShortLabel = "Atajos", Description = "Abre esta página para ver y cambiar las teclas." },
+        new(ActionIds.ShowPlugins, "Complementos", ShortcutGroups.View, []) { Description = "Abre el gestor de paquetes y módulos de IA." },
     ];
 
     /// <summary>

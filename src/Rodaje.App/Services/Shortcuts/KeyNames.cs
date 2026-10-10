@@ -5,8 +5,10 @@ namespace Rodaje.App.Services.Shortcuts;
 
 /// <summary>Nombres de las teclas en español (para mostrar) y en un formato estable (para guardar), y su lectura.</summary>
 /// <remarks>
-/// Las teclas de signos se nombran por su posición en un teclado estadounidense (VK_OEM_*); en otras distribuciones el
-/// carácter impreso puede ser otro, pero la tecla física es la misma.
+/// Las teclas de signos (VK_OEM_*) cambian de carácter según la distribución: la que en un teclado estadounidense lleva
+/// «[» en uno español lleva «'». Para guardar y para el catálogo se nombran siempre por la posición estadounidense
+/// (formato estable); para mostrar se usa la distribución activa (<see cref="DisplayLayout"/>), así el texto coincide con
+/// lo que la persona ve impreso en su teclado.
 /// </remarks>
 public static class KeyNames
 {
@@ -58,17 +60,53 @@ public static class KeyNames
         (KeyModifiers.Windows, "Win", "Win", ["Windows"]),
     ];
 
-    /// <summary>«Ctrl+Mayús+Z».</summary>
-    public static string Format(KeyChord chord) => Compose(chord, invariant: false);
+    /// <summary>
+    /// Distribución con la que se muestran las teclas de signos; <c>null</c> las nombra por su posición estadounidense.
+    /// La ventana pone aquí la distribución activa de Windows al arrancar.
+    /// </summary>
+    public static IKeyboardLayout? DisplayLayout { get; set; }
 
-    /// <summary>«Ctrl+Shift+Z»: no depende del idioma, para los archivos.</summary>
-    public static string FormatInvariant(KeyChord chord) => Compose(chord, invariant: true);
+    /// <summary>«Ctrl+Mayús+Z», con los signos de <see cref="DisplayLayout"/>.</summary>
+    public static string Format(KeyChord chord) => Format(chord, DisplayLayout);
 
-    /// <summary>Nombre de la tecla sola, en español.</summary>
-    public static string KeyName(int key) => Name(key, invariant: false);
+    /// <summary>«Ctrl+Mayús+Z», con los signos de <paramref name="layout"/>.</summary>
+    public static string Format(KeyChord chord, IKeyboardLayout? layout) => Compose(chord, invariant: false, layout);
 
-    /// <summary>Lee «Ctrl+Mayús+Z», «ctrl+shift+z», «Alt+[», «Ctrl++» o «Supr».</summary>
-    public static bool TryParse(string? text, out KeyChord chord)
+    /// <summary>«Ctrl+Shift+Z»: no depende del idioma ni de la distribución, para los archivos.</summary>
+    public static string FormatInvariant(KeyChord chord) => Compose(chord, invariant: true, layout: null);
+
+    /// <summary>Nombre de la tecla sola, en español, con los signos de <see cref="DisplayLayout"/>.</summary>
+    public static string KeyName(int key) => KeyName(key, DisplayLayout);
+
+    /// <summary>Nombre de la tecla sola, en español, con los signos de <paramref name="layout"/>.</summary>
+    public static string KeyName(int key, IKeyboardLayout? layout) => Name(key, invariant: false, layout);
+
+    /// <summary>Teclas de signos: su carácter depende de la distribución del teclado.</summary>
+    public static bool IsLayoutDependent(int key) => key is (>= 0xBA and <= 0xC0) or (>= 0xDB and <= 0xDF) or 0xE1 or 0xE2;
+
+    /// <summary>Los modificadores solos, como se ven mientras se captura una tecla: «Ctrl+Mayús+».</summary>
+    public static string FormatModifiers(KeyModifiers modifiers)
+    {
+        var text = new StringBuilder();
+        foreach ((KeyModifiers mod, string display, _, _) in ModifierNames)
+        {
+            if (modifiers.HasFlag(mod))
+            {
+                text.Append(display).Append('+');
+            }
+        }
+
+        return text.ToString();
+    }
+
+    /// <summary>Lee «Ctrl+Mayús+Z», «ctrl+shift+z», «Alt+[», «Ctrl++» o «Supr» (signos en posición estadounidense).</summary>
+    public static bool TryParse(string? text, out KeyChord chord) => TryParse(text, layout: null, out chord);
+
+    /// <summary>
+    /// Lee una combinación escrita como se ve en pantalla: un signo de un solo carácter se busca primero en
+    /// <paramref name="layout"/> («Ñ» o «'» en un teclado español) y después en la posición estadounidense.
+    /// </summary>
+    public static bool TryParse(string? text, IKeyboardLayout? layout, out KeyChord chord)
     {
         chord = default;
         if (string.IsNullOrWhiteSpace(text))
@@ -84,7 +122,7 @@ public static class KeyNames
         }
 
         rest = rest.Trim();
-        int? key = ParseKey(rest);
+        int? key = ParseKey(rest, layout);
         if (key is not { } value || KeyChord.IsModifierKey(value))
         {
             return false;
@@ -119,7 +157,7 @@ public static class KeyNames
         return false;
     }
 
-    private static int? ParseKey(string token)
+    private static int? ParseKey(string token, IKeyboardLayout? layout)
     {
         if (token.Length == 0)
         {
@@ -129,6 +167,18 @@ public static class KeyNames
         if (token.Length == 1 && char.ToUpperInvariant(token[0]) is var c && (c is >= 'A' and <= 'Z' || c is >= '0' and <= '9'))
         {
             return c;
+        }
+
+        if (token.Length == 1 && layout is not null)
+        {
+            char wanted = char.ToUpperInvariant(token[0]);
+            for (int vk = 0xBA; vk <= 0xE2; vk++)
+            {
+                if (IsLayoutDependent(vk) && LayoutCharacter(vk, layout) == wanted)
+                {
+                    return vk;
+                }
+            }
         }
 
         if (ByName.TryGetValue(Fold(token), out int named))
@@ -155,7 +205,7 @@ public static class KeyNames
         return null;
     }
 
-    private static string Compose(KeyChord chord, bool invariant)
+    private static string Compose(KeyChord chord, bool invariant, IKeyboardLayout? layout)
     {
         var text = new StringBuilder();
         foreach ((KeyModifiers mod, string display, string inv, _) in ModifierNames)
@@ -166,11 +216,16 @@ public static class KeyNames
             }
         }
 
-        return text.Append(Name(chord.Key, invariant)).ToString();
+        return text.Append(Name(chord.Key, invariant, layout)).ToString();
     }
 
-    private static string Name(int key, bool invariant)
+    private static string Name(int key, bool invariant, IKeyboardLayout? layout)
     {
+        if (!invariant && layout is not null && IsLayoutDependent(key) && LayoutCharacter(key, layout) is { } printed)
+        {
+            return printed.ToString();
+        }
+
         if (key is >= 'A' and <= 'Z' or >= '0' and <= '9')
         {
             return ((char)key).ToString();
@@ -193,6 +248,10 @@ public static class KeyNames
 
         return "VK" + key.ToString("X2", CultureInfo.InvariantCulture);
     }
+
+    /// <summary>El carácter impreso, en mayúscula, o <c>null</c> si la tecla no escribe uno visible.</summary>
+    private static char? LayoutCharacter(int key, IKeyboardLayout layout) =>
+        layout.CharacterOf(key) is { } c && !char.IsControl(c) && !char.IsWhiteSpace(c) ? char.ToUpperInvariant(c) : null;
 
     private static Dictionary<int, NamedKey> BuildByKey()
     {

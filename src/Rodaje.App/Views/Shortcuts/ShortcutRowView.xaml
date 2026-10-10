@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Una fila de la página de atajos: barra naranja si la persona la cambió, nombre y explicación, las teclas como fichas
+    (clic para cambiar esa, × para quitarla) y los botones Cambiar, añadir otra tecla y volver a la de fábrica. Mientras
+    se captura, las fichas dejan su sitio a la caja «Pulsa la nueva combinación…», que tiene el foco.
+-->
+<UserControl
+    x:Class="Rodaje.App.Views.Shortcuts.ShortcutRowView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Rodaje.App.Views.Shortcuts">
+
+    <UserControl.Resources>
+        <Style x:Key="KeyChipButtonStyle" TargetType="Button" BasedOn="{StaticResource RodajeButtonStyle}">
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="MinWidth" Value="28" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="BorderThickness" Value="1,1,1,2" />
+        </Style>
+        <Style x:Key="ChipRemoveButtonStyle" TargetType="Button" BasedOn="{StaticResource ToolButtonStyle}">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid MinHeight="46" Padding="0,6,4,6" ColumnSpacing="10" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1"
+          AutomationProperties.Name="{x:Bind Row.StateName, Mode=OneWay}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="3" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <Rectangle Fill="{StaticResource AccentBrush}" Opacity="{x:Bind Row.CustomizedOpacity, Mode=OneWay}" RadiusX="1" RadiusY="1" />
+
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="{x:Bind Row.Label}" Style="{StaticResource BodyTextStyle}" />
+                <TextBlock Text="cambiada" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource AccentBrush}"
+                           Visibility="{x:Bind Row.ResetVisibility, Mode=OneWay}" />
+            </StackPanel>
+            <TextBlock Text="{x:Bind Row.Description}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
+                       MaxLines="2" Visibility="{x:Bind Row.DescriptionVisibility}" />
+            <TextBlock Text="{x:Bind Row.ConflictText, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
+                       Foreground="{StaticResource MeterHighBrush}" Visibility="{x:Bind Row.ConflictVisibility, Mode=OneWay}" />
+        </StackPanel>
+
+        <Grid Grid.Column="2" VerticalAlignment="Center">
+            <ItemsControl ItemsSource="{x:Bind Row.Chips}" Visibility="{x:Bind Row.ChipsVisibility, Mode=OneWay}" IsTabStop="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="6" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="local:KeyChip">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource KeyChipButtonStyle}" Content="{x:Bind Text}" Click="OnChipClick"
+                                    ToolTipService.ToolTip="{x:Bind ChangeTip}" AutomationProperties.Name="{x:Bind ChangeName}" />
+                            <Button Style="{StaticResource ChipRemoveButtonStyle}" Content="&#xE711;" Click="OnRemoveClick"
+                                    ToolTipService.ToolTip="{x:Bind RemoveTip}" AutomationProperties.Name="{x:Bind RemoveName}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="Sin tecla" Style="{StaticResource CaptionTextStyle}" Visibility="{x:Bind Row.NoKeysVisibility, Mode=OneWay}" />
+            <Button x:Name="CaptureBox" MinWidth="250" MinHeight="26" HorizontalContentAlignment="Left"
+                    BorderBrush="{StaticResource AccentBrush}" Foreground="{StaticResource AccentBrush}"
+                    Visibility="{x:Bind Row.CaptureVisibility, Mode=OneWay}" Click="OnCaptureBoxClick" LostFocus="OnCaptureBoxLostFocus"
+                    AutomationProperties.Name="{x:Bind Row.CaptureText, Mode=OneWay}" AutomationProperties.LiveSetting="Assertive">
+                <TextBlock Text="{x:Bind Row.CaptureText, Mode=OneWay}" TextWrapping="Wrap" MaxWidth="320" />
+            </Button>
+        </Grid>
+
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+            <Button x:Name="ChangeButton" Content="Cambiar" Click="OnChangeClick" Margin="0,0,4,0"
+                    ToolTipService.ToolTip="Pulsa y luego la combinación nueva" AutomationProperties.Name="{x:Bind Row.ChangeName}" />
+            <Button Style="{StaticResource ToolButtonStyle}" Content="&#xE710;" Click="OnAddClick"
+                    ToolTipService.ToolTip="Añadir otra tecla" AutomationProperties.Name="{x:Bind Row.AddName}" />
+            <Button Style="{StaticResource ToolButtonStyle}" Content="&#xE7A7;" Click="OnResetClick"
+                    Visibility="{x:Bind Row.ResetVisibility, Mode=OneWay}"
+                    ToolTipService.ToolTip="Volver a las teclas de fábrica" AutomationProperties.Name="{x:Bind Row.ResetName}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

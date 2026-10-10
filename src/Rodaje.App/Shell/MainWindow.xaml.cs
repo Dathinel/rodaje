@@ -57,6 +57,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         SetUpTitleBar();
         RestoreLayout();
 
+        // Las teclas de signos se muestran como están impresas en el teclado de la persona (español: «'» y no «[»).
+        KeyNames.DisplayLayout = SystemKeyboardLayout.Instance;
         var registry = new ShortcutRegistry();
         registry.RegisterRange(EditorShortcuts.Catalog);
         registry.Preset = settings.Current.ShortcutPreset;
@@ -183,6 +185,12 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private bool InterceptKey(KeyChord chord)
     {
+        // Con los atajos suspendidos (la página de atajos captura una tecla), Esc es de quien captura.
+        if (_router.IsSuspended)
+        {
+            return false;
+        }
+
         if (chord == new KeyChord(0x1B))
         {
             if (ModalLayer.Visibility == Visibility.Visible)

@@ -236,8 +236,9 @@ public sealed class ShortcutRegistry
     }
 
     /// <summary>
-    /// Acciones cuyo texto, grupo o tecla contienen todas las palabras buscadas, sin distinguir mayúsculas ni tildes
-    /// («mayus z» encuentra Ctrl+Mayús+Z).
+    /// Acciones cuyo texto, explicación, grupo o tecla contienen todas las palabras buscadas, sin distinguir mayúsculas
+    /// ni tildes («mayus z» encuentra Ctrl+Mayús+Z). La página de atajos busca con <see cref="ShortcutSearch"/>, que
+    /// además entiende una tecla sola («S») y la distribución del teclado.
     /// </summary>
     public IEnumerable<ShortcutAction> Search(string? text)
     {
@@ -249,7 +250,7 @@ public sealed class ShortcutRegistry
 
         return _actions.Where(action =>
         {
-            string haystack = KeyNames.Fold($"{action.Label} {action.Group} {string.Join(' ', GetKeys(action.Id))}");
+            string haystack = KeyNames.Fold($"{action.Label} {action.Description} {action.Group} {string.Join(' ', GetKeys(action.Id))}");
             return words.All(w => haystack.Contains(w, StringComparison.Ordinal));
         });
     }
