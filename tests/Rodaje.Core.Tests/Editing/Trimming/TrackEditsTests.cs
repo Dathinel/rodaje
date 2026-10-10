@@ -205,18 +205,18 @@ public sealed class TrackEditsTests
     }
 
     [Fact]
-    public void Una_pista_bloqueada_no_cambia_lo_demas()
+    public void Una_pista_bloqueada_no_se_renombra_pero_se_oculta_y_silencia()
     {
         var f = new TrimFixture().Lock("v1");
 
-        AssertFails(() => TimelineEdits.SetTrackState(f.Ctx, "v1", muted: true), "bloqueada");
-        AssertFails(() => TimelineEdits.SetTrackState(f.Ctx, "v1", hidden: true), "bloqueada");
         AssertFails(() => TimelineEdits.SetTrackState(f.Ctx, "v1", name: "Otra"), "bloqueada");
         AssertFails(() => TimelineEdits.SetTrackState(f.Ctx, "v1", locked: true, name: "Otra"), "bloqueada");
+        TimelineEdits.SetTrackState(f.Ctx, "v1", muted: true);
+        TimelineEdits.SetTrackState(f.Ctx, "v1", hidden: true);
 
         Track track = f.Track("v1");
-        Assert.False(track.Muted);
-        Assert.False(track.Hidden);
+        Assert.True(track.Muted);
+        Assert.True(track.Hidden);
         Assert.Equal("V1", track.Name);
         Assert.True(track.Locked);
     }

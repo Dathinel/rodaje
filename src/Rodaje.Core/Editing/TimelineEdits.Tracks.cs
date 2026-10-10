@@ -53,7 +53,7 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>Cambia los campos no nulos; en una pista bloqueada solo se permite (des)bloquear, salvo que se desbloquee en la misma llamada.</summary>
+    /// <summary>Cambia los campos no nulos. El bloqueo impide editar, no ver ni oír: en una pista bloqueada se puede ocultar y silenciar, pero no renombrar salvo que se desbloquee en la misma llamada.</summary>
     public static void SetTrackState(
         EditContext ctx,
         string trackId,
@@ -68,10 +68,8 @@ public static partial class TimelineEdits
             throw new EditException("La pista necesita un nombre.");
         }
 
-        bool changesOther = (muted is not null && muted != track.Muted)
-            || (hidden is not null && hidden != track.Hidden)
-            || (name is not null && name != track.Name);
-        if (changesOther && track.Locked && locked != false)
+        bool renames = name is not null && name != track.Name;
+        if (renames && track.Locked && locked != false)
         {
             EditContext.EnsureUnlocked(track);
         }

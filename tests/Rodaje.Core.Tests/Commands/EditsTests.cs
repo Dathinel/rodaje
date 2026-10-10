@@ -185,6 +185,24 @@ public class EditsTests
         Assert.Equal(before, ProjectDump.Of(project));
     }
 
+    [Fact]
+    public void PistaBloqueada_SePuedeOcultarYSilenciarSinDesbloquear()
+    {
+        Project project = Create();
+        var stack = new UndoStack(project);
+
+        stack.Execute(Edits.SetTrackState(SequenceId, "track-v2", hidden: true, muted: true));
+
+        Track track = Seq(project).GetTrack("track-v2");
+        Assert.True(track.Locked);
+        Assert.True(track.Hidden);
+        Assert.True(track.Muted);
+
+        Assert.True(stack.Undo());
+        Assert.False(Seq(project).GetTrack("track-v2").Hidden);
+        Assert.False(Seq(project).GetTrack("track-v2").Muted);
+    }
+
     [Theory]
     [InlineData(PlacementMode.Insert, "Insertar")]
     [InlineData(PlacementMode.Overwrite, "Sobrescribir")]
