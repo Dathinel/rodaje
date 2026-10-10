@@ -104,11 +104,12 @@ if ($r.Codigo -ne 0) {
 Bien 'Compila sin errores ni advertencias.'
 
 # Las pruebas de la categoría TiempoReal miden contra el reloj de pared: corren después, solas, para que la carga de
-# las demás no las falsee. Si $Dotnet fuera un .cmd, cmd.exe partiría el filtro en el '&': ahí se escapa como '^&'.
+# las demás no las falsee. Si $Dotnet fuera un .cmd, cmd.exe partiría el filtro en el '&'; un '^&' no basta cuando el
+# .cmd reenvía %* (como dotnet-local.cmd), así que ahí el filtro va entre comillas.
 function Argumentos-Prueba([string]$prefijo, [string]$categoria) {
     $condicion = $categoria
     if ($script:Filtro) { $condicion += "&FullyQualifiedName~$($script:Filtro)" }
-    if ($Dotnet -match '\.(cmd|bat)$') { $condicion = $condicion -replace '&', '^&' }
+    if ($Dotnet -match '\.(cmd|bat)$') { $condicion = '"' + $condicion + '"' }
     return @('test', $Solucion, '--no-build', '-c', 'Debug', '--nologo',
         '--results-directory', $script:Corrida,
         '--logger', "trx;LogFilePrefix=$prefijo",
