@@ -74,6 +74,13 @@ public sealed class PackageReferenceTests
     [InlineData("a.-b", false)]
     [InlineData("ñandú", false)]
     [InlineData("A", false)]
+    [InlineData("con", false)]
+    [InlineData("nul", false)]
+    [InlineData("aux.cosas", false)]
+    [InlineData("com1", false)]
+    [InlineData("lpt9.x", false)]
+    [InlineData("consola", true)]
+    [InlineData("com10", true)]
     public void Identifier_rules(string id, bool valid) => Assert.Equal(valid, Identifiers.IsValid(id));
 }
 
@@ -122,6 +129,8 @@ public sealed class SafePathsTests
     [InlineData("a|b.txt")]
     [InlineData("comilla\".txt")]
     [InlineData("control\u0001.txt")]
+    [InlineData("foto\u202Egnp.exe")]
+    [InlineData("a\u2066b.txt")]
     public void Rejects_anything_that_could_escape_or_alias(string relative) =>
         Assert.False(SafePaths.TryNormalizeRelative(relative, out _));
 

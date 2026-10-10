@@ -25,7 +25,7 @@ internal static class PluginActions
             services.Session.Notify(NotificationSeverity.Success, $"«{manifest.Name}» instalado", what + warnings);
             return true;
         }
-        catch (PackageInstallException ex)
+        catch (Exception ex)
         {
             services.Session.Notify(NotificationSeverity.Error, $"No se instaló «{Path.GetFileName(path)}»", ex.Message);
             return false;

@@ -40,7 +40,10 @@ public static class Identifiers
 {
     public const int MaxLength = 64;
 
-    /// <summary>Minúsculas ASCII, dígitos y guiones o puntos sueltos entre ellos: <c>rodaje-transiciones</c>, <c>zoom.suave</c>.</summary>
+    /// <summary>
+    /// Minúsculas ASCII, dígitos y guiones o puntos sueltos entre ellos: <c>rodaje-transiciones</c>, <c>zoom.suave</c>. Un id
+    /// es también un nombre de carpeta, así que no puede ser un nombre reservado de Windows (<c>con</c>, <c>nul.x</c>…).
+    /// </summary>
     public static bool IsValid(string? id)
     {
         if (string.IsNullOrEmpty(id) || id.Length > MaxLength)
@@ -60,6 +63,6 @@ public static class Identifiers
             previousSeparator = separator;
         }
 
-        return !previousSeparator;
+        return !previousSeparator && !SafePaths.IsReservedName(id);
     }
 }

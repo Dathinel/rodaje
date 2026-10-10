@@ -40,8 +40,11 @@ public sealed record InstallLimits
     /// <summary>Lo que puede ocupar descomprimido (los módulos de IA traen modelos de varios GB).</summary>
     public long MaxTotalBytes { get; init; } = 8L << 30;
 
-    /// <summary>Tasa de compresión máxima de una entrada grande.</summary>
+    /// <summary>Tasa de compresión máxima de una entrada de más de 1 MB y del paquete entero si pasa de 16 MB.</summary>
     public int MaxCompressionRatio { get; init; } = 200;
+
+    /// <summary>Lo que debe quedar libre en el disco después de instalar.</summary>
+    public long FreeSpaceReserve { get; init; } = 256L << 20;
 
     public static InstallLimits Default { get; } = new();
 }
@@ -49,12 +52,15 @@ public sealed record InstallLimits
 /// <summary>
 /// Instala un <c>.paquete</c> (zip con <c>paquete.json</c>) y desinstala paquetes. Nunca escribe fuera de la carpeta del
 /// paquete: cada entrada del zip se valida (<see cref="SafePaths"/>) y se comprueba la ruta final. La carpeta definitiva se
-/// reemplaza con un cambio de nombre, así un corte deja la versión anterior o la nueva, nunca una mezcla.
+/// reemplaza con un cambio de nombre, así un corte deja la versión anterior o la nueva, nunca una mezcla; si el corte llega
+/// entre los dos cambios de nombre, <see cref="CleanUpLeftovers"/> devuelve la anterior a su sitio al arrancar.
 /// </summary>
 public sealed class PackageInstaller(PackageLocations locations, string appId, InstallLimits? limits = null)
 {
     private const string InstallingPrefix = ".instalando-";
     private const string RemovingPrefix = ".desinstalando-";
+    private const string PreviousPrefix = ".anterior-";
+    private const int TagLength = 12;
 
     private readonly InstallLimits _limits = limits ?? InstallLimits.Default;
 
@@ -78,7 +84,18 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     public InstallResult Install(string archivePath, string? expectedSha256 = null, bool allowDowngrade = false, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(archivePath);
-        string archive = Path.GetFullPath(archivePath);
+        try
+        {
+            return InstallCore(Path.GetFullPath(archivePath), expectedSha256, allowDowngrade, cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or NotSupportedException or System.Security.SecurityException)
+        {
+            throw new PackageInstallException("No se pudo instalar: " + ex.Message, ex);
+        }
+    }
+
+    private InstallResult InstallCore(string archive, string? expectedSha256, bool allowDowngrade, CancellationToken cancellationToken)
+    {
         if (!File.Exists(archive))
         {
             throw new PackageInstallException($"No existe {archive}.");
@@ -95,7 +112,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
 
         // Se extrae primero bajo la carpeta de paquetes (mismo volumen, para mover sin copiar) y luego se decide dónde va.
         Directory.CreateDirectory(Locations.Packages);
-        string staging = Path.Combine(Locations.Packages, InstallingPrefix + Guid.NewGuid().ToString("N")[..12]);
+        string staging = Path.Combine(Locations.Packages, InstallingPrefix + NewTag());
         try
         {
             Extract(archive, staging, cancellationToken);
@@ -137,7 +154,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
                 }
 
                 outcome = order > 0 ? InstallOutcome.Updated : order == 0 ? InstallOutcome.Reinstalled : InstallOutcome.Downgraded;
-                movedAside = Path.Combine(root, RemovingPrefix + Guid.NewGuid().ToString("N")[..12]);
+                movedAside = Path.Combine(root, PreviousPrefix + NewTag() + "-" + manifest.Id);
                 Directory.Move(target, movedAside);
             }
 
@@ -161,10 +178,6 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             }
 
             return new InstallResult(new InstalledPackage(manifest, Path.GetFullPath(target), PackageOrigin.Installed), outcome, previous, read.Warnings);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            throw new PackageInstallException("No se pudo instalar: " + ex.Message, ex);
         }
         finally
         {
@@ -192,7 +205,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
                 continue;
             }
 
-            string aside = Path.Combine(root, RemovingPrefix + Guid.NewGuid().ToString("N")[..12]);
+            string aside = Path.Combine(root, RemovingPrefix + NewTag());
             try
             {
                 Directory.Move(target, aside);
@@ -209,41 +222,117 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         throw new PackageInstallException($"«{packageId}» no está instalado.");
     }
 
-    /// <summary>Borra restos de instalaciones o desinstalaciones cortadas (por ejemplo, por un apagón).</summary>
+    /// <summary>
+    /// Resuelve lo que dejó una instalación o desinstalación cortada (por ejemplo, por un apagón): borra las extracciones a
+    /// medias y lo que se estaba desinstalando, y devuelve la versión anterior a su sitio si la nueva no quedó completa.
+    /// Solo debe llamarse al arrancar, cuando no hay ninguna instalación en curso.
+    /// </summary>
+    /// <returns>Cuántos restos se resolvieron.</returns>
     public int CleanUpLeftovers()
     {
-        int removed = 0;
+        int resolved = 0;
         foreach (string root in new[] { Locations.Packages, Locations.Modules })
         {
-            if (!Directory.Exists(root))
+            List<string> directories;
+            try
+            {
+                if (!Directory.Exists(root))
+                {
+                    continue;
+                }
+
+                directories = [.. Directory.EnumerateDirectories(root)];
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 continue;
             }
 
-            foreach (string directory in Directory.EnumerateDirectories(root))
+            // Primero las versiones anteriores: restaurar una puede apartar una nueva incompleta como «desinstalando».
+            foreach (string directory in directories.Where(d => Path.GetFileName(d).StartsWith(PreviousPrefix, StringComparison.Ordinal)))
+            {
+                if (ResolvePrevious(root, directory))
+                {
+                    resolved++;
+                }
+            }
+
+            foreach (string directory in directories)
             {
                 string name = Path.GetFileName(directory);
                 if ((name.StartsWith(InstallingPrefix, StringComparison.Ordinal) || name.StartsWith(RemovingPrefix, StringComparison.Ordinal)) && TryDelete(directory))
                 {
-                    removed++;
+                    resolved++;
                 }
             }
         }
 
-        return removed;
+        return resolved;
     }
+
+    /// <summary>Una versión apartada durante una actualización: sobra si la nueva está completa; si no, vuelve a su sitio.</summary>
+    private static bool ResolvePrevious(string root, string aside)
+    {
+        string name = Path.GetFileName(aside);
+        int idStart = PreviousPrefix.Length + TagLength + 1;
+        string id = name.Length > idStart && name[idStart - 1] == '-' ? name[idStart..] : "";
+        if (!Identifiers.IsValid(id))
+        {
+            return TryDelete(aside);
+        }
+
+        string target = Path.Combine(root, id);
+        if (IsComplete(target, id) || !IsComplete(aside, id))
+        {
+            return TryDelete(aside);
+        }
+
+        try
+        {
+            if (Directory.Exists(target))
+            {
+                string broken = Path.Combine(root, RemovingPrefix + NewTag());
+                Directory.Move(target, broken);
+                TryDelete(broken);
+            }
+
+            Directory.Move(aside, target);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Si la carpeta tiene un manifiesto válido con ese id y todos los archivos que nombra.</summary>
+    private static bool IsComplete(string directory, string id)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return false;
+        }
+
+        try
+        {
+            return ManifestReader.ReadFile(Path.Combine(directory, PackageManifest.FileName)).Manifest?.Id == id;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static string NewTag() => Guid.NewGuid().ToString("N")[..TagLength];
 
     private void Extract(string archive, string destination, CancellationToken cancellationToken)
     {
         using ZipArchive zip = ZipFile.OpenRead(archive);
-        if (zip.Entries.Count > _limits.MaxEntries)
-        {
-            throw new PackageInstallException($"El paquete tiene más de {_limits.MaxEntries} archivos.");
-        }
+        CheckTotals(zip, new FileInfo(archive).Length, destination);
 
         string prefix = CommonWrapperFolder(zip);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        long total = 0;
+        var written = new List<string>();
         Directory.CreateDirectory(destination);
         foreach (ZipArchiveEntry entry in zip.Entries)
         {
@@ -282,12 +371,6 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
                 continue;
             }
 
-            total += entry.Length;
-            if (entry.Length < 0 || total > _limits.MaxTotalBytes)
-            {
-                throw new PackageInstallException("El paquete descomprimido ocupa demasiado.");
-            }
-
             if (entry.Length > (1 << 20) && entry.CompressedLength > 0 && entry.Length / entry.CompressedLength > _limits.MaxCompressionRatio)
             {
                 throw new PackageInstallException($"«{relative}» está comprimido de forma sospechosa.");
@@ -297,8 +380,79 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             using Stream source = entry.Open();
             using var target = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
             CopyLimited(source, target, entry.Length, cancellationToken);
+            written.Add(path);
+        }
+
+        // Al disco antes del cambio de nombre, para que un apagón no deje la carpeta nueva con archivos vacíos. En paralelo:
+        // de a uno, cada vaciado espera al disco y un paquete de miles de archivos tardaría minutos.
+        try
+        {
+            Parallel.ForEach(written, new ParallelOptions { CancellationToken = cancellationToken, MaxDegreeOfParallelism = 16 }, file =>
+            {
+                using var stream = new FileStream(file, FileMode.Open, FileAccess.Write, FileShare.None);
+                stream.Flush(flushToDisk: true);
+            });
+        }
+        catch (AggregateException ex)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(ex.InnerExceptions[0]);
         }
     }
+
+    /// <summary>
+    /// Antes de escribir nada: número de entradas, tamaño descomprimido declarado, tasa de compresión del conjunto (muchas
+    /// entradas chicas muy comprimidas esquivan la de cada una) y espacio libre. <see cref="CopyLimited"/> asegura que
+    /// ninguna entrada pase de lo que declara.
+    /// </summary>
+    private void CheckTotals(ZipArchive zip, long archiveBytes, string destination)
+    {
+        if (zip.Entries.Count > _limits.MaxEntries)
+        {
+            throw new PackageInstallException($"El paquete tiene más de {_limits.MaxEntries} archivos.");
+        }
+
+        long total = 0;
+        foreach (ZipArchiveEntry entry in zip.Entries)
+        {
+            if (entry.Length < 0 || entry.Length > _limits.MaxTotalBytes - total)
+            {
+                throw new PackageInstallException($"El paquete descomprimido ocupa más de {FormatBytes(_limits.MaxTotalBytes)}.");
+            }
+
+            total += entry.Length;
+        }
+
+        if (total > 16L << 20 && total / Math.Max(archiveBytes, 1) > _limits.MaxCompressionRatio)
+        {
+            throw new PackageInstallException($"El paquete está comprimido de forma sospechosa: {FormatBytes(archiveBytes)} que ocupan {FormatBytes(total)}.");
+        }
+
+        long? free = FreeSpace(destination);
+        if (free < total + _limits.FreeSpaceReserve)
+        {
+            throw new PackageInstallException($"No hay espacio en el disco: el paquete necesita {FormatBytes(total)} y quedan {FormatBytes(free.Value)} libres.");
+        }
+    }
+
+    /// <summary>Espacio libre en la unidad de <paramref name="path"/>, o <c>null</c> si no se puede saber (por ejemplo, en una ruta de red).</summary>
+    private static long? FreeSpace(string path)
+    {
+        try
+        {
+            return Path.GetPathRoot(Path.GetFullPath(path)) is { Length: > 0 } root ? new DriveInfo(root).AvailableFreeSpace : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static string FormatBytes(long bytes) => bytes switch
+    {
+        >= 1L << 30 => $"{bytes / (double)(1L << 30):0.#} GB",
+        >= 1L << 20 => $"{bytes / (double)(1L << 20):0.#} MB",
+        _ => $"{Math.Max(bytes, 0) / 1024.0:0.#} KB",
+    };
 
     /// <summary>Las releases de GitHub suelen envolver todo en una carpeta: si el manifiesto está ahí y no en la raíz, se quita.</summary>
     private static string CommonWrapperFolder(ZipArchive zip)

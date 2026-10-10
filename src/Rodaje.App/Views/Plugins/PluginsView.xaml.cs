@@ -16,7 +16,7 @@ internal sealed partial class PluginsView : UserControl, IEditorView
     private static readonly (string Name, string Spec) PackageFilter = ("Complementos de Rodaje", "*" + PackageManifest.FileExtension);
 
     private EditorServices? _services;
-    private bool _busy;
+    private int _busy;
 
     public PluginsView()
     {
@@ -71,14 +71,14 @@ internal sealed partial class PluginsView : UserControl, IEditorView
 
     private async void OnInstallFileClick(object sender, RoutedEventArgs e)
     {
-        if (_services is null || _busy)
+        if (_services is null || _busy > 0)
         {
             return;
         }
 
-        IReadOnlyList<string> picked = FileDialogs.Open(OwnerWindow(), "Instalar complemento", multiple: true, null, PackageFilter, FileDialogs.AllFilter);
-        await RunBusyAsync(async () =>
+        await RunBusyAsync("No se pudo instalar", async () =>
         {
+            IReadOnlyList<string> picked = FileDialogs.Open(OwnerWindow(), "Instalar complemento", multiple: true, null, PackageFilter, FileDialogs.AllFilter);
             foreach (string path in picked)
             {
                 await PluginActions.InstallAsync(_services, path);
@@ -93,7 +93,7 @@ internal sealed partial class PluginsView : UserControl, IEditorView
             return;
         }
 
-        await RunBusyAsync(async () =>
+        await RunBusyAsync($"No se instaló «{entry.Name}»", async () =>
         {
             try
             {
@@ -103,10 +103,6 @@ internal sealed partial class PluginsView : UserControl, IEditorView
             catch (NotSupportedException ex)
             {
                 _services.Session.Notify(NotificationSeverity.Informational, "Todavía no", ex.Message);
-            }
-            catch (Exception ex) when (ex is PackageInstallException or HttpRequestException or IOException)
-            {
-                _services.Session.Notify(NotificationSeverity.Error, $"No se instaló «{entry.Name}»", ex.Message);
             }
         });
     }
@@ -118,6 +114,18 @@ internal sealed partial class PluginsView : UserControl, IEditorView
             return;
         }
 
+        await RunBusyAsync($"No se desinstaló «{row.Name}»", async () =>
+        {
+            if (await ConfirmUninstallAsync(row))
+            {
+                await _services.Packages.UninstallAsync(row.Entry.Id);
+                _services.Session.Notify(NotificationSeverity.Success, $"«{row.Name}» desinstalado", "");
+            }
+        });
+    }
+
+    private async Task<bool> ConfirmUninstallAsync(PluginRow row)
+    {
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
@@ -128,30 +136,14 @@ internal sealed partial class PluginsView : UserControl, IEditorView
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ElementTheme.Dark,
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-        {
-            return;
-        }
-
-        await RunBusyAsync(async () =>
-        {
-            try
-            {
-                await _services.Packages.UninstallAsync(row.Entry.Id);
-                _services.Session.Notify(NotificationSeverity.Success, $"«{row.Name}» desinstalado", "");
-            }
-            catch (PackageInstallException ex)
-            {
-                _services.Session.Notify(NotificationSeverity.Error, $"No se desinstaló «{row.Name}»", ex.Message);
-            }
-        });
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
     private async void OnRefreshClick(object sender, RoutedEventArgs e)
     {
         if (_services is not null)
         {
-            await _services.Packages.RefreshAsync();
+            await RunBusyAsync("No se pudo actualizar la lista", () => _services.Packages.RefreshAsync());
         }
     }
 
@@ -196,18 +188,23 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         }
     }
 
-    private async Task RunBusyAsync(Func<Task> action)
+    /// <summary>Hace una acción de la página sin que un error inesperado cierre la app: se avisa con <paramref name="failureTitle"/>.</summary>
+    private async Task RunBusyAsync(string failureTitle, Func<Task> action)
     {
-        _busy = true;
+        _busy++;
         InstallFileButton.IsEnabled = false;
         try
         {
             await action();
         }
+        catch (Exception ex)
+        {
+            _services?.Session.Notify(NotificationSeverity.Error, failureTitle, ex.Message);
+        }
         finally
         {
-            _busy = false;
-            InstallFileButton.IsEnabled = true;
+            _busy--;
+            InstallFileButton.IsEnabled = _busy == 0;
         }
     }
 }

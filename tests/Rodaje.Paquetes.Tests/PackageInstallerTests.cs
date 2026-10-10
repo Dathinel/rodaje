@@ -105,6 +105,44 @@ public sealed class PackageInstallerTests : IDisposable
     }
 
     [Fact]
+    public void Many_small_entries_that_add_up_to_a_bomb_are_refused_before_writing()
+    {
+        string path = _folder.Combine("bomba-agregada.paquete");
+        using (var stream = new FileStream(path, FileMode.Create))
+        using (var zip = new ZipArchive(stream, ZipArchiveMode.Create))
+        {
+            using (var writer = new StreamWriter(zip.CreateEntry("paquete.json").Open()))
+            {
+                writer.Write(Samples.Manifest());
+            }
+
+            byte[] zeros = new byte[(1 << 20) - 1];
+            for (int i = 0; i < 20; i++)
+            {
+                using Stream entry = zip.CreateEntry($"relleno/{i}.bin", CompressionLevel.SmallestSize).Open();
+                entry.Write(zeros);
+            }
+        }
+
+        var ex = Assert.Throws<PackageInstallException>(() => _installer.Install(path));
+
+        Assert.Contains("sospechosa", ex.Message, StringComparison.Ordinal);
+        Assert.Empty(Directory.GetDirectories(_locations.Packages));
+    }
+
+    [Fact]
+    public void Installing_needs_room_on_the_disk()
+    {
+        string archive = Samples.ValidPackage(_folder.Combine("p.paquete"));
+        var installer = new PackageInstaller(_locations, "rodaje", new InstallLimits { FreeSpaceReserve = long.MaxValue / 2 });
+
+        var ex = Assert.Throws<PackageInstallException>(() => installer.Install(archive));
+
+        Assert.Contains("espacio", ex.Message, StringComparison.Ordinal);
+        Assert.Empty(Directory.GetDirectories(_locations.Packages));
+    }
+
+    [Fact]
     public void An_invalid_manifest_leaves_nothing_behind()
     {
         string archive = Samples.Zip(_folder.Combine("roto.paquete"), ("paquete.json", "{ \"formatVersion\": 1 }"));
@@ -190,6 +228,100 @@ public sealed class PackageInstallerTests : IDisposable
 
         Assert.Equal(2, _installer.CleanUpLeftovers());
         Assert.Equal(["rodaje-titulos"], Directory.GetDirectories(_locations.Packages).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public void A_blackout_between_the_two_renames_of_an_update_restores_the_previous_version()
+    {
+        string target = InstallVersion("1.0.0");
+        Directory.Move(target, Path.Combine(_locations.Packages, ".anterior-0123456789ab-rodaje-transiciones"));
+
+        Assert.Equal(1, _installer.CleanUpLeftovers());
+
+        Assert.Equal("1.0.0", InstalledVersion());
+        Assert.Equal(["rodaje-transiciones"], Directory.GetDirectories(_locations.Packages).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public void A_blackout_that_leaves_the_new_version_incomplete_restores_the_previous_one()
+    {
+        string target = InstallVersion("1.0.0");
+        Directory.Move(target, Path.Combine(_locations.Packages, ".anterior-0123456789ab-rodaje-transiciones"));
+        Directory.CreateDirectory(target);
+        File.WriteAllText(Path.Combine(target, "paquete.json"), Samples.Manifest(version: "2.0.0"));
+
+        _installer.CleanUpLeftovers();
+
+        Assert.Equal("1.0.0", InstalledVersion());
+        Assert.True(File.Exists(Path.Combine(target, "transiciones", "deslizar.json")));
+        Assert.Equal(["rodaje-transiciones"], Directory.GetDirectories(_locations.Packages).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public void A_blackout_while_deleting_the_previous_version_keeps_the_new_one()
+    {
+        InstallVersion("1.0.0");
+        string aside = Path.Combine(_locations.Packages, ".anterior-0123456789ab-rodaje-transiciones");
+        Directory.CreateDirectory(Path.Combine(aside, "transiciones"));
+        File.WriteAllText(Path.Combine(aside, "transiciones", "deslizar.json"), "{}");
+        InstallVersion("2.0.0");
+
+        _installer.CleanUpLeftovers();
+
+        Assert.Equal("2.0.0", InstalledVersion());
+        Assert.False(Directory.Exists(aside));
+    }
+
+    [Fact]
+    public void A_blackout_during_an_uninstall_does_not_bring_the_package_back()
+    {
+        string target = InstallVersion("1.0.0");
+        Directory.Move(target, Path.Combine(_locations.Packages, ".desinstalando-0123456789ab"));
+
+        _installer.CleanUpLeftovers();
+
+        Assert.Empty(Directory.GetDirectories(_locations.Packages));
+    }
+
+    [Fact]
+    public void An_update_leaves_no_previous_version_behind()
+    {
+        InstallVersion("1.0.0");
+        InstallVersion("1.1.0");
+
+        Assert.Equal(["rodaje-transiciones"], Directory.GetDirectories(_locations.Packages).Select(Path.GetFileName));
+        Assert.Equal(0, _installer.CleanUpLeftovers());
+    }
+
+    private string InstallVersion(string version)
+    {
+        string archive = Samples.ValidPackage(_folder.Combine($"v{version}.paquete"), version: version);
+        return _installer.Install(archive).Package.Directory;
+    }
+
+    private string? InstalledVersion() =>
+        ManifestReader.ReadFile(Path.Combine(_locations.Packages, "rodaje-transiciones", "paquete.json")).Manifest?.Version.ToString();
+
+    [Fact]
+    public void Disk_errors_become_install_errors_and_leave_nothing_behind()
+    {
+        string archive = Samples.ValidPackage(_folder.Combine("bloqueado.paquete"));
+        string notZip = _folder.Combine("texto.paquete");
+        File.WriteAllText(notZip, "no es un zip");
+
+        using (new FileStream(archive, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.Throws<PackageInstallException>(() => _installer.Install(archive));
+            Assert.Throws<PackageInstallException>(() => _installer.Install(archive, expectedSha256: new string('0', 64)));
+        }
+
+        Assert.Throws<PackageInstallException>(() => _installer.Install(notZip));
+        Assert.Throws<PackageInstallException>(() => _installer.Install(_folder.Combine("no-existe.paquete")));
+        Assert.Empty(Directory.GetDirectories(_locations.Packages));
+
+        Directory.Delete(_locations.Packages);
+        File.WriteAllText(_locations.Packages, "un archivo donde va la carpeta");
+        Assert.Throws<PackageInstallException>(() => _installer.Install(archive));
     }
 
     [Fact]
