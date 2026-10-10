@@ -232,9 +232,10 @@ public static class PackageLibrary
                 ? given[(OwnPackageId.Length + 1)..]
                 : StringOf(e, "id");
             string id = explicitId is not null && Identifiers.IsValid(explicitId) ? explicitId : ToIdentifier(stem);
-            string name = StringOf(e, "name") ?? stem;
+            string name = SafeText.Truncate(SafeText.Clean(StringOf(e, "name") ?? stem), SafeText.MaxName);
+            string? description = StringOf(e, "description") is { } text ? SafeText.Truncate(SafeText.Clean(text, multiline: true), SafeText.MaxDescription) : null;
             string relative = Path.GetRelativePath(root, file).Replace('\\', '/');
-            return new PackageItem(id, kind, name, relative, StringOf(e, "description"));
+            return new PackageItem(id, kind, name.Length > 0 ? name : ToIdentifier(stem), relative, description);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -276,6 +277,6 @@ public static class PackageLibrary
             id = id[..Identifiers.MaxLength].TrimEnd('-');
         }
 
-        return id.Length == 0 ? "elemento" : id;
+        return id.Length == 0 ? "elemento" : SafePaths.IsReservedName(id) ? id + "-1" : id;
     }
 }

@@ -17,6 +17,9 @@ public static class ManifestReader
     public const int MaxManifestBytes = 1 << 20;
     public const int MaxItems = 4096;
 
+    /// <summary>Largo máximo de los textos que no tienen uno propio (id, versión, tipo, rutas, funciones).</summary>
+    public const int MaxShortText = 256;
+
     private static readonly JsonDocumentOptions DocumentOptions = new()
     {
         AllowTrailingCommas = true,
@@ -129,16 +132,14 @@ public static class ManifestReader
             }
         }
 
-        string? name = Text(root, "name", errors);
-        string? author = Text(root, "author", errors);
-        string? license = Text(root, "license", errors);
-        string? description = OptionalText(root, "description", errors);
+        string? name = Text(root, "name", errors, SafeText.MaxName);
+        string? author = Text(root, "author", errors, SafeText.MaxName);
+        string? license = Text(root, "license", errors, SafeText.MaxLicense);
+        string? description = OptionalText(root, "description", errors, SafeText.MaxDescription, multiline: true);
         Uri? repository = null;
-        if (OptionalText(root, "repository", errors) is { } repositoryText
-            && !(Uri.TryCreate(repositoryText, UriKind.Absolute, out repository) && repository.Scheme == Uri.UriSchemeHttps))
+        if (OptionalText(root, "repository", errors, SafeText.MaxUri) is { } repositoryText && !SafeText.TryParseHttpsUri(repositoryText, out repository))
         {
-            errors.Add($"repository debe ser una dirección https (es «{repositoryText}»).");
-            repository = null;
+            errors.Add($"repository debe ser una dirección https con el dominio en ASCII y sin usuario (es «{repositoryText}»).");
         }
 
         List<string>? appsValue = Strings(root, "apps", errors);
@@ -231,7 +232,7 @@ public static class ManifestReader
             }
 
             string? kindText = Text(element, "kind", local);
-            string? name = Text(element, "name", local);
+            string? name = Text(element, "name", local, SafeText.MaxName);
             string? file = OptionalText(element, "file", local);
             string? preview = OptionalText(element, "preview", local);
             foreach (string? relative in new[] { file, preview })
@@ -268,8 +269,8 @@ public static class ManifestReader
                 continue;
             }
 
-            items.Add(new PackageItem(id!, kind!.Value, name!, file, OptionalText(element, "description", errors),
-                OptionalText(element, "license", errors), preview));
+            items.Add(new PackageItem(id!, kind!.Value, name!, file, OptionalText(element, "description", errors, SafeText.MaxDescription, multiline: true),
+                OptionalText(element, "license", errors, SafeText.MaxLicense), preview));
         }
 
         return items;
@@ -290,7 +291,7 @@ public static class ManifestReader
         }
 
         int protocol = Integer(module, "protocol", errors) ?? 0;
-        List<string> functions = Strings(module, "functions", errors) ?? [];
+        List<string> functions = Strings(module, "functions", errors, MaxShortText) ?? [];
         return entry is null ? null : new ModuleInfo(entry, protocol, functions);
     }
 
@@ -343,7 +344,7 @@ public static class ManifestReader
 
     private static string Uncapitalize(string s) => s.Length > 0 && char.IsUpper(s[0]) ? char.ToLowerInvariant(s[0]) + s[1..] : s;
 
-    private static string? Text(JsonElement element, string property, List<string> errors)
+    private static string? Text(JsonElement element, string property, List<string> errors, int maxLength = MaxShortText)
     {
         if (!element.TryGetProperty(property, out JsonElement value))
         {
@@ -351,16 +352,17 @@ public static class ManifestReader
             return null;
         }
 
-        if (value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(value.GetString()))
+        string? text = value.ValueKind == JsonValueKind.String ? Limited(value.GetString()!, property, maxLength, multiline: false, errors) : null;
+        if (value.ValueKind != JsonValueKind.String || text?.Length == 0)
         {
             errors.Add($"«{property}» debe ser un texto no vacío.");
             return null;
         }
 
-        return value.GetString()!.Trim();
+        return text;
     }
 
-    private static string? OptionalText(JsonElement element, string property, List<string> errors)
+    private static string? OptionalText(JsonElement element, string property, List<string> errors, int maxLength = MaxShortText, bool multiline = false)
     {
         if (!element.TryGetProperty(property, out JsonElement value) || value.ValueKind == JsonValueKind.Null)
         {
@@ -373,8 +375,21 @@ public static class ManifestReader
             return null;
         }
 
-        string text = value.GetString()!.Trim();
-        return text.Length == 0 ? null : text;
+        string? text = Limited(value.GetString()!, property, maxLength, multiline, errors);
+        return string.IsNullOrEmpty(text) ? null : text;
+    }
+
+    /// <summary>El texto sin controles ni marcas bidi, o <c>null</c> con un error si pasa del largo máximo.</summary>
+    private static string? Limited(string raw, string property, int maxLength, bool multiline, List<string> errors)
+    {
+        string text = SafeText.Clean(raw, multiline);
+        if (text.Length > maxLength)
+        {
+            errors.Add($"«{property}» pasa de {maxLength} caracteres.");
+            return null;
+        }
+
+        return text;
     }
 
     private static int? Integer(JsonElement element, string property, List<string> errors)
@@ -394,7 +409,7 @@ public static class ManifestReader
         return number;
     }
 
-    private static List<string>? Strings(JsonElement element, string property, List<string> errors)
+    private static List<string>? Strings(JsonElement element, string property, List<string> errors, int maxLength = Identifiers.MaxLength)
     {
         if (!element.TryGetProperty(property, out JsonElement value))
         {
@@ -408,6 +423,13 @@ public static class ManifestReader
             return null;
         }
 
-        return [.. value.EnumerateArray().Select(e => e.GetString()!.Trim()).Where(s => s.Length > 0).Distinct(StringComparer.Ordinal)];
+        List<string> texts = [.. value.EnumerateArray().Select(e => SafeText.Clean(e.GetString()!)).Where(s => s.Length > 0).Distinct(StringComparer.Ordinal)];
+        if (texts.Any(t => t.Length > maxLength))
+        {
+            errors.Add($"Un texto de «{property}» pasa de {maxLength} caracteres.");
+            return null;
+        }
+
+        return texts;
     }
 }

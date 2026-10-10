@@ -104,6 +104,70 @@ public sealed class ManifestReaderTests
         Assert.Contains(result.Errors, e => e.Contains("https", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("https://gíthub.com/Dathinel/x")]
+    [InlineData("https://xn--gthub-zsa.com/Dathinel/x")]
+    [InlineData("https://github.com@otro.sitio/Dathinel/x")]
+    [InlineData("https://usuario:clave@github.com/Dathinel/x")]
+    public void Repository_must_have_an_ascii_domain_and_no_user(string repository)
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest().Replace("https://github.com/Dathinel/rodaje-transiciones", repository, StringComparison.Ordinal));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("ASCII", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Control_and_bidi_characters_are_removed_from_the_texts()
+    {
+        string json = Samples.Manifest(extra: ",\n\"description\": \"Línea uno\\r\\nLínea\\u0007 dos\\u202E\"")
+            .Replace("\"Transiciones de prueba\"", "\"Tran\\u202Esiciones\\u0000 de\\tprueba\\u2066\"", StringComparison.Ordinal)
+            .Replace("\"Deslizar\"", "\"\\u200FDeslizar\\u001b\"", StringComparison.Ordinal);
+
+        ManifestResult result = ManifestReader.Read(json);
+
+        Assert.True(result.IsValid, string.Join(" ", result.Errors));
+        Assert.Equal("Transiciones de prueba", result.Manifest!.Name);
+        Assert.Equal("Línea uno\nLínea dos", result.Manifest.Description);
+        Assert.Equal("Deslizar", result.Manifest.Items[0].Name);
+    }
+
+    [Theory]
+    [InlineData("name", 80)]
+    [InlineData("author", 80)]
+    [InlineData("license", 64)]
+    [InlineData("description", 500)]
+    public void Texts_have_a_maximum_length(string property, int max)
+    {
+        string Build(int length) => Samples.Manifest(extra: $",\n\"{property}\": \"{new string('a', length)}\"")
+            .Replace($"\"{property}\": \"Transiciones de prueba\",", "", StringComparison.Ordinal)
+            .Replace($"\"{property}\": \"Dathinel\",", "", StringComparison.Ordinal)
+            .Replace($"\"{property}\": \"MIT\",", "", StringComparison.Ordinal);
+
+        Assert.True(ManifestReader.Read(Build(max)).IsValid);
+        ManifestResult tooLong = ManifestReader.Read(Build(max + 1));
+        Assert.False(tooLong.IsValid);
+        Assert.Contains(tooLong.Errors, e => e.Contains($"pasa de {max}", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Item_names_have_a_maximum_length_too()
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest().Replace("\"Deslizar\"", $"\"{new string('x', 81)}\"", StringComparison.Ordinal));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("pasa de 80", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Reserved_windows_names_are_not_package_ids()
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(id: "con"));
+
+        Assert.False(result.IsValid);
+        Assert.Equal("con-1", PackageLibrary.ToIdentifier("CON"));
+    }
+
     [Fact]
     public void Apps_cannot_be_empty()
     {

@@ -18,7 +18,7 @@ public static class SafePaths
     /// <summary>
     /// Normaliza una ruta relativa a segmentos separados por <c>/</c>. Rechaza rutas con raíz o unidad, <c>..</c> y
     /// <c>.</c>, segmentos vacíos, dos puntos (unidades y flujos alternos de NTFS), caracteres de control o prohibidos,
-    /// nombres reservados de Windows y segmentos que terminan en punto o espacio (Windows los recorta y dos entradas
+    /// marcas de dirección (bidi), nombres reservados de Windows y segmentos que terminan en punto o espacio (Windows los recorta y dos entradas
     /// distintas acabarían en el mismo archivo).
     /// </summary>
     public static bool TryNormalizeRelative(string? relative, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? normalized)
@@ -58,14 +58,21 @@ public static class SafePaths
 
         foreach (char c in segment)
         {
-            if (c < 0x20 || c is '<' or '>' or ':' or '"' or '|' or '?' or '*' or '\u007f')
+            if (c < 0x20 || c is '<' or '>' or ':' or '"' or '|' or '?' or '*' or '\u007f' || SafeText.IsBidiControl(c))
             {
                 return false;
             }
         }
 
-        int dot = segment.IndexOf('.', StringComparison.Ordinal);
-        string stem = (dot < 0 ? segment : segment[..dot]).TrimEnd(' ');
-        return !ReservedNames.Contains(stem, StringComparer.OrdinalIgnoreCase);
+        return !IsReservedName(segment);
+    }
+
+    /// <summary>Si Windows reserva el nombre (<c>CON</c>, <c>NUL</c>, <c>COM1</c>…), también con extensión: <c>nul.txt</c>.</summary>
+    public static bool IsReservedName(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        int dot = name.IndexOf('.', StringComparison.Ordinal);
+        string stem = (dot < 0 ? name : name[..dot]).TrimEnd(' ');
+        return ReservedNames.Contains(stem, StringComparer.OrdinalIgnoreCase);
     }
 }

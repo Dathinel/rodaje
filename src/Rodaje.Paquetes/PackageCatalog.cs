@@ -82,8 +82,7 @@ public sealed record PackageCatalog(IReadOnlyList<CatalogApp> Apps, IReadOnlyLis
                     "module" => PackageKind.Module,
                     _ => null,
                 };
-                if (id is null || !Identifiers.IsValid(id) || name is null || kind is null || repository is null
-                    || !Uri.TryCreate(repository, UriKind.Absolute, out Uri? uri) || uri.Scheme != Uri.UriSchemeHttps)
+                if (id is null || !Identifiers.IsValid(id) || name is null || kind is null || !SafeText.TryParseHttpsUri(repository, out Uri? uri))
                 {
                     problems?.Add($"La entrada «{id ?? "?"}» del catálogo está incompleta o mal escrita.");
                     continue;
@@ -112,8 +111,13 @@ public sealed record PackageCatalog(IReadOnlyList<CatalogApp> Apps, IReadOnlyLis
             : [];
 
     private static string? Str(JsonElement e, string property) =>
-        e.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString())
-            ? value.GetString()!.Trim()
+        e.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.String && SafeText.Clean(value.GetString()!) is { Length: > 0 } text
+            ? property switch
+            {
+                "name" => SafeText.Truncate(text, SafeText.MaxName),
+                "description" => SafeText.Truncate(text, SafeText.MaxDescription),
+                _ => text,
+            }
             : null;
 
     private static List<string> Strings(JsonElement e, string property) =>
