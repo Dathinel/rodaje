@@ -2,6 +2,8 @@ using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
@@ -43,6 +45,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     private readonly ClipVisuals _visuals;
     private readonly List<IDisposable> _bindings = [];
     private ShortcutsView? _shortcutsView;
+    private NotificationAction? _notificationAction;
     private PluginsView? _pluginsView;
     private bool _activatedOnce;
     private bool _allowClose;
@@ -348,12 +351,29 @@ internal sealed partial class MainWindow : Window, IShellHost
         };
         Notification.Title = notification.Title;
         Notification.Message = notification.Message;
+        _notificationAction = notification.Action;
+        NotificationButton.Content = notification.Action?.Text;
+        NotificationButton.Visibility = notification.Action is null ? Visibility.Collapsed : Visibility.Visible;
+        AutomationProperties.SetName(NotificationButton, notification.Action?.Text ?? "");
         Notification.IsOpen = true;
+        FrameworkElementAutomationPeer.FromElement(Notification)?.RaiseNotificationEvent(
+            AutomationNotificationKind.ActionCompleted, AutomationNotificationProcessing.ImportantMostRecent, notification.Message, "rodaje.aviso");
         _notificationTimer.Stop();
         if (notification.Severity is NotificationSeverity.Informational or NotificationSeverity.Success)
         {
+            // Con botón dura más: da tiempo a leerlo y a decidir si se deshace.
+            _notificationTimer.Interval = TimeSpan.FromSeconds(notification.Action is null ? 6 : 10);
             _notificationTimer.Start();
         }
+    }
+
+    private void OnNotificationButtonClick(object sender, RoutedEventArgs e)
+    {
+        NotificationAction? action = _notificationAction;
+        _notificationAction = null;
+        _notificationTimer.Stop();
+        Notification.IsOpen = false;
+        action?.Run();
     }
 
     private void OnActivated(object sender, WindowActivatedEventArgs args)

@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Shapes;
+using Rodaje.App.Services;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using VirtualKey = Windows.System.VirtualKey;
@@ -32,7 +33,6 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
     private ShortcutRowView? _captureView;
     private KeyChord? _captureReplacing;
     private IDisposable? _suspension;
-    private Action? _noticeAction;
     private int? _keyFilter;
     private bool _syncingPreset;
     private bool _singleColumn;
@@ -107,7 +107,6 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         EndCapture();
         _swallowKeyUp.Clear();
         ReleaseShortcuts();
-        Notice.IsOpen = false;
     }
 
     private void OnRegistryChanged()
@@ -351,7 +350,7 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
             _services.Settings.Current.ShortcutPreset = preset;
         }
 
-        ShowNotice($"Estilo «{ShortcutPresetNames.Display(preset)}». Lo que cambies aquí se guarda solo para este estilo.", null, null);
+        ShowNotice($"Estilo «{ShortcutPresetNames.Display(preset)}». Lo que cambies aquí se guarda solo para este estilo.");
     }
 
     private void OnSearchChanged(object sender, TextChangedEventArgs e)
@@ -405,11 +404,11 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
     {
         if (saved.Path is { } path)
         {
-            ShowNotice($"Hoja guardada en Documentos: {System.IO.Path.GetFileName(path)}", "Abrir", () => Open(path));
+            ShowNotice($"Hoja guardada en Documentos: {System.IO.Path.GetFileName(path)}", new NotificationAction("Abrir", () => Open(path)));
         }
         else
         {
-            ShowNotice(saved.Error ?? "No se pudo guardar la hoja.", null, null, InfoBarSeverity.Warning);
+            ShowNotice(saved.Error ?? "No se pudo guardar la hoja.", severity: NotificationSeverity.Warning);
         }
     }
 
@@ -421,7 +420,7 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
-            ShowNotice($"No se pudo abrir {path}: {ex.Message}", null, null, InfoBarSeverity.Warning);
+            ShowNotice($"No se pudo abrir {path}: {ex.Message}", severity: NotificationSeverity.Warning);
         }
     }
 
@@ -511,38 +510,20 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
     {
         if (change.Changed)
         {
-            ShowNotice(change.Message, "Deshacer", () =>
+            ShowNotice(change.Message, new NotificationAction("Deshacer", () =>
             {
                 _customizer!.Undo(change);
-                ShowNotice("Se deshizo el cambio.", null, null);
-            });
+                ShowNotice("Se deshizo el cambio.");
+            }));
         }
         else if (change.Message.Length > 0)
         {
-            ShowNotice(change.Message, null, null);
+            ShowNotice(change.Message);
         }
     }
 
-    private void ShowNotice(string message, string? actionText, Action? action, InfoBarSeverity severity = InfoBarSeverity.Informational)
-    {
-        Notice.Severity = severity;
-        Notice.Message = message;
-        NoticeAction.Content = actionText;
-        NoticeAction.Visibility = actionText is null ? Visibility.Collapsed : Visibility.Visible;
-        AutomationProperties.SetName(NoticeAction, actionText ?? "");
-        _noticeAction = action;
-        Notice.IsOpen = true;
-        FrameworkElementAutomationPeer.FromElement(Notice)?.RaiseNotificationEvent(
-            AutomationNotificationKind.ActionCompleted, AutomationNotificationProcessing.ImportantMostRecent, message, "atajos.aviso");
-    }
-
-    private void OnNoticeActionClick(object sender, RoutedEventArgs e)
-    {
-        Action? action = _noticeAction;
-        _noticeAction = null;
-        Notice.IsOpen = false;
-        action?.Invoke();
-    }
+    private void ShowNotice(string message, NotificationAction? action = null, NotificationSeverity severity = NotificationSeverity.Informational) =>
+        _services?.Session.Notify(severity, "Atajos", message, action);
 
     private sealed class GroupSection(string name, StackPanel panel, TextBlock count)
     {
