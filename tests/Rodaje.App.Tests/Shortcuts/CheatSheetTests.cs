@@ -14,8 +14,8 @@ public class CheatSheetTests
 
     [Theory]
     [InlineData(ShortcutPreset.Rodaje)]
-    [InlineData(ShortcutPreset.CapCut)]
-    [InlineData(ShortcutPreset.Vegas)]
+    [InlineData(ShortcutPreset.Agile)]
+    [InlineData(ShortcutPreset.Classic)]
     public void Select_DaQuinceAtajosConTeclaEmpezandoPorLosMasUtiles(ShortcutPreset preset)
     {
         IReadOnlyList<CheatSheetEntry> entries = CheatSheet.Select(Catalog(preset));

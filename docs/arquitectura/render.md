@@ -7,7 +7,7 @@ flowchart LR
     CF["CompositionFrame<br/>capas NV12/P010<br/>del pool del decodificador"] --> C["Compositor.Render<br/>PsLayer: YUV → RGB,<br/>transformación, over"]
     C --> T["Textura propia<br/>Rgba16Float o Rgba8, con mips"]
     T --> P["Presenter.Draw<br/>letterbox, mips si reduce"]
-    P --> SC["Swap chain<br/>(visor o SwapChainPanel)"]
+    P --> SC["Swap chain<br/>(SwapChainPanel)"]
 ```
 
 ## Cómo compone

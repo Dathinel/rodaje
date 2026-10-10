@@ -61,7 +61,7 @@ public class ShortcutSearchTests
         registry.Register(new ShortcutAction("x.enie", "Algo con eñe", "Grupo", ["Ctrl+`"]));
 
         Assert.Equal(["x.enie"], ShortcutSearch.Filter(registry, "ctrl+ñ", FakeKeyboardLayout.Spanish).Select(a => a.Id));
-        registry.Preset = ShortcutPreset.Vegas;
+        registry.Preset = ShortcutPreset.Classic;
         Assert.Equal([ActionIds.TrimStart], ShortcutSearch.Filter(registry, "alt+'", FakeKeyboardLayout.Spanish).Select(a => a.Id));
     }
 

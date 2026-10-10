@@ -24,7 +24,7 @@ internal static class TimelineActionIds
 }
 
 /// <summary>
-/// La línea de tiempo: barra estilo Vegas, regla, cabeceras y pistas. Lee el modelo de la sesión y lo cambia solo con
+/// La línea de tiempo: barra de herramientas, regla, cabeceras y pistas. Lee el modelo de la sesión y lo cambia solo con
 /// comandos; los arrastres son gestos (un paso del historial) con pasos en vivo que el reproductor ve enseguida.
 /// </summary>
 internal sealed partial class TimelineView : UserControl, IEditorView

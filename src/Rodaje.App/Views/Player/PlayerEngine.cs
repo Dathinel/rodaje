@@ -542,7 +542,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
     }
 
-    /// <summary>Compone a tamaño de secuencia, o a la mitad si el panel no llega ni a la mitad (igual que el visor).</summary>
+    /// <summary>Compone a tamaño de secuencia, o a la mitad si el panel no llega ni a la mitad.</summary>
     private void EnsureCompositor()
     {
         if (_session is null || _swapChain is null || _gpu is null)

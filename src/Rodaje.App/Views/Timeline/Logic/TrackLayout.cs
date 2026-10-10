@@ -14,7 +14,7 @@ public sealed record TrackRow(Track Track, int Row, double Top, double Height, b
 
 /// <summary>
 /// Orden y altura de las filas: arriba las pistas de video de la más alta a la más baja (la principal, la de más abajo,
-/// es más alta y queda pegada al audio, como en CapCut) y debajo las de audio.
+/// es más alta y queda pegada al audio) y debajo las de audio.
 /// </summary>
 public sealed class TrackLayout
 {

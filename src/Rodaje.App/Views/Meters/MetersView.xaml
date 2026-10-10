@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Medidores de audio L/R al estilo de Shotcut, a la derecha del reproductor: escala en dB (IEC 60268-18), barras verde,
+    Medidores de audio L/R, a la derecha del reproductor: escala en dB (IEC 60268-18), barras verde,
     amarillo y rojo, pico retenido, aviso de saturación que queda encendido hasta hacer clic y la lectura del mayor pico.
     Las barras son SpriteVisuals de composición (BarsHost) que se mueven en cada cuadro sin pasar por el diseño de XAML.
 -->

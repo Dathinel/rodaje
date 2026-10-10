@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Línea de tiempo (maqueta D-018): barra estilo Vegas con herramientas, interruptores y acciones; regla, cabeceras de
+    Línea de tiempo (maqueta D-018): barra con herramientas, interruptores y acciones; regla, cabeceras de
     pista y pistas. Las pistas se dibujan desde código (TimelineRenderer), con elementos reciclados y solo lo visible.
 -->
 <UserControl

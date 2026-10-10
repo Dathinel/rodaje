@@ -11,7 +11,7 @@ namespace Rodaje.App.Shell;
 /// <summary>
 /// Atajos de toda la ventana: escucha el túnel (<c>PreviewKeyDown</c>) en la raíz, antes que cualquier control, y pasa
 /// cada combinación a <see cref="ShortcutRouter"/>. Si es un atajo, la marca como manejada también al soltarla, porque
-/// un botón con el foco se activa con Espacio al soltar (docs/sondeo-winui.md, trampa 6).
+/// un botón con el foco se activa con Espacio al soltar (docs/archivo/sondeo-winui.md, trampa 6).
 /// </summary>
 internal sealed partial class KeyboardShortcutHost : IDisposable
 {

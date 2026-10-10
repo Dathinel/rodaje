@@ -8,5 +8,8 @@ public enum NotificationSeverity
     Error,
 }
 
-/// <summary>Un aviso para la barra de mensajes de la ventana, en español y sin jerga.</summary>
-public sealed record EditorNotification(NotificationSeverity Severity, string Title, string Message);
+/// <summary>El botón de un aviso («Deshacer», «Abrir») y lo que hace; el aviso se cierra antes de ejecutarlo.</summary>
+public sealed record NotificationAction(string Text, Action Run);
+
+/// <summary>Un aviso para la barra de mensajes de la ventana, en español y sin jerga, con un botón opcional.</summary>
+public sealed record EditorNotification(NotificationSeverity Severity, string Title, string Message, NotificationAction? Action = null);

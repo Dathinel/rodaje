@@ -97,8 +97,8 @@ internal sealed partial class TitleBar : UserControl
 
         ShortcutPreset preset = _services.ShortcutRegistry.Preset;
         PresetRodaje.IsChecked = preset == ShortcutPreset.Rodaje;
-        PresetCapCut.IsChecked = preset == ShortcutPreset.CapCut;
-        PresetVegas.IsChecked = preset == ShortcutPreset.Vegas;
+        PresetAgile.IsChecked = preset == ShortcutPreset.Agile;
+        PresetClassic.IsChecked = preset == ShortcutPreset.Classic;
         ProxyUsage proxies = _services.Settings.Current.ProxyUsage;
         ProxyAuto.IsChecked = proxies == ProxyUsage.Auto;
         ProxyAlways.IsChecked = proxies == ProxyUsage.Always;

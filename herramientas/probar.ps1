@@ -1,6 +1,7 @@
 ﻿# Corre las pruebas con el SDK de .entorno\ (o RODAJE_ENTORNO) y resume el resultado.
 # Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\probar.ps1 [-Cobertura] [-Filtro "texto"]
-# Los registros quedan en TestResults\<fecha-hora>\ (se conservan 10). Sale con 0 si todo pasó.
+# Las de la categoría TiempoReal corren después, solas. Los registros quedan en TestResults\<fecha-hora>\ (se
+# conservan 10). Sale con 0 si todo pasó.
 
 param(
     [switch]$Cobertura,
@@ -13,7 +14,7 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 $Raiz = Split-Path -Parent $PSScriptRoot
 Import-Module (Join-Path $PSScriptRoot 'comun.psm1') -DisableNameChecking -Force
-$E = Inicializar-Rodaje $Raiz -Fases 3
+$E = Inicializar-Rodaje $Raiz -Fases 4
 $Solucion = Join-Path $Raiz 'Rodaje.slnx'
 $Dotnet = $E.Dotnet
 $MarcaSdk = $E.MarcaSdk
@@ -102,13 +103,23 @@ if ($r.Codigo -ne 0) {
 }
 Bien 'Compila sin errores ni advertencias.'
 
+# Las pruebas de la categoría TiempoReal miden contra el reloj de pared: corren después, solas, para que la carga de
+# las demás no las falsee. Si $Dotnet fuera un .cmd, cmd.exe partiría el filtro en el '&'; un '^&' no basta cuando el
+# .cmd reenvía %* (como dotnet-local.cmd), así que ahí el filtro va entre comillas.
+function Argumentos-Prueba([string]$prefijo, [string]$categoria) {
+    $condicion = $categoria
+    if ($script:Filtro) { $condicion += "&FullyQualifiedName~$($script:Filtro)" }
+    if ($Dotnet -match '\.(cmd|bat)$') { $condicion = '"' + $condicion + '"' }
+    return @('test', $Solucion, '--no-build', '-c', 'Debug', '--nologo',
+        '--results-directory', $script:Corrida,
+        '--logger', "trx;LogFilePrefix=$prefijo",
+        '--logger', 'console;verbosity=normal',
+        '--filter', $condicion)
+}
+
 Fase 3 $(if ($Cobertura) { 'corriendo las pruebas y midiendo la cobertura...' } else { 'corriendo las pruebas...' })
-$argumentos = @('test', $Solucion, '--no-build', '-c', 'Debug', '--nologo',
-    '--results-directory', $script:Corrida,
-    '--logger', 'trx;LogFilePrefix=resultados',
-    '--logger', 'console;verbosity=normal')
+$argumentos = Argumentos-Prueba 'resultados' 'Categoria!=TiempoReal'
 if ($Cobertura) { $argumentos += '--collect:XPlat Code Coverage' }
-if ($Filtro) { $argumentos += @('--filter', "FullyQualifiedName~$Filtro") }
 
 $script:Hechas = 0
 $alVuelo = {
@@ -120,6 +131,9 @@ $alVuelo = {
 }
 $r = Invocar-Dotnet (Join-Path $script:Corrida '3-probar.log') $argumentos $alVuelo
 if ($script:Hechas -ge 25) { Write-Host ("`r    pruebas ejecutadas: {0}" -f $script:Hechas) }
+
+Fase 4 'corriendo las pruebas de tiempo real, solas...'
+$rTiempoReal = Invocar-Dotnet (Join-Path $script:Corrida '4-tiempo-real.log') (Argumentos-Prueba 'tiempo-real' 'Categoria=TiempoReal') $alVuelo
 
 $trx = @(Get-ChildItem -LiteralPath $script:Corrida -Recurse -Filter '*.trx' -ErrorAction SilentlyContinue)
 $total = 0; $pasaron = 0; $fallaron = 0; $omitidas = 0
@@ -225,10 +239,12 @@ if ($fallaron -gt 0) {
     Mal 'RESULTADO: hay pruebas que fallan. El mensaje de cada una dice qué esperaba y qué obtuvo.'
     Terminar 1
 }
-if ($r.Codigo -ne 0) {
-    Mal 'RESULTADO: el ejecutor de pruebas terminó con error aunque ninguna prueba falló.'
-    $r.Lineas | Select-Object -Last 10 | ForEach-Object { Nota ('  ' + (Corto $_)) }
-    Terminar 1
+foreach ($pasada in @($r, $rTiempoReal)) {
+    if ($pasada.Codigo -ne 0) {
+        Mal 'RESULTADO: el ejecutor de pruebas terminó con error aunque ninguna prueba falló.'
+        $pasada.Lineas | Select-Object -Last 10 | ForEach-Object { Nota ('  ' + (Corto $_)) }
+        Terminar 1
+    }
 }
 if ($total -eq 0) {
     Write-Host '    RESULTADO: compila bien; aún no hay pruebas.' -ForegroundColor Yellow

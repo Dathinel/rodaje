@@ -112,8 +112,8 @@ public class KeyboardLayoutTests
     [Fact]
     public void ElTecladoEspañol_PoneCadaAccionEnLaTeclaFisicaCorrecta()
     {
-        // En Vegas, Recortar inicio es Alt+[ (VK_OEM_4): en un teclado español es la tecla «'», a la derecha del 0.
-        IReadOnlyList<KeyCapState> keys = KeyboardGeometry.Map(Catalog(ShortcutPreset.Vegas), Es);
+        // En el estilo Clásico, Recortar inicio es Alt+[ (VK_OEM_4): en un teclado español es la tecla «'», a la derecha del 0.
+        IReadOnlyList<KeyCapState> keys = KeyboardGeometry.Map(Catalog(ShortcutPreset.Classic), Es);
         KeyCapState quote = ByScan(keys, 0x0C);
         Assert.Equal(ActionIds.TrimStart, quote.For(KeyModifiers.Alt)?.Action.Id);
         Assert.Null(quote.For(KeyModifiers.None));
@@ -126,7 +126,7 @@ public class KeyboardLayoutTests
     [Fact]
     public void SinDistribucion_UsaLaPosicionEstadounidense()
     {
-        IReadOnlyList<KeyCapState> keys = KeyboardGeometry.Map(Catalog(ShortcutPreset.Vegas), null);
+        IReadOnlyList<KeyCapState> keys = KeyboardGeometry.Map(Catalog(ShortcutPreset.Classic), null);
         KeyCapState bracket = ByScan(keys, 0x1A);
         Assert.Equal("[", bracket.Label);
         Assert.Equal(ActionIds.TrimStart, bracket.For(KeyModifiers.Alt)?.Action.Id);

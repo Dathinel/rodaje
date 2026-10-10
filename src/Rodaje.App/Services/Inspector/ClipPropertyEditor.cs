@@ -16,7 +16,7 @@ public sealed record ParameterState(double Value, int KeyframeCount, Keyframe? K
 }
 
 /// <summary>
-/// Edita los parámetros animables de un clip en el cursor, como CapCut y Resolve: sin keyframes se cambia el valor fijo;
+/// Edita los parámetros animables de un clip en el cursor: sin keyframes se cambia el valor fijo;
 /// con keyframes, cambiar el valor crea o ajusta el keyframe del cuadro del cursor.
 /// </summary>
 /// <remarks>

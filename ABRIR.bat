@@ -4,7 +4,6 @@ rem   ABRIR.bat                    todas las pruebas
 rem   ABRIR.bat cobertura          pruebas + cobertura de Rodaje.Core
 rem   ABRIR.bat aot                publica con Native AOT y ejecuta el .exe
 rem   ABRIR.bat aceptacion         criterios de la fase 2 con video y audio reales (varios minutos)
-rem   ABRIR.bat visor "C:\Videos\a.mp4" "C:\Videos\b.mp4"  abre el visor de prueba con uno o varios videos
 rem   ABRIR.bat preparar-entorno   vuelve a descargar el SDK y FFmpeg
 rem   ABRIR.bat -Filtro Recorte    otros argumentos pasan tal cual a probar.ps1
 rem Variables: RODAJE_ENTORNO (otro entorno), RODAJE_SIN_PAUSA=1 (sin pausa final).
@@ -35,7 +34,6 @@ echo.
 echo     cobertura    pruebas + cobertura de Rodaje.Core
 echo     aot          publica con Native AOT y ejecuta el .exe
 echo     aceptacion   criterios de la fase 2 con video y audio reales
-echo     visor        abre el visor de prueba con uno o varios videos
 echo.
 
 set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
@@ -53,8 +51,6 @@ if /i "%ACCION%"=="aot" set "SCRIPT=%AOT%"
 if /i "%ACCION%"=="aot" goto resto
 if /i "%ACCION%"=="aceptacion" set "SCRIPT=%ACEPTACION%"
 if /i "%ACCION%"=="aceptacion" goto resto
-if /i "%ACCION%"=="visor" set "SCRIPT=%RAIZ%\herramientas\visor.ps1"
-if /i "%ACCION%"=="visor" goto resto
 set ARGS=%*
 goto entorno
 

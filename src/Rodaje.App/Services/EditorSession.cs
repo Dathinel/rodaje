@@ -393,9 +393,9 @@ public sealed partial class EditorSession : ObservableObject
         TransportChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Muestra un aviso en la ventana.</summary>
-    public void Notify(NotificationSeverity severity, string title, string message) =>
-        Notified?.Invoke(this, new EditorNotification(severity, title, message));
+    /// <summary>Muestra un aviso en la ventana, con un botón si se da <paramref name="action"/>.</summary>
+    public void Notify(NotificationSeverity severity, string title, string message, NotificationAction? action = null) =>
+        Notified?.Invoke(this, new EditorNotification(severity, title, message, action));
 
     /// <summary>Falla si se llama fuera del hilo que creó la sesión (el de la interfaz).</summary>
     public void VerifyAccess()

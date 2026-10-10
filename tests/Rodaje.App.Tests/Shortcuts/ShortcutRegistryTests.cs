@@ -46,10 +46,10 @@ public class ShortcutRegistryTests
         ShortcutRegistry registry = Catalog();
         Assert.Equal(ActionIds.Split, registry.FindAction(K("S")));
         Assert.Equal(ActionIds.Split, registry.FindAction(K("Ctrl+B")));
-        registry.Preset = ShortcutPreset.CapCut;
+        registry.Preset = ShortcutPreset.Agile;
         Assert.Null(registry.FindAction(K("S")));
         Assert.Equal(ActionIds.Split, registry.FindAction(K("Ctrl+B")));
-        registry.Preset = ShortcutPreset.Vegas;
+        registry.Preset = ShortcutPreset.Classic;
         Assert.Equal(ActionIds.Split, registry.FindAction(K("S")));
         Assert.Equal(ActionIds.TrimStart, registry.FindAction(K("Alt+[")));
         Assert.Equal(ActionIds.PreviousFrame, registry.FindAction(K("Alt+←")));
@@ -166,7 +166,7 @@ public class ShortcutRegistryTests
         registry.Rebind(ActionIds.Split, K("X"), replacing: K("S"));
         Assert.Equal(ActionIds.Split, registry.FindAction(K("X")));
 
-        registry.Preset = ShortcutPreset.Vegas;
+        registry.Preset = ShortcutPreset.Classic;
         Assert.Null(registry.FindAction(K("X")));
         Assert.Equal(ActionIds.Split, registry.FindAction(K("S")));
 

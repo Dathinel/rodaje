@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Página de atajos (D-018): estilo de teclado (Rodaje, Como CapCut, Como Vegas), búsqueda por acción o por tecla,
+    Página de atajos (D-018): estilo de teclado (Rodaje, Ágil, Clásico), búsqueda por acción o por tecla,
     teclado dibujado, hoja rápida y los grupos en dos columnas. Cada fila cambia sus teclas con un clic; si la tecla era
-    de otra acción, se intercambian y el aviso de arriba permite deshacerlo.
+    de otra acción, se intercambian y el aviso de la ventana permite deshacerlo.
 -->
 <UserControl
     x:Class="Rodaje.App.Views.Shortcuts.ShortcutsView"
@@ -18,7 +18,6 @@
 
     <Grid Background="{StaticResource PanelBrush}" PreviewKeyDown="OnPreviewKeyDown" PreviewKeyUp="OnPreviewKeyUp">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
@@ -39,10 +38,10 @@
                             XYFocusKeyboardNavigation="Enabled">
                     <RadioButton x:Name="RodajeTab" Style="{StaticResource PresetTabStyle}" GroupName="ShortcutPreset" Content="Rodaje"
                                  Checked="OnPresetChecked" ToolTipService.ToolTip="Las teclas de Rodaje" />
-                    <RadioButton x:Name="CapCutTab" Style="{StaticResource PresetTabStyle}" GroupName="ShortcutPreset" Content="Como CapCut"
-                                 Checked="OnPresetChecked" ToolTipService.ToolTip="Teclas parecidas a las de CapCut, si vienes de ahí" />
-                    <RadioButton x:Name="VegasTab" Style="{StaticResource PresetTabStyle}" GroupName="ShortcutPreset" Content="Como Vegas"
-                                 Checked="OnPresetChecked" ToolTipService.ToolTip="Teclas parecidas a las de Vegas Pro, si vienes de ahí" />
+                    <RadioButton x:Name="AgileTab" Style="{StaticResource PresetTabStyle}" GroupName="ShortcutPreset" Content="Ágil"
+                                 Checked="OnPresetChecked" ToolTipService.ToolTip="Pocas teclas y Ctrl+B para cortar, como en los editores rápidos" />
+                    <RadioButton x:Name="ClassicTab" Style="{StaticResource PresetTabStyle}" GroupName="ShortcutPreset" Content="Clásico"
+                                 Checked="OnPresetChecked" ToolTipService.ToolTip="Teclas de editor de escritorio tradicional: flechas para el zoom y Alt para recortar" />
                 </StackPanel>
             </StackPanel>
 
@@ -80,13 +79,7 @@
             </StackPanel>
         </Grid>
 
-        <InfoBar x:Name="Notice" Grid.Row="1" IsOpen="False" IsClosable="True" Severity="Informational" CornerRadius="0" Margin="0">
-            <InfoBar.ActionButton>
-                <Button x:Name="NoticeAction" Click="OnNoticeActionClick" />
-            </InfoBar.ActionButton>
-        </InfoBar>
-
-        <ScrollViewer x:Name="Scroller" Grid.Row="2" HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="Scroller" Grid.Row="1" HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto">
             <StackPanel Padding="16,12,16,20" Spacing="14">
                 <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
                            Text="Pulsa «Cambiar» (o una tecla de la fila) y después la combinación nueva. Si ya era de otra acción, se intercambian y puedes deshacerlo arriba. La barra naranja marca lo que cambiaste; cada estilo guarda sus propios cambios." />

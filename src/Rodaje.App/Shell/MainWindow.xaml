@@ -26,7 +26,12 @@
 
         <shell:TitleBar x:Name="TitleBar" />
 
-        <InfoBar x:Name="Notification" Grid.Row="1" IsOpen="False" IsClosable="True" Margin="0" CornerRadius="0" />
+        <!-- Por encima de la capa modal: los avisos de las páginas (Atajos, Complementos) también se ven aquí. -->
+        <InfoBar x:Name="Notification" Grid.Row="1" Canvas.ZIndex="1" IsOpen="False" IsClosable="True" Margin="0" CornerRadius="0">
+            <InfoBar.ActionButton>
+                <Button x:Name="NotificationButton" Visibility="Collapsed" Click="OnNotificationButtonClick" />
+            </InfoBar.ActionButton>
+        </InfoBar>
 
         <Grid x:Name="MainArea" Grid.Row="2">
             <Grid.ColumnDefinitions>

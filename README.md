@@ -2,60 +2,57 @@
 
 Editor de video nativo para Windows, rápido y por capas, con la comodidad de los editores móviles y la precisión de un editor profesional. Se distribuye como un único ejecutable compilado con Native AOT, sin instalador y sin depender de .NET instalado.
 
-> **Estado:** fases 1 y 2 de 8 completadas. El núcleo de edición y la reproducción de un clip (GPU, audio como reloj maestro y visor de prueba) están terminados y probados. La interfaz de edición y la exportación vienen en las fases siguientes.
+> **Estado:** fases 1 a 4 de 8 hechas. Ya se puede importar, cortar, recortar y reproducir varias capas en tiempo real en la interfaz WinUI 3. Faltan efectos, exportación e IA.
 
 ## Cómo se usa
 
-**Para abrir el editor:** doble clic en **`Rodaje.bat`**, o arrastra encima videos (se importan y van seguidos a la pista principal) o un `.rodaje`. La primera vez compila el programa (unos minutos); después abre al instante. Importa con Ctrl+I o arrastrando a la ventana, y haz doble clic en un medio para ponerlo al final de la pista principal; Espacio reproduce o pausa, S corta, Ctrl+Z deshace y Ctrl+S guarda. El visor de la fase 3 sigue en `ABRIR.bat visor` (teclas en `docs/prueba-visor.md`).
+**Para abrir el editor:** doble clic en **`Rodaje.bat`**. También se le pueden arrastrar encima videos, que se importan y van seguidos a la pista principal, o un proyecto `.rodaje`. La primera vez compila el programa en `dist\Rodaje\` (unos minutos); después abre al instante.
 
-**Para correr las pruebas:** 
+| Para | Haz |
+|---|---|
+| Importar | Ctrl+I, o arrastra archivos a la ventana |
+| Poner un medio en la línea de tiempo | Doble clic en la biblioteca (va al final de la pista principal) o arrástralo |
+| Reproducir y moverte | Espacio, J/K/L, ← → cuadro a cuadro |
+| Editar | S corta, Q y W recortan hasta el cursor, Supr borra sin dejar hueco en la pista principal |
+| Deshacer y guardar | Ctrl+Z, Ctrl+S |
+| Ver o cambiar los atajos | Menú Atajos: estilos Rodaje, Ágil y Clásico, cada uno con sus propios cambios |
 
-Doble clic en **`ABRIR.bat`**. La primera vez descarga el SDK de .NET en `.entorno\` (unos 280 MB, con su huella SHA-512 verificada) y no instala nada fuera del proyecto.
+**Para correr las pruebas:** doble clic en **`ABRIR.bat`**. La primera vez descarga el SDK de .NET y FFmpeg LGPL en `.entorno\` (unos 355 MB, con sus huellas verificadas) y no instala nada fuera del proyecto.
 
 | Comando | Qué hace |
 |---|---|
-| `ABRIR.bat` | Ejecuta todas las pruebas |
-| `ABRIR.bat cobertura` | Pruebas más cobertura de código |
+| `ABRIR.bat` | Todas las pruebas; las de tiempo real corren al final, solas |
+| `ABRIR.bat cobertura` | Pruebas más cobertura del núcleo |
 | `ABRIR.bat aot` | Compila el núcleo a código nativo y lo ejecuta de punta a punta |
-| `ABRIR.bat visor video.mp4 [otro.mp4 ...]` | Abre el visor de prueba con uno o varios videos como capas |
-| `ABRIR.bat aceptacion` | Criterios de la fase 2 con video y audio reales: seek exacto al cuadro y sincronía audio/video en 10 minutos (varios minutos) |
+| `ABRIR.bat aceptacion` | Seek exacto al cuadro y sincronía audio/video con video y audio reales (unos 9 min) |
 | `ABRIR.bat preparar-entorno` | Reconstruye el entorno local desde cero |
 
-**Requisitos:**
-- Windows 10/11 x64.
-- Conexión a internet la primera vez.
-- Visual Studio Build Tools con C++, solo para la acción `aot`.
+**Requisitos:** Windows 10/11 x64, internet la primera vez y Visual Studio Build Tools con C++ (Native AOT usa su enlazador) para compilar el editor y la acción `aot`.
 
 ## Cómo funciona
 
-- **Edición no destructiva.** Un proyecto contiene secuencias, las secuencias contienen pistas y las pistas contienen clips. Un clip no guarda video: guarda una referencia al archivo de origen, su punto de entrada, su punto de salida y su posición en la línea de tiempo. Editar solo cambia esos números.
-- **Tiempo exacto.** Todo instante es un entero en ticks de 1/705 600 000 s, divisible entre la duración de un cuadro a 24, 25, 30, 50 y 60 fps (incluidas las variantes NTSC) y entre la de una muestra a 44,1 y 48 kHz. No hay error acumulado al sumar ni al restar.
-- **Operaciones de línea de tiempo:**
-  - Cortar y recortar, incluido el recorte ripple.
-  - Roll, slip y slide.
-  - Mover, en modo estricto, sobrescribir o insertar.
-  - Insertar, sobrescribir y añadir al final.
-  - Levantar, borrado ripple y cerrar hueco.
-  - Gestión de pistas y enlace de video con audio.
-
-  Las pistas bloqueadas son intocables.
-- **Deshacer y rehacer** con el patrón comando. Cada edición guarda una instantánea y, si falla a mitad, el proyecto vuelve solo a como estaba. Los arrastres se funden en un único paso de deshacer.
-- **Formato abierto `.rodaje`:** JSON versionado con migraciones y [esquema publicado](schema/rodaje-proyecto.v2.schema.json), pensado para que otros programas lo lean y lo escriban. El guardado es atómico, con copia `.bak`, así que un apagón no corrompe el proyecto.
+- **Edición no destructiva.** Un proyecto tiene secuencias, pistas y clips. Un clip solo guarda qué archivo usa, su entrada, su salida y su posición; editar cambia esos números.
+- **Tiempo exacto.** Todo instante es un entero en ticks de 1/705 600 000 s, divisible por la duración de un cuadro a 24, 25, 30, 50 y 60 fps (con las variantes NTSC) y de una muestra a 44,1 y 48 kHz. No hay error acumulado.
+- **Deshacer de verdad.** Toda edición es un comando con instantánea: si falla a mitad, el proyecto queda como estaba, y un arrastre entero se deshace en un paso.
+- **El audio manda.** La salida de audio es el reloj; el video lo sigue y, si el equipo no alcanza, se pierde un cuadro, nunca una muestra.
+- **Varias capas en la GPU.** FFmpeg decodifica con D3D11VA sobre el mismo dispositivo que compone las capas en Direct3D 11, sin copias. Los cortes se preparan antes de llegar (pre-roll) y la memoria de video tiene un presupuesto; con proxies, las capas pesadas cuestan menos.
+- **Formato abierto `.rodaje`:** JSON versionado con migraciones y [esquema publicado](schema/rodaje-proyecto.v2.schema.json). El guardado es atómico, con copia `.bak`: un apagón no corrompe el proyecto.
 
 ## Evidencias
 
-Medido el 9 de octubre de 2026 en un Ryzen 7 7435HS:
+Medido el 9 y el 10 de octubre de 2026 en un Ryzen 7 7435HS con RTX 3050 Laptop:
 
 | Prueba | Resultado |
 |---|---|
-| Pruebas automáticas | **1 016 pasan, 0 fallan** (9 largas se reservan para la aceptación) |
-| Salto exacto al cuadro (fase 2) | **2 864 de 2 864** saltos aleatorios aterrizan en el cuadro exacto, en H.264 y HEVC, por GPU y por software |
-| Sincronía audio/video (fase 2) | **0 cuadros de error en 10 minutos**, con el reloj de audio un 0,1 % adelantado o atrasado; en tiempo real con el dispositivo de audio, 10 minutos completos con 0 cuadros de error, 0 tarde y 0 perdidos |
-| Reloj de audio | Jitter máximo 0,7 ms frente al reloj del sistema |
-| Cobertura del núcleo | **99,6 % de líneas y 99,6 % de ramas** |
-| Pruebas de propiedades | 10 000 proyectos aleatorios con hasta 40 ediciones cada uno, más 5 000 arrastres. Tras cada paso el modelo sigue siendo válido, las pistas bloqueadas no cambian y deshacer todo devuelve el proyecto idéntico, byte a byte |
-| Native AOT | Ejecutable de **3,39 MB**, **0 advertencias**; arranque más recorrido completo del núcleo en **117 ms** |
-| Revisión independiente | Un revisor distinto del que escribió el código encontró 5 defectos. Los 5 están corregidos y cada uno tiene su prueba de regresión |
+| Pruebas automáticas | **Más de 1 840 pasan, 0 fallan**; las que necesitan hardware ausente o la aceptación se omiten con su motivo |
+| Reproducción en la app | **0 cuadros perdidos**; una edición se ve en pantalla en **~10 ms** (mediana) |
+| Varias capas en 4K con cortes | Memoria de video de **3,7 GB a 1,4 GB** con el presupuesto |
+| Salto exacto al cuadro | **2 864 de 2 864** saltos aleatorios aterrizan en el cuadro exacto, en H.264 y HEVC, por GPU y por software |
+| Sincronía audio/video | **0 cuadros de error en 10 minutos**, también con el reloj de audio un 0,1 % adelantado o atrasado y con el dispositivo real |
+| Cobertura del núcleo | **99,6 %** de líneas y de ramas |
+| Pruebas de propiedades | 10 000 proyectos aleatorios con hasta 40 ediciones y 5 000 arrastres: el modelo sigue válido y deshacer todo lo devuelve idéntico, byte a byte |
+| Native AOT | **0 advertencias** en el editor y en el núcleo |
+| Revisión independiente | Fases 2 y 3: los 12 defectos encontrados están corregidos, cada uno con su prueba de regresión. La de la fase 4 está en corrección |
 
 ## Hoja de ruta
 
@@ -63,23 +60,20 @@ Medido el 9 de octubre de 2026 en un Ryzen 7 7435HS:
 |---|---|
 | 1 ✔ | Modelo de línea de tiempo, edición, deshacer y formato de proyecto |
 | 2 ✔ | Reproducción de un clip: FFmpeg (LGPL) con decodificación por GPU y el audio como reloj maestro |
-| 3 | Varias capas, compositor en GPU (Direct3D 11) y proxies |
-| 4 | Interfaz de línea de tiempo en WinUI 3 |
-| 5 | Efectos, modos de mezcla y keyframes |
-| 6 | Exportación con NVENC y alternativa por software |
-| 7 | IA local: subtítulos con Whisper, quitar fondo, cortes al ritmo y detección de silencios |
+| 3 ✔ | Varias capas, compositor en GPU (Direct3D 11), presupuesto de VRAM y proxies |
+| 4 ✔ | Interfaz WinUI 3: biblioteca, reproductor, línea de tiempo, inspector, atajos y complementos |
+| 5 | Efectos, LUT, modos de mezcla, filtros en el render y audio con volumen y fundidos |
+| 6 | Exportación por GPU y por CPU |
+| 7 | IA local: subtítulos, quitar fondo, cortes al ritmo y detección de silencios |
 | 8 | Órdenes en lenguaje natural y control físico con ESP32 |
 
 ## Documentación
 
-- [Arquitectura por capas](docs/arquitectura/README.md): núcleo, medios, audio, reproducción, motor, render y app, con diagramas y recorrido del código.
+- [Arquitectura por capas](docs/arquitectura/README.md): núcleo, medios, audio, reproducción, motor, render y app.
+- [Formato de proyecto](docs/formato-proyecto.md) y [formato de paquete](docs/formato-paquete.md)
+- [Decisiones](docs/decisiones.md) y [propuesta de módulos](docs/propuesta-modulos.md)
 - [Variables de entorno](docs/variables-entorno.md)
-- [Formato de proyecto](docs/formato-proyecto.md)
-- [Formato de paquete](docs/formato-paquete.md): complementos `.paquete` y módulos de IA
-- [Decisiones](docs/decisiones.md)
-- [Investigación de editores abiertos](docs/archivo/investigacion.md)
 - [Fondo legal](docs/legal.md)
-- [Propuesta de módulos: núcleo, contenido e IA](docs/propuesta-modulos.md)
 
 ## Licencia
 
