@@ -1,26 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Historial estilo Shotcut: cada paso del deshacer; clic en uno vuelve a ese estado. Los pasos deshechos se ven atenuados. -->
+<!--
+    Historial estilo Shotcut: cada paso del deshacer; clic en uno vuelve a ese estado. El paso actual va resaltado en
+    naranja, los deshechos atenuados y el que coincide con el archivo lleva la marca de guardado.
+-->
 <UserControl
     x:Class="Rodaje.App.Views.Inspector.History.HistoryPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Rodaje.App.Views.Inspector.History">
 
-    <ListView x:Name="List" Background="{StaticResource PanelBrush}" SelectionMode="None" IsItemClickEnabled="True"
-              ItemClick="OnItemClick" ItemsSource="{x:Bind Items}" Padding="0,4">
-        <ListView.ItemTemplate>
-            <DataTemplate x:DataType="local:HistoryItem">
-                <Grid Height="28" ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Ellipse Width="6" Height="6" Fill="{StaticResource AccentBrush}" Opacity="{x:Bind CurrentOpacity}" />
-                    <TextBlock Grid.Column="1" Text="{x:Bind Description}" Style="{StaticResource BodyTextStyle}" Opacity="{x:Bind TextOpacity}" />
-                    <TextBlock Grid.Column="2" Text="{x:Bind SavedText}" Style="{StaticResource CaptionTextStyle}" />
-                </Grid>
-            </DataTemplate>
-        </ListView.ItemTemplate>
-    </ListView>
+    <Grid Background="{StaticResource PanelBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Padding="12,8" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="SummaryText" Style="{StaticResource CaptionTextStyle}" />
+            <TextBlock Grid.Column="1" Style="{StaticResource CaptionTextStyle}" Text="Clic en un paso para volver" />
+        </Grid>
+
+        <ListView x:Name="List" Grid.Row="1" SelectionMode="None" IsItemClickEnabled="True"
+                  ItemClick="OnItemClick" ItemsSource="{x:Bind Items}" Padding="0,0,0,8">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="MinHeight" Value="0" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                </Style>
+            </ListView.ItemContainerStyle>
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="local:HistoryItem">
+                    <Grid Height="28">
+                        <Border Background="{StaticResource AccentSubtleBrush}" Opacity="{x:Bind CurrentOpacity}" />
+                        <Rectangle Width="2" HorizontalAlignment="Left" Fill="{StaticResource AccentBrush}" Opacity="{x:Bind CurrentOpacity}" />
+                        <Grid Padding="12,0,12,0" ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="22" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{x:Bind StepText}" Style="{StaticResource CaptionTextStyle}" Opacity="{x:Bind TextOpacity}" />
+                            <Grid Grid.Column="1">
+                                <TextBlock Text="{x:Bind Description}" Style="{StaticResource BodyTextStyle}" Opacity="{x:Bind PlainOpacity}" />
+                                <TextBlock Text="{x:Bind Description}" Style="{StaticResource BodyTextStyle}" Foreground="{StaticResource AccentBrush}"
+                                           Opacity="{x:Bind CurrentOpacity}" />
+                            </Grid>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" Opacity="{x:Bind SavedOpacity}"
+                                        ToolTipService.ToolTip="Así está el proyecto guardado en el archivo">
+                                <FontIcon Glyph="&#xE74E;" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                <TextBlock Text="guardado" Style="{StaticResource CaptionTextStyle}" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+    </Grid>
 </UserControl>

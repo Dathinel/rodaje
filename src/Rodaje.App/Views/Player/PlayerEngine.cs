@@ -88,6 +88,9 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     /// <summary>El error que detuvo el motor, por si llegó antes de que alguien escuchara <see cref="Failed"/>.</summary>
     public string? FailureMessage { get; private set; }
 
+    /// <summary>Los proxies de la vista previa, cuando el hilo de render ya los creó; para la pestaña Trabajos.</summary>
+    public Rodaje.Media.Proxies.MediaSourceResolver? ProxyResolver => Volatile.Read(ref _proxies)?.Resolver;
+
     public int SwapChainWidth => _swapChain?.Width ?? 0;
 
     public int SwapChainHeight => _swapChain?.Height ?? 0;

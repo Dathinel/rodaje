@@ -9,7 +9,7 @@ namespace Rodaje.Core.Commands;
 /// Las operaciones de arrastre llevan clave de fusión por clip y borde, y sus <c>delta</c> son relativos
 /// al estado actual, así un arrastre entero se deshace en un paso.
 /// </remarks>
-public static class Edits
+public static partial class Edits
 {
     /// <summary>Corta el clip (y sus enlazados que pasen por ese instante) en <paramref name="at"/>.</summary>
     /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: las piezas derechas nuevas, la del clip pedido primero.</remarks>

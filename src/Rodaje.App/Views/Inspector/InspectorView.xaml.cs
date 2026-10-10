@@ -25,6 +25,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         PropertiesPanel.Attach(services);
         FiltersPanel.Attach(services);
         HistoryPanel.Attach(services);
+        JobsPanel.ActiveCountChanged += (_, active) => JobsTab.Content = active > 0 ? $"Trabajos ({active})" : "Trabajos";
         JobsPanel.Attach(services);
     }
 

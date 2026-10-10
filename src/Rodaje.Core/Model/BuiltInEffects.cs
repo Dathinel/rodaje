@@ -23,5 +23,38 @@ public static class BuiltInEffects
 
         /// <summary>Opacidad de 0 a 1. Por defecto 1.</summary>
         public const string Opacity = "opacity";
+
+        /// <summary>Valor de un parámetro que falta.</summary>
+        public static double DefaultValue(string name) => name is Scale or Opacity ? 1 : 0;
     }
+
+    /// <summary>Volumen y fundidos de un clip de audio. El mezclador todavía no los aplica (fase 5).</summary>
+    public const string Audio = "rodaje.audio";
+
+    /// <summary>Parámetros de <see cref="Audio"/> y su valor cuando faltan.</summary>
+    public static class AudioParameters
+    {
+        /// <summary>Ganancia en decibelios. Por defecto 0.</summary>
+        public const string GainDb = "gainDb";
+
+        /// <summary>Duración del fundido de entrada, en segundos. Por defecto 0.</summary>
+        public const string FadeIn = "fadeIn";
+
+        /// <summary>Duración del fundido de salida, en segundos. Por defecto 0.</summary>
+        public const string FadeOut = "fadeOut";
+    }
+
+    /// <summary>Corrección de color y LUT.</summary>
+    public const string Color = "rodaje.color";
+
+    public const string Blur = "rodaje.blur";
+
+    public const string Sharpen = "rodaje.sharpen";
+
+    public const string Vignette = "rodaje.vignette";
+
+    /// <summary>Cambio de velocidad del clip.</summary>
+    public const string Speed = "rodaje.speed";
+
+    public const string Stabilize = "rodaje.stabilize";
 }
