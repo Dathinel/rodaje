@@ -1,5 +1,6 @@
 using Rodaje.App.Services;
 using Rodaje.App.Tests.Support;
+using Rodaje.App.Views.Timeline;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -457,4 +458,32 @@ public class EditorSessionTests
             return inner.Probe(path);
         }
     }
+
+    [Fact]
+    public void OcultarYBloquear_ConDeshacerYRehacer_ElVeloDeCadaClipSigueALaPista() => UiThread.Run(async () =>
+    {
+        var h = new Harness();
+        await h.ImportAndAppend("a.mp4");
+        await h.ImportAndAppend("b.mp4");
+        int edits = 0;
+        h.Session.ProjectEdited += (_, _) => edits++;
+        string id = h.MainTrack;
+        double[] Veils() => [.. h.Session.Sequence.FindTrack(id)!.Clips.Select(c => ClipDecorations.Veil(c, h.Session.Sequence.FindTrack(id)!))];
+
+        Assert.True(h.Session.Execute(Edits.SetTrackState(h.Session.SequenceId, id, hidden: true)));
+        Assert.Equal([ClipDecorations.MutedVeil, ClipDecorations.MutedVeil], Veils());
+        Assert.True(h.Session.Execute(Edits.SetTrackState(h.Session.SequenceId, id, hidden: false)));
+        Assert.Equal([0d, 0d], Veils());
+        Assert.True(h.Session.Execute(Edits.SetTrackState(h.Session.SequenceId, id, locked: true)));
+        Assert.Equal([ClipDecorations.LockedVeil, ClipDecorations.LockedVeil], Veils());
+
+        Assert.True(h.Session.Undo());
+        Assert.Equal([0d, 0d], Veils());
+        Assert.True(h.Session.Undo());
+        Assert.Equal([ClipDecorations.MutedVeil, ClipDecorations.MutedVeil], Veils());
+        Assert.True(h.Session.Redo());
+        Assert.True(h.Session.Redo());
+        Assert.Equal([ClipDecorations.LockedVeil, ClipDecorations.LockedVeil], Veils());
+        Assert.Equal(7, edits);
+    });
 }

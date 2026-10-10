@@ -231,4 +231,24 @@ public class PlanningTests
         settings.Normalize();
         Assert.NotNull(settings.Timeline);
     }
+
+    [Fact]
+    public void ElVelo_SigueAlEstadoActualDeLaPista()
+    {
+        var clip = new Clip { Id = "a", SourceOut = S(2) };
+        var track = new Track { Id = "v", Kind = TrackKind.Video, Clips = [clip] };
+        Assert.Equal(0, ClipDecorations.Veil(clip, track));
+
+        track.Hidden = true;
+        Assert.Equal(ClipDecorations.MutedVeil, ClipDecorations.Veil(clip, track));
+        track.Locked = true;
+        Assert.Equal(ClipDecorations.MutedVeil, ClipDecorations.Veil(clip, track));
+        track.Hidden = false;
+        Assert.Equal(ClipDecorations.LockedVeil, ClipDecorations.Veil(clip, track));
+        track.Locked = false;
+        Assert.Equal(0, ClipDecorations.Veil(clip, track));
+
+        clip.Enabled = false;
+        Assert.Equal(ClipDecorations.MutedVeil, ClipDecorations.Veil(clip, track));
+    }
 }

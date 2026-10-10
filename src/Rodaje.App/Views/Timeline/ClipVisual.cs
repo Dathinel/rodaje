@@ -25,7 +25,7 @@ internal readonly record struct ClipDraw(
     double WindowLeft,
     double VisibleLeft,
     bool Selected,
-    bool Dimmed,
+    double Veil,
     bool ShowEnvelope);
 
 /// <summary>
@@ -53,6 +53,7 @@ internal sealed class ClipVisual
     private readonly List<Image> _thumbPool = [];
     private readonly Path _wave = new();
     private readonly RectangleGeometry _waveBounds = new();
+    private readonly Border _veil = new();
     private readonly Polyline _envelope = new() { StrokeThickness = 1.5 };
     private readonly Path _keys = new();
     private readonly TextBlock _name = new() { FontSize = 11, TextWrapping = TextWrapping.NoWrap };
@@ -77,7 +78,9 @@ internal sealed class ClipVisual
         Root.Children.Add(_envelope);
         Root.Children.Add(_keys);
         Root.Children.Add(_name);
+        Root.Children.Add(_veil);
         Root.Children.Add(_outline);
+        _veil.Background = brushes.Background;
         _thumbs.Clip = _thumbsBounds;
         _wave.Clip = _waveBounds;
         _outline.BorderBrush = brushes.Accent;
@@ -103,7 +106,7 @@ internal sealed class ClipVisual
         Canvas.SetTop(Root, d.Top);
         Root.Width = d.Width;
         Root.Height = d.Height;
-        Root.Opacity = d.Dimmed ? 0.45 : 1;
+        UpdateVeil(d);
 
         _body.Width = d.Width;
         _body.Height = d.Height;
@@ -140,6 +143,22 @@ internal sealed class ClipVisual
 
         UpdateEnvelope(d);
         UpdateKeyframes(d);
+    }
+
+    // Un velo encima en vez de la opacidad del bloque: cambia con cada estado de la pista sin depender de cómo compone
+    // WinUI un grupo con imágenes, y vela por igual miniaturas, onda y nombre.
+    private void UpdateVeil(in ClipDraw d)
+    {
+        if (d.Veil <= 0)
+        {
+            _veil.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        _veil.Width = d.Width;
+        _veil.Height = d.Height;
+        _veil.Opacity = d.Veil;
+        _veil.Visibility = Visibility.Visible;
     }
 
     /// <summary>La x local de un instante de la línea de tiempo.</summary>
