@@ -581,6 +581,103 @@ public sealed class TimelineSessionTests
     }
 
     [Fact]
+    public void A_faster_source_skips_frames_by_design_and_that_is_not_counted_as_dropped()
+    {
+        var backend = new FakeTimelineBackend();
+        var b = new TimelineBuilder(1, 0, Rational.Fps24);
+        b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
+        b.AddVideo(0, "m", Time.Zero, Time.Zero, S(5));
+        using TimelineSession session = Open(b, backend);
+        session.Tick().Dispose();
+        session.Play();
+        for (int refresh = 0; refresh < 120; refresh++)
+        {
+            backend.Clock.Advance(Refresh60);
+            session.Tick().Dispose();
+        }
+
+        Assert.Equal(0, session.Stats.FramesDropped);
+        Assert.Equal(0, session.Stats.LateRefreshes);
+
+        backend.Clock.Advance(F(5, Rational.Fps24));
+        session.Tick().Dispose();
+        Assert.Equal(4, session.Stats.FramesDropped);
+    }
+
+    [Fact]
+    public void Showing_a_track_hidden_while_playing_resumes_on_the_exact_frame_without_drops_or_lateness()
+    {
+        var backend = new FakeTimelineBackend { ManualDecoding = true };
+        var b = new TimelineBuilder(2, 0);
+        b.AddMedia("fondo", Rational.Fps30, 3000, backend: backend);
+        b.AddMedia("pip", Rational.Fps30, 3000, backend: backend);
+        b.AddVideo(0, "fondo", Time.Zero, Time.Zero, S(20));
+        b.AddVideo(1, "pip", Time.Zero, Time.Zero, S(20));
+        using TimelineSession session = Open(b, backend);
+        Settle(session, backend);
+        session.Play();
+        PlayFor(session, backend, S(1));
+
+        b.Sequence.VideoTracks[1].Hidden = true;
+        session.Invalidate();
+        PlayFor(session, backend, S(1.5));
+
+        b.Sequence.VideoTracks[1].Hidden = false;
+        session.Invalidate();
+        long due = session.CurrentFrame;
+        using (CompositionFrame shown = session.Tick())
+        {
+            Assert.Equal(new long[] { due, due }, Indices(shown));
+        }
+
+        PlayFor(session, backend, S(0.5));
+        LayerStats pip = session.Stats.Layers[1];
+        Assert.Equal((0L, 0L, 0L), (pip.FramesDropped, pip.LateRefreshes, pip.Cuts));
+        Assert.Equal(0, session.Stats.FramesDropped);
+    }
+
+    [Fact]
+    public void A_track_hidden_for_long_is_released_and_comes_back_on_its_exact_frame_without_counting_drops()
+    {
+        var time = new ManualTimeProvider();
+        var backend = new FakeTimelineBackend { ManualDecoding = true };
+        var b = new TimelineBuilder(2, 0);
+        b.AddMedia("fondo", Rational.Fps30, 3000, backend: backend);
+        b.AddMedia("pip", Rational.Fps30, 3000, backend: backend);
+        b.AddVideo(0, "fondo", Time.Zero, Time.Zero, S(30));
+        b.AddVideo(1, "pip", Time.Zero, Time.Zero, S(30));
+        using TimelineSession session = Open(b, backend, new TimelineSessionOptions { TimeProvider = time });
+        Settle(session, backend);
+        session.Play();
+        PlayFor(session, backend, S(1), time);
+
+        b.Sequence.VideoTracks[1].Hidden = true;
+        session.Invalidate();
+        PlayFor(session, backend, S(12), time);
+        Assert.Equal(1, session.Stats.DecodersOpen);
+        Assert.True(backend.Videos.Single(v => v.Path.EndsWith("pip.mp4", StringComparison.Ordinal)).Disposed);
+
+        b.Sequence.VideoTracks[1].Hidden = false;
+        session.Invalidate();
+        using (CompositionFrame waiting = session.Tick())
+        {
+            Assert.Equal(new[] { 0 }, waiting.Layers.Select(l => l.TrackIndex));
+        }
+
+        backend.RunDecoders();
+        long due = session.CurrentFrame;
+        using (CompositionFrame back = session.Tick())
+        {
+            Assert.Equal(new long[] { due, due }, Indices(back));
+        }
+
+        PlayFor(session, backend, S(0.5), time);
+        LayerStats pip = session.Stats.Layers[1];
+        Assert.Equal((0L, 0L), (pip.FramesDropped, pip.Cuts));
+        Assert.Equal(0, session.Stats.FramesDropped);
+    }
+
+    [Fact]
     public void Disposing_releases_every_frame_and_decoder()
     {
         var backend = new FakeTimelineBackend();
@@ -646,6 +743,18 @@ public sealed class TimelineSessionTests
         }
 
         Assert.False(session.IsSeekPending);
+    }
+
+    /// <summary>Reproduce a 60 Hz con un decodificador que entrega todo lo pedido entre refresco y refresco.</summary>
+    private static void PlayFor(TimelineSession session, FakeTimelineBackend backend, Time span, ManualTimeProvider? time = null)
+    {
+        for (Time played = Time.Zero; played < span; played += Refresh60)
+        {
+            backend.Clock.Advance(Refresh60);
+            time?.Advance(TimeSpan.FromTicks((long)(Refresh60.ToSeconds() * TimeSpan.TicksPerSecond)));
+            session.Tick().Dispose();
+            backend.RunDecoders();
+        }
     }
 
     private static long[] Indices(CompositionFrame frame) => [.. frame.Layers.Select(l => l.Frame.Index)];

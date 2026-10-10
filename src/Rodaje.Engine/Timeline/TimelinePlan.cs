@@ -54,6 +54,38 @@ internal sealed class VideoClipPlan
     /// <summary>Cuadro del origen que contiene el instante: el último que empieza en o antes de él.</summary>
     public long FrameAt(Time timeline) => ToSource(timeline).ToFrames(FrameRate);
 
+    /// <summary>Cuadros del origen entre <paramref name="after"/> y <paramref name="before"/>, sin contarlos, que alguna secuencia a <paramref name="sequenceRate"/> muestra.</summary>
+    /// <remarks>Un origen más rápido que la secuencia salta cuadros por diseño; esos no son pérdidas.</remarks>
+    public long ShownBetween(long after, long before, Rational sequenceRate)
+    {
+        long count = 0;
+        long last = Math.Min(before - 1, LastFrame);
+        for (long i = Math.Max(after + 1, FirstFrame); i <= last; i++)
+        {
+            if (IsShown(i, sequenceRate))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>Algún cuadro de la secuencia empieza mientras el cuadro <paramref name="index"/> del origen está en pantalla.</summary>
+    private bool IsShown(long index, Rational sequenceRate)
+    {
+        Time from = Time.Max(Start, Start + (Time.FromFrames(index, FrameRate) - SourceIn));
+        Time to = Time.Min(End, Start + (Time.FromFrames(index + 1, FrameRate) - SourceIn));
+        long k = from.ToFrames(sequenceRate);
+        Time first = Time.FromFrames(k, sequenceRate);
+        if (first < from)
+        {
+            first = Time.FromFrames(k + 1, sequenceRate);
+        }
+
+        return first < to;
+    }
+
     /// <summary>Mismo origen y mismos tiempos: los cuadros que muestra son los mismos.</summary>
     public bool SameMapping(VideoClipPlan other) =>
         ClipId == other.ClipId && Source == other.Source && Start == other.Start
@@ -174,7 +206,7 @@ internal sealed class TimelinePlan
 {
     public const int AudioSampleRate = 48_000;
 
-    private TimelinePlan(Sequence sequence, IReadOnlyList<VideoLayerPlan> layers, AudioPlan audio)
+    private TimelinePlan(Sequence sequence, IReadOnlyList<VideoLayerPlan> layers, IReadOnlyList<VideoLayerPlan> hiddenLayers, AudioPlan audio)
     {
         SequenceId = sequence.Id;
         Width = sequence.Width;
@@ -182,6 +214,7 @@ internal sealed class TimelinePlan
         FrameRate = sequence.FrameRate;
         Duration = sequence.Duration;
         Layers = layers;
+        HiddenLayers = hiddenLayers;
         Audio = audio;
     }
 
@@ -200,6 +233,9 @@ internal sealed class TimelinePlan
 
     /// <summary>Capas visibles de abajo hacia arriba.</summary>
     public IReadOnlyList<VideoLayerPlan> Layers { get; }
+
+    /// <summary>Pistas ocultas: no se componen, pero una recién ocultada se mantiene decodificada por si vuelve.</summary>
+    public IReadOnlyList<VideoLayerPlan> HiddenLayers { get; }
 
     public AudioPlan Audio { get; }
 
@@ -224,14 +260,10 @@ internal sealed class TimelinePlan
         }
 
         var layers = new List<VideoLayerPlan>();
+        var hidden = new List<VideoLayerPlan>();
         for (int i = 0; i < sequence.VideoTracks.Count; i++)
         {
             Track track = sequence.VideoTracks[i];
-            if (track.Hidden)
-            {
-                continue;
-            }
-
             var clips = new List<VideoClipPlan>();
             foreach (Clip clip in Ordered(track))
             {
@@ -243,7 +275,7 @@ internal sealed class TimelinePlan
                 }
             }
 
-            layers.Add(new VideoLayerPlan(i, track.Id, clips));
+            (track.Hidden ? hidden : layers).Add(new VideoLayerPlan(i, track.Id, clips));
         }
 
         var audioTracks = new List<AudioTrackPlan>();
@@ -273,7 +305,7 @@ internal sealed class TimelinePlan
             audioTracks.Add(new AudioTrackPlan(track.Id, clips));
         }
 
-        return new TimelinePlan(sequence, layers, new AudioPlan(audioTracks));
+        return new TimelinePlan(sequence, layers, hidden, new AudioPlan(audioTracks));
     }
 
     private static IEnumerable<Clip> Ordered(Track track) => track.Clips.OrderBy(c => c.Start);

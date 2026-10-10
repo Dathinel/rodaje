@@ -105,6 +105,22 @@ public sealed class TimelinePlanTests
         Assert.Equal(new[] { "visible" }, plan.Layers[0].Clips.Select(c => c.ClipId));
         Assert.Empty(plan.Layers[1].Clips);
         Assert.Equal(S(6), plan.Duration);
+        VideoLayerPlan hidden = Assert.Single(plan.HiddenLayers);
+        Assert.Equal((1, "oculta"), (hidden.TrackIndex, hidden.Clips.Single().ClipId));
+    }
+
+    [Theory]
+    [InlineData(30, 30, 10, 15, 4)]
+    [InlineData(30, 24, 0, 30, 23)]
+    [InlineData(24, 30, 0, 24, 23)]
+    public void Shown_between_counts_only_the_source_frames_the_sequence_reaches(int sourceFps, int sequenceFps, long after, long before, long expected)
+    {
+        var b = new TimelineBuilder(1, 0, new Rational(sequenceFps, 1));
+        b.AddMedia("m", new Rational(sourceFps, 1), 3000);
+        b.AddVideo(0, "m", Time.Zero, Time.Zero, S(10));
+        VideoClipPlan clip = b.Plan().Layers[0].Clips[0];
+
+        Assert.Equal(expected, clip.ShownBetween(after, before, new Rational(sequenceFps, 1)));
     }
 
     [Fact]

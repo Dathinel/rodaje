@@ -85,10 +85,12 @@ public sealed class TestMediaGenerator
             return new GeneratedMedia(path, spec, encoder, FromCache: true, TimeSpan.Zero);
         }
 
-        // Un archivo a la vez: varias pruebas que piden lo mismo no lo codifican dos veces.
+        // Un archivo a la vez dentro del proceso, y cada archivo una sola vez entre procesos: las asambleas de
+        // pruebas corren en paralelo y comparten la caché.
         GenerationLock.Wait();
         try
         {
+            using CrossProcessLock fileLock = CrossProcessLock.Acquire(path);
             if (File.Exists(path))
             {
                 return new GeneratedMedia(path, spec, encoder, FromCache: true, TimeSpan.Zero);
@@ -96,7 +98,6 @@ public sealed class TestMediaGenerator
 
             Directory.CreateDirectory(CacheDirectory);
             var stopwatch = Stopwatch.StartNew();
-            // Nombre único: otro proceso de pruebas (otra asamblea) puede estar generando el mismo archivo a la vez.
             string partial = $"{path}.{Guid.NewGuid():N}.parcial{spec.FileExtension}";
             string? wav = spec.Audio == AudioCodec.None ? null : Path.Combine(Path.GetTempPath(), $"rodaje-{Guid.NewGuid():N}.wav");
             try
@@ -118,11 +119,12 @@ public sealed class TestMediaGenerator
                 });
                 try
                 {
-                    File.Move(partial, path, overwrite: true);
+                    // Sin sobrescribir: reemplazar un archivo que otro proceso tiene abierto falla con acceso denegado.
+                    File.Move(partial, path, overwrite: false);
                 }
-                catch (IOException) when (File.Exists(path))
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && File.Exists(path))
                 {
-                    // Otro proceso terminó primero y alguien ya lo está leyendo: su archivo sale de la misma especificación.
+                    // Otra copia del generador (sin este candado) terminó primero: su archivo sale de la misma especificación.
                 }
             }
             finally

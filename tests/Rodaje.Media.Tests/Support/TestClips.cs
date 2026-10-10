@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Rodaje.TestMedia;
 
 namespace Rodaje.Media.Tests.Support;
 
@@ -322,6 +323,12 @@ internal static class TestClips
             return target;
         }
 
+        using CrossProcessLock fileLock = CrossProcessLock.Acquire(target);
+        if (File.Exists(target))
+        {
+            return target;
+        }
+
         string temp = Path.Combine(MediaTestEnvironment.CacheDirectory, $"tmp-{Guid.NewGuid():N}{Path.GetExtension(name)}");
         try
         {
@@ -330,7 +337,7 @@ internal static class TestClips
                 throw new InvalidOperationException($"No se pudo generar el clip de prueba {name} con {MediaTestEnvironment.FfmpegExe}.");
             }
 
-            File.Move(temp, target, overwrite: true);
+            File.Move(temp, target, overwrite: false);
         }
         finally
         {

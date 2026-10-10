@@ -23,6 +23,9 @@ namespace Rodaje.Engine.Timeline;
 /// </remarks>
 internal sealed class TimelineScheduler : IDisposable
 {
+    /// <summary>Más que cualquier pre-roll posible: lo de las pistas ocultas nunca adelanta a lo visible.</summary>
+    private static readonly Time WarmPenalty = Time.FromSeconds(60);
+
     private readonly Lock _gate = new();
     private readonly IAudioClock _clock;
     private readonly IClipBackend _backend;
@@ -44,6 +47,7 @@ internal sealed class TimelineScheduler : IDisposable
     private int _nextSourceId;
     private long _demandFrame = long.MinValue;
     private Time _demandTime;
+    private long? _warmUntil;
     private bool _seekPending;
     private bool _endSignaled;
     private bool _disposed;
@@ -169,10 +173,21 @@ internal sealed class TimelineScheduler : IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             _plan = plan;
             var visible = plan.Layers.Select(l => l.TrackId).ToHashSet();
-            foreach (LayerState layer in _layers.Values.Where(l => !visible.Contains(l.TrackId)))
+            long now = _time.GetTimestamp();
+            foreach (LayerState layer in _layers.Values)
             {
+                if (visible.Contains(layer.TrackId))
+                {
+                    layer.HiddenSince = null;
+                    continue;
+                }
+
+                // Al volver a verse empieza de cero en la posición de ese momento: lo que pasó oculta no es pérdida ni corte.
                 layer.Release(released);
                 layer.ActiveClip = null;
+                layer.AwaitingCut = false;
+                layer.Resync = true;
+                layer.HiddenSince ??= now;
             }
 
             foreach (SourceState source in _sources.Values)
@@ -211,7 +226,8 @@ internal sealed class TimelineScheduler : IDisposable
             }
 
             Time time = _plan.FrameStart(position);
-            posts = UpdateDemand(time.ToFrames(_plan.FrameRate), force: false);
+            bool warmExpired = _warmUntil is { } until && _time.GetTimestamp() >= until;
+            posts = UpdateDemand(time.ToFrames(_plan.FrameRate), force: warmExpired);
             bool settled = true;
             foreach (VideoLayerPlan layerPlan in _plan.Layers)
             {
@@ -406,7 +422,7 @@ internal sealed class TimelineScheduler : IDisposable
 
         if (layer.CountDrops && running && layer.CurrentSource == source && layer.Current is { } previous)
         {
-            layer.Dropped += Math.Max(0, frame.Index - previous.Index - 1);
+            layer.Dropped += clip.ShownBetween(previous.Index, frame.Index, _plan.FrameRate);
         }
 
         layer.Release(released);
@@ -498,6 +514,22 @@ internal sealed class TimelineScheduler : IDisposable
         }
 
         long now = _time.GetTimestamp();
+        _warmUntil = null;
+        foreach (VideoLayerPlan layer in _plan.HiddenLayers)
+        {
+            // Una pista recién ocultada sigue decodificando su tramo, detrás de todo lo visible, por si vuelve a verse.
+            if (!_layers.TryGetValue(layer.TrackId, out LayerState? state) || state.HiddenSince is not { } since
+                || _time.GetElapsedTime(since, now) >= _idleTimeout || layer.ClipAt(time) is not { } clip)
+            {
+                continue;
+            }
+
+            long due = clip.FrameAt(time);
+            Source(clip).Windows.Add(new Window(due, Math.Min(due + _prefetch, clip.LastFrame + 1), Due: false, clip, Warm: true));
+            long until = since + (long)(_idleTimeout.TotalSeconds * _time.TimestampFrequency);
+            _warmUntil = _warmUntil is { } earlier ? Math.Min(earlier, until) : until;
+        }
+
         foreach (SourceState source in _sources.Values)
         {
             if (source.Windows.Count == 0)
@@ -565,7 +597,8 @@ internal sealed class TimelineScheduler : IDisposable
 
         VideoClipPlan clip = window.Clip;
         Time shownAt = Time.Max(clip.Start, clip.Start + (Time.FromFrames(index, clip.FrameRate) - clip.SourceIn));
-        return Math.Max(0, (shownAt - _demandTime).Ticks);
+        long delay = Math.Max(0, (shownAt - _demandTime).Ticks);
+        return window.Warm ? WarmPenalty.Ticks + delay : delay;
     }
 
     private void CollectIdleSources(List<SourceState> closing)
@@ -889,7 +922,8 @@ internal sealed class TimelineScheduler : IDisposable
     }
 
     /// <summary>Cuadros <c>[Start, End)</c> del origen que necesita un clip; <see cref="Due"/> es el que toca mostrar ya.</summary>
-    private readonly record struct Window(long Start, long End, bool Due, VideoClipPlan Clip);
+    /// <remarks><see cref="Warm"/>: de una pista oculta; va detrás de todo lo visible y es lo primero que la caché descarta.</remarks>
+    private readonly record struct Window(long Start, long End, bool Due, VideoClipPlan Clip, bool Warm = false);
 
     private sealed class SourceState(int id, SourceKey key)
     {
@@ -954,6 +988,9 @@ internal sealed class TimelineScheduler : IDisposable
 
         /// <summary>El corte llegó sin su primer cuadro listo; los refrescos hasta tenerlo cuentan como tarde en el corte.</summary>
         public bool AwaitingCut { get; set; }
+
+        /// <summary>Desde cuándo está oculta la pista; nulo mientras se ve.</summary>
+        public long? HiddenSince { get; set; }
 
         public long Shown { get; set; }
 
