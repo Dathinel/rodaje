@@ -1,6 +1,6 @@
 # Fase 5: efectos, LUT, mezcla, transiciones y audio
 
-Plan del 10 de octubre de 2026. Pendiente de las tres preguntas del final.
+Plan del 10 de octubre de 2026, aprobado por Daniel: transiciones centradas en el corte sin solapar clips, texto y títulos en una fase 5b aparte, y paquetes solo con primitivas (sin shaders propios).
 
 ## Punto de partida
 
