@@ -1,6 +1,6 @@
 # Arquitectura de Rodaje
 
-Rodaje es un editor de video nativo para Windows escrito en C# sobre .NET 10. Se entrega como un ejecutable Native AOT autocontenido y sin instalador. El código se reparte en capas, cada una en su propio proyecto y apoyada solo en las de abajo. Cada documento describe una capa tal como está hoy (fases 1 a 3, y la 4 en curso), con sus archivos, su lógica y cómo se prueba.
+Rodaje es un editor de video nativo para Windows escrito en C# sobre .NET 10. Se entrega como un ejecutable Native AOT autocontenido y sin instalador. El código se reparte en capas, cada una en su propio proyecto y apoyada solo en las de abajo. Cada documento describe una capa tal como está hoy (fases 1 a 4), con sus archivos, su lógica y cómo se prueba.
 
 ```mermaid
 flowchart TB
@@ -35,7 +35,8 @@ flowchart TB
 | Motor | [motor.md](motor.md) | Varias capas con pre-roll, varios decodificadores por medio, presupuesto de VRAM, mezcla y proxies |
 | Render | [render.md](render.md) | Composición en Direct3D 11 sin copias, con el color y la geometría de cada capa |
 | Paquetes | [formato-paquete.md](../formato-paquete.md) | Manifiesto, instalación segura y catálogo de los complementos, para compartir con los demás programas |
-| App | [app.md](app.md) | La interfaz WinUI 3 en construcción (con miniaturas, formas de onda, biblioteca y complementos) |
+| App | [app.md](app.md) | El contrato de la interfaz WinUI 3: `EditorSession`, comandos y eventos, atajos, ajustes, avisos, miniaturas y complementos |
+| Vistas | [app-vistas.md](app-vistas.md) | Qué hace cada vista: biblioteca, reproductor y medidores, línea de tiempo, inspector, atajos y complementos |
 
 ## Reglas que atraviesan todas las capas
 
@@ -51,7 +52,7 @@ flowchart TB
 
 | Comando | Qué hace |
 |---|---|
-| `ABRIR.bat` | Restaura, compila y corre todas las pruebas ([`herramientas/probar.ps1`](../../herramientas/probar.ps1)); `-Filtro texto` corre solo las que coinciden |
+| `ABRIR.bat` | Restaura, compila y corre todas las pruebas ([`herramientas/probar.ps1`](../../herramientas/probar.ps1)); `-Filtro texto` corre solo las que coinciden. Las de la categoría `TiempoReal` corren en una segunda pasada, solas, para que la carga de las demás no las falsee |
 | `ABRIR.bat cobertura` | Lo mismo, más la cobertura de `Rodaje.Core` |
 | `ABRIR.bat aot` | Publica y ejecuta la prueba de humo del núcleo con Native AOT ([`publicar-aot-prueba.ps1`](../../herramientas/publicar-aot-prueba.ps1)) |
 | `ABRIR.bat aceptacion` | Criterios de la fase 2 con video y audio reales, en serie ([`aceptacion.ps1`](../../herramientas/aceptacion.ps1)) |
@@ -68,6 +69,7 @@ flowchart TB
 - **Descargas cortadas.** Se escriben como `.part` y solo se aceptan completas y con la huella correcta: basta repetir.
 - **Native AOT** necesita `link.exe` de Visual Studio Build Tools 2022 con la carga de C++.
 - **Paquetes NuGet** fijados en `packages.lock.json`: un cambio sin actualizarlos hace fallar la restauración a propósito.
+- **Filtros con `&` y `dotnet-local.cmd`.** cmd.exe corta el filtro en el `&`, y como el .cmd reenvía los argumentos, `^&` no alcanza. Desde PowerShell funciona `--filter 'Categoria=TiempoReal^^^&FullyQualifiedName~Timeline'` o el filtro con comillas dentro: `--filter '"Categoria=TiempoReal&FullyQualifiedName~Timeline"'`.
 - **Espacios de nombres en las pruebas.** `Rodaje.X.Tests.Timing` tapa a `Rodaje.Core.Timing`; en las pruebas se usa el nombre completo o un `using`.
 - **Carpetas sincronizadas** (OneDrive). Pueden bloquear el `File.Replace` del guardado atómico. Si pasa, guardar falla con un error y el proyecto anterior queda intacto.
 
