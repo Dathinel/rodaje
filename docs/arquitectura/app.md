@@ -48,6 +48,7 @@ event EventHandler<ClipVisualsChangedEventArgs>? Changed;                 // Med
 Filmstrip GetFilmstrip(string mediaId, Time sourceStart, Time sourceEnd, int count, int height);
 WaveformSlice GetWaveform(string mediaId, Time sourceStart, Time sourceEnd, int buckets);
 BgraImage? GetThumbnail(string mediaId, Time sourceTime, int height);
+BgraImage? GetNearestThumbnail(string mediaId, Time sourceTime, Time spacing, int height);   // la tira de la línea de tiempo
 ```
 
 - **Miniaturas.** `ThumbnailDecoder` (en `Rodaje.Media`) decodifica en la CPU sin filtro de desbloqueo y saltándose los cuadros que nadie usa como referencia, y reduce con swscale a BGRA del alto pedido con la rotación aplicada. Va en la CPU a propósito: así no toca el presupuesto de VRAM de la reproducción ([D-019](../decisiones.md)) y una miniatura de 1080p sale en unos 50 ms. Si el siguiente instante queda poco más adelante sigue decodificando sin buscar, así una tira en orden recorre el archivo una vez.
@@ -56,7 +57,7 @@ BgraImage? GetThumbnail(string mediaId, Time sourceTime, int height);
 - **Cachés.** En memoria, 128 MB con expulsión de la menos usada; en disco, `cache\miniaturas` (512 MB) y `cache\ondas` (128 MB), con la huella del original en el nombre: si el archivo cambia, no se reutiliza nada viejo. Al arrancar se recorta lo que pase del presupuesto.
 - **Formas de onda.** `WaveformPeaks` guarda mínimo y máximo por cada 256 muestras a 48 kHz y niveles reducidos de 4 en 4; cada pedido usa el más grueso que todavía da un pico por tramo. Mientras se calcula crece por el final y se puede leer a la vez.
 - **Adaptador WinUI.** `Views/Shared/BgraBitmaps` convierte un `BgraImage` en `WriteableBitmap` una sola vez por imagen.
-- **Para la línea de tiempo.** Su contrato es otro (`Views/Timeline/IClipVisuals`: una miniatura por llamada y la forma de onda entera); `Views/Shared/TimelineClipVisuals` lo cumple con `ClipVisuals` y la ventana lo asigna a `TimelineView.ClipVisuals`. La separación entre miniaturas se deduce de dos pedidos seguidos del mismo medio y decide la rejilla (`GetNearestThumbnail`); mientras falta, se devuelve la más cercana que ya esté en memoria. La forma de onda llega completa, con picos de 1024 muestras (21 ms).
+- **Para la línea de tiempo.** Usa el mismo `IClipVisuals`, que la ventana asigna a `TimelineView.ClipVisuals`. Cada miniatura de la tira se pide con `GetNearestThumbnail`, con la separación entre miniaturas del zoom actual, que decide la rejilla; mientras falta, se devuelve la más cercana que ya esté en memoria. La forma de onda se pide con `GetWaveform`, un tramo por punto dibujado; mientras se calcula se dibuja el marcador de posición.
 
 ### Complementos (`Services/Packages`)
 

@@ -171,11 +171,6 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
         return new WaveformSlice(min, max, complete, true);
     }
 
-    /// <summary>
-    /// Para quien pide miniaturas una a una (la tira de la línea de tiempo): ajusta el instante a la rejilla que
-    /// corresponde a la separación entre miniaturas y la pide; mientras no esté, devuelve la más cercana que ya haya en
-    /// memoria para ese archivo y alto, o <c>null</c>.
-    /// </summary>
     public BgraImage? GetNearestThumbnail(string mediaId, Time sourceTime, Time spacing, int height)
     {
         if (Resolve(mediaId) is not { } path)
@@ -198,23 +193,6 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
         }
 
         return nearest is { } ticks && _thumbnails.TryGet(new ThumbnailKey(path, ticks, heightClass), out BgraImage? image) ? image : null;
-    }
-
-    /// <summary>Los picos de un archivo tal como están (completos o creciendo), y los pide si faltan; <c>null</c> sin audio o mientras se empieza.</summary>
-    public WaveformPeaks? GetPeaks(string mediaId)
-    {
-        if (Resolve(mediaId) is not { } path || _noWaveform.ContainsKey(path))
-        {
-            return null;
-        }
-
-        if (_waveforms.TryGetValue(path, out WaveformPeaks? peaks))
-        {
-            return peaks;
-        }
-
-        EnqueueWaveform(path);
-        return null;
     }
 
     /// <summary>Por qué un archivo no da miniaturas, o <c>null</c>.</summary>

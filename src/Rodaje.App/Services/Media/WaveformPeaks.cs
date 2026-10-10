@@ -165,30 +165,6 @@ public sealed class WaveformPeaks
         return (min, max);
     }
 
-    /// <summary>Muestras por pico de un nivel (0 es el de base).</summary>
-    public static int SamplesPerPeak(int level) => BaseSamplesPerPeak << (2 * Math.Clamp(level, 0, LevelCount - 1));
-
-    /// <summary>Valor absoluto máximo de cada pico de un nivel, entre 0 y 1. Solo con los picos completos.</summary>
-    public float[] Envelope(int level)
-    {
-        if (!_complete)
-        {
-            throw new InvalidOperationException("Los picos todavía se están calculando.");
-        }
-
-        level = Math.Clamp(level, 0, LevelCount - 1);
-        short[] lmin = _levelMin![level];
-        short[] lmax = _levelMax![level];
-        int count = level == 0 ? Count : lmin.Length;
-        float[] envelope = new float[count];
-        for (int i = 0; i < count; i++)
-        {
-            envelope[i] = Math.Min(1f, Math.Max(-lmin[i], (int)lmax[i]) / 32767f);
-        }
-
-        return envelope;
-    }
-
     public byte[] Serialize()
     {
         if (!_complete)

@@ -28,6 +28,12 @@ public interface IClipVisuals
 
     /// <summary>Una miniatura suelta (por ejemplo, la portada en la biblioteca), o <c>null</c> mientras se hace.</summary>
     BgraImage? GetThumbnail(string mediaId, Time sourceTime, int height);
+
+    /// <summary>
+    /// Para quien pide miniaturas una a una (la tira de la línea de tiempo): ajusta el instante a la rejilla de
+    /// <paramref name="spacing"/> y la pide; mientras no esté, devuelve la más cercana ya hecha de ese archivo y alto.
+    /// </summary>
+    BgraImage? GetNearestThumbnail(string mediaId, Time sourceTime, Time spacing, int height);
 }
 
 public enum ClipVisualKind

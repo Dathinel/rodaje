@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
+using Rodaje.App.Services.Media;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Windows.Foundation;

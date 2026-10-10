@@ -91,7 +91,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         Player.Attach(_services);
         Inspector.Attach(_services);
         Timeline.Attach(_services);
-        Timeline.ClipVisuals = new Views.Shared.TimelineClipVisuals(_visuals);
+        Timeline.ClipVisuals = _visuals;
 
         session.Notified += (_, n) => ShowNotification(n);
         session.ProjectOpened += (_, _) => RememberProject();

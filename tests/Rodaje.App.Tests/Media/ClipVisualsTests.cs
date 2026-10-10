@@ -306,22 +306,6 @@ public sealed class ClipVisualsTests : IDisposable
     }
 
     [Fact]
-    public void Peaks_for_the_timeline_come_whole_once_complete()
-    {
-        using ClipVisuals visuals = Create();
-
-        Assert.Null(visuals.GetPeaks("a1"));
-        WaveformPeaks peaks = WaitFor(() => visuals.GetPeaks("a1") is { IsComplete: true } p ? p : null);
-        float[] envelope = peaks.Envelope(1);
-
-        Assert.Equal(1024, WaveformPeaks.SamplesPerPeak(1));
-        Assert.Equal((int)Math.Ceiling(3 * 48_000 / 1024.0), envelope.Length);
-        Assert.All(envelope, v => Assert.Equal(0.5f, v, 3));
-        Assert.Throws<InvalidOperationException>(() => new WaveformPeaks(48_000).Envelope(0));
-        Assert.Null(visuals.GetPeaks("a2"));
-    }
-
-    [Fact]
     public void Changed_is_raised_on_the_given_context()
     {
         UiThread.Run(async () =>

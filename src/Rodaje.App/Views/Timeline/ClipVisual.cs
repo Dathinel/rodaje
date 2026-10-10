@@ -2,6 +2,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
+using Rodaje.App.Services.Media;
+using Rodaje.App.Views.Shared;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Windows.Foundation;
@@ -34,6 +36,9 @@ internal sealed class ClipVisual
 {
     private const double NameHeight = 15;
     private const double DetailMinWidth = 14;
+
+    /// <summary>Escala si todavía no se conoce la de la pantalla: las miniaturas se piden en píxeles físicos.</summary>
+    private const double FallbackScale = 1.5;
 
     private readonly TimelineBrushes _brushes;
     // Solo fondos, sin trazo ni esquinas redondeadas: así se componen en la GPU; un trazo se rasteriza en cada cambio de tamaño.
@@ -122,7 +127,7 @@ internal sealed class ClipVisual
 
         if (d.Kind == TrackKind.Audio && detailed)
         {
-            UpdateWaveform(d, visuals?.GetWaveform(d.Clip.MediaId));
+            UpdateWaveform(d, visuals);
         }
         else
         {
@@ -184,6 +189,9 @@ internal sealed class ClipVisual
         int thumbs = 0;
         if (visuals is not null)
         {
+            // La separación entre miniaturas decide la rejilla de instantes: un mismo zoom reutiliza las mismas miniaturas.
+            Time spacing = Time.FromSeconds(tile / d.PixelsPerSecond);
+            int pixels = (int)Math.Ceiling(height * (Root.XamlRoot?.RasterizationScale ?? FallbackScale));
             int first = (int)Math.Max(0, Math.Floor(-origin / tile));
             int last = (int)Math.Ceiling((d.Width - origin) / tile);
             for (int k = first; k <= last; k++)
@@ -195,10 +203,10 @@ internal sealed class ClipVisual
                 }
 
                 Time sourceTime = d.Clip.ToSourceTime(TimeAt(d, x + (tile / 2)));
-                if (visuals.GetThumbnail(d.Clip.MediaId, sourceTime, height) is { } image)
+                if (visuals.GetNearestThumbnail(d.Clip.MediaId, sourceTime, spacing, pixels) is { } image)
                 {
                     Image view = Thumb(thumbs++);
-                    view.Source = image;
+                    view.Source = BgraBitmaps.From(image);
                     view.Width = tile - 2;
                     view.Height = height;
                     Canvas.SetLeft(view, x + 1);
@@ -234,7 +242,7 @@ internal sealed class ClipVisual
         }
     }
 
-    private void UpdateWaveform(in ClipDraw d, WaveformPeaks? peaks)
+    private void UpdateWaveform(in ClipDraw d, IClipVisuals? visuals)
     {
         double top = NameHeight - 2;
         double half = (d.Height - top - 3) / 2;
@@ -249,12 +257,16 @@ internal sealed class ClipVisual
         int count = (int)Math.Ceiling(d.Width / step) + 1;
         var upper = new Point[count];
         Clip clip = d.Clip;
+
+        // Mientras se calcula (o sin sonido) se dibuja el marcador de posición.
+        WaveformSlice? slice = visuals?.GetWaveform(clip.MediaId, clip.ToSourceTime(TimeAt(d, 0)), clip.ToSourceTime(TimeAt(d, count * step)), count);
+        bool real = slice is { IsComplete: true, HasAudio: true } && slice.Buckets == count;
         for (int i = 0; i < count; i++)
         {
             double x = Math.Min(d.Width, i * step);
-            Time from = clip.ToSourceTime(TimeAt(d, x));
-            Time to = clip.ToSourceTime(TimeAt(d, x + step));
-            float peak = peaks is null ? ClipDecorations.PlaceholderPeak(clip.MediaId, from) : peaks.Max(from, to);
+            float peak = real
+                ? Math.Clamp(Math.Max(-slice!.Min[i], slice.Max[i]), 0, 1)
+                : ClipDecorations.PlaceholderPeak(clip.MediaId, clip.ToSourceTime(TimeAt(d, x)));
             upper[i] = new Point(x, center - (peak * half));
         }
 
