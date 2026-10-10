@@ -10,8 +10,11 @@ internal readonly record struct SourceKey(string MediaId, string Path);
 /// <summary>Clip de video listo para programar: tiempos copiados del modelo y su transformación, si tiene.</summary>
 internal sealed class VideoClipPlan
 {
-    public VideoClipPlan(string clipId, SourceKey source, Time start, Time sourceIn, Time sourceOut, Rational frameRate, TransformPlan? transform)
+    public VideoClipPlan(string clipId, SourceKey source, Time start, Time sourceIn, Time sourceOut, Rational frameRate, TransformPlan? transform,
+        int displayWidth = 0, int displayHeight = 0)
     {
+        DisplayWidth = displayWidth;
+        DisplayHeight = displayHeight;
         ClipId = clipId;
         Source = source;
         Start = start;
@@ -35,6 +38,11 @@ internal sealed class VideoClipPlan
     public Rational FrameRate { get; }
 
     public TransformPlan? Transform { get; }
+
+    /// <summary>Tamaño en pantalla del original según el proyecto (0 si no se conoce); un proxy se ajusta con este.</summary>
+    public int DisplayWidth { get; }
+
+    public int DisplayHeight { get; }
 
     public Time End => Start + (SourceOut - SourceIn);
 
@@ -199,6 +207,28 @@ internal sealed record AudioTrackPlan(string TrackId, IReadOnlyList<AudioClipPla
 internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks)
 {
     public static AudioPlan Empty { get; } = new([]);
+
+    /// <summary>Mismas pistas con los mismos clips en el mismo orden: lo que suena no cambia.</summary>
+    public bool SoundsLike(AudioPlan other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (Tracks.Count != other.Tracks.Count)
+        {
+            return false;
+        }
+
+        for (int t = 0; t < Tracks.Count; t++)
+        {
+            AudioTrackPlan a = Tracks[t];
+            AudioTrackPlan b = other.Tracks[t];
+            if (a.TrackId != b.TrackId || !a.Clips.SequenceEqual(b.Clips))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }
 
 /// <summary>Instantánea inmutable de una secuencia para reproducirla; se reconstruye tras cada edición.</summary>
@@ -271,7 +301,7 @@ internal sealed class TimelinePlan
                     && m.HasVideo && m.FrameRate is { } rate)
                 {
                     clips.Add(new VideoClipPlan(clip.Id, Key(m, projectDirectory), clip.Start, clip.SourceIn, clip.SourceOut, rate,
-                        TransformPlan.From(clip)));
+                        TransformPlan.From(clip), m.Width, m.Height));
                 }
             }
 

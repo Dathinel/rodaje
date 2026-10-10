@@ -74,6 +74,7 @@ internal sealed unsafe class VisorWindow : IDisposable
     private VisorProject? _project;
     private TimelineSession? _session;
     private Compositor? _compositor;
+    private PreviewProxies? _proxies;
     private AutomatedRun? _automation;
     private ExceptionDispatchHolder? _fatal;
 
@@ -156,6 +157,8 @@ internal sealed unsafe class VisorWindow : IDisposable
                 ProjectDirectory = project.Directory,
                 AllowHardwareDecoding = !_args.ForceSoftwareDecoding,
                 EnableAudio = !_args.DisableAudio,
+                UseProxies = _args.Proxies,
+                ProxyResolver = _args.Proxies == ProxyUsage.Never ? null : (_proxies ??= PreviewProxies.Create()).Resolver,
             });
         }
         catch (Exception ex) when (ex is MediaException or FfmpegNotFoundException or IOException or UnauthorizedAccessException
@@ -237,6 +240,7 @@ internal sealed unsafe class VisorWindow : IDisposable
             else
             {
                 _ = MsgWaitForMultipleObjectsEx(0, null, IdleWaitMs, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+                _compositor?.TrimCachedViews();
                 // En pausa no se pinta, pero un cuadro pedido puede haber llegado.
                 if (_session is not null)
                 {
@@ -257,6 +261,7 @@ internal sealed unsafe class VisorWindow : IDisposable
     public void Dispose()
     {
         CloseSession();
+        _proxies?.Dispose();
         _gpuSampler.Dispose();
         _renderer?.Dispose();
         _renderer = null;
@@ -995,7 +1000,7 @@ internal sealed unsafe class VisorWindow : IDisposable
         title.Append(CultureInfo.InvariantCulture, $"capas {LastFrame.Layers.Count}/{tracks}:");
         foreach (LayerStats layer in stats.Layers)
         {
-            title.Append(CultureInfo.InvariantCulture, $" V{layer.TrackIndex + 1} tarde {layer.LateRefreshes} perd. {layer.FramesDropped};");
+            title.Append(CultureInfo.InvariantCulture, $" V{layer.TrackIndex + 1}{(layer.UsesProxy ? " (proxy)" : "")} tarde {layer.LateRefreshes} perd. {layer.FramesDropped};");
         }
 
         GpuSummary gpu = _gpuSampler.Summarize();

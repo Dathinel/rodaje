@@ -9,6 +9,8 @@ namespace Rodaje.Engine.Timeline;
 /// <param name="PreRollHits">Cortes cuyo primer cuadro ya estaba decodificado al llegar.</param>
 /// <param name="PreRollMisses">Cortes que llegaron sin su primer cuadro.</param>
 /// <param name="LateAtCuts">Refrescos tarde entre un corte sin su cuadro y la llegada de ese cuadro.</param>
+/// <param name="UsesProxy">El cuadro en pantalla sale de un proxy de vista previa.</param>
+/// <param name="Failure">Por qué la capa está vacía: el medio de su clip no se pudo abrir. Nulo si no falla.</param>
 public readonly record struct LayerStats(
     int TrackIndex,
     string TrackId,
@@ -18,7 +20,9 @@ public readonly record struct LayerStats(
     long Cuts = 0,
     long PreRollHits = 0,
     long PreRollMisses = 0,
-    long LateAtCuts = 0);
+    long LateAtCuts = 0,
+    bool UsesProxy = false,
+    string? Failure = null);
 
 /// <summary>Estado del audio mezclado.</summary>
 /// <param name="DecodersOpen">Decodificadores de audio abiertos ahora.</param>
@@ -33,7 +37,7 @@ public readonly record struct TimelineAudioStats(
 
 /// <summary>Estado medible de un <see cref="TimelineSession"/>.</summary>
 /// <param name="Layers">Una entrada por capa visible, de abajo hacia arriba.</param>
-/// <param name="DecodersOpen">Decodificadores de video abiertos ahora (uno por medio en uso).</param>
+/// <param name="DecodersOpen">Decodificadores de video abiertos ahora (uno o más por medio en uso).</param>
 /// <param name="DecodersClosed">Decodificadores cerrados por falta de uso.</param>
 /// <param name="CacheEvictions">Cuadros expulsados o descartados por el presupuesto de memoria o el tope por origen.</param>
 /// <param name="DecoderSeeks">Búsquedas de keyframe de los decodificadores abiertos.</param>
@@ -59,6 +63,24 @@ public sealed record TimelineStats(
 {
     /// <summary>Fracción de cortes que llegaron con su primer cuadro listo; 1 si no hubo cortes.</summary>
     public double PreRollHitRate => PreRollHits + PreRollMisses == 0 ? 1 : (double)PreRollHits / (PreRollHits + PreRollMisses);
+
+    /// <summary>VRAM que pueden ocupar entre todos los pools de D3D11VA de los decodificadores.</summary>
+    public long VramBudgetBytes { get; init; }
+
+    /// <summary>VRAM reservada ahora: el pool completo de cada decodificador abierto o abriéndose.</summary>
+    public long VramCommittedBytes { get; init; }
+
+    /// <summary>Mayor <see cref="VramCommittedBytes"/> desde la apertura o el último <c>ResetStats</c>.</summary>
+    public long VramPeakBytes { get; init; }
+
+    /// <summary>Decodificadores que se abrieron pasando el presupuesto porque una capa visible no tenía otro.</summary>
+    public long VramOverruns { get; init; }
+
+    /// <summary>Medios cuyo archivo no se pudo abrir; sus capas quedan vacías.</summary>
+    public int FailedMedia { get; init; }
+
+    /// <summary>Decodificadores abiertos sobre un proxy.</summary>
+    public int ProxyDecoders { get; init; }
 }
 
 /// <summary>Un medio no se pudo abrir (<see cref="FrameIndex"/> es -1) o un cuadro no se pudo decodificar.</summary>

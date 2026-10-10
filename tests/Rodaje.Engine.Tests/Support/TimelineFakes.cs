@@ -42,8 +42,12 @@ internal sealed class LiveCounter
 internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBackend owner) : IClipVideo
 {
     private readonly List<long> _requests = [];
+    private volatile bool _disposed;
 
     public string Path { get; } = path;
+
+    /// <summary>Texturas extra que pidió el programador para el pool simulado; -1 si no se simuló.</summary>
+    public int ExtraSurfaces { get; init; } = -1;
 
     public MediaInfo Info => info;
 
@@ -53,7 +57,7 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
 
     public VideoDecoderStatistics Statistics => new(0, _requests.Count, 0);
 
-    public bool Disposed { get; private set; }
+    public bool Disposed => _disposed;
 
     public IReadOnlyList<long> Requests
     {
@@ -92,7 +96,15 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
         return ValueTask.FromResult<DecodedFrame?>(frame);
     }
 
-    public void Dispose() => Disposed = true;
+    public void Dispose()
+    {
+        if (owner.DisposeDelay > TimeSpan.Zero)
+        {
+            Thread.Sleep(owner.DisposeDelay);
+        }
+
+        _disposed = true;
+    }
 }
 
 /// <summary>PCM falso: la muestra izquierda <c>n</c> vale <c>(n % 4096) / 16384</c> y la derecha, una constante del medio.</summary>
@@ -208,6 +220,17 @@ internal sealed class FakeTimelineBackend : IClipBackend
     /// <summary>Si es verdadero, cada origen decodifica solo cuando la prueba corre su <see cref="ManualExecutor"/>.</summary>
     public bool ManualDecoding { get; init; }
 
+    /// <summary>Hilos reales (<see cref="DecodeThread"/>) en lugar de ejecutar en el acto.</summary>
+    public bool RealThreads { get; init; }
+
+    /// <summary>Lo que tarda en cerrarse cada decodificador, como uno real que libera su pool.</summary>
+    public TimeSpan DisposeDelay { get; init; }
+
+    /// <summary>Si se da, cada decodificador simula un pool de D3D11VA con superficies de este tamaño y pide su tamaño al programador.</summary>
+    public long? PoolSurfaceBytes { get; init; }
+
+    public int PoolReferences { get; init; } = 10;
+
     public HashSet<string> FailOpen { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public HashSet<(string Path, long Index)> FailFrames { get; } = [];
@@ -226,7 +249,16 @@ internal sealed class FakeTimelineBackend : IClipBackend
 
     public void Register(string path, MediaInfo info) => _media[path] = info;
 
-    public IEnumerable<FakeMediaVideo> OpenVideos => Videos.Where(v => !v.Disposed);
+    public IEnumerable<FakeMediaVideo> OpenVideos
+    {
+        get
+        {
+            lock (Videos)
+            {
+                return [.. Videos.Where(v => !v.Disposed)];
+            }
+        }
+    }
 
     public IClipVideo OpenVideo(string path, VideoDecoderOptions options)
     {
@@ -235,7 +267,10 @@ internal sealed class FakeTimelineBackend : IClipBackend
             throw new MediaException($"No se pudo abrir {path}.");
         }
 
-        var video = new FakeMediaVideo(path, info, this);
+        int extra = PoolSurfaceBytes is { } surface && options.HardwarePoolSizer is { } sizer
+            ? sizer(new HardwarePoolRequest(1920, 1088, surface, PoolReferences))
+            : -1;
+        var video = new FakeMediaVideo(path, info, this) { ExtraSurfaces = extra };
         lock (Videos)
         {
             Videos.Add(video);
@@ -265,6 +300,11 @@ internal sealed class FakeTimelineBackend : IClipBackend
 
     public IDecodeExecutor CreateExecutor()
     {
+        if (RealThreads)
+        {
+            return new DecodeThread();
+        }
+
         if (!ManualDecoding)
         {
             return new InlineExecutor(Log);

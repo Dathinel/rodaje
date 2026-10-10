@@ -30,7 +30,7 @@ public sealed unsafe class GpuDevice : IDisposable
         _context = context;
         HasVideoSupport = videoSupport;
         EnableMultithreadProtection();
-        AdapterName = ReadAdapterName();
+        (AdapterName, DedicatedVideoMemory) = ReadAdapter();
         FeatureLevel = FormatFeatureLevel(device->GetFeatureLevel());
         SupportsNv12Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_NV12);
         SupportsP010Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_P010);
@@ -53,6 +53,9 @@ public sealed unsafe class GpuDevice : IDisposable
     public string AdapterName { get; }
 
     public string FeatureLevel { get; }
+
+    /// <summary>VRAM propia del adaptador en bytes; 0 si no se pudo leer (o la GPU es integrada y no declara).</summary>
+    public long DedicatedVideoMemory { get; }
 
     public bool IsDisposed => _device == null;
 
@@ -316,31 +319,66 @@ public sealed unsafe class GpuDevice : IDisposable
         return (support & needed) == needed;
     }
 
-    private string ReadAdapterName()
+    /// <summary>
+    /// VRAM local que usa este proceso ahora, según el presupuesto de DXGI (<c>QueryVideoMemoryInfo</c>); incluye
+    /// lo de cualquier otro dispositivo del proceso. <c>null</c> si el sistema no lo informa.
+    /// </summary>
+    public long? QueryLocalVideoMemoryUsage()
     {
-        IDXGIDevice* dxgi;
-        if (_device->QueryInterface(__uuidof<IDXGIDevice>(), (void**)&dxgi).FAILED)
+        ObjectDisposedException.ThrowIf(_device == null, this);
+        IDXGIAdapter* adapter = GetAdapter();
+        if (adapter == null)
         {
-            return "desconocido";
+            return null;
         }
 
         try
         {
-            IDXGIAdapter* adapter;
-            if (dxgi->GetAdapter(&adapter).FAILED)
+            IDXGIAdapter3* adapter3;
+            if (adapter->QueryInterface(__uuidof<IDXGIAdapter3>(), (void**)&adapter3).FAILED)
             {
-                return "desconocido";
+                return null;
             }
 
-            DXGI_ADAPTER_DESC desc;
-            HRESULT hr = adapter->GetDesc(&desc);
-            adapter->Release();
-            return hr.SUCCEEDED ? new string((char*)&desc.Description).TrimEnd('\0') : "desconocido";
+            DXGI_QUERY_VIDEO_MEMORY_INFO info;
+            HRESULT hr = adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP.DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info);
+            adapter3->Release();
+            return hr.SUCCEEDED ? (long)info.CurrentUsage : null;
         }
         finally
         {
-            dxgi->Release();
+            adapter->Release();
         }
+    }
+
+    private IDXGIAdapter* GetAdapter()
+    {
+        IDXGIDevice* dxgi;
+        if (_device->QueryInterface(__uuidof<IDXGIDevice>(), (void**)&dxgi).FAILED)
+        {
+            return null;
+        }
+
+        IDXGIAdapter* adapter;
+        HRESULT hr = dxgi->GetAdapter(&adapter);
+        dxgi->Release();
+        return hr.SUCCEEDED ? adapter : null;
+    }
+
+    private (string Name, long DedicatedVideoMemory) ReadAdapter()
+    {
+        IDXGIAdapter* adapter = GetAdapter();
+        if (adapter == null)
+        {
+            return ("desconocido", 0);
+        }
+
+        DXGI_ADAPTER_DESC desc;
+        HRESULT hr = adapter->GetDesc(&desc);
+        adapter->Release();
+        return hr.SUCCEEDED
+            ? (new string((char*)&desc.Description).TrimEnd('\0'), (long)desc.DedicatedVideoMemory)
+            : ("desconocido", 0);
     }
 
     // Receta del sondeo: FFmpeg recibe NUESTRO dispositivo, así sus cuadros son texturas que el

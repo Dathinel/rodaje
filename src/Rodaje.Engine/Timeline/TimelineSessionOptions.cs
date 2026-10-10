@@ -1,6 +1,20 @@
 using Rodaje.Audio;
+using Rodaje.Media.Proxies;
 
 namespace Rodaje.Engine.Timeline;
+
+/// <summary>Cuándo decodifica la vista previa el proxy de un medio en lugar del original.</summary>
+public enum ProxyUsage
+{
+    /// <summary>Si hay un proxy listo y la política de proxies lo recomienda para ese medio (más de 1080p, por ejemplo).</summary>
+    Auto,
+
+    /// <summary>Siempre que haya un proxy listo.</summary>
+    Always,
+
+    /// <summary>Nunca: siempre el original.</summary>
+    Never,
+}
 
 /// <summary>Opciones de <see cref="TimelineSession"/>.</summary>
 public sealed record TimelineSessionOptions
@@ -22,14 +36,36 @@ public sealed record TimelineSessionOptions
     /// <summary>Cuadros del inicio del clip siguiente que se tienen listos antes del corte.</summary>
     public int PreRollFrames { get; init; } = 6;
 
-    /// <summary>Presupuesto de la caché de cuadros de todas las capas: la mayor parte de la VRAM libre de una GPU de 4 GB.</summary>
+    /// <summary>Presupuesto de la caché de cuadros de todas las capas, dentro de <see cref="VramBudgetBytes"/>.</summary>
     public long MaxCacheBytes { get; init; } = 512L * 1024 * 1024;
 
-    /// <summary>Cuadros que puede retener un mismo origen; cada uno ocupa una textura del pool de su decodificador.</summary>
+    /// <summary>Cuadros que puede retener un mismo decodificador; cada uno ocupa una textura de su pool.</summary>
+    /// <remarks>Es el máximo: con la VRAM justa (por ejemplo, varias capas 4K) cada decodificador recibe menos.</remarks>
     public int MaxFramesPerSource { get; init; } = 24;
 
-    /// <summary>Un decodificador que nadie necesita durante este tiempo se cierra.</summary>
+    /// <summary>
+    /// VRAM que pueden ocupar entre todos los pools de D3D11VA (referencias, caché y cuadros en pantalla). Si es nula,
+    /// 3/8 de la VRAM dedicada de la GPU (1,5 GB en una de 4 GB), entre 512 MB y 4 GB; sin dispositivo, 1,5 GB.
+    /// </summary>
+    public long? VramBudgetBytes { get; init; }
+
+    /// <summary>Decodificadores de un mismo medio a la vez: varias pistas del mismo archivo en puntos distintos, y su pre-roll.</summary>
+    public int MaxDecodersPerMedia { get; init; } = 4;
+
+    /// <summary>Reserva para referencias lo que permite el nivel del flujo y no el peor caso (ver <c>VideoDecoderOptions</c>).</summary>
+    public bool CompactReferencePool { get; init; } = true;
+
+    /// <summary>Un decodificador que nadie necesita durante este tiempo se cierra; antes si hay muchos abiertos o falta VRAM.</summary>
     public TimeSpan DecoderIdleTimeout { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>Cuándo usar los proxies de <see cref="ProxyResolver"/>; sin resolvedor, siempre los originales.</summary>
+    public ProxyUsage UseProxies { get; init; } = ProxyUsage.Auto;
+
+    /// <summary>
+    /// Decide qué archivo decodifica la vista previa de cada medio. Cuando un proxy queda listo, la reproducción pasa a
+    /// usarlo sola, sin cortes; la exportación nunca pasa por aquí y usa siempre los originales.
+    /// </summary>
+    public MediaSourceResolver? ProxyResolver { get; init; }
 
     /// <summary>Audio mezclado por delante de lo que suena.</summary>
     public TimeSpan AudioReadAhead { get; init; } = TimeSpan.FromMilliseconds(500);
@@ -38,11 +74,13 @@ public sealed record TimelineSessionOptions
 
     internal TimeProvider TimeProvider { get; init; } = TimeProvider.System;
 
-    /// <summary>
-    /// Texturas de sobra del pool de cada decodificador: lo que retiene la caché, el cuadro en pantalla de cada capa y
-    /// la composición que todavía se dibuja, más los dos que retiene el propio decodificador.
-    /// </summary>
-    internal int ExtraHardwareFrames => MaxFramesPerSource + 8;
+    internal const long DefaultVramBudget = 1536L * 1024 * 1024;
+
+    /// <summary>El presupuesto de VRAM pedido o el que corresponde a una GPU con <paramref name="dedicatedVideoMemory"/> bytes propios.</summary>
+    internal long ResolveVramBudget(long dedicatedVideoMemory) =>
+        VramBudgetBytes ?? (dedicatedVideoMemory > 0
+            ? Math.Clamp(dedicatedVideoMemory / 8 * 3, 512L * 1024 * 1024, 4096L * 1024 * 1024)
+            : DefaultVramBudget);
 
     internal void Validate()
     {
@@ -58,6 +96,16 @@ public sealed record TimelineSessionOptions
         }
 
         ArgumentOutOfRangeException.ThrowIfLessThan(DecoderIdleTimeout, TimeSpan.Zero, nameof(DecoderIdleTimeout));
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaxDecodersPerMedia, 1, nameof(MaxDecodersPerMedia));
+        if (VramBudgetBytes is { } vram)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(vram, nameof(VramBudgetBytes));
+        }
+
+        if (!Enum.IsDefined(UseProxies))
+        {
+            throw new ArgumentOutOfRangeException(nameof(UseProxies), UseProxies, "Uso de proxies desconocido.");
+        }
         ArgumentOutOfRangeException.ThrowIfLessThan(AudioReadAhead, TimeSpan.FromMilliseconds(100), nameof(AudioReadAhead));
         ArgumentOutOfRangeException.ThrowIfGreaterThan(AudioReadAhead, TimeSpan.FromSeconds(10), nameof(AudioReadAhead));
         ArgumentNullException.ThrowIfNull(TimeProvider);

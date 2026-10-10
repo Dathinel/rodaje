@@ -193,3 +193,22 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - **Estética:** paleta grafito tipo DaVinci Resolve, acento naranja, esquinas casi rectas (2 px) y transiciones de 60 ms para que se sienta rápida.
 
 **Por qué.** Daniel quiere la facilidad de CapCut con un toque profesional y rápido, y extras que se instalen aparte y sirvan a varios programas.
+
+## D-019. Presupuesto de VRAM, varios decodificadores por medio y proxies en la vista previa (10 de octubre de 2026)
+
+**Contexto.** La revisión independiente de la fase 3 midió, con cuatro pistas 4K HEVC y cortes cada 3 s, 3,7 GB de VRAM en una GPU de 4 GB: cada decodificador reservaba unas 52 superficies (las 16 referencias del peor caso de FFmpeg más 32 de sobra), la caché de 512 MB vivía dentro de esos pools y no acotaba nada, y los decodificadores viejos seguían abiertos 5 s. Un mismo archivo en varias pistas compartía un decodificador que iba y venía con seeks.
+
+**Decisión.**
+- Un presupuesto de VRAM para los pools de D3D11VA (3/8 de la VRAM dedicada: 1,5 GB en 4 GB; configurable). Cada pool cuenta sus referencias, 5 superficies retenidas fuera de la caché, 3 de búferes de NVDEC y su caché. El tamaño de la caché de cada decodificador se decide al crear su pool, con el tamaño real de las superficies, repartiendo el presupuesto entre una capa visible y dos de pre-roll; nunca más que lo adelantado, el pre-roll y dos de margen.
+- Referencias según el nivel del flujo (H.264 anexo A, HEVC A.4.2) y no las 16 del peor caso: en 4K HEVC nivel 5.1 el pool baja de 17 a 7 superficies de referencia.
+- Para abrir un decodificador se cierran primero los que nadie usa. El pre-roll y las pistas ocultas no pasan del presupuesto; una capa visible sin decodificador sí, y se cuenta. Con muchos abiertos, el tiempo de inactividad baja a la cuarta parte.
+- Varios decodificadores por medio (hasta 4): las ventanas de un medio se agrupan en tramos y cada tramo va al decodificador que quedó más cerca. La caché pasa a ser por medio (un cuadro sirve a cualquier capa) y recuerda de qué decodificador salió cada cuadro.
+- Un cuadro adelantado que no cupo frena el adelanto de ese tramo: decodificar los siguientes obligaba a volver con un seek (en 4K eran cientos).
+- Cerrar un decodificador y soltar los cuadros que arrastran su pool ocurre en un ejecutor de servicio: el hilo de la ventana nunca espera. `Dispose` sí espera, porque después se libera el dispositivo.
+- Un medio que no abre deja su capa vacía en vez de congelar el último cuadro del clip anterior, y se informa por capa.
+- La vista previa usa proxies (`UseProxies`: Auto, Always, Never) a través de `MediaSourceResolver`; el proxy se coloca con el tamaño del original y, cuando uno queda listo, la reproducción pasa a él sin cortes: el decodificador viejo sigue con los cuadros debidos hasta que el nuevo tiene el siguiente.
+- `PlaneViewCache` suelta las vistas de un decodificador cerrado en el cuadro siguiente (o con `TrimCachedViews` en pausa) y las que llevan 2 s sin usarse.
+
+**Resultado** (RTX 3050 Laptop, cuatro pistas a 60 Hz durante 24 s, seis archivos HEVC con cortes cada 3 s): en 4K el pico de VRAM del proceso pasó de 3708 a 1417 MB (presupuesto 1485), los refrescos tarde de 359 a 14 y la peor espera de una capa de 483 a 134 ms, con 89 % de pre-roll a tiempo; en 1080p, 100 % de pre-roll y 0 tarde con 1003 MB. Un archivo en cuatro pistas con 2 s de desfase pasó de 3285 refrescos tarde (una capa esperó 6 s) a 0.
+
+**Consecuencias.** En 4K el presupuesto deja cuatro capas y dos pre-roll: si en un mismo corte entran más medios nuevos que eso, alguno llega un poco tarde. Los saltos de más de 50 ms que se ven al presentar con cuatro capas 4K ya estaban antes y no vienen del motor (el `Tick` tarda 0,1 ms de mediana): son la GPU repartida entre cuatro flujos de NVDEC; para eso están los proxies.

@@ -16,8 +16,10 @@ namespace Rodaje.Engine.Timeline;
 /// </para>
 /// <para>
 /// Hilos: transporte, <see cref="Tick"/>, <see cref="Reload"/> y <see cref="Dispose"/> se llaman desde un mismo hilo
-/// (el de la ventana). Cada medio de video decodifica en su propio hilo; la mezcla de audio, en otro. La
-/// composición que entrega <see cref="Tick"/> es de quien la recibe: debe desecharla cuando termine de dibujarla.
+/// (el de la ventana). Cada decodificador de video trabaja en su propio hilo (puede haber varios por medio, dentro de
+/// un presupuesto de VRAM); la mezcla de audio, en otro. Ninguna de esas llamadas espera a un decodificador, salvo
+/// <see cref="Dispose"/>, que los cierra todos antes de volver. La composición que entrega <see cref="Tick"/> es de
+/// quien la recibe: debe desecharla cuando termine de dibujarla.
 /// </para>
 /// </remarks>
 public sealed class TimelineSession : IDisposable
@@ -67,9 +69,10 @@ public sealed class TimelineSession : IDisposable
             {
                 Device = device,
                 AllowHardwareDecoding = options.AllowHardwareDecoding,
-                ExtraHardwareFrames = options.ExtraHardwareFrames,
+                CompactReferencePool = options.CompactReferencePool,
             };
-            _scheduler = new TimelineScheduler(plan, clock, backend, decoderOptions, options);
+            long vramBudget = options.ResolveVramBudget(device is { IsDisposed: false } gpu ? gpu.DedicatedVideoMemory : 0);
+            _scheduler = new TimelineScheduler(plan, clock, backend, decoderOptions, options, vramBudget);
             _scheduler.EndReached += (_, e) => EndReached?.Invoke(this, e);
             _scheduler.DecodeFailed += (_, e) => DecodeFailed?.Invoke(this, e);
         }
@@ -198,13 +201,24 @@ public sealed class TimelineSession : IDisposable
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(project);
         TimelinePlan plan = TimelinePlan.Build(project, SequenceId, _projectDirectory);
+        AudioPlan previous = _scheduler.Plan.Audio;
         _project = project;
         _scheduler.Reload(plan);
-        _mixer?.Reload(plan.Audio);
+        if (!plan.Audio.SoundsLike(previous))
+        {
+            // Rehacer la mezcla por delante solo si cambió lo que suena: mover una capa no toca el audio.
+            _mixer?.Reload(plan.Audio);
+        }
     }
 
     /// <summary>El proyecto que ya se reproduce cambió en el lugar (por ejemplo, con <c>UndoStack</c>): se vuelve a leer.</summary>
     public void Invalidate() => Reload(_project);
+
+    /// <summary>Esperas de un decodificador a que otros liberen su pool antes de crear el suyo, para las pruebas de carga.</summary>
+    internal (long Count, double Milliseconds) PoolWaits => _scheduler.PoolWaits;
+
+    /// <summary>Audio ya mezclado por delante de lo que suena, para las pruebas.</summary>
+    internal int BufferedAudioFrames => _mixer?.BufferedFrames ?? 0;
 
     public void ResetStats()
     {

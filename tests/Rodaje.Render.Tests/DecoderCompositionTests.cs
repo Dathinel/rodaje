@@ -62,6 +62,58 @@ public sealed class DecoderCompositionTests
         Assert.Equal(0, compositor.CachedViewCount);
     }
 
+    [DecoderGpuFact]
+    public void Views_of_a_closed_decoder_are_released_on_the_next_frame_or_trim_and_unused_ones_after_a_while()
+    {
+        GeneratedMedia clip = TestMediaGenerator.CreateDefault()!.GetOrCreate(TestMediaPresets.H264Ntsc24Aac);
+        using GpuDevice gpu = GpuDevice.Create();
+        var time = new ManualTime();
+        using var compositor = new Compositor(gpu, 640, 360, CompositeFormat.Rgba8Unorm, time);
+        using var empty = new CompositionFrame(Time.Zero, 1920, 1080, []);
+
+        // Al cerrarse el decodificador, el siguiente cuadro compuesto suelta sus vistas (y con ellas su pool).
+        VideoDecoder first = VideoDecoder.Open(clip.Path, new VideoDecoderOptions { Device = gpu });
+        RenderOne(compositor, first, 0);
+        Assert.True(compositor.CachedViewCount > 0);
+        first.Dispose();
+        compositor.Render(empty);
+        Assert.Equal(0, compositor.CachedViewCount);
+
+        // En pausa no se compone: TrimCachedViews lo hace sin dibujar.
+        VideoDecoder second = VideoDecoder.Open(clip.Path, new VideoDecoderOptions { Device = gpu });
+        RenderOne(compositor, second, 10);
+        second.Dispose();
+        Assert.True(compositor.CachedViewCount > 0);
+        compositor.TrimCachedViews();
+        Assert.Equal(0, compositor.CachedViewCount);
+
+        // Con el decodificador abierto, las vistas que nadie usa en 2 s también se sueltan.
+        using VideoDecoder third = VideoDecoder.Open(clip.Path, new VideoDecoderOptions { Device = gpu });
+        RenderOne(compositor, third, 20);
+        compositor.TrimCachedViews();
+        Assert.True(compositor.CachedViewCount > 0);
+        time.Advance(TimeSpan.FromSeconds(3));
+        compositor.TrimCachedViews();
+        Assert.Equal(0, compositor.CachedViewCount);
+    }
+
+    private static void RenderOne(Compositor compositor, VideoDecoder decoder, long index)
+    {
+        using var frame = new CompositionFrame(Time.Zero, 1920, 1080, [Layer(decoder, index, LayerTransform.Identity, 0)]);
+        Assert.Equal(new CompositeResult(1, 0), compositor.Render(frame));
+    }
+
+    private sealed class ManualTime : TimeProvider
+    {
+        private long _ticks;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp() => _ticks;
+
+        public void Advance(TimeSpan delta) => _ticks += delta.Ticks;
+    }
+
     private static LayerFrame Layer(VideoDecoder decoder, long index, LayerTransform transform, int track)
     {
         DecodedFrame frame = decoder.GetFrame(index) ?? throw new InvalidOperationException($"No se pudo decodificar el cuadro {index}.");

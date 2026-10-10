@@ -21,16 +21,20 @@ internal readonly unsafe struct PlaneViews(ID3D11ShaderResourceView* luma, ID3D1
 
 /// <summary>
 /// Crea las vistas de los planos y guarda las de las superficies del decodificador, que se reutilizan cuadro tras
-/// cuadro. Cada vista retiene su textura, así que una entrada que no se usa en <see cref="MaxIdleFrames"/> cuadros se
-/// suelta para no sostener el pool de un decodificador ya cerrado.
+/// cuadro. Cada vista retiene su textura, es decir, todo el pool de su decodificador: las de un decodificador cerrado se
+/// sueltan en el siguiente cuadro (o en <see cref="Trim"/>), y las que llevan <see cref="MaxIdle"/> sin usarse, también.
 /// </summary>
-internal sealed unsafe class PlaneViewCache(ID3D11Device* device) : IDisposable
+/// <remarks>Solo se usa desde el hilo que compone, con el candado del contexto tomado.</remarks>
+internal sealed unsafe class PlaneViewCache(ID3D11Device* device, TimeProvider? time = null) : IDisposable
 {
-    public const int MaxIdleFrames = 120;
+    public static readonly TimeSpan MaxIdle = TimeSpan.FromSeconds(2);
     private const int MaxEntries = 512;
+    private const int AgeCheckFrames = 30;
 
     private readonly Dictionary<(nint Texture, int Slice), Entry> _entries = [];
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
     private long _frame;
+    private long _closedSeen = DecoderSurfacePool.ClosedCount;
 
     public int Count => _entries.Count;
 
@@ -45,9 +49,10 @@ internal sealed unsafe class PlaneViewCache(ID3D11Device* device) : IDisposable
 
         owned = false;
         var key = (payload.Texture, payload.ArraySlice);
+        long now = _time.GetTimestamp();
         if (_entries.TryGetValue(key, out Entry entry))
         {
-            _entries[key] = entry with { LastUsed = _frame };
+            _entries[key] = entry with { LastUsed = now };
             return entry.Views;
         }
 
@@ -57,23 +62,30 @@ internal sealed unsafe class PlaneViewCache(ID3D11Device* device) : IDisposable
         }
 
         PlaneViews views = Create(payload);
-        _entries.Add(key, new Entry(views, _frame));
+        _entries.Add(key, new Entry(views, now, payload.SurfacePool));
         return views;
     }
 
-    /// <summary>Cierra un cuadro compuesto y suelta las vistas que llevan demasiado sin usarse.</summary>
+    /// <summary>Cierra un cuadro compuesto: suelta las vistas de pools cerrados y, cada tanto, las que llevan mucho sin usarse.</summary>
     public void EndFrame()
     {
         _frame++;
-        if (_frame % 30 != 0)
+        bool closedChanged = DecoderSurfacePool.ClosedCount != _closedSeen;
+        if (closedChanged || _frame % AgeCheckFrames == 0)
         {
-            return;
+            Trim();
         }
+    }
 
+    /// <summary>Suelta las vistas de pools cerrados y las que llevan más de <see cref="MaxIdle"/> sin usarse.</summary>
+    public void Trim()
+    {
+        _closedSeen = DecoderSurfacePool.ClosedCount;
+        long now = _time.GetTimestamp();
         List<(nint, int)>? stale = null;
         foreach (KeyValuePair<(nint, int), Entry> pair in _entries)
         {
-            if (_frame - pair.Value.LastUsed > MaxIdleFrames)
+            if (pair.Value.Pool is { IsClosed: true } || _time.GetElapsedTime(pair.Value.LastUsed, now) > MaxIdle)
             {
                 (stale ??= []).Add(pair.Key);
             }
@@ -102,7 +114,6 @@ internal sealed unsafe class PlaneViewCache(ID3D11Device* device) : IDisposable
     }
 
     public void Dispose() => Clear();
-
     private static (DXGI_FORMAT Luma, DXGI_FORMAT Chroma) PlaneFormats(FramePixelFormat format) => format switch
     {
         FramePixelFormat.P010 => (DXGI_FORMAT.DXGI_FORMAT_R16_UNORM, DXGI_FORMAT.DXGI_FORMAT_R16G16_UNORM),
@@ -141,5 +152,5 @@ internal sealed unsafe class PlaneViewCache(ID3D11Device* device) : IDisposable
         return view;
     }
 
-    private readonly record struct Entry(PlaneViews Views, long LastUsed);
+    private readonly record struct Entry(PlaneViews Views, long LastUsed, DecoderSurfacePool? Pool);
 }

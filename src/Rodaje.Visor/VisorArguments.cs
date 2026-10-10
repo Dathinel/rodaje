@@ -1,12 +1,13 @@
 using System.Globalization;
+using Rodaje.Engine.Timeline;
 
 namespace Rodaje.Visor;
 
-/// <summary>Línea de órdenes: <c>[archivo...] [--prueba segundos] [--registro ruta] [--sin-audio] [--cpu]</c>.</summary>
+/// <summary>Línea de órdenes: <c>[archivo...] [--prueba segundos] [--registro ruta] [--sin-audio] [--cpu] [--proxies [siempre]]</c>.</summary>
 /// <remarks>Los archivos son videos (el primero de fondo, los demás como imagen en imagen) o un solo proyecto <c>.rodaje</c>.</remarks>
 internal sealed record VisorArguments
 {
-    private const string Usage = "Uso: Rodaje.Visor [video...|proyecto.rodaje] [--prueba segundos] [--registro ruta] [--sin-audio] [--cpu]";
+    private const string Usage = "Uso: Rodaje.Visor [video...|proyecto.rodaje] [--prueba segundos] [--registro ruta] [--sin-audio] [--cpu] [--proxies [siempre]]";
 
     public IReadOnlyList<string> Files { get; init; } = [];
 
@@ -18,6 +19,9 @@ internal sealed record VisorArguments
     public bool DisableAudio { get; init; }
 
     public bool ForceSoftwareDecoding { get; init; }
+
+    /// <summary>Con <c>--proxies</c> la vista previa usa (y genera) proxies donde la política los recomienda; con <c>siempre</c>, todos los listos.</summary>
+    public ProxyUsage Proxies { get; init; } = ProxyUsage.Never;
 
     public static VisorArguments Parse(IReadOnlyList<string> args)
     {
@@ -56,6 +60,11 @@ internal sealed record VisorArguments
                     break;
                 case "--cpu":
                     result = result with { ForceSoftwareDecoding = true };
+                    break;
+                case "--proxies":
+                    bool always = i + 1 < args.Count && args[i + 1].Equals("siempre", StringComparison.OrdinalIgnoreCase);
+                    i += always ? 1 : 0;
+                    result = result with { Proxies = always ? ProxyUsage.Always : ProxyUsage.Auto };
                     break;
                 default:
                     if (arg.StartsWith("--", StringComparison.Ordinal))
