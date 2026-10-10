@@ -1,0 +1,59 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Sondeo de la fase 4 (docs/sondeo-winui.md): WinUI 3 sin empaquetar, autocontenido y con Native AOT, con el
+    reproductor en un SwapChainPanel alimentado por GpuDevice, TimelineSession y Compositor.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <RootNamespace>Rodaje.App</RootNamespace>
+    <AssemblyName>Rodaje</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <!-- RID fijo: así packages.lock.json (que incluye los paquetes del compilador AOT) es estable -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <Platforms>x64</Platforms>
+
+    <!-- WinUI 3 sin MSIX ni instalador: el Windows App SDK viaja junto al exe (activación WinRT sin registro) -->
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <!-- Sin esto, una app sin empaquetar no genera su resources.pri y InitializeComponent no encuentra el XAML -->
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <!-- Main propio (Program.cs) para medir el arranque -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+
+    <PublishAot>true</PublishAot>
+    <!-- Nivel 2: CsWinRT avisa también de tipos que cruzan a WinRT sin código generado para AOT -->
+    <CsWinRTAotWarningLevel>2</CsWinRTAotWarningLevel>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>false</UseSystemResourceKeys>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rodaje.Engine\Rodaje.Engine.csproj" />
+    <ProjectReference Include="..\Rodaje.Render\Rodaje.Render.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Componentes del Windows App SDK 2.5.1 en vez del metapaquete Microsoft.WindowsAppSDK: el metapaquete arrastra
+      Windows ML (onnxruntime.dll y DirectML.dll, 38 MB), Widgets, Search y AI, que Rodaje no usa.
+    -->
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.9" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.Foundation" Version="2.3.12" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.9" />
+    <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
+  </ItemGroup>
+
+</Project>
+
