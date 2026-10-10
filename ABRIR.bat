@@ -4,7 +4,7 @@ rem   ABRIR.bat                    todas las pruebas
 rem   ABRIR.bat cobertura          pruebas + cobertura de Rodaje.Core
 rem   ABRIR.bat aot                publica con Native AOT y ejecuta el .exe
 rem   ABRIR.bat aceptacion         criterios de la fase 2 con video y audio reales (varios minutos)
-rem   ABRIR.bat visor "C:\Users\danie\Videos\capcut\parte 1.mp4"  abre el visor de prueba con un video
+rem   ABRIR.bat visor "C:\Videos\mi-video.mp4"  abre el visor de prueba con un video
 rem   ABRIR.bat preparar-entorno   vuelve a descargar el SDK y FFmpeg
 rem   ABRIR.bat -Filtro Recorte    otros argumentos pasan tal cual a probar.ps1
 rem Variables: RODAJE_ENTORNO (otro entorno), RODAJE_SIN_PAUSA=1 (sin pausa final).
@@ -25,14 +25,17 @@ set "SCRIPT=%PROBAR%"
 
 echo.
 echo  ==============================================================================
-echo   Rodaje - editor de video para Windows (fase 1: el núcleo, sin ventana aún)
+echo   Rodaje - editor de video nativo para Windows
 echo  ==============================================================================
 echo.
-echo   Lo que se puede probar ahora es el corazón del editor: la línea de tiempo con
-echo   tiempo exacto (sin errores de redondeo entre fotogramas), las operaciones de
-echo   edición (cortar, recortar, ripple, roll, slip, slide, mover, insertar,
-echo   sobrescribir, levantar y borrar con ripple), deshacer/rehacer y el formato de
-echo   proyecto en JSON. Todo eso se comprueba con pruebas automáticas.
+echo   Sin argumentos corre todas las pruebas: la línea de tiempo con tiempo exacto,
+echo   las operaciones de edición con deshacer/rehacer, el formato de proyecto y la
+echo   capa de medios (decodificación, GPU y audio).
+echo.
+echo     cobertura    pruebas + cobertura de Rodaje.Core
+echo     aot          publica con Native AOT y ejecuta el .exe
+echo     aceptacion   criterios de la fase 2 con video y audio reales
+echo     visor        abre el visor de prueba con un video
 echo.
 
 set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"

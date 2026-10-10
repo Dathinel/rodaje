@@ -2,7 +2,7 @@
 
 Fecha: 9 de octubre de 2026. Equipo: Ryzen 7 7435HS (16 hilos), RTX 3050 Laptop 4 GB (driver 610.62), AtlasOS 11. SDK .NET 10.0.401. FFmpeg n9.0.2 `lgpl-shared` de BtbN (`avcodec-63`, `avformat-63`, `avutil-61`, `swresample-7`).
 
-El código está en `herramientas/sondeos/AotInterop/`. Es un proyecto de consola fuera de `Rodaje.slnx` con `PublishAot`, `IsAotCompatible`, los analizadores de recorte, AOT y archivo único, y `TreatWarningsAsErrors` heredado. Dos propiedades de MSBuild eligen qué se compila:
+El código ya no está en el árbol de trabajo: se conserva en la etiqueta de git `sondeo-interop-aot`, en `herramientas/sondeos/AotInterop/` (`git checkout sondeo-interop-aot -- herramientas/sondeos` lo recupera). Es un proyecto de consola fuera de `Rodaje.slnx` con `PublishAot`, `IsAotCompatible`, los analizadores de recorte, AOT y archivo único, y `TreatWarningsAsErrors` heredado. Dos propiedades de MSBuild eligen qué se compila:
 
 - `-p:Variante=` elige los enlaces de FFmpeg: `Enlazado`, `Cargado`, `AutoGen` o `NAudio`.
 - `-p:Graficos=` elige la biblioteca de D3D11 y XAudio2: `TerraFX` o `Vortice`.
@@ -95,9 +95,10 @@ ffmpeg -f lavfi -i testsrc2=s=1920x1080:r=60:d=20 -c:v h264_nvenc -b:v 20M -g 12
 ffmpeg -f lavfi -i testsrc2=s=1920x1080:r=30:d=2 -c:v hevc_nvenc -profile:v main10 -pix_fmt p010le hevc10.mp4
 ```
 
-Después se ejecuta:
+Después se recupera el sondeo desde la etiqueta y se ejecuta:
 
 ```
+git checkout sondeo-interop-aot -- herramientas/sondeos
 powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\sondeos\AotInterop\sondear.ps1 -Muestras <carpeta> [-Ffmpeg <carpeta con las DLL>]
 ```
 
