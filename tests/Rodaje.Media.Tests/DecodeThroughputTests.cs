@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Rodaje.Media.Tests.Support;
 using Rodaje.Media.Video;
 using Rodaje.Playback;
+using Rodaje.TestMedia;
 using Xunit.Abstractions;
 
 namespace Rodaje.Media.Tests;
@@ -15,7 +16,7 @@ public sealed class DecodeThroughputTests(ITestOutputHelper output)
     [HardwareFact]
     public void Hardware_decoding_of_1080p_runs_faster_than_real_time() => Measure(DecodeMode.Hardware);
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Software_decoding_of_1080p_runs_faster_than_real_time() => Measure(DecodeMode.SoftwareCpu);
 
     private void Measure(DecodeMode mode)

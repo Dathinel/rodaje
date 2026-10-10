@@ -30,7 +30,7 @@ public sealed class TimelineProxyHardwareTests(ITestOutputHelper output) : IDisp
 
     private readonly string _store = Path.Combine(Path.GetTempPath(), "rodaje-pruebas", "proxies-vista-" + Guid.NewGuid().ToString("N"));
 
-    [GpuLoadFact]
+    [HardwareFact(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac, LongRunning = true)]
     public void A_4k_clip_switches_to_its_generated_proxy_while_playing_and_every_frame_stays_exact()
     {
         using PreviewProxies proxies = PreviewProxies.Create(_store);

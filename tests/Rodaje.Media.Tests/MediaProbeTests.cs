@@ -2,12 +2,13 @@ using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Probe;
 using Rodaje.Media.Tests.Support;
+using Rodaje.TestMedia;
 
 namespace Rodaje.Media.Tests;
 
 public sealed class MediaProbeTests
 {
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void H264_with_audio_reports_exact_values()
     {
         MediaInfo info = MediaProbe.Probe(TestClips.PathOf(TestClips.H264));
@@ -34,7 +35,7 @@ public sealed class MediaProbeTests
         Assert.True(info.Duration - video.Duration < Time.FromSeconds(0.05), $"Duración {info.Duration} frente a {video.Duration}");
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Probe_fills_the_media_reference()
     {
         MediaInfo info = MediaProbe.Probe(TestClips.PathOf(TestClips.H264));
@@ -50,7 +51,7 @@ public sealed class MediaProbeTests
         Assert.Equal(TestClips.H264.Name, media.Name);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Hevc_main10_reports_ten_bits()
     {
         VideoStreamInfo video = MediaProbe.Probe(TestClips.PathOf(TestClips.Hevc10)).Video!;
@@ -61,7 +62,7 @@ public sealed class MediaProbeTests
         Assert.False(video.IsVariableFrameRate);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Matroska_without_frame_count_estimates_it_from_the_duration()
     {
         MediaInfo info = MediaProbe.Probe(TestClips.PathOf(TestClips.H264Mkv));
@@ -71,7 +72,7 @@ public sealed class MediaProbeTests
         Assert.False(info.HasAudio);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Rotation_and_sample_aspect_ratio_change_the_display_size()
     {
         VideoStreamInfo video = MediaProbe.Probe(TestClips.RotatedAnamorphic()).Video!;
@@ -81,7 +82,7 @@ public sealed class MediaProbeTests
         Assert.Equal((360, 853), (video.DisplayWidth, video.DisplayHeight));
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Variable_frame_rate_is_flagged()
     {
         VideoStreamInfo video = MediaProbe.Probe(TestClips.VariableFrameRate()).Video!;
@@ -89,7 +90,7 @@ public sealed class MediaProbeTests
         Assert.Equal(90, video.FrameCount);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Audio_only_file_has_no_video()
     {
         MediaInfo info = MediaProbe.Probe(TestClips.MonoAudio44k());
@@ -102,7 +103,7 @@ public sealed class MediaProbeTests
         Assert.Equal(0, media.Width);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Missing_or_invalid_files_fail_with_a_clear_error()
     {
         Assert.Throws<FileNotFoundException>(() => MediaProbe.Probe(Path.Combine(Path.GetTempPath(), "no-existe-rodaje.mp4")));

@@ -154,7 +154,9 @@
       "rodaje.testmedia": {
         "type": "Project",
         "dependencies": {
+          "Rodaje.Audio": "[1.0.0, )",
           "Rodaje.Core": "[1.0.0, )",
+          "Rodaje.Media": "[1.0.0, )",
           "xunit.extensibility.core": "[2.9.3, )"
         }
       },

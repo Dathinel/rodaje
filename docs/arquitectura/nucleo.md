@@ -1,0 +1,116 @@
+# Núcleo: `Rodaje.Core`
+
+La capa de dominio del editor: tiempo exacto, el modelo del proyecto, las operaciones de edición, deshacer y rehacer, y el formato `.rodaje`. No tiene ventana, FFmpeg ni código nativo; solo usa la biblioteca base de .NET. Es `net10.0` e `IsAotCompatible`. La referencian directamente `Rodaje.Playback` y `Rodaje.Media`, y por ellas todas las demás capas.
+
+```mermaid
+flowchart TB
+    Timing["Timing<br/>Time (ticks), Rational (fps)"]
+    Model["Model<br/>Project, MediaRef, Sequence, Track, Clip,<br/>efectos y keyframes, ModelValidator"]
+    Editing["Editing<br/>TimelineEdits: cortar, recortar, ripple,<br/>roll, slip, slide, mover..."]
+    Commands["Commands<br/>Edits, SequenceEditCommand,<br/>SequenceSnapshot, UndoStack"]
+    Serialization["Serialization<br/>.rodaje JSON, migraciones,<br/>guardado atómico, esquema"]
+    Model --> Timing
+    Editing --> Model
+    Commands --> Editing
+    Serialization --> Model
+```
+
+## Tiempo exacto (`Timing/`)
+
+[`Time`](../../src/Rodaje.Core/Timing/Time.cs) es un `long` de ticks y un segundo tiene **705 600 000 ticks**. Ese número es divisible entre la duración de un cuadro a 24, 25, 30, 50, 60 fps y sus variantes NTSC (29,97 fps = 23 543 520 ticks por cuadro) y entre la de una muestra a 44,1 kHz (16 000 ticks) y 48 kHz (14 700 ticks), así que sumar y restar posiciones es aritmética entera sin deriva; un `long` alcanza para más de 400 años.
+
+- Los operadores usan `checked`: se lanza `OverflowException` en vez de desbordarse en silencio.
+- `FromFrames` redondea hacia arriba y `ToFrames` hacia abajo, con cuentas intermedias en `Int128`, de modo que `FromFrames(n).ToFrames() == n` también con cadencias exóticas. Además hay `SnapToFrame`, `FromSamples`/`ToSamples` y `FromSeconds`, este solo para entradas humanas.
+- [`Rational`](../../src/Rodaje.Core/Timing/Rational.cs) es una fracción positiva y reducida para las tasas (`Ntsc30` = 30000/1001, `Fps25`...), nunca un decimal.
+
+## Modelo (`Model/`)
+
+`Project` → `Sequence` → `Track` → `Clip` → `EffectInstance` → `Parameter` → `Keyframe`. La edición es no destructiva: un clip es una referencia a un medio (`MediaId`) más tres tiempos.
+
+| Tipo | Qué guarda |
+|---|---|
+| [`Project`](../../src/Rodaje.Core/Model/Project.cs) | `SchemaVersion` (hoy 1), la biblioteca de medios y las secuencias |
+| [`MediaRef`](../../src/Rodaje.Core/Model/MediaRef.cs) | Ruta (relativa al proyecto si se puede), duración, si tiene video o audio, fps, tamaño y Hz; `ResolvePath` también resuelve casos raros de Windows como `\Videos\a.mp4` |
+| [`Sequence`](../../src/Rodaje.Core/Model/Sequence.cs) | fps, tamaño, Hz, `VideoTracks` (el índice 0 es el fondo) y `AudioTracks`; `FindClip` y `GetLinkGroup` |
+| [`Track`](../../src/Rodaje.Core/Model/Track.cs) | `Muted`, `Hidden`, `Locked` y los clips ordenados por `Start` y sin solaparse; los huecos no son objetos |
+| [`Clip`](../../src/Rodaje.Core/Model/Clip.cs) | `SourceIn` (incluido), `SourceOut` (excluido), `Start`, `LinkId`, `Enabled` y efectos; `ToSourceTime(t) = SourceIn + (t − Start)` |
+| [`Effects`](../../src/Rodaje.Core/Model/Effects.cs) | Parámetros animables con keyframes en tiempo del origen (al recortar, la animación sigue pegada al material) e interpolación `Hold`, `Linear`, `EaseIn`, `EaseOut` o `EaseInOut`; [`BuiltInEffects.Transform`](../../src/Rodaje.Core/Model/BuiltInEffects.cs) (x, y, scale, rotation, opacity) es el que usa el compositor |
+
+Los clips con el mismo `LinkId` (por ejemplo, el video y el audio de una toma) se editan juntos y con el mismo desplazamiento; un grupo no puede tener dos clips en la misma pista. [`ModelValidator`](../../src/Rodaje.Core/Model/ModelValidator.cs) reúne todas las reglas (ids únicos en todo el archivo, clips dentro de su medio, sin solapes, keyframes en orden, un clip por pista en cada enlace) con mensajes en español. [`IdGenerator`](../../src/Rodaje.Core/Model/IdGenerator.cs) da ids GUID al programa e ids secuenciales (`clip-1`) a las pruebas.
+
+## Operaciones de edición (`Editing/`)
+
+`TimelineEdits` (repartida en `.Trimming`, `.Placement` y `.Tracks`) modifica la secuencia en el sitio, respeta los enlaces, rechaza tocar pistas bloqueadas y termina siempre con `EditContext.EnsureValid()`. Si no puede hacer algo, lanza [`EditException`](../../src/Rodaje.Core/Editing/EditException.cs) con un mensaje listo para mostrar. Un `delta` positivo mueve a la derecha.
+
+En los diagramas cada carácter es un segundo, con A de 0 a 4 s, B de 4 a 10 s, C de 10 a 14 s y un clip nuevo X de 3 s:
+
+| Operación | Antes | Después |
+|---|---|---|
+| `Split` B en 7 s (la mitad derecha recibe id nuevo y efectos copiados) | `AAAABBBBBBCCCC` | `AAAABBBbbbCCCC` |
+| `Trim` final de B, −2 s (abre hueco) | `AAAABBBBBBCCCC` | `AAAABBBB··CCCC` |
+| `RippleTrim` final de B, −2 s (corre lo de después) | `AAAABBBBBBCCCC` | `AAAABBBBCCCC` |
+| `Roll` corte B/C, +2 s | `AAAABBBBBBCCCC` | `AAAABBBBBBBBCC` |
+| `Slip` B, +2 s (otra parte del archivo) | B muestra 0-6 s | B muestra 2-8 s |
+| `Slide` B, +2 s | `AAAABBBBBBCCCC` | `AAAAAABBBBBBCC` |
+| `Move` B a 8 s, modo `Overwrite` | `AAAABBBBBBCCCC` | `AAAA····BBBBBB` |
+| `Insert` X en 6 s | `AAAABBBBBBCCCC` | `AAAABBXXXBBBBCCCC` |
+| `Overwrite` X en 6 s | `AAAABBBBBBCCCC` | `AAAABBXXXBCCCC` |
+| `Lift` B / `RippleDelete` B | `AAAABBBBBBCCCC` | `AAAA······CCCC` / `AAAACCCC` |
+
+`Move` tiene tres modos (`PlacementMode`: `Strict`, `Overwrite`, `Insert`); también existen `AppendMedia` y `CloseGap`. El ripple tiene alcance (`RippleScope`): `Track` corre solo las pistas del grupo editado y `AllTracks` corre todas las no bloqueadas. A eso se suman las operaciones de pistas y estado: `AddTrack`, `RemoveTrack`, `MoveTrack`, `SetTrackState`, `SetClipEnabled`, `LinkClips` y `UnlinkClips`. Las piezas comunes están en [`TrackOps`](../../src/Rodaje.Core/Editing/TrackOps.cs) y [`TrimmingSupport`](../../src/Rodaje.Core/Editing/TrimmingSupport.cs).
+
+## Deshacer y rehacer (`Commands/`)
+
+Nada fuera del núcleo cambia el modelo directamente. La interfaz pide un comando a [`Edits`](../../src/Rodaje.Core/Commands/Edits.cs) (21 fábricas: `Edits.Split`, `Edits.Move`...) y lo pasa por [`UndoStack.Execute`](../../src/Rodaje.Core/Commands/UndoStack.cs). La IA y las órdenes en lenguaje natural harán lo mismo.
+
+```mermaid
+sequenceDiagram
+    participant UI as Interfaz
+    participant U as UndoStack
+    participant C as SequenceEditCommand
+    participant T as TimelineEdits
+    UI->>U: Execute(Edits.Split(seq, clip, 7 s))
+    U->>C: Apply(proyecto)
+    C->>C: SequenceSnapshot.Capture → foto de antes
+    C->>T: Split(EditContext, ...) y EnsureValid()
+    C->>C: pistas bloqueadas intactas; foto de después
+    U->>U: vacía rehacer, intenta fundir, guarda
+    U-->>UI: evento Changed
+```
+
+- **Instantáneas, no inversas.** [`SequenceEditCommand`](../../src/Rodaje.Core/Commands/SequenceEditCommand.cs) fotografía la secuencia antes y después ([`SequenceSnapshot`](../../src/Rodaje.Core/Commands/SequenceSnapshot.cs)). Deshacer restaura la foto de antes; rehacer restaura la de después sin repetir la operación, así que los ids creados (`CreatedIds`) no cambian. Si la operación falla a mitad, se restaura la foto de antes: una edición fallida nunca deja el proyecto a medias. Las pistas vuelven a ser los mismos objetos, pero los clips son copias nuevas, así que fuera del núcleo un clip se refiere por su id.
+- **Fusión.** Los arrastres llevan una clave (`trim:clip-3:out`, `move:clip-3`...); comandos seguidos con la misma clave se funden en un paso, y `BreakMerge` al soltar el ratón corta la fusión.
+- **Grupos.** `BeginGroup`/`EndGroup` dejan varios comandos como un único [`CompositeCommand`](../../src/Rodaje.Core/Commands/CompositeCommand.cs), que se aplica todo o nada; `CancelGroup` revierte lo hecho.
+- **Punto limpio.** `MarkClean`/`IsClean` dicen si el proyecto está como en el último guardado; nunca se funde un comando sobre ese punto.
+- El historial guarda 500 pasos por omisión. [`ProjectCommands`](../../src/Rodaje.Core/Commands/ProjectCommands.cs) cubre medios y secuencias (no deja quitar un medio en uso).
+
+## Formato `.rodaje` (`Serialization/`)
+
+JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`; la especificación está en [`docs/formato-proyecto.md`](../formato-proyecto.md) y el esquema en [`schema/`](../../schema/rodaje-proyecto.v1.schema.json).
+
+- **Abrir** ([`ProjectSerializer.Load`](../../src/Rodaje.Core/Serialization/ProjectSerializer.cs)) sigue cinco pasos:
+  1. Lee UTF-8 estricto.
+  2. Analiza el árbol JSON sin admitir campos repetidos.
+  3. [`ProjectMigrator`](../../src/Rodaje.Core/Serialization/ProjectMigrator.cs) aplica en cadena las migraciones N → N+1 sobre el árbol y rechaza versiones futuras.
+  4. Convierte con el generador de código de System.Text.Json ([`ProjectJsonContext`](../../src/Rodaje.Core/Serialization/ProjectJsonContext.cs), sin reflexión, apto para AOT).
+  5. Busca nulos dentro de las listas y valida todo.
+  Cualquier problema produce un `ProjectFormatException` con la lista completa en español.
+- **Guardar** es atómico: escribe `.tmp` con `WriteThrough`, lo pone en su lugar con `File.Replace` (la versión anterior queda como `.bak`) y reintenta ante bloqueos pasajeros. Guardar nunca valida: nunca rechaza el trabajo de quien edita.
+- **Versión** `schemaVersion` es un entero (comparar versiones como texto falla). [`ProjectSchema.Export`](../../src/Rodaje.Core/Serialization/ProjectSchema.cs) genera el esquema desde los mismos metadatos que usa el lector, y una prueba exige que coincida con el archivo publicado (`RODAJE_REGENERAR_ESQUEMA=1` lo reescribe).
+
+## Pruebas
+
+- [`tests/Rodaje.Core.Tests`](../../tests/Rodaje.Core.Tests) tiene una carpeta por área (`Timing`, `Model`, `Editing/Trimming`, `Editing/Placement`, `Commands`, `Serialization`) con casos normales, bordes y mensajes de error.
+- `Properties/EditPropertiesTests` (CsCheck) genera 10 000 proyectos aleatorios con hasta 40 de las 21 operaciones, con deshacer y rehacer intercalados, y comprueba:
+  - que un rechazo deja el proyecto idéntico byte a byte;
+  - que el proyecto siempre es válido;
+  - que las pistas bloqueadas no cambian;
+  - que deshacer reproduce cada estado anterior;
+  - que slip, roll, slide y cortar conservan lo que deben.
+  Otros 5 000 escenarios comprueban que un arrastre se funde en un paso.
+- [`tests/Rodaje.AotSmoke`](../../tests/Rodaje.AotSmoke/Program.cs) es un programa que se publica con Native AOT (`ABRIR.bat aot`): recorre todas las familias de edición, deshace y rehace 16 pasos comparando cada estado, y guarda y abre en una carpeta con espacios y una ñ. El ejecutable pesa unos 3,4 MB.
+- La cobertura de `Rodaje.Core` se mide con `ABRIR.bat cobertura` (criterio de la fase 1: al menos 90 %).
+
+## Pendiente
+
+Dos cosas se deciden probando la interfaz: si en un ripple con clips enlazados de distinto largo cada pista se corre desde el final de su propio clip, y si los `LinkId` huérfanos se limpian siempre. Si el historial pesa demasiado con proyectos grandes, se fotografiarán solo las pistas tocadas ([D-009](../decisiones.md)).

@@ -20,24 +20,18 @@ $ProgressPreference = 'SilentlyContinue'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 $Raiz = Split-Path -Parent $PSScriptRoot
+Import-Module (Join-Path $PSScriptRoot 'comun.psm1') -DisableNameChecking -Force
+$E = Inicializar-Rodaje $Raiz
 $Proyecto = Join-Path $Raiz 'src\Rodaje.Visor\Rodaje.Visor.csproj'
 $Salida = Join-Path $Raiz 'dist\Rodaje-visor'
 $Exe = Join-Path $Salida 'Rodaje.Visor.exe'
-if ($env:RODAJE_ENTORNO) { $Entorno = $env:RODAJE_ENTORNO } else { $Entorno = Join-Path $Raiz '.entorno' }
-$DotnetDir = Join-Path $Entorno 'dotnet'
-$Dotnet = Join-Path $DotnetDir 'dotnet.exe'
-$FfmpegBin = Join-Path $Entorno 'ffmpeg\bin'
+$Entorno = $E.Entorno
+$Dotnet = $E.Dotnet
+$FfmpegBin = $E.FfmpegBin
 $Bibliotecas = @('avutil-61', 'swresample-7', 'swscale-10', 'avcodec-63', 'avformat-63')
 # ffmpeg.exe (proxies) importa además estas dos; FfmpegExecutable.ExtraLibraries las exige.
 $BibliotecasDelExe = @('avfilter-12', 'avdevice-63')
-try { $SdkVersion = (Get-Content -LiteralPath (Join-Path $Raiz 'global.json') -Raw -Encoding UTF8 | ConvertFrom-Json).sdk.version } catch { $SdkVersion = '' }
-$MarcaSdk = Join-Path $DotnetDir ".sdk-$SdkVersion"
-
-function Titulo([string]$texto) { Write-Host ''; Write-Host "  $texto" -ForegroundColor Cyan }
-function Bien([string]$texto) { Write-Host "    $texto" -ForegroundColor Green }
-function Mal([string]$texto) { Write-Host "    $texto" -ForegroundColor Red }
-function Nota([string]$texto) { Write-Host "    $texto" }
-function Corto([string]$texto) { return $texto.Replace($Raiz + '\', '').Replace($Raiz, '.') }
+$MarcaSdk = $E.MarcaSdk
 
 function Publicar {
     Titulo 'Compilando el visor a código nativo (Native AOT, puede tardar un minuto)...'
@@ -48,20 +42,8 @@ function Publicar {
         return $false
     }
 
-    # Las mismas variables que herramientas\dotnet-local.cmd.
-    $env:DOTNET_ROOT = $DotnetDir
-    $env:NUGET_PACKAGES = Join-Path $Entorno 'nuget'
-    $env:DOTNET_CLI_HOME = $Entorno
-    $env:DOTNET_MULTILEVEL_LOOKUP = '0'
-    $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
-    $env:DOTNET_NOLOGO = '1'
-    $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
-    $env:DOTNET_CLI_FORCE_UTF8_ENCODING = '1'
-    $env:PATH = "$DotnetDir;$env:PATH"
-    # VsDevCmd.bat corre vswhere.exe desde la carpeta actual; con NoDefaultCurrentDirectoryInExePath
-    # puesto falla y daña la ruta de link.exe. Añadir la carpeta al PATH del proceso lo evita.
-    $instaladorVs = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer'
-    if (Test-Path -LiteralPath (Join-Path $instaladorVs 'vswhere.exe')) { $env:PATH = "$env:PATH;$instaladorVs" }
+    Usar-DotnetLocal $E
+    Agregar-Vswhere | Out-Null
 
     $resultados = Join-Path $Raiz 'TestResults'
     New-Item -ItemType Directory -Force -Path $resultados | Out-Null

@@ -12,7 +12,7 @@ public sealed class AudioTimestampJumpTests(ITestOutputHelper output)
     private const int Rate = AudioDecoder.OutputSampleRate;
     private const int Tolerance = Rate / 1000;
 
-    [Support.FfmpegTheory]
+    [FfmpegLibraryTheory]
     [InlineData(0.5, "mkv")]
     [InlineData(0.5, "mp4")]
     [InlineData(-0.5, "mkv")]
@@ -43,7 +43,7 @@ public sealed class AudioTimestampJumpTests(ITestOutputHelper output)
             Assert.InRange(m.Sample - origin - (m.Second!.Value * (long)Rate), -Tolerance, Tolerance));
     }
 
-    [Support.FfmpegTheory]
+    [FfmpegLibraryTheory]
     [InlineData("mkv")]
     [InlineData("mp4")]
     public void Seeking_past_a_gap_lands_on_the_timestamp(string extension)

@@ -16,15 +16,6 @@ using Xunit.Abstractions;
 
 namespace Rodaje.Engine.Tests.Timeline;
 
-/// <summary>Prueba de carga con GPU real: necesita D3D11VA, un codificador HEVC y <c>RODAJE_PRUEBAS_LARGAS=1</c>.</summary>
-internal sealed class GpuLoadFactAttribute : FactAttribute
-{
-    public GpuLoadFactAttribute()
-    {
-        Skip = new GpuClipFactAttribute().Skip ?? new FfmpegFactAttribute(VideoCodec.Hevc) { LongRunning = true }.Skip;
-    }
-}
-
 /// <summary>
 /// Cuatro pistas reproducidas en tiempo real a 60 Hz con decodificadores reales: cortes cada 3 s en 1080p y 4K HEVC entre seis
 /// archivos (en cada corte dos medios son nuevos y dos pasan a otra pista),
@@ -37,7 +28,7 @@ public sealed class TimelineLoadTests(ITestOutputHelper output)
     private const int CutMedia = 6;
     private static readonly Time Segment = Time.FromSeconds(3);
 
-    [GpuLoadFact]
+    [HardwareFact(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac, LongRunning = true)]
     public void Four_hevc_1080p_tracks_with_cuts_every_3_s_stay_within_the_vram_budget_with_pre_roll_on_time()
     {
         LoadResult result = Run(CutsScenario("1080p", 1920, 1080));
@@ -47,7 +38,7 @@ public sealed class TimelineLoadTests(ITestOutputHelper output)
         Assert.Equal(0, result.Stats.DecodeErrors);
     }
 
-    [GpuLoadFact]
+    [HardwareFact(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac, LongRunning = true)]
     public void Four_hevc_4k_tracks_with_cuts_every_3_s_stay_within_the_vram_budget()
     {
         LoadResult result = Run(CutsScenario("4k", 3840, 2160));
@@ -56,7 +47,7 @@ public sealed class TimelineLoadTests(ITestOutputHelper output)
         Assert.True(result.MaxTickMs < 50, $"Un Tick tardó {result.MaxTickMs:0.0} ms.");
     }
 
-    [GpuLoadFact]
+    [HardwareFact(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac, LongRunning = true)]
     public void The_same_1080p_file_on_four_tracks_two_seconds_apart_plays_without_late_refreshes()
     {
         LoadResult result = Run(SameMediaScenario());

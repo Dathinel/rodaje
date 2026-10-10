@@ -7,32 +7,9 @@ using Rodaje.TestMedia;
 
 namespace Rodaje.Engine.Tests;
 
-/// <summary>Prueba con FFmpeg, GPU con D3D11VA y ffmpeg.exe para generar el clip; se omite con el motivo si falta algo.</summary>
-internal sealed class GpuClipFactAttribute : FactAttribute
-{
-    private static readonly Lazy<string?> Reason = new(() =>
-    {
-        if (!FfmpegLibrary.TryInitialize(out string? ffmpeg))
-        {
-            return "Omitida: " + ffmpeg;
-        }
-
-        using GpuDevice? gpu = GpuDevice.TryCreate(out string? failure);
-        if (gpu is null)
-        {
-            return "Omitida: " + failure;
-        }
-
-        return gpu.SupportsHardwareDecoding ? null : $"Omitida: la GPU {gpu.AdapterName} no ofrece D3D11VA a FFmpeg.";
-    });
-
-    public GpuClipFactAttribute() =>
-        Skip = new FfmpegFactAttribute(VideoCodec.H264, AudioCodec.Aac).Skip ?? Reason.Value;
-}
-
 public sealed class ClipPlayerHardwareTests
 {
-    [GpuClipFact]
+    [HardwareFact(VideoCodec.H264, Audio = AudioCodec.Aac)]
     public void Opens_a_generated_clip_and_shows_exact_frames_from_the_gpu()
     {
         GeneratedMedia clip = TestMediaGenerator.CreateDefault()!.GetOrCreate(TestMediaPresets.H264Ntsc24Aac);

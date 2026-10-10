@@ -2,6 +2,7 @@ using Rodaje.Media.Gpu;
 using Rodaje.Media.Tests.Support;
 using Rodaje.Media.Video;
 using Rodaje.Playback;
+using Rodaje.TestMedia;
 
 namespace Rodaje.Media.Tests;
 
@@ -110,7 +111,7 @@ public sealed class FrameLifetimeTests
         Assert.Equal(baseline, device.GetDeviceReferenceCount());
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Cpu_frames_free_their_buffers()
     {
         using VideoDecoder decoder = VideoDecoder.Open(TestClips.PathOf(TestClips.H264), DecodeModes.Options(DecodeMode.SoftwareCpu));

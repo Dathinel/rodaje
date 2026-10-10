@@ -43,9 +43,3 @@ internal static class DecodeModes
     public static ClipSpec Clip(string name) =>
         new[] { TestClips.H264, TestClips.Hevc, TestClips.Hevc10, TestClips.H264Mkv }.Single(c => c.Name == name);
 }
-
-/// <summary>Teoría que necesita FFmpeg y D3D11VA.</summary>
-internal sealed class HardwareTheoryAttribute : TheoryAttribute
-{
-    public HardwareTheoryAttribute() => Skip = MediaTestEnvironment.HardwareSkipReason;
-}

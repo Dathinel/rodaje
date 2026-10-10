@@ -1,6 +1,7 @@
 using Rodaje.Core.Timing;
 using Rodaje.Media.Audio;
 using Rodaje.Media.Tests.Support;
+using Rodaje.TestMedia;
 using Xunit.Abstractions;
 
 namespace Rodaje.Media.Tests;
@@ -16,7 +17,7 @@ public sealed class AudioDecoderTests(ITestOutputHelper output)
 {
     private const int Rate = AudioDecoder.OutputSampleRate;
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Sequential_read_matches_reference_exactly()
     {
         string clip = TestClips.PathOf(TestClips.H264);
@@ -31,7 +32,7 @@ public sealed class AudioDecoderTests(ITestOutputHelper output)
         Assert.Equal(0, decoder.Read(new float[64]));
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Seek_is_bit_exact_for_lossless_audio()
     {
         string clip = TestClips.FlacStereo48k();
@@ -41,7 +42,7 @@ public sealed class AudioDecoderTests(ITestOutputHelper output)
         AssertSeeksMatch(decoder, reference, tolerance: 0, requireAlignment: false);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Seek_lands_on_the_exact_sample_with_aac()
     {
         string clip = TestClips.PathOf(TestClips.H264);
@@ -50,7 +51,7 @@ public sealed class AudioDecoderTests(ITestOutputHelper output)
         AssertSeeksMatch(decoder, reference, tolerance: 5e-2, requireAlignment: true);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Seeking_between_samples_lands_on_the_sample_that_contains_the_time()
     {
         string clip = TestClips.FlacStereo48k();
@@ -64,7 +65,7 @@ public sealed class AudioDecoderTests(ITestOutputHelper output)
         Assert.Equal(0, MaxError(reference, buffer, 30_000, 0, 128));
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Resampled_lossless_audio_keeps_its_phase_after_seeking()
     {
         string clip = TestClips.FlacMono44k();
@@ -78,7 +79,7 @@ public sealed class AudioDecoderTests(ITestOutputHelper output)
         AssertSeeksMatch(decoder, reference, tolerance: 1e-6, requireAlignment: true);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Resampled_aac_stays_aligned_after_seeking()
     {
         string clip = TestClips.MonoAudio44k();
@@ -90,7 +91,7 @@ public sealed class AudioDecoderTests(ITestOutputHelper output)
         AssertSeeksMatch(decoder, reference, tolerance: 5e-2, requireAlignment: true);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Reading_past_the_end_returns_zero()
     {
         string clip = TestClips.PathOf(TestClips.H264);
@@ -102,7 +103,7 @@ public sealed class AudioDecoderTests(ITestOutputHelper output)
         Assert.Equal(Time.FromSamples(256, Rate), decoder.Position);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Odd_buffers_and_files_without_audio_are_rejected()
     {
         AudioDecoder decoder = AudioDecoder.Open(TestClips.PathOf(TestClips.H264));

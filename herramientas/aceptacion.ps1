@@ -17,90 +17,23 @@ $ProgressPreference = 'SilentlyContinue'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 $Raiz = Split-Path -Parent $PSScriptRoot
+Import-Module (Join-Path $PSScriptRoot 'comun.psm1') -DisableNameChecking -Force
+$E = Inicializar-Rodaje $Raiz -Fases 4
 $ProyectoAceptacion = Join-Path $Raiz 'tests\Rodaje.Acceptance.Tests\Rodaje.Acceptance.Tests.csproj'
 $ProyectoAudio = Join-Path $Raiz 'tests\Rodaje.Audio.Tests\Rodaje.Audio.Tests.csproj'
-if ($env:RODAJE_ENTORNO) { $Entorno = $env:RODAJE_ENTORNO } else { $Entorno = Join-Path $Raiz '.entorno' }
-$DotnetDir = Join-Path $Entorno 'dotnet'
-$Dotnet = Join-Path $DotnetDir 'dotnet.exe'
-try { $SdkVersion = (Get-Content -LiteralPath (Join-Path $Raiz 'global.json') -Raw -Encoding UTF8 | ConvertFrom-Json).sdk.version } catch { $SdkVersion = '' }
-$MarcaSdk = Join-Path $DotnetDir ".sdk-$SdkVersion"
-$FfmpegVersion = ''
-$lineaFf = Select-String -LiteralPath (Join-Path $PSScriptRoot 'preparar-entorno.ps1') -Pattern "^\`$FfmpegVersion = '([^']+)'" | Select-Object -First 1
-if ($lineaFf) { $FfmpegVersion = $lineaFf.Matches[0].Groups[1].Value }
-$MarcaFfmpeg = Join-Path $Entorno "ffmpeg\.ffmpeg-$FfmpegVersion"
+$Dotnet = $E.Dotnet
+$MarcaSdk = $E.MarcaSdk
+$FfmpegVersion = $E.FfmpegVersion
+$MarcaFfmpeg = $E.MarcaFfmpeg
 $Reloj = [System.Diagnostics.Stopwatch]::StartNew()
-$TotalFases = 4
 $Invariante = [System.Globalization.CultureInfo]::InvariantCulture
 
-function Titulo([string]$texto) { Write-Host ''; Write-Host "  $texto" -ForegroundColor Cyan }
-function Fase([int]$n, [string]$texto) { Write-Host ''; Write-Host "  Fase $n/${TotalFases}: $texto" -ForegroundColor Cyan }
-function Bien([string]$texto) { Write-Host "    $texto" -ForegroundColor Green }
-function Mal([string]$texto) { Write-Host "    $texto" -ForegroundColor Red }
-function Aviso([string]$texto) { Write-Host "    $texto" -ForegroundColor Yellow }
-function Nota([string]$texto) { Write-Host "    $texto" }
-function Duracion([TimeSpan]$t) {
-    if ($t.TotalMinutes -ge 1) { return ('{0} min {1} s' -f [int][Math]::Floor($t.TotalMinutes), $t.Seconds) }
-    return ('{0:0.0} s' -f $t.TotalSeconds)
-}
 function Terminar([int]$codigo) {
     Write-Host ''
     Nota ("Tiempo total: " + (Duracion $Reloj.Elapsed))
     if ($script:Corrida) { Nota "Registros completos y resultados en: $script:Corrida" }
     Write-Host ''
     exit $codigo
-}
-
-function Invocar-Dotnet([string]$log, [string[]]$argumentos, [scriptblock]$AlVuelo = $null) {
-    $lineas = New-Object System.Collections.Generic.List[string]
-    $anterior = $ErrorActionPreference
-    # En PowerShell 5.1 el stderr de un programa llega como ErrorRecord y 'Stop' cortaría el script.
-    $ErrorActionPreference = 'Continue'
-    try {
-        & $Dotnet @argumentos 2>&1 | ForEach-Object {
-            $l = "$_"
-            $lineas.Add($l)
-            if ($AlVuelo) { & $AlVuelo $l }
-        }
-        $codigo = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $anterior
-    }
-    [System.IO.File]::WriteAllLines($log, $lineas, (New-Object System.Text.UTF8Encoding($false)))
-    return [pscustomobject]@{ Codigo = $codigo; Lineas = $lineas }
-}
-
-function Errores-De([System.Collections.Generic.List[string]]$lineas) {
-    $vistos = @{}
-    $lista = New-Object System.Collections.Generic.List[string]
-    foreach ($l in $lineas) {
-        if ($l -match '(?i)\berror\s+[A-Z]{2,}\d+\s*:') {
-            $limpia = ($l -replace '\s+\[[^\]]+\.(cs|fs|vb)proj[^\]]*\]\s*$', '').Trim()
-            if (-not $vistos.ContainsKey($limpia)) { $vistos[$limpia] = $true; $lista.Add($limpia) }
-        }
-    }
-    return ,$lista
-}
-
-function Corto([string]$texto) {
-    return $texto.Replace($Raiz + '\', '').Replace($Raiz, '.')
-}
-
-# Lee los .trx de una carpeta: cada prueba con su resultado, su mensaje y su salida (las líneas MEDIDA).
-function Leer-Resultados([string]$carpeta) {
-    $lista = New-Object System.Collections.Generic.List[object]
-    foreach ($archivo in @(Get-ChildItem -LiteralPath $carpeta -Recurse -Filter '*.trx' -ErrorAction SilentlyContinue)) {
-        [xml]$x = [System.IO.File]::ReadAllText($archivo.FullName)
-        foreach ($res in @($x.TestRun.Results.UnitTestResult)) {
-            if (-not $res) { continue }
-            $mensaje = ''; $pila = ''; $salida = ''
-            if ($res.Output) {
-                if ($res.Output.ErrorInfo) { $mensaje = "$($res.Output.ErrorInfo.Message)".Trim(); $pila = "$($res.Output.ErrorInfo.StackTrace)".Trim() }
-                if ($res.Output.StdOut) { $salida = "$($res.Output.StdOut)" }
-            }
-            $lista.Add([pscustomobject]@{ Nombre = "$($res.testName)"; Resultado = "$($res.outcome)"; Mensaje = $mensaje; Pila = $pila; Salida = $salida })
-        }
-    }
-    return ,$lista
 }
 
 function Medidas($resultados) {
@@ -130,7 +63,7 @@ function Correr-Suite([int]$fase, [string]$nombre, [string]$proyecto, [string]$c
     }
     $reloj = [System.Diagnostics.Stopwatch]::StartNew()
     $r = Invocar-Dotnet (Join-Path $carpeta "$fase-$nombre.log") $argumentos $alVuelo
-    $resultados = Leer-Resultados $carpeta
+    $resultados = Leer-Trx $carpeta
     Nota ("{0}: {1} pruebas en {2}" -f $nombre, $resultados.Count, (Duracion $reloj.Elapsed))
     return [pscustomobject]@{ Codigo = $r.Codigo; Lineas = $r.Lineas; Resultados = $resultados }
 }
@@ -164,7 +97,7 @@ function Mostrar-Estado([string]$criterio, [string]$estado) {
 }
 
 function Resultado-Guardado([string]$carpeta) {
-    return [pscustomobject]@{ Codigo = 0; Lineas = (New-Object System.Collections.Generic.List[string]); Resultados = (Leer-Resultados $carpeta) }
+    return [pscustomobject]@{ Codigo = 0; Lineas = (New-Object System.Collections.Generic.List[string]); Resultados = (Leer-Trx $carpeta) }
 }
 
 Titulo 'Rodaje - aceptación de la fase 2 (seek exacto y sincronía audio/video)'
@@ -195,15 +128,7 @@ if (-not $FfmpegVersion -or -not (Test-Path -LiteralPath $MarcaFfmpeg)) {
     Terminar 1
 }
 
-$env:DOTNET_ROOT = $DotnetDir
-$env:NUGET_PACKAGES = Join-Path $Entorno 'nuget'
-$env:DOTNET_CLI_HOME = $Entorno
-$env:DOTNET_MULTILEVEL_LOOKUP = '0'
-$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
-$env:DOTNET_NOLOGO = '1'
-$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
-$env:DOTNET_CLI_FORCE_UTF8_ENCODING = '1'
-$env:PATH = "$DotnetDir;$env:PATH"
+Usar-DotnetLocal $E
 $env:RODAJE_PRUEBAS_LARGAS = '1'
 if ($Completa) {
     $env:RODAJE_PRUEBAS_COMPLETAS = '1'
@@ -212,20 +137,14 @@ if ($Completa) {
     Remove-Item Env:\RODAJE_PRUEBAS_COMPLETAS -ErrorAction SilentlyContinue
 }
 
-$Resultados = Join-Path $Raiz 'TestResults'
-New-Item -ItemType Directory -Force -Path $Resultados | Out-Null
-$script:Corrida = Join-Path $Resultados ('aceptacion-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-New-Item -ItemType Directory -Force -Path $script:Corrida | Out-Null
-Get-ChildItem -LiteralPath $Resultados -Directory | Where-Object { $_.Name -match '^aceptacion-\d{8}-\d{6}$' } |
-    Sort-Object Name -Descending | Select-Object -Skip 5 |
-    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+$script:Corrida = Nueva-Corrida 'aceptacion-' 5
 
 Fase 1 'restaurando paquetes y compilando las pruebas de aceptación y de audio...'
 foreach ($proyecto in @($ProyectoAceptacion, $ProyectoAudio)) {
     $nombre = [System.IO.Path]::GetFileNameWithoutExtension($proyecto)
     $r = Invocar-Dotnet (Join-Path $script:Corrida "1-compilar-$nombre.log") @('build', $proyecto, '-c', 'Debug', '--nologo')
     if ($r.Codigo -ne 0) {
-        $errores = Errores-De $r.Lineas
+        $errores = Diagnosticos-De $r.Lineas
         Mal "No compila $nombre, así que no se puede medir nada."
         if ($errores.Count -gt 0) { Nota ('Primer error: ' + (Corto $errores[0])) }
         else { $r.Lineas | Select-Object -Last 15 | ForEach-Object { Nota ('  ' + (Corto $_)) } }
@@ -342,7 +261,7 @@ if ($fallidas.Count -gt 0) {
         Write-Host ''
         Mal ("{0}. {1}" -f $i, ($f.Nombre -replace '^Rodaje\.[A-Za-z]+\.Tests\.', ''))
         ($f.Mensaje -split "`r?`n") | Select-Object -First 8 | ForEach-Object { Nota ('   ' + $_) }
-        $donde = ($f.Pila -split "`r?`n") | Where-Object { $_ -match ' in .+:line \d+' -or $_ -match ' en .+:l.nea \d+' } | Select-Object -First 1
+        $donde = Donde-Fallo $f.Pila
         if ($donde) { Nota ('   Dónde: ' + (Corto $donde.Trim())) }
     }
 }

@@ -1,12 +1,15 @@
 {
   "id": "rodaje",
-  "titulo": "Rodaje, fase 1: el núcleo de la línea de tiempo",
-  "resumen": "Rodaje es un editor de video nativo para Windows. En la fase 1 todavía no hay ventana: lo que existe es el núcleo que cualquier editor necesita, la línea de tiempo con tiempo exacto y todas las operaciones de edición con deshacer y rehacer, y se comprueba con pruebas automáticas que explican en español qué pasó.",
+  "titulo": "Rodaje: editor de video nativo para Windows",
+  "resumen": "Rodaje es un editor de video nativo para Windows. Hoy existen el núcleo de edición (línea de tiempo con tiempo exacto, operaciones con deshacer y rehacer, formato .rodaje), la reproducción con FFmpeg acelerada por GPU y el audio como reloj maestro, varias capas compuestas en Direct3D 11 con proxies, y un visor provisional que se reemplaza por la interfaz WinUI 3. Todo se comprueba con pruebas automáticas que explican en español qué pasó.",
   "pide": [
-    "Modelo de línea de tiempo con tiempo exacto (números racionales, sin errores de redondeo entre fotogramas)",
-    "Operaciones de edición: cortar, recortar, ripple, roll, slip, slide, mover, insertar, sobrescribir, levantar y borrar con ripple",
-    "Deshacer y rehacer con comandos",
-    "Formato de proyecto en JSON con versión",
+    "Modelo de línea de tiempo con tiempo exacto (ticks de 1/705 600 000 s, sin errores de redondeo entre cuadros)",
+    "Operaciones de edición con deshacer y rehacer: cortar, recortar, ripple, roll, slip, slide, mover, insertar, sobrescribir, levantar y borrar con ripple",
+    "Formato de proyecto .rodaje en JSON con versión, migraciones y guardado atómico",
+    "Seek exacto al cuadro en H.264 y HEVC, por GPU (D3D11VA) y por software",
+    "Audio como reloj maestro, con menos de un cuadro de desfase en 10 minutos",
+    "Varias capas compuestas en la GPU dentro del presupuesto de memoria de video, con proxies",
+    "Compilación con Native AOT sin advertencias",
     "Todo cubierto por pruebas automáticas que pasan"
   ],
   "dotnet": {
@@ -22,19 +25,19 @@
       "script": "herramientas/probar.ps1",
       "args": [],
       "cwd": ".",
-      "descripcion": "Restaura los paquetes, compila el núcleo y las pruebas, y las corre todas. Al final muestra cuántas pasaron, cuáles fallaron con su mensaje y la línea donde fallaron, y cuánto tardó. Si el código no compila, muestra el primer error y cómo leerlo. Los registros completos quedan en TestResults\\.",
+      "descripcion": "Restaura los paquetes, compila la solución y corre todas las pruebas: núcleo, medios, audio, reproducción, motor, render y visor. Las que necesitan algo que falta en el equipo (GPU con D3D11VA, NVENC, dispositivo de audio) se omiten con su motivo, y las largas esperan a la aceptación. Al final muestra cuántas pasaron, cuáles fallaron con su mensaje y la línea donde fallaron, y cuánto tardó. Los registros completos quedan en TestResults\\.",
       "cubre": [
-        "Modelo de línea de tiempo con tiempo exacto (números racionales, sin errores de redondeo entre fotogramas)",
-        "Operaciones de edición: cortar, recortar, ripple, roll, slip, slide, mover, insertar, sobrescribir, levantar y borrar con ripple",
-        "Deshacer y rehacer con comandos",
-        "Formato de proyecto en JSON con versión",
+        "Modelo de línea de tiempo con tiempo exacto (ticks de 1/705 600 000 s, sin errores de redondeo entre cuadros)",
+        "Operaciones de edición con deshacer y rehacer: cortar, recortar, ripple, roll, slip, slide, mover, insertar, sobrescribir, levantar y borrar con ripple",
+        "Formato de proyecto .rodaje en JSON con versión, migraciones y guardado atómico",
+        "Varias capas compuestas en la GPU dentro del presupuesto de memoria de video, con proxies",
         "Todo cubierto por pruebas automáticas que pasan"
       ],
-      "duracion": "~10-60 s",
+      "duracion": "~2-4 min (la primera vez, más la generación de los videos de prueba)",
       "duracion_es": "total",
       "progreso_regex": "Fase (\\d+)/(\\d+)",
       "si_falla": "Lee el bloque 'Pruebas que fallaron': cada prueba dice qué esperaba y qué obtuvo, y en qué archivo y línea. Si dice que el código no compila, el primer error trae archivo(línea,columna) y la explicación del compilador.",
-      "notas": "La primera vez necesita internet para descargar el SDK de .NET (unos 280 MB) y los paquetes NuGet; después funciona sin conexión."
+      "notas": "La primera vez necesita internet para descargar el SDK de .NET (unos 280 MB), FFmpeg LGPL (unos 75 MB) y los paquetes NuGet; después funciona sin conexión. Los videos de prueba se generan una vez en TestResults\\media-cache."
     },
     {
       "id": "cobertura",
@@ -47,11 +50,11 @@
       "cubre": [
         "Todo cubierto por pruebas automáticas que pasan"
       ],
-      "duracion": "~15-90 s",
+      "duracion": "~3-5 min",
       "duracion_es": "total",
       "progreso_regex": "Fase (\\d+)/(\\d+)",
       "si_falla": "Igual que en 'Correr todas las pruebas'. Si no aparece la cobertura, es porque no hubo pruebas que la midieran.",
-      "notas": "La cobertura la mide coverlet, que viene como paquete del proyecto de pruebas; no hay que instalar nada aparte."
+      "notas": "La cobertura la mide coverlet, que viene como paquete de los proyectos de pruebas; no hay que instalar nada aparte."
     },
     {
       "id": "aot",
@@ -60,10 +63,11 @@
       "script": "herramientas/publicar-aot-prueba.ps1",
       "args": [],
       "cwd": ".",
-      "descripcion": "Compila de antemano a código nativo (Native AOT, como se va a entregar el editor) un programa de consola que usa todo el núcleo: crea un proyecto, importa medios, hace cortes, recortes, ripple, roll, slip, slide, mover y borrar con ripple, deshace y rehace todo comparando cada estado, guarda y abre el proyecto en una carpeta con espacios y tildes, exporta el esquema JSON y evalúa un parámetro animado. Falla si el compilador avisa de cualquier cosa incompatible con AOT (con archivo y línea). Al final dice cuánto pesa el .exe y cuánto tardó en arrancar y terminar. El ejecutable queda en dist\\prueba-aot\\.",
+      "descripcion": "Compila de antemano a código nativo (Native AOT, como se entrega el editor) un programa de consola que usa todo el núcleo: crea un proyecto, importa medios, hace cortes, recortes, ripple, roll, slip, slide, mover y borrar con ripple, deshace y rehace todo comparando cada estado, guarda y abre el proyecto en una carpeta con espacios y tildes, exporta el esquema JSON y evalúa un parámetro animado. Falla si el compilador avisa de cualquier cosa incompatible con AOT (con archivo y línea). Al final dice cuánto pesa el .exe y cuánto tardó en arrancar y terminar. El ejecutable queda en dist\\prueba-aot\\.",
       "cubre": [
-        "Deshacer y rehacer con comandos",
-        "Formato de proyecto en JSON con versión"
+        "Operaciones de edición con deshacer y rehacer: cortar, recortar, ripple, roll, slip, slide, mover, insertar, sobrescribir, levantar y borrar con ripple",
+        "Formato de proyecto .rodaje en JSON con versión, migraciones y guardado atómico",
+        "Compilación con Native AOT sin advertencias"
       ],
       "duracion": "~10-90 s",
       "duracion_es": "total",
@@ -73,18 +77,37 @@
     },
     {
       "id": "aceptacion",
-      "nombre": "Aceptación de la fase 2: seek exacto y sincronía audio/video",
+      "nombre": "Aceptación: seek exacto y sincronía audio/video",
       "tipo": "powershell",
       "script": "herramientas/aceptacion.ps1",
       "args": [],
       "cwd": ".",
       "descripcion": "Activa RODAJE_PRUEBAS_LARGAS=1 y corre, una suite tras otra y sin nada más en paralelo, las pruebas de aceptación con el decodificador real y luego las del reloj de audio con el dispositivo real (reproduce silencio). Comprueba que el seek es exacto al cuadro en H.264 y HEVC, por hardware y por software (cada cuadro lleva su número dibujado), que en 10 minutos de reproducción el cuadro que se ve nunca se aparta un cuadro del audio (reloj nominal, +0,1 % y −0,1 %), la sincronía en 30 s de tiempo real y la deriva y el jitter del reloj de audio. Al final muestra cada criterio con PASA o FALLA y sus cifras.",
-      "cubre": [],
+      "cubre": [
+        "Seek exacto al cuadro en H.264 y HEVC, por GPU (D3D11VA) y por software",
+        "Audio como reloj maestro, con menos de un cuadro de desfase en 10 minutos"
+      ],
       "duracion": "~8-15 min (la primera vez, unos minutos más para generar los videos de prueba)",
       "duracion_es": "total",
       "progreso_regex": "Fase (\\d+)/(\\d+)",
       "si_falla": "El resumen dice qué criterio falló y con qué cifras; debajo, cada prueba fallida con su mensaje y la línea. Si un criterio sale SIN DATOS es porque sus pruebas se omitieron (sin GPU con D3D11VA, sin dispositivo de audio o sin ffmpeg): el motivo está en 'Pruebas omitidas'. No uses el equipo para cosas pesadas mientras corre: las medidas en tiempo real se falsean con la carga.",
-      "notas": "Necesita las DLL y el ffmpeg.exe LGPL de .entorno\\ffmpeg. Los videos de prueba (unos 160 MB) se generan una vez en TestResults\\media-cache."
+      "notas": "Necesita las DLL y el ffmpeg.exe LGPL de .entorno\\ffmpeg. Los videos de prueba (unos 160 MB) se generan una vez en TestResults\\media-cache. Con -Completa añade 10 minutos reales con el dispositivo de audio; con -Resumir <carpeta> rehace solo el resumen de una corrida guardada."
+    },
+    {
+      "id": "visor",
+      "nombre": "Abrir el visor de varias capas",
+      "tipo": "powershell",
+      "script": "herramientas/visor.ps1",
+      "args": [],
+      "cwd": ".",
+      "descripcion": "Publica el visor provisional con Native AOT en dist\\Rodaje-visor\\ (solo si cambió algo en src\\) y lo abre. Sin argumentos pide elegir uno o varios videos: el primero va de fondo y los demás encima como imagen en imagen; también abre un proyecto .rodaje. Con -Prueba 20 y un video hace un recorrido automático de 20 s y muestra las estadísticas de fluidez.",
+      "cubre": [
+        "Varias capas compuestas en la GPU dentro del presupuesto de memoria de video, con proxies"
+      ],
+      "duracion": "~1-2 min la primera vez (compila); después abre al instante",
+      "duracion_es": "total",
+      "si_falla": "Si no publica, el mensaje trae el primer error y el registro TestResults\\visor-publicar.log; si falta el enlazador de C++, hay que instalar Visual Studio Build Tools 2022 con 'Desarrollo para el escritorio con C++'. Si el visor no abre un video, el registro del recorrido dice qué falló (archivo o GPU).",
+      "notas": "La fluidez solo la puede juzgar una persona: qué mirar está en docs\\prueba-visor.md. El visor se retira cuando la interfaz WinUI 3 (src\\Rodaje.App) lo reemplace."
     },
     {
       "id": "preparar-entorno",
@@ -102,8 +125,8 @@
     }
   ],
   "notas": [
-    "Doble clic en ABRIR.bat corre la acción 'pruebas'; 'ABRIR.bat cobertura', 'ABRIR.bat aot', 'ABRIR.bat aceptacion' y 'ABRIR.bat preparar-entorno' corren las otras.",
+    "Doble clic en ABRIR.bat corre la acción 'pruebas'; 'ABRIR.bat cobertura', 'ABRIR.bat aot', 'ABRIR.bat aceptacion', 'ABRIR.bat visor' y 'ABRIR.bat preparar-entorno' corren las otras. Rodaje.bat abre el visor directamente.",
     "El tipo 'powershell' es propio de Rodaje: corre el script con powershell -NoProfile -ExecutionPolicy Bypass -File, con los mismos campos que las acciones 'python' de Sensores-Teoria (script, args, cwd).",
-    "Todavía no hay interfaz gráfica: llega en una fase posterior."
+    "Las variables RODAJE_* que cambian el comportamiento de las acciones están en docs/variables-entorno.md."
   ]
 }

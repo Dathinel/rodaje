@@ -100,7 +100,7 @@ public static class FfmpegLibrary
     private static void Initialize(string? explicitDirectory)
     {
         IReadOnlyList<string> candidates = FfmpegLocator.Candidates(
-            explicitDirectory, AppContext.BaseDirectory, Environment.GetEnvironmentVariable);
+            explicitDirectory, AppContext.BaseDirectory, EnvironmentVariables.Read);
         string directory = FfmpegLocator.Find(candidates)
             ?? throw new FfmpegNotFoundException(
                 $"{MissingMessage} Se buscaron {string.Join(", ", FfmpegLocator.RequiredLibraries)} en: "

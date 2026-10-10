@@ -7,27 +7,15 @@ $ProgressPreference = 'SilentlyContinue'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 $Raiz = Split-Path -Parent $PSScriptRoot
+Import-Module (Join-Path $PSScriptRoot 'comun.psm1') -DisableNameChecking -Force
+$E = Inicializar-Rodaje $Raiz -Fases 2
 $Proyecto = Join-Path $Raiz 'tests\Rodaje.AotSmoke\Rodaje.AotSmoke.csproj'
 $Salida = Join-Path $Raiz 'dist\prueba-aot'
 $Exe = Join-Path $Salida 'Rodaje.AotSmoke.exe'
-if ($env:RODAJE_ENTORNO) { $Entorno = $env:RODAJE_ENTORNO } else { $Entorno = Join-Path $Raiz '.entorno' }
-$DotnetDir = Join-Path $Entorno 'dotnet'
-$Dotnet = Join-Path $DotnetDir 'dotnet.exe'
-# Listo = existe la marca .sdk-<versión> de preparar-entorno.ps1; dotnet.exe no basta tras un apagón.
-try { $SdkVersion = (Get-Content -LiteralPath (Join-Path $Raiz 'global.json') -Raw -Encoding UTF8 | ConvertFrom-Json).sdk.version } catch { $SdkVersion = '' }
-$MarcaSdk = Join-Path $DotnetDir ".sdk-$SdkVersion"
+$Dotnet = $E.Dotnet
+$MarcaSdk = $E.MarcaSdk
 $Reloj = [System.Diagnostics.Stopwatch]::StartNew()
-$TotalFases = 2
 
-function Titulo([string]$texto) { Write-Host ''; Write-Host "  $texto" -ForegroundColor Cyan }
-function Fase([int]$n, [string]$texto) { Write-Host ''; Write-Host "  Fase $n/${TotalFases}: $texto" -ForegroundColor Cyan }
-function Bien([string]$texto) { Write-Host "    $texto" -ForegroundColor Green }
-function Mal([string]$texto) { Write-Host "    $texto" -ForegroundColor Red }
-function Nota([string]$texto) { Write-Host "    $texto" }
-function Duracion([TimeSpan]$t) {
-    if ($t.TotalMinutes -ge 1) { return ('{0} min {1} s' -f [int][Math]::Floor($t.TotalMinutes), $t.Seconds) }
-    return ('{0:0.0} s' -f $t.TotalSeconds)
-}
 function Terminar([int]$codigo) {
     Write-Host ''
     Nota ("Tiempo total: " + (Duracion $Reloj.Elapsed))
@@ -35,39 +23,6 @@ function Terminar([int]$codigo) {
     Write-Host ''
     exit $codigo
 }
-function Corto([string]$texto) {
-    return $texto.Replace($Raiz + '\', '').Replace($Raiz, '.')
-}
-
-function Invocar-Dotnet([string]$log, [string[]]$argumentos) {
-    $lineas = New-Object System.Collections.Generic.List[string]
-    $anterior = $ErrorActionPreference
-    # En PowerShell 5.1 el stderr de un programa llega como ErrorRecord y 'Stop' cortaría el script.
-    $ErrorActionPreference = 'Continue'
-    try {
-        & $Dotnet @argumentos 2>&1 | ForEach-Object { $lineas.Add("$_") }
-        $codigo = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $anterior
-    }
-    [System.IO.File]::WriteAllLines($log, $lineas, (New-Object System.Text.UTF8Encoding($false)))
-    return [pscustomobject]@{ Codigo = $codigo; Lineas = $lineas }
-}
-
-# Sin repetir (MSBuild los imprime dos veces); la palabra clave puede venir en inglés o traducida.
-function Diagnosticos-De([System.Collections.Generic.List[string]]$lineas, [string]$tipo) {
-    $vistos = @{}
-    $lista = New-Object System.Collections.Generic.List[string]
-    $patron = if ($tipo -eq 'error') { '(?i)\berror\s+[A-Z]{2,}\d+\s*:' } else { '(?i)\b(warning|advertencia)\s+[A-Z]{2,}\d+\s*:' }
-    foreach ($l in $lineas) {
-        if ($l -match $patron) {
-            $limpia = ($l -replace '\s+\[[^\]]+\.(cs|fs|vb)proj[^\]]*\]\s*$', '').Trim()
-            if (-not $vistos.ContainsKey($limpia)) { $vistos[$limpia] = $true; $lista.Add($limpia) }
-        }
-    }
-    return ,$lista
-}
-
 function Es-De-Aot([string]$diagnostico) { return $diagnostico -match '(?i)\b(warning|advertencia|error)\s+IL\d+' }
 
 Titulo 'Rodaje - prueba de humo del núcleo compilado con Native AOT'
@@ -93,29 +48,9 @@ if (-not (Test-Path -LiteralPath $Proyecto)) {
     Terminar 1
 }
 
-# Las mismas variables que herramientas\dotnet-local.cmd.
-$env:DOTNET_ROOT = $DotnetDir
-$env:NUGET_PACKAGES = Join-Path $Entorno 'nuget'
-$env:DOTNET_CLI_HOME = $Entorno
-$env:DOTNET_MULTILEVEL_LOOKUP = '0'
-$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
-$env:DOTNET_NOLOGO = '1'
-$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
-$env:DOTNET_CLI_FORCE_UTF8_ENCODING = '1'
-$env:PATH = "$DotnetDir;$env:PATH"
-
-# VsDevCmd.bat corre vswhere.exe desde la carpeta actual; con NoDefaultCurrentDirectoryInExePath
-# puesto falla y daña la ruta de link.exe. Añadir la carpeta al PATH del proceso lo evita.
-$instaladorVs = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer'
-if (Test-Path -LiteralPath (Join-Path $instaladorVs 'vswhere.exe')) { $env:PATH = "$env:PATH;$instaladorVs" }
-
-$Resultados = Join-Path $Raiz 'TestResults'
-New-Item -ItemType Directory -Force -Path $Resultados | Out-Null
-$script:Corrida = Join-Path $Resultados ('aot-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-New-Item -ItemType Directory -Force -Path $script:Corrida | Out-Null
-Get-ChildItem -LiteralPath $Resultados -Directory | Where-Object { $_.Name -match '^aot-\d{8}-\d{6}$' } |
-    Sort-Object Name -Descending | Select-Object -Skip 5 |
-    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+Usar-DotnetLocal $E
+$instaladorVs = Agregar-Vswhere
+$script:Corrida = Nueva-Corrida 'aot-' 5
 
 # Sin -r: el RID ya está en el .csproj; como propiedad global llegaría a Rodaje.Core y su
 # packages.lock.json cambiaría en cada corrida.

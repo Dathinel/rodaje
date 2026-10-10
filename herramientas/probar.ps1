@@ -12,72 +12,21 @@ $ProgressPreference = 'SilentlyContinue'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 $Raiz = Split-Path -Parent $PSScriptRoot
+Import-Module (Join-Path $PSScriptRoot 'comun.psm1') -DisableNameChecking -Force
+$E = Inicializar-Rodaje $Raiz -Fases 3
 $Solucion = Join-Path $Raiz 'Rodaje.slnx'
-if ($env:RODAJE_ENTORNO) { $Entorno = $env:RODAJE_ENTORNO } else { $Entorno = Join-Path $Raiz '.entorno' }
-$DotnetDir = Join-Path $Entorno 'dotnet'
-$Dotnet = Join-Path $DotnetDir 'dotnet.exe'
-# Listo = existe la marca .sdk-<versión> de preparar-entorno.ps1; dotnet.exe no basta tras un apagón.
-try { $SdkVersion = (Get-Content -LiteralPath (Join-Path $Raiz 'global.json') -Raw -Encoding UTF8 | ConvertFrom-Json).sdk.version } catch { $SdkVersion = '' }
-$MarcaSdk = Join-Path $DotnetDir ".sdk-$SdkVersion"
-$FfmpegVersion = ''
-$lineaFf = Select-String -LiteralPath (Join-Path $PSScriptRoot 'preparar-entorno.ps1') -Pattern "^\`$FfmpegVersion = '([^']+)'" | Select-Object -First 1
-if ($lineaFf) { $FfmpegVersion = $lineaFf.Matches[0].Groups[1].Value }
-$MarcaFfmpeg = Join-Path $Entorno "ffmpeg\.ffmpeg-$FfmpegVersion"
+$Dotnet = $E.Dotnet
+$MarcaSdk = $E.MarcaSdk
+$FfmpegVersion = $E.FfmpegVersion
+$MarcaFfmpeg = $E.MarcaFfmpeg
 $Reloj = [System.Diagnostics.Stopwatch]::StartNew()
-$TotalFases = 3
 
-function Titulo([string]$texto) { Write-Host ''; Write-Host "  $texto" -ForegroundColor Cyan }
-function Fase([int]$n, [string]$texto) { Write-Host ''; Write-Host "  Fase $n/${TotalFases}: $texto" -ForegroundColor Cyan }
-function Bien([string]$texto) { Write-Host "    $texto" -ForegroundColor Green }
-function Mal([string]$texto) { Write-Host "    $texto" -ForegroundColor Red }
-function Nota([string]$texto) { Write-Host "    $texto" }
-function Duracion([TimeSpan]$t) {
-    if ($t.TotalMinutes -ge 1) { return ('{0} min {1} s' -f [int][Math]::Floor($t.TotalMinutes), $t.Seconds) }
-    return ('{0:0.0} s' -f $t.TotalSeconds)
-}
 function Terminar([int]$codigo) {
     Write-Host ''
     Nota ("Tiempo total: " + (Duracion $Reloj.Elapsed))
     if ($script:Corrida) { Nota "Registros completos y resultados en: $script:Corrida" }
     Write-Host ''
     exit $codigo
-}
-
-# $AlVuelo recibe cada línea mientras llega, para mostrar progreso.
-function Invocar-Dotnet([string]$log, [string[]]$argumentos, [scriptblock]$AlVuelo = $null) {
-    $lineas = New-Object System.Collections.Generic.List[string]
-    $anterior = $ErrorActionPreference
-    # En PowerShell 5.1 el stderr de un programa llega como ErrorRecord y 'Stop' cortaría el script.
-    $ErrorActionPreference = 'Continue'
-    try {
-        & $Dotnet @argumentos 2>&1 | ForEach-Object {
-            $l = "$_"
-            $lineas.Add($l)
-            if ($AlVuelo) { & $AlVuelo $l }
-        }
-        $codigo = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $anterior
-    }
-    [System.IO.File]::WriteAllLines($log, $lineas, (New-Object System.Text.UTF8Encoding($false)))
-    return [pscustomobject]@{ Codigo = $codigo; Lineas = $lineas }
-}
-
-# Sin repetir: MSBuild imprime cada error dos veces (al momento y en el resumen).
-function Errores-De([System.Collections.Generic.List[string]]$lineas) {
-    $vistos = @{}
-    $lista = New-Object System.Collections.Generic.List[string]
-    foreach ($l in $lineas) {
-        if ($l -match '(?i)\berror\s+[A-Z]{2,}\d+\s*:') {
-            $limpia = ($l -replace '\s+\[[^\]]+\.(cs|fs|vb)proj[^\]]*\]\s*$', '').Trim()
-            if (-not $vistos.ContainsKey($limpia)) { $vistos[$limpia] = $true; $lista.Add($limpia) }
-        }
-    }
-    return ,$lista
-}
-
-function Corto([string]$texto) {
-    return $texto.Replace($Raiz + '\', '').Replace($Raiz, '.')
 }
 
 Titulo 'Rodaje - pruebas automáticas del núcleo'
@@ -113,29 +62,13 @@ if (-not (Test-Path -LiteralPath $Solucion)) {
     Terminar 1
 }
 
-# Las mismas variables que herramientas\dotnet-local.cmd.
-$env:DOTNET_ROOT = $DotnetDir
-$env:NUGET_PACKAGES = Join-Path $Entorno 'nuget'
-$env:DOTNET_CLI_HOME = $Entorno
-$env:DOTNET_MULTILEVEL_LOOKUP = '0'
-$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
-$env:DOTNET_NOLOGO = '1'
-$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
-$env:DOTNET_CLI_FORCE_UTF8_ENCODING = '1'
-$env:PATH = "$DotnetDir;$env:PATH"
-
-$Resultados = Join-Path $Raiz 'TestResults'
-New-Item -ItemType Directory -Force -Path $Resultados | Out-Null
-$script:Corrida = Join-Path $Resultados (Get-Date -Format 'yyyyMMdd-HHmmss')
-New-Item -ItemType Directory -Force -Path $script:Corrida | Out-Null
-Get-ChildItem -LiteralPath $Resultados -Directory | Where-Object { $_.Name -match '^\d{8}-\d{6}$' } |
-    Sort-Object Name -Descending | Select-Object -Skip 10 |
-    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+Usar-DotnetLocal $E
+$script:Corrida = Nueva-Corrida '' 10
 
 Fase 1 'restaurando paquetes NuGet (la primera vez los descarga; luego salen de la caché local)...'
 $r = Invocar-Dotnet (Join-Path $script:Corrida '1-restaurar.log') @('restore', $Solucion, '--nologo')
 if ($r.Codigo -ne 0) {
-    $errores = Errores-De $r.Lineas
+    $errores = Diagnosticos-De $r.Lineas
     Mal 'No se pudieron preparar los paquetes que usan las pruebas.'
     $texto = ($errores -join "`n")
     if ($texto -match 'NU1301|NU1101|NU1102|service index|No such host|unable to load') {
@@ -152,7 +85,7 @@ Bien 'Paquetes listos.'
 Fase 2 'compilando el núcleo y las pruebas...'
 $r = Invocar-Dotnet (Join-Path $script:Corrida '2-compilar.log') @('build', $Solucion, '--no-restore', '-c', 'Debug', '--nologo')
 if ($r.Codigo -ne 0) {
-    $errores = Errores-De $r.Lineas
+    $errores = Diagnosticos-De $r.Lineas
     Mal 'El código no compila, así que todavía no se pueden correr las pruebas.'
     if ($errores.Count -gt 0) {
         Nota ''
@@ -191,28 +124,18 @@ if ($script:Hechas -ge 25) { Write-Host ("`r    pruebas ejecutadas: {0}" -f $scr
 $trx = @(Get-ChildItem -LiteralPath $script:Corrida -Recurse -Filter '*.trx' -ErrorAction SilentlyContinue)
 $total = 0; $pasaron = 0; $fallaron = 0; $omitidas = 0
 $fallidas = New-Object System.Collections.Generic.List[object]
-foreach ($archivo in $trx) {
-    [xml]$x = [System.IO.File]::ReadAllText($archivo.FullName)
-    foreach ($res in @($x.TestRun.Results.UnitTestResult)) {
-        if (-not $res) { continue }
-        $total++
-        switch ($res.outcome) {
-            'Passed'      { $pasaron++ }
-            'NotExecuted' { $omitidas++ }
-            default {
-                $fallaron++
-                $info = $res.Output.ErrorInfo
-                $mensaje = ''; $pila = ''
-                if ($info) { $mensaje = "$($info.Message)".Trim(); $pila = "$($info.StackTrace)".Trim() }
-                $fallidas.Add([pscustomobject]@{ Nombre = $res.testName; Mensaje = $mensaje; Pila = $pila })
-            }
-        }
+foreach ($res in (Leer-Trx $script:Corrida)) {
+    $total++
+    switch ($res.Resultado) {
+        'Passed'      { $pasaron++ }
+        'NotExecuted' { $omitidas++ }
+        default       { $fallaron++; $fallidas.Add($res) }
     }
 }
 
 if ($trx.Count -eq 0 -and $r.Codigo -ne 0) {
     Mal 'Las pruebas no llegaron a correr: el ejecutor de pruebas terminó con error antes de dar resultados.'
-    $errores = Errores-De $r.Lineas
+    $errores = Diagnosticos-De $r.Lineas
     if ($errores.Count -gt 0) { Nota ('Primer error: ' + (Corto $errores[0])) }
     else { $r.Lineas | Select-Object -Last 15 | ForEach-Object { Nota ('  ' + (Corto $_)) } }
     Terminar 1
@@ -241,7 +164,7 @@ if ($fallidas.Count -gt 0) {
         if ($f.Mensaje) {
             ($f.Mensaje -split "`r?`n") | Select-Object -First 8 | ForEach-Object { Nota ('   ' + $_) }
         }
-        $donde = ($f.Pila -split "`r?`n") | Where-Object { $_ -match ' in .+:line \d+' -or $_ -match ' en .+:l.nea \d+' } | Select-Object -First 1
+        $donde = Donde-Fallo $f.Pila
         if ($donde) { Nota ('   Dónde: ' + (Corto $donde.Trim())) }
     }
 }

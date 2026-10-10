@@ -4,6 +4,7 @@ using Rodaje.Media.Gpu;
 using Rodaje.Media.Video;
 using Rodaje.Playback.Composition;
 using Rodaje.Render.Tests.Support;
+using Rodaje.TestMedia;
 using Xunit.Abstractions;
 
 namespace Rodaje.Render.Tests;

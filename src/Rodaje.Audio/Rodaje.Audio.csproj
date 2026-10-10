@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Rodaje.Audio.Tests" />
+    <InternalsVisibleTo Include="Rodaje.TestMedia" />
   </ItemGroup>
 
   <ItemGroup>

@@ -22,19 +22,19 @@ public sealed class FrameExactSeekTests(ITestOutputHelper output)
 
     public static TheoryData<string> Presets => new("h264", "hevc");
 
-    [AcceptanceTheory(hardware: true)]
+    [HardwareTheory(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac)]
     [MemberData(nameof(Presets))]
     public void GetFrame_es_exacto_por_hardware(string preset) => DirectSeek(preset, DecodePath.Hardware);
 
-    [AcceptanceTheory]
+    [FfmpegLibraryTheory(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac)]
     [MemberData(nameof(Presets))]
     public void GetFrame_es_exacto_por_software(string preset) => DirectSeek(preset, DecodePath.Software);
 
-    [AcceptanceTheory(hardware: true)]
+    [HardwareTheory(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac)]
     [MemberData(nameof(Presets))]
     public void SeekToFrame_del_programador_es_exacto_por_hardware(string preset) => SchedulerSeek(preset, DecodePath.Hardware);
 
-    [AcceptanceTheory]
+    [FfmpegLibraryTheory(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac)]
     [MemberData(nameof(Presets))]
     public void SeekToFrame_del_programador_es_exacto_por_software(string preset) => SchedulerSeek(preset, DecodePath.Software);
 

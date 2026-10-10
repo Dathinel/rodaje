@@ -9,32 +9,9 @@ using Rodaje.TestMedia;
 
 namespace Rodaje.Render.Tests;
 
-/// <summary>Necesita ffmpeg.exe para generar el clip, FFmpeg y una GPU con D3D11VA; se omite con el motivo si falta algo.</summary>
-internal sealed class DecoderGpuFactAttribute : FactAttribute
-{
-    private static readonly Lazy<string?> Reason = new(() =>
-    {
-        if (!FfmpegLibrary.TryInitialize(out string? ffmpeg))
-        {
-            return "Omitida: " + ffmpeg;
-        }
-
-        using GpuDevice? gpu = GpuDevice.TryCreate(out string? failure);
-        if (gpu is null)
-        {
-            return "Omitida: " + failure;
-        }
-
-        return gpu.SupportsHardwareDecoding ? null : $"Omitida: la GPU {gpu.AdapterName} no ofrece D3D11VA a FFmpeg.";
-    });
-
-    public DecoderGpuFactAttribute() =>
-        Skip = new FfmpegFactAttribute(VideoCodec.H264, AudioCodec.Aac).Skip ?? Reason.Value;
-}
-
 public sealed class DecoderCompositionTests
 {
-    [DecoderGpuFact]
+    [HardwareFact(VideoCodec.H264, Audio = AudioCodec.Aac)]
     public void Composes_decoder_surfaces_and_reads_the_frame_code_of_each_layer()
     {
         GeneratedMedia clip = TestMediaGenerator.CreateDefault()!.GetOrCreate(TestMediaPresets.H264Ntsc24Aac);
@@ -62,7 +39,7 @@ public sealed class DecoderCompositionTests
         Assert.Equal(0, compositor.CachedViewCount);
     }
 
-    [DecoderGpuFact]
+    [HardwareFact(VideoCodec.H264, Audio = AudioCodec.Aac)]
     public void Views_of_a_closed_decoder_are_released_on_the_next_frame_or_trim_and_unused_ones_after_a_while()
     {
         GeneratedMedia clip = TestMediaGenerator.CreateDefault()!.GetOrCreate(TestMediaPresets.H264Ntsc24Aac);

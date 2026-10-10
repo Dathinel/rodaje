@@ -57,39 +57,10 @@ internal static class ProxyTestMedia
         Cache.GetOrAdd(spec.Name, _ => new Lazy<GeneratedMedia>(() => TestMediaGenerator.CreateDefault()!.GetOrCreate(spec))).Value;
 }
 
-/// <summary>Qué hace falta para generar proxies en esta máquina.</summary>
+/// <summary>El ffmpeg.exe de los proxies; qué hace falta para generarlos lo decide <see cref="Skip.Proxies"/>.</summary>
 internal static class ProxyTestEnvironment
 {
-    private static readonly Lazy<(FfmpegExecutable? Executable, string? Reason)> Located = new(() =>
-    {
-        if (MediaTestEnvironment.FfmpegSkipReason is { } reason)
-        {
-            return (null, reason);
-        }
-
-        FfmpegExecutable? executable = FfmpegExecutable.TryLocate(out string? failure);
-        if (executable is null)
-        {
-            return (null, failure);
-        }
-
-        if (FfmpegTool.Default is null || FfmpegTool.Default.FindVideoEncoder(VideoCodec.H264) is null
-            || FfmpegTool.Default.FindVideoEncoder(VideoCodec.Hevc) is null)
-        {
-            return (null, "Sin codificadores para generar los medios de prueba: " + FfmpegTool.UnavailableReason);
-        }
-
-        return ProxyEncoders.Preference.Any(executable.IsEncoderUsable)
-            ? (executable, null)
-            : (null, "Ningún codificador de proxies funciona en este equipo.");
-    });
-
-    public static FfmpegExecutable? Executable => Located.Value.Executable;
-
-    public static string? SkipReason => Located.Value.Reason is { } r ? "Omitida: " + r : null;
-
-    public static string? NvencSkipReason => SkipReason
-        ?? (Executable!.ProbeEncoder("h264_nvenc") is { } r ? "Omitida: sin NVENC. " + r : null);
+    public static FfmpegExecutable? Executable => Skip.ProxyExecutable;
 }
 
 /// <summary>Carpeta temporal propia de una prueba, borrada al final.</summary>
@@ -132,35 +103,4 @@ internal sealed class ManualTimeProvider(DateTimeOffset start) : TimeProvider
 internal sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
 {
     public void Report(T value) => report(value);
-}
-
-internal sealed class ProxyFactAttribute : FactAttribute
-{
-    public ProxyFactAttribute() => Skip = ProxyTestEnvironment.SkipReason;
-}
-
-internal sealed class ProxyTheoryAttribute : TheoryAttribute
-{
-    public ProxyTheoryAttribute() => Skip = ProxyTestEnvironment.SkipReason;
-}
-
-/// <summary>Necesita NVENC. Con <see cref="LongRunning"/>, además <c>RODAJE_PRUEBAS_LARGAS=1</c>.</summary>
-internal sealed class NvencFactAttribute : FactAttribute
-{
-    public NvencFactAttribute() => Skip = ProxyTestEnvironment.NvencSkipReason;
-
-    private bool _longRunning;
-
-    public bool LongRunning
-    {
-        get => _longRunning;
-        set
-        {
-            _longRunning = value;
-            if (value && Skip is null && Environment.GetEnvironmentVariable("RODAJE_PRUEBAS_LARGAS") != "1")
-            {
-                Skip = "Omitida: prueba larga; se activa con RODAJE_PRUEBAS_LARGAS=1 (ABRIR.bat aceptacion).";
-            }
-        }
-    }
 }

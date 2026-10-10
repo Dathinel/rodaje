@@ -1,5 +1,6 @@
 using Rodaje.Media.Proxies;
 using Rodaje.Media.Tests.Support;
+using Rodaje.TestMedia;
 
 namespace Rodaje.Media.Tests.Proxies;
 

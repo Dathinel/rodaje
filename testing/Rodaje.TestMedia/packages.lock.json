@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0-windows7.0": {
+      "xunit.extensibility.core": {
+        "type": "Direct",
+        "requested": "[2.9.3, )",
+        "resolved": "2.9.3",
+        "contentHash": "kf3si0YTn2a8J8eZNb+zFpwfoyvIrQ7ivNk5ZYA5yuYk1bEtMe4DxJ2CF/qsRgmEnDr7MnW1mxylBaHTZ4qErA==",
+        "dependencies": {
+          "xunit.abstractions": "2.0.3"
+        }
+      },
+      "FFmpeg.AutoGen.Abstractions": {
+        "type": "Transitive",
+        "resolved": "9.0.1.1",
+        "contentHash": "ZthcQtg0CyBJSM14AsQGzcj+qy5L3IDLpxm7i+tFNoO9K/780Czpb4cVxackBBXd3V3fh3thaQ9R47wJMYXuRg=="
+      },
+      "FFmpeg.AutoGen.Bindings.DynamicallyLinked": {
+        "type": "Transitive",
+        "resolved": "9.0.1.1",
+        "contentHash": "N1mklgepgfHh0k8qUb6V83kIMRkqm4gdtRdYKtRgYdOLET5FvvKrMxPmYjCWjZeV40JxmDwTxSblgyhnwbvbyA==",
+        "dependencies": {
+          "FFmpeg.AutoGen.Abstractions": "9.0.1.1"
+        }
+      },
+      "TerraFX.Interop.Windows": {
+        "type": "Transitive",
+        "resolved": "10.0.26100.6",
+        "contentHash": "QjL9vliSWmscUv6A7bjvsryHjYnY0norqvCNcLXSdEy1VIIzMF6FiS7BuvLTBuGUeN9FY4zJbU65OsHEv7jG9A=="
+      },
+      "xunit.abstractions": {
+        "type": "Transitive",
+        "resolved": "2.0.3",
+        "contentHash": "pot1I4YOxlWjIb5jmwvvQNbTrZ3lJQ+jUGkGjWE3hEFM0l5gOnBWS+H3qsex68s5cO52g+44vpGzhAt+42vwKg=="
+      },
+      "rodaje.audio": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Playback": "[1.0.0, )"
+        }
+      },
+      "rodaje.core": {
+        "type": "Project"
+      },
+      "rodaje.media": {
+        "type": "Project",
+        "dependencies": {
+          "FFmpeg.AutoGen.Bindings.DynamicallyLinked": "[9.0.1.1, )",
+          "Rodaje.Core": "[1.0.0, )",
+          "Rodaje.Playback": "[1.0.0, )",
+          "TerraFX.Interop.Windows": "[10.0.26100.6, )"
+        }
+      },
+      "rodaje.playback": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Core": "[1.0.0, )"
+        }
+      }
+    }
+  }
+}

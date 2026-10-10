@@ -32,7 +32,7 @@ public sealed class TimelineHardwareTests(ITestOutputHelper output)
         new("capas-640-2997", 640, 360, Rational.Ntsc30, TimeSpan.FromSeconds(14)) { GopLength = 60, BFrames = 2 },
     ];
 
-    [GpuClipFact]
+    [HardwareFact(VideoCodec.H264, Audio = AudioCodec.Aac)]
     public void Every_layer_shows_the_expected_source_frame_at_many_timeline_instants()
     {
         (Project project, TimelinePlan plan) = BuildProject();
@@ -77,7 +77,7 @@ public sealed class TimelineHardwareTests(ITestOutputHelper output)
         Assert.Equal(0, session.Stats.DecodeErrors);
     }
 
-    [GpuClipFact]
+    [HardwareFact(VideoCodec.H264, Audio = AudioCodec.Aac)]
     public void Cuts_with_pre_roll_arrive_on_time_when_playing_at_60_hz()
     {
         (Project project, TimelinePlan plan) = BuildProject();

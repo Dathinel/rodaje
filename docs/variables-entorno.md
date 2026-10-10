@@ -1,0 +1,18 @@
+# Variables de entorno
+
+Todas las variables que lee Rodaje empiezan con `RODAJE_`. Ninguna es obligatoria: sin ellas todo funciona con los valores por omisión. Las que lee el editor están juntas en [`EnvironmentVariables`](../src/Rodaje.Media/EnvironmentVariables.cs) (en `Rodaje.Media`, la capa más baja que las necesita); las de las pruebas, en [`Skip`](../testing/Rodaje.TestMedia/Skip.cs) y en los generadores de `testing/Rodaje.TestMedia`.
+
+| Variable | Para qué sirve | Quién la lee | Ámbito |
+|---|---|---|---|
+| `RODAJE_ENTORNO` | Usa otro `.entorno` (SDK de .NET y FFmpeg) en vez del de la carpeta del proyecto; por ejemplo, el del checkout principal desde un worktree, para no descargarlo dos veces | `ABRIR.bat`, `herramientas\dotnet-local.cmd` y todos los `.ps1` de `herramientas\` (a través de `comun.psm1`); `FfmpegLocator` (busca `<entorno>\ffmpeg\bin`); `FfmpegTool` de las pruebas | Desarrollo y editor |
+| `RODAJE_FFMPEG` | Carpeta con las DLL de FFmpeg (o ruta de `ffmpeg.exe` para las pruebas). El editor la ignora si junto a su ejecutable hay una carpeta `ffmpeg\`: la distribución usa siempre el FFmpeg LGPL que trae | `FfmpegLocator` (Rodaje.Media); `FfmpegTool` (testing) | Desarrollo y editor |
+| `RODAJE_PROXIES` | Carpeta de los proxies; sin ella, `%LOCALAPPDATA%\Rodaje\proxies` | `ProxyStore.DefaultDirectory` (Rodaje.Media) | Editor |
+| `RODAJE_SIN_PAUSA` | Con `1`, `ABRIR.bat` no espera una tecla al final (para lanzarlo desde otro programa) | `ABRIR.bat` | Desarrollo |
+| `RODAJE_SDK_URL`, `RODAJE_SDK_SHA512` | Juntas, cambian la descarga del SDK por otro `.zip` con su huella; solo para probar `preparar-entorno.ps1` | `herramientas\preparar-entorno.ps1` | Solo pruebas del script |
+| `RODAJE_PRUEBAS_LARGAS` | Con `1`, corren las pruebas largas y las medidas en tiempo real (aceptación, carga, NVENC, reloj de audio) y las rápidas de aceptación hacen la medida completa. `herramientas\aceptacion.ps1` la pone sola | `Skip.LongRun` y `Skip.AudioDevice` (testing) | Solo pruebas |
+| `RODAJE_PRUEBAS_COMPLETAS` | Con `1`, corre además el clip de 10 minutos en tiempo real con el dispositivo de audio. La pone `aceptacion.ps1 -Completa` | `Skip.CompleteRun` (testing) | Solo pruebas |
+| `RODAJE_PRUEBAS_AUDIO` | Con `1`, corre la prueba que hace sonar un tono de 3 s | `Skip.AudioTone` (testing) | Solo pruebas |
+| `RODAJE_MEDIA_CACHE` | Carpeta de los medios de prueba generados; sin ella, `TestResults\media-cache` en la raíz del repositorio | `TestMediaGenerator.DefaultCacheDirectory` (testing) | Solo pruebas |
+| `RODAJE_REGENERAR_ESQUEMA` | Con `1`, la prueba del esquema reescribe `schema/rodaje-proyecto.v1.schema.json` desde el código en vez de solo compararlo | `ProjectSchemaTests` (Rodaje.Core.Tests) | Solo pruebas |
+
+Las variables `DOTNET_*` y `NUGET_PACKAGES` no son de Rodaje: las fijan `dotnet-local.cmd` y `Usar-DotnetLocal` de `comun.psm1` para que el SDK local no use nada global.

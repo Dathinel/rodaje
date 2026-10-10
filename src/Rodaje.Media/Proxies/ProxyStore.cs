@@ -41,7 +41,7 @@ public sealed record ProxyCleanupReport(int TemporaryFiles, int Orphans, int Sta
 /// </remarks>
 public sealed class ProxyStore
 {
-    public const string DirectoryEnvironmentVariable = "RODAJE_PROXIES";
+    public const string DirectoryEnvironmentVariable = EnvironmentVariables.Proxies;
     public const string ProxyExtension = ".mp4";
     public const string MetadataExtension = ".json";
     private const string TempMarker = ".tmp";
@@ -59,7 +59,7 @@ public sealed class ProxyStore
     {
         get
         {
-            string? configured = Environment.GetEnvironmentVariable(DirectoryEnvironmentVariable);
+            string? configured = EnvironmentVariables.Read(DirectoryEnvironmentVariable);
             return !string.IsNullOrWhiteSpace(configured)
                 ? configured
                 : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Rodaje", "proxies");

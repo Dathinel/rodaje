@@ -37,11 +37,11 @@ public static class FfmpegLocator
         Add(explicitDirectory);
         if (!Directory.Exists(bundled))
         {
-            Add(getEnvironmentVariable("RODAJE_FFMPEG"));
+            Add(getEnvironmentVariable(EnvironmentVariables.Ffmpeg));
         }
 
         Add(bundled);
-        string? entorno = getEnvironmentVariable("RODAJE_ENTORNO");
+        string? entorno = getEnvironmentVariable(EnvironmentVariables.Entorno);
         if (!string.IsNullOrWhiteSpace(entorno))
         {
             Add(Path.Combine(entorno, "ffmpeg", "bin"));

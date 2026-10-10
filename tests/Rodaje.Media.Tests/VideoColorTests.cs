@@ -4,6 +4,7 @@ using Rodaje.Media.Probe;
 using Rodaje.Media.Tests.Support;
 using Rodaje.Media.Video;
 using Rodaje.Playback;
+using Rodaje.TestMedia;
 
 namespace Rodaje.Media.Tests;
 
@@ -31,7 +32,7 @@ public sealed class VideoColorTests
         Assert.Equal(new VideoColor(YuvMatrix.Bt601, false), FrameUploader.ConvertedColor(AVPixelFormat.AV_PIX_FMT_RGB24, bt709Full));
     }
 
-    [FfmpegTheory]
+    [FfmpegLibraryTheory]
     [InlineData(1, false, YuvMatrix.Bt709, false)]
     [InlineData(6, true, YuvMatrix.Bt601, true)]
     [InlineData(1, true, YuvMatrix.Bt709, true)]
@@ -47,7 +48,7 @@ public sealed class VideoColorTests
             Assert.Equal(expected, Assert.IsType<CpuFramePayload>(frame.Payload).Color);
         }
 
-        foreach (DecodeMode mode in MediaTestEnvironment.HardwareSkipReason is null
+        foreach (DecodeMode mode in Skip.HardwareDecoding is null
             ? new[] { DecodeMode.Hardware, DecodeMode.SoftwareUpload }
             : MediaTestEnvironment.Gpu is not null ? new[] { DecodeMode.SoftwareUpload } : [])
         {
@@ -57,7 +58,7 @@ public sealed class VideoColorTests
         }
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void An_untagged_sd_clip_uses_bt601()
     {
         VideoStreamInfo video = MediaProbe.Probe(TestClips.PathOf(TestClips.H264)).Video!;

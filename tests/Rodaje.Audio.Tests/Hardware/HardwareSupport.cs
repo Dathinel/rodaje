@@ -4,46 +4,6 @@ using Rodaje.Playback;
 
 namespace Rodaje.Audio.Tests.Hardware;
 
-internal static class AudioHardware
-{
-    public const string ToneVariable = "RODAJE_PRUEBAS_AUDIO";
-
-    private static readonly Lazy<string?> MissingDevice = new(() =>
-        WasapiOutput.ProbeDefaultDevice(out string description)
-            ? null
-            : $"No hay un dispositivo de salida de audio usable en este equipo: {description}");
-
-    public const string LongVariable = "RODAJE_PRUEBAS_LARGAS";
-
-    /// <summary>Mediciones en tiempo real: la carga de otras suites en paralelo las falsea, así que van en la corrida de aceptación.</summary>
-    public static string? SkipReason =>
-        Environment.GetEnvironmentVariable(LongVariable) == "1"
-            ? MissingDevice.Value
-            : $"Medición de audio en tiempo real; se activa con {LongVariable}=1 (ABRIR.bat aceptacion).";
-
-    public static string? ToneSkipReason =>
-        Environment.GetEnvironmentVariable(ToneVariable) == "1"
-            ? MissingDevice.Value
-            : $"Esta prueba hace sonar un tono de 3 s; se activa con la variable de entorno {ToneVariable}=1.";
-}
-
-/// <summary>Prueba que necesita un dispositivo de salida real; no suena (reproduce silencio).</summary>
-internal sealed class AudioDeviceFactAttribute : FactAttribute
-{
-    public AudioDeviceFactAttribute() => Skip = AudioHardware.SkipReason;
-}
-
-internal sealed class AudioDeviceTheoryAttribute : TheoryAttribute
-{
-    public AudioDeviceTheoryAttribute() => Skip = AudioHardware.SkipReason;
-}
-
-/// <summary>Prueba que hace ruido: solo corre con <c>RODAJE_PRUEBAS_AUDIO=1</c> y un dispositivo real.</summary>
-internal sealed class AudioToneFactAttribute : FactAttribute
-{
-    public AudioToneFactAttribute() => Skip = AudioHardware.ToneSkipReason;
-}
-
 internal sealed class ToneSource(int sampleRate, double frequency, float amplitude) : IAudioSampleSource
 {
     private long _frame;

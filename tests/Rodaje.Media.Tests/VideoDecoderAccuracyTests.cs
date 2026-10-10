@@ -3,6 +3,7 @@ using Rodaje.Media.Gpu;
 using Rodaje.Media.Tests.Support;
 using Rodaje.Media.Video;
 using Rodaje.Playback;
+using Rodaje.TestMedia;
 using Xunit.Abstractions;
 
 namespace Rodaje.Media.Tests;
@@ -20,7 +21,7 @@ public sealed class VideoDecoderAccuracyTests(ITestOutputHelper output)
 
     public static TheoryData<string> AllClips => new(TestClips.H264.Name, TestClips.Hevc.Name, TestClips.Hevc10.Name, TestClips.H264Mkv.Name);
 
-    [FfmpegTheory]
+    [FfmpegLibraryTheory]
     [MemberData(nameof(SoftwareCases))]
     public void Sequential_decode_matches_reference_software(string clip, DecodeMode mode) =>
         SequentialMatches(DecodeModes.Clip(clip), mode);
@@ -30,7 +31,7 @@ public sealed class VideoDecoderAccuracyTests(ITestOutputHelper output)
     public void Sequential_decode_matches_reference_hardware(string clip) =>
         SequentialMatches(DecodeModes.Clip(clip), DecodeMode.Hardware);
 
-    [FfmpegTheory]
+    [FfmpegLibraryTheory]
     [MemberData(nameof(SoftwareCases))]
     public void Random_access_matches_reference_software(string clip, DecodeMode mode) =>
         RandomAccessMatches(DecodeModes.Clip(clip), mode);

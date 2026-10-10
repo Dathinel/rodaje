@@ -72,7 +72,8 @@ Medido el 9 de octubre de 2026 en un Ryzen 7 7435HS:
 
 ## Documentación
 
-- [Guía técnica](docs/guia-tecnica.md): arquitectura, operaciones con diagramas y recorrido del código.
+- [Arquitectura por capas](docs/arquitectura/README.md): núcleo, medios, audio, reproducción, motor, render y app, con diagramas y recorrido del código.
+- [Variables de entorno](docs/variables-entorno.md)
 - [Formato de proyecto](docs/formato-proyecto.md)
 - [Decisiones](docs/decisiones.md)
 - [Investigación de editores abiertos](docs/archivo/investigacion.md)

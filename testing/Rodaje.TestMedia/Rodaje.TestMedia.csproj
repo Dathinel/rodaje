@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Apoyo común a todas las pruebas (no es un proyecto de pruebas):
+    - medios deterministas: cada cuadro lleva su número dibujado en bloques que sobreviven a la compresión
+      y el audio lleva marcas de tiempo detectables tras AAC u Opus. Se generan con un ffmpeg.exe externo
+      (solo desarrollo; nunca viaja con el editor);
+    - Skip.cs: los atributos que omiten una prueba, con su motivo, cuando falta FFmpeg, la GPU, NVENC, un
+      dispositivo de audio o la variable que activa las pruebas largas.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Rodaje.TestMedia</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <!-- Biblioteca de apoyo a pruebas: sin las reglas de nombres ni de localización del núcleo -->
+    <NoWarn>$(NoWarn);CA1303;CA1515</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rodaje.TestMedia.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Rodaje.Core\Rodaje.Core.csproj" />
+    <!-- Para comprobar FFmpeg, la GPU, NVENC y el dispositivo de audio antes de correr una prueba -->
+    <ProjectReference Include="..\..\src\Rodaje.Audio\Rodaje.Audio.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Media\Rodaje.Media.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Solo para los atributos de Skip.cs -->
+    <PackageReference Include="xunit.extensibility.core" Version="2.9.3" />
+  </ItemGroup>
+
+</Project>

@@ -1,4 +1,5 @@
 using Rodaje.Media.Tests.Support;
+using Rodaje.TestMedia;
 
 namespace Rodaje.Media.Tests;
 
@@ -128,7 +129,7 @@ public sealed class FfmpegLibraryTests : IDisposable
         Assert.NotNull(FfmpegLibrary.LicenseProblem(null, Configurations(Lgpl)));
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void The_loaded_ffmpeg_is_lgpl()
     {
         Assert.True(FfmpegLibrary.IsInitialized);
@@ -138,7 +139,7 @@ public sealed class FfmpegLibraryTests : IDisposable
             [("avcodec", FFmpeg.AutoGen.Abstractions.ffmpeg.avcodec_configuration())]));
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Loads_ffmpeg_9_by_absolute_path()
     {
         Assert.True(FfmpegLibrary.IsInitialized);

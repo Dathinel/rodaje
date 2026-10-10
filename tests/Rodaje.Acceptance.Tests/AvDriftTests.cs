@@ -25,7 +25,7 @@ public sealed class AvDriftTests(ITestOutputHelper output)
     /// decodifica el hilo real. Cuando el audio leído por delante trae la marca del segundo s, el reloj cae
     /// justo en ella y el cuadro mostrado debe ser el que contiene el instante s.
     /// </summary>
-    [AcceptanceTheory(longRunning: true)]
+    [FfmpegLibraryTheory(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac, LongRunning = true)]
     [InlineData(0.0)]
     [InlineData(0.001)]
     [InlineData(-0.001)]
@@ -197,15 +197,15 @@ public sealed class AvDriftTests(ITestOutputHelper output)
     /// 30 s en tiempo real con la salida de audio de verdad (volumen 0) como reloj maestro y un bucle de
     /// render a 60 Hz: se mide la distancia entre el reloj y el cuadro que se ve.
     /// </summary>
-    [AcceptanceFact(longRunning: true)]
+    [FfmpegLibraryFact(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac, LongRunning = true)]
     public void Treinta_segundos_en_tiempo_real_con_el_reloj_del_dispositivo() =>
         RealTime(TimeSpan.FromSeconds(30), "tiempo_real");
 
     /// <summary>
     /// El criterio 2 de punta a punta con el dispositivo real: el clip de 10 minutos entero en tiempo real, con
-    /// el reloj del dispositivo de audio (volumen 0). Solo con <c>herramientasceptacion.ps1 -Completa</c>.
+    /// el reloj del dispositivo de audio (volumen 0). Solo con <c>herramientas\aceptacion.ps1 -Completa</c>.
     /// </summary>
-    [AcceptanceFact(complete: true)]
+    [FfmpegLibraryFact(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac, Complete = true)]
     public void Diez_minutos_en_tiempo_real_con_el_reloj_del_dispositivo() =>
         RealTime(null, "tiempo_real_10min");
 

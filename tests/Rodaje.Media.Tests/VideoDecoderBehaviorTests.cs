@@ -3,12 +3,13 @@ using Rodaje.Media.Gpu;
 using Rodaje.Media.Tests.Support;
 using Rodaje.Media.Video;
 using Rodaje.Playback;
+using Rodaje.TestMedia;
 
 namespace Rodaje.Media.Tests;
 
 public sealed class VideoDecoderBehaviorTests
 {
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Frames_past_the_end_are_null_and_the_decoder_recovers()
     {
         IReadOnlyList<ulong> reference = TestClips.LumaReference(TestClips.H264);
@@ -35,7 +36,7 @@ public sealed class VideoDecoderBehaviorTests
         Assert.Throws<ArgumentOutOfRangeException>(() => decoder.GetFrame(-1));
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public async Task Async_source_returns_the_same_frames()
     {
         IReadOnlyList<ulong> reference = TestClips.LumaReference(TestClips.Hevc);
@@ -49,7 +50,7 @@ public sealed class VideoDecoderBehaviorTests
         Assert.Null(await ((IVideoFrameSource)decoder).GetFrameAsync(250, CancellationToken.None));
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public async Task Cancellation_is_honored_and_leaves_the_decoder_usable()
     {
         IReadOnlyList<ulong> reference = TestClips.LumaReference(TestClips.H264);
@@ -81,7 +82,7 @@ public sealed class VideoDecoderBehaviorTests
         }
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Sequential_requests_do_not_seek_and_far_jumps_do()
     {
         using VideoDecoder decoder = VideoDecoder.Open(TestClips.PathOf(TestClips.H264), DecodeModes.Options(DecodeMode.SoftwareCpu));
@@ -99,7 +100,7 @@ public sealed class VideoDecoderBehaviorTests
         Assert.Equal(3, decoder.Statistics.Seeks);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Corrupted_packets_are_skipped_without_throwing()
     {
         string clip = TestClips.Corrupted(TestClips.H264);
@@ -164,7 +165,7 @@ public sealed class VideoDecoderBehaviorTests
         return TestClips.KeyFrames(TestClips.H264).First(k => k > last + 2);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Variable_frame_rate_maps_each_index_to_the_nearest_earlier_frame()
     {
         using VideoDecoder decoder = VideoDecoder.Open(TestClips.VariableFrameRate(), DecodeModes.Options(DecodeMode.SoftwareCpu));
@@ -185,7 +186,7 @@ public sealed class VideoDecoderBehaviorTests
         }
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Calls_that_overlap_are_rejected()
     {
         using VideoDecoder decoder = VideoDecoder.Open(TestClips.PathOf(TestClips.H264), DecodeModes.Options(DecodeMode.SoftwareCpu));
@@ -215,14 +216,14 @@ public sealed class VideoDecoderBehaviorTests
         Assert.Equal(TestClips.LumaReference(TestClips.H264)[123], Hash(frame!));
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void A_file_without_video_cannot_be_opened_as_video()
     {
         MediaException error = Assert.Throws<MediaException>(() => VideoDecoder.Open(TestClips.MonoAudio44k()));
         Assert.Contains("video", error.Message, StringComparison.Ordinal);
     }
 
-    [FfmpegFact]
+    [FfmpegLibraryFact]
     public void Disposed_decoder_rejects_requests()
     {
         VideoDecoder decoder = VideoDecoder.Open(TestClips.PathOf(TestClips.H264), DecodeModes.Options(DecodeMode.SoftwareCpu));

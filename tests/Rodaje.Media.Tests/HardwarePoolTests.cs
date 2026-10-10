@@ -9,13 +9,6 @@ using Xunit.Abstractions;
 
 namespace Rodaje.Media.Tests;
 
-/// <summary>Necesita D3D11VA y un codificador HEVC para generar el clip de 4K.</summary>
-internal sealed class HevcHardwareFactAttribute : FactAttribute
-{
-    public HevcHardwareFactAttribute() =>
-        Skip = MediaTestEnvironment.HardwareSkipReason ?? new Rodaje.TestMedia.FfmpegFactAttribute(VideoCodec.Hevc).Skip;
-}
-
 /// <summary>El pool de D3D11VA: cuántas superficies reserva para referencias según el nivel y quién decide las de sobra.</summary>
 public sealed class HardwarePoolTests(ITestOutputHelper output)
 {
@@ -46,7 +39,7 @@ public sealed class HardwarePoolTests(ITestOutputHelper output)
     public void Without_a_known_level_or_codec_nothing_is_assumed(AVCodecID codec, int level) =>
         Assert.Null(VideoDecoder.LevelReferenceFrames(codec, 3840, 2160, level, 0));
 
-    [HevcHardwareFact]
+    [HardwareFact(VideoCodec.Hevc)]
     public void A_compact_4k_pool_decodes_every_frame_exactly_while_the_cache_holds_its_frames()
     {
         string path = TestMediaGenerator.CreateDefault()!.GetOrCreate(Hevc4K).Path;

@@ -33,7 +33,7 @@ public delegate void GrayFrameHandler(int index, ReadOnlySpan<byte> gray);
 /// </summary>
 public sealed class FfmpegTool
 {
-    public const string EnvironmentVariable = "RODAJE_FFMPEG";
+    public const string EnvironmentVariable = Rodaje.Media.EnvironmentVariables.Ffmpeg;
 
     private static readonly Lazy<(FfmpegTool? Tool, string? Reason)> DefaultInstance =
         new(() => Locate(Environment.GetEnvironmentVariable, AppContext.BaseDirectory));
@@ -252,7 +252,7 @@ public sealed class FfmpegTool
 
     private static IEnumerable<string> EntornoCandidates(Func<string, string?> environment, string startDirectory)
     {
-        string? entorno = environment("RODAJE_ENTORNO");
+        string? entorno = environment(Rodaje.Media.EnvironmentVariables.Entorno);
         if (!string.IsNullOrWhiteSpace(entorno))
         {
             yield return Path.Combine(entorno, "ffmpeg", "bin", "ffmpeg.exe");

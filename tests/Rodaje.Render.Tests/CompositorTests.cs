@@ -4,6 +4,7 @@ using Rodaje.Media.Video;
 using Rodaje.Playback;
 using Rodaje.Playback.Composition;
 using Rodaje.Render.Tests.Support;
+using Rodaje.TestMedia;
 
 namespace Rodaje.Render.Tests;
 
