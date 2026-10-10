@@ -54,9 +54,14 @@ public sealed partial class EditorSession
         Project loaded;
         try
         {
-            loaded = await Task.Run(() => ProjectSerializer.Load(full));
+            loaded = await Task.Run(() =>
+            {
+                Project project = ProjectSerializer.Load(full);
+                ProjectPaths.MakeAbsolute(project, Path.GetDirectoryName(full)!);
+                return project;
+            });
         }
-        catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException or ArgumentException)
         {
             Notify(NotificationSeverity.Error, $"No se pudo abrir «{Path.GetFileName(full)}»", ex.Message);
             return false;
@@ -73,7 +78,6 @@ public sealed partial class EditorSession
             return false;
         }
 
-        ProjectPaths.MakeAbsolute(loaded, Path.GetDirectoryName(full)!);
         ReplaceProject(loaded, first.Id, full, "Proyecto abierto");
         return true;
     }

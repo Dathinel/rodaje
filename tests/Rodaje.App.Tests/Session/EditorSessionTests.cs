@@ -355,4 +355,24 @@ public class EditorSessionTests
         h.Session.ToggleSelection("x");
         Assert.Empty(h.Session.SelectedClipIds);
     });
+
+    [Fact]
+    public void Abrir_UnaRutaConCaracteresInvalidos_AvisaSinCaerse() => UiThread.Run(async () =>
+    {
+        using var dir = new TempDirectory();
+        var h = new Harness();
+        await h.ImportAndAppend(dir.File("toma 1.mp4"));
+        h.Dialogs.SavePath = dir.File("p");
+        Assert.True(await h.Session.SaveAsync());
+        string saved = dir.File("p.rodaje");
+        File.WriteAllText(saved, File.ReadAllText(saved).Replace("toma 1.mp4", "toma\\u00001.mp4", StringComparison.Ordinal));
+
+        var other = new Harness();
+        Assert.False(await other.Session.OpenProjectAsync(saved));
+
+        EditorNotification notice = Assert.Single(other.Notifications);
+        Assert.Equal(NotificationSeverity.Error, notice.Severity);
+        Assert.Contains("ruta", notice.Message, StringComparison.Ordinal);
+        Assert.Single(other.Playback.Loads);
+    });
 }

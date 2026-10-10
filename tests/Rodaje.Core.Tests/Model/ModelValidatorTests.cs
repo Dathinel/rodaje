@@ -113,6 +113,21 @@ public class ModelValidatorTests
         Assert.Empty(ModelValidator.Validate(ok));
     }
 
+    [Theory]
+    [InlineData("C:\\videos\\toma\0.mp4")]
+    [InlineData("toma|1.mp4")]
+    [InlineData("<toma>.mp4")]
+    [InlineData("toma\u0007.mp4")]
+    public void MediaWithInvalidPathCharacters(string path)
+    {
+        AssertSingleError(
+            p => p.Media.Add(new MediaRef { Id = "m3", Duration = Sec(1), Path = path }),
+            "El medio «m3» tiene una ruta con caracteres que no puede tener una ruta de archivo.");
+        Project ok = ValidProject();
+        ok.Media.Add(new MediaRef { Id = "m3", Duration = Sec(1), Path = @"D:\Programas de uso libre\toma ñandú (1).mp4" });
+        Assert.Empty(ModelValidator.Validate(ok));
+    }
+
     [Fact]
     public void SequenceWithNonPositiveSizeOrSampleRate()
     {
