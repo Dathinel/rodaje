@@ -231,6 +231,39 @@ public sealed class PackageInstallerTests : IDisposable
     }
 
     [Fact]
+    public void Without_allow_replace_an_installed_package_is_left_alone()
+    {
+        string archive = Samples.ValidPackage(_folder.Combine("t.paquete"));
+        _installer.Install(archive);
+
+        var ex = Assert.Throws<PackageReplaceBlockedException>(() => _installer.Install(archive, allowReplace: false));
+
+        Assert.Equal("rodaje-transiciones", ex.PackageId);
+        Assert.Equal(["rodaje-transiciones"], Directory.GetDirectories(_locations.Packages).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public void Another_process_holding_the_operation_lock_makes_every_change_wait()
+    {
+        var installer = new PackageInstaller(_locations, "rodaje") { BusyTimeout = TimeSpan.FromMilliseconds(200) };
+        string archive = Samples.ValidPackage(_folder.Combine("t.paquete"));
+        Directory.CreateDirectory(_locations.Packages);
+        string extracting = Path.Combine(_locations.Packages, ".instalando-abc");
+        Directory.CreateDirectory(extracting);
+
+        using (new FileStream(installer.OperationLockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+        {
+            Assert.Throws<PackageInstallException>(() => installer.CleanUpLeftovers());
+            Assert.Throws<PackageInstallException>(() => installer.Install(archive));
+            Assert.Throws<PackageInstallException>(() => installer.Uninstall("rodaje-transiciones"));
+            Assert.True(Directory.Exists(extracting));
+        }
+
+        Assert.Equal(1, installer.CleanUpLeftovers());
+        Assert.Equal(InstallOutcome.Installed, installer.Install(archive).Outcome);
+    }
+
+    [Fact]
     public void A_blackout_between_the_two_renames_of_an_update_restores_the_previous_version()
     {
         string target = InstallVersion("1.0.0");

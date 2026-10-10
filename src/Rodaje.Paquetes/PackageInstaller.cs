@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 namespace Rodaje.Paquetes;
 
 /// <summary>Un paquete que no se pudo instalar o desinstalar; el mensaje se le puede mostrar a la persona.</summary>
-public sealed class PackageInstallException : Exception
+public class PackageInstallException : Exception
 {
     public PackageInstallException()
     {
@@ -28,6 +28,38 @@ public enum InstallOutcome
     Updated,
     Reinstalled,
     Downgraded,
+}
+
+/// <summary>El paquete ya está instalado y se pidió no reemplazarlo (por ejemplo, porque otra ventana podría estar usándolo).</summary>
+public sealed class PackageReplaceBlockedException : PackageInstallException
+{
+    public PackageReplaceBlockedException()
+    {
+    }
+
+    public PackageReplaceBlockedException(string message)
+        : base(message)
+    {
+    }
+
+    public PackageReplaceBlockedException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+
+    public PackageReplaceBlockedException(string packageId, string packageName, PackageVersion? installedVersion)
+        : base($"Ya está instalado «{packageName}» y ahora no se puede reemplazar.")
+    {
+        PackageId = packageId;
+        PackageName = packageName;
+        InstalledVersion = installedVersion;
+    }
+
+    public string PackageId { get; } = "";
+
+    public string PackageName { get; } = "";
+
+    public PackageVersion? InstalledVersion { get; }
 }
 
 public sealed record InstallResult(InstalledPackage Package, InstallOutcome Outcome, PackageVersion? PreviousVersion, IReadOnlyList<string> Warnings);
@@ -54,6 +86,8 @@ public sealed record InstallLimits
 /// paquete: cada entrada del zip se valida (<see cref="SafePaths"/>) y se comprueba la ruta final. La carpeta definitiva se
 /// reemplaza con un cambio de nombre, así un corte deja la versión anterior o la nueva, nunca una mezcla; si el corte llega
 /// entre los dos cambios de nombre, <see cref="CleanUpLeftovers"/> devuelve la anterior a su sitio al arrancar.
+/// Instalar, desinstalar y limpiar restos toman <see cref="OperationLockPath"/>, un bloqueo entre procesos: así dos
+/// programas (o dos ventanas) con la misma carpeta nunca se cruzan, y la limpieza no ve como resto lo que otro está extrayendo.
 /// </summary>
 public sealed class PackageInstaller(PackageLocations locations, string appId, InstallLimits? limits = null)
 {
@@ -62,11 +96,20 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     private const string PreviousPrefix = ".anterior-";
     private const int TagLength = 12;
 
+    public const string OperationLockFileName = ".operacion.lock";
+
     private readonly InstallLimits _limits = limits ?? InstallLimits.Default;
 
     public PackageLocations Locations { get; } = locations ?? throw new ArgumentNullException(nameof(locations));
 
     public string AppId { get; } = string.IsNullOrEmpty(appId) ? throw new ArgumentException("Falta el programa.", nameof(appId)) : appId;
+
+    /// <summary>Cuánto se espera a que otro proceso termine su operación antes de rendirse.</summary>
+    public TimeSpan BusyTimeout { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>Archivo junto a <see cref="PackageLocations.Packages"/> que se abre sin compartir mientras dura una operación.</summary>
+    public string OperationLockPath =>
+        Path.Combine(Path.GetDirectoryName(Path.GetFullPath(Locations.Packages)) ?? Locations.Packages, OperationLockFileName);
 
     /// <summary>SHA-256 de un archivo en hexadecimal en minúsculas.</summary>
     public static string ComputeSha256(string path)
@@ -79,14 +122,17 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     /// <param name="archivePath">El <c>.paquete</c>.</param>
     /// <param name="expectedSha256">Si se da (hexadecimal), el archivo debe tener ese hash; así se instala lo que se descargó.</param>
     /// <param name="allowDowngrade">Permite reemplazar una versión instalada más nueva.</param>
+    /// <param name="allowReplace">Si es falso, un paquete ya instalado no se toca (<see cref="PackageReplaceBlockedException"/>).</param>
     /// <param name="cancellationToken">Cancela la extracción.</param>
     /// <exception cref="PackageInstallException">No se pudo instalar; nada cambió.</exception>
-    public InstallResult Install(string archivePath, string? expectedSha256 = null, bool allowDowngrade = false, CancellationToken cancellationToken = default)
+    public InstallResult Install(string archivePath, string? expectedSha256 = null, bool allowDowngrade = false, bool allowReplace = true,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(archivePath);
         try
         {
-            return InstallCore(Path.GetFullPath(archivePath), expectedSha256, allowDowngrade, cancellationToken);
+            using FileStream operation = AcquireOperationLock();
+            return InstallCore(Path.GetFullPath(archivePath), expectedSha256, allowDowngrade, allowReplace, cancellationToken);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or NotSupportedException or System.Security.SecurityException)
         {
@@ -94,7 +140,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         }
     }
 
-    private InstallResult InstallCore(string archive, string? expectedSha256, bool allowDowngrade, CancellationToken cancellationToken)
+    private InstallResult InstallCore(string archive, string? expectedSha256, bool allowDowngrade, bool allowReplace, CancellationToken cancellationToken)
     {
         if (!File.Exists(archive))
         {
@@ -147,6 +193,11 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             if (Directory.Exists(target))
             {
                 previous = ManifestReader.ReadFile(Path.Combine(target, PackageManifest.FileName), checkFiles: false).Manifest?.Version;
+                if (!allowReplace)
+                {
+                    throw new PackageReplaceBlockedException(manifest.Id, manifest.Name, previous);
+                }
+
                 int order = previous is null ? 1 : manifest.Version.CompareTo(previous);
                 if (order < 0 && !allowDowngrade)
                 {
@@ -197,6 +248,8 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             throw new PackageInstallException($"«{packageId}» no es un paquete que se pueda desinstalar.");
         }
 
+        using FileStream operation = AcquireOperationLock();
+
         foreach (string root in new[] { Locations.Packages, Locations.Modules })
         {
             string target = Path.Combine(root, packageId);
@@ -228,8 +281,10 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     /// Solo debe llamarse al arrancar, cuando no hay ninguna instalación en curso.
     /// </summary>
     /// <returns>Cuántos restos se resolvieron.</returns>
+    /// <exception cref="PackageInstallException">Otro proceso tiene una operación en curso.</exception>
     public int CleanUpLeftovers()
     {
+        using FileStream operation = AcquireOperationLock();
         int resolved = 0;
         foreach (string root in new[] { Locations.Packages, Locations.Modules })
         {
@@ -320,6 +375,37 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return false;
+        }
+    }
+
+    /// <summary>Abre el archivo de bloqueo sin compartir; si lo tiene otro proceso, reintenta hasta <see cref="BusyTimeout"/>.</summary>
+    /// <exception cref="PackageInstallException">Otro proceso no terminó a tiempo.</exception>
+    private FileStream AcquireOperationLock()
+    {
+        string path = OperationLockPath;
+        long deadline = Environment.TickCount64 + (long)BusyTimeout.TotalMilliseconds;
+        while (true)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                const int SharingViolation = 32, LockViolation = 33;
+                if ((ex.HResult & 0xFFFF) is not (SharingViolation or LockViolation))
+                {
+                    throw new PackageInstallException("No se pudo empezar: " + ex.Message, ex);
+                }
+
+                if (Environment.TickCount64 >= deadline)
+                {
+                    throw new PackageInstallException("Otra ventana de Rodaje u otro programa está instalando o desinstalando complementos; prueba de nuevo cuando termine.", ex);
+                }
+
+                Thread.Sleep(50);
+            }
         }
     }
 
