@@ -41,14 +41,14 @@ internal static unsafe class Program
 
             using var window = new VisorWindow(arguments, gpu);
             window.Show();
-            if (arguments.File is { } file && !window.OpenFile(file, autoplay: true) && automated)
+            if (arguments.Files.Count > 0 && !window.Open(arguments.Files, autoplay: true) && automated)
             {
                 return 1;
             }
 
-            if (arguments.File is null && !automated)
+            if (arguments.Files.Count == 0 && !automated)
             {
-                window.PromptForFile();
+                window.PromptForFiles();
             }
 
             if (automated)

@@ -6,7 +6,7 @@ Editor de video nativo para Windows, rápido y por capas, con la comodidad de lo
 
 ## Cómo se usa
 
-**Para ver un video:** doble clic en **`Rodaje.bat`** y elige el archivo, o arrastra el video encima de `Rodaje.bat`. La primera vez compila el programa (alrededor de un minuto); después abre al instante. Espacio reproduce o pausa; ← y → avanzan de a un cuadro; F pone pantalla completa; I muestra las estadísticas.
+**Para ver videos:** arrastra uno o varios videos encima de **`Rodaje.bat`**, o haz doble clic y elígelos; el primero va de fondo y los demás encima como imagen en imagen (también abre un `.rodaje`). La primera vez compila el programa (alrededor de un minuto); después abre al instante. Espacio reproduce o pausa, Alt+flechas mueve la capa elegida, Ctrl+Z deshace e I muestra las estadísticas; el resto de las teclas está en `docs/prueba-visor.md`.
 
 **Para correr las pruebas:** 
 
@@ -17,7 +17,7 @@ Doble clic en **`ABRIR.bat`**. La primera vez descarga el SDK de .NET en `.entor
 | `ABRIR.bat` | Ejecuta todas las pruebas |
 | `ABRIR.bat cobertura` | Pruebas más cobertura de código |
 | `ABRIR.bat aot` | Compila el núcleo a código nativo y lo ejecuta de punta a punta |
-| `ABRIR.bat visor -Archivo video.mp4` | Abre el visor de prueba y reproduce un video con audio |
+| `ABRIR.bat visor video.mp4 [otro.mp4 ...]` | Abre el visor de prueba con uno o varios videos como capas |
 | `ABRIR.bat aceptacion` | Criterios de la fase 2 con video y audio reales: seek exacto al cuadro y sincronía audio/video en 10 minutos (varios minutos) |
 | `ABRIR.bat preparar-entorno` | Reconstruye el entorno local desde cero |
 

@@ -10,6 +10,7 @@ internal static unsafe class Win32
     public const uint WM_ERASEBKGND = 0x0014;
     public const uint WM_GETMINMAXINFO = 0x0024;
     public const uint WM_KEYDOWN = 0x0100;
+    public const uint WM_SYSKEYDOWN = 0x0104;
     public const uint WM_MOUSEMOVE = 0x0200;
     public const uint WM_LBUTTONDOWN = 0x0201;
     public const uint WM_LBUTTONUP = 0x0202;
@@ -20,12 +21,22 @@ internal static unsafe class Win32
 
     public const int VK_SHIFT = 0x10;
     public const int VK_CONTROL = 0x11;
+    public const int VK_MENU = 0x12;
     public const int VK_ESCAPE = 0x1B;
     public const int VK_SPACE = 0x20;
     public const int VK_END = 0x23;
     public const int VK_HOME = 0x24;
     public const int VK_LEFT = 0x25;
+    public const int VK_UP = 0x26;
     public const int VK_RIGHT = 0x27;
+    public const int VK_DOWN = 0x28;
+    public const int VK_NUMPAD0 = 0x60;
+    public const int VK_NUMPAD1 = 0x61;
+    public const int VK_NUMPAD9 = 0x69;
+    public const int VK_ADD = 0x6B;
+    public const int VK_SUBTRACT = 0x6D;
+    public const int VK_OEM_PLUS = 0xBB;
+    public const int VK_OEM_MINUS = 0xBD;
 
     public const uint QS_ALLINPUT = 0x04FF;
     public const uint MWMO_INPUTAVAILABLE = 0x0004;
@@ -49,8 +60,6 @@ internal static unsafe class Win32
     public const uint MB_OK = 0x0;
     public const uint MB_ICONERROR = 0x10;
     public const uint MB_ICONWARNING = 0x30;
-
-    public const int ERROR_CANCELLED = 1223;
 
     /// <summary><c>MAKEINTRESOURCE(32512)</c>.</summary>
     public static char* IDC_ARROW => (char*)32512;

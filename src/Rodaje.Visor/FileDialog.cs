@@ -7,16 +7,16 @@ namespace Rodaje.Visor;
 /// <summary>Diálogo de abrir de Windows (IFileOpenDialog) por su vtable, sin COM generado en ejecución.</summary>
 internal static unsafe class FileDialog
 {
+    private const uint FosAllowMultiSelect = 0x200;
     private const uint FosForceFileSystem = 0x40;
     private const uint FosFileMustExist = 0x1000;
     private const uint FosPathMustExist = 0x800;
 
-    /// <summary>Ruta elegida, o <c>null</c> si se canceló. Debe llamarse desde un hilo STA.</summary>
-    public static string? PickVideo(HWND owner)
+    /// <summary>Rutas elegidas (vacío si se canceló). Debe llamarse desde un hilo STA.</summary>
+    public static IReadOnlyList<string> PickFiles(HWND owner)
     {
         IFileOpenDialog* dialog = null;
-        IShellItem* item = null;
-        char* path = null;
+        IShellItemArray* items = null;
         try
         {
             HRESULT hr = CoCreateInstance(__uuidof<FileOpenDialog>(), null, (uint)CLSCTX.CLSCTX_INPROC_SERVER,
@@ -28,12 +28,12 @@ internal static unsafe class FileDialog
 
             uint options;
             dialog->GetOptions(&options);
-            dialog->SetOptions(options | FosForceFileSystem | FosFileMustExist | FosPathMustExist);
-            fixed (char* videoName = "Videos")
-            fixed (char* videoSpec = "*.mp4;*.mkv;*.mov;*.m4v;*.webm;*.avi;*.mts;*.m2ts;*.ts;*.wmv;*.flv;*.3gp")
+            dialog->SetOptions(options | FosAllowMultiSelect | FosForceFileSystem | FosFileMustExist | FosPathMustExist);
+            fixed (char* videoName = "Videos y proyectos de Rodaje")
+            fixed (char* videoSpec = "*.mp4;*.mkv;*.mov;*.m4v;*.webm;*.avi;*.mts;*.m2ts;*.ts;*.wmv;*.flv;*.3gp;*.rodaje")
             fixed (char* allName = "Todos los archivos")
             fixed (char* allSpec = "*.*")
-            fixed (char* title = "Abrir un video en el visor de Rodaje")
+            fixed (char* title = "Abrir videos (el primero de fondo, los demás encima) o un proyecto")
             {
                 COMDLG_FILTERSPEC* filters = stackalloc COMDLG_FILTERSPEC[2];
                 filters[0] = new COMDLG_FILTERSPEC { pszName = videoName, pszSpec = videoSpec };
@@ -43,29 +43,50 @@ internal static unsafe class FileDialog
                 hr = dialog->Show(owner);
             }
 
-            if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+            if (hr.FAILED || dialog->GetResults(&items).FAILED)
             {
-                return null;
+                return [];
             }
 
-            if (hr.FAILED || dialog->GetResult(&item).FAILED
-                || item->GetDisplayName(SIGDN.SIGDN_FILESYSPATH, &path).FAILED)
+            uint count;
+            if (items->GetCount(&count).FAILED)
             {
-                return null;
+                return [];
             }
 
-            return new string(path);
+            var paths = new List<string>((int)count);
+            for (uint i = 0; i < count; i++)
+            {
+                IShellItem* item = null;
+                char* path = null;
+                try
+                {
+                    if (items->GetItemAt(i, &item).SUCCEEDED && item->GetDisplayName(SIGDN.SIGDN_FILESYSPATH, &path).SUCCEEDED)
+                    {
+                        paths.Add(new string(path));
+                    }
+                }
+                finally
+                {
+                    if (path != null)
+                    {
+                        CoTaskMemFree(path);
+                    }
+
+                    if (item != null)
+                    {
+                        item->Release();
+                    }
+                }
+            }
+
+            return paths;
         }
         finally
         {
-            if (path != null)
+            if (items != null)
             {
-                CoTaskMemFree(path);
-            }
-
-            if (item != null)
-            {
-                item->Release();
+                items->Release();
             }
 
             if (dialog != null)
