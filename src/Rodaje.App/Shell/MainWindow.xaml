@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Distribución D-018: barra de título; biblioteca con su riel, reproductor y panel derecho; línea de tiempo abajo. Los
+    separadores cambian el tamaño de cada zona y se recuerda en ajustes.json. Las páginas de atajos y complementos se
+    abren encima (ModalLayer).
+-->
+<Window
+    x:Class="Rodaje.App.Shell.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:shell="using:Rodaje.App.Shell"
+    xmlns:library="using:Rodaje.App.Views.Library"
+    xmlns:player="using:Rodaje.App.Views.Player"
+    xmlns:inspector="using:Rodaje.App.Views.Inspector"
+    xmlns:timeline="using:Rodaje.App.Views.Timeline"
+    Title="Rodaje">
+
+    <Grid x:Name="Root" Background="{StaticResource BackgroundBrush}" AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="240" />
+            <RowDefinition Height="4" />
+            <RowDefinition x:Name="TimelineRow" Height="300" />
+        </Grid.RowDefinitions>
+
+        <shell:TitleBar x:Name="TitleBar" />
+
+        <InfoBar x:Name="Notification" Grid.Row="1" IsOpen="False" IsClosable="True" Margin="0" CornerRadius="0" />
+
+        <Grid x:Name="MainArea" Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="LibraryColumn" Width="320" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="*" MinWidth="320" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition x:Name="InspectorColumn" Width="320" />
+            </Grid.ColumnDefinitions>
+
+            <library:LibraryView x:Name="Library" />
+            <shell:PaneSplitter x:Name="LibrarySplitter" Grid.Column="1" TargetIndex="0" GrowsTowardEnd="True" MinSize="220" MaxSize="900" />
+            <player:PlayerView x:Name="Player" Grid.Column="2" />
+            <shell:PaneSplitter x:Name="InspectorSplitter" Grid.Column="3" TargetIndex="4" GrowsTowardEnd="False" MinSize="240" MaxSize="900" />
+            <inspector:InspectorView x:Name="Inspector" Grid.Column="4" />
+        </Grid>
+
+        <shell:PaneSplitter x:Name="TimelineSplitter" Grid.Row="3" ResizesColumn="False" TargetIndex="4" GrowsTowardEnd="False" MinSize="160" MaxSize="1400" ReserveForStar="240" />
+
+        <timeline:TimelineView x:Name="Timeline" Grid.Row="4" />
+
+        <Grid x:Name="ModalLayer" Grid.RowSpan="5" Visibility="Collapsed" Background="{StaticResource ScrimBrush}">
+            <Border Margin="48,56,48,40" MaxWidth="1100" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="2">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Style="{StaticResource PanelHeaderStyle}" Height="44">
+                        <TextBlock x:Name="ModalTitle" Style="{StaticResource HeaderTextStyle}" />
+                        <Button Style="{StaticResource ToolButtonStyle}" HorizontalAlignment="Right" Content="&#xE711;" Click="OnCloseModal"
+                                ToolTipService.ToolTip="Cerrar (Esc)" />
+                    </Grid>
+                    <ContentPresenter x:Name="ModalContent" Grid.Row="1" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

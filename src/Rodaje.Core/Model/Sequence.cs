@@ -29,6 +29,14 @@ public sealed class Sequence
     [JsonIgnore]
     public Time Duration => AllTracks.SelectMany(t => t.Clips).Select(c => c.End).DefaultIfEmpty(Time.Zero).Max();
 
+    public Sequence Clone()
+    {
+        Sequence copy = (Sequence)MemberwiseClone();
+        copy.VideoTracks = VideoTracks.ConvertAll(t => t.Clone());
+        copy.AudioTracks = AudioTracks.ConvertAll(t => t.Clone());
+        return copy;
+    }
+
     public Track? FindTrack(string trackId) => AllTracks.FirstOrDefault(t => t.Id == trackId);
 
     public Track GetTrack(string trackId) =>

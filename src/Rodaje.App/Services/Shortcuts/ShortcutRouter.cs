@@ -1,0 +1,150 @@
+namespace Rodaje.App.Services.Shortcuts;
+
+/// <summary>
+/// Lanza las acciones: une cada identificador del <see cref="ShortcutRegistry"/> con quien sabe ejecutarlo y decide
+/// qué hacer con cada combinación que llega de la ventana. Los menús y botones también pasan por aquí
+/// (<see cref="Invoke"/>), así una acción se comporta igual venga de donde venga.
+/// </summary>
+/// <remarks>
+/// Una acción puede tener varios ejecutores; gana el último que se unió y que hoy puede ejecutarla. Así una vista con el
+/// foco (por ejemplo, la biblioteca para Supr) se adelanta a la línea de tiempo sin que ninguna conozca a la otra.
+/// </remarks>
+public sealed partial class ShortcutRouter
+{
+    private readonly Dictionary<string, List<Binding>> _bindings = new(StringComparer.Ordinal);
+    private int _suspended;
+
+    public ShortcutRouter(ShortcutRegistry registry)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        Registry = registry;
+    }
+
+    public ShortcutRegistry Registry { get; }
+
+    /// <summary>Se lanzó una acción, desde el teclado o desde un menú.</summary>
+    public event EventHandler<string>? Invoked;
+
+    /// <summary>Mientras está suspendido, las teclas no lanzan nada (por ejemplo, al capturar una tecla nueva).</summary>
+    public bool IsSuspended => _suspended > 0;
+
+    /// <summary>Une la acción con quien la ejecuta. Se deshace con el <see cref="IDisposable"/> devuelto.</summary>
+    /// <param name="canExecute">Si da <c>false</c>, se prueba con el ejecutor anterior y la tecla sigue su camino.</param>
+    public IDisposable Bind(string actionId, Action execute, Func<bool>? canExecute = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actionId);
+        ArgumentNullException.ThrowIfNull(execute);
+        if (!_bindings.TryGetValue(actionId, out List<Binding>? list))
+        {
+            _bindings[actionId] = list = [];
+        }
+
+        var binding = new Binding(this, actionId, execute, canExecute);
+        list.Add(binding);
+        return binding;
+    }
+
+    public bool CanInvoke(string actionId) => FindHandler(actionId) is not null;
+
+    /// <summary>Ejecuta la acción si alguien puede; <c>true</c> si se ejecutó.</summary>
+    public bool Invoke(string actionId)
+    {
+        if (FindHandler(actionId) is not { } binding)
+        {
+            return false;
+        }
+
+        binding.Execute();
+        Invoked?.Invoke(this, actionId);
+        return true;
+    }
+
+    /// <summary>
+    /// Una tecla de la ventana. <c>true</c> si es un atajo y se consumió: la ventana debe marcarla como manejada para
+    /// que ningún control (por ejemplo, el botón con el foco y Espacio) la use también.
+    /// </summary>
+    /// <param name="isRepeat">La tecla sigue apretada (repetición automática de Windows).</param>
+    /// <param name="isTextInputFocused">El foco está en un campo de texto: solo pasan las acciones que lo permiten.</param>
+    public bool Dispatch(KeyChord chord, bool isRepeat, bool isTextInputFocused)
+    {
+        if (IsSuspended || Registry.FindAction(chord) is not { } actionId || Registry.Find(actionId) is not { } action)
+        {
+            return false;
+        }
+
+        if (isTextInputFocused && !action.WorksInTextInput)
+        {
+            return false;
+        }
+
+        if (isRepeat && !action.Repeats)
+        {
+            // Se consume para que la repetición no llegue a un control, pero no se lanza otra vez.
+            return CanInvoke(actionId);
+        }
+
+        return Invoke(actionId);
+    }
+
+    /// <summary>Deja de lanzar acciones con el teclado hasta que se libera lo devuelto; se puede anidar.</summary>
+    public IDisposable Suspend()
+    {
+        _suspended++;
+        return new Resume(this);
+    }
+
+    private Binding? FindHandler(string actionId)
+    {
+        if (!_bindings.TryGetValue(actionId, out List<Binding>? list))
+        {
+            return null;
+        }
+
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            if (list[i].CanExecute())
+            {
+                return list[i];
+            }
+        }
+
+        return null;
+    }
+
+    private sealed partial class Binding(ShortcutRouter router, string actionId, Action execute, Func<bool>? canExecute) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Execute() => execute();
+
+        public bool CanExecute() => !_disposed && (canExecute?.Invoke() ?? true);
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            if (router._bindings.TryGetValue(actionId, out List<Binding>? list))
+            {
+                list.Remove(this);
+            }
+        }
+    }
+
+    private sealed partial class Resume(ShortcutRouter router) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _disposed = true;
+                router._suspended--;
+            }
+        }
+    }
+}

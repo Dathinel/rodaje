@@ -53,6 +53,18 @@ public sealed class UndoStack
 
     public string? RedoDescription => _redo.Count > 0 ? _redo[^1].Description : null;
 
+    /// <summary>Pasos aplicados, del más antiguo al más reciente (el último es el que deshace <see cref="Undo"/>).</summary>
+    public IReadOnlyList<ICommand> UndoCommands => _undo;
+
+    /// <summary>Pasos deshechos, del más antiguo al más reciente (el último es el que rehace <see cref="Redo"/>).</summary>
+    public IReadOnlyList<ICommand> RedoCommands => _redo;
+
+    /// <summary>
+    /// Pasos aplicados en el punto limpio, o <c>null</c> si ya no se puede alcanzar; para marcar en un historial qué paso
+    /// coincide con lo guardado.
+    /// </summary>
+    public int? CleanIndex => _cleanIndex;
+
     /// <summary>Indica si el proyecto está como en el último <see cref="MarkClean"/>.</summary>
     public bool IsClean => _groupCommands.Count == 0 && _cleanIndex == _undo.Count;
 

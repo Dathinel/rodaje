@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Rodaje.App.Views.Player.PlayerView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:meters="using:Rodaje.App.Views.Meters"
+    xmlns:player="using:Rodaje.App.Views.Player">
+
+    <Grid Background="{StaticResource PanelBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="40" />
+        </Grid.RowDefinitions>
+
+        <Grid Style="{StaticResource PanelHeaderStyle}">
+            <TextBlock Text="Reproductor" Style="{StaticResource PanelTitleTextStyle}" />
+            <TextBlock x:Name="FormatText" HorizontalAlignment="Right" Style="{StaticResource LabelTextStyle}" />
+        </Grid>
+
+        <Grid Grid.Row="1" Background="{StaticResource BackgroundBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <SwapChainPanel x:Name="VideoPanel" x:FieldModifier="internal" Margin="8" />
+            <TextBlock x:Name="StatusText" Style="{StaticResource LabelTextStyle}" Margin="16,12"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" />
+            <meters:MetersView x:Name="Meters" x:FieldModifier="internal" Grid.Column="1" />
+        </Grid>
+
+        <Grid Grid.Row="2" Padding="12,0" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
+            <TextBlock Text="{x:Bind Session.PositionText, Mode=OneWay, FallbackValue='0:00.000'}" Style="{StaticResource TimecodeTextStyle}" Foreground="{StaticResource AccentBrush}" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4">
+                <Button x:Name="PreviousFrameButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE892;" Click="OnPreviousFrame" />
+                <Button x:Name="PlayButton" Style="{StaticResource ToolButtonStyle}" Content="{x:Bind player:PlayerView.PlayGlyph(Session.IsPlaying), Mode=OneWay, FallbackValue='&#xE768;'}"
+                        Foreground="{StaticResource AccentBrush}" Click="OnPlay" />
+                <Button x:Name="NextFrameButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE893;" Click="OnNextFrame" />
+            </StackPanel>
+            <TextBlock HorizontalAlignment="Right" Text="{x:Bind Session.DurationText, Mode=OneWay, FallbackValue='0:00.000'}" Style="{StaticResource TimecodeTextStyle}" Foreground="{StaticResource TextMutedBrush}" />
+        </Grid>
+    </Grid>
+</UserControl>

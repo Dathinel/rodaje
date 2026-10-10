@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Rodaje.App.Views.Inspector.Filters.FiltersPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Background="{StaticResource PanelBrush}" Padding="16">
+        <TextBlock Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center"
+                   Text="Pila de filtros del clip: activar, reordenar, quitar y añadir. En construcción." />
+    </Grid>
+</UserControl>

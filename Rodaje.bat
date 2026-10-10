@@ -1,12 +1,12 @@
 @echo off
-rem Abre Rodaje. Doble clic: elige uno o varios videos. Arrastrar videos sobre este archivo: los abre todos,
-rem el primero de fondo y los demas como imagen en imagen. Tambien abre un proyecto .rodaje.
+rem Abre Rodaje. Doble clic: abre el editor vacio. Arrastrar videos sobre este archivo: los importa y los pone
+rem seguidos en la pista principal. Tambien abre un proyecto .rodaje. El visor anterior sigue en "ABRIR.bat visor".
 chcp 65001 >nul
 setlocal
 set "RAIZ=%~dp0"
 if "%~1"=="" (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%RAIZ%herramientas\visor.ps1"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%RAIZ%herramientas\app.ps1"
 ) else (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%RAIZ%herramientas\visor.ps1" %*
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%RAIZ%herramientas\app.ps1" %*
 )
 if errorlevel 1 pause

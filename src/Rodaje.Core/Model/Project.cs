@@ -29,4 +29,14 @@ public sealed class Project
 
     public Sequence GetSequence(string sequenceId) =>
         FindSequence(sequenceId) ?? throw new KeyNotFoundException($"No existe la secuencia «{sequenceId}» en el proyecto.");
+
+    /// <summary>Copia profunda: se puede leer desde otro hilo mientras el original se sigue editando.</summary>
+    public Project Clone() => new()
+    {
+        SchemaVersion = SchemaVersion,
+        Id = Id,
+        Name = Name,
+        Media = Media.ConvertAll(m => m.Clone()),
+        Sequences = Sequences.ConvertAll(s => s.Clone()),
+    };
 }

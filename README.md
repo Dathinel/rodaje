@@ -6,7 +6,7 @@ Editor de video nativo para Windows, rápido y por capas, con la comodidad de lo
 
 ## Cómo se usa
 
-**Para ver videos:** arrastra uno o varios videos encima de **`Rodaje.bat`**, o haz doble clic y elígelos; el primero va de fondo y los demás encima como imagen en imagen (también abre un `.rodaje`). La primera vez compila el programa (alrededor de un minuto); después abre al instante. Espacio reproduce o pausa, Alt+flechas mueve la capa elegida, Ctrl+Z deshace e I muestra las estadísticas; el resto de las teclas está en `docs/prueba-visor.md`.
+**Para abrir el editor:** doble clic en **`Rodaje.bat`**, o arrastra encima videos (se importan y van seguidos a la pista principal) o un `.rodaje`. La primera vez compila el programa (unos minutos); después abre al instante. Importa con Ctrl+I o arrastrando a la ventana, y haz doble clic en un medio para ponerlo al final de la pista principal; Espacio reproduce o pausa, S corta, Ctrl+Z deshace y Ctrl+S guarda. El visor de la fase 3 sigue en `ABRIR.bat visor` (teclas en `docs/prueba-visor.md`).
 
 **Para correr las pruebas:** 
 

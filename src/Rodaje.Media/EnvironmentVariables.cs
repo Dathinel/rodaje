@@ -16,6 +16,9 @@ public static class EnvironmentVariables
     /// <summary>Carpeta de los proxies; sin ella, <c>%LOCALAPPDATA%\Rodaje\proxies</c>.</summary>
     public const string Proxies = "RODAJE_PROXIES";
 
+    /// <summary>Carpeta de los ajustes y atajos de la app; sin ella, <c>%LOCALAPPDATA%\Rodaje</c>.</summary>
+    public const string Datos = "RODAJE_DATOS";
+
     /// <summary>El valor de la variable, o <c>null</c> si no está definida o está en blanco.</summary>
     public static string? Read(string name)
     {

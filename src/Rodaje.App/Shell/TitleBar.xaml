@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Barra de título propia: menú, nombre del proyecto y si está guardado, GPU y cifras, y EXPORTAR. -->
+<UserControl
+    x:Class="Rodaje.App.Shell.TitleBar"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Background="{StaticResource BackgroundBrush}" Height="40">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition x:Name="CaptionInset" x:FieldModifier="internal" Width="138" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Margin="14,0,6,0" Text="Rodaje" FontWeight="SemiBold" FontSize="13" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+
+        <MenuBar x:Name="Menu" Grid.Column="1" VerticalAlignment="Center">
+            <MenuBarItem Title="Archivo">
+                <MenuFlyoutItem Text="Proyecto nuevo" Tag="file.new" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Abrir proyecto..." Tag="file.open" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Guardar" Tag="file.save" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Guardar como..." Tag="file.saveAs" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Importar medios..." Tag="file.import" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Exportar..." Tag="file.export" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Salir" Click="OnExitClick" />
+            </MenuBarItem>
+            <MenuBarItem Title="Editar">
+                <MenuFlyoutItem x:Name="UndoItem" Text="Deshacer" Tag="edit.undo" Click="OnActionClick" />
+                <MenuFlyoutItem x:Name="RedoItem" Text="Rehacer" Tag="edit.redo" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Cortar en el cursor" Tag="edit.split" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Recortar el inicio hasta el cursor" Tag="edit.trimStart" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Recortar el final hasta el cursor" Tag="edit.trimEnd" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Borrar" Tag="edit.delete" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Seleccionar todo" Tag="edit.selectAll" Click="OnActionClick" />
+            </MenuBarItem>
+            <MenuBarItem Title="Ver">
+                <MenuFlyoutItem Text="Propiedades" Tag="inspector:Properties" Click="OnInspectorClick" />
+                <MenuFlyoutItem Text="Filtros" Tag="inspector:Filters" Click="OnInspectorClick" />
+                <MenuFlyoutItem Text="Historial" Tag="inspector:History" Click="OnInspectorClick" />
+                <MenuFlyoutItem Text="Trabajos" Tag="inspector:Jobs" Click="OnInspectorClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutSubItem Text="Proxies en la vista previa">
+                    <RadioMenuFlyoutItem x:Name="ProxyAuto" Text="Automático" GroupName="Proxies" Tag="Auto" Click="OnProxyClick" />
+                    <RadioMenuFlyoutItem x:Name="ProxyAlways" Text="Siempre que haya" GroupName="Proxies" Tag="Always" Click="OnProxyClick" />
+                    <RadioMenuFlyoutItem x:Name="ProxyNever" Text="Nunca (originales)" GroupName="Proxies" Tag="Never" Click="OnProxyClick" />
+                </MenuFlyoutSubItem>
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Acercar" Tag="timeline.zoomIn" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Alejar" Tag="timeline.zoomOut" Click="OnActionClick" />
+            </MenuBarItem>
+            <MenuBarItem Title="Complementos">
+                <MenuFlyoutItem Text="Gestor de complementos..." Tag="view.plugins" Click="OnActionClick" />
+            </MenuBarItem>
+            <MenuBarItem Title="Atajos">
+                <MenuFlyoutItem Text="Atajos de teclado..." Tag="view.shortcuts" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <RadioMenuFlyoutItem x:Name="PresetRodaje" Text="Estilo Rodaje" GroupName="Preset" Tag="Rodaje" Click="OnPresetClick" />
+                <RadioMenuFlyoutItem x:Name="PresetCapCut" Text="Estilo CapCut" GroupName="Preset" Tag="CapCut" Click="OnPresetClick" />
+                <RadioMenuFlyoutItem x:Name="PresetVegas" Text="Estilo Vegas" GroupName="Preset" Tag="Vegas" Click="OnPresetClick" />
+            </MenuBarItem>
+        </MenuBar>
+
+        <Border x:Name="DragRegion" x:FieldModifier="internal" Grid.Column="2" Background="Transparent">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                <TextBlock Text="{x:Bind Session.ProjectName, Mode=OneWay, FallbackValue=''}" Style="{StaticResource BodyTextStyle}" />
+                <TextBlock Text="{x:Bind Session.SaveStateText, Mode=OneWay, FallbackValue=''}" Style="{StaticResource CaptionTextStyle}" />
+            </StackPanel>
+        </Border>
+
+        <TextBlock x:Name="StatsText" Grid.Column="3" Margin="0,0,12,0" Style="{StaticResource CaptionTextStyle}" />
+
+        <Button x:Name="ExportButton" x:FieldModifier="internal" Grid.Column="4" Content="EXPORTAR" Margin="0,0,10,0"
+                Style="{StaticResource AccentButtonStyle}" Click="OnExportClick" />
+    </Grid>
+</UserControl>

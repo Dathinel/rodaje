@@ -5,7 +5,7 @@ using TerraFX.Interop.Windows;
 using static TerraFX.Interop.DirectX.DXGI;
 using static TerraFX.Interop.Windows.Windows;
 
-namespace Rodaje.App.Player;
+namespace Rodaje.App.Views.Player;
 
 /// <summary>
 /// Cadena de intercambio de composición (para un <c>SwapChainPanel</c>) flip-model con latencia de un cuadro, en

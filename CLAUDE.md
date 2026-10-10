@@ -5,7 +5,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 ## Cómo se trabaja aquí
 
 - **.NET:** siempre con `herramientas\dotnet-local.cmd <args>`, que usa el SDK 10.0.401 de `.entorno\dotnet`. La FFmpeg LGPL 9.0.2 está en `.entorno\ffmpeg`. Las dos se instalan con `herramientas\preparar-entorno.ps1`, con hashes fijados. `RODAJE_ENTORNO` apunta a otro `.entorno`, por ejemplo desde un worktree.
-- **`Rodaje.bat`:** abre el visor; también se le pueden arrastrar varios videos (el primero de fondo, los demás como imagen en imagen) o un `.rodaje`. Solo recompila si cambió `src\`.
+- **`Rodaje.bat`:** abre la app WinUI 3 (`herramientas\app.ps1`, publica en `dist\Rodaje\`); se le pueden arrastrar videos (se importan y van seguidos a la pista principal) o un `.rodaje`. Solo recompila si cambió `src\`. `app.ps1 -Medir N` mide arranque y reproducción. El visor anterior sigue en `ABRIR.bat visor`.
 - **`ABRIR.bat`:** sin argumentos corre las pruebas. Acepta:
 
   | Argumento | Qué hace |
@@ -53,12 +53,12 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 **Fase 4: interfaz WinUI 3 (en curso).**
 - El sondeo (`docs/sondeo-winui.md`) confirma que se publica sin paquete, autocontenido y con Native AOT, con 0 advertencias y 0 refrescos perdidos con 4 capas.
 - Diseño: la maqueta aprobada en D-018, más lo de Shotcut: medidores de audio, pila de filtros, historial y trabajos.
+- Armazón de la app hecho (`docs/arquitectura/app.md`): `EditorSession` como fuente única de verdad, tema grafito, atajos con estilos Rodaje, CapCut y Vegas guardados en `atajos.json`, ajustes en `ajustes.json`, distribución con separadores y el reproductor en `Views/Player`. Importar, doble clic para añadir a la pista principal, cortar, recortar, borrar, deshacer, historial, abrir y guardar ya funcionan. Arranque en caliente: ventana a los 290 ms y primer cuadro a los 690 ms; `dist\Rodaje` pesa 218 MB.
 - Ojo legal: los binarios de Windows App SDK tienen términos de Microsoft que no son MIT; están en `LICENCIAS.md`.
 
 ## Siguiente paso
 
 1. **Construir la app en `src/Rodaje.App`:**
-   - el armazón: servicios, tema y atajos;
    - las vistas en paralelo: línea de tiempo con la barra estilo Vegas y la pista principal magnética, biblioteca y complementos, inspector de keyframes, página de atajos, medidores y paneles.
 2. **Cuando la interfaz esté usable, Daniel la prueba.** Se para y se le dice qué probar.
 3. Retirar el visor cuando la app lo reemplace.

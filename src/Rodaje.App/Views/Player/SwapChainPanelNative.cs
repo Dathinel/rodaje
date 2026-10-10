@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml.Controls;
 using WinRT;
 
-namespace Rodaje.App.Player;
+namespace Rodaje.App.Views.Player;
 
 /// <summary>
 /// <c>ISwapChainPanelNative</c> de WinUI 3 (<c>microsoft.ui.xaml.media.dxinterop.h</c>), llamado por su tabla virtual:

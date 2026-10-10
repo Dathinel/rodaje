@@ -4,36 +4,47 @@ Hay dos ejecutables que juntan [Motor](motor.md) y [Render](render.md) en una ve
 
 ## `Rodaje.App` (WinUI 3)
 
-Hoy contiene el **sondeo** de la fase 4 ([`docs/sondeo-winui.md`](../sondeo-winui.md)). El sondeo confirmó que WinUI 3 se publica sin paquete MSIX, autocontenido y con Native AOT, con 0 advertencias y 0 refrescos perdidos con 4 capas. El Windows App SDK ocupa unos 57 MB junto al exe y sus términos están en [`LICENCIAS.md`](../../LICENCIAS.md).
+Es la interfaz final, sin paquete MSIX, autocontenida y con Native AOT (el [sondeo](../sondeo-winui.md) lo confirmó). `herramientas\app.ps1` la publica en `dist\Rodaje\` con FFmpeg LGPL y la abre; la usan `Rodaje.bat` y `app.ps1 -Medir N`, que reproduce, mide y cierra. El Windows App SDK ocupa unos 57 MB junto al exe y sus términos están en [`LICENCIAS.md`](../../LICENCIAS.md).
 
-- **Proyecto.** `Rodaje.exe` es `net10.0-windows10.0.26100.0` para win-x64, con `WindowsPackageType=None`, Windows App SDK autocontenido y `PublishAot`.
-  - `EnableMsixTooling` se deja activo: sin él no se genera `resources.pri` y la app muere al arrancar.
-  - Usa los paquetes sueltos `WinUI`, `Foundation` e `InteractiveExperiences` en lugar del metapaquete, que trae 38 MB de IA que no se usan.
-- **Hilos.** La interfaz nunca espera al render.
+- **Proyecto.** `Rodaje.exe` es `net10.0-windows10.0.26100.0` para win-x64, con `WindowsPackageType=None`, Windows App SDK autocontenido y `PublishAot`. `EnableMsixTooling` se deja activo (sin él no hay `resources.pri`), y se usan los paquetes sueltos `WinUI`, `Foundation` e `InteractiveExperiences` en vez del metapaquete.
+
+### Carpetas
+
+| Carpeta | Qué hay | Depende de WinUI |
+|---|---|---|
+| `Services/` | `EditorSession` (fuente única de verdad), `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
+| `Shell/` | `MainWindow` (distribución con separadores), `TitleBar`, `KeyboardShortcutHost` (atajos en el túnel de la raíz), `PaneSplitter`, `ShellDialogs` y `FileDialogs` (diálogos de Windows por su vtable), `EditorServices` e `IEditorView`, `MeasurementRun` | Sí |
+| `Theme/` | `Palette.xaml` (colores de D-018 y claves de WinUI redefinidas), `Typography.xaml`, `Controls.xaml` (estilos con esquinas de 2 px y transiciones de 60 ms) | Sí |
+| `Views/<Área>/` | Una vista por carpeta: `Library`, `Player` (con `PlayerEngine` y la cadena de intercambio), `Meters`, `Inspector` (pestañas `Properties`, `Filters`, `History`, `Jobs`), `Timeline`, `Shortcuts`, `Plugins` | Sí |
+
+### Cómo se habla con el editor
 
 ```mermaid
 flowchart LR
-    UI["Hilo de interfaz<br/>MainWindow, PlayerState"] -->|"Command (cola)<br/>RequestResize"| R["Hilo 'Rodaje render'<br/>PlayerEngine"]
-    R -->|"PlayerSnapshot<br/>(inmutable, volatile)"| UI
-    R --> S["TimelineSession.Tick"] --> C["Compositor + Presenter"] --> SC["CompositionSwapChain<br/>→ SwapChainPanel"]
+    V["Vistas (Views/*)"] -->|"Execute(ICommand), Undo, Seek,<br/>ImportMediaAsync, Select..."| S["EditorSession<br/>(hilo de interfaz)"]
+    S -->|"ProjectOpened, ProjectEdited, HistoryChanged,<br/>SelectionChanged, TransportChanged, PropertyChanged"| V
+    S -->|"Load / Reload (copia del proyecto)<br/>Play, Seek, StepFrames"| P["PlayerEngine<br/>(hilo 'Rodaje render')"]
+    P -->|"PlaybackSnapshot (volatile)"| T["Temporizador de MainWindow (30 Hz)"] -->|UpdateTransport| S
+    K["KeyboardShortcutHost<br/>(PreviewKeyDown)"] -->|KeyChord| R["ShortcutRouter"] -->|"acción unida"| S
 ```
 
-- **[`Player/PlayerEngine.cs`](../../src/Rodaje.App/Player/PlayerEngine.cs)** es dueño del `GpuDevice`, la `TimelineSession`, el compositor y la cadena de intercambio.
-  - Al reproducir espera el aviso de la cadena (latencia 1), hace `Tick`, compone y presenta.
-  - En pausa solo repinta si cambió algo.
-  - Compone al tamaño de la secuencia, o a la mitad si el panel es más chico que eso.
-- **[`Player/CompositionSwapChain.cs`](../../src/Rodaje.App/Player/CompositionSwapChain.cs)** usa una cadena FLIP_DISCARD para composición con objeto de espera, ajustada a la escala del panel. [`SwapChainPanelNative.cs`](../../src/Rodaje.App/Player/SwapChainPanelNative.cs) llama a `SetSwapChain` por la vtable, sin `ComImport`, lo que es compatible con AOT.
-- **[`Program.cs`](../../src/Rodaje.App/Program.cs)** tiene un `Main` propio: arranca el motor antes que WinUI y escribe los errores en `rodaje-error.txt` junto al exe.
-- **[`AppOptions.cs`](../../src/Rodaje.App/AppOptions.cs)** acepta archivos, `--medir N`, `--registro`, `--sin-audio` y `--ui-hz`. Sin archivos busca el clip de prueba en `TestResults\media-cache`.
-- **[`MainWindow.xaml`](../../src/Rodaje.App/MainWindow.xaml)** es la maqueta: barra de título propia, riel, vista previa, propiedades y una línea de tiempo de muestra. Espacio se intercepta antes que los controles.
-- **[`Player/DemoProject.cs`](../../src/Rodaje.App/Player/DemoProject.cs)** arma el proyecto en memoria (fondo con audio y los demás videos como imagen en imagen) o abre un `.rodaje`.
-- **Medición.** [`Diagnostics/Metrics.cs`](../../src/Rodaje.App/Diagnostics/Metrics.cs) junto con [`herramientas/sondeo-winui.ps1`](../../herramientas/sondeo-winui.ps1) publican en `dist\sondeo-winui` y miden arranque, ritmo y latencias. La app todavía no tiene proyecto de pruebas.
+- **Una sola fuente de verdad.** `EditorSession` tiene el `Project`, la secuencia que se ve, el `UndoStack`, la selección, el transporte que publica el render, el archivo y si hay cambios. Solo se usa desde el hilo de la interfaz (`VerifyAccess`). Las vistas leen el modelo pero lo cambian solo con comandos (`Execute`); los gestos largos van entre `BeginGesture` y `EndGesture` para deshacerse en un paso, y `BreakMerge` corta la fusión al soltar un deslizador.
+- **El render nunca lee el modelo que se edita.** Cada cambio llega a `PlayerEngine` como `Project.Clone()`; el hilo de render solo aplica la última copia pendiente (`TimelineSession.Reload`).
+- **Rutas.** En memoria, las rutas de los medios son absolutas; al guardar se escriben relativas a la carpeta del `.rodaje` (`ProjectPaths`).
+- **Importar.** `ImportMediaAsync` lee los archivos fuera del hilo de la interfaz y los agrega a la biblioteca en un paso; la secuencia vacía toma el formato del primer video. Doble clic en la biblioteca llama a `AppendToTimeline` (al final de la pista principal, con el audio enlazado). Los archivos de la línea de comandos se leen mientras se crea la ventana (`PrefetchingProber`) y se ponen seguidos en la pista principal.
+- **Atajos.** `ShortcutRegistry` guarda el catálogo (`EditorShortcuts.Catalog` más lo que registre cada vista) con teclas por estilo (Rodaje, CapCut, Vegas) y los cambios de la persona por estilo en `%LOCALAPPDATA%\Rodaje\atajos.json`. `ShortcutRouter` une cada acción con quien la ejecuta (gana el último que puede) y decide qué hacer con cada tecla: con el foco en un campo de texto solo pasan las acciones marcadas `WorksInTextInput`. Los menús lanzan acciones por su identificador, así muestran la tecla vigente.
+- **Ajustes.** `ajustes.json` guarda carpetas, recientes, tamaños de paneles y ventana, estilo de atajos y proxies. Los dos archivos se escriben de forma atómica y, si están dañados, se apartan con el sufijo `.dañado`.
+- **Cerrar.** Con cambios sin guardar se pregunta (Guardar, No guardar, Cancelar).
 
-**Lo que sigue:** el armazón (servicios, tema y atajos), la línea de tiempo con la pista principal magnética, biblioteca, inspector de keyframes, medidores y paneles. `CompositionSwapChain` pasa a Render. Cuando la interfaz esté usable, Daniel la prueba.
+### Cómo se suma una vista
+
+1. Un `UserControl` en `Views/<Área>/` que implementa `IEditorView`; `MainWindow` (o el anfitrión, como `InspectorView`) lo crea desde XAML y llama a `Attach(EditorServices)` una vez.
+2. En `Attach` se suscribe a los eventos de `services.Session`, registra sus acciones con `services.ShortcutRegistry.Register(new ShortcutAction(...))` y las une con `services.Shortcuts.Bind(id, ejecutar, puedeEjecutar)`. Los botones llaman a `services.Shortcuts.Invoke(id)`.
+3. Solo `x:Bind` (con `Bindings.Update()` al final de `Attach`) y colores del tema (`StaticResource`), nunca sueltos.
 
 ## `Rodaje.Visor` (provisional)
 
-Es una ventana Win32 publicada con Native AOT en `dist\Rodaje-visor\` por [`herramientas/visor.ps1`](../../herramientas/visor.ps1), que también copia las DLL de FFmpeg LGPL y el `ffmpeg.exe` de los proxies. La abren `Rodaje.bat` y `ABRIR.bat visor`.
+Es una ventana Win32 publicada con Native AOT en `dist\Rodaje-visor\` por [`herramientas/visor.ps1`](../../herramientas/visor.ps1), que también copia las DLL de FFmpeg LGPL y el `ffmpeg.exe` de los proxies. La abre `ABRIR.bat visor`.
 
 - **Bucle.** Un solo hilo con `MsgWaitForMultipleObjectsEx` sobre el objeto de espera de la cadena. Sesión, composición y presentación corren en el hilo de la ventana, y Windows detiene el bucle mientras se arrastra la ventana.
 - **Argumentos** ([`VisorArguments.cs`](../../src/Rodaje.Visor/VisorArguments.cs)): `[videos | proyecto.rodaje] [--prueba s] [--registro ruta] [--sin-audio] [--cpu] [--proxies [siempre]]`. Sin argumentos abre un diálogo para elegir archivos.

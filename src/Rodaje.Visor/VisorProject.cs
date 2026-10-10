@@ -19,13 +19,6 @@ internal sealed class VisorProject
 
     private static readonly (int X, int Y)[] Corners = [(1, -1), (1, 1), (-1, 1), (-1, -1)];
 
-    // Formatos de FFmpeg que solo leen imágenes sueltas.
-    private static readonly HashSet<string> StillImageFormats = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "image2", "image2pipe", "png_pipe", "jpeg_pipe", "bmp_pipe", "webp_pipe", "tiff_pipe", "gif_pipe", "dpx_pipe",
-        "exr_pipe", "qoi_pipe", "j2k_pipe", "jpegxl_pipe", "pam_pipe", "pgm_pipe", "ppm_pipe", "psd_pipe", "svg_pipe",
-    };
-
     private readonly string? _demoName;
 
     private VisorProject(Project project, string sequenceId, string directory, string savePath, string? demoName = null,
@@ -210,25 +203,7 @@ internal sealed class VisorProject
     }
 
     /// <summary><c>null</c> si la demostración puede usar el archivo; si no, el motivo en español.</summary>
-    internal static string? Classify(string path, out MediaInfo? info)
-    {
-        try
-        {
-            info = MediaProbe.Probe(path);
-        }
-        catch (MediaException ex)
-        {
-            info = null;
-            return $"no se pudo leer ({ex.Message})";
-        }
-
-        if (info.Video is { } video && !info.HasAudio && (StillImageFormats.Contains(info.ContainerFormat) || video.FrameCount <= 1))
-        {
-            return "es una imagen fija; los clips de imagen llegarán en una fase posterior";
-        }
-
-        return info.Duration > Time.Zero ? null : "no tiene duración";
-    }
+    internal static string? Classify(string path, out MediaInfo? info) => MediaSupport.Classify(path, out info);
 
     /// <summary>Guarda una copia en otra ruta, con las rutas de los medios absolutas para que siga abriendo desde ahí.</summary>
     /// <returns>El proyecto tal como quedó guardado.</returns>

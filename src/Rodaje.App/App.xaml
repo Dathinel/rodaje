@@ -8,78 +8,9 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <!-- Trae Palette.xaml y Typography.xaml -->
+                <ResourceDictionary Source="ms-appx:///Theme/Controls.xaml" />
             </ResourceDictionary.MergedDictionaries>
-
-            <ResourceDictionary.ThemeDictionaries>
-                <ResourceDictionary x:Key="Dark">
-                    <Color x:Key="SystemAccentColor">#E8833A</Color>
-                    <Color x:Key="SystemAccentColorLight1">#EE9A5C</Color>
-                    <Color x:Key="SystemAccentColorLight2">#F2B080</Color>
-                    <Color x:Key="SystemAccentColorLight3">#F6C7A4</Color>
-                    <Color x:Key="SystemAccentColorDark1">#C96D29</Color>
-                    <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#141414" />
-                </ResourceDictionary>
-            </ResourceDictionary.ThemeDictionaries>
-
-            <!-- Paleta grafito (D-018) -->
-            <Color x:Key="RodajeFondo">#141414</Color>
-            <Color x:Key="RodajePanel">#1B1B1B</Color>
-            <Color x:Key="RodajeCabecera">#1E1E1E</Color>
-            <Color x:Key="RodajeControl">#232323</Color>
-            <Color x:Key="RodajeBorde">#2E2E2E</Color>
-            <Color x:Key="RodajeTexto">#D8D8D8</Color>
-            <Color x:Key="RodajeTextoTenue">#8C8C8C</Color>
-            <Color x:Key="RodajeAcento">#E8833A</Color>
-
-            <SolidColorBrush x:Key="FondoBrush" Color="{StaticResource RodajeFondo}" />
-            <SolidColorBrush x:Key="PanelBrush" Color="{StaticResource RodajePanel}" />
-            <SolidColorBrush x:Key="CabeceraBrush" Color="{StaticResource RodajeCabecera}" />
-            <SolidColorBrush x:Key="ControlBrush" Color="{StaticResource RodajeControl}" />
-            <SolidColorBrush x:Key="BordeBrush" Color="{StaticResource RodajeBorde}" />
-            <SolidColorBrush x:Key="TextoBrush" Color="{StaticResource RodajeTexto}" />
-            <SolidColorBrush x:Key="TextoTenueBrush" Color="{StaticResource RodajeTextoTenue}" />
-            <SolidColorBrush x:Key="AcentoBrush" Color="{StaticResource RodajeAcento}" />
-
-            <!-- Esquinas casi rectas en todos los controles de WinUI -->
-            <CornerRadius x:Key="ControlCornerRadius">2</CornerRadius>
-            <CornerRadius x:Key="OverlayCornerRadius">2</CornerRadius>
-
-
-            <Style x:Key="RielBoton" TargetType="Button">
-                <Setter Property="Width" Value="44" />
-                <Setter Property="Height" Value="44" />
-                <Setter Property="Padding" Value="0" />
-                <Setter Property="Margin" Value="2" />
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="Foreground" Value="{StaticResource TextoBrush}" />
-                <Setter Property="CornerRadius" Value="2" />
-            </Style>
-
-            <Style x:Key="HerramientaBoton" TargetType="Button">
-                <Setter Property="Width" Value="30" />
-                <Setter Property="Height" Value="28" />
-                <Setter Property="Padding" Value="0" />
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="Foreground" Value="{StaticResource TextoBrush}" />
-                <Setter Property="CornerRadius" Value="2" />
-                <Setter Property="FontFamily" Value="{ThemeResource SymbolThemeFontFamily}" />
-                <Setter Property="FontSize" Value="14" />
-            </Style>
-
-            <Style x:Key="PanelTitulo" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="12" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="Foreground" Value="{StaticResource TextoBrush}" />
-                <Setter Property="VerticalAlignment" Value="Center" />
-            </Style>
-
-            <Style x:Key="Etiqueta" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="12" />
-                <Setter Property="Foreground" Value="{StaticResource TextoTenueBrush}" />
-                <Setter Property="VerticalAlignment" Value="Center" />
-            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

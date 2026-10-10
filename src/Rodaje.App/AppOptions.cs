@@ -3,10 +3,10 @@ using System.Globalization;
 namespace Rodaje.App;
 
 /// <summary>
-/// Argumentos: videos (o un <c>.rodaje</c>); <c>--medir N</c> reproduce N segundos, mide y cierra;
-/// <c>--registro ruta</c> dónde se escriben las cifras; <c>--sin-audio</c> usa el reloj del sistema; <c>--ui-hz N</c>
-/// refresca tiempo y cursor de la interfaz N veces por segundo (0: en cada cuadro de XAML; por defecto 30).
-/// Sin videos, abre el clip H.264 1080p de prueba de <c>TestResults\media-cache</c> si lo encuentra.
+/// Argumentos: videos o un <c>.rodaje</c> para abrir; <c>--medir N</c> reproduce N segundos, mide y cierra (sin
+/// archivos, con el clip H.264 1080p de prueba de <c>TestResults\media-cache</c>); <c>--registro ruta</c> dónde se
+/// escriben las cifras; <c>--sin-audio</c> usa el reloj del sistema; <c>--ui-hz N</c> refresca tiempo y cursor de la
+/// interfaz N veces por segundo (0: en cada cuadro de XAML; por defecto 30).
 /// </summary>
 internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSeconds, string? LogPath, bool EnableAudio, int UiHz)
 {
@@ -40,11 +40,11 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             }
             else
             {
-                files.Add(a);
+                files.Add(Path.GetFullPath(a));
             }
         }
 
-        if (files.Count == 0 && FindTestClip() is { } clip)
+        if (measure is not null && files.Count == 0 && FindTestClip() is { } clip)
         {
             files.Add(clip);
         }

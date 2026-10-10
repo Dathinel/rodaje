@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Rodaje.App.Views.Plugins.PluginsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Background="{StaticResource PanelBrush}" Padding="16">
+        <TextBlock Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center"
+                   Text="Complementos: paquetes y módulos de IA de github.com/Dathinel, en qué programas funcionan, instalar y desinstalar. En construcción." />
+    </Grid>
+</UserControl>

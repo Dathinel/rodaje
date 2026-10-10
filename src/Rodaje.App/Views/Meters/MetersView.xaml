@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Medidores de pico L/R estilo Shotcut, a la derecha del reproductor. Por ahora muestran silencio: el motor todavía no publica niveles. -->
+<UserControl
+    x:Class="Rodaje.App.Views.Meters.MetersView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="36">
+
+    <Grid Background="{StaticResource BarBrush}" Padding="4,8" ColumnSpacing="3">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Border Background="{StaticResource ControlBrush}" CornerRadius="1">
+            <Rectangle x:Name="LeftLevel" VerticalAlignment="Bottom" Height="0" Fill="{StaticResource MeterLowBrush}" />
+        </Border>
+        <Border Grid.Column="1" Background="{StaticResource ControlBrush}" CornerRadius="1">
+            <Rectangle x:Name="RightLevel" VerticalAlignment="Bottom" Height="0" Fill="{StaticResource MeterLowBrush}" />
+        </Border>
+        <TextBlock Grid.Row="1" Text="L" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Center" />
+        <TextBlock Grid.Row="1" Grid.Column="1" Text="R" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Center" />
+    </Grid>
+</UserControl>

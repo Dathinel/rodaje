@@ -1,0 +1,350 @@
+using Rodaje.Core.Commands;
+using Rodaje.Core.Editing;
+using Rodaje.Core.Model;
+using Rodaje.Core.Serialization;
+using Rodaje.Core.Timing;
+using Rodaje.Media.Probe;
+
+namespace Rodaje.App.Services;
+
+/// <summary>Un archivo que no se importó y por qué.</summary>
+public sealed record SkippedMedia(string Path, string Reason);
+
+/// <summary>Resultado de una importación: los medios de la biblioteca que corresponden a los archivos y los que no entraron.</summary>
+public sealed record ImportResult(IReadOnlyList<string> MediaIds, IReadOnlyList<SkippedMedia> Skipped)
+{
+    public static readonly ImportResult Empty = new([], []);
+}
+
+public sealed partial class EditorSession
+{
+    /// <summary>Nombre de archivo que se propone al guardar por primera vez.</summary>
+    public string SuggestedFileName => (FilePath is null ? ProjectName : Path.GetFileNameWithoutExtension(FilePath)) + ProjectSerializer.FileExtension;
+
+    public async Task<bool> NewProjectAsync()
+    {
+        VerifyAccess();
+        if (!await ConfirmDiscardChangesAsync())
+        {
+            return false;
+        }
+
+        Project project = CreateEmptyProject();
+        ReplaceProject(project, project.Sequences[0].Id, null, "Proyecto nuevo");
+        return true;
+    }
+
+    /// <summary>Abre un <c>.rodaje</c>; sin ruta, se le pide a la persona.</summary>
+    public async Task<bool> OpenProjectAsync(string? path = null)
+    {
+        VerifyAccess();
+        if (!await ConfirmDiscardChangesAsync())
+        {
+            return false;
+        }
+
+        path ??= await _dialogs.PickProjectToOpenAsync();
+        if (path is null)
+        {
+            return false;
+        }
+
+        string full = Path.GetFullPath(path);
+        BeginBusy();
+        Project loaded;
+        try
+        {
+            loaded = await Task.Run(() => ProjectSerializer.Load(full));
+        }
+        catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException)
+        {
+            Notify(NotificationSeverity.Error, $"No se pudo abrir «{Path.GetFileName(full)}»", ex.Message);
+            return false;
+        }
+        finally
+        {
+            EndBusy();
+        }
+
+        Sequence? first = loaded.Sequences.FirstOrDefault();
+        if (first is null)
+        {
+            Notify(NotificationSeverity.Error, $"No se pudo abrir «{Path.GetFileName(full)}»", "El proyecto no tiene ninguna secuencia.");
+            return false;
+        }
+
+        ProjectPaths.MakeAbsolute(loaded, Path.GetDirectoryName(full)!);
+        ReplaceProject(loaded, first.Id, full, "Proyecto abierto");
+        return true;
+    }
+
+    /// <summary>Guarda en el archivo del proyecto; si nunca se guardó, pregunta dónde.</summary>
+    public Task<bool> SaveAsync() => FilePath is { } path ? SaveToAsync(path) : SaveAsAsync();
+
+    /// <summary>Guarda en otro archivo (sin ruta, se pregunta) y desde entonces el proyecto es ese archivo.</summary>
+    public async Task<bool> SaveAsAsync(string? path = null)
+    {
+        VerifyAccess();
+        path ??= await _dialogs.PickProjectSavePathAsync(SuggestedFileName);
+        if (path is null)
+        {
+            return false;
+        }
+
+        return await SaveToAsync(Path.GetFullPath(ProjectPaths.WithProjectExtension(path)));
+    }
+
+    /// <summary>
+    /// Si hay cambios sin guardar, pregunta si guardarlos. <c>true</c> si se puede seguir (guardados o descartados);
+    /// <c>false</c> si la persona canceló o el guardado falló.
+    /// </summary>
+    public async Task<bool> ConfirmDiscardChangesAsync()
+    {
+        VerifyAccess();
+        CancelGesture();
+        if (!IsDirty)
+        {
+            return true;
+        }
+
+        return await _dialogs.AskSaveChangesAsync(ProjectName) switch
+        {
+            UnsavedChangesChoice.Save => await SaveAsync(),
+            UnsavedChangesChoice.Discard => true,
+            _ => false,
+        };
+    }
+
+    /// <summary>
+    /// Lee los archivos fuera del hilo de la interfaz y agrega a la biblioteca los que se pueden usar, en un solo paso
+    /// del historial. Un archivo que ya estaba en la biblioteca no se repite: se devuelve su medio. Lo que no entra se
+    /// avisa con el motivo.
+    /// </summary>
+    /// <remarks>Si la secuencia está vacía, toma la tasa y el tamaño del primer video, como CapCut.</remarks>
+    public async Task<ImportResult> ImportMediaAsync(IEnumerable<string> paths)
+    {
+        VerifyAccess();
+        ArgumentNullException.ThrowIfNull(paths);
+        string[] files = [.. paths.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase)];
+        if (files.Length == 0)
+        {
+            return ImportResult.Empty;
+        }
+
+        Project target = Project;
+        BeginBusy();
+        MediaProbeResult[] probes;
+        try
+        {
+            probes = await Task.WhenAll(files.Select(f => Task.Run(() => _prober.Probe(f))));
+        }
+        finally
+        {
+            EndBusy();
+        }
+
+        if (!ReferenceEquals(target, Project) || IsInGesture)
+        {
+            // Mientras se leía se abrió otro proyecto o empezó un gesto: no se mezcla.
+            return ImportResult.Empty;
+        }
+
+        var ids = new List<string>();
+        var skipped = new List<SkippedMedia>();
+        bool changed = false;
+        History.BeginGroup(files.Length == 1 ? "Importar medio" : "Importar medios");
+        try
+        {
+            foreach (MediaProbeResult probe in probes)
+            {
+                if (!probe.IsUsable)
+                {
+                    skipped.Add(new SkippedMedia(probe.Path, probe.Problem ?? "no se pudo leer"));
+                    continue;
+                }
+
+                if (Project.Media.Find(m => string.Equals(m.Path, probe.Path, StringComparison.OrdinalIgnoreCase)) is { } existing)
+                {
+                    ids.Add(existing.Id);
+                    continue;
+                }
+
+                try
+                {
+                    changed |= AdoptFormatIfEmpty(probe.Info!);
+                    var media = new MediaRef { Id = _ids.NewId("media"), Path = probe.Path };
+                    probe.Info!.ApplyTo(media);
+                    History.Execute(new AddMediaCommand(media));
+                    ids.Add(media.Id);
+                    changed = true;
+                }
+                catch (EditException ex)
+                {
+                    skipped.Add(new SkippedMedia(probe.Path, ex.Message));
+                }
+            }
+        }
+        finally
+        {
+            History.EndGroup();
+            History.BreakMerge();
+        }
+
+        if (changed)
+        {
+            AfterEdit(EditKind.Execute, History.UndoCommands.Count > 0 ? History.UndoCommands[^1] : null);
+        }
+
+        if (skipped.Count > 0)
+        {
+            Notify(NotificationSeverity.Warning,
+                skipped.Count == 1 ? "Un archivo no se importó" : $"{skipped.Count} archivos no se importaron",
+                string.Join("\n", skipped.Select(s => $"{Path.GetFileName(s.Path)}: {s.Reason}")));
+        }
+
+        return new ImportResult(ids, skipped);
+    }
+
+    /// <summary>Pide archivos a la persona y los importa.</summary>
+    public async Task<ImportResult> ImportMediaAsync()
+    {
+        VerifyAccess();
+        IReadOnlyList<string> files = await _dialogs.PickMediaFilesAsync();
+        return files.Count == 0 ? ImportResult.Empty : await ImportMediaAsync(files);
+    }
+
+    /// <summary>
+    /// Pone el medio entero al final de la pista principal, con su audio enlazado en la primera de audio; un medio sin
+    /// video va al final de la última pista de audio (música).
+    /// </summary>
+    public bool AppendToTimeline(string mediaId)
+    {
+        VerifyAccess();
+        if (Project.FindMedia(mediaId) is not { } media)
+        {
+            return false;
+        }
+
+        Sequence sequence = Sequence;
+        string? videoTrack = media.HasVideo ? sequence.VideoTracks.FirstOrDefault()?.Id : null;
+        string? audioTrack = !media.HasAudio ? null
+            : media.HasVideo ? sequence.AudioTracks.FirstOrDefault()?.Id
+            : sequence.AudioTracks.LastOrDefault()?.Id;
+        if (videoTrack is null && audioTrack is null)
+        {
+            Notify(NotificationSeverity.Warning, "No hay dónde ponerlo", $"La secuencia no tiene una pista para «{media.Name}».");
+            return false;
+        }
+
+        return Execute(Edits.AppendMedia(SequenceId, media.Id, Time.Zero, media.Duration, videoTrack ?? audioTrack!,
+            videoTrack is null ? null : audioTrack, _ids));
+    }
+
+    /// <summary>
+    /// Archivos de la línea de comandos o arrastrados a la ventana: un <c>.rodaje</c> se abre; los medios se importan y
+    /// se ponen uno tras otro en la pista principal, en un solo paso del historial.
+    /// </summary>
+    public async Task OpenFilesAsync(IReadOnlyList<string> paths)
+    {
+        VerifyAccess();
+        ArgumentNullException.ThrowIfNull(paths);
+        if (paths.FirstOrDefault(ProjectPaths.IsProjectFile) is { } project)
+        {
+            if (paths.Count > 1)
+            {
+                Notify(NotificationSeverity.Informational, "Se abrió solo el proyecto",
+                    "Un proyecto .rodaje se abre solo; los demás archivos no se usaron.");
+            }
+
+            await OpenProjectAsync(project);
+            return;
+        }
+
+        ImportResult imported = await ImportMediaAsync(paths);
+        if (imported.MediaIds.Count == 0)
+        {
+            return;
+        }
+
+        BeginGesture(imported.MediaIds.Count == 1 ? "Añadir a la línea de tiempo" : "Añadir medios a la línea de tiempo");
+        try
+        {
+            foreach (string id in imported.MediaIds)
+            {
+                AppendToTimeline(id);
+            }
+        }
+        finally
+        {
+            EndGesture();
+        }
+    }
+
+    private async Task<bool> SaveToAsync(string path)
+    {
+        VerifyAccess();
+        if (IsInGesture)
+        {
+            Notify(NotificationSeverity.Informational, "Todavía no", "Suelta lo que estás arrastrando antes de guardar.");
+            return false;
+        }
+
+        long version = _editVersion;
+        Project target = Project;
+        bool rename = !string.Equals(path, FilePath, StringComparison.OrdinalIgnoreCase);
+        string name = rename ? Path.GetFileNameWithoutExtension(path) : Project.Name;
+        Project copy = ProjectPaths.ForSaving(Project, Path.GetDirectoryName(path)!);
+        copy.Name = name;
+        BeginBusy();
+        try
+        {
+            await Task.Run(() => ProjectSerializer.Save(copy, path));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException)
+        {
+            Notify(NotificationSeverity.Error, "No se pudo guardar", ex.Message);
+            return false;
+        }
+        finally
+        {
+            EndBusy();
+        }
+
+        if (!ReferenceEquals(target, Project))
+        {
+            return true;
+        }
+
+        if (rename)
+        {
+            Project.Name = name;
+            OnPropertyChanged(nameof(ProjectName));
+        }
+
+        FilePath = path;
+        if (version == _editVersion && !IsInGesture)
+        {
+            // Si se editó mientras se escribía, lo guardado ya es viejo y el proyecto sigue con cambios.
+            History.MarkClean();
+        }
+
+        return true;
+    }
+
+    private bool AdoptFormatIfEmpty(MediaInfo info)
+    {
+        Sequence sequence = Sequence;
+        if (info.Video is not { } video || Project.Media.Count > 0 || sequence.AllTracks.Any(t => t.Clips.Count > 0))
+        {
+            return false;
+        }
+
+        if (sequence.FrameRate == video.FrameRate && sequence.Width == video.DisplayWidth && sequence.Height == video.DisplayHeight)
+        {
+            return false;
+        }
+
+        History.Execute(new SequenceFormatCommand(SequenceId, video.FrameRate, video.DisplayWidth, video.DisplayHeight));
+        return true;
+    }
+}

@@ -1,0 +1,88 @@
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Rodaje.App.Services;
+using Rodaje.App.Services.Settings;
+
+namespace Rodaje.App.Shell;
+
+/// <summary>Las preguntas del editor con diálogos reales: ContentDialog de WinUI y los de archivos de Windows.</summary>
+internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore settings) : IEditorDialogs
+{
+    private bool _dialogOpen;
+
+    public async Task<UnsavedChangesChoice> AskSaveChangesAsync(string projectName)
+    {
+        if (_dialogOpen || window.Content?.XamlRoot is not { } root)
+        {
+            return UnsavedChangesChoice.Cancel;
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = root,
+            Title = "¿Guardar los cambios?",
+            Content = $"«{projectName}» tiene cambios sin guardar. Si no los guardas, se pierden.",
+            PrimaryButtonText = "Guardar",
+            SecondaryButtonText = "No guardar",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Primary,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        _dialogOpen = true;
+        try
+        {
+            return await dialog.ShowAsync() switch
+            {
+                ContentDialogResult.Primary => UnsavedChangesChoice.Save,
+                ContentDialogResult.Secondary => UnsavedChangesChoice.Discard,
+                _ => UnsavedChangesChoice.Cancel,
+            };
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+    }
+
+    public Task<string?> PickProjectToOpenAsync()
+    {
+        IReadOnlyList<string> picked = FileDialogs.Open(hwnd, "Abrir proyecto", multiple: false,
+            settings.Current.LastProjectFolder, FileDialogs.ProjectFilter, FileDialogs.AllFilter);
+        string? path = picked.Count > 0 ? picked[0] : null;
+        Remember(path, project: true);
+        return Task.FromResult(path);
+    }
+
+    public Task<string?> PickProjectSavePathAsync(string suggestedFileName)
+    {
+        string? path = FileDialogs.Save(hwnd, "Guardar proyecto", suggestedFileName, "rodaje",
+            settings.Current.LastProjectFolder, FileDialogs.ProjectFilter);
+        Remember(path, project: true);
+        return Task.FromResult(path);
+    }
+
+    public Task<IReadOnlyList<string>> PickMediaFilesAsync()
+    {
+        IReadOnlyList<string> picked = FileDialogs.Open(hwnd, "Importar medios", multiple: true,
+            settings.Current.LastMediaFolder, FileDialogs.MediaFilter, FileDialogs.AllFilter);
+        Remember(picked.Count > 0 ? picked[0] : null, project: false);
+        return Task.FromResult(picked);
+    }
+
+    private void Remember(string? path, bool project)
+    {
+        if (path is null || Path.GetDirectoryName(path) is not { } folder)
+        {
+            return;
+        }
+
+        if (project)
+        {
+            settings.Current.LastProjectFolder = folder;
+        }
+        else
+        {
+            settings.Current.LastMediaFolder = folder;
+        }
+    }
+}
