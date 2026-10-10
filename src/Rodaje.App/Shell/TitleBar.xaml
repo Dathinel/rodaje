@@ -61,8 +61,8 @@
                 <MenuFlyoutItem Text="Atajos de teclado..." Tag="view.shortcuts" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
                 <RadioMenuFlyoutItem x:Name="PresetRodaje" Text="Estilo Rodaje" GroupName="Preset" Tag="Rodaje" Click="OnPresetClick" />
-                <RadioMenuFlyoutItem x:Name="PresetCapCut" Text="Estilo CapCut" GroupName="Preset" Tag="CapCut" Click="OnPresetClick" />
-                <RadioMenuFlyoutItem x:Name="PresetVegas" Text="Estilo Vegas" GroupName="Preset" Tag="Vegas" Click="OnPresetClick" />
+                <RadioMenuFlyoutItem x:Name="PresetAgile" Text="Estilo Ágil" GroupName="Preset" Tag="Agile" Click="OnPresetClick" />
+                <RadioMenuFlyoutItem x:Name="PresetClassic" Text="Estilo Clásico" GroupName="Preset" Tag="Classic" Click="OnPresetClick" />
             </MenuBarItem>
         </MenuBar>
 

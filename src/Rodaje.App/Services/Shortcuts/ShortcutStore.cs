@@ -61,7 +61,7 @@ public sealed class ShortcutStore
 
         foreach ((string presetName, Dictionary<string, List<string>>? actions) in file.Presets)
         {
-            if (!Enum.TryParse(presetName, ignoreCase: true, out ShortcutPreset preset) || !Enum.IsDefined(preset) || actions is null)
+            if (!ShortcutPresetNames.TryParse(presetName, out ShortcutPreset preset) || actions is null)
             {
                 continue;
             }

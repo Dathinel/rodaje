@@ -321,8 +321,8 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         _syncingPreset = true;
         RadioButton tab = Registry.Preset switch
         {
-            ShortcutPreset.CapCut => CapCutTab,
-            ShortcutPreset.Vegas => VegasTab,
+            ShortcutPreset.Agile => AgileTab,
+            ShortcutPreset.Classic => ClassicTab,
             _ => RodajeTab,
         };
         tab.IsChecked = true;
@@ -336,8 +336,8 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
             return;
         }
 
-        ShortcutPreset preset = ReferenceEquals(sender, CapCutTab) ? ShortcutPreset.CapCut
-            : ReferenceEquals(sender, VegasTab) ? ShortcutPreset.Vegas
+        ShortcutPreset preset = ReferenceEquals(sender, AgileTab) ? ShortcutPreset.Agile
+            : ReferenceEquals(sender, ClassicTab) ? ShortcutPreset.Classic
             : ShortcutPreset.Rodaje;
         if (preset == _registry.Preset)
         {

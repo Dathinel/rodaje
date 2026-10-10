@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Página de atajos (D-018): estilo de teclado (Rodaje, Como CapCut, Como Vegas), búsqueda por acción o por tecla,
+    Página de atajos (D-018): estilo de teclado (Rodaje, Ágil, Clásico), búsqueda por acción o por tecla,
     teclado dibujado, hoja rápida y los grupos en dos columnas. Cada fila cambia sus teclas con un clic; si la tecla era
     de otra acción, se intercambian y el aviso de arriba permite deshacerlo.
 -->
@@ -39,10 +39,10 @@
                             XYFocusKeyboardNavigation="Enabled">
                     <RadioButton x:Name="RodajeTab" Style="{StaticResource PresetTabStyle}" GroupName="ShortcutPreset" Content="Rodaje"
                                  Checked="OnPresetChecked" ToolTipService.ToolTip="Las teclas de Rodaje" />
-                    <RadioButton x:Name="CapCutTab" Style="{StaticResource PresetTabStyle}" GroupName="ShortcutPreset" Content="Como CapCut"
-                                 Checked="OnPresetChecked" ToolTipService.ToolTip="Teclas parecidas a las de CapCut, si vienes de ahí" />
-                    <RadioButton x:Name="VegasTab" Style="{StaticResource PresetTabStyle}" GroupName="ShortcutPreset" Content="Como Vegas"
-                                 Checked="OnPresetChecked" ToolTipService.ToolTip="Teclas parecidas a las de Vegas Pro, si vienes de ahí" />
+                    <RadioButton x:Name="AgileTab" Style="{StaticResource PresetTabStyle}" GroupName="ShortcutPreset" Content="Ágil"
+                                 Checked="OnPresetChecked" ToolTipService.ToolTip="Pocas teclas y Ctrl+B para cortar, como en los editores rápidos" />
+                    <RadioButton x:Name="ClassicTab" Style="{StaticResource PresetTabStyle}" GroupName="ShortcutPreset" Content="Clásico"
+                                 Checked="OnPresetChecked" ToolTipService.ToolTip="Teclas de editor de escritorio tradicional: flechas para el zoom y Alt para recortar" />
                 </StackPanel>
             </StackPanel>
 

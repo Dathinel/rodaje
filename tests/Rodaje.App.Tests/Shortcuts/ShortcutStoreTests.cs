@@ -21,7 +21,7 @@ public class ShortcutStoreTests
         string path = dir.File(ShortcutStore.FileName);
         ShortcutRegistry original = Catalog();
         original.Rebind(ActionIds.Split, K("X"), replacing: K("S"));
-        original.Preset = ShortcutPreset.Vegas;
+        original.Preset = ShortcutPreset.Classic;
         original.RemoveKey(ActionIds.Delete, K("Supr"));
         new ShortcutStore(path).Save(original);
 
@@ -29,7 +29,7 @@ public class ShortcutStoreTests
         Assert.Null(new ShortcutStore(path).Load(loaded));
 
         Assert.Equal(ActionIds.Split, loaded.FindAction(K("X")));
-        loaded.Preset = ShortcutPreset.Vegas;
+        loaded.Preset = ShortcutPreset.Classic;
         Assert.Empty(loaded.GetKeys(ActionIds.Delete));
         string json = File.ReadAllText(path);
         Assert.Contains("\"Rodaje\"", json, StringComparison.Ordinal);
@@ -91,7 +91,7 @@ public class ShortcutStoreTests
         string path = dir.File(ShortcutStore.FileName);
         File.WriteAllText(path, """
             { "version": 1, "presets": {
-                "Premiere": { "edit.undo": ["Ctrl+U"] },
+                "Otro": { "edit.undo": ["Ctrl+U"] },
                 "capcut": { "edit.undo": ["Ctrl+U", "Ctrl+Hiper"], "otra.cosa": ["F9"] } } }
             """);
         ShortcutRegistry registry = Catalog();
@@ -99,8 +99,42 @@ public class ShortcutStoreTests
         Assert.Null(new ShortcutStore(path).Load(registry));
 
         Assert.Equal(ActionIds.Undo, registry.FindAction(K("Ctrl+Z")));
-        registry.Preset = ShortcutPreset.CapCut;
+        registry.Preset = ShortcutPreset.Agile;
         Assert.Equal([K("Ctrl+U")], registry.GetKeys(ActionIds.Undo));
         Assert.Equal([K("F9")], registry.GetKeys("otra.cosa"));
     }
+
+    [Fact]
+    public void LosNombresViejosDeLosEstilos_SeMigranAlGuardar()
+    {
+        using var dir = new TempDirectory();
+        string path = dir.File(ShortcutStore.FileName);
+        File.WriteAllText(path, """
+            { "version": 1, "presets": {
+                "CapCut": { "edit.undo": ["Ctrl+U"] },
+                "Vegas": { "edit.split": ["F2"] } } }
+            """);
+        ShortcutRegistry registry = Catalog();
+        var store = new ShortcutStore(path);
+
+        Assert.Null(store.Load(registry));
+        registry.Preset = ShortcutPreset.Agile;
+        Assert.Equal([K("Ctrl+U")], registry.GetKeys(ActionIds.Undo));
+        registry.Preset = ShortcutPreset.Classic;
+        Assert.Equal([K("F2")], registry.GetKeys(ActionIds.Split));
+
+        store.Save(registry);
+        string json = File.ReadAllText(path);
+        Assert.Contains("\"Agile\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"Classic\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("CapCut", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("Vegas", json, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ShortcutPreset.Rodaje, "Rodaje")]
+    [InlineData(ShortcutPreset.Agile, "Ágil")]
+    [InlineData(ShortcutPreset.Classic, "Clásico")]
+    public void LosEstilos_SeVenConNombresPropios(ShortcutPreset preset, string expected) =>
+        Assert.Equal(expected, ShortcutPresetNames.Display(preset));
 }

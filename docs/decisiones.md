@@ -246,3 +246,7 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 **Decisión.** Se borran `src/Rodaje.Visor`, sus pruebas, `herramientas/visor.ps1`, la acción `ABRIR.bat visor` y `herramientas/sondeo-winui.ps1`. El código queda en la etiqueta de git `visor-fase3`; el informe del sondeo pasa a `docs/archivo/sondeo-winui.md`.
 
 **Consecuencias.** Un solo ejecutable que mantener. D-015 y D-016 siguen valiendo para el motor y el render aunque nombren el visor.
+
+## D-023. Estilos de atajos con nombres propios (10 de octubre de 2026)
+
+**Decisión.** Los estilos de D-018 se llaman «Rodaje», «Ágil» y «Clásico» (`ShortcutPreset.Rodaje`, `Agile` y `Classic`). Ni la interfaz ni el código nombran otros programas; las referencias de experiencia de uso quedan en estas decisiones y en `docs/archivo/`. `atajos.json` y `ajustes.json` guardados con los nombres anteriores se leen como Ágil y Clásico y se reescriben con los nuevos; un estilo desconocido vuelve a Rodaje sin dar por dañado el archivo.

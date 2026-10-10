@@ -1,13 +1,5 @@
 namespace Rodaje.App.Services.Shortcuts;
 
-/// <summary>Juegos de atajos de fábrica: los de Rodaje y los de los programas que la persona puede conocer.</summary>
-public enum ShortcutPreset
-{
-    Rodaje,
-    CapCut,
-    Vegas,
-}
-
 /// <summary>
 /// Una acción que se puede lanzar con el teclado: su identificador estable, el texto y el grupo de la página de atajos,
 /// y sus teclas de fábrica en cada estilo.
@@ -19,11 +11,11 @@ public enum ShortcutPreset
 public sealed class ShortcutAction
 {
     private readonly KeyChord[] _rodaje;
-    private readonly KeyChord[]? _capCut;
-    private readonly KeyChord[]? _vegas;
+    private readonly KeyChord[]? _agile;
+    private readonly KeyChord[]? _classic;
     private readonly string? _shortLabel;
 
-    public ShortcutAction(string id, string label, string group, string[] rodaje, string[]? capCut = null, string[]? vegas = null)
+    public ShortcutAction(string id, string label, string group, string[] rodaje, string[]? agile = null, string[]? classic = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
@@ -33,8 +25,8 @@ public sealed class ShortcutAction
         Label = label;
         Group = group;
         _rodaje = Parse(rodaje);
-        _capCut = capCut is null ? null : Parse(capCut);
-        _vegas = vegas is null ? null : Parse(vegas);
+        _agile = agile is null ? null : Parse(agile);
+        _classic = classic is null ? null : Parse(classic);
     }
 
     public string Id { get; }
@@ -63,8 +55,8 @@ public sealed class ShortcutAction
 
     public IReadOnlyList<KeyChord> DefaultKeys(ShortcutPreset preset) => preset switch
     {
-        ShortcutPreset.CapCut => _capCut ?? _rodaje,
-        ShortcutPreset.Vegas => _vegas ?? _rodaje,
+        ShortcutPreset.Agile => _agile ?? _rodaje,
+        ShortcutPreset.Classic => _classic ?? _rodaje,
         _ => _rodaje,
     };
 

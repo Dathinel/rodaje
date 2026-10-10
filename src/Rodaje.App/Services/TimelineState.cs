@@ -2,7 +2,7 @@ using Rodaje.Core.Editing;
 
 namespace Rodaje.App.Services;
 
-/// <summary>Herramienta activa de la línea de tiempo (barra estilo Vegas).</summary>
+/// <summary>Herramienta activa de la línea de tiempo.</summary>
 public enum TimelineTool
 {
     Normal,

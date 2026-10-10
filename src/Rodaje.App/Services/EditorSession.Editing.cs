@@ -8,7 +8,7 @@ namespace Rodaje.App.Services;
 /// <summary>Las ediciones en el cursor que usan los atajos y la barra de la línea de tiempo.</summary>
 /// <remarks>
 /// Actúan sobre los clips seleccionados que pasan por el cursor; sin selección, sobre el clip de la pista principal que
-/// está bajo el cursor (como CapCut). En la pista principal magnética, borrar y recortar no dejan huecos.
+/// está bajo el cursor. En la pista principal magnética, borrar y recortar no dejan huecos.
 /// </remarks>
 public sealed partial class EditorSession
 {
@@ -32,10 +32,10 @@ public sealed partial class EditorSession
                 : null);
     }
 
-    /// <summary>Recorta el inicio de los clips hasta el cursor (Q en CapCut).</summary>
+    /// <summary>Recorta el inicio de los clips hasta el cursor (Q en el estilo Rodaje).</summary>
     public bool TrimStartToPlayhead() => TrimToPlayhead(TrimEdge.In);
 
-    /// <summary>Recorta el final de los clips hasta el cursor (W en CapCut).</summary>
+    /// <summary>Recorta el final de los clips hasta el cursor (W en el estilo Rodaje).</summary>
     public bool TrimEndToPlayhead() => TrimToPlayhead(TrimEdge.Out);
 
     /// <summary>

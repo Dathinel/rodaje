@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Historial estilo Shotcut: cada paso del deshacer; clic en uno vuelve a ese estado. El paso actual va resaltado en
+    Historial: cada paso del deshacer; clic en uno vuelve a ese estado. El paso actual va resaltado en
     naranja, los deshechos atenuados y el que coincide con el archivo lleva la marca de guardado.
 -->
 <UserControl

@@ -20,7 +20,7 @@ public class SettingsStoreTests
         store.Current.WindowWidth = 1600;
         store.Current.WindowHeight = 900;
         store.Current.WindowMaximized = true;
-        store.Current.ShortcutPreset = ShortcutPreset.Vegas;
+        store.Current.ShortcutPreset = ShortcutPreset.Classic;
         store.Current.ProxyUsage = ProxyUsage.Never;
         store.Current.AddRecentProject(@"C:\a.rodaje");
         store.Save();
@@ -34,10 +34,10 @@ public class SettingsStoreTests
         Assert.Equal(222, s.TimelineHeight);
         Assert.Equal(1600, s.WindowWidth);
         Assert.True(s.WindowMaximized);
-        Assert.Equal(ShortcutPreset.Vegas, s.ShortcutPreset);
+        Assert.Equal(ShortcutPreset.Classic, s.ShortcutPreset);
         Assert.Equal(ProxyUsage.Never, s.ProxyUsage);
         Assert.Equal([@"C:\a.rodaje"], s.RecentProjects);
-        Assert.Contains("\"Vegas\"", File.ReadAllText(path), StringComparison.Ordinal);
+        Assert.Contains("\"Classic\"", File.ReadAllText(path), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -109,6 +109,28 @@ public class SettingsStoreTests
         AppDataPaths.WriteAllTextAtomic(path, "dos");
         Assert.Equal("dos", File.ReadAllText(path));
         Assert.False(File.Exists(path + ".tmp"));
+    }
+
+    [Theory]
+    [InlineData("CapCut", ShortcutPreset.Agile)]
+    [InlineData("Vegas", ShortcutPreset.Classic)]
+    [InlineData("Classic", ShortcutPreset.Classic)]
+    [InlineData("Otro", ShortcutPreset.Rodaje)]
+    [InlineData("2", ShortcutPreset.Classic)]
+    public void ElEstiloDeAtajos_SeMigraSinDarPorDañadoElArchivo(string stored, ShortcutPreset expected)
+    {
+        using var dir = new TempDirectory();
+        string path = dir.File(SettingsStore.FileName);
+        string value = int.TryParse(stored, out _) ? stored : $"\"{stored}\"";
+        File.WriteAllText(path, $$"""{ "version": 1, "libraryWidth": 410, "shortcutPreset": {{value}} }""");
+        var store = new SettingsStore(path);
+
+        Assert.Null(store.Load());
+
+        Assert.Equal(expected, store.Current.ShortcutPreset);
+        Assert.Equal(410, store.Current.LibraryWidth);
+        store.Save();
+        Assert.Contains($"\"{expected}\"", File.ReadAllText(path), StringComparison.Ordinal);
     }
 
     [Fact]

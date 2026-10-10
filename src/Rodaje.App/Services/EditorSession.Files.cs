@@ -120,7 +120,7 @@ public sealed partial class EditorSession
     /// del historial. Un archivo que ya estaba en la biblioteca no se repite: se devuelve su medio. Lo que no entra se
     /// avisa con el motivo.
     /// </summary>
-    /// <remarks>Si la secuencia está vacía, toma la tasa y el tamaño del primer video, como CapCut.</remarks>
+    /// <remarks>Si la secuencia está vacía, toma la tasa y el tamaño del primer video.</remarks>
     public async Task<ImportResult> ImportMediaAsync(IEnumerable<string> paths)
     {
         VerifyAccess();

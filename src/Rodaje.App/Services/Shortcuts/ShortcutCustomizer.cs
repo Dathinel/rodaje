@@ -1,16 +1,5 @@
 namespace Rodaje.App.Services.Shortcuts;
 
-/// <summary>Nombres de los estilos tal como se ven en la página de atajos.</summary>
-public static class ShortcutPresetNames
-{
-    public static string Display(ShortcutPreset preset) => preset switch
-    {
-        ShortcutPreset.CapCut => "Como CapCut",
-        ShortcutPreset.Vegas => "Como Vegas",
-        _ => "Rodaje",
-    };
-}
-
 /// <summary>
 /// Un cambio de atajos hecho desde la página, con el aviso que se le muestra a la persona y lo necesario para
 /// deshacerlo (<see cref="ShortcutCustomizer.Undo"/>).

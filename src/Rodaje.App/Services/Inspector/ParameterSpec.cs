@@ -66,7 +66,7 @@ public sealed record ParameterSpec(
     }
 }
 
-/// <summary>Las curvas entre keyframes con sus nombres de CapCut, en el orden del desplegable.</summary>
+/// <summary>Las curvas entre keyframes con sus nombres, en el orden del desplegable.</summary>
 public static class KeyframeEase
 {
     public static IReadOnlyList<(string Name, Interpolation Value)> Options { get; } =

@@ -162,13 +162,13 @@ public class ShortcutCustomizerTests
         ShortcutRegistry registry = Catalog();
         var customizer = new ShortcutCustomizer(registry);
         ShortcutChange change = customizer.Assign(ActionIds.AddMarker, K("Ctrl+M"), replacing: K("M"));
-        registry.Preset = ShortcutPreset.CapCut;
+        registry.Preset = ShortcutPreset.Agile;
         customizer.Assign(ActionIds.AddMarker, K("Ctrl+Mayús+M"));
 
         customizer.Undo(change);
 
         Assert.Empty(registry.GetOverrides(ShortcutPreset.Rodaje));
-        Assert.Single(registry.GetOverrides(ShortcutPreset.CapCut));
+        Assert.Single(registry.GetOverrides(ShortcutPreset.Agile));
     }
 
     [Fact]
