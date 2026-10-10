@@ -129,6 +129,31 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
         return new D3D11TexturePayload(device, texture, slice, frame->width, frame->height) { _frame = frame, Color = color };
     }
 
+    /// <summary>
+    /// Envuelve una capa de una textura NV12 o P010 creada fuera del decodificador (generadores, proxies, pruebas).
+    /// <paramref name="texture"/> es un <c>ID3D11Texture2D*</c> de <paramref name="device"/>, muestreable desde un shader;
+    /// se toma una referencia propia y quien llama conserva la suya.
+    /// </summary>
+    public static D3D11TexturePayload FromTexture(GpuDevice device, nint texture, int arraySlice, int width, int height, VideoColor color)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        ArgumentOutOfRangeException.ThrowIfZero(texture);
+        ArgumentOutOfRangeException.ThrowIfNegative(arraySlice);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        var native = (ID3D11Texture2D*)texture;
+        D3D11_TEXTURE2D_DESC desc;
+        native->GetDesc(&desc);
+        if (arraySlice >= desc.ArraySize || width > desc.Width || height > desc.Height)
+        {
+            throw new ArgumentOutOfRangeException(nameof(arraySlice),
+                $"La capa {arraySlice} de {width}×{height} no cabe en una textura de {desc.Width}×{desc.Height} con {desc.ArraySize} capas.");
+        }
+
+        native->AddRef();
+        return new D3D11TexturePayload(device, native, arraySlice, width, height) { _ownedTexture = native, Color = color };
+    }
+
     /// <summary>Envuelve una textura propia y se queda con su referencia.</summary>
     internal static D3D11TexturePayload FromOwnedTexture(GpuDevice device, ID3D11Texture2D* texture, int width, int height, VideoColor color) =>
         new(device, texture, 0, width, height) { _ownedTexture = texture, Color = color };

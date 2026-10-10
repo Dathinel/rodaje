@@ -1,6 +1,6 @@
 using Rodaje.Media.Video;
 
-namespace Rodaje.Engine.Presentation;
+namespace Rodaje.Render;
 
 /// <summary>
 /// Lleva lo que devuelve el muestreo UNORM de un plano Y o UV a valores normalizados: <c>y = muestra *

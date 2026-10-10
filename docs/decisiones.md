@@ -227,3 +227,36 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - Esperar a WinUI 3 para la prueba humana: retrasaría la verificación de la sincronía hasta la fase 4.
 
 **Consecuencias.** El visor es una herramienta de prueba, no la interfaz del editor. HDR (BT.2020, PQ, HLG) queda fuera. Durante un seek en reproducción la GPU decodifica desde el keyframe y la presentación se retrasa dos o tres refrescos; el audio sigue corriendo y el video lo alcanza.
+
+## D-016. Compositor de la fase 3: `Rodaje.Render` con destino RGBA16F y mezcla en el espacio del video (9 de octubre de 2026)
+
+**Contexto.** La fase 3 dibuja varias capas por cuadro. El visor convertía un solo cuadro NV12/P010 directo al búfer de la ventana; hace falta un paso intermedio que componga a tamaño de secuencia y que después se pueda presentar, leer para miniaturas o codificar.
+
+**Decisión.**
+- `Rodaje.Render` (sobre `Rodaje.Media` y `Rodaje.Playback`) tiene `Compositor`, `Presenter` y `GpuTimer`. `YuvRange`, `YuvToRgb` y `VideoLayout` pasan de `Rodaje.Engine.Presentation` a `Rodaje.Render`, y `ShaderCompiler` reúne la compilación con `d3dcompiler_47.dll` que antes vivía en el visor.
+- Cada capa es un cuadrilátero con cuatro vértices calculados en la CPU (`LayerLayout`: ajuste "contain" y después escala, rotación horaria y desplazamiento en píxeles de la secuencia). El pixel shader convierte Y'CbCr con la matriz y el rango de la capa, recorta el relleno del decodificador y mezcla con "over" premultiplicado.
+- Los bordes se suavizan con la distancia al lado en píxeles de destino, con el cuadrilátero un píxel más grande. Un borde alineado con la rejilla queda nítido y uno girado no muestra escalones, sin MSAA.
+- El destino es `R16G16B16A16_FLOAT` por defecto. Conserva los 10 bits de P010, no redondea a 8 bits en cada capa translúcida y deja lugar a la mezcla en luz lineal y a los efectos. `Rgba8Unorm` queda como opción.
+- La mezcla se hace sobre los valores con la curva del video, no en luz lineal; una opacidad de 0,5 promedia los códigos, como hacen la mayoría de editores en 8 bits.
+- El muestreo de las capas es bilineal sobre el plano del decodificador, que no tiene mipmaps; el presentador genera los mipmaps de la composición cuando la ventana es más pequeña.
+- La relación de aspecto del píxel y la rotación de los metadatos llegan por `SourceGeometry`, que entrega quien llama, porque `LayerFrame` todavía no las trae.
+
+**Alternativas.**
+- Destino RGBA8: la mitad de memoria y unos 0,15 ms menos con 8 capas a 1080p, pero pierde precisión con P010 y con capas translúcidas apiladas.
+- Mezcla en luz lineal: más correcta físicamente, pero cambia el aspecto respecto a lo que el usuario espera de CapCut y otros editores. Se deja para cuando haya modos de fusión.
+- MSAA para los bordes: costo de memoria ×4 en el destino y no resuelve el aliasing de la textura.
+
+**Consecuencias.**
+- Cifras en la RTX 3050 Laptop, en el peor caso de capas NV12 de 1080p a pantalla completa (mediana de 200 cuadros):
+
+  | Capas | RGBA16F | RGBA8 |
+  |---|---|---|
+  | 1 | 0,10 ms | 0,05 ms |
+  | 2 | 0,19 ms | 0,10 ms |
+  | 4 | 0,36 ms | 0,19 ms |
+  | 8 | 0,53 ms | 0,37 ms |
+
+  Incluso con 8 capas, componer usa menos del 4 % de los 16,7 ms que dura un cuadro a 60 fps.
+- El visor sigue dibujando con su `VideoRenderer`; cuando muestre varias capas usará `Compositor` y `Presenter`.
+- Reducir una capa a menos de la mitad produce aliasing, hasta que existan proxies o un filtro de varias muestras.
+- Cuando el motor ponga el SAR y la rotación en `LayerFrame`, el parámetro `geometry` de `Compositor.Render` se puede retirar.
