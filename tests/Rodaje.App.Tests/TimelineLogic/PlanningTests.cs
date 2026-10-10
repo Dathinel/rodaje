@@ -128,11 +128,18 @@ public class PlanningTests
         Assert.Equal("Región 2", TimelinePlanning.NextName("Región", ["Región 1", "Región 3"]));
 
         EditorSession session = await TwoClips();
+        int notices = 0;
+        session.Notified += (_, _) => notices++;
         string before = Layout(session, session.MainTrack!);
-        Assert.False(TimelinePlanning.Succeeds(session.Project, Edits.Move(session.SequenceId, session.MainTrack!.Clips[0].Id, S(5))));
-        Assert.True(TimelinePlanning.Succeeds(session.Project, Edits.Move(session.SequenceId, session.MainTrack!.Clips[1].Id, S(25))));
-        Assert.False(TimelinePlanning.Succeeds(session.Project, Edits.Move(session.SequenceId, "nada", S(25))));
+        int steps = session.History.Count;
+        Assert.False(session.TryExecute(Edits.Move(session.SequenceId, session.MainTrack!.Clips[0].Id, S(5))));
+        Assert.False(session.TryExecute(Edits.Move(session.SequenceId, "nada", S(25))));
         Assert.Equal(before, Layout(session, session.MainTrack!));
+        Assert.Equal(steps, session.History.Count);
+        Assert.Equal(0, notices);
+
+        Assert.True(session.TryExecute(Edits.Move(session.SequenceId, session.MainTrack!.Clips[1].Id, S(25))));
+        Assert.Equal(steps + 1, session.History.Count);
     });
 
     [Fact]

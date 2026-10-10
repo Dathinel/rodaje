@@ -24,7 +24,7 @@ public sealed partial class EditorSession
     public async Task<bool> NewProjectAsync()
     {
         VerifyAccess();
-        if (!await ConfirmDiscardChangesAsync())
+        if (RefuseWhileBusy() || !await ConfirmDiscardChangesAsync())
         {
             return false;
         }
@@ -38,7 +38,7 @@ public sealed partial class EditorSession
     public async Task<bool> OpenProjectAsync(string? path = null)
     {
         VerifyAccess();
-        if (!await ConfirmDiscardChangesAsync())
+        if (RefuseWhileBusy() || !await ConfirmDiscardChangesAsync())
         {
             return false;
         }
@@ -50,6 +50,11 @@ public sealed partial class EditorSession
         }
 
         string full = Path.GetFullPath(path);
+        if (RefuseWhileBusy())
+        {
+            return false;
+        }
+
         BeginBusy();
         Project loaded;
         try
@@ -240,6 +245,22 @@ public sealed partial class EditorSession
             return false;
         }
 
+        if (videoTrack is not null && audioTrack is not null)
+        {
+            // Va pegado al final de la principal aunque el audio llegue más lejos; su sonido, en la primera pista de
+            // audio libre en ese tramo.
+            Time at = sequence.GetTrack(videoTrack).End;
+            Time end = at + media.Duration;
+            if (sequence.AudioTracks.Find(t => !t.Locked && !t.Clips.Exists(c => c.Start < end && c.End > at)) is { } free)
+            {
+                string id = media.Id;
+                Time duration = media.Duration;
+                string linked = free.Id;
+                return Execute(new SequenceEditCommand("Añadir al final", SequenceId,
+                    ctx => TimelineEdits.InsertMedia(ctx, id, Time.Zero, duration, videoTrack, at, PlacementMode.Strict, linked), _ids));
+            }
+        }
+
         return Execute(Edits.AppendMedia(SequenceId, media.Id, Time.Zero, media.Duration, videoTrack ?? audioTrack!,
             videoTrack is null ? null : audioTrack, _ids));
     }
@@ -287,6 +308,26 @@ public sealed partial class EditorSession
     private async Task<bool> SaveToAsync(string path)
     {
         VerifyAccess();
+        // Los guardados van en fila: dos Ctrl+S seguidos no escriben a la vez el mismo temporal, y uno viejo que termina
+        // tarde no pisa al nuevo.
+        Task previous = _saving;
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _saving = finished.Task;
+        BeginBusy();
+        try
+        {
+            await previous;
+            return await WriteProjectAsync(path);
+        }
+        finally
+        {
+            EndBusy();
+            finished.SetResult();
+        }
+    }
+
+    private async Task<bool> WriteProjectAsync(string path)
+    {
         if (IsInGesture)
         {
             Notify(NotificationSeverity.Informational, "Todavía no", "Suelta lo que estás arrastrando antes de guardar.");
@@ -299,7 +340,6 @@ public sealed partial class EditorSession
         string name = rename ? Path.GetFileNameWithoutExtension(path) : Project.Name;
         Project copy = ProjectPaths.ForSaving(Project, Path.GetDirectoryName(path)!);
         copy.Name = name;
-        BeginBusy();
         try
         {
             await Task.Run(() => ProjectSerializer.Save(copy, path));
@@ -308,10 +348,6 @@ public sealed partial class EditorSession
         {
             Notify(NotificationSeverity.Error, "No se pudo guardar", ex.Message);
             return false;
-        }
-        finally
-        {
-            EndBusy();
         }
 
         if (!ReferenceEquals(target, Project))
@@ -332,6 +368,17 @@ public sealed partial class EditorSession
             History.MarkClean();
         }
 
+        return true;
+    }
+
+    private bool RefuseWhileBusy()
+    {
+        if (!IsBusy)
+        {
+            return false;
+        }
+
+        Notify(NotificationSeverity.Informational, "Todavía no", "Espera a que termine lo que está en curso: abrir, guardar o importar.");
         return true;
     }
 

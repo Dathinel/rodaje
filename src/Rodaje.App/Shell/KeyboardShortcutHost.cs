@@ -33,31 +33,13 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
     /// <summary>Hora (<see cref="System.Diagnostics.Stopwatch"/>) del último KeyDown que llegó a la ventana, para medir.</summary>
     public long LastKeyDownTimestamp { get; private set; }
 
-    public static KeyModifiers CurrentModifiers()
-    {
-        var modifiers = KeyModifiers.None;
-        if (IsDown(VirtualKey.Control))
-        {
-            modifiers |= KeyModifiers.Control;
-        }
-
-        if (IsDown(VirtualKey.Shift))
-        {
-            modifiers |= KeyModifiers.Shift;
-        }
-
-        if (IsDown(VirtualKey.Menu))
-        {
-            modifiers |= KeyModifiers.Alt;
-        }
-
-        if (IsDown(VirtualKey.LeftWindows) || IsDown(VirtualKey.RightWindows))
-        {
-            modifiers |= KeyModifiers.Windows;
-        }
-
-        return modifiers;
-    }
+    public static KeyModifiers CurrentModifiers() => ModifierKeys.From(
+        IsDown(VirtualKey.LeftControl),
+        IsDown(VirtualKey.RightControl),
+        IsDown(VirtualKey.Shift),
+        IsDown(VirtualKey.LeftMenu),
+        IsDown(VirtualKey.RightMenu),
+        IsDown(VirtualKey.LeftWindows) || IsDown(VirtualKey.RightWindows));
 
     public void Dispose()
     {
@@ -78,7 +60,7 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
         LastKeyDownTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         var chord = new KeyChord((int)e.Key, CurrentModifiers());
         bool handled = _intercept?.Invoke(chord) == true
-            || _router.Dispatch(chord, e.KeyStatus.WasKeyDown, IsTextInputFocused());
+            || (!FocusedSliderTakes(chord) && _router.Dispatch(chord, e.KeyStatus.WasKeyDown, IsTextInputFocused()));
         if (handled)
         {
             _consumed.Add(e.Key);
@@ -93,6 +75,13 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
             e.Handled = true;
         }
     }
+
+    // Un deslizador con el foco se mueve con las flechas, Inicio, Fin y RePág/AvPág sin modificadores: no son atajos.
+    private bool FocusedSliderTakes(KeyChord chord) =>
+        chord.Modifiers == KeyModifiers.None
+        && (VirtualKey)chord.Key is VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down
+            or VirtualKey.Home or VirtualKey.End or VirtualKey.PageUp or VirtualKey.PageDown
+        && _root.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is Slider;
 
     private bool IsTextInputFocused() =>
         _root.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox or PasswordBox or RichEditBox or AutoSuggestBox or NumberBox;

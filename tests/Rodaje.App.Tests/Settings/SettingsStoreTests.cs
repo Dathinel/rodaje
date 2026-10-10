@@ -41,6 +41,26 @@ public class SettingsStoreTests
     }
 
     [Fact]
+    public void GuardarSiCambio_SoloEscribeCuandoHayAlgoNuevo()
+    {
+        using var dir = new TempDirectory();
+        string path = dir.File(SettingsStore.FileName);
+        var store = new SettingsStore(path);
+        Assert.Null(store.Load());
+
+        Assert.True(store.SaveIfChanged());
+        Assert.False(store.SaveIfChanged());
+        store.Current.LibraryWidth = 400;
+        Assert.True(store.SaveIfChanged());
+        Assert.False(store.SaveIfChanged());
+
+        var reloaded = new SettingsStore(path);
+        Assert.Null(reloaded.Load());
+        Assert.Equal(400, reloaded.Current.LibraryWidth);
+        Assert.False(reloaded.SaveIfChanged());
+    }
+
+    [Fact]
     public void SinArchivo_DaLosDeFabrica()
     {
         using var dir = new TempDirectory();

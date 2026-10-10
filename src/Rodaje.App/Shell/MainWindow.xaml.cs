@@ -38,6 +38,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     private readonly DispatcherQueue _dispatcher;
     private readonly DispatcherQueueTimer _transportTimer;
     private readonly DispatcherQueueTimer _notificationTimer;
+    private readonly DispatcherQueueTimer _settingsTimer;
     private readonly nint _hwnd;
     private readonly EditorServices _services;
     private readonly ClipVisuals _visuals;
@@ -122,6 +123,12 @@ internal sealed partial class MainWindow : Window, IShellHost
         {
             _transportTimer.Start();
         }
+
+        // Los ajustes se guardan poco después de cambiar (no solo al cerrar): un apagón no se lleva los últimos.
+        _settingsTimer = _dispatcher.CreateTimer();
+        _settingsTimer.Interval = TimeSpan.FromSeconds(2);
+        _settingsTimer.Tick += (_, _) => SaveSettingsIfChanged();
+        _settingsTimer.Start();
 
         LibrarySplitter.Resized += (_, size) => settings.Current.LibraryWidth = size;
         InspectorSplitter.Resized += (_, size) => settings.Current.InspectorWidth = size;
@@ -318,6 +325,24 @@ internal sealed partial class MainWindow : Window, IShellHost
         s.ShortcutPreset = _router.Registry.Preset;
     }
 
+    private void SaveSettingsIfChanged()
+    {
+        // En pantalla completa o minimizada los paneles miden 0: se guarda lo de antes.
+        if (_closed || !_activatedOnce || _playerFullScreen || AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized })
+        {
+            return;
+        }
+
+        SaveLayout();
+        try
+        {
+            _settings.SaveIfChanged();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     private void RememberProject()
     {
         if (Session.FilePath is { } path)
@@ -471,6 +496,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _closed = true;
         CompositionTarget.Rendering -= OnRendering;
         _transportTimer.Stop();
+        _settingsTimer.Stop();
         _keyboard.Dispose();
         foreach (IDisposable binding in _bindings)
         {

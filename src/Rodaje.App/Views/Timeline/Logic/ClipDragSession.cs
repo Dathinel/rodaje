@@ -53,12 +53,10 @@ public sealed class ClipDragSession
         DragPlan plan = Drag.Update(_session.Project, position, row);
         Plan = plan;
         _pending = plan.IsLive ? null : plan.Build;
-        if (IsOpen && plan.IsLive && plan.Build is { } build && TimelinePlanning.Succeeds(_session.Project, build()))
+        // Sin ensayo sobre una copia: un paso que no cabe se revierte solo y no se avisa.
+        if (IsOpen && plan.IsLive && plan.Build is { } build && _session.TryExecute(build()))
         {
-            if (_session.Execute(build()))
-            {
-                LiveSteps++;
-            }
+            LiveSteps++;
         }
 
         return plan;

@@ -1,6 +1,7 @@
 using Rodaje.App.Services;
 using Rodaje.App.Tests.Support;
 using Rodaje.Core.Commands;
+using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
@@ -375,4 +376,85 @@ public class EditorSessionTests
         Assert.Contains("ruta", notice.Message, StringComparison.Ordinal);
         Assert.Single(other.Playback.Loads);
     });
+
+    [Fact]
+    public void MientrasImporta_NoAbreNiCreaOtroProyecto() => UiThread.Run(async () =>
+    {
+        var prober = new GatedProber(new FakeProber().Video("a.mp4"));
+        var dialogs = new FakeDialogs();
+        var session = new EditorSession(new FakePlayback(), prober, dialogs, new SequentialIdGenerator());
+        var notices = new List<EditorNotification>();
+        session.Notified += (_, n) => notices.Add(n);
+
+        Task<ImportResult> importing = session.ImportMediaAsync([Path.GetFullPath("a.mp4")]);
+        Assert.True(session.IsBusy);
+        Assert.False(await session.OpenProjectAsync("otro.rodaje"));
+        Assert.False(await session.NewProjectAsync());
+        prober.Release();
+        Assert.Single((await importing).MediaIds);
+
+        Assert.Equal(2, notices.Count);
+        Assert.All(notices, n => Assert.Equal(NotificationSeverity.Informational, n.Severity));
+        Assert.Single(session.Project.Media);
+        Assert.False(session.IsBusy);
+    });
+
+    [Fact]
+    public void DosGuardadosSeguidos_VanEnFilaYQuedaElUltimo() => UiThread.Run(async () =>
+    {
+        using var dir = new TempDirectory();
+        var h = new Harness();
+        await h.ImportAndAppend(dir.File("a.mp4"));
+        h.Dialogs.SavePath = dir.File("p");
+        Assert.True(await h.Session.SaveAsync());
+        string path = dir.File("p.rodaje");
+
+        h.Session.Execute(new RenameProjectCommand("Dos"));
+        Task<bool> first = h.Session.SaveAsync();
+        h.Session.Execute(new RenameProjectCommand("Tres"));
+        Task<bool> second = h.Session.SaveAsync();
+
+        Assert.True(await first);
+        Assert.True(await second);
+        Assert.Equal("Tres", Rodaje.Core.Serialization.ProjectSerializer.Load(path).Name);
+        Assert.False(h.Session.IsDirty);
+        Assert.False(File.Exists(path + ".tmp"));
+    });
+
+    [Fact]
+    public void AñadirALaLinea_VaPegadoALaPrincipalAunqueElAudioLlegueMasLejos() => UiThread.Run(async () =>
+    {
+        var h = new Harness();
+        await h.ImportAndAppend("a.mp4", 4);
+        h.Prober.Audio("musica.mp3", 30);
+        ImportResult music = await h.Session.ImportMediaAsync([Path.GetFullPath("musica.mp3")]);
+        string a1 = h.Session.Sequence.AudioTracks[0].Id;
+        Assert.True(h.Session.Execute(Edits.InsertMedia(h.Session.SequenceId, music.MediaIds[0], Time.Zero, Time.FromSeconds(30), a1,
+            Time.FromSeconds(4), PlacementMode.Strict)));
+        h.Prober.Video("b.mp4", 6);
+        ImportResult b = await h.Session.ImportMediaAsync([Path.GetFullPath("b.mp4")]);
+
+        Assert.True(h.Session.AppendToTimeline(b.MediaIds[0]));
+
+        Sequence s = h.Session.Sequence;
+        Clip video = s.VideoTracks[0].Clips[1];
+        Assert.Equal(Time.FromSeconds(4), video.Start);
+        Clip sound = Assert.Single(s.AudioTracks[1].Clips);
+        Assert.Equal(Time.FromSeconds(4), sound.Start);
+        Assert.Equal(video.LinkId, sound.LinkId);
+        Assert.Equal("Añadir al final", h.Session.UndoDescription);
+    });
+
+    private sealed class GatedProber(IMediaProber inner) : IMediaProber
+    {
+        private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Release() => _gate.TrySetResult();
+
+        public MediaProbeResult Probe(string path)
+        {
+            _gate.Task.Wait(TimeSpan.FromSeconds(10));
+            return inner.Probe(path);
+        }
+    }
 }

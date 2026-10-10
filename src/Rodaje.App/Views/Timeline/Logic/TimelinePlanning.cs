@@ -142,27 +142,4 @@ public static class TimelinePlanning
             }
         }
     }
-
-    /// <summary>
-    /// Prueba el comando sobre una copia del proyecto: así un paso imposible del arrastre se descarta sin avisos ni
-    /// cambios.
-    /// </summary>
-    public static bool Succeeds(Project project, ICommand command)
-    {
-        ArgumentNullException.ThrowIfNull(project);
-        ArgumentNullException.ThrowIfNull(command);
-        try
-        {
-            command.Apply(project.Clone());
-            return true;
-        }
-        catch (EditException)
-        {
-            return false;
-        }
-        catch (KeyNotFoundException)
-        {
-            return false;
-        }
-    }
 }
