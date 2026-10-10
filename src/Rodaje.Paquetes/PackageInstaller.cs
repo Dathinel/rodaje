@@ -40,8 +40,11 @@ public sealed record InstallLimits
     /// <summary>Lo que puede ocupar descomprimido (los módulos de IA traen modelos de varios GB).</summary>
     public long MaxTotalBytes { get; init; } = 8L << 30;
 
-    /// <summary>Tasa de compresión máxima de una entrada grande.</summary>
+    /// <summary>Tasa de compresión máxima de una entrada de más de 1 MB y del paquete entero si pasa de 16 MB.</summary>
     public int MaxCompressionRatio { get; init; } = 200;
+
+    /// <summary>Lo que debe quedar libre en el disco después de instalar.</summary>
+    public long FreeSpaceReserve { get; init; } = 256L << 20;
 
     public static InstallLimits Default { get; } = new();
 }
@@ -325,14 +328,10 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     private void Extract(string archive, string destination, CancellationToken cancellationToken)
     {
         using ZipArchive zip = ZipFile.OpenRead(archive);
-        if (zip.Entries.Count > _limits.MaxEntries)
-        {
-            throw new PackageInstallException($"El paquete tiene más de {_limits.MaxEntries} archivos.");
-        }
+        CheckTotals(zip, new FileInfo(archive).Length, destination);
 
         string prefix = CommonWrapperFolder(zip);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        long total = 0;
         var written = new List<string>();
         Directory.CreateDirectory(destination);
         foreach (ZipArchiveEntry entry in zip.Entries)
@@ -372,12 +371,6 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
                 continue;
             }
 
-            total += entry.Length;
-            if (entry.Length < 0 || total > _limits.MaxTotalBytes)
-            {
-                throw new PackageInstallException("El paquete descomprimido ocupa demasiado.");
-            }
-
             if (entry.Length > (1 << 20) && entry.CompressedLength > 0 && entry.Length / entry.CompressedLength > _limits.MaxCompressionRatio)
             {
                 throw new PackageInstallException($"«{relative}» está comprimido de forma sospechosa.");
@@ -405,6 +398,61 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(ex.InnerExceptions[0]);
         }
     }
+
+    /// <summary>
+    /// Antes de escribir nada: número de entradas, tamaño descomprimido declarado, tasa de compresión del conjunto (muchas
+    /// entradas chicas muy comprimidas esquivan la de cada una) y espacio libre. <see cref="CopyLimited"/> asegura que
+    /// ninguna entrada pase de lo que declara.
+    /// </summary>
+    private void CheckTotals(ZipArchive zip, long archiveBytes, string destination)
+    {
+        if (zip.Entries.Count > _limits.MaxEntries)
+        {
+            throw new PackageInstallException($"El paquete tiene más de {_limits.MaxEntries} archivos.");
+        }
+
+        long total = 0;
+        foreach (ZipArchiveEntry entry in zip.Entries)
+        {
+            if (entry.Length < 0 || entry.Length > _limits.MaxTotalBytes - total)
+            {
+                throw new PackageInstallException($"El paquete descomprimido ocupa más de {FormatBytes(_limits.MaxTotalBytes)}.");
+            }
+
+            total += entry.Length;
+        }
+
+        if (total > 16L << 20 && total / Math.Max(archiveBytes, 1) > _limits.MaxCompressionRatio)
+        {
+            throw new PackageInstallException($"El paquete está comprimido de forma sospechosa: {FormatBytes(archiveBytes)} que ocupan {FormatBytes(total)}.");
+        }
+
+        long? free = FreeSpace(destination);
+        if (free < total + _limits.FreeSpaceReserve)
+        {
+            throw new PackageInstallException($"No hay espacio en el disco: el paquete necesita {FormatBytes(total)} y quedan {FormatBytes(free.Value)} libres.");
+        }
+    }
+
+    /// <summary>Espacio libre en la unidad de <paramref name="path"/>, o <c>null</c> si no se puede saber (por ejemplo, en una ruta de red).</summary>
+    private static long? FreeSpace(string path)
+    {
+        try
+        {
+            return Path.GetPathRoot(Path.GetFullPath(path)) is { Length: > 0 } root ? new DriveInfo(root).AvailableFreeSpace : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static string FormatBytes(long bytes) => bytes switch
+    {
+        >= 1L << 30 => $"{bytes / (double)(1L << 30):0.#} GB",
+        >= 1L << 20 => $"{bytes / (double)(1L << 20):0.#} MB",
+        _ => $"{Math.Max(bytes, 0) / 1024.0:0.#} KB",
+    };
 
     /// <summary>Las releases de GitHub suelen envolver todo en una carpeta: si el manifiesto está ahí y no en la raíz, se quita.</summary>
     private static string CommonWrapperFolder(ZipArchive zip)
