@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
@@ -10,12 +11,19 @@ using Rodaje.Paquetes;
 
 namespace Rodaje.App.Views.Plugins;
 
-/// <summary>Gestor de complementos: catálogo, instalados, instalar desde archivo, desinstalar y abrir el repositorio.</summary>
+/// <summary>
+/// Gestor de complementos: catálogo, instalados, instalar desde archivo, desinstalar y abrir el repositorio. Mientras está
+/// visible mira cada pocos segundos si hay otras instancias de Rodaje abiertas; con ellas no se desinstala.
+/// </summary>
 internal sealed partial class PluginsView : UserControl, IEditorView
 {
     private static readonly (string Name, string Spec) PackageFilter = ("Complementos de Rodaje", "*" + PackageManifest.FileExtension);
 
+    private static readonly TimeSpan InstancesPoll = TimeSpan.FromSeconds(2);
+
     private EditorServices? _services;
+    private DispatcherQueueTimer? _instancesTimer;
+    private int _instances = 1;
     private int _busy;
 
     public PluginsView()
@@ -38,8 +46,38 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         DownloadNote.Text = downloader.IsAvailable
             ? "Los complementos se descargan de las releases de GitHub y se comprueba su hash antes de instalarlos."
             : "Descarga desde GitHub: próximamente. Mientras tanto, baja el archivo .paquete de la release del repositorio y usa «Instalar desde archivo…», o suéltalo en la biblioteca.";
+        _instances = services.Packages.ActiveInstances();
+        _instancesTimer = DispatcherQueue.CreateTimer();
+        _instancesTimer.Interval = InstancesPoll;
+        _instancesTimer.Tick += (_, _) => CheckInstances();
+        Loaded += (_, _) =>
+        {
+            CheckInstances();
+            _instancesTimer.Start();
+        };
+        Unloaded += (_, _) => _instancesTimer.Stop();
+        if (IsLoaded)
+        {
+            _instancesTimer.Start();
+        }
+
         Refresh();
         _ = services.Packages.RefreshAsync();
+    }
+
+    private void CheckInstances()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        int count = _services.Packages.ActiveInstances();
+        if (count != _instances)
+        {
+            _instances = count;
+            Refresh();
+        }
     }
 
     private void Refresh()
@@ -50,11 +88,16 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         }
 
         PackageService packages = _services.Packages;
+        bool othersOpen = _instances > 1;
+        InstancesNote.Visibility = othersOpen ? Visibility.Visible : Visibility.Collapsed;
+        InstancesText.Text = othersOpen
+            ? $"Hay {_instances} ventanas de Rodaje abiertas. {PackageService.OtherInstancesMessage} Instalar complementos nuevos sí se puede."
+            : "";
         ContentPackages.Clear();
         Modules.Clear();
         foreach (PluginEntry entry in packages.Entries())
         {
-            (entry.Kind == PackageKind.Module ? Modules : ContentPackages).Add(new PluginRow(entry, packages.Downloader));
+            (entry.Kind == PackageKind.Module ? Modules : ContentPackages).Add(new PluginRow(entry, packages.Downloader, othersOpen));
         }
 
         Problems.Clear();

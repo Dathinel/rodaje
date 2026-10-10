@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using Rodaje.App.Services;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Tests.Support;
 using Rodaje.Core.Model;
@@ -151,8 +152,56 @@ public sealed class PackageServiceTests : IDisposable
         Assert.Null(service.Installed.Find("rodaje-transiciones"));
     });
 
-    private PackageService Create() =>
-        new(PackageLocations.Under(Path.Combine(_folder.Path, "complementos")), PackageService.LoadBundledCatalog());
+    [Fact]
+    public void With_another_instance_open_nothing_installed_is_removed_or_replaced() => UiThread.Run(async () =>
+    {
+        string instances = Path.Combine(_folder.Path, "instancias");
+        using InstanceRegistry mine = InstanceRegistry.Register(instances);
+        PackageService service = Create(mine);
+        string archive = Path.Combine(_folder.Path, "t.paquete");
+        WriteArchive(archive, "rodaje-transiciones", "transition");
+        await service.InstallFromFileAsync(archive);
+        string leftover = Path.Combine(service.Locations.Packages, ".instalando-0123456789ab");
+
+        InstanceRegistry other = InstanceRegistry.Register(instances);
+        Directory.CreateDirectory(leftover);
+        Assert.Equal(2, service.ActiveInstances());
+        var uninstall = await Assert.ThrowsAsync<PackageInstallException>(() => service.UninstallAsync("rodaje-transiciones"));
+        var replace = await Assert.ThrowsAsync<PackageInstallException>(() => service.InstallFromFileAsync(archive));
+        WriteArchive(Path.Combine(_folder.Path, "nuevo.paquete"), "paquete-nuevo", "sound");
+        InstallResult added = await service.InstallFromFileAsync(Path.Combine(_folder.Path, "nuevo.paquete"));
+
+        Assert.Equal(PackageService.OtherInstancesMessage, uninstall.Message);
+        Assert.Contains("Cierra las otras ventanas", replace.Message, StringComparison.Ordinal);
+        Assert.Equal(InstallOutcome.Installed, added.Outcome);
+        Assert.NotNull(service.Installed.Find("rodaje-transiciones"));
+        Assert.True(Directory.Exists(leftover));
+
+        other.Dispose();
+        await service.UninstallAsync("rodaje-transiciones");
+        Assert.Null(service.Installed.Find("rodaje-transiciones"));
+    });
+
+    [Fact]
+    public void Leftovers_wait_until_this_is_the_only_instance() => UiThread.Run(async () =>
+    {
+        string instances = Path.Combine(_folder.Path, "instancias");
+        using InstanceRegistry mine = InstanceRegistry.Register(instances);
+        InstanceRegistry first = InstanceRegistry.Register(instances);
+        PackageService service = Create(mine);
+        string extracting = Path.Combine(service.Locations.Packages, ".instalando-0123456789ab");
+        Directory.CreateDirectory(extracting);
+
+        await service.RefreshAsync();
+        Assert.True(Directory.Exists(extracting));
+
+        first.Dispose();
+        await service.RefreshAsync();
+        Assert.False(Directory.Exists(extracting));
+    });
+
+    private PackageService Create(InstanceRegistry? instances = null) =>
+        new(PackageLocations.Under(Path.Combine(_folder.Path, "complementos")), PackageService.LoadBundledCatalog(), instances: instances);
 
     private static void WriteArchive(string path, string id, string kind, int extraFiles = 0)
     {

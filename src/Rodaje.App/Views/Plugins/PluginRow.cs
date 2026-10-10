@@ -5,7 +5,8 @@ using Rodaje.Paquetes;
 namespace Rodaje.App.Views.Plugins;
 
 /// <summary>Una fila de la página de complementos.</summary>
-internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader downloader)
+/// <param name="othersOpen">Hay otras instancias de Rodaje abiertas: no se puede desinstalar.</param>
+internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader downloader, bool othersOpen)
 {
     public PluginEntry Entry { get; } = entry;
 
@@ -39,6 +40,8 @@ internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader do
     public string InstallTooltip { get; } = downloader.IsAvailable ? "Descargar e instalar desde GitHub" : downloader.UnavailableReason ?? "";
 
     public Visibility UninstallVisibility { get; } = entry.CanUninstall ? Visibility.Visible : Visibility.Collapsed;
+
+    public bool CanUninstallNow { get; } = !othersOpen;
 
     public double StateOpacity { get; } = entry.IsInstalled ? 1 : 0.6;
 }
