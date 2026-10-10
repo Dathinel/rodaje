@@ -252,10 +252,6 @@ public sealed class ClipDrag
             List<(Track Track, Clip Clip)> group = solo ? [(mainTrack, clip)] : ctx.Sequence.GetLinkGroup(_clipId);
             Track main = ctx.Sequence.GetTrack(magnetic);
             List<Track> closing = [main, .. group.Skip(1).Select(g => g.Track)];
-            foreach (Clip later in main.Clips.Where(c => c.Start >= oldEnd && c.LinkId is not null))
-            {
-                closing.AddRange(ctx.Sequence.GetLinkGroup(later.Id).Skip(1).Select(g => g.Track));
-            }
             string? link = clip.LinkId;
             if (solo)
             {

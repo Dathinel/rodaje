@@ -93,9 +93,9 @@ public static partial class TimelineEdits
 
         Time shift = edge == TrimEdge.In ? -delta : delta;
         List<Track> editedTracks = plans.ConvertAll(p => p.Track);
-        ctx.RippleShift(editedTracks, originalEnd, shift, scope, new HashSet<Clip>(plans.Select(p => p.Clip)));
+        IReadOnlyList<Track> shifted = ctx.RippleShift(editedTracks, originalEnd, shift, scope, new HashSet<Clip>(plans.Select(p => p.Clip)));
 
-        TrimmingSupport.EnsureNoOverlaps(scope.IncludesAllTracks() ? ctx.Sequence.AllTracks : editedTracks);
+        TrimmingSupport.EnsureNoOverlaps(scope.IncludesAllTracks() ? ctx.Sequence.AllTracks : shifted);
         ctx.EnsureValid();
     }
 
