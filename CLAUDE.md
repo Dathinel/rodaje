@@ -41,27 +41,34 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 - La revisión independiente quedó corregida.
 - Daniel confía en las pruebas y pidió un lanzador más directo, que ya es `Rodaje.bat`.
 
-**Fase 3, varias capas (en curso).** Tres agentes trabajan en paralelo:
-- `TimelineSession` en Engine: pistas, pre-roll, mezclador de audio y caché por fuente.
-- `Rodaje.Render`: compositor D3D11 con `LayerTransform`.
-- Proxies NVENC en `Rodaje.Media/Proxies`.
+**Fase 3: varias capas (terminada técnicamente).**
+- `TimelineSession` maneja pistas con pre-roll, caché y presupuesto de memoria de video (3/8 de la VRAM), hasta 4 decodificadores por medio, mezclador de audio y proxies en la vista previa.
+- `Rodaje.Render` compone las capas en la GPU.
+- Proxies con NVENC (`Rodaje.Media/Proxies`).
+- El visor acepta varios videos con imagen en imagen.
+- La revisión independiente encontró 7 defectos; todos están corregidos.
+- En 4K con cortes la memoria de video pasó de 3,7 GB a 1,4 GB.
+- Pruebas: 1299 pasan.
 
-El contrato entre ellos está en `src/Rodaje.Playback/Composition` y `Core/Model/BuiltInEffects.cs`.
-
-**Pruebas:** 1016 pasan; las 9 largas quedan para la aceptación.
+**Fase 4: interfaz WinUI 3 (en curso).**
+- El sondeo (`docs/sondeo-winui.md`) confirma que se publica sin paquete, autocontenido y con Native AOT, con 0 advertencias y 0 refrescos perdidos con 4 capas.
+- Diseño: la maqueta aprobada en D-018, más lo de Shotcut: medidores de audio, pila de filtros, historial y trabajos.
+- Ojo legal: los binarios de Windows App SDK tienen términos de Microsoft que no son MIT; están en `LICENCIAS.md`.
 
 ## Siguiente paso
 
-1. Unir la fase 3. Después, el visor acepta varios videos: el primero de fondo y los demás como imagen en imagen. Se para y se le dice a Daniel qué probar respecto a la fluidez con varias capas.
-2. Pendiente de la mini revisión, para después de la fase 3:
-   - que `TimelineSession` sea el único dueño de `GpuDevice` y de la caché global;
-   - sacar `VideoRenderer` del visor y llevarlo a Render;
+1. **Construir la app en `src/Rodaje.App`:**
+   - el armazón: servicios, tema y atajos;
+   - las vistas en paralelo: línea de tiempo con la barra estilo Vegas y la pista principal magnética, biblioteca y complementos, inspector de keyframes, página de atajos, medidores y paneles.
+2. **Cuando la interfaz esté usable, Daniel la prueba.** Se para y se le dice qué probar.
+3. **Pendiente de la mini revisión:**
    - centralizar las `RODAJE_*`;
-   - unificar los atributos de salto de las pruebas;
+   - unificar los atributos de salto;
    - un módulo común para los scripts;
    - mover `TestMedia` a `testing/`;
-   - dividir `docs/guia-tecnica.md` por capas;
-   - actualizar `probar.json`.
+   - dividir la guía técnica por capas;
+   - actualizar `probar.json`;
+   - retirar el visor cuando la app lo reemplace.
 
 ## Decisiones
 
