@@ -13,9 +13,9 @@ Se regenera en cada versión publicada a partir de las dependencias reales de
 esa versión (ver LICENCIAS.md). Las dependencias que solo se usan para compilar
 o probar no aparecen aquí porque no se redistribuyen.
 
-Versión de este archivo: fase 2 (sin versión publicada todavía).
+Versión de este archivo: fase 3 (sin versión publicada todavía).
 Componentes incluidos: runtime de .NET 10 (embebido por la publicación
-autocontenida / Native AOT) y bibliotecas de FFmpeg (DLL separadas, LGPL).
+autocontenida / Native AOT) y FFmpeg (DLL separadas y ffmpeg.exe, LGPL).
 
 
 ===============================================================================
@@ -68,7 +68,7 @@ versión correspondiente al runtime usado (también incluido en el SDK de
 
 ===============================================================================
 2. FFmpeg 9.0 (avcodec-63, avformat-63, avutil-61, swresample-7, swscale-10,
-   avfilter-12, avdevice-63)
+   avfilter-12, avdevice-63 y ffmpeg.exe)
    https://ffmpeg.org
    Licencia: GNU Lesser General Public License, versión 3 o posterior
 ===============================================================================
@@ -80,6 +80,8 @@ FFmpeg ni está respaldado por él.
 
 Las bibliotecas se distribuyen como DLL separadas y sin modificar; se pueden
 reemplazar por otra compilación compatible de la misma versión mayor.
+ffmpeg.exe, de la misma compilación y sin modificar, se ejecuta como un
+proceso aparte para generar los proxies de vista previa.
 
 Compilación: ffmpeg-n9.0.2-17-g2a571b6068-win64-lgpl-shared-9.0 de BtbN
   https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-30-13-08

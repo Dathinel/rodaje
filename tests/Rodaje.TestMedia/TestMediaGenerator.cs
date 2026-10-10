@@ -96,7 +96,8 @@ public sealed class TestMediaGenerator
 
             Directory.CreateDirectory(CacheDirectory);
             var stopwatch = Stopwatch.StartNew();
-            string partial = path + ".parcial" + spec.FileExtension;
+            // Nombre único: otro proceso de pruebas (otra asamblea) puede estar generando el mismo archivo a la vez.
+            string partial = $"{path}.{Guid.NewGuid():N}.parcial{spec.FileExtension}";
             string? wav = spec.Audio == AudioCodec.None ? null : Path.Combine(Path.GetTempPath(), $"rodaje-{Guid.NewGuid():N}.wav");
             try
             {
@@ -115,7 +116,14 @@ public sealed class TestMediaGenerator
                         input.Write(frame);
                     }
                 });
-                File.Move(partial, path, overwrite: true);
+                try
+                {
+                    File.Move(partial, path, overwrite: true);
+                }
+                catch (IOException) when (File.Exists(path))
+                {
+                    // Otro proceso terminó primero y alguien ya lo está leyendo: su archivo sale de la misma especificación.
+                }
             }
             finally
             {
@@ -179,6 +187,13 @@ public sealed class TestMediaGenerator
         {
             // libopenh264 y otros: sin cuadros B.
             args.AddRange(["-b:v", bitrate, "-g", gop]);
+        }
+
+        if (spec.BitDepth == 10)
+        {
+            args.AddRange(encoder.EndsWith("_nvenc", StringComparison.Ordinal)
+                ? ["-profile:v", "main10", "-pix_fmt", "p010le"]
+                : encoder.EndsWith("_mf", StringComparison.Ordinal) ? ["-pix_fmt", "p010le"] : ["-pix_fmt", "yuv420p10le"]);
         }
 
         if (spec.Codec == VideoCodec.Hevc && spec.Container != ContainerFormat.Mkv)

@@ -57,6 +57,7 @@ internal static class TestClips
     public static readonly ClipSpec H264Mkv = new("h264-25-g30-bf2", ClipCodec.H264, 25, 1, 200, Gop: 30, Extension: "mkv");
 
     private static readonly ConcurrentDictionary<string, Lazy<string>> Generated = new();
+    private static readonly ConcurrentDictionary<string, Lazy<IReadOnlyList<string>>> References = new(StringComparer.OrdinalIgnoreCase);
 
     public static string PathOf(ClipSpec spec) =>
         Generated.GetOrAdd(spec.FileName, _ => new Lazy<string>(() => Generate(spec))).Value;
@@ -339,17 +340,20 @@ internal static class TestClips
         return target;
     }
 
-    private static IReadOnlyList<string> Cached(string path, Func<List<string>> compute)
-    {
-        if (File.Exists(path))
+    // Una sola vez por archivo y proceso: dos pruebas en paralelo con la caché fría chocaban al renombrar el temporal
+    // sobre el archivo que la otra estaba leyendo.
+    private static IReadOnlyList<string> Cached(string path, Func<List<string>> compute) =>
+        References.GetOrAdd(path, p => new Lazy<IReadOnlyList<string>>(() =>
         {
-            return File.ReadAllLines(path);
-        }
+            if (File.Exists(p))
+            {
+                return File.ReadAllLines(p);
+            }
 
-        List<string> lines = compute();
-        WriteAtomically(path, Encoding.UTF8.GetBytes(string.Join('\n', lines)));
-        return lines;
-    }
+            List<string> lines = compute();
+            WriteAtomically(p, Encoding.UTF8.GetBytes(string.Join('\n', lines)));
+            return lines;
+        })).Value;
 
     private static void WriteAtomically(string path, byte[] bytes)
     {
