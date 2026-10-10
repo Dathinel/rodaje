@@ -15,13 +15,25 @@ public readonly record struct LayerTransform(double X, double Y, double Scale, d
 public sealed class LayerFrame : IDisposable
 {
     public LayerFrame(int trackIndex, string clipId, DecodedFrame frame, LayerTransform transform)
+        : this(trackIndex, clipId, frame, transform, new Rational(1, 1), 0)
+    {
+    }
+
+    public LayerFrame(int trackIndex, string clipId, DecodedFrame frame, LayerTransform transform, Rational sampleAspectRatio, int rotation)
     {
         ArgumentNullException.ThrowIfNull(clipId);
         ArgumentNullException.ThrowIfNull(frame);
+        if (rotation is not (0 or 90 or 180 or 270))
+        {
+            throw new ArgumentOutOfRangeException(nameof(rotation), rotation, "La rotación debe ser 0, 90, 180 o 270 grados.");
+        }
+
         TrackIndex = trackIndex;
         ClipId = clipId;
         Frame = frame;
         Transform = transform;
+        SampleAspectRatio = sampleAspectRatio;
+        Rotation = rotation;
     }
 
     /// <summary>Índice de la pista de video; 0 es la capa de más abajo.</summary>
@@ -32,6 +44,12 @@ public sealed class LayerFrame : IDisposable
     public DecodedFrame Frame { get; }
 
     public LayerTransform Transform { get; }
+
+    /// <summary>Forma del píxel del origen (ancho / alto); 1:1 si los píxeles son cuadrados.</summary>
+    public Rational SampleAspectRatio { get; }
+
+    /// <summary>Giro del origen en grados, sentido horario: 0, 90, 180 o 270.</summary>
+    public int Rotation { get; }
 
     public void Dispose() => Frame.Dispose();
 }

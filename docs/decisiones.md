@@ -158,3 +158,18 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - El visor sigue dibujando con su `VideoRenderer`; cuando muestre varias capas usará `Compositor` y `Presenter`.
 - Reducir una capa a menos de la mitad produce aliasing, hasta que existan proxies o un filtro de varias muestras.
 - Cuando el motor ponga el SAR y la rotación en `LayerFrame`, el parámetro `geometry` de `Compositor.Render` se puede retirar.
+
+## D-017. Motor de secuencia de la fase 3: `TimelineSession` con caché global por urgencia y pre-roll por pista (9 de octubre de 2026)
+
+**Decisión.**
+- `TimelineSession` (`src/Rodaje.Engine/Timeline`) reproduce una secuencia completa a partir de una instantánea inmutable (`TimelinePlan`) que se reconstruye con `Reload`/`Invalidate` sin mover ni detener el reloj. El reloj maestro sigue siendo el dispositivo de audio, que suena la mezcla de todas las pistas.
+- Un decodificador por medio, abierto en su propio hilo la primera vez que hace falta y cerrado tras 5 s sin uso. Las capas que comparten medio comparten decodificador.
+- Una sola caché de cuadros para todos los orígenes, con presupuesto global (512 MB) y tope por origen (lo retenido ocupa texturas del pool de D3D11VA). Expulsa primero lo que ninguna capa necesita y después lo que se mostrará más tarde; la urgencia es el tiempo que falta para mostrar cada cuadro, así que cerca de un corte el pre-roll le gana al adelanto lejano. Es la corrección de fondo que D-015 dejó pendiente.
+- Pre-roll: 0,5 s antes de cada corte se decodifican los primeros 6 cuadros del clip siguiente de la pista.
+- El audio se mezcla por delante en un hilo (`AudioMixer` sobre `BufferedAudioSource`), exacto a la muestra en los bordes de los clips, con un limitador suave (identidad hasta 0,9 y tanh hasta 1). Tras una edición se conservan 50 ms ya mezclados y el resto se vuelve a mezclar.
+
+**Alternativas.**
+- Un `PlaybackScheduler` por capa con su `FrameCache`: reutiliza código, pero no permite un presupuesto global ni repartir un decodificador entre capas.
+- Un decodificador por clip: evita los seeks cuando un mismo medio está en dos pistas a la vez, a costa de más VRAM; se puede añadir si la prueba humana lo pide.
+
+**Consecuencias.** Un mismo medio visible en dos pistas en posiciones lejanas obliga a su decodificador a buscar keyframes alternando entre ellas. Con un presupuesto muy justo la caché no reduce las ventanas: degrada a cuadros tarde, nunca a decodificar sin fin.

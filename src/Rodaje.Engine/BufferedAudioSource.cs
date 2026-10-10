@@ -1,5 +1,6 @@
 using Rodaje.Audio;
 using Rodaje.Core.Timing;
+using Rodaje.Media.Audio;
 
 namespace Rodaje.Engine;
 
@@ -25,7 +26,8 @@ internal sealed class BufferedAudioSource : IAudioSampleSource, IDisposable
     private readonly float[] _chunk = new float[ChunkFrames * Channels];
     private readonly Thread _thread;
 
-    // Cuadros contados desde el destino del último seek.
+    // Cuadros contados desde el destino del último seek, que es _origin.
+    private Time _origin;
     private long _ringStart;
     private int _ringHead;
     private int _ringCount;
@@ -106,10 +108,35 @@ internal sealed class BufferedAudioSource : IAudioSampleSource, IDisposable
         {
             _generation++;
             _pendingSeek = position;
+            _origin = position;
             _ringStart = 0;
             _ringHead = 0;
             _ringCount = 0;
             _readFrame = 0;
+            _ended = false;
+            Monitor.Pulse(_gate);
+        }
+    }
+
+    /// <summary>
+    /// Descarta lo decodificado más allá de <paramref name="keepFrames"/> cuadros por delante de la lectura y vuelve a
+    /// pedirlo a la fuente desde ahí, sin mover el reloj. Sirve cuando cambia lo que la fuente produce (una edición).
+    /// </summary>
+    /// <remarks>Se llama desde cualquier hilo; la fuente recibe el seek en el hilo de decodificación.</remarks>
+    public void Rewind(int keepFrames)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(keepFrames);
+        lock (_gate)
+        {
+            DropBefore(_readFrame);
+            if (_ringCount == 0)
+            {
+                _ringStart = Math.Max(_ringStart, _readFrame);
+            }
+
+            _ringCount = Math.Min(_ringCount, Math.Min(keepFrames, _capacityFrames));
+            _generation++;
+            _pendingSeek = _origin + Time.FromSamples(_ringStart + _ringCount, AudioDecoder.OutputSampleRate);
             _ended = false;
             Monitor.Pulse(_gate);
         }
