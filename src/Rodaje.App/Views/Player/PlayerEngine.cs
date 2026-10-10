@@ -39,8 +39,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private static readonly TimeSpan GpuSampleInterval = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan StatsInterval = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan RmsWindow = TimeSpan.FromMilliseconds(300);
-    private static readonly Time MaxExtrapolation = Time.FromSeconds(0.1);
-    private static readonly Time MeterJump = Time.FromSeconds(0.25);
+    private static readonly Func<TimelineSession, Time, Time, Time, AudioLevels> MeasureMix =
+        static (session, from, to, rmsFloor) => session.MeasureAudio(from, to, RmsWindow, rmsFloor);
 
     private readonly bool _enableAudio;
     private readonly Metrics _metrics;
@@ -88,9 +88,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private bool _meterPlaying;
 
     // Solo del hilo de la interfaz (el único lector de niveles).
-    private TimelineSession? _meterReadSession;
-    private Time _meterLastRead;
-    private Time _meterRmsFloor;
+    private readonly AudioMeterReader _meterReader = new();
 
     public PlayerEngine(bool enableAudio, ProxyUsage proxyUsage, Metrics metrics)
     {
@@ -185,7 +183,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     /// <summary>
     /// Niveles de lo que sonó desde la llamada anterior: picos de ese tramo y RMS de los últimos 300 ms, leídos en la
-    /// posición que suena ahora. Solo desde el hilo de la interfaz; no espera al render ni reserva memoria.
+    /// posición que suena ahora; en pausa, silencio. Solo desde el hilo de la interfaz; no espera al render ni reserva memoria.
     /// </summary>
     public AudioLevels TakeAudioLevels()
     {
@@ -201,35 +199,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             playing = _meterPlaying;
         }
 
-        if (session is null || !session.HasAudioLevels)
-        {
-            _meterReadSession = null;
-            return AudioLevels.Silence;
-        }
-
-        if (playing)
-        {
-            // Entre dos vueltas del render el reloj del dispositivo sigue avanzando al ritmo del reloj de pared.
-            Time elapsed = Time.FromSeconds(Stopwatch.GetElapsedTime(stamp).TotalSeconds);
-            position += elapsed < MaxExtrapolation ? elapsed : MaxExtrapolation;
-        }
-
-        Time last = _meterLastRead;
-        bool jumped = session != _meterReadSession || position - last > MeterJump || last - position > MeterJump;
-        if (jumped)
-        {
-            _meterReadSession = session;
-            _meterRmsFloor = position;
-            last = position;
-        }
-        else if (position < last)
-        {
-            // La extrapolación anterior se pasó un poco: no se vuelve a medir lo ya medido.
-            position = last;
-        }
-
-        _meterLastRead = position;
-        return session.MeasureAudio(last, position, RmsWindow, _meterRmsFloor);
+        return _meterReader.Take(session is { HasAudioLevels: true } ? session : null, position, playing, Stopwatch.GetElapsedTime(stamp), MeasureMix);
     }
 
     public void Dispose()
