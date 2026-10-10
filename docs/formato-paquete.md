@@ -92,7 +92,7 @@ Los tiempos van relativos al primer keyframe y las posiciones en píxeles de la 
 
 Desinstalar aparta la carpeta como `.desinstalando-<aleatorio>` y la borra. Solo se desinstala lo instalado por la persona: lo incluido con el programa y lo propio no.
 
-**Cortes de luz.** Al arrancar, y solo entonces, se resuelven los restos: `.instalando-*` y `.desinstalando-*` se borran; una `.anterior-*` se borra si la versión nueva quedó completa (manifiesto válido con su id y todos sus archivos) y, si no, vuelve a su sitio y la nueva a medias se descarta. Así un apagón en mitad de una actualización deja la versión vieja o la nueva, nunca ninguna.
+**Cortes de luz.** `PackageService` hace las operaciones de a una (instalar, desinstalar y releer). Antes de la primera, y solo entonces, se resuelven los restos: `.instalando-*` y `.desinstalando-*` se borran; una `.anterior-*` se borra si la versión nueva quedó completa (manifiesto válido con su id y todos sus archivos) y, si no, vuelve a su sitio y la nueva a medias se descarta. Así un apagón en mitad de una actualización deja la versión vieja o la nueva, nunca ninguna.
 
 ## Módulos de IA
 

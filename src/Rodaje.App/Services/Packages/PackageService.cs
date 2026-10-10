@@ -23,15 +23,19 @@ public sealed record PluginEntry(
 /// <summary>
 /// Los complementos de Rodaje: el catálogo que viaja con el programa, lo instalado en
 /// <c>%LOCALAPPDATA%\Rodaje\complementos</c> (y en <c>paquetes\</c> y <c>modulos\</c> junto al exe, en la distribución
-/// completa), instalar desde un archivo y desinstalar. El disco se toca fuera del hilo de la interfaz; el estado y
-/// <see cref="Changed"/> se publican en el hilo que llamó.
+/// completa), instalar desde un archivo y desinstalar. El disco se toca fuera del hilo de la interfaz y de a una operación
+/// por vez; el estado y <see cref="Changed"/> se publican en el hilo que llamó. Los restos de un corte se resuelven una sola
+/// vez, antes de la primera operación: después podrían ser la extracción de una instalación en curso.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "SemaphoreSlim sin AvailableWaitHandle no reserva nada que liberar.")]
 public sealed class PackageService
 {
     public const string AppId = "rodaje";
     public const string CatalogResourceName = "Rodaje.App.catalogo.json";
 
     private readonly PackageInstaller _installer;
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private bool _leftoversResolved;
 
     public PackageService(PackageLocations locations, PackageCatalog catalog, IPackageDownloader? downloader = null)
     {
@@ -101,26 +105,16 @@ public sealed class PackageService
         return [.. entries.OrderBy(e => e.Kind).ThenByDescending(e => e.IsInstalled).ThenBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase)];
     }
 
-    /// <summary>Vuelve a leer lo instalado (y limpia instalaciones cortadas).</summary>
+    /// <summary>Vuelve a leer lo instalado.</summary>
     public async Task<PackageScan> RefreshAsync()
     {
-        PackageScan scan = await Task.Run(() =>
-        {
-            TryCleanUp();
-            return PackageLibrary.Scan(Locations, AppId);
-        });
-        Installed = scan;
-        Changed?.Invoke(this, EventArgs.Empty);
-        return scan;
+        await ExclusiveAsync(() => true);
+        return Installed;
     }
 
     /// <exception cref="PackageInstallException">No se pudo instalar.</exception>
-    public async Task<InstallResult> InstallFromFileAsync(string path, string? expectedSha256 = null, bool allowDowngrade = false)
-    {
-        InstallResult result = await Task.Run(() => _installer.Install(path, expectedSha256, allowDowngrade));
-        await RefreshAsync();
-        return result;
-    }
+    public Task<InstallResult> InstallFromFileAsync(string path, string? expectedSha256 = null, bool allowDowngrade = false) =>
+        ExclusiveAsync(() => _installer.Install(path, expectedSha256, allowDowngrade));
 
     /// <summary>Descarga e instala una entrada del catálogo con <see cref="Downloader"/> (desde la fase 7).</summary>
     /// <exception cref="NotSupportedException">No hay descarga todavía.</exception>
@@ -138,14 +132,43 @@ public sealed class PackageService
     }
 
     /// <exception cref="PackageInstallException">No se pudo desinstalar.</exception>
-    public async Task UninstallAsync(string packageId)
+    public Task UninstallAsync(string packageId) => ExclusiveAsync(() =>
     {
-        await Task.Run(() => _installer.Uninstall(packageId));
-        await RefreshAsync();
+        _installer.Uninstall(packageId);
+        return true;
+    });
+
+    /// <summary>Hace <paramref name="work"/> fuera del hilo de la interfaz y sin otra operación a la vez, y vuelve a leer lo instalado.</summary>
+    private async Task<T> ExclusiveAsync<T>(Func<T> work)
+    {
+        await _gate.WaitAsync();
+        T value;
+        try
+        {
+            (value, PackageScan scan) = await Task.Run(() =>
+            {
+                ResolveLeftoversOnce();
+                return (work(), PackageLibrary.Scan(Locations, AppId));
+            });
+            Installed = scan;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+        return value;
     }
 
-    private void TryCleanUp()
+    private void ResolveLeftoversOnce()
     {
+        if (_leftoversResolved)
+        {
+            return;
+        }
+
+        _leftoversResolved = true;
         try
         {
             _installer.CleanUpLeftovers();

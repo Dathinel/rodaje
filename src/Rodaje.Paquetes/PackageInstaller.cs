@@ -326,6 +326,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         string prefix = CommonWrapperFolder(zip);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         long total = 0;
+        var written = new List<string>();
         Directory.CreateDirectory(destination);
         foreach (ZipArchiveEntry entry in zip.Entries)
         {
@@ -379,10 +380,16 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             using Stream source = entry.Open();
             using var target = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
             CopyLimited(source, target, entry.Length, cancellationToken);
-
-            // Al disco antes del cambio de nombre: tras un apagón, la carpeta nueva no puede quedar con archivos vacíos.
-            target.Flush(flushToDisk: true);
+            written.Add(path);
         }
+
+        // Al disco antes del cambio de nombre, para que un apagón no deje la carpeta nueva con archivos vacíos. En paralelo:
+        // de a uno, cada vaciado espera al disco y un paquete de miles de archivos tardaría minutos.
+        Parallel.ForEach(written, new ParallelOptions { CancellationToken = cancellationToken, MaxDegreeOfParallelism = 16 }, file =>
+        {
+            using var stream = new FileStream(file, FileMode.Open, FileAccess.Write, FileShare.None);
+            stream.Flush(flushToDisk: true);
+        });
     }
 
     /// <summary>Las releases de GitHub suelen envolver todo en una carpeta: si el manifiesto está ahí y no en la raíz, se quita.</summary>

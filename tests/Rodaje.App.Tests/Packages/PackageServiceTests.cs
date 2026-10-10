@@ -101,13 +101,69 @@ public sealed class PackageServiceTests : IDisposable
         Assert.Equal([ItemKind.Filter, ItemKind.Lut], LibraryElements.KindsOf(LibraryCategory.Filters));
     });
 
+    [Fact]
+    public void Refreshing_during_an_install_does_not_delete_the_extraction_in_progress() => UiThread.Run(async () =>
+    {
+        PackageService service = Create();
+        await service.RefreshAsync();
+        string inProgress = Path.Combine(service.Locations.Packages, ".instalando-0123456789ab");
+        Directory.CreateDirectory(inProgress);
+
+        await service.RefreshAsync();
+
+        Assert.True(Directory.Exists(inProgress));
+    });
+
+    [Fact]
+    public void Leftovers_of_a_blackout_are_resolved_before_the_first_operation() => UiThread.Run(async () =>
+    {
+        PackageService service = Create();
+        string leftover = Path.Combine(service.Locations.Packages, ".instalando-0123456789ab");
+        Directory.CreateDirectory(leftover);
+
+        await service.RefreshAsync();
+
+        Assert.False(Directory.Exists(leftover));
+    });
+
+    [Fact]
+    public void Simultaneous_installs_refreshes_and_uninstalls_run_one_at_a_time() => UiThread.Run(async () =>
+    {
+        PackageService service = Create();
+        string archive = Path.Combine(_folder.Path, "t.paquete");
+        WriteArchive(archive, "rodaje-transiciones", "transition", extraFiles: 100);
+
+        var operations = new List<Task>();
+        for (int i = 0; i < 6; i++)
+        {
+            operations.Add(service.InstallFromFileAsync(archive));
+            operations.Add(service.RefreshAsync());
+        }
+
+        await Task.WhenAll(operations);
+        Task<InstallResult>[] installs = [.. operations.OfType<Task<InstallResult>>()];
+        Assert.Equal(1, installs.Count(t => t.Result.Outcome == InstallOutcome.Installed));
+        Assert.Equal(5, installs.Count(t => t.Result.Outcome == InstallOutcome.Reinstalled));
+        Assert.Equal(["rodaje-transiciones"], Directory.GetDirectories(service.Locations.Packages).Select(Path.GetFileName));
+
+        await Task.WhenAll(service.UninstallAsync("rodaje-transiciones"), service.RefreshAsync());
+        Assert.Empty(Directory.GetDirectories(service.Locations.Packages));
+        Assert.Null(service.Installed.Find("rodaje-transiciones"));
+    });
+
     private PackageService Create() =>
         new(PackageLocations.Under(Path.Combine(_folder.Path, "complementos")), PackageService.LoadBundledCatalog());
 
-    private static void WriteArchive(string path, string id, string kind)
+    private static void WriteArchive(string path, string id, string kind, int extraFiles = 0)
     {
         using var stream = new FileStream(path, FileMode.Create);
         using var zip = new ZipArchive(stream, ZipArchiveMode.Create);
+        for (int i = 0; i < extraFiles; i++)
+        {
+            using var extra = new StreamWriter(zip.CreateEntry($"datos/{i}.json").Open());
+            extra.Write("{}");
+        }
+
         using var writer = new StreamWriter(zip.CreateEntry("paquete.json").Open());
         writer.Write($$"""
             {
