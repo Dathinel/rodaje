@@ -105,9 +105,14 @@ public sealed class ProxyStore
     }
 
     /// <summary>
-    /// Mueve el proxy terminado a su nombre definitivo y escribe sus metadatos; antes borra los metadatos viejos,
-    /// así que en ningún instante un JSON describe un proxy que no es el suyo.
+    /// Mueve el proxy terminado a su nombre definitivo y después escribe sus metadatos (temporal y renombrado).
     /// </summary>
+    /// <remarks>
+    /// Si ya hay un proxy válido para ese origen y esos ajustes (otra instancia lo terminó antes), se descarta el
+    /// temporal y se devuelve el existente. Si el definitivo está abierto y no se puede reemplazar, también se
+    /// devuelve el existente cuando sigue siendo válido. Mientras el JSON viejo no se reemplaza, no describe al
+    /// proxy nuevo salvo que coincida su tamaño, y el nuevo es de la misma huella y los mismos ajustes.
+    /// </remarks>
     public ProxyEntry Commit(string temporaryProxyPath, ProxyMetadata metadata, ProxySettings settings)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(temporaryProxyPath);
@@ -116,10 +121,28 @@ public sealed class ProxyStore
         var source = new SourceFingerprint(metadata.SourcePath, metadata.SourceSize, metadata.SourceLastWriteUtc, metadata.SourceKey);
         string proxyPath = ProxyPath(source, settings);
         string metadataPath = MetadataPath(source, settings);
-        ProxyMetadata final = metadata with { ProxyBytes = new FileInfo(temporaryProxyPath).Length };
+        if (TryGet(source, settings) is { } existing)
+        {
+            TryDelete(temporaryProxyPath, out _);
+            return existing;
+        }
 
-        File.Delete(metadataPath);
-        File.Move(temporaryProxyPath, proxyPath, overwrite: true);
+        ProxyMetadata final = metadata with { ProxyBytes = new FileInfo(temporaryProxyPath).Length };
+        try
+        {
+            File.Move(temporaryProxyPath, proxyPath, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            if (TryGet(source, settings) is { } current)
+            {
+                TryDelete(temporaryProxyPath, out _);
+                return current;
+            }
+
+            throw;
+        }
+
         string temporaryMetadata = $"{metadataPath}.{Guid.NewGuid():N}{TempMarker}";
         try
         {
@@ -135,7 +158,17 @@ public sealed class ProxyStore
             File.Delete(temporaryMetadata);
         }
 
-        File.SetLastAccessTimeUtc(proxyPath, _time.GetUtcNow().UtcDateTime);
+        try
+        {
+            File.SetLastAccessTimeUtc(proxyPath, _time.GetUtcNow().UtcDateTime);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+
         return new ProxyEntry(proxyPath, metadataPath, final);
     }
 

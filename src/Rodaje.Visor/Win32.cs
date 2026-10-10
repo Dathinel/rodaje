@@ -60,6 +60,7 @@ internal static unsafe class Win32
     public const uint MB_OK = 0x0;
     public const uint MB_ICONERROR = 0x10;
     public const uint MB_ICONWARNING = 0x30;
+    public const uint MB_ICONINFORMATION = 0x40;
 
     /// <summary><c>MAKEINTRESOURCE(32512)</c>.</summary>
     public static char* IDC_ARROW => (char*)32512;

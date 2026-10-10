@@ -19,5 +19,6 @@
     <Project Path="tests/Rodaje.Render.Tests/Rodaje.Render.Tests.csproj" />
     <Project Path="tests/Rodaje.TestMedia.Tests/Rodaje.TestMedia.Tests.csproj" />
     <Project Path="tests/Rodaje.TestMedia/Rodaje.TestMedia.csproj" />
+    <Project Path="tests/Rodaje.Visor.Tests/Rodaje.Visor.Tests.csproj" />
   </Folder>
 </Solution>

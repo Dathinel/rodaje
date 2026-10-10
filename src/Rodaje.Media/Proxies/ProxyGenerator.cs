@@ -74,6 +74,8 @@ public sealed class ProxyGenerator : IDisposable
 {
     private readonly SemaphoreSlim _slots;
     private readonly Lazy<IReadOnlyList<string>> _encoders;
+    private readonly Lock _gate = new();
+    private readonly Dictionary<string, SharedJob> _running = new(StringComparer.Ordinal);
 
     public ProxyGenerator(ProxyStore store, FfmpegExecutable ffmpeg, ProxyGeneratorOptions? options = null)
     {
@@ -100,6 +102,10 @@ public sealed class ProxyGenerator : IDisposable
     /// Devuelve el proxy del original con esos ajustes: el que ya hay en el almacén o uno nuevo. Espera turno si
     /// ya hay <see cref="ProxyGeneratorOptions.MaxConcurrent"/> generándose.
     /// </summary>
+    /// <remarks>
+    /// Las peticiones con la misma huella y los mismos ajustes comparten un único trabajo, aunque lleguen con rutas
+    /// escritas distinto; el trabajo solo se cancela cuando se cancelan todas las peticiones que lo esperan.
+    /// </remarks>
     /// <exception cref="OperationCanceledException">Se canceló; ffmpeg muere y no queda ningún archivo parcial.</exception>
     /// <exception cref="ProxyGenerationException">Ningún codificador pudo generar un proxy válido.</exception>
     public async Task<ProxyEntry> GenerateAsync(
@@ -113,26 +119,96 @@ public sealed class ProxyGenerator : IDisposable
         settings.Validate();
         string source = Path.GetFullPath(sourcePath);
         progress?.Report(new ProxyProgress(source, ProxyJobPhase.Queued, 0, 0, 0, 0, null));
-        await _slots.WaitAsync(cancellationToken).ConfigureAwait(false);
+        SourceFingerprint fingerprint = await Task.Run(() => SourceFingerprint.Compute(source), cancellationToken).ConfigureAwait(false);
+        string key = $"{fingerprint.Key}-{settings.Tag}";
+        var listener = new Listener(source, progress);
+        SharedJob? job;
+        lock (_gate)
+        {
+            if (!_running.TryGetValue(key, out job) || job.Abandoned)
+            {
+                var created = new SharedJob();
+                _running[key] = created;
+                created.Task = Task.Run(() => RunShared(key, created, fingerprint, settings), CancellationToken.None);
+                job = created;
+            }
+
+            job.Add(listener);
+        }
+
         try
         {
-            return await Task.Run(() => Generate(source, settings, progress, cancellationToken), cancellationToken).ConfigureAwait(false);
+            return await job.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (Leave(job, listener))
+            {
+                // Era la última petición: se espera a que ffmpeg muera y se borren sus temporales.
+                await job.Task.ContinueWith(static _ => { }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default)
+                    .ConfigureAwait(false);
+            }
+
+            throw;
         }
         finally
         {
-            _slots.Release();
+            job.Remove(listener);
         }
     }
 
     public void Dispose() => _slots.Dispose();
 
-    private async Task<ProxyEntry> Generate(string source, ProxySettings settings, IProgress<ProxyProgress>? progress, CancellationToken cancellationToken)
+    private async Task<ProxyEntry> RunShared(string key, SharedJob job, SourceFingerprint fingerprint, ProxySettings settings)
     {
-        progress?.Report(new ProxyProgress(source, ProxyJobPhase.Analyzing, 0, 0, 0, 0, null));
-        SourceFingerprint fingerprint = SourceFingerprint.Compute(source);
+        try
+        {
+            await _slots.WaitAsync(job.Cancellation.Token).ConfigureAwait(false);
+            try
+            {
+                return await Generate(fingerprint, settings, job, job.Cancellation.Token).ConfigureAwait(false);
+            }
+            finally
+            {
+                _slots.Release();
+            }
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                if (_running.TryGetValue(key, out SharedJob? current) && current == job)
+                {
+                    _running.Remove(key);
+                }
+            }
+        }
+    }
+
+    // Devuelve true si era la última petición; entonces cancela el trabajo.
+    private bool Leave(SharedJob job, Listener listener)
+    {
+        lock (_gate)
+        {
+            if (job.Remove(listener) > 0 || job.Task.IsCompleted)
+            {
+                return false;
+            }
+
+            job.Abandoned = true;
+        }
+
+        job.Cancellation.Cancel();
+        return true;
+    }
+
+    private async Task<ProxyEntry> Generate(SourceFingerprint fingerprint, ProxySettings settings, IProgress<ProxyProgress> progress, CancellationToken cancellationToken)
+    {
+        string source = fingerprint.Path;
+        progress.Report(new ProxyProgress(source, ProxyJobPhase.Analyzing, 0, 0, 0, 0, null));
         if (Store.TryGet(fingerprint, settings) is { } existing)
         {
-            progress?.Report(new ProxyProgress(source, ProxyJobPhase.Completed, 1, existing.Metadata.FrameCount, existing.Metadata.FrameCount, 0, existing.Metadata.Encoder));
+            progress.Report(new ProxyProgress(source, ProxyJobPhase.Completed, 1, existing.Metadata.FrameCount, existing.Metadata.FrameCount, 0, existing.Metadata.Encoder));
             return existing;
         }
 
@@ -156,7 +232,7 @@ public sealed class ProxyGenerator : IDisposable
             {
                 (long frames, TimeSpan elapsed) = await RunFfmpeg(input, settings, encoder, temporary, hardware, video, progress, cancellationToken)
                     .ConfigureAwait(false);
-                progress?.Report(new ProxyProgress(source, ProxyJobPhase.Verifying, 1, frames, video.FrameCount, 0, encoder));
+                progress.Report(new ProxyProgress(source, ProxyJobPhase.Verifying, 1, frames, video.FrameCount, 0, encoder));
                 ProxyMetadata metadata = Verify(temporary, fingerprint, settings, encoder, info, frames, elapsed);
                 if (!fingerprint.MatchesQuick(source))
                 {
@@ -164,7 +240,7 @@ public sealed class ProxyGenerator : IDisposable
                 }
 
                 ProxyEntry entry = Store.Commit(temporary, metadata, settings);
-                progress?.Report(new ProxyProgress(source, ProxyJobPhase.Completed, 1, frames, frames, metadata.Speed, encoder));
+                progress.Report(new ProxyProgress(source, ProxyJobPhase.Completed, 1, frames, frames, metadata.Speed, encoder));
                 return entry;
             }
             catch (ProxyEncodeException ex)
@@ -195,10 +271,11 @@ public sealed class ProxyGenerator : IDisposable
         string output,
         bool hardwareDecoding,
         VideoStreamInfo video,
-        IProgress<ProxyProgress>? progress,
+        IProgress<ProxyProgress> progress,
         CancellationToken cancellationToken)
     {
         IReadOnlyList<string> arguments = ProxyEncoders.BuildArguments(input, settings, encoder, output, hardwareDecoding);
+        Ffmpeg.EnsureUnchanged();
         var info = new ProcessStartInfo(Ffmpeg.Path)
         {
             UseShellExecute = false,
@@ -252,7 +329,7 @@ public sealed class ProxyGenerator : IDisposable
         long total = Math.Max(1, video.FrameCount);
         while (await process.StandardOutput.ReadLineAsync(CancellationToken.None).ConfigureAwait(false) is { } line)
         {
-            if (parser.Feed(line, out FfmpegProgressSnapshot snapshot) && progress is not null)
+            if (parser.Feed(line, out FfmpegProgressSnapshot snapshot))
             {
                 double seconds = watch.Elapsed.TotalSeconds;
                 double speed = seconds > 0 ? snapshot.Frame / rate / seconds : 0;
@@ -368,6 +445,52 @@ public sealed class ProxyGenerator : IDisposable
             catch (UnauthorizedAccessException) when (attempt < 20)
             {
                 Thread.Sleep(50);
+            }
+        }
+    }
+
+    private sealed record Listener(string SourcePath, IProgress<ProxyProgress>? Progress);
+
+    // Un proxy en marcha y las peticiones que lo esperan; el avance llega a cada una con su propia ruta.
+    private sealed class SharedJob : IProgress<ProxyProgress>
+    {
+        private readonly List<Listener> _listeners = [];
+
+        public CancellationTokenSource Cancellation { get; } = new();
+
+        public bool Abandoned { get; set; }
+
+        public Task<ProxyEntry> Task { get; set; } = null!;
+
+        public void Add(Listener listener)
+        {
+            lock (_listeners)
+            {
+                _listeners.Add(listener);
+            }
+        }
+
+        /// <summary>Quita la petición y devuelve cuántas quedan.</summary>
+        public int Remove(Listener listener)
+        {
+            lock (_listeners)
+            {
+                _listeners.Remove(listener);
+                return _listeners.Count;
+            }
+        }
+
+        public void Report(ProxyProgress value)
+        {
+            Listener[] listeners;
+            lock (_listeners)
+            {
+                listeners = [.. _listeners];
+            }
+
+            foreach (Listener listener in listeners)
+            {
+                listener.Progress?.Report(value with { SourcePath = listener.SourcePath });
             }
         }
     }

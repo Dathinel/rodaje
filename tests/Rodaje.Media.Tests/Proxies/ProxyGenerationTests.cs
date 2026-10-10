@@ -232,6 +232,42 @@ public sealed class ProxyJobTests(ITestOutputHelper output)
     }
 
     [ProxyFact]
+    public async Task Requests_with_the_same_fingerprint_share_one_job_and_one_cancellation_does_not_stop_the_other()
+    {
+        using var temp = new TempDirectory();
+        string source = temp.Combine("toma compartida.mp4");
+        File.Copy(ProxyTestMedia.Get(ProxyTestMedia.H264Ntsc30).Path, source);
+        var store = new ProxyStore(temp.Combine("proxies"));
+        using var generator = new ProxyGenerator(store, ProxyTestEnvironment.Executable!, new ProxyGeneratorOptions
+        {
+            EncoderPreference = ["libopenh264"],
+            HardwareDecoding = false,
+        });
+        using var stopFirst = new CancellationTokenSource();
+        var encoding = new TaskCompletionSource();
+        var second = new ConcurrentQueue<ProxyProgress>();
+
+        Task<ProxyEntry> firstTask = generator.GenerateAsync(source, null, new InlineProgress<ProxyProgress>(p =>
+        {
+            if (p.Phase == ProxyJobPhase.Encoding)
+            {
+                encoding.TrySetResult();
+            }
+        }), stopFirst.Token);
+        await encoding.Task.WaitAsync(TimeSpan.FromSeconds(60));
+        Task<ProxyEntry> secondTask = generator.GenerateAsync(source.ToUpperInvariant(), null, new InlineProgress<ProxyProgress>(second.Enqueue));
+        await WaitUntil(() => second.Any(p => p.Phase == ProxyJobPhase.Encoding));
+        stopFirst.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => firstTask);
+        ProxyEntry entry = await secondTask.WaitAsync(TimeSpan.FromSeconds(120));
+        Assert.DoesNotContain(second, p => p.Phase == ProxyJobPhase.Analyzing);
+        Assert.All(second, p => Assert.Equal(source.ToUpperInvariant(), p.SourcePath));
+        Assert.Equal(entry.Metadata, store.TryGet(SourceFingerprint.Compute(source), ProxySettings.Default)!.Metadata);
+        Assert.Equal(2, Directory.EnumerateFiles(store.Directory).Count());
+    }
+
+    [ProxyFact]
     public async Task Resolver_generates_once_reports_progress_and_switches_preview_to_the_proxy()
     {
         using var temp = new TempDirectory();
