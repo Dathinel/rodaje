@@ -35,6 +35,9 @@ public sealed record ParameterSpec(
     string Unit,
     bool Animatable)
 {
+    /// <summary>Texto del historial y de la ayuda del botón de restablecer: «Restablecer posición X».</summary>
+    public string ResetDescription => "Restablecer " + char.ToLowerInvariant(Label[0]) + Label[1..];
+
     public double ToDisplay(double modelValue) => modelValue * DisplayFactor;
 
     /// <summary>Valor del modelo para lo que se ve; lo que se escribe a mano puede salir del rango del deslizador.</summary>

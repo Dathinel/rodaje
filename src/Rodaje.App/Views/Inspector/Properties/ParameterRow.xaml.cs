@@ -60,6 +60,8 @@ internal sealed partial class ParameterRow : UserControl
 
     public event EventHandler<Interpolation>? InterpolationChosen;
 
+    public event EventHandler? ResetRequested;
+
     public ParameterSpec Spec => _spec ?? throw new InvalidOperationException("La fila no está configurada.");
 
     public bool IsChanging => _changing;
@@ -84,6 +86,9 @@ internal sealed partial class ParameterRow : UserControl
         NextButton.Visibility = keyframes;
         AutomationProperties.SetName(ValueSlider, spec.Label);
         AutomationProperties.SetName(ValueBox, spec.Label);
+        string reset = spec.ResetDescription;
+        ToolTipService.SetToolTip(ResetButton, spec.Animatable ? reset + " (quita sus keyframes)" : reset);
+        AutomationProperties.SetName(ResetButton, reset);
         _updating = false;
     }
 
@@ -121,6 +126,7 @@ internal sealed partial class ParameterRow : UserControl
         KeyframeButton.IsEnabled = playheadInside;
         PreviousButton.IsEnabled = state.Previous is not null;
         NextButton.IsEnabled = state.Next is not null;
+        ResetButton.IsEnabled = !state.IsDefault(spec.DefaultValue);
 
         if (state.KeyframeHere is { } here)
         {
@@ -197,6 +203,12 @@ internal sealed partial class ParameterRow : UserControl
     {
         FinishChange();
         KeyframeToggled?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnResetClick(object sender, RoutedEventArgs e)
+    {
+        FinishChange();
+        ResetRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnPreviousClick(object sender, RoutedEventArgs e) => NavigateRequested?.Invoke(this, -1);

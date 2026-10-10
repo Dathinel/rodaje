@@ -19,10 +19,20 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Transformación" Style="{StaticResource PanelTitleTextStyle}" />
+                        <TextBlock Text="Transformación" Style="{StaticResource PanelTitleTextStyle}" VerticalAlignment="Center" />
                         <TextBlock x:Name="KeyframeTotal" Grid.Column="1" Style="{StaticResource CaptionTextStyle}"
-                                   Foreground="{StaticResource KeyframeBrush}" />
+                                   Foreground="{StaticResource KeyframeBrush}" VerticalAlignment="Center" />
+                        <Button x:Name="ResetAllButton" Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Width="Auto"
+                                Padding="6,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource CaptionFontSize}"
+                                Click="OnResetAllClick" AutomationProperties.Name="Restablecer toda la transformación"
+                                ToolTipService.ToolTip="Vuelve posición, escala, rotación y opacidad a sus valores de fábrica y quita sus keyframes">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="&#xE72C;" FontFamily="{StaticResource IconFontFamily}" FontSize="11" VerticalAlignment="Center" />
+                                <TextBlock Text="Restablecer todo" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
                     </Grid>
                     <TextBlock x:Name="TransformNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,4"
                                TextWrapping="Wrap" Visibility="Collapsed" />

@@ -250,3 +250,11 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 ## D-023. Estilos de atajos con nombres propios (10 de octubre de 2026)
 
 **Decisión.** Los estilos de D-018 se llaman «Rodaje», «Ágil» y «Clásico» (`ShortcutPreset.Rodaje`, `Agile` y `Classic`). Ni la interfaz ni el código nombran otros programas; las referencias de experiencia de uso quedan en estas decisiones y en `docs/archivo/`. `atajos.json` y `ajustes.json` guardados con los nombres anteriores se leen como Ágil y Clásico y se reescriben con los nuevos; un estilo desconocido vuelve a Rodaje sin dar por dañado el archivo.
+
+## D-024. Restablecer un parámetro quita sus keyframes (10 de octubre de 2026)
+
+**Decisión.** Cada parámetro del inspector tiene un botón de restablecer y la sección Transformación, «Restablecer todo». Sin keyframes, el parámetro vuelve a su valor de fábrica; con keyframes, se quitan todos y queda fijo en el valor de fábrica. Es un solo comando del núcleo (`Edits.ResetParameters`) y un solo paso del historial, también al restablecer toda la transformación. El botón se apaga cuando el parámetro ya está en su valor y sin keyframes.
+
+**Por qué.** Es lo que esperan quienes vienen de otros editores: «restablecer» deja el parámetro como recién creado. Restablecer solo el keyframe del cursor ya lo hace el rombo, y dejar la animación con un valor cambiado sería una edición a medias difícil de leer.
+
+**Consecuencias.** Quien quiera volver solo un keyframe al valor de fábrica escribe el número; deshacer recupera toda la animación de una vez.

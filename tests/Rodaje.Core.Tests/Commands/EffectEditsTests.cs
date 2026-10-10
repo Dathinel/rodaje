@@ -216,6 +216,34 @@ public class EffectEditsTests
     }
 
     [Fact]
+    public void ResetParameters_QuitaKeyframesYDejaElDefectoEnUnPaso()
+    {
+        (Project project, UndoStack stack) = NewStack();
+        var defaults = new Dictionary<string, double> { ["opacity"] = 1, ["x"] = 0, ["scale"] = 1 };
+        SequenceEditCommand reset = Edits.ResetParameters(SequenceId, Clip2, Fx, defaults, "Restablecer transformación");
+        RoundTrip(stack, reset);
+        Assert.Equal(1, stack.Count);
+        Assert.Equal("Restablecer transformación", reset.Description);
+        Assert.Empty(Param(project, "opacity").Keyframes);
+        Assert.Equal(1, Param(project, "opacity").Value);
+        Assert.Equal(0, Param(project, "x").Value);
+        Assert.False(ClipOf(project, Clip2).Effects.Single().Parameters.ContainsKey("scale"));
+    }
+
+    [Fact]
+    public void ResetParameters_ValorInvalidoOEfectoInexistente_NoCambiaNada()
+    {
+        (Project project, UndoStack stack) = NewStack();
+        string before = ProjectDump.Of(project);
+        Assert.Throws<EditException>(() => stack.Execute(
+            Edits.ResetParameters(SequenceId, Clip2, Fx, new Dictionary<string, double> { ["x"] = 0, ["opacity"] = double.NaN })));
+        Assert.Throws<EditException>(() => stack.Execute(
+            Edits.ResetParameters(SequenceId, Clip2, "nada", new Dictionary<string, double> { ["x"] = 0 })));
+        Assert.Equal(before, ProjectDump.Of(project));
+        Assert.Equal(0, stack.Count);
+    }
+
+    [Fact]
     public void SetKeyframeInterpolation_CambiaSoloEseTramo()
     {
         (Project project, UndoStack stack) = NewStack();

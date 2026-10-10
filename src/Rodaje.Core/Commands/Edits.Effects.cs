@@ -76,6 +76,20 @@ public static partial class Edits
     public static SequenceEditCommand RemoveKeyframe(string sequenceId, string clipId, string effectId, string name, Time at, IIdGenerator? ids = null) =>
         new("Quitar keyframe", sequenceId, ctx => EffectEdits.RemoveKeyframe(ctx, clipId, effectId, name, at), ids);
 
+    /// <summary>Restablece uno o varios parámetros del efecto: valor por defecto y sin keyframes, en un solo paso.</summary>
+    public static SequenceEditCommand ResetParameters(
+        string sequenceId,
+        string clipId,
+        string effectId,
+        IReadOnlyDictionary<string, double> defaults,
+        string? description = null,
+        IIdGenerator? ids = null) =>
+        new(
+            description ?? "Restablecer",
+            sequenceId,
+            ctx => EffectEdits.ResetParameters(ctx, clipId, effectId, defaults),
+            ids);
+
     public static SequenceEditCommand SetKeyframeInterpolation(
         string sequenceId,
         string clipId,

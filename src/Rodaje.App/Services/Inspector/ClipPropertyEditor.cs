@@ -13,6 +13,9 @@ namespace Rodaje.App.Services.Inspector;
 public sealed record ParameterState(double Value, int KeyframeCount, Keyframe? KeyframeHere, Time? Previous, Time? Next)
 {
     public bool IsAnimated => KeyframeCount > 0;
+
+    /// <summary>Ya está en <paramref name="defaultValue"/> y sin keyframes: restablecer no cambiaría nada.</summary>
+    public bool IsDefault(double defaultValue) => !IsAnimated && Math.Abs(Value - defaultValue) < 1e-9;
 }
 
 /// <summary>
@@ -213,6 +216,33 @@ public sealed class ClipPropertyEditor
         }
     }
 
+    /// <summary>Algún parámetro de la lista tiene keyframes o un valor distinto del de fábrica.</summary>
+    public static bool CanReset(Clip clip, string effectType, IEnumerable<(string Name, double DefaultValue)> parameters)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(parameters);
+        return FindEffect(clip, effectType) is { } effect && ChangedFromDefault(effect, parameters).Count > 0;
+    }
+
+    /// <summary>
+    /// Restablece los parámetros: valor de fábrica y sin keyframes (D-024), en un solo paso del historial. Los que ya
+    /// están en su valor no se tocan; <c>false</c> si no había nada que cambiar o la sesión rechazó la edición.
+    /// </summary>
+    public bool Reset(Clip clip, string effectType, IEnumerable<(string Name, double DefaultValue)> parameters, string description)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(parameters);
+        EndChange();
+        if (FindEffect(clip, effectType) is not { } effect)
+        {
+            return false;
+        }
+
+        Dictionary<string, double> changed = ChangedFromDefault(effect, parameters);
+        return changed.Count > 0
+            && Session.Execute(Edits.ResetParameters(Session.SequenceId, clip.Id, effect.Id, changed, description));
+    }
+
     /// <summary>Cambia la curva del keyframe del cursor hacia el siguiente.</summary>
     public bool SetInterpolation(Clip clip, string effectType, string name, Interpolation interpolation)
     {
@@ -253,6 +283,21 @@ public sealed class ClipPropertyEditor
         }
 
         return null;
+    }
+
+    private static Dictionary<string, double> ChangedFromDefault(EffectInstance effect, IEnumerable<(string Name, double DefaultValue)> parameters)
+    {
+        var changed = new Dictionary<string, double>();
+        foreach ((string name, double defaultValue) in parameters)
+        {
+            if (effect.Parameters.TryGetValue(name, out Parameter? parameter)
+                && (parameter.Keyframes.Count > 0 || Math.Abs(parameter.Value - defaultValue) >= 1e-9))
+            {
+                changed[name] = defaultValue;
+            }
+        }
+
+        return changed;
     }
 
     private string? EnsureEffect(Clip clip, string type)

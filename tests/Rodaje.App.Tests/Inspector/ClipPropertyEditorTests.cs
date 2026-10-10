@@ -270,6 +270,89 @@ public class ClipPropertyEditorTests
         Assert.Empty(h.Video.Effects);
     });
 
+    private static (string, double)[] All() =>
+        [(P.X, 0), (P.Y, 0), (P.Scale, 1), (P.Rotation, 0), (P.Opacity, 1)];
+
+    [Fact]
+    public void Restablecer_SinKeyframes_VuelveAlValorDeFabricaEnUnPaso() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        Assert.False(ClipPropertyEditor.CanReset(h.Video, Transform, [(P.Scale, 1)]));
+        Assert.False(h.Editor.Reset(h.Video, Transform, [(P.Scale, 1)], "Restablecer escala"));
+
+        h.Drag(P.Scale, 1.5);
+        h.Drag(P.X, 40);
+        Assert.False(h.Read(P.Scale).IsDefault(1));
+        Assert.True(ClipPropertyEditor.CanReset(h.Video, Transform, [(P.Scale, 1)]));
+        int steps = h.Session.History.Count;
+
+        Assert.True(h.Editor.Reset(h.Video, Transform, [(P.Scale, 1)], "Restablecer escala"));
+        Assert.Equal(steps + 1, h.Session.History.Count);
+        Assert.Equal("Restablecer escala", h.Session.UndoDescription);
+        Assert.True(h.Read(P.Scale).IsDefault(1));
+        Assert.Equal(40, h.Parameter(P.X)!.Value);
+        Assert.False(ClipPropertyEditor.CanReset(h.Video, Transform, [(P.Scale, 1)]));
+
+        h.Session.Undo();
+        Assert.Equal(1.5, h.Parameter(P.Scale)!.Value);
+    });
+
+    [Fact]
+    public void Restablecer_ConKeyframes_LosQuitaYDejaElDefecto() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        h.Editor.ToggleKeyframe(h.Video, Transform, P.Opacity, 1);
+        h.At(4);
+        h.Drag(P.Opacity, 0.2);
+        Assert.Equal(2, h.Read(P.Opacity).KeyframeCount);
+
+        Assert.True(h.Editor.Reset(h.Video, Transform, [(P.Opacity, 1)], "Restablecer opacidad"));
+        Assert.Empty(h.Parameter(P.Opacity)!.Keyframes);
+        Assert.Equal(1, h.Parameter(P.Opacity)!.Value);
+        Assert.True(h.Read(P.Opacity).IsDefault(1));
+
+        h.Session.Undo();
+        Assert.Equal(2, h.Parameter(P.Opacity)!.Keyframes.Count);
+    });
+
+    [Fact]
+    public void RestablecerTodo_EsUnSoloPasoQueSeDeshaceDeUnaVez() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        h.Drag(P.X, 10);
+        h.Drag(P.Rotation, 45);
+        h.Editor.ToggleKeyframe(h.Video, Transform, P.Scale, 1);
+        string before = Rodaje.Core.Serialization.ProjectSerializer.Serialize(h.Session.Project);
+        int steps = h.Session.History.Count;
+
+        Assert.True(h.Editor.Reset(h.Video, Transform, All(), "Restablecer transformación"));
+        Assert.Equal(steps + 1, h.Session.History.Count);
+        foreach ((string name, double value) in All())
+        {
+            Assert.True(h.Read(name).IsDefault(value));
+        }
+
+        Assert.False(ClipPropertyEditor.CanReset(h.Video, Transform, All()));
+        h.Session.Undo();
+        Assert.Equal(before, Rodaje.Core.Serialization.ProjectSerializer.Serialize(h.Session.Project));
+    });
+
+    [Fact]
+    public void Restablecer_PistaBloqueada_AvisaYNoCambiaNada() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        h.Drag(P.X, 10);
+        h.Session.Execute(Rodaje.Core.Commands.Edits.SetTrackState(h.Session.SequenceId, h.Session.MainTrack!.Id, locked: true));
+        int steps = h.Session.History.Count;
+        var warnings = new List<EditorNotification>();
+        h.Session.Notified += (_, n) => warnings.Add(n);
+
+        Assert.False(h.Editor.Reset(h.Video, Transform, All(), "Restablecer transformación"));
+        Assert.Single(warnings);
+        Assert.Equal(steps, h.Session.History.Count);
+        Assert.Equal(10, h.Parameter(P.X)!.Value);
+    });
+
     [Fact]
     public void EditaLaPrimeraTransformacionActiva() => UiThread.Run(async () =>
     {

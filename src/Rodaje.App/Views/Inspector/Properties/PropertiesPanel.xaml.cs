@@ -44,6 +44,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             row.KeyframeToggled += OnRowKeyframeToggled;
             row.NavigateRequested += OnRowNavigate;
             row.InterpolationChosen += OnRowInterpolation;
+            row.ResetRequested += OnRowReset;
         }
 
         EditorSession session = services.Session;
@@ -133,6 +134,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             _ => $"{keyframes} keyframes",
         };
 
+        ResetAllButton.IsEnabled = ClipPropertyEditor.CanReset(clip, BuiltInEffects.Transform, Defaults(_videoRows));
         EffectInstance? transform = ClipPropertyEditor.FindEffect(clip, BuiltInEffects.Transform);
         TransformNote.Visibility = transform is { Enabled: false } ? Visibility.Visible : Visibility.Collapsed;
         TransformNote.Text = "Transformar está desactivado en Filtros: los cambios se guardan pero no se ven.";
@@ -164,6 +166,9 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             rows[i].Configure(specs[i]);
         }
     }
+
+    private static IEnumerable<(string Name, double DefaultValue)> Defaults(IEnumerable<ParameterRow> rows) =>
+        rows.Select(r => (r.Spec.Name, r.Spec.DefaultValue));
 
     private static void FinishChanges(ParameterRow[] rows)
     {
@@ -237,6 +242,27 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         {
             editor.SetInterpolation(clip, row.Spec.EffectType, row.Spec.Name, interpolation);
         }
+    }
+
+    private void OnRowReset(object? sender, EventArgs e)
+    {
+        if (sender is ParameterRow row && _editor is { } editor && ClipFor(row) is { } clip)
+        {
+            _dragRow = null;
+            editor.Reset(clip, row.Spec.EffectType, Defaults([row]), row.Spec.ResetDescription);
+        }
+    }
+
+    private void OnResetAllClick(object sender, RoutedEventArgs e)
+    {
+        if (_editor is not { } editor || ClipFor(XRow) is not { } clip)
+        {
+            return;
+        }
+
+        FinishChanges(_videoRows);
+        _dragRow = null;
+        editor.Reset(clip, BuiltInEffects.Transform, Defaults(_videoRows), "Restablecer transformación");
     }
 
     private async void OnSavePresetClick(object sender, RoutedEventArgs e)

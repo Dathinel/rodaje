@@ -81,7 +81,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 
 ## Decisiones
 
-- **Registro:** `docs/decisiones.md`, de D-001 a D-023.
+- **Registro:** `docs/decisiones.md`, de D-001 a D-024.
 - **Módulos:** `docs/propuesta-modulos.md`, aprobada. Núcleo en el exe, contenido en `.paquete` sin código, IA como procesos C#.
 - **Pendientes para la interfaz:** decidir cómo funciona el ripple con enlazados de distinto largo y si se limpian los enlaces huérfanos.
 - **Archivo:** la investigación y el sondeo están en `docs/archivo/`; el código del sondeo, en la etiqueta git `sondeo-interop-aot`.
