@@ -1,6 +1,6 @@
 @echo off
 rem Abre Rodaje. Doble clic: abre el editor vacio. Arrastrar videos sobre este archivo: los importa y los pone
-rem seguidos en la pista principal. Tambien abre un proyecto .rodaje. El visor anterior sigue en "ABRIR.bat visor".
+rem seguidos en la pista principal. Tambien abre un proyecto .rodaje.
 chcp 65001 >nul
 setlocal
 set "RAIZ=%~dp0"

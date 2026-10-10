@@ -1,7 +1,7 @@
 {
   "id": "rodaje",
   "titulo": "Rodaje: editor de video nativo para Windows",
-  "resumen": "Rodaje es un editor de video nativo para Windows. Hoy existen el núcleo de edición (línea de tiempo con tiempo exacto, operaciones con deshacer y rehacer, formato .rodaje), la reproducción con FFmpeg acelerada por GPU y el audio como reloj maestro, varias capas compuestas en Direct3D 11 con proxies, y un visor provisional que se reemplaza por la interfaz WinUI 3. Todo se comprueba con pruebas automáticas que explican en español qué pasó.",
+  "resumen": "Rodaje es un editor de video nativo para Windows. Hoy existen el núcleo de edición (línea de tiempo con tiempo exacto, operaciones con deshacer y rehacer, formato .rodaje), la reproducción con FFmpeg acelerada por GPU y el audio como reloj maestro, varias capas compuestas en Direct3D 11 con proxies, y la interfaz WinUI 3 del editor. Todo se comprueba con pruebas automáticas que explican en español qué pasó.",
   "pide": [
     "Modelo de línea de tiempo con tiempo exacto (ticks de 1/705 600 000 s, sin errores de redondeo entre cuadros)",
     "Operaciones de edición con deshacer y rehacer: cortar, recortar, ripple, roll, slip, slide, mover, insertar, sobrescribir, levantar y borrar con ripple",
@@ -25,7 +25,7 @@
       "script": "herramientas/probar.ps1",
       "args": [],
       "cwd": ".",
-      "descripcion": "Restaura los paquetes, compila la solución y corre todas las pruebas: núcleo, medios, audio, reproducción, motor, render y visor. Las que necesitan algo que falta en el equipo (GPU con D3D11VA, NVENC, dispositivo de audio) se omiten con su motivo, y las largas esperan a la aceptación. Al final muestra cuántas pasaron, cuáles fallaron con su mensaje y la línea donde fallaron, y cuánto tardó. Los registros completos quedan en TestResults\\.",
+      "descripcion": "Restaura los paquetes, compila la solución y corre todas las pruebas: núcleo, medios, audio, reproducción, motor, render, paquetes y app. Las que necesitan algo que falta en el equipo (GPU con D3D11VA, NVENC, dispositivo de audio) se omiten con su motivo, y las largas esperan a la aceptación. Al final muestra cuántas pasaron, cuáles fallaron con su mensaje y la línea donde fallaron, y cuánto tardó. Los registros completos quedan en TestResults\\.",
       "cubre": [
         "Modelo de línea de tiempo con tiempo exacto (ticks de 1/705 600 000 s, sin errores de redondeo entre cuadros)",
         "Operaciones de edición con deshacer y rehacer: cortar, recortar, ripple, roll, slip, slide, mover, insertar, sobrescribir, levantar y borrar con ripple",
@@ -94,22 +94,6 @@
       "notas": "Necesita las DLL y el ffmpeg.exe LGPL de .entorno\\ffmpeg. Los videos de prueba (unos 160 MB) se generan una vez en TestResults\\media-cache. Con -Completa añade 10 minutos reales con el dispositivo de audio; con -Resumir <carpeta> rehace solo el resumen de una corrida guardada."
     },
     {
-      "id": "visor",
-      "nombre": "Abrir el visor de varias capas",
-      "tipo": "powershell",
-      "script": "herramientas/visor.ps1",
-      "args": [],
-      "cwd": ".",
-      "descripcion": "Publica el visor provisional con Native AOT en dist\\Rodaje-visor\\ (solo si cambió algo en src\\) y lo abre. Sin argumentos pide elegir uno o varios videos: el primero va de fondo y los demás encima como imagen en imagen; también abre un proyecto .rodaje. Con -Prueba 20 y un video hace un recorrido automático de 20 s y muestra las estadísticas de fluidez.",
-      "cubre": [
-        "Varias capas compuestas en la GPU dentro del presupuesto de memoria de video, con proxies"
-      ],
-      "duracion": "~1-2 min la primera vez (compila); después abre al instante",
-      "duracion_es": "total",
-      "si_falla": "Si no publica, el mensaje trae el primer error y el registro TestResults\\visor-publicar.log; si falta el enlazador de C++, hay que instalar Visual Studio Build Tools 2022 con 'Desarrollo para el escritorio con C++'. Si el visor no abre un video, el registro del recorrido dice qué falló (archivo o GPU).",
-      "notas": "La fluidez solo la puede juzgar una persona: qué mirar está en docs\\prueba-visor.md. El visor se retira cuando la interfaz WinUI 3 (src\\Rodaje.App) lo reemplace."
-    },
-    {
       "id": "preparar-entorno",
       "nombre": "Reconstruir el entorno (SDK de .NET y FFmpeg)",
       "tipo": "powershell",
@@ -125,7 +109,7 @@
     }
   ],
   "notas": [
-    "Doble clic en ABRIR.bat corre la acción 'pruebas'; 'ABRIR.bat cobertura', 'ABRIR.bat aot', 'ABRIR.bat aceptacion', 'ABRIR.bat visor' y 'ABRIR.bat preparar-entorno' corren las otras. Rodaje.bat abre el visor directamente.",
+    "Doble clic en ABRIR.bat corre la acción 'pruebas'; 'ABRIR.bat cobertura', 'ABRIR.bat aot', 'ABRIR.bat aceptacion' y 'ABRIR.bat preparar-entorno' corren las otras. Rodaje.bat abre el editor.",
     "El tipo 'powershell' es propio de Rodaje: corre el script con powershell -NoProfile -ExecutionPolicy Bypass -File, con los mismos campos que las acciones 'python' de Sensores-Teoria (script, args, cwd).",
     "Las variables RODAJE_* que cambian el comportamiento de las acciones están en docs/variables-entorno.md."
   ]

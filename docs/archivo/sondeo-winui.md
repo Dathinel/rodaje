@@ -1,12 +1,8 @@
 # Sondeo de la fase 4: WinUI 3 sin empaquetar con Native AOT
 
-Antes de construir la interfaz de D-018 había que comprobar que el stack de D-003 y D-004 (WinUI 3, sin MSIX, autocontenido, Native AOT) funciona de verdad en este equipo con el motor de Rodaje, y que el reproductor dentro de XAML no pierde nada frente al visor Win32 de la fase 3. El código está en `src/Rodaje.App` y la medición se repite con:
+Antes de construir la interfaz de D-018 había que comprobar que el stack de D-003 y D-004 (WinUI 3, sin MSIX, autocontenido, Native AOT) funciona de verdad en este equipo con el motor de Rodaje, y que el reproductor dentro de XAML no pierde nada frente al visor Win32 de la fase 3. El código está en `src/Rodaje.App`. El script de medida (`herramientas\sondeo-winui.ps1`) y el visor Win32 ya no están en el árbol de trabajo: se conservan en la etiqueta de git `visor-fase3`. Hoy la misma medida la hace `herramientas\app.ps1 -Medir N`.
 
-```
-powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\sondeo-winui.ps1 [-Segundos 20] [-SinPublicar]
-```
-
-El script publica, cuenta advertencias y tamaños, copia las DLL LGPL de FFmpeg junto al exe y corre `Rodaje.exe --medir N`, que reproduce, mide y escribe sus cifras en `TestResults\sondeo-winui-*`. Equipo: RTX 3050 Laptop, AtlasOS (Windows 11 26100), pantalla 1920×1080 al 100 %, 10 de octubre de 2026.
+El script publicaba, contaba advertencias y tamaños, copiaba las DLL LGPL de FFmpeg junto al exe y corría `Rodaje.exe --medir N`, que reproduce, mide y escribe sus cifras en `TestResults\sondeo-winui-*`. Equipo: RTX 3050 Laptop, AtlasOS (Windows 11 26100), pantalla 1920×1080 al 100 %, 10 de octubre de 2026.
 
 ## Qué funciona
 

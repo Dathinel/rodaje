@@ -238,3 +238,11 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - **`.paquete` v0** en una biblioteca sin dependencias (`Rodaje.Paquetes`), con manifiesto validado con `JsonDocument` (apto para AOT), instalación que nunca escribe fuera de su carpeta y referencias estables `paquete@versión/elemento` ([formato](formato-paquete.md)). Los módulos de IA se declaran pero no se ejecutan hasta la fase 7.
 
 **Resultado.** Biblioteca con 200 medios 1080p: 60 cuadros por segundo al desplazar despacio y de golpe, sin ningún intervalo de más de 33 ms; portadas de la primera pantalla en 169 ms en frío y 107 ms con la caché en disco.
+
+## D-022. Se retira el visor Win32 (10 de octubre de 2026)
+
+**Contexto.** El visor de las fases 2 y 3 (D-015) era una herramienta de prueba. La app WinUI 3 ya reproduce, edita y mide (`app.ps1 -Medir N`) con el mismo motor y el mismo compositor.
+
+**Decisión.** Se borran `src/Rodaje.Visor`, sus pruebas, `herramientas/visor.ps1`, la acción `ABRIR.bat visor` y `herramientas/sondeo-winui.ps1`. El código queda en la etiqueta de git `visor-fase3`; el informe del sondeo pasa a `docs/archivo/sondeo-winui.md`.
+
+**Consecuencias.** Un solo ejecutable que mantener. D-015 y D-016 siguen valiendo para el motor y el render aunque nombren el visor.

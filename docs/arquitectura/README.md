@@ -4,7 +4,7 @@ Rodaje es un editor de video nativo para Windows escrito en C# sobre .NET 10. Se
 
 ```mermaid
 flowchart TB
-    App["App: Rodaje.App (WinUI 3)<br/>y Rodaje.Visor (Win32, provisional)"]
+    App["App: Rodaje.App<br/>interfaz WinUI 3"]
     Engine["Motor: Rodaje.Engine<br/>ClipPlayer, TimelineSession, AudioMixer"]
     Render["Render: Rodaje.Render<br/>compositor Direct3D 11"]
     Audio["Audio: Rodaje.Audio<br/>WASAPI, reloj maestro"]
@@ -35,7 +35,7 @@ flowchart TB
 | Motor | [motor.md](motor.md) | Varias capas con pre-roll, varios decodificadores por medio, presupuesto de VRAM, mezcla y proxies |
 | Render | [render.md](render.md) | Composición en Direct3D 11 sin copias, con el color y la geometría de cada capa |
 | Paquetes | [formato-paquete.md](../formato-paquete.md) | Manifiesto, instalación segura y catálogo de los complementos, para compartir con los demás programas |
-| App | [app.md](app.md) | La interfaz WinUI 3 en construcción (con miniaturas, formas de onda, biblioteca y complementos) y el visor provisional |
+| App | [app.md](app.md) | La interfaz WinUI 3 en construcción (con miniaturas, formas de onda, biblioteca y complementos) |
 
 ## Reglas que atraviesan todas las capas
 
@@ -55,7 +55,7 @@ flowchart TB
 | `ABRIR.bat cobertura` | Lo mismo, más la cobertura de `Rodaje.Core` |
 | `ABRIR.bat aot` | Publica y ejecuta la prueba de humo del núcleo con Native AOT ([`publicar-aot-prueba.ps1`](../../herramientas/publicar-aot-prueba.ps1)) |
 | `ABRIR.bat aceptacion` | Criterios de la fase 2 con video y audio reales, en serie ([`aceptacion.ps1`](../../herramientas/aceptacion.ps1)) |
-| `ABRIR.bat visor` / `Rodaje.bat` | Publica y abre el visor ([`visor.ps1`](../../herramientas/visor.ps1)) |
+| `Rodaje.bat` | Publica y abre el editor ([`app.ps1`](../../herramientas/app.ps1)); `app.ps1 -Medir N` mide arranque y reproducción |
 | `herramientas\dotnet-local.cmd <args>` | El SDK de `.entorno\` con cualquier argumento de `dotnet` |
 
 - **Módulo común.** Los scripts comparten [`herramientas/comun.psm1`](../../herramientas/comun.psm1): localizan el entorno y sus marcas de instalación completa, fijan las variables del SDK local, añaden vswhere al PATH, llaman a dotnet con registro, crean la carpeta de cada corrida y leen los `.trx`.
@@ -77,6 +77,5 @@ flowchart TB
 - [Decisiones](../decisiones.md)
 - [Fondo legal](../legal.md)
 - [Propuesta de módulos](../propuesta-modulos.md)
-- [Prueba del visor](../prueba-visor.md)
-- [Sondeo de WinUI 3](../sondeo-winui.md)
+- [Sondeo de WinUI 3](../archivo/sondeo-winui.md)
 - [Investigación de editores abiertos](../archivo/investigacion.md)

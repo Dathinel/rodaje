@@ -20,7 +20,7 @@ namespace Rodaje.Engine.Tests.Timeline;
 /// Cuatro pistas reproducidas en tiempo real a 60 Hz con decodificadores reales: cortes cada 3 s en 1080p y 4K HEVC entre seis
 /// archivos (en cada corte dos medios son nuevos y dos pasan a otra pista),
 /// y un mismo archivo en las cuatro pistas con 2 s de desfase. Mide la VRAM del proceso, el pre-roll, los refrescos
-/// tarde y la peor espera de una capa; deja un <c>.rodaje</c> de cada escenario en la caché de medios para el visor.
+/// tarde y la peor espera de una capa; deja un <c>.rodaje</c> de cada escenario en la caché de medios para abrirlo en la app.
 /// </summary>
 public sealed class TimelineLoadTests(ITestOutputHelper output)
 {

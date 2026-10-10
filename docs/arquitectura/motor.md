@@ -1,6 +1,6 @@
 # Motor: `Rodaje.Engine`
 
-Junta [Medios](medios.md), [Audio](audio.md) y [Reproducción](reproduccion.md) en sesiones que se pueden reproducir. `ClipPlayer` reproduce un archivo (fase 2) y `TimelineSession`, una secuencia con varias capas (fase 3). Es `net10.0-windows` e `IsAotCompatible`. Lo usan el visor y la app, que pasan cada `CompositionFrame` al [Render](render.md).
+Junta [Medios](medios.md), [Audio](audio.md) y [Reproducción](reproduccion.md) en sesiones que se pueden reproducir. `ClipPlayer` reproduce un archivo (fase 2) y `TimelineSession`, una secuencia con varias capas (fase 3). Es `net10.0-windows` e `IsAotCompatible`. Lo usa la app, que pasa cada `CompositionFrame` al [Render](render.md).
 
 ## Flujo
 
@@ -40,7 +40,7 @@ Las decisiones de diseño están en [D-017](../decisiones.md) (caché global por
 - **Proxies.** Con [`PreviewProxies`](../../src/Rodaje.Engine/Timeline/PreviewProxies.cs) la vista previa decide por medio (`ProxyUsage`: `Auto`, `Always`, `Never`). Cuando un proxy queda listo, cambia a él sin cortes y lo coloca con el tamaño visible del original. La exportación nunca usa proxies.
 - **Fallos.** Una capa cuyo medio no abre queda vacía (`LayerState.Failure`) en vez de congelar el cuadro anterior; `DecodeFailed` avisa con `FrameIndex = -1`.
 
-**Hilos.** Transporte, `Tick`, `Reload` y `Dispose` se llaman desde un solo hilo: el de render en la app, el de la ventana en el visor.
+**Hilos.** Transporte, `Tick`, `Reload` y `Dispose` se llaman desde un solo hilo: el de render de la app.
 - Cada decodificador tiene su propio hilo (`IDecodeExecutor`) y en él se abre.
 - Un ejecutor de servicio cierra decodificadores y resuelve proxies.
 - Un único candado protege el estado y nunca se retiene mientras se abre, decodifica o cierra un archivo.

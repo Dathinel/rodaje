@@ -1,4 +1,4 @@
-﻿# Lo que comparten probar.ps1, aceptacion.ps1, publicar-aot-prueba.ps1 y visor.ps1: dónde está el entorno
+﻿# Lo que comparten probar.ps1, aceptacion.ps1, publicar-aot-prueba.ps1 y app.ps1: dónde está el entorno
 # (.entorno o RODAJE_ENTORNO) y sus marcas de instalación completa, las variables del SDK local, la carpeta de
 # vswhere.exe, la llamada a dotnet con registro, los diagnósticos de MSBuild, las carpetas de cada corrida y la
 # lectura de los .trx. Se importa con:

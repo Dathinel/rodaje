@@ -4,7 +4,7 @@ namespace Rodaje.Render;
 internal static class RenderShaders
 {
     // corners[i]: xy = NDC, zw = uv; local[i].xy = punto en el espacio local de la capa; orden TL, TR, BL, BR.
-    // range, toRgb y limits: como en el visor (YuvRange, YuvToRgb, tope de uv a medio texel del borde visible).
+    // range, toRgb y limits: YuvRange, YuvToRgb y tope de uv a medio texel del borde visible.
     // shape: x = opacidad, y = píxeles de destino por píxel local, zw = tamaño local. La cobertura del borde se
     // calcula con la distancia al lado más cercano en píxeles de destino, así un borde girado sale suavizado y uno
     // alineado con la rejilla queda nítido (los centros de sus píxeles están a 0,5 px o más del lado).
