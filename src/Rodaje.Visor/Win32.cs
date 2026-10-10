@@ -52,9 +52,6 @@ internal static unsafe class Win32
 
     public const int ERROR_CANCELLED = 1223;
 
-    public const uint D3DCOMPILE_OPTIMIZATION_LEVEL3 = 1 << 15;
-    public const uint D3DCOMPILE_WARNINGS_ARE_ERRORS = 1 << 18;
-
     /// <summary><c>MAKEINTRESOURCE(32512)</c>.</summary>
     public static char* IDC_ARROW => (char*)32512;
 }

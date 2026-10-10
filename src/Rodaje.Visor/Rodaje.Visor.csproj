@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Rodaje.Engine\Rodaje.Engine.csproj" />
+    <ProjectReference Include="..\Rodaje.Render\Rodaje.Render.csproj" />
   </ItemGroup>
 
   <ItemGroup>

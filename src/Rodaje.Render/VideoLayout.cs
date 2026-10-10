@@ -1,4 +1,4 @@
-namespace Rodaje.Engine.Presentation;
+namespace Rodaje.Render;
 
 public readonly record struct PixelRect(int X, int Y, int Width, int Height)
 {

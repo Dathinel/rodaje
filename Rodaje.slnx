@@ -5,6 +5,7 @@
     <Project Path="src/Rodaje.Engine/Rodaje.Engine.csproj" />
     <Project Path="src/Rodaje.Media/Rodaje.Media.csproj" />
     <Project Path="src/Rodaje.Playback/Rodaje.Playback.csproj" />
+    <Project Path="src/Rodaje.Render/Rodaje.Render.csproj" />
     <Project Path="src/Rodaje.Visor/Rodaje.Visor.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -15,6 +16,7 @@
     <Project Path="tests/Rodaje.Engine.Tests/Rodaje.Engine.Tests.csproj" />
     <Project Path="tests/Rodaje.Media.Tests/Rodaje.Media.Tests.csproj" />
     <Project Path="tests/Rodaje.Playback.Tests/Rodaje.Playback.Tests.csproj" />
+    <Project Path="tests/Rodaje.Render.Tests/Rodaje.Render.Tests.csproj" />
     <Project Path="tests/Rodaje.TestMedia.Tests/Rodaje.TestMedia.Tests.csproj" />
     <Project Path="tests/Rodaje.TestMedia/Rodaje.TestMedia.csproj" />
   </Folder>

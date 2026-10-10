@@ -1,8 +1,4 @@
-using System.Text;
-using TerraFX.Interop.DirectX;
-using TerraFX.Interop.Windows;
-using static TerraFX.Interop.DirectX.DirectX;
-using static Rodaje.Visor.Win32;
+using Rodaje.Render;
 
 namespace Rodaje.Visor;
 
@@ -11,7 +7,7 @@ namespace Rodaje.Visor;
 /// Compilar en ejecución evita depender de fxc.exe (Windows SDK) para construir; cuesta unos milisegundos
 /// al abrir la ventana. Ver la decisión D-015 en docs/decisiones.md.
 /// </remarks>
-internal static unsafe class Shaders
+internal static class Shaders
 {
     // corners[i]: xy = posición en NDC, zw = coordenada de textura; orden TL, TR, BL, BR (tira de triángulos).
     // range: escala y desplazamiento de luma y croma (YuvRange). limits: tope de uv para luma (xy) y croma (zw),
@@ -70,44 +66,6 @@ internal static unsafe class Shaders
 
     public static byte[] SolidPixelShader() => Compile("PsSolid", "ps_5_0");
 
-    private static byte[] Compile(string entryPoint, string target)
-    {
-        byte[] source = Encoding.ASCII.GetBytes(Source);
-        byte[] entry = Encoding.ASCII.GetBytes(entryPoint + "\0");
-        byte[] profile = Encoding.ASCII.GetBytes(target + "\0");
-        byte[] name = "visor.hlsl\0"u8.ToArray();
-        ID3DBlob* code = null;
-        ID3DBlob* errors = null;
-        HRESULT hr;
-        fixed (byte* s = source, e = entry, p = profile, n = name)
-        {
-            hr = D3DCompile(s, (nuint)source.Length, (sbyte*)n, null, null, (sbyte*)e, (sbyte*)p,
-                D3DCOMPILE_OPTIMIZATION_LEVEL3 | D3DCOMPILE_WARNINGS_ARE_ERRORS, 0, &code, &errors);
-        }
-
-        try
-        {
-            if (hr.FAILED)
-            {
-                string detail = errors != null
-                    ? Encoding.ASCII.GetString((byte*)errors->GetBufferPointer(), (int)errors->GetBufferSize()).TrimEnd('\0', '\n')
-                    : $"HRESULT 0x{hr.Value:X8}";
-                throw new InvalidOperationException($"No se pudo compilar el shader {entryPoint} con d3dcompiler_47.dll: {detail}");
-            }
-
-            return new ReadOnlySpan<byte>(code->GetBufferPointer(), (int)code->GetBufferSize()).ToArray();
-        }
-        finally
-        {
-            if (code != null)
-            {
-                code->Release();
-            }
-
-            if (errors != null)
-            {
-                errors->Release();
-            }
-        }
-    }
+    private static byte[] Compile(string entryPoint, string target) =>
+        ShaderCompiler.Compile(Source, entryPoint, target, "visor.hlsl");
 }
