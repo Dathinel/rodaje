@@ -139,6 +139,7 @@ internal sealed class TrackHeaders
             Content = glyph,
             IsChecked = isOn,
         };
+        TimelineView.KeepOffFocus(button);
         ToolTipService.SetToolTip(button, tip);
         string trackId = track.Id;
         button.Click += (_, _) => Toggled?.Invoke(trackId, which);

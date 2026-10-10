@@ -25,7 +25,7 @@ internal readonly record struct ClipDraw(
     double WindowLeft,
     double VisibleLeft,
     bool Selected,
-    bool Dimmed,
+    double Veil,
     bool ShowEnvelope);
 
 /// <summary>
@@ -49,8 +49,11 @@ internal sealed class ClipVisual
     private readonly LinearGradientBrush _stripBrush;
     private readonly TranslateTransform _stripShift = new();
     private readonly Canvas _thumbs = new();
+    private readonly RectangleGeometry _thumbsBounds = new();
     private readonly List<Image> _thumbPool = [];
     private readonly Path _wave = new();
+    private readonly RectangleGeometry _waveBounds = new();
+    private readonly Border _veil = new();
     private readonly Polyline _envelope = new() { StrokeThickness = 1.5 };
     private readonly Path _keys = new();
     private readonly TextBlock _name = new() { FontSize = 11, TextWrapping = TextWrapping.NoWrap };
@@ -75,7 +78,11 @@ internal sealed class ClipVisual
         Root.Children.Add(_envelope);
         Root.Children.Add(_keys);
         Root.Children.Add(_name);
+        Root.Children.Add(_veil);
         Root.Children.Add(_outline);
+        _veil.Background = brushes.Background;
+        _thumbs.Clip = _thumbsBounds;
+        _wave.Clip = _waveBounds;
         _outline.BorderBrush = brushes.Accent;
         _name.Clip = _bounds;
         Canvas.SetZIndex(Root, 1);
@@ -99,7 +106,7 @@ internal sealed class ClipVisual
         Canvas.SetTop(Root, d.Top);
         Root.Width = d.Width;
         Root.Height = d.Height;
-        Root.Opacity = d.Dimmed ? 0.45 : 1;
+        UpdateVeil(d);
 
         _body.Width = d.Width;
         _body.Height = d.Height;
@@ -136,6 +143,22 @@ internal sealed class ClipVisual
 
         UpdateEnvelope(d);
         UpdateKeyframes(d);
+    }
+
+    // Un velo encima en vez de la opacidad del bloque: cambia con cada estado de la pista sin depender de cómo compone
+    // WinUI un grupo con imágenes, y vela por igual miniaturas, onda y nombre.
+    private void UpdateVeil(in ClipDraw d)
+    {
+        if (d.Veil <= 0)
+        {
+            _veil.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        _veil.Width = d.Width;
+        _veil.Height = d.Height;
+        _veil.Opacity = d.Veil;
+        _veil.Visibility = Visibility.Visible;
     }
 
     /// <summary>La x local de un instante de la línea de tiempo.</summary>
@@ -186,6 +209,10 @@ internal sealed class ClipVisual
         _strip.Width = d.Width;
         _strip.Height = height;
         Canvas.SetTop(_strip, top);
+
+        // Las miniaturas van en la rejilla del clip entero: la última (o la primera, si se recortó el inicio o el clip
+        // empieza antes de la ventana) se corta en el borde del bloque.
+        _thumbsBounds.Rect = new Rect(0, top, d.Width, height);
         int thumbs = 0;
         if (visuals is not null)
         {
@@ -252,18 +279,20 @@ internal sealed class ClipVisual
             return;
         }
 
-        double step = Math.Max(2, d.Width / 160);
+        // Puntos repartidos justo entre los dos bordes del bloque: la onda no pide ni dibuja audio de fuera del recorte.
+        int count = (int)Math.Ceiling(d.Width / Math.Max(2, d.Width / 160)) + 1;
+        double step = d.Width / (count - 1);
         double center = top + half + 1;
-        int count = (int)Math.Ceiling(d.Width / step) + 1;
         var upper = new Point[count];
         Clip clip = d.Clip;
+        _waveBounds.Rect = new Rect(0, 0, d.Width, d.Height);
 
         // Mientras se calcula (o sin sonido) se dibuja el marcador de posición.
-        WaveformSlice? slice = visuals?.GetWaveform(clip.MediaId, clip.ToSourceTime(TimeAt(d, 0)), clip.ToSourceTime(TimeAt(d, count * step)), count);
+        WaveformSlice? slice = visuals?.GetWaveform(clip.MediaId, clip.ToSourceTime(TimeAt(d, 0)), clip.ToSourceTime(TimeAt(d, d.Width)), count);
         bool real = slice is { IsComplete: true, HasAudio: true } && slice.Buckets == count;
         for (int i = 0; i < count; i++)
         {
-            double x = Math.Min(d.Width, i * step);
+            double x = i == count - 1 ? d.Width : i * step;
             float peak = real
                 ? Math.Clamp(Math.Max(-slice!.Min[i], slice.Max[i]), 0, 1)
                 : ClipDecorations.PlaceholderPeak(clip.MediaId, clip.ToSourceTime(TimeAt(d, x)));

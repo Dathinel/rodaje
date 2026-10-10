@@ -55,6 +55,35 @@ public class ShortcutRouterTests
     }
 
     [Fact]
+    public void EnUnMenuConTeclado_LasTeclasSinModificadorSonDelMenu()
+    {
+        ShortcutRouter router = Router();
+        int plays = 0;
+        int saves = 0;
+        router.Bind("play", () => plays++);
+        router.Bind("save", () => saves++);
+
+        Assert.False(router.Dispatch(K("Espacio"), false, KeyFocus.KeyboardMenu));
+        Assert.True(router.Dispatch(K("Ctrl+S"), false, KeyFocus.KeyboardMenu));
+
+        Assert.Equal(0, plays);
+        Assert.Equal(1, saves);
+    }
+
+    [Fact]
+    public void EspacioConElFocoEnUnBotonOEnNada_Reproduce()
+    {
+        ShortcutRouter router = Router();
+        int plays = 0;
+        router.Bind("play", () => plays++);
+
+        Assert.True(router.Dispatch(K("Espacio"), false, KeyFocus.Other));
+        Assert.True(router.Dispatch(K("Espacio"), false, isTextInputFocused: false));
+
+        Assert.Equal(2, plays);
+    }
+
+    [Fact]
     public void LaRepeticion_SeConsumePeroSoloRepiteLasQueRepiten()
     {
         ShortcutRouter router = Router();

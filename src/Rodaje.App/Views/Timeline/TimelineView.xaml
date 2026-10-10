@@ -7,7 +7,8 @@
     x:Class="Rodaje.App.Views.Timeline.TimelineView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:primitives="using:Microsoft.UI.Xaml.Controls.Primitives">
+    xmlns:primitives="using:Microsoft.UI.Xaml.Controls.Primitives"
+    IsTabStop="True" UseSystemFocusVisuals="False">
 
     <Grid Background="{StaticResource PanelBrush}">
         <Grid.RowDefinitions>

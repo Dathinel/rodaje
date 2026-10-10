@@ -273,7 +273,7 @@ internal sealed class TimelineRenderer
                     _windowLeft,
                     visibleLeft,
                     scene.Selection.Contains(clip.Id),
-                    !clip.Enabled || row.Track.Hidden || row.Track.Muted,
+                    ClipDecorations.Veil(clip, row.Track),
                     scene.ShowEnvelopes);
                 ClipAt(used++).Update(draw, scene.Visuals);
             }

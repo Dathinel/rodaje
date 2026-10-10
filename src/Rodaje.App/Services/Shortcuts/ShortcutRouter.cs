@@ -1,5 +1,18 @@
 namespace Rodaje.App.Services.Shortcuts;
 
+/// <summary>Dónde está el foco de teclado cuando llega una tecla.</summary>
+public enum KeyFocus
+{
+    /// <summary>En cualquier otro sitio (un botón, el lienzo, ninguno): las teclas son atajos.</summary>
+    Other,
+
+    /// <summary>En un campo de texto: solo pasan las acciones que lo permiten.</summary>
+    TextInput,
+
+    /// <summary>En un menú que la persona abrió o recorre con el teclado: las teclas sin Ctrl, Alt ni Win son del menú.</summary>
+    KeyboardMenu,
+}
+
 /// <summary>
 /// Lanza las acciones: une cada identificador del <see cref="ShortcutRegistry"/> con quien sabe ejecutarlo y decide
 /// qué hacer con cada combinación que llega de la ventana. Los menús y botones también pasan por aquí
@@ -60,20 +73,31 @@ public sealed partial class ShortcutRouter
         return true;
     }
 
+    /// <summary>Como <see cref="Dispatch(KeyChord, bool, KeyFocus)"/>, con el foco en un campo de texto o no.</summary>
+    public bool Dispatch(KeyChord chord, bool isRepeat, bool isTextInputFocused) =>
+        Dispatch(chord, isRepeat, isTextInputFocused ? KeyFocus.TextInput : KeyFocus.Other);
+
     /// <summary>
     /// Una tecla de la ventana. <c>true</c> si es un atajo y se consumió: la ventana debe marcarla como manejada para
     /// que ningún control (por ejemplo, el botón con el foco y Espacio) la use también.
     /// </summary>
+    /// <param name="chord">La combinación pulsada.</param>
     /// <param name="isRepeat">La tecla sigue apretada (repetición automática de Windows).</param>
-    /// <param name="isTextInputFocused">El foco está en un campo de texto: solo pasan las acciones que lo permiten.</param>
-    public bool Dispatch(KeyChord chord, bool isRepeat, bool isTextInputFocused)
+    /// <param name="focus">Dónde está el foco: un campo de texto o un menú recorrido con el teclado se quedan sus teclas.</param>
+    public bool Dispatch(KeyChord chord, bool isRepeat, KeyFocus focus)
     {
         if (IsSuspended || Registry.FindAction(chord) is not { } actionId || Registry.Find(actionId) is not { } action)
         {
             return false;
         }
 
-        if (isTextInputFocused && !action.WorksInTextInput)
+        if (focus == KeyFocus.TextInput && !action.WorksInTextInput)
+        {
+            return false;
+        }
+
+        // En un menú abierto con el teclado, Espacio, Intro, las flechas y las letras eligen; Ctrl+S y similares siguen siendo atajos.
+        if (focus == KeyFocus.KeyboardMenu && (chord.Modifiers & (KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Windows)) == 0)
         {
             return false;
         }

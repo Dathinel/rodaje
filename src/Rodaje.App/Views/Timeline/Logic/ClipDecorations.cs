@@ -16,6 +16,28 @@ public static class ClipDecorations
     /// <summary>Duración de cada barra de la forma de onda provisional, en tiempo del origen.</summary>
     public static readonly Time WaveformBucket = Time.FromSeconds(0.04);
 
+    /// <summary>Opacidad del velo de un clip desactivado o de una pista oculta o silenciada.</summary>
+    public const double MutedVeil = 0.55;
+
+    /// <summary>Opacidad del velo de un clip de una pista bloqueada (visible y con sonido).</summary>
+    public const double LockedVeil = 0.3;
+
+    /// <summary>
+    /// Cuánto se vela el clip según su estado y el de su pista, siempre el actual: ocultar o silenciar pesa más que
+    /// bloquear, y sin nada de eso no hay velo.
+    /// </summary>
+    public static double Veil(Clip clip, Track track)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(track);
+        if (!clip.Enabled || track.Hidden || track.Muted)
+        {
+            return MutedVeil;
+        }
+
+        return track.Locked ? LockedVeil : 0;
+    }
+
     /// <summary>Los instantes de la línea de tiempo con keyframes en algún parámetro del clip, sin repetir y en orden.</summary>
     public static List<Time> KeyframeTimes(Clip clip)
     {
