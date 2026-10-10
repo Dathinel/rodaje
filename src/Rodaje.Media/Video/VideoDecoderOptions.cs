@@ -20,6 +20,18 @@ public sealed record VideoDecoderOptions
     /// </summary>
     public int ExtraHardwareFrames { get; init; } = 16;
 
+    /// <summary>
+    /// Si se da, decide las texturas extra al crear el pool, cuando ya se conocen el tamaño de cada superficie y las
+    /// que pide el códec; reemplaza a <see cref="ExtraHardwareFrames"/>. Se llama en el hilo que decodifica.
+    /// </summary>
+    public Func<HardwarePoolRequest, int>? HardwarePoolSizer { get; init; }
+
+    /// <summary>
+    /// Reserva para referencias lo que permite el nivel del flujo (H.264 y HEVC) en lugar del peor caso de FFmpeg, que
+    /// supone 16 referencias a cualquier resolución: en 4K son 6 como mucho y cada superficie pesa unos 12 MB.
+    /// </summary>
+    public bool CompactReferencePool { get; init; }
+
     /// <summary>Hasta cuántos cuadros hacia delante se decodifica sin buscar (seek); más lejos se busca el keyframe.</summary>
     public int MaxForwardDecodeFrames { get; init; } = 64;
 

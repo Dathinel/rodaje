@@ -6,6 +6,8 @@ El visor (`src/Rodaje.Visor`) reproduce una secuencia de varias capas con el mot
 
 Arrastra dos, tres o cuatro videos tuyos a la vez sobre `Rodaje.bat`, o haz doble clic y elígelos juntos en el diálogo (Ctrl o Shift para marcar varios). El primero (el que Windows ponga primero) va de fondo a pantalla completa con su audio; cada uno de los demás va en su propia pista encima, al 35 % de tamaño, en una esquina distinta (arriba a la derecha, abajo a la derecha, abajo a la izquierda, arriba a la izquierda), con su audio en silencio. La secuencia toma el tamaño y la velocidad de cuadros del primero. También abre un proyecto `.rodaje`.
 
+Con `--proxies` (desde la línea de órdenes del exe) la vista previa genera en segundo plano el proxy de cada video que lo necesita (más de 1080p, por ejemplo) y pasa a usarlo sola en cuanto está listo, sin cortar la reproducción; con `--proxies siempre` usa cualquier proxy que ya exista. En las estadísticas (I), la capa que muestra un proxy dice «(proxy)».
+
 | Tecla | Qué hace |
 |---|---|
 | Espacio | Reproducir o pausar |

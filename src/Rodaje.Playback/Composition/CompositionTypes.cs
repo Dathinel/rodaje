@@ -51,6 +51,17 @@ public sealed class LayerFrame : IDisposable
     /// <summary>Giro del origen en grados, sentido horario: 0, 90, 180 o 270.</summary>
     public int Rotation { get; }
 
+    /// <summary>
+    /// Tamaño en pantalla con que se ajusta la capa al cuadro, si no es el de la imagen: un proxy de menor resolución se
+    /// coloca con el del original. 0 si se usa el de la imagen con <see cref="SampleAspectRatio"/> y <see cref="Rotation"/>.
+    /// </summary>
+    public int DisplayWidth { get; init; }
+
+    public int DisplayHeight { get; init; }
+
+    /// <summary>La imagen sale de un proxy de vista previa y no del original.</summary>
+    public bool IsProxy { get; init; }
+
     public void Dispose() => Frame.Dispose();
 }
 

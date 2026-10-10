@@ -55,6 +55,11 @@ public sealed unsafe class Compositor : IDisposable
     private ID3D11Texture2D* _staging;
 
     public Compositor(GpuDevice gpu, int width, int height, CompositeFormat format = CompositeFormat.Rgba16Float)
+        : this(gpu, width, height, format, TimeProvider.System)
+    {
+    }
+
+    internal Compositor(GpuDevice gpu, int width, int height, CompositeFormat format, TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(gpu);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
@@ -68,7 +73,7 @@ public sealed unsafe class Compositor : IDisposable
         Height = height;
         Format = format;
         MipLevels = 1 + (int)Math.Log2(Math.Max(width, height));
-        _views = new PlaneViewCache(_device);
+        _views = new PlaneViewCache(_device, time);
         _pipeline = new QuadPipeline(_device, _context);
         try
         {
@@ -192,6 +197,23 @@ public sealed unsafe class Compositor : IDisposable
         return pixels;
     }
 
+    /// <summary>
+    /// Suelta ya las vistas de decodificadores cerrados y las que llevan tiempo sin usarse. <see cref="Render"/> lo hace
+    /// solo; en pausa, cuando no se compone, quien dibuja lo llama de vez en cuando para no retener esos pools.
+    /// </summary>
+    public void TrimCachedViews()
+    {
+        _gpu.LockContext();
+        try
+        {
+            _views.Trim();
+        }
+        finally
+        {
+            _gpu.UnlockContext();
+        }
+    }
+
     /// <summary>Suelta las vistas guardadas de superficies del decodificador (por ejemplo, al cerrar una fuente).</summary>
     public void ReleaseCachedViews()
     {
@@ -265,7 +287,9 @@ public sealed unsafe class Compositor : IDisposable
             return false;
         }
 
-        (int displayWidth, int displayHeight) = geometry.DisplaySize(payload.Width, payload.Height);
+        (int displayWidth, int displayHeight) = layer.DisplayWidth > 0 && layer.DisplayHeight > 0
+            ? (layer.DisplayWidth, layer.DisplayHeight)
+            : geometry.DisplaySize(payload.Width, payload.Height);
         if (LayerLayout.Place(sequenceWidth, sequenceHeight, displayWidth, displayHeight, layer.Transform) is not { } placement)
         {
             return false;

@@ -30,6 +30,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private const int MaxEarlierSeeks = 4;
     private const int MaxConsecutiveErrors = 64;
     private const uint D3D11BindShaderResource = 0x8;
+    private const int WorstCaseReferences = 16;
 
     private readonly VideoDecoderOptions _options;
     private readonly GpuDevice? _device;
@@ -47,6 +48,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private AVFrame* _held;
     private AVFrame* _pending;
     private FrameUploader? _uploader;
+    private DecoderSurfacePool? _surfacePool;
 
     private bool _hasHeld;
     private long _heldSlot;
@@ -117,6 +119,9 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
     /// <summary>El último <c>get_format</c> eligió D3D11VA (puede volver a software si el hardware no admite el flujo).</summary>
     public bool UsesHardwareDecoding => _hardwareActive;
+
+    /// <summary>Pool de D3D11VA ya creado (tras el primer cuadro), o <c>null</c> si todavía no hay o se decodifica en la CPU.</summary>
+    public DecoderSurfacePool? SurfacePool => _surfacePool;
 
     public VideoDecoderStatistics Statistics => new(
         Interlocked.Read(ref _seeks), Interlocked.Read(ref _decodedFrames), Interlocked.Read(ref _decodeErrors));
@@ -221,6 +226,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         _format = null;
         _uploader?.Dispose();
         _uploader = null;
+        _surfacePool?.Close();
         if (_self.IsAllocated)
         {
             _self.Free();
@@ -316,7 +322,19 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         var framesContext = (AVHWFramesContext*)frames->data;
         var d3d = (AVD3D11VAFramesContext*)framesContext->hwctx;
         d3d->BindFlags |= D3D11BindShaderResource;
-        framesContext->initial_pool_size += Math.Max(0, _options.ExtraHardwareFrames);
+        int references = framesContext->initial_pool_size;
+        if (_options.CompactReferencePool && LevelReferenceFrames(context) is { } levelFrames && references > WorstCaseReferences)
+        {
+            // FFmpeg reserva 16 referencias más su margen; se cambian las 16 por lo que el nivel permite a este tamaño.
+            references = references - WorstCaseReferences + levelFrames;
+        }
+
+        int bytesPerSample = framesContext->sw_format == AVPixelFormat.AV_PIX_FMT_P010LE ? 2 : 1;
+        long surfaceBytes = (long)framesContext->width * framesContext->height * bytesPerSample * 3 / 2;
+        int extra = _options.HardwarePoolSizer is { } sizer
+            ? sizer(new HardwarePoolRequest(framesContext->width, framesContext->height, surfaceBytes, references))
+            : _options.ExtraHardwareFrames;
+        framesContext->initial_pool_size = references + Math.Max(0, extra);
         if (ffmpeg.av_hwframe_ctx_init(frames) < 0)
         {
             ffmpeg.av_buffer_unref(&frames);
@@ -325,7 +343,79 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
         ffmpeg.av_buffer_unref(&context->hw_frames_ctx);
         context->hw_frames_ctx = frames;
+        _surfacePool?.Close();
+        _surfacePool = new DecoderSurfacePool(framesContext->initial_pool_size, surfaceBytes);
         return true;
+    }
+
+    /// <summary>
+    /// Cuadros que el búfer de imágenes decodificadas puede tener según el nivel declarado (H.264 anexo A, HEVC A.4.2);
+    /// <c>null</c> si el códec o el nivel no se conocen. Si el flujo declara más referencias que eso, valen las suyas.
+    /// </summary>
+    internal static int? LevelReferenceFrames(AVCodecID codec, int width, int height, int level, int declaredReferences)
+    {
+        if (width <= 0 || height <= 0 || level <= 0)
+        {
+            return null;
+        }
+
+        int? frames = codec switch
+        {
+            AVCodecID.AV_CODEC_ID_H264 => H264MaxDpbMbs(level) is { } mbs
+                ? (int)Math.Min(WorstCaseReferences, mbs / ((long)((width + 15) / 16) * ((height + 15) / 16)))
+                : null,
+            AVCodecID.AV_CODEC_ID_HEVC => HevcMaxLumaPs(level) is { } luma ? HevcMaxDpbSize((long)width * height, luma) : null,
+            _ => null,
+        };
+        return frames is { } f ? Math.Clamp(Math.Max(f, declaredReferences), 1, WorstCaseReferences) : null;
+    }
+
+    private static int? LevelReferenceFrames(AVCodecContext* context) =>
+        LevelReferenceFrames(context->codec_id, context->coded_width > 0 ? context->coded_width : context->width,
+            context->coded_height > 0 ? context->coded_height : context->height, context->level, context->refs);
+
+    private static long? H264MaxDpbMbs(int levelIdc) => levelIdc switch
+    {
+        9 or 10 => 396,
+        11 => 900,
+        12 or 13 or 20 => 2376,
+        21 => 4752,
+        22 or 30 => 8100,
+        31 => 18000,
+        32 => 20480,
+        40 or 41 => 32768,
+        42 => 34816,
+        50 => 110400,
+        51 or 52 => 184320,
+        60 or 61 or 62 => 696320,
+        _ => null,
+    };
+
+    private static long? HevcMaxLumaPs(int levelIdc) => levelIdc switch
+    {
+        30 => 36864,
+        60 => 122880,
+        63 => 245760,
+        90 => 552960,
+        93 => 983040,
+        120 or 123 => 2228224,
+        150 or 153 or 156 => 8912896,
+        180 or 183 or 186 => 35651584,
+        _ => null,
+    };
+
+    private static int HevcMaxDpbSize(long pictureSamples, long maxLumaPs)
+    {
+        const int maxDpbPicBuf = 6;
+        if (pictureSamples > maxLumaPs)
+        {
+            return WorstCaseReferences;
+        }
+
+        return pictureSamples <= maxLumaPs >> 2 ? Math.Min(4 * maxDpbPicBuf, WorstCaseReferences)
+            : pictureSamples <= maxLumaPs >> 1 ? Math.Min(2 * maxDpbPicBuf, WorstCaseReferences)
+            : pictureSamples <= (3 * maxLumaPs) >> 2 ? Math.Min(4 * maxDpbPicBuf / 3, WorstCaseReferences)
+            : maxDpbPicBuf;
     }
 
     // ---- Correspondencia entre índices y marcas de tiempo ----
@@ -654,7 +744,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         {
             if ((AVPixelFormat)clone->format == AVPixelFormat.AV_PIX_FMT_D3D11 && _device is not null)
             {
-                D3D11TexturePayload texture = D3D11TexturePayload.FromDecoderFrame(_device, clone, color);
+                D3D11TexturePayload texture = D3D11TexturePayload.FromDecoderFrame(_device, clone, color, _surfacePool);
                 clone = null;
                 payload = texture;
                 sizeBytes = TextureBytes(texture);

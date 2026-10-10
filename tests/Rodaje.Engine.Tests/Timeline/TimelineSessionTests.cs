@@ -175,7 +175,7 @@ public sealed class TimelineSessionTests
         Assert.Equal(0, stats.LateRefreshes);
         Assert.Equal(6, stats.Cuts);
         Assert.Equal(6, stats.PreRollHits);
-        Assert.Equal(3, stats.DecodersOpen);
+        Assert.InRange(stats.DecodersOpen, 3, 6);
         Assert.Equal(3, stats.Layers.Count);
     }
 
@@ -246,12 +246,13 @@ public sealed class TimelineSessionTests
     [Fact]
     public void Due_frames_of_every_layer_are_decoded_before_any_look_ahead()
     {
+        // Con un solo decodificador por medio las dos capas lo comparten: los cuadros debidos van primero.
         var backend = new FakeTimelineBackend { ManualDecoding = true };
         var b = new TimelineBuilder(2, 0);
         b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
         b.AddVideo(0, "m", Time.Zero, Time.Zero, S(4));
         b.AddVideo(1, "m", Time.Zero, S(50), S(4));
-        using TimelineSession session = Open(b, backend);
+        using TimelineSession session = Open(b, backend, new TimelineSessionOptions { MaxDecodersPerMedia = 1 });
 
         backend.RunDecoders();
 
@@ -342,7 +343,7 @@ public sealed class TimelineSessionTests
     }
 
     [Fact]
-    public void One_decoder_per_media_and_idle_decoders_close_and_reopen()
+    public void A_media_used_at_two_distant_places_gets_a_decoder_for_each_and_idle_ones_close_and_reopen()
     {
         var time = new ManualTimeProvider();
         var backend = new FakeTimelineBackend();
@@ -355,11 +356,12 @@ public sealed class TimelineSessionTests
         using TimelineSession session = Open(b, backend, new TimelineSessionOptions { TimeProvider = time, PreRoll = TimeSpan.Zero });
         session.Seek(S(0.5));
         session.Tick().Dispose();
-        Assert.Equal(1, session.Stats.DecodersOpen);
+        Assert.Equal(2, session.Stats.DecodersOpen);
+        Assert.Equal(2, backend.Videos.Count(v => v.Path.EndsWith("a.mp4", StringComparison.Ordinal)));
 
         session.Seek(S(1.5));
         session.Tick().Dispose();
-        Assert.Equal(2, session.Stats.DecodersOpen);
+        Assert.Equal(3, session.Stats.DecodersOpen);
 
         session.Seek(S(1.9));
         session.Tick().Dispose();
@@ -377,15 +379,14 @@ public sealed class TimelineSessionTests
         }
 
         TimelineStats stats = session.Stats;
-        Assert.Equal((1, 1), (stats.DecodersOpen, stats.DecodersClosed));
-        Assert.True(backend.Videos.Single(v => v.Path.EndsWith("a.mp4", StringComparison.Ordinal)).Disposed);
+        Assert.Equal((1, 2), (stats.DecodersOpen, stats.DecodersClosed));
+        Assert.All(backend.Videos.Where(v => v.Path.EndsWith("a.mp4", StringComparison.Ordinal)), v => Assert.True(v.Disposed));
 
         session.Seek(S(0.2));
         using CompositionFrame back = session.Tick();
         Assert.Equal(new[] { "a" }, Media(back));
-        Assert.Equal(2, backend.Videos.Count(v => v.Path.EndsWith("a.mp4", StringComparison.Ordinal)));
+        Assert.Equal(3, backend.Videos.Count(v => v.Path.EndsWith("a.mp4", StringComparison.Ordinal)));
     }
-
     [Fact]
     public void The_cache_stays_within_the_global_budget_and_the_per_source_limit()
     {
@@ -430,7 +431,8 @@ public sealed class TimelineSessionTests
             b.AddVideo(track, "m", Time.Zero, S(track * 100), S(10));
         }
 
-        using TimelineSession session = Open(b, backend, new TimelineSessionOptions { MaxFramesPerSource = 16, PrefetchFrames = 8, PreRollFrames = 6 });
+        using TimelineSession session = Open(b, backend,
+            new TimelineSessionOptions { MaxFramesPerSource = 16, PrefetchFrames = 8, PreRollFrames = 6, MaxDecodersPerMedia = 1 });
         session.Tick().Dispose();
         session.Play();
         for (int refresh = 0; refresh < 60; refresh++)

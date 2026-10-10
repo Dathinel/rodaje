@@ -76,6 +76,9 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
     /// <summary>La textura es del pool de D3D11VA (y no una subida desde la CPU).</summary>
     public bool IsDecoderSurface => _frame != null;
 
+    /// <summary>Pool del decodificador que creó la textura; <c>null</c> si no es una superficie de D3D11VA.</summary>
+    public DecoderSurfacePool? SurfacePool { get; private init; }
+
     public bool IsReleased => Volatile.Read(ref _references) == 0;
 
     /// <summary>Contenidos vivos en todo el proceso; las pruebas lo usan para detectar fugas.</summary>
@@ -122,11 +125,11 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
     }
 
     /// <summary>Envuelve un cuadro de D3D11VA y se queda con <paramref name="frame"/>.</summary>
-    internal static D3D11TexturePayload FromDecoderFrame(GpuDevice device, FF.AVFrame* frame, VideoColor color)
+    internal static D3D11TexturePayload FromDecoderFrame(GpuDevice device, FF.AVFrame* frame, VideoColor color, DecoderSurfacePool? pool = null)
     {
         var texture = (ID3D11Texture2D*)frame->data[0];
         int slice = (int)(nint)frame->data[1];
-        return new D3D11TexturePayload(device, texture, slice, frame->width, frame->height) { _frame = frame, Color = color };
+        return new D3D11TexturePayload(device, texture, slice, frame->width, frame->height) { _frame = frame, Color = color, SurfacePool = pool };
     }
 
     /// <summary>
