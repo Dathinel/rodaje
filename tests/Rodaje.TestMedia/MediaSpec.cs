@@ -64,6 +64,10 @@ public sealed record MediaSpec
 
     public int GopLength { get; init; } = 60;
     public int BFrames { get; init; }
+
+    /// <summary>Bits por muestra del archivo codificado: 8, o 10 (solo HEVC Main 10).</summary>
+    public int BitDepth { get; init; } = 8;
+
     public AudioCodec Audio { get; init; } = AudioCodec.None;
     public ContainerFormat Container { get; init; } = ContainerFormat.Mp4;
 
@@ -107,6 +111,12 @@ public sealed record MediaSpec
             StartOffset.Ticks.ToString(CultureInfo.InvariantCulture),
             EffectiveVideoBitrateKbps.ToString(CultureInfo.InvariantCulture),
             AudioBitrateKbps.ToString(CultureInfo.InvariantCulture));
+        // Los archivos de 8 bits conservan la clave que tenían antes de existir BitDepth.
+        if (BitDepth != 8)
+        {
+            canonical += "|bits" + BitDepth.ToString(CultureInfo.InvariantCulture);
+        }
+
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
         return Convert.ToHexStringLower(hash.AsSpan(0, 8));
     }
@@ -115,6 +125,11 @@ public sealed record MediaSpec
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(GopLength, 1);
         ArgumentOutOfRangeException.ThrowIfNegative(BFrames);
+        if (BitDepth is not (8 or 10) || (BitDepth == 10 && Codec != VideoCodec.Hevc))
+        {
+            throw new ArgumentOutOfRangeException(nameof(BitDepth), $"Solo se admiten 8 bits, o 10 bits con HEVC; se pidió {BitDepth} con {Codec}.");
+        }
+
         ArgumentOutOfRangeException.ThrowIfLessThan(AudioBitrateKbps, 8);
         if (StartOffset < TimeSpan.Zero)
         {

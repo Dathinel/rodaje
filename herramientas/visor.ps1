@@ -23,6 +23,8 @@ $DotnetDir = Join-Path $Entorno 'dotnet'
 $Dotnet = Join-Path $DotnetDir 'dotnet.exe'
 $FfmpegBin = Join-Path $Entorno 'ffmpeg\bin'
 $Bibliotecas = @('avutil-61', 'swresample-7', 'swscale-10', 'avcodec-63', 'avformat-63')
+# ffmpeg.exe (proxies) importa además estas dos; FfmpegExecutable.ExtraLibraries las exige.
+$BibliotecasDelExe = @('avfilter-12', 'avdevice-63')
 try { $SdkVersion = (Get-Content -LiteralPath (Join-Path $Raiz 'global.json') -Raw -Encoding UTF8 | ConvertFrom-Json).sdk.version } catch { $SdkVersion = '' }
 $MarcaSdk = Join-Path $DotnetDir ".sdk-$SdkVersion"
 
@@ -95,10 +97,21 @@ function Publicar {
         return $false
     }
 
-    # Distribución: las DLL LGPL de FFmpeg van en ffmpeg\ junto al exe (FfmpegLocator las busca ahí primero).
+    # Distribución: las DLL LGPL de FFmpeg van en ffmpeg\ junto al exe (FfmpegLocator las busca ahí primero),
+    # con el ffmpeg.exe de la misma compilación y las dos DLL que solo él usa, para generar proxies.
+    $ffmpegExe = Join-Path $FfmpegBin 'ffmpeg.exe'
+    if (-not (Test-Path -LiteralPath $ffmpegExe)) {
+        Mal "Falta $ffmpegExe. Corre ABRIR.bat preparar-entorno para descargar FFmpeg."
+        return $false
+    }
+    $configuracion = (& $ffmpegExe -hide_banner -buildconf 2>$null) -join ' '
+    if ($LASTEXITCODE -ne 0 -or $configuracion -notmatch '--enable-version3' -or $configuracion -match '--enable-(gpl|nonfree)\b') {
+        Mal "El ffmpeg.exe de $(Corto $FfmpegBin) no es la compilación LGPL esperada; no se copia a dist."
+        return $false
+    }
     $destino = Join-Path $Salida 'ffmpeg'
     New-Item -ItemType Directory -Force -Path $destino | Out-Null
-    foreach ($b in $Bibliotecas) {
+    foreach ($b in $Bibliotecas + $BibliotecasDelExe) {
         $dll = Join-Path $FfmpegBin "$b.dll"
         if (-not (Test-Path -LiteralPath $dll)) {
             Mal "Falta $dll. Corre ABRIR.bat preparar-entorno para descargar FFmpeg."
@@ -106,6 +119,7 @@ function Publicar {
         }
         Copy-Item -LiteralPath $dll -Destination $destino -Force
     }
+    Copy-Item -LiteralPath $ffmpegExe -Destination $destino -Force
     $licenciaFfmpeg = Join-Path $Entorno 'ffmpeg\LICENSE.txt'
     if (Test-Path -LiteralPath $licenciaFfmpeg) { Copy-Item -LiteralPath $licenciaFfmpeg -Destination (Join-Path $destino 'LICENSE.txt') -Force }
     Copy-Item -LiteralPath (Join-Path $Raiz 'THIRD-PARTY-NOTICES.txt') -Destination $Salida -Force
