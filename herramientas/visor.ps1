@@ -121,7 +121,14 @@ function Publicar {
 }
 
 Titulo 'Rodaje - visor de un clip (fase 2)'
-if (-not $SinPublicar -or -not (Test-Path -LiteralPath $Exe)) {
+# Solo se recompila si el exe falta o algún fuente de src\ es más nuevo que él.
+$hayCambios = -not (Test-Path -LiteralPath $Exe)
+if (-not $hayCambios) {
+    $fechaExe = (Get-Item -LiteralPath $Exe).LastWriteTimeUtc
+    $hayCambios = [bool](Get-ChildItem -LiteralPath (Join-Path $Raiz 'src') -Recurse -File -Include *.cs,*.csproj,*.hlsl |
+        Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' -and $_.LastWriteTimeUtc -gt $fechaExe } | Select-Object -First 1)
+}
+if ($hayCambios -and -not $SinPublicar -or -not (Test-Path -LiteralPath $Exe)) {
     if (-not (Publicar)) { Write-Host ''; exit 1 }
 }
 

@@ -6,6 +6,10 @@ Editor de video nativo para Windows, rápido y por capas, con la comodidad de lo
 
 ## Cómo se usa
 
+**Para ver un video:** doble clic en **`Rodaje.bat`** y elige el archivo, o arrastra el video encima de `Rodaje.bat`. La primera vez compila el programa (alrededor de un minuto); después abre al instante. Espacio reproduce o pausa; ← y → avanzan de a un cuadro; F pone pantalla completa; I muestra las estadísticas.
+
+**Para correr las pruebas:** 
+
 Doble clic en **`ABRIR.bat`**. La primera vez descarga el SDK de .NET en `.entorno\` (unos 280 MB, con su huella SHA-512 verificada) y no instala nada fuera del proyecto.
 
 | Comando | Qué hace |

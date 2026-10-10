@@ -46,6 +46,11 @@ internal static unsafe class Program
                 return 1;
             }
 
+            if (arguments.File is null && !automated)
+            {
+                window.PromptForFile();
+            }
+
             if (automated)
             {
                 window.StartAutomation(new AutomatedRun(arguments.TestDuration!.Value, arguments.LogPath));

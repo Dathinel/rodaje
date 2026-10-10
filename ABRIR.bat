@@ -4,7 +4,7 @@ rem   ABRIR.bat                    todas las pruebas
 rem   ABRIR.bat cobertura          pruebas + cobertura de Rodaje.Core
 rem   ABRIR.bat aot                publica con Native AOT y ejecuta el .exe
 rem   ABRIR.bat aceptacion         criterios de la fase 2 con video y audio reales (varios minutos)
-rem   ABRIR.bat visor [-Archivo ruta]  abre el visor de prueba con un video
+rem   ABRIR.bat visor "C:\Users\danie\Videos\capcut\parte 1.mp4"  abre el visor de prueba con un video
 rem   ABRIR.bat preparar-entorno   vuelve a descargar el SDK y FFmpeg
 rem   ABRIR.bat -Filtro Recorte    otros argumentos pasan tal cual a probar.ps1
 rem Variables: RODAJE_ENTORNO (otro entorno), RODAJE_SIN_PAUSA=1 (sin pausa final).

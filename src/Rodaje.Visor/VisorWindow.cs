@@ -72,6 +72,15 @@ internal sealed unsafe class VisorWindow : IDisposable
 
     public void Show() => ShowWindow(_hwnd, SW_SHOWNORMAL);
 
+    /// <summary>Muestra el diálogo de abrir; si se cancela, la ventana queda vacía (Ctrl+O o arrastrar un video).</summary>
+    public void PromptForFile()
+    {
+        if (FileDialog.PickVideo(_hwnd) is { } path)
+        {
+            OpenFile(path, autoplay: true);
+        }
+    }
+
     public bool OpenFile(string path, bool autoplay)
     {
         ClipPlayer next;
