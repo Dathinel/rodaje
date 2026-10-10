@@ -49,7 +49,7 @@ Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas c
 
 - **Pestañas.** Propiedades, Filtros, Historial y Trabajos, cada una en su carpeta.
 - **Propiedades.** Los parámetros animables del clip en el cursor (`Services/Inspector/ClipPropertyEditor`). Sin keyframes se cambia el valor fijo; con keyframes, cambiar el valor crea o ajusta el keyframe del cuadro del cursor. Las curvas entre keyframes salen de `KeyframeEase`.
-- **Restablecer.** Cada parámetro tiene su botón y Transformación, «Restablecer todo»: valor de fábrica y sin keyframes, en un paso del historial (D-024). El botón se apaga si no hay nada que restablecer.
+- **Restablecer y quitar keyframes.** Cada parámetro tiene su botón de restablecer y Transformación, «Restablecer todo». Si hay keyframes, un aviso dice cuántos se borrarán antes de hacerlo; «Quitar keyframes» va aparte, en el menú contextual del parámetro. Todo es un paso del historial (D-024).
 - **Guardar como transición.** Guarda los ajustes en `%LOCALAPPDATA%\Rodaje\complementos\propios`.
 - **Filtros.** La pila del clip: activar, reordenar, quitar y añadir.
 - **Historial.** Cada paso del deshacer; un clic vuelve a ese estado.

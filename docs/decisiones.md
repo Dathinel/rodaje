@@ -251,10 +251,13 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 
 **Decisión.** Los estilos de D-018 se llaman «Rodaje», «Ágil» y «Clásico» (`ShortcutPreset.Rodaje`, `Agile` y `Classic`). Ni la interfaz ni el código nombran otros programas; las referencias de experiencia de uso quedan en estas decisiones y en `docs/archivo/`. `atajos.json` y `ajustes.json` guardados con los nombres anteriores se leen como Ágil y Clásico y se reescriben con los nuevos; un estilo desconocido vuelve a Rodaje sin dar por dañado el archivo.
 
-## D-024. Restablecer un parámetro quita sus keyframes (10 de octubre de 2026)
+## D-024. Restablecer un parámetro y quitar keyframes, con aviso (10 de octubre de 2026)
 
-**Decisión.** Cada parámetro del inspector tiene un botón de restablecer y la sección Transformación, «Restablecer todo». Sin keyframes, el parámetro vuelve a su valor de fábrica; con keyframes, se quitan todos y queda fijo en el valor de fábrica. Es un solo comando del núcleo (`Edits.ResetParameters`) y un solo paso del historial, también al restablecer toda la transformación. El botón se apaga cuando el parámetro ya está en su valor y sin keyframes.
+**Decisión.**
+- **Restablecer.** Cada parámetro del inspector tiene su botón y la sección Transformación, «Restablecer todo». Sin keyframes, el parámetro vuelve a su valor de fábrica sin preguntar. Con keyframes, primero sale un aviso que dice cuántos se borrarán (en «Restablecer todo», el total), con «Quitar keyframes y restablecer» y «Cancelar»; Cancelar es el botón por defecto y Esc también cancela. El botón se apaga si el parámetro ya está en su valor y sin keyframes.
+- **Quitar keyframes** es una acción aparte, en el menú contextual del parámetro, con el mismo aviso: borra la animación y deja el parámetro fijo en el valor que se ve en el cursor.
+- Las dos son un solo comando del núcleo (`Edits.ResetParameters`) y un solo paso del historial: Ctrl+Z lo devuelve todo de una vez.
 
-**Por qué.** Es lo que esperan quienes vienen de otros editores: «restablecer» deja el parámetro como recién creado. Restablecer solo el keyframe del cursor ya lo hace el rombo, y dejar la animación con un valor cambiado sería una edición a medias difícil de leer.
+**Por qué.** Restablecer suele dejar el parámetro como recién creado, pero borrar una animación sin avisar es fácil de hacer sin querer y difícil de notar. Separar «quitar keyframes» de «volver al valor» evita confundir las dos cosas.
 
-**Consecuencias.** Quien quiera volver solo un keyframe al valor de fábrica escribe el número; deshacer recupera toda la animación de una vez.
+**Consecuencias.** Un clic más cuando hay animación; quien quiera volver solo un keyframe al valor de fábrica escribe el número.

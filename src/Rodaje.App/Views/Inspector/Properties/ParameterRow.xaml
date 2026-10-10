@@ -5,7 +5,21 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Grid Padding="12,6,8,6" RowSpacing="2" ColumnSpacing="2">
+    <Grid Padding="12,6,8,6" RowSpacing="2" ColumnSpacing="2" Background="Transparent">
+        <Grid.ContextFlyout>
+            <MenuFlyout>
+                <MenuFlyoutItem x:Name="ResetItem" Text="Restablecer" Click="OnResetClick">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE72C;" />
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+                <MenuFlyoutItem x:Name="ClearKeyframesItem" Text="Quitar keyframes" Click="OnClearKeyframesClick">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE74D;" />
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
+            </MenuFlyout>
+        </Grid.ContextFlyout>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />

@@ -224,23 +224,80 @@ public sealed class ClipPropertyEditor
         return FindEffect(clip, effectType) is { } effect && ChangedFromDefault(effect, parameters).Count > 0;
     }
 
+    /// <summary>Keyframes que tienen entre todos los parámetros nombrados.</summary>
+    public static int KeyframeCount(Clip clip, string effectType, IEnumerable<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(names);
+        return FindEffect(clip, effectType) is { } effect
+            ? names.Sum(n => effect.Parameters.TryGetValue(n, out Parameter? p) ? p.Keyframes.Count : 0)
+            : 0;
+    }
+
     /// <summary>
-    /// Restablece los parámetros: valor de fábrica y sin keyframes (D-024), en un solo paso del historial. Los que ya
-    /// están en su valor no se tocan; <c>false</c> si no había nada que cambiar o la sesión rechazó la edición.
+    /// Restablece los parámetros al valor de fábrica en un solo paso del historial (D-024). Si alguno tiene keyframes,
+    /// antes pregunta con <paramref name="confirmRemoval"/> (recibe cuántos se borrarán); si se cancela, no cambia nada.
     /// </summary>
-    public bool Reset(Clip clip, string effectType, IEnumerable<(string Name, double DefaultValue)> parameters, string description)
+    /// <returns><c>false</c> si no había nada que cambiar, se canceló o la sesión rechazó la edición.</returns>
+    public async Task<bool> ResetAsync(
+        Clip clip,
+        string effectType,
+        IReadOnlyList<(string Name, double DefaultValue)> parameters,
+        string description,
+        Func<int, Task<bool>> confirmRemoval)
     {
         ArgumentNullException.ThrowIfNull(clip);
         ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(confirmRemoval);
         EndChange();
-        if (FindEffect(clip, effectType) is not { } effect)
+        string clipId = clip.Id;
+        if (!CanReset(clip, effectType, parameters))
+        {
+            return false;
+        }
+
+        int keyframes = KeyframeCount(clip, effectType, parameters.Select(p => p.Name));
+        if (keyframes > 0 && !await confirmRemoval(keyframes))
+        {
+            return false;
+        }
+
+        // Mientras el aviso estaba abierto el clip pudo cambiar o desaparecer: se vuelve a leer.
+        if (Session.Sequence.FindClip(clipId) is not { } found || FindEffect(found.Clip, effectType) is not { } effect)
         {
             return false;
         }
 
         Dictionary<string, double> changed = ChangedFromDefault(effect, parameters);
         return changed.Count > 0
-            && Session.Execute(Edits.ResetParameters(Session.SequenceId, clip.Id, effect.Id, changed, description));
+            && Session.Execute(Edits.ResetParameters(Session.SequenceId, clipId, effect.Id, changed, description));
+    }
+
+    /// <summary>
+    /// Quita todos los keyframes del parámetro y lo deja fijo en el valor que se ve en el cursor, tras confirmarlo con
+    /// <paramref name="confirmRemoval"/>. Un solo paso del historial.
+    /// </summary>
+    public async Task<bool> ClearKeyframesAsync(Clip clip, string effectType, string name, string description, Func<int, Task<bool>> confirmRemoval)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(confirmRemoval);
+        EndChange();
+        string clipId = clip.Id;
+        int keyframes = KeyframeCount(clip, effectType, [name]);
+        if (keyframes == 0 || !await confirmRemoval(keyframes))
+        {
+            return false;
+        }
+
+        if (Session.Sequence.FindClip(clipId) is not { } found || FindEffect(found.Clip, effectType) is not { } effect
+            || !effect.Parameters.TryGetValue(name, out Parameter? parameter) || parameter.Keyframes.Count == 0)
+        {
+            return false;
+        }
+
+        double value = parameter.Evaluate(SourceTimeAtPlayhead(found.Clip));
+        return Session.Execute(Edits.ResetParameters(
+            Session.SequenceId, clipId, effect.Id, new Dictionary<string, double> { [name] = value }, description));
     }
 
     /// <summary>Cambia la curva del keyframe del cursor hacia el siguiente.</summary>

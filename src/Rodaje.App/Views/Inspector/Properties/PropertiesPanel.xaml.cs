@@ -45,6 +45,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             row.NavigateRequested += OnRowNavigate;
             row.InterpolationChosen += OnRowInterpolation;
             row.ResetRequested += OnRowReset;
+            row.KeyframesClearRequested += OnRowClearKeyframes;
         }
 
         EditorSession session = services.Session;
@@ -244,16 +245,29 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
     }
 
-    private void OnRowReset(object? sender, EventArgs e)
+    private async void OnRowReset(object? sender, EventArgs e)
     {
         if (sender is ParameterRow row && _editor is { } editor && ClipFor(row) is { } clip)
         {
             _dragRow = null;
-            editor.Reset(clip, row.Spec.EffectType, Defaults([row]), row.Spec.ResetDescription);
+            string label = row.Spec.Label;
+            await editor.ResetAsync(clip, row.Spec.EffectType, [.. Defaults([row])], row.Spec.ResetDescription,
+                n => ConfirmKeyframeRemovalAsync($"Se borrarán {Keyframes(n)} de «{label}» y quedará en su valor de fábrica.", "Quitar keyframes y restablecer"));
         }
     }
 
-    private void OnResetAllClick(object sender, RoutedEventArgs e)
+    private async void OnRowClearKeyframes(object? sender, EventArgs e)
+    {
+        if (sender is ParameterRow row && _editor is { } editor && ClipFor(row) is { } clip)
+        {
+            _dragRow = null;
+            string label = row.Spec.Label;
+            await editor.ClearKeyframesAsync(clip, row.Spec.EffectType, row.Spec.Name, "Quitar keyframes de " + char.ToLowerInvariant(label[0]) + label[1..],
+                n => ConfirmKeyframeRemovalAsync($"Se borrarán {Keyframes(n)} de «{label}». Quedará fijo en el valor que se ve en el cursor.", "Quitar keyframes"));
+        }
+    }
+
+    private async void OnResetAllClick(object sender, RoutedEventArgs e)
     {
         if (_editor is not { } editor || ClipFor(XRow) is not { } clip)
         {
@@ -262,7 +276,31 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
         FinishChanges(_videoRows);
         _dragRow = null;
-        editor.Reset(clip, BuiltInEffects.Transform, Defaults(_videoRows), "Restablecer transformación");
+        await editor.ResetAsync(clip, BuiltInEffects.Transform, [.. Defaults(_videoRows)], "Restablecer transformación",
+            n => ConfirmKeyframeRemovalAsync($"Se borrarán {Keyframes(n)} de la transformación y todo quedará en sus valores de fábrica.", "Quitar keyframes y restablecer"));
+    }
+
+    private static string Keyframes(int count) => count == 1 ? "1 keyframe" : $"{count} keyframes";
+
+    /// <summary>Aviso antes de borrar keyframes; Cancelar es el botón por defecto y Esc también cancela.</summary>
+    private async Task<bool> ConfirmKeyframeRemovalAsync(string message, string confirm)
+    {
+        if (DialogGate.IsOpen || XamlRoot is null)
+        {
+            return false;
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "¿Quitar los keyframes?",
+            Content = new TextBlock { Text = message + " Se puede deshacer con Ctrl+Z.", TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = confirm,
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
     }
 
     private async void OnSavePresetClick(object sender, RoutedEventArgs e)
