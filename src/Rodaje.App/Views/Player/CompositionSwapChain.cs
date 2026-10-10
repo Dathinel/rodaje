@@ -85,12 +85,12 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
         }
     }
 
-    /// <summary>Pinta la composición ajustada con barras negras (o negro si no hay) y presenta con vsync.</summary>
-    public void Render(Presenter presenter, Compositor? composition)
+    /// <summary>Pinta la composición ajustada con barras negras, o en <paramref name="placement"/> si se da (negro si no hay), y presenta con vsync.</summary>
+    public void Render(Presenter presenter, Compositor? composition, PixelRect? placement = null)
     {
         if (composition is not null)
         {
-            presenter.Draw((nint)_target, Width, Height, composition);
+            presenter.Draw((nint)_target, Width, Height, composition, placement);
         }
         else
         {

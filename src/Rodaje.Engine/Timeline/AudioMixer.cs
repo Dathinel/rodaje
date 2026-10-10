@@ -1,4 +1,5 @@
 using Rodaje.Audio;
+using Rodaje.Audio.Metering;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Engine.Timeline;
@@ -11,6 +12,10 @@ namespace Rodaje.Engine.Timeline;
 /// propaga a <see cref="MixRenderer"/> en ese hilo, que reposiciona cada decodificador al volver a necesitarlo.
 /// </para>
 /// <para><see cref="Reload"/> llega del hilo de la ventana: cambia el plan y vuelve a mezclar lo que aún no suena.</para>
+/// <para>
+/// La mezcla se mide al producirse, por delante de lo que suena, y cada bloque guarda su muestra de la línea de tiempo
+/// en <see cref="Levels"/>: quien dibuja los medidores lee los del instante que da el reloj del dispositivo.
+/// </para>
 /// </remarks>
 internal sealed class AudioMixer : IAudioSampleSource, IDisposable
 {
@@ -22,7 +27,8 @@ internal sealed class AudioMixer : IAudioSampleSource, IDisposable
 
     public AudioMixer(AudioPlan plan, Func<string, IPcmSource> openDecoder, TimeSpan readAhead, TimeSpan idleTimeout, TimeProvider time)
     {
-        _renderer = new MixRenderer(plan, openDecoder, idleTimeout, time);
+        Levels = new AudioLevelRing();
+        _renderer = new MixRenderer(plan, openDecoder, idleTimeout, time, new AudioLevelAnalyzer(Levels));
         int capacity = (int)Math.Ceiling(readAhead.TotalSeconds * TimelinePlan.AudioSampleRate);
         try
         {
@@ -34,6 +40,9 @@ internal sealed class AudioMixer : IAudioSampleSource, IDisposable
             throw;
         }
     }
+
+    /// <summary>Niveles de la mezcla por bloques, con su posición en la línea de tiempo. Se lee desde cualquier hilo.</summary>
+    public AudioLevelRing Levels { get; }
 
     public int DecodersOpen => _renderer.DecodersOpen;
 
@@ -69,7 +78,10 @@ internal sealed class AudioMixer : IAudioSampleSource, IDisposable
 /// durante <c>idleTimeout</c> se cierra. Un medio que falla al abrirse o decodificarse queda en silencio
 /// hasta el siguiente plan.
 /// </para>
-/// <para>La suma pasa por <see cref="SoftClip"/>: idéntica bajo el umbral y acotada por debajo de 1 por encima.</para>
+/// <para>
+/// La suma pasa por <see cref="SoftClip"/>: idéntica bajo el umbral y acotada por debajo de 1 por encima. Si hay un
+/// analizador, mide lo que sale del limitador y marca los bloques en los que la suma pasó de 1 antes de él.
+/// </para>
 /// <para>Se usa desde un solo hilo, el de la mezcla, salvo <see cref="SetPlan"/> y los contadores.</para>
 /// </remarks>
 internal sealed class MixRenderer : IPcmSource
@@ -83,14 +95,16 @@ internal sealed class MixRenderer : IPcmSource
     private readonly TimeProvider _time;
     private readonly List<Reader> _readers = [];
     private readonly HashSet<SourceKey> _failed = [];
+    private readonly AudioLevelAnalyzer? _levels;
     private AudioPlan _plan;
     private AudioPlan? _pendingPlan;
     private float[] _scratch = new float[4096 * Channels];
+    private float[] _beforeLimiter = [];
     private long _position;
     private int _decodersOpen;
     private long _errors;
 
-    public MixRenderer(AudioPlan plan, Func<string, IPcmSource> openDecoder, TimeSpan idleTimeout, TimeProvider time)
+    public MixRenderer(AudioPlan plan, Func<string, IPcmSource> openDecoder, TimeSpan idleTimeout, TimeProvider time, AudioLevelAnalyzer? levels = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(openDecoder);
@@ -99,6 +113,7 @@ internal sealed class MixRenderer : IPcmSource
         _open = openDecoder;
         _idleTimeout = idleTimeout;
         _time = time;
+        _levels = levels;
     }
 
     /// <summary>Muestra de la línea de tiempo que devolverá el próximo <see cref="Read"/>.</summary>
@@ -143,11 +158,24 @@ internal sealed class MixRenderer : IPcmSource
             }
         }
 
+        Span<float> beforeLimiter = default;
+        if (_levels is not null)
+        {
+            if (_beforeLimiter.Length < interleaved.Length)
+            {
+                _beforeLimiter = new float[interleaved.Length];
+            }
+
+            beforeLimiter = _beforeLimiter.AsSpan(0, interleaved.Length);
+            interleaved.CopyTo(beforeLimiter);
+        }
+
         for (int i = 0; i < interleaved.Length; i++)
         {
             interleaved[i] = SoftClip(interleaved[i]);
         }
 
+        _levels?.Process(interleaved, from, beforeLimiter);
         _position = to;
         CloseIdle();
         return frames;
@@ -157,6 +185,7 @@ internal sealed class MixRenderer : IPcmSource
     {
         AdoptPlan();
         _position = Math.Max(0, position.ToSamples(TimelinePlan.AudioSampleRate));
+        _levels?.Restart(_position);
         foreach (Reader reader in _readers)
         {
             Release(reader);

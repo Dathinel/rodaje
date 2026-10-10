@@ -45,6 +45,8 @@ internal sealed partial class MainWindow : Window, IShellHost
     private bool _allowClose;
     private bool _closing;
     private bool _closed;
+    private bool _playerFullScreen;
+    private (GridLength Library, GridLength Inspector, GridLength Timeline) _layoutBeforeFullScreen;
 
     internal MainWindow(AppOptions options, PlayerEngine engine, IMediaProber prober, SettingsStore settings, string? settingsWarning)
     {
@@ -183,6 +185,38 @@ internal sealed partial class MainWindow : Window, IShellHost
         ModalContent.Content = null;
     }
 
+    public void SetPlayerFullScreen(bool fullScreen)
+    {
+        if (fullScreen == _playerFullScreen)
+        {
+            return;
+        }
+
+        _playerFullScreen = fullScreen;
+        if (fullScreen)
+        {
+            _layoutBeforeFullScreen = (LibraryColumn.Width, InspectorColumn.Width, TimelineRow.Height);
+            LibraryColumn.Width = InspectorColumn.Width = TimelineRow.Height = new GridLength(0);
+        }
+        else
+        {
+            (LibraryColumn.Width, InspectorColumn.Width, TimelineRow.Height) = _layoutBeforeFullScreen;
+        }
+
+        var splitter = new GridLength(fullScreen ? 0 : 4);
+        MainArea.ColumnDefinitions[1].Width = splitter;
+        MainArea.ColumnDefinitions[3].Width = splitter;
+        Root.RowDefinitions[3].Height = splitter;
+        Visibility chrome = fullScreen ? Visibility.Collapsed : Visibility.Visible;
+        foreach (UIElement element in new UIElement[] { TitleBar, Library, LibrarySplitter, Inspector, InspectorSplitter, TimelineSplitter, Timeline })
+        {
+            element.Visibility = chrome;
+        }
+
+        AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
+        Player.SetFullScreen(fullScreen);
+    }
+
     private bool InterceptKey(KeyChord chord)
     {
         // Con los atajos suspendidos (la página de atajos captura una tecla), Esc es de quien captura.
@@ -193,6 +227,12 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         if (chord == new KeyChord(0x1B))
         {
+            if (_playerFullScreen)
+            {
+                SetPlayerFullScreen(false);
+                return true;
+            }
+
             if (ModalLayer.Visibility == Visibility.Visible)
             {
                 ClosePage();
@@ -402,7 +442,20 @@ internal sealed partial class MainWindow : Window, IShellHost
             binding.Dispose();
         }
 
+        bool wasFullScreen = _playerFullScreen;
+        if (wasFullScreen)
+        {
+            Player.SetFullScreen(false);
+        }
+
         SaveLayout();
+        if (wasFullScreen)
+        {
+            // Los paneles recién restaurados todavía no pasaron por el diseño: se guardan los tamaños de antes.
+            _settings.Current.LibraryWidth = _layoutBeforeFullScreen.Library.Value;
+            _settings.Current.InspectorWidth = _layoutBeforeFullScreen.Inspector.Value;
+            _settings.Current.TimelineHeight = _layoutBeforeFullScreen.Timeline.Value;
+        }
         try
         {
             _settings.Save();

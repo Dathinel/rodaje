@@ -21,6 +21,9 @@ internal interface IShellHost
     void ShowPage(ShellPage page);
 
     void ClosePage();
+
+    /// <summary>Deja solo el reproductor en toda la pantalla, o vuelve a la distribución de siempre.</summary>
+    void SetPlayerFullScreen(bool fullScreen);
 }
 
 /// <summary>

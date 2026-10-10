@@ -1,4 +1,5 @@
 using Rodaje.Audio;
+using Rodaje.Audio.Metering;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Gpu;
@@ -127,6 +128,32 @@ public sealed class TimelineSession : IDisposable
         _mixer?.DecodersOpen ?? 0,
         _mixer?.Underruns ?? 0,
         _mixer?.Errors ?? 0));
+
+    /// <summary>Hay mezcla que medir: el audio está activado. Sin ella, <see cref="MeasureAudio"/> siempre da silencio.</summary>
+    public bool HasAudioLevels => _mixer is not null;
+
+    /// <summary>
+    /// Niveles de la mezcla que suena entre dos posiciones de la línea de tiempo: picos de
+    /// <c>(<paramref name="from"/>, <paramref name="to"/>]</c> y RMS de los <paramref name="rmsWindow"/> que terminan en
+    /// <paramref name="to"/> (sin pasar de <paramref name="rmsFloor"/>, el último salto de posición).
+    /// </summary>
+    /// <remarks>
+    /// Se puede llamar desde cualquier hilo, incluso mientras otro desecha la sesión: solo lee los bloques que la mezcla
+    /// publicó por delante, sin candados ni reservas. Para que coincida con lo que se oye, <paramref name="to"/> debe ser
+    /// la posición del reloj (<see cref="Position"/>), no la de la mezcla.
+    /// </remarks>
+    public AudioLevels MeasureAudio(Time from, Time to, TimeSpan rmsWindow, Time rmsFloor = default)
+    {
+        if (_mixer is not { } mixer)
+        {
+            return AudioLevels.Silence;
+        }
+
+        int rate = TimelinePlan.AudioSampleRate;
+        long end = to.ToSamples(rate);
+        long rmsStart = Math.Max(end - (long)(rmsWindow.TotalSeconds * rate), rmsFloor.ToSamples(rate));
+        return mixer.Levels.Measure(from.ToSamples(rate), end, rmsStart);
+    }
 
     /// <summary>Abre la secuencia con FFmpeg, el dispositivo de audio predeterminado y un hilo de decodificación por medio.</summary>
     /// <param name="device">Dispositivo del compositor; los cuadros llegan como texturas suyas. Sin él se decodifica en la CPU.</param>

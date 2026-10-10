@@ -37,6 +37,12 @@ public sealed class AppSettings
 
     public ProxyUsage ProxyUsage { get; set; } = ProxyUsage.Auto;
 
+    /// <summary>Velocidad de caída de los medidores de audio, en dB por segundo.</summary>
+    public double MeterDecayDbPerSecond { get; set; } = 20;
+
+    /// <summary>El reproductor muestra los márgenes seguros de acción y de títulos.</summary>
+    public bool ShowSafeAreas { get; set; }
+
     /// <summary>Pone el proyecto el primero de los recientes, sin repetirlo y con un máximo.</summary>
     public void AddRecentProject(string path)
     {
@@ -57,6 +63,7 @@ public sealed class AppSettings
         TimelineHeight = Clamp(TimelineHeight, 160, 1400, 300);
         WindowWidth = WindowWidth == 0 ? 0 : Clamp(WindowWidth, 800, 10000, 0);
         WindowHeight = WindowHeight == 0 ? 0 : Clamp(WindowHeight, 560, 10000, 0);
+        MeterDecayDbPerSecond = Clamp(MeterDecayDbPerSecond, 3, 120, 20);
         RecentProjects = [.. (RecentProjects ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(MaxRecentProjects)];
         if (!Enum.IsDefined(ShortcutPreset))
         {

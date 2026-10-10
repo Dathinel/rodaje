@@ -78,6 +78,13 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
 
         metrics.Note($"Espacio inyectado 6 veces con el foco en EXPORTAR: {_toggles - before} cambios de reproducción, {_exports} clics en EXPORTAR (debe ser 0); vía: {_inputMode}");
 
+        // Ediciones mientras reproduce (como las del inspector): cuánto tarda cada copia del proyecto en verse.
+        for (int i = 0; i < 20; i++)
+        {
+            engine.Reload(window.Session.Project.Clone());
+            await Task.Delay(113);
+        }
+
         SizeInt32 original = window.AppWindow.Size;
         foreach ((int w, int h) in new[] { (1100, 700), (1700, 1000), (1300, 820) })
         {

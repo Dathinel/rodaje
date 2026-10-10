@@ -105,6 +105,32 @@ public sealed class AudioMixerTests
     }
 
     [Fact]
+    public void The_meter_measures_what_leaves_the_limiter_and_flags_the_blocks_that_overflowed_before_it()
+    {
+        var plan = new AudioPlan([.. Enumerable.Range(0, 8).Select(i => new AudioTrackPlan($"t{i}", [new AudioClipPlan($"c{i}", A, 1000, 4800, 4095)]))]);
+        var backend = Backend();
+        var ring = new Rodaje.Audio.Metering.AudioLevelRing();
+        using var mixer = new MixRenderer(plan, backend.OpenAudio, TimeSpan.FromSeconds(5), TimeProvider.System, new Rodaje.Audio.Metering.AudioLevelAnalyzer(ring));
+
+        float[] buffer = Read(mixer, 4800);
+
+        // La suma de ocho pistas llega a 2 en la muestra 1000 (bloque [896, 1024)); el medidor ve lo limitado.
+        Assert.True(ring.Measure(900, 1000, 1000).Clipped);
+        Assert.Equal(buffer[2 * 1000], ring.Measure(900, 1000, 1000).Left.Peak);
+        Assert.False(ring.Measure(0, 890, 890).Clipped);
+        Assert.False(ring.Measure(1030, 2900, 2900).Clipped);
+
+        // Luego cada pista sube en rampa ((n % 4096) / 16384) y las ocho pasan de 1 desde la muestra 1000 + 2050.
+        Assert.True(ring.Measure(3100, 4600, 4600).Clipped);
+        Assert.Equal(0, ring.Measure(0, 890, 0).Left.Peak);
+
+        // Un seek empieza bloques nuevos en la posición de destino.
+        mixer.Seek(Time.FromSamples(100_000, 48_000));
+        Read(mixer, 256);
+        Assert.Equal(256, ring.Measure(100_000, 100_256, 100_256).Frames);
+    }
+
+    [Fact]
     public void Seek_repositions_every_decoder_on_its_next_read()
     {
         var backend = Backend();

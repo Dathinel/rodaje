@@ -11,6 +11,12 @@ public sealed record PlaybackSnapshot(Time Position, Time Duration, bool IsPlayi
 
     /// <summary>Refrescos en los que alguna capa no tenía su cuadro a tiempo, desde que se abrió la secuencia.</summary>
     public long FramesDropped { get; init; }
+
+    /// <summary>Alguna capa en pantalla sale de un proxy de vista previa.</summary>
+    public bool UsesProxy { get; init; }
+
+    /// <summary>Velocidad de la lanzadera (<see cref="Shuttle"/>): 0 en pausa, 1 reproduciendo, otra cosa si recorre a saltos.</summary>
+    public int ShuttleRate { get; init; }
 }
 
 /// <summary>

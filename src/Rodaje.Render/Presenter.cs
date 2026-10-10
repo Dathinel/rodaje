@@ -28,7 +28,11 @@ public sealed unsafe class Presenter : IDisposable
     /// </summary>
     /// <param name="renderTargetView"><c>ID3D11RenderTargetView*</c> del búfer de la cadena, de este dispositivo.</param>
     /// <returns>El rectángulo donde quedó la imagen.</returns>
-    public PixelRect Draw(nint renderTargetView, int targetWidth, int targetHeight, Compositor source)
+    public PixelRect Draw(nint renderTargetView, int targetWidth, int targetHeight, Compositor source) =>
+        Draw(renderTargetView, targetWidth, targetHeight, source, null);
+
+    /// <summary>Como <see cref="Draw(nint, int, int, Compositor)"/>, pero en <paramref name="placement"/> si se da (puede salirse del destino).</summary>
+    public PixelRect Draw(nint renderTargetView, int targetWidth, int targetHeight, Compositor source, PixelRect? placement)
     {
         ArgumentOutOfRangeException.ThrowIfZero(renderTargetView);
         ArgumentNullException.ThrowIfNull(source);
@@ -38,7 +42,7 @@ public sealed unsafe class Presenter : IDisposable
         }
 
         var target = (ID3D11RenderTargetView*)renderTargetView;
-        PixelRect rect = VideoLayout.Fit(targetWidth, targetHeight, source.Width, source.Height);
+        PixelRect rect = placement ?? VideoLayout.Fit(targetWidth, targetHeight, source.Width, source.Height);
         _gpu.LockContext();
         try
         {

@@ -6,16 +6,41 @@
     xmlns:meters="using:Rodaje.App.Views.Meters"
     xmlns:player="using:Rodaje.App.Views.Player">
 
-    <Grid Background="{StaticResource PanelBrush}">
+    <Grid x:Name="RootGrid" Background="{StaticResource PanelBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="40" />
+            <RowDefinition x:Name="TransportRow" Height="44" />
         </Grid.RowDefinitions>
 
-        <Grid Style="{StaticResource PanelHeaderStyle}">
-            <TextBlock Text="Reproductor" Style="{StaticResource PanelTitleTextStyle}" />
-            <TextBlock x:Name="FormatText" HorizontalAlignment="Right" Style="{StaticResource LabelTextStyle}" />
+        <Grid x:Name="Header" Style="{StaticResource PanelHeaderStyle}" Padding="12,0,6,0">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <TextBlock Text="Reproductor" Style="{StaticResource PanelTitleTextStyle}" />
+                <TextBlock Text="·" Style="{StaticResource LabelTextStyle}" />
+                <TextBlock x:Name="AspectText" Style="{StaticResource LabelTextStyle}" />
+                <Border x:Name="ShuttleBadge" Visibility="Collapsed" Background="{StaticResource AccentSubtleBrush}" CornerRadius="2" Padding="6,1">
+                    <TextBlock x:Name="ShuttleText" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource AccentBrush}" />
+                </Border>
+                <Border x:Name="ProxyBadge" Visibility="Collapsed" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
+                        BorderThickness="1" CornerRadius="2" Padding="6,1"
+                        ToolTipService.ToolTip="La vista previa usa un proxy: una copia liviana del medio. La exportación usa siempre los originales.">
+                    <TextBlock Text="Proxy" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" />
+                </Border>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="2" VerticalAlignment="Center">
+                <DropDownButton x:Name="ZoomButton" Content="Ajustar" MinHeight="26" Padding="8,0" FontSize="{StaticResource BodyFontSize}"
+                                ToolTipService.ToolTip="Zoom de la vista previa">
+                    <DropDownButton.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <RadioMenuFlyoutItem x:Name="ZoomFitItem" Text="Ajustar" GroupName="PlayerZoom" IsChecked="True" Click="OnZoomClick" />
+                            <RadioMenuFlyoutItem x:Name="ZoomHalfItem" Text="50 %" GroupName="PlayerZoom" Click="OnZoomClick" />
+                            <RadioMenuFlyoutItem x:Name="ZoomFullItem" Text="100 %" GroupName="PlayerZoom" Click="OnZoomClick" />
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+                <ToggleButton x:Name="SafeAreasButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE7A8;" Click="OnSafeAreasClick" />
+                <Button x:Name="FullScreenButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE740;" Click="OnFullScreenClick" />
+            </StackPanel>
         </Grid>
 
         <Grid Grid.Row="1" Background="{StaticResource BackgroundBrush}">
@@ -23,21 +48,30 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <SwapChainPanel x:Name="VideoPanel" x:FieldModifier="internal" Margin="8" />
+            <SwapChainPanel x:Name="VideoPanel" x:FieldModifier="internal" Margin="8" DoubleTapped="OnVideoDoubleTapped" />
+            <Canvas x:Name="SafeAreaCanvas" Margin="8" IsHitTestVisible="False" Visibility="Collapsed">
+                <Rectangle x:Name="ActionSafe" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1" StrokeDashArray="4,3" Opacity="0.8" />
+                <Rectangle x:Name="TitleSafe" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1" StrokeDashArray="2,3" Opacity="0.8" />
+                <Rectangle x:Name="CenterH" Fill="{StaticResource TextMutedBrush}" Width="16" Height="1" Opacity="0.8" />
+                <Rectangle x:Name="CenterV" Fill="{StaticResource TextMutedBrush}" Width="1" Height="16" Opacity="0.8" />
+            </Canvas>
             <TextBlock x:Name="StatusText" Style="{StaticResource LabelTextStyle}" Margin="16,12"
-                       HorizontalAlignment="Left" VerticalAlignment="Top" />
+                       HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" />
             <meters:MetersView x:Name="Meters" x:FieldModifier="internal" Grid.Column="1" />
         </Grid>
 
-        <Grid Grid.Row="2" Padding="12,0" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
-            <TextBlock Text="{x:Bind Session.PositionText, Mode=OneWay, FallbackValue='0:00.000'}" Style="{StaticResource TimecodeTextStyle}" Foreground="{StaticResource AccentBrush}" />
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4">
+        <Grid x:Name="Transport" Grid.Row="2" Padding="12,0" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
+            <TextBlock Text="{x:Bind Session.PositionText, Mode=OneWay, FallbackValue='0:00.000'}" Style="{StaticResource TimecodeTextStyle}"
+                       FontSize="{StaticResource TitleFontSize}" Foreground="{StaticResource AccentBrush}" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6">
                 <Button x:Name="PreviousFrameButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE892;" Click="OnPreviousFrame" />
-                <Button x:Name="PlayButton" Style="{StaticResource ToolButtonStyle}" Content="{x:Bind player:PlayerView.PlayGlyph(Session.IsPlaying), Mode=OneWay, FallbackValue='&#xE768;'}"
-                        Foreground="{StaticResource AccentBrush}" Click="OnPlay" />
+                <Button x:Name="PlayButton" Style="{StaticResource AccentButtonStyle}" Width="40" Height="30" MinHeight="0" Padding="0"
+                        FontFamily="{StaticResource IconFontFamily}" FontSize="{StaticResource IconFontSize}"
+                        Content="{x:Bind player:PlayerView.PlayGlyph(Session.IsPlaying), Mode=OneWay, FallbackValue='&#xE768;'}" Click="OnPlay" />
                 <Button x:Name="NextFrameButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE893;" Click="OnNextFrame" />
             </StackPanel>
-            <TextBlock HorizontalAlignment="Right" Text="{x:Bind Session.DurationText, Mode=OneWay, FallbackValue='0:00.000'}" Style="{StaticResource TimecodeTextStyle}" Foreground="{StaticResource TextMutedBrush}" />
+            <TextBlock HorizontalAlignment="Right" Text="{x:Bind Session.DurationText, Mode=OneWay, FallbackValue='0:00.000'}"
+                       Style="{StaticResource TimecodeTextStyle}" FontSize="{StaticResource TitleFontSize}" Foreground="{StaticResource TextMutedBrush}" />
         </Grid>
     </Grid>
 </UserControl>
