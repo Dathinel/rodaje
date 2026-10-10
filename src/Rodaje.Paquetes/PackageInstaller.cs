@@ -49,12 +49,15 @@ public sealed record InstallLimits
 /// <summary>
 /// Instala un <c>.paquete</c> (zip con <c>paquete.json</c>) y desinstala paquetes. Nunca escribe fuera de la carpeta del
 /// paquete: cada entrada del zip se valida (<see cref="SafePaths"/>) y se comprueba la ruta final. La carpeta definitiva se
-/// reemplaza con un cambio de nombre, así un corte deja la versión anterior o la nueva, nunca una mezcla.
+/// reemplaza con un cambio de nombre, así un corte deja la versión anterior o la nueva, nunca una mezcla; si el corte llega
+/// entre los dos cambios de nombre, <see cref="CleanUpLeftovers"/> devuelve la anterior a su sitio al arrancar.
 /// </summary>
 public sealed class PackageInstaller(PackageLocations locations, string appId, InstallLimits? limits = null)
 {
     private const string InstallingPrefix = ".instalando-";
     private const string RemovingPrefix = ".desinstalando-";
+    private const string PreviousPrefix = ".anterior-";
+    private const int TagLength = 12;
 
     private readonly InstallLimits _limits = limits ?? InstallLimits.Default;
 
@@ -95,7 +98,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
 
         // Se extrae primero bajo la carpeta de paquetes (mismo volumen, para mover sin copiar) y luego se decide dónde va.
         Directory.CreateDirectory(Locations.Packages);
-        string staging = Path.Combine(Locations.Packages, InstallingPrefix + Guid.NewGuid().ToString("N")[..12]);
+        string staging = Path.Combine(Locations.Packages, InstallingPrefix + NewTag());
         try
         {
             Extract(archive, staging, cancellationToken);
@@ -137,7 +140,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
                 }
 
                 outcome = order > 0 ? InstallOutcome.Updated : order == 0 ? InstallOutcome.Reinstalled : InstallOutcome.Downgraded;
-                movedAside = Path.Combine(root, RemovingPrefix + Guid.NewGuid().ToString("N")[..12]);
+                movedAside = Path.Combine(root, PreviousPrefix + NewTag() + "-" + manifest.Id);
                 Directory.Move(target, movedAside);
             }
 
@@ -192,7 +195,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
                 continue;
             }
 
-            string aside = Path.Combine(root, RemovingPrefix + Guid.NewGuid().ToString("N")[..12]);
+            string aside = Path.Combine(root, RemovingPrefix + NewTag());
             try
             {
                 Directory.Move(target, aside);
@@ -209,29 +212,108 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         throw new PackageInstallException($"«{packageId}» no está instalado.");
     }
 
-    /// <summary>Borra restos de instalaciones o desinstalaciones cortadas (por ejemplo, por un apagón).</summary>
+    /// <summary>
+    /// Resuelve lo que dejó una instalación o desinstalación cortada (por ejemplo, por un apagón): borra las extracciones a
+    /// medias y lo que se estaba desinstalando, y devuelve la versión anterior a su sitio si la nueva no quedó completa.
+    /// Solo debe llamarse al arrancar, cuando no hay ninguna instalación en curso.
+    /// </summary>
+    /// <returns>Cuántos restos se resolvieron.</returns>
     public int CleanUpLeftovers()
     {
-        int removed = 0;
+        int resolved = 0;
         foreach (string root in new[] { Locations.Packages, Locations.Modules })
         {
-            if (!Directory.Exists(root))
+            List<string> directories;
+            try
+            {
+                if (!Directory.Exists(root))
+                {
+                    continue;
+                }
+
+                directories = [.. Directory.EnumerateDirectories(root)];
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 continue;
             }
 
-            foreach (string directory in Directory.EnumerateDirectories(root))
+            // Primero las versiones anteriores: restaurar una puede apartar una nueva incompleta como «desinstalando».
+            foreach (string directory in directories.Where(d => Path.GetFileName(d).StartsWith(PreviousPrefix, StringComparison.Ordinal)))
+            {
+                if (ResolvePrevious(root, directory))
+                {
+                    resolved++;
+                }
+            }
+
+            foreach (string directory in directories)
             {
                 string name = Path.GetFileName(directory);
                 if ((name.StartsWith(InstallingPrefix, StringComparison.Ordinal) || name.StartsWith(RemovingPrefix, StringComparison.Ordinal)) && TryDelete(directory))
                 {
-                    removed++;
+                    resolved++;
                 }
             }
         }
 
-        return removed;
+        return resolved;
     }
+
+    /// <summary>Una versión apartada durante una actualización: sobra si la nueva está completa; si no, vuelve a su sitio.</summary>
+    private static bool ResolvePrevious(string root, string aside)
+    {
+        string name = Path.GetFileName(aside);
+        int idStart = PreviousPrefix.Length + TagLength + 1;
+        string id = name.Length > idStart && name[idStart - 1] == '-' ? name[idStart..] : "";
+        if (!Identifiers.IsValid(id))
+        {
+            return TryDelete(aside);
+        }
+
+        string target = Path.Combine(root, id);
+        if (IsComplete(target, id) || !IsComplete(aside, id))
+        {
+            return TryDelete(aside);
+        }
+
+        try
+        {
+            if (Directory.Exists(target))
+            {
+                string broken = Path.Combine(root, RemovingPrefix + NewTag());
+                Directory.Move(target, broken);
+                TryDelete(broken);
+            }
+
+            Directory.Move(aside, target);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Si la carpeta tiene un manifiesto válido con ese id y todos los archivos que nombra.</summary>
+    private static bool IsComplete(string directory, string id)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return false;
+        }
+
+        try
+        {
+            return ManifestReader.ReadFile(Path.Combine(directory, PackageManifest.FileName)).Manifest?.Id == id;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static string NewTag() => Guid.NewGuid().ToString("N")[..TagLength];
 
     private void Extract(string archive, string destination, CancellationToken cancellationToken)
     {
@@ -297,6 +379,9 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             using Stream source = entry.Open();
             using var target = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
             CopyLimited(source, target, entry.Length, cancellationToken);
+
+            // Al disco antes del cambio de nombre: tras un apagón, la carpeta nueva no puede quedar con archivos vacíos.
+            target.Flush(flushToDisk: true);
         }
     }
 

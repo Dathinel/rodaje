@@ -193,6 +193,78 @@ public sealed class PackageInstallerTests : IDisposable
     }
 
     [Fact]
+    public void A_blackout_between_the_two_renames_of_an_update_restores_the_previous_version()
+    {
+        string target = InstallVersion("1.0.0");
+        Directory.Move(target, Path.Combine(_locations.Packages, ".anterior-0123456789ab-rodaje-transiciones"));
+
+        Assert.Equal(1, _installer.CleanUpLeftovers());
+
+        Assert.Equal("1.0.0", InstalledVersion());
+        Assert.Equal(["rodaje-transiciones"], Directory.GetDirectories(_locations.Packages).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public void A_blackout_that_leaves_the_new_version_incomplete_restores_the_previous_one()
+    {
+        string target = InstallVersion("1.0.0");
+        Directory.Move(target, Path.Combine(_locations.Packages, ".anterior-0123456789ab-rodaje-transiciones"));
+        Directory.CreateDirectory(target);
+        File.WriteAllText(Path.Combine(target, "paquete.json"), Samples.Manifest(version: "2.0.0"));
+
+        _installer.CleanUpLeftovers();
+
+        Assert.Equal("1.0.0", InstalledVersion());
+        Assert.True(File.Exists(Path.Combine(target, "transiciones", "deslizar.json")));
+        Assert.Equal(["rodaje-transiciones"], Directory.GetDirectories(_locations.Packages).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public void A_blackout_while_deleting_the_previous_version_keeps_the_new_one()
+    {
+        InstallVersion("1.0.0");
+        string aside = Path.Combine(_locations.Packages, ".anterior-0123456789ab-rodaje-transiciones");
+        Directory.CreateDirectory(Path.Combine(aside, "transiciones"));
+        File.WriteAllText(Path.Combine(aside, "transiciones", "deslizar.json"), "{}");
+        InstallVersion("2.0.0");
+
+        _installer.CleanUpLeftovers();
+
+        Assert.Equal("2.0.0", InstalledVersion());
+        Assert.False(Directory.Exists(aside));
+    }
+
+    [Fact]
+    public void A_blackout_during_an_uninstall_does_not_bring_the_package_back()
+    {
+        string target = InstallVersion("1.0.0");
+        Directory.Move(target, Path.Combine(_locations.Packages, ".desinstalando-0123456789ab"));
+
+        _installer.CleanUpLeftovers();
+
+        Assert.Empty(Directory.GetDirectories(_locations.Packages));
+    }
+
+    [Fact]
+    public void An_update_leaves_no_previous_version_behind()
+    {
+        InstallVersion("1.0.0");
+        InstallVersion("1.1.0");
+
+        Assert.Equal(["rodaje-transiciones"], Directory.GetDirectories(_locations.Packages).Select(Path.GetFileName));
+        Assert.Equal(0, _installer.CleanUpLeftovers());
+    }
+
+    private string InstallVersion(string version)
+    {
+        string archive = Samples.ValidPackage(_folder.Combine($"v{version}.paquete"), version: version);
+        return _installer.Install(archive).Package.Directory;
+    }
+
+    private string? InstalledVersion() =>
+        ManifestReader.ReadFile(Path.Combine(_locations.Packages, "rodaje-transiciones", "paquete.json")).Manifest?.Version.ToString();
+
+    [Fact]
     public void The_own_id_is_reserved()
     {
         string archive = Samples.ValidPackage(_folder.Combine("p.paquete"), id: PackageLibrary.OwnPackageId);

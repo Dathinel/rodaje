@@ -88,9 +88,11 @@ Los tiempos van relativos al primer keyframe y las posiciones en píxeles de la 
 1. Si se da un SHA-256 esperado (lo hará la descarga de la fase 7), se compara con el del archivo antes de abrirlo.
 2. Se extrae a `paquetes\.instalando-<aleatorio>`. Cada entrada del zip pasa por `SafePaths`: se rechazan rutas con raíz o unidad, `..` y `.`, segmentos vacíos, dos puntos (unidades y flujos alternos de NTFS), caracteres de control o prohibidos, nombres reservados de Windows (`CON`, `NUL`, `COM1`…, también con extensión) y segmentos que terminan en punto o espacio, que Windows recorta y harían que dos entradas distintas acaben en el mismo archivo. Además se comprueba que la ruta final quede dentro de la carpeta, y se rechazan entradas repetidas sin distinguir mayúsculas. Hay límites contra zips maliciosos: 20 000 entradas, 8 GB descomprimidos (los módulos traen modelos grandes), una tasa de compresión de 200 a 1 en entradas de más de 1 MB y una copia que se corta si una entrada trae más bytes de los que declara.
 3. Se lee y valida `paquete.json` con sus archivos, y se comprueba que el paquete funcione en este programa.
-4. Si ya hay una versión instalada, se compara: una más nueva actualiza, la misma reinstala y una más vieja se rechaza salvo que se pida (`allowDowngrade`). La carpeta anterior se aparta con un cambio de nombre, la nueva entra con otro y la vieja se borra después; si algo falla a mitad, la anterior vuelve a su lugar.
+4. Si ya hay una versión instalada, se compara: una más nueva actualiza, la misma reinstala y una más vieja se rechaza salvo que se pida (`allowDowngrade`). La carpeta anterior se aparta como `.anterior-<aleatorio>-<id>`, la nueva entra con otro cambio de nombre (sus archivos ya están escritos en el disco) y la vieja se borra después; si algo falla a mitad, la anterior vuelve a su lugar.
 
-Desinstalar aparta la carpeta y la borra. Solo se desinstala lo instalado por la persona: lo incluido con el programa y lo propio no. Al arrancar se limpian los restos `.instalando-*` y `.desinstalando-*` de un corte de luz.
+Desinstalar aparta la carpeta como `.desinstalando-<aleatorio>` y la borra. Solo se desinstala lo instalado por la persona: lo incluido con el programa y lo propio no.
+
+**Cortes de luz.** Al arrancar, y solo entonces, se resuelven los restos: `.instalando-*` y `.desinstalando-*` se borran; una `.anterior-*` se borra si la versión nueva quedó completa (manifiesto válido con su id y todos sus archivos) y, si no, vuelve a su sitio y la nueva a medias se descarta. Así un apagón en mitad de una actualización deja la versión vieja o la nueva, nunca ninguna.
 
 ## Módulos de IA
 
