@@ -106,6 +106,14 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
        - `SoftwareThreads = ProcessorCount/2` en Acceptance y caché ≥18.
 3. **Después de corregir:** Daniel prueba la app. Luego viene la fase 5: efectos, LUT, blend, el render de los filtros y el audio con volumen y fundidos.
 
+## Hacia la versión pública (consultado en Claude chat el 10-oct, sin decidir)
+
+- **Exportar por CPU o GPU sin separar el programa.** Solo cambia la última pieza: una interfaz de salida con dos implementaciones (codificador de hardware, o bajar el cuadro con `Staging` y darlo a uno de software). Modelo, deshacer y línea de tiempo no se enteran. Es la fase 6.
+- **Licencia de la exportación por CPU.** Propuesta: v1 en LGPL (H.264 solo por hardware; la CPU exporta AV1 con SVT-AV1, VP9 o HEVC con kvazaar). x264 (GPL) quedaría como complemento aparte con su `ffmpeg.exe` propio, consultando antes a alguien de licencias.
+- **Codificadores de hardware:** ampliar `ProxyEncoders` a NVENC, AMF, QSV, Media Foundation y software; AMD e Intel necesitan probadores.
+- **Vista previa «como CapCut»:** medir con `app.ps1 -Medir N` frente a CapCut con el mismo clip 4K de varias capas; vigilar el presupuesto de VRAM en gráficas de 2 GB o integradas.
+- **Antes de publicar:** `legal.md` pide el código fuente de FFmpeg, `THIRD-PARTY-NOTICES.txt` y la revisión de patentes de H.264.
+
 ## Decisiones
 
 - **Registro:** `docs/decisiones.md`, de D-001 a D-021.
