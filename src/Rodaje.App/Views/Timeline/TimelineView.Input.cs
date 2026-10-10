@@ -111,6 +111,7 @@ internal sealed partial class TimelineView
             return;
         }
 
+        TakeKeyboardFocus(FocusState.Pointer);
         PointerPoint point = e.GetCurrentPoint(LanesHost);
         PointerPointProperties props = point.Properties;
         Point p = point.Position;
@@ -424,6 +425,7 @@ internal sealed partial class TimelineView
             return;
         }
 
+        TakeKeyboardFocus(FocusState.Pointer);
         PointerPoint point = e.GetCurrentPoint(RulerCanvas);
         double x = point.Position.X;
         e.Handled = true;

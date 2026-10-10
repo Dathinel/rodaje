@@ -114,6 +114,13 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         HeadersCanvas.SizeChanged += (_, _) => ClipToBounds(HeadersCanvas);
         PlayheadLayer.SizeChanged += (_, _) => ClipToBounds(PlayheadLayer);
 
+        foreach (ButtonBase button in ToolButtons().Select(b => (ButtonBase)b.Button)
+            .Concat(ToggleButtons().Select(b => (ButtonBase)b.Button))
+            .Concat(ActionButtons().Select(b => (ButtonBase)b.Button)))
+        {
+            KeepOffFocus(button);
+        }
+
         UpdateToolbar();
         UpdateTooltips();
         SyncZoomSlider();
@@ -123,6 +130,25 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         if (TimelineBenchmark.RequestedReportPath is { } report)
         {
             _ = TimelineBenchmark.RunAsync(this, report);
+        }
+    }
+
+    /// <summary>
+    /// Los botones de la barra y de las cabeceras no se quedan el foco: si lo tuvieran, Espacio los pulsaría y, al
+    /// rearmar las cabeceras, el foco saltaría al menú Archivo.
+    /// </summary>
+    internal static void KeepOffFocus(Control control)
+    {
+        control.AllowFocusOnInteraction = false;
+        control.IsTabStop = false;
+    }
+
+    /// <summary>El foco de teclado pasa a la línea de tiempo (sin marco visible), así Espacio y los atajos llegan a la ventana.</summary>
+    internal void TakeKeyboardFocus(FocusState state = FocusState.Programmatic)
+    {
+        if (FocusState == FocusState.Unfocused)
+        {
+            Focus(state);
         }
     }
 
@@ -478,6 +504,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
 
         // Si el comando no se pudo (por ejemplo, ocultar una pista bloqueada), el botón vuelve a su estado.
         RebuildLayout();
+        TakeKeyboardFocus();
     }
 
     private (ToggleButton Button, string ActionId)[] ToolButtons() =>
@@ -532,6 +559,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         }
 
         UpdateToolbar();
+        TakeKeyboardFocus();
     }
 
     private void OnRippleModeChanged(object sender, SelectionChangedEventArgs e)

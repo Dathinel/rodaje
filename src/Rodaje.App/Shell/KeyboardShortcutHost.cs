@@ -19,6 +19,7 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
     private readonly ShortcutRouter _router;
     private readonly Func<KeyChord, bool>? _intercept;
     private readonly HashSet<VirtualKey> _consumed = [];
+    private bool _menuByKeyboard;
 
     /// <param name="intercept">Se consulta antes que los atajos (por ejemplo, Esc cierra una página); <c>true</c> la consume.</param>
     public KeyboardShortcutHost(UIElement root, ShortcutRouter router, Func<KeyChord, bool>? intercept = null)
@@ -28,6 +29,7 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
         _intercept = intercept;
         _root.PreviewKeyDown += OnPreviewKeyDown;
         _root.PreviewKeyUp += OnPreviewKeyUp;
+        _root.GettingFocus += OnGettingFocus;
     }
 
     /// <summary>Hora (<see cref="System.Diagnostics.Stopwatch"/>) del último KeyDown que llegó a la ventana, para medir.</summary>
@@ -45,6 +47,7 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
     {
         _root.PreviewKeyDown -= OnPreviewKeyDown;
         _root.PreviewKeyUp -= OnPreviewKeyUp;
+        _root.GettingFocus -= OnGettingFocus;
     }
 
     private static bool IsDown(VirtualKey key) =>
@@ -60,7 +63,7 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
         LastKeyDownTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         var chord = new KeyChord((int)e.Key, CurrentModifiers());
         bool handled = _intercept?.Invoke(chord) == true
-            || (!FocusedSliderTakes(chord) && _router.Dispatch(chord, e.KeyStatus.WasKeyDown, IsTextInputFocused()));
+            || (!FocusedSliderTakes(chord) && _router.Dispatch(chord, e.KeyStatus.WasKeyDown, FocusKind()));
         if (handled)
         {
             _consumed.Add(e.Key);
@@ -83,6 +86,17 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
             or VirtualKey.Home or VirtualKey.End or VirtualKey.PageUp or VirtualKey.PageDown
         && _root.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is Slider;
 
-    private bool IsTextInputFocused() =>
-        _root.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox or PasswordBox or RichEditBox or AutoSuggestBox or NumberBox;
+    // Si WinUI lleva el foco a la barra de menús por su cuenta (por ejemplo, al quitar del árbol el botón que lo tenía),
+    // no llega por el teclado: Espacio sigue reproduciendo en lugar de abrir «Archivo».
+    private void OnGettingFocus(UIElement sender, GettingFocusEventArgs args) =>
+        _menuByKeyboard = args.NewFocusedElement is MenuBarItem && args.InputDevice == FocusInputDeviceKind.Keyboard;
+
+    private KeyFocus FocusKind() =>
+        (_root.XamlRoot is { } root ? FocusManager.GetFocusedElement(root) : null) switch
+        {
+            TextBox or PasswordBox or RichEditBox or AutoSuggestBox or NumberBox => KeyFocus.TextInput,
+            MenuFlyoutItemBase => KeyFocus.KeyboardMenu,
+            MenuBarItem => _menuByKeyboard ? KeyFocus.KeyboardMenu : KeyFocus.Other,
+            _ => KeyFocus.Other,
+        };
 }
