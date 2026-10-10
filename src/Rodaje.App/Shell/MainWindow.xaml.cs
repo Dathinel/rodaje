@@ -393,22 +393,36 @@ internal sealed partial class MainWindow : Window, IShellHost
             return;
         }
 
-        IReadOnlyList<IStorageItem> items = await e.DataView.GetStorageItemsAsync();
-        string[] paths = [.. items.OfType<StorageFile>().Select(f => f.Path).Where(p => !string.IsNullOrEmpty(p))];
-        if (paths.Length == 0)
+        try
         {
-            return;
-        }
+            IReadOnlyList<IStorageItem> items = await e.DataView.GetStorageItemsAsync();
+            string[] paths = [.. items.OfType<StorageFile>().Select(f => f.Path).Where(p => !string.IsNullOrEmpty(p))];
+            if (paths.Length == 0)
+            {
+                return;
+            }
 
-        if (paths.Any(ProjectPaths.IsProjectFile))
-        {
-            await Session.OpenFilesAsync(paths);
+            if (paths.Any(ProjectPaths.IsProjectFile))
+            {
+                await Session.OpenFilesAsync(paths);
+            }
+            else
+            {
+                await Session.ImportMediaAsync(paths);
+            }
         }
-        else
+#pragma warning disable CA1031 // Soltar archivos no debe tumbar la aplicación: el error se muestra en la ventana.
+        catch (Exception ex)
+#pragma warning restore CA1031
         {
-            await Session.ImportMediaAsync(paths);
+            Program.WriteCrash(ex.ToString());
+            ReportUnexpectedError(ex.Message);
         }
     }
+
+    /// <summary>Avisa de un error que nadie esperaba; los detalles quedan en <c>rodaje-error.txt</c>.</summary>
+    internal void ReportUnexpectedError(string message) =>
+        Session.Notify(NotificationSeverity.Error, "Algo falló", $"{message} Los detalles quedaron en rodaje-error.txt, junto al programa.");
 
     private void OnCloseModal(object sender, RoutedEventArgs e) => ClosePage();
 
@@ -433,6 +447,13 @@ internal sealed partial class MainWindow : Window, IShellHost
                 _allowClose = true;
                 Close();
             }
+        }
+#pragma warning disable CA1031 // Si preguntar falla, la ventana sigue abierta con el trabajo, no se cae.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            Program.WriteCrash(ex.ToString());
+            ReportUnexpectedError(ex.Message);
         }
         finally
         {

@@ -37,7 +37,6 @@ internal static class Program
             {
                 SynchronizationContext.SetSynchronizationContext(new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread()));
                 Instance = new App(options, engine, prober, settings, settingsWarning);
-                Instance.UnhandledException += (_, e) => WriteCrash(e.Exception?.ToString() ?? e.Message);
             });
         }
 #pragma warning disable CA1031 // Último recurso: deja el motivo en un archivo junto al exe.

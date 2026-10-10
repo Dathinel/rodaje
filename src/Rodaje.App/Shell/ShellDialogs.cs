@@ -8,11 +8,9 @@ namespace Rodaje.App.Shell;
 /// <summary>Las preguntas del editor con diálogos reales: ContentDialog de WinUI y los de archivos de Windows.</summary>
 internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore settings) : IEditorDialogs
 {
-    private bool _dialogOpen;
-
     public async Task<UnsavedChangesChoice> AskSaveChangesAsync(string projectName)
     {
-        if (_dialogOpen || window.Content?.XamlRoot is not { } root)
+        if (window.Content?.XamlRoot is not { } root)
         {
             return UnsavedChangesChoice.Cancel;
         }
@@ -28,20 +26,12 @@ internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore setti
             DefaultButton = ContentDialogButton.Primary,
             RequestedTheme = ElementTheme.Dark,
         };
-        _dialogOpen = true;
-        try
+        return await DialogGate.ShowAsync(dialog) switch
         {
-            return await dialog.ShowAsync() switch
-            {
-                ContentDialogResult.Primary => UnsavedChangesChoice.Save,
-                ContentDialogResult.Secondary => UnsavedChangesChoice.Discard,
-                _ => UnsavedChangesChoice.Cancel,
-            };
-        }
-        finally
-        {
-            _dialogOpen = false;
-        }
+            ContentDialogResult.Primary => UnsavedChangesChoice.Save,
+            ContentDialogResult.Secondary => UnsavedChangesChoice.Discard,
+            _ => UnsavedChangesChoice.Cancel,
+        };
     }
 
     public Task<string?> PickProjectToOpenAsync()
