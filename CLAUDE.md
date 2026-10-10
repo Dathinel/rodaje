@@ -1,66 +1,72 @@
-# Rodaje: estado del proyecto
+# Rodaje: estado
 
-Editor de video nativo para Windows, inspirado en la experiencia de uso de CapCut, con todo el código propio. Repositorio privado `Dathinel/rodaje`, licencia MIT. Las reglas generales están en `D:\Programas de uso libre\CLAUDE.md`; este archivo cuenta dónde va este programa.
+Editor de video nativo para Windows con la experiencia de uso de CapCut y código propio. Repositorio privado `Dathinel/rodaje`, licencia MIT. Las reglas generales están en `..\CLAUDE.md`.
 
 ## Cómo se trabaja aquí
 
-- **Entorno propio.** El SDK de .NET 10.0.401 vive en `.entorno\dotnet` (ignorado por git) y lo instala `herramientas\preparar-entorno.ps1`, verificando su SHA-512. Para cualquier comando de .NET se usa `herramientas\dotnet-local.cmd <args>`, nunca un `dotnet` global. La variable `RODAJE_ENTORNO` permite apuntar a otro `.entorno`, por ejemplo desde un worktree de agente.
-- **Probar.** `ABRIR.bat` corre todas las pruebas. Acepta cuatro argumentos:
-  - `ABRIR.bat cobertura`: pruebas más cobertura.
-  - `ABRIR.bat aot`: publica la prueba de humo con Native AOT y la ejecuta.
-  - `ABRIR.bat aceptacion`: con `RODAJE_PRUEBAS_LARGAS=1`, corre solas y en serie `Rodaje.Acceptance.Tests` y las pruebas de audio con el dispositivo real, y resume cada criterio de la fase 2 con sus cifras.
-  - `ABRIR.bat preparar-entorno`: rehace `.entorno`.
-- **GitHub.** Git se autentica a través de `gh` (`gh auth setup-git`), así que `git push` funciona directo.
-- **Worktrees de agentes.** Los agentes en paralelo trabajan en `.claude\worktrees\` (ignorado). Su trabajo se une a `main` con `git merge`.
-- **Choques de espacios de nombres.** Las pruebas viven en espacios como `Rodaje.Core.Tests.Timing`, que tapan a `Rodaje.Core.Timing` cuando se escribe `Timing.Time`. Por eso, en las pruebas, los tipos del núcleo se escriben con su nombre completo o con `using`.
+- **.NET:** siempre con `herramientas\dotnet-local.cmd <args>`, que usa el SDK 10.0.401 de `.entorno\dotnet`. La FFmpeg LGPL 9.0.2 está en `.entorno\ffmpeg`. Las dos se instalan con `herramientas\preparar-entorno.ps1`, con hashes fijados. `RODAJE_ENTORNO` apunta a otro `.entorno`, por ejemplo desde un worktree.
+- **`Rodaje.bat`:** abre el visor; también se le puede arrastrar un video. Solo recompila si cambió `src\`.
+- **`ABRIR.bat`:** sin argumentos corre las pruebas. Acepta:
+
+  | Argumento | Qué hace |
+  |---|---|
+  | `cobertura` | Pruebas con cobertura |
+  | `aot` | Prueba de humo con Native AOT |
+  | `aceptacion` | Criterios de la fase 2 en serie, unos 9 min; `-Completa` añade 10 min reales |
+  | `visor` | Abre el visor |
+  | `preparar-entorno` | Prepara `.entorno` |
+
+- **Pruebas largas y de hardware:** solo corren con `RODAJE_PRUEBAS_LARGAS=1`, que activa la aceptación. Los medios de prueba con el número de cuadro codificado están en `tests/Rodaje.TestMedia` y se guardan en caché en `TestResults\media-cache`.
+- **Agentes:** trabajan en worktrees dentro de `.claude\worktrees\` (ignorado), se unen con `git merge` y hacen un commit por tarea.
+- **Espacios de nombres en las pruebas:** `Rodaje.X.Tests.Timing` tapa a `Rodaje.Core.Timing`, así que hay que usar el nombre completo o un `using`.
 
 ## Estado al 9 de octubre de 2026
 
-**Fase 1 terminada: modelo de línea de tiempo sin interfaz.** Contiene:
-- **Tiempo exacto** en ticks de 1/705 600 000 s (`Timing/`).
-- **Modelo:** proyecto → medios y secuencias → pistas → clips, con efectos y keyframes en tiempo del origen, más `ModelValidator` (`Model/`).
-- **Operaciones de edición** (`Editing/TimelineEdits.*`):
-  - Cortes y recortes: cortar, recortar, recorte ripple, roll, slip y slide.
-  - Colocación: mover (estricto, sobrescribir, insertar), insertar, sobrescribir, añadir al final, levantar, borrado ripple y cerrar hueco.
-  - Pistas: gestión de pistas, y enlazar o desenlazar clips.
-- **Comandos con instantáneas de secuencia** (`Commands/`):
-  - `UndoStack` con grupos, fusión por clave, `BreakMerge`, punto limpio y límite.
-  - `Edits`, las fábricas que usará la interfaz.
-- **Formato `.rodaje`** (`Serialization/`): JSON versionado con migraciones encadenadas, guardado atómico con `.bak` y esquema en `schema/`.
-- **Pruebas:** 685, entre unitarias, de propiedades con CsCheck (10 000 escenarios aleatorios) y la prueba de humo con Native AOT (ejecutable de 3,37 MB, 0 advertencias). Cobertura del núcleo: 99,6 % de líneas y de ramas.
-- **Revisión independiente:** encontró 5 defectos, todos corregidos con su prueba de regresión. El guardado reintenta ante bloqueos breves del antivirus.
-- **Estilo:** README corto con evidencias y comentarios mínimos en el código; el detalle vive en `docs/guia-tecnica.md`.
-- **Documentación:** `docs/investigacion.md`, `docs/decisiones.md`, `docs/legal.md` y `docs/formato-proyecto.md`, más `LICENCIAS.md`, `THIRD-PARTY-NOTICES.txt`, `SECURITY.md` y `CONTRIBUTING.md`.
+**Fase 1, núcleo:**
+- Tiempo exacto en ticks de 1/705 600 000 s.
+- Modelo de proyecto → secuencias → pistas → clips, con efectos y keyframes.
+- Ediciones con deshacer y rehacer: `Edits` y `UndoStack`.
+- Formato `.rodaje` en JSON con versiones y guardado atómico.
 
-## Decisiones tomadas
+**Fase 2, reproducción de un clip:**
+- `Rodaje.Media`: FFmpeg con D3D11VA.
+- `Rodaje.Audio`: WASAPI, que hace de reloj maestro.
+- `Rodaje.Playback`: programador y caché de cuadros.
+- `Rodaje.Engine`: `ClipPlayer`.
+- `Rodaje.Visor`: ventana Win32 provisional, que se reemplaza en la fase 4.
 
-- **Arquitectura modular** (`docs/propuesta-modulos.md`, aprobada el 9-oct-2026):
-  - núcleo y motor en el exe;
-  - contenido en paquetes `.paquete` sin código;
-  - IA como módulos C# en procesos aparte;
-  - formato de paquete y protocolo compartidos con otros programas;
-  - distribución en zip base y zip completo, más el gestor.
+**Resultados de la fase 2:**
+- Seek exacto en 2864 de 2864 casos.
+- 0 cuadros de deriva en 10 min, con el reloj simulado y con el del dispositivo real.
+- La revisión independiente quedó corregida.
+- Daniel confía en las pruebas y pidió un lanzador más directo, que ya es `Rodaje.bat`.
 
-## Decisiones pendientes para Daniel
+**Fase 3, varias capas (en curso).** Tres agentes trabajan en paralelo:
+- `TimelineSession` en Engine: pistas, pre-roll, mezclador de audio y caché por fuente.
+- `Rodaje.Render`: compositor D3D11 con `LayerTransform`.
+- Proxies NVENC en `Rodaje.Media/Proxies`.
 
+El contrato entre ellos está en `src/Rodaje.Playback/Composition` y `Core/Model/BuiltInEffects.cs`.
 
-- **Ripple con clips enlazados de distinto largo.** Pasa, por ejemplo, después de sobrescribir solo el audio. En `RippleTrim` con alcance de pista, hoy todas las pistas se corren desde el final original del clip principal. La alternativa es que cada pista se corra desde el final de su propio clip. Conviene decidirlo al probar la interfaz (fase 4).
-- **Enlaces huérfanos.** Sobrescribir o cortar parcialmente puede dejar un `LinkId` que ya no comparte ningún otro clip. No rompe nada; falta decidir si se limpia automáticamente.
-- **Código compartido entre programas.** Cuando exista el segundo programa habrá que decidir cómo compartir el formato de proyecto y el lanzador: paquete NuGet desde su propio repo, submódulo u otra opción.
+**Pruebas:** 1016 pasan; las 9 largas quedan para la aceptación.
 
-## Fase 2: reproducción de un clip (terminada técnicamente, falta la prueba humana)
+## Siguiente paso
 
-- **Componentes:** `Rodaje.Media` (FFmpeg LGPL y D3D11VA), `Rodaje.Audio` (WASAPI y reloj), `Rodaje.Playback` (programador y caché), `Rodaje.Engine` (`ClipPlayer`), `Rodaje.Visor` y la aceptación en `tests/Rodaje.Acceptance.Tests`.
-- **Aceptación:** `ABRIR.bat aceptacion` tarda unos 9 min; `-Completa` añade 10 min reales con el dispositivo.
-  - Seek exacto: 2864 de 2864.
-  - Deriva de audio y video en 10 min: 0 cuadros de error, tanto con el reloj simulado como con el reloj real del dispositivo.
-- **Revisión independiente:** encontró 3 defectos menores y 5 preocupaciones; todo corregido con pruebas, que incluyen la guarda LGPL, la resincronización de audio, el color BT.601/709 y el rango completo.
-- **Pendiente:** Daniel prueba el visor con `ABRIR.bat visor -Archivo <video>` siguiendo `docs/prueba-visor.md`. Sus observaciones cierran la fase.
+1. Unir la fase 3. Después, el visor acepta varios videos: el primero de fondo y los demás como imagen en imagen. Se para y se le dice a Daniel qué probar respecto a la fluidez con varias capas.
+2. Pendiente de la mini revisión, para después de la fase 3:
+   - que `TimelineSession` sea el único dueño de `GpuDevice` y de la caché global;
+   - sacar `VideoRenderer` del visor y llevarlo a Render;
+   - centralizar las `RODAJE_*`;
+   - unificar los atributos de salto de las pruebas;
+   - un módulo común para los scripts;
+   - mover `TestMedia` a `testing/`;
+   - dividir `docs/guia-tecnica.md` por capas;
+   - actualizar `probar.json`.
 
-## Siguiente paso: fase 3, varias capas
+## Decisiones
 
-- **Motor multipista:** `ClipPlayer` evoluciona a una sesión con varias capas.
-- **Composición:** compositor D3D11 que dibuja las capas de abajo arriba.
-- **Proxies:** se generan con NVENC.
-- **Caché:** pasa a ser por fuente.
-- **Prueba humana:** al terminar hay que detenerse y decirle a Daniel exactamente qué probar respecto a la fluidez con varias capas.
+- **Registro:** `docs/decisiones.md`, de D-001 a D-015.
+- **Módulos:** `docs/propuesta-modulos.md`, aprobada. Núcleo en el exe, contenido en `.paquete` sin código, IA como procesos C#.
+- **Fase 4:** la app final será un proyecto WinUI 3 nuevo y el visor se borra.
+- **Pendientes para la interfaz:** decidir cómo funciona el ripple con enlazados de distinto largo y si se limpian los enlaces huérfanos.
+- **Archivo:** la investigación y el sondeo están en `docs/archivo/`; el código del sondeo, en la etiqueta git `sondeo-interop-aot`.
