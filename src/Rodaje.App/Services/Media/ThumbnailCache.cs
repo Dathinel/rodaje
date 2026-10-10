@@ -92,6 +92,26 @@ public sealed class ThumbnailMemoryCache(long budgetBytes)
         }
     }
 
+    /// <summary>Suelta todas las miniaturas de un archivo.</summary>
+    public void RemoveFile(string path)
+    {
+        lock (_gate)
+        {
+            for (LinkedListNode<(ThumbnailKey Key, BgraImage Image)>? node = _order.First; node is not null;)
+            {
+                LinkedListNode<(ThumbnailKey Key, BgraImage Image)>? next = node.Next;
+                if (string.Equals(node.Value.Key.Path, path, StringComparison.OrdinalIgnoreCase))
+                {
+                    _order.Remove(node);
+                    _map.Remove(node.Value.Key);
+                    _bytes -= node.Value.Image.SizeBytes;
+                }
+
+                node = next;
+            }
+        }
+    }
+
     public void Clear()
     {
         lock (_gate)

@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Rodaje.Core.Timing;
-using Rodaje.Media;
 using Rodaje.Media.Video;
 
 namespace Rodaje.App.Services.Media;
@@ -224,12 +223,71 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
     /// <summary>Olvida lo que se sabe de un archivo (por ejemplo, porque cambió en disco): se vuelve a leer al pedirlo.</summary>
     public void Forget(string path)
     {
+        ArgumentNullException.ThrowIfNull(path);
         _failedThumbnails.TryRemove(path, out _);
         _noWaveform.TryRemove(path, out _);
         _waveforms.TryRemove(path, out _);
         _fingerprints.TryRemove(path, out _);
+        _thumbnails.RemoveFile(path);
+        string indexPrefix = path.ToUpperInvariant() + "|";
+        lock (_gate)
+        {
+            foreach (Batch batch in _batches.Where(b => string.Equals(b.Path, path, StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                _batches.Remove(batch);
+                _batchesBySignature.Remove(batch.Signature);
+            }
+
+            foreach (string key in _indexByFile.Keys.Where(k => k.StartsWith(indexPrefix, StringComparison.Ordinal)).ToList())
+            {
+                _indexByFile.Remove(key);
+            }
+
+            for (LinkedListNode<string>? node = _waveformQueue.First; node is not null; node = node.Next)
+            {
+                if (string.Equals(node.Value, path, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Si ya se está calculando, sigue en _waveformQueued hasta que termine: así no se calcula dos veces.
+                    _waveformQueue.Remove(node);
+                    _waveformQueued.Remove(path);
+                    break;
+                }
+            }
+        }
     }
 
+    /// <summary>
+    /// Suelta lo de los medios que ya no existen (salieron del proyecto o de la biblioteca): sus avisos dejan de lanzarse y,
+    /// si ningún otro medio usa el mismo archivo, se olvida el archivo. Si el medio vuelve (deshacer), se lee de nuevo,
+    /// casi siempre de la caché en disco.
+    /// </summary>
+    public void ForgetRemovedMedia()
+    {
+        List<string> orphans = [];
+        lock (_gate)
+        {
+            foreach ((string path, HashSet<string> ids) in _idsByPath)
+            {
+                ids.RemoveWhere(id => !string.Equals(_resolve(id), path, StringComparison.OrdinalIgnoreCase));
+                if (ids.Count == 0)
+                {
+                    orphans.Add(path);
+                }
+            }
+
+            foreach (string path in orphans)
+            {
+                _idsByPath.Remove(path);
+            }
+        }
+
+        foreach (string path in orphans)
+        {
+            Forget(path);
+        }
+    }
+
+    /// <summary>Pide a los hilos que paren y no los espera más que un instante: cada uno cierra lo suyo al salir.</summary>
     public void Dispose()
     {
         lock (_gate)
@@ -244,7 +302,14 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
             Monitor.PulseAll(_gate);
         }
 
-        bool stopped = _thumbnailThreads.Aggregate(true, (all, t) => t.Join(TimeSpan.FromSeconds(3)) & all) & _waveformThread.Join(TimeSpan.FromSeconds(3));
+        long deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 5;
+        bool stopped = true;
+        foreach (Thread thread in _thumbnailThreads.Append(_waveformThread))
+        {
+            TimeSpan left = Stopwatch.GetElapsedTime(Stopwatch.GetTimestamp(), deadline);
+            stopped &= thread.Join(left > TimeSpan.Zero ? left : TimeSpan.Zero);
+        }
+
         if (stopped)
         {
             // Si un hilo sigue en una lectura larga, todavía mira el token: se deja para el recolector.
@@ -377,7 +442,7 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
         {
             foreach (OpenReader open in readers)
             {
-                open.Reader.Dispose();
+                DisposeQuietly(open.Reader);
             }
         }
     }
@@ -418,7 +483,9 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
                     image = reader.Decode(Time.FromTicks(batch.Times[i]), batch.Height, _stop.Token);
                     if (image is null)
                     {
-                        continue;
+                        // Sin ningún cuadro decodificable: se recuerda para no volver a abrirlo en cada redibujo.
+                        Fail(batch.Path, "El archivo no tiene cuadros de video.", readers);
+                        return;
                     }
 
                     Interlocked.Increment(ref _decodedCount);
@@ -443,11 +510,11 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
             {
                 return;
             }
-            catch (Exception ex) when (ex is MediaException or IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
+#pragma warning disable CA1031 // Cualquier fallo de un archivo, incluso inesperado, se queda en ese archivo: el hilo sigue.
+            catch (Exception ex)
+#pragma warning restore CA1031
             {
-                Close(batch.Path, readers);
-                _failedThumbnails[batch.Path] = ex.Message;
-                MarkChanged(batch.Path, ClipVisualKind.Thumbnails);
+                Fail(batch.Path, ex.Message, readers);
                 return;
             }
             finally
@@ -455,6 +522,13 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
                 Release(key);
             }
         }
+    }
+
+    private void Fail(string path, string reason, List<OpenReader> readers)
+    {
+        Close(path, readers);
+        _failedThumbnails[path] = reason;
+        MarkChanged(path, ClipVisualKind.Thumbnails);
     }
 
     private static string IndexKey(string path, int height) => path.ToUpperInvariant() + "|" + height.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -527,7 +601,7 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
         while (readers.Count >= Math.Max(1, _options.MaxOpenDecoders))
         {
             OpenReader oldest = readers.MinBy(r => r.LastUsed)!;
-            oldest.Reader.Dispose();
+            DisposeQuietly(oldest.Reader);
             readers.Remove(oldest);
         }
 
@@ -541,8 +615,21 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
         int index = readers.FindIndex(r => string.Equals(r.Path, path, StringComparison.OrdinalIgnoreCase));
         if (index >= 0)
         {
-            readers[index].Reader.Dispose();
+            DisposeQuietly(readers[index].Reader);
             readers.RemoveAt(index);
+        }
+    }
+
+    private static void DisposeQuietly(IThumbnailReader reader)
+    {
+        try
+        {
+            reader.Dispose();
+        }
+#pragma warning disable CA1031 // Un decodificador que falla al cerrarse no debe tumbar el hilo.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
         }
     }
 
@@ -552,7 +639,7 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
         {
             if (Stopwatch.GetElapsedTime(readers[i].LastUsed) > _options.DecoderIdleTimeout)
             {
-                readers[i].Reader.Dispose();
+                DisposeQuietly(readers[i].Reader);
                 readers.RemoveAt(i);
             }
         }
@@ -599,7 +686,9 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
             {
                 return;
             }
-            catch (Exception ex) when (ex is MediaException or IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
+#pragma warning disable CA1031 // Como con las miniaturas: el fallo se queda en ese archivo.
+            catch (Exception ex)
+#pragma warning restore CA1031
             {
                 _waveforms.TryRemove(path, out _);
                 _noWaveform[path] = ex.Message;
@@ -712,6 +801,12 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
         lock (_gate)
         {
             _flushPosted = false;
+            if (_disposed)
+            {
+                _changed.Clear();
+                return;
+            }
+
             foreach ((string path, ClipVisualKind kind) in _changed)
             {
                 if (_idsByPath.TryGetValue(path, out HashSet<string>? ids))

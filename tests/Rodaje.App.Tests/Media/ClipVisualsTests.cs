@@ -16,6 +16,19 @@ internal sealed class FakeSources : IVisualsSources
 
     public HashSet<string> Broken { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Archivos que abren pero no dan ningún cuadro.</summary>
+    public HashSet<string> Empty { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Archivos cuyo decodificador falla con una excepción que nadie espera.</summary>
+    public HashSet<string> Faulty { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Mientras esté cerrada, decodificar se queda colgado sin mirar la cancelación.</summary>
+    public ManualResetEventSlim Stuck { get; } = new(true);
+
+    public int Attempts => Volatile.Read(ref _attempts);
+
+    private int _attempts;
+
     public int AudioSeconds { get; set; } = 3;
 
     public ManualResetEventSlim Gate { get; } = new(true);
@@ -26,7 +39,8 @@ internal sealed class FakeSources : IVisualsSources
         return Broken.Contains(path) ? throw new MediaException($"No se pudo abrir {path}.") : new Reader(this, path);
     }
 
-    public IAudioSampleReader? OpenAudio(string path) => path.EndsWith(".mudo", StringComparison.Ordinal) ? null : new Audio(AudioSeconds);
+    public IAudioSampleReader? OpenAudio(string path) => path.EndsWith(".mudo", StringComparison.Ordinal) ? null
+        : Faulty.Contains(path) ? throw new ArgumentOutOfRangeException(nameof(path), "Fallo inesperado.") : new Audio(AudioSeconds);
 
     public string Fingerprint(string path) => "f" + Math.Abs(StringComparer.OrdinalIgnoreCase.GetHashCode(path)).ToString("x8", System.Globalization.CultureInfo.InvariantCulture);
 
@@ -34,7 +48,19 @@ internal sealed class FakeSources : IVisualsSources
     {
         public BgraImage? Decode(Time sourceTime, int height, CancellationToken cancellationToken)
         {
+            Interlocked.Increment(ref owner._attempts);
             owner.Gate.Wait(cancellationToken);
+            owner.Stuck.Wait(CancellationToken.None);
+            if (owner.Faulty.Contains(path))
+            {
+                throw new ArgumentOutOfRangeException(nameof(sourceTime), "Fallo inesperado.");
+            }
+
+            if (owner.Empty.Contains(path))
+            {
+                return null;
+            }
+
             owner.Decoded.Enqueue((path, sourceTime.Ticks, height));
             int width = height * 16 / 9;
             byte[] pixels = new byte[width * height * 4];
@@ -87,6 +113,8 @@ public sealed class ClipVisualsTests : IDisposable
         ["m3"] = @"C:\videos\roto.mp4",
         ["a1"] = @"C:\audio\música.wav",
         ["a2"] = @"C:\audio\nada.mudo",
+        ["v0"] = @"C:\videos\vacío.mp4",
+        ["x1"] = @"C:\videos\raro.mp4",
     };
 
     private readonly BlockingCollection<ClipVisualsChangedEventArgs> _events = [];
@@ -96,6 +124,7 @@ public sealed class ClipVisualsTests : IDisposable
         _events.Dispose();
         _folder.Dispose();
         _sources.Gate.Dispose();
+        _sources.Stuck.Set();
     }
 
     private ClipVisuals Create(string? cache = null)
@@ -306,5 +335,85 @@ public sealed class ClipVisualsTests : IDisposable
 
             Assert.Equal(uiThread, await raisedOn.Task.WaitAsync(TimeSpan.FromSeconds(10)));
         });
+    }
+
+    [Fact]
+    public void A_video_without_frames_is_remembered_and_not_decoded_on_every_redraw()
+    {
+        _sources.Empty.Add(_media["v0"]);
+        using ClipVisuals visuals = Create();
+
+        visuals.GetFilmstrip("v0", Time.Zero, Time.FromSeconds(5), 4, 32);
+        string problem = WaitFor(() => visuals.ThumbnailProblem(_media["v0"]));
+        for (int i = 0; i < 20; i++)
+        {
+            Assert.True(visuals.GetFilmstrip("v0", Time.Zero, Time.FromSeconds(5), 4, 32).IsComplete);
+            visuals.GetThumbnail("v0", Time.FromSeconds(i), 32);
+        }
+
+        Thread.Sleep(50);
+        Assert.Contains("cuadros", problem, StringComparison.Ordinal);
+        Assert.Equal(1, _sources.Attempts);
+        Assert.Equal(1, _sources.Opened[_media["v0"]]);
+    }
+
+    [Fact]
+    public void An_unexpected_exception_stays_with_its_file_and_the_workers_keep_going()
+    {
+        _sources.Faulty.Add(_media["x1"]);
+        using var visuals = new ClipVisuals(id => _media.GetValueOrDefault(id), _sources, new ClipVisualsOptions { ThumbnailWorkers = 1 });
+
+        visuals.GetThumbnail("x1", Time.Zero, 32);
+        visuals.GetWaveform("x1", Time.Zero, Time.FromSeconds(1), 10);
+        string problem = WaitFor(() => visuals.ThumbnailProblem(_media["x1"]));
+        WaitFor(() => visuals.GetWaveform("x1", Time.Zero, Time.FromSeconds(1), 10) is { HasAudio: false } w ? w : null);
+
+        Assert.StartsWith("Fallo inesperado.", problem, StringComparison.Ordinal);
+        Assert.NotNull(WaitFor(() => visuals.GetThumbnail("m1", Time.Zero, 32)));
+        Assert.True(WaitFor(() => visuals.GetWaveform("a1", Time.Zero, Time.FromSeconds(1), 10) is { IsComplete: true } w ? w : null).HasAudio);
+    }
+
+    [Fact]
+    public void Removed_media_is_forgotten_and_read_again_if_it_comes_back()
+    {
+        using ClipVisuals visuals = Create();
+        WaitFor(() => visuals.GetThumbnail("m1", Time.Zero, 32));
+        WaitFor(() => visuals.GetThumbnail("m2", Time.Zero, 32));
+        WaitFor(() => visuals.GetWaveform("a1", Time.Zero, Time.FromSeconds(1), 10) is { IsComplete: true } w ? w : null);
+        int decoded = _sources.Decoded.Count;
+
+        _media.Remove("m1");
+        visuals.ForgetRemovedMedia();
+        BgraImage? shared = visuals.GetThumbnail("m2", Time.Zero, 32);
+        _media.Remove("m2");
+        _media.Remove("a1");
+        visuals.ForgetRemovedMedia();
+        _media["m1"] = @"C:\videos\toma 1.mp4";
+        _media["a1"] = @"C:\audio\música.wav";
+        BgraImage? back = visuals.GetThumbnail("m1", Time.Zero, 32);
+        WaveformSlice wave = visuals.GetWaveform("a1", Time.Zero, Time.FromSeconds(1), 10);
+
+        Assert.Equal(1, decoded);
+        Assert.NotNull(shared);
+        Assert.Null(back);
+        Assert.False(wave.IsComplete);
+        WaitFor(() => visuals.GetThumbnail("m1", Time.Zero, 32));
+        Assert.Equal(2, _sources.Decoded.Count);
+    }
+
+    [Fact]
+    public void Dispose_does_not_wait_for_a_reader_that_ignores_cancellation()
+    {
+        var visuals = new ClipVisuals(id => _media.GetValueOrDefault(id), _sources);
+        _sources.Stuck.Reset();
+        visuals.GetThumbnail("m1", Time.Zero, 32);
+        WaitFor(() => _sources.Attempts > 0 ? "" : null);
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        visuals.Dispose();
+        clock.Stop();
+        _sources.Stuck.Set();
+
+        Assert.InRange(clock.ElapsedMilliseconds, 0, 1000);
     }
 }

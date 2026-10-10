@@ -19,6 +19,9 @@ public sealed class WaveformPeaks
     private const ushort FormatVersion = 1;
     private const int HeaderBytes = 32;
 
+    /// <summary>Reserva inicial máxima (unas 6 h a 48 kHz, 8 MB): una duración absurda no reserva gigas; si hace falta, crece.</summary>
+    public const int MaxInitialCapacity = 1 << 22;
+
     private short[] _min;
     private short[] _max;
     private int _count;
@@ -36,7 +39,7 @@ public sealed class WaveformPeaks
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(sampleRate, 1);
         SampleRate = sampleRate;
-        int capacity = (int)Math.Clamp((expectedSamples / BaseSamplesPerPeak) + 2, 64, int.MaxValue / 2);
+        int capacity = (int)Math.Clamp((Math.Max(0, expectedSamples) / BaseSamplesPerPeak) + 2, 64, MaxInitialCapacity);
         _min = new short[capacity];
         _max = new short[capacity];
     }

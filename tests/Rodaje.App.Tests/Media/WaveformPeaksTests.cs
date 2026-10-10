@@ -162,4 +162,18 @@ public sealed class WaveformPeaksTests
         Assert.Null(WaveformPeaks.Deserialize([]));
         Assert.Throws<InvalidOperationException>(() => new WaveformPeaks(Rate).Serialize());
     }
+
+    [Fact]
+    public void An_absurd_duration_does_not_reserve_gigabytes()
+    {
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        var peaks = new WaveformPeaks(Rate, long.MaxValue / 2);
+        long reserved = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        peaks.Append(new float[Rate * 2], 2);
+        peaks.Complete();
+
+        Assert.InRange(reserved, 0, 32L << 20);
+        Assert.InRange(peaks.Count, Rate / WaveformPeaks.BaseSamplesPerPeak, (Rate / WaveformPeaks.BaseSamplesPerPeak) + 1);
+    }
 }

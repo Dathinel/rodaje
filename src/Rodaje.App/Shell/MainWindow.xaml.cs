@@ -95,6 +95,8 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         session.Notified += (_, n) => ShowNotification(n);
         session.ProjectOpened += (_, _) => RememberProject();
+        session.ProjectOpened += (_, _) => _visuals.ForgetRemovedMedia();
+        session.ProjectEdited += (_, _) => _visuals.ForgetRemovedMedia();
         session.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(EditorSession.FilePath))
