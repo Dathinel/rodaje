@@ -136,7 +136,7 @@ internal sealed partial class PluginsView : UserControl, IEditorView
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ElementTheme.Dark,
         };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
     }
 
     private async void OnRefreshClick(object sender, RoutedEventArgs e)
