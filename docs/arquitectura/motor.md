@@ -27,7 +27,7 @@ flowchart LR
 
 Las decisiones de diseño están en [D-017](../decisiones.md) (caché global por urgencia y pre-roll por pista) y D-019.
 
-[`TimelineScheduler`](../../src/Rodaje.Engine/Timeline/TimelineScheduler.cs) es el corazón del motor.
+[`TimelineScheduler`](../../src/Rodaje.Engine/Timeline/TimelineScheduler.cs) es el corazón del motor. Es una clase parcial: el archivo principal tiene el transporte, `Tick` y las cifras, y cada parte va en su archivo (`.Presentation`, `.Demand`, `.Vram`, `.Proxies`, `.Decoding` y `.State`, con los tipos internos).
 
 - **Demanda.** Cada capa pide el cuadro debido más `PrefetchFrames` (8). Si el próximo corte está a menos de `PreRoll` (500 ms), también pide los primeros `PreRollFrames` (6) del clip siguiente, para que el corte llegue a tiempo. Las ventanas cercanas del mismo medio se agrupan.
 - **Varios decodificadores por medio.** Cada tramo de demanda va al decodificador más barato: el que ya está ahí, el que tiene que avanzar pocos cuadros o, si no, uno que haga seek. Se abren hasta `MaxDecodersPerMedia` (4); así el mismo archivo en cuatro pistas no salta de un lado a otro.
