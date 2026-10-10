@@ -1,65 +1,76 @@
-# Prueba del visor de la fase 2
+# Prueba del visor de la fase 3
 
-El visor (`src/Rodaje.Visor`) reproduce un solo archivo con el motor real: decodificación D3D11VA en la GPU, el audio por WASAPI como reloj maestro y `PlaybackScheduler` eligiendo el cuadro de cada refresco. Lo que se puede medir lo mide el recorrido automático; si se ve y se oye fluido solo lo puede juzgar una persona, y para eso es esta lista.
+El visor (`src/Rodaje.Visor`) reproduce una secuencia de varias capas con el motor real: `TimelineSession` decodifica cada video en la GPU y mezcla el audio, `Compositor` junta las capas a tamaño de secuencia y `Presenter` las muestra ajustadas a la ventana. Es una ventana de prueba; la interfaz de verdad llega en la fase 4 con WinUI 3. Lo que se puede medir lo mide el recorrido automático; si se ve fluido y si se oye en sincronía solo lo puede juzgar una persona, y para eso es esta lista.
 
 ## Cómo abrirlo
 
-```
-powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\visor.ps1 -Archivo "C:\ruta\video.mp4"
-```
+Arrastra dos, tres o cuatro videos tuyos a la vez sobre `Rodaje.bat`, o haz doble clic y elígelos juntos en el diálogo (Ctrl o Shift para marcar varios). El primero (el que Windows ponga primero) va de fondo a pantalla completa con su audio; cada uno de los demás va en su propia pista encima, al 35 % de tamaño, en una esquina distinta (arriba a la derecha, abajo a la derecha, abajo a la izquierda, arriba a la izquierda), con su audio en silencio. La secuencia toma el tamaño y la velocidad de cuadros del primero. También abre un proyecto `.rodaje`.
 
-La primera vez compila el exe con Native AOT en `dist\Rodaje-visor\` (un minuto); con `-SinPublicar` abre el ya compilado. También se puede abrir sin archivo y arrastrar un video a la ventana, o pulsar Ctrl+O.
-
-| Tecla o gesto | Qué hace |
+| Tecla | Qué hace |
 |---|---|
 | Espacio | Reproducir o pausar |
 | ← / → | Pausa y retrocede o avanza un cuadro |
 | Shift+← / Shift+→ | Salta 5 s atrás o adelante |
-| Inicio / Fin | Primer cuadro / último cuadro |
-| Clic o arrastre en la barra de abajo | Buscar; mientras se arrastra, la imagen sigue al ratón |
-| Doble clic en la imagen, o F | Pantalla completa sin bordes; Esc sale |
-| I | Muestra en el título: tiempo, cuadro, modo de decodificación, cuadros perdidos y tarde, desfase A/V máximo y dispositivo de audio |
-| `--cpu`, `--sin-audio` | Opciones de línea de órdenes para comparar con decodificación por software o sin audio |
+| Inicio / Fin | Primer o último cuadro |
+| Clic o arrastre en la barra de abajo | Buscar |
+| 1 a 9 | Ocultar o mostrar la capa de esa pista de video (1 es el fondo) |
+| Ctrl+1 a Ctrl+9 | Elegir la capa que se edita (al abrir, la de más arriba) |
+| Alt+flechas | Mover la capa elegida 20 píxeles |
+| + / - | Agrandar o achicar la capa elegida un 10 % |
+| R | Girarla 15° |
+| O | Cambiar su opacidad: 100 %, 75 %, 50 %, 25 % |
+| Ctrl+Z / Ctrl+Y | Deshacer / rehacer (también ocultar y mostrar) |
+| Ctrl+S | Guardar el proyecto como `.rodaje` junto al primer video; el título muestra dónde |
+| I | Estadísticas en el título: tiempo y cuadro, capas, cuadros tarde y perdidos por capa, milisegundos de GPU de la composición, decodificadores abiertos, caché, pre-roll y dispositivo de audio |
+| F / doble clic, Esc | Pantalla completa y salir de ella |
 
 ## Qué probar y qué es "bien"
 
-Usa al menos un video tuyo de teléfono o cámara (H.264 o HEVC, idealmente uno de 60 fps y uno grabado en vertical) y, si quieres, los de prueba que deja el recorrido automático.
+Usa de 2 a 4 videos tuyos de teléfono o cámara, mejor si alguno es de 60 fps y otro tiene a alguien hablando o aplaudiendo.
 
-1. **Reproducción continua, 1 minuto.** Pulsa I y deja correr el video.
-   - Bien: el movimiento se ve parejo, sin tirones periódicos; en el título "perdidos" y "tarde" se quedan en 0 o casi (unos pocos justo después de cada salto son normales).
-2. **Sincronía de labios o de golpes.** Un video donde alguien hable, aplauda o golpee algo.
-   - Bien: el sonido y la imagen coinciden; no se nota que el audio vaya antes o después. "A/V máx" en el título queda por debajo de lo que dura un cuadro (33 ms a 30 fps, 17 ms a 60 fps).
-3. **Pausa y cuadro a cuadro.** Pausa en un movimiento rápido y pulsa → varias veces, luego ← varias veces.
-   - Bien: cada pulsación cambia exactamente un cuadro, el número de cuadro del título sube o baja de a uno, y hacia atrás también responde (puede tardar un poco más, porque tiene que volver al último keyframe).
-4. **Saltos.** Shift+→ y Shift+← varias veces seguidas mientras reproduce, y luego Inicio y Fin.
-   - Bien: la imagen nueva aparece en una fracción de segundo, el audio sigue desde el punto correcto y no queda desfasado después del salto.
-5. **Arrastrar la barra.** Arrastra la barra de abajo de un lado a otro, despacio y rápido.
-   - Bien: la imagen va siguiendo al ratón (no tiene que ser instantánea, pero no se congela todo el arrastre); al soltar continúa desde ahí, y si estaba reproduciendo, sigue reproduciendo.
-6. **Ventana.** Cambia el tamaño de la ventana, maximízala, pulsa F y luego Esc.
-   - Bien: la imagen conserva su proporción con barras negras arriba y abajo o a los lados, nunca se estira; un video vertical se ve vertical.
-7. **Colores.** Compara con el reproductor de Windows.
-   - Bien: los colores y el contraste se ven iguales (negros negros, sin tono lavado). Un video HDR (HLG o PQ) se verá lavado: es esperado, esta fase convierte BT.601, BT.709 y la matriz de BT.2020, pero no las curvas HDR (ver abajo).
-8. **Sin audio.** Desconecta los audífonos o desactiva la salida mientras suena.
-   - Bien: el video sigue; al volver el dispositivo, vuelve el sonido sincronizado. Con I, el título dice el dispositivo o por qué no hay sonido.
+1. **Fluidez con 2, 3 y 4 capas.** Deja correr un minuto con I activado.
+   - Bien: todas las capas se mueven parejas, sin tirones; "tarde" se queda en 0 o casi en cada capa. "Perdidos" sube solo en una capa de más cuadros por segundo que la secuencia (un video de 60 fps sobre uno de 30 muestra uno de cada dos: es lo esperado).
+2. **Finales de clip.** Los videos más cortos terminan antes que el fondo.
+   - Bien: la capa que termina desaparece limpia, sin congelar las demás ni el audio.
+3. **Imagen en imagen en vivo.** Mientras reproduce, Alt+flechas, +, -, R y O sobre la capa elegida; luego Ctrl+número para elegir otra.
+   - Bien: cada cambio se ve al instante (en el siguiente refresco) y la reproducción no se detiene ni tartamudea.
+4. **Ocultar y mostrar.** Pulsa el número de una capa dos veces.
+   - Bien: desaparece y vuelve en la posición correcta. Al volver puede tardar un instante en aparecer (ver la nota de abajo).
+5. **Deshacer.** Mueve y gira una capa, luego Ctrl+Z varias veces y Ctrl+Y.
+   - Bien: vuelve paso a paso a como estaba y rehacer repite lo deshecho. Los cambios seguidos del mismo tipo (mover, escalar, girar, opacidad) sobre la misma capa se deshacen juntos.
+6. **Sincronía.** Con el video donde alguien habla de fondo.
+   - Bien: el sonido coincide con los labios o los golpes, también después de saltar con Shift+→ o de pausar y seguir.
+7. **Guardar.** Ctrl+S, cierra y arrastra el `.rodaje` sobre `Rodaje.bat`.
+   - Bien: se abre igual, con las capas donde las dejaste.
 
-Anota cualquier cosa que se sienta rara (tirones, saltos de audio, colores, demora al pausar) con el archivo y el momento; es justo lo que las pruebas automáticas no ven.
+Anota cualquier tirón, salto de audio o demora con el archivo y el momento; es justo lo que las pruebas automáticas no ven.
 
 ## Recorrido automático
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\visor.ps1 -Archivo video.mp4 -Prueba 10
+powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\visor.ps1 fondo.mp4 pip1.mp4 pip2.mp4 -Prueba 20
 ```
 
-Abre la ventana, reproduce, busca al 50 % y al 10 %, pausa, avanza cinco cuadros y retrocede dos comprobando que cada paso llega al cuadro exacto, vuelve a reproducir, salta 5 s y al final imprime las estadísticas (también quedan en `TestResults\visor-prueba-*.txt`). Sale con código 0 si todos los pasos de cuadro llegaron al cuadro pedido y no hubo errores de decodificación.
+Reproduce la secuencia; oculta y vuelve a mostrar la capa de arriba; la elige y la mueve, la escala y la gira con las mismas teclas de la tabla; deshace tres veces y rehace una, comprobando cada vez que la pantalla y el modelo coinciden; busca al 50 % y al 10 %, avanza cinco cuadros y retrocede dos comprobando el cuadro exacto, vuelve a reproducir y salta 5 s. Al final guarda una copia del proyecto junto al registro, la vuelve a abrir y comprueba que es idéntica. Imprime las cifras por capa, los milisegundos de GPU, la caché y la CPU (también en `TestResults\visor-prueba-*.txt`). Sale con 0 si todas las comprobaciones pasaron y no hubo errores de decodificación.
+
+Cifras de referencia en el portátil de Daniel (RTX 3050 Laptop), 20 s con capas de H.264 1080p a 23,976 fps. Cada acción del registro dice cuántos cuadros perdidos, tarde y refrescos perdidos llevaba hasta ese momento, así se ve qué los causó.
+
+| Capas | Composición en GPU (mediana / máx.) | Reproducir y editar la imagen en imagen | Cambio de capa visible en | CPU del proceso |
+|---|---|---|---|---|
+| 1 | 0,6-0,9 / 4,8-6,4 ms | 0 perdidos, 0 tarde, 0 refrescos perdidos | 16-18 ms | 3-4 % de un núcleo |
+| 2 | 0,8-0,9 / 3,1-4,4 ms | 0, 0, 0 | 16-17 ms | 4 % |
+| 4 | 0,2-1,0 / 4,0-4,1 ms | 0, 0, 0 (3 refrescos perdidos al abrir) | 15-17 ms | 9,5-11 % |
+
+La mediana de GPU varía entre corridas porque la GPU sube o baja su reloj según la carga.
 
 Cómo leer las cifras:
 
-- **Desfase A/V máximo.** Distancia entre el reloj de audio y el inicio del cuadro en pantalla, sin contar la espera que sigue a cada seek. Al mostrar siempre el cuadro que contiene al reloj, el valor normal es casi un cuadro (41,7 ms a 23,976 fps): está en sincronía mientras no lo pase.
-- **Perdidos y tarde.** Cuadros que el reloj dejó atrás sin mostrarse y refrescos en los que el cuadro debido no estaba listo. Tras un seek en reproducción, el audio sigue corriendo mientras el video llega al cuadro pedido; los pocos que se pierden ahí aparecen en estos contadores.
-- **Refrescos perdidos.** Intervalos entre presentaciones más largos que 1,5 veces el normal. Hoy aparecen solo en los seeks durante la reproducción: la GPU está ocupada decodificando desde el keyframe y la cadena de intercambio tarda dos o tres refrescos en admitir otro cuadro.
+- **Perdidos y tarde.** Cuadros que el reloj dejó atrás sin mostrarse y refrescos en que el cuadro debido no estaba listo. Suben en los seeks durante la reproducción y en las capas de más cuadros por segundo que la secuencia.
+- **Pre-roll.** Cortes que llegaron con su primer cuadro ya decodificado. La demostración no tiene cortes: el único que aparece es el de volver a mostrar una capa oculta.
+- **Refrescos perdidos.** Intervalos entre presentaciones mayores que 1,5 veces el normal; hoy aparecen en los seeks y al volver a mostrar una capa.
 
-## Fuera de esta fase
+## Limitaciones conocidas
 
-- Matrices BT.601, BT.709 y BT.2020 en rango limitado o completo; las curvas PQ y HLG (HDR) y los primarios de BT.2020 no se convierten, así que el HDR se ve con colores incorrectos; el croma se muestrea en el centro, sin corregir el desplazamiento de 4:2:0.
-- Un solo archivo, sin línea de tiempo ni capas (fase 3).
-- Mientras se arrastra o redimensiona la ventana con el ratón, Windows detiene el bucle de la ventana y la imagen se congela un momento; el audio sigue.
+- Al volver a mostrar una capa oculta, esa capa llega dos o tres refrescos tarde y la presentación se detiene una vez hasta unos 130 ms; los contadores cuentan como perdidos los cuadros del tiempo que estuvo oculta.
+- HDR (PQ, HLG) se ve con colores incorrectos; solo se convierten las matrices BT.601, BT.709 y BT.2020.
+- Mientras se arrastra o redimensiona la ventana con el ratón, Windows detiene el bucle y la imagen se congela un momento; el audio sigue.

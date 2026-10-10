@@ -2,10 +2,13 @@ using System.Globalization;
 
 namespace Rodaje.Visor;
 
-/// <summary>Línea de órdenes: <c>[archivo] [--prueba segundos] [--registro ruta] [--sin-audio] [--cpu]</c>.</summary>
+/// <summary>Línea de órdenes: <c>[archivo...] [--prueba segundos] [--registro ruta] [--sin-audio] [--cpu]</c>.</summary>
+/// <remarks>Los archivos son videos (el primero de fondo, los demás como imagen en imagen) o un solo proyecto <c>.rodaje</c>.</remarks>
 internal sealed record VisorArguments
 {
-    public string? File { get; init; }
+    private const string Usage = "Uso: Rodaje.Visor [video...|proyecto.rodaje] [--prueba segundos] [--registro ruta] [--sin-audio] [--cpu]";
+
+    public IReadOnlyList<string> Files { get; init; } = [];
 
     /// <summary>Recorrido automático de esta duración que termina imprimiendo las estadísticas.</summary>
     public TimeSpan? TestDuration { get; init; }
@@ -19,6 +22,7 @@ internal sealed record VisorArguments
     public static VisorArguments Parse(IReadOnlyList<string> args)
     {
         var result = new VisorArguments();
+        var files = new List<string>();
         for (int i = 0; i < args.Count; i++)
         {
             string arg = args[i];
@@ -56,19 +60,23 @@ internal sealed record VisorArguments
                 default:
                     if (arg.StartsWith("--", StringComparison.Ordinal))
                     {
-                        throw new ArgumentException($"Opción desconocida: {arg}. Uso: Rodaje.Visor [archivo] [--prueba segundos] [--registro ruta] [--sin-audio] [--cpu]");
+                        throw new ArgumentException($"Opción desconocida: {arg}. {Usage}");
                     }
 
-                    result = result with { File = arg };
+                    if (!string.IsNullOrWhiteSpace(arg))
+                    {
+                        files.Add(arg);
+                    }
+
                     break;
             }
         }
 
-        if (result.TestDuration is not null && result.File is null)
+        if (result.TestDuration is not null && files.Count == 0)
         {
-            throw new ArgumentException("--prueba necesita un archivo de video.");
+            throw new ArgumentException("--prueba necesita al menos un video o un proyecto.");
         }
 
-        return result;
+        return result with { Files = files };
     }
 }

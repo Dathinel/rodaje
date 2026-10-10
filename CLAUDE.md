@@ -5,7 +5,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 ## Cómo se trabaja aquí
 
 - **.NET:** siempre con `herramientas\dotnet-local.cmd <args>`, que usa el SDK 10.0.401 de `.entorno\dotnet`. La FFmpeg LGPL 9.0.2 está en `.entorno\ffmpeg`. Las dos se instalan con `herramientas\preparar-entorno.ps1`, con hashes fijados. `RODAJE_ENTORNO` apunta a otro `.entorno`, por ejemplo desde un worktree.
-- **`Rodaje.bat`:** abre el visor; también se le puede arrastrar un video. Solo recompila si cambió `src\`.
+- **`Rodaje.bat`:** abre el visor; también se le pueden arrastrar varios videos (el primero de fondo, los demás como imagen en imagen) o un `.rodaje`. Solo recompila si cambió `src\`.
 - **`ABRIR.bat`:** sin argumentos corre las pruebas. Acepta:
 
   | Argumento | Qué hace |

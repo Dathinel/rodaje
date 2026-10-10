@@ -1,11 +1,16 @@
-﻿# Publica el visor de la fase 2 (src\Rodaje.Visor) con Native AOT en dist\Rodaje-visor\ y lo abre.
+﻿# Publica el visor de la fase 3 (src\Rodaje.Visor) con Native AOT en dist\Rodaje-visor\ y lo abre.
 # Uso:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\visor.ps1 [-Archivo video.mp4]
-#   ... -Archivo video.mp4 -Prueba 10     recorrido automático de 10 s que imprime las estadísticas
+#   powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\visor.ps1 [video.mp4 [otro.mp4 ...] | proyecto.rodaje]
+#   ... -Archivo video.mp4                un solo archivo (como en la fase 2)
+#   ... a.mp4 b.mp4 -Prueba 20            recorrido automático de 20 s que imprime las estadísticas
 #   ... -SinPublicar                      abre el exe ya publicado sin recompilar
+# Los archivos sueltos (-Archivos) se juntan: el primero de fondo y los demás como imagen en imagen.
 # Requiere link.exe (Build Tools con C++) para publicar. Sale con 0 si todo fue bien.
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [string]$Archivo,
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Archivos = @(),
     [double]$Prueba = 0,
     [switch]$SinPublicar
 )
@@ -120,7 +125,7 @@ function Publicar {
     return $true
 }
 
-Titulo 'Rodaje - visor de un clip (fase 2)'
+Titulo 'Rodaje - visor de varias capas (fase 3)'
 # Solo se recompila si el exe falta o algún fuente de src\ es más nuevo que él.
 $hayCambios = -not (Test-Path -LiteralPath $Exe)
 if (-not $hayCambios) {
@@ -132,18 +137,22 @@ if ($hayCambios -and -not $SinPublicar -or -not (Test-Path -LiteralPath $Exe)) {
     if (-not (Publicar)) { Write-Host ''; exit 1 }
 }
 
-if ($Archivo -and -not (Test-Path -LiteralPath $Archivo)) {
-    Mal "No existe el archivo: $Archivo"
-    exit 1
-}
-
+$lista = @()
+if ($Archivo) { $lista += $Archivo }
+$lista += @($Archivos | Where-Object { $_ })
 $argumentos = @()
-if ($Archivo) { $argumentos += '"' + (Resolve-Path -LiteralPath $Archivo).Path + '"' }
+foreach ($a in $lista) {
+    if (-not (Test-Path -LiteralPath $a -PathType Leaf)) {
+        Mal "No existe el archivo: $a"
+        exit 1
+    }
+    $argumentos += '"' + (Resolve-Path -LiteralPath $a).Path + '"'
+}
 # Sin DOTNET_ROOT: un exe de Native AOT no debe necesitar nada de .NET para arrancar.
 Remove-Item Env:DOTNET_ROOT -ErrorAction SilentlyContinue
 
 if ($Prueba -gt 0) {
-    if (-not $Archivo) { Mal '-Prueba necesita -Archivo.'; exit 1 }
+    if ($lista.Count -eq 0) { Mal '-Prueba necesita al menos un video o un proyecto.'; exit 1 }
     $registro = Join-Path $Raiz ('TestResults\visor-prueba-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.txt')
     $argumentos += @('--prueba', $Prueba.ToString([System.Globalization.CultureInfo]::InvariantCulture), '--registro', ('"' + $registro + '"'))
     Titulo "Recorrido automático de $Prueba s (la ventana se abre y se cierra sola)..."
@@ -161,5 +170,5 @@ if ($Prueba -gt 0) {
 }
 
 if ($argumentos.Count -gt 0) { Start-Process -FilePath $Exe -ArgumentList $argumentos } else { Start-Process -FilePath $Exe }
-Bien 'Visor abierto. Teclas: Espacio, ←/→, Shift+←/→, Inicio/Fin, F, Esc, I, Ctrl+O. Detalle en docs\prueba-visor.md.'
+Bien 'Visor abierto. Teclas: Espacio, ←/→, 1-9, Ctrl+1-9, Alt+flechas, +/-, R, O, Ctrl+Z/Y, Ctrl+S, I. Detalle en docs\prueba-visor.md.'
 exit 0

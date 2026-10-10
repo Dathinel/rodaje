@@ -1,17 +1,55 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text;
+using Rodaje.Core.Commands;
+using Rodaje.Core.Editing;
+using Rodaje.Core.Model;
+using Rodaje.Core.Serialization;
 using Rodaje.Core.Timing;
-using Rodaje.Engine;
 using Rodaje.Engine.Presentation;
+using Rodaje.Engine.Timeline;
 using Rodaje.Media;
 using Rodaje.Media.Gpu;
-using Rodaje.Playback;
+using Rodaje.Playback.Composition;
+using Rodaje.Render;
 using TerraFX.Interop.Windows;
 using static TerraFX.Interop.Windows.Windows;
 using static Rodaje.Visor.Win32;
 
 namespace Rodaje.Visor;
+
+[Flags]
+internal enum KeyModifiers
+{
+    None = 0,
+    Control = 1,
+    Shift = 2,
+    Alt = 4,
+}
+
+/// <summary>Capa tal como se compuso en el último refresco.</summary>
+internal readonly record struct ShownLayer(int TrackIndex, string ClipId, long FrameIndex, LayerTransform Transform);
+
+/// <summary>Lo que se compuso en el último refresco pintado.</summary>
+/// <param name="SequenceFrame">Cuadro de la secuencia según el reloj al componer.</param>
+internal sealed record ShownFrame(long SequenceFrame, IReadOnlyList<ShownLayer> Layers, CompositeResult Result)
+{
+    public static ShownFrame Empty { get; } = new(-1, [], default);
+
+    public ShownLayer? Layer(int trackIndex)
+    {
+        foreach (ShownLayer layer in Layers)
+        {
+            if (layer.TrackIndex == trackIndex)
+            {
+                return layer;
+            }
+        }
+
+        return null;
+    }
+}
 
 /// <summary>Ventana Win32 del visor: bucle de mensajes y de pintado al ritmo de la pantalla.</summary>
 internal sealed unsafe class VisorWindow : IDisposable
@@ -21,15 +59,21 @@ internal sealed unsafe class VisorWindow : IDisposable
     private const int BarHitHeight = 28;
     private const uint IdleWaitMs = 10;
     private const uint ActiveWaitMs = 100;
+    private const int MaxSelectableTracks = 9;
+
+    private static readonly Func<LayerFrame, SourceGeometry> Geometry = l => new SourceGeometry(l.SampleAspectRatio, l.Rotation);
 
     private static VisorWindow? s_current;
 
     private readonly VisorArguments _args;
     private readonly GpuDevice _gpu;
     private readonly PresentTimer _presentTimer = new();
+    private readonly GpuSampler _gpuSampler;
     private HWND _hwnd;
     private VideoRenderer? _renderer;
-    private ClipPlayer? _player;
+    private VisorProject? _project;
+    private TimelineSession? _session;
+    private Compositor? _compositor;
     private AutomatedRun? _automation;
     private ExceptionDispatchHolder? _fatal;
 
@@ -44,14 +88,19 @@ internal sealed unsafe class VisorWindow : IDisposable
     private double? _dragTarget;
     private long _lastDragSeek;
     private bool _barHover;
-    private long? _lastDrawnIndex;
+    private int _lastSignature;
     private long _lastTitleUpdate;
+    private string? _status;
+    private long _statusUntil;
+    private int _decodeFailures;
+    private volatile string? _lastDecodeFailure;
 
     public VisorWindow(VisorArguments args, GpuDevice gpu)
     {
         _args = args;
         _gpu = gpu;
         s_current = this;
+        _gpuSampler = new GpuSampler(gpu);
         CreateNativeWindow();
         _renderer = new VideoRenderer(gpu, _hwnd);
         RECT client;
@@ -61,53 +110,74 @@ internal sealed unsafe class VisorWindow : IDisposable
         UpdateTitle(force: true);
     }
 
-    public ClipPlayer? Player => _player;
+    public TimelineSession? Session => _session;
 
-    /// <summary>Índice del último cuadro pintado y si era el que pedía el reloj.</summary>
-    public FramePresentation LastPresentation { get; private set; }
+    public VisorProject? Project => _project;
+
+    /// <summary>Pista de video (índice desde 0) que reciben las ediciones de capa.</summary>
+    public int SelectedTrack { get; private set; }
+
+    public ShownFrame LastFrame { get; private set; } = ShownFrame.Empty;
 
     public PresentTimer Presents => _presentTimer;
 
+    public GpuSampler GpuTimes => _gpuSampler;
+
     public string AdapterName => _gpu.AdapterName;
+
+    public int DecodeFailures => Volatile.Read(ref _decodeFailures);
+
+    public string? LastDecodeFailure => _lastDecodeFailure;
+
+    public (int Width, int Height) CompositeSize => _compositor is { } c ? (c.Width, c.Height) : (0, 0);
 
     public void Show() => ShowWindow(_hwnd, SW_SHOWNORMAL);
 
-    /// <summary>Muestra el diálogo de abrir; si se cancela, la ventana queda vacía (Ctrl+O o arrastrar un video).</summary>
-    public void PromptForFile()
+    /// <summary>Muestra el diálogo de abrir; si se cancela, la ventana queda vacía (Ctrl+O o arrastrar videos).</summary>
+    public void PromptForFiles()
     {
-        if (FileDialog.PickVideo(_hwnd) is { } path)
+        IReadOnlyList<string> paths = FileDialog.PickFiles(_hwnd);
+        if (paths.Count > 0)
         {
-            OpenFile(path, autoplay: true);
+            Open(paths, autoplay: true);
         }
     }
 
-    public bool OpenFile(string path, bool autoplay)
+    /// <summary>Abre un proyecto <c>.rodaje</c> o arma la demostración con los videos, y la reproduce.</summary>
+    public bool Open(IReadOnlyList<string> paths, bool autoplay)
     {
-        ClipPlayer next;
+        VisorProject project;
+        TimelineSession session;
         try
         {
-            next = ClipPlayer.Open(path, new ClipPlayerOptions
+            project = VisorProject.Open(paths);
+            session = TimelineSession.Open(project.Project, project.SequenceId, _gpu, new TimelineSessionOptions
             {
-                Device = _gpu,
+                ProjectDirectory = project.Directory,
                 AllowHardwareDecoding = !_args.ForceSoftwareDecoding,
                 EnableAudio = !_args.DisableAudio,
             });
         }
-        catch (Exception ex) when (ex is MediaException or FfmpegNotFoundException or IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is MediaException or FfmpegNotFoundException or IOException or UnauthorizedAccessException
+            or ProjectFormatException or EditException or ArgumentException or KeyNotFoundException)
         {
-            ReportError($"No se pudo abrir el archivo:\n{path}\n\n{ex.Message}");
+            string list = string.Join("\n", paths);
+            ReportError($"No se pudo abrir:\n{list}\n\n{ex.Message}");
             return false;
         }
 
-        _renderer?.ReleaseFrameViews();
-        _player?.Dispose();
-        _player = next;
-        _lastDrawnIndex = null;
-        LastPresentation = default;
+        CloseSession();
+        _project = project;
+        _session = session;
+        _session.DecodeFailed += OnDecodeFailed;
+        SelectedTrack = Math.Max(0, Math.Min(project.Sequence.VideoTracks.Count, MaxSelectableTracks) - 1);
+        EnsureCompositor();
+        LastFrame = ShownFrame.Empty;
+        _presentTimer.Reset();
         _dirty = true;
         if (autoplay)
         {
-            _player.Play();
+            _session.Play();
         }
 
         UpdateTitle(force: true);
@@ -120,6 +190,19 @@ internal sealed unsafe class VisorWindow : IDisposable
     {
         _exitCode = exitCode;
         _quit = true;
+    }
+
+    /// <summary>Hace lo mismo que la tecla con esos modificadores (también lo usa el recorrido automático).</summary>
+    public bool PressKey(int key, KeyModifiers modifiers = KeyModifiers.None)
+    {
+        bool handled = HandleKey(key, modifiers);
+        if (handled)
+        {
+            _dirty = true;
+            UpdateTitle(force: true);
+        }
+
+        return handled;
     }
 
     /// <summary>Bucle principal: mensajes, automatización y un cuadro por refresco mientras haya algo que mostrar.</summary>
@@ -141,7 +224,7 @@ internal sealed unsafe class VisorWindow : IDisposable
                 break;
             }
 
-            bool active = _player is not null && (_player.IsPlaying || _player.IsSeekPending) || _dirty;
+            bool active = _session is not null && (_session.IsPlaying || _session.IsSeekPending) || _dirty;
             HANDLE wait = _renderer!.FrameWaitHandle;
             if (active)
             {
@@ -155,9 +238,13 @@ internal sealed unsafe class VisorWindow : IDisposable
             {
                 _ = MsgWaitForMultipleObjectsEx(0, null, IdleWaitMs, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
                 // En pausa no se pinta, pero un cuadro pedido puede haber llegado.
-                if (_player is not null && _player.Tick().Frame?.Index != _lastDrawnIndex)
+                if (_session is not null)
                 {
-                    _dirty = true;
+                    using CompositionFrame frame = _session.Tick();
+                    if (Signature(frame) != _lastSignature)
+                    {
+                        _dirty = true;
+                    }
                 }
 
                 UpdateTitle(force: false);
@@ -169,8 +256,8 @@ internal sealed unsafe class VisorWindow : IDisposable
 
     public void Dispose()
     {
-        _player?.Dispose();
-        _player = null;
+        CloseSession();
+        _gpuSampler.Dispose();
         _renderer?.Dispose();
         _renderer = null;
         if (_hwnd != HWND.NULL)
@@ -187,6 +274,34 @@ internal sealed unsafe class VisorWindow : IDisposable
     private static int HighWord(nint value) => (short)((value >> 16) & 0xFFFF);
 
     private static bool IsKeyDown(int key) => GetKeyState(key) < 0;
+
+    private static KeyModifiers CurrentModifiers() =>
+        (IsKeyDown(VK_CONTROL) ? KeyModifiers.Control : 0)
+        | (IsKeyDown(VK_SHIFT) ? KeyModifiers.Shift : 0)
+        | (IsKeyDown(VK_MENU) ? KeyModifiers.Alt : 0);
+
+    /// <summary>Número de 1 a 9 de la fila de dígitos o del teclado numérico; 0 si es otra tecla.</summary>
+    private static int DigitOf(int key) => key switch
+    {
+        >= '1' and <= '9' => key - '0',
+        >= VK_NUMPAD1 and <= VK_NUMPAD9 => key - VK_NUMPAD0,
+        _ => 0,
+    };
+
+    private static int Signature(CompositionFrame frame)
+    {
+        var hash = new HashCode();
+        hash.Add(frame.Layers.Count);
+        foreach (LayerFrame layer in frame.Layers)
+        {
+            hash.Add(layer.TrackIndex);
+            hash.Add(layer.ClipId);
+            hash.Add(layer.Frame.Index);
+            hash.Add(layer.Transform);
+        }
+
+        return hash.ToHashCode();
+    }
 
     [UnmanagedCallersOnly]
     private static LRESULT WndProc(HWND hwnd, uint message, WPARAM wParam, LPARAM lParam)
@@ -208,6 +323,54 @@ internal sealed unsafe class VisorWindow : IDisposable
             return 0;
         }
 #pragma warning restore CA1031
+    }
+
+    private void OnDecodeFailed(object? sender, TimelineDecodeFailedEventArgs e)
+    {
+        Interlocked.Increment(ref _decodeFailures);
+        string where = e.FrameIndex < 0 ? "no se pudo abrir" : $"falló el cuadro {e.FrameIndex}";
+        _lastDecodeFailure = $"{Path.GetFileName(e.Path)}: {where} ({e.Error.Message})";
+    }
+
+    private void CloseSession()
+    {
+        if (_session is not null)
+        {
+            _session.DecodeFailed -= OnDecodeFailed;
+            _session.Dispose();
+            _session = null;
+        }
+
+        _compositor?.Dispose();
+        _compositor = null;
+        _project = null;
+    }
+
+    /// <summary>Compone a tamaño de secuencia, o a la mitad si la ventana no llega ni a la mitad de la secuencia.</summary>
+    private void EnsureCompositor()
+    {
+        if (_session is null || _renderer is null)
+        {
+            return;
+        }
+
+        int width = _session.Width;
+        int height = _session.Height;
+        if (_renderer.Width * 2 <= width && _renderer.Height * 2 <= height)
+        {
+            width = Math.Max(1, width / 2);
+            height = Math.Max(1, height / 2);
+        }
+
+        if (_compositor is { } current && current.Width == width && current.Height == height)
+        {
+            return;
+        }
+
+        _compositor?.Dispose();
+        _compositor = null;
+        _compositor = new Compositor(_gpu, width, height);
+        _dirty = true;
     }
 
     private void CreateNativeWindow()
@@ -260,30 +423,51 @@ internal sealed unsafe class VisorWindow : IDisposable
 
     private void RenderFrame()
     {
-        FramePresentation presentation = _player?.Tick() ?? default;
-        LastPresentation = presentation;
-        bool shown = _renderer!.Render(new RenderRequest(
-            presentation.Frame?.Payload as D3D11TexturePayload,
-            _player?.Video.DisplayWidth ?? 0,
-            _player?.Video.DisplayHeight ?? 0,
-            _player?.Video.Rotation ?? 0,
-            Progress(),
-            _player is not null,
-            _barHover || _dragging));
-        _presentTimer.Record(shown && _player is { IsPlaying: true });
-        _lastDrawnIndex = presentation.Frame?.Index;
+        _gpuSampler.Collect();
+        CompositionFrame? frame = _session?.Tick();
+        try
+        {
+            if (frame is not null && _compositor is not null)
+            {
+                bool measure = _gpuSampler.BeginIfDue();
+                CompositeResult result = _compositor.Render(frame, Geometry);
+                if (measure)
+                {
+                    _gpuSampler.End();
+                }
+
+                var layers = new ShownLayer[frame.Layers.Count];
+                for (int i = 0; i < layers.Length; i++)
+                {
+                    LayerFrame layer = frame.Layers[i];
+                    layers[i] = new ShownLayer(layer.TrackIndex, layer.ClipId, layer.Frame.Index, layer.Transform);
+                }
+
+                LastFrame = new ShownFrame(_session!.CurrentFrame, layers, result);
+                _lastSignature = Signature(frame);
+            }
+
+            bool shown = _renderer!.Render(_session is null ? null : _compositor,
+                new RenderRequest(Progress(), _session is not null, _barHover || _dragging));
+            _presentTimer.Record(shown && _session is { IsPlaying: true });
+        }
+        finally
+        {
+            frame?.Dispose();
+        }
+
         _dirty = false;
         UpdateTitle(force: false);
     }
 
     private double Progress()
     {
-        if (_player is null || _player.Duration <= Time.Zero)
+        if (_session is null || _session.Duration <= Time.Zero)
         {
             return 0;
         }
 
-        return _player.Position.ToSeconds() / _player.Duration.ToSeconds();
+        return _session.Position.ToSeconds() / _session.Duration.ToSeconds();
     }
 
     private LRESULT HandleMessage(HWND hwnd, uint message, WPARAM wParam, LPARAM lParam)
@@ -294,6 +478,7 @@ internal sealed unsafe class VisorWindow : IDisposable
                 if (_renderer is not null && wParam != SIZE_MINIMIZED)
                 {
                     _renderer.Resize(LowWord(lParam), HighWord(lParam));
+                    EnsureCompositor();
                     _dirty = true;
                 }
 
@@ -312,8 +497,11 @@ internal sealed unsafe class VisorWindow : IDisposable
                 info->ptMinTrackSize.y = 200;
                 return 0;
             case WM_KEYDOWN:
-                OnKey((int)wParam.Value);
+                PressKey((int)wParam.Value, CurrentModifiers());
                 return 0;
+            case WM_SYSKEYDOWN:
+                // Alt+flechas mueve la capa; lo demás (Alt+F4, el menú) sigue su curso normal.
+                return PressKey((int)wParam.Value, CurrentModifiers() | KeyModifiers.Alt) ? 0 : DefWindowProcW(hwnd, message, wParam, lParam);
             case WM_LBUTTONDOWN:
                 OnMouseDown(LowWord(lParam), HighWord(lParam));
                 return 0;
@@ -352,97 +540,266 @@ internal sealed unsafe class VisorWindow : IDisposable
         }
     }
 
-    private void OnKey(int key)
+    private bool HandleKey(int key, KeyModifiers modifiers)
     {
-        bool shift = IsKeyDown(VK_SHIFT);
-        bool control = IsKeyDown(VK_CONTROL);
-        if (key == 'O' && control)
+        bool control = modifiers.HasFlag(KeyModifiers.Control);
+        bool shift = modifiers.HasFlag(KeyModifiers.Shift);
+        if (modifiers.HasFlag(KeyModifiers.Alt))
         {
-            string? path = FileDialog.PickVideo(_hwnd);
-            if (path is not null)
-            {
-                OpenFile(path, autoplay: true);
-            }
+            return !control && HandleAltKey(key);
+        }
 
-            return;
+        if (control)
+        {
+            return HandleControlKey(key, shift);
         }
 
         switch (key)
         {
             case 'F':
                 ToggleFullscreen();
-                return;
+                return true;
             case VK_ESCAPE:
                 if (_fullscreen)
                 {
                     ToggleFullscreen();
                 }
 
-                return;
+                return true;
             case 'I':
                 _overlay = !_overlay;
-                UpdateTitle(force: true);
-                return;
+                return true;
         }
 
-        if (_player is null)
+        if (_session is null)
         {
-            return;
+            return false;
+        }
+
+        if (DigitOf(key) is > 0 and int track)
+        {
+            ToggleTrack(track - 1);
+            return true;
         }
 
         switch (key)
         {
             case VK_SPACE:
-                _player.TogglePlayPause();
-                break;
+                _session.TogglePlayPause();
+                return true;
             case VK_LEFT:
-                if (shift)
-                {
-                    _player.SeekBy(-Time.FromSeconds(5));
-                }
-                else
-                {
-                    _player.StepFrame(-1);
-                }
-
-                break;
             case VK_RIGHT:
+                int sign = key == VK_LEFT ? -1 : 1;
                 if (shift)
                 {
-                    _player.SeekBy(Time.FromSeconds(5));
+                    _session.SeekBy(Time.FromSeconds(5 * sign));
                 }
                 else
                 {
-                    _player.StepFrame(1);
+                    _session.StepFrame(sign);
                 }
 
-                break;
+                return true;
             case VK_HOME:
-                _player.Seek(Time.Zero);
-                break;
+                _session.Seek(Time.Zero);
+                return true;
             case VK_END:
-                _player.SeekToFrame(_player.FrameCount - 1);
-                break;
+                _session.SeekToFrame(_session.FrameCount - 1);
+                return true;
+            case VK_OEM_PLUS:
+            case VK_ADD:
+                EditSelected((s, c) => LayerEdits.Scale(s, c, LayerEdits.ScaleFactor));
+                return true;
+            case VK_OEM_MINUS:
+            case VK_SUBTRACT:
+                EditSelected((s, c) => LayerEdits.Scale(s, c, 1 / LayerEdits.ScaleFactor));
+                return true;
+            case 'R':
+                EditSelected((s, c) => LayerEdits.Rotate(s, c, LayerEdits.RotationStep));
+                return true;
+            case 'O':
+                EditSelected(LayerEdits.CycleOpacity);
+                return true;
             default:
-                return;
+                return false;
+        }
+    }
+
+    private bool HandleControlKey(int key, bool shift)
+    {
+        switch (key)
+        {
+            case 'O':
+                PromptForFiles();
+                return true;
+            case 'S':
+                Save();
+                return true;
+            case 'Z' when shift:
+            case 'Y':
+                Redo();
+                return true;
+            case 'Z':
+                Undo();
+                return true;
         }
 
-        _dirty = true;
-        UpdateTitle(force: true);
+        if (_session is not null && DigitOf(key) is > 0 and int track)
+        {
+            Select(track - 1);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool HandleAltKey(int key)
+    {
+        (double dx, double dy) = key switch
+        {
+            VK_LEFT => (-LayerEdits.MoveStep, 0.0),
+            VK_RIGHT => (LayerEdits.MoveStep, 0.0),
+            VK_UP => (0.0, -LayerEdits.MoveStep),
+            VK_DOWN => (0.0, LayerEdits.MoveStep),
+            _ => (0.0, 0.0),
+        };
+        if (dx == 0 && dy == 0 || _session is null)
+        {
+            return false;
+        }
+
+        EditSelected((s, c) => LayerEdits.Move(s, c, dx, dy));
+        return true;
+    }
+
+    private void Select(int track)
+    {
+        if (_project is null || track >= _project.Sequence.VideoTracks.Count)
+        {
+            ShowStatus($"No hay pista de video {track + 1}.");
+            return;
+        }
+
+        SelectedTrack = track;
+        _project.History.BreakMerge();
+        ShowStatus($"Capa V{track + 1} seleccionada.");
+    }
+
+    private void ToggleTrack(int track)
+    {
+        if (_project is null || track >= _project.Sequence.VideoTracks.Count)
+        {
+            ShowStatus($"No hay pista de video {track + 1}.");
+            return;
+        }
+
+        Track target = _project.Sequence.VideoTracks[track];
+        Execute(Edits.SetTrackState(_project.SequenceId, target.Id, hidden: !target.Hidden));
+    }
+
+    /// <summary>Clip de la capa seleccionada bajo el cursor de reproducción, o el primero de la pista.</summary>
+    public string? SelectedClipId()
+    {
+        if (_project is null || _session is null || SelectedTrack >= _project.Sequence.VideoTracks.Count)
+        {
+            return null;
+        }
+
+        Track track = _project.Sequence.VideoTracks[SelectedTrack];
+        return (track.ClipAt(_session.Position) ?? track.Clips.FirstOrDefault())?.Id;
+    }
+
+    private void EditSelected(Func<string, string, ICommand> edit)
+    {
+        if (_project is null)
+        {
+            return;
+        }
+
+        if (SelectedClipId() is not { } clipId)
+        {
+            ShowStatus($"La pista V{SelectedTrack + 1} no tiene clips.");
+            return;
+        }
+
+        Execute(edit(_project.SequenceId, clipId));
+    }
+
+    private void Execute(ICommand command)
+    {
+        try
+        {
+            _project!.History.Execute(command);
+        }
+        catch (EditException ex)
+        {
+            ShowStatus(ex.Message);
+            return;
+        }
+
+        _session!.Invalidate();
+    }
+
+    private void Undo()
+    {
+        if (_project is null || _project.History.UndoDescription is not { } what || !_project.History.Undo())
+        {
+            ShowStatus("No hay nada que deshacer.");
+            return;
+        }
+
+        _session!.Invalidate();
+        ShowStatus($"Deshecho: {what}.");
+    }
+
+    private void Redo()
+    {
+        if (_project is null || _project.History.RedoDescription is not { } what || !_project.History.Redo())
+        {
+            ShowStatus("No hay nada que rehacer.");
+            return;
+        }
+
+        _session!.Invalidate();
+        ShowStatus($"Rehecho: {what}.");
+    }
+
+    private void Save()
+    {
+        if (_project is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _project.Save();
+            ShowStatus($"Guardado en {_project.SavePath}", seconds: 8);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException)
+        {
+            ReportError($"No se pudo guardar el proyecto en:\n{_project.SavePath}\n\n{ex.Message}");
+        }
+    }
+
+    private void ShowStatus(string text, double seconds = 4)
+    {
+        _status = text;
+        _statusUntil = Stopwatch.GetTimestamp() + (long)(seconds * Stopwatch.Frequency);
     }
 
     private bool IsOverBar(int y) => _renderer is not null && y >= _renderer.Height - BarHitHeight;
 
     private void OnMouseDown(int x, int y)
     {
-        if (_player is null || !IsOverBar(y))
+        if (_session is null || !IsOverBar(y))
         {
             return;
         }
 
         _dragging = true;
-        _resumeAfterDrag = _player.IsPlaying;
-        _player.Pause();
+        _resumeAfterDrag = _session.IsPlaying;
+        _session.Pause();
         SetCapture(_hwnd);
         _dragTarget = Fraction(x);
         _lastDragSeek = 0;
@@ -457,7 +814,7 @@ internal sealed unsafe class VisorWindow : IDisposable
             return;
         }
 
-        bool hover = _player is not null && IsOverBar(y);
+        bool hover = _session is not null && IsOverBar(y);
         if (hover != _barHover)
         {
             _barHover = hover;
@@ -476,12 +833,12 @@ internal sealed unsafe class VisorWindow : IDisposable
     // continuo nunca dejaría terminar un cuadro y la imagen no cambiaría.
     private void ApplyDragSeek()
     {
-        if (_player is null || _dragTarget is not { } fraction)
+        if (_session is null || _dragTarget is not { } fraction)
         {
             return;
         }
 
-        bool due = !_player.IsSeekPending || Stopwatch.GetElapsedTime(_lastDragSeek).TotalMilliseconds > 120;
+        bool due = !_session.IsSeekPending || Stopwatch.GetElapsedTime(_lastDragSeek).TotalMilliseconds > 120;
         if (!due)
         {
             return;
@@ -489,7 +846,7 @@ internal sealed unsafe class VisorWindow : IDisposable
 
         _dragTarget = null;
         _lastDragSeek = Stopwatch.GetTimestamp();
-        _player.Seek(Time.FromSeconds(fraction * _player.Duration.ToSeconds()));
+        _session.Seek(Time.FromSeconds(fraction * _session.Duration.ToSeconds()));
         _dirty = true;
     }
 
@@ -503,15 +860,15 @@ internal sealed unsafe class VisorWindow : IDisposable
         _dragging = false;
         ReleaseCapture();
         ApplyDragSeek();
-        if (_dragTarget is { } fraction && _player is not null)
+        if (_dragTarget is { } fraction && _session is not null)
         {
             _dragTarget = null;
-            _player.Seek(Time.FromSeconds(fraction * _player.Duration.ToSeconds()));
+            _session.Seek(Time.FromSeconds(fraction * _session.Duration.ToSeconds()));
         }
 
         if (_resumeAfterDrag)
         {
-            _player?.Play();
+            _session?.Play();
         }
 
         _dirty = true;
@@ -519,24 +876,37 @@ internal sealed unsafe class VisorWindow : IDisposable
 
     private void OnDrop(HDROP drop)
     {
+        var paths = new List<string>();
         try
         {
-            uint length = DragQueryFileW(drop, 0, null, 0);
-            if (length == 0)
+            uint count = DragQueryFileW(drop, 0xFFFFFFFF, null, 0);
+            for (uint i = 0; i < count; i++)
             {
-                return;
-            }
+                uint length = DragQueryFileW(drop, i, null, 0);
+                if (length == 0)
+                {
+                    continue;
+                }
 
-            char* buffer = stackalloc char[(int)length + 1];
-            uint copied = DragQueryFileW(drop, 0, buffer, length + 1);
-            if (copied > 0)
-            {
-                OpenFile(new string(buffer, 0, (int)copied), autoplay: true);
+                char[] buffer = new char[length + 1];
+                fixed (char* text = buffer)
+                {
+                    uint copied = DragQueryFileW(drop, i, text, length + 1);
+                    if (copied > 0)
+                    {
+                        paths.Add(new string(text, 0, (int)copied));
+                    }
+                }
             }
         }
         finally
         {
             DragFinish(drop);
+        }
+
+        if (paths.Count > 0)
+        {
+            Open(paths, autoplay: true);
         }
     }
 
@@ -582,34 +952,59 @@ internal sealed unsafe class VisorWindow : IDisposable
         }
 
         _lastTitleUpdate = now;
-        string title = BuildTitle();
+        string title = BuildTitle(now);
         fixed (char* text = title)
         {
             SetWindowTextW(_hwnd, text);
         }
     }
 
-    private string BuildTitle()
+    private string BuildTitle(long now)
     {
-        if (_player is null)
+        if (_session is null || _project is null)
         {
-            return $"{AppTitle}: arrastra un video aquí o pulsa Ctrl+O";
+            return $"{AppTitle}: arrastra uno o varios videos aquí o pulsa Ctrl+O";
         }
 
-        string name = Path.GetFileName(_player.Path);
-        string state = _player.IsPlaying ? "" : " (pausa)";
+        var title = new StringBuilder();
+        if (_status is not null && now < _statusUntil)
+        {
+            title.Append(_status).Append(" | ");
+        }
+
+        if (_lastDecodeFailure is { } failure)
+        {
+            title.Append("Error: ").Append(failure).Append(" | ");
+        }
+
+        string state = _session.IsPlaying ? "" : " (pausa)";
+        string name = _project.IsDemo && !File.Exists(_project.SavePath) ? $"{_project.Project.Name} (sin guardar, Ctrl+S)" : Path.GetFileName(_project.SavePath);
+        string changed = _project.History.IsClean ? "" : "*";
+        int tracks = _project.Sequence.VideoTracks.Count;
         if (!_overlay)
         {
-            return $"{name}{state} - {AppTitle}";
+            title.Append(CultureInfo.InvariantCulture,
+                $"{name}{changed}{state} | {tracks} capa{(tracks == 1 ? "" : "s")}, V{SelectedTrack + 1} seleccionada | I: estadísticas - {AppTitle}");
+            return title.ToString();
         }
 
-        ClipPlayerStats stats = _player.Stats;
-        PlaybackStats p = stats.Playback;
-        long frame = LastPresentation.Frame?.Index ?? _player.CurrentFrame;
-        return string.Create(CultureInfo.InvariantCulture,
-            $"{Timecode.Format(_player.Position)} / {Timecode.Format(_player.Duration)} | cuadro {frame + 1}/{_player.FrameCount}{state} | "
-            + $"{stats.DecodeModeText} | perdidos {p.FramesDropped}, tarde {p.LateRefreshes} | "
-            + $"A/V máx {p.MaxAvOffset.ToSeconds() * 1000:0.0} ms | audio: {stats.AudioStatus} | {name}");
+        TimelineStats stats = _session.Stats;
+        long frame = LastFrame.SequenceFrame >= 0 ? LastFrame.SequenceFrame : _session.CurrentFrame;
+        title.Append(CultureInfo.InvariantCulture,
+            $"{Timecode.Format(_session.Position)} / {Timecode.Format(_session.Duration)} | cuadro {frame + 1}/{_session.FrameCount}{state} | ");
+        title.Append(CultureInfo.InvariantCulture, $"capas {LastFrame.Layers.Count}/{tracks}:");
+        foreach (LayerStats layer in stats.Layers)
+        {
+            title.Append(CultureInfo.InvariantCulture, $" V{layer.TrackIndex + 1} tarde {layer.LateRefreshes} perd. {layer.FramesDropped};");
+        }
+
+        GpuSummary gpu = _gpuSampler.Summarize();
+        title.Append(CultureInfo.InvariantCulture,
+            $" | GPU {gpu.LastMs:0.00} ms (máx {gpu.MaxMs:0.00}) {CompositeSize.Width}x{CompositeSize.Height}"
+            + $" | decodificadores {stats.DecodersOpen} | caché {stats.CacheBytes / (1024.0 * 1024):0} MB"
+            + $" | pre-roll {stats.PreRollHitRate * 100:0} % ({stats.PreRollHits}/{stats.PreRollHits + stats.PreRollMisses})"
+            + $" | audio: {stats.Audio.Status} | V{SelectedTrack + 1} sel. | {name}{changed}");
+        return title.ToString();
     }
 
     private void ReportError(string message)
@@ -620,7 +1015,7 @@ internal sealed unsafe class VisorWindow : IDisposable
             Console.Out.Write(report);
             if (_args.LogPath is not null)
             {
-                File.WriteAllText(_args.LogPath, report, new System.Text.UTF8Encoding(false));
+                File.WriteAllText(_args.LogPath, report, new UTF8Encoding(false));
             }
 
             return;
@@ -676,4 +1071,67 @@ internal sealed class PresentTimer
         int hitches = sorted.Count(i => i > median * 1.5);
         return (sorted.Length, median, sorted[^1], hitches);
     }
+}
+
+internal readonly record struct GpuSummary(int Samples, double LastMs, double MedianMs, double MaxMs);
+
+/// <summary>Mide en la GPU lo que tarda la composición, unas cuatro veces por segundo para no frenar el bucle.</summary>
+/// <remarks>La consulta se lee en el refresco siguiente, cuando la GPU ya terminó ese trabajo.</remarks>
+internal sealed class GpuSampler(GpuDevice gpu) : IDisposable
+{
+    private static readonly TimeSpan Interval = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan ReadTimeout = TimeSpan.FromMilliseconds(2);
+
+    private readonly GpuTimer _timer = new(gpu);
+    private readonly List<double> _samples = [];
+    private long _lastBegin;
+    private bool _pending;
+
+    public bool BeginIfDue()
+    {
+        if (_pending || Stopwatch.GetElapsedTime(_lastBegin) < Interval)
+        {
+            return false;
+        }
+
+        _lastBegin = Stopwatch.GetTimestamp();
+        _timer.Begin();
+        return true;
+    }
+
+    public void End()
+    {
+        _timer.End();
+        _pending = true;
+    }
+
+    public void Collect()
+    {
+        if (!_pending)
+        {
+            return;
+        }
+
+        _pending = false;
+        if (_timer.WaitMilliseconds(ReadTimeout) is { } ms)
+        {
+            _samples.Add(ms);
+        }
+    }
+
+    public void Reset() => _samples.Clear();
+
+    public GpuSummary Summarize()
+    {
+        if (_samples.Count == 0)
+        {
+            return default;
+        }
+
+        double[] sorted = [.. _samples];
+        Array.Sort(sorted);
+        return new GpuSummary(sorted.Length, _samples[^1], sorted[sorted.Length / 2], sorted[^1]);
+    }
+
+    public void Dispose() => _timer.Dispose();
 }
