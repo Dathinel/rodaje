@@ -14,7 +14,7 @@ public sealed class HighSpeedDecodeTests
 {
     public static TheoryData<string, DecodeMode> SoftwareCases => DecodeModes.Software(TestClips.H264, TestClips.Hevc, TestClips.H264Mkv);
 
-    // Sin NVENC el HEVC lo genera libkvazaar, que no respeta el GOP: sus keyframes no son los de la especificación.
+    // Sin NVENC el HEVC lo genera libkvazaar con GOP abierto (CRA y RASL), y el modo Keyframe entrega el IDR anterior en vez del CRA pedido: defecto del decodificador, tarea 14 de docs/nube/cola.md.
     public static TheoryData<string, DecodeMode> SoftwareCasesWithoutHevc => DecodeModes.Software(TestClips.H264, TestClips.H264Mkv);
 
     public static TheoryData<string> AllClips => new(TestClips.H264.Name, TestClips.Hevc.Name, TestClips.H264Mkv.Name);

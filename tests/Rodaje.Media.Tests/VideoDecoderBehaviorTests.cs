@@ -184,8 +184,9 @@ public sealed class VideoDecoderBehaviorTests
             Assert.True(frame is not null && reference[n] == Hash(frame), $"El cuadro {n}, en un GOP posterior a la zona dañada, no coincide con la referencia (hilos: {threads}).");
         }
 
-        // Con hilos por cuadro, el drenaje antes del seek es lo único que ve el daño en vuelo, sea cual sea el codificador del clip.
-        if (threads == 0)
+        // Con hilos por cuadro (y núcleos de sobra para que el decodificador retenga paquetes), el drenaje antes del seek es lo
+        // único que ve el daño en vuelo, sea cual sea el codificador del clip.
+        if (threads == 0 && Environment.ProcessorCount >= 8)
         {
             Assert.True(decoder.Statistics.DecodeErrors > 0, "El seek no drenó los paquetes dañados que había dentro del decodificador.");
         }

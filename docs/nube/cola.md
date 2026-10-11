@@ -4,7 +4,7 @@ La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendie
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
-- **Estado:** cambios (PR #9: atender la revisión del 11-oct en sus comentarios)
+- **Estado:** hecha (PR #9 unido el 11-oct; comentario y aserción ajustados al unir)
 - **Rama:** `claude/ci-media-velocidad`
 - **Caminos:** `tests/Rodaje.Media.Tests/`, `docs/tareas/` (y, solo si hace falta, archivos nuevos en `testing/Rodaje.TestMedia/`)
 - **Lee:** el log de la última corrida de main en rojo (`gh run list --branch main`, `gh run view <id> --log-failed`), `docs/arquitectura/medios.md` (sección de velocidad), `testing/Rodaje.TestMedia/Skip.cs`.
@@ -75,7 +75,7 @@ Recorre `docs/arquitectura/*.md` y compáralos con el código actual de `src/`: 
 
 ## 7. Pistas por defecto en un proyecto nuevo
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #10 unido el 11-oct)
 - **Rama:** `claude/pistas-por-defecto`
 - **Caminos:** `src/Rodaje.App/Services/Settings/`, `src/Rodaje.App/Views/Settings/` (o donde viva la página de ajustes), el punto donde la app crea un proyecto nuevo (búscalo; no toques `src/Rodaje.Core`), `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (sección Personalización), `docs/arquitectura/app.md`.
