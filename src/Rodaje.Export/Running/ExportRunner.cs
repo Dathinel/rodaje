@@ -1,5 +1,6 @@
 using Rodaje.Core.Model;
 using Rodaje.Engine.Timeline;
+using Rodaje.Export.Encoders;
 using Rodaje.Media.Export;
 using Rodaje.Media.Gpu;
 using Rodaje.Media.Proxies;
@@ -25,6 +26,9 @@ public sealed record ExportRunnerOptions
 
     /// <summary>Comprueba el archivo con ffprobe al terminar (cuadros, tasa, color, audio, <c>moov</c>).</summary>
     public bool Verify { get; init; } = true;
+
+    /// <summary>Los codificadores que funcionan, para <see cref="ExportRunner.Start(ExportRequest)"/>; se piden en el hilo de la exportación.</summary>
+    public IExportEncoderSource? Encoders { get; init; }
 
     /// <summary>El dispositivo propio de la exportación; por omisión, uno nuevo en la GPU por defecto.</summary>
     public Func<GpuDevice>? CreateDevice { get; init; }
@@ -68,6 +72,21 @@ public sealed class ExportRunner
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(encoders);
         var job = new ExportJob(request, encoders, Options);
+        job.Launch();
+        return job;
+    }
+
+    /// <summary>Como <see cref="Start(ExportRequest, IReadOnlyList{EncoderSpec})"/>, con los de <see cref="ExportRunnerOptions.Encoders"/>.</summary>
+    /// <exception cref="InvalidOperationException">Faltan <see cref="ExportRunnerOptions.Encoders"/>.</exception>
+    public ExportJob Start(ExportRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (Options.Encoders is null)
+        {
+            throw new InvalidOperationException("Sin ExportRunnerOptions.Encoders hay que pasar los codificadores.");
+        }
+
+        var job = new ExportJob(request, null, Options);
         job.Launch();
         return job;
     }

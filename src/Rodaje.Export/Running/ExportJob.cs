@@ -16,7 +16,7 @@ public sealed class ExportJob : IDisposable
     private static readonly long PublishInterval = Stopwatch.Frequency / 10;
     private static readonly long RateWindow = Stopwatch.Frequency * 2;
 
-    private readonly IReadOnlyList<EncoderSpec> _encoders;
+    private readonly IReadOnlyList<EncoderSpec>? _encoders;
     private readonly ExportRunnerOptions _options;
     private readonly CancellationTokenSource _cancel = new();
     private readonly TaskCompletionSource _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -34,7 +34,7 @@ public sealed class ExportJob : IDisposable
     private int _pass = 1;
     private int _passCount = 1;
 
-    internal ExportJob(ExportRequest request, IReadOnlyList<EncoderSpec> encoders, ExportRunnerOptions options)
+    internal ExportJob(ExportRequest request, IReadOnlyList<EncoderSpec>? encoders, ExportRunnerOptions options)
     {
         Request = request;
         _encoders = encoders;
@@ -115,7 +115,8 @@ public sealed class ExportJob : IDisposable
         try
         {
             Publish(ExportJobState.Preparing, 0, force: true);
-            ExportPlan plan = ExportPlan.Create(Request, _encoders);
+            IReadOnlyList<EncoderSpec> encoders = _encoders ?? _options.Encoders!.GetAsync(token).GetAwaiter().GetResult();
+            ExportPlan plan = ExportPlan.Create(Request, encoders);
             Plan = plan;
             GpuDevice? gpu = plan.Video is null ? null : CreateDevice();
             try
