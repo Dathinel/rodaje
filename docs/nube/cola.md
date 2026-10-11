@@ -2,6 +2,15 @@
 
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
+## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
+
+- **Estado:** pendiente (va antes que cualquier otra `pendiente`)
+- **Rama:** `claude/ci-media-velocidad`
+- **Caminos:** `tests/Rodaje.Media.Tests/`, `docs/tareas/` (y, solo si hace falta, archivos nuevos en `testing/Rodaje.TestMedia/`)
+- **Lee:** el log de la última corrida de main en rojo (`gh run list --branch main`, `gh run view <id> --log-failed`), `docs/arquitectura/medios.md` (sección de velocidad), `testing/Rodaje.TestMedia/Skip.cs`.
+
+Desde la ronda 5c.1 fallan en el runner sin NVENC `HighSpeedDecodeTests.Skipping_non_reference_frames_decodes_less_and_labels_truthfully_software` (6 casos), `HighSpeedDecodeTests.Keyframe_mode_delivers_only_keyframes_software` (hevc) y `KeyframeIndexTests.Both_sources_find_the_decoded_keyframes` (hevc, hevc10). Averigua la causa en cada una (¿el clip sin NVENC no tiene cuadros B, no es HEVC o tiene otro GOP?) y que corran en el runner comprobando lo mismo con el clip que haya, o se omitan solo con la causa concreta de hardware o codificador (el mecanismo de `Skip.cs`), con el conteo de omitidas antes y después en la entrega. En la RTX 3050 de Daniel deben seguir corriendo todas. Objetivo: CI de Windows de main en verde (salvo `PlaybackSchedulerTests.SeekLejos…`, que es la tarea 9).
+
 ## 1. CI de Windows en verde (salvo Render)
 
 - **Estado:** hecha (PR #2 unido el 11-oct; Windows bloquea en la CI)
@@ -49,7 +58,7 @@ Un `.rodaje` dañado o malicioso nunca debe tumbar la app: abrirlo da un proyect
 
 ## 5. Pruebas hostiles del instalador de paquetes
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #6 unido el 11-oct; halló 2 defectos reales en `Rodaje.Paquetes`, tarea 11)
 - **Rama:** `claude/fuzz-paquete`
 - **Caminos:** `tests/Rodaje.Paquetes.Tests/Fuzz/` (carpeta nueva), `docs/tareas/`. Si encuentras un fallo real en `src/Rodaje.Paquetes/`, NO lo corrijas: prueba que lo reproduce con `Skip = "Defecto: …"` y descripción en la entrega.
 - **Lee:** `docs/formato-paquete.md`, `src/Rodaje.Paquetes/` (solo lectura), la revisión del PR #3 (lo que se le pidió a ese fuzz vale aquí).
@@ -58,7 +67,7 @@ Un `.paquete` dañado o malicioso nunca debe tumbar ni escribir fuera de su carp
 
 ## 6. Documentación al día con el código
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #7: atender la revisión del 11-oct en sus comentarios)
 - **Rama:** `claude/docs-al-dia`
 - **Caminos:** `docs/arquitectura/`, `docs/variables-entorno.md`, `docs/formato-paquete.md`, `docs/tareas/`. No toques `README.md`, `CLAUDE.md`, `docs/decisiones.md` ni `docs/fase-*.md`.
 
@@ -97,3 +106,12 @@ Solo documento, sin código: propuesta para la fase 5b con (1) clips generadores
 - **Caminos:** `src/Rodaje.Media/Probe/MediaProbe.cs`, `tests/Rodaje.Media.Tests/` (archivos nuevos), `docs/tareas/`
 
 Tras el análisis, `ScanTimestamps` rebobina con `av_seek_frame(long.MinValue, AVSEEK_FLAG_BACKWARD)`, y en MP4 eso no mueve la posición: quien lea paquetes después del análisis sin hacer un seek propio empieza a mitad del archivo (hoy lo esquivan `KeyframeIndex` reabriendo el archivo y `VideoDecoder` buscando siempre). Reprodúcelo con una prueba (MP4 y MKV, leer el primer paquete tras `ScanTimestamps` y comprobar que es el primero del archivo), corrígelo con un rebobinado que sí funcione en MP4 (`avformat_seek_file` al inicio del flujo, o reabrir) y comprueba que no cambia el resultado del análisis. Verificable en Linux con el FFmpeg 9.0.2 de BtbN (instrucciones en `docs/tareas/2026-10-11-ci-windows.md`, apartado «Pendiente») y con la CI de Windows.
+
+## 11. Defectos del lector de paquetes hallados por el fuzz
+
+- **Estado:** pendiente
+- **Rama:** `claude/paquetes-textos`
+- **Caminos:** `src/Rodaje.Paquetes/`, `tests/Rodaje.Paquetes.Tests/`, `docs/formato-paquete.md`, `docs/tareas/`
+- **Lee:** la entrega `docs/tareas/2026-10-11-fuzz-paquete.md` y las pruebas con `Skip = "Defecto: …"` de `tests/Rodaje.Paquetes.Tests/Fuzz/PackageInstallerFuzzTests.cs`.
+
+Corrige y quita los 5 `Skip`: (1) un sustituto suelto escrito como escape JSON (barra invertida + `ud800`) hace que `Install`, `PackageLibrary.Scan` (`ScanRoot:124`, tumba el escaneo al arrancar) y `PresetReader` (`String:533`) lancen `InvalidOperationException` («missing low surrogate») desde `GetString`: rechaza el texto con `PackageInstallException`/`PackageContentException` y mensaje en español; (2) UTF-8 inválido en el contenido lanza `InvalidOperationException` con `DecoderFallbackException`: conviértelo en `PackageContentException`; (3) un `repository` con U+FFFD lanza `UriFormatException` desde `SafeText.TryParseHttpsUri:70`: devuelve inválido en lugar de lanzar. Además, en el fuzz: exige con una aserción que el subconjunto de Windows cubra todos los nombres peligrosos; corrige o quita la comprobación de los centinelas relativos (miran el directorio actual); añade centinelas UNC y `C:x`. Baja a 0 los topes de «defecto conocido» al quitar los `Skip`.

@@ -59,7 +59,7 @@ public sealed class SpeedEditsTests
     }
 
     [Fact]
-    public void Slowing_down_pushes_what_follows_and_its_links_even_across_a_gap()
+    public void Slowing_down_pushes_only_what_it_overlaps_and_its_links()
     {
         var f = new TrimFixture()
             .Add("v1", "c", "m1", 0, 20, 0)
@@ -71,9 +71,9 @@ public sealed class SpeedEditsTests
 
         f.AssertValid();
         Assert.Equal(F(40), f.Clip("c").End);
-        Assert.Equal(F(50), f.Clip("n").Start);
-        Assert.Equal(F(50), f.Clip("na").Start);
-        Assert.Equal(F(65), f.Clip("far").Start);
+        Assert.Equal(F(40), f.Clip("n").Start);
+        Assert.Equal(F(40), f.Clip("na").Start);
+        Assert.Equal(F(55), f.Clip("far").Start);
 
         var g = new TrimFixture()
             .Add("v1", "c", "m1", 0, 20, 0)
@@ -81,7 +81,7 @@ public sealed class SpeedEditsTests
 
         TimelineEdits.SetSpeed(g.Ctx, "c", Half);
 
-        Assert.Equal(F(80), g.Clip("n").Start);
+        Assert.Equal(F(60), g.Clip("n").Start);
     }
 
     [Fact]
@@ -96,6 +96,30 @@ public sealed class SpeedEditsTests
 
         Assert.Equal(F(10), f.Clip("n").Start);
         Assert.Equal(F(20), f.Clip("otra").Start);
+        f.AssertValid();
+    }
+
+    [Fact]
+    public void Growing_into_a_gap_moves_nothing_even_with_all_tracks()
+    {
+        var f = new TrimFixture()
+            .Add("v1", "c", "m1", 0, 20, 0)
+            .Add("v1", "n", "m2", 0, 10, 60)
+            .Add("v2", "otra", "m2", 0, 10, 25);
+        SpeedSamples.Add(f, "v2", "z", "m2", 0, 10, "congelado");
+
+        TimelineEdits.SetSpeed(f.Ctx, "c", Half, RippleScope.AllTracks);
+        TimelineEdits.RateStretch(f.Ctx, "z", TrimEdge.Out, F(10));
+
+        Assert.Equal(F(40), f.Clip("c").End);
+        Assert.Equal(F(60), f.Clip("n").Start);
+        Assert.Equal(F(20), f.Clip("z").End);
+        Assert.Equal(F(25), f.Clip("otra").Start);
+        f.AssertValid();
+
+        TimelineEdits.RateStretch(f.Ctx, "z", TrimEdge.Out, F(10));
+
+        Assert.Equal(F(30), f.Clip("otra").Start);
         f.AssertValid();
     }
 

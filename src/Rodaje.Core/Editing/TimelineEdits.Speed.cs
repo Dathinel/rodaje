@@ -5,11 +5,11 @@ namespace Rodaje.Core.Editing;
 
 /// <remarks>
 /// Velocidad (fase 5c). El grupo enlazado cambia junto y cada miembro conserva su material, así que su duración cambia.
-/// Siempre con magnetismo (decisión de Daniel), en cualquier pista: si el clip crece, lo que sigue se corre; si se acorta,
-/// el siguiente se une y la transición del corte se queda. Con <see cref="RippleScope.Track"/> cada pista del grupo se
-/// corre con su propio Δ, y las de los enlazados de lo que se corre con el de la pista que los arrastra; con
-/// <see cref="RippleScope.AllTracks"/> o <see cref="RippleScope.AllTracksAndMarkers"/> se corren todas las pistas (y los
-/// marcadores) con el Δ del clip pedido.
+/// Decisión de Daniel, en cualquier pista: si el clip se acorta, el siguiente se une por magnetismo y la transición del
+/// corte se queda; si crece, respeta los huecos y solo empuja lo que pisa, lo justo. Con
+/// <see cref="RippleScope.Track"/> cada pista del grupo se corre con su propio Δ, y las de los enlazados de lo que se
+/// corre con el de la pista que los arrastra; con <see cref="RippleScope.AllTracks"/> o
+/// <see cref="RippleScope.AllTracksAndMarkers"/> se corren todas las pistas (y los marcadores) con un mismo Δ.
 /// </remarks>
 public static partial class TimelineEdits
 {
@@ -111,7 +111,7 @@ public static partial class TimelineEdits
     /// <summary>
     /// Alt + arrastrar un borde: el clip pasa a durar <c>D ∓ delta</c> con el mismo material, así que cambia su velocidad
     /// a <c>material / duración</c>, aproximada con un denominador de hasta <see cref="StretchMaxDenominator"/> y acotada
-    /// a 0,1×–100×. El inicio queda y lo que sigue se une por magnetismo, tire del borde que tire.
+    /// a 0,1×–100×. El inicio queda, tire del borde que tire; lo que sigue se une o se empuja como en <see cref="SetSpeed"/>.
     /// En un congelado es un recorte; en una curva todavía no se puede (llega con las curvas).
     /// </summary>
     public static void RateStretch(EditContext ctx, string clipId, TrimEdge edge, Time delta, RippleScope scope = RippleScope.Track)
@@ -120,7 +120,7 @@ public static partial class TimelineEdits
         Clip primary = group[0].Clip;
         if (primary.Speed is { Freeze: true })
         {
-            RippleTrim(ctx, clipId, edge, delta, scope);
+            StretchFrozen(ctx, group, edge, delta, scope);
             return;
         }
 
@@ -306,15 +306,52 @@ public static partial class TimelineEdits
         Magnetize(ctx, seeds, scope, edited);
     }
 
-    /// <summary>
-    /// Corre lo que sigue a los clips que cambiaron de duración: cada pista con su Δ, o todas con el del primero si el
-    /// ámbito es de todas las pistas. Comprueba que nada se pise y valida.
-    /// </summary>
-    private static void Magnetize(EditContext ctx, List<(Track Track, Time From, Time Delta)> seeds, RippleScope scope, IReadOnlySet<Clip> edited)
+    /// <summary>Estirar un congelado es cambiar su duración con el inicio quieto, con la misma regla de huecos.</summary>
+    private static void StretchFrozen(EditContext ctx, List<(Track Track, Clip Clip)> group, TrimEdge edge, Time delta, RippleScope scope)
     {
-        IReadOnlyList<Track> shifted = scope.IncludesAllTracks()
-            ? ctx.RippleShift(seeds.Select(s => s.Track), seeds[0].From, seeds[0].Delta, scope, edited)
-            : ctx.RippleEach(seeds, edited);
+        List<TrimPlan> plans = group.ConvertAll(m =>
+        {
+            TrimPlan plan = TrimPlan.Of(m.Track, m.Clip);
+            return edge == TrimEdge.In ? plan.TrimIn(m.Clip.Start + delta).MoveTo(m.Clip.Start) : plan.TrimOut(m.Clip.End + delta);
+        });
+        TrimmingSupport.CheckBounds(ctx, plans);
+        var seeds = new List<(Track Track, Time From, Time Delta)>();
+        foreach (TrimPlan plan in plans)
+        {
+            seeds.Add((plan.Track, plan.Clip.End, plan.End - plan.Clip.End));
+            plan.Map!.ApplyTo(plan.Clip);
+        }
+
+        Magnetize(ctx, seeds, scope, new HashSet<Clip>(group.Select(m => m.Clip)));
+    }
+
+    /// <summary>
+    /// Corre lo que sigue a los clips que cambiaron de duración. Lo que se acorta corre siempre (el siguiente se une); lo
+    /// que crece empuja solo lo que pisa, así los huecos se respetan. Cada pista con su Δ, o todas con el de la primera
+    /// que se corre si el ámbito es de todas las pistas. Comprueba que nada se pise y valida.
+    /// </summary>
+    private static void Magnetize(EditContext ctx, List<(Track Track, Time From, Time Delta)> seeds, RippleScope scope, HashSet<Clip> edited)
+    {
+        var moving = new List<(Track Track, Time From, Time Delta)>();
+        foreach ((Track track, Time from, Time delta) in seeds)
+        {
+            if (delta < Time.Zero)
+            {
+                moving.Add((track, from, delta));
+                continue;
+            }
+
+            // Al crecer se empuja solo lo que pisa: el hueco se consume primero, y arrastrar a pasos da lo mismo que de una vez.
+            Clip? next = track.Clips.Find(c => !edited.Contains(c) && c.Start >= from);
+            if (next is not null && next.Start < from + delta)
+            {
+                moving.Add((track, from, from + delta - next.Start));
+            }
+        }
+
+        IReadOnlyList<Track> shifted = moving.Count == 0 ? []
+            : scope.IncludesAllTracks() ? ctx.RippleShift(moving.Select(s => s.Track), moving[0].From, moving[0].Delta, scope, edited)
+            : ctx.RippleEach(moving, edited);
         TrimmingSupport.EnsureNoOverlaps(scope.IncludesAllTracks() ? ctx.Sequence.AllTracks : seeds.Select(s => s.Track).Concat(shifted).Distinct());
         ctx.EnsureValid();
     }

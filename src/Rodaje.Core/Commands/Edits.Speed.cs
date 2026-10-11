@@ -5,8 +5,8 @@ using Rodaje.Core.Timing;
 namespace Rodaje.Core.Commands;
 
 /// <summary>
-/// Fábricas de comandos de velocidad (fase 5c). Lo que sigue al clip se une siempre por magnetismo; <c>scope</c> es el
-/// modo de ripple de la sesión: las pistas del grupo, todas, o todas y los marcadores.
+/// Fábricas de comandos de velocidad (fase 5c). Si el clip se acorta, lo que sigue se une; si crece, solo empuja lo que
+/// pisa. <c>scope</c> es el modo de ripple de la sesión: las pistas del grupo, todas, o todas y los marcadores.
 /// </summary>
 public static partial class Edits
 {
