@@ -1,0 +1,59 @@
+using FFmpeg.AutoGen.Abstractions;
+using Rodaje.Media.Interop;
+using Rodaje.Media.Probe;
+using Rodaje.Media.Tests.Support;
+using Rodaje.TestMedia;
+
+namespace Rodaje.Media.Tests;
+
+// Tras el análisis de marcas de tiempo, quien lea paquetes sin hacer un seek propio debe empezar en el
+// primer paquete del archivo, también en MP4 (donde av_seek_frame(long.MinValue) no se movía).
+public sealed unsafe class ProbeRewindTests
+{
+    public static TheoryData<string> Clips => new(TestClips.H264.Name, TestClips.Hevc.Name, TestClips.H264Mkv.Name);
+
+    [FfmpegLibraryTheory]
+    [MemberData(nameof(Clips))]
+    public void The_first_packet_after_the_scan_is_the_first_of_the_file(string clip)
+    {
+        string path = TestClips.PathOf(DecodeModes.Clip(clip));
+        (int stream, long dts, long pos) expected = FirstPacket(path, scan: false);
+        (int stream, long dts, long pos) actual = FirstPacket(path, scan: true);
+
+        Assert.Equal(expected, actual);
+    }
+
+    [FfmpegLibraryTheory]
+    [MemberData(nameof(Clips))]
+    public void Rewinding_does_not_change_the_analysis(string clip)
+    {
+        string path = TestClips.PathOf(DecodeModes.Clip(clip));
+        MediaInfo first = MediaProbe.Probe(path);
+        MediaInfo second = MediaProbe.Probe(path);
+
+        Assert.Equal(first.Video?.FrameRate, second.Video?.FrameRate);
+        Assert.Equal(first.Video?.StartTime, second.Video?.StartTime);
+    }
+
+    private static (int Stream, long Dts, long Pos) FirstPacket(string path, bool scan)
+    {
+        AVFormatContext* format = Av.OpenInput(path);
+        AVPacket* packet = ffmpeg.av_packet_alloc();
+        try
+        {
+            if (scan)
+            {
+                MediaProbe.Probe(format, path, scanTimestamps: true);
+            }
+
+            int r = ffmpeg.av_read_frame(format, packet);
+            Assert.True(r >= 0);
+            return (packet->stream_index, packet->dts, packet->pos);
+        }
+        finally
+        {
+            ffmpeg.av_packet_free(&packet);
+            ffmpeg.avformat_close_input(&format);
+        }
+    }
+}

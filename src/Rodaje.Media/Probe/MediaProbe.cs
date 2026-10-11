@@ -230,6 +230,19 @@ public static unsafe class MediaProbe
         return ((clockwise % 360) + 360) % 360;
     }
 
+    // Vuelve al primer paquete del flujo. av_seek_frame(long.MinValue) no mueve la posición en MP4 (la búsqueda
+    // por tabla de muestras no encuentra nada), así que se busca la marca de inicio del flujo, que sí existe en
+    // todos los contenedores; avformat_seek_file admite además un cuadro clave anterior a esa marca.
+    internal static void RewindToStart(AVFormatContext* format, int index)
+    {
+        AVStream* stream = format->streams[index];
+        long start = stream->start_time == ffmpeg.AV_NOPTS_VALUE ? 0 : stream->start_time;
+        if (ffmpeg.avformat_seek_file(format, index, long.MinValue, start, start, 0) < 0)
+        {
+            ffmpeg.av_seek_frame(format, index, start, ffmpeg.AVSEEK_FLAG_BACKWARD);
+        }
+    }
+
     // Lee (sin decodificar) los primeros paquetes del flujo: los intervalos entre marcas de presentación
     // revelan si la tasa es variable y sirven de tasa de reserva cuando el contenedor no declara ninguna.
     private static (Rational? Measured, bool Irregular) ScanTimestamps(AVFormatContext* format, int index)
@@ -254,7 +267,7 @@ public static unsafe class MediaProbe
         finally
         {
             ffmpeg.av_packet_free(&packet);
-            ffmpeg.av_seek_frame(format, index, long.MinValue, ffmpeg.AVSEEK_FLAG_BACKWARD);
+            RewindToStart(format, index);
         }
 
         if (timestamps.Count < 3)
