@@ -37,7 +37,7 @@ Rama `claude/qdv-cortes`, PR #21. Función 2 de «Funciones de calidad de vida»
 
 ## Qué comprobar en Windows
 
-1. La CI de Windows compila `Rodaje.App` (aquí no compila; el parcial nuevo se compiló aparte contra el núcleo con stubs y las reglas del repo, sin advertencias) y pasan `Rodaje.App.Tests`.
+1. La CI de Windows compila `Rodaje.App` y pasan `Rodaje.App.Tests`. En Linux también compilan, con `-p:EnableWindowsTargeting=true`; ver «Pruebas en Linux».
 2. Con `Rodaje.bat`: dos videos en la principal y un clip en V2 que pase por el cursor. Ctrl+Mayús+B debe cortar los tres (video, su audio y V2) y Ctrl+Z deshacerlo en un paso.
 3. Q y W en la principal magnética: el clip se recorta sin hueco y, con Q, el cursor va a su inicio. En V2 queda el hueco. Con «todas las pistas» en el modo de ripple, V2 se corre también.
 4. La página de atajos muestra «Cortar en todas las pistas» en los tres estilos y en la hoja rápida, y Q/W con su nombre nuevo.
@@ -48,3 +48,9 @@ Rama `claude/qdv-cortes`, PR #21. Función 2 de «Funciones de calidad de vida»
   - `ProjectFileTests.Save_TempLockedByAnotherProgram_ThrowsAndKeepsExistingFile` también falla en `origin/main` en Linux, porque el bloqueo de archivos es de Windows.
   - `EditPropertiesTests.ElSorteo_EjercitaLasVelocidades` falló una vez en la suite completa («FreezeFrame solo se aplicó 96 veces», el umbral es 100). Pasa sola en esta rama y en main: el sorteo varía.
 - No se omitió ninguna prueba: 0 omitidas antes y después.
+- `dotnet test tests/Rodaje.App.Tests -p:EnableWindowsTargeting=true`: 650 pruebas, 645 pasan, 1 omitida (ya lo estaba en main) y 4 fallan. Las 194 de atajos pasan todas, y también las de sesión (`EditingAtPlayheadTests`). Los 4 fallos son de rutas de Windows y no tocan nada de esta rama: `ThumbnailCacheTests.Disk_names_carry_fingerprint_height_and_time`, `ProxyJobListTests.CicloCompleto_EnColaGenerandoListo` y dos de `ExportPreferencesTests`.
+
+## Corrección tras la CI de Windows
+
+- La primera corrida (commit 4c195ae) falló en `ShortcutSearchTests.CadaAccionDelCatalogo_TieneUnaExplicacionCortaEnEspañol`: las explicaciones de Q/W pasaban del límite de 80 caracteres. Ahora miden 74 y 76; la de `edit.splitAll`, 72. Las etiquetas cortas miden 16 como mucho.
+- Fallos en la CI de Windows que vienen de main y no son de esta rama: `TitleEditorTests.BordesYConvertirEnKeyframes` (cultura, 0,5 frente a 0.5), `TitleRasterizerTests.Composing_a_ready_title_costs_little_gpu_time` (WARP) y `TimelineSpeedTests.Speed_mapping_in_the_plan_reserves_nothing` (760 B).
