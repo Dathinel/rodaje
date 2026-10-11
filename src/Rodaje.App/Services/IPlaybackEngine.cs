@@ -17,6 +17,9 @@ public sealed record PlaybackSnapshot(Time Position, Time Duration, bool IsPlayi
 
     /// <summary>Velocidad de la lanzadera (<see cref="Shuttle"/>): 0 en pausa, 1 reproduciendo, otra cosa si recorre a saltos.</summary>
     public int ShuttleRate { get; init; }
+
+    /// <summary>Por cuánto divide la calidad de la vista previa la resolución (1, 2 o 4); no cuenta la mitad por panel chico.</summary>
+    public int PreviewDivisor { get; init; } = 1;
 }
 
 /// <summary>
