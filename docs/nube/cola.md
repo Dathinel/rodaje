@@ -4,7 +4,7 @@ La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendie
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
-- **Estado:** pendiente (va antes que cualquier otra `pendiente`)
+- **Estado:** cambios (PR #9: atender la revisión del 11-oct en sus comentarios)
 - **Rama:** `claude/ci-media-velocidad`
 - **Caminos:** `tests/Rodaje.Media.Tests/`, `docs/tareas/` (y, solo si hace falta, archivos nuevos en `testing/Rodaje.TestMedia/`)
 - **Lee:** el log de la última corrida de main en rojo (`gh run list --branch main`, `gh run view <id> --log-failed`), `docs/arquitectura/medios.md` (sección de velocidad), `testing/Rodaje.TestMedia/Skip.cs`.
@@ -93,7 +93,7 @@ Solo documento, sin código: propuesta para la fase 5b con (1) clips generadores
 
 ## 9. `PlaybackSchedulerTests` inestable en la CI de Windows
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #8 unido el 11-oct; salto de 3e11 añadido al unir)
 - **Rama:** `claude/playback-seek-tiempo`
 - **Caminos:** `tests/Rodaje.Playback.Tests/`, `docs/tareas/`
 
@@ -133,3 +133,21 @@ Un `ReverseFrameReader` que entregue los cuadros de un tramo en orden descendent
 - **Lee:** `CLAUDE.md` (sección «Hacia la versión pública»: exportar por GPU o CPU sin separar el programa, licencia LGPL en la v1), `docs/legal.md`, `docs/ffmpeg-configure.txt`, `src/Rodaje.Media/Proxies/ProxyEncoders.cs` (solo lectura).
 
 Solo el modelo y la detección, sin exportar todavía: un catálogo de codificadores de salida en orden de preferencia — hardware: NVENC (h264/hevc/av1), AMF (AMD), QSV (Intel), Media Foundation; software y LGPL: SVT-AV1, libaom, libvpx (VP9), kvazaar (HEVC), OpenH264 (H.264, calidad baja) — cada uno con su códec, si es hardware, licencia, y los argumentos base de calidad y velocidad; y una sonda que diga cuáles funcionan en esta máquina (compilado en el FFmpeg y que codifica 1 s de prueba sin error), en paralelo y cacheada. Elección por defecto: «GPU si hay, si no CPU», con la regla de que H.264 sin GPU cae a AV1 o HEVC por CPU (decisión pendiente de Daniel en `CLAUDE.md`). Pruebas con dobles para la elección y una prueba real que liste lo disponible (en la CI de Windows solo habrá software y Media Foundation). Nada de x264/x265 (GPL).
+
+## 14. `VideoDecoder` con GOP abierto (HEVC con CRA)
+
+- **Estado:** pendiente
+- **Rama:** `claude/media-gop-abierto`
+- **Caminos:** `src/Rodaje.Media/Video/`, `src/Rodaje.Media/Probe/`, `testing/Rodaje.TestMedia/` (preset nuevo), `tests/Rodaje.Media.Tests/`, `docs/arquitectura/medios.md`, `docs/tareas/`
+- **Lee:** la revisión del PR #9, `docs/arquitectura/medios.md` (seek exacto y GOP abierto), `VideoDecoder.cs`, `KeyframeIndex.cs`.
+
+Con un HEVC de GOP abierto (p. ej. el que genera libkvazaar del build LGPL: IDR en 0 y CRA en 64, 128, 192 con cuadros RASL) el decodificador falla: en modo `Keyframe` pedir el 64 entrega el 0 (software y hardware), una petición exacta devuelve null (`Exact_requests_never_skip_hardware(hevc)`) y el acceso aleatorio por hardware no entrega el 216. Hipótesis a comprobar: con `AVDISCARD_NONKEY` un CRA no vacía el DPB como un IDR y el cuadro queda retenido en el reordenamiento; en exacto, los RASL tras un seek a un CRA se descartan mal. Corrígelo y añade un preset de prueba de **GOP abierto** que se genere en cualquier máquina (libkvazaar u otro LGPL), para que también la RTX de Daniel cubra el caso: seek exacto, acceso aleatorio, modo `Keyframe` y `SkipNonReference`, en software (y en hardware donde haya GPU). Quita las omitidas del PR #9 que nombren este defecto.
+
+## 15. Personalización: de qué pistas de video sale el audio
+
+- **Estado:** pendiente
+- **Rama:** `claude/audio-por-pista`
+- **Caminos:** `src/Rodaje.App/Services/Settings/`, la página de ajustes, el punto donde la app importa o suelta un medio en la línea de tiempo (búscalo; no toques `src/Rodaje.Core`), `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` («Personalización»), la entrega de la tarea 7 (pistas por defecto) si ya existe, `docs/arquitectura/app.md`.
+
+Segunda mitad de lo pedido por Daniel: en Ajustes, elegir de qué pistas de video sale el audio de un medio a su propia pista de audio al importarlo o soltarlo (todas, o una lista: por ejemplo Video 1 y 2 sí, Video 3 no). Si el video cae en una pista sin audio, el medio entra sin su clip de audio (o con el audio desactivado, decide y justifica). Guardado en `ajustes.json`. Pruebas de la regla con la sesión real y una nota en `docs/pendientes.md` marcando lo hecho.
