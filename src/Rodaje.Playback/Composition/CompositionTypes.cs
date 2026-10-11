@@ -11,8 +11,8 @@ public readonly record struct LayerTransform(double X, double Y, double Scale, d
 }
 
 /// <summary>
-/// Una capa lista para componer: el cuadro decodificado (su payload es la textura) y cómo dibujarlo.
-/// La capa es dueña de una referencia del cuadro y la libera al desecharse.
+/// Una capa lista para componer: el cuadro decodificado (su payload es la textura), o el descriptor de una capa generada
+/// (<see cref="Generated"/>), y cómo dibujarlo. La capa es dueña de una referencia del cuadro y la libera al desecharse.
 /// </summary>
 public sealed class LayerFrame : IDisposable
 {
@@ -37,6 +37,19 @@ public sealed class LayerFrame : IDisposable
         SampleAspectRatio = sampleAspectRatio;
         Rotation = rotation;
     }
+
+    /// <summary>
+    /// Una capa generada (un título): lleva el descriptor en <see cref="Generated"/> y no un cuadro decodificado. Su
+    /// <see cref="Frame"/> no tiene textura; lo dibuja quien rasteriza el descriptor.
+    /// </summary>
+    public LayerFrame(int trackIndex, string clipId, GeneratedContent content, LayerTransform transform)
+        : this(trackIndex, clipId, (content ?? throw new ArgumentNullException(nameof(content))).Retain(), transform, new Rational(1, 1), 0)
+    {
+        Generated = content;
+    }
+
+    /// <summary>El descriptor de una capa generada; nulo en una de video.</summary>
+    public GeneratedContent? Generated { get; }
 
     /// <summary>Índice de la pista de video; 0 es la capa de más abajo.</summary>
     public int TrackIndex { get; }

@@ -77,6 +77,9 @@ internal sealed class EffectPlan
             curves[4].Evaluate(at));
     }
 
+    /// <summary>La mayor escala de la transformación (1 sin transformación).</summary>
+    public static double MaxScale(EffectPlan? plan) => plan?._transform is { } curves ? curves[2].Max : 1;
+
     /// <summary>Escribe los efectos de imagen en <paramref name="destination"/>; una LUT que todavía no está lista sale sin recurso.</summary>
     public void Evaluate(Time sourceTime, Span<LayerEffect> destination, IEffectResources? resources)
     {

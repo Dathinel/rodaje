@@ -1,5 +1,6 @@
 using Rodaje.Audio;
 using Rodaje.Media.Proxies;
+using Rodaje.Playback.Composition;
 
 namespace Rodaje.Engine.Timeline;
 
@@ -71,6 +72,16 @@ public sealed record TimelineSessionOptions
     public IEffectContent? Content { get; init; }
 
     /// <summary>
+    /// Quien rasteriza los títulos en el dispositivo de la vista previa. El motor le pide los que se verán en los próximos
+    /// <see cref="TitleLookahead"/> y, tras un seek, espera a los visibles como a cualquier capa. Sin él los títulos
+    /// salen en la composición igual, sin precarga ni espera.
+    /// </summary>
+    public IGeneratedContentCache? Titles { get; init; }
+
+    /// <summary>Con cuánta anticipación se piden los títulos que vienen.</summary>
+    public TimeSpan TitleLookahead { get; init; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>
     /// Tras un seek o al abrir, cuánto se sigue mostrando la última composición completa (o negro) mientras alguna capa
     /// no tiene su cuadro; pasado el tope se muestra lo que haya y se cuenta. Cero muestra siempre lo que haya.
     /// </summary>
@@ -117,6 +128,8 @@ public sealed record TimelineSessionOptions
         }
         ArgumentOutOfRangeException.ThrowIfLessThan(PartialFrameTimeout, TimeSpan.Zero, nameof(PartialFrameTimeout));
         ArgumentOutOfRangeException.ThrowIfGreaterThan(PartialFrameTimeout, TimeSpan.FromSeconds(5), nameof(PartialFrameTimeout));
+        ArgumentOutOfRangeException.ThrowIfLessThan(TitleLookahead, TimeSpan.Zero, nameof(TitleLookahead));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(TitleLookahead, TimeSpan.FromSeconds(30), nameof(TitleLookahead));
         ArgumentOutOfRangeException.ThrowIfLessThan(AudioReadAhead, TimeSpan.FromMilliseconds(100), nameof(AudioReadAhead));
         ArgumentOutOfRangeException.ThrowIfGreaterThan(AudioReadAhead, TimeSpan.FromSeconds(10), nameof(AudioReadAhead));
         ArgumentNullException.ThrowIfNull(TimeProvider);

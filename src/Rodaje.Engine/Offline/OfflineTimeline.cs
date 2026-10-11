@@ -10,13 +10,13 @@ using Rodaje.Playback.Composition;
 
 namespace Rodaje.Engine.Offline;
 
-/// <summary>QuÃ© hacer con lo que la vista previa tolera y la exportaciÃ³n no (D-028).</summary>
+/// <summary>Qué hacer con lo que la vista previa tolera y la exportación no (D-028).</summary>
 public enum MissingContentPolicy
 {
     /// <summary>Falla con <see cref="ExportException"/> (<see cref="ExportErrorCode.ContentMissing"/>). Por defecto.</summary>
     Fail,
 
-    /// <summary>El usuario eligiÃ³ Â«continuar sinÂ»: la LUT o la transiciÃ³n que falta se omite, como en la vista previa.</summary>
+    /// <summary>El usuario eligió «continuar sin»: la LUT o la transición que falta se omite, como en la vista previa.</summary>
     ContinueWithout,
 }
 
@@ -28,9 +28,15 @@ public sealed record OfflineTimelineOptions
 
     public IEffectContent? Content { get; init; }
 
+    /// <summary>
+    /// Quien rasteriza los títulos en el dispositivo de la exportación: se le piden los que vienen por delante. La
+    /// composición estricta espera a los que falten; las fuentes que faltan las cuenta la exportación.
+    /// </summary>
+    public IGeneratedContentCache? Titles { get; init; }
+
     public bool AllowHardwareDecoding { get; init; } = true;
 
-    /// <summary>Presupuesto de VRAM propio de la exportaciÃ³n; <c>null</c>, segÃºn la del dispositivo.</summary>
+    /// <summary>Presupuesto de VRAM propio de la exportación; <c>null</c>, según la del dispositivo.</summary>
     public long? VramBudgetBytes { get; init; }
 
     public int MaxDecodersPerMedia { get; init; } = 4;
@@ -38,10 +44,10 @@ public sealed record OfflineTimelineOptions
     /// <summary>Cuadros de la secuencia que se piden por delante; cada decodificador guarda como mucho estos (menos si no caben en la VRAM).</summary>
     public int LookaheadFrames { get; init; } = 8;
 
-    /// <summary>CuÃ¡nto puede tardar un cuadro en estar exacto antes de dar <see cref="ExportErrorCode.DecodeFailed"/>.</summary>
+    /// <summary>Cuánto puede tardar un cuadro en estar exacto antes de dar <see cref="ExportErrorCode.DecodeFailed"/>.</summary>
     public TimeSpan FrameTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>CuÃ¡nto se espera a que cargue cada LUT antes del primer cuadro; si no llega, cuenta como contenido que falta.</summary>
+    /// <summary>Cuánto se espera a que cargue cada LUT antes del primer cuadro; si no llega, cuenta como contenido que falta.</summary>
     public TimeSpan ContentTimeout { get; init; } = TimeSpan.FromSeconds(10);
 
     public MissingContentPolicy MissingContent { get; init; } = MissingContentPolicy.Fail;
@@ -65,21 +71,21 @@ public sealed record OfflineTimelineOptions
 /// tengan su cuadro exacto (sin proxies, sin keyframe cercano, sin <c>SkipNonReference</c>).
 /// </summary>
 /// <remarks>
-/// <para>Recibe una copia del proyecto (<see cref="Project.Clone"/>): la ediciÃ³n puede seguir mientras exporta.</para>
+/// <para>Recibe una copia del proyecto (<see cref="Project.Clone"/>): la edición puede seguir mientras exporta.</para>
 /// <para>
-/// Se usa desde un solo hilo, el de la exportaciÃ³n. Los cuadros se piden en orden creciente; un salto hacia atrÃ¡s es
-/// vÃ¡lido pero cuesta un seek. La composiciÃ³n que devuelve es de quien la recibe y la desecha tras componerla; sus listas
-/// de efectos valen hasta dos llamadas mÃ¡s (como en la vista previa).
+/// Se usa desde un solo hilo, el de la exportación. Los cuadros se piden en orden creciente; un salto hacia atrás es
+/// válido pero cuesta un seek. La composición que devuelve es de quien la recibe y la desecha tras componerla; sus listas
+/// de efectos valen hasta dos llamadas más (como en la vista previa).
 /// </para>
 /// <para>
-/// Las capas se arman como en <c>TimelineScheduler</c> con la composiciÃ³n ya completa: el mismo plan, los mismos
-/// efectos evaluados en <see cref="VideoClipPlan.EffectTimeAt"/>, la misma transiciÃ³n con el carril compaÃ±ero. Cada medio
+/// Las capas se arman como en <c>TimelineScheduler</c> con la composición ya completa: el mismo plan, los mismos
+/// efectos evaluados en <see cref="VideoClipPlan.EffectTimeAt"/>, la misma transición con el carril compañero. Cada medio
 /// tiene sus decodificadores propios (hasta <see cref="OfflineTimelineOptions.MaxDecodersPerMedia"/>, cada uno en su hilo)
 /// que van por delante <see cref="OfflineTimelineOptions.LookaheadFrames"/> cuadros, dentro del presupuesto de VRAM.
 /// </para>
 /// <para>
-/// Reversa: un clip invertido se decodifica exacto, pero cada cuadro hacia atrÃ¡s es un seek al keyframe anterior.
-/// TODO(5c.3): cuando el lector hacia atrÃ¡s de la reversa estÃ© en main, pedirle a Ã©l los tramos invertidos.
+/// Reversa: un clip invertido se decodifica exacto, pero cada cuadro hacia atrás es un seek al keyframe anterior.
+/// TODO(5c.3): cuando el lector hacia atrás de la reversa esté en main, pedirle a él los tramos invertidos.
 /// </para>
 /// </remarks>
 public sealed class OfflineTimeline : IDisposable
@@ -129,7 +135,7 @@ public sealed class OfflineTimeline : IDisposable
     }
 
     /// <summary>Abre la secuencia para exportar.</summary>
-    /// <param name="device">El dispositivo propio de la exportaciÃ³n (no el de la vista previa); sin Ã©l se decodifica en la CPU.</param>
+    /// <param name="device">El dispositivo propio de la exportación (no el de la vista previa); sin él se decodifica en la CPU.</param>
     /// <exception cref="KeyNotFoundException">La secuencia no existe en el proyecto.</exception>
     public static OfflineTimeline Open(Project project, string sequenceId, GpuDevice? device, OfflineTimelineOptions? options = null) =>
         new(project, sequenceId, device, options ?? new OfflineTimelineOptions(), MediaClipBackend.Instance);
@@ -147,13 +153,19 @@ public sealed class OfflineTimeline : IDisposable
     public long FrameCount => _plan.FrameCount;
 
     /// <summary>
-    /// LUT y transiciones de paquete que la secuencia usa y no estÃ¡n; con <see cref="MissingContentPolicy.Fail"/> impiden
+    /// LUT y transiciones de paquete que la secuencia usa y no están; con <see cref="MissingContentPolicy.Fail"/> impiden
     /// exportar. Antes de <see cref="Prepare"/> cuenta solo las transiciones.
     /// </summary>
     public int MissingContent => _missing?.Count ?? _plan.MissingContent;
 
-    /// <summary>Lo que falta segÃºn el Ãºltimo <see cref="Prepare"/>; vacÃ­o antes.</summary>
+    /// <summary>Lo que falta según el último <see cref="Prepare"/>; vacío antes.</summary>
     public IReadOnlyList<MissingContentItem> MissingContentItems => _missing ?? [];
+
+    /// <summary>
+    /// Los títulos que se ven en <c>[start, end)</c>, sin repetir: la exportación resuelve sus fuentes con ellos antes del
+    /// primer cuadro y aplica <see cref="MissingContentPolicy"/> a las que faltan.
+    /// </summary>
+    public IReadOnlyList<GeneratedContent> GeneratedContents(Time start, Time end) => _plan.GeneratedContents(start, end);
 
     public GpuDevice? Device => _device;
 
@@ -165,7 +177,7 @@ public sealed class OfflineTimeline : IDisposable
     /// <summary>Pico de la VRAM comprometida por los pools de los decodificadores.</summary>
     public long PeakDecoderVramBytes => _readers.PeakReservedBytes;
 
-    /// <summary>Decodificadores que se abrieron con la lectura por adelantado mÃ­nima porque el presupuesto no daba para mÃ¡s.</summary>
+    /// <summary>Decodificadores que se abrieron con la lectura por adelantado mínima porque el presupuesto no daba para más.</summary>
     public int VramOverruns => _readers.VramOverruns;
 
     internal IClipBackend Backend { get; }
@@ -173,9 +185,9 @@ public sealed class OfflineTimeline : IDisposable
     internal OfflineReaders Readers => _readers;
 
     /// <summary>
-    /// Comprueba antes del primer cuadro lo que necesita <c>[start, end)</c>: que los medios existan y que estÃ©n las LUT
+    /// Comprueba antes del primer cuadro lo que necesita <c>[start, end)</c>: que los medios existan y que estén las LUT
     /// (esperando a que carguen) y las transiciones de paquete. <see cref="Render"/> lo hace con toda la secuencia si
-    /// nadie lo llamÃ³ antes.
+    /// nadie lo llamó antes.
     /// </summary>
     /// <returns>Lo que falta; con <see cref="MissingContentPolicy.ContinueWithout"/> se exporta sin ello.</returns>
     /// <exception cref="ExportException">
@@ -187,7 +199,7 @@ public sealed class OfflineTimeline : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (start < Time.Zero || end <= start)
         {
-            throw new ArgumentOutOfRangeException(nameof(end), "El rango estÃ¡ vacÃ­o o empieza antes de 0.");
+            throw new ArgumentOutOfRangeException(nameof(end), "El rango está vacío o empieza antes de 0.");
         }
 
         List<string> absent = [.. OfflineContent.Sources(_plan, start, end).Select(s => s.Path).Where(p => !_mediaExists(p))];
@@ -215,7 +227,7 @@ public sealed class OfflineTimeline : IDisposable
         if (missing.Count > 0 && _options.MissingContent == MissingContentPolicy.Fail)
         {
             throw new ExportException(ExportErrorCode.ContentMissing,
-                $"Falta contenido de paquetes: {string.Join(", ", missing.Select(m => (m.IsTransition ? "transiciÃ³n " : "LUT ") + m.Reference))}.")
+                $"Falta contenido de paquetes: {string.Join(", ", missing.Select(m => (m.IsTransition ? "transición " : "LUT ") + m.Reference))}.")
             {
                 Culprit = missing[0].Reference,
             };
@@ -225,9 +237,9 @@ public sealed class OfflineTimeline : IDisposable
     }
 
     /// <summary>Las capas exactas del cuadro <paramref name="frame"/> de la secuencia, de abajo arriba.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">El cuadro estÃ¡ fuera de la secuencia.</exception>
-    /// <exception cref="ExportException">Un medio falta, un cuadro no se decodifica o falta contenido (segÃºn la polÃ­tica).</exception>
-    /// <exception cref="OperationCanceledException">Se cancelÃ³ mientras esperaba a un decodificador.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">El cuadro está fuera de la secuencia.</exception>
+    /// <exception cref="ExportException">Un medio falta, un cuadro no se decodifica o falta contenido (según la política).</exception>
+    /// <exception cref="OperationCanceledException">Se canceló mientras esperaba a un decodificador.</exception>
     public CompositionFrame Render(long frame, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -238,18 +250,18 @@ public sealed class OfflineTimeline : IDisposable
     }
 
     /// <summary>
-    /// Las capas exactas en el instante <paramref name="time"/> de la secuencia, para la conversiÃ³n de tasa: la salida a
-    /// otra tasa pide el instante de cada cuadro suyo (repeticiÃ³n o descarte). Para mezclar dos cuadros conviene
+    /// Las capas exactas en el instante <paramref name="time"/> de la secuencia, para la conversión de tasa: la salida a
+    /// otra tasa pide el instante de cada cuadro suyo (repetición o descarte). Para mezclar dos cuadros conviene
     /// <see cref="Render"/> con los dos cuadros de la secuencia.
     /// </summary>
-    /// <remarks>La lectura por adelantado supone que los instantes siguen con el mismo paso que los dos Ãºltimos.</remarks>
-    /// <exception cref="ArgumentOutOfRangeException">El instante estÃ¡ fuera de <c>[0, Duration)</c>.</exception>
+    /// <remarks>La lectura por adelantado supone que los instantes siguen con el mismo paso que los dos últimos.</remarks>
+    /// <exception cref="ArgumentOutOfRangeException">El instante está fuera de <c>[0, Duration)</c>.</exception>
     public CompositionFrame RenderAt(Time time, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (time < Time.Zero || time >= Duration)
         {
-            throw new ArgumentOutOfRangeException(nameof(time), time, "El instante estÃ¡ fuera de la secuencia.");
+            throw new ArgumentOutOfRangeException(nameof(time), time, "El instante está fuera de la secuencia.");
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -296,10 +308,11 @@ public sealed class OfflineTimeline : IDisposable
             Prefetch(time, known, gridFrame);
         }
 
+        PrefetchTitles(time, step ?? _frameDuration);
         return Build(time, frame, cancellationToken);
     }
 
-    /// <summary>Pide por delante los cuadros de los prÃ³ximos instantes mientras quepan en la capacidad de cada decodificador.</summary>
+    /// <summary>Pide por delante los cuadros de los próximos instantes mientras quepan en la capacidad de cada decodificador.</summary>
     private void Prefetch(Time time, Time step, long? gridFrame)
     {
         for (int k = 1; k <= _options.LookaheadFrames; k++)
@@ -338,6 +351,25 @@ public sealed class OfflineTimeline : IDisposable
         }
     }
 
+    /// <summary>Pide a quien rasteriza los títulos que se verán en los próximos cuadros de la lectura por adelantado.</summary>
+    private void PrefetchTitles(Time time, Time step)
+    {
+        if (_options.Titles is not { } titles)
+        {
+            return;
+        }
+
+        Time until = time + Time.FromTicks(step.Ticks * _options.LookaheadFrames);
+        foreach (Lane lane in _lanes)
+        {
+            IReadOnlyList<GeneratedClipPlan> generated = lane.Layer.Generated;
+            for (int i = lane.Layer.FirstGeneratedEndingAfter(time); i < generated.Count && generated[i].Start <= until; i++)
+            {
+                titles.Prepare(generated[i].Content);
+            }
+        }
+    }
+
     private CompositionFrame Build(Time time, long frame, CancellationToken cancellationToken)
     {
         var layers = new List<LayerFrame>(_lanes.Length);
@@ -345,6 +377,12 @@ public sealed class OfflineTimeline : IDisposable
         {
             foreach (Lane lane in _lanes)
             {
+                if (lane.Layer.GeneratedAt(time) is { } title)
+                {
+                    layers.Add(title.Layer(lane.Layer.TrackIndex, time, lane.TitleEffects, lane.Content));
+                    continue;
+                }
+
                 if (lane.Main is not { } main)
                 {
                     continue;
@@ -384,7 +422,7 @@ public sealed class OfflineTimeline : IDisposable
         }
     }
 
-    /// <summary>Como <c>TimelineScheduler.Build</c>: transformaciÃ³n, transiciÃ³n, efectos en tiempo del origen y mezcla.</summary>
+    /// <summary>Como <c>TimelineScheduler.Build</c>: transformación, transición, efectos en tiempo del origen y mezcla.</summary>
     private static LayerFrame Layer(Lane lane, VideoClipPlan clip, DecodedFrame frame, EffectListRing ring, OfflineReaders.Slot slot, Time time,
         TransitionPlan? transition, bool entering, float progress, LayerTransition? withTransition)
     {
@@ -414,7 +452,7 @@ public sealed class OfflineTimeline : IDisposable
         };
     }
 
-    /// <summary>Una pista visible: su carril principal y el compaÃ±ero, y lo que muestra cada uno en el instante pedido.</summary>
+    /// <summary>Una pista visible: su carril principal y el compañero, y lo que muestra cada uno en el instante pedido.</summary>
     private sealed class Lane(VideoLayerPlan layer)
     {
         public VideoLayerPlan Layer { get; } = layer;
@@ -424,6 +462,8 @@ public sealed class OfflineTimeline : IDisposable
         public EffectListRing MainEffects { get; } = new();
 
         public EffectListRing IncomingEffects { get; } = new();
+
+        public EffectListRing TitleEffects { get; } = new();
 
         public VideoClipPlan? Main { get; private set; }
 
@@ -444,8 +484,8 @@ public sealed class OfflineTimeline : IDisposable
         public void PickAhead(Time time) => (AheadMain, AheadIncoming, _) = Choose(time);
 
         /// <summary>
-        /// Como <c>TimelineScheduler.Compose</c> con todas las capas listas: el clip del carril principal y, si estÃ¡ en su
-        /// transiciÃ³n, el que entra por el compaÃ±ero; sin principal, el que entra va solo y sin transiciÃ³n.
+        /// Como <c>TimelineScheduler.Compose</c> con todas las capas listas: el clip del carril principal y, si está en su
+        /// transición, el que entra por el compañero; sin principal, el que entra va solo y sin transición.
         /// </summary>
         private (VideoClipPlan?, VideoClipPlan?, TransitionPlan?) Choose(Time time)
         {

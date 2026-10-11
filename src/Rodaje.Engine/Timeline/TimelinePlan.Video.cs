@@ -12,7 +12,7 @@ internal sealed partial class TimelinePlan
         IEffectContent? content, ref int missing)
     {
         Track track = sequence.VideoTracks[i];
-        List<Clip> included = [.. Ordered(track).Where(c => c.Enabled && c.Duration > Time.Zero
+        List<Clip> included = [.. Ordered(track).Where(c => c.Enabled && c.Duration > Time.Zero && c.Generator is null
             && media.TryGetValue(c.MediaId, out MediaRef? m) && m.HasVideo && m.FrameRate is not null)];
         List<Cut> cuts = Cuts(track, included);
         var clips = new List<VideoClipPlan>();
@@ -49,7 +49,27 @@ internal sealed partial class TimelinePlan
             Companion = incoming.Count > 0 && !track.Hidden
                 ? new VideoLayerPlan(i, track.Id + VideoLayerPlan.CompanionSuffix, incoming)
                 : null,
+            Generated = Generated(track, sequence),
         };
+    }
+
+    /// <summary>
+    /// Los títulos activos de la pista. No entran en <c>included</c>: no tienen decodificador ni transiciones (una
+    /// transición contra un título se ve como corte) y no cuentan para la demanda.
+    /// </summary>
+    private static List<GeneratedClipPlan> Generated(Track track, Sequence sequence)
+    {
+        var generated = new List<GeneratedClipPlan>();
+        foreach (Clip clip in Ordered(track))
+        {
+            if (clip is { Enabled: true, Generator: not null } && clip.Duration > Time.Zero
+                && GeneratedClipPlan.From(clip, sequence.Width, sequence.Height) is { } plan)
+            {
+                generated.Add(plan);
+            }
+        }
+
+        return generated;
     }
 
     private static TransitionPlan Transition(Cut cut, Sequence sequence, IEffectContent? content, ref int missing)

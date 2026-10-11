@@ -55,6 +55,25 @@ internal sealed partial class TimelinePlan
     /// <summary>Transiciones de paquete cuyo contenido falta: se ven como fundido cruzado.</summary>
     public int MissingContent { get; }
 
+    /// <summary>Los títulos de las pistas visibles que se ven en <c>[from, to)</c>, sin repetir contenido, de abajo arriba.</summary>
+    public List<GeneratedContent> GeneratedContents(Time from, Time to)
+    {
+        var contents = new List<GeneratedContent>();
+        var seen = new HashSet<GeneratedContent>();
+        foreach (VideoLayerPlan layer in Layers)
+        {
+            for (int i = layer.FirstGeneratedEndingAfter(from); i < layer.Generated.Count && layer.Generated[i].Start < to; i++)
+            {
+                if (seen.Add(layer.Generated[i].Content))
+                {
+                    contents.Add(layer.Generated[i].Content);
+                }
+            }
+        }
+
+        return contents;
+    }
+
     /// <summary>Inicio del cuadro de la secuencia que se ve en <paramref name="time"/>, sin pasar del último.</summary>
     public Time FrameStart(Time time)
     {

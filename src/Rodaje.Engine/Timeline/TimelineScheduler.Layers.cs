@@ -105,6 +105,44 @@ internal sealed partial class TimelineScheduler
         return Build(trackIndex, main, time, null, false, 0, null);
     }
 
+    /// <summary>
+    /// Carril generado: pide a quien rasteriza los títulos que se verán en <see cref="_titleLookahead"/> y, si el visible
+    /// no está, la composición no está completa (tras un seek se espera como a un cuadro) y reproduciendo cuenta tarde.
+    /// </summary>
+    private void StepTitles(VideoLayerPlan lane, Time time, bool running, ref bool settled)
+    {
+        if (_titles is null || lane.Generated.Count == 0)
+        {
+            return;
+        }
+
+        IReadOnlyList<GeneratedClipPlan> titles = lane.Generated;
+        Time until = time + _titleLookahead;
+        for (int i = lane.FirstGeneratedEndingAfter(time); i < titles.Count && titles[i].Start <= until; i++)
+        {
+            bool ready = _titles.Prepare(titles[i].Content);
+            if (titles[i].Start <= time && !ready)
+            {
+                settled = false;
+                if (running && !_seekPending)
+                {
+                    _lateTitles++;
+                }
+            }
+        }
+    }
+
+    private EffectListRing TitleEffects(VideoLayerPlan lane)
+    {
+        if (!_titleEffects.TryGetValue(lane.TrackId, out EffectListRing? ring))
+        {
+            ring = new EffectListRing();
+            _titleEffects.Add(lane.TrackId, ring);
+        }
+
+        return ring;
+    }
+
     /// <summary>Guarda la composición completa recién armada para volver a mostrarla mientras un seek espera cuadros.</summary>
     private void Hold(List<LayerFrame> layers, List<DecodedFrame> released)
     {
@@ -199,6 +237,7 @@ internal sealed partial class TimelineScheduler
         private float _progress;
         private EffectValues _transitionValues;
         private HeldLayer? _incoming;
+        private GeneratedContent? _generated;
 
         public bool Capture(LayerFrame layer)
         {
@@ -208,6 +247,7 @@ internal sealed partial class TimelineScheduler
             }
 
             _frame = layer.Frame;
+            _generated = layer.Generated;
             _trackIndex = layer.TrackIndex;
             _clipId = layer.ClipId;
             _transform = layer.Transform;
@@ -241,6 +281,15 @@ internal sealed partial class TimelineScheduler
 
         public LayerFrame? Present()
         {
+            if (_generated is not null)
+            {
+                return new LayerFrame(_trackIndex, _clipId, _generated, _transform)
+                {
+                    Effects = _effects.Count > 0 ? _effects : [],
+                    Blend = _blend,
+                };
+            }
+
             if (_frame is null || !_frame.TryRetain())
             {
                 return null;
@@ -270,6 +319,8 @@ internal sealed partial class TimelineScheduler
                 released.Add(_frame);
                 _frame = null;
             }
+
+            _generated = null;
 
             if (_hasTransition)
             {

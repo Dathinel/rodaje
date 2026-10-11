@@ -30,6 +30,9 @@ internal sealed class Curve : IEquatable<Curve>
     /// <summary>El valor si es constante; si no, el del primer punto.</summary>
     public double First => _at.Length == 0 ? _constant : _values[0];
 
+    /// <summary>El mayor valor que toma: entre puntos las curvas no salen del rango de sus extremos.</summary>
+    public double Max => _at.Length == 0 ? _constant : _values.Max();
+
     public static Curve Constant(double value) => new(NoPositions, NoValues, NoInterpolations, value);
 
     /// <summary>
