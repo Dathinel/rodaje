@@ -33,6 +33,12 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private const uint D3D11BindShaderResource = 0x8;
     private const int WorstCaseReferences = 16;
 
+    /// <summary>
+    /// Superficies que admite un pool de D3D11VA (medido con NVDEC en la RTX 3050: FFmpeg lo deja en 64 y, si se retienen
+    /// más cuadros de los que sobran, la decodificación falla o pisa superficies en uso). Las referencias cuentan dentro.
+    /// </summary>
+    public const int MaxHardwarePoolSurfaces = 64;
+
     private readonly VideoDecoderOptions _options;
     private readonly GpuDevice? _device;
     private readonly int _streamIndex;
@@ -373,7 +379,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         int extra = _options.HardwarePoolSizer is { } sizer
             ? sizer(new HardwarePoolRequest(framesContext->width, framesContext->height, surfaceBytes, references))
             : _options.ExtraHardwareFrames;
-        framesContext->initial_pool_size = references + Math.Max(0, extra);
+        framesContext->initial_pool_size = Math.Min(MaxHardwarePoolSurfaces, references + Math.Max(0, extra));
         if (ffmpeg.av_hwframe_ctx_init(frames) < 0)
         {
             ffmpeg.av_buffer_unref(&frames);
@@ -383,7 +389,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         ffmpeg.av_buffer_unref(&context->hw_frames_ctx);
         context->hw_frames_ctx = frames;
         _surfacePool?.Close();
-        _surfacePool = new DecoderSurfacePool(framesContext->initial_pool_size, surfaceBytes);
+        _surfacePool = new DecoderSurfacePool(framesContext->initial_pool_size, surfaceBytes, references);
         return true;
     }
 

@@ -9,16 +9,20 @@ public sealed class DecoderSurfacePool
     private static long s_closedCount;
     private int _closed;
 
-    internal DecoderSurfacePool(int surfaces, long surfaceBytes)
+    internal DecoderSurfacePool(int surfaces, long surfaceBytes, int referenceSurfaces = 0)
     {
         Surfaces = surfaces;
         SurfaceBytes = surfaceBytes;
+        SpareSurfaces = Math.Max(0, surfaces - referenceSurfaces);
     }
 
     /// <summary>Cuántos pools se cerraron en todo el proceso; si no cambió, no hay nada nuevo que soltar.</summary>
     public static long ClosedCount => Interlocked.Read(ref s_closedCount);
 
     public int Surfaces { get; }
+
+    /// <summary>Superficies que quedan fuera de las referencias del códec: cuántos cuadros se pueden retener a la vez.</summary>
+    public int SpareSurfaces { get; }
 
     /// <summary>Bytes de una superficie, con el relleno que pide el decodificador.</summary>
     public long SurfaceBytes { get; }
