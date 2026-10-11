@@ -78,6 +78,8 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 5. **Velocidad de clips (fase 5c, aprobada):** plan en `docs/fase-5c.md`. Arranca tras unir la integración de la fase 5 (en paralelo con su verificación): paso 0 contrato y formato 4, luego 7 agentes. Va antes que la 5b.
 6. **Después:** fase 5b (texto y títulos, repo `rodaje-titulos`), luego fase 6 (exportación).
 
+**En curso (11-oct, tarde):** cierre de 5c.1 (arranque AOT, cuadros perdidos con velocidad —Daniel los ve—, colas >20 ms, audible ≤60 ms); rediseño del inspector en su rama con los ajustes de Daniel (pestañas que no se salgan, rombos de keyframes sin bajar opacidad, estilo coherente con el resto, sobre todo Filtros) — no se une sin su aprobación; ronda 5c.2 (curvas) en núcleo y motor. Nube: tareas 12 (lector de video hacia atrás, 5c.3) y 13 (codificadores de exportación, fase 6).
+
 **Reorganización del repo aprobada (11-oct):** plan y orden en `docs/reorganizacion.md`; se aplica cuando no haya agentes editando ni PR de la nube abiertos.
 
 ## Nube y coordinación
