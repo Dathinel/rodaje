@@ -284,9 +284,17 @@ public static class EffectEdits
                 throw new EditException("El keyframe de una pista no puede quedar antes del inicio.");
             }
         }
-        else if (at < clip.SourceIn || at > clip.SourceOut)
+        else
         {
-            throw new EditException("El keyframe tiene que quedar dentro del clip.");
+            // En un congelado los keyframes van en un tiempo virtual que avanza con el clip.
+            ClipTimeMap map = clip.TimeMap;
+            (Time first, Time last) = map.Freeze
+                ? (map.EffectTime(map.Start), map.EffectTime(map.Start) + map.Duration)
+                : (map.SourceIn, map.SourceOut);
+            if (at < first || at > last)
+            {
+                throw new EditException("El keyframe tiene que quedar dentro del clip.");
+            }
         }
     }
 

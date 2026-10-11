@@ -20,8 +20,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
         Gen.Select(RandomTimeline.GenProject, RandomTimeline.GenOp.Array[1, 40]);
 
     /// <summary>
-    /// Propiedades 1 a 4, 6 y 7 sobre proyectos con efectos y transiciones y hasta 40 operaciones con deshacer y rehacer
-    /// intercalados; deshacer todo devuelve el archivo idéntico byte a byte.
+    /// Propiedades 1 a 4 y 6 a 9 sobre proyectos con efectos, transiciones, velocidades, curvas, reversas y congelados y
+    /// hasta 40 operaciones con deshacer y rehacer intercalados; deshacer todo devuelve el archivo idéntico byte a byte.
     /// </summary>
     [Fact]
     public void OperacionesAleatorias_CumplenTodasLasReglas() =>
@@ -31,10 +31,54 @@ public class EditPropertiesTests(ITestOutputHelper output)
             iter: 10000,
             print: s => $"{s.Project}\nOperaciones: {string.Join(" ", s.Ops.Select(o => o.ToString()))}");
 
+    /// <summary>Los proyectos y las operaciones de velocidad del sorteo de verdad llegan a aplicarse, no solo a rechazarse.</summary>
+    [Fact]
+    public void ElSorteo_EjercitaLasVelocidades()
+    {
+        int projectsWithSpeed = 0;
+        var applied = new int[Enum.GetValues<OpKind>().Length];
+        GenScenario.Sample(
+            s =>
+            {
+                BuiltProject built = RandomTimeline.Build(s.Project);
+                if (built.Sequence.AllTracks.SelectMany(t => t.Clips).Any(c => c.Speed is not null))
+                {
+                    Interlocked.Increment(ref projectsWithSpeed);
+                }
+
+                foreach (OpSpec spec in s.Ops)
+                {
+                    ResolvedOp op = RandomTimeline.Resolve(built, spec);
+                    if (op.Command is null)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        op.Command.Apply(built.Project);
+                        Interlocked.Increment(ref applied[(int)op.Kind]);
+                    }
+                    catch (EditException)
+                    {
+                    }
+                }
+            },
+            iter: 2000,
+            threads: 1);
+
+        output.WriteLine($"proyectos con velocidad: {projectsWithSpeed}; aplicadas: {string.Join(", ", Enum.GetValues<OpKind>().Select(k => $"{k} {applied[(int)k]}"))}");
+        Assert.True(projectsWithSpeed > 400, $"solo {projectsWithSpeed} proyectos con velocidad");
+        foreach (OpKind kind in (OpKind[])[OpKind.SetSpeed, OpKind.RateStretch, OpKind.FreezeFrame, OpKind.SetCurve, OpKind.SetReverse, OpKind.SetPreservePitch])
+        {
+            Assert.True(applied[(int)kind] > 100, $"{kind} solo se aplicó {applied[(int)kind]} veces");
+        }
+    }
+
     /// <summary>Propiedad 5: un arrastre (muchos comandos con la misma clave) queda como un solo paso.</summary>
     [Fact]
     public void Arrastres_SeFundenEnUnPasoYDeshacerVuelveAlInicio() =>
-        Gen.Select(RandomTimeline.GenProject, Gen.Int[0, 7], Gen.Int[0, 1000], Gen.Int[-20, 20].Array[2, 15], Gen.Bool)
+        Gen.Select(RandomTimeline.GenProject, Gen.Int[0, 9], Gen.Int[0, 1000], Gen.Int[-20, 20].Array[2, 15], Gen.Bool)
             .Sample(
                 s => RunDrag(s.Item1, s.Item2, s.Item3, s.Item4, s.Item5),
                 writeLine: output.WriteLine,
@@ -128,6 +172,13 @@ public class EditPropertiesTests(ITestOutputHelper output)
                 Fail($"«{op.Text}»: {conservation}");
             }
 
+            // Propiedad 9: dividir y recortar no cambian el cuadro de origen de ningún instante que siga en el mismo clip.
+            string? frames = CheckSameFrames(op, group, trackBefore, built.Sequence);
+            if (frames is not null)
+            {
+                Fail($"«{op.Text}»: {frames}");
+            }
+
             // Propiedad 8: la curva de los efectos de pista sigue a los clips que el ripple corre.
             string? curves = CheckTrackCurves(op, group, trackBefore, built.Sequence);
             if (curves is not null)
@@ -219,7 +270,9 @@ public class EditPropertiesTests(ITestOutputHelper output)
                 4 => Edits.RippleTrim(Seq, clipId, TrimEdge.Out, delta, scope, built.Ids),
                 5 => Edits.Roll(Seq, clipId, delta, built.Ids),
                 6 => Edits.Slip(Seq, clipId, delta, built.Ids),
-                _ => Edits.Slide(Seq, clipId, delta, built.Ids),
+                7 => Edits.Slide(Seq, clipId, delta, built.Ids),
+                8 => Edits.RateStretch(Seq, clipId, TrimEdge.Out, delta, allTracks, built.Ids),
+                _ => Edits.RateStretch(Seq, clipId, TrimEdge.In, delta, allTracks, built.Ids),
             };
             key ??= command.MergeKey;
             Assert.Equal(key, command.MergeKey);
@@ -303,7 +356,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
     /// </remarks>
     private static string? CheckTrackCurves(ResolvedOp op, List<GroupMember> group, Dictionary<string, Track> before, Sequence after)
     {
-        if (op.Kind is OpKind.RippleTrim or OpKind.SetKeyframe)
+        if (op.Kind is OpKind.RippleTrim or OpKind.SetKeyframe or OpKind.SetSpeed or OpKind.RateStretch or OpKind.SetCurve or OpKind.FreezeFrame)
         {
             return null;
         }
@@ -356,6 +409,52 @@ public class EditPropertiesTests(ITestOutputHelper output)
                             }
                         }
                     }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Tras recortar, hacer roll o slide, o recortar con ripple el final, cada instante que sigue cubierto por el mismo
+    /// clip muestra el mismo instante del origen. Se comparan solo los clips que no se mueven.
+    /// </summary>
+    private static string? CheckSameFrames(ResolvedOp op, List<GroupMember> group, Dictionary<string, Track> before, Sequence after)
+    {
+        HashSet<string> members = [.. group.Select(m => m.ClipId)];
+        Func<string, bool>? compare = op.Kind switch
+        {
+            OpKind.Trim or OpKind.Roll => _ => true,
+            OpKind.Slide => id => !members.Contains(id),
+            OpKind.RippleTrim when op.Text.Contains("Out", StringComparison.Ordinal) => members.Contains,
+            _ => null,
+        };
+        if (compare is null)
+        {
+            return null;
+        }
+
+        foreach ((string trackId, Track old) in before)
+        {
+            Track now = after.GetTrack(trackId);
+            var samples = new HashSet<long>();
+            foreach (Clip c in old.Clips.Concat(now.Clips))
+            {
+                for (int k = 0; k < 8; k++)
+                {
+                    samples.Add(c.Start.Ticks + (c.Duration.Ticks / 8 * k) + (k * 7));
+                }
+
+                samples.Add(c.End.Ticks - 1);
+            }
+
+            foreach (long ticks in samples)
+            {
+                var t = Time.FromTicks(ticks);
+                if (old.ClipAt(t) is { } a && now.ClipAt(t) is { } b && a.Id == b.Id && compare(a.Id) && a.ToSourceTime(t) != b.ToSourceTime(t))
+                {
+                    return $"el clip «{a.Id}» mostraba {a.ToSourceTime(t).Ticks} en {ticks} ticks y ahora {b.ToSourceTime(t).Ticks}.";
                 }
             }
         }
