@@ -271,8 +271,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
                 5 => Edits.Roll(Seq, clipId, delta, built.Ids),
                 6 => Edits.Slip(Seq, clipId, delta, built.Ids),
                 7 => Edits.Slide(Seq, clipId, delta, built.Ids),
-                8 => Edits.RateStretch(Seq, clipId, TrimEdge.Out, delta, allTracks, built.Ids),
-                _ => Edits.RateStretch(Seq, clipId, TrimEdge.In, delta, allTracks, built.Ids),
+                8 => Edits.RateStretch(Seq, clipId, TrimEdge.Out, delta, scope, built.Ids),
+                _ => Edits.RateStretch(Seq, clipId, TrimEdge.In, delta, scope, built.Ids),
             };
             key ??= command.MergeKey;
             Assert.Equal(key, command.MergeKey);
