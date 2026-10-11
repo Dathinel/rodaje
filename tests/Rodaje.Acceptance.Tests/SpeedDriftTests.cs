@@ -39,7 +39,7 @@ public sealed class SpeedDriftTests(ITestOutputHelper output)
         { "0,5x", false },
     };
 
-    [FfmpegLibraryTheory(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true, Skip = SpeedSeekTests.WaitsForVideoEngine)]
+    [FfmpegLibraryTheory(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true)]
     [MemberData(nameof(Rates))]
     public void Video_diez_minutos_sin_deriva(string name) =>
         Video(name, SpeedTimeline.Build(MediaPath, SpeedCase.Named(name), withAudio: true, Length));
