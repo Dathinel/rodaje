@@ -1,6 +1,6 @@
 # Formato de proyecto `.rodaje`
 
-Un proyecto de Rodaje se guarda en un archivo con extensión `.rodaje`. Es texto JSON en UTF-8, sin marca BOM, indentado con dos espacios y con saltos de línea LF. Se eligió JSON legible y no un formato binario por dos razones. La primera es que el proyecto es el trabajo de quien edita y debe poder abrirse, revisarse e incluso repararse con un editor de texto si algo sale mal. La segunda es que Daniel quiere que sus otros programas, como un futuro editor de audio o herramientas en Python, puedan leer y escribir el mismo proyecto sin depender del código de Rodaje. Por eso este documento describe el formato completo, con sus reglas, y junto a él se publica un esquema JSON en `schema/rodaje-proyecto.v4.schema.json` (los de las versiones 1 a 3 se conservan para los archivos viejos) que cualquier validador del estándar draft 2020-12 entiende.
+Un proyecto de Rodaje se guarda en un archivo con extensión `.rodaje`. Es texto JSON en UTF-8, sin marca BOM, indentado con dos espacios y con saltos de línea LF. Se eligió JSON legible y no un formato binario por dos razones. La primera es que el proyecto es el trabajo de quien edita y debe poder abrirse, revisarse e incluso repararse con un editor de texto si algo sale mal. La segunda es que Daniel quiere que sus otros programas, como un futuro editor de audio o herramientas en Python, puedan leer y escribir el mismo proyecto sin depender del código de Rodaje. Por eso este documento describe el formato completo, con sus reglas, y junto a él se publica un esquema JSON en `schema/rodaje-proyecto.v5.schema.json` (los de las versiones 1 a 4 se conservan para los archivos viejos) que cualquier validador del estándar draft 2020-12 entiende.
 
 El archivo nunca contiene video, audio ni imágenes. Solo guarda dónde están los archivos de origen y cómo se usan, de modo que editar jamás modifica el material original y un proyecto pesa unos pocos kilobytes.
 
@@ -18,7 +18,7 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
 
 ```json
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "id": "project-6c1f0a2e",
   "name": "Paseo en bicicleta",
   "media": [
@@ -192,7 +192,7 @@ Leído en voz alta, el ejemplo dice lo siguiente. La toma dura 300 cuadros a 29,
 
 ## Qué significa cada campo
 
-La raíz del archivo es el proyecto. `schemaVersion` es la versión del formato y hoy vale 4; es el primer dato que se lee y decide cómo se interpreta el resto. `id` identifica al proyecto y `name` es el nombre que ve quien edita. `media` es la biblioteca de medios y `sequences` son las líneas de tiempo, que pueden ser varias, por ejemplo una horizontal y otra vertical del mismo material.
+La raíz del archivo es el proyecto. `schemaVersion` es la versión del formato y hoy vale 5; es el primer dato que se lee y decide cómo se interpreta el resto. `id` identifica al proyecto y `name` es el nombre que ve quien edita. `media` es la biblioteca de medios y `sequences` son las líneas de tiempo, que pueden ser varias, por ejemplo una horizontal y otra vertical del mismo material.
 
 Cada medio describe un archivo de origen. `path` es su ruta; se prefiere relativa a la carpeta donde está el `.rodaje`, para que el proyecto se pueda mover junto con su material a otro PC, aunque se aceptan rutas absolutas. Se admiten tanto `/` como `\` como separador. `name` es el nombre visible, `duration` la duración total del archivo en ticks, `hasVideo` y `hasAudio` dicen qué contiene, `frameRate` es la tasa de su video o `null` si no tiene (una imagen fija o un archivo de solo audio), `width` y `height` son las dimensiones de la imagen en píxeles y `sampleRate` y `audioChannels` describen su sonido. Los campos que no aplican valen 0.
 
@@ -265,6 +265,44 @@ Un clip puede llevar `speed`; si no lo lleva (o es `null`) se reproduce a 1× y 
 
 El origen de cada instante se calcula exacto con enteros, sin redondeos acumulados. Sea `I(u)` lo que avanza el origen tras `u` ticks de la línea de tiempo (`u·num/den`, o la integral de la curva). En el instante `t` del clip, con `τ = t − start` y `p(τ) = ⌊I(offset + τ)⌋ − ⌊I(offset)⌋`, se ve `sourceIn + p(τ)` (o `sourceOut − 1 − p(τ)` en reversa). Por eso `sourceOut − sourceIn` debe valer exactamente `⌈I(offset + duration)⌉ − ⌊I(offset)⌋`, y `|offset| + duration` no puede pasar de 2^44 ticks (unas 6,9 horas). Los keyframes de los efectos siguen en tiempo del origen; en un congelado avanzan con un tiempo virtual, `sourceIn + offset + τ`. Los clips de un mismo enlace llevan la misma velocidad (`rate`, `curve`, `reverse` y `freeze`). Un ejemplo con velocidad constante, reversa, curva y congelado está en `tests/Rodaje.Core.Tests/Serialization/ejemplos/proyecto-v4.rodaje`.
 
+### Títulos y clips generados (formato 5)
+
+Un clip puede llevar `generator` en lugar de `mediaId`: su imagen no sale de un archivo sino que la genera Rodaje. Hoy el único tipo es `text`, un título; `kind` es abierto (color sólido y formas llegarán sin cambiar el formato) y un tipo desconocido se conserva al guardar y no se dibuja. Un generador no tiene medio, así que su origen es virtual y no tiene límites: `sourceOut − sourceIn` sigue siendo la duración en la pista, los keyframes de sus efectos siguen en tiempo del origen y `sourceIn` puede ser negativo (al alargar el inicio de un título). Va solo en pistas de video, sin `speed`, y `mediaId` no se escribe.
+
+```
+{ "id": "clip-9", "sourceIn": 0, "sourceOut": 2116800000, "start": 705600000, "linkId": null, "enabled": true,
+  "generator": {
+    "kind": "text", "text": "Hola
+mundo",
+    "style": {
+      "source": "rodaje-titulos@1.0.0/clasico", "name": "Clásico",
+      "font": { "family": "Inter", "weight": 700, "italic": false, "source": "rodaje-fuentes@1.0.0/inter", "fallback": ["Segoe UI"] },
+      "size": 96, "reference": { "width": 1920, "height": 1080 }, "lineHeight": 1.1, "letterSpacing": 0, "align": "center",
+      "fill": { "color": "#FFFFFF" },
+      "stroke": { "color": "#000000", "width": 6, "join": "round" },
+      "shadow": { "color": "#00000099", "dx": 4, "dy": 6, "blur": 8 },
+      "background": { "color": "#00000080", "padding": [24, 12], "radius": 12 },
+      "in": { "durationSeconds": 0.4, "curves": { "opacity": [ { "t": 0, "value": 0, "interp": "linear" }, { "t": 0.4, "value": 1, "interp": "easeOut" } ] } },
+      "out": { "durationSeconds": 0.3, "curves": { "opacity": [ { "t": 0, "value": 1, "interp": "linear" }, { "t": 0.3, "value": 0, "interp": "linear" } ] } } },
+    "box": { "widthFraction": 0.8 },
+    "edges": { "in": true, "out": true } },
+  "effects": [ { "id": "effect-9", "type": "rodaje.transform", "enabled": true, "parameters": { "y": { "value": 380, "keyframes": [] } }, "options": {} } ] }
+```
+
+| Campo | Qué es |
+|---|---|
+| `text` | El texto. Admite saltos de línea `
+` y tabulaciones, y las marcas de dirección (bidi); ningún otro carácter de control. Hasta 10 000 caracteres y 200 líneas. |
+| `style` | **Copia completa** del estilo `rodaje.textstyle` v1 del que salió (D-029), obligatoria en `text`. `source` (`paquete@versión/estilo`) solo dice de dónde salió: el proyecto se ve igual sin el paquete y no cambia si el paquete se actualiza. Las medidas van en píxeles de `reference` y se escalan a la secuencia con `min(ancho/refAncho, alto/refAlto)`; los colores son `#RRGGBB` o `#RRGGBBAA`. `stroke`, `shadow`, `background`, `in` y `out` son opcionales. |
+| `style.font` | `family` y `weight` (100–900), `italic`, `source` si la fuente es de un paquete (`font`) y hasta 8 familias de respaldo en `fallback`. Si la fuente falta, se usa el respaldo con aviso. |
+| `style.in`, `style.out` | Entrada y salida pegadas a los bordes del clip: `durationSeconds` (0–60) y curvas por parámetro (`x`, `y`, `scale`, `rotation`, `opacity`), con `t` en segundos desde su borde (0 a `durationSeconds`, en orden estricto), `value` dentro del rango de `rodaje.transform` e `interp` como en los keyframes. Son un delta sobre `rodaje.transform` del clip: suman en `x`, `y` y `rotation` y multiplican en `scale` y `opacity`. Si el clip es más corto que las dos juntas, ambas se escalan por igual al evaluar. |
+| `box` | Opcional. Ancho para el ajuste de línea: `width` en píxeles de `reference` o `widthFraction` (0–1] del ancho de la secuencia, que manda si están los dos. |
+| `edges` | Qué bordes animan: `in` la entrada y `out` la salida (las dos verdaderas por omisión). Dividir un título apaga la salida de la mitad izquierda y la entrada de la derecha, para que el corte no parpadee; recortar no los toca, así que la animación sigue al nuevo borde. |
+
+Topes del estilo: `size` mayor que 0 y hasta 1000; `stroke.width` hasta la mitad de `size`; `shadow.blur` hasta 64; `lineHeight` mayor que 0 y hasta 10; desplazamientos, márgenes y radios hasta 1000 en valor absoluto; `reference` de 1 a 16 384; nombres de familia hasta 128 caracteres; hasta 64 puntos por curva. En todo el proyecto, los textos de los generadores suman como mucho 2 000 000 de caracteres.
+
+Una pista puede llevar `role`, su función. Hoy se usa `subtitles` (solo en pistas de video): sus clips de texto son subtítulos y en la fase 7 podrán exportarse como pista de texto. El nombre de la pista sigue siendo solo para mostrar. Un rol es un texto de 1 a 32 caracteres con minúsculas ASCII, dígitos y guiones; uno desconocido se conserva. Un ejemplo con títulos, rol y un `sourceIn` negativo está en `tests/Rodaje.Core.Tests/Serialization/ejemplos/proyecto-v5.rodaje`.
+
 ## Reglas que todo programa debe respetar
 
 El esquema JSON describe la forma del archivo, pero hay reglas que relacionan unos datos con otros y que el esquema no puede expresar. Rodaje las comprueba todas al abrir un proyecto y lo rechaza con un mensaje que las enumera si alguna falla, así que un programa que escriba un `.rodaje` debe cumplirlas.
@@ -273,17 +311,17 @@ Todos los identificadores (`id`) del proyecto, de los medios, de las secuencias,
 
 Cada medio debe tener una duración positiva. Cada secuencia debe tener ancho, alto y frecuencia de muestreo positivos. Una pista de `videoTracks` debe ser de tipo `video` y una de `audioTracks` de tipo `audio`.
 
-Cada clip debe apuntar con `mediaId` a un medio que exista en `media`. Su `sourceIn` no puede ser negativo, su `sourceOut` debe ser mayor que su `sourceIn` y no puede pasar de la duración del medio, y su `start` no puede ser negativo. Un clip en una pista de video necesita un medio con imagen (`hasVideo`) y uno en una pista de audio, un medio con sonido (`hasAudio`). Dentro de una pista, los clips van ordenados por `start` y no se solapan: cada uno empieza en el final del anterior o después. Los huecos entre clips no se guardan; son simplemente el espacio que queda entre uno y el siguiente.
+Cada clip debe apuntar con `mediaId` a un medio que exista en `media` o llevar `generator`, nunca las dos cosas ni ninguna. El `sourceIn` de un clip de medio no puede ser negativo (el de un generador sí), su `sourceOut` debe ser mayor que su `sourceIn` y no puede pasar de la duración del medio, y su `start` no puede ser negativo. Un clip en una pista de video necesita un medio con imagen (`hasVideo`) y uno en una pista de audio, un medio con sonido (`hasAudio`). Dentro de una pista, los clips van ordenados por `start` y no se solapan: cada uno empieza en el final del anterior o después. Los huecos entre clips no se guardan; son simplemente el espacio que queda entre uno y el siguiente.
 
 Un marcador no puede estar antes del instante cero, y una región tampoco puede empezar antes y debe terminar después de empezar. Los keyframes de cada parámetro van en orden estrictamente creciente de `time`, sin dos en el mismo instante. Un mismo `linkId` puede repetirse en varias pistas, pero nunca en dos clips de la misma pista. Cada transición une dos clips contiguos de su propia pista (`to` es el siguiente de `from` y empieza justo donde este termina), cada corte tiene como mucho una y su duración es positiva y no pasa de la del más corto de sus clips. En los tipos registrados, cada parámetro (y cada keyframe) es un número finito dentro de los límites del registro: una opacidad de 2 o un ángulo de barrido de 720 se rechazan; los parámetros de tipos desconocidos no se miran. Un tipo registrado como transición no puede ir en una lista de efectos ni uno de efecto en `transitions`, y las opciones y los efectos de pista siguen las reglas de la sección anterior.
 
-Además, el archivo debe ser JSON estricto: sin comentarios, sin comas sobrantes y sin el mismo campo repetido dentro de un objeto, porque no habría forma de saber cuál vale. Las listas y las `options` no pueden contener `null`, y los campos de texto, listas y objetos tampoco; los únicos campos que admiten `null` son `linkId`, el `frameRate` de un medio y `speed`, `duration` y `curve` en un clip.
+Además, el archivo debe ser JSON estricto: sin comentarios, sin comas sobrantes y sin el mismo campo repetido dentro de un objeto, porque no habría forma de saber cuál vale. Las listas y las `options` no pueden contener `null`, y los campos de texto, listas y objetos tampoco; los únicos campos que admiten `null` son `linkId`, el `frameRate` de un medio, `speed`, `duration`, `curve`, `mediaId` y `generator` en un clip, `role` en una pista y los campos opcionales del generador y su estilo (`style`, `box`, `width`, `widthFraction`, `source`, `name`, `stroke`, `shadow`, `background`, `in`, `out`); `null` vale lo mismo que no escribirlo.
 
 Un campo que falta toma su valor por defecto: listas vacías, números en 0, `enabled` en verdadero, la secuencia en 1920 × 1080 a 30 fps y 48 kHz, la interpolación en `linear`. Los campos desconocidos se ignoran al leer, lo que permite que un archivo escrito por una versión futura con campos opcionales nuevos se abra en una anterior de la misma versión de formato, pero esos campos no se conservan cuando Rodaje vuelve a guardar. Por eso otro programa no debe guardar datos propios dentro del `.rodaje` esperando que sobrevivan a una edición en Rodaje; si necesita datos adicionales, debe guardarlos en un archivo aparte o proponer que se agreguen al formato en una nueva versión.
 
 ## Versiones y migraciones
 
-`schemaVersion` es un entero que solo crece. Cuando el formato cambia de una manera que una versión anterior de Rodaje no podría leer correctamente, por ejemplo al agregar la velocidad de los clips, que cambia la relación entre la duración en la pista y el tramo usado del origen, se sube la versión. Al abrir un archivo, Rodaje lee primero ese número. Si falta, no es un entero o es menor que 1, el archivo no es un proyecto de Rodaje. Si es mayor que la versión que el programa conoce, el archivo fue creado con una versión más nueva y se pide actualizar el programa en lugar de abrirlo a medias. Si es menor, se aplican en cadena las migraciones de la versión 1 a la 2, de la 2 a la 3 y así hasta la actual, trabajando sobre el árbol JSON antes de convertirlo en objetos, y después se valida el resultado como cualquier otro proyecto. Cada versión tiene su propio esquema con el número en el nombre del archivo, de modo que `rodaje-proyecto.v1.schema.json` no cambia nunca una vez publicado. La migración de la 1 a la 2 agrega a cada secuencia las listas `markers` y `regions` vacías. La de la 2 a la 3 agrega a cada pista `effects` y `transitions` vacías y a cada efecto `options` vacío, y convierte la envolvente vieja `rodaje.volume` (ganancia lineal en `gain`) en `rodaje.audio` con `gainDb` = 20·log10(gain), keyframes incluidos; una ganancia de 0 o menos queda en −60 dB. La de la 3 a la 4 quita los efectos `rodaje.speed`, que estaban reservados y nunca se aplicaron; los clips quedan sin `speed`, a 1×. Una migración publicada tampoco se modifica: si tuviera un error se corrige con otra migración.
+`schemaVersion` es un entero que solo crece. Cuando el formato cambia de una manera que una versión anterior de Rodaje no podría leer correctamente, por ejemplo al agregar la velocidad de los clips, que cambia la relación entre la duración en la pista y el tramo usado del origen, se sube la versión. Al abrir un archivo, Rodaje lee primero ese número. Si falta, no es un entero o es menor que 1, el archivo no es un proyecto de Rodaje. Si es mayor que la versión que el programa conoce, el archivo fue creado con una versión más nueva y se pide actualizar el programa en lugar de abrirlo a medias. Si es menor, se aplican en cadena las migraciones de la versión 1 a la 2, de la 2 a la 3 y así hasta la actual, trabajando sobre el árbol JSON antes de convertirlo en objetos, y después se valida el resultado como cualquier otro proyecto. Cada versión tiene su propio esquema con el número en el nombre del archivo, de modo que `rodaje-proyecto.v1.schema.json` no cambia nunca una vez publicado. La migración de la 1 a la 2 agrega a cada secuencia las listas `markers` y `regions` vacías. La de la 2 a la 3 agrega a cada pista `effects` y `transitions` vacías y a cada efecto `options` vacío, y convierte la envolvente vieja `rodaje.volume` (ganancia lineal en `gain`) en `rodaje.audio` con `gainDb` = 20·log10(gain), keyframes incluidos; una ganancia de 0 o menos queda en −60 dB. La de la 3 a la 4 quita los efectos `rodaje.speed`, que estaban reservados y nunca se aplicaron; los clips quedan sin `speed`, a 1×. La de la 4 a la 5 solo cambia el número: un archivo del formato 4 no tiene generadores ni roles. Un Rodaje del formato 4 rechaza el 5 con «actualiza el programa» en lugar de un error confuso sobre un clip sin medio. Una migración publicada tampoco se modifica: si tuviera un error se corrige con otra migración.
 
 Al volver a guardar, Rodaje siempre escribe la versión actual, así que un proyecto abierto y guardado con una versión nueva ya no se puede abrir con una anterior. La copia `.bak` descrita abajo conserva la versión previa del archivo.
 

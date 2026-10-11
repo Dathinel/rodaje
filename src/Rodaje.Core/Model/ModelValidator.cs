@@ -113,8 +113,15 @@ public static class ModelValidator
                 checkId(clip.Id, "un clip");
                 string where = $"El clip «{clip.Id}» de la pista «{track.Name}»";
 
-                MediaRef? media = project.FindMedia(clip.MediaId);
-                if (media is null)
+                MediaRef? media = clip.Generator is null ? project.FindMedia(clip.MediaId) : null;
+                if (clip.Generator is not null)
+                {
+                    if (clip.MediaId.Length > 0)
+                    {
+                        errors.Add($"{where} tiene a la vez un medio y un generador.");
+                    }
+                }
+                else if (media is null)
                 {
                     errors.Add($"{where} usa el medio «{clip.MediaId}», que no existe.");
                 }
@@ -136,7 +143,8 @@ public static class ModelValidator
                     }
                 }
 
-                if (clip.SourceIn < Time.Zero)
+                // Un generador tiene un origen virtual sin límites: recortar su inicio puede dejar el punto de entrada negativo.
+                if (clip.SourceIn < Time.Zero && clip.Generator is null)
                 {
                     errors.Add($"{where} tiene un punto de entrada negativo.");
                 }
