@@ -138,6 +138,9 @@ public sealed class FfmpegTool
         return _probes.GetOrAdd(encoder, e => new Lazy<string?>(() => RunProbe(e))).Value;
     }
 
+    /// <summary>Si el build de ffmpeg declara el codificador (no comprueba que funcione).</summary>
+    public bool IsEncoderListed(string encoder) => ListedEncoders.Contains(encoder);
+
     /// <summary>El primer codificador del códec que funciona, en orden NVENC, Media Foundation, OpenH264 y x264/x265.</summary>
     public string? FindVideoEncoder(VideoCodec codec) =>
         VideoEncoderCandidates(codec).FirstOrDefault(IsEncoderUsable);
