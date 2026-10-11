@@ -3,7 +3,7 @@ using Rodaje.Core.Timing;
 namespace Rodaje.App.Services.Inspector;
 
 /// <summary>Valores fijos de la pestaña Velocidad: atajos, imanes del deslizador, congelado y límites del sonido.</summary>
-public static class SpeedPresets
+public static class SpeedTabValues
 {
     /// <summary>Botones rápidos bajo el deslizador.</summary>
     public static IReadOnlyList<Rational> Quick { get; } = [new(1, 2), new(1, 1), new(3, 2), new(2, 1), new(4, 1)];

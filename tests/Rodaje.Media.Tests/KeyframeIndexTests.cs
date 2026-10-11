@@ -9,10 +9,11 @@ namespace Rodaje.Media.Tests;
 
 public sealed class KeyframeIndexTests
 {
-    public static TheoryData<string> Clips => new(TestClips.H264.Name, TestClips.Hevc.Name, TestClips.Hevc10.Name, TestClips.H264Mkv.Name);
+    public static TheoryData<string> Clips => new(TestClips.H264.Name, TestClips.Hevc.Name, TestClips.H264Mkv.Name);
 
     [FfmpegLibraryTheory]
     [MemberData(nameof(Clips))]
+    [TenBitClipData(software: false)]
     public void Both_sources_find_the_decoded_keyframes(string clip)
     {
         ClipSpec spec = DecodeModes.Clip(clip);
@@ -28,7 +29,12 @@ public sealed class KeyframeIndexTests
         Assert.Equal(expected, scanned.Frames);
         Assert.Equal(spec.Frames, index.FrameCount);
         Assert.Equal(new Rational(spec.RateNum, spec.RateDen), index.FrameRate);
-        Assert.Equal(spec.Gop, index.MaxInterval);
+
+        // libopenh264 respeta el GOP; libkvazaar (HEVC sin NVENC) no, y sus keyframes ya se comprobaron arriba.
+        if (spec.Codec == ClipCodec.H264 || Rodaje.TestMedia.Skip.Encoder(TestClips.ExactEncoder(spec.Codec)) is null)
+        {
+            Assert.Equal(spec.Gop, index.MaxInterval);
+        }
     }
 
     [FfmpegLibraryFact]

@@ -35,6 +35,8 @@ internal sealed partial class TitleBar : UserControl
         Session.TransportChanged += (_, _) => UpdateStats();
         Session.HistoryChanged += (_, _) => UpdateUndoText();
         services.ShortcutRegistry.Changed += (_, _) => UpdateAccelerators();
+        BuildTrackCountMenu(NewVideoTracksMenu, "Tracks", isVideo: true);
+        BuildTrackCountMenu(NewAudioTracksMenu, "AudioTracks", isVideo: false);
         UpdateAccelerators();
         UpdateUndoText();
         UpdateChecks();
@@ -104,6 +106,8 @@ internal sealed partial class TitleBar : UserControl
         ProxyAuto.IsChecked = proxies == ProxyUsage.Auto;
         ProxyAlways.IsChecked = proxies == ProxyUsage.Always;
         ProxyNever.IsChecked = proxies == ProxyUsage.Never;
+        UpdateTrackCountChecks(NewVideoTracksMenu, _services.Settings.Current.NewProjectTracks.Video);
+        UpdateTrackCountChecks(NewAudioTracksMenu, _services.Settings.Current.NewProjectTracks.Audio);
         PreviewQuality quality = _services.Settings.Current.PreviewQuality;
         QualityAuto.IsChecked = quality == PreviewQuality.Auto;
         QualityFull.IsChecked = quality == PreviewQuality.Full;
@@ -143,6 +147,54 @@ internal sealed partial class TitleBar : UserControl
             _services.Settings.Current.ProxyUsage = usage;
             _services.Player.SetProxyUsage(usage);
         }
+    }
+
+    private void BuildTrackCountMenu(MenuFlyoutSubItem menu, string group, bool isVideo)
+    {
+        menu.Items.Clear();
+        for (int count = NewProjectTracks.Min; count <= NewProjectTracks.Max; count++)
+        {
+            var item = new RadioMenuFlyoutItem { Text = count.ToString(System.Globalization.CultureInfo.CurrentCulture), GroupName = group, Tag = count };
+            item.Click += isVideo ? OnVideoTracksClick : OnAudioTracksClick;
+            menu.Items.Add(item);
+        }
+    }
+
+    private static void UpdateTrackCountChecks(MenuFlyoutSubItem menu, int selected)
+    {
+        foreach (MenuFlyoutItemBase item in menu.Items)
+        {
+            if (item is RadioMenuFlyoutItem { Tag: int count } radio)
+            {
+                radio.IsChecked = count == selected;
+            }
+        }
+    }
+
+    private void OnVideoTracksClick(object sender, RoutedEventArgs e) => SetNewProjectTracks(sender, video: true);
+
+    private void OnAudioTracksClick(object sender, RoutedEventArgs e) => SetNewProjectTracks(sender, video: false);
+
+    private void SetNewProjectTracks(object sender, bool video)
+    {
+        if (sender is not FrameworkElement { Tag: int count } || _services is null)
+        {
+            return;
+        }
+
+        AppSettings settings = _services.Settings.Current;
+        if (video)
+        {
+            settings.DefaultVideoTracks = count;
+        }
+        else
+        {
+            settings.DefaultAudioTracks = count;
+        }
+
+        settings.Normalize();
+        _services.Session.NewProjectTracks = settings.NewProjectTracks;
+        _services.Settings.SaveIfChanged();
     }
 
     private void OnQualityClick(object sender, RoutedEventArgs e)

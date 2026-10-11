@@ -4,7 +4,7 @@ La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendie
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
-- **Estado:** cambios (PR #9: atender la revisión del 11-oct en sus comentarios)
+- **Estado:** hecha (PR #9 unido el 11-oct; comentario y aserción ajustados al unir)
 - **Rama:** `claude/ci-media-velocidad`
 - **Caminos:** `tests/Rodaje.Media.Tests/`, `docs/tareas/` (y, solo si hace falta, archivos nuevos en `testing/Rodaje.TestMedia/`)
 - **Lee:** el log de la última corrida de main en rojo (`gh run list --branch main`, `gh run view <id> --log-failed`), `docs/arquitectura/medios.md` (sección de velocidad), `testing/Rodaje.TestMedia/Skip.cs`.
@@ -75,7 +75,7 @@ Recorre `docs/arquitectura/*.md` y compáralos con el código actual de `src/`: 
 
 ## 7. Pistas por defecto en un proyecto nuevo
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #10 unido el 11-oct)
 - **Rama:** `claude/pistas-por-defecto`
 - **Caminos:** `src/Rodaje.App/Services/Settings/`, `src/Rodaje.App/Views/Settings/` (o donde viva la página de ajustes), el punto donde la app crea un proyecto nuevo (búscalo; no toques `src/Rodaje.Core`), `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (sección Personalización), `docs/arquitectura/app.md`.
@@ -84,7 +84,7 @@ Primera mitad de lo pedido por Daniel: en Ajustes, cuántas pistas de video (1�
 
 ## 8. Propuesta del formato de estilos de texto (fase 5b)
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #11: segunda revisión del 11-oct en sus comentarios)
 - **Rama:** `claude/propuesta-texto`
 - **Caminos:** `docs/propuestas/texto.md` (nuevo), `docs/tareas/`.
 - **Lee:** `docs/fase-5.md` (por qué el texto va en la 5b), `docs/fase-5c.md` (la 5c cambia `Clip` y el formato 4 antes), `docs/formato-paquete.md`, `docs/formato-proyecto.md`, `src/Rodaje.Core/Model/`, `src/Rodaje.Render/` (solo lectura).
@@ -101,7 +101,7 @@ Solo documento, sin código: propuesta para la fase 5b con (1) clips generadores
 
 ## 10. `MediaProbe.ScanTimestamps` no rebobina en MP4
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #12: atender la revisión del 11-oct en sus comentarios)
 - **Rama:** `claude/probe-rebobinar`
 - **Caminos:** `src/Rodaje.Media/Probe/MediaProbe.cs`, `tests/Rodaje.Media.Tests/` (archivos nuevos), `docs/tareas/`
 
@@ -109,7 +109,7 @@ Tras el análisis, `ScanTimestamps` rebobina con `av_seek_frame(long.MinValue, A
 
 ## 11. Defectos del lector de paquetes hallados por el fuzz
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #13: atender la revisión del 11-oct en sus comentarios)
 - **Rama:** `claude/paquetes-textos`
 - **Caminos:** `src/Rodaje.Paquetes/`, `tests/Rodaje.Paquetes.Tests/`, `docs/formato-paquete.md`, `docs/tareas/`
 - **Lee:** la entrega `docs/tareas/2026-10-11-fuzz-paquete.md` y las pruebas con `Skip = "Defecto: …"` de `tests/Rodaje.Paquetes.Tests/Fuzz/PackageInstallerFuzzTests.cs`.
@@ -127,7 +127,7 @@ Un `ReverseFrameReader` que entregue los cuadros de un tramo en orden descendent
 
 ## 13. Lista de codificadores para la exportación (base de la fase 6)
 
-- **Estado:** pendiente
+- **Estado:** en pausa (PR #14 choca con el contrato local de la fase 6; se retoma sobre `EncoderSpec` cuando el paso 0 esté en main; ver comentarios del PR)
 - **Rama:** `claude/export-codificadores`
 - **Caminos:** archivos NUEVOS en `src/Rodaje.Media/Export/` (carpeta nueva), `tests/Rodaje.Media.Tests/Export/`, `docs/tareas/`.
 - **Lee:** `CLAUDE.md` (sección «Hacia la versión pública»: exportar por GPU o CPU sin separar el programa, licencia LGPL en la v1), `docs/legal.md`, `docs/ffmpeg-configure.txt`, `src/Rodaje.Media/Proxies/ProxyEncoders.cs` (solo lectura).
@@ -151,3 +151,39 @@ Con un HEVC de GOP abierto (p. ej. el que genera libkvazaar del build LGPL: IDR 
 - **Lee:** `docs/pendientes.md` («Personalización»), la entrega de la tarea 7 (pistas por defecto) si ya existe, `docs/arquitectura/app.md`.
 
 Segunda mitad de lo pedido por Daniel: en Ajustes, elegir de qué pistas de video sale el audio de un medio a su propia pista de audio al importarlo o soltarlo (todas, o una lista: por ejemplo Video 1 y 2 sí, Video 3 no). Si el video cae en una pista sin audio, el medio entra sin su clip de audio (o con el audio desactivado, decide y justifica). Guardado en `ajustes.json`. Pruebas de la regla con la sesión real y una nota en `docs/pendientes.md` marcando lo hecho.
+
+## 16. Material perdido al encadenar curvas de velocidad
+
+- **Estado:** pendiente
+- **Rama:** `claude/curvas-material`
+- **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Timing/` (solo si hace falta), `tests/Rodaje.Core.Tests/` (archivos nuevos), `docs/tareas/`
+- **Lee:** `docs/fase-5c.md`, `docs/arquitectura/nucleo.md` (sección Velocidad), `src/Rodaje.Core/Editing/TimelineEdits.Speed.cs` (`AlignEnd`), `src/Rodaje.Core/Model/SpeedPresets.cs`.
+
+Aplicar «Bala», luego «Héroe» y luego «Ninguna» a un clip de 10 s lo deja en 9,942 s: el redondeo al cuadro de `AlignEnd` con curvas va comiendo material (~58 ms). Reprodúcelo con una prueba (cadenas aleatorias de preajustes, `SetCurve`, `SetSpeed` y vuelta a 1×: el material al volver a 1× debe ser el original, o como mucho un cuadro de origen distinto y nunca acumulativo) y corrígelo (calcular cada cambio desde el material original del clip, no desde el ya redondeado; o redondear al cuadro más cercano conservando el material). Incluye la propiedad en las pruebas de 10 000 proyectos si es barato.
+
+## 17. Cortar en todas las pistas y borrar a un lado del cursor
+
+- **Estado:** pendiente
+- **Rama:** `claude/qdv-cortes`
+- **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Commands/`, `tests/Rodaje.Core.Tests/` (archivos nuevos), `src/Rodaje.App/Services/Shortcuts/`, `src/Rodaje.App/Services/EditorSession*.cs` (parcial nuevo), `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` (funciones de calidad de vida, aprobadas por Daniel el 11-oct: 2), `docs/arquitectura/nucleo.md`, D-026 (magnetismo).
+
+Cortar en el cursor en todas las pistas desbloqueadas a la vez (un paso del historial) y «borrar a la izquierda/derecha del cursor» del clip seleccionado (Q/W, con ripple según el modo de la sesión). Atajos en los 3 estilos y en la hoja rápida. Pruebas del núcleo y de los atajos; la UI se verifica con la CI.
+
+## 18. Enlazar y desenlazar, separar audio, y copiar/pegar atributos
+
+- **Estado:** pendiente
+- **Rama:** `claude/qdv-enlaces-atributos`
+- **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Commands/`, `tests/Rodaje.Core.Tests/` (archivos nuevos), `src/Rodaje.App/Services/` (parciales nuevos), menús contextuales de clip en `src/Rodaje.App/Views/Timeline/` (lo mínimo), `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` (funciones 3 y 7), `docs/arquitectura/nucleo.md`, `app-vistas.md`.
+
+Enlazar/desenlazar clips con un clic y «separar el audio» a su propia pista (crea el clip de audio enlazado si el medio lo tiene); «copiar atributos» de un clip y «pegar atributos» (efectos, transformación, velocidad, volumen; con selección de cuáles) en uno o varios clips, un paso del historial. Pruebas del núcleo con propiedades si es barato.
+
+## 19. Reemplazar medio y lista de marcadores
+
+- **Estado:** pendiente
+- **Rama:** `claude/qdv-reemplazar-marcadores`
+- **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Commands/`, `tests/Rodaje.Core.Tests/` (archivos nuevos), `src/Rodaje.App/Views/Library/` y un panel nuevo de marcadores en `src/Rodaje.App/Views/Markers/`, `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` (funciones 5 y 8), D-020 (marcadores y regiones).
+
+Reemplazar el medio de un clip por otro conservando duración, efectos y keyframes (con aviso si el nuevo es más corto). Marcadores con nombre y color, y una lista para saltar entre ellos (doble clic va al marcador; edición de nombre y color), con el estilo de la app (D-027).

@@ -1,5 +1,6 @@
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Services.Inspector;
@@ -23,6 +24,12 @@ public interface ISpeedCommands
 
     /// <summary>Congela el cuadro de <paramref name="at"/>: corta ahí y mete un congelado de <paramref name="duration"/>.</summary>
     ICommand FreezeFrame(string sequenceId, string clipId, Time at, Time duration, RippleScope scope);
+
+    /// <summary>Curva de velocidad (la duración sale de su velocidad media); <c>null</c> vuelve a 1×.</summary>
+    ICommand SetCurve(string sequenceId, string clipId, SpeedCurve? curve, RippleScope scope);
+
+    /// <summary>La curva de un preajuste propio (<see cref="SpeedPresets"/>).</summary>
+    ICommand ApplySpeedPreset(string sequenceId, string clipId, SpeedPreset preset, RippleScope scope);
 }
 
 public static class SpeedCommands
@@ -48,5 +55,11 @@ public static class SpeedCommands
 
         public ICommand FreezeFrame(string sequenceId, string clipId, Time at, Time duration, RippleScope scope) =>
             Edits.FreezeFrame(sequenceId, clipId, at, duration, scope: scope);
+
+        public ICommand SetCurve(string sequenceId, string clipId, SpeedCurve? curve, RippleScope scope) =>
+            Edits.SetCurve(sequenceId, clipId, curve, scope);
+
+        public ICommand ApplySpeedPreset(string sequenceId, string clipId, SpeedPreset preset, RippleScope scope) =>
+            Edits.ApplySpeedPreset(sequenceId, clipId, preset, scope);
     }
 }

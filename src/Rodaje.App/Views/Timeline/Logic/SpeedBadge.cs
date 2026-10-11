@@ -5,8 +5,8 @@ using Rodaje.Core.Timing;
 namespace Rodaje.App.Views.Timeline;
 
 /// <summary>
-/// El indicador de velocidad sobre el clip: «2,0×», «◀ 0,5×», «❚❚ Congelado» o «Curva». La mini curva de la fase 5c.2
-/// va en el mismo indicador, a la derecha del texto.
+/// El indicador de velocidad sobre el clip: «2,0×», «◀ 0,5×», «❚❚ Congelado», o con una curva el nombre del preajuste
+/// que coincide («Bala») o «Curva», con la mini curva a la derecha del texto.
 /// </summary>
 public static class SpeedBadge
 {
@@ -28,8 +28,21 @@ public static class SpeedBadge
             return Frozen;
         }
 
-        string rate = speed.Curve is not null ? Curve : speed.Rate == new Rational(1, 1) ? "" : Format(speed.Rate.ToDouble());
+        string rate = speed.Curve is { } curve ? (SpeedPresets.Match(curve) is { } preset ? SpeedPresets.Name(preset) : Curve) : speed.Rate == new Rational(1, 1) ? "" : Format(speed.Rate.ToDouble());
         return speed.Reverse ? (rate.Length == 0 ? Reverse : $"{Reverse} {rate}") : rate;
+    }
+
+    /// <summary>La curva que dibuja la mini curva y el tramo que cubre el clip; nula si no tiene curva o está congelado.</summary>
+    public static (IReadOnlyList<SpeedPoint> Points, double From, double To)? CurveShape(Clip clip)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        if (clip.Speed is not { Freeze: false, Curve: { Points.Count: >= 2 } curve })
+        {
+            return null;
+        }
+
+        (double from, double to) = Rodaje.App.Services.Inspector.SpeedCurveMath.Window(clip);
+        return (curve.Points, from, to);
     }
 
     /// <summary>Una velocidad con al menos un decimal y como mucho dos: «2,0×», «0,25×», «1,37×».</summary>

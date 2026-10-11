@@ -19,7 +19,7 @@ Plan del 10 de octubre de 2026, aprobado por Daniel: va antes que la fase 5b (te
 - **Video:** `MaxRate` es el pico real del tramo visible (política de proxies y demanda); ventanas y pre-roll siguen la curva; el keyframe cercano solo si la tasa instantánea no baja de 16× en toda la ventana. `AVDISCARD_NONREF` no hizo falta.
 - **Audio:** el lector sigue entre los trozos de un clip dividido con curva (`SameCourse`, `Adopt`, mapeo unido en el plan): idéntico muestra a muestra.
 - **Cifras:** «Bala» 2004/2004 seeks exactos con medio real; «Montaje» repetida 10 min: 0 cuadros de video distintos y 0,073 ms de error medio de audio (pedido ≤1 ms), 0,021 ms entre el primer y el último minuto.
-- **Falta (interfaz):** editor de puntos de la curva con sus límites, mini curva en el clip, selector de preajustes en la pestaña «Velocidad», y que el arrastre de Alt + borde sobre una curva se calcule desde el inicio del gesto (con pasos de un cuadro el redondeo a centésimas apenas cambia los puntos, y el largo exacto sale de tomar o soltar material al final).
+- **Interfaz:** sección «Curva» en la pestaña «Velocidad» con baldosas de preajustes y editor de puntos (0,1×–10× en escala logarítmica, 2–64 puntos, cada arrastre un paso del historial calculado desde el inicio del gesto), mini curva y nombre del preajuste en el indicador del clip, y Alt + borde sobre una curva calculado desde el inicio del gesto ([app-vistas.md](arquitectura/app-vistas.md#inspector-viewsinspector)).
 
 ## Diseño
 

@@ -20,12 +20,12 @@ La sesión local de Rodaje (en el PC de Daniel) mantiene una cola de tareas en [
 - **Pruebas omitidas:** si omites o excluyes pruebas, la entrega y el PR indican cuántas se omitían antes y cuántas después, con la causa de cada grupo. Una omisión sin causa concreta (hardware, codificador o plataforma que falta) se rechaza.
 - **Choques:** si algo reciente en `origin/main` toca lo mismo, no lo resuelvas: anótalo en la entrega y en el PR.
 
-## Trabajar con subagentes
+## Trabajar con varios agentes (por defecto)
 
-Usa la herramienta de agentes para ir más rápido, como hace la sesión local:
-- **Al empezar:** en paralelo, un agente que localice el código y los archivos implicados (solo lectura) y otro que lea la CI y las entregas relacionadas. Tú decides con sus resúmenes, sin volcados.
-- **Al implementar:** si la tarea tiene partes independientes en archivos distintos, un agente por parte, cada uno en su propio `git worktree` sobre tu rama; tú unes y haces los commits.
-- **Antes de marcar «Listo para revisar»:** un agente nuevo, sin tu contexto, revisa el diff de forma adversarial con las reglas de esta página (caminos, pruebas debilitadas u omitidas, conteo de omitidas, choques con `origin/main`) y corre las pruebas afectadas. Corrige lo que encuentre antes de entregar.
-- Si acabas una tarea y queda tiempo, puedes tomar la siguiente libre en la misma corrida (como mucho 2 por corrida).
+Siempre se trabaja con varios agentes en paralelo, como hace la sesión local. No se hace una tarea entera en un solo hilo.
+- **Varias tareas a la vez:** elige hasta **3 tareas** que te toquen (primero las `cambios`, luego las `pendiente` en orden) cuyos caminos no se crucen, y lanza **un agente por tarea**, cada uno en su propio `git worktree` sobre su rama. Tú coordinas: no escribas tú el código de las tareas.
+- **Dentro de cada tarea:** el agente de la tarea puede lanzar los suyos (localizar código y leer la CI/entregas en paralelo; una parte independiente por agente en archivos distintos).
+- **Revisor por tarea, siempre:** antes de marcar «Listo para revisar», un agente nuevo, sin el contexto del autor, revisa el diff de forma adversarial con las reglas de esta página (caminos, pruebas debilitadas u omitidas, conteo de omitidas, choques con `origin/main`), reproduce los fallos que se declaran imposibles y corre las pruebas afectadas. Se corrige lo que encuentre antes de entregar.
+- **Cierre:** cada tarea con su PR y su entrega; tu resumen final lista todas.
 
 Luego vuelve a «Cómo elegir la siguiente tarea».

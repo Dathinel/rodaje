@@ -42,6 +42,18 @@ public class SpeedEditorTests
             Calls.Add($"freeze {clipId} {at.ToSeconds()} {duration.ToSeconds()}");
             return new SequenceEditCommand("Congelar cuadro", sequenceId, (EditContext _) => { });
         }
+
+        public ICommand SetCurve(string sequenceId, string clipId, SpeedCurve? curve, RippleScope scope)
+        {
+            Calls.Add($"curve {clipId} {(curve is null ? "null" : curve.Points.Count)}");
+            return _inner.SetCurve(sequenceId, clipId, curve, scope);
+        }
+
+        public ICommand ApplySpeedPreset(string sequenceId, string clipId, SpeedPreset preset, RippleScope scope)
+        {
+            Calls.Add($"preset {clipId} {preset}");
+            return _inner.ApplySpeedPreset(sequenceId, clipId, preset, scope);
+        }
     }
 
     private sealed class Harness

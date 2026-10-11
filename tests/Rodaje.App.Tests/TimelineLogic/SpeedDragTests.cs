@@ -173,4 +173,79 @@ public class SpeedDragTests(ITestOutputHelper output)
         output.WriteLine($"Estirar con 203 clips: mediana {times[times.Count / 2]:0.000} ms, p95 {times[times.Count * 95 / 100]:0.000} ms");
         Assert.True(times[times.Count * 95 / 100] < 16, $"p95 {times[times.Count * 95 / 100]:0.00} ms");
     });
+
+    [Fact]
+    public void EstirarUnaCurva_SaleDelInicioDelGesto_YNoDependeDelCamino() => UiThread.Run(async () =>
+    {
+        // Muchos pasos de un cuadro y un solo salto al mismo borde dejan el mismo clip.
+        (SpeedCurve curve, Time duration, string layout) Stretch(EditorSession session, double[] path)
+        {
+            ClipDragSession drag = Start(session, ClipOf(session, "a"), DragOperation.StretchEnd, ClipOf(session, "a").End.ToSeconds(), Options(session));
+            foreach (double x in path)
+            {
+                drag.Move(S(x), null);
+            }
+
+            drag.Complete();
+            Clip a = ClipOf(session, "a");
+            return (a.Speed!.Curve!.Clone(), a.Duration, Layout(session, session.MainTrack!));
+        }
+
+        async Task<EditorSession> WithBullet()
+        {
+            EditorSession session = await ThreeClips();
+            Assert.True(session.Execute(Edits.ApplySpeedPreset(session.SequenceId, ClipOf(session, "a").Id, SpeedPreset.Bullet, session.SpeedScope)));
+            return session;
+        }
+
+        EditorSession stepped = await WithBullet();
+        int steps = stepped.History.Count;
+        Clip before = ClipOf(stepped, "a");
+        SpeedCurve start = before.Speed!.Curve!.Clone();
+        Time end = before.End;
+        // «Bala» baja a 0,12×: más de 1,2 veces su duración pondría un punto por debajo de 0,1×.
+        double target = end.ToSeconds() + 1;
+        double[] path = [.. Enumerable.Range(1, 60).Select(k => end.ToSeconds() + (k / 48.0)), end.ToSeconds() + 0.5, target];
+        (SpeedCurve curve, Time duration, string layout) many = Stretch(stepped, path);
+
+        Assert.Equal(steps + 1, stepped.History.Count);
+        Assert.Equal("Cambiar velocidad", stepped.UndoDescription);
+        Assert.Equal(S(target).SnapToFrame(stepped.Sequence.FrameRate), ClipOf(stepped, "a").End);
+        Assert.Equal(many.curve.Points, stepped.Sequence.AudioTracks[0].Clips[0].Speed!.Curve!.Points);
+        Assert.Equal(ClipOf(stepped, "a").End, ClipOf(stepped, "b").Start);
+
+        EditorSession jumped = await WithBullet();
+        (SpeedCurve curve, Time duration, string layout) once = Stretch(jumped, [target]);
+        Assert.True(many.curve.ContentEquals(once.curve));
+        Assert.Equal(once.duration, many.duration);
+        Assert.Equal(once.layout, many.layout);
+
+        // Más largo, cada punto es más lento: «Bala» deja de coincidir y el indicador dice «Curva».
+        Assert.Equal("Curva", SpeedBadge.Text(ClipOf(stepped, "a")));
+        stepped.Undo();
+        Assert.True(ClipOf(stepped, "a").Speed!.Curve!.ContentEquals(start));
+        Assert.Equal(end, ClipOf(stepped, "a").End);
+    });
+
+    [Fact]
+    public void EstirarUnaCurva_SeAcotaASusPuntos_YEscLoRevierte() => UiThread.Run(async () =>
+    {
+        EditorSession session = await ThreeClips();
+        Assert.True(session.Execute(Edits.ApplySpeedPreset(session.SequenceId, ClipOf(session, "a").Id, SpeedPreset.Bullet, session.SpeedScope)));
+        Clip a = ClipOf(session, "a");
+        SpeedCurve start = a.Speed!.Curve!.Clone();
+        int steps = session.History.Count;
+
+        // «Bala» llega a 3×: acortarla a menos de 3/10 de su duración pondría un punto por encima de 10×.
+        ClipDragSession drag = Start(session, a, DragOperation.StretchEnd, a.End.ToSeconds(), Options(session));
+        drag.Move(S(0.01), null);
+        Clip shortest = ClipOf(session, "a");
+        Assert.True(shortest.Duration.Ticks * 10 >= a.Duration.Ticks * 3 - Time.FromFrames(1, session.Sequence.FrameRate).Ticks * 10);
+        Assert.All(shortest.Speed!.Curve!.Points, p => Assert.InRange(p.Hundredths, 10, 1000));
+
+        drag.Cancel();
+        Assert.Equal(steps, session.History.Count);
+        Assert.True(ClipOf(session, "a").Speed!.Curve!.ContentEquals(start));
+        Assert.Equal(a.Duration, ClipOf(session, "a").Duration);
+    });
 }

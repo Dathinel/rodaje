@@ -1,12 +1,15 @@
 using Rodaje.App.Diagnostics;
+using Rodaje.App.Services;
 using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Player;
+using Rodaje.Core.Commands;
+using Rodaje.Core.Model;
 
 namespace Rodaje.App.Shell;
 
 /// <summary>
 /// <c>--autoprueba</c>: lo mínimo para saber que el exe publicado arranca de verdad. Con el clip de prueba en la pista
-/// principal y seleccionado, muestra cada pestaña del inspector, reproduce un segundo y cierra. Sale con 0 si llegó el
+/// principal y seleccionado, muestra cada pestaña del inspector (y la curva «Bala» en Velocidad), reproduce un segundo y cierra. Sale con 0 si llegó el
 /// primer cuadro y nada falló; cualquier excepción queda en <c>rodaje-error.txt</c> y el código es distinto de 0.
 /// </summary>
 internal static class SelfTestRun
@@ -23,6 +26,7 @@ internal static class SelfTestRun
                 await Task.Delay(250);
             }
 
+            await ShowCurveAsync(window);
             window.InspectorPane.Show(InspectorView.Tab.Properties);
             if (window.Session.Sequence.Duration.Ticks > 0)
             {
@@ -52,6 +56,21 @@ internal static class SelfTestRun
 
         Program.ExitCode = code;
         window.Close();
+    }
+
+    /// <summary>Pone «Bala» al clip para dibujar el editor de curvas y la mini curva con el exe de AOT, y lo deshace.</summary>
+    private static async Task ShowCurveAsync(MainWindow window)
+    {
+        EditorSession session = window.Session;
+        if (session.MainTrack is not { Clips.Count: > 0 } main
+            || !session.Execute(Edits.ApplySpeedPreset(session.SequenceId, main.Clips[0].Id, SpeedPreset.Bullet, session.SpeedScope)))
+        {
+            return;
+        }
+
+        window.InspectorPane.Show(InspectorView.Tab.Speed);
+        await Task.Delay(250);
+        session.Undo();
     }
 
     /// <summary>Selecciona el primer clip de la principal para que las pestañas muestren un clip, no el estado vacío.</summary>

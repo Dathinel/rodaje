@@ -50,6 +50,8 @@
                     <RadioMenuFlyoutItem x:Name="ProxyAlways" Text="Siempre que haya" GroupName="Proxies" Tag="Always" Click="OnProxyClick" />
                     <RadioMenuFlyoutItem x:Name="ProxyNever" Text="Nunca (originales)" GroupName="Proxies" Tag="Never" Click="OnProxyClick" />
                 </MenuFlyoutSubItem>
+                <MenuFlyoutSubItem x:Name="NewVideoTracksMenu" Text="Pistas de video de un proyecto nuevo" />
+                <MenuFlyoutSubItem x:Name="NewAudioTracksMenu" Text="Pistas de audio de un proyecto nuevo" />
                 <MenuFlyoutSubItem Text="Calidad de la vista previa">
                     <RadioMenuFlyoutItem x:Name="QualityAuto" Text="Automática" GroupName="Quality" Tag="Auto" Click="OnQualityClick" />
                     <RadioMenuFlyoutItem x:Name="QualityFull" Text="Completa" GroupName="Quality" Tag="Full" Click="OnQualityClick" />
