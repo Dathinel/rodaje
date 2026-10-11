@@ -111,6 +111,7 @@ internal static class SerializationSamples
                                             Id = "effect-2",
                                             Type = "rodaje.blur",
                                             Enabled = false,
+                                            Options = new() { ["source"] = "rodaje-esenciales@1.0.0/suave", ["nota"] = "ñandú" },
                                         },
                                     ],
                                 },
@@ -153,6 +154,15 @@ internal static class SerializationSamples
                             Id = "track-a2",
                             Kind = TrackKind.Audio,
                             Name = "Música",
+                            Effects =
+                            [
+                                new EffectInstance
+                                {
+                                    Id = "effect-3",
+                                    Type = "rodaje.audio",
+                                    Parameters = new() { ["gainDb"] = new Parameter { Value = -6, Keyframes = [new Keyframe(S(2), -6), new Keyframe(S(4), -60, Interpolation.EaseIn)] } },
+                                },
+                            ],
                             Clips =
                             [
                                 new Clip
@@ -218,6 +228,17 @@ internal static class SerializationSamples
             Track e = expected[i];
             Track a = actual[i];
             Assert.Equal((e.Id, e.Kind, e.Name, e.Muted, e.Locked, e.Hidden), (a.Id, a.Kind, a.Name, a.Muted, a.Locked, a.Hidden));
+            AssertEffectsEqual(e.Effects, a.Effects);
+            Assert.Equal(e.Transitions.Count, a.Transitions.Count);
+            for (int j = 0; j < e.Transitions.Count; j++)
+            {
+                TransitionInstance et = e.Transitions[j];
+                TransitionInstance at = a.Transitions[j];
+                Assert.Equal((et.Id, et.Type, et.From, et.To, et.Duration), (at.Id, at.Type, at.From, at.To, at.Duration));
+                Assert.Equal(et.Parameters, at.Parameters);
+                Assert.Equal(et.Options, at.Options);
+            }
+
             Assert.Equal(e.Clips.Count, a.Clips.Count);
             for (int j = 0; j < e.Clips.Count; j++)
             {
@@ -226,20 +247,26 @@ internal static class SerializationSamples
                 Assert.Equal(
                     (ec.Id, ec.MediaId, ec.SourceIn, ec.SourceOut, ec.Start, ec.LinkId, ec.Enabled),
                     (ac.Id, ac.MediaId, ac.SourceIn, ac.SourceOut, ac.Start, ac.LinkId, ac.Enabled));
-                Assert.Equal(ec.Effects.Count, ac.Effects.Count);
-                for (int k = 0; k < ec.Effects.Count; k++)
-                {
-                    EffectInstance ee = ec.Effects[k];
-                    EffectInstance ae = ac.Effects[k];
-                    Assert.Equal((ee.Id, ee.Type, ee.Enabled), (ae.Id, ae.Type, ae.Enabled));
-                    Assert.Equal(ee.Parameters.Keys.Order(StringComparer.Ordinal), ae.Parameters.Keys.Order(StringComparer.Ordinal));
-                    foreach ((string name, Parameter ep) in ee.Parameters)
-                    {
-                        Parameter ap = ae.Parameters[name];
-                        Assert.Equal(ep.Value, ap.Value);
-                        Assert.Equal(ep.Keyframes, ap.Keyframes);
-                    }
-                }
+                AssertEffectsEqual(ec.Effects, ac.Effects);
+            }
+        }
+    }
+
+    private static void AssertEffectsEqual(List<EffectInstance> expected, List<EffectInstance> actual)
+    {
+        Assert.Equal(expected.Count, actual.Count);
+        for (int k = 0; k < expected.Count; k++)
+        {
+            EffectInstance ee = expected[k];
+            EffectInstance ae = actual[k];
+            Assert.Equal((ee.Id, ee.Type, ee.Enabled), (ae.Id, ae.Type, ae.Enabled));
+            Assert.Equal(ee.Options, ae.Options);
+            Assert.Equal(ee.Parameters.Keys.Order(StringComparer.Ordinal), ae.Parameters.Keys.Order(StringComparer.Ordinal));
+            foreach ((string name, Parameter ep) in ee.Parameters)
+            {
+                Parameter ap = ae.Parameters[name];
+                Assert.Equal(ep.Value, ap.Value);
+                Assert.Equal(ep.Keyframes, ap.Keyframes);
             }
         }
     }

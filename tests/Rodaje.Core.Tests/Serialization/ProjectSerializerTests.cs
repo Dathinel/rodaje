@@ -51,7 +51,7 @@ public class ProjectSerializerTests
         JsonObject root = JsonNode.Parse(json)!.AsObject();
 
         Assert.Equal(["schemaVersion", "id", "name", "media", "sequences"], root.Select(p => p.Key));
-        Assert.Equal(2, (int)root["schemaVersion"]!);
+        Assert.Equal(3, (int)root["schemaVersion"]!);
 
         JsonObject sequence = root["sequences"]![0]!.AsObject();
         Assert.Equal(["id", "name", "frameRate", "width", "height", "sampleRate", "videoTracks", "audioTracks", "markers", "regions"], sequence.Select(p => p.Key));
@@ -60,7 +60,7 @@ public class ProjectSerializerTests
         Assert.Equal(["num", "den"], sequence["frameRate"]!.AsObject().Select(p => p.Key));
 
         JsonObject track = sequence["videoTracks"]![0]!.AsObject();
-        Assert.Equal(["id", "kind", "name", "muted", "locked", "hidden", "clips"], track.Select(p => p.Key));
+        Assert.Equal(["id", "kind", "name", "muted", "locked", "hidden", "clips", "effects", "transitions"], track.Select(p => p.Key));
         Assert.Equal("video", (string)track["kind"]!);
         Assert.Equal("audio", (string)sequence["audioTracks"]![0]!["kind"]!);
 
@@ -91,7 +91,7 @@ public class ProjectSerializerTests
         Assert.Contains("música/canción ñ.wav", json, StringComparison.Ordinal);
         Assert.Contains("Vacaciones en Cartagena — edición ñ", json, StringComparison.Ordinal);
         Assert.DoesNotContain("\r", json, StringComparison.Ordinal);
-        Assert.StartsWith("{\n  \"schemaVersion\": 2,", json, StringComparison.Ordinal);
+        Assert.StartsWith("{\n  \"schemaVersion\": 3,", json, StringComparison.Ordinal);
     }
 
     [Fact]

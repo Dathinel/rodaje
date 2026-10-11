@@ -18,7 +18,7 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "project-6c1f0a2e",
   "name": "Paseo en bicicleta",
   "media": [
@@ -101,11 +101,14 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
                         }
                       ]
                     }
-                  }
+                  },
+                  "options": {}
                 }
               ]
             }
-          ]
+          ],
+          "effects": [],
+          "transitions": []
         },
         {
           "id": "track-2",
@@ -125,7 +128,9 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
               "enabled": true,
               "effects": []
             }
-          ]
+          ],
+          "effects": [],
+          "transitions": []
         }
       ],
       "audioTracks": [
@@ -147,7 +152,9 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
               "enabled": true,
               "effects": []
             }
-          ]
+          ],
+          "effects": [],
+          "transitions": []
         },
         {
           "id": "track-4",
@@ -156,7 +163,9 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
           "muted": false,
           "locked": false,
           "hidden": false,
-          "clips": []
+          "clips": [],
+          "effects": [],
+          "transitions": []
         }
       ],
       "markers": [

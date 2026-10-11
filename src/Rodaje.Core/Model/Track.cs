@@ -27,6 +27,12 @@ public sealed class Track
 
     public List<Clip> Clips { get; set; } = [];
 
+    /// <summary>Efectos de toda la pista (por ejemplo el volumen); sus keyframes están en tiempo de la secuencia.</summary>
+    public List<EffectInstance> Effects { get; set; } = [];
+
+    /// <summary>Transiciones en los cortes entre clips contiguos, ordenadas por posición.</summary>
+    public List<TransitionInstance> Transitions { get; set; } = [];
+
     [JsonIgnore]
     public Time End => Clips.Count == 0 ? Time.Zero : Clips[^1].End;
 
@@ -39,6 +45,8 @@ public sealed class Track
     {
         Track copy = (Track)MemberwiseClone();
         copy.Clips = Clips.ConvertAll(c => c.Clone());
+        copy.Effects = Effects.ConvertAll(e => e.Clone());
+        copy.Transitions = Transitions.ConvertAll(t => t.Clone());
         return copy;
     }
 
@@ -52,5 +60,15 @@ public sealed class Track
         Locked = other.Locked;
         Hidden = other.Hidden;
         Clips = other.Clips.ConvertAll(c => c.Clone());
+        Effects = other.Effects.ConvertAll(e => e.Clone());
+        Transitions = other.Transitions.ConvertAll(t => t.Clone());
     }
+
+    public TransitionInstance? FindTransition(string transitionId) => Transitions.Find(t => t.Id == transitionId);
+
+    /// <summary>La transición del corte donde termina <paramref name="clipId"/>, si la hay.</summary>
+    public TransitionInstance? TransitionFrom(string clipId) => Transitions.Find(t => t.From == clipId);
+
+    /// <summary>La transición del corte donde empieza <paramref name="clipId"/>, si la hay.</summary>
+    public TransitionInstance? TransitionTo(string clipId) => Transitions.Find(t => t.To == clipId);
 }

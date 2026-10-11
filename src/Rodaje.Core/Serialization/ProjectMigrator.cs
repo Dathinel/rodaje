@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 
 namespace Rodaje.Core.Serialization;
@@ -17,6 +18,7 @@ public sealed class ProjectMigrator
     private static readonly Dictionary<int, Action<JsonObject>> DefaultChain = new()
     {
         [1] = AddMarkersAndRegions,
+        [2] = AddEffectsAndTransitions,
     };
 
     private readonly IReadOnlyDictionary<int, Action<JsonObject>> _chain;
@@ -82,6 +84,76 @@ public sealed class ProjectMigrator
 
         root[VersionProperty] = 2;
     }
+
+    /// <summary>
+    /// 2 → 3: las pistas ganan <c>effects</c> y <c>transitions</c> y los efectos <c>options</c>, vacíos. La envolvente
+    /// vieja (<c>rodaje.volume</c>, ganancia lineal en <c>gain</c>) pasa a <c>rodaje.audio</c> en decibelios
+    /// (<c>gainDb</c> = 20·log10(gain), con −60 dB como silencio), keyframes incluidos.
+    /// </summary>
+    internal static void AddEffectsAndTransitions(JsonObject root)
+    {
+        foreach (JsonObject sequence in Objects(root["sequences"]))
+        {
+            foreach (JsonObject track in Objects(sequence["videoTracks"]).Concat(Objects(sequence["audioTracks"])))
+            {
+                track["effects"] ??= new JsonArray();
+                track["transitions"] ??= new JsonArray();
+                foreach (JsonObject effect in Objects(track["effects"]))
+                {
+                    MigrateEffectToV3(effect);
+                }
+
+                foreach (JsonObject clip in Objects(track["clips"]))
+                {
+                    foreach (JsonObject effect in Objects(clip["effects"]))
+                    {
+                        MigrateEffectToV3(effect);
+                    }
+                }
+            }
+        }
+
+        root[VersionProperty] = 3;
+    }
+
+    private static void MigrateEffectToV3(JsonObject effect)
+    {
+        effect["options"] ??= new JsonObject();
+        if (effect["type"] is not JsonValue type || !type.TryGetValue(out string? name) || name != "rodaje.volume")
+        {
+            return;
+        }
+
+        effect["type"] = BuiltInEffects.Audio;
+        if (effect["parameters"] is not JsonObject parameters
+            || parameters["gain"] is not JsonObject gain
+            || parameters.ContainsKey(BuiltInEffects.AudioParameters.GainDb))
+        {
+            return;
+        }
+
+        parameters.Remove("gain");
+        ToDecibels(gain, "value");
+        foreach (JsonObject keyframe in Objects(gain["keyframes"]))
+        {
+            ToDecibels(keyframe, "value");
+        }
+
+        parameters[BuiltInEffects.AudioParameters.GainDb] = gain;
+    }
+
+    private static void ToDecibels(JsonObject owner, string property)
+    {
+        if (owner[property] is JsonValue value && value.GetValueKind() == JsonValueKind.Number && value.TryGetValue(out double linear))
+        {
+            owner[property] = linear > 0 && double.IsFinite(linear)
+                ? Math.Max(20 * Math.Log10(linear), EffectRegistry.SilenceDb)
+                : EffectRegistry.SilenceDb;
+        }
+    }
+
+    private static IEnumerable<JsonObject> Objects(JsonNode? array) =>
+        array is JsonArray items ? items.OfType<JsonObject>() : [];
 
     private static int ReadVersion(JsonObject root)
     {

@@ -108,7 +108,7 @@ public sealed class SequenceSnapshot
             && TrackContentEquals(a, b);
     }
 
-    /// <summary>Compara identificador, tipo, nombre y clips, sin las marcas.</summary>
+    /// <summary>Compara identificador, tipo, nombre, clips, efectos y transiciones, sin las marcas.</summary>
     public static bool TrackContentEquals(Track a, Track b)
     {
         ArgumentNullException.ThrowIfNull(a);
@@ -116,7 +116,22 @@ public sealed class SequenceSnapshot
         return a.Id == b.Id
             && a.Kind == b.Kind
             && a.Name == b.Name
-            && SequenceEqual(a.Clips, b.Clips, ClipStateEquals);
+            && SequenceEqual(a.Clips, b.Clips, ClipStateEquals)
+            && SequenceEqual(a.Effects, b.Effects, EffectStateEquals)
+            && SequenceEqual(a.Transitions, b.Transitions, TransitionStateEquals);
+    }
+
+    public static bool TransitionStateEquals(TransitionInstance a, TransitionInstance b)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+        return a.Id == b.Id
+            && a.Type == b.Type
+            && a.From == b.From
+            && a.To == b.To
+            && a.Duration == b.Duration
+            && DictionaryEqual(a.Parameters, b.Parameters, (x, y) => x.Equals(y))
+            && DictionaryEqual(a.Options, b.Options, string.Equals);
     }
 
     public static bool ClipStateEquals(Clip a, Clip b)
@@ -137,14 +152,23 @@ public sealed class SequenceSnapshot
     {
         ArgumentNullException.ThrowIfNull(a);
         ArgumentNullException.ThrowIfNull(b);
-        if (a.Id != b.Id || a.Type != b.Type || a.Enabled != b.Enabled || a.Parameters.Count != b.Parameters.Count)
+        return a.Id == b.Id
+            && a.Type == b.Type
+            && a.Enabled == b.Enabled
+            && DictionaryEqual(a.Parameters, b.Parameters, ParameterStateEquals)
+            && DictionaryEqual(a.Options, b.Options, string.Equals);
+    }
+
+    private static bool DictionaryEqual<T>(Dictionary<string, T> a, Dictionary<string, T> b, Func<T, T, bool> equals)
+    {
+        if (a.Count != b.Count)
         {
             return false;
         }
 
-        foreach ((string key, Parameter parameter) in a.Parameters)
+        foreach ((string key, T value) in a)
         {
-            if (!b.Parameters.TryGetValue(key, out Parameter? other) || !ParameterStateEquals(parameter, other))
+            if (!b.TryGetValue(key, out T? other) || !equals(value, other))
             {
                 return false;
             }
