@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace Rodaje.Paquetes.Content;
 
 /// <summary>Lectura y validación de <c>rodaje.filter</c>, <c>rodaje.effect</c> y <c>rodaje.preset</c>.</summary>
-internal static class PresetReader
+internal static partial class PresetReader
 {
     public const int MaxFileBytes = 1 << 20;
     public const int MaxEffects = 32;

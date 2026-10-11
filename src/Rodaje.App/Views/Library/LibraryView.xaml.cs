@@ -11,6 +11,7 @@ using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Plugins;
 using Rodaje.App.Views.Shared;
@@ -378,6 +379,11 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             e.Data.SetData(TransitionDrag.DragFormat, transition.ToString());
         }
 
+        if (item.Element.Kind == ItemKind.TextStyle)
+        {
+            e.Data.SetData(TitleDrag.DragFormat, item.Element.Reference);
+        }
+
         e.Data.SetText(item.Element.Reference);
         e.Data.RequestedOperation = DataPackageOperation.Copy;
     }
@@ -399,8 +405,20 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
         args.Handled = true;
         var menu = new MenuFlyout();
-        string text = item.Element.Kind == ItemKind.Transition ? "Poner en el corte del clip seleccionado" : "Aplicar al clip seleccionado";
-        menu.Items.Add(MenuItem(text, "\uE710", (_, _) => _ = ApplyElementAsync(item.Element)));
+        if (item.Element.Kind == ItemKind.TextStyle)
+        {
+            menu.Items.Add(MenuItem("A\u00F1adir texto en el cursor", "\uE8D2", (_, _) => _ = AddTitleAsync(item.Element)));
+            if (_services?.Session.SelectedTitle is not null)
+            {
+                menu.Items.Add(MenuItem("Aplicar al texto seleccionado", "\uE710", (_, _) => _ = ApplyElementAsync(item.Element)));
+            }
+        }
+        else
+        {
+            string text = item.Element.Kind == ItemKind.Transition ? "Poner en el corte del clip seleccionado" : "Aplicar al clip seleccionado";
+            menu.Items.Add(MenuItem(text, "\uE710", (_, _) => _ = ApplyElementAsync(item.Element)));
+        }
+
         if (args.TryGetPosition(element, out Point point))
         {
             menu.ShowAt(element, new FlyoutShowOptions { Position = point });
@@ -413,14 +431,23 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
     private async Task ApplyElementAsync(LibraryElement element)
     {
-        if (_services is not { } services || !ElementApplier.CanApply(element))
+        if (Applier() is { } applier && ElementApplier.CanApply(element))
         {
-            return;
+            await applier.ApplyAsync(element);
         }
-
-        _applier ??= new ElementApplier(services.Session, new InstalledContentLoader(() => services.Packages.Installed));
-        await _applier.ApplyAsync(element);
     }
+
+    private async Task AddTitleAsync(LibraryElement element)
+    {
+        if (Applier() is { } applier)
+        {
+            await applier.AddTitleAsync(element);
+        }
+    }
+
+    private ElementApplier? Applier() => _services is not { } services
+        ? null
+        : _applier ??= new ElementApplier(services.Session, new InstalledContentLoader(() => services.Packages.Installed));
 
     private void OnMediaContextRequested(UIElement sender, ContextRequestedEventArgs args)
     {
