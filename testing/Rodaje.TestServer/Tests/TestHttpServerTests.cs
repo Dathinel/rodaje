@@ -26,7 +26,7 @@ public sealed class TestHttpServerTests
         Assert.Equal(content.Length, response.Content.Headers.ContentLength);
         Assert.Equal("\"v1\"", response.Headers.ETag?.ToString());
         Assert.Contains("bytes", response.Headers.AcceptRanges);
-        Assert.Equal("127.0.0.1", server.BaseAddress.Host);
+        Assert.True(server.BaseAddress.IsLoopback);
     }
 
     [Fact]

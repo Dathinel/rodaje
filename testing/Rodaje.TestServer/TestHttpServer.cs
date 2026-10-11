@@ -6,7 +6,7 @@ namespace Rodaje.TestServer;
 
 /// <summary>
 /// Servidor HTTP en proceso para probar descargas sin red, sobre <see cref="HttpListener"/> en
-/// <c>http://127.0.0.1:&lt;puerto libre&gt;/</c>. Cada prueba arranca el suyo con <see cref="Start"/>, registra
+/// <c>http://127.0.0.1:&lt;puerto libre&gt;/</c> (<c>localhost</c> en Windows). Cada prueba arranca el suyo con <see cref="Start"/>, registra
 /// rutas con <see cref="Map"/> y lo cierra con <see cref="DisposeAsync"/>.
 /// </summary>
 /// <remarks>
@@ -24,6 +24,12 @@ public sealed class TestHttpServer : IAsyncDisposable
 {
     private const int PortAttempts = 20;
 
+    /// <summary>
+    /// En Windows, HTTP.sys deja registrar <c>localhost</c> sin permisos de administrador pero no <c>127.0.0.1</c>
+    /// (pediría <c>netsh http add urlacl</c>). En Linux la implementación administrada acepta <c>127.0.0.1</c>.
+    /// </summary>
+    private static readonly string LoopbackHost = OperatingSystem.IsWindows() ? "localhost" : "127.0.0.1";
+
     private readonly HttpListener _listener;
     private readonly CancellationTokenSource _stopping = new();
     private readonly Lock _gate = new();
@@ -40,7 +46,7 @@ public sealed class TestHttpServer : IAsyncDisposable
         _acceptLoop = Task.Run(AcceptLoopAsync);
     }
 
-    /// <summary>Dirección base con la barra final, p. ej. <c>http://127.0.0.1:41234/</c>.</summary>
+    /// <summary>Dirección base con la barra final, p. ej. <c>http://127.0.0.1:41234/</c> (<c>localhost</c> en Windows).</summary>
     public Uri BaseAddress { get; }
 
     /// <summary>Copia de las peticiones recibidas hasta ahora, en orden de llegada.</summary>
@@ -55,14 +61,14 @@ public sealed class TestHttpServer : IAsyncDisposable
         }
     }
 
-    /// <summary>Arranca un servidor en un puerto libre de 127.0.0.1.</summary>
+    /// <summary>Arranca un servidor en un puerto libre del bucle local.</summary>
     public static TestHttpServer Start()
     {
         HttpListenerException? last = null;
         for (var attempt = 0; attempt < PortAttempts; attempt++)
         {
             var port = FindFreePort();
-            var baseAddress = new Uri(string.Create(CultureInfo.InvariantCulture, $"http://127.0.0.1:{port}/"));
+            var baseAddress = new Uri(string.Create(CultureInfo.InvariantCulture, $"http://{LoopbackHost}:{port}/"));
             var listener = new HttpListener();
             listener.Prefixes.Add(baseAddress.ToString());
             try
