@@ -9,7 +9,9 @@ namespace Rodaje.App.Tests.Support;
 /// </summary>
 internal static class UiThread
 {
-    public static void Run(Func<Task> body)
+    public static void Run(Func<Task> body) => Run(body, TimeSpan.FromSeconds(30));
+
+    public static void Run(Func<Task> body, TimeSpan timeout)
     {
         ExceptionDispatchInfo? failure = null;
         var thread = new Thread(() =>
@@ -36,9 +38,9 @@ internal static class UiThread
         })
         { IsBackground = true, Name = "Hilo de interfaz de prueba" };
         thread.Start();
-        if (!thread.Join(TimeSpan.FromSeconds(30)))
+        if (!thread.Join(timeout))
         {
-            throw new TimeoutException("La prueba no terminó en 30 s.");
+            throw new TimeoutException($"La prueba no terminó en {timeout.TotalSeconds:0} s.");
         }
 
         failure?.Throw();

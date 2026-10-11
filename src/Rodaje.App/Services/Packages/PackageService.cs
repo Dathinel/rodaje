@@ -65,6 +65,9 @@ public sealed class PackageService
 
     public PackageScan Installed { get; private set; } = PackageScan.Empty;
 
+    /// <summary>Ya se leyó lo instalado al menos una vez; antes, <see cref="Installed"/> está vacío.</summary>
+    public bool HasScanned { get; private set; }
+
     /// <summary>Instancias de Rodaje abiertas, contando esta. Lee el disco, pero es barato (un archivo por instancia).</summary>
     public int ActiveInstances() => _instances?.CountActive() ?? 1;
 
@@ -176,6 +179,7 @@ public sealed class PackageService
                 return (work(), PackageLibrary.Scan(Locations, AppId));
             });
             Installed = scan;
+            HasScanned = true;
         }
         finally
         {
