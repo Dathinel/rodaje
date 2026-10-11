@@ -234,7 +234,6 @@ public class LevelMathTests
                 analyzer.Process(block, position);
                 position += 16;
             }
-
         }
         finally
         {

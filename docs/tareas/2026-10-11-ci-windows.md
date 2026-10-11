@@ -2,7 +2,7 @@
 
 Rama `claude/ci-windows-verde`, creada desde `origin/main` en `20b4a22`. PR en borrador: https://github.com/Dathinel/rodaje/pull/2.
 
-**Corrida verde:** https://github.com/Dathinel/rodaje/actions/runs/38101005588, intento 2, sobre `15e629b`. Pasan los dos trabajos y Windows ya bloquea. El intento 1 falló solo por la prueba de Engine que se anota en «Pendiente».
+**Corrida verde:** https://github.com/Dathinel/rodaje/actions/runs/38103917197, sobre `da14ea0`. Pasan los dos trabajos y Windows ya bloquea. El intento 1 falló solo por la prueba de Engine que se anota en «Pendiente».
 
 Parte de `docs/tareas/2026-10-10-ci.md`, que anotó 13 fallos del runner `windows-latest` (sin GPU de verdad, sin NVENC y con 2 núcleos).
 
@@ -76,8 +76,8 @@ En el runner gana `h264_mf`, que solo produce I y P aunque se le pida `-bf 2`.
 ### 5. `ci.yml`: Windows bloquea y excluye solo Render de WARP
 
 - Sin `continue-on-error`.
-- El paso de pruebas añade al filtro un `FullyQualifiedName!=` por cada método de Render que falla en WARP. Las demás pruebas de Render (185 en la última corrida) siguen corriendo.
-- **Desvío de la tarea:** pedía excluir solo las 3 pruebas de Render conocidas, pero main trajo pruebas de efectos de la fase 5 que también fallan en WARP. Son 7 métodos y 13 casos:
+- El paso de pruebas añade al filtro un `FullyQualifiedName!=` por cada método de Render que falla en WARP. Las demás pruebas de Render (191 en la última corrida) siguen corriendo.
+- **Desvío de la tarea:** pedía excluir solo las 3 pruebas de Render conocidas, pero main trajo pruebas de efectos de la fase 5 que también fallan en WARP. Son 7 métodos y 15 casos con el main actual (la tabla cuenta 13; main sumó 2 casos de transición):
 
 | Método (`Rodaje.Render.Tests.`) | Casos | Por qué falla en WARP |
 |---|---|---|
@@ -97,7 +97,9 @@ Render no se tocó: lo están cambiando los agentes de la fase 5.
 |---|---|---|---|
 | `Rodaje.Media.Tests` | 25 | 32 | +6 casos de HEVC 10 bits (sin `hevc_nvenc`, el build LGPL no trae HEVC de 10 bits por software); +1 `Corrupted_packets_are_skipped_without_throwing` (solo con `h264_nvenc`, defecto de estado del decodificador, ver punto 2) |
 | `Rodaje.TestMedia.Tests` | 3 | 5 | 2 presets con cuadros B: `h264_mf`, el codificador del runner, solo produce I y P aunque se le pida `-bf 2` |
-| `Rodaje.Render.Tests` | 0 omitidas | 0 omitidas | 13 casos (7 métodos) **excluidos por filtro** en `ci.yml`, no omitidos: 200 → 187 casos ejecutados |
+| `Rodaje.Render.Tests` | 2 | 2 | `DecoderCompositionTests` (sin D3D11VA en el runner), igual antes y después. Además 15 casos **excluidos por filtro** en `ci.yml`, no omitidos: 206 → 191 casos ejecutados con el main actual |
+
+`Skip.Encoder` omite solo si ffmpeg no trae el codificador o, siendo NVENC, falta `nvcuda.dll`; cualquier otro fallo de la sonda no omite.
 
 Si la sonda de cuadros B falla (por ejemplo, por el límite de sesiones de NVENC), la prueba **no** se omite: corre y falla con su error real.
 
@@ -120,11 +122,6 @@ Causa de cada caso excluido de Render: ver la tabla del punto 5. Seis métodos (
   - decidir si la tolerancia de `Sharpen` debe aguantar la rasterización de WARP.
 
   Con eso se podría quitar la lista de `ci.yml`.
-- **Engine: `TimelineResourceTests.Tick_never_waits_for_a_decoder_that_is_closing` es intermitente en el runner.**
-  - Mide un `Tick` con `Stopwatch` contra un umbral de 2 ms y no lleva la categoría `TiempoReal`.
-  - En el intento 1 de la corrida verde dio 3,8 ms y falló; al relanzar pasó.
-  - Ahora que Windows bloquea, puede volver a dejar la CI en rojo sin motivo.
-  - Propuesta para quien lleve Engine: `[Trait("Categoria", "TiempoReal")]`. `probar.ps1` la correría aparte, sola, y el filtro de `ci.yml` ya la excluye.
 - **`FfmpegTool.RunExecutable` falla en Linux** con «Cannot access a closed pipe» en `ReadEncoders`, así que `Skip.Encoder` y `Skip.Encoders` no se pueden comprobar fuera de Windows. No afecta a la CI, que corre TestMedia en Windows.
 
 ## Qué comprobar en el PC de Daniel (RTX 3050)

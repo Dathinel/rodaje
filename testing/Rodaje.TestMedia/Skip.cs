@@ -165,7 +165,11 @@ public static class Skip
         return null;
     }
 
-    /// <summary>ffmpeg.exe con un codificador concreto que funcione, para medios que solo se generan con él.</summary>
+    /// <summary>
+    /// ffmpeg.exe con un codificador concreto, para medios que solo se generan con él. Omite solo con causa de hardware
+    /// o de build: el codificador no está en ffmpeg, o es de NVIDIA y el equipo no tiene el controlador (<c>nvcuda.dll</c>).
+    /// Un fallo pasajero de la sonda (por ejemplo, el límite de sesiones de NVENC) no omite: la prueba corre y falla.
+    /// </summary>
     public static string? Encoder(string encoder)
     {
         FfmpegTool? ffmpeg = FfmpegTool.Default;
@@ -174,7 +178,18 @@ public static class Skip
             return "Omitida: " + FfmpegTool.UnavailableReason;
         }
 
-        return ffmpeg.ProbeEncoder(encoder) is { } reason ? $"Omitida: el medio de prueba solo se genera con {encoder}: {reason}" : null;
+        if (!ffmpeg.IsEncoderListed(encoder))
+        {
+            return $"Omitida: el medio de prueba solo se genera con {encoder}, que este ffmpeg ({ffmpeg.ExecutablePath}) no incluye.";
+        }
+
+        if (encoder.EndsWith("_nvenc", StringComparison.Ordinal)
+            && !File.Exists(Path.Combine(Environment.SystemDirectory, "nvcuda.dll")))
+        {
+            return $"Omitida: el medio de prueba solo se genera con {encoder} y este equipo no tiene el controlador de NVIDIA (nvcuda.dll).";
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -184,8 +199,9 @@ public static class Skip
     public static string? BFrames(VideoCodec codec) =>
         Encoders([codec]) ?? BFramesReasons.GetOrAdd(codec, c => new Lazy<string?>(() => ProbeBFrames(FfmpegTool.Default!, c))).Value;
 
-    // Dos segundos con movimiento y -bf 2. Las opciones de control repiten las de TestMediaGenerator.cs (rama de cada
-    // codificador), salvo el cuadro de 320x240 y los 2 s en vez de la duración del medio.
+    // Sonda propia: dos segundos de testsrc2 a 320x240 con -bf 2. Las opciones de control de cada codificador copian las
+    // de TestMediaGenerator.BuildArguments (misma rama por codificador), pero la entrada no es la del generador
+    // (testsrc2 en vez de rawvideo yuv420p) ni lleva sus opciones de color, y la rama «resto» añade -bf 2.
     private static string? ProbeBFrames(FfmpegTool ffmpeg, VideoCodec codec)
     {
         string encoder = ffmpeg.FindVideoEncoder(codec)!;
@@ -209,7 +225,7 @@ public static class Skip
             ffmpeg.Run(["-hide_banner", "-loglevel", "error", "-nostdin", "-y",
                 "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=25:duration=2", "-c:v", encoder, .. options, path]);
             IReadOnlyDictionary<char, int>? types = ffmpeg.CountPictureTypes(path);
-            if (types is null || types.GetValueOrDefault('B') > 0)
+            if (types is null || types.Values.Sum() == 0 || types.GetValueOrDefault('B') > 0)
             {
                 return null;
             }
