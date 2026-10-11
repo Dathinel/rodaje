@@ -4,7 +4,9 @@ Rodaje vive hoy en un repositorio privado, pero se construye como si fuera a pub
 
 ## Licencia del código propio
 
-Todo el código escrito para Rodaje se publica bajo la licencia MIT, con el aviso `Copyright (c) 2026 Daniel (Dathinel)` en el archivo `LICENSE` de la raíz. MIT permite a cualquiera usar, copiar, modificar y redistribuir el programa, incluso con fines comerciales, con la única condición de conservar el aviso de copyright y el texto de la licencia. Al ser tan permisiva, es compatible con enlazar dinámicamente bibliotecas LGPL, pero no con incorporar código GPL: si algún día se copiara código literal de un proyecto GPL, todo el programa distribuido tendría que pasar a GPL. Por eso la regla es estudiar el diseño de los proyectos GPL sin tomar su código, y detenerse a consultar si alguna vez se plantea lo contrario.
+Todo el código escrito para Rodaje se publica bajo la PolyForm Noncommercial License 1.0.0 (https://polyformproject.org/licenses/noncommercial/1.0.0), con la línea `Required Notice: Copyright (c) 2026 Daniel (Dathinel)` al principio del archivo `LICENSE` de la raíz (decisión D-030, que sustituye a la MIT de D-002; el repositorio nunca se publicó bajo MIT). Es código disponible con uso libre no comercial: cualquiera puede usar, copiar, modificar y redistribuir el programa para un fin no comercial (uso personal, estudio, investigación, aficiones, o desde una organización benéfica, educativa, de investigación pública o gubernamental), siempre que entregue también los términos y el `Required Notice`. El uso comercial, incluida la venta, requiere un permiso escrito aparte de Daniel. No es una licencia de código abierto aprobada por la OSI, así que en los textos públicos no se llama a Rodaje «código abierto» ni «open source».
+
+La licencia propia no cambia la regla con el código GPL: copiar código literal de un proyecto GPL obligaría a distribuir todo el programa bajo GPL, que no admite la restricción no comercial, así que sería directamente imposible. Por eso se estudia el diseño de los proyectos GPL sin tomar su código, y se detiene el trabajo a consultar si alguna vez se plantea lo contrario. Enlazar dinámicamente bibliotecas LGPL sigue siendo posible (ver «Compatibilidad de la licencia de Rodaje»).
 
 ## Sala limpia
 
@@ -22,7 +24,7 @@ La página legal de FFmpeg ofrece una lista de comprobación para cumplir la LGP
 4. **Código fuente correspondiente.** Junto a cada versión distribuida se ofrece el código fuente exacto de las DLL incluidas, o una oferta escrita de entregarlo. Como las compilaciones de BtbN se publican con etiqueta y fecha, se registra la URL exacta de la versión usada y su hash, y se archiva el tarball del código fuente correspondiente.
 5. **Línea de configuración documentada.** Se incluye un archivo de texto con la línea de `configure` de la compilación distribuida.
 6. **Crédito en "Acerca de".** El cuadro "Acerca de" de Rodaje menciona que el programa usa bibliotecas de FFmpeg bajo la LGPL, con enlace a https://ffmpeg.org y al código fuente.
-7. **EULA y ingeniería inversa.** Si algún día Rodaje tiene términos de uso, no pueden prohibir la ingeniería inversa de la parte LGPL ni reclamar la propiedad de FFmpeg; deben indicar quiénes son sus autores. La licencia MIT actual no impone ninguna prohibición de ese tipo.
+7. **EULA y ingeniería inversa.** Si algún día Rodaje tiene términos de uso, no pueden prohibir la ingeniería inversa de la parte LGPL ni reclamar la propiedad de FFmpeg; deben indicar quiénes son sus autores. La PolyForm Noncommercial actual no impone ninguna prohibición de ese tipo (análisis en «Compatibilidad de la licencia de Rodaje»).
 8. **Mismo cuidado con las bibliotecas que FFmpeg incluye.** Cada biblioteca externa compilada dentro de las DLL de BtbN tiene su propia licencia, que se revisa y se lista en `THIRD-PARTY-NOTICES.txt` en la versión en que FFmpeg se distribuya.
 
 ### Compilación fijada y su código fuente
@@ -51,7 +53,7 @@ Una advertencia específica del equipo de desarrollo: el FFmpeg 9.0 de gyan.dev 
 
 Las licencias de software no resuelven las patentes. H.264/AVC y H.265/HEVC son formatos cubiertos por patentes administradas por consorcios: el programa AVC/H.264 de Via LA (https://www.via-la.com/licensing-2/avc-h-264/) y los programas de Access Advance para HEVC (https://accessadvance.com/), que además absorbió el antiguo programa HEVC/VVC de Via LA. La propia página legal de FFmpeg reconoce que no puede afirmar si su código usa algoritmos patentados y recuerda que el riesgo depende de la jurisdicción y del uso comercial.
 
-Rodaje mitiga este riesgo de tres formas. Primero, la codificación H.264 y HEVC se delega en los codificadores por hardware de la GPU (por ejemplo NVENC) o en los de Media Foundation incluidos en Windows, cuyos fabricantes gestionan sus propias licencias de patentes. Segundo, se priorizan formatos libres de regalías como AV1, VP9 y Opus cuando el usuario no necesite un formato concreto. Tercero, el programa no se vende ni se distribuye comercialmente mientras no se haga una revisión legal específica. Nada de esto es asesoría legal: si Rodaje se distribuyera comercialmente, habría que consultar a un abogado de propiedad intelectual.
+Rodaje mitiga este riesgo de tres formas. Primero, la codificación H.264 y HEVC se delega en los codificadores por hardware de la GPU (por ejemplo NVENC) o en los de Media Foundation incluidos en Windows, cuyos fabricantes gestionan sus propias licencias de patentes. Segundo, se priorizan formatos libres de regalías como AV1, VP9 y Opus cuando el usuario no necesite un formato concreto. Tercero, el programa no se vende ni se distribuye comercialmente mientras no se haga una revisión legal específica; la licencia no comercial lo refuerza, pero las patentes no distinguen entre uso comercial y no comercial en todas las jurisdicciones. Nada de esto es asesoría legal: si Rodaje se distribuyera comercialmente, habría que consultar a un abogado de propiedad intelectual.
 
 ## Modelos de inteligencia artificial
 
@@ -63,7 +65,7 @@ Solo se usan modelos cuya licencia permita expresamente la redistribución y el 
 | MODNet | Quitar fondo de personas | Apache-2.0 (el README extiende la licencia a "código, modelos y demos", salvo los GIF) | Candidato, confirmar pesos concretos | https://github.com/ZHKKKe/MODNet |
 | U²-Net | Quitar fondo general | Apache-2.0 para el repositorio; los pesos no tienen licencia aparte y algunos se entrenaron con conjuntos de datos de terceros | Candidato, revisar conjuntos de datos | https://github.com/xuebinqin/U-2-Net |
 | BiRefNet | Quitar fondo de alta calidad | MIT en el código y en la ficha de Hugging Face de los pesos | Candidato | https://huggingface.co/ZhengPeng7/BiRefNet |
-| RMBG-1.4 y RMBG-2.0 de BRIA | Quitar fondo | Uso no comercial; lo comercial exige acuerdo aparte | Excluido | https://huggingface.co/briaai/RMBG-1.4 |
+| RMBG-1.4 y RMBG-2.0 de BRIA | Quitar fondo | Uso no comercial; lo comercial exige acuerdo aparte. Que Rodaje también sea no comercial no lo vuelve compatible: Daniel puede dar permisos comerciales que BRIA no da | Excluido | https://huggingface.co/briaai/RMBG-1.4 |
 
 La licencia del repositorio no siempre cubre los pesos, y los pesos pueden heredar restricciones de los datos con que se entrenaron. Antes de incluir cualquiera de los candidatos hay que leer la licencia del archivo exacto que se va a descargar.
 
@@ -83,7 +85,7 @@ Rodaje no envía telemetría ni datos de uso a ningún servidor. Las funciones q
 
 Esta lista se recorre completa, en orden, antes de cambiar la visibilidad del repositorio a pública o de entregar un ejecutable a terceros. Cada punto se marca con la fecha y el resultado.
 
-- [ ] **Licencia.** `LICENSE` contiene el texto MIT con el aviso de copyright correcto y el año actualizado.
+- [ ] **Licencia.** `LICENSE` contiene el texto literal de la PolyForm Noncommercial 1.0.0 con el `Required Notice` correcto y el año actualizado, y los pendientes de [`pendientes-legales.md`](pendientes-legales.md) están resueltos.
 - [ ] **Sala limpia.** Se revisa que ningún archivo contenga código copiado de proyectos GPL o de terceros sin licencia compatible. Cualquier duda se resuelve antes de publicar.
 - [ ] **Inventario de dependencias.** `LICENCIAS.md` lista todas las dependencias reales del proyecto (se compara con los archivos `packages.lock.json`), con su versión y licencia verificadas.
 - [ ] **FFmpeg.** La compilación incluida es `lgpl-shared`, su línea de configuración no contiene `--enable-gpl` ni `--enable-nonfree`, las DLL y `ffmpeg.exe` vienen de esa misma compilación y conservan sus nombres, se archivó el código fuente exacto (o se redactó la oferta escrita), se registraron la URL y el hash de la compilación y el cuadro "Acerca de" da el crédito correspondiente.

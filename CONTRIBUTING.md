@@ -24,7 +24,7 @@ Haz commits pequeños y con un propósito claro, con un mensaje en español que 
 
 ## Reglas legales
 
-Todo el código que aportes debe ser tuyo o tener una licencia compatible con MIT. No copies, traduzcas ni adaptes código de proyectos con licencia GPL o similar, como Kdenlive, Shotcut, OpenShot u Olive: se puede estudiar cómo funcionan, pero el código debe escribirse desde cero. Si tienes dudas sobre el origen de un fragmento, dilo en el pull request.
+Todo el código que aportes debe ser tuyo o tener una licencia permisiva (MIT, BSD, Apache-2.0 o similar) que permita incorporarlo a Rodaje. No copies, traduzcas ni adaptes código de proyectos con licencia GPL o similar, como Kdenlive, Shotcut, OpenShot u Olive: se puede estudiar cómo funcionan, pero el código debe escribirse desde cero. Si tienes dudas sobre el origen de un fragmento, dilo en el pull request.
 
 Nunca incluyas recursos extraídos de programas comerciales (efectos, plantillas, fuentes, música, íconos) ni uses sus marcas en el código o la interfaz. Si añades una dependencia, actualiza `LICENCIAS.md` con su licencia verificada y, si se redistribuye con el programa, `THIRD-PARTY-NOTICES.txt`. Nunca subas claves, tokens ni archivos `.env`.
 
@@ -46,4 +46,4 @@ El nombre y el correo deben ser reales y coincidir con los del autor del commit.
 
 ## Licencia de las contribuciones
 
-Al contribuir aceptas que tu código se publique bajo la licencia MIT del proyecto, descrita en `LICENSE`.
+Rodaje se distribuye bajo la PolyForm Noncommercial 1.0.0 (`LICENSE`). Hoy no se aceptan contribuciones externas: antes de aceptarlas hará falta un acuerdo de contribuidor (ver `docs/contribuciones.md`).

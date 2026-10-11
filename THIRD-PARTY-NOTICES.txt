@@ -1,8 +1,17 @@
 Rodaje - Avisos de terceros
 =============================
 
-Rodaje es software libre bajo la licencia MIT (ver LICENSE).
-Copyright (c) 2026 Daniel (Dathinel).
+Rodaje es código disponible para uso libre no comercial, bajo la PolyForm
+Noncommercial License 1.0.0 (ver LICENSE). El uso comercial requiere permiso
+escrito del autor.
+Required Notice: Copyright (c) 2026 Daniel (Dathinel)
+
+Esa licencia cubre solo el código propio de Rodaje. Cada componente de
+terceros de este archivo conserva su propia licencia, y nada en la licencia de
+Rodaje limita los derechos que esas licencias dan: en particular, las DLL y el
+ffmpeg.exe de FFmpeg se pueden reemplazar por otra compilación compatible y
+se puede modificar y depurar la combinación con Rodaje para uso propio (LGPL).
+[Redacción de este párrafo pendiente de revisión legal.]
 
 Este archivo reúne los avisos de licencia de los componentes de terceros que
 viajan dentro de la carpeta dist\ junto con Rodaje.exe. Debe acompañar

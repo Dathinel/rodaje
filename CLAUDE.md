@@ -1,6 +1,6 @@
 # Rodaje: estado
 
-Editor de video nativo para Windows con la experiencia de uso de CapCut y código propio. Repositorio privado `Dathinel/rodaje`, licencia MIT. Las reglas generales están en `..\CLAUDE.md`.
+Editor de video nativo para Windows con la experiencia de uso de CapCut y código propio. Repositorio privado `Dathinel/rodaje`, licencia PolyForm Noncommercial 1.0.0 (código disponible, uso libre no comercial; D-030). Las reglas generales están en `..\CLAUDE.md`.
 
 ## Cómo se trabaja aquí
 

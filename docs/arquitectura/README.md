@@ -45,7 +45,7 @@ flowchart TB
 - **Nada espera en el camino de render.** `Tick` muestra lo mejor que hay; abrir, decodificar y cerrar archivos ocurre en otros hilos.
 - **Un solo dispositivo D3D11** compartido por FFmpeg y el compositor: los cuadros decodificados se muestrean sin copiarlos.
 - **Compatible con Native AOT** desde el primer día: nada de reflexión; JSON e interop COM generados en compilación; advertencias tratadas como errores.
-- **Solo FFmpeg LGPL**, cargado por ruta absoluta y verificado, porque el código es MIT ([`legal.md`](../legal.md)).
+- **Solo FFmpeg LGPL**, cargado por ruta absoluta y verificado, porque el código no es GPL ([`legal.md`](../legal.md)).
 - **Lo que falta no rompe.** Sin GPU se decodifica en CPU, sin dispositivo de audio el reloj es el del sistema y un medio roto deja su capa vacía; todo con mensajes en español.
 
 ## Herramientas y pruebas

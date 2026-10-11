@@ -77,4 +77,6 @@ Medido el 9 y el 10 de octubre de 2026 en un Ryzen 7 7435HS con RTX 3050 Laptop:
 
 ## Licencia
 
-MIT. Las dependencias y sus licencias están en [LICENCIAS.md](LICENCIAS.md). Todo el código es propio: los editores de código abierto se estudiaron solo a nivel de diseño, y no se usan recursos ni marcas de productos comerciales.
+Código disponible, uso libre no comercial: [PolyForm Noncommercial 1.0.0](LICENSE). Puedes usarlo, estudiarlo, modificarlo y compartirlo para fines personales, educativos y de investigación, o desde una organización sin ánimo de lucro, educativa o pública. **El uso comercial, incluida la venta del programa o de versiones modificadas, requiere permiso escrito de Daniel (Dathinel).**
+
+Las dependencias y sus licencias están en [LICENCIAS.md](LICENCIAS.md); FFmpeg y el resto de componentes de terceros conservan sus propias licencias. Todo el código es propio: los editores de código abierto se estudiaron solo a nivel de diseño, y no se usan recursos ni marcas de productos comerciales.

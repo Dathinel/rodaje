@@ -4,7 +4,7 @@ Este documento recoge lo que se aprendió al estudiar editores de video de códi
 
 ## Declaración de sala limpia
 
-Todo lo que aparece aquí se obtuvo leyendo documentación pública, formatos de archivo documentados, discusiones de los propios proyectos y la estructura general de su código, con el único fin de comprender la arquitectura y el comportamiento. No se copió, tradujo ni adaptó código de ninguno de estos proyectos, y Rodaje no comparte con ellos ni nombres internos de clases ni algoritmos transcritos. Varios de los proyectos estudiados tienen licencia GPL; si en algún momento se considerara tomar un fragmento literal de uno de ellos, el trabajo se detiene y se consulta, porque eso obligaría a cambiar la licencia MIT de Rodaje (ver `docs/legal.md`).
+Todo lo que aparece aquí se obtuvo leyendo documentación pública, formatos de archivo documentados, discusiones de los propios proyectos y la estructura general de su código, con el único fin de comprender la arquitectura y el comportamiento. No se copió, tradujo ni adaptó código de ninguno de estos proyectos, y Rodaje no comparte con ellos ni nombres internos de clases ni algoritmos transcritos. Varios de los proyectos estudiados tienen licencia GPL; si en algún momento se considerara tomar un fragmento literal de uno de ellos, el trabajo se detiene y se consulta, porque eso obligaría a cambiar la licencia de Rodaje a GPL, incompatible con su licencia no comercial (ver `docs/legal.md`).
 
 Los programas comerciales que inspiran la experiencia de uso, en especial el estilo de edición rápida popularizado por las aplicaciones móviles de video corto, solo aportan ideas de producto. Ninguno de sus binarios se ha descompilado ni analizado, y ningún recurso suyo se ha extraído.
 

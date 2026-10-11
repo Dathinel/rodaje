@@ -4,7 +4,7 @@ Abre, analiza y decodifica los archivos con FFmpeg 9 LGPL; crea el dispositivo D
 
 ## Cargar FFmpeg sin arriesgar la licencia
 
-Rodaje es MIT, así que solo carga un FFmpeg LGPL con la versión verificada y por ruta absoluta.
+Rodaje no es GPL, así que solo carga un FFmpeg LGPL con la versión verificada y por ruta absoluta.
 
 - **Dónde busca.** [`FfmpegLocator.Candidates`](../../src/Rodaje.Media/FfmpegLocator.cs) arma la lista de carpetas en este orden:
   1. la carpeta explícita;

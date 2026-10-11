@@ -9,7 +9,8 @@
     <Deterministic>true</Deterministic>
     <Authors>Daniel (Dathinel)</Authors>
     <Product>Rodaje</Product>
-    <Copyright>Copyright (c) 2026 Daniel (Dathinel). MIT.</Copyright>
+    <Copyright>Copyright (c) 2026 Daniel (Dathinel)</Copyright>
+    <PackageLicenseExpression>PolyForm-Noncommercial-1.0.0</PackageLicenseExpression>
     <!-- Ninguna telemetría ni restauración desde orígenes no declarados -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
