@@ -78,8 +78,55 @@ public sealed record OptionDefinition(string Name, OptionKind Kind, string Defau
 
     public static OptionDefinition Reference(string name) => new(name, OptionKind.PackageReference, "", []);
 
-    /// <summary>Si <paramref name="value"/> es aceptable; una referencia solo se comprueba al resolverla.</summary>
-    public bool Accepts(string value) => Kind == OptionKind.PackageReference || Choices.Contains(value);
+    /// <summary>
+    /// Si <paramref name="value"/> es aceptable: uno de <see cref="Choices"/>, o una referencia vacía o bien formada
+    /// (<see cref="IsWellFormedReference"/>). Si el paquete existe lo decide quien la resuelve.
+    /// </summary>
+    public bool Accepts(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return Kind == OptionKind.PackageReference
+            ? value.Length == 0 || IsWellFormedReference(value)
+            : Choices.Contains(value);
+    }
+
+    /// <summary>
+    /// Forma <c>paquete@versión/elemento</c>: paquete y elemento en minúsculas ASCII, dígitos, guiones y puntos; la versión
+    /// empieza con un dígito. La comprobación completa (versión semántica, nombres reservados) es de <c>Rodaje.Paquetes</c>.
+    /// </summary>
+    public static bool IsWellFormedReference(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        int at = value.IndexOf('@', StringComparison.Ordinal);
+        int slash = value.IndexOf('/', StringComparison.Ordinal);
+        if (at < 0 || slash < at)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<char> text = value;
+        ReadOnlySpan<char> version = text[(at + 1)..slash];
+        return IsIdentifier(text[..at])
+            && IsIdentifier(text[(slash + 1)..])
+            && version.Length is > 0 and <= MaxReferencePart
+            && char.IsAsciiDigit(version[0])
+            && !version.ContainsAnyExcept(VersionChars);
+    }
+
+    private const int MaxReferencePart = 64;
+
+    private static readonly System.Buffers.SearchValues<char> IdentifierChars =
+        System.Buffers.SearchValues.Create("abcdefghijklmnopqrstuvwxyz0123456789-.");
+
+    private static readonly System.Buffers.SearchValues<char> VersionChars =
+        System.Buffers.SearchValues.Create("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.+");
+
+    private static bool IsIdentifier(ReadOnlySpan<char> part) =>
+        part.Length is > 0 and <= MaxReferencePart && !part.ContainsAnyExcept(IdentifierChars);
 }
 
 /// <summary>Definición estática de un tipo de efecto o de transición.</summary>

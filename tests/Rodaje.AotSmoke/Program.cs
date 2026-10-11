@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
+using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Serialization;
 using Rodaje.Core.Timing;
@@ -258,6 +259,63 @@ try
     Clip saved = project.Sequences[0].GetClip(b).Clip;
     Exigir(saved.Effects[0].Parameters["opacidad"].Evaluate(S(2.5)) == opacity.Evaluate(S(2.5)), "el parámetro del clip evalúa igual que el original");
     Avance("Parámetro con keyframes evaluado (lineal, EaseInOut y extremos).");
+
+    // Formato 3: transiciones, opciones, volumen de pista y migración desde el formato 2
+    {
+        var ids3 = new SequentialIdGenerator();
+        Project p3 = ProjectFactory.CreateDefault("Formato 3", ids3, Rational.Fps30);
+        string s3 = p3.Sequences[0].Id;
+        string pv = p3.Sequences[0].VideoTracks[0].Id;
+        string pa = p3.Sequences[0].AudioTracks[0].Id;
+        var stack3 = new UndoStack(p3);
+        string initial3 = ProjectSerializer.Serialize(p3);
+        stack3.Execute(new AddMediaCommand(mediaA.Clone()));
+        var append = Edits.AppendMedia(s3, mediaA.Id, S(0), S(4), pv, pa, ids3);
+        stack3.Execute(append);
+        var append2 = Edits.AppendMedia(s3, mediaA.Id, S(8), S(9), pv, pa, ids3);
+        stack3.Execute(append2);
+        string left = append.CreatedIds[0];
+        string right = append2.CreatedIds[0];
+        var cut = Edits.AddTransition(s3, left, BuiltInTransitions.Push, S(3), ids3);
+        stack3.Execute(cut);
+        string transitionId = cut.CreatedIds[0];
+        stack3.Execute(Edits.SetTransitionOption(s3, transitionId, BuiltInTransitions.PushOptions.Direction, "up", ids3));
+        TransitionInstance transition = p3.Sequences[0].VideoTracks[0].Transitions.Single();
+        Exigir(transition.Duration == S(1), "la transición se acota al clip más corto (1 s)");
+        var blend = Edits.AddEffect(s3, right, BuiltInEffects.Blend, ids: ids3);
+        stack3.Execute(blend);
+        stack3.Execute(Edits.SetEffectOption(s3, right, blend.CreatedIds[0], BuiltInEffects.BlendOptions.Mode, "overlay", ids3));
+        var volume = Edits.AddEffect(s3, pa, BuiltInEffects.Audio, ids: ids3);
+        stack3.Execute(volume);
+        stack3.Execute(Edits.SetKeyframe(s3, pa, volume.CreatedIds[0], BuiltInEffects.AudioParameters.GainDb, S(2), -6, ids: ids3));
+        stack3.Execute(Edits.Split(s3, left, S(3.5), ids3));
+        Exigir(transition.Duration == S(0.5) && transition.To == right, "cortar cerca del corte acorta la transición y la deja en su sitio");
+        Exigir(ModelValidator.Validate(p3).Count == 0, "el proyecto con formato 3 es válido");
+        string text3 = ProjectSerializer.Serialize(p3);
+        Exigir(ProjectSerializer.Serialize(ProjectSerializer.Deserialize(text3)) == text3, "el formato 3 se lee y escribe igual");
+        while (stack3.Undo())
+        {
+        }
+
+        Exigir(ProjectSerializer.Serialize(p3) == initial3, "deshacer todo devuelve el proyecto inicial byte a byte");
+        Exigir(EffectRegistry.Find(EffectRegistry.Find(BuiltInTransitions.Wipe)!.Code)?.Type == BuiltInTransitions.Wipe, "el registro encuentra por código");
+
+        const string v2 = """
+            {"schemaVersion":2,"id":"p","name":"v2","media":[{"id":"m","path":"a.wav","name":"a","duration":7056000000,
+            "hasVideo":false,"hasAudio":true,"frameRate":null,"width":0,"height":0,"sampleRate":48000,"audioChannels":2}],
+            "sequences":[{"id":"s","name":"S","frameRate":{"num":30,"den":1},"width":1920,"height":1080,"sampleRate":48000,
+            "videoTracks":[],"audioTracks":[{"id":"a","kind":"audio","name":"A","muted":false,"locked":false,"hidden":false,
+            "clips":[{"id":"c","mediaId":"m","sourceIn":0,"sourceOut":705600000,"start":0,"linkId":null,"enabled":true,
+            "effects":[{"id":"e","type":"rodaje.volume","enabled":true,"parameters":{"gain":{"value":0.5,"keyframes":[]}}}]}]}],
+            "markers":[],"regions":[]}]}
+            """;
+        EffectInstance migrated = ProjectSerializer.Deserialize(v2).Sequences[0].AudioTracks[0].Clips[0].Effects[0];
+        Exigir(migrated.Type == BuiltInEffects.Audio
+            && Math.Abs(migrated.Parameters[BuiltInEffects.AudioParameters.GainDb].Value + 6.0206) < 1e-3,
+            "la ganancia lineal 0,5 del formato 2 llega como −6,02 dB");
+    }
+
+    Avance("Formato 3: transición acotada, mezcla, volumen de pista, deshacer exacto y migración desde el formato 2.");
 
     Time frame = Time.FromFrames(1, Rational.Ntsc30);
     Exigir(Time.FromFrames(30000, Rational.Ntsc30).ToFrames(Rational.Ntsc30) == 30000, "30000 cuadros a 29,97 fps vuelven a ser 30000");

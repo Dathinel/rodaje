@@ -1,4 +1,5 @@
 using Rodaje.Core.Model;
+using Rodaje.Core.Timing;
 
 namespace Rodaje.Core.Editing;
 
@@ -6,13 +7,28 @@ namespace Rodaje.Core.Editing;
 public static class TransitionOps
 {
     /// <summary>
-    /// Para cada transición busca su corte por el clip que entra (si se dividió el que sale, el corte sigue siendo el
-    /// mismo) o, si ese ya no está, por el que sale. Si el corte dejó de existir (hay un hueco, se borró un clip) la
-    /// transición se quita; si quedan dos en el mismo corte, se queda la primera.
+    /// Lo más que puede durar una transición entre <paramref name="from"/> y <paramref name="to"/>: el más corto de los dos.
     /// </summary>
     /// <remarks>
-    /// Corre dentro de la edición, así que el deshacer la incluye en la misma instantánea.
-    /// TODO(fase 5, agente A): acotar la duración al material sobrante y a la de los clips.
+    /// Con ese tope, la mitad de cada transición cabe en su clip y las dos de un mismo clip no se pisan:
+    /// ⌈a/2⌉ + ⌊b/2⌋ ≤ ⌈c/2⌉ + ⌊c/2⌋ = c si a, b ≤ c. El material de origen no limita: lo que falte se congela.
+    /// </remarks>
+    public static Time MaxDuration(Clip from, Clip to)
+    {
+        ArgumentNullException.ThrowIfNull(from);
+        ArgumentNullException.ThrowIfNull(to);
+        return Time.Min(from.Duration, to.Duration);
+    }
+
+    /// <summary>
+    /// Para cada transición busca su corte y la acota a <see cref="MaxDuration"/>. Si el corte dejó de existir (se abrió
+    /// un hueco, se borró o se movió uno de los clips) la transición se quita; si quedan dos en el mismo corte, se queda
+    /// la primera.
+    /// </summary>
+    /// <remarks>
+    /// Al dividir el clip que sale, el corte lo forma su mitad derecha, que tiene otro identificador: se reconoce porque
+    /// sigue al de origen con el mismo medio y sin salto en el material. Corre dentro de la edición, así que el deshacer
+    /// la incluye en la misma instantánea.
     /// </remarks>
     public static void Reconcile(Sequence sequence)
     {
@@ -28,38 +44,58 @@ public static class TransitionOps
 
     private static void ReconcileTrack(Track track)
     {
-        var cuts = new HashSet<string>(StringComparer.Ordinal);
+        var index = new Dictionary<string, int>(track.Clips.Count, StringComparer.Ordinal);
+        for (int i = 0; i < track.Clips.Count; i++)
+        {
+            index[track.Clips[i].Id] = i;
+        }
+
+        var cuts = new HashSet<int>();
         track.Transitions.RemoveAll(transition =>
         {
-            if (!TryFindCut(track, transition, out Clip? from, out Clip? to) || !cuts.Add(from.Id))
+            int cut = FindCut(track, index, transition);
+            if (cut < 0 || !cuts.Add(cut))
             {
                 return true;
             }
 
+            Clip from = track.Clips[cut];
+            Clip to = track.Clips[cut + 1];
             transition.From = from.Id;
             transition.To = to.Id;
+            Time max = MaxDuration(from, to);
+            if (transition.Duration > max)
+            {
+                transition.Duration = max;
+            }
+
             return false;
         });
-        track.Transitions.Sort((a, b) => track.Clips.FindIndex(c => c.Id == a.From).CompareTo(track.Clips.FindIndex(c => c.Id == b.From)));
+        track.Transitions.Sort((a, b) => index[a.From].CompareTo(index[b.From]));
     }
 
-    private static bool TryFindCut(Track track, TransitionInstance transition, out Clip from, out Clip to)
+    /// <summary>Índice del clip que sale en el corte de la transición, o −1 si el corte ya no existe.</summary>
+    private static int FindCut(Track track, Dictionary<string, int> index, TransitionInstance transition)
     {
-        int index = track.Clips.FindIndex(c => c.Id == transition.To);
-        if (index > 0 && track.Clips[index - 1].End == track.Clips[index].Start)
+        if (!index.TryGetValue(transition.To, out int to) || to == 0 || !Touch(track.Clips[to - 1], track.Clips[to]))
         {
-            (from, to) = (track.Clips[index - 1], track.Clips[index]);
-            return true;
+            return -1;
         }
 
-        index = track.Clips.FindIndex(c => c.Id == transition.From);
-        if (index >= 0 && index + 1 < track.Clips.Count && track.Clips[index].End == track.Clips[index + 1].Start)
+        Clip previous = track.Clips[to - 1];
+        if (previous.Id == transition.From)
         {
-            (from, to) = (track.Clips[index], track.Clips[index + 1]);
-            return true;
+            return to - 1;
         }
 
-        (from, to) = (null!, null!);
-        return false;
+        return index.TryGetValue(transition.From, out int from) && from == to - 2 && Continues(track.Clips[from], previous)
+            ? to - 1
+            : -1;
     }
+
+    private static bool Touch(Clip left, Clip right) => left.End == right.Start;
+
+    /// <summary><paramref name="right"/> es la mitad derecha de <paramref name="left"/> tras un corte.</summary>
+    private static bool Continues(Clip left, Clip right) =>
+        Touch(left, right) && left.MediaId == right.MediaId && left.SourceOut == right.SourceIn;
 }
