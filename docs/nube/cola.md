@@ -89,3 +89,11 @@ Solo documento, sin código: propuesta para la fase 5b con (1) clips generadores
 - **Caminos:** `tests/Rodaje.Playback.Tests/`, `docs/tareas/`
 
 `PlaybackSchedulerTests.SeekLejosReproduciendo_CuestaLoMismoQueUnSaltoCorto(jump: 10000000000)` falla a veces en el runner de 2 núcleos («tardó 00:00:03.22», límite 2 s en `PlaybackSchedulerTests.cs:358`); en el PC de Daniel tarda <1 ms. Mide con un reloj inyectado o cuenta operaciones en lugar de reloj de pared, de modo que siga detectando un seek que crece con la distancia; si no se puede, categoría `TiempoReal`. Que nunca dependa de la carga del pool.
+
+## 10. `MediaProbe.ScanTimestamps` no rebobina en MP4
+
+- **Estado:** pendiente
+- **Rama:** `claude/probe-rebobinar`
+- **Caminos:** `src/Rodaje.Media/Probe/MediaProbe.cs`, `tests/Rodaje.Media.Tests/` (archivos nuevos), `docs/tareas/`
+
+Tras el análisis, `ScanTimestamps` rebobina con `av_seek_frame(long.MinValue, AVSEEK_FLAG_BACKWARD)`, y en MP4 eso no mueve la posición: quien lea paquetes después del análisis sin hacer un seek propio empieza a mitad del archivo (hoy lo esquivan `KeyframeIndex` reabriendo el archivo y `VideoDecoder` buscando siempre). Reprodúcelo con una prueba (MP4 y MKV, leer el primer paquete tras `ScanTimestamps` y comprobar que es el primero del archivo), corrígelo con un rebobinado que sí funcione en MP4 (`avformat_seek_file` al inicio del flujo, o reabrir) y comprueba que no cambia el resultado del análisis. Verificable en Linux con el FFmpeg 9.0.2 de BtbN (instrucciones en `docs/tareas/2026-10-11-ci-windows.md`, apartado «Pendiente») y con la CI de Windows.
