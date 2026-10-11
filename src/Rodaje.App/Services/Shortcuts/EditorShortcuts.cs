@@ -42,6 +42,7 @@ public static class ActionIds
     public const string ZoomIn = "timeline.zoomIn";
     public const string ZoomOut = "timeline.zoomOut";
     public const string ZoomToFit = "timeline.zoomFit";
+    public const string ZoomToSelection = "timeline.zoomSelection";
     public const string ToggleSnapping = "timeline.snapping";
     public const string ToggleAutoRipple = "timeline.autoRipple";
     public const string ToggleMagneticMain = "timeline.magneticMain";
@@ -119,14 +120,15 @@ public static partial class EditorShortcuts
 
         new(ActionIds.ZoomIn, "Acercar", ShortcutGroups.View, ["Ctrl++", "Ctrl+Num +"], classic: ["↑"]) { Repeats = true, Description = "Agranda la línea de tiempo para ver más detalle." },
         new(ActionIds.ZoomOut, "Alejar", ShortcutGroups.View, ["Ctrl+-", "Ctrl+Num -"], classic: ["↓"]) { Repeats = true, Description = "Achica la línea de tiempo para ver más tiempo a la vez." },
-        new(ActionIds.ZoomToFit, "Ver toda la secuencia", ShortcutGroups.View, ["Mayús+Z"]) { ShortLabel = "Ver todo", Description = "Ajusta el zoom para que la secuencia quepa entera." },
+        new(ActionIds.ZoomToFit, "Ajustar a la ventana", ShortcutGroups.View, ["Mayús+Z"]) { ShortLabel = "Ver todo", Description = "Ajusta el zoom para que todo el proyecto quepa en la vista." },
+        new(ActionIds.ZoomToSelection, "Zoom a la selección", ShortcutGroups.View, ["Ctrl+Alt+Z"]) { ShortLabel = "Ver selección", Description = "Acerca hasta que los clips seleccionados o el tramo marcado llenen la vista." },
         new(ActionIds.ShowShortcuts, "Atajos de teclado", ShortcutGroups.View, ["Ctrl+Alt+K"]) { ShortLabel = "Atajos", Description = "Abre esta página para ver y cambiar las teclas." },
         new(ActionIds.ShowPlugins, "Complementos", ShortcutGroups.View, []) { Description = "Abre el gestor de paquetes y módulos de IA." },
     ];
 
     /// <summary>
     /// Une las acciones de edición, reproducción y archivo con la sesión. Las de la ventana (exportar, páginas) y las de
-    /// la línea de tiempo que todavía no existen en el modelo (marcadores, regiones, ver todo) las une quien las tiene.
+    /// la línea de tiempo que todavía no existen en el modelo (marcadores, regiones, ver todo, ver la selección) las une quien las tiene.
     /// </summary>
     public static IDisposable Bind(ShortcutRouter router, EditorSession session)
     {
