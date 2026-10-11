@@ -150,7 +150,6 @@ public sealed class TimelineSpeedHardwareTests(ITestOutputHelper output)
     }
 
     [HardwareFact(VideoCodec.H264)]
-    [Trait("Categoria", "TiempoReal")]
     public void Playing_at_100x_shows_the_previous_keyframe_read_from_the_file()
     {
         MediaSpec spec = SeekSpecs[2];
@@ -172,31 +171,42 @@ public sealed class TimelineSpeedHardwareTests(ITestOutputHelper output)
         TickUntilSettled(session).Dispose();
         session.ResetStats();
 
+        // El reloj avanza a mano de a un refresco y cada refresco espera a que la capa muestre su cuadro: lo que se
+        // comprueba es qué cuadro elige el motor, no si la máquina llega a tiempo. Mientras el keyframe llega, la capa
+        // puede seguir mostrando un cuadro anterior (eso es un refresco tarde, no un cuadro equivocado).
         session.Play();
         Time origin = backend.Clock.Position;
-        var pacer = new WallClockPacer(60);
         var keyframes = KeyframeIndex.Read(media.Path);
         long first = SpeedClips.Expected(clip, spec.FrameRate, Time.Zero);
-        int notKeyframe = 0;
+        var wrong = new List<string>();
         int unreadable = 0;
-        long last = first;
-        for (long slot = pacer.Next(); slot <= 110; slot = pacer.Next())
+        for (long slot = 1; slot <= 110; slot++)
         {
             backend.Clock.Advance(origin + Time.FromFrames(slot, Rational.Fps60) - backend.Clock.Position);
-            using CompositionFrame shown = session.Tick();
-            LayerFrame layer = Assert.Single(shown.Layers);
-            long exact = SpeedClips.Expected(clip, spec.FrameRate, shown.TimelineTime);
-            LumaImage luma = FrameReadback.ReadLuma(layer.Frame);
-            int? code = FrameCode.Read(luma.Pixels, luma.Width, luma.Height, luma.Width);
-            unreadable += code == layer.Frame.Index ? 0 : 1;
-            long index = layer.Frame.Index;
-
-            // Cada cuadro nuevo es un keyframe o, hasta que se leen los keyframes del archivo, el exacto; uno que llega
-            // tarde sigue en pantalla y no se cuenta otra vez.
-            if (index != last)
+            var watch = Stopwatch.StartNew();
+            while (true)
             {
-                notKeyframe += index <= exact && (index == exact || index == first || keyframes.AtOrBefore(index) == index) ? 0 : 1;
-                last = index;
+                using CompositionFrame shown = session.Tick();
+                LayerFrame layer = Assert.Single(shown.Layers);
+                long index = layer.Frame.Index;
+                long exact = SpeedClips.Expected(clip, spec.FrameRate, shown.TimelineTime);
+                long keyframe = Math.Max(first, keyframes.AtOrBefore(exact) ?? first);
+
+                // El keyframe anterior o, hasta que se leen los keyframes del archivo, el exacto.
+                if (index == keyframe || index == exact)
+                {
+                    LumaImage luma = FrameReadback.ReadLuma(layer.Frame);
+                    unreadable += FrameCode.Read(luma.Pixels, luma.Width, luma.Height, luma.Width) == index ? 0 : 1;
+                    break;
+                }
+
+                if (index > exact || watch.Elapsed > TimeSpan.FromSeconds(5))
+                {
+                    wrong.Add($"refresco {slot}: cuadro {index}, exacto {exact}, keyframe {keyframe}");
+                    break;
+                }
+
+                Thread.Sleep(1);
             }
         }
 
@@ -204,7 +214,7 @@ public sealed class TimelineSpeedHardwareTests(ITestOutputHelper output)
         output.WriteLine($"100×: aproximados {stats.Approximated}, mostrados {stats.FramesShown}, perdidos {stats.FramesDropped}, " +
             $"tarde {stats.LateRefreshes}, seeks de keyframe {stats.DecoderSeeks}, keyframes cada {keyframes.MaxInterval} cuadros como mucho.");
         Assert.Equal(0, unreadable);
-        Assert.Equal(0, notKeyframe);
+        Assert.True(wrong.Count == 0, string.Join(Environment.NewLine, wrong));
         Assert.True(stats.Approximated > 0);
         Assert.Equal(0, stats.FramesDropped);
         Assert.Equal(0, stats.DecodeErrors);
