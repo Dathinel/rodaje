@@ -1,7 +1,7 @@
 ﻿# Corre las pruebas con el SDK de .entorno\ (o RODAJE_ENTORNO) y resume el resultado.
 # Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\probar.ps1 [-Cobertura] [-Filtro "texto"]
 # Las de la categoría TiempoReal corren después, solas. Los registros quedan en TestResults\<fecha-hora>\ (se
-# conservan 10). Sale con 0 si todo pasó.
+# conservan 10). Sale con 0 si todo pasó. Con -Cobertura y sin -Filtro, Rodaje.Core debe quedar en el 99 % de líneas o más.
 
 param(
     [switch]$Cobertura,
@@ -131,6 +131,9 @@ $alVuelo = {
 }
 $r = Invocar-Dotnet (Join-Path $script:Corrida '3-probar.log') $argumentos $alVuelo
 if ($script:Hechas -ge 25) { Write-Host ("`r    pruebas ejecutadas: {0}" -f $script:Hechas) }
+# La pasada de tiempo real escribe sus propios informes (vacíos para Rodaje.Core): solo cuentan los de esta pasada.
+$script:CoberturaBaja = $null
+$informesCobertura = @(Get-ChildItem -LiteralPath $script:Corrida -Recurse -Filter 'coverage.cobertura.xml' -ErrorAction SilentlyContinue)
 
 Fase 4 'corriendo las pruebas de tiempo real, solas...'
 $rTiempoReal = Invocar-Dotnet (Join-Path $script:Corrida '4-tiempo-real.log') (Argumentos-Prueba 'tiempo-real' 'Categoria=TiempoReal') $alVuelo
@@ -185,51 +188,55 @@ if ($fallidas.Count -gt 0) {
 
 if ($Cobertura) {
     Titulo 'Cobertura de Rodaje.Core'
-    $xmlCob = Get-ChildItem -LiteralPath $script:Corrida -Recurse -Filter 'coverage.cobertura.xml' -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if (-not $xmlCob) {
+    if ($informesCobertura.Count -eq 0) {
         Nota 'No se generó el informe de cobertura (sin pruebas no hay nada que medir).'
     } else {
-        [xml]$c = [System.IO.File]::ReadAllText($xmlCob.FullName)
-        # Una línea puede aparecer en dos clases (parciales, lambdas): se cuenta una vez, con su mejor dato.
+        # Un informe por proyecto de pruebas. Una línea puede aparecer en varios informes o en dos clases (parciales,
+        # lambdas): se cuenta una vez, con su mejor dato.
         $lineas = @{}
-        foreach ($p in @($c.coverage.packages.package)) {
-            if (-not $p -or $p.name -ne 'Rodaje.Core') { continue }
-            foreach ($cl in @($p.classes.class)) {
-                if (-not $cl) { continue }
-                foreach ($ln in @($cl.lines.line)) {
-                    if (-not $ln) { continue }
-                    $clave = "$($cl.filename)|$($ln.number)"
-                    $hits = [long]$ln.hits
-                    $cub = 0; $tot = 0
-                    if ($ln.branch -eq 'True' -and "$($ln.'condition-coverage')" -match '\((\d+)/(\d+)\)') {
-                        $cub = [int]$Matches[1]; $tot = [int]$Matches[2]
-                    }
-                    if ($lineas.ContainsKey($clave)) {
-                        $v = $lineas[$clave]
-                        if ($hits -gt $v.Hits) { $v.Hits = $hits }
-                        if ($tot -gt $v.Tot) { $v.Tot = $tot }
-                        if ($cub -gt $v.Cub) { $v.Cub = $cub }
-                    } else {
-                        $lineas[$clave] = [pscustomobject]@{ Hits = $hits; Cub = $cub; Tot = $tot }
+        foreach ($xmlCob in $informesCobertura) {
+            [xml]$c = [System.IO.File]::ReadAllText($xmlCob.FullName)
+            foreach ($p in @($c.coverage.packages.package)) {
+                if (-not $p -or $p.name -ne 'Rodaje.Core') { continue }
+                foreach ($cl in @($p.classes.class)) {
+                    if (-not $cl) { continue }
+                    foreach ($ln in @($cl.lines.line)) {
+                        if (-not $ln) { continue }
+                        $clave = "$($cl.filename)|$($ln.number)"
+                        $hits = [long]$ln.hits
+                        $cub = 0; $tot = 0
+                        if ($ln.branch -eq 'True' -and "$($ln.'condition-coverage')" -match '\((\d+)/(\d+)\)') {
+                            $cub = [int]$Matches[1]; $tot = [int]$Matches[2]
+                        }
+                        if ($lineas.ContainsKey($clave)) {
+                            $v = $lineas[$clave]
+                            if ($hits -gt $v.Hits) { $v.Hits = $hits }
+                            if ($tot -gt $v.Tot) { $v.Tot = $tot }
+                            if ($cub -gt $v.Cub) { $v.Cub = $cub }
+                        } else {
+                            $lineas[$clave] = [pscustomobject]@{ Hits = $hits; Cub = $cub; Tot = $tot }
+                        }
                     }
                 }
             }
         }
         if ($lineas.Count -eq 0) {
             Nota 'El informe no trae datos de Rodaje.Core.'
+            if (-not $Filtro) { $script:CoberturaBaja = 0.0 }
         } else {
             $lt = $lineas.Count
             $lc = @($lineas.Values | Where-Object { $_.Hits -gt 0 }).Count
             $bt = 0; $bc = 0
             foreach ($v in $lineas.Values) { $bt += $v.Tot; $bc += $v.Cub }
-            Nota ("Líneas: {0:0.0} %  ({1} de {2} líneas se ejecutan en alguna prueba)" -f (100.0 * $lc / $lt), $lc, $lt)
+            $porcentaje = 100.0 * $lc / $lt
+            Nota ("Líneas: {0:0.0} %  ({1} de {2} líneas se ejecutan en alguna prueba)" -f $porcentaje, $lc, $lt)
+            if (-not $Filtro -and $porcentaje -lt 99.0) { $script:CoberturaBaja = $porcentaje }
             if ($bt -gt 0) {
                 Nota ("Ramas:  {0:0.0} %  ({1} de {2} caminos de if/switch/?: se recorren)" -f (100.0 * $bc / $bt), $bc, $bt)
             } else {
                 Nota 'Ramas:  no hay decisiones (if/switch) que medir.'
             }
-            Nota "Informe completo: $(Corto $xmlCob.FullName)"
+            Nota ("Informes: {0} en {1}" -f $informesCobertura.Count, (Corto $script:Corrida))
         }
     }
 }
@@ -245,6 +252,10 @@ foreach ($pasada in @($r, $rTiempoReal)) {
         $pasada.Lineas | Select-Object -Last 10 | ForEach-Object { Nota ('  ' + (Corto $_)) }
         Terminar 1
     }
+}
+if ($null -ne $script:CoberturaBaja) {
+    Mal ("RESULTADO: las pruebas pasan, pero Rodaje.Core queda en {0:0.0} % de líneas (mínimo 99 %)." -f $script:CoberturaBaja)
+    Terminar 1
 }
 if ($total -eq 0) {
     Write-Host '    RESULTADO: compila bien; aún no hay pruebas.' -ForegroundColor Yellow
