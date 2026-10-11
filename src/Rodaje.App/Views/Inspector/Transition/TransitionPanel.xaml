@@ -1,54 +1,51 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<!-- La transición seleccionada: tipo (propia o de paquete), duración, parámetros y opciones. Ocupa la pestaña Propiedades. -->
+<?xml version="1.0" encoding="utf-8"?>
+<!-- La transición seleccionada, en una sección como las de Propiedades: tipo (propia o de paquete), duración, parámetros y opciones. Ocupa la pestaña Propiedades. -->
 <UserControl
     x:Class="Rodaje.App.Views.Inspector.Transition.TransitionPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:inspector="using:Rodaje.App.Views.Inspector"
     xmlns:properties="using:Rodaje.App.Views.Inspector.Properties">
 
     <ScrollViewer Background="{StaticResource PanelBrush}" VerticalScrollBarVisibility="Auto">
-        <StackPanel Padding="0,4,0,12">
-            <Grid Height="32" Padding="12,0" ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="Transición" Style="{StaticResource PanelTitleTextStyle}" VerticalAlignment="Center" />
-                <Button Grid.Column="1" Style="{StaticResource ToolButtonStyle}" Width="Auto" Padding="6,0"
-                        FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource CaptionFontSize}" Click="OnRemoveClick"
-                        AutomationProperties.Name="Quitar transición" ToolTipService.ToolTip="Quita la transición y deja el corte seco">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="&#xE74D;" FontFamily="{StaticResource IconFontFamily}" FontSize="11" VerticalAlignment="Center" />
-                        <TextBlock Text="Quitar" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
+        <StackPanel Padding="0,0,0,12">
+            <Grid Height="36" Padding="12,0,6,0">
+                <TextBlock x:Name="CutText" Style="{StaticResource BodyTextStyle}" />
             </Grid>
-            <TextBlock x:Name="CutText" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,6" TextWrapping="Wrap" />
+            <inspector:InspectorSection x:Name="TransitionSection" Title="Transición">
+                <inspector:InspectorSection.Actions>
+                    <Button Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="11" Content="&#xE74D;" Click="OnRemoveClick"
+                            AutomationProperties.Name="Quitar transición" ToolTipService.ToolTip="Quitar: deja el corte seco" />
+                </inspector:InspectorSection.Actions>
+                <StackPanel>
+                    <Grid Padding="12,3,6,3" ColumnSpacing="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="48" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Tipo" Style="{StaticResource LabelTextStyle}" />
+                        <ComboBox x:Name="TypeBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
+                                  AutomationProperties.Name="Tipo de transición" SelectionChanged="OnTypeSelected" />
+                    </Grid>
+                    <TextBlock x:Name="TypeNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,4" TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed" />
 
-            <Grid Padding="12,4,54,4" ColumnSpacing="4">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="76" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="Tipo" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
-                <ComboBox x:Name="TypeBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
-                          AutomationProperties.Name="Tipo de transición" SelectionChanged="OnTypeSelected" />
-            </Grid>
-            <TextBlock x:Name="TypeNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,4" TextWrapping="Wrap" Visibility="Collapsed" />
+                    <properties:ParameterRow x:Name="DurationRow" />
 
-            <properties:ParameterRow x:Name="DurationRow" />
+                    <Grid x:Name="DirectionRow" Padding="12,3,6,3" ColumnSpacing="4" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="48" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Dirección" Style="{StaticResource LabelTextStyle}" />
+                        <ComboBox x:Name="DirectionBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
+                                  AutomationProperties.Name="Dirección" SelectionChanged="OnDirectionSelected" />
+                    </Grid>
 
-            <Grid x:Name="DirectionRow" Padding="12,4,54,4" ColumnSpacing="4" Visibility="Collapsed">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="76" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="Dirección" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
-                <ComboBox x:Name="DirectionBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
-                          AutomationProperties.Name="Dirección" SelectionChanged="OnDirectionSelected" />
-            </Grid>
-
-            <StackPanel x:Name="ParameterRows" />
+                    <StackPanel x:Name="ParameterRows" />
+                </StackPanel>
+            </inspector:InspectorSection>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

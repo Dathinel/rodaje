@@ -87,6 +87,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
         TransitionInstance transition = target.Transition;
         EditorSession session = _editor!.Session;
         CutText.Text = $"Entre «{ClipName(session, target.From)}» y «{ClipName(session, target.To)}».";
+        ToolTipService.SetToolTip(CutText, CutText.Text);
         string preset = transition.Type == BuiltInTransitions.Preset
             ? TransitionEditor.ReadOption(transition, BuiltInTransitions.PresetOptions.Preset)
             : "";

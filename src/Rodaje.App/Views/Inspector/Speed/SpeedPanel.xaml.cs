@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Dispatching;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -59,6 +59,8 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
     {
         ArgumentNullException.ThrowIfNull(services);
         _editor = new SpeedEditor(services.Session, SpeedCommands.Default);
+        RateSection.Remember(services.Settings);
+        MoreSection.Remember(services.Settings);
         EditorSession session = services.Session;
         session.SelectionChanged += (_, _) => Refresh();
         session.ProjectEdited += (_, _) => Refresh();
@@ -98,6 +100,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         SpeedState state = editor.Read(clip);
         _updating = true;
         ClipTitle.Text = editor.Session.Project.FindMedia(clip.MediaId)?.Name ?? "";
+        ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
         if (!editor.IsChanging)
         {
             RateSlider.Value = SpeedMath.ToSlider(state.Rate.ToDouble());

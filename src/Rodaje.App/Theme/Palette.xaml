@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
     Paleta grafito de la maqueta aprobada (D-018). Las vistas usan solo estas claves (StaticResource), nunca colores
     sueltos. Debajo, las claves de WinUI que se redefinen para que los controles de fábrica tomen la misma paleta.
@@ -136,9 +136,9 @@
             <SolidColorBrush x:Key="MenuBarItemBackgroundSelected" Color="#3A3A3A" />
 
             <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#2C2C2C" />
-            <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#4DE8833A" />
-            <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#66E8833A" />
-            <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="#80E8833A" />
+            <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#3A3A3A" />
+            <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#4A4A4A" />
+            <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="#4A4A4A" />
 
             <SolidColorBrush x:Key="ToolTipBackground" Color="#2C2C2C" />
             <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#737373" />
@@ -161,8 +161,8 @@
             <SolidColorBrush x:Key="ComboBoxBackgroundDisabled" Color="#232323" />
             <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled" Color="#3A3A3A" />
             <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="#3A3A3A" />
-            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="#4DE8833A" />
-            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="#66E8833A" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="#3A3A3A" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="#4A4A4A" />
             <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUnchecked" Color="#8C8C8C" />
             <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPointerOver" Color="#B0B0B0" />
             <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUnchecked" Color="#2C2C2C" />

@@ -1,107 +1,115 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
-    Pila de filtros del clip: activar, reordenar (flechas o arrastrando), quitar y añadir. Abajo, los parámetros del
-    filtro elegido con keyframes, restablecer y, en Color y LUT, la tabla de color. El modo de mezcla está en Propiedades.
+    Pila de filtros del clip: activar, reordenar (flechas o arrastrando), quitar y añadir. Debajo, el filtro elegido en
+    una sección como las de Propiedades, con sus parámetros en las mismas filas. El modo de mezcla está en Propiedades.
 -->
 <UserControl
     x:Class="Rodaje.App.Views.Inspector.Filters.FiltersPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:inspector="using:Rodaje.App.Views.Inspector"
     xmlns:local="using:Rodaje.App.Views.Inspector.Filters">
 
     <Grid Background="{StaticResource PanelBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TextBlock x:Name="EmptyText" Grid.RowSpan="4" Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center" Margin="24,0"
+        <TextBlock x:Name="EmptyText" Grid.RowSpan="3" Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center" Margin="24,0"
                    Text="Selecciona un clip para ver y cambiar su pila de filtros." />
 
-        <StackPanel x:Name="Header" Grid.Row="0" Padding="12,8,12,4" Spacing="6" Visibility="Collapsed">
-            <TextBlock x:Name="ClipTitle" Style="{StaticResource BodyTextStyle}" />
-            <ComboBox x:Name="AddBox" PlaceholderText="Añadir filtro" HorizontalAlignment="Stretch" MinWidth="0" Height="28"
-                      FontSize="{StaticResource BodyFontSize}" AutomationProperties.Name="Añadir filtro" SelectionChanged="OnAddSelected" />
-            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="Se aplican de arriba abajo." />
+        <StackPanel x:Name="Header" Visibility="Collapsed">
+            <Grid Height="36" Padding="12,0,6,0">
+                <TextBlock x:Name="ClipTitle" Style="{StaticResource BodyTextStyle}" />
+            </Grid>
+            <inspector:InspectorSection x:Name="StackSection" Key="filtros-pila" Title="Filtros del clip">
+                <StackPanel>
+                    <Grid Padding="12,3,6,6" ColumnSpacing="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="48" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="AddBox" PlaceholderText="Añadir filtro" HorizontalAlignment="Stretch" MinWidth="0" Height="28"
+                                  FontSize="{StaticResource BodyFontSize}" AutomationProperties.Name="Añadir filtro" SelectionChanged="OnAddSelected"
+                                  ToolTipService.ToolTip="Se aplican de arriba abajo" />
+                    </Grid>
+                    <ListView x:Name="List" Visibility="Collapsed" ItemsSource="{x:Bind Items}" SelectionMode="Single" MaxHeight="220"
+                              CanDragItems="True" CanReorderItems="True" AllowDrop="True" DragItemsCompleted="OnDragItemsCompleted"
+                              SelectionChanged="OnListSelectionChanged">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="Padding" Value="8,0,6,0" />
+                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="MinHeight" Value="34" />
+                                <Setter Property="CornerRadius" Value="0" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="local:FilterItem">
+                                <Grid ColumnSpacing="2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Como en las cabeceras de pista: ojo para ver u ocultar; marcado (naranja) = desactivado. -->
+                                    <ToggleButton Style="{StaticResource ToolToggleButtonStyle}" Width="24" Height="24" FontSize="12"
+                                                  Content="{x:Bind EnabledGlyph}" IsChecked="{x:Bind IsDisabled}" Tag="{x:Bind EffectId}"
+                                                  Click="OnEnabledClick" ToolTipService.ToolTip="{x:Bind EnabledTip}"
+                                                  AutomationProperties.Name="{x:Bind EnabledTip}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0" Opacity="{x:Bind TextOpacity}"
+                                                ToolTipService.ToolTip="{x:Bind Name}">
+                                        <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" />
+                                        <TextBlock Text="{x:Bind Note}" Style="{StaticResource CaptionTextStyle}" Visibility="{x:Bind NoteVisibility}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Width="24" Height="24" Content="&#xE70E;" FontSize="11"
+                                            Tag="{x:Bind EffectId}" IsEnabled="{x:Bind CanMoveUp}" Click="OnMoveUpClick" ToolTipService.ToolTip="Subir"
+                                            AutomationProperties.Name="Subir" />
+                                    <Button Grid.Column="3" Style="{StaticResource ToolButtonStyle}" Width="24" Height="24" Content="&#xE70D;" FontSize="11"
+                                            Tag="{x:Bind EffectId}" IsEnabled="{x:Bind CanMoveDown}" Click="OnMoveDownClick" ToolTipService.ToolTip="Bajar"
+                                            AutomationProperties.Name="Bajar" />
+                                    <Button Grid.Column="4" Style="{StaticResource ToolButtonStyle}" Width="24" Height="24" Content="&#xE711;" FontSize="11"
+                                            Tag="{x:Bind EffectId}" Click="OnRemoveClick" ToolTipService.ToolTip="Quitar" AutomationProperties.Name="Quitar" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                    <TextBlock x:Name="NoFiltersText" Style="{StaticResource CaptionTextStyle}" Margin="12,2,12,4" Visibility="Collapsed"
+                               TextWrapping="Wrap" TextTrimming="None"
+                               Text="Este clip no tiene filtros. Añade uno aquí arriba o desde la biblioteca." />
+                </StackPanel>
+            </inspector:InspectorSection>
         </StackPanel>
 
-        <Grid Grid.Row="2">
-            <ListView x:Name="List" Visibility="Collapsed" ItemsSource="{x:Bind Items}" SelectionMode="Single" MaxHeight="240"
-                      CanDragItems="True" CanReorderItems="True" AllowDrop="True" DragItemsCompleted="OnDragItemsCompleted"
-                      SelectionChanged="OnListSelectionChanged" Padding="0,0,0,4">
-                <ListView.ItemContainerStyle>
-                    <Style TargetType="ListViewItem">
-                        <Setter Property="Padding" Value="8,0,4,0" />
-                        <Setter Property="MinHeight" Value="40" />
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                    </Style>
-                </ListView.ItemContainerStyle>
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="local:FilterItem">
-                        <Grid ColumnSpacing="4" Padding="0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <CheckBox IsChecked="{x:Bind IsEnabled}" Tag="{x:Bind EffectId}" Click="OnEnabledClick" MinWidth="0"
-                                      ToolTipService.ToolTip="Activar o desactivar" />
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Opacity="{x:Bind TextOpacity}"
-                                        ToolTipService.ToolTip="{x:Bind Name}">
-                                <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" />
-                                <TextBlock Text="{x:Bind Note}" Style="{StaticResource CaptionTextStyle}" Visibility="{x:Bind NoteVisibility}" />
-                            </StackPanel>
-                            <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Content="&#xE70E;" FontSize="11"
-                                    Tag="{x:Bind EffectId}" IsEnabled="{x:Bind CanMoveUp}" Click="OnMoveUpClick" ToolTipService.ToolTip="Subir" />
-                            <Button Grid.Column="3" Style="{StaticResource ToolButtonStyle}" Content="&#xE70D;" FontSize="11"
-                                    Tag="{x:Bind EffectId}" IsEnabled="{x:Bind CanMoveDown}" Click="OnMoveDownClick" ToolTipService.ToolTip="Bajar" />
-                            <Button Grid.Column="4" Style="{StaticResource ToolButtonStyle}" Content="&#xE711;" FontSize="11"
-                                    Tag="{x:Bind EffectId}" Click="OnRemoveClick" ToolTipService.ToolTip="Quitar" />
-                        </Grid>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-
-            <TextBlock x:Name="NoFiltersText" Style="{StaticResource PlaceholderTextStyle}" Margin="24,16,24,0"
-                       VerticalAlignment="Top" Visibility="Collapsed"
-                       Text="Este clip no tiene filtros. Añade uno con el botón de arriba o desde la biblioteca." />
-        </Grid>
-
-        <ScrollViewer x:Name="Details" Grid.Row="3" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
-                      BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
-            <StackPanel Padding="0,4,0,12">
-                <Grid Height="34" Padding="12,0,6,0" ColumnSpacing="6" Background="{StaticResource BarBrush}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="DetailsTitle" Style="{StaticResource PanelTitleTextStyle}" VerticalAlignment="Center" />
-                    <TextBlock x:Name="DetailsKeyframes" Grid.Column="1" Style="{StaticResource CaptionTextStyle}"
-                               Foreground="{StaticResource KeyframeBrush}" VerticalAlignment="Center" />
-                    <Button x:Name="ResetAllButton" Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Width="24" Height="26"
+        <ScrollViewer x:Name="Details" Grid.Row="2" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+            <inspector:InspectorSection x:Name="DetailsSection" Margin="0,0,0,12">
+                <inspector:InspectorSection.Actions>
+                    <Button x:Name="ResetAllButton" Style="{StaticResource ToolButtonStyle}" Width="24" Height="26"
                             FontSize="11" Content="&#xE72C;" Click="OnResetAllClick" AutomationProperties.Name="Restablecer todo el filtro"
                             ToolTipService.ToolTip="Restablecer todo: vuelve los parámetros del filtro a sus valores de fábrica y quita sus keyframes" />
-                </Grid>
-                <TextBlock x:Name="DetailsNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,4" TextWrapping="Wrap" Visibility="Collapsed" />
-
-                <Grid x:Name="LutRow" Padding="12,4,54,4" ColumnSpacing="4" Visibility="Collapsed">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="76" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="LUT" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
-                    <ComboBox x:Name="LutBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
-                              AutomationProperties.Name="LUT" SelectionChanged="OnLutSelected"
-                              ToolTipService.ToolTip="Tabla de color .cube: de un paquete instalado o de un archivo" />
-                </Grid>
-
-                <StackPanel x:Name="ParameterRows" />
-            </StackPanel>
+                </inspector:InspectorSection.Actions>
+                <StackPanel>
+                    <TextBlock x:Name="DetailsNote" Style="{StaticResource CaptionTextStyle}" Margin="12,2,12,4" TextWrapping="Wrap"
+                               TextTrimming="None" Visibility="Collapsed" />
+                    <Grid x:Name="LutRow" Padding="12,3,6,3" ColumnSpacing="4" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="48" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="LUT" Style="{StaticResource LabelTextStyle}" ToolTipService.ToolTip="Tabla de color" />
+                        <ComboBox x:Name="LutBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
+                                  AutomationProperties.Name="LUT" SelectionChanged="OnLutSelected"
+                                  ToolTipService.ToolTip="Tabla de color .cube: de un paquete instalado o de un archivo" />
+                    </Grid>
+                    <StackPanel x:Name="ParameterRows" />
+                </StackPanel>
+            </inspector:InspectorSection>
         </ScrollViewer>
     </Grid>
 </UserControl>

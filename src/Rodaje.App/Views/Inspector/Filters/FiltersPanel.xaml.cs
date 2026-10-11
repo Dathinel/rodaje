@@ -1,7 +1,8 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
@@ -23,6 +24,9 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
         EffectId = effect.Id;
         Name = EffectCatalog.DisplayName(effect.Type);
         IsEnabled = effect.Enabled;
+        IsDisabled = !effect.Enabled;
+        EnabledGlyph = effect.Enabled ? "" : "";
+        EnabledTip = (effect.Enabled ? "Desactivar «" : "Activar «") + Name + "»";
         TextOpacity = effect.Enabled ? 1 : 0.5;
         Note = support switch
         {
@@ -45,6 +49,12 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
     public string Name { get; }
 
     public bool IsEnabled { get; }
+
+    public bool IsDisabled { get; }
+
+    public string EnabledGlyph { get; }
+
+    public string EnabledTip { get; }
 
     public double TextOpacity { get; }
 
@@ -99,6 +109,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     {
         ArgumentNullException.ThrowIfNull(services);
         _services = services;
+        StackSection.Remember(services.Settings);
         EditorSession session = services.Session;
         _editor = new ClipPropertyEditor(session);
         session.SelectionChanged += (_, _) => Refresh();
@@ -220,6 +231,13 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         List.SelectedItem = Items.FirstOrDefault(i => i.EffectId == _effectId);
         _updating = false;
         NoFiltersText.Visibility = next.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        int active = next.Count(i => i.IsEnabled);
+        StackSection.Summary = next.Count switch
+        {
+            0 => "ninguno",
+            1 => active == 1 ? "1 filtro" : "1 filtro, desactivado",
+            _ => active == next.Count ? $"{next.Count} filtros" : $"{next.Count} filtros, {active} activos",
+        };
     }
 
     private void ShowDetails(Clip clip)
@@ -232,7 +250,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
 
         Details.Visibility = Visibility.Visible;
-        DetailsTitle.Text = EffectUi.Name(effect.Type);
+        DetailsSection.Title = EffectUi.Name(effect.Type);
         EffectDefinition? definition = EffectRegistry.Find(effect.Type);
         Sequence sequence = _services.Session.Sequence;
         var context = new ParameterSpec.Context(sequence.Width, sequence.Height, clip.Duration.ToSeconds());
@@ -250,7 +268,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             row.Show(state, inside);
         }
 
-        DetailsKeyframes.Text = keyframes == 0 ? "" : KeyframeDialog.Count(keyframes);
+        DetailsSection.KeyframeSummary = keyframes == 0 ? "" : KeyframeDialog.Count(keyframes);
         ResetAllButton.Visibility = _rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ResetAllButton.IsEnabled = ClipPropertyEditor.CanReset(clip, effect.Type, Defaults(), effect.Id);
 
@@ -445,9 +463,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
     private void OnEnabledClick(object sender, RoutedEventArgs e)
     {
-        if (sender is CheckBox { Tag: string effectId } box)
+        if (sender is ToggleButton { Tag: string effectId } toggle)
         {
-            bool enabled = box.IsChecked == true;
+            bool enabled = toggle.IsChecked != true;
             Run((sequence, clip) => Edits.SetEffectEnabled(sequence, clip, effectId, enabled));
         }
     }
