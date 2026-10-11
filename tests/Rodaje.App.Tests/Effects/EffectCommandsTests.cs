@@ -125,6 +125,50 @@ public class EffectCommandsTests
     }
 
     [Fact]
+    public void Efecto_EnUnClipA2x_SeColocaEnLaLineaDeTiempoYGuardaTiempoDelOrigen() => UiThread.Run(async () =>
+    {
+        EditorSession session = await TwoClips();
+        Assert.True(session.Execute(SpeedCommands.Default.SetSpeed(session.SequenceId, First(session).Id, new Rational(2, 1))));
+        Clip clip = First(session);
+        Assert.Equal(S(5), clip.Duration);
+        var preset = new EffectPreset("salida", "Salida", EffectPlacement.Out, 2, 1920, 1080, [],
+            [new PresetCurve(BuiltInEffects.Transform, "opacity", [new PresetKey(0, 1, PresetInterpolation.Linear), new PresetKey(2, 0, PresetInterpolation.Linear)])]);
+
+        Assert.Equal((S(3), 1.0), EffectCommands.Placement(clip, preset));
+        Assert.True(session.Execute(EffectCommands.ApplyEffect(session.SequenceId, clip.Id, preset, "p@1.0.0/salida")));
+
+        // Los últimos 2 s en pantalla son los últimos 4 s del origen.
+        List<Keyframe> keys = First(session).Effects.Single().Parameters["opacity"].Keyframes;
+        Assert.Equal([S(6), S(10)], keys.Select(k => k.Time));
+    });
+
+    [Fact]
+    public void TiempoDeKeyframes_SigueElMapeo_EnReversaYCongelado()
+    {
+        var plain = new Clip { Start = S(2), SourceIn = S(1), SourceOut = S(11) };
+        Assert.Equal(S(1), EffectCommands.KeyframeTime(plain, S(0)));
+        Assert.Equal(S(4), EffectCommands.KeyframeTime(plain, S(5)));
+        Assert.Equal(S(11), EffectCommands.KeyframeTime(plain, S(12)));
+        Assert.Equal(S(11), EffectCommands.KeyframeTime(plain, S(30)));
+        Assert.Equal(S(5), EffectCommands.TimelineOfKeyframe(plain, S(4)));
+
+        var reversed = new Clip { Start = S(0), SourceIn = S(0), SourceOut = S(10), Speed = new ClipSpeed { Reverse = true }, Duration = S(10) };
+        Time tick = Time.FromTicks(1);
+        Assert.Equal(S(10) - tick, EffectCommands.KeyframeTime(reversed, S(0)));
+        Assert.Equal(S(6) - tick, EffectCommands.KeyframeTime(reversed, S(4)));
+        Assert.Equal(S(0), EffectCommands.KeyframeTime(reversed, S(10)));
+        Assert.Equal(S(4), EffectCommands.TimelineOfKeyframe(reversed, S(6) - tick));
+
+        // Un congelado no avanza en el origen, pero sus keyframes usan un tiempo virtual que sí (Ken Burns sobre el cuadro).
+        var frozen = new Clip { Start = S(4), SourceIn = S(1), SourceOut = S(1) + tick, Speed = new ClipSpeed { Freeze = true }, Duration = S(3) };
+        Assert.Equal(S(1), EffectCommands.KeyframeTime(frozen, S(4)));
+        Assert.Equal(S(2), EffectCommands.KeyframeTime(frozen, S(5)));
+        Assert.Equal(S(4), EffectCommands.KeyframeTime(frozen, S(7)));
+        Assert.Equal(S(5), EffectCommands.TimelineOfKeyframe(frozen, S(2)));
+        Assert.Equal(S(7), EffectCommands.TimelineOfKeyframe(frozen, S(9)));
+    }
+
+    [Fact]
     public void Transicion_DelArrastre_PoneTipoYPreajusteEnUnPaso() => UiThread.Run(async () =>
     {
         EditorSession session = await TwoClips();
