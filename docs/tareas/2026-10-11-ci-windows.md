@@ -2,7 +2,7 @@
 
 Rama `claude/ci-windows-verde`, creada desde `origin/main` en `20b4a22`. PR en borrador: https://github.com/Dathinel/rodaje/pull/2.
 
-**Corrida verde:** https://github.com/Dathinel/rodaje/actions/runs/38103917197, sobre `da14ea0`. Pasan los dos trabajos y Windows ya bloquea.
+**Unida el 11-oct** tras cuatro revisiones independientes. La última corrida del PR (38118021444, `1c3cb10`) dio Render 196 / 192 / 4 omitidas / 0 fallos; su único rojo eran dos pruebas de `main` con límite de 30 s (fuzz del proyecto), que pasaron a `TiempoReal` al unir. Render: 2 → 4 omitidas (`DecoderCompositionTests` sin D3D11VA y la guardia NV12 del PR #4), sin exclusiones por nombre.
 
 Parte de `docs/tareas/2026-10-10-ci.md`, que anotó 13 fallos del runner `windows-latest` (sin GPU de verdad, sin NVENC y con 2 núcleos).
 
