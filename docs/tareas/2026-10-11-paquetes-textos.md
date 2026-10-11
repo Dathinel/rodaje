@@ -24,6 +24,7 @@ Nada de la tarea. No quedan otros `GetString` en `src/Rodaje.Paquetes` fuera de 
 ## Decisiones
 
 - Un solo recorrido previo en lugar de envolver cada `GetString`: menos código, un mensaje único y no depende de acordarse en cada lectura nueva. Cuesta un recorrido de un documento de como mucho 1 MB.
+- Se tolera un BOM UTF-8 inicial al leer manifiesto, elementos propios y catálogo (`SafeText.DecodeStrict`), como hacía `File.ReadAllText`; sin eso un `paquete.json` con BOM fallaba y un propio se omitía en silencio.
 - Un texto no Unicode invalida el archivo entero, no solo el campo (no se sustituye por U+FFFD en silencio).
 
 ## Choques

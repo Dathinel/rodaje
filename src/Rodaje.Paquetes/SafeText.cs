@@ -95,7 +95,15 @@ public static class SafeText
     public static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     /// <summary>Lee un archivo de texto como UTF-8 estricto; con bytes inválidos lanza <see cref="DecoderFallbackException"/>.</summary>
-    public static string ReadAllTextStrict(string path) => StrictUtf8.GetString(File.ReadAllBytes(path));
+    public static string ReadAllTextStrict(string path) => DecodeStrict(File.ReadAllBytes(path));
+
+    /// <summary>Decodifica UTF-8 estricto y salta una marca BOM inicial (EF BB BF), como hace <c>File.ReadAllText</c>.</summary>
+    /// <exception cref="DecoderFallbackException">Los bytes no son UTF-8 válido.</exception>
+    public static string DecodeStrict(byte[] utf8)
+    {
+        int skip = utf8.Length >= 3 && utf8[0] == 0xEF && utf8[1] == 0xBB && utf8[2] == 0xBF ? 3 : 0;
+        return StrictUtf8.GetString(utf8, skip, utf8.Length - skip);
+    }
 
     /// <summary>
     /// Si algún texto o nombre de propiedad del JSON no se puede leer como cadena: UTF-8 inválido o un sustituto suelto

@@ -49,7 +49,7 @@ public sealed record PackageCatalog(IReadOnlyList<CatalogApp> Apps, IReadOnlyLis
         string text;
         try
         {
-            text = SafeText.StrictUtf8.GetString(utf8);
+            text = SafeText.DecodeStrict(utf8);
         }
         catch (DecoderFallbackException)
         {
