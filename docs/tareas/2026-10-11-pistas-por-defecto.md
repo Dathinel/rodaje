@@ -8,7 +8,7 @@ Rama `claude/pistas-por-defecto`.
 - `Services/NewProjectTracks.cs` (nuevo): crea el proyecto con `ProjectFactory.CreateDefault` y añade o quita pistas por el final con las ediciones existentes `Edits.AddTrack` / `Edits.RemoveTrack`, de modo que «Video 1» sigue siendo la pista principal. No se tocó `Rodaje.Core`.
 - `EditorSession` recibe las cantidades en el constructor (el proyecto inicial ya las usa) y las expone como `NewProjectTracks` para «Proyecto nuevo».
 - Menú Ver → «Pistas de video / de audio de un proyecto nuevo» (1–8, con marca). Al elegir se guarda en los ajustes y rige desde el siguiente «Proyecto nuevo». No cambia el proyecto abierto.
-- Pruebas nuevas: `tests/Rodaje.App.Tests/Settings/NewProjectTracksTests.cs` (12 casos: valores de hoy, 1–8, acotado, `Normalize`, guardar y leer, sesión y «Proyecto nuevo»). Corren en Linux con `-p:EnableWindowsTargeting=true`: 50 de 50 en los grupos Settings y EditorSession.
+- Pruebas nuevas: `tests/Rodaje.App.Tests/Settings/NewProjectTracksTests.cs` (11 casos: valores de hoy, 1–8, acotado, `Normalize`, guardar y leer, sesión y «Proyecto nuevo»). Corren en Linux con `-p:EnableWindowsTargeting=true`: 50 de 50 en los grupos Settings y EditorSession.
 
 ## Pendiente / decisiones
 
