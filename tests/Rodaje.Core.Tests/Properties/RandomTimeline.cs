@@ -370,7 +370,7 @@ internal static class RandomTimeline
                     {
                         Text = Inv($"Título {k}\nlínea {seed % 5}"),
                         Style = seed % 3 == 0 ? new TextStyle() : Tests.Model.ModelSamples.FullStyle(),
-                        Box = seed % 4 == 0 ? new TextBox { WidthFraction = 0.8 } : null,
+                        Box = seed % 4 == 0 ? new TextFrame { WidthFraction = 0.8 } : null,
                     },
                 });
                 at += length;

@@ -128,7 +128,7 @@ public class FormatV5Tests
     public void Clone_IsDeep()
     {
         Clip original = MakeTitle("t", 0, 0, 1);
-        original.Generator!.Box = new TextBox { Width = 800 };
+        original.Generator!.Box = new TextFrame { Width = 800 };
         Clip copy = original.Clone();
 
         copy.Generator!.Text = "otro";
@@ -153,7 +153,7 @@ public class FormatV5Tests
         g => g.Text = "x",
         g => g.Edges.In = false,
         g => g.Edges.Out = false,
-        g => g.Box = new TextBox(),
+        g => g.Box = new TextFrame(),
         g => g.Style = null,
         g => g.Style!.Source = null,
         g => g.Style!.Name = "Otro",
@@ -195,7 +195,7 @@ public class FormatV5Tests
     public void ContentEquals_SeesEveryField(Action<ClipGenerator> change)
     {
         ClipGenerator a = MakeTitle("t", 0, 0, 1).Generator!;
-        a.Box = new TextBox { Width = 800, WidthFraction = 0.5 };
+        a.Box = new TextFrame { Width = 800, WidthFraction = 0.5 };
         ClipGenerator b = a.Clone();
         Assert.True(a.ContentEquals(b));
 

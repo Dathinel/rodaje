@@ -317,6 +317,43 @@ try
 
     Avance("Formato 3: transición acotada, mezcla, volumen de pista, deshacer exacto y migración desde el formato 2.");
 
+    // Formato 5: un título con estilo copiado (enumeraciones, diccionario de curvas, registros) que se divide y se guarda
+    {
+        var ids5 = new SequentialIdGenerator();
+        Project p5 = ProjectFactory.CreateDefault("Formato 5", ids5, Rational.Fps30);
+        Track track5 = p5.Sequences[0].VideoTracks[0];
+        track5.Role = TrackRoles.Subtitles;
+        track5.Clips.Add(new Clip
+        {
+            Id = "titulo",
+            SourceIn = S(-1),
+            SourceOut = S(3),
+            Generator = new ClipGenerator
+            {
+                Text = "Hola\nmundo ñ",
+                Style = new TextStyle
+                {
+                    Align = TextAlign.Left,
+                    Stroke = new StyleStroke { Width = 4, Join = StrokeJoin.Bevel },
+                    In = new StyleAnimation { DurationSeconds = 0.5, Curves = { ["opacity"] = [new StyleKey(0, 0), new StyleKey(0.5, 1, Interpolation.EaseOut)] } },
+                },
+            },
+        });
+        SequenceEditCommand split5 = Edits.Split(p5.Sequences[0].Id, "titulo", S(1), ids5);
+        split5.Apply(p5);
+        string right5 = split5.CreatedIds[0];
+        string text5 = ProjectSerializer.Serialize(p5);
+        Project back5 = ProjectSerializer.Deserialize(text5);
+        Clip title5 = back5.Sequences[0].GetClip(right5).Clip;
+        Exigir(ProjectSerializer.Serialize(back5) == text5, "el formato 5 se lee y escribe igual");
+        Exigir(!title5.Generator!.Edges.In && title5.Generator.Style!.Stroke!.Join == StrokeJoin.Bevel
+            && title5.Generator.Style.In!.Curves["opacity"][1].Interp == Interpolation.EaseOut,
+            "el título dividido pierde la entrada y conserva su estilo");
+        Exigir(back5.Sequences[0].GetClip("titulo").Clip.SourceIn == S(-1), "el título conserva su origen negativo");
+    }
+
+    Avance("Formato 5: título con estilo copiado, dividido, guardado y leído.");
+
     Time frame = Time.FromFrames(1, Rational.Ntsc30);
     Exigir(Time.FromFrames(30000, Rational.Ntsc30).ToFrames(Rational.Ntsc30) == 30000, "30000 cuadros a 29,97 fps vuelven a ser 30000");
     Exigir(frame + frame == Time.FromFrames(2, Rational.Ntsc30), "sumar cuadros NTSC no acumula error");

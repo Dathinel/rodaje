@@ -24,7 +24,7 @@ public sealed class ClipGenerator
     public TextStyle? Style { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public TextBox? Box { get; set; }
+    public TextFrame? Box { get; set; }
 
     /// <summary>Qué bordes del clip animan la entrada y la salida del estilo; dividir apaga los bordes internos.</summary>
     public GeneratorEdges Edges { get; set; } = new();
@@ -66,7 +66,7 @@ public sealed class GeneratorEdges
 }
 
 /// <summary>Caja del texto para el ajuste de línea; sin ancho, el texto solo corta en <c>\n</c>.</summary>
-public sealed class TextBox
+public sealed class TextFrame
 {
     /// <summary>Ancho en píxeles de la <see cref="TextStyle.Reference"/> del estilo.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -76,7 +76,7 @@ public sealed class TextBox
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? WidthFraction { get; set; }
 
-    public TextBox Clone() => new() { Width = Width, WidthFraction = WidthFraction };
+    public TextFrame Clone() => new() { Width = Width, WidthFraction = WidthFraction };
 }
 
 /// <summary>Roles de pista conocidos (<see cref="Track.Role"/>); el nombre de la pista es solo para mostrar.</summary>

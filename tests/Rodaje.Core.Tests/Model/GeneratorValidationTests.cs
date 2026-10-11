@@ -28,7 +28,7 @@ public class GeneratorValidationTests
     public void ValidTitle_WithNegativeSourceIn_Passes()
     {
         Project p = WithTitle(out Clip title);
-        title.Generator!.Box = new TextBox { Width = 1600, WidthFraction = 1 };
+        title.Generator!.Box = new TextFrame { Width = 1600, WidthFraction = 1 };
         title.Generator.Text = "Línea 1\n\tLínea 2 ‏שלום‎ ‫x‬ 😀";
         p.Sequences[0].VideoTracks[1].Role = TrackRoles.Subtitles;
 
@@ -214,7 +214,7 @@ public class GeneratorValidationTests
     [InlineData(null, 1.01)]
     [InlineData(null, double.NaN)]
     public void Box_OutOfRange_IsRejected(double? width, double? fraction) =>
-        AssertError(c => c.Generator!.Box = new TextBox { Width = width, WidthFraction = fraction }, "caja de texto");
+        AssertError(c => c.Generator!.Box = new TextFrame { Width = width, WidthFraction = fraction }, "caja de texto");
 
     [Theory]
     [InlineData("Subtitles")]
