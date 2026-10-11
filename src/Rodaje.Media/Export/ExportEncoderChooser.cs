@@ -1,108 +1,121 @@
-using System.Collections.Immutable;
-
 namespace Rodaje.Media.Export;
 
-/// <summary>El codificador elegido y, si no es el que se pidió, por qué.</summary>
+/// <summary>El codificador elegido y, si no es lo que se pidió o hay algo que avisar, por qué.</summary>
 /// <param name="Encoder">Codificador a usar.</param>
-/// <param name="Requested">Códec que pidió el usuario, o <c>null</c> si se pidió la elección por defecto.</param>
-/// <param name="Note">Explicación en español cuando hubo sustitución o es un último recurso; si no, <c>null</c>.</param>
-public sealed record ExportEncoderChoice(ExportEncoderInfo Encoder, ExportCodec? Requested, string? Note)
+/// <param name="Requested">Códec que se pidió, o <c>null</c> si se pidió la elección por defecto.</param>
+/// <param name="Note">Explicación en español cuando el códec cambió o cuando no es el habitual; si no, <c>null</c>.</param>
+public sealed record ExportEncoderChoice(EncoderSpec Encoder, ExportCodec? Requested, string? Note)
 {
     /// <summary>Si el códec elegido no es el pedido.</summary>
     public bool Substituted => Requested is { } r && r != Encoder.Codec;
 }
 
 /// <summary>
-/// Reglas de elección: «GPU si hay, si no CPU». Con GPU gana el codificador de hardware (H.264, luego HEVC, luego
-/// AV1; a igual códec, el primero del catálogo). Sin GPU gana el software en el orden del catálogo (AV1, VP9,
-/// HEVC; OpenH264 solo si no hay otra cosa). Si se pide H.264 y no hay GPU, se cambia a AV1 o HEVC por CPU y la
-/// elección lo dice; es una decisión pendiente de Daniel (<c>CLAUDE.md</c>, «Hacia la versión pública»).
+/// Reglas de elección automática: «GPU si hay, si no CPU» (D-028).
 /// </summary>
+/// <remarks>
+/// <list type="bullet">
+/// <item>Solo entran los codificadores con <see cref="EncoderSpec.InDefaults"/>: kvazaar y OpenH264 nunca salen de aquí,
+/// solo de <see cref="ChooseById"/> cuando el usuario los elige.</item>
+/// <item>Con GPU gana su codificador (H.264, luego HEVC, luego AV1; a igual códec, el primero del catálogo).</item>
+/// <item>Sin GPU, H.264 y HEVC van por Media Foundation de Windows (con la licencia de patentes del sistema); si tampoco
+/// está (Windows N), caen a AV1 (SVT-AV1, luego libaom) o VP9 por CPU, y la elección lo dice.</item>
+/// <item>El audio sigue el catálogo: el AAC de Windows antes que el de FFmpeg.</item>
+/// </list>
+/// </remarks>
 public static class ExportEncoderChooser
 {
-    private static readonly ExportCodec[] HardwarePreference = [ExportCodec.H264, ExportCodec.Hevc, ExportCodec.Av1, ExportCodec.Vp9];
+    // Solo hay GPU para estos tres; VP9 no tiene codificador de hardware en el catálogo.
+    private static readonly ExportCodec[] HardwarePreference = [ExportCodec.H264, ExportCodec.Hevc, ExportCodec.Av1];
 
-    // Cuando se pidió H.264 y solo hay CPU.
-    private static readonly ExportCodec[] H264Substitutes = [ExportCodec.Av1, ExportCodec.Hevc, ExportCodec.Vp9];
+    // Sin GPU: Media Foundation (H.264, HEVC) y luego el software libre de regalías.
+    private static readonly ExportCodec[] CpuPreference = [ExportCodec.H264, ExportCodec.Hevc, ExportCodec.Av1, ExportCodec.Vp9];
 
-    /// <summary>La elección por defecto, o <c>null</c> si no hay ningún codificador disponible.</summary>
-    public static ExportEncoderChoice? ChooseDefault(IEnumerable<ExportEncoderInfo> available)
+    // Cuando se pidió H.264 o HEVC y no hay forma de hacerlo con licencia (ni GPU ni Media Foundation).
+    private static readonly ExportCodec[] PatentFreeFallback = [ExportCodec.Av1, ExportCodec.Vp9];
+
+    /// <summary>La elección de video por defecto, o <c>null</c> si no hay ningún codificador automático disponible.</summary>
+    public static ExportEncoderChoice? ChooseDefault(IEnumerable<EncoderSpec> available)
     {
-        ImmutableArray<ExportEncoderInfo> ordered = Order(available);
-        ExportEncoderInfo? hardware = HardwarePreference
-            .Select(codec => ordered.FirstOrDefault(e => e.IsHardware && e.Codec == codec))
-            .FirstOrDefault(e => e is not null);
-        if (hardware is not null)
+        EncoderSpec[] candidates = Candidates(available, audio: false);
+        EncoderSpec? chosen = HardwarePreference
+            .Select(codec => candidates.FirstOrDefault(e => e.IsHardware && e.Codec == codec))
+            .FirstOrDefault(e => e is not null)
+            ?? CpuPreference
+                .Select(codec => candidates.FirstOrDefault(e => !e.IsHardware && e.Codec == codec))
+                .FirstOrDefault(e => e is not null);
+        if (chosen is null)
         {
-            return new ExportEncoderChoice(hardware, null, null);
+            return null;
         }
 
-        ExportEncoderInfo? software = ordered.FirstOrDefault(e => !e.LowQuality);
-        if (software is not null)
-        {
-            return new ExportEncoderChoice(software, null, null);
-        }
+        string? note = chosen.Codec is ExportCodec.H264 or ExportCodec.Hevc ? null : NoLicensedH26xNote(chosen);
+        return new ExportEncoderChoice(chosen, null, note);
+    }
 
-        ExportEncoderInfo? last = ordered.FirstOrDefault();
-        return last is null ? null : new ExportEncoderChoice(last, null, LastResortNote(last));
+    /// <summary>La elección de audio por defecto (AAC), o <c>null</c> si no hay.</summary>
+    public static ExportEncoderChoice? ChooseDefaultAudio(IEnumerable<EncoderSpec> available)
+    {
+        EncoderSpec? chosen = Candidates(available, audio: true).FirstOrDefault(e => e.Codec == ExportCodec.Aac);
+        return chosen is null ? null : new ExportEncoderChoice(chosen, null, null);
     }
 
     /// <summary>
-    /// La elección para un códec pedido. Hardware de ese códec, si no software de ese códec; para H.264 sin GPU,
-    /// AV1 o HEVC por CPU. <c>null</c> si no hay forma de cumplirlo.
+    /// La elección para un códec pedido (de video o de audio): GPU de ese códec, si no software automático de ese códec;
+    /// H.264 o HEVC sin GPU ni Media Foundation caen a AV1 o VP9 por CPU. <c>null</c> si no hay forma de cumplirlo.
     /// </summary>
-    public static ExportEncoderChoice? Choose(IEnumerable<ExportEncoderInfo> available, ExportCodec requested)
+    public static ExportEncoderChoice? Choose(IEnumerable<EncoderSpec> available, ExportCodec requested)
     {
-        ImmutableArray<ExportEncoderInfo> ordered = Order(available);
-        ExportEncoderInfo? exact = ordered.FirstOrDefault(e => e.Codec == requested && e.IsHardware)
-            ?? ordered.FirstOrDefault(e => e.Codec == requested && !e.LowQuality);
+        EncoderSpec[] candidates = Candidates(available, requested.IsAudio());
+        EncoderSpec? exact = candidates.FirstOrDefault(e => e.Codec == requested && e.IsHardware)
+            ?? candidates.FirstOrDefault(e => e.Codec == requested);
         if (exact is not null)
         {
             return new ExportEncoderChoice(exact, requested, null);
         }
 
-        if (requested != ExportCodec.H264)
+        if (requested is not (ExportCodec.H264 or ExportCodec.Hevc))
         {
             return null;
         }
 
-        foreach (ExportCodec codec in H264Substitutes)
-        {
-            ExportEncoderInfo? substitute = ordered.FirstOrDefault(e => e.Codec == codec && !e.LowQuality);
-            if (substitute is not null)
-            {
-                return new ExportEncoderChoice(substitute, requested,
-                    $"No hay codificador H.264 por GPU; se usa {substitute.DisplayName} por CPU.");
-            }
-        }
-
-        ExportEncoderInfo? openH264 = ordered.FirstOrDefault(e => e.Codec == requested);
-        return openH264 is null ? null : new ExportEncoderChoice(openH264, requested, LastResortNote(openH264));
+        EncoderSpec? substitute = PatentFreeFallback
+            .Select(codec => candidates.FirstOrDefault(e => e.Codec == codec && e.IsHardware)
+                ?? candidates.FirstOrDefault(e => e.Codec == codec))
+            .FirstOrDefault(e => e is not null);
+        return substitute is null ? null : new ExportEncoderChoice(substitute, requested, NoLicensedH26xNote(substitute, requested));
     }
 
-    private static string LastResortNote(ExportEncoderInfo encoder) =>
-        $"Solo hay {encoder.DisplayName}, de calidad limitada: es el último recurso.";
+    /// <summary>
+    /// El codificador que eligió el usuario a mano, aunque no entre en los automáticos (kvazaar, OpenH264), con su
+    /// <see cref="EncoderSpec.Note"/> como aviso. <c>null</c> si no está disponible.
+    /// </summary>
+    public static ExportEncoderChoice? ChooseById(IEnumerable<EncoderSpec> available, string id)
+    {
+        ArgumentNullException.ThrowIfNull(available);
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        EncoderSpec? chosen = available.FirstOrDefault(e => string.Equals(e.Id, id, StringComparison.Ordinal));
+        return chosen is null ? null : new ExportEncoderChoice(chosen, chosen.Codec, chosen.InDefaults ? null : chosen.Note);
+    }
 
-    // Orden del catálogo; lo que no esté en él (dobles de prueba) va al final, sin repetirse.
-    private static ImmutableArray<ExportEncoderInfo> Order(IEnumerable<ExportEncoderInfo> available)
+    private static string NoLicensedH26xNote(EncoderSpec chosen, ExportCodec? requested = null)
+    {
+        string what = requested switch
+        {
+            ExportCodec.Hevc => "HEVC",
+            ExportCodec.H264 => "H.264",
+            _ => "H.264 ni HEVC",
+        };
+        return $"No hay {what} por GPU ni por Media Foundation en este equipo; se usa {ExportEncoderCatalog.DisplayName(chosen)} por CPU.";
+    }
+
+    // Los automáticos del tipo pedido, sin repetir, en el orden del catálogo; lo que no esté en él (dobles) va al final.
+    private static EncoderSpec[] Candidates(IEnumerable<EncoderSpec> available, bool audio)
     {
         ArgumentNullException.ThrowIfNull(available);
         return [.. available
+            .Where(e => e.InDefaults && e.IsAudio == audio)
             .DistinctBy(e => e.Id)
-            .OrderBy(e => IndexInCatalog(e.Id))];
-    }
-
-    private static int IndexInCatalog(string id)
-    {
-        ImmutableArray<ExportEncoderInfo> catalog = ExportEncoderCatalog.All;
-        for (int i = 0; i < catalog.Length; i++)
-        {
-            if (catalog[i].Id == id)
-            {
-                return i;
-            }
-        }
-
-        return int.MaxValue;
+            .OrderBy(e => ExportEncoderCatalog.IndexOf(e.Id))];
     }
 }
