@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 5,
+  "id": "project-ejemplo-v5",
+  "name": "Ejemplo del formato 5 — títulos",
+  "media": [
+    {
+      "id": "media-1",
+      "path": "material/toma 01.mp4",
+      "name": "toma 01",
+      "duration": 14112000000,
+      "hasVideo": true,
+      "hasAudio": true,
+      "frameRate": {
+        "num": 30,
+        "den": 1
+      },
+      "width": 1920,
+      "height": 1080,
+      "sampleRate": 48000,
+      "audioChannels": 2
+    }
+  ],
+  "sequences": [
+    {
+      "id": "sequence-1",
+      "name": "Secuencia 1",
+      "frameRate": {
+        "num": 30,
+        "den": 1
+      },
+      "width": 1920,
+      "height": 1080,
+      "sampleRate": 48000,
+      "videoTracks": [
+        {
+          "id": "track-1",
+          "kind": "video",
+          "name": "Video 1",
+          "muted": false,
+          "locked": false,
+          "hidden": false,
+          "clips": [
+            {
+              "id": "clip-1",
+              "mediaId": "media-1",
+              "sourceIn": 0,
+              "sourceOut": 3528000000,
+              "start": 0,
+              "linkId": null,
+              "enabled": true,
+              "effects": []
+            }
+          ],
+          "effects": [],
+          "transitions": []
+        },
+        {
+          "id": "track-2",
+          "kind": "video",
+          "name": "Subtítulos",
+          "muted": false,
+          "locked": false,
+          "hidden": false,
+          "role": "subtitles",
+          "clips": [
+            {
+              "id": "clip-2",
+              "sourceIn": -352800000,
+              "sourceOut": 1058400000,
+              "start": 0,
+              "linkId": null,
+              "enabled": true,
+              "generator": {
+                "kind": "text",
+                "text": "Hola\nmundo, ñandú",
+                "style": {
+                  "source": "rodaje-titulos@1.0.0/clasico",
+                  "name": "Clásico",
+                  "font": {
+                    "family": "Inter",
+                    "weight": 700,
+                    "italic": false,
+                    "source": "rodaje-fuentes@1.0.0/inter",
+                    "fallback": [
+                      "Segoe UI",
+                      "Arial"
+                    ]
+                  },
+                  "size": 96,
+                  "reference": {
+                    "width": 1920,
+                    "height": 1080
+                  },
+                  "lineHeight": 1.1,
+                  "letterSpacing": 0,
+                  "align": "center",
+                  "fill": {
+                    "color": "#FFFFFF"
+                  },
+                  "stroke": {
+                    "color": "#000000",
+                    "width": 6,
+                    "join": "round"
+                  },
+                  "shadow": {
+                    "color": "#00000099",
+                    "dx": 4,
+                    "dy": 6,
+                    "blur": 8
+                  },
+                  "background": {
+                    "color": "#00000080",
+                    "padding": [
+                      24,
+                      12
+                    ],
+                    "radius": 12
+                  },
+                  "in": {
+                    "durationSeconds": 0.4,
+                    "curves": {
+                      "opacity": [
+                        {
+                          "t": 0,
+                          "value": 0,
+                          "interp": "linear"
+                        },
+                        {
+                          "t": 0.4,
+                          "value": 1,
+                          "interp": "easeOut"
+                        }
+                      ],
+                      "y": [
+                        {
+                          "t": 0,
+                          "value": 40,
+                          "interp": "linear"
+                        },
+                        {
+                          "t": 0.4,
+                          "value": 0,
+                          "interp": "easeOut"
+                        }
+                      ]
+                    }
+                  },
+                  "out": {
+                    "durationSeconds": 0.3,
+                    "curves": {
+                      "opacity": [
+                        {
+                          "t": 0,
+                          "value": 1,
+                          "interp": "linear"
+                        },
+                        {
+                          "t": 0.3,
+                          "value": 0,
+                          "interp": "linear"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "box": {
+                  "width": 1600,
+                  "widthFraction": 0.8
+                },
+                "edges": {
+                  "in": true,
+                  "out": false
+                }
+              },
+              "effects": [
+                {
+                  "id": "effect-1",
+                  "type": "rodaje.transform",
+                  "enabled": true,
+                  "parameters": {
+                    "y": {
+                      "value": 380,
+                      "keyframes": []
+                    }
+                  },
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "id": "clip-3",
+              "sourceIn": 1058400000,
+              "sourceOut": 2116800000,
+              "start": 1411200000,
+              "linkId": null,
+              "enabled": true,
+              "generator": {
+                "kind": "text",
+                "text": "Segunda\tlínea",
+                "style": {
+                  "font": {
+                    "family": "Segoe UI",
+                    "weight": 400,
+                    "italic": true,
+                    "fallback": []
+                  },
+                  "size": 64,
+                  "reference": {
+                    "width": 1080,
+                    "height": 1920
+                  },
+                  "lineHeight": 1.2,
+                  "letterSpacing": 2,
+                  "align": "left",
+                  "fill": {
+                    "color": "#FFCC00AA"
+                  }
+                },
+                "edges": {
+                  "in": false,
+                  "out": true
+                }
+              },
+              "effects": []
+            },
+            {
+              "id": "clip-4",
+              "sourceIn": 0,
+              "sourceOut": 705600000,
+              "start": 3528000000,
+              "linkId": null,
+              "enabled": true,
+              "generator": {
+                "kind": "solid",
+                "text": "",
+                "edges": {
+                  "in": true,
+                  "out": true
+                }
+              },
+              "effects": []
+            }
+          ],
+          "effects": [],
+          "transitions": []
+        }
+      ],
+      "audioTracks": [],
+      "markers": [],
+      "regions": []
+    }
+  ]
+}

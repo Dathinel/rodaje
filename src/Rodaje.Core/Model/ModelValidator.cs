@@ -5,7 +5,7 @@ using Rodaje.Core.Timing;
 namespace Rodaje.Core.Model;
 
 /// <summary>Comprueba las invariantes de un proyecto.</summary>
-public static class ModelValidator
+public static partial class ModelValidator
 {
     /// <summary>Devuelve la lista de problemas encontrados, en español; vacía si el proyecto es válido.</summary>
     public static IReadOnlyList<string> Validate(Project project)
@@ -39,6 +39,12 @@ public static class ModelValidator
         {
             checkId(sequence.Id, "una secuencia");
             ValidateSequence(project, sequence, errors, checkId);
+        }
+
+        long text = project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Sum(c => (long)(c.Generator?.Text.Length ?? 0));
+        if (text > MaxProjectTextLength)
+        {
+            errors.Add($"Los textos del proyecto suman {text} caracteres y el máximo es {MaxProjectTextLength}.");
         }
 
         return errors;
@@ -106,6 +112,7 @@ public static class ModelValidator
         foreach (Track track in sequence.AllTracks)
         {
             checkId(track.Id, "una pista");
+            ValidateRole(track, errors);
             Clip? previous = null;
             Int128 previousEnd = 0;
             foreach (Clip clip in track.Clips)
@@ -113,8 +120,15 @@ public static class ModelValidator
                 checkId(clip.Id, "un clip");
                 string where = $"El clip «{clip.Id}» de la pista «{track.Name}»";
 
-                MediaRef? media = project.FindMedia(clip.MediaId);
-                if (media is null)
+                MediaRef? media = clip.Generator is null ? project.FindMedia(clip.MediaId) : null;
+                if (clip.Generator is not null)
+                {
+                    if (clip.MediaId.Length > 0)
+                    {
+                        errors.Add($"{where} tiene a la vez un medio y un generador.");
+                    }
+                }
+                else if (media is null)
                 {
                     errors.Add($"{where} usa el medio «{clip.MediaId}», que no existe.");
                 }
@@ -136,7 +150,8 @@ public static class ModelValidator
                     }
                 }
 
-                if (clip.SourceIn < Time.Zero)
+                // Un generador tiene un origen virtual sin límites: recortar su inicio puede dejar el punto de entrada negativo.
+                if (clip.SourceIn < Time.Zero && clip.Generator is null)
                 {
                     errors.Add($"{where} tiene un punto de entrada negativo.");
                 }
@@ -167,6 +182,11 @@ public static class ModelValidator
                 if (clip.Speed is { } speed)
                 {
                     ValidateSpeed(clip, speed, track, where, errors);
+                }
+
+                if (clip.Generator is { } generator)
+                {
+                    ValidateGenerator(clip, generator, track, where, errors);
                 }
 
                 ValidateEffects(clip.Effects, null, errors, checkId);

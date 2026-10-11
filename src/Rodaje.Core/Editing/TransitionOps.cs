@@ -97,13 +97,20 @@ public static class TransitionOps
 
     /// <summary>
     /// <paramref name="right"/> es la mitad derecha de <paramref name="left"/> tras un corte: mismo medio, misma
-    /// velocidad, desplazamientos contiguos y, juntos, el mismo mapeo que un solo clip partido en el corte.
+    /// velocidad, desplazamientos contiguos y, juntos, el mismo mapeo que un solo clip partido en el corte. Dos generadores
+    /// continúan si tienen el mismo contenido (salvo los bordes) y el origen sigue sin salto.
     /// </summary>
     private static bool Continues(Clip left, Clip right)
     {
         if (!Touch(left, right) || left.MediaId != right.MediaId)
         {
             return false;
+        }
+
+        if (left.Generator is not null || right.Generator is not null)
+        {
+            return left.Generator is not null && right.Generator is not null && left.Generator.SameContent(right.Generator)
+                && left.Speed is null && right.Speed is null && left.SourceOut == right.SourceIn;
         }
 
         if (left.Speed is null || right.Speed is null)

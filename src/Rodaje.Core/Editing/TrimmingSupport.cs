@@ -58,6 +58,15 @@ internal static class TrimmingSupport
         return ctx.Sequence.GetLinkGroup(clipId);
     }
 
+    /// <summary>Los títulos no tienen material: deslizar o cambiar la velocidad no tiene sentido en ellos.</summary>
+    public static void EnsureNoGenerator(List<(Track Track, Clip Clip)> group, string action)
+    {
+        if (group.Find(m => m.Clip.Generator is not null).Clip is { } generator)
+        {
+            throw new EditException($"El clip «{generator.Id}» es un título y no tiene material: no se puede {action}.");
+        }
+    }
+
     public static Track ResolveTrack(EditContext ctx, string trackId)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -81,14 +90,18 @@ internal static class TrimmingSupport
                 throw new EditException($"El clip «{name}» {plan.Problem}.");
             }
 
-            if (map.SourceIn < Time.Zero)
+            // Un generador no tiene archivo: su origen virtual no tiene principio ni final.
+            if (plan.Clip.Generator is null)
             {
-                throw new EditException($"El clip «{name}» empezaría antes del inicio del archivo.");
-            }
+                if (map.SourceIn < Time.Zero)
+                {
+                    throw new EditException($"El clip «{name}» empezaría antes del inicio del archivo.");
+                }
 
-            if (map.SourceOut > ctx.MediaOf(plan.Clip).Duration)
-            {
-                throw new EditException($"El clip «{name}» llegaría más allá del final del archivo.");
+                if (map.SourceOut > ctx.MediaOf(plan.Clip).Duration)
+                {
+                    throw new EditException($"El clip «{name}» llegaría más allá del final del archivo.");
+                }
             }
 
             if (map.Start < Time.Zero)

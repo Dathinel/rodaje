@@ -108,7 +108,7 @@ public sealed class SequenceSnapshot
             && TrackContentEquals(a, b);
     }
 
-    /// <summary>Compara identificador, tipo, nombre, clips, efectos y transiciones, sin las marcas.</summary>
+    /// <summary>Compara identificador, tipo, nombre, rol, clips, efectos y transiciones, sin las marcas.</summary>
     public static bool TrackContentEquals(Track a, Track b)
     {
         ArgumentNullException.ThrowIfNull(a);
@@ -116,6 +116,7 @@ public sealed class SequenceSnapshot
         return a.Id == b.Id
             && a.Kind == b.Kind
             && a.Name == b.Name
+            && a.Role == b.Role
             && SequenceEqual(a.Clips, b.Clips, ClipStateEquals)
             && SequenceEqual(a.Effects, b.Effects, EffectStateEquals)
             && SequenceEqual(a.Transitions, b.Transitions, TransitionStateEquals);
@@ -147,6 +148,7 @@ public sealed class SequenceSnapshot
             && (a.Speed is null ? b.Speed is null : b.Speed is not null && a.Speed.ContentEquals(b.Speed))
             && a.LinkId == b.LinkId
             && a.Enabled == b.Enabled
+            && (a.Generator is null ? b.Generator is null : b.Generator is not null && a.Generator.ContentEquals(b.Generator))
             && SequenceEqual(a.Effects, b.Effects, EffectStateEquals);
     }
 

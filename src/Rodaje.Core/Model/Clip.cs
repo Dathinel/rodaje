@@ -5,13 +5,26 @@ namespace Rodaje.Core.Model;
 
 /// <summary>
 /// Fragmento de un medio, <c>[SourceIn, SourceOut)</c>, colocado en <see cref="Start"/> de su pista. Con
-/// <see cref="Speed"/>, la relación entre los dos tiempos es <see cref="TimeMap"/>.
+/// <see cref="Speed"/>, la relación entre los dos tiempos es <see cref="TimeMap"/>. Un clip con
+/// <see cref="Generator"/> (formato 5) no tiene medio: su origen es virtual y <see cref="SourceIn"/> puede ser negativo.
 /// </summary>
 public sealed class Clip
 {
     public string Id { get; set; } = "";
 
+    /// <summary>Medio del clip; vacío en un clip con <see cref="Generator"/>.</summary>
+    [JsonIgnore]
     public string MediaId { get; set; } = "";
+
+    // Solo en el JSON: un generador no escribe «mediaId».
+    [JsonInclude]
+    [JsonPropertyName("mediaId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    internal string? StoredMediaId
+    {
+        get => Generator is not null && MediaId.Length == 0 ? null : MediaId;
+        set => MediaId = value ?? "";
+    }
 
     /// <summary>Punto de entrada dentro del archivo de origen (incluido).</summary>
     public Time SourceIn { get; set; }
@@ -40,6 +53,10 @@ public sealed class Clip
     /// <summary>Velocidad, reversa o congelado; nula a 1×, como en el formato 3.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ClipSpeed? Speed { get; set; }
+
+    /// <summary>Contenido generado (un título) en lugar de un medio; nulo en un clip de medio.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ClipGenerator? Generator { get; set; }
 
     /// <summary>Efectos aplicados en orden. Sus keyframes están en tiempo del origen.</summary>
     public List<EffectInstance> Effects { get; set; } = [];
@@ -80,6 +97,7 @@ public sealed class Clip
         Clip copy = (Clip)MemberwiseClone();
         copy.Effects = Effects.ConvertAll(e => e.Clone());
         copy.Speed = Speed?.Clone();
+        copy.Generator = Generator?.Clone();
         return copy;
     }
 }

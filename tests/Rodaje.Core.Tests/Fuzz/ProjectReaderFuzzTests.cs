@@ -10,7 +10,7 @@ namespace Rodaje.Core.Tests.Fuzz;
 /// <summary>
 /// Pruebas hostiles del lector de proyectos: un <c>.rodaje</c> dañado o malicioso abre un proyecto válido
 /// o lanza <see cref="ProjectFormatException"/>; nunca otra excepción ni un cuelgue. Mutaciones
-/// deterministas (semilla fija) sobre los ejemplos v1, v2, v3 y, si el lector ya lo conoce, v4.
+/// deterministas (semilla fija) sobre los ejemplos v1, v2, v3, v4 y v5 (con títulos).
 /// </summary>
 public class ProjectReaderFuzzTests
 {
@@ -27,9 +27,12 @@ public class ProjectReaderFuzzTests
     private static string V4ExamplePath =>
         Path.Combine(Serialization.ProjectSchemaTests.FindRepoRoot(), "tests", "Rodaje.Core.Tests", "Serialization", "ejemplos", "proyecto-v4.rodaje");
 
+    private static string V5ExamplePath =>
+        Path.Combine(Serialization.ProjectSchemaTests.FindRepoRoot(), "tests", "Rodaje.Core.Tests", "Serialization", "ejemplos", "proyecto-v5.rodaje");
+
     /// <summary>
     /// Semillas v1, v2 y v3 (las dos primeras se obtienen quitando del v3 lo que esos formatos no tenían) y,
-    /// el ejemplo v4.
+    /// los ejemplos v4 y v5.
     /// </summary>
     private static List<(string Name, string Json)> Seeds()
     {
@@ -37,6 +40,7 @@ public class ProjectReaderFuzzTests
         var seeds = new List<(string Name, string Json)>
         {
             ("v1", Downgrade(v3, 1)), ("v2", Downgrade(v3, 2)), ("v3", v3), ("v4", File.ReadAllText(V4ExamplePath)),
+            ("v5", File.ReadAllText(V5ExamplePath)),
         };
 
         return seeds;
@@ -257,7 +261,7 @@ public class ProjectReaderFuzzTests
     [InlineData("\"texto\"")]
     [InlineData("{")]
     [InlineData("{\"schemaVersion\":3,\"schemaVersion\":3}")]
-    [InlineData("{\"schemaVersion\":5}")]
+    [InlineData("{\"schemaVersion\":6}")]
     [InlineData("{\"schemaVersion\":2147483647}")]
     [InlineData("{\"schemaVersion\":99999999999999999999}")]
     [InlineData("{\"schemaVersion\":-1}")]

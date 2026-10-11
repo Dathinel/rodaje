@@ -46,6 +46,64 @@ public class EditPropertiesTests(ITestOutputHelper output)
             iter: 10000,
             print: s => $"{s.Project}\nOperaciones: {string.Join(" ", s.Ops.Select(o => o.ToString()))}");
 
+    private static readonly Gen<(ProjectSpec Project, OpSpec[] Ops)> GenTitleScenario =
+        Gen.Select(RandomTimeline.GenTitleProject, RandomTimeline.GenOp.Array[1, 40]);
+
+    /// <summary>Las mismas propiedades sobre proyectos con títulos en casi todas las pistas de video (propiedad 10).</summary>
+    [Fact]
+    public void Titulos_CumplenTodasLasReglas() =>
+        GenTitleScenario.Sample(
+            s => RunScenario(s.Project, s.Ops),
+            writeLine: output.WriteLine,
+            iter: 5000,
+            print: s => $"{s.Project}\nOperaciones: {string.Join(" ", s.Ops.Select(o => o.ToString()))}");
+
+    /// <summary>El sorteo con títulos de verdad los corta, recorta y mueve, y rechaza en ellos el slip y la velocidad.</summary>
+    [Fact]
+    public void ElSorteoConTitulos_LosEdita()
+    {
+        var applied = new int[Enum.GetValues<OpKind>().Length];
+        var rejected = new int[Enum.GetValues<OpKind>().Length];
+        GenTitleScenario.Sample(
+            s =>
+            {
+                BuiltProject built = RandomTimeline.Build(s.Project);
+                foreach (OpSpec spec in s.Ops)
+                {
+                    ResolvedOp op = RandomTimeline.Resolve(built, spec);
+                    bool title = op.ClipId is { } id && built.Sequence.FindClip(id)?.Clip.Generator is not null;
+                    if (op.Command is null || !title)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        op.Command.Apply(built.Project);
+                        applied[(int)op.Kind]++;
+                    }
+                    catch (EditException)
+                    {
+                        rejected[(int)op.Kind]++;
+                    }
+                }
+            },
+            iter: 2000,
+            threads: 1);
+
+        output.WriteLine($"aplicadas/rechazadas sobre títulos: {string.Join(", ", Enum.GetValues<OpKind>().Select(k => $"{k} {applied[(int)k]}/{rejected[(int)k]}"))}");
+        foreach (OpKind kind in (OpKind[])[OpKind.Split, OpKind.Trim, OpKind.RippleTrim, OpKind.Roll, OpKind.Slide, OpKind.Move])
+        {
+            Assert.True(applied[(int)kind] > 200, $"{kind} solo se aplicó {applied[(int)kind]} veces sobre un título");
+        }
+
+        foreach (OpKind kind in MaterialEdits)
+        {
+            Assert.Equal(0, applied[(int)kind]);
+            Assert.True(rejected[(int)kind] > 20, $"{kind} solo se intentó {rejected[(int)kind]} veces sobre un título");
+        }
+    }
+
     /// <summary>El sorteo con curvas de verdad corta, recorta y estira clips con curva.</summary>
     [Fact]
     public void ElSorteoConCurvas_CortaRecortaYEstiraCurvas()
@@ -251,6 +309,13 @@ public class EditPropertiesTests(ITestOutputHelper output)
             if (transitions is not null)
             {
                 Fail($"«{op.Text}»: {transitions}");
+            }
+
+            // Propiedad 10: los títulos conservan su contenido y solo pierden bordes cuando algo los parte.
+            string? titles = CheckGenerators(op, group, trackBefore, built.Sequence);
+            if (titles is not null)
+            {
+                Fail($"«{op.Text}»: {titles}");
             }
 
             // Propiedad 4: el historial guarda el estado de cada paso.
@@ -525,6 +590,85 @@ public class EditPropertiesTests(ITestOutputHelper output)
         return null;
     }
 
+    private static readonly OpKind[] MaterialEdits =
+    [
+        OpKind.Slip, OpKind.SetSpeed, OpKind.RateStretch, OpKind.FreezeFrame, OpKind.SetCurve, OpKind.SetReverse,
+        OpKind.SetPreservePitch, OpKind.ApplySpeedPreset,
+    ];
+
+    /// <summary>
+    /// Un grupo con un título no acepta slip ni velocidad; ningún título cambia de contenido ni enciende un borde, y solo
+    /// lo que parte clips (cortar, insertar, sobrescribir o mover insertando) apaga alguno. Al cortar un título, su
+    /// mitad izquierda pierde la salida y la derecha la entrada. Todo título nuevo sale de uno que ya estaba.
+    /// </summary>
+    private static string? CheckGenerators(ResolvedOp op, List<GroupMember> group, Dictionary<string, Track> before, Sequence after)
+    {
+        if (group.Exists(m => m.Generator) && Array.IndexOf(MaterialEdits, op.Kind) >= 0)
+        {
+            return $"{op.Kind} se aplicó a un grupo con un título.";
+        }
+
+        Dictionary<string, ClipGenerator> old = before.Values.SelectMany(t => t.Clips).Where(c => c.Generator is not null)
+            .ToDictionary(c => c.Id, c => c.Generator!, StringComparer.Ordinal);
+        bool splits = op.Kind is OpKind.Split or OpKind.Insert or OpKind.Overwrite or OpKind.InsertMedia or OpKind.Move;
+        foreach (Track track in after.AllTracks)
+        {
+            foreach (Clip clip in track.Clips)
+            {
+                if (clip.Generator is not { } g)
+                {
+                    if (old.ContainsKey(clip.Id))
+                    {
+                        return $"el título «{clip.Id}» perdió su generador.";
+                    }
+
+                    continue;
+                }
+
+                if (!old.TryGetValue(clip.Id, out ClipGenerator? was))
+                {
+                    if (!old.Values.Any(o => o.SameContent(g)))
+                    {
+                        return $"apareció el título «{clip.Id}», que no sale de ninguno de antes.";
+                    }
+
+                    continue;
+                }
+
+                if (!g.SameContent(was))
+                {
+                    return $"el título «{clip.Id}» cambió de contenido.";
+                }
+
+                if ((g.Edges.In && !was.Edges.In) || (g.Edges.Out && !was.Edges.Out))
+                {
+                    return $"el título «{clip.Id}» volvió a encender un borde.";
+                }
+
+                if (!splits && !g.ContentEquals(was))
+                {
+                    return $"{op.Kind} apagó un borde del título «{clip.Id}».";
+                }
+            }
+        }
+
+        if (op.Kind == OpKind.Split)
+        {
+            foreach (GroupMember member in group.Where(m => m.Generator && m.Start < op.At && op.At < m.Start + m.Duration))
+            {
+                Track track = after.GetTrack(member.TrackId);
+                Clip left = track.Clips.Find(c => c.Id == member.ClipId)!;
+                Clip? right = track.Clips.Find(c => c.Start == op.At);
+                if (left.Generator!.Edges.Out || right?.Generator is not { Edges.In: false })
+                {
+                    return $"cortar el título «{member.ClipId}» dejó encendido un borde interno.";
+                }
+            }
+        }
+
+        return null;
+    }
+
     private static bool SameClips(List<Clip> a, List<Clip> b) =>
         a.Count == b.Count && a.Zip(b).All(p => SequenceSnapshot.ClipStateEquals(p.First, p.Second));
 
@@ -630,7 +774,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
             Clip? a = old.ClipAt(t);
             Clip? b = now.ClipAt(t);
             bool same = (a is null && b is null)
-                || (a is not null && b is not null && a.MediaId == b.MediaId && a.ToSourceTime(t) == b.ToSourceTime(t) && a.Enabled == b.Enabled);
+                || (a is not null && b is not null && a.MediaId == b.MediaId && a.ToSourceTime(t) == b.ToSourceTime(t) && a.Enabled == b.Enabled
+                    && (a.Generator is null ? b.Generator is null : b.Generator is not null && a.Generator.SameContent(b.Generator)));
             if (!same)
             {
                 return $"el corte cambió el contenido de la pista «{old.Id}» en {ticks} ticks.";
@@ -641,7 +786,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
     }
 
     /// <summary>Un miembro del grupo enlazado del clip editado, tal como estaba antes de la operación.</summary>
-    private sealed record GroupMember(string TrackId, string ClipId, Time Start, Time Duration, Time SourceIn, Time SourceOut, bool HasPrevious, bool HasNext)
+    private sealed record GroupMember(string TrackId, string ClipId, Time Start, Time Duration, Time SourceIn, Time SourceOut, bool HasPrevious, bool HasNext, bool Generator)
     {
         public static List<GroupMember> Capture(Sequence sequence, string? clipId)
         {
@@ -658,7 +803,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
                 m.Clip.SourceIn,
                 m.Clip.SourceOut,
                 m.Track.Clips.Exists(c => c != m.Clip && c.End == m.Clip.Start),
-                m.Track.Clips.Exists(c => c != m.Clip && c.Start == m.Clip.End)));
+                m.Track.Clips.Exists(c => c != m.Clip && c.Start == m.Clip.End),
+                m.Clip.Generator is not null));
         }
     }
 }

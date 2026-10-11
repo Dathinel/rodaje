@@ -17,6 +17,34 @@ internal static class ModelSamples
         LinkId = linkId,
     };
 
+    /// <summary>Clip de texto (formato 5) sin medio, con el estilo completo de <see cref="FullStyle"/>.</summary>
+    public static Clip MakeTitle(string id, double start, double sourceIn, double sourceOut, string text = "Título") => new()
+    {
+        Id = id,
+        Start = Sec(start),
+        SourceIn = Sec(sourceIn),
+        SourceOut = Sec(sourceOut),
+        Generator = new ClipGenerator { Text = text, Style = FullStyle() },
+    };
+
+    /// <summary>Un estilo con todos los campos opcionales y animaciones de entrada y salida.</summary>
+    public static TextStyle FullStyle() => new()
+    {
+        Source = "rodaje-titulos@1.0.0/clasico",
+        Name = "Clásico",
+        Font = new StyleFont { Family = "Inter", Weight = 700, Source = "rodaje-fuentes@1.0.0/inter", Fallback = ["Segoe UI", "Arial"] },
+        Size = 96,
+        Stroke = new StyleStroke { Color = "#000000", Width = 6 },
+        Shadow = new StyleShadow { Color = "#00000099", Dx = 4, Dy = 6, Blur = 8 },
+        Background = new StyleBackground { Color = "#00000080", Padding = [24, 12], Radius = 12 },
+        In = new StyleAnimation
+        {
+            DurationSeconds = 0.4,
+            Curves = { ["opacity"] = [new StyleKey(0, 0), new StyleKey(0.4, 1, Interpolation.EaseOut)], ["y"] = [new StyleKey(0, 40), new StyleKey(0.4, 0)] },
+        },
+        Out = new StyleAnimation { DurationSeconds = 0.3, Curves = { ["opacity"] = [new StyleKey(0, 1), new StyleKey(0.3, 0)] } },
+    };
+
     /// <summary>Medios AV (60 s) y de audio (30 s), dos pistas de video y una de audio, enlaces y un efecto con keyframes.</summary>
     public static Project ValidProject()
     {

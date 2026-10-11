@@ -25,6 +25,10 @@ public sealed class Track
 
     public bool Hidden { get; set; }
 
+    /// <summary>Función de la pista (<see cref="TrackRoles"/>, formato 5); nula en una pista corriente.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Role { get; set; }
+
     public List<Clip> Clips { get; set; } = [];
 
     /// <summary>Efectos de toda la pista (por ejemplo el volumen); sus keyframes están en tiempo de la secuencia.</summary>
@@ -59,6 +63,7 @@ public sealed class Track
         Muted = other.Muted;
         Locked = other.Locked;
         Hidden = other.Hidden;
+        Role = other.Role;
         Clips = other.Clips.ConvertAll(c => c.Clone());
         Effects = other.Effects.ConvertAll(e => e.Clone());
         Transitions = other.Transitions.ConvertAll(t => t.Clone());
