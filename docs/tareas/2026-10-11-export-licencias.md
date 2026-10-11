@@ -7,7 +7,7 @@ Rama `claude/export-licencias`, PR #15. Solo documentación: `LICENCIAS.md`, `do
 - **`LICENCIAS.md`, sección «Bibliotecas de la exportación (dentro de las DLL de FFmpeg)»:** por cada biblioteca externa que usa la exportación (SVT-AV1, libaom, libvpx, libopus, LAME, kvazaar, OpenH264, libwebp, zlib, encabezados de NVENC, AMF y libvpl): codificador de FFmpeg, commit que fija `scripts.d/` de BtbN (commit `6c9aec5f` de FFmpeg-Builds), licencia leída en el repositorio oficial en ese commit, y qué obliga. Más una nota sobre los codificadores propios de FFmpeg (ProRes, DNxHR, CineForm, FFV1, PNG, MJPEG, QT Animation, GIF, TIFF, EXR, AAC, FLAC, ALAC, PCM) y Media Foundation.
 - **`docs/legal.md`, sección «Exportación: codificadores, licencias y patentes»:** tabla por `ExportCodec` y codificador (quién codifica, licencia, si se redistribuye, patentes), siete obligaciones de copyright y una revisión de quién cubre las patentes de H.264, HEVC y AAC.
 - **`docs/legal.md`, «Lista de comprobación de la exportación»:** 13 puntos al final del documento, tras la lista general.
-- Se comprobó qué hay de verdad en la compilación: `docs/ffmpeg-configure.txt` y `libavcodec/allcodecs.c` del commit `2a571b6068` de FFmpeg tienen los 40 codificadores que nombra el contrato y el catálogo de la tarea 13. FLAC es el nativo, porque no hay `--enable-libflac`.
+- Se comprobó qué hay de verdad en la compilación: `docs/ffmpeg-configure.txt` y `libavcodec/allcodecs.c` del commit `2a571b6068` de FFmpeg tienen todos los codificadores que nombran el contrato y el catálogo de la tarea 13. FLAC es el nativo, porque no hay `--enable-libflac`.
 
 ## Hallazgos que importan
 
