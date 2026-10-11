@@ -210,6 +210,17 @@ public static class Skip
             return null;
         }
 
+        // Si hay un NVENC de más preferencia en el build y el controlador existe pero se eligió otro, la sonda de
+        // NVENC falló (p. ej. por el límite de sesiones): no es una causa concreta, la prueba corre y falla.
+        if (!encoder.EndsWith("_nvenc", StringComparison.Ordinal)
+            && File.Exists(Path.Combine(Environment.SystemDirectory, "nvcuda.dll"))
+            && FfmpegTool.VideoEncoderCandidates(codec)
+                .TakeWhile(c => c != encoder)
+                .Any(c => c.EndsWith("_nvenc", StringComparison.Ordinal) && ffmpeg.IsEncoderListed(c)))
+        {
+            return null;
+        }
+
         string[] options = encoder.EndsWith("_nvenc", StringComparison.Ordinal)
             ? ["-preset", "p2", "-rc", "cbr", "-b:v", "2000k", "-g", "25", "-bf", "2", "-no-scenecut", "1", "-strict_gop", "1"]
             : encoder.EndsWith("_mf", StringComparison.Ordinal)

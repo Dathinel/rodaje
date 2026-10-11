@@ -2,7 +2,7 @@
 
 Rama `claude/ci-windows-verde`, creada desde `origin/main` en `20b4a22`. PR en borrador: https://github.com/Dathinel/rodaje/pull/2.
 
-**Corrida verde:** https://github.com/Dathinel/rodaje/actions/runs/38103917197, sobre `da14ea0`. Pasan los dos trabajos y Windows ya bloquea. El intento 1 falló solo por la prueba de Engine que se anota en «Pendiente».
+**Corrida verde:** https://github.com/Dathinel/rodaje/actions/runs/38103917197, sobre `da14ea0`. Pasan los dos trabajos y Windows ya bloquea.
 
 Parte de `docs/tareas/2026-10-10-ci.md`, que anotó 13 fallos del runner `windows-latest` (sin GPU de verdad, sin NVENC y con 2 núcleos).
 
@@ -54,7 +54,8 @@ Parte de `docs/tareas/2026-10-10-ci.md`, que anotó 13 fallos del runner `window
 En el runner gana `h264_mf`, que solo produce I y P aunque se le pida `-bf 2`.
 
 - `Skip.BFrames(códec)`:
-  - codifica una vez por códec 2 s de `testsrc2` con `-bf 2`, con las mismas opciones de control que `TestMediaGenerator` para esa familia (`_mf`, `libx265` y el resto);
+  - codifica una vez por códec 2 s de `testsrc2` con `-bf 2`, con las opciones de control de `TestMediaGenerator` para cada familia (NVENC, `_mf`, libx264, libx265 y el resto); difiere del generador en la entrada (`testsrc2`, no rawvideo yuv420p), el bitrate, el GOP y las opciones de color, y la rama «resto» añade `-bf 2`;
+  - si hay un NVENC de más preferencia en el build y existe `nvcuda.dll` pero se eligió otro codificador, devuelve `null` (la sonda de NVENC pudo fallar por el límite de sesiones): la prueba corre y falla en vez de omitirse con un motivo engañoso;
   - cuenta los tipos de cuadro con ffprobe.
   - libopenh264 no se omite, como ya hacía la prueba.
 - `[FfmpegFact(RequiresBFrames = true)]` en los cuatro presets con `BFrames = 2`:
@@ -73,23 +74,10 @@ En el runner gana `h264_mf`, que solo produce I y P aunque se le pida `-bf 2`.
   - Mismo arreglo, en el mismo commit. Ahora el escritor en un hilo propio, y se lee al menos 200 000 veces y hasta que el reloj avance.
 - Resultado en Linux: pasan 8 de 8 corridas de todo `Rodaje.Audio.Tests` con 1 y 2 núcleos.
 
-### 5. `ci.yml`: Windows bloquea y excluye solo Render de WARP
+### 5. `ci.yml`: Windows bloquea
 
-- Sin `continue-on-error`.
-- El paso de pruebas añade al filtro un `FullyQualifiedName!=` por cada método de Render que falla en WARP. Las demás pruebas de Render (191 en la última corrida) siguen corriendo.
-- **Desvío de la tarea:** pedía excluir solo las 3 pruebas de Render conocidas, pero main trajo pruebas de efectos de la fase 5 que también fallan en WARP. Son 7 métodos y 15 casos con el main actual (la tabla cuenta 13; main sumó 2 casos de transición):
-
-| Método (`Rodaje.Render.Tests.`) | Casos | Por qué falla en WARP |
-|---|---|---|
-| `CompositorTests.Draws_the_requested_slice_of_a_texture_array` | 1 | E_INVALIDARG al crear el arreglo NV12/P010 con `D3D11_BIND_DECODER` (`YuvImage.cs:115`) |
-| `CompositorPerformanceTests.Reports_gpu_milliseconds_per_frame_for_1_to_8_layers` | 2 | Igual |
-| `EffectPerformanceTests.Eight_plain_1080p_layers_do_not_regress` | 1 | Igual |
-| `EffectPerformanceTests.Three_4k_layers_with_effects_and_half_resolution` | 1 | Igual |
-| `EffectPerformanceTests.A_4k_transition_with_effects` | 4 | Igual |
-| `EffectPerformanceTests.One_4k_layer_with_color_and_lut` | 1 | 199 ms en la GPU de software, más que el tiempo fijado |
-| `EffectFidelityTests.Sharpen_matches_the_unsharp_mask_reference` | 3 | Fidelidad en WARP: el registro muestra píxeles fuera de la tolerancia de ±2 (por ejemplo, 92 frente a 90 ±2). No comprobé caso por caso si alguno es E_INVALIDARG |
-
-Render no se tocó: lo están cambiando los agentes de la fase 5.
+- Sin `continue-on-error` y sin exclusiones por nombre: el filtro es `Categoria!=TiempoReal&Categoria!=Rendimiento`, igual que en Linux. El PR #4 (ya en main) dejó Render sin fallos en WARP: guardia NV12, `EffectPerformanceTests` en `Rendimiento` y tolerancia de Sharpen solo en WARP.
+- Se conserva el `exit $LASTEXITCODE` del paso de pruebas.
 
 ## Pruebas omitidas, antes y después (runner de Windows)
 
@@ -97,13 +85,13 @@ Render no se tocó: lo están cambiando los agentes de la fase 5.
 |---|---|---|---|
 | `Rodaje.Media.Tests` | 25 | 32 | +6 casos de HEVC 10 bits (sin `hevc_nvenc`, el build LGPL no trae HEVC de 10 bits por software); +1 `Corrupted_packets_are_skipped_without_throwing` (solo con `h264_nvenc`, defecto de estado del decodificador, ver punto 2) |
 | `Rodaje.TestMedia.Tests` | 3 | 5 | 2 presets con cuadros B: `h264_mf`, el codificador del runner, solo produce I y P aunque se le pida `-bf 2` |
-| `Rodaje.Render.Tests` | 2 | 2 | `DecoderCompositionTests` (sin D3D11VA en el runner), igual antes y después. Además 15 casos **excluidos por filtro** en `ci.yml`, no omitidos: 206 → 191 casos ejecutados con el main actual |
+| `Rodaje.Render.Tests` | 2 | 4 | `DecoderCompositionTests` (sin D3D11VA en el runner) más `Draws_the_requested_slice_of_a_texture_array` y `CompositorPerformanceTests` por la guardia NV12 del PR #4. Sin exclusiones por filtro |
 
 `Skip.Encoder` omite solo si ffmpeg no trae el codificador o, siendo NVENC, falta `nvcuda.dll`; cualquier otro fallo de la sonda no omite.
 
 Si la sonda de cuadros B falla (por ejemplo, por el límite de sesiones de NVENC), la prueba **no** se omite: corre y falla con su error real.
 
-Causa de cada caso excluido de Render: ver la tabla del punto 5. Seis métodos (10 casos) dan `E_INVALIDARG` por `D3D11_BIND_DECODER` en WARP o superan el tiempo fijado (`One_4k_layer_with_color_and_lut`, 199 ms en WARP). **`EffectFidelityTests.Sharpen_matches_the_unsharp_mask_reference` (3 casos) no es `E_INVALIDARG`:** el registro muestra píxeles fuera de la tolerancia de ±2 (92 frente a 90). La causa probable es la rasterización de WARP, pero no la he podido confirmar desde Linux. La exclusión es temporal hasta la tarea 2 de la cola.
+Sin pruebas de Render excluidas por filtro; la CI de main sin exclusiones da Render 196 casos, 192 pasan, 4 omitidas, 0 fallos.
 
 ## Pendiente
 
@@ -116,12 +104,6 @@ Causa de cada caso excluido de Render: ver la tabla del punto 5. Seis métodos (
   1. Bajar `ffmpeg-n9.0.2-17-g2a571b6068-linux64-lgpl-shared-9.0` de BtbN.
   2. Enlazar `lib*.so.N` como `<lib>-N.dll` y `ffmpeg`/`ffprobe` como `.exe` en `<entorno>/ffmpeg/bin`.
   3. Correr con `RODAJE_ENTORNO=<entorno>`, `LD_LIBRARY_PATH=<lib>` y `-p:EnableWindowsTargeting=true`.
-- **Render en WARP**, para quien lleve Render:
-  - una guardia de `D3D11_BIND_DECODER` en las pruebas que crean arreglos NV12/P010 (`[GpuFact]` mira el muestreo, no el bind de decodificador);
-  - `EffectPerformanceTests` en la categoría `Rendimiento`, como las demás medidas;
-  - decidir si la tolerancia de `Sharpen` debe aguantar la rasterización de WARP.
-
-  Con eso se podría quitar la lista de `ci.yml`.
 - **`FfmpegTool.RunExecutable` falla en Linux** con «Cannot access a closed pipe» en `ReadEncoders`, así que `Skip.Encoder` y `Skip.Encoders` no se pueden comprobar fuera de Windows. No afecta a la CI, que corre TestMedia en Windows.
 
 ## Qué comprobar en el PC de Daniel (RTX 3050)
@@ -132,5 +114,5 @@ Causa de cada caso excluido de Render: ver la tabla del punto 5. Seis métodos (
    - los tres presets de `PresetTests` (`H264Ntsc30BFrames`, `Hevc25Mkv`, `H264Ntsc24Aac`).
 
    Si alguna sale omitida, el motivo dice qué codificador no funcionó.
-2. **Las 7 pruebas de Render excluidas en la CI siguen corriendo y pasando ahí:** `ci.yml` las filtra solo en el runner, y en la RTX 3050 no hay WARP.
+2. **Render:** `ci.yml` ya no excluye ninguna prueba de Render por nombre; en la RTX 3050 deben correr todas.
 3. **El número total de pruebas omitidas no sube** respecto de la última corrida de Daniel, salvo por pruebas nuevas.
