@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #16.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #16, #14.
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -130,7 +130,7 @@ Un `ReverseFrameReader` que entregue los cuadros de un tramo en orden descendent
 
 ## 13. Lista de codificadores para la exportación (base de la fase 6)
 
-- **Estado:** cambios (PR #14: la CI de Windows falla en `FfmpegExportEncoderProbeTests.Useful_lines_fall_back_to_the_non_generic_ones`)
+- **Estado:** hecha (PR #14 unido el 11-oct)
 - **Rama:** `claude/export-codificadores`
 - **Caminos:** archivos NUEVOS en `src/Rodaje.Media/Export/` (carpeta nueva), `tests/Rodaje.Media.Tests/Export/`, `docs/tareas/`.
 - **Lee:** `CLAUDE.md` (sección «Hacia la versión pública»: exportar por GPU o CPU sin separar el programa, licencia LGPL en la v1), `docs/legal.md`, `docs/ffmpeg-configure.txt`, `src/Rodaje.Media/Proxies/ProxyEncoders.cs` (solo lectura).
