@@ -155,4 +155,31 @@ public class SpeedMappingTests
         Assert.Equal("❚❚ Congelado", SpeedBadge.Text(new Clip { Speed = new ClipSpeed { Freeze = true } }));
         Assert.Equal("Curva", SpeedBadge.Text(new Clip { Speed = new ClipSpeed { Curve = new SpeedCurve() } }));
     }
+
+    [Fact]
+    public void ElIndicadorNombraElPreajusteQueCoincide_YDaLaMiniCurvaDelTramo()
+    {
+        foreach (SpeedPreset preset in SpeedPresets.All)
+        {
+            var clip = new Clip { Speed = new ClipSpeed { Curve = SpeedPresets.Curve(preset) } };
+            Assert.Equal(SpeedPresets.Name(preset), SpeedBadge.Text(clip));
+        }
+
+        SpeedCurve own = SpeedPresets.Curve(SpeedPreset.Hero);
+        own.Points[1] = own.Points[1] with { Hundredths = 120 };
+        var custom = new Clip { Speed = new ClipSpeed { Curve = own, Reverse = true } };
+        Assert.Equal("◀ Curva", SpeedBadge.Text(custom));
+
+        var half = new Clip
+        {
+            Duration = Time.FromSeconds(0.5),
+            Speed = new ClipSpeed { Offset = Time.FromSeconds(0.5), Curve = SpeedPresets.Curve(SpeedPreset.Bullet) },
+        };
+        (IReadOnlyList<SpeedPoint> points, double from, double to) = SpeedBadge.CurveShape(half)!.Value;
+        Assert.Equal(SpeedPresets.Points(SpeedPreset.Bullet), points);
+        Assert.Equal((5000.0, 10_000.0), (from, to));
+
+        Assert.Null(SpeedBadge.CurveShape(new Clip { Speed = new ClipSpeed { Rate = new Rational(2, 1) } }));
+        Assert.Null(SpeedBadge.CurveShape(new Clip()));
+    }
 }
