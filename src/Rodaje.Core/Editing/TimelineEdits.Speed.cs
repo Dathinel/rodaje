@@ -50,7 +50,7 @@ public static partial class TimelineEdits
             return;
         }
 
-        Clip primary = TrimmingSupport.ResolveGroup(ctx, clipId)[0].Clip;
+        Clip primary = EditableSpeedGroup(ctx, clipId)[0].Clip;
         SpeedCurve fitted = CoveringCurve(curve, primary.SourceDuration);
         Retime(ctx, clipId, scope, (_, speed) =>
         {
@@ -218,6 +218,7 @@ public static partial class TimelineEdits
         ArgumentNullException.ThrowIfNull(ctx);
         Time length = duration ?? DefaultFreezeDuration;
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
+        TrimmingSupport.EnsureNoGenerator(group, "congelar un cuadro");
         (Track track, Clip primary) = group[0];
         if (track.Kind != TrackKind.Video)
         {
@@ -446,6 +447,7 @@ public static partial class TimelineEdits
     private static List<(Track Track, Clip Clip)> EditableSpeedGroup(EditContext ctx, string clipId)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
+        TrimmingSupport.EnsureNoGenerator(group, "cambiar su velocidad");
         foreach ((Track track, _) in group)
         {
             EditContext.EnsureUnlocked(track);

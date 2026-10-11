@@ -66,7 +66,7 @@ public sealed class RemoveMediaCommand : ICommand
 
         foreach (Sequence sequence in project.Sequences)
         {
-            if (sequence.AllTracks.Any(t => t.Clips.Exists(c => c.MediaId == _mediaId)))
+            if (sequence.AllTracks.Any(t => t.Clips.Exists(c => c.Generator is null && c.MediaId == _mediaId)))
             {
                 throw new EditException(
                     $"El medio «{project.Media[index].Name}» se usa en la secuencia «{sequence.Name}». Quita primero sus clips.");

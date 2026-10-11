@@ -84,7 +84,8 @@ internal static class TrackOps
 
     /// <summary>
     /// Recorta el clip a la izquierda de <paramref name="at"/> y devuelve la derecha sin agregarla a ninguna pista: un
-    /// identificador nuevo, un enlace derivado, la misma velocidad y copias de los efectos.
+    /// identificador nuevo, un enlace derivado, la misma velocidad y copias de los efectos. En un generador el corte es un
+    /// borde interno: la izquierda pierde la salida y la derecha la entrada (D-029), así el corte no parpadea.
     /// </summary>
     public static Clip SplitOff(EditContext ctx, Clip clip, Time at)
     {
@@ -101,6 +102,12 @@ internal static class TrackOps
         (ClipTimeMap leftMap, ClipTimeMap rightMap) = clip.TimeMap.SplitAt(at);
         rightMap.ApplyTo(right);
         leftMap.ApplyTo(clip);
+        if (clip.Generator is { } generator)
+        {
+            generator.Edges.Out = false;
+            right.Generator!.Edges.In = false;
+        }
+
         return right;
     }
 
