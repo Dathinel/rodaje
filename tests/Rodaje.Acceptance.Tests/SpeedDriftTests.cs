@@ -65,6 +65,20 @@ public sealed class SpeedDriftTests(ITestOutputHelper output)
         Audio("montaje", SpeedTimeline.BuildRepeated(MediaPath, SpeedPreset.Montage, Length, MontageMaterial), 2.5, preservePitch: true,
             MaxMontageMeanErrorMs);
 
+    /// <summary>Reversa a 1× durante 10 minutos: cada refresco muestra el cuadro que manda el mapeo hacia atrás.</summary>
+    [FfmpegLibraryFact(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true)]
+    public void Video_reversa_diez_minutos_sin_deriva() =>
+        Video("reversa", SpeedTimeline.Build(MediaPath, SpeedCase.Named("reversa"), withAudio: true, Length));
+
+    /// <summary>
+    /// Reversa a 1× durante 10 minutos, como cinta: cada chirp suena al revés (se busca con la plantilla invertida) donde
+    /// el mapeo pone su final.
+    /// </summary>
+    [FfmpegLibraryFact(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true)]
+    public void Audio_reversa_diez_minutos_sin_deriva() =>
+        Audio("reversa", SpeedTimeline.Build(MediaPath, SpeedCase.Named("reversa"), withAudio: true, Length, preservePitch: false), 1,
+            preservePitch: false);
+
     /// <summary>El recorrido de video sobre un clip sin velocidad: comprueba la medida con el motor de hoy.</summary>
     [FfmpegLibraryFact(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true)]
     public void Control_video_sin_velocidad() =>
@@ -162,6 +176,10 @@ public sealed class SpeedDriftTests(ITestOutputHelper output)
         using TimelineSession session = ManualClockBackend.Open(timeline.Project, backend, audio: true);
         float[] mono = ReadMix(session, backend, (int)(timeline.End.ToSeconds() * Rate));
         float[] template = RetimedAudioCode.ChirpTemplate(Rate, rate, preservePitch);
+        if (timeline.Map.Reverse)
+        {
+            Array.Reverse(template);
+        }
         int near = Rate / 20;
         int period = (int)(Rate / rate);
 
