@@ -13,7 +13,7 @@ Sin paquete MSIX, autocontenida y con Native AOT (el [sondeo](../archivo/sondeo-
 | `Services/` | `EditorSession`, `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), inspector y velocidad (`Inspector/`: `SpeedEditor`, `SpeedMath`, `SpeedCommands`; los atajos de velocidad están en `EditorSession.Speed`), efectos y contenido (`Effects/`), miniaturas y formas de onda (`Media/`), complementos (`Packages/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs`, `EditorNotification` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
 | `Views/Timeline/Logic/` | La lógica de la línea de tiempo (ventana, regla, filas, clic, ajuste, arrastres, soltar medios) | **No**: también la compilan las pruebas |
 | `Shell/` | `MainWindow` (distribución, páginas modales y barra de avisos), `TitleBar`, `KeyboardShortcutHost`, `PaneSplitter`, `DialogGate` (un solo `ContentDialog` a la vez), `ShellDialogs` y `FileDialogs`, `EditorServices` e `IEditorView`, `MeasurementRun`, `MeasurementScenarios` | Sí |
-| `Theme/` | `Palette.xaml` (colores de D-018 y claves de WinUI redefinidas), `Typography.xaml`, `Controls.xaml` (esquinas de 2 px y transiciones de 60 ms) | Sí |
+| `Theme/` | `Palette.xaml` (colores de D-018 con el contraste de D-027 y claves de WinUI redefinidas), `Typography.xaml`, `Controls.xaml` (esquinas de 2 px y transiciones de 60 ms) | Sí |
 | `Views/<Área>/` | Una vista por carpeta: `Library`, `Player`, `Meters`, `Inspector`, `Timeline`, `Shortcuts`, `Plugins` | Sí |
 
 ## Cómo se habla con el editor
@@ -48,7 +48,7 @@ flowchart LR
 
 ## Ajustes (`Services/Settings`)
 
-`ajustes.json` guarda carpetas, recientes, tamaños de paneles y ventana, estilo de atajos, proxies, caída de los medidores, márgenes seguros y las preferencias de la línea de tiempo. `ajustes.json` y `atajos.json` se escriben de forma atómica; si están dañados, se apartan con el sufijo `.dañado` y se avisa. Un estilo de atajos desconocido vuelve a Rodaje sin dar el archivo por dañado.
+`ajustes.json` guarda carpetas, recientes, tamaños de paneles (de fábrica, biblioteca 280 px y panel derecho 380 px; con la ventana estrecha ceden, primero la biblioteca, para que el reproductor conserve sus 320 px y nada se salga, y vuelven al ensancharla) y ventana, estilo de atajos, proxies, caída de los medidores, márgenes seguros y las preferencias de la línea de tiempo. `ajustes.json` y `atajos.json` se escriben de forma atómica; si están dañados, se apartan con el sufijo `.dañado` y se avisa. Un estilo de atajos desconocido vuelve a Rodaje sin dar el archivo por dañado.
 
 ## Miniaturas y formas de onda (`Services/Media`)
 

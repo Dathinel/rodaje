@@ -57,13 +57,14 @@ internal sealed class ClipVisual
     private readonly Polyline _envelope = new() { StrokeThickness = 1.5 };
     private readonly Path _envelopePoints = new() { StrokeThickness = 1 };
     private readonly Path _keys = new();
-    private readonly TextBlock _name = new() { FontSize = 11, TextWrapping = TextWrapping.NoWrap };
+    private readonly TextBlock _name = new() { FontSize = 11, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Border _badge = new() { Padding = new Thickness(4, 0, 4, 1), Height = NameHeight - 1 };
     private readonly TextBlock _badgeText = new() { FontSize = 10, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
 
     // Hueco de la mini curva de la fase 5c.2, a la derecha del texto del indicador.
     private readonly Path _badgeCurve = new() { Width = 16, Visibility = Visibility.Collapsed };
     private double _badgeWidth;
+    private double _badgeLeft;
     private readonly RectangleGeometry _bounds = new();
 
     public ClipVisual(TimelineBrushes brushes)
@@ -74,7 +75,7 @@ internal sealed class ClipVisual
         _wave.Fill = brushes.Waveform;
         _keys.Fill = brushes.Keyframe;
         _keys.Stroke = brushes.Background;
-        _keys.StrokeThickness = 1;
+        _keys.StrokeThickness = 1.5;
         _envelope.Stroke = brushes.Text;
         _envelopePoints.Fill = brushes.Text;
         _envelopePoints.Stroke = brushes.Background;
@@ -86,6 +87,17 @@ internal sealed class ClipVisual
         badgeRow.Children.Add(_badgeText);
         badgeRow.Children.Add(_badgeCurve);
         _badge.Child = badgeRow;
+        // Medido fuera del árbol el indicador puede dar 0 y el nombre quedaría debajo: al conocer su ancho real se corre el nombre.
+        _badge.SizeChanged += (_, e) =>
+        {
+            if (Math.Abs(e.NewSize.Width - _badgeWidth) < 0.5 || _badge.Visibility != Visibility.Visible)
+            {
+                return;
+            }
+
+            _badgeWidth = e.NewSize.Width;
+            PlaceName(_badgeLeft + _badgeWidth + 2, Root.Width);
+        };
         Root.Children.Add(_body);
         Root.Children.Add(_edge);
         Root.Children.Add(_strip);
@@ -93,11 +105,12 @@ internal sealed class ClipVisual
         Root.Children.Add(_wave);
         Root.Children.Add(_envelope);
         Root.Children.Add(_envelopePoints);
-        Root.Children.Add(_keys);
         Root.Children.Add(_name);
         Root.Children.Add(_badge);
         Root.Children.Add(_veil);
         Root.Children.Add(_outline);
+        // Encima del velo y del contorno: los rombos se ven igual en cualquier estado del clip o de la pista.
+        Root.Children.Add(_keys);
         _veil.Background = brushes.Background;
         _thumbs.Clip = _thumbsBounds;
         _wave.Clip = _waveBounds;
@@ -199,8 +212,20 @@ internal sealed class ClipVisual
         _name.Visibility = Visibility.Visible;
         if (!string.Equals(_name.Text, d.Name, StringComparison.Ordinal))
         {
-            // Sin recorte con puntos: el bloque ya recorta el texto y así cambiar el zoom no vuelve a medirlo.
             _name.Text = d.Name;
+        }
+
+        PlaceName(left, d.Width);
+    }
+
+    private void PlaceName(double left, double width)
+    {
+        double room = Math.Max(0, width - left - 4);
+
+        // Puntos suspensivos en vez de un corte seco; se vuelve a medir solo si el hueco cambia de verdad (no en cada paso del zoom estirado).
+        if (Math.Abs(_name.MaxWidth - room) >= 1)
+        {
+            _name.MaxWidth = room;
         }
 
         _bounds.Rect = new Rect(0, 0, room, NameHeight + 2);
@@ -232,6 +257,7 @@ internal sealed class ClipVisual
         }
 
         _badge.Visibility = Visibility.Visible;
+        _badgeLeft = left;
         Canvas.SetLeft(_badge, left - 2);
         Canvas.SetTop(_badge, 1);
         return left + _badgeWidth + 2;
@@ -423,7 +449,7 @@ internal sealed class ClipVisual
             return;
         }
 
-        const double r = 4;
+        const double r = 5;
         double y = d.Height - r - 3;
         var group = new GeometryGroup();
         foreach (Time time in times)

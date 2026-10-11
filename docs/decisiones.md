@@ -292,3 +292,15 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - **Magnetismo al cambiar la velocidad** (Daniel, 11 de octubre, revisado el mismo día): en cualquier pista, si el clip se acorta por velocidad (`SetSpeed`, `RateStretch`, `SetCurve`) el siguiente se une y la transición del corte se queda; si crece, respeta los huecos y solo empuja lo que pisa, lo justo (arrastrar a pasos da lo mismo que de una vez). `FreezeFrame` inserta y corre siempre. Los comandos reciben el `RippleScope` de la sesión: con el de pista, cada pista del grupo se corre con su propio Δ; con «todas las pistas», todas (y los marcadores en ese modo) con un mismo Δ. A 1× «mantener tono» no se toca.
 
 **Consecuencias.** Un proyecto guardado con la fase 5c no abre en versiones anteriores (la `.bak` conserva el formato 3). Un clip con velocidad no puede pasar de unas 6,9 horas en la línea de tiempo. Las lecturas directas de `SourceIn`/`SourceOut` fuera del núcleo siguen bien a 1× y las cambian los agentes de la fase.
+
+## D-027. Inspector en secciones y tema grafito con más contraste (11 de octubre de 2026)
+
+**Contexto.** Daniel probó la app: en Propiedades los nombres se solapaban con los números («Posición X 2 keyfram»), la transformación se sentía llena y, aunque el tema se ve profesional, las capas de gris casi iguales (fondo, paneles, campos y botones a 1,03–1,1:1 entre sí y bordes a 1,2:1) se confunden para quien no está acostumbrado.
+
+**Decisión.**
+- **Propiedades en secciones plegables** con encabezado: «Posición y tamaño», «Opacidad y mezcla» (el modo de mezcla pasa de Filtros a aquí, porque es del clip y no un filtro) y «Audio». Una fila por parámetro con etiqueta de ancho fijo, puntos suspensivos y ayuda; restablecer y el rombo atenuados hasta pasar el ratón; la navegación de keyframes y la curva solo aparecen si el parámetro está animado. «Restablecer todo» y «Guardar como transición…» van al menú «⋯» (D-024 sigue igual: mismos avisos y un paso del historial).
+- **Contraste medido (WCAG AA)** en `Palette.xaml`, sin tocar el acento: texto ≥ 4,5:1, texto secundario y desactivado ≥ 3:1, y bordes de campos, botones y desplegables ≥ 3:1 contra el panel (`ControlBorderBrush`). Las superficies se separan con escalones de luminosidad claros (fondo #101010, panel #1D1D1D, cabeceras #262626, controles #2C2C2C, encima #3A3A3A, pulsado #4A4A4A: los botones siguen iluminándose al pulsarlos).
+
+- **Ajustes de Daniel tras verlo (11 de octubre):** las pestañas nunca se cortan (íconos y, si hace falta, desplazamiento horizontal); el panel derecho arranca en 380 px (ajustes versión 2: quien tenía menos pasa a 380) y los paneles laterales ceden con la ventana estrecha; los rombos de keyframes se ven siempre igual (lleno si hay animación y un recuadro para el del cursor, nunca transparencia); Filtros, Velocidad y Transición usan las mismas secciones y filas que Propiedades, y las listas marcan lo elegido en gris en vez de naranja.
+
+**Consecuencias.** Más bordes visibles en toda la app. Con el panel en 320 px cada parámetro ocupa dos líneas; desde 340 px, una.

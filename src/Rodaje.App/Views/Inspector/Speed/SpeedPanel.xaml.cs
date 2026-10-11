@@ -38,15 +38,19 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
 
         foreach (Rational rate in SpeedPresets.Quick)
         {
+            // Columnas iguales: con el panel estrecho los botones se encogen en vez de salirse.
             var button = new Button
             {
                 Content = SpeedMath.FormatRate(rate),
-                Padding = new Thickness(8, 2, 8, 2),
+                Padding = new Thickness(2, 2, 2, 2),
                 MinWidth = 0,
                 FontSize = 12,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
                 Tag = rate,
             };
             button.Click += OnQuickClick;
+            QuickPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Grid.SetColumn(button, QuickPanel.Children.Count);
             QuickPanel.Children.Add(button);
         }
     }
@@ -55,6 +59,8 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
     {
         ArgumentNullException.ThrowIfNull(services);
         _editor = new SpeedEditor(services.Session, SpeedCommands.Default);
+        RateSection.Remember(services.Settings);
+        MoreSection.Remember(services.Settings);
         EditorSession session = services.Session;
         session.SelectionChanged += (_, _) => Refresh();
         session.ProjectEdited += (_, _) => Refresh();
@@ -94,6 +100,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         SpeedState state = editor.Read(clip);
         _updating = true;
         ClipTitle.Text = editor.Session.Project.FindMedia(clip.MediaId)?.Name ?? "";
+        ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
         if (!editor.IsChanging)
         {
             RateSlider.Value = SpeedMath.ToSlider(state.Rate.ToDouble());

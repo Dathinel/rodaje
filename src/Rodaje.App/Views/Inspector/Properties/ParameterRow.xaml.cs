@@ -21,11 +21,15 @@ internal sealed partial class ParameterRow : UserControl
 {
     private static readonly TimeSpan KeyboardSettle = TimeSpan.FromMilliseconds(350);
 
+    /// <summary>Por debajo de este ancho el deslizador baja a su propia línea (le quedarían menos de ~100 px).</summary>
+    private const double OneLineMinWidth = 340;
+
     private readonly DispatcherQueueTimer _settle;
     private ParameterSpec? _spec;
     private bool _updating;
     private bool _pointerDown;
     private bool _changing;
+    private bool? _oneLine;
 
     public ParameterRow()
     {
@@ -44,6 +48,8 @@ internal sealed partial class ParameterRow : UserControl
         ValueSlider.AddHandler(PointerReleasedEvent, new PointerEventHandler((_, _) => EndPointer()), true);
         ValueSlider.AddHandler(PointerCaptureLostEvent, new PointerEventHandler((_, _) => EndPointer()), true);
         ValueSlider.LostFocus += (_, _) => FinishChange();
+        SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width);
+        ApplyLayout(0);
     }
 
     /// <summary>Valor del modelo mientras se arrastra o se usa el teclado sobre el deslizador.</summary>
@@ -68,12 +74,18 @@ internal sealed partial class ParameterRow : UserControl
 
     public bool IsChanging => _changing;
 
-    public void Configure(ParameterSpec spec)
+    /// <param name="spec">El parámetro.</param>
+    /// <param name="label">Etiqueta más corta que la del registro (en una sección que ya da el contexto).</param>
+    /// <param name="axis">Eje a la derecha de la etiqueta: «X» e «Y» de la posición, en dos filas seguidas.</param>
+    public void Configure(ParameterSpec spec, string? label = null, string? axis = null)
     {
         ArgumentNullException.ThrowIfNull(spec);
         _spec = spec;
         _updating = true;
-        LabelText.Text = spec.Label;
+        LabelText.Text = label ?? spec.Label;
+        AxisText.Text = axis ?? "";
+        AxisText.Visibility = axis is null ? Visibility.Collapsed : Visibility.Visible;
+        ToolTipService.SetToolTip(LabelArea, spec.Label);
         UnitText.Text = spec.Unit;
         ValueSlider.Minimum = spec.Minimum;
         ValueSlider.Maximum = spec.Maximum;
@@ -82,16 +94,16 @@ internal sealed partial class ParameterRow : UserControl
         ValueSlider.LargeChange = spec.Step * 10;
         ValueBox.SmallChange = spec.Step;
         ValueBox.NumberFormatter = Formatter(spec.Decimals);
-        Visibility keyframes = spec.Animatable ? Visibility.Visible : Visibility.Collapsed;
-        PreviousButton.Visibility = keyframes;
-        KeyframeButton.Visibility = keyframes;
-        NextButton.Visibility = keyframes;
+        KeyframeButton.Visibility = spec.Animatable ? Visibility.Visible : Visibility.Collapsed;
+        string keyframeHelp = "Añadir o quitar keyframe de " + char.ToLowerInvariant(spec.Label[0]) + spec.Label[1..] + " en el cursor";
+        ToolTipService.SetToolTip(KeyframeButton, keyframeHelp);
+        AutomationProperties.SetName(KeyframeButton, keyframeHelp);
         AutomationProperties.SetName(ValueSlider, spec.Label);
         AutomationProperties.SetName(ValueBox, spec.Label);
         string reset = spec.ResetDescription;
         ToolTipService.SetToolTip(ResetButton, reset);
         AutomationProperties.SetName(ResetButton, reset);
-        ClearKeyframesItem.Visibility = keyframes;
+        ClearKeyframesItem.Visibility = spec.Animatable ? Visibility.Visible : Visibility.Collapsed;
         _updating = false;
     }
 
@@ -123,8 +135,8 @@ internal sealed partial class ParameterRow : UserControl
             1 => "1 keyframe",
             int n => n.ToString(CultureInfo.InvariantCulture) + " keyframes",
         };
-        DiamondHere.Visibility = state.KeyframeHere is not null ? Visibility.Visible : Visibility.Collapsed;
-        DiamondAnimated.Visibility = state.IsAnimated && state.KeyframeHere is null ? Visibility.Visible : Visibility.Collapsed;
+        HereRing.Visibility = state.KeyframeHere is not null ? Visibility.Visible : Visibility.Collapsed;
+        DiamondAnimated.Visibility = state.IsAnimated ? Visibility.Visible : Visibility.Collapsed;
         DiamondEmpty.Visibility = state.IsAnimated ? Visibility.Collapsed : Visibility.Visible;
         KeyframeButton.IsEnabled = playheadInside;
         PreviousButton.IsEnabled = state.Previous is not null;
@@ -132,6 +144,7 @@ internal sealed partial class ParameterRow : UserControl
         ResetButton.IsEnabled = !state.IsDefault(spec.DefaultValue);
         ResetItem.IsEnabled = ResetButton.IsEnabled;
         ClearKeyframesItem.IsEnabled = state.IsAnimated;
+        KeyframeStrip.Visibility = state.IsAnimated && spec.Animatable ? Visibility.Visible : Visibility.Collapsed;
 
         if (state.KeyframeHere is { } here)
         {
@@ -170,6 +183,26 @@ internal sealed partial class ParameterRow : UserControl
             RoundingAlgorithm = Windows.Globalization.NumberFormatting.RoundingAlgorithm.RoundHalfAwayFromZero,
         },
     };
+
+    // Con el panel ancho todo va en una línea; estrecho, el deslizador ocupa la segunda línea entera.
+    private void ApplyLayout(double width)
+    {
+        bool oneLine = width >= OneLineMinWidth;
+        if (_oneLine == oneLine)
+        {
+            return;
+        }
+
+        _oneLine = oneLine;
+        Grid.SetColumnSpan(LabelArea, oneLine ? 1 : 2);
+        Grid.SetRow(ValueSlider, oneLine ? 0 : 1);
+        Grid.SetColumn(ValueSlider, oneLine ? 1 : 0);
+        Grid.SetColumnSpan(ValueSlider, oneLine ? 1 : 4);
+        ValueSlider.Margin = oneLine ? new Thickness(2, -6, 4, -6) : new Thickness(0, -4, 4, -6);
+        Grid.SetRow(KeyframeStrip, oneLine ? 1 : 2);
+        Grid.SetColumn(KeyframeStrip, oneLine ? 1 : 0);
+        Grid.SetColumnSpan(KeyframeStrip, oneLine ? 5 : 6);
+    }
 
     private void EndPointer()
     {

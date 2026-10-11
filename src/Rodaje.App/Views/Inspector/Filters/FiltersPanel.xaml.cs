@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
@@ -23,6 +24,9 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
         EffectId = effect.Id;
         Name = EffectCatalog.DisplayName(effect.Type);
         IsEnabled = effect.Enabled;
+        IsDisabled = !effect.Enabled;
+        EnabledGlyph = effect.Enabled ? "" : "";
+        EnabledTip = (effect.Enabled ? "Desactivar «" : "Activar «") + Name + "»";
         TextOpacity = effect.Enabled ? 1 : 0.5;
         Note = support switch
         {
@@ -45,6 +49,12 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
     public string Name { get; }
 
     public bool IsEnabled { get; }
+
+    public bool IsDisabled { get; }
+
+    public string EnabledGlyph { get; }
+
+    public string EnabledTip { get; }
 
     public double TextOpacity { get; }
 
@@ -91,10 +101,6 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     public FiltersPanel()
     {
         InitializeComponent();
-        foreach ((_, string name) in EffectUi.BlendModes)
-        {
-            BlendBox.Items.Add(name);
-        }
     }
 
     public ObservableCollection<FilterItem> Items { get; } = [];
@@ -103,6 +109,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     {
         ArgumentNullException.ThrowIfNull(services);
         _services = services;
+        StackSection.Remember(services.Settings);
         EditorSession session = services.Session;
         _editor = new ClipPropertyEditor(session);
         session.SelectionChanged += (_, _) => Refresh();
@@ -162,7 +169,6 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             _effectId = null;
             Items.Clear();
             NoFiltersText.Visibility = Visibility.Collapsed;
-            BlendRow.Visibility = Visibility.Collapsed;
             Details.Visibility = Visibility.Collapsed;
             return;
         }
@@ -177,6 +183,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         _clipId = clip.Id;
         _shownPosition = session.Position;
         ClipTitle.Text = session.Project.FindMedia(clip.MediaId)?.Name ?? "Clip";
+        ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
         if (_kind != track.Kind || _addable.Count == 0)
         {
             _kind = track.Kind;
@@ -192,21 +199,8 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             _updating = false;
         }
 
-        ShowBlend(track, clip);
         ShowList(track, clip);
         ShowDetails(clip);
-    }
-
-    private void ShowBlend(Track track, Clip clip)
-    {
-        BlendRow.Visibility = track.Kind == TrackKind.Video ? Visibility.Visible : Visibility.Collapsed;
-        string mode = ClipPropertyEditor.FindEffect(clip, BuiltInEffects.Blend) is { } blend
-            ? blend.Options.GetValueOrDefault(BuiltInEffects.BlendOptions.Mode, "normal")
-            : "normal";
-        int index = EffectRegistry.BlendModes.IndexOf(mode);
-        _updating = true;
-        BlendBox.SelectedIndex = Math.Max(0, index);
-        _updating = false;
     }
 
     private void ShowList(Track track, Clip clip)
@@ -237,6 +231,13 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         List.SelectedItem = Items.FirstOrDefault(i => i.EffectId == _effectId);
         _updating = false;
         NoFiltersText.Visibility = next.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        int active = next.Count(i => i.IsEnabled);
+        StackSection.Summary = next.Count switch
+        {
+            0 => "ninguno",
+            1 => active == 1 ? "1 filtro" : "1 filtro, desactivado",
+            _ => active == next.Count ? $"{next.Count} filtros" : $"{next.Count} filtros, {active} activos",
+        };
     }
 
     private void ShowDetails(Clip clip)
@@ -249,7 +250,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
 
         Details.Visibility = Visibility.Visible;
-        DetailsTitle.Text = EffectUi.Name(effect.Type);
+        DetailsSection.Title = EffectUi.Name(effect.Type);
         EffectDefinition? definition = EffectRegistry.Find(effect.Type);
         Sequence sequence = _services.Session.Sequence;
         var context = new ParameterSpec.Context(sequence.Width, sequence.Height, clip.Duration.ToSeconds());
@@ -267,7 +268,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             row.Show(state, inside);
         }
 
-        DetailsKeyframes.Text = keyframes == 0 ? "" : KeyframeDialog.Count(keyframes);
+        DetailsSection.KeyframeSummary = keyframes == 0 ? "" : KeyframeDialog.Count(keyframes);
         ResetAllButton.Visibility = _rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ResetAllButton.IsEnabled = ClipPropertyEditor.CanReset(clip, effect.Type, Defaults(), effect.Id);
 
@@ -275,7 +276,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         {
             null => "Este filtro es de un complemento que no está instalado: se conserva en el proyecto sin aplicarse.",
             { Stage: EffectStage.Deferred } => "Se guarda con el proyecto; el motor todavía no lo aplica.",
-            { Type: BuiltInEffects.Blend } => "El modo se elige arriba, en «Modo de mezcla».",
+            { Type: BuiltInEffects.Blend } => "El modo se elige en Propiedades, sección «Opacidad y mezcla».",
             _ => "",
         };
         if (effect.Options.TryGetValue(BuiltInEffects.CommonOptions.Source, out string? source))
@@ -401,21 +402,6 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
     }
 
-    private void OnBlendSelected(object sender, SelectionChangedEventArgs e)
-    {
-        if (_updating || BlendBox.SelectedIndex < 0)
-        {
-            return;
-        }
-
-        string mode = EffectRegistry.BlendModes[BlendBox.SelectedIndex];
-        if (CurrentClip() is { } clip
-            && (ClipPropertyEditor.FindEffect(clip, BuiltInEffects.Blend)?.Options.GetValueOrDefault(BuiltInEffects.BlendOptions.Mode, "normal") ?? "normal") != mode)
-        {
-            Run((sequence, clipId) => EffectCommands.SetBlendMode(sequence, clipId, mode));
-        }
-    }
-
     private void OnLutSelected(object sender, SelectionChangedEventArgs e)
     {
         if (_updating || LutBox.SelectedIndex < 0 || _effectId is not { } effectId || _services is null)
@@ -477,9 +463,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
     private void OnEnabledClick(object sender, RoutedEventArgs e)
     {
-        if (sender is CheckBox { Tag: string effectId } box)
+        if (sender is ToggleButton { Tag: string effectId } toggle)
         {
-            bool enabled = box.IsChecked == true;
+            bool enabled = toggle.IsChecked != true;
             Run((sequence, clip) => Edits.SetEffectEnabled(sequence, clip, effectId, enabled));
         }
     }

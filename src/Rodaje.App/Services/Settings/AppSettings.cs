@@ -6,7 +6,12 @@ namespace Rodaje.App.Services.Settings;
 /// <summary>Preferencias de la persona que sobreviven entre sesiones (<c>ajustes.json</c>).</summary>
 public sealed class AppSettings
 {
-    public const int CurrentVersion = 1;
+    /// <summary>2: el panel derecho pasa a 380 px por defecto para que sus pestañas quepan con nombre.</summary>
+    public const int CurrentVersion = 2;
+
+    public const double DefaultLibraryWidth = 280;
+
+    public const double DefaultInspectorWidth = 380;
     public const int MaxRecentProjects = 10;
 
     public int Version { get; set; } = CurrentVersion;
@@ -20,9 +25,9 @@ public sealed class AppSettings
     public List<string> RecentProjects { get; set; } = [];
 
     /// <summary>Ancho de la biblioteca (con el riel de íconos), en píxeles independientes del DPI.</summary>
-    public double LibraryWidth { get; set; } = 320;
+    public double LibraryWidth { get; set; } = DefaultLibraryWidth;
 
-    public double InspectorWidth { get; set; } = 320;
+    public double InspectorWidth { get; set; } = DefaultInspectorWidth;
 
     public double TimelineHeight { get; set; } = 300;
 
@@ -49,6 +54,9 @@ public sealed class AppSettings
     /// <summary>El reproductor muestra los márgenes seguros de acción y de títulos.</summary>
     public bool ShowSafeAreas { get; set; }
 
+    /// <summary>Secciones del inspector abiertas (true) o plegadas (false); las que faltan siguen su valor de fábrica.</summary>
+    public Dictionary<string, bool> InspectorSections { get; set; } = [];
+
     /// <summary>Interruptores y zoom de la línea de tiempo.</summary>
     public TimelinePreferences Timeline { get; set; } = new();
 
@@ -67,8 +75,14 @@ public sealed class AppSettings
     /// <summary>Corrige lo que no tenga sentido (un archivo editado a mano, o de otra pantalla).</summary>
     public void Normalize()
     {
-        LibraryWidth = Clamp(LibraryWidth, 220, 900, 320);
-        InspectorWidth = Clamp(InspectorWidth, 240, 900, 320);
+        if (Version < 2)
+        {
+            InspectorWidth = Math.Max(InspectorWidth, DefaultInspectorWidth);
+            Version = CurrentVersion;
+        }
+
+        LibraryWidth = Clamp(LibraryWidth, 220, 900, DefaultLibraryWidth);
+        InspectorWidth = Clamp(InspectorWidth, 240, 900, DefaultInspectorWidth);
         TimelineHeight = Clamp(TimelineHeight, 160, 1400, 300);
         WindowWidth = WindowWidth == 0 ? 0 : Clamp(WindowWidth, 800, 10000, 0);
         WindowHeight = WindowHeight == 0 ? 0 : Clamp(WindowHeight, 560, 10000, 0);
@@ -79,6 +93,7 @@ public sealed class AppSettings
             ShortcutPreset = ShortcutPreset.Rodaje;
         }
 
+        InspectorSections ??= [];
         Timeline ??= new TimelinePreferences();
         Timeline.Normalize();
         if (!Enum.IsDefined(ProxyUsage))

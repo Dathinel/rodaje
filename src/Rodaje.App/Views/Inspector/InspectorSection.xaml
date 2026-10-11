@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sección plegable del inspector: cabecera con flecha, título, resumen (plegada), keyframes y botones propios; debajo, el contenido. -->
+<UserControl
+    x:Class="Rodaje.App.Views.Inspector.InspectorSection"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <StackPanel>
+        <Grid Height="34" Padding="4,0,8,0" ColumnSpacing="6" Background="{StaticResource BarBrush}"
+              BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Button x:Name="ToggleButton" Style="{StaticResource ToolButtonStyle}" Width="NaN" Height="30" Padding="4,0"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" FontFamily="{StaticResource UiFontFamily}"
+                    FontSize="{StaticResource BodyFontSize}" Click="OnToggleClick">
+                <Grid ColumnSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="Chevron" Text="&#xE70D;" FontFamily="{StaticResource IconFontFamily}" FontSize="10"
+                               Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="TitleText" Grid.Column="1" Style="{StaticResource PanelTitleTextStyle}" />
+                    <TextBlock x:Name="SummaryText" Grid.Column="2" Style="{StaticResource CaptionTextStyle}" Margin="2,0,0,0" Visibility="Collapsed" />
+                </Grid>
+            </Button>
+            <TextBlock x:Name="KeyframeText" Grid.Column="1" Style="{StaticResource CaptionTextStyle}"
+                       Foreground="{StaticResource KeyframeBrush}" TextTrimming="None" />
+            <ContentPresenter x:Name="ActionsHost" Grid.Column="2" VerticalAlignment="Center" />
+        </Grid>
+        <ContentPresenter x:Name="BodyHost" Padding="0,4,0,8" />
+    </StackPanel>
+</UserControl>

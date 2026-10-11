@@ -1,14 +1,17 @@
+using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Shell;
+using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Views.Inspector.Properties;
 
-/// <summary>Propiedades del clip seleccionado: transformación animable con keyframes y audio.</summary>
+/// <summary>Propiedades del clip seleccionado: transformación animable con keyframes, modo de mezcla y audio.</summary>
 internal sealed partial class PropertiesPanel : UserControl, IEditorView
 {
     private const string DefaultPresetName = "Mi transición";
@@ -23,13 +26,20 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     private (int Width, int Height) _transformRange;
     private double _audioRange = -1;
     private Time _shownPosition;
+    private bool _updatingBlend;
 
     public PropertiesPanel()
     {
         InitializeComponent();
         _videoRows = [XRow, YRow, ScaleRow, RotationRow, OpacityRow];
         _audioRows = [GainRow, FadeInRow, FadeOutRow];
+        foreach ((_, string name) in EffectUi.BlendModes)
+        {
+            BlendBox.Items.Add(name);
+        }
     }
+
+    private IEnumerable<ParameterRow> PlacementRows => _videoRows.Take(4);
 
     public void Attach(EditorServices services)
     {
@@ -47,6 +57,10 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             row.ResetRequested += OnRowReset;
             row.KeyframesClearRequested += OnRowClearKeyframes;
         }
+
+        PlacementSection.Remember(services.Settings);
+        OpacitySection.Remember(services.Settings);
+        AudioSection.Remember(services.Settings);
 
         EditorSession session = services.Session;
         session.SelectionChanged += (_, _) => Refresh();
@@ -95,9 +109,14 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
         Clip titled = (video ?? audio)!;
         ClipTitle.Text = session.Project.FindMedia(titled.MediaId)?.Name ?? "";
-        VideoSection.Visibility = video is null ? Visibility.Collapsed : Visibility.Visible;
+        ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
+        Visibility videoVisible = video is null ? Visibility.Collapsed : Visibility.Visible;
+        PlacementSection.Visibility = videoVisible;
+        OpacitySection.Visibility = videoVisible;
+        MoreButton.Visibility = videoVisible;
+        KeyframeTotal.Visibility = videoVisible;
+        TransformNote.Visibility = Visibility.Collapsed;
         AudioSection.Visibility = audio is null ? Visibility.Collapsed : Visibility.Visible;
-        SectionSeparator.Visibility = video is not null && audio is not null ? Visibility.Visible : Visibility.Collapsed;
 
         if (video is not null)
         {
@@ -116,33 +135,72 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         if (_transformRange != (sequence.Width, sequence.Height))
         {
             _transformRange = (sequence.Width, sequence.Height);
-            Configure(_videoRows, ParameterSpec.Transform(sequence.Width, sequence.Height));
+            IReadOnlyList<ParameterSpec> specs = ParameterSpec.Transform(sequence.Width, sequence.Height);
+            for (int i = 0; i < _videoRows.Length; i++)
+            {
+                ParameterSpec spec = specs[i];
+                (string? label, string? axis) = spec.Name switch
+                {
+                    BuiltInEffects.TransformParameters.X => ("Posición", "X"),
+                    BuiltInEffects.TransformParameters.Y => ("", "Y"),
+                    _ => ((string?)null, (string?)null),
+                };
+                _videoRows[i].Configure(spec, label, axis);
+            }
         }
 
         bool inside = editor.IsPlayheadInside(clip);
-        int keyframes = 0;
+        var values = new Dictionary<string, double>(StringComparer.Ordinal);
+        int placementKeyframes = 0;
+        int opacityKeyframes = 0;
         foreach (ParameterRow row in _videoRows)
         {
             ParameterState state = editor.Read(clip, row.Spec.EffectType, row.Spec.Name, row.Spec.DefaultValue);
-            keyframes += state.KeyframeCount;
+            values[row.Spec.Name] = row.Spec.ToDisplay(state.Value);
+            if (ReferenceEquals(row, OpacityRow))
+            {
+                opacityKeyframes += state.KeyframeCount;
+            }
+            else
+            {
+                placementKeyframes += state.KeyframeCount;
+            }
+
             row.Show(state, inside);
         }
 
-        KeyframeTotal.Text = keyframes switch
-        {
-            0 => "",
-            1 => "1 keyframe",
-            _ => $"{keyframes} keyframes",
-        };
+        KeyframeTotal.Text = KeyframeText(placementKeyframes + opacityKeyframes);
+        PlacementSection.KeyframeSummary = KeyframeText(placementKeyframes);
+        OpacitySection.KeyframeSummary = KeyframeText(opacityKeyframes);
+        PlacementSection.Summary = "X " + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.X))
+            + " · Y " + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.Y))
+            + " · " + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.Scale)) + " %"
+            + " · " + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.Rotation)) + "°";
 
-        ResetAllButton.IsEnabled = ClipPropertyEditor.CanReset(clip, BuiltInEffects.Transform, Defaults(_videoRows));
+        ResetAllItem.IsEnabled = ClipPropertyEditor.CanReset(clip, BuiltInEffects.Transform, Defaults(_videoRows));
+        PlacementReset.IsEnabled = ClipPropertyEditor.CanReset(clip, BuiltInEffects.Transform, Defaults(PlacementRows));
         EffectInstance? transform = ClipPropertyEditor.FindEffect(clip, BuiltInEffects.Transform);
         TransformNote.Visibility = transform is { Enabled: false } ? Visibility.Visible : Visibility.Collapsed;
-        TransformNote.Text = "Transformar está desactivado en Filtros: los cambios se guardan pero no se ven.";
         bool canSave = AnimationPreset.CanExport(transform);
-        SavePresetButton.IsEnabled = canSave;
-        SavePresetHint.Visibility = canSave ? Visibility.Collapsed : Visibility.Visible;
+        SavePresetItem.IsEnabled = canSave;
+        SavePresetItem.Text = canSave ? "Guardar como transición…" : "Guardar como transición (necesita 2 keyframes)";
+
+        string mode = BlendMode(clip);
+        _updatingBlend = true;
+        BlendBox.SelectedIndex = Math.Max(0, EffectRegistry.BlendModes.IndexOf(mode));
+        _updatingBlend = false;
+        OpacitySection.Summary = Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.Opacity)) + " % · "
+            + EffectUi.BlendModeName(mode);
     }
+
+    private static string BlendMode(Clip clip) =>
+        ClipPropertyEditor.FindEffect(clip, BuiltInEffects.Blend)?.Options.GetValueOrDefault(BuiltInEffects.BlendOptions.Mode, "normal") ?? "normal";
+
+    private static string KeyframeText(int count) => count == 0 ? "" : KeyframeDialog.Count(count);
+
+    // «−120», «12,5»: coma decimal y signo menos tipográfico, como el resto de la interfaz.
+    private static string Number(double value) =>
+        Math.Round(value, 1).ToString("0.#", CultureInfo.InvariantCulture).Replace('.', ',').Replace('-', '\u2212');
 
     private void ShowAudio(ClipPropertyEditor editor, Clip clip)
     {
@@ -150,22 +208,30 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         if (Math.Abs(_audioRange - seconds) > 1e-6)
         {
             _audioRange = seconds;
-            Configure(_audioRows, ParameterSpec.Audio(seconds));
+            IReadOnlyList<ParameterSpec> specs = ParameterSpec.Audio(seconds);
+            GainRow.Configure(specs[0]);
+            FadeInRow.Configure(specs[1], "Entrada");
+            FadeOutRow.Configure(specs[2], "Salida");
         }
 
         bool inside = editor.IsPlayheadInside(clip);
+        int keyframes = 0;
+        double gain = 0;
         foreach (ParameterRow row in _audioRows)
         {
-            row.Show(editor.Read(clip, row.Spec.EffectType, row.Spec.Name, row.Spec.DefaultValue), inside);
-        }
-    }
+            ParameterState state = editor.Read(clip, row.Spec.EffectType, row.Spec.Name, row.Spec.DefaultValue);
+            keyframes += state.KeyframeCount;
+            if (ReferenceEquals(row, GainRow))
+            {
+                gain = row.Spec.ToDisplay(state.Value);
+            }
 
-    private static void Configure(ParameterRow[] rows, IReadOnlyList<ParameterSpec> specs)
-    {
-        for (int i = 0; i < rows.Length; i++)
-        {
-            rows[i].Configure(specs[i]);
+            row.Show(state, inside);
         }
+
+        AudioSection.KeyframeSummary = KeyframeText(keyframes);
+        AudioSection.Summary = Number(gain) + " " + GainRow.Spec.Unit;
+        AudioReset.IsEnabled = ClipPropertyEditor.CanReset(clip, BuiltInEffects.Audio, Defaults(_audioRows));
     }
 
     private static IEnumerable<(string Name, double DefaultValue)> Defaults(IEnumerable<ParameterRow> rows) =>
@@ -266,17 +332,39 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
     }
 
-    private async void OnResetAllClick(object sender, RoutedEventArgs e)
+    private async void OnResetAllClick(object sender, RoutedEventArgs e) =>
+        await ResetRowsAsync(_videoRows, "Restablecer transformación", "la transformación");
+
+    private async void OnPlacementResetClick(object sender, RoutedEventArgs e) =>
+        await ResetRowsAsync([.. PlacementRows], "Restablecer posición y tamaño", "la posición y el tamaño");
+
+    private async void OnAudioResetClick(object sender, RoutedEventArgs e) =>
+        await ResetRowsAsync(_audioRows, "Restablecer audio", "el volumen y los fundidos");
+
+    private async Task ResetRowsAsync(ParameterRow[] rows, string description, string what)
     {
-        if (_editor is not { } editor || ClipFor(XRow) is not { } clip)
+        if (_editor is not { } editor || ClipFor(rows[0]) is not { } clip)
         {
             return;
         }
 
-        FinishChanges(_videoRows);
+        FinishChanges(rows);
         _dragRow = null;
-        await editor.ResetAsync(clip, BuiltInEffects.Transform, [.. Defaults(_videoRows)], "Restablecer transformación",
-            KeyframeDialog.ForResetAll(XamlRoot, "la transformación"));
+        await editor.ResetAsync(clip, rows[0].Spec.EffectType, [.. Defaults(rows)], description, KeyframeDialog.ForResetAll(XamlRoot, what));
+    }
+
+    private void OnBlendSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingBlend || BlendBox.SelectedIndex < 0 || _services is not { } services || ClipFor(XRow) is not { } clip)
+        {
+            return;
+        }
+
+        string mode = EffectRegistry.BlendModes[BlendBox.SelectedIndex];
+        if (BlendMode(clip) != mode)
+        {
+            services.Session.Execute(EffectCommands.SetBlendMode(services.Session.SequenceId, clip.Id, mode));
+        }
     }
 
     private async void OnSavePresetClick(object sender, RoutedEventArgs e)

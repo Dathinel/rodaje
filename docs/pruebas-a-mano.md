@@ -4,7 +4,7 @@ Lo que solo Daniel puede juzgar. Se abre con `Rodaje.bat` (o `dist\Rodaje\Rodaje
 
 ## Correcciones tras la prueba del 10-oct
 
-- [ ] **Inspector:** el ↻ se apaga en un parámetro sin cambios; restablecer sin keyframes no pregunta; con keyframes avisa con el número y Esc cancela; «Restablecer todo» da el total; clic derecho en una fila muestra «Quitar keyframes»; Ctrl+Z deshace cada cosa de una vez.
+- [ ] **Inspector:** el ↻ se apaga en un parámetro sin cambios; restablecer sin keyframes no pregunta; con keyframes avisa con el número y Esc cancela; «Restablecer todo» (menú «⋯» de Propiedades) da el total; el ↻ de la cabecera de «Posición y tamaño» y de «Audio» restablece solo su sección; clic derecho en una fila muestra «Quitar keyframes»; Ctrl+Z deshace cada cosa de una vez.
 - [ ] **Atajos:** abre en «Esencial»; ¿sirve la lista de 18?; ¿lista debajo del teclado (como está) o al lado?; recuerda la vista al volver.
 - [ ] **Teclado cortado:** si vuelve a pasar, anotar vista, tamaño de ventana y escala de pantalla (100/125/150 %).
 - [ ] **Línea de tiempo:** recortar clips de video y audio por ambos lados, con zoom y desplazando: nada sale del borde.
