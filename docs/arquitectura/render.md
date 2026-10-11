@@ -84,6 +84,16 @@ flowchart LR
 
 El prototipo del paso 0 bajaba un NV12 1080p en 3,2–3,3 ms con `Map` síncrono; con el anillo son 0,5 ms, así que la bajada deja de ser el cuello frente a los ≥150 fps sin codificar.
 
+## Títulos (fase 5b)
+
+[`Text/TitleRasterizer`](../../src/Rodaje.Render/Text/TitleRasterizer.cs), uno por `GpuDevice`, rasteriza un `GeneratedContent` con DirectWrite y Direct2D sobre el dispositivo D3D11 (con `LockContext` y `ClearState` al terminar, porque el contexto es compartido):
+
+- **Imagen.** Textura BGRA premultiplicada centrada en la caja del texto, a la secuencia × la escala máxima, con margen para borde y sombra. Tope en bytes: el 25 % del pool por título (si no cabe se baja la escala, `Downscaled`) y 16384 px por lado. Caché propia por `Key` (por omisión el tope del pool), fuera del soltado del pool: lo más viejo se saca, nunca lo de este cuadro o el anterior, y se suelta al empezar el cuadro siguiente del compositor.
+- **Dibujo.** Fondo redondeado; borde con el contorno de los glifos (`GlyphOutlines`: un `IDWriteTextRenderer` propio con tabla COM y `UnmanagedCallersOnly`, apto para AOT) trazado al doble de ancho bajo el relleno; relleno con `DrawTextLayout` (emoji de color, sin ajuste a píxel, antialias gris); sombra con el efecto de sombra de Direct2D sobre la capa de borde y relleno (sigma = desenfoque / 2). Alineación, ajuste en la caja, interlineado uniforme, espaciado de letras y bidi de DirectWrite.
+- **Fuentes.** `RegisterFonts` arma una colección privada (`CreateFontSetBuilder`/`AddFontFile`, hasta 20 MB por archivo; lo que DirectWrite rechaza vuelve en la lista) que se busca antes que la del sistema; si falta la familia se usa el primer respaldo y si no Segoe UI. `FindMissingFonts` es la pasada que solo resuelve.
+- **Hilos.** `Prepare` (la interfaz `IGeneratedContentCache` del motor) encola y lo rasteriza un hilo propio (`Changed` avisa); `TryGet` nunca espera; `Rasterize` lo hace en el acto.
+- **Composición.** `Compositor.Titles` conecta el rasterizador. La capa va por `PsImage` con `LayerLayout.PlaceNative` (tamaño nativo, centrada; `scale` 1 = tamaño del texto), opacidad y mezcla; desenfoque y nitidez pasan por un intermedio con margen de tres sigmas; color, LUT y viñeta no se aplican en la v1 (`EffectsSkipped`). Un título sin rasterizar sale sin él y cuenta en `CompositeResult.TitlesPending`; uno con fuente de respaldo, en `MissingContent`. `RenderStrict` rasteriza antes de componer: vista previa y exportación dan los mismos bytes (probado, también con desenfoque).
+- **Cifras** (RTX 3050 Laptop, Release, `TitleRasterizerTests`): rasterizar un título 1080p de una línea 0,36 ms de mediana; dos líneas con borde de 6 px y sombra desenfocada 1,36 ms (p90 1,68); componerlo ya rasterizado 0,01 ms de GPU por cuadro. Publicado con Native AOT sin advertencias y probado (borde, sombra, fondo y hebreo).
 ## Archivos
 
 | Archivo | Qué hace |
