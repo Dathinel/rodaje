@@ -47,15 +47,17 @@ public static class ClipDecorations
     {
         ArgumentNullException.ThrowIfNull(clip);
         var times = new SortedSet<long>();
+        ClipTimeMap? map = null;
         foreach (EffectInstance effect in clip.Effects)
         {
             foreach (Parameter parameter in effect.Parameters.Values)
             {
                 foreach (Keyframe keyframe in parameter.Keyframes)
                 {
-                    if (keyframe.Time >= clip.SourceIn && keyframe.Time <= clip.SourceOut)
+                    map ??= clip.TimeMap;
+                    if (ClipMapping.TimelineOfEffect(map, keyframe.Time) is { } at)
                     {
-                        times.Add((clip.Start + (keyframe.Time - clip.SourceIn)).Ticks);
+                        times.Add(at.Ticks);
                     }
                 }
             }
@@ -84,8 +86,16 @@ public static class ClipDecorations
     public static double GainDbAt(Clip clip, Time timelineTime)
     {
         ArgumentNullException.ThrowIfNull(clip);
+        return GainDbAt(clip, clip.TimeMap, timelineTime);
+    }
+
+    /// <summary>Como <see cref="GainDbAt(Clip, Time)"/> con el mapeo ya calculado (se dibuja punto por punto).</summary>
+    public static double GainDbAt(Clip clip, ClipTimeMap map, Time timelineTime)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(map);
         return VolumeOf(clip) is { } volume && volume.Parameters.TryGetValue(GainParameter, out Parameter? gain)
-            ? gain.Evaluate(clip.ToSourceTime(timelineTime))
+            ? gain.Evaluate(map.EffectTime(timelineTime))
             : 0;
     }
 
@@ -108,14 +118,21 @@ public static class ClipDecorations
     {
         ArgumentNullException.ThrowIfNull(clip);
         var points = new List<(Time, double)>();
-        if (VolumeOf(clip) is { } volume && volume.Parameters.TryGetValue(GainParameter, out Parameter? gain))
+        if (VolumeOf(clip) is { } volume && volume.Parameters.TryGetValue(GainParameter, out Parameter? gain) && gain.Keyframes.Count > 0)
         {
+            ClipTimeMap map = clip.TimeMap;
             foreach (Keyframe keyframe in gain.Keyframes)
             {
-                if (keyframe.Time >= clip.SourceIn && keyframe.Time <= clip.SourceOut)
+                if (ClipMapping.TimelineOfEffect(map, keyframe.Time) is { } at)
                 {
-                    points.Add((clip.Start + (keyframe.Time - clip.SourceIn), keyframe.Value));
+                    points.Add((at, keyframe.Value));
                 }
+            }
+
+            // En reversa los keyframes van al revés en la línea de tiempo.
+            if (map.Reverse)
+            {
+                points.Reverse();
             }
         }
 
