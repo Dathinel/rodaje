@@ -162,6 +162,18 @@ public static class Skip
         return null;
     }
 
+    /// <summary>ffmpeg.exe con un codificador concreto que funcione, para medios que solo se generan con él.</summary>
+    public static string? Encoder(string encoder)
+    {
+        FfmpegTool? ffmpeg = FfmpegTool.Default;
+        if (ffmpeg is null)
+        {
+            return "Omitida: " + FfmpegTool.UnavailableReason;
+        }
+
+        return ffmpeg.ProbeEncoder(encoder) is { } reason ? $"Omitida: el medio de prueba solo se genera con {encoder}: {reason}" : null;
+    }
+
     /// <summary>El primer motivo que no sea <c>null</c>.</summary>
     public static string? First(params string?[] reasons) => reasons.FirstOrDefault(r => r is not null);
 
@@ -229,6 +241,7 @@ public sealed class FfmpegLibraryFactAttribute : FactAttribute
     private AudioCodec _audio;
     private bool _longRunning;
     private bool _complete;
+    private string? _encoder;
 
     public FfmpegLibraryFactAttribute(params VideoCodec[] video)
     {
@@ -267,8 +280,20 @@ public sealed class FfmpegLibraryFactAttribute : FactAttribute
         }
     }
 
-    private string? Reason() =>
-        Rodaje.TestMedia.Skip.Options(Rodaje.TestMedia.Skip.FfmpegLibraries, _video, _audio, _longRunning, _complete);
+    /// <summary>Un codificador concreto que debe funcionar: el único con el que se genera el medio de la prueba.</summary>
+    public string? Encoder
+    {
+        get => _encoder;
+        set
+        {
+            _encoder = value;
+            Skip = Reason();
+        }
+    }
+
+    private string? Reason() => Rodaje.TestMedia.Skip.First(
+        Rodaje.TestMedia.Skip.Options(Rodaje.TestMedia.Skip.FfmpegLibraries, _video, _audio, _longRunning, _complete),
+        _encoder is null ? null : Rodaje.TestMedia.Skip.Encoder(_encoder));
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
@@ -315,6 +340,7 @@ public sealed class HardwareFactAttribute : FactAttribute
     private readonly VideoCodec[] _video;
     private AudioCodec _audio;
     private bool _longRunning;
+    private string? _encoder;
 
     public HardwareFactAttribute(params VideoCodec[] video)
     {
@@ -342,8 +368,20 @@ public sealed class HardwareFactAttribute : FactAttribute
         }
     }
 
-    private string? Reason() =>
-        Rodaje.TestMedia.Skip.Options(Rodaje.TestMedia.Skip.HardwareDecoding, _video, _audio, _longRunning, complete: false);
+    /// <summary>Un codificador concreto que debe funcionar: el único con el que se genera el medio de la prueba.</summary>
+    public string? Encoder
+    {
+        get => _encoder;
+        set
+        {
+            _encoder = value;
+            Skip = Reason();
+        }
+    }
+
+    private string? Reason() => Rodaje.TestMedia.Skip.First(
+        Rodaje.TestMedia.Skip.Options(Rodaje.TestMedia.Skip.HardwareDecoding, _video, _audio, _longRunning, complete: false),
+        _encoder is null ? null : Rodaje.TestMedia.Skip.Encoder(_encoder));
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]

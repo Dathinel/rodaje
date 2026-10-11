@@ -57,6 +57,9 @@ internal static class TestClips
     public static readonly ClipSpec Hevc10 = new("hevc10-25-g24-bf2", ClipCodec.Hevc10, 25, 1, 120, Gop: 24);
     public static readonly ClipSpec H264Mkv = new("h264-25-g30-bf2", ClipCodec.H264, 25, 1, 200, Gop: 30, Extension: "mkv");
 
+    /// <summary>El único codificador con el que se genera <see cref="Hevc10"/>: el build LGPL no trae HEVC de 10 bits por software.</summary>
+    public const string TenBitEncoder = "hevc_nvenc";
+
     private static readonly ConcurrentDictionary<string, Lazy<string>> Generated = new();
     private static readonly ConcurrentDictionary<string, Lazy<IReadOnlyList<string>>> References = new(StringComparer.OrdinalIgnoreCase);
 
@@ -302,7 +305,7 @@ internal static class TestClips
                 ["-c:v", "hevc_nvenc", "-g", g, "-bf", bf, "-pix_fmt", "yuv420p", "-b:v", "3M"],
                 ["-c:v", "libkvazaar", "-g", g, "-pix_fmt", "yuv420p", "-b:v", "3M"],
             ],
-            _ => [["-c:v", "hevc_nvenc", "-profile:v", "main10", "-g", g, "-bf", bf, "-pix_fmt", "p010le", "-b:v", "3M"]],
+            _ => [["-c:v", TenBitEncoder, "-profile:v", "main10", "-g", g, "-bf", bf, "-pix_fmt", "p010le", "-b:v", "3M"]],
         };
         foreach (string[] encoder in encoders)
         {

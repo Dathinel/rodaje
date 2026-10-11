@@ -58,7 +58,7 @@ public sealed class ThumbnailDecoderTests(ITestOutputHelper output)
         Assert.NotNull(decoder.Decode(Time.FromSeconds(-5), 48));
     }
 
-    [FfmpegLibraryFact]
+    [FfmpegLibraryFact(Encoder = TestClips.TenBitEncoder)]
     public void Ten_bit_hevc_gives_a_thumbnail()
     {
         using ThumbnailDecoder decoder = ThumbnailDecoder.Open(TestClips.PathOf(TestClips.Hevc10));

@@ -51,7 +51,7 @@ public sealed class MediaProbeTests
         Assert.Equal(TestClips.H264.Name, media.Name);
     }
 
-    [FfmpegLibraryFact]
+    [FfmpegLibraryFact(Encoder = TestClips.TenBitEncoder)]
     public void Hevc_main10_reports_ten_bits()
     {
         VideoStreamInfo video = MediaProbe.Probe(TestClips.PathOf(TestClips.Hevc10)).Video!;

@@ -78,7 +78,7 @@ public sealed class FrameLifetimeTests
         Assert.Throws<InvalidOperationException>(texture.Release);
     }
 
-    [HardwareFact]
+    [HardwareFact(Encoder = TestClips.TenBitEncoder)]
     public void Ten_bit_hardware_frames_are_p010()
     {
         using VideoDecoder decoder = VideoDecoder.Open(TestClips.PathOf(TestClips.Hevc10), DecodeModes.Options(DecodeMode.Hardware));
@@ -89,7 +89,7 @@ public sealed class FrameLifetimeTests
         Assert.Equal((long)texture.CodedWidth * texture.CodedHeight * 3, frame.SizeBytes);
     }
 
-    [HardwareFact]
+    [HardwareFact(Encoder = TestClips.TenBitEncoder)]
     public void Uploaded_frames_release_their_own_textures()
     {
         using GpuDevice device = GpuDevice.Create();
