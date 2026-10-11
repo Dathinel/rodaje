@@ -204,6 +204,63 @@ public sealed class EffectFidelityTests
         image.AssertColor(352, 400, Decode(Palette[5]).To255());
     }
 
+    /// <summary>La vista previa a la mitad se parece a la completa reducida: radios y posiciones están en píxeles de la secuencia.</summary>
+    [GpuFact]
+    public void Half_resolution_matches_the_full_one_reduced()
+    {
+        using GpuDevice gpu = GpuDevice.Create();
+        byte[] full = HalfScene(gpu, 512, 256);
+        byte[] half = HalfScene(gpu, 256, 128);
+
+        double total = 0;
+        for (int y = 0; y < 128; y++)
+        {
+            for (int x = 0; x < 256; x++)
+            {
+                for (int c = 0; c < 3; c++)
+                {
+                    int at(int fx, int fy) => full[(((fy * 512) + fx) * 4) + c];
+                    double reduced = (at(2 * x, 2 * y) + at((2 * x) + 1, 2 * y) + at(2 * x, (2 * y) + 1) + at((2 * x) + 1, (2 * y) + 1)) / 4.0;
+                    total += Math.Abs(reduced - half[(((y * 256) + x) * 4) + c]);
+                }
+            }
+        }
+
+        double mean = total / (256 * 128 * 3);
+        Assert.True(mean <= 3, $"Diferencia media {mean:0.00}/255.");
+    }
+
+    private static byte[] HalfScene(GpuDevice gpu, int width, int height)
+    {
+        // Luma con detalle de 8 px y croma suave, como un video real: con croma al azar por bloque, el submuestreo 4:2:0
+        // ya separa media y completa en los bordes, con o sin efectos.
+        var random = new Random(11);
+        var bottomImage = new YuvImage(512, 256, false);
+        var topImage = new YuvImage(256, 256, false);
+        for (int y = 0; y < 256; y += 8)
+        {
+            for (int x = 0; x < 512; x += 8)
+            {
+                var code = new YuvCode(random.Next(16, 236), 128 + (int)(60 * Math.Sin(x / 80.0)), 128 + (int)(60 * Math.Cos(y / 50.0)));
+                bottomImage.Fill(x, y, 8, 8, code);
+                if (x < 256)
+                {
+                    topImage.Fill(x, y, 8, 8, code with { Y = random.Next(16, 236), Cb = 256 - code.Cr });
+                }
+            }
+        }
+
+        LayerFrame bottom = Layers.From(gpu, bottomImage, Bt709,
+            new LayerLook([Fx.Color((C.Contrast, 0.3), (C.Saturation, 0.4)), Fx.Vignette(0.6, 0.4, 0.5)]));
+        LayerFrame top = Layers.From(gpu, topImage, Bt709, new LayerLook([Fx.Blur(12), Fx.Sharpen(0.5, 2)], BlendMode.Overlay),
+            new LayerTransform(60, -20, 0.6, 8, 0.9), 1);
+        using var compositor = new Compositor(gpu, width, height);
+        Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
+        using CompositionFrame frame = Layers.Frame(512, 256, bottom, top);
+        Assert.Equal(0, compositor.Render(frame).EffectsSkipped);
+        return compositor.ReadbackRgba();
+    }
+
     private static YuvCode Encode((int R, int G, int B) c) => ReferenceColor.Encode(c.R, c.G, c.B, Bt709, false);
 
     private static C3 Decode((int R, int G, int B) c) => C3.From(ReferenceColor.Decode(Encode(c), Bt709, false));

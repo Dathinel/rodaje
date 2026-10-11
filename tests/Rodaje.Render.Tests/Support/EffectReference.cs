@@ -180,7 +180,7 @@ internal sealed class FloatImage(int width, int height)
         return (C3.Mix(top, bottom, fy), alphaTop + ((alphaBottom - alphaTop) * fy));
     }
 
-    /// <summary>La misma pirámide que la GPU: mitades mientras sigma pase de 4 y gaussiano separable de 3 sigmas.</summary>
+    /// <summary>La misma pirámide que la GPU: mitades mientras sigma pase de 2 y gaussiano separable de 3 sigmas.</summary>
     public FloatImage Blur(double sigma)
     {
         if (!(sigma >= 0.25))
@@ -191,7 +191,7 @@ internal sealed class FloatImage(int width, int height)
         FloatImage current = this;
         double sigmaX = sigma;
         double sigmaY = sigma;
-        while (Math.Max(sigmaX, sigmaY) > 4 && current.Width > 4 && current.Height > 4)
+        while (Math.Max(sigmaX, sigmaY) > 2 && current.Width > 4 && current.Height > 4)
         {
             var half = new FloatImage((current.Width + 1) / 2, (current.Height + 1) / 2);
             FloatImage source = current;

@@ -33,7 +33,7 @@ internal readonly unsafe struct LayerPlan(int flags, ID3D11ShaderResourceView* l
 internal sealed unsafe partial class LayerRenderer
 {
     /// <summary>Sigma máxima por nivel: por encima se reduce a la mitad (pirámide ½, ¼…) antes del gaussiano.</summary>
-    internal const float MaxSigmaPerLevel = 4;
+    internal const float MaxSigmaPerLevel = 2;
 
     /// <summary>Sigma del desenfoque a partir del radio: el radio es tres sigmas.</summary>
     internal static float BlurSigma(float radius) => radius / 3;
