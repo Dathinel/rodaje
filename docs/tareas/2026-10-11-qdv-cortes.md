@@ -54,3 +54,4 @@ Rama `claude/qdv-cortes`, PR #21. Función 2 de «Funciones de calidad de vida»
 
 - La primera corrida (commit 4c195ae) falló en `ShortcutSearchTests.CadaAccionDelCatalogo_TieneUnaExplicacionCortaEnEspañol`: las explicaciones de Q/W pasaban del límite de 80 caracteres. Ahora miden 74 y 76; la de `edit.splitAll`, 72. Las etiquetas cortas miden 16 como mucho.
 - Fallos en la CI de Windows que vienen de main y no son de esta rama: `TitleEditorTests.BordesYConvertirEnKeyframes` (cultura, 0,5 frente a 0.5), `TitleRasterizerTests.Composing_a_ready_title_costs_little_gpu_time` (WARP) y `TimelineSpeedTests.Speed_mapping_in_the_plan_reserves_nothing` (760 B).
+- La corrida de la CI con la corrección (b5aabd9 y ff0d0a7) no arrancó: GitHub no inicia los trabajos por la facturación («recent account payments have failed or your spending limit needs to be increased»). Hay que volver a lanzarla cuando se resuelva.
