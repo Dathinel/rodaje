@@ -29,19 +29,18 @@ internal sealed partial class TimelinePlan
             Cut? leaving = cuts.Find(x => x.From == c);
 
             // El que entra se ve en el carril principal recién al terminar la transición; el que sale sigue hasta
-            // entonces con el material que sobra o, si no hay, con su último cuadro congelado.
+            // entonces con el material que sobra (a la velocidad del borde) o, si no hay, con su último cuadro congelado.
             Time head = entering?.After ?? Time.Zero;
             Time tail = leaving?.After ?? Time.Zero;
-            Time extra = Time.Max(Time.Zero, Time.Min(tail, Material(m) - clip.SourceOut));
+            Time material = Material(m);
             TransitionPlan? transition = leaving is { } cut ? Transition(cut, sequence, content, ref missing) : null;
-            clips.Add(new VideoClipPlan(clip.Id, key, clip.Start + head, clip.SourceIn + head, clip.SourceOut + extra,
-                rate, effects, m.Width, m.Height, holdAfter: tail - extra) { Outgoing = transition, TimeMap = map });
+            clips.Add(new VideoClipPlan(clip.Id, key, map, clip.Start + head, clip.End + tail, material, rate, sequence.FrameRate,
+                effects, m.Width, m.Height) { Outgoing = transition });
 
             if (entering is { } e)
             {
-                Time available = Time.Min(e.Before, clip.SourceIn);
-                incoming.Add(new VideoClipPlan(clip.Id, key, clip.Start - available, clip.SourceIn - available,
-                    clip.SourceIn + e.After, rate, effects, m.Width, m.Height, holdBefore: e.Before - available) { TimeMap = map });
+                incoming.Add(new VideoClipPlan(clip.Id, key, map, clip.Start - e.Before, clip.Start + e.After, material, rate,
+                    sequence.FrameRate, effects, m.Width, m.Height));
             }
         }
 

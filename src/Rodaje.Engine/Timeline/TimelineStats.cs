@@ -11,6 +11,7 @@ namespace Rodaje.Engine.Timeline;
 /// <param name="LateAtCuts">Refrescos tarde entre un corte sin su cuadro y la llegada de ese cuadro.</param>
 /// <param name="UsesProxy">El cuadro en pantalla sale de un proxy de vista previa.</param>
 /// <param name="Failure">Por qué la capa está vacía: el medio de su clip no se pudo abrir. Nulo si no falla.</param>
+/// <param name="Approximated">Refrescos reproduciendo de 16× a 100× que mostraron el keyframe anterior al cuadro debido.</param>
 public readonly record struct LayerStats(
     int TrackIndex,
     string TrackId,
@@ -22,7 +23,8 @@ public readonly record struct LayerStats(
     long PreRollMisses = 0,
     long LateAtCuts = 0,
     bool UsesProxy = false,
-    string? Failure = null);
+    string? Failure = null,
+    long Approximated = 0);
 
 /// <summary>Estado del audio mezclado.</summary>
 /// <param name="DecodersOpen">Decodificadores de audio abiertos ahora.</param>
@@ -99,6 +101,12 @@ public sealed record TimelineStats(
 
     /// <summary>Refrescos en una transición en los que el cuadro debido del clip que entra no estaba listo.</summary>
     public long TransitionLateRefreshes { get; init; }
+
+    /// <summary>
+    /// Refrescos (sumados por capa) que, reproduciendo de 16× a 100×, mostraron el keyframe anterior al cuadro debido en
+    /// lugar de decodificarlo; en pausa y tras un seek el cuadro siempre es exacto.
+    /// </summary>
+    public long Approximated { get; init; }
 
     /// <summary>Fracción de transiciones que empezaron a tiempo; 1 si no hubo.</summary>
     public double TransitionPreRollHitRate =>

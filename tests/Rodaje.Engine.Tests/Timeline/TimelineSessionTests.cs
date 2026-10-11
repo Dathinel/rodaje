@@ -161,7 +161,7 @@ public sealed class TimelineSessionTests
             foreach (LayerFrame layer in frame.Layers)
             {
                 VideoClipPlan clip = plan.Layers[layer.TrackIndex].ClipAt(frame.TimelineTime)!;
-                Int128 sourceTicks = frame.TimelineTime.Ticks - clip.Start.Ticks + clip.SourceIn.Ticks;
+                Int128 sourceTicks = frame.TimelineTime.Ticks - clip.Start.Ticks + clip.TimeMap.SourceIn.Ticks;
                 long expected = (long)(sourceTicks * clip.FrameRate.Num / ((Int128)Time.TicksPerSecond * clip.FrameRate.Den));
                 Assert.Equal(clip.ClipId, layer.ClipId);
                 Assert.Equal(expected, layer.Frame.Index);
@@ -205,7 +205,8 @@ public sealed class TimelineSessionTests
         }
 
         Assert.NotNull(requestsBeforeCut);
-        Assert.Equal(new long[] { 250, 251, 252, 253, 254, 255 }, requestsBeforeCut!.Take(6));
+        // El pre-roll son los primeros 6 cuadros de la secuencia (a 30 fps), que muestran 5 del origen a 25 fps.
+        Assert.Equal(new long[] { 250, 251, 252, 253, 254 }, requestsBeforeCut!);
         LayerStats layer = Assert.Single(session.Stats.Layers);
         Assert.Equal((1L, 1L, 0L, 0L, 0L), (layer.Cuts, layer.PreRollHits, layer.PreRollMisses, layer.LateAtCuts, layer.LateRefreshes));
     }

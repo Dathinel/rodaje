@@ -50,6 +50,9 @@ internal sealed partial class TimelineScheduler : IDisposable
     private const double StartupMargin = 2.5;
     private const double MaxPreRollSeconds = 2;
 
+    /// <summary>Desde esta velocidad, reproduciendo, se muestra el keyframe anterior al cuadro debido.</summary>
+    internal const double ApproximateRate = 16;
+
     private readonly Lock _gate = new();
     private readonly IAudioClock _clock;
     private readonly IClipBackend _backend;
@@ -198,6 +201,7 @@ internal sealed partial class TimelineScheduler : IDisposable
             }
 
             _clock.Start();
+            _demandDirty = true;
         }
 
         transition.Finish();
@@ -209,6 +213,9 @@ internal sealed partial class TimelineScheduler : IDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             _clock.Pause();
+
+            // En pausa se vuelve al cuadro exacto si la reproducción rápida mostraba un keyframe cercano.
+            _demandDirty = true;
         }
     }
 
@@ -334,6 +341,7 @@ internal sealed partial class TimelineScheduler : IDisposable
             if (_seekPending && settled)
             {
                 _seekPending = false;
+                _demandDirty |= running;
             }
 
             CollectIdle(posts);
@@ -391,6 +399,7 @@ internal sealed partial class TimelineScheduler : IDisposable
                 TransitionPreRollHits = all.Where(l => l.IsCompanion).Sum(l => l.PreRollHits),
                 TransitionPreRollMisses = all.Where(l => l.IsCompanion).Sum(l => l.PreRollMisses),
                 TransitionLateRefreshes = all.Where(l => l.IsCompanion).Sum(l => l.Late),
+                Approximated = all.Sum(l => l.Approximated),
             };
         }
     }

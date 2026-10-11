@@ -37,10 +37,10 @@ internal sealed partial class TimelineScheduler
         {
             VideoLayerPlan layer = _plan.Layers[i];
             int priority = covered ? layer.TrackIndex - CoveredPenalty : layer.TrackIndex;
-            AddLaneWindows(layer, time, priority);
+            AddLaneWindows(layer, time, sequenceFrame, priority);
             if (layer.Companion is { } companion)
             {
-                AddLaneWindows(companion, time, priority);
+                AddLaneWindows(companion, time, sequenceFrame, priority);
             }
 
             covered |= CoversFrame(layer, time);
@@ -58,7 +58,7 @@ internal sealed partial class TimelineScheduler
             }
 
             long due = clip.FrameAt(time);
-            Media(clip).Windows.Add(new Window(due, Math.Min(due + _prefetch, clip.LastFrame + 1), Due: false, clip, Warm: true));
+            Media(clip).Windows.Add(new Window(due, WindowEnd(clip, due, sequenceFrame + _prefetch - 1), Due: false, clip, Warm: true));
             long until = since + (long)(_idleTimeout.TotalSeconds * _time.TimestampFrequency);
             _warmUntil = _warmUntil is { } earlier ? Math.Min(earlier, until) : until;
         }
@@ -135,19 +135,25 @@ internal sealed partial class TimelineScheduler
     /// <summary>Lo que resta a la prioridad de una capa tapada: queda detrás de todas las visibles.</summary>
     private const int CoveredPenalty = 1 << 20;
 
-    private void AddLaneWindows(VideoLayerPlan lane, Time time, int priority)
+    /// <summary>
+    /// Las ventanas del carril, en tiempo de la secuencia: el cuadro debido y lo que se mostrará en los próximos
+    /// <c>PrefetchFrames</c> cuadros de la secuencia; y, cerca de un corte, lo que el clip siguiente mostrará en sus primeros
+    /// <c>PreRollFrames</c>. Con velocidad, el tramo del origen se estira o se encoge con ella.
+    /// </summary>
+    private void AddLaneWindows(VideoLayerPlan lane, Time time, long sequenceFrame, int priority)
     {
+        bool running = _clock.IsRunning;
         if (lane.ClipAt(time) is { } clip)
         {
-            long due = clip.FrameAt(time);
-            long end = Math.Min(due + _prefetch, clip.LastFrame + 1);
             MediaState media = Media(clip);
+            long due = Due(clip, media, time, running, out _, out bool approximate);
+            long end = WindowEnd(clip, due, sequenceFrame + _prefetch - 1);
             media.Layers++;
             media.Priority = Math.Max(media.Priority, priority);
             media.Windows.Add(new Window(due, due + 1, Due: true, clip, Priority: priority));
             if (end > due + 1)
             {
-                media.Windows.Add(new Window(due + 1, end, Due: false, clip, Priority: priority));
+                media.Windows.Add(new Window(due + 1, end, Due: false, clip, Priority: priority, Approximate: approximate));
             }
         }
 
@@ -156,8 +162,55 @@ internal sealed partial class TimelineScheduler
             long first = next.FirstFrame;
             MediaState media = Media(next);
             media.Priority = Math.Max(media.Priority, priority);
-            media.Windows.Add(new Window(first, Math.Min(first + _preRollFrames, next.LastFrame + 1), Due: false, next, Priority: priority));
+            media.Windows.Add(new Window(first, WindowEnd(next, first, next.FirstSequenceFrame + _preRollFrames - 1), Due: false, next,
+                Priority: priority, Approximate: Approximates(next, media, next.Start, running)));
         }
+    }
+
+    /// <summary>Fin de una ventana que empieza en <paramref name="start"/>: lo mostrado hasta el cuadro <paramref name="lastSequenceFrame"/> de la secuencia.</summary>
+    private static long WindowEnd(VideoClipPlan clip, long start, long lastSequenceFrame) =>
+        clip.Forward ? Math.Max(start, clip.ShownUntil(lastSequenceFrame)) + 1 : start + 1;
+
+    /// <summary>
+    /// El cuadro del origen que la capa debe mostrar: el exacto o, reproduciendo de 16× a 100× con los keyframes del archivo
+    /// conocidos y sin un seek pendiente, el keyframe anterior (sin salir del clip).
+    /// </summary>
+    private long Due(VideoClipPlan clip, MediaState media, Time time, bool running, out long exact, out bool approximate)
+    {
+        exact = clip.FrameAt(time);
+        approximate = Approximates(clip, media, time, running);
+        return approximate ? Math.Max(media.CurrentKeyframes!.AtOrBefore(exact), clip.FirstFrame) : exact;
+    }
+
+    private bool Approximates(VideoClipPlan clip, MediaState media, Time time, bool running) =>
+        running && !_seekPending && clip.Forward && clip.RateAt(time) >= ApproximateRate && media.CurrentKeyframes is not null;
+
+    /// <summary>
+    /// El primer cuadro desde <paramref name="index"/> que la ventana necesita: el que se mostrará o, aproximando, el keyframe
+    /// que se mostrará; <see cref="long.MaxValue"/> si no hay ninguno.
+    /// </summary>
+    private static long NextWanted(in Window window, MediaState media, long index)
+    {
+        VideoClipPlan clip = window.Clip;
+        if (window.Due)
+        {
+            return index;
+        }
+
+        if (window.Approximate && media.CurrentKeyframes is { } keyframes)
+        {
+            if (index <= clip.FirstFrame)
+            {
+                return clip.FirstFrame;
+            }
+
+            // El keyframe k se ve cuando el cuadro exacto llega al primer keyframe desde index; el que se ve es el anterior a ese exacto.
+            long key = keyframes.AtOrAfter(index);
+            long shown = key == long.MaxValue ? long.MaxValue : clip.NextShown(key);
+            return shown == long.MaxValue ? long.MaxValue : keyframes.AtOrBefore(shown);
+        }
+
+        return clip.NextShown(index);
     }
 
     /// <summary>
@@ -178,7 +231,7 @@ internal sealed partial class TimelineScheduler
             return true;
         }
 
-        LayerTransform t = EffectPlan.Transform(effects, clip.ToSource(time));
+        LayerTransform t = EffectPlan.Transform(effects, clip.EffectTimeAt(time));
         return effects.Blend == BlendMode.Normal && t.X == 0 && t.Y == 0 && t.Scale >= 1 && t.Opacity >= 1 && t.RotationDegrees % 360 == 0;
     }
 
@@ -311,7 +364,7 @@ internal sealed partial class TimelineScheduler
 
     /// <summary>Lo que le queda a cada clip que sirve el decodificador entra en su caché: puede irse a otro punto sin volver.</summary>
     private static bool RestIsCached(DecoderState decoder) =>
-        decoder.Assigned.TrueForAll(w => w.Warm || w.Clip.LastFrame + 1 - w.Start < decoder.CacheLimit);
+        decoder.Assigned.TrueForAll(w => w.Warm || w.Clip.ShownFrom(w.Start) < decoder.CacheLimit);
 
     private List<Cluster> Clusters(MediaState media)
     {
@@ -363,7 +416,10 @@ internal sealed partial class TimelineScheduler
         return media;
     }
 
-    /// <summary>Más urgente cuanto antes haya que mostrarlo; <see cref="TimelineFrameCache.Unwanted"/> si ninguna ventana lo quiere.</summary>
+    /// <summary>
+    /// Más urgente cuanto antes haya que mostrarlo; <see cref="TimelineFrameCache.Unwanted"/> si ninguna ventana lo quiere,
+    /// como los cuadros que la velocidad salta.
+    /// </summary>
     private long Urgency(int mediaId, long index)
     {
         long best = TimelineFrameCache.Unwanted;
@@ -371,7 +427,7 @@ internal sealed partial class TimelineScheduler
         {
             foreach (Window window in media.Windows)
             {
-                if (index >= window.Start && index < window.End)
+                if (index >= window.Start && index < window.End && NextWanted(window, media, index) == index)
                 {
                     best = Math.Max(best, long.MaxValue - Delay(window, index));
                 }

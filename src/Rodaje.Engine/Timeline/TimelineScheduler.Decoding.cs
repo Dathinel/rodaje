@@ -87,6 +87,7 @@ internal sealed partial class TimelineScheduler
             else if (!discard && video is not null)
             {
                 decoder.Decoder = video;
+                LearnKeyframes(decoder);
                 decoder.Look = variant.IsProxy
                     ? new Look(new Rational(1, 1), 0, media.DisplayWidth, media.DisplayHeight, IsProxy: true)
                     : new Look(video.Stream.SampleAspectRatio, NormalizeRotation(video.Stream.Rotation), 0, 0, IsProxy: false);
@@ -125,6 +126,18 @@ internal sealed partial class TimelineScheduler
         }
     }
 
+    /// <summary>Toma los keyframes del archivo del decodificador si ya los conoce (puede saberlos después de abrir).</summary>
+    private static void LearnKeyframes(DecoderState decoder)
+    {
+        MediaState media = decoder.Media;
+        if (decoder.Variant is { } variant && variant == media.Variant && media.KeyframesPath != variant.Path
+            && decoder.Decoder is IKeyframeSource { Keyframes: { } keyframes })
+        {
+            media.Keyframes = keyframes;
+            media.KeyframesPath = variant.Path;
+        }
+    }
+
     /// <summary>Tope de cuadros sin pool de D3D11VA (CPU): lo que pide la opción, sin que uno solo se coma la caché.</summary>
     private int PlanSourceLimit(IClipVideo video)
     {
@@ -147,7 +160,8 @@ internal sealed partial class TimelineScheduler
     // Se pide primero lo que antes haya que mostrar, sea de la capa que sea. Un cuadro adelantado que la caché ya
     // descartó por falta de lugar se vuelve a pedir solo cuando ahora sí cabría: si no, decodificarlo expulsaría
     // otro y así sin fin. Y mientras no quepa, tampoco se adelantan los que siguen: decodificarlos obligaría a volver
-    // atrás con un seek por el que faltó. El cuadro debido siempre se repide.
+    // atrás con un seek por el que faltó. El cuadro debido siempre se repide. Solo se piden los cuadros que se
+    // mostrarán: los que la velocidad salta los decodifica el decodificador de paso, sin entregarlos.
     private bool TryFindMissing(DecoderState decoder, out long index)
     {
         MediaState media = decoder.Media;
@@ -155,7 +169,7 @@ internal sealed partial class TimelineScheduler
         long bestDelay = long.MaxValue;
         foreach (Window window in decoder.Assigned)
         {
-            for (long i = window.Start; i < window.End; i++)
+            for (long i = NextWanted(window, media, window.Start); i < window.End; i = NextWanted(window, media, i + 1))
             {
                 long delay = Delay(window, i);
                 if (delay >= bestDelay || media.Unavailable.Contains(i) || IsCachedFor(decoder, i) || IsShown(decoder, i)
@@ -322,6 +336,7 @@ internal sealed partial class TimelineScheduler
                 }
 
                 _cache.Add(media.Id, decoder.Id, frame, _urgency);
+                LearnKeyframes(decoder);
 
                 // Un decodificador que reemplaza a otro ya entrega: puede que el que se retira deje de hacer falta.
                 _demandDirty |= !decoder.Retiring && media.Decoders.Exists(d => d.Retiring);

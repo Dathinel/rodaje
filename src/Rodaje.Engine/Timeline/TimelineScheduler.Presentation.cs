@@ -8,7 +8,8 @@ namespace Rodaje.Engine.Timeline;
 // Presentación: qué cuadro de cada capa se muestra en cada refresco, seek y pre-roll.
 internal sealed partial class TimelineScheduler
 {
-    private void Present(LayerState layer, VideoClipPlan clip, MediaState media, long due, bool running, List<DecodedFrame> released)
+    private void Present(LayerState layer, VideoClipPlan clip, MediaState media, long due, bool running, bool approximate,
+        List<DecodedFrame> released)
     {
         VideoClipPlan? active = layer.ActiveClip;
         if (active is null || !active.SameMapping(clip))
@@ -74,9 +75,10 @@ internal sealed partial class TimelineScheduler
             return;
         }
 
-        if (layer.CountDrops && running && layer.CurrentMedia == media && layer.Current is { } previous)
+        // Saltar de keyframe en keyframe a más de 16× es lo pedido, no una pérdida.
+        if (layer.CountDrops && running && !approximate && layer.CurrentMedia == media && layer.Current is { } previous)
         {
-            layer.Dropped += clip.ShownBetween(previous.Index, frame.Index, _plan.FrameRate);
+            layer.Dropped += clip.ShownBetween(previous.Index, frame.Index);
         }
 
         bool replacement = layer.CurrentMedia == media && layer.Current?.Index == frame.Index;

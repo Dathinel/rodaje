@@ -35,9 +35,21 @@ internal sealed partial class TimelineScheduler
         }
 
         layer.Failure = null;
-        long due = clip.FrameAt(time);
-        Present(layer, clip, media, due, running, released);
+        long due = Due(clip, media, time, running, out long exactFrame, out bool approximate);
+        if (approximate && layer.CurrentMedia == media && layer.CurrentClip?.ClipId == clip.ClipId && layer.Current is { } current
+            && current.Index > due && current.Index <= exactFrame)
+        {
+            // Lo que ya está en pantalla está más cerca del cuadro exacto que el keyframe: no se vuelve atrás.
+            due = current.Index;
+        }
+
+        Present(layer, clip, media, due, running, approximate, released);
         bool exact = layer.IsShowing(media, due);
+        if (approximate && layer.CurrentMedia == media && layer.Current is { } shown && shown.Index != exactFrame)
+        {
+            layer.Approximated++;
+        }
+
         bool missing = media.Unavailable.Contains(due);
         if (missing && !exact && layer.CurrentClip is { } stale && stale.ClipId != clip.ClipId)
         {
@@ -140,7 +152,7 @@ internal sealed partial class TimelineScheduler
             return null;
         }
 
-        Time source = clip.ToSource(time);
+        Time source = clip.EffectTimeAt(time);
         EffectPlan? plan = clip.Effects;
         LayerTransform transform = EffectPlan.Transform(plan, source);
         if (transition is not null)
