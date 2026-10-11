@@ -32,7 +32,12 @@ Rama `claude/docs-al-dia`. Solo documentos; no se compiló ni se corrieron prueb
 Las cifras de rendimiento (ms) de render.md y app-vistas.md no se contrastaron.
 
 ## Choques con `origin/main`
-Ninguno conocido; `docs/arquitectura/` puede cambiar si 5c.3 (reversa) se une.
+D-026 (magnetismo siempre al cambiar la velocidad) estaba en `main` y la primera versión lo contradecía; corregido en la revisión (nucleo.md, app-vistas.md). `docs/arquitectura/` puede cambiar si 5c.3 (reversa) se une.
 
 ## Para Daniel en Windows
 Nada; es documentación.
+
+## Segunda ronda (revisión del 11-oct)
+- Velocidad con magnetismo (D-026): `src/Rodaje.Core/Editing/TimelineEdits.Speed.cs`; `SpeedScope` en `EditorSession.Speed`.
+- Transiciones completas y `Preset`: `EffectRegistry.cs:84-107`. Validador rechaza fuera de rango y ids con control: `ModelValidator.cs:76,256`.
+- «Uso desde Rodaje» reescrito: `EffectContent.cs`, `AppEffectContent.cs:13`, `IContentLoader.cs:55,61`.
