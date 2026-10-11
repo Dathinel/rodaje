@@ -230,6 +230,25 @@ public static unsafe class MediaProbe
         return ((clockwise % 360) + 360) % 360;
     }
 
+    // Vuelve al primer paquete del flujo. av_seek_frame(long.MinValue) no mueve la posición en MP4, así que se busca
+    // una marca concreta con avformat_seek_file. La marca de inicio del flujo (start_time) es el pts del primer cuadro
+    // y en algunos contenedores (MPEG-TS con cuadros B) la búsqueda compara contra el dts, que va antes: por eso se
+    // usa el menor entre start_time y el primer dts de video leído (firstDts, si se conoce).
+    internal static void RewindToStart(AVFormatContext* format, int index, long? firstDts = null)
+    {
+        AVStream* stream = format->streams[index];
+        long start = stream->start_time == ffmpeg.AV_NOPTS_VALUE ? 0 : stream->start_time;
+        if (firstDts is { } dts)
+        {
+            start = Math.Min(start, dts);
+        }
+
+        if (ffmpeg.avformat_seek_file(format, index, long.MinValue, start, start, 0) < 0)
+        {
+            ffmpeg.av_seek_frame(format, index, start, ffmpeg.AVSEEK_FLAG_BACKWARD);
+        }
+    }
+
     // Lee (sin decodificar) los primeros paquetes del flujo: los intervalos entre marcas de presentación
     // revelan si la tasa es variable y sirven de tasa de reserva cuando el contenedor no declara ninguna.
     private static (Rational? Measured, bool Irregular) ScanTimestamps(AVFormatContext* format, int index)
@@ -237,12 +256,19 @@ public static unsafe class MediaProbe
         AVStream* stream = format->streams[index];
         var timestamps = new List<long>(VfrScanPackets);
         AVPacket* packet = ffmpeg.av_packet_alloc();
+        long? firstDts = null;
         try
         {
             int read = 0;
             while (timestamps.Count < VfrScanPackets && read < VfrScanPackets * 8 && ffmpeg.av_read_frame(format, packet) >= 0)
             {
                 read++;
+                if (packet->stream_index == index && packet->dts != ffmpeg.AV_NOPTS_VALUE
+                    && (firstDts is null || packet->dts < firstDts))
+                {
+                    firstDts = packet->dts;
+                }
+
                 if (packet->stream_index == index && packet->pts != ffmpeg.AV_NOPTS_VALUE)
                 {
                     timestamps.Add(packet->pts);
@@ -254,7 +280,7 @@ public static unsafe class MediaProbe
         finally
         {
             ffmpeg.av_packet_free(&packet);
-            ffmpeg.av_seek_frame(format, index, long.MinValue, ffmpeg.AVSEEK_FLAG_BACKWARD);
+            RewindToStart(format, index, firstDts);
         }
 
         if (timestamps.Count < 3)

@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
     <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Los clips de prueba se generan con el ffmpeg.exe LGPL de .entorno y se guardan en TestResults\media-cache -->
     <NoWarn>$(NoWarn);CA1707;CA1515;CA1861</NoWarn>
   </PropertyGroup>
