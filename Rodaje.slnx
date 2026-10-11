@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/modules/">
+    <Project Path="modules/Rodaje.Module.Echo/Rodaje.Module.Echo.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Rodaje.App/Rodaje.App.csproj" />
     <Project Path="src/Rodaje.Audio/Rodaje.Audio.csproj" />
@@ -6,6 +9,7 @@
     <Project Path="src/Rodaje.Engine/Rodaje.Engine.csproj" />
     <Project Path="src/Rodaje.Export/Rodaje.Export.csproj" />
     <Project Path="src/Rodaje.Media/Rodaje.Media.csproj" />
+    <Project Path="src/Rodaje.Modules.Protocol/Rodaje.Modules.Protocol.csproj" />
     <Project Path="src/Rodaje.Paquetes/Rodaje.Paquetes.csproj" />
     <Project Path="src/Rodaje.Playback/Rodaje.Playback.csproj" />
     <Project Path="src/Rodaje.Render/Rodaje.Render.csproj" />
@@ -22,6 +26,7 @@
     <Project Path="tests/Rodaje.Engine.Tests/Rodaje.Engine.Tests.csproj" />
     <Project Path="tests/Rodaje.Export.Tests/Rodaje.Export.Tests.csproj" />
     <Project Path="tests/Rodaje.Media.Tests/Rodaje.Media.Tests.csproj" />
+    <Project Path="tests/Rodaje.Modules.Protocol.Tests/Rodaje.Modules.Protocol.Tests.csproj" />
     <Project Path="tests/Rodaje.Paquetes.Tests/Rodaje.Paquetes.Tests.csproj" />
     <Project Path="tests/Rodaje.Playback.Tests/Rodaje.Playback.Tests.csproj" />
     <Project Path="tests/Rodaje.Render.Tests/Rodaje.Render.Tests.csproj" />
