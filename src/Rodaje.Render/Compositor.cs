@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Numerics;
+using Rodaje.Media.Export;
 using Rodaje.Media.Gpu;
 using Rodaje.Media.Video;
 using Rodaje.Playback.Composition;
@@ -120,11 +122,20 @@ public sealed unsafe class Compositor : IDisposable
     /// <summary>Niveles de mipmap de <see cref="Texture"/>; solo el 0 se dibuja y el presentador genera el resto.</summary>
     public int MipLevels { get; }
 
-    /// <summary><c>ID3D11Texture2D*</c> con el último cuadro compuesto (alfa 1 en todo el cuadro). Vale hasta <see cref="Dispose"/>.</summary>
+    /// <summary>
+    /// <c>ID3D11Texture2D*</c> con el último cuadro compuesto, premultiplicado (alfa 1 en todo el cuadro salvo con
+    /// <see cref="TransparentBackground"/>). Vale hasta <see cref="Dispose"/>.
+    /// </summary>
     public nint Texture => _output is null ? 0 : (nint)_output.Texture;
 
     /// <summary><c>ID3D11ShaderResourceView*</c> de <see cref="Texture"/>, con todos sus mipmaps.</summary>
     public nint ShaderResourceView => _output is null ? 0 : (nint)_output.Srv;
+
+    /// <summary>
+    /// Compone sobre transparente en vez de sobre negro, para exportar con alfa: donde no hay capas el alfa es 0. Las
+    /// mezclas por shader suponen un fondo opaco.
+    /// </summary>
+    public bool TransparentBackground { get; set; }
 
     /// <summary>Vistas de superficies del decodificador guardadas, para diagnóstico.</summary>
     public int CachedViewCount => _views.Count;
@@ -162,7 +173,7 @@ public sealed unsafe class Compositor : IDisposable
         try
         {
             _pipeline.Bind(_output.Rtv, Width, Height, QuadPipeline.Shader.Layer);
-            float* black = stackalloc float[] { 0f, 0f, 0f, 1f };
+            float* black = stackalloc float[] { 0f, 0f, 0f, TransparentBackground ? 0f : 1f };
             _context->ClearRenderTargetView(_output.Rtv, black);
             bool bound = true;
             IReadOnlyList<LayerFrame> layers = frame.Layers;
@@ -207,6 +218,46 @@ public sealed unsafe class Compositor : IDisposable
         }
 
         return new CompositeResult(drawn, stats.LayersSkipped, stats.EffectsApplied, stats.EffectsSkipped, stats.MissingContent, _pool.Bytes);
+    }
+
+    /// <summary>
+    /// Como <see cref="Render"/>, para la exportación: espera a que compilen los shaders de efectos y, si alguno se saltó
+    /// (por ejemplo, con el pool lleno), vacía el pool y compone otra vez. <see cref="CompositeResult.MissingContent"/> lo
+    /// decide quien llama (se puede «continuar sin»).
+    /// </summary>
+    /// <param name="shaderTimeout">Lo más que se espera a los shaders; por omisión, 2 minutos.</param>
+    /// <exception cref="ExportException">
+    /// Con <see cref="ExportErrorCode.EffectFailed"/>: los shaders fallaron o no llegaron a tiempo, o un efecto sigue sin
+    /// aplicarse tras vaciar el pool.
+    /// </exception>
+    public CompositeResult RenderStrict(CompositionFrame frame, Func<LayerFrame, SourceGeometry>? geometry = null, TimeSpan? shaderTimeout = null)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        WaitForShaders(shaderTimeout ?? TimeSpan.FromMinutes(2));
+        CompositeResult result = Render(frame, geometry);
+        if (result.EffectsSkipped == 0)
+        {
+            return result;
+        }
+
+        _gpu.LockContext();
+        try
+        {
+            _pool.Trim();
+        }
+        finally
+        {
+            _gpu.UnlockContext();
+        }
+
+        result = Render(frame, geometry);
+        if (result.EffectsSkipped > 0)
+        {
+            throw new ExportException(ExportErrorCode.EffectFailed, string.Create(CultureInfo.InvariantCulture,
+                $"{result.EffectsSkipped} efecto(s) no se pudieron aplicar ni tras liberar la memoria de efectos (tope {PoolCapBytes / (1024 * 1024)} MB): un efecto desconocido o repetido, o falta memoria de video."));
+        }
+
+        return result;
     }
 
     /// <summary>Copia el último cuadro compuesto a la CPU en RGBA de 8 bits, fila tras fila (para pruebas y miniaturas).</summary>
@@ -295,6 +346,25 @@ public sealed unsafe class Compositor : IDisposable
         Com.Release(ref _staging);
         _output?.Dispose();
         _output = null;
+    }
+
+    private void WaitForShaders(TimeSpan timeout)
+    {
+        bool ready;
+        try
+        {
+            ready = ShadersReady.Wait(timeout);
+        }
+        catch (AggregateException error)
+        {
+            throw new ExportException(ExportErrorCode.EffectFailed, "No se pudieron compilar los shaders de efectos.", error.InnerException ?? error);
+        }
+
+        if (!ready)
+        {
+            throw new ExportException(ExportErrorCode.EffectFailed,
+                string.Create(CultureInfo.InvariantCulture, $"Los shaders de efectos no terminaron de compilar en {timeout.TotalSeconds:0} s."));
+        }
     }
 
     private void CreateTarget()
