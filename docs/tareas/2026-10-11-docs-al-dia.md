@@ -14,6 +14,8 @@ Rama `claude/docs-al-dia`. Solo documentos; no se compiló ni se corrieron prueb
 
 **reproduccion.md**: `IDecodeExecutor`, `EffectResources`, campos nuevos de `LayerFrame`, `ClipTiming` a 1× con `ClipTimeMap`, `ResetStats` (`src/Rodaje.Playback/...`).
 
+**Al unir (sesión local):** `medios.md` recoge el drenaje y la reapertura del decodificador del PR #5, y `formato-paquete.md` los nombres reales del cargador (`LoadFilter`/`LoadEffect`).
+
 **README.md**: fases 1 a 5; ~50 operaciones.
 
 **medios.md**: `MediaSupport` (`src/Rodaje.Media/Probe/MediaSupport.cs`).

@@ -36,6 +36,8 @@ Rodaje es MIT, así que solo carga un FFmpeg LGPL con la versión verificada y p
 3. Descarta los cuadros iniciales de un GOP abierto y los anteriores al objetivo.
 4. En VFR, un hueco lo cubre el cuadro anterior.
 
+Antes de cada seek, `ResetDecoder` vacía los hilos por cuadro (`DrainFrameThreads`, hasta 64 cuadros) para ver el daño que quedaba dentro del decodificador; si hubo errores o cuadros dañados desde el último reset, reabre el códec (`ReopenCodec`, conservando `skip_frame`) en lugar del flush, porque `avcodec_flush_buffers` no limpia todo el estado de `h264dec`. Con clips limpios no reabre nunca y el costo es el del flush.
+
 Tolera 64 errores seguidos antes de lanzar `MediaException`.
 
 **Hardware.**

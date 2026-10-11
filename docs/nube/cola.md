@@ -67,7 +67,7 @@ Un `.paquete` dañado o malicioso nunca debe tumbar ni escribir fuera de su carp
 
 ## 6. Documentación al día con el código
 
-- **Estado:** cambios (PR #7: atender la revisión del 11-oct en sus comentarios)
+- **Estado:** hecha (PR #7 unido el 11-oct)
 - **Rama:** `claude/docs-al-dia`
 - **Caminos:** `docs/arquitectura/`, `docs/variables-entorno.md`, `docs/formato-paquete.md`, `docs/tareas/`. No toques `README.md`, `CLAUDE.md`, `docs/decisiones.md` ni `docs/fase-*.md`.
 
