@@ -12,7 +12,7 @@ namespace Rodaje.App.Views.Export;
 /// <param name="player">El reproductor; sus órdenes se pueden encolar desde cualquier hilo.</param>
 /// <param name="setQuality">Calidad de la vista previa sin guardarla en los ajustes.</param>
 /// <param name="settings">Los ajustes actuales (proxies y calidad elegidos por la persona).</param>
-public sealed class PreviewYield(IPlaybackEngine player, Action<PreviewQuality> setQuality, Func<AppSettings> settings) : IExportPreview
+public sealed partial class PreviewYield(IPlaybackEngine player, Action<PreviewQuality> setQuality, Func<AppSettings> settings) : IExportPreview
 {
     private int _lowered;
 
@@ -46,7 +46,7 @@ public sealed class PreviewYield(IPlaybackEngine player, Action<PreviewQuality> 
         });
     }
 
-    private sealed class Restore(Action? undo) : IDisposable
+    private sealed partial class Restore(Action? undo) : IDisposable
     {
         public static Restore Nothing { get; } = new(null);
 

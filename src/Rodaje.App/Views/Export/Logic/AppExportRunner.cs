@@ -18,7 +18,7 @@ namespace Rodaje.App.Views.Export;
 /// hilo de la interfaz. Sin él, la sonda no da codificadores y cada exportación falla con
 /// <see cref="ExportErrorCode.EncoderMissing"/> y el motivo.
 /// </remarks>
-public sealed class AppExportRunner : IExportRunner
+public sealed partial class AppExportRunner : IExportRunner
 {
     private readonly Lazy<(ExportRunner? Runner, string? Problem)> _setup;
 
@@ -62,7 +62,7 @@ public sealed class AppExportRunner : IExportRunner
     }
 
     /// <summary>Un <see cref="ExportJob"/> visto como <see cref="IExportJob"/>: la miniatura pasa a <see cref="BgraImage"/>.</summary>
-    private sealed class JobView : IExportJob
+    private sealed partial class JobView : IExportJob
     {
         private readonly ExportJob _job;
         private ExportThumbnail? _source;
@@ -105,7 +105,7 @@ public sealed class AppExportRunner : IExportRunner
     }
 
     /// <summary>Una exportación que no pudo ni empezar.</summary>
-    private sealed class FailedJob(ExportRequest request, ExportException failure) : IExportJob
+    private sealed partial class FailedJob(ExportRequest request, ExportException failure) : IExportJob
     {
         public event EventHandler? Changed
         {

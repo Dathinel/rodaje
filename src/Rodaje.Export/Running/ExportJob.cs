@@ -298,7 +298,14 @@ public sealed class ExportJob : IDisposable
             return;
         }
 
-        ExportReport report = ExportVerifier.For(_options.Ffmpeg).Inspect(Result.OutputPath, token);
+        var verifier = ExportVerifier.For(_options.Ffmpeg);
+        if (!File.Exists(verifier.FfprobePath))
+        {
+            // Una distribución sin ffprobe.exe exporta igual; la comprobación queda para cuando esté.
+            return;
+        }
+
+        ExportReport report = verifier.Inspect(Result.OutputPath, token);
         Report = report;
         IReadOnlyList<string> problems = ExportVerifier.Check(report, expected);
         if (problems.Count > 0)
