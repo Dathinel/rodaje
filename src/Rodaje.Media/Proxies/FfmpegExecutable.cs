@@ -170,7 +170,7 @@ public sealed class FfmpegExecutable
         {
             if (FfmpegLibrary.CompanionLibraryProblem(System.IO.Path.Combine(directory, library + ".dll")) is { } companion)
             {
-                throw new FfmpegNotFoundException($"{companion} Rodaje es MIT y solo puede usar un FFmpeg LGPL ({path}).");
+                throw new FfmpegNotFoundException($"{companion} Rodaje solo puede usar un FFmpeg LGPL ({path}).");
             }
         }
 
@@ -184,7 +184,7 @@ public sealed class FfmpegExecutable
             .Where(l => l.StartsWith("--", StringComparison.Ordinal)));
         if (BuildProblem(configuration, license, version) is { } problem)
         {
-            throw new FfmpegNotFoundException($"{problem} Rodaje es MIT y solo puede usar un FFmpeg LGPL ({path}).");
+            throw new FfmpegNotFoundException($"{problem} Rodaje solo puede usar un FFmpeg LGPL ({path}).");
         }
 
         string firstLine = version.Split('\n', 2)[0].Trim();

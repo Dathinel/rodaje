@@ -126,7 +126,7 @@ public static class FfmpegLibrary
             ]);
         if (licenseProblem is not null)
         {
-            throw new FfmpegNotFoundException($"{licenseProblem} Rodaje es MIT y solo puede cargar un FFmpeg LGPL. "
+            throw new FfmpegNotFoundException($"{licenseProblem} Rodaje solo puede cargar un FFmpeg LGPL. "
                 + $"Bibliotecas en {directory}. {MissingMessage}");
         }
 
