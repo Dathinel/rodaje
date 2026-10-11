@@ -33,6 +33,7 @@ flowchart TB
 | Audio | [audio.md](audio.md) | Salida WASAPI que da el reloj maestro y sobrevive a la pérdida del dispositivo |
 | Reproducción | [reproduccion.md](reproduccion.md) | Qué cuadro se muestra en cada refresco, siguiendo al audio sin bloquear nunca |
 | Motor | [motor.md](motor.md) | Varias capas con pre-roll, varios decodificadores por medio, presupuesto de VRAM, mezcla y proxies |
+| Exportación | [exportacion.md](exportacion.md) | La orquestación: plan, audio con LUFS, motor fuera de línea → compositor → conversor → `ffmpeg.exe`, verificación, modos de rendimiento y cancelación |
 | Render | [render.md](render.md) | Composición en Direct3D 11 sin copias, con el color y la geometría de cada capa |
 | Paquetes | [formato-paquete.md](../formato-paquete.md) | Manifiesto, instalación segura y catálogo de los complementos, para compartir con los demás programas |
 | App | [app.md](app.md) | El contrato de la interfaz WinUI 3: `EditorSession`, comandos y eventos, atajos, ajustes, avisos, miniaturas y complementos |

@@ -11,7 +11,7 @@ namespace Rodaje.Engine.Tests.Timeline;
 
 /// <summary>
 /// Reversa en el motor de video (fase 5c.3): el plan cuenta los cuadros que se ven hacia abajo, la capa presenta por el
-/// lÃ­mite superior, cada clip en reversa tiene su decodificador y lo decodifica por GOP desde su keyframe.
+/// límite superior, cada clip en reversa tiene su decodificador y lo decodifica por GOP desde su keyframe.
 /// </summary>
 public sealed class TimelineReverseTests(ITestOutputHelper output)
 {
@@ -55,7 +55,7 @@ public sealed class TimelineReverseTests(ITestOutputHelper output)
         VideoClipPlan outgoing = plan.Layers[0].Clips[0];
         VideoClipPlan incoming = plan.Layers[0].Companion!.Clips[0];
 
-        // El que sale sigue bajando a 1,5Ã— mÃ¡s allÃ¡ de su final; el que entra baja a 0,5Ã— desde antes de su inicio.
+        // El que sale sigue bajando a 1,5× más allá de su final; el que entra baja a 0,5× desde antes de su inicio.
         Assert.True(outgoing.FrameAt(S(2.4)) < outgoing.FrameAt(S(1.9)));
         Assert.True(incoming.FrameAt(S(1.5)) > incoming.FrameAt(S(2.4)));
         AssertShownHelpers(outgoing);
@@ -102,7 +102,7 @@ public sealed class TimelineReverseTests(ITestOutputHelper output)
 
     /// <summary>
     /// Reproduciendo en reversa con keyframes cada 30 o 60 cuadros y el pool de D3D11VA simulado: se ve cada cuadro debido,
-    /// con un solo decodificador, y cada GOP se decodifica entero una vez (dos pasadas si no cabe en la cachÃ©).
+    /// con un solo decodificador, y cada GOP se decodifica entero una vez (dos pasadas si no cabe en la caché).
     /// </summary>
     [Theory]
     [InlineData(1, 1, 30, 1.05)]
@@ -128,9 +128,9 @@ public sealed class TimelineReverseTests(ITestOutputHelper output)
         TimelineStats stats = session.Stats;
         FakeMediaVideo video = Assert.Single(backend.Videos);
         double cost = (double)video.DecodedFrames / (video.Requests.Max() - video.Requests.Min() + 1);
-        output.WriteLine($"{num}/{den}Ã— en reversa, GOP {gop}: mostrados {stats.FramesShown}, perdidos {stats.FramesDropped}, tarde " +
+        output.WriteLine($"{num}/{den}× en reversa, GOP {gop}: mostrados {stats.FramesShown}, perdidos {stats.FramesDropped}, tarde " +
             $"{stats.LateRefreshes}, pedidos {video.Requests.Count}, decodificados {video.DecodedFrames} ({cost:F2} por cuadro del tramo recorrido), " +
-            $"seeks {video.Seeks}, cachÃ© {stats.CacheFrames} cuadros.");
+            $"seeks {video.Seeks}, caché {stats.CacheFrames} cuadros.");
         Assert.Equal(0, wrong);
         Assert.Equal(0, stats.FramesDropped);
         Assert.Equal(0, stats.LateRefreshes);
@@ -162,7 +162,7 @@ public sealed class TimelineReverseTests(ITestOutputHelper output)
         Assert.Equal((1L, 1L, 0L), (stats.Cuts, stats.PreRollHits, stats.LateAtCuts));
         Assert.Equal(0, stats.FramesDropped);
 
-        // Lo primero que se pide es lo mÃ¡s bajo del Ãºltimo GOP (el keyframe 360), para seguir hacia adelante hasta el 389.
+        // Lo primero que se pide es lo más bajo del último GOP (el keyframe 360), para seguir hacia adelante hasta el 389.
         Assert.Equal(360, video.Requests[0]);
         Assert.Equal(389, video.Requests.Take(30).Max());
     }
@@ -190,7 +190,7 @@ public sealed class TimelineReverseTests(ITestOutputHelper output)
         Assert.Equal(0, stats.LateRefreshes);
         Assert.Equal(2, backend.Videos.Count);
 
-        // Cada uno sigue su sentido: el de adelante no busca nunca mÃ¡s; el de reversa, una vez por GOP.
+        // Cada uno sigue su sentido: el de adelante no busca nunca más; el de reversa, una vez por GOP.
         Assert.Equal(1, backend.Videos.Min(v => v.Seeks));
         Assert.InRange(backend.Videos.Max(v => v.Seeks), 8, 12);
     }
@@ -235,7 +235,7 @@ public sealed class TimelineReverseTests(ITestOutputHelper output)
         return (GC.GetAllocatedBytesForCurrentThread() - before) / 200;
     }
 
-    /// <summary>Reproduce con refrescos de 60 Hz y los decodificadores al dÃ­a; devuelve los cuadros distintos de la referencia.</summary>
+    /// <summary>Reproduce con refrescos de 60 Hz y los decodificadores al día; devuelve los cuadros distintos de la referencia.</summary>
     private static (int Wrong, long Shown) PlayFor(TimelineSession session, FakeTimelineBackend backend, ManualTimeProvider time, Time length, Clip[] clips)
     {
         session.Play();
@@ -266,7 +266,7 @@ public sealed class TimelineReverseTests(ITestOutputHelper output)
 
     /// <summary>
     /// Comprueba contra la fuerza bruta (el cuadro de cada cuadro de la secuencia) los cuadros mostrados, el siguiente y el
-    /// anterior mostrado, cuÃ¡ndo se ve cada uno y cuÃ¡ntos hay entre dos.
+    /// anterior mostrado, cuándo se ve cada uno y cuántos hay entre dos.
     /// </summary>
     private static void AssertShownHelpers(VideoClipPlan plan)
     {
@@ -287,7 +287,7 @@ public sealed class TimelineReverseTests(ITestOutputHelper output)
             Assert.Equal(shown.Contains(i), plan.IsShown(i));
             if (shown.Contains(i))
             {
-                // El primer instante en que se ve ese cuadro o uno que va despuÃ©s en la reproducciÃ³n.
+                // El primer instante en que se ve ese cuadro o uno que va después en la reproducción.
                 Time at = plan.ShownAt(i);
                 bool reached = plan.Forward ? plan.FrameAt(at) >= i : plan.FrameAt(at) <= i;
                 bool before = at == plan.Start || (plan.Forward ? plan.FrameAt(at - Time.FromTicks(1)) < i : plan.FrameAt(at - Time.FromTicks(1)) > i);

@@ -10,6 +10,8 @@ using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Export;
+using Rodaje.Media.Export;
+using Rodaje.Media.Proxies;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 
@@ -116,8 +118,9 @@ internal static class SelfTestRun
     }
 
     /// <summary>
-    /// Abre Exportar con «Avanzado» desplegado y lanza una exportación con el runner de la ventana (hoy la simulación, que
-    /// no escribe nada), para dibujar el diálogo y la tarjeta de progreso con el exe de AOT. No toca los ajustes recordados.
+    /// Abre Exportar con «Avanzado» desplegado y exporta de verdad 2 s del clip a MP4 (H.264 y AAC) con el runner de la
+    /// ventana, dibujando el diálogo y la tarjeta de progreso con el exe de AOT; luego comprueba el archivo con ffprobe y lo
+    /// borra. No toca los ajustes recordados.
     /// </summary>
     private static async Task ShowExportAsync(MainWindow window)
     {
@@ -135,12 +138,12 @@ internal static class SelfTestRun
         await Task.Delay(400);
         await CaptureAsync(window, "exportar-avanzado");
         window.ClosePage();
-        if (window.Session.Sequence.Duration.Ticks <= 0 || !window.Exports.Runner.IsSimulation)
+        if (window.Session.Sequence.Duration.Ticks <= 0)
         {
             return;
         }
 
-        string output = Path.Combine(Path.GetTempPath(), "rodaje-autoprueba.mp4");
+        string output = Path.Combine(Path.GetTempPath(), $"rodaje-autoprueba-{Environment.ProcessId}.mp4");
         ExportEntry entry = window.Exports.Enqueue(new ExportRequest(window.Session.Project.Clone(), window.Session.SequenceId, output,
             ExportPresets.YouTube1080p.Settings, new ExportRange(Time.Zero, Time.Min(window.Session.Sequence.Duration, Time.FromSeconds(2)))));
         window.InspectorPane.Show(InspectorView.Tab.Jobs);
@@ -150,7 +153,7 @@ internal static class SelfTestRun
         }
 
         await CaptureAsync(window, "exportar-progreso");
-        for (int i = 0; i < 100 && !entry.IsFinished; i++)
+        for (int i = 0; i < 600 && !entry.IsFinished; i++)
         {
             await Task.Delay(100);
         }
@@ -159,10 +162,33 @@ internal static class SelfTestRun
 
         if (entry.Progress.State != ExportJobState.Completed)
         {
-            throw new InvalidOperationException($"La exportación simulada quedó en {entry.Progress.State}.");
+            throw new InvalidOperationException($"La exportación quedó en {entry.Progress.State}: {entry.Failure?.Message}");
         }
 
         window.Exports.Remove(entry);
+        if (!window.Exports.Runner.IsSimulation)
+        {
+            CheckExported(output, entry.Request);
+        }
+    }
+
+    /// <summary>El MP4 de la autoprueba: video H.264 de la duración pedida con <c>moov</c> al principio y audio AAC.</summary>
+    private static void CheckExported(string output, ExportRequest request)
+    {
+        try
+        {
+            ExportReport report = ExportVerifier.For(FfmpegExecutable.Locate()).Inspect(output);
+            double expected = request.Range!.Value.Duration.ToSeconds();
+            if (report.Video is not { Codec: "h264" } video || Math.Abs(video.DurationSeconds - expected) > 0.05 || report.MoovAtStart != true
+                || report.Audio is not { Codec: "aac" })
+            {
+                throw new InvalidOperationException($"El MP4 exportado no es el esperado: {report}");
+            }
+        }
+        finally
+        {
+            File.Delete(output);
+        }
     }
 
     /// <summary>

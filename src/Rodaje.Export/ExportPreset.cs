@@ -79,6 +79,18 @@ public static class ExportPresets
             Audio = Aac192 with { Loudness = LoudnessTarget.Platforms },
         });
 
+    public static ExportPreset Square { get; } = Factory("rodaje.cuadrado-1080x1080", "Instagram 1:1",
+        "1080×1080 con barras si la secuencia es horizontal.", ExportPresetCategory.Platform,
+        new ExportSettings
+        {
+            Video = new VideoExportSettings
+            {
+                Codec = ExportCodec.H264, Width = 1080, Height = 1080, Fit = ExportFit.Bars, RateControl = RateControl.Vbr(8_000, 12_000),
+                Profile = "high",
+            },
+            Audio = Aac192 with { Loudness = LoudnessTarget.Platforms },
+        });
+
     public static ExportPreset BestQuality { get; } = Factory("rodaje.maxima-calidad", "Máxima calidad",
         "HEVC de 10 bits por GPU, calidad casi sin pérdidas.", ExportPresetCategory.Quality,
         new ExportSettings
@@ -137,7 +149,7 @@ public static class ExportPresets
 
     /// <summary>En el orden de las tarjetas del diálogo.</summary>
     public static IReadOnlyList<ExportPreset> All { get; } =
-        [YouTube1080p, YouTube4K, Vertical, BestQuality, SmallFile, ProResMaster, Gif, AudioOnly];
+        [YouTube1080p, YouTube4K, Vertical, Square, BestQuality, SmallFile, ProResMaster, Gif, AudioOnly];
 
     private static ExportPreset Factory(string id, string name, string description, ExportPresetCategory category, ExportSettings settings) =>
         new(id, name, description, category, ExportPresetOrigin.Factory, settings);

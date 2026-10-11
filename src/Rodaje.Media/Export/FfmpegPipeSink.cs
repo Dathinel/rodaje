@@ -41,6 +41,9 @@ public sealed record FfmpegPipeSinkOptions
     /// <summary>La prioridad de cada modo de rendimiento (D-028).</summary>
     /// <param name="fastest"><c>true</c> en «Alto rendimiento (menor tiempo)».</param>
     public static ProcessPriorityClass PriorityFor(bool fastest) => fastest ? ProcessPriorityClass.Normal : ProcessPriorityClass.BelowNormal;
+
+    /// <summary>Si el contenedor guarda capítulos (en los demás se omiten).</summary>
+    public static bool AllowsChapters(ExportContainer container) => FfmpegPipeArguments.AllowsChapters(container);
 }
 
 /// <summary>
