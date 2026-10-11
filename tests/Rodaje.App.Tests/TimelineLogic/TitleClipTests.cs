@@ -117,6 +117,17 @@ public class TitleClipTests
         Assert.Null(session.Sequence.GetClip(title.Id).Clip.Speed);
     });
 
+    /// <remarks>
+    /// Punto de conexión: <c>PlayerEngine.EnsureCompositor</c> (Views/Player) arma el <c>Compositor</c> con
+    /// <c>Resources = _content</c>; ahí se le pasa el rasterizador de texto de <c>Rodaje.Render/Text</c> creado sobre el
+    /// <c>GpuDevice</c> del hilo de render, y la capa generada que emita <c>TimelinePlan</c> se dibuja sin más cambios en la
+    /// App. La prueba de humo se escribe con la autoprueba (captura «texto» con píxeles del título en el visor).
+    /// </remarks>
+    [Fact(Skip = "Falta el carril generado del motor y el rasterizador de Rodaje.Render/Text (agentes de la 5b en paralelo).")]
+    public void ElTituloSeVeEnElVisor()
+    {
+    }
+
     [Fact]
     public void MoverYCortarUnTituloFuncionaComoCualquierClip() => UiThread.Run(async () =>
     {

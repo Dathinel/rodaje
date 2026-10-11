@@ -118,8 +118,7 @@ internal sealed partial class TextPanel
 
         var italic = new ToggleButton
         {
-            Content = "I",
-            FontStyle = Windows.UI.Text.FontStyle.Italic,
+            Content = new FontIcon { Glyph = "", FontSize = 13 },
             Width = NumberWidth,
             Height = 28,
             MinHeight = 28,

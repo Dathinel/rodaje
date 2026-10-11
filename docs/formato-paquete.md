@@ -50,7 +50,7 @@ rodaje-transiciones.paquete
 | `items` | No | Elementos, cada uno con `id` (único en el paquete), `kind`, `name` y, si los necesita, `file`, `description`, `license` (cuando no es la del paquete) y `preview`. |
 | `module` | Solo en módulos | `entry` (ejecutable relativo), `protocol` (versión del protocolo de módulos) y `functions` (lo que ofrece). |
 
-Los tipos de elemento son `transition`, `text-style`, `effect`, `filter`, `lut`, `template` y `sound`. La biblioteca los reparte por categoría: Texto muestra `text-style`; Efectos, `effect`; Transiciones, `transition`; Filtros, `filter` y `lut`; Audio, `sound`. Las plantillas se ven en la página de complementos hasta que exista su panel. El contenido de los archivos `lut`, `filter`, `effect` y `transition` está en [Contenido de los elementos](#contenido-de-los-elementos); el de `text-style` llega en la fase 5b, y de `template` y `sound` el formato solo garantiza que el archivo existe y está dentro del paquete.
+Los tipos de elemento son `transition`, `text-style`, `effect`, `filter`, `lut`, `template` y `sound`. La biblioteca los reparte por categoría: Texto muestra `text-style`; Efectos, `effect`; Transiciones, `transition`; Filtros, `filter` y `lut`; Audio, `sound`. Las plantillas se ven en la página de complementos hasta que exista su panel. El contenido de los archivos `lut`, `filter`, `effect`, `transition` y `text-style` está en [Contenido de los elementos](#contenido-de-los-elementos); `text-style` es `rodaje.textstyle` v1, y de `template` y `sound` el formato solo garantiza que el archivo existe y está dentro del paquete.
 
 **Textos.** De todos los textos se quitan los caracteres de control y las marcas de dirección de Unicode (bidi, como U+202E), que pueden disfrazar un nombre o una extensión; las rutas que los traen se rechazan. Un texto que pasa de su largo es un error; los que no tienen uno propio (id, versión, rutas, funciones de un módulo) admiten hasta 256 caracteres, y cada función, 64. Los elementos propios y el catálogo se limpian igual, pero se recortan en lugar de rechazarse. Un texto que no es Unicode válido (UTF-8 dañado o un sustituto suelto escrito como escape, como `\ud800`) hace inválido el archivo entero: el manifiesto y el contenido se rechazan con un mensaje en español, el catálogo no se lee (`FormatException`) y un elemento propio se omite. El manifiesto y los elementos propios se leen del disco como UTF-8 estricto (`SafeText.ReadAllTextStrict`), sin sustituir bytes inválidos por U+FFFD y tolerando una marca BOM inicial (EF BB BF), que se salta; el catálogo, con `PackageCatalog.ParseUtf8` desde sus bytes (también con BOM tolerado). Una cadena de .NET con un sustituto suelto (`ManifestReader.Read(string)`, `PackageCatalog.Parse(string)`) da el mismo error, no `ArgumentException`. Una `repository` cuyo dominio no se puede pasar a ASCII (por ejemplo con U+FFFD) se trata como dirección no válida.
 
@@ -139,6 +139,21 @@ Una lista no vacía de efectos con valores fijos; lo que falta toma el valor por
 ```
 
 Curvas de la transformación del clip que sale (`outgoing`) y del que entra (`incoming`), por parámetro (`x`, `y`, `scale`, `rotation`, `opacity`), más la **mezcla** de las dos imágenes: una transición propia del registro (`rodaje.crossfade` por defecto, `rodaje.wipe`, `rodaje.dip`…; nunca `rodaje.preset`) con sus `mixParameters` y `mixOptions` opcionales. `durationSeconds` (hasta 60 s) es la duración para la que se escribieron las curvas: al usarla se estiran a la de la transición de la pista (`t / durationSeconds` es el avance de 0 a 1). Las dos listas pueden faltar: un preajuste sin curvas es solo la mezcla. El v1 de «Guardar como transición» se lee como curvas del clip que entra con fundido cruzado.
+
+### `text-style`: `rodaje.textstyle` v1
+
+```json
+{ "format": "rodaje.textstyle", "version": 1, "id": "clasico", "name": "Clásico",
+  "font": { "family": "Inter", "weight": 700, "italic": false, "source": "rodaje-fuentes@1.0.0/inter", "fallback": ["Segoe UI"] },
+  "size": 96, "reference": { "width": 1920, "height": 1080 }, "lineHeight": 1.1, "letterSpacing": 0, "align": "center",
+  "fill": { "color": "#FFFFFF" }, "stroke": { "color": "#000000", "width": 6, "join": "round" },
+  "shadow": { "color": "#00000099", "dx": 4, "dy": 6, "blur": 8 },
+  "background": { "color": "#00000080", "padding": [24, 12], "radius": 12 },
+  "in":  { "durationSeconds": 0.4, "curves": { "opacity": [ { "t": 0, "value": 0 }, { "t": 0.4, "value": 1, "interp": "easeOut" } ] } },
+  "out": { "durationSeconds": 0.3, "curves": { "opacity": [ { "t": 0, "value": 1 }, { "t": 0.3, "value": 0 } ] } } }
+```
+
+Un estilo de título. Obligatorios `font.family` y `size` (mayor que 0 y hasta 1000); lo demás tiene valor por defecto (peso 400, interlineado 1,2, centrado, relleno blanco) o falta (sin borde, sombra, fondo ni animación). Medidas en píxeles de `reference`; colores `#RRGGBB` o `#RRGGBBAA`; peso entero de 100 a 900; hasta 8 fuentes de respaldo; `font.source` es la referencia de un elemento `font`; borde de hasta la mitad de `size`, `blur` de 0 a 64, desplazamientos y márgenes de hasta 1000; `in` y `out` (hasta 60 s) son curvas de `rodaje.transform` por parámetro, como en `rodaje.preset`, en segundos desde su borde del clip. Al aplicarlo el proyecto guarda una copia con `source` (D-029): actualizar el paquete no cambia los títulos ya puestos.
 
 ### `PackageContentStore`
 
