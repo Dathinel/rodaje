@@ -118,7 +118,7 @@ Corrige y quita los 5 `Skip`: (1) un sustituto suelto escrito como escape JSON (
 
 ## 12. Lector de video hacia atrás por GOP (base de la reversa, fase 5c.3)
 
-- **Estado:** pendiente
+- **Estado:** en pausa (lo hace la sesión local con la ronda 5c.3, 11-oct)
 - **Rama:** `claude/media-reversa`
 - **Caminos:** archivos NUEVOS en `src/Rodaje.Media/Video/` (no modifiques `VideoDecoder.cs`: el PR #5 lo está cambiando; usa su API pública), `tests/Rodaje.Media.Tests/` (archivos nuevos), `docs/arquitectura/medios.md` (sección nueva), `docs/tareas/`.
 - **Lee:** `docs/fase-5c.md` (sección «Reversa»), `docs/arquitectura/medios.md`, `src/Rodaje.Media/Probe/KeyframeIndex.cs`, `src/Rodaje.Media/Video/VideoDecoder.cs` (solo lectura).
