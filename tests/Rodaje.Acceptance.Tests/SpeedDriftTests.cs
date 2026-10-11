@@ -17,7 +17,6 @@ namespace Rodaje.Acceptance.Tests;
 /// </summary>
 public sealed class SpeedDriftTests(ITestOutputHelper output)
 {
-    internal const string WaitsForAudioEngine = "Espera al agente D (audio con velocidad, fase 5c.1)";
 
     private const int Rate = TimelinePlan.AudioSampleRate;
     private const int Channels = 2;
@@ -44,7 +43,7 @@ public sealed class SpeedDriftTests(ITestOutputHelper output)
     public void Video_diez_minutos_sin_deriva(string name) =>
         Video(name, SpeedTimeline.Build(MediaPath, SpeedCase.Named(name), withAudio: true, Length));
 
-    [FfmpegLibraryTheory(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true, Skip = WaitsForAudioEngine)]
+    [FfmpegLibraryTheory(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true)]
     [MemberData(nameof(AudioCases))]
     public void Audio_diez_minutos_sin_deriva(string name, bool preservePitch)
     {
