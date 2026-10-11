@@ -24,24 +24,20 @@ public class ProjectReaderFuzzTests
     private static string ExamplePath =>
         Path.Combine(Serialization.ProjectSchemaTests.FindRepoRoot(), "tests", "Rodaje.Core.Tests", "Serialization", "ejemplos", "proyecto-v3.rodaje");
 
-    // Variable y no constante: esta rama aún lee el formato 3 y main ya lee el 4.
-    private static readonly int CurrentVersion = Project.CurrentSchemaVersion;
-
     private static string V4ExamplePath =>
-        Path.Combine(Serialization.ProjectSchemaTests.FindRepoRoot(), "tests", "Rodaje.Core.Tests", "Fuzz", "proyecto-v4.rodaje");
+        Path.Combine(Serialization.ProjectSchemaTests.FindRepoRoot(), "tests", "Rodaje.Core.Tests", "Serialization", "ejemplos", "proyecto-v4.rodaje");
 
     /// <summary>
     /// Semillas v1, v2 y v3 (las dos primeras se obtienen quitando del v3 lo que esos formatos no tenían) y,
-    /// cuando <see cref="Project.CurrentSchemaVersion"/> ya es 4 o más, el ejemplo v4 copiado de main.
+    /// el ejemplo v4.
     /// </summary>
     private static List<(string Name, string Json)> Seeds()
     {
         string v3 = File.ReadAllText(ExamplePath);
-        var seeds = new List<(string Name, string Json)> { ("v1", Downgrade(v3, 1)), ("v2", Downgrade(v3, 2)), ("v3", v3) };
-        if (CurrentVersion >= 4)
+        var seeds = new List<(string Name, string Json)>
         {
-            seeds.Add(("v4", File.ReadAllText(V4ExamplePath)));
-        }
+            ("v1", Downgrade(v3, 1)), ("v2", Downgrade(v3, 2)), ("v3", v3), ("v4", File.ReadAllText(V4ExamplePath)),
+        };
 
         return seeds;
     }
