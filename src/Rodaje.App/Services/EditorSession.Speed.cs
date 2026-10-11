@@ -8,7 +8,7 @@ namespace Rodaje.App.Services;
 /// <summary>
 /// La velocidad desde los atajos: abrir su pestaña, más rápido y más lento por escalones, congelar el cuadro del cursor e
 /// invertir. Actúan sobre los clips seleccionados (uno por grupo enlazado); sin selección, sobre el clip de la pista
-/// principal bajo el cursor. En la pista principal magnética (o con ripple automático) lo que sigue se corre.
+/// principal bajo el cursor. Con magnetismo en cualquier pista, lo que sigue se une con el modo de ripple de la sesión.
 /// </summary>
 public sealed partial class EditorSession
 {
@@ -54,7 +54,7 @@ public sealed partial class EditorSession
         List<string> targets = OnePerLink([.. clipIds]);
         return targets.Count > 0 && RunAsOneStep("Cambiar velocidad", targets, id =>
             Sequence.FindClip(id) is { } found && Retimable(found.Clip)
-                ? Edits.SetSpeed(SequenceId, id, rate, ClosesGaps(found.Track), _ids)
+                ? Edits.SetSpeed(SequenceId, id, rate, SpeedScope, _ids)
                 : null);
     }
 
@@ -72,7 +72,7 @@ public sealed partial class EditorSession
 
             Rational current = found.Clip.Speed?.Rate ?? new Rational(1, 1);
             return NextStep(current, faster) is { } next
-                ? Edits.SetSpeed(SequenceId, id, next, ClosesGaps(found.Track), _ids)
+                ? Edits.SetSpeed(SequenceId, id, next, SpeedScope, _ids)
                 : null;
         });
     }
@@ -97,7 +97,7 @@ public sealed partial class EditorSession
                 continue;
             }
 
-            SequenceEditCommand command = Edits.FreezeFrame(SequenceId, id, at, FreezeDuration, _ids);
+            SequenceEditCommand command = Edits.FreezeFrame(SequenceId, id, at, FreezeDuration, _ids, SpeedScope);
             if (!Execute(command))
             {
                 return false;
@@ -152,8 +152,11 @@ public sealed partial class EditorSession
         return null;
     }
 
-    /// <summary>Si un cambio de velocidad del clip corre lo que sigue (pista principal magnética o ripple automático).</summary>
-    public bool SpeedRipples(string clipId) => Sequence.FindClip(clipId) is { } found && ClosesGaps(found.Track);
+    /// <summary>
+    /// Qué se corre al cambiar la velocidad: siempre hay magnetismo, en cualquier pista (decisión de Daniel); el ámbito es
+    /// el modo de ripple de la sesión.
+    /// </summary>
+    public RippleScope SpeedScope => Timeline.RippleScope;
 
     private static bool Retimable(Clip clip) => clip.Speed is not { Freeze: true } and not { Curve: not null };
 

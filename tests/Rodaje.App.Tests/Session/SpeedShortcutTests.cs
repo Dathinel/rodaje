@@ -60,6 +60,21 @@ public class SpeedShortcutTests
         Assert.Equal([session.MainTrack!.Clips[1].Id], session.SelectedClipIds);
     });
 
+    [Theory]
+    [InlineData(RippleMode.AffectedTracks, 15)]
+    [InlineData(RippleMode.AllTracksAndMarkers, 10)]
+    public void LaVelocidadSigueElModoDeRippleDeLaSesion(RippleMode mode, double marker) => UiThread.Run(async () =>
+    {
+        EditorSession session = await TwoClips();
+        Assert.True(session.Execute(Rodaje.Core.Commands.Edits.AddMarker(session.SequenceId, S(15))));
+        session.Timeline.RippleMode = mode;
+
+        Assert.True(session.SetSpeed([session.MainTrack!.Clips[0].Id], new Rational(2, 1)));
+
+        Assert.Equal("0-5 5-15", Layout(session.MainTrack!));
+        Assert.Equal(S(marker), session.Sequence.Markers[0].Time);
+    });
+
     [Fact]
     public void MasRapidoYMasLento_SubenYBajanEscalonesConRipple() => UiThread.Run(async () =>
     {

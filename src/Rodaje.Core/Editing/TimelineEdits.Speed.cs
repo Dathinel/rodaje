@@ -5,8 +5,11 @@ namespace Rodaje.Core.Editing;
 
 /// <remarks>
 /// Velocidad (fase 5c). El grupo enlazado cambia junto y cada miembro conserva su material, así que su duración cambia.
-/// Sin ripple, un clip que crece y choca con el siguiente corre su pista y las de los enlazados de lo que corre, cada
-/// una con su propio Δ; si no choca, o si se acorta, no se corre nada. Con ripple se corre siempre (pista magnética).
+/// Siempre con magnetismo (decisión de Daniel), en cualquier pista: si el clip crece, lo que sigue se corre; si se acorta,
+/// el siguiente se une y la transición del corte se queda. Con <see cref="RippleScope.Track"/> cada pista del grupo se
+/// corre con su propio Δ, y las de los enlazados de lo que se corre con el de la pista que los arrastra; con
+/// <see cref="RippleScope.AllTracks"/> o <see cref="RippleScope.AllTracksAndMarkers"/> se corren todas las pistas (y los
+/// marcadores) con el Δ del clip pedido.
 /// </remarks>
 public static partial class TimelineEdits
 {
@@ -20,14 +23,14 @@ public static partial class TimelineEdits
     /// Velocidad constante para el clip y sus enlazados. Cada uno conserva su tramo del origen, y su final se alinea al
     /// cuadro de la secuencia hacia abajo (sin pasar de su material). Conserva reversa, tono y muestreo; quita una curva.
     /// </summary>
-    public static void SetSpeed(EditContext ctx, string clipId, Rational rate, bool ripple = false)
+    public static void SetSpeed(EditContext ctx, string clipId, Rational rate, RippleScope scope = RippleScope.Track)
     {
         if (!RetimeMath.IsValidRate(rate))
         {
             throw new EditException($"La velocidad {rate} está fuera de 0,1× a 100×.");
         }
 
-        Retime(ctx, clipId, ripple, (_, speed) =>
+        Retime(ctx, clipId, scope, (_, speed) =>
         {
             speed.Curve = null;
             speed.Rate = rate;
@@ -39,17 +42,17 @@ public static partial class TimelineEdits
     /// Velocidad que cambia a lo largo del clip (su motor llega en la ronda 5c.2); <c>null</c> vuelve a 1×. Se conservan
     /// la forma y el material: la duración es la que recorre el tramo del origen con esa forma, y la curva la cubre.
     /// </summary>
-    public static void SetCurve(EditContext ctx, string clipId, SpeedCurve? curve, bool ripple = false)
+    public static void SetCurve(EditContext ctx, string clipId, SpeedCurve? curve, RippleScope scope = RippleScope.Track)
     {
         if (curve is null)
         {
-            SetSpeed(ctx, clipId, new Rational(1, 1), ripple);
+            SetSpeed(ctx, clipId, new Rational(1, 1), scope);
             return;
         }
 
         Clip primary = TrimmingSupport.ResolveGroup(ctx, clipId)[0].Clip;
         SpeedCurve fitted = CoveringCurve(curve, primary.SourceDuration);
-        Retime(ctx, clipId, ripple, (_, speed) =>
+        Retime(ctx, clipId, scope, (_, speed) =>
         {
             speed.Rate = new Rational(1, 1);
             speed.Curve = fitted.Clone();
@@ -108,24 +111,16 @@ public static partial class TimelineEdits
     /// <summary>
     /// Alt + arrastrar un borde: el clip pasa a durar <c>D ∓ delta</c> con el mismo material, así que cambia su velocidad
     /// a <c>material / duración</c>, aproximada con un denominador de hasta <see cref="StretchMaxDenominator"/> y acotada
-    /// a 0,1×–100×. Sin ripple, el borde de entrada mueve el inicio; con ripple, el inicio queda y se corre lo que sigue.
+    /// a 0,1×–100×. El inicio queda y lo que sigue se une por magnetismo, tire del borde que tire.
     /// En un congelado es un recorte; en una curva todavía no se puede (llega con las curvas).
     /// </summary>
-    public static void RateStretch(EditContext ctx, string clipId, TrimEdge edge, Time delta, bool ripple = false)
+    public static void RateStretch(EditContext ctx, string clipId, TrimEdge edge, Time delta, RippleScope scope = RippleScope.Track)
     {
         List<(Track Track, Clip Clip)> group = EditableSpeedGroup(ctx, clipId);
         Clip primary = group[0].Clip;
         if (primary.Speed is { Freeze: true })
         {
-            if (ripple)
-            {
-                RippleTrim(ctx, clipId, edge, delta, RippleScope.Track);
-            }
-            else
-            {
-                Trim(ctx, clipId, edge, delta);
-            }
-
+            RippleTrim(ctx, clipId, edge, delta, scope);
             return;
         }
 
@@ -141,7 +136,7 @@ public static partial class TimelineEdits
         }
 
         Rational rate = ApproximateRate(primary.SourceDuration.Ticks, duration.Ticks);
-        Retime(ctx, clipId, ripple, (clip, speed) =>
+        Retime(ctx, clipId, scope, (clip, speed) =>
         {
             speed.Rate = rate;
             return speed;
@@ -150,7 +145,7 @@ public static partial class TimelineEdits
             // El clip arrastrado llega justo al borde si su archivo tiene material; los enlazados quedan con su largo.
             bool exact = ReferenceEquals(clip, primary);
             Time length = exact ? duration : fit.Duration;
-            Time start = edge == TrimEdge.In && !ripple ? clip.End - length : clip.Start;
+            Time start = clip.Start;
             ClipTimeMap moved = fit.MoveTo(start);
             if (!exact || moved.Duration == length)
             {
@@ -168,7 +163,7 @@ public static partial class TimelineEdits
     /// pistas del grupo y las de sus enlazados, así el audio queda con un hueco.
     /// </summary>
     /// <returns>El identificador del clip congelado.</returns>
-    public static string FreezeFrame(EditContext ctx, string clipId, Time at, Time? duration = null)
+    public static string FreezeFrame(EditContext ctx, string clipId, Time at, Time? duration = null, RippleScope scope = RippleScope.Track)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         Time length = duration ?? DefaultFreezeDuration;
@@ -200,7 +195,7 @@ public static partial class TimelineEdits
             TrackOps.AddClipSorted(t, TrackOps.SplitOff(ctx, member, at));
         }
 
-        ctx.RippleShift(group.Select(m => m.Track), at, length, RippleScope.Track);
+        ctx.RippleShift(group.Select(m => m.Track), at, length, scope);
 
         var frozen = new Clip
         {
@@ -267,7 +262,7 @@ public static partial class TimelineEdits
     private static void Retime(
         EditContext ctx,
         string clipId,
-        bool ripple,
+        RippleScope scope,
         Func<Clip, ClipSpeed, ClipSpeed> change,
         Func<Clip, ClipTimeMap, ClipTimeMap>? place = null)
     {
@@ -303,17 +298,24 @@ public static partial class TimelineEdits
         foreach ((TrimPlan plan, ClipSpeed? speed) in plans)
         {
             Time oldEnd = plan.Clip.End;
-            Time delta = plan.End - oldEnd;
+            seeds.Add((plan.Track, oldEnd, plan.End - oldEnd));
             plan.Clip.Speed = speed;
             plan.Map!.ApplyTo(plan.Clip);
-            if (ripple || (delta > Time.Zero && plan.Track.Clips.Exists(c => !edited.Contains(c) && c.Start >= oldEnd && c.Start < plan.End)))
-            {
-                seeds.Add((plan.Track, oldEnd, delta));
-            }
         }
 
-        IReadOnlyList<Track> shifted = ctx.RippleEach(seeds, edited);
-        TrimmingSupport.EnsureNoOverlaps(plans.Select(p => p.Plan.Track).Concat(shifted).Distinct());
+        Magnetize(ctx, seeds, scope, edited);
+    }
+
+    /// <summary>
+    /// Corre lo que sigue a los clips que cambiaron de duración: cada pista con su Δ, o todas con el del primero si el
+    /// ámbito es de todas las pistas. Comprueba que nada se pise y valida.
+    /// </summary>
+    private static void Magnetize(EditContext ctx, List<(Track Track, Time From, Time Delta)> seeds, RippleScope scope, IReadOnlySet<Clip> edited)
+    {
+        IReadOnlyList<Track> shifted = scope.IncludesAllTracks()
+            ? ctx.RippleShift(seeds.Select(s => s.Track), seeds[0].From, seeds[0].Delta, scope, edited)
+            : ctx.RippleEach(seeds, edited);
+        TrimmingSupport.EnsureNoOverlaps(scope.IncludesAllTracks() ? ctx.Sequence.AllTracks : seeds.Select(s => s.Track).Concat(shifted).Distinct());
         ctx.EnsureValid();
     }
 

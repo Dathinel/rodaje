@@ -55,12 +55,12 @@ public sealed class TransitionSpeedTests
     }
 
     [Fact]
-    public void Speeding_up_shortens_a_transition_that_no_longer_fits()
+    public void Speeding_up_on_a_free_track_keeps_the_cut_and_shortens_a_transition_that_no_longer_fits()
     {
         var f = new TrimFixture().Add("v1", "a", "m1", 0, 20, 0).Add("v1", "b", "m2", 0, 40, 20);
         f.Track("v1").Transitions.Add(new TransitionInstance { Id = "t", Type = BuiltInTransitions.Crossfade, From = "a", To = "b", Duration = F(16) });
 
-        TimelineEdits.SetSpeed(f.Ctx, "a", new Rational(2, 1), ripple: true);
+        TimelineEdits.SetSpeed(f.Ctx, "a", new Rational(2, 1));
 
         TransitionInstance transition = Assert.Single(f.Track("v1").Transitions);
         Assert.Equal(F(10), transition.Duration);

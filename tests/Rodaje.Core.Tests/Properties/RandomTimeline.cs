@@ -325,9 +325,9 @@ internal static class RandomTimeline
             int pick = (speeds >> 3) + i;
             SequenceEditCommand command = choice switch
             {
-                1 => Edits.SetSpeed(seq, clip.Id, SpeedRates[pick % (SpeedRates.Length - 1)], pick % 2 == 0, built.Ids),
+                1 => Edits.SetSpeed(seq, clip.Id, SpeedRates[pick % (SpeedRates.Length - 1)], (RippleScope)(pick % 3), built.Ids),
                 2 when pick % 3 == 0 => Edits.SetReverse(seq, clip.Id, true, built.Ids),
-                2 => Edits.SetCurve(seq, clip.Id, new SpeedCurve { Points = [.. CurveShapes[pick % (CurveShapes.Length - 1)]] }, pick % 2 == 0, built.Ids),
+                2 => Edits.SetCurve(seq, clip.Id, new SpeedCurve { Points = [.. CurveShapes[pick % (CurveShapes.Length - 1)]] }, (RippleScope)(pick % 3), built.Ids),
                 _ => Edits.FreezeFrame(seq, clip.Id, clip.Start + Time.FromTicks(clip.Duration.Ticks / 3), Time.FromFrames(1 + (pick % 90), built.Rate), built.Ids),
             };
 
@@ -575,17 +575,17 @@ internal static class RandomTimeline
             {
                 string clip = r.ClipId(op.A);
                 Rational rate = SpeedRates[op.B % SpeedRates.Length];
-                bool ripple = op.C % 2 == 0;
-                return new(kind, Edits.SetSpeed(seq, clip, rate, ripple, ids), $"SetSpeed({clip}, {rate}, ripple={ripple})", clip);
+                var scope = (RippleScope)(op.C % 3);
+                return new(kind, Edits.SetSpeed(seq, clip, rate, scope, ids), $"SetSpeed({clip}, {rate}, {scope})", clip);
             }
 
             case OpKind.RateStretch:
             {
                 string clip = r.ClipId(op.A);
                 TrimEdge edge = op.B % 2 == 0 ? TrimEdge.In : TrimEdge.Out;
-                bool ripple = op.D % 2 == 0;
+                var scope = (RippleScope)(op.D % 3);
                 Time delta = r.Delta(op.E, op.C);
-                return new(kind, Edits.RateStretch(seq, clip, edge, delta, ripple, ids), $"RateStretch({clip}, {edge}, {delta.Ticks}, ripple={ripple})", clip, delta);
+                return new(kind, Edits.RateStretch(seq, clip, edge, delta, scope, ids), $"RateStretch({clip}, {edge}, {delta.Ticks}, {scope})", clip, delta);
             }
 
             case OpKind.FreezeFrame:
@@ -598,15 +598,15 @@ internal static class RandomTimeline
                     1 => Time.Zero,
                     _ => Time.FromFrames(1 + (op.D % 120), built.Rate),
                 };
-                return new(kind, Edits.FreezeFrame(seq, clip, at, duration, ids), $"FreezeFrame({clip}, {at.Ticks}, {duration?.Ticks.ToString(CultureInfo.InvariantCulture) ?? "-"})", clip, At: at);
+                return new(kind, Edits.FreezeFrame(seq, clip, at, duration, ids, (RippleScope)(op.B % 3)), $"FreezeFrame({clip}, {at.Ticks}, {duration?.Ticks.ToString(CultureInfo.InvariantCulture) ?? "-"}, {(RippleScope)(op.B % 3)})", clip, At: at);
             }
 
             case OpKind.SetCurve:
             {
                 string clip = r.ClipId(op.A);
                 SpeedCurve? curve = op.B % 6 == 5 ? null : new SpeedCurve { Points = [.. CurveShapes[op.B % CurveShapes.Length]] };
-                bool ripple = op.C % 2 == 0;
-                return new(kind, Edits.SetCurve(seq, clip, curve, ripple, ids), $"SetCurve({clip}, {(curve is null ? "-" : (op.B % CurveShapes.Length).ToString(CultureInfo.InvariantCulture))}, ripple={ripple})", clip);
+                var scope = (RippleScope)(op.C % 3);
+                return new(kind, Edits.SetCurve(seq, clip, curve, scope, ids), $"SetCurve({clip}, {(curve is null ? "-" : (op.B % CurveShapes.Length).ToString(CultureInfo.InvariantCulture))}, {scope})", clip);
             }
 
             case OpKind.SetReverse:
