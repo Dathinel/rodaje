@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #16, #14.
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -130,7 +130,7 @@ Un `ReverseFrameReader` que entregue los cuadros de un tramo en orden descendent
 
 ## 13. Lista de codificadores para la exportación (base de la fase 6)
 
-- **Estado:** cambios (PR #14: el contrato de la fase 6 ya está en main; rehaz el catálogo sobre `EncoderSpec` de `src/Rodaje.Media/Export/` y atiende la revisión del 11-oct en los comentarios)
+- **Estado:** hecha (PR #14 unido el 11-oct)
 - **Rama:** `claude/export-codificadores`
 - **Caminos:** archivos NUEVOS en `src/Rodaje.Media/Export/` (carpeta nueva), `tests/Rodaje.Media.Tests/Export/`, `docs/tareas/`.
 - **Lee:** `CLAUDE.md` (sección «Hacia la versión pública»: exportar por GPU o CPU sin separar el programa, licencia LGPL en la v1), `docs/legal.md`, `docs/ffmpeg-configure.txt`, `src/Rodaje.Media/Proxies/ProxyEncoders.cs` (solo lectura).
@@ -157,7 +157,7 @@ Con un HEVC de GOP abierto (p. ej. el que genera libkvazaar del build LGPL: IDR 
 
 ## 15. Personalización: de qué pistas de video sale el audio
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #16 unido el 11-oct)
 - **Rama:** `claude/audio-por-pista`
 - **Caminos:** `src/Rodaje.App/Services/Settings/`, la página de ajustes, el punto donde la app importa o suelta un medio en la línea de tiempo (búscalo; no toques `src/Rodaje.Core`), `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` («Personalización»), la entrega de la tarea 7 (pistas por defecto) si ya existe, `docs/arquitectura/app.md`.

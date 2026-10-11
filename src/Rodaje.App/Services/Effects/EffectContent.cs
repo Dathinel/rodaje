@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
+using Rodaje.Engine.Offline;
 using Rodaje.Engine.Timeline;
 using Rodaje.Paquetes.Content;
 using Rodaje.Playback.Composition;
@@ -24,7 +25,7 @@ public sealed class ContentProblemEventArgs(string reference, string message) : 
 /// reservas; si falta, la pide a un hilo del pool y devuelve <c>false</c>. Al terminar avisa con <see cref="Changed"/>.
 /// Lo que no se pudo leer no se reintenta hasta <see cref="Invalidate"/> (por ejemplo, al instalar o quitar paquetes).
 /// </remarks>
-public sealed class EffectContent : IEffectContent
+public sealed class EffectContent : IAwaitableEffectContent
 {
     private readonly IContentLoader _loader;
     private readonly ConcurrentDictionary<string, LutEntry> _luts = new(StringComparer.Ordinal);
@@ -119,9 +120,12 @@ public sealed class EffectContent : IEffectContent
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Espera a que termine de cargar la LUT de <paramref name="reference"/> (para pruebas y mediciones).</summary>
+    /// <summary>Espera a que termine de cargar la LUT de <paramref name="reference"/> (bien o mal); si no se pidió, termina ya.</summary>
     public Task WhenLoadedAsync(string reference) =>
         _luts.TryGetValue(reference, out LutEntry? entry) ? entry.Loaded.Task : Task.CompletedTask;
+
+    /// <summary>Para la exportación, que espera cada LUT antes del primer cuadro (<c>OfflineTimeline.Prepare</c>).</summary>
+    public Task WhenLutLoadedAsync(ResourceKey key) => key.Reference is { Length: > 0 } reference ? WhenLoadedAsync(reference) : Task.CompletedTask;
 
     /// <summary>Lo que el motor necesita de un preajuste de transición: mezcla, tamaño de referencia y curvas de 0 a 1.</summary>
     public static TransitionCurves ToCurves(TransitionPreset preset)

@@ -11,8 +11,8 @@ using static Rodaje.Engine.Tests.Support.AudioSignals;
 namespace Rodaje.Engine.Tests.Timeline;
 
 /// <summary>
-/// Audio en reversa con un medio de verdad (AAC decodificado por FFmpeg, con seek exacto y bloques de 0,5 s hacia atrÃ¡s):
-/// tono, chasquidos en las uniones de bloque y deriva frente a la decodificaciÃ³n seguida del mismo archivo.
+/// Audio en reversa con un medio de verdad (AAC decodificado por FFmpeg, con seek exacto y bloques de 0,5 s hacia atrás):
+/// tono, chasquidos en las uniones de bloque y deriva frente a la decodificación seguida del mismo archivo.
 /// </summary>
 public sealed class AudioReverseMediaTests(ITestOutputHelper output)
 {
@@ -26,7 +26,7 @@ public sealed class AudioReverseMediaTests(ITestOutputHelper output)
         long sourceOut = 7L * Rate;
         float[] left = Left(ReadReverse(Tone.Value, new Rational(1, 1), preservePitch: false, Time.FromSeconds(6), Time.FromSeconds(7)));
 
-        // Sin velocidad la salida i es el origen SourceOut âˆ’ 1 âˆ’ i: cada muestra, no solo el tono, y sin deriva al final.
+        // Sin velocidad la salida i es el origen SourceOut − 1 − i: cada muestra, no solo el tono, y sin deriva al final.
         double worst = 0;
         double worstLate = 0;
         for (int i = 0; i < left.Length; i++)
@@ -37,8 +37,8 @@ public sealed class AudioReverseMediaTests(ITestOutputHelper output)
         }
 
         double steps = MaxStep(left.AsSpan(Rate / 10)) / (2 * Amplitude(left.AsSpan(Rate / 4, Rate / 2), 440) * Math.Sin(Math.PI * 440 / Rate));
-        output.WriteLine(Invariant($"MEDIDA reversa_1x_medio: error mÃ¡ximo {worst:E2} (Ãºltimo segundo {worstLate:E2}), tono {Frequency(left.AsSpan(Rate / 2)):F3} Hz, salto mÃ¡ximo {steps:F3} Ã— el ideal"));
-        Assert.True(worst < 1e-3, Invariant($"La reversa se aparta {worst:E2} de la decodificaciÃ³n seguida."));
+        output.WriteLine(Invariant($"MEDIDA reversa_1x_medio: error máximo {worst:E2} (último segundo {worstLate:E2}), tono {Frequency(left.AsSpan(Rate / 2)):F3} Hz, salto máximo {steps:F3} × el ideal"));
+        Assert.True(worst < 1e-3, Invariant($"La reversa se aparta {worst:E2} de la decodificación seguida."));
         Assert.InRange(Frequency(left.AsSpan(Rate / 2)), 439.5, 440.5);
         Assert.True(steps <= 1.1, Invariant($"Hay un chasquido: el mayor salto es {steps:F3} veces el del seno."));
     }
@@ -59,9 +59,9 @@ public sealed class AudioReverseMediaTests(ITestOutputHelper output)
         double measured = Frequency(left.AsSpan(Rate / 2, left.Length - Rate));
         double steps = MaxStep(left.AsSpan(Rate / 4, left.Length - (Rate / 2))) / (2 * Amplitude(left.AsSpan(Rate / 2, Rate), hz) * Math.Sin(Math.PI * hz / Rate));
 
-        // Deriva: el tono de la Ãºltima medio segundo sigue en fase con el del principio (un corrimiento de muestras lo romperÃ­a en los empalmes).
+        // Deriva: el tono de la última medio segundo sigue en fase con el del principio (un corrimiento de muestras lo rompería en los empalmes).
         double late = Frequency(left.AsSpan(left.Length - (Rate / 2) - (Rate / 4), Rate / 2));
-        output.WriteLine(Invariant($"MEDIDA reversa_{num}/{den}_{(preservePitch ? "tono" : "cinta")}: {measured:F3} Hz (final {late:F3}), salto mÃ¡ximo {steps:F3} Ã— el ideal, {map.Duration.ToSamples(Rate) / (double)Rate:F2} s"));
+        output.WriteLine(Invariant($"MEDIDA reversa_{num}/{den}_{(preservePitch ? "tono" : "cinta")}: {measured:F3} Hz (final {late:F3}), salto máximo {steps:F3} × el ideal, {map.Duration.ToSamples(Rate) / (double)Rate:F2} s"));
         Assert.InRange(measured, hz - 0.5, hz + 0.5);
         Assert.InRange(late, hz - 0.5, hz + 0.5);
         Assert.True(steps <= 1.1, Invariant($"Hay un chasquido: el mayor salto es {steps:F3} veces el del seno."));

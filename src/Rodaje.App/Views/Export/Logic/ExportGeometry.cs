@@ -42,18 +42,7 @@ public static class ExportGeometry
     public static (int Width, int Height) OutputSize(VideoExportSettings video, int sequenceWidth, int sequenceHeight)
     {
         ArgumentNullException.ThrowIfNull(video);
-        int sourceWidth = video.Crop?.Width ?? sequenceWidth;
-        int sourceHeight = video.Crop?.Height ?? sequenceHeight;
-        (int w, int h) = (video.Width, video.Height) switch
-        {
-            ({ } width, { } height) => (width, height),
-            ({ } width, null) => (width, (int)Math.Round((double)width * sourceHeight / sourceWidth)),
-            (null, { } height) => ((int)Math.Round((double)height * sourceWidth / sourceHeight), height),
-            _ => (sourceWidth, sourceHeight),
-        };
-        bool rgb = video.Codec is Rodaje.Media.Export.ExportCodec.Gif or Rodaje.Media.Export.ExportCodec.Png
-            or Rodaje.Media.Export.ExportCodec.WebP or Rodaje.Media.Export.ExportCodec.Tiff or Rodaje.Media.Export.ExportCodec.QtAnimation;
-        return rgb ? (Math.Max(1, w), Math.Max(1, h)) : (Math.Max(2, w & ~1), Math.Max(2, h & ~1));
+        return video.OutputSize(sequenceWidth, sequenceHeight);
     }
 
     /// <summary>Si la salida tiene otra forma que la secuencia (más de un 1 % de diferencia): entonces importan barras, recorte o estirar.</summary>
