@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
@@ -57,7 +57,7 @@ internal sealed class ClipVisual
     private readonly Polyline _envelope = new() { StrokeThickness = 1.5 };
     private readonly Path _envelopePoints = new() { StrokeThickness = 1 };
     private readonly Path _keys = new();
-    private readonly TextBlock _name = new() { FontSize = 11, TextWrapping = TextWrapping.NoWrap };
+    private readonly TextBlock _name = new() { FontSize = 11, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Border _badge = new() { Padding = new Thickness(4, 0, 4, 1), Height = NameHeight - 1 };
     private readonly TextBlock _badgeText = new() { FontSize = 10, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
 
@@ -199,8 +199,13 @@ internal sealed class ClipVisual
         _name.Visibility = Visibility.Visible;
         if (!string.Equals(_name.Text, d.Name, StringComparison.Ordinal))
         {
-            // Sin recorte con puntos: el bloque ya recorta el texto y así cambiar el zoom no vuelve a medirlo.
             _name.Text = d.Name;
+        }
+
+        // Puntos suspensivos en vez de un corte seco; se vuelve a medir solo si el hueco cambia de verdad (no en cada paso del zoom estirado).
+        if (Math.Abs(_name.MaxWidth - room) >= 1)
+        {
+            _name.MaxWidth = room;
         }
 
         _bounds.Rect = new Rect(0, 0, room, NameHeight + 2);
