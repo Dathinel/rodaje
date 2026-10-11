@@ -101,7 +101,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 - **Licencia de la exportación por CPU.** Propuesta: v1 en LGPL (H.264 solo por hardware; la CPU exporta AV1 con SVT-AV1, VP9 o HEVC con kvazaar). x264 (GPL) quedaría como complemento aparte con su `ffmpeg.exe` propio, consultando antes a alguien de licencias.
 - **Codificadores de hardware:** ampliar `ProxyEncoders` a NVENC, AMF, QSV, Media Foundation y software; AMD e Intel necesitan probadores.
 - **Vista previa «como CapCut»:** medir con `app.ps1 -Medir N` frente a CapCut con el mismo clip 4K de varias capas; vigilar el presupuesto de VRAM en gráficas de 2 GB o integradas.
-- **Antes de publicar:** `legal.md` pide el código fuente de FFmpeg, `THIRD-PARTY-NOTICES.txt` y la revisión de patentes de H.264.
+- **Antes de publicar:** casillas en `docs/pendientes-legales.md` (SIC, abogado, EULA por el Windows App SDK, código fuente de FFmpeg, avisos, patentes, licencia de los repos de contenido, acuerdo de contribuidor).
 
 ## Decisiones
 
