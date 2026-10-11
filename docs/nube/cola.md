@@ -49,7 +49,7 @@ Un `.rodaje` dañado o malicioso nunca debe tumbar la app: abrirlo da un proyect
 
 ## 5. Pruebas hostiles del instalador de paquetes
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #6: atender la revisión del 11-oct en sus comentarios)
 - **Rama:** `claude/fuzz-paquete`
 - **Caminos:** `tests/Rodaje.Paquetes.Tests/Fuzz/` (carpeta nueva), `docs/tareas/`. Si encuentras un fallo real en `src/Rodaje.Paquetes/`, NO lo corrijas: prueba que lo reproduce con `Skip = "Defecto: …"` y descripción en la entrega.
 - **Lee:** `docs/formato-paquete.md`, `src/Rodaje.Paquetes/` (solo lectura), la revisión del PR #3 (lo que se le pidió a ese fuzz vale aquí).
