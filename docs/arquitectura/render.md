@@ -1,6 +1,6 @@
 # Render: `Rodaje.Render`
 
-Compone en Direct3D 11 las capas de un `CompositionFrame` y presenta el resultado en la cadena de intercambio de una ventana. Referencia [Medios](medios.md) (por `GpuDevice` y `D3D11TexturePayload`) y [Reproducción](reproduccion.md) (por los tipos de `Composition`), y usa TerraFX.Interop.Windows. No depende del motor: el contrato entre ambos es `Rodaje.Playback.Composition`. La vista previa y la futura exportación comparten este mismo compositor, para que lo que se ve sea lo que se exporta.
+Compone en Direct3D 11 las capas de un `CompositionFrame` y presenta el resultado en la cadena de intercambio de una ventana, o lo convierte para la exportación. Referencia [Medios](medios.md) (por `GpuDevice` y `D3D11TexturePayload`) y [Reproducción](reproduccion.md) (por los tipos de `Composition`), y usa TerraFX.Interop.Windows. No depende del motor: el contrato entre ambos es `Rodaje.Playback.Composition`. La vista previa y la futura exportación comparten este mismo compositor, para que lo que se ve sea lo que se exporta.
 
 ```mermaid
 flowchart LR
@@ -58,11 +58,38 @@ flowchart LR
 - **[`RenderTargetPool`](../../src/Rodaje.Render/RenderTargetPool.cs)**: intermedios reutilizados, con tamaños redondeados a 64 px y un tope del 7,5 % de la VRAM entre 96 y 300 MB (300 MB con 4 GB), fuera del presupuesto de los decodificadores. Si una textura no cabe, el efecto se salta. Las libres se sueltan tras 240 cuadros sin uso o con `TrimCachedViews`.
 - **[`GpuEffectRegistry`](../../src/Rodaje.Render/Effects/GpuEffectRegistry.cs)**: tabla explícita código → implementación, sin reflexión; una prueba exige que coincida con `EffectRegistry`.
 
+## Exportación (fase 6)
+
+[`ExportFrameConverter`](../../src/Rodaje.Render/Export/ExportFrameConverter.cs) lleva la composición R'G'B' (premultiplicada, con mips) al cuadro que recibe el sink ([D-028](../decisiones.md)). Todo va en compute shaders ([`ExportShaders`](../../src/Rodaje.Render/Export/ExportShaders.cs)):
+
+1. **Escala y forma** ([`ExportGeometry`](../../src/Rodaje.Render/Export/ExportGeometry.cs)). La composición cae en un rectángulo de la salida: barras (por defecto; borde en posición y tamaño pares si el croma está submuestreado), recorte centrado o estirado. Con `Auto`, una reducción a la mitad exacta (o un cuarto…) lee el nivel de mip, que es el promedio 2×2; si además llena el cuadro, la conversión lee ese nivel directamente, sin pasada de escala. Lo demás va con Catmull-Rom, ensanchado 1/escala al reducir (4K → 720p: mip 1 y núcleo ×1,5). `Lanczos` (3 lóbulos) y `Bilinear` leen el nivel 0. `SubmitBlend` mezcla dos composiciones en esta misma pasada.
+2. **Y'CbCr por planos** a un búfer lineal ([`ExportLayout`](../../src/Rodaje.Render/Export/ExportLayout.cs)): un hilo escribe una palabra de 4 bytes, y el pitch se redondea a esa unidad (1080p NV12 sale sin relleno). Matriz BT.709 o BT.601, rango limitado o completo; croma «left» con [1 2 1]/4 en horizontal y promedio de las dos filas en vertical (4:2:0), solo horizontal (4:2:2) o ninguno (4:4:4). Tramado de Bayer 4×4 de ±0,5 LSB en 8 bits (`Dither`). P010 lleva el código en los 10 bits altos; los planares de 10 bits, en los bajos. Con alfa (YUVA, RGBA) el color se despremultiplica, el alfa es de rango completo y las barras son transparentes; el compositor compone sobre transparente con `TransparentBackground`.
+3. **Anillo de `Staging`** (3 por omisión): `Submit` copia el búfer al `Staging` del cuadro y hace `Flush`; `TryRead` mapea el más antiguo con `DO_NOT_WAIT`, soltando el candado del contexto entre intentos, lo copia a un búfer propio reservado una vez, desmapea y se lo presta al sink. `ReadWait` acumula lo que se esperó a la GPU. Cada 500 ms se baja además una miniatura BGRA de 320 px (`LatestThumbnail`).
+
+**Modo estricto.** `Compositor.RenderStrict` espera a los shaders de efectos y, si un efecto se salta, vacía el pool y compone otra vez; si sigue, lanza `ExportException` con `EffectFailed`. `MissingContent` lo decide quien llama.
+
+**Pruebas** ([`tests/…/Export`](../../tests/Rodaje.Render.Tests/Export)): una referencia propia en la CPU ([`ExportReference`](../../tests/Rodaje.Render.Tests/Export/ExportReference.cs), doble precisión, ecuaciones de la norma y el mismo Bayer) contra la GPU, en **WARP** (corre en la CI) y en la GPU de verdad: los 13 formatos de píxel, matrices y rangos, filas con relleno, escalas 2× y arbitrarias con cada filtro, barras, recorte y estirado, alfa, mezcla, anillo y miniaturas. Todas a ≤1 código salvo la bilineal (≤3 en 10 bits). Barras BT.709 al 100 %: los códigos publicados ±1 con tramado; al 100 % y al 75 % vuelven a R'G'B' ±1.
+
+**Cifras** (RTX 3050 Laptop, Release, 300 cuadros; «anillo» es encolar n y leer n − 2 copiando a la CPU y empaquetando como la tubería; [`ExportPerformanceTests`](../../tests/Rodaje.Render.Tests/Export/ExportPerformanceTests.cs)):
+
+| Caso | GPU por cuadro (mediana) | Anillo |
+|---|---|---|
+| 1080p → 1080p NV12 | 0,42–0,47 ms | 1915–2003 fps (0,5 ms) |
+| 1080p → 1080p P010 | 0,66–0,71 ms | 1020–1065 fps |
+| 1080p → 720p NV12 (Catmull-Rom ×1,5) | 0,72 ms | ~1280 fps |
+| 1080p → 1080×1920 NV12 (barras) | 1,2 ms | ~765 fps |
+| 4K → 1080p NV12 (mip 1) | 0,62 ms | ~1495 fps |
+| 4K → 4K NV12 | 2,4 ms | ~460 fps |
+| 4K → 4K P010 | 3,2 ms | 248–271 fps |
+
+El prototipo del paso 0 bajaba un NV12 1080p en 3,2–3,3 ms con `Map` síncrono; con el anillo son 0,5 ms, así que la bajada deja de ser el cuello frente a los ≥150 fps sin codificar.
+
 ## Archivos
 
 | Archivo | Qué hace |
 |---|---|
-| [`Compositor.cs`](../../src/Rodaje.Render/Compositor.cs) | `Render(frame) → CompositeResult`, `Resources` (LUT), `ShadersReady`, `ReadbackRgba()`, `TrimCachedViews()` en pausa |
+| [`Compositor.cs`](../../src/Rodaje.Render/Compositor.cs) | `Render(frame) → CompositeResult`, `RenderStrict` para exportar, `TransparentBackground`, `Resources` (LUT), `ShadersReady`, `ReadbackRgba()`, `TrimCachedViews()` en pausa |
+| [`Export/`](../../src/Rodaje.Render/Export) | `ExportFrameConverter`, sus shaders, la geometría de escala y forma y la disposición de los planos |
 | [`LayerRenderer.cs`](../../src/Rodaje.Render/LayerRenderer.cs), [`LayerRenderer.Effects.cs`](../../src/Rodaje.Render/LayerRenderer.Effects.cs) | Camino rápido, efectos por píxel, intermedios, mezclas y transiciones |
 | [`Effects/`](../../src/Rodaje.Render/Effects) | HLSL de los efectos, `EffectPipeline` (constantes, estados de mezcla, shaders), `LutTextures`, `GpuEffectRegistry` |
 | [`RenderTargetPool.cs`](../../src/Rodaje.Render/RenderTargetPool.cs) | Intermedios con tope |

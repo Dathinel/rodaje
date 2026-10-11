@@ -260,7 +260,13 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         }
 
         _disposed = true;
-        Lock();
+        // Si el GpuDevice ya se cerró no hay candado que tomar; las referencias propias siguen siendo válidas.
+        bool locked = _gpu is { IsDisposed: false };
+        if (locked)
+        {
+            Lock();
+        }
+
         try
         {
             foreach (SourceViews source in _sources)
@@ -292,7 +298,10 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         }
         finally
         {
-            Unlock();
+            if (locked)
+            {
+                Unlock();
+            }
         }
     }
 

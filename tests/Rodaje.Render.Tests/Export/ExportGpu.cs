@@ -55,13 +55,36 @@ internal sealed unsafe class ExportGpu : IDisposable
         };
 
     /// <summary>Sube una imagen RGBA16F con toda la cadena de mips (como la textura del compositor).</summary>
-    public nint Upload(Picture picture)
+    public nint Upload(Picture picture) => Upload(picture.Width, picture.Height, picture.ToHalves());
+
+    /// <summary>Un degradado con ruido de <paramref name="width"/>×<paramref name="height"/>, sin pasar por <see cref="Picture"/> (para 4K).</summary>
+    public nint UploadGradient(int width, int height)
     {
-        int levels = 1 + (int)Math.Log2(Math.Max(picture.Width, picture.Height));
+        var halves = new Half[width * height * 4];
+        var random = new Random(7);
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                int i = ((y * width) + x) * 4;
+                double noise = random.NextDouble() * 0.02;
+                halves[i] = (Half)(((double)x / width) + noise);
+                halves[i + 1] = (Half)(((double)y / height) + noise);
+                halves[i + 2] = (Half)(0.5 + noise);
+                halves[i + 3] = (Half)1;
+            }
+        }
+
+        return Upload(width, height, halves);
+    }
+
+    private nint Upload(int width, int height, Half[] halves)
+    {
+        int levels = 1 + (int)Math.Log2(Math.Max(width, height));
         var desc = new D3D11_TEXTURE2D_DESC
         {
-            Width = (uint)picture.Width,
-            Height = (uint)picture.Height,
+            Width = (uint)width,
+            Height = (uint)height,
             MipLevels = (uint)levels,
             ArraySize = 1,
             Format = DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT,
@@ -72,13 +95,12 @@ internal sealed unsafe class ExportGpu : IDisposable
         };
         ID3D11Texture2D* texture;
         Check(_device->CreateTexture2D(&desc, null, &texture));
-        Half[] halves = picture.ToHalves();
         Gpu?.LockContext();
         try
         {
             fixed (Half* data = halves)
             {
-                _context->UpdateSubresource((ID3D11Resource*)texture, 0, null, data, (uint)(picture.Width * 8), 0);
+                _context->UpdateSubresource((ID3D11Resource*)texture, 0, null, data, (uint)(width * 8), 0);
             }
         }
         finally
