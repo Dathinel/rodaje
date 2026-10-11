@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Velocidad del clip seleccionado: deslizador logarítmico, duración resultante, mantener tono y congelar. -->
+<UserControl
+    x:Class="Rodaje.App.Views.Inspector.Speed.SpeedPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Background="{StaticResource PanelBrush}">
+        <TextBlock x:Name="EmptyText" Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center" Margin="24,0"
+                   Text="Selecciona un clip en la línea de tiempo para cambiar su velocidad." />
+
+        <ScrollViewer x:Name="Body" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+            <StackPanel Padding="12,4,12,12" Spacing="6">
+                <TextBlock x:Name="ClipTitle" Style="{StaticResource CaptionTextStyle}" Margin="0,4,0,0" />
+
+                <Grid Height="32" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Velocidad" Style="{StaticResource PanelTitleTextStyle}" VerticalAlignment="Center" />
+                    <TextBox x:Name="RateBox" Grid.Column="1" Width="76" MinHeight="26" FontSize="{StaticResource BodyFontSize}"
+                             TextAlignment="Right" AutomationProperties.Name="Velocidad"
+                             ToolTipService.ToolTip="Escribe la velocidad, por ejemplo 1,5 o 150 %"
+                             KeyDown="OnBoxKeyDown" LostFocus="OnRateBoxLostFocus" />
+                    <Button x:Name="ResetButton" Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Width="22" FontSize="11"
+                            Content="&#xE72C;" Click="OnResetClick" AutomationProperties.Name="Restablecer la velocidad a 1×"
+                            ToolTipService.ToolTip="Restablecer la velocidad a 1×" />
+                </Grid>
+
+                <Slider x:Name="RateSlider" Minimum="0" Maximum="1000" StepFrequency="1" SmallChange="10" LargeChange="100"
+                        IsThumbToolTipEnabled="False" AutomationProperties.Name="Velocidad" Margin="0,-6,0,-8"
+                        ValueChanged="OnSliderValueChanged" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="0,1×" Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock Grid.Column="1" Text="1×" Style="{StaticResource CaptionTextStyle}" Margin="-8,0,0,0" />
+                    <TextBlock Grid.Column="2" Text="10×" Style="{StaticResource CaptionTextStyle}" Margin="-10,0,0,0" />
+                    <TextBlock Grid.Column="2" Text="100×" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Right" />
+                </Grid>
+
+                <StackPanel x:Name="QuickPanel" Orientation="Horizontal" Spacing="4" Margin="0,2,0,0" />
+
+                <Grid ColumnSpacing="6" Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Duración" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="SourceDurationText" Grid.Column="1" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center"
+                               ToolTipService.ToolTip="Lo que dura a 1×" />
+                    <TextBox x:Name="DurationBox" Grid.Column="2" Width="84" MinHeight="26" FontSize="{StaticResource BodyFontSize}"
+                             TextAlignment="Right" AutomationProperties.Name="Duración en la línea de tiempo"
+                             ToolTipService.ToolTip="Escribe cuánto debe durar; la velocidad se calcula sola"
+                             KeyDown="OnBoxKeyDown" LostFocus="OnDurationBoxLostFocus" />
+                </Grid>
+
+                <TextBlock x:Name="NoteText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
+
+                <CheckBox x:Name="PitchBox" Content="Mantener tono" Margin="0,4,0,0" Click="OnPitchClick"
+                          ToolTipService.ToolTip="La voz y la música suenan igual de agudas a cualquier velocidad" />
+
+                <Rectangle Height="1" Margin="-12,6" Fill="{StaticResource StrokeBrush}" />
+
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="FreezeButton" Click="OnFreezeClick" AutomationProperties.Name="Congelar el cuadro del cursor">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="&#xE769;" FontFamily="{StaticResource IconFontFamily}" FontSize="12" VerticalAlignment="Center" />
+                            <TextBlock Text="Congelar" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock x:Name="FreezeHint" Grid.Column="1" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
+                               VerticalAlignment="Center" Text="Detiene el cuadro del cursor durante 3 s." />
+                </Grid>
+
+                <Grid ColumnSpacing="8" Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <CheckBox x:Name="ReverseBox" Content="Invertir" IsEnabled="False" />
+                    <TextBlock Grid.Column="1" Text="Próximamente" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                </Grid>
+
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="CurveButton" IsEnabled="False" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            AutomationProperties.Name="Curva de velocidad">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="&#xE9D9;" FontFamily="{StaticResource IconFontFamily}" FontSize="12" VerticalAlignment="Center" />
+                            <TextBlock Text="Curva" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Grid.Column="1" Text="Próximamente" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
