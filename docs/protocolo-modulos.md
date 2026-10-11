@@ -11,6 +11,9 @@ Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla c
 1. [Transporte](#transporte)
 2. [Saludo y versión](#saludo-y-versión)
 3. [Mensajes](#mensajes)
+4. [Progreso](#progreso)
+5. [Cancelación](#cancelación)
+6. [Errores](#errores)
 
 ## Transporte
 
@@ -210,4 +213,121 @@ módulo → editor  {"type":"result","id":1,"value":{"texto":"hola","n":3}}
 editor → módulo  {"type":"ping","id":2}
 módulo → editor  {"type":"pong","id":2}
 editor → módulo  {"type":"shutdown"}
+```
+
+## Progreso
+
+```json
+{"type":"progress","id":1,"fraction":0.25,"stage":"contando"}
+```
+
+- `fraction` es el avance de 0 a 1, finito; `stage`, opcional y de hasta 200 caracteres, nombra la etapa en curso. Un `progress` con `fraction` fuera de 0–1 (o `NaN`) **corta la conexión** (`ProgressMessage.Validate` en `Messages.cs`; pruebas en `MessageTests`).
+- **Como mucho uno cada 50 ms por llamada** (D-031). El anfitrión de C# lo cumple solo (`ModuleCall.ReportProgressAsync` en `ModuleHost.cs`): descarta los avances que llegan antes de 50 ms del anterior, salvo el primero, los que cambian de etapa y el de 1, que siempre salen. También lleva `fraction` a 0–1 y cambia `NaN` o infinito por 0. El editor no rechaza avances más seguidos, pero un módulo en otro lenguaje debe respetar el límite.
+- Va antes del `result`; el último debería ser el de 1. El editor entrega cada uno al `IProgress<ModuleProgress>` de la llamada (prueba `Progress_arrives_in_order_and_ends_at_one`).
+- Solo tiene sentido en funciones con `reportsProgress: true`, aunque el editor no lo comprueba.
+
+Marcos reales de la función `contar` del eco con `{"pasos":4,"msPorPaso":60}` (un paso cada 60 ms, más que el límite, así que salen todos):
+
+```
+   36 ms editor → módulo  {"type":"invoke","id":1,"function":"contar","parameters":{"pasos":4,"msPorPaso":60}}
+  100 ms módulo → editor  {"type":"progress","id":1,"fraction":0.25,"stage":"contando"}
+  161 ms módulo → editor  {"type":"progress","id":1,"fraction":0.5,"stage":"contando"}
+  221 ms módulo → editor  {"type":"progress","id":1,"fraction":0.75,"stage":"contando"}
+  282 ms módulo → editor  {"type":"progress","id":1,"fraction":1,"stage":"contando"}
+  282 ms módulo → editor  {"type":"result","id":1,"value":{"pasos":4}}
+```
+
+Y con `{"pasos":20,"msPorPaso":5}` (un paso cada 5 ms): de 20 avances salen 4, separados por al menos 50 ms, y el de 1.
+
+```
+  290 ms módulo → editor  {"type":"progress","id":1,"fraction":0.05,"stage":"contando"}
+  346 ms módulo → editor  {"type":"progress","id":1,"fraction":0.4,"stage":"contando"}
+  402 ms módulo → editor  {"type":"progress","id":1,"fraction":0.75,"stage":"contando"}
+  442 ms módulo → editor  {"type":"progress","id":1,"fraction":1,"stage":"contando"}
+  442 ms módulo → editor  {"type":"result","id":1,"value":{"pasos":20}}
+```
+
+## Cancelación
+
+El editor manda `cancel` con el `id` de la llamada. El módulo deja de trabajar y **confirma** con un `error` de código `cancelled` y el mismo `id`. Marcos reales: el editor cancela `contar` a los 130 ms y la conexión sigue sirviendo para la llamada siguiente.
+
+```
+  444 ms editor → módulo  {"type":"invoke","id":1,"function":"contar","parameters":{"pasos":100,"msPorPaso":50}}
+  495 ms módulo → editor  {"type":"progress","id":1,"fraction":0.01,"stage":"contando"}
+  547 ms módulo → editor  {"type":"progress","id":1,"fraction":0.02,"stage":"contando"}
+  574 ms editor → módulo  {"type":"cancel","id":1}
+  576 ms módulo → editor  {"type":"error","code":"cancelled","message":"Cancelado.","id":1}
+  577 ms editor → módulo  {"type":"invoke","id":2,"function":"eco","parameters":1}
+  577 ms módulo → editor  {"type":"result","id":2,"value":1}
+```
+
+- **Plazo de gracia:** el editor espera la confirmación hasta `ModuleClientOptions.CancelGrace`, **2 s** por defecto (`ModuleClient.InvokeAsync`). Si no llega, da el módulo por colgado: corta la conexión, falla todas las llamadas en curso con `ModuleDisconnectedException` («El módulo no confirmó la cancelación en 2 s.») y `ModuleProcess` mata el proceso (prueba `A_module_that_ignores_cancel_is_killed_after_the_grace_period`). Una función que no puede detenerse a tiempo debería declararse `cancellable: false`; el editor todavía no usa ese dato (previsto para el `ModuleManager`).
+- Si en el plazo llega un `result` en vez de la confirmación, el `ModuleClient` devuelve ese resultado; si llega cualquier `error`, la llamada termina como cancelada (`OperationCanceledException`).
+- Un `cancel` de una llamada que ya terminó o que no existe se ignora (`ModuleHost.RunAsync`).
+- En el anfitrión de C#, `cancel` cancela el `CancellationToken` que recibe la función. Si la función lanza `OperationCanceledException` con ese token cancelado, el anfitrión manda el `error` `cancelled`; si termina antes, manda su `result`. Una `OperationCanceledException` sin que se haya pedido cancelar cuenta como error `internal`.
+- En el paso 0 la confirmación tardó una mediana de 0,6 ms entre procesos ([fase-7.md](fase-7.md#cifras-del-paso-0-11-oct)).
+
+## Errores
+
+### Errores de una llamada
+
+Un `error` **con `id`** termina esa llamada y la conexión sigue sirviendo (prueba `Function_errors_do_not_close_the_connection`). Los códigos estables son los de `ErrorCodes` en `Messages.cs`:
+
+| Código | Quién lo manda y cuándo |
+|---|---|
+| `version-incompatible` | El módulo, en el saludo y sin `id`, si no hay versión común. |
+| `unknown-function` | El módulo, si no tiene la función pedida. |
+| `invalid-parameters` | La función, si `parameters` o los búferes no le sirven (el eco lo usa en `copiar`). El anfitrión no lo genera solo. |
+| `cancelled` | El módulo, para confirmar un `cancel`. |
+| `busy` | El módulo, si ya atiende el máximo de llamadas a la vez (4 en el anfitrión de C#). |
+| `out-of-memory` | El anfitrión de C#, si la función lanza `OutOfMemoryException` o `InsufficientExecutionStackException`. |
+| `buffer-out-of-range` | Un búfer que no se puede usar: región con nombre inválido o que no existe, búfer de otra región, o fuera de los límites de la región (`SharedMemoryRegion.cs`). |
+| `malformed` | El módulo, sin `id`, justo antes de cerrar porque el editor mandó algo inválido. |
+| `internal` | Cualquier otro fallo. El anfitrión de C# manda «`Tipo`: mensaje» de la excepción, o «Resultado inválido: …». |
+
+`message` es un texto de hasta 4096 caracteres (el anfitrión de C# recorta los más largos con «…»). Escríbelo para una persona, en el idioma de `hello.culture` si puedes: la app mostrará los errores del módulo en lenguaje simple, sin trazas ([fase-7.md](fase-7.md#interfaz)). Marcos reales:
+
+```json
+{"type":"error","code":"unknown-function","message":"El m\u00F3dulo no tiene la funci\u00F3n \u00ABnada\u00BB.","id":1}
+```
+```json
+{"type":"error","code":"internal","message":"InvalidOperationException: Fallo a prop\u00F3sito.","id":2}
+```
+```json
+{"type":"error","code":"busy","message":"El m\u00F3dulo est\u00E1 ocupado.","id":2}
+```
+
+En un módulo de C#, lanza `ModuleCallException(código, mensaje)` (o cualquier `ModuleException`) y el anfitrión manda ese código y ese mensaje. `code` solo tiene que ser un identificador válido: el editor acepta códigos fuera de la tabla y los pasa tal cual, pero usa los de la tabla para que la app sepa qué hacer.
+
+Del lado del editor (`ModuleClient.Dispatch`, `ModuleExceptions.cs`): `cancelled` se convierte en `OperationCanceledException`; cualquier otro código, en `ModuleCallException` con `Code` y `Message`.
+
+### Errores que cierran la conexión
+
+El editor **desconfía del módulo** (D-031): ante cualquiera de estos casos corta la conexión, falla todas las llamadas en curso con una `ModuleException`, mata el proceso (`ModuleProcess`) y sigue funcionando (prueba `A_hostile_module_fails_the_call_and_closes_without_hurting_the_editor`).
+
+- Un marco con un largo fuera de 1 B–1 MiB, cortado a mitad, o que no es JSON válido en UTF-8.
+- Un mensaje que no pasa la validación: campos obligatorios que faltan, tipos equivocados (un `id` como texto, un número que no cabe), valores fuera de [Límites](#límites).
+- Un `type` que no es un identificador válido.
+- Un mensaje que el módulo no puede mandar (`hello`, `invoke`, `cancel`, `ping`, `shutdown`, o un `welcome` después del saludo).
+- Un `error` **sin `id`** después del saludo («El módulo informó un error de conexión: …»).
+- Un `result` con búferes fuera de las regiones del editor.
+- No confirmar un `cancel` dentro del plazo de gracia.
+- El proceso termina o cierra la tubería (`ModuleDisconnectedException`, o `ModuleExitedException` con `ExitCode`).
+
+Excepciones del editor (`ModuleExceptions.cs`), todas derivadas de `ModuleException`, con su `Code`:
+
+| Excepción | `Code` | Qué pasó | ¿Sigue la conexión? |
+|---|---|---|---|
+| `ModuleCallException` | el que mandó el módulo | La función falló. | Sí |
+| `ModuleProtocolException` | `malformed` | El otro lado no cumplió el protocolo, o no saludó a tiempo. | No |
+| `ModuleVersionException` | `version-incompatible` | Sin versión común. | No |
+| `ModuleDisconnectedException` | `disconnected` | El módulo cerró, se colgó o se cortó la tubería. | No |
+| `ModuleExitedException` | `disconnected` | El proceso terminó; trae `ExitCode`. | No |
+
+`disconnected` es solo el código de esas dos excepciones del editor; no está en `ErrorCodes` y no viaja por el cable.
+
+El anfitrión de C# también desconfía del editor: un mensaje inválido le hace mandar un `error` `malformed` sin `id` y salir con el código 2 (prueba `A_hostile_editor_stops_the_host`). Marco real, tras un `invoke` con `"id":0`:
+
+```json
+{"type":"error","code":"malformed","message":"Mensaje \u00ABInvokeMessage\u00BB inv\u00E1lido: id de llamada inv\u00E1lido."}
 ```
