@@ -249,4 +249,75 @@ public class SpeedEditorTests
         Assert.False(h.Session.Execute(commands.SetSpeed(h.Session.SequenceId, "no-existe", new Rational(2, 1))));
         Assert.Null(h.Video.Speed);
     });
+
+    [Fact]
+    public void Restablecer_VuelveA1xEnUnPaso_SinPreguntarSiNoHayCurva() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        Assert.False(h.Editor.Read()!.CanReset);
+        Assert.False(await h.Editor.ResetAsync(() => throw new InvalidOperationException("No debe preguntar.")));
+
+        Assert.True(h.Editor.SetPreservePitch(false));
+        Assert.True(h.Editor.SetRate(new Rational(2, 1)));
+        Assert.True(h.Editor.Read()!.CanReset);
+        int steps = h.Session.History.Count;
+        Assert.True(await h.Editor.ResetAsync(() => throw new InvalidOperationException("No debe preguntar.")));
+
+        Assert.Equal(steps + 1, h.Session.History.Count);
+        Assert.Equal(SpeedState.Normal, h.Editor.Read()!.Rate);
+        Assert.False(h.Editor.Read()!.PreservePitch);
+        Assert.Equal((S(10), S(10)), (h.Video.Duration, h.Second.Start));
+        Assert.False(h.Editor.Read()!.CanReset);
+
+        h.Session.Undo();
+        Assert.Equal(new Rational(2, 1), h.Editor.Read()!.Rate);
+    });
+
+    [Fact]
+    public void Restablecer_ConCurva_PreguntaAntes_YCancelarNoCambiaNada() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        string clipId = h.Video.Id;
+        Assert.True(h.Session.Execute(new SequenceEditCommand("Curva", h.Session.SequenceId, (EditContext ctx) =>
+        {
+            Clip clip = ctx.Sequence.GetClip(clipId).Clip;
+            clip.Speed = new ClipSpeed { Curve = new SpeedCurve { Span = S(5), Points = [new(0, 200), new(10_000, 200)] } };
+            clip.Duration = S(5);
+        })));
+        Assert.True(h.Editor.Read()!.HasCurve);
+        Assert.True(h.Editor.Read()!.CanReset);
+        int steps = h.Session.History.Count;
+
+        int asked = 0;
+        Assert.False(await h.Editor.ResetAsync(() => { asked++; return Task.FromResult(false); }));
+        Assert.Equal(1, asked);
+        Assert.Equal(steps, h.Session.History.Count);
+        Assert.NotNull(h.Video.Speed!.Curve);
+
+        Assert.True(await h.Editor.ResetAsync(() => { asked++; return Task.FromResult(true); }));
+        Assert.Equal(2, asked);
+        Assert.Equal(steps + 1, h.Session.History.Count);
+        Assert.Null(h.Video.Speed);
+        Assert.Equal(S(10), h.Video.Duration);
+    });
+
+    [Fact]
+    public void Restablecer_SiElClipDesaparecioDuranteElAviso_NoHaceNada() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        string clipId = h.Video.Id;
+        Assert.True(h.Session.Execute(new SequenceEditCommand("Curva", h.Session.SequenceId, (EditContext ctx) =>
+        {
+            Clip clip = ctx.Sequence.GetClip(clipId).Clip;
+            clip.Speed = new ClipSpeed { Curve = new SpeedCurve { Span = S(5), Points = [new(0, 200), new(10_000, 200)] } };
+            clip.Duration = S(5);
+        })));
+        int steps = h.Session.History.Count;
+        Assert.False(await h.Editor.ResetAsync(() =>
+        {
+            h.Session.Undo();
+            return Task.FromResult(true);
+        }));
+        Assert.Equal(steps - 1, h.Session.History.Count);
+    });
 }

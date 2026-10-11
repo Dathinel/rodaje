@@ -118,6 +118,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
             ((Control)button).IsEnabled = state.CanChangeRate;
         }
 
+        ResetButton.IsEnabled = state.CanReset;
         PitchBox.IsChecked = state.PreservePitch;
         PitchBox.IsEnabled = state.HasAudio && state.CanChangeRate;
         ReverseBox.IsChecked = state.IsReversed;
@@ -252,7 +253,38 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         }
     }
 
-    private void OnResetClick(object sender, RoutedEventArgs e) => _editor?.SetRate(SpeedState.Normal);
+    private async void OnResetClick(object sender, RoutedEventArgs e)
+    {
+        if (_editor is { } editor)
+        {
+            await editor.ResetAsync(ConfirmCurveRemovalAsync);
+        }
+    }
+
+    // Como el aviso de D-024: Cancelar es el botón por defecto y Esc también cancela.
+    private async Task<bool> ConfirmCurveRemovalAsync()
+    {
+        if (DialogGate.IsOpen || XamlRoot is null)
+        {
+            return false;
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "¿Quitar la curva de velocidad?",
+            Content = new TextBlock
+            {
+                Text = "El clip volverá a 1× y se perderá su curva. Se puede deshacer con Ctrl+Z.",
+                TextWrapping = TextWrapping.Wrap,
+            },
+            PrimaryButtonText = "Quitar la curva y restablecer",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
+    }
 
     private void OnPitchClick(object sender, RoutedEventArgs e) => _editor?.SetPreservePitch(PitchBox.IsChecked == true);
 

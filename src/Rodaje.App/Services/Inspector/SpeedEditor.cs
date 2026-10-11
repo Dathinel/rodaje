@@ -26,6 +26,9 @@ public sealed record SpeedState(
 
     /// <summary>Se puede cambiar la velocidad constante (un congelado no tiene).</summary>
     public bool CanChangeRate => !IsFrozen;
+
+    /// <summary>Restablecer cambiaría algo: no está a 1× o tiene una curva (D-024).</summary>
+    public bool CanReset => !IsFrozen && (HasCurve || Rate != Normal);
 }
 
 /// <summary>
@@ -165,6 +168,37 @@ public sealed class SpeedEditor
 
         Session.BreakMerge();
         bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, clip.Id, rate));
+        Session.BreakMerge();
+        return done;
+    }
+
+    /// <summary>
+    /// Vuelve a 1× en un paso del historial (D-024). Si el clip tiene una curva, antes pregunta con
+    /// <paramref name="confirmCurveRemoval"/>; si se cancela, no cambia nada. La reversa y «Mantener tono» se quedan.
+    /// </summary>
+    public async Task<bool> ResetAsync(Func<Task<bool>> confirmCurveRemoval)
+    {
+        ArgumentNullException.ThrowIfNull(confirmCurveRemoval);
+        EndChange();
+        if (Target() is not { } clip || Read(clip) is not { CanReset: true } state)
+        {
+            return false;
+        }
+
+        string clipId = clip.Id;
+        if (state.HasCurve && !await confirmCurveRemoval())
+        {
+            return false;
+        }
+
+        // Mientras el aviso estaba abierto el clip pudo cambiar o desaparecer: se vuelve a leer.
+        if (Session.Sequence.FindClip(clipId) is not { } found || !Read(found.Clip).CanReset)
+        {
+            return false;
+        }
+
+        Session.BreakMerge();
+        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, clipId, SpeedState.Normal));
         Session.BreakMerge();
         return done;
     }
