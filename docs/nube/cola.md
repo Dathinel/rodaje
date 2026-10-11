@@ -24,7 +24,7 @@ Con eso en verde, quita `continue-on-error` del trabajo de Windows y deja el enl
 - **Rama:** `claude/render-guardia-decodificador`
 - **Caminos:** `tests/Rodaje.Render.Tests/`, `.github/workflows/ci.yml`, `docs/tareas/`
 
-La guardia de GPU de `CompositorTests.Draws_the_requested_slice_of_a_texture_array` y de `CompositorPerformanceTests` mira el muestreo NV12/P010 pero no el bind de decodificador (`YuvImage.CreateTexture`, `tests/Rodaje.Render.Tests/Support/YuvImage.cs`). Que comprueben `D3D11_BIND_DECODER` con `CheckFormatSupport` y se omitan si falta. Luego quita la exclusión de esas pruebas en `ci.yml`.
+La guardia de GPU de `CompositorTests.Draws_the_requested_slice_of_a_texture_array` y de `CompositorPerformanceTests` mira el muestreo NV12/P010 pero no el bind de decodificador (`YuvImage.CreateTexture`, `tests/Rodaje.Render.Tests/Support/YuvImage.cs`). Que comprueben `D3D11_BIND_DECODER` con `CheckFormatSupport` y se omitan si falta. Además: las 4 de `EffectPerformanceTests` (E_INVALIDARG y `One_4k_layer_with_color_and_lut` de 238 ms en WARP) pasan a la categoría `Rendimiento` que la CI ya excluye, y `EffectFidelityTests.Sharpen_*` (3 casos, 9 frente a 6,9 ±2 en WARP): averigua por qué WARP da otro resultado y, si es una diferencia de precisión del rasterizador software, que la prueba lo detecte (adaptador WARP) y aplique una tolerancia justificada solo ahí, nunca en GPU real. Luego quita del filtro de `ci.yml` todas las exclusiones por nombre de Render.
 
 ## 3. Pruebas hostiles del lector de proyectos `.rodaje`
 
