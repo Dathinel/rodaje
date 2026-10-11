@@ -33,3 +33,7 @@ odaje-transiciones-1.0.0.paquete` (ya generados; se regeneran con el `empaquetar
 - [ ] **Audio:** volumen del clip con keyframes hasta +24 dB y fundidos; herramienta E en la curva (¿cómoda la escala con 0 dB a media altura?); volumen de pista arrastrando en la cabecera (¿o prefiere un deslizador?); la curva sigue a los clips al borrar con ripple o reordenar.
 - [ ] **Calidad de vista previa:** ¿se nota cuando Auto baja?; ¿se entiende «Auto · ½»?
 - [ ] **Biblioteca sin paquetes:** se ve bien y «Conseguir más en Complementos» lleva a Complementos.
+
+## Fase 5c: curvas de velocidad
+
+- [ ] **Curvas:** en Velocidad → Curva, probar los 5 preajustes reproduciendo (¿las rampas se sienten como en CapCut?); arrastrar puntos arriba y abajo y a los lados (¿cómoda la escala logarítmica y el imán en 1×?); doble clic para añadir y quitar; Ctrl+Z deshace cada arrastre de una vez; la mini curva y el nombre del preajuste en el clip, con clips cortos (el nombre del clip nunca queda tapado); Alt + borde sobre un clip con curva.

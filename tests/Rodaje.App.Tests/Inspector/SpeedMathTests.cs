@@ -24,7 +24,7 @@ public class SpeedMathTests
         Assert.Equal(new Rational(2, 1), SpeedMath.FromSlider(SpeedMath.ToSlider(1.95)));
         Assert.Equal(new Rational(137, 100), SpeedMath.FromSlider(SpeedMath.ToSlider(1.37)));
         Assert.Equal(new Rational(137, 10), SpeedMath.FromSlider(SpeedMath.ToSlider(13.71)));
-        foreach (Rational detent in SpeedPresets.Detents)
+        foreach (Rational detent in SpeedTabValues.Detents)
         {
             Assert.Equal(detent, SpeedMath.FromSlider(SpeedMath.ToSlider(detent.ToDouble())));
         }
@@ -126,7 +126,7 @@ public class SpeedMathTests
     [InlineData(0.1, false, null)]
     public void Aviso_DeLosLimitesDelSonido(double rate, bool hasAudio, string? start)
     {
-        string? warning = SpeedPresets.AudioWarning(rate, hasAudio);
+        string? warning = SpeedTabValues.AudioWarning(rate, hasAudio);
         if (start is null)
         {
             Assert.Null(warning);

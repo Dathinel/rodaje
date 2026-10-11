@@ -22,7 +22,7 @@ public static class SpeedMath
     public static Rational FromSlider(double position)
     {
         position = Math.Clamp(position, 0, SliderMax);
-        foreach (Rational detent in SpeedPresets.Detents)
+        foreach (Rational detent in SpeedTabValues.Detents)
         {
             if (Math.Abs(ToSlider(detent.ToDouble()) - position) <= DetentReach)
             {

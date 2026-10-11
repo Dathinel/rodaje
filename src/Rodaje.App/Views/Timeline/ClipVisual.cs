@@ -36,6 +36,10 @@ internal sealed class ClipVisual
 {
     private const double NameHeight = 15;
     private const double DetailMinWidth = 14;
+    private const double BadgeCurveWidth = 18;
+
+    // Con una curva, si el nombre del clip se quedaría con menos que esto, el indicador muestra solo la mini curva.
+    private const double MinNameRoom = 40;
 
     /// <summary>Escala si todavía no se conoce la de la pantalla: las miniaturas se piden en píxeles físicos.</summary>
     private const double FallbackScale = 1.5;
@@ -61,8 +65,21 @@ internal sealed class ClipVisual
     private readonly Border _badge = new() { Padding = new Thickness(4, 0, 4, 1), Height = NameHeight - 1 };
     private readonly TextBlock _badgeText = new() { FontSize = 10, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
 
-    // Hueco de la mini curva de la fase 5c.2, a la derecha del texto del indicador.
-    private readonly Path _badgeCurve = new() { Width = 16, Visibility = Visibility.Collapsed };
+    // La mini curva, a la derecha del texto del indicador.
+    private readonly Polyline _badgeCurve = new()
+    {
+        Width = BadgeCurveWidth,
+        Height = NameHeight - 4,
+        StrokeThickness = 1.25,
+        StrokeLineJoin = PenLineJoin.Round,
+        VerticalAlignment = VerticalAlignment.Center,
+        Visibility = Visibility.Collapsed,
+    };
+
+    private string? _badgeFullText;
+    private double _badgeFullWidth;
+    private IReadOnlyList<SpeedPoint>? _badgeCurvePoints;
+    private (double From, double To) _badgeCurveWindow;
     private double _badgeWidth;
     private double _badgeLeft;
     private readonly RectangleGeometry _bounds = new();
@@ -96,6 +113,11 @@ internal sealed class ClipVisual
             }
 
             _badgeWidth = e.NewSize.Width;
+            if (_badgeText.Visibility == Visibility.Visible)
+            {
+                _badgeFullWidth = e.NewSize.Width;
+            }
+
             PlaceName(_badgeLeft + _badgeWidth + 2, Root.Width);
         };
         Root.Children.Add(_body);
@@ -243,14 +265,23 @@ internal sealed class ClipVisual
             return left;
         }
 
-        if (!string.Equals(_badgeText.Text, text, StringComparison.Ordinal))
+        bool curveChanged = UpdateBadgeCurve(SpeedBadge.CurveShape(d.Clip));
+        bool hasCurve = _badgeCurve.Visibility == Visibility.Visible;
+        if (curveChanged || !string.Equals(_badgeFullText, text, StringComparison.Ordinal))
         {
+            _badgeFullText = text;
             _badgeText.Text = text;
+            _badgeText.Visibility = Visibility.Visible;
             _badge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            _badgeWidth = _badge.DesiredSize.Width;
+            _badgeFullWidth = _badge.DesiredSize.Width;
         }
 
-        if (d.Width - left - 4 < _badgeWidth)
+        // El nombre del clip no queda tapado: con poco sitio el texto del indicador cede y queda solo la mini curva.
+        double room = d.Width - left - 4;
+        bool compact = hasCurve && room - _badgeFullWidth < MinNameRoom;
+        _badgeText.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        _badgeWidth = compact ? _badge.Padding.Left + _badge.Padding.Right + BadgeCurveWidth : _badgeFullWidth;
+        if (room < _badgeWidth)
         {
             _badge.Visibility = Visibility.Collapsed;
             return left;
@@ -261,6 +292,29 @@ internal sealed class ClipVisual
         Canvas.SetLeft(_badge, left - 2);
         Canvas.SetTop(_badge, 1);
         return left + _badgeWidth + 2;
+    }
+
+    /// <summary>Dibuja la mini curva si cambió; devuelve si cambió su visibilidad o su forma.</summary>
+    private bool UpdateBadgeCurve((IReadOnlyList<SpeedPoint> Points, double From, double To)? shape)
+    {
+        if (shape is not { } s)
+        {
+            bool wasVisible = _badgeCurve.Visibility == Visibility.Visible;
+            _badgeCurve.Visibility = Visibility.Collapsed;
+            _badgeCurvePoints = null;
+            return wasVisible;
+        }
+
+        if (ReferenceEquals(s.Points, _badgeCurvePoints) && _badgeCurveWindow == (s.From, s.To))
+        {
+            return false;
+        }
+
+        _badgeCurvePoints = s.Points;
+        _badgeCurveWindow = (s.From, s.To);
+        _badgeCurve.Points = CurveGlyph.Line(s.Points, s.From, s.To, _badgeCurve.Width, _badgeCurve.Height);
+        _badgeCurve.Visibility = Visibility.Visible;
+        return true;
     }
 
     private void UpdateFilmstrip(in ClipDraw d, ClipTimeMap map, IClipVisuals? visuals)
