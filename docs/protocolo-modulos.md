@@ -14,6 +14,8 @@ Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla c
 4. [Progreso](#progreso)
 5. [Cancelación](#cancelación)
 6. [Errores](#errores)
+7. [Memoria compartida](#memoria-compartida)
+8. [Límites](#límites)
 
 ## Transporte
 
@@ -331,3 +333,88 @@ El anfitrión de C# también desconfía del editor: un mensaje inválido le hace
 ```json
 {"type":"error","code":"malformed","message":"Mensaje \u00ABInvokeMessage\u00BB inv\u00E1lido: id de llamada inv\u00E1lido."}
 ```
+
+## Memoria compartida
+
+Los cuadros y el audio **nunca van por la tubería** (el máximo de un mensaje es 1 MiB): van en regiones de memoria compartida y el mensaje solo las nombra (`SharedMemoryRegion.cs`, D-031).
+
+- **Las regiones las crea siempre el editor** (`ModuleClient.CreateRegion(capacidad)`): un mapeo de archivo con nombre de Windows, `Local\Rodaje.Mod.<guid>` (el guid en 32 cifras hexadecimales; `SharedMemoryRegion.NamePrefix = "Rodaje.Mod."`). En los mensajes, `region` es el nombre **sin** `Local\`. La región vive hasta que el editor la libera (`ReleaseRegion`) o cierra el cliente.
+- **El módulo la abre por nombre** con permiso de lectura y escritura (`MemoryMappedFile.OpenExisting(@"Local\" + nombre, ReadWrite)` en `SharedMemoryRegion.Open`). En C#, `ModuleCall.Map(búfer)` hace todo: abre la región la primera vez (y la guarda abierta mientras dure la conexión), comprueba los límites y devuelve un `Span<byte>`. En otro lenguaje, lo equivalente en Win32 es abrir el mapeo por nombre (`OpenFileMappingW`) y mapear una vista (`MapViewOfFile`); esto no se probó con un módulo que no sea de C#.
+- El editor **decodifica**: los módulos no abren archivos del usuario ni traen FFmpeg; reciben los cuadros o el audio ya en memoria (D-031).
+- El módulo **solo escribe en los búferes de la llamada** (D-031). Lo que devuelve en `result.buffers` tiene que estar dentro de una región que creó el editor en esa conexión y dentro de su capacidad, o el editor corta la conexión. La biblioteca no impide escribir en otro punto de una región abierta: es una regla del protocolo.
+- Cada acceso comprueba los límites contra el tamaño real de la región: un búfer que se sale da `buffer-out-of-range` («Búfer *desplazamiento*+*largo* fuera de la región de *N* bytes.», `SharedMemoryRegion.GetSpan`).
+- El editor solo puede nombrar en un `invoke` regiones que creó con ese cliente (`ModuleClient.InvokeAsync` lanza `ArgumentException` si no).
+
+### Un búfer (`SharedBufferRef`)
+
+| Campo | Qué es |
+|---|---|
+| `region` | Nombre de la región: de 1 a 128 caracteres entre letras y dígitos ASCII, `.`, `-` y `_`. |
+| `offset` | Desplazamiento en bytes desde el inicio de la región, ≥ 0. |
+| `length` | Largo en bytes, de 1 a 2 147 483 647 (`int.MaxValue`); `offset + length` no puede desbordar. |
+| `video` | Opcional: forma de un cuadro. |
+| `audio` | Opcional: forma de un bloque de audio. |
+
+Un búfer es de video, de audio o de bytes sueltos (sin `video` ni `audio`), nunca de los dos. Como mucho 16 búferes por mensaje. Fuente: `SharedBufferRef.Validate` y `Limits` en `Messages.cs`.
+
+**Video** (`VideoLayout`): `width` y `height` de 1 a 16 384; `stride` (bytes por fila) ≥ `width` × bytes por píxel; `stride` × `height` ≤ `length`. `pixelFormat`:
+
+| `pixelFormat` | Bytes por píxel |
+|---|---|
+| `rgba8` | 4 |
+| `bgra8` | 4 |
+| `rgba16f` | 8 |
+| `gray8` | 1 |
+
+Las filas van una tras otra cada `stride` bytes desde `offset`. El código no fija el orden de las filas (de arriba abajo o al revés), el espacio de color ni si el alfa va premultiplicado: **no está decidido**. Según el plan, la app mandará los cuadros a la resolución de análisis (512–1024 px) y recibirá máscaras `gray8` ([fase-7.md](fase-7.md#arquitectura)).
+
+**Audio** (`AudioLayout`): muestras `f32` **intercaladas** (`sampleFormat`, el único valor admitido, `SampleFormats.F32`); `sampleRate` de 8000 a 384 000; `channels` de 1 a 32; `frames` (muestras por canal) ≥ 0; `frames` × `channels` × 4 ≤ `length`. Ejemplo del serializador, 1 s estéreo a 48 kHz:
+
+```json
+{"type":"invoke","id":10,"function":"ruido","buffers":[{"region":"Rodaje.Mod.3f1c0d9a8b7e4c2a9d6f5e4b3a2c1d0e","offset":0,"length":384000,"audio":{"sampleRate":48000,"channels":2,"frames":48000,"sampleFormat":"f32"}}]}
+```
+
+(`ruido` es un nombre de ejemplo de [fase-7.md](fase-7.md#formatos), no una función que exista.)
+
+**Rendimiento** medido en el paso 0 entre dos procesos ([fase-7.md](fase-7.md#cifras-del-paso-0-11-oct)): un cuadro 1080p por referencia cuesta 0,1 ms; escribirlo, copiarlo en el módulo y leerlo, 1,3–1,4 ms (691–750 cuadros/s).
+
+## Límites
+
+Todo lo que llega se valida; un valor fuera de rango hace inválido el mensaje y **corta la conexión** (ver [Errores](#errores)). Fuente: `Limits` y los `Validate` de `Messages.cs`, salvo donde se indica.
+
+| Qué | Límite |
+|---|---|
+| Un mensaje (JSON, sin la cabecera) | 1 a 1 048 576 bytes (`ProtocolVersion.MaxFrameBytes`, `MessageChannel.cs`) |
+| Anidamiento del JSON | 32 niveles (`MaxDepth`, `MessageChannel.cs`) |
+| Identificadores (`type` desconocidos, `module.id`, `functions[].id`, `function`, `inputs`/`outputs`, `code`, `level`) | 1 a 64 caracteres: minúsculas ASCII, dígitos, `.` y `-`; sin empezar ni terminar con `.` o `-` y sin dos seguidos (`Limits.Identifier`). Valen `rodaje-eco`, `modulo.vision`, `v2`; no valen `Eco`, `-eco`, `eco-`, `a..b`, `../eco` |
+| `app`, `appVersion`, `culture`, `module.version` | hasta 64 caracteres (`MaxId`) |
+| `module.name`, `module.device`, `functions[].name`, `progress.stage` | hasta 200 caracteres (`MaxName`) |
+| `error.message`, `log.text` | hasta 4096 caracteres (`MaxText`) |
+| Funciones en `welcome` | hasta 128, ids sin repetir (`MaxFunctions`) |
+| Búferes por mensaje; `inputs` y `outputs` por función | hasta 16 (`MaxBuffers`) |
+| `id` de `invoke`, `progress`, `result`, `error`, `cancel` | entero de 64 bits mayor que 0 |
+| `id` de `ping` y `pong` | cualquier entero de 64 bits (no se valida) |
+| `progress.fraction` | finito, de 0 a 1 |
+| `hello.minProtocol`, `welcome.protocol` | ≥ 1; `maxProtocol` ≥ `minProtocol` |
+| Nombre de región o de tubería | 1 a 128 caracteres: letras y dígitos ASCII, `.`, `-`, `_` (`Limits.RegionName`) |
+| Búfer | ver [Un búfer](#un-búfer-sharedbufferref) |
+
+Los largos de texto se cuentan en unidades UTF-16 de .NET (`string.Length`), no en bytes.
+
+Plazos y cantidades del lado del editor y del anfitrión de C#:
+
+| Qué | Valor | Dónde |
+|---|---|---|
+| Conectarse a la tubería (editor) | 10 s (`HandshakeTimeout`) | `ModuleProcess.cs`, `ModuleClient.cs` |
+| Contestar el saludo con `welcome` (editor) | 10 s (`HandshakeTimeout`) | `ModuleClient.cs` |
+| Conectarse a la tubería y recibir `hello` (anfitrión) | 10 s cada uno | `ModuleHost.cs` |
+| Confirmar un `cancel` | 2 s (`CancelGrace`) | `ModuleClient.cs` |
+| Llamadas a la vez en el anfitrión de C# | 4 (`MaxConcurrentCalls`); después, `busy` | `ModuleHost.cs` |
+| Avance | uno cada 50 ms por llamada como mucho | `ModuleHost.cs` (`ModuleCall`) |
+| Salir tras `shutdown` antes de que lo maten | 2 s | `ModuleProcess.DisposeAsync` |
+| Funciones activas al cerrar la conexión (anfitrión) | 2 s para terminar | `ModuleHost.RunAsync` |
+| Enviar la respuesta final si el editor no lee (anfitrión) | 1 s; después se descarta | `ModuleHost.TrySendAsync` |
+| Cola de la salida de errores en el mensaje de salida | 2048 caracteres | `ModuleProcess.cs` |
+| Búfer de la tubería, en cada sentido | 64 KB | `ModuleProcess.PipeBufferBytes` |
+
+**Previsto** para el `ModuleManager` (ronda A, [fase-7.md](fase-7.md#arquitectura)) y todavía sin código: un proceso por módulo, abierto al primer uso y cerrado tras 2 min sin llamadas; un Job Object con «matar al cerrar» para que ningún módulo sobreviva al editor; `ping` de vigilancia cada 5 s con una llamada en curso (colgado si no responde en 10 s); un modelo pesado a la vez según `vramMb` del `paquete.json`.
