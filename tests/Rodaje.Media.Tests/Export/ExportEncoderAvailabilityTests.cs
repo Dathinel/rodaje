@@ -5,23 +5,24 @@ namespace Rodaje.Media.Tests.Export;
 
 public sealed class ExportEncoderAvailabilityTests
 {
-    private sealed class FakeProbe(Func<ExportEncoderInfo, ExportProbeResult> behavior) : IExportEncoderProbe
+    private sealed class FakeProbe(Func<EncoderSpec, ExportProbeResult> behavior) : IExportEncoderProbe
     {
-        private int _calls;
+        private readonly ConcurrentQueue<string> _ids = new();
         private int _running;
         private int _maxRunning;
-        private readonly ConcurrentBag<string> _ids = [];
+        private int _resets;
 
-        public int Calls => _calls;
+        public int Calls => _ids.Count;
 
-        public int MaxRunning => _maxRunning;
+        public int MaxRunning => Volatile.Read(ref _maxRunning);
 
-        public IReadOnlyCollection<string> Ids => _ids;
+        public int Resets => Volatile.Read(ref _resets);
 
-        public ExportProbeResult Probe(ExportEncoderInfo encoder)
+        public int CallsFor(string id) => _ids.Count(i => i == id);
+
+        public ExportProbeResult Probe(EncoderSpec encoder)
         {
-            Interlocked.Increment(ref _calls);
-            _ids.Add(encoder.Id);
+            _ids.Enqueue(encoder.Id);
             int now = Interlocked.Increment(ref _running);
             int seen;
             while (now > (seen = Volatile.Read(ref _maxRunning)) && Interlocked.CompareExchange(ref _maxRunning, now, seen) != seen)
@@ -37,7 +38,21 @@ public sealed class ExportEncoderAvailabilityTests
                 Interlocked.Decrement(ref _running);
             }
         }
+
+        public void Reset() => Interlocked.Increment(ref _resets);
     }
+
+    /// <summary>Reloj que solo avanza cuando la prueba lo dice.</summary>
+    private sealed class ManualTime : TimeProvider
+    {
+        private DateTimeOffset _now = new(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+
+        public override DateTimeOffset GetUtcNow() => _now;
+
+        public void Advance(TimeSpan by) => _now += by;
+    }
+
+    private static IEnumerable<EncoderSpec> Few(params string[] ids) => ids.Select(id => ExportEncoderCatalog.Find(id)!);
 
     [Fact]
     public async Task Every_catalog_encoder_is_probed_once_and_the_report_keeps_catalog_order()
@@ -47,11 +62,12 @@ public sealed class ExportEncoderAvailabilityTests
 
         ExportEncoderReport report = await availability.GetAsync();
 
-        Assert.Equal(ExportEncoderCatalog.All.Length, probe.Calls);
+        Assert.Equal(ExportEncoderCatalog.All.Count, probe.Calls);
         Assert.Equal(ExportEncoderCatalog.All.Select(e => e.Id), report.All.Select(s => s.Encoder.Id));
         Assert.Equal(["libsvtav1"], report.Available.Select(e => e.Id));
         Assert.Equal("no", report.All[0].Reason);
         Assert.Null(report.All.Single(s => s.Works).Reason);
+        Assert.True(report.HasFailures);
     }
 
     [Fact]
@@ -67,22 +83,108 @@ public sealed class ExportEncoderAvailabilityTests
         ExportEncoderReport[] reports = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => availability.GetAsync()));
         ExportEncoderReport again = await availability.GetAsync();
 
-        Assert.Equal(ExportEncoderCatalog.All.Length, probe.Calls);
+        Assert.Equal(ExportEncoderCatalog.All.Count, probe.Calls);
         Assert.All(reports, r => Assert.Same(reports[0], r));
         Assert.Same(reports[0], again);
     }
 
     [Fact]
-    public async Task Invalidate_makes_the_next_request_probe_again()
+    public async Task Invalidate_makes_the_next_request_probe_again_and_resets_the_probe()
     {
         var probe = new FakeProbe(_ => ExportProbeResult.Ok);
         var availability = new ExportEncoderAvailability(probe);
-        await availability.GetAsync();
+        ExportEncoderReport first = await availability.GetAsync();
 
         availability.Invalidate();
-        await availability.GetAsync();
+        ExportEncoderReport second = await availability.GetAsync();
 
-        Assert.Equal(ExportEncoderCatalog.All.Length * 2, probe.Calls);
+        Assert.NotSame(first, second);
+        Assert.Equal(ExportEncoderCatalog.All.Count * 2, probe.Calls);
+        Assert.Equal(1, probe.Resets);
+    }
+
+    [Fact]
+    public async Task Invalidate_during_a_run_starts_the_next_one_only_after_it_ends()
+    {
+        using var entered = new SemaphoreSlim(0);
+        using var release = new ManualResetEventSlim();
+        var probe = new FakeProbe(_ =>
+        {
+            entered.Release();
+            release.Wait(TimeSpan.FromSeconds(10));
+            return ExportProbeResult.Ok;
+        });
+        var availability = new ExportEncoderAvailability(probe, catalog: Few("libsvtav1"));
+
+        Task<ExportEncoderReport> old = availability.GetAsync();
+        Assert.True(await entered.WaitAsync(TimeSpan.FromSeconds(10)));
+        availability.Invalidate();
+        Task<ExportEncoderReport> fresh = availability.GetAsync();
+        await Task.Delay(100);
+
+        // La prueba vieja sigue sola: la nueva no ha abierto otra sonda a la vez.
+        Assert.Equal(1, probe.Calls);
+        Assert.False(fresh.IsCompleted);
+        release.Set();
+        ExportEncoderReport oldReport = await old;
+        ExportEncoderReport freshReport = await fresh;
+
+        Assert.NotSame(oldReport, freshReport);
+        Assert.Equal(2, probe.Calls);
+        Assert.Equal(1, probe.MaxRunning);
+        Assert.Same(freshReport, await availability.GetAsync());
+    }
+
+    [Fact]
+    public async Task Only_failures_are_probed_again_and_only_after_the_interval()
+    {
+        int nvencCalls = 0;
+        var probe = new FakeProbe(e => e.Id switch
+        {
+            "libsvtav1" => ExportProbeResult.Ok,
+            "libkvazaar" => ExportProbeResult.NotCompiled("no está compilado"),
+            // La GPU estaba ocupada la primera vez.
+            _ => Interlocked.Increment(ref nvencCalls) == 1 ? ExportProbeResult.Fail("ocupada") : ExportProbeResult.Ok,
+        });
+        var time = new ManualTime();
+        var availability = new ExportEncoderAvailability(probe, catalog: Few("h264_nvenc", "libsvtav1", "libkvazaar"), time: time,
+            failureRetryInterval: TimeSpan.FromMinutes(2));
+
+        ExportEncoderReport first = await availability.GetAsync();
+        time.Advance(TimeSpan.FromMinutes(1));
+        ExportEncoderReport early = await availability.GetAsync();
+        time.Advance(TimeSpan.FromMinutes(1));
+        ExportEncoderReport retried = await availability.GetAsync();
+        time.Advance(TimeSpan.FromHours(1));
+        ExportEncoderReport later = await availability.GetAsync();
+
+        Assert.True(first.HasFailures);
+        Assert.Same(first, early);
+        Assert.NotSame(first, retried);
+        Assert.Equal(["h264_nvenc", "libsvtav1"], retried.Available.Select(e => e.Id));
+        Assert.Equal(ExportProbeStatus.NotCompiled, retried.Find("libkvazaar")!.Result.Status);
+        Assert.False(retried.HasFailures);
+        Assert.Same(retried, later);
+        Assert.Equal(2, probe.CallsFor("h264_nvenc"));
+        Assert.Equal(1, probe.CallsFor("libsvtav1"));
+        Assert.Equal(1, probe.CallsFor("libkvazaar"));
+    }
+
+    [Fact]
+    public async Task Hardware_that_is_missing_keeps_failing_and_costs_one_probe_per_interval()
+    {
+        var probe = new FakeProbe(e => e.Id == "av1_nvenc" ? ExportProbeResult.Fail("sin RTX 40") : ExportProbeResult.Ok);
+        var time = new ManualTime();
+        var availability = new ExportEncoderAvailability(probe, catalog: Few("h264_nvenc", "av1_nvenc"), time: time);
+
+        await availability.GetAsync();
+        time.Advance(TimeSpan.FromMinutes(5));
+        ExportEncoderReport report = await availability.GetAsync();
+
+        Assert.Equal(["h264_nvenc"], report.Available.Select(e => e.Id));
+        Assert.Equal("sin RTX 40", report.Find("av1_nvenc")!.Reason);
+        Assert.Equal(1, probe.CallsFor("h264_nvenc"));
+        Assert.Equal(2, probe.CallsFor("av1_nvenc"));
     }
 
     [Fact]
@@ -91,7 +193,7 @@ public sealed class ExportEncoderAvailabilityTests
         using var barrier = new Barrier(3);
         var probe = new FakeProbe(_ =>
         {
-            // Solo avanza si tres sondas coinciden; con una ejecución en serie se agotaría el tiempo.
+            // Solo avanza si tres sondas coinciden; en serie se agotaría el tiempo.
             barrier.SignalAndWait(TimeSpan.FromSeconds(10));
             return ExportProbeResult.Ok;
         });
@@ -107,7 +209,7 @@ public sealed class ExportEncoderAvailabilityTests
     {
         var probe = new FakeProbe(_ =>
         {
-            Thread.Sleep(15);
+            Thread.Sleep(5);
             return ExportProbeResult.Ok;
         });
         var availability = new ExportEncoderAvailability(probe, maxParallelism: 2);
@@ -118,7 +220,7 @@ public sealed class ExportEncoderAvailabilityTests
     }
 
     [Fact]
-    public async Task A_probe_that_throws_counts_as_unavailable_without_stopping_the_others()
+    public async Task A_probe_that_throws_counts_as_a_failure_without_stopping_the_others()
     {
         var probe = new FakeProbe(e => e.Id == "h264_nvenc"
             ? throw new InvalidOperationException("explotó")
@@ -127,10 +229,21 @@ public sealed class ExportEncoderAvailabilityTests
 
         ExportEncoderReport report = await availability.GetAsync();
 
-        ExportEncoderStatus nvenc = report.All.Single(s => s.Encoder.Id == "h264_nvenc");
+        ExportEncoderStatus nvenc = report.Find("h264_nvenc")!;
         Assert.False(nvenc.Works);
+        Assert.Equal(ExportProbeStatus.Failed, nvenc.Result.Status);
         Assert.Contains("explotó", nvenc.Reason, StringComparison.Ordinal);
-        Assert.Equal(ExportEncoderCatalog.All.Length - 1, report.Available.Length);
+        Assert.Equal(ExportEncoderCatalog.All.Count - 1, report.Available.Count);
+    }
+
+    [Fact]
+    public async Task A_failure_without_a_reason_gets_one()
+    {
+        var probe = new FakeProbe(_ => new ExportProbeResult(ExportProbeStatus.Failed));
+
+        ExportEncoderReport report = await new ExportEncoderAvailability(probe, catalog: Few("libsvtav1")).GetAsync();
+
+        Assert.Equal("Sin motivo.", report.All[0].Reason);
     }
 
     [Fact]
@@ -152,25 +265,34 @@ public sealed class ExportEncoderAvailabilityTests
         release.Set();
         ExportEncoderReport report = await other;
 
-        Assert.Equal(ExportEncoderCatalog.All.Length, report.Available.Length);
-        Assert.Equal(ExportEncoderCatalog.All.Length, probe.Calls);
+        Assert.Equal(ExportEncoderCatalog.All.Count, report.Available.Count);
+        Assert.Equal(ExportEncoderCatalog.All.Count, probe.Calls);
     }
 
     [Fact]
     public async Task The_report_chooses_through_the_chooser()
     {
-        var probe = new FakeProbe(e => e.Id is "libopenh264" or "libsvtav1" ? ExportProbeResult.Ok : ExportProbeResult.Fail("no"));
+        var probe = new FakeProbe(e => e.Id is "libopenh264" or "libsvtav1" or "aac" or "libkvazaar"
+            ? ExportProbeResult.Ok
+            : ExportProbeResult.Fail("no"));
         ExportEncoderReport report = await new ExportEncoderAvailability(probe).GetAsync();
 
         Assert.Equal("libsvtav1", report.ChooseDefault()!.Encoder.Id);
         Assert.Equal("libsvtav1", report.Choose(ExportCodec.H264)!.Encoder.Id);
         Assert.True(report.Choose(ExportCodec.H264)!.Substituted);
+        Assert.Equal("libsvtav1", report.Choose(ExportCodec.Hevc)!.Encoder.Id);
+        Assert.Equal("aac", report.ChooseDefaultAudio()!.Encoder.Id);
+        Assert.Equal("libkvazaar", report.ChooseById("libkvazaar")!.Encoder.Id);
+        Assert.Null(report.ChooseById("h264_nvenc"));
     }
 
     [Fact]
     public void The_constructor_rejects_bad_arguments()
     {
+        var probe = new FakeProbe(_ => ExportProbeResult.Ok);
+
         Assert.Throws<ArgumentNullException>(() => new ExportEncoderAvailability(null!));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new ExportEncoderAvailability(new FakeProbe(_ => ExportProbeResult.Ok), 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ExportEncoderAvailability(probe, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ExportEncoderAvailability(probe, failureRetryInterval: TimeSpan.FromSeconds(-1)));
     }
 }
