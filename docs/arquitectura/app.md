@@ -48,7 +48,7 @@ flowchart LR
 
 ## Ajustes (`Services/Settings`)
 
-`ajustes.json` guarda carpetas, recientes, tamaños de paneles y ventana, estilo de atajos, proxies, caída de los medidores, márgenes seguros y las preferencias de la línea de tiempo. `ajustes.json` y `atajos.json` se escriben de forma atómica; si están dañados, se apartan con el sufijo `.dañado` y se avisa. Un estilo de atajos desconocido vuelve a Rodaje sin dar el archivo por dañado.
+`ajustes.json` guarda carpetas, recientes, tamaños de paneles (de fábrica, biblioteca 280 px y panel derecho 380 px; con la ventana estrecha ceden, primero la biblioteca, para que el reproductor conserve sus 320 px y nada se salga, y vuelven al ensancharla) y ventana, estilo de atajos, proxies, caída de los medidores, márgenes seguros y las preferencias de la línea de tiempo. `ajustes.json` y `atajos.json` se escriben de forma atómica; si están dañados, se apartan con el sufijo `.dañado` y se avisa. Un estilo de atajos desconocido vuelve a Rodaje sin dar el archivo por dañado.
 
 ## Miniaturas y formas de onda (`Services/Media`)
 
