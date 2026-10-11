@@ -162,6 +162,7 @@ public class ProjectReaderFuzzTests
     /// temporales tardaba casi un minuto en Windows).
     /// </summary>
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public void ByteMutations_NeverCrashTheReader()
     {
         string dir = Directory.CreateTempSubdirectory("rodaje-fuzz-").FullName;
@@ -216,6 +217,7 @@ public class ProjectReaderFuzzTests
     }
 
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public void StructuralMutations_ReachTheValidator()
     {
         var random = new Random(Seed + 1);
