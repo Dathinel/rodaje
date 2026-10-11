@@ -16,3 +16,6 @@ La 5c cambia `Clip` y el formato 4 (ya unido en `main`): la 5b debe partir de `m
 
 ## Qué debe comprobar Daniel en Windows
 Nada: no hay código. Solo leer la propuesta y responder.
+
+## Cambios tras la revisión de Daniel (comentario del PR #11)
+Se atendieron los 7 puntos en `docs/propuestas/texto.md`: tabla de lo que cambia en el código (puntos reales de `Edits`, deshacer, transiciones, plan y esquema), regla de `sourceIn` con rebase, corrección de que el color/LUT/viñeta no se reutilizan (variantes RGBA o limitarlos en la v1), `LayerFrame` con descriptor abstracto, dibujo en el pre-roll, tamaño nativo con ancla, AOT de `IDWriteTextRenderer` como riesgo real con un prototipo previo, riesgos nuevos (RTL, accesibilidad, unidades, keyframes, referencia/copia) y la sección de fuentes (no modificar, `LICENCIAS.md`, `docs/legal.md`, Roboto/Open Sans por verificar) y la coordinación del formato 5 con la fase 6. Las líneas citadas por Daniel vienen de su copia de `main`: aquí se verificaron los nombres, no los números de línea.
