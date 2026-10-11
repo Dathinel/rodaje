@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Rodaje.Audio;
 using Rodaje.Media;
 using Rodaje.Media.Gpu;
@@ -88,6 +89,8 @@ public static class Skip
             : (null, "Omitida: ningún codificador de proxies funciona en este equipo.");
     });
 
+    private static readonly ConcurrentDictionary<VideoCodec, Lazy<string?>> BFramesReasons = new();
+
     private static readonly Lazy<string?> MissingAudioDevice = new(() =>
         WasapiOutput.ProbeDefaultDevice(out string description)
             ? null
@@ -162,6 +165,96 @@ public static class Skip
         return null;
     }
 
+    /// <summary>
+    /// ffmpeg.exe con un codificador concreto, para medios que solo se generan con él. Omite solo con causa de hardware
+    /// o de build: el codificador no está en ffmpeg, o es de NVIDIA y el equipo no tiene el controlador (<c>nvcuda.dll</c>).
+    /// Un fallo pasajero de la sonda (por ejemplo, el límite de sesiones de NVENC) no omite: la prueba corre y falla.
+    /// </summary>
+    public static string? Encoder(string encoder)
+    {
+        FfmpegTool? ffmpeg = FfmpegTool.Default;
+        if (ffmpeg is null)
+        {
+            return "Omitida: " + FfmpegTool.UnavailableReason;
+        }
+
+        if (!ffmpeg.IsEncoderListed(encoder))
+        {
+            return $"Omitida: el medio de prueba solo se genera con {encoder}, que este ffmpeg ({ffmpeg.ExecutablePath}) no incluye.";
+        }
+
+        if (encoder.EndsWith("_nvenc", StringComparison.Ordinal)
+            && !File.Exists(Path.Combine(Environment.SystemDirectory, "nvcuda.dll")))
+        {
+            return $"Omitida: el medio de prueba solo se genera con {encoder} y este equipo no tiene el controlador de NVIDIA (nvcuda.dll).";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// El codificador que se usaría para el códec produce cuadros B cuando se le piden, como exigen los presets con
+    /// <c>BFrames</c> &gt; 0. libopenh264 no los produce nunca y las pruebas ya lo tienen en cuenta, así que no se omite.
+    /// </summary>
+    public static string? BFrames(VideoCodec codec) =>
+        Encoders([codec]) ?? BFramesReasons.GetOrAdd(codec, c => new Lazy<string?>(() => ProbeBFrames(FfmpegTool.Default!, c))).Value;
+
+    // Sonda propia: dos segundos de testsrc2 a 320x240 con -bf 2. Las opciones de control de cada codificador copian las
+    // de TestMediaGenerator.BuildArguments (misma rama por codificador), pero la entrada no es la del generador
+    // (testsrc2 en vez de rawvideo yuv420p) ni lleva sus opciones de color, y la rama «resto» añade -bf 2.
+    private static string? ProbeBFrames(FfmpegTool ffmpeg, VideoCodec codec)
+    {
+        string encoder = ffmpeg.FindVideoEncoder(codec)!;
+        if (encoder == "libopenh264")
+        {
+            return null;
+        }
+
+        // Si hay un NVENC de más preferencia en el build y el controlador existe pero se eligió otro, la sonda de
+        // NVENC falló (p. ej. por el límite de sesiones): no es una causa concreta, la prueba corre y falla.
+        if (!encoder.EndsWith("_nvenc", StringComparison.Ordinal)
+            && File.Exists(Path.Combine(Environment.SystemDirectory, "nvcuda.dll"))
+            && FfmpegTool.VideoEncoderCandidates(codec)
+                .TakeWhile(c => c != encoder)
+                .Any(c => c.EndsWith("_nvenc", StringComparison.Ordinal) && ffmpeg.IsEncoderListed(c)))
+        {
+            return null;
+        }
+
+        string[] options = encoder.EndsWith("_nvenc", StringComparison.Ordinal)
+            ? ["-preset", "p2", "-rc", "cbr", "-b:v", "2000k", "-g", "25", "-bf", "2", "-no-scenecut", "1", "-strict_gop", "1"]
+            : encoder.EndsWith("_mf", StringComparison.Ordinal)
+                ? ["-rate_control", "cbr", "-b:v", "2000k", "-g", "25", "-bf", "2"]
+                : encoder == "libx264"
+                    ? ["-preset", "veryfast", "-b:v", "2000k", "-g", "25", "-keyint_min", "25", "-sc_threshold", "0", "-bf", "2"]
+                    : encoder == "libx265"
+                        ? ["-preset", "veryfast", "-b:v", "2000k", "-x265-params", "log-level=error:keyint=25:min-keyint=25:scenecut=0:bframes=2"]
+                        : ["-b:v", "2000k", "-g", "25", "-bf", "2"];
+        string path = Path.Combine(Path.GetTempPath(), $"rodaje-cuadros-b-{Guid.NewGuid():N}.mp4");
+        try
+        {
+            ffmpeg.Run(["-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+                "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=25:duration=2", "-c:v", encoder, .. options, path]);
+            IReadOnlyDictionary<char, int>? types = ffmpeg.CountPictureTypes(path);
+            if (types is null || types.Values.Sum() == 0 || types.GetValueOrDefault('B') > 0)
+            {
+                return null;
+            }
+
+            return $"Omitida: {encoder}, el codificador de {codec} de este equipo, no produce cuadros B aunque se le pidan "
+                + $"({string.Join(", ", types.OrderBy(t => t.Key).Select(t => $"{t.Key}={t.Value}"))}), y el preset los exige.";
+        }
+        catch (FfmpegException)
+        {
+            // Una sonda que falla no es una causa concreta: no se omite, la prueba corre y falla con su error real.
+            return null;
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     /// <summary>El primer motivo que no sea <c>null</c>.</summary>
     public static string? First(params string?[] reasons) => reasons.FirstOrDefault(r => r is not null);
 
@@ -182,6 +275,7 @@ public sealed class FfmpegFactAttribute : FactAttribute
     private readonly VideoCodec[] _video;
     private AudioCodec _audio;
     private bool _longRunning;
+    private bool _requiresBFrames;
 
     public FfmpegFactAttribute(params VideoCodec[] video)
     {
@@ -207,7 +301,19 @@ public sealed class FfmpegFactAttribute : FactAttribute
         }
     }
 
-    private string? Reason() => Rodaje.TestMedia.Skip.Options(null, _video, _audio, _longRunning, complete: false);
+    /// <summary>El medio lleva cuadros B: se omite si el codificador de alguno de los códecs no los produce.</summary>
+    public bool RequiresBFrames
+    {
+        get => _requiresBFrames;
+        set
+        {
+            _requiresBFrames = value;
+            Skip = Reason();
+        }
+    }
+
+    private string? Reason() => Rodaje.TestMedia.Skip.Options(null, _video, _audio, _longRunning, complete: false)
+        ?? (_requiresBFrames ? Rodaje.TestMedia.Skip.First([.. _video.Select(Rodaje.TestMedia.Skip.BFrames)]) : null);
 }
 
 /// <summary>Teoría que necesita el ffmpeg.exe que genera los medios de prueba.</summary>
@@ -229,6 +335,7 @@ public sealed class FfmpegLibraryFactAttribute : FactAttribute
     private AudioCodec _audio;
     private bool _longRunning;
     private bool _complete;
+    private string? _encoder;
 
     public FfmpegLibraryFactAttribute(params VideoCodec[] video)
     {
@@ -267,8 +374,20 @@ public sealed class FfmpegLibraryFactAttribute : FactAttribute
         }
     }
 
-    private string? Reason() =>
-        Rodaje.TestMedia.Skip.Options(Rodaje.TestMedia.Skip.FfmpegLibraries, _video, _audio, _longRunning, _complete);
+    /// <summary>Un codificador concreto que debe funcionar: el único con el que se genera el medio de la prueba.</summary>
+    public string? Encoder
+    {
+        get => _encoder;
+        set
+        {
+            _encoder = value;
+            Skip = Reason();
+        }
+    }
+
+    private string? Reason() => Rodaje.TestMedia.Skip.First(
+        Rodaje.TestMedia.Skip.Options(Rodaje.TestMedia.Skip.FfmpegLibraries, _video, _audio, _longRunning, _complete),
+        _encoder is null ? null : Rodaje.TestMedia.Skip.Encoder(_encoder));
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
@@ -315,6 +434,7 @@ public sealed class HardwareFactAttribute : FactAttribute
     private readonly VideoCodec[] _video;
     private AudioCodec _audio;
     private bool _longRunning;
+    private string? _encoder;
 
     public HardwareFactAttribute(params VideoCodec[] video)
     {
@@ -342,8 +462,20 @@ public sealed class HardwareFactAttribute : FactAttribute
         }
     }
 
-    private string? Reason() =>
-        Rodaje.TestMedia.Skip.Options(Rodaje.TestMedia.Skip.HardwareDecoding, _video, _audio, _longRunning, complete: false);
+    /// <summary>Un codificador concreto que debe funcionar: el único con el que se genera el medio de la prueba.</summary>
+    public string? Encoder
+    {
+        get => _encoder;
+        set
+        {
+            _encoder = value;
+            Skip = Reason();
+        }
+    }
+
+    private string? Reason() => Rodaje.TestMedia.Skip.First(
+        Rodaje.TestMedia.Skip.Options(Rodaje.TestMedia.Skip.HardwareDecoding, _video, _audio, _longRunning, complete: false),
+        _encoder is null ? null : Rodaje.TestMedia.Skip.Encoder(_encoder));
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]

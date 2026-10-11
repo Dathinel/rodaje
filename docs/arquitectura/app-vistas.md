@@ -56,11 +56,18 @@ Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas c
 
 ## Inspector (`Views/Inspector`)
 
-- **Pestañas.** Propiedades, Filtros, Historial y Trabajos, cada una en su carpeta. Con una transición seleccionada (`Session.SelectedTransitionId`), Propiedades muestra la transición.
-- **Propiedades.** Los parámetros animables del clip en el cursor (`Services/Inspector/ClipPropertyEditor`). Sin keyframes se cambia el valor fijo; con keyframes, cambiar el valor crea o ajusta el keyframe del cuadro del cursor. Las curvas entre keyframes salen de `KeyframeEase`.
+- **Pestañas.** Propiedades, Velocidad, Filtros, Historial y Trabajos, cada una en su carpeta. Con una transición seleccionada (`Session.SelectedTransitionId`), Propiedades muestra la transición.
+- **Propiedades.** Los parámetros animables del clip en el cursor (`Services/Inspector/ClipPropertyEditor`). Sin keyframes se cambia el valor fijo; con keyframes, cambiar el valor crea o ajusta el keyframe del cuadro del cursor. Las curvas entre keyframes salen de `KeyframeEase`. Los keyframes van en el tiempo del clip (`EffectCommands.KeyframeTime`, sobre `Clip.ToEffectTime`): a 2× el del cursor cae en el doble de origen, la navegación vuelve con `TimelineOfKeyframe` y el medio cuadro de tolerancia se escala con la velocidad.
+- **Velocidad** (`Views/Inspector/Speed`, lógica en `Services/Inspector/SpeedEditor` y `SpeedMath`). Actúa sobre el primer clip de video seleccionado (o el de audio) y sus enlazados.
+  - Deslizador logarítmico de 0,1× a 100× (1× en un tercio, 10× en dos) con imanes en 0,25×, 0,5×, 1×, 2×, 4× y 10×; redondea a centésimas, o a décimas desde 10×. Al lado, la velocidad escrita («1,5», «150 %», «x2»), y debajo botones rápidos.
+  - Duración resultante: «5,0 s → 3,3 s», a la izquierda lo que dura a 1×. Escribir una duración da la velocidad exacta (la fracción más cercana que admite el núcleo).
+  - «Mantener tono», activo por defecto. «Congelar» mete 3 s del cuadro del cursor (solo en video y con el cursor sobre el clip). «Invertir» y «Curva» se ven apagados con «Próximamente» (5c.2 y 5c.3).
+  - Aviso de los límites del sonido si el clip suena: por encima de 8× se oye granuloso y por debajo de 0,25× metálico y con eco; en los dos casos sigue sonando.
+  - Historial: arrastrar el deslizador es un gesto (en vivo, un paso, Esc lo revierte); escribir, los botones, el tono y congelar son un paso cada uno. Restablecer vuelve a 1× (D-024): se apaga si ya lo está y, si hay una curva, pregunta antes.
+  - Las ediciones pasan por `ISpeedCommands` (`SpeedCommands.Default`), la costura con `Edits.SetSpeed`, `RateStretch` y `FreezeFrame` del núcleo.
 - **Restablecer y quitar keyframes.** Cada parámetro tiene su botón de restablecer y Transformación, «Restablecer todo». Si hay keyframes, un aviso dice cuántos se borrarán antes de hacerlo; «Quitar keyframes» va aparte, en el menú contextual del parámetro. Todo es un paso del historial (D-024).
 - **Guardar como transición.** Guarda los ajustes en `%LOCALAPPDATA%\Rodaje\complementos\propios`.
-- **Filtros.** La pila del clip: activar, reordenar, quitar y añadir, y el modo de mezcla del clip (13 modos). Abajo, los parámetros del filtro elegido con keyframes, restablecer y quitar keyframes como en Propiedades; en Color y LUT, la LUT de un paquete o «Cargar .cube…». Nombres, unidades y pasos salen de `EffectUi` y los rangos del registro (`ParameterSpec.For`).
+- **Filtros.** La pila del clip: activar, reordenar, quitar y añadir (sin el `rodaje.speed` reservado), y el modo de mezcla del clip (13 modos). Abajo, los parámetros del filtro elegido con keyframes, restablecer y quitar keyframes como en Propiedades; en Color y LUT, la LUT de un paquete o «Cargar .cube…». Nombres, unidades y pasos salen de `EffectUi` y los rangos del registro (`ParameterSpec.For`).
 - **Audio.** Volumen con keyframes (de −60 a +24 dB) y fundidos de entrada y salida.
 - **Transición.** Tipo (propia o de paquete), duración (hasta el tope del núcleo), parámetros, dirección del empuje y quitar; todo con `Edits.SetTransition*`.
 - **Historial.** Cada paso del deshacer; un clic vuelve a ese estado.
