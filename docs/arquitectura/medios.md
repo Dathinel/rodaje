@@ -42,7 +42,7 @@ Tolera 64 errores seguidos antes de lanzar `MediaException`.
 
 **Hardware.**
 - `get_format` es un puntero a función `[UnmanagedCallersOnly]`, compatible con AOT y sin delegados.
-- El pool D3D11VA se crea con `SHADER_RESOURCE` y su tamaño es referencias + extra.
+- El pool D3D11VA se crea con `SHADER_RESOURCE` y su tamaño es referencias + extra, con un tope de 64 superficies (`VideoDecoder.MaxHardwarePoolSurfaces`): medido con NVDEC en la RTX 3050, FFmpeg no pasa de 64 y, si se retienen más cuadros de los que sobran, la decodificación falla o pisa superficies en uso. `DecoderSurfacePool.SpareSurfaces` dice cuántos cuadros se pueden retener.
 - Con `CompactReferencePool`, las 16 referencias del peor caso se cambian por las que permite el nivel del códec (`LevelReferenceFrames`): en 4K, 6 como mucho, de unos 12 MB cada una.
 - `HardwarePoolSizer` deja que el motor decida el extra.
 
@@ -77,6 +77,20 @@ Consecuencias para los criterios de cuadros perdidos: por hardware, 1080p y 4K p
 El color se resuelve en [`VideoColor`](../../src/Rodaje.Media/Video/VideoColor.cs). Sin declaración se usa BT.601 hasta 576 líneas y BT.709 por encima, y los formatos `yuvj` son de rango completo. [`FrameReadback.ReadLuma`](../../src/Rodaje.Media/Video/FrameReadback.cs) lee la luma, para pruebas y miniaturas.
 
 **Miniaturas.** [`ThumbnailDecoder`](../../src/Rodaje.Media/Video/ThumbnailDecoder.cs) no es exacto al cuadro a propósito: decodifica en la CPU sin filtro de desbloqueo (`skip_loop_filter`) y saltándose los cuadros que no son referencia (`skip_frame`), devuelve el último cuadro que no pasa del instante pedido y lo reduce con swscale (área, con la matriz y el rango del cuadro; BT.709 desde 720 líneas si no lo declara) a BGRA del alto pedido, con la rotación de pantalla aplicada. Si el siguiente pedido queda hasta 4 s más adelante sigue decodificando sin buscar y guarda el primer cuadro que se pasó para la próxima llamada. En 1080p una miniatura con búsqueda tarda unos 47 ms en H.264 y 66 ms en HEVC (mediana, GOP 50), y en una tira en orden unos 26 y 38 ms cada una. Lo usa `ClipVisuals` de la [app](app.md).
+
+**Reversa (fase 5c.3).** [`ReverseFrameReader`](../../src/Rodaje.Media/Video/ReverseFrameReader.cs) entrega un tramo de mayor a menor índice, exacto: cada tramo se decodifica hacia adelante desde su keyframe (pidiendo a `VideoDecoder` solo los cuadros que se verán, `Wanted`) y se entrega al revés. El plan (`Plan`) depende solo de los keyframes, lo pedido y `M` (`MaxRetained`), así que es determinista: junta GOP enteros mientras quepan en `C` cuadros (`M`/2 con la ventana de dos GOP, `M` sin ella) y parte desde arriba el GOP que no cabe (dos pasadas o más desde el mismo keyframe). Con la ventana, el tramo siguiente se decodifica en otro hilo mientras se entrega el actual. Con D3D11VA, `M` sale del pool (como mucho 64 menos las referencias). Lo usa la exportación; el motor hace lo mismo con su caché ([Motor](motor.md#reversa-fase-5c3)).
+
+Cifras ([`ReverseFrameReaderTests`](../../tests/Rodaje.Media.Tests/ReverseFrameReaderTests.cs), clip entero hacia atrás, cada cuadro comparado con la luma de `ffmpeg.exe` o con su número dibujado; software, subida y D3D11VA):
+
+| Caso | Decodificaciones por cuadro |
+|---|---|
+| GOP 6, 30 o 48 que caben en `C` | 1,00 |
+| GOP 48 con `M` = 40 (D3D11VA) | 1,72 |
+| GOP 48 con `M` = 16 | 3,41 |
+| GOP 250 con `M` = 128 / 40 / 16 | 2,22 / 5,93 / 14,05 |
+| 1080p H.264 GOP 60, D3D11VA, `M` = 48 | 1,80, a 322 fps (10,7× el tiempo real, leyendo la luma de cada cuadro) |
+
+El GOP abierto (CRA con RASL) no tiene todavía medio de prueba (tarea 14 de la nube); los RASL tienen índice menor que su CRA y caen en el GOP anterior, que es donde el lector los decodifica.
 
 **Propiedad.** Un decodificador no es seguro entre hilos (detecta llamadas solapadas y lanza). Quien pide un cuadro recibe su única referencia, y el cuadro puede liberarse en cualquier hilo, incluso después de cerrar el decodificador. Retener un cuadro D3D11VA ocupa una superficie del pool.
 
