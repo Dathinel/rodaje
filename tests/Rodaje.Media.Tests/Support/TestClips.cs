@@ -60,6 +60,17 @@ internal static class TestClips
     /// <summary>El único codificador con el que se genera <see cref="Hevc10"/>: el build LGPL no trae HEVC de 10 bits por software.</summary>
     public const string TenBitEncoder = "hevc_nvenc";
 
+    /// <summary>
+    /// El codificador con el que el clip sale como la prueba lo espera: con su GOP exacto y, en H.264 y HEVC, cuadros B
+    /// (y por tanto cuadros no referenciados). Sin él, <see cref="EncodeVideo"/> cae en libopenh264 (sin cuadros B) o en
+    /// libkvazaar (que no respeta <c>-g</c>), válidos para decodificar pero no para estas comprobaciones.
+    /// </summary>
+    public static string ExactEncoder(ClipCodec codec) => codec switch
+    {
+        ClipCodec.H264 => "h264_nvenc",
+        _ => TenBitEncoder,
+    };
+
     private static readonly ConcurrentDictionary<string, Lazy<string>> Generated = new();
     private static readonly ConcurrentDictionary<string, Lazy<IReadOnlyList<string>>> References = new(StringComparer.OrdinalIgnoreCase);
 

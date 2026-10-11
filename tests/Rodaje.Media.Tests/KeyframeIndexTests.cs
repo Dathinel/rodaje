@@ -9,10 +9,11 @@ namespace Rodaje.Media.Tests;
 
 public sealed class KeyframeIndexTests
 {
-    public static TheoryData<string> Clips => new(TestClips.H264.Name, TestClips.Hevc.Name, TestClips.Hevc10.Name, TestClips.H264Mkv.Name);
+    public static TheoryData<string> Clips => new(TestClips.H264.Name, TestClips.Hevc.Name, TestClips.H264Mkv.Name);
 
     [FfmpegLibraryTheory]
     [MemberData(nameof(Clips))]
+    [TenBitClipData(software: false)]
     public void Both_sources_find_the_decoded_keyframes(string clip)
     {
         ClipSpec spec = DecodeModes.Clip(clip);
@@ -28,7 +29,19 @@ public sealed class KeyframeIndexTests
         Assert.Equal(expected, scanned.Frames);
         Assert.Equal(spec.Frames, index.FrameCount);
         Assert.Equal(new Rational(spec.RateNum, spec.RateDen), index.FrameRate);
-        Assert.Equal(spec.Gop, index.MaxInterval);
+
+        // El intervalo real sale de los keyframes decodificados: sin NVENC el HEVC lo genera libkvazaar, que no respeta el GOP.
+        long longest = spec.Frames - expected[^1];
+        for (int i = 1; i < expected.Length; i++)
+        {
+            longest = Math.Max(longest, expected[i] - expected[i - 1]);
+        }
+
+        Assert.Equal(longest, index.MaxInterval);
+        if (Rodaje.TestMedia.Skip.Encoder(TestClips.ExactEncoder(spec.Codec)) is null)
+        {
+            Assert.Equal(spec.Gop, index.MaxInterval);
+        }
     }
 
     [FfmpegLibraryFact]

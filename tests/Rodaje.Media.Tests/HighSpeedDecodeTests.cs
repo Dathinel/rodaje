@@ -14,6 +14,9 @@ public sealed class HighSpeedDecodeTests
 {
     public static TheoryData<string, DecodeMode> SoftwareCases => DecodeModes.Software(TestClips.H264, TestClips.Hevc, TestClips.H264Mkv);
 
+    // Sin NVENC el HEVC lo genera libkvazaar, que no respeta el GOP: sus keyframes no son los de la especificación.
+    public static TheoryData<string, DecodeMode> SoftwareCasesWithoutHevc => DecodeModes.Software(TestClips.H264, TestClips.H264Mkv);
+
     public static TheoryData<string> AllClips => new(TestClips.H264.Name, TestClips.Hevc.Name, TestClips.H264Mkv.Name);
 
     [FfmpegLibraryTheory]
@@ -24,8 +27,9 @@ public sealed class HighSpeedDecodeTests
     [MemberData(nameof(AllClips))]
     public void Exact_requests_never_skip_hardware(string clip) => ExactNeverSkips(DecodeModes.Clip(clip), DecodeMode.Hardware);
 
+    // Descartar cuadros no referenciados exige cuadros B: libopenh264 y libkvazaar no los producen y no hay nada que descartar.
     [FfmpegLibraryTheory]
-    [MemberData(nameof(SoftwareCases))]
+    [ExactEncoderClipData(software: true, nameof(TestClips.H264), nameof(TestClips.Hevc), nameof(TestClips.H264Mkv))]
     public void Skipping_non_reference_frames_decodes_less_and_labels_truthfully_software(string clip, DecodeMode mode) =>
         SkipsNonReference(DecodeModes.Clip(clip), mode);
 
@@ -35,7 +39,8 @@ public sealed class HighSpeedDecodeTests
         SkipsNonReference(DecodeModes.Clip(clip), DecodeMode.Hardware);
 
     [FfmpegLibraryTheory]
-    [MemberData(nameof(SoftwareCases))]
+    [MemberData(nameof(SoftwareCasesWithoutHevc))]
+    [ExactEncoderClipData(software: true, nameof(TestClips.Hevc))]
     public void Keyframe_mode_delivers_only_keyframes_software(string clip, DecodeMode mode) => DeliversKeyframes(DecodeModes.Clip(clip), mode);
 
     [HardwareTheory]
