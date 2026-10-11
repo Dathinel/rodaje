@@ -87,10 +87,14 @@ public sealed record OptionDefinition(string Name, OptionKind Kind, string Defau
     /// <summary>La referencia admite <c>file:</c> más una ruta, relativa a la carpeta del proyecto o absoluta, con <c>/</c>.</summary>
     public bool AllowsFile { get; init; }
 
-    /// <summary><c>file:</c> seguido de una ruta no vacía y sin caracteres de control.</summary>
+    /// <summary>
+    /// <c>file:</c> seguido de una ruta no vacía, sin caracteres de control ni los que Windows no admite en una ruta
+    /// (<c>" &lt; &gt; |</c>): la misma regla que la ruta de un medio.
+    /// </summary>
     public static bool IsFileReference(string? value) =>
         value is not null && value.Length > FilePrefix.Length && value.StartsWith(FilePrefix, StringComparison.Ordinal)
-        && !value.AsSpan(FilePrefix.Length).ContainsAnyInRange('\0', '\u001f');
+        && !value.AsSpan(FilePrefix.Length).ContainsAnyInRange('\0', '\u001f')
+        && value.AsSpan(FilePrefix.Length).IndexOfAny("\"<>|") < 0;
 
     /// <summary>
     /// Si <paramref name="value"/> es aceptable: uno de <see cref="Choices"/>, o una referencia vacía o bien formada
