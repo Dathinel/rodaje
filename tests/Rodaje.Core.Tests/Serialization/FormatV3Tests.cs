@@ -16,13 +16,16 @@ public class FormatV3Tests
 
     private static string Example => File.ReadAllText(ExamplePath).ReplaceLineEndings("\n");
 
+    // Al abrirlo se migra y se guarda en la versión actual; lo demás queda igual.
+    private static string ExampleSaved => Example.Replace("\"schemaVersion\": 3", "\"schemaVersion\": 4", StringComparison.Ordinal);
+
     [Fact]
     public void Example_LoadsAndIsCanonical()
     {
         Project project = ProjectSerializer.Deserialize(Example);
 
-        Assert.Equal(Example, ProjectSerializer.Serialize(project) + "\n");
-        Assert.Equal(Example, ProjectSerializer.Serialize(project.Clone()) + "\n");
+        Assert.Equal(ExampleSaved, ProjectSerializer.Serialize(project) + "\n");
+        Assert.Equal(ExampleSaved, ProjectSerializer.Serialize(project.Clone()) + "\n");
     }
 
     [Fact]
@@ -76,7 +79,7 @@ public class FormatV3Tests
               }
             }
             """;
-        JsonObject root = JsonNode.Parse(Example)!.AsObject();
+        JsonObject root = JsonNode.Parse(ExampleSaved)!.AsObject();
         root["sequences"]![0]!["videoTracks"]![1]!["clips"]![1]!["effects"]!.AsArray().Add(JsonNode.Parse(effect));
         string json = root.ToJsonString(new System.Text.Json.JsonSerializerOptions
         {
@@ -153,13 +156,13 @@ public class FormatV3Tests
     }
 
     [Fact]
-    public void Migrate_V1_ReachesV3()
+    public void Migrate_V1_ReachesCurrent()
     {
         Project project = ProjectSerializer.Deserialize("""
             { "schemaVersion": 1, "id": "p", "sequences": [ { "id": "s", "videoTracks": [ { "id": "t", "kind": "video" } ] } ] }
             """);
 
-        Assert.Equal(3, project.SchemaVersion);
+        Assert.Equal(Project.CurrentSchemaVersion, project.SchemaVersion);
         Assert.Empty(project.Sequences[0].Markers);
         Assert.Empty(project.Sequences[0].VideoTracks[0].Transitions);
         Assert.Empty(project.Sequences[0].VideoTracks[0].Effects);

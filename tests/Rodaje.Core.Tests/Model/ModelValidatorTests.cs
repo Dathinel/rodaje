@@ -47,10 +47,10 @@ public class ModelValidatorTests
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
-    [InlineData(4)]
+    [InlineData(5)]
     [InlineData(-1)]
     public void WrongSchemaVersion(int version) =>
-        AssertSingleError(p => p.SchemaVersion = version, $"La versión de formato es {version} y se esperaba 3.");
+        AssertSingleError(p => p.SchemaVersion = version, $"La versión de formato es {version} y se esperaba 4.");
 
     [Theory]
     [InlineData("")]
@@ -231,7 +231,7 @@ public class ModelValidatorTests
         // Dos keyframes en el mismo instante tampoco valen, y se informa una sola vez por parámetro
         AssertSingleError(
             p => ClipOf(p, "c1").Effects[0].Parameters["opacity"].Keyframes =
-                [new Keyframe(Sec(1), 0), new Keyframe(Sec(1), 1), new Keyframe(Sec(0), 2)],
+                [new Keyframe(Sec(1), 0), new Keyframe(Sec(1), 1), new Keyframe(Sec(0), 0.5)],
             expected);
     }
 
@@ -280,7 +280,7 @@ public class ModelValidatorTests
 
         var ex = Assert.Throws<InvalidOperationException>(() => ModelValidator.ThrowIfInvalid(p));
         Assert.Equal(
-            "El proyecto no es válido:\n- La versión de formato es 1 y se esperaba 3.\n- El clip «c3» de la pista «V2» tiene un punto de entrada negativo.",
+            "El proyecto no es válido:\n- La versión de formato es 1 y se esperaba 4.\n- El clip «c3» de la pista «V2» tiene un punto de entrada negativo.",
             ex.Message);
     }
 

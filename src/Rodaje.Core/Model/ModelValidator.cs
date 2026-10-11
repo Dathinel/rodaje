@@ -12,30 +12,18 @@ public static class ModelValidator
     {
         ArgumentNullException.ThrowIfNull(project);
         var errors = new List<string>();
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-
-        void CheckId(string id, string what)
-        {
-            if (string.IsNullOrWhiteSpace(id))
-            {
-                errors.Add($"Hay {what} sin identificador.");
-            }
-            else if (!ids.Add(id))
-            {
-                errors.Add($"El identificador «{id}» está repetido ({what}).");
-            }
-        }
+        Action<string, string> checkId = IdChecker(errors);
 
         if (project.SchemaVersion != Project.CurrentSchemaVersion)
         {
             errors.Add($"La versión de formato es {project.SchemaVersion} y se esperaba {Project.CurrentSchemaVersion}.");
         }
 
-        CheckId(project.Id, "un proyecto");
+        checkId(project.Id, "un proyecto");
 
         foreach (MediaRef media in project.Media)
         {
-            CheckId(media.Id, "un medio");
+            checkId(media.Id, "un medio");
             if (media.Duration <= Time.Zero)
             {
                 errors.Add($"El medio «{media.Id}» tiene una duración no positiva.");
@@ -49,8 +37,8 @@ public static class ModelValidator
 
         foreach (Sequence sequence in project.Sequences)
         {
-            CheckId(sequence.Id, "una secuencia");
-            ValidateSequence(project, sequence, errors, CheckId);
+            checkId(sequence.Id, "una secuencia");
+            ValidateSequence(project, sequence, errors, checkId);
         }
 
         return errors;
@@ -71,19 +59,29 @@ public static class ModelValidator
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(sequence);
         var errors = new List<string>();
+        ValidateSequence(project, sequence, errors, IdChecker(errors));
+        return errors;
+    }
+
+    /// <summary>Identificadores no vacíos, únicos y sin caracteres de control (un salto de línea rompería los mensajes y la interfaz).</summary>
+    private static Action<string, string> IdChecker(List<string> errors)
+    {
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        ValidateSequence(project, sequence, errors, (id, what) =>
+        return (id, what) =>
         {
             if (string.IsNullOrWhiteSpace(id))
             {
                 errors.Add($"Hay {what} sin identificador.");
             }
+            else if (id.Any(char.IsControl))
+            {
+                errors.Add($"Hay {what} con un identificador que tiene caracteres de control.");
+            }
             else if (!ids.Add(id))
             {
                 errors.Add($"El identificador «{id}» está repetido ({what}).");
             }
-        });
-        return errors;
+        };
     }
 
     private static void ValidateSequence(Project project, Sequence sequence, List<string> errors, Action<string, string> checkId)
@@ -103,6 +101,7 @@ public static class ModelValidator
         CheckTrackKinds(sequence.AudioTracks, TrackKind.Audio, sequence, errors);
 
         var linkTracks = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        var linkSpeeds = new Dictionary<string, ClipSpeed?>(StringComparer.Ordinal);
 
         foreach (Track track in sequence.AllTracks)
         {
@@ -142,7 +141,7 @@ public static class ModelValidator
                     errors.Add($"{where} tiene un punto de entrada negativo.");
                 }
 
-                if (clip.SourceOut <= clip.SourceIn)
+                if (clip.SourceOut <= clip.SourceIn || (clip.Speed is not null && clip.Duration <= Time.Zero))
                 {
                     errors.Add($"{where} tiene duración cero o negativa.");
                 }
@@ -153,9 +152,9 @@ public static class ModelValidator
                 }
 
                 // 128 bits: un valor extremo leído de un archivo se informa como problema, no como OverflowException.
-                Int128 duration = (Int128)clip.SourceOut.Ticks - clip.SourceIn.Ticks;
+                Int128 duration = TimelineDuration(clip);
                 Int128 end = clip.Start.Ticks + duration;
-                if (!FitsInLong(duration) || !FitsInLong(end))
+                if (!FitsInLong((Int128)clip.SourceOut.Ticks - clip.SourceIn.Ticks) || !FitsInLong(end))
                 {
                     errors.Add($"{where} tiene tiempos fuera de rango.");
                 }
@@ -163,6 +162,11 @@ public static class ModelValidator
                 if (previous is not null && clip.Start.Ticks < previousEnd)
                 {
                     errors.Add($"{where} se solapa con «{previous.Id}» o está fuera de orden.");
+                }
+
+                if (clip.Speed is { } speed)
+                {
+                    ValidateSpeed(clip, speed, track, where, errors);
                 }
 
                 ValidateEffects(clip.Effects, null, errors, checkId);
@@ -177,6 +181,11 @@ public static class ModelValidator
                     if (!tracks.Add(track.Id))
                     {
                         errors.Add($"El enlace «{clip.LinkId}» tiene dos clips en la misma pista «{track.Name}».");
+                    }
+
+                    if (!linkSpeeds.TryAdd(clip.LinkId, clip.Speed) && !SameTiming(linkSpeeds[clip.LinkId], clip.Speed))
+                    {
+                        errors.Add($"Los clips del enlace «{clip.LinkId}» no tienen la misma velocidad.");
                     }
                 }
 
@@ -233,7 +242,20 @@ public static class ModelValidator
                     errors.Add($"El efecto «{effect.Id}» ({effect.Type}) no se puede aplicar a la pista de {TrackOps.KindName(track.Kind)} «{track.Name}».");
                 }
 
+                if (definition.Hidden)
+                {
+                    errors.Add($"El efecto «{effect.Id}» es de tipo «{effect.Type}», que está reservado y no se usa.");
+                }
+
                 ValidateOptions(definition, effect.Options, $"El efecto «{effect.Id}»", errors);
+                foreach ((string name, Parameter parameter) in effect.Parameters)
+                {
+                    if (definition.FindParameter(name) is { } p && parameter is not null
+                        && (!InRange(p, parameter.Value) || parameter.Keyframes.Exists(k => k is not null && !InRange(p, k.Value))))
+                    {
+                        errors.Add($"El parámetro «{name}» del efecto «{effect.Id}» está fuera de su rango ({p.Minimum} a {p.Maximum}).");
+                    }
+                }
             }
 
             foreach ((string name, Parameter parameter) in effect.Parameters)
@@ -286,6 +308,13 @@ public static class ModelValidator
                 }
 
                 ValidateOptions(definition, transition.Options, where, errors);
+                foreach ((string name, double value) in transition.Parameters)
+                {
+                    if (definition.FindParameter(name) is { } p && !InRange(p, value))
+                    {
+                        errors.Add($"{where} tiene «{name}» fuera de su rango ({p.Minimum} a {p.Maximum}).");
+                    }
+                }
             }
         }
     }
@@ -305,11 +334,88 @@ public static class ModelValidator
         }
     }
 
+    /// <summary>Las reglas de <see cref="Clip.Speed"/>: tasa y curva en rango, cotas del mapeo y tramo del origen coherente.</summary>
+    private static void ValidateSpeed(Clip clip, ClipSpeed speed, Track track, string where, List<string> errors)
+    {
+        int before = errors.Count;
+        bool unitRate = speed.Rate == new Rational(1, 1);
+        if (!RetimeMath.IsValidRate(speed.Rate))
+        {
+            errors.Add($"{where} tiene una velocidad fuera de 0,1× a 100×.");
+        }
+
+        if (speed.Curve is { } curve)
+        {
+            if (RetimeMath.CurveProblem(curve) is { } problem)
+            {
+                errors.Add($"{where}: {problem}");
+            }
+
+            if (!unitRate || speed.Freeze)
+            {
+                errors.Add($"{where} tiene una curva de velocidad junto con una velocidad constante o un congelado.");
+            }
+        }
+
+        if (speed.Freeze)
+        {
+            if (speed.Reverse || !unitRate)
+            {
+                errors.Add($"{where} está congelado y a la vez invertido o con otra velocidad.");
+            }
+
+            if (track.Kind != TrackKind.Video)
+            {
+                errors.Add($"{where} está congelado en una pista de audio.");
+            }
+        }
+
+        if (!Enum.IsDefined(speed.FrameSampling))
+        {
+            errors.Add($"{where} tiene un muestreo de cuadros desconocido.");
+        }
+
+        if (Int128.Abs(speed.Offset.Ticks) + clip.Duration.Ticks > RetimeMath.MaxExtent)
+        {
+            errors.Add($"{where} pasa del largo máximo de un clip con velocidad.");
+        }
+
+        if (errors.Count > before || clip.Duration <= Time.Zero || clip.SourceOut <= clip.SourceIn)
+        {
+            return;
+        }
+
+        ClipTimeMap map;
+        try
+        {
+            map = ClipTimeMap.Of(clip);
+        }
+        catch (OverflowException)
+        {
+            errors.Add($"{where} tiene tiempos fuera de rango.");
+            return;
+        }
+
+        if (map.SourceIn != clip.SourceIn || map.SourceOut != clip.SourceOut)
+        {
+            errors.Add($"{where} tiene un tramo del origen que no corresponde a su velocidad y duración (sería [{map.SourceIn}, {map.SourceOut})).");
+        }
+    }
+
+    private static bool SameTiming(ClipSpeed? a, ClipSpeed? b) =>
+        a is not null && b is not null ? a.SameTiming(b) : (a ?? b) is not { } one || one.IsIdentity;
+
+    private static bool InRange(ParameterDefinition definition, double value) =>
+        double.IsFinite(value) && value >= definition.Minimum && value <= definition.Maximum;
+
     private static EffectTarget TargetOf(TrackKind kind) => kind == TrackKind.Video ? EffectTarget.Video : EffectTarget.Audio;
 
     // En 128 bits por la misma razón que arriba: tiempos extremos de un archivo no deben lanzar.
     private static bool Touches(Clip left, Clip right) =>
-        (Int128)left.Start.Ticks + left.SourceOut.Ticks - left.SourceIn.Ticks == right.Start.Ticks;
+        left.Start.Ticks + TimelineDuration(left) == right.Start.Ticks;
+
+    private static Int128 TimelineDuration(Clip clip) =>
+        clip.Speed is null ? (Int128)clip.SourceOut.Ticks - clip.SourceIn.Ticks : clip.Duration.Ticks;
 
     private static bool FitsInLong(Int128 value) => value >= long.MinValue && value <= long.MaxValue;
 

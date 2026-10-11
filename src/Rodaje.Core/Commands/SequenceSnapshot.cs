@@ -143,6 +143,8 @@ public sealed class SequenceSnapshot
             && a.SourceIn == b.SourceIn
             && a.SourceOut == b.SourceOut
             && a.Start == b.Start
+            && a.Duration == b.Duration
+            && (a.Speed is null ? b.Speed is null : b.Speed is not null && a.Speed.ContentEquals(b.Speed))
             && a.LinkId == b.LinkId
             && a.Enabled == b.Enabled
             && SequenceEqual(a.Effects, b.Effects, EffectStateEquals);

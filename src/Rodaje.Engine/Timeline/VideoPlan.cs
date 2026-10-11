@@ -49,6 +49,12 @@ internal sealed class VideoClipPlan
 
     public EffectPlan? Effects { get; }
 
+    /// <summary>
+    /// Mapeo del clip del modelo (sin los tramos de transición). Hoy los tiempos de arriba son los de 1×; el motor de la
+    /// fase 5c los toma de aquí para la velocidad, la reversa y el congelado.
+    /// </summary>
+    public ClipTimeMap? TimeMap { get; init; }
+
     /// <summary>La transición del corte donde termina este tramo, si la hay: el clip sale mientras dura.</summary>
     public TransitionPlan? Outgoing { get; init; }
 
@@ -113,7 +119,7 @@ internal sealed class VideoClipPlan
     /// <summary>Mismo origen y mismos tiempos: los cuadros que muestra son los mismos.</summary>
     public bool SameMapping(VideoClipPlan other) =>
         ClipId == other.ClipId && Source == other.Source && Start == other.Start && End == other.End && SourceStart == other.SourceStart
-        && SourceIn == other.SourceIn && SourceOut == other.SourceOut && FrameRate == other.FrameRate;
+        && SourceIn == other.SourceIn && SourceOut == other.SourceOut && FrameRate == other.FrameRate && Equals(TimeMap, other.TimeMap);
 }
 
 /// <summary>Un carril de video: una pista con sus clips activos ordenados por posición, o el carril compañero de sus transiciones.</summary>

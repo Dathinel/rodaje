@@ -18,7 +18,7 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
 
 ```json
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "id": "project-6c1f0a2e",
   "name": "Paseo en bicicleta",
   "media": [

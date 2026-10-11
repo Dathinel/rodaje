@@ -143,7 +143,7 @@ public class RegistryValidationTests
     [Theory]
     [InlineData(TrackKind.Audio, BuiltInEffects.Audio, true)]
     [InlineData(TrackKind.Audio, BuiltInEffects.Color, false)]
-    [InlineData(TrackKind.Audio, BuiltInEffects.Speed, true)]
+    [InlineData(TrackKind.Video, BuiltInEffects.Stabilize, true)]
     [InlineData(TrackKind.Video, BuiltInEffects.Color, true)]
     [InlineData(TrackKind.Video, BuiltInEffects.Audio, false)]
     [InlineData(TrackKind.Audio, "otro.efecto", true)]

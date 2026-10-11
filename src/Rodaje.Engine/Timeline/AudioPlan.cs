@@ -1,3 +1,5 @@
+using Rodaje.Core.Timing;
+
 namespace Rodaje.Engine.Timeline;
 
 /// <summary>
@@ -6,7 +8,12 @@ namespace Rodaje.Engine.Timeline;
 /// material (<see cref="SourceInSample"/> negativo): lo que no existe es silencio.
 /// </summary>
 /// <param name="Gain">Volumen y fundidos; nulo si suena tal cual.</param>
-internal sealed record AudioClipPlan(string ClipId, SourceKey Source, long StartSample, long EndSample, long SourceInSample, GainPlan? Gain = null);
+/// <param name="Retime">Velocidad del clip; nula, suena a 1× como siempre.</param>
+internal sealed record AudioClipPlan(string ClipId, SourceKey Source, long StartSample, long EndSample, long SourceInSample, GainPlan? Gain = null,
+    AudioRetime? Retime = null);
+
+/// <summary>Velocidad de un clip de audio: su mapeo exacto y si mantiene el tono. Compara por valor.</summary>
+internal sealed record AudioRetime(ClipTimeMap Map, bool PreservePitch);
 
 internal sealed record AudioTrackPlan(string TrackId, IReadOnlyList<AudioClipPlan> Clips);
 
