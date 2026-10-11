@@ -6,8 +6,8 @@ namespace Rodaje.App.Services.Inspector;
 
 /// <summary>
 /// Las ediciones de velocidad que usa la pestaña Velocidad. Cada una cambia el clip y sus enlazados en un solo paso y,
-/// con magnetismo en cualquier pista, une lo que viene detrás según cambie la duración; <c>scope</c> es el modo de
-/// ripple de la sesión (solo las pistas del grupo, todas, o todas y los marcadores).
+/// en cualquier pista, une lo que viene detrás si el clip se acorta y empuja solo lo que pisa si crece; <c>scope</c> es
+/// el modo de ripple de la sesión (solo las pistas del grupo, todas, o todas y los marcadores).
 /// </summary>
 /// <remarks>Costura para que las pruebas de la pestaña registren lo que pide; la aplicación usa <see cref="SpeedCommands.Default"/>.</remarks>
 public interface ISpeedCommands

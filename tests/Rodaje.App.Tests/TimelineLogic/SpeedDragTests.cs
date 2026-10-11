@@ -84,7 +84,7 @@ public class SpeedDragTests(ITestOutputHelper output)
     });
 
     [Fact]
-    public void EstirarEnPistaLibre_UneLoQueSiguePorMagnetismoYElInicioQueda() => UiThread.Run(async () =>
+    public void EstirarEnPistaLibre_RespetaElHuecoEmpujaLoQuePisaYAlAcortarUne() => UiThread.Run(async () =>
     {
         EditorSession session = await ThreeClips();
         PutOnV2(session, 2, 4);
@@ -97,7 +97,7 @@ public class SpeedDragTests(ITestOutputHelper output)
         drag.Move(S(7), null);
         drag.Move(S(12), null);
         drag.Complete();
-        Assert.Equal("muda@2-12 muda@14-16", Layout(session, session.Sequence.VideoTracks[1]));
+        Assert.Equal("muda@2-12 muda@12-14", Layout(session, session.Sequence.VideoTracks[1]));
         Assert.Equal(new Rational(2, 5), session.Sequence.VideoTracks[1].Clips[0].Speed!.Rate);
         Assert.Equal("a@0-10 b@10-20 c@20-25", Layout(session, session.MainTrack!));
         Assert.Equal(steps + 1, session.History.Count);
@@ -109,7 +109,7 @@ public class SpeedDragTests(ITestOutputHelper output)
         drag = Start(session, session.Sequence.VideoTracks[1].Clips[0], DragOperation.StretchStart, 2, free);
         drag.Move(S(4), null);
         drag.Complete();
-        Assert.Equal("muda@2-10 muda@12-14", Layout(session, session.Sequence.VideoTracks[1]));
+        Assert.Equal("muda@2-10 muda@10-12", Layout(session, session.Sequence.VideoTracks[1]));
         Assert.Equal(new Rational(1, 2), session.Sequence.VideoTracks[1].Clips[0].Speed!.Rate);
     });
 
