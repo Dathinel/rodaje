@@ -17,6 +17,6 @@ Todas las variables que lee Rodaje empiezan con `RODAJE_`. Ninguna es obligatori
 | `RODAJE_PRUEBAS_AUDIO` | Con `1`, corre la prueba que hace sonar un tono de 3 s | `Skip.AudioTone` (testing) | Solo pruebas |
 | `RODAJE_COMPLEMENTOS` | Carpeta con los repositorios de contenido (`rodaje-filtros`, `rodaje-transiciones`) para la prueba de punta a punta; sin ella se busca una carpeta `Complementos` subiendo desde las pruebas, y si no está la prueba se omite | `ContentFactAttribute` (Rodaje.App.Tests) | Solo pruebas |
 | `RODAJE_MEDIA_CACHE` | Carpeta de los medios de prueba generados; sin ella, `TestResults\media-cache` en la raíz del repositorio | `TestMediaGenerator.DefaultCacheDirectory` (testing) | Solo pruebas |
-| `RODAJE_REGENERAR_ESQUEMA` | Con `1`, la prueba del esquema reescribe `schema/rodaje-proyecto.v3.schema.json` (el de la versión actual) desde el código en vez de solo compararlo | `ProjectSchemaTests` (Rodaje.Core.Tests) | Solo pruebas |
+| `RODAJE_REGENERAR_ESQUEMA` | Con `1`, la prueba del esquema reescribe `schema/rodaje-proyecto.v4.schema.json` (el de la versión actual) desde el código en vez de solo compararlo | `ProjectSchemaTests` (Rodaje.Core.Tests) | Solo pruebas |
 
 Las variables `DOTNET_*` y `NUGET_PACKAGES` no son de Rodaje: las fijan `dotnet-local.cmd` y `Usar-DotnetLocal` de `comun.psm1` para que el SDK local no use nada global.

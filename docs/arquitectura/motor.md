@@ -25,7 +25,7 @@ flowchart LR
 
 ## Efectos y transiciones (fase 5)
 
-- **`EffectPlan`.** Se compila por clip en cada `Reload`: la primera transformación activa, los efectos de imagen del registro (etapas por píxel y espaciales) en el orden de la pila y el primer modo de mezcla activo; lo desconocido, desactivado o diferido no entra. Sin nada de eso el plan es nulo y la capa va por el camino rápido (`IsPlain`).
+- **`EffectPlan`.** Se compila por clip en cada `Reload`: la primera transformación activa, los efectos de imagen del registro (etapas por píxel y espaciales) en el orden de la pila y el primer modo de mezcla activo; lo desconocido, desactivado o diferido no entra. Sin nada de eso el plan es nulo y la capa va por el camino rápido (`LayerFrame.IsPlain`).
 - **Sin reservas por `Tick`.** Los keyframes se copian a arreglos ([`Curve`](../../src/Rodaje.Engine/Timeline/Curve.cs), búsqueda binaria y las mismas curvas que el núcleo) y los efectos evaluados van a listas que cada carril rota de a tres (`EffectListRing`): una composición vale mientras la app la dibuja y la desecha en el mismo refresco. Los valores siguen los huecos del registro; una opción de elección (la dirección del empuje) va como su índice en el hueco que sigue a los parámetros, y una LUT (`paquete@versión/elemento` o `file:<ruta>`) va como `Resource` solo si `IEffectContent.TryGetLut` ya la tiene; si no, la capa sale sin LUT.
 - **Transiciones como carriles.** Centradas en el corte: el clip que sale sigue en su carril media duración más (material sobrante o, si no hay, su último cuadro congelado: `ToSource` acota al material) y el que entra se adelanta la otra media en el carril compañero `pista#t`, que tiene su propio estado, demanda y pre-roll. En el carril principal el que entra recién aparece al terminar la transición. `Tick` arma la capa del que sale con `LayerFrame.Transition` (código, avance de 0 a 1, valores e `Incoming`); si el que entra todavía no llegó, se ve solo el que sale. Cada mitad se acota a la mitad de su clip.
 - **De paquete.** `IEffectContent.FindTransition` da las curvas al armar el plan: x e y se suman (escaladas a la secuencia), escala y opacidad se multiplican, el giro se suma; la mezcla usa los `MixParameters` y `MixOptions` del preajuste. Si falta, cae a fundido cruzado y se cuenta en `TimelineStats.MissingContent`.
@@ -72,6 +72,8 @@ Las decisiones de diseño están en [D-017](../decisiones.md) (caché global por
   - Aplica el volumen de cada clip antes del recorte suave y de los medidores (ver [Audio](audio.md#volumen-y-fundidos)).
   - Aplica un recorte suave (rodilla 0,9).
   - Al recargar conserva 50 ms ya mezclados. Un medio que falla suena como silencio.
+  - Un clip con velocidad (`AudioClipPlan.Retime`) pasa por `RetimedReader`: WSOLA al mantener el tono, cinta si no (ver [Audio](audio.md#velocidad-timelineretime-fase-5c)).
+- **`TimelineSession.MeasureAudio`** da los niveles de la mezcla a los medidores (ver [Audio](audio.md#medidores-de-nivel-metering)).
 - **[`BufferedAudioSource`](../../src/Rodaje.Engine/BufferedAudioSource.cs)** decodifica por delante (500 ms) en su propio hilo sobre un anillo. El hilo de audio solo copia; si falta audio da silencio y la posición sigue, así la sincronía no se pierde.
 
 ## Archivos

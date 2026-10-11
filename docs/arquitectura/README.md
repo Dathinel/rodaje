@@ -1,6 +1,6 @@
 # Arquitectura de Rodaje
 
-Rodaje es un editor de video nativo para Windows escrito en C# sobre .NET 10. Se entrega como un ejecutable Native AOT autocontenido y sin instalador. El código se reparte en capas, cada una en su propio proyecto y apoyada solo en las de abajo. Cada documento describe una capa tal como está hoy (fases 1 a 4), con sus archivos, su lógica y cómo se prueba.
+Rodaje es un editor de video nativo para Windows escrito en C# sobre .NET 10. Se entrega como un ejecutable Native AOT autocontenido y sin instalador. El código se reparte en capas, cada una en su propio proyecto y apoyada solo en las de abajo. Cada documento describe una capa tal como está hoy (fases 1 a 5), con sus archivos, su lógica y cómo se prueba.
 
 ```mermaid
 flowchart TB
@@ -28,7 +28,7 @@ flowchart TB
 
 | Capa | Documento | En una frase |
 |---|---|---|
-| Núcleo | [nucleo.md](nucleo.md) | Tiempo exacto en ticks, modelo del proyecto, 21 operaciones de edición con deshacer por instantáneas y el formato `.rodaje` |
+| Núcleo | [nucleo.md](nucleo.md) | Tiempo exacto en ticks, modelo del proyecto con efectos, transiciones y velocidad, unas 50 operaciones de edición con deshacer por instantáneas y el formato `.rodaje` |
 | Medios | [medios.md](medios.md) | FFmpeg LGPL verificado, GPU compartida con D3D11VA, seek exacto al cuadro, análisis y proxies |
 | Audio | [audio.md](audio.md) | Salida WASAPI que da el reloj maestro y sobrevive a la pérdida del dispositivo |
 | Reproducción | [reproduccion.md](reproduccion.md) | Qué cuadro se muestra en cada refresco, siguiendo al audio sin bloquear nunca |
