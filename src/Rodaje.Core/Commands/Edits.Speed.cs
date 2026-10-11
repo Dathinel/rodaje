@@ -53,6 +53,18 @@ public static partial class Edits
         return new("Cambiar curva de velocidad", sequenceId, ctx => TimelineEdits.SetCurve(ctx, clipId, copy, scope), ids, $"curve:{clipId}");
     }
 
+    /// <summary>
+    /// Pone la curva de un preajuste (<see cref="SpeedPresets"/>) en el clip y sus enlazados: es <see cref="SetCurve"/>
+    /// con esa forma, así que la duración sale de su velocidad media y se funde con los cambios de curva del clip.
+    /// </summary>
+    public static SequenceEditCommand ApplySpeedPreset(
+        string sequenceId,
+        string clipId,
+        SpeedPreset preset,
+        RippleScope scope = RippleScope.Track,
+        IIdGenerator? ids = null) =>
+        SetCurve(sequenceId, clipId, SpeedPresets.Curve(preset), scope, ids);
+
     /// <summary>Invierte o endereza el clip y sus enlazados, con sus keyframes reflejados en el mismo paso.</summary>
     public static SequenceEditCommand SetReverse(string sequenceId, string clipId, bool reverse, IIdGenerator? ids = null) =>
         new(reverse ? "Invertir clip" : "Quitar reversa", sequenceId, ctx => TimelineEdits.SetReverse(ctx, clipId, reverse), ids);
