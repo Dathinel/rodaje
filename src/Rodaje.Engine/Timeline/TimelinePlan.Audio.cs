@@ -26,11 +26,23 @@ internal sealed partial class TimelinePlan
             if (end > start)
             {
                 clips.Add(new AudioClipPlan(clip.Id, Key(media[clip.MediaId], projectDirectory), start, end, sourceIn,
-                    Gain(clip, trackDb, entering, leaving), clip.Speed is { } speed ? new AudioRetime(clip.TimeMap, speed.PreservePitch) : null));
+                    Gain(clip, trackDb, entering, leaving), Retime(clip)));
             }
         }
 
         return new AudioTrackPlan(track.Id, clips);
+    }
+
+    /// <summary>Velocidad del clip; nula sin ella o si deja el origen tal cual (1× sin reversa ni congelado).</summary>
+    private static AudioRetime? Retime(Clip clip)
+    {
+        if (clip.Speed is not { } speed)
+        {
+            return null;
+        }
+
+        ClipTimeMap map = clip.TimeMap;
+        return map.IsIdentity ? null : new AudioRetime(map, speed.PreservePitch);
     }
 
     /// <summary>Volumen del clip: su <c>rodaje.audio</c>, la ganancia de la pista y los fundidos; nulo si suena tal cual.</summary>

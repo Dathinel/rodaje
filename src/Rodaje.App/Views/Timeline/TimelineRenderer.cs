@@ -51,6 +51,9 @@ internal sealed class TimelineOverlay
     public Rect? Marquee { get; set; }
 
     public (Time Start, Time End)? TimeRange { get; set; }
+
+    /// <summary>Globo junto a un borde arrastrado (velocidad y duración al estirar), sobre la fila de su pista.</summary>
+    public (string TrackId, Time At, string Text)? Balloon { get; set; }
 }
 
 /// <summary>
@@ -85,6 +88,8 @@ internal sealed class TimelineRenderer
     private readonly Path _ticks = new();
     private readonly Rectangle _playheadLine = new() { Width = 1 };
     private readonly Path _playheadHead = new();
+    private readonly TextBlock _balloonText = new() { FontSize = 11, TextWrapping = TextWrapping.NoWrap };
+    private readonly Border _balloon = new() { Padding = new Thickness(6, 2, 6, 3), IsHitTestVisible = false };
     private readonly Border _ghost = new() { CornerRadius = new CornerRadius(3), BorderThickness = new Thickness(1) };
     private readonly Border _linkedGhost = new() { CornerRadius = new CornerRadius(3), BorderThickness = new Thickness(1) };
     private readonly Rectangle _insertLine = new() { Width = 2 };
@@ -132,7 +137,12 @@ internal sealed class TimelineRenderer
         _marquee.Background = brushes.AccentSubtle;
         _marquee.BorderBrush = brushes.Accent;
         _timeRange.Fill = brushes.TimeRange;
-        foreach (UIElement element in (UIElement[])[_timeRange, _ghost, _linkedGhost, _insertLine, _snapGuide, _marquee])
+        _balloon.Background = brushes.Panel;
+        _balloon.BorderBrush = brushes.Accent;
+        _balloon.BorderThickness = new Thickness(1);
+        _balloonText.Foreground = brushes.Text;
+        _balloon.Child = _balloonText;
+        foreach (UIElement element in (UIElement[])[_timeRange, _ghost, _linkedGhost, _insertLine, _snapGuide, _marquee, _balloon])
         {
             element.Visibility = Visibility.Collapsed;
             _overlayCanvas.Children.Add(element);
@@ -590,6 +600,8 @@ internal sealed class TimelineRenderer
             _snapGuide.Visibility = Visibility.Collapsed;
         }
 
+        PlaceBalloon(overlay.Balloon, layout);
+
         if (overlay.Marquee is { } m)
         {
             _marquee.Visibility = Visibility.Visible;
@@ -623,6 +635,29 @@ internal sealed class TimelineRenderer
             _timeRange.Visibility = Visibility.Collapsed;
             _timeRangeRuler.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private void PlaceBalloon((string TrackId, Time At, string Text)? balloon, TrackLayout layout)
+    {
+        if (balloon is not { } b || layout.Find(b.TrackId) is not { } row)
+        {
+            _balloon.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        if (!string.Equals(_balloonText.Text, b.Text, StringComparison.Ordinal))
+        {
+            _balloonText.Text = b.Text;
+        }
+
+        _balloon.Visibility = Visibility.Visible;
+        _balloon.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double width = _balloon.DesiredSize.Width;
+        double x = Viewport.TimeToX(b.At) - (width / 2);
+        Canvas.SetLeft(_balloon, Math.Clamp(x, 2, Math.Max(2, Viewport.Width - width - 2)));
+        // Encima de la fila; si es la primera, dentro de ella para no tapar la regla.
+        double top = row.Top - ScrollY - _balloon.DesiredSize.Height - 2;
+        Canvas.SetTop(_balloon, top >= 0 ? top : row.Top - ScrollY + 2);
     }
 
     private void PlaceGhost(Border ghost, (string TrackId, Time Start, Time End)? place, TrackLayout layout)

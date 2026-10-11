@@ -58,6 +58,12 @@ internal sealed class ClipVisual
     private readonly Path _envelopePoints = new() { StrokeThickness = 1 };
     private readonly Path _keys = new();
     private readonly TextBlock _name = new() { FontSize = 11, TextWrapping = TextWrapping.NoWrap };
+    private readonly Border _badge = new() { Padding = new Thickness(4, 0, 4, 1), Height = NameHeight - 1 };
+    private readonly TextBlock _badgeText = new() { FontSize = 10, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
+
+    // Hueco de la mini curva de la fase 5c.2, a la derecha del texto del indicador.
+    private readonly Path _badgeCurve = new() { Width = 16, Visibility = Visibility.Collapsed };
+    private double _badgeWidth;
     private readonly RectangleGeometry _bounds = new();
 
     public ClipVisual(TimelineBrushes brushes)
@@ -73,6 +79,13 @@ internal sealed class ClipVisual
         _envelopePoints.Fill = brushes.Text;
         _envelopePoints.Stroke = brushes.Background;
         _name.Foreground = brushes.Text;
+        _badgeText.Foreground = brushes.Text;
+        _badgeCurve.Stroke = brushes.Text;
+        _badge.Background = brushes.Scrim;
+        var badgeRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
+        badgeRow.Children.Add(_badgeText);
+        badgeRow.Children.Add(_badgeCurve);
+        _badge.Child = badgeRow;
         Root.Children.Add(_body);
         Root.Children.Add(_edge);
         Root.Children.Add(_strip);
@@ -82,6 +95,7 @@ internal sealed class ClipVisual
         Root.Children.Add(_envelopePoints);
         Root.Children.Add(_keys);
         Root.Children.Add(_name);
+        Root.Children.Add(_badge);
         Root.Children.Add(_veil);
         Root.Children.Add(_outline);
         _veil.Background = brushes.Background;
@@ -105,6 +119,7 @@ internal sealed class ClipVisual
     public void Update(in ClipDraw d, IClipVisuals? visuals)
     {
         ClipId = d.Clip.Id;
+        ClipTimeMap map = d.Clip.TimeMap;
         Root.Visibility = Visibility.Visible;
         Canvas.SetLeft(Root, d.Left);
         Canvas.SetTop(Root, d.Top);
@@ -128,7 +143,7 @@ internal sealed class ClipVisual
         UpdateName(d);
         if (d.Kind == TrackKind.Video && detailed)
         {
-            UpdateFilmstrip(d, visuals);
+            UpdateFilmstrip(d, map, visuals);
         }
         else
         {
@@ -138,14 +153,14 @@ internal sealed class ClipVisual
 
         if (d.Kind == TrackKind.Audio && detailed)
         {
-            UpdateWaveform(d, visuals);
+            UpdateWaveform(d, map, visuals);
         }
         else
         {
             _wave.Visibility = Visibility.Collapsed;
         }
 
-        UpdateEnvelope(d);
+        UpdateEnvelope(d, map);
         UpdateKeyframes(d);
     }
 
@@ -173,7 +188,7 @@ internal sealed class ClipVisual
 
     private void UpdateName(in ClipDraw d)
     {
-        double left = Math.Max(5, d.VisibleLeft - d.Left + 5);
+        double left = UpdateBadge(d, Math.Max(5, d.VisibleLeft - d.Left + 5));
         double room = d.Width - left - 4;
         if (room < 18)
         {
@@ -193,7 +208,36 @@ internal sealed class ClipVisual
         Canvas.SetTop(_name, 0);
     }
 
-    private void UpdateFilmstrip(in ClipDraw d, IClipVisuals? visuals)
+    /// <summary>El indicador de velocidad delante del nombre; devuelve dónde empieza el nombre.</summary>
+    private double UpdateBadge(in ClipDraw d, double left)
+    {
+        string? text = SpeedBadge.Text(d.Clip);
+        if (text is null)
+        {
+            _badge.Visibility = Visibility.Collapsed;
+            return left;
+        }
+
+        if (!string.Equals(_badgeText.Text, text, StringComparison.Ordinal))
+        {
+            _badgeText.Text = text;
+            _badge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            _badgeWidth = _badge.DesiredSize.Width;
+        }
+
+        if (d.Width - left - 4 < _badgeWidth)
+        {
+            _badge.Visibility = Visibility.Collapsed;
+            return left;
+        }
+
+        _badge.Visibility = Visibility.Visible;
+        Canvas.SetLeft(_badge, left - 2);
+        Canvas.SetTop(_badge, 1);
+        return left + _badgeWidth + 2;
+    }
+
+    private void UpdateFilmstrip(in ClipDraw d, ClipTimeMap map, IClipVisuals? visuals)
     {
         double top = NameHeight;
         double height = d.Height - NameHeight - 2;
@@ -221,7 +265,7 @@ internal sealed class ClipVisual
         if (visuals is not null)
         {
             // La separación entre miniaturas decide la rejilla de instantes: un mismo zoom reutiliza las mismas miniaturas.
-            Time spacing = Time.FromSeconds(tile / d.PixelsPerSecond);
+            Time spacing = ClipMapping.SourceSpacing(map, Time.FromSeconds(tile / d.PixelsPerSecond));
             int pixels = (int)Math.Ceiling(height * (Root.XamlRoot?.RasterizationScale ?? FallbackScale));
             int first = (int)Math.Max(0, Math.Floor(-origin / tile));
             int last = (int)Math.Ceiling((d.Width - origin) / tile);
@@ -233,7 +277,7 @@ internal sealed class ClipVisual
                     continue;
                 }
 
-                Time sourceTime = d.Clip.ToSourceTime(TimeAt(d, x + (tile / 2)));
+                Time sourceTime = map.Source(TimeAt(d, x + (tile / 2)));
                 if (visuals.GetNearestThumbnail(d.Clip.MediaId, sourceTime, spacing, pixels) is { } image)
                 {
                     Image view = Thumb(thumbs++);
@@ -273,7 +317,7 @@ internal sealed class ClipVisual
         }
     }
 
-    private void UpdateWaveform(in ClipDraw d, IClipVisuals? visuals)
+    private void UpdateWaveform(in ClipDraw d, ClipTimeMap map, IClipVisuals? visuals)
     {
         double top = NameHeight - 2;
         double half = (d.Height - top - 3) / 2;
@@ -291,15 +335,19 @@ internal sealed class ClipVisual
         Clip clip = d.Clip;
         _waveBounds.Rect = new Rect(0, 0, d.Width, d.Height);
 
-        // Mientras se calcula (o sin sonido) se dibuja el marcador de posición.
-        WaveformSlice? slice = visuals?.GetWaveform(clip.MediaId, clip.ToSourceTime(TimeAt(d, 0)), clip.ToSourceTime(TimeAt(d, d.Width)), count);
+        // Se pide el tramo del origen que se ve y cada punto toma el suyo con el mapeo: a otra velocidad, en reversa o
+        // con una curva la onda sigue al material. Mientras se calcula (o sin sonido) se dibuja el marcador de posición.
+        (Time low, Time high) = ClipMapping.VisibleSource(map, TimeAt(d, 0), TimeAt(d, d.Width));
+        WaveformSlice? slice = visuals?.GetWaveform(clip.MediaId, low, high, count);
         bool real = slice is { IsComplete: true, HasAudio: true } && slice.Buckets == count;
         for (int i = 0; i < count; i++)
         {
             double x = i == count - 1 ? d.Width : i * step;
+            Time at = TimeAt(d, x);
+            int bucket = map.IsIdentity ? i : ClipMapping.BucketOf(map, at, low, high, count);
             float peak = real
-                ? Math.Clamp(Math.Max(-slice!.Min[i], slice.Max[i]), 0, 1)
-                : ClipDecorations.PlaceholderPeak(clip.MediaId, clip.ToSourceTime(TimeAt(d, x)));
+                ? Math.Clamp(Math.Max(-slice!.Min[bucket], slice.Max[bucket]), 0, 1)
+                : ClipDecorations.PlaceholderPeak(clip.MediaId, map.Source(at));
             upper[i] = new Point(x, center - (peak * half));
         }
 
@@ -322,7 +370,7 @@ internal sealed class ClipVisual
         _wave.Visibility = Visibility.Visible;
     }
 
-    private void UpdateEnvelope(in ClipDraw d)
+    private void UpdateEnvelope(in ClipDraw d, ClipTimeMap map)
     {
         if (!d.ShowEnvelope || d.Kind != TrackKind.Audio || d.Width < DetailMinWidth)
         {
@@ -339,7 +387,7 @@ internal sealed class ClipVisual
         for (double x = 0; ; x += step)
         {
             double clamped = Math.Min(x, d.Width);
-            double gain = ClipDecorations.GainDbAt(d.Clip, TimeAt(d, clamped));
+            double gain = ClipDecorations.GainDbAt(d.Clip, map, TimeAt(d, clamped));
             points.Add(new Point(clamped, top + ((1 - ClipDecorations.EnvelopeFraction(gain)) * range)));
             if (clamped >= d.Width)
             {

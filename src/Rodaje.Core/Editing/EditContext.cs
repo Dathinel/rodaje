@@ -95,6 +95,69 @@ public sealed class EditContext
     }
 
     /// <summary>
+    /// Ripple con un Δ por pista: cada semilla corre su pista desde su punto, y las pistas de los enlazados de lo que se
+    /// corre se corren con el Δ y el punto de la pista que los arrastra. Una pista con semilla conserva su Δ; una que
+    /// llega por dos caminos se queda con el primero. Así un clip enlazado con otro de distinto largo corre lo suyo.
+    /// </summary>
+    /// <returns>Las pistas corridas.</returns>
+    internal IReadOnlyList<Track> RippleEach(IEnumerable<(Track Track, Time From, Time Delta)> seeds, IReadOnlySet<Clip> exclude)
+    {
+        ArgumentNullException.ThrowIfNull(seeds);
+        var shifts = new List<(Track Track, Time From, Time Delta)>();
+        var index = new Dictionary<Track, int>();
+        foreach ((Track track, Time from, Time delta) in seeds)
+        {
+            if (delta != Time.Zero && index.TryAdd(track, shifts.Count))
+            {
+                shifts.Add((track, from, delta));
+            }
+        }
+
+        int seeded = shifts.Count;
+        Dictionary<string, List<Track>>? linkTracks = null;
+        var pending = new Queue<int>(Enumerable.Range(0, shifts.Count));
+        while (pending.TryDequeue(out int i))
+        {
+            (Track track, Time from, Time delta) = shifts[i];
+            foreach (Clip clip in track.Clips)
+            {
+                if (clip.LinkId is null || clip.Start < from || exclude.Contains(clip))
+                {
+                    continue;
+                }
+
+                linkTracks ??= IndexLinkTracks();
+                foreach (Track partner in linkTracks[clip.LinkId])
+                {
+                    if (!index.TryGetValue(partner, out int j))
+                    {
+                        index[partner] = shifts.Count;
+                        pending.Enqueue(shifts.Count);
+                        shifts.Add((partner, from, delta));
+                    }
+                    else if (j >= seeded && shifts[j].Delta == delta && from < shifts[j].From)
+                    {
+                        shifts[j] = (partner, from, delta);
+                        pending.Enqueue(j);
+                    }
+                }
+            }
+        }
+
+        foreach ((Track track, Time from, Time delta) in shifts)
+        {
+            EnsureCanClose(track, from, delta, exclude);
+        }
+
+        foreach ((Track track, Time from, Time delta) in shifts)
+        {
+            ShiftClips(track, from, delta, exclude);
+        }
+
+        return [.. shifts.Select(s => s.Track)];
+    }
+
+    /// <summary>
     /// <paramref name="edited"/> seguidas de las pistas de los enlazados de los clips que se corren desde
     /// <paramref name="from"/>, y así hasta no sumar más, para que ningún grupo enlazado se desincronice.
     /// </summary>

@@ -68,13 +68,15 @@ public static class EnvelopeEdits
         {
             Clip clip = EditableClip(ctx, clipId);
             Parameter gain = GainOf(ctx, clip.Effects, create: true)!;
-            Time? source = from is { } f ? clip.ToSourceTime(f) : null;
-            Time target = Clamp(clip.ToSourceTime(to), clip.SourceIn, clip.SourceOut);
-            int index = source is { } s ? gain.Keyframes.FindIndex(k => k.Time == s) : -1;
+            ClipTimeMap map = clip.TimeMap;
+            (Time first, Time last) = ClipMapping.EffectRange(map);
+            // El borde final es el último instante del tramo (el mapeo acota al último tick dentro del clip).
+            Time target = to >= map.End ? last : Clamp(map.EffectTime(to), first, last);
+            int index = from is { } f ? IndexAt(gain, map, f) : -1;
             if (index >= 0)
             {
-                Time low = index > 0 ? gain.Keyframes[index - 1].Time + Time.FromTicks(1) : clip.SourceIn;
-                Time high = index < gain.Keyframes.Count - 1 ? gain.Keyframes[index + 1].Time - Time.FromTicks(1) : clip.SourceOut;
+                Time low = index > 0 ? gain.Keyframes[index - 1].Time + Time.FromTicks(1) : first;
+                Time high = index < gain.Keyframes.Count - 1 ? gain.Keyframes[index + 1].Time - Time.FromTicks(1) : last;
                 target = Clamp(target, low, high);
                 gain.Keyframes[index] = gain.Keyframes[index] with { Time = target, Value = ClampDb(gainDb) };
             }
@@ -94,8 +96,7 @@ public static class EnvelopeEdits
                 return;
             }
 
-            Time source = clip.ToSourceTime(at);
-            int index = gain.Keyframes.FindIndex(k => k.Time == source);
+            int index = IndexAt(gain, clip.TimeMap, at);
             if (index < 0)
             {
                 return;
@@ -143,6 +144,13 @@ public static class EnvelopeEdits
                 gain.Value = ClampDb(gainDb);
             }
         }, ids, $"track-gain:{trackId}:{at.Ticks}");
+
+    /// <summary>
+    /// El keyframe que se dibuja en <paramref name="timeline"/>: se busca por su lugar en la línea de tiempo y no por el
+    /// origen de ese instante, porque a otra velocidad el viaje de ida y vuelta no siempre cae en el mismo tick.
+    /// </summary>
+    private static int IndexAt(Parameter gain, ClipTimeMap map, Time timeline) =>
+        gain.Keyframes.FindIndex(k => ClipMapping.TimelineOfEffect(map, k.Time) == timeline);
 
     private static Clip EditableClip(EditContext ctx, string clipId)
     {

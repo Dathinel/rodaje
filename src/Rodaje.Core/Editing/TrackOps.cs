@@ -29,17 +29,16 @@ internal static class TrackOps
             if (startsBefore && endsAfter)
             {
                 Clip right = SplitOff(ctx, clip, to);
-                clip.SourceOut = clip.ToSourceTime(from);
+                clip.TimeMap.TrimOut(from).ApplyTo(clip);
                 AddClipSorted(track, right);
             }
             else if (startsBefore)
             {
-                clip.SourceOut = clip.ToSourceTime(from);
+                clip.TimeMap.TrimOut(from).ApplyTo(clip);
             }
             else if (endsAfter)
             {
-                clip.SourceIn = clip.ToSourceTime(to);
-                clip.Start = to;
+                clip.TimeMap.TrimIn(to).ApplyTo(clip);
             }
             else
             {
@@ -83,7 +82,10 @@ internal static class TrackOps
         }
     }
 
-    /// <summary>Recorta el clip a la izquierda de <paramref name="at"/> y devuelve la derecha sin agregarla a ninguna pista.</summary>
+    /// <summary>
+    /// Recorta el clip a la izquierda de <paramref name="at"/> y devuelve la derecha sin agregarla a ninguna pista: un
+    /// identificador nuevo, un enlace derivado, la misma velocidad y copias de los efectos.
+    /// </summary>
     public static Clip SplitOff(EditContext ctx, Clip clip, Time at)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -96,9 +98,9 @@ internal static class TrackOps
             effect.Id = ctx.Ids.NewId("fx");
         }
 
-        right.SourceIn = clip.ToSourceTime(at);
-        right.Start = at;
-        clip.SourceOut = right.SourceIn;
+        (ClipTimeMap leftMap, ClipTimeMap rightMap) = clip.TimeMap.SplitAt(at);
+        rightMap.ApplyTo(right);
+        leftMap.ApplyTo(clip);
         return right;
     }
 
