@@ -15,7 +15,11 @@ Lo que solo Daniel puede juzgar. Se abre con `Rodaje.bat` (o `dist\Rodaje\Rodaje
 
 ## Fase 5
 
-**Antes:** en Rodaje → Complementos → «Instalar desde archivo», instalar `..\Complementosodaje-filtros\distodaje-filtros-1.0.0.paquete` y `..\Complementosodaje-transiciones\distodaje-transiciones-1.0.0.paquete` (ya generados; se regeneran con el `empaquetar.ps1` de cada carpeta).
+**Antes:** en Rodaje → Complementos → «Instalar desde archivo», instalar `D:\Programas de uso libre\Complementos\rodaje-filtros\dist\rodaje-filtros-1.0.0.paquete` y `D:\Programas de uso libre\Complementos\rodaje-transiciones\dist\rodaje-transiciones-1.0.0.paquete` (ya generados; se regeneran con el `empaquetar.ps1` de cada carpeta).
+odaje-filtros\dist
+odaje-filtros-1.0.0.paquete` y `..\Complementos
+odaje-transiciones\dist
+odaje-transiciones-1.0.0.paquete` (ya generados; se regeneran con el `empaquetar.ps1` de cada carpeta).
 
 - [ ] **Looks en pausa:** aplicar «Cálido» con la reproducción en pausa: el tono debe verse sin reproducir. Cada look aparece una sola vez en Filtros.
 - [ ] **Dirección de los deslizamientos:** «Deslizar a la izquierda» en un corte: el clip nuevo entra desde la derecha. Probar las 8.
