@@ -28,7 +28,7 @@ Daniel prefiere que lo profesional vaya como complemento aparte en su GitHub. Re
 
 ## Funciones de calidad de vida para elegir (11-oct)
 
-Lista de funciones habituales en los editores populares (sin copiar diseño ni marcas: solo la idea). **Daniel marca cuáles van** y se reparten en la fase indicada, a agentes locales (L) o a la nube (N). Las que necesitan IA van como módulos de la fase 7.
+Lista de funciones habituales en los editores populares (sin copiar diseño ni marcas: solo la idea). **Daniel las aprobó todas el 11-oct** y se reparten en la fase indicada, a agentes locales (L) o a la nube (N). Las que necesitan IA van como módulos de la fase 7.
 
 ### Edición en la línea de tiempo
 1. **Edición por ondas de silencio:** quitar silencios de un clip con un umbral y margen (con vista previa de lo que se corta). — 7 · L
