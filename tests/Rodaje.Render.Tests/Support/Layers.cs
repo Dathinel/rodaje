@@ -30,11 +30,30 @@ internal static class Layers
 
     /// <summary>Capa sobre una textura existente; toma su propia referencia.</summary>
     public static LayerFrame FromTexture(GpuDevice gpu, nint texture, int slice, int visibleWidth, int visibleHeight,
-        VideoColor color, LayerTransform transform, int track = 0)
+        VideoColor color, LayerTransform transform, int track = 0, LayerLook? look = null)
     {
         D3D11TexturePayload payload = D3D11TexturePayload.FromTexture(gpu, texture, slice, visibleWidth, visibleHeight, color);
         var frame = new DecodedFrame(0, Time.Zero, Time.FromTicks(1), payload, 0);
-        return new LayerFrame(track, $"clip-{track}", frame, transform);
+        return new LayerFrame(track, $"clip-{track}", frame, transform)
+        {
+            Effects = look?.Effects ?? [],
+            Blend = look?.Blend ?? BlendMode.Normal,
+            Transition = look?.Transition,
+        };
+    }
+
+    /// <summary>Una capa con efectos, mezcla o transición.</summary>
+    public static LayerFrame From(GpuDevice gpu, YuvImage image, VideoColor color, LayerLook look, LayerTransform? transform = null, int track = 0)
+    {
+        nint texture = YuvImage.CreateTexture(gpu, [image]);
+        try
+        {
+            return FromTexture(gpu, texture, 0, image.Width, image.Height, color, transform ?? LayerTransform.Identity, track, look);
+        }
+        finally
+        {
+            Release(texture);
+        }
     }
 
     public static unsafe void Release(nint texture) => ((TerraFX.Interop.Windows.IUnknown*)texture)->Release();
@@ -42,6 +61,9 @@ internal static class Layers
     public static CompositionFrame Frame(int width, int height, params LayerFrame[] layers) =>
         new(Time.Zero, width, height, layers);
 }
+
+/// <summary>Efectos, mezcla y transición de una capa de prueba.</summary>
+internal sealed record LayerLook(IReadOnlyList<LayerEffect>? Effects = null, BlendMode Blend = BlendMode.Normal, LayerTransition? Transition = null);
 
 /// <summary>Píxeles RGBA de 8 bits leídos de la GPU.</summary>
 internal sealed class RgbaImage(byte[] pixels, int width, int height)

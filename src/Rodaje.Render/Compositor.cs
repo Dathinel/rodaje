@@ -4,6 +4,8 @@ using Rodaje.Media.Video;
 using Rodaje.Playback.Composition;
 using TerraFX.Interop.DirectX;
 using static TerraFX.Interop.DirectX.D3D11;
+using Rodaje.Render.Effects;
+using Rodaje.Render.Shaders;
 using static Rodaje.Render.RenderException;
 
 namespace Rodaje.Render;
@@ -24,7 +26,14 @@ public enum CompositeFormat
 /// <summary>Resultado de <see cref="Compositor.Render"/>.</summary>
 /// <param name="LayersDrawn">Capas dibujadas.</param>
 /// <param name="LayersSkipped">Capas sin textura D3D11 utilizable (contenido de CPU, liberado o de otro formato).</param>
-public readonly record struct CompositeResult(int LayersDrawn, int LayersSkipped);
+/// <param name="EffectsApplied">Efectos, mezclas distintas de la normal y transiciones aplicados.</param>
+/// <param name="EffectsSkipped">
+/// Los que no se aplicaron en este cuadro: shader todavía sin compilar, pool lleno, código desconocido o repetido.
+/// </param>
+/// <param name="MissingContent">LUT que todavía cargan o cuyo paquete falta, y transiciones de paquete sin resolver.</param>
+/// <param name="PoolBytes">Memoria de los intermedios de efectos al terminar el cuadro.</param>
+public readonly record struct CompositeResult(int LayersDrawn, int LayersSkipped, int EffectsApplied = 0, int EffectsSkipped = 0,
+    int MissingContent = 0, long PoolBytes = 0);
 
 /// <summary>
 /// Compone un <see cref="CompositionFrame"/> en una textura propia: fondo negro y cada capa de abajo arriba,
@@ -49,9 +58,11 @@ public sealed unsafe class Compositor : IDisposable
     private readonly ID3D11DeviceContext* _context;
     private readonly QuadPipeline _pipeline;
     private readonly PlaneViewCache _views;
-    private ID3D11Texture2D* _target;
-    private ID3D11RenderTargetView* _targetView;
-    private ID3D11ShaderResourceView* _shaderView;
+    private readonly EffectPipeline _effects;
+    private readonly RenderTargetPool _pool;
+    private readonly LutTextures _luts;
+    private readonly LayerRenderer _layers;
+    private RenderTarget? _output;
     private ID3D11Texture2D* _staging;
 
     public Compositor(GpuDevice gpu, int width, int height, CompositeFormat format = CompositeFormat.Rgba16Float)
@@ -59,7 +70,15 @@ public sealed unsafe class Compositor : IDisposable
     {
     }
 
-    internal Compositor(GpuDevice gpu, int width, int height, CompositeFormat format, TimeProvider time)
+    /// <param name="shaders">Caché de los shaders de efectos; por omisión <see cref="ShaderCache.Default"/>.</param>
+    /// <param name="poolCapBytes">Tope de los intermedios; por omisión según la VRAM (<see cref="PoolCapFor"/>).</param>
+    public Compositor(GpuDevice gpu, int width, int height, CompositeFormat format, ShaderCache? shaders, long? poolCapBytes = null)
+        : this(gpu, width, height, format, TimeProvider.System, shaders, poolCapBytes)
+    {
+    }
+
+    internal Compositor(GpuDevice gpu, int width, int height, CompositeFormat format, TimeProvider time,
+        ShaderCache? shaders = null, long? poolCapBytes = null)
     {
         ArgumentNullException.ThrowIfNull(gpu);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
@@ -74,9 +93,13 @@ public sealed unsafe class Compositor : IDisposable
         Format = format;
         MipLevels = 1 + (int)Math.Log2(Math.Max(width, height));
         _views = new PlaneViewCache(_device, time);
+        _pool = new RenderTargetPool(_device, poolCapBytes ?? PoolCapFor(gpu.DedicatedVideoMemory));
+        _luts = new LutTextures(_device);
         _pipeline = new QuadPipeline(_device, _context);
         try
         {
+            _effects = new EffectPipeline(_device, _context, shaders ?? ShaderCache.Default);
+            _layers = new LayerRenderer(gpu, _pipeline, _effects, _views, _pool, _luts);
             CreateTarget();
         }
         catch
@@ -98,13 +121,29 @@ public sealed unsafe class Compositor : IDisposable
     public int MipLevels { get; }
 
     /// <summary><c>ID3D11Texture2D*</c> con el último cuadro compuesto (alfa 1 en todo el cuadro). Vale hasta <see cref="Dispose"/>.</summary>
-    public nint Texture => (nint)_target;
+    public nint Texture => _output is null ? 0 : (nint)_output.Texture;
 
     /// <summary><c>ID3D11ShaderResourceView*</c> de <see cref="Texture"/>, con todos sus mipmaps.</summary>
-    public nint ShaderResourceView => (nint)_shaderView;
+    public nint ShaderResourceView => _output is null ? 0 : (nint)_output.Srv;
 
     /// <summary>Vistas de superficies del decodificador guardadas, para diagnóstico.</summary>
     public int CachedViewCount => _views.Count;
+
+    /// <summary>De dónde salen las LUT. Sin proveedor, una capa con LUT sale sin ella y se cuenta en <see cref="CompositeResult.MissingContent"/>.</summary>
+    public IEffectResources? Resources
+    {
+        get => _layers.Resources;
+        set => _layers.Resources = value;
+    }
+
+    /// <summary>Termina cuando todos los shaders de efectos están listos. Mientras tanto los efectos se saltan y se cuentan.</summary>
+    public Task ShadersReady => _effects.Ready;
+
+    /// <summary>Tope de memoria de los intermedios de efectos.</summary>
+    public long PoolCapBytes => _pool.CapBytes;
+
+    /// <summary>Tope de los intermedios según la VRAM dedicada: 7,5 %, entre 96 y 300 MB.</summary>
+    public static long PoolCapFor(long dedicatedVideoMemory) => RenderTargetPool.CapFor(dedicatedVideoMemory);
 
     /// <summary>Compone <paramref name="frame"/>.</summary>
     /// <param name="geometry">Relación de aspecto del píxel y rotación de cada capa; sin ella, píxeles cuadrados sin rotar.</param>
@@ -112,32 +151,46 @@ public sealed unsafe class Compositor : IDisposable
     public CompositeResult Render(CompositionFrame frame, Func<LayerFrame, SourceGeometry>? geometry = null)
     {
         ArgumentNullException.ThrowIfNull(frame);
-        ObjectDisposedException.ThrowIf(_target == null, this);
+        ObjectDisposedException.ThrowIf(_output is null, this);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frame.Width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frame.Height);
         int drawn = 0;
-        int skipped = 0;
+        var stats = default(FrameStats);
+        var destination = new Destination(_output, Width, Height, frame.Width, frame.Height);
+        float pixelScale = destination.PixelScale;
         _gpu.LockContext();
         try
         {
-            _pipeline.Bind(_targetView, Width, Height, QuadPipeline.Shader.Layer);
+            _pipeline.Bind(_output.Rtv, Width, Height, QuadPipeline.Shader.Layer);
             float* black = stackalloc float[] { 0f, 0f, 0f, 1f };
-            _context->ClearRenderTargetView(_targetView, black);
+            _context->ClearRenderTargetView(_output.Rtv, black);
+            bool bound = true;
             foreach (LayerFrame layer in frame.Layers)
             {
-                if (layer.Frame.Payload is not D3D11TexturePayload payload || payload.IsReleased
-                    || payload.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010))
+                if (_layers.Usable(layer) is not { } payload)
                 {
-                    skipped++;
+                    stats.LayersSkipped++;
                     continue;
                 }
 
-                if (payload.Device != _gpu)
+                if (layer.IsPlain)
                 {
-                    throw new ArgumentException($"La capa de la pista {layer.TrackIndex} ({layer.ClipId}) es una textura de otro dispositivo.", nameof(frame));
+                    if (!bound)
+                    {
+                        _pipeline.Bind(_output.Rtv, Width, Height, QuadPipeline.Shader.Layer);
+                        bound = true;
+                    }
+
+                    if (_layers.DrawPlain(layer, payload, geometry?.Invoke(layer) ?? SourceGeometry.Square, frame.Width, frame.Height, pixelScale))
+                    {
+                        drawn++;
+                    }
+
+                    continue;
                 }
 
-                if (DrawLayer(layer, payload, geometry?.Invoke(layer) ?? SourceGeometry.Square, frame.Width, frame.Height))
+                bound = false;
+                if (_layers.Draw(layer, payload, geometry, destination, ref stats))
                 {
                     drawn++;
                 }
@@ -147,22 +200,23 @@ public sealed unsafe class Compositor : IDisposable
         {
             _pipeline.Unbind();
             _views.EndFrame();
+            _pool.EndFrame();
             _gpu.UnlockContext();
         }
 
-        return new CompositeResult(drawn, skipped);
+        return new CompositeResult(drawn, stats.LayersSkipped, stats.EffectsApplied, stats.EffectsSkipped, stats.MissingContent, _pool.Bytes);
     }
 
     /// <summary>Copia el último cuadro compuesto a la CPU en RGBA de 8 bits, fila tras fila (para pruebas y miniaturas).</summary>
     public byte[] ReadbackRgba()
     {
-        ObjectDisposedException.ThrowIf(_target == null, this);
+        ObjectDisposedException.ThrowIf(_output is null, this);
         var pixels = new byte[Width * Height * 4];
         _gpu.LockContext();
         try
         {
             ID3D11Texture2D* staging = Staging();
-            _context->CopySubresourceRegion((ID3D11Resource*)staging, 0, 0, 0, 0, (ID3D11Resource*)_target, 0, null);
+            _context->CopySubresourceRegion((ID3D11Resource*)staging, 0, 0, 0, 0, (ID3D11Resource*)_output.Texture, 0, null);
             D3D11_MAPPED_SUBRESOURCE mapped;
             Check(_context->Map((ID3D11Resource*)staging, 0, D3D11_MAP.D3D11_MAP_READ, 0, &mapped), "Map(lectura)");
             try
@@ -207,6 +261,7 @@ public sealed unsafe class Compositor : IDisposable
         try
         {
             _views.Trim();
+            _pool.Trim();
         }
         finally
         {
@@ -231,94 +286,13 @@ public sealed unsafe class Compositor : IDisposable
     public void Dispose()
     {
         _views.Dispose();
+        _pool.Dispose();
+        _luts.Dispose();
+        _effects?.Dispose();
         _pipeline?.Dispose();
-        Com.Release(ref _shaderView);
-        Com.Release(ref _targetView);
         Com.Release(ref _staging);
-        Com.Release(ref _target);
-    }
-
-    private static QuadConstants LayerConstants(D3D11TexturePayload payload, in LayerPlacement placement, SourceGeometry geometry,
-        float opacity, float sequenceWidth, float sequenceHeight, float pixelScale)
-    {
-        bool tenBit = payload.PixelFormat == FramePixelFormat.P010;
-        YuvRange range = YuvRange.For(tenBit, payload.Color.FullRange);
-        YuvToRgb toRgb = YuvToRgb.For(payload.Color.Matrix);
-        float uMax = (float)payload.Width / payload.CodedWidth;
-        float vMax = (float)payload.Height / payload.CodedHeight;
-        QuadTexCoords uv = VideoLayout.Corners(geometry.Rotation, uMax, vMax);
-        float screenScale = placement.Scale * pixelScale;
-        // Un píxel de destino más allá del borde, para que la cobertura lo suavice también hacia afuera.
-        float margin = 1f / screenScale;
-        float w = placement.LocalWidth;
-        float h = placement.LocalHeight;
-        var constants = new QuadConstants
-        {
-            Range = new(range.LumaScale, range.LumaBias, range.ChromaScale, range.ChromaBias),
-            ToRgb = new(toRgb.RedFromCr, toRgb.GreenFromCb, toRgb.GreenFromCr, toRgb.BlueFromCb),
-            Limits = new(
-                (payload.Width - 0.5f) / payload.CodedWidth,
-                (payload.Height - 0.5f) / payload.CodedHeight,
-                (payload.Width - 1f) / payload.CodedWidth,
-                (payload.Height - 1f) / payload.CodedHeight),
-            Shape = new(opacity, screenScale, w, h),
-        };
-        constants.TopLeft = Corner(placement, uv, -margin, -margin, sequenceWidth, sequenceHeight, out constants.LocalTopLeft);
-        constants.TopRight = Corner(placement, uv, w + margin, -margin, sequenceWidth, sequenceHeight, out constants.LocalTopRight);
-        constants.BottomLeft = Corner(placement, uv, -margin, h + margin, sequenceWidth, sequenceHeight, out constants.LocalBottomLeft);
-        constants.BottomRight = Corner(placement, uv, w + margin, h + margin, sequenceWidth, sequenceHeight, out constants.LocalBottomRight);
-        return constants;
-    }
-
-    private static Float4 Corner(in LayerPlacement placement, in QuadTexCoords uv, float x, float y, float sequenceWidth, float sequenceHeight,
-        out Float4 local)
-    {
-        Vector2 ndc = LayerLayout.ToNdc(placement.Map(x, y), sequenceWidth, sequenceHeight);
-        TexCoord t = LayerLayout.TexCoordAt(uv, x, y, placement.LocalWidth, placement.LocalHeight);
-        local = new Float4(x, y, 0, 0);
-        return new Float4(ndc.X, ndc.Y, t.U, t.V);
-    }
-
-    private bool DrawLayer(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight)
-    {
-        double opacity = layer.Transform.Opacity;
-        if (!(opacity > 0))
-        {
-            return false;
-        }
-
-        (int displayWidth, int displayHeight) = layer.DisplayWidth > 0 && layer.DisplayHeight > 0
-            ? (layer.DisplayWidth, layer.DisplayHeight)
-            : geometry.DisplaySize(payload.Width, payload.Height);
-        if (LayerLayout.Place(sequenceWidth, sequenceHeight, displayWidth, displayHeight, layer.Transform) is not { } placement)
-        {
-            return false;
-        }
-
-        float pixelScale = Math.Min((float)Width / sequenceWidth, (float)Height / sequenceHeight);
-        QuadConstants constants = LayerConstants(payload, placement, geometry, (float)Math.Min(opacity, 1), sequenceWidth, sequenceHeight, pixelScale);
-        PlaneViews views = _views.Get(payload, out bool owned);
-        try
-        {
-            ID3D11ShaderResourceView** srvs = stackalloc ID3D11ShaderResourceView*[2] { views.Luma, views.Chroma };
-            _context->PSSetShaderResources(0, 2, srvs);
-            _pipeline.Draw(constants);
-            if (owned)
-            {
-                srvs[0] = null;
-                srvs[1] = null;
-                _context->PSSetShaderResources(0, 2, srvs);
-            }
-        }
-        finally
-        {
-            if (owned)
-            {
-                views.Release();
-            }
-        }
-
-        return true;
+        _output?.Dispose();
+        _output = null;
     }
 
     private void CreateTarget()
@@ -340,17 +314,23 @@ public sealed unsafe class Compositor : IDisposable
         };
         ID3D11Texture2D* target;
         Check(_device->CreateTexture2D(&desc, null, &target), "CreateTexture2D(composición)");
-        _target = target;
+        ID3D11RenderTargetView* rtv = null;
+        ID3D11ShaderResourceView* srv = null;
+        try
+        {
+            var rtvDesc = new D3D11_RENDER_TARGET_VIEW_DESC { Format = format, ViewDimension = D3D11_RTV_DIMENSION.D3D11_RTV_DIMENSION_TEXTURE2D };
+            rtvDesc.Texture2D.MipSlice = 0;
+            Check(_device->CreateRenderTargetView((ID3D11Resource*)target, &rtvDesc, &rtv), "CreateRenderTargetView(composición)");
+            Check(_device->CreateShaderResourceView((ID3D11Resource*)target, null, &srv), "CreateShaderResourceView(composición)");
+        }
+        catch
+        {
+            Com.Release(ref rtv);
+            Com.Release(ref target);
+            throw;
+        }
 
-        var rtvDesc = new D3D11_RENDER_TARGET_VIEW_DESC { Format = format, ViewDimension = D3D11_RTV_DIMENSION.D3D11_RTV_DIMENSION_TEXTURE2D };
-        rtvDesc.Texture2D.MipSlice = 0;
-        ID3D11RenderTargetView* rtv;
-        Check(_device->CreateRenderTargetView((ID3D11Resource*)target, &rtvDesc, &rtv), "CreateRenderTargetView(composición)");
-        _targetView = rtv;
-
-        ID3D11ShaderResourceView* srv;
-        Check(_device->CreateShaderResourceView((ID3D11Resource*)target, null, &srv), "CreateShaderResourceView(composición)");
-        _shaderView = srv;
+        _output = new RenderTarget(target, rtv, srv, Width, Height, format, RenderTarget.BytesFor(Width, Height, format));
     }
 
     private ID3D11Texture2D* Staging()
@@ -361,7 +341,7 @@ public sealed unsafe class Compositor : IDisposable
         }
 
         D3D11_TEXTURE2D_DESC desc;
-        _target->GetDesc(&desc);
+        _output!.Texture->GetDesc(&desc);
         desc.MipLevels = 1;
         desc.Usage = D3D11_USAGE.D3D11_USAGE_STAGING;
         desc.BindFlags = 0;
