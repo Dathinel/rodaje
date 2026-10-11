@@ -136,4 +136,23 @@ public class SpeedMappingTests
         frozen.Duration = S(3);
         Assert.True(ClipDrag.Room(frozen, Rodaje.Core.Editing.TrimEdge.Out, S(6)) > S(3600));
     }
+
+    [Theory]
+    [InlineData(2, 1, false, "2,0×")]
+    [InlineData(1, 4, false, "0,25×")]
+    [InlineData(137, 100, false, "1,37×")]
+    [InlineData(100, 1, false, "100,0×")]
+    [InlineData(1, 2, true, "◀ 0,5×")]
+    [InlineData(1, 1, true, "◀")]
+    public void ElIndicadorDiceLaVelocidad(long num, long den, bool reverse, string expected) =>
+        Assert.Equal(expected, SpeedBadge.Text(new Clip { Speed = new ClipSpeed { Rate = new Rational(num, den), Reverse = reverse } }));
+
+    [Fact]
+    public void ElIndicadorCallaA1xYAvisaDelCongelado()
+    {
+        Assert.Null(SpeedBadge.Text(new Clip()));
+        Assert.Null(SpeedBadge.Text(new Clip { Speed = new ClipSpeed() }));
+        Assert.Equal("❚❚ Congelado", SpeedBadge.Text(new Clip { Speed = new ClipSpeed { Freeze = true } }));
+        Assert.Equal("Curva", SpeedBadge.Text(new Clip { Speed = new ClipSpeed { Curve = new SpeedCurve() } }));
+    }
 }

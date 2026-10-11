@@ -58,6 +58,12 @@ internal sealed class ClipVisual
     private readonly Path _envelopePoints = new() { StrokeThickness = 1 };
     private readonly Path _keys = new();
     private readonly TextBlock _name = new() { FontSize = 11, TextWrapping = TextWrapping.NoWrap };
+    private readonly Border _badge = new() { Padding = new Thickness(4, 0, 4, 1), Height = NameHeight - 1 };
+    private readonly TextBlock _badgeText = new() { FontSize = 10, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
+
+    // Hueco de la mini curva de la fase 5c.2, a la derecha del texto del indicador.
+    private readonly Path _badgeCurve = new() { Width = 16, Visibility = Visibility.Collapsed };
+    private double _badgeWidth;
     private readonly RectangleGeometry _bounds = new();
 
     public ClipVisual(TimelineBrushes brushes)
@@ -73,6 +79,13 @@ internal sealed class ClipVisual
         _envelopePoints.Fill = brushes.Text;
         _envelopePoints.Stroke = brushes.Background;
         _name.Foreground = brushes.Text;
+        _badgeText.Foreground = brushes.Text;
+        _badgeCurve.Stroke = brushes.Text;
+        _badge.Background = brushes.Scrim;
+        var badgeRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
+        badgeRow.Children.Add(_badgeText);
+        badgeRow.Children.Add(_badgeCurve);
+        _badge.Child = badgeRow;
         Root.Children.Add(_body);
         Root.Children.Add(_edge);
         Root.Children.Add(_strip);
@@ -82,6 +95,7 @@ internal sealed class ClipVisual
         Root.Children.Add(_envelopePoints);
         Root.Children.Add(_keys);
         Root.Children.Add(_name);
+        Root.Children.Add(_badge);
         Root.Children.Add(_veil);
         Root.Children.Add(_outline);
         _veil.Background = brushes.Background;
@@ -174,7 +188,7 @@ internal sealed class ClipVisual
 
     private void UpdateName(in ClipDraw d)
     {
-        double left = Math.Max(5, d.VisibleLeft - d.Left + 5);
+        double left = UpdateBadge(d, Math.Max(5, d.VisibleLeft - d.Left + 5));
         double room = d.Width - left - 4;
         if (room < 18)
         {
@@ -192,6 +206,35 @@ internal sealed class ClipVisual
         _bounds.Rect = new Rect(0, 0, room, NameHeight + 2);
         Canvas.SetLeft(_name, left);
         Canvas.SetTop(_name, 0);
+    }
+
+    /// <summary>El indicador de velocidad delante del nombre; devuelve dónde empieza el nombre.</summary>
+    private double UpdateBadge(in ClipDraw d, double left)
+    {
+        string? text = SpeedBadge.Text(d.Clip);
+        if (text is null)
+        {
+            _badge.Visibility = Visibility.Collapsed;
+            return left;
+        }
+
+        if (!string.Equals(_badgeText.Text, text, StringComparison.Ordinal))
+        {
+            _badgeText.Text = text;
+            _badge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            _badgeWidth = _badge.DesiredSize.Width;
+        }
+
+        if (d.Width - left - 4 < _badgeWidth)
+        {
+            _badge.Visibility = Visibility.Collapsed;
+            return left;
+        }
+
+        _badge.Visibility = Visibility.Visible;
+        Canvas.SetLeft(_badge, left - 2);
+        Canvas.SetTop(_badge, 1);
+        return left + _badgeWidth + 2;
     }
 
     private void UpdateFilmstrip(in ClipDraw d, ClipTimeMap map, IClipVisuals? visuals)
