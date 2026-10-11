@@ -23,6 +23,16 @@ public class UpstreamAttributionTests
         string license = File.ReadAllText(Path.Combine(RepositoryRoot(), "LICENSE"));
         Assert.Contains($"\"{UpstreamAttribution.Notice}\"", license, StringComparison.Ordinal);
         Assert.Contains(UpstreamAttribution.RepositoryUrl, license, StringComparison.Ordinal);
+        Assert.StartsWith(UpstreamAttribution.Copyright, license, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Acerca_de_lleva_los_avisos_legales_de_la_GPLv3()
+    {
+        Assert.Contains("GNU GPLv3", UpstreamAttribution.LicenseLine, StringComparison.Ordinal);
+        Assert.Contains("SIN NINGUNA GARANTÍA", UpstreamAttribution.LicenseLine, StringComparison.Ordinal);
+        Assert.Contains("LICENSE.txt", UpstreamAttribution.LicenseLine, StringComparison.Ordinal);
+        Assert.Contains("TRADEMARK.md", UpstreamAttribution.LicenseLine, StringComparison.Ordinal);
     }
 
     private static string RepositoryRoot()

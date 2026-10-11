@@ -293,6 +293,7 @@ internal sealed partial class TitleBar : UserControl
         var body = new StackPanel { Spacing = 10, MaxWidth = 460 };
         body.Children.Add(new TextBlock { Text = UpstreamAttribution.Notice, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
         body.Children.Add(link);
+        body.Children.Add(new TextBlock { Text = UpstreamAttribution.Copyright, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(new TextBlock { Text = UpstreamAttribution.LicenseLine, TextWrapping = TextWrapping.Wrap, Style = (Style)Application.Current.Resources["CaptionTextStyle"] });
         body.Children.Add(new TextBlock { Text = UpstreamAttribution.FfmpegCredit, TextWrapping = TextWrapping.Wrap, Style = (Style)Application.Current.Resources["CaptionTextStyle"] });
         var dialog = new ContentDialog
