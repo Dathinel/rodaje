@@ -96,6 +96,15 @@ public sealed record TransitionPreset(
 {
     public const string Format = "rodaje.preset";
     public const int Version = 2;
+
+    /// <summary>Parámetros de <see cref="Mix"/> (por ejemplo <c>angle</c> de un barrido); los que faltan van por defecto.</summary>
+    public IReadOnlyDictionary<string, double> MixParameters { get; init; } = EmptyNumbers;
+
+    /// <summary>Opciones de <see cref="Mix"/> (por ejemplo <c>direction</c> de un empuje).</summary>
+    public IReadOnlyDictionary<string, string> MixOptions { get; init; } = EmptyOptions;
+
+    private static readonly IReadOnlyDictionary<string, double> EmptyNumbers = new Dictionary<string, double>();
+    private static readonly IReadOnlyDictionary<string, string> EmptyOptions = new Dictionary<string, string>();
 }
 
 /// <summary>Un archivo de contenido no se pudo leer; el mensaje lo explica en español.</summary>

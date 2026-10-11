@@ -5,6 +5,7 @@ using Rodaje.Core.Timing;
 namespace Rodaje.Core.Commands;
 
 /// <summary>Fábricas de comandos para <see cref="EffectEdits"/>: pila de efectos, parámetros y keyframes.</summary>
+/// <remarks><c>clipId</c> puede ser el de una pista: entonces se editan sus efectos (por ejemplo, el volumen de la pista).</remarks>
 public static partial class Edits
 {
     /// <summary>Agrega el efecto si el clip no tiene ninguno de ese tipo (por ejemplo, la transformación antes de editarla).</summary>
@@ -33,6 +34,10 @@ public static partial class Edits
             sequenceId,
             ctx => EffectEdits.SetEffectEnabled(ctx, clipId, effectId, enabled),
             ids);
+
+    /// <summary>Fija una opción del efecto (modo de mezcla, LUT, origen); un valor vacío la quita.</summary>
+    public static SequenceEditCommand SetEffectOption(string sequenceId, string clipId, string effectId, string name, string value, IIdGenerator? ids = null) =>
+        new("Cambiar filtro", sequenceId, ctx => EffectEdits.SetOption(ctx, clipId, effectId, name, value), ids);
 
     /// <summary>Cambia un parámetro; si está animado, crea o fija el keyframe en <paramref name="at"/> (tiempo del origen).</summary>
     /// <remarks>

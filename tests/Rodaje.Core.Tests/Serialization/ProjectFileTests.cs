@@ -115,7 +115,10 @@ public sealed class ProjectFileTests : IDisposable
         Assert.False(File.Exists(path));
     }
 
+    // Solo Windows: IsTransient reintenta con los HRESULT de Windows; en Linux el bloqueo llega como EWOULDBLOCK (11)
+    // y el guardado no reintenta. La integración continua de Linux excluye esta categoría.
     [Fact]
+    [Trait("Categoria", "SoloWindows")]
     public void Save_TempLockedByAnotherProgram_ThrowsAndKeepsExistingFile()
     {
         string path = PathFor("en uso");

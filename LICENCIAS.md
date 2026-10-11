@@ -22,6 +22,17 @@ uget` | Conservar el aviso de copyright y la lista de condiciones en los avisos;
 | coverlet.collector | 10.1.0 | MIT, © 2018 Toni Solarin-Sodara | No, solo pruebas | https://www.nuget.org/packages/coverlet.collector/10.1.0 | Ninguna obligación práctica fuera del desarrollo. |
 | CsCheck | 4.9.1 | Apache-2.0, © Anthony Lloyd | No, solo pruebas | https://www.nuget.org/packages/CsCheck/4.9.1 | Uso libre en desarrollo para pruebas basadas en propiedades. |
 
+## Contenido propio
+
+Los paquetes de contenido no viajan con el programa: son complementos opcionales en repositorios públicos aparte, que se instalan como `.paquete`. Todo su contenido es propio; no se tomó ninguna LUT, preajuste ni recurso de terceros.
+
+| Paquete | Repositorio | Licencia | Qué trae |
+|---|---|---|---|
+| `rodaje-transiciones` 1.0.0 | `Dathinel/rodaje-transiciones` | CC0-1.0 (texto completo en su `LICENSE`, el `legalcode.txt` oficial de Creative Commons, SHA-256 `a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499`) | 8 transiciones hechas con curvas de la transformación |
+| `rodaje-filtros` 1.0.0 | `Dathinel/rodaje-filtros` | CC0-1.0 (igual) | 8 looks con LUT 33³ calculadas por fórmulas propias en su `generar.ps1` |
+
+CC0 renuncia a los derechos hasta donde la ley lo permite: cualquiera puede usarlo, también comercialmente, sin citar. Se eligió frente a MIT porque es contenido y no código, y así puede reutilizarse en proyectos de cualquier licencia.
+
 ## Dependencias previstas
 
 Estas dependencias todavía no están en el proyecto. Se listan para que la decisión de usarlas se tome con la licencia ya revisada. Las versiones indicadas son las estables más recientes en nuget.org en la fecha de verificación y se fijarán al incorporarlas.

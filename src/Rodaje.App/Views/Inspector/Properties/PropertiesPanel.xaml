@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Propiedades del clip seleccionado: transformación con keyframes (video) y volumen con fundidos (audio). -->
+<!-- Propiedades del clip seleccionado: transformación con keyframes (video) y volumen con keyframes y fundidos (audio). -->
 <UserControl
     x:Class="Rodaje.App.Views.Inspector.Properties.PropertiesPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -58,8 +58,6 @@
                     <local:ParameterRow x:Name="GainRow" />
                     <local:ParameterRow x:Name="FadeInRow" />
                     <local:ParameterRow x:Name="FadeOutRow" />
-                    <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="12,4,12,0" TextWrapping="Wrap"
-                               Text="El volumen y los fundidos se guardan con el proyecto y se aplicarán en la fase 5." />
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

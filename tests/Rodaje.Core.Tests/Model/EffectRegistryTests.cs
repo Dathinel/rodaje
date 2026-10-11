@@ -80,6 +80,8 @@ public class EffectRegistryTests
         Assert.Equal("", EffectRegistry.DefaultOption(BuiltInEffects.Color, BuiltInEffects.ColorOptions.Lut));
         Assert.Equal("", EffectRegistry.DefaultOption("otro.tipo", "x"));
         Assert.True(EffectRegistry.Find(BuiltInEffects.Color)!.FindOption(BuiltInEffects.ColorOptions.Lut)!.Accepts("lo-que-sea@1.0.0/x"));
+        Assert.True(EffectRegistry.Find(BuiltInEffects.Color)!.FindOption(BuiltInEffects.ColorOptions.Lut)!.Accepts("file:C:/luts/x.cube"));
+        Assert.False(EffectRegistry.Find(BuiltInTransitions.Preset)!.FindOption(BuiltInTransitions.PresetOptions.Preset)!.Accepts("file:x.json"));
     }
 
     [Fact]

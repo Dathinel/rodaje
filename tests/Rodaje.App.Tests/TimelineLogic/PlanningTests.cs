@@ -168,16 +168,18 @@ public class PlanningTests
                 {
                     Id = "vol",
                     Type = ClipDecorations.VolumeEffect,
-                    Parameters = new() { [ClipDecorations.GainParameter] = new Parameter { Keyframes = [new Keyframe(S(2), 0), new Keyframe(S(6), 2)] } },
+                    Parameters = new() { [ClipDecorations.GainParameter] = new Parameter { Keyframes = [new Keyframe(S(2), -12), new Keyframe(S(6), 0)] } },
                 },
             ],
         };
 
         Assert.Equal([S(10), S(11), S(13), S(14)], ClipDecorations.KeyframeTimes(clip));
-        Assert.Equal(0, ClipDecorations.GainAt(clip, S(10)), 6);
-        Assert.Equal(1, ClipDecorations.GainAt(clip, S(12)), 6);
+        Assert.Equal(BuiltInEffects.Audio, ClipDecorations.VolumeEffect);
+        Assert.Equal(-12, ClipDecorations.GainDbAt(clip, S(10)), 6);
+        Assert.Equal(-6, ClipDecorations.GainDbAt(clip, S(12)), 6);
         Assert.True(ClipDecorations.HasAnimatedGain(clip));
-        Assert.Equal(1, ClipDecorations.GainAt(new Clip { SourceOut = S(1) }, S(0)));
+        Assert.Equal([(S(10), -12.0), (S(14), 0.0)], ClipDecorations.GainPoints(clip));
+        Assert.Equal(0, ClipDecorations.GainDbAt(new Clip { SourceOut = S(1) }, S(0)));
 
         var track = new Track
         {
@@ -197,6 +199,23 @@ public class PlanningTests
         Assert.NotEqual(
             Enumerable.Range(0, 20).Select(i => ClipDecorations.PlaceholderPeak("media-1", S(i * 0.04))),
             Enumerable.Range(0, 20).Select(i => ClipDecorations.PlaceholderPeak("media-2", S(i * 0.04))));
+    }
+
+    [Fact]
+    public void LaEnvolventeVaEnDbConCeroAMediaAltura()
+    {
+        Assert.Equal(1, ClipDecorations.EnvelopeFraction(ClipDecorations.MaxEnvelopeDb), 6);
+        Assert.Equal(0.501, ClipDecorations.EnvelopeFraction(0), 3);
+        Assert.Equal(0, ClipDecorations.EnvelopeFraction(ClipDecorations.MinEnvelopeDb));
+        Assert.Equal(1, ClipDecorations.EnvelopeFraction(24));
+        foreach (double db in new[] { -40.0, -12.5, -6, 0, 3.2, 6 })
+        {
+            Assert.Equal(db, ClipDecorations.GainDbFromFraction(ClipDecorations.EnvelopeFraction(db)), 6);
+        }
+
+        Assert.Equal(ClipDecorations.MinEnvelopeDb, ClipDecorations.GainDbFromFraction(0));
+        Assert.Equal(ClipDecorations.MinEnvelopeDb, ClipDecorations.GainDbFromFraction(-1));
+        Assert.Equal(ClipDecorations.MaxEnvelopeDb, ClipDecorations.GainDbFromFraction(1.5));
     }
 
     [Fact]

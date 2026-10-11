@@ -3,6 +3,7 @@ using CsCheck;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
+using Rodaje.Core.Serialization;
 using Rodaje.Core.Tests.Commands;
 using Rodaje.Core.Timing;
 using Xunit.Abstractions;
@@ -18,7 +19,10 @@ public class EditPropertiesTests(ITestOutputHelper output)
     private static readonly Gen<(ProjectSpec Project, OpSpec[] Ops)> GenScenario =
         Gen.Select(RandomTimeline.GenProject, RandomTimeline.GenOp.Array[1, 40]);
 
-    /// <summary>Propiedades 1 a 4 y 6 sobre una lista de operaciones con deshacer y rehacer intercalados.</summary>
+    /// <summary>
+    /// Propiedades 1 a 4, 6 y 7 sobre proyectos con efectos y transiciones y hasta 40 operaciones con deshacer y rehacer
+    /// intercalados; deshacer todo devuelve el archivo idéntico byte a byte.
+    /// </summary>
     [Fact]
     public void OperacionesAleatorias_CumplenTodasLasReglas() =>
         GenScenario.Sample(
@@ -51,6 +55,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
         }
 
         var stack = new UndoStack(project);
+        string initialFile = ProjectSerializer.Serialize(project);
 
         // dumps[i] es el estado esperado cuando la pila tiene i pasos de deshacer.
         var dumps = new List<string> { ProjectDump.Of(project) };
@@ -123,6 +128,20 @@ public class EditPropertiesTests(ITestOutputHelper output)
                 Fail($"«{op.Text}»: {conservation}");
             }
 
+            // Propiedad 8: la curva de los efectos de pista sigue a los clips que el ripple corre.
+            string? curves = CheckTrackCurves(op, group, trackBefore, built.Sequence);
+            if (curves is not null)
+            {
+                Fail($"«{op.Text}»: {curves}");
+            }
+
+            // Propiedad 7: cada transición sigue en un corte entre clips contiguos, sin pasar del más corto.
+            string? transitions = CheckTransitions(op, trackBefore, built.Sequence);
+            if (transitions is not null)
+            {
+                Fail($"«{op.Text}»: {transitions}");
+            }
+
             // Propiedad 4: el historial guarda el estado de cada paso.
             dumps.RemoveRange(stack.Count, dumps.Count - stack.Count);
             dumps.Add(ProjectDump.Of(project));
@@ -151,9 +170,9 @@ public class EditPropertiesTests(ITestOutputHelper output)
             }
         }
 
-        if (ProjectDump.Of(project) != dumps[0])
+        if (ProjectDump.Of(project) != dumps[0] || ProjectSerializer.Serialize(project) != initialFile)
         {
-            Fail("Deshacer todo no vuelve al proyecto inicial.");
+            Fail("Deshacer todo no vuelve al proyecto inicial byte a byte.");
         }
 
         while (stack.Redo())
@@ -238,6 +257,110 @@ public class EditPropertiesTests(ITestOutputHelper output)
     {
         Time target = built.Sequence.GetClip(clipId).Clip.Start + delta;
         return target < Time.Zero ? Time.Zero : target;
+    }
+
+    /// <summary>
+    /// Toda transición une dos clips contiguos y no dura más que el más corto. Cortar, slip, roll y slide no quitan
+    /// ninguna, porque no hacen desaparecer cortes.
+    /// </summary>
+    private static string? CheckTransitions(ResolvedOp op, Dictionary<string, Track> before, Sequence after)
+    {
+        foreach (Track track in after.AllTracks)
+        {
+            foreach (TransitionInstance transition in track.Transitions)
+            {
+                int from = track.Clips.FindIndex(c => c.Id == transition.From);
+                if (from < 0 || from + 1 >= track.Clips.Count || track.Clips[from + 1].Id != transition.To
+                    || track.Clips[from].End != track.Clips[from + 1].Start)
+                {
+                    return $"la transición «{transition.Id}» quedó sin sus clips contiguos.";
+                }
+
+                if (transition.Duration <= Time.Zero || transition.Duration > TransitionOps.MaxDuration(track.Clips[from], track.Clips[from + 1]))
+                {
+                    return $"la transición «{transition.Id}» dura {transition.Duration.Ticks} ticks, fuera de lo que permiten sus clips.";
+                }
+            }
+
+            if (op.Kind is OpKind.Split or OpKind.Slip or OpKind.Roll or OpKind.Slide
+                && before.TryGetValue(track.Id, out Track? old)
+                && old.Transitions.Count != track.Transitions.Count)
+            {
+                return $"{op.Kind} cambió las transiciones de «{track.Id}» de {old.Transitions.Count} a {track.Transitions.Count}.";
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// En cada clip que sigue en su pista con el mismo material, la curva de cada efecto de pista vale lo mismo en su
+    /// inicio, su mitad y su último tick que antes en los mismos puntos del clip: el ripple corre los keyframes con él.
+    /// </summary>
+    /// <remarks>
+    /// Se salta el recorte con ripple (un clip de otra pista puede quedar a caballo del punto que se corre), los
+    /// keyframes puestos a mano y el clip que se mueve o desliza sin ripple, que no se lleva la curva de la pista.
+    /// </remarks>
+    private static string? CheckTrackCurves(ResolvedOp op, List<GroupMember> group, Dictionary<string, Track> before, Sequence after)
+    {
+        if (op.Kind is OpKind.RippleTrim or OpKind.SetKeyframe)
+        {
+            return null;
+        }
+
+        HashSet<string> moved = op.Kind is OpKind.Move or OpKind.Slide ? [.. group.Select(m => m.ClipId)] : [];
+        foreach (Track now in after.AllTracks)
+        {
+            if (!before.TryGetValue(now.Id, out Track? old))
+            {
+                continue;
+            }
+
+            foreach (EffectInstance effect in now.Effects)
+            {
+                if (old.Effects.Find(e => e.Id == effect.Id) is not { } oldEffect)
+                {
+                    continue;
+                }
+
+                foreach ((string name, Parameter parameter) in effect.Parameters)
+                {
+                    if (!oldEffect.Parameters.TryGetValue(name, out Parameter? oldParameter))
+                    {
+                        continue;
+                    }
+
+                    for (int i = 1; i < parameter.Keyframes.Count; i++)
+                    {
+                        if (parameter.Keyframes[i].Time <= parameter.Keyframes[i - 1].Time)
+                        {
+                            return $"los keyframes de «{name}» en la pista «{now.Id}» quedaron fuera de orden.";
+                        }
+                    }
+
+                    foreach (Clip clip in now.Clips)
+                    {
+                        Clip? was = old.Clips.Find(c => c.Id == clip.Id);
+                        if (was is null || moved.Contains(clip.Id) || was.SourceIn != clip.SourceIn || was.SourceOut != clip.SourceOut)
+                        {
+                            continue;
+                        }
+
+                        foreach (long offset in new[] { 0, clip.Duration.Ticks / 2, clip.Duration.Ticks - 1 })
+                        {
+                            double expected = oldParameter.Evaluate(was.Start + Time.FromTicks(offset));
+                            double actual = parameter.Evaluate(clip.Start + Time.FromTicks(offset));
+                            if (Math.Abs(expected - actual) > 1e-6)
+                            {
+                                return $"«{name}» de la pista «{now.Id}» vale {actual} en el clip «{clip.Id}» (+{offset}) y valía {expected}.";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     private static bool SameClips(List<Clip> a, List<Clip> b) =>

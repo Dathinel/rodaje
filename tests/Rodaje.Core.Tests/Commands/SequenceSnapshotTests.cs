@@ -197,4 +197,45 @@ public class SequenceSnapshotTests
         Assert.Throws<ArgumentNullException>(() => SequenceSnapshot.ParameterStateEquals(null!, p));
         Assert.Throws<ArgumentNullException>(() => SequenceSnapshot.ParameterStateEquals(p, null!));
     }
+
+    [Fact]
+    public void Matches_ComparesMarkersAndRegions()
+    {
+        Project project = Create();
+        Sequence seq = Seq(project);
+        seq.Markers.Add(new Marker { Id = "m-1", Time = S(1), Name = "uno" });
+        seq.Regions.Add(new Region { Id = "r-1", Start = S(0), End = S(2), Name = "intro" });
+        var snapshot = SequenceSnapshot.Capture(seq);
+        Assert.True(snapshot.Matches(seq));
+
+        seq.Markers[0].Name = "otro";
+        Assert.False(snapshot.Matches(seq));
+        snapshot.Restore(seq);
+        seq.Regions[0].End = S(3);
+        Assert.False(snapshot.Matches(seq));
+
+        Marker marker = seq.Markers[0];
+        Region region = seq.Regions[0];
+        Assert.Throws<ArgumentNullException>(() => SequenceSnapshot.MarkerEquals(null!, marker));
+        Assert.Throws<ArgumentNullException>(() => SequenceSnapshot.MarkerEquals(marker, null!));
+        Assert.Throws<ArgumentNullException>(() => SequenceSnapshot.RegionEquals(null!, region));
+        Assert.Throws<ArgumentNullException>(() => SequenceSnapshot.RegionEquals(region, null!));
+    }
+
+    [Fact]
+    public void SmallPieces_BehaveAsDocumented()
+    {
+        Project project = Create();
+        Sequence seq = Seq(project);
+        seq.Markers.Add(new Marker { Id = "m-1", Time = S(1) });
+        Rodaje.Core.Editing.EditContext.ShiftMarkers(seq, Time.Zero, Time.Zero);
+        Assert.Equal(S(1), seq.Markers[0].Time);
+
+        Assert.Null(new Rodaje.Core.Editing.EditException().InnerException);
+        var inner = new InvalidOperationException("x");
+        Assert.Same(inner, new Rodaje.Core.Editing.EditException("y", inner).InnerException);
+
+        var stack = new UndoStack(project);
+        Assert.Throws<Rodaje.Core.Editing.EditException>(() => stack.Execute(Edits.SetTrackState(SequenceId, "track-v2", name: "Otro nombre")));
+    }
 }

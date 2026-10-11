@@ -188,6 +188,131 @@ public class TransitionEditsTests
     }
 
     [Fact]
+    public void Duration_IsCappedByTheShorterClip()
+    {
+        (Project project, UndoStack stack) = NewStack();
+        string id = Add(stack, BuiltInTransitions.Wipe, S(10));
+        Assert.Equal(S(2), V1(project).Transitions[0].Duration);
+
+        RoundTrip(stack, Edits.SetTransitionDuration(SequenceId, id, S(1)));
+        RoundTrip(stack, Edits.SetTransitionDuration(SequenceId, id, S(3)));
+        Assert.Equal(S(2), V1(project).Transitions[0].Duration);
+    }
+
+    [Fact]
+    public void DefaultDuration_FitsShortClips()
+    {
+        Project project = Create();
+        V1(project).Clips.Insert(1, NewClip("clip-5", 5, 0.2));
+        var stack = new UndoStack(project);
+
+        Add(stack);
+
+        Assert.Equal(S(0.2), V1(project).Transitions[0].Duration);
+    }
+
+    [Fact]
+    public void TrimmingAClipShorterThanTheTransition_ShortensIt_AndUndoRestoresIt()
+    {
+        (Project project, UndoStack stack) = NewStack();
+        Add(stack, duration: S(2));
+
+        RoundTrip(stack, Edits.Trim(SequenceId, "clip-5", TrimEdge.Out, S(-1.5)));
+        Assert.Equal(S(0.5), V1(project).Transitions[0].Duration);
+
+        stack.Undo();
+        Assert.Equal(S(2), V1(project).Transitions[0].Duration);
+    }
+
+    [Fact]
+    public void SplittingNearTheCut_ShortensTheTransitionToTheNewPiece()
+    {
+        (Project project, UndoStack stack) = NewStack();
+        Add(stack, duration: S(1));
+
+        stack.Execute(Edits.Split(SequenceId, "clip-1", S(4.75)));
+
+        TransitionInstance transition = Assert.Single(V1(project).Transitions);
+        Assert.Equal(S(0.25), transition.Duration);
+        Assert.Equal(S(4.75), V1(project).Clips.Single(c => c.Id == transition.From).Start);
+    }
+
+    [Fact]
+    public void TwoTransitionsOnOneClip_DoNotOverlap()
+    {
+        (Project project, UndoStack stack) = NewStack();
+        V1(project).Clips.Insert(2, NewClip("clip-6", 7, 3));
+        stack.Execute(Edits.AddTransition(SequenceId, "clip-1", BuiltInTransitions.Crossfade, S(2)));
+        stack.Execute(Edits.AddTransition(SequenceId, "clip-5", BuiltInTransitions.Crossfade, S(2)));
+
+        // «clip-5» dura 2 s: la mitad de cada transición cabe en él sin pisarse.
+        Assert.All(V1(project).Transitions, t => Assert.Equal(S(2), t.Duration));
+        Assert.Empty(ModelValidator.Validate(project));
+
+        RoundTrip(stack, Edits.Roll(SequenceId, "clip-5", S(-1)));
+        Assert.All(V1(project).Transitions, t => Assert.Equal(S(1), t.Duration));
+    }
+
+    [Fact]
+    public void RippleDeletingTheIncomingClip_RemovesTheTransition_InsteadOfMovingItToTheNextCut()
+    {
+        (Project project, UndoStack stack) = NewStack();
+        V1(project).Clips.Insert(2, NewClip("clip-6", 7, 1));
+        Add(stack);
+
+        RoundTrip(stack, Edits.RippleDelete(SequenceId, ["clip-5"], RippleScope.Track));
+
+        Assert.Equal(S(5), V1(project).Clips.Single(c => c.Id == "clip-6").Start);
+        Assert.Empty(V1(project).Transitions);
+    }
+
+    [Fact]
+    public void Reordering_KeepsTheTransitionOnlyWhileItsCutExists()
+    {
+        (Project project, UndoStack stack) = NewStack();
+        Track v1 = V1(project);
+        v1.Clips.RemoveAt(2);
+        v1.Clips.Add(NewClip("clip-6", 7, 1));
+        Add(stack);
+
+        RoundTrip(stack, Edits.ReorderOnMainTrack(SequenceId, "clip-6", 0));
+        Assert.Equal(("clip-1", "clip-5"), (v1.Transitions[0].From, v1.Transitions[0].To));
+
+        RoundTrip(stack, Edits.ReorderOnMainTrack(SequenceId, "clip-5", 0));
+        Assert.Empty(v1.Transitions);
+    }
+
+    [Fact]
+    public void MovingTheOutgoingClipAway_RemovesTheTransition()
+    {
+        (Project project, UndoStack stack) = NewStack();
+        Add(stack);
+
+        RoundTrip(stack, Edits.Move(SequenceId, "clip-1", S(20), null, PlacementMode.Strict));
+
+        Assert.Empty(V1(project).Transitions);
+    }
+
+    [Fact]
+    public void RollingTheCut_KeepsTheTransition()
+    {
+        (Project project, UndoStack stack) = NewStack();
+        Add(stack, duration: S(1));
+
+        RoundTrip(stack, Edits.Roll(SequenceId, "clip-1", S(-0.5)));
+
+        Assert.Equal(("clip-1", "clip-5", S(1)), (V1(project).Transitions[0].From, V1(project).Transitions[0].To, V1(project).Transitions[0].Duration));
+    }
+
+    [Fact]
+    public void MaxDuration_IsTheShorterClip()
+    {
+        Assert.Equal(S(2), TransitionOps.MaxDuration(NewClip("a", 0, 5), NewClip("b", 5, 2)));
+        Assert.Throws<ArgumentNullException>(() => TransitionOps.MaxDuration(null!, NewClip("b", 5, 2)));
+        Assert.Throws<ArgumentNullException>(() => TransitionOps.MaxDuration(NewClip("a", 0, 5), null!));
+    }
+
+    [Fact]
     public void Reconcile_DropsDuplicatesAndOrphans()
     {
         Project project = Create();

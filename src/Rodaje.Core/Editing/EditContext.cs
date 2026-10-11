@@ -242,6 +242,7 @@ public sealed class EditContext
         }
 
         track.SortClips();
+        TrackKeyframes.Shift(track, from, delta);
     }
 
     /// <summary>

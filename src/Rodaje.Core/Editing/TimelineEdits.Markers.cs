@@ -87,10 +87,12 @@ public static partial class TimelineEdits
         Time cursor = track.Clips[0].Start;
         var partners = new List<(Track Track, Clip Clip, Time Delta)>();
         var shifts = new List<(Clip Clip, Time Delta)>();
+        var pieces = new List<TrackKeyframes.Piece>();
         foreach (Clip c in order)
         {
             Time delta = cursor - c.Start;
             cursor += c.Duration;
+            pieces.Add(new(c.Start, c.End, delta));
             if (delta == Time.Zero)
             {
                 continue;
@@ -115,6 +117,13 @@ public static partial class TimelineEdits
         }
 
         EnsurePartnersFit(partners);
+        pieces.Add(new(track.End, TrackKeyframes.ToTheEnd, cursor - track.End));
+        TrackKeyframes.Move(track, pieces);
+        foreach (IGrouping<Track, (Track Track, Clip Clip, Time Delta)> moved in partners.GroupBy(p => p.Track))
+        {
+            TrackKeyframes.Move(moved.Key, moved.Select(p => new TrackKeyframes.Piece(p.Clip.Start, p.Clip.End, p.Delta)));
+        }
+
         foreach ((Clip c, Time delta) in shifts)
         {
             c.Start += delta;

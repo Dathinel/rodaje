@@ -55,6 +55,7 @@ internal sealed class ClipVisual
     private readonly RectangleGeometry _waveBounds = new();
     private readonly Border _veil = new();
     private readonly Polyline _envelope = new() { StrokeThickness = 1.5 };
+    private readonly Path _envelopePoints = new() { StrokeThickness = 1 };
     private readonly Path _keys = new();
     private readonly TextBlock _name = new() { FontSize = 11, TextWrapping = TextWrapping.NoWrap };
     private readonly RectangleGeometry _bounds = new();
@@ -69,6 +70,8 @@ internal sealed class ClipVisual
         _keys.Stroke = brushes.Background;
         _keys.StrokeThickness = 1;
         _envelope.Stroke = brushes.Text;
+        _envelopePoints.Fill = brushes.Text;
+        _envelopePoints.Stroke = brushes.Background;
         _name.Foreground = brushes.Text;
         Root.Children.Add(_body);
         Root.Children.Add(_edge);
@@ -76,6 +79,7 @@ internal sealed class ClipVisual
         Root.Children.Add(_thumbs);
         Root.Children.Add(_wave);
         Root.Children.Add(_envelope);
+        Root.Children.Add(_envelopePoints);
         Root.Children.Add(_keys);
         Root.Children.Add(_name);
         Root.Children.Add(_veil);
@@ -323,6 +327,7 @@ internal sealed class ClipVisual
         if (!d.ShowEnvelope || d.Kind != TrackKind.Audio || d.Width < DetailMinWidth)
         {
             _envelope.Visibility = Visibility.Collapsed;
+            _envelopePoints.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -334,8 +339,8 @@ internal sealed class ClipVisual
         for (double x = 0; ; x += step)
         {
             double clamped = Math.Min(x, d.Width);
-            double gain = ClipDecorations.GainAt(d.Clip, TimeAt(d, clamped));
-            points.Add(new Point(clamped, top + ((1 - (gain / ClipDecorations.MaxGain)) * range)));
+            double gain = ClipDecorations.GainDbAt(d.Clip, TimeAt(d, clamped));
+            points.Add(new Point(clamped, top + ((1 - ClipDecorations.EnvelopeFraction(gain)) * range)));
             if (clamped >= d.Width)
             {
                 break;
@@ -344,6 +349,21 @@ internal sealed class ClipVisual
 
         _envelope.Points = points;
         _envelope.Visibility = Visibility.Visible;
+
+        const double r = 3;
+        var squares = new GeometryGroup();
+        foreach ((Time time, double gainDb) in ClipDecorations.GainPoints(d.Clip))
+        {
+            double x = LocalX(d, time);
+            if (x >= -r && x <= d.Width + r)
+            {
+                double y = top + ((1 - ClipDecorations.EnvelopeFraction(gainDb)) * range);
+                squares.Children.Add(new RectangleGeometry { Rect = new Rect(x - r, y - r, 2 * r, 2 * r) });
+            }
+        }
+
+        _envelopePoints.Data = squares;
+        _envelopePoints.Visibility = squares.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void UpdateKeyframes(in ClipDraw d)

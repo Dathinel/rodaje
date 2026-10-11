@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Shortcuts;
@@ -49,6 +50,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     private PreviewProxies? _proxies;
     private LibraryCategory _category = LibraryCategory.Media;
     private MediaItem? _menuTarget;
+    private ElementApplier? _applier;
 
     public LibraryView()
     {
@@ -371,8 +373,53 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
 
         e.Data.SetData(LibraryElement.DragFormat, item.Element.Reference);
+        if (item.Element.Kind == ItemKind.Transition && TransitionDrag.TryParse(item.Element.Reference, out TransitionDrag? transition))
+        {
+            e.Data.SetData(TransitionDrag.DragFormat, transition.ToString());
+        }
+
         e.Data.SetText(item.Element.Reference);
         e.Data.RequestedOperation = DataPackageOperation.Copy;
+    }
+
+    private void OnElementDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is ElementItem item)
+        {
+            _ = ApplyElementAsync(item.Element);
+        }
+    }
+
+    private void OnElementContextRequested(UIElement sender, ContextRequestedEventArgs args)
+    {
+        if (args.OriginalSource is not FrameworkElement { DataContext: ElementItem item } element || !ElementApplier.CanApply(item.Element))
+        {
+            return;
+        }
+
+        args.Handled = true;
+        var menu = new MenuFlyout();
+        string text = item.Element.Kind == ItemKind.Transition ? "Poner en el corte del clip seleccionado" : "Aplicar al clip seleccionado";
+        menu.Items.Add(MenuItem(text, "\uE710", (_, _) => _ = ApplyElementAsync(item.Element)));
+        if (args.TryGetPosition(element, out Point point))
+        {
+            menu.ShowAt(element, new FlyoutShowOptions { Position = point });
+        }
+        else
+        {
+            menu.ShowAt(element);
+        }
+    }
+
+    private async Task ApplyElementAsync(LibraryElement element)
+    {
+        if (_services is not { } services || !ElementApplier.CanApply(element))
+        {
+            return;
+        }
+
+        _applier ??= new ElementApplier(services.Session, new InstalledContentLoader(() => services.Packages.Installed));
+        await _applier.ApplyAsync(element);
     }
 
     private void OnMediaContextRequested(UIElement sender, ContextRequestedEventArgs args)

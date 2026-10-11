@@ -50,6 +50,12 @@
                     <RadioMenuFlyoutItem x:Name="ProxyAlways" Text="Siempre que haya" GroupName="Proxies" Tag="Always" Click="OnProxyClick" />
                     <RadioMenuFlyoutItem x:Name="ProxyNever" Text="Nunca (originales)" GroupName="Proxies" Tag="Never" Click="OnProxyClick" />
                 </MenuFlyoutSubItem>
+                <MenuFlyoutSubItem Text="Calidad de la vista previa">
+                    <RadioMenuFlyoutItem x:Name="QualityAuto" Text="Automática" GroupName="Quality" Tag="Auto" Click="OnQualityClick" />
+                    <RadioMenuFlyoutItem x:Name="QualityFull" Text="Completa" GroupName="Quality" Tag="Full" Click="OnQualityClick" />
+                    <RadioMenuFlyoutItem x:Name="QualityHalf" Text="Mitad" GroupName="Quality" Tag="Half" Click="OnQualityClick" />
+                    <RadioMenuFlyoutItem x:Name="QualityQuarter" Text="Cuarto" GroupName="Quality" Tag="Quarter" Click="OnQualityClick" />
+                </MenuFlyoutSubItem>
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Acercar" Tag="timeline.zoomIn" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Alejar" Tag="timeline.zoomOut" Click="OnActionClick" />

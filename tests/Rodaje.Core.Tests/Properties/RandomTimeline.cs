@@ -2,6 +2,7 @@ using System.Globalization;
 using CsCheck;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
+using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
@@ -13,12 +14,15 @@ internal sealed record MediaSpec(int Kind, int Frames, int ExtraTicks);
 /// <summary>Un clip inicial: qué medio, qué tramo, en qué pista, con qué fábrica (0 añadir al final, 1 colocar, 2 insertar, 3 sobrescribir) y dónde.</summary>
 internal sealed record PlacementSpec(int Media, int InFrames, int LengthFrames, int Track, int Mode, int AtFrames, bool Linked);
 
-/// <summary>Receta de un proyecto aleatorio, en números para que CsCheck pueda achicar un caso que falla.</summary>
-internal sealed record ProjectSpec(int Rate, int VideoTracks, int AudioTracks, MediaSpec[] Media, PlacementSpec[] Placements, int LockBits)
+/// <summary>
+/// Receta de un proyecto aleatorio, en números para que CsCheck pueda achicar un caso que falla. <see cref="Extras"/>
+/// decide qué cortes llevan transición y qué clips y pistas llevan efectos.
+/// </summary>
+internal sealed record ProjectSpec(int Rate, int VideoTracks, int AudioTracks, MediaSpec[] Media, PlacementSpec[] Placements, int LockBits, int Extras = 0)
 {
     public override string ToString() => string.Create(
         CultureInfo.InvariantCulture,
-        $"Proyecto(tasa {Rate}, {VideoTracks}V {AudioTracks}A, bloqueos {LockBits}, medios [{string.Join("; ", Media.Select(m => m.ToString()))}], clips [{string.Join("; ", Placements.Select(p => p.ToString()))}])");
+        $"Proyecto(tasa {Rate}, {VideoTracks}V {AudioTracks}A, bloqueos {LockBits}, extras {Extras}, medios [{string.Join("; ", Media.Select(m => m.ToString()))}], clips [{string.Join("; ", Placements.Select(p => p.ToString()))}])");
 }
 
 /// <summary>Operación en bruto; sus números se interpretan contra el estado del proyecto al ejecutarla.</summary>
@@ -48,6 +52,15 @@ internal enum OpKind
     SetClipEnabled,
     LinkClips,
     UnlinkClips,
+    ReorderOnMainTrack,
+    AddTransition,
+    RemoveTransition,
+    SetTransitionDuration,
+    SetTransitionType,
+    SetTransitionOption,
+    AddEffect,
+    SetEffectOption,
+    SetKeyframe,
     Undo,
     Redo,
 }
@@ -83,7 +96,10 @@ internal static class RandomTimeline
         (OpKind.Slide, 6), (OpKind.Move, 9), (OpKind.InsertMedia, 4), (OpKind.Insert, 2), (OpKind.Overwrite, 2),
         (OpKind.AppendMedia, 4), (OpKind.Lift, 3), (OpKind.RippleDelete, 4), (OpKind.CloseGap, 4),
         (OpKind.AddTrack, 3), (OpKind.RemoveTrack, 2), (OpKind.MoveTrack, 3), (OpKind.SetTrackState, 4),
-        (OpKind.SetClipEnabled, 2), (OpKind.LinkClips, 2), (OpKind.UnlinkClips, 2), (OpKind.Undo, 4), (OpKind.Redo, 3),
+        (OpKind.SetClipEnabled, 2), (OpKind.LinkClips, 2), (OpKind.UnlinkClips, 2), (OpKind.ReorderOnMainTrack, 3),
+        (OpKind.AddTransition, 7), (OpKind.RemoveTransition, 2), (OpKind.SetTransitionDuration, 3), (OpKind.SetTransitionType, 2),
+        (OpKind.SetTransitionOption, 2), (OpKind.AddEffect, 3), (OpKind.SetEffectOption, 2), (OpKind.SetKeyframe, 3),
+        (OpKind.Undo, 4), (OpKind.Redo, 3),
     ];
 
     private static readonly OpKind[] KindTable = [.. Weights.SelectMany(w => Enumerable.Repeat(w.Kind, w.Weight))];
@@ -98,11 +114,30 @@ internal static class RandomTimeline
         (m, i, l, t, mode, at, linked) => new PlacementSpec(m, i, l, t, mode, at, linked));
 
     public static readonly Gen<ProjectSpec> GenProject = Gen.Select(
-        Gen.Int[0, Rates.Length - 1], Gen.Int[1, 3], Gen.Int[1, 3], GenMedia.Array[2, 5], GenPlacement.Array[1, 8], Gen.Int[0, 4095],
-        (r, v, a, media, placements, locks) => new ProjectSpec(r, v, a, media, placements, locks));
+        Gen.Int[0, Rates.Length - 1], Gen.Int[1, 3], Gen.Int[1, 3], GenMedia.Array[2, 5], GenPlacement.Array[1, 8], Gen.Int[0, 4095], Gen.Int[0, 65535],
+        (r, v, a, media, placements, locks, extras) => new ProjectSpec(r, v, a, media, placements, locks, extras));
+
+    /// <summary>Tipos que se sortean al añadir efectos; incluye una transición y uno desconocido para probar los rechazos.</summary>
+    private static readonly string[] EffectTypes =
+    [
+        BuiltInEffects.Color, BuiltInEffects.Blend, BuiltInEffects.Audio, BuiltInEffects.Transform,
+        BuiltInEffects.Vignette, BuiltInTransitions.Crossfade, "otro.efecto",
+    ];
+
+    private static readonly string[] OptionNames =
+    [
+        BuiltInEffects.BlendOptions.Mode, BuiltInEffects.ColorOptions.Lut, BuiltInEffects.CommonOptions.Source,
+        BuiltInTransitions.PushOptions.Direction, BuiltInTransitions.PresetOptions.Preset, "otra",
+    ];
+
+    private static readonly string[] OptionValues =
+    [
+        "multiply", "softLight", "up", "left", "", "rodaje-esenciales@1.0.0/suave", "mal formada", "diagonal",
+        "file:luts/cálido 2.cube", "file:", "file:a<b.cube",
+    ];
 
     public static readonly Gen<OpSpec> GenOp = Gen.Select(
-        Gen.Int[0, 99], Gen.Int[0, 1000], Gen.Int[0, 1000], Gen.Int[0, 1000], Gen.Int[0, 1000], Gen.Int[-40, 40],
+        Gen.Int[0, KindTable.Length - 1], Gen.Int[0, 1000], Gen.Int[0, 1000], Gen.Int[0, 1000], Gen.Int[0, 1000], Gen.Int[-40, 40],
         (k, a, b, c, d, e) => new OpSpec(k, a, b, c, d, e));
 
     /// <summary>Arma el proyecto de la receta; los clips iniciales que no caben se saltan.</summary>
@@ -183,6 +218,7 @@ internal static class RandomTimeline
             }
         }
 
+        AddExtras(built, spec.Extras);
         int index = 0;
         foreach (Track track in sequence.AllTracks)
         {
@@ -191,6 +227,56 @@ internal static class RandomTimeline
         }
 
         return built;
+    }
+
+    /// <summary>Transiciones en algunos cortes, color y mezcla en algunos clips de video y volumen animado en las pistas de audio.</summary>
+    private static void AddExtras(BuiltProject built, int extras)
+    {
+        const string seq = BuiltProject.SequenceId;
+        int bit = 0;
+        bool Next() => ((extras >> (bit++ % 16)) & 1) == 1;
+
+        foreach (Track track in built.Sequence.AllTracks)
+        {
+            List<Clip> clips = [.. track.Clips];
+            for (int i = 0; i + 1 < clips.Count; i++)
+            {
+                if (clips[i].End != clips[i + 1].Start || !Next())
+                {
+                    continue;
+                }
+
+                EffectDefinition type = EffectRegistry.Transitions[(extras + i) % EffectRegistry.Transitions.Length];
+                Time duration = Time.FromFrames(1 + ((extras >> i) % 40), built.Rate);
+                Edits.AddTransition(seq, clips[i].Id, type.Type, duration, built.Ids).Apply(built.Project);
+            }
+
+            foreach (Clip clip in clips.Where(_ => Next()))
+            {
+                string type = track.Kind == TrackKind.Video ? BuiltInEffects.Color : BuiltInEffects.Audio;
+                SequenceEditCommand add = Edits.AddEffect(seq, clip.Id, type, ids: built.Ids);
+                add.Apply(built.Project);
+                if (track.Kind == TrackKind.Video)
+                {
+                    Edits.SetEffectOption(seq, clip.Id, add.CreatedIds[0], BuiltInEffects.ColorOptions.Lut, "rodaje-esenciales@1.0.0/calido", built.Ids).Apply(built.Project);
+                    SequenceEditCommand blend = Edits.AddEffect(seq, clip.Id, BuiltInEffects.Blend, ids: built.Ids);
+                    blend.Apply(built.Project);
+                    Edits.SetEffectOption(seq, clip.Id, blend.CreatedIds[0], BuiltInEffects.BlendOptions.Mode, EffectRegistry.BlendModes[extras % 13], built.Ids).Apply(built.Project);
+                }
+            }
+
+            if (track.Kind == TrackKind.Audio && Next())
+            {
+                SequenceEditCommand volume = Edits.AddEffect(seq, track.Id, BuiltInEffects.Audio, ids: built.Ids);
+                volume.Apply(built.Project);
+                for (int k = 0; k < 4; k++)
+                {
+                    Time at = Time.FromFrames((extras % 90) + (k * (17 + (extras % 50))), built.Rate);
+                    Edits.SetKeyframe(seq, track.Id, volume.CreatedIds[0], BuiltInEffects.AudioParameters.GainDb, at, -6 * ((k + extras) % 3), ids: built.Ids)
+                        .Apply(built.Project);
+                }
+            }
+        }
     }
 
     /// <summary>Traduce la operación a un comando; a veces pide algo inexistente o imposible para probar los rechazos.</summary>
@@ -349,6 +435,79 @@ internal static class RandomTimeline
                 return new(kind, Edits.UnlinkClips(seq, clip, ids), $"UnlinkClips({clip})");
             }
 
+            case OpKind.ReorderOnMainTrack:
+            {
+                string clip = r.ClipId(op.A);
+                int count = built.Sequence.FindClip(clip)?.Track.Clips.Count ?? 1;
+                int index = op.C % 9 == 8 ? count : op.B % count;
+                return new(kind, Edits.ReorderOnMainTrack(seq, clip, index, ids), $"ReorderOnMainTrack({clip}, {index})", clip);
+            }
+
+            case OpKind.AddTransition:
+            {
+                string clip = r.CutClipId(op.A);
+                string type = Resolver.TransitionType(op.B);
+                Time? duration = (op.C % 4) switch
+                {
+                    0 => null,
+                    1 => op.D % 37 == 36 ? Time.Zero : Time.FromFrames(1 + (op.D % 60), built.Rate),
+                    2 => Time.FromFrames(1 + (op.D % 600), built.Rate),
+                    _ => r.Delta(op.E, op.D),
+                };
+                return new(kind, Edits.AddTransition(seq, clip, type, duration, ids), $"AddTransition({clip}, {type}, {duration?.Ticks.ToString(CultureInfo.InvariantCulture) ?? "-"})");
+            }
+
+            case OpKind.RemoveTransition:
+            {
+                string transition = r.TransitionId(op.A);
+                return new(kind, Edits.RemoveTransition(seq, transition, ids), $"RemoveTransition({transition})");
+            }
+
+            case OpKind.SetTransitionDuration:
+            {
+                string transition = r.TransitionId(op.A);
+                Time duration = op.C % 2 == 0 ? Time.FromFrames(op.E, built.Rate) : Time.FromFrames(op.B % 400, built.Rate);
+                return new(kind, Edits.SetTransitionDuration(seq, transition, duration, ids), $"SetTransitionDuration({transition}, {duration.Ticks})");
+            }
+
+            case OpKind.SetTransitionType:
+            {
+                string transition = r.TransitionId(op.A);
+                string type = Resolver.TransitionType(op.B);
+                return new(kind, Edits.SetTransitionType(seq, transition, type, ids), $"SetTransitionType({transition}, {type})");
+            }
+
+            case OpKind.SetTransitionOption:
+            {
+                string transition = r.TransitionId(op.A);
+                (string name, string value) = Resolver.Option(built.Sequence.AllTracks.SelectMany(t => t.Transitions).FirstOrDefault(t => t.Id == transition)?.Type, op.B, op.C);
+                return new(kind, Edits.SetTransitionOption(seq, transition, name, value, ids), $"SetTransitionOption({transition}, {name}, «{value}»)");
+            }
+
+            case OpKind.AddEffect:
+            {
+                string owner = op.C % 3 == 0 ? r.TrackId(op.A) : r.ClipId(op.A);
+                string type = EffectTypes[op.B % EffectTypes.Length];
+                return new(kind, Edits.AddEffect(seq, owner, type, ids: ids), $"AddEffect({owner}, {type})");
+            }
+
+            case OpKind.SetEffectOption:
+            {
+                (string owner, string effect) = r.Effect(op.A);
+                string? type = built.Sequence.AllTracks.SelectMany(t => t.Effects.Concat(t.Clips.SelectMany(c => c.Effects))).FirstOrDefault(e => e.Id == effect)?.Type;
+                (string name, string value) = Resolver.Option(type, op.B, op.C);
+                return new(kind, Edits.SetEffectOption(seq, owner, effect, name, value, ids), $"SetEffectOption({owner}, {effect}, {name}, «{value}»)");
+            }
+
+            case OpKind.SetKeyframe:
+            {
+                (string owner, string effect) = r.Effect(op.A);
+                string name = op.B % 2 == 0 ? BuiltInEffects.AudioParameters.GainDb : BuiltInEffects.TransformParameters.Opacity;
+                Time at = r.KeyframeTime(owner, op.C, op.E);
+                double value = op.D % 61 - 30;
+                return new(kind, Edits.SetKeyframe(seq, owner, effect, name, at, value, ids: ids), $"SetKeyframe({owner}, {effect}, {name}, {at.Ticks}, {value})");
+            }
+
             default:
                 return new(kind, null, kind.ToString());
         }
@@ -374,6 +533,66 @@ internal static class RandomTimeline
 
         public string TrackId(int a) =>
             _tracks.Count == 0 || a % 29 == 28 ? "pista-falta" : _tracks[a % _tracks.Count].Id;
+
+        private readonly List<TransitionInstance> _transitions = [.. built.Sequence.AllTracks.SelectMany(t => t.Transitions)];
+
+        private readonly List<(string Owner, string Effect)> _effects =
+        [
+            .. built.Sequence.AllTracks.SelectMany(t => t.Effects.Select(e => (t.Id, e.Id))
+                .Concat(t.Clips.SelectMany(c => c.Effects.Select(e => (c.Id, e.Id))))),
+        ];
+
+        /// <summary>Casi siempre un clip seguido de otro sin hueco.</summary>
+        public string CutClipId(int a)
+        {
+            List<string> cuts = [.. built.Sequence.AllTracks.SelectMany(t => t.Clips.Where((c, i) => i + 1 < t.Clips.Count && t.Clips[i + 1].Start == c.End)).Select(c => c.Id)];
+            return cuts.Count == 0 || a % 5 == 4 ? ClipId(a) : cuts[a % cuts.Count];
+        }
+
+        public string TransitionId(int a) =>
+            _transitions.Count == 0 || a % 19 == 18 ? "transicion-falta" : _transitions[a % _transitions.Count].Id;
+
+        /// <summary>Casi siempre una transición registrada; a veces un efecto o un tipo desconocido.</summary>
+        public static string TransitionType(int b) => (b % 17) switch
+        {
+            15 => BuiltInEffects.Blur,
+            16 => "otra.transicion",
+            _ => EffectRegistry.Transitions[b % EffectRegistry.Transitions.Length].Type,
+        };
+
+        /// <summary>Casi siempre una opción del tipo con un valor aceptado; a veces otra opción o un valor que no vale.</summary>
+        public static (string Name, string Value) Option(string? type, int b, int c)
+        {
+            OptionDefinition? option = EffectRegistry.Find(type ?? "") is { Options.Length: > 0 } definition && b % 4 != 3
+                ? definition.Options[b % definition.Options.Length]
+                : null;
+            if (option is null)
+            {
+                return (OptionNames[b % OptionNames.Length], OptionValues[c % OptionValues.Length]);
+            }
+
+            string value = c % 5 == 4
+                ? OptionValues[c % OptionValues.Length]
+                : option.Kind == OptionKind.Choice
+                    ? option.Choices[c % option.Choices.Length]
+                    : option.AllowsFile && c % 3 == 0
+                        ? Inv($"file:luts/look {c % 4}.cube")
+                        : Inv($"rodaje-esenciales@1.{c % 3}.0/elemento-{c % 4}");
+            return (option.Name, value);
+        }
+
+        public (string Owner, string Effect) Effect(int a) =>
+            _effects.Count == 0 || a % 23 == 22 ? ("clip-falta", "efecto-falta") : _effects[a % _effects.Count];
+
+        /// <summary>Dentro del clip (tiempo del origen) o de la secuencia, a veces fuera.</summary>
+        public Time KeyframeTime(string owner, int c, int e)
+        {
+            Clip? clip = _clips.Find(x => x.Id == owner);
+            Time from = clip?.SourceIn ?? Time.Zero;
+            Time length = clip?.Duration ?? built.Sequence.Duration + Time.FromFrames(10, built.Rate);
+            Time at = from + Time.FromTicks(length.Ticks / 7 * (c % 8));
+            return c % 11 == 10 ? at + Time.FromFrames(e, built.Rate) : at;
+        }
 
         /// <summary>Una pista del otro tipo que <paramref name="trackId"/> (para el clip enlazado); a veces una del mismo tipo.</summary>
         public string? OtherKindTrackId(string trackId, int d)

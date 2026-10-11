@@ -9,7 +9,8 @@ internal static class RenderShaders
     // calcula con la distancia al lado más cercano en píxeles de destino, así un borde girado sale suavizado y uno
     // alineado con la rejilla queda nítido (los centros de sus píxeles están a 0,5 px o más del lado).
     // present: x > 0 pide muestreo con mipmaps (destino más pequeño que la fuente).
-    private const string Source = """
+    /// <summary>Constantes, planos, vértices y conversión de color comunes a todos los shaders.</summary>
+    public const string Prelude = """
         cbuffer Quad : register(b0)
         {
             float4 corners[4];
@@ -23,7 +24,6 @@ internal static class RenderShaders
 
         Texture2DArray<float> lumaPlane : register(t0);
         Texture2DArray<float2> chromaPlane : register(t1);
-        Texture2D<float4> composite : register(t2);
         SamplerState linearClamp : register(s0);
 
         struct VsOut
@@ -32,6 +32,27 @@ internal static class RenderShaders
             float2 uv : TEXCOORD0;
             float2 local : TEXCOORD1;
         };
+
+        float3 SampleRgb(float2 uv)
+        {
+            float y = lumaPlane.SampleLevel(linearClamp, float3(min(uv, limits.xy), 0), 0) * range.x + range.y;
+            float2 c = chromaPlane.SampleLevel(linearClamp, float3(min(uv, limits.zw), 0), 0) * range.z + range.w;
+            return saturate(float3(
+                y + toRgb.x * c.y,
+                y - toRgb.y * c.x - toRgb.z * c.y,
+                y + toRgb.w * c.x));
+        }
+
+        float EdgeCoverage(float2 p)
+        {
+            float2 inside = min(p, shape.zw - p);
+            return saturate(min(inside.x, inside.y) * shape.y + 0.5);
+        }
+
+        """;
+
+    private const string Source = Prelude + """
+        Texture2D<float4> composite : register(t2);
 
         VsOut VsQuad(uint id : SV_VertexID)
         {
@@ -44,15 +65,8 @@ internal static class RenderShaders
 
         float4 PsLayer(VsOut i) : SV_Target
         {
-            float y = lumaPlane.SampleLevel(linearClamp, float3(min(i.uv, limits.xy), 0), 0) * range.x + range.y;
-            float2 c = chromaPlane.SampleLevel(linearClamp, float3(min(i.uv, limits.zw), 0), 0) * range.z + range.w;
-            float3 rgb = saturate(float3(
-                y + toRgb.x * c.y,
-                y - toRgb.y * c.x - toRgb.z * c.y,
-                y + toRgb.w * c.x));
-            float2 inside = min(i.local, shape.zw - i.local);
-            float coverage = saturate(min(inside.x, inside.y) * shape.y + 0.5);
-            float alpha = shape.x * coverage;
+            float3 rgb = SampleRgb(i.uv);
+            float alpha = shape.x * EdgeCoverage(i.local);
             return float4(rgb * alpha, alpha);
         }
 

@@ -76,10 +76,75 @@ public sealed record OptionDefinition(string Name, OptionKind Kind, string Defau
     public static OptionDefinition Choice(string name, string defaultValue, params string[] choices) =>
         new(name, OptionKind.Choice, defaultValue, [.. choices]);
 
-    public static OptionDefinition Reference(string name) => new(name, OptionKind.PackageReference, "", []);
+    /// <summary>Prefijo de un archivo suelto en una referencia que lo admite (<see cref="AllowsFile"/>).</summary>
+    public const string FilePrefix = "file:";
 
-    /// <summary>Si <paramref name="value"/> es aceptable; una referencia solo se comprueba al resolverla.</summary>
-    public bool Accepts(string value) => Kind == OptionKind.PackageReference || Choices.Contains(value);
+    /// <param name="name">Clave en <c>options</c>.</param>
+    /// <param name="allowsFile">Admite también un archivo suelto, <c>file:</c> más su ruta (la LUT de «Cargar .cube…»).</param>
+    public static OptionDefinition Reference(string name, bool allowsFile = false) =>
+        new(name, OptionKind.PackageReference, "", []) { AllowsFile = allowsFile };
+
+    /// <summary>La referencia admite <c>file:</c> más una ruta, relativa a la carpeta del proyecto o absoluta, con <c>/</c>.</summary>
+    public bool AllowsFile { get; init; }
+
+    /// <summary>
+    /// <c>file:</c> seguido de una ruta no vacía, sin caracteres de control ni los que Windows no admite en una ruta
+    /// (<c>" &lt; &gt; |</c>): la misma regla que la ruta de un medio.
+    /// </summary>
+    public static bool IsFileReference(string? value) =>
+        value is not null && value.Length > FilePrefix.Length && value.StartsWith(FilePrefix, StringComparison.Ordinal)
+        && !value.AsSpan(FilePrefix.Length).ContainsAnyInRange('\0', '\u001f')
+        && value.AsSpan(FilePrefix.Length).IndexOfAny("\"<>|") < 0;
+
+    /// <summary>
+    /// Si <paramref name="value"/> es aceptable: uno de <see cref="Choices"/>, o una referencia vacía o bien formada
+    /// (<see cref="IsWellFormedReference"/>). Si el paquete existe lo decide quien la resuelve.
+    /// </summary>
+    public bool Accepts(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return Kind == OptionKind.PackageReference
+            ? value.Length == 0 || IsWellFormedReference(value) || (AllowsFile && IsFileReference(value))
+            : Choices.Contains(value);
+    }
+
+    /// <summary>
+    /// Forma <c>paquete@versión/elemento</c>: paquete y elemento en minúsculas ASCII, dígitos, guiones y puntos; la versión
+    /// empieza con un dígito. La comprobación completa (versión semántica, nombres reservados) es de <c>Rodaje.Paquetes</c>.
+    /// </summary>
+    public static bool IsWellFormedReference(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        int at = value.IndexOf('@', StringComparison.Ordinal);
+        int slash = value.IndexOf('/', StringComparison.Ordinal);
+        if (at < 0 || slash < at)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<char> text = value;
+        ReadOnlySpan<char> version = text[(at + 1)..slash];
+        return IsIdentifier(text[..at])
+            && IsIdentifier(text[(slash + 1)..])
+            && version.Length is > 0 and <= MaxReferencePart
+            && char.IsAsciiDigit(version[0])
+            && !version.ContainsAnyExcept(VersionChars);
+    }
+
+    private const int MaxReferencePart = 64;
+
+    private static readonly System.Buffers.SearchValues<char> IdentifierChars =
+        System.Buffers.SearchValues.Create("abcdefghijklmnopqrstuvwxyz0123456789-.");
+
+    private static readonly System.Buffers.SearchValues<char> VersionChars =
+        System.Buffers.SearchValues.Create("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.+");
+
+    private static bool IsIdentifier(ReadOnlySpan<char> part) =>
+        part.Length is > 0 and <= MaxReferencePart && !part.ContainsAnyExcept(IdentifierChars);
 }
 
 /// <summary>Definición estática de un tipo de efecto o de transición.</summary>

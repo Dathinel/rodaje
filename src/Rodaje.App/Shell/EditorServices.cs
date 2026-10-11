@@ -62,8 +62,36 @@ internal sealed class EditorServices(
     /// <summary>Paquetes y módulos instalados, el catálogo e instalar o desinstalar.</summary>
     public required PackageService Packages { get; init; }
 
-    /// <summary>LUT y transiciones de paquete para el motor; nulo hasta que la fase 5 lo conecte.</summary>
+    /// <summary>LUT y transiciones de paquete para el motor; nulo si no hay implementación (<see cref="EffectContentFactory"/>).</summary>
     public IEffectContent? Content { get; init; }
+
+    /// <summary>Cambió la calidad de la vista previa (desde el reproductor o desde el menú Ver).</summary>
+    public event EventHandler? PreviewQualityChanged;
+
+    /// <summary>Guarda la calidad en los ajustes, la pasa al motor y avisa a quien la muestre.</summary>
+    public void SetPreviewQuality(PreviewQuality quality)
+    {
+        Settings.Current.PreviewQuality = quality;
+        Player.SetPreviewQuality(quality);
+        PreviewQualityChanged?.Invoke(this, EventArgs.Empty);
+    }
+}
+
+/// <summary>
+/// Punto donde se conecta el contenido de paquetes (LUT y transiciones) con el motor. La implementación vive en
+/// <c>Services/Effects</c> y completa <see cref="Create"/>; si no está, el contenido queda nulo y el motor sigue sin
+/// LUT y con las transiciones de paquete como fundido cruzado.
+/// </summary>
+internal static partial class EffectContentFactory
+{
+    public static IEffectContent? CreateOrNull(PackageService packages)
+    {
+        IEffectContent? content = null;
+        Create(packages, ref content);
+        return content;
+    }
+
+    static partial void Create(PackageService packages, ref IEffectContent? content);
 }
 
 /// <summary>Una vista del editor. <see cref="Attach"/> se llama una vez, en el hilo de la interfaz, tras crearla.</summary>

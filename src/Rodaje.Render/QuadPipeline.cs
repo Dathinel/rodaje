@@ -31,6 +31,9 @@ internal sealed unsafe class QuadPipeline : IDisposable
         }
     }
 
+    /// <summary>Texturas de entrada que usan los shaders: planos, composición, fondo, LUT e intermedios (t0–t6).</summary>
+    public const int InputSlots = 7;
+
     public enum Shader
     {
         Layer,
@@ -39,6 +42,13 @@ internal sealed unsafe class QuadPipeline : IDisposable
 
     /// <summary>Deja el pipeline listo para dibujar cuadriláteros en <paramref name="target"/>; con el candado del contexto tomado.</summary>
     public void Bind(ID3D11RenderTargetView* target, int width, int height, Shader shader)
+    {
+        bool layer = shader == Shader.Layer;
+        Bind(target, width, height, layer ? _layer : _present, layer ? _premultipliedOver : null);
+    }
+
+    /// <summary>Como <see cref="Bind(ID3D11RenderTargetView*, int, int, Shader)"/> con otro pixel shader y otra mezcla (<c>null</c>: sin mezcla).</summary>
+    public void Bind(ID3D11RenderTargetView* target, int width, int height, ID3D11PixelShader* pixelShader, ID3D11BlendState* blend)
     {
         _context->OMSetRenderTargets(1, &target, null);
         var viewport = new D3D11_VIEWPORT { Width = width, Height = height, MaxDepth = 1 };
@@ -52,9 +62,8 @@ internal sealed unsafe class QuadPipeline : IDisposable
         _context->PSSetConstantBuffers(0, 1, &constants);
         ID3D11SamplerState* sampler = _sampler;
         _context->PSSetSamplers(0, 1, &sampler);
-        bool layer = shader == Shader.Layer;
-        _context->PSSetShader(layer ? _layer : _present, null, 0);
-        _context->OMSetBlendState(layer ? _premultipliedOver : null, null, uint.MaxValue);
+        _context->PSSetShader(pixelShader, null, 0);
+        _context->OMSetBlendState(blend, null, uint.MaxValue);
     }
 
     /// <summary>Sube las constantes y dibuja la tira de cuatro vértices.</summary>
@@ -70,8 +79,8 @@ internal sealed unsafe class QuadPipeline : IDisposable
     /// <summary>Desenlaza las texturas y el destino, para que el decodificador pueda reutilizar sus superficies.</summary>
     public void Unbind()
     {
-        ID3D11ShaderResourceView** none = stackalloc ID3D11ShaderResourceView*[3];
-        _context->PSSetShaderResources(0, 3, none);
+        ID3D11ShaderResourceView** none = stackalloc ID3D11ShaderResourceView*[InputSlots];
+        _context->PSSetShaderResources(0, InputSlots, none);
         _context->OMSetRenderTargets(0, null, null);
     }
 
@@ -182,4 +191,18 @@ internal struct QuadConstants
     public Float4 ToRgb;
     public Float4 Shape;
     public Float4 Present;
+
+    /// <summary>Un cuadrilátero que llena el destino, con uv y coordenadas locales de 0 a 1.</summary>
+    public static QuadConstants FullTarget() => new()
+    {
+        TopLeft = new(-1, 1, 0, 0),
+        TopRight = new(1, 1, 1, 0),
+        BottomLeft = new(-1, -1, 0, 1),
+        BottomRight = new(1, -1, 1, 1),
+        LocalTopLeft = new(0, 0, 0, 0),
+        LocalTopRight = new(1, 0, 0, 0),
+        LocalBottomLeft = new(0, 1, 0, 0),
+        LocalBottomRight = new(1, 1, 0, 0),
+        Shape = new(1, 1e6f, 1, 1),
+    };
 }
