@@ -16,6 +16,8 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
   | `preparar-entorno` | Prepara `.entorno` |
 
 - **Pruebas largas y de hardware:** solo corren con `RODAJE_PRUEBAS_LARGAS=1`, que activa la aceptación. Los medios de prueba con el número de cuadro codificado están en `testing/Rodaje.TestMedia` y se guardan en caché en `TestResults\media-cache`.
+- **Nube:** la rutina «Rodaje: cola de tareas de la nube» (claude.ai/code/routines, cada 2 h, Sonnet) toma la siguiente tarea libre de `docs/nube/cola.md` y abre un PR en borrador; la sesión local revisa, une, marca `hecha` y repone la cola. La CI (`.github/workflows/ci.yml`) corre en cada PR.
+- **Contenido:** fuera de este repo, en `Dathinel/rodaje-transiciones` y `Dathinel/rodaje-filtros` (públicos, CC0), clonados en `..\Complementos\`.
 - **Agentes:** trabajan en worktrees dentro de `.claude\worktrees\` (ignorado), se unen con `git merge` y hacen un commit por tarea.
 - **Espacios de nombres en las pruebas:** `Rodaje.X.Tests.Timing` tapa a `Rodaje.Core.Timing`, así que hay que usar el nombre completo o un `using`.
 
