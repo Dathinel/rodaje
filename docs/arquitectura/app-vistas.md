@@ -8,7 +8,7 @@ Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas c
 - **Uso.** Doble clic añade a la pista principal. Se arrastra a la línea de tiempo con el formato `rodaje/media-id` (el texto es el id del medio).
 - **Menú contextual.** Añadir, generar proxy (con el avance sobre la portada), mostrar en el Explorador y quitar si no se usa.
 - **Portadas.** Se piden solo para lo que la cuadrícula hace visible.
-- **Otras categorías.** Texto, Efectos, Transiciones y Filtros se arrastran con `rodaje/elemento`. Las transiciones llevan además `rodaje/transicion` (el texto es el tipo del motor o la referencia `paquete@versión/elemento`); la línea de tiempo solo acepta referencias de paquete por ese formato, porque en `rodaje/elemento` una referencia puede ser un filtro.
+- **Otras categorías.** Efectos, Transiciones y Filtros traen lo del registro más lo de los paquetes y se arrastran con `rodaje/elemento`. Las transiciones llevan además `rodaje/transicion` (el texto es el tipo del motor o la referencia `paquete@versión/elemento`); la línea de tiempo solo acepta referencias de paquete por ese formato, porque en `rodaje/elemento` una referencia puede ser un filtro. Doble clic o el menú aplica el elemento al clip seleccionado. Texto llega con los títulos.
 - **Medida.** Con `RODAJE_MEDIR_BIBLIOTECA=archivo` la vista mide el desplazamiento y cierra la app (`LibraryScrollMeasurement`).
 
 ## Reproductor (`Views/Player`) y medidores (`Views/Meters`)
@@ -56,11 +56,13 @@ Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas c
 
 ## Inspector (`Views/Inspector`)
 
-- **Pestañas.** Propiedades, Filtros, Historial y Trabajos, cada una en su carpeta.
+- **Pestañas.** Propiedades, Filtros, Historial y Trabajos, cada una en su carpeta. Con una transición seleccionada (`Session.SelectedTransitionId`), Propiedades muestra la transición.
 - **Propiedades.** Los parámetros animables del clip en el cursor (`Services/Inspector/ClipPropertyEditor`). Sin keyframes se cambia el valor fijo; con keyframes, cambiar el valor crea o ajusta el keyframe del cuadro del cursor. Las curvas entre keyframes salen de `KeyframeEase`.
 - **Restablecer y quitar keyframes.** Cada parámetro tiene su botón de restablecer y Transformación, «Restablecer todo». Si hay keyframes, un aviso dice cuántos se borrarán antes de hacerlo; «Quitar keyframes» va aparte, en el menú contextual del parámetro. Todo es un paso del historial (D-024).
 - **Guardar como transición.** Guarda los ajustes en `%LOCALAPPDATA%\Rodaje\complementos\propios`.
-- **Filtros.** La pila del clip: activar, reordenar, quitar y añadir.
+- **Filtros.** La pila del clip: activar, reordenar, quitar y añadir, y el modo de mezcla del clip (13 modos). Abajo, los parámetros del filtro elegido con keyframes, restablecer y quitar keyframes como en Propiedades; en Color y LUT, la LUT de un paquete o «Cargar .cube…». Nombres, unidades y pasos salen de `EffectUi` y los rangos del registro (`ParameterSpec.For`).
+- **Audio.** Volumen con keyframes (de −60 a +24 dB) y fundidos de entrada y salida.
+- **Transición.** Tipo (propia o de paquete), duración (hasta el tope del núcleo), parámetros, dirección del empuje y quitar; todo con `Edits.SetTransition*`.
 - **Historial.** Cada paso del deshacer; un clic vuelve a ese estado.
 - **Trabajos.** Proxies en curso y terminados.
 

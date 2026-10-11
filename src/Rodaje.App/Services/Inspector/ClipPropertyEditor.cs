@@ -73,18 +73,26 @@ public sealed class ClipPropertyEditor
         return Time.Max(clip.SourceIn, Time.Min(source, clip.SourceOut));
     }
 
-    /// <summary>El efecto de ese tipo que se edita: el primero activo (el que aplica el motor) o, si no hay, el primero.</summary>
-    public static EffectInstance? FindEffect(Clip clip, string type)
+    /// <summary>
+    /// El efecto que se edita: el de <paramref name="effectId"/> si se da (la pestaña Filtros edita cada uno de la pila);
+    /// si no, el primero activo de ese tipo (el que aplica el motor) o, si no hay, el primero.
+    /// </summary>
+    public static EffectInstance? FindEffect(Clip clip, string type, string? effectId = null)
     {
         ArgumentNullException.ThrowIfNull(clip);
+        if (effectId is not null)
+        {
+            return clip.Effects.Find(e => e.Id == effectId && e.Type == type);
+        }
+
         return clip.Effects.Find(e => e.Type == type && e.Enabled) ?? clip.Effects.Find(e => e.Type == type);
     }
 
-    public ParameterState Read(Clip clip, string effectType, string name, double defaultValue)
+    public ParameterState Read(Clip clip, string effectType, string name, double defaultValue, string? effectId = null)
     {
         ArgumentNullException.ThrowIfNull(clip);
         Time at = SourceTimeAtPlayhead(clip);
-        if (FindEffect(clip, effectType) is not { } effect || !effect.Parameters.TryGetValue(name, out Parameter? parameter))
+        if (FindEffect(clip, effectType, effectId) is not { } effect || !effect.Parameters.TryGetValue(name, out Parameter? parameter))
         {
             return new ParameterState(defaultValue, 0, null, null, null);
         }
@@ -103,11 +111,11 @@ public sealed class ClipPropertyEditor
     }
 
     /// <summary>Empieza un arrastre del parámetro; el instante queda fijo en el cursor de ahora.</summary>
-    public void BeginChange(Clip clip, string effectType, string name, string description)
+    public void BeginChange(Clip clip, string effectType, string name, string description, string? effectId = null)
     {
         ArgumentNullException.ThrowIfNull(clip);
         EndChange();
-        bool needsEffect = FindEffect(clip, effectType) is null;
+        bool needsEffect = effectId is null && FindEffect(clip, effectType) is null;
         if (needsEffect)
         {
             Session.BeginGesture(description);
@@ -117,7 +125,7 @@ public sealed class ClipPropertyEditor
             Session.BreakMerge();
         }
 
-        _drag = new Drag(clip.Id, effectType, name, description, SourceTimeAtPlayhead(clip), IsPlayheadInside(clip), needsEffect);
+        _drag = new Drag(clip.Id, effectType, effectId, name, description, SourceTimeAtPlayhead(clip), IsPlayheadInside(clip), needsEffect);
     }
 
     /// <summary>Aplica el valor del arrastre en curso; <c>false</c> si no se pudo (y la sesión ya avisó).</summary>
@@ -130,7 +138,7 @@ public sealed class ClipPropertyEditor
 
         Clip clip = found.Clip;
         // Si el primer paso falla (por ejemplo, pista bloqueada), el resto del arrastre no insiste ni repite el aviso.
-        if (EnsureEffect(clip, drag.EffectType) is not { } effectId)
+        if (EnsureEffect(clip, drag.EffectType, drag.EffectId) is not { } effectId)
         {
             drag.Failed = true;
             return false;
@@ -173,9 +181,9 @@ public sealed class ClipPropertyEditor
     }
 
     /// <summary>Un cambio suelto (por ejemplo, al escribir el número).</summary>
-    public bool SetValue(Clip clip, string effectType, string name, double value, string description)
+    public bool SetValue(Clip clip, string effectType, string name, double value, string description, string? effectId = null)
     {
-        BeginChange(clip, effectType, name, description);
+        BeginChange(clip, effectType, name, description, effectId);
         try
         {
             return Change(value);
@@ -187,7 +195,7 @@ public sealed class ClipPropertyEditor
     }
 
     /// <summary>El rombo: quita el keyframe del cursor o crea uno con el valor que se ve.</summary>
-    public bool ToggleKeyframe(Clip clip, string effectType, string name, double defaultValue)
+    public bool ToggleKeyframe(Clip clip, string effectType, string name, double defaultValue, string? effectId = null)
     {
         ArgumentNullException.ThrowIfNull(clip);
         if (!IsPlayheadInside(clip))
@@ -195,11 +203,11 @@ public sealed class ClipPropertyEditor
             return false;
         }
 
-        ParameterState state = Read(clip, effectType, name, defaultValue);
+        ParameterState state = Read(clip, effectType, name, defaultValue, effectId);
         if (state.KeyframeHere is { } existing)
         {
-            string effectId = FindEffect(clip, effectType)!.Id;
-            return Session.Execute(Edits.RemoveKeyframe(Session.SequenceId, clip.Id, effectId, name, existing.Time));
+            string existingEffect = FindEffect(clip, effectType, effectId)!.Id;
+            return Session.Execute(Edits.RemoveKeyframe(Session.SequenceId, clip.Id, existingEffect, name, existing.Time));
         }
 
         Time at = SourceTimeAtPlayhead(clip);
@@ -207,7 +215,7 @@ public sealed class ClipPropertyEditor
         Session.BeginGesture("Añadir keyframe");
         try
         {
-            return EnsureEffect(clip, effectType) is { } id
+            return EnsureEffect(clip, effectType, effectId) is { } id
                 && Session.Execute(Edits.SetKeyframe(Session.SequenceId, clipId, id, name, at, state.Value));
         }
         finally
@@ -217,19 +225,19 @@ public sealed class ClipPropertyEditor
     }
 
     /// <summary>Algún parámetro de la lista tiene keyframes o un valor distinto del de fábrica.</summary>
-    public static bool CanReset(Clip clip, string effectType, IEnumerable<(string Name, double DefaultValue)> parameters)
+    public static bool CanReset(Clip clip, string effectType, IEnumerable<(string Name, double DefaultValue)> parameters, string? effectId = null)
     {
         ArgumentNullException.ThrowIfNull(clip);
         ArgumentNullException.ThrowIfNull(parameters);
-        return FindEffect(clip, effectType) is { } effect && ChangedFromDefault(effect, parameters).Count > 0;
+        return FindEffect(clip, effectType, effectId) is { } effect && ChangedFromDefault(effect, parameters).Count > 0;
     }
 
     /// <summary>Keyframes que tienen entre todos los parámetros nombrados.</summary>
-    public static int KeyframeCount(Clip clip, string effectType, IEnumerable<string> names)
+    public static int KeyframeCount(Clip clip, string effectType, IEnumerable<string> names, string? effectId = null)
     {
         ArgumentNullException.ThrowIfNull(clip);
         ArgumentNullException.ThrowIfNull(names);
-        return FindEffect(clip, effectType) is { } effect
+        return FindEffect(clip, effectType, effectId) is { } effect
             ? names.Sum(n => effect.Parameters.TryGetValue(n, out Parameter? p) ? p.Keyframes.Count : 0)
             : 0;
     }
@@ -244,26 +252,27 @@ public sealed class ClipPropertyEditor
         string effectType,
         IReadOnlyList<(string Name, double DefaultValue)> parameters,
         string description,
-        Func<int, Task<bool>> confirmRemoval)
+        Func<int, Task<bool>> confirmRemoval,
+        string? effectId = null)
     {
         ArgumentNullException.ThrowIfNull(clip);
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(confirmRemoval);
         EndChange();
         string clipId = clip.Id;
-        if (!CanReset(clip, effectType, parameters))
+        if (!CanReset(clip, effectType, parameters, effectId))
         {
             return false;
         }
 
-        int keyframes = KeyframeCount(clip, effectType, parameters.Select(p => p.Name));
+        int keyframes = KeyframeCount(clip, effectType, parameters.Select(p => p.Name), effectId);
         if (keyframes > 0 && !await confirmRemoval(keyframes))
         {
             return false;
         }
 
         // Mientras el aviso estaba abierto el clip pudo cambiar o desaparecer: se vuelve a leer.
-        if (Session.Sequence.FindClip(clipId) is not { } found || FindEffect(found.Clip, effectType) is not { } effect)
+        if (Session.Sequence.FindClip(clipId) is not { } found || FindEffect(found.Clip, effectType, effectId) is not { } effect)
         {
             return false;
         }
@@ -277,19 +286,20 @@ public sealed class ClipPropertyEditor
     /// Quita todos los keyframes del parámetro y lo deja fijo en el valor que se ve en el cursor, tras confirmarlo con
     /// <paramref name="confirmRemoval"/>. Un solo paso del historial.
     /// </summary>
-    public async Task<bool> ClearKeyframesAsync(Clip clip, string effectType, string name, string description, Func<int, Task<bool>> confirmRemoval)
+    public async Task<bool> ClearKeyframesAsync(
+        Clip clip, string effectType, string name, string description, Func<int, Task<bool>> confirmRemoval, string? effectId = null)
     {
         ArgumentNullException.ThrowIfNull(clip);
         ArgumentNullException.ThrowIfNull(confirmRemoval);
         EndChange();
         string clipId = clip.Id;
-        int keyframes = KeyframeCount(clip, effectType, [name]);
+        int keyframes = KeyframeCount(clip, effectType, [name], effectId);
         if (keyframes == 0 || !await confirmRemoval(keyframes))
         {
             return false;
         }
 
-        if (Session.Sequence.FindClip(clipId) is not { } found || FindEffect(found.Clip, effectType) is not { } effect
+        if (Session.Sequence.FindClip(clipId) is not { } found || FindEffect(found.Clip, effectType, effectId) is not { } effect
             || !effect.Parameters.TryGetValue(name, out Parameter? parameter) || parameter.Keyframes.Count == 0)
         {
             return false;
@@ -301,10 +311,10 @@ public sealed class ClipPropertyEditor
     }
 
     /// <summary>Cambia la curva del keyframe del cursor hacia el siguiente.</summary>
-    public bool SetInterpolation(Clip clip, string effectType, string name, Interpolation interpolation)
+    public bool SetInterpolation(Clip clip, string effectType, string name, Interpolation interpolation, string? effectId = null)
     {
         ArgumentNullException.ThrowIfNull(clip);
-        if (FindEffect(clip, effectType) is not { } effect
+        if (FindEffect(clip, effectType, effectId) is not { } effect
             || !effect.Parameters.TryGetValue(name, out Parameter? parameter)
             || KeyframeNear(parameter.Keyframes, SourceTimeAtPlayhead(clip)) is not { } keyframe
             || keyframe.Interpolation == interpolation)
@@ -316,9 +326,9 @@ public sealed class ClipPropertyEditor
     }
 
     /// <summary>Lleva el cursor al keyframe anterior (<paramref name="direction"/> negativo) o siguiente.</summary>
-    public bool GoToKeyframe(Clip clip, string effectType, string name, int direction)
+    public bool GoToKeyframe(Clip clip, string effectType, string name, int direction, string? effectId = null)
     {
-        ParameterState state = Read(clip, effectType, name, 0);
+        ParameterState state = Read(clip, effectType, name, 0, effectId);
         if ((direction < 0 ? state.Previous : state.Next) is not { } target)
         {
             return false;
@@ -357,11 +367,16 @@ public sealed class ClipPropertyEditor
         return changed;
     }
 
-    private string? EnsureEffect(Clip clip, string type)
+    private string? EnsureEffect(Clip clip, string type, string? effectId)
     {
-        if (FindEffect(clip, type) is { } existing)
+        if (FindEffect(clip, type, effectId) is { } existing)
         {
             return existing.Id;
+        }
+
+        if (effectId is not null)
+        {
+            return null;
         }
 
         var command = Edits.EnsureEffect(Session.SequenceId, clip.Id, type);
@@ -397,7 +412,7 @@ public sealed class ClipPropertyEditor
         }
     }
 
-    private sealed record Drag(string ClipId, string EffectType, string Name, string Description, Time SourceTime, bool Inside, bool Grouped)
+    private sealed record Drag(string ClipId, string EffectType, string? EffectId, string Name, string Description, Time SourceTime, bool Inside, bool Grouped)
     {
         public bool Failed { get; set; }
     }

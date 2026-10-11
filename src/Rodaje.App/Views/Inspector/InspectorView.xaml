@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Panel derecho: pestañas Propiedades, Filtros, Historial y Trabajos. Cada pestaña es su propio control en su carpeta. -->
+<!-- Panel derecho: pestañas Propiedades (o la transición seleccionada), Filtros, Historial y Trabajos. Cada pestaña es su propio control en su carpeta. -->
 <UserControl
     x:Class="Rodaje.App.Views.Inspector.InspectorView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -7,7 +7,8 @@
     xmlns:properties="using:Rodaje.App.Views.Inspector.Properties"
     xmlns:filters="using:Rodaje.App.Views.Inspector.Filters"
     xmlns:history="using:Rodaje.App.Views.Inspector.History"
-    xmlns:jobs="using:Rodaje.App.Views.Inspector.Jobs">
+    xmlns:jobs="using:Rodaje.App.Views.Inspector.Jobs"
+    xmlns:transition="using:Rodaje.App.Views.Inspector.Transition">
 
     <Grid Background="{StaticResource PanelBrush}">
         <Grid.RowDefinitions>
@@ -26,6 +27,7 @@
 
         <Grid Grid.Row="1">
             <properties:PropertiesPanel x:Name="PropertiesPanel" />
+            <transition:TransitionPanel x:Name="TransitionPanel" Visibility="Collapsed" />
             <filters:FiltersPanel x:Name="FiltersPanel" Visibility="Collapsed" />
             <history:HistoryPanel x:Name="HistoryPanel" Visibility="Collapsed" />
             <jobs:JobsPanel x:Name="JobsPanel" Visibility="Collapsed" />
