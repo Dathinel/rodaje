@@ -38,6 +38,14 @@ internal static class SpeedClips
         return clip;
     }
 
+    /// <summary>Como <see cref="WithRate"/> pero hacia atrás: recorre <c>[sourceIn, sourceOut)</c> desde el final.</summary>
+    public static Clip Reversed(Clip clip, Rational rate, Time sourceIn, Time sourceOut, Time offset = default)
+    {
+        clip.Speed = new ClipSpeed { Rate = rate, Offset = offset, Reverse = true };
+        ClipTimeMap.Fit(clip.Start, sourceIn, sourceOut, clip.Speed).ApplyTo(clip);
+        return clip;
+    }
+
     /// <summary>Congela el cuadro de <paramref name="at"/> durante <paramref name="duration"/>.</summary>
     public static Clip Frozen(Clip clip, Time at, Time duration)
     {
@@ -54,20 +62,22 @@ internal static class SpeedClips
     public static long Expected(Clip clip, Rational sourceRate, Time timeline)
     {
         ClipSpeed speed = clip.Speed!;
-        Int128 source = clip.SourceIn.Ticks;
+        Int128 progress = 0;
         if (speed.Curve is { } curve)
         {
             Int128 tau = (Int128)timeline.Ticks - clip.Start.Ticks;
-            source += (Int128)(Floor(CurveIntegral(curve, (long)(speed.Offset.Ticks + tau)))
+            progress = (Int128)(Floor(CurveIntegral(curve, (long)(speed.Offset.Ticks + tau)))
                 - Floor(CurveIntegral(curve, speed.Offset.Ticks)));
         }
         else if (!speed.Freeze)
         {
             Int128 tau = (Int128)timeline.Ticks - clip.Start.Ticks;
             Int128 offset = speed.Offset.Ticks;
-            source += Floor((offset + tau) * speed.Rate.Num, speed.Rate.Den) - Floor(offset * speed.Rate.Num, speed.Rate.Den);
+            progress = Floor((offset + tau) * speed.Rate.Num, speed.Rate.Den) - Floor(offset * speed.Rate.Num, speed.Rate.Den);
         }
 
+        // En reversa el recorrido baja desde el último tick del tramo.
+        Int128 source = speed.Reverse && !speed.Freeze ? clip.SourceOut.Ticks - 1 - progress : clip.SourceIn.Ticks + progress;
         return (long)Floor(source * sourceRate.Num, (Int128)Time.TicksPerSecond * sourceRate.Den);
     }
 

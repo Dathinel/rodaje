@@ -53,6 +53,15 @@ internal sealed partial class TimelineScheduler : IDisposable
     /// <summary>Desde esta velocidad, reproduciendo, se muestra el keyframe anterior al cuadro debido.</summary>
     internal const double ApproximateRate = 16;
 
+    /// <summary>Lugares de la caché de un decodificador en reversa que sus tramos dejan libres.</summary>
+    private const int ReverseCacheMargin = 2;
+
+    /// <summary>
+    /// Tope de la caché de un decodificador en reversa sin pool de D3D11VA (en la CPU o subiendo a texturas propias): un
+    /// GOP largo más lo adelantado; con pool, el tope es lo que el pool admite (<see cref="VideoDecoder.MaxHardwarePoolSurfaces"/>).
+    /// </summary>
+    internal const int ReverseSoftwareCacheFrames = 128;
+
     private readonly Lock _gate = new();
     private readonly IAudioClock _clock;
     private readonly IClipBackend _backend;

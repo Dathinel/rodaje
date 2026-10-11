@@ -50,6 +50,13 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
 
     private readonly List<long> _requests = [];
     private volatile bool _disposed;
+    private long _last = -1;
+
+    /// <summary>Cuadros que habría decodificado uno de verdad (ver <see cref="GetFrameAsync(long, CancellationToken)"/>).</summary>
+    public long DecodedFrames { get; private set; }
+
+    /// <summary>Peticiones que habrían buscado un keyframe.</summary>
+    public long Seeks { get; private set; }
 
     public string Path { get; } = path;
 
@@ -97,6 +104,21 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
         lock (_requests)
         {
             _requests.Add(frameIndex);
+
+            // Lo que costaría a un decodificador de verdad: seguir hacia adelante sin buscar hasta 64 cuadros, o buscar
+            // el keyframe y decodificar desde él.
+            if (_last >= 0 && frameIndex > _last && frameIndex - _last <= 64)
+            {
+                DecodedFrames += frameIndex - _last;
+            }
+            else
+            {
+                Seeks++;
+                long keyframe = Keyframes?.AtOrBefore(frameIndex) ?? -1;
+                DecodedFrames += frameIndex - (keyframe >= 0 ? keyframe : frameIndex) + 1;
+            }
+
+            _last = frameIndex;
         }
 
         if (owner.FailFrames.Contains((Path, frameIndex)))

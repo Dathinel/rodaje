@@ -41,7 +41,8 @@ internal sealed class VideoClipPlan
         DisplayHeight = displayHeight;
 
         // Un origen que no va más rápido que la secuencia muestra todos sus cuadros: cada uno dura al menos un cuadro de ella.
-        _everyFrameShown = map.IsIdentity && (Int128)frameRate.Num * sequenceRate.Den <= (Int128)sequenceRate.Num * frameRate.Den;
+        _everyFrameShown = map.Speed.IsIdentity && !map.Freeze
+            && (Int128)frameRate.Num * sequenceRate.Den <= (Int128)sequenceRate.Num * frameRate.Den;
         long first = start.ToFrames(sequenceRate);
         _firstGrid = Time.FromFrames(first, sequenceRate) < start ? first + 1 : first;
         _lastGrid = (end - Time.FromTicks(1)).ToFrames(sequenceRate);
@@ -92,8 +93,14 @@ internal sealed class VideoClipPlan
     /// <summary>Mayor velocidad en valor absoluto en el tramo que se ve (en una curva, su pico real); 0 congelado.</summary>
     public double MaxRate { get; }
 
-    /// <summary>Los cuadros mostrados crecen con el tiempo; falso solo en reversa (fase 5c.3).</summary>
+    /// <summary>Los cuadros mostrados crecen con el tiempo; falso en reversa, donde decrecen.</summary>
     public bool Forward => !TimeMap.Reverse;
+
+    /// <summary>El menor cuadro mostrado: <see cref="FirstFrame"/> hacia adelante, <see cref="LastFrame"/> en reversa.</summary>
+    public long LowestFrame => Forward ? FirstFrame : LastFrame;
+
+    /// <summary>El mayor cuadro mostrado.</summary>
+    public long HighestFrame => Forward ? LastFrame : FirstFrame;
 
     public bool Covers(Time timeline) => timeline >= Start && timeline < End;
 
@@ -123,12 +130,17 @@ internal sealed class VideoClipPlan
     public double MinRate(Time from, Time to) => TimeMap.RateRange(from, to).Min;
 
     /// <summary>
-    /// Primer instante en que se ve el cuadro <paramref name="index"/> del origen o uno posterior; <see cref="End"/> si
-    /// no llega. En reversa, <see cref="Start"/>.
+    /// Primer instante en que se ve el cuadro <paramref name="index"/> del origen o uno que va después en la reproducción
+    /// (posterior hacia adelante, anterior en reversa); <see cref="End"/> si no llega.
     /// </summary>
     public Time ShownAt(long index)
     {
-        if (index <= FirstFrame || !Forward)
+        if (!Forward)
+        {
+            return ShownAtReverse(index);
+        }
+
+        if (index <= FirstFrame)
         {
             return Start;
         }
@@ -158,12 +170,15 @@ internal sealed class VideoClipPlan
         return Search(Time.Max(Start, map.End), End, source);
     }
 
-    /// <summary>El primer cuadro mostrado que no es anterior a <paramref name="index"/>; <see cref="long.MaxValue"/> si no hay.</summary>
+    /// <summary>
+    /// El menor cuadro mostrado que no es anterior a <paramref name="index"/>; <see cref="long.MaxValue"/> si no hay. Va
+    /// por los índices, no por el orden de reproducción: en reversa es el mostrado más cercano por encima.
+    /// </summary>
     public long NextShown(long index)
     {
         if (!Forward)
         {
-            return index;
+            return NextShownReverse(index);
         }
 
         if (index <= FirstFrame)
@@ -192,20 +207,46 @@ internal sealed class VideoClipPlan
     }
 
     /// <summary>Algún cuadro de la secuencia muestra el cuadro <paramref name="index"/> del origen.</summary>
-    public bool IsShown(long index) => !Forward || (index >= FirstFrame && index <= LastFrame && NextShown(index) == index);
+    public bool IsShown(long index) => index >= LowestFrame && index <= HighestFrame && NextShown(index) == index;
+
+    /// <summary>El mayor cuadro mostrado que no pasa de <paramref name="index"/>; -1 si no hay.</summary>
+    public long PreviousShown(long index)
+    {
+        if (index < LowestFrame)
+        {
+            return -1;
+        }
+
+        if (index >= HighestFrame)
+        {
+            return HighestFrame;
+        }
+
+        if (_everyFrameShown)
+        {
+            return index;
+        }
+
+        if (!Forward)
+        {
+            // El primer cuadro de la secuencia que muestra uno que no pasa de index.
+            long first = CeilingGrid(ShownAtReverse(index));
+            return first > _lastGrid ? LastFrame : FrameAt(Time.FromFrames(first, SequenceRate));
+        }
+
+        // El último cuadro de la secuencia antes del primero que muestra uno mayor que index.
+        long grid = CeilingGrid(ShownAt(index + 1)) - 1;
+        return grid < _firstGrid ? FirstFrame : FrameAt(Time.FromFrames(Math.Min(grid, _lastGrid), SequenceRate));
+    }
 
     /// <summary>Cuadros del origen entre <paramref name="after"/> y <paramref name="before"/>, sin contarlos, que la secuencia muestra.</summary>
     /// <remarks>Un origen más rápido que la secuencia, o con velocidad, salta cuadros por diseño; esos no son pérdidas.</remarks>
+    /// <remarks>Va por los índices: en reversa, el cuadro nuevo es <paramref name="after"/> y el anterior <paramref name="before"/>.</remarks>
     public long ShownBetween(long after, long before)
     {
-        if (!Forward)
-        {
-            return 0;
-        }
-
         long count = 0;
-        long last = Math.Min(before - 1, LastFrame);
-        for (long i = NextShown(Math.Max(after + 1, FirstFrame)); i <= last; i = NextShown(i + 1))
+        long last = Math.Min(before - 1, HighestFrame);
+        for (long i = NextShown(Math.Max(after + 1, LowestFrame)); i <= last; i = NextShown(i + 1))
         {
             count++;
         }
@@ -214,15 +255,17 @@ internal sealed class VideoClipPlan
     }
 
     /// <summary>Cota de los cuadros que quedan por mostrar desde el cuadro <paramref name="index"/> hasta el final del tramo.</summary>
+    /// <remarks>En reversa, desde <paramref name="index"/> hacia abajo.</remarks>
     public long ShownFrom(long index)
     {
-        if (!Forward || index > LastFrame)
+        if (Forward ? index > LastFrame : index < LastFrame)
         {
             return 0;
         }
 
         long grids = _lastGrid + 1 - Math.Max(_firstGrid, ShownAt(index).ToFrames(SequenceRate));
-        return Math.Max(0, Math.Min(LastFrame + 1 - Math.Max(index, FirstFrame), grids));
+        long frames = Forward ? LastFrame + 1 - Math.Max(index, FirstFrame) : Math.Min(index, FirstFrame) + 1 - LastFrame;
+        return Math.Max(0, Math.Min(frames, grids));
     }
 
     /// <summary>El cuadro mostrado en el cuadro <paramref name="sequenceFrame"/> de la secuencia, acotado al tramo visible.</summary>
@@ -235,6 +278,86 @@ internal sealed class VideoClipPlan
     public bool SameMapping(VideoClipPlan other) =>
         ClipId == other.ClipId && Source == other.Source && Start == other.Start && End == other.End && FrameRate == other.FrameRate
         && SequenceRate == other.SequenceRate && _materialEnd == other._materialEnd && TimeMap.Equals(other.TimeMap);
+
+    /// <summary>En reversa: primer instante en que se ve el cuadro <paramref name="index"/> o uno menor.</summary>
+    private Time ShownAtReverse(long index)
+    {
+        if (index >= FirstFrame)
+        {
+            return Start;
+        }
+
+        if (index < LastFrame)
+        {
+            return End;
+        }
+
+        // El cuadro mostrado no pasa de index cuando el origen no pasa del último tick de index.
+        Time target = Time.FromFrames(index + 1, FrameRate) - Time.FromTicks(1);
+        ClipTimeMap map = TimeMap;
+        if (map.Start > Start && target >= map.SourceOut - Time.FromTicks(1))
+        {
+            return SearchDown(Start, map.Start, target);
+        }
+
+        if (target >= map.Source(map.End - Time.FromTicks(1)))
+        {
+            return Time.Max(Start, map.TimelineOf(target));
+        }
+
+        return SearchDown(Time.Max(Start, map.End), End, target);
+    }
+
+    /// <summary>En reversa: el menor cuadro mostrado que no es anterior a <paramref name="index"/>.</summary>
+    private long NextShownReverse(long index)
+    {
+        if (index > FirstFrame)
+        {
+            return long.MaxValue;
+        }
+
+        if (index <= LastFrame)
+        {
+            return LastFrame;
+        }
+
+        if (_everyFrameShown)
+        {
+            return index;
+        }
+
+        // El último cuadro de la secuencia antes de que se vea uno menor que index muestra el buscado.
+        long grid = CeilingGrid(ShownAtReverse(index - 1)) - 1;
+        return grid < _firstGrid ? FirstFrame : FrameAt(Time.FromFrames(Math.Min(grid, _lastGrid), SequenceRate));
+    }
+
+    /// <summary>El primer cuadro de la secuencia que empieza en o después de <paramref name="time"/>.</summary>
+    private long CeilingGrid(Time time)
+    {
+        long grid = time.ToFrames(SequenceRate);
+        return Time.FromFrames(grid, SequenceRate) < time ? grid + 1 : grid;
+    }
+
+    /// <summary>Primer instante de <c>[from, to)</c> cuyo origen no pasa de <paramref name="source"/>, en reversa; <paramref name="to"/> si ninguno.</summary>
+    private Time SearchDown(Time from, Time to, Time source)
+    {
+        long lo = from.Ticks;
+        long hi = to.Ticks;
+        while (lo < hi)
+        {
+            long mid = lo + ((hi - lo) / 2);
+            if (ToSource(Time.FromTicks(mid)) <= source)
+            {
+                hi = mid;
+            }
+            else
+            {
+                lo = mid + 1;
+            }
+        }
+
+        return Time.FromTicks(lo);
+    }
 
     /// <summary>Primer instante de <c>[from, to)</c> cuyo origen alcanza <paramref name="source"/>; <paramref name="to"/> si ninguno.</summary>
     private Time Search(Time from, Time to, Time source)

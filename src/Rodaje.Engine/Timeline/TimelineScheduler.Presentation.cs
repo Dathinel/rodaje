@@ -32,12 +32,12 @@ internal sealed partial class TimelineScheduler
             }
 
             layer.ActiveClip = clip;
-            layer.LowerBound = natural ? clip.FirstFrame : due;
+            layer.Bound = natural ? clip.FirstFrame : due;
             layer.CountDrops = false;
         }
         else if (layer.Resync)
         {
-            layer.LowerBound = due;
+            layer.Bound = due;
             layer.CountDrops = false;
         }
 
@@ -55,14 +55,19 @@ internal sealed partial class TimelineScheduler
             return;
         }
 
-        if (due < layer.LowerBound)
+        // En reversa los cuadros bajan: lo más nuevo es lo más bajo que no pasa del debido.
+        bool forward = clip.Forward;
+        if (forward ? due < layer.Bound : due > layer.Bound)
         {
             // Volver atrás no es perder cuadros; reemplazar el mismo cuadro por el del archivo nuevo, tampoco.
-            layer.CountDrops &= outdated && layer.Current is { } shown && shown.Index <= due;
-            layer.LowerBound = due;
+            layer.CountDrops &= outdated && layer.Current is { } shown && (forward ? shown.Index <= due : shown.Index >= due);
+            layer.Bound = due;
         }
 
-        if (!_cache.TryGetLatest(media.Id, layer.LowerBound, due, out DecodedFrame? frame, out int slot))
+        DecodedFrame? frame;
+        int slot;
+        if (forward ? !_cache.TryGetLatest(media.Id, layer.Bound, due, out frame, out slot)
+            : !_cache.TryGetEarliest(media.Id, due, layer.Bound, out frame, out slot))
         {
             return;
         }
@@ -78,7 +83,7 @@ internal sealed partial class TimelineScheduler
         // Saltar de keyframe en keyframe a más de 16× es lo pedido, no una pérdida.
         if (layer.CountDrops && running && !approximate && layer.CurrentMedia == media && layer.Current is { } previous)
         {
-            layer.Dropped += clip.ShownBetween(previous.Index, frame.Index);
+            layer.Dropped += forward ? clip.ShownBetween(previous.Index, frame.Index) : clip.ShownBetween(frame.Index, previous.Index);
         }
 
         bool replacement = layer.CurrentMedia == media && layer.Current?.Index == frame.Index;
@@ -89,7 +94,7 @@ internal sealed partial class TimelineScheduler
         layer.CurrentLook = source?.Look ?? Look.Square;
         layer.CurrentVariant = variant;
         layer.Shown += replacement ? 0 : 1;
-        layer.LowerBound = frame.Index + 1;
+        layer.Bound = forward ? frame.Index + 1 : frame.Index - 1;
         layer.CountDrops = true;
     }
 
