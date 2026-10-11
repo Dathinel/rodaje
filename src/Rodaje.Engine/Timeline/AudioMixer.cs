@@ -88,6 +88,15 @@ internal sealed class MixRenderer : IPcmSource
 {
     public const float Knee = 0.9f;
 
+    /// <summary>Muestras por bloque de ganancia: se evalúa en sus bordes y se interpola dentro.</summary>
+    public const int GainBlock = 64;
+
+    /// <summary>
+    /// Cuánto puede cambiar por bloque la ganancia tras una edición: con 4 dB la rampa lineal no da pasos de más de
+    /// 0,1 dB entre muestras y 60 dB se recorren en 20 ms.
+    /// </summary>
+    public const double SlewDbPerBlock = 4;
+
     private const int Channels = 2;
 
     private readonly Func<string, IPcmSource> _open;
@@ -103,6 +112,13 @@ internal sealed class MixRenderer : IPcmSource
     private long _position;
     private int _decodersOpen;
     private long _errors;
+
+    // Al cambiar de plan, la ganancia de cada clip que ya sonaba parte de la que tenía y llega a la nueva sin saltos.
+    private Dictionary<string, Slew> _slews = new(StringComparer.Ordinal);
+    private AudioPlan? _retiredPlan;
+    private Dictionary<string, Slew>? _retiredSlews;
+    private bool _anchorPending;
+    private long _anchor;
 
     public MixRenderer(AudioPlan plan, Func<string, IPcmSource> openDecoder, TimeSpan idleTimeout, TimeProvider time, AudioLevelAnalyzer? levels = null)
     {
@@ -134,6 +150,16 @@ internal sealed class MixRenderer : IPcmSource
     public int Read(Span<float> interleaved)
     {
         AdoptPlan();
+        if (_anchorPending)
+        {
+            AnchorSlews(_position);
+        }
+        else if (_retiredPlan is not null && _position - _anchor > TimelinePlan.AudioSampleRate)
+        {
+            _retiredPlan = null;
+            _retiredSlews = null;
+        }
+
         int frames = interleaved.Length / Channels;
         interleaved = interleaved[..(frames * Channels)];
         interleaved.Clear();
@@ -185,6 +211,14 @@ internal sealed class MixRenderer : IPcmSource
     {
         AdoptPlan();
         _position = Math.Max(0, position.ToSamples(TimelinePlan.AudioSampleRate));
+        if (_retiredPlan is not null)
+        {
+            // La edición rebobina la mezcla hasta aquí: lo que ya suena salió con la ganancia del plan anterior.
+            AnchorSlews(_position);
+            _retiredPlan = null;
+            _retiredSlews = null;
+        }
+
         _levels?.Restart(_position);
         foreach (Reader reader in _readers)
         {
@@ -225,6 +259,19 @@ internal sealed class MixRenderer : IPcmSource
         }
 
         long sourceSample = clip.SourceInSample + (start - clip.StartSample);
+        if (sourceSample < 0)
+        {
+            // Una transición adelantó el clip más allá del principio de su medio: eso es silencio.
+            long silent = Math.Min(end - start, -sourceSample);
+            start += silent;
+            sourceSample += silent;
+            destination = destination[(int)(silent * Channels)..];
+            if (start >= end)
+            {
+                return;
+            }
+        }
+
         Reader? reader = Acquire(clip, sourceSample);
         if (reader is null)
         {
@@ -260,10 +307,7 @@ internal sealed class MixRenderer : IPcmSource
             }
 
             reader.Next += got;
-            for (int i = 0; i < got * Channels; i++)
-            {
-                destination[i] += scratch[i];
-            }
+            AddScaled(clip, start, scratch[..(got * Channels)], destination);
         }
         catch (Exception)
         {
@@ -277,6 +321,109 @@ internal sealed class MixRenderer : IPcmSource
         {
             Release(reader);
         }
+    }
+
+    /// <summary>
+    /// Suma el clip con su volumen: la ganancia en dB se evalúa en los bordes de bloques de <see cref="GainBlock"/>
+    /// muestras (alineados a la línea de tiempo) y se interpola en línea recta dentro de cada uno; los fundidos van exactos
+    /// por muestra mientras cambian.
+    /// </summary>
+    private void AddScaled(AudioClipPlan clip, long start, ReadOnlySpan<float> source, Span<float> destination)
+    {
+        GainPlan? gain = clip.Gain;
+        Slew slew = default;
+        bool slewing = _slews.Count > 0 && _slews.TryGetValue(clip.ClipId, out slew);
+        if (gain is null && !slewing)
+        {
+            for (int i = 0; i < source.Length; i++)
+            {
+                destination[i] += source[i];
+            }
+
+            return;
+        }
+
+        int frames = source.Length / Channels;
+        long sample = start;
+        int done = 0;
+        while (done < frames)
+        {
+            long blockStart = sample - (((sample % GainBlock) + GainBlock) % GainBlock);
+            int count = (int)Math.Min(frames - done, blockStart + GainBlock - sample);
+            double g0 = Level(clip, gain, slewing ? slew : default, blockStart);
+            double g1 = Level(clip, gain, slewing ? slew : default, blockStart + GainBlock);
+            bool fading = gain is not null && gain.FadesWithin(sample, sample + count);
+            double fixedFade = fading ? 1 : gain?.Fades(sample) ?? 1;
+            for (int k = 0; k < count; k++)
+            {
+                long s = sample + k;
+                double g = (g0 + ((g1 - g0) * (s - blockStart) / GainBlock)) * (fading ? gain!.Fades(s) : fixedFade);
+                int at = (done + k) * Channels;
+                destination[at] += (float)(source[at] * g);
+                destination[at + 1] += (float)(source[at + 1] * g);
+            }
+
+            done += count;
+            sample += count;
+        }
+    }
+
+    /// <summary>Ganancia lineal sin fundidos en <paramref name="sample"/>: la del plan más lo que falta para llegar a ella desde la anterior.</summary>
+    private static double Level(AudioClipPlan clip, GainPlan? gain, Slew slew, long sample)
+    {
+        double db = gain?.Db(sample, clip.SourceInSample + (sample - clip.StartSample)) ?? 0;
+        return GainPlan.ToLinear(db + slew.Offset(sample));
+    }
+
+    private static double PlanDb(AudioClipPlan clip, long sample) =>
+        Math.Max(GainPlan.SilenceDb, clip.Gain?.Db(sample, clip.SourceInSample + (sample - clip.StartSample)) ?? 0);
+
+    /// <summary>Para cada clip que sonaba en <paramref name="at"/> con otra ganancia, arranca desde la que tenía.</summary>
+    private void AnchorSlews(long at)
+    {
+        _anchorPending = false;
+        _anchor = at;
+        var slews = new Dictionary<string, Slew>(StringComparer.Ordinal);
+        if (_retiredPlan is { } retired)
+        {
+            foreach (AudioTrackPlan track in _plan.Tracks)
+            {
+                foreach (AudioClipPlan clip in track.Clips)
+                {
+                    if (clip.StartSample > at || clip.EndSample <= at || Find(retired, clip.ClipId) is not { } old
+                        || old.StartSample > at || old.EndSample <= at)
+                    {
+                        continue;
+                    }
+
+                    double before = Math.Max(GainPlan.SilenceDb, PlanDb(old, at) + (_retiredSlews?.GetValueOrDefault(old.ClipId).Offset(at) ?? 0));
+                    double offset = before - PlanDb(clip, at);
+                    if (Math.Abs(offset) > 0.001)
+                    {
+                        // Empieza a acercarse en el borde del bloque siguiente: el bloque partido queda con la ganancia vieja.
+                        slews[clip.ClipId] = new Slew(offset, at + ((GainBlock - (at % GainBlock)) % GainBlock));
+                    }
+                }
+            }
+        }
+
+        _slews = slews;
+    }
+
+    private static AudioClipPlan? Find(AudioPlan plan, string clipId)
+    {
+        foreach (AudioTrackPlan track in plan.Tracks)
+        {
+            foreach (AudioClipPlan clip in track.Clips)
+            {
+                if (clip.ClipId == clipId)
+                {
+                    return clip;
+                }
+            }
+        }
+
+        return null;
     }
 
     private Reader? Acquire(AudioClipPlan clip, long sourceSample)
@@ -349,6 +496,9 @@ internal sealed class MixRenderer : IPcmSource
             return;
         }
 
+        _retiredPlan = _plan;
+        _retiredSlews = _slews;
+        _anchorPending = true;
         _plan = plan;
         _failed.Clear();
         foreach (Reader reader in _readers)
@@ -375,6 +525,21 @@ internal sealed class MixRenderer : IPcmSource
         }
 
         return lo;
+    }
+
+    /// <summary>Diferencia en dB entre la ganancia que sonaba en <paramref name="From"/> y la del plan nuevo; se agota a <see cref="SlewDbPerBlock"/> por bloque.</summary>
+    private readonly record struct Slew(double Db, long From)
+    {
+        public double Offset(long sample)
+        {
+            if (Db == 0)
+            {
+                return 0;
+            }
+
+            double left = Math.Abs(Db) - (SlewDbPerBlock * Math.Max(0, sample - From) / GainBlock);
+            return left <= 0 ? 0 : Math.CopySign(left, Db);
+        }
     }
 
     private sealed class Reader(SourceKey source, IPcmSource pcm)
