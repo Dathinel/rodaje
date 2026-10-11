@@ -1,3 +1,4 @@
+using Rodaje.Media.Probe;
 using Rodaje.Media.Tests.Support;
 using Rodaje.Media.Video;
 using Rodaje.Playback;
@@ -128,18 +129,24 @@ public sealed class HighSpeedDecodeTests
     {
         IReadOnlyList<ulong> reference = TestClips.LumaReference(spec);
         IReadOnlyList<int> keys = TestClips.KeyFrames(spec);
-        using VideoDecoder decoder = VideoDecoder.Open(TestClips.PathOf(spec), Fast(mode));
-        for (int n = 0; n < spec.Frames; n += 16)
+        string path = TestClips.PathOf(spec);
+        foreach (KeyframeIndex? index in new[] { null, KeyframeIndex.Read(path) })
         {
-            using DecodedFrame? frame = decoder.GetFrame(n, DecodeAccuracy.Keyframe);
-            Assert.NotNull(frame);
-            int expected = keys.Last(k => k <= n);
-            Assert.Equal(expected, frame.Index);
-            Assert.Equal(reference[expected], Hash(frame));
-        }
+            using VideoDecoder decoder = VideoDecoder.Open(path, Fast(mode) with { Keyframes = index });
+            for (int n = 0; n < spec.Frames; n += 16)
+            {
+                using DecodedFrame? frame = decoder.GetFrame(n, DecodeAccuracy.Keyframe);
+                Assert.NotNull(frame);
+                int expected = keys.Last(k => k <= n);
+                Assert.Equal(expected, frame.Index);
+                Assert.Equal(reference[expected], Hash(frame));
+            }
 
-        Assert.True(decoder.Statistics.DecodedFrames <= keys.Count + 1,
-            $"{spec.Name} [{mode}]: {decoder.Statistics.DecodedFrames} cuadros decodificados con {keys.Count} keyframes.");
+            // Sin índice hay que ver el keyframe siguiente para saber que no hay otro antes; con índice, no.
+            long limit = index is null ? keys.Count + 1 : keys.Count;
+            Assert.True(decoder.Statistics.DecodedFrames <= limit,
+                $"{spec.Name} [{mode}, índice: {index is not null}]: {decoder.Statistics.DecodedFrames} cuadros decodificados con {keys.Count} keyframes.");
+        }
     }
 
     private static VideoDecoderOptions Fast(DecodeMode mode) => DecodeModes.Options(mode) with { SkipNonReference = true };

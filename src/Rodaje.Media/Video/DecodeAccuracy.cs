@@ -19,7 +19,7 @@ public enum DecodeAccuracy
 
     /// <summary>
     /// Solo keyframes (<c>AVDISCARD_NONKEY</c>): entrega el último keyframe que no pasa del pedido. Para la reproducción
-    /// de 16× a 100×.
+    /// de 16× a 100×; con <see cref="VideoDecoderOptions.Keyframes"/> no hace falta leer hasta el keyframe siguiente.
     /// </summary>
     Keyframe,
 }

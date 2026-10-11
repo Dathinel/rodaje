@@ -1,4 +1,5 @@
 using Rodaje.Media.Gpu;
+using Rodaje.Media.Probe;
 
 namespace Rodaje.Media.Video;
 
@@ -44,4 +45,10 @@ public sealed record VideoDecoderOptions
     /// Las peticiones exactas (pausa, seek, <c>IVideoFrameSource</c>) nunca descartan nada, con o sin esta opción.
     /// </summary>
     public bool SkipNonReference { get; init; }
+
+    /// <summary>
+    /// Keyframes del medio, si ya se leyeron (<see cref="KeyframeIndex.Read"/>): con ellos <see cref="DecodeAccuracy.Keyframe"/>
+    /// va directo al keyframe que toca, sin leer hasta el siguiente para saber que no hay otro antes del pedido.
+    /// </summary>
+    public KeyframeIndex? Keyframes { get; init; }
 }

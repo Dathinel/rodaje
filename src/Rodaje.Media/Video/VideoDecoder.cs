@@ -176,6 +176,11 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         {
             DecodeAccuracy mode = _options.SkipNonReference ? accuracy : DecodeAccuracy.Exact;
             _approximate = mode != DecodeAccuracy.Exact;
+            if (mode == DecodeAccuracy.Keyframe && _options.Keyframes?.AtOrBefore(frameIndex) is { } keyframe)
+            {
+                frameIndex = keyframe;
+            }
+
             if (mode < _fedAccuracy)
             {
                 _positionValid = false;
