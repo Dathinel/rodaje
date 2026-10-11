@@ -97,6 +97,27 @@ public class SpeedMappingTests
     }
 
     [Fact]
+    public void EnReversa_LasMiniaturasVanDelFinalAlPrincipio_ConLaMismaRejilla()
+    {
+        ClipTimeMap forward = Retimed(S(0), S(0), S(8), new ClipSpeed { Rate = new Rational(2, 1) }).TimeMap;
+        ClipTimeMap reverse = Retimed(S(0), S(0), S(8), new ClipSpeed { Rate = new Rational(2, 1), Reverse = true }).TimeMap;
+        Assert.Equal(ClipMapping.SourceSpacing(forward, S(1)), ClipMapping.SourceSpacing(reverse, S(1)));
+
+        // La tira pide el instante del origen en el centro de cada miniatura: en reversa, el mismo de adelante en espejo.
+        Time[] centers = [S(0.5), S(1.5), S(2.5), S(3.5)];
+        Time[] ahead = Array.ConvertAll(centers, forward.Source);
+        Time[] back = Array.ConvertAll(centers, reverse.Source);
+        Assert.Equal(ahead.OrderBy(t => t.Ticks), ahead);
+        Assert.Equal(back.OrderByDescending(t => t.Ticks), back);
+        for (int i = 0; i < centers.Length; i++)
+        {
+            Assert.InRange((back[i] - (S(8) - ahead[i])).Ticks, -2, 2);
+        }
+
+        Assert.Equal("◀ 2,0×", SpeedBadge.Text(new Clip { Speed = new ClipSpeed { Rate = new Rational(2, 1), Reverse = true } }));
+    }
+
+    [Fact]
     public void LaEnvolventeSeEditaA2xYSeQuitaPorSuLugar() => UiThread.Run(async () =>
     {
         var prober = new FakeProber().Audio("m.mp3", 30);
