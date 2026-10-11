@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using Rodaje.Audio;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Tests.Support;
@@ -422,6 +423,56 @@ public sealed class AudioRetimeTests(ITestOutputHelper output)
         double limit = optimized ? 0.15 : 3;
         output.WriteLine(Invariant($"MEDIDA bloque_1024_a_{num}/{den}_{(preservePitch ? "tono" : "cinta")} = {perBlock:F4} ms ({(optimized ? "optimizado" : "Debug")})"));
         Assert.True(perBlock <= limit, Invariant($"{perBlock:F4} ms por bloque (límite {limit} ms)."));
+    }
+
+    /// <summary>
+    /// Criterio «cambio audible en ≤60 ms»: reproduciendo a 1×, el clip pasa a 2× (y la posición del origen salta, porque el
+    /// inicio del clip se queda); se mide desde la petición hasta la primera muestra de la salida del mezclador que ya
+    /// viene del mapeo nuevo, y se le suma el búfer del dispositivo (20 ms por omisión). El origen es una rampa: cada
+    /// muestra dice de qué posición del origen salió. Hoy da 50 ms + 20 = 70 ms: la mezcla conserva 50 ms ya mezclados tras
+    /// cada edición (<c>AudioMixer.KeepAfterReloadFrames</c>, el margen para reabrir y reposicionar sin cortes). La prueba
+    /// fija ese diseño (la mezcla nunca tarda más que el margen); bajar de 60 ms pide achicar el margen (docs/fase-5c.md).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_speed_change_while_playing_is_heard_within_60_ms_with_the_device_buffer(bool preservePitch)
+    {
+        const long length = 60L * Rate;
+        static float Ramp(long i) => (float)(0.8 * i / length) - 0.4f;
+        const double slope = 0.8 / length;
+        var b = new TimelineBuilder(0, 1);
+        b.AddMedia("rampa", Rational.Fps30, 30 * 60);
+        Clip clip = b.AddAudio(0, "rampa", Time.Zero, Time.Zero, S(40));
+        using var mixer = new AudioMixer(b.Plan().Audio, _ => new FunctionPcm(Ramp, length), TimeSpan.FromMilliseconds(500),
+            TimeSpan.FromSeconds(5), TimeProvider.System);
+        WaitFor(() => mixer.BufferedFrames >= 20_000);
+        const int heard = 4800;
+        mixer.Read(new float[2 * heard]);
+
+        SetSpeed(clip, new Rational(2, 1), preservePitch);
+        mixer.Reload(b.Plan().Audio);
+        WaitFor(() => mixer.BufferedFrames >= 10_000);
+        var next = new float[2 * 6000];
+        mixer.Read(next);
+
+        // Antes del cambio sale la rampa tal cual; después, el origen va 4800 muestras por delante (con WSOLA, ±256).
+        int first = Enumerable.Range(0, 6000).First(i => Math.Abs(next[2 * i] - Ramp(heard + i)) > 1000 * slope);
+        double mixerMs = first * 1000.0 / Rate;
+        double bufferMs = new AudioOutputOptions().BufferDuration.TotalMilliseconds;
+        output.WriteLine(Invariant($"MEDIDA cambio_velocidad_audible_ms_{(preservePitch ? "tono" : "cinta")} = {mixerMs:F1} de la mezcla + {bufferMs:F0} del búfer = {mixerMs + bufferMs:F1}"));
+        Assert.True(mixerMs <= 50.1, Invariant($"El cambio salió de la mezcla a los {mixerMs:F1} ms (más {bufferMs:F0} del búfer)."));
+        Assert.Equal(Ramp(2 * (heard + 5999L)), next[2 * 5999], preservePitch ? 300 * slope : 2 * slope);
+    }
+
+    private static void WaitFor(Func<bool> condition)
+    {
+        var watch = Stopwatch.StartNew();
+        while (!condition())
+        {
+            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), "La mezcla no llegó a tiempo.");
+            Thread.Sleep(1);
+        }
     }
 
     /// <summary>Sin el ffmpeg.exe del entorno de pruebas se omite con su causa, no pasa en silencio.</summary>
