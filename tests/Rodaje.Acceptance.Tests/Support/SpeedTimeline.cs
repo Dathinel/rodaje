@@ -61,14 +61,14 @@ internal sealed class SpeedTimeline
 
     /// <param name="withAudio">Con el audio enlazado; un congelado no lo lleva (el audio no se congela).</param>
     /// <param name="maxTimeline">Si se da, el clip se recorta para no pasar de esa duración en la línea de tiempo.</param>
-    public static SpeedTimeline Build(string mediaPath, SpeedCase speedCase, bool withAudio, Time? maxTimeline = null)
+    public static SpeedTimeline Build(string mediaPath, SpeedCase speedCase, bool withAudio, Time? maxTimeline = null, bool preservePitch = true)
     {
         var media = new MediaRef { Id = "m", Path = mediaPath };
         MediaInfo info = MediaProbe.Probe(mediaPath);
         info.ApplyTo(media);
         Rational sourceRate = info.Video?.FrameRate ?? throw new InvalidOperationException("El medio de velocidad no tiene video.");
 
-        var speed = new ClipSpeed { Rate = speedCase.Rate, Freeze = speedCase.Freeze, Offset = Time.FromTicks(speedCase.Offset) };
+        var speed = new ClipSpeed { Rate = speedCase.Rate, Freeze = speedCase.Freeze, Offset = Time.FromTicks(speedCase.Offset), PreservePitch = preservePitch };
         ClipTimeMap map = speedCase.Freeze
             ? ClipTimeMap.Create(Time.Zero, maxTimeline ?? Time.FromSeconds(20), SourceIn, speed)
             : ClipTimeMap.Fit(Time.Zero, SourceIn, media.Duration - Time.FromSeconds(0.5), speed);
