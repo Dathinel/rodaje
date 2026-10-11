@@ -71,6 +71,11 @@ public static class ManifestReader
 
         using (document)
         {
+            if (SafeText.HasUnreadableString(document.RootElement))
+            {
+                return Fail($"{PackageManifest.FileName} tiene un texto que no es Unicode válido (UTF-8 dañado o un carácter suelto escapado).");
+            }
+
             var errors = new List<string>();
             var warnings = new List<string>();
             PackageManifest? manifest = document.RootElement.ValueKind == JsonValueKind.Object

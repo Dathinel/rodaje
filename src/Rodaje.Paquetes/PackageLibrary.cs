@@ -219,7 +219,7 @@ public static class PackageLibrary
 
             using JsonDocument document = JsonDocument.Parse(File.ReadAllText(file), new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
             JsonElement e = document.RootElement;
-            if (e.ValueKind != JsonValueKind.Object
+            if (SafeText.HasUnreadableString(e) || e.ValueKind != JsonValueKind.Object
                 || !e.TryGetProperty("kind", out JsonElement kindElement) || kindElement.ValueKind != JsonValueKind.String
                 || ManifestReader.ParseItemKind(kindElement.GetString()!) is not { } kind)
             {

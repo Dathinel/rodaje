@@ -46,6 +46,11 @@ public sealed record PackageCatalog(IReadOnlyList<CatalogApp> Apps, IReadOnlyLis
         {
             using JsonDocument document = JsonDocument.Parse(json, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
             JsonElement root = document.RootElement;
+            if (SafeText.HasUnreadableString(root))
+            {
+                throw new FormatException("El catálogo tiene un texto que no es Unicode válido (UTF-8 dañado o un carácter suelto escapado).");
+            }
+
             if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("formatVersion", out JsonElement format) || !format.TryGetInt32(out int version))
             {
                 throw new FormatException("El catálogo debe ser un objeto con formatVersion.");
