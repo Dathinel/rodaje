@@ -107,6 +107,9 @@ public sealed class EffectContent : IEffectContent
         return _transitions.GetOrAdd(reference, LoadTransition);
     }
 
+    /// <summary>Sube con cada <see cref="Invalidate"/>: las transiciones del plan ya armado pueden haber cambiado.</summary>
+    public int Generation => Volatile.Read(ref _generation);
+
     /// <summary>Descarta todo lo leído (cambiaron los paquetes instalados) y avisa.</summary>
     public void Invalidate()
     {
