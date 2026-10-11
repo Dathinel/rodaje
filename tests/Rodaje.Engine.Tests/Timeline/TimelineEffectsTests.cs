@@ -260,6 +260,7 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
     /// (~2,8 KB por las clases <c>LayerFrame</c>/<c>CompositionFrame</c> del contrato), y el <c>Tick</c> sigue en ≤0,3 ms.
     /// </summary>
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public void Effects_add_no_bytes_to_what_each_tick_already_reserves_and_stay_under_the_budget()
     {
         const int Layers = 8;
