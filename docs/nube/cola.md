@@ -115,3 +115,21 @@ Tras el análisis, `ScanTimestamps` rebobina con `av_seek_frame(long.MinValue, A
 - **Lee:** la entrega `docs/tareas/2026-10-11-fuzz-paquete.md` y las pruebas con `Skip = "Defecto: …"` de `tests/Rodaje.Paquetes.Tests/Fuzz/PackageInstallerFuzzTests.cs`.
 
 Corrige y quita los 5 `Skip`: (1) un sustituto suelto escrito como escape JSON (barra invertida + `ud800`) hace que `Install`, `PackageLibrary.Scan` (`ScanRoot:124`, tumba el escaneo al arrancar) y `PresetReader` (`String:533`) lancen `InvalidOperationException` («missing low surrogate») desde `GetString`: rechaza el texto con `PackageInstallException`/`PackageContentException` y mensaje en español; (2) UTF-8 inválido en el contenido lanza `InvalidOperationException` con `DecoderFallbackException`: conviértelo en `PackageContentException`; (3) un `repository` con U+FFFD lanza `UriFormatException` desde `SafeText.TryParseHttpsUri:70`: devuelve inválido en lugar de lanzar. Además, en el fuzz: exige con una aserción que el subconjunto de Windows cubra todos los nombres peligrosos; corrige o quita la comprobación de los centinelas relativos (miran el directorio actual); añade centinelas UNC y `C:x`. Baja a 0 los topes de «defecto conocido» al quitar los `Skip`.
+
+## 12. Lector de video hacia atrás por GOP (base de la reversa, fase 5c.3)
+
+- **Estado:** pendiente
+- **Rama:** `claude/media-reversa`
+- **Caminos:** archivos NUEVOS en `src/Rodaje.Media/Video/` (no modifiques `VideoDecoder.cs`: el PR #5 lo está cambiando; usa su API pública), `tests/Rodaje.Media.Tests/` (archivos nuevos), `docs/arquitectura/medios.md` (sección nueva), `docs/tareas/`.
+- **Lee:** `docs/fase-5c.md` (sección «Reversa»), `docs/arquitectura/medios.md`, `src/Rodaje.Media/Probe/KeyframeIndex.cs`, `src/Rodaje.Media/Video/VideoDecoder.cs` (solo lectura).
+
+Un `ReverseFrameReader` que entregue los cuadros de un tramo en orden descendente y exacto: usa `KeyframeIndex` para buscar el keyframe ≤ el extremo bajo de cada GOP, decodifica hacia adelante guardando solo los cuadros que se mostrarán y los entrega al revés; ventana de dos GOP (uno mostrándose, otro decodificándose); tope de cuadros retenidos (`M`) con **decodificación en dos pasadas** cuando el GOP no cabe (guarda los últimos M, los entrega, redecodifica el GOP para los anteriores), determinista. Pruebas con decodificación por software (sirven en Linux con el FFmpeg de BtbN y en la CI de Windows): recorrer un clip entero hacia atrás da exactamente los índices N-1…0 (número de cuadro dibujado en los medios de prueba), con GOP largos y cortos, con cuadros B, y con M pequeño (dos pasadas); y medir cuántas decodificaciones por cuadro cuesta.
+
+## 13. Lista de codificadores para la exportación (base de la fase 6)
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-codificadores`
+- **Caminos:** archivos NUEVOS en `src/Rodaje.Media/Export/` (carpeta nueva), `tests/Rodaje.Media.Tests/Export/`, `docs/tareas/`.
+- **Lee:** `CLAUDE.md` (sección «Hacia la versión pública»: exportar por GPU o CPU sin separar el programa, licencia LGPL en la v1), `docs/legal.md`, `docs/ffmpeg-configure.txt`, `src/Rodaje.Media/Proxies/ProxyEncoders.cs` (solo lectura).
+
+Solo el modelo y la detección, sin exportar todavía: un catálogo de codificadores de salida en orden de preferencia — hardware: NVENC (h264/hevc/av1), AMF (AMD), QSV (Intel), Media Foundation; software y LGPL: SVT-AV1, libaom, libvpx (VP9), kvazaar (HEVC), OpenH264 (H.264, calidad baja) — cada uno con su códec, si es hardware, licencia, y los argumentos base de calidad y velocidad; y una sonda que diga cuáles funcionan en esta máquina (compilado en el FFmpeg y que codifica 1 s de prueba sin error), en paralelo y cacheada. Elección por defecto: «GPU si hay, si no CPU», con la regla de que H.264 sin GPU cae a AV1 o HEVC por CPU (decisión pendiente de Daniel en `CLAUDE.md`). Pruebas con dobles para la elección y una prueba real que liste lo disponible (en la CI de Windows solo habrá software y Media Foundation). Nada de x264/x265 (GPL).
