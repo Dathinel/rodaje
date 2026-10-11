@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Packages;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -79,9 +80,10 @@ internal sealed partial class ElementItem(LibraryElement element)
 
     public string Name { get; } = element.Name;
 
-    public string Source { get; } = element.IsAvailable ? element.Source : "Próximamente";
+    public string Source { get; } = element.Source;
 
-    public string Tooltip { get; } = string.IsNullOrEmpty(element.Description) ? element.Name : $"{element.Name}\n{element.Description}";
+    public string Tooltip { get; } = (string.IsNullOrEmpty(element.Description) ? element.Name : $"{element.Name}\n{element.Description}")
+        + (ElementApplier.CanApply(element) ? "\nDoble clic: aplicar al clip seleccionado." : "");
 
     public double Opacity { get; } = element.IsAvailable ? 1 : 0.5;
 

@@ -28,6 +28,8 @@ internal sealed class TimelineScene
 
     public bool AutoCrossfade { get; init; }
 
+    public string? SelectedTransitionId { get; init; }
+
     public IClipVisuals? Visuals { get; init; }
 }
 
@@ -75,6 +77,7 @@ internal sealed class TimelineRenderer
     private readonly List<Rectangle> _regionBands = [];
     private readonly List<Rectangle> _markerLines = [];
     private readonly List<Path> _crossfades = [];
+    private readonly List<Border> _transitions = [];
     private readonly List<TextBlock> _rulerLabels = [];
     private readonly List<Path> _markerFlags = [];
     private readonly List<TextBlock> _markerNames = [];
@@ -284,6 +287,7 @@ internal sealed class TimelineRenderer
             _clips[i].Hide();
         }
 
+        RealizeTransitions(scene, layout, from, to);
         RealizeCrossfades(scene, layout, from, to);
         RealizeMarkers(scene, layout, from, to);
         RealizeRuler(scene, from, to);
@@ -323,7 +327,7 @@ internal sealed class TimelineRenderer
         int used = 0;
         if (scene.AutoCrossfade && scene.MainTrack is { } main && layout.Find(main.Id) is { } row)
         {
-            foreach (Time cut in ClipDecorations.AdjacentCuts(main))
+            foreach ((Clip _, Time cut) in TransitionPlanning.OpenCuts(main))
             {
                 if (cut < from || cut > to)
                 {
@@ -344,6 +348,69 @@ internal sealed class TimelineRenderer
         }
 
         HideFrom(_crossfades, used);
+    }
+
+    /// <summary>Cada transición es un bloque sobre su corte con una X y una manija en cada borde.</summary>
+    private void RealizeTransitions(TimelineScene scene, TrackLayout layout, Time from, Time to)
+    {
+        double pps = Viewport.PixelsPerSecond;
+        int used = 0;
+        foreach (TrackRow row in layout.Rows)
+        {
+            Track track = row.Track;
+            foreach (TransitionInstance transition in track.Transitions)
+            {
+                if (TransitionPlanning.CutOf(track, transition) is not { } cut || cut + transition.After < from || cut - transition.Before > to)
+                {
+                    continue;
+                }
+
+                double left = ((cut - transition.Before).ToSeconds() * pps) - _windowLeft;
+                double right = ((cut + transition.After).ToSeconds() * pps) - _windowLeft;
+                if (right - left < TransitionPlanning.MinBlockWidth)
+                {
+                    double center = (cut.ToSeconds() * pps) - _windowLeft;
+                    left = center - (TransitionPlanning.MinBlockWidth / 2);
+                    right = center + (TransitionPlanning.MinBlockWidth / 2);
+                }
+
+                (double top, double bottom) = TransitionPlanning.Band(row);
+                bool selected = transition.Id == scene.SelectedTransitionId;
+                Border block = Pooled(_transitions, _clipsCanvas, used++, CreateTransitionBlock);
+                block.Width = right - left;
+                block.Height = bottom - top;
+                block.BorderThickness = new Thickness(selected ? 2 : 1);
+                block.BorderBrush = selected ? _brushes.Text : _brushes.Accent;
+                Canvas.SetZIndex(block, 2);
+                Canvas.SetLeft(block, left);
+                Canvas.SetTop(block, top);
+            }
+        }
+
+        HideFrom(_transitions, used);
+    }
+
+    private Border CreateTransitionBlock()
+    {
+        var grid = new Grid();
+        grid.Children.Add(new Path
+        {
+            Data = new GeometryGroup
+            {
+                Children =
+                {
+                    new LineGeometry { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) },
+                    new LineGeometry { StartPoint = new Point(0, 1), EndPoint = new Point(1, 0) },
+                },
+            },
+            Stretch = Stretch.Fill,
+            Stroke = _brushes.Accent,
+            StrokeThickness = 1,
+            Margin = new Thickness(4, 3, 4, 3),
+        });
+        grid.Children.Add(new Rectangle { Width = 3, Fill = _brushes.Accent, HorizontalAlignment = HorizontalAlignment.Left });
+        grid.Children.Add(new Rectangle { Width = 3, Fill = _brushes.Accent, HorizontalAlignment = HorizontalAlignment.Right });
+        return new Border { Background = _brushes.AccentSubtle, Child = grid };
     }
 
     private static PathGeometry CrossfadeGeometry()

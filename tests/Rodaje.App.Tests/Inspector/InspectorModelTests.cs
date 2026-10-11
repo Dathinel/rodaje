@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Tests.Support;
+using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Proxies;
@@ -147,27 +148,44 @@ public class ProxyJobListTests
 public class EffectCatalogTests
 {
     [Fact]
-    public void Video_OfreceLosSieteFiltros_YAudioSuVolumen()
+    public void Video_OfreceLosFiltrosQueAplicaElMotor_YAudioSuVolumen()
     {
         Assert.Equal(
-            ["Transformar", "Color y LUT", "Desenfoque", "Nitidez", "Viñeta", "Velocidad", "Estabilizar"],
+            ["Transformar", "Color y LUT", "Viñeta", "Desenfoque", "Nitidez", "Modo de mezcla"],
             EffectCatalog.For(TrackKind.Video).Select(e => e.Name));
         Assert.Equal([BuiltInEffects.Audio], EffectCatalog.For(TrackKind.Audio).Select(e => e.Type));
         Assert.Equal("paquete.raro", EffectCatalog.DisplayName("paquete.raro"));
     }
 
     [Fact]
-    public void Soporte_TransformacionAplicada_LoDemasEnFase5_YLaSegundaTapada()
+    public void SeAplica_SaleDelRegistro()
+    {
+        foreach (EffectDescriptor descriptor in EffectCatalog.All)
+        {
+            EffectStage stage = Rodaje.Core.Effects.EffectRegistry.Find(descriptor.Type)!.Stage;
+            Assert.Equal(stage != EffectStage.Deferred, descriptor.IsRendered);
+        }
+
+        Assert.False(EffectCatalog.Find(BuiltInEffects.Speed)!.IsRendered);
+        Assert.True(EffectCatalog.Find(BuiltInEffects.Blur)!.IsRendered);
+    }
+
+    [Fact]
+    public void Soporte_AplicadoPendienteTapadoYDesconocido()
     {
         var first = new EffectInstance { Id = "a", Type = BuiltInEffects.Transform };
         var second = new EffectInstance { Id = "b", Type = BuiltInEffects.Transform };
         var blur = new EffectInstance { Id = "c", Type = BuiltInEffects.Blur };
-        var clip = new Clip { Effects = [first, second, blur] };
+        var speed = new EffectInstance { Id = "d", Type = BuiltInEffects.Speed };
+        var unknown = new EffectInstance { Id = "e", Type = "otro.efecto" };
+        var clip = new Clip { Effects = [first, second, blur, speed, unknown] };
 
         Assert.Equal(EffectSupport.Applied, EffectCatalog.Support(clip, first, TrackKind.Video));
         Assert.Equal(EffectSupport.Shadowed, EffectCatalog.Support(clip, second, TrackKind.Video));
-        Assert.Equal(EffectSupport.Pending, EffectCatalog.Support(clip, blur, TrackKind.Video));
+        Assert.Equal(EffectSupport.Applied, EffectCatalog.Support(clip, blur, TrackKind.Video));
+        Assert.Equal(EffectSupport.Pending, EffectCatalog.Support(clip, speed, TrackKind.Video));
         Assert.Equal(EffectSupport.Pending, EffectCatalog.Support(clip, first, TrackKind.Audio));
+        Assert.Equal(EffectSupport.Unknown, EffectCatalog.Support(clip, unknown, TrackKind.Video));
 
         first.Enabled = false;
         Assert.Equal(EffectSupport.Applied, EffectCatalog.Support(clip, second, TrackKind.Video));
@@ -203,7 +221,9 @@ public class ParameterSpecTests
     {
         IReadOnlyList<ParameterSpec> specs = ParameterSpec.Audio(7.3);
         Assert.Equal(3.6, specs[1].Maximum, 6);
-        Assert.All(specs, s => Assert.False(s.Animatable));
+        Assert.True(specs[0].Animatable);
+        Assert.False(specs[1].Animatable);
+        Assert.False(specs[2].Animatable);
     }
 
     [Fact]

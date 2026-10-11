@@ -7,6 +7,15 @@
   ],
   "entries": [
     {
+      "id": "rodaje-filtros",
+      "kind": "content",
+      "name": "Filtros",
+      "description": "Looks de color con LUT propios: cálido, frío, cine, blanco y negro…",
+      "repository": "https://github.com/Dathinel/rodaje-filtros",
+      "apps": ["rodaje"],
+      "provides": ["filter", "lut"]
+    },
+    {
       "id": "rodaje-transiciones",
       "kind": "content",
       "name": "Transiciones",

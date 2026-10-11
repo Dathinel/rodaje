@@ -19,6 +19,7 @@ internal sealed class Metrics
     private readonly List<double> _appliedToPresentMs = [];
     private readonly List<double> _resizeToPresentMs = [];
     private readonly List<double> _reloadToPresentMs = [];
+    private readonly List<double> _editToPresentMs = [];
     private readonly List<string> _notes = [];
     private long _lastPresent;
     private bool _frozen;
@@ -100,6 +101,9 @@ internal sealed class Metrics
 
     public void ReloadToPresent(double ms) => Add(_reloadToPresentMs, ms);
 
+    /// <summary>Desde que empieza una edición (antes de ejecutar el comando y copiar el proyecto) hasta que se ve.</summary>
+    public void EditToPresent(double ms) => Add(_editToPresentMs, ms);
+
     /// <summary>Descarta lo medido en reproducción (para empezar a contar ya en régimen).</summary>
     public void ResetSteadyState()
     {
@@ -133,6 +137,7 @@ internal sealed class Metrics
             Summary(sb, "entrada.sesion_a_present", _appliedToPresentMs, hitches: false);
             Summary(sb, "redimensionar.a_present", _resizeToPresentMs, hitches: false);
             Summary(sb, "edicion.a_present", _reloadToPresentMs, hitches: false);
+            Summary(sb, "edicion.deslizador_a_present", _editToPresentMs, hitches: false);
             foreach (string note in _notes)
             {
                 sb.AppendLine(c, $"nota: {note}");

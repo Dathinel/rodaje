@@ -76,7 +76,21 @@ public sealed record OptionDefinition(string Name, OptionKind Kind, string Defau
     public static OptionDefinition Choice(string name, string defaultValue, params string[] choices) =>
         new(name, OptionKind.Choice, defaultValue, [.. choices]);
 
-    public static OptionDefinition Reference(string name) => new(name, OptionKind.PackageReference, "", []);
+    /// <summary>Prefijo de un archivo suelto en una referencia que lo admite (<see cref="AllowsFile"/>).</summary>
+    public const string FilePrefix = "file:";
+
+    /// <param name="name">Clave en <c>options</c>.</param>
+    /// <param name="allowsFile">Admite también un archivo suelto, <c>file:</c> más su ruta (la LUT de «Cargar .cube…»).</param>
+    public static OptionDefinition Reference(string name, bool allowsFile = false) =>
+        new(name, OptionKind.PackageReference, "", []) { AllowsFile = allowsFile };
+
+    /// <summary>La referencia admite <c>file:</c> más una ruta, relativa a la carpeta del proyecto o absoluta, con <c>/</c>.</summary>
+    public bool AllowsFile { get; init; }
+
+    /// <summary><c>file:</c> seguido de una ruta no vacía y sin caracteres de control.</summary>
+    public static bool IsFileReference(string? value) =>
+        value is not null && value.Length > FilePrefix.Length && value.StartsWith(FilePrefix, StringComparison.Ordinal)
+        && !value.AsSpan(FilePrefix.Length).ContainsAnyInRange('\0', '\u001f');
 
     /// <summary>
     /// Si <paramref name="value"/> es aceptable: uno de <see cref="Choices"/>, o una referencia vacía o bien formada
@@ -86,7 +100,7 @@ public sealed record OptionDefinition(string Name, OptionKind Kind, string Defau
     {
         ArgumentNullException.ThrowIfNull(value);
         return Kind == OptionKind.PackageReference
-            ? value.Length == 0 || IsWellFormedReference(value)
+            ? value.Length == 0 || IsWellFormedReference(value) || (AllowsFile && IsFileReference(value))
             : Choices.Contains(value);
     }
 

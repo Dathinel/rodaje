@@ -1,36 +1,76 @@
 # Render: `Rodaje.Render`
 
-Compone en Direct3D 11 las capas de un `CompositionFrame` y presenta el resultado en la cadena de intercambio de una ventana. Referencia [Medios](medios.md) (por `GpuDevice` y `D3D11TexturePayload`) y [Reproducción](reproduccion.md) (por los tipos de `Composition`), y usa TerraFX.Interop.Windows. No depende del motor: el contrato entre ambos es `Rodaje.Playback.Composition`. La vista previa y la futura exportación compartirán este mismo compositor, para que lo que se ve sea lo que se exporta.
+Compone en Direct3D 11 las capas de un `CompositionFrame` y presenta el resultado en la cadena de intercambio de una ventana. Referencia [Medios](medios.md) (por `GpuDevice` y `D3D11TexturePayload`) y [Reproducción](reproduccion.md) (por los tipos de `Composition`), y usa TerraFX.Interop.Windows. No depende del motor: el contrato entre ambos es `Rodaje.Playback.Composition`. La vista previa y la futura exportación comparten este mismo compositor, para que lo que se ve sea lo que se exporta.
 
 ```mermaid
 flowchart LR
-    CF["CompositionFrame<br/>capas NV12/P010<br/>del pool del decodificador"] --> C["Compositor.Render<br/>PsLayer: YUV → RGB,<br/>transformación, over"]
-    C --> T["Textura propia<br/>Rgba16Float o Rgba8, con mips"]
-    T --> P["Presenter.Draw<br/>letterbox, mips si reduce"]
+    CF["CompositionFrame<br/>capas NV12/P010<br/>del pool del decodificador"] --> C["Compositor.Render"]
+    C -->|IsPlain| F["PsLayer: YUV → RGB,<br/>transformación, over"]
+    C -->|efectos| G["PsGraded: color, LUT, viñeta<br/>+ mezcla por estado o shader"]
+    G -->|espaciales| I["Intermedio en pantalla<br/>desenfoque, nitidez → PsImage"]
+    C -->|transición| T["Dos lienzos → PsTransition"]
+    F & G & I & T --> O["Textura propia<br/>Rgba16Float o Rgba8, con mips"]
+    O --> P["Presenter.Draw<br/>letterbox, mips si reduce"]
     P --> SC["Swap chain<br/>(SwapChainPanel)"]
 ```
 
 ## Cómo compone
 
 - **Sin copias.** Los cuadros de D3D11VA son capas de un `Texture2DArray` del pool del decodificador, en el mismo dispositivo. [`PlaneViewCache`](../../src/Rodaje.Render/PlaneViewCache.cs) crea vistas de luma (R) y croma (RG) por textura y capa, y las suelta cuando su decodificador se cerró o tras 2 s sin uso (como mucho 512), porque una vista retiene el pool.
-- **Color.** `PsLayer` aplica el rango y la matriz del cuadro:
+- **Color.** `SampleRgb` aplica el rango y la matriz del cuadro:
   - [`YuvRange`](../../src/Rodaje.Render/YuvRange.cs) corrige que P010 leído como R16_UNORM devuelva código·64/65535;
   - `YuvToRgb` cubre BT.601, BT.709 y BT.2020.
-- **Mezcla.** De abajo hacia arriba con "over" premultiplicado, sobre negro. Se mezcla en valores con gamma, no en luz lineal ([D-016](../decisiones.md)); el muestreo es bilineal.
+- **Mezcla.** De abajo hacia arriba sobre negro, en valores con gamma, no en luz lineal ([D-016](../decisiones.md)); el muestreo es bilineal.
 - **Geometría.** [`LayerLayout.Place`](../../src/Rodaje.Render/LayerLayout.cs) encaja el tamaño visible en la secuencia ("contain"). Después escala sobre el centro, rota en sentido horario y desplaza en píxeles de secuencia. [`SourceGeometry`](../../src/Rodaje.Render/SourceGeometry.cs) aplica el aspecto de píxel y la rotación del archivo, y [`VideoLayout.Corners`](../../src/Rodaje.Render/VideoLayout.cs) recorta el relleno de la textura. El shader calcula la cobertura del borde en píxeles de destino, así los bordes rotados salen suavizados.
-- **Tamaño.** El compositor puede ser más chico que la secuencia (por ejemplo, a la mitad en una vista previa pequeña): las posiciones siguen en píxeles de secuencia y se escalan.
+- **Tamaño.** El compositor puede ser más chico que la secuencia (vista previa a media resolución): posiciones y radios siguen en píxeles de secuencia y se escalan.
 - **Contexto compartido.** El compositor toma `GpuDevice.LockContext()`, porque FFmpeg usa el mismo contexto. Al terminar, `QuadPipeline.Unbind` suelta las superficies para que el decodificador pueda reutilizarlas.
-- **Resultado.** Las capas que no son NV12/P010 de D3D11 o que ya se liberaron se saltan y se cuentan en `CompositeResult`; una capa de otro dispositivo es un error.
+
+## Efectos (fase 5)
+
+[`LayerRenderer`](../../src/Rodaje.Render/LayerRenderer.cs) dibuja cada capa. Una capa con `IsPlain` (sin efectos, mezcla normal ni transición) va por el **camino rápido de la fase 3**, sin cambios: un cuadrilátero con `PsLayer`. El resto:
+
+| Etapa | Cómo | Dónde |
+|---|---|---|
+| Color, LUT, viñeta | Fusionados en `PsGraded`, el shader que convierte YUV a RGB; una variante por combinación de banderas | [`EffectShaders`](../../src/Rodaje.Render/Effects/EffectShaders.cs) |
+| Desenfoque, nitidez | Intermedio RGBA16F del tamaño de la capa en pantalla (sin pasar del lado mayor del destino), luego `PsImage` con la transformación | [`LayerRenderer.Effects`](../../src/Rodaje.Render/LayerRenderer.Effects.cs) |
+| Mezcla | Normal, suma, multiplicar y trama por estado fijo; los otros 9 por shader, con una copia del fondo solo en el rectángulo de la capa | `EffectPipeline` |
+| Transición | Cada lado (con sus efectos) en un lienzo transparente del tamaño del destino; `PsTransition` los mezcla y aplica la mezcla de la capa | `LayerRenderer.Effects` |
+
+**Fórmulas** (en gamma, de 0 a 1; las pruebas tienen su propia referencia en la CPU, [`EffectReference`](../../tests/Rodaje.Render.Tests/Support/EffectReference.cs)):
+
+- **Color**, en este orden: exposición `c·2^e`; contraste `(c − 0,5)·(1 + k) + 0,5`; saturación `L + (c − L)·(1 + s)` con L de BT.709; temperatura y tinte como ganancias `R·(1 + 0,2t)`, `G·(1 − 0,2m)`, `B·(1 − 0,2t)`; altas y sombras suman `0,25·(h·smoothstep(0,5; 1; L) + s·(1 − smoothstep(0; 0,5; L)))`; recorte a 0–1.
+- **LUT 3D**: `Texture3D` RGBA16F con filtro trilineal del hardware y `lerp(c, LUT(c), intensidad)`. Una LUT de menos de 17³ se subdivide al subirla (sin cambiar el resultado), porque el filtro pondera con unos 8 bits de fracción. Se pide con `IEffectResources.TryGetLut`, que nunca espera: si no está, la capa sale sin LUT y se cuenta.
+- **Viñeta**: `d = |2·(uv − 0,5)|/√2` en el espacio de la capa; `t = saturate((d − tamaño)/suavidad)`; ganancia `1 − cantidad·smoothstep(t)`.
+- **Desenfoque**: gaussiano con sigma = radio/3. Mientras sigma pase de 2 px se reduce a la mitad (promedio de 2×2, pirámide ½, ¼…), y en ese nivel van dos pasadas separables de ⌈3σ⌉ muestras por lado.
+- **Nitidez**: máscara de enfoque `saturate(c + cantidad·(c − gauss(c, σ = radio)))`.
+- **Mezcla**: con fuente premultiplicada y fondo opaco, `Cb·(1 − a) + a·B(Cb, Cs)` con las funciones B de W3C (*Compositing and Blending Level 1*). La suma es `Cb + a·Cs` y en RGBA16F no se recorta hasta la salida.
+- **Transiciones** (`p` de 0 a 1, exactas en los extremos): fundido `A·(1 − p) + B·p`; a color en dos mitades a través del color; barrido con borde lineal de ancho `suavidad` en la dirección del ángulo (0 = de izquierda a derecha); empujar, con el saliente corrido `p` cuadros; zoom y desenfoque con un peso `4p(1 − p)` que vale 0 en los extremos. Un `rodaje.preset` que llega sin resolver (falta el paquete) cae a fundido cruzado y cuenta como contenido que falta.
+
+**Unidades.** Los radios están en píxeles de la secuencia: el intermedio mide en píxeles de pantalla y los radios se multiplican por esa escala, así la vista previa a media resolución se ve como la exportación. Medida: 0,64/255 de diferencia media entre mitad y completa reducida.
+
+**Dirección del empuje.** `rodaje.push` no tiene parámetros numéricos y su dirección es una opción de texto: el motor manda su índice en `EffectRegistry.PushDirections` (0 izquierda, 1 derecha, 2 arriba, 3 abajo) en el primer valor de `LayerTransition.Values`.
+
+**Lo que no se aplica se cuenta, nunca se espera.** `CompositeResult` trae `EffectsApplied`, `EffectsSkipped` (shader sin compilar, pool lleno, código desconocido, un segundo color o viñeta en la misma capa), `MissingContent` (LUT que carga o falta, preset sin resolver) y `PoolBytes`.
+
+### Shaders y memoria
+
+- **[`ShaderCache`](../../src/Rodaje.Render/Shaders/ShaderCache.cs)**: bytecode en memoria y en `%LOCALAPPDATA%\Rodaje\cache\shaders\<sha256>.cso` (o `RODAJE_DATOS\cache\shaders`). La clave incluye fuente, variante, perfil y opciones del compilador. `EffectPipeline` crea las 23 variantes en segundo plano al abrir el compositor (`ShadersReady`); hasta entonces la capa sale por el camino rápido. Los shaders base (`VsQuad`, `PsLayer`, `PsPresent`) siguen compilándose al arrancar, como en D-015.
+- **[`RenderTargetPool`](../../src/Rodaje.Render/RenderTargetPool.cs)**: intermedios reutilizados, con tamaños redondeados a 64 px y un tope del 7,5 % de la VRAM entre 96 y 300 MB (300 MB con 4 GB), fuera del presupuesto de los decodificadores. Si una textura no cabe, el efecto se salta. Las libres se sueltan tras 240 cuadros sin uso o con `TrimCachedViews`.
+- **[`GpuEffectRegistry`](../../src/Rodaje.Render/Effects/GpuEffectRegistry.cs)**: tabla explícita código → implementación, sin reflexión; una prueba exige que coincida con `EffectRegistry`.
 
 ## Archivos
 
 | Archivo | Qué hace |
 |---|---|
-| [`Compositor.cs`](../../src/Rodaje.Render/Compositor.cs) | `Render(frame) → CompositeResult`, `ReadbackRgba()` (pruebas y miniaturas), `TrimCachedViews()` en pausa |
-| [`Presenter.cs`](../../src/Rodaje.Render/Presenter.cs) | `Draw(rtv, ancho, alto, compositor)`: letterbox con `VideoLayout.Fit`, mips y muestreo trilineal al reducir. Deja el destino libre para dibujar encima |
+| [`Compositor.cs`](../../src/Rodaje.Render/Compositor.cs) | `Render(frame) → CompositeResult`, `Resources` (LUT), `ShadersReady`, `ReadbackRgba()`, `TrimCachedViews()` en pausa |
+| [`LayerRenderer.cs`](../../src/Rodaje.Render/LayerRenderer.cs), [`LayerRenderer.Effects.cs`](../../src/Rodaje.Render/LayerRenderer.Effects.cs) | Camino rápido, efectos por píxel, intermedios, mezclas y transiciones |
+| [`Effects/`](../../src/Rodaje.Render/Effects) | HLSL de los efectos, `EffectPipeline` (constantes, estados de mezcla, shaders), `LutTextures`, `GpuEffectRegistry` |
+| [`RenderTargetPool.cs`](../../src/Rodaje.Render/RenderTargetPool.cs) | Intermedios con tope |
+| [`Shaders/ShaderCache.cs`](../../src/Rodaje.Render/Shaders/ShaderCache.cs) | Caché de bytecode en memoria y disco |
+| [`Presenter.cs`](../../src/Rodaje.Render/Presenter.cs) | `Draw(rtv, ancho, alto, compositor)`: letterbox con `VideoLayout.Fit`, mips y muestreo trilineal al reducir |
 | [`QuadPipeline.cs`](../../src/Rodaje.Render/QuadPipeline.cs) | Estado compartido: cuatro vértices sin búfer, sampler lineal, mezcla premultiplicada y constantes del `cbuffer` |
-| [`RenderShaders.cs`](../../src/Rodaje.Render/RenderShaders.cs) | HLSL en línea (`VsQuad`, `PsLayer`, `PsPresent`), compilado una vez por proceso |
-| [`ShaderCompiler.cs`](../../src/Rodaje.Render/ShaderCompiler.cs) | Compila con el `d3dcompiler_47.dll` del sistema, con optimización O3 y las advertencias como errores ([D-015](../decisiones.md)) |
+| [`RenderShaders.cs`](../../src/Rodaje.Render/RenderShaders.cs) | HLSL base (`Prelude` común, `VsQuad`, `PsLayer`, `PsPresent`) |
+| [`ShaderCompiler.cs`](../../src/Rodaje.Render/ShaderCompiler.cs) | Compila con el `d3dcompiler_47.dll` del sistema, con O3 y las advertencias como errores ([D-015](../decisiones.md)) |
 | [`LayerLayout.cs`](../../src/Rodaje.Render/LayerLayout.cs), [`VideoLayout.cs`](../../src/Rodaje.Render/VideoLayout.cs), [`SourceGeometry.cs`](../../src/Rodaje.Render/SourceGeometry.cs) | Matemática de colocación, letterbox y rotaciones, probada sin GPU |
 | [`YuvRange.cs`](../../src/Rodaje.Render/YuvRange.cs) | Rangos y matrices de color |
 | [`GpuTimer.cs`](../../src/Rodaje.Render/GpuTimer.cs) | Mide el tiempo de GPU con consultas de marca de tiempo |
@@ -40,7 +80,23 @@ flowchart LR
 
 [`tests/Rodaje.Render.Tests`](../../tests/Rodaje.Render.Tests):
 
-- **`CompositorTests`** (`[GpuFact]`, necesitan texturas NV12 y P010) compara cada píxel con `ReferenceColor`, que implementa las ecuaciones ITU por su cuenta, sin compartir código con los shaders. Usa imágenes NV12 y P010 de 8 y 10 bits y las presenta en un destino fuera de pantalla legible.
-- **`LayerLayoutTests` y `VideoMathTests`** prueban la geometría sin GPU.
-- **`DecoderCompositionTests`** (`[HardwareFact]`) compone superficies reales del decodificador y lee el número de cuadro de cada capa.
-- **`CompositorPerformanceTests`** mide el tiempo de composición.
+- **`CompositorTests`** (`[GpuFact]`) compara cada píxel con `ReferenceColor`, que implementa las ecuaciones ITU por su cuenta, en NV12 y P010 de 8 y 10 bits.
+- **`EffectFidelityTests`**: cada control de color, LUT (identidad ≤1/255 en 2³, 17³, 33³ y 65³; una curva ≤2/255), viñeta, desenfoque, nitidez y los 13 modos de mezcla ≤2/255 frente a la CPU; media resolución frente a completa ≤3/255 de media.
+- **`TransitionTests`**: en 0 y en 1 cada transición es byte a byte el clip que sale o el que entra; el fundido a 0,5 es el promedio ±1.
+- **`EffectPipelineTests`**: la tabla de la GPU coincide con el registro; un cuadro no espera a un shader; el pool lleno salta efectos sin fallar.
+- **`ShaderCompileTests`**: todas las variantes compilan con las advertencias como errores; la caché en disco se lee en otra sesión.
+- **`EffectPerformanceTests`** y **`CompositorPerformanceTests`** miden con `GpuTimer`; los objetivos se exigen con `RODAJE_PRUEBAS_LARGAS=1`.
+
+**Cifras** (RTX 3050 Laptop, mediana de 300 cuadros):
+
+| Escenario | Objetivo | Medido |
+|---|---|---|
+| 8 capas 1080p sin efectos | ≤0,6 ms | 0,53 ms (p95 0,86) |
+| Una capa 4K con color y LUT | ≤1,0 ms | 0,33 ms |
+| 3 capas 4K con color, LUT, desenfoque y superponer | ≤6 ms, p95 ≤8 | 1,8–3,4 ms, p95 2,7–6,9 |
+| Transición 4K con color y LUT (fundido, barrido, zoom) | ≤5 ms | 0,98–0,99 ms |
+| Ídem con desenfoque | ≤5 ms | 1,2–1,5 ms |
+| Media resolución | ≤40 % | 19–32 % |
+| Pool en 4K | ≤300 MB | 92 MB (3 capas), 151 MB (transición con desenfoque) |
+
+Los rangos son de dos corridas: la GPU de un portátil varía con el reloj.

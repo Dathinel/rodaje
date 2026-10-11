@@ -251,8 +251,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         {
             _dragRow = null;
             string label = row.Spec.Label;
-            await editor.ResetAsync(clip, row.Spec.EffectType, [.. Defaults([row])], row.Spec.ResetDescription,
-                n => ConfirmKeyframeRemovalAsync($"Se borrarán {Keyframes(n)} de «{label}» y quedará en su valor de fábrica.", "Quitar keyframes y restablecer"));
+            await editor.ResetAsync(clip, row.Spec.EffectType, [.. Defaults([row])], row.Spec.ResetDescription, KeyframeDialog.ForReset(XamlRoot, label));
         }
     }
 
@@ -263,7 +262,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             _dragRow = null;
             string label = row.Spec.Label;
             await editor.ClearKeyframesAsync(clip, row.Spec.EffectType, row.Spec.Name, "Quitar keyframes de " + char.ToLowerInvariant(label[0]) + label[1..],
-                n => ConfirmKeyframeRemovalAsync($"Se borrarán {Keyframes(n)} de «{label}». Quedará fijo en el valor que se ve en el cursor.", "Quitar keyframes"));
+                KeyframeDialog.ForClear(XamlRoot, label));
         }
     }
 
@@ -277,30 +276,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         FinishChanges(_videoRows);
         _dragRow = null;
         await editor.ResetAsync(clip, BuiltInEffects.Transform, [.. Defaults(_videoRows)], "Restablecer transformación",
-            n => ConfirmKeyframeRemovalAsync($"Se borrarán {Keyframes(n)} de la transformación y todo quedará en sus valores de fábrica.", "Quitar keyframes y restablecer"));
-    }
-
-    private static string Keyframes(int count) => count == 1 ? "1 keyframe" : $"{count} keyframes";
-
-    /// <summary>Aviso antes de borrar keyframes; Cancelar es el botón por defecto y Esc también cancela.</summary>
-    private async Task<bool> ConfirmKeyframeRemovalAsync(string message, string confirm)
-    {
-        if (DialogGate.IsOpen || XamlRoot is null)
-        {
-            return false;
-        }
-
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "¿Quitar los keyframes?",
-            Content = new TextBlock { Text = message + " Se puede deshacer con Ctrl+Z.", TextWrapping = TextWrapping.Wrap },
-            PrimaryButtonText = confirm,
-            CloseButtonText = "Cancelar",
-            DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
-        };
-        return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
+            KeyframeDialog.ForResetAll(XamlRoot, "la transformación"));
     }
 
     private async void OnSavePresetClick(object sender, RoutedEventArgs e)

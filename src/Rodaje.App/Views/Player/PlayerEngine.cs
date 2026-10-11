@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Settings;
 using Rodaje.Audio.Metering;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -37,6 +38,9 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 {
     private static readonly Func<LayerFrame, SourceGeometry> Geometry = l => new SourceGeometry(l.SampleAspectRatio, l.Rotation);
     private static readonly TimeSpan GpuSampleInterval = TimeSpan.FromMilliseconds(250);
+
+    // Con calidad Auto se mide más seguido al reproducir: el p95 de un segundo necesita algo más que cuatro muestras.
+    private static readonly TimeSpan AutoGpuSampleInterval = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan StatsInterval = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan RmsWindow = TimeSpan.FromMilliseconds(300);
     private static readonly Func<TimelineSession, Time, Time, Time, AudioLevels> MeasureMix =
@@ -64,6 +68,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private GpuTimer? _gpuTimer;
     private PreviewProxies? _proxies;
     private ProxyUsage _proxyUsage = ProxyUsage.Auto;
+    private IEffectContent? _content;
     private Project? _project;
     private string? _sequenceId;
     private bool _gpuPending;
@@ -80,6 +85,11 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private Time _shuttleAnchor;
     private long _shuttleAnchorStamp;
     private double _zoom;
+    private readonly PreviewQualityGovernor _quality = new();
+    private int _previewDivisor = 1;
+    private int _previewDowngrades;
+    private long _editMark;
+    private long _editMarkTaken;
 
     private readonly Lock _meterLock = new();
     private TimelineSession? _meterSession;
@@ -175,6 +185,21 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     public void SetProxyUsage(ProxyUsage usage) => Post(new Command(CommandKind.Proxies, Proxies: usage));
 
+    /// <summary>LUT y transiciones de paquete; si ya hay una secuencia abierta, se vuelve a abrir en la misma posición.</summary>
+    public void SetContent(IEffectContent? content) => Post(new Command(CommandKind.Content, Content: content));
+
+    /// <summary>Resolución de la vista previa: Auto, completa, mitad o cuarto.</summary>
+    public void SetPreviewQuality(PreviewQuality quality) => Post(new Command(CommandKind.Quality, Quality: quality));
+
+    /// <summary>Veces que la calidad Auto bajó la resolución al reproducir (para medir).</summary>
+    public int PreviewDowngrades => Volatile.Read(ref _previewDowngrades);
+
+    /// <summary>
+    /// Marca el instante en que empieza una edición (antes de ejecutar el comando): el próximo proyecto que llegue con
+    /// <see cref="Reload"/> mide desde aquí hasta que se presenta (<c>edicion.deslizador_a_present</c>).
+    /// </summary>
+    public void MarkEditStart(long timestamp) => Interlocked.Exchange(ref _editMark, timestamp);
+
     /// <summary>J, K o L: la velocidad siguiente se decide en el hilo de render, con el estado real del transporte.</summary>
     public void ShuttleKey(ShuttleKey key) => Post(new Command(CommandKind.Shuttle, Key: key));
 
@@ -236,6 +261,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 ApplyResize();
                 ApplyProject();
                 ProcessCommands();
+                if (_session is { IsPlaying: false } && _quality.Paused())
+                {
+                    EnsureCompositor();
+                    _dirty = true;
+                }
+
                 if (_session is null || _swapChain is null)
                 {
                     PublishSnapshot();
@@ -381,6 +412,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         if (reload is not null && _session is not null)
         {
             _project = reload;
+            _editMarkTaken = Interlocked.Exchange(ref _editMark, 0);
             try
             {
                 _session.Reload(reload);
@@ -421,6 +453,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 EnableAudio = _enableAudio,
                 UseProxies = _proxyUsage,
                 ProxyResolver = _proxyUsage == ProxyUsage.Never ? null : _proxies?.Resolver,
+                Content = _content,
             });
         }
 #pragma warning disable CA1031 // Una secuencia que no abre deja el reproductor vacío, no el hilo muerto.
@@ -452,6 +485,30 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                     _session?.Seek(position);
                 }
 
+                continue;
+            }
+
+            if (command.Kind == CommandKind.Content)
+            {
+                if (!ReferenceEquals(command.Content, _content))
+                {
+                    _content = command.Content;
+                    if (_session is not null)
+                    {
+                        Time position = _session.Position;
+                        OpenSession();
+                        _session?.Seek(position);
+                    }
+                }
+
+                continue;
+            }
+
+            if (command.Kind == CommandKind.Quality)
+            {
+                _quality.Quality = command.Quality;
+                EnsureCompositor();
+                _dirty = true;
                 continue;
             }
 
@@ -542,7 +599,10 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
     }
 
-    /// <summary>Compone a tamaño de secuencia, o a la mitad si el panel no llega ni a la mitad.</summary>
+    /// <summary>
+    /// Compone a tamaño de secuencia dividido por la calidad de la vista previa, y al menos a la mitad si el panel no
+    /// llega ni a la mitad de la secuencia.
+    /// </summary>
     private void EnsureCompositor()
     {
         if (_session is null || _swapChain is null || _gpu is null)
@@ -553,11 +613,10 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         int width = _session.Width;
         int height = _session.Height;
         bool halve = _zoom > 0 ? _zoom <= 0.5 : _swapChain.Width * 2 <= width && _swapChain.Height * 2 <= height;
-        if (halve)
-        {
-            width = Math.Max(1, width / 2);
-            height = Math.Max(1, height / 2);
-        }
+        int divisor = Math.Max(halve ? 2 : 1, _quality.Divisor);
+        _previewDivisor = _quality.Divisor;
+        width = Math.Max(1, width / divisor);
+        height = Math.Max(1, height / divisor);
 
         if (_compositor is { } current && current.Width == width && current.Height == height)
         {
@@ -578,7 +637,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         int drawn = 0;
         if (_compositor is not null)
         {
-            bool measure = !_gpuPending && Stopwatch.GetElapsedTime(_lastGpuBegin) >= GpuSampleInterval;
+            TimeSpan interval = _quality.Quality == PreviewQuality.Auto && _session.IsPlaying ? AutoGpuSampleInterval : GpuSampleInterval;
+            bool measure = !_gpuPending && Stopwatch.GetElapsedTime(_lastGpuBegin) >= interval;
             if (measure)
             {
                 _lastGpuBegin = Stopwatch.GetTimestamp();
@@ -621,6 +681,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _reloadSince = 0;
         }
 
+        if (_editMarkTaken != 0)
+        {
+            _metrics.EditToPresent(Stopwatch.GetElapsedTime(_editMarkTaken, presented).TotalMilliseconds);
+            _editMarkTaken = 0;
+        }
+
         _dirty = false;
     }
 
@@ -635,6 +701,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         if (_gpuTimer!.WaitMilliseconds(TimeSpan.FromMilliseconds(2)) is { } ms)
         {
             _metrics.GpuCompose(ms);
+            if (_session is { IsPlaying: true } && _quality.Sample(ms, Stopwatch.GetElapsedTime(0)))
+            {
+                Volatile.Write(ref _previewDowngrades, _quality.Downgrades);
+                _metrics.Note($"calidad Auto: la vista previa baja a 1/{_quality.Divisor} (p95 de GPU > {PreviewQualityGovernor.BudgetMs} ms)");
+                EnsureCompositor();
+            }
         }
     }
 
@@ -679,6 +751,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             FramesDropped = _framesDropped,
             UsesProxy = _usesProxy,
             ShuttleRate = EffectiveShuttleRate(s),
+            PreviewDivisor = _previewDivisor,
         };
         if (!next.Equals(_snapshot))
         {
@@ -711,6 +784,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         Proxies,
         Shuttle,
         Zoom,
+        Quality,
+        Content,
     }
 
     private readonly record struct Command(
@@ -720,7 +795,9 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         int Frames = 0,
         ProxyUsage Proxies = ProxyUsage.Auto,
         ShuttleKey Key = default,
-        double Zoom = 0);
+        double Zoom = 0,
+        PreviewQuality Quality = PreviewQuality.Auto,
+        IEffectContent? Content = null);
 
     private readonly record struct SizeRequest(int Width, int Height, float ScaleX, float ScaleY, long RequestedAt);
 }

@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Views.Inspector;
 using Rodaje.Engine.Timeline;
@@ -103,6 +104,11 @@ internal sealed partial class TitleBar : UserControl
         ProxyAuto.IsChecked = proxies == ProxyUsage.Auto;
         ProxyAlways.IsChecked = proxies == ProxyUsage.Always;
         ProxyNever.IsChecked = proxies == ProxyUsage.Never;
+        PreviewQuality quality = _services.Settings.Current.PreviewQuality;
+        QualityAuto.IsChecked = quality == PreviewQuality.Auto;
+        QualityFull.IsChecked = quality == PreviewQuality.Full;
+        QualityHalf.IsChecked = quality == PreviewQuality.Half;
+        QualityQuarter.IsChecked = quality == PreviewQuality.Quarter;
     }
 
     private void OnActionClick(object sender, RoutedEventArgs e)
@@ -136,6 +142,14 @@ internal sealed partial class TitleBar : UserControl
         {
             _services.Settings.Current.ProxyUsage = usage;
             _services.Player.SetProxyUsage(usage);
+        }
+    }
+
+    private void OnQualityClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string tag } && _services is not null && Enum.TryParse(tag, out PreviewQuality quality))
+        {
+            _services.SetPreviewQuality(quality);
         }
     }
 

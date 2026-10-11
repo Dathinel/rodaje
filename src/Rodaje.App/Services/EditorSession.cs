@@ -418,6 +418,7 @@ public sealed partial class EditorSession : ObservableObject
         History.Changed += OnHistoryChanged;
         _originDescription = originDescription;
         _selection = [];
+        _selectedTransition = null;
         _editVersion++;
         FilePath = filePath;
         _playback.Load(project.Clone(), sequenceId);
@@ -446,13 +447,24 @@ public sealed partial class EditorSession : ObservableObject
         {
             SetSelection(kept);
         }
+        else if (PruneTransition())
+        {
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void SetSelection(List<string> selection)
     {
-        if (selection.SequenceEqual(_selection, StringComparer.Ordinal))
+        bool dropTransition = _selectedTransition is not null && (selection.Count > 0 || _selection.Count == 0);
+        if (selection.SequenceEqual(_selection, StringComparer.Ordinal) && !dropTransition)
         {
             return;
+        }
+
+        if (dropTransition)
+        {
+            _selectedTransition = null;
+            OnPropertyChanged(nameof(SelectedTransitionId));
         }
 
         _selection = selection;
