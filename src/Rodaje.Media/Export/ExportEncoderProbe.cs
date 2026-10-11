@@ -214,7 +214,7 @@ public sealed class FfmpegExportEncoderProbe : IExportEncoderProbe
         || line.Contains("Error sending frames to consumers", StringComparison.Ordinal)
         || line.Contains("Could not open encoder before EOF", StringComparison.Ordinal)
         || line.Contains("Error while filtering", StringComparison.Ordinal)
-        || line.StartsWith("Error opening output file", StringComparison.Ordinal);
+        || line.StartsWith("Error opening output file ", StringComparison.Ordinal);
 
     // «[h264_nvenc @ 000001d2] mensaje» → «mensaje».
     private static string StripContext(string line)
