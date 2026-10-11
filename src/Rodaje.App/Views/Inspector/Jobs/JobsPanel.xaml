@@ -64,7 +64,7 @@
         </ListView>
 
         <ScrollViewer Grid.Row="3" MaxHeight="420" HorizontalScrollMode="Disabled" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
-            <export:ExportJobsView x:Name="Exports" Padding="12,10,12,12" />
+            <export:ExportJobsView x:Name="Exports" />
         </ScrollViewer>
     </Grid>
 </UserControl>

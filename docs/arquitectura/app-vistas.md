@@ -80,7 +80,21 @@ Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas c
 - **Audio.** Volumen con keyframes (de −60 a +24 dB) y fundidos de entrada y salida.
 - **Transición.** Tipo (propia o de paquete), duración (hasta el tope del núcleo), parámetros, dirección del empuje y quitar; todo con `Edits.SetTransition*`.
 - **Historial.** Cada paso del deshacer; un clic vuelve a ese estado.
-- **Trabajos.** Proxies en curso y terminados.
+- **Trabajos.** Proxies en curso y terminados, y debajo las exportaciones (ver [Exportar](#exportar-viewsexport)).
+
+## Exportar (`Views/Export`)
+
+- **Entrada.** Archivo → Exportar…, el botón EXPORTAR y Ctrl+E (Ctrl+M también en el estilo Rodaje; en Ágil solo Ctrl+E y en Clásico solo Ctrl+M). Se abre como página encima del editor (`ShellPage.Export`); Esc la cierra.
+- **Preajustes arriba**, en tarjetas: los de fábrica (`ExportPresets`), los propios y «Personalizado». Cualquier cambio en Avanzado que ya no coincide con el preajuste marca «Personalizado».
+- **Vista sencilla.** Archivo (con «Cambiar…» y la comprobación: carpeta que falta, nombre no válido o archivo que se reemplazará, que se confirma al exportar), rango (toda la secuencia, lo seleccionado o cada región como entrada y salida), una línea con el formato y la estimación de tamaño y tiempo (`ExportEstimator`: exacta con tasa fija o tamaño objetivo, «≈» en calidad constante).
+- **Otra forma.** Si la salida no tiene la forma de la secuencia (Reels 9:16 sobre 16:9), aparece barras, recortar o estirar y el botón «Cambiar la secuencia a 9:16» (`SequenceShapeCommand`: un paso del historial, con «Deshacer» en el aviso).
+- **Avanzado** (plegado; se recuerda si se deja abierto): contenedor, faststart y capítulos; video con códec, codificador (GPU · NVIDIA, Windows o CPU; AMF y QSV «sin probar»; kvazaar y OpenH264 con su nota), control de tasa (calidad con la escala del codificador, VBR media y máxima, CBR, tamaño objetivo con dos pasadas), resolución, forma, fps, 8 o 10 bits, perfil, velocidad del codificador y cuadro clave; audio con códec, tasa, frecuencia, canales y normalización (−14, −16 o −23 LUFS); guardar, importar, guardar en archivo (`.rodaje-preajuste`) y quitar preajustes propios.
+- **Validación honesta.** Las listas solo traen lo que los codificadores que pasaron la sonda pueden hacer en ese contenedor (`ExportChoices`). Un preajuste o un cambio imposible se ajusta solo y el diálogo dice qué cambió y por qué (`ExportSettingsEditor.Coerce`: «WebM no admite H.264 en este equipo: se usa VP9»); sin GPU ni Media Foundation, H.264 cae a AV1 por CPU. Lo que el usuario tiene que corregir (una VBR con máxima menor que la media, una carpeta que no existe, la secuencia vacía) sale en rojo y apaga «Exportar».
+- **Rendimiento, cada vez.** «Alto rendimiento (menor tiempo)» o «Bajo rendimiento (la app sigue fluida)», con lo último elegido marcado (`ExportSettings.Performance`, D-028).
+- **Al exportar** se recuerda todo (`ExportPresetLibrary.Remember`), la petición lleva una copia del proyecto y los codificadores fijados, entra en la cola (`ExportJobList`: una a la vez, las demás esperan) y la página se cierra: se sigue editando.
+- **Progreso** en Trabajos → Exportaciones (`ExportJobsView`): miniatura del último cuadro, estado, porcentaje, fps, tiempo restante, pasada y cancelar. Al terminar, «Abrir carpeta» y «Reproducir»; si falla, el error en español con su acción (`ExportErrorText` por `ExportErrorCode`: reintentar, exportar sin lo que falta, elegir otra carpeta, cambiar ajustes o complementos). La barra de la ventana avisa al terminar o fallar con el mismo botón.
+- **Orquestación.** La vista habla con `IExportRunner` (`GetEncodersAsync` con la sonda, `Start(request, continueWithoutMissing)`) e `IExportJob` (progreso, miniatura, `Failure`, `Cancel`, `Completion`). Hasta que la conecte el agente D, la ventana usa `SimulatedExportRunner`, que recorre los estados sin escribir nada y lo dice en el pie del diálogo.
+- **Autoprueba.** `app.ps1 -Autoprueba <clip>` abre Exportar con «Avanzado» y completa una exportación de 2 s con el runner de la ventana; con `RODAJE_AUTOPRUEBA_CAPTURAS=carpeta` deja PNG del diálogo y del progreso dibujados por XAML.
 
 ## Atajos (`Views/Shortcuts`)
 

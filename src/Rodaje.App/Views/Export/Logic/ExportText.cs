@@ -6,11 +6,11 @@ namespace Rodaje.App.Views.Export;
 /// <summary>Textos del diálogo y del progreso, en español (coma decimal, aunque la app use la cultura invariante).</summary>
 public static class ExportText
 {
-    /// <summary>Un número con coma decimal y hasta <paramref name="decimals"/> decimales («1,78», «29,97», «3»).</summary>
+    /// <summary>Un número con coma decimal, hasta <paramref name="decimals"/> decimales y el signo menos tipográfico («1,78», «−14»).</summary>
     public static string Number(double value, int decimals = 1)
     {
         string format = decimals <= 0 ? "0" : "0." + new string('#', decimals);
-        return value.ToString(format, CultureInfo.InvariantCulture).Replace('.', ',');
+        return value.ToString(format, CultureInfo.InvariantCulture).Replace('.', ',').Replace('-', '−');
     }
 
     /// <summary>«850 KB», «245 MB», «1,4 GB» (en potencias de 1000, como el Explorador las redondea a la vista).</summary>

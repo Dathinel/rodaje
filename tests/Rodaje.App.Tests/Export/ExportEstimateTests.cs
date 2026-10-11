@@ -87,6 +87,14 @@ public class ExportEstimateTests
     [InlineData(1_400_000_000, "1,4 GB")]
     public void LosTamanosSeEscribenEnEspanol(long bytes, string text) => Assert.Equal(text, ExportText.Bytes(bytes));
 
+    [Fact]
+    public void LosNumerosLlevanComaYMenosTipografico()
+    {
+        Assert.Equal("29,97", ExportText.Number(29.97, 2));
+        Assert.Equal("−14", ExportText.Number(-14));
+        Assert.Equal("3", ExportText.Number(3.04));
+    }
+
     [Theory]
     [InlineData(45, "45 s")]
     [InlineData(65, "1 min 05 s")]

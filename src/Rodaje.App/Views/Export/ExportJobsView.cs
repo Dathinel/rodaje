@@ -41,7 +41,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         Grid.SetColumn(_clear, 1);
         header.Children.Add(_clear);
         _clear.Click += (_, _) => _jobs?.ClearFinished();
-        var root = new StackPanel { Spacing = 6 };
+        var root = new StackPanel { Spacing = 6, Padding = new Thickness(12, 10, 12, 12) };
         root.Children.Add(header);
         root.Children.Add(_empty);
         root.Children.Add(_list);

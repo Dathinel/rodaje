@@ -8,13 +8,13 @@ public class ExportSettingsEditorTests
 {
     private static readonly IReadOnlyList<EncoderSpec> All = SimulatedEncoders.All;
 
-    public static TheoryData<string> FactoryPresets() => [.. ExportPresets.All.Select(p => p.Id)];
+    public static TheoryData<string> FactoryPresets() => [.. ExportPresetLibrary.Factory.Select(p => p.Id)];
 
     [Theory]
     [MemberData(nameof(FactoryPresets))]
     public void LosPreajustesDeFabrica_SeExportanSinCambiosNiProblemas(string id)
     {
-        ExportPreset preset = ExportPresets.All.Single(p => p.Id == id);
+        ExportPreset preset = ExportPresetLibrary.Factory.Single(p => p.Id == id);
 
         CoercedSettings coerced = ExportSettingsEditor.Coerce(preset.Settings, All);
 
