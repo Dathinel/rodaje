@@ -70,6 +70,14 @@ internal sealed partial class TimelineScheduler : IDisposable
     private readonly ProxyUsage _proxyUsage;
     private readonly MediaSourceResolver? _resolver;
     private readonly IEffectContent? _content;
+    private readonly TimeSpan _partialTimeout;
+    private readonly List<(int TrackIndex, LayerState Main, LayerState? Incoming)> _stepped = [];
+    private readonly List<HeldLayer> _held = [];
+    private int _heldCount;
+    private long _seekAt;
+    private bool _partialShown;
+    private long _heldRefreshes;
+    private long _partialPresentations;
     private readonly IDecodeExecutor _service;
     private readonly Dictionary<SourceKey, MediaState> _media = [];
     private readonly Dictionary<int, MediaState> _mediaById = [];
@@ -121,6 +129,7 @@ internal sealed partial class TimelineScheduler : IDisposable
         _proxyUsage = options.UseProxies;
         _resolver = options.UseProxies == ProxyUsage.Never ? null : options.ProxyResolver;
         _content = options.Content;
+        _partialTimeout = options.PartialFrameTimeout;
         _cache = new TimelineFrameCache(options.MaxCacheBytes);
         _urgency = Urgency;
         _service = backend.CreateExecutor();
@@ -133,6 +142,7 @@ internal sealed partial class TimelineScheduler : IDisposable
         lock (_gate)
         {
             _seekPending = true;
+            _seekAt = _time.GetTimestamp();
             posts = UpdateDemand(CurrentSequenceFrame(), force: true);
         }
 
@@ -286,13 +296,38 @@ internal sealed partial class TimelineScheduler : IDisposable
             bool warmExpired = _warmUntil is { } until && _time.GetTimestamp() >= until;
             posts = UpdateDemand(time.ToFrames(_plan.FrameRate), force: warmExpired || _demandDirty);
             bool settled = true;
+            _stepped.Clear();
             foreach (VideoLayerPlan layerPlan in _plan.Layers)
             {
                 LayerState main = Step(layerPlan, time, running, released, ref settled);
                 LayerState? incoming = layerPlan.Companion is { } companion ? Step(companion, time, running, released, ref settled) : null;
-                if (Compose(layerPlan.TrackIndex, main, incoming, time) is { } layer)
+                _stepped.Add((layerPlan.TrackIndex, main, incoming));
+            }
+
+            if (_seekPending && !settled && _time.GetElapsedTime(_seekAt) < _partialTimeout)
+            {
+                // Tras un seek no se muestra una composición a medias: sigue la última completa (o negro) hasta el tope.
+                PresentHeld(layers);
+                _heldRefreshes++;
+            }
+            else
+            {
+                foreach ((int trackIndex, LayerState main, LayerState? incoming) in _stepped)
                 {
-                    layers.Add(layer);
+                    if (Compose(trackIndex, main, incoming, time) is { } layer)
+                    {
+                        layers.Add(layer);
+                    }
+                }
+
+                if (settled)
+                {
+                    Hold(layers, released);
+                }
+                else if (_seekPending && !_partialShown)
+                {
+                    _partialShown = true;
+                    _partialPresentations++;
                 }
             }
 
@@ -350,6 +385,8 @@ internal sealed partial class TimelineScheduler : IDisposable
                 VramOverruns = _vramOverruns,
                 FailedMedia = _media.Values.Count(m => m.Failure is not null),
                 ProxyDecoders = open.Count(d => d.Variant?.IsProxy == true),
+                HeldRefreshes = _heldRefreshes,
+                PartialPresentations = _partialPresentations,
                 MissingContent = _plan.MissingContent,
                 TransitionPreRollHits = all.Where(l => l.IsCompanion).Sum(l => l.PreRollHits),
                 TransitionPreRollMisses = all.Where(l => l.IsCompanion).Sum(l => l.PreRollMisses),
@@ -381,6 +418,8 @@ internal sealed partial class TimelineScheduler : IDisposable
 
             _vramPeak = Committed();
             _vramOverruns = 0;
+            _heldRefreshes = 0;
+            _partialPresentations = 0;
         }
     }
 
@@ -401,6 +440,8 @@ internal sealed partial class TimelineScheduler : IDisposable
             {
                 layer.Release(released);
             }
+
+            ReleaseHeld(released);
 
             decoders = [.. _decoders.Values.Where(d => !d.Closed)];
             foreach (DecoderState decoder in decoders)

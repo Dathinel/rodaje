@@ -70,6 +70,12 @@ public sealed record TimelineSessionOptions
     /// <summary>LUT y transiciones de paquete; sin contenido, las capas salen sin LUT y las de paquete como fundido cruzado.</summary>
     public IEffectContent? Content { get; init; }
 
+    /// <summary>
+    /// Tras un seek o al abrir, cuánto se sigue mostrando la última composición completa (o negro) mientras alguna capa
+    /// no tiene su cuadro; pasado el tope se muestra lo que haya y se cuenta. Cero muestra siempre lo que haya.
+    /// </summary>
+    public TimeSpan PartialFrameTimeout { get; init; } = TimeSpan.FromMilliseconds(400);
+
     /// <summary>Audio mezclado por delante de lo que suena.</summary>
     public TimeSpan AudioReadAhead { get; init; } = TimeSpan.FromMilliseconds(500);
 
@@ -109,6 +115,8 @@ public sealed record TimelineSessionOptions
         {
             throw new ArgumentOutOfRangeException(nameof(UseProxies), UseProxies, "Uso de proxies desconocido.");
         }
+        ArgumentOutOfRangeException.ThrowIfLessThan(PartialFrameTimeout, TimeSpan.Zero, nameof(PartialFrameTimeout));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(PartialFrameTimeout, TimeSpan.FromSeconds(5), nameof(PartialFrameTimeout));
         ArgumentOutOfRangeException.ThrowIfLessThan(AudioReadAhead, TimeSpan.FromMilliseconds(100), nameof(AudioReadAhead));
         ArgumentOutOfRangeException.ThrowIfGreaterThan(AudioReadAhead, TimeSpan.FromSeconds(10), nameof(AudioReadAhead));
         ArgumentNullException.ThrowIfNull(TimeProvider);

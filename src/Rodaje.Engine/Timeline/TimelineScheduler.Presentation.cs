@@ -107,6 +107,12 @@ internal sealed partial class TimelineScheduler
         Time last = _plan.Duration > Time.Zero ? _plan.Duration - Time.FromTicks(1) : Time.Zero;
         Time clamped = position < Time.Zero ? Time.Zero : position > last ? last : position;
         _clock.Seek(clamped);
+        if (!_seekPending)
+        {
+            // El tope de la espera cuenta desde el primer seek de una racha: arrastrar el cursor no la alarga sin fin.
+            _seekAt = _time.GetTimestamp();
+            _partialShown = false;
+        }
         var stale = new List<CancellationTokenSource>();
         foreach (DecoderState decoder in _decoders.Values)
         {

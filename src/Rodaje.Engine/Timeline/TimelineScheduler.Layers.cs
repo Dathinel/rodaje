@@ -93,6 +93,45 @@ internal sealed partial class TimelineScheduler
         return Build(trackIndex, main, time, null, false, 0, null);
     }
 
+    /// <summary>Guarda la composición completa recién armada para volver a mostrarla mientras un seek espera cuadros.</summary>
+    private void Hold(List<LayerFrame> layers, List<DecodedFrame> released)
+    {
+        ReleaseHeld(released);
+        foreach (LayerFrame layer in layers)
+        {
+            if (_heldCount == _held.Count)
+            {
+                _held.Add(new HeldLayer());
+            }
+
+            if (_held[_heldCount].Capture(layer))
+            {
+                _heldCount++;
+            }
+        }
+    }
+
+    private void PresentHeld(List<LayerFrame> layers)
+    {
+        for (int i = 0; i < _heldCount; i++)
+        {
+            if (_held[i].Present() is { } layer)
+            {
+                layers.Add(layer);
+            }
+        }
+    }
+
+    private void ReleaseHeld(List<DecodedFrame> released)
+    {
+        for (int i = 0; i < _heldCount; i++)
+        {
+            _held[i].Release(released);
+        }
+
+        _heldCount = 0;
+    }
+
     private LayerFrame? Build(int trackIndex, LayerState layer, Time time, TransitionPlan? transition, bool entering, float progress,
         LayerTransition? withTransition)
     {
@@ -127,5 +166,104 @@ internal sealed partial class TimelineScheduler
             Blend = plan?.Blend ?? BlendMode.Normal,
             Transition = withTransition,
         };
+    }
+
+    /// <summary>Una capa de la última composición completa, con su propia referencia al cuadro y su copia de los efectos.</summary>
+    private sealed class HeldLayer
+    {
+        private readonly EffectList _effects = new();
+        private DecodedFrame? _frame;
+        private int _trackIndex;
+        private string _clipId = "";
+        private LayerTransform _transform;
+        private Rational _sampleAspectRatio;
+        private int _rotation;
+        private int _displayWidth;
+        private int _displayHeight;
+        private bool _isProxy;
+        private BlendMode _blend;
+        private bool _hasTransition;
+        private int _transitionCode;
+        private float _progress;
+        private EffectValues _transitionValues;
+        private HeldLayer? _incoming;
+
+        public bool Capture(LayerFrame layer)
+        {
+            if (!layer.Frame.TryRetain())
+            {
+                return false;
+            }
+
+            _frame = layer.Frame;
+            _trackIndex = layer.TrackIndex;
+            _clipId = layer.ClipId;
+            _transform = layer.Transform;
+            _sampleAspectRatio = layer.SampleAspectRatio;
+            _rotation = layer.Rotation;
+            _displayWidth = layer.DisplayWidth;
+            _displayHeight = layer.DisplayHeight;
+            _isProxy = layer.IsProxy;
+            _blend = layer.Blend;
+            Span<LayerEffect> effects = _effects.Reset(layer.Effects.Count);
+            for (int i = 0; i < effects.Length; i++)
+            {
+                effects[i] = layer.Effects[i];
+            }
+
+            _hasTransition = false;
+            if (layer.Transition is { } transition)
+            {
+                _incoming ??= new HeldLayer();
+                if (_incoming.Capture(transition.Incoming))
+                {
+                    _hasTransition = true;
+                    _transitionCode = transition.Code;
+                    _progress = transition.Progress;
+                    _transitionValues = transition.Values;
+                }
+            }
+
+            return true;
+        }
+
+        public LayerFrame? Present()
+        {
+            if (_frame is null || !_frame.TryRetain())
+            {
+                return null;
+            }
+
+            LayerTransition? transition = null;
+            if (_hasTransition && _incoming!.Present() is { } incoming)
+            {
+                transition = new LayerTransition(_transitionCode, _progress, _transitionValues, incoming);
+            }
+
+            return new LayerFrame(_trackIndex, _clipId, _frame, _transform, _sampleAspectRatio, _rotation)
+            {
+                DisplayWidth = _displayWidth,
+                DisplayHeight = _displayHeight,
+                IsProxy = _isProxy,
+                Effects = _effects.Count > 0 ? _effects : [],
+                Blend = _blend,
+                Transition = transition,
+            };
+        }
+
+        public void Release(List<DecodedFrame> released)
+        {
+            if (_frame is not null)
+            {
+                released.Add(_frame);
+                _frame = null;
+            }
+
+            if (_hasTransition)
+            {
+                _incoming!.Release(released);
+                _hasTransition = false;
+            }
+        }
     }
 }

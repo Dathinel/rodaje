@@ -246,7 +246,8 @@ public sealed class TimelineSessionTests
     [Fact]
     public void Due_frames_of_every_layer_are_decoded_before_any_look_ahead()
     {
-        // Con un solo decodificador por medio las dos capas lo comparten: los cuadros debidos van primero.
+        // Con un solo decodificador por medio las dos capas lo comparten: los cuadros debidos van primero, el de la
+        // pista de arriba antes que el de la de abajo.
         var backend = new FakeTimelineBackend { ManualDecoding = true };
         var b = new TimelineBuilder(2, 0);
         b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
@@ -257,7 +258,7 @@ public sealed class TimelineSessionTests
         backend.RunDecoders();
 
         FakeMediaVideo video = Assert.Single(backend.Videos);
-        Assert.Equal(new long[] { 0, 1500, 1 }, video.Requests.Take(3));
+        Assert.Equal(new long[] { 1500, 0, 1501 }, video.Requests.Take(3));
     }
 
     [Fact]

@@ -82,6 +82,12 @@ public sealed record TimelineStats(
     /// <summary>Decodificadores abiertos sobre un proxy.</summary>
     public int ProxyDecoders { get; init; }
 
+    /// <summary>Refrescos tras un seek que repitieron la última composición completa porque alguna capa no tenía su cuadro.</summary>
+    public long HeldRefreshes { get; init; }
+
+    /// <summary>Seeks en los que se agotó la espera y se mostró una composición a medias.</summary>
+    public long PartialPresentations { get; init; }
+
     /// <summary>Transiciones de paquete cuyo contenido falta: se ven como fundido cruzado.</summary>
     public int MissingContent { get; init; }
 

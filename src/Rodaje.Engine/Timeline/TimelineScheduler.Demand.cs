@@ -3,6 +3,7 @@ using Rodaje.Core.Timing;
 using Rodaje.Media.Proxies;
 using Rodaje.Media.Video;
 using Rodaje.Playback;
+using Rodaje.Playback.Composition;
 
 namespace Rodaje.Engine.Timeline;
 
@@ -26,28 +27,23 @@ internal sealed partial class TimelineScheduler
         {
             media.Windows.Clear();
             media.Layers = 0;
+            media.Priority = int.MinValue;
         }
 
-        foreach (VideoLayerPlan layer in _plan.Lanes)
+        // De arriba abajo: la pista que tapa a las demás pide primero; lo que queda bajo una capa opaca de pantalla
+        // completa, al final.
+        bool covered = false;
+        for (int i = _plan.Layers.Count - 1; i >= 0; i--)
         {
-            if (layer.ClipAt(time) is { } clip)
+            VideoLayerPlan layer = _plan.Layers[i];
+            int priority = covered ? layer.TrackIndex - CoveredPenalty : layer.TrackIndex;
+            AddLaneWindows(layer, time, priority);
+            if (layer.Companion is { } companion)
             {
-                long due = clip.FrameAt(time);
-                long end = Math.Min(due + _prefetch, clip.LastFrame + 1);
-                MediaState media = Media(clip);
-                media.Layers++;
-                media.Windows.Add(new Window(due, due + 1, Due: true, clip));
-                if (end > due + 1)
-                {
-                    media.Windows.Add(new Window(due + 1, end, Due: false, clip));
-                }
+                AddLaneWindows(companion, time, priority);
             }
 
-            if (layer.NextAfter(time) is { } next && next.Start - time <= PreRollLead)
-            {
-                long first = next.FirstFrame;
-                Media(next).Windows.Add(new Window(first, Math.Min(first + _preRollFrames, next.LastFrame + 1), Due: false, next));
-            }
+            covered |= CoversFrame(layer, time);
         }
 
         long now = _time.GetTimestamp();
@@ -73,7 +69,7 @@ internal sealed partial class TimelineScheduler
             decoder.Assigned.Clear();
         }
 
-        foreach (MediaState media in _media.Values)
+        foreach (MediaState media in _media.Values.OrderByDescending(m => m.Priority))
         {
             if (media.Windows.Count == 0)
             {
@@ -110,17 +106,21 @@ internal sealed partial class TimelineScheduler
             }
         }
 
-        // Lo más urgente primero; a igual urgencia, los medios sin ningún decodificador: los que ya tienen uno pueden
-        // compartirlo si no queda lugar.
-        requests.Sort((a, b) => a.Cluster.Urgency != b.Cluster.Urgency
-            ? a.Cluster.Urgency.CompareTo(b.Cluster.Urgency)
-            : a.Media.Decoders.Count.CompareTo(b.Media.Decoders.Count));
+        // Primero lo que ya se debe mostrar, de la pista de arriba hacia abajo; después lo más urgente; a igual urgencia,
+        // los medios sin ningún decodificador: los que ya tienen uno pueden compartirlo si no queda lugar.
+        requests.Sort(static (a, b) =>
+        {
+            int c = (a.Cluster.Urgency == 0 ? 0 : 1).CompareTo(b.Cluster.Urgency == 0 ? 0 : 1);
+            c = c != 0 ? c : b.Cluster.Priority.CompareTo(a.Cluster.Priority);
+            c = c != 0 ? c : a.Cluster.Urgency.CompareTo(b.Cluster.Urgency);
+            return c != 0 ? c : a.Media.Decoders.Count.CompareTo(b.Media.Decoders.Count);
+        });
         foreach (OpenRequest request in requests)
         {
             Serve(request, posts);
         }
 
-        foreach (DecoderState decoder in _decoders.Values)
+        foreach (DecoderState decoder in _decoders.Values.OrderByDescending(d => d.Assigned.Count == 0 ? int.MinValue : d.Assigned.Max(w => w.Priority)))
         {
             if (!decoder.Closed && decoder.Decoder is not null && decoder.Assigned.Count > 0 && RequestPump(decoder))
             {
@@ -129,6 +129,56 @@ internal sealed partial class TimelineScheduler
         }
 
         return posts;
+    }
+
+    /// <summary>Lo que resta a la prioridad de una capa tapada: queda detrás de todas las visibles.</summary>
+    private const int CoveredPenalty = 1 << 20;
+
+    private void AddLaneWindows(VideoLayerPlan lane, Time time, int priority)
+    {
+        if (lane.ClipAt(time) is { } clip)
+        {
+            long due = clip.FrameAt(time);
+            long end = Math.Min(due + _prefetch, clip.LastFrame + 1);
+            MediaState media = Media(clip);
+            media.Layers++;
+            media.Priority = Math.Max(media.Priority, priority);
+            media.Windows.Add(new Window(due, due + 1, Due: true, clip, Priority: priority));
+            if (end > due + 1)
+            {
+                media.Windows.Add(new Window(due + 1, end, Due: false, clip, Priority: priority));
+            }
+        }
+
+        if (lane.NextAfter(time) is { } next && next.Start - time <= PreRollLead)
+        {
+            long first = next.FirstFrame;
+            MediaState media = Media(next);
+            media.Priority = Math.Max(media.Priority, priority);
+            media.Windows.Add(new Window(first, Math.Min(first + _preRollFrames, next.LastFrame + 1), Due: false, next, Priority: priority));
+        }
+    }
+
+    /// <summary>
+    /// El clip de la capa en <paramref name="time"/> tapa todo el cuadro: sin transición, sin mezcla, opaco, sin mover ni
+    /// achicar y con la forma de la secuencia.
+    /// </summary>
+    private bool CoversFrame(VideoLayerPlan layer, Time time)
+    {
+        if (layer.ClipAt(time) is not { } clip || clip.Outgoing?.Covers(time) == true
+            || layer.Companion?.ClipAt(time) is not null || clip.DisplayWidth <= 0 || clip.DisplayHeight <= 0
+            || (long)clip.DisplayWidth * _plan.Height != (long)clip.DisplayHeight * _plan.Width)
+        {
+            return false;
+        }
+
+        if (clip.Effects is not { } effects)
+        {
+            return true;
+        }
+
+        LayerTransform t = EffectPlan.Transform(effects, clip.ToSource(time));
+        return effects.Blend == BlendMode.Normal && t.X == 0 && t.Y == 0 && t.Scale >= 1 && t.Opacity >= 1 && t.RotationDegrees % 360 == 0;
     }
 
     /// <summary>Reparte los tramos del medio entre sus decodificadores, el más cercano primero; los que sobran piden uno nuevo.</summary>

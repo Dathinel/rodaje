@@ -24,8 +24,11 @@ internal sealed partial class TimelineScheduler
     }
 
     /// <summary>Cuadros <c>[Start, End)</c> del origen que necesita un clip; <see cref="Due"/> es el que toca mostrar ya.</summary>
-    /// <remarks><see cref="Warm"/>: de una pista oculta; va detrás de todo lo visible y es lo primero que la caché descarta.</remarks>
-    private readonly record struct Window(long Start, long End, bool Due, VideoClipPlan Clip, bool Warm = false);
+    /// <remarks>
+    /// <see cref="Warm"/>: de una pista oculta; va detrás de todo lo visible y es lo primero que la caché descarta.
+    /// <see cref="Priority"/>: más alta cuanto más arriba está la pista; una tapada por una capa opaca queda al final.
+    /// </remarks>
+    private readonly record struct Window(long Start, long End, bool Due, VideoClipPlan Clip, bool Warm = false, int Priority = 0);
 
     /// <summary>Archivo que decodifica la vista previa de un medio, con el tamaño que se espera de sus cuadros.</summary>
     private sealed record Variant(string Path, bool IsProxy, int Width, int Height);
@@ -47,6 +50,7 @@ internal sealed partial class TimelineScheduler
             End = first.End;
             Urgency = urgency;
             Visible = !first.Warm && first.Due;
+            Priority = first.Priority;
             Windows.Add(first);
         }
 
@@ -60,6 +64,9 @@ internal sealed partial class TimelineScheduler
         /// <summary>Tiene el cuadro debido de una capa visible.</summary>
         public bool Visible { get; private set; }
 
+        /// <summary>La de la pista más alta que pide algo del tramo.</summary>
+        public int Priority { get; private set; }
+
         public List<Window> Windows { get; } = [];
 
         public DecoderState? Decoder { get; set; }
@@ -70,6 +77,7 @@ internal sealed partial class TimelineScheduler
             End = Math.Max(End, window.End);
             Urgency = Math.Min(Urgency, urgency);
             Visible |= window.Due && !window.Warm;
+            Priority = Math.Max(Priority, window.Priority);
         }
     }
 
@@ -93,6 +101,9 @@ internal sealed partial class TimelineScheduler
 
         /// <summary>Capas visibles que muestran el medio ahora.</summary>
         public int Layers { get; set; }
+
+        /// <summary>La de la pista más alta que lo pide; ordena las aperturas y los proxies.</summary>
+        public int Priority { get; set; } = int.MinValue;
 
         public HashSet<long> Requested { get; } = [];
 
