@@ -8,6 +8,7 @@ namespace Rodaje.Core.Editing;
 public static class TransitionEdits
 {
     /// <summary>Pone una transición en el corte donde termina <paramref name="fromClipId"/>; el clip siguiente tiene que empezar justo ahí.</summary>
+    /// <remarks>La duración se acota a <see cref="TransitionOps.MaxDuration"/>, como la que se da con <see cref="SetDuration"/>.</remarks>
     /// <returns>Identificador de la transición nueva.</returns>
     public static string AddTransition(EditContext ctx, string fromClipId, string type, Time? duration = null)
     {
@@ -55,6 +56,7 @@ public static class TransitionEdits
         track.Transitions.Remove(transition);
     }
 
+    /// <summary>Cambia la duración; se acota a <see cref="TransitionOps.MaxDuration"/>.</summary>
     public static void SetDuration(EditContext ctx, string transitionId, Time duration)
     {
         EnsurePositive(duration);

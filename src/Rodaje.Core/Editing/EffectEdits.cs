@@ -1,27 +1,37 @@
+using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Core.Editing;
 
-/// <summary>Ediciones de la pila de efectos de un clip y de sus parámetros animables.</summary>
-/// <remarks>Los instantes de los keyframes van en tiempo del origen y deben caer dentro del clip.</remarks>
+/// <summary>Ediciones de la pila de efectos de un clip o de una pista y de sus parámetros animables.</summary>
+/// <remarks>
+/// <c>clipId</c> puede ser también el de una pista (los identificadores son únicos en el proyecto). Los keyframes de un
+/// clip van en tiempo del origen y deben caer dentro de él; los de una pista, en tiempo de la secuencia y desde cero.
+/// </remarks>
 public static class EffectEdits
 {
-    /// <summary>Agrega un efecto al clip, al final de la pila o en <paramref name="index"/>.</summary>
+    /// <summary>Agrega un efecto al clip o a la pista, al final de la pila o en <paramref name="index"/>.</summary>
+    /// <remarks>
+    /// Una transición no es un efecto. Un clip admite tipos desconocidos (se conservan sin aplicarse); una pista solo
+    /// tipos registrados de su clase: de audio en una de audio, de video en una de video.
+    /// </remarks>
     /// <returns>Identificador del efecto nuevo.</returns>
     public static string AddEffect(EditContext ctx, string clipId, string type, int? index = null)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         ArgumentException.ThrowIfNullOrWhiteSpace(type);
-        Clip clip = EditableClip(ctx, clipId);
-        int at = index ?? clip.Effects.Count;
-        if (at < 0 || at > clip.Effects.Count)
+        Host host = EditableHost(ctx, clipId);
+        EnsureApplicable(host, type);
+        List<EffectInstance> effects = host.Effects;
+        int at = index ?? effects.Count;
+        if (at < 0 || at > effects.Count)
         {
-            throw new EditException($"La posición {at} no existe: el clip tiene {clip.Effects.Count} efectos.");
+            throw new EditException($"La posición {at} no existe: hay {effects.Count} efectos.");
         }
 
         var effect = new EffectInstance { Id = ctx.Ids.NewId("effect"), Type = type };
-        clip.Effects.Insert(at, effect);
+        effects.Insert(at, effect);
         return effect.Id;
     }
 
@@ -31,36 +41,59 @@ public static class EffectEdits
     {
         ArgumentNullException.ThrowIfNull(ctx);
         ArgumentException.ThrowIfNullOrWhiteSpace(type);
-        Clip clip = EditableClip(ctx, clipId);
-        return clip.Effects.Exists(e => e.Type == type) ? null : AddEffect(ctx, clipId, type);
+        return EditableHost(ctx, clipId).Effects.Exists(e => e.Type == type) ? null : AddEffect(ctx, clipId, type);
     }
 
     public static void RemoveEffect(EditContext ctx, string clipId, string effectId)
     {
         ArgumentNullException.ThrowIfNull(ctx);
-        Clip clip = EditableClip(ctx, clipId);
-        clip.Effects.Remove(FindEffect(clip, effectId));
+        Host host = EditableHost(ctx, clipId);
+        host.Effects.Remove(FindEffect(host, effectId));
     }
 
     /// <summary>Cambia la posición del efecto en la pila; el primero se aplica antes.</summary>
     public static void MoveEffect(EditContext ctx, string clipId, string effectId, int newIndex)
     {
         ArgumentNullException.ThrowIfNull(ctx);
-        Clip clip = EditableClip(ctx, clipId);
-        EffectInstance effect = FindEffect(clip, effectId);
-        if (newIndex < 0 || newIndex >= clip.Effects.Count)
+        Host host = EditableHost(ctx, clipId);
+        EffectInstance effect = FindEffect(host, effectId);
+        if (newIndex < 0 || newIndex >= host.Effects.Count)
         {
-            throw new EditException($"La posición {newIndex} no existe: el clip tiene {clip.Effects.Count} efectos.");
+            throw new EditException($"La posición {newIndex} no existe: hay {host.Effects.Count} efectos.");
         }
 
-        clip.Effects.Remove(effect);
-        clip.Effects.Insert(newIndex, effect);
+        host.Effects.Remove(effect);
+        host.Effects.Insert(newIndex, effect);
     }
 
     public static void SetEffectEnabled(EditContext ctx, string clipId, string effectId, bool enabled)
     {
         ArgumentNullException.ThrowIfNull(ctx);
-        FindEffect(EditableClip(ctx, clipId), effectId).Enabled = enabled;
+        FindEffect(EditableHost(ctx, clipId), effectId).Enabled = enabled;
+    }
+
+    /// <summary>Fija una opción registrada del efecto (modo de mezcla, LUT, origen); un valor vacío la quita.</summary>
+    public static void SetOption(EditContext ctx, string clipId, string effectId, string name, string value)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(value);
+        EffectInstance effect = FindEffect(EditableHost(ctx, clipId), effectId);
+        OptionDefinition definition = EffectRegistry.Find(effect.Type)?.FindOption(name)
+            ?? (name == BuiltInEffects.CommonOptions.Source ? OptionDefinition.Reference(name) : null)
+            ?? throw new EditException($"El efecto no tiene la opción «{name}».");
+        if (value.Length == 0)
+        {
+            effect.Options.Remove(name);
+        }
+        else if (definition.Accepts(value))
+        {
+            effect.Options[name] = value;
+        }
+        else
+        {
+            throw new EditException($"«{value}» no es un valor de «{name}».");
+        }
     }
 
     /// <summary>
@@ -71,11 +104,11 @@ public static class EffectEdits
     {
         ArgumentNullException.ThrowIfNull(ctx);
         EnsureFinite(value, name);
-        Clip clip = EditableClip(ctx, clipId);
-        EffectInstance effect = FindEffect(clip, effectId);
+        Host host = EditableHost(ctx, clipId);
+        EffectInstance effect = FindEffect(host, effectId);
         if (effect.Parameters.TryGetValue(name, out Parameter? parameter) && parameter.Keyframes.Count > 0)
         {
-            EnsureInside(clip, at);
+            EnsureInside(host, at);
             Upsert(parameter, at, value, null);
             return;
         }
@@ -111,9 +144,9 @@ public static class EffectEdits
             EnsureDefined(curve);
         }
 
-        Clip clip = EditableClip(ctx, clipId);
-        EnsureInside(clip, at);
-        EffectInstance effect = FindEffect(clip, effectId);
+        Host host = EditableHost(ctx, clipId);
+        EnsureInside(host, at);
+        EffectInstance effect = FindEffect(host, effectId);
         if (!effect.Parameters.TryGetValue(name, out Parameter? parameter))
         {
             parameter = new Parameter { Value = value };
@@ -127,7 +160,7 @@ public static class EffectEdits
     public static void RemoveKeyframe(EditContext ctx, string clipId, string effectId, string name, Time at)
     {
         ArgumentNullException.ThrowIfNull(ctx);
-        Parameter parameter = FindParameter(FindEffect(EditableClip(ctx, clipId), effectId), name);
+        Parameter parameter = FindParameter(FindEffect(EditableHost(ctx, clipId), effectId), name);
         int index = IndexAt(parameter, at, name);
         Keyframe removed = parameter.Keyframes[index];
         parameter.Keyframes.RemoveAt(index);
@@ -145,7 +178,7 @@ public static class EffectEdits
     {
         ArgumentNullException.ThrowIfNull(ctx);
         ArgumentNullException.ThrowIfNull(defaults);
-        EffectInstance effect = FindEffect(EditableClip(ctx, clipId), effectId);
+        EffectInstance effect = FindEffect(EditableHost(ctx, clipId), effectId);
         foreach ((string name, double value) in defaults)
         {
             EnsureFinite(value, name);
@@ -168,7 +201,7 @@ public static class EffectEdits
     {
         ArgumentNullException.ThrowIfNull(ctx);
         EnsureDefined(interpolation);
-        Parameter parameter = FindParameter(FindEffect(EditableClip(ctx, clipId), effectId), name);
+        Parameter parameter = FindParameter(FindEffect(EditableHost(ctx, clipId), effectId), name);
         int index = IndexAt(parameter, at, name);
         parameter.Keyframes[index] = parameter.Keyframes[index] with { Interpolation = interpolation };
     }
@@ -192,21 +225,42 @@ public static class EffectEdits
         keys.Insert(index < 0 ? keys.Count : index, new Keyframe(at, value, inherited));
     }
 
-    private static Clip EditableClip(EditContext ctx, string clipId)
+    /// <summary>Dueño de una pila de efectos: un clip (<see cref="Clip"/> no nulo) o una pista entera.</summary>
+    private sealed record Host(Track Track, Clip? Clip)
     {
-        ArgumentNullException.ThrowIfNull(clipId);
-        if (ctx.Sequence.FindClip(clipId) is not { } found)
-        {
-            throw new EditException($"El clip «{clipId}» ya no está en la secuencia.");
-        }
-
-        EditContext.EnsureUnlocked(found.Track);
-        return found.Clip;
+        public List<EffectInstance> Effects => Clip?.Effects ?? Track.Effects;
     }
 
-    private static EffectInstance FindEffect(Clip clip, string effectId) =>
-        clip.Effects.Find(e => e.Id == effectId)
-        ?? throw new EditException($"El clip no tiene el efecto «{effectId}».");
+    private static Host EditableHost(EditContext ctx, string clipId)
+    {
+        ArgumentNullException.ThrowIfNull(clipId);
+        Host host = ctx.Sequence.FindClip(clipId) is { } found
+            ? new Host(found.Track, found.Clip)
+            : ctx.Sequence.FindTrack(clipId) is { } track
+                ? new Host(track, null)
+                : throw new EditException($"El clip «{clipId}» ya no está en la secuencia.");
+        EditContext.EnsureUnlocked(host.Track);
+        return host;
+    }
+
+    private static void EnsureApplicable(Host host, string type)
+    {
+        EffectDefinition? definition = EffectRegistry.Find(type);
+        if (definition is { IsTransition: true })
+        {
+            throw new EditException($"«{type}» es una transición: va en un corte, no en la pila de efectos.");
+        }
+
+        EffectTarget target = host.Track.Kind == TrackKind.Video ? EffectTarget.Video : EffectTarget.Audio;
+        if (host.Clip is null && (definition is null || (definition.Target & target) == 0))
+        {
+            throw new EditException($"«{type}» no se puede aplicar a una pista de {TrackOps.KindName(host.Track.Kind)}.");
+        }
+    }
+
+    private static EffectInstance FindEffect(Host host, string effectId) =>
+        host.Effects.Find(e => e.Id == effectId)
+        ?? throw new EditException($"No hay un efecto «{effectId}» ahí.");
 
     private static Parameter FindParameter(EffectInstance effect, string name) =>
         effect.Parameters.TryGetValue(name, out Parameter? parameter)
@@ -219,9 +273,16 @@ public static class EffectEdits
         return index >= 0 ? index : throw new EditException($"«{name}» no tiene un keyframe en {at}.");
     }
 
-    private static void EnsureInside(Clip clip, Time at)
+    private static void EnsureInside(Host host, Time at)
     {
-        if (at < clip.SourceIn || at > clip.SourceOut)
+        if (host.Clip is not { } clip)
+        {
+            if (at < Time.Zero)
+            {
+                throw new EditException("El keyframe de una pista no puede quedar antes del inicio.");
+            }
+        }
+        else if (at < clip.SourceIn || at > clip.SourceOut)
         {
             throw new EditException("El keyframe tiene que quedar dentro del clip.");
         }
