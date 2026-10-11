@@ -1,6 +1,6 @@
 # Fase 6: exportación
 
-Plan del 11 de octubre de 2026. Arranca con las recomendaciones (provisionales hasta que Daniel responda las preguntas del final).
+Plan del 11 de octubre de 2026. Daniel decidió: LGPL en la v1, 9:16 con barras y botón «Cambiar la secuencia a 9:16», y **dos modos de rendimiento que se eligen al exportar** («Alto rendimiento (menor tiempo)» y «Bajo rendimiento (app más fluida)»).
 
 ## Arquitectura
 
