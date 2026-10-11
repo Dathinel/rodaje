@@ -1,7 +1,7 @@
 # Integración continua de Rodaje.
 # - linux: Core, Paquetes y Playback, que compilan para net10.0 sin Windows.
-# - windows: la solución entera con el entorno propio (.entorno, D-005). Primera versión: no bloquea (continue-on-error)
-#   hasta ver qué pasa en un runner sin GPU ni audio; ver docs/tareas/2026-10-10-ci.md.
+# - windows: la solución entera con el entorno propio (.entorno, D-005). Bloquea; solo se excluyen las pruebas de
+#   Render que el adaptador WARP del runner no admite (docs/tareas/2026-10-11-ci-windows.md).
 # Las pruebas largas y de hardware solo corren con RODAJE_PRUEBAS_LARGAS=1, que aquí no se pone.
 
 name: CI
@@ -74,8 +74,6 @@ jobs:
     name: Windows (solución completa)
     runs-on: windows-latest
     timeout-minutes: 45
-    # Primera versión: informa sin bloquear. Quitar cuando el trabajo esté verde de forma estable.
-    continue-on-error: true
     env:
       NUGET_PACKAGES: ${{ github.workspace }}\.entorno\nuget
       DOTNET_ROOT: ${{ github.workspace }}\.entorno\dotnet
@@ -119,12 +117,23 @@ jobs:
 
       # Sin RODAJE_PRUEBAS_LARGAS las largas y las de hardware se omiten solas (testing/Rodaje.TestMedia/Skip.cs);
       # TiempoReal y Rendimiento se excluyen igual que en Linux.
+      # Render en WARP, sin GPU: el arreglo NV12/P010 con D3D11_BIND_DECODER da E_INVALIDARG, y los efectos difieren en
+      # 1-2 códigos o pasan del tiempo fijado. Se excluyen solo esos métodos; en un equipo con GPU corren igual.
       - name: Pruebas
         shell: pwsh
-        run: >-
-          & .entorno\dotnet\dotnet.exe test Rodaje.slnx --no-build
-          --filter "Categoria!=TiempoReal&Categoria!=Rendimiento"
-          --logger "trx" --results-directory TestResults
+        run: |
+          $render = @(
+            'CompositorTests.Draws_the_requested_slice_of_a_texture_array',
+            'CompositorPerformanceTests.Reports_gpu_milliseconds_per_frame_for_1_to_8_layers',
+            'EffectPerformanceTests.Eight_plain_1080p_layers_do_not_regress',
+            'EffectPerformanceTests.One_4k_layer_with_color_and_lut',
+            'EffectPerformanceTests.Three_4k_layers_with_effects_and_half_resolution',
+            'EffectPerformanceTests.A_4k_transition_with_effects',
+            'EffectFidelityTests.Sharpen_matches_the_unsharp_mask_reference'
+          ) | ForEach-Object { "FullyQualifiedName!=Rodaje.Render.Tests.$_" }
+          $filtro = (@('Categoria!=TiempoReal', 'Categoria!=Rendimiento') + $render) -join '&'
+          & .entorno\dotnet\dotnet.exe test Rodaje.slnx --no-build --filter $filtro --logger trx --results-directory TestResults
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Resultados
         if: always()
