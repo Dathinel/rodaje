@@ -48,6 +48,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         services.Session.ProjectEdited += (_, _) => Refresh();
         services.Session.ProjectOpened += (_, _) => Refresh();
         services.Packages.Changed += (_, _) => Refresh();
+        services.Player.MissingFontsChanged += () => DispatcherQueue.TryEnqueue(Refresh);
         Refresh();
     }
 
@@ -96,7 +97,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
             }
 
             ShowStyleChoice(style);
-            ShowFontWarning(style);
+            ShowFontWarning(clip.Id, style);
             ShowAnimation(generator, style);
             StyleSection.Summary = string.Create(CultureInfo.CurrentCulture, $"{style.Font.Family} · {style.Size:0}");
             StrokeSection.Summary = style.Stroke is null ? "Sin borde" : style.Stroke.Color;
@@ -146,8 +147,11 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         AnimationSection.Summary = any ? "Animado" : "Sin animación";
     }
 
-    /// <summary>Una fuente de un paquete que no está instalado se verá con la de respaldo.</summary>
-    private void ShowFontWarning(TextStyle style)
+    /// <summary>
+    /// Una fuente de un paquete que no está instalado, o que DirectWrite no encuentra (lo dice el reproductor tras cada
+    /// cambio), se verá con la de respaldo.
+    /// </summary>
+    private void ShowFontWarning(string clipId, TextStyle style)
     {
         string? warning = null;
         if (style.Font.Source is { } source && PackageReference.TryParse(source, out PackageReference? reference)
@@ -155,6 +159,10 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         {
             string fallback = style.Font.Fallback.Count > 0 ? style.Font.Fallback[0] : "la fuente del sistema";
             warning = $"La fuente «{style.Font.Family}» viene del paquete «{reference.PackageId}», que no está instalado: se verá con «{fallback}».";
+        }
+        else if (_services?.Player.MissingFonts.FirstOrDefault(m => m.ClipId == clipId && m.Family == style.Font.Family) is { } missing)
+        {
+            warning = $"La fuente «{missing.Family}» no está en este equipo: se ve con «{missing.UsedFamily}» y al exportar se pedirá confirmación.";
         }
 
         FontWarning.Text = warning ?? "";

@@ -16,6 +16,12 @@ public sealed record ExportRunnerOptions
     /// <summary>LUT y transiciones de paquetes (el mismo contenido que la vista previa).</summary>
     public IEffectContent? Content { get; init; }
 
+    /// <summary>
+    /// Los archivos de fuente de los paquetes instalados para los títulos; se piden al empezar cada exportación. Las del
+    /// sistema no hace falta darlas.
+    /// </summary>
+    public Func<IReadOnlyList<string>>? FontFiles { get; init; }
+
     /// <summary>Registro de temporales para limpiarlos tras un apagón; <c>null</c> no registra.</summary>
     public ExportJournal? Journal { get; init; }
 

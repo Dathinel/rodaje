@@ -11,6 +11,7 @@ using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Services.Titles;
 using Rodaje.App.Views.Export;
 using Rodaje.App.Views.Player;
 using Rodaje.App.Views.Plugins;
@@ -93,12 +94,23 @@ internal sealed partial class MainWindow : Window, IShellHost
         IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
         _ = Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale());
         var preview = new PreviewYield(engine, engine.SetPreviewQuality, () => settings.Current);
-        _exports = new ExportJobList(new AppExportRunner(content, preview), SynchronizationContext.Current);
+        _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed)), SynchronizationContext.Current);
         _services = new EditorServices(session, _router, settings, engine, this)
         {
             Visuals = _visuals, Packages = packages, Content = content, Exports = _exports,
         };
         engine.SetContent(content);
+        IReadOnlyList<string> fonts = TitleFontFiles.Find(packages.Installed);
+        engine.SetTitleFonts(fonts);
+        packages.Changed += (_, _) =>
+        {
+            IReadOnlyList<string> now = TitleFontFiles.Find(packages.Installed);
+            if (!now.SequenceEqual(fonts, StringComparer.OrdinalIgnoreCase))
+            {
+                fonts = now;
+                engine.SetTitleFonts(now);
+            }
+        };
         MissingContent.Attach(session, packages);
         _bindings.Add(EditorShortcuts.Bind(_router, session));
         _bindings.Add(_router.Bind(ActionIds.Export, () => ShowPage(ShellPage.Export)));
