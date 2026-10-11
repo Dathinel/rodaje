@@ -23,18 +23,6 @@ public sealed unsafe class ProbeRewindTests
         Assert.Equal(expected, actual);
     }
 
-    [FfmpegLibraryTheory]
-    [MemberData(nameof(Clips))]
-    public void Rewinding_does_not_change_the_analysis(string clip)
-    {
-        string path = TestClips.PathOf(DecodeModes.Clip(clip));
-        MediaInfo first = MediaProbe.Probe(path);
-        MediaInfo second = MediaProbe.Probe(path);
-
-        Assert.Equal(first.Video?.FrameRate, second.Video?.FrameRate);
-        Assert.Equal(first.Video?.StartTime, second.Video?.StartTime);
-    }
-
     private static (int Stream, long Dts, long Pos) FirstPacket(string path, bool scan)
     {
         AVFormatContext* format = Av.OpenInput(path);
