@@ -44,7 +44,7 @@ internal sealed class TimelineBrushes
         MarkerLine = new SolidColorBrush(WithAlpha(Color(Keyframe), 0x60));
         TimeRange = new SolidColorBrush(WithAlpha(Color(Text), 0x14));
         Ghost = new SolidColorBrush(WithAlpha(Color(Accent), 0x50));
-        MainLane = new SolidColorBrush(WithAlpha(Color(Accent), 0x0C));
+        MainLane = new SolidColorBrush(WithAlpha(Color(Accent), 0x1A));
     }
 
     public Brush Background { get; }
