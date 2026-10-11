@@ -10,7 +10,7 @@ namespace Rodaje.App.Services.Inspector;
 /// <param name="IsRendered">El motor lo aplica (su etapa no es <see cref="EffectStage.Deferred"/>).</param>
 public sealed record EffectDescriptor(string Type, string Name, TrackKind Kind, bool IsRendered);
 
-/// <summary>Los efectos de clip del registro, con su nombre en español y si el motor los aplica.</summary>
+/// <summary>Los efectos de clip del registro, con su nombre en español y si el motor los aplica. Los ocultos (<c>rodaje.speed</c>) no salen.</summary>
 public static class EffectCatalog
 {
     public static IReadOnlyList<EffectDescriptor> All { get; } =
@@ -68,7 +68,7 @@ public enum EffectSupport
 {
     Applied,
 
-    /// <summary>Registrado, pero el motor todavía no lo aplica (velocidad, estabilizar) o no en este tipo de pista.</summary>
+    /// <summary>Registrado, pero el motor todavía no lo aplica (estabilizar, o el <c>rodaje.speed</c> reservado) o no en este tipo de pista.</summary>
     Pending,
 
     /// <summary>Hay otro efecto igual antes en la pila y solo se aplica ese.</summary>

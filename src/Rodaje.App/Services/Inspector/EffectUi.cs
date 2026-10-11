@@ -85,7 +85,7 @@ public static class EffectUi
         [BuiltInEffects.Sharpen] = "Realza los bordes.",
         [BuiltInEffects.Blend] = "Cómo se mezcla la capa con lo que tiene debajo.",
         [BuiltInEffects.Audio] = "Volumen con keyframes y fundidos de entrada y salida.",
-        [BuiltInEffects.Speed] = "Cámara lenta o rápida. Todavía no se aplica.",
+        [BuiltInEffects.Speed] = "Reservado y oculto: la velocidad se cambia en la pestaña Velocidad.",
         [BuiltInEffects.Stabilize] = "Quita el temblor de la cámara. Todavía no se aplica.",
         [Tr.Crossfade] = "Mezcla un clip con el siguiente.",
         [Tr.Dip] = "Baja a un color (negro por defecto) y sube desde él.",
