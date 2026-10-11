@@ -532,7 +532,7 @@ public sealed class AudioRetimeTests(ITestOutputHelper output)
         double mixerMs = first * 1000.0 / Rate;
         double bufferMs = new AudioOutputOptions().BufferDuration.TotalMilliseconds;
         output.WriteLine(Invariant($"MEDIDA cambio_velocidad_audible_ms_{(preservePitch ? "tono" : "cinta")} = {mixerMs:F1} de la mezcla + {bufferMs:F0} del búfer = {mixerMs + bufferMs:F1}"));
-        Assert.True(mixerMs <= 50.1, Invariant($"El cambio salió de la mezcla a los {mixerMs:F1} ms (más {bufferMs:F0} del búfer)."));
+        Assert.True(mixerMs + bufferMs <= 60, Invariant($"El cambio se oye a los {mixerMs + bufferMs:F1} ms ({mixerMs:F1} de la mezcla y {bufferMs:F0} del búfer); el criterio es ≤60."));
         Assert.Equal(Ramp(2 * (heard + 5999L)), next[2 * 5999], preservePitch ? 300 * slope : 2 * slope);
     }
 

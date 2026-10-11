@@ -21,7 +21,7 @@ namespace Rodaje.Engine.Timeline;
 internal sealed class AudioMixer : IAudioSampleSource, IDisposable
 {
     /// <summary>Lo ya mezclado que se conserva tras una edición: cubre el tiempo de reabrir y reposicionar sin cortes.</summary>
-    private const int KeepAfterReloadFrames = TimelinePlan.AudioSampleRate / 20;
+    private const int KeepAfterReloadFrames = TimelinePlan.AudioSampleRate * 3 / 100;
 
     private readonly MixRenderer _renderer;
     private readonly BufferedAudioSource _buffer;

@@ -334,7 +334,7 @@ public class PlaybackSchedulerTests
 
     [Theory]
     [InlineData(1_000_000L)]
-    [InlineData(10_000_000_000L)]
+    [InlineData(300_000_000_000L)]
     public async Task SeekLejosReproduciendo_CuestaLoMismoQueUnSaltoCorto(long jump)
     {
         // Regresión: al pasar al cuadro nuevo se sacaba de la caché uno por uno cada índice saltado, O(salto)

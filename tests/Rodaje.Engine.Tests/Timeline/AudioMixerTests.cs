@@ -229,8 +229,8 @@ public sealed class AudioMixerTests
         var next = new float[2 * 6000];
         Assert.Equal(6000, mixer.Read(next));
 
-        Assert.Equal(FakeTimelinePcm.Left(4800 + 2399), next[2 * 2399]);
-        Assert.All(next[(2 * 2400)..], s => Assert.Equal(0f, s));
+        Assert.Equal(FakeTimelinePcm.Left(4800 + 1439), next[2 * 1439]);
+        Assert.All(next[(2 * 1440)..], s => Assert.Equal(0f, s));
         Assert.Equal(0, mixer.Underruns);
     }
 
