@@ -192,7 +192,7 @@ public sealed class TimelineHardwareTests(ITestOutputHelper output)
     }
 
     /// <summary>FFmpeg y D3D11VA reales, con un reloj manual en lugar del dispositivo de audio.</summary>
-    private sealed class DeviceClockBackend : IClipBackend, IDisposable
+    internal sealed class DeviceClockBackend : IClipBackend, IDisposable
     {
         private readonly DisposalLog _log = new();
         private FakeOutput? _output;
