@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector.Properties;
 using Rodaje.Core.Commands;
@@ -182,7 +183,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
         _clipId = clip.Id;
         _shownPosition = session.Position;
-        ClipTitle.Text = session.Project.FindMedia(clip.MediaId)?.Name ?? "Clip";
+        ClipTitle.Text = ClipLabels.Name(session.Project, clip, "Clip");
         ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
         if (_kind != track.Kind || _addable.Count == 0)
         {

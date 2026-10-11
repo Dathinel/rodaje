@@ -21,6 +21,9 @@ public interface IContentLoader
     FilterPreset? LoadFilter(string reference);
 
     EffectPreset? LoadEffect(string reference);
+
+    /// <summary>Un estilo de título; se copia al clip al aplicarlo (D-029), el motor nunca lo busca.</summary>
+    TextStylePreset? LoadTextStyle(string reference);
 }
 
 /// <summary>
@@ -60,6 +63,8 @@ public sealed class InstalledContentLoader(Func<PackageScan> installed) : IConte
         Read(reference, ItemKind.Effect, ContentReaders.ReadEffect) is { } effect && Owner(reference) is { } owner
             ? effect with { Effects = PackageContentStore.ResolveLocalReferences(effect.Effects, owner) }
             : null;
+
+    public TextStylePreset? LoadTextStyle(string reference) => Read(reference, ItemKind.TextStyle, ContentReaders.ReadTextStyle);
 
     /// <summary>El archivo de un elemento instalado de ese tipo, o <c>null</c> si falta.</summary>
     public string? FindFile(string reference, ItemKind kind)

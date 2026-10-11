@@ -20,6 +20,8 @@ internal sealed class FakeContentLoader : IContentLoader
 
     public Dictionary<string, EffectPreset> Effects { get; } = new(StringComparer.Ordinal);
 
+    public Dictionary<string, TextStylePreset> TextStyles { get; } = new(StringComparer.Ordinal);
+
     public HashSet<string> Broken { get; } = new(StringComparer.Ordinal);
 
     public int Reads;
@@ -53,6 +55,8 @@ internal sealed class FakeContentLoader : IContentLoader
     public FilterPreset? LoadFilter(string reference) => Get(Filters, reference);
 
     public EffectPreset? LoadEffect(string reference) => Get(Effects, reference);
+
+    public TextStylePreset? LoadTextStyle(string reference) => Get(TextStyles, reference);
 
     private T? Get<T>(Dictionary<string, T> items, string key)
         where T : class

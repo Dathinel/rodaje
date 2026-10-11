@@ -164,9 +164,10 @@ internal sealed class ClipVisual
 
         _body.Width = d.Width;
         _body.Height = d.Height;
-        _body.Background = _brushes.ClipFill(d.Kind);
+        bool title = d.Clip.Generator is not null;
+        _body.Background = title ? _brushes.TextClip : _brushes.ClipFill(d.Kind);
         _edge.Width = d.Width;
-        _edge.Background = _brushes.ClipEdge(d.Kind);
+        _edge.Background = title ? _brushes.TextClipEdge : _brushes.ClipEdge(d.Kind);
         _outline.Visibility = d.Selected ? Visibility.Visible : Visibility.Collapsed;
         if (d.Selected)
         {
@@ -176,7 +177,8 @@ internal sealed class ClipVisual
 
         bool detailed = d.Width >= DetailMinWidth;
         UpdateName(d);
-        if (d.Kind == TrackKind.Video && detailed)
+        // Un título no tiene medio: ni miniaturas ni forma de onda, solo su color y su texto.
+        if (d.Kind == TrackKind.Video && detailed && !title)
         {
             UpdateFilmstrip(d, map, visuals);
         }
@@ -186,7 +188,7 @@ internal sealed class ClipVisual
             HideThumbs(0);
         }
 
-        if (d.Kind == TrackKind.Audio && detailed)
+        if (d.Kind == TrackKind.Audio && detailed && !title)
         {
             UpdateWaveform(d, map, visuals);
         }

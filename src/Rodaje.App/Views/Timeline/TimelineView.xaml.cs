@@ -99,6 +99,8 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _headers.Toggled += OnTrackToggled;
         _headers.GainChanging += OnTrackGainChanging;
         _headers.GainCommitted += OnTrackGainCommitted;
+        _headers.SubtitleTrackRequested += () => Session?.AddSubtitleTrack();
+        _headers.SubtitleRoleRequested += (trackId, subtitles) => Session?.SetSubtitleRole(trackId, subtitles);
 
         services.Settings.Current.Timeline.ApplyTo(State);
         Viewport.PixelsPerSecond = State.PixelsPerSecond;

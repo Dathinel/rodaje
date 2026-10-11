@@ -1,5 +1,6 @@
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Packages;
+using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
@@ -10,8 +11,9 @@ namespace Rodaje.App.Services.Effects;
 
 /// <summary>
 /// Aplica un elemento de la biblioteca al clip seleccionado: efectos y filtros del motor se añaden a la pila, los de
-/// paquete se copian (expandidos, con <c>options.source</c>), una LUT va al efecto de color y una transición al corte
-/// donde termina el clip (o, si no hay corte ahí, al de su inicio).
+/// paquete se copian (expandidos, con <c>options.source</c>), una LUT va al efecto de color, una transición al corte
+/// donde termina el clip (o, si no hay corte ahí, al de su inicio) y un estilo de texto al título seleccionado (o a uno
+/// nuevo en el cursor).
 /// </summary>
 public sealed class ElementApplier(EditorSession session, IContentLoader loader)
 {
@@ -23,7 +25,57 @@ public sealed class ElementApplier(EditorSession session, IContentLoader loader)
     public static bool CanApply(LibraryElement element)
     {
         ArgumentNullException.ThrowIfNull(element);
-        return element.IsAvailable && element.Kind is ItemKind.Effect or ItemKind.Filter or ItemKind.Lut or ItemKind.Transition;
+        return element.IsAvailable && element.Kind is ItemKind.Effect or ItemKind.Filter or ItemKind.Lut or ItemKind.Transition or ItemKind.TextStyle;
+    }
+
+    /// <summary>
+    /// La copia del estilo de texto del elemento: el de fábrica o el de su paquete con <c>source</c>; <c>null</c> (y un
+    /// aviso) si no se pudo leer.
+    /// </summary>
+    public async Task<TextStyle?> LoadTextStyleAsync(LibraryElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        if (element.IsBuiltIn)
+        {
+            return TitleStyles.Default();
+        }
+
+        string reference = element.Reference;
+        try
+        {
+            if (await Task.Run(() => _loader.LoadTextStyle(reference)) is { } preset)
+            {
+                return TitleStyles.FromPreset(preset, reference);
+            }
+
+            Session.Notify(NotificationSeverity.Warning, $"No se pudo usar «{element.Name}»", "El paquete ya no está instalado.");
+        }
+        catch (Exception ex) when (ex is PackageContentException or IOException or UnauthorizedAccessException)
+        {
+            Session.Notify(NotificationSeverity.Warning, $"No se pudo usar «{element.Name}»", ex.Message);
+        }
+
+        return null;
+    }
+
+    /// <summary>Un título nuevo en el cursor con el estilo del elemento.</summary>
+    public async Task<bool> AddTitleAsync(LibraryElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        string sequenceId = Session.SequenceId;
+        return await LoadTextStyleAsync(element) is { } style && Session.SequenceId == sequenceId && Session.AddTitleAtPlayhead(style);
+    }
+
+    private async Task<bool> ApplyTextStyleAsync(LibraryElement element)
+    {
+        if (Session.SelectedTitle is not { } title)
+        {
+            return await AddTitleAsync(element);
+        }
+
+        string clipId = title.Id;
+        return await LoadTextStyleAsync(element) is { } style && Session.Sequence.FindClip(clipId) is not null
+            && Session.ApplyTitleStyle(clipId, style);
     }
 
     /// <returns><c>false</c> si no se aplicó; la sesión ya avisó por qué.</returns>
@@ -39,6 +91,12 @@ public sealed class ElementApplier(EditorSession session, IContentLoader loader)
         if (element.Kind == ItemKind.Transition)
         {
             return ApplyTransition(element);
+        }
+
+        // Un estilo de texto cambia el título seleccionado o, si no hay, crea uno en el cursor.
+        if (element.Kind == ItemKind.TextStyle)
+        {
+            return await ApplyTextStyleAsync(element);
         }
 
         if (Target(kind) is not { } clip)

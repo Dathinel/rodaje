@@ -23,6 +23,8 @@ public static class ActionIds
     public const string SpeedUp = "clip.faster";
     public const string SlowDown = "clip.slower";
     public const string Reverse = "clip.reverse";
+    public const string AddText = "clip.addText";
+    public const string AddSubtitleTrack = "timeline.subtitleTrack";
 
     public const string TogglePlay = "playback.togglePlay";
     public const string PreviousFrame = "playback.previousFrame";
@@ -95,6 +97,7 @@ public static partial class EditorShortcuts
         new(ActionIds.SpeedUp, "Más rápido", ShortcutGroups.Edit, ["Ctrl+Alt+."]) { Repeats = true, Description = "Sube un escalón la velocidad del clip (1,25×, 1,5×, 2×…)." },
         new(ActionIds.SlowDown, "Más lento", ShortcutGroups.Edit, ["Ctrl+Alt+,"]) { Repeats = true, Description = "Baja un escalón la velocidad del clip (0,75×, 0,5×, 0,25×…)." },
         new(ActionIds.Reverse, "Invertir", ShortcutGroups.Edit, []) { Description = "Reproduce el clip hacia atrás; otra vez lo vuelve a poner hacia adelante." },
+        new(ActionIds.AddText, "Añadir texto", ShortcutGroups.Edit, ["T"]) { ShortLabel = "Texto", Description = "Pone un título de 5 segundos en el cursor, en la pista de arriba que esté libre." },
 
         new(ActionIds.TogglePlay, "Reproducir o pausar", ShortcutGroups.Playback, ["Espacio"]) { ShortLabel = "Reproducir", Description = "Arranca o detiene la reproducción desde el cursor." },
         new(ActionIds.PreviousFrame, "Cuadro anterior", ShortcutGroups.Playback, ["←"], classic: ["Alt+←"]) { ShortLabel = "Cuadro atrás", Repeats = true, Description = "Retrocede una imagen; mantenla para ir más atrás." },
@@ -106,6 +109,7 @@ public static partial class EditorShortcuts
         new(ActionIds.AddRegion, "Añadir región", ShortcutGroups.Timeline, ["R"], agile: []) { ShortLabel = "Región", Description = "Marca un tramo de la secuencia con nombre." },
         new(ActionIds.ToggleSnapping, "Ajuste", ShortcutGroups.Timeline, ["N"], classic: ["F8"]) { Description = "Activa o quita el imán que pega los clips a bordes y al cursor." },
         new(ActionIds.ToggleAutoRipple, "Ripple automático", ShortcutGroups.Timeline, ["Ctrl+L"], agile: []) { ShortLabel = "Ripple", Description = "Al borrar o mover, corre lo que viene detrás para no dejar huecos." },
+        new(ActionIds.AddSubtitleTrack, "Añadir pista de subtítulos", ShortcutGroups.Timeline, []) { ShortLabel = "Subtítulos", Description = "Crea encima de todas una pista para los subtítulos." },
         new(ActionIds.ToggleMagneticMain, "Pista principal magnética", ShortcutGroups.Timeline, []) { ShortLabel = "Magnética", Description = "Mantiene los clips de la pista principal pegados unos a otros." },
 
         new(ActionIds.NormalTool, "Herramienta normal", ShortcutGroups.Tools, ["V"], agile: ["A"], classic: ["Ctrl+D"]) { ShortLabel = "Normal", Description = "Seleccionar, mover y recortar clips con el ratón." },
@@ -149,6 +153,8 @@ public static partial class EditorShortcuts
             router.Bind(ActionIds.SpeedUp, () => session.StepSpeed(faster: true)),
             router.Bind(ActionIds.SlowDown, () => session.StepSpeed(faster: false)),
             router.Bind(ActionIds.Reverse, () => session.ToggleReverse()),
+            router.Bind(ActionIds.AddText, () => session.AddTitleAtPlayhead()),
+            router.Bind(ActionIds.AddSubtitleTrack, () => session.AddSubtitleTrack()),
 
             router.Bind(ActionIds.TogglePlay, session.TogglePlayPause),
             router.Bind(ActionIds.PreviousFrame, () => session.StepFrames(-1)),

@@ -1,5 +1,6 @@
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Packages;
+using Rodaje.App.Services.Titles;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Paquetes;
@@ -78,7 +79,7 @@ public class EffectUiTests
     }
 
     [Fact]
-    public void Biblioteca_SinProximamenteNiFase5_ElTextoLlegaConLosTitulos()
+    public void Biblioteca_SinProximamenteNiFase5_YConElTextoDeFabrica()
     {
         foreach (LibraryCategory category in Enum.GetValues<LibraryCategory>())
         {
@@ -87,11 +88,11 @@ public class EffectUiTests
                 string text = element.Name + element.Description + element.Source;
                 Assert.DoesNotContain("róximamente", text, StringComparison.Ordinal);
                 Assert.DoesNotContain("fase 5", text, StringComparison.Ordinal);
-                Assert.Equal(category != LibraryCategory.Text, element.IsAvailable);
+                Assert.True(element.IsAvailable);
             }
         }
 
-        Assert.Equal("Llega con los títulos", LibraryElements.BuiltIn(LibraryCategory.Text)[0].Source);
+        Assert.Equal(TitleStyles.BuiltInReference, Assert.Single(LibraryElements.BuiltIn(LibraryCategory.Text)).Reference);
         Assert.Equal(
             [BuiltInEffects.Transform, BuiltInEffects.Vignette, BuiltInEffects.Blur, BuiltInEffects.Sharpen, BuiltInEffects.Blend],
             LibraryElements.BuiltIn(LibraryCategory.Effects).Select(e => e.Reference));

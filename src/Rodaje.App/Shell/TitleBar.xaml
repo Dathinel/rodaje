@@ -38,9 +38,13 @@
                 <MenuFlyoutItem Text="Recortar el final hasta el cursor" Tag="edit.trimEnd" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Borrar" Tag="edit.delete" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Seleccionar todo" Tag="edit.selectAll" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Añadir texto" Tag="clip.addText" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Añadir pista de subtítulos" Tag="timeline.subtitleTrack" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Ver">
                 <MenuFlyoutItem Text="Propiedades" Tag="inspector:Properties" Click="OnInspectorClick" />
+                <MenuFlyoutItem Text="Texto" Tag="inspector:Text" Click="OnInspectorClick" />
                 <MenuFlyoutItem Text="Filtros" Tag="inspector:Filters" Click="OnInspectorClick" />
                 <MenuFlyoutItem Text="Historial" Tag="inspector:History" Click="OnInspectorClick" />
                 <MenuFlyoutItem Text="Trabajos" Tag="inspector:Jobs" Click="OnInspectorClick" />

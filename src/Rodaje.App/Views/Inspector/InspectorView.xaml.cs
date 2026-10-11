@@ -19,6 +19,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     public enum Tab
     {
         Properties,
+        Text,
         Speed,
         Filters,
         History,
@@ -35,6 +36,8 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         PropertiesPanel.Attach(services);
         TransitionPanel.ActiveChanged += (_, _) => UpdateVisibility();
         TransitionPanel.Attach(services);
+        TextPanel.Attach(services);
+        services.Session.TextPanelRequested += (_, _) => Show(Tab.Text);
         SpeedPanel.Attach(services);
         services.Session.SpeedPanelRequested += (_, _) => Show(Tab.Speed);
         FiltersPanel.Attach(services);
@@ -53,6 +56,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     {
         RadioButton button = tab switch
         {
+            Tab.Text => TextTab,
             Tab.Speed => SpeedTab,
             Tab.Filters => FiltersTab,
             Tab.History => HistoryTab,
@@ -70,7 +74,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     }
 
     private (RadioButton Tab, TextBlock Label)[] Tabs =>
-        [(PropertiesTab, PropertiesLabel), (SpeedTab, SpeedLabel), (FiltersTab, FiltersLabel), (HistoryTab, HistoryLabel), (JobsTab, JobsLabel)];
+        [(PropertiesTab, PropertiesLabel), (TextTab, TextLabel), (SpeedTab, SpeedLabel), (FiltersTab, FiltersLabel), (HistoryTab, HistoryLabel), (JobsTab, JobsLabel)];
 
     // Se mide con todos los nombres; si no caben, las pestañas pasan a ícono y solo la elegida conserva su nombre.
     private void UpdateTabLabels()
@@ -100,7 +104,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     // Con una transición seleccionada, Propiedades muestra la transición.
     private void UpdateVisibility()
     {
-        if (PropertiesPanel is null || TransitionPanel is null || SpeedPanel is null || FiltersPanel is null || HistoryPanel is null || JobsPanel is null)
+        if (PropertiesPanel is null || TransitionPanel is null || TextPanel is null || SpeedPanel is null || FiltersPanel is null || HistoryPanel is null || JobsPanel is null)
         {
             return;
         }
@@ -108,6 +112,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         bool properties = PropertiesTab.IsChecked == true;
         PropertiesPanel.Visibility = Visible(properties && !TransitionPanel.IsActive);
         TransitionPanel.Visibility = Visible(properties && TransitionPanel.IsActive);
+        TextPanel.Visibility = Visible(TextTab.IsChecked == true);
         SpeedPanel.Visibility = Visible(SpeedTab.IsChecked == true);
         FiltersPanel.Visibility = Visible(FiltersTab.IsChecked == true);
         HistoryPanel.Visibility = Visible(HistoryTab.IsChecked == true);
