@@ -82,7 +82,10 @@ internal sealed partial class MainWindow : Window, IShellHost
         _router = new ShortcutRouter(registry);
 
         var session = new EditorSession(engine, prober, new ShellDialogs(this, _hwnd, settings),
-            newProjectTracks: settings.Current.NewProjectTracks);
+            newProjectTracks: settings.Current.NewProjectTracks)
+        {
+            LinkedAudioTracks = settings.Current.LinkedAudioTracks,
+        };
         _visuals = new ClipVisuals(id => session.Project.FindMedia(id)?.Path, new FfmpegVisualsSources(),
             new ClipVisualsOptions { CacheDirectory = ClipVisualsOptions.DefaultCacheDirectory }, SynchronizationContext.Current);
         _ = _visuals.TrimDiskCacheAsync();
