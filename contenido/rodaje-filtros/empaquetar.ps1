@@ -1,7 +1,8 @@
-﻿# Arma un .paquete a partir de una carpeta de contenido/ (docs/formato-paquete.md).
+﻿# Arma el .paquete de esta carpeta (o de otra con su paquete.json). Solo necesita Windows PowerShell 5.1.
 # Uso:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\empaquetar.ps1 [-Contenido contenido\rodaje-esenciales] [-Salida dist\paquetes]
-# Copia las fuentes (sin los .ps1), corre generar.ps1 de la carpeta si lo hay (por ejemplo, las LUT) y comprime todo
+#   powershell -NoProfile -ExecutionPolicy Bypass -File empaquetar.ps1 [-Contenido <carpeta>] [-Salida <carpeta>]
+# Por defecto empaqueta la carpeta del script y deja el resultado en su dist\.
+# Copia las fuentes (sin los .ps1, README.md, .gitignore ni dist\), corre generar.ps1 si lo hay (las LUT) y comprime todo
 # con orden y fechas fijas: las mismas fuentes dan el mismo archivo byte a byte. Deja <id>-<versión>.paquete en
 # -Salida e imprime su SHA-256. Sale con 0 si todo fue bien.
 param(
@@ -13,9 +14,8 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
-$Raiz = Split-Path -Parent $PSScriptRoot
-if (-not $Contenido) { $Contenido = Join-Path $Raiz 'contenido\rodaje-esenciales' }
-if (-not $Salida) { $Salida = Join-Path $Raiz 'dist\paquetes' }
+if (-not $Contenido) { $Contenido = $PSScriptRoot }
+if (-not $Salida) { $Salida = Join-Path $Contenido 'dist' }
 $Contenido = [System.IO.Path]::GetFullPath($Contenido)
 $Salida = [System.IO.Path]::GetFullPath($Salida)
 
@@ -29,8 +29,8 @@ try {
     New-Item -ItemType Directory -Force -Path $temporal | Out-Null
     $base = $Contenido.TrimEnd('\') + '\'
     foreach ($archivo in Get-ChildItem -LiteralPath $Contenido -Recurse -File) {
-        if ($archivo.Extension -eq '.ps1') { continue }
         $relativa = $archivo.FullName.Substring($base.Length)
+        if ($archivo.Extension -eq '.ps1' -or $relativa -in @('README.md', '.gitignore') -or $relativa.StartsWith('dist\') -or $archivo.FullName.StartsWith($Salida.TrimEnd('\') + '\')) { continue }
         $destino = Join-Path $temporal $relativa
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destino) | Out-Null
         Copy-Item -LiteralPath $archivo.FullName -Destination $destino

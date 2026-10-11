@@ -1,19 +1,19 @@
-﻿# Genera las 8 LUT de los looks de rodaje-esenciales en <Destino>\luts\, con fórmulas propias y deterministas:
-# la misma salida byte a byte en cualquier equipo. Lo llama herramientas\empaquetar.ps1.
+﻿# Genera las 8 LUT de los looks de rodaje-filtros en <Destino>\luts\, con fórmulas propias y deterministas:
+# la misma salida byte a byte en cualquier equipo. Lo llama empaquetar.ps1.
 # Cada look es una función de un color RGB de 0 a 1 que devuelve otro; la LUT la muestrea en una rejilla de 33³.
 # Las fórmulas van en C# porque en PowerShell las 8 × 33³ llamadas tardan minutos.
 param([Parameter(Mandatory = $true)][string]$Destino)
 
 $ErrorActionPreference = 'Stop'
 
-if (-not ('RodajeEsenciales.Looks' -as [type])) {
+if (-not ('RodajeFiltros.Looks' -as [type])) {
     Add-Type -Language CSharp -TypeDefinition @'
 using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
 
-namespace RodajeEsenciales
+namespace RodajeFiltros
 {
     public static class Looks
     {
@@ -78,7 +78,7 @@ namespace RodajeEsenciales
         public static string Cube(string name)
         {
             var text = new StringBuilder(1200000);
-            text.Append("# rodaje-esenciales: ").Append(name).Append(". Generada por contenido/rodaje-esenciales/generar.ps1 (CC0-1.0).\n");
+            text.Append("# rodaje-filtros: ").Append(name).Append(". Generada por generar.ps1 de rodaje-filtros (CC0-1.0).\n");
             text.Append("TITLE \"").Append(name).Append("\"\nLUT_3D_SIZE ").Append(Size).Append("\nDOMAIN_MIN 0 0 0\nDOMAIN_MAX 1 1 1\n");
             var o = new double[3];
             for (int b = 0; b < Size; b++)
@@ -130,4 +130,4 @@ namespace RodajeEsenciales
 '@
 }
 
-[RodajeEsenciales.Looks]::Write((Join-Path ([System.IO.Path]::GetFullPath($Destino)) 'luts'))
+[RodajeFiltros.Looks]::Write((Join-Path ([System.IO.Path]::GetFullPath($Destino)) 'luts'))

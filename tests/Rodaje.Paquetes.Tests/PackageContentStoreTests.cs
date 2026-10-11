@@ -187,6 +187,37 @@ public sealed class PackageContentStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Un_paquete_instalado_del_zip_se_aplica_y_al_desinstalar_avisa()
+    {
+        using var other = new TempFolder();
+        var locations = PackageLocations.Under(other.Combine("datos"));
+        string archive = Samples.Zip(other.Combine("looks.paquete"),
+            ("paquete.json", Samples.Manifest("looks-prueba", "1.0.0", items: """
+                [ { "id": "lut-cine", "kind": "lut", "name": "LUT Cine", "file": "luts/cine.cube" },
+                  { "id": "cine", "kind": "filter", "name": "Cine", "file": "filtros/cine.json" },
+                  { "id": "girar", "kind": "transition", "name": "Girar", "file": "transiciones/girar.json" } ]
+                """)),
+            ("luts/cine.cube", CubeReaderTests.Identity(9, "TITLE \"cine\"\n")),
+            ("filtros/cine.json", """{ "format": "rodaje.filter", "version": 1, "name": "Cine", "effects": [ { "type": "rodaje.color", "options": { "lut": "./lut-cine" } } ] }"""),
+            ("transiciones/girar.json", """{ "format": "rodaje.preset", "version": 2, "name": "Girar", "durationSeconds": 0.5, "incoming": { "rotation": [ { "t": 0, "value": -90 }, { "t": 0.5, "value": 0 } ] } }"""));
+        var installer = new PackageInstaller(locations, "rodaje");
+        installer.Install(archive);
+
+        using var store = new PackageContentStore(PackageLibrary.Scan(locations, "rodaje"));
+        string lut = store.FindFilter("looks-prueba@1.0.0/cine")!.Effects[0].Options["lut"];
+        Assert.Equal("looks-prueba@1.0.0/lut-cine", lut);
+        Assert.Equal(9, (await LoadAsync(store, lut)).Size);
+        Assert.NotNull(store.FindTransition("looks-prueba@1.0.0/girar"));
+
+        installer.Uninstall("looks-prueba");
+        store.Reload(PackageLibrary.Scan(locations, "rodaje"));
+        Assert.False(store.TryGetLut(lut, out _));
+        Assert.Contains("Falta el paquete «looks-prueba»", store.LutProblem(lut), StringComparison.Ordinal);
+        Assert.Null(store.FindTransition("looks-prueba@1.0.0/girar"));
+        Assert.Contains("Falta el paquete", store.PresetProblem("looks-prueba@1.0.0/girar"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Tras_desecharse_no_carga_nada()
     {
         var store = new PackageContentStore(Scan());
