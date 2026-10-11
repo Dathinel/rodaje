@@ -91,6 +91,12 @@ public static class SafeText
         return true;
     }
 
+    /// <summary>UTF-8 que lanza <see cref="DecoderFallbackException"/> con bytes inválidos en lugar de sustituirlos por U+FFFD.</summary>
+    public static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    /// <summary>Lee un archivo de texto como UTF-8 estricto; con bytes inválidos lanza <see cref="DecoderFallbackException"/>.</summary>
+    public static string ReadAllTextStrict(string path) => StrictUtf8.GetString(File.ReadAllBytes(path));
+
     /// <summary>
     /// Si algún texto o nombre de propiedad del JSON no se puede leer como cadena: UTF-8 inválido o un sustituto suelto
     /// escrito como escape (<c>\ud800</c>). <see cref="JsonElement.GetString"/> lanza <see cref="InvalidOperationException"/>

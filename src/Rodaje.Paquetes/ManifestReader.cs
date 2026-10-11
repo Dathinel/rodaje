@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace Rodaje.Paquetes;
@@ -44,7 +45,11 @@ public static class ManifestReader
         string text;
         try
         {
-            text = File.ReadAllText(path);
+            text = SafeText.ReadAllTextStrict(path);
+        }
+        catch (DecoderFallbackException)
+        {
+            return Fail($"{PackageManifest.FileName} tiene un texto que no es Unicode válido (UTF-8 dañado o un carácter suelto escapado).");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

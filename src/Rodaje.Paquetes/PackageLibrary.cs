@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace Rodaje.Paquetes;
@@ -217,7 +218,7 @@ public static class PackageLibrary
                 return null;
             }
 
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(file), new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+            using JsonDocument document = JsonDocument.Parse(SafeText.ReadAllTextStrict(file), new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
             JsonElement e = document.RootElement;
             if (SafeText.HasUnreadableString(e) || e.ValueKind != JsonValueKind.Object
                 || !e.TryGetProperty("kind", out JsonElement kindElement) || kindElement.ValueKind != JsonValueKind.String
@@ -237,7 +238,7 @@ public static class PackageLibrary
             string relative = Path.GetRelativePath(root, file).Replace('\\', '/');
             return new PackageItem(id, kind, name.Length > 0 ? name : ToIdentifier(stem), relative, description);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or DecoderFallbackException)
         {
             return null;
         }
