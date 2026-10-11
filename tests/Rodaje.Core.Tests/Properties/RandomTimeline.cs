@@ -19,13 +19,16 @@ internal sealed record PlacementSpec(int Media, int InFrames, int LengthFrames, 
 /// decide qué cortes llevan transición y qué clips y pistas llevan efectos; <see cref="Speeds"/>, qué clips llevan
 /// velocidad, curva, reversa o un congelado.
 /// </summary>
-/// <remarks>Con <see cref="Curves"/>, cada clip que lleva velocidad lleva una curva o un preajuste.</remarks>
+/// <remarks>
+/// Con <see cref="Curves"/>, cada clip que lleva velocidad lleva una curva o un preajuste. <see cref="Titles"/> pone
+/// títulos (clips generadores) al final de algunas pistas de video, a veces seguidos y con transición entre ellos.
+/// </remarks>
 internal sealed record ProjectSpec(int Rate, int VideoTracks, int AudioTracks, MediaSpec[] Media, PlacementSpec[] Placements, int LockBits, int Extras = 0, int Speeds = 0,
-    bool Curves = false)
+    bool Curves = false, int Titles = 0)
 {
     public override string ToString() => string.Create(
         CultureInfo.InvariantCulture,
-        $"Proyecto(tasa {Rate}, {VideoTracks}V {AudioTracks}A, bloqueos {LockBits}, extras {Extras}, velocidades {Speeds}{(Curves ? " (curvas)" : "")}, medios [{string.Join("; ", Media.Select(m => m.ToString()))}], clips [{string.Join("; ", Placements.Select(p => p.ToString()))}])");
+        $"Proyecto(tasa {Rate}, {VideoTracks}V {AudioTracks}A, bloqueos {LockBits}, extras {Extras}, velocidades {Speeds}{(Curves ? " (curvas)" : "")}, títulos {Titles}, medios [{string.Join("; ", Media.Select(m => m.ToString()))}], clips [{string.Join("; ", Placements.Select(p => p.ToString()))}])");
 }
 
 /// <summary>Operación en bruto; sus números se interpretan contra el estado del proyecto al ejecutarla.</summary>
@@ -143,7 +146,12 @@ internal static class RandomTimeline
             Gen.Int[0, Rates.Length - 1], Gen.Int[1, 3], Gen.Int[1, 3], GenMedia.Array[2, 5], GenPlacement.Array[1, 8], Gen.Int[0, 4095], Gen.Int[0, 65535],
             (r, v, a, media, placements, locks, extras) => new ProjectSpec(r, v, a, media, placements, locks, extras)),
         Gen.Int[0, 65535],
-        (spec, speeds) => spec with { Speeds = speeds });
+        Gen.Int[0, 65535],
+        (spec, speeds, titles) => spec with { Speeds = speeds, Titles = titles % 4 == 0 ? titles : 0 });
+
+    /// <summary>Proyectos con títulos en casi todas las pistas de video.</summary>
+    public static readonly Gen<ProjectSpec> GenTitleProject = Gen.Select(GenProject, Gen.Int[0, 65535],
+        (spec, titles) => spec with { Titles = titles | 0x111 });
 
     /// <summary>Proyectos donde casi todos los clips llevan una curva o un preajuste.</summary>
     public static readonly Gen<ProjectSpec> GenCurveProject = Gen.Select(GenProject, Gen.Int[0, 65535],
@@ -269,6 +277,7 @@ internal static class RandomTimeline
 
         AddExtras(built, spec.Extras);
         AddSpeeds(built, spec.Speeds, spec.Curves);
+        AddTitles(built, spec.Titles);
         int index = 0;
         foreach (Track track in sequence.AllTracks)
         {
@@ -325,6 +334,57 @@ internal static class RandomTimeline
                     Edits.SetKeyframe(seq, track.Id, volume.CreatedIds[0], BuiltInEffects.AudioParameters.GainDb, at, -6 * ((k + extras) % 3), ids: built.Ids)
                         .Apply(built.Project);
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Por cada pista de video, según 4 bits: de 1 a 3 títulos seguidos tras su último clip (pegados o tras un hueco), con
+    /// el origen virtual a veces negativo, el estilo completo o uno mínimo, y a veces una transición entre los dos primeros.
+    /// </summary>
+    private static void AddTitles(BuiltProject built, int titles)
+    {
+        for (int i = 0; i < built.Sequence.VideoTracks.Count && i < 4; i++)
+        {
+            int bits = (titles >> (4 * i)) & 15;
+            if (bits == 0)
+            {
+                continue;
+            }
+
+            Track track = built.Sequence.VideoTracks[i];
+            Time at = track.End + Time.FromFrames(bits % 2 == 0 ? 0 : 3 + bits, built.Rate);
+            int count = 1 + (bits % 3);
+            for (int k = 0; k < count; k++)
+            {
+                int seed = (titles >> 2) + (7 * k) + i;
+                Time length = Time.FromFrames(1 + (seed % 60), built.Rate);
+                Time sourceIn = Time.FromFrames((seed % 41) - 20, built.Rate);
+                track.Clips.Add(new Clip
+                {
+                    Id = built.Ids.NewId("titulo"),
+                    Start = at,
+                    SourceIn = sourceIn,
+                    SourceOut = sourceIn + length,
+                    Generator = new ClipGenerator
+                    {
+                        Text = Inv($"Título {k}\nlínea {seed % 5}"),
+                        Style = seed % 3 == 0 ? new TextStyle() : Tests.Model.ModelSamples.FullStyle(),
+                        Box = seed % 4 == 0 ? new TextFrame { WidthFraction = 0.8 } : null,
+                    },
+                });
+                at += length;
+            }
+
+            if (count > 1 && (bits & 8) != 0)
+            {
+                Edits.AddTransition(BuiltProject.SequenceId, track.Clips[^count].Id, BuiltInTransitions.Crossfade, Time.FromFrames(1, built.Rate), built.Ids)
+                    .Apply(built.Project);
+            }
+
+            if ((bits & 4) != 0)
+            {
+                track.Role = TrackRoles.Subtitles;
             }
         }
     }

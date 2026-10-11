@@ -112,6 +112,7 @@ public static partial class TimelineEdits
     public static void Slip(EditContext ctx, string clipId, Time delta)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
+        TrimmingSupport.EnsureNoGenerator(group, "deslizar su contenido");
         List<TrimPlan> plans = group.ConvertAll(m =>
         {
             TrimPlan plan = TrimPlan.Of(m.Track, m.Clip);

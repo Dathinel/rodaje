@@ -20,6 +20,7 @@ public sealed class ProjectMigrator
         [1] = AddMarkersAndRegions,
         [2] = AddEffectsAndTransitions,
         [3] = RemoveSpeedEffects,
+        [4] = AllowGenerators,
     };
 
     private readonly IReadOnlyDictionary<int, Action<JsonObject>> _chain;
@@ -137,6 +138,12 @@ public sealed class ProjectMigrator
 
         root[VersionProperty] = 4;
     }
+
+    /// <summary>
+    /// 4 → 5: los clips pueden llevar <c>generator</c> en lugar de <c>mediaId</c> y las pistas <c>role</c>. Un archivo del
+    /// formato 4 no tiene ninguno de los dos, así que solo cambia la versión.
+    /// </summary>
+    internal static void AllowGenerators(JsonObject root) => root[VersionProperty] = 5;
 
     private static void RemoveSpeed(JsonNode? effects)
     {

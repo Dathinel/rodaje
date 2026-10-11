@@ -72,6 +72,19 @@ internal sealed class TrimFixture
         return this;
     }
 
+    /// <summary>Agrega un título (clip generador con estilo completo) con su origen virtual en cuadros.</summary>
+    public TrimFixture AddTitle(string trackId, string clipId, long inFrame, long outFrame, long startFrame, string? link = null)
+    {
+        Clip title = Model.ModelSamples.MakeTitle(clipId, 0, 0, 1);
+        title.SourceIn = F(inFrame);
+        title.SourceOut = F(outFrame);
+        title.Start = F(startFrame);
+        title.LinkId = link;
+        Track(trackId).Clips.Add(title);
+        Track(trackId).SortClips();
+        return this;
+    }
+
     public TrimFixture Lock(string trackId)
     {
         Track(trackId).Locked = true;

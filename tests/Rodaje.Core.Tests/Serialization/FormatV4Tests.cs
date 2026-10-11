@@ -40,8 +40,10 @@ public class FormatV4Tests
     {
         Project project = ProjectSerializer.Deserialize(Example);
 
-        Assert.Equal(Example, ProjectSerializer.Serialize(project) + "\n");
-        Assert.Equal(Example, ProjectSerializer.Serialize(project.Clone()) + "\n");
+        // Al guardar se escribe la versión actual; el resto del archivo no cambia.
+        string saved = Example.Replace("\"schemaVersion\": 4", "\"schemaVersion\": 5", StringComparison.Ordinal);
+        Assert.Equal(saved, ProjectSerializer.Serialize(project) + "\n");
+        Assert.Equal(saved, ProjectSerializer.Serialize(project.Clone()) + "\n");
 
         Clip frozen = ClipOf(project, "clip-3");
         Assert.True(frozen.Speed!.Freeze);

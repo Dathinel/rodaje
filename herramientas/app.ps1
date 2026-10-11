@@ -106,6 +106,9 @@ function Publicar {
         Copy-Item -LiteralPath $dll -Destination $destino -Force
     }
     Copy-Item -LiteralPath $ffmpegExe -Destination $destino -Force
+    # ffprobe.exe de la misma compilación: la exportación comprueba con él cada archivo terminado (ExportVerifier).
+    $ffprobeExe = Join-Path $FfmpegBin 'ffprobe.exe'
+    if (Test-Path -LiteralPath $ffprobeExe) { Copy-Item -LiteralPath $ffprobeExe -Destination $destino -Force }
     $licenciaFfmpeg = Join-Path $E.Entorno 'ffmpeg\LICENSE.txt'
     if (Test-Path -LiteralPath $licenciaFfmpeg) { Copy-Item -LiteralPath $licenciaFfmpeg -Destination (Join-Path $destino 'LICENSE.txt') -Force }
     Copy-Item -LiteralPath (Join-Path $Raiz 'THIRD-PARTY-NOTICES.txt') -Destination $Salida -Force

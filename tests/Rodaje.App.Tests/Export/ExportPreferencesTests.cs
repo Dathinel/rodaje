@@ -54,7 +54,7 @@ public class ExportPreferencesTests
         Assert.Equal(2, prefs.UserPresets.Count);
         Assert.Equal("usuario.web-2", other.Id);
         Assert.True(ExportPresetLibrary.Matches(ExportPresets.SmallFile, prefs.UserPresets[0].Settings));
-        Assert.Equal(ExportPresets.All.Count + 3, ExportPresetLibrary.All(prefs).Count);
+        Assert.Equal(ExportPresets.All.Count + 2, ExportPresetLibrary.All(prefs).Count);
 
         prefs.PresetId = other.Id;
         Assert.True(ExportPresetLibrary.Remove(prefs, other.Id));

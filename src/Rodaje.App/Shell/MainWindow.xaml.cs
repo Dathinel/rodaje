@@ -82,14 +82,18 @@ internal sealed partial class MainWindow : Window, IShellHost
         _router = new ShortcutRouter(registry);
 
         var session = new EditorSession(engine, prober, new ShellDialogs(this, _hwnd, settings),
-            newProjectTracks: settings.Current.NewProjectTracks);
+            newProjectTracks: settings.Current.NewProjectTracks)
+        {
+            LinkedAudioTracks = settings.Current.LinkedAudioTracks,
+        };
         _visuals = new ClipVisuals(id => session.Project.FindMedia(id)?.Path, new FfmpegVisualsSources(),
             new ClipVisualsOptions { CacheDirectory = ClipVisualsOptions.DefaultCacheDirectory }, SynchronizationContext.Current);
         _ = _visuals.TrimDiskCacheAsync();
         var packages = new PackageService(PackageService.DefaultLocations(), PackageService.LoadBundledCatalog(), instances: _instance);
         IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
-        // La orquestación real (agente D de la fase 6) reemplaza la simulación aquí.
-        _exports = new ExportJobList(new SimulatedExportRunner(), SynchronizationContext.Current);
+        _ = Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale());
+        var preview = new PreviewYield(engine, engine.SetPreviewQuality, () => settings.Current);
+        _exports = new ExportJobList(new AppExportRunner(content, preview), SynchronizationContext.Current);
         _services = new EditorServices(session, _router, settings, engine, this)
         {
             Visuals = _visuals, Packages = packages, Content = content, Exports = _exports,

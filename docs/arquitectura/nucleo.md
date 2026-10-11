@@ -25,7 +25,7 @@ flowchart TB
 
 ## Modelo (`Model/`)
 
-`Project` → `Sequence` → `Track` → `Clip` → `EffectInstance` → `Parameter` → `Keyframe`. La edición es no destructiva: un clip es una referencia a un medio (`MediaId`) más tres tiempos y, si la tiene, su velocidad.
+`Project` → `Sequence` → `Track` → `Clip` → `EffectInstance` → `Parameter` → `Keyframe`. La edición es no destructiva: un clip es una referencia a un medio (`MediaId`) más tres tiempos y, si la tiene, su velocidad. Un título no tiene medio: lleva un `ClipGenerator` (texto, copia del estilo y bordes animados) y un origen virtual sin límites, así que su `SourceIn` puede ser negativo; dividirlo apaga los bordes internos y el slip y la velocidad no se le aplican (formato 5).
 
 | Tipo | Qué guarda |
 |---|---|
@@ -39,7 +39,7 @@ flowchart TB
 | [`EffectRegistry`](../../src/Rodaje.Core/Effects/EffectRegistry.cs) | Tipos de efecto y de transición (fundido, inmersión, cortinilla, empuje, disolución con zoom, disolución con desenfoque y `Preset`, que lee una transición de paquete) con código estable, destino, etapa, parámetros con rango y opciones, y los 13 modos de mezcla; un tipo desconocido se conserva sin aplicarse |
 | [`TransitionInstance`](../../src/Rodaje.Core/Model/TransitionInstance.cs) | Transición (`From`, `To`, `Duration`) en `Track.Transitions`, en el corte entre dos clips contiguos y centrada en él; [`TransitionOps.Reconcile`](../../src/Rodaje.Core/Editing/TransitionOps.cs) la mantiene pegada al corte tras cada edición |
 
-Los clips con el mismo `LinkId` (por ejemplo, el video y el audio de una toma) se editan juntos y con el mismo desplazamiento; un grupo no puede tener dos clips en la misma pista. [`ModelValidator`](../../src/Rodaje.Core/Model/ModelValidator.cs) reúne todas las reglas (ids únicos en todo el archivo, clips dentro de su medio, sin solapes, keyframes en orden, un clip por pista en cada enlace) con mensajes en español; también rechaza los parámetros (y sus keyframes) fuera de su rango, los ids con caracteres de control y revisa la velocidad. [`IdGenerator`](../../src/Rodaje.Core/Model/IdGenerator.cs) da ids GUID al programa e ids secuenciales (`clip-1`) a las pruebas.
+Los clips con el mismo `LinkId` (por ejemplo, el video y el audio de una toma) se editan juntos y con el mismo desplazamiento; un grupo no puede tener dos clips en la misma pista. [`ModelValidator`](../../src/Rodaje.Core/Model/ModelValidator.cs) reúne todas las reglas (ids únicos en todo el archivo, clips dentro de su medio, sin solapes, keyframes en orden, un clip por pista en cada enlace) con mensajes en español; también rechaza los parámetros (y sus keyframes) fuera de su rango, los ids con caracteres de control y revisa la velocidad, los generadores (texto, estilo y sus topes) y los roles de pista. [`IdGenerator`](../../src/Rodaje.Core/Model/IdGenerator.cs) da ids GUID al programa e ids secuenciales (`clip-1`) a las pruebas.
 
 ## Operaciones de edición (`Editing/`)
 
@@ -107,7 +107,7 @@ sequenceDiagram
 
 ## Formato `.rodaje` (`Serialization/`)
 
-JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`; la especificación está en [`docs/formato-proyecto.md`](../formato-proyecto.md) y el esquema en [`schema/`](../../schema/rodaje-proyecto.v4.schema.json).
+JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`; la especificación está en [`docs/formato-proyecto.md`](../formato-proyecto.md) y el esquema en [`schema/`](../../schema/rodaje-proyecto.v5.schema.json).
 
 - **Abrir** ([`ProjectSerializer.Load`](../../src/Rodaje.Core/Serialization/ProjectSerializer.cs)) sigue cinco pasos:
   1. Lee UTF-8 estricto.

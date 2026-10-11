@@ -161,6 +161,25 @@ public sealed record VideoExportSettings
 
     /// <summary>Recorte de la secuencia antes de escalar; <c>null</c> sin recorte.</summary>
     public ExportCrop? Crop { get; init; }
+
+    /// <summary>
+    /// Tamaño de la salida: el pedido, o el de la secuencia (o del recorte) si falta, con el otro lado siguiendo su forma.
+    /// Pares salvo en los códecs RGB (GIF, PNG, WebP, TIFF, Animation), que no submuestrean el croma.
+    /// </summary>
+    public (int Width, int Height) OutputSize(int sequenceWidth, int sequenceHeight)
+    {
+        int sourceWidth = Crop?.Width ?? sequenceWidth;
+        int sourceHeight = Crop?.Height ?? sequenceHeight;
+        (int w, int h) = (Width, Height) switch
+        {
+            ({ } width, { } height) => (width, height),
+            ({ } width, null) => (width, (int)Math.Round((double)width * sourceHeight / sourceWidth)),
+            (null, { } height) => ((int)Math.Round((double)height * sourceWidth / sourceHeight), height),
+            _ => (sourceWidth, sourceHeight),
+        };
+        bool rgb = Codec is ExportCodec.Gif or ExportCodec.Png or ExportCodec.WebP or ExportCodec.Tiff or ExportCodec.QtAnimation;
+        return rgb ? (Math.Max(1, w), Math.Max(1, h)) : (Math.Max(2, w & ~1), Math.Max(2, h & ~1));
+    }
 }
 
 /// <summary>Ajustes del audio de la salida.</summary>
@@ -228,4 +247,10 @@ public sealed record ExportRequest(Rodaje.Core.Model.Project Project, string Seq
 {
     /// <summary>Carpeta del proyecto, para resolver rutas relativas de medios.</summary>
     public string? ProjectDirectory { get; init; }
+
+    /// <summary>
+    /// «Exportar sin él» tras un <see cref="ExportErrorCode.ContentMissing"/> o <see cref="ExportErrorCode.EffectFailed"/>:
+    /// la LUT, la transición o el efecto que falla se omite, como en la vista previa.
+    /// </summary>
+    public bool ContinueWithoutMissing { get; init; }
 }
