@@ -1,6 +1,7 @@
 using Rodaje.App.Services;
 using Rodaje.App.Services.Templates;
 using Rodaje.App.Tests.Support;
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Tests.Templates;
