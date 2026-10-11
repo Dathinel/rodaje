@@ -2,7 +2,7 @@
 
 Rama `claude/ci-windows-verde`, creada desde `origin/main` en `20b4a22`. PR en borrador: https://github.com/Dathinel/rodaje/pull/2.
 
-**Corrida verde:** PENDIENTE_ENLACE
+**Corrida verde:** https://github.com/Dathinel/rodaje/actions/runs/38101005588, intento 2, sobre `15e629b`. Pasan los dos trabajos y Windows ya bloquea. El intento 1 falló solo por la prueba de Engine que se anota en «Pendiente».
 
 Parte de `docs/tareas/2026-10-10-ci.md`, que anotó 13 fallos del runner `windows-latest` (sin GPU de verdad, sin NVENC y con 2 núcleos).
 
@@ -87,7 +87,7 @@ En el runner gana `h264_mf`, que solo produce I y P aunque se le pida `-bf 2`.
 | `EffectPerformanceTests.Three_4k_layers_with_effects_and_half_resolution` | 1 | Igual |
 | `EffectPerformanceTests.A_4k_transition_with_effects` | 4 | Igual |
 | `EffectPerformanceTests.One_4k_layer_with_color_and_lut` | 1 | 199 ms en la GPU de software, más que el tiempo fijado |
-| `EffectFidelityTests.Sharpen_matches_the_unsharp_mask_reference` | 3 | Píxeles a 1-2 códigos fuera de la tolerancia de ±2 en WARP (por ejemplo, 92 frente a 90 ±2), y E_INVALIDARG |
+| `EffectFidelityTests.Sharpen_matches_the_unsharp_mask_reference` | 3 | Fidelidad en WARP: el registro muestra píxeles fuera de la tolerancia de ±2 (por ejemplo, 92 frente a 90 ±2). No comprobé caso por caso si alguno es E_INVALIDARG |
 
 Render no se tocó: lo están cambiando los agentes de la fase 5.
 
@@ -108,6 +108,11 @@ Render no se tocó: lo están cambiando los agentes de la fase 5.
   - decidir si la tolerancia de `Sharpen` debe aguantar la rasterización de WARP.
 
   Con eso se podría quitar la lista de `ci.yml`.
+- **Engine: `TimelineResourceTests.Tick_never_waits_for_a_decoder_that_is_closing` es intermitente en el runner.**
+  - Mide un `Tick` con `Stopwatch` contra un umbral de 2 ms y no lleva la categoría `TiempoReal`.
+  - En el intento 1 de la corrida verde dio 3,8 ms y falló; al relanzar pasó.
+  - Ahora que Windows bloquea, puede volver a dejar la CI en rojo sin motivo.
+  - Propuesta para quien lleve Engine: `[Trait("Categoria", "TiempoReal")]`. `probar.ps1` la correría aparte, sola, y el filtro de `ci.yml` ya la excluye.
 - **`FfmpegTool.RunExecutable` falla en Linux** con «Cannot access a closed pipe» en `ReadEncoders`, así que `Skip.Encoder` y `Skip.Encoders` no se pueden comprobar fuera de Windows. No afecta a la CI, que corre TestMedia en Windows.
 
 ## Qué comprobar en el PC de Daniel (RTX 3050)
