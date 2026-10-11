@@ -73,10 +73,11 @@ public static class ExportEncoderCatalog
         Id = "av1_nvenc", Codec = ExportCodec.Av1,
         Note = "Solo RTX 40 (Ada) o posterior.",
         PixelFormats = [ExportPixelFormat.Nv12, ExportPixelFormat.P010],
-        Profiles = [new("main", "Main")],
+        // AV1 solo tiene el perfil Main en la GPU: sin -profile:v (av1_nvenc no admite «main» como valor).
+        Profiles = [],
         Levels = [],
         RateControls = GpuRates,
-        Quality = new("CQ", "-cq", 1, 63, 30),
+        Quality = new("CQ", "-cq", 1, 51, 30),
         Tunes = ["hq", "uhq", "ll", "ull"],
     };
 
@@ -110,7 +111,7 @@ public static class ExportEncoderCatalog
     {
         Id = "av1_amf", Codec = ExportCodec.Av1,
         Note = "Solo Radeon RX 7000 o posterior. " + UntestedAmdNote,
-        Profiles = [new("main", "Main")],
+        Profiles = [],
         Levels = [],
         SpeedPresets = ["speed", "balanced", "quality", "high_quality"],
     };
@@ -144,7 +145,7 @@ public static class ExportEncoderCatalog
     {
         Id = "av1_qsv", Codec = ExportCodec.Av1,
         Note = "Solo Intel Arc o Core Ultra o posterior. " + UntestedIntelNote,
-        Profiles = [new("main", "Main")],
+        Profiles = [],
         Levels = [],
     };
 
