@@ -115,7 +115,7 @@ public static class ExportOutputGuard
 
         if (free < neededBytes + reserveBytes)
         {
-            throw new ExportException(ExportErrorCode.DiskFull, string.Create(CultureInfo.GetCultureInfo("es-ES"),
+            throw new ExportException(ExportErrorCode.DiskFull, string.Create(CultureInfo.InvariantCulture,
                 $"No cabe en el disco {Path.GetPathRoot(full)}: hay {Megabytes(free)} libres y hacen falta {Megabytes(neededBytes + reserveBytes)}. Libera espacio o elige otro disco."))
             {
                 Culprit = full,
@@ -209,6 +209,8 @@ public static class ExportOutputGuard
         return false;
     }
 
-    private static string Megabytes(long bytes) =>
-        bytes >= 1L << 30 ? $"{bytes / (double)(1L << 30):0.0} GB" : $"{bytes / (double)(1L << 20):0} MB";
+    // Con coma decimal a mano: el editor se publica con InvariantGlobalization.
+    private static string Megabytes(long bytes) => bytes >= 1L << 30
+        ? (bytes / (double)(1L << 30)).ToString("0.0", CultureInfo.InvariantCulture).Replace('.', ',') + " GB"
+        : (bytes / (double)(1L << 20)).ToString("0", CultureInfo.InvariantCulture) + " MB";
 }

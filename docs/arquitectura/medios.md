@@ -102,6 +102,24 @@ Un proxy es una copia ligera (540p o 720p, H.264, GOP 15 sin cuadros B) **con lo
 | [`ProxyPolicy`](../../src/Rodaje.Media/Proxies/ProxyPolicy.cs) | Recomienda proxy por encima de 1920×1088, con HEVC de 10 bits en varias capas, con GOP de más de 60, por encima de 80 Mbps o si la decodificación medida no llega a 1,5× por capa. `HighSpeed`: entre 1× y 16×, si la velocidad del clip × capas × 1,25 supera lo medido por `DecodeSpeedProbe`. `Reverse`: obligatoria (`IsRequired`) en reversa por encima de 1080p |
 | [`MediaSourceResolver`](../../src/Rodaje.Media/Proxies/MediaSourceResolver.cs) | Decide qué archivo usar según el propósito (vista previa o exportación) y publica el estado del proxy (`Recommended`, `Generating`, `Ready`...) |
 
+## Salida de la exportación (`Export/`)
+
+El contrato (`IExportSink`, `ExportVideoFrame`, formatos, `EncoderSpec`, `ExportCompatibility`) está en D-028. La v1 lo implementa con el mismo `ffmpeg.exe` LGPL verificado de los proxies; los argumentos de cada codificador los arma [`FfmpegArguments`](../../src/Rodaje.Export/FfmpegArguments.cs) en `Rodaje.Export` a partir de `ExportSettings`.
+
+| Pieza | Qué hace |
+|---|---|
+| [`FfmpegPipeSink`](../../src/Rodaje.Media/Export/FfmpegPipeSink.cs) | `-f rawvideo -i pipe:0` más el WAV como segunda entrada. Un único búfer de 4 MB se llena fila a fila (quita el pitch) y se vacía a la tubería: sin reservas por cuadro. Etiqueta el color en la entrada y en la salida (`bt709`/`tv`/`left`, BT.601 en SD). `ChildProcessJob`, prioridad Normal o BelowNormal según el modo (`PriorityFor`), `-progress` para `FramesEncoded`. Capítulos por `ffmetadata`, portada en MP4/MOV, secuencias de imágenes en carpeta, dos pasadas con `-pass`. `Abort` (o el token) mata el proceso y borra los temporales antes de volver |
+| [`FfmpegMessages`](../../src/Rodaje.Media/Export/FfmpegMessages.cs) | La salida de error de ffmpeg a `ExportErrorCode` y un mensaje en español, con el detalle técnico al final entre paréntesis |
+| [`ExportOutputGuard`](../../src/Rodaje.Media/Export/ExportOutputGuard.cs) | Temporal `<salida>.rodaje-tmp` y renombrado; la salida no puede ser un medio de la secuencia ni estar abierta en otro programa; espacio libre antes de empezar y cada segundo mientras se escribe (reserva de 64 MB) |
+| [`ExportJournal`](../../src/Rodaje.Media/Export/ExportJournal.cs) | `%LOCALAPPDATA%\Rodaje\exportando.json`: temporales de cada exportación con el proceso dueño. `CleanupStale` (al arrancar) borra los de procesos muertos, y solo rutas con `.rodaje-tmp` |
+| [`WaveFileWriter`](../../src/Rodaje.Media/Export/WaveFileWriter.cs) | WAV de la mezcla: float32 (o PCM 16/24/32 con saturación); pasa a RF64 al cerrar si supera 4 GB, sin mover datos (reserva `JUNK` para `ds64`) |
+| [`FfmpegLoudness`](../../src/Rodaje.Media/Export/FfmpegLoudness.cs) | `loudnorm` en dos pasadas: mide el WAV y da el filtro lineal con lo medido |
+| [`ExportVerifier`](../../src/Rodaje.Media/Export/ExportVerifier.cs) | Con `ffprobe.exe`: cuadros, tasa, píxel, etiquetas de color, GOP máximo, inicio de audio y video, capítulos; lee las cajas para saber si `moov` va antes de `mdat` |
+
+**Cifras (RTX 3050 Laptop, 12-oct).** Tubería del sink a `h264_nvenc` p4: 1080p NV12 a 295–322 fps (0,9–1,0 GB/s), 4K a 85–86 fps (~1,05 GB/s), igual que el prototipo. Cancelación: mediana 3 ms y máxima 7 ms en 10 rondas, sin proceso ni archivo. Inicio de audio y video en 0 ±1 ms en MP4, MOV, MKV, WebM, MXF y MPEG-TS (en MPEG-TS con `-muxdelay 0`); MP3 en MPEG-TS adelanta el video 23 ms (retardo de LAME sin lista de edición), por eso se prueba MP3 en MP4.
+
+**Codificadores probados aquí** con exportaciones cortas verificadas con ffprobe: `h264_nvenc`, `hevc_nvenc` (8 y 10 bits), `h264_mf`, `libsvtav1` (8 y 10 bits), `libvpx-vp9` (también dos pasadas), `prores_ks` (422 HQ y 4444 con alfa), `dnxhd` (DNxHR SQ en MOV y HQX en MXF), `ffv1`, `png` (secuencia); audio `aac_mf`, `aac`, `libopus`, `flac`, `alac`, `libmp3lame`, `pcm_s16le`, `pcm_s24le`. AMF y QSV tienen argumentos pero no se pueden probar en este equipo. MXF etiqueta BT.601 como `bt470bg` (la misma matriz); el verificador los da por iguales.
+
 ## Pruebas
 
 - **[`tests/Rodaje.Media.Tests`](../../tests/Rodaje.Media.Tests)** cubre:
@@ -112,7 +130,8 @@ Un proxy es una copia ligera (540p o 720p, H.264, GOP 15 sin cuadros B) **con lo
   - los modos de alta velocidad (cada cuadro aproximado coincide con la referencia de su índice real y ninguna petición exacta sale de un descarte) y el índice de keyframes frente a ffprobe;
   - color, análisis y audio con saltos de marcas;
   - rendimiento;
-  - todos los proxies (almacén, política, argumentos, generación que lee el número dibujado en cada cuadro).
+  - todos los proxies (almacén, política, argumentos, generación que lee el número dibujado en cada cuadro);
+  - la salida de la exportación (`Export/`): una exportación corta por codificador y contenedor, cancelación ×10, disco lleno antes y durante, codificador ausente o que rechaza, salida que pisa un medio, RF64, `exportando.json` y sonoridad.
   Cada prueba corre en tres modos: D3D11VA, software con subida a GPU y CPU.
 - **[`testing/Rodaje.TestMedia`](../../testing/Rodaje.TestMedia)** genera los medios deterministas de todas las suites:
   - [`FrameCode`](../../testing/Rodaje.TestMedia/FrameCode.cs) dibuja el número de cuadro en la luma (20 bits con CRC-8) y resiste la compresión;
