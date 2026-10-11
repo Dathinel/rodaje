@@ -33,6 +33,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         TransitionPanel.ActiveChanged += (_, _) => UpdateVisibility();
         TransitionPanel.Attach(services);
         SpeedPanel.Attach(services);
+        services.Session.SpeedPanelRequested += (_, _) => Show(Tab.Speed);
         FiltersPanel.Attach(services);
         HistoryPanel.Attach(services);
         JobsPanel.ActiveCountChanged += (_, active) => JobsTab.Content = active > 0 ? $"Trabajos ({active})" : "Trabajos";
