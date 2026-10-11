@@ -65,8 +65,9 @@ public sealed class ClipDrag
     private readonly string _originTrackId;
     private readonly TrackKind _kind;
     private readonly Time _originStart;
+    private readonly Time _originDuration;
     private readonly Time _originIn;
-    private readonly Time _originOut;
+    private readonly double _slipRate;
     private readonly Time _minStart;
     private readonly Rational _frameRate;
     private readonly SnapPoints _snaps;
@@ -87,8 +88,9 @@ public sealed class ClipDrag
         _originTrackId = track.Id;
         _kind = track.Kind;
         _originStart = clip.Start;
+        _originDuration = clip.Duration;
         _originIn = clip.SourceIn;
-        _originOut = clip.SourceOut;
+        _slipRate = SlipRate(clip);
         _frameRate = sequence.FrameRate;
         List<(Track Track, Clip Clip)> members = options.IgnoreGroups ? [(track, clip)] : sequence.GetLinkGroup(clipId);
         _group = [.. members.Select(m => m.Clip.Id)];
@@ -288,7 +290,7 @@ public sealed class ClipDrag
             Time mediaDuration = project.FindMedia(c.MediaId)?.Duration ?? c.SourceOut;
             if (edge == TrimEdge.In)
             {
-                low = Time.Max(low, -c.SourceIn);
+                low = Time.Max(low, -Room(c, TrimEdge.In, mediaDuration));
                 high = Time.Min(high, c.Duration - frame);
                 if (!ripple)
                 {
@@ -302,7 +304,7 @@ public sealed class ClipDrag
             else
             {
                 low = Time.Max(low, frame - c.Duration);
-                high = Time.Min(high, mediaDuration - c.SourceOut);
+                high = Time.Min(high, Room(c, TrimEdge.Out, mediaDuration));
                 if (!ripple && Next(t, c) is { } next)
                 {
                     high = Time.Min(high, next.Start - c.End);
@@ -319,11 +321,12 @@ public sealed class ClipDrag
                 guide = snapped;
             }
 
-            delta = ripple ? _originIn + (desiredStart - _originStart) - clip.SourceIn : desiredStart - clip.Start;
+            // Con ripple el inicio queda quieto y el clip se acorta: lo que falta es lo pedido menos lo ya recortado.
+            delta = ripple ? desiredStart - _originStart - (_originDuration - clip.Duration) : desiredStart - clip.Start;
         }
         else
         {
-            Time desiredEnd = (_originStart + (_originOut - _originIn) + offset).SnapToFrame(_frameRate);
+            Time desiredEnd = (_originStart + _originDuration + offset).SnapToFrame(_frameRate);
             if (_snaps.Count > 0 && _snaps.Nearest(desiredEnd, SnapThreshold) is { } snapped)
             {
                 desiredEnd = snapped;
@@ -365,7 +368,7 @@ public sealed class ClipDrag
             high = Time.Min(high, mediaDuration - c.SourceOut);
         }
 
-        Time desiredIn = (_originIn - offset).SnapToFrame(_frameRate);
+        Time desiredIn = (_originIn - Time.FromTicks((long)Math.Round(offset.Ticks * _slipRate))).SnapToFrame(_frameRate);
         Time delta = low > high ? Time.Zero : Time.Min(Time.Max(desiredIn - clip.SourceIn, low), high);
         if (delta == Time.Zero)
         {
@@ -377,6 +380,59 @@ public sealed class ClipDrag
             ? () => Solo("Slip", _sequenceId, _clipId, ctx => TimelineEdits.Slip(ctx, _clipId, d), $"slip-solo:{_clipId}", _ids)
             : () => Edits.Slip(_sequenceId, _clipId, d, _ids);
         return new DragPlan(build, true, clip.Start, clip.End, track.Id, null, null);
+    }
+
+    /// <summary>
+    /// Cuánto puede crecer un borde en la línea de tiempo antes de pedir origen fuera del medio, con la velocidad del borde.
+    /// Un congelado no gasta origen: su tope es el del mapeo.
+    /// </summary>
+    public static Time Room(Clip clip, TrimEdge edge, Time mediaDuration)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        if (clip.Speed is null)
+        {
+            return edge == TrimEdge.In ? clip.SourceIn : mediaDuration - clip.SourceOut;
+        }
+
+        ClipTimeMap map = clip.TimeMap;
+        long cap = Math.Max(0, RetimeMath.MaxExtent - Math.Abs(map.Offset.Ticks) - map.Duration.Ticks);
+        bool Fits(long delta)
+        {
+            Time source = edge == TrimEdge.In
+                ? map.ExtendedSource(map.Start - Time.FromTicks(delta))
+                : map.ExtendedSource(map.End - Time.FromTicks(1) + Time.FromTicks(delta));
+            return source >= Time.Zero && source < mediaDuration;
+        }
+
+        // El origen avanza siempre hacia el mismo lado, así que «cabe» es monótono: búsqueda binaria.
+        long lowOk = 0;
+        long high = cap;
+        while (lowOk < high)
+        {
+            long mid = lowOk + ((high - lowOk + 1) / 2);
+            if (Fits(mid))
+            {
+                lowOk = mid;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        return Time.FromTicks(lowOk);
+    }
+
+    /// <summary>Cuánto origen se corre por cada instante que se mueve el puntero en un slip: la velocidad media del clip.</summary>
+    private static double SlipRate(Clip clip)
+    {
+        if (clip.Speed is not { } speed || speed.Freeze)
+        {
+            return 1;
+        }
+
+        double rate = (double)clip.SourceDuration.Ticks / clip.Duration.Ticks;
+        return speed.Reverse ? -rate : rate;
     }
 
     private List<(Track Track, Clip Clip)> Members(Sequence sequence, Track track, Clip clip) =>

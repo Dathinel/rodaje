@@ -105,6 +105,7 @@ internal sealed class ClipVisual
     public void Update(in ClipDraw d, IClipVisuals? visuals)
     {
         ClipId = d.Clip.Id;
+        ClipTimeMap map = d.Clip.TimeMap;
         Root.Visibility = Visibility.Visible;
         Canvas.SetLeft(Root, d.Left);
         Canvas.SetTop(Root, d.Top);
@@ -128,7 +129,7 @@ internal sealed class ClipVisual
         UpdateName(d);
         if (d.Kind == TrackKind.Video && detailed)
         {
-            UpdateFilmstrip(d, visuals);
+            UpdateFilmstrip(d, map, visuals);
         }
         else
         {
@@ -138,14 +139,14 @@ internal sealed class ClipVisual
 
         if (d.Kind == TrackKind.Audio && detailed)
         {
-            UpdateWaveform(d, visuals);
+            UpdateWaveform(d, map, visuals);
         }
         else
         {
             _wave.Visibility = Visibility.Collapsed;
         }
 
-        UpdateEnvelope(d);
+        UpdateEnvelope(d, map);
         UpdateKeyframes(d);
     }
 
@@ -193,7 +194,7 @@ internal sealed class ClipVisual
         Canvas.SetTop(_name, 0);
     }
 
-    private void UpdateFilmstrip(in ClipDraw d, IClipVisuals? visuals)
+    private void UpdateFilmstrip(in ClipDraw d, ClipTimeMap map, IClipVisuals? visuals)
     {
         double top = NameHeight;
         double height = d.Height - NameHeight - 2;
@@ -221,7 +222,7 @@ internal sealed class ClipVisual
         if (visuals is not null)
         {
             // La separación entre miniaturas decide la rejilla de instantes: un mismo zoom reutiliza las mismas miniaturas.
-            Time spacing = Time.FromSeconds(tile / d.PixelsPerSecond);
+            Time spacing = ClipMapping.SourceSpacing(map, Time.FromSeconds(tile / d.PixelsPerSecond));
             int pixels = (int)Math.Ceiling(height * (Root.XamlRoot?.RasterizationScale ?? FallbackScale));
             int first = (int)Math.Max(0, Math.Floor(-origin / tile));
             int last = (int)Math.Ceiling((d.Width - origin) / tile);
@@ -233,7 +234,7 @@ internal sealed class ClipVisual
                     continue;
                 }
 
-                Time sourceTime = d.Clip.ToSourceTime(TimeAt(d, x + (tile / 2)));
+                Time sourceTime = map.Source(TimeAt(d, x + (tile / 2)));
                 if (visuals.GetNearestThumbnail(d.Clip.MediaId, sourceTime, spacing, pixels) is { } image)
                 {
                     Image view = Thumb(thumbs++);
@@ -273,7 +274,7 @@ internal sealed class ClipVisual
         }
     }
 
-    private void UpdateWaveform(in ClipDraw d, IClipVisuals? visuals)
+    private void UpdateWaveform(in ClipDraw d, ClipTimeMap map, IClipVisuals? visuals)
     {
         double top = NameHeight - 2;
         double half = (d.Height - top - 3) / 2;
@@ -291,15 +292,19 @@ internal sealed class ClipVisual
         Clip clip = d.Clip;
         _waveBounds.Rect = new Rect(0, 0, d.Width, d.Height);
 
-        // Mientras se calcula (o sin sonido) se dibuja el marcador de posición.
-        WaveformSlice? slice = visuals?.GetWaveform(clip.MediaId, clip.ToSourceTime(TimeAt(d, 0)), clip.ToSourceTime(TimeAt(d, d.Width)), count);
+        // Se pide el tramo del origen que se ve y cada punto toma el suyo con el mapeo: a otra velocidad, en reversa o
+        // con una curva la onda sigue al material. Mientras se calcula (o sin sonido) se dibuja el marcador de posición.
+        (Time low, Time high) = ClipMapping.VisibleSource(map, TimeAt(d, 0), TimeAt(d, d.Width));
+        WaveformSlice? slice = visuals?.GetWaveform(clip.MediaId, low, high, count);
         bool real = slice is { IsComplete: true, HasAudio: true } && slice.Buckets == count;
         for (int i = 0; i < count; i++)
         {
             double x = i == count - 1 ? d.Width : i * step;
+            Time at = TimeAt(d, x);
+            int bucket = map.IsIdentity ? i : ClipMapping.BucketOf(map, at, low, high, count);
             float peak = real
-                ? Math.Clamp(Math.Max(-slice!.Min[i], slice.Max[i]), 0, 1)
-                : ClipDecorations.PlaceholderPeak(clip.MediaId, clip.ToSourceTime(TimeAt(d, x)));
+                ? Math.Clamp(Math.Max(-slice!.Min[bucket], slice.Max[bucket]), 0, 1)
+                : ClipDecorations.PlaceholderPeak(clip.MediaId, map.Source(at));
             upper[i] = new Point(x, center - (peak * half));
         }
 
@@ -322,7 +327,7 @@ internal sealed class ClipVisual
         _wave.Visibility = Visibility.Visible;
     }
 
-    private void UpdateEnvelope(in ClipDraw d)
+    private void UpdateEnvelope(in ClipDraw d, ClipTimeMap map)
     {
         if (!d.ShowEnvelope || d.Kind != TrackKind.Audio || d.Width < DetailMinWidth)
         {
@@ -339,7 +344,7 @@ internal sealed class ClipVisual
         for (double x = 0; ; x += step)
         {
             double clamped = Math.Min(x, d.Width);
-            double gain = ClipDecorations.GainDbAt(d.Clip, TimeAt(d, clamped));
+            double gain = ClipDecorations.GainDbAt(d.Clip, map, TimeAt(d, clamped));
             points.Add(new Point(clamped, top + ((1 - ClipDecorations.EnvelopeFraction(gain)) * range)));
             if (clamped >= d.Width)
             {
