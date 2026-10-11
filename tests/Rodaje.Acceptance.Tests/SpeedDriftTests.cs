@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using Rodaje.Acceptance.Tests.Support;
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Timeline;
 using Rodaje.Playback.Composition;
@@ -10,10 +11,10 @@ using Xunit.Abstractions;
 namespace Rodaje.Acceptance.Tests;
 
 /// <summary>
-/// Criterio de la fase 5c: 10 minutos a 1,5× y a 0,5× sin deriva. El video, con un reloj manual a 60 Hz: en cada refresco
-/// el cuadro mostrado (por su número dibujado) es el que manda el mapeo. El audio, leyendo la mezcla tal como la leería la
-/// salida: cada chirp del origen suena donde el mapeo lo pone, con ≤5 ms de error medio por minuto y ≤1 ms de diferencia
-/// entre el primer y el último minuto.
+/// Criterio de la fase 5c: 10 minutos a 1,5×, a 0,5× y con la curva «Montaje» repetida clip tras clip, sin deriva. El
+/// video, con un reloj manual a 60 Hz: en cada refresco el cuadro mostrado (por su número dibujado) es el que manda el
+/// mapeo. El audio, leyendo la mezcla tal como la leería la salida: cada chirp del origen suena donde el mapeo lo pone,
+/// con ≤5 ms de error medio por minuto (≤1 ms con «Montaje») y ≤1 ms de diferencia entre el primer y el último minuto.
 /// </summary>
 public sealed class SpeedDriftTests(ITestOutputHelper output)
 {
@@ -22,9 +23,11 @@ public sealed class SpeedDriftTests(ITestOutputHelper output)
     private const int Channels = 2;
     private const int MaxFailures = 20;
     private const double MaxMeanErrorMs = 5;
+    private const double MaxMontageMeanErrorMs = 1;
     private const double MaxMinuteDriftMs = 1;
     private static readonly Time Length = Time.FromSeconds(600);
     private static readonly Time ControlLength = Time.FromSeconds(60);
+    private static readonly Time MontageMaterial = Time.FromSeconds(8);
     private static readonly Time Refresh = Time.FromTicks(Time.TicksPerSecond / 60);
     private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(5);
 
@@ -51,6 +54,16 @@ public sealed class SpeedDriftTests(ITestOutputHelper output)
         Audio($"{name}{(preservePitch ? "" : ".sin_tono")}", SpeedTimeline.Build(MediaPath, speedCase, withAudio: true, Length, preservePitch),
             (double)speedCase.Rate.Num / speedCase.Rate.Den, preservePitch);
     }
+
+    /// <summary>«Montaje» en clips seguidos de 8 s de material cada uno durante 10 minutos: cortes y rampas sin parar.</summary>
+    [FfmpegLibraryFact(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true)]
+    public void Video_montaje_repetida_diez_minutos_sin_deriva() =>
+        Video("montaje", SpeedTimeline.BuildRepeated(MediaPath, SpeedPreset.Montage, Length, MontageMaterial));
+
+    [FfmpegLibraryFact(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true)]
+    public void Audio_montaje_repetida_diez_minutos_sin_deriva() =>
+        Audio("montaje", SpeedTimeline.BuildRepeated(MediaPath, SpeedPreset.Montage, Length, MontageMaterial), 2.5, preservePitch: true,
+            MaxMontageMeanErrorMs);
 
     /// <summary>El recorrido de video sobre un clip sin velocidad: comprueba la medida con el motor de hoy.</summary>
     [FfmpegLibraryFact(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true)]
@@ -81,7 +94,7 @@ public sealed class SpeedDriftTests(ITestOutputHelper output)
         long lastIndex = -1;
         var watch = Stopwatch.StartNew();
         session.Play();
-        Time end = timeline.Clip.End;
+        Time end = timeline.End;
         while (failures.Count < MaxFailures && backend.Clock.Position + Refresh < end)
         {
             backend.Clock.Advance(Refresh);
@@ -138,15 +151,16 @@ public sealed class SpeedDriftTests(ITestOutputHelper output)
             $"{name}: {timeline.Map}; {refreshes} refrescos en {watch.Elapsed.TotalSeconds:0.0} s, {codeReads} cuadros leídos; reloj final {backend.Clock.Position}; " +
             $"mostrados {stats.FramesShown}, saltados {stats.FramesDropped}, tarde {stats.LateRefreshes}, errores {stats.DecodeErrors}."));
         Assert.Equal(0, stats.DecodeErrors);
-        Assert.True(refreshes >= (long)(timeline.Clip.Duration.ToSeconds() * 60) - 2, $"Solo hubo {refreshes} refrescos.");
+        Assert.True(refreshes >= (long)(timeline.End.ToSeconds() * 60) - 2, $"Solo hubo {refreshes} refrescos.");
         Assert.True(failures.Count == 0, $"{failures.Count} refrescos con deriva; los primeros: {string.Join(" | ", failures.Take(10))}");
     }
 
-    private void Audio(string name, SpeedTimeline timeline, double rate, bool preservePitch)
+    /// <param name="rate">La velocidad (la mayor, en una curva): da la plantilla sin mantener el tono y lo lejos que se busca.</param>
+    private void Audio(string name, SpeedTimeline timeline, double rate, bool preservePitch, double maxMeanErrorMs = MaxMeanErrorMs)
     {
         using var backend = new ManualClockBackend();
         using TimelineSession session = ManualClockBackend.Open(timeline.Project, backend, audio: true);
-        float[] mono = ReadMix(session, backend, (int)(timeline.Clip.Duration.ToSeconds() * Rate));
+        float[] mono = ReadMix(session, backend, (int)(timeline.End.ToSeconds() * Rate));
         float[] template = RetimedAudioCode.ChirpTemplate(Rate, rate, preservePitch);
         int near = Rate / 20;
         int period = (int)(Rate / rate);
@@ -154,20 +168,11 @@ public sealed class SpeedDriftTests(ITestOutputHelper output)
         var errorsByMinute = new SortedDictionary<int, List<double>>();
         var missing = new List<int>();
         double minCorrelation = 1;
-        for (int second = 0; second < AudioCode.SecondModulus * 4; second++)
+        List<Time> instants = timeline.ChirpInstants();
+        for (int index = 0; index < instants.Count; index++)
         {
-            Time? at = timeline.TimelineOfSourceSecond(second);
-            if (at is null)
-            {
-                if (errorsByMinute.Count > 0)
-                {
-                    break;
-                }
-
-                continue;
-            }
-
-            long expected = (long)((Int128)at.Value.Ticks * Rate / Time.TicksPerSecond);
+            Time at = instants[index];
+            long expected = (long)((Int128)at.Ticks * Rate / Time.TicksPerSecond);
             if (expected - near < 0 || expected + near + template.Length > mono.Length)
             {
                 continue;
@@ -177,12 +182,12 @@ public sealed class SpeedDriftTests(ITestOutputHelper output)
                 ?? RetimedAudioCode.FindChirp(mono, template, (int)expected - (period / 2), (int)expected + (period / 2), 0.5);
             if (found is not { } mark)
             {
-                missing.Add(second);
+                missing.Add(index);
                 continue;
             }
 
             minCorrelation = Math.Min(minCorrelation, mark.Correlation);
-            int minute = (int)(at.Value.Ticks / Time.FromSeconds(60).Ticks);
+            int minute = (int)(at.Ticks / Time.FromSeconds(60).Ticks);
             if (!errorsByMinute.TryGetValue(minute, out List<double>? errors))
             {
                 errorsByMinute[minute] = errors = [];
@@ -207,8 +212,8 @@ public sealed class SpeedDriftTests(ITestOutputHelper output)
                 $"  minuto {line.Minute}: {line.Count} marcas, error medio {line.Mean:+0.000;-0.000} ms, medio absoluto {line.MeanAbs:0.000} ms, máximo {line.Max:0.000} ms"));
         }
 
-        Assert.True(missing.Count == 0, $"{name}: no se encontraron las marcas de los segundos {string.Join(", ", missing.Take(20))}.");
-        Assert.True(worstMeanAbs <= MaxMeanErrorMs, $"{name}: un minuto tiene {worstMeanAbs:0.000} ms de error medio (máximo {MaxMeanErrorMs} ms).");
+        Assert.True(missing.Count == 0, $"{name}: no se encontraron las marcas {string.Join(", ", missing.Take(20))} (de {instants.Count}).");
+        Assert.True(worstMeanAbs <= maxMeanErrorMs, $"{name}: un minuto tiene {worstMeanAbs:0.000} ms de error medio (máximo {maxMeanErrorMs} ms).");
         Assert.True(minuteDrift <= MaxMinuteDriftMs, $"{name}: el error medio cambió {minuteDrift:0.000} ms entre el primer y el último minuto (máximo {MaxMinuteDriftMs} ms).");
     }
 

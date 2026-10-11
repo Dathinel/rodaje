@@ -1,4 +1,6 @@
+using System.Numerics;
 using Rodaje.Audio;
+using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine;
@@ -10,8 +12,11 @@ using Rodaje.TestMedia;
 
 namespace Rodaje.Acceptance.Tests.Support;
 
-/// <summary>Un caso de velocidad: constante (<see cref="Rate"/>) o cuadro congelado; <see cref="Offset"/> como si el clip viniera de dividir otro.</summary>
-internal sealed record SpeedCase(string Name, Rational Rate, bool Freeze = false, long Offset = 0)
+/// <summary>
+/// Un caso de velocidad: constante (<see cref="Rate"/>), cuadro congelado o la curva de un preajuste; <see cref="Offset"/>
+/// como si el clip viniera de dividir otro.
+/// </summary>
+internal sealed record SpeedCase(string Name, Rational Rate, bool Freeze = false, long Offset = 0, SpeedPreset? Preset = null)
 {
     public static SpeedCase Named(string name) => All.Single(c => c.Name == name);
 
@@ -26,12 +31,14 @@ internal sealed record SpeedCase(string Name, Rational Rate, bool Freeze = false
         new("100x", new Rational(100, 1)),
         new("congelado", new Rational(1, 1), Freeze: true),
         new("1,5x", new Rational(3, 2)),
+        new("bala", new Rational(1, 1), Preset: SpeedPreset.Bullet),
     ];
 }
 
 /// <summary>
-/// Secuencia de 30 fps con un clip del medio de velocidad (y su audio enlazado, si se pide) que empieza en 0. El cuadro
-/// esperado se calcula aparte con aritmética entera y se compara con <see cref="ClipTimeMap"/>, el contrato.
+/// Secuencia de 30 fps con clips del medio de velocidad (y su audio enlazado, si se pide) seguidos desde 0. El cuadro
+/// esperado se calcula aparte con aritmética entera (BigInteger en las curvas) y se compara con
+/// <see cref="ClipTimeMap"/>, el contrato.
 /// </summary>
 internal sealed class SpeedTimeline
 {
@@ -40,33 +47,45 @@ internal sealed class SpeedTimeline
 
     private static readonly Time SourceIn = Time.FromSeconds(1.3);
 
-    private SpeedTimeline(Project project, Clip clip, Rational sourceRate)
+    /// <summary>Material del clip con preajuste de <see cref="Build"/>.</summary>
+    private static readonly Time PresetMaterial = Time.FromSeconds(40);
+
+    private SpeedTimeline(Project project, IReadOnlyList<Clip> clips, Rational sourceRate)
     {
         Project = project;
-        Clip = clip;
-        Map = clip.TimeMap;
+        Clips = clips;
+        Clip = clips[0];
+        Map = Clip.TimeMap;
         SourceRate = sourceRate;
     }
 
     public Project Project { get; }
 
+    /// <summary>Los clips de video, en orden.</summary>
+    public IReadOnlyList<Clip> Clips { get; }
+
+    /// <summary>El primer clip de video.</summary>
     public Clip Clip { get; }
 
     public ClipTimeMap Map { get; }
 
     public Rational SourceRate { get; }
 
-    /// <summary>Cuadros de la secuencia que empiezan dentro del clip.</summary>
-    public long FrameCount => (Clip.End - Time.FromTicks(1)).ToFrames(SequenceRate) + 1;
+    public Time End => Clips[^1].End;
+
+    /// <summary>Cuadros de la secuencia que empiezan dentro de los clips.</summary>
+    public long FrameCount => (End - Time.FromTicks(1)).ToFrames(SequenceRate) + 1;
 
     /// <param name="withAudio">Con el audio enlazado; un congelado no lo lleva (el audio no se congela).</param>
     /// <param name="maxTimeline">Si se da, el clip se recorta para no pasar de esa duración en la línea de tiempo.</param>
     public static SpeedTimeline Build(string mediaPath, SpeedCase speedCase, bool withAudio, Time? maxTimeline = null, bool preservePitch = true)
     {
-        var media = new MediaRef { Id = "m", Path = mediaPath };
-        MediaInfo info = MediaProbe.Probe(mediaPath);
-        info.ApplyTo(media);
-        Rational sourceRate = info.Video?.FrameRate ?? throw new InvalidOperationException("El medio de velocidad no tiene video.");
+        (Project project, MediaRef media, Sequence sequence, Rational sourceRate) = NewProject(mediaPath, speedCase.Name);
+        if (speedCase.Preset is { } preset)
+        {
+            Clip curved = AddWithPreset(project, sequence, 0, SourceIn, PresetMaterial, preset, withAudio, preservePitch);
+            return Validated(new SpeedTimeline(project, [curved], sourceRate), speedCase.Name);
+        }
 
         var speed = new ClipSpeed { Rate = speedCase.Rate, Freeze = speedCase.Freeze, Offset = Time.FromTicks(speedCase.Offset), PreservePitch = preservePitch };
         ClipTimeMap map = speedCase.Freeze
@@ -77,88 +96,156 @@ internal sealed class SpeedTimeline
             map = map.TrimOut(max);
         }
 
-        var sequence = new Sequence { Id = SequenceId, Name = "Velocidad", FrameRate = SequenceRate, Width = 1280, Height = 720 };
-        var project = new Project { Id = "p", Name = "Velocidad", Media = [media], Sequences = [sequence] };
         withAudio &= !speedCase.Freeze;
-        Clip video = NewClip("v", speed, map, withAudio);
-        sequence.VideoTracks.Add(new Track { Id = "v1", Kind = TrackKind.Video, Name = "Video", Clips = [video] });
+        Clip video = NewClip("v", speed, map, withAudio ? "l" : null);
+        sequence.VideoTracks[0].Clips.Add(video);
         if (withAudio)
         {
-            sequence.AudioTracks.Add(new Track { Id = "a1", Kind = TrackKind.Audio, Name = "Audio", Clips = [NewClip("a", speed.Clone(), map, linked: true)] });
+            sequence.AudioTracks[0].Clips.Add(NewClip("a", speed.Clone(), map, "l"));
         }
 
-        IReadOnlyList<string> errors = ModelValidator.Validate(project);
-        if (errors.Count > 0)
+        return Validated(new SpeedTimeline(project, [video], sourceRate), speedCase.Name);
+    }
+
+    /// <summary>
+    /// Clips seguidos con el preajuste, cada uno con <paramref name="material"/> del origen a continuación del anterior
+    /// (al acabarse el medio vuelve al principio), hasta cubrir <paramref name="length"/> de la línea de tiempo.
+    /// </summary>
+    public static SpeedTimeline BuildRepeated(string mediaPath, SpeedPreset preset, Time length, Time material, bool withAudio = true)
+    {
+        (Project project, MediaRef media, Sequence sequence, Rational sourceRate) = NewProject(mediaPath, SpeedPresets.Name(preset));
+        var clips = new List<Clip>();
+        Time source = SourceIn;
+        while (clips.Count == 0 || clips[^1].End < length)
         {
-            throw new InvalidOperationException($"El proyecto de velocidad «{speedCase.Name}» no es válido: {string.Join("; ", errors)}");
+            if (source + material > media.Duration - Time.FromSeconds(0.5))
+            {
+                source = SourceIn;
+            }
+
+            clips.Add(AddWithPreset(project, sequence, clips.Count, source, material, preset, withAudio, preservePitch: true));
+            source += material;
         }
 
-        return new SpeedTimeline(project, video, sourceRate);
+        return Validated(new SpeedTimeline(project, clips, sourceRate), SpeedPresets.Name(preset));
     }
 
     /// <summary>Un clip sin velocidad de <paramref name="length"/> desde el mismo origen: el control a 1×.</summary>
     public static SpeedTimeline BuildPlain(string mediaPath, Time length, bool withAudio)
     {
-        var media = new MediaRef { Id = "m", Path = mediaPath };
-        MediaInfo info = MediaProbe.Probe(mediaPath);
-        info.ApplyTo(media);
-        var sequence = new Sequence { Id = SequenceId, Name = "Control", FrameRate = SequenceRate, Width = 1280, Height = 720 };
-        var project = new Project { Id = "p", Name = "Control", Media = [media], Sequences = [sequence] };
+        (Project project, _, Sequence sequence, Rational sourceRate) = NewProject(mediaPath, "Control");
         Clip video = new() { Id = "v", MediaId = "m", SourceIn = SourceIn, SourceOut = SourceIn + length, LinkId = withAudio ? "l" : null };
-        sequence.VideoTracks.Add(new Track { Id = "v1", Kind = TrackKind.Video, Name = "Video", Clips = [video] });
+        sequence.VideoTracks[0].Clips.Add(video);
         if (withAudio)
         {
-            sequence.AudioTracks.Add(new Track
-            {
-                Id = "a1",
-                Kind = TrackKind.Audio,
-                Name = "Audio",
-                Clips = [new Clip { Id = "a", MediaId = "m", SourceIn = SourceIn, SourceOut = SourceIn + length, LinkId = "l" }],
-            });
+            sequence.AudioTracks[0].Clips.Add(new Clip { Id = "a", MediaId = "m", SourceIn = SourceIn, SourceOut = SourceIn + length, LinkId = "l" });
         }
 
-        return new SpeedTimeline(project, video, info.Video!.FrameRate);
+        return new SpeedTimeline(project, [video], sourceRate);
     }
 
     /// <summary>Cuadro del origen que debe verse en <paramref name="timeline"/>, calculado sin <see cref="ClipTimeMap"/>.</summary>
-    public long ExpectedFrame(Time timeline) => FrameOf(ExpectedSource(timeline));
+    public long ExpectedFrame(Time timeline) => FrameOf(ExpectedSource(ClipAt(timeline), timeline));
 
     /// <summary>Lo mismo según el contrato; si difiere de <see cref="ExpectedFrame"/>, el error está en el núcleo.</summary>
-    public long ContractFrame(Time timeline) => FrameOf(Map.Source(timeline));
+    public long ContractFrame(Time timeline) => FrameOf(ClipAt(timeline).TimeMap.Source(timeline));
 
-    /// <summary>Instante de la línea de tiempo en que empieza a sonar el segundo <paramref name="second"/> del origen; null si cae fuera del clip.</summary>
-    public Time? TimelineOfSourceSecond(int second)
+    /// <summary>
+    /// Instantes de la línea de tiempo en que empieza a sonar el chirp de cada segundo del origen que suena entero dentro
+    /// de su clip, en orden.
+    /// </summary>
+    public List<Time> ChirpInstants()
     {
-        Time source = Time.FromSeconds(second);
-        if (source < Map.SourceIn || source >= Map.SourceOut)
+        var instants = new List<Time>();
+        foreach (Clip clip in Clips)
         {
-            return null;
+            ClipTimeMap map = clip.TimeMap;
+            for (long second = (long)Math.Ceiling(map.SourceIn.ToSeconds()); Time.FromSeconds(second + 0.03) < map.SourceOut; second++)
+            {
+                Time at = map.TimelineOf(Time.FromSeconds(second));
+                if (at < map.End && map.TimelineOf(Time.FromSeconds(second + 0.03)) < map.End)
+                {
+                    instants.Add(at);
+                }
+            }
         }
 
-        Time at = Map.TimelineOf(source);
-        return at >= Map.End ? null : at;
+        return instants;
+    }
+
+    private Clip ClipAt(Time timeline)
+    {
+        foreach (Clip clip in Clips)
+        {
+            if (timeline < clip.End)
+            {
+                return clip;
+            }
+        }
+
+        return Clips[^1];
     }
 
     /// <summary>
-    /// <c>SourceIn + ⌊(o + τ)·n/d⌋ − ⌊o·n/d⌋</c> para una velocidad constante n/d con desplazamiento o; en un congelado,
-    /// <c>SourceIn</c>. Sin velocidad, <c>SourceIn + τ</c>.
+    /// Sin velocidad, <c>SourceIn + τ</c>; congelado, <c>SourceIn</c>; constante n/d con desplazamiento o,
+    /// <c>SourceIn + ⌊(o + τ)·n/d⌋ − ⌊o·n/d⌋</c>; con curva, lo mismo con su integral (<see cref="Walked"/>).
     /// </summary>
-    private Time ExpectedSource(Time timeline)
+    private static Time ExpectedSource(Clip clip, Time timeline)
     {
-        long tau = Math.Clamp(timeline.Ticks - Clip.Start.Ticks, 0, Clip.Duration.Ticks - 1);
-        if (Clip.Speed is not { } speed)
+        long tau = Math.Clamp(timeline.Ticks - clip.Start.Ticks, 0, clip.Duration.Ticks - 1);
+        if (clip.Speed is not { } speed)
         {
-            return Clip.SourceIn + Time.FromTicks(tau);
+            return clip.SourceIn + Time.FromTicks(tau);
         }
 
         if (speed.Freeze)
         {
-            return Clip.SourceIn;
+            return clip.SourceIn;
         }
 
-        Int128 offset = speed.Offset.Ticks;
-        Int128 progress = FloorDiv((offset + tau) * speed.Rate.Num, speed.Rate.Den) - FloorDiv(offset * speed.Rate.Num, speed.Rate.Den);
-        return Clip.SourceIn + Time.FromTicks((long)progress);
+        long offset = speed.Offset.Ticks;
+        if (speed.Curve is { } curve)
+        {
+            return clip.SourceIn + Time.FromTicks((long)(Walked(curve, offset + tau) - Walked(curve, offset)));
+        }
+
+        Int128 progress = FloorDiv((offset + (Int128)tau) * speed.Rate.Num, speed.Rate.Den) - FloorDiv((Int128)offset * speed.Rate.Num, speed.Rate.Den);
+        return clip.SourceIn + Time.FromTicks((long)progress);
+    }
+
+    /// <summary>
+    /// ⌊origen recorrido tras <paramref name="u"/> ticks de la curva⌋: se integra tramo a tramo la velocidad lineal entre
+    /// nudos (en <c>⌊At·Span/10 000⌋</c>), en centésimas, con BigInteger y un solo redondeo al final.
+    /// </summary>
+    private static BigInteger Walked(SpeedCurve curve, long u)
+    {
+        BigInteger[] knots = [.. curve.Points.Select(p => (BigInteger)p.At * curve.Span.Ticks / SpeedCurve.AtScale)];
+        int[] speeds = [.. curve.Points.Select(p => p.Hundredths)];
+        BigInteger x = u;
+        if (x <= knots[0])
+        {
+            return FloorDiv(x * speeds[0], 100);
+        }
+
+        // Suma de áreas en «centésimas × ticks × 2·L» para no dividir hasta el final.
+        BigInteger whole = 0;
+        for (int k = 1; k < knots.Length; k++)
+        {
+            BigInteger a = knots[k - 1];
+            BigInteger b = knots[k];
+            if (x >= b)
+            {
+                whole += (b - a) * (speeds[k - 1] + speeds[k]);
+                continue;
+            }
+
+            BigInteger length = b - a;
+            BigInteger d = x - a;
+            BigInteger partial = (2 * speeds[k - 1] * d * length) + ((speeds[k] - speeds[k - 1]) * d * d);
+            return FloorDiv((whole * length) + partial, 200 * length);
+        }
+
+        return FloorDiv(whole + (2 * speeds[^1] * (x - knots[^1])), 200);
     }
 
     private long FrameOf(Time source) =>
@@ -170,9 +257,60 @@ internal sealed class SpeedTimeline
         return (a % b != 0 && (a < 0) != (b < 0)) ? q - 1 : q;
     }
 
-    private static Clip NewClip(string id, ClipSpeed speed, ClipTimeMap map, bool linked)
+    private static BigInteger FloorDiv(BigInteger a, BigInteger b)
     {
-        var clip = new Clip { Id = id, MediaId = "m", Speed = speed, LinkId = linked ? "l" : null };
+        BigInteger q = BigInteger.DivRem(a, b, out BigInteger r);
+        return r != 0 && (a.Sign < 0) != (b.Sign < 0) ? q - 1 : q;
+    }
+
+    private static (Project Project, MediaRef Media, Sequence Sequence, Rational SourceRate) NewProject(string mediaPath, string name)
+    {
+        var media = new MediaRef { Id = "m", Path = mediaPath };
+        MediaInfo info = MediaProbe.Probe(mediaPath);
+        info.ApplyTo(media);
+        Rational sourceRate = info.Video?.FrameRate ?? throw new InvalidOperationException("El medio de velocidad no tiene video.");
+        var sequence = new Sequence { Id = SequenceId, Name = name, FrameRate = SequenceRate, Width = 1280, Height = 720 };
+        sequence.VideoTracks.Add(new Track { Id = "v1", Kind = TrackKind.Video, Name = "Video" });
+        sequence.AudioTracks.Add(new Track { Id = "a1", Kind = TrackKind.Audio, Name = "Audio" });
+        return (new Project { Id = "p", Name = name, Media = [media], Sequences = [sequence] }, media, sequence, sourceRate);
+    }
+
+    /// <summary>Pone un clip de <paramref name="material"/> al final de la pista (y su audio) y le aplica el preajuste con la edición del núcleo.</summary>
+    private static Clip AddWithPreset(Project project, Sequence sequence, int index, Time source, Time material, SpeedPreset preset, bool withAudio,
+        bool preservePitch)
+    {
+        Time start = sequence.VideoTracks[0].Clips.Count == 0 ? Time.Zero : sequence.VideoTracks[0].Clips[^1].End;
+        string link = $"l{index}";
+        var video = new Clip { Id = $"cv{index}", MediaId = "m", SourceIn = source, SourceOut = source + material, Start = start, LinkId = withAudio ? link : null };
+        sequence.VideoTracks[0].Clips.Add(video);
+        if (withAudio)
+        {
+            sequence.AudioTracks[0].Clips.Add(new Clip { Id = $"ca{index}", MediaId = "m", SourceIn = source, SourceOut = source + material, Start = start, LinkId = link });
+        }
+
+        Edits.ApplySpeedPreset(SequenceId, video.Id, preset).Apply(project);
+        if (!preservePitch)
+        {
+            Edits.SetPreservePitch(SequenceId, video.Id, false).Apply(project);
+        }
+
+        return video;
+    }
+
+    private static SpeedTimeline Validated(SpeedTimeline timeline, string name)
+    {
+        IReadOnlyList<string> errors = ModelValidator.Validate(timeline.Project);
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException($"El proyecto de velocidad «{name}» no es válido: {string.Join("; ", errors)}");
+        }
+
+        return timeline;
+    }
+
+    private static Clip NewClip(string id, ClipSpeed speed, ClipTimeMap map, string? link)
+    {
+        var clip = new Clip { Id = id, MediaId = "m", Speed = speed, LinkId = link };
         map.ApplyTo(clip);
         return clip;
     }
