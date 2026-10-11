@@ -53,8 +53,12 @@ internal sealed partial class TimelineScheduler
             Urgency = urgency;
             Visible = !first.Warm && first.Due;
             Priority = first.Priority;
+            ReverseClip = ReverseKey(first);
             Windows.Add(first);
         }
+
+        /// <summary>El clip en reversa al que sirve el tramo; nulo hacia adelante. Un clip en reversa tiene su propio decodificador.</summary>
+        public string? ReverseClip { get; }
 
         public long Start { get; }
 
@@ -72,6 +76,8 @@ internal sealed partial class TimelineScheduler
         public List<Window> Windows { get; } = [];
 
         public DecoderState? Decoder { get; set; }
+
+        public static string? ReverseKey(in Window window) => window.Clip.Forward ? null : window.Clip.ClipId;
 
         public void Add(Window window, long urgency)
         {
@@ -145,6 +151,9 @@ internal sealed partial class TimelineScheduler
         /// <summary>Velocidad con la que se evaluó por última vez ante la política de proxies.</summary>
         public double AssessedRate { get; set; }
 
+        /// <summary>Si en esa evaluación algún clip lo reproducía en reversa.</summary>
+        public bool AssessedReverse { get; set; }
+
         /// <summary>Los keyframes del archivo que se decodifica ahora; nulo si no se conocen.</summary>
         public IKeyframeIndex? CurrentKeyframes => Keyframes is not null && KeyframesPath == Variant?.Path ? Keyframes : null;
 
@@ -173,6 +182,12 @@ internal sealed partial class TimelineScheduler
 
         /// <summary>Su archivo ya no es el elegido para el medio: sirve hasta que el nuevo entregue y se cierra.</summary>
         public bool Retiring { get; set; }
+
+        /// <summary>
+        /// El clip en reversa al que sirve, o nulo si sirve hacia adelante: un clip en reversa decodifica por tramos desde
+        /// cada keyframe y necesita una caché de un GOP más lo adelantado, así que no comparte decodificador.
+        /// </summary>
+        public string? ReverseClip { get; init; }
 
         public List<Window> Assigned { get; } = [];
 
@@ -229,7 +244,11 @@ internal sealed partial class TimelineScheduler
         /// <summary>Clip que cubría el instante en el último refresco.</summary>
         public VideoClipPlan? ActiveClip { get; set; }
 
-        public long LowerBound { get; set; }
+        /// <summary>
+        /// Hasta dónde puede volver lo que se muestra sin que sea volver atrás: hacia adelante, el menor cuadro aceptable; en
+        /// reversa, el mayor.
+        /// </summary>
+        public long Bound { get; set; }
 
         public bool CountDrops { get; set; }
 

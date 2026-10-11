@@ -105,6 +105,49 @@ internal sealed class TimelineFrameCache : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// El cuadro guardado de menor índice en <c>[minIndex, maxIndex]</c>, retenido para quien lo pide, y su ranura: lo que
+    /// usa la reversa, donde el cuadro más cercano al debido es el más bajo que todavía no se pasó.
+    /// </summary>
+    public bool TryGetEarliest(int group, long minIndex, long maxIndex, [NotNullWhen(true)] out DecodedFrame? frame, out int slot)
+    {
+        frame = null;
+        slot = -1;
+        if (maxIndex < minIndex)
+        {
+            return false;
+        }
+
+        Entry? best = null;
+        if (maxIndex - minIndex < _entries.Count)
+        {
+            for (long i = minIndex; i <= maxIndex && best is null; i++)
+            {
+                _entries.TryGetValue((group, i), out best);
+            }
+        }
+        else
+        {
+            foreach (((int g, long index), Entry entry) in _entries)
+            {
+                if (g == group && index >= minIndex && index <= maxIndex && (best is null || index < best.Frame.Index))
+                {
+                    best = entry;
+                }
+            }
+        }
+
+        if (best is null || !best.Frame.TryRetain())
+        {
+            return false;
+        }
+
+        best.LastUse = ++_useClock;
+        frame = best.Frame;
+        slot = best.Slot;
+        return true;
+    }
+
     /// <summary>Guarda el cuadro y se queda con su referencia, o lo libera si no hay lugar para algo tan poco urgente.</summary>
     /// <param name="urgency">Urgencia de un cuadro guardado por (medio, índice): <see cref="Unwanted"/> o un valor mayor cuanto antes se necesite.</param>
     public bool Add(int group, int slot, DecodedFrame frame, Func<int, long, long> urgency)

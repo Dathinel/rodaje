@@ -12,6 +12,22 @@ Plan del 10 de octubre de 2026, aprobado por Daniel: va antes que la fase 5b (te
 | **5c.3** | Reversa en video y audio (decodificación por GOP hacia atrás). |
 | Después | Mezcla de cuadros en cámara lenta; el flujo óptico es un módulo de IA de la fase 7. |
 
+## Estado de la ronda 5c.3 (medios y motor, 12-oct)
+
+- **Medios:** `ReverseFrameReader` (tramos por GOP desde el keyframe, ventana de dos GOP, tope `M` con pasadas, determinista); el pool de D3D11VA admite 64 superficies, medido, y `VideoDecoder` lo acota. Detalle en [medios.md](arquitectura/medios.md).
+- **Motor:** plan y presentación en los dos sentidos, un decodificador propio por clip en reversa con la caché que admite el pool dentro del presupuesto, tramos que se terminan antes de alargarse, pre-roll del último GOP y proxy obligatorio en Auto por encima de 1080p. Detalle en [motor.md](arquitectura/motor.md#reversa-fase-5c3).
+- **Audio:** el camino existente, medido con un AAC real ([audio.md](arquitectura/audio.md)).
+- **Falta (interfaz):** el interruptor «Invertir» del inspector (ya existe `EditorSession.ToggleReverse` y el atajo `clip.reverse`) y el indicador «◀» en el clip. `ClipTimeMap.Reverse` y `VideoClipPlan.Forward` dicen si un clip va en reversa; `ProxyRecommendation.IsRequired` dice si el proxy es obligatorio (para avisarlo en la interfaz).
+
+| Criterio | Cifra |
+|---|---|
+| Seek exacto en reversa (2000 por caso, número dibujado) | 2004/2004 a 1× y a 1,37× con desplazamiento |
+| Deriva A/V 10 min en reversa | video 0 cuadros distintos en 35 999 refrescos; audio 0,021 ms de error medio, 0,000 ms del primer al último minuto |
+| Reversa 1080p a 1× sin proxy (RTX 3050) | 0 perdidos, 0 tarde (también a 2×); 12 seeks en 9,5 s; VRAM pico 200 de 1485 MB |
+| Reversa 4K con proxy | 0 perdidos, 0 tarde, 0 cuadros distintos; VRAM pico 731 de 1485 MB |
+| Audio en reversa | tono 440,000 ± 0,001 Hz; mayor salto 1,004–1,007× el ideal; 0 deriva |
+| `Tick` en pausa | mismos bytes en reversa que hacia adelante |
+
 ## Estado de la ronda 5c.2 (núcleo y motor, 11-oct)
 
 - **Preajustes propios** («Montaje», «Héroe», «Bala», «Entrada rápida», «Salida rápida») como datos en `SpeedPresets`; `Edits.ApplySpeedPreset` es `SetCurve` con la forma (duración por la velocidad media). Formas en [nucleo.md](arquitectura/nucleo.md#velocidad-fase-5c).

@@ -16,7 +16,7 @@ namespace Rodaje.Acceptance.Tests.Support;
 /// Un caso de velocidad: constante (<see cref="Rate"/>), cuadro congelado o la curva de un preajuste; <see cref="Offset"/>
 /// como si el clip viniera de dividir otro.
 /// </summary>
-internal sealed record SpeedCase(string Name, Rational Rate, bool Freeze = false, long Offset = 0, SpeedPreset? Preset = null)
+internal sealed record SpeedCase(string Name, Rational Rate, bool Freeze = false, long Offset = 0, SpeedPreset? Preset = null, bool Reverse = false)
 {
     public static SpeedCase Named(string name) => All.Single(c => c.Name == name);
 
@@ -32,6 +32,8 @@ internal sealed record SpeedCase(string Name, Rational Rate, bool Freeze = false
         new("congelado", new Rational(1, 1), Freeze: true),
         new("1,5x", new Rational(3, 2)),
         new("bala", new Rational(1, 1), Preset: SpeedPreset.Bullet),
+        new("reversa", new Rational(1, 1), Reverse: true),
+        new("reversa-1,37x", new Rational(137, 100), Offset: 123_456_789, Reverse: true),
     ];
 }
 
@@ -87,7 +89,7 @@ internal sealed class SpeedTimeline
             return Validated(new SpeedTimeline(project, [curved], sourceRate), speedCase.Name);
         }
 
-        var speed = new ClipSpeed { Rate = speedCase.Rate, Freeze = speedCase.Freeze, Offset = Time.FromTicks(speedCase.Offset), PreservePitch = preservePitch };
+        var speed = new ClipSpeed { Rate = speedCase.Rate, Freeze = speedCase.Freeze, Offset = Time.FromTicks(speedCase.Offset), PreservePitch = preservePitch, Reverse = speedCase.Reverse };
         ClipTimeMap map = speedCase.Freeze
             ? ClipTimeMap.Create(Time.Zero, maxTimeline ?? Time.FromSeconds(20), SourceIn, speed)
             : ClipTimeMap.Fit(Time.Zero, SourceIn, media.Duration - Time.FromSeconds(0.5), speed);
@@ -162,8 +164,9 @@ internal sealed class SpeedTimeline
             ClipTimeMap map = clip.TimeMap;
             for (long second = (long)Math.Ceiling(map.SourceIn.ToSeconds()); Time.FromSeconds(second + 0.03) < map.SourceOut; second++)
             {
-                Time at = map.TimelineOf(Time.FromSeconds(second));
-                if (at < map.End && map.TimelineOf(Time.FromSeconds(second + 0.03)) < map.End)
+                // En reversa el chirp suena al revés y empieza por su final.
+                Time at = map.TimelineOf(Time.FromSeconds(map.Reverse ? second + 0.02 : second));
+                if (at < map.End && map.TimelineOf(Time.FromSeconds(map.Reverse ? second : second + 0.03)) < map.End)
                 {
                     instants.Add(at);
                 }
@@ -210,7 +213,7 @@ internal sealed class SpeedTimeline
         }
 
         Int128 progress = FloorDiv((offset + (Int128)tau) * speed.Rate.Num, speed.Rate.Den) - FloorDiv((Int128)offset * speed.Rate.Num, speed.Rate.Den);
-        return clip.SourceIn + Time.FromTicks((long)progress);
+        return speed.Reverse ? clip.SourceOut - Time.FromTicks(1 + (long)progress) : clip.SourceIn + Time.FromTicks((long)progress);
     }
 
     /// <summary>
@@ -336,6 +339,8 @@ internal sealed class ManualClockBackend : IClipBackend, IDisposable
     public IAudioOutput OpenOutput(IAudioSampleSource source, AudioOutputOptions options) => _output = new ManualOutput(source);
 
     public IDecodeExecutor CreateExecutor() => MediaClipBackend.Instance.CreateExecutor();
+
+    public IKeyframeIndex? ReadKeyframes(string path) => MediaClipBackend.Instance.ReadKeyframes(path);
 
     public void Dispose() => _output?.Dispose();
 

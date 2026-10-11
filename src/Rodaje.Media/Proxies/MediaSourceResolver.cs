@@ -116,7 +116,10 @@ public sealed class MediaSourceResolver : IDisposable
     /// <summary>Si es <c>false</c>, la vista previa también usa los originales (para comparar o si el usuario lo pide).</summary>
     public bool PreviewUsesProxies { get; set; } = true;
 
-    /// <summary>Si es <c>true</c>, <see cref="Assess(string, ProxyCandidate)"/> encola el proxy en cuanto la política lo recomienda.</summary>
+    /// <summary>
+    /// Si es <c>true</c>, <see cref="Assess(string, ProxyCandidate)"/> encola el proxy en cuanto la política lo recomienda.
+    /// Los obligatorios (<see cref="ProxyRecommendation.IsRequired"/>, la reversa por encima de 1080p) se encolan siempre.
+    /// </summary>
     public bool GenerateWhenRecommended { get; set; }
 
     public bool CanGenerate => _generator is not null;
@@ -184,7 +187,8 @@ public sealed class MediaSourceResolver : IDisposable
             string? message = next == ProxyState.Unavailable ? _unavailableReason : state.Status.Message;
             status = state.Status with { State = next, Recommendation = recommendation, Message = message };
             state.Status = status;
-            generate = GenerateWhenRecommended && next == ProxyState.Recommended;
+            // Uno obligatorio (la reversa por encima de 1080p) se genera aunque no se generen solos los recomendados.
+            generate = (GenerateWhenRecommended || recommendation.IsRequired) && next == ProxyState.Recommended;
         }
 
         Raise(status);

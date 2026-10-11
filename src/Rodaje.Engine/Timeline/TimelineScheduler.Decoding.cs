@@ -97,21 +97,29 @@ internal sealed partial class TimelineScheduler
             else if (!discard && video is not null)
             {
                 decoder.Decoder = video;
-                LearnKeyframes(decoder);
+                bool learned = LearnKeyframes(decoder);
                 decoder.Look = variant.IsProxy
                     ? new Look(new Rational(1, 1), 0, media.DisplayWidth, media.DisplayHeight, IsProxy: true)
                     : new Look(video.Stream.SampleAspectRatio, NormalizeRotation(video.Stream.Rotation), 0, 0, IsProxy: false);
                 if (!decoder.PoolKnown)
                 {
-                    decoder.CacheLimit = PlanSourceLimit(video);
+                    decoder.CacheLimit = PlanSourceLimit(video, decoder.ReverseClip is not null);
                     _cache.SetSourceLimit(decoder.Id, decoder.CacheLimit);
                 }
 
-                assess = !variant.IsProxy && _resolver is not null && (!media.Assessed || media.AssessedRate != PolicyRate(media));
+                assess = !variant.IsProxy && _resolver is not null
+                    && (!media.Assessed || media.AssessedRate != PolicyRate(media) || media.AssessedReverse != media.Reverse);
                 media.Assessed |= assess;
                 rate = PolicyRate(media);
                 reverse = media.Reverse;
                 media.AssessedRate = assess ? rate : media.AssessedRate;
+                media.AssessedReverse = assess ? reverse : media.AssessedReverse;
+                if (learned && media.Reverse)
+                {
+                    // Las ventanas en reversa van de keyframe en keyframe: se rehacen antes de pedir nada.
+                    posts.AddRange(UpdateDemand(CurrentSequenceFrame(), force: true));
+                }
+
                 post = RequestPump(decoder);
             }
         }
@@ -143,6 +151,7 @@ internal sealed partial class TimelineScheduler
     private void ReadKeyframes(MediaState media, string path)
     {
         IKeyframeIndex? keyframes = _backend.ReadKeyframes(path);
+        List<(IDecodeExecutor, Action)> posts = [];
         lock (_gate)
         {
             if (keyframes is not null && !_disposed && media.Variant?.Path == path)
@@ -150,12 +159,19 @@ internal sealed partial class TimelineScheduler
                 media.Keyframes = keyframes;
                 media.KeyframesPath = path;
                 _demandDirty = true;
+                if (media.Reverse)
+                {
+                    // Un decodificador en reversa no debe pedir otra pasada con las ventanas de antes de saber los GOP.
+                    posts = UpdateDemand(CurrentSequenceFrame(), force: true);
+                }
             }
         }
+
+        PostAll(posts);
     }
 
-    /// <summary>Toma los keyframes del archivo del decodificador si ya los conoce (puede saberlos después de abrir).</summary>
-    private static void LearnKeyframes(DecoderState decoder)
+    /// <summary>Toma los keyframes del archivo del decodificador si ya los conoce (puede saberlos después de abrir); verdadero si son nuevos.</summary>
+    private static bool LearnKeyframes(DecoderState decoder)
     {
         MediaState media = decoder.Media;
         if (decoder.Variant is { } variant && variant == media.Variant && media.KeyframesPath != variant.Path
@@ -163,15 +179,19 @@ internal sealed partial class TimelineScheduler
         {
             media.Keyframes = keyframes;
             media.KeyframesPath = variant.Path;
+            return true;
         }
+
+        return false;
     }
 
     /// <summary>Tope de cuadros sin pool de D3D11VA (CPU): lo que pide la opción, sin que uno solo se coma la caché.</summary>
-    private int PlanSourceLimit(IClipVideo video)
+    private int PlanSourceLimit(IClipVideo video, bool reverse)
     {
         VideoStreamInfo stream = video.Stream;
         long frame = Math.Max(1, (long)stream.Width * stream.Height * (stream.BitDepth > 8 ? 2 : 1) * 3 / 2);
-        return (int)Math.Clamp(_maxCacheBytes / frame, 2, _maxFramesPerSource);
+        long bytes = reverse ? _maxCacheBytes / 2 : _maxCacheBytes;
+        return (int)Math.Clamp(bytes / frame, 2, reverse ? ReverseSoftwareCacheFrames : _maxFramesPerSource);
     }
 
     private static bool RequestPump(DecoderState decoder)
@@ -196,8 +216,21 @@ internal sealed partial class TimelineScheduler
         index = 0;
         accuracy = DecodeAccuracy.Exact;
         long bestDelay = long.MaxValue;
+        Window? reverse = null;
         foreach (Window window in decoder.Assigned)
         {
+            if (!window.Clip.Forward)
+            {
+                // En reversa lo más urgente de la ventana es lo más alto: se baja hasta el primero que falta.
+                if (FirstMissingFromTop(decoder, window) is { } found && Delay(window, found) < bestDelay)
+                {
+                    (index, bestDelay, reverse) = (found, Delay(window, found), window);
+                    accuracy = DecodeAccuracy.Exact;
+                }
+
+                continue;
+            }
+
             for (long i = NextWanted(window, media, window.Start); i < window.End; i = NextWanted(window, media, i + 1))
             {
                 long delay = Delay(window, i);
@@ -212,14 +245,142 @@ internal sealed partial class TimelineScheduler
                     break;
                 }
 
-                (index, bestDelay) = (i, delay);
+                (index, bestDelay, reverse) = (i, delay, null);
 
                 // Un keyframe que se muestra aproximando se pide sin decodificar lo que hay entre medio.
                 accuracy = window.Approximate && media.CurrentKeyframes?.AtOrBefore(i) == i ? DecodeAccuracy.Keyframe : DecodeAccuracy.Exact;
             }
         }
 
+        if (reverse is { } chosen)
+        {
+            // Lo más urgente en reversa es lo último que se decodifica de su tramo: se empieza por lo más bajo del tramo.
+            return ReverseBatchStart(decoder, chosen, index, bestDelay, out index);
+        }
+
         return bestDelay != long.MaxValue;
+    }
+
+    /// <summary>
+    /// El cuadro más alto de la ventana en reversa que todavía hay que pedir: lo que se mostrará antes. Nulo si no falta
+    /// nada o si lo que falta ya se pidió y no cabría en la caché.
+    /// </summary>
+    private long? FirstMissingFromTop(DecoderState decoder, in Window window)
+    {
+        MediaState media = decoder.Media;
+        VideoClipPlan clip = window.Clip;
+        long top = window.Due ? window.Start : clip.PreviousShown(window.End - 1);
+        for (long i = top; i >= window.Start; i = clip.PreviousShown(i - 1))
+        {
+            if (media.Unavailable.Contains(i) || IsCachedFor(decoder, i) || IsShown(decoder, i) || InFlightElsewhere(decoder, i))
+            {
+                if (window.Due)
+                {
+                    return null;
+                }
+
+                continue;
+            }
+
+            if (!window.Due && media.Requested.Contains(i) && !_cache.CanAdmit(decoder.Id, long.MaxValue - Delay(window, i), _urgency))
+            {
+                return null;
+            }
+
+            return i;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// En reversa, el tramo que termina en <paramref name="top"/> (lo más urgente que falta) se decodifica hacia adelante
+    /// desde su keyframe, como <see cref="Rodaje.Media.Video.ReverseFrameReader"/>: se pide primero lo más bajo que falta
+    /// del tramo y después lo de arriba, sin buscar entre medias. El tramo no pasa del keyframe ni de lo que cabe en la
+    /// caché junto a lo que ya espera mostrarse; si no cabe el GOP entero, el resto va en otra pasada. Un tramo que
+    /// obliga a buscar el keyframe solo empieza si llena al menos media caché (o lo que quede del GOP), salvo que lo de
+    /// arriba se deba mostrar pronto: un tramo de pocos cuadros pagaría el GOP entero por cada uno.
+    /// </summary>
+    private bool ReverseBatchStart(DecoderState decoder, in Window window, long top, long delay, out long index)
+    {
+        MediaState media = decoder.Media;
+        VideoClipPlan clip = window.Clip;
+        long floor = clip.LowestFrame;
+        long lowestWindow = long.MaxValue;
+        long highestWindow = top;
+        foreach (Window w in decoder.Assigned)
+        {
+            if (w.Clip.ClipId == clip.ClipId && !w.Clip.Forward)
+            {
+                lowestWindow = Math.Min(lowestWindow, w.Start);
+                highestWindow = Math.Max(highestWindow, w.End - 1);
+            }
+        }
+
+        floor = Math.Max(floor, lowestWindow);
+        if (media.CurrentKeyframes?.AtOrBefore(top) is { } key and >= 0)
+        {
+            floor = Math.Max(floor, key);
+        }
+
+        // Un tramo empezado sigue subiendo hasta lo más urgente aunque entre tanto quepa más abajo: si el tramo se
+        // alargara hacia abajo con cada cuadro mostrado, cada alargue buscaría el keyframe otra vez.
+        long position = decoder.Position;
+        if (decoder.Delivered > 0 && position >= floor && position < top)
+        {
+            for (long j = clip.NextShown(position + 1); j <= top && j - position <= ForwardReach; j = clip.NextShown(j + 1))
+            {
+                if (!media.Unavailable.Contains(j) && !IsCachedFor(decoder, j) && !IsShown(decoder, j) && !InFlightElsewhere(decoder, j))
+                {
+                    index = j;
+                    return true;
+                }
+            }
+        }
+
+        // Lo que ya espera en la caché por encima ocupa lugar hasta que se muestre.
+        int waiting = 0;
+        for (long i = clip.NextShown(top + 1); i <= highestWindow; i = clip.NextShown(i + 1))
+        {
+            waiting += _cache.ContainsFrom(media.Id, i, decoder.Id) ? 1 : 0;
+        }
+
+        int room = Math.Max(1, decoder.CacheLimit - ReverseCacheMargin - waiting);
+        index = top;
+        int count = 1;
+        int total = 1;
+        for (long j = clip.PreviousShown(top - 1); j >= floor; j = clip.PreviousShown(j - 1))
+        {
+            total++;
+            if (count >= room)
+            {
+                continue;
+            }
+
+            count++;
+            if (!media.Unavailable.Contains(j) && !IsCachedFor(decoder, j) && !IsShown(decoder, j) && !InFlightElsewhere(decoder, j))
+            {
+                index = j;
+            }
+        }
+
+        bool continues = decoder.Delivered > 0 && position < index && index - position <= ForwardReach;
+        bool soon = delay <= Time.FromFrames(_prefetch, _plan.FrameRate).Ticks;
+        if (soon || continues)
+        {
+            return true;
+        }
+
+        // Sin saber dónde empieza el GOP, el tramo podría empezar a mitad de él y obligar a otra pasada: lo que no urge
+        // espera a que se lean los keyframes.
+        if (media.CurrentKeyframes is null)
+        {
+            return false;
+        }
+
+        // El GOP entero si cabe en la caché (una pasada); si no, de a media caché.
+        int capacity = Math.Max(1, decoder.CacheLimit - ReverseCacheMargin);
+        return count >= (total <= capacity ? total : Math.Max(1, capacity / 2));
     }
 
     /// <summary>El cuadro está guardado y le sirve a <paramref name="decoder"/>: no salió de un archivo que se está retirando.</summary>

@@ -19,7 +19,7 @@ public sealed class SpeedSeekTests(ITestOutputHelper output)
     private const int RandomSeeks = 2000;
     private static readonly TimeSpan SettleTimeout = TimeSpan.FromSeconds(20);
 
-    public static TheoryData<string> Cases => new("0,25x", "0,5x", "1,37x", "2x", "4x", "1001/1000x", "100x", "congelado", "bala");
+    public static TheoryData<string> Cases => new("0,25x", "0,5x", "1,37x", "2x", "4x", "1001/1000x", "100x", "congelado", "bala", "reversa", "reversa-1,37x");
 
     [FfmpegLibraryTheory(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true)]
     [MemberData(nameof(Cases))]

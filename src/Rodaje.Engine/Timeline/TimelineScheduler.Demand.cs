@@ -79,10 +79,11 @@ internal sealed partial class TimelineScheduler
 
             media.IdleSince = null;
             media.Requested.RemoveWhere(i => !media.InWindows(i));
-            if (media.PlaybackRate >= ApproximateRate && media.Variant is { } variant && media.CurrentKeyframes is null
+            if ((media.PlaybackRate >= ApproximateRate || media.Reverse) && media.Variant is { } variant && media.CurrentKeyframes is null
                 && media.KeyframesRequested != variant.Path)
             {
-                // Hace falta saber dónde están los keyframes para mostrar el cercano; se leen una vez, fuera del candado.
+                // Hace falta saber dónde están los keyframes para mostrar el cercano o para leer en reversa por GOP; se
+                // leen una vez, fuera del candado.
                 media.KeyframesRequested = variant.Path;
                 posts.Add((_service, () => ReadKeyframes(media, variant.Path)));
             }
@@ -162,7 +163,17 @@ internal sealed partial class TimelineScheduler
             media.Layers++;
             media.Priority = Math.Max(media.Priority, priority);
             media.Windows.Add(new Window(due, due + 1, Due: true, clip, Priority: priority, Approximate: approximate));
-            if (end > due + 1)
+            if (!clip.Forward)
+            {
+                // En reversa lo que viene está debajo: hasta el keyframe del GOP siguiente al de lo adelantado (dos GOP),
+                // para que el GOP de abajo se decodifique mientras se muestra este.
+                long low = ReverseWindowStart(clip, media, clip.ShownUntil(last), gops: 2);
+                if (low < due)
+                {
+                    media.Windows.Add(new Window(low, due, Due: false, clip, Priority: priority));
+                }
+            }
+            else if (end > due + 1)
             {
                 // Lo adelantado se aproxima solo si la velocidad no baja de 16× hasta mostrarlo (una curva o una transición la cambian).
                 bool ahead = approximate && clip.MinRate(time, Time.FromFrames(last + 1, _plan.FrameRate)) >= ApproximateRate;
@@ -176,10 +187,42 @@ internal sealed partial class TimelineScheduler
             MediaState media = Media(next);
             media.Priority = Math.Max(media.Priority, priority);
             long last = next.FirstSequenceFrame + _preRollFrames - 1;
+            if (!next.Forward)
+            {
+                // Un clip en reversa empieza por el final de su material: el pre-roll pide su último GOP entero.
+                long low = ReverseWindowStart(next, media, next.ShownUntil(last), gops: 1);
+                media.Windows.Add(new Window(low, first + 1, Due: false, next, Priority: priority));
+                return;
+            }
+
             bool approximate = Approximates(next, media, next.Start, running)
                 && next.MinRate(next.Start, Time.FromFrames(last + 1, _plan.FrameRate)) >= ApproximateRate;
             media.Windows.Add(new Window(first, WindowEnd(next, first, last), Due: false, next, Priority: priority, Approximate: approximate));
         }
+    }
+
+    /// <summary>
+    /// Comienzo de la ventana de un clip en reversa que mostrará hasta <paramref name="lowest"/>: el keyframe de su GOP y,
+    /// con <paramref name="gops"/> = 2, el del GOP de abajo; sin keyframes conocidos, <paramref name="lowest"/>.
+    /// </summary>
+    private static long ReverseWindowStart(VideoClipPlan clip, MediaState media, long lowest, int gops)
+    {
+        long low = lowest;
+        if (media.CurrentKeyframes is { } keyframes)
+        {
+            for (int g = 0; g < gops && low > clip.LastFrame; g++)
+            {
+                long key = keyframes.AtOrBefore(g == 0 ? low : low - 1);
+                if (key < 0)
+                {
+                    break;
+                }
+
+                low = key;
+            }
+        }
+
+        return Math.Max(clip.LastFrame, low);
     }
 
     /// <summary>Fin de una ventana que empieza en <paramref name="start"/>: lo mostrado hasta el cuadro <paramref name="lastSequenceFrame"/> de la secuencia.</summary>
@@ -260,7 +303,10 @@ internal sealed partial class TimelineScheduler
         {
             foreach (DecoderState decoder in candidates)
             {
-                pairs.Add((cluster, decoder, Cost(decoder, cluster)));
+                if (decoder.ReverseClip == cluster.ReverseClip)
+                {
+                    pairs.Add((cluster, decoder, Cost(decoder, cluster)));
+                }
             }
         }
 
@@ -288,11 +334,28 @@ internal sealed partial class TimelineScheduler
             // Mientras el decodificador nuevo (otro proxy u original) no tiene listo el cuadro que sigue, el que se retira
             // sigue con los debidos: no hay cortes, y el nuevo adelanta los siguientes sin competir por ellos.
             if ((cluster.Decoder is not { } replacement || !_cache.ContainsFrom(media.Id, cluster.Start + 1, replacement.Id))
-                && media.Decoders.Where(d => d.Retiring && d.Decoder is not null).MinBy(d => Cost(d, cluster)) is { } bridge)
+                && Bridge(media, cluster) is { } bridge)
             {
                 bridge.Assigned.AddRange(cluster.Windows.Where(w => w.Due));
             }
         }
+    }
+
+    /// <summary>El decodificador que se retira más cerca del tramo (y en su mismo sentido); nulo si no hay.</summary>
+    private static DecoderState? Bridge(MediaState media, Cluster cluster)
+    {
+        DecoderState? best = null;
+        long bestCost = long.MaxValue;
+        foreach (DecoderState decoder in media.Decoders)
+        {
+            if (decoder.Retiring && decoder.Decoder is not null && decoder.ReverseClip == cluster.ReverseClip
+                && Cost(decoder, cluster) is var cost && cost < bestCost)
+            {
+                (best, bestCost) = (decoder, cost);
+            }
+        }
+
+        return best;
     }
 
     /// <summary>Abre un decodificador para un tramo sin dueño, dentro del presupuesto; si no se puede, lo suma al más cercano.</summary>
@@ -303,7 +366,7 @@ internal sealed partial class TimelineScheduler
         int live = media.Decoders.Count(d => !d.Retiring);
         long estimate = Estimate(media);
         bool canOpen = live < _maxDecodersPerMedia && MakeRoom(estimate, posts);
-        DecoderState? nearest = media.Decoders.Where(d => !d.Retiring).MinBy(d => Cost(d, cluster));
+        DecoderState? nearest = media.Decoders.Where(d => !d.Retiring && d.ReverseClip == cluster.ReverseClip).MinBy(d => Cost(d, cluster));
         if (!canOpen && nearest is not null && (cluster.Visible || Cost(nearest, cluster) < SeekCost || RestIsCached(nearest)))
         {
             // Compartir un decodificador que tendría que ir y volver con seeks solo vale para lo que se ve ya, o cuando
@@ -332,6 +395,7 @@ internal sealed partial class TimelineScheduler
             Variant = media.Variant,
             Position = cluster.Start - 1,
             Reserved = estimate,
+            ReverseClip = cluster.ReverseClip,
         };
         decoder.Pump = () => Pump(decoder);
         decoder.Executor = _backend.CreateExecutor();
@@ -379,16 +443,20 @@ internal sealed partial class TimelineScheduler
 
     /// <summary>Lo que le queda a cada clip que sirve el decodificador entra en su caché: puede irse a otro punto sin volver.</summary>
     private static bool RestIsCached(DecoderState decoder) =>
-        decoder.Assigned.TrueForAll(w => w.Warm || w.Clip.ShownFrom(w.Start) < decoder.CacheLimit);
+        decoder.Assigned.TrueForAll(w => w.Warm || w.Clip.ShownFrom(w.Clip.Forward ? w.Start : w.End - 1) < decoder.CacheLimit);
 
+    /// <summary>Tramos del medio: ventanas cercanas juntas, salvo las de un clip en reversa, que van en su propio tramo.</summary>
     private List<Cluster> Clusters(MediaState media)
     {
         var clusters = new List<Cluster>();
         Cluster? current = null;
-        foreach (Window window in media.Windows.OrderBy(w => w.Start))
+        IEnumerable<Window> ordered = media.Reverse
+            ? media.Windows.OrderBy(w => Cluster.ReverseKey(w), StringComparer.Ordinal).ThenBy(w => w.Start)
+            : media.Windows.OrderBy(w => w.Start);
+        foreach (Window window in ordered)
         {
-            long urgency = Delay(window, window.Start);
-            if (current is not null && window.Start <= current.End + _prefetch)
+            long urgency = Delay(window, window.Clip.Forward ? window.Start : window.End - 1);
+            if (current is not null && current.ReverseClip == Cluster.ReverseKey(window) && window.Start <= current.End + _prefetch)
             {
                 current.Add(window, urgency);
             }

@@ -71,7 +71,7 @@ internal sealed partial class TimelineScheduler
                 long fit = ((_vramBudget - others) / surface) - fixedSurfaces;
                 long share = (_vramBudget / expected / surface) - fixedSurfaces;
                 long byCache = Math.Max(2, _maxCacheBytes / surface);
-                int limit = (int)Math.Clamp(Math.Min(Math.Min(fit, share), byCache), MinCacheFrames, _usefulCacheFrames);
+                int limit = (int)Math.Clamp(Math.Min(Math.Min(fit, share), byCache), MinCacheFrames, UsefulCacheFrames(decoder, request));
                 long pool = (fixedSurfaces + limit) * surface;
                 bool wait = Committed() + pool > _vramBudget && AnyClosingPool() && Stopwatch.GetElapsedTime(waitStart) < PoolWait;
                 if (!wait)
@@ -90,6 +90,15 @@ internal sealed partial class TimelineScheduler
             Thread.Sleep(2);
         }
     }
+
+    /// <summary>
+    /// La caché que le sirve al decodificador: lo adelantado, el pre-roll y dos de margen; en reversa, todo lo que admite
+    /// el pool (un GOP y lo adelantado, o lo más cerca de eso que se pueda: si no cabe, el GOP va en varias pasadas).
+    /// </summary>
+    private int UsefulCacheFrames(DecoderState decoder, HardwarePoolRequest request) =>
+        decoder.ReverseClip is null
+            ? _usefulCacheFrames
+            : Math.Max(MinCacheFrames, VideoDecoder.MaxHardwarePoolSurfaces - request.ReferenceSurfaces - HeldSurfaces);
 
     private int CommitPool(DecoderState decoder, HardwarePoolRequest request, long surface, int limit, bool crossedBudget)
     {
