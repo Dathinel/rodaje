@@ -403,7 +403,7 @@ public sealed partial class EditorSession
     private bool AdoptFormatIfEmpty(MediaInfo info)
     {
         Sequence sequence = Sequence;
-        if (info.Video is not { } video || Project.Media.Count > 0 || sequence.AllTracks.Any(t => t.Clips.Count > 0))
+        if (info.Video is not { } video || KeepsTemplateFormat || Project.Media.Count > 0 || sequence.AllTracks.Any(t => t.Clips.Count > 0))
         {
             return false;
         }
