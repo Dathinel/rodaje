@@ -8,15 +8,17 @@ Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas c
 - **Uso.** Doble clic añade a la pista principal. Se arrastra a la línea de tiempo con el formato `rodaje/media-id` (el texto es el id del medio).
 - **Menú contextual.** Añadir, generar proxy (con el avance sobre la portada), mostrar en el Explorador y quitar si no se usa.
 - **Portadas.** Se piden solo para lo que la cuadrícula hace visible.
-- **Otras categorías.** Texto, Efectos, Transiciones y Filtros se arrastran con `rodaje/elemento`.
+- **Otras categorías.** Texto, Efectos, Transiciones y Filtros se arrastran con `rodaje/elemento`. Las transiciones llevan además `rodaje/transicion` (el texto es el tipo del motor o la referencia `paquete@versión/elemento`); la línea de tiempo solo acepta referencias de paquete por ese formato, porque en `rodaje/elemento` una referencia puede ser un filtro.
 - **Medida.** Con `RODAJE_MEDIR_BIBLIOTECA=archivo` la vista mide el desplazamiento y cierra la app (`LibraryScrollMeasurement`).
 
 ## Reproductor (`Views/Player`) y medidores (`Views/Meters`)
 
-- **Cabecera.** Proporción (con resolución y cuadros por segundo en la ayuda), aviso de lanzadera («▶ ×4») y de «Proxy» cuando una capa en pantalla sale de un proxy. También zoom (Ajustar, 50 %, 100 %), márgenes seguros (acción 93 %, títulos 90 %, EBU R 95) y pantalla completa (F, doble clic o el botón; Esc sale).
+- **Cabecera.** Proporción (con resolución y cuadros por segundo en la ayuda), aviso de lanzadera («▶ ×4») y de «Proxy» cuando una capa en pantalla sale de un proxy. También calidad, zoom (Ajustar, 50 %, 100 %), márgenes seguros (acción 93 %, títulos 90 %, EBU R 95) y pantalla completa (F, doble clic o el botón; Esc sale).
+- **Calidad de la vista previa.** Auto, Completa, Mitad o Cuarto, en la cabecera y en Ver (`ajustes.json`). Auto (`PreviewQualityGovernor`) mide la composición en la GPU cada 50 ms al reproducir; si el p95 de un segundo pasa de 10 ms baja un escalón, hasta un cuarto, y en pausa vuelve a completa. La cabecera dice «Auto · ½» mientras está bajada. La exportación compone siempre a resolución completa.
 - **Transporte.** Código de tiempo, cuadro anterior, reproducir o pausar, cuadro siguiente y duración.
 - **Lanzadera J/K/L.** L reproduce y luego dobla hasta ×8, J va hacia atrás, K detiene. A ×1 reproduce de verdad; a otras velocidades `PlayerEngine` hace un seek por refresco en pausa, sin audio.
 - **Ediciones mientras reproduce.** El hilo de render toma la última copia del proyecto después de esperar el vsync, justo antes de componer: 10 ms de mediana entre `Reload` y el cuadro presentado (`edicion.a_present` en `app.ps1 -Medir`).
+- **Escenario de efectos.** `app.ps1 -Medir N -Escenario efectos` arma sobre el clip de prueba la principal cortada en 5 con 4 transiciones y dos capas encima, todas con color y otro efecto, y al final mueve el deslizador de exposición 30 veces reproduciendo (`edicion.deslizador_a_present`, desde antes de ejecutar el comando).
 - **Medidores.** Barras L/R con la escala IEC: verde hasta −18 dB, amarillo hasta −6 y rojo encima.
   - Muestran la franja del RMS (300 ms), la raya del pico retenido, un aviso de saturación que queda encendido hasta hacer clic y la lectura del mayor pico.
   - Se dibujan con `SpriteVisual` en `CompositionTarget.Rendering`, sin reservas por cuadro.
@@ -27,18 +29,25 @@ Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas c
 - **Barra de herramientas.**
   - Herramientas: normal (V), envolvente (E), selección y zoom (Z).
   - Interruptores: pista principal magnética, ajuste (N), ripple automático con su modo, fundido cruzado automático, bloquear envolventes e ignorar grupos. Se guardan en `ajustes.json`.
+  - «Fundido auto» viene apagado. Encendido, cada corte sin transición de la pista principal muestra su símbolo y **un clic** en él crea un `rodaje.crossfade` de 0,5 s. No se crean solos al editar: llenarían el historial y cambiarían cortes que no se tocaron.
   - Acciones: cortar (S), recortar inicio y final, borrar, marcador (M), región (R), deshacer, rehacer y zoom.
 - **Lienzo.**
   - Regla con marcas que se adaptan al zoom, marcadores y regiones.
   - Cabeceras con nombre y los interruptores de ocultar, silenciar y bloquear.
   - Clips con el color de su tipo, nombre, tira de película o forma de onda, rombos de keyframes, envolvente de volumen y contorno de selección.
+  - Transiciones: un bloque con una X sobre su corte, del ancho de su duración (al menos 12 px) y con una manija en cada borde.
+  - Cabeceras de audio con el volumen de la pista («Volumen −3,0 dB»).
 - **Interacción.**
   - Clic y Ctrl+clic seleccionan; arrastrar en vacío selecciona con un recuadro y marca un rango.
   - Arrastrar un clip lo mueve sin pisar nada en pistas libres, con ajuste a bordes, cursor, marcadores y regiones. En la principal magnética lo reordena; al sacarlo o meterlo cierra o abre el hueco, también en las pistas de los enlazados.
   - Los bordes recortan y Alt+arrastrar hace slip.
+  - Transiciones: un clic la selecciona (y vacía la selección de clips) y Supr la quita. Arrastrar una manija cambia la duración, siempre centrada en el corte, en cuadros enteros por lado y sin pasar el clip más corto; queda como un paso del historial.
+  - Envolvente (E, en clips de audio y con las envolventes sin bloquear): un clic pone un punto de `rodaje.audio.gainDb` y lo arrastra, agarrar un punto lo mueve sin pasar a sus vecinos y el clic derecho lo quita. La altura es lineal en amplitud: 0 dB a media altura, +6 dB arriba y −60 dB (silencio) abajo.
+  - Volumen de pista: se arrastra el texto de la cabecera a los lados (0,25 dB por píxel, con Mayús 0,05); doble clic vuelve a 0 dB. Va en `Track.Effects` como `rodaje.audio`; con keyframes fija el del cursor.
   - Todo arrastre es un gesto: los pasos se ejecutan en vivo (se prueban antes sobre una copia), se funden y quedan como un paso del historial; Esc lo revierte.
   - Rueda desplaza, Mayús+rueda cambia de pistas, Ctrl+rueda hace zoom alrededor del puntero.
 - **Soltar medios.** En la principal magnética se inserta en el corte más cercano, con el sonido en la primera pista de audio. En las demás pistas tapa lo que haya (con Ctrl, inserta).
+- **Soltar transiciones.** Caen en el corte entre clips pegados más cercano (hasta 28 px) de la pista bajo el puntero, con 0,5 s. Si el corte ya tiene una, cambia el tipo y conserva la duración. Las de paquete son `rodaje.preset` con la referencia en su opción `preset` (`TransitionPlanning`).
 - **Dibujo.** `TimelineRenderer` recicla elementos de XAML y solo arma los clips de una ventana de tres anchos de pantalla. Durante un zoom continuo lo dibujado se estira (`BitmapCache`) y se rearma nítido 150 ms después. La lógica sin WinUI (`Views/Timeline/Logic`) se prueba en `tests/Rodaje.App.Tests/TimelineLogic`.
 - **Medida** (`RODAJE_MEDIR_LINEA=informe.txt`, 200 clips, RTX 3050 Laptop a 60 Hz):
   - Desplazarse: 16,7 ms por cuadro de mediana (el código propio, 0,2 ms).
