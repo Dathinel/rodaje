@@ -151,3 +151,12 @@ Con un HEVC de GOP abierto (p. ej. el que genera libkvazaar del build LGPL: IDR 
 - **Lee:** `docs/pendientes.md` («Personalización»), la entrega de la tarea 7 (pistas por defecto) si ya existe, `docs/arquitectura/app.md`.
 
 Segunda mitad de lo pedido por Daniel: en Ajustes, elegir de qué pistas de video sale el audio de un medio a su propia pista de audio al importarlo o soltarlo (todas, o una lista: por ejemplo Video 1 y 2 sí, Video 3 no). Si el video cae en una pista sin audio, el medio entra sin su clip de audio (o con el audio desactivado, decide y justifica). Guardado en `ajustes.json`. Pruebas de la regla con la sesión real y una nota en `docs/pendientes.md` marcando lo hecho.
+
+## 16. Material perdido al encadenar curvas de velocidad
+
+- **Estado:** pendiente
+- **Rama:** `claude/curvas-material`
+- **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Timing/` (solo si hace falta), `tests/Rodaje.Core.Tests/` (archivos nuevos), `docs/tareas/`
+- **Lee:** `docs/fase-5c.md`, `docs/arquitectura/nucleo.md` (sección Velocidad), `src/Rodaje.Core/Editing/TimelineEdits.Speed.cs` (`AlignEnd`), `src/Rodaje.Core/Model/SpeedPresets.cs`.
+
+Aplicar «Bala», luego «Héroe» y luego «Ninguna» a un clip de 10 s lo deja en 9,942 s: el redondeo al cuadro de `AlignEnd` con curvas va comiendo material (~58 ms). Reprodúcelo con una prueba (cadenas aleatorias de preajustes, `SetCurve`, `SetSpeed` y vuelta a 1×: el material al volver a 1× debe ser el original, o como mucho un cuadro de origen distinto y nunca acumulativo) y corrígelo (calcular cada cambio desde el material original del clip, no desde el ya redondeado; o redondear al cuadro más cercano conservando el material). Incluye la propiedad en las pruebas de 10 000 proyectos si es barato.
