@@ -19,3 +19,9 @@ Daniel prefiere que lo profesional vaya como complemento aparte en su GitHub. Re
 | **RAW** (BRAW, R3D, CinemaDNG, ProRes RAW) | Módulo aparte (`modulo-raw`), proceso propio | Cada formato usa el SDK de su fabricante con su licencia; como proceso separado (igual que los módulos de IA) entrega cuadros al editor sin mezclar licencias. Necesita el protocolo de módulos de la fase 7 con video. |
 | **Codificadores GPL** (x264, x265) | Módulo aparte (`rodaje-codificadores-gpl`) | Otro `ffmpeg.exe` por la misma tubería de la fase 6; frontera de proceso. |
 | **Video 360°** (equirectangular: reencuadre a plano, metadatos esféricos, exportar 360) | El motor trae el código, oculto; el complemento `rodaje-360` lo activa con sus preajustes y controles (decidido por Daniel el 11-oct) | Necesita un shader de proyección en el compositor y los paquetes no traen shaders; así no entra código de terceros en la GPU. |
+
+## Texto a voz (pedido el 11-oct)
+
+- **Módulo `modulo-voz`** (complemento aparte en el GitHub de Dathinel, proceso propio como los demás módulos de IA de la fase 7): convertir texto en voz para videos tipo TikTok, con **varias voces y varios idiomas** (al menos español, inglés y portugués), ajuste de velocidad, tono y pausas, y vista previa antes de insertar.
+- **En la app:** escribir o pegar el texto (o tomarlo de un clip de texto de la 5b o de un subtítulo de la fase 7) y generar el audio como clip en una pista de audio, alineado al cursor o al texto; volver a generar si se cambia el texto o la voz.
+- **Local y sin coste:** modelos que corren en el PC (CPU o GPU), descargados con el módulo; elegir modelos con licencia que permita uso comercial y redistribución, y anotar cada voz y su licencia en el repo del módulo.
