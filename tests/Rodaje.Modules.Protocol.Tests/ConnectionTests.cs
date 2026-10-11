@@ -155,6 +155,7 @@ public sealed class ConnectionTests
     }
 
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public async Task A_module_that_never_greets_times_out()
     {
         (NamedPipeServerStream editor, NamedPipeClientStream silent) = await Support.PipePairAsync();

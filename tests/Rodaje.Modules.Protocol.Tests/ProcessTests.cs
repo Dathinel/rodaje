@@ -53,6 +53,7 @@ public sealed class ProcessTests(ITestOutputHelper output)
     }
 
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public async Task Cancellation_in_a_real_process_is_fast()
     {
         await using ModuleProcess module = await ModuleProcess.StartAsync(Support.EchoExe);
