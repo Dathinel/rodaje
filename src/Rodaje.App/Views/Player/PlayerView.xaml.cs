@@ -13,9 +13,9 @@ namespace Rodaje.App.Views.Player;
 /// <summary>Identificadores de las acciones del reproductor; se guardan en <c>atajos.json</c>, no se renombran.</summary>
 internal static class PlayerActionIds
 {
-    public const string ShuttleReverse = "playback.shuttleReverse";
-    public const string ShuttleStop = "playback.shuttleStop";
-    public const string ShuttleForward = "playback.shuttleForward";
+    public const string ShuttleReverse = ActionIds.ShuttleReverse;
+    public const string ShuttleStop = ActionIds.ShuttleStop;
+    public const string ShuttleForward = ActionIds.ShuttleForward;
     public const string FullScreen = "view.playerFullScreen";
     public const string SafeAreas = "view.safeAreas";
 }

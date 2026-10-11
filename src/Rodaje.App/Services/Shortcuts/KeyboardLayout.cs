@@ -59,12 +59,25 @@ public static class KeyboardGeometry
     public static IReadOnlyList<KeyCap> SpanishIso { get; } = BuildSpanishIso();
 
     /// <summary>Las teclas con sus acciones en el estilo actual, con los nombres de <paramref name="layout"/>.</summary>
-    public static IReadOnlyList<KeyCapState> Map(ShortcutRegistry registry, IKeyboardLayout? layout, IReadOnlyList<KeyCap>? caps = null)
+    /// <param name="registry">Acciones y teclas.</param>
+    /// <param name="layout">Distribución activa, o <c>null</c> para la estadounidense.</param>
+    /// <param name="caps">Teclas del dibujo; por omisión, <see cref="SpanishIso"/>.</param>
+    /// <param name="include">Solo las acciones que cumplan esto (por ejemplo, las esenciales); por omisión, todas.</param>
+    public static IReadOnlyList<KeyCapState> Map(
+        ShortcutRegistry registry,
+        IKeyboardLayout? layout,
+        IReadOnlyList<KeyCap>? caps = null,
+        Func<ShortcutAction, bool>? include = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         var byKey = new Dictionary<int, List<KeyBinding>>();
         foreach (ShortcutAction action in registry.Actions)
         {
+            if (include is not null && !include(action))
+            {
+                continue;
+            }
+
             foreach (KeyChord chord in registry.GetKeys(action.Id))
             {
                 if (!byKey.TryGetValue(chord.Key, out List<KeyBinding>? list))

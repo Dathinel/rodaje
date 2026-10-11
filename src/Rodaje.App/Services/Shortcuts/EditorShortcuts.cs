@@ -24,6 +24,11 @@ public static class ActionIds
     public const string GoToStart = "playback.start";
     public const string GoToEnd = "playback.end";
 
+    // Las registra el reproductor; aquí para que la vista esencial de la página de atajos las nombre.
+    public const string ShuttleReverse = "playback.shuttleReverse";
+    public const string ShuttleStop = "playback.shuttleStop";
+    public const string ShuttleForward = "playback.shuttleForward";
+
     public const string AddMarker = "timeline.marker";
     public const string AddRegion = "timeline.region";
     public const string ZoomIn = "timeline.zoomIn";

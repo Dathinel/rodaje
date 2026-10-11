@@ -22,6 +22,7 @@ public class SettingsStoreTests
         store.Current.WindowMaximized = true;
         store.Current.ShortcutPreset = ShortcutPreset.Classic;
         store.Current.ProxyUsage = ProxyUsage.Never;
+        store.Current.ShortcutsAdvanced = true;
         store.Current.AddRecentProject(@"C:\a.rodaje");
         store.Save();
 
@@ -36,6 +37,7 @@ public class SettingsStoreTests
         Assert.True(s.WindowMaximized);
         Assert.Equal(ShortcutPreset.Classic, s.ShortcutPreset);
         Assert.Equal(ProxyUsage.Never, s.ProxyUsage);
+        Assert.True(s.ShortcutsAdvanced);
         Assert.Equal([@"C:\a.rodaje"], s.RecentProjects);
         Assert.Contains("\"Classic\"", File.ReadAllText(path), StringComparison.Ordinal);
     }
@@ -68,6 +70,7 @@ public class SettingsStoreTests
         Assert.Null(store.Load());
         Assert.Equal(320, store.Current.LibraryWidth);
         Assert.Equal(ProxyUsage.Auto, store.Current.ProxyUsage);
+        Assert.False(store.Current.ShortcutsAdvanced);
     }
 
     [Fact]
