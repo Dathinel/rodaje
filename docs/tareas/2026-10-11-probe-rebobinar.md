@@ -23,3 +23,7 @@
 ## Qué comprobar en Windows
 
 `ABRIR.bat`: `ProbeRewindTests` (3 casos) deben correr y pasar; el resto de Media, igual que antes.
+
+## Primera corrida de la CI de Windows
+
+`ProbeRewindTests` falló en el clip con audio (`h264-2997`): el primer paquete del archivo es de audio (flujo 1, pos 48) y el rebobinado va al inicio del flujo de video (pos 406). La prueba pasó a comparar el primer paquete **de video**. Los demás rojos de esa corrida (HighSpeedDecode, KeyframeIndex hevc10, `Damage_still_inside…`, `SeekLejos…`) no son de este PR: son las tareas 0, 4 y 9.

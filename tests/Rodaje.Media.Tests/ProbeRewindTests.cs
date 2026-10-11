@@ -34,9 +34,20 @@ public sealed unsafe class ProbeRewindTests
                 MediaProbe.Probe(format, path, scanTimestamps: true);
             }
 
-            int r = ffmpeg.av_read_frame(format, packet);
-            Assert.True(r >= 0);
-            return (packet->stream_index, packet->dts, packet->pos);
+            // El rebobinado busca el inicio del flujo de video: un paquete de audio anterior en el archivo no cuenta.
+            int video = MediaProbe.Probe(format, path, scanTimestamps: false).Video!.StreamIndex;
+            for (int i = 0; i < 1000; i++)
+            {
+                Assert.True(ffmpeg.av_read_frame(format, packet) >= 0);
+                if (packet->stream_index == video)
+                {
+                    return (packet->stream_index, packet->dts, packet->pos);
+                }
+
+                ffmpeg.av_packet_unref(packet);
+            }
+
+            throw new Xunit.Sdk.XunitException("No hay paquetes de video.");
         }
         finally
         {
