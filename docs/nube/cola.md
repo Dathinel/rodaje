@@ -1,10 +1,10 @@
 # Cola de tareas para la nube
 
-La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `en pausa`, `hecha`.
+La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 ## 1. CI de Windows en verde (salvo Render)
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #2: atender la revisión del 11-oct en sus comentarios)
 - **Rama:** `claude/ci-windows-verde`
 - **Caminos:** `tests/Rodaje.Media.Tests/`, `testing/Rodaje.TestMedia/`, `tests/Rodaje.TestMedia.Tests/`, `tests/Rodaje.Audio.Tests/`, `.github/workflows/ci.yml`, `docs/tareas/`
 - **Lee:** `docs/tareas/2026-10-10-ci.md`
@@ -37,3 +37,12 @@ Un `.rodaje` dañado o malicioso nunca debe tumbar la app: abrirlo da un proyect
 1. Pruebas con mutaciones deterministas (semilla fija) sobre los ejemplos v1, v2 y v3: bytes cambiados, truncados, JSON con tipos cambiados, números enormes, negativos, NaN, `schemaVersion` futuro o ausente, ids duplicados, referencias a clips o medios inexistentes, transiciones entre clips no contiguos, keyframes desordenados, cadenas de 1 MB, anidamiento profundo.
 2. Al menos 5000 casos por corrida, en menos de 30 s en Linux.
 3. Comprueba además que todo proyecto que abre sin error pasa el validador y se vuelve a guardar y abrir igual byte a byte.
+
+## 4. Estado del decodificador tras un flush (Rodaje.Media)
+
+- **Estado:** pendiente
+- **Rama:** `claude/media-flush`
+- **Caminos:** `src/Rodaje.Media/`, `tests/Rodaje.Media.Tests/`, `docs/tareas/`
+- **Lee:** `docs/arquitectura/medios.md`, la revisión del PR #2, `tests/Rodaje.Media.Tests/VideoDecoderBehaviorTests.cs`.
+
+`Corrupted_packets_are_skipped_without_throwing` solo corre con `h264_nvenc` porque, con el H.264 de `h264_mf`, el estado del decodificador sobrevive a `avcodec_flush_buffers` y un cuadro tras la zona dañada no coincide. Encuentra la causa en `Rodaje.Media` (seek, flush, cuadros de referencia pendientes), corrígela y haz que la prueba corra con cualquier codificador H.264 disponible. Se verifica con la CI de Windows (sin NVENC) y la revisión local con NVENC.

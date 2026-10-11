@@ -5,7 +5,7 @@ La sesión local de Rodaje (en el PC de Daniel) mantiene una cola de tareas en [
 ## Cómo elegir la siguiente tarea
 
 1. `git fetch --prune origin` y lee `docs/nube/cola.md` **desde `origin/main`** (`git show origin/main:docs/nube/cola.md`), no desde tu copia: la cola cambia mientras trabajas.
-2. Recorre las tareas en orden. Sáltate las marcadas `hecha` o `en pausa`, y las que ya tengan su rama en el remoto (`git ls-remote --heads origin <rama>`) o un PR abierto (`gh pr list --head <rama>`): las tiene otra sesión o espera revisión.
+2. Recorre las tareas en orden. Una tarea en estado `cambios` va primero: su rama y su PR ya existen; haz `git checkout` de esa rama, atiende los comentarios de revisión del PR (`gh pr view <n> --comments`) con commits nuevos en la misma rama, actualiza la entrega y la descripción del PR, y deja un comentario «Listo para revisar». Después, sáltate las marcadas `hecha` o `en pausa`, y las que ya tengan su rama en el remoto (`git ls-remote --heads origin <rama>`) o un PR abierto (`gh pr list --head <rama>`): las tiene otra sesión o espera revisión.
 3. Toma la primera que quede. Si no queda ninguna, espera unos 30 minutos y vuelve al paso 1. No inventes tareas.
 
 ## Reglas para toda tarea
