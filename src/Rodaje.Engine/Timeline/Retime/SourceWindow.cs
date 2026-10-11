@@ -23,6 +23,8 @@ internal sealed class SourceWindow
     private float[] _left = new float[1 << 16];
     private float[] _right = new float[1 << 16];
     private float[] _interleaved = new float[4096 * 2];
+    private float[] _fractionalL = [];
+    private float[] _fractionalR = [];
     private long _start;
     private int _count;
     private long _end = long.MaxValue;
@@ -74,6 +76,44 @@ internal sealed class SourceWindow
             left[last + i] = _left[at + length - 1 - i];
             right[last + i] = _right[at + length - 1 - i];
         }
+    }
+
+    /// <summary>
+    /// Como <see cref="Read"/> desde una posición con fracción: interpola con el sinc de
+    /// <see cref="VarispeedResampler.Interpolator"/>, que en una posición entera copia tal cual.
+    /// </summary>
+    public void ReadAt(double u, Span<float> left, Span<float> right, bool reverse)
+    {
+        long whole = (long)Math.Floor(u);
+        int phase = (int)Math.Round((u - whole) * VarispeedResampler.Phases);
+        if (phase == VarispeedResampler.Phases)
+        {
+            phase = 0;
+            whole++;
+        }
+
+        if (phase == 0)
+        {
+            Read(whole, left, right, reverse);
+            return;
+        }
+
+        VarispeedResampler.Kernel kernel = VarispeedResampler.Interpolator;
+        int taps = kernel.Taps;
+        int count = left.Length;
+        int length = count + taps;
+        if (_fractionalL.Length < length)
+        {
+            _fractionalL = new float[length];
+            _fractionalR = new float[length];
+        }
+
+        Span<float> l = _fractionalL.AsSpan(0, length);
+        Span<float> r = _fractionalR.AsSpan(0, length);
+        Read(whole - (taps / 2) + 1, l, r, reverse);
+        ReadOnlySpan<float> row = kernel.Row(phase);
+        VectorMath.Convolve(row, l, left);
+        VectorMath.Convolve(row, r, right);
     }
 
     private void Ensure(long from, long to, bool backward)
