@@ -120,11 +120,20 @@ public sealed unsafe class Compositor : IDisposable
     /// <summary>Niveles de mipmap de <see cref="Texture"/>; solo el 0 se dibuja y el presentador genera el resto.</summary>
     public int MipLevels { get; }
 
-    /// <summary><c>ID3D11Texture2D*</c> con el último cuadro compuesto (alfa 1 en todo el cuadro). Vale hasta <see cref="Dispose"/>.</summary>
+    /// <summary>
+    /// <c>ID3D11Texture2D*</c> con el último cuadro compuesto, premultiplicado (alfa 1 en todo el cuadro salvo con
+    /// <see cref="TransparentBackground"/>). Vale hasta <see cref="Dispose"/>.
+    /// </summary>
     public nint Texture => _output is null ? 0 : (nint)_output.Texture;
 
     /// <summary><c>ID3D11ShaderResourceView*</c> de <see cref="Texture"/>, con todos sus mipmaps.</summary>
     public nint ShaderResourceView => _output is null ? 0 : (nint)_output.Srv;
+
+    /// <summary>
+    /// Compone sobre transparente en vez de sobre negro, para exportar con alfa: donde no hay capas el alfa es 0. Las
+    /// mezclas por shader suponen un fondo opaco.
+    /// </summary>
+    public bool TransparentBackground { get; set; }
 
     /// <summary>Vistas de superficies del decodificador guardadas, para diagnóstico.</summary>
     public int CachedViewCount => _views.Count;
@@ -162,7 +171,7 @@ public sealed unsafe class Compositor : IDisposable
         try
         {
             _pipeline.Bind(_output.Rtv, Width, Height, QuadPipeline.Shader.Layer);
-            float* black = stackalloc float[] { 0f, 0f, 0f, 1f };
+            float* black = stackalloc float[] { 0f, 0f, 0f, TransparentBackground ? 0f : 1f };
             _context->ClearRenderTargetView(_output.Rtv, black);
             bool bound = true;
             IReadOnlyList<LayerFrame> layers = frame.Layers;
