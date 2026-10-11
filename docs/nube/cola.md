@@ -127,7 +127,7 @@ Un `ReverseFrameReader` que entregue los cuadros de un tramo en orden descendent
 
 ## 13. Lista de codificadores para la exportación (base de la fase 6)
 
-- **Estado:** en pausa (PR #14 choca con el contrato local de la fase 6; se retoma sobre `EncoderSpec` cuando el paso 0 esté en main; ver comentarios del PR)
+- **Estado:** cambios (PR #14: el contrato de la fase 6 ya está en main; rehaz el catálogo sobre `EncoderSpec` de `src/Rodaje.Media/Export/` y atiende la revisión del 11-oct en los comentarios)
 - **Rama:** `claude/export-codificadores`
 - **Caminos:** archivos NUEVOS en `src/Rodaje.Media/Export/` (carpeta nueva), `tests/Rodaje.Media.Tests/Export/`, `docs/tareas/`.
 - **Lee:** `CLAUDE.md` (sección «Hacia la versión pública»: exportar por GPU o CPU sin separar el programa, licencia LGPL en la v1), `docs/legal.md`, `docs/ffmpeg-configure.txt`, `src/Rodaje.Media/Proxies/ProxyEncoders.cs` (solo lectura).
