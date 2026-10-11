@@ -113,8 +113,8 @@ public class TrackEffectEditsTests
         EffectInstance Effect(string id) => Seq(project).GetClip("clip-1").Clip.Effects.Single(e => e.Id == id);
 
         RoundTrip(stack, Edits.SetEffectOption(SequenceId, "clip-1", blend, BuiltInEffects.BlendOptions.Mode, "screen"));
-        RoundTrip(stack, Edits.SetEffectOption(SequenceId, "clip-1", color, BuiltInEffects.ColorOptions.Lut, "rodaje-esenciales@1.0.0/frio"));
-        RoundTrip(stack, Edits.SetEffectOption(SequenceId, "clip-1", color, BuiltInEffects.CommonOptions.Source, "rodaje-esenciales@1.0.0/look-frio"));
+        RoundTrip(stack, Edits.SetEffectOption(SequenceId, "clip-1", color, BuiltInEffects.ColorOptions.Lut, "rodaje-filtros@1.0.0/frio"));
+        RoundTrip(stack, Edits.SetEffectOption(SequenceId, "clip-1", color, BuiltInEffects.CommonOptions.Source, "rodaje-filtros@1.0.0/look-frio"));
         Assert.Equal("screen", Effect(blend).Options[BuiltInEffects.BlendOptions.Mode]);
         Assert.Equal(2, Effect(color).Options.Count);
 

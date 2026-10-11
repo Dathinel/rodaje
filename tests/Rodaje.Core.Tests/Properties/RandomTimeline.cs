@@ -132,7 +132,7 @@ internal static class RandomTimeline
 
     private static readonly string[] OptionValues =
     [
-        "multiply", "softLight", "up", "left", "", "rodaje-esenciales@1.0.0/suave", "mal formada", "diagonal",
+        "multiply", "softLight", "up", "left", "", "rodaje-transiciones@1.0.0/suave", "mal formada", "diagonal",
         "file:luts/cálido 2.cube", "file:", "file:a<b.cube",
     ];
 
@@ -258,7 +258,7 @@ internal static class RandomTimeline
                 add.Apply(built.Project);
                 if (track.Kind == TrackKind.Video)
                 {
-                    Edits.SetEffectOption(seq, clip.Id, add.CreatedIds[0], BuiltInEffects.ColorOptions.Lut, "rodaje-esenciales@1.0.0/calido", built.Ids).Apply(built.Project);
+                    Edits.SetEffectOption(seq, clip.Id, add.CreatedIds[0], BuiltInEffects.ColorOptions.Lut, "rodaje-filtros@1.0.0/calido", built.Ids).Apply(built.Project);
                     SequenceEditCommand blend = Edits.AddEffect(seq, clip.Id, BuiltInEffects.Blend, ids: built.Ids);
                     blend.Apply(built.Project);
                     Edits.SetEffectOption(seq, clip.Id, blend.CreatedIds[0], BuiltInEffects.BlendOptions.Mode, EffectRegistry.BlendModes[extras % 13], built.Ids).Apply(built.Project);
@@ -577,7 +577,7 @@ internal static class RandomTimeline
                     ? option.Choices[c % option.Choices.Length]
                     : option.AllowsFile && c % 3 == 0
                         ? Inv($"file:luts/look {c % 4}.cube")
-                        : Inv($"rodaje-esenciales@1.{c % 3}.0/elemento-{c % 4}");
+                        : Inv($"rodaje-filtros@1.{c % 3}.0/elemento-{c % 4}");
             return (option.Name, value);
         }
 

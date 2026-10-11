@@ -89,8 +89,8 @@
                     }
                   },
                   "options": {
-                    "lut": "rodaje-esenciales@1.0.0/calido",
-                    "source": "rodaje-esenciales@1.0.0/look-calido"
+                    "lut": "rodaje-filtros@1.0.0/calido",
+                    "source": "rodaje-filtros@1.0.0/look-calido"
                   }
                 },
                 {
@@ -234,7 +234,7 @@
               "duration": 705600000,
               "parameters": {},
               "options": {
-                "preset": "rodaje-esenciales@1.0.0/deslizar"
+                "preset": "rodaje-transiciones@1.0.0/deslizar"
               }
             }
           ]

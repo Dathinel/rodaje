@@ -119,19 +119,19 @@ public class TransitionAndEnvelopeTests
 
         Assert.True(session.Execute(TransitionPlanning.BuildDrop(session.SequenceId, from.Id, BuiltInTransitions.Wipe)));
         Assert.True(session.Execute(Edits.SetTransitionDuration(session.SequenceId, main.Transitions[0].Id, S(1))));
-        SequenceEditCommand again = TransitionPlanning.BuildDrop(session.SequenceId, from.Id, "rodaje-esenciales@1.0.0/barrido-suave");
+        SequenceEditCommand again = TransitionPlanning.BuildDrop(session.SequenceId, from.Id, "rodaje-transiciones@1.0.0/barrido-suave");
         Assert.True(session.Execute(again));
         TransitionInstance preset = Assert.Single(main.Transitions);
         Assert.Equal(again.CreatedIds[0], preset.Id);
         Assert.Equal(BuiltInTransitions.Preset, preset.Type);
-        Assert.Equal("rodaje-esenciales@1.0.0/barrido-suave", preset.Options[BuiltInTransitions.PresetOptions.Preset]);
+        Assert.Equal("rodaje-transiciones@1.0.0/barrido-suave", preset.Options[BuiltInTransitions.PresetOptions.Preset]);
         Assert.Equal(S(1), preset.Duration);
 
         Assert.True(TransitionPlanning.IsTransitionReference(BuiltInTransitions.Dip, packageAllowed: false));
         Assert.False(TransitionPlanning.IsTransitionReference(BuiltInTransitions.Preset, packageAllowed: true));
         Assert.False(TransitionPlanning.IsTransitionReference(BuiltInEffects.Color, packageAllowed: true));
-        Assert.False(TransitionPlanning.IsTransitionReference("rodaje-esenciales@1.0.0/x", packageAllowed: false));
-        Assert.True(TransitionPlanning.IsTransitionReference("rodaje-esenciales@1.0.0/x", packageAllowed: true));
+        Assert.False(TransitionPlanning.IsTransitionReference("rodaje-transiciones@1.0.0/x", packageAllowed: false));
+        Assert.True(TransitionPlanning.IsTransitionReference("rodaje-transiciones@1.0.0/x", packageAllowed: true));
         Assert.False(TransitionPlanning.IsTransitionReference("", packageAllowed: true));
     });
 

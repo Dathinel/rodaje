@@ -89,7 +89,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         MissingContent.Attach(session, packages);
         _bindings.Add(EditorShortcuts.Bind(_router, session));
         _bindings.Add(_router.Bind(ActionIds.Export, () => session.Notify(NotificationSeverity.Informational, "Exportar",
-            "La exportación llega en la fase 5. Por ahora puedes guardar el proyecto.")));
+            "La exportación llega en la fase 6. Por ahora puedes guardar el proyecto.")));
         _bindings.Add(_router.Bind(ActionIds.ShowShortcuts, () => ShowPage(ShellPage.Shortcuts)));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _keyboard = new KeyboardShortcutHost(Root, _router, InterceptKey);

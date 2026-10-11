@@ -33,8 +33,8 @@ public class FormatV3Tests
 
         EffectInstance color = video.Clips[0].Effects[1];
         Assert.Equal(BuiltInEffects.Color, color.Type);
-        Assert.Equal("rodaje-esenciales@1.0.0/calido", color.Options[BuiltInEffects.ColorOptions.Lut]);
-        Assert.Equal("rodaje-esenciales@1.0.0/look-calido", color.Options[BuiltInEffects.CommonOptions.Source]);
+        Assert.Equal("rodaje-filtros@1.0.0/calido", color.Options[BuiltInEffects.ColorOptions.Lut]);
+        Assert.Equal("rodaje-filtros@1.0.0/look-calido", color.Options[BuiltInEffects.CommonOptions.Source]);
         Assert.Equal("overlay", sequence.VideoTracks[1].Clips[0].Effects[0].Options[BuiltInEffects.BlendOptions.Mode]);
 
         TransitionInstance wipe = Assert.Single(video.Transitions);
@@ -45,7 +45,7 @@ public class FormatV3Tests
         Assert.Same(wipe, video.TransitionTo("clip-2"));
         Assert.Same(wipe, video.FindTransition("transition-1"));
         Assert.Null(video.TransitionFrom("clip-2"));
-        Assert.Equal("rodaje-esenciales@1.0.0/deslizar", sequence.VideoTracks[1].Transitions[0].Options[BuiltInTransitions.PresetOptions.Preset]);
+        Assert.Equal("rodaje-transiciones@1.0.0/deslizar", sequence.VideoTracks[1].Transitions[0].Options[BuiltInTransitions.PresetOptions.Preset]);
 
         EffectInstance trackGain = Assert.Single(sequence.AudioTracks[1].Effects);
         Assert.Equal(-60, trackGain.Parameters[BuiltInEffects.AudioParameters.GainDb].Evaluate(Time.FromSeconds(15)));
