@@ -78,7 +78,12 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 5. **Velocidad de clips (fase 5c, aprobada):** plan en `docs/fase-5c.md`. Arranca tras unir la integración de la fase 5 (en paralelo con su verificación): paso 0 contrato y formato 4, luego 7 agentes. Va antes que la 5b.
 6. **Después:** fase 5b (texto y títulos, repo `rodaje-titulos`), luego fase 6 (exportación).
 
-**En curso (11-oct, noche):** 5c.1 cerrada y en main (cierre: pérdidas al cambiar velocidad corregidas, `--autoprueba` del exe AOT, margen de audio 30 ms → ~50 ms audible, criterio de pantalla mediana ≤20/p95 ≤40, todo aprobado por Daniel); 5c.2 núcleo y motor en main (preajustes Montaje/Héroe/Bala/Entrada/Salida rápida); rediseño del inspector y contraste (D-027) en main. Agentes: interfaz de curvas (5c.2) y plan de la fase 6 (exportación). Nube: tareas 0 (cambios), 7, 8, 10–15 (reversa por GOP, codificadores de exportación, GOP abierto, audio por pista).
+**En curso (12-oct, madrugada):**
+- **En main:** 5c.1 cerrada; 5c.2 completa (núcleo, motor e interfaz de curvas); rediseño del inspector y contraste (D-027); de la nube unidos PR #1–#10 menos #9… (ver `docs/nube/cola.md`).
+- **Agentes locales:** 5c.3 reversa (medios y motor, sin tocar la App; luego el interruptor «Invertir» y el indicador «◀»); paso 0 de la fase 6 (D-028, proyecto `Rodaje.Export`, contrato con el alcance profesional de `docs/fase-6.md`, prototipo con cifras).
+- **Decisiones de Daniel (11-oct):** exportación LGPL v1; 9:16 con barras y botón de cambiar la secuencia; dos modos de rendimiento elegidos al exportar; alcance profesional (contenedores, códecs, control de tasa, avanzados, audio con LUFS, preajustes propios); complementos profesionales en `docs/pendientes.md` (10 bits en la app; cámaras, preajustes pro, RAW, GPL y 360 como complementos; 360 lo trae el motor y lo activa el complemento).
+- **Nube:** rutina horaria con hasta 3 tareas en paralelo y revisor propio; revisión local cada 30 min con un revisor Opus por PR en paralelo. Pendientes: tareas 8 y 10 con cambios, 11, 13–16.
+- **Siguiente al cerrar lo de arriba:** UI de la reversa → verificación de 5c (Sonnet) → agentes A–F de la fase 6 → 5b (texto, con la propuesta corregida) → reorganización del repo (`docs/reorganizacion.md`).
 
 **Reorganización del repo aprobada (11-oct):** plan y orden en `docs/reorganizacion.md`; se aplica cuando no haya agentes editando ni PR de la nube abiertos.
 
