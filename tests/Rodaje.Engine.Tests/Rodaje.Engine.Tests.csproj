@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Engine\Rodaje.Engine.csproj" />
+    <!-- Exportación (fase 6): el motor fuera de línea se compara con la vista previa a través del compositor -->
+    <ProjectReference Include="..\..\src\Rodaje.Render\Rodaje.Render.csproj" />
     <ProjectReference Include="..\..\testing\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
   </ItemGroup>
 
