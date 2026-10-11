@@ -84,7 +84,7 @@ Primera mitad de lo pedido por Daniel: en Ajustes, cuántas pistas de video (1�
 
 ## 8. Propuesta del formato de estilos de texto (fase 5b)
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #11: atender la revisión del 11-oct en sus comentarios)
 - **Rama:** `claude/propuesta-texto`
 - **Caminos:** `docs/propuestas/texto.md` (nuevo), `docs/tareas/`.
 - **Lee:** `docs/fase-5.md` (por qué el texto va en la 5b), `docs/fase-5c.md` (la 5c cambia `Clip` y el formato 4 antes), `docs/formato-paquete.md`, `docs/formato-proyecto.md`, `src/Rodaje.Core/Model/`, `src/Rodaje.Render/` (solo lectura).
