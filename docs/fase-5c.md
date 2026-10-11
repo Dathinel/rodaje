@@ -1,6 +1,6 @@
 # Fase 5c: velocidad de clips
 
-Plan del 10 de octubre de 2026, pendiente de las tres preguntas del final. Empieza cuando la integración de la fase 5 esté unida a main.
+Plan del 10 de octubre de 2026, aprobado por Daniel: va antes que la fase 5b (textos); en una pista libre, si el clip alargado choca, se corre esa pista y las de su enlace, cada una con su Δ; por encima de 8× el audio sigue sonando (granuloso) con un aviso de los límites en el inspector, sin silenciar. Empieza cuando la integración de la fase 5 esté unida a main.
 
 ## Rondas
 
