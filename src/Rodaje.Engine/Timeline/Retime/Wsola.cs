@@ -41,6 +41,10 @@ internal sealed class Wsola
     private const double SilenceEnergy = 2e-3 * 2e-3;
     private const int HistorySize = 128;
 
+    // Un ataque empieza donde la mezcla L + R pasa de esto (−54 dBFS por canal) y suena a 1× sus primeros 25 ms.
+    private const float OnsetLevel = 4e-3f;
+    private const int AttackLength = TimelinePlan.AudioSampleRate / 40;
+
     private readonly SampleMap _map;
     private readonly SourceWindow _source;
     private readonly int _hop;
@@ -61,8 +65,15 @@ internal sealed class Wsola
     private readonly double[] _energyCoarse;
     private readonly long[] _historyK = new long[HistorySize];
     private readonly double[] _historyA = new double[HistorySize];
+    private readonly long[] _historyAttack = new long[HistorySize];
+    private readonly float[] _onsetL;
+    private readonly float[] _onsetR;
+    private readonly float[] _onset;
     private long _k = long.MinValue;
     private double _a;
+
+    // Tras colocar un ataque, los trozos que empiezan hasta esta muestra de la línea de tiempo lo continúan tal cual.
+    private long _attackUntil = long.MinValue;
 
     public Wsola(SampleMap map, SourceWindow source, double maxRate)
     {
@@ -93,6 +104,9 @@ internal sealed class Wsola
         _templateCoarse = new float[_hop / Decimation];
         _regionCoarse = new float[region / Decimation];
         _energyCoarse = new double[(region / Decimation) + 1];
+        _onsetL = new float[(2 * SearchRadius) + n];
+        _onsetR = new float[(2 * SearchRadius) + n];
+        _onset = new float[(2 * SearchRadius) + n];
         Array.Fill(_historyK, long.MinValue);
     }
 
@@ -142,15 +156,17 @@ internal sealed class Wsola
         if (Remembered(k - 1) is { } previous && Remembered(k) is { } current)
         {
             _k = k - 1;
-            _a = previous;
-            Step(k, current);
+            _a = previous.A;
+            _attackUntil = current.AttackUntil;
+            Step(k, current.A);
             return;
         }
 
         long first = k - ((WarmUp + _hop - 1) / _hop);
         _k = first;
         _a = Nominal(first);
-        Remember(first, _a);
+        _attackUntil = long.MinValue;
+        Remember(first, _a, _attackUntil);
         for (long j = first + 1; j <= k; j++)
         {
             Step(j, null);
@@ -163,16 +179,44 @@ internal sealed class Wsola
         bool reverse = _map.Reverse;
         _source.ReadAt(_a + _hop, _tailL, _tailR, reverse);
         Mono(_tailL, _tailR, _template);
-        double a = forced ?? Search(Nominal(k));
+        double energyT = VectorMath.Dot(_template, _template);
+        bool silentTail = energyT < _hop * SilenceEnergy;
+        double a;
+        if (forced is { } given)
+        {
+            a = given;
+        }
+        else if (k * _hop <= _attackUntil)
+        {
+            a = _a + _hop;
+        }
+        else if (silentTail)
+        {
+            a = PlaceOnset(k);
+        }
+        else
+        {
+            a = Search(Nominal(k));
+        }
+
         _source.ReadAt(a, _headL, _headR, reverse);
         Mono(_headL, _headR, _candidate);
-        double energyT = VectorMath.Dot(_template, _template);
-        double energyH = VectorMath.Dot(_candidate, _candidate);
-        double rho = energyT * energyH > 1e-20 ? VectorMath.Dot(_template, _candidate) / Math.Sqrt(energyT * energyH) : 1;
-        Gains(Math.Clamp(rho, 0, 1));
+        if (silentTail && Quiet(_candidate.AsSpan(0, 64)))
+        {
+            // Tras silencio no hay nada que fundir: el trozo entra entero y un ataque no pierde fuerza.
+            Array.Fill(_gainTail, 0f);
+            Array.Fill(_gainHead, 1f);
+        }
+        else
+        {
+            double energyH = VectorMath.Dot(_candidate, _candidate);
+            double rho = energyT * energyH > 1e-20 ? VectorMath.Dot(_template, _candidate) / Math.Sqrt(energyT * energyH) : 1;
+            Gains(Math.Clamp(rho, 0, 1));
+        }
+
         _k = k;
         _a = a;
-        Remember(k, a);
+        Remember(k, a, _attackUntil);
     }
 
     /// <summary>El centro del trozo <paramref name="k"/> cae en <c>map(k · Hop + Hop)</c>.</summary>
@@ -186,10 +230,6 @@ internal sealed class Wsola
     private double Search(long nominal)
     {
         double energyT = VectorMath.Dot(_template, _template);
-        if (energyT < _hop * SilenceEnergy)
-        {
-            return nominal;
-        }
 
         long origin = nominal - SearchRadius;
         _source.Read(origin, _regionL, _regionR, _map.Reverse);
@@ -253,6 +293,63 @@ internal sealed class Wsola
         return origin + best + fraction;
     }
 
+    /// <summary>
+    /// Trozo tras silencio: no hay nada que continuar, así que se elige para que el primer sonido a su alcance (un
+    /// ataque) suene justo donde manda el mapeo, y los trozos siguientes lo continúan tal cual durante 25 ms. Si ese
+    /// ataque toca a un trozo posterior, este termina antes de él; sin sonido, va donde manda el mapeo. Sin esto el
+    /// ataque salía primero en la cola de un trozo y la búsqueda lo recolocaba: 5 ms tarde a 0,5× y 16 ms a 0,25×.
+    /// </summary>
+    private double PlaceOnset(long k)
+    {
+        long nominal = Nominal(k);
+        long origin = nominal - SearchRadius;
+        _source.Read(origin, _onsetL, _onsetR, _map.Reverse);
+        Mono(_onsetL, _onsetR, _onset);
+        int first = -1;
+        for (int i = 0; i < _onset.Length; i++)
+        {
+            if (MathF.Abs(_onset[i]) > OnsetLevel)
+            {
+                first = i;
+                break;
+            }
+        }
+
+        if (first < 0)
+        {
+            return nominal;
+        }
+
+        // Instante de la salida en que debe sonar el ataque: el mapeo invertido alrededor del centro del trozo.
+        long center = (k * _hop) + _hop;
+        double rate = Math.Max(_map.RateAt(center), 1e-6);
+        double attack = origin + first;
+        double offset = center + ((attack - _map.At(center)) / rate) - (k * _hop);
+        if (offset >= 2 * _hop)
+        {
+            // Termina antes del ataque aunque se salga del radio de búsqueda: así el trozo que lo coloca empieza tras silencio.
+            return Math.Max(nominal - (2 * _hop), Math.Min(nominal, attack - (2 * _hop)));
+        }
+
+        // El ataque manda sobre el radio de búsqueda: lo que hay antes de él en el trozo es silencio.
+        offset = Math.Max(0, offset);
+        _attackUntil = (k * _hop) + (long)offset + AttackLength;
+        return attack - offset;
+    }
+
+    private static bool Quiet(ReadOnlySpan<float> mono)
+    {
+        foreach (float v in mono)
+        {
+            if (MathF.Abs(v) > OnsetLevel)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static double Penalty(int lag)
     {
         double x = (double)lag / SearchRadius;
@@ -289,17 +386,18 @@ internal sealed class Wsola
         }
     }
 
-    private void Remember(long k, double a)
+    private void Remember(long k, double a, long attackUntil)
     {
         int slot = (int)(((k % HistorySize) + HistorySize) % HistorySize);
         _historyK[slot] = k;
         _historyA[slot] = a;
+        _historyAttack[slot] = attackUntil;
     }
 
-    private double? Remembered(long k)
+    private (double A, long AttackUntil)? Remembered(long k)
     {
         int slot = (int)(((k % HistorySize) + HistorySize) % HistorySize);
-        return _historyK[slot] == k ? _historyA[slot] : null;
+        return _historyK[slot] == k ? (_historyA[slot], _historyAttack[slot]) : null;
     }
 
     private static long FloorDiv(long a, long b) => (a / b) - ((a % b != 0 && (a < 0) != (b < 0)) ? 1 : 0);

@@ -59,7 +59,7 @@ public sealed class SpeedEditsTests
     }
 
     [Fact]
-    public void Slowing_down_on_a_free_track_pushes_the_next_clip_and_its_link_only_when_it_collides()
+    public void Slowing_down_pushes_only_what_it_overlaps_and_its_links()
     {
         var f = new TrimFixture()
             .Add("v1", "c", "m1", 0, 20, 0)
@@ -71,9 +71,9 @@ public sealed class SpeedEditsTests
 
         f.AssertValid();
         Assert.Equal(F(40), f.Clip("c").End);
-        Assert.Equal(F(50), f.Clip("n").Start);
-        Assert.Equal(F(50), f.Clip("na").Start);
-        Assert.Equal(F(65), f.Clip("far").Start);
+        Assert.Equal(F(40), f.Clip("n").Start);
+        Assert.Equal(F(40), f.Clip("na").Start);
+        Assert.Equal(F(55), f.Clip("far").Start);
 
         var g = new TrimFixture()
             .Add("v1", "c", "m1", 0, 20, 0)
@@ -85,20 +85,66 @@ public sealed class SpeedEditsTests
     }
 
     [Fact]
-    public void Speeding_up_leaves_a_gap_unless_it_ripples()
+    public void Speeding_up_on_a_free_track_joins_the_next_clip_by_magnetism()
     {
         var f = new TrimFixture()
             .Add("v1", "c", "m1", 0, 20, 0)
-            .Add("v1", "n", "m2", 0, 10, 20);
-        var g = new TrimFixture()
-            .Add("v1", "c", "m1", 0, 20, 0)
-            .Add("v1", "n", "m2", 0, 10, 20);
+            .Add("v1", "n", "m2", 0, 10, 20)
+            .Add("v2", "otra", "m2", 0, 10, 20);
 
         TimelineEdits.SetSpeed(f.Ctx, "c", Two);
-        TimelineEdits.SetSpeed(g.Ctx, "c", Two, ripple: true);
 
-        Assert.Equal(F(20), f.Clip("n").Start);
-        Assert.Equal(F(10), g.Clip("n").Start);
+        Assert.Equal(F(10), f.Clip("n").Start);
+        Assert.Equal(F(20), f.Clip("otra").Start);
+        f.AssertValid();
+    }
+
+    [Fact]
+    public void Growing_into_a_gap_moves_nothing_even_with_all_tracks()
+    {
+        var f = new TrimFixture()
+            .Add("v1", "c", "m1", 0, 20, 0)
+            .Add("v1", "n", "m2", 0, 10, 60)
+            .Add("v2", "otra", "m2", 0, 10, 25);
+        SpeedSamples.Add(f, "v2", "z", "m2", 0, 10, "congelado");
+
+        TimelineEdits.SetSpeed(f.Ctx, "c", Half, RippleScope.AllTracks);
+        TimelineEdits.RateStretch(f.Ctx, "z", TrimEdge.Out, F(10));
+
+        Assert.Equal(F(40), f.Clip("c").End);
+        Assert.Equal(F(60), f.Clip("n").Start);
+        Assert.Equal(F(20), f.Clip("z").End);
+        Assert.Equal(F(25), f.Clip("otra").Start);
+        f.AssertValid();
+
+        TimelineEdits.RateStretch(f.Ctx, "z", TrimEdge.Out, F(10));
+
+        Assert.Equal(F(30), f.Clip("otra").Start);
+        f.AssertValid();
+    }
+
+    [Fact]
+    public void With_the_all_tracks_mode_every_track_and_the_markers_follow()
+    {
+        var f = new TrimFixture()
+            .Add("v1", "c", "m1", 0, 20, 0)
+            .Add("v1", "n", "m2", 0, 10, 20)
+            .Add("v2", "otra", "m2", 0, 10, 30);
+        f.Sequence.Markers.Add(new Marker { Id = "mk", Time = F(25) });
+        var g = new TrimFixture()
+            .Add("v1", "c", "m1", 0, 20, 0)
+            .Add("v2", "otra", "m2", 0, 10, 30);
+        g.Sequence.Markers.Add(new Marker { Id = "mk", Time = F(25) });
+
+        TimelineEdits.SetSpeed(f.Ctx, "c", Two, RippleScope.AllTracksAndMarkers);
+        TimelineEdits.FreezeFrame(g.Ctx, "c", F(5), F(10), RippleScope.AllTracks);
+
+        Assert.Equal(F(10), f.Clip("n").Start);
+        Assert.Equal(F(20), f.Clip("otra").Start);
+        Assert.Equal(F(15), f.Sequence.Markers[0].Time);
+        Assert.Equal(F(40), g.Clip("otra").Start);
+        Assert.Equal(F(25), g.Sequence.Markers[0].Time);
+        f.AssertValid();
         g.AssertValid();
     }
 
@@ -171,20 +217,19 @@ public sealed class SpeedEditsTests
     }
 
     [Fact]
-    public void RateStretch_in_edge_moves_the_start_or_ripples()
+    public void RateStretch_in_edge_keeps_the_start_and_the_rest_follows()
     {
-        var f = new TrimFixture().Add("v1", "c", "m1", 10, 50, 20).Add("v1", "n", "m2", 0, 10, 60);
-        var g = new TrimFixture().Add("v1", "c", "m1", 10, 50, 20).Add("v1", "n", "m2", 0, 10, 60);
+        var f = new TrimFixture().Add("v1", "c", "m1", 10, 50, 20).Add("v1", "n", "m2", 0, 10, 60).Add("v2", "otra", "m2", 0, 10, 70);
+        var g = new TrimFixture().Add("v1", "c", "m1", 10, 50, 20).Add("v1", "n", "m2", 0, 10, 60).Add("v2", "otra", "m2", 0, 10, 70);
 
         TimelineEdits.RateStretch(f.Ctx, "c", TrimEdge.In, F(20));
-        TimelineEdits.RateStretch(g.Ctx, "c", TrimEdge.In, F(20), ripple: true);
+        TimelineEdits.RateStretch(g.Ctx, "c", TrimEdge.In, F(20), RippleScope.AllTracks);
 
-        Assert.Equal(F(40), f.Clip("c").Start);
-        Assert.Equal(F(60), f.Clip("c").End);
-        Assert.Equal(F(60), f.Clip("n").Start);
-        Assert.Equal(F(20), g.Clip("c").Start);
-        Assert.Equal(F(40), g.Clip("c").End);
-        Assert.Equal(F(40), g.Clip("n").Start);
+        Assert.Equal(F(20), f.Clip("c").Start);
+        Assert.Equal(F(40), f.Clip("c").End);
+        Assert.Equal(F(40), f.Clip("n").Start);
+        Assert.Equal(F(70), f.Clip("otra").Start);
+        Assert.Equal(F(50), g.Clip("otra").Start);
         Assert.Equal(Two, f.Clip("c").Speed!.Rate);
         f.AssertValid();
         g.AssertValid();
@@ -217,7 +262,7 @@ public sealed class SpeedEditsTests
 
         TimelineEdits.RateStretch(f.Ctx, "z", TrimEdge.Out, F(5));
         Assert.Equal(F(15), f.Clip("z").Duration);
-        TimelineEdits.RateStretch(f.Ctx, "z", TrimEdge.In, F(2), ripple: true);
+        TimelineEdits.RateStretch(f.Ctx, "z", TrimEdge.In, F(2));
         Assert.Equal(F(13), f.Clip("z").Duration);
 
         AssertFails(() => TimelineEdits.RateStretch(f.Ctx, "k", TrimEdge.Out, F(5)), "curva");

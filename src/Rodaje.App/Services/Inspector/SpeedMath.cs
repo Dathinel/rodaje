@@ -12,7 +12,8 @@ public static class SpeedMath
     // Cerca de un imán (unos ±4 %) el deslizador se queda en él.
     private const double DetentReach = 6;
 
-    private static readonly CultureInfo Spanish = CultureInfo.GetCultureInfo("es-ES");
+    // Con InvariantGlobalization no hay culturas: pedir «es-ES» lanza al abrir la app.
+    private static readonly NumberFormatInfo Spanish = new() { NumberDecimalSeparator = ",", NumberGroupSeparator = "." };
 
     public static double ToSlider(double rate) =>
         Math.Clamp((Math.Log10(Math.Clamp(rate, 0.1, 100)) + 1) / 3 * SliderMax, 0, SliderMax);
