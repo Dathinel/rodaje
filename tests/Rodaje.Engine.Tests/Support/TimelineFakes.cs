@@ -426,6 +426,24 @@ internal sealed class TimelineBuilder
     public Clip AddAudio(int track, string mediaId, Time start, Time sourceIn, Time duration, string? id = null) =>
         Add(Sequence.AudioTracks[track], mediaId, start, sourceIn, duration, id);
 
+    /// <summary>Un título (clip con generador de texto) en una pista de video; su origen virtual empieza en <paramref name="sourceIn"/>.</summary>
+    public Clip AddTitle(int track, Time start, Time duration, string text, TextStyle? style = null, string? id = null, Time? sourceIn = null)
+    {
+        Time origin = sourceIn ?? Time.Zero;
+        var clip = new Clip
+        {
+            Id = id ?? $"c{++_clips}",
+            Start = start,
+            SourceIn = origin,
+            SourceOut = origin + duration,
+            Generator = new ClipGenerator { Text = text, Style = style ?? new TextStyle() },
+        };
+        Track target = Sequence.VideoTracks[track];
+        target.Clips.Add(clip);
+        target.SortClips();
+        return clip;
+    }
+
     public TimelinePlan Plan() => TimelinePlan.Build(Project, Sequence.Id, @"C:\proyecto");
 
     private Clip Add(Track track, string mediaId, Time start, Time sourceIn, Time duration, string? id)

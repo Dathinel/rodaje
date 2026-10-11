@@ -397,6 +397,38 @@ internal sealed class VideoLayerPlan(int trackIndex, string trackId, IReadOnlyLi
     /// <summary>Carril con los clips que entran en las transiciones de esta pista; nulo si no tiene transiciones.</summary>
     public VideoLayerPlan? Companion { get; init; }
 
+    /// <summary>Carril generado: los títulos de la pista ordenados por posición, sin decodificador ni transiciones.</summary>
+    public IReadOnlyList<GeneratedClipPlan> Generated { get; init; } = [];
+
+    /// <summary>El título que se ve en <paramref name="time"/>, si hay.</summary>
+    public GeneratedClipPlan? GeneratedAt(Time time)
+    {
+        int i = FirstGeneratedEndingAfter(time);
+        return i < Generated.Count && Generated[i].Start <= time ? Generated[i] : null;
+    }
+
+    /// <summary>Índice del primer título que termina después de <paramref name="time"/>; para recorrer los que siguen.</summary>
+    public int FirstGeneratedEndingAfter(Time time)
+    {
+        IReadOnlyList<GeneratedClipPlan> generated = Generated;
+        int lo = 0;
+        int hi = generated.Count;
+        while (lo < hi)
+        {
+            int mid = (lo + hi) >>> 1;
+            if (generated[mid].End <= time)
+            {
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+
+        return lo;
+    }
+
     public VideoClipPlan? ClipAt(Time time)
     {
         int i = FirstEndingAfter(time);

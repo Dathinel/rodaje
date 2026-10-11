@@ -108,6 +108,12 @@ public sealed record TimelineStats(
     /// </summary>
     public long Approximated { get; init; }
 
+    /// <summary>
+    /// Refrescos reproduciendo en que un título visible todavía no estaba rasterizado: el cuadro sale sin él. Solo se
+    /// cuenta con <see cref="TimelineSessionOptions.Titles"/>.
+    /// </summary>
+    public long LateTitles { get; init; }
+
     /// <summary>Fracción de transiciones que empezaron a tiempo; 1 si no hubo.</summary>
     public double TransitionPreRollHitRate =>
         TransitionPreRollHits + TransitionPreRollMisses == 0 ? 1 : (double)TransitionPreRollHits / (TransitionPreRollHits + TransitionPreRollMisses);

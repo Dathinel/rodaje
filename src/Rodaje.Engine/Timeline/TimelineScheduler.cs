@@ -83,7 +83,11 @@ internal sealed partial class TimelineScheduler : IDisposable
     private readonly MediaSourceResolver? _resolver;
     private readonly IEffectContent? _content;
     private readonly TimeSpan _partialTimeout;
-    private readonly List<(int TrackIndex, LayerState Main, LayerState? Incoming)> _stepped = [];
+    private readonly List<(VideoLayerPlan Plan, LayerState Main, LayerState? Incoming)> _stepped = [];
+    private readonly IGeneratedContentCache? _titles;
+    private readonly Time _titleLookahead;
+    private readonly Dictionary<string, EffectListRing> _titleEffects = [];
+    private long _lateTitles;
     private readonly List<HeldLayer> _held = [];
     private int _heldCount;
     private long _seekAt;
@@ -143,6 +147,8 @@ internal sealed partial class TimelineScheduler : IDisposable
         _proxyUsage = options.UseProxies;
         _resolver = options.UseProxies == ProxyUsage.Never ? null : options.ProxyResolver;
         _content = options.Content;
+        _titles = options.Titles;
+        _titleLookahead = Time.FromSeconds(options.TitleLookahead.TotalSeconds);
         _partialTimeout = options.PartialFrameTimeout;
         _cache = new TimelineFrameCache(options.MaxCacheBytes);
         _urgency = Urgency;
@@ -322,7 +328,8 @@ internal sealed partial class TimelineScheduler : IDisposable
             {
                 LayerState main = Step(layerPlan, time, running, released, ref settled);
                 LayerState? incoming = layerPlan.Companion is { } companion ? Step(companion, time, running, released, ref settled) : null;
-                _stepped.Add((layerPlan.TrackIndex, main, incoming));
+                _stepped.Add((layerPlan, main, incoming));
+                StepTitles(layerPlan, time, running, ref settled);
             }
 
             if (_seekPending && !settled && _time.GetElapsedTime(_seekAt) < _partialTimeout)
@@ -333,9 +340,12 @@ internal sealed partial class TimelineScheduler : IDisposable
             }
             else
             {
-                foreach ((int trackIndex, LayerState main, LayerState? incoming) in _stepped)
+                foreach ((VideoLayerPlan layerPlan, LayerState main, LayerState? incoming) in _stepped)
                 {
-                    if (Compose(trackIndex, main, incoming, time) is { } layer)
+                    LayerFrame? layer = layerPlan.GeneratedAt(time) is { } title
+                        ? title.Layer(layerPlan.TrackIndex, time, TitleEffects(layerPlan), _content)
+                        : Compose(layerPlan.TrackIndex, main, incoming, time);
+                    if (layer is not null)
                     {
                         layers.Add(layer);
                     }
@@ -414,6 +424,7 @@ internal sealed partial class TimelineScheduler : IDisposable
                 TransitionPreRollMisses = all.Where(l => l.IsCompanion).Sum(l => l.PreRollMisses),
                 TransitionLateRefreshes = all.Where(l => l.IsCompanion).Sum(l => l.Late),
                 Approximated = all.Sum(l => l.Approximated),
+                LateTitles = _lateTitles,
             };
         }
     }
@@ -443,6 +454,7 @@ internal sealed partial class TimelineScheduler : IDisposable
             _vramOverruns = 0;
             _heldRefreshes = 0;
             _partialPresentations = 0;
+            _lateTitles = 0;
         }
     }
 

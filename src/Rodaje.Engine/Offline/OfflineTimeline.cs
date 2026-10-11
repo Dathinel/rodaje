@@ -28,6 +28,12 @@ public sealed record OfflineTimelineOptions
 
     public IEffectContent? Content { get; init; }
 
+    /// <summary>
+    /// Quien rasteriza los títulos en el dispositivo de la exportación: se le piden los que vienen por delante. La
+    /// composición estricta espera a los que falten; las fuentes que faltan las cuenta la exportación.
+    /// </summary>
+    public IGeneratedContentCache? Titles { get; init; }
+
     public bool AllowHardwareDecoding { get; init; } = true;
 
     /// <summary>Presupuesto de VRAM propio de la exportación; <c>null</c>, según la del dispositivo.</summary>
@@ -154,6 +160,12 @@ public sealed class OfflineTimeline : IDisposable
 
     /// <summary>Lo que falta según el último <see cref="Prepare"/>; vacío antes.</summary>
     public IReadOnlyList<MissingContentItem> MissingContentItems => _missing ?? [];
+
+    /// <summary>
+    /// Los títulos que se ven en <c>[start, end)</c>, sin repetir: la exportación resuelve sus fuentes con ellos antes del
+    /// primer cuadro y aplica <see cref="MissingContentPolicy"/> a las que faltan.
+    /// </summary>
+    public IReadOnlyList<GeneratedContent> GeneratedContents(Time start, Time end) => _plan.GeneratedContents(start, end);
 
     public GpuDevice? Device => _device;
 
@@ -296,6 +308,7 @@ public sealed class OfflineTimeline : IDisposable
             Prefetch(time, known, gridFrame);
         }
 
+        PrefetchTitles(time, step ?? _frameDuration);
         return Build(time, frame, cancellationToken);
     }
 
@@ -338,6 +351,25 @@ public sealed class OfflineTimeline : IDisposable
         }
     }
 
+    /// <summary>Pide a quien rasteriza los títulos que se verán en los próximos cuadros de la lectura por adelantado.</summary>
+    private void PrefetchTitles(Time time, Time step)
+    {
+        if (_options.Titles is not { } titles)
+        {
+            return;
+        }
+
+        Time until = time + Time.FromTicks(step.Ticks * _options.LookaheadFrames);
+        foreach (Lane lane in _lanes)
+        {
+            IReadOnlyList<GeneratedClipPlan> generated = lane.Layer.Generated;
+            for (int i = lane.Layer.FirstGeneratedEndingAfter(time); i < generated.Count && generated[i].Start <= until; i++)
+            {
+                titles.Prepare(generated[i].Content);
+            }
+        }
+    }
+
     private CompositionFrame Build(Time time, long frame, CancellationToken cancellationToken)
     {
         var layers = new List<LayerFrame>(_lanes.Length);
@@ -345,6 +377,12 @@ public sealed class OfflineTimeline : IDisposable
         {
             foreach (Lane lane in _lanes)
             {
+                if (lane.Layer.GeneratedAt(time) is { } title)
+                {
+                    layers.Add(title.Layer(lane.Layer.TrackIndex, time, lane.TitleEffects, lane.Content));
+                    continue;
+                }
+
                 if (lane.Main is not { } main)
                 {
                     continue;
@@ -424,6 +462,8 @@ public sealed class OfflineTimeline : IDisposable
         public EffectListRing MainEffects { get; } = new();
 
         public EffectListRing IncomingEffects { get; } = new();
+
+        public EffectListRing TitleEffects { get; } = new();
 
         public VideoClipPlan? Main { get; private set; }
 
