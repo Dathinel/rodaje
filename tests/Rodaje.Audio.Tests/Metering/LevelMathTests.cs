@@ -183,17 +183,22 @@ public class LevelMathTests
     }
 
     [Fact]
-    public async Task LeerMientrasSeEscribeNuncaDaBloquesMezclados()
+    public void LeerMientrasSeEscribeNuncaDaBloquesMezclados()
     {
         // Cada bloque lleva valores que dependen de su posición: un bloque leído a medias no cuadraría.
+        // El lector va en un hilo propio, no en el pool: con pocos núcleos y otras pruebas en paralelo, una tarea del
+        // pool podía no arrancar antes de que acabara el escritor. Se escribe al menos 400 ms y hasta tener 100 lecturas.
+        const int MinimumReads = 100;
         var ring = new AudioLevelRing(64);
         var analyzer = new AudioLevelAnalyzer(ring, 16);
-        using var stop = new CancellationTokenSource(TimeSpan.FromMilliseconds(400));
+        var minimum = System.Diagnostics.Stopwatch.StartNew();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        bool stop = false;
         long torn = 0;
         long reads = 0;
-        var reader = Task.Run(() =>
+        var reader = new Thread(() =>
         {
-            while (!stop.IsCancellationRequested)
+            while (!Volatile.Read(ref stop))
             {
                 long count = ring.Count;
                 long end = Math.Max(16, (count - 2) * 16);
@@ -206,14 +211,16 @@ public class LevelMathTests
                         Interlocked.Increment(ref torn);
                     }
 
-                    reads++;
+                    Interlocked.Increment(ref reads);
                 }
             }
-        });
+        })
+        { IsBackground = true, Name = "Lector de niveles" };
+        reader.Start();
 
         float[] block = new float[16 * 2];
         long position = 0;
-        while (!stop.IsCancellationRequested)
+        while ((minimum.ElapsedMilliseconds < 400 || Interlocked.Read(ref reads) < MinimumReads) && !deadline.IsCancellationRequested)
         {
             float value = Value(position);
             for (int i = 0; i < 16; i++)
@@ -226,9 +233,10 @@ public class LevelMathTests
             position += 16;
         }
 
-        await reader;
+        Volatile.Write(ref stop, true);
+        reader.Join();
         Assert.Equal(0, torn);
-        Assert.True(reads > 100, $"solo {reads} lecturas");
+        Assert.True(reads >= MinimumReads, $"solo {reads} lecturas en {minimum.ElapsedMilliseconds} ms");
 
         static float Value(long start) => ((start / 16) % 997 + 1) / 1000f;
     }

@@ -78,30 +78,35 @@ public class DeviceAudioClockTests
     }
 
     [Fact]
-    public async Task LecturasConcurrentesSonMonotonas()
+    public void LecturasConcurrentesSonMonotonas()
     {
+        // El escritor va en un hilo propio, no en el pool: con pocos núcleos una tarea del pool podía no arrancar
+        // antes de terminar las lecturas. Se lee al menos 200 000 veces y hasta que el reloj avance.
         var device = new FakeTransport();
         var clock = new DeviceAudioClock(device);
         clock.Start();
-        using var stop = new CancellationTokenSource();
-        var writer = Task.Run(() =>
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        bool stop = false;
+        var writer = new Thread(() =>
         {
-            while (!stop.IsCancellationRequested)
+            while (!Volatile.Read(ref stop))
             {
                 device.Play(Ms / 2, framesPerMs: 48);
             }
-        });
+        })
+        { IsBackground = true, Name = "Escritor del dispositivo" };
+        writer.Start();
 
         Time last = Time.Zero;
-        for (int i = 0; i < 200_000; i++)
+        for (int i = 0; (i < 200_000 || last == Time.Zero) && !deadline.IsCancellationRequested; i++)
         {
             Time now = clock.Position;
             Assert.True(now >= last);
             last = now;
         }
 
-        stop.Cancel();
-        await writer;
+        Volatile.Write(ref stop, true);
+        writer.Join();
         Assert.True(last > Time.Zero);
     }
 
