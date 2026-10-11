@@ -233,6 +233,39 @@ public sealed class RetimeMath : IEquatable<RetimeMath>
         return (double)num / (double)den;
     }
 
+    /// <summary>
+    /// Menor y mayor velocidad en <c>[from, to]</c>. La curva es lineal a tramos, así que los extremos están en los bordes
+    /// o en sus nudos; constante, las dos son la misma.
+    /// </summary>
+    public (double Min, double Max) RateRange(long from, long to)
+    {
+        if (to < from)
+        {
+            (from, to) = (to, from);
+        }
+
+        double first = RateAt(from);
+        double last = RateAt(to);
+        double min = Math.Min(first, last);
+        double max = Math.Max(first, last);
+        if (_at is null)
+        {
+            return (min, max);
+        }
+
+        for (int k = 0; k < _at.Length; k++)
+        {
+            if (_at[k] > from && _at[k] < to)
+            {
+                double rate = _h![k] / 100.0;
+                min = Math.Min(min, rate);
+                max = Math.Max(max, rate);
+            }
+        }
+
+        return (min, max);
+    }
+
     public bool Equals(RetimeMath? other) =>
         other is not null && (ReferenceEquals(this, other)
             || (_num == other._num && _den == other._den

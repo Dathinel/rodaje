@@ -111,6 +111,65 @@ public class ClipTimeMapTests
     }
 
     [Fact]
+    public void Join_UndoesASplitAndSameCourseHoldsForTheHalves()
+    {
+        var random = new Random(15);
+        int joined = 0;
+        for (int c = 0; c < Cases; c++)
+        {
+            ClipTimeMap map = RandomMap(random);
+            if (map.Duration.Ticks < 2)
+            {
+                continue;
+            }
+
+            (ClipTimeMap left, ClipTimeMap right) = map.SplitAt(map.Start + Time.FromTicks(random.NextInt64(1, map.Duration.Ticks)));
+            Assert.True(left.SameCourse(right) && right.SameCourse(left) && map.SameCourse(right), $"{map}");
+            Assert.Equal(map, left.Join(right));
+            Assert.Null(right.Join(left));
+            Assert.Null(left.Join(right.MoveTo(right.Start + Time.FromTicks(1))));
+            if (!map.Freeze)
+            {
+                Assert.False(left.SameCourse(right.Slip(Time.FromTicks(1))), $"{map}");
+                Assert.Null(left.Join(right.Slip(Time.FromTicks(1))));
+            }
+
+            joined++;
+        }
+
+        Assert.True(joined > Cases / 2);
+        ClipTimeMap plain = ClipTimeMap.Create(Time.Zero, Time.FromTicks(100), Time.FromTicks(50), null);
+        ClipTimeMap slow = ClipTimeMap.Create(Time.FromTicks(100), Time.FromTicks(100), Time.FromTicks(150), new ClipSpeed { Rate = new Rational(1, 2) });
+        Assert.False(plain.SameCourse(slow));
+        Assert.Null(plain.Join(slow));
+    }
+
+    [Fact]
+    public void RateRange_FindsThePeakInsideACurveAndTheEdgeRateOutside()
+    {
+        var peak = new SpeedCurve { Span = Time.FromTicks(10_000), Points = [new(0, 100), new(5000, 800), new(10_000, 50)] };
+        ClipTimeMap map = ClipTimeMap.Create(Time.FromTicks(1000), Time.FromTicks(10_000), Time.Zero, new ClipSpeed { Curve = peak });
+
+        // El último tick del clip va a 0,5015×: la curva baja hasta 0,5× en el final, que ya no es del clip.
+        (double low, double high) = map.RateRange(map.Start, map.End);
+        Assert.Equal(0.5015, low, 9);
+        Assert.Equal(8.0, high);
+        Assert.Equal((1.0, 1.0), map.RateRange(Time.Zero, map.Start));
+        (double after, double afterMax) = map.RateRange(map.End, map.End + Time.FromTicks(500));
+        Assert.Equal(low, after);
+        Assert.Equal(low, afterMax);
+        (double min, double max) = map.RateRange(map.Start, map.Start + Time.FromTicks(2500));
+        Assert.Equal(1.0, min);
+        Assert.Equal(4.4986, max, 4);
+        Assert.Equal(map.Speed.RateRange(0, 10_000), map.Speed.RateRange(10_000, 0));
+
+        var constant = ClipTimeMap.Create(Time.Zero, Time.FromTicks(10), Time.Zero, new ClipSpeed { Rate = new Rational(5, 2), Reverse = true });
+        Assert.Equal((2.5, 2.5), constant.RateRange(Time.Zero, Time.FromTicks(10)));
+        Assert.Equal((0.0, 0.0), ClipTimeMap.Create(Time.Zero, Time.FromTicks(10), Time.Zero, new ClipSpeed { Freeze = true }).RateRange(Time.Zero, Time.FromTicks(10)));
+        Assert.Equal((1.0, 1.0), ClipTimeMap.Create(Time.Zero, Time.FromTicks(10), Time.Zero, null).RateRange(Time.Zero, Time.FromTicks(10)));
+    }
+
+    [Fact]
     public void TrimmingAndExtendingBack_RestoresTheSameMap()
     {
         var random = new Random(15);

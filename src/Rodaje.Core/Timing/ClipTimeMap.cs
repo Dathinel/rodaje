@@ -228,6 +228,73 @@ public sealed class ClipTimeMap : IEquatable<ClipTimeMap>
         return Reverse ? -rate : rate;
     }
 
+    /// <summary>
+    /// Menor y mayor velocidad, en valor absoluto, en <c>[from, to)</c>; fuera del clip cuenta la del borde, como en
+    /// <see cref="ExtendedSource"/>. Un congelado da 0.
+    /// </summary>
+    public (double Min, double Max) RateRange(Time from, Time to)
+    {
+        if (Freeze)
+        {
+            return (0, 0);
+        }
+
+        if (_speed.IsIdentity)
+        {
+            return (1, 1);
+        }
+
+        long first = Clamp(from);
+        long last = Clamp(to > from ? to - Time.FromTicks(1) : from);
+        return _speed.RateRange(Offset.Ticks + first, Offset.Ticks + last);
+    }
+
+    /// <summary>
+    /// Si <paramref name="other"/> muestra el mismo origen que este mapeo en cada instante que los dos cubren, siguiendo su
+    /// velocidad: lo que pasa con las dos mitades de un clip dividido o con el mismo clip tras recortarlo.
+    /// </summary>
+    public bool SameCourse(ClipTimeMap other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (Reverse != other.Reverse || Freeze != other.Freeze || !_speed.Equals(other._speed))
+        {
+            return false;
+        }
+
+        if (Freeze)
+        {
+            return SourceIn == other.SourceIn;
+        }
+
+        if (_speed.IsIdentity)
+        {
+            return Reverse ? SourceOut + Start == other.SourceOut + other.Start : SourceIn - Start == other.SourceIn - other.Start;
+        }
+
+        // Hacia adelante se ve SourceIn − ⌊I(Offset)⌋ + ⌊I(t − Start + Offset)⌋: basta con la constante y el corrimiento.
+        return Offset - Start == other.Offset - other.Start
+            && (Reverse ? SourceOut + Time.FromTicks(_base) == other.SourceOut + Time.FromTicks(other._base)
+                : SourceIn - Time.FromTicks(_base) == other.SourceIn - Time.FromTicks(other._base));
+    }
+
+    /// <summary>
+    /// El mapeo de los dos clips como uno solo cuando <paramref name="next"/> empieza donde termina este y sigue el mismo
+    /// recorrido (como las dos mitades de un clip dividido); nulo si no.
+    /// </summary>
+    public ClipTimeMap? Join(ClipTimeMap next)
+    {
+        ArgumentNullException.ThrowIfNull(next);
+        if (next.Start != End || HasSpeed != next.HasSpeed || !SameCourse(next) || (HasSpeed && next.Offset != Offset + Duration)
+            || (HasSpeed && Int128.Abs(Offset.Ticks) + Duration.Ticks + next.Duration.Ticks > RetimeMath.MaxExtent))
+        {
+            return null;
+        }
+
+        var joined = new ClipTimeMap(Start, Duration + next.Duration, Offset, Reverse ? SourceOut : SourceIn, _speed, Reverse, Freeze, HasSpeed);
+        (ClipTimeMap left, ClipTimeMap right) = joined.SplitAt(next.Start);
+        return left.Equals(this) && right.Equals(next) ? joined : null;
+    }
+
     /// <summary>Los dos clips que quedan al dividir en <paramref name="at"/>; cada instante sigue mostrando el mismo origen.</summary>
     public (ClipTimeMap Left, ClipTimeMap Right) SplitAt(Time at)
     {
