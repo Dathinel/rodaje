@@ -1,6 +1,7 @@
 using Rodaje.Audio;
 using Rodaje.Audio.Metering;
 using Rodaje.Core.Timing;
+using Rodaje.Engine.Timeline.Retime;
 
 namespace Rodaje.Engine.Timeline;
 
@@ -258,6 +259,12 @@ internal sealed class MixRenderer : IPcmSource
             return;
         }
 
+        if (clip.Retime is { } retime)
+        {
+            MixRetimed(clip, retime, start, end, destination);
+            return;
+        }
+
         long sourceSample = clip.SourceInSample + (start - clip.StartSample);
         if (sourceSample < 0)
         {
@@ -324,6 +331,57 @@ internal sealed class MixRenderer : IPcmSource
     }
 
     /// <summary>
+    /// Un clip con velocidad: el decodificador lo lee <see cref="RetimedReader"/>, que se queda con el lector mientras
+    /// muestre el mismo origen en cada instante (<see cref="RetimedReader.Serves"/>). Un congelado es silencio.
+    /// </summary>
+    private void MixRetimed(AudioClipPlan clip, AudioRetime retime, long start, long end, Span<float> destination)
+    {
+        if (retime.Map.Freeze)
+        {
+            return;
+        }
+
+        Reader? reader = Acquire(clip, -1);
+        if (reader is null)
+        {
+            return;
+        }
+
+        int frames = (int)(end - start);
+        if (_scratch.Length < frames * Channels)
+        {
+            _scratch = new float[frames * Channels];
+        }
+
+        Span<float> scratch = _scratch.AsSpan(0, frames * Channels);
+#pragma warning disable CA1031 // Un medio dañado no puede callar la mezcla: queda en silencio y se cuenta.
+        try
+        {
+            if (reader.Retimed is not { } retimed || !retimed.Serves(retime))
+            {
+                retimed = new RetimedReader(retime, reader.Pcm, reader.Next);
+                reader.Retimed = retimed;
+            }
+
+            retimed.Read(start, scratch, reader.Next);
+            reader.Next = retimed.DecoderNext;
+            AddScaled(clip, start, scratch, destination);
+        }
+        catch (Exception)
+        {
+            Interlocked.Increment(ref _errors);
+            _failed.Add(clip.Source);
+            Close(reader);
+        }
+#pragma warning restore CA1031
+
+        if (clip.EndSample <= end && reader.Clip == clip)
+        {
+            Release(reader);
+        }
+    }
+
+    /// <summary>
     /// Suma el clip con su volumen: la ganancia en dB se evalúa en los bordes de bloques de <see cref="GainBlock"/>
     /// muestras (alineados a la línea de tiempo) y se interpola en línea recta dentro de cada uno; los fundidos van exactos
     /// por muestra mientras cambian.
@@ -371,12 +429,12 @@ internal sealed class MixRenderer : IPcmSource
     /// <summary>Ganancia lineal sin fundidos en <paramref name="sample"/>: la del plan más lo que falta para llegar a ella desde la anterior.</summary>
     private static double Level(AudioClipPlan clip, GainPlan? gain, Slew slew, long sample)
     {
-        double db = gain?.Db(sample, clip.SourceInSample + (sample - clip.StartSample)) ?? 0;
+        double db = gain is null ? 0 : gain.Db(sample, clip.SourceSampleAt(sample));
         return GainPlan.ToLinear(db + slew.Offset(sample));
     }
 
     private static double PlanDb(AudioClipPlan clip, long sample) =>
-        Math.Max(GainPlan.SilenceDb, clip.Gain?.Db(sample, clip.SourceInSample + (sample - clip.StartSample)) ?? 0);
+        Math.Max(GainPlan.SilenceDb, clip.Gain?.Db(sample, clip.SourceSampleAt(sample)) ?? 0);
 
     /// <summary>Para cada clip que sonaba en <paramref name="at"/> con otra ganancia, arranca desde la que tenía.</summary>
     private void AnchorSlews(long at)
@@ -429,6 +487,7 @@ internal sealed class MixRenderer : IPcmSource
     private Reader? Acquire(AudioClipPlan clip, long sourceSample)
     {
         Reader? chosen = _readers.Find(r => r.Clip == clip)
+            ?? (clip.Retime is { } retime ? _readers.Find(r => r.Clip is null && r.Source == clip.Source && r.Retimed?.Serves(retime) == true) : null)
             ?? _readers.Find(r => r.Clip is null && r.Source == clip.Source && r.Next == sourceSample)
             ?? _readers.Find(r => r.Clip is null && r.Source == clip.Source);
         if (chosen is null)
@@ -555,6 +614,9 @@ internal sealed class MixRenderer : IPcmSource
         public long Next { get; set; } = -1;
 
         public long? IdleSince { get; set; }
+
+        /// <summary>Lo que lee un clip con velocidad; se conserva mientras el clip siga igual, con su historia de trozos.</summary>
+        public RetimedReader? Retimed { get; set; }
 
         public bool Closed { get; set; }
     }

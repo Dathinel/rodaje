@@ -63,6 +63,34 @@ El volumen lo aplica `MixRenderer` del motor, antes del limitador y de los medid
 - **Cambios sin saltos.** Tras una edición la mezcla se rehace desde 50 ms por delante de lo que ya se leyó; cada clip que sonaba parte de la ganancia que tenía y llega a la nueva a 4 dB por bloque (60 dB en 20 ms).
 - **Medido** (`AudioGainTests`): −6 dB = 0,5012; error de los fundidos 3·10⁻⁸; un cruce de ruido rosa conserva la potencia dentro de 0,33 dB (ventanas de 0,5 s); el mayor salto entre muestras al cambiar el volumen es 0,079 dB; el cambio se oye a los 50,7 ms de pedirlo, más el búfer del dispositivo.
 
+## Velocidad (`Timeline/Retime/`, fase 5c)
+
+Un clip con velocidad llega a la mezcla con `AudioClipPlan.Retime` (`AudioRetime`: su `ClipTimeMap` y si mantiene el tono); a 1× sin reversa ni congelado es nulo y el clip va por el camino rápido de siempre. `MixRenderer` lo lee con [`RetimedReader`](../../src/Rodaje.Engine/Timeline/Retime/RetimedReader.cs), que vive en el lector del medio mientras muestre el mismo origen en cada instante: una edición en otra parte o dividir el clip a velocidad constante no cambian ni una muestra. Todo el código es propio (nada de rubberband ni GPL).
+
+- **Posición atada al mapeo.** [`SampleMap`](../../src/Rodaje.Engine/Timeline/Retime/SampleMap.cs) da el origen de cada muestra con `ClipTimeMap.ExtendedSource`, exacto cada 64 muestras e interpolado entre ellas: la deriva es 0 por construcción y una curva no necesita nada aparte.
+- **Mantener tono: WSOLA** ([`Wsola`](../../src/Rodaje.Engine/Timeline/Retime/Wsola.cs)). Trozos de 1024 muestras (2048 por encima de 4×) con Hann, solapados a la mitad; el trozo `k` sale en `k · 512` de la línea de tiempo y su centro se busca a ±256 muestras de `map(k · 512 + 512)`. Búsqueda gruesa sobre la mezcla mono diezmada ×4 con `Vector<float>`, afinada a la muestra y con el pico interpolado (parábola): el trozo se lee en esa posición con fracción con un sinc de 32 coeficientes. Sin la fracción cada empalme de un tono redondea la fase hacia el mismo lado y el tono se desafina (439,6 Hz en lugar de 440 a 2×). El fundido conserva la potencia según la correlación de los dos trozos. Tras un salto la cadena arranca 250 ms antes y recuerda sus últimos 128 trozos, así que volver a mezclar lo recién oído repite exactamente lo mismo. Por encima de 8× sigue sonando, granuloso (decisión de Daniel; el inspector avisa).
+- **Sin mantener tono: cinta** ([`VarispeedResampler`](../../src/Rodaje.Engine/Timeline/Retime/VarispeedResampler.cs)). Sinc enventanado con Kaiser (β 8,6), 32 coeficientes y 256 fases, sin estado. Por encima de 1× el corte baja con la velocidad y el filtro se estira hasta ×4; las tablas se calculan una vez por velocidad (1/16 de octava) y se comparten.
+- **Lectura del medio** ([`SourceWindow`](../../src/Rodaje.Engine/Timeline/Retime/SourceWindow.cs)): planos L/R; decodifica seguido mientras el salto sea menor de 250 ms y busca si es mayor; solo mueve memoria cuando se llena.
+- **Ganancia y congelado.** Los keyframes de volumen del clip se evalúan en el origen del mapeo (van con el material); un congelado es silencio. `AudioPlan.SoundsLike` compara también la velocidad y «mantener tono».
+- **Reversa (5c.3).** La interfaz ya está: `SampleMap` da la posición en el sentido de reproducción y `SourceWindow` lee hacia atrás por bloques de 0,5 s. Hay una prueba de lectura invertida a 1×; falta medirla con medios reales.
+
+Medido (`AudioRetimeTests`, 11-oct; el tiempo en Release, CPU del hilo con la máquina cargada):
+
+| Criterio | Pedido | Medido |
+|---|---|---|
+| Tono de 440 Hz a 0,5×, 0,75×, 1,5×, 2× y 4× | ± 0,5 Hz | 440,000 Hz en todos |
+| THD+N de 997 Hz, 0,5×–2× | ≤ −35 dB | −75,5 a −82,0 dB (`atempo`: −29,1 a −38,5 dB) |
+| Cinta: 1 kHz a 2× | 2 kHz ± 1 Hz, espurias ≤ −60 dB | 2000,000 Hz, −147 dB (0,5×: −87,8; 1,5×: −92,8) |
+| Cinta: 18 kHz a 2× (se plegaría a 12 kHz) | — | −89,7 dB |
+| Ruido rosa a 0,5×, 1,5× y 2× | RMS ± 0,5 dB | +0,28, +0,01 y −0,09 dB |
+| Chasquidos (seno de 440 Hz, 0,5×–8×, curva 1×→3×→0,5×) | salto ≤ 1,1× el ideal | 1,000–1,001× |
+| Tren de clics a 1,5× durante 60 s | número y posición ± 5 ms | 900 de 900, error máximo 2,67 ms, sin deriva |
+| Tras un seek (voz sintética con pausas) | correlación ≥ 0,999 pasados 250 ms | 1,00000 (también en el mismo instante del salto) |
+| Dividir un clip a 1,5× | — | idéntico muestra a muestra |
+| Bloque de 1024 cuadros estéreo | ≤ 0,15 ms | 0,036–0,10 ms (WSOLA 0,06–0,10; cinta 0,04–0,09) |
+
+Con un tono puro sostenido, un seek en frío puede dejar la salida con otra fase que la reproducción continua (WSOLA encadena cada trozo con el anterior); no se oye y se corrige sola en la primera pausa (por debajo de −60 dBFS el trozo va donde manda el mapeo, sin buscar).
+
 ## Medidores de nivel (`Metering/`)
 
 La mezcla se calcula hasta 500 ms por delante de lo que suena, así que medirla al producirse daría los picos medio segundo antes de oírlos. Por eso cada bloque medido lleva la muestra de la línea de tiempo donde empieza, y quien dibuja pide los niveles de la posición que da el reloj del dispositivo.
