@@ -65,6 +65,8 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private long _seeks;
     private long _decodedFrames;
     private long _decodeErrors;
+    private long _errorsAtLastReset;
+    private bool _damagedFrame;
 
     private VideoDecoder(AVFormatContext* format, string path, VideoDecoderOptions options)
     {
@@ -536,7 +538,21 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
     private void ResetDecoder()
     {
-        ffmpeg.avcodec_flush_buffers(_codec);
+        // Tras un paquete dañado, avcodec_flush_buffers no reinicia todo el estado interno del decodificador H.264
+        // y hasta un IDR posterior sale mal; reabrir el contexto sí. Se reabre si hubo errores o cuadros marcados como dañados;
+        // sin ellos se conserva el flush (reabrir en cada seek cuesta ~20 %).
+        long errors = Interlocked.Read(ref _decodeErrors);
+        if (errors != _errorsAtLastReset || _damagedFrame)
+        {
+            _errorsAtLastReset = errors;
+            _damagedFrame = false;
+            ReopenCodec();
+        }
+        else
+        {
+            ffmpeg.avcodec_flush_buffers(_codec);
+        }
+
         ffmpeg.av_packet_unref(_packet);
         ffmpeg.av_frame_unref(_frame);
         ffmpeg.av_frame_unref(_held);
@@ -547,6 +563,20 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         _consecutiveErrors = 0;
         _lastIndex = -1;
         _minValidSlot = long.MinValue;
+    }
+
+    private void ReopenCodec()
+    {
+        AVCodecContext* codec = _codec;
+        ffmpeg.avcodec_free_context(&codec);
+        _codec = null;
+        if (_self.IsAllocated)
+        {
+            _self.Free();
+        }
+
+        _hardwareActive = false;
+        OpenCodec(_format->streams[_streamIndex]);
     }
 
     // ---- Decodificación ----
@@ -631,6 +661,11 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
             {
                 Interlocked.Increment(ref _decodedFrames);
                 _consecutiveErrors = 0;
+                if (_frame->decode_error_flags != 0 || (_frame->flags & ffmpeg.AV_FRAME_FLAG_CORRUPT) != 0)
+                {
+                    _damagedFrame = true;
+                }
+
                 return true;
             }
 

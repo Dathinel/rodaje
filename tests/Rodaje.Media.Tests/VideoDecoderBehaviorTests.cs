@@ -136,6 +136,30 @@ public sealed class VideoDecoderBehaviorTests
         }
     }
 
+    [FfmpegLibraryTheory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void A_seek_after_decoding_errors_restores_the_decoder_state(int threads)
+    {
+        // Con el H.264 de cualquier codificador (en la CI sin NVENC, libopenh264), tras paquetes dañados
+        // avcodec_flush_buffers dejaba un estado que hacía salir mal incluso un cuadro posterior a un IDR.
+        string clip = TestClips.Corrupted(TestClips.H264);
+        IReadOnlyList<ulong> reference = TestClips.LumaReference(TestClips.H264);
+        using VideoDecoder decoder = VideoDecoder.Open(clip, DecodeModes.Options(DecodeMode.SoftwareCpu) with { SoftwareThreads = threads });
+        for (int n = 0; n < TestClips.H264.Frames; n++)
+        {
+            decoder.GetFrame(n)?.Dispose();
+        }
+
+        decoder.GetFrame(150)?.Dispose();
+        Assert.True(decoder.Statistics.DecodeErrors > 0, "El archivo dañado no produjo ningún error de decodificación.");
+        for (int n = 0; n < 48; n++)
+        {
+            using DecodedFrame? frame = decoder.GetFrame(n);
+            Assert.True(frame is not null && reference[n] == Hash(frame), $"El cuadro {n}, tras buscar desde la zona dañada, no coincide con la referencia (hilos: {threads}).");
+        }
+    }
+
     [HardwareFact]
     public void Corrupted_packets_are_skipped_in_hardware_too()
     {
