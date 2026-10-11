@@ -125,7 +125,7 @@ public class SpeedDragTests(ITestOutputHelper output)
     public void AltSobreElCuerpoSigueSiendoSlipYUnCongeladoSeRecorta() => UiThread.Run(async () =>
     {
         EditorSession session = await ThreeClips();
-        SequenceEditCommand freeze = SpeedCommands.FreezeFrame(session.SequenceId, ClipOf(session, "b").Id, S(12), S(3), session.Timeline.RippleScope);
+        SequenceEditCommand freeze = TimelineSpeedEdits.FreezeFrame(session.SequenceId, ClipOf(session, "b").Id, S(12), S(3), session.Timeline.RippleScope);
         Assert.True(session.Execute(freeze));
         Clip frozen = session.Sequence.GetClip(freeze.CreatedIds[0]).Clip;
         Assert.Equal(S(3), frozen.Duration);

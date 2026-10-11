@@ -54,7 +54,7 @@ public sealed partial class EditorSession
         List<string> targets = OnePerLink([.. clipIds]);
         return targets.Count > 0 && RunAsOneStep("Cambiar velocidad", targets, id =>
             Sequence.FindClip(id) is { } found && Retimable(found.Clip)
-                ? SpeedCommands.SetSpeed(SequenceId, id, rate, RippleFor(found.Track), _ids)
+                ? TimelineSpeedEdits.SetSpeed(SequenceId, id, rate, RippleFor(found.Track), _ids)
                 : null);
     }
 
@@ -72,7 +72,7 @@ public sealed partial class EditorSession
 
             Rational current = found.Clip.Speed?.Rate ?? new Rational(1, 1);
             return NextStep(current, faster) is { } next
-                ? SpeedCommands.SetSpeed(SequenceId, id, next, RippleFor(found.Track), _ids)
+                ? TimelineSpeedEdits.SetSpeed(SequenceId, id, next, RippleFor(found.Track), _ids)
                 : null;
         });
     }
@@ -97,7 +97,7 @@ public sealed partial class EditorSession
                 continue;
             }
 
-            SequenceEditCommand command = SpeedCommands.FreezeFrame(SequenceId, id, at, FreezeDuration, Timeline.RippleScope, _ids);
+            SequenceEditCommand command = TimelineSpeedEdits.FreezeFrame(SequenceId, id, at, FreezeDuration, Timeline.RippleScope, _ids);
             if (!Execute(command))
             {
                 return false;
@@ -121,7 +121,7 @@ public sealed partial class EditorSession
         }
 
         bool reverse = !targets.TrueForAll(id => Sequence.GetClip(id).Clip.Speed is { Reverse: true });
-        return RunAsOneStep(reverse ? "Invertir" : "Quitar invertir", targets, id => SpeedCommands.SetReverse(SequenceId, id, reverse, _ids));
+        return RunAsOneStep(reverse ? "Invertir" : "Quitar invertir", targets, id => TimelineSpeedEdits.SetReverse(SequenceId, id, reverse, _ids));
     }
 
     /// <summary>El escalón siguiente (o anterior) a <paramref name="current"/>; <c>null</c> en el extremo.</summary>

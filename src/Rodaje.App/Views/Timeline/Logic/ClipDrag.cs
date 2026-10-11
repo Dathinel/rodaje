@@ -458,7 +458,7 @@ public sealed class ClipDrag
 
         RippleScope? scope = ripple ? _options.RippleScope : null;
         return new DragPlan(
-            () => SpeedCommands.RateStretch(_sequenceId, _clipId, edge, d, scope, _ids),
+            () => TimelineSpeedEdits.RateStretch(_sequenceId, _clipId, edge, d, scope, _ids),
             true,
             ghostStart,
             ghostStart + d,

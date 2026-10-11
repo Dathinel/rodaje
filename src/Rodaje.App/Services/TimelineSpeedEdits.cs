@@ -14,7 +14,7 @@ namespace Rodaje.App.Services;
 /// agente A): mismas firmas de uso, solo velocidad constante, sin reflejar keyframes al invertir. Al unir el núcleo, cada
 /// método pasa a llamar al suyo de <c>Edits</c> y esta clase queda como fachada o se borra.
 /// </remarks>
-public static class SpeedCommands
+public static class TimelineSpeedEdits
 {
     /// <summary>Denominador con que se guarda una velocidad que sale de estirar: diezmilésimas, dentro del tope de términos.</summary>
     private const long RateDenominator = 10_000;
