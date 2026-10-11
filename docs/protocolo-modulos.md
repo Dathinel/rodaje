@@ -10,6 +10,7 @@ Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla c
 
 1. [Transporte](#transporte)
 2. [Saludo y versión](#saludo-y-versión)
+3. [Mensajes](#mensajes)
 
 ## Transporte
 
@@ -111,4 +112,102 @@ El editor lo convierte en `ModuleVersionException` con ese mensaje (`ModuleClien
 
 ```json
 {"type":"error","code":"malformed","message":"Lo primero tiene que ser «hello»."}
+```
+
+## Mensajes
+
+Hay 11 tipos (`ModuleMessage` en `Messages.cs`). Cada lado solo puede mandar los suyos: si el editor recibe un tipo que no le toca, corta la conexión («El módulo no manda «…».», `ModuleClient.Dispatch`), y el anfitrión hace lo mismo («El editor no manda «…».», `ModuleHost.RunAsync`).
+
+| `type` | Sentido | Campos | Para qué |
+|---|---|---|---|
+| `hello` | editor → módulo | `minProtocol`, `maxProtocol`, `app`, `appVersion`, `culture`? | Saludo ([arriba](#saludo-y-versión)). |
+| `welcome` | módulo → editor | `protocol`, `module` | Respuesta al saludo. |
+| `invoke` | editor → módulo | `id`, `function`, `parameters`?, `buffers`? | Ejecutar una función. |
+| `progress` | módulo → editor | `id`, `fraction`, `stage`? | Avance de una llamada ([Progreso](#progreso)). |
+| `result` | módulo → editor | `id`, `value`?, `buffers`? | La llamada terminó bien. |
+| `error` | módulo → editor | `code`, `message`, `id`? | La llamada falló (con `id`) o la conexión no sirve (sin `id`) ([Errores](#errores)). |
+| `cancel` | editor → módulo | `id` | Cancelar una llamada ([Cancelación](#cancelación)). |
+| `ping` | editor → módulo | `id` | Comprobar que el módulo responde. |
+| `pong` | módulo → editor | `id` | Respuesta al `ping` con el mismo `id`. |
+| `log` | módulo → editor | `level`, `text` | Una línea para el registro del editor. |
+| `shutdown` | editor → módulo | — | Terminar. |
+
+`?` = opcional. Los mensajes de error del anfitrión de C# van hacia el editor, pero el anfitrión también manda `error` sin `id` justo antes de cerrar por un mensaje malformado del editor.
+
+### `invoke` y `result`
+
+El editor elige el `id` de cada llamada: un entero de 64 bits mayor que 0, único en la conexión (el `ModuleClient` usa un contador que empieza en 1 y comparte con los `ping`). `function` es el id de una función del `welcome`. `parameters` es cualquier valor JSON (o falta): su forma la define cada función. Llamada real a la función `eco`, que devuelve sus parámetros:
+
+```json
+{"type":"invoke","id":1,"function":"eco","parameters":{"texto":"hola","n":3}}
+```
+```json
+{"type":"result","id":1,"value":{"texto":"hola","n":3}}
+```
+
+`value` también es cualquier valor JSON, o falta; un número suelto vale:
+
+```json
+{"type":"invoke","id":2,"function":"eco","parameters":1}
+```
+```json
+{"type":"result","id":2,"value":1}
+```
+
+Con búferes de memoria compartida (ver [Memoria compartida](#memoria-compartida)), la llamada nombra la región, el desplazamiento, el largo y la forma de los datos. Este `invoke` y su `result` salen del serializador del protocolo (en Linux no hay regiones con nombre para hacer la llamada de verdad); la función `copiar` del eco copia el primer búfer en el segundo y devuelve el segundo:
+
+```json
+{"type":"invoke","id":9,"function":"copiar","buffers":[{"region":"Rodaje.Mod.3f1c0d9a8b7e4c2a9d6f5e4b3a2c1d0e","offset":0,"length":8294400,"video":{"width":1920,"height":1080,"stride":7680,"pixelFormat":"rgba8"}},{"region":"Rodaje.Mod.3f1c0d9a8b7e4c2a9d6f5e4b3a2c1d0e","offset":8294400,"length":8294400,"video":{"width":1920,"height":1080,"stride":7680,"pixelFormat":"rgba8"}}]}
+```
+```json
+{"type":"result","id":9,"buffers":[{"region":"Rodaje.Mod.3f1c0d9a8b7e4c2a9d6f5e4b3a2c1d0e","offset":8294400,"length":8294400,"video":{"width":1920,"height":1080,"stride":7680,"pixelFormat":"rgba8"}}]}
+```
+
+Reglas (`InvokeMessage`, `ResultMessage` en `Messages.cs`; `ModuleHost.StartAsync`; `ModuleClient.Dispatch`):
+
+- Cada `invoke` recibe **exactamente una** respuesta final: un `result` o un `error` con el mismo `id`. Antes puede haber `progress`.
+- Las llamadas corren **en paralelo**: el anfitrión de C# atiende hasta `MaxConcurrentCalls` = 4 a la vez; la quinta recibe `error` `busy` (ver [Errores](#errores)). Las respuestas pueden llegar en cualquier orden; el editor las empareja por `id` (prueba `Concurrent_calls_get_their_own_answers`).
+- Un `invoke` con el `id` de una llamada que sigue en curso es un error de protocolo y el anfitrión cierra.
+- Una función que está en el `welcome` pero que el anfitrión no tiene registrada contesta `unknown-function`, igual que una que no existe.
+- El editor **ignora** `progress`, `result` y `error` de una llamada que no conoce o que ya terminó (prueba `Late_replies_and_progress_for_unknown_calls_are_ignored`).
+- Los búferes de un `result` tienen que estar dentro de una región que creó el editor en esa conexión; si no, el editor corta la conexión («El módulo devolvió un búfer fuera de las regiones del editor.»).
+- Si la función del anfitrión de C# devuelve un resultado que no pasa la validación (por ejemplo, más de 16 búferes), se manda en su lugar un `error` `internal` «Resultado inválido: …».
+
+### `ping` y `pong`
+
+```json
+{"type":"ping","id":2}
+```
+```json
+{"type":"pong","id":2}
+```
+
+El módulo contesta cada `ping` con un `pong` del mismo `id`, aunque tenga llamadas en curso (el anfitrión de C# contesta desde el bucle de lectura, sin esperar a las funciones). `ModuleClient.PingAsync` devuelve el tiempo de ida y vuelta (p50 de 83–118 µs en el paso 0, [fase-7.md](fase-7.md#cifras-del-paso-0-11-oct)). A diferencia de los demás, el `id` de `ping` y `pong` no se valida (`PingMessage` y `PongMessage` no tienen `Validate`); el editor usa ids positivos. Solo el editor manda `ping`: un `ping` del módulo corta la conexión. **Previsto** para el `ModuleManager` (ronda A): un `ping` cada 5 s mientras haya una llamada en curso; sin respuesta en 10 s, el módulo se da por colgado.
+
+### `log`
+
+```json
+{"type":"log","level":"info","text":"Modelo cargado en 840 ms."}
+```
+
+(Del serializador; el texto es de ejemplo.) `level` es un identificador; el comentario del código nombra `info`, `warn` y `error`, pero el validador acepta cualquier identificador. `text` tiene hasta 4096 caracteres. El editor lo pasa al evento `ModuleClient.Log`; qué hace la app con él no está decidido. **El anfitrión de C# no tiene todavía una forma de mandar `log`** (`ModuleCall` no la expone); un módulo escrito en otro lenguaje sí puede mandarlo.
+
+### `shutdown` y cierre
+
+```json
+{"type":"shutdown"}
+```
+
+El editor lo manda al cerrar el cliente (`ModuleClient.DisposeAsync`). El módulo debe cancelar lo que tenga en curso, liberar lo que use y salir. El anfitrión de C# hace lo mismo si el editor cierra la tubería: cancela las llamadas activas, espera hasta 2 s a que terminen, cierra las regiones de memoria compartida y sale con 0 (`ModuleHost.RunAsync`; si alguna función no atiende la cancelación, deja las regiones abiertas y el proceso sale igual). Del lado del editor, `ModuleProcess.DisposeAsync` espera 2 s a que el proceso termine; si no, lo mata con todo su árbol de procesos y espera otros 2 s.
+
+Una conversación completa, tal como pasó por el cable (saludo, una llamada, un `ping` y el cierre):
+
+```
+editor → módulo  {"type":"hello","minProtocol":1,"maxProtocol":1,"app":"rodaje","appVersion":"0.7.0","culture":"es-CO"}
+módulo → editor  {"type":"welcome","protocol":1,"module":{"id":"rodaje-eco", … }}
+editor → módulo  {"type":"invoke","id":1,"function":"eco","parameters":{"texto":"hola","n":3}}
+módulo → editor  {"type":"result","id":1,"value":{"texto":"hola","n":3}}
+editor → módulo  {"type":"ping","id":2}
+módulo → editor  {"type":"pong","id":2}
+editor → módulo  {"type":"shutdown"}
 ```
