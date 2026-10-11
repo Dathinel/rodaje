@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Globalization;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -17,13 +17,15 @@ using static Rodaje.Export.Tests.Running.ExportProjects;
 namespace Rodaje.Export.Tests.Running;
 
 /// <summary>
-/// La exportaciÃ³n entera en la GPU de verdad: proyecto de dos pistas con efecto, transiciÃ³n, velocidad y reversa a varios
-/// formatos, comprobados con ffprobe (cuadros, duraciÃ³n de video y audio, color, <c>moov</c>), cuadros contra la
-/// composiciÃ³n de la vista previa (PSNR), tiempos de 1 min 1080p30 en los dos modos y cancelaciÃ³n limpia.
+/// La exportación entera en la GPU de verdad: proyecto de dos pistas con efecto, transición, velocidad y reversa a varios
+/// formatos, comprobados con ffprobe (cuadros, duración de video y audio, color, <c>moov</c>), cuadros contra la
+/// composición de la vista previa (PSNR), tiempos de 1 min 1080p30 en los dos modos y cancelación limpia.
 /// </summary>
 [Collection(ExportGpuGroup.Name)]
-public sealed class ExportEndToEndTests(ITestOutputHelper output)
+public sealed class ExportEndToEndTests(ITestOutputHelper output) : IDisposable
 {
+    private static readonly System.Collections.Concurrent.ConcurrentBag<string> Created = [];
+
     private static readonly Lazy<Task<IReadOnlyList<EncoderSpec>>> Encoders = new(() =>
         new ProbedEncoderSource(Skip.ProxyExecutable!, ExportEncoderCandidates.All).GetAsync());
 
@@ -31,7 +33,7 @@ public sealed class ExportEndToEndTests(ITestOutputHelper output)
     public async Task H264_nvenc_mp4_with_aac_loudness_and_chapters_matches_the_preview()
     {
         Project project = TwoTracks();
-        project.Sequences[0].Markers.AddRange([new Marker { Id = "m1", Time = S(2.5), Name = "RÃ¡pido" }, new Marker { Id = "m2", Time = S(5), Name = "Reversa" }]);
+        project.Sequences[0].Markers.AddRange([new Marker { Id = "m1", Time = S(2.5), Name = "Rápido" }, new Marker { Id = "m2", Time = S(5), Name = "Reversa" }]);
         var settings = new ExportSettings
         {
             Video = new VideoExportSettings { Codec = ExportCodec.H264, EncoderId = "h264_nvenc", RateControl = RateControl.ConstantQuality(16), Profile = "high" },
@@ -52,7 +54,7 @@ public sealed class ExportEndToEndTests(ITestOutputHelper output)
         Assert.InRange(job.Loudness!.Value.Measured.GainTo(-14) - job.Loudness.Value.GainDb, -0.01, 30);
 
         double worst = await PsnrAgainstPreviewAsync(project, path, [0, 30, 70, 80, 120, 170, 209]);
-        output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"PSNR contra la composiciÃ³n de la vista previa: peor {worst:0.0} dB."));
+        output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"PSNR contra la composición de la vista previa: peor {worst:0.0} dB."));
         Assert.True(worst >= 35, $"PSNR {worst:0.0} dB");
     }
 
@@ -108,7 +110,7 @@ public sealed class ExportEndToEndTests(ITestOutputHelper output)
 
         Assert.Equal((1080, 1920), (job.Report!.Video!.Width, job.Report.Video.Height));
         byte[] rgb = await DecodeRgbAsync(path, 100, 1080, 1920);
-        // 1920Ã—1080 cabe en 1080Ã—608 centrado: arriba y abajo quedan 656 filas negras.
+        // 1920×1080 cabe en 1080×608 centrado: arriba y abajo quedan 656 filas negras.
         Assert.True(Mean(rgb, 1080, 0, 640) < 2, "Barra de arriba");
         Assert.True(Mean(rgb, 1080, 1280, 1920) < 2, "Barra de abajo");
         Assert.True(Mean(rgb, 1080, 700, 1200) > 10, "Imagen");
@@ -168,7 +170,7 @@ public sealed class ExportEndToEndTests(ITestOutputHelper output)
         Assert.Equal(ExportJobState.Canceled, job.Progress.State);
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"{watch.Elapsed.TotalMilliseconds:0} ms");
         Assert.Empty(Directory.GetFileSystemEntries(folder));
-        // El ffmpeg.exe de esta exportaciÃ³n estaba entre los de antes y ya no estÃ¡ (otros agentes pueden tener los suyos).
+        // El ffmpeg.exe de esta exportación estaba entre los de antes y ya no está (otros agentes pueden tener los suyos).
         Assert.True(FfmpegProcesses().Count(ffmpegBefore.Contains) < ffmpegBefore.Length);
     }
 
@@ -185,11 +187,29 @@ public sealed class ExportEndToEndTests(ITestOutputHelper output)
         Assert.False(File.Exists(path));
     }
 
+    public void Dispose() => DeleteFolders();
+
+    /// <summary>Carpeta nueva con espacio y tilde; se borra al terminar la prueba (las de esta colección van en serie).</summary>
     internal static string Folder()
     {
-        string folder = Path.Combine(Path.GetTempPath(), "rodaje-pruebas-export", "extremo Ã±", Guid.NewGuid().ToString("N"));
+        string folder = Path.Combine(Path.GetTempPath(), "rodaje-pruebas-export", "extremo ñ", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
+        Created.Add(folder);
         return folder;
+    }
+
+    internal static void DeleteFolders()
+    {
+        while (Created.TryTake(out string? folder))
+        {
+            try
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
     }
 
     private async Task<(ExportJob Job, string Path)> RunAsync(Project project, ExportSettings settings, string name, bool expectSuccess = true)
@@ -211,7 +231,7 @@ public sealed class ExportEndToEndTests(ITestOutputHelper output)
         return (job, path);
     }
 
-    /// <summary>El peor PSNR (R'G'B' 8 bits) de los cuadros exportados contra la composiciÃ³n de la vista previa.</summary>
+    /// <summary>El peor PSNR (R'G'B' 8 bits) de los cuadros exportados contra la composición de la vista previa.</summary>
     private static async Task<double> PsnrAgainstPreviewAsync(Project project, string path, long[] frames)
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -287,10 +307,10 @@ public sealed class ExportEndToEndTests(ITestOutputHelper output)
 [CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class ExportGpuGroup
 {
-    public const string Name = "ExportaciÃ³n en la GPU";
+    public const string Name = "Exportación en la GPU";
 }
 
-/// <summary>Necesita el <c>ffmpeg.exe</c> LGPL, la GPU con texturas y decodificaciÃ³n por hardware.</summary>
+/// <summary>Necesita el <c>ffmpeg.exe</c> LGPL, la GPU con texturas y decodificación por hardware.</summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public sealed class ExportFactAttribute : FactAttribute
 {
