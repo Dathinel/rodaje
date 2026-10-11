@@ -128,7 +128,11 @@ public sealed class EffectContent : IEffectContent
             ? definition.Code
             : EffectRegistry.Find(BuiltInTransitions.Crossfade)!.Code;
         double duration = preset.DurationSeconds > 0 ? preset.DurationSeconds : 1;
-        return new TransitionCurves(mix, preset.ReferenceWidth, preset.ReferenceHeight, Curves(preset.Outgoing, duration), Curves(preset.Incoming, duration));
+        return new TransitionCurves(mix, preset.ReferenceWidth, preset.ReferenceHeight, Curves(preset.Outgoing, duration), Curves(preset.Incoming, duration))
+        {
+            MixParameters = preset.MixParameters,
+            MixOptions = preset.MixOptions,
+        };
     }
 
     public static Interpolation ToInterpolation(PresetInterpolation interpolation) => interpolation switch
