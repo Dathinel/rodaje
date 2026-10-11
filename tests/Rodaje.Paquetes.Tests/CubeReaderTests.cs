@@ -5,6 +5,7 @@ using Rodaje.Paquetes.Content;
 
 namespace Rodaje.Paquetes.Tests;
 
+[Collection(Fuzz.TimingGroup.Name)]
 public sealed class CubeReaderTests
 {
     internal static string Identity(int size, string header = "")
