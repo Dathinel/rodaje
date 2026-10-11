@@ -5,7 +5,7 @@ using Rodaje.Core.Timing;
 namespace Rodaje.Core.Model;
 
 /// <summary>Comprueba las invariantes de un proyecto.</summary>
-public static class ModelValidator
+public static partial class ModelValidator
 {
     /// <summary>Devuelve la lista de problemas encontrados, en español; vacía si el proyecto es válido.</summary>
     public static IReadOnlyList<string> Validate(Project project)
@@ -39,6 +39,12 @@ public static class ModelValidator
         {
             checkId(sequence.Id, "una secuencia");
             ValidateSequence(project, sequence, errors, checkId);
+        }
+
+        long text = project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Sum(c => (long)(c.Generator?.Text.Length ?? 0));
+        if (text > MaxProjectTextLength)
+        {
+            errors.Add($"Los textos del proyecto suman {text} caracteres y el máximo es {MaxProjectTextLength}.");
         }
 
         return errors;
@@ -106,6 +112,7 @@ public static class ModelValidator
         foreach (Track track in sequence.AllTracks)
         {
             checkId(track.Id, "una pista");
+            ValidateRole(track, errors);
             Clip? previous = null;
             Int128 previousEnd = 0;
             foreach (Clip clip in track.Clips)
@@ -175,6 +182,11 @@ public static class ModelValidator
                 if (clip.Speed is { } speed)
                 {
                     ValidateSpeed(clip, speed, track, where, errors);
+                }
+
+                if (clip.Generator is { } generator)
+                {
+                    ValidateGenerator(clip, generator, track, where, errors);
                 }
 
                 ValidateEffects(clip.Effects, null, errors, checkId);
