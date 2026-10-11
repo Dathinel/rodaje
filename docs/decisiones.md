@@ -327,3 +327,11 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
   - `Rodaje.Export` (proyecto nuevo, sin interfaz): `ExportSettings` (contenedor; video con códec, `RateControl` —modo, CRF/CQ, tasas, búfer, pasadas, tamaño objetivo—, perfil, nivel, preset, tune, GOP, bits, croma, alfa, color, tasa con conversión, tamaño, forma, filtro y recorte; audio con códec, tasa, perfil, frecuencia, canales, PCM y sonoridad LUFS; metadatos, capítulos desde marcadores, `faststart` y `Performance`), `ExportRequest`, `ExportPreset` (de fábrica, del usuario o de un `.paquete`), `ExportProgress`, `ExportJobState` y `ExportSettingsValidator`.
 
 **Consecuencias.** La exportación necesita `ffmpeg.exe` junto a las DLL, igual que los proxies. La tubería cuesta una copia por cuadro a la CPU (a 4K60 unos 750 MB/s); el prototipo del paso 0 mueve 2,8–3,8 GB/s a 4K y da 250–290 fps sin codificar con 3 capas 1080p, así que la v1 no necesita `NvencDirectSink` (cifras en `fase-6.md`). Un equipo sin GPU ni Media Foundation (Windows N) no exporta H.264: se le ofrece AV1 o VP9.
+
+## D-029: Texto y títulos (5b), decisiones de producto (11-oct)
+
+Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
+1. **Animación del bloque entero en la v1**; por letra o palabra, más adelante.
+2. **Fuentes empaquetadas desde el principio** (paquete `rodaje-fuentes`, unas 10 familias OFL/Apache sin modificar), solo de paquetes que instala la persona.
+3. **Entrada y salida pegadas a los bordes del clip** (siguen al recorte), con «convertir en keyframes» opcional; al dividir, los bordes internos quedan sin animación.
+4. **El proyecto guarda una copia del estilo**: actualizar un paquete no cambia títulos de proyectos existentes (igual que los filtros).
