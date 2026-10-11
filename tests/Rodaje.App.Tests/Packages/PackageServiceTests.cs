@@ -90,11 +90,14 @@ public sealed class PackageServiceTests : IDisposable
         IReadOnlyList<LibraryElement> transitions = LibraryElements.For(LibraryCategory.Transitions, service.Installed);
         IReadOnlyList<LibraryElement> effects = LibraryElements.For(LibraryCategory.Effects, service.Installed);
 
-        Assert.Equal(["Fundido cruzado", "Fundido a negro", "Elemento", "Mi barrido"], transitions.Select(t => t.Name));
-        Assert.Equal("rodaje-transiciones@1.0.0/elemento", transitions[2].Reference);
-        Assert.Equal("Mío", transitions[3].Source);
-        Assert.Equal(PackageOrigin.Own, transitions[3].Origin);
-        Assert.Equal("propios@0.0.0/mi-barrido", transitions[3].Reference);
+        Assert.Equal(
+            ["Fundido cruzado", "Fundido a color", "Barrido", "Empujar", "Fundido con zoom", "Fundido con desenfoque", "Elemento", "Mi barrido"],
+            transitions.Select(t => t.Name));
+        Assert.Equal("rodaje-transiciones@1.0.0/elemento", transitions[6].Reference);
+        Assert.Equal("Mío", transitions[7].Source);
+        Assert.Equal(PackageOrigin.Own, transitions[7].Origin);
+        Assert.Equal("propios@0.0.0/mi-barrido", transitions[7].Reference);
+        Assert.All(transitions, t => Assert.Equal(ItemKind.Transition, t.Kind));
         Assert.Equal(BuiltInEffects.Transform, effects[0].Reference);
         Assert.All(effects, e => Assert.True(e.IsAvailable));
         Assert.Equal("Mis transiciones", LibraryElements.OwnTitle(LibraryCategory.Transitions));

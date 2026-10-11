@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Inspector;
 using Rodaje.Core.Model;
 using Rodaje.Paquetes;
 
@@ -17,20 +18,22 @@ public enum LibraryCategory
 
 /// <summary>
 /// Un elemento de la biblioteca que no es un medio: algo del motor, de un paquete instalado o hecho por la persona.
-/// <see cref="Reference"/> es lo que se arrastra a la línea de tiempo: el tipo de efecto del motor (por ejemplo
-/// <c>rodaje.transform</c>) o la referencia estable <c>paquete@versión/elemento</c>.
+/// <see cref="Reference"/> es lo que se arrastra a la línea de tiempo: el tipo de efecto o transición del motor (por
+/// ejemplo <c>rodaje.transform</c>) o la referencia estable <c>paquete@versión/elemento</c>. <see cref="Kind"/> dice cómo
+/// se aplica.
 /// </summary>
-public sealed record LibraryElement(string Name, string Description, string Source, string Reference, bool IsAvailable, PackageOrigin? Origin)
+public sealed record LibraryElement(string Name, string Description, string Source, string Reference, bool IsAvailable, PackageOrigin? Origin, ItemKind Kind)
 {
     public const string DragFormat = "rodaje/elemento";
+
+    /// <summary>Es algo del motor (un tipo del registro) y no de un paquete.</summary>
+    public bool IsBuiltIn => Origin is null;
 }
 
 /// <summary>Qué muestra cada categoría: lo que trae el motor y lo que aportan los paquetes.</summary>
 public static class LibraryElements
 {
     private const string Engine = "Rodaje";
-    private const string Soon = "Llega con la fase 5.";
-    private const string NotRendered = "Se aplica y se guarda; la vista previa lo muestra desde la fase 5.";
 
     public static IReadOnlyList<ItemKind> KindsOf(LibraryCategory category) => category switch
     {
@@ -42,33 +45,26 @@ public static class LibraryElements
         _ => [],
     };
 
-    /// <summary>
-    /// Los efectos del motor (<see cref="BuiltInEffects"/>) que se ofrecen en cada categoría; lo que el modelo todavía no
-    /// tiene (texto, transiciones) se muestra como «Próximamente».
-    /// </summary>
+    /// <summary>Lo que trae el motor en cada categoría, sacado del registro de efectos. El texto llega con los títulos (fase 5b).</summary>
     public static IReadOnlyList<LibraryElement> BuiltIn(LibraryCategory category) => category switch
     {
         LibraryCategory.Text =>
         [
-            new("Texto", "Fuente, color, borde y sombra. " + Soon, Engine, "rodaje.text", false, null),
+            new("Texto", "Fuente, color, borde y sombra.", "Llega con los títulos", "rodaje.text", false, null, ItemKind.TextStyle),
         ],
         LibraryCategory.Effects =>
         [
-            new("Transformar", "Posición, escala, rotación y opacidad, con keyframes.", Engine, BuiltInEffects.Transform, true, null),
-            new("Desenfoque", "Desenfoque gaussiano. " + NotRendered, Engine, BuiltInEffects.Blur, true, null),
-            new("Nitidez", "Realza los bordes. " + NotRendered, Engine, BuiltInEffects.Sharpen, true, null),
-            new("Viñeta", "Oscurece las esquinas. " + NotRendered, Engine, BuiltInEffects.Vignette, true, null),
-            new("Velocidad", "Cámara lenta o rápida. " + NotRendered, Engine, BuiltInEffects.Speed, true, null),
-            new("Estabilizar", "Quita el temblor de la cámara. " + NotRendered, Engine, BuiltInEffects.Stabilize, true, null),
+            .. EffectCatalog.For(TrackKind.Video).Where(e => e.Type != BuiltInEffects.Color)
+                .Select(e => new LibraryElement(e.Name, EffectUi.Description(e.Type), Engine, e.Type, true, null, ItemKind.Effect)),
         ],
         LibraryCategory.Transitions =>
         [
-            new("Fundido cruzado", "Mezcla un clip con el siguiente. " + Soon, Engine, "rodaje.crossfade", false, null),
-            new("Fundido a negro", "Baja a negro y sube desde negro. " + Soon, Engine, "rodaje.fade-black", false, null),
+            .. TransitionEditor.BuiltInTypes
+                .Select(t => new LibraryElement(EffectUi.Name(t.Type), EffectUi.Description(t.Type), Engine, t.Type, true, null, ItemKind.Transition)),
         ],
         LibraryCategory.Filters =>
         [
-            new("Color y LUT", "Exposición, contraste, saturación, temperatura y tabla de color .cube. " + NotRendered, Engine, BuiltInEffects.Color, true, null),
+            new(EffectUi.Name(BuiltInEffects.Color), EffectUi.Description(BuiltInEffects.Color), Engine, BuiltInEffects.Color, true, null, ItemKind.Filter),
         ],
         _ => [],
     };
@@ -93,7 +89,7 @@ public static class LibraryElements
             foreach (PackageItemEntry entry in installed.Items(kind))
             {
                 string source = entry.Package.Origin == PackageOrigin.Own ? "Mío" : entry.Package.Manifest.Name;
-                elements.Add(new LibraryElement(entry.Item.Name, entry.Item.Description ?? "", source, entry.Reference.ToString(), true, entry.Package.Origin));
+                elements.Add(new LibraryElement(entry.Item.Name, entry.Item.Description ?? "", source, entry.Reference.ToString(), true, entry.Package.Origin, kind));
             }
         }
 

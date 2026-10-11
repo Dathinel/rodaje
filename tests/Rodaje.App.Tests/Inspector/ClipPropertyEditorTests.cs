@@ -413,4 +413,29 @@ public class ClipPropertyEditorTests
         Assert.False(h.Video.Effects[0].Parameters.ContainsKey(P.X));
         Assert.Equal(77, h.Video.Effects[1].Parameters[P.X].Value);
     });
+
+    [Fact]
+    public void ConId_EditaEseEfectoDeLaPila_YNoCreaOtro() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        string sequence = h.Session.SequenceId;
+        const string Color = BuiltInEffects.Color;
+        const string Exposure = BuiltInEffects.ColorParameters.Exposure;
+        h.Session.Execute(Rodaje.Core.Commands.Edits.AddEffect(sequence, h.Video.Id, Color));
+        h.Session.Execute(Rodaje.Core.Commands.Edits.AddEffect(sequence, h.Video.Id, Color));
+        string second = h.Video.Effects[1].Id;
+
+        Assert.True(h.Editor.SetValue(h.Video, Color, Exposure, 1.5, "Cambiar exposición", second));
+        Assert.False(h.Video.Effects[0].Parameters.ContainsKey(Exposure));
+        Assert.Equal(1.5, h.Editor.Read(h.Video, Color, Exposure, 0, second).Value);
+        Assert.Equal(0, h.Editor.Read(h.Video, Color, Exposure, 0).Value);
+
+        Assert.True(h.Editor.ToggleKeyframe(h.Video, Color, Exposure, 0, second));
+        Assert.Equal(1, ClipPropertyEditor.KeyframeCount(h.Video, Color, [Exposure], second));
+        Assert.True(await h.Editor.ResetAsync(h.Video, Color, [(Exposure, 0)], "Restablecer exposición", Answer(true, []), second));
+        Assert.Equal(0, h.Video.Effects[1].Parameters[Exposure].Value);
+
+        Assert.False(h.Editor.SetValue(h.Video, Color, Exposure, 1, "Cambiar exposición", "no-existe"));
+        Assert.Equal(2, h.Video.Effects.Count);
+    });
 }
