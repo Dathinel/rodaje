@@ -105,6 +105,7 @@ internal sealed partial class TimelineView
         RippleScope = State.RippleScope,
         IgnoreGroups = State.IgnoreGroups,
         PixelsPerSecond = Viewport.PixelsPerSecond,
+        LinkedAudio = Session!.LinkedAudioTracks,
     };
 
     private double ContentY(double y) => y + _renderer!.ScrollY;

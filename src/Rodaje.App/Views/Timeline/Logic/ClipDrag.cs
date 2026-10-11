@@ -1,4 +1,5 @@
 using Rodaje.App.Services;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
@@ -40,6 +41,9 @@ public sealed record DragOptions
     public bool IgnoreGroups { get; init; }
 
     public double PixelsPerSecond { get; init; } = 60;
+
+    /// <summary>De qué pistas de video sale el audio de un medio soltado (Ajustes).</summary>
+    public LinkedAudioTracks LinkedAudio { get; init; } = LinkedAudioTracks.All;
 }
 
 /// <summary>

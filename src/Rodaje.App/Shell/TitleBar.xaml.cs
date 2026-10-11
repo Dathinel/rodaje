@@ -37,6 +37,7 @@ internal sealed partial class TitleBar : UserControl
         services.ShortcutRegistry.Changed += (_, _) => UpdateAccelerators();
         BuildTrackCountMenu(NewVideoTracksMenu, "Tracks", isVideo: true);
         BuildTrackCountMenu(NewAudioTracksMenu, "AudioTracks", isVideo: false);
+        BuildLinkedAudioMenu();
         UpdateAccelerators();
         UpdateUndoText();
         UpdateChecks();
@@ -108,6 +109,7 @@ internal sealed partial class TitleBar : UserControl
         ProxyNever.IsChecked = proxies == ProxyUsage.Never;
         UpdateTrackCountChecks(NewVideoTracksMenu, _services.Settings.Current.NewProjectTracks.Video);
         UpdateTrackCountChecks(NewAudioTracksMenu, _services.Settings.Current.NewProjectTracks.Audio);
+        UpdateLinkedAudioChecks();
         PreviewQuality quality = _services.Settings.Current.PreviewQuality;
         QualityAuto.IsChecked = quality == PreviewQuality.Auto;
         QualityFull.IsChecked = quality == PreviewQuality.Full;
@@ -195,6 +197,56 @@ internal sealed partial class TitleBar : UserControl
         settings.Normalize();
         _services.Session.NewProjectTracks = settings.NewProjectTracks;
         _services.Settings.SaveIfChanged();
+    }
+
+    /// <summary>«Todas» y una casilla por pista de video (1 a 8): de cuáles sale el audio al importar o soltar un medio.</summary>
+    private void BuildLinkedAudioMenu()
+    {
+        LinkedAudioMenu.Items.Clear();
+        var all = new ToggleMenuFlyoutItem { Text = "Todas", Tag = "all" };
+        all.Click += OnLinkedAudioClick;
+        LinkedAudioMenu.Items.Add(all);
+        LinkedAudioMenu.Items.Add(new MenuFlyoutSeparator());
+        for (int number = 1; number <= NewProjectTracks.Max; number++)
+        {
+            var item = new ToggleMenuFlyoutItem { Text = string.Create(CultureInfo.CurrentCulture, $"Video {number}"), Tag = number };
+            item.Click += OnLinkedAudioClick;
+            LinkedAudioMenu.Items.Add(item);
+        }
+    }
+
+    private void UpdateLinkedAudioChecks()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        LinkedAudioTracks rule = _services.Settings.Current.LinkedAudioTracks;
+        foreach (MenuFlyoutItemBase item in LinkedAudioMenu.Items)
+        {
+            if (item is ToggleMenuFlyoutItem toggle)
+            {
+                toggle.IsChecked = toggle.Tag is int number ? rule.AllowsNumber(number) : rule.IsAll;
+            }
+        }
+    }
+
+    private void OnLinkedAudioClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || _services is null)
+        {
+            return;
+        }
+
+        AppSettings settings = _services.Settings.Current;
+        int knownTracks = Math.Max(NewProjectTracks.Max, _services.Session.Sequence.VideoTracks.Count);
+        LinkedAudioTracks next = element.Tag is int number ? settings.LinkedAudioTracks.Toggle(number, knownTracks) : LinkedAudioTracks.All;
+        settings.LinkedAudioVideoTracks = next.ToSetting();
+        settings.Normalize();
+        _services.Session.LinkedAudioTracks = settings.LinkedAudioTracks;
+        _services.Settings.SaveIfChanged();
+        UpdateLinkedAudioChecks();
     }
 
     private void OnQualityClick(object sender, RoutedEventArgs e)

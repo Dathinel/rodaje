@@ -21,8 +21,9 @@ public static class TimelinePlanning
     /// <summary>
     /// Un medio soltado en <paramref name="position"/> sobre <paramref name="row"/>. En la pista magnética se inserta en
     /// el corte más cercano, con su sonido enlazado en la primera pista de audio; en las demás pistas tapa lo que haya
-    /// (o lo corre, con <paramref name="insert"/>). Un medio sin imagen sobre una pista de video va a la última de
-    /// audio (música). <c>null</c> si no tiene dónde ir.
+    /// (o lo corre, con <paramref name="insert"/>). El sonido solo se enlaza si la pista de video lo trae según
+    /// <see cref="DragOptions.LinkedAudio"/>; si no, el medio entra sin clip de audio. Un medio sin imagen sobre una
+    /// pista de video va a la última de audio (música). <c>null</c> si no tiene dónde ir.
     /// </summary>
     public static DropPlan? PlanDrop(
         Project project,
@@ -72,14 +73,15 @@ public static class TimelinePlanning
         PlacementMode mode = insert ? PlacementMode.Insert : PlacementMode.Overwrite;
         string? linked = null;
         bool magnetic = options.MagneticTrackId == track.Id;
+        bool linkAudio = media.HasAudio && options.LinkedAudio.Allows(sequence, track.Id);
         if (magnetic)
         {
             Time origin = track.Clips.Count > 0 ? track.Clips[0].Start : Time.Zero;
             (_, at) = ClipDrag.MagneticSlot(track.Clips, origin, at, duration);
             mode = PlacementMode.Insert;
-            linked = media.HasAudio ? sequence.AudioTracks.FirstOrDefault(t => !t.Locked)?.Id : null;
+            linked = linkAudio ? sequence.AudioTracks.FirstOrDefault(t => !t.Locked)?.Id : null;
         }
-        else if (track.Kind == TrackKind.Video && media.HasAudio)
+        else if (track.Kind == TrackKind.Video && linkAudio)
         {
             Time end = at + duration;
             linked = sequence.AudioTracks.FirstOrDefault(t => !t.Locked && !t.Clips.Exists(c => c.Start < end && c.End > at))?.Id;

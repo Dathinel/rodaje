@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Settings;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -223,8 +224,24 @@ public sealed partial class EditorSession
     }
 
     /// <summary>
-    /// Pone el medio entero al final de la pista principal, con su audio enlazado en la primera de audio; un medio sin
-    /// video va al final de la última pista de audio (música).
+    /// De qué pistas de video sale el audio de un medio al añadirlo a la línea de tiempo (Ajustes). Por defecto, de todas.
+    /// </summary>
+    public LinkedAudioTracks LinkedAudioTracks
+    {
+        get => _linkedAudioTracks;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _linkedAudioTracks = value;
+        }
+    }
+
+    private LinkedAudioTracks _linkedAudioTracks = LinkedAudioTracks.All;
+
+    /// <summary>
+    /// Pone el medio entero al final de la pista principal, con su audio enlazado en la primera de audio si
+    /// <see cref="LinkedAudioTracks"/> lo permite para esa pista (si no, entra sin clip de audio); un medio sin video va
+    /// al final de la última pista de audio (música).
     /// </summary>
     public bool AppendToTimeline(string mediaId)
     {
@@ -236,7 +253,8 @@ public sealed partial class EditorSession
 
         Sequence sequence = Sequence;
         string? videoTrack = media.HasVideo ? sequence.VideoTracks.FirstOrDefault()?.Id : null;
-        string? audioTrack = !media.HasAudio ? null
+        bool linkAudio = videoTrack is null || LinkedAudioTracks.Allows(sequence, videoTrack);
+        string? audioTrack = !media.HasAudio || !linkAudio ? null
             : media.HasVideo ? sequence.AudioTracks.FirstOrDefault()?.Id
             : sequence.AudioTracks.LastOrDefault()?.Id;
         if (videoTrack is null && audioTrack is null)

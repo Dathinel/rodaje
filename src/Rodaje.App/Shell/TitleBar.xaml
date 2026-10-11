@@ -56,6 +56,7 @@
                 </MenuFlyoutSubItem>
                 <MenuFlyoutSubItem x:Name="NewVideoTracksMenu" Text="Pistas de video de un proyecto nuevo" />
                 <MenuFlyoutSubItem x:Name="NewAudioTracksMenu" Text="Pistas de audio de un proyecto nuevo" />
+                <MenuFlyoutSubItem x:Name="LinkedAudioMenu" Text="Pistas de video que traen su audio" />
                 <MenuFlyoutSubItem Text="Calidad de la vista previa">
                     <RadioMenuFlyoutItem x:Name="QualityAuto" Text="Automática" GroupName="Quality" Tag="Auto" Click="OnQualityClick" />
                     <RadioMenuFlyoutItem x:Name="QualityFull" Text="Completa" GroupName="Quality" Tag="Full" Click="OnQualityClick" />
