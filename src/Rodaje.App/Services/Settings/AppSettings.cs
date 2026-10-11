@@ -5,7 +5,7 @@ using Rodaje.Engine.Timeline;
 namespace Rodaje.App.Services.Settings;
 
 /// <summary>Preferencias de la persona que sobreviven entre sesiones (<c>ajustes.json</c>).</summary>
-public sealed class AppSettings
+public sealed partial class AppSettings
 {
     /// <summary>2: el panel derecho pasa a 380 px por defecto para que sus pestañas quepan con nombre.</summary>
     public const int CurrentVersion = 2;
@@ -107,6 +107,8 @@ public sealed class AppSettings
         }
 
         InspectorSections ??= [];
+        Export ??= new ExportPreferences();
+        Export.Normalize();
         Timeline ??= new TimelinePreferences();
         Timeline.Normalize();
         if (!Enum.IsDefined(ProxyUsage))

@@ -4,6 +4,7 @@ using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Views.Export;
 using Rodaje.App.Views.Player;
 using Rodaje.Engine.Timeline;
 
@@ -14,6 +15,7 @@ internal enum ShellPage
 {
     Shortcuts,
     Plugins,
+    Export,
 }
 
 /// <summary>Lo que la ventana ofrece a las vistas: páginas modales y la raíz de XAML para diálogos.</summary>
@@ -64,6 +66,9 @@ internal sealed class EditorServices(
 
     /// <summary>LUT y transiciones de paquete para el motor; nulo si no hay implementación (<see cref="EffectContentFactory"/>).</summary>
     public IEffectContent? Content { get; init; }
+
+    /// <summary>La cola de exportaciones (Trabajos → Exportaciones); nula si la ventana no la creó.</summary>
+    public ExportJobList? Exports { get; init; }
 
     /// <summary>Cambió la calidad de la vista previa (desde el reproductor o desde el menú Ver).</summary>
     public event EventHandler? PreviewQualityChanged;

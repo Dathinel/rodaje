@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Exportar (Ctrl+E, Ctrl+M o EXPORTAR): preajustes en tarjetas arriba, una vista sencilla (archivo, rango, forma,
+    estimación), «Avanzado» plegado con todo lo que admite el FFmpeg LGPL y la pregunta de rendimiento de cada vez.
+    El estado vive en ExportDialogModel (sin WinUI, con pruebas); aquí solo se dibuja.
+-->
+<UserControl
+    x:Class="Rodaje.App.Views.Export.ExportView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource LabelTextStyle}">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style x:Key="SectionTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource PanelTitleTextStyle}">
+            <Setter Property="Margin" Value="0,10,0,2" />
+        </Style>
+        <Style x:Key="FieldComboStyle" TargetType="ComboBox">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="MinWidth" Value="160" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource PanelBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Preajustes -->
+        <StackPanel Padding="20,14,20,10" Spacing="8" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1">
+            <TextBlock Text="Preajuste" Style="{StaticResource PanelTitleTextStyle}" />
+            <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="PresetCards" Orientation="Horizontal" Spacing="6" Padding="0,0,0,8" />
+            </ScrollViewer>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto">
+            <Grid Padding="20,12,20,16" ColumnSpacing="28">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="300" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Vista sencilla y Avanzado -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Archivo" Style="{StaticResource SectionTitleStyle}" Margin="0" />
+                    <Grid ColumnSpacing="6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="PathBox" LostFocus="OnPathLostFocus" KeyDown="OnPathKeyDown" />
+                        <Button Grid.Column="1" Content="Cambiar…" Click="OnBrowseClick" />
+                    </Grid>
+                    <TextBlock x:Name="PathNote" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
+
+                    <Grid ColumnSpacing="10" RowSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Rango" Style="{StaticResource FieldLabelStyle}" />
+                        <ComboBox x:Name="RangeBox" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnRangeChanged" />
+                        <TextBlock Grid.Row="1" Text="Formato" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Top" />
+                        <TextBlock x:Name="SummaryText" Grid.Row="1" Grid.Column="1" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+                    </Grid>
+
+                    <!-- Forma distinta de la secuencia (por ejemplo 9:16 con secuencia 16:9) -->
+                    <Border x:Name="ShapePanel" Visibility="Collapsed" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
+                            BorderThickness="1" CornerRadius="2" Padding="12,10">
+                        <StackPanel Spacing="8">
+                            <TextBlock x:Name="ShapeText" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+                            <StackPanel Orientation="Horizontal" Spacing="16">
+                                <RadioButton x:Name="FitBars" Content="Barras" GroupName="Fit" Tag="Bars" Checked="OnFitChecked" />
+                                <RadioButton x:Name="FitCrop" Content="Recortar" GroupName="Fit" Tag="Crop" Checked="OnFitChecked" />
+                                <RadioButton x:Name="FitStretch" Content="Estirar" GroupName="Fit" Tag="Stretch" Checked="OnFitChecked" />
+                            </StackPanel>
+                            <Button x:Name="ChangeSequenceButton" Click="OnChangeSequenceClick" />
+                        </StackPanel>
+                    </Border>
+
+                    <ToggleButton x:Name="AdvancedToggle" Margin="0,8,0,0" Padding="10,5" Click="OnAdvancedClick">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon x:Name="AdvancedGlyph" Glyph="&#xE76C;" FontSize="10" />
+                            <TextBlock Text="Avanzado" />
+                        </StackPanel>
+                    </ToggleButton>
+
+                    <StackPanel x:Name="AdvancedPanel" Visibility="Collapsed" Spacing="6">
+                        <TextBlock Text="Contenedor" Style="{StaticResource SectionTitleStyle}" />
+                        <Grid ColumnSpacing="10" RowSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Formato del archivo" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="ContainerBox" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnContainerChanged" />
+                            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="16">
+                                <CheckBox x:Name="FastStartBox" Content="Reproducir mientras se descarga (faststart)" Click="OnFastStartClick" />
+                                <CheckBox x:Name="ChaptersBox" Content="Capítulos desde los marcadores" Click="OnChaptersClick" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Video" Style="{StaticResource SectionTitleStyle}" />
+                            <ToggleSwitch x:Name="VideoSwitch" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" Toggled="OnVideoToggled" />
+                        </Grid>
+                        <Grid x:Name="VideoGrid" ColumnSpacing="10" RowSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Códec" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="VideoCodecBox" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnVideoCodecChanged" />
+                            <TextBlock Grid.Row="1" Text="Codificador" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="EncoderBox" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnEncoderChanged" />
+                            <TextBlock Grid.Row="2" Text="Control de tasa" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="RateBox" Grid.Row="2" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnRateChanged" />
+                            <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                                <NumberBox x:Name="RateValueBox" Width="96" SpinButtonPlacementMode="Hidden" ValueChanged="OnRateValueChanged" />
+                                <NumberBox x:Name="RateMaxBox" Width="96" SpinButtonPlacementMode="Hidden" ValueChanged="OnRateMaxChanged" />
+                                <TextBlock x:Name="RateUnit" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="3" Text="Resolución" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="SizeBox" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSizeChanged" />
+                            <TextBlock Grid.Row="4" Text="Forma" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="FitBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnFitChanged" />
+                            <TextBlock Grid.Row="5" Text="Cuadros por segundo" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="FrameRateBox" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnFrameRateChanged" />
+                            <TextBlock Grid.Row="6" Text="Bits por canal" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="BitDepthBox" Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnBitDepthChanged" />
+                            <TextBlock Grid.Row="7" Text="Perfil" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="ProfileBox" Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnProfileChanged" />
+                            <TextBlock Grid.Row="8" Text="Velocidad del codificador" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="SpeedPresetBox" Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSpeedPresetChanged" />
+                            <TextBlock Grid.Row="9" Text="Cuadro clave cada" Style="{StaticResource FieldLabelStyle}" />
+                            <StackPanel Grid.Row="9" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6">
+                                <NumberBox x:Name="KeyframeBox" Width="96" SpinButtonPlacementMode="Hidden" Minimum="0.1" Maximum="60" ValueChanged="OnKeyframeChanged" />
+                                <TextBlock Text="s" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Audio" Style="{StaticResource SectionTitleStyle}" />
+                            <ToggleSwitch x:Name="AudioSwitch" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" Toggled="OnAudioToggled" />
+                        </Grid>
+                        <Grid x:Name="AudioGrid" ColumnSpacing="10" RowSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Códec" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="AudioCodecBox" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnAudioCodecChanged" />
+                            <TextBlock Grid.Row="1" Text="Tasa" Style="{StaticResource FieldLabelStyle}" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6">
+                                <NumberBox x:Name="AudioRateBox" Width="96" SpinButtonPlacementMode="Hidden" Minimum="32" Maximum="512" ValueChanged="OnAudioRateChanged" />
+                                <TextBlock x:Name="AudioRateUnit" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="2" Text="Frecuencia" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="SampleRateBox" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSampleRateChanged" />
+                            <TextBlock Grid.Row="3" Text="Canales" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="ChannelsBox" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnChannelsChanged" />
+                            <TextBlock Grid.Row="4" Text="Normalizar sonoridad" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="LoudnessBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnLoudnessChanged" />
+                        </Grid>
+
+                        <TextBlock Text="Preajustes propios" Style="{StaticResource SectionTitleStyle}" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button Content="Guardar como preajuste…" Click="OnSavePresetClick" />
+                            <Button Content="Importar…" Click="OnImportPresetClick" />
+                            <Button x:Name="ExportPresetButton" Content="Guardar en archivo…" Click="OnExportPresetClick" />
+                            <Button x:Name="RemovePresetButton" Content="Quitar" Click="OnRemovePresetClick" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Rendimiento, estimación y avisos -->
+                <StackPanel Grid.Column="1" Spacing="8">
+                    <TextBlock Text="¿Cómo exporto?" Style="{StaticResource SectionTitleStyle}" Margin="0" />
+                    <RadioButton x:Name="PerformanceFast" GroupName="Performance" Tag="Fastest" Checked="OnPerformanceChecked">
+                        <StackPanel Spacing="2">
+                            <TextBlock x:Name="PerformanceFastTitle" Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold" />
+                            <TextBlock x:Name="PerformanceFastDetail" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="PerformanceLow" GroupName="Performance" Tag="Background" Checked="OnPerformanceChecked">
+                        <StackPanel Spacing="2">
+                            <TextBlock x:Name="PerformanceLowTitle" Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold" />
+                            <TextBlock x:Name="PerformanceLowDetail" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <Border Margin="0,8,0,0" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="2" Padding="12,10">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Estimación" Style="{StaticResource CaptionTextStyle}" />
+                            <TextBlock x:Name="EstimateText" Style="{StaticResource HeaderTextStyle}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="EstimateDetail" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock x:Name="AdjustmentsText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed" />
+                    <TextBlock x:Name="ProblemsText" Style="{StaticResource BodyTextStyle}" Foreground="{StaticResource MeterHighBrush}" TextWrapping="Wrap"
+                               TextTrimming="None" Visibility="Collapsed" />
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" Padding="20,10" ColumnSpacing="8" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="FooterNote" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" TextTrimming="None" />
+            <Button Grid.Column="1" Content="Cancelar" Click="OnCancelClick" />
+            <Button x:Name="ExportButton" Grid.Column="2" Content="Exportar" Style="{StaticResource AccentButtonStyle}" MinWidth="110" Click="OnExportClick" />
+        </Grid>
+    </Grid>
+</UserControl>

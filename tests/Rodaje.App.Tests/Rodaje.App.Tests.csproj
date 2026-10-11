@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Pruebas de la lógica de la app que no depende de WinUI: compila aquí los fuentes de src\Rodaje.App\Services y de
-    src\Rodaje.App\Views\Timeline\Logic, que por contrato no usan WinUI (si alguno lo hiciera, este proyecto dejaría de compilar).
+    Pruebas de la lógica de la app que no depende de WinUI: compila aquí los fuentes de src\Rodaje.App\Services, de
+    src\Rodaje.App\Views\Timeline\Logic y de src\Rodaje.App\Views\Export\Logic, que por contrato no usan WinUI (si alguno lo hiciera, este proyecto dejaría de compilar).
   -->
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -22,10 +22,12 @@
     <Compile Remove="..\..\src\Rodaje.App\Services\Effects\EffectContentFactory.cs" />
     <EmbeddedResource Include="..\..\src\Rodaje.App\Services\Packages\catalogo.json" LogicalName="Rodaje.App.catalogo.json" Link="Services\Packages\catalogo.json" />
     <Compile Include="..\..\src\Rodaje.App\Views\Timeline\Logic\**\*.cs" Link="Timeline\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Rodaje.App\Views\Export\Logic\**\*.cs" Link="ExportLogic\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Engine\Rodaje.Engine.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Export\Rodaje.Export.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
     <!-- La prueba de punta a punta con los paquetes de contenido compone con el render real. -->
     <ProjectReference Include="..\..\src\Rodaje.Render\Rodaje.Render.csproj" />

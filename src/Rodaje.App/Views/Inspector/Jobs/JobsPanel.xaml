@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Trabajos en segundo plano: proxies (con progreso y cancelar) y, en la fase 6, exportaciones. -->
+<!-- Trabajos en segundo plano: proxies (con progreso y cancelar) y exportaciones (Views/Export/ExportJobsView). -->
 <UserControl
     x:Class="Rodaje.App.Views.Inspector.Jobs.JobsPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:Rodaje.App.Views.Inspector.Jobs">
+    xmlns:local="using:Rodaje.App.Views.Inspector.Jobs"
+    xmlns:export="using:Rodaje.App.Views.Export">
 
     <Grid Background="{StaticResource PanelBrush}">
         <Grid.RowDefinitions>
@@ -62,17 +63,8 @@
             </ListView.ItemTemplate>
         </ListView>
 
-        <StackPanel Grid.Row="3" Padding="12,10,12,12" Spacing="4" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
-            <TextBlock Text="Exportaciones" Style="{StaticResource PanelTitleTextStyle}" />
-            <Grid Opacity="0.5" ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <FontIcon Glyph="&#xE898;" FontSize="12" Foreground="{StaticResource TextMutedBrush}" />
-                <TextBlock Grid.Column="1" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
-                           Text="Exportar el video llega en la fase 6; aquí se verá su avance." />
-            </Grid>
-        </StackPanel>
+        <ScrollViewer Grid.Row="3" MaxHeight="420" HorizontalScrollMode="Disabled" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
+            <export:ExportJobsView x:Name="Exports" />
+        </ScrollViewer>
     </Grid>
 </UserControl>
