@@ -100,6 +100,8 @@ public class RegistryValidationTests
     [InlineData(BuiltInEffects.Color, BuiltInEffects.ColorOptions.Lut, "C:\\luts\\calido.cube", false)]
     [InlineData(BuiltInEffects.Color, BuiltInEffects.ColorOptions.Lut, "file:luts/cálido.cube", true)]
     [InlineData(BuiltInEffects.Color, BuiltInEffects.ColorOptions.Lut, "file:", false)]
+    [InlineData(BuiltInEffects.Color, BuiltInEffects.ColorOptions.Lut, "file:luts/a|b.cube", false)]
+    [InlineData(BuiltInEffects.Color, BuiltInEffects.ColorOptions.Lut, "file:luts/a\tb.cube", false)]
     [InlineData(BuiltInEffects.Vignette, BuiltInEffects.CommonOptions.Source, "file:luts/x.cube", false)]
     [InlineData(BuiltInEffects.Vignette, BuiltInEffects.CommonOptions.Source, "rodaje-esenciales@2.1.0-beta.1/vineta", true)]
     [InlineData(BuiltInEffects.Vignette, BuiltInEffects.CommonOptions.Source, "", false)]
