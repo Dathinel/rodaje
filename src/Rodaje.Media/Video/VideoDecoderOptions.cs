@@ -37,4 +37,11 @@ public sealed record VideoDecoderOptions
 
     /// <summary>Hilos de la decodificación por software; 0 elige según la CPU.</summary>
     public int SoftwareThreads { get; init; }
+
+    /// <summary>
+    /// Permite las peticiones aproximadas de alta velocidad (<see cref="DecodeAccuracy"/>): sin los cuadros que no son
+    /// referencia (<c>AVDISCARD_NONREF</c>) o solo keyframes. Sin ella toda petición es exacta, como debe ser al exportar.
+    /// Las peticiones exactas (pausa, seek, <c>IVideoFrameSource</c>) nunca descartan nada, con o sin esta opción.
+    /// </summary>
+    public bool SkipNonReference { get; init; }
 }
