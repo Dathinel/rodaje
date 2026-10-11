@@ -6,10 +6,13 @@ namespace Rodaje.App;
 /// Argumentos: videos o un <c>.rodaje</c> para abrir; <c>--medir N</c> reproduce N segundos, mide y cierra (sin
 /// archivos, con el clip H.264 1080p de prueba de <c>TestResults\media-cache</c>); <c>--registro ruta</c> dónde se
 /// escriben las cifras; <c>--sin-audio</c> usa el reloj del sistema; <c>--ui-hz N</c> refresca tiempo y cursor de la
-/// interfaz N veces por segundo (0: en cada cuadro de XAML; por defecto 30).
+/// interfaz N veces por segundo (0: en cada cuadro de XAML; por defecto 30); <c>--escenario efectos</c> arma antes de
+/// medir 3 capas con efectos y 4 transiciones sobre el medio, y mueve un deslizador de color al reproducir.
 /// </summary>
 internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSeconds, string? LogPath, bool EnableAudio, int UiHz)
 {
+    public string? Scenario { get; init; }
+
     public const string TestClipPattern = "h264-1080p-23976-aac-*.mp4";
 
     public static AppOptions Parse(string[] args)
@@ -19,6 +22,7 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
         string? log = null;
         bool audio = true;
         int uiHz = 30;
+        string? scenario = null;
         for (int i = 0; i < args.Length; i++)
         {
             string a = args[i];
@@ -33,6 +37,10 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             else if (a.Equals("--ui-hz", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
             {
                 uiHz = int.Parse(args[++i], CultureInfo.InvariantCulture);
+            }
+            else if (a.Equals("--escenario", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                scenario = args[++i].ToLowerInvariant();
             }
             else if (a.Equals("--sin-audio", StringComparison.OrdinalIgnoreCase))
             {
@@ -49,7 +57,7 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             files.Add(clip);
         }
 
-        return new AppOptions(files, measure, log, audio, uiHz);
+        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario };
     }
 
     private static string? FindTestClip()

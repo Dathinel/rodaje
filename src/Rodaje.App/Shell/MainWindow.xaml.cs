@@ -284,7 +284,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         await Session.OpenFilesAsync(files);
         if (_options.MeasureSeconds is { } seconds)
         {
-            await new MeasurementRun(this, _engine, Program.Metrics).RunAsync(seconds);
+            await new MeasurementRun(this, _engine, Program.Metrics).RunAsync(seconds, _options.Scenario);
         }
     }
 

@@ -2,6 +2,7 @@
 # Uso:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\app.ps1 [video.mp4 [otro.mp4 ...] | proyecto.rodaje]
 #   ... -Medir 10        abre el clip de prueba (o los archivos), reproduce 10 s, mide y muestra las cifras
+#   ... -Medir 10 -Escenario efectos   antes de medir arma 3 capas con efectos y 4 transiciones, y mueve un deslizador
 #   ... -SinPublicar     abre el exe ya publicado sin recompilar
 #   ... -Publicar        recompila aunque src\ no haya cambiado
 # Los videos se importan y se ponen seguidos en la pista principal; un .rodaje se abre.
@@ -11,6 +12,8 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Archivos = @(),
     [double]$Medir = 0,
+    [ValidateSet('', 'efectos')]
+    [string]$Escenario = '',
     [switch]$SinPublicar,
     [switch]$Publicar
 )
@@ -134,6 +137,7 @@ if ($Medir -gt 0) {
     $registro = Join-Path $Raiz ('TestResults\app-medir-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.txt')
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $registro) | Out-Null
     $argumentos += @('--medir', $Medir.ToString([System.Globalization.CultureInfo]::InvariantCulture), '--registro', ('"' + $registro + '"'))
+    if ($Escenario) { $argumentos += @('--escenario', $Escenario) }
     Titulo "Midiendo $Medir s de reproducción (la ventana se abre y se cierra sola)..."
     $p = Start-Process -FilePath $Exe -ArgumentList $argumentos -PassThru
     if (-not $p.WaitForExit([int](($Medir + 90) * 1000))) { $p.Kill(); Mal 'Rodaje no terminó a tiempo.'; exit 1 }
