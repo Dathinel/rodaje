@@ -43,7 +43,7 @@ public class RetimeMathTests
     [InlineData(1, 10)]
     [InlineData(100, 1)]
     [InlineData(RetimeMath.MaxRateTerm, RetimeMath.MaxRateTerm - 1)]
-    [InlineData(RetimeMath.MaxRateTerm / 10, RetimeMath.MaxRateTerm)]
+    [InlineData((RetimeMath.MaxRateTerm / 10) + 1, RetimeMath.MaxRateTerm)]
     [InlineData(1001, 1000)]
     public void ConstantExtremes_AreExact(long num, long den)
     {

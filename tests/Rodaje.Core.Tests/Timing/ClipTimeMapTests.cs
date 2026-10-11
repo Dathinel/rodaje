@@ -20,12 +20,12 @@ public class ClipTimeMapTests
             {
                 Time t = RandomInside(random, map);
                 Time s = map.Source(t);
-                Assert.InRange(s, map.SourceIn, map.SourceOut - Time.FromTicks(1));
+                InRange(s, map.SourceIn, map.SourceOut - Time.FromTicks(1));
                 Assert.True(map.TimelineOf(s) <= t, $"{map}: T(source({t})) > t");
 
                 Time wanted = map.SourceIn + Time.FromTicks(random.NextInt64(0, (map.SourceOut - map.SourceIn).Ticks));
                 Time first = map.TimelineOf(wanted);
-                Assert.InRange(first, map.Start, map.End);
+                InRange(first, map.Start, map.End);
                 if (first < map.End)
                 {
                     Assert.True(Reaches(map, map.Source(first), wanted), $"{map}: source(T({wanted})) no lo alcanza");
@@ -57,7 +57,7 @@ public class ClipTimeMapTests
             }
 
             Assert.Equal(map.Reverse ? map.SourceOut - Time.FromTicks(1) : map.SourceIn, map.Source(map.Start));
-            Assert.InRange(map.Source(last), map.SourceIn, map.SourceOut - Time.FromTicks(1));
+            InRange(map.Source(last), map.SourceIn, map.SourceOut - Time.FromTicks(1));
             Assert.Equal(map.Source(map.Start), map.Source(map.Start - Time.FromTicks(5)));
             Assert.Equal(map.Source(last), map.Source(map.End + Time.FromTicks(5)));
             Assert.Equal(map.Start, map.TimelineOf(map.Reverse ? map.SourceOut : map.SourceIn - Time.FromTicks(1)));
@@ -95,8 +95,8 @@ public class ClipTimeMapTests
             Time at = map.Start + Time.FromTicks(random.NextInt64(1, map.Duration.Ticks));
             (ClipTimeMap left, ClipTimeMap right) = map.SplitAt(at);
             Assert.Equal((map.Start, at, at, map.End), (left.Start, left.End, right.Start, right.End));
-            Assert.InRange(left.SourceIn, map.SourceIn, map.SourceOut);
-            Assert.InRange(right.SourceOut, map.SourceIn, map.SourceOut + Time.FromTicks(1));
+            InRange(left.SourceIn, map.SourceIn, map.SourceOut);
+            InRange(right.SourceOut, map.SourceIn, map.SourceOut + Time.FromTicks(1));
             for (int i = 0; i < Probes; i++)
             {
                 Time t = RandomInside(random, map);
@@ -241,7 +241,7 @@ public class ClipTimeMapTests
         Assert.Equal((Time.FromTicks(10_333), Time.FromTicks(667), Time.FromTicks(333)), (clip.Start, clip.Duration, clip.Speed!.Offset));
         Assert.Equal(right, clip.TimeMap);
         Assert.Throws<ArgumentException>(() => right.ApplyTo(new Clip()));
-        Assert.Throws<ArgumentException>(() => new Clip().TimeMap.ApplyTo(clip));
+        Assert.Throws<ArgumentException>(() => new Clip { SourceOut = Time.FromTicks(5) }.TimeMap.ApplyTo(clip));
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public class ClipTimeMapTests
 
         Assert.Throws<ArgumentException>(() => ClipTimeMap.Fit(Time.Zero, Time.FromTicks(5), Time.FromTicks(5), null));
         Assert.Throws<ArgumentException>(() =>
-            ClipTimeMap.Fit(Time.Zero, Time.Zero, Time.FromTicks(1), new ClipSpeed { Rate = new Rational(1, 10) }));
+            ClipTimeMap.Fit(Time.Zero, Time.Zero, Time.FromTicks(10), new ClipSpeed { Rate = new Rational(2, 1), Offset = Time.FromTicks(RetimeMath.MaxExtent) }));
         ClipTimeMap capped = ClipTimeMap.Fit(Time.Zero, Time.Zero, Time.FromTicks(RetimeMath.MaxExtent * 2), new ClipSpeed());
         Assert.Equal(RetimeMath.MaxExtent, capped.Duration.Ticks);
     }
@@ -359,6 +359,9 @@ public class ClipTimeMapTests
         1 => map.Duration.Ticks - 1,
         _ => random.NextInt64(0, map.Duration.Ticks),
     });
+
+    private static void InRange(Time value, Time low, Time high) =>
+        Assert.True(value >= low && value <= high, $"{value} fuera de [{low}, {high}]");
 
     private static bool Reaches(ClipTimeMap map, Time shown, Time wanted) => map.Reverse ? shown <= wanted : shown >= wanted;
 }

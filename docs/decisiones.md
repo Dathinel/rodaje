@@ -276,3 +276,17 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - **Hacia la GPU:** `LayerFrame` suma `Effects` (`LayerEffect` con `EffectValues` en `InlineArray`, por valor), `Blend` (13 modos) y `Transition`; sin nada de eso es el camino rápido de siempre. Los recursos (LUT) se piden con `IEffectResources`, que nunca bloquea; el motor recibe el contenido de paquetes por `IEffectContent` y no conoce `Rodaje.Paquetes`.
 
 **Consecuencias.** Un proyecto guardado con la fase 5 no abre en versiones anteriores (la `.bak` conserva el formato 2). Cambiar un código del registro rompe la tabla de la GPU: una prueba los fija.
+
+## D-026. Contrato de la fase 5c: velocidad como propiedad del clip y formato 4 (10 de octubre de 2026)
+
+**Contexto.** El plan de la fase 5c ([fase-5c.md](fase-5c.md)) reparte la velocidad entre siete agentes; el formato y la aritmética del tiempo no pueden cambiar mientras trabajan.
+
+**Decisión.**
+- **`Clip.Speed`** (`ClipSpeed`: `Rate` racional de 1/10 a 100, `Curve` lineal a tramos en centésimas de 0,1× a 10× con puntos en diezmilésimas de `Span`, `Offset`, `Reverse`, `Freeze`, `PreservePitch`, `FrameSampling`) y `Clip.Duration` guardada cuando hay velocidad. `rodaje.speed` queda reservado (código 8) y oculto; la migración 3 → 4 quita sus instancias.
+- **La curva vive en el tiempo de la línea de tiempo**, no en el del origen: así el origen recorrido es cuadrático por tramos y su inversa sale con una raíz entera, todo exacto en `Int128` (`RetimeMath`). Con la curva en el origen la duración sería un logaritmo.
+- **`ClipTimeMap` es la única puerta.** Calcula cada instante desde el ancla (`SourceIn`, o `SourceOut` en reversa) y `Offset`, con `⌊I(offset + τ)⌋ − ⌊I(offset)⌋`; el tramo del origen mide `⌈I(offset + D)⌉ − ⌊I(offset)⌋` y el validador exige que coincida. Dividir y recortar mueven `Offset`, así que ningún cuadro cambia. Fuera del clip (transiciones) sigue a la velocidad del borde. A 1× es la cuenta de siempre.
+- **Cotas:** `|Offset| + Duration ≤ 2^44` ticks (unas 6,9 h); numeradores hasta 2^104 y discriminantes hasta 2^112.
+- **Validador:** además de la velocidad, limita los parámetros de efectos y transiciones registrados a su rango (las ediciones los acotan) y rechaza ids con caracteres de control.
+- **Motor:** `VideoClipPlan.TimeMap` y `AudioClipPlan.Retime` llevan el mapeo sin lógica nueva; `TimelinePlan` se parte en `Video` y `Audio`.
+
+**Consecuencias.** Un proyecto guardado con la fase 5c no abre en versiones anteriores (la `.bak` conserva el formato 3). Un clip con velocidad no puede pasar de unas 6,9 horas en la línea de tiempo. Las lecturas directas de `SourceIn`/`SourceOut` fuera del núcleo siguen bien a 1× y las cambian los agentes de la fase.
