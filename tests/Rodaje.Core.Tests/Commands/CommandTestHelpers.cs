@@ -152,17 +152,34 @@ internal static class ProjectDump
         foreach (Clip c in t.Clips)
         {
             Line(sb, 3, $"clip {c.Id} {c.MediaId} in={c.SourceIn.Ticks} out={c.SourceOut.Ticks} start={c.Start.Ticks} link={c.LinkId ?? "-"} e={c.Enabled}");
-            foreach (EffectInstance e in c.Effects)
+            DumpEffects(sb, 4, c.Effects);
+        }
+
+        DumpEffects(sb, 3, t.Effects);
+        foreach (TransitionInstance x in t.Transitions)
+        {
+            string parameters = string.Join(" ", x.Parameters.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={R(p.Value)}"));
+            Line(sb, 3, $"transición {x.Id} {x.Type} {x.From}→{x.To} {x.Duration.Ticks} {parameters} {Options(x.Options)}");
+        }
+    }
+
+    private static void DumpEffects(StringBuilder sb, int indent, List<EffectInstance> effects)
+    {
+        foreach (EffectInstance e in effects)
+        {
+            Line(sb, indent, $"efecto {e.Id} {e.Type} e={e.Enabled} {Options(e.Options)}");
+            foreach ((string key, Parameter p) in e.Parameters.OrderBy(p => p.Key, StringComparer.Ordinal))
             {
-                Line(sb, 4, $"efecto {e.Id} {e.Type} e={e.Enabled}");
-                foreach ((string key, Parameter p) in e.Parameters.OrderBy(p => p.Key, StringComparer.Ordinal))
-                {
-                    string keys = string.Join(" ", p.Keyframes.Select(k => $"[{k.Time.Ticks}:{k.Value.ToString("R", CultureInfo.InvariantCulture)}:{k.Interpolation}]"));
-                    Line(sb, 5, $"{key}={p.Value.ToString("R", CultureInfo.InvariantCulture)} {keys}");
-                }
+                string keys = string.Join(" ", p.Keyframes.Select(k => $"[{k.Time.Ticks}:{R(k.Value)}:{k.Interpolation}]"));
+                Line(sb, indent + 1, $"{key}={R(p.Value)} {keys}");
             }
         }
     }
+
+    private static string Options(Dictionary<string, string> options) =>
+        string.Join(" ", options.OrderBy(o => o.Key, StringComparer.Ordinal).Select(o => $"{o.Key}:«{o.Value}»"));
+
+    private static string R(double value) => value.ToString("R", CultureInfo.InvariantCulture);
 
     private static void Line(StringBuilder sb, int indent, string text) =>
         sb.Append(' ', indent * 2).Append(text).Append('\n');
