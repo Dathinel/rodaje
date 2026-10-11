@@ -34,15 +34,8 @@ public sealed class KeyframeIndexTests
         if (spec.Codec == ClipCodec.H264 || Rodaje.TestMedia.Skip.Encoder(TestClips.ExactEncoder(spec.Codec)) is null)
         {
             Assert.Equal(spec.Gop, index.MaxInterval);
-        }
     }
-
-        Assert.Equal(longest, index.MaxInterval);
-        if (Rodaje.TestMedia.Skip.Encoder(TestClips.ExactEncoder(spec.Codec)) is null)
-        {
-            Assert.Equal(spec.Gop, index.MaxInterval);
         }
-    }
 
     [FfmpegLibraryFact]
     public void Variable_frame_rate_uses_the_decoder_numbering()

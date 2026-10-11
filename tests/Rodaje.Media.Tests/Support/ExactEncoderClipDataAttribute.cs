@@ -8,7 +8,7 @@ namespace Rodaje.Media.Tests.Support;
 /// (<see cref="TestClips.ExactEncoder"/>: GOP pedido y cuadros B). Se omiten con su motivo cuando ese codificador no
 /// funciona (por ejemplo, el runner de la CI no tiene NVENC y cae en libopenh264 o libkvazaar) en lugar de fallar.
 /// </summary>
-[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
 internal sealed class ExactEncoderClipDataAttribute : DataAttribute
 {
     private readonly bool _software;
