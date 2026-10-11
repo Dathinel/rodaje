@@ -281,20 +281,19 @@ internal sealed class TimelinePlan
                 : crossfade;
         }
 
-        // Una de paquete usa los valores por defecto de su mezcla: sus parámetros son los del preajuste, no los de la mezcla.
+        // Una de paquete lleva los parámetros y opciones de su mezcla en el preajuste; los de la transición son los suyos.
+        IReadOnlyDictionary<string, double> parameters = curves?.MixParameters ?? t.Parameters;
         EffectValues values = default;
         foreach (ParameterDefinition p in definition.Parameters)
         {
-            double value = curves is null && t.Parameters.TryGetValue(p.Name, out double v) && double.IsFinite(v) ? v : p.DefaultValue;
+            double value = parameters.TryGetValue(p.Name, out double v) && double.IsFinite(v) ? v : p.DefaultValue;
             values[p.Slot] = (float)p.Clamp(value);
         }
 
-        EffectPlan.WriteChoices(definition, curves is null ? t.Options : EmptyOptions, ref values);
+        EffectPlan.WriteChoices(definition, curves?.MixOptions ?? t.Options, ref values);
         return new TransitionPlan(t.Id, t.From, t.To, cut.At - cut.Before, cut.At + cut.After, definition.Code, values, curves,
             sequence.Width, sequence.Height, fellBack);
     }
-
-    private static readonly Dictionary<string, string> EmptyOptions = [];
 
     /// <summary>Hasta dónde llega el material del medio; sin duración conocida, no hay material extra.</summary>
     private static Time Material(MediaRef media) => media.Duration > Time.Zero ? media.Duration : Time.Zero;

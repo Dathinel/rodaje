@@ -29,7 +29,17 @@ public sealed record TransitionCurves(
     int ReferenceWidth,
     int ReferenceHeight,
     IReadOnlyList<TransitionCurve> Outgoing,
-    IReadOnlyList<TransitionCurve> Incoming);
+    IReadOnlyList<TransitionCurve> Incoming)
+{
+    private static readonly Dictionary<string, double> NoNumbers = [];
+    private static readonly Dictionary<string, string> NoOptions = [];
+
+    /// <summary>Parámetros de la mezcla (por ejemplo el ángulo de un barrido); los que faltan van con su valor por defecto.</summary>
+    public IReadOnlyDictionary<string, double> MixParameters { get; init; } = NoNumbers;
+
+    /// <summary>Opciones de la mezcla (por ejemplo la dirección de un empuje).</summary>
+    public IReadOnlyDictionary<string, string> MixOptions { get; init; } = NoOptions;
+}
 
 /// <summary>Curva de un parámetro de la transformación a lo largo de la transición.</summary>
 public sealed record TransitionCurve(string Parameter, IReadOnlyList<CurveKey> Keys);

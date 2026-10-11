@@ -16,18 +16,26 @@ flowchart LR
 ```
 
 1. **El plan.** [`TimelinePlan`](../../src/Rodaje.Engine/Timeline/TimelinePlan.cs) convierte la secuencia en datos inmutables y se reconstruye en cada edición. Las capas están en [`VideoPlan`](../../src/Rodaje.Engine/Timeline/VideoPlan.cs) y el audio en [`AudioPlan`](../../src/Rodaje.Engine/Timeline/AudioPlan.cs).
-   - Por capa: los clips con su correspondencia de cuadros (`VideoClipPlan`) y la transformación con sus keyframes de `rodaje.transform` (`TransformPlan.Evaluate` da `LayerTransform`).
-   - Para el audio: los clips en muestras de 48 kHz (`AudioPlan`).
+   - Por capa: los clips con su correspondencia de cuadros (`VideoClipPlan`) y su [`EffectPlan`](../../src/Rodaje.Engine/Timeline/EffectPlan.cs).
+   - Para el audio: los clips en muestras de 48 kHz con su `GainPlan` (`AudioPlan`).
    - Deja fuera las pistas mudas, los clips desactivados y los medios sin el flujo. Las pistas ocultas no se ven, pero siguen calientes.
 2. **El reloj.** Es el de la salida de audio, que reproduce la mezcla o silencio; sin dispositivo, `SystemClock`.
 3. **Cada `Tick`** calcula la demanda de cada capa, presenta lo más nuevo disponible sin esperar a nadie y devuelve un `CompositionFrame`, que desecha quien lo recibe.
 4. **`Reload(Project)`** aplica ediciones sin parar ni mover la posición; la mezcla solo se rehace si el audio cambió (`AudioPlan.SoundsLike`). `Invalidate()` sirve cuando el proyecto cambió en el sitio por el `UndoStack`.
 
+## Efectos y transiciones (fase 5)
+
+- **`EffectPlan`.** Se compila por clip en cada `Reload`: la primera transformación activa, los efectos de imagen del registro (etapas por píxel y espaciales) en el orden de la pila y el primer modo de mezcla activo; lo desconocido, desactivado o diferido no entra. Sin nada de eso el plan es nulo y la capa va por el camino rápido (`IsPlain`).
+- **Sin reservas por `Tick`.** Los keyframes se copian a arreglos ([`Curve`](../../src/Rodaje.Engine/Timeline/Curve.cs), búsqueda binaria y las mismas curvas que el núcleo) y los efectos evaluados van a listas que cada carril rota de a tres (`EffectListRing`): una composición vale mientras la app la dibuja y la desecha en el mismo refresco. Los valores siguen los huecos del registro; una opción de elección (la dirección del empuje) va como su índice en el hueco que sigue a los parámetros, y una LUT (`paquete@versión/elemento` o `file:<ruta>`) va como `Resource` solo si `IEffectContent.TryGetLut` ya la tiene; si no, la capa sale sin LUT.
+- **Transiciones como carriles.** Centradas en el corte: el clip que sale sigue en su carril media duración más (material sobrante o, si no hay, su último cuadro congelado: `ToSource` acota al material) y el que entra se adelanta la otra media en el carril compañero `pista#t`, que tiene su propio estado, demanda y pre-roll. En el carril principal el que entra recién aparece al terminar la transición. `Tick` arma la capa del que sale con `LayerFrame.Transition` (código, avance de 0 a 1, valores e `Incoming`); si el que entra todavía no llegó, se ve solo el que sale. Cada mitad se acota a la mitad de su clip.
+- **De paquete.** `IEffectContent.FindTransition` da las curvas al armar el plan: x e y se suman (escaladas a la secuencia), escala y opacidad se multiplican, el giro se suma; la mezcla usa los `MixParameters` y `MixOptions` del preajuste. Si falta, cae a fundido cruzado y se cuenta en `TimelineStats.MissingContent`.
+- **Cifras.** `Tick` con 8 capas y 4 efectos cada una: 0,09 ms de mediana con dobles; reserva lo mismo con efectos que sin ellos (la evaluación sola, 0 B). Con 4 pistas HEVC 1080p y un fundido de 0,5 s en cada corte, 28 de 28 transiciones con su pre-roll a tiempo, 0 refrescos tarde y el pico de VRAM en 880 MB de 1485.
+
 ## `TimelineScheduler`
 
 Las decisiones de diseño están en [D-017](../decisiones.md) (caché global por urgencia y pre-roll por pista) y D-019.
 
-[`TimelineScheduler`](../../src/Rodaje.Engine/Timeline/TimelineScheduler.cs) es el corazón del motor. Es una clase parcial: el archivo principal tiene el transporte, `Tick` y las cifras, y cada parte va en su archivo (`.Presentation`, `.Demand`, `.Vram`, `.Proxies`, `.Decoding` y `.State`, con los tipos internos).
+[`TimelineScheduler`](../../src/Rodaje.Engine/Timeline/TimelineScheduler.cs) es el corazón del motor. Es una clase parcial: el archivo principal tiene el transporte, `Tick` y las cifras, y cada parte va en su archivo (`.Presentation`, `.Layers` con el armado de cada capa, `.Demand`, `.Vram`, `.Proxies`, `.Decoding` y `.State`, con los tipos internos).
 
 - **Demanda.** Cada capa pide el cuadro debido más `PrefetchFrames` (8). Si el próximo corte está a menos de `PreRoll` (500 ms), también pide los primeros `PreRollFrames` (6) del clip siguiente, para que el corte llegue a tiempo. Las ventanas cercanas del mismo medio se agrupan.
 - **Varios decodificadores por medio.** Cada tramo de demanda va al decodificador más barato: el que ya está ahí, el que tiene que avanzar pocos cuadros o, si no, uno que haga seek. Se abren hasta `MaxDecodersPerMedia` (4); así el mismo archivo en cuatro pistas no salta de un lado a otro.
@@ -53,6 +61,7 @@ Las decisiones de diseño están en [D-017](../decisiones.md) (caché global por
 - **[`AudioMixer`](../../src/Rodaje.Engine/Timeline/AudioMixer.cs)** es la `IAudioSampleSource` de la salida.
   - Suma los clips exactos a la muestra en float estéreo; los huecos son silencio.
   - Reutiliza un decodificador por medio si quedó justo donde empieza el clip y cierra los ociosos.
+  - Aplica el volumen de cada clip antes del recorte suave y de los medidores (ver [Audio](audio.md#volumen-y-fundidos)).
   - Aplica un recorte suave (rodilla 0,9).
   - Al recargar conserva 50 ms ya mezclados. Un medio que falla suena como silencio.
 - **[`BufferedAudioSource`](../../src/Rodaje.Engine/BufferedAudioSource.cs)** decodifica por delante (500 ms) en su propio hilo sobre un anillo. El hilo de audio solo copia; si falta audio da silencio y la posición sigue, así la sincronía no se pierde.
@@ -65,10 +74,10 @@ Las decisiones de diseño están en [D-017](../decisiones.md) (caché global por
 | [`ClipBackend.cs`](../../src/Rodaje.Engine/ClipBackend.cs) | `IClipBackend`: la frontera con el hardware (abrir video, audio, salida y ejecutor), que las pruebas cambian por dobles |
 | [`Timeline/TimelineSession.cs`](../../src/Rodaje.Engine/Timeline/TimelineSession.cs) | API pública: `Open(project, sequenceId, gpu, options)`, transporte, `Tick`, `Reload`, `Stats` y eventos |
 | [`Timeline/TimelineSessionOptions.cs`](../../src/Rodaje.Engine/Timeline/TimelineSessionOptions.cs) | Pre-roll, cachés, presupuesto de VRAM, decodificadores por medio, proxies y adelanto de audio, con `Validate()` |
-| [`Timeline/TimelineStats.cs`](../../src/Rodaje.Engine/Timeline/TimelineStats.cs) | Por capa: mostrados, perdidos, tarde, cortes y aciertos del pre-roll. En total: VRAM comprometida y pico, decodificadores, expulsiones, seeks y medios fallidos |
+| [`Timeline/TimelineStats.cs`](../../src/Rodaje.Engine/Timeline/TimelineStats.cs) | Por capa: mostrados, perdidos, tarde, cortes y aciertos del pre-roll. En total: VRAM comprometida y pico, decodificadores, expulsiones, seeks, medios fallidos, contenido que falta, pre-roll de transiciones y composiciones retenidas tras un seek |
 | [`Presentation/Timecode.cs`](../../src/Rodaje.Engine/Presentation/Timecode.cs) | `m:ss.mmm` para la interfaz |
 
 ## Pruebas
 
-- **Sin hardware.** [`tests/Rodaje.Engine.Tests`](../../tests/Rodaje.Engine.Tests) usa dobles (`FakeTimelineBackend`, payloads con contador de vivos) para la sesión, el plan, el mezclador, los proxies y los recursos. Algunos casos: varios decodificadores por medio, presupuesto en 4K, que `Tick` nunca espera a un decodificador que se cierra, medios rotos y ediciones que no rebobinan el audio.
-- **Con hardware.** `[HardwareFact]` corre `ClipPlayerHardwareTests` y `TimelineHardwareTests` en la suite normal. Con `RODAJE_PRUEBAS_LARGAS=1` se suman la carga (`TimelineLoadTests`: cuatro pistas HEVC 1080p y 4K con cortes cada 3 s dentro del presupuesto) y el cambio a proxy durante la reproducción (`TimelineProxyHardwareTests`).
+- **Sin hardware.** [`tests/Rodaje.Engine.Tests`](../../tests/Rodaje.Engine.Tests) usa dobles (`FakeTimelineBackend`, payloads con contador de vivos) para la sesión, el plan, los efectos y transiciones (`TimelineEffectsTests`, con un `IEffectContent` falso), el volumen (`AudioGainTests`), la composición tras un seek, el mezclador, los proxies y los recursos. Algunos casos: varios decodificadores por medio, presupuesto en 4K, que `Tick` nunca espera a un decodificador que se cierra, medios rotos y ediciones que no rebobinan el audio.
+- **Con hardware.** `[HardwareFact]` corre `ClipPlayerHardwareTests` y `TimelineHardwareTests` en la suite normal. Con `RODAJE_PRUEBAS_LARGAS=1` se suman la carga (`TimelineLoadTests`: cuatro pistas HEVC 1080p y 4K con cortes cada 3 s dentro del presupuesto, también con un fundido en cada corte) y el cambio a proxy durante la reproducción (`TimelineProxyHardwareTests`).

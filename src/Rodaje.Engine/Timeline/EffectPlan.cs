@@ -8,7 +8,7 @@ namespace Rodaje.Engine.Timeline;
 
 /// <summary>
 /// Los efectos activos de un clip de video copiados del modelo al armar el plan: transformación, efectos de imagen en el
-/// orden de la pila y modo de mezcla. Se evalúan en tiempo del origen sin reservar memoria.
+/// orden de la pila y el primer modo de mezcla activo. Se evalúan en tiempo del origen sin reservar memoria.
 /// </summary>
 /// <remarks>
 /// Solo entran los tipos del registro con etapa de transformación, de imagen o de mezcla; los demás se conservan en el
@@ -38,6 +38,7 @@ internal sealed class EffectPlan
         Curve[]? transform = null;
         var images = new List<ImageEffect>();
         BlendMode blend = BlendMode.Normal;
+        bool blended = false;
         foreach (EffectInstance effect in effects)
         {
             if (!effect.Enabled || EffectRegistry.Find(effect.Type) is not { } definition)
@@ -53,8 +54,10 @@ internal sealed class EffectPlan
                 case EffectStage.PerPixel or EffectStage.Spatial:
                     images.Add(ImageEffect.From(definition, effect));
                     break;
-                case EffectStage.Blend:
+                case EffectStage.Blend when !blended:
+                    // Como la transformación, manda el primer modo de mezcla activo de la pila.
                     blend = ParseBlend(effect.Options.GetValueOrDefault(BuiltInEffects.BlendOptions.Mode));
+                    blended = true;
                     break;
             }
         }

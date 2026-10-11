@@ -165,6 +165,8 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
         b.AddVideo(1, "m", Time.Zero, S(30), S(2), "c");
         b.AddVideo(1, "m", S(2), S(40), S(2), "d");
         TransitionInstance dip = AddTransition(b, BuiltInTransitions.Dip, "a", "b", S(1));
+        b.Sequence.VideoTracks[0].Clips[0].Effects.Add(Blend("multiply"));
+        b.Sequence.VideoTracks[0].Clips[0].Effects.Add(Blend("screen"));
         dip.Parameters[BuiltInTransitions.DipParameters.Green] = 0.5;
         dip.Parameters[BuiltInTransitions.DipParameters.Blue] = 9;
         TransitionInstance push = AddTransition(b, BuiltInTransitions.Push, "c", "d", S(1), track: 1);
@@ -178,6 +180,7 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
         LayerTransition second = frame.Layers[1].Transition!.Value;
         Assert.Equal((102, 0f, 0.5f, 1f), (first.Code, first.Values[0], first.Values[1], first.Values[2]));
         Assert.Equal((104, 2f), (second.Code, second.Values[0]));
+        Assert.Equal(BlendMode.Multiply, frame.Layers[0].Blend);
     }
 
     [Fact]
@@ -188,7 +191,10 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
         content.Transitions["paquete@1.0.0/zoom"] = new TransitionCurves(
             EffectRegistry.Find(BuiltInTransitions.Wipe)!.Code, 960, 540,
             [new TransitionCurve("x", [new CurveKey(0, 0, Interpolation.Linear), new CurveKey(1, -100, Interpolation.Linear)])],
-            [new TransitionCurve("scale", [new CurveKey(0, 2, Interpolation.Linear), new CurveKey(1, 1, Interpolation.Linear)])]);
+            [new TransitionCurve("scale", [new CurveKey(0, 2, Interpolation.Linear), new CurveKey(1, 1, Interpolation.Linear)])])
+        {
+            MixParameters = new Dictionary<string, double> { [BuiltInTransitions.WipeParameters.Angle] = 90 },
+        };
         var b = new TimelineBuilder(2, 0);
         b.AddMedia("m", Fps30, 3000, backend: backend);
         b.AddVideo(0, "m", Time.Zero, S(10), S(2), "a");
@@ -205,6 +211,7 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
 
         LayerFrame resolved = frame.Layers[0];
         Assert.Equal(103, resolved.Transition!.Value.Code);
+        Assert.Equal((90f, 0.05f), (resolved.Transition.Value.Values[0], resolved.Transition.Value.Values[1]));
         Assert.Equal(-100, resolved.Transform.X, 6);
         Assert.Equal(0.75, resolved.Transition.Value.Incoming.Transform.Scale, 6);
         Assert.Equal(101, frame.Layers[1].Transition!.Value.Code);
@@ -300,6 +307,13 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
         var transition = new TransitionInstance { Id = $"t-{from}", Type = type, From = from, To = to, Duration = duration };
         b.Sequence.VideoTracks[track].Transitions.Add(transition);
         return transition;
+    }
+
+    private static EffectInstance Blend(string mode)
+    {
+        EffectInstance blend = Effect(BuiltInEffects.Blend);
+        blend.Options[BuiltInEffects.BlendOptions.Mode] = mode;
+        return blend;
     }
 
     private static EffectInstance Animated(string type, string parameter)

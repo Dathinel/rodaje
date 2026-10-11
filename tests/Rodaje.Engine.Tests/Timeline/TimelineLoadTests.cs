@@ -48,6 +48,18 @@ public sealed class TimelineLoadTests(ITestOutputHelper output)
     }
 
     [HardwareFact(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac, LongRunning = true)]
+    public void Four_hevc_1080p_tracks_with_a_crossfade_on_every_cut_bring_the_incoming_clips_in_on_time()
+    {
+        LoadResult result = Run(CutsScenario("1080p", 1920, 1080, transitions: true));
+        TimelineStats stats = result.Stats;
+        output.WriteLine($"  Transiciones: pre-roll {stats.TransitionPreRollHits}/{stats.TransitionPreRollHits + stats.TransitionPreRollMisses}, tarde {stats.TransitionLateRefreshes}.");
+        Assert.True(result.PeakVramBytes < result.BudgetBytes, $"Pico de VRAM {Mb(result.PeakVramBytes)} MB, presupuesto {Mb(result.BudgetBytes)} MB.");
+        Assert.True(stats.TransitionPreRollHitRate >= 0.9, $"Pre-roll de transiciones {stats.TransitionPreRollHitRate:P0}.");
+        Assert.True(result.WorstStallMs <= 50, $"Una capa esperó {result.WorstStallMs:0} ms.");
+        Assert.Equal(0, stats.DecodeErrors);
+    }
+
+    [HardwareFact(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac, LongRunning = true)]
     public void The_same_1080p_file_on_four_tracks_two_seconds_apart_plays_without_late_refreshes()
     {
         LoadResult result = Run(SameMediaScenario());
@@ -60,7 +72,7 @@ public sealed class TimelineLoadTests(ITestOutputHelper output)
 
     private sealed record LoadResult(TimelineStats Stats, long PeakVramBytes, long BudgetBytes, double MaxTickMs, double WorstStallMs, long WrongFrames);
 
-    private static Scenario CutsScenario(string label, int width, int height)
+    private static Scenario CutsScenario(string label, int width, int height, bool transitions = false)
     {
         TestMediaGenerator generator = TestMediaGenerator.CreateDefault()!;
         MediaSpec[] specs = [.. Enumerable.Range(0, CutMedia).Select(m =>
@@ -92,10 +104,21 @@ public sealed class TimelineLoadTests(ITestOutputHelper output)
                     SourceOut = sourceIn + Segment,
                     Effects = k == 0 ? [] : [Corner($"t{k}-{j}", k, width, height)],
                 });
+                if (transitions && j > 0)
+                {
+                    track.Transitions.Add(new TransitionInstance
+                    {
+                        Id = $"x{k}-{j}",
+                        Type = BuiltInTransitions.Crossfade,
+                        From = $"c{k}-{j - 1}",
+                        To = $"c{k}-{j}",
+                        Duration = Time.FromSeconds(0.5),
+                    });
+                }
             }
         }
 
-        return Finish($"cortes-hevc-{label}", project);
+        return Finish($"cortes-hevc-{label}{(transitions ? "-transiciones" : "")}", project);
     }
 
     private static Scenario SameMediaScenario()
@@ -281,7 +304,7 @@ public sealed class TimelineLoadTests(ITestOutputHelper output)
     {
         VideoClipPlan clip = plan.Layers.Single(l => l.TrackIndex == trackIndex).Clips.Single(c => c.Start <= timeline && timeline < c.End);
         clipId = clip.ClipId;
-        Int128 sourceTicks = timeline.Ticks - clip.Start.Ticks + clip.SourceIn.Ticks;
+        Int128 sourceTicks = clip.ToSource(timeline).Ticks;
         return (long)(sourceTicks * clip.FrameRate.Num / ((Int128)Time.TicksPerSecond * clip.FrameRate.Den));
     }
 

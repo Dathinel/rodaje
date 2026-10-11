@@ -170,7 +170,7 @@ public sealed class TimelineHardwareTests(ITestOutputHelper output)
     {
         VideoClipPlan clip = plan.Layers.Single(l => l.TrackIndex == trackIndex).Clips.Single(c => c.Start <= timeline && timeline < c.End);
         clipId = clip.ClipId;
-        Int128 sourceTicks = timeline.Ticks - clip.Start.Ticks + clip.SourceIn.Ticks;
+        Int128 sourceTicks = clip.ToSource(timeline).Ticks;
         return (long)(sourceTicks * clip.FrameRate.Num / ((Int128)Time.TicksPerSecond * clip.FrameRate.Den));
     }
 
