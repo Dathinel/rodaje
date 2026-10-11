@@ -176,6 +176,12 @@ internal sealed partial class TimelineScheduler
     {
         public string TrackId { get; } = trackId;
 
+        /// <summary>Carril compañero de una pista: los clips que entran en sus transiciones.</summary>
+        public bool IsCompanion { get; } = trackId.EndsWith(VideoLayerPlan.CompanionSuffix, StringComparison.Ordinal);
+
+        /// <summary>Listas de efectos evaluados que se rotan entre refrescos.</summary>
+        public EffectListRing Effects { get; } = new();
+
         public DecodedFrame? Current { get; set; }
 
         public VideoClipPlan? CurrentClip { get; set; }

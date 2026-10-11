@@ -28,7 +28,7 @@ internal sealed partial class TimelineScheduler
             media.Layers = 0;
         }
 
-        foreach (VideoLayerPlan layer in _plan.Layers)
+        foreach (VideoLayerPlan layer in _plan.Lanes)
         {
             if (layer.ClipAt(time) is { } clip)
             {
@@ -339,7 +339,7 @@ internal sealed partial class TimelineScheduler
         }
 
         VideoClipPlan clip = window.Clip;
-        Time shownAt = Time.Max(clip.Start, clip.Start + (Time.FromFrames(index, clip.FrameRate) - clip.SourceIn));
+        Time shownAt = clip.ShownAt(index);
         long delay = Math.Max(0, (shownAt - _demandTime).Ticks);
         return window.Warm ? WarmPenalty.Ticks + delay : delay;
     }

@@ -4,28 +4,41 @@ using Rodaje.Playback.Composition;
 
 namespace Rodaje.Engine.Timeline;
 
-/// <summary>Clip de video listo para programar: tiempos copiados del modelo y su transformación, si tiene.</summary>
+/// <summary>
+/// Clip de video listo para programar: tiempos copiados del modelo y sus efectos. En una transición el clip puede verse
+/// más allá de su material: <see cref="Start"/> y <see cref="End"/> son lo que se ve, <see cref="SourceStart"/> es dónde
+/// suena <see cref="SourceIn"/> y fuera de <c>[SourceIn, SourceOut)</c> se congela el cuadro del borde.
+/// </summary>
 internal sealed class VideoClipPlan
 {
-    public VideoClipPlan(string clipId, SourceKey source, Time start, Time sourceIn, Time sourceOut, Rational frameRate, TransformPlan? transform,
-        int displayWidth = 0, int displayHeight = 0)
+    public VideoClipPlan(string clipId, SourceKey source, Time start, Time sourceIn, Time sourceOut, Rational frameRate, EffectPlan? effects,
+        int displayWidth = 0, int displayHeight = 0, Time holdBefore = default, Time holdAfter = default)
     {
         DisplayWidth = displayWidth;
         DisplayHeight = displayHeight;
         ClipId = clipId;
         Source = source;
-        Start = start;
+        SourceStart = start;
+        Start = start - holdBefore;
+        End = start + (sourceOut - sourceIn) + holdAfter;
         SourceIn = sourceIn;
         SourceOut = sourceOut;
         FrameRate = frameRate;
-        Transform = transform;
+        Effects = effects;
     }
 
     public string ClipId { get; }
 
     public SourceKey Source { get; }
 
+    /// <summary>Desde cuándo se ve, contando el cuadro congelado antes del material.</summary>
     public Time Start { get; }
+
+    /// <summary>Hasta cuándo se ve (sin incluir), contando el cuadro congelado después del material.</summary>
+    public Time End { get; }
+
+    /// <summary>Instante de la secuencia en que se ve <see cref="SourceIn"/>.</summary>
+    public Time SourceStart { get; }
 
     public Time SourceIn { get; }
 
@@ -34,14 +47,15 @@ internal sealed class VideoClipPlan
     /// <summary>Tasa del medio de origen, que puede diferir de la de la secuencia.</summary>
     public Rational FrameRate { get; }
 
-    public TransformPlan? Transform { get; }
+    public EffectPlan? Effects { get; }
+
+    /// <summary>La transición del corte donde termina este tramo, si la hay: el clip sale mientras dura.</summary>
+    public TransitionPlan? Outgoing { get; init; }
 
     /// <summary>Tamaño en pantalla del original según el proyecto (0 si no se conoce); un proxy se ajusta con este.</summary>
     public int DisplayWidth { get; }
 
     public int DisplayHeight { get; }
-
-    public Time End => Start + (SourceOut - SourceIn);
 
     public long FirstFrame => SourceIn.ToFrames(FrameRate);
 
@@ -49,15 +63,20 @@ internal sealed class VideoClipPlan
 
     public bool Covers(Time timeline) => timeline >= Start && timeline < End;
 
-    /// <summary>Instante del origen para un instante de la línea de tiempo, acotado al clip.</summary>
+    /// <summary>Instante del origen para un instante de la línea de tiempo, acotado al material del clip.</summary>
     public Time ToSource(Time timeline)
     {
-        Time clamped = timeline < Start ? Start : timeline >= End ? End - Time.FromTicks(1) : timeline;
-        return SourceIn + (clamped - Start);
+        Time source = SourceIn + (timeline - SourceStart);
+        Time last = SourceOut - Time.FromTicks(1);
+        return source < SourceIn ? SourceIn : source > last ? last : source;
     }
 
     /// <summary>Cuadro del origen que contiene el instante: el último que empieza en o antes de él.</summary>
     public long FrameAt(Time timeline) => ToSource(timeline).ToFrames(FrameRate);
+
+    /// <summary>Primer instante de la secuencia en que se ve el cuadro <paramref name="index"/> del origen.</summary>
+    public Time ShownAt(long index) =>
+        index <= FirstFrame ? Start : Time.Max(Start, SourceStart + (Time.FromFrames(index, FrameRate) - SourceIn));
 
     /// <summary>Cuadros del origen entre <paramref name="after"/> y <paramref name="before"/>, sin contarlos, que alguna secuencia a <paramref name="sequenceRate"/> muestra.</summary>
     /// <remarks>Un origen más rápido que la secuencia salta cuadros por diseño; esos no son pérdidas.</remarks>
@@ -79,8 +98,8 @@ internal sealed class VideoClipPlan
     /// <summary>Algún cuadro de la secuencia empieza mientras el cuadro <paramref name="index"/> del origen está en pantalla.</summary>
     private bool IsShown(long index, Rational sequenceRate)
     {
-        Time from = Time.Max(Start, Start + (Time.FromFrames(index, FrameRate) - SourceIn));
-        Time to = Time.Min(End, Start + (Time.FromFrames(index + 1, FrameRate) - SourceIn));
+        Time from = ShownAt(index);
+        Time to = index >= LastFrame ? End : Time.Min(End, SourceStart + (Time.FromFrames(index + 1, FrameRate) - SourceIn));
         long k = from.ToFrames(sequenceRate);
         Time first = Time.FromFrames(k, sequenceRate);
         if (first < from)
@@ -93,69 +112,25 @@ internal sealed class VideoClipPlan
 
     /// <summary>Mismo origen y mismos tiempos: los cuadros que muestra son los mismos.</summary>
     public bool SameMapping(VideoClipPlan other) =>
-        ClipId == other.ClipId && Source == other.Source && Start == other.Start
+        ClipId == other.ClipId && Source == other.Source && Start == other.Start && End == other.End && SourceStart == other.SourceStart
         && SourceIn == other.SourceIn && SourceOut == other.SourceOut && FrameRate == other.FrameRate;
 }
 
-/// <summary>Parámetros de <see cref="BuiltInEffects.Transform"/> copiados del modelo; se evalúan en tiempo del origen.</summary>
-internal sealed class TransformPlan
-{
-    private readonly Parameter? _x;
-    private readonly Parameter? _y;
-    private readonly Parameter? _scale;
-    private readonly Parameter? _rotation;
-    private readonly Parameter? _opacity;
-
-    private TransformPlan(EffectInstance effect)
-    {
-        _x = Copy(effect, BuiltInEffects.TransformParameters.X);
-        _y = Copy(effect, BuiltInEffects.TransformParameters.Y);
-        _scale = Copy(effect, BuiltInEffects.TransformParameters.Scale);
-        _rotation = Copy(effect, BuiltInEffects.TransformParameters.Rotation);
-        _opacity = Copy(effect, BuiltInEffects.TransformParameters.Opacity);
-    }
-
-    /// <summary>El primer efecto de transformación activo del clip; sin él, la capa llena el cuadro.</summary>
-    public static TransformPlan? From(Clip clip)
-    {
-        EffectInstance? effect = clip.Effects.Find(e => e.Enabled && e.Type == BuiltInEffects.Transform);
-        return effect is null ? null : new TransformPlan(effect);
-    }
-
-    public static LayerTransform Evaluate(TransformPlan? plan, Time sourceTime) =>
-        plan is null
-            ? LayerTransform.Identity
-            : new LayerTransform(
-                Value(plan._x, sourceTime, 0),
-                Value(plan._y, sourceTime, 0),
-                Value(plan._scale, sourceTime, 1),
-                Value(plan._rotation, sourceTime, 0),
-                Math.Clamp(Value(plan._opacity, sourceTime, 1), 0, 1));
-
-    private static Parameter? Copy(EffectInstance effect, string name) =>
-        effect.Parameters.TryGetValue(name, out Parameter? parameter) ? parameter.Clone() : null;
-
-    private static double Value(Parameter? parameter, Time sourceTime, double fallback)
-    {
-        if (parameter is null)
-        {
-            return fallback;
-        }
-
-        double value = parameter.Evaluate(sourceTime);
-        return double.IsFinite(value) ? value : fallback;
-    }
-}
-
-/// <summary>Una pista de video visible, con sus clips activos ordenados por posición.</summary>
+/// <summary>Un carril de video: una pista con sus clips activos ordenados por posición, o el carril compañero de sus transiciones.</summary>
 internal sealed class VideoLayerPlan(int trackIndex, string trackId, IReadOnlyList<VideoClipPlan> clips)
 {
+    /// <summary>Sufijo del carril compañero: tiene los clips que entran en cada transición, adelantados media duración.</summary>
+    public const string CompanionSuffix = "#t";
+
     /// <summary>Índice en <see cref="Sequence.VideoTracks"/>; 0 es la capa de más abajo.</summary>
     public int TrackIndex { get; } = trackIndex;
 
     public string TrackId { get; } = trackId;
 
     public IReadOnlyList<VideoClipPlan> Clips { get; } = clips;
+
+    /// <summary>Carril con los clips que entran en las transiciones de esta pista; nulo si no tiene transiciones.</summary>
+    public VideoLayerPlan? Companion { get; init; }
 
     public VideoClipPlan? ClipAt(Time time)
     {

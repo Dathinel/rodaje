@@ -145,7 +145,7 @@ public sealed class TimelinePlanTests
         b.AddVideo(0, "m", Time.Zero, Time.Zero, S(2));
         VideoClipPlan clip = b.Plan().Layers[0].Clips[0];
 
-        Assert.Equal(LayerTransform.Identity, TransformPlan.Evaluate(clip.Transform, S(1)));
+        Assert.Equal(LayerTransform.Identity, EffectPlan.Transform(clip.Effects, S(1)));
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public sealed class TimelinePlanTests
         clip.Effects.Add(Transform(enabled: true, (BuiltInEffects.TransformParameters.Scale, 0.5)));
         clip.Effects.Add(Transform(enabled: true, (BuiltInEffects.TransformParameters.Y, 99)));
 
-        LayerTransform t = TransformPlan.Evaluate(b.Plan().Layers[0].Clips[0].Transform, Time.Zero);
+        LayerTransform t = EffectPlan.Transform(b.Plan().Layers[0].Clips[0].Effects, Time.Zero);
 
         Assert.Equal(new LayerTransform(0, 0, 0.5, 0, 1), t);
     }
@@ -182,8 +182,8 @@ public sealed class TimelinePlanTests
         clip.Effects.Add(effect);
         VideoClipPlan planned = b.Plan().Layers[0].Clips[0];
 
-        LayerTransform at = TransformPlan.Evaluate(planned.Transform, planned.ToSource(S(5.5)));
-        LayerTransform later = TransformPlan.Evaluate(planned.Transform, planned.ToSource(S(7.5)));
+        LayerTransform at = EffectPlan.Transform(planned.Effects, planned.ToSource(S(5.5)));
+        LayerTransform later = EffectPlan.Transform(planned.Effects, planned.ToSource(S(7.5)));
 
         Assert.Equal(50, at.X, 9);
         Assert.Equal(-10, at.Y);
@@ -206,7 +206,7 @@ public sealed class TimelinePlanTests
         clip.Effects[0].Parameters[BuiltInEffects.TransformParameters.X].Value = 999;
         clip.Start = S(50);
 
-        Assert.Equal(10, TransformPlan.Evaluate(plan.Layers[0].Clips[0].Transform, Time.Zero).X);
+        Assert.Equal(10, EffectPlan.Transform(plan.Layers[0].Clips[0].Effects, Time.Zero).X);
         Assert.Equal(Time.Zero, plan.Layers[0].Clips[0].Start);
     }
 

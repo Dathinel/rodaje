@@ -1,7 +1,12 @@
 namespace Rodaje.Engine.Timeline;
 
-/// <summary>Clip de audio en muestras de 48 kHz: suena en <c>[StartSample, EndSample)</c> de la línea de tiempo.</summary>
-internal sealed record AudioClipPlan(string ClipId, SourceKey Source, long StartSample, long EndSample, long SourceInSample);
+/// <summary>
+/// Clip de audio en muestras de 48 kHz: suena en <c>[StartSample, EndSample)</c> de la línea de tiempo y su muestra
+/// <c>s</c> es la <c>SourceInSample + (s - StartSample)</c> del origen. En una transición puede empezar antes de su
+/// material (<see cref="SourceInSample"/> negativo): lo que no existe es silencio.
+/// </summary>
+/// <param name="Gain">Volumen y fundidos; nulo si suena tal cual.</param>
+internal sealed record AudioClipPlan(string ClipId, SourceKey Source, long StartSample, long EndSample, long SourceInSample, GainPlan? Gain = null);
 
 internal sealed record AudioTrackPlan(string TrackId, IReadOnlyList<AudioClipPlan> Clips);
 
@@ -9,7 +14,7 @@ internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks)
 {
     public static AudioPlan Empty { get; } = new([]);
 
-    /// <summary>Mismas pistas con los mismos clips en el mismo orden: lo que suena no cambia.</summary>
+    /// <summary>Mismas pistas con los mismos clips, en el mismo orden y con el mismo volumen: lo que suena no cambia.</summary>
     public bool SoundsLike(AudioPlan other)
     {
         ArgumentNullException.ThrowIfNull(other);
@@ -30,4 +35,54 @@ internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks)
 
         return true;
     }
+}
+
+/// <summary>Un fundido de potencia constante en <c>[Start, Start + Length)</c> de la línea de tiempo, en muestras.</summary>
+/// <param name="Out">De salida (cos) en lugar de entrada (sin).</param>
+internal readonly record struct Fade(long Start, long Length, bool Out)
+{
+    public bool IsNone => Length <= 0;
+
+    public long End => Start + Length;
+
+    /// <summary>Entrada: 0 antes, sin(πt/2) durante y 1 después. Salida: 1 antes, cos(πt/2) durante y 0 después.</summary>
+    public double Factor(long sample)
+    {
+        if (Length <= 0)
+        {
+            return 1;
+        }
+
+        double t = Math.Clamp((double)(sample - Start) / Length, 0, 1);
+        return Out ? Math.Cos(t * Math.PI / 2) : Math.Sin(t * Math.PI / 2);
+    }
+}
+
+/// <summary>
+/// Volumen de un clip: su ganancia en dB (keyframes en muestras del origen), la de su pista (en muestras de la
+/// secuencia), sus fundidos propios y los de las transiciones. Compara por valor, así un cambio de volumen rehace la mezcla.
+/// </summary>
+/// <param name="ClipDb">Ganancia del clip, en muestras del origen; nula si es 0 dB.</param>
+/// <param name="TrackDb">Ganancia de la pista, en muestras de la secuencia; nula si es 0 dB.</param>
+internal sealed record GainPlan(Curve? ClipDb, Curve? TrackDb, Fade FadeIn, Fade FadeOut, Fade CrossIn, Fade CrossOut)
+{
+    /// <summary>−60 dB o menos es silencio.</summary>
+    public const double SilenceDb = Rodaje.Core.Effects.EffectRegistry.SilenceDb;
+
+    public bool HasFades => !FadeIn.IsNone || !FadeOut.IsNone || !CrossIn.IsNone || !CrossOut.IsNone;
+
+    /// <summary>Ganancia en dB en la muestra <paramref name="sample"/> de la secuencia.</summary>
+    public double Db(long sample, long sourceSample) =>
+        (ClipDb?.Evaluate(sourceSample) ?? 0) + (TrackDb?.Evaluate(sample) ?? 0);
+
+    /// <summary>Producto de los fundidos en la muestra <paramref name="sample"/> de la secuencia.</summary>
+    public double Fades(long sample) => FadeIn.Factor(sample) * FadeOut.Factor(sample) * CrossIn.Factor(sample) * CrossOut.Factor(sample);
+
+    /// <summary>Si alguno de los fundidos cambia dentro de <c>[from, to)</c>.</summary>
+    public bool FadesWithin(long from, long to) =>
+        Within(FadeIn, from, to) || Within(FadeOut, from, to) || Within(CrossIn, from, to) || Within(CrossOut, from, to);
+
+    public static double ToLinear(double db) => db <= SilenceDb ? 0 : Math.Pow(10, db / 20);
+
+    private static bool Within(Fade fade, long from, long to) => !fade.IsNone && fade.Start < to && fade.End > from;
 }

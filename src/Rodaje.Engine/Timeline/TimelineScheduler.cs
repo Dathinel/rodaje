@@ -69,6 +69,7 @@ internal sealed partial class TimelineScheduler : IDisposable
     private readonly long _vramBudget;
     private readonly ProxyUsage _proxyUsage;
     private readonly MediaSourceResolver? _resolver;
+    private readonly IEffectContent? _content;
     private readonly IDecodeExecutor _service;
     private readonly Dictionary<SourceKey, MediaState> _media = [];
     private readonly Dictionary<int, MediaState> _mediaById = [];
@@ -119,6 +120,7 @@ internal sealed partial class TimelineScheduler : IDisposable
         _vramBudget = vramBudget;
         _proxyUsage = options.UseProxies;
         _resolver = options.UseProxies == ProxyUsage.Never ? null : options.ProxyResolver;
+        _content = options.Content;
         _cache = new TimelineFrameCache(options.MaxCacheBytes);
         _urgency = Urgency;
         _service = backend.CreateExecutor();
@@ -227,7 +229,7 @@ internal sealed partial class TimelineScheduler : IDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             _plan = plan;
-            var visible = plan.Layers.Select(l => l.TrackId).ToHashSet();
+            var visible = plan.Lanes.Select(l => l.TrackId).ToHashSet();
             long now = _time.GetTimestamp();
             foreach (LayerState layer in _layers.Values)
             {
@@ -286,63 +288,11 @@ internal sealed partial class TimelineScheduler : IDisposable
             bool settled = true;
             foreach (VideoLayerPlan layerPlan in _plan.Layers)
             {
-                LayerState layer = Layer(layerPlan);
-                VideoClipPlan? clip = layerPlan.ClipAt(time);
-                if (clip is null)
+                LayerState main = Step(layerPlan, time, running, released, ref settled);
+                LayerState? incoming = layerPlan.Companion is { } companion ? Step(companion, time, running, released, ref settled) : null;
+                if (Compose(layerPlan.TrackIndex, main, incoming, time) is { } layer)
                 {
-                    layer.Release(released);
-                    layer.ActiveClip = null;
-                    layer.AwaitingCut = false;
-                    layer.Failure = null;
-                    continue;
-                }
-
-                MediaState media = Media(clip);
-                if (media.Failure is not null)
-                {
-                    // Sin su medio la capa queda vacía: mostrar el último cuadro del clip anterior sería mentir.
-                    layer.Release(released);
-                    layer.ActiveClip = clip;
-                    layer.AwaitingCut = false;
-                    layer.Failure = media.Failure;
-                    continue;
-                }
-
-                layer.Failure = null;
-                long due = clip.FrameAt(time);
-                Present(layer, clip, media, due, running, released);
-                bool exact = layer.IsShowing(media, due);
-                bool missing = media.Unavailable.Contains(due);
-                if (missing && !exact && layer.CurrentClip is { } stale && stale.ClipId != clip.ClipId)
-                {
-                    layer.Release(released);
-                }
-
-                settled &= exact || missing;
-                if (running && !exact && !missing && !_seekPending)
-                {
-                    layer.Late++;
-                    if (layer.AwaitingCut)
-                    {
-                        layer.LateAtCuts++;
-                    }
-                }
-
-                if (exact)
-                {
-                    layer.AwaitingCut = false;
-                }
-
-                if (layer.Current is { } frame && layer.CurrentClip is { } shownClip && frame.TryRetain())
-                {
-                    LayerTransform transform = TransformPlan.Evaluate(shownClip.Transform, shownClip.ToSource(time));
-                    Look look = layer.CurrentLook;
-                    layers.Add(new LayerFrame(layerPlan.TrackIndex, shownClip.ClipId, frame, transform, look.SampleAspectRatio, look.Rotation)
-                    {
-                        DisplayWidth = look.DisplayWidth,
-                        DisplayHeight = look.DisplayHeight,
-                        IsProxy = look.IsProxy,
-                    });
+                    layers.Add(layer);
                 }
             }
 
@@ -400,6 +350,10 @@ internal sealed partial class TimelineScheduler : IDisposable
                 VramOverruns = _vramOverruns,
                 FailedMedia = _media.Values.Count(m => m.Failure is not null),
                 ProxyDecoders = open.Count(d => d.Variant?.IsProxy == true),
+                MissingContent = _plan.MissingContent,
+                TransitionPreRollHits = all.Where(l => l.IsCompanion).Sum(l => l.PreRollHits),
+                TransitionPreRollMisses = all.Where(l => l.IsCompanion).Sum(l => l.PreRollMisses),
+                TransitionLateRefreshes = all.Where(l => l.IsCompanion).Sum(l => l.Late),
             };
         }
     }

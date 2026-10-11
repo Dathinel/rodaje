@@ -26,6 +26,7 @@ namespace Rodaje.Engine.Timeline;
 public sealed class TimelineSession : IDisposable
 {
     private readonly string _projectDirectory;
+    private readonly IEffectContent? _content;
     private readonly AudioMixer? _mixer;
     private readonly IAudioOutput? _output;
     private readonly TimelineScheduler _scheduler;
@@ -43,7 +44,8 @@ public sealed class TimelineSession : IDisposable
         _project = project;
         SequenceId = sequenceId;
         _projectDirectory = options.ProjectDirectory ?? Environment.CurrentDirectory;
-        TimelinePlan plan = TimelinePlan.Build(project, sequenceId, _projectDirectory);
+        _content = options.Content;
+        TimelinePlan plan = TimelinePlan.Build(project, sequenceId, _projectDirectory, options.Content);
 
         var created = new Stack<IDisposable>();
         try
@@ -227,7 +229,7 @@ public sealed class TimelineSession : IDisposable
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(project);
-        TimelinePlan plan = TimelinePlan.Build(project, SequenceId, _projectDirectory);
+        TimelinePlan plan = TimelinePlan.Build(project, SequenceId, _projectDirectory, _content);
         AudioPlan previous = _scheduler.Plan.Audio;
         _project = project;
         _scheduler.Reload(plan);

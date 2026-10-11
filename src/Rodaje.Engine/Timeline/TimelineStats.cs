@@ -81,6 +81,22 @@ public sealed record TimelineStats(
 
     /// <summary>Decodificadores abiertos sobre un proxy.</summary>
     public int ProxyDecoders { get; init; }
+
+    /// <summary>Transiciones de paquete cuyo contenido falta: se ven como fundido cruzado.</summary>
+    public int MissingContent { get; init; }
+
+    /// <summary>Transiciones que empezaron con el primer cuadro del clip que entra ya decodificado.</summary>
+    public long TransitionPreRollHits { get; init; }
+
+    /// <summary>Transiciones que empezaron sin ese cuadro: mientras falta se ve solo el clip que sale.</summary>
+    public long TransitionPreRollMisses { get; init; }
+
+    /// <summary>Refrescos en una transición en los que el cuadro debido del clip que entra no estaba listo.</summary>
+    public long TransitionLateRefreshes { get; init; }
+
+    /// <summary>Fracción de transiciones que empezaron a tiempo; 1 si no hubo.</summary>
+    public double TransitionPreRollHitRate =>
+        TransitionPreRollHits + TransitionPreRollMisses == 0 ? 1 : (double)TransitionPreRollHits / (TransitionPreRollHits + TransitionPreRollMisses);
 }
 
 /// <summary>Un medio no se pudo abrir (<see cref="FrameIndex"/> es -1) o un cuadro no se pudo decodificar.</summary>
