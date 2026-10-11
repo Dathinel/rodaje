@@ -242,7 +242,7 @@ public sealed class SpeedEditor
         return done;
     }
 
-    /// <summary>Congela el cuadro del cursor durante <see cref="SpeedPresets.FreezeDuration"/>.</summary>
+    /// <summary>Congela el cuadro del cursor durante <see cref="SpeedTabValues.FreezeDuration"/>.</summary>
     public bool Freeze()
     {
         EndChange();
@@ -251,7 +251,7 @@ public sealed class SpeedEditor
             return false;
         }
 
-        ICommand command = Commands.FreezeFrame(Session.SequenceId, clip.Id, Session.EditPosition, SpeedPresets.FreezeDuration, Session.SpeedScope);
+        ICommand command = Commands.FreezeFrame(Session.SequenceId, clip.Id, Session.EditPosition, SpeedTabValues.FreezeDuration, Session.SpeedScope);
         if (!Session.Execute(command))
         {
             return false;

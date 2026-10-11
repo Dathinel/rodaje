@@ -8,7 +8,6 @@ using Rodaje.App.Services.Inspector;
 using Rodaje.App.Shell;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
-using SpeedPresets = Rodaje.App.Services.Inspector.SpeedPresets;
 
 namespace Rodaje.App.Views.Inspector.Speed;
 
@@ -37,7 +36,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         RateSlider.AddHandler(PointerCaptureLostEvent, new PointerEventHandler((_, _) => EndPointer()), true);
         RateSlider.LostFocus += (_, _) => FinishChange();
 
-        foreach (Rational rate in SpeedPresets.Quick)
+        foreach (Rational rate in SpeedTabValues.Quick)
         {
             // Columnas iguales: con el panel estrecho los botones se encogen en vez de salirse.
             var button = new Button
@@ -156,7 +155,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
 
     private void ShowWarning(double rate, bool hasAudio)
     {
-        string? warning = SpeedPresets.AudioWarning(rate, hasAudio);
+        string? warning = SpeedTabValues.AudioWarning(rate, hasAudio);
         WarningText.Text = warning ?? "";
         WarningPanel.Visibility = warning is null ? Visibility.Collapsed : Visibility.Visible;
     }
