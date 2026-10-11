@@ -15,7 +15,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
   | `aceptacion` | Criterios de la fase 2 en serie, unos 9 min; `-Completa` añade 10 min reales |
   | `preparar-entorno` | Prepara `.entorno` |
 
-- **Pruebas largas y de hardware:** solo corren con `RODAJE_PRUEBAS_LARGAS=1`, que activa la aceptación. Los medios de prueba con el número de cuadro codificado están en `testing/Rodaje.TestMedia` y se guardan en caché en `TestResults\media-cache`.
+- **Pruebas largas y de hardware:** solo corren con `RODAJE_PRUEBAS_LARGAS=1`, que activa la aceptación. Con ella `probar.ps1` suma la fase 5: tiempos en Release y `app.ps1 -Autoprueba`, que publica con AOT y arranca la app de verdad (todas las pestañas del inspector). Los medios de prueba con el número de cuadro codificado están en `testing/Rodaje.TestMedia` y se guardan en caché en `TestResults\media-cache`.
 - **Nube:** la rutina «Rodaje: cola de tareas de la nube» (claude.ai/code/routines, cada 2 h, Sonnet) toma la siguiente tarea libre de `docs/nube/cola.md` y abre un PR en borrador; la sesión local revisa, une, marca `hecha` y repone la cola. La CI (`.github/workflows/ci.yml`) corre en cada PR.
 - **Descarga directa de complementos:** sigue en la fase 7 (`IPackageDownloader`), decidido por Daniel el 11-oct; hasta entonces «Instalar desde archivo».
 - **Contenido:** fuera de este repo, en `Dathinel/rodaje-transiciones` y `Dathinel/rodaje-filtros` (públicos, CC0), clonados en `..\Complementos\`.

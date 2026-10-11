@@ -155,7 +155,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             }
         }
 
-        if (options.Files.Count > 0)
+        if (options.Files.Count > 0 || options.SelfTest)
         {
             _ = OpenStartupFilesAsync(options.Files);
         }
@@ -174,6 +174,8 @@ internal sealed partial class MainWindow : Window, IShellHost
     internal Button ExportButton => TitleBar.ExportButton;
 
     internal SwapChainPanel VideoPanel => Player.VideoPanel;
+
+    internal Views.Inspector.InspectorView InspectorPane => Inspector;
 
     public void ShowPage(ShellPage page)
     {
@@ -282,10 +284,18 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private async Task OpenStartupFilesAsync(IReadOnlyList<string> files)
     {
-        await Session.OpenFilesAsync(files);
+        if (files.Count > 0)
+        {
+            await Session.OpenFilesAsync(files);
+        }
+
         if (_options.MeasureSeconds is { } seconds)
         {
             await new MeasurementRun(this, _engine, Program.Metrics).RunAsync(seconds, _options.Scenario);
+        }
+        else if (_options.SelfTest)
+        {
+            await SelfTestRun.RunAsync(this, _engine, Program.Metrics);
         }
     }
 
@@ -480,7 +490,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (_allowClose || _options.MeasureSeconds is not null)
+        if (_allowClose || _options.MeasureSeconds is not null || _options.SelfTest)
         {
             return;
         }

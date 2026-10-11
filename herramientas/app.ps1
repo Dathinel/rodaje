@@ -11,6 +11,8 @@
 #   ... -SinPublicar     abre el exe ya publicado sin recompilar
 #   ... -Publicar        recompila aunque src\ no haya cambiado
 #   ... -SoloPublicar    recompila si hace falta y no abre la app (para dejarla lista de antemano)
+#   ... -Autoprueba      abre el exe publicado con --autoprueba (clip de prueba, todas las pestañas del inspector, un
+#                        segundo de reproducción) y falla si no sale con 0 o si deja rodaje-error.txt
 # Los videos se importan y se ponen seguidos en la pista principal; un .rodaje se abre.
 # Solo recompila si el exe falta o algún fuente de src\ es más nuevo que él. Sale con 0 si todo fue bien.
 [CmdletBinding(PositionalBinding = $false)]
@@ -23,7 +25,8 @@ param(
     [switch]$SinProxies,
     [switch]$SinPublicar,
     [switch]$Publicar,
-    [switch]$SoloPublicar
+    [switch]$SoloPublicar,
+    [switch]$Autoprueba
 )
 
 $ErrorActionPreference = 'Stop'
@@ -141,6 +144,24 @@ foreach ($a in @($Archivos | Where-Object { $_ })) {
 }
 # Sin DOTNET_ROOT: un exe de Native AOT no debe necesitar nada de .NET para arrancar.
 Remove-Item Env:DOTNET_ROOT -ErrorAction SilentlyContinue
+
+if ($Autoprueba) {
+    $errorTxt = Join-Path $Salida 'rodaje-error.txt'
+    Remove-Item -LiteralPath $errorTxt -ErrorAction SilentlyContinue
+    Titulo 'Autoprueba del exe publicado (la ventana se abre y se cierra sola)...'
+    $reloj = [System.Diagnostics.Stopwatch]::StartNew()
+    $p = Start-Process -FilePath $Exe -ArgumentList (@('--autoprueba') + $argumentos) -PassThru
+    if (-not $p.WaitForExit(90000)) { $p.Kill(); Mal 'Rodaje no terminó la autoprueba en 90 s.'; exit 1 }
+    $codigo = $p.ExitCode
+    if (Test-Path -LiteralPath $errorTxt) {
+        Mal "Rodaje dejó $(Corto $errorTxt):"
+        Get-Content -LiteralPath $errorTxt -Encoding UTF8 | Select-Object -First 15 | ForEach-Object { Nota ('  ' + $_) }
+        exit 1
+    }
+    if ($codigo -ne 0) { Mal "La autoprueba terminó con código $codigo."; exit 1 }
+    Bien ("El exe de Native AOT arrancó, abrió todas las pestañas del inspector, reprodujo y cerró en {0:0.0} s." -f $reloj.Elapsed.TotalSeconds)
+    exit 0
+}
 
 if ($Medir -gt 0) {
     $registro = Join-Path $Raiz ('TestResults\app-medir-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.txt')
