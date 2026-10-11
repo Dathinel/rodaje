@@ -68,6 +68,8 @@ Rama `claude/qdv-autoguardado`, PR #20. Función 30 de `docs/pendientes.md`.
 - Linux: `Rodaje.Core.Tests` pasan 1241 de 1242 y `Rodaje.Playback.Tests` 66 de 66. La que falla, `ProjectFileTests.Save_TempLockedByAnotherProgram_ThrowsAndKeepsExistingFile`, ya fallaba igual en `main` en este Linux (bloqueos de archivo de Linux) y no la toca esta tarea. El trabajo «Linux» de la CI sale en verde.
 - `Rodaje.Paquetes.Tests`: `CubeReaderTests.Lee_65_al_cubo_en_150_ms_o_menos` falló una vez por tiempo con la máquina cargada; sola pasa.
 - `tests/Rodaje.App.Tests` compila en Linux con el servicio nuevo (no se puede ejecutar aquí).
+- CI Windows: la solución completa (con `Rodaje.App` y `MainWindow`) compila sin advertencias. `Rodaje.Core.Tests` pasa 1253 de 1253. La primera corrida falló solo en `Rodaje.Render.Tests.Text.TitleRasterizerTests.Composing_a_ready_title_costs_little_gpu_time` (4,686 ms de GPU con el «Microsoft Basic Render Driver» del runner): es una prueba de rendimiento de títulos que esta tarea no toca. Se relanzó el trabajo.
+- La primera corrida de Windows encontró CsWinRT1028 (`AutosaveService` debía ser `partial`); está corregido.
 - No se omitió ninguna prueba (omitidas antes y después: las mismas).
 
 ## Qué comprobar en Windows
