@@ -35,7 +35,7 @@ Hoy `Clip.MediaId` apunta a un `MediaRef` y `ModelValidator` rechaza uno que no 
 
 **Encaje con la 5c.** La 5c ya sube el formato a 4 y su paso 0 está unido. Las dos son cambios de `Clip`, así que la 5b parte de `main` después de la 5c y no se mezclan: la migración 4 → 5 no toca datos (solo sube el número y permite `generator`). Un cambio aditivo no basta, porque un lector del formato 4 abriría un clip sin medio y fallaría después; la regla del formato (`Versiones y migraciones`) pide subir la versión cuando una versión anterior no podría leerlo bien.
 
-**Qué cambia en el código** (para dimensionar, no para hacer ahora): `Clip`/`ModelValidator`/serialización y esquema `v5`; `Edits` donde se asume que un clip tiene medio (importar, vincular audio, proxy, miniaturas, forma de onda); `TimelineSession` y `TimelineScheduler`, que hoy piden un decodificador por medio, necesitan un tipo de carril «generado» sin decodificador; la biblioteca de medios no lista los generadores.
+**Qué cambia en el código** (para dimensionar, no para hacer ahora): `Clip`/`ModelValidator`/serialización y esquema `v5`; `Edits` donde se asume que un clip tiene medio (importar, vincular audio, proxy, miniaturas, forma de onda); `TimelineSession` y `TimelineScheduler`, que hoy piden un decodificador por medio, necesitan un tipo de carril «generado» sin decodificador (hay que confirmar cuánto supone «un decodificador por medio» en esas clases); la biblioteca de medios no lista los generadores.
 
 **Ventajas:** modelo uniforme (un título se corta, arrastra y recibe efectos y transiciones como cualquier clip); base para color sólido y formas. **Desventajas:** toca el núcleo y el motor (los supuestos «todo clip tiene medio» están repartidos); formato 5 antes de tener contenido real que probarlo.
 
@@ -59,10 +59,10 @@ Elemento `text-style` ya reservado en `paquete.json`. Archivo `rodaje.textstyle`
   "out": { "durationSeconds": 0.3, "curves": { "opacity": [ { "t": 0, "value": 1 }, { "t": 0.3, "value": 0 } ] } } }
 ```
 
-- **Medidas en píxeles de `reference`** y se escalan a la secuencia (como `rodaje.preset`); colores `#RRGGBB[AA]` en sRGB con gamma, como el resto de la mezcla (D-016).
+- **Medidas en píxeles de `reference`** y se escalan a la secuencia (como `rodaje.preset`); colores `#RRGGBB[AA]` en valores con gamma, que es como mezcla el compositor (elección de esta propuesta, coherente con D-016).
 - **Relleno:** color sólido en la v1; degradado lineal (`stops`, ángulo) como extensión de `fill` sin romper el formato.
 - **Borde, sombra, fondo:** una sola capa de cada uno en la v1. Sin contornos múltiples ni resplandor; se pueden sumar listas más adelante porque el campo ya es un objeto.
-- **Animaciones de entrada y salida:** son curvas sobre la **transformación del bloque** (`x`, `y`, `scale`, `rotation`, `opacity`), las mismas primitivas y la misma interpolación que `rodaje.effect` con `anchor` `start`/`end`. Se **copian al clip como keyframes** de `rodaje.transform` al aplicar (una copia editable, igual que un efecto de paquete) o se evalúan del estilo; recomiendo la copia, porque así el clip no cambia si el paquete se actualiza.
+- **Animaciones de entrada y salida:** son curvas sobre la **transformación del bloque** (`x`, `y`, `scale`, `rotation`, `opacity`), la misma interpolación y los mismos nombres de campo (`t`, `value`, `interp`) que `rodaje.effect` con `anchor` `start`/`end`; aquí las curvas van en un objeto por parámetro del bloque, no en la lista `{effect, parameter, keys}` de `rodaje.effect`, porque el destino siempre es la transformación. Se **copian al clip como keyframes** de `rodaje.transform` al aplicar (una copia editable, igual que un efecto de paquete) o se evalúan del estilo; recomiendo la copia, porque así el clip no cambia si el paquete se actualiza.
 - **No cabe en las primitivas** (y queda fuera de la v1): animación por palabra o por letra («máquina de escribir», rebote letra a letra), texto en una curva, texto con máscara. Pedirían un parámetro nuevo del motor (`reveal` 0–1 por unidad con retardo escalonado), es decir, una primitiva más para el motor, no un shader de paquete. Pregunta 1.
 - **Validación:** `size` > 0 y ≤ 1000, ancho de borde ≤ 0,5 × tamaño, `blur` ≤ 64, `weight` 100–900, fuentes de respaldo ≤ 8, `font.source` con la forma de referencia de siempre; un campo desconocido se ignora.
 
@@ -70,7 +70,7 @@ Elemento `text-style` ya reservado en `paquete.json`. Archivo `rodaje.textstyle`
 
 ## 3. Render con DirectWrite y Direct2D
 
-**Camino.** `Rodaje.Render` ya usa TerraFX.Interop.Windows, que trae las interfaces de D2D1 y DWrite: no hace falta dependencia nueva. Se crea una `ID2D1Factory1`/`ID2D1Device` desde el `IDXGIDevice` del `GpuDevice` (el contexto compartido con FFmpeg se toma con `LockContext()`, igual que el compositor) y se dibuja el texto con `IDWriteTextLayout` en una textura `B8G8R8A8_UNORM` premultiplicada con `BIND_RENDER_TARGET | BIND_SHADER_RESOURCE`, creada con `D3D11_CREATE_DEVICE_BGRA_SUPPORT` (hay que comprobar que el dispositivo actual la tenga).
+**Camino.** `Rodaje.Render` ya usa TerraFX.Interop.Windows, que trae las interfaces de D2D1 y DWrite: no hace falta dependencia nueva. Se crea una `ID2D1Factory1`/`ID2D1Device` desde el `IDXGIDevice` del `GpuDevice` (el contexto compartido con FFmpeg se toma con `LockContext()`, igual que el compositor) y se dibuja el texto con `IDWriteTextLayout` en una textura `B8G8R8A8_UNORM` premultiplicada con `BIND_RENDER_TARGET | BIND_SHADER_RESOURCE`, en un dispositivo con `D3D11_CREATE_DEVICE_BGRA_SUPPORT` (`GpuDevice.TryCreate` ya lo activa; falta comprobar el camino de respaldo).
 
 **Cómo entra en la composición.** Hoy `LayerFrame` lleva un `DecodedFrame` NV12/P010. Se agrega una capa cuya fuente es una textura RGBA ya premultiplicada (`LayerFrame` con un `RgbaSource` o un tipo hermano); `LayerRenderer` la dibuja con un `PsImage`/`PsLayer` RGBA que **ya existe para los intermedios** y reutiliza transformación, efectos, mezcla y transiciones. Así la vista previa y la exportación comparten el mismo camino, como pide la arquitectura (el texto de la exportación sale idéntico por construcción).
 
@@ -80,7 +80,7 @@ Elemento `text-style` ya reservado en `paquete.json`. Archivo `rodaje.textstyle`
 - **Costo (hipótesis, a medir antes de aprobar):** rasterizar un título de 1–3 líneas con borde y sombra, 0,3–2 ms de GPU en la RTX 3050; por cuadro con texto ya rasterizado, el de una capa con efectos de la fase 5 (la cifra de referencia es 3 capas 4K con efectos en 1,8–3,4 ms). Criterio propuesto: ≤0,15 ms por título por cuadro y ≤2 ms por re-rasterizado; si el contorno por geometría cuesta más, se mide el borde por `ID2D1PathGeometry`.
 - **Contorno y sombra:** contorno con `GetGlyphRunOutline` y `DrawGeometry` (más caro, pero correcto con bordes redondeados; `ID2D1RenderTarget::DrawText` no da contorno). La sombra con el efecto de sombra o el desenfoque gaussiano de Direct2D, dentro de la misma textura.
 - **Calidad:** antialiasing en escala de grises (no ClearType, que no sirve sobre video) y `DWRITE_RENDERING_MODE_NATURAL`.
-- **Riesgos:** (a) **AOT**: las interfaces COM de TerraFX funcionan sin reflexión, pero los **cargadores de fuentes** de DirectWrite piden implementar interfaces COM en C# (callbacks), que en AOT hay que escribir a mano con punteros de función; mitigación: `IDWriteFactory5::CreateInMemoryFontFileLoader` (Windows 10 1703+), que evita implementar el cargador. (b) **Interop de dispositivo**: crear D2D sobre el dispositivo de D3D11VA compartido con FFmpeg exige tomar el contexto igual que el compositor; hay que probarlo en la CI de Windows, donde WARP no soporta algunas cosas (ver la tarea 2). (c) **Pruebas**: una referencia por CPU es difícil con texto; se comprueban métricas de `IDWriteTextLayout` y una imagen de oro con tolerancia por adaptador.
+- **Riesgos:** (a) **AOT**: las interfaces COM de TerraFX funcionan sin reflexión, pero los **cargadores de fuentes** de DirectWrite piden implementar interfaces COM en C# (callbacks), que en AOT hay que escribir a mano con punteros de función; mitigación: `IDWriteFactory5::CreateInMemoryFontFileLoader` (Windows 10 1703+), que evita implementar el cargador. (b) **Interop de dispositivo**: crear D2D sobre el dispositivo de D3D11VA compartido con FFmpeg exige tomar el contexto igual que el compositor; hay que probarlo en la CI de Windows, donde WARP no soporta algunas cosas (el runner de la CI no tiene `D3D11_BIND_DECODER`, ver `docs/nube/cola.md`, tarea 2). (c) **Pruebas**: una referencia por CPU es difícil con texto; se comprueban métricas de `IDWriteTextLayout` y una imagen de oro con tolerancia por adaptador.
 
 **Alternativa descartada:** dibujar el texto en CPU (por ejemplo con una biblioteca propia o GDI+) y subir la textura. Más sencillo de probar en Linux, pero peor calidad y sin saltos de línea y formas complejas (árabe, hindi, emoji de color) que DirectWrite da gratis.
 
@@ -91,6 +91,7 @@ Elemento `text-style` ya reservado en `paquete.json`. Archivo `rodaje.textstyle`
 - **Formato del elemento `font`:** archivos `.ttf`/`.otf` dentro del paquete (nada de código). Es un tipo de elemento nuevo del paquete; un Rodaje más viejo lo omite con aviso (regla de compatibilidad hacia delante ya existente), así no hace falta subir `formatVersion` del paquete salvo que se prefiera dejarlo explícito.
 - **Cómo se cargan:** al instalar, el motor registra los archivos en una colección privada de DirectWrite (no se instalan en Windows); los estilos referencian la fuente por `paquete@versión/elemento`.
 - **Exportación:** las fuentes no se incrustan en el video; solo se necesitan para renderizar, y el proyecto las referencia.
+- **Ventajas:** el título se ve igual en cualquier PC con el paquete; licencias claras. **Desventajas:** decenas de MB por paquete; mantener la revisión de licencias; las fuentes del sistema pueden diferir entre equipos.
 - **Cobertura de caracteres:** el respaldo del sistema de DirectWrite (`IDWriteFontFallback`) cubre lo que la fuente elegida no tenga, incluidos emoji, sin trabajo propio.
 
 ## 5. Edición sobre el lienzo
@@ -101,6 +102,7 @@ Elemento `text-style` ya reservado en `paquete.json`. Archivo `rodaje.textstyle`
 - **Inspector:** pestaña «Texto» con el contenido, el estilo (selector de la biblioteca), los `overrides` (tamaño, color, borde, sombra, fondo) y «Guardar como estilo» a `propios`.
 - **Biblioteca:** categoría Texto (ya reservada para `text-style`); arrastrar un estilo a la línea de tiempo crea el clip con ese estilo.
 - **Deshacer:** teclear en el `TextBox` agrupa por pausa (un paso por tanda), no por letra.
+- **Ventajas:** gestos y keyframes idénticos a los del video; IME y portapapeles gratis. **Desventajas:** doble representación al editar (XAML y DirectWrite); la prueba de acierto depende de la caché de métricas.
 - **Fuera de la v1:** texto sobre una curva, edición de varios bloques de texto en un clip, tablas, texto vertical.
 
 ## 6. Base de los subtítulos (fase 7)
