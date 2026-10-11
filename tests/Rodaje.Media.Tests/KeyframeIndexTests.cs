@@ -30,12 +30,12 @@ public sealed class KeyframeIndexTests
         Assert.Equal(spec.Frames, index.FrameCount);
         Assert.Equal(new Rational(spec.RateNum, spec.RateDen), index.FrameRate);
 
-        // El intervalo real sale de los keyframes decodificados: sin NVENC el HEVC lo genera libkvazaar, que no respeta el GOP.
-        long longest = spec.Frames - expected[^1];
-        for (int i = 1; i < expected.Length; i++)
+        // libopenh264 respeta el GOP; libkvazaar (HEVC sin NVENC) no, y sus keyframes ya se comprobaron arriba.
+        if (spec.Codec == ClipCodec.H264 || Rodaje.TestMedia.Skip.Encoder(TestClips.ExactEncoder(spec.Codec)) is null)
         {
-            longest = Math.Max(longest, expected[i] - expected[i - 1]);
+            Assert.Equal(spec.Gop, index.MaxInterval);
         }
+    }
 
         Assert.Equal(longest, index.MaxInterval);
         if (Rodaje.TestMedia.Skip.Encoder(TestClips.ExactEncoder(spec.Codec)) is null)

@@ -29,7 +29,8 @@ public sealed class HighSpeedDecodeTests
 
     // Descartar cuadros no referenciados exige cuadros B: libopenh264 y libkvazaar no los producen y no hay nada que descartar.
     [FfmpegLibraryTheory]
-    [ExactEncoderClipData(software: true, nameof(TestClips.H264), nameof(TestClips.Hevc), nameof(TestClips.H264Mkv))]
+    [ExactEncoderClipData(software: true, nameof(TestClips.H264), nameof(TestClips.H264Mkv))]
+    [ExactEncoderClipData(software: true, nameof(TestClips.Hevc))]
     public void Skipping_non_reference_frames_decodes_less_and_labels_truthfully_software(string clip, DecodeMode mode) =>
         SkipsNonReference(DecodeModes.Clip(clip), mode);
 

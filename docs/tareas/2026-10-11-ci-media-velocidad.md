@@ -16,8 +16,8 @@ No pude reproducir los fallos en Linux: esta máquina no tiene libopenh264 ni li
 
 - `tests/Rodaje.Media.Tests/Support/ExactEncoderClipDataAttribute.cs` (nuevo): filas de clips que se omiten, con el motivo de `Skip.Encoder`, si no funciona el codificador exacto (`TestClips.ExactEncoder`: `h264_nvenc` / `hevc_nvenc`).
 - `TestClips.ExactEncoder(ClipCodec)`.
-- `HighSpeedDecodeTests`: `Skipping_non_reference…_software` usa el atributo con los tres clips; `Keyframe_mode…_software` sigue con H.264 y mkv y pasa el HEVC por el atributo.
-- `KeyframeIndexTests`: `Hevc10` pasa a `TenBitClipData`; el intervalo máximo se compara con el calculado de los keyframes decodificados (corre con cualquier codificador) y solo con NVENC exige además `spec.Gop`.
+- `HighSpeedDecodeTests`: `Skipping_non_reference…_software` usa el atributo con una fila de H.264 (h264 y mkv) y otra de HEVC, para que cada códec se omita por su codificador; `Keyframe_mode…_software` sigue con H.264 y mkv y pasa el HEVC por el atributo.
+- `KeyframeIndexTests`: `Hevc10` pasa a `TenBitClipData`; `spec.Gop` se exige siempre en H.264 (libopenh264 lo respeta) y en HEVC solo con NVENC; sin él los keyframes del HEVC se siguen comparando con los decodificados.
 
 ## Omitidas, antes y después (runner de Windows sin NVENC)
 
@@ -26,7 +26,7 @@ No pude reproducir los fallos en Linux: esta máquina no tiene libopenh264 ni li
 | `Skipping_non_reference…_software` | 0 (6 fallos) | 6 omitidas: sin cuadros B (libopenh264/libkvazaar) |
 | `Keyframe_mode…_software` hevc | 0 (2 fallos) | 2 omitidas: HEVC sin `hevc_nvenc` no respeta el GOP |
 | `KeyframeIndex` hevc10 | 0 (1 fallo) | 1 omitida: HEVC 10 bits solo con `hevc_nvenc` |
-| `KeyframeIndex` hevc | 0 (1 fallo) | 0: corre con el intervalo real |
+| `KeyframeIndex` hevc | 0 (1 fallo) | 0: corre sin exigir el GOP pedido |
 
 Total: 9 casos pasan de fallo a omitida. Con NVENC (RTX 3050) no se omite ninguno y se mantienen todas las comprobaciones.
 
@@ -39,3 +39,8 @@ Ninguno conocido con `origin/main`; el PR #5 (`media-flush`) toca `VideoDecoder`
 - **Linux:** compila (`dotnet build tests/Rodaje.Media.Tests -p:EnableWindowsTargeting=true`); las pruebas de Medios no corren aquí.
 - **CI de Windows:** debe quedar en verde salvo `PlaybackSchedulerTests.SeekLejos…` (tarea 9).
 - **PC de Daniel (RTX 3050):** esas pruebas deben **correr**, no aparecer omitidas.
+
+Nota: el mensaje de `Skip.Encoder` («solo se genera con h264_nvenc») es inexacto para estos clips (también salen con libopenh264/libkvazaar, pero sin cuadros B ni GOP exacto); `Skip.cs` queda fuera de los caminos de la tarea.
+
+## Revisión interna
+Un agente nuevo sin contexto halló: relajación del GOP demasiado amplia en H.264 y omisión de H.264 por falta de `hevc_nvenc` (ambas corregidas), y el texto de `Skip.Encoder` (anotado). Sin GPU en el runner serían 3 + 1 + 1 omitidas en vez de 6 + 2 + 1.
