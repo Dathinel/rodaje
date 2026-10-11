@@ -312,7 +312,9 @@ public sealed class FfmpegFactAttribute : FactAttribute
         }
     }
 
-    private string? Reason() => Rodaje.TestMedia.Skip.Options(null, _video, _audio, _longRunning, complete: false)
+    // Sin códecs pedidos, Options no mira ffmpeg.exe: sin esta comprobación la prueba correría sin él.
+    private string? Reason() => (FfmpegTool.Default is null ? "Omitida: " + FfmpegTool.UnavailableReason : null)
+        ?? Rodaje.TestMedia.Skip.Options(null, _video, _audio, _longRunning, complete: false)
         ?? (_requiresBFrames ? Rodaje.TestMedia.Skip.First([.. _video.Select(Rodaje.TestMedia.Skip.BFrames)]) : null);
 }
 

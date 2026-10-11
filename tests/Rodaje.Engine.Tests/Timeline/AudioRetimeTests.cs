@@ -200,6 +200,8 @@ public sealed class AudioRetimeTests(ITestOutputHelper output)
         }
 
         output.WriteLine(Invariant($"MEDIDA seek_correlacion = {worstAtSeek:F5} al saltar; {worstAfter:F5} pasados 250 ms"));
+        // Tras pausas (como la voz) el trozo no depende de los anteriores: ya en el instante del salto suena como seguido.
+        Assert.True(worstAtSeek >= 0.99, Invariant($"Correlación de {worstAtSeek:F5} en el instante del salto."));
         Assert.True(worstAfter >= 0.999, Invariant($"Correlación de {worstAfter:F5} pasados 250 ms."));
     }
 
@@ -412,8 +414,9 @@ public sealed class AudioRetimeTests(ITestOutputHelper output)
 
         double perBlock = (ThreadCpu.Current() - cpuStart).TotalMilliseconds / blocks;
 
-        // El criterio vale para código optimizado (Release y Native AOT); en Debug el JIT no optimiza y solo se exige
-        // que quede lejos de los 21 ms que dura el bloque.
+        // El criterio vale para código optimizado (Release y Native AOT): lo comprueba la fase 5 de probar.ps1 con
+        // RODAJE_PRUEBAS_LARGAS=1, que corre esta prueba en Release. En Debug el JIT no optimiza y solo se exige que quede
+        // lejos de los 21 ms que dura el bloque.
         bool optimized = typeof(RetimedReader).Assembly.GetCustomAttributes(typeof(DebuggableAttribute), false)
             .Cast<DebuggableAttribute>().All(a => !a.IsJITOptimizerDisabled);
         double limit = optimized ? 0.15 : 3;
@@ -421,15 +424,11 @@ public sealed class AudioRetimeTests(ITestOutputHelper output)
         Assert.True(perBlock <= limit, Invariant($"{perBlock:F4} ms por bloque (límite {limit} ms)."));
     }
 
-    [Fact]
+    /// <summary>Sin el ffmpeg.exe del entorno de pruebas se omite con su causa, no pasa en silencio.</summary>
+    [FfmpegFact]
     public void Quality_is_at_least_that_of_ffmpeg_atempo()
     {
-        if (FfmpegTool.Default is not { } ffmpeg)
-        {
-            output.WriteLine($"Sin referencia: {FfmpegTool.UnavailableReason}");
-            return;
-        }
-
+        FfmpegTool ffmpeg = FfmpegTool.Default!;
         foreach ((double rate, Rational speed) in new[] { (0.5, new Rational(1, 2)), (0.75, new Rational(3, 4)), (1.5, new Rational(3, 2)), (2.0, new Rational(2, 1)) })
         {
             int frames = 3 * Rate;
