@@ -7,11 +7,11 @@ using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
 
 namespace Rodaje.App.Shell;
 
-/// <summary>Un deslizador del inspector: el parÃ¡metro que la medida mueve al reproducir.</summary>
+/// <summary>Un deslizador del inspector: el parámetro que la medida mueve al reproducir.</summary>
 internal readonly record struct SliderTarget(string ClipId, string EffectId, string Parameter, Time At);
 
 /// <summary>
-/// Proyectos de medida que se arman con comandos sobre el medio ya importado (<c>--escenario</c>). Â«efectosÂ»: la pista
+/// Proyectos de medida que se arman con comandos sobre el medio ya importado (<c>--escenario</c>). «efectos»: la pista
 /// principal cortada en 5 con 4 transiciones distintas, y dos capas encima, todas con color y otro efecto.
 /// </summary>
 internal static class MeasurementScenarios
@@ -20,7 +20,7 @@ internal static class MeasurementScenarios
 
     public static bool IsKnown(string? name) => name is null or Effects;
 
-    /// <summary>Arma el escenario Â«efectosÂ» sobre el primer clip de la principal; <c>null</c> si no hay de dÃ³nde.</summary>
+    /// <summary>Arma el escenario «efectos» sobre el primer clip de la principal; <c>null</c> si no hay de dónde.</summary>
     public static SliderTarget? BuildEffects(EditorSession session)
     {
         ArgumentNullException.ThrowIfNull(session);

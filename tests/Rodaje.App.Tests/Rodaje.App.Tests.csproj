@@ -27,6 +27,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Engine\Rodaje.Engine.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
+    <!-- La prueba de punta a punta con los paquetes de contenido compone con el render real. -->
+    <ProjectReference Include="..\..\src\Rodaje.Render\Rodaje.Render.csproj" />
+    <ProjectReference Include="..\..\testing\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
   </ItemGroup>
 
   <ItemGroup>

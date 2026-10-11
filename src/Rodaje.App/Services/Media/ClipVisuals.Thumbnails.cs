@@ -93,7 +93,7 @@ public sealed partial class ClipVisuals
             }
 
             var key = new ThumbnailKey(batch.Path, batch.Times[i], batch.Height);
-            if (_thumbnails.Contains(key) || !Claim(key))
+            if (!Claim(key))
             {
                 // Hecha, o la está haciendo otro hilo: llegará con su aviso.
                 continue;
@@ -181,11 +181,15 @@ public sealed partial class ClipVisuals
         };
     }
 
+    /// <remarks>
+    /// Mira la caché dentro del candado: otro hilo guarda la miniatura antes de soltarla (<see cref="Release"/>, también
+    /// con el candado), así que entre las dos comprobaciones no puede terminarla y dejar que se decodifique dos veces.
+    /// </remarks>
     private bool Claim(ThumbnailKey key)
     {
         lock (_gate)
         {
-            return _inFlight.Add(key);
+            return !_thumbnails.Contains(key) && _inFlight.Add(key);
         }
     }
 

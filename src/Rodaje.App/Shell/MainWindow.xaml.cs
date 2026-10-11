@@ -86,6 +86,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
         _services = new EditorServices(session, _router, settings, engine, this) { Visuals = _visuals, Packages = packages, Content = content };
         engine.SetContent(content);
+        MissingContent.Attach(session, packages);
         _bindings.Add(EditorShortcuts.Bind(_router, session));
         _bindings.Add(_router.Bind(ActionIds.Export, () => session.Notify(NotificationSeverity.Informational, "Exportar",
             "La exportación llega en la fase 5. Por ahora puedes guardar el proyecto.")));

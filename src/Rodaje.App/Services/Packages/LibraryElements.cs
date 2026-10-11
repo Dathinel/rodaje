@@ -1,6 +1,8 @@
+using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
 using Rodaje.Core.Model;
 using Rodaje.Paquetes;
+using Rodaje.Paquetes.Content;
 
 namespace Rodaje.App.Services.Packages;
 
@@ -79,20 +81,60 @@ public static class LibraryElements
         _ => "Mis transiciones",
     };
 
-    /// <summary>Lo del motor seguido de lo de los paquetes y lo propio.</summary>
+    /// <summary>
+    /// Lo del motor seguido de lo de los paquetes y lo propio. En Filtros no salen las LUT que ya usa un filtro de su mismo
+    /// paquete (el look se ve una vez, como filtro); las LUT sueltas sí.
+    /// </summary>
     public static IReadOnlyList<LibraryElement> For(LibraryCategory category, PackageScan installed)
     {
         ArgumentNullException.ThrowIfNull(installed);
         var elements = new List<LibraryElement>(BuiltIn(category));
+        HashSet<(string Package, string Item)> covered = category == LibraryCategory.Filters ? LutsUsedByFilters(installed) : [];
         foreach (ItemKind kind in KindsOf(category))
         {
             foreach (PackageItemEntry entry in installed.Items(kind))
             {
+                if (kind == ItemKind.Lut && covered.Contains((entry.Package.Id, entry.Item.Id)))
+                {
+                    continue;
+                }
+
                 string source = entry.Package.Origin == PackageOrigin.Own ? "Mío" : entry.Package.Manifest.Name;
                 elements.Add(new LibraryElement(entry.Item.Name, entry.Item.Description ?? "", source, entry.Reference.ToString(), true, entry.Package.Origin, kind));
             }
         }
 
         return elements;
+    }
+
+    private static HashSet<(string Package, string Item)> LutsUsedByFilters(PackageScan installed)
+    {
+        var used = new HashSet<(string, string)>();
+        var loader = new InstalledContentLoader(() => installed);
+        foreach (PackageItemEntry entry in installed.Items(ItemKind.Filter))
+        {
+            FilterPreset? filter;
+            try
+            {
+                filter = loader.LoadFilter(entry.Reference.ToString());
+            }
+            catch (PackageContentException)
+            {
+                continue;
+            }
+
+            foreach (PresetEffect effect in filter?.Effects ?? [])
+            {
+                foreach (string value in effect.Options.Values)
+                {
+                    if (PackageReference.TryParse(value, out PackageReference? reference) && reference.PackageId == entry.Package.Id)
+                    {
+                        used.Add((reference.PackageId, reference.ItemId));
+                    }
+                }
+            }
+        }
+
+        return used;
     }
 }

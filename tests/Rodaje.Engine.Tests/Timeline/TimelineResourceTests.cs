@@ -157,6 +157,7 @@ public sealed class TimelineResourceTests
     }
 
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public void Tick_never_waits_for_a_decoder_that_is_closing()
     {
         var time = new ManualTimeProvider();
@@ -181,7 +182,8 @@ public sealed class TimelineResourceTests
             slowest = Math.Max(slowest, Stopwatch.GetElapsedTime(start).TotalMilliseconds);
         }
 
-        Assert.True(slowest < 2, $"Un Tick tardó {slowest:0.0} ms mientras se cerraba un decodificador.");
+        // El cierre tarda 300 ms: un Tick que lo esperara se notaría; el margen absorbe la primera compilación JIT del camino de cierre.
+        Assert.True(slowest < 50, $"Un Tick tardó {slowest:0.0} ms mientras se cerraba un decodificador (el cierre tarda 300 ms).");
         Assert.Equal(1, session.Stats.DecodersClosed);
         FakeMediaVideo closing = backend.Videos.Single(v => v.Path.EndsWith("a.mp4", StringComparison.Ordinal));
         var wait = Stopwatch.StartNew();

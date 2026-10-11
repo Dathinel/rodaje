@@ -173,4 +173,22 @@ public class EffectContentTests
         Assert.Same(curves, content.FindTransition("p@1.0.0/zoom"));
         Assert.Equal(3, loader.Reads);
     }
+
+    [Fact]
+    public void Transicion_LlevaLosParametrosYOpcionesDeSuMezcla()
+    {
+        var loader = new FakeContentLoader();
+        loader.Transitions["p@1.0.0/barrido"] = new TransitionPreset("barrido", "Barrido", 0.5, BuiltInTransitions.Wipe, 1920, 1080, [], [])
+        {
+            MixParameters = new Dictionary<string, double> { ["angle"] = 90, ["softness"] = 0.2 },
+            MixOptions = new Dictionary<string, string> { ["direction"] = "up" },
+        };
+
+        TransitionCurves curves = new EffectContent(loader).FindTransition("p@1.0.0/barrido")!;
+
+        Assert.Equal(EffectRegistry.Find(BuiltInTransitions.Wipe)!.Code, curves.MixCode);
+        Assert.Equal(90, curves.MixParameters["angle"]);
+        Assert.Equal(0.2, curves.MixParameters["softness"]);
+        Assert.Equal("up", curves.MixOptions["direction"]);
+    }
 }
