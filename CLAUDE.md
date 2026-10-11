@@ -77,6 +77,8 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 
 - **Rutina en la nube** `trig_015zPXdY6meRLBGvkb5XEXMF` («Rodaje: cola de tareas de la nube», cada 2 h, Sonnet, entorno `rodaje-dotnet`): toma la siguiente tarea libre de `docs/nube/cola.md` según `docs/nube/README.md` y abre un PR en borrador. Se ve en https://claude.ai/code/routines/trig_015zPXdY6meRLBGvkb5XEXMF.
 - **Revisión horaria local** (vive solo mientras la sesión está abierta; **al abrir una sesión nueva hay que volver a crearla** con CronCreate): cada PR `claude/*` lo revisa un agente Opus nuevo sin contexto con encargo adversarial; si dice UNIR se une, se marca `hecha` en la cola y se repone la cola con 1–2 tareas que no pisen a los agentes locales.
+- **CI y costo:** el repo es privado; el trabajo de Windows de `ci.yml` gasta minutos de GitHub al doble que Linux. Se vigila en GitHub → Settings → Billing; si se acerca al límite, el trabajo de Windows pasa a dispararse solo en PR (o a mano) en lugar de en cada push a main.
+- **`main` sin protección:** GitHub no permite reglas de rama en repos privados sin Pro. La regla «nunca push a main» de la nube vive en `docs/nube/README.md` y en el prompt de la rutina; la revisión horaria comprueba que ningún commit de `main` venga de una rama `claude/*` sin PR.
 - **Claude chat** lee el repo para responder a Daniel: todo se sube a GitHub tras cada commit, y se hace `git pull` antes de unir.
 
 ## Hacia la versión pública (consultado en Claude chat el 10-oct, sin decidir)

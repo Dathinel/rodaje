@@ -17,6 +17,7 @@ La sesión local de Rodaje (en el PC de Daniel) mantiene una cola de tareas en [
 - **Idioma:** identificadores en inglés; comentarios, documentación, mensajes y commits en español (D-011). Código propio, sin dependencias nuevas.
 - **No toques:** `CLAUDE.md`, `README.md`, `docs/nube/` ni nada fuera de los caminos de la tarea.
 - **Entrega:** abre el PR en borrador contra `main` al primer push, con el título de la tarea. Al terminar deja `docs/tareas/<fecha>-<rama sin claude/>.md` con lo hecho, lo pendiente, las decisiones, los posibles choques y qué debe comprobar Daniel en Windows. No entregues con pruebas en rojo en Linux.
+- **Pruebas omitidas:** si omites o excluyes pruebas, la entrega y el PR indican cuántas se omitían antes y cuántas después, con la causa de cada grupo. Una omisión sin causa concreta (hardware, codificador o plataforma que falta) se rechaza.
 - **Choques:** si algo reciente en `origin/main` toca lo mismo, no lo resuelvas: anótalo en la entrega y en el PR.
 
 Luego vuelve a «Cómo elegir la siguiente tarea».
