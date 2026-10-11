@@ -338,7 +338,23 @@ public class PlaybackSchedulerTests
     public async Task SeekLejosReproduciendo_CuestaLoMismoQueUnSaltoCorto(long jump)
     {
         // Regresión: al pasar al cuadro nuevo se sacaba de la caché uno por uno cada índice saltado, O(salto)
-        // con el candado tomado; con 10^10 cuadros eso son minutos.
+        // con el candado tomado; con 10^10 cuadros eso son minutos. Aquí solo hay una guarda contra cuelgues
+        // (60 s, muy por encima de cualquier carga del runner); el límite de 2 s vive en la prueba TiempoReal.
+        FramePresentation landed = await SeekLejos(jump, TimeSpan.FromSeconds(60));
+        Assert.True(landed.IsExact);
+    }
+
+    [Fact]
+    [Trait("Categoria", "TiempoReal")]
+    public async Task SeekLejosReproduciendo_TardaMenosDeDosSegundos()
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        await SeekLejos(10_000_000_000L, TimeSpan.FromSeconds(10));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"El seek tardó {watch.Elapsed}.");
+    }
+
+    private static async Task<FramePresentation> SeekLejos(long jump, TimeSpan guard)
+    {
         var timing = new ClipTiming(Time.Zero, Time.Zero, Time.FromFrames(jump + 100, Rational.Fps25), Rational.Fps25);
         using var h = new PlaybackHarness(timing, prefetch: 4, budget: 16);
         h.Scheduler.Play();
@@ -348,19 +364,17 @@ public class PlaybackSchedulerTests
         }
 
         long before = h.Scheduler.Tick().Frame!.Index;
-        var watch = System.Diagnostics.Stopwatch.StartNew();
         var work = Task.Run(() =>
         {
             h.Scheduler.SeekToFrame(before + jump);
             return h.SettleAndTick();
         });
-        FramePresentation landed = await work.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"El seek de {jump} cuadros tardó {watch.Elapsed}.");
-        Assert.True(landed.IsExact);
+        FramePresentation landed = await work.WaitAsync(guard);
         Assert.Equal(before + jump, landed.Frame!.Index);
         Assert.False(h.Cache.Contains(before), "El cuadro que quedó atrás sigue en la caché.");
         Assert.True(h.Scheduler.IsPlaying);
         Assert.True(h.Refresh().IsExact);
+        return landed;
     }
 
     [Fact]
