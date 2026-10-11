@@ -28,7 +28,7 @@ La guardia de GPU de `CompositorTests.Draws_the_requested_slice_of_a_texture_arr
 
 ## 3. Pruebas hostiles del lector de proyectos `.rodaje`
 
-- **Estado:** cambios (PR #3: atender la revisión del 11-oct en sus comentarios)
+- **Estado:** hecha (PR #3 unido el 11-oct; halló un desbordamiento real en `ModelValidator.cs:293`, se corrige en la sesión local)
 - **Rama:** `claude/fuzz-proyecto`
 - **Caminos:** `tests/Rodaje.Core.Tests/Fuzz/` (carpeta nueva), `docs/tareas/`. Si encuentras un fallo real en `src/Rodaje.Core/Serialization/`, NO lo corrijas: deja la prueba que lo reproduce marcada con `Skip = "Defecto: …"` y descríbelo en la entrega.
 - **Lee:** `docs/formato-proyecto.md`, `src/Rodaje.Core/Serialization/` (solo lectura), `tests/Rodaje.Core.Tests/Serialization/ejemplos/proyecto-v3.rodaje`.
@@ -81,3 +81,11 @@ Primera mitad de lo pedido por Daniel: en Ajustes, cuántas pistas de video (1�
 - **Lee:** `docs/fase-5.md` (por qué el texto va en la 5b), `docs/fase-5c.md` (la 5c cambia `Clip` y el formato 4 antes), `docs/formato-paquete.md`, `docs/formato-proyecto.md`, `src/Rodaje.Core/Model/`, `src/Rodaje.Render/` (solo lectura).
 
 Solo documento, sin código: propuesta para la fase 5b con (1) clips generadores sin medio en el modelo (cómo encajan con el formato 4 de la 5c: ¿formato 5?), (2) contenido de `text-style` en `.paquete` v1 (fuente, tamaño, colores, borde, sombra, fondo, animaciones de entrada y salida sobre las primitivas), (3) render con DirectWrite/Direct2D sobre el dispositivo D3D11 existente y su costo por cuadro, (4) fuentes: cuáles se pueden empaquetar (licencias OFL/Apache) y cómo se usan las del sistema, (5) edición sobre el lienzo, (6) cómo se apoyan los subtítulos de la fase 7. Con ventajas y desventajas reales y máximo 3 preguntas para Daniel.
+
+## 9. `PlaybackSchedulerTests` inestable en la CI de Windows
+
+- **Estado:** pendiente
+- **Rama:** `claude/playback-seek-tiempo`
+- **Caminos:** `tests/Rodaje.Playback.Tests/`, `docs/tareas/`
+
+`PlaybackSchedulerTests.SeekLejosReproduciendo_CuestaLoMismoQueUnSaltoCorto(jump: 10000000000)` falla a veces en el runner de 2 núcleos («tardó 00:00:03.22», límite 2 s en `PlaybackSchedulerTests.cs:358`); en el PC de Daniel tarda <1 ms. Mide con un reloj inyectado o cuenta operaciones en lugar de reloj de pared, de modo que siga detectando un seek que crece con la distancia; si no se puede, categoría `TiempoReal`. Que nunca dependa de la carga del pool.
