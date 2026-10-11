@@ -74,6 +74,7 @@ internal sealed partial class TimelineView
         _overlay.LinkedGhost = null;
         _overlay.InsertLine = null;
         _overlay.SnapGuide = null;
+        _overlay.Balloon = null;
     }
 
     private void Capture(UIElement owner, PointerRoutedEventArgs e)
@@ -321,8 +322,8 @@ internal sealed partial class TimelineView
 
         DragOperation operation = _pressHit.Kind switch
         {
-            HitKind.ClipStart => DragOperation.TrimStart,
-            HitKind.ClipEnd => DragOperation.TrimEnd,
+            HitKind.ClipStart => alt ? DragOperation.StretchStart : DragOperation.TrimStart,
+            HitKind.ClipEnd => alt ? DragOperation.StretchEnd : DragOperation.TrimEnd,
             _ => alt ? DragOperation.Slip : DragOperation.Move,
         };
         var drag = new ClipDrag(session.Project, session.SequenceId, clip.Id, operation, _pressTime, Options(), session.Position);
@@ -343,6 +344,7 @@ internal sealed partial class TimelineView
         _overlay.Ghost = showGhost ? (plan.GhostTrackId, plan.GhostStart, plan.GhostEnd) : null;
         _overlay.InsertLine = plan.InsertAt is { } at ? (plan.GhostTrackId, at) : null;
         _overlay.SnapGuide = plan.SnapGuide;
+        _overlay.Balloon = plan.Balloon is { } balloon ? (plan.GhostTrackId, balloon.At, balloon.Text) : null;
         Invalidate();
     }
 

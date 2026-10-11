@@ -1,3 +1,4 @@
+using Rodaje.App.Services;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -12,8 +13,14 @@ public enum DragOperation
     TrimStart,
     TrimEnd,
 
-    /// <summary>Alt+arrastrar: otra parte del origen, sin mover el clip.</summary>
+    /// <summary>Alt+arrastrar el cuerpo: otra parte del origen, sin mover el clip.</summary>
     Slip,
+
+    /// <summary>Alt+arrastrar el borde de entrada: cambia la velocidad para que el mismo material dure lo arrastrado.</summary>
+    StretchStart,
+
+    /// <summary>Alt+arrastrar el borde de salida: como <see cref="StretchStart"/>, con el inicio quieto.</summary>
+    StretchEnd,
 }
 
 /// <summary>Las opciones de la barra que cambian lo que hace un arrastre.</summary>
@@ -43,7 +50,16 @@ public sealed record DragOptions
 /// <param name="GhostTrackId">Pista donde se dibuja el clip arrastrado.</param>
 /// <param name="SnapGuide">Instante al que se pegó, para dibujar la guía.</param>
 /// <param name="InsertAt">Corte de la pista magnética donde caerá el clip.</param>
-public sealed record DragPlan(Func<ICommand>? Build, bool IsLive, Time GhostStart, Time GhostEnd, string GhostTrackId, Time? SnapGuide, Time? InsertAt);
+/// <param name="Balloon">Texto del globo junto al borde arrastrado (al estirar: velocidad y duración) y dónde va.</param>
+public sealed record DragPlan(
+    Func<ICommand>? Build,
+    bool IsLive,
+    Time GhostStart,
+    Time GhostEnd,
+    string GhostTrackId,
+    Time? SnapGuide,
+    Time? InsertAt,
+    (Time At, string Text)? Balloon = null);
 
 /// <summary>
 /// Traduce un arrastre sobre un clip a comandos del núcleo. Recuerda el estado del clip al empezar y, en cada paso,
@@ -124,6 +140,7 @@ public sealed class ClipDrag
         {
             DragOperation.Move => PlanMove(sequence, found.Track, found.Clip, offset, row),
             DragOperation.Slip => PlanSlip(project, sequence, found.Track, found.Clip, offset),
+            DragOperation.StretchStart or DragOperation.StretchEnd => PlanStretch(project, sequence, found.Track, found.Clip, offset),
             _ => PlanTrim(project, sequence, found.Track, found.Clip, offset),
         };
     }
@@ -278,7 +295,7 @@ public sealed class ClipDrag
     private DragPlan PlanTrim(Project project, Sequence sequence, Track track, Clip clip, Time offset)
     {
         bool ripple = _options.AutoRipple || (_options.MagneticTrackId is { } m && track.Id == m);
-        TrimEdge edge = _operation == DragOperation.TrimStart ? TrimEdge.In : TrimEdge.Out;
+        TrimEdge edge = _operation is DragOperation.TrimStart or DragOperation.StretchStart ? TrimEdge.In : TrimEdge.Out;
         List<(Track Track, Clip Clip)> members = Members(sequence, track, clip);
         Time frame = Frame;
         Time? guide = null;
@@ -355,6 +372,100 @@ public sealed class ClipDrag
             _ => () => Edits.Trim(_sequenceId, _clipId, edge, d, _ids),
         };
         return new DragPlan(build, true, ghostStart, ghostEnd, track.Id, guide, null);
+    }
+
+    /// <summary>
+    /// Estirar: la duración nueva sale del borde (pegado al cuadro y a los puntos de ajuste) y la velocidad, de cuánto
+    /// origen tiene el clip. Sin ripple no pasa a los vecinos; la velocidad queda entre 0,1× y 100×. Un congelado no
+    /// tiene velocidad: estirarlo es recortarlo. Va siempre con los enlazados, que comparten velocidad.
+    /// </summary>
+    private DragPlan PlanStretch(Project project, Sequence sequence, Track track, Clip clip, Time offset)
+    {
+        if (clip.Speed is { Freeze: true })
+        {
+            return PlanTrim(project, sequence, track, clip, offset);
+        }
+
+        bool ripple = _options.AutoRipple || (_options.MagneticTrackId is { } m && track.Id == m);
+        TrimEdge edge = _operation == DragOperation.StretchStart ? TrimEdge.In : TrimEdge.Out;
+        Time span = clip.SourceDuration;
+        if (clip.Speed is { Curve: not null } || span <= Time.Zero)
+        {
+            return new DragPlan(null, true, clip.Start, clip.End, track.Id, null, null);
+        }
+
+        Time frame = Frame;
+        long minTicks = Math.Max(frame.Ticks, (span.Ticks + 99) / 100);
+        long maxTicks = Math.Min(span.Ticks * 10, RetimeMath.MaxExtent);
+        foreach ((Track t, Clip c) in sequence.GetLinkGroup(clip.Id))
+        {
+            double share = (double)c.SourceDuration.Ticks / span.Ticks;
+            if (ripple || share <= 0)
+            {
+                continue;
+            }
+
+            if (edge == TrimEdge.Out && Next(t, c) is { } next)
+            {
+                maxTicks = Math.Min(maxTicks, (long)Math.Floor((next.Start - c.Start).Ticks / share));
+            }
+            else if (edge == TrimEdge.In)
+            {
+                Time floor = Previous(t, c) is { } previous ? previous.End : Time.Zero;
+                maxTicks = Math.Min(maxTicks, (long)Math.Floor((c.End - floor).Ticks / share));
+            }
+        }
+
+        Time? guide = null;
+        long duration;
+        if (edge == TrimEdge.Out)
+        {
+            Time desiredEnd = (_originStart + _originDuration + offset).SnapToFrame(_frameRate);
+            if (_snaps.Count > 0 && _snaps.Nearest(desiredEnd, SnapThreshold) is { } snapped)
+            {
+                desiredEnd = snapped;
+                guide = snapped;
+            }
+
+            duration = (desiredEnd - clip.Start).Ticks;
+        }
+        else
+        {
+            Time desiredStart = (_originStart + offset).SnapToFrame(_frameRate);
+            if (_snaps.Count > 0 && _snaps.Nearest(desiredStart, SnapThreshold) is { } snapped)
+            {
+                desiredStart = snapped;
+                guide = snapped;
+            }
+
+            duration = ripple ? (_originDuration - (desiredStart - _originStart)).Ticks : (_originStart + _originDuration - desiredStart).Ticks;
+        }
+
+        if (minTicks > maxTicks)
+        {
+            return new DragPlan(null, true, clip.Start, clip.End, track.Id, guide, null);
+        }
+
+        Time d = Time.FromTicks(Math.Clamp(duration, minTicks, maxTicks));
+        bool keepEnd = edge == TrimEdge.In && !ripple;
+        Time ghostStart = keepEnd ? clip.End - d : clip.Start;
+        string text = $"{SpeedBadge.Format((double)span.Ticks / d.Ticks)} · {Rodaje.Engine.Presentation.Timecode.Format(d)}";
+        var balloon = (keepEnd ? ghostStart : ghostStart + d, text);
+        if (d == clip.Duration)
+        {
+            return new DragPlan(null, true, ghostStart, ghostStart + d, track.Id, guide, null, balloon);
+        }
+
+        RippleScope? scope = ripple ? _options.RippleScope : null;
+        return new DragPlan(
+            () => SpeedCommands.RateStretch(_sequenceId, _clipId, edge, d, scope, _ids),
+            true,
+            ghostStart,
+            ghostStart + d,
+            track.Id,
+            guide,
+            null,
+            balloon);
     }
 
     private DragPlan PlanSlip(Project project, Sequence sequence, Track track, Clip clip, Time offset)
