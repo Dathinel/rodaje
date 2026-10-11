@@ -27,3 +27,11 @@
 ## Primera corrida de la CI de Windows
 
 `ProbeRewindTests` falló en el clip con audio (`h264-2997`): el primer paquete del archivo es de audio (flujo 1, pos 48) y el rebobinado va al inicio del flujo de video (pos 406). La prueba pasó a comparar el primer paquete **de video**. Los demás rojos de esa corrida (HighSpeedDecode, KeyframeIndex hevc10, `Damage_still_inside…`, `SeekLejos…`) no son de este PR: son las tareas 0, 4 y 9.
+
+## Revisión independiente (Opus): cambios atendidos
+
+- El fallo está confirmado por el revisor (antes/después en H.264 y HEVC MP4); mi duda anterior sobre `long.MinValue` queda descartada.
+- **MPEG-TS con cuadros B:** `start_time` es el pts del primer cuadro y la búsqueda compara contra el dts, que va antes, así que se perdía el primer cuadro clave. `ScanTimestamps` guarda ahora el menor dts de video leído y `RewindToStart` busca `min(start_time, ese dts)`. Se corrigió el comentario del código (la marca de inicio no basta en TS).
+- **Pruebas:** `ProbeRewindTests` suma remux sin recodificar a `ts` y `mov` (`TestClips.Remuxed`) y compara, además del primer paquete de video, el **número de paquetes de video** con el de una apertura limpia. No pude ejecutarlas aquí (sin FFmpeg 9); dependen de la CI de Windows.
+- El rebobinado va al inicio del flujo de video: un paquete de audio anterior en el archivo se salta, como antes.
+- Pruebas omitidas: sin cambios (0 antes, 0 después).

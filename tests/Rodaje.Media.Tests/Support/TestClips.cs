@@ -195,6 +195,11 @@ internal static class TestClips
         Produce(name, temp => Try(MediaTestEnvironment.FfmpegExe, "-v", "error", "-y", "-display_rotation", "270",
             "-i", PathOf(H264), "-c", "copy", "-bsf:v", "h264_metadata=sample_aspect_ratio=4/3", temp)))).Value;
 
+    /// <summary>El clip H.264 con cuadros B reempaquetado sin recodificar en otro contenedor (ts, mov, avi...).</summary>
+    public static string Remuxed(string extension) => Generated.GetOrAdd($"remux-{H264.Name}.{extension}", name => new Lazy<string>(() =>
+        Produce(name, temp => Try(MediaTestEnvironment.FfmpegExe, "-v", "error", "-y",
+            "-i", PathOf(H264), "-map", "0:v", "-c", "copy", temp)))).Value;
+
     /// <summary>Cuadros (en orden de presentación) cuyos paquetes de video daña <see cref="Corrupted"/>.</summary>
     public static IReadOnlyList<int> CorruptedFrames { get; } = [100, 105, 110, 121, 130, 150, 151, 165, 170, 180];
 
