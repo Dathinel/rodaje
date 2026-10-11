@@ -1,0 +1,18 @@
+{
+  "format": "rodaje.filter",
+  "version": 1,
+  "id": "noche",
+  "name": "Noche",
+  "description": "Noche americana: oscuro y azul.",
+  "effects": [
+    {
+      "type": "rodaje.color",
+      "parameters": {
+        "lutIntensity": 1
+      },
+      "options": {
+        "lut": "./lut-noche"
+      }
+    }
+  ]
+}

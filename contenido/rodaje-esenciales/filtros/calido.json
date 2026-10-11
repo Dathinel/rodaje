@@ -1,0 +1,18 @@
+{
+  "format": "rodaje.filter",
+  "version": 1,
+  "id": "calido",
+  "name": "Cálido",
+  "description": "Tonos cálidos y algo más de contraste.",
+  "effects": [
+    {
+      "type": "rodaje.color",
+      "parameters": {
+        "lutIntensity": 1
+      },
+      "options": {
+        "lut": "./lut-calido"
+      }
+    }
+  ]
+}

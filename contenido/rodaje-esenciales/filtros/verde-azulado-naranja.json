@@ -1,0 +1,18 @@
+{
+  "format": "rodaje.filter",
+  "version": 1,
+  "id": "verde-azulado-naranja",
+  "name": "Verde azulado y naranja",
+  "description": "Sombras verde azuladas y luces anaranjadas.",
+  "effects": [
+    {
+      "type": "rodaje.color",
+      "parameters": {
+        "lutIntensity": 1
+      },
+      "options": {
+        "lut": "./lut-verde-azulado-naranja"
+      }
+    }
+  ]
+}

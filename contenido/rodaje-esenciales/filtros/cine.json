@@ -1,0 +1,26 @@
+{
+  "format": "rodaje.filter",
+  "version": 1,
+  "id": "cine",
+  "name": "Cine",
+  "description": "Contraste suave, luces cálidas, sombras frías y viñeta.",
+  "effects": [
+    {
+      "type": "rodaje.color",
+      "parameters": {
+        "lutIntensity": 1
+      },
+      "options": {
+        "lut": "./lut-cine"
+      }
+    },
+    {
+      "type": "rodaje.vignette",
+      "parameters": {
+        "amount": 0.25,
+        "size": 0.6,
+        "softness": 0.6
+      }
+    }
+  ]
+}

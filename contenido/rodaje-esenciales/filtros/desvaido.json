@@ -1,0 +1,18 @@
+{
+  "format": "rodaje.filter",
+  "version": 1,
+  "id": "desvaido",
+  "name": "Desvaído",
+  "description": "Negros levantados y color apagado, como una foto vieja.",
+  "effects": [
+    {
+      "type": "rodaje.color",
+      "parameters": {
+        "lutIntensity": 1
+      },
+      "options": {
+        "lut": "./lut-desvaido"
+      }
+    }
+  ]
+}
