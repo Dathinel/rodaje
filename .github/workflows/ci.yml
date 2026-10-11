@@ -1,7 +1,6 @@
 # Integración continua de Rodaje.
 # - linux: Core, Paquetes y Playback, que compilan para net10.0 sin Windows.
-# - windows: la solución entera con el entorno propio (.entorno, D-005). Primera versión: no bloquea (continue-on-error)
-#   hasta ver qué pasa en un runner sin GPU ni audio; ver docs/tareas/2026-10-10-ci.md.
+# - windows: la solución entera con el entorno propio (.entorno, D-005). Bloquea; sin exclusiones por nombre.
 # Las pruebas largas y de hardware solo corren con RODAJE_PRUEBAS_LARGAS=1, que aquí no se pone.
 
 name: CI
@@ -74,8 +73,6 @@ jobs:
     name: Windows (solución completa)
     runs-on: windows-latest
     timeout-minutes: 45
-    # Primera versión: informa sin bloquear. Quitar cuando el trabajo esté verde de forma estable.
-    continue-on-error: true
     env:
       NUGET_PACKAGES: ${{ github.workspace }}\.entorno\nuget
       DOTNET_ROOT: ${{ github.workspace }}\.entorno\dotnet
@@ -121,10 +118,10 @@ jobs:
       # TiempoReal y Rendimiento se excluyen igual que en Linux.
       - name: Pruebas
         shell: pwsh
-        run: >-
-          & .entorno\dotnet\dotnet.exe test Rodaje.slnx --no-build
-          --filter "Categoria!=TiempoReal&Categoria!=Rendimiento"
-          --logger "trx" --results-directory TestResults
+        run: |
+          $filtro = 'Categoria!=TiempoReal&Categoria!=Rendimiento'
+          & .entorno\dotnet\dotnet.exe test Rodaje.slnx --no-build --filter $filtro --logger trx --results-directory TestResults
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Resultados
         if: always()

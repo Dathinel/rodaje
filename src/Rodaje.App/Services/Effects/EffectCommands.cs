@@ -70,7 +70,8 @@ public static class EffectCommands
     /// <summary>
     /// Copia un efecto de paquete: sus efectos al final de la pila y sus curvas como keyframes, al principio, al final o a lo
     /// largo del clip según <see cref="EffectPreset.Placement"/>. Si la animación es más larga que el clip, se encoge. Las
-    /// posiciones se escalan del tamaño de referencia al de la secuencia.
+    /// posiciones se escalan del tamaño de referencia al de la secuencia. Los tiempos de la animación son de la línea de
+    /// tiempo: a 2× una entrada de 1 s sigue durando 1 s en pantalla.
     /// </summary>
     public static SequenceEditCommand ApplyEffect(string sequenceId, string clipId, EffectPreset preset, string reference)
     {
@@ -105,8 +106,7 @@ public static class EffectCommands
                 var keys = new SortedDictionary<Time, Keyframe>();
                 foreach (PresetKey key in curve.Keys)
                 {
-                    Time at = start + Time.FromSeconds(Math.Max(0, key.T) * scale);
-                    at = Time.Max(clip.SourceIn, Time.Min(at, clip.SourceOut));
+                    Time at = KeyframeTime(clip, start + Time.FromSeconds(Math.Max(0, key.T) * scale));
                     double value = key.Value * factor;
                     value = definition?.Clamp(value) ?? value;
                     keys[at] = new Keyframe(at, value, EffectContent.ToInterpolation(key.Interpolation));
@@ -120,18 +120,54 @@ public static class EffectCommands
         });
     }
 
-    /// <summary>Dónde empieza la animación (tiempo del origen) y cuánto se encoge para caber en el clip.</summary>
+    /// <summary>Dónde empieza la animación (instante de la línea de tiempo) y cuánto se encoge para caber en el clip.</summary>
     public static (Time Start, double Scale) Placement(Clip clip, EffectPreset preset)
     {
         ArgumentNullException.ThrowIfNull(clip);
         ArgumentNullException.ThrowIfNull(preset);
-        double clipSeconds = (clip.SourceOut - clip.SourceIn).ToSeconds();
+        double clipSeconds = clip.Duration.ToSeconds();
         double duration = preset.DurationSeconds > 0 ? preset.DurationSeconds : clipSeconds;
         double scale = preset.Placement == EffectPlacement.Whole || duration > clipSeconds ? clipSeconds / duration : 1;
         Time start = preset.Placement == EffectPlacement.Out
-            ? clip.SourceOut - Time.FromSeconds(duration * scale)
-            : clip.SourceIn;
-        return (Time.Max(clip.SourceIn, start), scale);
+            ? clip.End - Time.FromSeconds(duration * scale)
+            : clip.Start;
+        return (Time.Max(clip.Start, start), scale);
+    }
+
+    /// <summary>
+    /// Instante de los keyframes del clip (<see cref="Clip.ToEffectTime"/>) para un instante de la línea de tiempo, acotado a
+    /// <c>[Start, End]</c> con el final incluido: ahí va el último keyframe de una animación que llega al borde.
+    /// </summary>
+    public static Time KeyframeTime(Clip clip, Time timeline)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        if (timeline < clip.End)
+        {
+            return clip.ToEffectTime(timeline);
+        }
+
+        ClipTimeMap map = clip.TimeMap;
+        if (map.Freeze)
+        {
+            return map.EffectTime(clip.End) + Time.FromTicks(1);
+        }
+
+        return Time.Max(clip.SourceIn, Time.Min(clip.ToSourceTime(clip.End), clip.SourceOut));
+    }
+
+    /// <summary>El instante de la línea de tiempo de un keyframe del clip, dentro del clip (la inversa de <see cref="KeyframeTime"/>).</summary>
+    public static Time TimelineOfKeyframe(Clip clip, Time keyframeTime)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ClipTimeMap map = clip.TimeMap;
+        if (!map.Freeze)
+        {
+            return map.TimelineOf(keyframeTime);
+        }
+
+        Time virtualStart = map.EffectTime(clip.Start);
+        Time at = clip.Start + (keyframeTime - virtualStart);
+        return Time.Max(clip.Start, Time.Min(at, clip.End));
     }
 
     private static EffectInstance AddCopy(EditContext ctx, Clip clip, PresetEffect source, string reference)

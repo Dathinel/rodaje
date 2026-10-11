@@ -3,6 +3,8 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\app.ps1 [video.mp4 [otro.mp4 ...] | proyecto.rodaje]
 #   ... -Medir 10        abre el clip de prueba (o los archivos), reproduce 10 s, mide y muestra las cifras
 #   ... -Medir 10 -Escenario efectos   antes de medir arma 3 capas con efectos y 4 transiciones, y mueve un deslizador
+#   ... -Medir 10 -Escenario velocidad 3 capas del clip (1x, 2x y 0,5x) y cambia la velocidad de una mientras reproduce;
+#                                      mira cuadros perdidos, tarde, gpu.composicion y edicion.deslizador_a_present (<=20 ms)
 #   ... -SinProxies      reproduce siempre los originales (peor caso), sin cambiar los ajustes
 #   ... -SinPublicar     abre el exe ya publicado sin recompilar
 #   ... -Publicar        recompila aunque src\ no haya cambiado
@@ -14,7 +16,7 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Archivos = @(),
     [double]$Medir = 0,
-    [ValidateSet('', 'efectos')]
+    [ValidateSet('', 'efectos', 'velocidad')]
     [string]$Escenario = '',
     [switch]$SinProxies,
     [switch]$SinPublicar,

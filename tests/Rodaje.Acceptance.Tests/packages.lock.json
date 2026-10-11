@@ -114,6 +114,14 @@
       "rodaje.core": {
         "type": "Project"
       },
+      "rodaje.engine": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Audio": "[1.0.0, )",
+          "Rodaje.Media": "[1.0.0, )",
+          "Rodaje.Playback": "[1.0.0, )"
+        }
+      },
       "rodaje.media": {
         "type": "Project",
         "dependencies": {

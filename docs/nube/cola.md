@@ -4,7 +4,7 @@ La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendie
 
 ## 1. CI de Windows en verde (salvo Render)
 
-- **Estado:** cambios (PR #2: atender la revisión del 11-oct en sus comentarios)
+- **Estado:** hecha (PR #2 unido el 11-oct; Windows bloquea en la CI)
 - **Rama:** `claude/ci-windows-verde`
 - **Caminos:** `tests/Rodaje.Media.Tests/`, `testing/Rodaje.TestMedia/`, `tests/Rodaje.TestMedia.Tests/`, `tests/Rodaje.Audio.Tests/`, `.github/workflows/ci.yml`, `docs/tareas/`
 - **Lee:** `docs/tareas/2026-10-10-ci.md`

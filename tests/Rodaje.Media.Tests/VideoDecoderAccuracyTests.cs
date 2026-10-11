@@ -16,28 +16,33 @@ public sealed class VideoDecoderAccuracyTests(ITestOutputHelper output)
 {
     private const int RandomRequests = 200;
 
+    // Hevc10 va aparte, en [TenBitClipData]: solo se genera con NVENC y sin él sus filas se omiten.
     public static TheoryData<string, DecodeMode> SoftwareCases =>
-        DecodeModes.Software(TestClips.H264, TestClips.Hevc, TestClips.Hevc10, TestClips.H264Mkv);
+        DecodeModes.Software(TestClips.H264, TestClips.Hevc, TestClips.H264Mkv);
 
-    public static TheoryData<string> AllClips => new(TestClips.H264.Name, TestClips.Hevc.Name, TestClips.Hevc10.Name, TestClips.H264Mkv.Name);
+    public static TheoryData<string> AllClips => new(TestClips.H264.Name, TestClips.Hevc.Name, TestClips.H264Mkv.Name);
 
     [FfmpegLibraryTheory]
     [MemberData(nameof(SoftwareCases))]
+    [TenBitClipData(software: true)]
     public void Sequential_decode_matches_reference_software(string clip, DecodeMode mode) =>
         SequentialMatches(DecodeModes.Clip(clip), mode);
 
     [HardwareTheory]
     [MemberData(nameof(AllClips))]
+    [TenBitClipData(software: false)]
     public void Sequential_decode_matches_reference_hardware(string clip) =>
         SequentialMatches(DecodeModes.Clip(clip), DecodeMode.Hardware);
 
     [FfmpegLibraryTheory]
     [MemberData(nameof(SoftwareCases))]
+    [TenBitClipData(software: true)]
     public void Random_access_matches_reference_software(string clip, DecodeMode mode) =>
         RandomAccessMatches(DecodeModes.Clip(clip), mode);
 
     [HardwareTheory]
     [MemberData(nameof(AllClips))]
+    [TenBitClipData(software: false)]
     public void Random_access_matches_reference_hardware(string clip) =>
         RandomAccessMatches(DecodeModes.Clip(clip), DecodeMode.Hardware);
 

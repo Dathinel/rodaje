@@ -7,21 +7,31 @@ using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
 
 namespace Rodaje.App.Shell;
 
-/// <summary>Un deslizador del inspector: el parámetro que la medida mueve al reproducir.</summary>
-internal readonly record struct SliderTarget(string ClipId, string EffectId, string Parameter, Time At);
-
 /// <summary>
 /// Proyectos de medida que se arman con comandos sobre el medio ya importado (<c>--escenario</c>). «efectos»: la pista
-/// principal cortada en 5 con 4 transiciones distintas, y dos capas encima, todas con color y otro efecto.
+/// principal cortada en 5 con 4 transiciones distintas, y dos capas encima, todas con color y otro efecto. «velocidad»:
+/// la principal a 1× y dos capas del mismo medio encima, una a 2× y otra a 0,5×. Cada uno devuelve la edición que la
+/// medida repite mientras reproduce para ver cuánto tarda en verse.
 /// </summary>
 internal static class MeasurementScenarios
 {
     public const string Effects = "efectos";
+    public const string Speed = "velocidad";
 
-    public static bool IsKnown(string? name) => name is null or Effects;
+    private static readonly Rational[] SpeedSteps = [new(2, 1), new(3, 1), new(3, 2), new(5, 2), new(4, 1), new(7, 4)];
 
-    /// <summary>Arma el escenario «efectos» sobre el primer clip de la principal; <c>null</c> si no hay de dónde.</summary>
-    public static SliderTarget? BuildEffects(EditorSession session)
+    public static bool IsKnown(string? name) => name is null or Effects or Speed;
+
+    /// <summary>Arma el escenario y devuelve la edición número i que se mide al reproducir; <c>null</c> si no hay de dónde.</summary>
+    public static Func<int, SequenceEditCommand>? Build(string scenario, EditorSession session) => scenario switch
+    {
+        Effects => BuildEffects(session),
+        Speed => BuildSpeed(session),
+        _ => null,
+    };
+
+    /// <summary>«efectos» sobre el primer clip de la principal; la edición mueve el deslizador de exposición de una capa.</summary>
+    private static Func<int, SequenceEditCommand>? BuildEffects(EditorSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
         string seq = session.SequenceId;
@@ -56,7 +66,7 @@ internal static class MeasurementScenarios
                 AddEffect(session, clip.Id, BuiltInEffects.Color, (C.Saturation, 0.2), (C.Contrast, 0.1));
             }
 
-            SliderTarget? slider = null;
+            Func<int, SequenceEditCommand>? slider = null;
             (string Name, double X, string Second, string SecondParameter, double SecondValue)[] layers =
             [
                 ("V2", -480, BuiltInEffects.Vignette, BuiltInEffects.VignetteParameters.Amount, 0.6),
@@ -73,7 +83,7 @@ internal static class MeasurementScenarios
                 AddEffect(session, clipId, BuiltInEffects.Transform, (T.Scale, 0.45), (T.X, x));
                 string colorId = AddEffect(session, clipId, BuiltInEffects.Color, (C.Exposure, 0.2), (C.Temperature, 0.2));
                 AddEffect(session, clipId, second, (secondParameter, secondValue));
-                slider ??= new SliderTarget(clipId, colorId, C.Exposure, sourceIn);
+                slider ??= n => Edits.SetParameter(seq, clipId, colorId, C.Exposure, Math.Sin(n * 0.4) * 1.5, sourceIn, "Cambiar exposición");
             }
 
             return slider;
@@ -83,6 +93,59 @@ internal static class MeasurementScenarios
             session.EndGesture();
         }
     }
+
+    /// <summary>
+    /// «velocidad»: el primer clip de la principal queda a 1× y el mismo tramo se pone en dos capas reducidas, una a 2× y
+    /// otra a 0,5×. La edición cambia la velocidad de la capa a 2× entre 1,5× y 4×.
+    /// </summary>
+    private static Func<int, SequenceEditCommand>? BuildSpeed(EditorSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        string seq = session.SequenceId;
+        if (session.MainTrack is not { Clips.Count: > 0 } main)
+        {
+            return null;
+        }
+
+        Clip first = main.Clips[0];
+        session.BeginGesture("Escenario de medida");
+        try
+        {
+            string? fast = null;
+            (string Name, double X, Rational Rate)[] layers = [("V2", -480, new(2, 1)), ("V3", 480, new(1, 2))];
+            for (int i = 0; i < layers.Length; i++)
+            {
+                (string name, double x, Rational rate) = layers[i];
+                var addTrack = Edits.AddTrack(seq, TrackKind.Video, i + 1, name);
+                Run(session, addTrack);
+                var place = Edits.Overwrite(seq, first.MediaId, first.SourceIn, first.SourceOut, addTrack.CreatedIds[0], first.Start);
+                Run(session, place);
+                string clipId = place.CreatedIds[0];
+                AddEffect(session, clipId, BuiltInEffects.Transform, (T.Scale, 0.45), (T.X, x));
+                Run(session, SetRate(seq, clipId, rate));
+                fast ??= clipId;
+            }
+
+            return n => SetRate(seq, fast!, SpeedSteps[n % SpeedSteps.Length]);
+        }
+        finally
+        {
+            session.EndGesture();
+        }
+    }
+
+    /// <summary>Velocidad constante sobre el mismo tramo del origen: cambia la duración, no los cuadros de los bordes.</summary>
+    /// <remarks>Comando propio de la medida; el de la interfaz (con ripple y enlazados) lo trae la ronda 5c.1.</remarks>
+    private static SequenceEditCommand SetRate(string sequenceId, string clipId, Rational rate) =>
+        new("Cambiar velocidad", sequenceId, ctx =>
+        {
+            Clip clip = ctx.Sequence.GetClip(clipId).Clip;
+            ClipSpeed speed = clip.Speed?.Clone() ?? new ClipSpeed();
+            speed.Rate = rate;
+            speed.Offset = Time.Zero;
+            clip.Speed = speed;
+            ClipTimeMap.Fit(clip.Start, clip.SourceIn, clip.SourceOut, speed).ApplyTo(clip);
+        }, mergeKey: "medida-velocidad:" + clipId);
 
     private static string AddEffect(EditorSession session, string clipId, string type, params (string Name, double Value)[] values)
     {
