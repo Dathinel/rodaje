@@ -113,4 +113,28 @@ public class SpeedMathTests
     [InlineData("tres")]
     [InlineData(null)]
     public void Lee_LaDuracion_Invalida(string? text) => Assert.Null(SpeedMath.ParseDuration(text));
+
+    [Theory]
+    [InlineData(8, true, null)]
+    [InlineData(8.1, true, "Por encima de 8×")]
+    [InlineData(100, true, "Por encima de 8×")]
+    [InlineData(0.25, true, null)]
+    [InlineData(0.24, true, "Por debajo de 0,25×")]
+    [InlineData(0.1, true, "Por debajo de 0,25×")]
+    [InlineData(1, true, null)]
+    [InlineData(50, false, null)]
+    [InlineData(0.1, false, null)]
+    public void Aviso_DeLosLimitesDelSonido(double rate, bool hasAudio, string? start)
+    {
+        string? warning = SpeedPresets.AudioWarning(rate, hasAudio);
+        if (start is null)
+        {
+            Assert.Null(warning);
+        }
+        else
+        {
+            Assert.StartsWith(start, warning);
+            Assert.Contains("Sigue sonando", warning, StringComparison.Ordinal);
+        }
+    }
 }

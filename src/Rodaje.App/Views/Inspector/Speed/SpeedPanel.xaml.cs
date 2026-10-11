@@ -128,6 +128,11 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
             : _freezeShown ? "Detiene el cuadro del cursor durante 3 s."
             : "Pon el cursor sobre el clip para congelar ese cuadro.";
         ShowNote(state);
+        if (!editor.IsChanging)
+        {
+            ShowWarning(state.IsFrozen ? 1 : state.Rate.ToDouble(), state.HasAudio);
+        }
+
         _updating = false;
     }
 
@@ -138,6 +143,13 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
             : null;
         NoteText.Text = note ?? "";
         NoteText.Visibility = note is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void ShowWarning(double rate, bool hasAudio)
+    {
+        string? warning = SpeedPresets.AudioWarning(rate, hasAudio);
+        WarningText.Text = warning ?? "";
+        WarningPanel.Visibility = warning is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void FinishChange()
@@ -168,6 +180,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         Rational rate = SpeedMath.FromSlider(e.NewValue);
         editor.Change(rate);
         RateBox.Text = SpeedMath.FormatRate(rate);
+        ShowWarning(rate.ToDouble(), editor.Read() is { HasAudio: true });
         if (!_pointerDown)
         {
             _settle.Interval = KeyboardSettle;

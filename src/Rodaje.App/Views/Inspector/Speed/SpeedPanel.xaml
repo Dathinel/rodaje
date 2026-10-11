@@ -61,6 +61,17 @@
                              KeyDown="OnBoxKeyDown" LostFocus="OnDurationBoxLostFocus" />
                 </Grid>
 
+                <Grid x:Name="WarningPanel" ColumnSpacing="6" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource IconFontFamily}" FontSize="12" Margin="0,2,0,0"
+                               Foreground="{StaticResource MeterMidBrush}" />
+                    <TextBlock x:Name="WarningText" Grid.Column="1" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
+                               Foreground="{StaticResource MeterMidBrush}" />
+                </Grid>
+
                 <TextBlock x:Name="NoteText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
 
                 <CheckBox x:Name="PitchBox" Content="Mantener tono" Margin="0,4,0,0" Click="OnPitchClick"
