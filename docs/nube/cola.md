@@ -2,6 +2,15 @@
 
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
+## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
+
+- **Estado:** pendiente (va antes que cualquier otra `pendiente`)
+- **Rama:** `claude/ci-media-velocidad`
+- **Caminos:** `tests/Rodaje.Media.Tests/`, `docs/tareas/` (y, solo si hace falta, archivos nuevos en `testing/Rodaje.TestMedia/`)
+- **Lee:** el log de la última corrida de main en rojo (`gh run list --branch main`, `gh run view <id> --log-failed`), `docs/arquitectura/medios.md` (sección de velocidad), `testing/Rodaje.TestMedia/Skip.cs`.
+
+Desde la ronda 5c.1 fallan en el runner sin NVENC `HighSpeedDecodeTests.Skipping_non_reference_frames_decodes_less_and_labels_truthfully_software` (6 casos), `HighSpeedDecodeTests.Keyframe_mode_delivers_only_keyframes_software` (hevc) y `KeyframeIndexTests.Both_sources_find_the_decoded_keyframes` (hevc, hevc10). Averigua la causa en cada una (¿el clip sin NVENC no tiene cuadros B, no es HEVC o tiene otro GOP?) y que corran en el runner comprobando lo mismo con el clip que haya, o se omitan solo con la causa concreta de hardware o codificador (el mecanismo de `Skip.cs`), con el conteo de omitidas antes y después en la entrega. En la RTX 3050 de Daniel deben seguir corriendo todas. Objetivo: CI de Windows de main en verde (salvo `PlaybackSchedulerTests.SeekLejos…`, que es la tarea 9).
+
 ## 1. CI de Windows en verde (salvo Render)
 
 - **Estado:** hecha (PR #2 unido el 11-oct; Windows bloquea en la CI)
@@ -58,7 +67,7 @@ Un `.paquete` dañado o malicioso nunca debe tumbar ni escribir fuera de su carp
 
 ## 6. Documentación al día con el código
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #7: atender la revisión del 11-oct en sus comentarios)
 - **Rama:** `claude/docs-al-dia`
 - **Caminos:** `docs/arquitectura/`, `docs/variables-entorno.md`, `docs/formato-paquete.md`, `docs/tareas/`. No toques `README.md`, `CLAUDE.md`, `docs/decisiones.md` ni `docs/fase-*.md`.
 
