@@ -122,30 +122,17 @@ internal static class MeasurementScenarios
                 Run(session, place);
                 string clipId = place.CreatedIds[0];
                 AddEffect(session, clipId, BuiltInEffects.Transform, (T.Scale, 0.45), (T.X, x));
-                Run(session, SetRate(seq, clipId, rate));
+                Run(session, Edits.SetSpeed(seq, clipId, rate));
                 fast ??= clipId;
             }
 
-            return n => SetRate(seq, fast!, SpeedSteps[n % SpeedSteps.Length]);
+            return n => Edits.SetSpeed(seq, fast!, SpeedSteps[n % SpeedSteps.Length]);
         }
         finally
         {
             session.EndGesture();
         }
     }
-
-    /// <summary>Velocidad constante sobre el mismo tramo del origen: cambia la duración, no los cuadros de los bordes.</summary>
-    /// <remarks>Comando propio de la medida; el de la interfaz (con ripple y enlazados) lo trae la ronda 5c.1.</remarks>
-    private static SequenceEditCommand SetRate(string sequenceId, string clipId, Rational rate) =>
-        new("Cambiar velocidad", sequenceId, ctx =>
-        {
-            Clip clip = ctx.Sequence.GetClip(clipId).Clip;
-            ClipSpeed speed = clip.Speed?.Clone() ?? new ClipSpeed();
-            speed.Rate = rate;
-            speed.Offset = Time.Zero;
-            clip.Speed = speed;
-            ClipTimeMap.Fit(clip.Start, clip.SourceIn, clip.SourceOut, speed).ApplyTo(clip);
-        }, mergeKey: "medida-velocidad:" + clipId);
 
     private static string AddEffect(EditorSession session, string clipId, string type, params (string Name, double Value)[] values)
     {
