@@ -17,6 +17,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 
 - **Pruebas largas y de hardware:** solo corren con `RODAJE_PRUEBAS_LARGAS=1`, que activa la aceptación. Los medios de prueba con el número de cuadro codificado están en `testing/Rodaje.TestMedia` y se guardan en caché en `TestResults\media-cache`.
 - **Nube:** la rutina «Rodaje: cola de tareas de la nube» (claude.ai/code/routines, cada 2 h, Sonnet) toma la siguiente tarea libre de `docs/nube/cola.md` y abre un PR en borrador; la sesión local revisa, une, marca `hecha` y repone la cola. La CI (`.github/workflows/ci.yml`) corre en cada PR.
+- **Descarga directa de complementos:** sigue en la fase 7 (`IPackageDownloader`), decidido por Daniel el 11-oct; hasta entonces «Instalar desde archivo».
 - **Contenido:** fuera de este repo, en `Dathinel/rodaje-transiciones` y `Dathinel/rodaje-filtros` (públicos, CC0), clonados en `..\Complementos\`.
 - **Agentes:** trabajan en worktrees dentro de `.claude\worktrees\` (ignorado), se unen con `git merge` y hacen un commit por tarea.
 - **Espacios de nombres en las pruebas:** `Rodaje.X.Tests.Timing` tapa a `Rodaje.Core.Timing`, así que hay que usar el nombre completo o un `using`.
@@ -67,16 +68,18 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 
 ## Siguiente paso (al retomar)
 
-1. **Integración final** (agente en `.claude\worktrees\`, rama `worktree-agent-*` más reciente; si la sesión se cortó, revisar sus commits con `git log main..<rama>` y unir si la suite pasa): conectar `Compositor.Resources` en `PlayerEngine` y recomponer en pausa con `Changed`; pasar `MixParameters`/`MixOptions` en `EffectContent`; ocultar LUT duplicadas en Filtros; prueba de punta a punta con los paquetes reales; medidas con `app.ps1 -Medir 10 -Escenario efectos`; pruebas inestables a `TiempoReal`.
-2. **Verificación de la fase 5** por un agente nuevo sin contexto y de **otro modelo (Sonnet; Daniel no quiere Fable)** contra los criterios de `docs/fase-5.md`. Luego mini revisión.
-3. `herramientas\app.ps1 -SoloPublicar` y pasarle a Daniel **`docs/pruebas-a-mano.md`** (todo lo que tiene que probar y las preguntas abiertas).
+1. **Fase 5 integrada y en main** (11-oct): 2368 pruebas pasan, 0 fallos; AOT sin advertencias; `dist\Rodaje` publicado; paquetes generados en `..\Complementos\*\dist\`. Cifras en `docs/fase-5.md`. No cumple 0 B por `Tick` (~2,8 KB por las clases del contrato).
+2. **En curso al cerrar la sesión del 10-oct** (si se cortó, retomar así):
+   - **Verificación de la fase 5** por un agente Sonnet sin contexto (solo lectura). Si su informe no llegó, relanzarla igual: criterio por criterio de `docs/fase-5.md` con evidencia medida, veredicto FASE CERRADA o FALTA.
+   - **Paso 0 de la fase 5c** (contrato de velocidad, formato 4, validador con rangos de parámetros e ids sin caracteres de control): rama `worktree-agent-*` más reciente sin unir; revisar con `git log main..<rama>`, correr la suite y unir. Luego los 7 agentes de `docs/fase-5c.md`.
+3. **Daniel prueba a mano** con `docs/pruebas-a-mano.md` cuando el verificador dé su veredicto.
 4. **Pendientes conocidos:** el validador no limita el rango de los parámetros de efectos (una opacidad de 1e308 abre) ni rechaza ids con caracteres de control (hallado por la revisión del PR #3; encaja en el paso 0 de la fase 5c); pico de ~600 ms en la primera edición tras importar (no es el motor; medir en la interfaz); una forma de onda quitada mientras se calcula vuelve a la memoria hasta el límite de 64; `Tick` reserva ~2,5 KB por refresco por las clases `LayerFrame`/`CompositionFrame` del contrato.
 5. **Velocidad de clips (fase 5c, aprobada):** plan en `docs/fase-5c.md`. Arranca tras unir la integración de la fase 5 (en paralelo con su verificación): paso 0 contrato y formato 4, luego 7 agentes. Va antes que la 5b.
 6. **Después:** fase 5b (texto y títulos, repo `rodaje-titulos`), luego fase 6 (exportación).
 
 ## Nube y coordinación
 
-- **Rutina en la nube** `trig_015zPXdY6meRLBGvkb5XEXMF` («Rodaje: cola de tareas de la nube», cada 2 h, Sonnet, entorno `rodaje-dotnet`): toma la siguiente tarea libre de `docs/nube/cola.md` según `docs/nube/README.md` y abre un PR en borrador. Se ve en https://claude.ai/code/routines/trig_015zPXdY6meRLBGvkb5XEXMF.
+- **Rutina en la nube** `trig_015zPXdY6meRLBGvkb5XEXMF` («Rodaje: cola de tareas de la nube», cada hora a los :23, Sonnet, entorno `rodaje-dotnet`): toma la siguiente tarea libre de `docs/nube/cola.md` según `docs/nube/README.md` y abre un PR en borrador. Se ve en https://claude.ai/code/routines/trig_015zPXdY6meRLBGvkb5XEXMF.
 - **Revisión horaria local** (vive solo mientras la sesión está abierta; **al abrir una sesión nueva hay que volver a crearla** con CronCreate): cada PR `claude/*` lo revisa un agente Opus nuevo sin contexto con encargo adversarial; si dice UNIR se une, se marca `hecha` en la cola y se repone la cola con 1–2 tareas que no pisen a los agentes locales.
 - **CI y costo:** el repo es privado; el trabajo de Windows de `ci.yml` gasta minutos de GitHub al doble que Linux. Se vigila en GitHub → Settings → Billing; si se acerca al límite, el trabajo de Windows pasa a dispararse solo en PR (o a mano) en lugar de en cada push a main.
 - **`main` sin protección:** GitHub no permite reglas de rama en repos privados sin Pro. La regla «nunca push a main» de la nube vive en `docs/nube/README.md` y en el prompt de la rutina; la revisión horaria comprueba que ningún commit de `main` venga de una rama `claude/*` sin PR.
