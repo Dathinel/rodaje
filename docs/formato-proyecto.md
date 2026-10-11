@@ -217,7 +217,7 @@ Los tipos que el motor entiende están en `EffectRegistry` (`src/Rodaje.Core/Eff
 | `rodaje.audio` | `gainDb` (0; −60 o menos es silencio), `fadeIn` y `fadeOut` en segundos (0, sin keyframes) | |
 | `rodaje.speed`, `rodaje.stabilize` | Reservados: se reconocen, pero todavía no se aplican | |
 
-Cualquier efecto puede llevar además la opción `source` con la referencia del filtro o efecto de paquete del que es copia. Los efectos de una pista (`effects` de la pista, por ejemplo su volumen) tienen la misma forma, pero sus keyframes están en tiempo de la secuencia, porque una pista no tiene origen, y solo admiten tipos de su clase: de audio en una pista de audio y de video en una de video.
+Cualquier efecto puede llevar además la opción `source` con la referencia del filtro o efecto de paquete del que es copia. Los efectos de una pista (`effects` de la pista, por ejemplo su volumen) tienen la misma forma, pero sus keyframes están en tiempo de la secuencia, porque una pista no tiene origen, y solo admiten tipos de su clase: de audio en una pista de audio y de video en una de video. Aun así siguen al contenido: cuando un ripple (borrar, recortar, cerrar un hueco o insertar con ripple) corre la pista, sus keyframes desde ese punto se corren lo mismo y los de un tramo borrado se quitan; al reordenar la pista principal, los del tramo de cada clip viajan con él. En cada borde se añade un keyframe con el valor que había, para que la curva no cambie fuera del tramo, salvo que valga lo mismo que sus vecinos; un tramo con suavizado que queda cortado por un borde vuelve a empezar ahí y se aproxima.
 
 En los tipos registrados, una opción definida debe tener un valor aceptado: uno de la lista en las de elección (`blendMode`, `direction`) y, en las referencias (`lut`, `preset`, `source`), la forma `paquete@versión/elemento`, con paquete y elemento en minúsculas ASCII, dígitos, guiones y puntos, y una versión que empieza con un dígito. `lut` y `preset` admiten además el texto vacío. Si el paquete existe se comprueba al resolver la referencia, no al abrir. Las opciones que el tipo no define se conservan sin mirarlas.
 
@@ -240,7 +240,7 @@ Una transición vive en la pista y une dos clips seguidos, sin hueco: `from` es 
 ]
 ```
 
-Al editar, Rodaje mantiene cada transición pegada a su corte, en el mismo paso del deshacer: si se divide uno de los clips sigue en el mismo corte; si un recorte, un roll o un corte dejan un clip más corto que la transición, esta se acorta; y si el corte desaparece (se abre un hueco, se borra o se mueve uno de sus clips) la transición se quita. Un ejemplo con todo lo del formato 3 está en `tests/Rodaje.Core.Tests/Serialization/ejemplos/proyecto-v3.rodaje`.
+Al editar, Rodaje mantiene cada transición pegada a su corte, en el mismo paso del deshacer: si se divide uno de los clips sigue en el mismo corte; si un recorte, un roll o un corte dejan un clip más corto que la transición, esta se acorta y no recupera su duración si el clip vuelve a alargarse, como en CapCut; y si el corte desaparece (se abre un hueco, se borra o se mueve uno de sus clips) la transición se quita. Un ejemplo con todo lo del formato 3 está en `tests/Rodaje.Core.Tests/Serialization/ejemplos/proyecto-v3.rodaje`.
 
 ## Reglas que todo programa debe respetar
 

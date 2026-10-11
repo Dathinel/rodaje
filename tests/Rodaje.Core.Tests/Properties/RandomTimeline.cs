@@ -268,8 +268,12 @@ internal static class RandomTimeline
             {
                 SequenceEditCommand volume = Edits.AddEffect(seq, track.Id, BuiltInEffects.Audio, ids: built.Ids);
                 volume.Apply(built.Project);
-                Edits.SetKeyframe(seq, track.Id, volume.CreatedIds[0], BuiltInEffects.AudioParameters.GainDb, Time.FromFrames(extras % 90, built.Rate), -6, ids: built.Ids)
-                    .Apply(built.Project);
+                for (int k = 0; k < 4; k++)
+                {
+                    Time at = Time.FromFrames((extras % 90) + (k * (17 + (extras % 50))), built.Rate);
+                    Edits.SetKeyframe(seq, track.Id, volume.CreatedIds[0], BuiltInEffects.AudioParameters.GainDb, at, -6 * ((k + extras) % 3), ids: built.Ids)
+                        .Apply(built.Project);
+                }
             }
         }
     }
