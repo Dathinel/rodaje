@@ -23,6 +23,12 @@ public enum ProxyReasons
 
     /// <summary>La decodificación medida no da el tiempo real que piden las capas.</summary>
     SlowDecode = 16,
+
+    /// <summary>A la velocidad del clip, los cuadros por segundo del origen superan lo que este equipo decodifica.</summary>
+    HighSpeed = 32,
+
+    /// <summary>Reversa por encima de 1080p: decodificar cada GOP hacia atrás no llega a tiempo; el proxy es obligatorio.</summary>
+    Reverse = 64,
 }
 
 /// <summary>Umbrales de <see cref="ProxyPolicy"/>; cada uno se puede ajustar y probar por separado.</summary>
@@ -48,6 +54,12 @@ public sealed record ProxyThresholds
     /// <summary>Velocidad mínima de decodificación por capa, en veces el tiempo real.</summary>
     /// <remarks>Con 3 capas y 1,5 hace falta decodificar a 4,5× para no perder cuadros.</remarks>
     public double MinDecodeSpeedPerLayer { get; init; } = 1.5;
+
+    /// <summary>Margen sobre la velocidad del clip: a 2× con 1,25 hace falta decodificar a 2,5× el tiempo real.</summary>
+    public double HighSpeedMargin { get; init; } = 1.25;
+
+    /// <summary>Velocidad desde la que la reproducción muestra solo keyframes y ya no decodifica cada cuadro.</summary>
+    public double KeyframeOnlyRate { get; init; } = 16;
 }
 
 /// <summary>Lo que la política sabe de un medio: lo que dice el archivo y lo que se midió en este equipo.</summary>
@@ -60,6 +72,8 @@ public sealed record ProxyThresholds
 /// <param name="KeyframeInterval">Mayor distancia entre keyframes observada, en cuadros, si se midió.</param>
 /// <param name="DecodeSpeed">Velocidad medida de decodificación en veces el tiempo real, si se midió.</param>
 /// <param name="Layers">Capas que se espera reproducir a la vez (1 si es la única).</param>
+/// <param name="PlaybackRate">Mayor velocidad a la que se reproduce el clip (la de la curva en su punto más rápido).</param>
+/// <param name="Reverse">El clip va en reversa.</param>
 public sealed record ProxyCandidate(
     int Width,
     int Height,
@@ -69,10 +83,13 @@ public sealed record ProxyCandidate(
     long? Bitrate = null,
     int? KeyframeInterval = null,
     double? DecodeSpeed = null,
-    int Layers = 1)
+    int Layers = 1,
+    double PlaybackRate = 1,
+    bool Reverse = false)
 {
     /// <summary>Candidato con los metadatos del archivo y, si se tienen, las medidas.</summary>
-    public static ProxyCandidate From(MediaInfo info, StreamStructure? structure = null, double? decodeSpeed = null, int layers = 1)
+    public static ProxyCandidate From(MediaInfo info, StreamStructure? structure = null, double? decodeSpeed = null, int layers = 1,
+        double playbackRate = 1, bool reverse = false)
     {
         ArgumentNullException.ThrowIfNull(info);
         VideoStreamInfo video = info.Video ?? throw new ArgumentException($"{info.Path} no tiene video.", nameof(info));
@@ -85,7 +102,9 @@ public sealed record ProxyCandidate(
             structure?.Bitrate,
             structure?.MaxKeyframeInterval,
             decodeSpeed,
-            layers);
+            layers,
+            playbackRate,
+            reverse);
     }
 }
 
@@ -93,6 +112,9 @@ public sealed record ProxyCandidate(
 public sealed record ProxyRecommendation(ProxyReasons Reasons, IReadOnlyList<string> Explanations)
 {
     public bool IsRecommended => Reasons != ProxyReasons.None;
+
+    /// <summary>Sin proxy la vista previa no puede cumplir (reversa por encima de 1080p): se usa aunque esté en Auto.</summary>
+    public bool IsRequired => Reasons.HasFlag(ProxyReasons.Reverse);
 }
 
 /// <summary>Decide cuándo conviene un proxy para la vista previa.</summary>
@@ -105,6 +127,7 @@ public sealed class ProxyPolicy(ProxyThresholds? thresholds = null)
     {
         ArgumentNullException.ThrowIfNull(candidate);
         ArgumentOutOfRangeException.ThrowIfLessThan(candidate.Layers, 1);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(candidate.PlaybackRate);
         ProxyThresholds t = Thresholds;
         var reasons = ProxyReasons.None;
         var text = new List<string>();
@@ -116,7 +139,8 @@ public sealed class ProxyPolicy(ProxyThresholds? thresholds = null)
 
         int longSide = Math.Max(candidate.Width, candidate.Height);
         int shortSide = Math.Min(candidate.Width, candidate.Height);
-        if (longSide > t.MaxLongSide || shortSide > t.MaxShortSide)
+        bool aboveHd = longSide > t.MaxLongSide || shortSide > t.MaxShortSide;
+        if (aboveHd)
         {
             Add(ProxyReasons.Resolution, F($"Resolución de {candidate.Width}×{candidate.Height}, mayor que 1080p."));
         }
@@ -142,6 +166,21 @@ public sealed class ProxyPolicy(ProxyThresholds? thresholds = null)
         {
             Add(ProxyReasons.SlowDecode,
                 F($"Este equipo lo decodifica a {speed:0.0}× el tiempo real y {candidate.Layers} capa(s) piden {required:0.0}×."));
+        }
+
+        // De 16× en adelante solo se decodifican keyframes, así que la velocidad ya no multiplica el trabajo.
+        double rate = candidate.PlaybackRate;
+        double needed = rate * candidate.Layers * t.HighSpeedMargin;
+        if (rate > 1 && rate < t.KeyframeOnlyRate && candidate.DecodeSpeed is { } measured && measured < needed)
+        {
+            double fps = candidate.FrameRate.ToDouble();
+            Add(ProxyReasons.HighSpeed,
+                F($"A {rate:0.##}× hacen falta {fps * needed:0} cuadros por segundo y este equipo decodifica {fps * measured:0}."));
+        }
+
+        if (candidate.Reverse && aboveHd)
+        {
+            Add(ProxyReasons.Reverse, F($"La reversa por encima de 1080p necesita proxy ({candidate.Width}×{candidate.Height})."));
         }
 
         return new ProxyRecommendation(reasons, text);
