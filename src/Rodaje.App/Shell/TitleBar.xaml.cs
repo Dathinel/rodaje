@@ -1,5 +1,8 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Settings;
@@ -17,6 +20,9 @@ internal sealed partial class TitleBar : UserControl
     public TitleBar()
     {
         InitializeComponent();
+        UpstreamCredit.Content = UpstreamAttribution.ShortCredit;
+        ToolTipService.SetToolTip(UpstreamCredit, UpstreamAttribution.Notice);
+        AutomationProperties.SetName(UpstreamCredit, UpstreamAttribution.Notice);
     }
 
     /// <summary>Se pidió una pestaña del panel derecho desde el menú Ver.</summary>
@@ -260,4 +266,44 @@ internal sealed partial class TitleBar : UserControl
     private void OnExportClick(object sender, RoutedEventArgs e) => _services?.Shortcuts.Invoke(ActionIds.Export);
 
     private void OnExitClick(object sender, RoutedEventArgs e) => ExitRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnUpstreamClick(object sender, RoutedEventArgs e) => OpenUpstream();
+
+    private void OpenUpstream()
+    {
+        try
+        {
+            using Process? _ = Process.Start(new ProcessStartInfo(UpstreamAttribution.RepositoryUrl) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        {
+            _services?.Session.Notify(NotificationSeverity.Warning, "Repositorio oficial", "No se pudo abrir el navegador: " + UpstreamAttribution.RepositoryUrl);
+        }
+    }
+
+    private async void OnAboutClick(object sender, RoutedEventArgs e)
+    {
+        if (XamlRoot is null)
+        {
+            return;
+        }
+
+        var link = new HyperlinkButton { Content = UpstreamAttribution.RepositoryUrl, Padding = new Thickness(0) };
+        link.Click += (_, _) => OpenUpstream();
+        var body = new StackPanel { Spacing = 10, MaxWidth = 460 };
+        body.Children.Add(new TextBlock { Text = UpstreamAttribution.Notice, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
+        body.Children.Add(link);
+        body.Children.Add(new TextBlock { Text = UpstreamAttribution.LicenseLine, TextWrapping = TextWrapping.Wrap, Style = (Style)Application.Current.Resources["CaptionTextStyle"] });
+        body.Children.Add(new TextBlock { Text = UpstreamAttribution.FfmpegCredit, TextWrapping = TextWrapping.Wrap, Style = (Style)Application.Current.Resources["CaptionTextStyle"] });
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "Acerca de Rodaje",
+            Content = body,
+            CloseButtonText = "Cerrar",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        await DialogGate.ShowAsync(dialog);
+    }
 }
