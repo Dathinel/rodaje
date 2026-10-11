@@ -49,9 +49,17 @@ public sealed class InstalledContentLoader(Func<PackageScan> installed) : IConte
 
     public TransitionPreset? LoadTransition(string reference) => Read(reference, ItemKind.Transition, ContentReaders.ReadTransition);
 
-    public FilterPreset? LoadFilter(string reference) => Read(reference, ItemKind.Filter, ContentReaders.ReadFilter);
+    /// <summary>Un filtro, con sus opciones <c>./elemento</c> (la LUT de su paquete) ya como referencias completas.</summary>
+    public FilterPreset? LoadFilter(string reference) =>
+        Read(reference, ItemKind.Filter, ContentReaders.ReadFilter) is { } filter && Owner(reference) is { } owner
+            ? filter with { Effects = PackageContentStore.ResolveLocalReferences(filter.Effects, owner) }
+            : null;
 
-    public EffectPreset? LoadEffect(string reference) => Read(reference, ItemKind.Effect, ContentReaders.ReadEffect);
+    /// <summary>Un efecto animado, con sus opciones <c>./elemento</c> ya como referencias completas.</summary>
+    public EffectPreset? LoadEffect(string reference) =>
+        Read(reference, ItemKind.Effect, ContentReaders.ReadEffect) is { } effect && Owner(reference) is { } owner
+            ? effect with { Effects = PackageContentStore.ResolveLocalReferences(effect.Effects, owner) }
+            : null;
 
     /// <summary>El archivo de un elemento instalado de ese tipo, o <c>null</c> si falta.</summary>
     public string? FindFile(string reference, ItemKind kind)
@@ -65,6 +73,9 @@ public sealed class InstalledContentLoader(Func<PackageScan> installed) : IConte
 
         return new PackageItemEntry(package, item).FilePath;
     }
+
+    private PackageManifest? Owner(string reference) =>
+        PackageReference.TryParse(reference, out PackageReference? parsed) ? _installed().Find(parsed.PackageId)?.Manifest : null;
 
     private T? Read<T>(string reference, ItemKind kind, Func<Stream, T> reader)
         where T : class

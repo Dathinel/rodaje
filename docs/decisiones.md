@@ -155,6 +155,7 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
   | 8 | 0,53 ms | 0,37 ms |
 
   Incluso con 8 capas, componer usa menos del 4 % de los 16,7 ms que dura un cuadro a 60 fps.
+- Con los efectos de la fase 5 el camino rápido no cambió (8 capas 1080p: 0,54 ms) y 3 capas 4K con color, LUT, desenfoque y superponer cuestan 2,7 ms; la tabla completa está en [fase-5.md](fase-5.md#medido-en-la-integración-10-de-octubre-rtx-3050-laptop).
 - El visor sigue dibujando con su `VideoRenderer`; cuando muestre varias capas usará `Compositor` y `Presenter`.
 - Reducir una capa a menos de la mitad produce aliasing, hasta que existan proxies o un filtro de varias muestras.
 - Cuando el motor ponga el SAR y la rotación en `LayerFrame`, el parámetro `geometry` de `Compositor.Render` se puede retirar.

@@ -93,6 +93,7 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
         await Task.Delay(1500);
         metrics.ResetSteadyState();
         long droppedBefore = engine.Snapshot.FramesDropped;
+        PlayerEngine.EffectTotals effectsBefore = engine.Effects;
         TimeSpan cpuStart = Process.GetCurrentProcess().TotalProcessorTime;
         var wall = Stopwatch.StartNew();
         _pinging = true;
@@ -102,6 +103,10 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
         metrics.FreezeSteadyState();
         _pinging = false;
         metrics.Note($"cuadros perdidos al medir: {engine.Snapshot.FramesDropped - droppedBefore}; la calidad Auto bajó {engine.PreviewDowngrades} vez/veces");
+        PlayerEngine.EffectTotals drawnEffects = engine.Effects;
+        long composed = Math.Max(1, drawnEffects.Frames - effectsBefore.Frames);
+        metrics.Note(string.Create(CultureInfo.InvariantCulture,
+            $"efectos por cuadro al medir: {(drawnEffects.Applied - effectsBefore.Applied) / (double)composed:0.0} dibujados, {(drawnEffects.Skipped - effectsBefore.Skipped) / (double)composed:0.0} saltados, {(drawnEffects.Missing - effectsBefore.Missing) / (double)composed:0.0} sin su contenido ({composed} cuadros)"));
         using (Process self = Process.GetCurrentProcess())
         {
             double cpu = (self.TotalProcessorTime - cpuStart).TotalMilliseconds / wall.Elapsed.TotalMilliseconds * 100;

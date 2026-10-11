@@ -159,7 +159,7 @@ public sealed class PackageContentStore : IDisposable
         Find(reference, ItemKind.Filter, (stream, owner) =>
         {
             FilterPreset filter = ContentReaders.ReadFilter(stream);
-            return filter with { Effects = Resolve(filter.Effects, owner) };
+            return filter with { Effects = ResolveLocalReferences(filter.Effects, owner) };
         });
 
     /// <summary>Un efecto animado, con las opciones <c>./elemento</c> ya convertidas en referencias completas.</summary>
@@ -167,7 +167,7 @@ public sealed class PackageContentStore : IDisposable
         Find(reference, ItemKind.Effect, (stream, owner) =>
         {
             EffectPreset effect = ContentReaders.ReadEffect(stream);
-            return effect with { Effects = Resolve(effect.Effects, owner) };
+            return effect with { Effects = ResolveLocalReferences(effect.Effects, owner) };
         });
 
     /// <summary>Por qué un filtro, efecto o transición no se pudo usar; nulo si no se pidió o se leyó bien.</summary>
@@ -329,8 +329,11 @@ public sealed class PackageContentStore : IDisposable
         return value;
     }
 
-    private static List<PresetEffect> Resolve(IReadOnlyList<PresetEffect> effects, PackageManifest owner)
+    /// <summary>Convierte las opciones <c>./elemento</c> de unos efectos en referencias completas al paquete que los trae.</summary>
+    public static List<PresetEffect> ResolveLocalReferences(IReadOnlyList<PresetEffect> effects, PackageManifest owner)
     {
+        ArgumentNullException.ThrowIfNull(effects);
+        ArgumentNullException.ThrowIfNull(owner);
         var resolved = new List<PresetEffect>(effects.Count);
         foreach (PresetEffect effect in effects)
         {

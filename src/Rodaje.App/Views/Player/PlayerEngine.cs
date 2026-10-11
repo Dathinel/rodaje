@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Settings;
 using Rodaje.Audio.Metering;
 using Rodaje.Core.Model;
@@ -69,6 +70,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private PreviewProxies? _proxies;
     private ProxyUsage _proxyUsage = ProxyUsage.Auto;
     private IEffectContent? _content;
+    private readonly ContentRefresh _contentRefresh;
     private Project? _project;
     private string? _sequenceId;
     private bool _gpuPending;
@@ -89,6 +91,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private int _previewDivisor = 1;
     private int _previewDowngrades;
     private long _editMark;
+    private EffectTotals _effectTotals;
     private long _editMarkTaken;
 
     private readonly Lock _meterLock = new();
@@ -105,6 +108,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _enableAudio = enableAudio;
         _proxyUsage = proxyUsage;
         _metrics = metrics;
+        _contentRefresh = new ContentRefresh(() => _wake.Set());
         _thread = new Thread(Run) { Name = "Rodaje render", IsBackground = true, Priority = ThreadPriority.AboveNormal };
     }
 
@@ -191,6 +195,18 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     /// <summary>Resolución de la vista previa: Auto, completa, mitad o cuarto.</summary>
     public void SetPreviewQuality(PreviewQuality quality) => Post(new Command(CommandKind.Quality, Quality: quality));
 
+    /// <summary>Efectos dibujados, saltados y contenido que faltó desde que se abrió el reproductor (para medir).</summary>
+    public EffectTotals Effects
+    {
+        get
+        {
+            lock (_meterLock)
+            {
+                return _effectTotals;
+            }
+        }
+    }
+
     /// <summary>Veces que la calidad Auto bajó la resolución al reproducir (para medir).</summary>
     public int PreviewDowngrades => Volatile.Read(ref _previewDowngrades);
 
@@ -261,6 +277,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 ApplyResize();
                 ApplyProject();
                 ProcessCommands();
+                ApplyContentChanges();
                 if (_session is { IsPlaying: false } && _quality.Paused())
                 {
                     EnsureCompositor();
@@ -332,6 +349,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     private void Shutdown()
     {
+        _contentRefresh.Dispose();
         CloseSession();
         _compositor?.Dispose();
         _gpuTimer?.Dispose();
@@ -493,6 +511,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 if (!ReferenceEquals(command.Content, _content))
                 {
                     _content = command.Content;
+                    _contentRefresh.Attach(_content);
+                    if (_compositor is not null)
+                    {
+                        _compositor.Resources = _content;
+                    }
+
                     if (_session is not null)
                     {
                         Time position = _session.Position;
@@ -625,7 +649,31 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         _compositor?.Dispose();
         _compositor = null;
-        _compositor = new Compositor(_gpu, width, height);
+        _compositor = new Compositor(_gpu, width, height) { Resources = _content };
+    }
+
+    /// <summary>Una LUT terminó de cargar o cambiaron los paquetes: en pausa también hay que volver a componer.</summary>
+    private void ApplyContentChanges()
+    {
+        ContentUpdate update = _contentRefresh.Take();
+        if (update == ContentUpdate.None)
+        {
+            return;
+        }
+
+        if (update == ContentUpdate.Rebuild && _session is not null)
+        {
+            try
+            {
+                _session.Invalidate();
+            }
+            catch (KeyNotFoundException ex)
+            {
+                Warning?.Invoke(ex.Message);
+            }
+        }
+
+        _dirty = true;
     }
 
     private void RenderFrame()
@@ -645,7 +693,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 _gpuTimer!.Begin();
             }
 
-            drawn = _compositor.Render(frame, Geometry).LayersDrawn;
+            CompositeResult result = _compositor.Render(frame, Geometry);
+            drawn = result.LayersDrawn;
+            lock (_meterLock)
+            {
+                _effectTotals = _effectTotals.Add(result);
+            }
             if (measure)
             {
                 _gpuTimer!.End();
@@ -798,6 +851,13 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         double Zoom = 0,
         PreviewQuality Quality = PreviewQuality.Auto,
         IEffectContent? Content = null);
+
+    /// <summary>Sumas de <see cref="CompositeResult"/> en los cuadros compuestos.</summary>
+    internal readonly record struct EffectTotals(long Frames, long Applied, long Skipped, long Missing)
+    {
+        public EffectTotals Add(CompositeResult result) =>
+            new(Frames + 1, Applied + result.EffectsApplied, Skipped + result.EffectsSkipped, Missing + result.MissingContent);
+    }
 
     private readonly record struct SizeRequest(int Width, int Height, float ScaleX, float ScaleY, long RequestedAt);
 }

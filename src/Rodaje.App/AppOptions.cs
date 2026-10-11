@@ -7,11 +7,14 @@ namespace Rodaje.App;
 /// archivos, con el clip H.264 1080p de prueba de <c>TestResults\media-cache</c>); <c>--registro ruta</c> dónde se
 /// escriben las cifras; <c>--sin-audio</c> usa el reloj del sistema; <c>--ui-hz N</c> refresca tiempo y cursor de la
 /// interfaz N veces por segundo (0: en cada cuadro de XAML; por defecto 30); <c>--escenario efectos</c> arma antes de
-/// medir 3 capas con efectos y 4 transiciones sobre el medio, y mueve un deslizador de color al reproducir.
+/// medir 3 capas con efectos y 4 transiciones sobre el medio, y mueve un deslizador de color al reproducir;
+/// <c>--sin-proxies</c> reproduce siempre el original (para medir el peor caso), sin tocar los ajustes.
 /// </summary>
 internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSeconds, string? LogPath, bool EnableAudio, int UiHz)
 {
     public string? Scenario { get; init; }
+
+    public bool NoProxies { get; init; }
 
     public const string TestClipPattern = "h264-1080p-23976-aac-*.mp4";
 
@@ -23,6 +26,7 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
         bool audio = true;
         int uiHz = 30;
         string? scenario = null;
+        bool noProxies = false;
         for (int i = 0; i < args.Length; i++)
         {
             string a = args[i];
@@ -42,6 +46,10 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             {
                 scenario = args[++i].ToLowerInvariant();
             }
+            else if (a.Equals("--sin-proxies", StringComparison.OrdinalIgnoreCase))
+            {
+                noProxies = true;
+            }
             else if (a.Equals("--sin-audio", StringComparison.OrdinalIgnoreCase))
             {
                 audio = false;
@@ -57,7 +65,7 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             files.Add(clip);
         }
 
-        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario };
+        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario, NoProxies = noProxies };
     }
 
     private static string? FindTestClip()
