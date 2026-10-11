@@ -91,6 +91,18 @@ En el runner gana `h264_mf`, que solo produce I y P aunque se le pida `-bf 2`.
 
 Render no se tocó: lo están cambiando los agentes de la fase 5.
 
+## Pruebas omitidas, antes y después (runner de Windows)
+
+| Proyecto | Antes | Después | Causa |
+|---|---|---|---|
+| `Rodaje.Media.Tests` | 25 | 32 | +6 casos de HEVC 10 bits (sin `hevc_nvenc`, el build LGPL no trae HEVC de 10 bits por software); +1 `Corrupted_packets_are_skipped_without_throwing` (solo con `h264_nvenc`, defecto de estado del decodificador, ver punto 2) |
+| `Rodaje.TestMedia.Tests` | 3 | 5 | 2 presets con cuadros B: `h264_mf`, el codificador del runner, solo produce I y P aunque se le pida `-bf 2` |
+| `Rodaje.Render.Tests` | 0 omitidas | 0 omitidas | 13 casos (7 métodos) **excluidos por filtro** en `ci.yml`, no omitidos: 200 → 187 casos ejecutados |
+
+Si la sonda de cuadros B falla (por ejemplo, por el límite de sesiones de NVENC), la prueba **no** se omite: corre y falla con su error real.
+
+Causa de cada caso excluido de Render: ver la tabla del punto 5. Seis métodos (10 casos) dan `E_INVALIDARG` por `D3D11_BIND_DECODER` en WARP o superan el tiempo fijado (`One_4k_layer_with_color_and_lut`, 199 ms en WARP). **`EffectFidelityTests.Sharpen_matches_the_unsharp_mask_reference` (3 casos) no es `E_INVALIDARG`:** el registro muestra píxeles fuera de la tolerancia de ±2 (92 frente a 90). La causa probable es la rasterización de WARP, pero no la he podido confirmar desde Linux. La exclusión es temporal hasta la tarea 2 de la cola.
+
 ## Pendiente
 
 - **`Rodaje.Media`: estado del decodificador tras un paquete dañado** (punto 2). Arreglo posible: después de un error de decodificación, que el siguiente seek reabra el contexto del códec en vez de solo vaciarlo. Va con una prueba propia que no dependa del codificador:

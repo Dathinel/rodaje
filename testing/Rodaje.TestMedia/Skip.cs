@@ -184,7 +184,8 @@ public static class Skip
     public static string? BFrames(VideoCodec codec) =>
         Encoders([codec]) ?? BFramesReasons.GetOrAdd(codec, c => new Lazy<string?>(() => ProbeBFrames(FfmpegTool.Default!, c))).Value;
 
-    // Dos segundos con movimiento y -bf 2, con las mismas opciones de control que usa TestMediaGenerator con ese codificador.
+    // Dos segundos con movimiento y -bf 2. Las opciones de control repiten las de TestMediaGenerator.cs (rama de cada
+    // codificador), salvo el cuadro de 320x240 y los 2 s en vez de la duración del medio.
     private static string? ProbeBFrames(FfmpegTool ffmpeg, VideoCodec codec)
     {
         string encoder = ffmpeg.FindVideoEncoder(codec)!;
@@ -193,11 +194,15 @@ public static class Skip
             return null;
         }
 
-        string[] options = encoder.EndsWith("_mf", StringComparison.Ordinal)
-            ? ["-rate_control", "cbr", "-b:v", "2000k", "-g", "25", "-bf", "2"]
-            : encoder == "libx265"
-                ? ["-x265-params", "log-level=error:keyint=25:min-keyint=25:scenecut=0:bframes=2"]
-                : ["-b:v", "2000k", "-g", "25", "-bf", "2"];
+        string[] options = encoder.EndsWith("_nvenc", StringComparison.Ordinal)
+            ? ["-preset", "p2", "-rc", "cbr", "-b:v", "2000k", "-g", "25", "-bf", "2", "-no-scenecut", "1", "-strict_gop", "1"]
+            : encoder.EndsWith("_mf", StringComparison.Ordinal)
+                ? ["-rate_control", "cbr", "-b:v", "2000k", "-g", "25", "-bf", "2"]
+                : encoder == "libx264"
+                    ? ["-preset", "veryfast", "-b:v", "2000k", "-g", "25", "-keyint_min", "25", "-sc_threshold", "0", "-bf", "2"]
+                    : encoder == "libx265"
+                        ? ["-preset", "veryfast", "-b:v", "2000k", "-x265-params", "log-level=error:keyint=25:min-keyint=25:scenecut=0:bframes=2"]
+                        : ["-b:v", "2000k", "-g", "25", "-bf", "2"];
         string path = Path.Combine(Path.GetTempPath(), $"rodaje-cuadros-b-{Guid.NewGuid():N}.mp4");
         try
         {
@@ -212,9 +217,10 @@ public static class Skip
             return $"Omitida: {encoder}, el codificador de {codec} de este equipo, no produce cuadros B aunque se le pidan "
                 + $"({string.Join(", ", types.OrderBy(t => t.Key).Select(t => $"{t.Key}={t.Value}"))}), y el preset los exige.";
         }
-        catch (FfmpegException ex)
+        catch (FfmpegException)
         {
-            return $"Omitida: no se pudo comprobar si {encoder} produce cuadros B: {ex.Message}";
+            // Una sonda que falla no es una causa concreta: no se omite, la prueba corre y falla con su error real.
+            return null;
         }
         finally
         {

@@ -218,23 +218,30 @@ public class LevelMathTests
         { IsBackground = true, Name = "Lector de niveles" };
         reader.Start();
 
-        float[] block = new float[16 * 2];
-        long position = 0;
-        while ((minimum.ElapsedMilliseconds < 400 || Interlocked.Read(ref reads) < MinimumReads) && !deadline.IsCancellationRequested)
+        try
         {
-            float value = Value(position);
-            for (int i = 0; i < 16; i++)
+            float[] block = new float[16 * 2];
+            long position = 0;
+            while ((minimum.ElapsedMilliseconds < 400 || Interlocked.Read(ref reads) < MinimumReads) && !deadline.IsCancellationRequested)
             {
-                block[i * 2] = value;
-                block[(i * 2) + 1] = value * 0.5f;
+                float value = Value(position);
+                for (int i = 0; i < 16; i++)
+                {
+                    block[i * 2] = value;
+                    block[(i * 2) + 1] = value * 0.5f;
+                }
+
+                analyzer.Process(block, position);
+                position += 16;
             }
 
-            analyzer.Process(block, position);
-            position += 16;
+        }
+        finally
+        {
+            Volatile.Write(ref stop, true);
+            reader.Join();
         }
 
-        Volatile.Write(ref stop, true);
-        reader.Join();
         Assert.Equal(0, torn);
         Assert.True(reads >= MinimumReads, $"solo {reads} lecturas en {minimum.ElapsedMilliseconds} ms");
 

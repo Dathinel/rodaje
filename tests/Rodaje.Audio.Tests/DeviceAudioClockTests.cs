@@ -98,15 +98,21 @@ public class DeviceAudioClockTests
         writer.Start();
 
         Time last = Time.Zero;
-        for (int i = 0; (i < 200_000 || last == Time.Zero) && !deadline.IsCancellationRequested; i++)
+        try
         {
-            Time now = clock.Position;
-            Assert.True(now >= last);
-            last = now;
+            for (int i = 0; (i < 200_000 || last == Time.Zero) && !deadline.IsCancellationRequested; i++)
+            {
+                Time now = clock.Position;
+                Assert.True(now >= last);
+                last = now;
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref stop, true);
+            writer.Join();
         }
 
-        Volatile.Write(ref stop, true);
-        writer.Join();
         Assert.True(last > Time.Zero);
     }
 
