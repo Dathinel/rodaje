@@ -157,6 +157,7 @@ public sealed class TimelineResourceTests
     }
 
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public void Tick_never_waits_for_a_decoder_that_is_closing()
     {
         var time = new ManualTimeProvider();

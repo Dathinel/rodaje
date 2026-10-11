@@ -127,9 +127,9 @@ public sealed class ClipVisualsTests : IDisposable
         _sources.Stuck.Set();
     }
 
-    private ClipVisuals Create(string? cache = null)
+    private ClipVisuals Create(string? cache = null, int workers = 2)
     {
-        var visuals = new ClipVisuals(id => _media.GetValueOrDefault(id), _sources, new ClipVisualsOptions { CacheDirectory = cache });
+        var visuals = new ClipVisuals(id => _media.GetValueOrDefault(id), _sources, new ClipVisualsOptions { CacheDirectory = cache, ThumbnailWorkers = workers });
         visuals.Changed += (_, e) => _events.Add(e);
         return visuals;
     }
@@ -190,7 +190,8 @@ public sealed class ClipVisualsTests : IDisposable
     [Fact]
     public void A_newer_request_goes_first()
     {
-        using ClipVisuals visuals = Create();
+        // Con un solo hilo el orden es determinista: la tanda vieja cede el paso antes de su siguiente miniatura.
+        using ClipVisuals visuals = Create(workers: 1);
         _sources.Gate.Reset();
         visuals.GetFilmstrip("m1", Time.Zero, Time.FromSeconds(100), 50, 32);
         Thread.Sleep(50);
