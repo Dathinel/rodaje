@@ -19,11 +19,13 @@ internal sealed record PlacementSpec(int Media, int InFrames, int LengthFrames, 
 /// decide qué cortes llevan transición y qué clips y pistas llevan efectos; <see cref="Speeds"/>, qué clips llevan
 /// velocidad, curva, reversa o un congelado.
 /// </summary>
-internal sealed record ProjectSpec(int Rate, int VideoTracks, int AudioTracks, MediaSpec[] Media, PlacementSpec[] Placements, int LockBits, int Extras = 0, int Speeds = 0)
+/// <remarks>Con <see cref="Curves"/>, cada clip que lleva velocidad lleva una curva o un preajuste.</remarks>
+internal sealed record ProjectSpec(int Rate, int VideoTracks, int AudioTracks, MediaSpec[] Media, PlacementSpec[] Placements, int LockBits, int Extras = 0, int Speeds = 0,
+    bool Curves = false)
 {
     public override string ToString() => string.Create(
         CultureInfo.InvariantCulture,
-        $"Proyecto(tasa {Rate}, {VideoTracks}V {AudioTracks}A, bloqueos {LockBits}, extras {Extras}, velocidades {Speeds}, medios [{string.Join("; ", Media.Select(m => m.ToString()))}], clips [{string.Join("; ", Placements.Select(p => p.ToString()))}])");
+        $"Proyecto(tasa {Rate}, {VideoTracks}V {AudioTracks}A, bloqueos {LockBits}, extras {Extras}, velocidades {Speeds}{(Curves ? " (curvas)" : "")}, medios [{string.Join("; ", Media.Select(m => m.ToString()))}], clips [{string.Join("; ", Placements.Select(p => p.ToString()))}])");
 }
 
 /// <summary>Operación en bruto; sus números se interpretan contra el estado del proyecto al ejecutarla.</summary>
@@ -68,6 +70,7 @@ internal enum OpKind
     SetCurve,
     SetReverse,
     SetPreservePitch,
+    ApplySpeedPreset,
     Undo,
     Redo,
 }
@@ -107,12 +110,26 @@ internal static class RandomTimeline
         (OpKind.AddTransition, 7), (OpKind.RemoveTransition, 2), (OpKind.SetTransitionDuration, 3), (OpKind.SetTransitionType, 2),
         (OpKind.SetTransitionOption, 2), (OpKind.AddEffect, 3), (OpKind.SetEffectOption, 2), (OpKind.SetKeyframe, 3),
         (OpKind.SetSpeed, 6), (OpKind.RateStretch, 5), (OpKind.FreezeFrame, 3), (OpKind.SetCurve, 3), (OpKind.SetReverse, 3),
-        (OpKind.SetPreservePitch, 1), (OpKind.Undo, 4), (OpKind.Redo, 3),
+        (OpKind.SetPreservePitch, 1), (OpKind.ApplySpeedPreset, 2), (OpKind.Undo, 4), (OpKind.Redo, 3),
     ];
 
     private static readonly OpKind[] KindTable = [.. Weights.SelectMany(w => Enumerable.Repeat(w.Kind, w.Weight))];
 
     public static int KindCount => KindTable.Length;
+
+    /// <summary>Lo que se sortea sobre proyectos con curvas: cortes, recortes, estirar, curvas y lo que mueve clips.</summary>
+    private static readonly OpKind[] CurveKinds =
+    [
+        OpKind.Split, OpKind.Split, OpKind.Split, OpKind.Trim, OpKind.Trim, OpKind.Trim, OpKind.RippleTrim, OpKind.RippleTrim,
+        OpKind.Roll, OpKind.Slide, OpKind.Slip, OpKind.Move, OpKind.RateStretch, OpKind.RateStretch, OpKind.RateStretch,
+        OpKind.SetCurve, OpKind.ApplySpeedPreset, OpKind.ApplySpeedPreset, OpKind.AddTransition, OpKind.SetReverse,
+        OpKind.RippleDelete, OpKind.Undo, OpKind.Redo,
+    ];
+
+    /// <summary>Operaciones del sorteo con curvas (<see cref="CurveKinds"/>).</summary>
+    public static readonly Gen<OpSpec> GenCurveOp = Gen.Select(
+        Gen.Int[0, CurveKinds.Length - 1], Gen.Int[0, 1000], Gen.Int[0, 1000], Gen.Int[0, 1000], Gen.Int[0, 1000], Gen.Int[-40, 40],
+        (k, a, b, c, d, e) => new OpSpec(Array.IndexOf(KindTable, CurveKinds[k]), a, b, c, d, e));
 
     public static readonly Gen<MediaSpec> GenMedia =
         Gen.Select(Gen.Int[0, 9], Gen.Int[1, 600], Gen.Int[0, 3], (k, f, x) => new MediaSpec(k < 6 ? 0 : k < 8 ? 1 : 2, f, x));
@@ -127,6 +144,10 @@ internal static class RandomTimeline
             (r, v, a, media, placements, locks, extras) => new ProjectSpec(r, v, a, media, placements, locks, extras)),
         Gen.Int[0, 65535],
         (spec, speeds) => spec with { Speeds = speeds });
+
+    /// <summary>Proyectos donde casi todos los clips llevan una curva o un preajuste.</summary>
+    public static readonly Gen<ProjectSpec> GenCurveProject = Gen.Select(GenProject, Gen.Int[0, 65535],
+        (spec, speeds) => spec with { Speeds = speeds | 0x5555, Curves = true });
 
     /// <summary>Velocidades que se sortean; la última está fuera de rango para probar el rechazo.</summary>
     public static readonly Rational[] SpeedRates =
@@ -247,7 +268,7 @@ internal static class RandomTimeline
         }
 
         AddExtras(built, spec.Extras);
-        AddSpeeds(built, spec.Speeds);
+        AddSpeeds(built, spec.Speeds, spec.Curves);
         int index = 0;
         foreach (Track track in sequence.AllTracks)
         {
@@ -309,7 +330,7 @@ internal static class RandomTimeline
     }
 
     /// <summary>Velocidades, curvas, reversas y congelados en algunos clips; lo que no se puede (por ejemplo, congelar audio) se salta.</summary>
-    private static void AddSpeeds(BuiltProject built, int speeds)
+    private static void AddSpeeds(BuiltProject built, int speeds, bool curves)
     {
         const string seq = BuiltProject.SequenceId;
         List<Clip> clips = [.. built.Sequence.AllTracks.SelectMany(t => t.Clips)];
@@ -323,7 +344,10 @@ internal static class RandomTimeline
 
             Clip clip = found.Clip;
             int pick = (speeds >> 3) + i;
-            SequenceEditCommand command = choice switch
+            SequenceEditCommand command = curves ? (pick % 2 == 0
+                    ? Edits.ApplySpeedPreset(seq, clip.Id, SpeedPresets.All[pick % SpeedPresets.All.Count], (RippleScope)(pick % 3), built.Ids)
+                    : Edits.SetCurve(seq, clip.Id, new SpeedCurve { Points = [.. CurveShapes[pick % (CurveShapes.Length - 1)]] }, (RippleScope)(pick % 3), built.Ids))
+                : choice switch
             {
                 1 => Edits.SetSpeed(seq, clip.Id, SpeedRates[pick % (SpeedRates.Length - 1)], (RippleScope)(pick % 3), built.Ids),
                 2 when pick % 3 == 0 => Edits.SetReverse(seq, clip.Id, true, built.Ids),
@@ -607,6 +631,14 @@ internal static class RandomTimeline
                 SpeedCurve? curve = op.B % 6 == 5 ? null : new SpeedCurve { Points = [.. CurveShapes[op.B % CurveShapes.Length]] };
                 var scope = (RippleScope)(op.C % 3);
                 return new(kind, Edits.SetCurve(seq, clip, curve, scope, ids), $"SetCurve({clip}, {(curve is null ? "-" : (op.B % CurveShapes.Length).ToString(CultureInfo.InvariantCulture))}, {scope})", clip);
+            }
+
+            case OpKind.ApplySpeedPreset:
+            {
+                string clip = r.ClipId(op.A);
+                SpeedPreset preset = SpeedPresets.All[op.B % SpeedPresets.All.Count];
+                var scope = (RippleScope)(op.C % 3);
+                return new(kind, Edits.ApplySpeedPreset(seq, clip, preset, scope, ids), $"ApplySpeedPreset({clip}, {preset}, {scope})", clip);
             }
 
             case OpKind.SetReverse:

@@ -146,7 +146,9 @@ internal sealed partial class TimelineScheduler
     /// <summary>
     /// Las ventanas del carril, en tiempo de la secuencia: el cuadro debido y lo que se mostrará en los próximos
     /// <c>PrefetchFrames</c> cuadros de la secuencia; y, cerca de un corte, lo que el clip siguiente mostrará en sus primeros
-    /// <c>PreRollFrames</c>. Con velocidad, el tramo del origen se estira o se encoge con ella.
+    /// <c>PreRollFrames</c>. Con velocidad, el tramo del origen se estira o se encoge con ella; con una curva, cada
+    /// cuadro adelantado es el que mostrará su instante, y el keyframe cercano se usa solo si la velocidad instantánea no
+    /// baja de 16× en todo el tramo.
     /// </summary>
     private void AddLaneWindows(VideoLayerPlan lane, Time time, long sequenceFrame, int priority)
     {
@@ -155,13 +157,16 @@ internal sealed partial class TimelineScheduler
         {
             MediaState media = Media(clip);
             long due = Due(clip, media, time, running, out _, out bool approximate);
-            long end = WindowEnd(clip, due, sequenceFrame + _prefetch - 1);
+            long last = sequenceFrame + _prefetch - 1;
+            long end = WindowEnd(clip, due, last);
             media.Layers++;
             media.Priority = Math.Max(media.Priority, priority);
             media.Windows.Add(new Window(due, due + 1, Due: true, clip, Priority: priority, Approximate: approximate));
             if (end > due + 1)
             {
-                media.Windows.Add(new Window(due + 1, end, Due: false, clip, Priority: priority, Approximate: approximate));
+                // Lo adelantado se aproxima solo si la velocidad no baja de 16× hasta mostrarlo (una curva o una transición la cambian).
+                bool ahead = approximate && clip.MinRate(time, Time.FromFrames(last + 1, _plan.FrameRate)) >= ApproximateRate;
+                media.Windows.Add(new Window(due + 1, end, Due: false, clip, Priority: priority, Approximate: ahead));
             }
         }
 
@@ -170,8 +175,10 @@ internal sealed partial class TimelineScheduler
             long first = next.FirstFrame;
             MediaState media = Media(next);
             media.Priority = Math.Max(media.Priority, priority);
-            media.Windows.Add(new Window(first, WindowEnd(next, first, next.FirstSequenceFrame + _preRollFrames - 1), Due: false, next,
-                Priority: priority, Approximate: Approximates(next, media, next.Start, running)));
+            long last = next.FirstSequenceFrame + _preRollFrames - 1;
+            bool approximate = Approximates(next, media, next.Start, running)
+                && next.MinRate(next.Start, Time.FromFrames(last + 1, _plan.FrameRate)) >= ApproximateRate;
+            media.Windows.Add(new Window(first, WindowEnd(next, first, last), Due: false, next, Priority: priority, Approximate: approximate));
         }
     }
 

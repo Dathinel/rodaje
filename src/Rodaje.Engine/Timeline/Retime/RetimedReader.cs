@@ -14,6 +14,7 @@ namespace Rodaje.Engine.Timeline.Retime;
 internal sealed class RetimedReader
 {
     private readonly SourceWindow _source;
+    private readonly SampleMap _map;
     private readonly Wsola? _wsola;
     private readonly VarispeedResampler? _varispeed;
 
@@ -21,24 +22,24 @@ internal sealed class RetimedReader
     {
         ArgumentNullException.ThrowIfNull(retime);
         Retime = retime;
-        var map = new SampleMap(retime.Map);
+        _map = new SampleMap(retime.Course);
         _source = new SourceWindow(pcm, decoderNext);
         if (retime.PreservePitch)
         {
-            _wsola = new Wsola(map, _source, map.MaxRate());
+            _wsola = new Wsola(_map, _source, _map.MaxRate());
         }
         else
         {
-            _varispeed = new VarispeedResampler(map, _source);
+            _varispeed = new VarispeedResampler(_map, _source);
         }
     }
 
-    public AudioRetime Retime { get; }
+    public AudioRetime Retime { get; private set; }
 
     /// <summary>
     /// Si puede seguir con <paramref name="other"/> sin rehacer nada: el mismo clip, o uno que muestra el mismo origen en
-    /// cada instante (las dos mitades de un clip dividido a velocidad constante, o el mismo tras mover otra cosa). Así un corte o una edición
-    /// no reinician la cadena de WSOLA y no suenan.
+    /// cada instante (los trozos de un clip dividido, con velocidad constante o con curva, o el mismo tras mover otra
+    /// cosa). Así un corte o una edición no reinician la cadena de WSOLA y no suenan.
     /// </summary>
     public bool Serves(AudioRetime other)
     {
@@ -48,19 +49,21 @@ internal sealed class RetimedReader
             return true;
         }
 
-        ClipTimeMap mine = Retime.Map;
-        ClipTimeMap theirs = other.Map;
-        if (other.PreservePitch != Retime.PreservePitch || theirs.Reverse != mine.Reverse || theirs.Freeze || mine.Freeze
-            || mine.Speed.IsCurve || !theirs.Speed.Equals(mine.Speed))
-        {
-            return false;
-        }
+        ClipTimeMap mine = Retime.Course;
+        ClipTimeMap theirs = other.Course;
+        return other.PreservePitch == Retime.PreservePitch && !mine.Freeze && mine.SameCourse(theirs)
+            && (_wsola is null || _wsola.Hop == Wsola.HopFor(theirs.RateRange(theirs.Start, theirs.End).Max));
+    }
 
-        Time last = theirs.End - Time.FromTicks(1);
-        Time middle = theirs.Start + Time.FromTicks(theirs.Duration.Ticks / 2);
-        return mine.ExtendedSource(theirs.Start) == theirs.ExtendedSource(theirs.Start)
-            && mine.ExtendedSource(middle) == theirs.ExtendedSource(middle)
-            && mine.ExtendedSource(last) == theirs.ExtendedSource(last);
+    /// <summary>Sigue con <paramref name="other"/>, que <see cref="Serves"/> aceptó: lee su recorrido sin rehacer la cadena.</summary>
+    public void Adopt(AudioRetime other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (other != Retime)
+        {
+            Retime = other;
+            _map.Retarget(other.Course);
+        }
     }
 
     /// <summary>Muestra del origen que devolverá la próxima lectura del decodificador; -1 si no se sabe.</summary>

@@ -31,6 +31,66 @@ public class EditPropertiesTests(ITestOutputHelper output)
             iter: 10000,
             print: s => $"{s.Project}\nOperaciones: {string.Join(" ", s.Ops.Select(o => o.ToString()))}");
 
+    private static readonly Gen<(ProjectSpec Project, OpSpec[] Ops)> GenCurveScenario =
+        Gen.Select(RandomTimeline.GenCurveProject, RandomTimeline.GenCurveOp.Array[1, 40]);
+
+    /// <summary>
+    /// Las mismas propiedades sobre 10 000 proyectos con curvas y preajustes en casi todos los clips, cortando, recortando
+    /// y estirando: dividir y recortar no cambian el origen de ningún instante y deshacer todo vuelve byte a byte.
+    /// </summary>
+    [Fact]
+    public void Curvas_CortarRecortarYEstirar_CumplenTodasLasReglas() =>
+        GenCurveScenario.Sample(
+            s => RunScenario(s.Project, s.Ops),
+            writeLine: output.WriteLine,
+            iter: 10000,
+            print: s => $"{s.Project}\nOperaciones: {string.Join(" ", s.Ops.Select(o => o.ToString()))}");
+
+    /// <summary>El sorteo con curvas de verdad corta, recorta y estira clips con curva.</summary>
+    [Fact]
+    public void ElSorteoConCurvas_CortaRecortaYEstiraCurvas()
+    {
+        var applied = new int[Enum.GetValues<OpKind>().Length];
+        int projectsWithCurves = 0;
+        GenCurveScenario.Sample(
+            s =>
+            {
+                BuiltProject built = RandomTimeline.Build(s.Project);
+                if (built.Sequence.AllTracks.SelectMany(t => t.Clips).Any(c => c.Speed?.Curve is not null))
+                {
+                    projectsWithCurves++;
+                }
+
+                foreach (OpSpec spec in s.Ops)
+                {
+                    ResolvedOp op = RandomTimeline.Resolve(built, spec);
+                    bool curved = op.ClipId is { } id && built.Sequence.FindClip(id)?.Clip.Speed?.Curve is not null;
+                    if (op.Command is null || !curved)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        op.Command.Apply(built.Project);
+                        applied[(int)op.Kind]++;
+                    }
+                    catch (EditException)
+                    {
+                    }
+                }
+            },
+            iter: 2000,
+            threads: 1);
+
+        output.WriteLine($"proyectos con curvas: {projectsWithCurves}; aplicadas sobre curvas: {string.Join(", ", Enum.GetValues<OpKind>().Select(k => $"{k} {applied[(int)k]}"))}");
+        Assert.True(projectsWithCurves > 1500, $"solo {projectsWithCurves} proyectos con curvas");
+        foreach (OpKind kind in (OpKind[])[OpKind.Split, OpKind.Trim, OpKind.RippleTrim, OpKind.RateStretch, OpKind.ApplySpeedPreset])
+        {
+            Assert.True(applied[(int)kind] > 300, $"{kind} solo se aplicó {applied[(int)kind]} veces sobre una curva");
+        }
+    }
+
     /// <summary>Los proyectos y las operaciones de velocidad del sorteo de verdad llegan a aplicarse, no solo a rechazarse.</summary>
     [Fact]
     public void ElSorteo_EjercitaLasVelocidades()
@@ -69,7 +129,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
 
         output.WriteLine($"proyectos con velocidad: {projectsWithSpeed}; aplicadas: {string.Join(", ", Enum.GetValues<OpKind>().Select(k => $"{k} {applied[(int)k]}"))}");
         Assert.True(projectsWithSpeed > 400, $"solo {projectsWithSpeed} proyectos con velocidad");
-        foreach (OpKind kind in (OpKind[])[OpKind.SetSpeed, OpKind.RateStretch, OpKind.FreezeFrame, OpKind.SetCurve, OpKind.SetReverse, OpKind.SetPreservePitch])
+        foreach (OpKind kind in (OpKind[])[OpKind.SetSpeed, OpKind.RateStretch, OpKind.FreezeFrame, OpKind.SetCurve, OpKind.SetReverse, OpKind.SetPreservePitch, OpKind.ApplySpeedPreset])
         {
             Assert.True(applied[(int)kind] > 100, $"{kind} solo se aplicó {applied[(int)kind]} veces");
         }
@@ -356,7 +416,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
     /// </remarks>
     private static string? CheckTrackCurves(ResolvedOp op, List<GroupMember> group, Dictionary<string, Track> before, Sequence after)
     {
-        if (op.Kind is OpKind.RippleTrim or OpKind.SetKeyframe or OpKind.SetSpeed or OpKind.RateStretch or OpKind.SetCurve or OpKind.FreezeFrame)
+        if (op.Kind is OpKind.RippleTrim or OpKind.SetKeyframe or OpKind.SetSpeed or OpKind.RateStretch or OpKind.SetCurve or OpKind.FreezeFrame
+            or OpKind.ApplySpeedPreset)
         {
             return null;
         }
@@ -417,15 +478,16 @@ public class EditPropertiesTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Tras recortar, hacer roll o slide, o recortar con ripple el final, cada instante que sigue cubierto por el mismo
-    /// clip muestra el mismo instante del origen. Se comparan solo los clips que no se mueven.
+    /// Tras dividir, recortar, hacer roll o slide, o recortar con ripple el final, cada instante que sigue cubierto por el
+    /// mismo clip (o, al dividir, por una de sus mitades) muestra el mismo instante del origen. Se comparan solo los clips
+    /// que no se mueven.
     /// </summary>
     private static string? CheckSameFrames(ResolvedOp op, List<GroupMember> group, Dictionary<string, Track> before, Sequence after)
     {
         HashSet<string> members = [.. group.Select(m => m.ClipId)];
         Func<string, bool>? compare = op.Kind switch
         {
-            OpKind.Trim or OpKind.Roll => _ => true,
+            OpKind.Trim or OpKind.Roll or OpKind.Split => _ => true,
             OpKind.Slide => id => !members.Contains(id),
             OpKind.RippleTrim when op.Text.Contains("Out", StringComparison.Ordinal) => members.Contains,
             _ => null,
@@ -452,7 +514,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
             foreach (long ticks in samples)
             {
                 var t = Time.FromTicks(ticks);
-                if (old.ClipAt(t) is { } a && now.ClipAt(t) is { } b && a.Id == b.Id && compare(a.Id) && a.ToSourceTime(t) != b.ToSourceTime(t))
+                if (old.ClipAt(t) is { } a && now.ClipAt(t) is { } b && (a.Id == b.Id || op.Kind == OpKind.Split) && compare(a.Id)
+                    && a.ToSourceTime(t) != b.ToSourceTime(t))
                 {
                     return $"el clip «{a.Id}» mostraba {a.ToSourceTime(t).Ticks} en {ticks} ticks y ahora {b.ToSourceTime(t).Ticks}.";
                 }

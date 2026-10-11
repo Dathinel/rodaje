@@ -64,6 +64,22 @@ En los diagramas cada carácter es un segundo, con A de 0 a 4 s, B de 4 a 10 s, 
 
 Aparte, `EffectEdits` (añadir, quitar, mover y activar efectos, parámetros y keyframes, en un clip o en una pista), `TransitionEdits` (añadir, quitar y cambiar duración, tipo, parámetros y opciones) y `TimelineEdits.Speed` (`SetSpeed`, `SetCurve`, `SetReverse`, `SetPreservePitch`, `RateStretch` y `FreezeFrame`) siguen las mismas reglas. El cambio de velocidad mantiene siempre el magnetismo (D-026), en cualquier pista y respetando el `RippleScope` de la sesión: al acortarse el clip, el siguiente se une y la transición se queda; al crecer respeta los huecos y solo empuja lo que pisa; [`TrackKeyframes`](../../src/Rodaje.Core/Editing/TrackKeyframes.cs) mueve los keyframes de pista con los clips y `TransitionOps.Reconcile` reajusta las transiciones tras cada edición.
 
+## Velocidad (fase 5c)
+
+La velocidad es `Clip.Speed` ([`ClipSpeed`](../../src/Rodaje.Core/Model/ClipSpeed.cs)) y todo tiempo pasa por [`ClipTimeMap`](../../src/Rodaje.Core/Timing/ClipTimeMap.cs), exacto en `Int128` con [`RetimeMath`](../../src/Rodaje.Core/Timing/RetimeMath.cs); el contrato y el formato están en [D-026](../decisiones.md) y [formato-proyecto.md](../formato-proyecto.md). Además del origen de cada instante, `ClipTimeMap` da `RateRange` (menor y mayor velocidad de un tramo; en una curva, en sus nudos), `SameCourse` (dos mapeos muestran el mismo origen donde coinciden, como las mitades de un clip dividido) y `Join` (une dos mitades).
+
+Ediciones (en `TimelineEdits.Speed`, fábricas en `Edits.Speed`): `SetSpeed`, `SetCurve`, `ApplySpeedPreset`, `RateStretch` (Alt + borde), `FreezeFrame`, `SetReverse` y `SetPreservePitch`. Si el clip se acorta, lo que sigue se une; si crece, solo empuja lo que pisa; respetan el `RippleScope` de la sesión. `RateStretch` sobre una curva escala `Span` y `Offset` por `D′/D` y divide cada punto por lo mismo (velocidad media nueva), redondeado a centésimas y acotado para que ningún punto salga de 0,1×–10×; el material no cambia.
+
+**Preajustes propios** ([`SpeedPresets`](../../src/Rodaje.Core/Model/SpeedPresets.cs)): datos, no código. `ApplySpeedPreset` es `SetCurve` con la forma, así que la duración sale de la velocidad media y el clip conserva su material. Puntos en diezmilésimas del clip y velocidad en centésimas:
+
+| Preajuste | Forma | Media |
+|---|---|---|
+| Montaje | 2,5× hasta 20 %, baja a 0,5× (28–38 %), 2,5× (46–60 %), 0,5× (68–78 %), 2,5× desde 86 % | 1,78× |
+| Héroe | 1× hasta 35 %, cámara lenta a 0,2× (43–57 %), 1× desde 65 % | 0,82× |
+| Bala | 3× hasta 25 %, 0,12× (33–67 %), 3× desde 75 % | 1,79× |
+| Entrada rápida | 4× hasta 15 %, frena a 1× en el 40 % y sigue a 1× | 1,83× |
+| Salida rápida | 1× hasta 60 %, acelera a 4× en el 85 % y sigue a 4× | 1,83× |
+
 ## Deshacer y rehacer (`Commands/`)
 
 Nada fuera del núcleo cambia el modelo directamente. La interfaz pide un comando a [`Edits`](../../src/Rodaje.Core/Commands/Edits.cs) (unas 50 fábricas, repartidas en archivos parciales de la clase `Edits`: `Edits.Split`, `Edits.Move`, `Edits.SetSpeed`...) y lo pasa por [`UndoStack.Execute`](../../src/Rodaje.Core/Commands/UndoStack.cs). La IA y las órdenes en lenguaje natural harán lo mismo.
@@ -112,7 +128,7 @@ JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`
   - que las pistas bloqueadas no cambian;
   - que deshacer reproduce cada estado anterior;
   - que slip, roll, slide y cortar conservan lo que deben.
-  Otros 5 000 escenarios comprueban que un arrastre se funde en un paso.
+  Otros 5 000 escenarios comprueban que un arrastre se funde en un paso, y otros 10 000 tienen curvas o preajustes en casi todos los clips y cortan, recortan y estiran: dividir y recortar no cambian el origen de ningún instante.
 - [`tests/Rodaje.AotSmoke`](../../tests/Rodaje.AotSmoke/Program.cs) es un programa que se publica con Native AOT (`ABRIR.bat aot`): recorre todas las familias de edición, deshace y rehace 16 pasos comparando cada estado, y guarda y abre en una carpeta con espacios y una ñ. El ejecutable pesa unos 3,4 MB.
 - La cobertura de `Rodaje.Core` se mide con `ABRIR.bat cobertura` (criterio de la fase 1: al menos 90 %).
 

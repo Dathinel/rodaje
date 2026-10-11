@@ -11,7 +11,7 @@ namespace Rodaje.Acceptance.Tests;
 
 /// <summary>
 /// Criterio de la fase 5c: con velocidad, el seek muestra el cuadro esperado en el 100 % de 2000 instantes al azar por
-/// caso. Lo que se ve se lee del número dibujado en el cuadro; lo esperado sale de la aritmética entera de
+/// caso, también con la curva «Bala». Lo que se ve se lee del número dibujado en el cuadro; lo esperado sale de la aritmética entera de
 /// <see cref="SpeedTimeline"/>, que además debe coincidir con <see cref="ClipTimeMap"/>.
 /// </summary>
 public sealed class SpeedSeekTests(ITestOutputHelper output)
@@ -19,7 +19,7 @@ public sealed class SpeedSeekTests(ITestOutputHelper output)
     private const int RandomSeeks = 2000;
     private static readonly TimeSpan SettleTimeout = TimeSpan.FromSeconds(20);
 
-    public static TheoryData<string> Cases => new("0,25x", "0,5x", "1,37x", "2x", "4x", "1001/1000x", "100x", "congelado");
+    public static TheoryData<string> Cases => new("0,25x", "0,5x", "1,37x", "2x", "4x", "1001/1000x", "100x", "congelado", "bala");
 
     [FfmpegLibraryTheory(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true)]
     [MemberData(nameof(Cases))]

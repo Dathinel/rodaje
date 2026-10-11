@@ -112,7 +112,9 @@ public static partial class TimelineEdits
     /// Alt + arrastrar un borde: el clip pasa a durar <c>D ∓ delta</c> con el mismo material, así que cambia su velocidad
     /// a <c>material / duración</c>, aproximada con un denominador de hasta <see cref="StretchMaxDenominator"/> y acotada
     /// a 0,1×–100×. El inicio queda, tire del borde que tire; lo que sigue se une o se empuja como en <see cref="SetSpeed"/>.
-    /// En un congelado es un recorte; en una curva todavía no se puede (llega con las curvas).
+    /// En un congelado es un recorte. En una curva se estira la forma: su <see cref="SpeedCurve.Span"/> y el
+    /// desplazamiento se escalan por <c>D′/D</c> y cada punto se divide por lo mismo (velocidad media nueva), redondeado
+    /// a centésimas y acotado para que ningún punto salga de 0,1×–10×.
     /// </summary>
     public static void RateStretch(EditContext ctx, string clipId, TrimEdge edge, Time delta, RippleScope scope = RippleScope.Track)
     {
@@ -124,15 +126,27 @@ public static partial class TimelineEdits
             return;
         }
 
-        if (primary.Speed?.Curve is not null)
-        {
-            throw new EditException("Estirar un clip con curva de velocidad todavía no se puede; cambia la curva desde el inspector.");
-        }
-
         Time duration = edge == TrimEdge.In ? primary.Duration - delta : primary.Duration + delta;
         if (duration <= Time.Zero)
         {
             throw new EditException($"El clip «{primary.Id}» se quedaría sin duración.");
+        }
+
+        if (primary.Speed?.Curve is { } curve)
+        {
+            Time length = StretchableLength(curve, primary.Duration, duration);
+            long from = primary.Duration.Ticks;
+            Retime(ctx, clipId, scope, (_, speed) =>
+            {
+                if (speed.Curve is { } own)
+                {
+                    speed.Curve = ScaleCurve(own, from, length.Ticks);
+                    speed.Offset = Time.FromTicks(ScaleTicks(speed.Offset.Ticks, length.Ticks, from));
+                }
+
+                return speed;
+            }, (clip, fit) => ExactLength(ctx, primary, clip, fit, length), keepOffset: true);
+            return;
         }
 
         Rational rate = ApproximateRate(primary.SourceDuration.Ticks, duration.Ticks);
@@ -140,22 +154,58 @@ public static partial class TimelineEdits
         {
             speed.Rate = rate;
             return speed;
-        }, (clip, fit) =>
-        {
-            // El clip arrastrado llega justo al borde si su archivo tiene material; los enlazados quedan con su largo.
-            bool exact = ReferenceEquals(clip, primary);
-            Time length = exact ? duration : fit.Duration;
-            Time start = clip.Start;
-            ClipTimeMap moved = fit.MoveTo(start);
-            if (!exact || moved.Duration == length)
-            {
-                return moved;
-            }
-
-            ClipTimeMap stretched = moved.TrimOut(start + length);
-            return stretched.SourceIn >= Time.Zero && stretched.SourceOut <= ctx.MediaOf(clip).Duration ? stretched : moved;
-        });
+        }, (clip, fit) => ExactLength(ctx, primary, clip, fit, duration));
     }
+
+    /// <summary>El clip arrastrado llega justo a <paramref name="duration"/> si su archivo tiene material; los enlazados quedan con su largo.</summary>
+    private static ClipTimeMap ExactLength(EditContext ctx, Clip primary, Clip clip, ClipTimeMap fit, Time duration)
+    {
+        bool exact = ReferenceEquals(clip, primary);
+        Time start = clip.Start;
+        ClipTimeMap moved = fit.MoveTo(start);
+        if (!exact || moved.Duration == duration)
+        {
+            return moved;
+        }
+
+        ClipTimeMap stretched = moved.TrimOut(start + duration);
+        return stretched.SourceIn >= Time.Zero && stretched.SourceOut <= ctx.MediaOf(clip).Duration ? stretched : moved;
+    }
+
+    /// <summary>
+    /// <paramref name="target"/> acotada para que, al dividir cada punto de la curva por <c>target / current</c>, ninguno
+    /// salga de 0,1×–10× ni la curva pase del largo máximo del mapeo.
+    /// </summary>
+    private static Time StretchableLength(SpeedCurve curve, Time current, Time target)
+    {
+        int low = curve.Points.Min(p => p.Hundredths);
+        int high = curve.Points.Max(p => p.Hundredths);
+        Int128 d = current.Ticks;
+        Int128 longest = d * low / RetimeMath.MinHundredths;
+        Int128 shortest = RetimeMath.CeilDiv(d * high, RetimeMath.MaxHundredths);
+        longest = Int128.Min(longest, (Int128)RetimeMath.MaxExtent * current.Ticks / Math.Max(1, curve.Span.Ticks));
+        if (longest < shortest)
+        {
+            throw new EditException("La curva de velocidad ya no se puede estirar más.");
+        }
+
+        return Time.FromTicks((long)Int128.Clamp(target.Ticks, shortest, longest));
+    }
+
+    /// <summary>La misma forma con la duración por <c>to / from</c> y cada velocidad por <c>from / to</c>, a la centésima más cercana.</summary>
+    private static SpeedCurve ScaleCurve(SpeedCurve curve, long from, long to) => new()
+    {
+        Span = Time.FromTicks(Math.Clamp(ScaleTicks(curve.Span.Ticks, to, from), 1, RetimeMath.MaxExtent)),
+        Points = curve.Points.ConvertAll(p => p with
+        {
+            Hundredths = (int)Int128.Clamp(RoundDiv((Int128)p.Hundredths * from, to), RetimeMath.MinHundredths, RetimeMath.MaxHundredths),
+        }),
+    };
+
+    /// <summary><c>ticks · num / den</c> redondeado al más cercano.</summary>
+    private static long ScaleTicks(long ticks, long num, long den) => (long)RoundDiv((Int128)ticks * num, den);
+
+    private static Int128 RoundDiv(Int128 a, Int128 b) => RetimeMath.FloorDiv((2 * a) + b, 2 * b);
 
     /// <summary>
     /// Congela el cuadro que se ve en <paramref name="at"/>: corta el clip de video (y sus enlazados) ahí, pone un clip
@@ -256,7 +306,8 @@ public static partial class TimelineEdits
     }
 
     /// <summary>
-    /// Cambia la velocidad del grupo con <paramref name="change"/> (sobre una copia, desplazamiento 0) y ajusta cada miembro a su
+    /// Cambia la velocidad del grupo con <paramref name="change"/> (sobre una copia, con desplazamiento 0 salvo
+    /// <paramref name="keepOffset"/>) y ajusta cada miembro a su
     /// material; <paramref name="place"/> puede rehacer el mapeo ajustado. Comprueba, aplica y corre lo que haga falta.
     /// </summary>
     private static void Retime(
@@ -264,7 +315,8 @@ public static partial class TimelineEdits
         string clipId,
         RippleScope scope,
         Func<Clip, ClipSpeed, ClipSpeed> change,
-        Func<Clip, ClipTimeMap, ClipTimeMap>? place = null)
+        Func<Clip, ClipTimeMap, ClipTimeMap>? place = null,
+        bool keepOffset = false)
     {
         List<(Track Track, Clip Clip)> group = EditableSpeedGroup(ctx, clipId);
         if (group.Exists(m => m.Clip.Speed is { Freeze: true }))
@@ -276,7 +328,7 @@ public static partial class TimelineEdits
         foreach ((Track track, Clip clip) in group)
         {
             ClipSpeed changed = change(clip, clip.Speed?.Clone() ?? new ClipSpeed());
-            changed.Offset = Time.Zero;
+            changed.Offset = keepOffset ? changed.Offset : Time.Zero;
             ClipSpeed? speed = Normalize(changed);
             ClipTimeMap map;
             try

@@ -17,7 +17,7 @@ internal sealed class SampleMap
 
     private const double TicksPerSample = (double)Time.TicksPerSecond / TimelinePlan.AudioSampleRate;
 
-    private readonly ClipTimeMap _map;
+    private ClipTimeMap _map;
     private long _cell = long.MinValue;
     private double _u0;
     private double _u1;
@@ -30,17 +30,18 @@ internal sealed class SampleMap
 
     public bool Reverse => _map.Reverse;
 
-    /// <summary>Velocidad más alta del clip, en valor absoluto (muestreada; la curva es lineal a tramos).</summary>
-    public double MaxRate()
-    {
-        double max = 0;
-        long duration = _map.Duration.Ticks;
-        for (int i = 0; i <= 64; i++)
-        {
-            max = Math.Max(max, Math.Abs(_map.RateAt(_map.Start + Time.FromTicks(duration * i / 64))));
-        }
+    /// <summary>Velocidad más alta del clip, en valor absoluto (en una curva, la de su nudo más rápido).</summary>
+    public double MaxRate() => _map.RateRange(_map.Start, _map.End).Max;
 
-        return max;
+    /// <summary>
+    /// Pasa a otro mapeo con el mismo recorrido (<see cref="ClipTimeMap.SameCourse"/>): las posiciones ya calculadas
+    /// siguen valiendo, solo cambia hasta dónde llega antes de seguir a la velocidad del borde.
+    /// </summary>
+    public void Retarget(ClipTimeMap map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        _map = map;
+        _cell = long.MinValue;
     }
 
     public double At(long sample)

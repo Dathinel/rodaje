@@ -250,11 +250,10 @@ public sealed class SpeedEditsTests
     }
 
     [Fact]
-    public void RateStretch_stops_at_the_speed_limits_and_on_frozen_and_curved_clips()
+    public void RateStretch_stops_at_the_speed_limits_and_trims_frozen_clips()
     {
         var f = new TrimFixture().Add("v1", "c", "m1", 0, 50, 0);
         SpeedSamples.Add(f, "v2", "z", "m2", 0, 10, "congelado");
-        SpeedSamples.Add(f, "v2", "k", "m2", 20, 40, "curva");
 
         TimelineEdits.RateStretch(f.Ctx, "c", TrimEdge.Out, F(5000));
         Assert.Equal(RetimeMath.MinRate, f.Clip("c").Speed!.Rate);
@@ -265,7 +264,6 @@ public sealed class SpeedEditsTests
         TimelineEdits.RateStretch(f.Ctx, "z", TrimEdge.In, F(2));
         Assert.Equal(F(13), f.Clip("z").Duration);
 
-        AssertFails(() => TimelineEdits.RateStretch(f.Ctx, "k", TrimEdge.Out, F(5)), "curva");
         AssertFails(() => TimelineEdits.RateStretch(f.Ctx, "c", TrimEdge.Out, -F(500)), "sin duración");
     }
 

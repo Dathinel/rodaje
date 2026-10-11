@@ -337,6 +337,77 @@ public sealed class AudioRetimeTests(ITestOutputHelper output)
         Assert.Equal(expected, actual);
     }
 
+    [Theory]
+    [InlineData(SpeedPreset.Montage, true)]
+    [InlineData(SpeedPreset.Bullet, true)]
+    [InlineData(SpeedPreset.FastIn, false)]
+    public void Splitting_a_clip_with_a_curve_twice_does_not_change_a_single_sample(SpeedPreset preset, bool preservePitch)
+    {
+        var whole = Builder();
+        SetCurve(whole.AddAudio(0, "tono", Time.Zero, S(1), S(12), id: "a"), preset, preservePitch);
+        var split = Builder();
+        Clip first = split.AddAudio(0, "tono", Time.Zero, S(1), S(12), id: "a");
+        SetCurve(first, preset, preservePitch);
+        Time end = first.End;
+        Clip second = SplitOff(split, first, S(1.2345), "b");
+        Clip third = SplitOff(split, second, Time.FromTicks((second.Start.Ticks + end.Ticks) / 2) + Time.FromTicks(7), "c");
+
+        float[] expected = Mix(whole, 0, (int)(end.ToSeconds() * Rate) + Rate / 2);
+        float[] actual = Mix(split, 0, expected.Length / 2);
+
+        Assert.Equal(expected, actual);
+        AudioPlan plan = split.Plan().Audio;
+        Assert.Equal(3, plan.Tracks[0].Clips.Count);
+        Assert.All(plan.Tracks[0].Clips, c => Assert.Equal(whole.Plan().Audio.Tracks[0].Clips[0].Retime!.Map, c.Retime!.Course));
+        Assert.Equal(third.End, end);
+    }
+
+    [Fact]
+    public void Pieces_with_a_transition_between_them_or_moved_apart_read_their_own_course()
+    {
+        var b = Builder();
+        Clip first = b.AddAudio(0, "tono", Time.Zero, S(1), S(12), id: "a");
+        SetCurve(first, SpeedPreset.Hero, preservePitch: true);
+        Clip second = SplitOff(b, first, S(2), "b");
+        b.Sequence.AudioTracks[0].Transitions.Add(new TransitionInstance
+        {
+            Id = "t",
+            Type = BuiltInTransitions.Crossfade,
+            From = "a",
+            To = "b",
+            Duration = S(0.5),
+        });
+
+        Assert.All(b.Plan().Audio.Tracks[0].Clips, c => Assert.Null(c.Retime!.Joined));
+
+        b.Sequence.AudioTracks[0].Transitions.Clear();
+        second.Start += S(1);
+        Assert.All(b.Plan().Audio.Tracks[0].Clips, c => Assert.Null(c.Retime!.Joined));
+    }
+
+    [Fact]
+    public void A_reader_of_one_piece_serves_the_next_and_takes_its_course()
+    {
+        var curve = new SpeedCurve { Span = S(4), Points = [new(0, 100), new(5000, 300), new(10_000, 50)] };
+        ClipTimeMap whole = ClipTimeMap.Create(Time.Zero, S(4), S(1), new ClipSpeed { Curve = curve });
+        (ClipTimeMap left, ClipTimeMap right) = whole.SplitAt(S(1.5));
+        var reader = new RetimedReader(new AudioRetime(left, true), new FunctionPcm(Sine(440), long.MaxValue / 4), -1);
+
+        Assert.True(reader.Serves(new AudioRetime(right, true)));
+        Assert.False(reader.Serves(new AudioRetime(right, false)));
+        Assert.False(reader.Serves(new AudioRetime(right.Slip(Time.FromTicks(1)), true)));
+
+        // Una pieza lenta sola usa trozos cortos y no puede seguir con una que pasa de 4×; dentro del clip unido, sí.
+        var fast = ClipTimeMap.Create(Time.Zero, S(4), S(1), new ClipSpeed { Curve = new SpeedCurve { Span = S(4), Points = [new(0, 100), new(10_000, 900)] } });
+        (ClipTimeMap slowPiece, ClipTimeMap fastPiece) = fast.SplitAt(S(0.1));
+        var pcm = new FunctionPcm(Sine(440), long.MaxValue / 4);
+        Assert.False(new RetimedReader(new AudioRetime(slowPiece, true), pcm, -1).Serves(new AudioRetime(fastPiece, true)));
+        Assert.True(new RetimedReader(new AudioRetime(slowPiece, true, fast), pcm, -1).Serves(new AudioRetime(fastPiece, true, fast)));
+
+        reader.Adopt(new AudioRetime(right, true));
+        Assert.Equal(right, reader.Retime.Map);
+    }
+
     [Fact]
     public void Clip_gain_keyframes_are_read_at_the_source_instant_of_the_map()
     {
@@ -594,6 +665,25 @@ public sealed class AudioRetimeTests(ITestOutputHelper output)
     {
         clip.Speed = new ClipSpeed { Rate = rate, PreservePitch = preservePitch };
         ClipTimeMap.Fit(clip.Start, clip.SourceIn, clip.SourceOut, clip.Speed).ApplyTo(clip);
+    }
+
+    private static void SetCurve(Clip clip, SpeedPreset preset, bool preservePitch)
+    {
+        clip.Speed = new ClipSpeed { Curve = new SpeedCurve { Span = S(5), Points = [.. SpeedPresets.Points(preset)] }, PreservePitch = preservePitch };
+        ClipTimeMap.Fit(clip.Start, clip.SourceIn, clip.SourceOut, clip.Speed).ApplyTo(clip);
+    }
+
+    /// <summary>Divide <paramref name="clip"/> en <paramref name="at"/> como el núcleo: la segunda mitad es un clip nuevo.</summary>
+    private static Clip SplitOff(TimelineBuilder b, Clip clip, Time at, string id)
+    {
+        (ClipTimeMap left, ClipTimeMap right) = clip.TimeMap.SplitAt(at);
+        Clip second = clip.Clone();
+        second.Id = id;
+        left.ApplyTo(clip);
+        right.ApplyTo(second);
+        b.Sequence.AudioTracks[0].Clips.Add(second);
+        b.Sequence.AudioTracks[0].SortClips();
+        return second;
     }
 
     private static float[] Mix(TimelineBuilder b, long from, int frames)

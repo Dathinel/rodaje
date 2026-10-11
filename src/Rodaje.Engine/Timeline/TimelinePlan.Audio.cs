@@ -30,7 +30,38 @@ internal sealed partial class TimelinePlan
             }
         }
 
-        return new AudioTrackPlan(track.Id, clips);
+        return new AudioTrackPlan(track.Id, JoinSplitPieces(clips, included, cuts));
+    }
+
+    /// <summary>
+    /// Los trozos seguidos de un clip dividido (sin transición entre medias, mismo medio y mismo tono) comparten el mapeo
+    /// de todos juntos, así el lector pasa de uno a otro sin rehacer nada y suena igual que el clip entero.
+    /// </summary>
+    private static List<AudioClipPlan> JoinSplitPieces(List<AudioClipPlan> clips, List<Clip> included, List<Cut> cuts)
+    {
+        int start = 0;
+        while (start < clips.Count)
+        {
+            int end = start + 1;
+            ClipTimeMap? course = clips[start].Retime?.Map;
+            while (course is not null && end < clips.Count && clips[end].Retime is { } next
+                && clips[end].Source == clips[start].Source && next.PreservePitch == clips[start].Retime!.PreservePitch
+                && !cuts.Exists(c => included[c.From].Id == clips[end - 1].ClipId)
+                && course.Join(next.Map) is { } joined)
+            {
+                course = joined;
+                end++;
+            }
+
+            for (int i = start; end - start > 1 && i < end; i++)
+            {
+                clips[i] = clips[i] with { Retime = clips[i].Retime! with { Joined = course } };
+            }
+
+            start = end;
+        }
+
+        return clips;
     }
 
     /// <summary>Velocidad del clip; nula sin ella o si deja el origen tal cual (1× sin reversa ni congelado).</summary>
