@@ -165,6 +165,10 @@ public sealed class EffectContent : IEffectContent
             if (table is not null)
             {
                 entry.Lut = new LutData(table.Size, table.Rgb);
+                if (Volatile.Read(ref _generation) == generation)
+                {
+                    Changed?.Invoke(this, EventArgs.Empty);
+                }
             }
         }
         catch (Exception ex) when (ex is PackageContentException or ArgumentException or IOException or UnauthorizedAccessException)
@@ -174,11 +178,6 @@ public sealed class EffectContent : IEffectContent
         finally
         {
             entry.Loaded.TrySetResult();
-        }
-
-        if (entry.Lut is not null && Volatile.Read(ref _generation) == generation)
-        {
-            Changed?.Invoke(this, EventArgs.Empty);
         }
     }
 

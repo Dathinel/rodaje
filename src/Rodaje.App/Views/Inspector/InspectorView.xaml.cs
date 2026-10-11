@@ -23,6 +23,8 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     public void Attach(EditorServices services)
     {
         PropertiesPanel.Attach(services);
+        TransitionPanel.ActiveChanged += (_, _) => UpdateVisibility();
+        TransitionPanel.Attach(services);
         FiltersPanel.Attach(services);
         HistoryPanel.Attach(services);
         JobsPanel.ActiveCountChanged += (_, active) => JobsTab.Content = active > 0 ? $"Trabajos ({active})" : "Trabajos";
@@ -42,19 +44,23 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         button.IsChecked = true;
     }
 
-    private void OnTabChecked(object sender, RoutedEventArgs e)
+    private void OnTabChecked(object sender, RoutedEventArgs e) => UpdateVisibility();
+
+    // Con una transición seleccionada, Propiedades muestra la transición.
+    private void UpdateVisibility()
     {
-        if (PropertiesPanel is null || FiltersPanel is null || HistoryPanel is null || JobsPanel is null)
+        if (PropertiesPanel is null || TransitionPanel is null || FiltersPanel is null || HistoryPanel is null || JobsPanel is null)
         {
             return;
         }
 
-        PropertiesPanel.Visibility = Visible(sender, PropertiesTab);
-        FiltersPanel.Visibility = Visible(sender, FiltersTab);
-        HistoryPanel.Visibility = Visible(sender, HistoryTab);
-        JobsPanel.Visibility = Visible(sender, JobsTab);
+        bool properties = PropertiesTab.IsChecked == true;
+        PropertiesPanel.Visibility = Visible(properties && !TransitionPanel.IsActive);
+        TransitionPanel.Visibility = Visible(properties && TransitionPanel.IsActive);
+        FiltersPanel.Visibility = Visible(FiltersTab.IsChecked == true);
+        HistoryPanel.Visibility = Visible(HistoryTab.IsChecked == true);
+        JobsPanel.Visibility = Visible(JobsTab.IsChecked == true);
     }
 
-    private static Visibility Visible(object sender, RadioButton tab) =>
-        ReferenceEquals(sender, tab) ? Visibility.Visible : Visibility.Collapsed;
+    private static Visibility Visible(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
 }

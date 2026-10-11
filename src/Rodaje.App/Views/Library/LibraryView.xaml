@@ -3,7 +3,8 @@
     Riel de categorías y biblioteca. Medios y Audio: los medios del proyecto con portada real (IClipVisuals), importar,
     soltar archivos, doble clic para añadir a la pista principal, arrastrar a la línea de tiempo (rodaje/media-id) y menú
     contextual. Texto, Efectos, Transiciones y Filtros: lo del motor, lo de los paquetes instalados y lo propio
-    (rodaje/elemento). IA: los módulos y si están instalados.
+    (rodaje/elemento; las transiciones también rodaje/transicion); doble clic o el menú los aplican al clip
+    seleccionado. IA: los módulos y si están instalados.
 -->
 <UserControl
     x:Class="Rodaje.App.Views.Library.LibraryView"
@@ -115,12 +116,14 @@
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <GridView x:Name="ElementsGrid" Padding="8" SelectionMode="Single"
-                          CanDragItems="True" DragItemsStarting="OnElementDragStarting"
+                <GridView x:Name="ElementsGrid" Padding="8" SelectionMode="Single" IsDoubleTapEnabled="True"
+                          CanDragItems="True" DragItemsStarting="OnElementDragStarting" DoubleTapped="OnElementDoubleTapped"
+                          ContextRequested="OnElementContextRequested"
                           ItemsSource="{x:Bind Elements}" ItemTemplate="{StaticResource ElementTileTemplate}" />
                 <StackPanel x:Name="OwnPanel" Grid.Row="1" Padding="8,0,8,8" Spacing="4" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
                     <TextBlock x:Name="OwnTitle" Text="Mis transiciones" Style="{StaticResource PanelTitleTextStyle}" Margin="0,8,0,0" />
                     <GridView SelectionMode="None" CanDragItems="True" DragItemsStarting="OnElementDragStarting" MaxHeight="260"
+                              IsDoubleTapEnabled="True" DoubleTapped="OnElementDoubleTapped" ContextRequested="OnElementContextRequested"
                               ItemsSource="{x:Bind OwnElements}" ItemTemplate="{StaticResource ElementTileTemplate}" />
                 </StackPanel>
             </Grid>

@@ -7,6 +7,15 @@
   ],
   "entries": [
     {
+      "id": "rodaje-esenciales",
+      "kind": "content",
+      "name": "Esenciales",
+      "description": "Ocho transiciones y ocho looks con LUT hechos con fórmulas propias, listos para usar.",
+      "repository": "https://github.com/Dathinel/rodaje-esenciales",
+      "apps": ["rodaje"],
+      "provides": ["transition", "lut", "filter"]
+    },
+    {
       "id": "rodaje-transiciones",
       "kind": "content",
       "name": "Transiciones",
