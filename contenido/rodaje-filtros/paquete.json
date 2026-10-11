@@ -1,0 +1,120 @@
+{
+  "formatVersion": 1,
+  "id": "rodaje-filtros",
+  "version": "1.0.0",
+  "kind": "content",
+  "name": "Filtros",
+  "description": "8 looks con LUT 3D generadas por fórmulas propias, sobre la corrección de color de Rodaje. Contenido propio de dominio público (CC0).",
+  "author": "Dathinel",
+  "license": "CC0-1.0",
+  "repository": "https://github.com/Dathinel/rodaje-filtros",
+  "apps": [
+    "rodaje"
+  ],
+  "items": [
+    {
+      "id": "calido",
+      "kind": "filter",
+      "name": "Cálido",
+      "file": "filtros/calido.json",
+      "description": "Tonos cálidos y algo más de contraste."
+    },
+    {
+      "id": "frio",
+      "kind": "filter",
+      "name": "Frío",
+      "file": "filtros/frio.json",
+      "description": "Tonos fríos y azulados."
+    },
+    {
+      "id": "verde-azulado-naranja",
+      "kind": "filter",
+      "name": "Verde azulado y naranja",
+      "file": "filtros/verde-azulado-naranja.json",
+      "description": "Sombras verde azuladas y luces anaranjadas."
+    },
+    {
+      "id": "blanco-y-negro",
+      "kind": "filter",
+      "name": "Blanco y negro",
+      "file": "filtros/blanco-y-negro.json",
+      "description": "Blanco y negro con contraste."
+    },
+    {
+      "id": "desvaido",
+      "kind": "filter",
+      "name": "Desvaído",
+      "file": "filtros/desvaido.json",
+      "description": "Negros levantados y color apagado, como una foto vieja."
+    },
+    {
+      "id": "vivo",
+      "kind": "filter",
+      "name": "Vivo",
+      "file": "filtros/vivo.json",
+      "description": "Más saturación y contraste."
+    },
+    {
+      "id": "noche",
+      "kind": "filter",
+      "name": "Noche",
+      "file": "filtros/noche.json",
+      "description": "Noche americana: oscuro y azul."
+    },
+    {
+      "id": "cine",
+      "kind": "filter",
+      "name": "Cine",
+      "file": "filtros/cine.json",
+      "description": "Contraste suave, luces cálidas, sombras frías y viñeta."
+    },
+    {
+      "id": "lut-calido",
+      "kind": "lut",
+      "name": "LUT Cálido",
+      "file": "luts/calido.cube"
+    },
+    {
+      "id": "lut-frio",
+      "kind": "lut",
+      "name": "LUT Frío",
+      "file": "luts/frio.cube"
+    },
+    {
+      "id": "lut-verde-azulado-naranja",
+      "kind": "lut",
+      "name": "LUT Verde azulado y naranja",
+      "file": "luts/verde-azulado-naranja.cube"
+    },
+    {
+      "id": "lut-blanco-y-negro",
+      "kind": "lut",
+      "name": "LUT Blanco y negro",
+      "file": "luts/blanco-y-negro.cube"
+    },
+    {
+      "id": "lut-desvaido",
+      "kind": "lut",
+      "name": "LUT Desvaído",
+      "file": "luts/desvaido.cube"
+    },
+    {
+      "id": "lut-vivo",
+      "kind": "lut",
+      "name": "LUT Vivo",
+      "file": "luts/vivo.cube"
+    },
+    {
+      "id": "lut-noche",
+      "kind": "lut",
+      "name": "LUT Noche",
+      "file": "luts/noche.cube"
+    },
+    {
+      "id": "lut-cine",
+      "kind": "lut",
+      "name": "LUT Cine",
+      "file": "luts/cine.cube"
+    }
+  ]
+}

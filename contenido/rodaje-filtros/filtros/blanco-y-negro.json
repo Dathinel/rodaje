@@ -1,0 +1,18 @@
+{
+  "format": "rodaje.filter",
+  "version": 1,
+  "id": "blanco-y-negro",
+  "name": "Blanco y negro",
+  "description": "Blanco y negro con contraste.",
+  "effects": [
+    {
+      "type": "rodaje.color",
+      "parameters": {
+        "lutIntensity": 1
+      },
+      "options": {
+        "lut": "./lut-blanco-y-negro"
+      }
+    }
+  ]
+}

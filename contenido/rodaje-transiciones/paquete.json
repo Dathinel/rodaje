@@ -1,0 +1,72 @@
+{
+  "formatVersion": 1,
+  "id": "rodaje-transiciones",
+  "version": "1.0.0",
+  "kind": "content",
+  "name": "Transiciones",
+  "description": "Deslizar, empujar, acercar, alejar y girar, hechas con curvas sobre las primitivas de Rodaje. Contenido propio de dominio público (CC0).",
+  "author": "Dathinel",
+  "license": "CC0-1.0",
+  "repository": "https://github.com/Dathinel/rodaje-transiciones",
+  "apps": [
+    "rodaje"
+  ],
+  "items": [
+    {
+      "id": "deslizar-izquierda",
+      "kind": "transition",
+      "name": "Deslizar a la izquierda",
+      "file": "transiciones/deslizar-izquierda.json",
+      "description": "El clip nuevo entra desde la derecha y tapa al anterior."
+    },
+    {
+      "id": "deslizar-derecha",
+      "kind": "transition",
+      "name": "Deslizar a la derecha",
+      "file": "transiciones/deslizar-derecha.json",
+      "description": "El clip nuevo entra desde la izquierda y tapa al anterior."
+    },
+    {
+      "id": "deslizar-arriba",
+      "kind": "transition",
+      "name": "Deslizar hacia arriba",
+      "file": "transiciones/deslizar-arriba.json",
+      "description": "El clip nuevo sube desde abajo y tapa al anterior."
+    },
+    {
+      "id": "deslizar-abajo",
+      "kind": "transition",
+      "name": "Deslizar hacia abajo",
+      "file": "transiciones/deslizar-abajo.json",
+      "description": "El clip nuevo baja desde arriba y tapa al anterior."
+    },
+    {
+      "id": "empujar",
+      "kind": "transition",
+      "name": "Empujar",
+      "file": "transiciones/empujar.json",
+      "description": "El clip nuevo entra por la derecha y empuja al anterior fuera del cuadro."
+    },
+    {
+      "id": "acercar",
+      "kind": "transition",
+      "name": "Acercar",
+      "file": "transiciones/acercar.json",
+      "description": "Fundido mientras la cámara se acerca."
+    },
+    {
+      "id": "alejar",
+      "kind": "transition",
+      "name": "Alejar",
+      "file": "transiciones/alejar.json",
+      "description": "Fundido mientras la cámara se aleja."
+    },
+    {
+      "id": "girar",
+      "kind": "transition",
+      "name": "Girar",
+      "file": "transiciones/girar.json",
+      "description": "Un cuarto de vuelta con fundido."
+    }
+  ]
+}

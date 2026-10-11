@@ -1,0 +1,66 @@
+{
+  "format": "rodaje.preset",
+  "version": 2,
+  "id": "girar",
+  "name": "Girar",
+  "description": "Un cuarto de vuelta con fundido.",
+  "kind": "transition",
+  "durationSeconds": 0.5,
+  "mix": "rodaje.crossfade",
+  "reference": {
+    "width": 1920,
+    "height": 1080
+  },
+  "outgoing": {
+    "rotation": [
+      {
+        "t": 0,
+        "value": 0,
+        "interp": "easeIn"
+      },
+      {
+        "t": 0.5,
+        "value": 90,
+        "interp": "linear"
+      }
+    ],
+    "scale": [
+      {
+        "t": 0,
+        "value": 1,
+        "interp": "easeIn"
+      },
+      {
+        "t": 0.5,
+        "value": 1.3,
+        "interp": "linear"
+      }
+    ]
+  },
+  "incoming": {
+    "rotation": [
+      {
+        "t": 0,
+        "value": -90,
+        "interp": "easeOut"
+      },
+      {
+        "t": 0.5,
+        "value": 0,
+        "interp": "linear"
+      }
+    ],
+    "scale": [
+      {
+        "t": 0,
+        "value": 1.3,
+        "interp": "easeOut"
+      },
+      {
+        "t": 0.5,
+        "value": 1,
+        "interp": "linear"
+      }
+    ]
+  }
+}

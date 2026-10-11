@@ -1,0 +1,32 @@
+{
+  "format": "rodaje.preset",
+  "version": 2,
+  "id": "deslizar-derecha",
+  "name": "Deslizar a la derecha",
+  "description": "El clip nuevo entra desde la izquierda y tapa al anterior.",
+  "kind": "transition",
+  "durationSeconds": 0.5,
+  "mix": "rodaje.wipe",
+  "mixParameters": {
+    "angle": 0,
+    "softness": 0
+  },
+  "reference": {
+    "width": 1920,
+    "height": 1080
+  },
+  "incoming": {
+    "x": [
+      {
+        "t": 0,
+        "value": -1920,
+        "interp": "linear"
+      },
+      {
+        "t": 0.5,
+        "value": 0,
+        "interp": "linear"
+      }
+    ]
+  }
+}
