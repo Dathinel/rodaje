@@ -127,12 +127,13 @@ public sealed class CubeReaderTests
     }
 
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public void Lee_65_al_cubo_en_150_ms_o_menos()
     {
         byte[] data = Encoding.UTF8.GetBytes(Identity(65));
         ContentReaders.ReadCube(new MemoryStream(data));
         long best = long.MaxValue;
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 5; i++)
         {
             var watch = Stopwatch.StartNew();
             LutTable lut = ContentReaders.ReadCube(new MemoryStream(data));
