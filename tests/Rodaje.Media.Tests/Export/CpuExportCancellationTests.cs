@@ -38,12 +38,19 @@ public sealed class CpuExportCancellationTests(ITestOutputHelper output)
             int? processId = sink.ProcessId;
             Assert.True(SinkRuns.IsAlive(processId));
             Assert.Single(journal.Entries());
+            // Para saber dónde se va el tiempo: cuándo muere ffmpeg.exe (ExitTime de Windows) y cuándo vuelve Cancel, que
+            // ejecuta Abort del sink en este mismo hilo (matar el árbol, esperar la salida y borrar temporales).
+            using Process watched = Process.GetProcessById(processId!.Value);
             long canceledAt = 0;
+            long cancelReturnedAt = 0;
+            DateTime canceledWall = default;
             var canceler = new Thread(() =>
             {
                 Thread.Sleep(delay);
+                canceledWall = DateTime.Now;
                 canceledAt = Stopwatch.GetTimestamp();
                 cancellation.Cancel();
+                cancelReturnedAt = Stopwatch.GetTimestamp();
             });
             canceler.Start();
 
@@ -62,7 +69,10 @@ public sealed class CpuExportCancellationTests(ITestOutputHelper output)
             canceler.Join();
             TimeSpan latency = Stopwatch.GetElapsedTime(canceledAt, Math.Max(stoppedAt, canceledAt));
 
-            output.WriteLine($"{video} → {container}, cancelada a los {delay} ms tras {written} cuadros: {latency.TotalMilliseconds:0} ms hasta parar.");
+            double abortMs = Stopwatch.GetElapsedTime(canceledAt, Math.Max(cancelReturnedAt, canceledAt)).TotalMilliseconds;
+            double exitMs = ExitDelay(watched, canceledWall);
+            output.WriteLine($"{video} → {container}, cancelada a los {delay} ms tras {written} cuadros: {latency.TotalMilliseconds:0} ms hasta parar " +
+                $"(ffmpeg.exe muerto a los {exitMs:0} ms, Abort volvió a los {abortMs:0} ms).");
             Assert.IsAssignableFrom<OperationCanceledException>(caught);
             Assert.True(written < request.FrameCount, "La exportación terminó antes de cancelarla; la prueba no midió nada.");
             Assert.True(latency <= Limit, $"La cancelación tardó {latency.TotalMilliseconds:0} ms.");
@@ -70,6 +80,19 @@ public sealed class CpuExportCancellationTests(ITestOutputHelper output)
             Assert.Null(sink.ProcessId);
             Assert.Equal([wav, journal.Directory], scratch.Leftovers());
             Assert.Empty(journal.Entries());
+        }
+    }
+
+    // Milisegundos entre la cancelación y la muerte de ffmpeg.exe según Windows; NaN si el sistema no da ExitTime.
+    private static double ExitDelay(Process process, DateTime canceled)
+    {
+        try
+        {
+            return process.WaitForExit(TimeSpan.FromSeconds(10)) ? (process.ExitTime - canceled).TotalMilliseconds : double.NaN;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or PlatformNotSupportedException or System.ComponentModel.Win32Exception)
+        {
+            return double.NaN;
         }
     }
 }
