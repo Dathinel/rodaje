@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Protocolo de módulos (fase 7, D-031): mensajes JSON por named pipe, cliente (editor) y anfitrión (módulo), memoria
+    compartida para cuadros y audio. Sin referencias a otros proyectos de Rodaje para sacarlo a su propio repositorio.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Rodaje.Modules.Protocol</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rodaje.Modules.Protocol.Tests" />
+  </ItemGroup>
+
+</Project>
