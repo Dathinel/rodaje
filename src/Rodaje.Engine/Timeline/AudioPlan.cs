@@ -5,15 +5,28 @@ namespace Rodaje.Engine.Timeline;
 /// <summary>
 /// Clip de audio en muestras de 48 kHz: suena en <c>[StartSample, EndSample)</c> de la línea de tiempo y su muestra
 /// <c>s</c> es la <c>SourceInSample + (s - StartSample)</c> del origen. En una transición puede empezar antes de su
-/// material (<see cref="SourceInSample"/> negativo): lo que no existe es silencio.
+/// material (<see cref="SourceInSample"/> negativo): lo que no existe es silencio. Con <see cref="Retime"/> el origen de
+/// cada muestra lo da su mapeo.
 /// </summary>
 /// <param name="Gain">Volumen y fundidos; nulo si suena tal cual.</param>
 /// <param name="Retime">Velocidad del clip; nula, suena a 1× como siempre.</param>
 internal sealed record AudioClipPlan(string ClipId, SourceKey Source, long StartSample, long EndSample, long SourceInSample, GainPlan? Gain = null,
-    AudioRetime? Retime = null);
+    AudioRetime? Retime = null)
+{
+    /// <summary>Muestra del origen que suena en la muestra <paramref name="sample"/> de la línea de tiempo.</summary>
+    public long SourceSampleAt(long sample) => Retime is { } retime ? retime.SourceSample(sample) : SourceInSample + (sample - StartSample);
+}
 
-/// <summary>Velocidad de un clip de audio: su mapeo exacto y si mantiene el tono. Compara por valor.</summary>
-internal sealed record AudioRetime(ClipTimeMap Map, bool PreservePitch);
+/// <summary>
+/// Velocidad de un clip de audio: su mapeo exacto y si mantiene el tono. Compara por valor, así un cambio de velocidad
+/// o de «mantener tono» rehace la mezcla. Un congelado suena en silencio.
+/// </summary>
+internal sealed record AudioRetime(ClipTimeMap Map, bool PreservePitch)
+{
+    /// <summary>Muestra del origen en la muestra <paramref name="sample"/> de la línea de tiempo; fuera del clip sigue a la velocidad del borde.</summary>
+    public long SourceSample(long sample) =>
+        Map.ExtendedSource(Time.FromSamples(sample, TimelinePlan.AudioSampleRate)).ToSamples(TimelinePlan.AudioSampleRate);
+}
 
 internal sealed record AudioTrackPlan(string TrackId, IReadOnlyList<AudioClipPlan> Clips);
 
@@ -21,7 +34,7 @@ internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks)
 {
     public static AudioPlan Empty { get; } = new([]);
 
-    /// <summary>Mismas pistas con los mismos clips, en el mismo orden y con el mismo volumen: lo que suena no cambia.</summary>
+    /// <summary>Mismas pistas con los mismos clips, en el mismo orden, con el mismo volumen y la misma velocidad: lo que suena no cambia.</summary>
     public bool SoundsLike(AudioPlan other)
     {
         ArgumentNullException.ThrowIfNull(other);
