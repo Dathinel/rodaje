@@ -239,7 +239,8 @@ public sealed class ExportJob : IDisposable
         bool alpha = format.PixelFormat.HasAlpha();
         bool blend = plan.ConvertsRate && settings.FrameRateConversion == FrameRateConversion.Blend;
         using var frames = new FrameSource(this, plan, timeline, gpu, alpha, blend);
-        using var converter = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter);
+        ExportSourceRegion? region = settings.Crop is { } crop ? new ExportSourceRegion(crop.X, crop.Y, crop.Width, crop.Height) : null;
+        using var converter = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter, region: region);
         _converter = converter;
         void Write(in ExportVideoFrame frame)
         {
