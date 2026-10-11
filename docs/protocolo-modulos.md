@@ -140,7 +140,7 @@ Hay 11 tipos (`ModuleMessage` en `Messages.cs`). Cada lado solo puede mandar los
 | `log` | módulo → editor | `level`, `text` | Una línea para el registro del editor. |
 | `shutdown` | editor → módulo | — | Terminar. |
 
-`?` = opcional. Los mensajes de error del anfitrión de C# van hacia el editor, pero el anfitrión también manda `error` sin `id` justo antes de cerrar por un mensaje malformado del editor.
+`?` = opcional. Un `error` sin `id` solo lo manda el módulo en el saludo (`version-incompatible`) o justo antes de cerrar porque el editor mandó algo inválido (`malformed`).
 
 ### `invoke` y `result`
 
