@@ -54,6 +54,12 @@ internal sealed class TrackHeaders
     /// <summary>Se soltó el volumen de una pista (o se restableció): termina el paso del historial.</summary>
     public event Action<string>? GainCommitted;
 
+    /// <summary>Del menú de una cabecera: «Añadir pista de subtítulos».</summary>
+    public event Action? SubtitleTrackRequested;
+
+    /// <summary>Del menú de una cabecera de video: usarla (o dejar de usarla) como pista de subtítulos.</summary>
+    public event Action<string, bool>? SubtitleRoleRequested;
+
     public double ScrollY
     {
         get => -_shift.Y;
@@ -76,7 +82,7 @@ internal sealed class TrackHeaders
     public void Update(TrackLayout layout, bool magnetic, double width)
     {
         string signature = string.Join("|", layout.Rows.Select(r =>
-            $"{r.TrackId}:{r.Track.Name}:{r.Track.Hidden}:{r.Track.Muted}:{r.Track.Locked}:{r.IsMain}:{r.Top}:{r.Height}")) + $"|{magnetic}|{width}";
+            $"{r.TrackId}:{r.Track.Name}:{r.Track.Role}:{r.Track.Hidden}:{r.Track.Muted}:{r.Track.Locked}:{r.IsMain}:{r.Top}:{r.Height}")) + $"|{magnetic}|{width}";
         _lastLayout = layout;
         if (signature == _signature)
         {
@@ -152,7 +158,26 @@ internal sealed class TrackHeaders
 
         toggles.Children.Add(Toggle(track, TrackToggle.Locked, track.Locked, track.Locked ? "" : "", track.Locked ? "Desbloquear pista" : "Bloquear pista"));
         grid.Children.Add(toggles);
+        grid.ContextFlyout = Menu(row);
         return grid;
+    }
+
+    private MenuFlyout Menu(TrackRow row)
+    {
+        var menu = new MenuFlyout();
+        var add = new MenuFlyoutItem { Text = "Añadir pista de subtítulos", Icon = new FontIcon { Glyph = "" } };
+        add.Click += (_, _) => SubtitleTrackRequested?.Invoke();
+        menu.Items.Add(add);
+        if (row.Kind == TrackKind.Video && !row.IsMain)
+        {
+            bool subtitles = row.Track.Role == TrackRoles.Subtitles;
+            var role = new ToggleMenuFlyoutItem { Text = "Usar para subtítulos", IsChecked = subtitles, IsEnabled = !row.Track.Locked };
+            string trackId = row.TrackId;
+            role.Click += (_, _) => SubtitleRoleRequested?.Invoke(trackId, !subtitles);
+            menu.Items.Add(role);
+        }
+
+        return menu;
     }
 
     private TextBlock GainControl(Track track)
@@ -233,7 +258,8 @@ internal sealed class TrackHeaders
             return row.Track.Locked ? "Audio · bloqueada" : "Audio";
         }
 
-        string kind = row.IsMain ? (magnetic ? "Principal · magnética" : "Principal · libre") : "Video · libre";
+        string kind = row.IsMain ? (magnetic ? "Principal · magnética" : "Principal · libre")
+            : row.Track.Role == TrackRoles.Subtitles ? "Subtítulos" : "Video · libre";
         return row.Track.Locked ? kind + " · bloqueada" : kind;
     }
 
