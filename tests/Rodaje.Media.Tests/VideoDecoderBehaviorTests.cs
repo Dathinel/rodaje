@@ -100,10 +100,7 @@ public sealed class VideoDecoderBehaviorTests
         Assert.Equal(3, decoder.Statistics.Seeks);
     }
 
-    // Solo con el clip de NVENC. Con el de libopenh264 (equipos sin NVIDIA), tras pedir el cuadro dañado 150 el primer GOP
-    // que se decodifica después del siguiente seek sale mal, aunque un decodificador nuevo lo da bien: es un defecto
-    // pendiente de Rodaje.Media o de FFmpeg (docs/tareas/2026-10-11-ci-windows.md), no de la prueba.
-    [FfmpegLibraryFact(Encoder = "h264_nvenc")]
+    [FfmpegLibraryFact]
     public void Corrupted_packets_are_skipped_without_throwing()
     {
         string clip = TestClips.Corrupted(TestClips.H264);
@@ -137,6 +134,54 @@ public sealed class VideoDecoderBehaviorTests
                 Assert.True(frame is not null && reference[n] == Hash(frame),
                     $"El cuadro {n}, pedido de nuevo fuera de la zona dañada, no coincide con la referencia (recuperado desde {recovered}, {decoder.Statistics.Seeks} seeks).");
             }
+        }
+    }
+
+    [FfmpegLibraryTheory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void A_seek_after_decoding_errors_restores_the_decoder_state(int threads)
+    {
+        // Con el H.264 de cualquier codificador (en la CI sin NVENC, libopenh264), tras paquetes dañados
+        // avcodec_flush_buffers dejaba un estado que hacía salir mal incluso un cuadro posterior a un IDR.
+        string clip = TestClips.Corrupted(TestClips.H264);
+        IReadOnlyList<ulong> reference = TestClips.LumaReference(TestClips.H264);
+        using VideoDecoder decoder = VideoDecoder.Open(clip, DecodeModes.Options(DecodeMode.SoftwareCpu) with { SoftwareThreads = threads });
+        for (int n = 0; n < TestClips.H264.Frames; n++)
+        {
+            decoder.GetFrame(n)?.Dispose();
+        }
+
+        decoder.GetFrame(150)?.Dispose();
+        Assert.True(decoder.Statistics.DecodeErrors > 0, "El archivo dañado no produjo ningún error de decodificación.");
+        for (int n = 0; n < 48; n++)
+        {
+            using DecodedFrame? frame = decoder.GetFrame(n);
+            Assert.True(frame is not null && reference[n] == Hash(frame), $"El cuadro {n}, tras buscar desde la zona dañada, no coincide con la referencia (hilos: {threads}).");
+        }
+    }
+
+    [FfmpegLibraryTheory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void Damage_still_inside_the_decoder_at_a_seek_does_not_leak_into_a_later_gop(int threads)
+    {
+        // Con hilos por cuadro el decodificador retiene paquetes (hasta ~15): parar justo antes de la zona dañada deja
+        // los primeros paquetes dañados dentro, sin error ni cuadro marcado, cuando llega el seek.
+        string clip = TestClips.Corrupted(TestClips.H264);
+        IReadOnlyList<ulong> reference = TestClips.LumaReference(TestClips.H264);
+        int stop = TestClips.CorruptedFrames[0] - TestClips.H264.BFrames - 4;
+        using VideoDecoder decoder = VideoDecoder.Open(clip, DecodeModes.Options(DecodeMode.SoftwareCpu) with { SoftwareThreads = threads });
+        for (int n = 0; n <= stop; n++)
+        {
+            decoder.GetFrame(n)?.Dispose();
+        }
+
+        int later = TestClips.KeyFrames(TestClips.H264).Last(k => k < TestClips.H264.Frames - 10);
+        for (int n = later; n < TestClips.H264.Frames; n++)
+        {
+            using DecodedFrame? frame = decoder.GetFrame(n);
+            Assert.True(frame is not null && reference[n] == Hash(frame), $"El cuadro {n}, en un GOP posterior a la zona dañada, no coincide con la referencia (hilos: {threads}).");
         }
     }
 

@@ -29,6 +29,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private const int MaxSeekAttempts = 24;
     private const int MaxEarlierSeeks = 4;
     private const int MaxConsecutiveErrors = 64;
+    private const int MaxDrainFrames = 64;
     private const uint D3D11BindShaderResource = 0x8;
     private const int WorstCaseReferences = 16;
 
@@ -65,6 +66,8 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private long _seeks;
     private long _decodedFrames;
     private long _decodeErrors;
+    private long _errorsAtLastReset;
+    private bool _damagedFrame;
 
     // Lo más que se descartó desde el último seek; una petición más exacta obliga a buscar de nuevo.
     private DecodeAccuracy _fedAccuracy;
@@ -174,6 +177,11 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
         try
         {
+            if (_codec == null)
+            {
+                ReopenCodec();
+            }
+
             DecodeAccuracy mode = _options.SkipNonReference ? accuracy : DecodeAccuracy.Exact;
             _approximate = mode != DecodeAccuracy.Exact;
             if (mode == DecodeAccuracy.Keyframe && _options.Keyframes?.AtOrBefore(frameIndex) is { } keyframe)
@@ -567,7 +575,26 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
     private void ResetDecoder()
     {
-        ffmpeg.avcodec_flush_buffers(_codec);
+        // Tras un paquete dañado, avcodec_flush_buffers no reinicia todo el estado interno del decodificador H.264
+        // y hasta un IDR posterior sale mal; reabrir el contexto sí. Se reabre si hubo errores o cuadros marcados como dañados;
+        // sin ellos se conserva el flush (reabrir en cada seek cuesta ~20 %).
+        if (_codec != null)
+        {
+            DrainFrameThreads();
+        }
+
+        long errors = Interlocked.Read(ref _decodeErrors);
+        if (_codec == null || errors != _errorsAtLastReset || _damagedFrame)
+        {
+            ReopenCodec();
+            _errorsAtLastReset = errors;
+            _damagedFrame = false;
+        }
+        else
+        {
+            ffmpeg.avcodec_flush_buffers(_codec);
+        }
+
         ffmpeg.av_packet_unref(_packet);
         ffmpeg.av_frame_unref(_frame);
         ffmpeg.av_frame_unref(_held);
@@ -578,6 +605,67 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         _consecutiveErrors = 0;
         _lastIndex = -1;
         _minValidSlot = long.MinValue;
+    }
+
+    // Con hilos por cuadro el decodificador retiene hasta ~15 paquetes, y avcodec_flush_buffers se traga los errores
+    // de los que aún no devolvieron cuadro. Se vacía antes del flush para ver esos errores y cuadros dañados.
+    private void DrainFrameThreads()
+    {
+        if ((_codec->active_thread_type & ffmpeg.FF_THREAD_FRAME) == 0 || _inputEnded)
+        {
+            return;
+        }
+
+        ffmpeg.av_packet_unref(_packet);
+        _packetWaiting = false;
+        ffmpeg.avcodec_send_packet(_codec, null);
+        for (int i = 0; i < MaxDrainFrames; i++)
+        {
+            int r = ffmpeg.avcodec_receive_frame(_codec, _frame);
+            if (r == 0)
+            {
+                _damagedFrame |= _frame->decode_error_flags != 0 || (_frame->flags & ffmpeg.AV_FRAME_FLAG_CORRUPT) != 0;
+                ffmpeg.av_frame_unref(_frame);
+                continue;
+            }
+
+            if (r != ffmpeg.AVERROR_EOF && r != Av.ErrorAgain)
+            {
+                Interlocked.Increment(ref _decodeErrors);
+                continue;
+            }
+
+            break;
+        }
+    }
+
+    private void ReopenCodec()
+    {
+        AVDiscard skip = _codec != null ? _codec->skip_frame : AVDiscard.AVDISCARD_DEFAULT;
+        AVCodecContext* codec = _codec;
+        ffmpeg.avcodec_free_context(&codec);
+        _codec = null;
+        if (_self.IsAllocated)
+        {
+            _self.Free();
+        }
+
+        _hardwareActive = false;
+        try
+        {
+            OpenCodec(_format->streams[_streamIndex]);
+        }
+        catch
+        {
+            // Sin esto el siguiente seek haría flush sobre un contexto sin abrir; ResetDecoder reintenta la apertura.
+            codec = _codec;
+            ffmpeg.avcodec_free_context(&codec);
+            _codec = null;
+            throw;
+        }
+
+        // GetFrame fija skip_frame antes del seek (aproximado o por keyframes); el contexto nuevo no lo trae.
+        _codec->skip_frame = skip;
     }
 
     // ---- Decodificación ----
@@ -662,6 +750,11 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
             {
                 Interlocked.Increment(ref _decodedFrames);
                 _consecutiveErrors = 0;
+                if (_frame->decode_error_flags != 0 || (_frame->flags & ffmpeg.AV_FRAME_FLAG_CORRUPT) != 0)
+                {
+                    _damagedFrame = true;
+                }
+
                 return true;
             }
 
