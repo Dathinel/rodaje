@@ -30,7 +30,13 @@ Hallazgo nuevo: parte del daño es **silencioso**: el paquete con el centro llen
 - `Random_access_*`: no se pudo medir por separado (los casos parametrizados fallan en Linux por descubrimiento, igual que antes). Un clip sin errores ni cuadros dañados no reabre nunca el contexto, así que su camino no cambia; pedir a Daniel que compare `Random_access_*` con `ABRIR.bat`.
 
 ## Pruebas omitidas
-Sin cambios: 0 antes, 0 después. No se tocó `[FfmpegLibraryFact]` de `Corrupted_packets…`, que en `main` no está limitado a NVENC (la restricción vive en el PR #2).
+En la CI de Windows, Media pasa de 35 a 34 omitidas: `Corrupted_packets…` ya no está limitada a NVENC y corre con libopenh264. En el PC de Daniel (RTX 3050), 0 → 0.
+
+## Medido en Windows (revisión del 11-oct, sobre el merge con main)
+
+- Sin el drenaje, con hilos 0 y un clip de `h264_mf`, los cuadros 297–299 salen mal; con el drenaje, 0 malos (2 errores drenados, 1 reapertura). Con NVENC y libopenh264 el fallo no aparece, por eso la prueba exige además, con hilos 0, que el seek drene errores.
+- Con clips limpios no reabre nunca (200 seeks por clip, software y hardware). El drenaje cuesta lo mismo que el flush que sustituye (702 frente a 698–718 ms en 200 seeks).
+- `Random_access_*`, `FrameExactSeekTests` y `TimelineSpeed*` sin cambios fuera del ruido.
 
 ## Choques
 Ninguno pendiente: la restricción a NVENC de `Corrupted_packets…` ya se quitó aquí.

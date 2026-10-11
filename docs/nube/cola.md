@@ -49,7 +49,7 @@ Un `.rodaje` dañado o malicioso nunca debe tumbar la app: abrirlo da un proyect
 
 ## 4. Estado del decodificador tras un flush (Rodaje.Media)
 
-- **Estado:** cambios (PR #5: atender la revisión del 11-oct en sus comentarios)
+- **Estado:** hecha (PR #5 unido el 11-oct tras tres revisiones)
 - **Rama:** `claude/media-flush`
 - **Caminos:** `src/Rodaje.Media/`, `tests/Rodaje.Media.Tests/`, `docs/tareas/`
 - **Lee:** `docs/arquitectura/medios.md`, la revisión del PR #2, `tests/Rodaje.Media.Tests/VideoDecoderBehaviorTests.cs`.
