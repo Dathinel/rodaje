@@ -97,6 +97,8 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _renderer = new TimelineRenderer(brushes, RowsCanvas, ClipsCanvas, OverlayCanvas, RulerCanvas, PlayheadLayer);
         _headers = new TrackHeaders(HeadersCanvas, brushes, (Style)Application.Current.Resources["ToolToggleButtonStyle"]);
         _headers.Toggled += OnTrackToggled;
+        _headers.GainChanging += OnTrackGainChanging;
+        _headers.GainCommitted += OnTrackGainCommitted;
 
         services.Settings.Current.Timeline.ApplyTo(State);
         Viewport.PixelsPerSecond = State.PixelsPerSecond;
@@ -220,6 +222,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             Position = session.Position,
             ShowEnvelopes = State.Tool == TimelineTool.Envelope,
             AutoCrossfade = State.AutoCrossfade,
+            SelectedTransitionId = session.SelectedTransitionId,
             Visuals = _visuals,
         };
     }
@@ -230,6 +233,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         TrackLayout layout = TrackLayout.Build(session.Sequence, session.MainTrack);
         _renderer!.Layout = layout;
         _headers!.Update(layout, State.MagneticMainTrack, HeadersCanvas.ActualWidth > 0 ? HeadersCanvas.ActualWidth : 172);
+        _headers.RefreshGains(track => EnvelopeEdits.TrackGainDb(track, session.Position), layout);
         int clips = session.Sequence.AllTracks.Sum(t => t.Clips.Count);
         SummaryText.Text = string.Create(CultureInfo.InvariantCulture, $"{clips} clip{(clips == 1 ? "" : "s")} · {Timecode.Format(session.Sequence.Duration)}");
         Invalidate(content: true);
@@ -504,6 +508,27 @@ internal sealed partial class TimelineView : UserControl, IEditorView
 
         // Si el comando no se pudo (por ejemplo, ocultar una pista bloqueada), el botón vuelve a su estado.
         RebuildLayout();
+        TakeKeyboardFocus();
+    }
+
+    private void OnTrackGainChanging(string trackId, double gainDb)
+    {
+        EditorSession session = Session!;
+        if (!session.IsInGesture)
+        {
+            session.BeginGesture("Volumen de la pista");
+        }
+
+        session.TryExecute(EnvelopeEdits.SetTrackGain(session.SequenceId, trackId, gainDb, session.EditPosition));
+    }
+
+    private void OnTrackGainCommitted(string trackId)
+    {
+        if (Session!.IsInGesture)
+        {
+            Session.EndGesture();
+        }
+
         TakeKeyboardFocus();
     }
 

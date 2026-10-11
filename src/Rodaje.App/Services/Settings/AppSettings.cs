@@ -40,6 +40,9 @@ public sealed class AppSettings
 
     public ProxyUsage ProxyUsage { get; set; } = ProxyUsage.Auto;
 
+    /// <summary>Resolución de la vista previa; Auto baja sola al reproducir si la GPU no llega.</summary>
+    public PreviewQuality PreviewQuality { get; set; } = PreviewQuality.Auto;
+
     /// <summary>Velocidad de caída de los medidores de audio, en dB por segundo.</summary>
     public double MeterDecayDbPerSecond { get; set; } = 20;
 
@@ -81,6 +84,11 @@ public sealed class AppSettings
         if (!Enum.IsDefined(ProxyUsage))
         {
             ProxyUsage = ProxyUsage.Auto;
+        }
+
+        if (!Enum.IsDefined(PreviewQuality))
+        {
+            PreviewQuality = PreviewQuality.Auto;
         }
     }
 

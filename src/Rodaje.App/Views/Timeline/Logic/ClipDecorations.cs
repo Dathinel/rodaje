@@ -1,3 +1,4 @@
+using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
@@ -6,12 +7,15 @@ namespace Rodaje.App.Views.Timeline;
 /// <summary>Lo que se dibuja sobre los clips además del bloque: keyframes, fundidos, envolvente y forma de onda.</summary>
 public static class ClipDecorations
 {
-    /// <summary>Efecto de volumen que dibuja la herramienta de envolvente, con su parámetro de ganancia (1 = sin cambio).</summary>
-    public const string VolumeEffect = "rodaje.volume";
-    public const string GainParameter = "gain";
+    /// <summary>Efecto de volumen que dibuja y edita la herramienta de envolvente, con su ganancia en dB.</summary>
+    public const string VolumeEffect = BuiltInEffects.Audio;
+    public const string GainParameter = BuiltInEffects.AudioParameters.GainDb;
 
-    /// <summary>Ganancia máxima que cabe en la altura del clip (unos +6 dB).</summary>
-    public const double MaxGain = 2;
+    /// <summary>Ganancia del borde de arriba del clip; más arriba no se dibuja (el inspector llega a +24 dB).</summary>
+    public const double MaxEnvelopeDb = 6;
+
+    /// <summary>Ganancia del borde de abajo: silencio.</summary>
+    public const double MinEnvelopeDb = EffectRegistry.SilenceDb;
 
     /// <summary>Duración de cada barra de la forma de onda provisional, en tiempo del origen.</summary>
     public static readonly Time WaveformBucket = Time.FromSeconds(0.04);
@@ -76,25 +80,72 @@ public static class ClipDecorations
         return cuts;
     }
 
-    /// <summary>La ganancia del clip en un instante de la línea de tiempo; sin efecto de volumen, 1.</summary>
-    public static double GainAt(Clip clip, Time timelineTime)
+    /// <summary>La ganancia en dB del clip en un instante de la línea de tiempo; sin efecto de volumen, 0.</summary>
+    public static double GainDbAt(Clip clip, Time timelineTime)
     {
         ArgumentNullException.ThrowIfNull(clip);
-        EffectInstance? volume = clip.Effects.Find(e => e.Type == VolumeEffect && e.Enabled);
-        if (volume is null || !volume.Parameters.TryGetValue(GainParameter, out Parameter? gain))
-        {
-            return 1;
-        }
-
-        return Math.Clamp(gain.Evaluate(clip.ToSourceTime(timelineTime)), 0, MaxGain);
+        return VolumeOf(clip) is { } volume && volume.Parameters.TryGetValue(GainParameter, out Parameter? gain)
+            ? gain.Evaluate(clip.ToSourceTime(timelineTime))
+            : 0;
     }
 
     /// <summary>Si la ganancia del clip cambia en el tiempo (la envolvente necesita más de dos puntos).</summary>
     public static bool HasAnimatedGain(Clip clip)
     {
         ArgumentNullException.ThrowIfNull(clip);
-        return clip.Effects.Exists(e => e.Type == VolumeEffect && e.Enabled
-            && e.Parameters.TryGetValue(GainParameter, out Parameter? p) && p.Keyframes.Count > 0);
+        return VolumeOf(clip) is { } volume && volume.Parameters.TryGetValue(GainParameter, out Parameter? p) && p.Keyframes.Count > 0;
+    }
+
+    /// <summary>El primer efecto de volumen activo del clip: el que suena y el que edita la envolvente.</summary>
+    public static EffectInstance? VolumeOf(Clip clip)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        return clip.Effects.Find(e => e.Type == VolumeEffect && e.Enabled);
+    }
+
+    /// <summary>Los puntos de la envolvente: instante de la línea de tiempo y ganancia de cada keyframe dentro del clip.</summary>
+    public static List<(Time Time, double GainDb)> GainPoints(Clip clip)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        var points = new List<(Time, double)>();
+        if (VolumeOf(clip) is { } volume && volume.Parameters.TryGetValue(GainParameter, out Parameter? gain))
+        {
+            foreach (Keyframe keyframe in gain.Keyframes)
+            {
+                if (keyframe.Time >= clip.SourceIn && keyframe.Time <= clip.SourceOut)
+                {
+                    points.Add((clip.Start + (keyframe.Time - clip.SourceIn), keyframe.Value));
+                }
+            }
+        }
+
+        return points;
+    }
+
+    /// <summary>
+    /// Altura de la envolvente (0 abajo, 1 arriba) para una ganancia: lineal en amplitud, como se oye un fader, con
+    /// 0 dB a media altura y <see cref="MaxEnvelopeDb"/> arriba.
+    /// </summary>
+    public static double EnvelopeFraction(double gainDb)
+    {
+        if (gainDb <= MinEnvelopeDb)
+        {
+            return 0;
+        }
+
+        return Math.Clamp(Math.Pow(10, (gainDb - MaxEnvelopeDb) / 20), 0, 1);
+    }
+
+    /// <summary>La ganancia de una altura de la envolvente; la inversa de <see cref="EnvelopeFraction"/>, en décimas de dB.</summary>
+    public static double GainDbFromFraction(double fraction)
+    {
+        if (!double.IsFinite(fraction) || fraction <= 0)
+        {
+            return MinEnvelopeDb;
+        }
+
+        double db = MaxEnvelopeDb + (20 * Math.Log10(Math.Min(fraction, 1)));
+        return Math.Round(Math.Max(db, MinEnvelopeDb), 1);
     }
 
     /// <summary>

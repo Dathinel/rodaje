@@ -23,7 +23,7 @@ public class TransitionEditorTests
     {
         (EditorSession session, TransitionEditor editor, string id) = await WithTransition();
         Assert.Null(editor.Selected());
-        session.Select([id]);
+        session.SelectTransition(id);
         TransitionTarget target = editor.Selected()!;
         Assert.Equal(id, target.Transition.Id);
         Assert.Same(session.MainTrack!.Clips[0], target.From);

@@ -40,11 +40,16 @@ public sealed partial class EditorSession
 
     /// <summary>
     /// Borra los clips seleccionados con sus enlazados. En la pista principal magnética (o con ripple automático) se
-    /// cierra el hueco; en las demás queda.
+    /// cierra el hueco; en las demás queda. Con una transición seleccionada, borra solo la transición.
     /// </summary>
     public bool DeleteSelection()
     {
         VerifyAccess();
+        if (DeleteSelectedTransition())
+        {
+            return true;
+        }
+
         Sequence sequence = Sequence;
         List<string> existing = _selection.FindAll(id => sequence.FindClip(id) is not null);
         if (existing.Count == 0)

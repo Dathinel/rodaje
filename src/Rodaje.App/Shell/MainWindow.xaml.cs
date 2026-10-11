@@ -14,6 +14,7 @@ using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Views.Player;
 using Rodaje.App.Views.Plugins;
 using Rodaje.App.Views.Shortcuts;
+using Rodaje.Engine.Timeline;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
 using Windows.Storage;
@@ -82,7 +83,9 @@ internal sealed partial class MainWindow : Window, IShellHost
             new ClipVisualsOptions { CacheDirectory = ClipVisualsOptions.DefaultCacheDirectory }, SynchronizationContext.Current);
         _ = _visuals.TrimDiskCacheAsync();
         var packages = new PackageService(PackageService.DefaultLocations(), PackageService.LoadBundledCatalog(), instances: _instance);
-        _services = new EditorServices(session, _router, settings, engine, this) { Visuals = _visuals, Packages = packages, Content = Rodaje.App.Services.Effects.AppEffectContent.Create(packages, session) };
+        IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
+        _services = new EditorServices(session, _router, settings, engine, this) { Visuals = _visuals, Packages = packages, Content = content };
+        engine.SetContent(content);
         _bindings.Add(EditorShortcuts.Bind(_router, session));
         _bindings.Add(_router.Bind(ActionIds.Export, () => session.Notify(NotificationSeverity.Informational, "Exportar",
             "La exportación llega en la fase 5. Por ahora puedes guardar el proyecto.")));
@@ -281,7 +284,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         await Session.OpenFilesAsync(files);
         if (_options.MeasureSeconds is { } seconds)
         {
-            await new MeasurementRun(this, _engine, Program.Metrics).RunAsync(seconds);
+            await new MeasurementRun(this, _engine, Program.Metrics).RunAsync(seconds, _options.Scenario);
         }
     }
 

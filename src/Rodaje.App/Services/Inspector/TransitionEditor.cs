@@ -11,7 +11,7 @@ public sealed record TransitionTarget(Track Track, TransitionInstance Transition
 
 /// <summary>
 /// Edita la transición seleccionada con los comandos del núcleo (<c>Edits.SetTransition*</c>): tipo, duración,
-/// parámetros y opciones. Una transición está seleccionada cuando su id está en <see cref="EditorSession.SelectedClipIds"/>.
+/// parámetros y opciones. La seleccionada es <see cref="EditorSession.SelectedTransitionId"/>.
 /// </summary>
 public sealed class TransitionEditor(EditorSession session)
 {
@@ -24,19 +24,8 @@ public sealed class TransitionEditor(EditorSession session)
     public static IReadOnlyList<EffectDefinition> BuiltInTypes { get; } =
         [.. EffectRegistry.Transitions.Where(t => t.Type != BuiltInTransitions.Preset)];
 
-    /// <summary>La primera transición de la selección, si hay.</summary>
-    public TransitionTarget? Selected()
-    {
-        foreach (string id in Session.SelectedClipIds)
-        {
-            if (Find(id) is { } target)
-            {
-                return target;
-            }
-        }
-
-        return null;
-    }
+    /// <summary>La transición seleccionada, si sigue en la secuencia.</summary>
+    public TransitionTarget? Selected() => Session.SelectedTransitionId is { } id ? Find(id) : null;
 
     public TransitionTarget? Find(string transitionId)
     {

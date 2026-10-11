@@ -32,6 +32,8 @@ flowchart LR
 - **El render nunca lee el modelo que se edita.** Cada cambio llega a `PlayerEngine` como `Project.Clone()`; el hilo de render solo aplica la última copia pendiente (`TimelineSession.Reload`).
 - **Rutas.** En memoria, las rutas de los medios son absolutas; al guardar se escriben relativas a la carpeta del `.rodaje` (`ProjectPaths`).
 - **Importar.** `ImportMediaAsync` lee los archivos fuera del hilo de la interfaz y los agrega a la biblioteca en un paso; la secuencia vacía toma el formato del primer video. `AppendToTimeline` pone un medio al final de la pista principal con su audio enlazado. Los archivos de la línea de comandos se leen mientras se crea la ventana (`PrefetchingProber`).
+- **Selección.** Clips (`SelectedClipIds`) o una transición (`SelectedTransitionId`), nunca las dos: elegir una vacía la otra, y `SelectionChanged` avisa de ambas. Supr borra lo seleccionado.
+- **Contenido de paquetes.** `EffectContentFactory.CreateOrNull(packages)` (en `Shell/EditorServices.cs`) da el `IEffectContent` que reciben `EditorServices.Content` y el motor (`PlayerEngine.SetContent`). La implementación se conecta desde `Services/Effects` completando el método parcial `Create`; sin ella queda nulo y el motor sigue sin LUT y con las transiciones de paquete como fundido cruzado.
 - **Avisos.** `Session.Notify(gravedad, título, mensaje, acción?)` emite un `EditorNotification`. La ventana lo muestra en una sola barra, por encima de las páginas modales, y lo anuncia al lector de pantalla. La `NotificationAction` opcional («Deshacer», «Abrir») pone un botón que cierra el aviso y la ejecuta. Los informativos se cierran solos a los 6 s, o a los 10 s si tienen botón.
 - **Cerrar.** Con cambios sin guardar se pregunta (Guardar, No guardar, Cancelar).
 
@@ -75,7 +77,7 @@ BgraImage? GetNearestThumbnail(string mediaId, Time sourceTime, Time spacing, in
 
 ## Efectos y contenido (`Services/Effects`)
 
-- **`EffectContent`** implementa `IEffectContent` para el motor (`EditorServices.Content`, armado por `AppEffectContent`). `TryGetLut` es una búsqueda en un diccionario; si falta, la lee en un hilo del pool y avisa con `Changed`. Lo que no se pudo leer no se reintenta hasta `Invalidate` (al cambiar los paquetes). Las curvas de una transición de paquete se leen al armar el plan y quedan en memoria.
+- **`EffectContent`** implementa `IEffectContent` para el motor: `EffectContentFactory` (en `Services/Effects`, fuera de las pruebas) lo arma con `AppEffectContent.Create` y la ventana lo pasa a `EditorServices.Content` y a `PlayerEngine.SetContent`; el inspector le une la sesión (`AppEffectContent.AttachSession`) para la carpeta del proyecto y los avisos. `TryGetLut` es una búsqueda en un diccionario; si falta, la lee en un hilo del pool y avisa con `Changed`. Lo que no se pudo leer no se reintenta hasta `Invalidate` (al cambiar los paquetes). Las curvas de una transición de paquete se leen al armar el plan y quedan en memoria.
 - **`IContentLoader`** lee el contenido por referencia; `InstalledContentLoader` lo hace sobre lo instalado y los lectores de `Rodaje.Paquetes`. Es el punto donde se conecta el `PackageContentStore` de los paquetes.
 - **LUT sueltas.** «Cargar .cube…» guarda `file:` más la ruta con `/`, relativa a la carpeta del `.rodaje` si se puede (`LutReference`).
 - **`EffectCommands`** son ediciones de un solo paso que el núcleo no trae sueltas: modo de mezcla y LUT creando el efecto si falta, y aplicar filtros y efectos de paquete copiados con `options.source` (reaplicar el mismo los reemplaza; las curvas de un efecto se colocan al principio, al final o a lo largo del clip, se encogen si no caben y las posiciones se escalan a la secuencia).
@@ -83,7 +85,7 @@ BgraImage? GetNearestThumbnail(string mediaId, Time sourceTime, Time spacing, in
 
 ## Cómo se suma una vista
 
-1. Un `UserControl` en `Views/<Área>/` que implementa `IEditorView`; `MainWindow` (o el anfitrión, como `InspectorView`) lo crea desde XAML y llama a `Attach(EditorServices)` una vez. `EditorServices` trae `Session`, `Shortcuts` (con su `ShortcutRegistry`), `Settings`, `Player`, `Shell`, `Visuals` y `Packages`.
+1. Un `UserControl` en `Views/<Área>/` que implementa `IEditorView`; `MainWindow` (o el anfitrión, como `InspectorView`) lo crea desde XAML y llama a `Attach(EditorServices)` una vez. `EditorServices` trae `Session`, `Shortcuts` (con su `ShortcutRegistry`), `Settings`, `Player`, `Shell`, `Visuals`, `Packages` y `Content` (LUT y transiciones de paquete para el motor), más `SetPreviewQuality`.
 2. En `Attach` se suscribe a los eventos de `services.Session`, registra sus acciones con `services.ShortcutRegistry.Register(new ShortcutAction(...))` y las une con `services.Shortcuts.Bind(id, ejecutar, puedeEjecutar)`. Los botones llaman a `services.Shortcuts.Invoke(id)`.
 3. Avisa con `services.Session.Notify`, nunca con un `InfoBar` propio.
 4. Solo `x:Bind` (con `Bindings.Update()` al final de `Attach`) y colores del tema (`StaticResource`), nunca sueltos.

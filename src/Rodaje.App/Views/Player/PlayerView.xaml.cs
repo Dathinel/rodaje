@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using Rodaje.Core.Model;
@@ -41,6 +42,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     private double _zoom;
     private bool _usesProxy;
     private int _shuttleRate;
+    private int _previewDivisor = 1;
 
     public PlayerView()
     {
@@ -80,6 +82,9 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         Session.ProjectEdited += (_, _) => UpdateFormat();
         services.ShortcutRegistry.Changed += (_, _) => UpdateToolTips();
         SafeAreasButton.IsChecked = services.Settings.Current.ShowSafeAreas;
+        services.PreviewQualityChanged += (_, _) => UpdateQuality();
+        _engine.SetPreviewQuality(services.Settings.Current.PreviewQuality);
+        UpdateQuality();
         UpdateSafeAreas();
         Meters.Attach(services);
         UpdateFormat();
@@ -165,6 +170,12 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         {
             _usesProxy = transport.UsesProxy;
             ProxyBadge.Visibility = _usesProxy ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        if (transport.PreviewDivisor != _previewDivisor)
+        {
+            _previewDivisor = transport.PreviewDivisor;
+            UpdateQuality();
         }
 
         if (transport.ShuttleRate != _shuttleRate)
@@ -292,6 +303,36 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     }
 
     private void OnSafeAreasClick(object sender, RoutedEventArgs e) => OnSafeAreasChanged();
+
+    private void OnQualityClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string tag } && Enum.TryParse(tag, out PreviewQuality quality))
+        {
+            _services?.SetPreviewQuality(quality);
+        }
+    }
+
+    /// <summary>La calidad elegida y, si Auto bajó la resolución, a cuánto («Auto · ½»).</summary>
+    private void UpdateQuality()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        PreviewQuality quality = _services.Settings.Current.PreviewQuality;
+        QualityAutoItem.IsChecked = quality == PreviewQuality.Auto;
+        QualityFullItem.IsChecked = quality == PreviewQuality.Full;
+        QualityHalfItem.IsChecked = quality == PreviewQuality.Half;
+        QualityQuarterItem.IsChecked = quality == PreviewQuality.Quarter;
+        QualityButton.Content = quality switch
+        {
+            PreviewQuality.Full => "Completa",
+            PreviewQuality.Half => "Mitad",
+            PreviewQuality.Quarter => "Cuarto",
+            _ => _previewDivisor switch { 2 => "Auto · ½", 4 => "Auto · ¼", _ => "Auto" },
+        };
+    }
 
     private void OnFullScreenClick(object sender, RoutedEventArgs e) => _shortcuts?.Invoke(PlayerActionIds.FullScreen);
 

@@ -6,6 +6,9 @@ using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Diagnostics;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Views.Player;
+using Rodaje.Core.Commands;
+using Rodaje.Core.Model;
+using Rodaje.Core.Timing;
 using Rodaje.Engine.Timeline;
 using TerraFX.Interop.Windows;
 using Windows.Graphics;
@@ -16,7 +19,9 @@ namespace Rodaje.App.Shell;
 /// <summary>
 /// Recorrido de medida de <c>--medir N</c> (docs/archivo/sondeo-winui.md): espera el primer cuadro, reproduce, deja 1,5 s de
 /// calentamiento, mide N s con un "ping" a la cola de la interfaz cada 50 ms; luego inyecta Espacio con el foco en
-/// EXPORTAR (el atajo no debe pulsarlo) y redimensiona la ventana. Al cerrar se escribe el informe.
+/// EXPORTAR (el atajo no debe pulsarlo) y redimensiona la ventana. Al cerrar se escribe el informe. Con el escenario
+/// «efectos» arma antes el proyecto (<see cref="MeasurementScenarios"/>) y, después de medir, mueve un deslizador de
+/// color 30 veces reproduciendo para ver cuánto tarda cada cambio en verse.
 /// </summary>
 internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Metrics metrics)
 {
@@ -27,9 +32,45 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
     private int _exports;
     private string _inputMode = "ninguno";
 
-    public async Task RunAsync(double seconds)
+    public async Task RunAsync(double seconds, string? scenario = null)
     {
         window.Router.Invoked += OnInvoked;
+        SliderTarget? slider = null;
+        if (!MeasurementScenarios.IsKnown(scenario))
+        {
+            metrics.Note($"escenario desconocido: {scenario}");
+            Program.ExitCode = 1;
+            window.Close();
+            return;
+        }
+
+        if (scenario == MeasurementScenarios.Effects)
+        {
+            try
+            {
+                slider = MeasurementScenarios.BuildEffects(window.Session);
+            }
+            catch (InvalidOperationException ex)
+            {
+                metrics.Note(ex.Message);
+            }
+
+            if (slider is null)
+            {
+                metrics.Note("no se pudo armar el escenario de efectos");
+                Program.ExitCode = 1;
+                window.Close();
+                return;
+            }
+
+            Sequence sequence = window.Session.Sequence;
+            int layers = sequence.VideoTracks.Count(t => t.Clips.Count > 0);
+            int transitions = sequence.AllTracks.Sum(t => t.Transitions.Count);
+            int effects = sequence.AllTracks.SelectMany(t => t.Clips).Sum(c => c.Effects.Count);
+            metrics.Note($"escenario efectos: {sequence.Width}x{sequence.Height}, {layers} capas de video, {transitions} transiciones, {effects} efectos");
+            window.Session.Seek(Time.Zero);
+        }
+
         var deadline = Stopwatch.StartNew();
         while (!metrics.HasMilestone("primer_cuadro") && engine.FailureMessage is null && deadline.Elapsed < TimeSpan.FromSeconds(30))
         {
@@ -51,6 +92,7 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
 
         await Task.Delay(1500);
         metrics.ResetSteadyState();
+        long droppedBefore = engine.Snapshot.FramesDropped;
         TimeSpan cpuStart = Process.GetCurrentProcess().TotalProcessorTime;
         var wall = Stopwatch.StartNew();
         _pinging = true;
@@ -59,6 +101,7 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
         await Task.Delay(TimeSpan.FromSeconds(seconds));
         metrics.FreezeSteadyState();
         _pinging = false;
+        metrics.Note($"cuadros perdidos al medir: {engine.Snapshot.FramesDropped - droppedBefore}; la calidad Auto bajó {engine.PreviewDowngrades} vez/veces");
         using (Process self = Process.GetCurrentProcess())
         {
             double cpu = (self.TotalProcessorTime - cpuStart).TotalMilliseconds / wall.Elapsed.TotalMilliseconds * 100;
@@ -77,6 +120,11 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
         }
 
         metrics.Note($"Espacio inyectado 6 veces con el foco en EXPORTAR: {_toggles - before} cambios de reproducción, {_exports} clics en EXPORTAR (debe ser 0); vía: {_inputMode}");
+
+        if (slider is { } target)
+        {
+            await MoveSliderAsync(target);
+        }
 
         // Ediciones mientras reproduce (como las del inspector): cuánto tarda cada copia del proyecto en verse.
         for (int i = 0; i < 20; i++)
@@ -107,6 +155,29 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
         window.Close();
     }
 
+    /// <summary>
+    /// Mueve el deslizador de exposición como lo haría la persona (un cambio cada 100 ms, fundidos en un paso) mientras
+    /// reproduce; cada cambio se mide desde antes de ejecutar el comando hasta que se presenta.
+    /// </summary>
+    private async Task MoveSliderAsync(SliderTarget target)
+    {
+        if (!window.Session.IsPlaying)
+        {
+            window.Session.Play();
+            await Task.Delay(500);
+        }
+
+        for (int i = 0; i < 30; i++)
+        {
+            double value = Math.Sin(i * 0.4) * 1.5;
+            engine.MarkEditStart(Stopwatch.GetTimestamp());
+            window.Session.Execute(Edits.SetParameter(window.Session.SequenceId, target.ClipId, target.EffectId, target.Parameter, value, target.At, "Cambiar exposición"));
+            await Task.Delay(100);
+        }
+
+        window.Session.BreakMerge();
+    }
+
     /// <summary>Escribe las cifras al cerrar, si la ventana se abrió con <c>--medir</c>.</summary>
     public static void WriteReportIfMeasuring(AppOptions options, PlayerEngine engine, Metrics metrics, double compositionScale)
     {
@@ -121,6 +192,7 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
             "archivos: " + string.Join(" | ", options.Files),
             string.Create(CultureInfo.InvariantCulture, $"escala_composicion: {compositionScale:0.##}"),
             options.UiHz <= 0 ? "interfaz: refresco en cada cuadro de XAML" : $"interfaz: refresco a {options.UiHz} Hz",
+            "escenario: " + (options.Scenario ?? "un clip"),
         };
         if (engine.FinalStats is TimelineStats stats)
         {

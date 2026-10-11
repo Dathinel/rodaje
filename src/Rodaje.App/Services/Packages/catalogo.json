@@ -7,13 +7,13 @@
   ],
   "entries": [
     {
-      "id": "rodaje-esenciales",
+      "id": "rodaje-filtros",
       "kind": "content",
-      "name": "Esenciales",
-      "description": "Ocho transiciones y ocho looks con LUT hechos con fórmulas propias, listos para usar.",
-      "repository": "https://github.com/Dathinel/rodaje-esenciales",
+      "name": "Filtros",
+      "description": "Looks de color con LUT propios: cálido, frío, cine, blanco y negro…",
+      "repository": "https://github.com/Dathinel/rodaje-filtros",
       "apps": ["rodaje"],
-      "provides": ["transition", "lut", "filter"]
+      "provides": ["filter", "lut"]
     },
     {
       "id": "rodaje-transiciones",

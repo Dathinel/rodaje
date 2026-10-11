@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Rodaje.App.Services.Effects;
 using Rodaje.App.Shell;
 
 namespace Rodaje.App.Views.Inspector;
@@ -22,6 +23,11 @@ internal sealed partial class InspectorView : UserControl, IEditorView
 
     public void Attach(EditorServices services)
     {
+        if (services.Content is EffectContent content)
+        {
+            AppEffectContent.AttachSession(content, services.Session);
+        }
+
         PropertiesPanel.Attach(services);
         TransitionPanel.ActiveChanged += (_, _) => UpdateVisibility();
         TransitionPanel.Attach(services);
