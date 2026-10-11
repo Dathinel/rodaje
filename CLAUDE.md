@@ -78,6 +78,8 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 5. **Velocidad de clips (fase 5c, aprobada):** plan en `docs/fase-5c.md`. Arranca tras unir la integración de la fase 5 (en paralelo con su verificación): paso 0 contrato y formato 4, luego 7 agentes. Va antes que la 5b.
 6. **Después:** fase 5b (texto y títulos, repo `rodaje-titulos`), luego fase 6 (exportación).
 
+**Reorganización del repo aprobada (11-oct):** plan y orden en `docs/reorganizacion.md`; se aplica cuando no haya agentes editando ni PR de la nube abiertos.
+
 ## Nube y coordinación
 
 - **Rutina en la nube** `trig_015zPXdY6meRLBGvkb5XEXMF` («Rodaje: cola de tareas de la nube», cada hora a los :23, Sonnet, entorno `rodaje-dotnet`): toma la siguiente tarea libre de `docs/nube/cola.md` según `docs/nube/README.md` y abre un PR en borrador. Se ve en https://claude.ai/code/routines/trig_015zPXdY6meRLBGvkb5XEXMF.
