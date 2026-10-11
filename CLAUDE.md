@@ -63,14 +63,21 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 - **Maqueta aprobada (D-018):** https://claude.ai/artifact/XXtTT675TEHWSPPCCZfXcv; fuente en `dist\maqueta` (no se versiona).
 - **Revisión de la fase 4 corregida (10-oct, agentes A–D):** ripple con enlazados, Esc en el inspector, atajos tras las páginas, guardia de diálogos y red de errores (`rodaje-error.txt`), rutas inválidas, recuperación de paquetes tras apagón, límites y textos de manifiesto, hilos de miniaturas, medidores en pausa, contrato `IClipVisuals` único, `TimelineScheduler` en parciales, pruebas `TiempoReal` en pasada aparte, README y arquitectura al día (D-022, D-023).
 
+**Fase 5: efectos, LUT, mezcla, transiciones y audio (construida; en integración).** Plan y criterios en `docs/fase-5.md` (D-025). Unidos a main los 6 agentes: núcleo (formato 3, transiciones en el corte, volumen de pista que sigue a los clips, 99,9 % de cobertura), render (efectos fusionados, 13 mezclas, transiciones; 3 capas 4K con efectos en 1,8–3,4 ms), motor (efectos sin reservas, carriles de transición, ganancia y fundidos, composición atómica tras seek y pistas de arriba abajo), paquetes (lectores `.cube`/filtro/efecto/preset, `PackageContentStore`), inspector y biblioteca, línea de tiempo (soltar transiciones, envolvente, volumen de pista, calidad Auto/Completa/Mitad/Cuarto). Texto y títulos van en la fase 5b.
+
 ## Siguiente paso (al retomar)
 
-1. **Daniel ya probó (10-oct) y aprobó** arrastres, Esc, estilos y botones iluminados. Lo que pidió ya está hecho: restablecer por parámetro con aviso si borra keyframes (D-024), Atajos con vista Esencial/Avanzado, miniaturas recortadas al clip, atenuación de pistas, Espacio sin abrir «Archivo», candado que deja ocultar y silenciar, complementos sin desinstalar con varias ventanas. **Falta que lo compruebe a ojo**; el teclado cortado no se reprodujo aquí (pedirle tamaño de ventana y escala).
-2. **Que confirme Daniel:** las flechas sobre un deslizador enfocado (también el del zoom) lo mueven a él; Ctrl izquierdo + Alt derecho ya no lanza atajos Ctrl+Alt; los guardados van en fila en lugar de `.tmp` únicos.
-3. **Pendientes conocidos:**
-   - pico de ~600 ms en la primera edición tras importar: el motor no lo causa, falta medirlo en la interfaz;
-   - una forma de onda quitada mientras se calcula vuelve a la memoria hasta que la expulsa el límite de 64.
-4. **Después:** fase 5 (efectos, LUT, blend, render de filtros, audio con volumen y fundidos).
+1. **Integración final** (agente en `.claude\worktrees\`, rama `worktree-agent-*` más reciente; si la sesión se cortó, revisar sus commits con `git log main..<rama>` y unir si la suite pasa): conectar `Compositor.Resources` en `PlayerEngine` y recomponer en pausa con `Changed`; pasar `MixParameters`/`MixOptions` en `EffectContent`; ocultar LUT duplicadas en Filtros; prueba de punta a punta con los paquetes reales; medidas con `app.ps1 -Medir 10 -Escenario efectos`; pruebas inestables a `TiempoReal`.
+2. **Verificación de la fase 5** por un agente nuevo sin contexto y de **otro modelo (Sonnet; Daniel no quiere Fable)** contra los criterios de `docs/fase-5.md`. Luego mini revisión.
+3. `herramientaspp.ps1 -SoloPublicar` y pasarle a Daniel **`docs/pruebas-a-mano.md`** (todo lo que tiene que probar y las preguntas abiertas).
+4. **Pendientes conocidos:** pico de ~600 ms en la primera edición tras importar (no es el motor; medir en la interfaz); una forma de onda quitada mientras se calcula vuelve a la memoria hasta el límite de 64; `Tick` reserva ~2,5 KB por refresco por las clases `LayerFrame`/`CompositionFrame` del contrato.
+5. **Después:** fase 5b (texto y títulos, repo `rodaje-titulos`), luego fase 6 (exportación).
+
+## Nube y coordinación
+
+- **Rutina en la nube** `trig_015zPXdY6meRLBGvkb5XEXMF` («Rodaje: cola de tareas de la nube», cada 2 h, Sonnet, entorno `rodaje-dotnet`): toma la siguiente tarea libre de `docs/nube/cola.md` según `docs/nube/README.md` y abre un PR en borrador. Se ve en https://claude.ai/code/routines/trig_015zPXdY6meRLBGvkb5XEXMF.
+- **Revisión horaria local** (vive solo mientras la sesión está abierta; **al abrir una sesión nueva hay que volver a crearla** con CronCreate): cada PR `claude/*` lo revisa un agente Opus nuevo sin contexto con encargo adversarial; si dice UNIR se une, se marca `hecha` en la cola y se repone la cola con 1–2 tareas que no pisen a los agentes locales.
+- **Claude chat** lee el repo para responder a Daniel: todo se sube a GitHub tras cada commit, y se hace `git pull` antes de unir.
 
 ## Hacia la versión pública (consultado en Claude chat el 10-oct, sin decidir)
 
