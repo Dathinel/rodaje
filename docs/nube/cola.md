@@ -20,7 +20,7 @@ Con eso en verde, quita `continue-on-error` del trabajo de Windows y deja el enl
 
 ## 2. Guardia de decodificador en las pruebas de Render
 
-- **Estado:** cambios (PR #4: atender la revisión del 11-oct en sus comentarios)
+- **Estado:** hecha (PR #4 unido el 11-oct; Sharpen en WARP es precisión del rasterizador, medido)
 - **Rama:** `claude/render-guardia-decodificador`
 - **Caminos:** `tests/Rodaje.Render.Tests/`, `.github/workflows/ci.yml`, `docs/tareas/`
 
