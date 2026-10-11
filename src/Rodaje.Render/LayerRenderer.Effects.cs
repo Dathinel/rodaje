@@ -44,8 +44,10 @@ internal sealed unsafe partial class LayerRenderer
         int flags = 0;
         int perPixel = 0;
         ID3D11ShaderResourceView* lut = null;
-        foreach (LayerEffect effect in layer.Effects)
+        IReadOnlyList<LayerEffect> list = layer.Effects;
+        for (int i = 0; i < list.Count; i++)
         {
+            LayerEffect effect = list[i];
             GpuEffect? gpu = GpuEffectRegistry.Find(effect.Code);
             EffectDefinition? definition = EffectRegistry.Find(effect.Code);
             if (gpu is null || definition is null)

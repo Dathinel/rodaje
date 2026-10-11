@@ -165,8 +165,10 @@ public sealed unsafe class Compositor : IDisposable
             float* black = stackalloc float[] { 0f, 0f, 0f, 1f };
             _context->ClearRenderTargetView(_output.Rtv, black);
             bool bound = true;
-            foreach (LayerFrame layer in frame.Layers)
+            IReadOnlyList<LayerFrame> layers = frame.Layers;
+            for (int i = 0; i < layers.Count; i++)
             {
+                LayerFrame layer = layers[i];
                 if (_layers.Usable(layer) is not { } payload)
                 {
                     stats.LayersSkipped++;
