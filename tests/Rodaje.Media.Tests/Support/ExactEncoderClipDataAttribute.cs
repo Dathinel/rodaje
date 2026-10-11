@@ -5,8 +5,8 @@ namespace Rodaje.Media.Tests.Support;
 
 /// <summary>
 /// Las filas de clips que una teoría solo puede comprobar si se generaron con su codificador exacto
-/// (<see cref="TestClips.ExactEncoder"/>: GOP pedido y cuadros B). Se omiten con su motivo cuando ese codificador no
-/// funciona (por ejemplo, el runner de la CI no tiene NVENC y cae en libopenh264 o libkvazaar) en lugar de fallar.
+/// (<see cref="TestClips.ExactEncoder"/>). Se omiten, con el motivo que da la prueba, cuando ese codificador no funciona
+/// (el runner de la CI no tiene NVENC y el clip sale de libopenh264 o libkvazaar) en lugar de fallar.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
 internal sealed class ExactEncoderClipDataAttribute : DataAttribute
@@ -15,12 +15,15 @@ internal sealed class ExactEncoderClipDataAttribute : DataAttribute
     private readonly string[] _clipFields;
 
     /// <param name="software">Filas (clip, modo) de <see cref="DecodeModes.Software"/>; si no, solo el nombre del clip.</param>
+    /// <param name="because">Por qué el clip sin su codificador exacto no sirve para esta prueba.</param>
     /// <param name="clipFields">Nombres de los campos de <see cref="TestClips"/> (<c>"Hevc"</c>, <c>"H264Mkv"</c>...).</param>
-    public ExactEncoderClipDataAttribute(bool software, params string[] clipFields)
+    public ExactEncoderClipDataAttribute(bool software, string because, params string[] clipFields)
     {
         _software = software;
         _clipFields = clipFields;
-        Skip = Rodaje.TestMedia.Skip.First(Clips().Select(c => Rodaje.TestMedia.Skip.Encoder(TestClips.ExactEncoder(c.Codec))).ToArray());
+        string? missing = Clips().Select(c => TestClips.ExactEncoder(c.Codec))
+            .FirstOrDefault(e => Rodaje.TestMedia.Skip.Encoder(e) is not null);
+        Skip = missing is null ? null : $"Omitida: sin {missing} en este equipo, {because}";
     }
 
     public override IEnumerable<object[]> GetData(MethodInfo testMethod) =>

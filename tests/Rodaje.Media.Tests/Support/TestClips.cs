@@ -61,13 +61,14 @@ internal static class TestClips
     public const string TenBitEncoder = "hevc_nvenc";
 
     /// <summary>
-    /// El codificador con el que el clip sale como la prueba lo espera: con su GOP exacto y, en H.264 y HEVC, cuadros B
-    /// (y por tanto cuadros no referenciados). Sin él, <see cref="EncodeVideo"/> cae en libopenh264 (sin cuadros B) o en
-    /// libkvazaar (que no respeta <c>-g</c>), válidos para decodificar pero no para estas comprobaciones.
+    /// El codificador con el que el clip sale como la prueba lo espera: GOP cerrado y exacto y cuadros B, también no
+    /// referenciados. Sin él, <see cref="EncodeVideo"/> cae en libopenh264 (sin cuadros B) o en libkvazaar (GOP abierto,
+    /// sin cuadros no referenciados), válidos para decodificar pero no para estas comprobaciones.
     /// </summary>
     public static string ExactEncoder(ClipCodec codec) => codec switch
     {
         ClipCodec.H264 => "h264_nvenc",
+        ClipCodec.Hevc => "hevc_nvenc",
         _ => TenBitEncoder,
     };
 

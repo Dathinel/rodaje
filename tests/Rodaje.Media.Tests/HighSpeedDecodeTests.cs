@@ -27,10 +27,13 @@ public sealed class HighSpeedDecodeTests
     [MemberData(nameof(AllClips))]
     public void Exact_requests_never_skip_hardware(string clip) => ExactNeverSkips(DecodeModes.Clip(clip), DecodeMode.Hardware);
 
-    // Descartar cuadros no referenciados exige cuadros B: libopenh264 y libkvazaar no los producen y no hay nada que descartar.
+    // Descartar cuadros no referenciados exige que el clip los tenga: libopenh264 no produce cuadros B y libkvazaar sí,
+    // pero solo referenciados (TRAIL_R/RASL_R), así que no hay nada que descartar.
     [FfmpegLibraryTheory]
-    [ExactEncoderClipData(software: true, nameof(TestClips.H264), nameof(TestClips.H264Mkv))]
-    [ExactEncoderClipData(software: true, nameof(TestClips.Hevc))]
+    [ExactEncoderClipData(software: true, "libopenh264 no produce cuadros B ni, por tanto, cuadros no referenciados.",
+        nameof(TestClips.H264), nameof(TestClips.H264Mkv))]
+    [ExactEncoderClipData(software: true, "libkvazaar produce cuadros B pero todos referenciados (TRAIL_R/RASL_R): no hay cuadros que descartar.",
+        nameof(TestClips.Hevc))]
     public void Skipping_non_reference_frames_decodes_less_and_labels_truthfully_software(string clip, DecodeMode mode) =>
         SkipsNonReference(DecodeModes.Clip(clip), mode);
 
@@ -41,7 +44,9 @@ public sealed class HighSpeedDecodeTests
 
     [FfmpegLibraryTheory]
     [MemberData(nameof(SoftwareCasesWithoutHevc))]
-    [ExactEncoderClipData(software: true, nameof(TestClips.Hevc))]
+    [ExactEncoderClipData(software: true,
+        "libkvazaar genera un GOP abierto (CRA con cuadros RASL) y el modo Keyframe entrega el IDR anterior en vez del CRA pedido: defecto del decodificador, tarea 14 de docs/nube/cola.md.",
+        nameof(TestClips.Hevc))]
     public void Keyframe_mode_delivers_only_keyframes_software(string clip, DecodeMode mode) => DeliversKeyframes(DecodeModes.Clip(clip), mode);
 
     [HardwareTheory]
