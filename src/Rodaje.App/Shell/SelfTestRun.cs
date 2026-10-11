@@ -1,9 +1,12 @@
 using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
+using Rodaje.App.Views.Export;
 using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Player;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
+using Rodaje.Core.Timing;
+using Rodaje.Export;
 
 namespace Rodaje.App.Shell;
 
@@ -27,6 +30,7 @@ internal static class SelfTestRun
             }
 
             await ShowCurveAsync(window);
+            await ShowExportAsync(window);
             window.InspectorPane.Show(InspectorView.Tab.Properties);
             if (window.Session.Sequence.Duration.Ticks > 0)
             {
@@ -71,6 +75,43 @@ internal static class SelfTestRun
         window.InspectorPane.Show(InspectorView.Tab.Speed);
         await Task.Delay(250);
         session.Undo();
+    }
+
+    /// <summary>
+    /// Abre Exportar con «Avanzado» desplegado y lanza una exportación con el runner de la ventana (hoy la simulación, que
+    /// no escribe nada), para dibujar el diálogo y la tarjeta de progreso con el exe de AOT. No toca los ajustes recordados.
+    /// </summary>
+    private static async Task ShowExportAsync(MainWindow window)
+    {
+        window.ShowPage(ShellPage.Export);
+        for (int i = 0; i < 50 && window.ExportPage?.Model is null; i++)
+        {
+            await Task.Delay(100);
+        }
+
+        window.ExportPage?.ShowAdvanced(true);
+        await Task.Delay(400);
+        window.ClosePage();
+        if (window.Session.Sequence.Duration.Ticks <= 0 || !window.Exports.Runner.IsSimulation)
+        {
+            return;
+        }
+
+        string output = Path.Combine(Path.GetTempPath(), "rodaje-autoprueba.mp4");
+        ExportEntry entry = window.Exports.Enqueue(new ExportRequest(window.Session.Project.Clone(), window.Session.SequenceId, output,
+            ExportPresets.YouTube1080p.Settings, new ExportRange(Time.Zero, Time.Min(window.Session.Sequence.Duration, Time.FromSeconds(2)))));
+        window.InspectorPane.Show(InspectorView.Tab.Jobs);
+        for (int i = 0; i < 100 && !entry.IsFinished; i++)
+        {
+            await Task.Delay(100);
+        }
+
+        if (entry.Progress.State != ExportJobState.Completed)
+        {
+            throw new InvalidOperationException($"La exportación simulada quedó en {entry.Progress.State}.");
+        }
+
+        window.Exports.Remove(entry);
     }
 
     /// <summary>Selecciona el primer clip de la principal para que las pestañas muestren un clip, no el estado vacío.</summary>
