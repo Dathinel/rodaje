@@ -1,0 +1,135 @@
+# Integración continua de Rodaje.
+# - linux: Core, Paquetes y Playback, que compilan para net10.0 sin Windows.
+# - windows: la solución entera con el entorno propio (.entorno, D-005). Primera versión: no bloquea (continue-on-error)
+#   hasta ver qué pasa en un runner sin GPU ni audio; ver docs/tareas/2026-10-10-ci.md.
+# Las pruebas largas y de hardware solo corren con RODAJE_PRUEBAS_LARGAS=1, que aquí no se pone.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+
+jobs:
+  linux:
+    name: Linux (Core, Paquetes, Playback)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: .NET 10.0.401
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Caché de NuGet
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-linux-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: nuget-linux-
+
+      - name: Versión del SDK
+        run: dotnet --version
+
+      # SoloWindows: pruebas que dependen de códigos de error de Windows. TiempoReal y Rendimiento miden contra el
+      # reloj de pared y en un runner compartido dan falsos fallos.
+      - name: Pruebas
+        shell: bash
+        run: |
+          set -euo pipefail
+          for p in Core Paquetes Playback; do
+            proyecto="tests/Rodaje.$p.Tests/Rodaje.$p.Tests.csproj"
+            dotnet restore "$proyecto" --locked-mode
+            dotnet test "$proyecto" --no-restore \
+              --filter "Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento" \
+              --logger "trx;LogFilePrefix=$p" --results-directory TestResults
+          done
+
+      - name: Resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruebas-linux
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
+
+  windows:
+    name: Windows (solución completa)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    # Primera versión: informa sin bloquear. Quitar cuando el trabajo esté verde de forma estable.
+    continue-on-error: true
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}\.entorno\nuget
+      DOTNET_ROOT: ${{ github.workspace }}\.entorno\dotnet
+      DOTNET_CLI_HOME: ${{ github.workspace }}\.entorno
+      DOTNET_MULTILEVEL_LOOKUP: '0'
+      DOTNET_CLI_FORCE_UTF8_ENCODING: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      # El SDK y FFmpeg se guardan por la huella de preparar-entorno.ps1, que fija versiones y hashes.
+      - name: Caché del SDK y FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: |
+            .entorno/dotnet
+            .entorno/ffmpeg
+          key: entorno-windows-${{ hashFiles('herramientas/preparar-entorno.ps1', 'global.json') }}
+
+      - name: Caché de NuGet
+        uses: actions/cache@v4
+        with:
+          path: .entorno/nuget
+          key: nuget-windows-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: nuget-windows-
+
+      - name: Preparar el entorno
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-entorno.ps1
+
+      - name: Versión del SDK
+        shell: pwsh
+        run: '& .entorno\dotnet\dotnet.exe --version'
+
+      - name: Restaurar
+        shell: pwsh
+        run: '& .entorno\dotnet\dotnet.exe restore Rodaje.slnx --locked-mode'
+
+      - name: Compilar
+        shell: pwsh
+        run: '& .entorno\dotnet\dotnet.exe build Rodaje.slnx --no-restore'
+
+      # Sin RODAJE_PRUEBAS_LARGAS las largas y las de hardware se omiten solas (testing/Rodaje.TestMedia/Skip.cs);
+      # TiempoReal y Rendimiento se excluyen igual que en Linux.
+      - name: Pruebas
+        shell: pwsh
+        run: >-
+          & .entorno\dotnet\dotnet.exe test Rodaje.slnx --no-build
+          --filter "Categoria!=TiempoReal&Categoria!=Rendimiento"
+          --logger "trx" --results-directory TestResults
+
+      - name: Resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruebas-windows
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
