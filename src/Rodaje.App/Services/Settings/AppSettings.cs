@@ -1,4 +1,4 @@
-﻿using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Services.Shortcuts;
 using Rodaje.Engine.Timeline;
 
 namespace Rodaje.App.Services.Settings;
@@ -6,7 +6,12 @@ namespace Rodaje.App.Services.Settings;
 /// <summary>Preferencias de la persona que sobreviven entre sesiones (<c>ajustes.json</c>).</summary>
 public sealed class AppSettings
 {
-    public const int CurrentVersion = 1;
+    /// <summary>2: el panel derecho pasa a 380 px por defecto para que sus pestañas quepan con nombre.</summary>
+    public const int CurrentVersion = 2;
+
+    public const double DefaultLibraryWidth = 280;
+
+    public const double DefaultInspectorWidth = 380;
     public const int MaxRecentProjects = 10;
 
     public int Version { get; set; } = CurrentVersion;
@@ -20,9 +25,9 @@ public sealed class AppSettings
     public List<string> RecentProjects { get; set; } = [];
 
     /// <summary>Ancho de la biblioteca (con el riel de íconos), en píxeles independientes del DPI.</summary>
-    public double LibraryWidth { get; set; } = 320;
+    public double LibraryWidth { get; set; } = DefaultLibraryWidth;
 
-    public double InspectorWidth { get; set; } = 320;
+    public double InspectorWidth { get; set; } = DefaultInspectorWidth;
 
     public double TimelineHeight { get; set; } = 300;
 
@@ -70,8 +75,14 @@ public sealed class AppSettings
     /// <summary>Corrige lo que no tenga sentido (un archivo editado a mano, o de otra pantalla).</summary>
     public void Normalize()
     {
-        LibraryWidth = Clamp(LibraryWidth, 220, 900, 320);
-        InspectorWidth = Clamp(InspectorWidth, 240, 900, 320);
+        if (Version < 2)
+        {
+            InspectorWidth = Math.Max(InspectorWidth, DefaultInspectorWidth);
+            Version = CurrentVersion;
+        }
+
+        LibraryWidth = Clamp(LibraryWidth, 220, 900, DefaultLibraryWidth);
+        InspectorWidth = Clamp(InspectorWidth, 240, 900, DefaultInspectorWidth);
         TimelineHeight = Clamp(TimelineHeight, 160, 1400, 300);
         WindowWidth = WindowWidth == 0 ? 0 : Clamp(WindowWidth, 800, 10000, 0);
         WindowHeight = WindowHeight == 0 ? 0 : Clamp(WindowHeight, 560, 10000, 0);

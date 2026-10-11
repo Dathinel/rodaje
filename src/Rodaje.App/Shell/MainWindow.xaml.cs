@@ -142,6 +142,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         LibrarySplitter.Resized += (_, size) => settings.Current.LibraryWidth = size;
         InspectorSplitter.Resized += (_, size) => settings.Current.InspectorWidth = size;
+        MainArea.SizeChanged += (_, _) => FitSidePanels();
         TimelineSplitter.Resized += (_, size) => settings.Current.TimelineHeight = size;
         Activated += OnActivated;
         AppWindow.Closing += OnClosing;
@@ -317,6 +318,48 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
+    /// <summary>
+    /// Con la ventana estrecha los paneles laterales ceden (primero la biblioteca, luego el panel derecho) para que el
+    /// reproductor conserve su mínimo y nada quede fuera de la ventana; al ensancharla vuelven a los anchos elegidos.
+    /// </summary>
+    private void FitSidePanels()
+    {
+        if (_playerFullScreen || MainArea.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        const double LibraryMin = 220;
+        const double InspectorMin = 240;
+        AppSettings s = _settings.Current;
+        double room = MainArea.ActualWidth - MainArea.ColumnDefinitions[1].ActualWidth - MainArea.ColumnDefinitions[3].ActualWidth
+            - MainArea.ColumnDefinitions[2].MinWidth;
+        double library = s.LibraryWidth;
+        double inspector = s.InspectorWidth;
+        double excess = library + inspector - room;
+        if (excess > 0)
+        {
+            double cut = Math.Min(excess, Math.Max(0, library - LibraryMin));
+            library -= cut;
+            excess -= cut;
+        }
+
+        if (excess > 0)
+        {
+            inspector = Math.Max(InspectorMin, inspector - excess);
+        }
+
+        if (LibraryColumn.Width.Value != library)
+        {
+            LibraryColumn.Width = new GridLength(library);
+        }
+
+        if (InspectorColumn.Width.Value != inspector)
+        {
+            InspectorColumn.Width = new GridLength(inspector);
+        }
+    }
+
     private void SaveLayout()
     {
         AppSettings s = _settings.Current;
@@ -329,8 +372,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             s.WindowHeight = AppWindow.Size.Height * 96.0 / dpi;
         }
 
-        s.LibraryWidth = LibraryColumn.ActualWidth;
-        s.InspectorWidth = InspectorColumn.ActualWidth;
+        // Los anchos de los paneles laterales se guardan al soltar su separador: aquí se verían los recortados por FitSidePanels.
         s.TimelineHeight = TimelineRow.ActualHeight;
         s.ShortcutPreset = _router.Registry.Preset;
     }

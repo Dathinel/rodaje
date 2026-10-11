@@ -1,4 +1,4 @@
-﻿using Rodaje.App.Services;
+using Rodaje.App.Services;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Tests.Support;
@@ -63,6 +63,26 @@ public class SettingsStoreTests
         Assert.Empty(broken.Current.InspectorSections);
     }
 
+    [Theory]
+    [InlineData(320, 380)]
+    [InlineData(500, 500)]
+    public void AjustesVersion1_ElPanelDerechoPasaAlMenosA380(double before, double after)
+    {
+        using var dir = new TempDirectory();
+        string path = dir.File(SettingsStore.FileName);
+        File.WriteAllText(path, "{\"version\":1,\"inspectorWidth\":" + before.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}");
+        var store = new SettingsStore(path);
+        Assert.Null(store.Load());
+        Assert.Equal(after, store.Current.InspectorWidth);
+        Assert.Equal(AppSettings.CurrentVersion, store.Current.Version);
+
+        store.Current.InspectorWidth = 300;
+        store.Save();
+        var again = new SettingsStore(path);
+        Assert.Null(again.Load());
+        Assert.Equal(300, again.Current.InspectorWidth);
+    }
+
     [Fact]
     public void GuardarSiCambio_SoloEscribeCuandoHayAlgoNuevo()
     {
@@ -89,7 +109,8 @@ public class SettingsStoreTests
         using var dir = new TempDirectory();
         var store = new SettingsStore(dir.File(SettingsStore.FileName));
         Assert.Null(store.Load());
-        Assert.Equal(320, store.Current.LibraryWidth);
+        Assert.Equal(280, store.Current.LibraryWidth);
+        Assert.Equal(380, store.Current.InspectorWidth);
         Assert.Equal(ProxyUsage.Auto, store.Current.ProxyUsage);
         Assert.False(store.Current.ShortcutsAdvanced);
     }

@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Shell;
@@ -66,6 +66,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     {
         UpdateVisibility();
         UpdateTabLabels();
+        (sender as UIElement)?.StartBringIntoView();
     }
 
     private (RadioButton Tab, TextBlock Label)[] Tabs =>
@@ -86,7 +87,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         }
 
         TabStrip.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
-        _compactTabs = TabStrip.DesiredSize.Width > TabBar.ActualWidth;
+        _compactTabs = TabStrip.DesiredSize.Width > TabBar.ActualWidth - 1;
         foreach ((RadioButton tab, TextBlock label) in Tabs)
         {
             label.Visibility = !_compactTabs || tab.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
