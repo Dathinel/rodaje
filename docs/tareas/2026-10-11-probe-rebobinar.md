@@ -2,36 +2,16 @@
 
 ## Qué cambió
 
-- `src/Rodaje.Media/Probe/MediaProbe.cs`: el rebobinado tras `ScanTimestamps` pasa a `RewindToStart`, que busca la marca de inicio del flujo con `avformat_seek_file(min = long.MinValue, ts = max = inicio)` y, si falla, `av_seek_frame(inicio, BACKWARD)`. Antes buscaba `long.MinValue`, que en MP4 no mueve la posición.
-- `tests/Rodaje.Media.Tests/ProbeRewindTests.cs` (nuevo): tras el análisis, el primer paquete (flujo, dts, posición en el archivo) es el mismo que el de un archivo recién abierto, para H.264 MP4, HEVC MP4 y H.264 MKV; (se quitó una segunda prueba, «el análisis no cambia», por débil: comparaba dos aperturas independientes).
-- `Rodaje.Media.Tests.csproj`: `AllowUnsafeBlocks` para poder leer paquetes en la prueba (no estaba listado en los caminos; mínimo necesario).
+- `src/Rodaje.Media/Probe/MediaProbe.cs`: tras `ScanTimestamps`, `RewindToStart` busca `min(stream->start_time, primer dts de video leído)` con `avformat_seek_file(min = long.MinValue, ts = max = inicio)` y, si falla, `av_seek_frame(inicio, BACKWARD)`. Antes buscaba `long.MinValue`, que en MP4, MOV y AVI no mueve la posición. El dts mínimo evita perder el primer keyframe en MPEG-TS con cuadros B (allí `start_time` es pts y la búsqueda va por dts).
+- `tests/Rodaje.Media.Tests/ProbeRewindTests.cs` (nuevo): 5 casos (H.264 MP4, HEVC MP4, MKV, y remux a MOV y a MPEG-TS con cuadros B). Tras el análisis, el primer paquete de video (dts y posición) y el número de paquetes de video coinciden con una apertura limpia.
+- `tests/Rodaje.Media.Tests/Support/TestClips.cs`: `Remuxed` para los casos MOV y TS. `Rodaje.Media.Tests.csproj`: `AllowUnsafeBlocks` para leer paquetes en la prueba.
 
-## Estado de las pruebas (honesto)
+## Evidencia
 
-- **No pude ejecutar las pruebas nuevas aquí.** No pude bajar el FFmpeg 9.0.2 de BtbN (404 desde el entorno de la nube) y el del sistema es la 6.1, incompatible con los bindings. Compila sin advertencias; en Linux las dos pruebas se omiten (`FfmpegLibraryTheory`).
-- Por eso **no reproduje el fallo antes del arreglo**; la causa **no está confirmada**: viene del enunciado de la tarea y del comentario de `KeyframeIndex.cs:122`. Debe confirmarlo la CI de Windows: ver que las pruebas corren y que fallarían con el código anterior (cambiar `RewindToStart` por la línea vieja).
-- Pruebas omitidas: no se omite ni excluye ninguna existente (antes 0 cambios, después 0 cambios); las 2 teorías nuevas solo se omiten sin FFmpeg.
+- Con el código anterior fallan 3 de 5 casos; sin el dts mínimo falla el caso TS (298 de 300 paquetes); con el arreglo pasan los 5.
+- Revisión independiente con 16 medios (MP4 con B, desfase y audio por delante, fragmentado, MOV, MKV, WebM, 4 MPEG-TS, 2 AVI, VFR): los 16 coinciden en primer dts, posición y número de paquetes, y `MediaInfo` es idéntico al de antes. El código anterior fallaba en 7 (MPEG-4 en AVI quedaba en 0 paquetes).
+- CI de Windows: los 5 casos corren y pasan; ninguna omisión nueva.
 
-- Reserva del revisor interno: es posible que `mov_read_seek` ya recortase `long.MinValue` a 0 y rebobinase en MP4; si la prueba pasa también con el código viejo, el arreglo es inofensivo pero innecesario y la prueba queda como protección. Hay que correrla con la línea vieja en la CI de Windows para decidir.
-- Límites conocidos: el rebobinado solo busca en el flujo de video; el fallo del respaldo `av_seek_frame` no se comprueba; los clips no tienen `start_time` distinto de 0.
+## Límite conocido
 
-## Pendiente / decisiones
-
-- `KeyframeIndex` y `VideoDecoder` siguen reabriendo/buscando; no se tocaron.
-- Sin choques conocidos con `origin/main` (PR #5, flush, ya unido).
-
-## Qué comprobar en Windows
-
-`ABRIR.bat`: `ProbeRewindTests` (3 casos) deben correr y pasar; el resto de Media, igual que antes.
-
-## Primera corrida de la CI de Windows
-
-`ProbeRewindTests` falló en el clip con audio (`h264-2997`): el primer paquete del archivo es de audio (flujo 1, pos 48) y el rebobinado va al inicio del flujo de video (pos 406). La prueba pasó a comparar el primer paquete **de video**. Los demás rojos de esa corrida (HighSpeedDecode, KeyframeIndex hevc10, `Damage_still_inside…`, `SeekLejos…`) no son de este PR: son las tareas 0, 4 y 9.
-
-## Revisión independiente (Opus): cambios atendidos
-
-- El fallo está confirmado por el revisor (antes/después en H.264 y HEVC MP4); mi duda anterior sobre `long.MinValue` queda descartada.
-- **MPEG-TS con cuadros B:** `start_time` es el pts del primer cuadro y la búsqueda compara contra el dts, que va antes, así que se perdía el primer cuadro clave. `ScanTimestamps` guarda ahora el menor dts de video leído y `RewindToStart` busca `min(start_time, ese dts)`. Se corrigió el comentario del código (la marca de inicio no basta en TS).
-- **Pruebas:** `ProbeRewindTests` suma remux sin recodificar a `ts` y `mov` (`TestClips.Remuxed`) y compara, además del primer paquete de video, el **número de paquetes de video** con el de una apertura limpia. No pude ejecutarlas aquí (sin FFmpeg 9); dependen de la CI de Windows.
-- El rebobinado va al inicio del flujo de video: un paquete de audio anterior en el archivo se salta, como antes.
-- Pruebas omitidas: sin cambios (0 antes, 0 después).
+`Remuxed` copia solo el video (`-map 0:v`): MPEG-TS con el audio por delante se comprobó a mano, no en la prueba.
