@@ -1,6 +1,6 @@
 # Fase 6: exportación
 
-Plan del 11 de octubre de 2026; Daniel respondió las preguntas del final el mismo día (D-028).
+Plan del 11 de octubre de 2026. Daniel decidió: LGPL en la v1, 9:16 con barras y botón «Cambiar la secuencia a 9:16», y **dos modos de rendimiento que se eligen al exportar** («Alto rendimiento (menor tiempo)» y «Bajo rendimiento (app más fluida)»). Arquitectura y contrato en D-028.
 
 ## Arquitectura
 
@@ -22,6 +22,20 @@ ExportRunner (Rodaje.Export) ─► IExportSink ─► FfmpegPipeSink (ffmpeg.ex
 ## Formatos y preajustes
 
 MP4 (por defecto, `+faststart`), MOV, MKV, WebM y solo audio. H.264/HEVC por GPU (NVENC, AMF, QSV) o por Media Foundation; AV1 por CPU con SVT-AV1 (y por GPU solo en RTX 40); VP9 por CPU; FFV1 y DNxHR como maestros; audio AAC (`aac_mf`), Opus, FLAC, PCM, MP3. Preajustes como datos: YouTube 1080p, YouTube 4K, Reels/TikTok 9:16, Máxima calidad, Archivo pequeño, Solo audio, Personalizado; sus números se calibran con VMAF.
+
+## Alcance profesional (pedido por Daniel el 11-oct)
+
+La exportación debe ser completa, como la de una app profesional, con todo lo que permite el FFmpeg LGPL; lo que necesite otra licencia va como complemento aparte en un repo de Dathinel.
+
+- **Contenedores:** MP4, MOV, MKV, WebM, AVI, MXF (OP1a), MPEG-TS, GIF animado y WebP animado, secuencia de imágenes (PNG, TIFF, JPEG, EXR si el build lo trae) y solo audio (WAV, FLAC, MP3, M4A/AAC, Opus, AIFF).
+- **Códecs de video:** H.264 y HEVC (GPU y Media Foundation), AV1 (SVT-AV1, libaom; GPU en RTX 40), VP9, ProRes (422 Proxy/LT/Standard/HQ y 4444 con alfa, codificador nativo de FFmpeg), DNxHR (LB/SQ/HQ/HQX/444), CineForm si el build lo trae, FFV1, MJPEG, PNG/QuickTime Animation para alfa, GIF/WebP.
+- **Control de tasa:** CRF/CQ (calidad constante), VBR (media y máxima), CBR, ABR y **dos pasadas** donde el codificador lo admita; tamaño objetivo que calcula la tasa; tasa en Mbps o calidad.
+- **Parámetros avanzados:** perfil y nivel (H.264 Baseline/Main/High/High 10/High 4:2:2; HEVC Main/Main10/Main 4:2:2), preset de velocidad del codificador, GOP (longitud, cerrado/abierto, keyframe cada N s), cuadros B y referencias, ajuste psicovisual/tune donde exista, entrelazado no (solo progresivo), 8/10 bits, submuestreo 4:2:0/4:2:2/4:4:4 si el códec lo admite, canal alfa (ProRes 4444, PNG, WebM VP9 con alfa), rango y espacio de color etiquetados (BT.709, BT.601, sRGB para imágenes), velocidad de cuadro (la de la secuencia o conversión a 23,976/24/25/29,97/30/50/59,94/60 con mezcla o repetición), resolución con escala de calidad y forma (barras, recorte, estirar), recorte por rango o región.
+- **Audio:** AAC (LC, HE), Opus, MP3, FLAC, ALAC, PCM 16/24/32 float; 44,1/48/96 kHz; mono, estéreo y 5.1 si el proyecto lo tiene; tasa en kbps o calidad; normalización de sonoridad opcional a LUFS (−14 para plataformas, −23 EBU R128) con medición previa.
+- **Metadatos y extras:** título, autor, fecha, capítulos desde los marcadores, subtítulos como pista (SRT/WebVTT) cuando llegue la fase 7, miniatura incrustada, `faststart`.
+- **Preajustes propios y del usuario:** los de fábrica (YouTube, Vimeo, Instagram/Reels, TikTok, X, maestro ProRes/DNxHR, archivo pequeño, GIF) y guardar/importar/exportar preajustes propios como archivo; los preajustes también pueden venir en un `.paquete`.
+- **Validación honesta:** el diálogo solo ofrece combinaciones válidas (contenedor × códec × perfil × píxel × audio) y explica por qué otra no lo es.
+- **Complementos de exportación en GitHub de Dathinel** (se instalan aparte, como los demás complementos): `rodaje-codificadores-gpl` con un `ffmpeg.exe` GPL que trae x264, x265 y fdk-aac no (no es libre), usado por el mismo protocolo de tubería (frontera de proceso; consultar licencias antes de publicar); preajustes de plataformas como `.paquete`.
 
 ## Interfaz
 

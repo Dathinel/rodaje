@@ -101,7 +101,7 @@ Solo documento, sin código: propuesta para la fase 5b con (1) clips generadores
 
 ## 10. `MediaProbe.ScanTimestamps` no rebobina en MP4
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #12: atender la revisión del 11-oct en sus comentarios)
 - **Rama:** `claude/probe-rebobinar`
 - **Caminos:** `src/Rodaje.Media/Probe/MediaProbe.cs`, `tests/Rodaje.Media.Tests/` (archivos nuevos), `docs/tareas/`
 
