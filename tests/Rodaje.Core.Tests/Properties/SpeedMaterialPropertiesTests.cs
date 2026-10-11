@@ -58,7 +58,9 @@ public class SpeedMaterialPropertiesTests(ITestOutputHelper output)
 
         string clipId = clips[clipIndex % clips.Count].Id;
         List<Clip> group = Group(built, clipId);
-        if (group.Exists(c => c.Speed is not null || built.Sequence.FindClip(c.Id)!.Value.Track.Locked))
+        // Solo clips de un medio a 1× en pistas libres (un título no tiene medio ni velocidad).
+        if (group.Exists(c => c.Speed is not null || built.Sequence.FindClip(c.Id)!.Value.Track.Locked
+            || !built.Project.Media.Exists(m => m.Id == c.MediaId)))
         {
             return false;
         }
