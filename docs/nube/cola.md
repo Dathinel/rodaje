@@ -28,7 +28,7 @@ La guardia de GPU de `CompositorTests.Draws_the_requested_slice_of_a_texture_arr
 
 ## 3. Pruebas hostiles del lector de proyectos `.rodaje`
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #3: atender la revisión del 11-oct en sus comentarios)
 - **Rama:** `claude/fuzz-proyecto`
 - **Caminos:** `tests/Rodaje.Core.Tests/Fuzz/` (carpeta nueva), `docs/tareas/`. Si encuentras un fallo real en `src/Rodaje.Core/Serialization/`, NO lo corrijas: deja la prueba que lo reproduce marcada con `Skip = "Defecto: …"` y descríbelo en la entrega.
 - **Lee:** `docs/formato-proyecto.md`, `src/Rodaje.Core/Serialization/` (solo lectura), `tests/Rodaje.Core.Tests/Serialization/ejemplos/proyecto-v3.rodaje`.
