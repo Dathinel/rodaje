@@ -11,7 +11,7 @@ Rama: `claude/fuzz-paquete`.
 - Lo instalado se lee con los cuatro lectores y con `PackageContentStore`.
 - Etapas medidas (una corrida): zip 447, manifiesto 1414, extracción/instalación rechazada 1447, instalados 1892 (contenido válido 890, rechazado 1002). Pasan del zip el 91 %; el umbral es 25 %.
 - **4000 casos más** solo de contenido (`.cube`, filtro, efecto, transición) directos contra `ContentReaders`: 492 válidos, 3488 rechazados con `PackageContentException`.
-- Tiempo: 13 s en Linux los 5200 casos (cuatro trabajadores con carpeta propia; con uno solo tardaba 27–30 s porque cada instalación vuelca a disco). El límite de 30 s se comprueba con `Stopwatch`.
+- Tiempo: 13 s en Linux los 5200 casos (cuatro trabajadores con carpeta propia; con uno solo tardaba 27–30 s porque cada instalación vuelca a disco). Límite de 30 s en Linux; en Windows, 146 s en el runner de la CI (volcado a disco y antivirus), así que allí el límite es de 5 min y solo detecta cuelgues.
 - Omitidas: 2 pruebas nuevas con `Skip` por defectos reales (abajo). Antes de esta tarea el proyecto tenía 0 omitidas; después tiene 2, ambas por defecto concreto del código.
 
 ## Defectos encontrados (no corregidos, fuera de los caminos)

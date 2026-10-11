@@ -19,7 +19,10 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
     private const int Seed = 20261011;
     private const int Cases = 5200;
     private const double MinimumPastZipShare = 0.25;
-    private static readonly TimeSpan Budget = TimeSpan.FromSeconds(30);
+
+    // 30 s en Linux (medido: 13 s). En Windows cada instalación vuelca a disco con antivirus de por medio: 146 s en el
+    // runner de la CI, así que el límite allí solo detecta cuelgues.
+    private static readonly TimeSpan Budget = OperatingSystem.IsWindows() ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(30);
 
     private const string Cube = "TITLE \"t\"\nLUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n";
 
