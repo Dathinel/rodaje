@@ -45,16 +45,20 @@ internal sealed partial class TimelineView
         Scrub,
         DraggingMarker,
         Pan,
+        DraggingTransition,
+        DraggingEnvelope,
     }
 
     /// <summary>Esc o un proyecto nuevo cortan lo que el puntero estaba haciendo (la sesión ya revirtió el gesto).</summary>
     private void AbortPointerGesture()
     {
-        if (_mode == PointerMode.DraggingMarker && Session!.IsInGesture)
+        if (_mode is PointerMode.DraggingMarker or PointerMode.DraggingTransition or PointerMode.DraggingEnvelope && Session!.IsInGesture)
         {
             Session.CancelGesture();
         }
 
+        _transitionId = null;
+        _envelopeClipId = null;
         _drag = null;
         _markerId = null;
         _mode = PointerMode.None;
@@ -127,6 +131,17 @@ internal sealed partial class TimelineView
         }
 
         TimelineHit hit = TimelineHitTest.Hit(layout, Viewport, p.X, ContentY(p.Y));
+        if (EditsEnvelope(hit) && (props.IsLeftButtonPressed || props.IsRightButtonPressed))
+        {
+            PressEnvelope(hit, p, props.IsRightButtonPressed, e);
+            return;
+        }
+
+        if (State.Tool != TimelineTool.Zoom && (props.IsLeftButtonPressed || props.IsRightButtonPressed) && TryPressTransition(layout, p, e))
+        {
+            return;
+        }
+
         if (props.IsRightButtonPressed)
         {
             if (hit.Clip is { } clicked && !Session.SelectedClipIds.Contains(clicked.Id))
@@ -190,7 +205,7 @@ internal sealed partial class TimelineView
         switch (_mode)
         {
             case PointerMode.None:
-                UpdateCursor(TimelineHitTest.Hit(layout, Viewport, p.X, ContentY(p.Y)));
+                UpdateCursor(TimelineHitTest.Hit(layout, Viewport, p.X, ContentY(p.Y)), HitTransition(layout, p).Kind);
                 return;
             case PointerMode.Pan:
                 Viewport.ScrollX -= p.X - _pressPoint.X;
@@ -210,6 +225,12 @@ internal sealed partial class TimelineView
             case PointerMode.DraggingClip:
                 EdgeScroll(p.X);
                 ContinueClipDrag(p, layout);
+                return;
+            case PointerMode.DraggingTransition:
+                ContinueTransitionDrag(p);
+                return;
+            case PointerMode.DraggingEnvelope:
+                ContinueEnvelopeDrag(p, layout);
                 return;
             case PointerMode.Marquee:
                 if (Distance(p, _pressPoint) >= DragThreshold)
@@ -244,6 +265,12 @@ internal sealed partial class TimelineView
             case PointerMode.Marquee:
                 FinishMarquee(p, layout);
                 break;
+            case PointerMode.DraggingTransition:
+                FinishTransitionDrag();
+                break;
+            case PointerMode.DraggingEnvelope:
+                FinishEnvelopeDrag();
+                break;
             default:
                 break;
         }
@@ -257,6 +284,14 @@ internal sealed partial class TimelineView
         if (_mode == PointerMode.DraggingClip)
         {
             FinishClipDrag();
+        }
+        else if (_mode == PointerMode.DraggingTransition)
+        {
+            FinishTransitionDrag();
+        }
+        else if (_mode == PointerMode.DraggingEnvelope)
+        {
+            FinishEnvelopeDrag();
         }
 
         _mode = PointerMode.None;
@@ -356,9 +391,12 @@ internal sealed partial class TimelineView
         }
     }
 
-    private void UpdateCursor(TimelineHit? hit)
+    private void UpdateCursor(TimelineHit? hit, TransitionHitKind transition = TransitionHitKind.None)
     {
         InputCursor cursor = State.Tool == TimelineTool.Zoom ? CrossCursor
+            : hit is { } h && EditsEnvelope(h) ? CrossCursor
+            : transition is TransitionHitKind.StartHandle or TransitionHitKind.EndHandle ? ResizeCursor
+            : transition is TransitionHitKind.Body or TransitionHitKind.AutoCrossfade ? ArrowCursor
             : hit?.Kind is HitKind.ClipStart or HitKind.ClipEnd && State.Tool != TimelineTool.Selection ? ResizeCursor
             : hit?.Kind is HitKind.ClipBody && State.Tool == TimelineTool.Normal ? MoveCursor
             : ArrowCursor;
@@ -521,6 +559,12 @@ internal sealed partial class TimelineView
         _dropMediaId = null;
         if (!e.DataView.Contains(MediaIdFormat))
         {
+            if (CarriesElement(e.DataView))
+            {
+                e.AcceptedOperation = DataPackageOperation.Copy;
+                ReadDroppedTransition(e);
+            }
+
             return;
         }
 
@@ -544,6 +588,11 @@ internal sealed partial class TimelineView
     {
         if (!e.DataView.Contains(MediaIdFormat))
         {
+            if (CarriesElement(e.DataView))
+            {
+                DragOverTransition(e);
+            }
+
             return;
         }
 
@@ -573,8 +622,18 @@ internal sealed partial class TimelineView
 
     private async void OnLanesDrop(object sender, DragEventArgs e)
     {
-        if (!e.DataView.Contains(MediaIdFormat) || Session is null)
+        if (Session is null)
         {
+            return;
+        }
+
+        if (!e.DataView.Contains(MediaIdFormat))
+        {
+            if (CarriesElement(e.DataView))
+            {
+                DropTransition(e);
+            }
+
             return;
         }
 
