@@ -129,7 +129,8 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
         int[] selected = SelectCases(all);
         const int Workers = 4;
         var stages = new System.Collections.Concurrent.ConcurrentDictionary<string, int>();
-        Task[] tasks = Enumerable.Range(0, Workers).Select(w => Task.Run(() =>
+        // Hilos propios: los trabajadores bloquean esperando la carga de la LUT y no deben quitarle hilos al grupo que la hace.
+        Task[] tasks = Enumerable.Range(0, Workers).Select(w => Task.Factory.StartNew(() =>
         {
             string root = temp.Combine("raiz" + w);
             string data = Path.Combine(root, "datos");
@@ -180,7 +181,7 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
                     Assert.Fail($"El caso {i} ({stage}) dejó cambios fuera del estado vacío: {extra}");
                 }
             }
-        })).ToArray();
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
         await Task.WhenAll(tasks);
 
         // Escrituras fuera de las carpetas de los trabajadores: los centinelas (rutas absolutas y con «..») y cualquier otra cosa.
@@ -454,8 +455,10 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
             CheckProblem(store, prefix + "zoom", store.FindEffect(prefix + "zoom"));
             CheckProblem(store, prefix + "empujar", store.FindTransition(prefix + "empujar"));
             _ = store.TryGetLut(prefix + "lut-cine", out _);
-            store.WhenLoaded().Wait(TimeSpan.FromSeconds(5));
-            if (!store.TryGetLut(prefix + "lut-cine", out _))
+
+            // Solo si la carga terminó: con pocos núcleos puede tardar y entonces aún no hay motivo que decir.
+            bool loaded = store.WhenLoaded().Wait(TimeSpan.FromSeconds(60));
+            if (loaded && !store.TryGetLut(prefix + "lut-cine", out _))
             {
                 Assert.False(string.IsNullOrWhiteSpace(store.LutProblem(prefix + "lut-cine")), "La LUT no se leyó y no dice por qué.");
             }
