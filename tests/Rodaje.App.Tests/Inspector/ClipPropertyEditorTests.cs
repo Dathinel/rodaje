@@ -1,6 +1,7 @@
 using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Tests.Support;
+using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using P = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
@@ -443,7 +444,7 @@ public class ClipPropertyEditorTests
     public void ConVelocidad_LosKeyframesVanEnTiempoDelOrigen_YLaNavegacionEnElDeLaLinea() => UiThread.Run(async () =>
     {
         Harness h = await Harness.WithClip();
-        Assert.True(h.Session.Execute(SpeedCommands.Default.SetSpeed(h.Session.SequenceId, h.Video.Id, new Rational(2, 1))));
+        Assert.True(h.Session.Execute(Edits.SetSpeed(h.Session.SequenceId, h.Video.Id, new Rational(2, 1), ripple: true)));
 
         h.At(1);
         Assert.True(h.Editor.ToggleKeyframe(h.Video, Transform, P.Opacity, 1));

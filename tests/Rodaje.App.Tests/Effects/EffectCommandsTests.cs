@@ -128,7 +128,7 @@ public class EffectCommandsTests
     public void Efecto_EnUnClipA2x_SeColocaEnLaLineaDeTiempoYGuardaTiempoDelOrigen() => UiThread.Run(async () =>
     {
         EditorSession session = await TwoClips();
-        Assert.True(session.Execute(SpeedCommands.Default.SetSpeed(session.SequenceId, First(session).Id, new Rational(2, 1))));
+        Assert.True(session.Execute(Edits.SetSpeed(session.SequenceId, First(session).Id, new Rational(2, 1), ripple: true)));
         Clip clip = First(session);
         Assert.Equal(S(5), clip.Duration);
         var preset = new EffectPreset("salida", "Salida", EffectPlacement.Out, 2, 1920, 1080, [],

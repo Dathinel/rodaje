@@ -54,7 +54,7 @@ public sealed partial class EditorSession
         List<string> targets = OnePerLink([.. clipIds]);
         return targets.Count > 0 && RunAsOneStep("Cambiar velocidad", targets, id =>
             Sequence.FindClip(id) is { } found && Retimable(found.Clip)
-                ? TimelineSpeedEdits.SetSpeed(SequenceId, id, rate, RippleFor(found.Track), _ids)
+                ? Edits.SetSpeed(SequenceId, id, rate, ClosesGaps(found.Track), _ids)
                 : null);
     }
 
@@ -72,7 +72,7 @@ public sealed partial class EditorSession
 
             Rational current = found.Clip.Speed?.Rate ?? new Rational(1, 1);
             return NextStep(current, faster) is { } next
-                ? TimelineSpeedEdits.SetSpeed(SequenceId, id, next, RippleFor(found.Track), _ids)
+                ? Edits.SetSpeed(SequenceId, id, next, ClosesGaps(found.Track), _ids)
                 : null;
         });
     }
@@ -97,7 +97,7 @@ public sealed partial class EditorSession
                 continue;
             }
 
-            SequenceEditCommand command = TimelineSpeedEdits.FreezeFrame(SequenceId, id, at, FreezeDuration, Timeline.RippleScope, _ids);
+            SequenceEditCommand command = Edits.FreezeFrame(SequenceId, id, at, FreezeDuration, _ids);
             if (!Execute(command))
             {
                 return false;
@@ -121,7 +121,7 @@ public sealed partial class EditorSession
         }
 
         bool reverse = !targets.TrueForAll(id => Sequence.GetClip(id).Clip.Speed is { Reverse: true });
-        return RunAsOneStep(reverse ? "Invertir" : "Quitar invertir", targets, id => TimelineSpeedEdits.SetReverse(SequenceId, id, reverse, _ids));
+        return RunAsOneStep(reverse ? "Invertir" : "Quitar invertir", targets, id => Edits.SetReverse(SequenceId, id, reverse, _ids));
     }
 
     /// <summary>El escalón siguiente (o anterior) a <paramref name="current"/>; <c>null</c> en el extremo.</summary>
@@ -152,7 +152,8 @@ public sealed partial class EditorSession
         return null;
     }
 
-    private RippleScope? RippleFor(Track track) => ClosesGaps(track) ? Timeline.RippleScope : null;
+    /// <summary>Si un cambio de velocidad del clip corre lo que sigue (pista principal magnética o ripple automático).</summary>
+    public bool SpeedRipples(string clipId) => Sequence.FindClip(clipId) is { } found && ClosesGaps(found.Track);
 
     private static bool Retimable(Clip clip) => clip.Speed is not { Freeze: true } and not { Curve: not null };
 
