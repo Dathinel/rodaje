@@ -16,6 +16,7 @@ Rama `claude/qdv-plantillas`, PR #19. Función 33 de `docs/pendientes.md`.
 ## Pruebas
 
 - `Rodaje.App.Tests` completo en Linux (sin TiempoReal, Rendimiento ni SoloWindows): los únicos fallos son 4 que ya fallan en `origin/main` en Linux (`ProxyJobListTests`, `ThumbnailCacheTests`, 2 de `ExportPreferencesTests`, rutas y medios de Windows) y `ClipVisualsTests.Single_requests_snap…`, intermitente (pasa 2 de 3 veces solo; no toca nada de esta tarea).
+- CI del PR (d37a026): Linux en verde; Windows compila la solución entera (incluida la app WinUI) y pasan todas las suites salvo **una prueba ajena a esta tarea**: `Rodaje.App.Tests.Inspector.TitleEditorTests.BordesYConvertirEnKeyframes`, que llegó a `origin/main` con la pestaña Texto (e5c4d70) y espera «0,5» con coma mientras el runner usa una cultura con punto («Entrada de 0.5 s · opacidad»). La CI de `pull_request` corre sobre la unión con main, por eso aparece aquí; esta rama no tiene ese archivo. Se arregla en main (formatear con una cultura fija o ajustar la prueba), fuera de los caminos de esta tarea.
 - Pruebas omitidas: ninguna omitida ni excluida; 0 antes, 0 después.
 
 ## Decisiones
