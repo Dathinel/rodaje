@@ -2,6 +2,9 @@
 
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
+
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno.
+
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
 - **Estado:** hecha (PR #9 unido el 11-oct; comentario y aserción ajustados al unir)
