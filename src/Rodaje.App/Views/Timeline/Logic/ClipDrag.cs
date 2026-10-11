@@ -63,7 +63,8 @@ public sealed record DragPlan(
 
 /// <summary>
 /// Traduce un arrastre sobre un clip a comandos del núcleo. Recuerda el estado del clip al empezar y, en cada paso,
-/// calcula el comando relativo al estado actual (que ya incluye los pasos anteriores del mismo gesto).
+/// calcula el comando relativo al estado actual (que ya incluye los pasos anteriores del mismo gesto); estirar una
+/// curva es la excepción: cada paso sale del estado del inicio del gesto (<see cref="FromGestureStart"/>).
 /// </summary>
 /// <remarks>
 /// En pistas libres se mueve sin pisar nada (<see cref="PlacementMode.Strict"/>) y se recorta sin correr lo demás, salvo
@@ -89,6 +90,12 @@ public sealed class ClipDrag
     private readonly SnapPoints _snaps;
     private readonly HashSet<string> _group;
 
+    // Estirar una curva se calcula desde el estado del inicio del gesto: encadenar pasos de un cuadro redondearía los
+    // puntos a centésimas una y otra vez.
+    private readonly SequenceSnapshot? _stretchStart;
+    private readonly Time _originSource;
+    private readonly (int Low, int High) _originCurveRange;
+
     public ClipDrag(Project project, string sequenceId, string clipId, DragOperation operation, Time grab, DragOptions options, Time? playhead, IIdGenerator? ids = null)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -112,6 +119,12 @@ public sealed class ClipDrag
         _group = [.. members.Select(m => m.Clip.Id)];
         _minStart = clip.Start - members.Min(m => m.Clip.Start);
         _snaps = options.Snapping ? SnapPoints.Collect(sequence, _group, playhead) : SnapPoints.Empty;
+        _originSource = clip.SourceDuration;
+        if (operation is DragOperation.StretchStart or DragOperation.StretchEnd && clip.Speed is { Freeze: false, Curve: { Points.Count: > 0 } curve })
+        {
+            _stretchStart = SequenceSnapshot.Capture(sequence);
+            _originCurveRange = (curve.Points.Min(p => p.Hundredths), curve.Points.Max(p => p.Hundredths));
+        }
     }
 
     public string ClipId => _clipId;
@@ -388,15 +401,28 @@ public sealed class ClipDrag
         }
 
         TrimEdge edge = _operation == DragOperation.StretchStart ? TrimEdge.In : TrimEdge.Out;
-        Time span = clip.SourceDuration;
-        if (clip.Speed is { Curve: not null } || span <= Time.Zero)
+        bool curve = clip.Speed is { Curve: not null };
+        Time span = curve ? _originSource : clip.SourceDuration;
+        if ((curve && _stretchStart is null) || span <= Time.Zero)
         {
             return new DragPlan(null, true, clip.Start, clip.End, track.Id, null, null);
         }
 
         Time frame = Frame;
-        long minTicks = Math.Max(frame.Ticks, (span.Ticks + 99) / 100);
-        long maxTicks = Math.Min(span.Ticks * 10, RetimeMath.MaxExtent);
+        long minTicks;
+        long maxTicks;
+        if (curve)
+        {
+            // Cada punto se divide por lo que se estira: ninguno puede salir de 0,1×–10×.
+            Int128 origin = _originDuration.Ticks;
+            minTicks = (long)Int128.Max(frame.Ticks, ((origin * _originCurveRange.High) + RetimeMath.MaxHundredths - 1) / RetimeMath.MaxHundredths);
+            maxTicks = (long)Int128.Min(origin * _originCurveRange.Low / RetimeMath.MinHundredths, RetimeMath.MaxExtent);
+        }
+        else
+        {
+            minTicks = Math.Max(frame.Ticks, (span.Ticks + 99) / 100);
+            maxTicks = Math.Min(span.Ticks * 10, RetimeMath.MaxExtent);
+        }
 
         Time? guide = null;
         long duration;
@@ -437,10 +463,24 @@ public sealed class ClipDrag
             return new DragPlan(null, true, ghostStart, ghostStart + d, track.Id, guide, null, balloon);
         }
 
-        // El núcleo pide cuánto se mueve el borde respecto del clip de ahora (los pasos del arrastre se encadenan).
-        Time delta = edge == TrimEdge.Out ? d - clip.Duration : clip.Duration - d;
+        RippleScope scope = _options.RippleScope;
+        Func<ICommand> build;
+        if (_stretchStart is { } start && curve)
+        {
+            // Desde el inicio del gesto: el borde se mueve respecto del clip de entonces y el paso vuelve antes a ese estado.
+            Time fromStart = edge == TrimEdge.Out ? d - _originDuration : _originDuration - d;
+            build = () => new FromGestureStart(_sequenceId, start,
+                fromStart == Time.Zero ? null : Edits.RateStretch(_sequenceId, _clipId, edge, fromStart, scope, _ids));
+        }
+        else
+        {
+            // El núcleo pide cuánto se mueve el borde respecto del clip de ahora (los pasos del arrastre se encadenan).
+            Time delta = edge == TrimEdge.Out ? d - clip.Duration : clip.Duration - d;
+            build = () => Edits.RateStretch(_sequenceId, _clipId, edge, delta, scope, _ids);
+        }
+
         return new DragPlan(
-            () => Edits.RateStretch(_sequenceId, _clipId, edge, delta, _options.RippleScope, _ids),
+            build,
             true,
             ghostStart,
             ghostStart + d,
