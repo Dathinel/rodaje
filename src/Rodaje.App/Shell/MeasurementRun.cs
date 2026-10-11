@@ -19,9 +19,9 @@ namespace Rodaje.App.Shell;
 /// <summary>
 /// Recorrido de medida de <c>--medir N</c> (docs/archivo/sondeo-winui.md): espera el primer cuadro, reproduce, deja 1,5 s de
 /// calentamiento, mide N s con un "ping" a la cola de la interfaz cada 50 ms; luego inyecta Espacio con el foco en
-/// EXPORTAR (el atajo no debe pulsarlo) y redimensiona la ventana. Al cerrar se escribe el informe. Con el escenario
-/// «efectos» arma antes el proyecto (<see cref="MeasurementScenarios"/>) y, después de medir, mueve un deslizador de
-/// color 30 veces reproduciendo para ver cuánto tarda cada cambio en verse.
+/// EXPORTAR (el atajo no debe pulsarlo) y redimensiona la ventana. Al cerrar se escribe el informe. Con un escenario
+/// («efectos», «velocidad») arma antes el proyecto (<see cref="MeasurementScenarios"/>) y, después de medir, repite 30
+/// veces su edición reproduciendo (un deslizador de color, o la velocidad de una capa) para ver cuánto tarda en verse.
 /// </summary>
 internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Metrics metrics)
 {
@@ -35,7 +35,7 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
     public async Task RunAsync(double seconds, string? scenario = null)
     {
         window.Router.Invoked += OnInvoked;
-        SliderTarget? slider = null;
+        Func<int, SequenceEditCommand>? liveEdit = null;
         if (!MeasurementScenarios.IsKnown(scenario))
         {
             metrics.Note($"escenario desconocido: {scenario}");
@@ -44,20 +44,20 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
             return;
         }
 
-        if (scenario == MeasurementScenarios.Effects)
+        if (scenario is not null)
         {
             try
             {
-                slider = MeasurementScenarios.BuildEffects(window.Session);
+                liveEdit = MeasurementScenarios.Build(scenario, window.Session);
             }
             catch (InvalidOperationException ex)
             {
                 metrics.Note(ex.Message);
             }
 
-            if (slider is null)
+            if (liveEdit is null)
             {
-                metrics.Note("no se pudo armar el escenario de efectos");
+                metrics.Note($"no se pudo armar el escenario {scenario}");
                 Program.ExitCode = 1;
                 window.Close();
                 return;
@@ -67,7 +67,8 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
             int layers = sequence.VideoTracks.Count(t => t.Clips.Count > 0);
             int transitions = sequence.AllTracks.Sum(t => t.Transitions.Count);
             int effects = sequence.AllTracks.SelectMany(t => t.Clips).Sum(c => c.Effects.Count);
-            metrics.Note($"escenario efectos: {sequence.Width}x{sequence.Height}, {layers} capas de video, {transitions} transiciones, {effects} efectos");
+            string speeds = string.Join(", ", sequence.VideoTracks.SelectMany(t => t.Clips).Select(c => c.Speed is { } s ? s.Rate.ToString() + "x" : "1x"));
+            metrics.Note($"escenario {scenario}: {sequence.Width}x{sequence.Height}, {layers} capas de video, {transitions} transiciones, {effects} efectos, velocidades {speeds}");
             window.Session.Seek(Time.Zero);
         }
 
@@ -126,9 +127,9 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
 
         metrics.Note($"Espacio inyectado 6 veces con el foco en EXPORTAR: {_toggles - before} cambios de reproducción, {_exports} clics en EXPORTAR (debe ser 0); vía: {_inputMode}");
 
-        if (slider is { } target)
+        if (liveEdit is not null)
         {
-            await MoveSliderAsync(target);
+            await EditWhilePlayingAsync(liveEdit);
         }
 
         // Ediciones mientras reproduce (como las del inspector): cuánto tarda cada copia del proyecto en verse.
@@ -161,10 +162,10 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
     }
 
     /// <summary>
-    /// Mueve el deslizador de exposición como lo haría la persona (un cambio cada 100 ms, fundidos en un paso) mientras
+    /// Repite la edición del escenario como lo haría la persona (un cambio cada 100 ms, fundidos en un paso) mientras
     /// reproduce; cada cambio se mide desde antes de ejecutar el comando hasta que se presenta.
     /// </summary>
-    private async Task MoveSliderAsync(SliderTarget target)
+    private async Task EditWhilePlayingAsync(Func<int, SequenceEditCommand> edit)
     {
         if (!window.Session.IsPlaying)
         {
@@ -174,9 +175,8 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
 
         for (int i = 0; i < 30; i++)
         {
-            double value = Math.Sin(i * 0.4) * 1.5;
             engine.MarkEditStart(Stopwatch.GetTimestamp());
-            window.Session.Execute(Edits.SetParameter(window.Session.SequenceId, target.ClipId, target.EffectId, target.Parameter, value, target.At, "Cambiar exposición"));
+            window.Session.Execute(edit(i));
             await Task.Delay(100);
         }
 

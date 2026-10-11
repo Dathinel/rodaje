@@ -120,7 +120,7 @@ public sealed class TimelinePlanTests
         b.AddVideo(0, "m", Time.Zero, Time.Zero, S(10));
         VideoClipPlan clip = b.Plan().Layers[0].Clips[0];
 
-        Assert.Equal(expected, clip.ShownBetween(after, before, new Rational(sequenceFps, 1)));
+        Assert.Equal(expected, clip.ShownBetween(after, before));
     }
 
     [Fact]

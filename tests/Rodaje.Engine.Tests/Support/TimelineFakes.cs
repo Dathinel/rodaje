@@ -38,9 +38,16 @@ internal sealed class LiveCounter
     public void Decrement() => Interlocked.Decrement(ref _value);
 }
 
-/// <summary>Decodificador falso de un medio: entrega al instante cualquier cuadro dentro de su largo.</summary>
-internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBackend owner) : IClipVideo
+/// <summary>
+/// Decodificador falso de un medio: entrega al instante cualquier cuadro dentro de su largo. Con
+/// <see cref="FakeTimelineBackend.KeyframeInterval"/> conoce sus keyframes, uno cada tantos cuadros.
+/// </summary>
+internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBackend owner) : IClipVideo, IKeyframeSource
 {
+    public IKeyframeIndex? Keyframes { get; } = owner.KeyframeInterval is { } gop
+        ? new SortedKeyframes(Enumerable.Range(0, (int)((info.Video!.FrameCount + gop - 1) / gop)).Select(k => (long)k * gop))
+        : null;
+
     private readonly List<long> _requests = [];
     private volatile bool _disposed;
 
@@ -68,6 +75,19 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
                 return [.. _requests];
             }
         }
+    }
+
+    /// <summary>Exactitud de cada petición, en orden.</summary>
+    public List<DecodeAccuracy> Accuracies { get; } = [];
+
+    public ValueTask<DecodedFrame?> GetFrameAsync(long frameIndex, DecodeAccuracy accuracy, CancellationToken cancellationToken)
+    {
+        lock (_requests)
+        {
+            Accuracies.Add(accuracy);
+        }
+
+        return GetFrameAsync(frameIndex, cancellationToken);
     }
 
     public ValueTask<DecodedFrame?> GetFrameAsync(long frameIndex, CancellationToken cancellationToken)
@@ -230,6 +250,9 @@ internal sealed class FakeTimelineBackend : IClipBackend
     public long? PoolSurfaceBytes { get; init; }
 
     public int PoolReferences { get; init; } = 10;
+
+    /// <summary>Si se da, cada decodificador conoce sus keyframes: uno cada tantos cuadros.</summary>
+    public int? KeyframeInterval { get; init; }
 
     public HashSet<string> FailOpen { get; } = new(StringComparer.OrdinalIgnoreCase);
 

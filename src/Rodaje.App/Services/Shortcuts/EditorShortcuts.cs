@@ -18,6 +18,12 @@ public static class ActionIds
     public const string TrimEnd = "edit.trimEnd";
     public const string SelectAll = "edit.selectAll";
 
+    public const string ClipSpeed = "clip.speed";
+    public const string FreezeFrame = "clip.freeze";
+    public const string SpeedUp = "clip.faster";
+    public const string SlowDown = "clip.slower";
+    public const string Reverse = "clip.reverse";
+
     public const string TogglePlay = "playback.togglePlay";
     public const string PreviousFrame = "playback.previousFrame";
     public const string NextFrame = "playback.nextFrame";
@@ -84,6 +90,11 @@ public static partial class EditorShortcuts
         new(ActionIds.TrimStart, "Recortar el inicio hasta el cursor", ShortcutGroups.Edit, ["Q"], classic: ["Alt+["]) { ShortLabel = "Recortar inicio", Description = "Quita lo que hay del clip antes del cursor." },
         new(ActionIds.TrimEnd, "Recortar el final hasta el cursor", ShortcutGroups.Edit, ["W"], classic: ["Alt+]"]) { ShortLabel = "Recortar final", Description = "Quita lo que hay del clip después del cursor." },
         new(ActionIds.SelectAll, "Seleccionar todo", ShortcutGroups.Edit, ["Ctrl+A"]) { ShortLabel = "Todo", Description = "Selecciona todos los clips de la secuencia." },
+        new(ActionIds.ClipSpeed, "Velocidad del clip…", ShortcutGroups.Edit, ["Ctrl+R"]) { ShortLabel = "Velocidad", Description = "Abre la pestaña Velocidad del clip seleccionado o del que está bajo el cursor." },
+        new(ActionIds.FreezeFrame, "Congelar cuadro", ShortcutGroups.Edit, ["Mayús+R"]) { ShortLabel = "Congelar", Description = "Detiene la imagen del cursor 3 segundos y corre lo que sigue." },
+        new(ActionIds.SpeedUp, "Más rápido", ShortcutGroups.Edit, ["Ctrl+Alt+."]) { Repeats = true, Description = "Sube un escalón la velocidad del clip (1,25×, 1,5×, 2×…)." },
+        new(ActionIds.SlowDown, "Más lento", ShortcutGroups.Edit, ["Ctrl+Alt+,"]) { Repeats = true, Description = "Baja un escalón la velocidad del clip (0,75×, 0,5×, 0,25×…)." },
+        new(ActionIds.Reverse, "Invertir", ShortcutGroups.Edit, []) { Description = "Reproduce el clip hacia atrás; otra vez lo vuelve a poner hacia adelante." },
 
         new(ActionIds.TogglePlay, "Reproducir o pausar", ShortcutGroups.Playback, ["Espacio"]) { ShortLabel = "Reproducir", Description = "Arranca o detiene la reproducción desde el cursor." },
         new(ActionIds.PreviousFrame, "Cuadro anterior", ShortcutGroups.Playback, ["←"], classic: ["Alt+←"]) { ShortLabel = "Cuadro atrás", Repeats = true, Description = "Retrocede una imagen; mantenla para ir más atrás." },
@@ -133,6 +144,11 @@ public static partial class EditorShortcuts
             router.Bind(ActionIds.TrimStart, () => session.TrimStartToPlayhead()),
             router.Bind(ActionIds.TrimEnd, () => session.TrimEndToPlayhead()),
             router.Bind(ActionIds.SelectAll, session.SelectAll),
+            router.Bind(ActionIds.ClipSpeed, () => session.ShowClipSpeed()),
+            router.Bind(ActionIds.FreezeFrame, () => session.FreezeFrameAtPlayhead()),
+            router.Bind(ActionIds.SpeedUp, () => session.StepSpeed(faster: true)),
+            router.Bind(ActionIds.SlowDown, () => session.StepSpeed(faster: false)),
+            router.Bind(ActionIds.Reverse, () => session.ToggleReverse()),
 
             router.Bind(ActionIds.TogglePlay, session.TogglePlayPause),
             router.Bind(ActionIds.PreviousFrame, () => session.StepFrames(-1)),

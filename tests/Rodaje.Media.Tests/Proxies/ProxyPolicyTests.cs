@@ -144,6 +144,61 @@ public sealed class ProxyPolicyTests
             Policy.Evaluate(candidate).Reasons);
     }
 
+    [Theory]
+    [InlineData(1.0, 8.0, 1, false)] // a 1× no cuenta (eso es SlowDecode)
+    [InlineData(2.0, 2.6, 1, false)] // pide 2 × 1,25 = 2,5
+    [InlineData(2.0, 2.4, 1, true)]
+    [InlineData(4.0, 4.9, 1, true)]
+    [InlineData(4.0, 5.1, 1, false)]
+    [InlineData(2.0, 4.9, 2, true)] // dos capas a 2× piden 5
+    [InlineData(15.0, 10.0, 1, true)]
+    [InlineData(16.0, 1.0, 1, false)] // desde 16× solo keyframes
+    [InlineData(100.0, 1.0, 1, false)]
+    [InlineData(0.5, 0.7, 1, false)]
+    public void High_speed_compares_rate_times_layers_with_the_measured_decode(double rate, double measured, int layers, bool expected)
+    {
+        ProxyRecommendation result = Policy.Evaluate(Hd() with { PlaybackRate = rate, DecodeSpeed = measured, Layers = layers });
+
+        Assert.Equal(expected, result.Reasons.HasFlag(ProxyReasons.HighSpeed));
+        Assert.False(result.IsRequired);
+    }
+
+    [Fact]
+    public void High_speed_needs_a_measurement_and_explains_in_frames_per_second()
+    {
+        Assert.False(Policy.Evaluate(Hd() with { PlaybackRate = 4 }).Reasons.HasFlag(ProxyReasons.HighSpeed));
+
+        ProxyRecommendation result = Policy.Evaluate(Hd() with { PlaybackRate = 4, DecodeSpeed = 3, KeyframeInterval = 30 });
+        Assert.Equal(ProxyReasons.HighSpeed, result.Reasons);
+        Assert.Equal("A 4× hacen falta 150 cuadros por segundo y este equipo decodifica 90.", Assert.Single(result.Explanations));
+    }
+
+    [Theory]
+    [InlineData(1920, 1080, false)]
+    [InlineData(3840, 2160, true)]
+    [InlineData(2160, 3840, true)]
+    public void Reverse_above_1080p_requires_a_proxy(int width, int height, bool required)
+    {
+        ProxyRecommendation reverse = Policy.Evaluate(Hd() with { Width = width, Height = height, Reverse = true });
+        ProxyRecommendation forward = Policy.Evaluate(Hd() with { Width = width, Height = height });
+
+        Assert.Equal(required, reverse.Reasons.HasFlag(ProxyReasons.Reverse));
+        Assert.Equal(required, reverse.IsRequired);
+        Assert.False(forward.IsRequired);
+        Assert.False(forward.Reasons.HasFlag(ProxyReasons.Reverse));
+    }
+
+    [Fact]
+    public void Candidate_carries_rate_and_direction()
+    {
+        ProxyCandidate candidate = ProxyCandidate.From(Info(3840, 2160), decodeSpeed: 1.8, playbackRate: 2, reverse: true);
+
+        Assert.Equal(2, candidate.PlaybackRate);
+        Assert.True(candidate.Reverse);
+        Assert.Equal(ProxyReasons.Resolution | ProxyReasons.HighSpeed | ProxyReasons.Reverse, Policy.Evaluate(candidate).Reasons);
+        Assert.Throws<ArgumentOutOfRangeException>(() => Policy.Evaluate(candidate with { PlaybackRate = 0 }));
+    }
+
     [Fact]
     public void Candidate_needs_video() =>
         Assert.Throws<ArgumentException>(() => ProxyCandidate.From(Info(withVideo: false)));

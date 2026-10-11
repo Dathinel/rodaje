@@ -1,4 +1,5 @@
 using Rodaje.Media.Gpu;
+using Rodaje.Media.Probe;
 
 namespace Rodaje.Media.Video;
 
@@ -37,4 +38,17 @@ public sealed record VideoDecoderOptions
 
     /// <summary>Hilos de la decodificación por software; 0 elige según la CPU.</summary>
     public int SoftwareThreads { get; init; }
+
+    /// <summary>
+    /// Permite las peticiones aproximadas de alta velocidad (<see cref="DecodeAccuracy"/>): sin los cuadros que no son
+    /// referencia (<c>AVDISCARD_NONREF</c>) o solo keyframes. Sin ella toda petición es exacta, como debe ser al exportar.
+    /// Las peticiones exactas (pausa, seek, <c>IVideoFrameSource</c>) nunca descartan nada, con o sin esta opción.
+    /// </summary>
+    public bool SkipNonReference { get; init; }
+
+    /// <summary>
+    /// Keyframes del medio, si ya se leyeron (<see cref="KeyframeIndex.Read"/>): con ellos <see cref="DecodeAccuracy.Keyframe"/>
+    /// va directo al keyframe que toca, sin leer hasta el siguiente para saber que no hay otro antes del pedido.
+    /// </summary>
+    public KeyframeIndex? Keyframes { get; init; }
 }

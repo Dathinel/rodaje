@@ -33,25 +33,7 @@ public static partial class TimelineEdits
         var newIds = new List<string>(toCut.Count);
         foreach ((Track track, Clip left) in toCut)
         {
-            Time cutInSource = left.ToSourceTime(at);
-            var right = new Clip
-            {
-                Id = ctx.Ids.NewId("clip"),
-                MediaId = left.MediaId,
-                SourceIn = cutInSource,
-                SourceOut = left.SourceOut,
-                Start = at,
-                Enabled = left.Enabled,
-                LinkId = ctx.DerivedLinkId(left.LinkId),
-                Effects = left.Effects.ConvertAll(effect =>
-                {
-                    EffectInstance copy = effect.Clone();
-                    copy.Id = ctx.Ids.NewId("fx");
-                    return copy;
-                }),
-            };
-
-            left.SourceOut = cutInSource;
+            Clip right = TrackOps.SplitOff(ctx, left, at);
             track.Clips.Insert(track.Clips.IndexOf(left) + 1, right);
             newIds.Add(right.Id);
         }
@@ -69,18 +51,21 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>Recorta y corre lo que viene después; en el borde de entrada el clip no cambia de inicio.</summary>
+    /// <summary>
+    /// Recorta y corre lo que viene después; en el borde de entrada el clip no cambia de inicio. Con
+    /// <see cref="RippleScope.Track"/> cada pista del grupo se corre desde el final de su propio clip.
+    /// </summary>
     public static void RippleTrim(EditContext ctx, string clipId, TrimEdge edge, Time delta, RippleScope scope)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
-        Time originalEnd = group[0].Clip.End;
+        List<Time> originalEnds = group.ConvertAll(m => m.Clip.End);
 
         List<TrimPlan> plans = group.ConvertAll(m =>
         {
             TrimPlan plan = TrimPlan.Of(m.Track, m.Clip);
             return edge == TrimEdge.In
-                ? plan with { SourceIn = plan.SourceIn + delta }
-                : plan with { SourceOut = plan.SourceOut + delta };
+                ? plan.TrimIn(plan.Clip.Start + delta).MoveTo(plan.Clip.Start)
+                : plan.TrimOut(plan.Clip.End + delta);
         });
 
         foreach (TrimPlan plan in plans)
@@ -91,9 +76,12 @@ public static partial class TimelineEdits
         TrimmingSupport.CheckBounds(ctx, plans);
         TrimmingSupport.Apply(plans);
 
+        // En una pista, cada miembro corre lo suyo desde su propio final: los enlazados pueden tener distinto largo.
         Time shift = edge == TrimEdge.In ? -delta : delta;
-        List<Track> editedTracks = plans.ConvertAll(p => p.Track);
-        IReadOnlyList<Track> shifted = ctx.RippleShift(editedTracks, originalEnd, shift, scope, new HashSet<Clip>(plans.Select(p => p.Clip)));
+        var edited = new HashSet<Clip>(plans.Select(p => p.Clip));
+        IReadOnlyList<Track> shifted = scope.IncludesAllTracks()
+            ? ctx.RippleShift(plans.ConvertAll(p => p.Track), originalEnds[0], shift, scope, edited)
+            : ctx.RippleEach(plans.Select((p, i) => (p.Track, originalEnds[i], shift)), edited);
 
         TrimmingSupport.EnsureNoOverlaps(scope.IncludesAllTracks() ? ctx.Sequence.AllTracks : shifted);
         ctx.EnsureValid();
@@ -107,7 +95,7 @@ public static partial class TimelineEdits
         foreach ((Track track, Clip clip) in group)
         {
             TrimPlan plan = TrimPlan.Of(track, clip);
-            plans.Add(plan with { SourceOut = plan.SourceOut + delta });
+            plans.Add(plan.TrimOut(clip.End + delta));
 
             Clip? next = TrimmingSupport.AdjacentNext(track, clip);
             if (next is not null)
@@ -120,14 +108,14 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>Muestra otra parte del origen sin cambiar posición ni duración.</summary>
+    /// <summary>Muestra otra parte del origen sin cambiar posición ni duración; <paramref name="delta"/> es tiempo del origen.</summary>
     public static void Slip(EditContext ctx, string clipId, Time delta)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
         List<TrimPlan> plans = group.ConvertAll(m =>
         {
             TrimPlan plan = TrimPlan.Of(m.Track, m.Clip);
-            return plan with { SourceIn = plan.SourceIn + delta, SourceOut = plan.SourceOut + delta };
+            return plan.Slip(delta);
         });
 
         TrimmingSupport.CheckAndApply(ctx, plans);
@@ -148,7 +136,7 @@ public static partial class TimelineEdits
             }
 
             TrimPlan plan = TrimPlan.Of(track, clip);
-            plans.Add(plan with { Start = plan.Start + delta });
+            plans.Add(plan.MoveTo(clip.Start + delta));
 
             Clip? next = TrimmingSupport.AdjacentNext(track, clip);
             if (next is not null)

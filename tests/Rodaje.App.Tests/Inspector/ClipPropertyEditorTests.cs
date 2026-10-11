@@ -1,6 +1,7 @@
 using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Tests.Support;
+using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using P = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
@@ -437,5 +438,26 @@ public class ClipPropertyEditorTests
 
         Assert.False(h.Editor.SetValue(h.Video, Color, Exposure, 1, "Cambiar exposición", "no-existe"));
         Assert.Equal(2, h.Video.Effects.Count);
+    });
+
+    [Fact]
+    public void ConVelocidad_LosKeyframesVanEnTiempoDelOrigen_YLaNavegacionEnElDeLaLinea() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        Assert.True(h.Session.Execute(Edits.SetSpeed(h.Session.SequenceId, h.Video.Id, new Rational(2, 1), ripple: true)));
+
+        h.At(1);
+        Assert.True(h.Editor.ToggleKeyframe(h.Video, Transform, P.Opacity, 1));
+        h.At(3);
+        h.Drag(P.Opacity, 0.5);
+        Assert.Equal([Time.FromSeconds(2), Time.FromSeconds(6)], h.Parameter(P.Opacity)!.Keyframes.Select(k => k.Time));
+
+        h.At(1);
+        Assert.NotNull(h.Read(P.Opacity).KeyframeHere);
+        Assert.Equal(Time.FromSeconds(3), h.Read(P.Opacity).Next);
+        h.At(2);
+        Assert.Null(h.Read(P.Opacity).KeyframeHere);
+        Assert.Equal(0.75, h.Read(P.Opacity).Value, 6);
+        Assert.Equal(Time.FromSeconds(1), h.Read(P.Opacity).Previous);
     });
 }

@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Effects;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -65,12 +66,11 @@ public sealed class ClipPropertyEditor
         return clip.Start <= at && at < clip.End;
     }
 
-    /// <summary>El cursor en tiempo del origen del clip, llevado a sus bordes si cae fuera.</summary>
-    public Time SourceTimeAtPlayhead(Clip clip)
+    /// <summary>El cursor en el tiempo de los keyframes del clip (el del origen, o el virtual de un congelado), acotado al clip.</summary>
+    public Time KeyframeTimeAtPlayhead(Clip clip)
     {
         ArgumentNullException.ThrowIfNull(clip);
-        Time source = clip.ToSourceTime(Session.EditPosition);
-        return Time.Max(clip.SourceIn, Time.Min(source, clip.SourceOut));
+        return EffectCommands.KeyframeTime(clip, Time.Max(clip.Start, Session.EditPosition));
     }
 
     /// <summary>
@@ -91,15 +91,15 @@ public sealed class ClipPropertyEditor
     public ParameterState Read(Clip clip, string effectType, string name, double defaultValue, string? effectId = null)
     {
         ArgumentNullException.ThrowIfNull(clip);
-        Time at = SourceTimeAtPlayhead(clip);
+        Time at = KeyframeTimeAtPlayhead(clip);
         if (FindEffect(clip, effectType, effectId) is not { } effect || !effect.Parameters.TryGetValue(name, out Parameter? parameter))
         {
             return new ParameterState(defaultValue, 0, null, null, null);
         }
 
         List<Keyframe> keys = parameter.Keyframes;
-        Keyframe? here = KeyframeNear(keys, at);
-        Time tolerance = HalfFrame();
+        Keyframe? here = KeyframeNear(clip, keys, at);
+        Time tolerance = HalfFrame(clip);
         Keyframe? previous = keys.FindLast(k => k.Time < at - tolerance);
         Keyframe? next = keys.Find(k => k.Time > at + tolerance);
         return new ParameterState(
@@ -125,7 +125,7 @@ public sealed class ClipPropertyEditor
             Session.BreakMerge();
         }
 
-        _drag = new Drag(clip.Id, effectType, effectId, name, description, SourceTimeAtPlayhead(clip), IsPlayheadInside(clip), needsEffect);
+        _drag = new Drag(clip.Id, effectType, effectId, name, description, KeyframeTimeAtPlayhead(clip), IsPlayheadInside(clip), needsEffect);
     }
 
     /// <summary>Aplica el valor del arrastre en curso; <c>false</c> si no se pudo (y la sesión ya avisó).</summary>
@@ -154,7 +154,7 @@ public sealed class ClipPropertyEditor
                 return false;
             }
 
-            at = KeyframeNear(parameter.Keyframes, at)?.Time ?? at;
+            at = KeyframeNear(clip, parameter.Keyframes, at)?.Time ?? at;
         }
 
         bool done = Session.Execute(Edits.SetParameter(Session.SequenceId, drag.ClipId, effectId, drag.Name, value, at, drag.Description));
@@ -210,7 +210,7 @@ public sealed class ClipPropertyEditor
             return Session.Execute(Edits.RemoveKeyframe(Session.SequenceId, clip.Id, existingEffect, name, existing.Time));
         }
 
-        Time at = SourceTimeAtPlayhead(clip);
+        Time at = KeyframeTimeAtPlayhead(clip);
         string clipId = clip.Id;
         Session.BeginGesture("Añadir keyframe");
         try
@@ -305,7 +305,7 @@ public sealed class ClipPropertyEditor
             return false;
         }
 
-        double value = parameter.Evaluate(SourceTimeAtPlayhead(found.Clip));
+        double value = parameter.Evaluate(KeyframeTimeAtPlayhead(found.Clip));
         return Session.Execute(Edits.ResetParameters(
             Session.SequenceId, clipId, effect.Id, new Dictionary<string, double> { [name] = value }, description));
     }
@@ -316,7 +316,7 @@ public sealed class ClipPropertyEditor
         ArgumentNullException.ThrowIfNull(clip);
         if (FindEffect(clip, effectType, effectId) is not { } effect
             || !effect.Parameters.TryGetValue(name, out Parameter? parameter)
-            || KeyframeNear(parameter.Keyframes, SourceTimeAtPlayhead(clip)) is not { } keyframe
+            || KeyframeNear(clip, parameter.Keyframes, KeyframeTimeAtPlayhead(clip)) is not { } keyframe
             || keyframe.Interpolation == interpolation)
         {
             return false;
@@ -383,9 +383,9 @@ public sealed class ClipPropertyEditor
         return Session.Execute(command) ? command.CreatedIds[0] : null;
     }
 
-    private Keyframe? KeyframeNear(List<Keyframe> keys, Time at)
+    private Keyframe? KeyframeNear(Clip clip, List<Keyframe> keys, Time at)
     {
-        Time tolerance = HalfFrame();
+        Time tolerance = HalfFrame(clip);
         Keyframe? best = null;
         foreach (Keyframe key in keys)
         {
@@ -399,9 +399,21 @@ public sealed class ClipPropertyEditor
         return best;
     }
 
-    private Time HalfFrame() => Time.FromTicks(Time.FromFrames(1, Session.Sequence.FrameRate).Ticks / 2);
+    // Medio cuadro de la línea de tiempo en el tiempo de los keyframes: a 2× abarca el doble de origen.
+    private Time HalfFrame(Clip clip)
+    {
+        long half = Time.FromFrames(1, Session.Sequence.FrameRate).Ticks / 2;
+        if (clip.Speed is null)
+        {
+            return Time.FromTicks(half);
+        }
 
-    private static Time ToTimeline(Clip clip, Time sourceTime) => clip.Start + (sourceTime - clip.SourceIn);
+        ClipTimeMap map = clip.TimeMap;
+        double rate = map.Freeze ? 1 : Math.Abs(map.RateAt(Session.EditPosition));
+        return Time.FromTicks(Math.Max(1, (long)(half * rate)));
+    }
+
+    private static Time ToTimeline(Clip clip, Time keyframeTime) => EffectCommands.TimelineOfKeyframe(clip, keyframeTime);
 
     // Esc revirtió el gesto (con el efecto recién creado): el resto del arrastre no hace nada y al soltar no hay grupo que cerrar.
     private void OnProjectEdited(object? sender, ProjectEditedEventArgs e)

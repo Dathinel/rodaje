@@ -18,7 +18,7 @@ public sealed class CompositorPerformanceTests(ITestOutputHelper output)
     /// Mide con marcas de tiempo de la GPU el costo de componer 1, 2, 4 y 8 capas NV12 de 1080p a pantalla completa
     /// (el peor caso: cada capa cubre todo el cuadro y se mezcla) en una salida de 1080p.
     /// </summary>
-    [GpuTheory]
+    [GpuArrayTheory]
     [InlineData(CompositeFormat.Rgba16Float)]
     [InlineData(CompositeFormat.Rgba8Unorm)]
     public void Reports_gpu_milliseconds_per_frame_for_1_to_8_layers(CompositeFormat format)

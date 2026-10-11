@@ -27,7 +27,7 @@ public class PresetTests(ITestOutputHelper output)
         return media;
     }
 
-    [FfmpegFact(VideoCodec.H264)]
+    [FfmpegFact(VideoCodec.H264, RequiresBFrames = true)]
     public void H264Ntsc30BFrames()
     {
         GeneratedMedia media = GenerateAndCheckStructure(TestMediaPresets.H264Ntsc30BFrames);
@@ -35,7 +35,7 @@ public class PresetTests(ITestOutputHelper output)
         EndToEndTests.AssertEveryFrameCarriesItsIndex(media, output);
     }
 
-    [FfmpegFact(VideoCodec.Hevc)]
+    [FfmpegFact(VideoCodec.Hevc, RequiresBFrames = true)]
     public void Hevc25Mkv()
     {
         GeneratedMedia media = GenerateAndCheckStructure(TestMediaPresets.Hevc25Mkv);
@@ -43,7 +43,7 @@ public class PresetTests(ITestOutputHelper output)
         EndToEndTests.AssertEveryFrameCarriesItsIndex(media, output);
     }
 
-    [FfmpegFact(VideoCodec.H264, AudioCodec.Aac)]
+    [FfmpegFact(VideoCodec.H264, AudioCodec.Aac, RequiresBFrames = true)]
     public void H264Ntsc24Aac()
     {
         GeneratedMedia media = GenerateAndCheckStructure(TestMediaPresets.H264Ntsc24Aac);
@@ -52,7 +52,7 @@ public class PresetTests(ITestOutputHelper output)
         EndToEndTests.AssertAudioMarksOnEverySecond(media, output);
     }
 
-    [FfmpegFact(VideoCodec.H264, AudioCodec.Aac, LongRunning = true)]
+    [FfmpegFact(VideoCodec.H264, AudioCodec.Aac, LongRunning = true, RequiresBFrames = true)]
     public void Drift720p10Min()
     {
         GeneratedMedia media = GenerateAndCheckStructure(TestMediaPresets.Drift720p10Min);

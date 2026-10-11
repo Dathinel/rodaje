@@ -19,7 +19,7 @@ namespace Rodaje.Media.Video;
 /// DTS) y se decodifica hacia delante descartando lo anterior.
 /// </para>
 /// <para>
-/// No es seguro entre hilos: las llamadas a <see cref="GetFrame"/> no pueden solaparse, como garantiza el
+/// No es seguro entre hilos: las llamadas a <c>GetFrame</c> no pueden solaparse, como garantiza el
 /// programador de reproducción. Los cuadros entregados son independientes del decodificador y pueden
 /// liberarse en cualquier hilo y después de <see cref="Dispose"/>.
 /// </para>
@@ -67,6 +67,10 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private long _decodeErrors;
     private long _errorsAtLastReset;
     private bool _damagedFrame;
+
+    // Lo más que se descartó desde el último seek; una petición más exacta obliga a buscar de nuevo.
+    private DecodeAccuracy _fedAccuracy;
+    private bool _approximate;
 
     private VideoDecoder(AVFormatContext* format, string path, VideoDecoderOptions options)
     {
@@ -152,7 +156,15 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
     /// <summary>Decodifica el cuadro con ese índice exacto; <c>null</c> si el medio no lo tiene.</summary>
     /// <remarks>El llamador recibe la única referencia del cuadro y debe liberarlo.</remarks>
-    public DecodedFrame? GetFrame(long frameIndex, CancellationToken cancellationToken = default)
+    public DecodedFrame? GetFrame(long frameIndex, CancellationToken cancellationToken = default) =>
+        GetFrame(frameIndex, DecodeAccuracy.Exact, cancellationToken);
+
+    /// <summary>Decodifica el cuadro pedido con la exactitud dada; <c>null</c> si el medio no lo tiene.</summary>
+    /// <remarks>
+    /// Un cuadro aproximado lleva su propio índice (menor o igual al pedido). Tras peticiones aproximadas, la primera
+    /// exacta vuelve a buscar el keyframe: los cuadros descartados no se pueden recuperar sin decodificar de nuevo.
+    /// </remarks>
+    public DecodedFrame? GetFrame(long frameIndex, DecodeAccuracy accuracy, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_format == null, this);
         ArgumentOutOfRangeException.ThrowIfNegative(frameIndex);
@@ -164,12 +176,31 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
         try
         {
+            DecodeAccuracy mode = _options.SkipNonReference ? accuracy : DecodeAccuracy.Exact;
+            _approximate = mode != DecodeAccuracy.Exact;
+            if (mode == DecodeAccuracy.Keyframe && _options.Keyframes?.AtOrBefore(frameIndex) is { } keyframe)
+            {
+                frameIndex = keyframe;
+            }
+
+            if (mode < _fedAccuracy)
+            {
+                _positionValid = false;
+            }
+
             if (_positionValid && _hasHeld && frameIndex == _lastIndex)
             {
-                return Wrap(_held, frameIndex);
+                return Deliver(frameIndex);
             }
 
             bool forward = _positionValid && frameIndex > _lastIndex && frameIndex - _lastIndex <= _options.MaxForwardDecodeFrames;
+            _fedAccuracy = mode;
+            _codec->skip_frame = mode switch
+            {
+                DecodeAccuracy.SkipNonReference => AVDiscard.AVDISCARD_NONREF,
+                DecodeAccuracy.Keyframe => AVDiscard.AVDISCARD_NONKEY,
+                _ => AVDiscard.AVDISCARD_DEFAULT,
+            };
             long backoff = 0;
             for (int attempt = 0; ; attempt++)
             {
@@ -592,7 +623,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
                 if (_hasHeld && Time.FromFrames(frameIndex, FrameRate) < Stream.Duration)
                 {
                     _lastIndex = frameIndex;
-                    result = Wrap(_held, frameIndex);
+                    result = Deliver(frameIndex);
                     return true;
                 }
 
@@ -616,7 +647,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
                 if (slot == frameIndex)
                 {
                     _lastIndex = frameIndex;
-                    result = Wrap(_held, frameIndex);
+                    result = Deliver(frameIndex);
                     return true;
                 }
 
@@ -629,7 +660,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
                 ffmpeg.av_frame_move_ref(_pending, _frame);
                 _hasPending = true;
                 _lastIndex = frameIndex;
-                result = Wrap(_held, frameIndex);
+                result = Deliver(frameIndex);
                 return true;
             }
 
@@ -716,7 +747,10 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
                     continue;
                 }
 
-                if (_packet->stream_index != _streamIndex)
+                // En modo keyframe el decodificador descartaría el paquete igual, pero con hilos por cuadro cada descarte
+                // pasa por el relevo entre hilos: dejarlo en el demuxer multiplica la velocidad por software.
+                if (_packet->stream_index != _streamIndex
+                    || (_fedAccuracy == DecodeAccuracy.Keyframe && (_packet->flags & ffmpeg.AV_PKT_FLAG_KEY) == 0))
                 {
                     ffmpeg.av_packet_unref(_packet);
                     continue;
@@ -763,6 +797,10 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     }
 
     // ---- Entrega ----
+
+    // En exacto, un cuadro retenido que cubre un hueco de marcas (tasa variable) es el cuadro pedido; en aproximado,
+    // el retenido puede ser anterior por los descartes y lleva su propio índice.
+    private DecodedFrame Deliver(long frameIndex) => Wrap(_held, _approximate ? _heldSlot : frameIndex);
 
     private DecodedFrame Wrap(AVFrame* source, long frameIndex)
     {

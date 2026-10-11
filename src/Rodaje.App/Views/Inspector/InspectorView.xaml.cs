@@ -16,6 +16,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     public enum Tab
     {
         Properties,
+        Speed,
         Filters,
         History,
         Jobs,
@@ -31,6 +32,8 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         PropertiesPanel.Attach(services);
         TransitionPanel.ActiveChanged += (_, _) => UpdateVisibility();
         TransitionPanel.Attach(services);
+        SpeedPanel.Attach(services);
+        services.Session.SpeedPanelRequested += (_, _) => Show(Tab.Speed);
         FiltersPanel.Attach(services);
         HistoryPanel.Attach(services);
         JobsPanel.ActiveCountChanged += (_, active) => JobsTab.Content = active > 0 ? $"Trabajos ({active})" : "Trabajos";
@@ -42,6 +45,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     {
         RadioButton button = tab switch
         {
+            Tab.Speed => SpeedTab,
             Tab.Filters => FiltersTab,
             Tab.History => HistoryTab,
             Tab.Jobs => JobsTab,
@@ -55,7 +59,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     // Con una transición seleccionada, Propiedades muestra la transición.
     private void UpdateVisibility()
     {
-        if (PropertiesPanel is null || TransitionPanel is null || FiltersPanel is null || HistoryPanel is null || JobsPanel is null)
+        if (PropertiesPanel is null || TransitionPanel is null || SpeedPanel is null || FiltersPanel is null || HistoryPanel is null || JobsPanel is null)
         {
             return;
         }
@@ -63,6 +67,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         bool properties = PropertiesTab.IsChecked == true;
         PropertiesPanel.Visibility = Visible(properties && !TransitionPanel.IsActive);
         TransitionPanel.Visibility = Visible(properties && TransitionPanel.IsActive);
+        SpeedPanel.Visibility = Visible(SpeedTab.IsChecked == true);
         FiltersPanel.Visibility = Visible(FiltersTab.IsChecked == true);
         HistoryPanel.Visibility = Visible(HistoryTab.IsChecked == true);
         JobsPanel.Visibility = Visible(JobsTab.IsChecked == true);

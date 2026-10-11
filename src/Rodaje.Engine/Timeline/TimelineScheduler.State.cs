@@ -8,7 +8,7 @@ namespace Rodaje.Engine.Timeline;
 // Estado interno: medios, decodificadores, capas y los registros que usan las demás partes.
 internal sealed partial class TimelineScheduler
 {
-    private sealed record Job(long Index, CancellationTokenSource Epoch);
+    private sealed record Job(long Index, CancellationTokenSource Epoch, DecodeAccuracy Accuracy = DecodeAccuracy.Exact);
 
     /// <summary>Lo que un seek deja para después de soltar el candado: cancelar lo viejo y encolar lo nuevo.</summary>
     private readonly record struct Transition(List<CancellationTokenSource>? Stale, List<(IDecodeExecutor, Action)>? Posts)
@@ -27,8 +27,10 @@ internal sealed partial class TimelineScheduler
     /// <remarks>
     /// <see cref="Warm"/>: de una pista oculta; va detrás de todo lo visible y es lo primero que la caché descarta.
     /// <see cref="Priority"/>: más alta cuanto más arriba está la pista; una tapada por una capa opaca queda al final.
+    /// Solo hacen falta los cuadros del tramo que se mostrarán; con <see cref="Approximate"/>, los keyframes que se mostrarán.
     /// </remarks>
-    private readonly record struct Window(long Start, long End, bool Due, VideoClipPlan Clip, bool Warm = false, int Priority = 0);
+    private readonly record struct Window(long Start, long End, bool Due, VideoClipPlan Clip, bool Warm = false, int Priority = 0,
+        bool Approximate = false);
 
     /// <summary>Archivo que decodifica la vista previa de un medio, con el tamaño que se espera de sus cuadros.</summary>
     private sealed record Variant(string Path, bool IsProxy, int Width, int Height);
@@ -125,6 +127,26 @@ internal sealed partial class TimelineScheduler
         public int LearnedReferences { get; set; }
 
         public long LearnedSurfaceBytes { get; set; }
+
+        /// <summary>Keyframes del archivo <see cref="KeyframesPath"/>, si su decodificador los conoce.</summary>
+        public IKeyframeIndex? Keyframes { get; set; }
+
+        public string? KeyframesPath { get; set; }
+
+        /// <summary>Archivo cuyos keyframes ya se pidieron al backend (se leen una vez por archivo).</summary>
+        public string? KeyframesRequested { get; set; }
+
+        /// <summary>Mayor velocidad a la que lo reproduce algún clip del plan (para los keyframes y los proxies).</summary>
+        public double PlaybackRate { get; set; } = 1;
+
+        /// <summary>Algún clip del plan lo reproduce en reversa.</summary>
+        public bool Reverse { get; set; }
+
+        /// <summary>Velocidad con la que se evaluó por última vez ante la política de proxies.</summary>
+        public double AssessedRate { get; set; }
+
+        /// <summary>Los keyframes del archivo que se decodifica ahora; nulo si no se conocen.</summary>
+        public IKeyframeIndex? CurrentKeyframes => Keyframes is not null && KeyframesPath == Variant?.Path ? Keyframes : null;
 
         public bool InWindows(long index) => Windows.Exists(w => index >= w.Start && index < w.End);
     }
@@ -237,6 +259,9 @@ internal sealed partial class TimelineScheduler
 
         public long LateAtCuts { get; set; }
 
+        /// <summary>Refrescos que mostraron un keyframe cercano en lugar del cuadro debido (reproducción de 16× a 100×).</summary>
+        public long Approximated { get; set; }
+
         public bool IsShowing(MediaState media, long index) => CurrentMedia == media && Current?.Index == index;
 
         public void Release(List<DecodedFrame> released)
@@ -253,10 +278,11 @@ internal sealed partial class TimelineScheduler
             CurrentVariant = null;
         }
 
-        public void ResetStats() => (Shown, Dropped, Late, Cuts, PreRollHits, PreRollMisses, LateAtCuts) = (0, 0, 0, 0, 0, 0, 0);
+        public void ResetStats() =>
+            (Shown, Dropped, Late, Cuts, PreRollHits, PreRollMisses, LateAtCuts, Approximated) = (0, 0, 0, 0, 0, 0, 0, 0);
 
         public LayerStats Snapshot(int trackIndex) =>
             new(trackIndex, TrackId, Shown, Dropped, Late, Cuts, PreRollHits, PreRollMisses, LateAtCuts,
-                Current is not null && CurrentLook.IsProxy, Failure);
+                Current is not null && CurrentLook.IsProxy, Failure, Approximated);
     }
 }

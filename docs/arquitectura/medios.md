@@ -49,6 +49,29 @@ Tolera 64 errores seguidos antes de lanzar `MediaException`.
 - por software con dispositivo, una textura NV12/P010 propia ([`FrameUploader`](../../src/Rodaje.Media/Video/FrameUploader.cs));
 - sin dispositivo, [`CpuFramePayload`](../../src/Rodaje.Media/Video/CpuFramePayload.cs).
 
+**Alta velocidad (fase 5c).** `GetFrame(n, DecodeAccuracy)` admite dos modos aproximados, que solo actúan si el decodificador se abrió con `VideoDecoderOptions.SkipNonReference` (al exportar no se activa):
+- `SkipNonReference` pone `AVDISCARD_NONREF` y entrega el último cuadro decodificado que no pasa del pedido;
+- `Keyframe` deja en el demuxer los paquetes que no son clave y entrega el último keyframe que no pasa del pedido. Con `VideoDecoderOptions.Keyframes` va directo al keyframe sin leer el siguiente.
+
+Un cuadro aproximado lleva su índice real (menor o igual al pedido), así la caché nunca lo confunde con el pedido. `GetFrame(n)` e `IVideoFrameSource` son siempre exactos, y tras descartar, la primera petición exacta vuelve a buscar el keyframe.
+
+**Índice de keyframes.** [`KeyframeIndex.Read`](../../src/Rodaje.Media/Probe/KeyframeIndex.cs) da los keyframes con la numeración del decodificador, sin decodificar. En MP4/MOV usa el índice del contenedor: busca cada keyframe y lee su paquete, porque el índice va en DTS y con cuadros B no coincide con la presentación; solo lo acepta si el DTS del paquete es el del índice. En los demás contenedores recorre los paquetes. `AtOrBefore`, `After` y `GopOf` sirven a la reversa (5c.3) y al keyframe cercano de 16× a 100×. En 20 s de 4K tarda 35–170 ms.
+
+**Velocidad medida** (RTX 3050 Laptop, 30 fps, GOP 30 con 2 B, contenido sintético, con otros procesos usando la máquina; [`HighSpeedDecodeSpeedTests`](../../tests/Rodaje.Media.Tests/HighSpeedDecodeSpeedTests.cs), larga). Veces el tiempo real que avanza el origen:
+
+| Medio | Exacto | Sin no-referencia, 2× | Solo keyframes, 16× |
+|---|---|---|---|
+| 1080p H.264, D3D11VA | 600 fps (20×) | 58–65× | 550–600× |
+| 1080p H.264, software | 175–220 fps (6–7×) | 6–10× | 87× |
+| 1080p HEVC, D3D11VA | 720–1200 fps (24–40×) | 18–35× | 200–900× |
+| 1080p HEVC, software | 150–170 fps (5–6×) | 5–6× | 114× |
+| 4K H.264, D3D11VA | 170–190 fps (6×) | 16× | 100–140× |
+| 4K H.264, software | 50 fps (1,7×) | 2–2,7× | 29× |
+| 4K HEVC, D3D11VA | 210–330 fps (7–11×) | 12–13× | 110–250× |
+| 4K HEVC, software | 51–55 fps (1,7–1,8×) | 1,7–2× | 30× |
+
+Consecuencias para los criterios de cuadros perdidos: por hardware, 1080p y 4K pasan holgados a 2× y 4× con una capa. Por software, 4K no llega a 2× y necesita proxy. `AVDISCARD_NONREF` rinde según el codificador: con H.264 de NVENC (B que no son referencia) decodifica un tercio de los cuadros, y con HEVC de NVENC (B de referencia) no ahorra nada. Con material de cámara a más tasa de bits, las cifras serán menores.
+
 El color se resuelve en [`VideoColor`](../../src/Rodaje.Media/Video/VideoColor.cs). Sin declaración se usa BT.601 hasta 576 líneas y BT.709 por encima, y los formatos `yuvj` son de rango completo. [`FrameReadback.ReadLuma`](../../src/Rodaje.Media/Video/FrameReadback.cs) lee la luma, para pruebas y miniaturas.
 
 **Miniaturas.** [`ThumbnailDecoder`](../../src/Rodaje.Media/Video/ThumbnailDecoder.cs) no es exacto al cuadro a propósito: decodifica en la CPU sin filtro de desbloqueo (`skip_loop_filter`) y saltándose los cuadros que no son referencia (`skip_frame`), devuelve el último cuadro que no pasa del instante pedido y lo reduce con swscale (área, con la matriz y el rango del cuadro; BT.709 desde 720 líneas si no lo declara) a BGRA del alto pedido, con la rotación de pantalla aplicada. Si el siguiente pedido queda hasta 4 s más adelante sigue decodificando sin buscar y guarda el primer cuadro que se pasó para la próxima llamada. En 1080p una miniatura con búsqueda tarda unos 47 ms en H.264 y 66 ms en HEVC (mediana, GOP 50), y en una tira en orden unos 26 y 38 ms cada una. Lo usa `ClipVisuals` de la [app](app.md).
@@ -73,7 +96,7 @@ Un proxy es una copia ligera (540p o 720p, H.264, GOP 15 sin cuadros B) **con lo
 | [`FfmpegExecutable`](../../src/Rodaje.Media/Proxies/FfmpegExecutable.cs) | Solo acepta el `ffmpeg.exe` de la carpeta de las DLL; verifica que sea LGPL y de la misma compilación, y prueba de verdad cada codificador |
 | [`ProxyEncoders`](../../src/Rodaje.Media/Proxies/ProxyEncoders.cs) | Preferencia `h264_nvenc`, `h264_mf`, `libopenh264` (ninguno GPL). Argumentos con `-copyts`, `-fps_mode passthrough`, sin audio y con `-progress` |
 | [`ProxyGenerator`](../../src/Rodaje.Media/Proxies/ProxyGenerator.cs) | Hasta 2 trabajos a la vez. Pedidos iguales comparten un trabajo, que solo se cancela si todos cancelan. `ffmpeg.exe` corre en un Job de Windows que lo mata si Rodaje cae. Si un codificador falla prueba el siguiente; al terminar verifica número de cuadros, inicio y tasa |
-| [`ProxyPolicy`](../../src/Rodaje.Media/Proxies/ProxyPolicy.cs) | Recomienda proxy por encima de 1920×1088, con HEVC de 10 bits en varias capas, con GOP de más de 60, por encima de 80 Mbps o si la decodificación medida no llega a 1,5× por capa |
+| [`ProxyPolicy`](../../src/Rodaje.Media/Proxies/ProxyPolicy.cs) | Recomienda proxy por encima de 1920×1088, con HEVC de 10 bits en varias capas, con GOP de más de 60, por encima de 80 Mbps o si la decodificación medida no llega a 1,5× por capa. `HighSpeed`: entre 1× y 16×, si la velocidad del clip × capas × 1,25 supera lo medido por `DecodeSpeedProbe`. `Reverse`: obligatoria (`IsRequired`) en reversa por encima de 1080p |
 | [`MediaSourceResolver`](../../src/Rodaje.Media/Proxies/MediaSourceResolver.cs) | Decide qué archivo usar según el propósito (vista previa o exportación) y publica el estado del proxy (`Recommended`, `Generating`, `Ready`...) |
 
 ## Pruebas
@@ -83,6 +106,7 @@ Un proxy es una copia ligera (540p o 720p, H.264, GOP 15 sin cuadros B) **con lo
   - exactitud por hash de luma frente a `ffmpeg.exe` en software;
   - vida de los cuadros y fugas;
   - el pool compacto en 4K;
+  - los modos de alta velocidad (cada cuadro aproximado coincide con la referencia de su índice real y ninguna petición exacta sale de un descarte) y el índice de keyframes frente a ffprobe;
   - color, análisis y audio con saltos de marcas;
   - rendimiento;
   - todos los proxies (almacén, política, argumentos, generación que lee el número dibujado en cada cuadro).

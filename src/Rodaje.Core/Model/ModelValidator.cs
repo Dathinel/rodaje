@@ -290,7 +290,7 @@ public static class ModelValidator
             {
                 errors.Add($"{where} está en un corte que ya tiene otra transición.");
             }
-            else if (transition.Duration > TransitionOps.MaxDuration(track.Clips[from], track.Clips[from + 1]))
+            else if (transition.Duration.Ticks > Int128.Min(TimelineDuration(track.Clips[from]), TimelineDuration(track.Clips[from + 1])))
             {
                 errors.Add($"{where} dura más que uno de sus clips.");
             }

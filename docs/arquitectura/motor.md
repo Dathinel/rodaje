@@ -31,13 +31,21 @@ flowchart LR
 - **De paquete.** `IEffectContent.FindTransition` da las curvas al armar el plan: x e y se suman (escaladas a la secuencia), escala y opacidad se multiplican, el giro se suma; la mezcla usa los `MixParameters` y `MixOptions` del preajuste. Si falta, cae a fundido cruzado y se cuenta en `TimelineStats.MissingContent`.
 - **Cifras.** `Tick` con 8 capas y 4 efectos cada una: 0,09 ms de mediana con dobles; reserva lo mismo con efectos que sin ellos (la evaluación sola, 0 B). Con 4 pistas HEVC 1080p y un fundido de 0,5 s en cada corte, 28 de 28 transiciones con su pre-roll a tiempo, 0 refrescos tarde y el pico de VRAM en 880 MB de 1485.
 
+## Velocidad (fase 5c)
+
+- **El plan usa el mapeo.** Cada `VideoClipPlan` lleva el `ClipTimeMap` del clip y el tramo que se ve. `ToSource` es `ExtendedSource` acotado al material: en una transición el material sigue a la velocidad del borde y, donde se acaba, se congela el cuadro del borde. `FirstFrame` y `LastFrame` son el primer y el último cuadro *mostrados*, y `ShownAt` (con `TimelineOf`), `NextShown`, `IsShown` y `ShownBetween` cuentan solo lo que la rejilla de la secuencia llega a ver. Los efectos se evalúan con `EffectTime` (en un congelado, un tiempo virtual que avanza). A 1× todo da lo mismo que antes.
+- **Demanda en tiempo de la secuencia.** La ventana adelantada es lo que se mostrará en los próximos `PrefetchFrames` cuadros de la secuencia, y el pre-roll lo que el clip siguiente mostrará en sus primeros `PreRollFrames`: a 0,25× son 2 cuadros del origen, a 4× uno de cada cuatro. El decodificador decodifica todo, pero solo se le piden y la caché solo guarda los cuadros que se verán (urgencia nula al resto). Esto también vale para un origen de 60 fps en una secuencia de 30.
+- **De 16× a 100×, reproduciendo,** la capa muestra el keyframe anterior al cuadro debido (sin salir del clip) y solo se piden esos keyframes; se cuenta en `TimelineStats.Approximated` y no cuenta como pérdida. En pausa y tras un seek el cuadro es siempre el exacto. Los keyframes llegan por `IKeyframeSource`/`IKeyframeIndex` desde el decodificador; sin ellos, todo es exacto.
+- **Cifras.** 2000 seeks exactos por caso (0,25×, 0,5×, 1,37×, 2×, 4×, 1001/1000×, 100× y congelado) con dobles y, con `RODAJE_PRUEBAS_LARGAS=1`, leyendo el número dibujado en la imagen; 1080p H.264 a 2× y 4× sin proxy con 0 cuadros perdidos y 0 refrescos tarde; `Tick` con 8 capas con velocidad en 0,12 ms de mediana, con los mismos bytes en pausa que a 1×.
+- **Pendiente.** La reversa (fase 5c.3) hoy se ve sin optimizar: ventanas de un cuadro y sin contar pérdidas.
+
 ## `TimelineScheduler`
 
 Las decisiones de diseño están en [D-017](../decisiones.md) (caché global por urgencia y pre-roll por pista) y D-019.
 
 [`TimelineScheduler`](../../src/Rodaje.Engine/Timeline/TimelineScheduler.cs) es el corazón del motor. Es una clase parcial: el archivo principal tiene el transporte, `Tick` y las cifras, y cada parte va en su archivo (`.Presentation`, `.Layers` con el armado de cada capa, `.Demand`, `.Vram`, `.Proxies`, `.Decoding` y `.State`, con los tipos internos).
 
-- **Demanda.** Cada capa pide el cuadro debido más `PrefetchFrames` (8). Si el próximo corte está a menos de `PreRoll` (500 ms), también pide los primeros `PreRollFrames` (6) del clip siguiente, para que el corte llegue a tiempo. Las ventanas cercanas del mismo medio se agrupan.
+- **Demanda.** Cada capa pide el cuadro debido y lo que mostrará en los próximos `PrefetchFrames` (8) cuadros de la secuencia. Si el próximo corte está a menos de `PreRoll` (500 ms), también pide lo que el clip siguiente mostrará en sus primeros `PreRollFrames` (6), para que el corte llegue a tiempo. Las ventanas cercanas del mismo medio se agrupan.
 - **Varios decodificadores por medio.** Cada tramo de demanda va al decodificador más barato: el que ya está ahí, el que tiene que avanzar pocos cuadros o, si no, uno que haga seek. Se abren hasta `MaxDecodersPerMedia` (4); así el mismo archivo en cuatro pistas no salta de un lado a otro.
 - **Presupuesto de VRAM** ([D-019](../decisiones.md)). Por omisión es 3/8 de la VRAM dedicada, entre 512 MB y 4 GB (1,5 GB sin dispositivo).
   - Cada decodificador reserva su pool D3D11VA entero. `SizePool` corre en el hilo del decodificador y lo dimensiona: referencias del nivel + 5 retenidas + 3 de margen + la caché útil (mínimo 4).
@@ -74,7 +82,8 @@ Las decisiones de diseño están en [D-017](../decisiones.md) (caché global por
 | [`ClipBackend.cs`](../../src/Rodaje.Engine/ClipBackend.cs) | `IClipBackend`: la frontera con el hardware (abrir video, audio, salida y ejecutor), que las pruebas cambian por dobles |
 | [`Timeline/TimelineSession.cs`](../../src/Rodaje.Engine/Timeline/TimelineSession.cs) | API pública: `Open(project, sequenceId, gpu, options)`, transporte, `Tick`, `Reload`, `Stats` y eventos |
 | [`Timeline/TimelineSessionOptions.cs`](../../src/Rodaje.Engine/Timeline/TimelineSessionOptions.cs) | Pre-roll, cachés, presupuesto de VRAM, decodificadores por medio, proxies y adelanto de audio, con `Validate()` |
-| [`Timeline/TimelineStats.cs`](../../src/Rodaje.Engine/Timeline/TimelineStats.cs) | Por capa: mostrados, perdidos, tarde, cortes y aciertos del pre-roll. En total: VRAM comprometida y pico, decodificadores, expulsiones, seeks, medios fallidos, contenido que falta, pre-roll de transiciones y composiciones retenidas tras un seek |
+| [`Timeline/TimelineStats.cs`](../../src/Rodaje.Engine/Timeline/TimelineStats.cs) | Por capa: mostrados, perdidos, tarde, cortes, aciertos del pre-roll y refrescos aproximados (keyframe cercano). En total: VRAM comprometida y pico, decodificadores, expulsiones, seeks, medios fallidos, contenido que falta, pre-roll de transiciones y composiciones retenidas tras un seek |
+| [`Timeline/IKeyframeIndex.cs`](../../src/Rodaje.Engine/Timeline/IKeyframeIndex.cs) | Keyframes de un archivo (`IKeyframeIndex`, `SortedKeyframes`) y el `IClipVideo` que los conoce (`IKeyframeSource`) |
 | [`Presentation/Timecode.cs`](../../src/Rodaje.Engine/Presentation/Timecode.cs) | `m:ss.mmm` para la interfaz |
 
 ## Pruebas
