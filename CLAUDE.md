@@ -79,7 +79,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 6. **Después:** fase 5b (texto y títulos, repo `rodaje-titulos`), luego fase 6 (exportación).
 
 **En curso (12-oct, madrugada):**
-- **En main:** 5c.1 cerrada; 5c.2 completa (núcleo, motor e interfaz de curvas); rediseño del inspector y contraste (D-027); de la nube unidos PR #1–#10 menos #9… (ver `docs/nube/cola.md`).
+- **En main:** 5c.1 cerrada; 5c.2 completa (núcleo, motor e interfaz de curvas); rediseño del inspector y contraste (D-027); de la nube unidos los PR #1 a #10 (estado de cada tarea en `docs/nube/cola.md`).
 - **Agentes locales:** 5c.3 reversa (medios y motor, sin tocar la App; luego el interruptor «Invertir» y el indicador «◀»); paso 0 de la fase 6 (D-028, proyecto `Rodaje.Export`, contrato con el alcance profesional de `docs/fase-6.md`, prototipo con cifras).
 - **Decisiones de Daniel (11-oct):** exportación LGPL v1; 9:16 con barras y botón de cambiar la secuencia; dos modos de rendimiento elegidos al exportar; alcance profesional (contenedores, códecs, control de tasa, avanzados, audio con LUFS, preajustes propios); complementos profesionales en `docs/pendientes.md` (10 bits en la app; cámaras, preajustes pro, RAW, GPL y 360 como complementos; 360 lo trae el motor y lo activa el complemento).
 - **Nube:** rutina horaria con hasta 3 tareas en paralelo y revisor propio; revisión local cada 30 min con un revisor Opus por PR en paralelo. Pendientes: tareas 8 y 10 con cambios, 11, 13–16.
@@ -90,7 +90,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 ## Nube y coordinación
 
 - **Rutina en la nube** `trig_015zPXdY6meRLBGvkb5XEXMF` («Rodaje: cola de tareas de la nube», cada hora a los :23, Sonnet, entorno `rodaje-dotnet`): toma la siguiente tarea libre de `docs/nube/cola.md` según `docs/nube/README.md` y abre un PR en borrador. Se ve en https://claude.ai/code/routines/trig_015zPXdY6meRLBGvkb5XEXMF.
-- **Revisión horaria local** (vive solo mientras la sesión está abierta; **al abrir una sesión nueva hay que volver a crearla** con CronCreate): cada PR `claude/*` lo revisa un agente Opus nuevo sin contexto con encargo adversarial; si dice UNIR se une, se marca `hecha` en la cola y se repone la cola con 1–2 tareas que no pisen a los agentes locales.
+- **Revisión local cada 30 min** (vive solo mientras la sesión está abierta; un revisor Opus por PR en paralelo y los detalles menores se arreglan al unir; **al abrir una sesión nueva hay que volver a crearla** con CronCreate): cada PR `claude/*` lo revisa un agente Opus nuevo sin contexto con encargo adversarial; si dice UNIR se une, se marca `hecha` en la cola y se repone la cola con 1–2 tareas que no pisen a los agentes locales.
 - **CI y costo:** el repo es privado; el trabajo de Windows de `ci.yml` gasta minutos de GitHub al doble que Linux. Se vigila en GitHub → Settings → Billing; si se acerca al límite, el trabajo de Windows pasa a dispararse solo en PR (o a mano) en lugar de en cada push a main.
 - **`main` sin protección:** GitHub no permite reglas de rama en repos privados sin Pro. La regla «nunca push a main» de la nube vive en `docs/nube/README.md` y en el prompt de la rutina; la revisión horaria comprueba que ningún commit de `main` venga de una rama `claude/*` sin PR.
 - **Claude chat** lee el repo para responder a Daniel: todo se sube a GitHub tras cada commit, y se hace `git pull` antes de unir.
