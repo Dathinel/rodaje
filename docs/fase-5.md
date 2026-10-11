@@ -88,7 +88,7 @@ Orden de unión: A → D → B → C → E → F, después integración y verifi
   | 3 capas 4K con color, LUT, desenfoque y superponer | ≤6 ms de mediana, ≤8 ms p95 |
   | Transición 4K con efectos | ≤5 ms |
   | Media resolución | ≤40 % de la completa |
-  | `Tick` con efectos | ≤0,3 ms y 0 B por cuadro |
+  | `Tick` con efectos | ≤0,3 ms; la evaluación de efectos no añade reservas (redefinido por Daniel el 11-oct: el `Tick` reserva ~2,8 KB por las clases `LayerFrame`/`CompositionFrame` del contrato, aceptado) |
 
 - **App:** 1080p con 3 capas con efectos y 4 transiciones, 0 cuadros perdidos; mover un deslizador de color al reproducir se ve en ≤20 ms.
 - **Audio:** −6 dB = 0,501 ±0,001; fundido cruzado mantiene la potencia ±0,5 dB; sin saltos de más de 0,1 dB.
