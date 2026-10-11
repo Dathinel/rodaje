@@ -3,6 +3,7 @@ using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Tests.Support;
 using Rodaje.Engine.Timeline;
+using Rodaje.Media.Video;
 using Rodaje.Playback.Composition;
 using Xunit.Abstractions;
 using static Rodaje.Engine.Tests.Support.Seconds;
@@ -280,6 +281,8 @@ public sealed class TimelineSpeedTests(ITestOutputHelper output)
         Assert.Equal(0, stats.LateRefreshes);
         FakeMediaVideo video = Assert.Single(backend.Videos);
         Assert.All(video.Requests.Skip(pausedRequests), i => Assert.True(i % 30 == 0, $"Se pidió el cuadro {i}."));
+        Assert.All(video.Accuracies.Skip(pausedRequests), a => Assert.Equal(DecodeAccuracy.Keyframe, a));
+        Assert.All(video.Accuracies.Take(pausedRequests), a => Assert.Equal(DecodeAccuracy.Exact, a));
 
         session.Pause();
         using (CompositionFrame paused = Settle(session, backend, untilExact: true))

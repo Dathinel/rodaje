@@ -89,6 +89,7 @@ internal sealed partial class TimelineScheduler : IDisposable
     private readonly Func<int, long, long> _urgency;
 
     private TimelinePlan _plan;
+    private Dictionary<SourceKey, (double Rate, bool Reverse)> _rates;
     private int _nextId;
     private long _demandFrame = long.MinValue;
     private Time _demandTime;
@@ -116,6 +117,7 @@ internal sealed partial class TimelineScheduler : IDisposable
         ArgumentNullException.ThrowIfNull(options);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(vramBudget);
         _plan = plan;
+        _rates = Rates(plan);
         _clock = clock;
         _backend = backend;
         _decoderOptions = decoderOptions;
@@ -264,11 +266,13 @@ internal sealed partial class TimelineScheduler : IDisposable
                 layer.HiddenSince ??= now;
             }
 
+            _rates = Rates(plan);
             foreach (MediaState media in _media.Values)
             {
                 media.Unavailable.Clear();
                 media.Requested.Clear();
                 media.ResolvePending |= _resolver is not null;
+                (media.PlaybackRate, media.Reverse) = _rates.GetValueOrDefault(media.Key, (1, false));
             }
 
             posts = UpdateDemand(CurrentSequenceFrame(), force: true);
@@ -475,6 +479,22 @@ internal sealed partial class TimelineScheduler : IDisposable
         }
 
         (_service as IDisposable)?.Dispose();
+    }
+
+    /// <summary>Por medio, la mayor velocidad de sus clips y si alguno va en reversa.</summary>
+    private static Dictionary<SourceKey, (double Rate, bool Reverse)> Rates(TimelinePlan plan)
+    {
+        var rates = new Dictionary<SourceKey, (double Rate, bool Reverse)>();
+        foreach (VideoLayerPlan lane in plan.Lanes.Concat(plan.HiddenLayers))
+        {
+            foreach (VideoClipPlan clip in lane.Clips)
+            {
+                (double rate, bool reverse) = rates.GetValueOrDefault(clip.Source, (0, false));
+                rates[clip.Source] = (Math.Max(rate, clip.MaxRate), reverse || !clip.Forward);
+            }
+        }
+
+        return rates;
     }
 
     /// <summary>Lleva cualquier giro en grados al múltiplo de 90 más cercano, entre 0 y 270.</summary>

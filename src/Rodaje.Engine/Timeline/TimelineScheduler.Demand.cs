@@ -79,6 +79,14 @@ internal sealed partial class TimelineScheduler
 
             media.IdleSince = null;
             media.Requested.RemoveWhere(i => !media.InWindows(i));
+            if (media.PlaybackRate >= ApproximateRate && media.Variant is { } variant && media.CurrentKeyframes is null
+                && media.KeyframesRequested != variant.Path)
+            {
+                // Hace falta saber dónde están los keyframes para mostrar el cercano; se leen una vez, fuera del candado.
+                media.KeyframesRequested = variant.Path;
+                posts.Add((_service, () => ReadKeyframes(media, variant.Path)));
+            }
+
             if (media.Failure is not null)
             {
                 continue;
@@ -150,7 +158,7 @@ internal sealed partial class TimelineScheduler
             long end = WindowEnd(clip, due, sequenceFrame + _prefetch - 1);
             media.Layers++;
             media.Priority = Math.Max(media.Priority, priority);
-            media.Windows.Add(new Window(due, due + 1, Due: true, clip, Priority: priority));
+            media.Windows.Add(new Window(due, due + 1, Due: true, clip, Priority: priority, Approximate: approximate));
             if (end > due + 1)
             {
                 media.Windows.Add(new Window(due + 1, end, Due: false, clip, Priority: priority, Approximate: approximate));
@@ -409,6 +417,7 @@ internal sealed partial class TimelineScheduler
         if (!_media.TryGetValue(clip.Source, out MediaState? media))
         {
             media = new MediaState(_nextId++, clip.Source, clip.FrameRate, clip.DisplayWidth, clip.DisplayHeight);
+            (media.PlaybackRate, media.Reverse) = _rates.GetValueOrDefault(clip.Source, (1, false));
             _media.Add(clip.Source, media);
             _mediaById.Add(media.Id, media);
         }

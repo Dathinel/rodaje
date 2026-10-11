@@ -30,12 +30,20 @@ internal sealed partial class TimelineScheduler
             }
         }
 
+        KeyframeIndex? keyframes;
         lock (_gate)
         {
             decoder.Variant = variant;
+            keyframes = media.KeyframesPath == variant.Path ? (media.Keyframes as MediaClipBackend.MediaKeyframes)?.Index : null;
         }
 
-        VideoDecoderOptions options = _decoderOptions with { HardwarePoolSizer = request => SizePool(decoder, request) };
+        // Los modos aproximados son solo para la vista previa (el motor nunca exporta): los pide la reproducción de 16× a 100×.
+        VideoDecoderOptions options = _decoderOptions with
+        {
+            HardwarePoolSizer = request => SizePool(decoder, request),
+            SkipNonReference = true,
+            Keyframes = keyframes,
+        };
         IClipVideo? video = null;
         Exception? error = null;
 #pragma warning disable CA1031 // Un archivo que no abre deja su capa vacía; se informa y la reproducción sigue.
@@ -73,6 +81,8 @@ internal sealed partial class TimelineScheduler
         bool discard;
         bool post = false;
         bool assess = false;
+        double rate = 1;
+        bool reverse = false;
         List<(IDecodeExecutor, Action)> posts = [];
         lock (_gate)
         {
@@ -97,8 +107,11 @@ internal sealed partial class TimelineScheduler
                     _cache.SetSourceLimit(decoder.Id, decoder.CacheLimit);
                 }
 
-                assess = !variant.IsProxy && _resolver is not null && !media.Assessed;
+                assess = !variant.IsProxy && _resolver is not null && (!media.Assessed || media.AssessedRate != PolicyRate(media));
                 media.Assessed |= assess;
+                rate = PolicyRate(media);
+                reverse = media.Reverse;
+                media.AssessedRate = assess ? rate : media.AssessedRate;
                 post = RequestPump(decoder);
             }
         }
@@ -117,12 +130,27 @@ internal sealed partial class TimelineScheduler
 
         if (assess)
         {
-            Assess(video!.Info, layers);
+            Assess(video!.Info, layers, rate, reverse);
         }
 
         if (post)
         {
             decoder.Executor!.Post(decoder.Pump);
+        }
+    }
+
+    /// <summary>En el ejecutor de servicio: lee los keyframes del archivo y, si sigue siendo el del medio, los guarda.</summary>
+    private void ReadKeyframes(MediaState media, string path)
+    {
+        IKeyframeIndex? keyframes = _backend.ReadKeyframes(path);
+        lock (_gate)
+        {
+            if (keyframes is not null && !_disposed && media.Variant?.Path == path)
+            {
+                media.Keyframes = keyframes;
+                media.KeyframesPath = path;
+                _demandDirty = true;
+            }
         }
     }
 
@@ -162,10 +190,11 @@ internal sealed partial class TimelineScheduler
     // otro y así sin fin. Y mientras no quepa, tampoco se adelantan los que siguen: decodificarlos obligaría a volver
     // atrás con un seek por el que faltó. El cuadro debido siempre se repide. Solo se piden los cuadros que se
     // mostrarán: los que la velocidad salta los decodifica el decodificador de paso, sin entregarlos.
-    private bool TryFindMissing(DecoderState decoder, out long index)
+    private bool TryFindMissing(DecoderState decoder, out long index, out DecodeAccuracy accuracy)
     {
         MediaState media = decoder.Media;
         index = 0;
+        accuracy = DecodeAccuracy.Exact;
         long bestDelay = long.MaxValue;
         foreach (Window window in decoder.Assigned)
         {
@@ -184,6 +213,9 @@ internal sealed partial class TimelineScheduler
                 }
 
                 (index, bestDelay) = (i, delay);
+
+                // Un keyframe que se muestra aproximando se pide sin decodificar lo que hay entre medio.
+                accuracy = window.Approximate && media.CurrentKeyframes?.AtOrBefore(i) == i ? DecodeAccuracy.Keyframe : DecodeAccuracy.Exact;
             }
         }
 
@@ -249,10 +281,10 @@ internal sealed partial class TimelineScheduler
                     }
                 }
 
-                if (!decoder.Closed && TryFindMissing(decoder, out long index))
+                if (!decoder.Closed && TryFindMissing(decoder, out long index, out DecodeAccuracy accuracy))
                 {
                     decoder.Media.Requested.Add(index);
-                    job = decoder.InFlight = new Job(index, decoder.Epoch);
+                    job = decoder.InFlight = new Job(index, decoder.Epoch, accuracy);
                     decoder.Position = index;
                     video = decoder.Decoder;
                 }
@@ -267,7 +299,7 @@ internal sealed partial class TimelineScheduler
             ValueTask<DecodedFrame?> pending;
             try
             {
-                pending = video.GetFrameAsync(job.Index, job.Epoch.Token);
+                pending = video.GetFrameAsync(job.Index, job.Accuracy, job.Epoch.Token);
             }
             catch (Exception ex)
             {
@@ -321,7 +353,7 @@ internal sealed partial class TimelineScheduler
             {
                 discard = frame;
             }
-            else if (frame is not null && frame.Index != job.Index)
+            else if (frame is not null && frame.Index != job.Index && (job.Accuracy == DecodeAccuracy.Exact || frame.Index > job.Index))
             {
                 discard = frame;
                 error = new InvalidOperationException($"El decodificador devolvió el cuadro {frame.Index} cuando se pidió el {job.Index}.");
@@ -356,7 +388,8 @@ internal sealed partial class TimelineScheduler
                 }
             }
 
-            if (!_disposed && !decoder.Closed && current && (frame is null || error is not null))
+            // Uno aproximado puede traer un cuadro anterior al pedido: se guarda con su índice real y el pedido no se repite.
+            if (!_disposed && !decoder.Closed && current && (frame is null || error is not null || frame.Index != job.Index))
             {
                 media.Unavailable.Add(job.Index);
             }

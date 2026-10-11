@@ -207,6 +207,8 @@ public sealed class TimelineHardwareTests(ITestOutputHelper output)
 
         public IDecodeExecutor CreateExecutor() => MediaClipBackend.Instance.CreateExecutor();
 
+        public IKeyframeIndex? ReadKeyframes(string path) => MediaClipBackend.Instance.ReadKeyframes(path);
+
         public void Dispose() => _output?.Dispose();
     }
 }

@@ -146,6 +146,67 @@ public sealed class TimelineSpeedHardwareTests(ITestOutputHelper output)
         Assert.Equal(0, stats.DecodeErrors);
     }
 
+    [HardwareFact(VideoCodec.H264)]
+    [Trait("Categoria", "TiempoReal")]
+    public void Playing_at_100x_shows_the_previous_keyframe_read_from_the_file()
+    {
+        MediaSpec spec = SeekSpecs[2];
+        GeneratedMedia media = TestMediaGenerator.CreateDefault()!.GetOrCreate(spec);
+        var sequence = new Sequence { Id = "sec", Name = "Velocidad", FrameRate = SequenceRate, Width = 1920, Height = 1080 };
+        var project = new Project { Id = "p", Name = "Velocidad", Sequences = [sequence] };
+        var reference = new MediaRef { Id = "m", Path = media.Path };
+        MediaProbe.Probe(media.Path).ApplyTo(reference);
+        project.Media.Add(reference);
+        var track = new Track { Id = "v0", Kind = TrackKind.Video, Name = "Video 1" };
+        sequence.VideoTracks.Add(track);
+        var clip = new Clip { Id = "c", MediaId = "m", Start = Time.Zero, SourceIn = Time.FromSeconds(1), SourceOut = Time.FromSeconds(2) };
+        SpeedClips.WithRate(clip, new Rational(100, 1), Time.FromSeconds(1), Time.FromSeconds(201));
+        track.Clips.Add(clip);
+
+        using GpuDevice gpu = GpuDevice.Create();
+        using var backend = new DeviceClockBackend();
+        using TimelineSession session = new(project, "sec", gpu, new TimelineSessionOptions { UseProxies = ProxyUsage.Never }, backend);
+        TickUntilSettled(session).Dispose();
+        session.ResetStats();
+
+        session.Play();
+        Time origin = backend.Clock.Position;
+        var pacer = new WallClockPacer(60);
+        var keyframes = KeyframeIndex.Read(media.Path);
+        long first = SpeedClips.Expected(clip, spec.FrameRate, Time.Zero);
+        int notKeyframe = 0;
+        int unreadable = 0;
+        for (long slot = pacer.Next(); slot <= 110; slot = pacer.Next())
+        {
+            backend.Clock.Advance(origin + Time.FromFrames(slot, Rational.Fps60) - backend.Clock.Position);
+            using CompositionFrame shown = session.Tick();
+            LayerFrame layer = Assert.Single(shown.Layers);
+            long exact = SpeedClips.Expected(clip, spec.FrameRate, shown.TimelineTime);
+            LumaImage luma = FrameReadback.ReadLuma(layer.Frame);
+            int? code = FrameCode.Read(luma.Pixels, luma.Width, luma.Height, luma.Width);
+            unreadable += code == layer.Frame.Index ? 0 : 1;
+            long index = layer.Frame.Index;
+            // Hasta que se leen los keyframes del archivo, el cuadro es el exacto.
+            notKeyframe += index <= exact && (index == exact || index == first || keyframes.AtOrBefore(index) == index) ? 0 : 1;
+        }
+
+        TimelineStats stats = session.Stats;
+        output.WriteLine($"100×: aproximados {stats.Approximated}, mostrados {stats.FramesShown}, perdidos {stats.FramesDropped}, " +
+            $"tarde {stats.LateRefreshes}, seeks de keyframe {stats.DecoderSeeks}, keyframes cada {keyframes.MaxInterval} cuadros como mucho.");
+        Assert.Equal(0, unreadable);
+        Assert.Equal(0, notKeyframe);
+        Assert.True(stats.Approximated > 0);
+        Assert.Equal(0, stats.FramesDropped);
+        Assert.Equal(0, stats.DecodeErrors);
+
+        // En pausa vuelve al cuadro exacto.
+        session.Pause();
+        session.Tick().Dispose();
+        Thread.Sleep(500);
+        using CompositionFrame exactFrame = session.Tick();
+        Assert.Equal(SpeedClips.Expected(clip, spec.FrameRate, exactFrame.TimelineTime), Assert.Single(exactFrame.Layers).Frame.Index);
+    }
+
     private static CompositionFrame TickUntilSettled(TimelineSession session)
     {
         var watch = Stopwatch.StartNew();

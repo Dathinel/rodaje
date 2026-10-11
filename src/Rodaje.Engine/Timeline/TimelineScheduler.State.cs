@@ -8,7 +8,7 @@ namespace Rodaje.Engine.Timeline;
 // Estado interno: medios, decodificadores, capas y los registros que usan las demás partes.
 internal sealed partial class TimelineScheduler
 {
-    private sealed record Job(long Index, CancellationTokenSource Epoch);
+    private sealed record Job(long Index, CancellationTokenSource Epoch, DecodeAccuracy Accuracy = DecodeAccuracy.Exact);
 
     /// <summary>Lo que un seek deja para después de soltar el candado: cancelar lo viejo y encolar lo nuevo.</summary>
     private readonly record struct Transition(List<CancellationTokenSource>? Stale, List<(IDecodeExecutor, Action)>? Posts)
@@ -132,6 +132,18 @@ internal sealed partial class TimelineScheduler
         public IKeyframeIndex? Keyframes { get; set; }
 
         public string? KeyframesPath { get; set; }
+
+        /// <summary>Archivo cuyos keyframes ya se pidieron al backend (se leen una vez por archivo).</summary>
+        public string? KeyframesRequested { get; set; }
+
+        /// <summary>Mayor velocidad a la que lo reproduce algún clip del plan (para los keyframes y los proxies).</summary>
+        public double PlaybackRate { get; set; } = 1;
+
+        /// <summary>Algún clip del plan lo reproduce en reversa.</summary>
+        public bool Reverse { get; set; }
+
+        /// <summary>Velocidad con la que se evaluó por última vez ante la política de proxies.</summary>
+        public double AssessedRate { get; set; }
 
         /// <summary>Los keyframes del archivo que se decodifica ahora; nulo si no se conocen.</summary>
         public IKeyframeIndex? CurrentKeyframes => Keyframes is not null && KeyframesPath == Variant?.Path ? Keyframes : null;

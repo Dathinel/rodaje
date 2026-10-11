@@ -77,6 +77,19 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
         }
     }
 
+    /// <summary>Exactitud de cada petición, en orden.</summary>
+    public List<DecodeAccuracy> Accuracies { get; } = [];
+
+    public ValueTask<DecodedFrame?> GetFrameAsync(long frameIndex, DecodeAccuracy accuracy, CancellationToken cancellationToken)
+    {
+        lock (_requests)
+        {
+            Accuracies.Add(accuracy);
+        }
+
+        return GetFrameAsync(frameIndex, cancellationToken);
+    }
+
     public ValueTask<DecodedFrame?> GetFrameAsync(long frameIndex, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(Disposed, this);

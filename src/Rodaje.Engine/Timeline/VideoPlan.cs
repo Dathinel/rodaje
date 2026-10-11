@@ -45,6 +45,8 @@ internal sealed class VideoClipPlan
         long first = start.ToFrames(sequenceRate);
         _firstGrid = Time.FromFrames(first, sequenceRate) < start ? first + 1 : first;
         _lastGrid = (end - Time.FromTicks(1)).ToFrames(sequenceRate);
+        // Con velocidad constante es la del clip; en una curva (fase 5c.2) se toma el mayor de sus extremos.
+        MaxRate = map.Freeze ? 0 : Math.Max(Math.Abs(map.RateAt(map.Start)), Math.Abs(map.RateAt(map.End - Time.FromTicks(1))));
         bool seen = _firstGrid <= _lastGrid;
         FirstFrame = FrameAt(seen ? Time.FromFrames(_firstGrid, sequenceRate) : start);
         LastFrame = FrameAt(seen ? Time.FromFrames(_lastGrid, sequenceRate) : start);
@@ -87,6 +89,9 @@ internal sealed class VideoClipPlan
 
     /// <summary>El cuadro de la secuencia en que el clip se ve por primera vez.</summary>
     public long FirstSequenceFrame => _firstGrid;
+
+    /// <summary>Mayor velocidad del clip en valor absoluto; 0 congelado.</summary>
+    public double MaxRate { get; }
 
     /// <summary>Los cuadros mostrados crecen con el tiempo; falso solo en reversa (fase 5c.3).</summary>
     public bool Forward => !TimeMap.Reverse;

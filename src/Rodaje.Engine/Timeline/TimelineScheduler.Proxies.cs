@@ -97,15 +97,22 @@ internal sealed partial class TimelineScheduler
         }
 
         return media.DisplayWidth > 0 && media.DisplayHeight > 0 && _resolver!.Policy.Evaluate(
-            new ProxyCandidate(media.DisplayWidth, media.DisplayHeight, "", 8, media.FrameRate, Math.Max(1, layers))).IsRecommended;
+            new ProxyCandidate(media.DisplayWidth, media.DisplayHeight, "", 8, media.FrameRate, Layers: Math.Max(1, layers),
+                PlaybackRate: PolicyRate(media), Reverse: media.Reverse)).IsRecommended;
     }
 
-    /// <summary>Le cuenta a la política de proxies cómo es el original, lo que puede encolar su proxy; una vez por medio.</summary>
-    private void Assess(MediaInfo info, int layers)
+    /// <summary>La velocidad que se le cuenta a la política: la mayor del medio (un congelado cuenta como 1×).</summary>
+    private static double PolicyRate(MediaState media) => Math.Max(1, media.PlaybackRate);
+
+    /// <summary>
+    /// Le cuenta a la política de proxies cómo es el original y a qué velocidad se reproduce, lo que puede encolar su
+    /// proxy; una vez por medio y otra vez si cambia la velocidad.
+    /// </summary>
+    private void Assess(MediaInfo info, int layers, double rate, bool reverse)
     {
         try
         {
-            _resolver!.Assess(info, layers: Math.Max(1, layers));
+            _resolver!.Assess(info.Path, ProxyCandidate.From(info, layers: Math.Max(1, layers), playbackRate: rate, reverse: reverse));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException
             or ObjectDisposedException)
