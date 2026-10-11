@@ -8,6 +8,7 @@ using Rodaje.App.Services.Inspector;
 using Rodaje.App.Shell;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
+using SpeedPresets = Rodaje.App.Services.Inspector.SpeedPresets;
 
 namespace Rodaje.App.Views.Inspector.Speed;
 
