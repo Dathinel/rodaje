@@ -58,7 +58,7 @@ public sealed partial class EditorSession : ObservableObject
     private Task _saving = Task.CompletedTask;
     private long _editVersion;
 
-    public EditorSession(IPlaybackEngine playback, IMediaProber prober, IEditorDialogs dialogs, IIdGenerator? ids = null)
+    public EditorSession(IPlaybackEngine playback, IMediaProber prober, IEditorDialogs dialogs, IIdGenerator? ids = null, NewProjectTracks? newProjectTracks = null)
     {
         ArgumentNullException.ThrowIfNull(playback);
         ArgumentNullException.ThrowIfNull(prober);
@@ -67,6 +67,7 @@ public sealed partial class EditorSession : ObservableObject
         _prober = prober;
         _dialogs = dialogs;
         _ids = ids ?? GuidIdGenerator.Instance;
+        NewProjectTracks = newProjectTracks ?? NewProjectTracks.Default;
         _threadId = Environment.CurrentManagedThreadId;
         Project project = CreateEmptyProject();
         Project = project;
@@ -406,7 +407,10 @@ public sealed partial class EditorSession : ObservableObject
         }
     }
 
-    private Project CreateEmptyProject() => ProjectFactory.CreateDefault(UntitledName, _ids);
+    /// <summary>Pistas de los proyectos nuevos; la ventana lo actualiza desde los ajustes.</summary>
+    public NewProjectTracks NewProjectTracks { get; set; } = NewProjectTracks.Default;
+
+    private Project CreateEmptyProject() => NewProjectTracks.CreateProject(UntitledName, _ids);
 
     /// <summary>Cambia de proyecto: historial nuevo, selección vacía y el reproductor desde el principio.</summary>
     private void ReplaceProject(Project project, string sequenceId, string? filePath, string originDescription)

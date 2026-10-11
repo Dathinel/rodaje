@@ -49,8 +49,17 @@ public sealed class AppSettings
     /// <summary>El reproductor muestra los márgenes seguros de acción y de títulos.</summary>
     public bool ShowSafeAreas { get; set; }
 
+    /// <summary>Pistas de video que trae un proyecto nuevo (1–8).</summary>
+    public int DefaultVideoTracks { get; set; } = NewProjectTracks.Default.Video;
+
+    /// <summary>Pistas de audio que trae un proyecto nuevo (1–8).</summary>
+    public int DefaultAudioTracks { get; set; } = NewProjectTracks.Default.Audio;
+
     /// <summary>Interruptores y zoom de la línea de tiempo.</summary>
     public TimelinePreferences Timeline { get; set; } = new();
+
+    /// <summary>Las pistas de un proyecto nuevo según los ajustes.</summary>
+    public NewProjectTracks NewProjectTracks => new NewProjectTracks(DefaultVideoTracks, DefaultAudioTracks).Clamped();
 
     /// <summary>Pone el proyecto el primero de los recientes, sin repetirlo y con un máximo.</summary>
     public void AddRecentProject(string path)
@@ -72,6 +81,8 @@ public sealed class AppSettings
         TimelineHeight = Clamp(TimelineHeight, 160, 1400, 300);
         WindowWidth = WindowWidth == 0 ? 0 : Clamp(WindowWidth, 800, 10000, 0);
         WindowHeight = WindowHeight == 0 ? 0 : Clamp(WindowHeight, 560, 10000, 0);
+        DefaultVideoTracks = Math.Clamp(DefaultVideoTracks, NewProjectTracks.Min, NewProjectTracks.Max);
+        DefaultAudioTracks = Math.Clamp(DefaultAudioTracks, NewProjectTracks.Min, NewProjectTracks.Max);
         MeterDecayDbPerSecond = Clamp(MeterDecayDbPerSecond, 3, 120, 20);
         RecentProjects = [.. (RecentProjects ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(MaxRecentProjects)];
         if (!Enum.IsDefined(ShortcutPreset))
