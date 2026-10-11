@@ -121,10 +121,8 @@ public sealed class EffectFidelityTests
     [InlineData(0.8, 6.0)]
     public void Sharpen_matches_the_unsharp_mask_reference(double amount, double radius)
     {
-        // El realce multiplica por (1 + cantidad) la diferencia entre el original y el desenfoque. En la GPU real se
-        // exige ±2. El rasterizador por software (WARP, CI de Windows) se desvía 2,1–3,0 en píxeles repartidos por
-        // toda la imagen (no solo en el borde: (126,1), (127,0), (93,32), (115,24)), y el desenfoque puro pasa con ±2
-        // en WARP; solo ahí se admite 2 + 2 × cantidad. Causa sin confirmar: no se pudo medir en WARP desde Linux.
+        // En la GPU real se exige ±2. WARP (CI de Windows) ya decodifica el origen con hasta ~1,5/255 de error (la GPU
+        // real, 0,6) y el realce multiplica ese error por (1 + cantidad); por eso solo ahí se admite ±2 × (1 + cantidad).
         AssertSpatial(new LayerLook([Fx.Sharpen(amount, radius)]), source => source.Sharpen(amount, radius), softwareExtraTolerance: 2 * amount);
     }
 

@@ -1,41 +1,38 @@
 # Guardia de decodificador en las pruebas de Render
 
-Rama `claude/render-guardia-decodificador`. Tarea 2 de la cola.
+Rama `claude/render-guardia-decodificador` (tarea 2 de la cola), unida el 11-oct tras dos revisiones; los textos los corrigió la sesión local con las medidas del revisor.
 
 ## Hecho
 
-- `tests/Rodaje.Render.Tests/Support/GpuArray.cs` (nuevo): `GpuArrayFact` y `GpuArrayTheory`. Además de la guardia de muestreo NV12/P010 (`Skip.GpuTextures`), comprueban con `CheckFormatSupport` que el dispositivo ofrece `D3D11_FORMAT_SUPPORT_DECODER_OUTPUT` para NV12 y P010, que es lo que exige el `D3D11_BIND_DECODER` de `YuvImage.CreateTexture` para arreglos. Si falta, la prueba se omite con el nombre del adaptador.
-- Usan la guardia nueva las pruebas que crean arreglos de más de una capa:
-  `CompositorTests.Draws_the_requested_slice_of_a_texture_array`, `CompositorPerformanceTests.Reports_gpu_milliseconds_per_frame_for_1_to_8_layers` (2 casos) y, en `EffectPerformanceTests`, `Eight_plain_1080p_layers_do_not_regress`, la de 3 capas 4K (línea 66) y la de transiciones (2 casos). Las de una sola capa no cambian.
+- `tests/Rodaje.Render.Tests/Support/GpuArray.cs`: `GpuArrayFact` y `GpuArrayTheory` omiten si el adaptador no admite NV12 como salida de decodificador (`CheckFormatSupport` + `D3D11_FORMAT_SUPPORT_DECODER_OUTPUT`). La usan `CompositorTests.Draws_the_requested_slice_of_a_texture_array` y `CompositorPerformanceTests.Reports_gpu_milliseconds_per_frame_for_1_to_8_layers`.
+- `EffectPerformanceTests` pasa a la categoría `Rendimiento`, que la CI excluye.
+- `EffectFidelityTests.Sharpen_*`: tolerancia ±2 × (1 + cantidad) solo con WARP («Microsoft Basic Render Driver»); en GPU real sigue en ±2.
 
-## Segunda ronda (revisión del 11-oct)
+## Causa de Sharpen en WARP (medida por el revisor forzando WARP en el PC de Daniel)
 
-- `EffectPerformanceTests` completa pasa a `[Trait("Categoria", "Rendimiento")]` (la CI ya la excluye), incluida `One_4k_layer_with_color_and_lut` (242 ms en WARP).
-- `Sharpen_*` (3 casos): el desenfoque puro pasa con ±2 también en WARP; el realce multiplica el error del desenfoque por (1 + cantidad), y los desvíos medidos en WARP (2,1–3,0) primero se vieron en la esquina superior derecha, pero la CI siguiente los mostró también en el interior ((93,32), (115,24)): la hipótesis del borde no se sostiene. **No pude confirmar desde Linux si es precisión del rasterizador o el manejo del borde**; si fuera un defecto del shader (`PsSharpen` y `SampleB` no tienen manejo propio del borde), la tolerancia lo taparía en WARP. Por eso la tolerancia extra (`2 + 2 × cantidad`) solo se aplica con adaptador «Basic Render Driver»/WARP; con GPU real sigue ±2. Daniel: conviene mirar en Windows el píxel (126,1) con WARP forzado.
-- La guardia de arreglos ya solo exige NV12 (todos los arreglos lo son).
-- `ci.yml`: en `main` no hay exclusiones por nombre de Render (viven en el PR #2, sin unir), así que no hay nada que quitar aquí. Cuando #2 esté en main, quitar todas las exclusiones `FullyQualifiedName!=Rodaje.Render.Tests.*` y enlazar una corrida verde.
+| Caso | RTX 3050, desvío máx. | WARP, desvío máx. |
+|---|---|---|
+| Sin efectos | 0,59 | 1,47 |
+| Desenfoque r = 3…30 | ≤0,87 | ≤1,43 |
+| Sharpen a = 1, r = 1 | 0,76 | 3,03 |
+| Sharpen a = 2,5, r = 3 | 1,09 | 3,79 |
+| Sharpen a = 0,8, r = 6 | 0,76 | 3,05 |
+
+WARP decodifica el origen con más error; el desenfoque lo promedia y el realce `original + a·(original − desenfoque)` lo multiplica por (1 + a). No es un defecto de borde: solo el 9 % de los píxeles fuera de tolerancia cae en la franja de 3 px (10,6 % de la imagen) y el shader recorta bien por los dos lados.
+
+## Pruebas omitidas en Render (CI de Windows, WARP)
+
+| Grupo | main antes | Con este PR | Causa |
+|---|---|---|---|
+| `Draws_the_requested_slice…` | falla (E_INVALIDARG) | omitida | sin NV12 `DECODER_OUTPUT` |
+| `Reports_gpu_milliseconds…` (2 casos) | fallan | omitida (1 registro) | la misma |
+| `DecoderCompositionTests` (2) | omitidas | omitidas | sin D3D11VA (ya existía) |
+| `EffectPerformanceTests` (9 casos) | fallan | no corren | categoría `Rendimiento` |
+| `Sharpen_*` (3) | fallan | pasan | tolerancia solo en WARP |
+| **Total** | 206: 189 pasan, 2 omitidas, 15 fallan | 196: 192 pasan, 4 omitidas, 0 fallan | |
+
+En la RTX 3050: 206/206, ninguna omitida, normal y con `RODAJE_PRUEBAS_LARGAS=1`.
 
 ## Pendiente
 
-- Quitar la exclusión de estas pruebas en `ci.yml`: ese cambio vive en el PR #2 (aún no unido), así que no lo toqué. Cuando #2 esté unido, hay que quitar el filtro de Render de esa exclusión.
-
-## Pruebas omitidas
-
-- Casos que se omiten en WARP con la guardia (11 casos, 7 registros): `Draws_the_requested_slice…` (1), `Reports_gpu_milliseconds…` (2), `Eight_plain_1080p_layers…` (1), la de 3 capas 4K (1) y la de transiciones (6 casos). Las de rendimiento además salen por la categoría `Rendimiento`.
-- Cifras de la revisión: CI de main 2 omitidas + 16 fallos; este PR 7 registros omitidos (11 casos) + 4 fallos antes de esta ronda.
-- Antes: en un equipo con GPU real, ninguna por esta causa. En el runner de Windows (WARP) esas pruebas fallaban con `E_INVALIDARG` en lugar de omitirse.
-- Después: en WARP se omiten (causa: el adaptador no admite NV12/P010 como salida de decodificador); con GPU real corren igual que antes. No pude medir el conteo exacto aquí (Linux, sin Direct3D): compila sin errores, el resultado en Windows lo da la CI.
-
-## Decisiones
-
-- La guardia vive en `tests/Rodaje.Render.Tests/Support`, no en `testing/Rodaje.TestMedia/Skip.cs`, porque esa carpeta queda fuera de los caminos permitidos.
-- Incluí las pruebas de `EffectPerformanceTests` con arreglos porque usan el mismo `CreateTexture` y fallan igual.
-
-## Posibles choques
-
-- PR #2 toca `ci.yml` y `testing/Rodaje.TestMedia/Skip.cs`; no hay solape con estos archivos.
-- `Sharpen_matches_the_unsharp_mask_reference` (PR #2) falla por tolerancia en WARP, no por el bind; esta guardia no lo cubre.
-
-## Qué comprobar en Windows (Daniel)
-
-Con la RTX 3050, `dotnet test tests/Rodaje.Render.Tests` debe correr las mismas pruebas que antes (ninguna omitida por esta guardia). En el runner de CI, las 5 pruebas citadas deben aparecer omitidas, no falladas.
+- El PR #2 excluye por nombre en `ci.yml` todas estas pruebas de Render (bloque `$render`); hay que quitar ese bloque antes de unirlo, para que la CI siga ejecutándolas.
