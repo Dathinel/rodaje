@@ -712,7 +712,10 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
                     continue;
                 }
 
-                if (_packet->stream_index != _streamIndex)
+                // En modo keyframe el decodificador descartaría el paquete igual, pero con hilos por cuadro cada descarte
+                // pasa por el relevo entre hilos: dejarlo en el demuxer multiplica la velocidad por software.
+                if (_packet->stream_index != _streamIndex
+                    || (_fedAccuracy == DecodeAccuracy.Keyframe && (_packet->flags & ffmpeg.AV_PKT_FLAG_KEY) == 0))
                 {
                     ffmpeg.av_packet_unref(_packet);
                     continue;
