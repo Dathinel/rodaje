@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #16.
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -157,7 +157,7 @@ Con un HEVC de GOP abierto (p. ej. el que genera libkvazaar del build LGPL: IDR 
 
 ## 15. Personalización: de qué pistas de video sale el audio
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #16 unido el 11-oct)
 - **Rama:** `claude/audio-por-pista`
 - **Caminos:** `src/Rodaje.App/Services/Settings/`, la página de ajustes, el punto donde la app importa o suelta un medio en la línea de tiempo (búscalo; no toques `src/Rodaje.Core`), `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` («Personalización»), la entrega de la tarea 7 (pistas por defecto) si ya existe, `docs/arquitectura/app.md`.
