@@ -22,6 +22,9 @@ public interface ISpeedCommands
     /// <summary>Solo cambia algo en un clip con velocidad: a 1× el tono no se toca.</summary>
     ICommand SetPreservePitch(string sequenceId, string clipId, bool preservePitch);
 
+    /// <summary>Invierte o endereza el clip y sus enlazados; la duración y el material no cambian.</summary>
+    ICommand SetReverse(string sequenceId, string clipId, bool reverse);
+
     /// <summary>Congela el cuadro de <paramref name="at"/>: corta ahí y mete un congelado de <paramref name="duration"/>.</summary>
     ICommand FreezeFrame(string sequenceId, string clipId, Time at, Time duration, RippleScope scope);
 
@@ -52,6 +55,9 @@ public static class SpeedCommands
 
         public ICommand SetPreservePitch(string sequenceId, string clipId, bool preservePitch) =>
             Edits.SetPreservePitch(sequenceId, clipId, preservePitch);
+
+        public ICommand SetReverse(string sequenceId, string clipId, bool reverse) =>
+            Edits.SetReverse(sequenceId, clipId, reverse);
 
         public ICommand FreezeFrame(string sequenceId, string clipId, Time at, Time duration, RippleScope scope) =>
             Edits.FreezeFrame(sequenceId, clipId, at, duration, scope: scope);

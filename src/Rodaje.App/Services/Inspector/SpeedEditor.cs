@@ -31,8 +31,13 @@ public sealed record SpeedState(
     /// <summary>Restablecer cambiaría algo: no está a 1× o tiene una curva (D-024).</summary>
     public bool CanReset => !IsFrozen && (HasCurve || Rate != Normal);
 
-    /// <summary>«Mantener tono» importa: suena y no va a 1× (a 1× el núcleo no guarda el tono).</summary>
-    public bool CanChangePitch => HasAudio && !IsFrozen && (HasCurve || IsReversed || Rate != Normal);
+    /// <summary>
+    /// «Mantener tono» importa: suena y no va a 1×. La reversa sola no cambia el tono, así que a 1× invertido tampoco.
+    /// </summary>
+    public bool CanChangePitch => HasAudio && !IsFrozen && (HasCurve || Rate != Normal);
+
+    /// <summary>Se puede invertir o enderezar: todo menos un cuadro congelado.</summary>
+    public bool CanReverse => !IsFrozen;
 }
 
 /// <summary>
@@ -239,6 +244,21 @@ public sealed partial class SpeedEditor
 
         Session.BreakMerge();
         bool done = Session.Execute(Commands.SetPreservePitch(Session.SequenceId, clip.Id, preservePitch));
+        Session.BreakMerge();
+        return done;
+    }
+
+    /// <summary>Invierte o endereza el clip y sus enlazados en un paso del historial; no cambia duración ni material.</summary>
+    public bool SetReverse(bool reverse)
+    {
+        EndChange();
+        if (Target() is not { } clip || Read(clip) is not { CanReverse: true } state || state.IsReversed == reverse)
+        {
+            return false;
+        }
+
+        Session.BreakMerge();
+        bool done = Session.Execute(Commands.SetReverse(Session.SequenceId, clip.Id, reverse));
         Session.BreakMerge();
         return done;
     }

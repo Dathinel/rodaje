@@ -12,6 +12,7 @@ using Rodaje.App.Shell;
 using Rodaje.App.Views.Shared;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
+using Rodaje.Media.Proxies;
 
 namespace Rodaje.App.Views.Inspector.Speed;
 
@@ -29,7 +30,12 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
     private readonly List<(Button Button, Polyline Glyph)> _curveTiles = [];
 
     private readonly DispatcherQueueTimer _settle;
+    private static readonly ProxyPolicy DefaultPolicy = new();
+
     private SpeedEditor? _editor;
+    private EditorServices? _services;
+    private MediaSourceResolver? _resolver;
+    private volatile string? _noticePath;
     private string? _clipId;
     private bool _updating;
     private bool _pointerDown;
@@ -132,6 +138,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
     public void Attach(EditorServices services)
     {
         ArgumentNullException.ThrowIfNull(services);
+        _services = services;
         _editor = new SpeedEditor(services.Session, SpeedCommands.Default);
         RateSection.Remember(services.Settings);
         CurveSection.Remember(services.Settings);
@@ -147,6 +154,12 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
             if (Body.Visibility != Visibility.Visible || _editor.Target() is not { } clip)
             {
                 return;
+            }
+
+            // El resolvedor de proxies llega cuando arranca el reproductor o cambia con sus ajustes.
+            if (!ReferenceEquals(services.Player.ProxyResolver, _resolver))
+            {
+                ShowReverseNotice(clip);
             }
 
             if (_editor.CanFreeze(clip) != _freezeShown)
@@ -213,6 +226,11 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         PitchBox.IsChecked = state.PreservePitch;
         PitchBox.IsEnabled = state.CanChangePitch;
         ReverseBox.IsChecked = state.IsReversed;
+        ReverseBox.IsEnabled = state.CanReverse;
+        ReverseBadge.Visibility = state.IsReversed ? Visibility.Visible : Visibility.Collapsed;
+        ReverseHint.Text = !state.CanReverse ? "Un cuadro congelado no se invierte." : "";
+        MoreSection.Summary = state.IsReversed ? ReversedLabel : "";
+        ShowReverseNotice(clip);
         _freezeShown = editor.CanFreeze(clip);
         FreezeButton.IsEnabled = _freezeShown;
         FreezeHint.Text = !state.IsVideo ? "Solo se congelan clips de video."
@@ -425,6 +443,82 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
             RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
+    }
+
+    private const string ReversedLabel = Timeline.SpeedBadge.Reverse + " Invertido";
+
+    private void OnReverseClick(object sender, RoutedEventArgs e)
+    {
+        _editor?.SetReverse(ReverseBox.IsChecked == true);
+        Refresh();
+    }
+
+    /// <summary>El aviso del proxy obligatorio de la reversa, con el estado del proxy de su medio.</summary>
+    private void ShowReverseNotice(Clip clip)
+    {
+        if (_services is not { } services)
+        {
+            return;
+        }
+
+        MediaSourceResolver? resolver = services.Player.ProxyResolver;
+        if (!ReferenceEquals(resolver, _resolver))
+        {
+            if (_resolver is not null)
+            {
+                _resolver.StatusChanged -= OnProxyStatusChanged;
+            }
+
+            _resolver = resolver;
+            if (resolver is not null)
+            {
+                resolver.StatusChanged += OnProxyStatusChanged;
+            }
+        }
+
+        MediaRef? media = services.Session.Project.FindMedia(clip.MediaId);
+        ProxyStatus? status = null;
+        if (resolver is not null && media is { Path.Length: > 0 })
+        {
+            try
+            {
+                status = resolver.GetStatus(media.Path);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+            }
+        }
+
+        ReverseNotice? notice = ReverseProxyNotice.For(clip, media, status, resolver?.Policy ?? DefaultPolicy);
+        _noticePath = notice is null ? null : media?.Path;
+        ReverseNoticePanel.Visibility = notice is null ? Visibility.Collapsed : Visibility.Visible;
+        if (notice is null)
+        {
+            return;
+        }
+
+        var brush = (Brush)Application.Current.Resources[notice.IsWarning ? "MeterMidBrush" : "TextMutedBrush"];
+        ReverseNoticeText.Text = notice.Text;
+        ReverseNoticeText.Foreground = brush;
+        ReverseNoticeIcon.Foreground = brush;
+        ReverseNoticeIcon.Text = notice.IsWarning ? "" : "";
+    }
+
+    // Llega desde hilos de trabajo: solo importa el medio del aviso que se ve.
+    private void OnProxyStatusChanged(object? sender, ProxyStatusChangedEventArgs e)
+    {
+        if (_noticePath is not { } path || !string.Equals(path, e.Status.SourcePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_editor?.Target() is { } clip)
+            {
+                ShowReverseNotice(clip);
+            }
+        });
     }
 
     private void OnPitchClick(object sender, RoutedEventArgs e) => _editor?.SetPreservePitch(PitchBox.IsChecked == true);

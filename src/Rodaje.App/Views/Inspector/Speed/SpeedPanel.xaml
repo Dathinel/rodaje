@@ -13,8 +13,14 @@
 
         <ScrollViewer x:Name="Body" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
             <StackPanel Padding="0,0,0,12">
-                <Grid Height="36" Padding="12,0,6,0">
+                <Grid Height="36" Padding="12,0,6,0" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
                     <TextBlock x:Name="ClipTitle" Style="{StaticResource BodyTextStyle}" />
+                    <TextBlock x:Name="ReverseBadge" Grid.Column="1" Text="◀ Invertido" Style="{StaticResource CaptionTextStyle}" Visibility="Collapsed"
+                               VerticalAlignment="Center" ToolTipService.ToolTip="El clip se reproduce hacia atrás" />
                 </Grid>
 
                 <inspector:InspectorSection x:Name="RateSection" Key="velocidad" Title="Velocidad">
@@ -136,8 +142,20 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <CheckBox x:Name="ReverseBox" Content="Invertir" FontSize="{StaticResource BodyFontSize}" IsEnabled="False" />
-                            <TextBlock Grid.Column="1" Text="Próximamente" Style="{StaticResource CaptionTextStyle}" />
+                            <CheckBox x:Name="ReverseBox" Content="Invertir" FontSize="{StaticResource BodyFontSize}" Click="OnReverseClick"
+                                      ToolTipService.ToolTip="Reproduce el clip y su audio hacia atrás; la duración no cambia" />
+                            <TextBlock x:Name="ReverseHint" Grid.Column="1" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <Grid x:Name="ReverseNoticePanel" ColumnSpacing="6" Visibility="Collapsed">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="ReverseNoticeIcon" Text="&#xE7BA;" FontFamily="{StaticResource IconFontFamily}" FontSize="12" Margin="0,2,0,0"
+                                       Foreground="{StaticResource MeterMidBrush}" />
+                            <TextBlock x:Name="ReverseNoticeText" Grid.Column="1" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
+                                       Foreground="{StaticResource MeterMidBrush}" />
                         </Grid>
                     </StackPanel>
                 </inspector:InspectorSection>
