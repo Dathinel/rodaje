@@ -89,7 +89,7 @@ internal sealed class GeneratedClipPlan
         EffectPlan? effects = EffectPlan.From(clip.Effects);
         TitleAnimation? animation = TitleAnimation.From(style, generator.Edges, clip.Duration, unit);
         double scale = Math.Clamp(EffectPlan.MaxScale(effects) * (animation?.MaxScale ?? 1), MinRasterScale, MaxRasterScale);
-        var content = new GeneratedContent(generator.Kind, generator.Text, style, box, sequenceWidth, sequenceHeight, scale);
+        var content = new GeneratedContent(generator.Kind, generator.Text, style, box, sequenceWidth, sequenceHeight, scale) { ClipId = clip.Id };
         return new GeneratedClipPlan(clip.Id, clip.TimeMap, content, effects, animation);
     }
 

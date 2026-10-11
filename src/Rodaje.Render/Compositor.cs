@@ -8,6 +8,7 @@ using TerraFX.Interop.DirectX;
 using static TerraFX.Interop.DirectX.D3D11;
 using Rodaje.Render.Effects;
 using Rodaje.Render.Shaders;
+using Rodaje.Render.Text;
 using static Rodaje.Render.RenderException;
 
 namespace Rodaje.Render;
@@ -34,8 +35,11 @@ public enum CompositeFormat
 /// </param>
 /// <param name="MissingContent">LUT que todavía cargan o cuyo paquete falta, y transiciones de paquete sin resolver.</param>
 /// <param name="PoolBytes">Memoria de los intermedios de efectos al terminar el cuadro.</param>
+/// <param name="TitlesPending">
+/// Títulos que todavía no estaban rasterizados: el cuadro sale sin ellos (también cuentan en <paramref name="LayersSkipped"/>).
+/// </param>
 public readonly record struct CompositeResult(int LayersDrawn, int LayersSkipped, int EffectsApplied = 0, int EffectsSkipped = 0,
-    int MissingContent = 0, long PoolBytes = 0);
+    int MissingContent = 0, long PoolBytes = 0, int TitlesPending = 0);
 
 /// <summary>
 /// Compone un <see cref="CompositionFrame"/> en una textura propia: fondo negro y cada capa de abajo arriba,
@@ -66,6 +70,7 @@ public sealed unsafe class Compositor : IDisposable
     private readonly LayerRenderer _layers;
     private RenderTarget? _output;
     private ID3D11Texture2D* _staging;
+    private TitleRasterizer? _titles;
 
     public Compositor(GpuDevice gpu, int width, int height, CompositeFormat format = CompositeFormat.Rgba16Float)
         : this(gpu, width, height, format, TimeProvider.System)
@@ -147,6 +152,26 @@ public sealed unsafe class Compositor : IDisposable
         set => _layers.Resources = value;
     }
 
+    /// <summary>
+    /// Quien rasteriza los títulos (capas con <see cref="LayerFrame.Generated"/>), en este mismo dispositivo. Sin él, los
+    /// títulos se saltan. Un título que todavía no está se pide y se cuenta en <see cref="CompositeResult.TitlesPending"/>;
+    /// uno con la fuente cambiada por el respaldo cuenta en <see cref="CompositeResult.MissingContent"/>.
+    /// </summary>
+    /// <exception cref="ArgumentException">El rasterizador es de otro dispositivo.</exception>
+    public TitleRasterizer? Titles
+    {
+        get => _titles;
+        set
+        {
+            if (value is not null && value.Device != _gpu)
+            {
+                throw new ArgumentException("El rasterizador de títulos es de otro dispositivo.", nameof(value));
+            }
+
+            _titles = value;
+        }
+    }
+
     /// <summary>Termina cuando todos los shaders de efectos están listos. Mientras tanto los efectos se saltan y se cuentan.</summary>
     public Task ShadersReady => _effects.Ready;
 
@@ -159,7 +184,9 @@ public sealed unsafe class Compositor : IDisposable
     /// <summary>Compone <paramref name="frame"/>.</summary>
     /// <param name="geometry">Relación de aspecto del píxel y rotación de cada capa; sin ella, píxeles cuadrados sin rotar.</param>
     /// <exception cref="ArgumentException">Una capa vive en otro dispositivo.</exception>
-    public CompositeResult Render(CompositionFrame frame, Func<LayerFrame, SourceGeometry>? geometry = null)
+    public CompositeResult Render(CompositionFrame frame, Func<LayerFrame, SourceGeometry>? geometry = null) => Compose(frame, geometry, strict: false);
+
+    private CompositeResult Compose(CompositionFrame frame, Func<LayerFrame, SourceGeometry>? geometry, bool strict)
     {
         ArgumentNullException.ThrowIfNull(frame);
         ObjectDisposedException.ThrowIf(_output is null, this);
@@ -169,6 +196,23 @@ public sealed unsafe class Compositor : IDisposable
         var stats = default(FrameStats);
         var destination = new Destination(_output, Width, Height, frame.Width, frame.Height);
         float pixelScale = destination.PixelScale;
+        TitleRasterizer? titles = _titles;
+        if (titles is not null)
+        {
+            titles.BeginFrame();
+            if (strict)
+            {
+                // La exportación espera a sus títulos; se rasterizan antes de enlazar nada en el contexto.
+                foreach (LayerFrame layer in frame.Layers)
+                {
+                    if (layer.Generated is { } content)
+                    {
+                        titles.Rasterize(content);
+                    }
+                }
+            }
+        }
+
         _gpu.LockContext();
         try
         {
@@ -180,6 +224,17 @@ public sealed unsafe class Compositor : IDisposable
             for (int i = 0; i < layers.Count; i++)
             {
                 LayerFrame layer = layers[i];
+                if (layer.Generated is { } generated)
+                {
+                    bound = false;
+                    if (DrawTitle(layer, generated, titles, destination, ref stats))
+                    {
+                        drawn++;
+                    }
+
+                    continue;
+                }
+
                 if (_layers.Usable(layer) is not { } payload)
                 {
                     stats.LayersSkipped++;
@@ -217,7 +272,29 @@ public sealed unsafe class Compositor : IDisposable
             _gpu.UnlockContext();
         }
 
-        return new CompositeResult(drawn, stats.LayersSkipped, stats.EffectsApplied, stats.EffectsSkipped, stats.MissingContent, _pool.Bytes);
+        return new CompositeResult(drawn, stats.LayersSkipped, stats.EffectsApplied, stats.EffectsSkipped, stats.MissingContent, _pool.Bytes,
+            stats.TitlesPending);
+    }
+
+    private bool DrawTitle(LayerFrame layer, GeneratedContent content, TitleRasterizer? titles, in Destination destination, ref FrameStats stats)
+    {
+        if (titles is null || titles.TryGet(content) is not { } title)
+        {
+            stats.LayersSkipped++;
+            if (titles is not null && !titles.IsReady(content))
+            {
+                stats.TitlesPending++;
+            }
+
+            return false;
+        }
+
+        if (title.FontMissing)
+        {
+            stats.MissingContent++;
+        }
+
+        return _layers.DrawTitle(layer, title, destination, ref stats);
     }
 
     /// <summary>
@@ -234,7 +311,7 @@ public sealed unsafe class Compositor : IDisposable
     {
         ArgumentNullException.ThrowIfNull(frame);
         WaitForShaders(shaderTimeout ?? TimeSpan.FromMinutes(2));
-        CompositeResult result = Render(frame, geometry);
+        CompositeResult result = Compose(frame, geometry, strict: true);
         if (result.EffectsSkipped == 0)
         {
             return result;
@@ -250,7 +327,7 @@ public sealed unsafe class Compositor : IDisposable
             _gpu.UnlockContext();
         }
 
-        result = Render(frame, geometry);
+        result = Compose(frame, geometry, strict: true);
         if (result.EffectsSkipped > 0)
         {
             throw new ExportException(ExportErrorCode.EffectFailed, string.Create(CultureInfo.InvariantCulture,

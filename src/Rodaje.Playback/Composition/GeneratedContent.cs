@@ -62,6 +62,9 @@ public sealed class GeneratedContent : IEquatable<GeneratedContent>
     /// <summary>Mayor escala con que se ve (animación del estilo × transformación del clip): la de la textura.</summary>
     public double RasterScale { get; }
 
+    /// <summary>Clip del que salió, para los avisos (por ejemplo, la fuente que falta); no forma parte de <see cref="Key"/>.</summary>
+    public string ClipId { get; init; } = "";
+
     /// <summary>Todo lo que cambia la imagen, en texto; sirve de clave de caché.</summary>
     public string Key { get; }
 
