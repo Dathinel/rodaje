@@ -1,0 +1,365 @@
+{
+  "schemaVersion": 3,
+  "id": "project-ejemplo-v3",
+  "name": "Ejemplo del formato 3 — ñ",
+  "media": [
+    {
+      "id": "media-1",
+      "path": "material/toma 01.mp4",
+      "name": "toma 01",
+      "duration": 14112000000,
+      "hasVideo": true,
+      "hasAudio": true,
+      "frameRate": {
+        "num": 30,
+        "den": 1
+      },
+      "width": 1920,
+      "height": 1080,
+      "sampleRate": 48000,
+      "audioChannels": 2
+    },
+    {
+      "id": "media-2",
+      "path": "música/fondo.wav",
+      "name": "fondo",
+      "duration": 42336000000,
+      "hasVideo": false,
+      "hasAudio": true,
+      "frameRate": null,
+      "width": 0,
+      "height": 0,
+      "sampleRate": 48000,
+      "audioChannels": 2
+    }
+  ],
+  "sequences": [
+    {
+      "id": "sequence-1",
+      "name": "Secuencia 1",
+      "frameRate": {
+        "num": 30,
+        "den": 1
+      },
+      "width": 1920,
+      "height": 1080,
+      "sampleRate": 48000,
+      "videoTracks": [
+        {
+          "id": "track-1",
+          "kind": "video",
+          "name": "Video 1",
+          "muted": false,
+          "locked": false,
+          "hidden": false,
+          "clips": [
+            {
+              "id": "clip-1",
+              "mediaId": "media-1",
+              "sourceIn": 0,
+              "sourceOut": 3528000000,
+              "start": 0,
+              "linkId": "link-1",
+              "enabled": true,
+              "effects": [
+                {
+                  "id": "effect-1",
+                  "type": "rodaje.transform",
+                  "enabled": true,
+                  "parameters": {
+                    "scale": {
+                      "value": 1.1,
+                      "keyframes": []
+                    }
+                  },
+                  "options": {}
+                },
+                {
+                  "id": "effect-2",
+                  "type": "rodaje.color",
+                  "enabled": true,
+                  "parameters": {
+                    "exposure": {
+                      "value": 0.3,
+                      "keyframes": []
+                    },
+                    "lutIntensity": {
+                      "value": 0.8,
+                      "keyframes": []
+                    }
+                  },
+                  "options": {
+                    "lut": "rodaje-esenciales@1.0.0/calido",
+                    "source": "rodaje-esenciales@1.0.0/look-calido"
+                  }
+                },
+                {
+                  "id": "effect-3",
+                  "type": "otro.programa.brillo",
+                  "enabled": false,
+                  "parameters": {
+                    "nivel": {
+                      "value": 2,
+                      "keyframes": [
+                        {
+                          "time": 705600000,
+                          "value": 0,
+                          "interpolation": "hold"
+                        },
+                        {
+                          "time": 1411200000,
+                          "value": 2,
+                          "interpolation": "linear"
+                        }
+                      ]
+                    }
+                  },
+                  "options": {
+                    "modo": "suave",
+                    "curva": "0,0;1,1"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "clip-2",
+              "mediaId": "media-1",
+              "sourceIn": 7056000000,
+              "sourceOut": 10584000000,
+              "start": 3528000000,
+              "linkId": "link-2",
+              "enabled": true,
+              "effects": [
+                {
+                  "id": "effect-4",
+                  "type": "rodaje.blur",
+                  "enabled": true,
+                  "parameters": {
+                    "radius": {
+                      "value": 4,
+                      "keyframes": []
+                    }
+                  },
+                  "options": {}
+                },
+                {
+                  "id": "effect-5",
+                  "type": "rodaje.sharpen",
+                  "enabled": true,
+                  "parameters": {
+                    "amount": {
+                      "value": 0.5,
+                      "keyframes": []
+                    }
+                  },
+                  "options": {}
+                }
+              ]
+            }
+          ],
+          "effects": [],
+          "transitions": [
+            {
+              "id": "transition-1",
+              "type": "rodaje.wipe",
+              "from": "clip-1",
+              "to": "clip-2",
+              "duration": 352800000,
+              "parameters": {
+                "angle": 90,
+                "softness": 0.1
+              },
+              "options": {}
+            }
+          ]
+        },
+        {
+          "id": "track-2",
+          "kind": "video",
+          "name": "Video 2",
+          "muted": false,
+          "locked": false,
+          "hidden": false,
+          "clips": [
+            {
+              "id": "clip-3",
+              "mediaId": "media-1",
+              "sourceIn": 0,
+              "sourceOut": 1411200000,
+              "start": 705600000,
+              "linkId": null,
+              "enabled": true,
+              "effects": [
+                {
+                  "id": "effect-6",
+                  "type": "rodaje.blend",
+                  "enabled": true,
+                  "parameters": {},
+                  "options": {
+                    "blendMode": "overlay"
+                  }
+                },
+                {
+                  "id": "effect-7",
+                  "type": "rodaje.vignette",
+                  "enabled": true,
+                  "parameters": {
+                    "amount": {
+                      "value": 0.6,
+                      "keyframes": []
+                    }
+                  },
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "id": "clip-4",
+              "mediaId": "media-1",
+              "sourceIn": 1411200000,
+              "sourceOut": 2822400000,
+              "start": 2116800000,
+              "linkId": null,
+              "enabled": true,
+              "effects": []
+            }
+          ],
+          "effects": [],
+          "transitions": [
+            {
+              "id": "transition-2",
+              "type": "rodaje.preset",
+              "from": "clip-3",
+              "to": "clip-4",
+              "duration": 705600000,
+              "parameters": {},
+              "options": {
+                "preset": "rodaje-esenciales@1.0.0/deslizar"
+              }
+            }
+          ]
+        }
+      ],
+      "audioTracks": [
+        {
+          "id": "track-3",
+          "kind": "audio",
+          "name": "Audio 1",
+          "muted": false,
+          "locked": false,
+          "hidden": false,
+          "clips": [
+            {
+              "id": "clip-5",
+              "mediaId": "media-1",
+              "sourceIn": 0,
+              "sourceOut": 3528000000,
+              "start": 0,
+              "linkId": "link-1",
+              "enabled": true,
+              "effects": [
+                {
+                  "id": "effect-8",
+                  "type": "rodaje.audio",
+                  "enabled": true,
+                  "parameters": {
+                    "gainDb": {
+                      "value": -6,
+                      "keyframes": [
+                        {
+                          "time": 0,
+                          "value": -60,
+                          "interpolation": "easeOut"
+                        },
+                        {
+                          "time": 352800000,
+                          "value": -6,
+                          "interpolation": "linear"
+                        }
+                      ]
+                    },
+                    "fadeOut": {
+                      "value": 0.25,
+                      "keyframes": []
+                    }
+                  },
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "id": "clip-6",
+              "mediaId": "media-1",
+              "sourceIn": 7056000000,
+              "sourceOut": 10584000000,
+              "start": 3528000000,
+              "linkId": "link-2",
+              "enabled": true,
+              "effects": []
+            }
+          ],
+          "effects": [],
+          "transitions": [
+            {
+              "id": "transition-3",
+              "type": "rodaje.crossfade",
+              "from": "clip-5",
+              "to": "clip-6",
+              "duration": 352800000,
+              "parameters": {},
+              "options": {}
+            }
+          ]
+        },
+        {
+          "id": "track-4",
+          "kind": "audio",
+          "name": "Música",
+          "muted": false,
+          "locked": false,
+          "hidden": false,
+          "clips": [
+            {
+              "id": "clip-7",
+              "mediaId": "media-2",
+              "sourceIn": 0,
+              "sourceOut": 10584000000,
+              "start": 0,
+              "linkId": null,
+              "enabled": true,
+              "effects": []
+            }
+          ],
+          "effects": [
+            {
+              "id": "effect-9",
+              "type": "rodaje.audio",
+              "enabled": true,
+              "parameters": {
+                "gainDb": {
+                  "value": -3,
+                  "keyframes": [
+                    {
+                      "time": 7056000000,
+                      "value": -3,
+                      "interpolation": "linear"
+                    },
+                    {
+                      "time": 10584000000,
+                      "value": -60,
+                      "interpolation": "easeIn"
+                    }
+                  ]
+                }
+              },
+              "options": {}
+            }
+          ],
+          "transitions": []
+        }
+      ],
+      "markers": [],
+      "regions": []
+    }
+  ]
+}

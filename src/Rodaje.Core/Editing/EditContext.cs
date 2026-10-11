@@ -244,9 +244,13 @@ public sealed class EditContext
         track.SortClips();
     }
 
-    /// <summary>Lanza <see cref="EditException"/> con el primer problema si la secuencia quedó inválida.</summary>
+    /// <summary>
+    /// Concilia las transiciones con los cortes (<see cref="TransitionOps.Reconcile"/>) y lanza <see cref="EditException"/>
+    /// con el primer problema si la secuencia quedó inválida.
+    /// </summary>
     public void EnsureValid()
     {
+        TransitionOps.Reconcile(Sequence);
         IReadOnlyList<string> errors = ModelValidator.ValidateSequence(Project, Sequence);
         if (errors.Count > 0)
         {

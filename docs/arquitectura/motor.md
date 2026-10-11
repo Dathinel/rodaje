@@ -15,7 +15,7 @@ flowchart LR
     CF --> R["Compositor"]
 ```
 
-1. **El plan.** [`TimelinePlan`](../../src/Rodaje.Engine/Timeline/TimelinePlan.cs) convierte la secuencia en datos inmutables y se reconstruye en cada edición.
+1. **El plan.** [`TimelinePlan`](../../src/Rodaje.Engine/Timeline/TimelinePlan.cs) convierte la secuencia en datos inmutables y se reconstruye en cada edición. Las capas están en [`VideoPlan`](../../src/Rodaje.Engine/Timeline/VideoPlan.cs) y el audio en [`AudioPlan`](../../src/Rodaje.Engine/Timeline/AudioPlan.cs).
    - Por capa: los clips con su correspondencia de cuadros (`VideoClipPlan`) y la transformación con sus keyframes de `rodaje.transform` (`TransformPlan.Evaluate` da `LayerTransform`).
    - Para el audio: los clips en muestras de 48 kHz (`AudioPlan`).
    - Deja fuera las pistas mudas, los clips desactivados y los medios sin el flujo. Las pistas ocultas no se ven, pero siguen calientes.

@@ -67,6 +67,9 @@ public sealed record TimelineSessionOptions
     /// </summary>
     public MediaSourceResolver? ProxyResolver { get; init; }
 
+    /// <summary>LUT y transiciones de paquete; sin contenido, las capas salen sin LUT y las de paquete como fundido cruzado.</summary>
+    public IEffectContent? Content { get; init; }
+
     /// <summary>Audio mezclado por delante de lo que suena.</summary>
     public TimeSpan AudioReadAhead { get; init; } = TimeSpan.FromMilliseconds(500);
 

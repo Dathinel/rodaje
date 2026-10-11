@@ -7,7 +7,7 @@ namespace Rodaje.Core.Serialization;
 
 /// <summary>
 /// Lee y escribe proyectos en el formato <c>.rodaje</c>: JSON en UTF-8 descrito en
-/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v2.schema.json</c>.
+/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v3.schema.json</c>.
 /// </summary>
 public static class ProjectSerializer
 {
@@ -234,6 +234,20 @@ public static class ProjectSerializer
             }
         }
 
+        void CheckEffects(List<EffectInstance> effects)
+        {
+            Check(effects, "efectos");
+            foreach (EffectInstance effect in effects.OfType<EffectInstance>())
+            {
+                Check(effect.Parameters.Values, "parámetros");
+                Check(effect.Options.Values, "opciones");
+                foreach (Parameter parameter in effect.Parameters.Values.OfType<Parameter>())
+                {
+                    Check(parameter.Keyframes, "keyframes");
+                }
+            }
+        }
+
         Check(project.Media, "medios");
         Check(project.Sequences, "secuencias");
         foreach (Sequence sequence in project.Sequences.OfType<Sequence>())
@@ -245,17 +259,16 @@ public static class ProjectSerializer
             foreach (Track track in sequence.VideoTracks.Concat(sequence.AudioTracks).OfType<Track>())
             {
                 Check(track.Clips, "clips");
+                CheckEffects(track.Effects);
                 foreach (Clip clip in track.Clips.OfType<Clip>())
                 {
-                    Check(clip.Effects, "efectos");
-                    foreach (EffectInstance effect in clip.Effects.OfType<EffectInstance>())
-                    {
-                        Check(effect.Parameters.Values, "parámetros");
-                        foreach (Parameter parameter in effect.Parameters.Values.OfType<Parameter>())
-                        {
-                            Check(parameter.Keyframes, "keyframes");
-                        }
-                    }
+                    CheckEffects(clip.Effects);
+                }
+
+                Check(track.Transitions, "transiciones");
+                foreach (TransitionInstance transition in track.Transitions.OfType<TransitionInstance>())
+                {
+                    Check(transition.Options.Values, "opciones");
                 }
             }
         }

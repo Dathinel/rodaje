@@ -163,21 +163,7 @@ public static class ModelValidator
                     errors.Add($"{where} se solapa con «{previous.Id}» o está fuera de orden.");
                 }
 
-                foreach (EffectInstance effect in clip.Effects)
-                {
-                    checkId(effect.Id, "un efecto");
-                    foreach ((string name, Parameter parameter) in effect.Parameters)
-                    {
-                        for (int i = 1; i < parameter.Keyframes.Count; i++)
-                        {
-                            if (parameter.Keyframes[i].Time <= parameter.Keyframes[i - 1].Time)
-                            {
-                                errors.Add($"Los keyframes de «{name}» en el efecto «{effect.Id}» no están en orden estricto.");
-                                break;
-                            }
-                        }
-                    }
-                }
+                ValidateEffects(clip.Effects, errors, checkId);
 
                 if (clip.LinkId is not null)
                 {
@@ -195,6 +181,9 @@ public static class ModelValidator
                 previous = clip;
                 previousEnd = end;
             }
+
+            ValidateEffects(track.Effects, errors, checkId);
+            ValidateTransitions(track, errors, checkId);
         }
 
         foreach (Marker marker in sequence.Markers)
@@ -220,6 +209,55 @@ public static class ModelValidator
             }
         }
     }
+
+    private static void ValidateEffects(List<EffectInstance> effects, List<string> errors, Action<string, string> checkId)
+    {
+        foreach (EffectInstance effect in effects)
+        {
+            checkId(effect.Id, "un efecto");
+            foreach ((string name, Parameter parameter) in effect.Parameters)
+            {
+                for (int i = 1; i < parameter.Keyframes.Count; i++)
+                {
+                    if (parameter.Keyframes[i].Time <= parameter.Keyframes[i - 1].Time)
+                    {
+                        errors.Add($"Los keyframes de «{name}» en el efecto «{effect.Id}» no están en orden estricto.");
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>Cada transición une dos clips contiguos de su pista, en un solo corte y con duración positiva.</summary>
+    private static void ValidateTransitions(Track track, List<string> errors, Action<string, string> checkId)
+    {
+        var cuts = new HashSet<string>(StringComparer.Ordinal);
+        foreach (TransitionInstance transition in track.Transitions)
+        {
+            checkId(transition.Id, "una transición");
+            string where = $"La transición «{transition.Id}» de la pista «{track.Name}»";
+            int from = track.Clips.FindIndex(c => c.Id == transition.From);
+            if (from < 0 || from + 1 >= track.Clips.Count || track.Clips[from + 1].Id != transition.To
+                || !Touches(track.Clips[from], track.Clips[from + 1]))
+            {
+                errors.Add($"{where} no une dos clips contiguos de la pista («{transition.From}» y «{transition.To}»).");
+            }
+            else if (!cuts.Add(transition.From))
+            {
+                errors.Add($"{where} está en un corte que ya tiene otra transición.");
+            }
+
+            if (transition.Duration <= Time.Zero)
+            {
+                errors.Add($"{where} tiene duración cero o negativa.");
+            }
+        }
+    }
+
+    // En 128 bits por la misma razón que arriba: tiempos extremos de un archivo no deben lanzar.
+    private static bool Touches(Clip left, Clip right) =>
+        (Int128)left.Start.Ticks + left.SourceOut.Ticks - left.SourceIn.Ticks == right.Start.Ticks;
 
     private static bool FitsInLong(Int128 value) => value >= long.MinValue && value <= long.MaxValue;
 

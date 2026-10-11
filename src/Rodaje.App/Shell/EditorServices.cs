@@ -5,6 +5,7 @@ using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Views.Player;
+using Rodaje.Engine.Timeline;
 
 namespace Rodaje.App.Shell;
 
@@ -60,6 +61,9 @@ internal sealed class EditorServices(
 
     /// <summary>Paquetes y módulos instalados, el catálogo e instalar o desinstalar.</summary>
     public required PackageService Packages { get; init; }
+
+    /// <summary>LUT y transiciones de paquete para el motor; nulo hasta que la fase 5 lo conecte.</summary>
+    public IEffectContent? Content { get; init; }
 }
 
 /// <summary>Una vista del editor. <see cref="Attach"/> se llama una vez, en el hilo de la interfaz, tras crearla.</summary>

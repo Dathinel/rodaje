@@ -8,7 +8,7 @@ public class ProjectSchemaTests
 {
     private const string RegenerateVariable = "RODAJE_REGENERAR_ESQUEMA";
 
-    private static string SchemaPath => Path.Combine(FindRepoRoot(), "schema", "rodaje-proyecto.v2.schema.json");
+    private static string SchemaPath => Path.Combine(FindRepoRoot(), "schema", "rodaje-proyecto.v3.schema.json");
 
     /// <summary>Para regenerar el esquema versionado: RODAJE_REGENERAR_ESQUEMA=1 y correr las pruebas.</summary>
     [Fact]
@@ -30,15 +30,17 @@ public class ProjectSchemaTests
             $"define {RegenerateVariable}=1, corre las pruebas y revisa el diff de {SchemaPath}.");
     }
 
-    /// <summary>Un esquema publicado no cambia nunca: el de la versión 1 se conserva tal cual para los archivos viejos.</summary>
-    [Fact]
-    public void PublishedV1Schema_IsKept()
+    /// <summary>Un esquema publicado no cambia nunca: los de versiones anteriores se conservan tal cual para los archivos viejos.</summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void PublishedOldSchemas_AreKept(int version)
     {
-        string v1 = Path.Combine(FindRepoRoot(), "schema", "rodaje-proyecto.v1.schema.json");
-        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(v1));
+        string path = Path.Combine(FindRepoRoot(), "schema", $"rodaje-proyecto.v{version}.schema.json");
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(path));
 
-        Assert.Equal(1, doc.RootElement.GetProperty("properties").GetProperty("schemaVersion").GetProperty("const").GetInt32());
-        Assert.EndsWith("v1.schema.json", doc.RootElement.GetProperty("$id").GetString(), StringComparison.Ordinal);
+        Assert.Equal(version, doc.RootElement.GetProperty("properties").GetProperty("schemaVersion").GetProperty("const").GetInt32());
+        Assert.EndsWith($"v{version}.schema.json", doc.RootElement.GetProperty("$id").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]

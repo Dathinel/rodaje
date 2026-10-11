@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using Rodaje.Core.Effects;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Playback.Composition;
@@ -62,8 +64,74 @@ public sealed class LayerFrame : IDisposable
     /// <summary>La imagen sale de un proxy de vista previa y no del original.</summary>
     public bool IsProxy { get; init; }
 
-    public void Dispose() => Frame.Dispose();
+    /// <summary>
+    /// Efectos de imagen ya evaluados (etapas <see cref="EffectStage.PerPixel"/> y <see cref="EffectStage.Spatial"/>), en el
+    /// orden de la pila del clip. La transformación va en <see cref="Transform"/> y la mezcla en <see cref="Blend"/>.
+    /// </summary>
+    public IReadOnlyList<LayerEffect> Effects { get; init; } = [];
+
+    public BlendMode Blend { get; init; } = BlendMode.Normal;
+
+    /// <summary>Si la capa está en una transición: esta capa es el clip que sale y la transición trae el que entra.</summary>
+    public LayerTransition? Transition { get; init; }
+
+    /// <summary>Sin efectos, mezcla normal ni transición: el camino rápido de siempre.</summary>
+    public bool IsPlain => Effects.Count == 0 && Blend == BlendMode.Normal && Transition is null;
+
+    public void Dispose()
+    {
+        Frame.Dispose();
+        Transition?.Incoming.Dispose();
+    }
 }
+
+/// <summary>
+/// Valores de los parámetros de un efecto para un instante, en el orden del registro
+/// (<see cref="ParameterDefinition.Slot"/>). Va por valor: armar una capa no reserva memoria.
+/// </summary>
+[InlineArray(EffectDefinition.MaxParameters)]
+public struct EffectValues
+{
+    private float _element0;
+}
+
+/// <summary>Un efecto evaluado: su código del registro, sus valores y el recurso que usa (por ejemplo la LUT), si alguno.</summary>
+/// <param name="Code">Código de <see cref="EffectRegistry"/>.</param>
+/// <param name="Values">Valores en el orden del registro.</param>
+/// <param name="Resource">Recurso de <see cref="IEffectResources"/>; nulo si no usa o si todavía no está listo.</param>
+public readonly record struct LayerEffect(int Code, EffectValues Values, ResourceKey? Resource);
+
+/// <summary>Identifica un recurso de contenido, normalmente la referencia <c>paquete@versión/elemento</c>.</summary>
+public readonly record struct ResourceKey(string Reference);
+
+/// <summary>Los 13 modos de mezcla, en el orden de <see cref="EffectRegistry.BlendModes"/>.</summary>
+/// <remarks>Normal, suma, multiplicar y trama van por estado fijo; el resto por shader, con fórmulas W3C en gamma.</remarks>
+public enum BlendMode
+{
+    Normal,
+    Add,
+    Multiply,
+    Screen,
+    Overlay,
+    SoftLight,
+    HardLight,
+    Darken,
+    Lighten,
+    Difference,
+    Exclusion,
+    ColorDodge,
+    ColorBurn,
+}
+
+/// <summary>
+/// Una transición en curso sobre la capa: <see cref="Code"/> es la mezcla del registro (una de paquete llega ya resuelta
+/// a la suya, con sus curvas aplicadas a las transformaciones de cada lado).
+/// </summary>
+/// <param name="Code">Código de la mezcla en <see cref="EffectRegistry"/>.</param>
+/// <param name="Progress">De 0 (solo el clip que sale) a 1 (solo el que entra).</param>
+/// <param name="Values">Parámetros de la transición en el orden del registro.</param>
+/// <param name="Incoming">El clip que entra, con su transformación y sus efectos; la capa de afuera lo libera.</param>
+public readonly record struct LayerTransition(int Code, float Progress, EffectValues Values, LayerFrame Incoming);
 
 /// <summary>Todo lo que se ve en un instante de la secuencia, de abajo hacia arriba.</summary>
 public sealed class CompositionFrame : IDisposable

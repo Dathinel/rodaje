@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Dathinel/rodaje/schema/rodaje-proyecto.v2.schema.json",
+  "title": "Proyecto de Rodaje",
+  "description": "Archivo .rodaje versión 3. Las reglas que el esquema no expresa están en docs/formato-proyecto.md.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 3
+    },
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "media": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "integer",
+            "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+          },
+          "hasVideo": {
+            "type": "boolean"
+          },
+          "hasAudio": {
+            "type": "boolean"
+          },
+          "frameRate": {
+            "anyOf": [
+              {
+                "type": "object",
+                "description": "Fracción positiva, por ejemplo 30000/1001 para 29,97 cuadros por segundo.",
+                "properties": {
+                  "num": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "den": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "num",
+                  "den"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "sampleRate": {
+            "type": "integer"
+          },
+          "audioChannels": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "sequences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "frameRate": {
+            "type": "object",
+            "description": "Fracción positiva, por ejemplo 30000/1001 para 29,97 cuadros por segundo.",
+            "properties": {
+              "num": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "den": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "num",
+              "den"
+            ]
+          },
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "sampleRate": {
+            "type": "integer"
+          },
+          "videoTracks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "video",
+                    "audio"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "muted": {
+                  "type": "boolean"
+                },
+                "locked": {
+                  "type": "boolean"
+                },
+                "hidden": {
+                  "type": "boolean"
+                },
+                "clips": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "mediaId": {
+                        "type": "string"
+                      },
+                      "sourceIn": {
+                        "type": "integer",
+                        "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                      },
+                      "sourceOut": {
+                        "type": "integer",
+                        "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                      },
+                      "start": {
+                        "type": "integer",
+                        "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                      },
+                      "linkId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "effects": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "parameters": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "value": {
+                                    "type": "number"
+                                  },
+                                  "keyframes": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "time": {
+                                          "type": "integer",
+                                          "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                                        },
+                                        "value": {
+                                          "type": "number"
+                                        },
+                                        "interpolation": {
+                                          "enum": [
+                                            "hold",
+                                            "linear",
+                                            "easeIn",
+                                            "easeOut",
+                                            "easeInOut"
+                                          ],
+                                          "default": "linear"
+                                        }
+                                      },
+                                      "required": [
+                                        "time",
+                                        "value"
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "options": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "effects": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/effects/items"
+                  }
+                },
+                "transitions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "from": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "string"
+                      },
+                      "duration": {
+                        "type": "integer",
+                        "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "number"
+                        }
+                      },
+                      "options": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "audioTracks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/sequences/items/properties/videoTracks/items"
+            }
+          },
+          "markers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "time": {
+                  "type": "integer",
+                  "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "regions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "start": {
+                  "type": "integer",
+                  "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                },
+                "end": {
+                  "type": "integer",
+                  "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

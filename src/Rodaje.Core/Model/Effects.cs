@@ -2,7 +2,7 @@ using Rodaje.Core.Timing;
 
 namespace Rodaje.Core.Model;
 
-/// <summary>Efecto aplicado a un clip: un tipo (por ejemplo <c>rodaje.transform</c>) y sus parámetros.</summary>
+/// <summary>Efecto aplicado a un clip o a una pista: un tipo (por ejemplo <c>rodaje.transform</c>) y sus parámetros.</summary>
 public sealed class EffectInstance
 {
     public string Id { get; set; } = "";
@@ -13,10 +13,14 @@ public sealed class EffectInstance
 
     public Dictionary<string, Parameter> Parameters { get; set; } = [];
 
+    /// <summary>Opciones no numéricas: modo de mezcla, LUT, preajuste de origen. Ver <see cref="Effects.EffectRegistry"/>.</summary>
+    public Dictionary<string, string> Options { get; set; } = [];
+
     public EffectInstance Clone()
     {
         EffectInstance copy = (EffectInstance)MemberwiseClone();
         copy.Parameters = Parameters.ToDictionary(p => p.Key, p => p.Value.Clone());
+        copy.Options = new Dictionary<string, string>(Options);
         return copy;
     }
 }

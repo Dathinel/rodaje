@@ -35,6 +35,8 @@ flowchart TB
 | [`Track`](../../src/Rodaje.Core/Model/Track.cs) | `Muted`, `Hidden`, `Locked` y los clips ordenados por `Start` y sin solaparse; los huecos no son objetos |
 | [`Clip`](../../src/Rodaje.Core/Model/Clip.cs) | `SourceIn` (incluido), `SourceOut` (excluido), `Start`, `LinkId`, `Enabled` y efectos; `ToSourceTime(t) = SourceIn + (t − Start)` |
 | [`Effects`](../../src/Rodaje.Core/Model/Effects.cs) | Parámetros animables con keyframes en tiempo del origen (al recortar, la animación sigue pegada al material) e interpolación `Hold`, `Linear`, `EaseIn`, `EaseOut` o `EaseInOut`; [`BuiltInEffects.Transform`](../../src/Rodaje.Core/Model/BuiltInEffects.cs) (x, y, scale, rotation, opacity) es el que usa el compositor |
+| [`EffectRegistry`](../../src/Rodaje.Core/Effects/EffectRegistry.cs) | Tipos de efecto y de transición con código estable, destino, etapa, parámetros y opciones; un tipo desconocido se conserva sin aplicarse |
+| [`TransitionInstance`](../../src/Rodaje.Core/Model/TransitionInstance.cs) | Transición en el corte entre dos clips contiguos, centrada en él; [`TransitionOps.Reconcile`](../../src/Rodaje.Core/Editing/TransitionOps.cs) la mantiene pegada al corte tras cada edición |
 
 Los clips con el mismo `LinkId` (por ejemplo, el video y el audio de una toma) se editan juntos y con el mismo desplazamiento; un grupo no puede tener dos clips en la misma pista. [`ModelValidator`](../../src/Rodaje.Core/Model/ModelValidator.cs) reúne todas las reglas (ids únicos en todo el archivo, clips dentro de su medio, sin solapes, keyframes en orden, un clip por pista en cada enlace) con mensajes en español. [`IdGenerator`](../../src/Rodaje.Core/Model/IdGenerator.cs) da ids GUID al programa e ids secuenciales (`clip-1`) a las pruebas.
 
@@ -86,7 +88,7 @@ sequenceDiagram
 
 ## Formato `.rodaje` (`Serialization/`)
 
-JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`; la especificación está en [`docs/formato-proyecto.md`](../formato-proyecto.md) y el esquema en [`schema/`](../../schema/rodaje-proyecto.v2.schema.json).
+JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`; la especificación está en [`docs/formato-proyecto.md`](../formato-proyecto.md) y el esquema en [`schema/`](../../schema/rodaje-proyecto.v3.schema.json).
 
 - **Abrir** ([`ProjectSerializer.Load`](../../src/Rodaje.Core/Serialization/ProjectSerializer.cs)) sigue cinco pasos:
   1. Lee UTF-8 estricto.
