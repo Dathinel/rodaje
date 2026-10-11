@@ -334,8 +334,8 @@ internal sealed class ClipVisual
         for (double x = 0; ; x += step)
         {
             double clamped = Math.Min(x, d.Width);
-            double gain = ClipDecorations.GainAt(d.Clip, TimeAt(d, clamped));
-            points.Add(new Point(clamped, top + ((1 - (gain / ClipDecorations.MaxGain)) * range)));
+            double gain = ClipDecorations.GainDbAt(d.Clip, TimeAt(d, clamped));
+            points.Add(new Point(clamped, top + ((1 - ClipDecorations.EnvelopeFraction(gain)) * range)));
             if (clamped >= d.Width)
             {
                 break;
