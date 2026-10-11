@@ -10,12 +10,13 @@ namespace Rodaje.Core.Tests.Fuzz;
 /// <summary>
 /// Pruebas hostiles del lector de proyectos: un <c>.rodaje</c> dañado o malicioso abre un proyecto válido
 /// o lanza <see cref="ProjectFormatException"/>; nunca otra excepción ni un cuelgue. Mutaciones
-/// deterministas (semilla fija) sobre los ejemplos v1, v2 y v3.
+/// deterministas (semilla fija) sobre los ejemplos v1, v2, v3 y, si el lector ya lo conoce, v4.
 /// </summary>
 public class ProjectReaderFuzzTests
 {
     private const int Seed = 20261011;
     private const int CasesPerSeedFile = 2000;
+    private const int LoadEvery = 20;
     private const int MinimumCasesPerRun = 5000;
     private const double MinimumValidatorShare = 0.25;
     private static readonly TimeSpan Budget = TimeSpan.FromSeconds(30);
@@ -23,11 +24,26 @@ public class ProjectReaderFuzzTests
     private static string ExamplePath =>
         Path.Combine(Serialization.ProjectSchemaTests.FindRepoRoot(), "tests", "Rodaje.Core.Tests", "Serialization", "ejemplos", "proyecto-v3.rodaje");
 
-    /// <summary>Semillas v1, v2 y v3; las dos primeras se obtienen quitando del v3 lo que esos formatos no tenían.</summary>
-    private static IReadOnlyList<(string Name, string Json)> Seeds()
+    // Variable y no constante: esta rama aún lee el formato 3 y main ya lee el 4.
+    private static readonly int CurrentVersion = Project.CurrentSchemaVersion;
+
+    private static string V4ExamplePath =>
+        Path.Combine(Serialization.ProjectSchemaTests.FindRepoRoot(), "tests", "Rodaje.Core.Tests", "Fuzz", "proyecto-v4.rodaje");
+
+    /// <summary>
+    /// Semillas v1, v2 y v3 (las dos primeras se obtienen quitando del v3 lo que esos formatos no tenían) y,
+    /// cuando <see cref="Project.CurrentSchemaVersion"/> ya es 4 o más, el ejemplo v4 copiado de main.
+    /// </summary>
+    private static List<(string Name, string Json)> Seeds()
     {
         string v3 = File.ReadAllText(ExamplePath);
-        return [("v1", Downgrade(v3, 1)), ("v2", Downgrade(v3, 2)), ("v3", v3)];
+        var seeds = new List<(string Name, string Json)> { ("v1", Downgrade(v3, 1)), ("v2", Downgrade(v3, 2)), ("v3", v3) };
+        if (CurrentVersion >= 4)
+        {
+            seeds.Add(("v4", File.ReadAllText(V4ExamplePath)));
+        }
+
+        return seeds;
     }
 
     private static string Downgrade(string v3, int version)
@@ -144,9 +160,13 @@ public class ProjectReaderFuzzTests
             e => e.Type == BuiltInEffects.Audio);
     }
 
-    /// <summary>Mutaciones de bytes por <see cref="ProjectSerializer.Load"/>: UTF-8 inválido, BOM y truncados reales.</summary>
+    /// <summary>
+    /// Mutaciones de bytes. Una de cada <see cref="LoadEvery"/> pasa por <see cref="ProjectSerializer.Load"/> con
+    /// un archivo real; el resto usa el mismo decodificador estricto en memoria (crear miles de archivos
+    /// temporales tardaba casi un minuto en Windows).
+    /// </summary>
     [Fact]
-    public void ByteMutations_ThroughLoad_NeverCrashTheReader()
+    public void ByteMutations_NeverCrashTheReader()
     {
         string dir = Directory.CreateTempSubdirectory("rodaje-fuzz-").FullName;
         try
@@ -159,8 +179,16 @@ public class ProjectReaderFuzzTests
                 byte[] source = Encoding.UTF8.GetBytes(json);
                 for (int i = 0; i < CasesPerSeedFile; i++)
                 {
-                    File.WriteAllBytes(path, MutateBytes(source, random));
-                    Run($"{name} bytes {i}", () => ProjectSerializer.Load(path), stats, path);
+                    byte[] bytes = MutateBytes(source, random);
+                    if (i % LoadEvery == 0)
+                    {
+                        File.WriteAllBytes(path, bytes);
+                        Run($"{name} bytes {i} (Load)", () => ProjectSerializer.Load(path), stats, path);
+                    }
+                    else
+                    {
+                        Run($"{name} bytes {i}", () => OpenBytes(bytes), stats, Encoding.UTF8.GetString(bytes));
+                    }
                 }
             }
 
@@ -171,6 +199,24 @@ public class ProjectReaderFuzzTests
         {
             Directory.Delete(dir, recursive: true);
         }
+    }
+
+    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    /// <summary>Lo mismo que <see cref="ProjectSerializer.Load"/> sin pasar por el disco.</summary>
+    private static Project OpenBytes(byte[] bytes)
+    {
+        string json;
+        try
+        {
+            json = StrictUtf8.GetString(bytes);
+        }
+        catch (DecoderFallbackException ex)
+        {
+            throw new ProjectFormatException("El archivo no es texto UTF-8, así que no es un proyecto de Rodaje.", ex);
+        }
+
+        return ProjectSerializer.Deserialize(json);
     }
 
     [Fact]
@@ -213,7 +259,8 @@ public class ProjectReaderFuzzTests
     [InlineData("\"texto\"")]
     [InlineData("{")]
     [InlineData("{\"schemaVersion\":3,\"schemaVersion\":3}")]
-    [InlineData("{\"schemaVersion\":4}")]
+    [InlineData("{\"schemaVersion\":5}")]
+    [InlineData("{\"schemaVersion\":2147483647}")]
     [InlineData("{\"schemaVersion\":99999999999999999999}")]
     [InlineData("{\"schemaVersion\":-1}")]
     [InlineData("{\"id\":\"p\"}")]
@@ -295,6 +342,8 @@ public class ProjectReaderFuzzTests
 
     private sealed class Stats
     {
+        private readonly Stopwatch _watch = Stopwatch.StartNew();
+
         public int Total { get; set; }
 
         public int Opened { get; set; }
@@ -314,6 +363,8 @@ public class ProjectReaderFuzzTests
         {
             string report = $"total {Total}: abrieron {Opened}, JSON mal formado {Parser}, tipos {Types}, UTF-8 {InvalidUtf8}, validador {Validator}, desbordamiento conocido {KnownOverflow}";
             Assert.True(Total >= MinimumCasesPerRun, $"Menos de {MinimumCasesPerRun} casos: {report}");
+            Assert.True(_watch.Elapsed < Budget, $"Tardó {_watch.Elapsed.TotalSeconds:F1} s (límite {Budget.TotalSeconds:F0} s): {report}");
+            Assert.True(KnownOverflow <= Total / 100, $"Demasiados desbordamientos conocidos ({KnownOverflow}): {report}");
             if (requireValidatorShare)
             {
                 double share = (Opened + Validator) / (double)Total;
@@ -378,7 +429,7 @@ public class ProjectReaderFuzzTests
                 case DecoderFallbackException:
                     stats.InvalidUtf8++;
                     break;
-                case OverflowException when inner.StackTrace?.Contains("Rodaje.Core.Timing.Time.op_", StringComparison.Ordinal) == true:
+                case OverflowException when inner.StackTrace?.Contains("TransitionOps.MaxDuration", StringComparison.Ordinal) == true:
                     // Defecto conocido y documentado en la prueba con Skip; se cuenta para no taparlo en silencio.
                     stats.KnownOverflow++;
                     break;
@@ -519,6 +570,7 @@ public class ProjectReaderFuzzTests
         var transitions = new List<JsonObject>();
         var withId = new List<JsonObject>();
         var sequences = new List<JsonObject>();
+        var keyframes = new List<JsonObject>();
         foreach (JsonObject media in Objects(root["media"]))
         {
             medias.Add(media);
@@ -539,6 +591,16 @@ public class ProjectReaderFuzzTests
                     clips.Add(clip);
                     withId.Add(clip);
                     withId.AddRange(Objects(clip["effects"]));
+                    foreach (JsonObject effect in Objects(clip["effects"]))
+                    {
+                        if (effect["parameters"] is JsonObject parameters)
+                        {
+                            foreach (JsonObject parameter in parameters.Select(p => p.Value).OfType<JsonObject>())
+                            {
+                                keyframes.AddRange(Objects(parameter["keyframes"]));
+                            }
+                        }
+                    }
                 }
             }
 
@@ -568,20 +630,22 @@ public class ProjectReaderFuzzTests
                 break;
             case 2 when withId.Count > 1:
                 // Ids repetidos entre entidades distintas (clips, medios, pistas, efectos, marcadores).
-                JsonObject a = withId[rng.Next(withId.Count)];
-                JsonObject b = withId[rng.Next(withId.Count)];
-                a["id"] = b["id"]?.DeepClone();
+                int first = rng.Next(withId.Count);
+                int second = (first + 1 + rng.Next(withId.Count - 1)) % withId.Count;
+                withId[first]["id"] = withId[second]["id"]?.DeepClone();
                 break;
             case 3:
             case 4:
                 // Tiempos enteros alterados: negativos, enormes, cercanos al valor original.
                 var timed = new List<JsonObject>(clips);
                 timed.AddRange(transitions);
+                timed.AddRange(keyframes);
                 if (timed.Count > 0)
                 {
                     JsonObject owner = timed[rng.Next(timed.Count)];
-                    string key = timeKeys[rng.Next(timeKeys.Length)];
-                    if (owner.ContainsKey(key) && owner[key] is JsonValue value && value.TryGetValue(out long current))
+                    string[] present = [.. timeKeys.Where(k => owner[k] is JsonValue)];
+                    string key = present.Length > 0 ? present[rng.Next(present.Length)] : "";
+                    if (key.Length > 0 && owner[key] is JsonValue value && value.TryGetValue(out long current))
                     {
                         long[] options = [-current, current + 1, current - 1, current * 2, 0, -1, long.MaxValue, long.MinValue, current + 705_600_000L];
                         owner[key] = options[rng.Next(options.Length)];
