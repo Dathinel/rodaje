@@ -199,3 +199,48 @@ Enlazar/desenlazar clips con un clic y «separar el audio» a su propia pista (c
 - **Lee:** `docs/pendientes.md` (funciones 5 y 8), D-020 (marcadores y regiones).
 
 Reemplazar el medio de un clip por otro conservando duración, efectos y keyframes (con aviso si el nuevo es más corto). Marcadores con nombre y color, y una lista para saltar entre ellos (doble clic va al marcador; edición de nombre y color), con el estilo de la app (D-027).
+
+## 20. Exportación en la CI de Windows (sin GPU)
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-ci`
+- **Caminos:** `tests/Rodaje.Media.Tests/Export/` (archivos nuevos), `.github/workflows/ci.yml` (solo si hace falta `ffmpeg.exe` en el runner), `docs/tareas/`.
+- **Lee:** `docs/fase-6.md`, `docs/arquitectura/medios.md` (sección «Salida de la exportación»), `src/Rodaje.Media/Export/FfmpegPipeSink.cs`, `src/Rodaje.Export/FfmpegArguments.cs`.
+
+Exportaciones cortas reales con fuentes `lavfi` por `FfmpegPipeSink` y `FfmpegArguments`, verificadas con `ExportVerifier`, con los codificadores que hay en un runner sin GPU: `h264_mf` (software), SVT-AV1, VP9, ProRes, DNxHR, FFV1, PNG; audio AAC/Opus/FLAC/PCM. Cancelación sin procesos vivos. Que corran en la CI de Windows (no se omiten por falta de GPU) y se omitan con causa concreta si falta `ffmpeg.exe`.
+
+## 21. Licencias de la exportación
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-licencias`
+- **Caminos:** `LICENCIAS.md`, `docs/legal.md`, `docs/tareas/`.
+- **Lee:** `docs/fase-6.md` (LGPL en la v1), `docs/ffmpeg-configure.txt`, `src/Rodaje.Media/Export/` (catálogo y codificadores).
+
+Por cada codificador y biblioteca que usa la exportación (SVT-AV1, libaom, libvpx, libopus, LAME, kvazaar, OpenH264, Media Foundation, NVENC/AMF/QSV, ProRes/DNxHR de FFmpeg): licencia, si se redistribuye, obligaciones (aviso, código fuente de FFmpeg LGPL, patentes de H.264/HEVC/AAC con el códec del sistema o de la GPU) y la lista de comprobación de publicación en `docs/legal.md`. Solo hechos verificables, con enlace a la fuente.
+
+## 22. Autoguardado y recuperación
+
+- **Estado:** pendiente
+- **Rama:** `claude/qdv-autoguardado`
+- **Caminos:** `src/Rodaje.App/Services/Autosave/` (nuevo), `src/Rodaje.Core/Serialization/` (archivos nuevos si hace falta), `tests/Rodaje.Core.Tests/` (archivos nuevos), el arranque de la App donde se ofrece recuperar (lo mínimo), `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` (función 30), `docs/formato-proyecto.md`, `docs/arquitectura/app.md`.
+
+Guardar una copia del proyecto cada N minutos y tras cambios (en segundo plano, escritura atómica, sin bloquear la edición) en `%LOCALAPPDATA%\Rodaje\Autoguardado`, con un historial de las últimas versiones; al abrir tras un cierre inesperado, ofrecer recuperar. Pruebas: escritura atómica, rotación del historial, detección de cierre inesperado.
+
+## 23. Zoom a la selección y ajustar a la ventana
+
+- **Estado:** pendiente
+- **Rama:** `claude/qdv-zoom`
+- **Caminos:** `src/Rodaje.App/Views/Timeline/Logic/` (archivos nuevos), `src/Rodaje.App/Services/Shortcuts/`, la barra de la línea de tiempo (lo mínimo), `tests/` de la lógica, `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` (función 9), `docs/arquitectura/app-vistas.md`.
+
+«Ajustar a la ventana» (todo el proyecto visible) y «zoom a la selección» (los clips elegidos llenan la vista), con atajos en los 3 estilos y animación corta. La lógica (cálculo de escala y desplazamiento) es pura y con pruebas.
+
+## 24. Plantillas de proyecto
+
+- **Estado:** pendiente
+- **Rama:** `claude/qdv-plantillas`
+- **Caminos:** `src/Rodaje.App/Services/Templates/` (nuevo), el diálogo de proyecto nuevo (lo mínimo), `tests/` de la lógica, `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` (función 33), PR #10 (pistas por defecto), `docs/formato-proyecto.md`.
+
+Al crear un proyecto: plantillas 16:9 1080p, 9:16 1080×1920 (TikTok/Reels/Shorts), 1:1, 4K, con fps y pistas; y «guardar como plantilla» desde el proyecto actual (formato, pistas, nombres de pista). Pruebas de la lógica.

@@ -23,7 +23,7 @@ La sesión local de Rodaje (en el PC de Daniel) mantiene una cola de tareas en [
 ## Trabajar con varios agentes (por defecto)
 
 Siempre se trabaja con varios agentes en paralelo, como hace la sesión local. No se hace una tarea entera en un solo hilo.
-- **Varias tareas a la vez:** elige hasta **3 tareas** que te toquen (primero las `cambios`, luego las `pendiente` en orden) cuyos caminos no se crucen, y lanza **un agente por tarea**, cada uno en su propio `git worktree` sobre su rama. Tú coordinas: no escribas tú el código de las tareas.
+- **Varias tareas a la vez:** elige hasta **5 tareas** que te toquen (primero las `cambios`, luego las `pendiente` en orden) cuyos caminos no se crucen, y lanza **un agente por tarea**, cada uno en su propio `git worktree` sobre su rama. Tú coordinas: no escribas tú el código de las tareas.
 - **Dentro de cada tarea:** el agente de la tarea puede lanzar los suyos (localizar código y leer la CI/entregas en paralelo; una parte independiente por agente en archivos distintos).
 - **Sin revisor por tarea:** basta con que compile, pasen las pruebas afectadas y la CI, y que los caminos sean los permitidos; comprueba en `origin/main` cada afirmación sobre el código antes de escribirla. La sesión local une los PR en verde sin vueltas de comentarios y hace una revisión independiente por bloques (cada ~4 PR o al cerrar una fase); lo que encuentre llega como tarea nueva.
 - **Cierre:** cada tarea con su PR y su entrega; tu resumen final lista todas.
