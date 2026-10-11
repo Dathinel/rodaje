@@ -105,6 +105,14 @@
           "Rodaje.Playback": "[1.0.0, )"
         }
       },
+      "rodaje.export": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Engine": "[1.0.0, )",
+          "Rodaje.Media": "[1.0.0, )",
+          "Rodaje.Render": "[1.0.0, )"
+        }
+      },
       "rodaje.media": {
         "type": "Project",
         "dependencies": {

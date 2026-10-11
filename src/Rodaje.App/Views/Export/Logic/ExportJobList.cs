@@ -36,7 +36,7 @@ public sealed class ExportEntry
 /// La cola de exportaciones: una a la vez (cada una con su copia del proyecto), las demás esperan. Los avisos de los
 /// trabajos llegan desde sus hilos y se pasan al de la interfaz; <see cref="Changed"/> salta siempre ahí.
 /// </summary>
-public sealed class ExportJobList(IExportRunner runner, SynchronizationContext? context) : IDisposable
+public sealed partial class ExportJobList(IExportRunner runner, SynchronizationContext? context) : IDisposable
 {
     private readonly List<ExportEntry> _entries = [];
     private int _pendingNotify;

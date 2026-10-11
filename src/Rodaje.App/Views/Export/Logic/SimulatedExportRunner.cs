@@ -10,7 +10,7 @@ namespace Rodaje.App.Views.Export;
 /// Doble de <see cref="IExportRunner"/> para la demo y las pruebas: recorre los estados de un trabajo real a un ritmo
 /// fijo, dibuja una miniatura de muestra y no escribe nada. La orquestación real (agente D) lo reemplaza.
 /// </summary>
-public sealed class SimulatedExportRunner(IReadOnlyList<EncoderSpec>? encoders = null) : IExportRunner
+public sealed partial class SimulatedExportRunner(IReadOnlyList<EncoderSpec>? encoders = null) : IExportRunner
 {
     public bool IsSimulation => true;
 
@@ -38,7 +38,7 @@ public sealed class SimulatedExportRunner(IReadOnlyList<EncoderSpec>? encoders =
         return job;
     }
 
-    private sealed class SimulatedJob(ExportRequest request, double fps, TimeSpan step, ExportException? failWith) : IExportJob
+    private sealed partial class SimulatedJob(ExportRequest request, double fps, TimeSpan step, ExportException? failWith) : IExportJob
     {
         private readonly CancellationTokenSource _cancel = new();
         private readonly Lock _gate = new();

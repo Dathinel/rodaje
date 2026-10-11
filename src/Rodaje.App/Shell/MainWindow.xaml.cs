@@ -11,6 +11,7 @@ using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Views.Export;
 using Rodaje.App.Views.Player;
 using Rodaje.App.Views.Plugins;
 using Rodaje.App.Views.Shortcuts;
@@ -50,6 +51,8 @@ internal sealed partial class MainWindow : Window, IShellHost
     private ShortcutsView? _shortcutsView;
     private NotificationAction? _notificationAction;
     private PluginsView? _pluginsView;
+    private ExportView? _exportView;
+    private readonly ExportJobList _exports;
     private IDisposable? _pageShortcuts;
     private bool _activatedOnce;
     private bool _allowClose;
@@ -85,12 +88,16 @@ internal sealed partial class MainWindow : Window, IShellHost
         _ = _visuals.TrimDiskCacheAsync();
         var packages = new PackageService(PackageService.DefaultLocations(), PackageService.LoadBundledCatalog(), instances: _instance);
         IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
-        _services = new EditorServices(session, _router, settings, engine, this) { Visuals = _visuals, Packages = packages, Content = content };
+        // La orquestación real (agente D de la fase 6) reemplaza la simulación aquí.
+        _exports = new ExportJobList(new SimulatedExportRunner(), SynchronizationContext.Current);
+        _services = new EditorServices(session, _router, settings, engine, this)
+        {
+            Visuals = _visuals, Packages = packages, Content = content, Exports = _exports,
+        };
         engine.SetContent(content);
         MissingContent.Attach(session, packages);
         _bindings.Add(EditorShortcuts.Bind(_router, session));
-        _bindings.Add(_router.Bind(ActionIds.Export, () => session.Notify(NotificationSeverity.Informational, "Exportar",
-            "La exportación llega en la fase 6. Por ahora puedes guardar el proyecto.")));
+        _bindings.Add(_router.Bind(ActionIds.Export, () => ShowPage(ShellPage.Export)));
         _bindings.Add(_router.Bind(ActionIds.ShowShortcuts, () => ShowPage(ShellPage.Shortcuts)));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _keyboard = new KeyboardShortcutHost(Root, _router, InterceptKey);
@@ -179,6 +186,10 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     internal Views.Inspector.InspectorView InspectorPane => Inspector;
 
+    internal ExportView? ExportPage => _exportView;
+
+    internal ExportJobList Exports => _exports;
+
     public void ShowPage(ShellPage page)
     {
         UserControl view;
@@ -192,6 +203,19 @@ internal sealed partial class MainWindow : Window, IShellHost
 
             view = _shortcutsView;
             ModalTitle.Text = "Atajos de teclado";
+        }
+        else if (page == ShellPage.Export)
+        {
+            if (_exportView is null)
+            {
+                _exportView = new ExportView(_services, _exports, _hwnd);
+                _exportView.CloseRequested += (_, _) => ClosePage();
+                _exportView.Started += (_, entry) => OnExportStarted(entry);
+            }
+
+            view = _exportView;
+            ModalTitle.Text = "Exportar";
+            _ = OpenExportAsync(_exportView);
         }
         else
         {
@@ -250,6 +274,30 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
         Player.SetFullScreen(fullScreen);
+    }
+
+    private async Task OpenExportAsync(ExportView view)
+    {
+        try
+        {
+            await view.OpenAsync();
+        }
+#pragma warning disable CA1031 // Si la sonda o el diálogo fallan, se avisa y el editor sigue.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            Program.WriteCrash(ex.ToString());
+            ClosePage();
+            ReportUnexpectedError(ex.Message);
+        }
+    }
+
+    private void OnExportStarted(ExportEntry entry)
+    {
+        Inspector.Show(Views.Inspector.InspectorView.Tab.Jobs);
+        string mode = entry.Request.Settings.Performance == Rodaje.Export.ExportPerformance.Fastest ? "con alto rendimiento" : "en segundo plano";
+        Session.Notify(NotificationSeverity.Informational, "Exportando",
+            $"«{entry.Title}» se exporta {mode}; puedes seguir editando. El avance está en Trabajos.");
     }
 
     private bool InterceptKey(KeyChord chord)
@@ -608,6 +656,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         {
         }
 
+        _exports.Dispose();
         _engine.Dispose();
         _visuals.Dispose();
         _instance.Dispose();
