@@ -357,18 +357,22 @@ public sealed class RippleTrimTests
     }
 
     [Fact]
-    public void Falla_si_un_enlazado_mas_largo_choca_con_un_vecino_que_no_se_corre()
+    public void Un_enlazado_de_otro_largo_corre_su_pista_desde_su_propio_final()
     {
-        // El audio enlazado termina antes que el video, así que su vecino empieza antes del punto
-        // desde el que se corre y no se mueve.
+        // Decisión de la fase 5c: cada pista del grupo se corre desde el final de su propio clip.
         var f = new TrimFixture()
             .Add("v1", "c1", "m1", 0, 50, 0, link: "L1")
+            .Add("v1", "c2", "m2", 0, 10, 50)
             .Add("a1", "s1", "m1", 0, 40, 0, link: "L1")
             .Add("a1", "s2", "m3", 0, 10, 40);
 
-        AssertFails(
-            () => TimelineEdits.RippleTrim(f.Ctx, "c1", TrimEdge.Out, F(5), RippleScope.Track),
-            "«s1» chocaría con el clip «s2»");
+        TimelineEdits.RippleTrim(f.Ctx, "c1", TrimEdge.Out, F(5), RippleScope.Track);
+
+        f.AssertClip("c1", 0, 55, 0);
+        f.AssertClip("c2", 0, 10, 55);
+        f.AssertClip("s1", 0, 45, 0);
+        f.AssertClip("s2", 0, 10, 45);
+        f.AssertValid();
     }
 
     [Fact]

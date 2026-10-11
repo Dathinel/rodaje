@@ -51,11 +51,14 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>Recorta y corre lo que viene después; en el borde de entrada el clip no cambia de inicio.</summary>
+    /// <summary>
+    /// Recorta y corre lo que viene después; en el borde de entrada el clip no cambia de inicio. Con
+    /// <see cref="RippleScope.Track"/> cada pista del grupo se corre desde el final de su propio clip.
+    /// </summary>
     public static void RippleTrim(EditContext ctx, string clipId, TrimEdge edge, Time delta, RippleScope scope)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
-        Time originalEnd = group[0].Clip.End;
+        List<Time> originalEnds = group.ConvertAll(m => m.Clip.End);
 
         List<TrimPlan> plans = group.ConvertAll(m =>
         {
@@ -73,9 +76,12 @@ public static partial class TimelineEdits
         TrimmingSupport.CheckBounds(ctx, plans);
         TrimmingSupport.Apply(plans);
 
+        // En una pista, cada miembro corre lo suyo desde su propio final: los enlazados pueden tener distinto largo.
         Time shift = edge == TrimEdge.In ? -delta : delta;
-        List<Track> editedTracks = plans.ConvertAll(p => p.Track);
-        IReadOnlyList<Track> shifted = ctx.RippleShift(editedTracks, originalEnd, shift, scope, new HashSet<Clip>(plans.Select(p => p.Clip)));
+        var edited = new HashSet<Clip>(plans.Select(p => p.Clip));
+        IReadOnlyList<Track> shifted = scope.IncludesAllTracks()
+            ? ctx.RippleShift(plans.ConvertAll(p => p.Track), originalEnds[0], shift, scope, edited)
+            : ctx.RippleEach(plans.Select((p, i) => (p.Track, originalEnds[i], shift)), edited);
 
         TrimmingSupport.EnsureNoOverlaps(scope.IncludesAllTracks() ? ctx.Sequence.AllTracks : shifted);
         ctx.EnsureValid();
