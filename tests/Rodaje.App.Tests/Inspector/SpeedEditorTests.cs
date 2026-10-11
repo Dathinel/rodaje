@@ -66,9 +66,9 @@ public class SpeedEditorTests
 
         public Clip SecondAudio => Session.Sequence.AudioTracks[0].Clips[1];
 
-        public static async Task<Harness> TwoClips()
+        public static async Task<Harness> TwoClips(double first = 10)
         {
-            var session = new EditorSession(new FakePlayback(), new FakeProber().Video("a.mp4", 10).Video("b.mp4", 10), new FakeDialogs(), new SequentialIdGenerator());
+            var session = new EditorSession(new FakePlayback(), new FakeProber().Video("a.mp4", first).Video("b.mp4", 10), new FakeDialogs(), new SequentialIdGenerator());
             await session.OpenFilesAsync([Path.GetFullPath("a.mp4"), Path.GetFullPath("b.mp4")]);
             var harness = new Harness(session);
             session.Select([harness.Video.Id]);
@@ -374,5 +374,41 @@ public class SpeedEditorTests
         Assert.True(h.Session.Undo());
         Assert.Null(h.Video.Speed);
         Assert.Equal((S(10), S(10)), (h.Video.Duration, h.Second.Start));
+    });
+
+    [Fact]
+    public void Arrastre_CadaPasoParteDelInicio_SoltarDaElMismoMaterialQueUnSoloCambio() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips(first: 10.37);
+        Rational final = SpeedMath.FromSlider(530);
+        Assert.True(h.Editor.SetRate(final));
+        var expected = (h.Video.SourceIn, h.Video.SourceOut, h.Video.Duration, h.Audio.SourceOut, h.Audio.Duration, h.Second.Start);
+        Assert.True(h.Session.Undo());
+        int steps = h.Session.History.Count;
+
+        h.Editor.BeginChange();
+        for (int i = 0; i <= 42; i++)
+        {
+            Assert.True(h.Editor.Change(SpeedMath.FromSlider(i * SpeedMath.SliderMax / 42)));
+        }
+
+        Assert.Equal(new Rational(100, 1), h.Video.Speed!.Rate);
+        Assert.True(h.Editor.Change(final));
+        h.Editor.EndChange();
+
+        Assert.Equal(expected, (h.Video.SourceIn, h.Video.SourceOut, h.Video.Duration, h.Audio.SourceOut, h.Audio.Duration, h.Second.Start));
+        Assert.Equal(steps + 1, h.Session.History.Count);
+
+        // Ir y volver a la velocidad de partida deja el clip exactamente como estaba.
+        h.Editor.BeginChange();
+        Assert.True(h.Editor.Change(new Rational(7, 1)));
+        Assert.True(h.Editor.Change(final));
+        h.Editor.EndChange();
+        Assert.Equal(expected, (h.Video.SourceIn, h.Video.SourceOut, h.Video.Duration, h.Audio.SourceOut, h.Audio.Duration, h.Second.Start));
+
+        Assert.True(h.Session.Undo());
+        Assert.True(h.Session.Undo());
+        Assert.Null(h.Video.Speed);
+        Assert.Equal((S(0), S(10.37)), (h.Video.SourceIn, h.Video.SourceOut));
     });
 }

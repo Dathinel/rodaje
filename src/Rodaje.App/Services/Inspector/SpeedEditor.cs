@@ -1,4 +1,5 @@
 using Rodaje.Core.Commands;
+using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
@@ -125,7 +126,7 @@ public sealed class SpeedEditor
         }
 
         Session.BeginGesture("Cambiar velocidad");
-        _drag = new Drag(clip.Id);
+        _drag = new Drag(clip.Id, SequenceSnapshot.Capture(Session.Sequence), Read(clip));
     }
 
     /// <summary>Aplica la velocidad del arrastre en curso; <c>false</c> si no se pudo (y la sesión ya avisó).</summary>
@@ -141,8 +142,14 @@ public sealed class SpeedEditor
             return true;
         }
 
+        // Cada paso parte del estado del inicio del gesto: encadenarlos llevaría el final al cuadro una y otra vez y el
+        // material iría variando. Volver a la velocidad de partida es dejar el clip como estaba.
+        ICommand? step = drag.StartState is { HasCurve: false } start && start.Rate == rate
+            ? null
+            : Commands.SetSpeed(Session.SequenceId, drag.ClipId, rate, Session.SpeedRipples(drag.ClipId));
+
         // Si un paso falla (pista bloqueada, largo máximo), el resto del arrastre no insiste ni repite el aviso.
-        drag.Failed = !Session.Execute(Commands.SetSpeed(Session.SequenceId, drag.ClipId, rate, Session.SpeedRipples(drag.ClipId)));
+        drag.Failed = !Session.Execute(new FromGestureStart(Session.SequenceId, drag.Start, step));
         return !drag.Failed;
     }
 
@@ -268,8 +275,62 @@ public sealed class SpeedEditor
         }
     }
 
-    private sealed record Drag(string ClipId, bool Grouped = true)
+    private sealed record Drag(string ClipId, SequenceSnapshot Start, SpeedState StartState, bool Grouped = true)
     {
         public bool Failed { get; set; }
+    }
+
+    /// <summary>Un paso del arrastre: vuelve la secuencia al inicio del gesto y aplica ahí <c>step</c> (nada si es nulo).</summary>
+    private sealed class FromGestureStart(string sequenceId, SequenceSnapshot start, ICommand? step) : ICommand
+    {
+        private SequenceSnapshot? _before;
+        private SequenceSnapshot? _after;
+
+        private SequenceSnapshot Start { get; } = start;
+
+        public string Description => step?.Description ?? "Cambiar velocidad";
+
+        public void Apply(Project project)
+        {
+            Sequence sequence = FindSequence(project);
+            if (_after is not null)
+            {
+                _after.Restore(sequence);
+                return;
+            }
+
+            SequenceSnapshot before = SequenceSnapshot.Capture(sequence);
+            try
+            {
+                Start.Restore(sequence);
+                step?.Apply(project);
+            }
+            catch
+            {
+                before.Restore(sequence);
+                throw;
+            }
+
+            _before = before;
+            _after = SequenceSnapshot.Capture(sequence);
+        }
+
+        public void Revert(Project project) =>
+            (_before ?? throw new InvalidOperationException("No se puede revertir un paso que no se aplicó.")).Restore(FindSequence(project));
+
+        // Los pasos de un mismo arrastre se funden: el último ya contiene todo el cambio desde el inicio.
+        public bool TryMerge(ICommand following)
+        {
+            if (following is not FromGestureStart next || !ReferenceEquals(next.Start, Start) || _after is null || next._after is null)
+            {
+                return false;
+            }
+
+            _after = next._after;
+            return true;
+        }
+
+        private Sequence FindSequence(Project project) =>
+            project.FindSequence(sequenceId) ?? throw new EditException($"La secuencia «{sequenceId}» ya no está en el proyecto.");
     }
 }
