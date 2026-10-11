@@ -14,7 +14,7 @@ public sealed record TransitionDrag(string Type, string Preset)
 {
     /// <summary>
     /// Formato del arrastre desde la biblioteca hacia un corte. El texto es la referencia del elemento: el tipo de una
-    /// transición propia (<c>rodaje.wipe</c>) o la referencia de un paquete (<c>rodaje-esenciales@1.0.0/barrido-suave</c>).
+    /// transición propia (<c>rodaje.wipe</c>) o la referencia de un paquete (<c>rodaje-transiciones@1.0.0/barrido-suave</c>).
     /// El arrastre también lleva <see cref="LibraryElement.DragFormat"/> con el mismo texto.
     /// </summary>
     public const string DragFormat = "rodaje/transicion";

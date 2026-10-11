@@ -69,7 +69,7 @@ internal sealed class FakeContentLoader : IContentLoader
 
 public class EffectContentTests
 {
-    private const string Look = "rodaje-esenciales@1.0.0/look-calido";
+    private const string Look = "rodaje-filtros@1.0.0/look-calido";
 
     [Fact]
     public async Task Lut_SeCargaFueraDelHilo_YLuegoSaleDeLaCache()

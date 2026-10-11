@@ -54,7 +54,7 @@ Plan del 10 de octubre de 2026, aprobado por Daniel: transiciones centradas en e
 | `transition` | `rodaje.preset` v2: curvas de salida y entrada más una mezcla; el v1 de «Guardar como transición» se sigue leyendo |
 | `text-style` | Fase 5b |
 
-Filtros y efectos se **copian** al proyecto al aplicarlos; LUT y transiciones se **referencian**. Si falta el paquete: sin LUT, la transición cae a fundido cruzado y se avisa. Primer paquete propio: `rodaje-esenciales` con 8 transiciones y 8 looks con LUT generados por fórmulas propias.
+Filtros y efectos se **copian** al proyecto al aplicarlos; LUT y transiciones se **referencian**. Si falta el paquete: sin LUT, la transición cae a fundido cruzado y se avisa. Primeros paquetes propios, en repos aparte (`Dathinel/rodaje-transiciones` y `Dathinel/rodaje-filtros`, CC0): transiciones y looks con LUT generados por fórmulas propias.
 
 ### Audio
 
@@ -69,7 +69,7 @@ Ganancia del clip y de la pista con keyframes, fundidos de potencia constante y 
 | A. Núcleo y formato | `Rodaje.Core`, `schema/`, `formato-proyecto.md` | Migración, validador, `Reconcile`, comandos de transición, pruebas de propiedades |
 | B. Render | `Rodaje.Render` | Pool, efectos, mezcla, transiciones, LUT, caché de shaders, rendimiento 4K |
 | C. Motor | `Rodaje.Engine` | Plan de efectos sin reservas, carriles de transición, ganancia en el mezclador |
-| D. Paquetes | `Rodaje.Paquetes`, `contenido/`, `formato-paquete.md` | Lectores, fuzz de `.cube`, `PackageContentStore`, `rodaje-esenciales` |
+| D. Paquetes | `Rodaje.Paquetes`, `contenido/`, `formato-paquete.md` | Lectores, fuzz de `.cube`, `PackageContentStore`, `rodaje-filtros` y `rodaje-transiciones` (repos aparte) |
 | E. Inspector y biblioteca | `Services/Inspector`, `Views/Inspector`, `Services/Packages`, `Views/Library` | Filtros con parámetros, mezcla, LUT, volumen con keyframes, aplicar paquetes |
 | F. Línea de tiempo y reproductor | `Views/Timeline`, `Views/Player`, `Shell`, sesión y ajustes | Soltar transiciones, manijas de duración, fundido automático, envolvente, calidad de vista previa, medición |
 
@@ -92,7 +92,7 @@ Orden de unión: A → D → B → C → E → F, después integración y verifi
 
 - **App:** 1080p con 3 capas con efectos y 4 transiciones, 0 cuadros perdidos; mover un deslizador de color al reproducir se ve en ≤20 ms.
 - **Audio:** −6 dB = 0,501 ±0,001; fundido cruzado mantiene la potencia ±0,5 dB; sin saltos de más de 0,1 dB.
-- **Paquetes:** 1000 `.cube` aleatorios no tumban el lector; 65³ en ≤150 ms; `rodaje-esenciales` instala, aplica y, si se desinstala, el proyecto abre con aviso.
+- **Paquetes:** 1000 `.cube` aleatorios no tumban el lector; 65³ en ≤150 ms; `rodaje-filtros` y `rodaje-transiciones` instalan, se aplican y, si se desinstalan, el proyecto abre con aviso.
 
 ## Medido en la integración (10 de octubre, RTX 3050 Laptop)
 

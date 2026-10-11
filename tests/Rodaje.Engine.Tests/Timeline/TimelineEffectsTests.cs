@@ -255,8 +255,12 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
         Assert.InRange(transitions, 88, 92);
     }
 
+    /// <summary>
+    /// Con 8 capas, cuatro efectos por capa no suman ni un byte a lo que ya reserva cada <c>Tick</c> sin efectos
+    /// (~2,8 KB por las clases <c>LayerFrame</c>/<c>CompositionFrame</c> del contrato), y el <c>Tick</c> sigue en ≤0,3 ms.
+    /// </summary>
     [Fact]
-    public void Evaluating_effects_reserves_no_memory_per_tick_and_stays_under_the_budget()
+    public void Effects_add_no_bytes_to_what_each_tick_already_reserves_and_stay_under_the_budget()
     {
         const int Layers = 8;
         (long plainBytes, _) = MeasureTicks(Layers, effects: false);
@@ -265,7 +269,8 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
         output.WriteLine($"MEDIDA tick_bytes_con_efectos = {effectBytes}");
         output.WriteLine($"MEDIDA tick_mediana_ms_8x4 = {medianMs:F3}");
 
-        Assert.Equal(plainBytes, effectBytes);
+        Assert.True(plainBytes == effectBytes,
+            $"Los efectos suman {effectBytes - plainBytes} B por Tick a los {plainBytes} B que ya reserva el contrato sin efectos.");
         Assert.True(medianMs <= 0.3, $"Tick con 8 capas y 4 efectos: {medianMs:F3} ms de mediana.");
     }
 

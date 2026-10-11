@@ -8,7 +8,7 @@ namespace Rodaje.Core.Tests.Model;
 /// <summary>Reglas del formato 3 que dependen del registro: tipos, opciones, efectos de pista y duración de transiciones.</summary>
 public class RegistryValidationTests
 {
-    private const string Reference = "rodaje-esenciales@1.0.0/calido";
+    private const string Reference = "rodaje-filtros@1.0.0/calido";
 
     private static Track V1(Project p) => Seq(p).VideoTracks[0];
 
@@ -103,7 +103,7 @@ public class RegistryValidationTests
     [InlineData(BuiltInEffects.Color, BuiltInEffects.ColorOptions.Lut, "file:luts/a|b.cube", false)]
     [InlineData(BuiltInEffects.Color, BuiltInEffects.ColorOptions.Lut, "file:luts/a\tb.cube", false)]
     [InlineData(BuiltInEffects.Vignette, BuiltInEffects.CommonOptions.Source, "file:luts/x.cube", false)]
-    [InlineData(BuiltInEffects.Vignette, BuiltInEffects.CommonOptions.Source, "rodaje-esenciales@2.1.0-beta.1/vineta", true)]
+    [InlineData(BuiltInEffects.Vignette, BuiltInEffects.CommonOptions.Source, "rodaje-filtros@2.1.0-beta.1/vineta", true)]
     [InlineData(BuiltInEffects.Vignette, BuiltInEffects.CommonOptions.Source, "", false)]
     [InlineData(BuiltInEffects.Vignette, "futura", "se conserva", true)]
     [InlineData("otro.efecto", BuiltInEffects.BlendOptions.Mode, "lo que sea", true)]
@@ -176,7 +176,7 @@ public class RegistryValidationTests
     }
 
     [Theory]
-    [InlineData("rodaje-esenciales@1.0.0/calido", true)]
+    [InlineData("rodaje-filtros@1.0.0/calido", true)]
     [InlineData("a@0/b", true)]
     [InlineData("pack.uno@1.2.3+build.5/item-2", true)]
     [InlineData("", false)]

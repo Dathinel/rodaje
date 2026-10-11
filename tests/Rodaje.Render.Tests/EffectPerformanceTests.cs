@@ -85,7 +85,9 @@ public sealed class EffectPerformanceTests(ITestOutputHelper output)
 
     [GpuTheory]
     [InlineData(BuiltInTransitions.Crossfade)]
+    [InlineData(BuiltInTransitions.Dip)]
     [InlineData(BuiltInTransitions.Wipe)]
+    [InlineData(BuiltInTransitions.Push)]
     [InlineData(BuiltInTransitions.ZoomDissolve)]
     [InlineData(BuiltInTransitions.BlurDissolve)]
     public void A_4k_transition_with_effects(string type)
@@ -164,7 +166,7 @@ public sealed class EffectPerformanceTests(ITestOutputHelper output)
         }
 
         Assert.True(times.Count >= Measured / 2, "Demasiadas mediciones disjuntas de la GPU.");
-        Assert.Equal(0, result.EffectsSkipped);
+        Assert.Equal((0, 0), (result.MissingContent, result.EffectsSkipped));
         Assert.True(result.PoolBytes <= compositor.PoolCapBytes);
         times.Sort();
         double median = times[times.Count / 2];

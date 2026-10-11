@@ -111,7 +111,7 @@ internal static class SerializationSamples
                                             Id = "effect-2",
                                             Type = "rodaje.blur",
                                             Enabled = false,
-                                            Options = new() { ["source"] = "rodaje-esenciales@1.0.0/suave", ["nota"] = "ñandú" },
+                                            Options = new() { ["source"] = "rodaje-filtros@1.0.0/suave", ["nota"] = "ñandú" },
                                         },
                                     ],
                                 },

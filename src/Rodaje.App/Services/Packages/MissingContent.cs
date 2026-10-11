@@ -43,12 +43,49 @@ public static class MissingContent
         return $"Faltan {packages}. Mientras no se instalen, sus LUT no se aplican y sus transiciones se ven como fundido cruzado. Se instalan desde Complementos.";
     }
 
-    /// <summary>Avisa en la sesión cada vez que se abre un proyecto al que le faltan paquetes. Desde el hilo de la interfaz.</summary>
+    /// <summary>
+    /// Avisa en la sesión cada vez que se abre un proyecto al que le faltan paquetes, y cuando al proyecto abierto le
+    /// empiezan a faltar porque se desinstalaron. Desde el hilo de la interfaz.
+    /// </summary>
     public static void Attach(EditorSession session, PackageService packages)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(packages);
-        session.ProjectOpened += (_, _) => _ = CheckAsync(session, packages);
+        HashSet<string> warned = new(StringComparer.Ordinal);
+        bool opening = false;
+        session.ProjectOpened += (_, _) => _ = OpenedAsync();
+        packages.Changed += (_, _) =>
+        {
+            if (opening)
+            {
+                return;
+            }
+
+            IReadOnlyList<PackageReference> missing = Find(session.Project, packages.Installed);
+            List<PackageReference> fresh = [.. missing.Where(r => !warned.Contains(r.ToString()))];
+            warned.Clear();
+            warned.UnionWith(missing.Select(r => r.ToString()));
+            if (fresh.Count > 0)
+            {
+                session.Notify(NotificationSeverity.Warning, "Faltan paquetes", Describe(fresh));
+            }
+        };
+
+        // La primera lectura de lo instalado avisa de Changed: mientras se comprueba al abrir no se avisa dos veces.
+        async Task OpenedAsync()
+        {
+            opening = true;
+            try
+            {
+                IReadOnlyList<PackageReference> missing = await CheckAsync(session, packages);
+                warned.Clear();
+                warned.UnionWith(missing.Select(r => r.ToString()));
+            }
+            finally
+            {
+                opening = false;
+            }
+        }
     }
 
     /// <summary>Avisa si al proyecto abierto le faltan paquetes; si todavía no se leyó lo instalado, lo lee antes.</summary>

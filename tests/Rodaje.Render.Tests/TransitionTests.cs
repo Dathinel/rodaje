@@ -82,14 +82,73 @@ public sealed class TransitionTests
         using Compositor compositor = Ready(gpu);
         var a = new RgbaImage(Render(compositor, Outgoing(gpu)), Width, Height);
         var b = new RgbaImage(Render(compositor, Incoming(gpu)), Width, Height);
-        EffectValues values = default;
-        values[0] = direction;
-        var image = new RgbaImage(Render(compositor, WithTransition(gpu, T.Push, 0.5f, values)), Width, Height);
+        var image = new RgbaImage(Render(compositor, WithTransition(gpu, T.Push, 0.5f, PushValues(direction))), Width, Height);
 
         // A la mitad, el saliente se corrió medio cuadro: su píxel 128 + x quedó en x (izquierda) o en x − 128 (derecha).
         int shift = direction == 0 ? 128 : -128;
         Assert.Equal(a.At(outgoingX + shift, 64), image.At(outgoingX, 64));
         Assert.Equal(b.At(incomingX - shift, 64), image.At(incomingX, 64));
+    }
+
+    /// <summary>
+    /// Arriba (2) y abajo (3), en la columna 128, donde el entrante tiene franjas horizontales: a la mitad, el entrante
+    /// asoma medio cuadro (64 filas) por el lado contrario al que sale el saliente.
+    /// </summary>
+    [GpuTheory]
+    [InlineData(2, 20, 100)]
+    [InlineData(3, 100, 20)]
+    public void Push_up_and_down_move_the_clips_vertically(int direction, int outgoingY, int incomingY)
+    {
+        using GpuDevice gpu = GpuDevice.Create();
+        using Compositor compositor = Ready(gpu);
+        var a = new RgbaImage(Render(compositor, Outgoing(gpu)), Width, Height);
+        var b = new RgbaImage(Render(compositor, Incoming(gpu)), Width, Height);
+        var image = new RgbaImage(Render(compositor, WithTransition(gpu, T.Push, 0.5f, PushValues(direction))), Width, Height);
+
+        int shift = direction == 2 ? 64 : -64;
+        Assert.Equal(a.At(128, outgoingY + shift), image.At(128, outgoingY));
+        Assert.Equal(b.At(128, incomingY - shift), image.At(128, incomingY));
+        Assert.NotEqual(b.At(128, incomingY), image.At(128, incomingY));
+    }
+
+    /// <summary>
+    /// A la mitad, frente a la fórmula en la CPU aplicada a cada lado compuesto solo (sobre negro, o sea premultiplicado,
+    /// con la croma ya interpolada): el zoom achica el muestreo hacia el centro y el desenfoque es la misma pirámide.
+    /// </summary>
+    [GpuTheory]
+    [InlineData(T.ZoomDissolve)]
+    [InlineData(T.BlurDissolve)]
+    public void Zoom_and_blur_dissolve_at_half_match_the_cpu_reference(string type)
+    {
+        using GpuDevice gpu = GpuDevice.Create();
+        using Compositor compositor = Ready(gpu);
+        var image = new RgbaImage(Render(compositor, WithTransition(gpu, type, 0.5f)), Width, Height);
+
+        double amount = EffectRegistry.Find(type)!.Parameters[0].DefaultValue;
+        FloatImage a = Premultiplied(Render(compositor, Outgoing(gpu)));
+        FloatImage b = Premultiplied(Render(compositor, Incoming(gpu)));
+        double scale = 1;
+        if (type == T.ZoomDissolve)
+        {
+            scale = 1 + amount;
+        }
+        else
+        {
+            a = a.Blur(amount / 3);
+            b = b.Blur(amount / 3);
+        }
+
+        for (int y = 0; y < Height; y++)
+        {
+            for (int x = 0; x < Width; x++)
+            {
+                double u = 0.5 + ((((x + 0.5) / Width) - 0.5) / scale);
+                double v = 0.5 + ((((y + 0.5) / Height) - 0.5) / scale);
+                (C3 outgoing, _) = a.Sample(u, v);
+                (C3 incoming, _) = b.Sample(u, v);
+                image.AssertColor(x, y, C3.Mix(outgoing, incoming, 0.5).Map(EffectReference.Saturate).To255());
+            }
+        }
     }
 
     [GpuFact]
@@ -135,6 +194,19 @@ public sealed class TransitionTests
         compositor.Render(frame);
         return compositor.ReadbackRgba();
     }
+
+    private static EffectValues PushValues(int direction)
+    {
+        EffectValues values = default;
+        values[0] = direction;
+        return values;
+    }
+
+    private static FloatImage Premultiplied(byte[] rgba) => FloatImage.FromColors(Width, Height, (x, y) =>
+    {
+        int i = ((y * Width) + x) * 4;
+        return new C3(rgba[i] / 255.0, rgba[i + 1] / 255.0, rgba[i + 2] / 255.0);
+    });
 
     /// <summary>Saliente: degradado horizontal de 8 franjas a cuadro completo.</summary>
     private static LayerFrame Outgoing(GpuDevice gpu, IReadOnlyList<LayerEffect>? effects = null, LayerTransition? transition = null)
