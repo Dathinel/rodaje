@@ -16,6 +16,7 @@ namespace Rodaje.Render.Tests;
 /// objetivos son de la RTX 3050 Laptop: solo se exigen con <c>RODAJE_PRUEBAS_LARGAS=1</c>; sin ella, solo se informan
 /// y se detecta una regresión grave.
 /// </summary>
+[Trait("Categoria", "Rendimiento")]
 public sealed class EffectPerformanceTests(ITestOutputHelper output)
 {
     private const int Warmup = 30;

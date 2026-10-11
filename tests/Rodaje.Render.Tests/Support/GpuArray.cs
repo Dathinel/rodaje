@@ -4,7 +4,7 @@ using TerraFX.Interop.DirectX;
 namespace Rodaje.Render.Tests.Support;
 
 /// <summary>
-/// Motivo para omitir las pruebas que crean un arreglo de texturas NV12/P010 (<c>D3D11_BIND_DECODER</c>, ver
+/// Motivo para omitir las pruebas que crean un arreglo de texturas NV12 (<c>D3D11_BIND_DECODER</c>, ver
 /// <see cref="YuvImage.CreateTexture"/>): <c>null</c> si el dispositivo lo admite. Se suma a la guardia de muestreo
 /// de <see cref="GpuFactAttribute"/>; el adaptador WARP muestrea NV12 pero rechaza el bind de decodificador.
 /// </summary>
@@ -28,7 +28,8 @@ internal static class GpuArray
         }
 
         var device = (ID3D11Device*)gpu.NativeDevice;
-        foreach (DXGI_FORMAT format in new[] { DXGI_FORMAT.DXGI_FORMAT_NV12, DXGI_FORMAT.DXGI_FORMAT_P010 })
+        // Todos los arreglos de las pruebas son NV12; P010 solo se usa en texturas de una capa.
+        foreach (DXGI_FORMAT format in new[] { DXGI_FORMAT.DXGI_FORMAT_NV12 })
         {
             uint support;
             uint needed = (uint)D3D11_FORMAT_SUPPORT.D3D11_FORMAT_SUPPORT_DECODER_OUTPUT;
