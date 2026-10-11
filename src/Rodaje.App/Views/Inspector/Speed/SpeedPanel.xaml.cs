@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Microsoft.UI.Xaml.Automation;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Shared;
 using Rodaje.Core.Model;
@@ -173,6 +174,8 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         Refresh();
     }
 
+    private const string EmptyHint = "Selecciona un clip en la línea de tiempo para cambiar su velocidad.";
+
     private void Refresh()
     {
         if (_editor is not { } editor)
@@ -187,16 +190,18 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         }
 
         _clipId = clip?.Id;
-        EmptyText.Visibility = clip is null ? Visibility.Visible : Visibility.Collapsed;
-        Body.Visibility = clip is null ? Visibility.Collapsed : Visibility.Visible;
-        if (clip is null)
+        bool title = clip?.Generator is not null;
+        EmptyText.Text = title ? ClipLabels.NoMaterial : EmptyHint;
+        EmptyText.Visibility = clip is null || title ? Visibility.Visible : Visibility.Collapsed;
+        Body.Visibility = clip is null || title ? Visibility.Collapsed : Visibility.Visible;
+        if (clip is null || title)
         {
             return;
         }
 
         SpeedState state = editor.Read(clip);
         _updating = true;
-        ClipTitle.Text = editor.Session.Project.FindMedia(clip.MediaId)?.Name ?? "";
+        ClipTitle.Text = ClipLabels.Name(editor.Session.Project, clip);
         ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
         if (!editor.IsChanging)
         {

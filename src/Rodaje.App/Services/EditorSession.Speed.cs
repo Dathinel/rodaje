@@ -91,7 +91,7 @@ public sealed partial class EditorSession
             : MainTrack?.ClipAt(at) is { } under ? [under.Id] : [];
         foreach (string id in candidates)
         {
-            if (sequence.FindClip(id) is not { } found || found.Track.Kind != TrackKind.Video || found.Clip.Speed is { Freeze: true }
+            if (sequence.FindClip(id) is not { } found || found.Track.Kind != TrackKind.Video || found.Clip.Speed is { Freeze: true } || found.Clip.Generator is not null
                 || at < found.Clip.Start || at >= found.Clip.End)
             {
                 continue;
@@ -114,7 +114,7 @@ public sealed partial class EditorSession
     public bool ToggleReverse()
     {
         VerifyAccess();
-        List<string> targets = SpeedTargets().FindAll(id => Sequence.FindClip(id) is { } found && found.Clip.Speed is not { Freeze: true });
+        List<string> targets = SpeedTargets().FindAll(id => Sequence.FindClip(id) is { } found && found.Clip.Generator is null && found.Clip.Speed is not { Freeze: true });
         if (targets.Count == 0)
         {
             return false;
@@ -158,7 +158,8 @@ public sealed partial class EditorSession
     /// </summary>
     public RippleScope SpeedScope => Timeline.RippleScope;
 
-    private static bool Retimable(Clip clip) => clip.Speed is not { Freeze: true } and not { Curve: not null };
+    // Un título no tiene material: ni velocidad, ni congelar, ni invertir.
+    private static bool Retimable(Clip clip) => clip.Generator is null && clip.Speed is not { Freeze: true } and not { Curve: not null };
 
     /// <summary>Los seleccionados (uno por grupo enlazado); sin selección, el clip de la pista principal bajo el cursor.</summary>
     private List<string> SpeedTargets()

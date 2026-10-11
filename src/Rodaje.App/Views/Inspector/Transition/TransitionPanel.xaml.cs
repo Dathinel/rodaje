@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector.Properties;
 using Rodaje.Core.Effects;
@@ -235,7 +236,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
         }
     }
 
-    private static string ClipName(EditorSession session, Clip clip) => session.Project.FindMedia(clip.MediaId)?.Name ?? "clip";
+    private static string ClipName(EditorSession session, Clip clip) => ClipLabels.Name(session.Project, clip, "clip");
 
     private void OnTypeSelected(object sender, SelectionChangedEventArgs e)
     {

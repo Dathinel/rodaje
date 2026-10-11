@@ -1,4 +1,5 @@
 using Rodaje.App.Services;
+using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -395,6 +396,11 @@ public sealed class ClipDrag
     /// </summary>
     private DragPlan PlanStretch(Project project, Sequence sequence, Track track, Clip clip, Time offset)
     {
+        if (Blocked(sequence, track, clip) is { } blocked)
+        {
+            return blocked;
+        }
+
         if (clip.Speed is { Freeze: true })
         {
             return PlanTrim(project, sequence, track, clip, offset);
@@ -492,6 +498,11 @@ public sealed class ClipDrag
 
     private DragPlan PlanSlip(Project project, Sequence sequence, Track track, Clip clip, Time offset)
     {
+        if (Blocked(sequence, track, clip) is { } blocked)
+        {
+            return blocked;
+        }
+
         Time low = Time.FromTicks(long.MinValue / 4);
         Time high = Time.FromTicks(long.MaxValue / 4);
         foreach ((_, Clip c) in Members(sequence, track, clip))
@@ -516,12 +527,34 @@ public sealed class ClipDrag
     }
 
     /// <summary>
+    /// Slip y Alt + borde no se aplican a un título (no tiene material ni velocidad): el gesto queda quieto y el globo lo
+    /// explica.
+    /// </summary>
+    private DragPlan? Blocked(Sequence sequence, Track track, Clip clip)
+    {
+        bool title = _options.IgnoreGroups
+            ? clip.Generator is not null
+            : sequence.GetLinkGroup(clip.Id).Exists(m => m.Clip.Generator is not null);
+        return title
+            ? new DragPlan(null, true, clip.Start, clip.End, track.Id, null, null, (clip.Start, ClipLabels.NoMaterial))
+            : null;
+    }
+
+    /// <summary>Margen de un título: su origen virtual no tiene principio ni final (lo acota la extensión del núcleo).</summary>
+    public static readonly Time GeneratorRoom = Time.FromTicks(RetimeMath.MaxExtent);
+
+    /// <summary>
     /// Cuánto puede crecer un borde en la línea de tiempo antes de pedir origen fuera del medio, con la velocidad del borde.
     /// Un congelado no gasta origen: su tope es el del mapeo.
     /// </summary>
     public static Time Room(Clip clip, TrimEdge edge, Time mediaDuration)
     {
         ArgumentNullException.ThrowIfNull(clip);
+        if (clip.Generator is not null)
+        {
+            return GeneratorRoom;
+        }
+
         if (clip.Speed is null)
         {
             return edge == TrimEdge.In ? clip.SourceIn : mediaDuration - clip.SourceOut;
