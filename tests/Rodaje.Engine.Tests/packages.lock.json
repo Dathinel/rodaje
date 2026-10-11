@@ -143,6 +143,14 @@
           "Rodaje.Core": "[1.0.0, )"
         }
       },
+      "rodaje.render": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Media": "[1.0.0, )",
+          "Rodaje.Playback": "[1.0.0, )",
+          "TerraFX.Interop.Windows": "[10.0.26100.6, )"
+        }
+      },
       "rodaje.testmedia": {
         "type": "Project",
         "dependencies": {
