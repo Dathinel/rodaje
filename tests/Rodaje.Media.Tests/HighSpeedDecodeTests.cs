@@ -14,9 +14,6 @@ public sealed class HighSpeedDecodeTests
 {
     public static TheoryData<string, DecodeMode> SoftwareCases => DecodeModes.Software(TestClips.H264, TestClips.Hevc, TestClips.H264Mkv);
 
-    // Sin NVENC el HEVC lo genera libkvazaar con GOP abierto (CRA y RASL), y el modo Keyframe entrega el IDR anterior en vez del CRA pedido: defecto del decodificador, tarea 14 de docs/nube/cola.md.
-    public static TheoryData<string, DecodeMode> SoftwareCasesWithoutHevc => DecodeModes.Software(TestClips.H264, TestClips.H264Mkv);
-
     public static TheoryData<string> AllClips => new(TestClips.H264.Name, TestClips.Hevc.Name, TestClips.H264Mkv.Name);
 
     [FfmpegLibraryTheory]
@@ -43,10 +40,7 @@ public sealed class HighSpeedDecodeTests
         SkipsNonReference(DecodeModes.Clip(clip), DecodeMode.Hardware);
 
     [FfmpegLibraryTheory]
-    [MemberData(nameof(SoftwareCasesWithoutHevc))]
-    [ExactEncoderClipData(software: true,
-        "libkvazaar genera un GOP abierto (CRA con cuadros RASL) y el modo Keyframe entrega el IDR anterior en vez del CRA pedido: defecto del decodificador, tarea 14 de docs/nube/cola.md.",
-        nameof(TestClips.Hevc))]
+    [MemberData(nameof(SoftwareCases))]
     public void Keyframe_mode_delivers_only_keyframes_software(string clip, DecodeMode mode) => DeliversKeyframes(DecodeModes.Clip(clip), mode);
 
     [HardwareTheory]
