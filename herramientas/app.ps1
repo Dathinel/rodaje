@@ -4,6 +4,7 @@
 #   ... -Medir 10        abre el clip de prueba (o los archivos), reproduce 10 s, mide y muestra las cifras
 #   ... -SinPublicar     abre el exe ya publicado sin recompilar
 #   ... -Publicar        recompila aunque src\ no haya cambiado
+#   ... -SoloPublicar    recompila si hace falta y no abre la app (para dejarla lista de antemano)
 # Los videos se importan y se ponen seguidos en la pista principal; un .rodaje se abre.
 # Solo recompila si el exe falta o algún fuente de src\ es más nuevo que él. Sale con 0 si todo fue bien.
 [CmdletBinding(PositionalBinding = $false)]
@@ -12,7 +13,8 @@ param(
     [string[]]$Archivos = @(),
     [double]$Medir = 0,
     [switch]$SinPublicar,
-    [switch]$Publicar
+    [switch]$Publicar,
+    [switch]$SoloPublicar
 )
 
 $ErrorActionPreference = 'Stop'
@@ -118,6 +120,7 @@ if (-not $hayCambios) {
 if (($hayCambios -and -not $SinPublicar) -or -not (Test-Path -LiteralPath $Exe)) {
     if (-not (Publicar)) { Write-Host ''; exit 1 }
 }
+if ($SoloPublicar) { Bien 'Rodaje está compilado y listo para abrir.'; exit 0 }
 
 $argumentos = @()
 foreach ($a in @($Archivos | Where-Object { $_ })) {

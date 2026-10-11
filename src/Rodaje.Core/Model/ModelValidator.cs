@@ -1,3 +1,5 @@
+using Rodaje.Core.Editing;
+using Rodaje.Core.Effects;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Core.Model;
@@ -163,7 +165,7 @@ public static class ModelValidator
                     errors.Add($"{where} se solapa con «{previous.Id}» o está fuera de orden.");
                 }
 
-                ValidateEffects(clip.Effects, errors, checkId);
+                ValidateEffects(clip.Effects, null, errors, checkId);
 
                 if (clip.LinkId is not null)
                 {
@@ -182,7 +184,7 @@ public static class ModelValidator
                 previousEnd = end;
             }
 
-            ValidateEffects(track.Effects, errors, checkId);
+            ValidateEffects(track.Effects, track, errors, checkId);
             ValidateTransitions(track, errors, checkId);
         }
 
@@ -210,11 +212,30 @@ public static class ModelValidator
         }
     }
 
-    private static void ValidateEffects(List<EffectInstance> effects, List<string> errors, Action<string, string> checkId)
+    /// <summary>
+    /// Keyframes en orden y, en los tipos registrados, opciones aceptadas por el registro. En una pista
+    /// (<paramref name="track"/> no nulo) solo van efectos de su tipo: de audio en las de audio y de video en las de video.
+    /// Un tipo desconocido se conserva sin mirar sus opciones.
+    /// </summary>
+    private static void ValidateEffects(List<EffectInstance> effects, Track? track, List<string> errors, Action<string, string> checkId)
     {
         foreach (EffectInstance effect in effects)
         {
             checkId(effect.Id, "un efecto");
+            if (EffectRegistry.Find(effect.Type) is { } definition)
+            {
+                if (definition.IsTransition)
+                {
+                    errors.Add($"El efecto «{effect.Id}» es de tipo «{effect.Type}», que es una transición.");
+                }
+                else if (track is not null && (definition.Target & TargetOf(track.Kind)) == 0)
+                {
+                    errors.Add($"El efecto «{effect.Id}» ({effect.Type}) no se puede aplicar a la pista de {TrackOps.KindName(track.Kind)} «{track.Name}».");
+                }
+
+                ValidateOptions(definition, effect.Options, $"El efecto «{effect.Id}»", errors);
+            }
+
             foreach ((string name, Parameter parameter) in effect.Parameters)
             {
                 for (int i = 1; i < parameter.Keyframes.Count; i++)
@@ -247,13 +268,44 @@ public static class ModelValidator
             {
                 errors.Add($"{where} está en un corte que ya tiene otra transición.");
             }
+            else if (transition.Duration > TransitionOps.MaxDuration(track.Clips[from], track.Clips[from + 1]))
+            {
+                errors.Add($"{where} dura más que uno de sus clips.");
+            }
 
             if (transition.Duration <= Time.Zero)
             {
                 errors.Add($"{where} tiene duración cero o negativa.");
             }
+
+            if (EffectRegistry.Find(transition.Type) is { } definition)
+            {
+                if (!definition.IsTransition)
+                {
+                    errors.Add($"{where} es de tipo «{transition.Type}», que no es una transición.");
+                }
+
+                ValidateOptions(definition, transition.Options, where, errors);
+            }
         }
     }
+
+    /// <summary>Las opciones que el tipo define deben tener un valor aceptado; las demás se conservan sin mirar.</summary>
+    private static void ValidateOptions(EffectDefinition definition, Dictionary<string, string> options, string where, List<string> errors)
+    {
+        foreach ((string name, string value) in options)
+        {
+            bool accepted = value is not null && (definition.FindOption(name) is { } option
+                ? option.Accepts(value)
+                : name != BuiltInEffects.CommonOptions.Source || OptionDefinition.IsWellFormedReference(value));
+            if (!accepted)
+            {
+                errors.Add($"{where} tiene «{value}» en la opción «{name}», que no es un valor válido.");
+            }
+        }
+    }
+
+    private static EffectTarget TargetOf(TrackKind kind) => kind == TrackKind.Video ? EffectTarget.Video : EffectTarget.Audio;
 
     // En 128 bits por la misma razón que arriba: tiempos extremos de un archivo no deben lanzar.
     private static bool Touches(Clip left, Clip right) =>
