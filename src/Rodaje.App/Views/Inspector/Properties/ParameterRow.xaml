@@ -8,8 +8,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Grid x:Name="Root" Padding="12,3,6,3" ColumnSpacing="4" Background="Transparent"
-          PointerEntered="OnPointerEntered" PointerExited="OnPointerExited">
+    <Grid x:Name="Root" Padding="12,3,6,3" ColumnSpacing="4" Background="Transparent">
         <Grid.ContextFlyout>
             <MenuFlyout>
                 <MenuFlyoutItem x:Name="ResetItem" Text="Restablecer" Click="OnResetClick">
@@ -51,19 +50,19 @@
         <Slider x:Name="ValueSlider" Grid.Column="1" Margin="2,-6,4,-6" VerticalAlignment="Center" MinWidth="0"
                 IsThumbToolTipEnabled="False" ValueChanged="OnSliderValueChanged" />
 
-        <NumberBox x:Name="ValueBox" Grid.Column="2" MinWidth="0" MinHeight="26" FontSize="{StaticResource BodyFontSize}"
+        <NumberBox x:Name="ValueBox" Grid.Column="2" MinWidth="0" Height="28" MinHeight="28" FontSize="{StaticResource BodyFontSize}"
                    SpinButtonPlacementMode="Hidden" ValueChanged="OnBoxValueChanged" />
         <TextBlock x:Name="UnitText" Grid.Column="3" Style="{StaticResource CaptionTextStyle}" TextTrimming="None" />
 
         <Button x:Name="KeyframeButton" Grid.Column="4" Style="{StaticResource ToolButtonStyle}" Width="24" Height="26"
                 Click="OnKeyframeClick">
-            <Grid>
+            <!-- Sin animar: rombo hueco. Animado: rombo lleno. Con un keyframe en el cursor: además, un recuadro alrededor. -->
+            <Grid Width="20" Height="20">
+                <Border x:Name="HereRing" BorderBrush="{StaticResource KeyframeBrush}" BorderThickness="1" CornerRadius="2" Visibility="Collapsed" />
                 <TextBlock x:Name="DiamondEmpty" Text="&#x25C7;" FontFamily="{StaticResource UiFontFamily}" FontSize="14"
-                           Foreground="{StaticResource TextMutedBrush}" />
-                <TextBlock x:Name="DiamondAnimated" Text="&#x25C7;" FontFamily="{StaticResource UiFontFamily}" FontSize="14"
-                           Foreground="{StaticResource KeyframeBrush}" Visibility="Collapsed" />
-                <TextBlock x:Name="DiamondHere" Text="&#x25C6;" FontFamily="{StaticResource UiFontFamily}" FontSize="14"
-                           Foreground="{StaticResource KeyframeBrush}" Visibility="Collapsed" />
+                           Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock x:Name="DiamondAnimated" Text="&#x25C6;" FontFamily="{StaticResource UiFontFamily}" FontSize="14"
+                           Foreground="{StaticResource KeyframeBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
             </Grid>
         </Button>
         <Button x:Name="ResetButton" Grid.Column="5" Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="11"

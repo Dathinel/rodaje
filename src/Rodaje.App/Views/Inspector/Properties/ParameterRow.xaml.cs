@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -24,16 +24,12 @@ internal sealed partial class ParameterRow : UserControl
     /// <summary>Por debajo de este ancho el deslizador baja a su propia línea (le quedarían menos de ~100 px).</summary>
     private const double OneLineMinWidth = 340;
 
-    private const double DimmedOpacity = 0.5;
-
     private readonly DispatcherQueueTimer _settle;
     private ParameterSpec? _spec;
     private bool _updating;
     private bool _pointerDown;
     private bool _changing;
-    private bool _pointerOver;
     private bool? _oneLine;
-    private bool _animated;
 
     public ParameterRow()
     {
@@ -139,8 +135,8 @@ internal sealed partial class ParameterRow : UserControl
             1 => "1 keyframe",
             int n => n.ToString(CultureInfo.InvariantCulture) + " keyframes",
         };
-        DiamondHere.Visibility = state.KeyframeHere is not null ? Visibility.Visible : Visibility.Collapsed;
-        DiamondAnimated.Visibility = state.IsAnimated && state.KeyframeHere is null ? Visibility.Visible : Visibility.Collapsed;
+        HereRing.Visibility = state.KeyframeHere is not null ? Visibility.Visible : Visibility.Collapsed;
+        DiamondAnimated.Visibility = state.IsAnimated ? Visibility.Visible : Visibility.Collapsed;
         DiamondEmpty.Visibility = state.IsAnimated ? Visibility.Collapsed : Visibility.Visible;
         KeyframeButton.IsEnabled = playheadInside;
         PreviousButton.IsEnabled = state.Previous is not null;
@@ -149,7 +145,6 @@ internal sealed partial class ParameterRow : UserControl
         ResetItem.IsEnabled = ResetButton.IsEnabled;
         ClearKeyframesItem.IsEnabled = state.IsAnimated;
         KeyframeStrip.Visibility = state.IsAnimated && spec.Animatable ? Visibility.Visible : Visibility.Collapsed;
-        _animated = state.IsAnimated;
 
         if (state.KeyframeHere is { } here)
         {
@@ -161,7 +156,6 @@ internal sealed partial class ParameterRow : UserControl
             EaseBox.Visibility = Visibility.Collapsed;
         }
 
-        UpdateDimming();
         _updating = false;
     }
 
@@ -208,25 +202,6 @@ internal sealed partial class ParameterRow : UserControl
         Grid.SetRow(KeyframeStrip, oneLine ? 1 : 2);
         Grid.SetColumn(KeyframeStrip, oneLine ? 1 : 0);
         Grid.SetColumnSpan(KeyframeStrip, oneLine ? 5 : 6);
-    }
-
-    // Restablecer y el rombo vacío se ven atenuados hasta pasar el ratón por la fila; el rombo de un parámetro animado, siempre.
-    private void UpdateDimming()
-    {
-        ResetButton.Opacity = _pointerOver ? 1 : DimmedOpacity;
-        KeyframeButton.Opacity = _pointerOver || _animated ? 1 : DimmedOpacity;
-    }
-
-    private void OnPointerEntered(object sender, PointerRoutedEventArgs e)
-    {
-        _pointerOver = true;
-        UpdateDimming();
-    }
-
-    private void OnPointerExited(object sender, PointerRoutedEventArgs e)
-    {
-        _pointerOver = false;
-        UpdateDimming();
     }
 
     private void EndPointer()
