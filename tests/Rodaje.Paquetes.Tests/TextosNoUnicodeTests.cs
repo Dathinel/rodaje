@@ -46,6 +46,38 @@ public sealed class TextosNoUnicodeTests : IDisposable
     }
 
     [Fact]
+    public void Catalog_ParseUtf8_WithBom_Parses()
+    {
+        byte[] json = [0xEF, 0xBB, 0xBF, .. """{ "formatVersion": 1, "apps": [{ "id": "rodaje", "name": "Rodaje" }], "packages": [] }"""u8];
+        Assert.Equal("Rodaje", PackageCatalog.ParseUtf8(json).AppName("rodaje"));
+    }
+
+    [Fact]
+    public void ManifestReader_ReadFile_WithBom_Reads()
+    {
+        string file = _folder.Combine("paquete.json");
+        File.WriteAllBytes(file, [0xEF, 0xBB, 0xBF, .. Encoding.UTF8.GetBytes(Samples.Manifest(items: "[]"))]);
+
+        ManifestResult result = ManifestReader.ReadFile(file, checkFiles: false);
+
+        Assert.NotNull(result.Manifest);
+        Assert.Empty(result.Errors);
+    }
+
+    [Fact]
+    public void Scan_OwnItemWithBom_IsNotSkipped()
+    {
+        PackageLocations locations = PackageLocations.Under(_folder.Combine("datos"));
+        Directory.CreateDirectory(locations.Own);
+        File.WriteAllBytes(Path.Combine(locations.Own, "con-bom.json"), [0xEF, 0xBB, 0xBF, .. """{ "kind": "transition", "name": "ConBom" }"""u8]);
+
+        PackageScan scan = PackageLibrary.Scan(locations, "rodaje");
+
+        InstalledPackage own = Assert.IsType<InstalledPackage>(scan.Find("propios"));
+        Assert.Equal("ConBom", Assert.Single(own.Manifest.Items).Name);
+    }
+
+    [Fact]
     public void Scan_OneBrokenOwnItemDoesNotHideTheGoodOne()
     {
         PackageLocations locations = PackageLocations.Under(_folder.Combine("datos"));
