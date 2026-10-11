@@ -15,6 +15,11 @@ Lo que solo Daniel puede juzgar. Se abre con `Rodaje.bat` (o `dist\Rodaje\Rodaje
 
 ## Fase 5
 
+**Antes:** en Rodaje → Complementos → «Instalar desde archivo», instalar `..\Complementosodaje-filtros\distodaje-filtros-1.0.0.paquete` y `..\Complementosodaje-transiciones\distodaje-transiciones-1.0.0.paquete` (ya generados; se regeneran con el `empaquetar.ps1` de cada carpeta).
+
+- [ ] **Looks en pausa:** aplicar «Cálido» con la reproducción en pausa: el tono debe verse sin reproducir. Cada look aparece una sola vez en Filtros.
+- [ ] **Dirección de los deslizamientos:** «Deslizar a la izquierda» en un corte: el clip nuevo entra desde la derecha. Probar las 8.
+- [ ] **Desinstalar en vivo:** con el proyecto guardado, desinstalar `rodaje-filtros`: ¿desaparece la LUT del visor? Reabrir: aviso «Faltan paquetes» y la transición como fundido cruzado. Reinstalar: todo vuelve.
 - [ ] **Capas al reproducir:** con 2 pistas de video, al reproducir o saltar ya no aparece primero Video 1 y luego Video 2.
 - [ ] **Fluidez frente a CapCut:** el mismo clip 4K en 3 capas con un filtro, desenfoque y superponer, reproducido en los dos.
 - [ ] **Filtros:** añadir Color y LUT y mover deslizadores reproduciendo (¿responden al instante?); keyframes y restablecer; los 13 modos de mezcla y sus nombres; «Cargar .cube…» y mover el proyecto a otra carpeta.
