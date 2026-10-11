@@ -217,9 +217,11 @@ Los tipos que el motor entiende están en `EffectRegistry` (`src/Rodaje.Core/Eff
 | `rodaje.audio` | `gainDb` (0; −60 o menos es silencio), `fadeIn` y `fadeOut` en segundos (0, sin keyframes) | |
 | `rodaje.speed`, `rodaje.stabilize` | Reservados: se reconocen, pero todavía no se aplican | |
 
-Cualquier efecto puede llevar además la opción `source` con la referencia del filtro o efecto de paquete del que es copia. Los efectos de una pista (`effects` de la pista, por ejemplo su volumen) tienen la misma forma, pero sus keyframes están en tiempo de la secuencia, porque una pista no tiene origen.
+Cualquier efecto puede llevar además la opción `source` con la referencia del filtro o efecto de paquete del que es copia. Los efectos de una pista (`effects` de la pista, por ejemplo su volumen) tienen la misma forma, pero sus keyframes están en tiempo de la secuencia, porque una pista no tiene origen, y solo admiten tipos de su clase: de audio en una pista de audio y de video en una de video.
 
-Una transición vive en la pista y une dos clips seguidos, sin hueco: `from` es el clip que termina en el corte y `to` el que empieza ahí. Dura `duration` ticks, centrada en el corte (la mitad antes y la mitad después; un tick impar va después). Los clips nunca se solapan: cada lado usa el material que sobra más allá de su borde y, si no hay, se congela el cuadro del borde. Sus `parameters` son números sin keyframes (`{"angle": 90}`) y sus `options`, textos.
+En los tipos registrados, una opción definida debe tener un valor aceptado: uno de la lista en las de elección (`blendMode`, `direction`) y, en las referencias (`lut`, `preset`, `source`), la forma `paquete@versión/elemento`, con paquete y elemento en minúsculas ASCII, dígitos, guiones y puntos, y una versión que empieza con un dígito. `lut` y `preset` admiten además el texto vacío. Si el paquete existe se comprueba al resolver la referencia, no al abrir. Las opciones que el tipo no define se conservan sin mirarlas.
+
+Una transición vive en la pista y une dos clips seguidos, sin hueco: `from` es el clip que termina en el corte y `to` el que empieza ahí. Dura `duration` ticks, centrada en el corte (la mitad antes y la mitad después; un tick impar va después), y nunca más que el más corto de sus dos clips: así su mitad cabe en cada uno y las dos transiciones de un mismo clip no se pisan. Los clips nunca se solapan: cada lado usa el material que sobra más allá de su borde y, si no hay, se congela el cuadro del borde. Sus `parameters` son números sin keyframes (`{"angle": 90}`) y sus `options`, textos.
 
 | Tipo | Parámetros (por defecto) | Opciones |
 |---|---|---|
@@ -238,7 +240,7 @@ Una transición vive en la pista y une dos clips seguidos, sin hueco: `from` es 
 ]
 ```
 
-Al editar, Rodaje mantiene cada transición pegada a su corte: si se divide uno de los clips sigue en el mismo corte y si el corte desaparece (se abre un hueco, se borra un clip) la transición se quita, en el mismo paso del deshacer. Un ejemplo con todo lo del formato 3 está en `tests/Rodaje.Core.Tests/Serialization/ejemplos/proyecto-v3.rodaje`.
+Al editar, Rodaje mantiene cada transición pegada a su corte, en el mismo paso del deshacer: si se divide uno de los clips sigue en el mismo corte; si un recorte, un roll o un corte dejan un clip más corto que la transición, esta se acorta; y si el corte desaparece (se abre un hueco, se borra o se mueve uno de sus clips) la transición se quita. Un ejemplo con todo lo del formato 3 está en `tests/Rodaje.Core.Tests/Serialization/ejemplos/proyecto-v3.rodaje`.
 
 ## Reglas que todo programa debe respetar
 
@@ -250,7 +252,7 @@ Cada medio debe tener una duración positiva. Cada secuencia debe tener ancho, a
 
 Cada clip debe apuntar con `mediaId` a un medio que exista en `media`. Su `sourceIn` no puede ser negativo, su `sourceOut` debe ser mayor que su `sourceIn` y no puede pasar de la duración del medio, y su `start` no puede ser negativo. Un clip en una pista de video necesita un medio con imagen (`hasVideo`) y uno en una pista de audio, un medio con sonido (`hasAudio`). Dentro de una pista, los clips van ordenados por `start` y no se solapan: cada uno empieza en el final del anterior o después. Los huecos entre clips no se guardan; son simplemente el espacio que queda entre uno y el siguiente.
 
-Un marcador no puede estar antes del instante cero, y una región tampoco puede empezar antes y debe terminar después de empezar. Los keyframes de cada parámetro van en orden estrictamente creciente de `time`, sin dos en el mismo instante. Un mismo `linkId` puede repetirse en varias pistas, pero nunca en dos clips de la misma pista. Cada transición une dos clips contiguos de su propia pista (`to` es el siguiente de `from` y empieza justo donde este termina), cada corte tiene como mucho una y su duración es positiva.
+Un marcador no puede estar antes del instante cero, y una región tampoco puede empezar antes y debe terminar después de empezar. Los keyframes de cada parámetro van en orden estrictamente creciente de `time`, sin dos en el mismo instante. Un mismo `linkId` puede repetirse en varias pistas, pero nunca en dos clips de la misma pista. Cada transición une dos clips contiguos de su propia pista (`to` es el siguiente de `from` y empieza justo donde este termina), cada corte tiene como mucho una y su duración es positiva y no pasa de la del más corto de sus clips. Un tipo registrado como transición no puede ir en una lista de efectos ni uno de efecto en `transitions`, y las opciones y los efectos de pista siguen las reglas de la sección anterior.
 
 Además, el archivo debe ser JSON estricto: sin comentarios, sin comas sobrantes y sin el mismo campo repetido dentro de un objeto, porque no habría forma de saber cuál vale. Las listas y las `options` no pueden contener `null`, y los campos de texto, listas y objetos tampoco; los únicos campos que admiten `null` son `linkId` y el `frameRate` de un medio.
 
