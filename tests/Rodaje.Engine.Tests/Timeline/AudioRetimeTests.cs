@@ -135,6 +135,54 @@ public sealed class AudioRetimeTests(ITestOutputHelper output)
         Assert.True(worst <= 5, Invariant($"Un clic se movió {worst:F2} ms."));
     }
 
+    /// <summary>
+    /// Como la aceptación de deriva de 10 min, en corto: el chirp del inicio de cada segundo del origen tiene que sonar
+    /// donde manda el mapeo, buscado con la plantilla del chirp tal como debe sonar.
+    /// </summary>
+    [Theory]
+    [InlineData(3, 2, true)]
+    [InlineData(1, 2, true)]
+    [InlineData(3, 4, true)]
+    [InlineData(1, 4, true)]
+    [InlineData(3, 2, false)]
+    [InlineData(1, 2, false)]
+    public void Each_second_chirp_sounds_where_the_map_says(int num, int den, bool preservePitch)
+    {
+        double rate = (double)num / den;
+        const int Seconds = 12;
+        float[] template = RetimedAudioCode.ChirpTemplate(Rate, rate, preservePitch);
+        var errors = new List<double>();
+        var perPhase = new List<double>();
+        for (int phase = 0; phase < 8; phase++)
+        {
+            double anchor = 0.5 + (phase * rate * 64 / Rate);
+            float[] mono = Left(Render(i => i >= 0 ? AudioCode.SampleAt(i, Rate) : 0, new Rational(num, den), preservePitch, 0,
+                (int)(Seconds / rate * Rate), anchor: Time.FromSamples((long)Math.Round(anchor * Rate), Rate)));
+            var mine = new List<double>();
+            for (int second = 1; second < Seconds; second++)
+            {
+                double expected = ((second * (double)Rate) - Math.Round(anchor * Rate)) / rate;
+                if (expected + template.Length + (Rate / 20) >= mono.Length)
+                {
+                    break;
+                }
+
+                AudioMark? found = RetimedAudioCode.FindChirp(mono, template, (int)expected - (Rate / 20), (int)expected + (Rate / 20))
+                    ?? RetimedAudioCode.FindChirp(mono, template, (int)expected - (Rate / 20), (int)expected + (Rate / 20), 0.5);
+                Assert.True(found.HasValue, Invariant($"No se encontró el chirp del segundo {second} (fase {phase})."));
+                mine.Add((found.Value.Sample - expected) * 1000.0 / Rate);
+            }
+
+            errors.AddRange(mine);
+            perPhase.Add(mine.Average());
+        }
+
+        double mean = errors.Average();
+        double max = errors.Max(Math.Abs);
+        output.WriteLine(Invariant($"MEDIDA chirp_a_{num}/{den}_{(preservePitch ? "tono" : "cinta")} = error medio {mean:+0.000;-0.000} ms, máximo {max:0.000} ms, {errors.Count} marcas; por fase {string.Join(" ", perPhase.Select(p => p.ToString("+0.0;-0.0;0.0", CultureInfo.InvariantCulture)))}"));
+        Assert.True(Math.Abs(mean) <= 1, Invariant($"Error medio de {mean:0.000} ms."));
+    }
+
     [Fact]
     public void After_a_seek_the_output_matches_continuous_playback_once_past_the_warm_up()
     {
@@ -167,6 +215,19 @@ public sealed class AudioRetimeTests(ITestOutputHelper output)
 
         Assert.Equal(first.AsSpan((3 * Rate - 2400) * 2).ToArray(), again);
         Assert.Equal(reader.Wsola!.WarmUpSteps, (Wsola.WarmUp + reader.Wsola.Hop - 1) / reader.Wsola.Hop);
+    }
+
+    [Fact]
+    public void Mixing_again_across_an_attack_repeats_it_exactly()
+    {
+        var map = Map(new Rational(1, 2), preservePitch: true, S(0.5));
+        var reader = new RetimedReader(new AudioRetime(map, true), new FunctionPcm(i => i >= 0 ? AudioCode.SampleAt(i, Rate) : 0, long.MaxValue / 4), -1);
+        float[] first = Read(reader, 0, 50_000);
+
+        // El chirp del segundo 1 del origen suena en la muestra 48 000: se rebobina a justo antes de él.
+        float[] again = Read(reader, 47_000, 3_000);
+
+        Assert.Equal(first.AsSpan(47_000 * 2).ToArray(), again);
     }
 
     [Fact]
