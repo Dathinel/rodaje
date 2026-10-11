@@ -122,7 +122,7 @@ public static class BuiltInEffects
         public const string Mode = "blendMode";
     }
 
-    /// <summary>Cambio de velocidad del clip. Fuera de la fase 5: necesita su propio formato.</summary>
+    /// <summary>Reservado y oculto: la velocidad es <see cref="Clip.Speed"/> (formato 4) y la migración 3 → 4 quita sus instancias.</summary>
     public const string Speed = "rodaje.speed";
 
     /// <summary>Fuera de la fase 5: necesita análisis (fase 7).</summary>

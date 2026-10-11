@@ -106,6 +106,7 @@ public static class EffectEdits
         EnsureFinite(value, name);
         Host host = EditableHost(ctx, clipId);
         EffectInstance effect = FindEffect(host, effectId);
+        value = Limit(effect, name, value);
         if (effect.Parameters.TryGetValue(name, out Parameter? parameter) && parameter.Keyframes.Count > 0)
         {
             EnsureInside(host, at);
@@ -147,6 +148,7 @@ public static class EffectEdits
         Host host = EditableHost(ctx, clipId);
         EnsureInside(host, at);
         EffectInstance effect = FindEffect(host, effectId);
+        value = Limit(effect, name, value);
         if (!effect.Parameters.TryGetValue(name, out Parameter? parameter))
         {
             parameter = new Parameter { Value = value };
@@ -185,7 +187,7 @@ public static class EffectEdits
             if (effect.Parameters.TryGetValue(name, out Parameter? parameter))
             {
                 parameter.Keyframes.Clear();
-                parameter.Value = value;
+                parameter.Value = Limit(effect, name, value);
             }
         }
     }
@@ -287,6 +289,10 @@ public static class EffectEdits
             throw new EditException("El keyframe tiene que quedar dentro del clip.");
         }
     }
+
+    /// <summary>Un parámetro registrado queda dentro de sus límites, como lo exige <see cref="ModelValidator"/> al abrir.</summary>
+    private static double Limit(EffectInstance effect, string name, double value) =>
+        EffectRegistry.Find(effect.Type)?.FindParameter(name)?.Clamp(value) ?? value;
 
     private static void EnsureFinite(double value, string name)
     {

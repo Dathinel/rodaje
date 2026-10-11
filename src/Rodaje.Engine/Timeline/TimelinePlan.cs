@@ -9,7 +9,7 @@ namespace Rodaje.Engine.Timeline;
 internal readonly record struct SourceKey(string MediaId, string Path);
 
 /// <summary>Instantánea inmutable de una secuencia para reproducirla; se reconstruye tras cada edición.</summary>
-internal sealed class TimelinePlan
+internal sealed partial class TimelinePlan
 {
     public const int AudioSampleRate = 48_000;
 
@@ -85,46 +85,8 @@ internal sealed class TimelinePlan
         var hidden = new List<VideoLayerPlan>();
         for (int i = 0; i < sequence.VideoTracks.Count; i++)
         {
-            Track track = sequence.VideoTracks[i];
-            List<Clip> included = [.. Ordered(track).Where(c => c.Enabled && c.Duration > Time.Zero
-                && media.TryGetValue(c.MediaId, out MediaRef? m) && m.HasVideo && m.FrameRate is not null)];
-            List<Cut> cuts = Cuts(track, included);
-            var clips = new List<VideoClipPlan>();
-            var incoming = new List<VideoClipPlan>();
-            for (int c = 0; c < included.Count; c++)
-            {
-                Clip clip = included[c];
-                MediaRef m = media[clip.MediaId];
-                Rational rate = m.FrameRate!.Value;
-                SourceKey key = Key(m, projectDirectory);
-                EffectPlan? effects = EffectPlan.From(clip.Effects);
-                Cut? entering = cuts.Find(x => x.To == c);
-                Cut? leaving = cuts.Find(x => x.From == c);
-
-                // El que entra se ve en el carril principal recién al terminar la transición; el que sale sigue hasta
-                // entonces con el material que sobra o, si no hay, con su último cuadro congelado.
-                Time head = entering?.After ?? Time.Zero;
-                Time tail = leaving?.After ?? Time.Zero;
-                Time extra = Time.Max(Time.Zero, Time.Min(tail, Material(m) - clip.SourceOut));
-                TransitionPlan? transition = leaving is { } cut ? Transition(cut, sequence, content, ref missing) : null;
-                clips.Add(new VideoClipPlan(clip.Id, key, clip.Start + head, clip.SourceIn + head, clip.SourceOut + extra,
-                    rate, effects, m.Width, m.Height, holdAfter: tail - extra) { Outgoing = transition });
-
-                if (entering is { } e)
-                {
-                    Time available = Time.Min(e.Before, clip.SourceIn);
-                    incoming.Add(new VideoClipPlan(clip.Id, key, clip.Start - available, clip.SourceIn - available,
-                        clip.SourceIn + e.After, rate, effects, m.Width, m.Height, holdBefore: e.Before - available));
-                }
-            }
-
-            var layer = new VideoLayerPlan(i, track.Id, clips)
-            {
-                Companion = incoming.Count > 0 && !track.Hidden
-                    ? new VideoLayerPlan(i, track.Id + VideoLayerPlan.CompanionSuffix, incoming)
-                    : null,
-            };
-            (track.Hidden ? hidden : layers).Add(layer);
+            VideoLayerPlan layer = VideoLayer(sequence, i, media, projectDirectory, content, ref missing);
+            (sequence.VideoTracks[i].Hidden ? hidden : layers).Add(layer);
         }
 
         var audioTracks = new List<AudioTrackPlan>();
@@ -137,101 +99,6 @@ internal sealed class TimelinePlan
         }
 
         return new TimelinePlan(sequence, layers, hidden, new AudioPlan(audioTracks), missing);
-    }
-
-    private static AudioTrackPlan AudioTrack(Track track, Dictionary<string, MediaRef> media, string projectDirectory)
-    {
-        List<Clip> included = [.. Ordered(track).Where(c => c.Enabled && c.Duration > Time.Zero
-            && media.TryGetValue(c.MediaId, out MediaRef? m) && m.HasAudio)];
-        List<Cut> cuts = Cuts(track, included);
-        Curve? trackDb = GainCurve(track.Effects);
-        var clips = new List<AudioClipPlan>();
-        for (int c = 0; c < included.Count; c++)
-        {
-            Clip clip = included[c];
-            Cut? entering = cuts.Find(x => x.To == c);
-            Cut? leaving = cuts.Find(x => x.From == c);
-            long clipStart = clip.Start.ToSamples(AudioSampleRate);
-            long start = (clip.Start - (entering?.Before ?? Time.Zero)).ToSamples(AudioSampleRate);
-            long end = (clip.End + (leaving?.After ?? Time.Zero)).ToSamples(AudioSampleRate);
-            long sourceIn = clip.SourceIn.ToSamples(AudioSampleRate) - (clipStart - start);
-            if (end > start)
-            {
-                clips.Add(new AudioClipPlan(clip.Id, Key(media[clip.MediaId], projectDirectory), start, end, sourceIn,
-                    Gain(clip, trackDb, entering, leaving)));
-            }
-        }
-
-        return new AudioTrackPlan(track.Id, clips);
-    }
-
-    /// <summary>Volumen del clip: su <c>rodaje.audio</c>, la ganancia de la pista y los fundidos; nulo si suena tal cual.</summary>
-    private static GainPlan? Gain(Clip clip, Curve? trackDb, Cut? entering, Cut? leaving)
-    {
-        EffectInstance? audio = clip.Effects.Find(e => e.Enabled && e.Type == BuiltInEffects.Audio);
-        long clipStart = clip.Start.ToSamples(AudioSampleRate);
-        long clipEnd = clip.End.ToSamples(AudioSampleRate);
-        long length = clipEnd - clipStart;
-
-        // Una transición reemplaza el fundido propio de ese lado: con los dos, el clip callaría antes de cruzarse.
-        Fade fadeIn = default;
-        Fade fadeOut = default;
-        Fade crossIn = default;
-        Fade crossOut = default;
-        if (entering is { } e)
-        {
-            crossIn = Cross(e, fadeOut: false);
-        }
-        else
-        {
-            fadeIn = new Fade(clipStart, Math.Min(length, Samples(audio, BuiltInEffects.AudioParameters.FadeIn)), Out: false);
-        }
-
-        if (leaving is { } l)
-        {
-            crossOut = Cross(l, fadeOut: true);
-        }
-        else
-        {
-            long fade = Math.Min(length, Samples(audio, BuiltInEffects.AudioParameters.FadeOut));
-            fadeOut = new Fade(clipEnd - fade, fade, Out: true);
-        }
-
-        var gain = new GainPlan(GainCurve(clip.Effects), trackDb, fadeIn, fadeOut, crossIn, crossOut);
-        return gain.ClipDb is null && trackDb is null && !gain.HasFades ? null : gain;
-    }
-
-    private static Fade Cross(Cut cut, bool fadeOut)
-    {
-        long start = (cut.At - cut.Before).ToSamples(AudioSampleRate);
-        return new Fade(start, (cut.At + cut.After).ToSamples(AudioSampleRate) - start, fadeOut);
-    }
-
-    private static long Samples(EffectInstance? audio, string parameter)
-    {
-        if (audio?.Parameters.GetValueOrDefault(parameter) is not { } p || !double.IsFinite(p.Value) || p.Value <= 0)
-        {
-            return 0;
-        }
-
-        return Time.FromSeconds(Math.Min(p.Value, 24 * 3600)).ToSamples(AudioSampleRate);
-    }
-
-    /// <summary>
-    /// Ganancia del primer <c>rodaje.audio</c> activo en muestras (del origen en un clip, de la secuencia en una pista);
-    /// nula si no lo hay o si vale 0 dB sin keyframes.
-    /// </summary>
-    private static Curve? GainCurve(IReadOnlyList<EffectInstance> effects)
-    {
-        EffectInstance? audio = effects.FirstOrDefault(e => e.Enabled && e.Type == BuiltInEffects.Audio);
-        if (audio is null || EffectRegistry.Find(BuiltInEffects.Audio)?.FindParameter(BuiltInEffects.AudioParameters.GainDb) is not { } definition)
-        {
-            return null;
-        }
-
-        Curve curve = Curve.From(audio.Parameters.GetValueOrDefault(definition.Name), definition.DefaultValue, definition.Clamp,
-            static ticks => Time.FromTicks(ticks).ToSamples(AudioSampleRate));
-        return curve.IsConstant && curve.First == 0 ? null : curve;
     }
 
     /// <summary>
@@ -260,39 +127,6 @@ internal sealed class TimelinePlan
         }
 
         return cuts;
-    }
-
-    private static TransitionPlan Transition(Cut cut, Sequence sequence, IEffectContent? content, ref int missing)
-    {
-        TransitionInstance t = cut.Transition;
-        EffectDefinition crossfade = EffectRegistry.Find(BuiltInTransitions.Crossfade)!;
-        EffectDefinition definition = EffectRegistry.Find(t.Type) is { IsTransition: true } known ? known : crossfade;
-        TransitionCurves? curves = null;
-        bool fellBack = false;
-        if (definition.Type == BuiltInTransitions.Preset)
-        {
-            string reference = t.Options.GetValueOrDefault(BuiltInTransitions.PresetOptions.Preset) ?? "";
-            curves = reference.Length > 0 ? content?.FindTransition(reference) : null;
-            fellBack = curves is null;
-            missing += fellBack ? 1 : 0;
-            definition = curves is not null && EffectRegistry.Find(curves.MixCode) is { IsTransition: true } mix
-                && mix.Type != BuiltInTransitions.Preset
-                ? mix
-                : crossfade;
-        }
-
-        // Una de paquete lleva los parámetros y opciones de su mezcla en el preajuste; los de la transición son los suyos.
-        IReadOnlyDictionary<string, double> parameters = curves?.MixParameters ?? t.Parameters;
-        EffectValues values = default;
-        foreach (ParameterDefinition p in definition.Parameters)
-        {
-            double value = parameters.TryGetValue(p.Name, out double v) && double.IsFinite(v) ? v : p.DefaultValue;
-            values[p.Slot] = (float)p.Clamp(value);
-        }
-
-        EffectPlan.WriteChoices(definition, curves?.MixOptions ?? t.Options, ref values);
-        return new TransitionPlan(t.Id, t.From, t.To, cut.At - cut.Before, cut.At + cut.After, definition.Code, values, curves,
-            sequence.Width, sequence.Height, fellBack);
     }
 
     /// <summary>Hasta dónde llega el material del medio; sin duración conocida, no hay material extra.</summary>

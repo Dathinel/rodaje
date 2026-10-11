@@ -16,7 +16,7 @@ public static class EffectCatalog
     public static IReadOnlyList<EffectDescriptor> All { get; } =
     [
         .. EffectRegistry.All
-            .Where(d => !d.IsTransition)
+            .Where(d => !d.IsTransition && !d.Hidden)
             .SelectMany(d => Kinds(d.Target).Select(kind => new EffectDescriptor(d.Type, EffectUi.Name(d.Type), kind, d.Stage != EffectStage.Deferred))),
     ];
 

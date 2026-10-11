@@ -186,6 +186,9 @@ public sealed class EffectDefinition
 
     public bool IsTransition => Target == EffectTarget.Transition;
 
+    /// <summary>Reservado: se reconoce, pero no se ofrece ni se acepta en un proyecto (<c>rodaje.speed</c>).</summary>
+    public bool Hidden { get; init; }
+
     public ParameterDefinition? FindParameter(string name)
     {
         foreach (ParameterDefinition parameter in Parameters)

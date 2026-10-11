@@ -23,6 +23,7 @@ namespace Rodaje.Core.Serialization;
         typeof(RationalJsonConverter),
         typeof(CamelCaseEnumConverter<TrackKind>),
         typeof(CamelCaseEnumConverter<Interpolation>),
+        typeof(CamelCaseEnumConverter<FrameSampling>),
     ])]
 [JsonSerializable(typeof(Project))]
 public sealed partial class ProjectJsonContext : JsonSerializerContext

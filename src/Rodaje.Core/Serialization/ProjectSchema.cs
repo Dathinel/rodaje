@@ -11,11 +11,11 @@ namespace Rodaje.Core.Serialization;
 /// <summary>Genera el esquema JSON (draft 2020-12) de <c>.rodaje</c> desde los mismos metadatos que usa el lector.</summary>
 /// <remarks>
 /// Describe la forma, no las invariantes (<see cref="ModelValidator"/>). Una prueba verifica que
-/// <c>schema/rodaje-proyecto.v2.schema.json</c> coincide con <see cref="Export"/>.
+/// <c>schema/rodaje-proyecto.v4.schema.json</c> coincide con <see cref="Export"/>.
 /// </remarks>
 public static class ProjectSchema
 {
-    public const string SchemaId = "https://github.com/Dathinel/rodaje/schema/rodaje-proyecto.v2.schema.json";
+    public const string SchemaId = "https://github.com/Dathinel/rodaje/schema/rodaje-proyecto.v4.schema.json";
 
     /// <summary>Esquema como JSON indentado con saltos de línea LF.</summary>
     public static string Export()
@@ -47,13 +47,19 @@ public static class ProjectSchema
         Type type = context.TypeInfo.Type;
 
         // Los convertidores propios no describen su forma; se completa a mano.
-        if (type == typeof(Time))
+        if (type == typeof(Time) || type == typeof(Time?))
         {
             schema = new JsonObject
             {
-                ["type"] = "integer",
+                ["type"] = type == typeof(Time) ? "integer" : new JsonArray("integer", "null"),
                 ["description"] = "Tiempo exacto en ticks: 705 600 000 ticks por segundo.",
             };
+        }
+        else if (context.PropertyInfo?.DeclaringType == typeof(SpeedPoint))
+        {
+            bool at = context.PropertyInfo.Name == "at";
+            schema["minimum"] = at ? 0 : RetimeMath.MinHundredths;
+            schema["maximum"] = at ? SpeedCurve.AtScale : RetimeMath.MaxHundredths;
         }
         else if (type == typeof(Rational) || type == typeof(Rational?))
         {

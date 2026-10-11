@@ -78,7 +78,7 @@ public static class EffectRegistry
             new(A.FadeIn, 0, 0, Inf, Animatable: false),
             new(A.FadeOut, 0, 0, Inf, Animatable: false),
         ]),
-        new(BuiltInEffects.Speed, 8, EffectTarget.Video | EffectTarget.Audio, EffectStage.Deferred),
+        new(BuiltInEffects.Speed, 8, EffectTarget.Video | EffectTarget.Audio, EffectStage.Deferred) { Hidden = true },
         new(BuiltInEffects.Stabilize, 9, EffectTarget.Video, EffectStage.Deferred),
 
         new(BuiltInTransitions.Crossfade, 101, EffectTarget.Transition, EffectStage.Transition),

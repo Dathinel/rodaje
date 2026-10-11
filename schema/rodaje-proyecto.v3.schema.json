@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Dathinel/rodaje/schema/rodaje-proyecto.v2.schema.json",
+  "$id": "https://github.com/Dathinel/rodaje/schema/rodaje-proyecto.v3.schema.json",
   "title": "Proyecto de Rodaje",
   "description": "Archivo .rodaje versión 3. Las reglas que el esquema no expresa están en docs/formato-proyecto.md.",
   "type": "object",

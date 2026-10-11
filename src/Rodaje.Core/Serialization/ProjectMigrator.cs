@@ -19,6 +19,7 @@ public sealed class ProjectMigrator
     {
         [1] = AddMarkersAndRegions,
         [2] = AddEffectsAndTransitions,
+        [3] = RemoveSpeedEffects,
     };
 
     private readonly IReadOnlyDictionary<int, Action<JsonObject>> _chain;
@@ -114,6 +115,44 @@ public sealed class ProjectMigrator
         }
 
         root[VersionProperty] = 3;
+    }
+
+    /// <summary>
+    /// 3 → 4: los clips pueden llevar <c>speed</c> y <c>duration</c>. Las instancias de <c>rodaje.speed</c>, reservado y
+    /// nunca aplicado, se quitan de los clips y de las pistas.
+    /// </summary>
+    internal static void RemoveSpeedEffects(JsonObject root)
+    {
+        foreach (JsonObject sequence in Objects(root["sequences"]))
+        {
+            foreach (JsonObject track in Objects(sequence["videoTracks"]).Concat(Objects(sequence["audioTracks"])))
+            {
+                RemoveSpeed(track["effects"]);
+                foreach (JsonObject clip in Objects(track["clips"]))
+                {
+                    RemoveSpeed(clip["effects"]);
+                }
+            }
+        }
+
+        root[VersionProperty] = 4;
+    }
+
+    private static void RemoveSpeed(JsonNode? effects)
+    {
+        if (effects is not JsonArray items)
+        {
+            return;
+        }
+
+        for (int i = items.Count - 1; i >= 0; i--)
+        {
+            if (items[i] is JsonObject effect && effect["type"] is JsonValue type
+                && type.TryGetValue(out string? name) && name == BuiltInEffects.Speed)
+            {
+                items.RemoveAt(i);
+            }
+        }
     }
 
     private static void MigrateEffectToV3(JsonObject effect)

@@ -35,7 +35,7 @@ public class ProjectMigratorTests
     [Fact]
     public void Deserialize_NewerVersion_ThrowsUpdateMessage()
     {
-        var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize("""{"schemaVersion": 4, "id": "p"}"""));
+        var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize("""{"schemaVersion": 5, "id": "p"}"""));
         Assert.Contains("versión más nueva", ex.Message, StringComparison.Ordinal);
     }
 
@@ -43,10 +43,10 @@ public class ProjectMigratorTests
     public void Default_TargetsCurrentVersionAndLeavesCurrentFilesUntouched()
     {
         Assert.Equal(Project.CurrentSchemaVersion, ProjectMigrator.Default.TargetVersion);
-        JsonObject root = Doc("""{"schemaVersion": 3, "id": "p"}""");
+        JsonObject root = Doc("""{"schemaVersion": 4, "id": "p"}""");
         string before = root.ToJsonString();
 
-        Assert.Equal(3, ProjectMigrator.Default.Migrate(root));
+        Assert.Equal(4, ProjectMigrator.Default.Migrate(root));
         Assert.Equal(before, root.ToJsonString());
     }
 

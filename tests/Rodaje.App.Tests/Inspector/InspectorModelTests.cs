@@ -166,7 +166,8 @@ public class EffectCatalogTests
             Assert.Equal(stage != EffectStage.Deferred, descriptor.IsRendered);
         }
 
-        Assert.False(EffectCatalog.Find(BuiltInEffects.Speed)!.IsRendered);
+        Assert.Null(EffectCatalog.Find(BuiltInEffects.Speed));
+        Assert.False(EffectCatalog.Find(BuiltInEffects.Stabilize)!.IsRendered);
         Assert.True(EffectCatalog.Find(BuiltInEffects.Blur)!.IsRendered);
     }
 
