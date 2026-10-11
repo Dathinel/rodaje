@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Pestaña Texto: el contenido del título seleccionado y su copia del estilo (D-029) en secciones como las de Propiedades.
+    Las filas de estilo se arman en código (TextPanel.Rows.cs) con la misma etiqueta de ancho fijo que el resto del inspector.
+-->
+<UserControl
+    x:Class="Rodaje.App.Views.Inspector.Text.TextPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:inspector="using:Rodaje.App.Views.Inspector">
+
+    <Grid Background="{StaticResource PanelBrush}">
+        <TextBlock x:Name="EmptyText" Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center" Margin="24,0"
+                   Text="Selecciona un texto en la línea de tiempo, o pulsa T para crear uno en el cursor." />
+
+        <ScrollViewer x:Name="Body" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+            <StackPanel Padding="0,0,0,12">
+                <Grid Height="36" Padding="12,0,6,0">
+                    <TextBlock x:Name="ClipTitle" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" />
+                </Grid>
+
+                <inspector:InspectorSection x:Name="ContentSection" Key="texto-contenido" Title="Texto">
+                    <StackPanel Padding="12,4,6,6" Spacing="4">
+                        <TextBox x:Name="ContentBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" MaxHeight="220"
+                                 FontSize="{StaticResource BodyFontSize}" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 AutomationProperties.Name="Contenido del texto" PlaceholderText="Escribe el título"
+                                 TextChanged="OnContentChanged" LostFocus="OnContentLostFocus" />
+                        <TextBlock x:Name="FontWarning" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed" />
+                    </StackPanel>
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="StyleSection" Key="texto-estilo" Title="Estilo">
+                    <StackPanel x:Name="StyleRows" />
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="StrokeSection" Key="texto-borde" Title="Borde" CollapsedByDefault="True">
+                    <StackPanel x:Name="StrokeRows" />
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="ShadowSection" Key="texto-sombra" Title="Sombra" CollapsedByDefault="True">
+                    <StackPanel x:Name="ShadowRows" />
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="BackgroundSection" Key="texto-fondo" Title="Fondo" CollapsedByDefault="True">
+                    <StackPanel x:Name="BackgroundRows" />
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="AnimationSection" Key="texto-animacion" Title="Entrada y salida">
+                    <StackPanel Padding="12,4,6,6" Spacing="6">
+                        <CheckBox x:Name="InBox" Content="Animar la entrada" FontSize="{StaticResource BodyFontSize}" Click="OnEdgesClick" />
+                        <TextBlock x:Name="InText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Margin="28,-6,0,0" />
+                        <CheckBox x:Name="OutBox" Content="Animar la salida" FontSize="{StaticResource BodyFontSize}" Click="OnEdgesClick" />
+                        <TextBlock x:Name="OutText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Margin="28,-6,0,0" />
+                        <Button x:Name="ConvertButton" Content="Convertir en keyframes" Click="OnConvertClick"
+                                ToolTipService.ToolTip="Pasa la entrada y la salida a keyframes de Propiedades para editarlas a mano; desde ahí quedan fijas" />
+                        <TextBlock x:Name="AnimationHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+                    </StackPanel>
+                </inspector:InspectorSection>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
