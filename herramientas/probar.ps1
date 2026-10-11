@@ -131,9 +131,15 @@ $alVuelo = {
 }
 $r = Invocar-Dotnet (Join-Path $script:Corrida '3-probar.log') $argumentos $alVuelo
 if ($script:Hechas -ge 25) { Write-Host ("`r    pruebas ejecutadas: {0}" -f $script:Hechas) }
-# La pasada de tiempo real escribe sus propios informes (vacíos para Rodaje.Core): solo cuentan los de esta pasada.
+# Cuenta el informe de Rodaje.Core.Tests de esta pasada: es el único que mide solo Rodaje.Core (coverlet.runsettings);
+# los de otros proyectos miden otras rutas y la pasada de tiempo real escribe uno propio casi vacío.
 $script:CoberturaBaja = $null
-$informesCobertura = @(Get-ChildItem -LiteralPath $script:Corrida -Recurse -Filter 'coverage.cobertura.xml' -ErrorAction SilentlyContinue)
+$informesCobertura = @(Get-ChildItem -LiteralPath $script:Corrida -Recurse -Filter 'coverage.cobertura.xml' -ErrorAction SilentlyContinue |
+    Where-Object {
+        [xml]$x = [System.IO.File]::ReadAllText($_.FullName)
+        $nombres = @($x.coverage.packages.package | ForEach-Object { $_.name })
+        $nombres.Count -eq 1 -and $nombres[0] -eq 'Rodaje.Core'
+    })
 
 Fase 4 'corriendo las pruebas de tiempo real, solas...'
 $rTiempoReal = Invocar-Dotnet (Join-Path $script:Corrida '4-tiempo-real.log') (Argumentos-Prueba 'tiempo-real' 'Categoria=TiempoReal') $alVuelo
@@ -191,8 +197,8 @@ if ($Cobertura) {
     if ($informesCobertura.Count -eq 0) {
         Nota 'No se generó el informe de cobertura (sin pruebas no hay nada que medir).'
     } else {
-        # Un informe por proyecto de pruebas. Una línea puede aparecer en varios informes o en dos clases (parciales,
-        # lambdas): se cuenta una vez, con su mejor dato.
+        # vstest deja dos copias del informe. Una línea puede aparecer en dos clases (parciales, lambdas): se cuenta una
+        # vez, con su mejor dato.
         $lineas = @{}
         foreach ($xmlCob in $informesCobertura) {
             [xml]$c = [System.IO.File]::ReadAllText($xmlCob.FullName)
