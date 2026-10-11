@@ -16,6 +16,9 @@ Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla c
 6. [Errores](#errores)
 7. [Memoria compartida](#memoria-compartida)
 8. [Límites](#límites)
+9. [Un módulo mínimo](#un-módulo-mínimo)
+10. [Empaquetarlo](#empaquetarlo)
+11. [Licencia de tu módulo](#licencia-de-tu-módulo)
 
 ## Transporte
 
@@ -418,3 +421,205 @@ Plazos y cantidades del lado del editor y del anfitrión de C#:
 | Búfer de la tubería, en cada sentido | 64 KB | `ModuleProcess.PipeBufferBytes` |
 
 **Previsto** para el `ModuleManager` (ronda A, [fase-7.md](fase-7.md#arquitectura)) y todavía sin código: un proceso por módulo, abierto al primer uso y cerrado tras 2 min sin llamadas; un Job Object con «matar al cerrar» para que ningún módulo sobreviva al editor; `ping` de vigilancia cada 5 s con una llamada en curso (colgado si no responde en 10 s); un modelo pesado a la vez según `vramMb` del `paquete.json`.
+
+## Un módulo mínimo
+
+### En C#, con el anfitrión de Rodaje
+
+La forma más corta: referenciar `Rodaje.Modules.Protocol`, describir el módulo con `ModuleInfo`, registrar cada función en un `ModuleHost` y llamar a `RunAsync(args)`. El anfitrión hace el saludo, la versión, el marco, la validación, el paralelismo, el límite del avance, la cancelación y la conversión de excepciones en `error`. Plantilla completa: `modules/Rodaje.Module.Echo/`.
+
+`Program.cs`:
+
+```csharp
+using System.Text.Json;
+using Rodaje.Modules.Protocol;
+
+ModuleInfo info = new("mi-modulo", "1.0.0", "Mi módulo",
+[
+    new FunctionInfo("contar-palabras", "Contar palabras", ReportsProgress: false),
+    new FunctionInfo("invertir", "Invertir los colores", Inputs: ["video"], Outputs: ["video"]),
+], Device: "cpu");
+
+ModuleHost host = new(info);
+
+host.Register("contar-palabras", (call, _) =>
+{
+    if (call.Parameters is not { ValueKind: JsonValueKind.Object } p || !p.TryGetProperty("texto", out JsonElement t) || t.ValueKind != JsonValueKind.String)
+        throw new ModuleCallException(ErrorCodes.InvalidParameters, "Falta «texto».");
+    int palabras = t.GetString()!.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+    using JsonDocument doc = JsonDocument.Parse($$"""{"palabras":{{palabras}}}""");
+    return ValueTask.FromResult(new ModuleOutput(doc.RootElement.Clone()));
+});
+
+host.Register("invertir", async (call, ct) =>
+{
+    if (call.Buffers is not [{ Video: { PixelFormat: PixelFormats.Rgba8 } video } buffer])
+        throw new ModuleCallException(ErrorCodes.InvalidParameters, "«invertir» necesita un búfer rgba8.");
+    for (int y = 0; y < video.Height; y++)
+    {
+        ct.ThrowIfCancellationRequested();
+        Span<byte> row = call.Map(buffer).Slice(y * video.Stride, video.Width * 4);
+        for (int i = 0; i < row.Length; i += 4)
+        {
+            row[i] = (byte)(255 - row[i]);
+            row[i + 1] = (byte)(255 - row[i + 1]);
+            row[i + 2] = (byte)(255 - row[i + 2]);
+        }
+        await call.ReportProgressAsync((y + 1.0) / video.Height, "invirtiendo", ct).ConfigureAwait(false);
+    }
+    return new ModuleOutput(Buffers: [buffer]);
+});
+
+return await host.RunAsync(args).ConfigureAwait(false);
+```
+
+`MiModulo.csproj` (la ruta del `ProjectReference` depende de dónde tengas la biblioteca):
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\rodaje\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+  </ItemGroup>
+</Project>
+```
+
+Notas:
+
+- Cada función recibe un `ModuleCall` (`Id`, `Function`, `Parameters`, `Buffers`, `Map` y `ReportProgressAsync`) y un `CancellationToken`, y devuelve un `ModuleOutput(Value, Buffers)`. `Register` falla si la función no está en `ModuleInfo.Functions`, y `new ModuleHost(info)` falla si `info` no cumple los [límites](#límites) (`ModuleHost.cs`).
+- Para un error con código, lanza `ModuleCallException(ErrorCodes.…, mensaje)`; para cancelar, deja que salga la `OperationCanceledException` del token.
+- `MaxConcurrentCalls` (4) y `HandshakeTimeout` (10 s) se cambian al crear el anfitrión (`new ModuleHost(info) { MaxConcurrentCalls = 1 }`). Si tu módulo habla varias versiones, pásalas como `minProtocol` y `maxProtocol` del constructor.
+- **Comprobado:** compila sin advertencias con .NET 10 y, conectado a un `ModuleClient` por un socket en Linux, `contar-palabras` devuelve `{"palabras":2}` para `{"texto":"hola mundo"}`, y sin parámetros, o `invertir` sin búfer, dan `invalid-parameters`. `invertir` con un búfer real no se probó: la memoria compartida con nombre solo existe en Windows. Sin `--rodaje-pipe` sale con 64.
+- Hoy la biblioteca solo está en este repositorio. Cómo la recibirá un tercero (repositorio propio, paquete NuGet) **no está decidido**: D-031 dice que sale a su propio repositorio con el segundo programa de Dathinel.
+- El eco se publica con Native AOT (3,3 MB, arranque y saludo en 31–33 ms; [fase-7.md](fase-7.md#cifras-del-paso-0-11-oct)). Un módulo que no admita AOT puede salir autocontenido con JIT (provisional, pregunta 3 de la fase 7).
+
+### En otro lenguaje
+
+El protocolo es solo el marco y el JSON, así que sirve cualquier lenguaje que abra una tubería de Windows. Este módulo en Python (sin dependencias) atiende las llamadas de una en una: contesta cada `invoke` antes de leer el siguiente mensaje, así que no maneja `cancel`, y por eso declara su función con `cancellable: false`. Un módulo con llamadas largas necesita leer en paralelo para atender `cancel` y `ping`.
+
+```python
+import json
+import struct
+import sys
+
+MAX_FRAME = 1 << 20
+
+INFO = {
+    "id": "mi-modulo-py",
+    "version": "1.0.0",
+    "name": "Mi módulo en Python",
+    "functions": [{"id": "contar-palabras", "name": "Contar palabras", "cancellable": False, "reportsProgress": False}],
+}
+
+
+def read_exactly(pipe, n):
+    data = b""
+    while len(data) < n:
+        chunk = pipe.read(n - len(data))
+        if not chunk:
+            if data:
+                raise EOFError("conexión cortada a mitad de un mensaje")
+            return None
+        data += chunk
+    return data
+
+
+def receive(pipe):
+    header = read_exactly(pipe, 4)
+    if header is None:
+        return None
+    (length,) = struct.unpack("<i", header)
+    if length <= 0 or length > MAX_FRAME:
+        raise ValueError("marco fuera de rango")
+    return json.loads(read_exactly(pipe, length).decode("utf-8"))
+
+
+def send(pipe, message):
+    payload = json.dumps(message, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    pipe.write(struct.pack("<i", len(payload)) + payload)
+    pipe.flush()
+
+
+def serve(pipe):
+    hello = receive(pipe)
+    if not hello or hello.get("type") != "hello":
+        send(pipe, {"type": "error", "code": "malformed", "message": "Lo primero tiene que ser «hello»."})
+        return 2
+    if not hello["minProtocol"] <= 1 <= hello["maxProtocol"]:
+        send(pipe, {"type": "error", "code": "version-incompatible",
+                    "message": f"El módulo habla el protocolo 1–1 y el editor {hello['minProtocol']}–{hello['maxProtocol']}."})
+        return 2
+    send(pipe, {"type": "welcome", "protocol": 1, "module": INFO})
+    while True:
+        message = receive(pipe)
+        kind = message and message.get("type")
+        if kind is None or kind == "shutdown":
+            return 0
+        if kind == "ping":
+            send(pipe, {"type": "pong", "id": message["id"]})
+        elif kind == "invoke":
+            call_id, params = message["id"], message.get("parameters")
+            if message["function"] != "contar-palabras":
+                send(pipe, {"type": "error", "code": "unknown-function", "message": "Función desconocida.", "id": call_id})
+            elif not isinstance(params, dict) or not isinstance(params.get("texto"), str):
+                send(pipe, {"type": "error", "code": "invalid-parameters", "message": "Falta «texto».", "id": call_id})
+            else:
+                send(pipe, {"type": "result", "id": call_id, "value": {"palabras": len(params["texto"].split())}})
+        # «cancel» y tipos desconocidos se ignoran: este módulo responde cada llamada antes de leer la siguiente.
+
+
+def main(args):
+    if "--rodaje-pipe" not in args or args.index("--rodaje-pipe") + 1 >= len(args):
+        print("Este programa es un módulo de Rodaje; lo abre el editor.", file=sys.stderr)
+        return 64
+    name = args[args.index("--rodaje-pipe") + 1]
+    with open(r"\\.\pipe" + "\\" + name, "r+b", buffering=0) as pipe:
+        return serve(pipe)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
+```
+
+**Comprobado:** `serve()` se probó sobre un socket en Linux contra el `ModuleClient` real: saluda (protocolo 1), `contar-palabras` devuelve `{"palabras":3}`, una función desconocida da `unknown-function`, parámetros malos dan `invalid-parameters`, `ping` responde y `shutdown` lo cierra con 0; con un editor que pide 2–2 contesta `version-incompatible` y el editor lanza `ModuleVersionException`. **No se probó** la apertura de la tubería en Windows (`open(r"\\.\pipe\…", "r+b")`).
+
+Lo mínimo que tiene que hacer cualquier módulo:
+
+1. Leer el nombre de la tubería después de `--rodaje-pipe` y conectarse en menos de 10 s.
+2. Esperar `hello`, elegir versión y contestar `welcome` (o `error` `version-incompatible`) en menos de 10 s.
+3. Contestar cada `invoke` con un `result` o un `error` con su `id`, y cada `ping` con su `pong`.
+4. Confirmar cada `cancel` con `error` `cancelled` en menos de 2 s (o declarar la función `cancellable: false` y terminar rápido).
+5. Salir al recibir `shutdown` o cuando se cierra la tubería, en menos de 2 s.
+6. No escribir el protocolo por la salida estándar (se descarta) y dejar los mensajes de diagnóstico en la de errores.
+
+## Empaquetarlo
+
+Un módulo se instala como un paquete con `"kind": "module"` y un bloque `module` en su `paquete.json` ([formato-paquete.md](formato-paquete.md#módulos-de-ia)):
+
+```json
+"module": { "entry": "bin/modulo-subtitulos.exe", "protocol": 1, "functions": ["subtitulos"] }
+```
+
+`entry` es la ruta relativa al ejecutable dentro del paquete, `protocol` la versión del protocolo y `functions` lo que ofrece (`ManifestReader.Module` en `src/Rodaje.Paquetes/ManifestReader.cs`). Se instala en `%LOCALAPPDATA%\Rodaje\complementos\modulos\<id>\`. Hoy el instalador lo guarda pero la app no lo ejecuta. **Previsto** ([fase-7.md](fase-7.md#formatos)): los campos `runtime`, `vramMb` y `models` (modelos con hash, licencia y URL, compartidos entre módulos) y `protocol: 0` para herramientas de línea de órdenes que no hablan este protocolo; el lector de manifiestos todavía no los conoce.
+
+## Licencia de tu módulo
+
+Rodaje se licencia bajo la GNU GPL versión 3 solamente, con términos adicionales de la Sección 7 (archivo `LICENSE`, D-032). El **término 4** de esos términos adicionales, «Excepción para complementos y extensiones», da permiso expreso para hacer interactuar Rodaje con módulos independientes, complementos, efectos o extensiones a través de sus interfaces públicas, puntos de extensión o mecanismos de comunicación entre procesos (IPC/CLI), como este protocolo. Según ese término, los complementos de terceros:
+
+> a) No se considerarán obras derivadas de este software por el mero hecho de conectarse a través de dichas interfaces públicas.
+> b) Podrán ser distribuidos, licenciados o comercializados bajo los términos legales y comerciales que su respectivo autor determine (incluidas licencias privativas y de pago).
+> c) No están obligados a publicar su propio código fuente bajo la GNU GPLv3.
+
+Es decir: un módulo que habla con Rodaje por este protocolo puede llevar **su propia licencia**, también privativa o de pago. El mismo término aclara que la excepción no autoriza modificar ni distribuir el núcleo de Rodaje sin cumplir la atribución y el copyleft de los términos 1 a 3.
+
+Lo que esta guía **no** resuelve, y queda para Daniel y el abogado ([legal.md](legal.md)):
+
+- Si un módulo que **incluye** la biblioteca `Rodaje.Modules.Protocol` (código de este repositorio, bajo la misma licencia) cuenta como «conectarse a través de las interfaces públicas» o necesita otro permiso. Un módulo que implementa el protocolo por su cuenta, como el ejemplo en Python, solo se comunica por IPC. La licencia con que saldrá la biblioteca en su propio repositorio no está decidida.
+- Las licencias de los modelos, voces y bibliotecas que use tu módulo son aparte y las cumples tú.
