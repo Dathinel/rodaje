@@ -57,13 +57,13 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
   - **Inspector:** keyframes en el cursor, «Guardar como transición» en `%LOCALAPPDATA%\Rodaje\complementos\propios`, filtros, historial y trabajos.
   - **Página de atajos:** teclado dibujado y hoja rápida.
   - **Medidores y reproductor:** medidores L/R sincronizados con lo que se oye, J/K/L y pantalla completa.
-- **Cifras:** 1913 de 1927 pruebas pasan (14 omitidas, 0 fallos), AOT con 0 advertencias, 0 cuadros perdidos, edición en pantalla en ~10 ms.
+- **Cifras:** 1939 de 1953 pruebas pasan (14 omitidas, 0 fallos), AOT con 0 advertencias, 0 cuadros perdidos, edición en pantalla en ~10 ms.
 - **Maqueta aprobada (D-018):** https://claude.ai/artifact/XXtTT675TEHWSPPCCZfXcv; fuente en `dist\maqueta` (no se versiona).
 - **Revisión de la fase 4 corregida (10-oct, agentes A–D):** ripple con enlazados, Esc en el inspector, atajos tras las páginas, guardia de diálogos y red de errores (`rodaje-error.txt`), rutas inválidas, recuperación de paquetes tras apagón, límites y textos de manifiesto, hilos de miniaturas, medidores en pausa, contrato `IClipVisuals` único, `TimelineScheduler` en parciales, pruebas `TiempoReal` en pasada aparte, README y arquitectura al día (D-022, D-023).
 
 ## Siguiente paso (al retomar)
 
-1. **Daniel prueba la app a mano** con `Rodaje.bat`: biblioteca, arrastres en la principal, inspector con keyframes (Esc a mitad del primer arrastre), atajos (con la página de Atajos abierta Espacio no hace nada y Ctrl+S sí guarda), AltGr para @ y €, flechas sobre un deslizador, medidores en pausa, cambiar un panel y cerrar de golpe (los ajustes se conservan), guardar y abrir. Medir con `app.ps1 -Medir N`.
+1. **Daniel ya probó (10-oct) y aprobó** arrastres, Esc, estilos y botones iluminados. Lo que pidió ya está hecho: restablecer por parámetro con aviso si borra keyframes (D-024), Atajos con vista Esencial/Avanzado, miniaturas recortadas al clip, atenuación de pistas, Espacio sin abrir «Archivo», candado que deja ocultar y silenciar, complementos sin desinstalar con varias ventanas. **Falta que lo compruebe a ojo**; el teclado cortado no se reprodujo aquí (pedirle tamaño de ventana y escala).
 2. **Que confirme Daniel:** las flechas sobre un deslizador enfocado (también el del zoom) lo mueven a él; Ctrl izquierdo + Alt derecho ya no lanza atajos Ctrl+Alt; los guardados van en fila en lugar de `.tmp` únicos.
 3. **Pendientes conocidos:**
    - pico de ~600 ms en la primera edición tras importar: el motor no lo causa, falta medirlo en la interfaz;
