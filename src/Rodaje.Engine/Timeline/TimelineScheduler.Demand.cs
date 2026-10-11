@@ -106,14 +106,15 @@ internal sealed partial class TimelineScheduler
             }
         }
 
-        // Primero lo que ya se debe mostrar, de la pista de arriba hacia abajo; después lo más urgente; a igual urgencia,
-        // los medios sin ningún decodificador: los que ya tienen uno pueden compartirlo si no queda lugar.
+        // Lo más urgente primero (lo que ya se debe mostrar tiene urgencia 0); a igual urgencia, los medios sin ningún
+        // decodificador (los que ya tienen uno pueden compartirlo si no queda lugar) y después la pista de arriba. La pista
+        // no pasa por delante de eso: en 4K con cortes abría decodificadores de más y cerraba los que las de abajo
+        // necesitaban enseguida (VRAM del proceso 1825 MB con 1485 de presupuesto y 71 refrescos tarde).
         requests.Sort(static (a, b) =>
         {
-            int c = (a.Cluster.Urgency == 0 ? 0 : 1).CompareTo(b.Cluster.Urgency == 0 ? 0 : 1);
-            c = c != 0 ? c : b.Cluster.Priority.CompareTo(a.Cluster.Priority);
-            c = c != 0 ? c : a.Cluster.Urgency.CompareTo(b.Cluster.Urgency);
-            return c != 0 ? c : a.Media.Decoders.Count.CompareTo(b.Media.Decoders.Count);
+            int c = a.Cluster.Urgency.CompareTo(b.Cluster.Urgency);
+            c = c != 0 ? c : a.Media.Decoders.Count.CompareTo(b.Media.Decoders.Count);
+            return c != 0 ? c : b.Cluster.Priority.CompareTo(a.Cluster.Priority);
         });
         foreach (OpenRequest request in requests)
         {
