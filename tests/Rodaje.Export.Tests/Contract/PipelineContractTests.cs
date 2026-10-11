@@ -38,8 +38,16 @@ public sealed class PipelineContractTests
         Assert.Throws<ArgumentOutOfRangeException>(() => timeline.RenderAt(Time.FromSeconds(1), CancellationToken.None));
         Assert.Throws<OperationCanceledException>(() => timeline.Render(0, new CancellationToken(canceled: true)));
         Assert.Throws<OperationCanceledException>(() => timeline.RenderAt(Time.Zero, new CancellationToken(canceled: true)));
-        Assert.Throws<NotImplementedException>(() => timeline.Render(0, CancellationToken.None));
-        Assert.Throws<NotImplementedException>(() => timeline.RenderAt(Time.Zero, CancellationToken.None));
+        // Un medio sin video sondeado no entra en el plan: la composición sale vacía (negro).
+        using (Rodaje.Playback.Composition.CompositionFrame frame = timeline.Render(0, CancellationToken.None))
+        {
+            Assert.Empty(frame.Layers);
+        }
+
+        using (Rodaje.Playback.Composition.CompositionFrame frame = timeline.RenderAt(Time.Zero, CancellationToken.None))
+        {
+            Assert.Empty(frame.Layers);
+        }
         Assert.Throws<KeyNotFoundException>(() => OfflineTimeline.Open(project, "otra", null));
 
         timeline.Dispose();
@@ -62,8 +70,10 @@ public sealed class PipelineContractTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => audio.WriteWave("a.wav", Time.FromSeconds(1), Time.Zero, ExportAudioFormat.Default, 0, null, default));
         Assert.Throws<ArgumentOutOfRangeException>(() => audio.WriteWave("a.wav", Time.Zero, Time.FromSeconds(1), ExportAudioFormat.Default, double.NaN, null, default));
-        Assert.Throws<NotImplementedException>(() => audio.WriteWave("a.wav", Time.Zero, Time.FromSeconds(1), ExportAudioFormat.Default, 0, null, default));
-        Assert.Throws<NotImplementedException>(() => audio.MeasureLoudness(Time.Zero, Time.FromSeconds(1), null, default));
+        string wave = Path.Combine(Path.GetTempPath(), $"rodaje-contrato-{Guid.NewGuid():N}.wav");
+        Assert.Equal(48_000, audio.WriteWave(wave, Time.Zero, Time.FromSeconds(1), ExportAudioFormat.Default, 0, null, default));
+        File.Delete(wave);
+        Assert.True(double.IsNegativeInfinity(audio.MeasureLoudness(Time.Zero, Time.FromSeconds(1), null, default).IntegratedLufs));
 
         audio.Dispose();
         audio.Dispose();
