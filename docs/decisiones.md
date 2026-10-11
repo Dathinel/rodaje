@@ -348,3 +348,19 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 
 
 **Nota a D-030 (11-oct):** los complementos de contenido (`rodaje-transiciones`, `rodaje-filtros` y los que vengan) siguen en CC0: la licencia no comercial es solo del programa. El nombre «Rodaje» no está registrado en la SIC; la consulta legal se aplaza hasta antes de la versión pública (hoy es de uso propio y cercanos).
+
+## D-031. Arquitectura de la fase 7: protocolo de módulos v1, análisis en la app y descarga firmada (11 de octubre de 2026)
+
+**Contexto.** La fase 7 ([fase-7.md](fase-7.md)) trae la IA local de la [propuesta de módulos](propuesta-modulos.md) y la descarga de complementos (`IPackageDownloader`). Antes de repartirla hace falta fijar el protocolo, el aislamiento y de dónde sale cada modelo.
+
+**Decisión.**
+- **Protocolo v1** en `src/Rodaje.Modules.Protocol` (sin referencias a Rodaje, AOT, compartible): marco de 4 bytes + JSON UTF-8 de hasta 1 MiB con `type`, mensajes `hello`/`welcome`/`invoke`/`progress`/`result`/`error`/`cancel`/`ping`/`pong`/`log`/`shutdown` con `JsonSerializerContext`, negociación de versión por rango, capacidades en `welcome`, avance limitado a uno cada 50 ms, cancelación confirmada con 2 s de gracia y muerte del proceso si no llega, códigos de error estables. Campos y tipos de mensaje desconocidos se ignoran; un mensaje inválido cierra la conexión.
+- **Desconfianza hacia el módulo:** límites en cada campo, UTF-8 estricto, búferes solo en regiones que creó el editor y con límites comprobados; cualquier violación corta, falla las llamadas con `ModuleException` y mata el proceso. Tubería con nombre aleatorio y `CurrentUserOnly` en los dos lados, 64 KB de búfer.
+- **Cuadros y audio por memoria compartida** (`Local\Rodaje.Mod.<guid>`, la crea el editor). El editor decodifica: los módulos no abren archivos del usuario ni traen FFmpeg.
+- **Ciclo de vida:** un proceso por módulo, al primer uso y cerrado tras 2 min ocioso, Job Object con «matar al cerrar», `ping` de vigilancia, un modelo pesado a la vez según `vramMb`.
+- **La IA no edita:** devuelve datos que la app convierte en comandos con vista previa y un solo Ctrl+Z.
+- **Sin modelo, en la app** (provisional, pregunta 1 de la fase): silencios, ritmo, ducking, estabilizar y color automático.
+- **Runtimes:** ONNX Runtime con DirectML (provisional frente a Windows ML), Whisper.net con Vulkan y LLamaSharp para el traductor; CUDA no se redistribuye. Modelos y voces solo con licencias que permitan redistribuirlos (tabla en `fase-7.md`); espeak-ng (GPL) se sustituye por un fonemizador propio.
+- **Descarga:** `GitHubReleaseDownloader` con un índice firmado con ECDSA P-256 (clave pública en el exe), SHA-256 de cada archivo, reanudación e instalación atómica; releases de GitHub de Dathinel y Hugging Face fijado por commit para los modelos grandes. `paquete.json` suma a `module` los campos `runtime`, `vramMb` y `models` sin cambiar el `formatVersion`.
+
+**Consecuencias.** El paso 0 mide 0,1 ms por cuadro 1080p por referencia, 1,4 ms copiado (~700 cuadros/s), ping de ~0,1 ms, arranque de 31 ms con AOT y cancelación en <1 ms: el protocolo no es cuello para ningún modelo. Los repositorios de los módulos esperan la respuesta de Daniel; mientras, viven en `modules/`. Un módulo que no admita AOT sale autocontenido con JIT (provisional).
