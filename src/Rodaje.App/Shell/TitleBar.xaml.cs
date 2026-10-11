@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Services.Templates;
 using Rodaje.App.Views.Inspector;
 using Rodaje.Engine.Timeline;
 
@@ -13,6 +14,7 @@ namespace Rodaje.App.Shell;
 internal sealed partial class TitleBar : UserControl
 {
     private EditorServices? _services;
+    private ProjectTemplateStore? _templates;
 
     public TitleBar()
     {
@@ -38,6 +40,7 @@ internal sealed partial class TitleBar : UserControl
         BuildTrackCountMenu(NewVideoTracksMenu, "Tracks", isVideo: true);
         BuildTrackCountMenu(NewAudioTracksMenu, "AudioTracks", isVideo: false);
         BuildLinkedAudioMenu();
+        LoadTemplates();
         UpdateAccelerators();
         UpdateUndoText();
         UpdateChecks();
@@ -247,6 +250,139 @@ internal sealed partial class TitleBar : UserControl
         _services.Session.LinkedAudioTracks = settings.LinkedAudioTracks;
         _services.Settings.SaveIfChanged();
         UpdateLinkedAudioChecks();
+    }
+
+    private void LoadTemplates()
+    {
+        _templates = new ProjectTemplateStore(ProjectTemplateStore.DefaultPath);
+        if (_templates.Load() is { } warning)
+        {
+            _services?.Session.Notify(NotificationSeverity.Warning, "Plantillas", warning);
+        }
+
+        BuildTemplatesMenu();
+    }
+
+    /// <summary>Las de fábrica, las propias y, si hay propias, «Borrar plantilla propia».</summary>
+    private void BuildTemplatesMenu()
+    {
+        TemplatesMenu.Items.Clear();
+        if (_templates is null)
+        {
+            return;
+        }
+
+        foreach (ProjectTemplate template in BuiltInTemplates.All)
+        {
+            TemplatesMenu.Items.Add(TemplateItem(template, OnTemplateClick));
+        }
+
+        if (_templates.UserTemplates.Count == 0)
+        {
+            return;
+        }
+
+        TemplatesMenu.Items.Add(new MenuFlyoutSeparator());
+        var delete = new MenuFlyoutSubItem { Text = "Borrar plantilla propia" };
+        foreach (ProjectTemplate template in _templates.UserTemplates)
+        {
+            TemplatesMenu.Items.Add(TemplateItem(template, OnTemplateClick));
+            delete.Items.Add(TemplateItem(template, OnDeleteTemplateClick));
+        }
+
+        TemplatesMenu.Items.Add(new MenuFlyoutSeparator());
+        TemplatesMenu.Items.Add(delete);
+    }
+
+    private static MenuFlyoutItem TemplateItem(ProjectTemplate template, RoutedEventHandler click)
+    {
+        var item = new MenuFlyoutItem { Text = template.Name, Tag = template.Id };
+        ToolTipService.SetToolTip(item, template.Summary);
+        item.Click += click;
+        return item;
+    }
+
+    private async void OnTemplateClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string id } || _services is null || _templates?.Find(id) is not { } template)
+        {
+            return;
+        }
+
+        try
+        {
+            await _services.Session.NewProjectFromTemplateAsync(template);
+        }
+#pragma warning disable CA1031 // Un clic en el menú no debe tumbar la aplicación: el error se muestra en la ventana.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _services.Session.Notify(NotificationSeverity.Error, "No se pudo crear el proyecto", ex.Message);
+        }
+    }
+
+    private void OnDeleteTemplateClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string id } || _services is null || _templates is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _templates.Remove(id);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _services.Session.Notify(NotificationSeverity.Error, "No se pudo borrar la plantilla", ex.Message);
+        }
+
+        BuildTemplatesMenu();
+    }
+
+    /// <summary>Pide un nombre y guarda el formato y las pistas de la secuencia abierta como plantilla propia.</summary>
+    private async void OnSaveTemplateClick(object sender, RoutedEventArgs e)
+    {
+        if (DialogGate.IsOpen || _services is not { } services || _templates is not { } templates || XamlRoot is null)
+        {
+            return;
+        }
+
+        var nameBox = new TextBox { PlaceholderText = "Por ejemplo: Mi canal vertical", MaxLength = ProjectTemplate.MaxNameLength };
+        var content = new StackPanel { Spacing = 8 };
+        content.Children.Add(new TextBlock
+        {
+            Text = "Guarda el tamaño, la tasa de cuadros y las pistas con sus nombres (sin clips) para empezar otros proyectos igual. Si ya hay una con ese nombre, se reemplaza.",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        content.Children.Add(nameBox);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "Guardar como plantilla",
+            Content = content,
+            PrimaryButtonText = "Guardar",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Primary,
+            RequestedTheme = ElementTheme.Dark,
+        };
+
+        if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(nameBox.Text))
+        {
+            return;
+        }
+
+        try
+        {
+            ProjectTemplate saved = templates.Save(services.Session.CreateTemplateFromSequence(nameBox.Text));
+            services.Session.Notify(NotificationSeverity.Success, "Plantilla guardada", $"«{saved.Name}» aparece en Archivo › Proyecto nuevo desde plantilla ({saved.Summary}).");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        {
+            services.Session.Notify(NotificationSeverity.Error, "No se pudo guardar la plantilla", ex.Message);
+        }
+
+        BuildTemplatesMenu();
     }
 
     private void OnQualityClick(object sender, RoutedEventArgs e)
