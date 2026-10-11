@@ -21,8 +21,15 @@ internal sealed record AudioClipPlan(string ClipId, SourceKey Source, long Start
 /// Velocidad de un clip de audio: su mapeo exacto y si mantiene el tono. Compara por valor, así un cambio de velocidad
 /// o de «mantener tono» rehace la mezcla. Un congelado suena en silencio.
 /// </summary>
-internal sealed record AudioRetime(ClipTimeMap Map, bool PreservePitch)
+/// <param name="Joined">
+/// Si el clip y sus vecinos sin transición entre medias son trozos de uno dividido, el mapeo de todos juntos: el lector
+/// sigue ese recorrido y no el de cada trozo, que fuera de él seguiría a la velocidad del borde.
+/// </param>
+internal sealed record AudioRetime(ClipTimeMap Map, bool PreservePitch, ClipTimeMap? Joined = null)
 {
+    /// <summary>El recorrido que lee <see cref="Retime.RetimedReader"/>: el de los trozos juntos, o el del clip.</summary>
+    public ClipTimeMap Course => Joined ?? Map;
+
     /// <summary>Muestra del origen en la muestra <paramref name="sample"/> de la línea de tiempo; fuera del clip sigue a la velocidad del borde.</summary>
     public long SourceSample(long sample) =>
         Map.ExtendedSource(Time.FromSamples(sample, TimelinePlan.AudioSampleRate)).ToSamples(TimelinePlan.AudioSampleRate);

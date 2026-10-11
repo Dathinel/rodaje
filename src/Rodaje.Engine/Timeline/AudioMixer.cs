@@ -362,6 +362,10 @@ internal sealed class MixRenderer : IPcmSource
                 retimed = new RetimedReader(retime, reader.Pcm, reader.Next);
                 reader.Retimed = retimed;
             }
+            else
+            {
+                retimed.Adopt(retime);
+            }
 
             retimed.Read(start, scratch, reader.Next);
             reader.Next = retimed.DecoderNext;

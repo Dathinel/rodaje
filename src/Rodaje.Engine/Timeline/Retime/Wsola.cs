@@ -81,7 +81,7 @@ internal sealed class Wsola
         ArgumentNullException.ThrowIfNull(source);
         _map = map;
         _source = source;
-        _hop = maxRate > LongWindowAbove ? 1024 : 512;
+        _hop = HopFor(maxRate);
         int n = 2 * _hop;
         _window = new float[n];
         for (int i = 0; i < n; i++)
@@ -111,6 +111,9 @@ internal sealed class Wsola
     }
 
     public int Hop => _hop;
+
+    /// <summary>Paso entre trozos para un clip cuya velocidad llega a <paramref name="maxRate"/>.</summary>
+    public static int HopFor(double maxRate) => maxRate > LongWindowAbove ? 1024 : 512;
 
     /// <summary>Trozos calculados para arrancar tras un salto (los de <see cref="WarmUp"/>); sirve a las pruebas.</summary>
     public long WarmUpSteps { get; private set; }
