@@ -20,7 +20,7 @@ Con eso en verde, quita `continue-on-error` del trabajo de Windows y deja el enl
 
 ## 2. Guardia de decodificador en las pruebas de Render
 
-- **Estado:** pendiente (espera a que el PR #2 esté unido si toca `ci.yml`; si no lo está, haz solo la guardia en las pruebas y deja `ci.yml` para un PR siguiente)
+- **Estado:** cambios (PR #4: atender la revisión del 11-oct en sus comentarios)
 - **Rama:** `claude/render-guardia-decodificador`
 - **Caminos:** `tests/Rodaje.Render.Tests/`, `.github/workflows/ci.yml`, `docs/tareas/`
 
