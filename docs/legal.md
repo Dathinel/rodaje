@@ -12,6 +12,43 @@ La licencia propia no cambia la regla con el código GPL: copiar código literal
 
 Los editores de código abierto estudiados (MLT, Kdenlive, Shotcut, OpenShot, Olive y LosslessCut, con sus licencias en `docs/archivo/investigacion.md`) se analizaron solo a nivel de arquitectura y comportamiento. No se copió, tradujo ni adaptó código de ninguno de ellos. De los programas comerciales que inspiran la experiencia de uso solo se toman ideas de producto: nunca se descompilan ni se analizan sus binarios, y nunca se extraen sus recursos (efectos, plantillas, fuentes, música, íconos). Todos los recursos que se incluyan en Rodaje deben ser propios o tener una licencia que permita redistribución y uso comercial, registrada en `LICENCIAS.md`.
 
+## Compatibilidad de la licencia de Rodaje
+
+Análisis hecho el 11 de octubre de 2026 al pasar de MIT a PolyForm Noncommercial 1.0.0, leyendo el texto de `LICENSE` y las licencias de las dependencias. No cambia el código. Las citas entre comillas son traducciones libres; vale el texto en inglés. Las conclusiones son de trabajo y quedan **pendientes de revisión legal** (ver [`pendientes-legales.md`](pendientes-legales.md)).
+
+### FFmpeg (LGPL): reemplazar las DLL y depurar la combinación
+
+**Qué exige la LGPL.** La LGPL 2.1, sección 6, permite distribuir un programa que use la biblioteca «bajo los términos que elijas, siempre que esos términos permitan modificar la obra para uso propio del cliente y la ingeniería inversa para depurar esas modificaciones». Las DLL que se distribuyen son LGPL v3 (`--enable-version3`), cuya sección 4 («Combined Works») pide lo mismo: términos que, en conjunto, no restrinjan de hecho la modificación de las partes de la biblioteca contenidas en la obra combinada ni la ingeniería inversa para depurar esas modificaciones. Por eso Rodaje carga las DLL por enlace dinámico y sin renombrarlas, de modo que se puedan reemplazar.
+
+**Qué dice la PolyForm Noncommercial.** Ninguna cláusula prohíbe la ingeniería inversa, el desensamblado ni el reemplazo de componentes. Las que importan:
+
+- *Copyright License*: concede licencia para «todo lo que pudieras hacer con el software que de otro modo infringiría los derechos de autor del licenciante, para cualquier fin permitido».
+- *Changes and New Works License*: concede licencia para «hacer cambios y obras nuevas basadas en el software para cualquier fin permitido».
+- *Noncommercial Purposes* y *Personal Uses*: todo fin no comercial es permitido, incluido el uso personal para estudio, experimentos y pruebas.
+- *Fair Use*: los términos no limitan los derechos de uso legítimo que dé la ley.
+- *Definitions*: la licencia cubre solo «el software que el licenciante pone a disposición bajo estos términos», es decir, el código de Daniel; no se extiende a las DLL de FFmpeg, que siguen bajo la LGPL.
+
+**Conclusión de trabajo.** Compatible. Quien usa Rodaje con un fin permitido puede reemplazar las DLL de FFmpeg, modificar la combinación para su propio uso y depurarla por ingeniería inversa: la PolyForm lo cubre con las cláusulas citadas y no contiene ninguna prohibición en contra. Quien quiere un uso comercial no tiene licencia de Rodaje, pero eso no restringe la modificación de FFmpeg: es la misma situación que la de cualquier programa no libre que enlaza FFmpeg, que la LGPL admite; las DLL siguen siendo LGPL y se pueden reemplazar o usar por separado. Dos condiciones para que siga así: (1) ningún texto añadido (EULA, términos del Windows App SDK, cuadro «Acerca de») puede prohibir la ingeniería inversa o la modificación de la combinación con FFmpeg; (2) la cláusula *Violations*, que termina la licencia de Rodaje, no afecta a los derechos que la LGPL da sobre FFmpeg, y conviene que los avisos lo digan. `THIRD-PARTY-NOTICES.txt` ya lleva un párrafo en ese sentido, pendiente de revisión legal.
+
+### Windows App SDK: ¿basta la PolyForm como términos de usuario final?
+
+**Qué exige Microsoft.** La cláusula 3.b de los términos del Windows App SDK (`license.txt` de los paquetes, resumido en `LICENCIAS.md`) pide, para cada archivo redistribuido: (i) que la aplicación añada funcionalidad principal significativa; (ii) que «distribuidores y usuarios finales externos acepten términos que protejan [ese código] y a Microsoft al menos tanto como este acuerdo»; y (iii) que el desarrollador indemnice a Microsoft por reclamaciones relacionadas con la distribución o el uso de la aplicación, salvo las basadas solo en el código redistribuible sin modificar.
+
+**Conclusión de trabajo: no basta, hace falta un texto complementario.** La PolyForm solo licencia el software de Daniel (*Definitions*) y su exclusión de responsabilidad (*No Liability*) protege solo al licenciante. No dice nada de los archivos de Microsoft ni protege a Microsoft. Peor: concede a cualquiera, para fines no comerciales, el derecho a redistribuir (*Distribution License*) con la única condición de pasar los términos y el `Required Notice` (*Notices*), así que un redistribuidor no quedaría obligado por los términos de Microsoft que exige 3.b.ii. Hace falta un acuerdo de usuario final (EULA) o unos términos complementarios que acompañen a la distribución y que también obliguen a los redistribuidores. **No se redacta aquí:** es trabajo del abogado.
+
+Cláusulas que ese texto debería cubrir, como lista para el abogado (**pendiente de revisión legal**):
+
+1. Los archivos del Windows App SDK que viajan en `dist\` son de Microsoft, se licencian y no se venden, y conservan sus propios términos; la PolyForm no se aplica a ellos.
+2. Prohibición de ingeniería inversa, descompilación y desensamblado **limitada a esos archivos** (equivalente a la 4.b de Microsoft), redactada de forma que no alcance a FFmpeg ni a la combinación de Rodaje con FFmpeg, para no chocar con la LGPL.
+3. Prohibición de eludir sus limitaciones técnicas, de quitar los avisos de Microsoft y de redistribuirlos fuera de Rodaje o como producto independiente (4.a, 4.c y 4.e).
+4. Exclusión de garantías y de responsabilidad que proteja también a Microsoft y a sus proveedores, no solo a Daniel.
+5. Aviso de recopilación de datos (2.a): el software de Microsoft puede enviar datos de uso, cómo desactivarlo y el enlace a la declaración de privacidad.
+6. Cumplimiento de las leyes de exportación (5).
+7. Sin uso de marcas de Microsoft que sugiera respaldo (3.c.i).
+8. Obligación de los redistribuidores de pasar estos mismos términos a quienes reciban copias.
+9. Cómo se acepta el texto sin instalador (por ejemplo, un diálogo en el primer arranque) y si la aceptación vale en Colombia.
+10. Fuera del EULA, para Daniel: el alcance real de la indemnización de 3.b.iii para una persona que distribuye gratis y sin ánimo de lucro.
+
 ## FFmpeg y la LGPL
 
 FFmpeg es la pieza con más obligaciones. Su licencia por defecto es la LGPL 2.1 o posterior, pero se convierte en GPL si se compila con `--enable-gpl` y en no redistribuible si se compila con `--enable-nonfree` (https://ffmpeg.org/legal.html). Rodaje usará las compilaciones `lgpl-shared` de BtbN (https://github.com/BtbN/FFmpeg-Builds). Según el archivo de variantes del propio proyecto (https://github.com/BtbN/FFmpeg-Builds/blob/master/variants/defaults-lgpl.sh), esas compilaciones usan `--enable-version3` y el archivo de licencia `COPYING.LGPLv3`, de modo que la licencia efectiva de las DLL distribuidas es la LGPL versión 3. Excluyen las bibliotecas que solo admiten GPL, como libx264 y libx265.
