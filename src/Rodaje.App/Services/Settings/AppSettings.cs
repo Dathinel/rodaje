@@ -64,12 +64,22 @@ public sealed class AppSettings
     /// <summary>Pistas de audio que trae un proyecto nuevo (1–8).</summary>
     public int DefaultAudioTracks { get; set; } = NewProjectTracks.Default.Audio;
 
+    /// <summary>
+    /// Números de las pistas de video (1 = «Video 1») de las que sale el audio de un medio a su propia pista al
+    /// importarlo o soltarlo; <c>null</c> para todas (lo de siempre).
+    /// </summary>
+    public List<int>? LinkedAudioVideoTracks { get; set; }
+
     /// <summary>Interruptores y zoom de la línea de tiempo.</summary>
     public TimelinePreferences Timeline { get; set; } = new();
 
     /// <summary>Las pistas de un proyecto nuevo según los ajustes.</summary>
     [JsonIgnore]
     public NewProjectTracks NewProjectTracks => new NewProjectTracks(DefaultVideoTracks, DefaultAudioTracks).Clamped();
+
+    /// <summary>De qué pistas de video sale el audio según los ajustes.</summary>
+    [JsonIgnore]
+    public LinkedAudioTracks LinkedAudioTracks => LinkedAudioTracks.FromSetting(LinkedAudioVideoTracks);
 
     /// <summary>Pone el proyecto el primero de los recientes, sin repetirlo y con un máximo.</summary>
     public void AddRecentProject(string path)
@@ -99,6 +109,7 @@ public sealed class AppSettings
         WindowHeight = WindowHeight == 0 ? 0 : Clamp(WindowHeight, 560, 10000, 0);
         DefaultVideoTracks = Math.Clamp(DefaultVideoTracks, NewProjectTracks.Min, NewProjectTracks.Max);
         DefaultAudioTracks = Math.Clamp(DefaultAudioTracks, NewProjectTracks.Min, NewProjectTracks.Max);
+        LinkedAudioVideoTracks = LinkedAudioTracks.ToSetting();
         MeterDecayDbPerSecond = Clamp(MeterDecayDbPerSecond, 3, 120, 20);
         RecentProjects = [.. (RecentProjects ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(MaxRecentProjects)];
         if (!Enum.IsDefined(ShortcutPreset))
