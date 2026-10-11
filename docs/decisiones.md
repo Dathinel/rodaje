@@ -292,3 +292,13 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - **Magnetismo al cambiar la velocidad** (Daniel, 11 de octubre): todo cambio de duración por velocidad (`SetSpeed`, `RateStretch`, `SetCurve`, `FreezeFrame`) une lo que sigue en cualquier pista, crezca o se acorte el clip; al acortarse la transición del corte se queda. Los comandos reciben el `RippleScope` de la sesión: con el de pista, cada pista del grupo se corre con su propio Δ; con «todas las pistas», todas (y los marcadores en ese modo) con el Δ del clip pedido. A 1× «mantener tono» no se toca.
 
 **Consecuencias.** Un proyecto guardado con la fase 5c no abre en versiones anteriores (la `.bak` conserva el formato 3). Un clip con velocidad no puede pasar de unas 6,9 horas en la línea de tiempo. Las lecturas directas de `SourceIn`/`SourceOut` fuera del núcleo siguen bien a 1× y las cambian los agentes de la fase.
+
+## D-027. Inspector en secciones y tema grafito con más contraste (11 de octubre de 2026)
+
+**Contexto.** Daniel probó la app: en Propiedades los nombres se solapaban con los números («Posición X 2 keyfram»), la transformación se sentía llena y, aunque el tema se ve profesional, las capas de gris casi iguales (fondo, paneles, campos y botones a 1,03–1,1:1 entre sí y bordes a 1,2:1) se confunden para quien no está acostumbrado.
+
+**Decisión.**
+- **Propiedades en secciones plegables** con encabezado: «Posición y tamaño», «Opacidad y mezcla» (el modo de mezcla pasa de Filtros a aquí, porque es del clip y no un filtro) y «Audio». Una fila por parámetro con etiqueta de ancho fijo, puntos suspensivos y ayuda; restablecer y el rombo atenuados hasta pasar el ratón; la navegación de keyframes y la curva solo aparecen si el parámetro está animado. «Restablecer todo» y «Guardar como transición…» van al menú «⋯» (D-024 sigue igual: mismos avisos y un paso del historial).
+- **Contraste medido (WCAG AA)** en `Palette.xaml`, sin tocar el acento: texto ≥ 4,5:1, texto secundario y desactivado ≥ 3:1, y bordes de campos, botones y desplegables ≥ 3:1 contra el panel (`ControlBorderBrush`). Las superficies se separan con escalones de luminosidad claros (fondo #101010, panel #1D1D1D, cabeceras #262626, controles #2C2C2C, encima #3A3A3A, pulsado #4A4A4A: los botones siguen iluminándose al pulsarlos).
+
+**Consecuencias.** Más bordes visibles en toda la app. Con el panel en su ancho de siempre (320 px) cada parámetro ocupa dos líneas; desde 340 px, una.
