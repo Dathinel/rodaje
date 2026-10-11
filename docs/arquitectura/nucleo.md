@@ -66,7 +66,7 @@ Aparte, `EffectEdits` (añadir, quitar, mover y activar efectos, parámetros y k
 
 ## Deshacer y rehacer (`Commands/`)
 
-Nada fuera del núcleo cambia el modelo directamente. La interfaz pide un comando a [`Edits`](../../src/Rodaje.Core/Commands/Edits.cs) (unas 50 fábricas en `Edits`, `Edits.Effects`, `Edits.Transitions` y `Edits.Speed`: `Edits.Split`, `Edits.Move`...) y lo pasa por [`UndoStack.Execute`](../../src/Rodaje.Core/Commands/UndoStack.cs). La IA y las órdenes en lenguaje natural harán lo mismo.
+Nada fuera del núcleo cambia el modelo directamente. La interfaz pide un comando a [`Edits`](../../src/Rodaje.Core/Commands/Edits.cs) (unas 50 fábricas, repartidas en archivos parciales de la clase `Edits`: `Edits.Split`, `Edits.Move`, `Edits.SetSpeed`...) y lo pasa por [`UndoStack.Execute`](../../src/Rodaje.Core/Commands/UndoStack.cs). La IA y las órdenes en lenguaje natural harán lo mismo.
 
 ```mermaid
 sequenceDiagram
