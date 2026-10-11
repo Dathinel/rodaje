@@ -5,6 +5,8 @@
 #   ... -Medir 10 -Escenario efectos   antes de medir arma 3 capas con efectos y 4 transiciones, y mueve un deslizador
 #   ... -Medir 10 -Escenario velocidad 3 capas del clip (1x, 2x y 0,5x) y cambia la velocidad de una mientras reproduce;
 #                                      mira cuadros perdidos, tarde, gpu.composicion y edicion.deslizador_a_present (<=20 ms)
+#   ... -Medir 10 -Escenario capas     las mismas 3 capas, todo a 1× (comparar la reproducción sin velocidad)
+#   ... -Medir 10 -Escenario rapido    el clip a 2× en la principal (alterna 2× y 3× al editar)
 #   ... -SinProxies      reproduce siempre los originales (peor caso), sin cambiar los ajustes
 #   ... -SinPublicar     abre el exe ya publicado sin recompilar
 #   ... -Publicar        recompila aunque src\ no haya cambiado
@@ -16,7 +18,7 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Archivos = @(),
     [double]$Medir = 0,
-    [ValidateSet('', 'efectos', 'velocidad')]
+    [ValidateSet('', 'efectos', 'velocidad', 'capas', 'rapido')]
     [string]$Escenario = '',
     [switch]$SinProxies,
     [switch]$SinPublicar,

@@ -129,15 +129,20 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
 
         if (liveEdit is not null)
         {
+            TimelineStats? beforeEdits = await FreshStatsAsync();
             await EditWhilePlayingAsync(liveEdit);
+            NoteLayers("ediciones del escenario", beforeEdits, await FreshStatsAsync());
         }
 
         // Ediciones mientras reproduce (como las del inspector): cuánto tarda cada copia del proyecto en verse.
+        TimelineStats? beforeReloads = await FreshStatsAsync();
         for (int i = 0; i < 20; i++)
         {
             engine.Reload(window.Session.Project.Clone());
             await Task.Delay(113);
         }
+
+        NoteLayers("20 recargas sin cambios", beforeReloads, await FreshStatsAsync());
 
         SizeInt32 original = window.AppWindow.Size;
         foreach ((int w, int h) in new[] { (1100, 700), (1700, 1000), (1300, 820) })
@@ -167,12 +172,15 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
     /// </summary>
     private async Task EditWhilePlayingAsync(Func<int, SequenceEditCommand> edit)
     {
+        // Desde el principio: a esta altura un clip a 2× ya terminó, y cambiarle la velocidad lo haría aparecer y desaparecer.
+        window.Session.Seek(Time.Zero);
         if (!window.Session.IsPlaying)
         {
             window.Session.Play();
-            await Task.Delay(500);
         }
 
+        await Task.Delay(1000);
+        metrics.Note($"ediciones desde {window.Session.Position}");
         for (int i = 0; i < 30; i++)
         {
             engine.MarkEditStart(Stopwatch.GetTimestamp());
@@ -181,6 +189,29 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
         }
 
         window.Session.BreakMerge();
+    }
+
+    /// <summary>Las cifras de la sesión de después de ahora: el motor las toma cada medio segundo.</summary>
+    private async Task<TimelineStats?> FreshStatsAsync()
+    {
+        await Task.Delay(600);
+        return engine.LatestStats;
+    }
+
+    /// <summary>Cuadros perdidos y refrescos tarde de cada capa entre dos tomas, para saber de qué capa salen.</summary>
+    private void NoteLayers(string phase, TimelineStats? before, TimelineStats? after)
+    {
+        if (before is null || after is null)
+        {
+            return;
+        }
+
+        IEnumerable<string> layers = after.Layers.Select(a =>
+        {
+            LayerStats b = before.Layers.FirstOrDefault(l => l.TrackId == a.TrackId);
+            return $"V{a.TrackIndex + 1} perdidos={a.FramesDropped - b.FramesDropped} tarde={a.LateRefreshes - b.LateRefreshes} mostrados={a.FramesShown - b.FramesShown}";
+        });
+        metrics.Note($"{phase}: {string.Join("; ", layers)}; seeks del decodificador {after.DecoderSeeks - before.DecoderSeeks}, decodificadores abiertos {after.DecodersOpen}");
     }
 
     /// <summary>Escribe las cifras al cerrar, si la ventana se abrió con <c>--medir</c>.</summary>

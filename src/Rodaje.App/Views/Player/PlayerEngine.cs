@@ -76,6 +76,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private bool _gpuPending;
     private long _lastGpuBegin;
     private long _lastStats;
+    private TimelineStats? _latestStats;
     private long _framesDropped;
     private bool _dirty = true;
     private int _lastSignature;
@@ -93,6 +94,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private long _editMark;
     private EffectTotals _effectTotals;
     private long _editMarkTaken;
+    private long _editAppliedAt;
+    private double _lastWaitMs;
 
     private readonly Lock _meterLock = new();
     private TimelineSession? _meterSession;
@@ -127,6 +130,9 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     public string DeviceDescription { get; private set; } = "";
 
     public TimelineStats? FinalStats { get; private set; }
+
+    /// <summary>Las cifras de la sesión tomadas en el último medio segundo (para medir); nulo sin sesión.</summary>
+    public TimelineStats? LatestStats => Volatile.Read(ref _latestStats);
 
     /// <summary>El error que detuvo el motor, por si llegó antes de que alguien escuchara <see cref="Failed"/>.</summary>
     public string? FailureMessage { get; private set; }
@@ -295,7 +301,9 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 if (active)
                 {
                     // Uno por refresco: la cadena tiene latencia máxima 1, así que esto marca el ritmo del vsync.
+                    long waitStart = Stopwatch.GetTimestamp();
                     _ = WaitForSingleObjectEx((HANDLE)_swapChain.FrameWaitHandle, 100, true);
+                    _lastWaitMs = Stopwatch.GetElapsedTime(waitStart).TotalMilliseconds;
 
                     // Una edición que llegó durante la espera entra en este mismo cuadro y no en el siguiente.
                     ApplyProject();
@@ -431,6 +439,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         {
             _project = reload;
             _editMarkTaken = Interlocked.Exchange(ref _editMark, 0);
+            long applyStart = Stopwatch.GetTimestamp();
             try
             {
                 _session.Reload(reload);
@@ -438,6 +447,15 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             catch (KeyNotFoundException ex)
             {
                 Warning?.Invoke(ex.Message);
+            }
+
+            if (_editMarkTaken != 0)
+            {
+                _editAppliedAt = Stopwatch.GetTimestamp();
+                _metrics.EditParts(
+                    Stopwatch.GetElapsedTime(_editMarkTaken, reloadAt).TotalMilliseconds,
+                    Stopwatch.GetElapsedTime(reloadAt, applyStart).TotalMilliseconds,
+                    Stopwatch.GetElapsedTime(applyStart, _editAppliedAt).TotalMilliseconds);
             }
 
             EnsureCompositor();
@@ -682,6 +700,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         CollectGpuSample();
         AdvanceScrub();
         using CompositionFrame frame = _session!.Tick();
+        long ticked = Stopwatch.GetTimestamp();
         int drawn = 0;
         if (_compositor is not null)
         {
@@ -711,6 +730,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _swapChain!.Render(_presenter!, _compositor, placement);
         long presented = Stopwatch.GetTimestamp();
         _metrics.Presented(_session.IsPlaying && !_session.IsSeekPending, Stopwatch.GetElapsedTime(start, presented).TotalMilliseconds);
+        _metrics.SlowRefresh(_lastWaitMs, Stopwatch.GetElapsedTime(start, ticked).TotalMilliseconds,
+            Stopwatch.GetElapsedTime(ticked, presented).TotalMilliseconds);
         if (drawn > 0)
         {
             _metrics.Milestone("primer_cuadro");
@@ -736,7 +757,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         if (_editMarkTaken != 0)
         {
-            _metrics.EditToPresent(Stopwatch.GetElapsedTime(_editMarkTaken, presented).TotalMilliseconds);
+            _metrics.EditToPresent(Stopwatch.GetElapsedTime(_editMarkTaken, presented).TotalMilliseconds,
+                Stopwatch.GetElapsedTime(_editAppliedAt, presented).TotalMilliseconds);
             _editMarkTaken = 0;
         }
 
@@ -780,6 +802,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         {
             _lastStats = Stopwatch.GetTimestamp();
             TimelineStats stats = s.Stats;
+            Volatile.Write(ref _latestStats, stats);
             _framesDropped = stats.FramesDropped;
             _usesProxy = false;
             foreach (LayerStats layer in stats.Layers)

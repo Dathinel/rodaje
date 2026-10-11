@@ -20,15 +20,76 @@ internal static class MeasurementScenarios
 
     private static readonly Rational[] SpeedSteps = [new(2, 1), new(3, 1), new(3, 2), new(5, 2), new(4, 1), new(7, 4)];
 
-    public static bool IsKnown(string? name) => name is null or Effects or Speed;
+    public const string Layers = "capas";
+    public const string Fast = "rapido";
+
+    public static bool IsKnown(string? name) => name is null or Effects or Speed or Layers or Fast;
 
     /// <summary>Arma el escenario y devuelve la edición número i que se mide al reproducir; <c>null</c> si no hay de dónde.</summary>
     public static Func<int, SequenceEditCommand>? Build(string scenario, EditorSession session) => scenario switch
     {
         Effects => BuildEffects(session),
         Speed => BuildSpeed(session),
+        Layers => BuildLayers(session),
+        Fast => BuildFast(session),
         _ => null,
     };
+
+    /// <summary>
+    /// «capas»: lo mismo que «velocidad» pero todo a 1× (para comparar la reproducción con varias capas sin velocidad); la
+    /// edición mueve una capa en horizontal, que no cambia ningún cuadro.
+    /// </summary>
+    private static Func<int, SequenceEditCommand>? BuildLayers(EditorSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        string seq = session.SequenceId;
+        if (session.MainTrack is not { Clips.Count: > 0 } main)
+        {
+            return null;
+        }
+
+        Clip first = main.Clips[0];
+        session.BeginGesture("Escenario de medida");
+        try
+        {
+            string? moved = null;
+            string? transform = null;
+            double[] xs = [-480, 480];
+            for (int i = 0; i < xs.Length; i++)
+            {
+                var addTrack = Edits.AddTrack(seq, TrackKind.Video, i + 1, $"V{i + 2}");
+                Run(session, addTrack);
+                var place = Edits.Overwrite(seq, first.MediaId, first.SourceIn, first.SourceOut, addTrack.CreatedIds[0], first.Start);
+                Run(session, place);
+                string clipId = place.CreatedIds[0];
+                string effect = AddEffect(session, clipId, BuiltInEffects.Transform, (T.Scale, 0.45), (T.X, xs[i]));
+                moved ??= clipId;
+                transform ??= effect;
+            }
+
+            Time at = first.SourceIn;
+            return n => Edits.SetParameter(seq, moved!, transform!, T.X, -480 + (40 * (n % 6)), at, "Mover capa");
+        }
+        finally
+        {
+            session.EndGesture();
+        }
+    }
+
+    /// <summary>«rapido»: el primer clip de la principal a 2×; la edición alterna su velocidad entre 2× y 3×.</summary>
+    private static Func<int, SequenceEditCommand>? BuildFast(EditorSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        string seq = session.SequenceId;
+        if (session.MainTrack is not { Clips.Count: > 0 } main)
+        {
+            return null;
+        }
+
+        string clipId = main.Clips[0].Id;
+        Run(session, Edits.SetSpeed(seq, clipId, new Rational(2, 1)));
+        return n => Edits.SetSpeed(seq, clipId, n % 2 == 0 ? new Rational(3, 1) : new Rational(2, 1));
+    }
 
     /// <summary>«efectos» sobre el primer clip de la principal; la edición mueve el deslizador de exposición de una capa.</summary>
     private static Func<int, SequenceEditCommand>? BuildEffects(EditorSession session)
