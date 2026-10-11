@@ -16,13 +16,14 @@ internal sealed record PlacementSpec(int Media, int InFrames, int LengthFrames, 
 
 /// <summary>
 /// Receta de un proyecto aleatorio, en números para que CsCheck pueda achicar un caso que falla. <see cref="Extras"/>
-/// decide qué cortes llevan transición y qué clips y pistas llevan efectos.
+/// decide qué cortes llevan transición y qué clips y pistas llevan efectos; <see cref="Speeds"/>, qué clips llevan
+/// velocidad, curva, reversa o un congelado.
 /// </summary>
-internal sealed record ProjectSpec(int Rate, int VideoTracks, int AudioTracks, MediaSpec[] Media, PlacementSpec[] Placements, int LockBits, int Extras = 0)
+internal sealed record ProjectSpec(int Rate, int VideoTracks, int AudioTracks, MediaSpec[] Media, PlacementSpec[] Placements, int LockBits, int Extras = 0, int Speeds = 0)
 {
     public override string ToString() => string.Create(
         CultureInfo.InvariantCulture,
-        $"Proyecto(tasa {Rate}, {VideoTracks}V {AudioTracks}A, bloqueos {LockBits}, extras {Extras}, medios [{string.Join("; ", Media.Select(m => m.ToString()))}], clips [{string.Join("; ", Placements.Select(p => p.ToString()))}])");
+        $"Proyecto(tasa {Rate}, {VideoTracks}V {AudioTracks}A, bloqueos {LockBits}, extras {Extras}, velocidades {Speeds}, medios [{string.Join("; ", Media.Select(m => m.ToString()))}], clips [{string.Join("; ", Placements.Select(p => p.ToString()))}])");
 }
 
 /// <summary>Operación en bruto; sus números se interpretan contra el estado del proyecto al ejecutarla.</summary>
@@ -61,6 +62,12 @@ internal enum OpKind
     AddEffect,
     SetEffectOption,
     SetKeyframe,
+    SetSpeed,
+    RateStretch,
+    FreezeFrame,
+    SetCurve,
+    SetReverse,
+    SetPreservePitch,
     Undo,
     Redo,
 }
@@ -99,7 +106,8 @@ internal static class RandomTimeline
         (OpKind.SetClipEnabled, 2), (OpKind.LinkClips, 2), (OpKind.UnlinkClips, 2), (OpKind.ReorderOnMainTrack, 3),
         (OpKind.AddTransition, 7), (OpKind.RemoveTransition, 2), (OpKind.SetTransitionDuration, 3), (OpKind.SetTransitionType, 2),
         (OpKind.SetTransitionOption, 2), (OpKind.AddEffect, 3), (OpKind.SetEffectOption, 2), (OpKind.SetKeyframe, 3),
-        (OpKind.Undo, 4), (OpKind.Redo, 3),
+        (OpKind.SetSpeed, 6), (OpKind.RateStretch, 5), (OpKind.FreezeFrame, 3), (OpKind.SetCurve, 3), (OpKind.SetReverse, 3),
+        (OpKind.SetPreservePitch, 1), (OpKind.Undo, 4), (OpKind.Redo, 3),
     ];
 
     private static readonly OpKind[] KindTable = [.. Weights.SelectMany(w => Enumerable.Repeat(w.Kind, w.Weight))];
@@ -114,8 +122,28 @@ internal static class RandomTimeline
         (m, i, l, t, mode, at, linked) => new PlacementSpec(m, i, l, t, mode, at, linked));
 
     public static readonly Gen<ProjectSpec> GenProject = Gen.Select(
-        Gen.Int[0, Rates.Length - 1], Gen.Int[1, 3], Gen.Int[1, 3], GenMedia.Array[2, 5], GenPlacement.Array[1, 8], Gen.Int[0, 4095], Gen.Int[0, 65535],
-        (r, v, a, media, placements, locks, extras) => new ProjectSpec(r, v, a, media, placements, locks, extras));
+        Gen.Select(
+            Gen.Int[0, Rates.Length - 1], Gen.Int[1, 3], Gen.Int[1, 3], GenMedia.Array[2, 5], GenPlacement.Array[1, 8], Gen.Int[0, 4095], Gen.Int[0, 65535],
+            (r, v, a, media, placements, locks, extras) => new ProjectSpec(r, v, a, media, placements, locks, extras)),
+        Gen.Int[0, 65535],
+        (spec, speeds) => spec with { Speeds = speeds });
+
+    /// <summary>Velocidades que se sortean; la última está fuera de rango para probar el rechazo.</summary>
+    public static readonly Rational[] SpeedRates =
+    [
+        new(1, 10), new(1, 4), new(37, 100), new(1, 2), new(1, 1), new(1001, 1000), new(3, 2), new(2, 1), new(7, 3), new(4, 1),
+        new(100, 1), new(101, 1),
+    ];
+
+    /// <summary>Formas de curva que se sortean (la duración la pone la edición); la última se sale de rango.</summary>
+    public static readonly SpeedPoint[][] CurveShapes =
+    [
+        [new(0, 100), new(10_000, 300)],
+        [new(0, 400), new(3000, 30), new(7000, 30), new(10_000, 400)],
+        [new(0, 10), new(10_000, 1000)],
+        [new(0, 250), new(5000, 50), new(10_000, 250)],
+        [new(0, 5), new(10_000, 100)],
+    ];
 
     /// <summary>Tipos que se sortean al añadir efectos; incluye una transición y uno desconocido para probar los rechazos.</summary>
     private static readonly string[] EffectTypes =
@@ -219,6 +247,7 @@ internal static class RandomTimeline
         }
 
         AddExtras(built, spec.Extras);
+        AddSpeeds(built, spec.Speeds);
         int index = 0;
         foreach (Track track in sequence.AllTracks)
         {
@@ -275,6 +304,40 @@ internal static class RandomTimeline
                     Edits.SetKeyframe(seq, track.Id, volume.CreatedIds[0], BuiltInEffects.AudioParameters.GainDb, at, -6 * ((k + extras) % 3), ids: built.Ids)
                         .Apply(built.Project);
                 }
+            }
+        }
+    }
+
+    /// <summary>Velocidades, curvas, reversas y congelados en algunos clips; lo que no se puede (por ejemplo, congelar audio) se salta.</summary>
+    private static void AddSpeeds(BuiltProject built, int speeds)
+    {
+        const string seq = BuiltProject.SequenceId;
+        List<Clip> clips = [.. built.Sequence.AllTracks.SelectMany(t => t.Clips)];
+        for (int i = 0; i < clips.Count && i < 8; i++)
+        {
+            int choice = (speeds >> (2 * i)) & 3;
+            if (choice == 0 || built.Sequence.FindClip(clips[i].Id) is not { } found)
+            {
+                continue;
+            }
+
+            Clip clip = found.Clip;
+            int pick = (speeds >> 3) + i;
+            SequenceEditCommand command = choice switch
+            {
+                1 => Edits.SetSpeed(seq, clip.Id, SpeedRates[pick % (SpeedRates.Length - 1)], pick % 2 == 0, built.Ids),
+                2 when pick % 3 == 0 => Edits.SetReverse(seq, clip.Id, true, built.Ids),
+                2 => Edits.SetCurve(seq, clip.Id, new SpeedCurve { Points = [.. CurveShapes[pick % (CurveShapes.Length - 1)]] }, pick % 2 == 0, built.Ids),
+                _ => Edits.FreezeFrame(seq, clip.Id, clip.Start + Time.FromTicks(clip.Duration.Ticks / 3), Time.FromFrames(1 + (pick % 90), built.Rate), built.Ids),
+            };
+
+            try
+            {
+                command.Apply(built.Project);
+            }
+            catch (EditException)
+            {
+                // Clip de audio, demasiado corto o sin lugar: se queda como estaba.
             }
         }
     }
@@ -506,6 +569,58 @@ internal static class RandomTimeline
                 Time at = r.KeyframeTime(owner, op.C, op.E);
                 double value = op.D % 61 - 30;
                 return new(kind, Edits.SetKeyframe(seq, owner, effect, name, at, value, ids: ids), $"SetKeyframe({owner}, {effect}, {name}, {at.Ticks}, {value})");
+            }
+
+            case OpKind.SetSpeed:
+            {
+                string clip = r.ClipId(op.A);
+                Rational rate = SpeedRates[op.B % SpeedRates.Length];
+                bool ripple = op.C % 2 == 0;
+                return new(kind, Edits.SetSpeed(seq, clip, rate, ripple, ids), $"SetSpeed({clip}, {rate}, ripple={ripple})", clip);
+            }
+
+            case OpKind.RateStretch:
+            {
+                string clip = r.ClipId(op.A);
+                TrimEdge edge = op.B % 2 == 0 ? TrimEdge.In : TrimEdge.Out;
+                bool ripple = op.D % 2 == 0;
+                Time delta = r.Delta(op.E, op.C);
+                return new(kind, Edits.RateStretch(seq, clip, edge, delta, ripple, ids), $"RateStretch({clip}, {edge}, {delta.Ticks}, ripple={ripple})", clip, delta);
+            }
+
+            case OpKind.FreezeFrame:
+            {
+                string clip = r.ClipId(op.A);
+                Time at = r.Instant(op.A, op.B, op.E, op.C);
+                Time? duration = (op.D % 5) switch
+                {
+                    0 => null,
+                    1 => Time.Zero,
+                    _ => Time.FromFrames(1 + (op.D % 120), built.Rate),
+                };
+                return new(kind, Edits.FreezeFrame(seq, clip, at, duration, ids), $"FreezeFrame({clip}, {at.Ticks}, {duration?.Ticks.ToString(CultureInfo.InvariantCulture) ?? "-"})", clip, At: at);
+            }
+
+            case OpKind.SetCurve:
+            {
+                string clip = r.ClipId(op.A);
+                SpeedCurve? curve = op.B % 6 == 5 ? null : new SpeedCurve { Points = [.. CurveShapes[op.B % CurveShapes.Length]] };
+                bool ripple = op.C % 2 == 0;
+                return new(kind, Edits.SetCurve(seq, clip, curve, ripple, ids), $"SetCurve({clip}, {(curve is null ? "-" : (op.B % CurveShapes.Length).ToString(CultureInfo.InvariantCulture))}, ripple={ripple})", clip);
+            }
+
+            case OpKind.SetReverse:
+            {
+                string clip = r.ClipId(op.A);
+                bool reverse = op.B % 3 != 0;
+                return new(kind, Edits.SetReverse(seq, clip, reverse, ids), $"SetReverse({clip}, {reverse})", clip);
+            }
+
+            case OpKind.SetPreservePitch:
+            {
+                string clip = r.ClipId(op.A);
+                bool preserve = op.B % 2 == 0;
+                return new(kind, Edits.SetPreservePitch(seq, clip, preserve, ids), $"SetPreservePitch({clip}, {preserve})", clip);
             }
 
             default:

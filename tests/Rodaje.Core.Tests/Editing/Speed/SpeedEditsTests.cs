@@ -383,6 +383,7 @@ public sealed class SpeedEditsTests
                 {
                     Keyframes = [new(F(10), 0, Interpolation.EaseIn), new(F(15), 1, Interpolation.Hold), new(F(40), 0.5, Interpolation.EaseOut)],
                 },
+                ["scale"] = new Parameter { Value = 1.2 },
             },
         });
         string original = ProjectSerializer.Serialize(f.Project);
@@ -454,5 +455,46 @@ public sealed class SpeedEditsTests
 
         Assert.Equal(6, steps);
         Assert.Equal(original, ProjectSerializer.Serialize(f.Project));
+    }
+
+    [Fact]
+    public void A_track_reached_from_two_members_with_the_same_delta_shifts_from_the_earliest_point()
+    {
+        var f = new TrimFixture()
+            .Add("v1", "v", "m1", 0, 30, 0, link: "L")
+            .Add("a1", "a", "m1", 0, 10, 0, link: "L")
+            .Add("v1", "p", "m2", 0, 10, 30, link: "P")
+            .Add("a2", "q", "m2", 0, 10, 40, link: "P")
+            .Add("a1", "r", "m2", 0, 10, 10, link: "R")
+            .Add("a2", "s", "m3", 0, 10, 20, link: "R");
+
+        TimelineEdits.RippleTrim(f.Ctx, "v", TrimEdge.Out, F(5), RippleScope.Track);
+
+        Assert.Equal(F(35), f.Clip("p").Start);
+        Assert.Equal(F(15), f.Clip("r").Start);
+        Assert.Equal(F(25), f.Clip("s").Start);
+        Assert.Equal(F(45), f.Clip("q").Start);
+        f.AssertValid();
+    }
+
+    [Fact]
+    public void Two_halves_longer_together_than_the_maximum_are_not_the_same_clip()
+    {
+        var f = new TrimFixture();
+        f.Project.Media[1].Duration = Time.FromTicks(RetimeMath.MaxExtent * 4);
+        long half = RetimeMath.MaxExtent / 2;
+        var left = new Clip { Id = "l", MediaId = "m2", Speed = new ClipSpeed { Rate = new Rational(2, 1), Offset = Time.FromTicks(-half) } };
+        ClipTimeMap.Create(Time.Zero, Time.FromTicks(half), Time.FromTicks(RetimeMath.MaxExtent), left.Speed).ApplyTo(left);
+        var right = new Clip { Id = "r", MediaId = "m2", Speed = new ClipSpeed { Rate = new Rational(2, 1) } };
+        ClipTimeMap.Create(left.End, Time.FromTicks(half), left.SourceOut, right.Speed).ApplyTo(right);
+        f.Track("v1").Clips.AddRange([left, right]);
+        f.Add("v1", "n", "m1", 0, 10, 0);
+        f.Clip("n").Start = right.End;
+        f.Track("v1").SortClips();
+        f.Track("v1").Transitions.Add(new TransitionInstance { Id = "t", Type = BuiltInTransitions.Crossfade, From = "l", To = "n", Duration = F(1) });
+
+        TransitionOps.Reconcile(f.Sequence);
+
+        Assert.Empty(f.Track("v1").Transitions);
     }
 }
