@@ -94,6 +94,25 @@ Orden de unión: A → D → B → C → E → F, después integración y verifi
 - **Audio:** −6 dB = 0,501 ±0,001; fundido cruzado mantiene la potencia ±0,5 dB; sin saltos de más de 0,1 dB.
 - **Paquetes:** 1000 `.cube` aleatorios no tumban el lector; 65³ en ≤150 ms; `rodaje-esenciales` instala, aplica y, si se desinstala, el proyecto abre con aviso.
 
+## Medido en la integración (10 de octubre, RTX 3050 Laptop)
+
+| Criterio | Objetivo | Medido |
+|---|---|---|
+| 8 capas 1080p sin efectos | ≤0,6 ms | 0,54 ms (p95 0,76) |
+| Una capa 4K con color y LUT | ≤1,0 ms | 0,33 ms |
+| 3 capas 4K con color, LUT, desenfoque y superponer | ≤6 ms, p95 ≤8 | 2,7 ms, p95 5,1 |
+| Transición 4K con color y LUT | ≤5 ms | 0,99 ms (fundido, barrido, zoom); 1,23 ms con desenfoque |
+| Media resolución | ≤40 % | 22 % |
+| `Tick` con efectos (8 capas × 4 efectos) | ≤0,3 ms y 0 B | 0,10 ms; 2831 B con y sin efectos (las clases `LayerFrame`/`CompositionFrame` del contrato; los efectos no suman) |
+| App 1080p: 3 capas con efectos y 4 transiciones | 0 cuadros perdidos | 0 perdidos, 0 tarde de 1596; 5,1 efectos dibujados por cuadro; GPU 0,16 ms (p99 0,27) |
+| Deslizador de color al reproducir | ≤20 ms | 2,4 ms de mediana, p99 4,8 |
+| App 4K sin proxies, mismo escenario | ≤1 % de refrescos tarde | 0 tarde de 1860; GPU 0,70 ms (p99 2,3; la vista compone a 1920×1080 porque el panel es menor que la mitad de 4K); deslizador p99 34 ms |
+| Carga: 4 pistas HEVC 4K con cortes cada 3 s | VRAM ≤ presupuesto | 1417 MB de 1485, pre-roll 93 %, 4 refrescos tarde de 2875 |
+| Carga: 4 pistas HEVC 1080p con fundido en cada corte | pre-roll de transiciones ≥90 % | 28/28, 0 tarde, VRAM 869 MB |
+| LUT y transición de paquete reales (`rodaje-filtros`, `rodaje-transiciones`) | se aplican; sin paquete abre con aviso | LUT a 0,24/255 de la referencia en la CPU; barrido de 180° del lado correcto; sin paquetes, aviso, sin LUT y fundido cruzado |
+
+La primera edición tras armar el escenario sigue tardando 450–600 ms en llegar a pantalla (`edicion.a_present_ms`, p99): es el pendiente conocido de la fase 4.
+
 **Para Daniel, a mano:** fluidez frente a CapCut con el mismo clip 4K en 3 capas con efectos; deslizadores de color reproduciendo; los 8 looks; soltar transiciones y su duración por defecto (0,5 s); modos de mezcla; fundidos y envolvente de audio; si nota la calidad Auto.
 
 ## Riesgos
