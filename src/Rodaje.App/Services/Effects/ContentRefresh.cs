@@ -2,15 +2,15 @@ using Rodaje.Engine.Timeline;
 
 namespace Rodaje.App.Services.Effects;
 
-/// <summary>QuÃ© hace falta en el hilo de render tras un <see cref="EffectContent.Changed"/>.</summary>
+/// <summary>Qué hace falta en el hilo de render tras un <see cref="EffectContent.Changed"/>.</summary>
 public enum ContentUpdate
 {
     None,
 
-    /// <summary>TerminÃ³ de cargar una LUT: basta con volver a componer.</summary>
+    /// <summary>Terminó de cargar una LUT: basta con volver a componer.</summary>
     Redraw,
 
-    /// <summary>Cambiaron los paquetes: hay que rearmar el plan (las transiciones se resuelven ahÃ­) y componer.</summary>
+    /// <summary>Cambiaron los paquetes: hay que rearmar el plan (las transiciones se resuelven ahí) y componer.</summary>
     Rebuild,
 }
 
