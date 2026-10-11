@@ -10,7 +10,7 @@ Este registro guarda el porqué de cada elección importante de Rodaje. Una deci
 - **Por qué.** "FotoShot" queda a una letra de Photoshop (marca de Adobe) y ya existen apps de fotos llamadas "PhotoShot" (Vyro AI, H-Tech Labs). Se descartó un nombre en inglés porque el proyecto se piensa en español.
 - **Consecuencia.** Una búsqueda básica no es una búsqueda de marcas: antes de publicar hay que consultar USPTO, EUIPO y SIC Colombia en las clases 9 y 42 de Niza (lista en `docs/legal.md`).
 
-## D-002. Repositorio privado con licencia MIT (licencia sustituida por D-030)
+## D-002. Repositorio privado con licencia MIT (licencia sustituida por D-030 y luego por D-032)
 
 - **Decisión.** Repositorio privado (creado como `Dathinel/fototoma`, hoy `Dathinel/rodaje` por D-014), código propio bajo MIT a nombre de Daniel (Dathinel), con el fondo legal completo (`LICENCIAS.md`, `THIRD-PARTY-NOTICES.txt`, `docs/legal.md`) desde el principio.
 - **Por qué.** Es la regla por defecto de la carpeta de programas. GPL-3 permitiría reutilizar código de Kdenlive, Shotcut u Olive pero obligaría a distribuir todo como GPL; Apache-2.0 aporta poco a un proyecto personal; sin licencia nadie podría usarlo.
@@ -336,7 +336,7 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 3. **Entrada y salida pegadas a los bordes del clip** (siguen al recorte), con «convertir en keyframes» opcional; al dividir, los bordes internos quedan sin animación.
 4. **El proyecto guarda una copia del estilo**: actualizar un paquete no cambia títulos de proyectos existentes (igual que los filtros).
 
-## D-030. Licencia PolyForm Noncommercial 1.0.0 en lugar de MIT (11 de octubre de 2026)
+## D-030. Licencia PolyForm Noncommercial 1.0.0 en lugar de MIT (11 de octubre de 2026; sustituida por D-032)
 
 - **Decisión.** El código propio de Rodaje pasa de MIT a la PolyForm Noncommercial License 1.0.0, con `Required Notice: Copyright (c) 2026 Daniel (Dathinel)`. Sustituye a la licencia de D-002. Daniel es el único titular y el repositorio es privado y nunca se publicó bajo MIT, así que no hay copias MIT de terceros que respetar.
 - **Por qué.** Daniel quiere compartir el programa para uso personal, educativo y de investigación, pero impedir que terceros lo vendan. No tiene pretensión comercial propia; el uso comercial queda para permisos escritos caso a caso.
@@ -364,3 +364,13 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 - **Descarga:** `GitHubReleaseDownloader` con un índice firmado con ECDSA P-256 (clave pública en el exe), SHA-256 de cada archivo, reanudación e instalación atómica; releases de GitHub de Dathinel y Hugging Face fijado por commit para los modelos grandes. `paquete.json` suma a `module` los campos `runtime`, `vramMb` y `models` sin cambiar el `formatVersion`.
 
 **Consecuencias.** El paso 0 mide 0,1 ms por cuadro 1080p por referencia, 1,4 ms copiado (~700 cuadros/s), ping de ~0,1 ms, arranque de 31 ms con AOT y cancelación en <1 ms: el protocolo no es cuello para ningún modelo. Los repositorios de los módulos esperan la respuesta de Daniel; mientras, viven en `modules/`. Un módulo que no admita AOT sale autocontenido con JIT (provisional).
+
+## D-032. Licencia GNU GPLv3 con atribución obligatoria, permiso para complementos y marca protegida (11 de octubre de 2026; sustituye a D-030)
+
+- **Decisión.** El código de Rodaje pasa de la PolyForm Noncommercial a la GNU GPLv3 (texto oficial completo en `LICENSE`, con la cabecera `Copyright (C) 2026 Daniel (Dathinel)` y https://github.com/Dathinel/rodaje), más términos adicionales de la Sección 7 (b) y (c): crédito visible y con enlace en la interfaz, aviso en las páginas de descarga o venta, prohibición de retirar el crédito; y un permiso adicional para complementos que se conectan por las interfaces públicas o por IPC/CLI, que pueden llevar cualquier licencia, también de pago. El nombre, el logotipo, el icono y el material gráfico quedan reservados en `TRADEMARK.md`. La app muestra «Código abierto upstream: Rodaje» en la barra de título y el aviso completo en «Ayuda → Acerca de Rodaje» (`UpstreamAttribution`, fijado por prueba y por la autoprueba). Daniel es el único titular y el repositorio es privado, así que el cambio no afecta a terceros.
+- **Por qué.** Daniel cambió de opinión el 11-oct: prefiere código abierto de verdad, con la atribución obligatoria y la marca protegida, a impedir la venta; y quiere que los complementos de terceros (efectos, módulos, extensiones) queden libres del copyleft.
+- **Alternativas descartadas.**
+  - PolyForm Noncommercial (D-030): no es código abierto y deja zonas grises de «uso comercial».
+  - MIT: no obliga a publicar el código de los derivados ni a conservar un crédito visible.
+  - AGPL: el copyleft por red no aporta a una app de escritorio y complica más los complementos.
+- **Consecuencias.** Cualquiera puede vender Rodaje o un derivado con su código fuente, la atribución y otro nombre. Pendientes para el abogado en `docs/legal.md`, «Compatibilidad con la GPLv3»: Windows App SDK frente a la excepción de «System Libraries», si el término 2 cabe en la Sección 7, versión de la GPL sin fijar y activos reservados. El enlace del crédito solo funciona cuando el repositorio sea público. Los complementos de contenido (`rodaje-transiciones`, `rodaje-filtros` y los que vengan) siguen en CC0. No se copia código GPL ajeno: el permiso para complementos y los términos de atribución solo los puede dar el titular.
