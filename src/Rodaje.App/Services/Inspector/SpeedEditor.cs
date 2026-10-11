@@ -146,7 +146,7 @@ public sealed class SpeedEditor
         // material iría variando. Volver a la velocidad de partida es dejar el clip como estaba.
         ICommand? step = drag.StartState is { HasCurve: false } start && start.Rate == rate
             ? null
-            : Commands.SetSpeed(Session.SequenceId, drag.ClipId, rate, Session.SpeedRipples(drag.ClipId));
+            : Commands.SetSpeed(Session.SequenceId, drag.ClipId, rate, Session.SpeedScope);
 
         // Si un paso falla (pista bloqueada, largo máximo), el resto del arrastre no insiste ni repite el aviso.
         drag.Failed = !Session.Execute(new FromGestureStart(Session.SequenceId, drag.Start, step));
@@ -177,7 +177,7 @@ public sealed class SpeedEditor
         }
 
         Session.BreakMerge();
-        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, clip.Id, rate, Session.SpeedRipples(clip.Id)));
+        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, clip.Id, rate, Session.SpeedScope));
         Session.BreakMerge();
         return done;
     }
@@ -208,7 +208,7 @@ public sealed class SpeedEditor
         }
 
         Session.BreakMerge();
-        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, clipId, SpeedState.Normal, Session.SpeedRipples(clipId)));
+        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, clipId, SpeedState.Normal, Session.SpeedScope));
         Session.BreakMerge();
         return done;
     }
@@ -223,7 +223,7 @@ public sealed class SpeedEditor
         }
 
         Session.BreakMerge();
-        bool done = Session.Execute(Commands.RateStretch(Session.SequenceId, clip.Id, duration, Session.SpeedRipples(clip.Id)));
+        bool done = Session.Execute(Commands.RateStretch(Session.SequenceId, clip.Id, duration, Session.SpeedScope));
         Session.BreakMerge();
         return done;
     }
@@ -251,7 +251,7 @@ public sealed class SpeedEditor
             return false;
         }
 
-        ICommand command = Commands.FreezeFrame(Session.SequenceId, clip.Id, Session.EditPosition, SpeedPresets.FreezeDuration);
+        ICommand command = Commands.FreezeFrame(Session.SequenceId, clip.Id, Session.EditPosition, SpeedPresets.FreezeDuration, Session.SpeedScope);
         if (!Session.Execute(command))
         {
             return false;

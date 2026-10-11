@@ -444,7 +444,7 @@ public class ClipPropertyEditorTests
     public void ConVelocidad_LosKeyframesVanEnTiempoDelOrigen_YLaNavegacionEnElDeLaLinea() => UiThread.Run(async () =>
     {
         Harness h = await Harness.WithClip();
-        Assert.True(h.Session.Execute(Edits.SetSpeed(h.Session.SequenceId, h.Video.Id, new Rational(2, 1), ripple: true)));
+        Assert.True(h.Session.Execute(Edits.SetSpeed(h.Session.SequenceId, h.Video.Id, new Rational(2, 1))));
 
         h.At(1);
         Assert.True(h.Editor.ToggleKeyframe(h.Video, Transform, P.Opacity, 1));

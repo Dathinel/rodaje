@@ -19,16 +19,16 @@ public class SpeedEditorTests
 
         public List<string> Calls { get; } = [];
 
-        public ICommand SetSpeed(string sequenceId, string clipId, Rational rate, bool ripple)
+        public ICommand SetSpeed(string sequenceId, string clipId, Rational rate, RippleScope scope)
         {
             Calls.Add($"speed {clipId} {rate}");
-            return _inner.SetSpeed(sequenceId, clipId, rate, ripple);
+            return _inner.SetSpeed(sequenceId, clipId, rate, scope);
         }
 
-        public ICommand RateStretch(string sequenceId, string clipId, Time duration, bool ripple)
+        public ICommand RateStretch(string sequenceId, string clipId, Time duration, RippleScope scope)
         {
             Calls.Add($"stretch {clipId} {duration.ToSeconds()}");
-            return _inner.RateStretch(sequenceId, clipId, duration, ripple);
+            return _inner.RateStretch(sequenceId, clipId, duration, scope);
         }
 
         public ICommand SetPreservePitch(string sequenceId, string clipId, bool preservePitch)
@@ -37,7 +37,7 @@ public class SpeedEditorTests
             return _inner.SetPreservePitch(sequenceId, clipId, preservePitch);
         }
 
-        public ICommand FreezeFrame(string sequenceId, string clipId, Time at, Time duration)
+        public ICommand FreezeFrame(string sequenceId, string clipId, Time at, Time duration, RippleScope scope)
         {
             Calls.Add($"freeze {clipId} {at.ToSeconds()} {duration.ToSeconds()}");
             return new SequenceEditCommand("Congelar cuadro", sequenceId, (EditContext _) => { });
@@ -251,8 +251,8 @@ public class SpeedEditorTests
     {
         Harness h = await Harness.TwoClips();
         ISpeedCommands commands = SpeedCommands.Default;
-        Assert.False(h.Session.Execute(commands.SetSpeed(h.Session.SequenceId, "no-existe", new Rational(2, 1), ripple: true)));
-        Assert.False(h.Session.Execute(commands.RateStretch(h.Session.SequenceId, "no-existe", S(3), ripple: true)));
+        Assert.False(h.Session.Execute(commands.SetSpeed(h.Session.SequenceId, "no-existe", new Rational(2, 1), RippleScope.Track)));
+        Assert.False(h.Session.Execute(commands.RateStretch(h.Session.SequenceId, "no-existe", S(3), RippleScope.Track)));
         Assert.Null(h.Video.Speed);
     });
 
