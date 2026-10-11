@@ -85,6 +85,7 @@ El color se resuelve en [`VideoColor`](../../src/Rodaje.Media/Video/VideoColor.c
   - Los huecos de las marcas de tiempo suenan como silencio y los solapes se descartan.
   - `Seek` es exacto a la muestra, con un pre-roll de 100 ms más el que pide el códec.
 - **[`MediaProbe`](../../src/Rodaje.Media/Probe/MediaProbe.cs)** lee los flujos (ignora carátulas) y calcula aspecto de píxel, rotación, tamaño visible, profundidad, color, número de cuadros y VFR (midiendo 240 paquetes). La tasa se ajusta a una estándar si difiere menos de 0,05 %. `MediaInfo.ApplyTo(MediaRef)` copia los datos al modelo.
+- **[`MediaSupport`](../../src/Rodaje.Media/Probe/MediaSupport.cs)** (`Classify`) dice si la línea de tiempo puede usar un archivo y, si no, el motivo en español (no se pudo leer, imagen suelta...). Lo usa la importación de la [app](app.md).
 
 ## Proxies (`Proxies/`)
 

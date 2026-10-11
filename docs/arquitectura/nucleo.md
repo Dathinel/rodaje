@@ -4,9 +4,9 @@ La capa de dominio del editor: tiempo exacto, el modelo del proyecto, las operac
 
 ```mermaid
 flowchart TB
-    Timing["Timing<br/>Time (ticks), Rational (fps)"]
-    Model["Model<br/>Project, MediaRef, Sequence, Track, Clip,<br/>efectos y keyframes, ModelValidator"]
-    Editing["Editing<br/>TimelineEdits: cortar, recortar, ripple,<br/>roll, slip, slide, mover..."]
+    Timing["Timing<br/>Time (ticks), Rational (fps),<br/>ClipTimeMap, RetimeMath"]
+    Model["Model<br/>Project, MediaRef, Sequence, Track, Clip,<br/>velocidad, efectos y keyframes, ModelValidator"]
+    Editing["Editing<br/>TimelineEdits: cortar, recortar, ripple,<br/>roll, slip, slide, mover, velocidad;<br/>EffectEdits, TransitionEdits"]
     Commands["Commands<br/>Edits, SequenceEditCommand,<br/>SequenceSnapshot, UndoStack"]
     Serialization["Serialization<br/>.rodaje JSON, migraciones,<br/>guardado atómico, esquema"]
     Model --> Timing
@@ -25,24 +25,25 @@ flowchart TB
 
 ## Modelo (`Model/`)
 
-`Project` → `Sequence` → `Track` → `Clip` → `EffectInstance` → `Parameter` → `Keyframe`. La edición es no destructiva: un clip es una referencia a un medio (`MediaId`) más tres tiempos.
+`Project` → `Sequence` → `Track` → `Clip` → `EffectInstance` → `Parameter` → `Keyframe`. La edición es no destructiva: un clip es una referencia a un medio (`MediaId`) más tres tiempos y, si la tiene, su velocidad.
 
 | Tipo | Qué guarda |
 |---|---|
-| [`Project`](../../src/Rodaje.Core/Model/Project.cs) | `SchemaVersion` (hoy 2), la biblioteca de medios y las secuencias |
+| [`Project`](../../src/Rodaje.Core/Model/Project.cs) | `SchemaVersion` (hoy 4), la biblioteca de medios y las secuencias |
 | [`MediaRef`](../../src/Rodaje.Core/Model/MediaRef.cs) | Ruta (relativa al proyecto si se puede), duración, si tiene video o audio, fps, tamaño y Hz; `ResolvePath` también resuelve casos raros de Windows como `\Videos\a.mp4` |
 | [`Sequence`](../../src/Rodaje.Core/Model/Sequence.cs) | fps, tamaño, Hz, `VideoTracks` (el índice 0 es el fondo), `AudioTracks`, `Markers` (`Time`, `Name`) y `Regions` (`[Start, End)`, `Name`); `FindClip` y `GetLinkGroup` |
-| [`Track`](../../src/Rodaje.Core/Model/Track.cs) | `Muted`, `Hidden`, `Locked` y los clips ordenados por `Start` y sin solaparse; los huecos no son objetos |
-| [`Clip`](../../src/Rodaje.Core/Model/Clip.cs) | `SourceIn` (incluido), `SourceOut` (excluido), `Start`, `LinkId`, `Enabled` y efectos; `ToSourceTime(t) = SourceIn + (t − Start)` |
-| [`Effects`](../../src/Rodaje.Core/Model/Effects.cs) | Parámetros animables con keyframes en tiempo del origen (al recortar, la animación sigue pegada al material) e interpolación `Hold`, `Linear`, `EaseIn`, `EaseOut` o `EaseInOut`; [`BuiltInEffects.Transform`](../../src/Rodaje.Core/Model/BuiltInEffects.cs) (x, y, scale, rotation, opacity) es el que usa el compositor |
-| [`EffectRegistry`](../../src/Rodaje.Core/Effects/EffectRegistry.cs) | Tipos de efecto y de transición con código estable, destino, etapa, parámetros y opciones; un tipo desconocido se conserva sin aplicarse |
-| [`TransitionInstance`](../../src/Rodaje.Core/Model/TransitionInstance.cs) | Transición en el corte entre dos clips contiguos, centrada en él; [`TransitionOps.Reconcile`](../../src/Rodaje.Core/Editing/TransitionOps.cs) la mantiene pegada al corte tras cada edición |
+| [`Track`](../../src/Rodaje.Core/Model/Track.cs) | `Muted`, `Hidden`, `Locked`, los clips ordenados por `Start` y sin solaparse (los huecos no son objetos), `Effects` de la pista (por ejemplo su volumen) y `Transitions` |
+| [`Clip`](../../src/Rodaje.Core/Model/Clip.cs) | `SourceIn` (incluido), `SourceOut` (excluido), `Start`, `LinkId`, `Enabled`, `Speed` (nula a 1×) y efectos; sin velocidad `ToSourceTime(t) = SourceIn + (t − Start)` y `Duration = SourceOut − SourceIn`; con ella la duración se guarda y los tiempos pasan por `TimeMap` |
+| [`ClipSpeed`](../../src/Rodaje.Core/Model/ClipSpeed.cs) | Velocidad constante (`Rate`, de 1/10× a 100×) o con curva (`Curve`), `Reverse`, `Freeze` (cuadro congelado), `PreservePitch` y `FrameSampling`; [`ClipTimeMap`](../../src/Rodaje.Core/Timing/ClipTimeMap.cs) y [`RetimeMath`](../../src/Rodaje.Core/Timing/RetimeMath.cs) convierten entre línea de tiempo y origen con aritmética entera |
+| [`Effects`](../../src/Rodaje.Core/Model/Effects.cs) | Parámetros animables con keyframes en tiempo del origen (al recortar, la animación sigue pegada al material) e interpolación `Hold`, `Linear`, `EaseIn`, `EaseOut` o `EaseInOut`; [`BuiltInEffects`](../../src/Rodaje.Core/Model/BuiltInEffects.cs) fija los códigos de los efectos propios: `Transform` (x, y, scale, rotation, opacity), color, viñeta, desenfoque, nitidez, mezcla y audio (ganancia y fundidos) |
+| [`EffectRegistry`](../../src/Rodaje.Core/Effects/EffectRegistry.cs) | Tipos de efecto y de transición (fundido, inmersión, cortinilla y empuje) con código estable, destino, etapa, parámetros con rango y opciones, y los 13 modos de mezcla; un tipo desconocido se conserva sin aplicarse |
+| [`TransitionInstance`](../../src/Rodaje.Core/Model/TransitionInstance.cs) | Transición (`From`, `To`, `Duration`) en `Track.Transitions`, en el corte entre dos clips contiguos y centrada en él; [`TransitionOps.Reconcile`](../../src/Rodaje.Core/Editing/TransitionOps.cs) la mantiene pegada al corte tras cada edición |
 
-Los clips con el mismo `LinkId` (por ejemplo, el video y el audio de una toma) se editan juntos y con el mismo desplazamiento; un grupo no puede tener dos clips en la misma pista. [`ModelValidator`](../../src/Rodaje.Core/Model/ModelValidator.cs) reúne todas las reglas (ids únicos en todo el archivo, clips dentro de su medio, sin solapes, keyframes en orden, un clip por pista en cada enlace) con mensajes en español. [`IdGenerator`](../../src/Rodaje.Core/Model/IdGenerator.cs) da ids GUID al programa e ids secuenciales (`clip-1`) a las pruebas.
+Los clips con el mismo `LinkId` (por ejemplo, el video y el audio de una toma) se editan juntos y con el mismo desplazamiento; un grupo no puede tener dos clips en la misma pista. [`ModelValidator`](../../src/Rodaje.Core/Model/ModelValidator.cs) reúne todas las reglas (ids únicos en todo el archivo, clips dentro de su medio, sin solapes, keyframes en orden, un clip por pista en cada enlace) con mensajes en español; también acota los parámetros de efectos y transiciones a su rango y revisa la velocidad. [`IdGenerator`](../../src/Rodaje.Core/Model/IdGenerator.cs) da ids GUID al programa e ids secuenciales (`clip-1`) a las pruebas.
 
 ## Operaciones de edición (`Editing/`)
 
-`TimelineEdits` (repartida en `.Trimming`, `.Placement` y `.Tracks`) modifica la secuencia en el sitio, respeta los enlaces, rechaza tocar pistas bloqueadas y termina siempre con `EditContext.EnsureValid()`. Si no puede hacer algo, lanza [`EditException`](../../src/Rodaje.Core/Editing/EditException.cs) con un mensaje listo para mostrar. Un `delta` positivo mueve a la derecha.
+`TimelineEdits` (repartida en `.Trimming`, `.Placement`, `.Tracks`, `.Markers` y `.Speed`) modifica la secuencia en el sitio, respeta los enlaces, rechaza tocar pistas bloqueadas y termina siempre con `EditContext.EnsureValid()`. Si no puede hacer algo, lanza [`EditException`](../../src/Rodaje.Core/Editing/EditException.cs) con un mensaje listo para mostrar. Un `delta` positivo mueve a la derecha.
 
 En los diagramas cada carácter es un segundo, con A de 0 a 4 s, B de 4 a 10 s, C de 10 a 14 s y un clip nuevo X de 3 s:
 
@@ -61,9 +62,11 @@ En los diagramas cada carácter es un segundo, con A de 0 a 4 s, B de 4 a 10 s, 
 
 `Move` tiene tres modos (`PlacementMode`: `Strict`, `Overwrite`, `Insert`); también existen `AppendMedia` y `CloseGap`. El ripple tiene alcance (`RippleScope`): `Track` corre las pistas del grupo editado y las de los enlazados de lo que se corre, para no desincronizarlos (si una no puede cerrar el tramo, la edición se rechaza), `AllTracks` corre todas las no bloqueadas y `AllTracksAndMarkers` además corre marcadores y regiones (lo que cae dentro de un tramo cerrado queda en su inicio y una región que queda vacía se borra). `ReorderOnMainTrack` lleva un clip a otra posición de su pista y la deja sin huecos, con sus enlazados; es el arrastre de la pista principal magnética. Los marcadores y regiones tienen `AddMarker`, `RemoveMarker`, `MoveMarker`, `AddRegion` y `RemoveRegion`. A eso se suman las operaciones de pistas y estado: `AddTrack`, `RemoveTrack`, `MoveTrack`, `SetTrackState`, `SetClipEnabled`, `LinkClips` y `UnlinkClips`. Las piezas comunes están en [`TrackOps`](../../src/Rodaje.Core/Editing/TrackOps.cs) y [`TrimmingSupport`](../../src/Rodaje.Core/Editing/TrimmingSupport.cs).
 
+Aparte, `EffectEdits` (añadir, quitar, mover y activar efectos, parámetros y keyframes, en un clip o en una pista), `TransitionEdits` (añadir, quitar y cambiar duración, tipo, parámetros y opciones) y `TimelineEdits.Speed` (`SetSpeed`, `SetCurve`, `SetReverse`, `SetPreservePitch`, `RateStretch` y `FreezeFrame`) siguen las mismas reglas. El cambio de velocidad puede cerrar el hueco (`ripple`); [`TrackKeyframes`](../../src/Rodaje.Core/Editing/TrackKeyframes.cs) mueve los keyframes de pista con los clips y `TransitionOps.Reconcile` reajusta las transiciones tras cada edición.
+
 ## Deshacer y rehacer (`Commands/`)
 
-Nada fuera del núcleo cambia el modelo directamente. La interfaz pide un comando a [`Edits`](../../src/Rodaje.Core/Commands/Edits.cs) (21 fábricas: `Edits.Split`, `Edits.Move`...) y lo pasa por [`UndoStack.Execute`](../../src/Rodaje.Core/Commands/UndoStack.cs). La IA y las órdenes en lenguaje natural harán lo mismo.
+Nada fuera del núcleo cambia el modelo directamente. La interfaz pide un comando a [`Edits`](../../src/Rodaje.Core/Commands/Edits.cs) (unas 50 fábricas en `Edits`, `Edits.Effects`, `Edits.Transitions` y `Edits.Speed`: `Edits.Split`, `Edits.Move`...) y lo pasa por [`UndoStack.Execute`](../../src/Rodaje.Core/Commands/UndoStack.cs). La IA y las órdenes en lenguaje natural harán lo mismo.
 
 ```mermaid
 sequenceDiagram
@@ -88,7 +91,7 @@ sequenceDiagram
 
 ## Formato `.rodaje` (`Serialization/`)
 
-JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`; la especificación está en [`docs/formato-proyecto.md`](../formato-proyecto.md) y el esquema en [`schema/`](../../schema/rodaje-proyecto.v3.schema.json).
+JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`; la especificación está en [`docs/formato-proyecto.md`](../formato-proyecto.md) y el esquema en [`schema/`](../../schema/rodaje-proyecto.v4.schema.json).
 
 - **Abrir** ([`ProjectSerializer.Load`](../../src/Rodaje.Core/Serialization/ProjectSerializer.cs)) sigue cinco pasos:
   1. Lee UTF-8 estricto.
@@ -102,8 +105,8 @@ JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`
 
 ## Pruebas
 
-- [`tests/Rodaje.Core.Tests`](../../tests/Rodaje.Core.Tests) tiene una carpeta por área (`Timing`, `Model`, `Editing/Trimming`, `Editing/Placement`, `Commands`, `Serialization`) con casos normales, bordes y mensajes de error.
-- `Properties/EditPropertiesTests` (CsCheck) genera 10 000 proyectos aleatorios con hasta 40 de las 21 operaciones, con deshacer y rehacer intercalados, y comprueba:
+- [`tests/Rodaje.Core.Tests`](../../tests/Rodaje.Core.Tests) tiene una carpeta por área (`Timing`, `Model`, `Editing/Trimming`, `Editing/Placement`, `Editing/Speed`, `Commands`, `Serialization`, `Fuzz`) con casos normales, bordes y mensajes de error.
+- `Properties/EditPropertiesTests` (CsCheck) genera 10 000 proyectos aleatorios con hasta 40 operaciones (también de efectos, transiciones y velocidad), con deshacer y rehacer intercalados, y comprueba:
   - que un rechazo deja el proyecto idéntico byte a byte;
   - que el proyecto siempre es válido;
   - que las pistas bloqueadas no cambian;
