@@ -131,7 +131,8 @@ public sealed class VideoDecoderBehaviorTests
             using DecodedFrame? frame = decoder.GetFrame(n);
             if (n >= recovered || n < TestClips.CorruptedFrames[0] - TestClips.H264.BFrames - 1)
             {
-                Assert.Equal(reference[n], Hash(frame!));
+                Assert.True(frame is not null && reference[n] == Hash(frame),
+                    $"El cuadro {n}, pedido de nuevo fuera de la zona dañada, no coincide con la referencia (recuperado desde {recovered}, {decoder.Statistics.Seeks} seeks).");
             }
         }
     }
