@@ -4,10 +4,12 @@ Lo que falta para publicar Rodaje bajo la PolyForm Noncommercial 1.0.0 (D-030). 
 
 ## Marca y registro
 
-- [ ] **Nombre «Rodaje» en la SIC.** Buscarlo en la Superintendencia de Industria y Comercio (https://www.sic.gov.co), clase 9 de Niza (software descargable; mirar también la 42). Si sigue libre, decidir si se registra.
+- [x] **Nombre «Rodaje» en la SIC** (11-oct: Daniel comprobó que no está registrado; el registro se decide antes de la versión pública). Buscarlo en la Superintendencia de Industria y Comercio (https://www.sic.gov.co), clase 9 de Niza (software descargable; mirar también la 42). Si sigue libre, decidir si se registra.
 - [ ] **Registro de derechos de autor (opcional).** Ante la Dirección Nacional de Derechos de Autor (https://www.derechodeautor.gov.co), como soporte lógico. No es obligatorio para tener los derechos, pero sirve de prueba de fecha y autoría.
 
 ## Consulta con un abogado de propiedad intelectual
+
+**Aplazada** (Daniel, 11-oct): por ahora Rodaje es para uso propio y de personas cercanas; la consulta se hace antes de publicarlo.
 
 - [ ] **Autoría con código escrito por IA.** Buena parte del código lo escribieron agentes de IA dirigidos por Daniel. Preguntar qué protección de autor tiene ese código en Colombia y qué significa para el `Required Notice` y para conceder permisos comerciales.
 - [ ] **EULA por el Windows App SDK.** La PolyForm no cumple la cláusula 3.b de Microsoft; hace falta un texto complementario. Lista de cláusulas y conclusión en `legal.md`, «Compatibilidad de la licencia de Rodaje».
@@ -22,7 +24,7 @@ Lo que falta para publicar Rodaje bajo la PolyForm Noncommercial 1.0.0 (D-030). 
 
 ## Licencias propias que quedan por decidir
 
-- [ ] **Repositorios de contenido.** `Dathinel/rodaje-transiciones` y `Dathinel/rodaje-filtros` son públicos y CC0 (no se cambiaron). Decidir si siguen CC0, que permite venderlos, o pasan a otra licencia. Qué contienen hoy:
+- [x] **Repositorios de contenido** (decidido el 11-oct: siguen en CC0 y lo nuevo también, contenido libre sin restricción comercial). `Dathinel/rodaje-transiciones` y `Dathinel/rodaje-filtros` son públicos y CC0 (no se cambiaron). Decidir si siguen CC0, que permite venderlos, o pasan a otra licencia. Qué contienen hoy:
   - `rodaje-transiciones` 1.0.0: contenido real, 8 transiciones en `rodaje.preset` v2 (cuatro deslizamientos, empujar, acercar, alejar y girar), su manifiesto y `empaquetar.ps1`. Un commit (10-oct).
   - `rodaje-filtros` 1.0.0: contenido real, 8 filtros de color con sus LUT 33³ generadas por fórmulas propias en `generar.ps1` (las LUT no se versionan, salen del script). Un commit (10-oct).
   - Los dos llevan una copia de `formato-paquete.md` de Rodaje (con eso la especificación del formato ya es pública y CC0), no tienen ninguna release publicada aunque el README remite a las releases, y enlazan a `Dathinel/rodaje`, que es privado.

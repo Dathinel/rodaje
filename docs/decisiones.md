@@ -345,3 +345,6 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
   - GPL o AGPL: también permiten la venta (solo obligan a dar el código), y ninguna de las dos admite añadir una restricción no comercial.
   - Fuente cerrada: impide el estudio y la modificación que Daniel sí quiere permitir.
 - **Consecuencias.** Es una licencia de código disponible, no de código abierto: no está aprobada por la OSI y en los textos públicos no se llama a Rodaje «código abierto». «No comercial» tiene zonas grises (uso dentro de una empresa, creadores que monetizan sus videos, formación de pago) que se llevan al abogado. La compatibilidad con la LGPL de FFmpeg se mantiene; el Windows App SDK necesita un EULA complementario (`legal.md`). Los repositorios de contenido siguen en CC0 hasta que Daniel decida. Pendientes en [`pendientes-legales.md`](pendientes-legales.md).
+
+
+**Nota a D-030 (11-oct):** los complementos de contenido (`rodaje-transiciones`, `rodaje-filtros` y los que vengan) siguen en CC0: la licencia no comercial es solo del programa. El nombre «Rodaje» no está registrado en la SIC; la consulta legal se aplaza hasta antes de la versión pública (hoy es de uso propio y cercanos).
