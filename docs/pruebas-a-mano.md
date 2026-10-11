@@ -34,8 +34,9 @@ odaje-transiciones-1.0.0.paquete` (ya generados; se regeneran con el `empaquetar
 - [ ] **Calidad de vista previa:** ¿se nota cuando Auto baja?; ¿se entiende «Auto · ½»?
 - [ ] **Biblioteca sin paquetes:** se ve bien y «Conseguir más en Complementos» lleva a Complementos.
 
-## Fase 5c: curvas de velocidad
+## Fase 5c: velocidad, curvas y reversa
 
+- [ ] **Velocidad constante:** Velocidad → deslizador a 2× y 4× frente a CapCut con el mismo clip (¿fluido?); cámara lenta a 0,25×; voz y música con y sin «Mantener tono» (a 1× el interruptor queda apagado); por encima de 8× el audio suena granuloso y el inspector avisa; Alt + arrastrar un borde estira el clip; «Congelar» (Mayús+R) inserta el cuadro y corre lo que sigue; atajos Ctrl+R, Ctrl+Alt+. y Ctrl+Alt+,; al acortar un clip el siguiente se une, al alargarlo respeta los huecos.
 - [ ] **Curvas:** en Velocidad → Curva, probar los 5 preajustes reproduciendo (¿las rampas se sienten como en CapCut?); arrastrar puntos arriba y abajo y a los lados (¿cómoda la escala logarítmica y el imán en 1×?); doble clic para añadir y quitar; Ctrl+Z deshace cada arrastre de una vez; la mini curva y el nombre del preajuste en el clip, con clips cortos (el nombre del clip nunca queda tapado); Alt + borde sobre un clip con curva.
 - [ ] **Reversa 1080p:** Velocidad → «Congelar e invertir» → «Invertir» en un clip 1080p con voz o música. Reproducir de principio a fin y con saltos (clic en la regla, J/K/L): ¿fluido, sin tirones al cruzar los cortes ni al empezar? ¿el sonido va hacia atrás limpio, sin chasquidos, y a 2× invertido también? Ctrl+Z quita la reversa de una vez; «◀» aparece en el clip y «◀ Invertido» en el inspector; «Mantener tono» se apaga a 1× y se enciende a 2×.
 - [ ] **Reversa 4K:** lo mismo con un clip 4K: el aviso amarillo dice que se genera el proxy con su porcentaje y luego «listo» en gris; mientras se genera puede ir a saltos, ya listo debe ir fluido. ¿Se entiende el aviso? ¿Molesta?

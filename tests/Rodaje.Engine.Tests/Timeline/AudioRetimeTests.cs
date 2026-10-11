@@ -500,9 +500,9 @@ public sealed class AudioRetimeTests(ITestOutputHelper output)
     /// Criterio «cambio audible en ≤60 ms»: reproduciendo a 1×, el clip pasa a 2× (y la posición del origen salta, porque el
     /// inicio del clip se queda); se mide desde la petición hasta la primera muestra de la salida del mezclador que ya
     /// viene del mapeo nuevo, y se le suma el búfer del dispositivo (20 ms por omisión). El origen es una rampa: cada
-    /// muestra dice de qué posición del origen salió. Hoy da 50 ms + 20 = 70 ms: la mezcla conserva 50 ms ya mezclados tras
+    /// muestra dice de qué posición del origen salió. Hoy da 30 ms + 20 = 50 ms: la mezcla conserva 30 ms ya mezclados tras
     /// cada edición (<c>AudioMixer.KeepAfterReloadFrames</c>, el margen para reabrir y reposicionar sin cortes). La prueba
-    /// fija ese diseño (la mezcla nunca tarda más que el margen); bajar de 60 ms pide achicar el margen (docs/fase-5c.md).
+    /// fija ese diseño (la mezcla nunca tarda más que el margen).
     /// </summary>
     [Theory]
     [InlineData(false)]

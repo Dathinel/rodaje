@@ -93,7 +93,7 @@ Las decisiones de diseño están en [D-017](../decisiones.md) (caché global por
   - Reutiliza un decodificador por medio si quedó justo donde empieza el clip y cierra los ociosos.
   - Aplica el volumen de cada clip antes del recorte suave y de los medidores (ver [Audio](audio.md#volumen-y-fundidos)).
   - Aplica un recorte suave (rodilla 0,9).
-  - Al recargar conserva 50 ms ya mezclados. Un medio que falla suena como silencio.
+  - Al recargar conserva 30 ms ya mezclados. Un medio que falla suena como silencio.
   - Un clip con velocidad (`AudioClipPlan.Retime`) pasa por `RetimedReader`: WSOLA al mantener el tono, cinta si no (ver [Audio](audio.md#velocidad-timelineretime-fase-5c)).
 - **`TimelineSession.MeasureAudio`** da los niveles de la mezcla a los medidores (ver [Audio](audio.md#medidores-de-nivel-metering)).
 - **[`BufferedAudioSource`](../../src/Rodaje.Engine/BufferedAudioSource.cs)** decodifica por delante (500 ms) en su propio hilo sobre un anillo. El hilo de audio solo copia; si falta audio da silencio y la posición sigue, así la sincronía no se pierde.
