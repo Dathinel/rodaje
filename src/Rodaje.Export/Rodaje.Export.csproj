@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Rodaje.Export</RootNamespace>
+    <!-- Exportación (fase 6, D-028): ajustes, preajustes, validación y la orquestación motor → GPU → sink; sin interfaz -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rodaje.Export.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rodaje.Engine\Rodaje.Engine.csproj" />
+    <ProjectReference Include="..\Rodaje.Media\Rodaje.Media.csproj" />
+    <ProjectReference Include="..\Rodaje.Render\Rodaje.Render.csproj" />
+  </ItemGroup>
+
+</Project>

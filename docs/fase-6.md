@@ -1,6 +1,6 @@
 # Fase 6: exportación
 
-Plan del 11 de octubre de 2026. Daniel decidió: LGPL en la v1, 9:16 con barras y botón «Cambiar la secuencia a 9:16», y **dos modos de rendimiento que se eligen al exportar** («Alto rendimiento (menor tiempo)» y «Bajo rendimiento (app más fluida)»).
+Plan del 11 de octubre de 2026. Daniel decidió: LGPL en la v1, 9:16 con barras y botón «Cambiar la secuencia a 9:16», y **dos modos de rendimiento que se eligen al exportar** («Alto rendimiento (menor tiempo)» y «Bajo rendimiento (app más fluida)»). Arquitectura y contrato en D-028.
 
 ## Arquitectura
 
@@ -13,11 +13,32 @@ ExportRunner (Rodaje.Export) ─► IExportSink ─► FfmpegPipeSink (ffmpeg.ex
 ```
 
 - **Exacto, sin reloj:** `OfflineTimeline.Render(frame)` espera a que todas las capas estén exactas (sin proxies, sin keyframe cercano, sin `SkipNonReference`); lo que en la vista previa se tolera (cuadro no disponible, medio con fallo, LUT o paquete que falta, efecto saltado) aquí es error o se ofrece «continuar sin» de forma explícita. Shaders y LUT se precargan antes del primer cuadro.
-- **Dispositivo D3D11 propio** con prioridad de GPU baja y su hilo; presupuesto de VRAM aparte (si hay menos de 4 GB, la vista previa pasa a proxies y Mitad mientras exporta).
+- **Dispositivo D3D11 propio** con su hilo y la prioridad del modo de rendimiento (alto o bajo); presupuesto de VRAM aparte (si hay menos de 4 GB, la vista previa pasa a proxies y Mitad mientras exporta).
 - **Conversión en la GPU:** BT.709 rango limitado (BT.601 en SD), croma 4:2:0 «left», tramado en 8 bits, P010 para 10 bits SDR; escala con el mip 1 para 2× y Catmull-Rom en lo demás; barras, recorte o estirado para la forma.
 - **Audio** mezclado antes a un WAV temporal (sin margen de recarga): evita bloqueos entre tuberías y se prueba muestra a muestra.
 - **Salida por `ffmpeg.exe`** como los proxies: proceso aislado, cancelación limpia, licencia separada (el complemento x264 sería otro `ffmpeg.exe` GPL con el mismo protocolo). Escritura atómica (`.rodaje-tmp` y renombrar), espacio en disco comprobado, limpieza tras un apagón.
 - **HDR fuera de alcance**; 10 bits SDR dentro.
+
+## Cifras del prototipo (paso 0, 11-oct)
+
+RTX 3050 Laptop / Ryzen 7 7435HS, dos corridas de `tests/Rodaje.Export.Tests/Prototype` (`RODAJE_PRUEBAS_LARGAS=1`), con otros agentes usando la máquina. Cuadros NV12 sintéticos (degradado móvil con ruido) por la entrada estándar de `ffmpeg.exe -f rawvideo`.
+
+| Prueba | fps | MB/s |
+|---|---|---|
+| Tubería 1080p → `-f null` | 1324–1340 | ~4100 |
+| Tubería 4K → `-f null` | 226–303 | 2800–3800 |
+| Tubería 1080p → `h264_nvenc` p4 | 339–356 | ~1100 |
+| Tubería 4K → `h264_nvenc` / `hevc_nvenc` p4 | 91–92 / 84–88 | ~1100 |
+| Tubería 1080p → `libsvtav1` preset 8 (150 cuadros) | 42–80 | — |
+| Sin codificar: 3 capas 1080p decodificadas por D3D11VA (H.264, HEVC, H.264; dos en PiP con opacidad), compuestas y bajadas | 247–287 | — |
+
+En el canal sin codificar, por cuadro: espera de decodificación 0,03–0,25 ms, composición 0,2–0,45 ms y copia y bajada (un NV12 1080p a `Staging` con `Map` síncrono, que además espera a la GPU) 3,2–3,3 ms. La bajada es el cuello; el anillo de `ExportFrameConverter` la solapa.
+
+**Conclusiones.**
+- La tubería no limita: a 4K mueve 2,8–3,8 GB/s frente a los ~750 MB/s de 4K60. **`NvencDirectSink` no hace falta** en la v1; la ronda 6.2 queda sin plan.
+- Con NVENC el cuello será el canal sin codificar, no el codificador. 10 min de 1080p30 (18 000 cuadros) a ~250 fps son ~1,2 min más los efectos. **Objetivo ajustado: NVENC H.264 ≤3 min (meta 2)**, en vez de ≤4 (meta 3).
+- Sin codificar ≥150 fps se mantiene: el prototipo da 250–290 con la bajada síncrona.
+- SVT-AV1 depende de la carga de la CPU (42–80 fps con otros procesos): ≤10 min se mantiene; el agente F lo mide con el equipo libre.
 
 ## Formatos y preajustes
 
@@ -51,7 +72,7 @@ Paso 0 en serie: `docs/fase-6.md` → D-028, proyecto nuevo `src/Rodaje.Export` 
 - **Exactitud:** 100 % de los cuadros con el número esperado por `ClipTimeMap` (3 capas con 2×, 0,5×, 1001/1000×, «Bala», congelado y 4 transiciones; FFV1 y también NVENC); frente a la vista previa, luma ≤1 código y croma ≤2.
 - **Color:** barras BT.709 ±1 código; ffprobe `bt709/tv/left`; sin cambio de gamma en VLC, Películas y TV y Edge.
 - **A/V tras 10 min:** error medio ≤1 ms, máximo ≤½ cuadro; primer sample en pts 0 ±1.
-- **Velocidad (RTX 3050 / Ryzen 7 7435HS), 1080p30, 10 min, 3 capas con efectos y transiciones:** NVENC H.264 ≤4 min (meta 3); SVT-AV1 ≤10 min; sin codificar ≥150 fps.
+- **Velocidad (RTX 3050 / Ryzen 7 7435HS), 1080p30, 10 min, 3 capas con efectos y transiciones:** NVENC H.264 ≤3 min (meta 2; ajustado con el prototipo); SVT-AV1 ≤10 min; sin codificar ≥150 fps.
 - **Calidad (VMAF):** YouTube 1080p ≥93 (≥85 en el 1 % peor); Archivo pequeño ≤3 Mbps con ≥85; Máxima calidad ≥97; AV1 CPU ≤60 % del tamaño de NVENC H.264 a VMAF ±1.
 - **Cancelación:** 20 al azar, cada una ≤1 s, sin archivo ni proceso vivo, VRAM ±50 MB; tras matar Rodaje, limpieza al reabrir.
 - **Archivo** sin errores en ffmpeg, `moov` al principio, se reproduce en Películas y TV, VLC y Edge.
@@ -61,10 +82,10 @@ Paso 0 en serie: `docs/fase-6.md` → D-028, proyecto nuevo `src/Rodaje.Export` 
 
 ## Riesgos
 
-AMF, QSV y AV1 por GPU no se pueden probar en el equipo de Daniel; VRAM en gráficas de 2–4 GB; el modo exportación toca el programador (la vista previa debe quedar idéntica con él apagado); la reversa 4K es lenta hasta que se una el lector hacia atrás; la 5b (texto) debe entrar en `OfflineTimeline` sin decodificador; la tubería a 4K60 (~750 MB/s) puede pedir adelantar `NvencDirectSink`; patentes de AAC (se prefiere `aac_mf`); Windows N no trae Media Foundation.
+AMF, QSV y AV1 por GPU no se pueden probar en el equipo de Daniel; VRAM en gráficas de 2–4 GB; el modo exportación toca el programador (la vista previa debe quedar idéntica con él apagado); la reversa 4K es lenta hasta que se una el lector hacia atrás; la 5b (texto) debe entrar en `OfflineTimeline` sin decodificador; la tubería a 4K60 (~750 MB/s) ya no es riesgo (el prototipo mueve 2,8 GB/s o más); patentes de AAC (se prefiere `aac_mf`); Windows N no trae Media Foundation.
 
-## Preguntas para Daniel (se avanza con la recomendada)
+## Preguntas (decididas por Daniel el 11 de octubre; D-028)
 
 1. **Licencia de la v1:** LGPL — H.264 por GPU o Media Foundation (patentes cubiertas por Microsoft), CPU con AV1 (SVT-AV1) y VP9, kvazaar y OpenH264 fuera de los valores por defecto (contradicen la mitigación de patentes de `legal.md`), x264 como complemento GPL aparte más adelante.
 2. **Reels/TikTok con secuencia 16:9:** barras por defecto y un botón visible «Cambiar la secuencia a 9:16» (deshacible).
-3. **Mientras exporta:** prioridad baja por defecto, con un interruptor «Exportar más rápido».
+3. **Mientras exporta:** dos modos que se eligen en el diálogo cada vez que se exporta (`ExportSettings.Performance`): «Alto rendimiento (menor tiempo)», con prioridad normal/alta y la vista previa en pausa o al mínimo, y «Bajo rendimiento (app más fluida)», con prioridad baja para seguir editando.
