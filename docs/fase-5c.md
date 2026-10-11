@@ -12,6 +12,15 @@ Plan del 10 de octubre de 2026, aprobado por Daniel: va antes que la fase 5b (te
 | **5c.3** | Reversa en video y audio (decodificación por GOP hacia atrás). |
 | Después | Mezcla de cuadros en cámara lenta; el flujo óptico es un módulo de IA de la fase 7. |
 
+## Estado de la ronda 5c.2 (núcleo y motor, 11-oct)
+
+- **Preajustes propios** («Montaje», «Héroe», «Bala», «Entrada rápida», «Salida rápida») como datos en `SpeedPresets`; `Edits.ApplySpeedPreset` es `SetCurve` con la forma (duración por la velocidad media). Formas en [nucleo.md](arquitectura/nucleo.md#velocidad-fase-5c).
+- **Ediciones:** `RateStretch` estira una curva (escala `Span` y `Offset`, divide cada punto, acotado a 0,1×–10×) con las mismas reglas de magnetismo; dividir y recortar conservan el mapeo exacto en 10 000 proyectos aleatorios con curvas.
+- **Video:** `MaxRate` es el pico real del tramo visible (política de proxies y demanda); ventanas y pre-roll siguen la curva; el keyframe cercano solo si la tasa instantánea no baja de 16× en toda la ventana. `AVDISCARD_NONREF` no hizo falta.
+- **Audio:** el lector sigue entre los trozos de un clip dividido con curva (`SameCourse`, `Adopt`, mapeo unido en el plan): idéntico muestra a muestra.
+- **Cifras:** «Bala» 2004/2004 seeks exactos con medio real; «Montaje» repetida 10 min: 0 cuadros de video distintos y 0,073 ms de error medio de audio (pedido ≤1 ms), 0,021 ms entre el primer y el último minuto.
+- **Falta (interfaz):** editor de puntos de la curva con sus límites, mini curva en el clip, selector de preajustes en la pestaña «Velocidad», y que el arrastre de Alt + borde sobre una curva se calcule desde el inicio del gesto (con pasos de un cuadro el redondeo a centésimas apenas cambia los puntos, y el largo exacto sale de tomar o soltar material al final).
+
 ## Diseño
 
 - **Propiedad del clip, no efecto.** `Clip.Speed` (`ClipSpeed`: `Rate` racional, `Curve`, `Offset`, `Reverse`, `Freeze`, `PreservePitch`, `FrameSampling`) y `Clip.Duration` guardada. Cambia el final del clip y los enlazados necesitan el mismo valor; así lo hacen los editores profesionales. `rodaje.speed` queda reservado y oculto; la migración 3 → 4 quita sus instancias (nunca se aplicaron).
