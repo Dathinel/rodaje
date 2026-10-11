@@ -18,25 +18,8 @@ public static class ExportPresetLibrary
 
     public const string CustomId = "personalizado";
 
-    /// <summary>Instagram cuadrado. Va aquí hasta que el contrato (<see cref="ExportPresets"/>) lo traiga.</summary>
-    public static ExportPreset Square { get; } = new("rodaje.cuadrado-1080x1080", "Instagram 1:1",
-        "1080×1080 con barras si la secuencia es horizontal.", ExportPresetCategory.Platform, ExportPresetOrigin.Factory,
-        new ExportSettings
-        {
-            Video = new VideoExportSettings
-            {
-                Codec = Rodaje.Media.Export.ExportCodec.H264, Width = 1080, Height = 1080, Fit = Rodaje.Media.Export.ExportFit.Bars,
-                RateControl = RateControl.Vbr(8_000, 12_000), Profile = "high",
-            },
-            Audio = new AudioExportSettings { Codec = Rodaje.Media.Export.ExportCodec.Aac, Loudness = LoudnessTarget.Platforms },
-        });
-
-    /// <summary>Los de fábrica en el orden de las tarjetas: los del contrato con el cuadrado tras el vertical.</summary>
-    public static IReadOnlyList<ExportPreset> Factory { get; } =
-    [
-        .. ExportPresets.All.TakeWhile(p => p.Id != ExportPresets.Vertical.Id), ExportPresets.Vertical, Square,
-        .. ExportPresets.All.SkipWhile(p => p.Id != ExportPresets.Vertical.Id).Skip(1),
-    ];
+    /// <summary>Los de fábrica en el orden de las tarjetas.</summary>
+    public static IReadOnlyList<ExportPreset> Factory => ExportPresets.All;
 
     public static IReadOnlyList<ExportPreset> All(ExportPreferences preferences)
     {
