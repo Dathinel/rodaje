@@ -10,7 +10,7 @@ Este registro guarda el porqué de cada elección importante de Rodaje. Una deci
 - **Por qué.** "FotoShot" queda a una letra de Photoshop (marca de Adobe) y ya existen apps de fotos llamadas "PhotoShot" (Vyro AI, H-Tech Labs). Se descartó un nombre en inglés porque el proyecto se piensa en español.
 - **Consecuencia.** Una búsqueda básica no es una búsqueda de marcas: antes de publicar hay que consultar USPTO, EUIPO y SIC Colombia en las clases 9 y 42 de Niza (lista en `docs/legal.md`).
 
-## D-002. Repositorio privado con licencia MIT
+## D-002. Repositorio privado con licencia MIT (licencia sustituida por D-030)
 
 - **Decisión.** Repositorio privado (creado como `Dathinel/fototoma`, hoy `Dathinel/rodaje` por D-014), código propio bajo MIT a nombre de Daniel (Dathinel), con el fondo legal completo (`LICENCIAS.md`, `THIRD-PARTY-NOTICES.txt`, `docs/legal.md`) desde el principio.
 - **Por qué.** Es la regla por defecto de la carpeta de programas. GPL-3 permitiría reutilizar código de Kdenlive, Shotcut u Olive pero obligaría a distribuir todo como GPL; Apache-2.0 aporta poco a un proyecto personal; sin licencia nadie podría usarlo.
@@ -335,3 +335,13 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 2. **Fuentes empaquetadas desde el principio** (paquete `rodaje-fuentes`, unas 10 familias OFL/Apache sin modificar), solo de paquetes que instala la persona.
 3. **Entrada y salida pegadas a los bordes del clip** (siguen al recorte), con «convertir en keyframes» opcional; al dividir, los bordes internos quedan sin animación.
 4. **El proyecto guarda una copia del estilo**: actualizar un paquete no cambia títulos de proyectos existentes (igual que los filtros).
+
+## D-030. Licencia PolyForm Noncommercial 1.0.0 en lugar de MIT (11 de octubre de 2026)
+
+- **Decisión.** El código propio de Rodaje pasa de MIT a la PolyForm Noncommercial License 1.0.0, con `Required Notice: Copyright (c) 2026 Daniel (Dathinel)`. Sustituye a la licencia de D-002. Daniel es el único titular y el repositorio es privado y nunca se publicó bajo MIT, así que no hay copias MIT de terceros que respetar.
+- **Por qué.** Daniel quiere compartir el programa para uso personal, educativo y de investigación, pero impedir que terceros lo vendan. No tiene pretensión comercial propia; el uso comercial queda para permisos escritos caso a caso.
+- **Alternativas descartadas.**
+  - MIT: permite que cualquiera venda el programa o una copia apenas cambiada.
+  - GPL o AGPL: también permiten la venta (solo obligan a dar el código), y ninguna de las dos admite añadir una restricción no comercial.
+  - Fuente cerrada: impide el estudio y la modificación que Daniel sí quiere permitir.
+- **Consecuencias.** Es una licencia de código disponible, no de código abierto: no está aprobada por la OSI y en los textos públicos no se llama a Rodaje «código abierto». «No comercial» tiene zonas grises (uso dentro de una empresa, creadores que monetizan sus videos, formación de pago) que se llevan al abogado. La compatibilidad con la LGPL de FFmpeg se mantiene; el Windows App SDK necesita un EULA complementario (`legal.md`). Los repositorios de contenido siguen en CC0 hasta que Daniel decida. Pendientes en [`pendientes-legales.md`](pendientes-legales.md).
