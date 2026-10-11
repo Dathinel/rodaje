@@ -456,9 +456,8 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
             CheckProblem(store, prefix + "empujar", store.FindTransition(prefix + "empujar"));
             _ = store.TryGetLut(prefix + "lut-cine", out _);
 
-            // Solo si la carga terminó: con pocos núcleos puede tardar y entonces aún no hay motivo que decir.
-            bool loaded = store.WhenLoaded().Wait(TimeSpan.FromSeconds(60));
-            if (loaded && !store.TryGetLut(prefix + "lut-cine", out _))
+            Assert.True(store.WhenLoaded().Wait(TimeSpan.FromSeconds(60)), "La carga de la LUT no terminó en 60 s.");
+            if (!store.TryGetLut(prefix + "lut-cine", out _))
             {
                 Assert.False(string.IsNullOrWhiteSpace(store.LutProblem(prefix + "lut-cine")), "La LUT no se leyó y no dice por qué.");
             }
