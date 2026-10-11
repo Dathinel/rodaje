@@ -153,9 +153,9 @@ Carga el contenido de lo instalado por referencia; vive en `Rodaje.Paquetes` y n
 
 `IEffectContent` está en `Rodaje.Engine` (que depende de `Rodaje.Core` y `Rodaje.Playback`), así que la implementación vive en la app y envuelve el `PackageContentStore`:
 
-- **`TryGetLut(ResourceKey key, out LutData?)`** → `store.TryGetLut(key.Reference, out LutTable t)` y `new LutData(t.Size, t.Rgb)` (sin copiar el arreglo). Para no reservar por cuadro, guardar el `LutData` de cada `LutTable` en una `ConditionalWeakTable<LutTable, LutData>`.
+- **`TryGetLut(ResourceKey key, out LutData?)`** → `store.TryGetLut(key.Reference, out LutTable t)` y `new LutData(t.Size, t.Rgb)` (sin copiar el arreglo). `EffectContent` guarda el `LutData` de cada referencia en un diccionario, así que `TryGetLut` no reserva por cuadro.
 - **`Changed`** → el de la tienda, tal cual (el motor ya lo espera en cualquier hilo).
-- **`FindTransition(reference)`** → `store.FindTransition`, convertida a `TransitionCurves`: `MixCode = EffectRegistry.Find(preset.Mix)?.Code` (si no es una transición del registro, el de `rodaje.crossfade`), `CurveKey(t / DurationSeconds, value, interp)` con la misma interpolación por nombre, y `Outgoing`/`Incoming` por parámetro. `MixParameters` y `MixOptions` todavía no tienen sitio en `TransitionCurves`: mientras el motor no los lleve, la mezcla usa sus valores por defecto (todo barrido iría de izquierda a derecha y con borde suave, y tres de los cuatro deslizamientos se verían mal).
+- **`FindTransition(reference)`** → `store.FindTransition`, convertida a `TransitionCurves`: `MixCode = EffectRegistry.Find(preset.Mix)?.Code` (si no es una transición del registro, el de `rodaje.crossfade`), `CurveKey(t / DurationSeconds, value, interp)` con la misma interpolación por nombre, y `Outgoing`/`Incoming` por parámetro. `MixParameters` y `MixOptions` van en `TransitionCurves` y el plan del motor los usa en lugar de los de la transición de la pista (el ángulo y la suavidad de un barrido salen del preajuste).
 - **Instalar y desinstalar** desde `PackageService` → `store.Reload(PackageLibrary.Scan(...))`. **Aplicar un filtro o efecto** → `FindFilter`/`FindEffect`, copiar sus efectos al clip con `options.source` y, en un efecto, convertir las curvas en keyframes según `Placement`.
 
 ## Paquetes de contenido de Dathinel

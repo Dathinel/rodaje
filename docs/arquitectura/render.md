@@ -67,7 +67,7 @@ flowchart LR
 | [`Effects/`](../../src/Rodaje.Render/Effects) | HLSL de los efectos, `EffectPipeline` (constantes, estados de mezcla, shaders), `LutTextures`, `GpuEffectRegistry` |
 | [`RenderTargetPool.cs`](../../src/Rodaje.Render/RenderTargetPool.cs) | Intermedios con tope |
 | [`Shaders/ShaderCache.cs`](../../src/Rodaje.Render/Shaders/ShaderCache.cs) | Caché de bytecode en memoria y disco |
-| [`Presenter.cs`](../../src/Rodaje.Render/Presenter.cs) | `Draw(rtv, ancho, alto, compositor)`: letterbox con `VideoLayout.Fit`, mips y muestreo trilineal al reducir |
+| [`Presenter.cs`](../../src/Rodaje.Render/Presenter.cs) | `Draw(rtv, ancho, alto, compositor)`: letterbox con `VideoLayout.Fit`, mips y muestreo trilineal al reducir; la sobrecarga con `placement` dibuja en un rectángulo dado (puede salirse del destino, para el zoom) |
 | [`QuadPipeline.cs`](../../src/Rodaje.Render/QuadPipeline.cs) | Estado compartido: cuatro vértices sin búfer, sampler lineal, mezcla premultiplicada y constantes del `cbuffer` |
 | [`RenderShaders.cs`](../../src/Rodaje.Render/RenderShaders.cs) | HLSL base (`Prelude` común, `VsQuad`, `PsLayer`, `PsPresent`) |
 | [`ShaderCompiler.cs`](../../src/Rodaje.Render/ShaderCompiler.cs) | Compila con el `d3dcompiler_47.dll` del sistema, con O3 y las advertencias como errores ([D-015](../decisiones.md)) |
@@ -83,6 +83,7 @@ flowchart LR
 - **`CompositorTests`** (`[GpuFact]`) compara cada píxel con `ReferenceColor`, que implementa las ecuaciones ITU por su cuenta, en NV12 y P010 de 8 y 10 bits.
 - **`EffectFidelityTests`**: cada control de color, LUT (identidad ≤1/255 en 2³, 17³, 33³ y 65³; una curva ≤2/255), viñeta, desenfoque, nitidez y los 13 modos de mezcla ≤2/255 frente a la CPU; media resolución frente a completa ≤3/255 de media.
 - **`TransitionTests`**: en 0 y en 1 cada transición es byte a byte el clip que sale o el que entra; el fundido a 0,5 es el promedio ±1.
+- **`DecoderCompositionTests`** (`[HardwareFact]`): compone superficies reales del decodificador D3D11VA y lee el código de cuadro de cada capa.
 - **`EffectPipelineTests`**: la tabla de la GPU coincide con el registro; un cuadro no espera a un shader; el pool lleno salta efectos sin fallar.
 - **`ShaderCompileTests`**: todas las variantes compilan con las advertencias como errores; la caché en disco se lee en otra sesión.
 - **`EffectPerformanceTests`** y **`CompositorPerformanceTests`** miden con `GpuTimer`; los objetivos se exigen con `RODAJE_PRUEBAS_LARGAS=1`.
