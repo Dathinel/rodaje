@@ -217,6 +217,59 @@ public sealed class TimelineSpeedTests(ITestOutputHelper output)
         Assert.All(requested, i => Assert.Contains(i, shownFrames));
     }
 
+    /// <summary>
+    /// Un clip a 2× que ya terminó vuelve a quedar bajo el cursor al bajarle la velocidad (como en <c>app.ps1 -Medir 10
+    /// -Escenario velocidad</c>): entra por la mitad, no por su principio. Antes se tomaba como un corte natural, mostraba un
+    /// cuadro del mismo medio que la caché tenía de la otra capa y contaba como perdidos los cuadros entre ese y el debido.
+    /// </summary>
+    [Fact]
+    public void A_clip_brought_under_the_playhead_by_a_speed_edit_shows_only_its_due_frames_and_drops_none()
+    {
+        var backend = new FakeTimelineBackend { ManualDecoding = true };
+        var b = new TimelineBuilder(2, 0);
+        b.AddMedia("m", Fps30, 30_000, backend: backend);
+        b.AddVideo(0, "m", Time.Zero, Time.Zero, S(20), "base");
+        Clip fast = SpeedClips.WithRate(b.AddVideo(1, "m", Time.Zero, Time.Zero, S(1), "rapido"), new Rational(2, 1), Time.Zero, S(4));
+        var time = new ManualTimeProvider();
+        using TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { EnableAudio = false, TimeProvider = time });
+        Settle(session, backend).Dispose();
+
+        session.Play();
+        while (session.Position < S(2.5))
+        {
+            time.Advance(TimeSpan.FromTicks(166_667));
+            session.Tick().Dispose();
+            backend.RunDecoders();
+        }
+
+        session.ResetStats();
+        SpeedClips.WithRate(fast, new Rational(3, 2), Time.Zero, S(6));
+        session.Reload(b.Project);
+        int wrong = 0;
+        int shown = 0;
+        for (int refresh = 0; refresh < 60; refresh++)
+        {
+            time.Advance(TimeSpan.FromTicks(166_667));
+            using (CompositionFrame frame = session.Tick())
+            {
+                foreach (LayerFrame layer in frame.Layers.Where(l => l.ClipId == fast.Id))
+                {
+                    shown++;
+                    wrong += layer.Frame.Index == SpeedClips.Expected(fast, Fps30, frame.TimelineTime) ? 0 : 1;
+                }
+            }
+
+            backend.RunDecoders();
+        }
+
+        TimelineStats stats = session.Stats;
+        output.WriteLine($"tras la edición: mostrados {shown}, cuadros ajenos {wrong}, perdidos {stats.FramesDropped}, tarde {stats.LateRefreshes}");
+        Assert.True(shown > 50, $"La capa editada se vio en {shown} refrescos.");
+        Assert.Equal(0, wrong);
+        Assert.Equal(0, stats.FramesDropped);
+        Assert.Equal(0, stats.Cuts);
+    }
+
     [Theory]
     [InlineData(1, 4, new long[] { 300, 301 })]
     [InlineData(4, 1, new long[] { 300, 304, 308, 312, 316, 320 })]

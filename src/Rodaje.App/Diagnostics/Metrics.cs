@@ -20,6 +20,11 @@ internal sealed class Metrics
     private readonly List<double> _resizeToPresentMs = [];
     private readonly List<double> _reloadToPresentMs = [];
     private readonly List<double> _editToPresentMs = [];
+    private readonly List<double> _editUiMs = [];
+    private readonly List<double> _editQueueMs = [];
+    private readonly List<double> _editEngineMs = [];
+    private readonly List<double> _editFrameMs = [];
+    private readonly List<string> _slowRefreshes = [];
     private readonly List<string> _notes = [];
     private long _lastPresent;
     private bool _frozen;
@@ -102,7 +107,42 @@ internal sealed class Metrics
     public void ReloadToPresent(double ms) => Add(_reloadToPresentMs, ms);
 
     /// <summary>Desde que empieza una edición (antes de ejecutar el comando y copiar el proyecto) hasta que se ve.</summary>
-    public void EditToPresent(double ms) => Add(_editToPresentMs, ms);
+    /// <param name="total">Desde antes de ejecutar el comando hasta que se presenta.</param>
+    /// <param name="afterReload">Desde que el motor terminó de recargar hasta que se presenta: esperar el cuadro y dibujarlo.</param>
+    public void EditToPresent(double total, double afterReload)
+    {
+        Add(_editToPresentMs, total);
+        Add(_editFrameMs, afterReload);
+    }
+
+    /// <summary>
+    /// Las partes de una edición antes de que el motor la tenga: la interfaz (comando, copia del proyecto y vistas), la espera
+    /// del hilo de render y <c>TimelineSession.Reload</c> (plan y demanda).
+    /// </summary>
+    public void EditParts(double ui, double queue, double engine)
+    {
+        Add(_editUiMs, ui);
+        Add(_editQueueMs, queue);
+        Add(_editEngineMs, engine);
+    }
+
+    /// <summary>Un refresco de más de 12 ms (espera del vsync, <c>Tick</c>, componer y presentar), para saber dónde se fue el tiempo.</summary>
+    public void SlowRefresh(double waitMs, double tickMs, double drawMs)
+    {
+        if (waitMs + tickMs + drawMs <= 12)
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            // Solo después de la medida en régimen: teclas, ediciones y redimensionar.
+            if (_frozen && _slowRefreshes.Count < 40)
+            {
+                _slowRefreshes.Add(string.Create(CultureInfo.InvariantCulture, $"{waitMs:0.0}/{tickMs:0.0}/{drawMs:0.0}"));
+            }
+        }
+    }
 
     /// <summary>Descarta lo medido en reproducción (para empezar a contar ya en régimen).</summary>
     public void ResetSteadyState()
@@ -138,6 +178,15 @@ internal sealed class Metrics
             Summary(sb, "redimensionar.a_present", _resizeToPresentMs, hitches: false);
             Summary(sb, "edicion.a_present", _reloadToPresentMs, hitches: false);
             Summary(sb, "edicion.deslizador_a_present", _editToPresentMs, hitches: false);
+            Summary(sb, "edicion.parte_interfaz", _editUiMs, hitches: false);
+            Summary(sb, "edicion.parte_espera_render", _editQueueMs, hitches: false);
+            Summary(sb, "edicion.parte_motor_reload", _editEngineMs, hitches: false);
+            Summary(sb, "edicion.parte_cuadro_y_present", _editFrameMs, hitches: false);
+            if (_slowRefreshes.Count > 0)
+            {
+                sb.AppendLine(c, $"render.refrescos_lentos (espera vsync/tick/componer y presentar, ms): {string.Join(" ", _slowRefreshes)}");
+            }
+
             foreach (string note in _notes)
             {
                 sb.AppendLine(c, $"nota: {note}");
@@ -164,8 +213,9 @@ internal sealed class Metrics
         double[] sorted = [.. values];
         Array.Sort(sorted);
         double median = sorted[sorted.Length / 2];
+        double p95 = sorted[Math.Min(sorted.Length - 1, (int)Math.Ceiling(sorted.Length * 0.95) - 1)];
         double p99 = sorted[Math.Min(sorted.Length - 1, (int)Math.Ceiling(sorted.Length * 0.99) - 1)];
-        sb.Append(c, $"{name}_ms: n={sorted.Length} mediana={median:0.00} p99={p99:0.00} max={sorted[^1]:0.00}");
+        sb.Append(c, $"{name}_ms: n={sorted.Length} mediana={median:0.00} p95={p95:0.00} p99={p99:0.00} max={sorted[^1]:0.00}");
         if (hitches)
         {
             sb.Append(c, $" saltos(>1.5x mediana)={sorted.Count(v => v > median * 1.5)}");

@@ -2,6 +2,8 @@
 # Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\probar.ps1 [-Cobertura] [-Filtro "texto"]
 # Las de la categoría TiempoReal corren después, solas. Los registros quedan en TestResults\<fecha-hora>\ (se
 # conservan 10). Sale con 0 si todo pasó. Con -Cobertura y sin -Filtro, Rodaje.Core debe quedar en el 99 % de líneas o más.
+# Con RODAJE_PRUEBAS_LARGAS=1 y sin -Filtro hay una fase 5: las pruebas de tiempo de CPU que tienen criterio para código
+# optimizado corren en Release, y la app se publica con Native AOT y se arranca de verdad (app.ps1 -Autoprueba).
 
 param(
     [switch]$Cobertura,
@@ -14,7 +16,8 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 $Raiz = Split-Path -Parent $PSScriptRoot
 Import-Module (Join-Path $PSScriptRoot 'comun.psm1') -DisableNameChecking -Force
-$E = Inicializar-Rodaje $Raiz -Fases 4
+$Larga = $env:RODAJE_PRUEBAS_LARGAS -eq '1' -and -not $Filtro
+$E = Inicializar-Rodaje $Raiz -Fases $(if ($Larga) { 5 } else { 4 })
 $Solucion = Join-Path $Raiz 'Rodaje.slnx'
 $Dotnet = $E.Dotnet
 $MarcaSdk = $E.MarcaSdk
@@ -144,6 +147,24 @@ $informesCobertura = @(Get-ChildItem -LiteralPath $script:Corrida -Recurse -Filt
 Fase 4 'corriendo las pruebas de tiempo real, solas...'
 $rTiempoReal = Invocar-Dotnet (Join-Path $script:Corrida '4-tiempo-real.log') (Argumentos-Prueba 'tiempo-real' 'Categoria=TiempoReal') $alVuelo
 
+# Criterios que solo valen con código optimizado (como el de Native AOT): en Debug esas pruebas exigen un tope holgado.
+$PruebasRelease = 'FullyQualifiedName~A_block_of_1024_stereo_frames'
+$rRelease = $null
+$codigoAutoprueba = 0
+if ($Larga) {
+    Fase 5 'pasada larga: tiempos en Release y arranque real del exe con Native AOT...'
+    $proyectoMotor = Join-Path $Raiz 'tests\Rodaje.Engine.Tests\Rodaje.Engine.Tests.csproj'
+    $rRelease = Invocar-Dotnet (Join-Path $script:Corrida '5-compilar-release.log') @('build', $proyectoMotor, '-c', 'Release', '--nologo')
+    if ($rRelease.Codigo -eq 0) {
+        $filtroRelease = $PruebasRelease
+        if ($Dotnet -match '\.(cmd|bat)$') { $filtroRelease = '"' + $filtroRelease + '"' }
+        $rRelease = Invocar-Dotnet (Join-Path $script:Corrida '5-release.log') @('test', $proyectoMotor, '--no-build', '-c', 'Release', '--nologo',
+            '--results-directory', $script:Corrida, '--logger', 'trx;LogFilePrefix=release', '--filter', $filtroRelease)
+    }
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'app.ps1') -Autoprueba
+    $codigoAutoprueba = $LASTEXITCODE
+}
+
 $trx = @(Get-ChildItem -LiteralPath $script:Corrida -Recurse -Filter '*.trx' -ErrorAction SilentlyContinue)
 $total = 0; $pasaron = 0; $fallaron = 0; $omitidas = 0
 $fallidas = New-Object System.Collections.Generic.List[object]
@@ -252,8 +273,12 @@ if ($fallaron -gt 0) {
     Mal 'RESULTADO: hay pruebas que fallan. El mensaje de cada una dice qué esperaba y qué obtuvo.'
     Terminar 1
 }
-foreach ($pasada in @($r, $rTiempoReal)) {
-    if ($pasada.Codigo -ne 0) {
+if ($codigoAutoprueba -ne 0) {
+    Mal 'RESULTADO: las pruebas pasan, pero el exe de Native AOT no arranca bien (mira la autoprueba más arriba).'
+    Terminar 1
+}
+foreach ($pasada in @($r, $rTiempoReal, $rRelease)) {
+    if ($pasada -and $pasada.Codigo -ne 0) {
         Mal 'RESULTADO: el ejecutor de pruebas terminó con error aunque ninguna prueba falló.'
         $pasada.Lineas | Select-Object -Last 10 | ForEach-Object { Nota ('  ' + (Corto $_)) }
         Terminar 1

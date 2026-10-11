@@ -34,10 +34,28 @@ Paso 0 en serie (modelo, `RetimeMath`, `ClipTimeMap`, formato 4, validador, firm
 - **Seek exacto:** 100 % del cuadro esperado en 2000 seeks por caso (0,25×, 0,5×, 1,37×, 2×, 4×, 1001/1000×, 100×, reversa, «Bala», congelado).
 - **Deriva A/V en 10 min** a 1,5×, 0,5× y «Montaje»: 0 cuadros de video; audio ≤5 ms de error medio.
 - **Cuadros perdidos (RTX 3050):** 1080p a 2× y 4× sin proxy: 0; 4K a 2×: ≤0,5 % sin proxy y 0 con proxy; 4K a 4× y reversa 4K: 0 con proxy; reversa 1080p: 0.
-- **Motor:** `Tick` ≤0,3 ms y 0 B; cambio de velocidad visible en ≤20 ms y audible en ≤60 ms.
+- **Motor:** `Tick` ≤0,3 ms; como en la fase 5, la velocidad (igual que los efectos) no añade reservas: el `Tick` reserva lo mismo con y sin velocidad, y los ~2,8 KB por refresco de las clases `LayerFrame`/`CompositionFrame` del contrato están aceptados (Daniel, 11-oct). Cambio de velocidad visible (`edicion.deslizador_a_present` de `app.ps1 -Medir 10 -Escenario velocidad`, desde antes de ejecutar el comando hasta el present) con **mediana ≤20 ms y p95 ≤40 ms** (propuesta: dos refrescos de 60 Hz y margen; el máximo no cuenta, porque depende de la espera del vsync, ver abajo); audible en ≤60 ms incluido el búfer del dispositivo.
 - **Audio:** tono 440 ± 0,5 Hz de 0,5× a 4×; THD+N ≤ −35 dB; sin chasquidos; transitorios ±5 ms; calidad ≥ `atempo`; ≤0,15 ms por bloque.
 
 **Daniel, a mano:** fluidez a 2× y 4× frente a CapCut; voz y música con y sin mantener tono; si las rampas se sienten como en CapCut; Alt + borde; cámara lenta a 0,25×; reversa 4K; congelar; atajos.
+
+## Cierre de la ronda 5c.1 (11-oct, RTX 3050 Laptop, clip H.264 1080p 23,976)
+
+`app.ps1 -Medir 10 -Escenario X` con el exe de AOT; «antes» es a2c60fc (el padre de la unión del motor de video, 45b947a, con el arreglo de la cultura es-ES para que arranque), donde el motor todavía no aplicaba la velocidad.
+
+| Escenario | Antes: perdidos / tarde | Ahora: perdidos / tarde |
+|---|---|---|
+| Un clip, sin editar | 0 / 0 | 0 / 0 |
+| «capas»: 3 capas del mismo medio a 1×, moviendo una | 0 / 0 | 0 / 0 |
+| «efectos»: 5 tramos, 4 transiciones, 3 capas con efectos | 0 / 0 | 0 / 0 en las ediciones (3 perdidos sueltos en una corrida, fuera de ellas) |
+| «velocidad»: 1×, 2× y 0,5×, cambiando la de 2× | 0 / 0 (sin velocidad) | 345–348 / 48–72 → 1–7 / 75–226, todo en la capa que cambia salvo 1 cuadro de la de 1× en una corrida de tres |
+| «rapido»: un clip a 2×, alternando 2× y 3× | 0 / 0 (sin velocidad) | 2 / 95–112 |
+
+- **Defecto corregido.** Un clip que la edición traía bajo el cursor a mitad de camino (al cambiarle la velocidad a uno que ya había terminado) entraba como un corte natural: tomaba de la caché un cuadro del mismo medio decodificado por otra capa (un cuadro ajeno durante un refresco) y contaba como perdidos los cuadros entre ese y el debido. `TimelineScheduler.Reload` marca los carriles cuyo clip bajo el cursor cambió y su cuadro arranca en el debido (`TimelineSpeedTests.A_clip_brought_under_the_playhead…`).
+- **Lo que queda en la capa que cambia** es el costo de un seek: `SetSpeed` deja quieto el inicio del clip, así que el origen bajo el cursor salta (de 2t a 3t) y el decodificador busca el keyframe y avanza hasta el cuadro; mientras tanto se ve el cuadro anterior y cuenta como «tarde». En reproducción sin editar, el motor nuevo no pierde cuadros (un clip y 3 capas a 1×, igual que antes).
+- **Edición → pantalla** (30 ediciones por corrida): mediana 2,7–4,1 ms; p95 4,7–10 ms y, en algunas corridas, 30–38 ms. Por partes: interfaz (comando, copia y vistas) 0,2 ms, `TimelineSession.Reload` 0,1 ms, cuadro y present 0,2 ms de mediana; la cola sale de la espera del hilo de render en el vsync (`render.refrescos_lentos`: esperas de 15–60 ms del `FrameWaitHandle` de la cadena con `Tick` y dibujo en 0,1 ms), que aparece con los seeks del decodificador y con la ventana sin foco, no del motor ni de la interfaz. La **primera edición** tras importar (`edicion.a_present`, 460–860 ms) es la que pone el clip en la pista: espera a que se abra el decodificador (pool de D3D11VA) y llegue su primer cuadro; no es la interfaz.
+- **Audible:** 50,0 ms de la mezcla + 20 ms del búfer = 70 ms (`AudioRetimeTests.A_speed_change_while_playing…`). Los 50 ms son el margen que la mezcla conserva tras cada edición para reabrir y reposicionar sin cortes; **pendiente de Daniel:** bajarlo a 30 ms daría 50 ms, con el riesgo de un hueco si reabrir el medio tarda más que eso.
+- **Arranque AOT:** `probar.ps1` con `RODAJE_PRUEBAS_LARGAS=1` publica y lanza `Rodaje.exe --autoprueba` (todas las pestañas del inspector con un clip, un segundo de reproducción): 4,8 s.
 
 ## Riesgos
 

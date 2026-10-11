@@ -247,6 +247,7 @@ internal sealed partial class TimelineScheduler : IDisposable
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            MarkEditedLanes(_plan, plan);
             _plan = plan;
             var visible = plan.Lanes.Select(l => l.TrackId).ToHashSet();
             long now = _time.GetTimestamp();
@@ -479,6 +480,30 @@ internal sealed partial class TimelineScheduler : IDisposable
         }
 
         (_service as IDisposable)?.Dispose();
+    }
+
+    /// <summary>
+    /// Los carriles cuyo clip bajo el cursor es otro (o el mismo con otros tiempos) por la edición: lo que muestren después
+    /// arranca donde está el cursor. Si no, un clip que la edición trae bajo el cursor (al cambiar la velocidad de uno
+    /// que ya había terminado) entraba como un corte natural: tomaba de la caché un cuadro anterior del mismo medio (el de
+    /// otra capa) y contaba como perdidos los cuadros entre ese y el debido.
+    /// </summary>
+    private void MarkEditedLanes(TimelinePlan previous, TimelinePlan plan)
+    {
+        Time time = plan.FrameStart(_clock.Position);
+        foreach (VideoLayerPlan lane in plan.Lanes)
+        {
+            if (lane.ClipAt(time) is not { } clip || !_layers.TryGetValue(lane.TrackId, out LayerState? layer))
+            {
+                continue;
+            }
+
+            VideoClipPlan? before = previous.Lanes.FirstOrDefault(l => l.TrackId == lane.TrackId)?.ClipAt(time);
+            if (before is null || !before.SameMapping(clip))
+            {
+                layer.Resync = true;
+            }
+        }
     }
 
     /// <summary>Por medio, la mayor velocidad de sus clips y si alguno va en reversa.</summary>

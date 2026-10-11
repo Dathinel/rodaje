@@ -8,13 +8,17 @@ namespace Rodaje.App;
 /// escriben las cifras; <c>--sin-audio</c> usa el reloj del sistema; <c>--ui-hz N</c> refresca tiempo y cursor de la
 /// interfaz N veces por segundo (0: en cada cuadro de XAML; por defecto 30); <c>--escenario efectos</c> arma antes de
 /// medir 3 capas con efectos y 4 transiciones sobre el medio, y mueve un deslizador de color al reproducir;
-/// <c>--sin-proxies</c> reproduce siempre el original (para medir el peor caso), sin tocar los ajustes.
+/// <c>--sin-proxies</c> reproduce siempre el original (para medir el peor caso), sin tocar los ajustes;
+/// <c>--autoprueba</c> abre la ventana con el clip de prueba, pasa por todas las pestañas del inspector con un clip
+/// seleccionado, reproduce un momento y sale con 0 (la usa <c>probar.ps1</c> con el exe de Native AOT).
 /// </summary>
 internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSeconds, string? LogPath, bool EnableAudio, int UiHz)
 {
     public string? Scenario { get; init; }
 
     public bool NoProxies { get; init; }
+
+    public bool SelfTest { get; init; }
 
     public const string TestClipPattern = "h264-1080p-23976-aac-*.mp4";
 
@@ -27,6 +31,7 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
         int uiHz = 30;
         string? scenario = null;
         bool noProxies = false;
+        bool selfTest = false;
         for (int i = 0; i < args.Length; i++)
         {
             string a = args[i];
@@ -50,6 +55,10 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             {
                 noProxies = true;
             }
+            else if (a.Equals("--autoprueba", StringComparison.OrdinalIgnoreCase))
+            {
+                selfTest = true;
+            }
             else if (a.Equals("--sin-audio", StringComparison.OrdinalIgnoreCase))
             {
                 audio = false;
@@ -60,12 +69,12 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             }
         }
 
-        if (measure is not null && files.Count == 0 && FindTestClip() is { } clip)
+        if ((measure is not null || selfTest) && files.Count == 0 && FindTestClip() is { } clip)
         {
             files.Add(clip);
         }
 
-        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario, NoProxies = noProxies };
+        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario, NoProxies = noProxies, SelfTest = selfTest };
     }
 
     private static string? FindTestClip()

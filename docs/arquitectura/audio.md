@@ -89,6 +89,7 @@ Medido (`AudioRetimeTests`, 11-oct; el tiempo en Release, CPU del hilo con la m�
 | Tras un seek (voz sintética con pausas) | correlación ≥ 0,999 pasados 250 ms | 1,00000 (también en el mismo instante del salto) |
 | Dividir un clip a 1,5× | — | idéntico muestra a muestra |
 | Bloque de 1024 cuadros estéreo | ≤ 0,15 ms | 0,036–0,10 ms (WSOLA 0,06–0,10; cinta 0,04–0,09) |
+| Cambio de velocidad reproduciendo (1× → 2×), hasta que se oye | ≤ 60 ms | 50,0 ms de la mezcla + 20 del búfer = 70 ms, con y sin mantener tono: es el margen de 50 ms que la mezcla conserva tras cada edición |
 
 Con un tono puro sostenido, un seek en frío puede dejar la salida con otra fase que la reproducción continua (WSOLA encadena cada trozo con el anterior); no se oye y se corrige sola en la primera pausa (tras silencio el trozo no depende de los anteriores).
 
