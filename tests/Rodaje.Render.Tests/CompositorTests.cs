@@ -237,7 +237,7 @@ public sealed class CompositorTests
         result.AssertColor(960, 1079, white);
     }
 
-    [GpuFact]
+    [GpuArrayFact]
     public void Draws_the_requested_slice_of_a_texture_array()
     {
         using GpuDevice gpu = GpuDevice.Create();

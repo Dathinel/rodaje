@@ -24,7 +24,7 @@ public sealed class EffectPerformanceTests(ITestOutputHelper output)
     private static readonly VideoColor Bt709 = VideoColor.Bt709Limited;
     private static readonly bool Strict = Environment.GetEnvironmentVariable(Skip.LongVariable) == "1";
 
-    [GpuFact]
+    [GpuArrayFact]
     public void Eight_plain_1080p_layers_do_not_regress()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -63,7 +63,7 @@ public sealed class EffectPerformanceTests(ITestOutputHelper output)
         }
     }
 
-    [GpuFact]
+    [GpuArrayFact]
     public void Three_4k_layers_with_effects_and_half_resolution()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -83,7 +83,7 @@ public sealed class EffectPerformanceTests(ITestOutputHelper output)
         }
     }
 
-    [GpuTheory]
+    [GpuArrayTheory]
     [InlineData(BuiltInTransitions.Crossfade)]
     [InlineData(BuiltInTransitions.Dip)]
     [InlineData(BuiltInTransitions.Wipe)]
