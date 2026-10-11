@@ -318,11 +318,10 @@ public class ProjectReaderFuzzTests
     }
 
     /// <summary>
-    /// Defecto del lector (no corregido aquí, fuera de los caminos de la tarea): un clip con tiempos extremos
-    /// hace que el validador lance <see cref="OverflowException"/> en <c>Time.op_Subtraction</c> y el lector
-    /// lo envuelva como «no se pudieron comprobar», con un mensaje que no explica el problema real.
+    /// Un clip con tiempos extremos en una transición se informa como problema del validador, no como
+    /// <see cref="OverflowException"/> envuelta (defecto hallado por este fuzz).
     /// </summary>
-    [Fact(Skip = "Defecto: el validador desborda (OverflowException) con sourceIn/sourceOut extremos; se envuelve como error genérico en vez de un problema concreto.")]
+    [Fact]
     public void Validator_DoesNotOverflowOnExtremeClipTimes()
     {
         JsonNode root = JsonNode.Parse(Seeds()[2].Json)!;
@@ -352,15 +351,11 @@ public class ProjectReaderFuzzTests
 
         public int InvalidUtf8 { get; set; }
 
-        /// <summary>Desbordamientos del validador con tiempos extremos (ver <c>Validator_DoesNotOverflowOnExtremeClipTimes</c>).</summary>
-        public int KnownOverflow { get; set; }
-
         public void AssertEnough(bool requireValidatorShare)
         {
-            string report = $"total {Total}: abrieron {Opened}, JSON mal formado {Parser}, tipos {Types}, UTF-8 {InvalidUtf8}, validador {Validator}, desbordamiento conocido {KnownOverflow}";
+            string report = $"total {Total}: abrieron {Opened}, JSON mal formado {Parser}, tipos {Types}, UTF-8 {InvalidUtf8}, validador {Validator}";
             Assert.True(Total >= MinimumCasesPerRun, $"Menos de {MinimumCasesPerRun} casos: {report}");
             Assert.True(_watch.Elapsed < Budget, $"Tardó {_watch.Elapsed.TotalSeconds:F1} s (límite {Budget.TotalSeconds:F0} s): {report}");
-            Assert.True(KnownOverflow <= Total / 100, $"Demasiados desbordamientos conocidos ({KnownOverflow}): {report}");
             if (requireValidatorShare)
             {
                 double share = (Opened + Validator) / (double)Total;
@@ -424,10 +419,6 @@ public class ProjectReaderFuzzTests
                     break;
                 case DecoderFallbackException:
                     stats.InvalidUtf8++;
-                    break;
-                case OverflowException when inner.StackTrace?.Contains("TransitionOps.MaxDuration", StringComparison.Ordinal) == true:
-                    // Defecto conocido y documentado en la prueba con Skip; se cuenta para no taparlo en silencio.
-                    stats.KnownOverflow++;
                     break;
                 default:
                     throw new Xunit.Sdk.XunitException(
