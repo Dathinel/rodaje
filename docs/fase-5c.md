@@ -17,7 +17,7 @@ Plan del 10 de octubre de 2026, aprobado por Daniel: va antes que la fase 5b (te
 - **Medios:** `ReverseFrameReader` (tramos por GOP desde el keyframe, ventana de dos GOP, tope `M` con pasadas, determinista); el pool de D3D11VA admite 64 superficies, medido, y `VideoDecoder` lo acota. Detalle en [medios.md](arquitectura/medios.md).
 - **Motor:** plan y presentación en los dos sentidos, un decodificador propio por clip en reversa con la caché que admite el pool dentro del presupuesto, tramos que se terminan antes de alargarse, pre-roll del último GOP y proxy obligatorio en Auto por encima de 1080p. Detalle en [motor.md](arquitectura/motor.md#reversa-fase-5c3).
 - **Audio:** el camino existente, medido con un AAC real ([audio.md](arquitectura/audio.md)).
-- **Falta (interfaz):** el interruptor «Invertir» del inspector (ya existe `EditorSession.ToggleReverse` y el atajo `clip.reverse`) y el indicador «◀» en el clip. `ClipTimeMap.Reverse` y `VideoClipPlan.Forward` dicen si un clip va en reversa; `ProxyRecommendation.IsRequired` dice si el proxy es obligatorio (para avisarlo en la interfaz).
+- **Interfaz:** «Invertir» en Velocidad → «Congelar e invertir» (un paso del historial con los enlazados, apagado en un congelado; «Mantener tono» no se activa por la reversa sola a 1×), «◀ Invertido» en el inspector y «◀» en el clip, miniaturas en orden inverso por el mapeo y aviso del proxy obligatorio por encima de 1080p con su estado (`ReverseProxyNotice`). La autoprueba invierte y endereza un clip con el exe de AOT. Detalle en [app-vistas.md](arquitectura/app-vistas.md#inspector-viewsinspector).
 
 | Criterio | Cifra |
 |---|---|

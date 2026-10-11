@@ -17,7 +17,7 @@ namespace Rodaje.App.Shell;
 
 /// <summary>
 /// <c>--autoprueba</c>: lo mínimo para saber que el exe publicado arranca de verdad. Con el clip de prueba en la pista
-/// principal y seleccionado, muestra cada pestaña del inspector (y la curva «Bala» en Velocidad), reproduce un segundo y cierra. Sale con 0 si llegó el
+/// principal y seleccionado, muestra cada pestaña del inspector (la curva «Bala» y la reversa en Velocidad), reproduce un segundo y cierra. Sale con 0 si llegó el
 /// primer cuadro y nada falló; cualquier excepción queda en <c>rodaje-error.txt</c> y el código es distinto de 0.
 /// </summary>
 internal static class SelfTestRun
@@ -37,6 +37,7 @@ internal static class SelfTestRun
             }
 
             await ShowCurveAsync(window);
+            await ToggleReverseAsync(window);
             await ShowExportAsync(window);
             window.InspectorPane.Show(InspectorView.Tab.Properties);
             if (window.Session.Sequence.Duration.Ticks > 0)
@@ -82,6 +83,36 @@ internal static class SelfTestRun
         window.InspectorPane.Show(InspectorView.Tab.Speed);
         await Task.Delay(250);
         session.Undo();
+    }
+
+    /// <summary>
+    /// Invierte el clip con el atajo de la sesión, dibuja la pestaña Velocidad con «◀ Invertido» y lo vuelve a poner hacia
+    /// adelante; si el modelo no siguió, la autoprueba falla.
+    /// </summary>
+    private static async Task ToggleReverseAsync(MainWindow window)
+    {
+        EditorSession session = window.Session;
+        if (session.MainTrack is not { Clips.Count: > 0 } main)
+        {
+            return;
+        }
+
+        string id = main.Clips[0].Id;
+        session.Select([id]);
+        window.InspectorPane.Show(InspectorView.Tab.Speed);
+        if (!session.ToggleReverse() || session.Sequence.GetClip(id).Clip.Speed is not { Reverse: true })
+        {
+            throw new InvalidOperationException("La autoprueba no pudo invertir el clip.");
+        }
+
+        await Task.Delay(250);
+        await CaptureAsync(window, "velocidad-invertido");
+        if (!session.ToggleReverse() || session.Sequence.GetClip(id).Clip.Speed is { Reverse: true })
+        {
+            throw new InvalidOperationException("La autoprueba no pudo quitar la reversa del clip.");
+        }
+
+        await Task.Delay(100);
     }
 
     /// <summary>

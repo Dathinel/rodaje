@@ -37,6 +37,12 @@ public class SpeedEditorTests
             return _inner.SetPreservePitch(sequenceId, clipId, preservePitch);
         }
 
+        public ICommand SetReverse(string sequenceId, string clipId, bool reverse)
+        {
+            Calls.Add($"reverse {clipId} {reverse}");
+            return _inner.SetReverse(sequenceId, clipId, reverse);
+        }
+
         public ICommand FreezeFrame(string sequenceId, string clipId, Time at, Time duration, RippleScope scope)
         {
             Calls.Add($"freeze {clipId} {at.ToSeconds()} {duration.ToSeconds()}");
@@ -215,6 +221,60 @@ public class SpeedEditorTests
         Assert.True(h.Editor.SetPreservePitch(true));
         Assert.True(h.Video.Speed!.PreservePitch);
         Assert.True(h.Audio.Speed!.PreservePitch);
+    });
+
+    [Fact]
+    public void Invertir_EsUnPasoDelHistorial_ConLosEnlazados_YSinCambiarLaDuracion() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        Assert.True(h.Editor.Read()!.CanReverse);
+        Assert.False(h.Editor.SetReverse(false));
+        Assert.Empty(h.Commands.Calls);
+
+        Assert.True(h.Editor.SetReverse(true));
+        Assert.Equal($"reverse {h.Video.Id} True", Assert.Single(h.Commands.Calls));
+        Assert.True(h.Editor.Read()!.IsReversed);
+        Assert.True(h.Audio.Speed!.Reverse);
+        Assert.Equal((S(10), S(10)), (h.Video.Duration, h.Second.Start));
+        Assert.False(h.Editor.SetReverse(true));
+
+        h.Session.Undo();
+        Assert.False(h.Editor.Read()!.IsReversed);
+        Assert.Null(h.Audio.Speed);
+
+        h.Session.Redo();
+        Assert.True(h.Editor.Read()!.IsReversed);
+        Assert.True(h.Editor.SetReverse(false));
+        Assert.Null(h.Video.Speed);
+    });
+
+    [Fact]
+    public void Invertir_Con_MantenerTono_AlUnoPorNoCambiaElTono() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        Assert.True(h.Editor.SetReverse(true));
+        Assert.False(h.Editor.Read()!.CanChangePitch);
+        Assert.False(h.Editor.SetPreservePitch(false));
+
+        Assert.True(h.Editor.SetRate(new Rational(2, 1)));
+        SpeedState state = h.Editor.Read()!;
+        Assert.True(state.IsReversed);
+        Assert.True(state.CanChangePitch);
+        Assert.True(h.Editor.SetPreservePitch(false));
+        Assert.True(h.Video.Speed is { Reverse: true, PreservePitch: false });
+    });
+
+    [Fact]
+    public void Invertir_NoSePuedeEnUnCongelado() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        Assert.True(h.Session.FreezeFrameAtPlayhead());
+        SpeedState state = h.Editor.Read()!;
+        Assert.True(state.IsFrozen);
+        Assert.False(state.CanReverse);
+        Assert.False(state.IsReversed);
+        Assert.False(h.Editor.SetReverse(true));
+        Assert.DoesNotContain(h.Commands.Calls, c => c.StartsWith("reverse", StringComparison.Ordinal));
     });
 
     [Fact]
