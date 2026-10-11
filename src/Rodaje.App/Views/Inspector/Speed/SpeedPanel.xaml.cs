@@ -1,4 +1,4 @@
-using Microsoft.UI.Dispatching;
+﻿using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -38,15 +38,19 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
 
         foreach (Rational rate in SpeedPresets.Quick)
         {
+            // Columnas iguales: con el panel estrecho los botones se encogen en vez de salirse.
             var button = new Button
             {
                 Content = SpeedMath.FormatRate(rate),
-                Padding = new Thickness(8, 2, 8, 2),
+                Padding = new Thickness(2, 2, 2, 2),
                 MinWidth = 0,
                 FontSize = 12,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
                 Tag = rate,
             };
             button.Click += OnQuickClick;
+            QuickPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Grid.SetColumn(button, QuickPanel.Children.Count);
             QuickPanel.Children.Add(button);
         }
     }

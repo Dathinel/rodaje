@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Propiedades del clip seleccionado: transformación con keyframes (video) y volumen con keyframes y fundidos (audio). -->
+<!--
+    Propiedades del clip seleccionado en secciones plegables: «Posición y tamaño» y «Opacidad y mezcla» (video) y «Audio».
+    Las acciones de toda la transformación (restablecer todo, guardar como transición) van en el menú «⋯» de la cabecera.
+-->
 <UserControl
     x:Class="Rodaje.App.Views.Inspector.Properties.PropertiesPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:inspector="using:Rodaje.App.Views.Inspector"
     xmlns:local="using:Rodaje.App.Views.Inspector.Properties">
 
     <Grid Background="{StaticResource PanelBrush}">
@@ -11,54 +15,85 @@
                    Text="Selecciona un clip en la línea de tiempo para ver y animar sus propiedades." />
 
         <ScrollViewer x:Name="Body" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
-            <StackPanel Padding="0,4,0,12">
-                <TextBlock x:Name="ClipTitle" Style="{StaticResource CaptionTextStyle}" Margin="12,4,12,2" />
+            <StackPanel Padding="0,0,0,12">
+                <Grid Height="36" Padding="12,0,6,0" ColumnSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="ClipTitle" Style="{StaticResource BodyTextStyle}" />
+                    <TextBlock x:Name="KeyframeTotal" Grid.Column="1" Style="{StaticResource CaptionTextStyle}"
+                               Foreground="{StaticResource KeyframeBrush}" TextTrimming="None" />
+                    <Button x:Name="MoreButton" Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Content="&#xE712;"
+                            AutomationProperties.Name="Más acciones de la transformación"
+                            ToolTipService.ToolTip="Más acciones: restablecer todo, guardar como transición">
+                        <Button.Flyout>
+                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                <MenuFlyoutItem x:Name="ResetAllItem" Text="Restablecer todo" Click="OnResetAllClick"
+                                                ToolTipService.ToolTip="Vuelve posición, escala, rotación y opacidad a sus valores de fábrica y quita sus keyframes">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE72C;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                                <MenuFlyoutItem x:Name="SavePresetItem" Text="Guardar como transición…" Click="OnSavePresetClick"
+                                                ToolTipService.ToolTip="Guarda esta animación en tus complementos para usarla en otros clips">
+                                    <MenuFlyoutItem.Icon>
+                                        <FontIcon Glyph="&#xE74E;" />
+                                    </MenuFlyoutItem.Icon>
+                                </MenuFlyoutItem>
+                            </MenuFlyout>
+                        </Button.Flyout>
+                    </Button>
+                </Grid>
+                <TextBlock x:Name="TransformNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,6"
+                           TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed"
+                           Text="Transformar está desactivado en Filtros: los cambios se guardan pero no se ven." />
 
-                <StackPanel x:Name="VideoSection">
-                    <Grid Height="32" Padding="12,0,12,0" ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="Transformación" Style="{StaticResource PanelTitleTextStyle}" VerticalAlignment="Center" />
-                        <TextBlock x:Name="KeyframeTotal" Grid.Column="1" Style="{StaticResource CaptionTextStyle}"
-                                   Foreground="{StaticResource KeyframeBrush}" VerticalAlignment="Center" />
-                        <Button x:Name="ResetAllButton" Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Width="Auto"
-                                Padding="6,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource CaptionFontSize}"
-                                Click="OnResetAllClick" AutomationProperties.Name="Restablecer toda la transformación"
-                                ToolTipService.ToolTip="Vuelve posición, escala, rotación y opacidad a sus valores de fábrica y quita sus keyframes">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <TextBlock Text="&#xE72C;" FontFamily="{StaticResource IconFontFamily}" FontSize="11" VerticalAlignment="Center" />
-                                <TextBlock Text="Restablecer todo" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-                    </Grid>
-                    <TextBlock x:Name="TransformNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,4"
-                               TextWrapping="Wrap" Visibility="Collapsed" />
-                    <local:ParameterRow x:Name="XRow" />
-                    <local:ParameterRow x:Name="YRow" />
-                    <local:ParameterRow x:Name="ScaleRow" />
-                    <local:ParameterRow x:Name="RotationRow" />
-                    <local:ParameterRow x:Name="OpacityRow" />
-                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="12,10,12,0">
-                        <Button x:Name="SavePresetButton" Content="Guardar como transición" Click="OnSavePresetClick"
-                                ToolTipService.ToolTip="Guarda esta animación en tus complementos para usarla en otros clips" />
+                <inspector:InspectorSection x:Name="PlacementSection" Key="posicion" Title="Posición y tamaño">
+                    <inspector:InspectorSection.Actions>
+                        <Button x:Name="PlacementReset" Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="11"
+                                Content="&#xE72C;" Click="OnPlacementResetClick" AutomationProperties.Name="Restablecer posición y tamaño"
+                                ToolTipService.ToolTip="Restablecer posición, escala y rotación" />
+                    </inspector:InspectorSection.Actions>
+                    <StackPanel>
+                        <local:ParameterRow x:Name="XRow" />
+                        <local:ParameterRow x:Name="YRow" />
+                        <local:ParameterRow x:Name="ScaleRow" />
+                        <local:ParameterRow x:Name="RotationRow" />
                     </StackPanel>
-                    <TextBlock x:Name="SavePresetHint" Style="{StaticResource CaptionTextStyle}" Margin="12,4,12,0" TextWrapping="Wrap"
-                               Text="Pon al menos dos keyframes en algún parámetro para guardar la animación." />
-                </StackPanel>
+                </inspector:InspectorSection>
 
-                <Rectangle x:Name="SectionSeparator" Height="1" Margin="0,12" Fill="{StaticResource StrokeBrush}" />
+                <inspector:InspectorSection x:Name="OpacitySection" Key="opacidad" Title="Opacidad y mezcla">
+                    <StackPanel>
+                        <local:ParameterRow x:Name="OpacityRow" />
+                        <Grid Padding="12,3,6,3" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="76" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="48" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Mezcla" Style="{StaticResource LabelTextStyle}" ToolTipService.ToolTip="Modo de mezcla" />
+                            <ComboBox x:Name="BlendBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28"
+                                      FontSize="{StaticResource BodyFontSize}" AutomationProperties.Name="Modo de mezcla"
+                                      SelectionChanged="OnBlendSelected" ToolTipService.ToolTip="Cómo se mezcla este clip con lo que tiene debajo" />
+                        </Grid>
+                    </StackPanel>
+                </inspector:InspectorSection>
 
-                <StackPanel x:Name="AudioSection">
-                    <Grid Height="32" Padding="12,0">
-                        <TextBlock Text="Audio" Style="{StaticResource PanelTitleTextStyle}" />
-                    </Grid>
-                    <local:ParameterRow x:Name="GainRow" />
-                    <local:ParameterRow x:Name="FadeInRow" />
-                    <local:ParameterRow x:Name="FadeOutRow" />
-                </StackPanel>
+                <inspector:InspectorSection x:Name="AudioSection" Key="audio" Title="Audio">
+                    <inspector:InspectorSection.Actions>
+                        <Button x:Name="AudioReset" Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="11"
+                                Content="&#xE72C;" Click="OnAudioResetClick" AutomationProperties.Name="Restablecer el audio"
+                                ToolTipService.ToolTip="Restablecer volumen y fundidos" />
+                    </inspector:InspectorSection.Actions>
+                    <StackPanel>
+                        <local:ParameterRow x:Name="GainRow" />
+                        <TextBlock Text="Fundidos" Style="{StaticResource CaptionTextStyle}" Margin="12,6,12,0" />
+                        <local:ParameterRow x:Name="FadeInRow" />
+                        <local:ParameterRow x:Name="FadeOutRow" />
+                    </StackPanel>
+                </inspector:InspectorSection>
             </StackPanel>
         </ScrollViewer>
     </Grid>

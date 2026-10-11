@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- Velocidad del clip seleccionado: deslizador logarítmico, duración resultante, mantener tono y congelar. -->
 <UserControl
     x:Class="Rodaje.App.Views.Inspector.Speed.SpeedPanel"
@@ -44,7 +44,7 @@
                     <TextBlock Grid.Column="2" Text="100×" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Right" />
                 </Grid>
 
-                <StackPanel x:Name="QuickPanel" Orientation="Horizontal" Spacing="4" Margin="0,2,0,0" />
+                <Grid x:Name="QuickPanel" ColumnSpacing="4" Margin="0,2,0,0" />
 
                 <Grid ColumnSpacing="6" Margin="0,6,0,0">
                     <Grid.ColumnDefinitions>
@@ -74,7 +74,7 @@
 
                 <TextBlock x:Name="NoteText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
 
-                <CheckBox x:Name="PitchBox" Content="Mantener tono" Margin="0,4,0,0" Click="OnPitchClick"
+                <CheckBox x:Name="PitchBox" Content="Mantener tono" Margin="0,4,0,0" FontSize="{StaticResource BodyFontSize}" Click="OnPitchClick"
                           ToolTipService.ToolTip="La voz y la música suenan igual de agudas a cualquier velocidad" />
 
                 <Rectangle Height="1" Margin="-12,6" Fill="{StaticResource StrokeBrush}" />
@@ -99,7 +99,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <CheckBox x:Name="ReverseBox" Content="Invertir" IsEnabled="False" />
+                    <CheckBox x:Name="ReverseBox" Content="Invertir" FontSize="{StaticResource BodyFontSize}" IsEnabled="False" />
                     <TextBlock Grid.Column="1" Text="Próximamente" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
                 </Grid>
 

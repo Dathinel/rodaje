@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -91,10 +91,6 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     public FiltersPanel()
     {
         InitializeComponent();
-        foreach ((_, string name) in EffectUi.BlendModes)
-        {
-            BlendBox.Items.Add(name);
-        }
     }
 
     public ObservableCollection<FilterItem> Items { get; } = [];
@@ -162,7 +158,6 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             _effectId = null;
             Items.Clear();
             NoFiltersText.Visibility = Visibility.Collapsed;
-            BlendRow.Visibility = Visibility.Collapsed;
             Details.Visibility = Visibility.Collapsed;
             return;
         }
@@ -177,6 +172,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         _clipId = clip.Id;
         _shownPosition = session.Position;
         ClipTitle.Text = session.Project.FindMedia(clip.MediaId)?.Name ?? "Clip";
+        ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
         if (_kind != track.Kind || _addable.Count == 0)
         {
             _kind = track.Kind;
@@ -192,21 +188,8 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             _updating = false;
         }
 
-        ShowBlend(track, clip);
         ShowList(track, clip);
         ShowDetails(clip);
-    }
-
-    private void ShowBlend(Track track, Clip clip)
-    {
-        BlendRow.Visibility = track.Kind == TrackKind.Video ? Visibility.Visible : Visibility.Collapsed;
-        string mode = ClipPropertyEditor.FindEffect(clip, BuiltInEffects.Blend) is { } blend
-            ? blend.Options.GetValueOrDefault(BuiltInEffects.BlendOptions.Mode, "normal")
-            : "normal";
-        int index = EffectRegistry.BlendModes.IndexOf(mode);
-        _updating = true;
-        BlendBox.SelectedIndex = Math.Max(0, index);
-        _updating = false;
     }
 
     private void ShowList(Track track, Clip clip)
@@ -275,7 +258,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         {
             null => "Este filtro es de un complemento que no está instalado: se conserva en el proyecto sin aplicarse.",
             { Stage: EffectStage.Deferred } => "Se guarda con el proyecto; el motor todavía no lo aplica.",
-            { Type: BuiltInEffects.Blend } => "El modo se elige arriba, en «Modo de mezcla».",
+            { Type: BuiltInEffects.Blend } => "El modo se elige en Propiedades, sección «Opacidad y mezcla».",
             _ => "",
         };
         if (effect.Options.TryGetValue(BuiltInEffects.CommonOptions.Source, out string? source))
@@ -398,21 +381,6 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         {
             _effectId = command.CreatedIds[0];
             Refresh();
-        }
-    }
-
-    private void OnBlendSelected(object sender, SelectionChangedEventArgs e)
-    {
-        if (_updating || BlendBox.SelectedIndex < 0)
-        {
-            return;
-        }
-
-        string mode = EffectRegistry.BlendModes[BlendBox.SelectedIndex];
-        if (CurrentClip() is { } clip
-            && (ClipPropertyEditor.FindEffect(clip, BuiltInEffects.Blend)?.Options.GetValueOrDefault(BuiltInEffects.BlendOptions.Mode, "normal") ?? "normal") != mode)
-        {
-            Run((sequence, clipId) => EffectCommands.SetBlendMode(sequence, clipId, mode));
         }
     }
 

@@ -1,4 +1,4 @@
-using Rodaje.App.Services.Shortcuts;
+﻿using Rodaje.App.Services.Shortcuts;
 using Rodaje.Engine.Timeline;
 
 namespace Rodaje.App.Services.Settings;
@@ -49,6 +49,9 @@ public sealed class AppSettings
     /// <summary>El reproductor muestra los márgenes seguros de acción y de títulos.</summary>
     public bool ShowSafeAreas { get; set; }
 
+    /// <summary>Secciones del inspector abiertas (true) o plegadas (false); las que faltan siguen su valor de fábrica.</summary>
+    public Dictionary<string, bool> InspectorSections { get; set; } = [];
+
     /// <summary>Interruptores y zoom de la línea de tiempo.</summary>
     public TimelinePreferences Timeline { get; set; } = new();
 
@@ -79,6 +82,7 @@ public sealed class AppSettings
             ShortcutPreset = ShortcutPreset.Rodaje;
         }
 
+        InspectorSections ??= [];
         Timeline ??= new TimelinePreferences();
         Timeline.Normalize();
         if (!Enum.IsDefined(ProxyUsage))

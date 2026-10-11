@@ -1,7 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
-    Pila de filtros del clip: modo de mezcla, activar, reordenar (flechas o arrastrando), quitar y añadir. Abajo, los
-    parámetros del filtro elegido con keyframes, restablecer y, en Color y LUT, la tabla de color.
+    Pila de filtros del clip: activar, reordenar (flechas o arrastrando), quitar y añadir. Abajo, los parámetros del
+    filtro elegido con keyframes, restablecer y, en Color y LUT, la tabla de color. El modo de mezcla está en Propiedades.
 -->
 <UserControl
     x:Class="Rodaje.App.Views.Inspector.Filters.FiltersPanel"
@@ -20,29 +20,12 @@
         <TextBlock x:Name="EmptyText" Grid.RowSpan="4" Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center" Margin="24,0"
                    Text="Selecciona un clip para ver y cambiar su pila de filtros." />
 
-        <Grid x:Name="Header" Grid.Row="0" Padding="12,8" ColumnSpacing="8" Visibility="Collapsed">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel VerticalAlignment="Center">
-                <TextBlock x:Name="ClipTitle" Style="{StaticResource PanelTitleTextStyle}" />
-                <TextBlock Style="{StaticResource CaptionTextStyle}" Text="Se aplican de arriba abajo." />
-            </StackPanel>
-            <ComboBox x:Name="AddBox" Grid.Column="1" PlaceholderText="Añadir filtro" MinWidth="140" Height="28"
-                      FontSize="{StaticResource BodyFontSize}" SelectionChanged="OnAddSelected" />
-        </Grid>
-
-        <Grid x:Name="BlendRow" Grid.Row="1" Padding="12,0,12,6" ColumnSpacing="8" Visibility="Collapsed">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="Modo de mezcla" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
-            <ComboBox x:Name="BlendBox" Grid.Column="1" MinWidth="160" Height="28" FontSize="{StaticResource BodyFontSize}"
-                      AutomationProperties.Name="Modo de mezcla" SelectionChanged="OnBlendSelected"
-                      ToolTipService.ToolTip="Cómo se mezcla este clip con lo que tiene debajo" />
-        </Grid>
+        <StackPanel x:Name="Header" Grid.Row="0" Padding="12,8,12,4" Spacing="6" Visibility="Collapsed">
+            <TextBlock x:Name="ClipTitle" Style="{StaticResource BodyTextStyle}" />
+            <ComboBox x:Name="AddBox" PlaceholderText="Añadir filtro" HorizontalAlignment="Stretch" MinWidth="0" Height="28"
+                      FontSize="{StaticResource BodyFontSize}" AutomationProperties.Name="Añadir filtro" SelectionChanged="OnAddSelected" />
+            <TextBlock Style="{StaticResource CaptionTextStyle}" Text="Se aplican de arriba abajo." />
+        </StackPanel>
 
         <Grid Grid.Row="2">
             <ListView x:Name="List" Visibility="Collapsed" ItemsSource="{x:Bind Items}" SelectionMode="Single" MaxHeight="240"
@@ -67,7 +50,8 @@
                             </Grid.ColumnDefinitions>
                             <CheckBox IsChecked="{x:Bind IsEnabled}" Tag="{x:Bind EffectId}" Click="OnEnabledClick" MinWidth="0"
                                       ToolTipService.ToolTip="Activar o desactivar" />
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Opacity="{x:Bind TextOpacity}">
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Opacity="{x:Bind TextOpacity}"
+                                        ToolTipService.ToolTip="{x:Bind Name}">
                                 <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" />
                                 <TextBlock Text="{x:Bind Note}" Style="{StaticResource CaptionTextStyle}" Visibility="{x:Bind NoteVisibility}" />
                             </StackPanel>
@@ -90,7 +74,7 @@
         <ScrollViewer x:Name="Details" Grid.Row="3" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"
                       BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
             <StackPanel Padding="0,4,0,12">
-                <Grid Height="32" Padding="12,0" ColumnSpacing="8">
+                <Grid Height="34" Padding="12,0,6,0" ColumnSpacing="6" Background="{StaticResource BarBrush}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -99,25 +83,19 @@
                     <TextBlock x:Name="DetailsTitle" Style="{StaticResource PanelTitleTextStyle}" VerticalAlignment="Center" />
                     <TextBlock x:Name="DetailsKeyframes" Grid.Column="1" Style="{StaticResource CaptionTextStyle}"
                                Foreground="{StaticResource KeyframeBrush}" VerticalAlignment="Center" />
-                    <Button x:Name="ResetAllButton" Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Width="Auto"
-                            Padding="6,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource CaptionFontSize}"
-                            Click="OnResetAllClick" AutomationProperties.Name="Restablecer todo el filtro"
-                            ToolTipService.ToolTip="Vuelve todos los parámetros del filtro a sus valores de fábrica y quita sus keyframes">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="&#xE72C;" FontFamily="{StaticResource IconFontFamily}" FontSize="11" VerticalAlignment="Center" />
-                            <TextBlock Text="Restablecer todo" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
+                    <Button x:Name="ResetAllButton" Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Width="24" Height="26"
+                            FontSize="11" Content="&#xE72C;" Click="OnResetAllClick" AutomationProperties.Name="Restablecer todo el filtro"
+                            ToolTipService.ToolTip="Restablecer todo: vuelve los parámetros del filtro a sus valores de fábrica y quita sus keyframes" />
                 </Grid>
                 <TextBlock x:Name="DetailsNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,4" TextWrapping="Wrap" Visibility="Collapsed" />
 
-                <Grid x:Name="LutRow" Padding="12,4,8,4" ColumnSpacing="8" Visibility="Collapsed">
+                <Grid x:Name="LutRow" Padding="12,4,54,4" ColumnSpacing="4" Visibility="Collapsed">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="76" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="LUT" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
-                    <ComboBox x:Name="LutBox" Grid.Column="1" HorizontalAlignment="Stretch" Height="28" FontSize="{StaticResource BodyFontSize}"
+                    <ComboBox x:Name="LutBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
                               AutomationProperties.Name="LUT" SelectionChanged="OnLutSelected"
                               ToolTipService.ToolTip="Tabla de color .cube: de un paquete instalado o de un archivo" />
                 </Grid>

@@ -1,4 +1,4 @@
-using Rodaje.App.Services;
+﻿using Rodaje.App.Services;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Tests.Support;
@@ -40,6 +40,27 @@ public class SettingsStoreTests
         Assert.True(s.ShortcutsAdvanced);
         Assert.Equal([@"C:\a.rodaje"], s.RecentProjects);
         Assert.Contains("\"Classic\"", File.ReadAllText(path), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SeccionesDelInspector_SeRecuerdanYUnNuloQuedaVacio()
+    {
+        using var dir = new TempDirectory();
+        string path = dir.File(SettingsStore.FileName);
+        var store = new SettingsStore(path);
+        store.Current.InspectorSections["opacidad"] = false;
+        store.Current.InspectorSections["audio"] = true;
+        store.Save();
+
+        var loaded = new SettingsStore(path);
+        Assert.Null(loaded.Load());
+        Assert.False(loaded.Current.InspectorSections["opacidad"]);
+        Assert.True(loaded.Current.InspectorSections["audio"]);
+
+        File.WriteAllText(path, "{\"version\":1,\"inspectorSections\":null}");
+        var broken = new SettingsStore(path);
+        Assert.Null(broken.Load());
+        Assert.Empty(broken.Current.InspectorSections);
     }
 
     [Fact]

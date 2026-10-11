@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- La transición seleccionada: tipo (propia o de paquete), duración, parámetros y opciones. Ocupa la pestaña Propiedades. -->
 <UserControl
     x:Class="Rodaje.App.Views.Inspector.Transition.TransitionPanel"
@@ -25,26 +25,26 @@
             </Grid>
             <TextBlock x:Name="CutText" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,6" TextWrapping="Wrap" />
 
-            <Grid Padding="12,4,8,4" ColumnSpacing="8">
+            <Grid Padding="12,4,54,4" ColumnSpacing="4">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="76" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="Tipo" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
-                <ComboBox x:Name="TypeBox" Grid.Column="1" HorizontalAlignment="Stretch" Height="28" FontSize="{StaticResource BodyFontSize}"
+                <ComboBox x:Name="TypeBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
                           AutomationProperties.Name="Tipo de transición" SelectionChanged="OnTypeSelected" />
             </Grid>
             <TextBlock x:Name="TypeNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,4" TextWrapping="Wrap" Visibility="Collapsed" />
 
             <properties:ParameterRow x:Name="DurationRow" />
 
-            <Grid x:Name="DirectionRow" Padding="12,4,8,4" ColumnSpacing="8" Visibility="Collapsed">
+            <Grid x:Name="DirectionRow" Padding="12,4,54,4" ColumnSpacing="4" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="76" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="Dirección" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
-                <ComboBox x:Name="DirectionBox" Grid.Column="1" HorizontalAlignment="Stretch" Height="28" FontSize="{StaticResource BodyFontSize}"
+                <ComboBox x:Name="DirectionBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
                           AutomationProperties.Name="Dirección" SelectionChanged="OnDirectionSelected" />
             </Grid>
 
