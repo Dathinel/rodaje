@@ -6,10 +6,10 @@ Rama `claude/propuesta-texto`. Solo documento: `docs/propuestas/texto.md` (nuevo
 Propuesta de la fase 5b con los seis puntos pedidos: clips generadores y formato 5, contenido de `text-style` (`rodaje.textstyle` v1), render con DirectWrite/Direct2D, fuentes y licencias, edición sobre el lienzo y base de los subtítulos, más plan de trabajo, ventajas y desventajas, y 3 preguntas para Daniel.
 
 ## Pendiente
-Que Daniel responda las 3 preguntas. Las cifras de costo del render son hipótesis sin medir. La lista de fuentes candidatas necesita verificar licencia y nombre reservado una por una antes de publicar nada.
+Decidido en D-029 (11-oct). Las cifras de costo del render son hipótesis sin medir. La lista de fuentes candidatas necesita verificar licencia y nombre reservado una por una antes de publicar nada.
 
 ## Decisiones
-Recomendaciones (no decisiones): formato 5 aparte del 4, estilos como primitivas sobre el bloque entero, textura RGBA compuesta como capa, clips de texto como unidad de subtítulo.
+Decisiones (D-029): formato 5 aparte del 4, estilos como primitivas sobre el bloque entero, textura RGBA compuesta como capa, clips de texto como unidad de subtítulo.
 
 ## Posibles choques
 La 5c cambia `Clip` y el formato 4 (ya unido en `main`): la 5b debe partir de `main` después de la 5c. La rama `claude/pistas-por-defecto` (tarea 7) no toca estos archivos.
@@ -32,4 +32,4 @@ Se volvieron a comprobar contra el código las afirmaciones de la segunda revisi
 En `docs/propuestas/texto.md`: (1) la tabla de la sección 1 lista las búsquedas `FindMedia(clip.MediaId)` de la interfaz y de `TimelinePlan.Audio.cs` que fallarían sin medio, más la nota de `new Clip` campo por campo en `TimelineEdits.Speed`; las líneas se verificaron contra esta rama y se citan por nombre porque cambian con `main`; (2) se dice que el validador omite `SourceOut > media.Duration` y `hasVideo`/`hasAudio` en generadores; (3) los subtítulos blandos dependen de la fase 7 en las secciones 6 y 7 (como `fase-6.md`); (4) las animaciones in/out se combinan con `rodaje.transform` en forma aditiva (posición, rotación) y multiplicativa (escala, opacidad), y si el clip dura menos que in+out ambas se escalan; (5) los criterios separan el costo de GPU/render (≤0,15 ms por título) del `Tick` del motor (≤0,3 ms con 5 títulos) y citan el criterio redefinido de `fase-5.md` (~2,8 KB por `Tick`); (6) la sección 7 expresa la regla «si falta X, la exportación se detiene y ofrece…». Solo documentos; pruebas omitidas: 0.
 
 ## Decisiones de Daniel reflejadas (D-029)
-Las preguntas pasan a «Decidido»: bloque entero en la v1, fuentes empaquetadas solo de paquetes instalados, entrada y salida ancladas con «convertir en keyframes», y **el proyecto copia el estilo** (`generator.style` con `source`, sin `overrides`). Cambios derivados: `FindTextStyle` solo al aplicar; lo que puede faltar al dibujar es la fuente; tamaño del estilo copiado acotado por el validador. No pude leer D-029 en `docs/decisiones.md` (la rama no lo tiene aún): se siguió lo que dice el comentario del PR.
+Las preguntas pasan a «Decidido»: bloque entero en la v1, fuentes empaquetadas solo de paquetes instalados, entrada y salida ancladas con «convertir en keyframes», y **el proyecto copia el estilo** (`generator.style` con `source`, sin `overrides`). Cambios derivados: `FindTextStyle` solo al aplicar; lo que puede faltar al dibujar es la fuente; tamaño del estilo copiado acotado por el validador. D-029 está en `docs/decisiones.md` en `docs/decisiones.md` (la rama no lo tiene aún): se siguió lo que dice el comentario del PR.

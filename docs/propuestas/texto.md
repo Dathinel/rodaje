@@ -179,3 +179,14 @@ Elemento `text-style` ya reservado en `paquete.json`. Archivo `rodaje.textstyle`
 2. **Decidido: fuentes empaquetadas desde el principio, solo de paquetes que instala la persona.** Un paquete `rodaje-fuentes` (cada familia con su licencia, unas 10 familias OFL), sin fuentes sueltas de un proyecto, por la superficie de ataque de analizar archivos de terceros.
 3. **Decidido: entrada y salida pegadas a los bordes del clip, con «convertir en keyframes».** Recortar o alargar un título las conserva.
 4. **Decidido: el proyecto copia el estilo** (no lo referencia), como los filtros y efectos de la fase 5.
+
+## Correcciones de la revisión final (mandan sobre el texto de arriba)
+
+1. **Contenido que falta.** `TimelinePlan.MissingContent` no cambia (se fija en `TimelinePlan.Build`). Al exportar, `Rodaje.Export` suma lo que devuelve la pasada de resolución de fuentes y estilos y aplica él mismo `MissingContentPolicy` (`ExportException(ContentMissing)` o respaldo). En la vista previa el aviso sale por `CompositeResult.MissingContent`/`TimelineStats`, como las LUT.
+2. **Estilos.** Como el proyecto copia el estilo (D-029), el motor no lo busca: nada nuevo en `IEffectContent`. Al aplicar, la App usa `IContentLoader.LoadTextStyle(reference)`, paralelo a `LoadFilter`/`LoadEffect`.
+3. **Precarga.** Dos pasadas: una sobre todo el rango que solo resuelve fuentes y cuenta lo que falta, y el rasterizado por ventana (como la lectura por adelantado). Las texturas de título van en una caché propia por `GpuDevice`, fuera del soltado del pool; si una textura no está a tiempo en la vista previa, se dibuja el cuadro sin el título y se cuenta como cuadro tardío (al exportar se espera).
+4. **`edges: { in, out }`** va en `generator` del clip, entra en el formato 5 y en el paso 0.
+5. Sin `overrides` (quedan sin efecto las menciones en «Desventajas»); «5b.2» = «más adelante»; fuentes OFL o Apache (D-029).
+6. Fuentes: la colección privada la registra Render por `GpuDevice` con `IDWriteFactory5::CreateFontSetBuilder` (`IDWriteFontSetBuilder1.AddFontFile`) y `CreateFontCollectionFromFontSet`; el motor no toca DirectWrite.
+7. Se rasteriza a la resolución de la secuencia × la escala máxima de la animación (el conversor escala después, D-028). Desenfoque y nitidez sobre títulos necesitan una entrada RGBA en `DrawThroughIntermediate` y un margen del radio; nitidez sobre alfa premultiplicado se prueba contra halos.
+8. El delta de la animación se suma en el espacio de la secuencia antes de la transformación del clip: se escala y gira con el clip.
