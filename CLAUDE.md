@@ -71,7 +71,8 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 2. **Verificación de la fase 5** por un agente nuevo sin contexto y de **otro modelo (Sonnet; Daniel no quiere Fable)** contra los criterios de `docs/fase-5.md`. Luego mini revisión.
 3. `herramientas\app.ps1 -SoloPublicar` y pasarle a Daniel **`docs/pruebas-a-mano.md`** (todo lo que tiene que probar y las preguntas abiertas).
 4. **Pendientes conocidos:** pico de ~600 ms en la primera edición tras importar (no es el motor; medir en la interfaz); una forma de onda quitada mientras se calcula vuelve a la memoria hasta el límite de 64; `Tick` reserva ~2,5 KB por refresco por las clases `LayerFrame`/`CompositionFrame` del contrato.
-5. **Después:** fase 5b (texto y títulos, repo `rodaje-titulos`), luego fase 6 (exportación).
+5. **Velocidad de clips (pedida por Daniel el 10-oct, importante):** velocidad constante, reversa, rampas tipo CapCut y congelar cuadro. Un agente Plan prepara el diseño (formato 4, tiempo exacto, tono de audio, decodificación rápida y en reversa); se presenta a Daniel antes de construir.
+6. **Después:** fase 5b (texto y títulos, repo `rodaje-titulos`), luego fase 6 (exportación).
 
 ## Nube y coordinación
 
