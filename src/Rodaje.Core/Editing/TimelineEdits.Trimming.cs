@@ -33,25 +33,7 @@ public static partial class TimelineEdits
         var newIds = new List<string>(toCut.Count);
         foreach ((Track track, Clip left) in toCut)
         {
-            Time cutInSource = left.ToSourceTime(at);
-            var right = new Clip
-            {
-                Id = ctx.Ids.NewId("clip"),
-                MediaId = left.MediaId,
-                SourceIn = cutInSource,
-                SourceOut = left.SourceOut,
-                Start = at,
-                Enabled = left.Enabled,
-                LinkId = ctx.DerivedLinkId(left.LinkId),
-                Effects = left.Effects.ConvertAll(effect =>
-                {
-                    EffectInstance copy = effect.Clone();
-                    copy.Id = ctx.Ids.NewId("fx");
-                    return copy;
-                }),
-            };
-
-            left.SourceOut = cutInSource;
+            Clip right = TrackOps.SplitOff(ctx, left, at);
             track.Clips.Insert(track.Clips.IndexOf(left) + 1, right);
             newIds.Add(right.Id);
         }
@@ -79,8 +61,8 @@ public static partial class TimelineEdits
         {
             TrimPlan plan = TrimPlan.Of(m.Track, m.Clip);
             return edge == TrimEdge.In
-                ? plan with { SourceIn = plan.SourceIn + delta }
-                : plan with { SourceOut = plan.SourceOut + delta };
+                ? plan.TrimIn(plan.Clip.Start + delta).MoveTo(plan.Clip.Start)
+                : plan.TrimOut(plan.Clip.End + delta);
         });
 
         foreach (TrimPlan plan in plans)
@@ -107,7 +89,7 @@ public static partial class TimelineEdits
         foreach ((Track track, Clip clip) in group)
         {
             TrimPlan plan = TrimPlan.Of(track, clip);
-            plans.Add(plan with { SourceOut = plan.SourceOut + delta });
+            plans.Add(plan.TrimOut(clip.End + delta));
 
             Clip? next = TrimmingSupport.AdjacentNext(track, clip);
             if (next is not null)
@@ -120,14 +102,14 @@ public static partial class TimelineEdits
         ctx.EnsureValid();
     }
 
-    /// <summary>Muestra otra parte del origen sin cambiar posición ni duración.</summary>
+    /// <summary>Muestra otra parte del origen sin cambiar posición ni duración; <paramref name="delta"/> es tiempo del origen.</summary>
     public static void Slip(EditContext ctx, string clipId, Time delta)
     {
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
         List<TrimPlan> plans = group.ConvertAll(m =>
         {
             TrimPlan plan = TrimPlan.Of(m.Track, m.Clip);
-            return plan with { SourceIn = plan.SourceIn + delta, SourceOut = plan.SourceOut + delta };
+            return plan.Slip(delta);
         });
 
         TrimmingSupport.CheckAndApply(ctx, plans);
@@ -148,7 +130,7 @@ public static partial class TimelineEdits
             }
 
             TrimPlan plan = TrimPlan.Of(track, clip);
-            plans.Add(plan with { Start = plan.Start + delta });
+            plans.Add(plan.MoveTo(clip.Start + delta));
 
             Clip? next = TrimmingSupport.AdjacentNext(track, clip);
             if (next is not null)

@@ -3,12 +3,46 @@ using Rodaje.Core.Timing;
 
 namespace Rodaje.Core.Editing;
 
-/// <summary>Valores que tendrá un clip; los recortes planean y comprueban todo antes de aplicar nada.</summary>
-internal readonly record struct TrimPlan(Track Track, Clip Clip, Time Start, Time SourceIn, Time SourceOut)
+/// <summary>
+/// Mapeo que tendrá un clip; los recortes planean y comprueban todo antes de aplicar nada. Si el cambio no da un clip
+/// (se queda sin duración o pasa del largo máximo), <see cref="Map"/> es nulo y <see cref="Problem"/> dice por qué.
+/// </summary>
+internal readonly record struct TrimPlan(Track Track, Clip Clip, ClipTimeMap? Map, string? Problem = null)
 {
-    public Time End => Start + (SourceOut - SourceIn);
+    public Time Start => Map!.Start;
 
-    public static TrimPlan Of(Track track, Clip clip) => new(track, clip, clip.Start, clip.SourceIn, clip.SourceOut);
+    public Time End => Map!.End;
+
+    public static TrimPlan Of(Track track, Clip clip) => new(track, clip, clip.TimeMap);
+
+    /// <summary>El clip empieza en <paramref name="start"/> con el mismo final y el mismo origen en cada instante.</summary>
+    public TrimPlan TrimIn(Time start) => Map is { } map && start >= map.End ? Empty() : Change(m => m.TrimIn(start));
+
+    /// <summary>El clip termina en <paramref name="end"/> con el mismo inicio.</summary>
+    public TrimPlan TrimOut(Time end) => Map is { } map && end <= map.Start ? Empty() : Change(m => m.TrimOut(end));
+
+    public TrimPlan MoveTo(Time start) => Change(m => m.MoveTo(start));
+
+    public TrimPlan Slip(Time delta) => Change(m => m.Slip(delta));
+
+    private TrimPlan Empty() => this with { Map = null, Problem = "se quedaría sin duración" };
+
+    private TrimPlan Change(Func<ClipTimeMap, ClipTimeMap> change)
+    {
+        if (Map is null)
+        {
+            return this;
+        }
+
+        try
+        {
+            return this with { Map = change(Map) };
+        }
+        catch (Exception ex) when (ex is ArgumentException or OverflowException)
+        {
+            return this with { Map = null, Problem = "pasaría del largo máximo de un clip" };
+        }
+    }
 }
 
 internal static class TrimmingSupport
@@ -42,22 +76,22 @@ internal static class TrimmingSupport
         foreach (TrimPlan plan in plans)
         {
             string name = plan.Clip.Id;
-            if (plan.SourceIn < Time.Zero)
+            if (plan.Map is not { } map)
+            {
+                throw new EditException($"El clip «{name}» {plan.Problem}.");
+            }
+
+            if (map.SourceIn < Time.Zero)
             {
                 throw new EditException($"El clip «{name}» empezaría antes del inicio del archivo.");
             }
 
-            if (plan.SourceOut <= plan.SourceIn)
-            {
-                throw new EditException($"El clip «{name}» se quedaría sin duración.");
-            }
-
-            if (plan.SourceOut > ctx.MediaOf(plan.Clip).Duration)
+            if (map.SourceOut > ctx.MediaOf(plan.Clip).Duration)
             {
                 throw new EditException($"El clip «{name}» llegaría más allá del final del archivo.");
             }
 
-            if (plan.Start < Time.Zero)
+            if (map.Start < Time.Zero)
             {
                 throw new EditException($"El clip «{name}» empezaría antes del inicio de la línea de tiempo.");
             }
@@ -92,14 +126,13 @@ internal static class TrimmingSupport
         Apply(plans);
     }
 
+    /// <summary>Escribe en sus clips los mapeos ya comprobados con <see cref="CheckBounds"/>.</summary>
     public static void Apply(IEnumerable<TrimPlan> plans)
     {
         var tracks = new HashSet<Track>();
         foreach (TrimPlan plan in plans)
         {
-            plan.Clip.Start = plan.Start;
-            plan.Clip.SourceIn = plan.SourceIn;
-            plan.Clip.SourceOut = plan.SourceOut;
+            plan.Map!.ApplyTo(plan.Clip);
             tracks.Add(plan.Track);
         }
 
@@ -144,8 +177,8 @@ internal static class TrimmingSupport
 
     public static bool StrictlyContains(Clip clip, Time at) => clip.Start < at && at < clip.End;
 
-    // El borde de entrada mueve también el inicio; el de salida no.
+    // El borde de entrada mueve también el inicio; el de salida no. Los deltas son de la línea de tiempo.
     public static TrimPlan EdgePlan(TrimPlan plan, TrimEdge edge, Time delta) => edge == TrimEdge.In
-        ? plan with { Start = plan.Start + delta, SourceIn = plan.SourceIn + delta }
-        : plan with { SourceOut = plan.SourceOut + delta };
+        ? plan.TrimIn(plan.Clip.Start + delta)
+        : plan.TrimOut(plan.Clip.End + delta);
 }
