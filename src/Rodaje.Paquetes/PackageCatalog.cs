@@ -132,6 +132,11 @@ public sealed record PackageCatalog(IReadOnlyList<CatalogApp> Apps, IReadOnlyLis
         {
             throw new FormatException("El catálogo no es JSON válido: " + ex.Message, ex);
         }
+        catch (ArgumentException ex)
+        {
+            // Una cadena de .NET con un sustituto suelto no se puede pasar a UTF-8.
+            throw new FormatException(UnreadableText, ex);
+        }
     }
 
     private static List<JsonElement> Array(JsonElement e, string property) =>

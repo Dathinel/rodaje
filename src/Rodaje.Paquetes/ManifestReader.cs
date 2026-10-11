@@ -73,6 +73,11 @@ public static class ManifestReader
         {
             return Fail($"{PackageManifest.FileName} no es JSON válido: {ex.Message}");
         }
+        catch (ArgumentException)
+        {
+            // Una cadena de .NET con un sustituto suelto no se puede pasar a UTF-8 (desde un archivo no llega: se lee estricto).
+            return Fail($"{PackageManifest.FileName} tiene un texto que no es Unicode válido (UTF-8 dañado o un carácter suelto escapado).");
+        }
 
         using (document)
         {

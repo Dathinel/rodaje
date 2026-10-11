@@ -60,4 +60,20 @@ public sealed class TextosNoUnicodeTests : IDisposable
         PackageItem item = Assert.Single(own.Manifest.Items);
         Assert.Equal("Bueno", item.Name);
     }
+
+    [Fact]
+    public void ManifestReader_Read_RawLoneSurrogateInString_IsRejectedInsteadOfThrowingArgumentException()
+    {
+        string json = Samples.Manifest(items: "[]").Replace("Transiciones de prueba", "a\ud800b", StringComparison.Ordinal);
+        ManifestResult result = ManifestReader.Read(json);
+        Assert.Null(result.Manifest);
+        Assert.NotEmpty(result.Errors);
+    }
+
+    [Fact]
+    public void Catalog_Parse_RawLoneSurrogateInString_ThrowsFormatException()
+    {
+        string json = "{ \"formatVersion\": 1, \"apps\": [{ \"id\": \"rodaje\", \"name\": \"a\ud800b\" }], \"packages\": [] }";
+        Assert.Throws<FormatException>(() => PackageCatalog.Parse(json));
+    }
 }

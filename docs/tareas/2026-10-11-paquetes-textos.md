@@ -10,6 +10,13 @@ Los 5 `Skip` se reprodujeron quitándolos (fallaban los 5 con las excepciones de
 - **Fuzz.** Fuera los contadores y `catch` de «defecto conocido» (topes en 0: cualquier `InvalidOperationException` o `UriFormatException` hace fallar la prueba). Nueva aserción `AssertEveryDangerousNameSelected`: cada nombre peligroso se genera y está en el subconjunto que corre en Windows. Los centinelas relativos ya no se miran contra sí mismos (dependían del directorio actual): se buscan bajo el directorio actual y la carpeta temporal. Centinelas nuevos UNC (`\\srv\share\centinela-unc\x`) y `C:centinela-unidad/x`.
 - `docs/formato-paquete.md`: párrafo sobre textos no Unicode y `repository`.
 
+## Revisión Opus del PR #13
+
+- **UTF-8 estricto.** `ManifestReader.ReadFile` y `PackageLibrary.ReadOwnItem` leen con `SafeText.ReadAllTextStrict` (`UTF8Encoding(false, throwOnInvalidBytes: true)`); `DecoderFallbackException` da el error en español (manifiesto) o omite el elemento (propio). El catálogo tiene `PackageCatalog.ParseUtf8(byte[])`, que da `FormatException`.
+- **Sustituto suelto en cadenas de .NET.** `ManifestReader.Read(string)` y `PackageCatalog.Parse(string)` ya no lanzan `ArgumentException`: error del manifiesto y `FormatException`.
+- **Pruebas** (`TextosNoUnicodeTests`): escape `\ud800` en el catálogo, bytes inválidos en catálogo, manifiesto y elemento propio, `Scan` con dos propios malos junto a uno bueno, sustituto crudo en ambas cadenas. Quitando cada arreglo falla su prueba (comprobado uno a uno).
+- **Para la sesión local (no tocado, `Rodaje.App`):** `src/Rodaje.App/Services/Packages/PackageService.cs:92` lee el catálogo con `reader.ReadToEnd()`; para que el UTF-8 inválido no se sustituya en silencio debe leer los bytes y llamar a `PackageCatalog.ParseUtf8`.
+
 ## Pendiente
 
 Nada de la tarea. No quedan otros `GetString` en `src/Rodaje.Paquetes` fuera de los cuatro puntos de entrada anteriores.
