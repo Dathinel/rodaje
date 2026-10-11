@@ -14,6 +14,7 @@ namespace Rodaje.Paquetes.Tests.Fuzz;
 /// fuera de su carpeta y un fallo no deja nada. Mutaciones deterministas (semilla fija) sobre un paquete válido
 /// generado aquí; el contenido instalado se lee con los lectores, que solo pueden lanzar <see cref="PackageContentException"/>.
 /// </summary>
+[Collection(TimingGroup.Name)]
 public class PackageInstallerFuzzTests(ITestOutputHelper output)
 {
     private const int Seed = 20261011;
@@ -824,4 +825,13 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
 
         return Encoding.UTF8.GetBytes(Escapes(random, root.ToJsonString()));
     }
+}
+
+/// <summary>
+/// Colección compartida con <c>CubeReaderTests</c>, que mide 65³ contra 150 ms: dentro de una colección las clases no
+/// corren a la vez, y el fuzz (que usa todos los núcleos) no le sube el tiempo.
+/// </summary>
+public static class TimingGroup
+{
+    public const string Name = "Pruebas de tiempo y fuzz";
 }

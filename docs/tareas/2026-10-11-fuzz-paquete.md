@@ -13,6 +13,7 @@ Rama: `claude/fuzz-paquete`.
 - Etapas (Linux, una corrida): zip 475, manifiesto 1357, ruta 601, duplicado 421, tamaño o compresión 325, instalado con contenido válido 1017 y rechazado 1004. Pasan del zip el 91 %; el umbral es 25 %.
 - **4000 casos más** solo de contenido contra `ContentReaders`: 420 válidos, 3540 rechazados con `PackageContentException`.
 - **Tiempo.** En Linux los 5200 casos tardan 13–15 s (cuatro trabajadores con su carpeta; con uno, 27–30 s, por el volcado a disco de cada instalación). El tiempo **se registra, no se exige**. En Windows los 5200 casos tardaron 146 s en la CI, así que allí corre un subconjunto determinista de unos 565: el primer caso de cada nombre peligroso y 1 de cada 10 del resto (unos 3 s en Linux). Los 5200 corren en Linux.
+- `PackageInstallerFuzzTests` comparte colección de xUnit con `CubeReaderTests` (una línea añadida en ese archivo): el fuzz usa todos los núcleos y, a la vez, hacía fallar su medida de 65³ en 150 ms (153 ms). Dentro de una colección no corren a la vez.
 - Los textos de las pruebas fijan los finales de línea en `\n` para que los casos no cambien con el sistema.
 - Omitidas: 5 pruebas nuevas con `Skip` por defectos reales (abajo). Antes de esta tarea el proyecto tenía 0 omitidas; después tiene 5, todas por defecto concreto del código.
 
@@ -34,7 +35,7 @@ El fuzz cuenta los casos de los defectos 1 y 2 juntos («cadenas JSON»: 45 de 5
 
 ## Choques
 
-Ninguno: solo archivos nuevos en `tests/Rodaje.Paquetes.Tests/Fuzz/` y esta entrega.
+Ninguno. Solo archivos nuevos en `tests/Rodaje.Paquetes.Tests/Fuzz/` y esta entrega, más el atributo `[Collection]` en `CubeReaderTests` (fuera de la carpeta, explicado arriba).
 
 ## En Windows
 
