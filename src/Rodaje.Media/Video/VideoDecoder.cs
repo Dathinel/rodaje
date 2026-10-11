@@ -593,6 +593,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         else
         {
             ffmpeg.avcodec_flush_buffers(_codec);
+            DiscardStaleOutput();
         }
 
         ffmpeg.av_packet_unref(_packet);
@@ -636,6 +637,18 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
             }
 
             break;
+        }
+    }
+
+    // El decodificador HEVC de FFmpeg (sin hilos por cuadro, como en D3D11VA) pasa a su cola de salida varios cuadros de
+    // una vez (todos al llegar al final del flujo o a un IRAP) y avcodec_flush_buffers no vacía esa cola: tras el seek
+    // salían primero cuadros del sitio anterior, el objetivo parecía pasado y, tras los reintentos, no se entregaba nada.
+    // Sin paquetes nuevos, lo que todavía devuelva el decodificador es de antes del flush.
+    private void DiscardStaleOutput()
+    {
+        for (int i = 0; i < MaxDrainFrames && ffmpeg.avcodec_receive_frame(_codec, _frame) == 0; i++)
+        {
+            ffmpeg.av_frame_unref(_frame);
         }
     }
 
