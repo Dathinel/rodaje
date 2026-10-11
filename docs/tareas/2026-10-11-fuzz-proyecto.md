@@ -4,18 +4,18 @@ Rama: `claude/fuzz-proyecto`.
 
 ## Hecho
 
-`tests/Rodaje.Core.Tests/Fuzz/ProjectReaderFuzzTests.cs` (24 casos de xUnit, unos 12 000 textos por corrida):
-- Semillas v1, v2 y v3. La v3 es el ejemplo versionado; v1 y v2 se obtienen quitando de ella lo que esos formatos no tenían (`markers`/`regions`, `effects`/`transitions` de pista, `options`).
-- 6000 mutaciones de bytes (cambiar, insertar, borrar, truncar, sustituir por signos JSON) con semilla fija.
-- 6000 mutaciones estructurales sobre el árbol JSON: tipos cambiados, números enormes, negativos, `NaN`/`Infinity` como texto, racionales raros, ids duplicados y referencias cruzadas, listas desordenadas (keyframes, clips), elementos nulos, campos nuevos.
-- Entradas escritas a mano: `schemaVersion` ausente, futuro, negativo o enorme, campos repetidos, raíz que no es objeto, listas con `null`.
-- Cadenas de 1 MB, anidamiento de 5000 niveles, truncados cada 97 bytes y bytes no válidos.
-- Cada caso debe abrir o lanzar `ProjectFormatException` con mensaje. Si abre, pasa `ModelValidator` y guardar → abrir → guardar da el mismo texto.
-- El conjunto corre en menos de 30 s (la prueba lo exige); en Linux tarda unos 6 s.
+`tests/Rodaje.Core.Tests/Fuzz/ProjectReaderFuzzTests.cs` (tras la revisión de Daniel, 11-oct):
+- Semillas v1, v2 y v3. La v2 usa `rodaje.volume` con `gain` lineal y keyframes, así que ejercita `MigrateEffectToV3`/`ToDecibels` (hay una prueba que lo comprueba). v1 y v2 se obtienen quitando del ejemplo v3 lo que esos formatos no tenían.
+- 6000 mutaciones de bytes por `ProjectSerializer.Load` con archivo temporal (UTF-8 inválido, BOM, truncados), pocas destructivas; más archivos raros: vacío, BOM UTF-8/UTF-16, UTF-8 inválido a mitad.
+- 6000 mutaciones estructurales: un tercio genéricas (tipos cambiados, racionales como objeto `{num, den}` con `den: 0`, negativos o `long.MaxValue`, listas desordenadas) y dos tercios dirigidas que conservan el tipo (`mediaId` y `from`/`to` hacia ids existentes o inexistentes, transiciones a sí mismas o no contiguas, ids repetidos entre entidades distintas, tiempos enteros alterados, tamaños de secuencia).
+- Cadenas de 1 MB, anidamiento de 5000 niveles y entradas escritas a mano.
+- Cada caso abre o lanza `ProjectFormatException` con mensaje en español. Si lo lanza, la causa debe ser del lector (JSON, tipos, UTF-8) o del validador con problemas concretos: **un fallo interno del validador envuelto como «no se pudieron comprobar» hace fallar la prueba**. Si abre, pasa `ModelValidator` y guardar → abrir → guardar es estable.
+- Cada corrida exige al menos 5000 casos y que ≥ 25 % de las mutaciones estructurales lleguen al validador (medido: unas 74 %: 1628 abren, 2819 rechazadas por el validador, 1530 por tipos, 12 por JSON mal formado, 11 por el defecto de abajo).
+- Unos 8 s en Linux (límite 30 s).
 
-## Resultado
+## Defecto encontrado (no corregido, fuera de los caminos de la tarea)
 
-No se encontró ningún defecto: ningún caso lanzó otra excepción, se colgó o dejó un proyecto que no pasara el validador. No hay pruebas con `Skip`.
+Un clip que es extremo de una transición con `sourceIn`/`sourceOut` extremos (p. ej. `clip-2` con `sourceOut: -9223372036854775808`) hace que `ModelValidator.ValidateTransitions` → `TransitionOps.MaxDuration` → `Clip.Duration` → `Time.op_Subtraction` lance `OverflowException`. El lector la envuelve en «El proyecto tiene datos que no se pudieron comprobar…», sin decir qué falla. No tumba la app, pero el mensaje no sirve. Reproducción: `Validator_DoesNotOverflowOnExtremeClipTimes`, marcada con `Skip = "Defecto: …"`. Mientras tanto el fuzz cuenta esos casos aparte (`desbordamiento conocido`) y no los deja pasar en silencio. Cuando se corrija en `src/`, se quita el `Skip` y el caso especial de `Run`.
 
 ## Pendiente / decisiones
 
