@@ -39,7 +39,7 @@ public sealed record SpeedState(
 /// Edita la velocidad del clip seleccionado y sus enlazados. Un arrastre del deslizador (<see cref="BeginChange"/>,
 /// <see cref="Change"/>, <see cref="EndChange"/>) es un gesto: se ve en vivo y queda como un paso del historial.
 /// </summary>
-public sealed class SpeedEditor
+public sealed partial class SpeedEditor
 {
     private Drag? _drag;
 
@@ -155,6 +155,7 @@ public sealed class SpeedEditor
 
     public void EndChange()
     {
+        EndPointDrag();
         if (_drag is not { } drag)
         {
             return;
@@ -273,64 +274,15 @@ public sealed class SpeedEditor
         {
             _drag = drag with { Grouped = false, Failed = true };
         }
+
+        if (e.Kind == EditKind.GestureCancelled)
+        {
+            _pointDrag = null;
+        }
     }
 
     private sealed record Drag(string ClipId, SequenceSnapshot Start, SpeedState StartState, bool Grouped = true)
     {
         public bool Failed { get; set; }
-    }
-
-    /// <summary>Un paso del arrastre: vuelve la secuencia al inicio del gesto y aplica ahí <c>step</c> (nada si es nulo).</summary>
-    private sealed class FromGestureStart(string sequenceId, SequenceSnapshot start, ICommand? step) : ICommand
-    {
-        private SequenceSnapshot? _before;
-        private SequenceSnapshot? _after;
-
-        private SequenceSnapshot Start { get; } = start;
-
-        public string Description => step?.Description ?? "Cambiar velocidad";
-
-        public void Apply(Project project)
-        {
-            Sequence sequence = FindSequence(project);
-            if (_after is not null)
-            {
-                _after.Restore(sequence);
-                return;
-            }
-
-            SequenceSnapshot before = SequenceSnapshot.Capture(sequence);
-            try
-            {
-                Start.Restore(sequence);
-                step?.Apply(project);
-            }
-            catch
-            {
-                before.Restore(sequence);
-                throw;
-            }
-
-            _before = before;
-            _after = SequenceSnapshot.Capture(sequence);
-        }
-
-        public void Revert(Project project) =>
-            (_before ?? throw new InvalidOperationException("No se puede revertir un paso que no se aplicó.")).Restore(FindSequence(project));
-
-        // Los pasos de un mismo arrastre se funden: el último ya contiene todo el cambio desde el inicio.
-        public bool TryMerge(ICommand following)
-        {
-            if (following is not FromGestureStart next || !ReferenceEquals(next.Start, Start) || _after is null || next._after is null)
-            {
-                return false;
-            }
-
-            _after = next._after;
-            return true;
-        }
-
-        private Sequence FindSequence(Project project) =>
-            project.FindSequence(sequenceId) ?? throw new EditException($"La secuencia «{sequenceId}» ya no está en el proyecto.");
     }
 }
