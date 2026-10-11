@@ -25,6 +25,8 @@ public static class CheatSheet
         ActionIds.NextFrame,
         ActionIds.TrimStart,
         ActionIds.TrimEnd,
+        ActionIds.ClipSpeed,
+        ActionIds.FreezeFrame,
         ActionIds.Save,
         ActionIds.Import,
         ActionIds.ZoomIn,
