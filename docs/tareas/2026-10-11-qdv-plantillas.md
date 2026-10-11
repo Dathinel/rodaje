@@ -39,5 +39,5 @@ Rama `claude/qdv-plantillas`, PR #19. Función 33 de `docs/pendientes.md`.
 
 1. Archivo → Proyecto nuevo desde plantilla → Vertical 9:16: el visor queda vertical 1080×1920; importar un video horizontal no cambia el formato (queda con barras).
 2. Archivo → Proyecto nuevo (corriente) y luego importar un video 4K: la secuencia toma 4K como antes.
-3. Renombrar pistas, Guardar como plantilla «Mi canal», cerrar y abrir la app: aparece en el submenú con sus pistas y nombres; «Borrar plantilla propia» la quita.
+3. Con un proyecto de 3 pistas de video y 1 de audio (o un `.rodaje` con pistas de otro nombre; la app todavía no renombra pistas), Guardar como plantilla «Mi canal», cerrar y abrir la app: aparece en el submenú con sus pistas y nombres; «Borrar plantilla propia» la quita.
 4. Que el tooltip con el resumen se vea al pasar sobre cada plantilla.
