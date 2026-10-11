@@ -24,40 +24,20 @@ public static class EffectCommands
         ArgumentNullException.ThrowIfNull(value);
         return new SequenceEditCommand(description, sequenceId, ctx =>
         {
-            OptionDefinition definition = EffectRegistry.Find(effectType)?.FindOption(option)
-                ?? throw new EditException($"«{EffectUiName(effectType)}» no tiene la opción «{option}».");
-            if (value.Length > 0 && !definition.Accepts(value))
-            {
-                throw new EditException($"«{value}» no es un valor de «{option}».");
-            }
-
-            Clip clip = EditableClip(ctx, clipId);
             List<string> created = [];
-            EffectInstance effect;
-            if (effectId is not null)
-            {
-                effect = clip.Effects.Find(e => e.Id == effectId)
-                    ?? throw new EditException("El clip ya no tiene ese efecto.");
-            }
-            else
+            string target = effectId ?? "";
+            if (effectId is null)
             {
                 if (EffectEdits.EnsureEffect(ctx, clipId, effectType) is { } id)
                 {
                     created.Add(id);
                 }
 
-                effect = clip.Effects.Find(e => e.Type == effectType && e.Enabled) ?? clip.Effects.Find(e => e.Type == effectType)!;
+                Clip clip = EditableClip(ctx, clipId);
+                target = (clip.Effects.Find(e => e.Type == effectType && e.Enabled) ?? clip.Effects.Find(e => e.Type == effectType)!).Id;
             }
 
-            if (value.Length == 0)
-            {
-                effect.Options.Remove(option);
-            }
-            else
-            {
-                effect.Options[option] = value;
-            }
-
+            EffectEdits.SetOption(ctx, clipId, target, option, value);
             return created;
         });
     }
@@ -195,6 +175,4 @@ public static class EffectCommands
         EditContext.EnsureUnlocked(found.Track);
         return found.Clip;
     }
-
-    private static string EffectUiName(string type) => Inspector.EffectUi.Name(type);
 }

@@ -54,7 +54,7 @@ public static class EffectRegistry
             new(C.Shadows, 0, -1, 1),
             new(C.LutIntensity, 1, 0, 1),
         ],
-        [OptionDefinition.Reference(BuiltInEffects.ColorOptions.Lut)]),
+        [OptionDefinition.Reference(BuiltInEffects.ColorOptions.Lut, allowsFile: true)]),
         new(BuiltInEffects.Vignette, 3, EffectTarget.Video, EffectStage.PerPixel,
         [
             new(BuiltInEffects.VignetteParameters.Amount, 0.5, 0, 1),

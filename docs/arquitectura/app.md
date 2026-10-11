@@ -10,7 +10,7 @@ Sin paquete MSIX, autocontenida y con Native AOT (el [sondeo](../archivo/sondeo-
 
 | Carpeta | Qué hay | Depende de WinUI |
 |---|---|---|
-| `Services/` | `EditorSession`, `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), inspector (`Inspector/`), miniaturas y formas de onda (`Media/`), complementos (`Packages/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs`, `EditorNotification` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
+| `Services/` | `EditorSession`, `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), inspector (`Inspector/`), efectos y contenido (`Effects/`), miniaturas y formas de onda (`Media/`), complementos (`Packages/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs`, `EditorNotification` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
 | `Views/Timeline/Logic/` | La lógica de la línea de tiempo (ventana, regla, filas, clic, ajuste, arrastres, soltar medios) | **No**: también la compilan las pruebas |
 | `Shell/` | `MainWindow` (distribución, páginas modales y barra de avisos), `TitleBar`, `KeyboardShortcutHost`, `PaneSplitter`, `ShellDialogs` y `FileDialogs`, `EditorServices` e `IEditorView`, `MeasurementRun` | Sí |
 | `Theme/` | `Palette.xaml` (colores de D-018 y claves de WinUI redefinidas), `Typography.xaml`, `Controls.xaml` (esquinas de 2 px y transiciones de 60 ms) | Sí |
@@ -69,7 +69,17 @@ BgraImage? GetNearestThumbnail(string mediaId, Time sourceTime, Time spacing, in
 
 ## Complementos (`Services/Packages`)
 
-`PackageService` junta el catálogo que viaja en el ejecutable (`catalogo.json`), lo instalado y el instalador de [`Rodaje.Paquetes`](../formato-paquete.md); lee el disco fuera del hilo de la interfaz y avisa con `Changed`. `LibraryElements` decide qué muestra cada categoría de la biblioteca: lo que trae el motor (con «Próximamente» lo que llega en la fase 5), lo de los paquetes y lo propio.
+`PackageService` junta el catálogo que viaja en el ejecutable (`catalogo.json`), lo instalado y el instalador de [`Rodaje.Paquetes`](../formato-paquete.md); lee el disco fuera del hilo de la interfaz y avisa con `Changed`. `LibraryElements` decide qué muestra cada categoría de la biblioteca: lo que trae el motor (sacado del registro de efectos; el texto llega con los títulos), lo de los paquetes y lo propio.
+
+- **Arrastrar una transición.** Lleva `rodaje/elemento` y además `rodaje/transicion` (`TransitionDrag.DragFormat`) con el mismo texto: el tipo de una transición propia (`rodaje.wipe`) o la referencia `paquete@versión/elemento` de una de paquete. Quien la suelta usa `TransitionDrag.TryParse(texto)` y `CreateCommand(secuencia, clipQueSale)`, que pone tipo y preajuste en un solo paso del historial.
+
+## Efectos y contenido (`Services/Effects`)
+
+- **`EffectContent`** implementa `IEffectContent` para el motor (`EditorServices.Content`, armado por `AppEffectContent`). `TryGetLut` es una búsqueda en un diccionario; si falta, la lee en un hilo del pool y avisa con `Changed`. Lo que no se pudo leer no se reintenta hasta `Invalidate` (al cambiar los paquetes). Las curvas de una transición de paquete se leen al armar el plan y quedan en memoria.
+- **`IContentLoader`** lee el contenido por referencia; `InstalledContentLoader` lo hace sobre lo instalado y los lectores de `Rodaje.Paquetes`. Es el punto donde se conecta el `PackageContentStore` de los paquetes.
+- **LUT sueltas.** «Cargar .cube…» guarda `file:` más la ruta con `/`, relativa a la carpeta del `.rodaje` si se puede (`LutReference`).
+- **`EffectCommands`** son ediciones de un solo paso que el núcleo no trae sueltas: modo de mezcla y LUT creando el efecto si falta, y aplicar filtros y efectos de paquete copiados con `options.source` (reaplicar el mismo los reemplaza; las curvas de un efecto se colocan al principio, al final o a lo largo del clip, se encogen si no caben y las posiciones se escalan a la secuencia).
+- **`ElementApplier`** aplica un elemento de la biblioteca al clip seleccionado; una transición va al corte donde termina el clip o, si no hay, al de su inicio.
 
 ## Cómo se suma una vista
 

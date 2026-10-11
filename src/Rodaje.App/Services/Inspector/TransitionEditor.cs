@@ -67,13 +67,13 @@ public sealed class TransitionEditor(EditorSession session)
         return transition.Options.TryGetValue(name, out string? value) ? value : EffectRegistry.DefaultOption(transition.Type, name);
     }
 
-    /// <summary>Rango de la duración en segundos: de un cuadro a dos veces el clip más corto (cada lado pone la mitad), hasta 10 s.</summary>
+    /// <summary>Rango de la duración en segundos: de un cuadro al tope del núcleo (el clip más corto), hasta 10 s.</summary>
     public (double Minimum, double Maximum) DurationRange(TransitionTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);
         double frame = Time.FromFrames(1, Session.Sequence.FrameRate).ToSeconds();
-        double shortest = Math.Min(target.From.Duration.ToSeconds(), target.To.Duration.ToSeconds());
-        return (frame, Math.Max(frame, Math.Min(MaxSeconds, 2 * shortest)));
+        double longest = TransitionOps.MaxDuration(target.From, target.To).ToSeconds();
+        return (frame, Math.Max(frame, Math.Min(MaxSeconds, longest)));
     }
 
     public bool SetType(string transitionId, string type) =>

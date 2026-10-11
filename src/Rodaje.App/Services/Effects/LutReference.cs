@@ -9,7 +9,7 @@ namespace Rodaje.App.Services.Effects;
 /// </summary>
 public static class LutReference
 {
-    public const string FilePrefix = "file:";
+    public const string FilePrefix = Rodaje.Core.Effects.OptionDefinition.FilePrefix;
 
     public static bool IsFile(string? reference) => reference is not null && reference.StartsWith(FilePrefix, StringComparison.Ordinal);
 
