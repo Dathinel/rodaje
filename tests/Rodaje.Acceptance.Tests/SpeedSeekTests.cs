@@ -16,14 +16,12 @@ namespace Rodaje.Acceptance.Tests;
 /// </summary>
 public sealed class SpeedSeekTests(ITestOutputHelper output)
 {
-    internal const string WaitsForVideoEngine = "Espera al agente C (motor de video con velocidad, fase 5c.1)";
-
     private const int RandomSeeks = 2000;
     private static readonly TimeSpan SettleTimeout = TimeSpan.FromSeconds(20);
 
     public static TheoryData<string> Cases => new("0,25x", "0,5x", "1,37x", "2x", "4x", "1001/1000x", "100x", "congelado");
 
-    [FfmpegLibraryTheory(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true, Skip = WaitsForVideoEngine)]
+    [FfmpegLibraryTheory(VideoCodec.H264, Audio = AudioCodec.Aac, LongRunning = true)]
     [MemberData(nameof(Cases))]
     public void Seek_con_velocidad_muestra_el_cuadro_esperado(string name) =>
         Run(name, SpeedTimeline.Build(MediaPath, SpeedCase.Named(name), withAudio: false));
