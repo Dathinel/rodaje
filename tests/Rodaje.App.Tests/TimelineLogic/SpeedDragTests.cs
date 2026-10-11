@@ -91,12 +91,20 @@ public class SpeedDragTests(ITestOutputHelper output)
         PutOnV2(session, 8, 2);
         Clip first = session.Sequence.VideoTracks[1].Clips[0];
         DragOptions free = Options(session, magnetic: false);
+        int steps = session.History.Count;
 
         ClipDragSession drag = Start(session, first, DragOperation.StretchEnd, 6, free);
+        drag.Move(S(7), null);
         drag.Move(S(12), null);
         drag.Complete();
         Assert.Equal("muda@2-8 muda@8-10", Layout(session, session.Sequence.VideoTracks[1]));
-        Assert.Equal(2.0 / 3, session.Sequence.VideoTracks[1].Clips[0].Speed!.Rate.ToDouble(), 4);
+        Assert.Equal(new Rational(2, 3), session.Sequence.VideoTracks[1].Clips[0].Speed!.Rate);
+        Assert.Equal("a@0-10 b@10-20 c@20-25", Layout(session, session.MainTrack!));
+        Assert.Equal(steps + 1, session.History.Count);
+        Assert.True(session.Undo());
+        Assert.Equal("muda@2-6 muda@8-10", Layout(session, session.Sequence.VideoTracks[1]));
+        Assert.Null(session.Sequence.VideoTracks[1].Clips[0].Speed);
+        Assert.True(session.Redo());
 
         drag = Start(session, session.Sequence.VideoTracks[1].Clips[0], DragOperation.StretchStart, 2, free);
         drag.Move(S(-5), null);
@@ -125,7 +133,7 @@ public class SpeedDragTests(ITestOutputHelper output)
     public void AltSobreElCuerpoSigueSiendoSlipYUnCongeladoSeRecorta() => UiThread.Run(async () =>
     {
         EditorSession session = await ThreeClips();
-        SequenceEditCommand freeze = TimelineSpeedEdits.FreezeFrame(session.SequenceId, ClipOf(session, "b").Id, S(12), S(3), session.Timeline.RippleScope);
+        SequenceEditCommand freeze = Edits.FreezeFrame(session.SequenceId, ClipOf(session, "b").Id, S(12), S(3));
         Assert.True(session.Execute(freeze));
         Clip frozen = session.Sequence.GetClip(freeze.CreatedIds[0]).Clip;
         Assert.Equal(S(3), frozen.Duration);

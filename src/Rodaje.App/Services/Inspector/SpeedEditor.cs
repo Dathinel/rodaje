@@ -29,6 +29,9 @@ public sealed record SpeedState(
 
     /// <summary>Restablecer cambiaría algo: no está a 1× o tiene una curva (D-024).</summary>
     public bool CanReset => !IsFrozen && (HasCurve || Rate != Normal);
+
+    /// <summary>«Mantener tono» importa: suena y no va a 1× (a 1× el núcleo no guarda el tono).</summary>
+    public bool CanChangePitch => HasAudio && !IsFrozen && (HasCurve || IsReversed || Rate != Normal);
 }
 
 /// <summary>
@@ -139,7 +142,7 @@ public sealed class SpeedEditor
         }
 
         // Si un paso falla (pista bloqueada, largo máximo), el resto del arrastre no insiste ni repite el aviso.
-        drag.Failed = !Session.Execute(Commands.SetSpeed(Session.SequenceId, drag.ClipId, rate));
+        drag.Failed = !Session.Execute(Commands.SetSpeed(Session.SequenceId, drag.ClipId, rate, Session.SpeedRipples(drag.ClipId)));
         return !drag.Failed;
     }
 
@@ -167,7 +170,7 @@ public sealed class SpeedEditor
         }
 
         Session.BreakMerge();
-        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, clip.Id, rate));
+        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, clip.Id, rate, Session.SpeedRipples(clip.Id)));
         Session.BreakMerge();
         return done;
     }
@@ -198,7 +201,7 @@ public sealed class SpeedEditor
         }
 
         Session.BreakMerge();
-        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, clipId, SpeedState.Normal));
+        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, clipId, SpeedState.Normal, Session.SpeedRipples(clipId)));
         Session.BreakMerge();
         return done;
     }
@@ -213,7 +216,7 @@ public sealed class SpeedEditor
         }
 
         Session.BreakMerge();
-        bool done = Session.Execute(Commands.RateStretch(Session.SequenceId, clip.Id, duration));
+        bool done = Session.Execute(Commands.RateStretch(Session.SequenceId, clip.Id, duration, Session.SpeedRipples(clip.Id)));
         Session.BreakMerge();
         return done;
     }
@@ -221,7 +224,7 @@ public sealed class SpeedEditor
     public bool SetPreservePitch(bool preservePitch)
     {
         EndChange();
-        if (Target() is not { } clip || Read(clip).PreservePitch == preservePitch)
+        if (Target() is not { } clip || Read(clip) is not { CanChangePitch: true } state || state.PreservePitch == preservePitch)
         {
             return false;
         }
@@ -241,7 +244,19 @@ public sealed class SpeedEditor
             return false;
         }
 
-        return Session.Execute(Commands.FreezeFrame(Session.SequenceId, clip.Id, Session.EditPosition, SpeedPresets.FreezeDuration));
+        ICommand command = Commands.FreezeFrame(Session.SequenceId, clip.Id, Session.EditPosition, SpeedPresets.FreezeDuration);
+        if (!Session.Execute(command))
+        {
+            return false;
+        }
+
+        // Como Mayús+R: queda seleccionado el congelado, que es lo que se suele retocar después.
+        if (command is SequenceEditCommand { CreatedIds.Count: > 0 } created)
+        {
+            Session.Select(created.CreatedIds);
+        }
+
+        return true;
     }
 
     // Esc revirtió el gesto: el resto del arrastre no hace nada y al soltar no hay grupo que cerrar.

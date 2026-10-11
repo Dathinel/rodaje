@@ -456,9 +456,10 @@ public sealed class ClipDrag
             return new DragPlan(null, true, ghostStart, ghostStart + d, track.Id, guide, null, balloon);
         }
 
-        RippleScope? scope = ripple ? _options.RippleScope : null;
+        // El núcleo pide cuánto se mueve el borde respecto del clip de ahora (los pasos del arrastre se encadenan).
+        Time delta = edge == TrimEdge.Out ? d - clip.Duration : clip.Duration - d;
         return new DragPlan(
-            () => TimelineSpeedEdits.RateStretch(_sequenceId, _clipId, edge, d, scope, _ids),
+            () => Edits.RateStretch(_sequenceId, _clipId, edge, delta, ripple, _ids),
             true,
             ghostStart,
             ghostStart + d,

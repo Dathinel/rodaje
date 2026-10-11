@@ -120,7 +120,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
 
         ResetButton.IsEnabled = state.CanReset;
         PitchBox.IsChecked = state.PreservePitch;
-        PitchBox.IsEnabled = state.HasAudio && state.CanChangeRate;
+        PitchBox.IsEnabled = state.CanChangePitch;
         ReverseBox.IsChecked = state.IsReversed;
         _freezeShown = editor.CanFreeze(clip);
         FreezeButton.IsEnabled = _freezeShown;
