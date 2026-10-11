@@ -86,7 +86,7 @@ public class TransitionAndEnvelopeTests
         Rational rate = session.Sequence.FrameRate;
         Time frame = Time.FromFrames(1, rate);
         Assert.Equal(frame + frame, TransitionPlanning.DurationForHandle(main, fade, S(10), rate));
-        Assert.Equal(S(10) + S(10), TransitionPlanning.DurationForHandle(main, fade, S(40), rate));
+        Assert.Equal(S(10), TransitionPlanning.DurationForHandle(main, fade, S(40), rate));
         Time oneSecond = TransitionPlanning.DurationForHandle(main, fade, S(9.5), rate);
         Assert.Equal(TransitionPlanning.DurationForHandle(main, fade, S(10.5), rate), oneSecond);
         Assert.InRange(oneSecond.ToSeconds(), 0.95, 1.05);

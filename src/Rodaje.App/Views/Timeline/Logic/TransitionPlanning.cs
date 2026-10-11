@@ -153,7 +153,7 @@ public static class TransitionPlanning
 
     /// <summary>
     /// Duración al arrastrar una manija hasta <paramref name="handleTime"/>: el doble de la distancia al corte, en cuadros
-    /// enteros por lado, de un cuadro como mínimo y sin pasar el largo del clip más corto de los dos.
+    /// enteros por lado, de un cuadro como mínimo y sin pasar <see cref="TransitionOps.MaxDuration"/> (el clip más corto).
     /// </summary>
     public static Time DurationForHandle(Track track, TransitionInstance transition, Time handleTime, Rational frameRate)
     {
@@ -170,7 +170,7 @@ public static class TransitionPlanning
         Time half = handleTime >= cut ? handleTime - cut : cut - handleTime;
         Time frame = Time.FromFrames(1, frameRate);
         half = Time.Max(frame, half.SnapToFrame(frameRate));
-        Time limit = Time.Min(from.Duration, to.Duration);
+        Time limit = Time.FromTicks(TransitionOps.MaxDuration(from, to).Ticks / 2);
         if (half > limit)
         {
             half = Time.Max(frame, limit);
