@@ -4,6 +4,7 @@ using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Views.Player;
+using Rodaje.Engine.Timeline;
 
 namespace Rodaje.App;
 
@@ -27,7 +28,7 @@ internal static class Program
             var settings = new SettingsStore(SettingsStore.DefaultPath);
             string? settingsWarning = settings.Load();
             // El motor (FFmpeg y la GPU) arranca en su hilo mientras WinUI levanta la ventana.
-            using var engine = new PlayerEngine(options.EnableAudio, settings.Current.ProxyUsage, Metrics);
+            using var engine = new PlayerEngine(options.EnableAudio, options.NoProxies ? ProxyUsage.Never : settings.Current.ProxyUsage, Metrics);
             engine.Start();
             // Los archivos de la línea de comandos se leen mientras WinUI levanta la ventana.
             var prober = new PrefetchingProber(new FfmpegMediaProber());

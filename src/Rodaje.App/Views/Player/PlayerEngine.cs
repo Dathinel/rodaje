@@ -91,6 +91,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private int _previewDivisor = 1;
     private int _previewDowngrades;
     private long _editMark;
+    private EffectTotals _effectTotals;
     private long _editMarkTaken;
 
     private readonly Lock _meterLock = new();
@@ -193,6 +194,18 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     /// <summary>Resolución de la vista previa: Auto, completa, mitad o cuarto.</summary>
     public void SetPreviewQuality(PreviewQuality quality) => Post(new Command(CommandKind.Quality, Quality: quality));
+
+    /// <summary>Efectos dibujados, saltados y contenido que faltó desde que se abrió el reproductor (para medir).</summary>
+    public EffectTotals Effects
+    {
+        get
+        {
+            lock (_meterLock)
+            {
+                return _effectTotals;
+            }
+        }
+    }
 
     /// <summary>Veces que la calidad Auto bajó la resolución al reproducir (para medir).</summary>
     public int PreviewDowngrades => Volatile.Read(ref _previewDowngrades);
@@ -680,7 +693,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 _gpuTimer!.Begin();
             }
 
-            drawn = _compositor.Render(frame, Geometry).LayersDrawn;
+            CompositeResult result = _compositor.Render(frame, Geometry);
+            drawn = result.LayersDrawn;
+            lock (_meterLock)
+            {
+                _effectTotals = _effectTotals.Add(result);
+            }
             if (measure)
             {
                 _gpuTimer!.End();
@@ -833,6 +851,13 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         double Zoom = 0,
         PreviewQuality Quality = PreviewQuality.Auto,
         IEffectContent? Content = null);
+
+    /// <summary>Sumas de <see cref="CompositeResult"/> en los cuadros compuestos.</summary>
+    internal readonly record struct EffectTotals(long Frames, long Applied, long Skipped, long Missing)
+    {
+        public EffectTotals Add(CompositeResult result) =>
+            new(Frames + 1, Applied + result.EffectsApplied, Skipped + result.EffectsSkipped, Missing + result.MissingContent);
+    }
 
     private readonly record struct SizeRequest(int Width, int Height, float ScaleX, float ScaleY, long RequestedAt);
 }
