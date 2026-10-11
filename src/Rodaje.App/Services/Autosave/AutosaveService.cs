@@ -20,9 +20,9 @@ namespace Rodaje.App.Services.Autosave;
 /// lo avisa con un botón «Recuperar». Recuperar nunca pisa el proyecto original: escribe
 /// <c>«nombre» (recuperado).rodaje</c> junto a él (o donde diga la persona si nunca se guardó) y lo abre.
 /// </para>
-/// <para>No usa WinUI: <c>tests/Rodaje.App.Tests</c> compila esta carpeta.</para>
+/// <para>No usa WinUI: <c>tests/Rodaje.App.Tests</c> compila esta carpeta. Es <c>partial</c> porque CsWinRT lo pide a toda clase con <see cref="IDisposable"/> (como <see cref="InstanceRegistry"/>).</para>
 /// </remarks>
-public sealed class AutosaveService : IDisposable
+public sealed partial class AutosaveService : IDisposable
 {
     private readonly EditorSession _session;
     private readonly IEditorDialogs _dialogs;
