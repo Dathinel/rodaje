@@ -14,8 +14,9 @@ using VirtualKey = Windows.System.VirtualKey;
 namespace Rodaje.App.Views.Shortcuts;
 
 /// <summary>
-/// Página de atajos de teclado: ver, buscar y cambiar las teclas de cada acción, con estilos, teclado dibujado y hoja
-/// rápida. Mientras captura una combinación nueva suspende el <see cref="ShortcutRouter"/> y se queda con todas las
+/// Página de atajos de teclado. La vista esencial muestra el teclado con los atajos básicos y su lista; la avanzada
+/// permite ver, buscar y cambiar las teclas de cada acción, con estilos, teclado dibujado y hoja rápida. La vista
+/// elegida se recuerda en los ajustes. Mientras captura una combinación nueva suspende el <see cref="ShortcutRouter"/> y se queda con todas las
 /// teclas hasta que se sueltan, para que ninguna lance una acción ni active el botón con el foco.
 /// </summary>
 internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcutRowHost
@@ -36,6 +37,8 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
     private int? _keyFilter;
     private bool _syncingPreset;
     private bool _singleColumn;
+    private bool _advanced;
+    private int _essentialColumns = 2;
 
     public ShortcutsView()
     {
@@ -64,6 +67,9 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         _releaseTimer.IsRepeating = false;
         _releaseTimer.Tick += (_, _) => ReleaseShortcuts();
 
+        _advanced = services.Settings.Current.ShortcutsAdvanced;
+        (_advanced ? AdvancedTab : EssentialTab).IsChecked = true;
+        ApplyMode();
         RebuildRows();
         SyncPreset();
     }
@@ -99,7 +105,7 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
     {
         // La distribución del teclado pudo cambiar mientras la página estaba cerrada.
         RefreshAll();
-        SearchBox.Focus(FocusState.Programmatic);
+        (_advanced ? SearchBox : (Control)EssentialTab).Focus(FocusState.Programmatic);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -134,6 +140,128 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         ApplyFilter();
         RefreshKeyboard();
         RefreshSheet();
+        RefreshEssential();
+    }
+
+    private void OnModeChecked(object sender, RoutedEventArgs e)
+    {
+        bool advanced = ReferenceEquals(sender, AdvancedTab);
+        if (advanced == _advanced)
+        {
+            return;
+        }
+
+        _advanced = advanced;
+        if (_services is not null)
+        {
+            _services.Settings.Current.ShortcutsAdvanced = advanced;
+        }
+
+        if (!advanced)
+        {
+            EndCapture();
+        }
+
+        ApplyMode();
+        if (_registry is not null)
+        {
+            RefreshAll();
+        }
+    }
+
+    private void ApplyMode()
+    {
+        Visibility advanced = _advanced ? Visibility.Visible : Visibility.Collapsed;
+        Visibility essential = _advanced ? Visibility.Collapsed : Visibility.Visible;
+        AdvancedPanel.Visibility = advanced;
+        AdvancedTools.Visibility = advanced;
+        SearchRow.Visibility = advanced;
+        EssentialPanel.Visibility = essential;
+    }
+
+    private void RefreshEssential()
+    {
+        if (_advanced)
+        {
+            return;
+        }
+
+        IReadOnlyList<CheatSheetEntry> entries = EssentialShortcuts.Select(Registry);
+        EssentialKeyboard.Show(
+            KeyboardGeometry.Map(Registry, Layout, include: EssentialShortcuts.Contains),
+            _groups.Select(g => g.Name).Where(g => entries.Any(e => e.Group == g)));
+        BuildEssentialList(entries);
+    }
+
+    private void BuildEssentialList(IReadOnlyList<CheatSheetEntry> entries)
+    {
+        EssentialList.Children.Clear();
+        EssentialList.ColumnDefinitions.Clear();
+        EssentialList.RowDefinitions.Clear();
+        int columns = _essentialColumns;
+        int rows = (entries.Count + columns - 1) / columns;
+        for (int c = 0; c < columns; c++)
+        {
+            EssentialList.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        }
+
+        for (int r = 0; r < rows; r++)
+        {
+            EssentialList.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            CheatSheetEntry entry = entries[i];
+            var cell = new Grid
+            {
+                ColumnSpacing = 8,
+                MinHeight = 32,
+                BorderBrush = GroupBrushes.Resource("StrokeBrush"),
+                BorderThickness = new Thickness(0, 0, 0, 1),
+            };
+            cell.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            cell.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            cell.Children.Add(new TextBlock
+            {
+                Text = entry.Label,
+                Style = (Style)Application.Current.Resources["BodyTextStyle"],
+                TextWrapping = TextWrapping.Wrap,
+                TextTrimming = TextTrimming.None,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 4, 0, 4),
+            });
+            var keys = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            foreach (string key in entry.Keys)
+            {
+                keys.Children.Add(new Border
+                {
+                    Background = GroupBrushes.Resource("ControlBrush"),
+                    BorderBrush = GroupBrushes.For(entry.Group),
+                    BorderThickness = new Thickness(1, 1, 1, 2),
+                    CornerRadius = new CornerRadius(2),
+                    Padding = new Thickness(6, 1, 6, 1),
+                    Child = new TextBlock { Text = key, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = GroupBrushes.Resource("TextBrush") },
+                });
+            }
+
+            Grid.SetColumn(keys, 1);
+            cell.Children.Add(keys);
+            AutomationProperties.SetName(cell, $"{entry.Label}: {string.Join(" o ", entry.Keys)}");
+            Grid.SetRow(cell, i % rows);
+            Grid.SetColumn(cell, i / rows);
+            EssentialList.Children.Add(cell);
+        }
+    }
+
+    private void OnEssentialListSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        int columns = e.NewSize.Width >= 900 ? 3 : e.NewSize.Width >= 520 ? 2 : 1;
+        if (columns != _essentialColumns && _registry is not null)
+        {
+            _essentialColumns = columns;
+            BuildEssentialList(EssentialShortcuts.Select(Registry));
+        }
     }
 
     private void RebuildRows()

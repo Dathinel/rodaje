@@ -49,6 +49,7 @@ Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas c
 
 - **Pestañas.** Propiedades, Filtros, Historial y Trabajos, cada una en su carpeta.
 - **Propiedades.** Los parámetros animables del clip en el cursor (`Services/Inspector/ClipPropertyEditor`). Sin keyframes se cambia el valor fijo; con keyframes, cambiar el valor crea o ajusta el keyframe del cuadro del cursor. Las curvas entre keyframes salen de `KeyframeEase`.
+- **Restablecer y quitar keyframes.** Cada parámetro tiene su botón de restablecer y Transformación, «Restablecer todo». Si hay keyframes, un aviso dice cuántos se borrarán antes de hacerlo; «Quitar keyframes» va aparte, en el menú contextual del parámetro. Todo es un paso del historial (D-024).
 - **Guardar como transición.** Guarda los ajustes en `%LOCALAPPDATA%\Rodaje\complementos\propios`.
 - **Filtros.** La pila del clip: activar, reordenar, quitar y añadir.
 - **Historial.** Cada paso del deshacer; un clic vuelve a ese estado.
@@ -56,6 +57,8 @@ Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas c
 
 ## Atajos (`Views/Shortcuts`)
 
+- **Dos vistas.** «Esencial» (la de fábrica) muestra el teclado solo con los atajos de `EssentialShortcuts` (reproducir, J/K/L, cuadros, inicio y final, cortar, borrar, ripple, deshacer, rehacer, marcador, zoom, guardar e importar) y su lista en columnas que se adaptan al ancho. «Avanzado» es todo lo de abajo. La elección se guarda en `ajustes.json` (`ShortcutsAdvanced`).
+- **Teclado que cabe.** El dibujo va en un `Viewbox` que solo encoge: con el panel estrecho se ve entero y en proporción.
 - **Lista.** Estilo de teclado (Rodaje, Ágil, Clásico), búsqueda y grupos en dos columnas (orden de `ShortcutGroups.Order`). Cada fila muestra el nombre, una frase sencilla y sus teclas, con Cambiar, añadir, quitar y volver a la de fábrica.
 - **Captura.** `KeyCapture` suspende el router y se queda con cada tecla hasta soltarla, para que no lance una acción ni active el botón con el foco. Rechaza lo reservado (`ReservedKeys`: tecla Windows, Alt+F4, Alt+Tab, Tab, Impr Pant...) y Esc la cancela.
 - **Cambios.** Cada cambio pasa por `ShortcutCustomizer` y su aviso sale en la barra de la ventana con «Deshacer».

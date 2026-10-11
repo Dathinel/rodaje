@@ -190,6 +190,15 @@ public class ParameterSpecTests
     }
 
     [Fact]
+    public void Restablecer_UsaLosValoresDeFabricaDelModelo()
+    {
+        IReadOnlyList<ParameterSpec> specs = ParameterSpec.Transform(1920, 1080);
+        Assert.All(specs, s => Assert.Equal(BuiltInEffects.TransformParameters.DefaultValue(s.Name), s.DefaultValue));
+        Assert.Equal("Restablecer posición X", specs[0].ResetDescription);
+        Assert.Equal("Restablecer opacidad", specs[4].ResetDescription);
+    }
+
+    [Fact]
     public void Audio_FundidosHastaLaMitadDelClip()
     {
         IReadOnlyList<ParameterSpec> specs = ParameterSpec.Audio(7.3);

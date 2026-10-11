@@ -13,6 +13,9 @@ namespace Rodaje.App.Services.Inspector;
 public sealed record ParameterState(double Value, int KeyframeCount, Keyframe? KeyframeHere, Time? Previous, Time? Next)
 {
     public bool IsAnimated => KeyframeCount > 0;
+
+    /// <summary>Ya está en <paramref name="defaultValue"/> y sin keyframes: restablecer no cambiaría nada.</summary>
+    public bool IsDefault(double defaultValue) => !IsAnimated && Math.Abs(Value - defaultValue) < 1e-9;
 }
 
 /// <summary>
@@ -213,6 +216,90 @@ public sealed class ClipPropertyEditor
         }
     }
 
+    /// <summary>Algún parámetro de la lista tiene keyframes o un valor distinto del de fábrica.</summary>
+    public static bool CanReset(Clip clip, string effectType, IEnumerable<(string Name, double DefaultValue)> parameters)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(parameters);
+        return FindEffect(clip, effectType) is { } effect && ChangedFromDefault(effect, parameters).Count > 0;
+    }
+
+    /// <summary>Keyframes que tienen entre todos los parámetros nombrados.</summary>
+    public static int KeyframeCount(Clip clip, string effectType, IEnumerable<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(names);
+        return FindEffect(clip, effectType) is { } effect
+            ? names.Sum(n => effect.Parameters.TryGetValue(n, out Parameter? p) ? p.Keyframes.Count : 0)
+            : 0;
+    }
+
+    /// <summary>
+    /// Restablece los parámetros al valor de fábrica en un solo paso del historial (D-024). Si alguno tiene keyframes,
+    /// antes pregunta con <paramref name="confirmRemoval"/> (recibe cuántos se borrarán); si se cancela, no cambia nada.
+    /// </summary>
+    /// <returns><c>false</c> si no había nada que cambiar, se canceló o la sesión rechazó la edición.</returns>
+    public async Task<bool> ResetAsync(
+        Clip clip,
+        string effectType,
+        IReadOnlyList<(string Name, double DefaultValue)> parameters,
+        string description,
+        Func<int, Task<bool>> confirmRemoval)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(confirmRemoval);
+        EndChange();
+        string clipId = clip.Id;
+        if (!CanReset(clip, effectType, parameters))
+        {
+            return false;
+        }
+
+        int keyframes = KeyframeCount(clip, effectType, parameters.Select(p => p.Name));
+        if (keyframes > 0 && !await confirmRemoval(keyframes))
+        {
+            return false;
+        }
+
+        // Mientras el aviso estaba abierto el clip pudo cambiar o desaparecer: se vuelve a leer.
+        if (Session.Sequence.FindClip(clipId) is not { } found || FindEffect(found.Clip, effectType) is not { } effect)
+        {
+            return false;
+        }
+
+        Dictionary<string, double> changed = ChangedFromDefault(effect, parameters);
+        return changed.Count > 0
+            && Session.Execute(Edits.ResetParameters(Session.SequenceId, clipId, effect.Id, changed, description));
+    }
+
+    /// <summary>
+    /// Quita todos los keyframes del parámetro y lo deja fijo en el valor que se ve en el cursor, tras confirmarlo con
+    /// <paramref name="confirmRemoval"/>. Un solo paso del historial.
+    /// </summary>
+    public async Task<bool> ClearKeyframesAsync(Clip clip, string effectType, string name, string description, Func<int, Task<bool>> confirmRemoval)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(confirmRemoval);
+        EndChange();
+        string clipId = clip.Id;
+        int keyframes = KeyframeCount(clip, effectType, [name]);
+        if (keyframes == 0 || !await confirmRemoval(keyframes))
+        {
+            return false;
+        }
+
+        if (Session.Sequence.FindClip(clipId) is not { } found || FindEffect(found.Clip, effectType) is not { } effect
+            || !effect.Parameters.TryGetValue(name, out Parameter? parameter) || parameter.Keyframes.Count == 0)
+        {
+            return false;
+        }
+
+        double value = parameter.Evaluate(SourceTimeAtPlayhead(found.Clip));
+        return Session.Execute(Edits.ResetParameters(
+            Session.SequenceId, clipId, effect.Id, new Dictionary<string, double> { [name] = value }, description));
+    }
+
     /// <summary>Cambia la curva del keyframe del cursor hacia el siguiente.</summary>
     public bool SetInterpolation(Clip clip, string effectType, string name, Interpolation interpolation)
     {
@@ -253,6 +340,21 @@ public sealed class ClipPropertyEditor
         }
 
         return null;
+    }
+
+    private static Dictionary<string, double> ChangedFromDefault(EffectInstance effect, IEnumerable<(string Name, double DefaultValue)> parameters)
+    {
+        var changed = new Dictionary<string, double>();
+        foreach ((string name, double defaultValue) in parameters)
+        {
+            if (effect.Parameters.TryGetValue(name, out Parameter? parameter)
+                && (parameter.Keyframes.Count > 0 || Math.Abs(parameter.Value - defaultValue) >= 1e-9))
+            {
+                changed[name] = defaultValue;
+            }
+        }
+
+        return changed;
     }
 
     private string? EnsureEffect(Clip clip, string type)

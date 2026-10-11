@@ -270,6 +270,136 @@ public class ClipPropertyEditorTests
         Assert.Empty(h.Video.Effects);
     });
 
+    private static (string, double)[] All() =>
+        [(P.X, 0), (P.Y, 0), (P.Scale, 1), (P.Rotation, 0), (P.Opacity, 1)];
+
+    private static Func<int, Task<bool>> Answer(bool accept, List<int> asked) => n =>
+    {
+        asked.Add(n);
+        return Task.FromResult(accept);
+    };
+
+    private static string Dump(Harness h) => Rodaje.Core.Serialization.ProjectSerializer.Serialize(h.Session.Project);
+
+    [Fact]
+    public void Restablecer_SinKeyframes_NoPreguntaYEsUnPaso() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        var asked = new List<int>();
+        Assert.False(ClipPropertyEditor.CanReset(h.Video, Transform, [(P.Scale, 1)]));
+        Assert.False(await h.Editor.ResetAsync(h.Video, Transform, [(P.Scale, 1)], "Restablecer escala", Answer(true, asked)));
+
+        h.Drag(P.Scale, 1.5);
+        h.Drag(P.X, 40);
+        Assert.False(h.Read(P.Scale).IsDefault(1));
+        int steps = h.Session.History.Count;
+
+        Assert.True(await h.Editor.ResetAsync(h.Video, Transform, [(P.Scale, 1)], "Restablecer escala", Answer(true, asked)));
+        Assert.Empty(asked);
+        Assert.Equal(steps + 1, h.Session.History.Count);
+        Assert.Equal("Restablecer escala", h.Session.UndoDescription);
+        Assert.True(h.Read(P.Scale).IsDefault(1));
+        Assert.Equal(40, h.Parameter(P.X)!.Value);
+        Assert.False(ClipPropertyEditor.CanReset(h.Video, Transform, [(P.Scale, 1)]));
+
+        h.Session.Undo();
+        Assert.Equal(1.5, h.Parameter(P.Scale)!.Value);
+    });
+
+    [Fact]
+    public void Restablecer_ConKeyframes_PreguntaYCancelarNoCambiaNada() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        h.Editor.ToggleKeyframe(h.Video, Transform, P.Opacity, 1);
+        h.At(4);
+        h.Drag(P.Opacity, 0.2);
+        string before = Dump(h);
+        int steps = h.Session.History.Count;
+        var asked = new List<int>();
+
+        Assert.False(await h.Editor.ResetAsync(h.Video, Transform, [(P.Opacity, 1)], "Restablecer opacidad", Answer(false, asked)));
+        Assert.Equal([2], asked);
+        Assert.Equal(before, Dump(h));
+        Assert.Equal(steps, h.Session.History.Count);
+
+        Assert.True(await h.Editor.ResetAsync(h.Video, Transform, [(P.Opacity, 1)], "Restablecer opacidad", Answer(true, asked)));
+        Assert.Empty(h.Parameter(P.Opacity)!.Keyframes);
+        Assert.True(h.Read(P.Opacity).IsDefault(1));
+        Assert.Equal(steps + 1, h.Session.History.Count);
+
+        h.Session.Undo();
+        Assert.Equal(before, Dump(h));
+    });
+
+    [Fact]
+    public void RestablecerTodo_AvisaConElTotalYSeDeshaceDeUnaVez() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        h.Drag(P.X, 10);
+        h.Drag(P.Rotation, 45);
+        h.Editor.ToggleKeyframe(h.Video, Transform, P.Scale, 1);
+        h.Editor.ToggleKeyframe(h.Video, Transform, P.Opacity, 1);
+        h.At(3);
+        h.Editor.ToggleKeyframe(h.Video, Transform, P.Opacity, 1);
+        string before = Dump(h);
+        int steps = h.Session.History.Count;
+        var asked = new List<int>();
+
+        Assert.True(await h.Editor.ResetAsync(h.Video, Transform, All(), "Restablecer transformación", Answer(true, asked)));
+        Assert.Equal([3], asked);
+        Assert.Equal(steps + 1, h.Session.History.Count);
+        foreach ((string name, double value) in All())
+        {
+            Assert.True(h.Read(name).IsDefault(value));
+        }
+
+        Assert.False(ClipPropertyEditor.CanReset(h.Video, Transform, All()));
+        h.Session.Undo();
+        Assert.Equal(before, Dump(h));
+    });
+
+    [Fact]
+    public void QuitarKeyframes_DejaElValorDelCursor_YCancelarNoCambiaNada() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        var asked = new List<int>();
+        Assert.False(await h.Editor.ClearKeyframesAsync(h.Video, Transform, P.X, "Quitar keyframes de posición X", Answer(true, asked)));
+        Assert.Empty(asked);
+
+        h.Editor.ToggleKeyframe(h.Video, Transform, P.X, 0);
+        h.At(4);
+        h.Drag(P.X, 100);
+        h.At(3);
+        string before = Dump(h);
+
+        Assert.False(await h.Editor.ClearKeyframesAsync(h.Video, Transform, P.X, "Quitar keyframes de posición X", Answer(false, asked)));
+        Assert.Equal(before, Dump(h));
+
+        Assert.True(await h.Editor.ClearKeyframesAsync(h.Video, Transform, P.X, "Quitar keyframes de posición X", Answer(true, asked)));
+        Assert.Equal([2, 2], asked);
+        Assert.Empty(h.Parameter(P.X)!.Keyframes);
+        Assert.Equal(50, h.Parameter(P.X)!.Value, 6);
+        Assert.Equal("Quitar keyframes de posición X", h.Session.UndoDescription);
+        h.Session.Undo();
+        Assert.Equal(before, Dump(h));
+    });
+
+    [Fact]
+    public void Restablecer_PistaBloqueada_AvisaYNoCambiaNada() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        h.Drag(P.X, 10);
+        h.Session.Execute(Rodaje.Core.Commands.Edits.SetTrackState(h.Session.SequenceId, h.Session.MainTrack!.Id, locked: true));
+        int steps = h.Session.History.Count;
+        var warnings = new List<EditorNotification>();
+        h.Session.Notified += (_, n) => warnings.Add(n);
+
+        Assert.False(await h.Editor.ResetAsync(h.Video, Transform, All(), "Restablecer transformación", Answer(true, [])));
+        Assert.Single(warnings);
+        Assert.Equal(steps, h.Session.History.Count);
+        Assert.Equal(10, h.Parameter(P.X)!.Value);
+    });
+
     [Fact]
     public void EditaLaPrimeraTransformacionActiva() => UiThread.Run(async () =>
     {

@@ -137,6 +137,26 @@ public static class EffectEdits
         }
     }
 
+    /// <summary>
+    /// Vuelve cada parámetro de <paramref name="defaults"/> a su valor por defecto y le quita los keyframes. Un parámetro
+    /// que el efecto no tiene ya vale lo de fábrica y se deja como está.
+    /// </summary>
+    public static void ResetParameters(EditContext ctx, string clipId, string effectId, IReadOnlyDictionary<string, double> defaults)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(defaults);
+        EffectInstance effect = FindEffect(EditableClip(ctx, clipId), effectId);
+        foreach ((string name, double value) in defaults)
+        {
+            EnsureFinite(value, name);
+            if (effect.Parameters.TryGetValue(name, out Parameter? parameter))
+            {
+                parameter.Keyframes.Clear();
+                parameter.Value = value;
+            }
+        }
+    }
+
     /// <summary>Cambia la curva que va del keyframe de <paramref name="at"/> al siguiente.</summary>
     public static void SetKeyframeInterpolation(
         EditContext ctx,

@@ -35,6 +35,9 @@ public sealed class AppSettings
 
     public ShortcutPreset ShortcutPreset { get; set; } = ShortcutPreset.Rodaje;
 
+    /// <summary>La página de atajos abre en la vista avanzada (lista completa) en lugar de la esencial.</summary>
+    public bool ShortcutsAdvanced { get; set; }
+
     public ProxyUsage ProxyUsage { get; set; } = ProxyUsage.Auto;
 
     /// <summary>Velocidad de caída de los medidores de audio, en dB por segundo.</summary>
