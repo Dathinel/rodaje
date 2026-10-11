@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Rodaje.Core.Serialization;
 
 namespace Rodaje.App.Services.Settings;
 
@@ -75,6 +76,8 @@ public sealed class SettingsStore
     }
 }
 
-[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true)]
+// Los convertidores: Rational y Time son structs sin setters (los ajustes de exportación los llevan).
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true,
+    Converters = [typeof(RationalJsonConverter), typeof(TimeJsonConverter)])]
 [JsonSerializable(typeof(AppSettings))]
 internal sealed partial class SettingsJsonContext : JsonSerializerContext;
