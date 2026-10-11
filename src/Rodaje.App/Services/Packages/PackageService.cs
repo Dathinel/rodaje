@@ -86,10 +86,11 @@ public sealed class PackageService
             return PackageCatalog.Empty;
         }
 
-        using var reader = new StreamReader(stream);
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
         try
         {
-            return PackageCatalog.Parse(reader.ReadToEnd(), problems);
+            return PackageCatalog.ParseUtf8(buffer.ToArray(), problems);
         }
         catch (FormatException ex)
         {

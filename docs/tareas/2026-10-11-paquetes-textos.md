@@ -38,4 +38,4 @@ Ninguno con `origin/main` en estos caminos.
 ## Pruebas omitidas
 
 Antes: 5 (cada una por un defecto concreto del código). Después: 0.
-En Linux: 289 de 290 pasan; `CubeReaderTests.Lee_65_al_cubo_en_150_ms_o_menos` (medida de tiempo) falla con carga en esta máquina (220 ms) igual que en `origin/main` sin estos cambios, y pasa sola; no tiene relación con esta tarea.
+En Linux: 300 de 300 pasan; `CubeReaderTests.Lee_65_al_cubo_en_150_ms_o_menos` (medida de tiempo) falla con carga en esta máquina (220 ms) igual que en `origin/main` sin estos cambios, y pasa sola; no tiene relación con esta tarea.

@@ -101,7 +101,7 @@ Solo documento, sin código: propuesta para la fase 5b con (1) clips generadores
 
 ## 10. `MediaProbe.ScanTimestamps` no rebobina en MP4
 
-- **Estado:** cambios (PR #12: atender la revisión del 11-oct en sus comentarios)
+- **Estado:** hecha (11-oct)
 - **Rama:** `claude/probe-rebobinar`
 - **Caminos:** `src/Rodaje.Media/Probe/MediaProbe.cs`, `tests/Rodaje.Media.Tests/` (archivos nuevos), `docs/tareas/`
 
@@ -109,7 +109,7 @@ Tras el análisis, `ScanTimestamps` rebobina con `av_seek_frame(long.MinValue, A
 
 ## 11. Defectos del lector de paquetes hallados por el fuzz
 
-- **Estado:** cambios (PR #13: atender la revisión del 11-oct en sus comentarios)
+- **Estado:** hecha (11-oct)
 - **Rama:** `claude/paquetes-textos`
 - **Caminos:** `src/Rodaje.Paquetes/`, `tests/Rodaje.Paquetes.Tests/`, `docs/formato-paquete.md`, `docs/tareas/`
 - **Lee:** la entrega `docs/tareas/2026-10-11-fuzz-paquete.md` y las pruebas con `Skip = "Defecto: …"` de `tests/Rodaje.Paquetes.Tests/Fuzz/PackageInstallerFuzzTests.cs`.
