@@ -197,6 +197,12 @@ internal static class PresetReader
             throw new PackageContentException($"No es JSON válido: {ex.Message}", ex);
         }
 
+        if (SafeText.HasUnreadableString(document.RootElement))
+        {
+            document.Dispose();
+            throw Fail("El archivo tiene un texto que no es Unicode válido (UTF-8 dañado o un carácter suelto escapado).");
+        }
+
         if (document.RootElement.ValueKind != JsonValueKind.Object)
         {
             document.Dispose();

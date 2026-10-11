@@ -21,9 +21,6 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
     private const int Cases = 5200;
     private const double MinimumPastZipShare = 0.25;
 
-    // Tope de los defectos conocidos (abajo): si explican más del 1 % de los casos, hay otro problema.
-    private const double MaxKnownDefectShare = 0.01;
-
     // Marca que MutateManifestJson/HugeManifest/MutateContent ponen en un texto y Escapes() cambia por un escape JSON
     // de sustituto suelto: JsonNode no puede escribir un sustituto suelto, así que se inserta ya como texto.
     private const string EscapeMarker = "@@S@@";
@@ -77,27 +74,40 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
     // Nombres raros pero legítimos: pueden instalar; solo se vigila que no escapen ni dejen rastro.
     private static readonly string[] Harmless = ["~", "%00", "ñandú/ß.json", ".instalando-abc/x", "propios/x", "a b/c", "x.y.z"];
 
-    /// <summary>Nombres que, de instalarse mal, dejarían un rastro dentro de la carpeta temporal de la prueba (centinelas).</summary>
+    // Centinelas: nombres que, de instalarse mal, dejarían un rastro. Los hay absolutos (dentro de la carpeta temporal de
+    // la prueba), relativos con «..», UNC y «C:x» (unidad sin barra, relativa a la unidad actual en Windows).
+    private const string UncSentinel = "\\\\srv\\share\\centinela-unc\\x";
+    private const string DriveSentinel = "C:centinela-unidad/x";
+
     private static string[] Sentinels(string tempPath) =>
     [
         Path.Combine(tempPath, "centinela-abs", "x"),
         "../../../../centinela-subir/x",
         "..\\..\\..\\..\\centinela-subir2\\x",
         "../../../centinela-raiz/x",
+        UncSentinel,
+        DriveSentinel,
     ];
 
-    // Defecto conocido (ver la entrega): JsonElement.GetString lanza InvalidOperationException, no un error del lector,
-    // con UTF-8 inválido o con un sustituto suelto escapado (\ud800) dentro de una cadena JSON. Pasa en
-    // PresetReader (contenido), ManifestReader (Install) y PackageLibrary.Scan. Se cuenta aparte, nunca en silencio.
-    private static int _knownStringDefects;
+    /// <summary>
+    /// Dónde no debe aparecer rastro de un centinela. Los relativos se miran contra el directorio actual y contra la
+    /// carpeta temporal (no contra sí mismos, que dependería del directorio desde el que corre la prueba).
+    /// </summary>
+    private static IEnumerable<string> SentinelProbes(string tempPath)
+    {
+        string current = Directory.GetCurrentDirectory();
+        foreach (string name in Sentinels(tempPath))
+        {
+            if (Path.IsPathRooted(name) && !name.StartsWith('\\') && !name.StartsWith("C:", StringComparison.Ordinal))
+            {
+                yield return name;
+                continue;
+            }
 
-    private static bool IsKnownStringDefect(InvalidOperationException ex) =>
-        ex.StackTrace?.Contains("System.Text.Json", StringComparison.Ordinal) == true
-        && (ex.Message.Contains("UTF-16", StringComparison.Ordinal) || ex.Message.Contains("UTF-8", StringComparison.Ordinal));
-
-    // Defecto conocido de SafeText.TryParseHttpsUri: un dominio que Uri.IdnHost no acepta (por ejemplo con U+FFFD, en
-    // que Encoding.UTF8 convierte un sustituto suelto) lanza UriFormatException, que Install no envuelve.
-    private static int _knownUriDefects;
+            yield return Path.Combine(current, name);
+            yield return Path.Combine(tempPath, name);
+        }
+    }
 
     private enum Expect
     {
@@ -116,7 +126,6 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
         using var temp = new TempFolder();
         List<(string Name, byte[] Data)> baseEntries = BaseEntries();
         string[] dangerous = [.. MustReject, .. Sentinels(temp.Path)];
-        string[] sentinelNames = Sentinels(temp.Path);
 
         // Los casos salen todos de la misma semilla, en orden; luego se reparten entre trabajadores con su propia
         // carpeta (cada instalación vuelca a disco y, con un solo trabajador, 5000 casos pasan de 30 s).
@@ -127,6 +136,7 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
         }
 
         int[] selected = SelectCases(all);
+        AssertEveryDangerousNameSelected(all, selected, dangerous);
         const int Workers = 4;
         var stages = new System.Collections.Concurrent.ConcurrentDictionary<string, int>();
         // Hilos propios: los trabajadores bloquean esperando la carga de la LUT y no deben quitarle hilos al grupo que la hace.
@@ -161,16 +171,6 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
                     failure = ex.Message;
                     stage = ClassifyFailure(ex, i);
                 }
-                catch (UriFormatException ex) when (ex.StackTrace?.Contains("TryParseHttpsUri", StringComparison.Ordinal) == true)
-                {
-                    Interlocked.Increment(ref _knownUriDefects);
-                    stage = "manifiesto";
-                }
-                catch (InvalidOperationException ex) when (IsKnownStringDefect(ex))
-                {
-                    Interlocked.Increment(ref _knownStringDefects);
-                    stage = "manifiesto";
-                }
 
                 CheckExpectation(fuzz, failure, i);
                 stages.AddOrUpdate(stage, 1, (_, count) => count + 1);
@@ -188,7 +188,7 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
         string[] stray = [.. Directory.EnumerateFileSystemEntries(temp.Path).Select(e => Path.GetFileName(e)!)
             .Where(n => !n.StartsWith("raiz", StringComparison.Ordinal) && !n.StartsWith("caso", StringComparison.Ordinal))];
         Assert.Empty(stray);
-        Assert.All(sentinelNames, n => Assert.False(File.Exists(n) || Directory.Exists(n), $"Apareció el centinela {n}"));
+        Assert.All(SentinelProbes(temp.Path), n => Assert.False(File.Exists(n) || Directory.Exists(n), $"Apareció el centinela {n}"));
 
         stopwatch.Stop();
         int Stage(string name) => stages.GetValueOrDefault(name);
@@ -196,10 +196,6 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
         int pastZip = executed - Stage("zip");
         output.WriteLine($"{executed} de {Cases} casos en {stopwatch.Elapsed.TotalSeconds:0.0} s (límite de referencia 30 s en Linux; no se exige): " +
                          string.Join(", ", stages.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key} {kv.Value}")) + ".");
-        output.WriteLine($"Defectos conocidos: cadenas JSON {_knownStringDefects}, UriFormatException {_knownUriDefects}.");
-        int cap = Math.Max(3, (int)(executed * MaxKnownDefectShare));
-        Assert.True(_knownStringDefects <= cap, $"El defecto de cadenas JSON explica {_knownStringDefects} casos (tope {cap}): hay otro problema.");
-        Assert.True(_knownUriDefects <= cap, $"El defecto de UriFormatException explica {_knownUriDefects} casos (tope {cap}): hay otro problema.");
         Assert.True(Subset || executed >= 5000, "En Linux corren al menos 5000 casos.");
         Assert.True(pastZip >= executed * MinimumPastZipShare, $"Solo {pastZip} de {executed} casos pasan del zip.");
         foreach (string needed in new[] { "manifiesto", "ruta", "duplicado", "instalado, contenido válido", "instalado, contenido rechazado" })
@@ -230,6 +226,20 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
         return [.. chosen];
     }
 
+    /// <summary>
+    /// Cada nombre peligroso tiene que aparecer en los casos generados y estar entre los que corren (en Windows corre un
+    /// subconjunto), o la prueba no vigilaría ese nombre.
+    /// </summary>
+    private static void AssertEveryDangerousNameSelected(FuzzCase[] all, int[] selected, string[] dangerous)
+    {
+        var generated = new HashSet<string>(all.Where(c => c.Expect == Expect.PathRejected).Select(c => c.Name!), StringComparer.Ordinal);
+        var running = new HashSet<string>(selected.Select(i => all[i]).Where(c => c.Expect == Expect.PathRejected).Select(c => c.Name!), StringComparer.Ordinal);
+        string[] notGenerated = [.. dangerous.Where(n => !generated.Contains(n)).Select(Show)];
+        string[] notRunning = [.. dangerous.Where(n => generated.Contains(n) && !running.Contains(n)).Select(Show)];
+        Assert.True(notGenerated.Length == 0, "Ningún caso usa estos nombres peligrosos: " + string.Join(", ", notGenerated));
+        Assert.True(notRunning.Length == 0, "El subconjunto no cubre estos nombres peligrosos: " + string.Join(", ", notRunning));
+    }
+
     /// <summary>Los nombres peligrosos tienen que fallar por su ruta; las entradas repetidas, por repetirse.</summary>
     private static void CheckExpectation(FuzzCase fuzz, string? failure, int caseIndex)
     {
@@ -248,14 +258,14 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
 
     private static string Show(string? name) => name is null ? "" : name.Length > 60 ? name[..60] + "…" : name;
 
-    [Fact(Skip = "Defecto: PresetReader.String lanza InvalidOperationException con UTF-8 inválido dentro de una cadena JSON (debería ser PackageContentException)")]
+    [Fact]
     public void PresetReader_InvalidUtf8InString_ThrowsPackageContentException()
     {
         byte[] json = [.. "{ \"format\": \"rodaje.filter\", \"version\": 1, \"name\": \"a"u8, 0xCE, .. "b\", \"effects\": [] }"u8];
         Assert.Throws<PackageContentException>(() => ContentReaders.ReadFilter(new MemoryStream(json)));
     }
 
-    [Fact(Skip = "Defecto: Install lanza UriFormatException (no PackageInstallException) con un «repository» de dominio que Uri.IdnHost rechaza (U+FFFD)")]
+    [Fact]
     public void Install_InvalidRepositoryHost_ThrowsPackageInstallException()
     {
         using var temp = new TempFolder();
@@ -265,7 +275,7 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
         Assert.Throws<PackageInstallException>(() => installer.Install(archive));
     }
 
-    [Fact(Skip = "Defecto: ManifestReader.OptionalText (GetString) lanza InvalidOperationException con un sustituto suelto escapado (\\ud800) en un texto del manifiesto; Install debería lanzar PackageInstallException")]
+    [Fact]
     public void Install_LoneSurrogateEscapeInManifest_ThrowsPackageInstallException()
     {
         using var temp = new TempFolder();
@@ -275,7 +285,7 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
         Assert.Throws<PackageInstallException>(() => installer.Install(archive));
     }
 
-    [Fact(Skip = "Defecto: PackageLibrary.Scan se cae con un sustituto suelto escapado (\\ud800) en el manifiesto de una carpeta copiada a mano; debería anotarlo en Problems")]
+    [Fact]
     public void Scan_LoneSurrogateEscapeInManifest_ReportsAProblemInsteadOfThrowing()
     {
         using var temp = new TempFolder();
@@ -287,7 +297,7 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
         Assert.Contains(scan.Problems, p => p.Directory == folder);
     }
 
-    [Fact(Skip = "Defecto: PresetReader.String lanza InvalidOperationException con un sustituto suelto escapado (\\ud800) en una cadena JSON (debería ser PackageContentException)")]
+    [Fact]
     public void PresetReader_LoneSurrogateEscape_ThrowsPackageContentException()
     {
         byte[] json = Encoding.UTF8.GetBytes("{ \"format\": \"rodaje.filter\", \"version\": 1, \"name\": \"a\\ud800b\", \"effects\": [] }");
@@ -307,7 +317,6 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
         ];
         int ok = 0;
         int rejected = 0;
-        int known = 0;
         for (int i = 0; i < 4000; i++)
         {
             (string name, string text, Action<Stream> read) = seeds[i % seeds.Length];
@@ -322,15 +331,10 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
                 CheckContentException(ex);
                 rejected++;
             }
-            catch (InvalidOperationException ex) when (IsKnownStringDefect(ex))
-            {
-                known++;
-            }
         }
 
-        output.WriteLine($"contenido: {ok} leídos, {rejected} rechazados, {known} por el defecto de cadenas JSON");
+        output.WriteLine($"contenido: {ok} leídos, {rejected} rechazados");
         Assert.True(ok > 0 && rejected > 0);
-        Assert.True(known <= 4000 * MaxKnownDefectShare, $"El defecto de cadenas JSON explica {known} casos: hay otro problema.");
     }
 
     // --- Instalación ---
@@ -439,32 +443,20 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
                 CheckContentException(ex);
                 allOk = false;
             }
-            catch (InvalidOperationException ex) when (IsKnownStringDefect(ex))
-            {
-                Interlocked.Increment(ref _knownStringDefects);
-                allOk = false;
-            }
         }
 
         // El almacén tampoco debe lanzar, aunque el contenido esté dañado, y si no da el elemento dice por qué.
         using var store = new PackageContentStore(new PackageScan([package], []));
         string prefix = package.Id + "@" + package.Manifest.Version + "/";
-        try
-        {
-            CheckProblem(store, prefix + "cine", store.FindFilter(prefix + "cine"));
-            CheckProblem(store, prefix + "zoom", store.FindEffect(prefix + "zoom"));
-            CheckProblem(store, prefix + "empujar", store.FindTransition(prefix + "empujar"));
-            _ = store.TryGetLut(prefix + "lut-cine", out _);
+        CheckProblem(store, prefix + "cine", store.FindFilter(prefix + "cine"));
+        CheckProblem(store, prefix + "zoom", store.FindEffect(prefix + "zoom"));
+        CheckProblem(store, prefix + "empujar", store.FindTransition(prefix + "empujar"));
+        _ = store.TryGetLut(prefix + "lut-cine", out _);
 
-            Assert.True(store.WhenLoaded().Wait(TimeSpan.FromSeconds(60)), "La carga de la LUT no terminó en 60 s.");
-            if (!store.TryGetLut(prefix + "lut-cine", out _))
-            {
-                Assert.False(string.IsNullOrWhiteSpace(store.LutProblem(prefix + "lut-cine")), "La LUT no se leyó y no dice por qué.");
-            }
-        }
-        catch (InvalidOperationException ex) when (IsKnownStringDefect(ex))
+        Assert.True(store.WhenLoaded().Wait(TimeSpan.FromSeconds(60)), "La carga de la LUT no terminó en 60 s.");
+        if (!store.TryGetLut(prefix + "lut-cine", out _))
         {
-            Interlocked.Increment(ref _knownStringDefects);
+            Assert.False(string.IsNullOrWhiteSpace(store.LutProblem(prefix + "lut-cine")), "La LUT no se leyó y no dice por qué.");
         }
 
         return allOk;

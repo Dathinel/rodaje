@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 
 namespace Rodaje.Paquetes;
 
@@ -67,7 +68,17 @@ public static class SafeText
             return false;
         }
 
-        string host = parsed.IdnHost;
+        string host;
+        try
+        {
+            host = parsed.IdnHost;
+        }
+        catch (UriFormatException)
+        {
+            // Un dominio con caracteres que la conversión a ASCII no acepta (por ejemplo U+FFFD): no es una dirección válida.
+            return false;
+        }
+
         if (parsed.Scheme != Uri.UriSchemeHttps || parsed.UserInfo.Length > 0 || host.Length == 0
             || !string.Equals(host, parsed.Host, StringComparison.OrdinalIgnoreCase)
             || !Ascii.IsValid(host)
@@ -78,5 +89,62 @@ public static class SafeText
 
         uri = parsed;
         return true;
+    }
+
+    /// <summary>UTF-8 que lanza <see cref="DecoderFallbackException"/> con bytes inválidos en lugar de sustituirlos por U+FFFD.</summary>
+    public static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    /// <summary>Lee un archivo de texto como UTF-8 estricto; con bytes inválidos lanza <see cref="DecoderFallbackException"/>.</summary>
+    public static string ReadAllTextStrict(string path) => DecodeStrict(File.ReadAllBytes(path));
+
+    /// <summary>Decodifica UTF-8 estricto y salta una marca BOM inicial (EF BB BF), como hace <c>File.ReadAllText</c>.</summary>
+    /// <exception cref="DecoderFallbackException">Los bytes no son UTF-8 válido.</exception>
+    public static string DecodeStrict(byte[] utf8)
+    {
+        int skip = utf8.Length >= 3 && utf8[0] == 0xEF && utf8[1] == 0xBB && utf8[2] == 0xBF ? 3 : 0;
+        return StrictUtf8.GetString(utf8, skip, utf8.Length - skip);
+    }
+
+    /// <summary>
+    /// Si algún texto o nombre de propiedad del JSON no se puede leer como cadena: UTF-8 inválido o un sustituto suelto
+    /// escrito como escape (<c>\ud800</c>). <see cref="JsonElement.GetString"/> lanza <see cref="InvalidOperationException"/>
+    /// con ellos, así que los lectores lo comprueban una vez, justo tras interpretar el documento.
+    /// </summary>
+    public static bool HasUnreadableString(JsonElement element)
+    {
+        try
+        {
+            Walk(element);
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+    }
+
+    private static void Walk(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.String:
+                _ = element.GetString();
+                break;
+            case JsonValueKind.Array:
+                foreach (JsonElement child in element.EnumerateArray())
+                {
+                    Walk(child);
+                }
+
+                break;
+            case JsonValueKind.Object:
+                foreach (JsonProperty property in element.EnumerateObject())
+                {
+                    _ = property.Name;
+                    Walk(property.Value);
+                }
+
+                break;
+        }
     }
 }

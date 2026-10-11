@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace Rodaje.Paquetes;
@@ -44,7 +45,11 @@ public static class ManifestReader
         string text;
         try
         {
-            text = File.ReadAllText(path);
+            text = SafeText.ReadAllTextStrict(path);
+        }
+        catch (DecoderFallbackException)
+        {
+            return Fail($"{PackageManifest.FileName} tiene un texto que no es Unicode válido (UTF-8 dañado o un carácter suelto escapado).");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -68,9 +73,19 @@ public static class ManifestReader
         {
             return Fail($"{PackageManifest.FileName} no es JSON válido: {ex.Message}");
         }
+        catch (ArgumentException)
+        {
+            // Una cadena de .NET con un sustituto suelto no se puede pasar a UTF-8 (desde un archivo no llega: se lee estricto).
+            return Fail($"{PackageManifest.FileName} tiene un texto que no es Unicode válido (UTF-8 dañado o un carácter suelto escapado).");
+        }
 
         using (document)
         {
+            if (SafeText.HasUnreadableString(document.RootElement))
+            {
+                return Fail($"{PackageManifest.FileName} tiene un texto que no es Unicode válido (UTF-8 dañado o un carácter suelto escapado).");
+            }
+
             var errors = new List<string>();
             var warnings = new List<string>();
             PackageManifest? manifest = document.RootElement.ValueKind == JsonValueKind.Object

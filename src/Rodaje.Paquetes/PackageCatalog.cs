@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace Rodaje.Paquetes;
@@ -37,6 +38,29 @@ public sealed record PackageCatalog(IReadOnlyList<CatalogApp> Apps, IReadOnlyLis
         return app is null ? appId : app.Planned ? $"{app.Name} (en planes)" : app.Name;
     }
 
+    /// <summary>
+    /// Lee el catálogo desde sus bytes UTF-8. A diferencia de leerlos antes como texto, un byte inválido no se
+    /// sustituye en silencio por U+FFFD: da <see cref="FormatException"/>.
+    /// </summary>
+    /// <exception cref="FormatException">Los bytes no son UTF-8 válido o el JSON no es un catálogo.</exception>
+    public static PackageCatalog ParseUtf8(byte[] utf8, List<string>? problems = null)
+    {
+        ArgumentNullException.ThrowIfNull(utf8);
+        string text;
+        try
+        {
+            text = SafeText.DecodeStrict(utf8);
+        }
+        catch (DecoderFallbackException)
+        {
+            throw new FormatException(UnreadableText);
+        }
+
+        return Parse(text, problems);
+    }
+
+    private const string UnreadableText = "El catálogo tiene un texto que no es Unicode válido (UTF-8 dañado o un carácter suelto escapado).";
+
     /// <summary>Lee el catálogo. Una entrada mal escrita se omite y se informa en <paramref name="problems"/>.</summary>
     /// <exception cref="FormatException">El JSON no es un catálogo.</exception>
     public static PackageCatalog Parse(string json, List<string>? problems = null)
@@ -46,6 +70,11 @@ public sealed record PackageCatalog(IReadOnlyList<CatalogApp> Apps, IReadOnlyLis
         {
             using JsonDocument document = JsonDocument.Parse(json, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
             JsonElement root = document.RootElement;
+            if (SafeText.HasUnreadableString(root))
+            {
+                throw new FormatException(UnreadableText);
+            }
+
             if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("formatVersion", out JsonElement format) || !format.TryGetInt32(out int version))
             {
                 throw new FormatException("El catálogo debe ser un objeto con formatVersion.");
@@ -102,6 +131,11 @@ public sealed record PackageCatalog(IReadOnlyList<CatalogApp> Apps, IReadOnlyLis
         catch (JsonException ex)
         {
             throw new FormatException("El catálogo no es JSON válido: " + ex.Message, ex);
+        }
+        catch (ArgumentException ex)
+        {
+            // Una cadena de .NET con un sustituto suelto no se puede pasar a UTF-8.
+            throw new FormatException(UnreadableText, ex);
         }
     }
 
