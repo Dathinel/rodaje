@@ -1,16 +1,21 @@
 Rodaje - Avisos de terceros
 =============================
 
-Rodaje es código disponible para uso libre no comercial, bajo la PolyForm
-Noncommercial License 1.0.0 (ver LICENSE). El uso comercial requiere permiso
-escrito del autor.
-Required Notice: Copyright (c) 2026 Daniel (Dathinel)
+Rodaje es software libre bajo la GNU General Public License v3 con términos
+adicionales de la Sección 7 (atribución obligatoria) y un permiso adicional
+para complementos (ver LICENSE). El nombre y los logotipos de Rodaje no se
+licencian con el código (ver TRADEMARK.md).
+Copyright (C) 2026 Daniel (Dathinel) - https://github.com/Dathinel/rodaje
+Basado en el editor de video de código abierto de Daniel (Dathinel) / Rodaje
+(https://github.com/Dathinel/rodaje).
 
 Esa licencia cubre solo el código propio de Rodaje. Cada componente de
 terceros de este archivo conserva su propia licencia, y nada en la licencia de
 Rodaje limita los derechos que esas licencias dan: en particular, las DLL y el
 ffmpeg.exe de FFmpeg se pueden reemplazar por otra compilación compatible y
 se puede modificar y depurar la combinación con Rodaje para uso propio (LGPL).
+Los archivos del Windows App SDK conservan los términos de licencia de
+Microsoft y no quedan sujetos a la GPLv3 de Rodaje.
 [Redacción de este párrafo pendiente de revisión legal.]
 
 Este archivo reúne los avisos de licencia de los componentes de terceros que

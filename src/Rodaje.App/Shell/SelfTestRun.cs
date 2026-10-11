@@ -62,6 +62,11 @@ internal static class SelfTestRun
             {
                 Program.WriteCrash("autoprueba: " + (engine.FailureMessage ?? "no llegó el primer cuadro en 10 s"));
             }
+            else if (!IsUpstreamCreditShown(window))
+            {
+                Program.WriteCrash("autoprueba: el crédito upstream de la barra de título no se ve (LICENSE, término adicional 1)");
+                code = 1;
+            }
         }
 #pragma warning disable CA1031 // La autoprueba informa cualquier fallo con el código de salida.
         catch (Exception ex)
@@ -74,6 +79,10 @@ internal static class SelfTestRun
         Program.ExitCode = code;
         window.Close();
     }
+
+    private static bool IsUpstreamCreditShown(MainWindow window) =>
+        window.UpstreamCredit is { Visibility: Visibility.Visible, ActualWidth: > 0, ActualHeight: > 0 } credit
+        && credit.Content as string == UpstreamAttribution.ShortCredit;
 
     /// <summary>Pone «Bala» al clip para dibujar el editor de curvas y la mini curva con el exe de AOT, y lo deshace.</summary>
     private static async Task ShowCurveAsync(MainWindow window)
