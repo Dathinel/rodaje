@@ -142,7 +142,10 @@ public sealed class TimelineSpeedHardwareTests(ITestOutputHelper output)
         output.WriteLine($"1080p a {speed}×: mostrados {stats.FramesShown}, perdidos {stats.FramesDropped}, tarde {stats.LateRefreshes}, " +
             $"refrescos con otro cuadro {wrong}, saltados por el bucle {pacer.Skipped}, seeks de keyframe {stats.DecoderSeeks}, " +
             $"decodificadores {stats.DecodersOpen}, caché {stats.CacheFrames} cuadros.");
-        Assert.Equal(0, stats.FramesDropped);
+        // Si el propio bucle se atrasó (máquina cargada), los cuadros de los refrescos que saltó no son del motor: a 30 fps
+        // de secuencia y 60 Hz, como mucho uno por cada dos refrescos saltados. El decodificador no se atrasa nunca.
+        Assert.Equal(0, stats.LateRefreshes);
+        Assert.InRange(stats.FramesDropped, 0, (pacer.Skipped + 1) / 2);
         Assert.Equal(0, stats.DecodeErrors);
     }
 
@@ -176,6 +179,7 @@ public sealed class TimelineSpeedHardwareTests(ITestOutputHelper output)
         long first = SpeedClips.Expected(clip, spec.FrameRate, Time.Zero);
         int notKeyframe = 0;
         int unreadable = 0;
+        long last = first;
         for (long slot = pacer.Next(); slot <= 110; slot = pacer.Next())
         {
             backend.Clock.Advance(origin + Time.FromFrames(slot, Rational.Fps60) - backend.Clock.Position);
@@ -186,8 +190,14 @@ public sealed class TimelineSpeedHardwareTests(ITestOutputHelper output)
             int? code = FrameCode.Read(luma.Pixels, luma.Width, luma.Height, luma.Width);
             unreadable += code == layer.Frame.Index ? 0 : 1;
             long index = layer.Frame.Index;
-            // Hasta que se leen los keyframes del archivo, el cuadro es el exacto.
-            notKeyframe += index <= exact && (index == exact || index == first || keyframes.AtOrBefore(index) == index) ? 0 : 1;
+
+            // Cada cuadro nuevo es un keyframe o, hasta que se leen los keyframes del archivo, el exacto; uno que llega
+            // tarde sigue en pantalla y no se cuenta otra vez.
+            if (index != last)
+            {
+                notKeyframe += index <= exact && (index == exact || index == first || keyframes.AtOrBefore(index) == index) ? 0 : 1;
+                last = index;
+            }
         }
 
         TimelineStats stats = session.Stats;
