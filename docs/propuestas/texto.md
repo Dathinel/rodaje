@@ -1,0 +1,124 @@
+# Propuesta: texto y títulos (fase 5b)
+
+Borrador de la nube para decidir con Daniel. Solo documento: nada de esto está implementado ni medido. Las cifras de costo son **hipótesis a medir** y así se marcan. Parte de lo que ya hay en `main` (formato 4 con velocidad, `docs/formato-proyecto.md`; `.paquete` v0, `docs/formato-paquete.md`; render en `docs/arquitectura/render.md`) y de lo que `docs/fase-5.md` dejó para la 5b: clips sin medio, DirectWrite, fuentes con licencia, edición sobre el lienzo y base de los subtítulos.
+
+## Resumen y recomendación
+
+| Tema | Recomendación |
+|---|---|
+| Modelo | Clip con `generator` en lugar de medio, en una pista de video normal. **Formato 5** (el 4 ya lo usa la velocidad; un lector del 4 rechaza un clip sin medio). |
+| Estilo | Elemento `text-style` en un `.paquete`, JSON `rodaje.textstyle` v1, solo primitivas (como `rodaje.preset`). |
+| Render | DirectWrite + Direct2D sobre el `ID3D11Device` existente, a una textura RGBA que se compone como una capa más. Se rasteriza solo cuando cambia el texto, el estilo o la escala. |
+| Fuentes | Un paquete aparte de fuentes OFL/Apache (elemento nuevo `font`) y las del sistema con respaldo y aviso. |
+| Lienzo | Selección y mover/escalar/rotar con los mismos gestos del video; el texto se escribe en un `TextBox` de XAML sobre el visor (IME gratis). |
+| Subtítulos | Un subtítulo es un clip de texto; el módulo de IA de la fase 7 crea muchos con un solo comando que se deshace de una vez. |
+
+## 1. Clips generadores sin medio
+
+Hoy `Clip.MediaId` apunta a un `MediaRef` y `ModelValidator` rechaza uno que no exista; `SourceIn/SourceOut` son tramo del archivo.
+
+**Propuesta.** Un clip de texto lleva `generator` y no `mediaId`:
+
+```json
+{ "id": "clip-9", "start": 705600000, "sourceIn": 0, "sourceOut": 2116800000,
+  "generator": { "kind": "text", "text": "Hola\nmundo", "style": "rodaje-titulos@1.0.0/clasico",
+                 "overrides": { "size": 96, "color": "#FFFFFF" }, "box": { "width": 1600, "align": "center" } },
+  "effects": [ { "type": "rodaje.transform", "parameters": { "y": 380 } } ] }
+```
+
+- `sourceIn = 0` y `sourceOut = duration` (la duración en la pista); así `End`, recortes, divisiones, ripple y transiciones siguen funcionando sin ramas nuevas en `Edits`: no hay material por encima de `sourceOut`, y un generador **es alargable sin límite** (hay que dejar que el recorte no esté acotado por la duración de un medio).
+- `speed`: **no se permite** en la v1 (el validador lo rechaza). Un texto no tiene material que acelerar; su duración se cambia recortando.
+- Sin audio: el clip no tiene enlazado.
+- `generator.kind` es abierto (`text` hoy; `solid` color y `shape` más adelante sin otro cambio de formato). Un `kind` desconocido se conserva al guardar y se dibuja como transparente con aviso, igual que un efecto desconocido.
+- `overrides` son cambios del estilo solo para este clip (tamaño, color, texto de sombra…); lo que no está, viene del estilo. Si el paquete del estilo falta, el clip usa un estilo interno mínimo (fuente del sistema, blanco) y se avisa, como la LUT que falta.
+- Efectos, mezcla y transiciones funcionan igual que en cualquier clip de video. Para entrar y salir, lo natural son los estilos con animaciones (sección 2); las transiciones del corte necesitan clips contiguos y un título suele estar solo.
+
+**Encaje con la 5c.** La 5c ya sube el formato a 4 y su paso 0 está unido. Las dos son cambios de `Clip`, así que la 5b parte de `main` después de la 5c y no se mezclan: la migración 4 → 5 no toca datos (solo sube el número y permite `generator`). Un cambio aditivo no basta, porque un lector del formato 4 abriría un clip sin medio y fallaría después; la regla del formato (`Versiones y migraciones`) pide subir la versión cuando una versión anterior no podría leerlo bien.
+
+**Qué cambia en el código** (para dimensionar, no para hacer ahora): `Clip`/`ModelValidator`/serialización y esquema `v5`; `Edits` donde se asume que un clip tiene medio (importar, vincular audio, proxy, miniaturas, forma de onda); `TimelineSession` y `TimelineScheduler`, que hoy piden un decodificador por medio, necesitan un tipo de carril «generado» sin decodificador; la biblioteca de medios no lista los generadores.
+
+**Ventajas:** modelo uniforme (un título se corta, arrastra y recibe efectos y transiciones como cualquier clip); base para color sólido y formas. **Desventajas:** toca el núcleo y el motor (los supuestos «todo clip tiene medio» están repartidos); formato 5 antes de tener contenido real que probarlo.
+
+**Alternativa descartada:** un efecto de texto sobre un clip de color. Obliga a inventar un medio ficticio y no se puede mover en la pista como un título.
+
+## 2. Contenido de `text-style` en `.paquete` v1
+
+Elemento `text-style` ya reservado en `paquete.json`. Archivo `rodaje.textstyle` v1, con las mismas reglas comunes que los otros lectores (1 MB, `JsonDocument`, valores finitos, `PackageContentException` en español, límites de largo):
+
+```json
+{ "format": "rodaje.textstyle", "version": 1, "id": "clasico", "name": "Clásico",
+  "font": { "family": "Inter", "weight": 700, "italic": false, "source": "rodaje-fuentes@1.0.0/inter", "fallback": ["Segoe UI", "Arial"] },
+  "size": 96, "reference": { "width": 1920, "height": 1080 },
+  "lineHeight": 1.1, "letterSpacing": 0, "align": "center",
+  "fill": { "color": "#FFFFFF" },
+  "stroke": { "color": "#000000", "width": 6, "join": "round" },
+  "shadow": { "color": "#00000099", "dx": 4, "dy": 6, "blur": 8 },
+  "background": { "color": "#00000080", "padding": [24, 12], "radius": 12 },
+  "in":  { "durationSeconds": 0.4, "curves": { "opacity": [ { "t": 0, "value": 0 }, { "t": 0.4, "value": 1, "interp": "easeOut" } ],
+                                             "y": [ { "t": 0, "value": 40 }, { "t": 0.4, "value": 0, "interp": "easeOut" } ] } },
+  "out": { "durationSeconds": 0.3, "curves": { "opacity": [ { "t": 0, "value": 1 }, { "t": 0.3, "value": 0 } ] } } }
+```
+
+- **Medidas en píxeles de `reference`** y se escalan a la secuencia (como `rodaje.preset`); colores `#RRGGBB[AA]` en sRGB con gamma, como el resto de la mezcla (D-016).
+- **Relleno:** color sólido en la v1; degradado lineal (`stops`, ángulo) como extensión de `fill` sin romper el formato.
+- **Borde, sombra, fondo:** una sola capa de cada uno en la v1. Sin contornos múltiples ni resplandor; se pueden sumar listas más adelante porque el campo ya es un objeto.
+- **Animaciones de entrada y salida:** son curvas sobre la **transformación del bloque** (`x`, `y`, `scale`, `rotation`, `opacity`), las mismas primitivas y la misma interpolación que `rodaje.effect` con `anchor` `start`/`end`. Se **copian al clip como keyframes** de `rodaje.transform` al aplicar (una copia editable, igual que un efecto de paquete) o se evalúan del estilo; recomiendo la copia, porque así el clip no cambia si el paquete se actualiza.
+- **No cabe en las primitivas** (y queda fuera de la v1): animación por palabra o por letra («máquina de escribir», rebote letra a letra), texto en una curva, texto con máscara. Pedirían un parámetro nuevo del motor (`reveal` 0–1 por unidad con retardo escalonado), es decir, una primitiva más para el motor, no un shader de paquete. Pregunta 1.
+- **Validación:** `size` > 0 y ≤ 1000, ancho de borde ≤ 0,5 × tamaño, `blur` ≤ 64, `weight` 100–900, fuentes de respaldo ≤ 8, `font.source` con la forma de referencia de siempre; un campo desconocido se ignora.
+
+**Ventajas:** mismo modelo mental que transiciones y efectos; un autor publica un estilo sin código; un estilo propio se puede «guardar como estilo» como hoy «Guardar como transición». **Desventajas:** sin animación por letra la v1 se parecerá menos a CapCut en los títulos animados (es lo más vistoso de CapCut); el campo `overrides` del clip es una segunda fuente de verdad que hay que mostrar claro en el inspector.
+
+## 3. Render con DirectWrite y Direct2D
+
+**Camino.** `Rodaje.Render` ya usa TerraFX.Interop.Windows, que trae las interfaces de D2D1 y DWrite: no hace falta dependencia nueva. Se crea una `ID2D1Factory1`/`ID2D1Device` desde el `IDXGIDevice` del `GpuDevice` (el contexto compartido con FFmpeg se toma con `LockContext()`, igual que el compositor) y se dibuja el texto con `IDWriteTextLayout` en una textura `B8G8R8A8_UNORM` premultiplicada con `BIND_RENDER_TARGET | BIND_SHADER_RESOURCE`, creada con `D3D11_CREATE_DEVICE_BGRA_SUPPORT` (hay que comprobar que el dispositivo actual la tenga).
+
+**Cómo entra en la composición.** Hoy `LayerFrame` lleva un `DecodedFrame` NV12/P010. Se agrega una capa cuya fuente es una textura RGBA ya premultiplicada (`LayerFrame` con un `RgbaSource` o un tipo hermano); `LayerRenderer` la dibuja con un `PsImage`/`PsLayer` RGBA que **ya existe para los intermedios** y reutiliza transformación, efectos, mezcla y transiciones. Así la vista previa y la exportación comparten el mismo camino, como pide la arquitectura (el texto de la exportación sale idéntico por construcción).
+
+- **Cuándo se rasteriza:** cuando cambian texto, estilo, tamaño o la escala del destino. Mover, rotar, escalar la capa o animar su opacidad **no** re-rasteriza: es una transformación del cuadrilátero. Una animación de `size` sí re-rasteriza cada cuadro; la v1 anima la transformación, no el tamaño.
+- **Escala:** se rasteriza a la resolución del destino (en vista previa a media resolución, a media), con un margen para borde y sombra; sin ese margen la sombra se corta.
+- **Caché:** textura por (clip, texto, estilo, escala) dentro del presupuesto de `RenderTargetPool` (7,5 % de la VRAM, 96–300 MB) con la misma política de soltado; un título 1080p en BGRA son unos 8 MB si ocupa toda la pantalla, normalmente una fracción.
+- **Costo (hipótesis, a medir antes de aprobar):** rasterizar un título de 1–3 líneas con borde y sombra, 0,3–2 ms de GPU en la RTX 3050; por cuadro con texto ya rasterizado, el de una capa con efectos de la fase 5 (la cifra de referencia es 3 capas 4K con efectos en 1,8–3,4 ms). Criterio propuesto: ≤0,15 ms por título por cuadro y ≤2 ms por re-rasterizado; si el contorno por geometría cuesta más, se mide el borde por `ID2D1PathGeometry`.
+- **Contorno y sombra:** contorno con `GetGlyphRunOutline` y `DrawGeometry` (más caro, pero correcto con bordes redondeados; `ID2D1RenderTarget::DrawText` no da contorno). La sombra con el efecto de sombra o el desenfoque gaussiano de Direct2D, dentro de la misma textura.
+- **Calidad:** antialiasing en escala de grises (no ClearType, que no sirve sobre video) y `DWRITE_RENDERING_MODE_NATURAL`.
+- **Riesgos:** (a) **AOT**: las interfaces COM de TerraFX funcionan sin reflexión, pero los **cargadores de fuentes** de DirectWrite piden implementar interfaces COM en C# (callbacks), que en AOT hay que escribir a mano con punteros de función; mitigación: `IDWriteFactory5::CreateInMemoryFontFileLoader` (Windows 10 1703+), que evita implementar el cargador. (b) **Interop de dispositivo**: crear D2D sobre el dispositivo de D3D11VA compartido con FFmpeg exige tomar el contexto igual que el compositor; hay que probarlo en la CI de Windows, donde WARP no soporta algunas cosas (ver la tarea 2). (c) **Pruebas**: una referencia por CPU es difícil con texto; se comprueban métricas de `IDWriteTextLayout` y una imagen de oro con tolerancia por adaptador.
+
+**Alternativa descartada:** dibujar el texto en CPU (por ejemplo con una biblioteca propia o GDI+) y subir la textura. Más sencillo de probar en Linux, pero peor calidad y sin saltos de línea y formas complejas (árabe, hindi, emoji de color) que DirectWrite da gratis.
+
+## 4. Fuentes y licencias
+
+- **Del sistema:** `family` + `weight`; si falta en el PC, se usa la lista `fallback` y se avisa «falta la fuente X» en el inspector. Un proyecto que cambia de PC puede verse distinto: es el comportamiento de CapCut y de casi todos; se documenta, no se resuelve en la v1.
+- **Empaquetadas:** un paquete `rodaje-fuentes` (repo `Dathinel/rodaje-fuentes`, como los demás) con un elemento nuevo `font` por familia. La licencia de cada familia va en el campo `license` del elemento (OFL-1.1, Apache-2.0), como ya permite el manifiesto. Se pueden redistribuir sin modificar las familias libres conocidas, por ejemplo Inter, Montserrat, Poppins, Oswald, Bebas Neue, Lato y Noto Sans (OFL), y Roboto/Open Sans (Apache 2.0 / OFL), conservando su `OFL.txt`/aviso; **hay que revisar una por una la licencia y el nombre reservado antes de publicar** (lo mío es una lista de candidatas, no una verificación). Excluir cualquier fuente «gratis para uso personal».
+- **Formato del elemento `font`:** archivos `.ttf`/`.otf` dentro del paquete (nada de código). Es un tipo de elemento nuevo del paquete; un Rodaje más viejo lo omite con aviso (regla de compatibilidad hacia delante ya existente), así no hace falta subir `formatVersion` del paquete salvo que se prefiera dejarlo explícito.
+- **Cómo se cargan:** al instalar, el motor registra los archivos en una colección privada de DirectWrite (no se instalan en Windows); los estilos referencian la fuente por `paquete@versión/elemento`.
+- **Exportación:** las fuentes no se incrustan en el video; solo se necesitan para renderizar, y el proyecto las referencia.
+- **Cobertura de caracteres:** el respaldo del sistema de DirectWrite (`IDWriteFontFallback`) cubre lo que la fuente elegida no tenga, incluidos emoji, sin trabajo propio.
+
+## 5. Edición sobre el lienzo
+
+- **Crear:** botón o atajo «Título» que agrega un clip de texto en la pista de video más alta libre en el cursor, con 3 s y el estilo por defecto; es un único comando que se deshace de una vez.
+- **Seleccionar y transformar:** clic sobre el texto lo selecciona (la prueba de acierto usa las métricas del `IDWriteTextLayout`, con la caché de la textura); aparecen asas de mover, escalar y rotar que escriben los parámetros de `rodaje.transform` con los mismos gestos y keyframes que cualquier clip (la fase 4 ya tiene el paso de «arrastres como gestos»).
+- **Escribir:** doble clic abre un `TextBox` de XAML posicionado sobre el visor con la fuente y el tamaño aproximados (cambia solo el aspecto de edición; al salir se rasteriza con DirectWrite). Gana el IME, la selección y el portapapeles sin trabajo propio. Desventaja: el texto editado y el renderizado pueden diferir un píxel; se acepta porque la vista previa real aparece al salir del cuadro.
+- **Inspector:** pestaña «Texto» con el contenido, el estilo (selector de la biblioteca), los `overrides` (tamaño, color, borde, sombra, fondo) y «Guardar como estilo» a `propios`.
+- **Biblioteca:** categoría Texto (ya reservada para `text-style`); arrastrar un estilo a la línea de tiempo crea el clip con ese estilo.
+- **Deshacer:** teclear en el `TextBox` agrupa por pausa (un paso por tanda), no por letra.
+- **Fuera de la v1:** texto sobre una curva, edición de varios bloques de texto en un clip, tablas, texto vertical.
+
+## 6. Base de los subtítulos (fase 7)
+
+- **Unidad:** cada línea de subtítulo es un clip de texto con un estilo de subtítulo, en una pista de video reservada por convención (nombre «Subtítulos»). El módulo de IA de transcripción devuelve segmentos con tiempos y la aplicación los convierte con **un solo comando de lote** (un paso de deshacer), como pide el protocolo de módulos; el texto se edita como cualquier título.
+- **SRT/VTT:** importar crea los clips; exportar recorre la pista de subtítulos en orden. Cada formato tiene un lector con la misma disciplina que los de paquetes (límites, fuzz).
+- **Ajuste de línea:** `generator.box.width` y el ajuste automático de DirectWrite resuelven las dos líneas con el estilo; el estilo de subtítulo trae tamaño y fondo legibles por defecto.
+- **Alternativa:** un tipo de pista `Subtitles` con una lista de cues compacta en vez de cientos de clips. Ventajas: ligera y fácil de editar como tabla, formato más próximo a SRT; desventajas: otro tipo de pista con su propia edición, selección y render. **Recomiendo clips en la v1**: reutilizan todo lo que ya existe, y un video de una hora con ~1000 cues sigue siendo un proyecto pequeño; si el rendimiento de la línea de tiempo con miles de clips lo pide, se pasa a pista de cues sin cambiar `generator`.
+- **Quemar o no:** los subtítulos como clips se exportan quemados en la imagen; subtítulos «blandos» (pista de texto en el contenedor) quedarían para la exportación de la fase 6 y salen de la misma lista de clips.
+
+## Plan de trabajo sugerido (si se aprueba)
+
+1. Paso 0 en serie: modelo `generator`, formato 5, validador, esquema v5, migración 4 → 5, firmas (`LayerFrame` con fuente RGBA).
+2. En paralelo: A ediciones y comandos; B lector `rodaje.textstyle` y elemento `font` en `Rodaje.Paquetes`; C render (D2D/DW, textura, `LayerRenderer`); D motor (carril generado); E inspector y biblioteca; F lienzo y línea de tiempo; G medición y repo `rodaje-titulos` con 8–12 estilos propios.
+3. Criterios: pruebas de lectores con fuzz como los de la fase 5; render con imágenes de oro por adaptador; `Tick` ≤0,3 ms con 5 títulos; rasterizado ≤2 ms; 0 cuadros perdidos con 3 capas de video y 3 títulos.
+
+## Preguntas para Daniel
+
+1. **¿Animación por palabra/letra en la v1?** Con las primitivas actuales solo se anima el bloque entero (entrar, salir, desplazarse, escalar). La animación por palabra o letra, que es lo que más se ve en CapCut, exige una primitiva nueva en el motor. Recomiendo: bloque entero en la v1 y letra/palabra en la 5b.2.
+2. **¿Fuentes empaquetadas desde el principio?** Un paquete `rodaje-fuentes` (cada familia con su licencia, unas decenas de MB) hace que los títulos se vean igual en cualquier PC; solo del sistema sería más pequeño pero distinto entre equipos. Recomiendo el paquete con unas 10 familias OFL/Apache.
+3. **¿Subtítulos como clips de texto o pista propia?** Recomiendo clips en la v1 (sección 6) y decidir la pista de cues cuando la fase 7 mida el rendimiento con proyectos largos.
