@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Rodaje.Audio;
 using Rodaje.Media;
 using Rodaje.Media.Gpu;
@@ -88,6 +89,8 @@ public static class Skip
             : (null, "Omitida: ningún codificador de proxies funciona en este equipo.");
     });
 
+    private static readonly ConcurrentDictionary<VideoCodec, Lazy<string?>> BFramesReasons = new();
+
     private static readonly Lazy<string?> MissingAudioDevice = new(() =>
         WasapiOutput.ProbeDefaultDevice(out string description)
             ? null
@@ -174,6 +177,51 @@ public static class Skip
         return ffmpeg.ProbeEncoder(encoder) is { } reason ? $"Omitida: el medio de prueba solo se genera con {encoder}: {reason}" : null;
     }
 
+    /// <summary>
+    /// El codificador que se usaría para el códec produce cuadros B cuando se le piden, como exigen los presets con
+    /// <c>BFrames</c> &gt; 0. libopenh264 no los produce nunca y las pruebas ya lo tienen en cuenta, así que no se omite.
+    /// </summary>
+    public static string? BFrames(VideoCodec codec) =>
+        Encoders([codec]) ?? BFramesReasons.GetOrAdd(codec, c => new Lazy<string?>(() => ProbeBFrames(FfmpegTool.Default!, c))).Value;
+
+    // Dos segundos con movimiento y -bf 2, con las mismas opciones de control que usa TestMediaGenerator con ese codificador.
+    private static string? ProbeBFrames(FfmpegTool ffmpeg, VideoCodec codec)
+    {
+        string encoder = ffmpeg.FindVideoEncoder(codec)!;
+        if (encoder == "libopenh264")
+        {
+            return null;
+        }
+
+        string[] options = encoder.EndsWith("_mf", StringComparison.Ordinal)
+            ? ["-rate_control", "cbr", "-b:v", "2000k", "-g", "25", "-bf", "2"]
+            : encoder == "libx265"
+                ? ["-x265-params", "log-level=error:keyint=25:min-keyint=25:scenecut=0:bframes=2"]
+                : ["-b:v", "2000k", "-g", "25", "-bf", "2"];
+        string path = Path.Combine(Path.GetTempPath(), $"rodaje-cuadros-b-{Guid.NewGuid():N}.mp4");
+        try
+        {
+            ffmpeg.Run(["-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+                "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=25:duration=2", "-c:v", encoder, .. options, path]);
+            IReadOnlyDictionary<char, int>? types = ffmpeg.CountPictureTypes(path);
+            if (types is null || types.GetValueOrDefault('B') > 0)
+            {
+                return null;
+            }
+
+            return $"Omitida: {encoder}, el codificador de {codec} de este equipo, no produce cuadros B aunque se le pidan "
+                + $"({string.Join(", ", types.OrderBy(t => t.Key).Select(t => $"{t.Key}={t.Value}"))}), y el preset los exige.";
+        }
+        catch (FfmpegException ex)
+        {
+            return $"Omitida: no se pudo comprobar si {encoder} produce cuadros B: {ex.Message}";
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     /// <summary>El primer motivo que no sea <c>null</c>.</summary>
     public static string? First(params string?[] reasons) => reasons.FirstOrDefault(r => r is not null);
 
@@ -194,6 +242,7 @@ public sealed class FfmpegFactAttribute : FactAttribute
     private readonly VideoCodec[] _video;
     private AudioCodec _audio;
     private bool _longRunning;
+    private bool _requiresBFrames;
 
     public FfmpegFactAttribute(params VideoCodec[] video)
     {
@@ -219,7 +268,19 @@ public sealed class FfmpegFactAttribute : FactAttribute
         }
     }
 
-    private string? Reason() => Rodaje.TestMedia.Skip.Options(null, _video, _audio, _longRunning, complete: false);
+    /// <summary>El medio lleva cuadros B: se omite si el codificador de alguno de los códecs no los produce.</summary>
+    public bool RequiresBFrames
+    {
+        get => _requiresBFrames;
+        set
+        {
+            _requiresBFrames = value;
+            Skip = Reason();
+        }
+    }
+
+    private string? Reason() => Rodaje.TestMedia.Skip.Options(null, _video, _audio, _longRunning, complete: false)
+        ?? (_requiresBFrames ? Rodaje.TestMedia.Skip.First([.. _video.Select(Rodaje.TestMedia.Skip.BFrames)]) : null);
 }
 
 /// <summary>Teoría que necesita el ffmpeg.exe que genera los medios de prueba.</summary>
