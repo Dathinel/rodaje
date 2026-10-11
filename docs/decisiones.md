@@ -250,3 +250,17 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 ## D-023. Estilos de atajos con nombres propios (10 de octubre de 2026)
 
 **Decisión.** Los estilos de D-018 se llaman «Rodaje», «Ágil» y «Clásico» (`ShortcutPreset.Rodaje`, `Agile` y `Classic`). Ni la interfaz ni el código nombran otros programas; las referencias de experiencia de uso quedan en estas decisiones y en `docs/archivo/`. `atajos.json` y `ajustes.json` guardados con los nombres anteriores se leen como Ágil y Clásico y se reescriben con los nuevos; un estilo desconocido vuelve a Rodaje sin dar por dañado el archivo.
+
+## D-025. Contrato de la fase 5: registro de efectos, formato 3 y transiciones en el corte (10 de octubre de 2026)
+
+**Contexto.** El plan de la fase 5 ([fase-5.md](fase-5.md)) reparte el trabajo entre seis agentes en paralelo; antes hace falta un contrato que no cambie mientras trabajan.
+
+**Decisión (aprobada por Daniel).**
+- **Transiciones centradas en el corte y sin solapar clips.** Viven en la pista (`Track.Transitions`: `from`, `to`, `duration`, `parameters`, `options`); cada lado usa el material sobrante y, si no hay, congela el cuadro del borde. Seis propias (fundido cruzado, a color, barrido, empujar, zoom y desenfoque) y `rodaje.preset` para las de paquete, que cae a fundido cruzado si falta el paquete. `TransitionOps.Reconcile` corre al final de cada edición, dentro del mismo paso del deshacer.
+- **Texto y títulos en una fase 5b aparte.**
+- **Paquetes solo con primitivas**, sin shaders propios: filtros y efectos se copian al proyecto (con `options.source`), LUT y transiciones se referencian.
+- **Registro estático** (`Rodaje.Core/Effects/EffectRegistry`) con códigos enteros estables, destino, etapa, parámetros (hasta 16, con valor por defecto y límites) y opciones, en `FrozenDictionary`, sin reflexión. Un tipo desconocido se conserva intacto.
+- **Formato 3:** `EffectInstance.Options`, `Track.Effects` (keyframes en tiempo de la secuencia) y `Track.Transitions`. La migración 2 → 3 convierte `rodaje.volume` lineal en `rodaje.audio` en dB; el volumen se guarda siempre en `gainDb`, con −60 dB como silencio.
+- **Hacia la GPU:** `LayerFrame` suma `Effects` (`LayerEffect` con `EffectValues` en `InlineArray`, por valor), `Blend` (13 modos) y `Transition`; sin nada de eso es el camino rápido de siempre. Los recursos (LUT) se piden con `IEffectResources`, que nunca bloquea; el motor recibe el contenido de paquetes por `IEffectContent` y no conoce `Rodaje.Paquetes`.
+
+**Consecuencias.** Un proyecto guardado con la fase 5 no abre en versiones anteriores (la `.bak` conserva el formato 2). Cambiar un código del registro rompe la tabla de la GPU: una prueba los fija.
