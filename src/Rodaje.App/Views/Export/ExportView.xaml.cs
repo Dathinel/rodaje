@@ -1,4 +1,6 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -33,6 +35,7 @@ internal sealed partial class ExportView : UserControl
     private readonly nint _hwnd;
     private ExportDialogModel? _model;
     private bool _refreshing;
+    private bool _refreshQueued;
 
     private IReadOnlyList<ExportContainer> _containers = [];
     private IReadOnlyList<ExportCodec> _videoCodecs = [];
@@ -69,6 +72,41 @@ internal sealed partial class ExportView : UserControl
     /// <summary>El modelo actual, para la autoprueba.</summary>
     internal ExportDialogModel? Model => _model;
 
+    /// <summary>
+    /// Autoprueba: pulsa las tarjetas y elige cada rango como lo haría la persona (por el par de automatización, que lanza el
+    /// mismo Click) y comprueba que cada elección queda marcada. Devuelve el fallo o <c>null</c>.
+    /// </summary>
+    internal async Task<string?> CheckSwitchingAsync(IReadOnlyList<string> presetIds)
+    {
+        foreach (string id in presetIds)
+        {
+            if (PresetCards.Children.OfType<Button>().FirstOrDefault(b => (string)b.Tag == id) is not { } card)
+            {
+                return $"falta la tarjeta «{id}»";
+            }
+
+            new ButtonAutomationPeer(card).Invoke();
+            await Task.Delay(200);
+            Button? marked = PresetCards.Children.OfType<Button>().FirstOrDefault(b => b.BorderThickness.Left > 1);
+            if (_model?.PresetId != id || marked?.Tag as string != id)
+            {
+                return $"la tarjeta «{id}» no quedó elegida (modelo: {_model?.PresetId}, marcada: {marked?.Tag})";
+            }
+        }
+
+        for (int i = RangeBox.Items.Count - 1; i >= 0; i--)
+        {
+            RangeBox.SelectedIndex = i;
+            await Task.Delay(150);
+            if (_model?.RangeIndex != i || RangeBox.SelectedIndex != i)
+            {
+                return $"el rango {i} no quedó elegido";
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>Arma el diálogo con el estado de ahora: secuencia, selección, codificadores y lo recordado.</summary>
     public async Task OpenAsync()
     {
@@ -79,7 +117,7 @@ internal sealed partial class ExportView : UserControl
         string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
         _model = new ExportDialogModel(_services.Settings.Current.Export, session.Sequence, session.SelectedClipIds, encoders, session.ProjectName,
             projectFolder);
-        _model.Changed += (_, _) => Refresh();
+        _model.Changed += (_, _) => QueueRefresh();
         ShowAdvanced(_services.Settings.Current.Export.AdvancedOpen);
         Refresh();
     }
@@ -90,6 +128,30 @@ internal sealed partial class ExportView : UserControl
         AdvancedToggle.IsChecked = open;
         AdvancedPanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
         AdvancedGlyph.Glyph = open ? "" : "";
+    }
+
+    /// <summary>
+    /// Redibuja después del evento que cambió el modelo, nunca dentro: rehacer la lista de un ComboBox o quitar la tarjeta
+    /// pulsada mientras WinUI todavía atiende su clic dejaba el control sin responder al siguiente (el error de «no deja
+    /// elegir otro»).
+    /// </summary>
+    private void QueueRefresh()
+    {
+        if (_refreshQueued)
+        {
+            return;
+        }
+
+        _refreshQueued = true;
+        if (!DispatcherQueue.TryEnqueue(() =>
+        {
+            _refreshQueued = false;
+            Refresh();
+        }))
+        {
+            _refreshQueued = false;
+            Refresh();
+        }
     }
 
     private void Refresh()
@@ -116,21 +178,33 @@ internal sealed partial class ExportView : UserControl
 
     private void RefreshPresets(ExportDialogModel model)
     {
-        PresetCards.Children.Clear();
-        foreach (ExportPreset preset in model.Presets)
+        var cards = model.Presets
+            .Select(p => (Id: p.Id, Name: p.Name, Description: p.Origin == ExportPresetOrigin.User ? "Propio · " + p.Description : p.Description))
+            .Append((Id: ExportPresetLibrary.CustomId, Name: "Personalizado", Description: "Lo que elijas en Avanzado."))
+            .ToList();
+        if (!ChoiceList.Same(PresetCards.Children.Select(c => (c as Button)?.Tag as string ?? ""), cards.Select(c => c.Id)))
         {
-            PresetCards.Children.Add(PresetCard(preset.Id, preset.Name,
-                preset.Origin == ExportPresetOrigin.User ? "Propio · " + preset.Description : preset.Description, model.PresetId == preset.Id));
+            PresetCards.Children.Clear();
+            foreach ((string id, string name, string description) in cards)
+            {
+                PresetCards.Children.Add(PresetCard(id, name, description));
+            }
         }
 
-        PresetCards.Children.Add(PresetCard(ExportPresetLibrary.CustomId, "Personalizado", "Lo que elijas en Avanzado.",
-            model.PresetId == ExportPresetLibrary.CustomId));
+        foreach (Button card in PresetCards.Children.OfType<Button>())
+        {
+            bool selected = (string)card.Tag == model.PresetId;
+            card.BorderThickness = new Thickness(selected ? 2 : 1);
+            card.BorderBrush = (Brush)Application.Current.Resources[selected ? "AccentBrush" : "ControlBorderBrush"];
+            AutomationProperties.SetItemStatus(card, selected ? "Elegido" : "");
+        }
+
         bool userPreset = model.Presets.Any(p => p.Id == model.PresetId && p.Origin == ExportPresetOrigin.User);
         RemovePresetButton.IsEnabled = userPreset;
         ExportPresetButton.IsEnabled = model.PresetId != ExportPresetLibrary.CustomId;
     }
 
-    private Button PresetCard(string id, string name, string description, bool selected)
+    private Button PresetCard(string id, string name, string description)
     {
         var text = new StackPanel { Spacing = 3 };
         text.Children.Add(new TextBlock { Text = name, Style = (Style)Application.Current.Resources["PanelTitleTextStyle"], TextTrimming = TextTrimming.CharacterEllipsis });
@@ -143,8 +217,6 @@ internal sealed partial class ExportView : UserControl
         {
             Content = text, Tag = id, Width = 176, Height = 70, Padding = new Thickness(10, 6, 10, 6),
             HorizontalContentAlignment = HorizontalAlignment.Left, VerticalContentAlignment = VerticalAlignment.Top,
-            BorderThickness = new Thickness(selected ? 2 : 1),
-            BorderBrush = (Brush)Application.Current.Resources[selected ? "AccentBrush" : "ControlBorderBrush"],
         };
         ToolTipService.SetToolTip(card, description);
         card.Click += OnPresetClick;
@@ -162,13 +234,7 @@ internal sealed partial class ExportView : UserControl
         PathNote.Text = pathNote ?? "";
         PathNote.Visibility = pathNote is null ? Visibility.Collapsed : Visibility.Visible;
 
-        RangeBox.Items.Clear();
-        foreach (RangeChoice range in model.Ranges)
-        {
-            RangeBox.Items.Add(new ComboBoxItem { Content = range.Label });
-        }
-
-        RangeBox.SelectedIndex = model.RangeIndex;
+        Fill(RangeBox, model.Ranges.Select(r => r.Label), model.RangeIndex);
         SummaryText.Text = Summary(model);
 
         ShapePanel.Visibility = model.ShapeDiffers ? Visibility.Visible : Visibility.Collapsed;
@@ -369,15 +435,24 @@ internal sealed partial class ExportView : UserControl
         return string.Join(" · ", parts);
     }
 
+    /// <summary>Pone las opciones y la elegida; si las opciones no cambiaron, solo mueve la elección (ver <see cref="QueueRefresh"/>).</summary>
     private static void Fill(ComboBox box, IEnumerable<string> labels, int selected)
     {
-        box.Items.Clear();
-        foreach (string label in labels)
+        List<string> list = [.. labels];
+        if (!ChoiceList.Same(box.Items.Select(i => (i as ComboBoxItem)?.Content as string ?? ""), list))
         {
-            box.Items.Add(new ComboBoxItem { Content = label });
+            box.Items.Clear();
+            foreach (string label in list)
+            {
+                box.Items.Add(new ComboBoxItem { Content = label });
+            }
         }
 
-        box.SelectedIndex = selected < box.Items.Count ? selected : -1;
+        int index = selected < box.Items.Count ? selected : -1;
+        if (box.SelectedIndex != index)
+        {
+            box.SelectedIndex = index;
+        }
     }
 
     private static int IndexOf<T>(IReadOnlyList<T> items, Func<T, bool> match)

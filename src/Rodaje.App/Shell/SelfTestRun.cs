@@ -290,6 +290,12 @@ internal static class SelfTestRun
         }
 
         await CaptureAsync(window, "exportar-sencillo");
+        if (window.ExportPage is { } page && await page.CheckSwitchingAsync(
+            [ExportPresets.Vertical.Id, ExportPresets.YouTube4K.Id, ExportPresets.AudioOnly.Id, ExportPresets.YouTube1080p.Id]) is { } failure)
+        {
+            throw new InvalidOperationException("Exportar: " + failure);
+        }
+
         window.ExportPage?.Model?.SelectPreset(ExportPresets.Vertical.Id);
         await CaptureAsync(window, "exportar-vertical");
         window.ExportPage?.Model?.SelectPreset(ExportPresets.YouTube1080p.Id);
