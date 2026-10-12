@@ -125,6 +125,9 @@ public sealed partial class EditorSession
         };
     }
 
+    /// <summary>Entraron medios nuevos a la biblioteca (proxies automáticos, pistas).</summary>
+    public event EventHandler<IReadOnlyList<Rodaje.Media.Probe.MediaInfo>>? MediaImported;
+
     /// <summary>
     /// Lee los archivos fuera del hilo de la interfaz y agrega a la biblioteca los que se pueden usar, en un solo paso
     /// del historial. Un archivo que ya estaba en la biblioteca no se repite: se devuelve su medio. Lo que no entra se
@@ -160,6 +163,7 @@ public sealed partial class EditorSession
         }
 
         var ids = new List<string>();
+        var added = new List<Rodaje.Media.Probe.MediaInfo>();
         var skipped = new List<SkippedMedia>();
         bool changed = false;
         History.BeginGroup(files.Length == 1 ? "Importar medio" : "Importar medios");
@@ -186,6 +190,7 @@ public sealed partial class EditorSession
                     probe.Info!.ApplyTo(media);
                     History.Execute(new AddMediaCommand(media));
                     ids.Add(media.Id);
+                    added.Add(probe.Info!);
                     changed = true;
                 }
                 catch (EditException ex)
@@ -203,6 +208,11 @@ public sealed partial class EditorSession
         if (changed)
         {
             AfterEdit(EditKind.Execute, History.UndoCommands.Count > 0 ? History.UndoCommands[^1] : null);
+        }
+
+        if (added.Count > 0)
+        {
+            MediaImported?.Invoke(this, added);
         }
 
         if (skipped.Count > 0)

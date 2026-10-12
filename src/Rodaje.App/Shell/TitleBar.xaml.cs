@@ -124,6 +124,7 @@ internal sealed partial class TitleBar : UserControl
         QualityFull.IsChecked = quality == PreviewQuality.Full;
         QualityHalf.IsChecked = quality == PreviewQuality.Half;
         QualityQuarter.IsChecked = quality == PreviewQuality.Quarter;
+        UpdateWorkflowChecks();
     }
 
     private void OnActionClick(object sender, RoutedEventArgs e)

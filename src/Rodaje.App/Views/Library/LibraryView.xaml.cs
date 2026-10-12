@@ -122,6 +122,11 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             }
         };
         services.Visuals.Changed += OnVisualsChanged;
+        if (services.AutoProxies is { } autoProxies)
+        {
+            autoProxies.StatusChanged += (_, status) => ShowProxyStatus(status);
+        }
+
         services.Packages.Changed += (_, _) => RefreshPackages();
         WatchOwnElements(services.Packages.Locations.Own);
         MarkersView.Attach(services);

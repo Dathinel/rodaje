@@ -65,6 +65,8 @@
                     <RadioMenuFlyoutItem x:Name="ProxyAuto" Text="Automático" GroupName="Proxies" Tag="Auto" Click="OnProxyClick" />
                     <RadioMenuFlyoutItem x:Name="ProxyAlways" Text="Siempre que haya" GroupName="Proxies" Tag="Always" Click="OnProxyClick" />
                     <RadioMenuFlyoutItem x:Name="ProxyNever" Text="Nunca (originales)" GroupName="Proxies" Tag="Never" Click="OnProxyClick" />
+                    <MenuFlyoutSeparator />
+                    <ToggleMenuFlyoutItem x:Name="AutoProxiesItem" Text="Generar al importar los videos pesados" Click="OnAutoProxiesClick" />
                 </MenuFlyoutSubItem>
                 <MenuFlyoutSubItem x:Name="NewVideoTracksMenu" Text="Pistas de video de un proyecto nuevo" />
                 <MenuFlyoutSubItem x:Name="NewAudioTracksMenu" Text="Pistas de audio de un proyecto nuevo" />

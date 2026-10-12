@@ -80,6 +80,9 @@ internal sealed class EditorServices(
     /// <summary>La propuesta de un módulo que se ve antes de aplicarse en un paso del historial.</summary>
     public ModuleProposals? Proposals { get; init; }
 
+    /// <summary>Proxies automáticos al importar; nulo si la ventana no lo creó.</summary>
+    public AutoProxyService? AutoProxies { get; init; }
+
     /// <summary>Cambió la calidad de la vista previa (desde el reproductor o desde el menú Ver).</summary>
     public event EventHandler? PreviewQualityChanged;
 

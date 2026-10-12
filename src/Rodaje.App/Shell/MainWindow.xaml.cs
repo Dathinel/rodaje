@@ -127,6 +127,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         {
             Visuals = _visuals, Packages = packages, Content = content, Exports = _exports,
             Modules = _modules, Proposals = new ModuleProposals(session), LongActions = _longActions,
+            AutoProxies = CreateAutoProxies(session),
         };
         engine.SetContent(content);
         IReadOnlyList<string> fonts = TitleFontFiles.Find(packages.Installed);
@@ -215,6 +216,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _settingsTimer = _dispatcher.CreateTimer();
         _settingsTimer.Interval = TimeSpan.FromSeconds(2);
         _settingsTimer.Tick += (_, _) => SaveSettingsIfChanged();
+        _settingsTimer.Tick += (_, _) => OnWorkflowTick();
 
         // Autoguardado (no en las mediciones ni en la autoprueba): el mismo temporizador decide si toca una copia.
         if (!options.IsAutomated)
