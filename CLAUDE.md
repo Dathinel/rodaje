@@ -28,13 +28,11 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 
 Fases 1–5, 5c y 6 construidas; 5b (títulos) y 7 (IA local) en curso. Detalle y cifras de cada fase en `docs/fase-*.md`; decisiones en `docs/decisiones.md`.
 
-**En curso (11-oct, tarde):**
-- **En main:** fase 5c completa (5c.1, curvas, reversa con su interfaz); fase 6 construida (contrato, conversor GPU, salida FFmpeg, motor fuera de línea, diálogo y orquestación: la app exporta de verdad, 1 min 1080p en ~9 s con NVENC); paso 0 de la 5b (formato 5 con títulos, D-029); licencia GPLv3 con atribución obligatoria (D-032, sustituye a la PolyForm de D-030; complementos de contenido siguen CC0; abogado aplazado, pendientes en `docs/legal.md`).
-- **Agentes locales:** verificación de la 5c (Sonnet); fase 6 F (medición y aceptación); 5b títulos en motor y render; 5b títulos en la app; fase 7 plan y paso 0 (protocolo de módulos).
-- **Pendiente:** la reversa en la exportación hace un seek por cuadro (conectar `ReverseFrameReader` en `OfflineTimeline` cuando termine el agente de la 5b del motor); verificación de la fase 6 (Sonnet) tras F.
-- **Nube:** Opus, hasta 5 tareas por corrida, sin revisor por tarea; la sesión local une los PR en verde y revisa por bloques cada ~4 PR (lista en `docs/nube/cola.md`).
-- **Siguiente:** verificación de la 6 → cierre de la 5b → fase 7 → reorganización del repo (`docs/reorganizacion.md`).
-- **Al retomar tras el corte por límite (11-oct):** recrear la revisión de 30 min (`CronCreate`, prompt en «Nube y coordinación»); `git branch --no-merged main` y por cada `worktree-agent-*` con commits: mirar su `git status` en `.claude\worktrees\<agente>` (puede haber trabajo sin commit), unir si compila y pasan sus pruebas, o relanzar el encargo desde ese punto. Ramas en curso: verificación 5c (Sonnet, solo informe), fase 6 F, 5b motor/render, 5b app. Fase 7: plan y protocolo unidos (D-031, `docs/fase-7.md`), con 8 preguntas para Daniel (se avanza con la recomendada; la 2, repos de módulos, espera respuesta). Nube: PR #17 (GOP abierto) esperaba su CI; #15 (licencias) y #14 (codificadores) en curso; «PR sin revisar»: #16.
+**En curso (12-oct, madrugada; Daniel lejos del PC un buen tiempo):**
+- **En main:** fases 5c, 5b y 6 cerradas y verificadas (6: todos los criterios salvo pausas de la vista previa en cortes con velocidad → tarea 36 de la nube); fase 7: protocolo, ModuleManager, descargas firmadas (falta la clave de Daniel, `PARA-DANIEL.md`), `Rodaje.Analysis` (silencios, ritmo, ducking, estabilizar, color automático), módulos de subtítulos (Whisper) y de audio IA (ruido, VAD); licencia GPLv3 con términos adicionales (D-032); repo público.
+- **Nube en modo autónomo** (`docs/nube/README.md`): une sus propios PR con la CI en verde y revisa por bloques con Sonnet; cola con tareas 28–39.
+- **Agentes locales que quedaron trabajando** (si se cortaron, `git branch --no-merged main` y revisar sus worktrees): correcciones de la verificación de la 5b (asa de rotar, escribir en el visor, estilos, fuentes por elemento `font`) y módulo de texto a voz (`modulo-voz`).
+- **Siguiente al volver:** unir esas dos ramas; revisar lo que unió la nube (bloques de Sonnet); fase 7 restante (traducir, visión, RAW y GPL, edición por palabras); verificación de la fase 7 (Sonnet); reorganización del repo (`docs/reorganizacion.md`).
 
 **Reorganización del repo aprobada (11-oct):** plan y orden en `docs/reorganizacion.md`; se aplica cuando no haya agentes editando ni PR de la nube abiertos.
 
