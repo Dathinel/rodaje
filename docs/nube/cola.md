@@ -274,7 +274,7 @@ Servidor de pruebas en proceso (Kestrel o `HttpListener`) que sirve archivos con
 
 ## 28. Volver a enlazar medios movidos o renombrados
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #30 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/qdv-reenlazar`
 - **Caminos:** `src/Rodaje.Core/Editing/` y `src/Rodaje.Core/Commands/` (archivos nuevos), `src/Rodaje.App/Services/Relink/` (nuevo), un diálogo nuevo en `src/Rodaje.App/Views/Relink/`, pruebas, `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (función 32), `docs/formato-proyecto.md`, `docs/arquitectura/app.md`.
