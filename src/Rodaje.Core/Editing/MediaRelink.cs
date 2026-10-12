@@ -128,12 +128,46 @@ public static class MediaRelinkEdits
     }
 
     /// <summary>
-    /// El cambio para enlazar <paramref name="media"/> con un archivo elegido a mano: solo la ruta si el archivo coincide con
-    /// el medio, o también sus datos si no. Lanza <see cref="EditException"/> si el archivo no puede ocupar su lugar.
+    /// Por qué <paramref name="path"/> no puede ser el archivo de <paramref name="media"/> porque ya es el de otro medio del
+    /// proyecto o el que se eligió para otro en <paramref name="pending"/> (cambios aún sin aplicar). Las rutas se comparan
+    /// sin distinguir mayúsculas, como en Windows. <c>null</c> si está libre.
     /// </summary>
-    public static MediaRelinkTarget TargetFor(Project project, MediaRef media, string path, RelinkProbe probe, Time? durationTolerance = null)
+    public static string? CheckTaken(Project project, MediaRef media, string path, IEnumerable<MediaRelinkTarget>? pending = null)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(media);
+        ArgumentNullException.ThrowIfNull(path);
+        List<MediaRelinkTarget> others = [.. pending ?? []];
+        foreach (MediaRelinkTarget target in others)
+        {
+            if (target.MediaId != media.Id && string.Equals(target.Path, path, StringComparison.OrdinalIgnoreCase))
+            {
+                string name = project.FindMedia(target.MediaId)?.Name ?? target.MediaId;
+                return $"Ese archivo ya está elegido para «{name}»; un archivo no puede ser el de dos medios.";
+            }
+        }
+
+        // Un medio que se va a enlazar con otro archivo deja libre su ruta de antes.
+        var moving = others.Select(t => t.MediaId).ToHashSet(StringComparer.Ordinal);
+        MediaRef? owner = project.Media.FirstOrDefault(m =>
+            m.Id != media.Id && !moving.Contains(m.Id) && string.Equals(m.Path, path, StringComparison.OrdinalIgnoreCase));
+        return owner is null ? null : $"Ese archivo ya es el de «{owner.Name}»; un archivo no puede ser el de dos medios.";
+    }
+
+    /// <summary>
+    /// El cambio para enlazar <paramref name="media"/> con un archivo elegido a mano: solo la ruta si el archivo coincide con
+    /// el medio, o también sus datos si no. Lanza <see cref="EditException"/> si el archivo no puede ocupar su lugar o ya es
+    /// el de otro medio del proyecto o de <paramref name="pending"/> (ver <see cref="CheckTaken"/>).
+    /// </summary>
+    public static MediaRelinkTarget TargetFor(
+        Project project, MediaRef media, string path, RelinkProbe probe, Time? durationTolerance = null, IEnumerable<MediaRelinkTarget>? pending = null)
     {
         ArgumentNullException.ThrowIfNull(path);
+        if (CheckTaken(project, media, path, pending) is { } taken)
+        {
+            throw new EditException(taken);
+        }
+
         if (CheckReplacement(project, media, probe) is { } problem)
         {
             throw new EditException(problem);

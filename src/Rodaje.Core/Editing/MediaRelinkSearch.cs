@@ -5,7 +5,12 @@ using Rodaje.Core.Timing;
 namespace Rodaje.Core.Editing;
 
 /// <summary>Un archivo de la carpeta donde se busca.</summary>
-public sealed record RelinkFile(string Path, long Length);
+/// <param name="Path">La ruta completa.</param>
+/// <param name="Length">El largo en bytes.</param>
+/// <param name="CloudOnly">
+/// Solo está en la nube (OneDrive y parecidos): abrirlo lo descarga entero. La pasada de renombrados no lo abre.
+/// </param>
+public sealed record RelinkFile(string Path, long Length, bool CloudOnly = false);
 
 /// <summary>Lo que la búsqueda necesita del disco; las pruebas lo sustituyen por uno en memoria.</summary>
 public interface IRelinkFileSystem
@@ -23,13 +28,20 @@ public interface IRelinkFileSystem
 /// <summary>El disco de verdad; leer un archivo como medio se delega (en la app lo hace FFmpeg).</summary>
 public sealed class DiskRelinkFileSystem(Func<string, RelinkProbe?> probe) : IRelinkFileSystem
 {
+    /// <summary>
+    /// Atributos de un archivo que no está en el disco: <c>Offline</c> y los de Windows que .NET no nombra,
+    /// <c>FILE_ATTRIBUTE_RECALL_ON_OPEN</c> (0x40000) y <c>FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS</c> (0x400000), que pone
+    /// OneDrive a lo que solo está en la nube.
+    /// </summary>
+    public const FileAttributes CloudOnlyAttributes = FileAttributes.Offline | (FileAttributes)0x40000 | (FileAttributes)0x400000;
+
     public IEnumerable<RelinkFile> EnumerateFiles(string folder, CancellationToken cancellationToken)
     {
         var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.System };
         foreach (FileInfo file in new DirectoryInfo(folder).EnumerateFiles("*", options))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            yield return new RelinkFile(file.FullName, file.Length);
+            yield return new RelinkFile(file.FullName, file.Length, (file.Attributes & CloudOnlyAttributes) != 0);
         }
     }
 
@@ -62,7 +74,14 @@ public enum RelinkMatchKind
 }
 
 /// <summary>El archivo que se encontró para un medio que faltaba.</summary>
-public sealed record RelinkMatch(string MediaId, string Path, RelinkMatchKind Kind);
+public sealed record RelinkMatch(string MediaId, string Path, RelinkMatchKind Kind)
+{
+    /// <summary>
+    /// Hay que confirmarlo antes de enlazar: con otro nombre solo se comparan la extensión, las pistas, el tamaño de imagen y
+    /// la duración, no el contenido (el proyecto no guarda una huella del original), así que puede ser otro archivo parecido.
+    /// </summary>
+    public bool NeedsConfirmation => Kind == RelinkMatchKind.Renamed;
+}
 
 /// <summary>Lo que dio la búsqueda en una carpeta.</summary>
 /// <param name="Found">Los medios con un solo archivo posible (o varios idénticos), en el orden de la lista pedida.</param>
@@ -77,7 +96,10 @@ public sealed record RelinkSearchResult(
     int FilesScanned,
     bool Truncated)
 {
-    /// <summary>Lo encontrado, listo para <see cref="Commands.RelinkMediaCommand"/>.</summary>
+    /// <summary>
+    /// Lo encontrado, listo para <see cref="Commands.RelinkMediaCommand"/>; incluye lo que pide confirmación
+    /// (<see cref="RelinkMatch.NeedsConfirmation"/>), que el diálogo no aplica sin que el usuario lo confirme.
+    /// </summary>
     public IReadOnlyList<MediaRelinkTarget> Targets => [.. Found.Select(f => new MediaRelinkTarget(f.MediaId, f.Path))];
 }
 
@@ -95,6 +117,12 @@ public sealed record RelinkSearchOptions
 
     /// <summary>Busca también archivos renombrados (otro nombre, misma extensión y mismos datos); hay que leerlos todos.</summary>
     public bool IncludeRenamed { get; init; } = true;
+
+    /// <summary>
+    /// Rutas que no se dan a ningún medio (sin distinguir mayúsculas), además de las de los medios que no faltan: las que el
+    /// diálogo ya resolvió para otros medios en una búsqueda anterior o a mano.
+    /// </summary>
+    public IReadOnlyCollection<string> TakenPaths { get; init; } = [];
 }
 
 /// <summary>
@@ -140,7 +168,7 @@ public static class MediaRelinkSearch
 
         var missingIds = missing.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
         var taken = new HashSet<string>(
-            project.Media.Where(m => !missingIds.Contains(m.Id)).Select(m => m.Path), StringComparer.OrdinalIgnoreCase);
+            project.Media.Where(m => !missingIds.Contains(m.Id)).Select(m => m.Path).Concat(options.TakenPaths), StringComparer.OrdinalIgnoreCase);
         var probes = new Dictionary<string, RelinkProbe?>(StringComparer.Ordinal);
         var fingerprints = new Dictionary<string, string?>(StringComparer.Ordinal);
         var found = new Dictionary<string, RelinkMatch>(StringComparer.Ordinal);
@@ -202,8 +230,12 @@ public static class MediaRelinkSearch
             {
                 string name = FileName(m.Path);
                 string extension = Extension(name);
+                // Esta pasada abre cada archivo con la misma extensión: los que solo están en la nube no se abren, porque
+                // abrirlos los descargaría. Uno con el mismo nombre sí se abre en la pasada anterior: es uno solo y casi
+                // seguro el que se busca.
                 return files.Where(f =>
-                    !string.Equals(FileName(f.Path), name, StringComparison.OrdinalIgnoreCase)
+                    !f.CloudOnly
+                    && !string.Equals(FileName(f.Path), name, StringComparison.OrdinalIgnoreCase)
                     && string.Equals(Extension(FileName(f.Path)), extension, StringComparison.OrdinalIgnoreCase));
             });
         }

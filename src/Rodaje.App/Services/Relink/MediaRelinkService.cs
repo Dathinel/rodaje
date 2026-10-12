@@ -55,27 +55,41 @@ public sealed class MediaRelinkService
         });
     }
 
-    /// <summary>Busca en <paramref name="folder"/> los archivos de <paramref name="missing"/>.</summary>
+    /// <summary>
+    /// Busca en <paramref name="folder"/> los archivos de <paramref name="missing"/>. <paramref name="taken"/> son las rutas
+    /// que ya se resolvieron para otros medios (en el diálogo, lo pendiente de aplicar): no se dan a ningún otro.
+    /// </summary>
     public Task<RelinkSearchResult> SearchAsync(
-        Project project, IReadOnlyList<MediaRef> missing, string folder, IProgress<int>? filesScanned = null, CancellationToken cancellationToken = default)
+        Project project, IReadOnlyList<MediaRef> missing, string folder, IProgress<int>? filesScanned = null,
+        IEnumerable<string>? taken = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(missing);
         Project copy = project.Clone();
         List<MediaRef> wanted = [.. missing.Select(m => copy.FindMedia(m.Id)).OfType<MediaRef>()];
+        RelinkSearchOptions options = SearchOptions with { TakenPaths = [.. SearchOptions.TakenPaths, .. taken ?? []] };
         return Task.Run(
-            () => MediaRelinkSearch.Search(copy, wanted, folder, _fileSystem, SearchOptions, filesScanned, cancellationToken),
+            () => MediaRelinkSearch.Search(copy, wanted, folder, _fileSystem, options, filesScanned, cancellationToken),
             cancellationToken);
     }
 
     /// <summary>
-    /// Comprueba un archivo elegido a mano para <paramref name="media"/>: el cambio a aplicar, o por qué no sirve.
+    /// Comprueba un archivo elegido a mano para <paramref name="media"/>: el cambio a aplicar, o por qué no sirve. Tampoco
+    /// sirve si ya es el archivo de otro medio del proyecto o el elegido para otro en <paramref name="pending"/> (lo que el
+    /// diálogo tiene sin aplicar).
     /// </summary>
-    public async Task<(MediaRelinkTarget? Target, string? Problem)> CheckFileAsync(Project project, MediaRef media, string path)
+    public async Task<(MediaRelinkTarget? Target, string? Problem)> CheckFileAsync(
+        Project project, MediaRef media, string path, IReadOnlyCollection<MediaRelinkTarget>? pending = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(media);
         ArgumentNullException.ThrowIfNull(path);
+        List<MediaRelinkTarget> others = [.. pending ?? []];
+        if (MediaRelinkEdits.CheckTaken(project, media, path, others) is { } taken)
+        {
+            return (null, taken);
+        }
+
         RelinkProbe? probe = await Task.Run(() => Probe(path));
         if (probe is null)
         {
@@ -84,7 +98,7 @@ public sealed class MediaRelinkService
 
         try
         {
-            return (MediaRelinkEdits.TargetFor(project, media, path, probe, SearchOptions.DurationTolerance), null);
+            return (MediaRelinkEdits.TargetFor(project, media, path, probe, SearchOptions.DurationTolerance, others), null);
         }
         catch (EditException ex)
         {
