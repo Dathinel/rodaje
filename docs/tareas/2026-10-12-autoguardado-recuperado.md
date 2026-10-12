@@ -48,7 +48,7 @@ Rama `claude/autoguardado-recuperado`, PR #69. Sigue a la tarea 34 (`2026-10-12-
 ## CI
 
 - En `d5dad3a9`, los dos trabajos («Linux (Core, Paquetes, Playback)» y «Windows (solución completa)») salieron en verde. El de Windows corre la solución completa, incluidas estas pruebas.
-- En `b4eecec9` y `3475f579` (los dos solo cambian esta entrega), el trabajo de Windows falló de forma intermitente; al volver a correr `b4eecec9` salió en verde. El registro (leído con la herramienta de GitHub, porque el proxy bloquea `blob.core.windows.net`) muestra que el fallo es ajeno a esta tarea: `Rodaje.Media.Tests.Export.FfmpegPipeSinkPendingCleanupTests.Kill_that_throws_while_canceling_is_noted_and_the_process_is_still_released` da «Assert.Throws() Failure: No exception was thrown». `Rodaje.App.Tests` pasó entero en Windows: 980 pasan y 2 se omiten.
+- En `b4eecec9` y `3475f579` (los dos solo cambian esta entrega), el trabajo de Windows falló de forma intermitente; al volver a correr `b4eecec9` salió en verde. El registro (leído con la herramienta de GitHub, porque el proxy bloquea `blob.core.windows.net`) muestra que el fallo es ajeno a esta tarea: `Rodaje.Media.Tests.Export.FfmpegPipeSinkPendingCleanupTests.Kill_that_throws_while_canceling_is_noted_and_the_process_is_still_released` da «Assert.Throws() Failure: No exception was thrown». En `347ee9d3` falló otra prueba, también ajena a esta tarea: `Rodaje.TestServer.Tests.HandlerFaultTests` (`An_unexpected_exception_aborts_the_connection_and_is_recorded` y `The_server_keeps_serving_after_a_fault`). En los tres intentos, `Rodaje.App.Tests` pasó entero en Windows: 980 pasan y 2 se omiten.
 
 ## Qué comprobar en Windows
 
