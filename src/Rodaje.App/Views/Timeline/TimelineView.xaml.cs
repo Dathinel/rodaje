@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -43,6 +44,11 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     private bool _syncingZoom;
     private double? _zoomAnchor;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _zoomSettle;
+    private bool _zoomAnimating;
+    private long _zoomAnimationStart;
+    private ViewFrame _zoomFrom;
+    private ViewFrame _zoomTo;
+    private ViewFrame _zoomLast;
 
     public TimelineView()
     {
@@ -461,6 +467,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         router.Bind(ActionIds.AddMarker, AddMarker);
         router.Bind(ActionIds.AddRegion, AddRegion);
         router.Bind(ActionIds.ZoomToFit, ZoomToFit);
+        router.Bind(ActionIds.ZoomToSelection, ZoomToSelection, () => Session is not null && SelectionSpan() is not null);
     }
 
     private void AddMarker()
@@ -482,15 +489,80 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         }
     }
 
-    private void ZoomToFit()
+    /// <summary>«Ajustar a la ventana»: toda la secuencia visible, con una animación corta.</summary>
+    private void ZoomToFit() => AnimateZoom(ZoomFit.Whole(Session!.Sequence.Duration, Viewport.Width));
+
+    /// <summary>«Zoom a la selección»: los clips seleccionados (o el tramo marcado) llenan la vista.</summary>
+    private void ZoomToSelection()
     {
-        Viewport.FitTo(Session!.Sequence.Duration);
+        if (SelectionSpan() is { } span)
+        {
+            AnimateZoom(ZoomFit.Span(span.Start, span.End, Viewport.Width));
+        }
+    }
+
+    private (Time Start, Time End)? SelectionSpan()
+    {
+        EditorSession session = Session!;
+        return ZoomFit.SelectionSpan(session.Sequence, session.SelectedClipIds, _overlay.TimeRange);
+    }
+
+    /// <summary>
+    /// Lleva la vista al encuadre en <see cref="ZoomAnimation.Duration"/>, un paso por cuadro; lo dibujado se estira
+    /// mientras dura (como el zoom con la rueda) y se rearma nítido al terminar.
+    /// </summary>
+    private void AnimateZoom(ViewFrame target)
+    {
+        if (_renderer is null || Viewport.Width <= 0)
+        {
+            return;
+        }
+
+        _zoomFrom = new ViewFrame(Viewport.PixelsPerSecond, Viewport.ScrollX);
+        _zoomTo = target;
+        _zoomLast = _zoomFrom;
+        _zoomAnimationStart = Stopwatch.GetTimestamp();
+        if (!_zoomAnimating)
+        {
+            _zoomAnimating = true;
+            CompositionTarget.Rendering += OnZoomAnimationFrame;
+        }
+    }
+
+    private void OnZoomAnimationFrame(object? sender, object e)
+    {
+        // Si algo movió la vista desde el último paso (rueda, barra, el cursor al reproducir), la animación cede.
+        if (Session is null || Viewport.PixelsPerSecond != _zoomLast.PixelsPerSecond || Viewport.ScrollX != _zoomLast.ScrollX)
+        {
+            StopZoomAnimation();
+            return;
+        }
+
+        double progress = Stopwatch.GetElapsedTime(_zoomAnimationStart) / ZoomAnimation.Duration;
+        ViewFrame frame = ZoomAnimation.At(_zoomFrom, _zoomTo, Viewport.Width, progress);
+        BeginZoomPreview();
+        Viewport.PixelsPerSecond = frame.PixelsPerSecond;
+        Viewport.ScrollX = frame.ScrollX;
+        Viewport.ClampScroll(Session.Sequence.Duration);
         _syncingZoom = true;
         State.PixelsPerSecond = Viewport.PixelsPerSecond;
         _syncingZoom = false;
-        Viewport.ScrollX = 0;
-        SyncZoomSlider();
+        _zoomLast = new ViewFrame(Viewport.PixelsPerSecond, Viewport.ScrollX);
         Invalidate();
+        if (progress >= 1)
+        {
+            StopZoomAnimation();
+            SyncZoomSlider();
+        }
+    }
+
+    private void StopZoomAnimation()
+    {
+        if (_zoomAnimating)
+        {
+            _zoomAnimating = false;
+            CompositionTarget.Rendering -= OnZoomAnimationFrame;
+        }
     }
 
     private void OnTrackToggled(string trackId, TrackToggle toggle)
@@ -565,6 +637,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         (ZoomOutButton, ActionIds.ZoomOut),
         (ZoomInButton, ActionIds.ZoomIn),
         (ZoomFitButton, ActionIds.ZoomToFit),
+        (ZoomSelectionButton, ActionIds.ZoomToSelection),
     ];
 
     private void OnToolClick(object sender, RoutedEventArgs e) => InvokeFor(sender, ToolButtons());

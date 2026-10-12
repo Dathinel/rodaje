@@ -15,6 +15,7 @@ using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Plugins;
 using Rodaje.App.Views.Shared;
+using Rodaje.Core.Editing;
 using Rodaje.Engine.Timeline;
 using Rodaje.Media.Proxies;
 using Rodaje.Media.Video;
@@ -38,6 +39,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
     private readonly MenuFlyout _mediaMenu = new();
     private readonly MenuFlyoutItem _addItem;
+    private readonly MenuFlyoutItem _replaceItem;
     private readonly MenuFlyoutItem _proxyItem;
     private readonly MenuFlyoutItem _revealItem;
     private readonly MenuFlyoutItem _removeItem;
@@ -52,15 +54,18 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     private LibraryCategory _category = LibraryCategory.Media;
     private MediaItem? _menuTarget;
     private ElementApplier? _applier;
+    private bool _markersOpen;
 
     public LibraryView()
     {
         InitializeComponent();
         _addItem = MenuItem("Añadir a la línea de tiempo", "\uE710", (_, _) => AppendTarget());
+        _replaceItem = MenuItem("Reemplazar el clip seleccionado", "\uE8AB", (_, _) => _ = ReplaceSelectedAsync());
         _proxyItem = MenuItem("Generar proxy", "\uE8B1", (_, _) => _ = GenerateProxyAsync());
         _revealItem = MenuItem("Mostrar en el Explorador", "\uEC50", (_, _) => RevealTarget());
         _removeItem = MenuItem("Quitar del proyecto", "\uE74D", (_, _) => RemoveTarget());
         _mediaMenu.Items.Add(_addItem);
+        _mediaMenu.Items.Add(_replaceItem);
         _mediaMenu.Items.Add(_proxyItem);
         _mediaMenu.Items.Add(_revealItem);
         _mediaMenu.Items.Add(new MenuFlyoutSeparator());
@@ -90,6 +95,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         services.Visuals.Changed += OnVisualsChanged;
         services.Packages.Changed += (_, _) => RefreshPackages();
         WatchOwnElements(services.Packages.Locations.Own);
+        MarkersView.Attach(services);
         RefreshMedia();
         RefreshPackages();
         _ = services.Packages.RefreshAsync();
@@ -188,10 +194,12 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
     private void UpdateVisibility()
     {
-        bool media = _category == LibraryCategory.Media;
-        bool audio = _category == LibraryCategory.Audio;
-        bool ai = _category == LibraryCategory.Ai;
-        bool elements = !media && !audio && !ai;
+        bool markers = _markersOpen;
+        bool media = !markers && _category == LibraryCategory.Media;
+        bool audio = !markers && _category == LibraryCategory.Audio;
+        bool ai = !markers && _category == LibraryCategory.Ai;
+        bool elements = !markers && !media && !audio && !ai;
+        MarkersView.Visibility = markers ? Visibility.Visible : Visibility.Collapsed;
         MediaGrid.Visibility = media && Media.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         AudioPanel.Visibility = audio && (AudioMedia.Count > 0 || Sounds.Count > 0) ? Visibility.Visible : Visibility.Collapsed;
         AudioGrid.Visibility = AudioMedia.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -200,7 +208,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         OwnPanel.Visibility = OwnElements.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         AiPanel.Visibility = ai ? Visibility.Visible : Visibility.Collapsed;
         ImportButton.Visibility = media || audio ? Visibility.Visible : Visibility.Collapsed;
-        string? empty = _category switch
+        string? empty = markers ? null : _category switch
         {
             LibraryCategory.Media when Media.Count == 0 =>
                 "Importa videos o audios, o arrástralos aquí. Doble clic en uno lo añade al final de la pista principal; también puedes arrastrarlo a la línea de tiempo.",
@@ -215,11 +223,20 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
     private void OnCategoryChecked(object sender, RoutedEventArgs e)
     {
+        if (sender is RadioButton { Tag: "Markers" } markersButton && CategoryTitle is not null)
+        {
+            _markersOpen = true;
+            CategoryTitle.Text = ToolTipService.GetToolTip(markersButton) as string ?? "Marcadores";
+            UpdateVisibility();
+            return;
+        }
+
         if (sender is not RadioButton { Tag: string tag } button || !Enum.TryParse(tag, out LibraryCategory category) || CategoryTitle is null)
         {
             return;
         }
 
+        _markersOpen = false;
         _category = category;
         CategoryTitle.Text = ToolTipService.GetToolTip(button) as string ?? tag;
         RefreshPackages();
@@ -464,6 +481,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
 
         _menuTarget = item;
+        _replaceItem.IsEnabled = ReplaceTargetClip() is not null;
         _proxyItem.IsEnabled = item.HasVideo;
         _removeItem.IsEnabled = !item.IsUsed;
         _removeItem.Text = item.IsUsed ? "Quitar del proyecto (está en uso)" : "Quitar del proyecto";
@@ -485,6 +503,71 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         {
             _services?.Session.AppendToTimeline(item.Id);
         }
+    }
+
+    /// <summary>El clip seleccionado cuyo medio se puede reemplazar: uno de medio, no un título.</summary>
+    private string? ReplaceTargetClip()
+    {
+        if (_services is null || _services.Session.SelectedClipIds.Count == 0)
+        {
+            return null;
+        }
+
+        string clipId = _services.Session.SelectedClipIds[0];
+        return _services.Session.Sequence.FindClip(clipId) is { Clip.Generator: null } ? clipId : null;
+    }
+
+    /// <summary>
+    /// Reemplaza el medio del clip seleccionado por el del menú, conservando duración, efectos y keyframes. Si el medio
+    /// nuevo es más corto, avisa antes de acortar el clip; si no se puede, avisa por qué.
+    /// </summary>
+    private async Task ReplaceSelectedAsync()
+    {
+        if (_menuTarget is not { } item || _services is null || ReplaceTargetClip() is not { } clipId)
+        {
+            return;
+        }
+
+        EditorSession session = _services.Session;
+        ReplaceMediaPreview preview;
+        try
+        {
+            preview = TimelineEdits.PreviewReplaceMedia(session.Project, session.Sequence, clipId, item.Id);
+        }
+        catch (EditException ex)
+        {
+            session.Notify(NotificationSeverity.Warning, "No se pudo reemplazar", ex.Message);
+            return;
+        }
+
+        if (preview.Shortened)
+        {
+            if (DialogGate.IsOpen || XamlRoot is null)
+            {
+                return;
+            }
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "El medio nuevo es más corto",
+                Content = new TextBlock
+                {
+                    Text = $"«{item.Name}» dura menos que lo que usa el clip: pasará de {Rodaje.Engine.Presentation.Timecode.Format(preview.OldDuration)} a {Rodaje.Engine.Presentation.Timecode.Format(preview.NewDuration)} (lo que viene después no se corre). Los efectos y los keyframes se conservan. Se puede deshacer con Ctrl+Z.",
+                    TextWrapping = TextWrapping.Wrap,
+                },
+                PrimaryButtonText = "Reemplazar y acortar",
+                CloseButtonText = "Cancelar",
+                DefaultButton = ContentDialogButton.Close,
+                RequestedTheme = ElementTheme.Dark,
+            };
+            if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary)
+            {
+                return;
+            }
+        }
+
+        session.Execute(Rodaje.Core.Commands.Edits.ReplaceMedia(session.SequenceId, clipId, item.Id));
     }
 
     private void RevealTarget()

@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #16, #14.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #16, #14, #17, #19, #20, #21, #22, #23, #24, #25, #28.
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -148,7 +148,7 @@ Solo el modelo y la detección, sin exportar todavía: un catálogo de codificad
 
 ## 14. `VideoDecoder` con GOP abierto (HEVC con CRA)
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #17 unido el 11-oct en la integración local; CI sin minutos, verificado en la RTX 3050)
 - **Rama:** `claude/media-gop-abierto`
 - **Caminos:** `src/Rodaje.Media/Video/`, `src/Rodaje.Media/Probe/`, `testing/Rodaje.TestMedia/` (preset nuevo), `tests/Rodaje.Media.Tests/`, `docs/arquitectura/medios.md`, `docs/tareas/`
 - **Lee:** la revisión del PR #9, `docs/arquitectura/medios.md` (seek exacto y GOP abierto), `VideoDecoder.cs`, `KeyframeIndex.cs`.
@@ -166,7 +166,7 @@ Segunda mitad de lo pedido por Daniel: en Ajustes, elegir de qué pistas de vide
 
 ## 16. Material perdido al encadenar curvas de velocidad
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #18: rompe `SpeedDragTests.EstirarUnaCurva_SaleDelInicioDelGesto_YNoDependeDelCamino`; ver el PR)
 - **Rama:** `claude/curvas-material`
 - **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Timing/` (solo si hace falta), `tests/Rodaje.Core.Tests/` (archivos nuevos), `docs/tareas/`
 - **Lee:** `docs/fase-5c.md`, `docs/arquitectura/nucleo.md` (sección Velocidad), `src/Rodaje.Core/Editing/TimelineEdits.Speed.cs` (`AlignEnd`), `src/Rodaje.Core/Model/SpeedPresets.cs`.
@@ -175,7 +175,7 @@ Aplicar «Bala», luego «Héroe» y luego «Ninguna» a un clip de 10 s lo deja
 
 ## 17. Cortar en todas las pistas y borrar a un lado del cursor
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #21 unido el 11-oct en la integración local)
 - **Rama:** `claude/qdv-cortes`
 - **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Commands/`, `tests/Rodaje.Core.Tests/` (archivos nuevos), `src/Rodaje.App/Services/Shortcuts/`, `src/Rodaje.App/Services/EditorSession*.cs` (parcial nuevo), `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (funciones de calidad de vida, aprobadas por Daniel el 11-oct: 2), `docs/arquitectura/nucleo.md`, D-026 (magnetismo).
@@ -184,7 +184,7 @@ Cortar en el cursor en todas las pistas desbloqueadas a la vez (un paso del hist
 
 ## 18. Enlazar y desenlazar, separar audio, y copiar/pegar atributos
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #28 unido el 11-oct en la integración local)
 - **Rama:** `claude/qdv-enlaces-atributos`
 - **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Commands/`, `tests/Rodaje.Core.Tests/` (archivos nuevos), `src/Rodaje.App/Services/` (parciales nuevos), menús contextuales de clip en `src/Rodaje.App/Views/Timeline/` (lo mínimo), `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (funciones 3 y 7), `docs/arquitectura/nucleo.md`, `app-vistas.md`.
@@ -193,7 +193,7 @@ Enlazar/desenlazar clips con un clic y «separar el audio» a su propia pista (c
 
 ## 19. Reemplazar medio y lista de marcadores
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #23 unido el 11-oct en la integración local; el color de los marcadores queda pendiente, pide cambiar el modelo)
 - **Rama:** `claude/qdv-reemplazar-marcadores`
 - **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Commands/`, `tests/Rodaje.Core.Tests/` (archivos nuevos), `src/Rodaje.App/Views/Library/` y un panel nuevo de marcadores en `src/Rodaje.App/Views/Markers/`, `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (funciones 5 y 8), D-020 (marcadores y regiones).
@@ -202,7 +202,7 @@ Reemplazar el medio de un clip por otro conservando duración, efectos y keyfram
 
 ## 20. Exportación en la CI de Windows (sin GPU)
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #22 unido el 11-oct; al unir se corrigió la excepción del rango de h264_mf en MOV, que no llegaba al verificador)
 - **Rama:** `claude/export-ci`
 - **Caminos:** `tests/Rodaje.Media.Tests/Export/` (archivos nuevos), `.github/workflows/ci.yml` (solo si hace falta `ffmpeg.exe` en el runner), `docs/tareas/`.
 - **Lee:** `docs/fase-6.md`, `docs/arquitectura/medios.md` (sección «Salida de la exportación»), `src/Rodaje.Media/Export/FfmpegPipeSink.cs`, `src/Rodaje.Export/FfmpegArguments.cs`.
@@ -211,7 +211,7 @@ Exportaciones cortas reales con fuentes `lavfi` por `FfmpegPipeSink` y `FfmpegAr
 
 ## 21. Licencias de la exportación
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #15: falta evaluar las filas contra la GPLv3 de D-032; ver el PR)
 - **Rama:** `claude/export-licencias`
 - **Caminos:** `LICENCIAS.md`, `docs/legal.md`, `docs/tareas/`.
 - **Lee:** `docs/fase-6.md` (LGPL en la v1), `docs/ffmpeg-configure.txt`, `src/Rodaje.Media/Export/` (catálogo y codificadores).
@@ -220,7 +220,7 @@ Por cada codificador y biblioteca que usa la exportación (SVT-AV1, libaom, libv
 
 ## 22. Autoguardado y recuperación
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #20 unido el 11-oct en la integración local)
 - **Rama:** `claude/qdv-autoguardado`
 - **Caminos:** `src/Rodaje.App/Services/Autosave/` (nuevo), `src/Rodaje.Core/Serialization/` (archivos nuevos si hace falta), `tests/Rodaje.Core.Tests/` (archivos nuevos), el arranque de la App donde se ofrece recuperar (lo mínimo), `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (función 30), `docs/formato-proyecto.md`, `docs/arquitectura/app.md`.
@@ -229,7 +229,7 @@ Guardar una copia del proyecto cada N minutos y tras cambios (en segundo plano, 
 
 ## 23. Zoom a la selección y ajustar a la ventana
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #24 unido el 11-oct en la integración local)
 - **Rama:** `claude/qdv-zoom`
 - **Caminos:** `src/Rodaje.App/Views/Timeline/Logic/` (archivos nuevos), `src/Rodaje.App/Services/Shortcuts/`, la barra de la línea de tiempo (lo mínimo), `tests/` de la lógica, `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (función 9), `docs/arquitectura/app-vistas.md`.
@@ -238,7 +238,7 @@ Guardar una copia del proyecto cada N minutos y tras cambios (en segundo plano, 
 
 ## 24. Plantillas de proyecto
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #19 unido el 11-oct en la integración local)
 - **Rama:** `claude/qdv-plantillas`
 - **Caminos:** `src/Rodaje.App/Services/Templates/` (nuevo), el diálogo de proyecto nuevo (lo mínimo), `tests/` de la lógica, `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (función 33), PR #10 (pistas por defecto), `docs/formato-proyecto.md`.
@@ -247,7 +247,7 @@ Al crear un proyecto: plantillas 16:9 1080p, 9:16 1080×1920 (TikTok/Reels/Short
 
 ## 25. Fuzz del protocolo de módulos
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #27: `ClientFuzzTests` se cuelga en Windows; ver el PR)
 - **Rama:** `claude/modulos-fuzz`
 - **Caminos:** `tests/Rodaje.Modules.Protocol.Tests/` (archivos nuevos), `docs/tareas/`.
 - **Lee:** `docs/fase-7.md`, D-031, `src/Rodaje.Modules.Protocol/`.
@@ -256,7 +256,7 @@ Mensajes y marcos al azar en los dos sentidos (largos, JSON hostil, ids repetido
 
 ## 26. Documentación del protocolo para terceros
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #25 unido el 11-oct en la integración local)
 - **Rama:** `claude/modulos-doc`
 - **Caminos:** `docs/protocolo-modulos.md` (nuevo), `docs/tareas/`.
 - **Lee:** `docs/fase-7.md`, D-031, D-032 (excepción para complementos de `LICENSE`), `src/Rodaje.Modules.Protocol/`, `modules/Rodaje.Module.Echo/`.
@@ -265,7 +265,7 @@ Guía para escribir un módulo de terceros: transporte, saludo y versión, mensa
 
 ## 27. Servidor HTTP local para probar descargas
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #26: un corte con `Abort` en Windows pierde los bytes ya enviados; ver el PR)
 - **Rama:** `claude/descarga-lab`
 - **Caminos:** `testing/Rodaje.TestServer/` (nuevo), `docs/tareas/`.
 - **Lee:** `docs/fase-7.md` (sección Descarga).
