@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Rodaje de 16 a 32 px: la misma R con tres perforaciones grandes y el fondo más amplio para que se lea en la barra de tareas. -->
+  <rect x="4" y="4" width="248" height="248" rx="48" fill="#1D1D1D" stroke="#3A3A3A" stroke-width="8"/>
+  <g fill="#E8833A">
+    <path fill-rule="evenodd" d="M52 40H112V220H52Z M70 64h24v24h-24Z M70 118h24v24h-24Z M70 172h24v24h-24Z"/>
+    <path d="M112 40H142A66 66 0 0 1 142 172H112V124H142A18 18 0 0 0 142 88H112Z"/>
+    <path d="M116 156H172L224 220H168Z"/>
+  </g>
+</svg>

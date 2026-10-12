@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Documentos .rodaje: hoja grafito con la esquina doblada y la R de Rodaje (versión pequeña, legible a 16 px). -->
+  <path d="M40 10H168L220 62V246H40Z" fill="#2C2C2C" stroke="#9A9A9A" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M168 10V62H220" fill="#4A4A4A" stroke="#9A9A9A" stroke-width="8" stroke-linejoin="round"/>
+  <g fill="#E8833A" transform="translate(26 54) scale(0.75)">
+    <path fill-rule="evenodd" d="M52 40H112V220H52Z M70 64h24v24h-24Z M70 118h24v24h-24Z M70 172h24v24h-24Z"/>
+    <path d="M112 40H142A66 66 0 0 1 142 172H112V124H142A18 18 0 0 0 142 88H112Z"/>
+    <path d="M116 156H172L224 220H168Z"/>
+  </g>
+</svg>
