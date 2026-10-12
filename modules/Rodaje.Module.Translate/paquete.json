@@ -5,10 +5,11 @@
   "kind": "module",
   "name": "Traducir subtítulos",
   "description": "Traduce una pista de subtítulos a otro idioma conservando los tiempos (Qwen3-4B-Instruct-2507) en la GPU por Vulkan o en la CPU.",
-  "author": "Dathinel",
+  "author": "Daniel (Dathinel)",
   "license": "GPL-3.0-only",
+  "apps": ["rodaje"],
   "module": {
-    "entry": "bin/Rodaje.Module.Translate.exe",
+    "entry": "Rodaje.Module.Translate.exe",
     "protocol": 1,
     "functions": ["traducir"],
     "runtime": "vulkan",

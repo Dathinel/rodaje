@@ -67,7 +67,13 @@ internal static partial class Prompt
             }
 
             Match m = Numbered().Match(line);
-            if (m.Success && int.TryParse(m.Groups[1].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out int n) && n >= 1 && n <= count)
+            int n = m.Success && int.TryParse(m.Groups[1].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out int parsed) ? parsed : 0;
+            if (m.Success && (n < 1 || n > count))
+            {
+                // Un número que no se pidió: esa línea y lo que la siga no son de ningún subtítulo.
+                current = -1;
+            }
+            else if (m.Success)
             {
                 current = n - 1;
                 if (result[current] is not null)
