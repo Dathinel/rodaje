@@ -290,14 +290,22 @@ internal static class AutoSubtitles
         return ids;
     }
 
-    /// <summary>«0:01,2–0:03,4» en la cultura de la interfaz.</summary>
+    /// <summary>
+    /// Coma decimal, como <c>SpanishNumbers.Format</c> de main (tarea 42): la app corre con <c>InvariantGlobalization</c>
+    /// y la cultura del hilo daría «0.5». Al unir esta rama con main se puede cambiar por aquel.
+    /// </summary>
+    public static NumberFormatInfo Numbers { get; } =
+        NumberFormatInfo.ReadOnly(new NumberFormatInfo { NumberDecimalSeparator = ",", NumberGroupSeparator = "." });
+
+    /// <summary>«0:01,2–0:03,4», con coma decimal.</summary>
     public static string Range(Time start, Time end) => $"{Clock(start)}–{Clock(end)}";
 
     private static string Clock(Time t)
     {
-        double seconds = Math.Max(0, t.ToSeconds());
-        int minutes = (int)(seconds / 60);
-        return string.Create(CultureInfo.CurrentCulture, $"{minutes}:{seconds - (minutes * 60):00.0}");
+        // En décimas enteras para que 59,96 s no salga «0:60,0».
+        long tenths = (long)Math.Round(Math.Max(0, t.ToSeconds()) * 10, MidpointRounding.AwayFromZero);
+        long minutes = tenths / 600;
+        return string.Create(Numbers, $"{minutes}:{(tenths - (minutes * 600)) / 10.0:00.0}");
     }
 
     /// <summary>Un segmento sin palabras: su texto repartido por largo en su tramo.</summary>

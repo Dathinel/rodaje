@@ -229,9 +229,44 @@ public sealed class AutoSubtitlesTests
     }
 
     [Fact]
-    public void Range_FormatsMinutesAndTenths()
+    public void Range_FormatsMinutesAndTenths_WithADecimalComma()
     {
-        Assert.Equal(2, AutoSubtitles.Range(S(1.25), S(75)).Split('–').Length);
-        Assert.StartsWith("1:15", AutoSubtitles.Range(S(1.25), S(75)).Split('–')[1], StringComparison.Ordinal);
+        Assert.Equal("0:01,3–1:15,0", AutoSubtitles.Range(S(1.25), S(75)));
+        // 59,96 s redondea al minuto siguiente, no a «0:60,0».
+        Assert.Equal("1:00,0–0:00,0", AutoSubtitles.Range(S(59.96), S(-3)));
+    }
+
+    [Fact]
+    public void ToSequence_InAReversedClip_KeepsTheWordsInTimelineOrder()
+    {
+        Clip clip = Talk().Sequences[0].GetClip("a").Clip;
+        clip.Speed = new ClipSpeed { Reverse = true };
+        clip.Duration = S(20);
+        var transcript = new Transcript("es", [new TranscriptSegment(1, 3, "uno dos", [new(1, 2, "uno"), new(2, 3, "dos")])]);
+
+        SpeechSegment segment = Assert.Single(AutoSubtitles.ToSequence(clip, transcript));
+
+        // Al revés, 3 s del búfer (13 s del medio) se ven en 5 + (30 − 13) = 22 s, antes que 1 s (11 s del medio, en 24 s).
+        Assert.Equal(["dos", "uno"], segment.Words!.Select(w => w.Text));
+        // Al revés el mapa cuenta desde el último tick del tramo: a lo sumo un tick de diferencia.
+        Assert.InRange((segment.Start - S(22)).Ticks, -1, 1);
+        Assert.InRange((segment.End - S(24)).Ticks, -1, 1);
+        Assert.All(segment.Words!, w => Assert.True(w.Start <= w.End));
+    }
+
+    [Fact]
+    public void ToSequence_ClampsNegativeTimes_AndSkipsEmptySegments()
+    {
+        Clip clip = Talk().Sequences[0].GetClip("a").Clip;
+        var transcript = new Transcript(null,
+        [
+            new TranscriptSegment(-0.5, 0.5, "antes", [new(-0.5, 0.5, "antes")]),
+            new TranscriptSegment(2, 3, "   ", []),
+        ]);
+
+        SpeechSegment segment = Assert.Single(AutoSubtitles.ToSequence(clip, transcript));
+
+        Assert.Equal(clip.Start, segment.Start);
+        Assert.Equal(S(5.5), segment.End);
     }
 }

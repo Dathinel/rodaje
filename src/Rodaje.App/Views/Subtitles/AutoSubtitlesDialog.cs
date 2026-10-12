@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.Analysis;
@@ -159,13 +158,16 @@ internal static class AutoSubtitlesDialog
                 Show(cues);
                 status.Text = cues.Count == 0
                     ? "No se oyó voz en el clip."
-                    : string.Create(CultureInfo.CurrentCulture, $"{cues.Count} subtítulos{(transcript.Language is { Length: > 0 } found && wanted == "auto" ? $" (idioma: {found})" : "")}. Revísalos y aplica.");
+                    : string.Create(AutoSubtitles.Numbers, $"{cues.Count} subtítulos{(transcript.Language is { Length: > 0 } found && wanted == "auto" ? $" (idioma: {found})" : "")}. Revísalos y aplica.");
             }
             catch (OperationCanceledException)
             {
                 status.Text = "Cancelado. El proyecto no cambió.";
             }
-            catch (Exception ex) when (ex is ModuleException or IOException or InvalidOperationException or ArgumentException)
+            // «Transcribir de nuevo» la llama desde un manejador async void: ningún fallo puede escapar y cerrar la app.
+#pragma warning disable CA1031 // Se muestra en el diálogo.
+            catch (Exception ex)
+#pragma warning restore CA1031
             {
                 status.Text = ex is ModuleException error ? ModuleManager.Friendly(module, error) : "No se pudo transcribir: " + ex.Message + " El proyecto no cambió.";
             }
@@ -214,7 +216,7 @@ internal static class AutoSubtitlesDialog
             proposals.Show(proposal);
             if (proposals.Apply())
             {
-                session.Notify(NotificationSeverity.Success, Title, string.Create(CultureInfo.CurrentCulture, $"Se pusieron {cues.Count} subtítulos."));
+                session.Notify(NotificationSeverity.Success, Title, string.Create(AutoSubtitles.Numbers, $"Se pusieron {cues.Count} subtítulos."));
             }
         }
         else if (session.SequenceId == sequenceId)

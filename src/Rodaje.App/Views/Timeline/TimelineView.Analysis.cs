@@ -26,7 +26,7 @@ internal sealed partial class TimelineView
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(voice);
         var subtitles = new MenuFlyoutItem { Text = Subtitles.AutoSubtitlesDialog.Label, Icon = new FontIcon { Glyph = Subtitles.AutoSubtitlesDialog.Glyph } };
-        subtitles.Click += (_, _) => Subtitles.AutoSubtitlesDialog.Run(services);
+        subtitles.Click += (_, _) => services.Shortcuts.Invoke(Subtitles.SubtitleCommands.AutoSubtitles);
         menu.Items.Add(subtitles);
     }
 }
