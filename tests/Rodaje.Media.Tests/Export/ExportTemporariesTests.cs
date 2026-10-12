@@ -120,6 +120,29 @@ public sealed class ExportTemporariesTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_temporary_still_open_keeps_its_entry_for_the_next_start()
+    {
+        using var scratch = new ExportScratch();
+        var journal = new ExportJournal(scratch.Combine("registro"));
+        string temporary = ExportOutputGuard.TemporaryPath(scratch.Combine("video.mp4"));
+        File.WriteAllText(temporary, "a medias");
+        journal.Register("muerto", scratch.Combine("video.mp4"), [temporary]);
+        string json = File.ReadAllText(journal.Path);
+        string start = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime().Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        File.WriteAllText(journal.Path, json.Replace(start, "1", StringComparison.Ordinal));
+
+        using (new FileStream(temporary, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.Empty(journal.CleanupStale());
+            Assert.Equal(["muerto"], journal.Entries().Select(e => e.Id));
+        }
+
+        Assert.Equal([temporary], journal.CleanupStale());
+        Assert.False(File.Exists(temporary));
+        Assert.Empty(journal.Entries());
+    }
+
+    [Fact]
     public void A_corrupt_journal_does_not_block_exports()
     {
         using var scratch = new ExportScratch();

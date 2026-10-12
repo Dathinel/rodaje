@@ -40,6 +40,43 @@ En el canal sin codificar, por cuadro: espera de decodificación 0,03–0,25 ms,
 - Sin codificar ≥150 fps se mantiene: el prototipo da 250–290 con la bajada síncrona.
 - SVT-AV1 depende de la carga de la CPU (42–80 fps con otros procesos): ≤10 min se mantiene; el agente F lo mide con el equipo libre.
 
+## Cifras de la aceptación (agente F, 11-oct)
+
+RTX 3050 Laptop 4 GB / Ryzen 7 7435HS (16 hilos), Debug, con otros agentes usando la máquina (carga de CPU del 16–21 % al medir los tiempos, 85–100 % en algunas repeticiones). Pruebas en [`tests/Rodaje.Export.Tests/Acceptance`](../tests/Rodaje.Export.Tests/Acceptance) con `RODAJE_PRUEBAS_LARGAS=1`.
+
+**Escena** ([`AcceptanceScene`](../tests/Rodaje.Export.Tests/Acceptance/AcceptanceScene.cs)): 10 min de 1080p30 (18 000 cuadros), 3 capas y 129 clips. La principal repite un bloque de 60 s: 1× con color, 2×, 0,5×, 1001/1000×, «Bala» y congelado, con fundido, cortinilla, empuje y fundido a negro. Encima van dos PiP con transformación y color: un HEVC a 25 fps que alterna 1× y 2×, y un H.264 a 23,976 con fundidos. En total, 63 transiciones. El audio del medio principal suena a 1× en toda la duración. Cada capa deja su número de cuadro legible en un lugar fijo, y lo esperado sale de `ClipTimeMap`.
+
+| Criterio | Cifra | |
+|---|---|---|
+| NVENC H.264 10 min ≤3 min (meta 2) | **93,5 s** (192 fps, 12 Mbps VBR + AAC, alto rendimiento) | CUMPLE |
+| SVT-AV1 10 min ≤10 min | **205 s** (88 fps, preset 8, CRF 35) | CUMPLE |
+| Sin codificar ≥150 fps | **258 fps** en los 18 000 cuadros (motor, composición, NV12 y bajada); 30 de los 70 s, esperando a la GPU | CUMPLE |
+| 100 % de cuadros por su número, NVENC | **53 055/53 055** lecturas en 18 000 cuadros (945 tapadas por transiciones, no se cuentan) | CUMPLE |
+| 100 % de cuadros por su número, FFV1 | **5310/5310** en el bloque de 60 s (1800 cuadros, 90 tapadas) | CUMPLE |
+| Frente a la vista previa (luma ≤1, croma ≤2) | FFV1 contra `TimelineSession` + `Compositor` leídos en RGBA16F y convertidos en la CPU, en 14 cuadros (cada velocidad, congelado y las 4 transiciones): **luma máx. 1, croma máx. 1** | CUMPLE |
+| A/V tras 10 min (medio ≤1 ms, máx. ≤½ cuadro, pts 0 ±1) | 600 marcas de audio, **error medio 0,000 ms, máximo 0,000 ms**; `start_time` 0 en video y en audio | CUMPLE |
+| `moov` al principio, `bt709/tv/left` | Lo comprueba el verificador en cada exportación de la prueba | CUMPLE |
+| Recorte por región | Cuadrante de abajo a la izquierda a 960×540: **90/90** cuadros con el número del PiP | CUMPLE (arreglado) |
+| VMAF YouTube 1080p ≥93 (≥85 en el 1 % peor) | **99,96** (1 % peor 98,9) a 8,7 Mbps | CUMPLE |
+| VMAF Archivo pequeño ≤3 Mbps con ≥85 | Con CRF 35 sin techo daba 3,36 Mbps. Recalibrado a CRF 38 con techo de 3 Mbps: **2,06 Mbps, VMAF 96,5** (1 % peor 88,6) | CUMPLE (recalibrado) |
+| VMAF Máxima calidad ≥97 | **99,96** (HEVC 10 bits CQ 18, 6,3 Mbps) | CUMPLE |
+| AV1 ≤60 % del tamaño de NVENC a VMAF ±1 | NVENC CQ 23: 99,96 a 4,95 Mbps; AV1 CRF 41: 99,82 a 2,57 Mbps = **52 %** | CUMPLE |
+| 20 cancelaciones ≤1 s, sin archivo ni proceso, VRAM ±50 MB | 4 corridas. Con la máquina al 16–91 %: mediana 14–139 ms y máximo 159–609 ms. Con la máquina al 100 % por otros agentes, una de 2,5 s. Ningún archivo ni `ffmpeg.exe` vivo; VRAM ±0,0 MB (+203 MB mientras exporta) | CUMPLE, salvo un caso con la máquina saturada |
+| Tras matar Rodaje, limpieza al reabrir | El proceso hijo de prueba se mata con `Kill`: su `ffmpeg.exe` muere solo en 40–540 ms y `CleanupStale` borra el temporal y la carpeta. Una vez el temporal seguía abierto y la entrada se perdía; ahora se queda para el próximo arranque | CUMPLE (arreglado) |
+| App usable: ≤1 % refrescos tarde | 3 corridas de 25 s a 60 Hz con 3 capas 1080p a resolución completa. Exportando: 0–0,93 % tarde, salvo la corrida con la máquina al 91 %, que dio 3,7–5,1 % en modo bajo | CUMPLE con la máquina normal |
+| App usable: edición → pantalla mediana ≤20 ms, p95 ≤40 ms | Exportando: mediana 1,3–4,7 ms, p95 1,8–41,5 ms; con la máquina al 91 %, p95 de hasta 368 ms | CUMPLE con la máquina normal |
+| App usable: ningún bloqueo >50 ms | Bloqueos de 51–115 ms con NVENC y de 52–326 ms con AV1. **También sin exportar** (59–370 ms), siempre en los cortes y transiciones de la vista previa (entrada al clip a 2× en 10 s, PiP en 20 y 24,5 s) | **NO CUMPLE** (la causa es la vista previa, no la exportación) |
+| Rodaje.Export ≥90 % de cobertura | 94,6 % de líneas | CUMPLE |
+| AOT sin advertencias | `app.ps1 -SoloPublicar` sobre esta rama: la app publicada con Native AOT sin advertencias de recorte ni de AOT | CUMPLE |
+
+**Modo bajo.** Antes del ajuste los dos modos dejaban la vista previa igual, y el bajo solo bajaba la prioridad de la CPU (NVENC alto 234 fps, bajo 186 fps). Ahora el dispositivo de la exportación baja su prioridad en el planificador de la GPU (`ExportGpuPriority`, −7). La exportación cede de verdad: NVENC pasa de 167–229 fps en alto a 118–121 fps en bajo, y AV1 de 37–75 a 25–32 fps. La vista previa mejora en algunas corridas (p95 de edición 21 frente a 41,5 ms; con AV1, ningún bloqueo frente a 52 ms) y queda igual en otras: la diferencia está dentro del ruido de la máquina compartida.
+
+**Pendiente:**
+- Los bloqueos de la vista previa en cortes con velocidad y transiciones, que salen también sin exportar (pre-roll del motor).
+- Repetir las cifras de fluidez y cancelación con el equipo libre.
+- Lo que solo puede juzgar Daniel: reproducción en VLC, Películas y TV y Edge, y la comparación con CapCut.
+- La escena es sintética (ruido en movimiento y números): los VMAF reales serán distintos, pero los preajustes tienen margen.
+
 ## Formatos y preajustes
 
 MP4 (por defecto, `+faststart`), MOV, MKV, WebM y solo audio. H.264/HEVC por GPU (NVENC, AMF, QSV) o por Media Foundation; AV1 por CPU con SVT-AV1 (y por GPU solo en RTX 40); VP9 por CPU; FFV1 y DNxHR como maestros; audio AAC (`aac_mf`), Opus, FLAC, PCM, MP3. Preajustes como datos: YouTube 1080p, YouTube 4K, Reels/TikTok 9:16, Máxima calidad, Archivo pequeño, Solo audio, Personalizado; sus números se calibran con VMAF.

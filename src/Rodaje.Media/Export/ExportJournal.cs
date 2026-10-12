@@ -54,7 +54,10 @@ public sealed class ExportJournal
         }
     }
 
-    /// <summary>Borra los temporales de exportaciones cuyo proceso ya no vive y las quita del registro.</summary>
+    /// <summary>
+    /// Borra los temporales de exportaciones cuyo proceso ya no vive y las quita del registro. Si algo no se pudo borrar
+    /// (un antivirus o el <c>ffmpeg.exe</c> recién muerto aún lo tienen abierto), la entrada se queda para el próximo arranque.
+    /// </summary>
     /// <returns>Rutas que se borraron.</returns>
     public IReadOnlyList<string> CleanupStale()
     {
@@ -63,16 +66,22 @@ public sealed class ExportJournal
         {
             foreach (Entry entry in entries.Where(e => !IsAlive(e)).ToList())
             {
+                bool left = false;
                 foreach (string path in entry.Temporaries.Where(p => p.Contains(ExportOutputGuard.TemporaryMarker, StringComparison.OrdinalIgnoreCase)))
                 {
                     bool existed = File.Exists(path) || System.IO.Directory.Exists(path);
-                    if (!ExportOutputGuard.DeleteTemporary(path) && existed)
+                    bool stays = ExportOutputGuard.DeleteTemporary(path);
+                    left |= stays;
+                    if (!stays && existed)
                     {
                         deleted.Add(path);
                     }
                 }
 
-                entries.Remove(entry);
+                if (!left)
+                {
+                    entries.Remove(entry);
+                }
             }
         });
         return deleted;

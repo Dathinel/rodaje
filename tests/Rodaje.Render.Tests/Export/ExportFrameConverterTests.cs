@@ -269,6 +269,49 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         }
     }
 
+    [Theory]
+    [InlineData(128, 72, 32, 16, 64, 36, 0)]
+    [InlineData(256, 144, 64, 32, 128, 72, 1)]
+    public void A_crop_gives_the_same_samples_as_its_region_alone(int width, int height, int x, int y, int cropWidth, int cropHeight, int level)
+    {
+        using ExportGpu gpu = ExportGpu.Warp();
+        var format = new ExportVideoFormat(64, 36, Rate, ExportPixelFormat.Yuv420P10, ExportColor.Bt709Limited);
+        Picture source = Picture.Test(width, height);
+        var alone = new Picture(cropWidth, cropHeight);
+        for (int j = 0; j < cropHeight; j++)
+        {
+            for (int i = 0; i < cropWidth; i++)
+            {
+                (double r, double g, double b, double a) = source[x + i, y + j];
+                alone.SetPremultiplied(i, j, r, g, b, a);
+            }
+        }
+
+        int[][] expected = ExportCheck.Convert(gpu, alone, format, dither: true);
+        using ExportFrameConverter converter = gpu.Converter(width, height, format, region: new ExportSourceRegion(x, y, cropWidth, cropHeight));
+        nint texture = gpu.Upload(source);
+        try
+        {
+            converter.Submit(texture, 0);
+            int[][] got = ExportCheck.ReadOne(converter, 0);
+            Assert.Equal((level, false), (converter.Plan.Level, converter.Plan.PassThrough));
+            Assert.Equal(0, ExportCheck.Worst(got, expected));
+        }
+        finally
+        {
+            ExportGpu.Release(texture);
+        }
+    }
+
+    [Fact]
+    public void A_crop_outside_the_composite_is_rejected()
+    {
+        using ExportGpu gpu = ExportGpu.Warp();
+        var format = new ExportVideoFormat(64, 36, Rate, ExportPixelFormat.Nv12, ExportColor.Bt709Limited);
+        Assert.Throws<ArgumentOutOfRangeException>(() => gpu.Converter(128, 72, format, region: new ExportSourceRegion(100, 0, 64, 36)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => gpu.Converter(128, 72, format, region: new ExportSourceRegion(0, 0, 0, 36)));
+    }
+
     [Fact]
     public void Composite_of_another_size_is_rejected()
     {

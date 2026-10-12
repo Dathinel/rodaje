@@ -145,11 +145,22 @@ public sealed class ExportPlanTests
     }
 
     [Fact]
+    public void A_crop_exports_its_region_at_its_own_size_unless_a_size_is_asked()
+    {
+        Project project = Project(Time.FromSeconds(1));
+        ExportSettings cropped = H264 with { Video = H264.Video! with { Crop = new ExportCrop(480, 270, 960, 540) } };
+        ExportVideoFormat own = ExportPlan.Create(Request(project, cropped), Encoders).Video!;
+        Assert.Equal((960, 540), (own.Width, own.Height));
+        ExportPlan scaled = ExportPlan.Create(Request(project, cropped with { Video = cropped.Video! with { Width = 1920 } }), Encoders);
+        Assert.Equal((1920, 1080), (scaled.Video!.Width, scaled.Video.Height));
+    }
+
+    [Fact]
     public void What_cannot_be_exported_says_why()
     {
         Project project = Project(Time.FromSeconds(2));
         Code(ExportErrorCode.InvalidSettings, () => ExportPlan.Create(Request(project, new ExportSettings()), Encoders));
-        Code(ExportErrorCode.InvalidSettings, () => ExportPlan.Create(Request(project, H264 with { Video = H264.Video! with { Crop = new ExportCrop(0, 0, 10, 10) } }), Encoders));
+        Code(ExportErrorCode.InvalidSettings, () => ExportPlan.Create(Request(project, H264 with { Video = H264.Video! with { Crop = new ExportCrop(1800, 0, 200, 100) } }), Encoders));
         Code(ExportErrorCode.InvalidSettings, () => ExportPlan.Create(Request(project, H264, new ExportRange(Time.FromSeconds(3), Time.FromSeconds(4))), Encoders));
         Code(ExportErrorCode.InvalidSettings, () => ExportPlan.Create(Request(project, H264, new ExportRange(Time.FromTicks(1), Time.FromTicks(2))), Encoders));
         Code(ExportErrorCode.InvalidSettings, () => ExportPlan.Create(new ExportRequest(project, "otra", "x.mp4", H264), Encoders));
