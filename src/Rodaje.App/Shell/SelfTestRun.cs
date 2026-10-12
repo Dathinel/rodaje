@@ -299,7 +299,8 @@ internal static partial class SelfTestRun
 
             await Task.Delay(400);
             FrameCapture frame = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
-            if ((frame.Width, frame.Height) != (width, height))
+            // Con el panel a menos de la mitad de la secuencia (pantallas de 1024×768) el visor compone a la mitad a propósito.
+            if ((frame.Width, frame.Height) != (width, height) && (frame.Width, frame.Height) != (width / 2, height / 2))
             {
                 throw new InvalidOperationException($"El visor compone {frame.Width}×{frame.Height} en vez de {width}×{height}.");
             }
