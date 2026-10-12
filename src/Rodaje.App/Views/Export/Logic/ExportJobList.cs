@@ -34,20 +34,104 @@ public sealed class ExportEntry
 }
 
 /// <summary>
-/// La cola de exportaciones: una a la vez (cada una con su copia del proyecto), las demás esperan. Los avisos de los
-/// trabajos llegan desde sus hilos y se pasan al de la interfaz; <see cref="Changed"/> salta siempre ahí.
+/// La cola de exportaciones: una a la vez, o dos si sobra equipo (<see cref="ExportConcurrency"/>), cada una con su copia
+/// del proyecto; las demás esperan en un orden que se puede cambiar, y la cola se puede pausar. Con <see cref="Store"/> se
+/// guarda en disco cada vez que cambia. Los avisos de los trabajos llegan desde sus hilos y se pasan al de la interfaz;
+/// <see cref="Changed"/> salta siempre ahí.
 /// </summary>
 public sealed partial class ExportJobList(IExportRunner runner, SynchronizationContext? context) : IDisposable
 {
     private readonly List<ExportEntry> _entries = [];
     private int _pendingNotify;
+    private bool _paused;
+    private bool _disposed;
 
     public IExportRunner Runner { get; } = runner ?? throw new ArgumentNullException(nameof(runner));
+
+    /// <summary>Cuántas a la vez; por omisión, una.</summary>
+    public ExportConcurrency Concurrency { get; init; } = ExportConcurrency.OneAtATime;
+
+    /// <summary>Dónde se guarda la cola para reanudarla al volver a abrir; nulo, no se guarda.</summary>
+    public ExportQueueStore? Store { get; init; }
 
     /// <summary>Lo más reciente primero.</summary>
     public IReadOnlyList<ExportEntry> Entries => _entries;
 
     public int ActiveCount => _entries.Count(e => !e.IsFinished);
+
+    /// <summary>Las que esperan, en el orden en que van a empezar.</summary>
+    public IReadOnlyList<ExportEntry> Waiting => [.. Enumerable.Reverse(_entries).Where(e => e.Job is null)];
+
+    /// <summary>Pausada: lo que está en marcha termina, pero no empieza nada nuevo.</summary>
+    public bool IsPaused
+    {
+        get => _paused;
+        set
+        {
+            if (_paused == value)
+            {
+                return;
+            }
+
+            _paused = value;
+            StartNext();
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>Lugar en la cola (1 = la siguiente en empezar), o 0 si no espera.</summary>
+    public int QueuePosition(ExportEntry entry)
+    {
+        int index = Waiting.ToList().IndexOf(entry);
+        return index + 1;
+    }
+
+    /// <summary>Adelanta (<paramref name="earlier"/>) o atrasa una que espera; <c>false</c> si no se pudo.</summary>
+    public bool Move(ExportEntry entry, bool earlier)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        if (entry.Job is not null)
+        {
+            return false;
+        }
+
+        // La lista va de la más reciente a la más antigua: empezar antes es ir hacia el final.
+        int index = _entries.IndexOf(entry);
+        int step = earlier ? 1 : -1;
+        int other = index + step;
+        while (other >= 0 && other < _entries.Count && _entries[other].Job is not null)
+        {
+            other += step;
+        }
+
+        if (index < 0 || other < 0 || other >= _entries.Count)
+        {
+            return false;
+        }
+
+        (_entries[index], _entries[other]) = (_entries[other], _entries[index]);
+        Persist();
+        Changed?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
+    /// <summary>Varias exportaciones de una vez (varias versiones), en ese orden.</summary>
+    public IReadOnlyList<ExportEntry> EnqueueRange(IEnumerable<ExportRequest> requests)
+    {
+        ArgumentNullException.ThrowIfNull(requests);
+        var added = new List<ExportEntry>();
+        foreach (ExportRequest request in requests)
+        {
+            var entry = new ExportEntry(request, request.ContinueWithoutMissing);
+            _entries.Insert(0, entry);
+            added.Add(entry);
+        }
+
+        StartNext();
+        Persist();
+        Changed?.Invoke(this, EventArgs.Empty);
+        return added;
+    }
 
     /// <summary>Algo cambió en la cola o en el avance de un trabajo.</summary>
     public event EventHandler? Changed;
@@ -61,6 +145,7 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
         var entry = new ExportEntry(request, continueWithoutMissing);
         _entries.Insert(0, entry);
         StartNext();
+        Persist();
         Changed?.Invoke(this, EventArgs.Empty);
         return entry;
     }
@@ -92,6 +177,7 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
         }
         else if (_entries.Remove(entry))
         {
+            Persist();
             Changed?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -118,9 +204,13 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Cancela lo que quede (al cerrar la app).</summary>
+    /// <summary>
+    /// Al cerrar la app: guarda lo que no terminó (la que estaba a medias vuelve a empezar al reanudar) y lo cancela.
+    /// </summary>
     public void Dispose()
     {
+        Persist();
+        _disposed = true;
         foreach (ExportEntry entry in _entries)
         {
             entry.Job?.Cancel();
@@ -129,22 +219,21 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
 
     private void StartNext()
     {
-        if (_entries.Any(e => e.Job is { } job && !job.Progress.State.IsFinished()))
+        while (!_paused && !_disposed)
         {
-            return;
-        }
+            // La más antigua que espera: la lista va de la más reciente a la más antigua.
+            ExportEntry? next = _entries.LastOrDefault(e => e.Job is null);
+            ExportSettings[] running = [.. _entries.Where(e => e.Job is { } job && !job.Progress.State.IsFinished()).Select(e => e.Request.Settings)];
+            if (next is null || !Concurrency.Allows(running, next.Request.Settings))
+            {
+                return;
+            }
 
-        // La más antigua que espera: la lista va de la más reciente a la más antigua.
-        ExportEntry? next = _entries.LastOrDefault(e => e.Job is null);
-        if (next is null)
-        {
-            return;
+            IExportJob started = Runner.Start(next.Request, next.ContinueWithoutMissing);
+            next.Job = started;
+            started.Changed += (_, _) => OnJobChanged();
+            _ = WatchAsync(next, started);
         }
-
-        IExportJob started = Runner.Start(next.Request, next.ContinueWithoutMissing);
-        next.Job = started;
-        started.Changed += (_, _) => OnJobChanged();
-        _ = WatchAsync(next, started);
     }
 
     private async Task WatchAsync(ExportEntry entry, IExportJob job)
@@ -154,8 +243,25 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
         {
             Finished?.Invoke(this, entry);
             StartNext();
+            Persist();
             Changed?.Invoke(this, EventArgs.Empty);
         });
+    }
+
+    private void Persist()
+    {
+        if (Store is null || _disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            Store.Save(Enumerable.Reverse(_entries).Where(e => !e.IsFinished).Select(e => (e.Request, e.ContinueWithoutMissing)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     // Llega desde el hilo del trabajo: se junta en un solo aviso pendiente para no inundar la interfaz.

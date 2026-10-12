@@ -111,7 +111,11 @@ internal sealed partial class MainWindow : Window, IShellHost
         IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
         Program.Metrics.Milestone("paquetes");
         var preview = new PreviewYield(engine, engine.SetPreviewQuality, () => settings.Current);
-        _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed)), SynchronizationContext.Current);
+        _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed)), SynchronizationContext.Current)
+        {
+            Concurrency = new ExportConcurrency(Environment.ProcessorCount, () => engine.DedicatedVideoMemory),
+            Store = options.IsAutomated ? null : new ExportQueueStore(ExportQueueStore.DefaultPath),
+        };
         _modules = new ModuleManager(new ModuleManagerOptions
         {
             Roots = ModuleCatalog.DefaultRoots(),
@@ -286,7 +290,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         _ = Task.Run(_modules.Refresh);
         _ = _visuals.TrimDiskCacheAsync();
-        _ = Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale());
+        _ = OfferExportQueueAsync(Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale()));
         if (_options.StartupProbe)
         {
             _ = StartupTrace.FinishProbeAsync(Program.Metrics, _options.LogPath, _options.Files.Count > 0, () => _engine.FailureMessage, Close);

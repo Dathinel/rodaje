@@ -211,6 +211,55 @@ public sealed class ExportDialogModel
         return new ExportRequest(projectCopy, sequenceId, OutputPath, settings, Ranges[RangeIndex].Range) { ProjectDirectory = projectDirectory };
     }
 
+    /// <summary>
+    /// «Exportar varias versiones»: una petición por preajuste, con el rango, el rendimiento y la carpeta de ahora y el nombre
+    /// del archivo más el del preajuste («Viaje - YouTube 1080p.mp4»). Un preajuste de otra forma que el proyecto (Reels 9:16
+    /// sobre un proyecto 16:9) conserva su forma y llena el cuadro recortando al centro; los demás siguen al proyecto.
+    /// </summary>
+    public IReadOnlyList<ExportRequest> CreateVersionRequests(IEnumerable<string> presetIds, Project projectCopy, string sequenceId,
+        string? projectDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(presetIds);
+        ArgumentNullException.ThrowIfNull(projectCopy);
+        string folder = Path.GetDirectoryName(OutputPath) is { Length: > 0 } dir ? dir : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+        string baseName = Path.GetFileNameWithoutExtension(OutputPath);
+        var requests = new List<ExportRequest>();
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string id in presetIds)
+        {
+            ExportPreset preset = ExportPresetLibrary.Find(_preferences, id) ?? throw new ArgumentException($"No hay un preajuste «{id}».", nameof(presetIds));
+            ExportSettings settings = VersionSettings(preset.Settings);
+            settings = ExportSettingsEditor.Coerce(settings, Encoders).Settings with { Performance = Performance };
+            (EncoderSpec? video, EncoderSpec? audio) = ExportSettingsEditor.Encoders(settings, Encoders);
+            if (settings.Video is { } v && settings.Container is not ExportContainer.ImageSequence && video is not null)
+            {
+                settings = settings with { Video = v with { EncoderId = video.Id } };
+            }
+
+            if (settings.Audio is { } a && audio is not null)
+            {
+                settings = settings with { Audio = a with { EncoderId = audio.Id } };
+            }
+
+            string name = string.Concat($"{baseName} - {preset.Name}".Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim();
+            string path = ExportRanges.WithExtension(Path.Combine(folder, name), settings);
+            for (int n = 2; !used.Add(path); n++)
+            {
+                path = ExportRanges.WithExtension(Path.Combine(folder, $"{name} ({n})"), settings);
+            }
+
+            requests.Add(new ExportRequest(projectCopy, sequenceId, path, settings, Ranges[RangeIndex].Range) { ProjectDirectory = projectDirectory });
+        }
+
+        return requests;
+    }
+
+    private ExportSettings VersionSettings(ExportSettings preset) =>
+        preset.Video is { Width: { } w, Height: { } h } video && ExportGeometry.ShapeDiffers(w, h, SequenceWidth, SequenceHeight)
+            && ExportGeometry.ShapeDiffers(w, h, 16, 9)
+            ? preset with { Video = video with { Fit = ExportFit.Crop } }
+            : ExportGeometry.FollowSequence(preset, SequenceWidth, SequenceHeight);
+
     /// <summary>Si los ajustes son los del preajuste ya llevado a la forma del proyecto.</summary>
     private bool PresetMatches(ExportPreset preset, ExportSettings settings) =>
         ExportPresetLibrary.Matches(preset with { Settings = ExportGeometry.FollowSequence(preset.Settings, SequenceWidth, SequenceHeight) }, settings);

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Shortcuts;
@@ -26,6 +27,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
     };
 
     private readonly Button _clear = new() { Content = "Limpiar terminadas", IsEnabled = false };
+    private readonly ToggleButton _pause = new() { Content = "Pausar la cola" };
     private readonly Dictionary<ExportEntry, Card> _cards = [];
     private EditorServices? _services;
     private ExportJobList? _jobs;
@@ -37,8 +39,19 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         var header = new Grid { ColumnSpacing = 8 };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         header.Children.Add(title);
-        Grid.SetColumn(_clear, 1);
+        Grid.SetColumn(_pause, 1);
+        header.Children.Add(_pause);
+        ToolTipService.SetToolTip(_pause, "En pausa, la exportación en marcha termina pero no empieza ninguna otra");
+        _pause.Click += (_, _) =>
+        {
+            if (_jobs is not null)
+            {
+                _jobs.IsPaused = _pause.IsChecked == true;
+            }
+        };
+        Grid.SetColumn(_clear, 2);
         header.Children.Add(_clear);
         _clear.Click += (_, _) => _jobs?.ClearFinished();
         var root = new StackPanel { Spacing = 6, Padding = new Thickness(12, 10, 12, 12) };
@@ -91,6 +104,19 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
 
             card.Update();
         }
+
+        UIElement[] order = [.. jobs.Entries.Select(e => (UIElement)_cards[e].Root)];
+        if (!order.SequenceEqual(_list.Children))
+        {
+            _list.Children.Clear();
+            foreach (UIElement root in order)
+            {
+                _list.Children.Add(root);
+            }
+        }
+
+        _pause.IsChecked = jobs.IsPaused;
+        _pause.Content = jobs.IsPaused ? "Reanudar la cola" : "Pausar la cola";
 
         _empty.Visibility = jobs.Entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         _clear.IsEnabled = jobs.Entries.Any(e => e.IsFinished);
@@ -187,6 +213,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         private readonly StackPanel _actions = new() { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 6, 0, 0) };
         private BgraImage? _shownThumbnail;
         private ExportJobState? _shownState;
+        private int _shownPosition = -1;
 
         public Card(ExportJobsView owner, ExportEntry entry)
         {
@@ -236,7 +263,10 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         public void Update()
         {
             ExportProgress progress = _entry.Progress;
-            _status.Text = ExportText.Status(progress) + (progress.State == ExportJobState.Queued ? " (empieza al terminar la anterior)" : "");
+            int position = _entry.Job is null ? _owner._jobs?.QueuePosition(_entry) ?? 0 : 0;
+            _status.Text = position > 0
+                ? $"En cola · {position}.º" + (_owner._jobs?.IsPaused == true ? " · la cola está en pausa" : "")
+                : ExportText.Status(progress);
             _bar.Value = progress.Fraction;
             _bar.IsIndeterminate = progress.State is ExportJobState.Preparing or ExportJobState.MeasuringLoudness or ExportJobState.MixingAudio
                 or ExportJobState.Finalizing;
@@ -248,9 +278,10 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
                 _thumbnail.Source = BgraBitmaps.From(thumbnail);
             }
 
-            if (_shownState != progress.State)
+            if (_shownState != progress.State || _shownPosition != position)
             {
                 _shownState = progress.State;
+                _shownPosition = position;
                 ShowActions(progress.State);
             }
         }
@@ -278,6 +309,19 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
                     }
 
                     break;
+                case ExportJobState.Queued when _shownPosition > 0 && _owner._jobs is { } jobs:
+                    int waiting = jobs.Waiting.Count;
+                    if (_shownPosition > 1)
+                    {
+                        AddAction("Empezar antes", () => jobs.Move(_entry, earlier: true));
+                    }
+
+                    if (_shownPosition < waiting)
+                    {
+                        AddAction("Empezar después", () => jobs.Move(_entry, earlier: false));
+                    }
+
+                    return;
                 case ExportJobState.Canceled:
                     AddAction("Volver a exportar", () => _owner._jobs?.Retry(_entry, current: _owner._services?.Session.Project));
                     break;
