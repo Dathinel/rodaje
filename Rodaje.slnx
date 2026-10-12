@@ -23,6 +23,8 @@
   </Folder>
   <Folder Name="/testing/">
     <Project Path="testing/Rodaje.TestMedia/Rodaje.TestMedia.csproj" />
+    <Project Path="testing/Rodaje.TestServer/Rodaje.TestServer.csproj" />
+    <Project Path="testing/Rodaje.TestServer/Tests/Rodaje.TestServer.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Rodaje.Acceptance.Tests/Rodaje.Acceptance.Tests.csproj" />
