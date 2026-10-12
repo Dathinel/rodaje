@@ -45,7 +45,7 @@ internal static class CpuExportEnvironment
         try
         {
             string output = Encoding.UTF8.GetString(RunBinary(ffmpeg.Path, ["-hide_banner", "-nostdin", "-encoders"], TimeSpan.FromSeconds(30)));
-            HashSet<string> encoders = ParseEncoderList(output);
+            HashSet<string> encoders = FfmpegExportEncoderProbe.ParseEncoderList(output);
             return encoders.Count > 0 ? (encoders, null) : (null, "ffmpeg -encoders no listó ningún codificador.");
         }
         catch (Exception ex) when (ex is InvalidOperationException or TimeoutException)
@@ -100,9 +100,9 @@ internal static class CpuExportEnvironment
             info.ArgumentList.Add(argument);
         }
 
-        // Sin el trabajo de Windows de Rodaje.Media (ChildProcessJob es interno): si la prueba se corta, el tiempo de espera
-        // de abajo mata el proceso.
         using var process = Process.Start(info) ?? throw new InvalidOperationException($"No arrancó {executable}.");
+        // En el trabajo de Windows de Rodaje.Media: si el proceso de pruebas muere, Windows cierra también este ffmpeg.exe.
+        ChildProcessJob.TryAssign(process);
         process.StandardInput.Close();
         Task<string> error = process.StandardError.ReadToEndAsync();
         using var output = new MemoryStream();
@@ -139,26 +139,6 @@ internal static class CpuExportEnvironment
 
     public static ExportVideoFormat Format(int width, int height, ExportPixelFormat pixels) =>
         new(width, height, Rational.Fps30, pixels, ExportColor.For(width, height, pixels));
-
-    /// <summary>
-    /// Ids de codificadores de <c>ffmpeg -encoders</c>: líneas « V....D libsvtav1 …», con banderas de 6 caracteres que
-    /// empiezan por V (video) o A (audio); la leyenda (« V..... = Video») se descarta por el «=». Es lo mismo que hace
-    /// <c>FfmpegExportEncoderProbe.ParseEncoderList</c>, que es interno de <c>Rodaje.Media</c>.
-    /// </summary>
-    private static HashSet<string> ParseEncoderList(string output)
-    {
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-        foreach (string line in output.Split('\n'))
-        {
-            string[] parts = line.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 2 && parts[0].Length == 6 && parts[0][0] is 'V' or 'A' && parts[1] != "=")
-            {
-                ids.Add(parts[1]);
-            }
-        }
-
-        return ids;
-    }
 }
 
 /// <summary>Carpeta temporal de una prueba (con espacios y «ñ» en la ruta), que se borra al terminar.</summary>
@@ -196,14 +176,8 @@ internal sealed class ExportScratch : IDisposable
 /// <summary>El proceso <c>ffmpeg.exe</c> de un <see cref="FfmpegPipeSink"/>.</summary>
 internal static class SinkRuns
 {
-    // FfmpegPipeSink.ProcessId es interno y Rodaje.Media solo abre sus internos a Rodaje.Media.Tests; estas pruebas viven
-    // aquí para usar FfmpegArguments (Rodaje.Export), así que lo leen por reflexión.
-    private static readonly PropertyInfo ProcessIdProperty =
-        typeof(FfmpegPipeSink).GetProperty("ProcessId", BindingFlags.Instance | BindingFlags.NonPublic)
-        ?? throw new InvalidOperationException("FfmpegPipeSink ya no tiene la propiedad ProcessId.");
-
     /// <summary>Id del <c>ffmpeg.exe</c> en marcha, o <c>null</c> si no hay.</summary>
-    public static int? ProcessId(FfmpegPipeSink sink) => (int?)ProcessIdProperty.GetValue(sink);
+    public static int? ProcessId(FfmpegPipeSink sink) => sink.ProcessId;
 
     public static bool IsAlive(int? processId)
     {

@@ -106,33 +106,44 @@ public sealed class ExportEncoderAvailabilityTests
     [Fact]
     public async Task Invalidate_during_a_run_starts_the_next_one_only_after_it_ends()
     {
+        // La sonda vieja espera a que la prueba la suelte, sin tope propio: con uno de 10 s, en la CI la prueba pasó 13 s
+        // sin turno en el pool (todos los proyectos a la vez en 4 núcleos), la sonda vieja terminó sola y la nueva
+        // empezó, legítimamente, antes de la comprobación. El finally la suelta si algo falla antes.
         using var entered = new SemaphoreSlim(0);
         using var release = new ManualResetEventSlim();
         var probe = new FakeProbe(_ =>
         {
             entered.Release();
-            release.Wait(TimeSpan.FromSeconds(10));
+            release.Wait();
             return ExportProbeResult.Ok;
         });
         var availability = new ExportEncoderAvailability(probe, catalog: Few("libsvtav1"));
 
-        Task<ExportEncoderReport> old = availability.GetAsync();
-        Assert.True(await entered.WaitAsync(TimeSpan.FromSeconds(10)));
-        availability.Invalidate();
-        Task<ExportEncoderReport> fresh = availability.GetAsync();
-        await Task.Delay(100);
+        try
+        {
+            Task<ExportEncoderReport> old = availability.GetAsync();
+            Assert.True(await entered.WaitAsync(TimeSpan.FromSeconds(60)));
+            availability.Invalidate();
+            Task<ExportEncoderReport> fresh = availability.GetAsync();
+            await Task.Delay(100);
 
-        // La prueba vieja sigue sola: la nueva no ha abierto otra sonda a la vez.
-        Assert.Equal(1, probe.Calls);
-        Assert.False(fresh.IsCompleted);
-        release.Set();
-        ExportEncoderReport oldReport = await old;
-        ExportEncoderReport freshReport = await fresh;
+            // La prueba vieja sigue sola: la nueva no ha abierto otra sonda a la vez.
+            Assert.Equal(1, probe.Calls);
+            Assert.False(old.IsCompleted);
+            Assert.False(fresh.IsCompleted);
+            release.Set();
+            ExportEncoderReport oldReport = await old;
+            ExportEncoderReport freshReport = await fresh;
 
-        Assert.NotSame(oldReport, freshReport);
-        Assert.Equal(2, probe.Calls);
-        Assert.Equal(1, probe.MaxRunning);
-        Assert.Same(freshReport, await availability.GetAsync());
+            Assert.NotSame(oldReport, freshReport);
+            Assert.Equal(2, probe.Calls);
+            Assert.Equal(1, probe.MaxRunning);
+            Assert.Same(freshReport, await availability.GetAsync());
+        }
+        finally
+        {
+            release.Set();
+        }
     }
 
     [Fact]
