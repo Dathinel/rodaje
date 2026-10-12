@@ -18,5 +18,4 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 ## Para retomar (12-oct, créditos semanales agotados)
 
 - v1.0.0 lista y verificada (Sonnet: lista para publicar). Falta: recompilar con `build\distribuir.ps1` sobre el último commit y publicar con `build\publicar-release.ps1` **solo con el sí del autor**.
-- Pendiente técnico: efectos propios de los clips compuestos (se paró a medias; la limitación está documentada); avisos que faltan en `THIRD-PARTY-NOTICES.txt` (mingw-w64, libiconv, opencore-amr, soxr, crates de rav1e/librsvg, CsWinRT, módulos); `ffmpeg.exe` GPL propio para el complemento x264/x265; PNG del logotipo en el README.
 - La nube y la revisión cada 30 min están apagadas.

@@ -15,6 +15,12 @@ namespace Rodaje.Engine.Timeline;
 internal sealed record AudioClipPlan(string ClipId, SourceKey Source, long StartSample, long EndSample, long SourceInSample, GainPlan? Gain = null,
     AudioRetime? Retime = null, AudioEffectsSettings? Effects = null)
 {
+    /// <summary>
+    /// En un compuesto que se mezcla aparte, las pistas de su secuencia (ya en la línea de tiempo): se mezclan, pasan por
+    /// <see cref="Effects"/> y suenan con <see cref="Gain"/>. Su <see cref="Source"/> no se usa.
+    /// </summary>
+    public AudioBusPlan? Bus { get; init; }
+
     /// <summary>Muestra del origen que suena en la muestra <paramref name="sample"/> de la línea de tiempo.</summary>
     public long SourceSampleAt(long sample) => Retime is { } retime ? retime.SourceSample(sample) : SourceInSample + (sample - StartSample);
 }
@@ -37,6 +43,18 @@ internal sealed record AudioRetime(ClipTimeMap Map, bool PreservePitch, ClipTime
         Map.ExtendedSource(Time.FromSamples(sample, TimelinePlan.AudioSampleRate)).ToSamples(TimelinePlan.AudioSampleRate);
 }
 
+/// <summary>Las pistas de un compuesto de audio que se mezcla aparte. Compara por valor, como <see cref="AudioPlan.SoundsLike"/>.</summary>
+internal sealed class AudioBusPlan(IReadOnlyList<AudioTrackPlan> tracks) : IEquatable<AudioBusPlan>
+{
+    public IReadOnlyList<AudioTrackPlan> Tracks { get; } = tracks;
+
+    public bool Equals(AudioBusPlan? other) => other is not null && AudioPlan.SameTracks(Tracks, other.Tracks);
+
+    public override bool Equals(object? obj) => Equals(obj as AudioBusPlan);
+
+    public override int GetHashCode() => Tracks.Count;
+}
+
 /// <param name="Effects">Ecualizador y compresor de la pista, sobre la suma de sus clips; nulo sin ellos.</param>
 internal sealed record AudioTrackPlan(string TrackId, IReadOnlyList<AudioClipPlan> Clips, AudioEffectsSettings? Effects = null);
 
@@ -47,27 +65,49 @@ internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks, double Ma
 
     /// <summary>Mismas pistas con los mismos clips, en el mismo orden, con el mismo volumen y la misma velocidad: lo que suena no cambia.</summary>
     /// <summary>Algún clip o pista lleva ecualizador o compresor, que guardan estado entre lecturas.</summary>
-    public bool HasEffects => Tracks.Any(t => t.Effects is not null || t.Clips.Any(c => c.Effects is not null));
+    public bool HasEffects => AllTracks(Tracks).Any(t => t.Effects is not null || t.Clips.Any(c => c.Effects is not null));
 
     public bool SoundsLike(AudioPlan other)
     {
         ArgumentNullException.ThrowIfNull(other);
-        if (Tracks.Count != other.Tracks.Count || !MasterDb.Equals(other.MasterDb))
+        return MasterDb.Equals(other.MasterDb) && SameTracks(Tracks, other.Tracks);
+    }
+
+    internal static bool SameTracks(IReadOnlyList<AudioTrackPlan> a, IReadOnlyList<AudioTrackPlan> b)
+    {
+        if (a.Count != b.Count)
         {
             return false;
         }
 
-        for (int t = 0; t < Tracks.Count; t++)
+        for (int t = 0; t < a.Count; t++)
         {
-            AudioTrackPlan a = Tracks[t];
-            AudioTrackPlan b = other.Tracks[t];
-            if (a.TrackId != b.TrackId || !Equals(a.Effects, b.Effects) || !a.Clips.SequenceEqual(b.Clips))
+            if (a[t].TrackId != b[t].TrackId || !Equals(a[t].Effects, b[t].Effects) || !a[t].Clips.SequenceEqual(b[t].Clips))
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    /// <summary>Las pistas y, detrás de cada compuesto que se mezcla aparte, las de su secuencia (recursivo).</summary>
+    public static IEnumerable<AudioTrackPlan> AllTracks(IReadOnlyList<AudioTrackPlan> tracks)
+    {
+        foreach (AudioTrackPlan track in tracks)
+        {
+            yield return track;
+            foreach (AudioClipPlan clip in track.Clips)
+            {
+                if (clip.Bus is { } bus)
+                {
+                    foreach (AudioTrackPlan inner in AllTracks(bus.Tracks))
+                    {
+                        yield return inner;
+                    }
+                }
+            }
+        }
     }
 }
 

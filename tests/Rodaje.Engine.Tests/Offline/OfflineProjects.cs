@@ -90,7 +90,13 @@ internal static class OfflineProjects
     {
         var text = new StringBuilder();
         text.Append(CultureInfo.InvariantCulture, $"t={frame.TimelineTime.Ticks} {frame.Width}x{frame.Height}");
-        foreach (LayerFrame layer in frame.Layers)
+        DescribeLayers(frame.Layers, text);
+        return text.ToString();
+    }
+
+    private static void DescribeLayers(IReadOnlyList<LayerFrame> layers, StringBuilder text)
+    {
+        foreach (LayerFrame layer in layers)
         {
             text.Append(" | ");
             Describe(layer, text);
@@ -100,12 +106,17 @@ internal static class OfflineProjects
                 Describe(transition.Incoming, text);
             }
         }
-
-        return text.ToString();
     }
 
     private static void Describe(LayerFrame layer, StringBuilder text)
     {
+        if (layer.Nested is { } nested)
+        {
+            text.Append(" {");
+            DescribeLayers(nested, text);
+            text.Append(" }");
+        }
+
         string source = layer.Generated is { } title ? "titulo:" + title.Key
             : layer.Frame.Payload is FakeFramePayload fake ? Path.GetFileNameWithoutExtension(fake.Path) : "?";
         text.Append(CultureInfo.InvariantCulture,

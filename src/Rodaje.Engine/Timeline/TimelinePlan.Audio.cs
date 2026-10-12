@@ -1,4 +1,5 @@
 using Rodaje.Audio.Processing;
+using Rodaje.Core.Editing;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -8,30 +9,97 @@ namespace Rodaje.Engine.Timeline;
 
 internal sealed partial class TimelinePlan
 {
-    private static AudioTrackPlan AudioTrack(Track track, Dictionary<string, MediaRef> media, string projectDirectory)
+    /// <summary>
+    /// Un compuesto de audio se mezcla aparte si tiene volumen, fundidos, ecualizador o compresor, una transición, o si
+    /// alguna pista de su secuencia lleva volumen o efectos; si no, se despliega en sus clips.
+    /// </summary>
+    private static bool AudioGroup(Project project, Track track, Clip compound)
     {
-        List<Clip> included = [.. Ordered(track).Where(c => c.Enabled && c.Duration > Time.Zero && c.Generator is null
-            && media.TryGetValue(c.MediaId, out MediaRef? m) && m.HasAudio)];
-        List<Cut> cuts = Cuts(track, included);
-        Curve? trackDb = GainCurve(track.Effects);
-        var clips = new List<AudioClipPlan>();
-        for (int c = 0; c < included.Count; c++)
+        EffectInstance? audio = compound.Effects.Find(e => e.Enabled && e.Type == BuiltInEffects.Audio);
+        return GainCurve(compound.Effects, Time.Zero) is not null || AudioEffects(compound.Effects) is not null
+            || Samples(audio, BuiltInEffects.AudioParameters.FadeIn) > 0 || Samples(audio, BuiltInEffects.AudioParameters.FadeOut) > 0
+            || TouchesTransition(track, compound)
+            || (project.FindSequence(compound.SequenceId!) is { } nested
+                && nested.AudioTracks.Exists(t => !t.Muted && (GainCurve(t.Effects, Time.Zero) is not null || AudioEffects(t.Effects) is not null)));
+    }
+
+    /// <summary>Arma las pistas de audio; un compuesto que se mezcla aparte lleva las de su secuencia en su <see cref="AudioClipPlan.Bus"/>.</summary>
+    private sealed class AudioBuilder(Project project, Dictionary<string, MediaRef> media, string projectDirectory, Func<Track, Clip, bool> keep)
+    {
+        private readonly Dictionary<Clip, (Time Before, Time After)> _extend = [];
+
+        /// <param name="offset">
+        /// Dónde empieza en la línea de tiempo el tiempo de la pista (el de sus keyframes): 0 en la secuencia, el del inicio de
+        /// la secuencia anidada en las de un compuesto.
+        /// </param>
+        public AudioTrackPlan Track(Track track, Time offset, int depth)
         {
-            Clip clip = included[c];
-            Cut? entering = cuts.Find(x => x.To == c);
-            Cut? leaving = cuts.Find(x => x.From == c);
-            long clipStart = clip.Start.ToSamples(AudioSampleRate);
-            long start = (clip.Start - (entering?.Before ?? Time.Zero)).ToSamples(AudioSampleRate);
-            long end = (clip.End + (leaving?.After ?? Time.Zero)).ToSamples(AudioSampleRate);
-            long sourceIn = clip.SourceIn.ToSamples(AudioSampleRate) - (clipStart - start);
-            if (end > start)
+            List<Clip> included = [.. Ordered(track).Where(c => c.Enabled && c.Duration > Time.Zero && (c.IsCompound
+                ? depth < ModelValidator.MaxCompoundDepth && project.FindSequence(c.SequenceId!) is not null
+                : c.Generator is null && media.TryGetValue(c.MediaId, out MediaRef? m) && m.HasAudio))];
+            List<Cut> cuts = Cuts(track, included);
+            Curve? trackDb = GainCurve(track.Effects, offset);
+            var clips = new List<AudioClipPlan>();
+            for (int c = 0; c < included.Count; c++)
             {
+                Clip clip = included[c];
+                Cut? entering = cuts.Find(x => x.To == c);
+                Cut? leaving = cuts.Find(x => x.From == c);
+                (Time extendBefore, Time extendAfter) = _extend.GetValueOrDefault(clip);
+                Time before = (entering?.Before ?? Time.Zero) + extendBefore;
+                Time after = (leaving?.After ?? Time.Zero) + extendAfter;
+                long clipStart = clip.Start.ToSamples(AudioSampleRate);
+                long start = (clip.Start - before).ToSamples(AudioSampleRate);
+                long end = (clip.End + after).ToSamples(AudioSampleRate);
+                long sourceIn = clip.SourceIn.ToSamples(AudioSampleRate) - (clipStart - start);
+                if (end <= start)
+                {
+                    continue;
+                }
+
+                if (clip.IsCompound)
+                {
+                    clips.Add(new AudioClipPlan(clip.Id, default, start, end, sourceIn, Gain(clip, trackDb, entering, leaving), null,
+                        AudioEffects(clip.Effects)) { Bus = Bus(clip, clip.Start - before, clip.End + after, depth) });
+                    continue;
+                }
+
                 clips.Add(new AudioClipPlan(clip.Id, Key(media[clip.MediaId], projectDirectory), start, end, sourceIn,
                     Gain(clip, trackDb, entering, leaving), Retime(clip), AudioEffects(clip.Effects)));
             }
+
+            return new AudioTrackPlan(track.Id, JoinSplitPieces(clips, included, cuts), AudioEffects(track.Effects));
         }
 
-        return new AudioTrackPlan(track.Id, JoinSplitPieces(clips, included, cuts), AudioEffects(track.Effects));
+        /// <summary>Las pistas de audio de la secuencia del compuesto que suenan en <c>[from, to)</c>, llevadas a la línea de tiempo.</summary>
+        private AudioBusPlan Bus(Clip compound, Time from, Time to, int depth)
+        {
+            Sequence nested = project.FindSequence(compound.SequenceId!)!;
+            Sequence flat = CompoundOps.Flatten(project, nested, keep, [nested.Id]);
+            Time offset = compound.Start - compound.SourceIn;
+            var window = new Clip { Start = from, SourceIn = from - offset, SourceOut = to - offset };
+            var tracks = new List<AudioTrackPlan>();
+            foreach (Track inner in flat.AudioTracks)
+            {
+                if (inner.Muted)
+                {
+                    continue;
+                }
+
+                var windowed = new Track
+                {
+                    Id = compound.Id + CompoundOps.IdSeparator + inner.Id,
+                    Kind = TrackKind.Audio,
+                    Effects = inner.Effects,
+                };
+                ExtendEdges(CompoundOps.Window(inner, window, windowed, id => compound.Id + CompoundOps.IdSeparator + id), from, to,
+                    compound.Start, compound.End, _extend);
+                windowed.SortClips();
+                tracks.Add(Track(windowed, offset, depth + 1));
+            }
+
+            return new AudioBusPlan(tracks);
+        }
     }
 
     /// <summary>
@@ -47,7 +115,7 @@ internal sealed partial class TimelinePlan
             return null;
         }
 
-        Curve? db = GainCurve(clip.Effects);
+        Curve? db = GainCurve(clip.Effects, Time.Zero);
         return new AudioClipPlan(clip.Id, Key(media, projectDirectory), clip.Start.ToSamples(AudioSampleRate), clip.End.ToSamples(AudioSampleRate),
             clip.SourceIn.ToSamples(AudioSampleRate), db is null ? null : new GainPlan(db, null, default, default, default, default), Retime(clip),
             AudioEffects(clip.Effects));
@@ -170,7 +238,7 @@ internal sealed partial class TimelinePlan
             fadeOut = new Fade(clipEnd - fade, fade, Out: true);
         }
 
-        var gain = new GainPlan(GainCurve(clip.Effects), trackDb, fadeIn, fadeOut, crossIn, crossOut);
+        var gain = new GainPlan(GainCurve(clip.Effects, Time.Zero), trackDb, fadeIn, fadeOut, crossIn, crossOut);
         return gain.ClipDb is null && trackDb is null && !gain.HasFades ? null : gain;
     }
 
@@ -194,7 +262,8 @@ internal sealed partial class TimelinePlan
     /// Ganancia del primer <c>rodaje.audio</c> activo en muestras (del origen en un clip, de la secuencia en una pista);
     /// nula si no lo hay o si vale 0 dB sin keyframes.
     /// </summary>
-    private static Curve? GainCurve(IReadOnlyList<EffectInstance> effects)
+    /// <param name="offset">Se suma a los keyframes: el inicio en la línea de tiempo del tiempo de una pista anidada.</param>
+    private static Curve? GainCurve(IReadOnlyList<EffectInstance> effects, Time offset)
     {
         EffectInstance? audio = effects.FirstOrDefault(e => e.Enabled && e.Type == BuiltInEffects.Audio);
         if (audio is null || EffectRegistry.Find(BuiltInEffects.Audio)?.FindParameter(BuiltInEffects.AudioParameters.GainDb) is not { } definition)
@@ -203,7 +272,7 @@ internal sealed partial class TimelinePlan
         }
 
         Curve curve = Curve.From(audio.Parameters.GetValueOrDefault(definition.Name), definition.DefaultValue, definition.Clamp,
-            static ticks => Time.FromTicks(ticks).ToSamples(AudioSampleRate));
+            ticks => Time.FromTicks(ticks + offset.Ticks).ToSamples(AudioSampleRate));
         return curve.IsConstant && curve.First == 0 ? null : curve;
     }
 }

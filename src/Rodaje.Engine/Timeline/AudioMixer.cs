@@ -109,7 +109,8 @@ internal sealed class MixRenderer : IPcmSource
 
     private readonly Func<string, IPcmSource> _open;
     private readonly Dictionary<string, Chain> _chains = new(StringComparer.Ordinal);
-    private float[] _trackMix = [];
+    private readonly List<float[]> _trackMix = [];
+    private readonly List<float[]> _busMix = [];
     private readonly TimeSpan _idleTimeout;
     private readonly TimeProvider _time;
     private readonly List<Reader> _readers = [];
@@ -194,39 +195,7 @@ internal sealed class MixRenderer : IPcmSource
             }
         }
 
-        foreach (AudioTrackPlan track in _plan.Tracks)
-        {
-            Span<float> bus = interleaved;
-            if (track.Effects is not null)
-            {
-                if (_trackMix.Length < interleaved.Length)
-                {
-                    _trackMix = new float[interleaved.Length];
-                }
-
-                bus = _trackMix.AsSpan(0, interleaved.Length);
-                bus.Clear();
-            }
-
-            for (int i = FirstEndingAfter(track.Clips, from); i < track.Clips.Count && track.Clips[i].StartSample < to; i++)
-            {
-                AudioClipPlan clip = track.Clips[i];
-                long start = Math.Max(from, clip.StartSample);
-                long end = Math.Min(to, clip.EndSample);
-                MixClip(clip, start, end, bus.Slice((int)(start - from) * Channels, (int)(end - start) * Channels));
-            }
-
-            if (track.Effects is { } effects)
-            {
-                // La pista suena también en sus huecos: la cola del ecualizador y la relajación del compresor siguen.
-                ApplyEffects(TrackKey(track.TrackId), effects, from, bus);
-                for (int i = 0; i < bus.Length; i++)
-                {
-                    interleaved[i] += bus[i];
-                }
-            }
-        }
-
+        MixTracks(_plan.Tracks, from, to, interleaved, 0);
         ApplyMaster(interleaved);
         Span<float> beforeLimiter = default;
         if (_levels is not null)
@@ -285,6 +254,77 @@ internal sealed class MixRenderer : IPcmSource
 
         _readers.Clear();
         Volatile.Write(ref _decodersOpen, 0);
+    }
+
+    /// <summary>Suma las pistas en <paramref name="output"/> (<c>[from, to)</c>), cada una con sus efectos sobre su suma.</summary>
+    /// <param name="depth">Nivel de compuestos: cada uno usa sus propios intermedios.</param>
+    private void MixTracks(IReadOnlyList<AudioTrackPlan> tracks, long from, long to, Span<float> output, int depth)
+    {
+        foreach (AudioTrackPlan track in tracks)
+        {
+            Span<float> bus = output;
+            if (track.Effects is not null)
+            {
+                bus = Buffer(_trackMix, depth, output.Length);
+            }
+
+            for (int i = FirstEndingAfter(track.Clips, from); i < track.Clips.Count && track.Clips[i].StartSample < to; i++)
+            {
+                AudioClipPlan clip = track.Clips[i];
+                long start = Math.Max(from, clip.StartSample);
+                long end = Math.Min(to, clip.EndSample);
+                Span<float> slice = bus.Slice((int)(start - from) * Channels, (int)(end - start) * Channels);
+                if (clip.Bus is { } nested)
+                {
+                    MixBus(clip, nested, start, end, slice, depth);
+                }
+                else
+                {
+                    MixClip(clip, start, end, slice);
+                }
+            }
+
+            if (track.Effects is { } effects)
+            {
+                // La pista suena también en sus huecos: la cola del ecualizador y la relajación del compresor siguen.
+                ApplyEffects(TrackKey(track.TrackId), effects, from, bus);
+                for (int i = 0; i < bus.Length; i++)
+                {
+                    output[i] += bus[i];
+                }
+            }
+        }
+    }
+
+    /// <summary>Un compuesto que se mezcla aparte: sus pistas, después su ecualizador y compresor, y su volumen y fundidos.</summary>
+    private void MixBus(AudioClipPlan clip, AudioBusPlan bus, long start, long end, Span<float> destination, int depth)
+    {
+        Span<float> mix = Buffer(_busMix, depth, destination.Length);
+        MixTracks(bus.Tracks, start, end, mix, depth + 1);
+        if (clip.Effects is { } effects)
+        {
+            ApplyEffects(clip.ClipId, effects, start, mix);
+        }
+
+        AddScaled(clip, start, mix, destination);
+    }
+
+    /// <summary>Un intermedio limpio del nivel <paramref name="depth"/>; crece la primera vez y después no reserva.</summary>
+    private static Span<float> Buffer(List<float[]> buffers, int depth, int length)
+    {
+        while (buffers.Count <= depth)
+        {
+            buffers.Add([]);
+        }
+
+        if (buffers[depth].Length < length)
+        {
+            buffers[depth] = new float[length];
+        }
+
+        Span<float> buffer = buffers[depth].AsSpan(0, length);
+        buffer.Clear();
+        return buffer;
     }
 
     // Los identificadores de clips y pistas no se repiten en el proyecto; el prefijo solo separa los dos usos.
@@ -566,7 +606,7 @@ internal sealed class MixRenderer : IPcmSource
         var slews = new Dictionary<string, Slew>(StringComparer.Ordinal);
         if (_retiredPlan is { } retired)
         {
-            foreach (AudioTrackPlan track in _plan.Tracks)
+            foreach (AudioTrackPlan track in AudioPlan.AllTracks(_plan.Tracks))
             {
                 foreach (AudioClipPlan clip in track.Clips)
                 {
@@ -592,7 +632,7 @@ internal sealed class MixRenderer : IPcmSource
 
     private static AudioClipPlan? Find(AudioPlan plan, string clipId)
     {
-        foreach (AudioTrackPlan track in plan.Tracks)
+        foreach (AudioTrackPlan track in AudioPlan.AllTracks(plan.Tracks))
         {
             foreach (AudioClipPlan clip in track.Clips)
             {
@@ -682,7 +722,7 @@ internal sealed class MixRenderer : IPcmSource
         _anchorPending = true;
         _plan = plan;
         var used = new HashSet<string>(StringComparer.Ordinal);
-        foreach (AudioTrackPlan track in plan.Tracks)
+        foreach (AudioTrackPlan track in AudioPlan.AllTracks(plan.Tracks))
         {
             if (track.Effects is not null)
             {

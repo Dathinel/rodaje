@@ -317,7 +317,7 @@ Un clip puede llevar `sequenceId` en lugar de `mediaId`: es un **clip compuesto*
 { "id": "clip-12", "sequenceId": "sequence-7", "sourceIn": 0, "sourceOut": 7056000000, "start": 2116800000, "linkId": "link-4", "enabled": true, "effects": [] }
 ```
 
-La secuencia anidada es una más de `sequences` (la primera sigue siendo la principal) y tiene la misma forma, tasa y frecuencia que la que la contiene. Se pueden anidar compuestos dentro de compuestos hasta 16 niveles, pero una secuencia nunca puede llegar a contenerse a sí misma, ni directa ni indirectamente: el archivo se rechaza. Al mostrarlo, la pista `k` de lo anidado va sobre la pista del compuesto en el lugar `k` (sus pistas ocultas o mudas no se ven ni suenan). Los efectos y transiciones del propio clip compuesto se guardan pero todavía no se aplican; los de los clips de dentro, sí.
+La secuencia anidada es una más de `sequences` (la primera sigue siendo la principal) y tiene la misma forma, tasa y frecuencia que la que la contiene. Se pueden anidar compuestos dentro de compuestos hasta 16 niveles, pero una secuencia nunca puede llegar a contenerse a sí misma, ni directa ni indirectamente: el archivo se rechaza. Al mostrarlo, la pista `k` de lo anidado va sobre la pista del compuesto en el lugar `k` (sus pistas ocultas o mudas no se ven ni suenan). Los efectos del propio clip compuesto (transformación, opacidad, color, máscaras, mezcla) y sus transiciones se aplican a todo lo que muestra, como a un clip más; en audio, su volumen, fundidos, ecualizador y compresor, después de los efectos de pista de la secuencia anidada. En una transición, lo de dentro que toca el borde del compuesto se alarga con su propio material, como un clip suelto.
 
 ## Reglas que todo programa debe respetar
 

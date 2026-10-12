@@ -55,6 +55,7 @@ internal static class EffectShaders
     // En PsMask (MaskGeometry es la referencia): mix0 = forma, invertir, opacidad y borde suave en píxeles de la imagen;
     // mix1 = centro y medio tamaño en píxeles de la imagen; kernel = coseno y seno del giro y puntos del trazo; canvas =
     // tamaño de la imagen. En PsGraded con MASK, mapB lleva a la textura de máscaras (t7).
+    // extra.w = 1: el origen no son los planos Y'CbCr sino el intermedio RGBA premultiplicado de t5 (una capa compuesta).
     // Con ADVANCED: extra = croma, ruedas y curvas encendidos (0 o 1). key0 = Cb y Cr de la clave, tolerancia, suavidad;
     // key1 = derrame, recorte del borde (0–0,45), dirección unitaria de la clave en CbCr. lift, gain: por canal (ya sumado
     // el general); gammaExp: exponente 2^−gamma por canal. Curvas: tabla de 1024 × 1 en t10 (canal y luego general).
@@ -204,8 +205,19 @@ internal static class EffectShaders
 
         float4 PsGraded(VsOut i) : SV_Target
         {
-            float3 rgb = SampleRgb(i.uv);
+            float3 rgb;
             float keyAlpha = 1.0;
+            float sourceAlpha = 1.0;
+            [branch] if (extra.w > 0.5)
+            {
+                float4 c = SampleA(i.uv);
+                rgb = c.a > 0 ? c.rgb / c.a : 0;
+                sourceAlpha = c.a;
+            }
+            else
+            {
+                rgb = SampleRgb(i.uv);
+            }
         #if ADVANCED
             [branch] if (extra.x > 0.5)
             {
@@ -232,7 +244,7 @@ internal static class EffectShaders
         #if VIGNETTE
             rgb *= VignetteGain(i.local / shape.zw);
         #endif
-            float alpha = shape.x * EdgeCoverage(i.local) * keyAlpha;
+            float alpha = shape.x * EdgeCoverage(i.local) * keyAlpha * sourceAlpha;
         #if MASK
             alpha *= maskImage.SampleLevel(linearClamp, min(i.local / shape.zw * mapB.xy, mapB.zw), 0).r;
         #endif

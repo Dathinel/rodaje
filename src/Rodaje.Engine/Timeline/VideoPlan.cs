@@ -381,6 +381,52 @@ internal sealed class VideoClipPlan
     }
 }
 
+/// <summary>
+/// Un clip compuesto que se compone aparte: sus carriles (los de su secuencia, recortados a lo que se ve y llevados a la
+/// línea de tiempo) se componen en una capa que recibe sus efectos, su transformación y su transición.
+/// </summary>
+/// <param name="clipStart">Inicio del clip en la línea de tiempo; con <paramref name="sourceIn"/> da el tiempo de sus keyframes.</param>
+/// <param name="lanes">Los carriles de su grupo, de abajo arriba; en <see cref="Start"/>–<see cref="End"/> solo tienen lo suyo.</param>
+internal sealed class GroupClipPlan(string clipId, Time clipStart, Time sourceIn, Time start, Time end, EffectPlan? effects,
+    IReadOnlyList<VideoLayerPlan> lanes)
+{
+    public string ClipId { get; } = clipId;
+
+    public Time Start { get; } = start;
+
+    public Time End { get; } = end;
+
+    public EffectPlan? Effects { get; } = effects;
+
+    public IReadOnlyList<VideoLayerPlan> Lanes { get; } = lanes;
+
+    /// <summary>La transición del corte donde termina, si la hay.</summary>
+    public TransitionPlan? Outgoing { get; init; }
+
+    /// <summary>Tiempo de la secuencia anidada, que es el de los keyframes del compuesto (no lleva velocidad).</summary>
+    public Time EffectTimeAt(Time timeline) => sourceIn + (timeline - clipStart);
+
+    internal static GroupClipPlan? At(IReadOnlyList<GroupClipPlan> groups, Time time)
+    {
+        int lo = 0;
+        int hi = groups.Count;
+        while (lo < hi)
+        {
+            int mid = (lo + hi) >>> 1;
+            if (groups[mid].End <= time)
+            {
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+
+        return lo < groups.Count && groups[lo].Start <= time ? groups[lo] : null;
+    }
+}
+
 /// <summary>Un carril de video: una pista con sus clips activos ordenados por posición, o el carril compañero de sus transiciones.</summary>
 internal sealed class VideoLayerPlan(int trackIndex, string trackId, IReadOnlyList<VideoClipPlan> clips)
 {
@@ -399,6 +445,22 @@ internal sealed class VideoLayerPlan(int trackIndex, string trackId, IReadOnlyLi
 
     /// <summary>Carril generado: los títulos de la pista ordenados por posición, sin decodificador ni transiciones.</summary>
     public IReadOnlyList<GeneratedClipPlan> Generated { get; init; } = [];
+
+    /// <summary>Los clips compuestos que se componen aparte (con efectos o transiciones propios), ordenados por posición.</summary>
+    public IReadOnlyList<GroupClipPlan> Groups { get; init; } = [];
+
+    /// <summary>Los compuestos que entran en una transición de esta pista, adelantados media duración.</summary>
+    public IReadOnlyList<GroupClipPlan> IncomingGroups { get; init; } = [];
+
+    /// <summary>El carril muestra lo de dentro de un compuesto: no es una capa de la secuencia, se compone en su grupo.</summary>
+    public bool IsNested { get; init; }
+
+    /// <summary>Posición en <see cref="TimelinePlan.Layers"/>.</summary>
+    public int Ordinal { get; internal set; }
+
+    public GroupClipPlan? GroupAt(Time time) => GroupClipPlan.At(Groups, time);
+
+    public GroupClipPlan? IncomingGroupAt(Time time) => GroupClipPlan.At(IncomingGroups, time);
 
     /// <summary>El título que se ve en <paramref name="time"/>, si hay.</summary>
     public GeneratedClipPlan? GeneratedAt(Time time)

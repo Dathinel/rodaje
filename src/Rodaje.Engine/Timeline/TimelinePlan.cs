@@ -15,9 +15,15 @@ internal sealed partial class TimelinePlan
     public const int AudioSampleRate = 48_000;
 
     private TimelinePlan(Sequence sequence, IReadOnlyList<VideoLayerPlan> layers, IReadOnlyList<VideoLayerPlan> hiddenLayers, AudioPlan audio,
-        int missingContent)
+        int missingContent, Sequence expanded)
     {
         SequenceId = sequence.Id;
+        Expanded = expanded;
+        for (int i = 0; i < layers.Count; i++)
+        {
+            layers[i].Ordinal = i;
+        }
+
         Width = sequence.Width;
         Height = sequence.Height;
         FrameRate = sequence.FrameRate;
@@ -42,8 +48,17 @@ internal sealed partial class TimelinePlan
     /// <summary>Cuadros de la secuencia que llegan a verse, contando el último aunque esté incompleto.</summary>
     public long FrameCount => Duration > Time.Zero ? (Duration - Time.FromTicks(1)).ToFrames(FrameRate) + 1 : 0;
 
-    /// <summary>Capas visibles de abajo hacia arriba.</summary>
+    /// <summary>
+    /// Capas visibles de abajo hacia arriba. Detrás de cada una van los carriles de los grupos de sus compuestos
+    /// (<see cref="VideoLayerPlan.IsNested"/>), que se decodifican como los demás pero se componen dentro de su grupo.
+    /// </summary>
     public IReadOnlyList<VideoLayerPlan> Layers { get; }
+
+    /// <summary>
+    /// La secuencia que se reproduce, con los compuestos desplegados y, en sus pistas de video, también las de los grupos
+    /// (con los ids de los clips del plan): para buscar en el modelo lo que usa un clip del plan.
+    /// </summary>
+    public Sequence Expanded { get; }
 
     /// <summary>Los carriles visibles: cada capa y, detrás, su carril compañero si tiene transiciones.</summary>
     public IReadOnlyList<VideoLayerPlan> Lanes { get; }
@@ -96,33 +111,46 @@ internal sealed partial class TimelinePlan
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(sequenceId);
-        // Cada clip compuesto se despliega en los clips que muestra (recursivo, sin ciclos): el resto del plan no los ve.
-        Sequence sequence = CompoundOps.Flatten(project, project.GetSequence(sequenceId));
+        // Cada clip compuesto se despliega en los clips que muestra (recursivo, sin ciclos), salvo los que tienen efectos o
+        // transiciones propios, que se componen (o mezclan) aparte en su grupo.
+        Func<Track, Clip, bool> keep = (track, clip) => track.Kind == TrackKind.Video ? VideoGroup(track, clip) : AudioGroup(project, track, clip);
+        Sequence sequence = CompoundOps.Flatten(project, project.GetSequence(sequenceId), keep);
         var media = new Dictionary<string, MediaRef>();
         foreach (MediaRef m in project.Media)
         {
             media.TryAdd(m.Id, m);
         }
 
-        int missing = 0;
-        var layers = new List<VideoLayerPlan>();
+        var video = new VideoBuilder(project, sequence, media, projectDirectory, content, keep);
         var hidden = new List<VideoLayerPlan>();
         for (int i = 0; i < sequence.VideoTracks.Count; i++)
         {
-            VideoLayerPlan layer = VideoLayer(sequence, i, media, projectDirectory, content, ref missing);
-            (sequence.VideoTracks[i].Hidden ? hidden : layers).Add(layer);
+            Track track = sequence.VideoTracks[i];
+            video.Add(track, i, track.Hidden ? hidden : video.Layers, groups: !track.Hidden, depth: 0);
         }
 
+        var audio = new AudioBuilder(project, media, projectDirectory, keep);
         var audioTracks = new List<AudioTrackPlan>();
         foreach (Track track in sequence.AudioTracks)
         {
             if (!track.Muted)
             {
-                audioTracks.Add(AudioTrack(track, media, projectDirectory));
+                audioTracks.Add(audio.Track(track, Time.Zero, depth: 0));
             }
         }
 
-        return new TimelinePlan(sequence, layers, hidden, new AudioPlan(audioTracks, sequence.MasterGainDb), missing);
+        var expanded = new Sequence
+        {
+            Id = sequence.Id,
+            Name = sequence.Name,
+            FrameRate = sequence.FrameRate,
+            Width = sequence.Width,
+            Height = sequence.Height,
+            SampleRate = sequence.SampleRate,
+            VideoTracks = video.Tracks,
+            AudioTracks = sequence.AudioTracks,
+        };
+        return new TimelinePlan(sequence, video.Layers, hidden, new AudioPlan(audioTracks, sequence.MasterGainDb), video.Missing, expanded);
     }
 
     /// <summary>
@@ -151,6 +179,32 @@ internal sealed partial class TimelinePlan
         }
 
         return cuts;
+    }
+
+    /// <summary>
+    /// En el tramo de un compuesto alargado por una transición (<c>[from, to)</c>, el clip ocupa <c>[clipStart, clipEnd)</c>),
+    /// lo de dentro que toca un borde del compuesto y no tiene nada más allá se alarga hasta el borde del tramo con su
+    /// propio material (o su cuadro congelado), como un clip suelto en una transición.
+    /// </summary>
+    private static void ExtendEdges(List<Clip> copied, Time from, Time to, Time clipStart, Time clipEnd, Dictionary<Clip, (Time Before, Time After)> extend)
+    {
+        List<Clip> media = copied.FindAll(c => !c.IsCompound && c.Generator is null);
+        if (media.Count == 0)
+        {
+            return;
+        }
+
+        Clip first = media.MinBy(c => c.Start)!;
+        Clip last = media.MaxBy(c => c.End)!;
+        if (first.Start > from && first.Start <= clipStart)
+        {
+            extend[first] = (first.Start - from, extend.GetValueOrDefault(first).After);
+        }
+
+        if (last.End < to && last.End >= clipEnd)
+        {
+            extend[last] = (extend.GetValueOrDefault(last).Before, to - last.End);
+        }
     }
 
     /// <summary>Hasta dónde llega el material del medio; sin duración conocida, no hay material extra.</summary>
