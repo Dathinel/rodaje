@@ -9,13 +9,9 @@ public class CurrentCultureNumbersTests
     // Usos de la cultura del hilo que no formatean números: pasar texto a minúsculas o mayúsculas.
     private static readonly string[] AllowedUses = [".ToLower(CultureInfo.CurrentCulture)", ".ToUpper(CultureInfo.CurrentCulture)"];
 
-    // Pendientes conocidos fuera de los caminos de la tarea 42: enteros pequeños (cantidad de pistas, «Video 2»), que salen
-    // igual en la invariante. Se listan línea por línea para que cualquier uso nuevo, aunque sea en el mismo archivo, falle.
-    private static readonly (string File, string Line)[] KnownPending =
-    [
-        ("TitleBar.xaml.cs", "Text = count.ToString(System.Globalization.CultureInfo.CurrentCulture)"),
-        ("TitleBar.xaml.cs", "Text = string.Create(CultureInfo.CurrentCulture, $\"Video {number}\")"),
-    ];
+    // Pendientes conocidos, línea por línea, para que cualquier uso nuevo, aunque sea en el mismo archivo, falle. Los dos de
+    // TitleBar.xaml.cs que dejó la tarea 42 se cerraron en la tarea 60; hoy no queda ninguno.
+    private static readonly (string File, string Line)[] KnownPending = [];
 
     [Fact]
     public void LaApp_NoFormateaNumerosConLaCulturaDelHilo()

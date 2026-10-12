@@ -24,6 +24,9 @@ public sealed class TestHttpServer : IAsyncDisposable
 {
     private const int PortAttempts = 20;
 
+    /// <summary>Fallos al recibir peticiones tras los que el bucle se rinde (para no girar sin fin con el listener roto).</summary>
+    private const int MaxReceiveFailures = 100;
+
     /// <summary>
     /// En Windows, HTTP.sys deja registrar <c>localhost</c> sin permisos de administrador pero no <c>127.0.0.1</c>
     /// (pediría <c>netsh http add urlacl</c>). En Linux la implementación administrada acepta <c>127.0.0.1</c>.
@@ -36,6 +39,7 @@ public sealed class TestHttpServer : IAsyncDisposable
     private readonly Dictionary<string, Route> _routes = new(StringComparer.Ordinal);
     private readonly List<RecordedRequest> _requests = [];
     private readonly HashSet<Task> _handlers = [];
+    private readonly List<Exception> _faults = [];
     private readonly Task _acceptLoop;
     private int _disposed;
 
@@ -57,6 +61,22 @@ public sealed class TestHttpServer : IAsyncDisposable
             lock (_gate)
             {
                 return [.. _requests];
+            }
+        }
+    }
+
+    /// <summary>
+    /// Excepciones inesperadas de los manejadores (no las de un cliente que corta ni las del cierre), que cortaron su
+    /// conexión, y fallos al recibir una petición con el servidor abierto, tras los que se siguió escuchando. Una
+    /// prueba puede exigir que esté vacía para descartar un fallo del propio servidor.
+    /// </summary>
+    public IReadOnlyList<Exception> Faults
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _faults];
             }
         }
     }
@@ -158,13 +178,56 @@ public sealed class TestHttpServer : IAsyncDisposable
 
     private static string NormalizePath(string path) => path.StartsWith('/') ? path : "/" + path;
 
+    /// <summary>
+    /// Un puerto libre en 127.0.0.1 y, si hay IPv6, también en <c>::1</c>. En Windows el cliente va a
+    /// <c>localhost</c>, que resuelve primero a <c>::1</c>: un puerto libre solo en IPv4 podría estar tomado en IPv6
+    /// por otro proceso (por ejemplo otro proyecto de pruebas que corre a la vez), que aceptaría la conexión sin
+    /// contestar HTTP. Solo se escucha en el bucle local, para que el Firewall de Windows no pregunte.
+    /// </summary>
     private static int FindFreePort()
     {
-        var probe = new TcpListener(IPAddress.Loopback, 0);
-        probe.Start();
+        for (var attempt = 0; attempt < PortAttempts; attempt++)
+        {
+            var probe = new TcpListener(IPAddress.Loopback, 0);
+            probe.Start();
+            try
+            {
+                var port = ((IPEndPoint)probe.LocalEndpoint).Port;
+                if (IsFreeOnIPv6Loopback(port))
+                {
+                    return port;
+                }
+            }
+            finally
+            {
+                probe.Stop();
+            }
+        }
+
+        throw new InvalidOperationException("No se encontró un puerto libre en IPv4 e IPv6 para el servidor de pruebas.");
+    }
+
+    private static bool IsFreeOnIPv6Loopback(int port)
+    {
+        if (!Socket.OSSupportsIPv6)
+        {
+            return true;
+        }
+
+        var probe = new TcpListener(IPAddress.IPv6Loopback, port);
         try
         {
-            return ((IPEndPoint)probe.LocalEndpoint).Port;
+            probe.Start();
+            return true;
+        }
+        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
+        {
+            return false;
+        }
+        catch (SocketException)
+        {
+            // Sin ::1 utilizable (IPv6 desactivado en la interfaz de bucle): no hay nada que choque.
+            return true;
         }
         finally
         {
@@ -174,6 +237,7 @@ public sealed class TestHttpServer : IAsyncDisposable
 
     private async Task AcceptLoopAsync()
     {
+        var failures = 0;
         while (!_stopping.IsCancellationRequested)
         {
             HttpListenerContext context;
@@ -181,9 +245,24 @@ public sealed class TestHttpServer : IAsyncDisposable
             {
                 context = await _listener.GetContextAsync().ConfigureAwait(false);
             }
-            catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException or InvalidOperationException)
+#pragma warning disable CA1031 // Ningún fallo al recibir puede apagar el servidor en silencio: se anota en Faults.
+            catch (Exception ex)
+#pragma warning restore CA1031
             {
-                return;
+                if (_stopping.IsCancellationRequested || !_listener.IsListening || ++failures > MaxReceiveFailures)
+                {
+                    return;
+                }
+
+                // En Windows, HTTP.sys puede fallar al recibir una petición (un cliente que corta a mitad de las
+                // cabeceras, E/S abortada) con el servidor sano: antes eso terminaba este bucle y las peticiones
+                // siguientes quedaban sin contestar hasta el plazo del cliente. Se anota y se sigue escuchando.
+                lock (_gate)
+                {
+                    _faults.Add(ex);
+                }
+
+                continue;
             }
 
             var handler = Task.Run(() => HandleAsync(context));
@@ -208,20 +287,19 @@ public sealed class TestHttpServer : IAsyncDisposable
 
     private async Task HandleAsync(HttpListenerContext context)
     {
-        var request = context.Request;
         var response = context.Response;
-        var path = request.Url?.AbsolutePath ?? "/";
-
-        TestResponse? configured;
-        lock (_gate)
-        {
-            configured = _routes.TryGetValue(path, out var route) ? route.Next() : null;
-        }
-
-        configured ??= TestResponse.Status(404, "No encontrado");
-
         try
         {
+            var request = context.Request;
+            var path = request.Url?.AbsolutePath ?? "/";
+
+            TestResponse? configured;
+            lock (_gate)
+            {
+                configured = _routes.TryGetValue(path, out var route) ? route.Next() : null;
+            }
+
+            configured ??= TestResponse.Status(404, "No encontrado");
             await RespondAsync(request, response, path, configured).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is HttpListenerException or IOException or ObjectDisposedException or OperationCanceledException)
@@ -229,6 +307,40 @@ public sealed class TestHttpServer : IAsyncDisposable
             // El cliente cortó o el servidor se está cerrando.
             Abort(response);
         }
+#pragma warning disable CA1031 // Cualquier otro fallo se guarda en Faults: no puede dejar la conexión colgada ni la tarea sin observar.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            // Una respuesta mal configurada (p. ej. un código de estado que HttpListener no acepta): se corta la conexión
+            // para que el cliente vea el error enseguida, y la excepción queda en Faults para la prueba.
+            lock (_gate)
+            {
+                _faults.Add(ex);
+            }
+
+            AbortAfterFault(response);
+        }
+    }
+
+    /// <summary>
+    /// Corta una respuesta que falló. En Linux, <see cref="HttpListenerResponse.Abort"/> manda antes las cabeceras
+    /// que falten (un 200 vacío si no se llegó a fijar nada), así que primero se anuncia un 500 con un cuerpo que no
+    /// llega: el cliente ve un error en vez de un archivo vacío. En Windows (HTTP.sys) el corte es un RST igual.
+    /// </summary>
+    private static void AbortAfterFault(HttpListenerResponse response)
+    {
+        try
+        {
+            response.StatusCode = 500;
+            response.SendChunked = false;
+            response.ContentLength64 = 1;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException or HttpListenerException)
+        {
+            // Las cabeceras ya salieron: el corte basta.
+        }
+
+        Abort(response);
     }
 
     private async Task RespondAsync(HttpListenerRequest request, HttpListenerResponse response, string path, TestResponse configured)

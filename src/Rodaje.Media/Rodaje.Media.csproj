@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Rodaje.Media.Tests" />
+    <InternalsVisibleTo Include="Rodaje.Export.Tests" />
   </ItemGroup>
 
   <ItemGroup>

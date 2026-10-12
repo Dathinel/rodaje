@@ -1,21 +1,37 @@
-using System.Security.Cryptography;
 using System.Text;
 using Rodaje.Paquetes.Download;
+using Rodaje.TestServer;
 
 namespace Rodaje.Paquetes.Tests.Download;
 
-public sealed class GitHubReleaseDownloaderTests : IDisposable
+public sealed class GitHubReleaseDownloaderTests : IAsyncLifetime, IDisposable
 {
     private readonly TempFolder _temp = new();
-    private readonly LocalHttpServer _server = new();
+
+    /// <summary>Hace de github.com: el índice, su firma y las direcciones de las versiones, que redirigen a <see cref="_storage"/>.</summary>
+    private readonly TestHttpServer _server = TestHttpServer.Start();
+
+    /// <summary>Hace de objects.githubusercontent.com: los bytes de los paquetes.</summary>
+    private readonly TestHttpServer _storage = TestHttpServer.Start();
+
     private readonly HttpClient _http = new();
-    private readonly ECDsa _key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+    private readonly TestIndexSigner _signer = new();
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    /// <summary>Cierra los servidores y comprueba que no tuvieron fallos propios (xunit 2 la llama antes de <see cref="Dispose"/>).</summary>
+    public async Task DisposeAsync()
+    {
+        await _server.DisposeAsync();
+        await _storage.DisposeAsync();
+        Assert.Empty(_server.Faults);
+        Assert.Empty(_storage.Faults);
+    }
 
     public void Dispose()
     {
         _http.Dispose();
-        _server.Dispose();
-        _key.Dispose();
+        _signer.Dispose();
         _temp.Dispose();
     }
 
@@ -23,31 +39,41 @@ public sealed class GitHubReleaseDownloaderTests : IDisposable
 
     private string Downloads => _temp.Combine("descargas");
 
-    private GitHubReleaseDownloader Downloader(string? publicKey = "") => new(new GitHubReleaseOptions
+    private static string ReleasePath(string version) => $"Dathinel/rodaje-transiciones/releases/download/v{version}/rodaje-transiciones.paquete";
+
+    private static string StoragePath(string version) => $"objetos/{version}";
+
+    private GitHubReleaseOptions Options(string? publicKey = "", DownloadUrlPolicy? policy = null) => new()
     {
-        IndexUrl = new Uri(_server.BaseUrl, "indice.json"),
-        PublicKey = publicKey == "" ? Convert.ToBase64String(_key.ExportSubjectPublicKeyInfo()) : publicKey,
+        IndexUrl = _server.UrlFor("indice.json"),
+        PublicKey = publicKey == "" ? _signer.PublicKeyBase64 : publicKey,
         DownloadFolder = Downloads,
         AppVersion = PackageVersion.Parse("0.7.0"),
-        Policy = DownloadUrlPolicy.WithLoopback("Dathinel"),
-    }, _http)
+        Policy = policy ?? DownloadUrlPolicy.WithLoopback("Dathinel"),
+    };
+
+    private GitHubReleaseDownloader Downloader(string? publicKey = "") => new(Options(publicKey), _http)
     {
         Files = new FileDownloader(_http) { RetryDelay = TimeSpan.FromMilliseconds(10) },
     };
 
-    /// <summary>Publica un paquete y un índice que lo lista con el hash dado (por defecto, el del archivo).</summary>
-    private (byte[] Package, string Sha) Publish(string version = "1.0.0", string? sha = null, string generated = "2026-10-11T12:00:00Z", ECDsa? signer = null)
+    /// <summary>
+    /// Publica un paquete (la dirección de la versión redirige al almacenamiento, como en GitHub) y un índice que lo
+    /// lista con el hash dado (por defecto, el del archivo), firmado con <paramref name="sign"/> (por defecto, bien).
+    /// </summary>
+    private (byte[] Package, string Sha) Publish(string version = "1.0.0", string? sha = null, string generated = "2026-10-11T12:00:00Z", Func<byte[], byte[]>? sign = null)
     {
         string path = Samples.ValidPackage(_temp.Combine($"p-{version}.paquete"), version: version);
         byte[] package = File.ReadAllBytes(path);
-        string actual = Convert.ToHexStringLower(SHA256.HashData(package));
-        Uri url = _server.Put($"v{version}/rodaje-transiciones.paquete", package);
+        string actual = TestPayloads.Sha256Hex(package);
+        _storage.Map(StoragePath(version), TestResponse.File(package, $"\"{actual}\""));
+        _server.Map(ReleasePath(version), TestResponse.Redirect(_storage.UrlFor(StoragePath(version)).ToString()));
         byte[] index = Encoding.UTF8.GetBytes($$"""
             { "formatVersion": 1, "generated": "{{generated}}", "entries": [
-              { "id": "rodaje-transiciones", "version": "{{version}}", "kind": "content", "url": "{{url}}", "sha256": "{{sha ?? actual}}", "size": {{package.Length}} } ] }
+              { "id": "rodaje-transiciones", "version": "{{version}}", "kind": "content", "url": "{{_server.UrlFor(ReleasePath(version))}}", "sha256": "{{sha ?? actual}}", "size": {{package.Length}} } ] }
             """);
-        _server.Put("indice.json", index);
-        _server.Put("indice.json.sig", IndexSignature.Sign(index, signer ?? _key));
+        _server.Map("indice.json", TestResponse.File(index));
+        _server.Map("indice.json.sig", TestResponse.File(sign is null ? _signer.SignFile(index) : sign(index)));
         return (package, actual);
     }
 
@@ -69,14 +95,28 @@ public sealed class GitHubReleaseDownloaderTests : IDisposable
         Assert.Equal("1.0.0", (await downloader.AvailableVersionsAsync(default))["rodaje-transiciones"].ToString());
     }
 
-    [Fact]
-    public async Task A_bad_signature_or_wrong_key_downloads_nothing()
+    [Theory]
+    [InlineData("otra-clave")]
+    [InlineData("otros-datos")]
+    [InlineData("no-es-base64")]
+    [InlineData("vacia")]
+    [InlineData("demasiado-larga")]
+    public async Task A_bad_signature_or_wrong_key_downloads_nothing(string kind)
     {
-        using ECDsa other = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        Publish(signer: other);
+        Func<byte[], byte[]> sign = kind switch
+        {
+            "otra-clave" => index => Encoding.ASCII.GetBytes(TestIndexSigner.SignWithForeignKey(index)),
+            "otros-datos" => index => Encoding.ASCII.GetBytes(_signer.SignOtherData(index)),
+            "no-es-base64" => _ => "esto no es una firma!"u8.ToArray(),
+            "vacia" => _ => [],
+            _ => index => [.. _signer.SignFile(index), .. new byte[IndexSignature.MaxSignatureBytes]],
+        };
+        Publish(sign: sign);
         using GitHubReleaseDownloader downloader = Downloader();
         await Assert.ThrowsAsync<DownloadVerificationException>(() => downloader.DownloadAsync(Filtros, null, default));
+        Assert.Equal(1, _server.RequestCount("indice.json.sig"));
         Assert.DoesNotContain(_server.Requests, r => r.Path.EndsWith(".paquete", StringComparison.Ordinal));
+        Assert.Empty(_storage.Requests);
         Assert.False(Directory.Exists(Downloads) && Directory.EnumerateFiles(Downloads, "*.paquete*").Any());
     }
 
@@ -143,16 +183,24 @@ public sealed class GitHubReleaseDownloaderTests : IDisposable
         PackageLocations locations = installer.Locations;
         string target = Path.Combine(locations.Packages, "rodaje-transiciones");
 
-        // 1. Corte a mitad de la descarga: queda el parcial; el paquete instalado sigue siendo el 1.
-        using (GitHubReleaseDownloader cut = new(new GitHubReleaseOptions
+        // 1. Corte a mitad de la descarga: queda el parcial; el paquete instalado sigue siendo el 1. El servidor corta
+        // cuando el descargador ya guardó la mitad (CutSignal), así el parcial mide lo mismo en Linux y en Windows.
+        int half = v2.Length / 2;
+        var cutSignal = new CutSignal();
+        _storage.Map(StoragePath("2.0.0"),
+            TestResponse.File(v2, $"\"{sha2}\"") with { CutAfterBytes = half, CutSignal = cutSignal },
+            TestResponse.File(v2, $"\"{sha2}\""));
+        var halfway = new SyncProgress(fraction =>
         {
-            IndexUrl = new Uri(_server.BaseUrl, "indice.json"), PublicKey = Convert.ToBase64String(_key.ExportSubjectPublicKeyInfo()),
-            DownloadFolder = Downloads, AppVersion = PackageVersion.Parse("0.7.0"), Policy = DownloadUrlPolicy.WithLoopback(),
-        }, _http) { Files = new FileDownloader(_http) { MaxAttempts = 1 } })
+            if (fraction >= half / (double)v2.Length)
+            {
+                cutSignal.Release();
+            }
+        });
+        using (GitHubReleaseDownloader cut = new(Options(policy: DownloadUrlPolicy.WithLoopback()), _http) { Files = new FileDownloader(_http) { MaxAttempts = 1 } })
         {
             await cut.GetIndexAsync();
-            _server.CutAfter.Enqueue(v2.Length / 2);
-            await Assert.ThrowsAsync<PackageDownloadException>(() => cut.DownloadAsync(Filtros, null, default));
+            await Assert.ThrowsAsync<PackageDownloadException>(() => cut.DownloadAsync(Filtros, halfway, default));
         }
 
         Assert.True(File.Exists(Path.Combine(Downloads, sha2 + ".paquete" + FileDownloader.PartialSuffix)));
@@ -171,7 +219,8 @@ public sealed class GitHubReleaseDownloaderTests : IDisposable
 
         using GitHubReleaseDownloader again = Downloader();
         DownloadedPackage downloaded = await again.DownloadAsync(Filtros, null, default);
-        Assert.Equal($"bytes={v2.Length / 2}-", _server.Requests.Last().Range);
+        Assert.Equal($"bytes={half}-", _storage.Requests[^1].Range);
+        Assert.Equal(206, _storage.Requests[^1].StatusCode);
         installer.Install(downloaded.Path, downloaded.ExpectedSha256);
         Assert.Equal("2.0.0", Installed(locations));
         Assert.Equal(v2, File.ReadAllBytes(downloaded.Path));

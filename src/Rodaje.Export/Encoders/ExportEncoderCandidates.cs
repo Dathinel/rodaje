@@ -39,6 +39,8 @@ public static class ExportEncoderCandidates
     {
         Id = "h264_mf", Codec = ExportCodec.H264, IsHardware = false, Vendor = EncoderVendor.Microsoft, License = EncoderLicense.SystemOrDriver,
         PixelFormats = [ExportPixelFormat.Nv12], Profiles = [new("high", "High"), new("main", "Main"), new("baseline", "Baseline")],
+        // Igual que ExportEncoderCatalog: el MFT de software de Microsoft; los de la GPU ya van antes como NVENC.
+        BaseArguments = ["-hw_encoding", "0"],
         RateControls = [RateControlMode.Vbr, RateControlMode.Cbr, RateControlMode.ConstantQuality], Quality = new("q", "-q:v", 1, 100, 60, LowerIsBetter: false),
         MaxBFrames = 2,
     };
@@ -56,6 +58,8 @@ public static class ExportEncoderCandidates
     {
         Id = "libvpx-vp9", Codec = ExportCodec.Vp9, IsHardware = false, Vendor = EncoderVendor.Software, License = EncoderLicense.Permissive,
         PixelFormats = [ExportPixelFormat.Yuv420P, ExportPixelFormat.Yuv420P10, ExportPixelFormat.Yuva420P],
+        // Igual que ExportEncoderCatalog: libvpx no tiene -preset; modo «good» y -cpu-used fijo (0 lento … 5 rápido).
+        BaseArguments = ["-deadline", "good", "-cpu-used", "2", "-row-mt", "1"],
         RateControls = [RateControlMode.ConstantQuality, RateControlMode.Vbr, RateControlMode.Cbr, RateControlMode.Abr],
         Quality = new("CRF", "-crf", 0, 63, 31), SupportsTwoPass = true,
     };
@@ -94,6 +98,9 @@ public static class ExportEncoderCandidates
     {
         Id = "ffv1", Codec = ExportCodec.Ffv1, IsHardware = false, Vendor = EncoderVendor.Software, License = EncoderLicense.FfmpegLgpl,
         PixelFormats = [ExportPixelFormat.Yuv420P, ExportPixelFormat.Yuv420P10, ExportPixelFormat.Yuv422P10, ExportPixelFormat.Yuv444P10],
+        // Igual que ExportEncoderCatalog: versión 3 con CRC por porción, y «-g 1» para que cada cuadro sea clave (FfmpegArguments
+        // no pone «-g» a los solo intra y sin él FFmpeg usa un GOP de 12).
+        BaseArguments = ["-level", "3", "-slicecrc", "1", "-g", "1"],
         RateControls = [RateControlMode.Lossless], IntraOnly = true,
     };
 

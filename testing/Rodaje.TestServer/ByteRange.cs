@@ -22,7 +22,9 @@ internal readonly record struct ByteRange(long First, long Last)
 
     /// <summary>
     /// Lee <c>bytes=a-b</c>, <c>bytes=a-</c> y <c>bytes=-n</c>. Varios rangos separados por comas no se
-    /// atienden (se ignoran y va el archivo entero): un descargador no los necesita.
+    /// atienden (se ignoran y va el archivo entero): un descargador no los necesita. Un número bien escrito
+    /// pero que no cabe en <see cref="long"/> da 416: ningún archivo llega a ese tamaño, y mandar el archivo
+    /// entero escondería que el cliente pidió un rango imposible.
     /// </summary>
     public static ParseResult TryParse(string? header, long length, out ByteRange range)
     {
@@ -52,9 +54,12 @@ internal readonly record struct ByteRange(long First, long Last)
         if (left.Length == 0)
         {
             // Sufijo: los últimos n bytes.
-            if (!TryParseNumber(right, out var suffix))
+            switch (ReadNumber(right, out var suffix))
             {
-                return ParseResult.Ignore;
+                case Number.Invalid:
+                    return ParseResult.Ignore;
+                case Number.TooLarge:
+                    return ParseResult.Unsatisfiable;
             }
 
             if (suffix == 0 || length == 0)
@@ -67,19 +72,29 @@ internal readonly record struct ByteRange(long First, long Last)
             return ParseResult.Satisfiable;
         }
 
-        if (!TryParseNumber(left, out var first))
+        switch (ReadNumber(left, out var first))
         {
-            return ParseResult.Ignore;
+            case Number.Invalid:
+                return ParseResult.Ignore;
+            case Number.TooLarge:
+                return ParseResult.Unsatisfiable;
         }
 
-        long last;
-        if (right.Length == 0)
+        long last = length - 1;
+        if (right.Length != 0)
         {
-            last = length - 1;
-        }
-        else if (!TryParseNumber(right, out last) || last < first)
-        {
-            return ParseResult.Ignore;
+            switch (ReadNumber(right, out last))
+            {
+                case Number.Invalid:
+                    return ParseResult.Ignore;
+                case Number.TooLarge:
+                    return ParseResult.Unsatisfiable;
+            }
+
+            if (last < first)
+            {
+                return ParseResult.Ignore;
+            }
         }
 
         if (first >= length)
@@ -91,6 +106,26 @@ internal readonly record struct ByteRange(long First, long Last)
         return ParseResult.Satisfiable;
     }
 
-    private static bool TryParseNumber(string text, out long value) =>
-        long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value);
+    /// <summary>Cómo se leyó un número de la cabecera.</summary>
+    private enum Number
+    {
+        /// <summary>Un número que cabe en <see cref="long"/>.</summary>
+        Valid,
+
+        /// <summary>Vacío o con algo que no es un dígito: la cabecera no se entiende.</summary>
+        Invalid,
+
+        /// <summary>Solo dígitos, pero no cabe en <see cref="long"/>.</summary>
+        TooLarge,
+    }
+
+    private static Number ReadNumber(string text, out long value)
+    {
+        if (long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value))
+        {
+            return Number.Valid;
+        }
+
+        return text.Length > 0 && text.All(char.IsAsciiDigit) ? Number.TooLarge : Number.Invalid;
+    }
 }

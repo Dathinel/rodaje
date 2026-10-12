@@ -165,7 +165,7 @@ internal sealed partial class TitleBar : UserControl
         menu.Items.Clear();
         for (int count = NewProjectTracks.Min; count <= NewProjectTracks.Max; count++)
         {
-            var item = new RadioMenuFlyoutItem { Text = count.ToString(System.Globalization.CultureInfo.CurrentCulture), GroupName = group, Tag = count };
+            var item = new RadioMenuFlyoutItem { Text = count.ToString(Rodaje.App.Services.Format.SpanishNumbers.Format), GroupName = group, Tag = count };
             item.Click += isVideo ? OnVideoTracksClick : OnAudioTracksClick;
             menu.Items.Add(item);
         }
@@ -218,7 +218,7 @@ internal sealed partial class TitleBar : UserControl
         LinkedAudioMenu.Items.Add(new MenuFlyoutSeparator());
         for (int number = 1; number <= NewProjectTracks.Max; number++)
         {
-            var item = new ToggleMenuFlyoutItem { Text = string.Create(CultureInfo.CurrentCulture, $"Video {number}"), Tag = number };
+            var item = new ToggleMenuFlyoutItem { Text = string.Create(Rodaje.App.Services.Format.SpanishNumbers.Format, $"Video {number}"), Tag = number };
             item.Click += OnLinkedAudioClick;
             LinkedAudioMenu.Items.Add(item);
         }
