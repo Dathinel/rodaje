@@ -20,6 +20,14 @@ Tres sesiones: la primera dejó el formato (`generator.words`), la segunda el di
 
 Esta rama no la causó. Falló una sola prueba: `Rodaje.Modules.Protocol.Tests.ProcessTests.A_module_that_ignores_cancel_is_killed_after_the_grace_period`, que tardó 4608 ms. Es una prueba de tiempos que depende de la carga del runner (tarea 47) y esta rama no toca `Rodaje.Modules.Protocol`. Lo demás pasó: 1378 de Core, Media, App y el resto.
 
+## CI de esta entrega (run 38231069104, sobre 841eb74/f0d239b unidos con main)
+
+- **Linux:** en verde.
+- **Windows:** compila (diálogo incluido). Fallan 2 de 899 pruebas en `Rodaje.App.Tests`, ninguna de esta rama:
+  - `CurrentCultureNumbersTests.LaApp_NoFormateaNumerosConLaCulturaDelHilo`: el único hallazgo es `Views/Translate/TranslateDialog.cs:141`, que viene de main y lo arregla el PR #50. En la vuelta anterior (23d5e38) también señalaba tres líneas de esta rama, que ya están corregidas.
+  - `ModuleManagerTests.Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada`: la prueba de tiempos falla por la carga del runner (tarea 47).
+- **`SpanishNumbers.Format`:** no existe en esta rama, porque está en main y aquí no se une main. Por eso `AutoSubtitles.Numbers` es su equivalente exacto. Al unir, conviene reemplazarlo; la prueba de main solo busca `CultureInfo.CurrentCulture`, así que pasa igual.
+
 ## Pendiente
 
 - **Tarea 51 (otra rama), necesaria para que el comando funcione:** `modules/Rodaje.Module.Subtitles/paquete.json` no tiene `"apps"`. `ManifestReader` lo deja vacío, `ModuleCatalog` (línea 129) descarta los módulos con `!manifest.WorksIn(AppId)`, y entonces `FindByFunction("subtitulos")` da null. Mientras tanto el diálogo solo avisa «Hace falta el módulo "Subtítulos automáticos"». No lo toqué.
