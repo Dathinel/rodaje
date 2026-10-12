@@ -162,10 +162,13 @@ public class AutosaveRecoveryServiceTests
         await h.Service.OfferRecoveryAsync();
         NotificationAction recover = Assert.Single(h.Notifications).Action!;
 
+        Task<EditorNotification> success = h.NotificationAsync(n => n.Severity == NotificationSeverity.Success);
         recover.Run();
         recover.Run();
-        await WaitFor(() => h.Notifications.Any(n => n.Severity == NotificationSeverity.Success));
-        await Task.Delay(200);
+
+        // El aviso de éxito es lo último de la primera recuperación, y el segundo clic se descarta antes de volver de
+        // Run, así que al llegar el aviso ya no queda nada en curso.
+        await success;
 
         Assert.Single(h.Notifications, n => n.Severity == NotificationSeverity.Success);
         Assert.Single(Directory.GetFiles(h.Temp.Path, "*(recuperado*).rodaje"));

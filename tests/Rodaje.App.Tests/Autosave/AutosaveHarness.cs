@@ -27,7 +27,7 @@ internal sealed class AutosaveHarness : IDisposable
     {
         Root = Temp.File("Autoguardado");
         Session = new EditorSession(new FakePlayback(), new FakeProber(), Dialogs, new SequentialIdGenerator());
-        Session.Notified += (_, n) => Notifications.Add(n);
+        Session.Notified += (_, n) => OnNotified(n);
         Service = new AutosaveService(Session, Dialogs, Root, new AutosaveSchedule(), Clock);
     }
 
@@ -46,6 +46,34 @@ internal sealed class AutosaveHarness : IDisposable
     public List<EditorNotification> Notifications { get; } = [];
 
     private readonly List<IDisposable> _open = [];
+
+    private readonly List<(Func<EditorNotification, bool> Match, TaskCompletionSource<EditorNotification> Done)> _waiting = [];
+
+    /// <summary>
+    /// Termina con el primer aviso que cumple <paramref name="match"/>, ya llegado o por llegar. Sirve para esperar lo
+    /// que lanza un botón de aviso, cuya tarea no se puede esperar.
+    /// </summary>
+    public Task<EditorNotification> NotificationAsync(Func<EditorNotification, bool> match)
+    {
+        if (Notifications.FirstOrDefault(match) is { } already)
+        {
+            return Task.FromResult(already);
+        }
+
+        var done = new TaskCompletionSource<EditorNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _waiting.Add((match, done));
+        return done.Task;
+    }
+
+    private void OnNotified(EditorNotification notification)
+    {
+        Notifications.Add(notification);
+        foreach (var waiting in _waiting.Where(w => w.Match(notification)).ToList())
+        {
+            _waiting.Remove(waiting);
+            waiting.Done.TrySetResult(notification);
+        }
+    }
 
     /// <summary>Las copias de la sesión del servicio, de la más nueva a la más vieja.</summary>
     public IReadOnlyList<AutosaveSnapshot> Snapshots => AutosaveRecovery.ListSnapshots(Service.SessionDirectory!);
