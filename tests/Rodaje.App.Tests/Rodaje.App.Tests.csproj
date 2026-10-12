@@ -26,10 +26,14 @@
     <Compile Include="..\..\src\Rodaje.App\Views\Timeline\Logic\**\*.cs" Link="Timeline\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Rodaje.App\Views\Export\Logic\**\*.cs" Link="ExportLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Rodaje.App\Views\Player\Logic\**\*.cs" Link="PlayerLogic\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Estabilizar y color automático: la caché de análisis y las ediciones, sin WinUI. -->
+    <Compile Include="..\..\src\Rodaje.App\Views\Analysis\StabilizationStore.cs" Link="Analysis\StabilizationStore.cs" />
+    <Compile Include="..\..\src\Rodaje.App\Views\Analysis\VideoAnalysisEdits.cs" Link="Analysis\VideoAnalysisEdits.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Engine\Rodaje.Engine.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Analysis\Rodaje.Analysis.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Export\Rodaje.Export.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
     <!-- La prueba de punta a punta con los paquetes de contenido compone con el render real. -->

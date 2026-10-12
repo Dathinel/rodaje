@@ -20,8 +20,12 @@ public static class EffectCatalog
             .SelectMany(d => Kinds(d.Target).Select(kind => new EffectDescriptor(d.Type, EffectUi.Name(d.Type), kind, d.Stage != EffectStage.Deferred))),
     ];
 
-    /// <summary>Los que se ofrecen para un clip de ese tipo de pista: solo los que el motor aplica.</summary>
-    public static IReadOnlyList<EffectDescriptor> For(TrackKind kind) => [.. All.Where(e => e.Kind == kind && e.IsRendered)];
+    /// <summary>
+    /// Los que se ofrecen para un clip de ese tipo de pista: solo los que el motor aplica. «Estabilizar» no, porque
+    /// necesita el análisis: se pone desde «Estabilizar...» del menú del clip.
+    /// </summary>
+    public static IReadOnlyList<EffectDescriptor> For(TrackKind kind) =>
+        [.. All.Where(e => e.Kind == kind && e.IsRendered && e.Type != BuiltInEffects.Stabilize)];
 
     public static EffectDescriptor? Find(string type) => All.FirstOrDefault(e => e.Type == type);
 

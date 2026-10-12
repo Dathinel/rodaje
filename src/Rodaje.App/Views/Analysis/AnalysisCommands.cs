@@ -4,18 +4,24 @@ using Rodaje.App.Shell;
 
 namespace Rodaje.App.Views.Analysis;
 
-/// <summary>Acciones de análisis de audio («Editar» y el menú del clip). Sin atajo por omisión; sin un clip con sonido seleccionado, avisan.</summary>
+/// <summary>Acciones de análisis de audio y de imagen («Editar» y el menú del clip). Sin atajo por omisión; sin un clip adecuado seleccionado, avisan.</summary>
 internal static partial class AnalysisCommands
 {
     public const string RemoveSilences = "analysis.silences";
     public const string DetectBeats = "analysis.beats";
     public const string Ducking = "analysis.ducking";
+    public const string Stabilize = "analysis.stabilize";
+    public const string AutoColor = "analysis.autocolor";
+    public const string WhiteBalance = "analysis.whitebalance";
 
     public static IReadOnlyList<(string Id, string Label, string Glyph)> Menu { get; } =
     [
         (RemoveSilences, "Quitar silencios...", ""),
         (DetectBeats, "Detectar ritmo...", ""),
         (Ducking, "Ducking automático...", ""),
+        (Stabilize, "Estabilizar...", ""),
+        (AutoColor, "Color automático", ""),
+        (WhiteBalance, "Balance de blancos automático", ""),
     ];
 
     public static IDisposable Bind(ShortcutRouter router, EditorServices services)
@@ -27,6 +33,9 @@ internal static partial class AnalysisCommands
             router.Bind(RemoveSilences, () => Run(services.Session, () => SilenceDialog.ShowAsync(services))),
             router.Bind(DetectBeats, () => Run(services.Session, () => RhythmDialog.ShowAsync(services))),
             router.Bind(Ducking, () => Run(services.Session, () => DuckingDialog.ShowAsync(services))),
+            router.Bind(Stabilize, () => Run(services.Session, () => StabilizeDialog.ShowAsync(services))),
+            router.Bind(AutoColor, () => Run(services.Session, () => AutoColorAction.RunAsync(services, levels: true))),
+            router.Bind(WhiteBalance, () => Run(services.Session, () => AutoColorAction.RunAsync(services, levels: false))),
         ];
         return new Bindings(bindings);
     }
