@@ -226,13 +226,22 @@ public sealed class TimelineReverseTests(ITestOutputHelper output)
             session.Tick().Dispose();
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 200; i++)
+        // La ventana con menos bytes de tres: lo que reserva cada Tick sale en todas. En la CI de Windows, con el runner
+        // cargado, una ventana sumó unos 4,8 KB de una vez (24 bytes por Tick de diferencia entre sentidos), que no son
+        // del Tick.
+        long fewest = long.MaxValue;
+        for (int round = 0; round < 3; round++)
         {
-            session.Tick().Dispose();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 200; i++)
+            {
+                session.Tick().Dispose();
+            }
+
+            fewest = Math.Min(fewest, (GC.GetAllocatedBytesForCurrentThread() - before) / 200);
         }
 
-        return (GC.GetAllocatedBytesForCurrentThread() - before) / 200;
+        return fewest;
     }
 
     /// <summary>Reproduce con refrescos de 60 Hz y los decodificadores al día; devuelve los cuadros distintos de la referencia.</summary>
