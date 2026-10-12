@@ -8,11 +8,21 @@ namespace Rodaje.Media.Tests.Export;
 /// </summary>
 internal static class FakeFfmpeg
 {
-    /// <summary>Opción del falso: al terminar la entrada estándar no sale (un ffmpeg.exe que tarda en cerrar el contenedor).</summary>
+    /// <summary>
+    /// Opción del falso: al terminar la entrada estándar no sale (un ffmpeg.exe que tarda en cerrar el contenedor).
+    /// Sale solo con el código <see cref="HangExitCode"/> a los dos minutos o cuando muere el proceso de las pruebas
+    /// (<see cref="ParentVariable"/>), para no quedar huérfano si una prueba falla antes de matarlo.
+    /// </summary>
     public const string Hang = "-falso-colgar";
 
     /// <summary>Opción del falso: el código con el que sale al terminar la entrada estándar.</summary>
     public const string ExitCode = "-falso-salida";
+
+    /// <summary>Código con el que sale el falso colgado cuando deja de esperar sin que lo maten.</summary>
+    public const int HangExitCode = 124;
+
+    /// <summary>Variable de entorno con el id del proceso de las pruebas; el falso la hereda y sale si ese proceso muere.</summary>
+    public const string ParentVariable = "RODAJE_FALSO_PADRE";
 
     private static readonly Lazy<string> Executable = new(Locate);
 
@@ -28,6 +38,8 @@ internal static class FakeFfmpeg
         {
             throw new FileNotFoundException($"Falta el ffmpeg falso junto a las pruebas: {path}.", path);
         }
+
+        Environment.SetEnvironmentVariable(ParentVariable, Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         // El lanzador del falso busca el runtime de .NET en DOTNET_ROOT; si no está (dotnet instalado fuera del lugar
         // por omisión), se le da el mismo runtime que corre las pruebas. El proceso hijo hereda la variable.
