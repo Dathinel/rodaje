@@ -509,9 +509,30 @@ internal static partial class PresetReader
                 "easeIn" => PresetInterpolation.EaseIn,
                 "easeOut" => PresetInterpolation.EaseOut,
                 "easeInOut" => PresetInterpolation.EaseInOut,
-                { } other => throw Fail($"{at}.interp «{Show(other)}» no existe: hold, linear, easeIn, easeOut o easeInOut."),
+                "bezier" => PresetInterpolation.Bezier,
+                "bounce" => PresetInterpolation.Bounce,
+                "elastic" => PresetInterpolation.Elastic,
+                { } other => throw Fail($"{at}.interp «{Show(other)}» no existe: hold, linear, easeIn, easeOut, easeInOut, bezier, bounce o elastic."),
             };
-            keys.Add(new PresetKey(Math.Clamp(time, 0, duration), value, interpolation));
+            (double, double, double, double)? ease = null;
+            if (interpolation == PresetInterpolation.Bezier)
+            {
+                if (!k.TryGetProperty("ease", out JsonElement e) || e.ValueKind != JsonValueKind.Array || e.GetArrayLength() != 4
+                    || e.EnumerateArray().Any(n => n.ValueKind != JsonValueKind.Number || !double.IsFinite(n.GetDouble())))
+                {
+                    throw Fail($"{at}.ease tiene que ser [x1, y1, x2, y2] con «interp»: «bezier».");
+                }
+
+                double[] c = [.. e.EnumerateArray().Select(n => n.GetDouble())];
+                if (c[0] is < 0 or > 1 || c[2] is < 0 or > 1 || c[1] is < -2 or > 3 || c[3] is < -2 or > 3)
+                {
+                    throw Fail($"{at}.ease: x1 y x2 van de 0 a 1; y1 e y2, de −2 a 3.");
+                }
+
+                ease = (c[0], c[1], c[2], c[3]);
+            }
+
+            keys.Add(new PresetKey(Math.Clamp(time, 0, duration), value, interpolation) { Ease = ease });
         }
 
         return keys;

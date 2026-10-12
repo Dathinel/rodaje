@@ -62,6 +62,9 @@ public static class EffectRegistry
     /// <summary>Duración con la que se suelta una transición.</summary>
     public static Time DefaultTransitionDuration { get; } = Time.FromSeconds(0.5);
 
+    /// <summary>Inclinación máxima de <see cref="T.SkewX"/> y <see cref="T.SkewY"/>, en grados (a 90° la capa se aplasta).</summary>
+    public const double MaxSkew = 85;
+
     /// <summary>Ganancia que se trata como silencio: el mínimo de <see cref="A.GainDb"/>.</summary>
     public const double SilenceDb = -60;
 
@@ -74,6 +77,19 @@ public static class EffectRegistry
             new(T.Scale, 1, 0, 100),
             new(T.Rotation, 0, -Inf, Inf),
             new(T.Opacity, 1, 0, 1),
+            new(T.AnchorX, 0, -Inf, Inf),
+            new(T.AnchorY, 0, -Inf, Inf),
+            new(T.ScaleX, 1, 0, 100),
+            new(T.ScaleY, 1, 0, 100),
+            new(T.SkewX, 0, -MaxSkew, MaxSkew),
+            new(T.SkewY, 0, -MaxSkew, MaxSkew),
+            new(T.ShutterAngle, 0, 0, 720, Animatable: false),
+            new(T.ShutterPhase, 0, -360, 360, Animatable: false),
+            new(T.MotionSamples, T.DefaultMotionSamples, 2, 64, Animatable: false),
+        ],
+        [
+            OptionDefinition.Choice(BuiltInEffects.TransformOptions.FlipX, "off", "off", "on"),
+            OptionDefinition.Choice(BuiltInEffects.TransformOptions.FlipY, "off", "off", "on"),
         ]),
         new(BuiltInEffects.Color, 2, EffectTarget.Video, EffectStage.PerPixel,
         [

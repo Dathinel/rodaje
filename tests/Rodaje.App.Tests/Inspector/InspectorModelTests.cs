@@ -208,7 +208,8 @@ public class ParameterSpecTests
         Assert.Equal("150.5", scale.Format(1.505));
         Assert.Equal(-1920, specs[0].Minimum);
         Assert.Equal(1080, specs[1].Maximum);
-        Assert.All(specs, s => Assert.True(s.Animatable));
+        // El obturador, su fase y sus muestras del desenfoque de movimiento no se animan; lo demás, sí.
+        Assert.Equal(["shutterAngle", "shutterPhase", "motionSamples"], specs.Where(s => !s.Animatable).Select(s => s.Name));
     }
 
     [Fact]
@@ -233,8 +234,9 @@ public class ParameterSpecTests
     [Fact]
     public void Curvas_EnElOrdenDelDesplegable()
     {
-        Assert.Equal(["Lineal", "Suave", "Acelerar", "Frenar", "Mantener"], KeyframeEase.Options.Select(o => o.Name));
+        Assert.Equal(["Lineal", "Suave", "Entrada", "Salida", "Rebote", "Elástico", "Bézier", "Mantener"], KeyframeEase.Options.Select(o => o.Name));
         Assert.Equal(1, KeyframeEase.IndexOf(Interpolation.EaseInOut));
-        Assert.Equal(4, KeyframeEase.IndexOf(Interpolation.Hold));
+        Assert.Equal(7, KeyframeEase.IndexOf(Interpolation.Hold));
+        Assert.All(Enum.GetValues<Interpolation>(), i => Assert.Equal(i, KeyframeEase.Options[KeyframeEase.IndexOf(i)].Value));
     }
 }

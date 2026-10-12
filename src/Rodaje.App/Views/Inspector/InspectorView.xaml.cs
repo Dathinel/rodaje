@@ -59,6 +59,9 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     }
 
     /// <summary>Muestra una pestaña (por ejemplo, desde el menú Ver).</summary>
+    /// <summary>La pestaña Propiedades, para la autoprueba.</summary>
+    internal Properties.PropertiesPanel Properties => PropertiesPanel;
+
     public void Show(Tab tab)
     {
         RadioButton button = tab switch

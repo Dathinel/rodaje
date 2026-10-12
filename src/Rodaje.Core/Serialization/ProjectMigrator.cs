@@ -22,6 +22,7 @@ public sealed class ProjectMigrator
         [3] = RemoveSpeedEffects,
         [4] = AllowGenerators,
         [5] = AllowCompounds,
+        [6] = AllowBezierKeyframes,
     };
 
     private readonly IReadOnlyDictionary<int, Action<JsonObject>> _chain;
@@ -151,6 +152,13 @@ public sealed class ProjectMigrator
     /// no tiene ninguno, así que solo cambia la versión.
     /// </summary>
     internal static void AllowCompounds(JsonObject root) => root[VersionProperty] = 6;
+
+    /// <summary>
+    /// 6 → 7: los keyframes ganan la curva Bézier (<c>ease</c>), las tangentes de trayectoria (<c>spatialIn</c>,
+    /// <c>spatialOut</c>) y las interpolaciones <c>bezier</c>, <c>bounce</c> y <c>elastic</c>; la transformación, el ancla,
+    /// la escala por eje, la inclinación, el volteo y el desenfoque de movimiento. Todo es opcional: no hay que convertir nada.
+    /// </summary>
+    internal static void AllowBezierKeyframes(JsonObject root) => root[VersionProperty] = 7;
 
     private static void RemoveSpeed(JsonNode? effects)
     {

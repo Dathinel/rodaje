@@ -27,8 +27,55 @@ public static class BuiltInEffects
         /// <summary>Opacidad de 0 a 1. Por defecto 1.</summary>
         public const string Opacity = "opacity";
 
+        /// <summary>
+        /// Punto de anclaje: desde el centro de la imagen, en píxeles de la secuencia a escala 1 (positivo hacia la
+        /// derecha y hacia abajo). Escala, giro e inclinación pivotan en él; mover el ancla no mueve la imagen. Por defecto 0.
+        /// </summary>
+        public const string AnchorX = "anchorX";
+
+        public const string AnchorY = "anchorY";
+
+        /// <summary>Escala por eje, que multiplica a <see cref="Scale"/> (1 = sin estirar). Por defecto 1.</summary>
+        public const string ScaleX = "scaleX";
+
+        public const string ScaleY = "scaleY";
+
+        /// <summary>Inclinación en grados (−85 a 85): <see cref="SkewX"/> tuerce los lados verticales y <see cref="SkewY"/> los horizontales.</summary>
+        public const string SkewX = "skewX";
+
+        public const string SkewY = "skewY";
+
+        /// <summary>
+        /// Desenfoque de movimiento: ángulo del obturador en grados (0 lo apaga, 180 es el de cine, 360 todo el cuadro, hasta
+        /// 720). Sin keyframes.
+        /// </summary>
+        public const string ShutterAngle = "shutterAngle";
+
+        /// <summary>Corrimiento del centro del obturador respecto del cuadro, en grados (0 = centrado). Sin keyframes.</summary>
+        public const string ShutterPhase = "shutterPhase";
+
+        /// <summary>Muestras por cuadro del desenfoque de movimiento (2 a 64). Por defecto 16. Sin keyframes.</summary>
+        public const string MotionSamples = "motionSamples";
+
         /// <summary>Valor de un parámetro que falta.</summary>
-        public static double DefaultValue(string name) => name is Scale or Opacity ? 1 : 0;
+        public static double DefaultValue(string name) => name switch
+        {
+            Scale or Opacity or ScaleX or ScaleY => 1,
+            MotionSamples => DefaultMotionSamples,
+            _ => 0,
+        };
+
+        public const int DefaultMotionSamples = 16;
+    }
+
+    /// <summary>Opciones de <see cref="Transform"/>.</summary>
+    public static class TransformOptions
+    {
+        /// <summary>Voltear en horizontal alrededor del centro de la imagen: <c>off</c> u <c>on</c>.</summary>
+        public const string FlipX = "flipX";
+
+        /// <summary>Voltear en vertical alrededor del centro de la imagen: <c>off</c> u <c>on</c>.</summary>
+        public const string FlipY = "flipY";
     }
 
     /// <summary>Volumen y fundidos de un clip o de una pista de audio.</summary>

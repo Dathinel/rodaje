@@ -109,10 +109,26 @@ public static class KeyframeEase
     [
         ("Lineal", Interpolation.Linear),
         ("Suave", Interpolation.EaseInOut),
-        ("Acelerar", Interpolation.EaseIn),
-        ("Frenar", Interpolation.EaseOut),
+        ("Entrada", Interpolation.EaseIn),
+        ("Salida", Interpolation.EaseOut),
+        ("Rebote", Interpolation.Bounce),
+        ("Elástico", Interpolation.Elastic),
+        ("Bézier", Interpolation.Bezier),
         ("Mantener", Interpolation.Hold),
     ];
+
+    /// <summary>Qué hace cada curva, para la ayuda del desplegable.</summary>
+    public static string Help(Interpolation interpolation) => interpolation switch
+    {
+        Interpolation.Linear => "Velocidad constante",
+        Interpolation.EaseInOut => "Arranca y frena suave",
+        Interpolation.EaseIn => "Arranca despacio y acelera",
+        Interpolation.EaseOut => "Llega frenando",
+        Interpolation.Bounce => "Llega rebotando",
+        Interpolation.Elastic => "Se pasa y vuelve, como un resorte",
+        Interpolation.Bezier => "Curva propia: se ajusta con los manejadores de la gráfica",
+        _ => "Mantiene el valor y salta en el keyframe siguiente",
+    };
 
     public static int IndexOf(Interpolation interpolation)
     {

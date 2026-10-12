@@ -5,7 +5,11 @@ using Rodaje.Render;
 namespace Rodaje.App.Views.Player;
 
 /// <summary>Dónde se dibujó un título en el último cuadro: su tamaño nativo en píxeles de la secuencia y su transformación.</summary>
-public readonly record struct TitleBox(string ClipId, LayerTransform Transform, double Width, double Height);
+/// <remarks>Con <see cref="Fitted"/> es una capa de video: su imagen de <c>Width</c>×<c>Height</c> se ajusta al cuadro antes de transformarse.</remarks>
+public readonly record struct TitleBox(string ClipId, LayerTransform Transform, double Width, double Height)
+{
+    public bool Fitted { get; init; }
+}
 
 /// <summary>Qué parte del título queda bajo el puntero.</summary>
 public enum TitleGrip
@@ -109,13 +113,18 @@ public static class TitleHandles
     /// <summary>Las cuatro esquinas en el panel (arriba izquierda, arriba derecha, abajo derecha, abajo izquierda); nulo si no se dibuja.</summary>
     public static Vector2[]? Corners(TitleBox box, int sequenceWidth, int sequenceHeight, ImageFrame frame)
     {
-        if (LayerLayout.PlaceNative(sequenceWidth, sequenceHeight, box.Width, box.Height, box.Transform) is not { } placement)
+        if (Placement(box, sequenceWidth, sequenceHeight) is not { } placement)
         {
             return null;
         }
 
         return [frame.ToPanel(placement.TopLeft), frame.ToPanel(placement.TopRight), frame.ToPanel(placement.BottomRight), frame.ToPanel(placement.BottomLeft)];
     }
+
+    /// <summary>Dónde la dibuja el render: a su tamaño (un título) o ajustada al cuadro (una capa de video).</summary>
+    public static LayerPlacement? Placement(TitleBox box, int sequenceWidth, int sequenceHeight) => box.Fitted
+        ? LayerLayout.Place(sequenceWidth, sequenceHeight, (int)box.Width, (int)box.Height, box.Transform)
+        : LayerLayout.PlaceNative(sequenceWidth, sequenceHeight, box.Width, box.Height, box.Transform);
 
     /// <summary>
     /// Una esquina o el asa de girar si el puntero está a <see cref="GripRadius"/> de ella (solo con las asas a la vista);

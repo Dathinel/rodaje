@@ -165,6 +165,9 @@ public sealed class EffectContent : IAwaitableEffectContent
         PresetInterpolation.EaseIn => Interpolation.EaseIn,
         PresetInterpolation.EaseOut => Interpolation.EaseOut,
         PresetInterpolation.EaseInOut => Interpolation.EaseInOut,
+        PresetInterpolation.Bezier => Interpolation.Bezier,
+        PresetInterpolation.Bounce => Interpolation.Bounce,
+        PresetInterpolation.Elastic => Interpolation.Elastic,
         _ => Interpolation.Linear,
     };
 

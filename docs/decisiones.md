@@ -2,7 +2,7 @@
 
 Este registro guarda el porqué de cada elección importante de Rodaje. Una decisión no se borra cuando cambia: se marca como sustituida y otra explica el cambio.
 
-**Estado.** Vigentes: D-003 a D-014, D-016 a D-029 y D-031 a D-035 (D-017 la amplía D-019; D-028 la corrige D-033 en la parte de 9:16). Sustituidas: D-001 (por D-014), D-002 en la licencia y D-030 (por D-032), D-015 en el visor (por D-022) y en la caché (por D-017).
+**Estado.** Vigentes: D-003 a D-014, D-016 a D-029 y D-031 a D-036 (D-017 la amplía D-019; D-028 la corrige D-033 en la parte de 9:16). Sustituidas: D-001 (por D-014), D-002 en la licencia y D-030 (por D-032), D-015 en el visor (por D-022) y en la caché (por D-017).
 
 ---
 
@@ -324,3 +324,15 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
   - **Reducción de ruido temporal:** usa el cuadro anterior de la misma capa solo si es el inmediatamente anterior del origen (al reproducir y al exportar); en pausa o tras un salto se ve la parte espacial. Es la única diferencia admitida entre vista previa y exportación.
   - **Presets:** las miniaturas se componen en la GPU sobre el cuadro actual sin el color del clip; «Guardar como preset» escribe un `rodaje.filter` en los complementos propios, el mismo archivo que va en un `.paquete`.
 - **Consecuencia.** Un efecto nuevo del intermedio cuesta un intermedio del tamaño de la capa más sus pasadas (medido por efecto en `EffectCost`); seis efectos en una capa 4K entran en 5 ms de mediana en la RTX 3050.
+
+## D-036. Transformación profesional y formato 7 (12 de octubre de 2026)
+
+- **Contexto.** La transformación tenía posición, escala, giro y opacidad con cinco curvas fijas; faltaban ancla, estiramiento, inclinación, volteo, curvas Bézier, trayectorias, desenfoque de movimiento y una forma de animar de un clic.
+- **Decisión.**
+  - **Formato 7:** keyframes con `ease` (Bézier de tiempo como `cubic-bezier`), `spatialIn`/`spatialOut` (tangentes de trayectoria) e interpolaciones `bezier`, `bounce` y `elastic`; `rodaje.transform` gana ancla, escala por eje, inclinación, volteo (opciones) y obturador. Todo opcional: la migración solo cambia el número.
+  - **Una sola matemática** en el núcleo (`KeyframeMath`, `MotionPath`) para el motor, la interfaz y quien escriba keyframes después (un seguidor de movimiento). La trayectoria se recorre a velocidad constante sobre la curva (largo medido en 48 tramos) y la interpolación del keyframe de X reparte el recorrido.
+  - **El ancla no mueve la imagen:** es el pivote de escala, giro e inclinación; arrastrarla en el visor corrige la posición. El volteo es alrededor del centro de la imagen.
+  - **Desenfoque de movimiento por submuestreo temporal** de la transformación (2 a 64 muestras, ángulo y fase), calculado por el motor y promediado por el compositor: igual en vista previa y exportación. No desenfoca el movimiento dentro de la imagen (eso pediría flujo óptico) ni una capa en transición.
+  - **Animaciones de fábrica** como keyframes normales (relativas a la transformación de partida, en segundos de la línea de tiempo) y no como un efecto aparte: se editan en la gráfica como cualquiera.
+  - **Asas en el visor solo con Propiedades a la vista**, como el recorte con Filtros: el visor queda limpio el resto del tiempo.
+- **Consecuencia.** Un Rodaje con formato 6 pide actualizar para abrir un proyecto nuevo. El desenfoque cuesta una pasada por muestra (16 muestras en 4K, 2,8 ms en la RTX 3050).

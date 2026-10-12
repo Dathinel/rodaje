@@ -17,8 +17,9 @@ internal sealed unsafe partial class LayerRenderer
     public bool DrawTitle(LayerFrame layer, TitleTexture title, in Destination destination, ref FrameStats stats)
     {
         _effects.BindConstants();
-        if (!(layer.Transform.Opacity > 0)
-            || LayerLayout.PlaceNative(destination.SequenceWidth, destination.SequenceHeight, title.LocalWidth, title.LocalHeight, layer.Transform)
+        LayerTransform transform = TransformOf(layer);
+        if (!(transform.Opacity > 0)
+            || LayerLayout.PlaceNative(destination.SequenceWidth, destination.SequenceHeight, title.LocalWidth, title.LocalHeight, transform)
                 is not { } placement)
         {
             return false;
@@ -47,7 +48,7 @@ internal sealed unsafe partial class LayerRenderer
         var view = new ImageView(title.Target, title.Width, title.Height);
         if (_spatial.Count > 0)
         {
-            if (TitleThroughIntermediate(layer, title, placement, layer.Transform, destination, ref stats) is { } spatial)
+            if (TitleThroughIntermediate(layer, title, placement, transform, destination, ref stats) is { } spatial)
             {
                 (view, placement) = spatial;
             }
@@ -57,7 +58,7 @@ internal sealed unsafe partial class LayerRenderer
             }
         }
 
-        BlendMode blend = layer.Blend;
+        BlendMode blend = BlendOf(layer);
         bool shaderBlend = EffectPipeline.IsShaderBlend(blend);
         ID3D11PixelShader* image = _effects.TryGetShader(EffectShader.Image, shaderBlend ? EffectShaders.Blend : 0);
         EffectConstants effects = default;
@@ -85,7 +86,7 @@ internal sealed unsafe partial class LayerRenderer
 
         effects.BlendInfo.X = (float)blend;
         effects.MapA = view.Map;
-        _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, image, _effects.BlendState(blend));
+        _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, image, StateFor(blend));
         BindInputs(background, null, view.Target, null);
         _effects.Set(effects);
         _quad.Draw(quad);

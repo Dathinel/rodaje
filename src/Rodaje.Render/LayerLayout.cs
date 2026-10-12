@@ -22,6 +22,30 @@ public readonly record struct LayerPlacement(Matrix3x2 LocalToSequence, float Lo
     public Vector2 Center => Map(LocalWidth / 2, LocalHeight / 2);
 
     public Vector2 Map(float x, float y) => Vector2.Transform(new Vector2(x, y), LocalToSequence);
+
+    /// <summary>Píxeles de la secuencia por píxel local a lo largo de cada eje local (con escala por eje e inclinación).</summary>
+    public float AxisScaleX => new Vector2(LocalToSequence.M11, LocalToSequence.M12).Length();
+
+    public float AxisScaleY => new Vector2(LocalToSequence.M21, LocalToSequence.M22).Length();
+
+    /// <summary>La mayor escala de un eje: lo que necesita un intermedio para no perder detalle (<see cref="Scale"/> si es uniforme).</summary>
+    public float MaxAxisScale
+    {
+        get
+        {
+            float max = Math.Max(AxisScaleX, AxisScaleY);
+            return Math.Abs(max - Scale) <= 1e-4f * Scale ? Scale : max;
+        }
+    }
+
+    /// <summary>
+    /// Distancia en la secuencia por unidad de distancia local a un lado vertical (x = 0 o x = ancho): |det| / |eje y|.
+    /// Con escala uniforme y sin inclinación es <see cref="Scale"/>.
+    /// </summary>
+    public float EdgeScaleX => Math.Abs(LocalToSequence.GetDeterminant()) / Math.Max(AxisScaleY, 1e-12f);
+
+    /// <summary>Lo mismo hacia un lado horizontal: |det| / |eje x|.</summary>
+    public float EdgeScaleY => Math.Abs(LocalToSequence.GetDeterminant()) / Math.Max(AxisScaleX, 1e-12f);
 }
 
 /// <summary>Geometría de las capas: ajuste al cuadro ("contain") y después la transformación de <c>rodaje.transform</c>.</summary>
@@ -95,8 +119,13 @@ public static class LayerLayout
         return Transformed(sequenceWidth / 2.0, sequenceHeight / 2.0, width, height, transform);
     }
 
-    private static LayerPlacement Transformed(double rectCenterX, double rectCenterY, double width, double height, LayerTransform transform)
+    private static LayerPlacement? Transformed(double rectCenterX, double rectCenterY, double width, double height, LayerTransform transform)
     {
+        if (transform.Shape is { } shape && !shape.IsNone)
+        {
+            return Shaped(rectCenterX, rectCenterY, width, height, transform, shape);
+        }
+
         double radians = transform.RotationDegrees % 360 * Math.PI / 180;
         double cos = Math.Cos(radians);
         double sin = Math.Sin(radians);
@@ -112,6 +141,68 @@ public static class LayerLayout
             (float)(centerX - (s * ((halfWidth * cos) - (halfHeight * sin)))),
             (float)(centerY - (s * ((halfWidth * sin) + (halfHeight * cos)))));
         return new LayerPlacement(matrix, (float)width, (float)height, (float)s);
+    }
+
+    /// <summary>
+    /// Con ancla, escala por eje, inclinación o volteo: <c>q' = C + t + a + R·K·S·(F(q) − c − a)</c> (ver
+    /// <see cref="LayerShape"/>). Nulo si la capa queda aplastada (determinante casi 0) o algún valor no es finito.
+    /// </summary>
+    private static LayerPlacement? Shaped(double rectCenterX, double rectCenterY, double width, double height, LayerTransform transform,
+        LayerShape shape)
+    {
+        if (!double.IsFinite(shape.AnchorX) || !double.IsFinite(shape.AnchorY) || !double.IsFinite(shape.ScaleX) || !double.IsFinite(shape.ScaleY)
+            || !double.IsFinite(shape.SkewX) || !double.IsFinite(shape.SkewY))
+        {
+            return null;
+        }
+
+        double radians = transform.RotationDegrees % 360 * Math.PI / 180;
+        double cos = Math.Cos(radians);
+        double sin = Math.Sin(radians);
+        double sx = transform.Scale * shape.ScaleX;
+        double sy = transform.Scale * shape.ScaleY;
+        double kx = Math.Tan(Math.Clamp(shape.SkewX, -89, 89) * Math.PI / 180);
+        double ky = Math.Tan(Math.Clamp(shape.SkewY, -89, 89) * Math.PI / 180);
+
+        // Columnas de A = R·K·S con K = [[1, kx], [ky, 1]] (y hacia abajo): a = A·(1, 0), b = A·(0, 1).
+        double kax = sx;
+        double kay = ky * sx;
+        double kbx = kx * sy;
+        double kby = sy;
+        double ax = (kax * cos) - (kay * sin);
+        double ay = (kax * sin) + (kay * cos);
+        double bx = (kbx * cos) - (kby * sin);
+        double by = (kbx * sin) + (kby * cos);
+        double det = (ax * by) - (ay * bx);
+        if (!(Math.Abs(det) > 1e-9) || !double.IsFinite(det))
+        {
+            return null;
+        }
+
+        double halfWidth = width / 2.0;
+        double halfHeight = height / 2.0;
+        double pivotX = halfWidth + shape.AnchorX;
+        double pivotY = halfHeight + shape.AnchorY;
+        double originX = rectCenterX + transform.X + shape.AnchorX;
+        double originY = rectCenterY + transform.Y + shape.AnchorY;
+
+        // F voltea alrededor del centro de la imagen: x → ancho − x.
+        double fx = shape.FlipX ? -1 : 1;
+        double fy = shape.FlipY ? -1 : 1;
+        double fxOffset = shape.FlipX ? width : 0;
+        double fyOffset = shape.FlipY ? height : 0;
+
+        // q' = origen + A·(F(q) − pivote), con F(q) = (fx·x + fxOffset, fy·y + fyOffset).
+        double m11 = ax * fx;
+        double m12 = ay * fx;
+        double m21 = bx * fy;
+        double m22 = by * fy;
+        double dx = fxOffset - pivotX;
+        double dy = fyOffset - pivotY;
+        double tx = originX + (ax * dx) + (bx * dy);
+        double ty = originY + (ay * dx) + (by * dy);
+        var matrix = new Matrix3x2((float)m11, (float)m12, (float)m21, (float)m22, (float)tx, (float)ty);
+        return new LayerPlacement(matrix, (float)width, (float)height, (float)Math.Sqrt(Math.Abs(det)));
     }
 
     /// <summary>Coordenada de textura en un punto local, extendiendo linealmente la de las esquinas (también fuera del rectángulo).</summary>

@@ -35,3 +35,26 @@ public sealed partial class EditorSession
         KeyPickRequested?.Invoke(this, (clipId, effectId));
     }
 }
+
+/// <summary>Las asas de la transformación en el visor: se ven mientras la pestaña Propiedades está a la vista.</summary>
+public sealed partial class EditorSession
+{
+    private bool _transformEditing;
+
+    public event EventHandler? TransformEditingChanged;
+
+    /// <summary>La pestaña Propiedades está a la vista: el visor muestra las asas, el ancla y la trayectoria del clip elegido.</summary>
+    public bool TransformEditing => _transformEditing;
+
+    public void SetTransformEditing(bool editing)
+    {
+        VerifyAccess();
+        if (_transformEditing == editing)
+        {
+            return;
+        }
+
+        _transformEditing = editing;
+        TransformEditingChanged?.Invoke(this, EventArgs.Empty);
+    }
+}

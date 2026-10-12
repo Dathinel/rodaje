@@ -4,7 +4,7 @@ Efectos, color, máscaras, croma y recorte. Todo se calcula en la GPU, se ve al 
 
 ## Dónde está cada cosa
 
-- **Propiedades** (panel derecho): la transformación del clip en secciones plegables: «Posición y tamaño» (X, Y, escala, rotación), «Opacidad y mezcla» (opacidad y modo de mezcla) y «Audio».
+- **Propiedades** (panel derecho): la transformación del clip en secciones plegables: «Posición y tamaño» (X, Y, escala, ancho, alto, rotación y voltear), «Ancla e inclinación», «Opacidad y mezcla» (opacidad y modo de mezcla), «Desenfoque de movimiento», «Animaciones», «Gráfica» y «Audio». Ver [Transformar y animar](#transformar-y-animar).
 - **Filtros**: la pila de filtros del clip («Añadir filtro», el ojo para activar o desactivar, subir, bajar, quitar) y, debajo, los parámetros del filtro elegido.
 - **Máscaras**: su pestaña propia.
 - Biblioteca › **Efectos** (transformar, viñeta, desenfoque, nitidez, recortar, croma, estabilizar…) y **Filtros** (Color y LUT, Ruedas de color, Curvas y los looks de los paquetes): doble clic o arrastrar al clip los aplica.
@@ -19,7 +19,7 @@ Cada parámetro va en una fila: etiqueta, deslizador, valor con unidad, rombo de
 
 | Efecto | Qué hace | Parámetros |
 |---|---|---|
-| Transformar | Posición, escala, rotación y opacidad | X e Y en píxeles, escala 1–400 %, rotación ±360°, opacidad 0–100 % |
+| Transformar | Posición, escala, rotación, opacidad, ancla, inclinación, volteo y desenfoque de movimiento | X e Y en píxeles, escala 1–400 % (y ancho y alto por separado), rotación ±360°, opacidad 0–100 %, ancla en píxeles, inclinación ±85°, voltear horizontal y vertical, obturador 0–720° con su fase y de 2 a 64 muestras |
 | Color y LUT | Corrección básica y tabla de color | Exposición (±4 EV, con botones de 1/3 de paso), contraste, saturación, temperatura, matiz, luces, sombras (±100 %), proteger la piel, LUT e intensidad de la LUT; cuentagotas de blanco |
 | Corrección secundaria (HSL) | Cambia solo un color | Tono, ancho y suavidad del tono, saturación y luma mínimas y máximas, suavidad; girar tono, saturación, exposición; cuentagotas, invertir y «Ver máscara» |
 | Ruedas de color | Un tinte y un nivel para sombras, medios y luces | Tres ruedas y tres niveles |
@@ -43,9 +43,24 @@ En los títulos solo se aplican desenfoque y nitidez.
 ## Keyframes
 
 - El **rombo** de cada fila añade o quita un keyframe en el cursor (hueco sin animación, lleno con keyframes, con recuadro si hay uno en el cursor). Con keyframes, cambiar el valor crea o ajusta el del cuadro del cursor; sin ellos, cambia el valor fijo.
-- Debajo aparecen «Keyframe anterior» y «siguiente», cuántos hay y la **curva hasta el siguiente**: Lineal, Suave, Acelerar, Frenar o Mantener.
+- Debajo aparecen «Keyframe anterior» y «siguiente», cuántos hay y la **curva hasta el siguiente**: Lineal, Suave, Entrada (arranca despacio), Salida (llega frenando), Rebote, Elástico, Bézier (una curva propia que se ajusta en la gráfica) o Mantener.
+- **Arrastra la etiqueta** de cualquier fila a los lados para cambiar el valor sin ir al deslizador: Mayús afina, Ctrl va de diez en diez.
 - Menú de la fila: Restablecer y Quitar keyframes (pregunta antes). El menú ⋯ de la cabecera: Restablecer todo y Guardar como transición… (con dos keyframes o más).
 - Los rombos se ven también en el clip de la línea de tiempo. A velocidad distinta de 1× los keyframes siguen al material.
+
+## Transformar y animar
+
+![Asas, ancla y trayectoria en el visor](img/transformacion-visor.png)
+
+- **En el visor**, con la pestaña Propiedades a la vista y un clip de video elegido: arrastra la imagen para moverla, una esquina para escalarla desde el ancla y el círculo de arriba para girarla (Mayús, de 15 en 15°). Al mover, el centro y los bordes se pegan al centro, a los tercios y a los bordes del cuadro y la guía se ve; **Alt** suelta el imán. Cada arrastre es un paso del historial y **Esc** lo cancela.
+- **Ancla**: la cruz del visor es el punto sobre el que escala, gira e inclina. Arrastrarla no mueve la imagen (la posición se corrige sola). También en «Ancla e inclinación».
+- **Trayectoria**: con keyframes de posición, la línea punteada es el camino de la capa y cada keyframe tiene dos manejadores. Arrastra uno para curvar el camino (el otro se alinea; con Alt quedan sueltos). La capa recorre la curva a velocidad pareja y la curva del keyframe de X (Suave, Bézier…) decide dónde acelera.
+- **Voltear** horizontal o vertical espeja la imagen alrededor de su centro; **Ancho** y **Alto** la estiran por separado; **Inclinación** la tuerce.
+- **Desenfoque de movimiento**: enciéndelo en su sección. 180° es el obturador de cine (más grados, más estela); la fase corre el obturador antes o después del cuadro y las muestras dan la suavidad (16 por defecto; más cuesta más). Se ve igual en la vista previa y en la exportación; durante una transición la capa sale sin él.
+- **Animaciones**: Ken Burns, Zoom lento, Deslizar entrada y salida, Sacudida de cámara, Latido, Giro y Zoom de impacto. Un clic pone sus keyframes a lo largo del clip partiendo del tamaño y la posición que ya tiene; después se ajustan como cualquiera. Un paso del historial.
+- **Gráfica**: elige el parámetro animado (o toca su fila) y mira su curva de **Valor** o de **Velocidad**. Arrastra un rombo para cambiar su valor y, a los lados, su instante (pegado a los cuadros; con Mayús, solo el valor). Al elegir un keyframe aparecen los dos manejadores del tramo que sale de él: arrástralos para dar forma a la curva (el tramo pasa a Bézier; puede pasarse del valor y volver).
+
+![Desenfoque de movimiento, animaciones y gráfica](img/transformacion-animacion.png)
 
 ## Color
 

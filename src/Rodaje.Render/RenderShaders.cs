@@ -5,7 +5,8 @@ internal static class RenderShaders
 {
     // corners[i]: xy = NDC, zw = uv; local[i].xy = punto en el espacio local de la capa; orden TL, TR, BL, BR.
     // range, toRgb y limits: YuvRange, YuvToRgb y tope de uv a medio texel del borde visible.
-    // shape: x = opacidad, y = píxeles de destino por píxel local, zw = tamaño local. La cobertura del borde se
+    // shape: x = opacidad, y = píxeles de destino por píxel local (hacia los lados verticales), zw = tamaño local;
+    // present.y, si no es 0, la misma escala hacia los lados horizontales (capas estiradas o inclinadas). La cobertura del borde se
     // calcula con la distancia al lado más cercano en píxeles de destino, así un borde girado sale suavizado y uno
     // alineado con la rejilla queda nítido (los centros de sus píxeles están a 0,5 px o más del lado).
     // present: x > 0 pide muestreo con mipmaps (destino más pequeño que la fuente).
@@ -45,8 +46,8 @@ internal static class RenderShaders
 
         float EdgeCoverage(float2 p)
         {
-            float2 inside = min(p, shape.zw - p);
-            return saturate(min(inside.x, inside.y) * shape.y + 0.5);
+            float2 inside = min(p, shape.zw - p) * float2(shape.y, present.y > 0 ? present.y : shape.y);
+            return saturate(min(inside.x, inside.y) + 0.5);
         }
 
         """;

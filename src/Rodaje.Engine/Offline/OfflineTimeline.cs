@@ -401,7 +401,7 @@ public sealed class OfflineTimeline : IDisposable
     {
         if (lane.Layer.GeneratedAt(time) is { } title)
         {
-            return title.Layer(lane.Layer.TrackIndex, time, lane.TitleEffects, lane.Content);
+            return title.Layer(lane.Layer.TrackIndex, time, lane.TitleEffects, lane.Content, _frameDuration.Ticks);
         }
 
         GroupClipPlan? group = lane.Layer.GroupAt(time);
@@ -479,23 +479,28 @@ public sealed class OfflineTimeline : IDisposable
         }
 
         IReadOnlyList<LayerEffect> effects = [];
+        EffectListRing ring = entering ? lane.IncomingGroupEffects : lane.GroupEffects;
+        EffectList? lists = null;
         if (plan is { EffectCount: > 0 })
         {
-            EffectList list = (entering ? lane.IncomingGroupEffects : lane.GroupEffects).Next();
-            plan.Evaluate(source, list.Reset(plan.EffectCount), lane.Content);
-            effects = list;
+            lists = ring.Next();
+            plan.Evaluate(source, lists.Reset(plan.EffectCount), lane.Content);
+            effects = lists;
         }
 
+        IReadOnlyList<LayerTransform>? motion = MotionSampler.Sample(plan?.Motion, new GroupMotionSource(group, transition, entering, progress), time,
+            _frameDuration.Ticks, ring, ref lists);
         return new LayerFrame(lane.Layer.TrackIndex, group.ClipId, children, transform)
         {
             Effects = effects,
             Blend = plan?.Blend ?? BlendMode.Normal,
             Transition = withTransition,
+            MotionSamples = motion,
         };
     }
 
     /// <summary>Como <c>TimelineScheduler.Build</c>: transformación, transición, efectos en tiempo del origen y mezcla.</summary>
-    private static LayerFrame Layer(Lane lane, VideoClipPlan clip, DecodedFrame frame, EffectListRing ring, OfflineReaders.Slot slot, Time time,
+    private LayerFrame Layer(Lane lane, VideoClipPlan clip, DecodedFrame frame, EffectListRing ring, OfflineReaders.Slot slot, Time time,
         TransitionPlan? transition, bool entering, float progress, LayerTransition? withTransition)
     {
         Time source = clip.EffectTimeAt(time);
@@ -507,13 +512,16 @@ public sealed class OfflineTimeline : IDisposable
         }
 
         IReadOnlyList<LayerEffect> effects = [];
+        EffectList? lists = null;
         if (plan is { EffectCount: > 0 })
         {
-            EffectList list = ring.Next();
-            plan.Evaluate(source, list.Reset(plan.EffectCount), lane.Content);
-            effects = list;
+            lists = ring.Next();
+            plan.Evaluate(source, lists.Reset(plan.EffectCount), lane.Content);
+            effects = lists;
         }
 
+        IReadOnlyList<LayerTransform>? motion = MotionSampler.Sample(plan?.Motion,
+            new ClipMotionSource(plan, clip, frame.Index, transition, entering, progress), time, _frameDuration.Ticks, ring, ref lists);
         VideoStreamInfo? stream = slot.Source.Stream;
         return new LayerFrame(lane.Layer.TrackIndex, clip.ClipId, frame, transform, stream?.SampleAspectRatio ?? new Rational(1, 1),
             TimelineScheduler.NormalizeRotation(stream?.Rotation ?? 0))
@@ -521,6 +529,7 @@ public sealed class OfflineTimeline : IDisposable
             Effects = effects,
             Blend = plan?.Blend ?? BlendMode.Normal,
             Transition = withTransition,
+            MotionSamples = motion,
         };
     }
 

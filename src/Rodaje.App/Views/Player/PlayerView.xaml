@@ -106,6 +106,7 @@
                     <Line x:Name="TitleRotateStem" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
                     <Ellipse x:Name="TitleGripRotate" Width="10" Height="10" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
                 </Canvas>
+                <Canvas x:Name="TransformCanvas" IsHitTestVisible="False" Visibility="Collapsed" />
                 <Canvas x:Name="MaskCanvas" IsHitTestVisible="False" Visibility="Collapsed">
                     <Polygon x:Name="MaskOutline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.5" StrokeDashArray="4,2" />
                     <Polyline x:Name="MaskStroke" Stroke="{StaticResource AccentBrush}" StrokeThickness="2" />

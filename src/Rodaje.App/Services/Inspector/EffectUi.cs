@@ -107,7 +107,7 @@ public static class EffectUi
 
     private static readonly FrozenDictionary<string, string> Descriptions = new Dictionary<string, string>
     {
-        [BuiltInEffects.Transform] = "Posición, escala, rotación y opacidad, con keyframes.",
+        [BuiltInEffects.Transform] = "Posición, escala, rotación, opacidad, ancla, inclinación, volteo y desenfoque de movimiento, con keyframes.",
         [BuiltInEffects.Color] = "Exposición, contraste, saturación, temperatura, luces, sombras y LUT .cube.",
         [BuiltInEffects.Vignette] = "Oscurece los bordes del cuadro.",
         [BuiltInEffects.Blur] = "Gaussiano, de lente (con forma de disco), direccional o radial.",
@@ -147,6 +147,15 @@ public static class EffectUi
             [(BuiltInEffects.Transform, T.Scale)] = new("Escala", "Cambiar escala", "%", 100, 1, 1, UiRange.Custom, 1, 400),
             [(BuiltInEffects.Transform, T.Rotation)] = new("Rotación", "Girar", "°", 1, 1, 1, UiRange.Custom, -360, 360),
             [(BuiltInEffects.Transform, T.Opacity)] = Percent with { Label = "Opacidad", Description = "Cambiar opacidad" },
+            [(BuiltInEffects.Transform, T.AnchorX)] = new("Ancla X", "Mover el punto de anclaje", "px", Range: UiRange.SequenceWidth),
+            [(BuiltInEffects.Transform, T.AnchorY)] = new("Ancla Y", "Mover el punto de anclaje", "px", Range: UiRange.SequenceHeight),
+            [(BuiltInEffects.Transform, T.ScaleX)] = new("Ancho", "Estirar a lo ancho", "%", 100, 1, 1, UiRange.Custom, 1, 400),
+            [(BuiltInEffects.Transform, T.ScaleY)] = new("Alto", "Estirar a lo alto", "%", 100, 1, 1, UiRange.Custom, 1, 400),
+            [(BuiltInEffects.Transform, T.SkewX)] = new("Inclinación X", "Inclinar", "°", 1, 1, 1),
+            [(BuiltInEffects.Transform, T.SkewY)] = new("Inclinación Y", "Inclinar", "°", 1, 1, 1),
+            [(BuiltInEffects.Transform, T.ShutterAngle)] = new("Obturador", "Cambiar el desenfoque de movimiento", "°", 1, 15, 0),
+            [(BuiltInEffects.Transform, T.ShutterPhase)] = new("Fase", "Cambiar la fase del obturador", "°", 1, 15, 0),
+            [(BuiltInEffects.Transform, T.MotionSamples)] = new("Muestras", "Cambiar las muestras del desenfoque", "", 1, 1, 0),
 
             [(BuiltInEffects.Color, C.Exposure)] = new("Exposición", "Cambiar exposición", "EV", 1, 0.05, 2),
             [(BuiltInEffects.Color, C.Contrast)] = Percent with { Label = "Contraste", Description = "Cambiar contraste" },
@@ -358,6 +367,7 @@ public static class EffectUi
         BuiltInEffects.MaskOptions.Shape => MaskShapeName(value),
         BuiltInEffects.MaskOptions.Invert => value == "on" ? "Sí" : "No",
         BuiltInEffects.CropOptions.Aspect => value == "free" ? "Libre" : value,
+        BuiltInEffects.TransformOptions.FlipX or BuiltInEffects.TransformOptions.FlipY => value == "on" ? "Sí" : "No",
         BuiltInEffects.BlurOptions.Kind => value switch
         {
             "lens" => "De lente",
@@ -397,6 +407,8 @@ public static class EffectUi
         BuiltInEffects.MaskOptions.Shape => "Forma",
         BuiltInEffects.MaskOptions.Invert => "Invertir",
         BuiltInEffects.CropOptions.Aspect => "Proporción",
+        BuiltInEffects.TransformOptions.FlipX => "Voltear en horizontal",
+        BuiltInEffects.TransformOptions.FlipY => "Voltear en vertical",
         BuiltInEffects.BlurOptions.Kind => "Tipo",
         BuiltInEffects.RegionOptions.Region => "Dónde",
         BuiltInEffects.MaskOptions.Use => "Uso",

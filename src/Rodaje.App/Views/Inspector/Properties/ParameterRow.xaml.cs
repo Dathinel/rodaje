@@ -34,9 +34,11 @@ internal sealed partial class ParameterRow : UserControl
     public ParameterRow()
     {
         InitializeComponent();
-        foreach ((string name, _) in KeyframeEase.Options)
+        foreach ((string name, Interpolation value) in KeyframeEase.Options)
         {
-            EaseBox.Items.Add(name);
+            var item = new ComboBoxItem { Content = name };
+            ToolTipService.SetToolTip(item, KeyframeEase.Help(value));
+            EaseBox.Items.Add(item);
         }
 
         _settle = DispatcherQueue.GetForCurrentThread().CreateTimer();

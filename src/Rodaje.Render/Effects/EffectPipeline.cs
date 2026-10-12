@@ -50,6 +50,7 @@ internal sealed unsafe class EffectPipeline : IDisposable
     private ID3D11Buffer* _constants;
     private ID3D11BlendState* _over;
     private ID3D11BlendState* _add;
+    private ID3D11BlendState* _accumulate;
     private ID3D11BlendState* _multiply;
     private ID3D11BlendState* _screen;
     private ID3D11BlendState* _maskMultiply;
@@ -103,6 +104,9 @@ internal sealed unsafe class EffectPipeline : IDisposable
         _ => _over,
     };
 
+    /// <summary>Suma en los cuatro canales: acumula las muestras premultiplicadas del desenfoque de movimiento.</summary>
+    public ID3D11BlendState* Accumulate => _accumulate;
+
     /// <summary>Destino × fuente en los cuatro canales: cada máscara multiplica la textura de máscaras.</summary>
     public ID3D11BlendState* MaskBlend => _maskMultiply;
 
@@ -136,6 +140,7 @@ internal sealed unsafe class EffectPipeline : IDisposable
         Com.Release(ref _constants);
         Com.Release(ref _over);
         Com.Release(ref _add);
+        Com.Release(ref _accumulate);
         Com.Release(ref _multiply);
         Com.Release(ref _screen);
         Com.Release(ref _maskMultiply);
@@ -187,6 +192,8 @@ internal sealed unsafe class EffectPipeline : IDisposable
         // normal  Cb·(1 − a) + S;  suma  Cb + S;  multiplicar  Cb·(1 − a) + S·Cb;  trama  Cb + S·(1 − Cb).
         _over = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_ONE, D3D11_BLEND.D3D11_BLEND_INV_SRC_ALPHA);
         _add = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_ONE, D3D11_BLEND.D3D11_BLEND_ONE);
+        _accumulate = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_ONE, D3D11_BLEND.D3D11_BLEND_ONE, D3D11_BLEND.D3D11_BLEND_ONE,
+            D3D11_BLEND.D3D11_BLEND_ONE);
         _multiply = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_DEST_COLOR, D3D11_BLEND.D3D11_BLEND_INV_SRC_ALPHA);
         _screen = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_INV_DEST_COLOR, D3D11_BLEND.D3D11_BLEND_ONE);
         _maskMultiply = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_ZERO, D3D11_BLEND.D3D11_BLEND_SRC_COLOR,

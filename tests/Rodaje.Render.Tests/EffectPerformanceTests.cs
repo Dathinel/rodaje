@@ -179,6 +179,53 @@ public sealed partial class EffectPerformanceTests(ITestOutputHelper output)
         Layers.FromTexture(gpu, texture, 2, 3840, 2160, Bt709, LayerTransform.Identity, 2, new LayerLook([Graded()], BlendMode.Overlay)),
     ];
 
+    [GpuTheory]
+    [InlineData(1920, 1080, 3.0)]
+    [InlineData(3840, 2160, 9.0)]
+    public void Motion_blur_with_16_samples(int width, int height, double target)
+    {
+        using GpuDevice gpu = GpuDevice.Create();
+        nint texture = Texture(gpu, width, height, 1);
+        try
+        {
+            LayerTransform still = LayerTransform.Identity with { Scale = 0.7, RotationDegrees = 5 };
+            LayerTransform[] samples = [.. Enumerable.Range(0, 16).Select(k => still with { X = k * width / 160.0, RotationDegrees = 5 + (k * 0.5) })];
+            LayerFrame plain = Layers.FromTexture(gpu, texture, 0, width, height, Bt709, still, 0);
+            (double alone, _) = Measure(gpu, $"capa {height}p movida sin desenfoque", width, height, width, height, plain);
+            LayerFrame blurred = Layers.FromTexture(gpu, texture, 0, width, height, Bt709, still, 0);
+            var layer = new LayerFrame(0, blurred.ClipId, blurred.Frame, still, blurred.SampleAspectRatio, 0) { MotionSamples = samples };
+            (double median, double p95) = Measure(gpu, $"capa {height}p con desenfoque de movimiento de 16 muestras", width, height, width, height, layer);
+            output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Desenfoque de movimiento {height}p: {median / Math.Max(alone, 1e-3):0.0}× la capa sola."));
+            Require(median <= target, $"Desenfoque de movimiento {height}p: {median:0.000} ms, p95 {p95:0.000} (objetivo ≤{target}).");
+        }
+        finally
+        {
+            Layers.Release(texture);
+        }
+    }
+
+    [GpuFact]
+    public void A_skewed_flipped_1080p_layer_keeps_the_fast_path()
+    {
+        using GpuDevice gpu = GpuDevice.Create();
+        nint texture = Texture(gpu, 1920, 1088, 1);
+        try
+        {
+            LayerFrame layer = Layers.FromTexture(gpu, texture, 0, 1920, 1080, Bt709, LayerTransform.Identity with
+            {
+                Scale = 0.8,
+                Shape = new LayerShape(100, 40, 1.2, 0.9, 12, -6, true, false),
+            }, 0);
+            Assert.True(layer.IsPlain);
+            (double median, _) = Measure(gpu, "capa 1080p inclinada, estirada y volteada", 1920, 1080, 1920, 1080, layer);
+            Require(median <= 0.3, $"Capa con forma: {median:0.000} ms (objetivo ≤0,3).");
+        }
+        finally
+        {
+            Layers.Release(texture);
+        }
+    }
+
     private static void Require(bool condition, string message)
     {
         if (Strict)

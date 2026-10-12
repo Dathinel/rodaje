@@ -264,6 +264,17 @@ public sealed unsafe partial class Compositor : IDisposable
         for (int i = 0; i < layers.Count; i++)
         {
             LayerFrame layer = layers[i];
+            if (layer.MotionSamples is { Count: >= 2 } samples && layer.Transition is null)
+            {
+                bound = false;
+                if (DrawMotion(layer, samples, geometry, destination, titles, ref stats))
+                {
+                    drawn++;
+                }
+
+                continue;
+            }
+
             if (layer.Generated is { } generated)
             {
                 bound = false;
@@ -319,6 +330,93 @@ public sealed unsafe partial class Compositor : IDisposable
         }
 
         return drawn;
+    }
+
+    /// <summary>
+    /// Desenfoque de movimiento: la capa se dibuja una vez por muestra del obturador, con su transformación de ese
+    /// instante y un peso de 1/n, sumando en un intermedio transparente; el promedio se dibuja después con la mezcla de la
+    /// capa. Una capa compuesta se compone una sola vez. Sin memoria para el intermedio, la capa sale sin desenfoque.
+    /// </summary>
+    private bool DrawMotion(LayerFrame layer, IReadOnlyList<LayerTransform> samples, Func<LayerFrame, SourceGeometry>? geometry,
+        in Destination destination, TitleRasterizer? titles, ref FrameStats stats)
+    {
+        RenderTarget? accumulation = _pool.Rent(destination.Width, destination.Height, LayerRenderer.IntermediateFormat);
+        if (accumulation is null)
+        {
+            stats.EffectsSkipped++;
+            return DrawStill(layer, geometry, destination, titles, ref stats);
+        }
+
+        RenderTarget? nested = null;
+        try
+        {
+            LayerSource source = default;
+            if (layer.Generated is null)
+            {
+                if (Source(layer, geometry, destination, titles, ref stats, ref nested) is not { } drawable)
+                {
+                    stats.LayersSkipped++;
+                    return false;
+                }
+
+                source = drawable;
+            }
+
+            float* clear = stackalloc float[] { 0f, 0f, 0f, 0f };
+            _context->ClearRenderTargetView(accumulation.Rtv, clear);
+            var inner = new Destination(accumulation, destination.Width, destination.Height, destination.SequenceWidth, destination.SequenceHeight);
+            float weight = 1f / samples.Count;
+            bool any = false;
+            for (int i = 0; i < samples.Count; i++)
+            {
+                var sample = default(FrameStats);
+                _layers.BeginMotionSample(samples[i], weight);
+                any |= layer.Generated is { } generated
+                    ? DrawTitle(layer, generated, titles, inner, ref sample)
+                    : _layers.Draw(layer, source, null, geometry, inner, ref sample);
+                if (i == 0)
+                {
+                    stats.LayersSkipped += sample.LayersSkipped;
+                    stats.EffectsApplied += sample.EffectsApplied;
+                    stats.MissingContent += sample.MissingContent;
+                    stats.TitlesPending += sample.TitlesPending;
+                }
+
+                stats.EffectsSkipped += sample.EffectsSkipped;
+            }
+
+            _layers.EndMotion();
+            return any && _layers.DrawImage(new ImageView(accumulation, destination.Width, destination.Height), layer.Blend, destination, ref stats);
+        }
+        finally
+        {
+            _layers.EndMotion();
+            _pool.Return(nested);
+            _pool.Return(accumulation);
+        }
+    }
+
+    /// <summary>La capa sin desenfoque de movimiento, por el camino que le toca.</summary>
+    private bool DrawStill(LayerFrame layer, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination, TitleRasterizer? titles,
+        ref FrameStats stats)
+    {
+        if (layer.Generated is { } generated)
+        {
+            return DrawTitle(layer, generated, titles, destination, ref stats);
+        }
+
+        if (layer.Nested is not null)
+        {
+            return DrawWithNested(layer, geometry, destination, titles, ref stats);
+        }
+
+        if (_layers.Usable(layer) is not { } payload)
+        {
+            stats.LayersSkipped++;
+            return false;
+        }
+
+        return _layers.Draw(layer, LayerSource.Of(payload), null, geometry, destination, ref stats);
     }
 
     /// <summary>

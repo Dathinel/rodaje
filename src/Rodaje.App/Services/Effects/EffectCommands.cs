@@ -109,7 +109,10 @@ public static class EffectCommands
                     Time at = KeyframeTime(clip, start + Time.FromSeconds(Math.Max(0, key.T) * scale));
                     double value = key.Value * factor;
                     value = definition?.Clamp(value) ?? value;
-                    keys[at] = new Keyframe(at, value, EffectContent.ToInterpolation(key.Interpolation));
+                    keys[at] = new Keyframe(at, value, EffectContent.ToInterpolation(key.Interpolation))
+                    {
+                        Ease = key.Ease is { } e ? new BezierEase(e.X1, e.Y1, e.X2, e.Y2).Clamped() : null,
+                    };
                 }
 
                 List<Keyframe> list = [.. keys.Values];

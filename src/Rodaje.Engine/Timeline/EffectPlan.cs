@@ -3,6 +3,7 @@ using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Playback.Composition;
+using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
 
 namespace Rodaje.Engine.Timeline;
 
@@ -57,6 +58,8 @@ internal sealed class EffectPlan
         StabilizationTrack? stabilization = null;
         bool stabilized = false;
         Curve[]? crop = null;
+        bool flipX = false;
+        bool flipY = false;
         foreach (EffectInstance effect in effects)
         {
             if (!effect.Enabled || EffectRegistry.Find(effect.Type) is not { } definition)
@@ -85,6 +88,8 @@ internal sealed class EffectPlan
             {
                 case EffectStage.Transform when transform is null:
                     transform = Curves(definition, effect.Parameters);
+                    flipX = effect.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipX) == "on";
+                    flipY = effect.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipY) == "on";
                     break;
                 case EffectStage.PerPixel or EffectStage.Spatial:
                     images.Add(ImageEffect.From(definition, effect));
@@ -99,8 +104,47 @@ internal sealed class EffectPlan
 
         return transform is null && images.Count == 0 && blend == BlendMode.Normal && stabilization is null && crop is null
             ? null
-            : new EffectPlan(transform, [.. images], blend, stabilization) { _crop = crop };
+            : new EffectPlan(transform, [.. images], blend, stabilization)
+            {
+                _crop = crop,
+                _flipX = flipX,
+                _flipY = flipY,
+                _shaped = transform is not null && (flipX || flipY || IsShaped(transform)),
+                Motion = transform is null ? null : MotionOf(transform),
+            };
     }
+
+    private static readonly int AnchorXSlot = TransformSlot(T.AnchorX);
+    private static readonly int AnchorYSlot = TransformSlot(T.AnchorY);
+    private static readonly int ScaleXSlot = TransformSlot(T.ScaleX);
+    private static readonly int ScaleYSlot = TransformSlot(T.ScaleY);
+    private static readonly int SkewXSlot = TransformSlot(T.SkewX);
+    private static readonly int SkewYSlot = TransformSlot(T.SkewY);
+    private static readonly int ShutterSlot = TransformSlot(T.ShutterAngle);
+    private static readonly int PhaseSlot = TransformSlot(T.ShutterPhase);
+    private static readonly int SamplesSlot = TransformSlot(T.MotionSamples);
+
+    private static int TransformSlot(string name) => EffectRegistry.Find(BuiltInEffects.Transform)!.FindParameter(name)!.Slot;
+
+    private static bool IsShaped(Curve[] transform) =>
+        !Is(transform[AnchorXSlot], 0) || !Is(transform[AnchorYSlot], 0) || !Is(transform[ScaleXSlot], 1) || !Is(transform[ScaleYSlot], 1)
+        || !Is(transform[SkewXSlot], 0) || !Is(transform[SkewYSlot], 0);
+
+    private static bool Is(Curve curve, double value) => curve.IsConstant && curve.First == value;
+
+    private static MotionBlur? MotionOf(Curve[] transform)
+    {
+        double angle = transform[ShutterSlot].First;
+        int samples = (int)Math.Round(transform[SamplesSlot].First);
+        return angle > 0 && samples >= 2 ? new MotionBlur(angle / 360, transform[PhaseSlot].First / 360, samples) : null;
+    }
+
+    private bool _flipX;
+    private bool _flipY;
+    private bool _shaped;
+
+    /// <summary>El desenfoque de movimiento de la transformación; nulo sin él.</summary>
+    public MotionBlur? Motion { get; private init; }
 
     private static StabilizationTrack? FindStabilization(EffectDefinition definition, EffectInstance effect, IEffectContent? content)
     {
@@ -123,9 +167,19 @@ internal sealed class EffectPlan
     public static LayerTransform Transform(EffectPlan? plan, Time sourceTime)
     {
         long at = sourceTime.Ticks;
-        LayerTransform transform = plan?._transform is { } curves
-            ? new LayerTransform(curves[0].Evaluate(at), curves[1].Evaluate(at), curves[2].Evaluate(at), curves[3].Evaluate(at), curves[4].Evaluate(at))
-            : LayerTransform.Identity;
+        LayerTransform transform = LayerTransform.Identity;
+        if (plan?._transform is { } curves)
+        {
+            (double x, double y) = Curve.Position(curves[0], curves[1], at);
+            transform = new LayerTransform(x, y, curves[2].Evaluate(at), curves[3].Evaluate(at), curves[4].Evaluate(at));
+            if (plan._shaped)
+            {
+                var shape = new LayerShape(curves[AnchorXSlot].Evaluate(at), curves[AnchorYSlot].Evaluate(at), curves[ScaleXSlot].Evaluate(at),
+                    curves[ScaleYSlot].Evaluate(at), curves[SkewXSlot].Evaluate(at), curves[SkewYSlot].Evaluate(at), plan._flipX, plan._flipY);
+                transform = shape.IsNone ? transform : transform with { Shape = shape };
+            }
+        }
+
         if (plan?._crop is { } crop)
         {
             CropRect rect = CropGeometry.Sanitize(new CropRect(crop[0].Evaluate(at), crop[1].Evaluate(at), crop[2].Evaluate(at), crop[3].Evaluate(at)));
@@ -136,7 +190,9 @@ internal sealed class EffectPlan
     }
 
     /// <summary>La mayor escala de la transformación (1 sin transformación).</summary>
-    public static double MaxScale(EffectPlan? plan) => plan?._transform is { } curves ? curves[2].Max : 1;
+    public static double MaxScale(EffectPlan? plan) => plan?._transform is { } curves
+        ? curves[2].Max * (plan._shaped ? Math.Max(1, Math.Max(curves[ScaleXSlot].Max, curves[ScaleYSlot].Max)) : 1)
+        : 1;
 
     /// <summary>Escribe los efectos de imagen en <paramref name="destination"/>; una LUT que todavía no está lista sale sin recurso.</summary>
     public void Evaluate(Time sourceTime, Span<LayerEffect> destination, IEffectResources? resources)
@@ -278,6 +334,9 @@ internal sealed class EffectPlan
 internal sealed class EffectList : IReadOnlyList<LayerEffect>
 {
     private LayerEffect[] _items = [];
+
+    /// <summary>Las muestras del desenfoque de movimiento de la misma capa y el mismo refresco.</summary>
+    public TransformList Motion { get; } = new();
 
     public int Count { get; private set; }
 
