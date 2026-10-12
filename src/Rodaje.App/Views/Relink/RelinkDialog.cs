@@ -6,6 +6,7 @@ using Rodaje.App.Services.Relink;
 using Rodaje.App.Shell;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
+using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Views.Relink;
 
@@ -301,11 +302,32 @@ internal static class RelinkDialog
 
         async Task ReopenAsync()
         {
-            IReadOnlyList<MediaRef> now = await relink.FindMissingAsync(session.Project);
+            Project project = session.Project;
+            IReadOnlyList<MediaRef> now = await relink.FindMissingAsync(project);
+            if (!ReferenceEquals(project, session.Project))
+            {
+                return;
+            }
+
             if (now.Count > 0)
             {
                 await ShowAsync(services, hwnd, relink, now);
+                return;
             }
+
+            // Los archivos volvieron a su sitio fuera de Rodaje (la ruta no cambió, así que no hubo edición): el reproductor
+            // pudo quedarse con ese medio como fallido; se recarga la secuencia en la misma posición para que lo reabra.
+            bool reloaded = false;
+            if (services.Player.LatestStats is { FailedMedia: > 0 })
+            {
+                Time position = session.Position;
+                services.Player.Load(project.Clone(), session.SequenceId);
+                services.Player.Seek(position);
+                reloaded = true;
+            }
+
+            session.Notify(NotificationSeverity.Success, "Ya están todos los medios",
+                reloaded ? "Los archivos están en su sitio; se recargó la vista previa." : "Los archivos están en su sitio; no hay nada que volver a enlazar.");
         }
     }
 }
