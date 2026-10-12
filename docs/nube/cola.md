@@ -524,7 +524,7 @@ Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.x
 
 ## 54. Biblioteca: proyectos que comparten organización y lectura de códecs
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #56 unido el 12-oct en modo autónomo; límites en la entrega: escritura en segundo plano no esperada al cerrar, `.rodaje` movido desde el Explorador)
 - **Rama:** `claude/biblioteca-robusta`
 - **Caminos:** `src/Rodaje.App/Views/Library/`, `tests/Rodaje.App.Tests/Library/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 30, revisión en bloque 4.
