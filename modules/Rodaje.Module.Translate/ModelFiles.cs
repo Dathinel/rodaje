@@ -23,7 +23,7 @@ internal static class ModelFiles
         }
 
         return Search() ?? throw new ModuleCallException(ErrorCodes.InvalidParameters,
-            $"Falta el modelo {ModelFile}: reinstala el módulo de traducción o ejecuta herramientas\\preparar-modelos.ps1 -Traductor.");
+            $"Falta el modelo {ModelFile}: reinstala el módulo de traducción o ejecuta build\\preparar-modelos.ps1 -Traductor.");
     }
 
     /// <summary>La ruta del modelo instalado, o <c>null</c>.</summary>

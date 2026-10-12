@@ -33,7 +33,7 @@ function Inicializar-Rodaje([string]$Raiz, [int]$Fases = 0) {
     }
 }
 
-# Las mismas variables que herramientas\dotnet-local.cmd.
+# Las mismas variables que build\dotnet-local.cmd.
 function Usar-DotnetLocal($E) {
     $env:DOTNET_ROOT = $E.DotnetDir
     $env:NUGET_PACKAGES = Join-Path $E.Entorno 'nuget'

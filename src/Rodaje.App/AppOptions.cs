@@ -12,7 +12,7 @@ namespace Rodaje.App;
 /// <c>--autoprueba</c> abre la ventana con el clip de prueba, pasa por todas las pestañas del inspector con un clip
 /// seleccionado, reproduce un momento y sale con 0 (la usa <c>probar.ps1</c> con el exe de Native AOT);
 /// <c>--arranque</c> escribe las marcas de arranque en el registro en cuanto la interfaz responde (con archivos, cuando se
-/// ve el primer cuadro) y cierra (la usa <c>herramientas\medir-arranque.ps1</c>).
+/// ve el primer cuadro) y cierra (la usa <c>build\medir-arranque.ps1</c>).
 /// </summary>
 internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSeconds, string? LogPath, bool EnableAudio, int UiHz)
 {

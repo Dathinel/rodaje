@@ -3,7 +3,7 @@
 Módulo de IA de Rodaje (fase 7): transcribe voz y devuelve segmentos y palabras con tiempos. Proceso aparte que habla el protocolo v1 (`src/Rodaje.Modules.Protocol`); el editor le pasa el audio decodificado por memoria compartida.
 
 - **Motor:** whisper.cpp vía Whisper.net 1.9.1 (MIT), con Vulkan (solo el `vulkan-1.dll` del driver) y CPU de respaldo.
-- **Modelo:** whisper large-v3-turbo q5_0 (MIT), `herramientas\preparar-modelos.ps1` lo baja a `.entorno\modelos` con SHA-256 fijado.
+- **Modelo:** whisper large-v3-turbo q5_0 (MIT), `build\preparar-modelos.ps1` lo baja a `.entorno\modelos` con SHA-256 fijado.
 - **Palabras:** Whisper.net expone el DTW de whisper.cpp por token (`WhisperFactoryOptions.UseDtwTimeStamps`, `HeadsPreset = LargeV3Turbo`, `WhisperToken.DtwTimestamp`, en centésimas). Los tokens se agrupan en palabras por el espacio inicial; el inicio de cada palabra es el DTW de su primer token. Comprobado el 11-oct: no hace falta P/Invoke directo a `whisper.dll` ni la alternativa Parakeet.
 
 ## Función `subtitulos`

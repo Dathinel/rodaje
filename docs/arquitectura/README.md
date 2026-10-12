@@ -53,15 +53,15 @@ flowchart TB
 
 | Comando | Qué hace |
 |---|---|
-| `Probar.bat` | Restaura, compila y corre todas las pruebas ([`herramientas/probar.ps1`](../../herramientas/probar.ps1)); `-Filtro texto` corre solo las que coinciden. Las de la categoría `TiempoReal` corren en una segunda pasada, solas, para que la carga de las demás no las falsee |
+| `Probar.bat` | Restaura, compila y corre todas las pruebas ([`build/probar.ps1`](../../build/probar.ps1)); `-Filtro texto` corre solo las que coinciden. Las de la categoría `TiempoReal` corren en una segunda pasada, solas, para que la carga de las demás no las falsee |
 | `Probar.bat cobertura` | Lo mismo, más la cobertura de `Rodaje.Core` |
-| `Probar.bat aot` | Publica y ejecuta la prueba de humo del núcleo con Native AOT ([`publicar-aot-prueba.ps1`](../../herramientas/publicar-aot-prueba.ps1)) |
-| `Probar.bat aceptacion` | Criterios de la fase 2 con video y audio reales, en serie ([`aceptacion.ps1`](../../herramientas/aceptacion.ps1)) |
-| `Rodaje.bat` | Publica y abre el editor ([`app.ps1`](../../herramientas/app.ps1)); `app.ps1 -Medir N` mide arranque y reproducción |
-| `herramientas\dotnet-local.cmd <args>` | El SDK de `.entorno\` con cualquier argumento de `dotnet` |
+| `Probar.bat aot` | Publica y ejecuta la prueba de humo del núcleo con Native AOT ([`publicar-aot-prueba.ps1`](../../build/publicar-aot-prueba.ps1)) |
+| `Probar.bat aceptacion` | Criterios de la fase 2 con video y audio reales, en serie ([`aceptacion.ps1`](../../build/aceptacion.ps1)) |
+| `Rodaje.bat` | Publica y abre el editor ([`app.ps1`](../../build/app.ps1)); `app.ps1 -Medir N` mide arranque y reproducción |
+| `build\dotnet-local.cmd <args>` | El SDK de `.entorno\` con cualquier argumento de `dotnet` |
 
-- **Módulo común.** Los scripts comparten [`herramientas/comun.psm1`](../../herramientas/comun.psm1): localizan el entorno y sus marcas de instalación completa, fijan las variables del SDK local, añaden vswhere al PATH, llaman a dotnet con registro, crean la carpeta de cada corrida y leen los `.trx`.
-- **Entorno.** El SDK y FFmpeg viven en `.entorno\`, con versiones y huellas fijadas en [`preparar-entorno.ps1`](../../herramientas/preparar-entorno.ps1). Las variables `RODAJE_*` están en [`variables-entorno.md`](../variables-entorno.md).
+- **Módulo común.** Los scripts comparten [`build/comun.psm1`](../../build/comun.psm1): localizan el entorno y sus marcas de instalación completa, fijan las variables del SDK local, añaden vswhere al PATH, llaman a dotnet con registro, crean la carpeta de cada corrida y leen los `.trx`.
+- **Entorno.** El SDK y FFmpeg viven en `.entorno\`, con versiones y huellas fijadas en [`preparar-entorno.ps1`](../../build/preparar-entorno.ps1). Las variables `RODAJE_*` están en [`variables-entorno.md`](../variables-entorno.md).
 - **Proyectos.** Las pruebas viven en `tests/`, un proyecto por capa más `Rodaje.Acceptance.Tests` y `Rodaje.AotSmoke`. La biblioteca de apoyo [`tests/Rodaje.TestMedia`](../../tests/Rodaje.TestMedia) genera medios con el número de cuadro dibujado y reúne en `Skip.cs` los atributos que omiten una prueba, con su motivo, cuando falta hardware o la variable de las pruebas largas.
 
 ## Problemas de compatibilidad conocidos

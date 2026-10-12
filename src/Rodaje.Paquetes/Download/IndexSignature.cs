@@ -42,7 +42,7 @@ public sealed class DownloadVerificationException : PackageDownloadException
 /// <summary>
 /// Firma del índice: ECDSA P-256 sobre SHA-256 de los bytes exactos de <c>indice.json</c>, en DER y en base64
 /// (<c>indice.json.sig</c>). La clave pública viaja dentro del programa como SubjectPublicKeyInfo en base64; la privada
-/// solo existe en el equipo de quien publica (<c>herramientas\firmar-indice.ps1</c>).
+/// solo existe en el equipo de quien publica (<c>build\firmar-indice.ps1</c>).
 /// </summary>
 public static class IndexSignature
 {

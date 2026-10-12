@@ -10,7 +10,7 @@ Para cambios grandes, como una función nueva o una reorganización del código,
 
 ## Preparar el entorno
 
-Rodaje no depende de nada instalado globalmente salvo Git. La primera vez, el script `herramientas\preparar-entorno.ps1` descarga el SDK de .NET fijado en `global.json` dentro de la carpeta `.entorno\` del proyecto y verifica su huella SHA-512. Después, `herramientas\dotnet-local.cmd` ejecuta ese SDK local; por ejemplo, `herramientas\dotnet-local.cmd test` compila y corre todas las pruebas. La ruta del proyecto puede contener espacios y tildes, así que cualquier script que añadas debe manejarlas.
+Rodaje no depende de nada instalado globalmente salvo Git. La primera vez, el script `build\preparar-entorno.ps1` descarga el SDK de .NET fijado en `global.json` dentro de la carpeta `.entorno\` del proyecto y verifica su huella SHA-512. Después, `build\dotnet-local.cmd` ejecuta ese SDK local; por ejemplo, `build\dotnet-local.cmd test` compila y corre todas las pruebas. La ruta del proyecto puede contener espacios y tildes, así que cualquier script que añadas debe manejarlas.
 
 ## Reglas del código
 

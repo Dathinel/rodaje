@@ -4,7 +4,7 @@ Qué tarda Rodaje en abrir, qué se hizo para que se sienta instantáneo, cómo 
 
 ## Cómo se mide
 
-`herramientas\medir-arranque.ps1` lanza el exe N veces y toma, desde fuera, cuándo existe su ventana, cuándo es visible y cuándo su cola de mensajes queda libre. Con `--arranque`, Rodaje anota marcas internas (desde que Windows creó el proceso), espera a que la interfaz responda y se cierra solo, sin autoguardado. `-Frio` copia antes la carpeta con E/S sin búfer (`robocopy /J`): sus archivos no están en la caché de Windows, como la primera vez tras descargar. Es el peor caso: tras un reinicio, el prefetcher de Windows ayuda a un programa ya usado. ETW (WPR) pide permisos de administrador, que esta sesión no tiene; por eso las fases salen de marcas propias.
+`build\medir-arranque.ps1` lanza el exe N veces y toma, desde fuera, cuándo existe su ventana, cuándo es visible y cuándo su cola de mensajes queda libre. Con `--arranque`, Rodaje anota marcas internas (desde que Windows creó el proceso), espera a que la interfaz responda y se cierra solo, sin autoguardado. `-Frio` copia antes la carpeta con E/S sin búfer (`robocopy /J`): sus archivos no están en la caché de Windows, como la primera vez tras descargar. Es el peor caso: tras un reinicio, el prefetcher de Windows ayuda a un programa ya usado. ETW (WPR) pide permisos de administrador, que esta sesión no tiene; por eso las fases salen de marcas propias.
 
 - **Ventana visible:** el primer píxel de Rodaje en pantalla.
 - **Interfaz completa:** primer cuadro de XAML (`primer_render`).

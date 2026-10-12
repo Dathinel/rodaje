@@ -146,4 +146,4 @@ Con un dispositivo simulado (búfer de 20 ms) y los chirps de `AudioCode`, el pi
   - 30 s en tiempo real con el dispositivo a volumen 0;
   - con `-Completa` (`RODAJE_PRUEBAS_COMPLETAS=1`), los 10 minutos en tiempo real.
 
-Las medidas salen como líneas `MEDIDA clave = valor` que [`herramientas/aceptacion.ps1`](../../herramientas/aceptacion.ps1) resume por criterio. El resultado registrado: 2864 de 2864 seeks exactos y 0 cuadros de deriva en 10 minutos.
+Las medidas salen como líneas `MEDIDA clave = valor` que [`build/aceptacion.ps1`](../../build/aceptacion.ps1) resume por criterio. El resultado registrado: 2864 de 2864 seeks exactos y 0 cuadros de deriva en 10 minutos.

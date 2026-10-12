@@ -95,7 +95,7 @@ Frente a la GPLv3:
 
 ### h) Complementos de la fase 7 J: `rodaje-codificadores-gpl` y `modulo-raw`
 
-**`rodaje-codificadores-gpl`** (lo arma `herramientas\armar-codificadores-gpl.ps1`; no está publicado): el `ffmpeg.exe` estático `win64-gpl-9.0` de BtbN (release `autobuild-2026-09-30-13-08`, zip SHA-256 `a0e45723…d278`), sin modificar, con `--enable-gpl --enable-version3`, el texto de la GPLv3 y la línea de configure.
+**`rodaje-codificadores-gpl`** (lo arma `build\armar-codificadores-gpl.ps1`; no está publicado): el `ffmpeg.exe` estático `win64-gpl-9.0` de BtbN (release `autobuild-2026-09-30-13-08`, zip SHA-256 `a0e45723…d278`), sin modificar, con `--enable-gpl --enable-version3`, el texto de la GPLv3 y la línea de configure.
 
 - **Compatibilidad de copyright: sí.** El exe es GPL-3.0-or-later y Rodaje es GPLv3: aunque se enlazaran serían compatibles. Además corre como proceso aparte por una tubería con argumentos y cuadros crudos (la misma frontera que el `ffmpeg.exe` LGPL de los proxies y la exportación), así que el editor y el exe son obras separadas que se comunican, «mere aggregation» en la terminología de la FSF. `FfmpegExecutable.OpenGplAddOn` acepta GPL o LGPL v3 o «cualquier posterior», rechaza `nonfree` y exige la serie de libavcodec de Rodaje; el editor nunca carga sus bibliotecas.
 - **Código fuente correspondiente (GPL-3 §6): pendiente antes de publicar.** El paquete trae la fuente de FFmpeg en el commit exacto (`2a571b60…`), los scripts de BtbN de esa release (fijan el commit de cada biblioteca) y x264 y x265 en sus commits. Pero el exe lleva compiladas unas 70 bibliotecas más, y la fuente correspondiente es la de todas: `-FuenteCompleta` baja cada repositorio que fijan los scripts (un superconjunto, varios GB) para publicarlo junto al paquete. **Recomendado:** compilar un `ffmpeg.exe` propio con los scripts de BtbN y solo FFmpeg, x264, x265 y lo que ya trae la compilación LGPL, para que la fuente sean unos pocos tarballs. Decide Daniel.
@@ -120,7 +120,7 @@ La página legal de FFmpeg ofrece una lista de comprobación para cumplir la LGP
 
 ### Compilación fijada y su código fuente
 
-Desde la fase 2, `herramientas\preparar-entorno.ps1` instala en `.entorno\ffmpeg` esta compilación exacta, verificando su huella:
+Desde la fase 2, `build\preparar-entorno.ps1` instala en `.entorno\ffmpeg` esta compilación exacta, verificando su huella:
 
 - **Archivo:** `ffmpeg-n9.0.2-17-g2a571b6068-win64-lgpl-shared-9.0.zip`, de la release https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-30-13-08, con SHA-256 `7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646` (el de `checksums.sha256` de esa release, recalculado al descargar). Se eligió una release de fin de mes porque BtbN borra las diarias a las dos semanas y conserva las mensuales.
 - **Licencia efectiva:** LGPL-3.0-or-later. `ffmpeg -buildconf` muestra `--enable-version3` y ni `--enable-gpl` ni `--enable-nonfree`; además desactiva explícitamente libx264, libx265, libxvid y libfdk-aac. La línea completa está en [`docs/ffmpeg-configure.txt`](ffmpeg-configure.txt).
@@ -132,7 +132,7 @@ Desde la fase 2, `herramientas\preparar-entorno.ps1` instala en `.entorno\ffmpeg
 
 Desde la fase 3, `dist\` lleva también el `ffmpeg.exe` de esa misma compilación en `ffmpeg\`, junto a las DLL, más `avfilter-12.dll` y `avdevice-63.dll`, que solo él importa (`ffprobe.exe` y `ffplay.exe` no se copian). Rodaje lo ejecuta como un proceso aparte para generar los proxies de vista previa, igual que hace LosslessCut: le pasa los argumentos con `ProcessStartInfo.ArgumentList` y lee su avance de `-progress pipe:1`. Ejecutar un programa LGPL como proceso separado no lo enlaza con Rodaje, así que no cambia la licencia del programa; las obligaciones son las mismas que para las DLL: el exe va sin modificar ni renombrar, con su licencia, su código fuente correspondiente (es el mismo commit de FFmpeg y los mismos scripts de BtbN) y su línea de configure.
 
-La guarda LGPL cubre también el exe. `FfmpegExecutable` solo acepta el `ffmpeg.exe` de la carpeta de la que `FfmpegLibrary` cargó las DLL, nunca uno del `PATH`, y antes de usarlo comprueba que `-buildconf` no lleve `--enable-gpl` ni `--enable-nonfree`, que `-L` declare la GNU Lesser General Public License y que su libavcodec sea la 63; si algo falla, los proxies quedan desactivados con el motivo en español. `herramientas\app.ps1` repite la comprobación de `-buildconf` antes de copiarlo a `dist\`.
+La guarda LGPL cubre también el exe. `FfmpegExecutable` solo acepta el `ffmpeg.exe` de la carpeta de la que `FfmpegLibrary` cargó las DLL, nunca uno del `PATH`, y antes de usarlo comprueba que `-buildconf` no lleve `--enable-gpl` ni `--enable-nonfree`, que `-L` declare la GNU Lesser General Public License y que su libavcodec sea la 63; si algo falla, los proxies quedan desactivados con el motivo en español. `build\app.ps1` repite la comprobación de `-buildconf` antes de copiarlo a `dist\`.
 
 Los proxies se codifican en H.264 con NVENC, después con Media Foundation y solo como último recurso con la OpenH264 compilada dentro de las DLL. Son archivos intermedios que se quedan en `%LOCALAPPDATA%\Rodaje\proxies` y nunca se exportan ni se entregan; la exportación usa siempre el original.
 

@@ -8,7 +8,7 @@ namespace Rodaje.Module.Subtitles.Tests;
 internal sealed record Utterance(string Text, double Offset, double SpeechStart, double SpeechEnd);
 
 /// <summary>
-/// Voz real para medir: FLEURS es_419 dev (CC-BY-4.0, Google), que baja <c>herramientas\preparar-modelos.ps1 -Corpus</c>
+/// Voz real para medir: FLEURS es_419 dev (CC-BY-4.0, Google), que baja <c>build\preparar-modelos.ps1 -Corpus</c>
 /// a <c>.entorno\corpus\fleurs-es</c>. Las frases se ponen seguidas con silencios conocidos entre ellas: el inicio
 /// verdadero de la primera palabra de cada frase es el silencio más el arranque de la voz medido por energía.
 /// </summary>

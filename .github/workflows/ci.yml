@@ -48,7 +48,7 @@ jobs:
         run: dotnet --version
 
       # Los lockfiles no dependen del anfitrión ni de «-r win-x64» (tarea 43, NU1004): la solución entera se restaura en
-      # Linux con los mismos RID que en Windows, y el módulo de eco igual que lo publica herramientas\app.ps1.
+      # Linux con los mismos RID que en Windows, y el módulo de eco igual que lo publica build\app.ps1.
       - name: Lockfiles deterministas
         shell: bash
         run: |
@@ -98,7 +98,7 @@ jobs:
           path: |
             .entorno/dotnet
             .entorno/ffmpeg
-          key: entorno-windows-${{ hashFiles('herramientas/preparar-entorno.ps1', 'global.json') }}
+          key: entorno-windows-${{ hashFiles('build/preparar-entorno.ps1', 'global.json') }}
 
       - name: Caché de NuGet
         uses: actions/cache@v4
@@ -109,7 +109,7 @@ jobs:
 
       - name: Preparar el entorno
         shell: pwsh
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-entorno.ps1
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1
 
       - name: Versión del SDK
         shell: pwsh

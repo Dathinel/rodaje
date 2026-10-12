@@ -1,7 +1,7 @@
 ﻿# Publica Rodaje (src\Rodaje.App: WinUI 3 sin empaquetar, autocontenido, Native AOT) y lo abre. En dist\Rodaje\ queda
 # solo Rodaje.exe (el lanzador, src\Rodaje.Launcher) y la carpeta app\ con el programa de verdad, que el lanzador oculta.
 # Uso:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\app.ps1 [video.mp4 [otro.mp4 ...] | proyecto.rodaje]
+#   powershell -NoProfile -ExecutionPolicy Bypass -File build\app.ps1 [video.mp4 [otro.mp4 ...] | proyecto.rodaje]
 #   ... -Medir 10        abre el clip de prueba (o los archivos), reproduce 10 s, mide y muestra las cifras
 #   ... -Medir 10 -Escenario efectos   antes de medir arma 3 capas con efectos y 4 transiciones, y mueve un deslizador
 #   ... -Medir 10 -Escenario velocidad 3 capas del clip (1x, 2x y 0,5x) y cambia la velocidad de una mientras reproduce;
@@ -52,7 +52,7 @@ function Publicar {
     if (-not (Test-Path -LiteralPath $E.Dotnet) -or -not (Test-Path -LiteralPath $E.MarcaSdk)) {
         Mal 'No encuentro el SDK de .NET del proyecto (o quedó a medias).'
         Nota "Lo busqué en: $($E.Dotnet)"
-        Nota 'Haz doble clic en Probar.bat, que lo prepara solo, o corre herramientas\preparar-entorno.ps1.'
+        Nota 'Haz doble clic en Probar.bat, que lo prepara solo, o corre build\preparar-entorno.ps1.'
         return $false
     }
 

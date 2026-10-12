@@ -1,5 +1,5 @@
 ﻿# Corre la aceptación de la fase 2 con el decodificador real y resume cada criterio con sus cifras.
-# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\aceptacion.ps1 [-Completa] [-Resumir <carpeta>]
+# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File build\aceptacion.ps1 [-Completa] [-Resumir <carpeta>]
 #   -Completa agrega (con RODAJE_PRUEBAS_COMPLETAS=1) el clip de 10 minutos entero en tiempo real con el reloj
 #             del dispositivo de audio a volumen 0; suma unos 11 minutos.
 #   -Resumir rehace solo el resumen de una corrida anterior (TestResults\aceptacion-<fecha-hora>), sin volver a medir.
@@ -117,14 +117,14 @@ if (-not (Test-Path -LiteralPath $Dotnet) -or -not (Test-Path -LiteralPath $Marc
     Write-Host ''
     Mal 'No encuentro el SDK de .NET del proyecto completo, y sin él no se pueden compilar ni correr las pruebas.'
     Nota "Lo busqué en: $Dotnet"
-    Nota 'Haz doble clic en Probar.bat (lo prepara solo) o corre herramientas\preparar-entorno.ps1.'
+    Nota 'Haz doble clic en Probar.bat (lo prepara solo) o corre build\preparar-entorno.ps1.'
     Terminar 1
 }
 if (-not $FfmpegVersion -or -not (Test-Path -LiteralPath $MarcaFfmpeg)) {
     Write-Host ''
     Mal 'Faltan las bibliotecas de FFmpeg del proyecto, o quedaron a medias; la aceptación decodifica video de verdad.'
     Nota "Falta: $MarcaFfmpeg"
-    Nota 'Haz doble clic en Probar.bat (lo prepara solo) o corre herramientas\preparar-entorno.ps1.'
+    Nota 'Haz doble clic en Probar.bat (lo prepara solo) o corre build\preparar-entorno.ps1.'
     Terminar 1
 }
 

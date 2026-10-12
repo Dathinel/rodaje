@@ -261,7 +261,7 @@ internal sealed class AudioAiFactAttribute : FactAttribute
 {
     public AudioAiFactAttribute() =>
         Skip = Rodaje.TestMedia.Skip.FfmpegLibraries
-            ?? (AudioAiCorpus.Ready ? null : "Falta modulo-audio-ia compilado, sus modelos o la voz de prueba (herramientas\\preparar-modelos.ps1 -Corpus).");
+            ?? (AudioAiCorpus.Ready ? null : "Falta modulo-audio-ia compilado, sus modelos o la voz de prueba (build\\preparar-modelos.ps1 -Corpus).");
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]

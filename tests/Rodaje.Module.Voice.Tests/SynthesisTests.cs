@@ -5,12 +5,12 @@ using Xunit.Abstractions;
 
 namespace Rodaje.Module.Voice.Tests;
 
-/// <summary>Solo corre si están los modelos (<c>herramientas\preparar-modelos.ps1</c>).</summary>
+/// <summary>Solo corre si están los modelos (<c>build\preparar-modelos.ps1</c>).</summary>
 public sealed class ModelFactAttribute : FactAttribute
 {
     public ModelFactAttribute()
     {
-        if (Models.Root is null) Skip = "Omitida: faltan los modelos de voz; ejecuta herramientas\\preparar-modelos.ps1.";
+        if (Models.Root is null) Skip = "Omitida: faltan los modelos de voz; ejecuta build\\preparar-modelos.ps1.";
     }
 }
 

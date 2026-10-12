@@ -1,5 +1,5 @@
 ﻿# Instala en .entorno\ el SDK de .NET fijado, la caché NuGet y las DLL de FFmpeg (LGPL), sin tocar nada global.
-# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-entorno.ps1 [-Forzar] [-SoloFFmpeg]
+# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1 [-Forzar] [-SoloFFmpeg]
 #
 # Resistente a apagones: descarga a .zip.part, verifica la huella, descomprime en una carpeta temporal
 # que ya trae la marca (.sdk-<versión> o .ffmpeg-<versión>) y la renombra (atómico). Los demás scripts miran esas marcas.
@@ -52,7 +52,7 @@ if ($VersionGlobal -ne $SdkVersion) {
     Write-Host ""
     Write-Host "global.json pide el SDK de .NET '$VersionGlobal', pero este script instala el $SdkVersion."
     Write-Host "Hay que cambiar a la vez la versión de global.json y la versión y el hash de"
-    Write-Host "herramientas\preparar-entorno.ps1 para que digan lo mismo."
+    Write-Host "build\preparar-entorno.ps1 para que digan lo mismo."
     exit 1
 }
 

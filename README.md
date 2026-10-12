@@ -28,7 +28,7 @@ Todo el entorno (SDK de .NET 10 y FFmpeg LGPL, con versiones y huellas fijadas) 
 |---|---|
 | Compilar y abrir el editor | Doble clic en `Rodaje.bat` (la primera vez prepara el entorno y publica en `dist\Rodaje\`) |
 | Correr las pruebas | Doble clic en `Probar.bat`; `Probar.bat cobertura`, `aot` o `aceptacion` para las variantes |
-| Armar los zip de distribución | `herramientas\distribuir.ps1` |
+| Armar los zip de distribución | `build\distribuir.ps1` |
 
 Variables de entorno opcionales en [docs/variables-entorno.md](docs/variables-entorno.md).
 

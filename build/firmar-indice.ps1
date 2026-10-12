@@ -1,6 +1,6 @@
 ﻿# Firma el índice de complementos (indice.json -> indice.json.sig) con la clave ECDSA P-256 de Dathinel.
 # Uso:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\firmar-indice.ps1 -NuevaClave
+#   powershell -NoProfile -ExecutionPolicy Bypass -File build\firmar-indice.ps1 -NuevaClave
 #       Crea la clave privada en %USERPROFILE%\.rodaje-claves\catalogo-privada.pem (solo legible por tu usuario) y
 #       escribe la pública en src\Rodaje.App\Services\Packages\clave-catalogo.txt, que va dentro del exe.
 #       La privada NUNCA se versiona ni se sube. Respáldala (ver docs\descarga.md).
@@ -79,7 +79,7 @@ if ($NuevaClave) {
     exit 0
 }
 
-if (-not (Test-Path -LiteralPath $Indice)) { throw "No existe el índice $Indice (lo arma herramientas\distribuir.ps1)." }
+if (-not (Test-Path -LiteralPath $Indice)) { throw "No existe el índice $Indice (lo arma build\distribuir.ps1)." }
 $ecdsa = Leer-Clave
 $datos = [System.IO.File]::ReadAllBytes($Indice)
 $firma = $ecdsa.SignData($datos, [System.Security.Cryptography.HashAlgorithmName]::SHA256)

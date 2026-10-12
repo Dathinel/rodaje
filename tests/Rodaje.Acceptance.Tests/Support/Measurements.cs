@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Rodaje.Acceptance.Tests.Support;
 
-/// <summary>Cifras con un formato fijo que herramientas\aceptacion.ps1 lee del .trx: <c>MEDIDA clave = valor</c>.</summary>
+/// <summary>Cifras con un formato fijo que build\aceptacion.ps1 lee del .trx: <c>MEDIDA clave = valor</c>.</summary>
 internal static class Measurements
 {
     public static void Report(this ITestOutputHelper output, string key, FormattableString value) =>

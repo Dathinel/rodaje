@@ -3,11 +3,11 @@
 #   completa  base + en app\: paquetes en paquetes\<id>, módulos en modulos\<id> y sus modelos en modelos\<sha256>.
 #             Al descomprimir se ve solo Rodaje.exe y la carpeta app, que el lanzador oculta la primera vez.
 #   indice.json  lo que el gestor de complementos puede descargar (paquetes, módulos y modelos) con URL, SHA-256 y
-#             tamaño; se firma después con herramientas\firmar-indice.ps1. El gestor y este script usan los mismos
+#             tamaño; se firma después con build\firmar-indice.ps1. El gestor y este script usan los mismos
 #             .paquete, así que lo que trae la completa es exactamente lo que el gestor bajaría.
 # No sube nada: las releases se crean a mano (o con gh) después de revisar y firmar.
 # Uso:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\distribuir.ps1 [-SinPublicar] [-SinCompleta]
+#   powershell -NoProfile -ExecutionPolicy Bypass -File build\distribuir.ps1 [-SinPublicar] [-SinCompleta]
 #       [-Complementos <carpeta con <repo>\dist\*.paquete>] [-Paquetes a.paquete,b.paquete] [-Modelos <caché de modelos>]
 #       [-Excluir modelo-x,...] [-Version 0.7.0] [-Salida dist\distribucion]
 [CmdletBinding()]
@@ -191,6 +191,6 @@ try {
 
 [System.IO.File]::WriteAllLines((Join-Path $Salida 'SHA256SUMS.txt'), $sumas, $Utf8)
 Titulo 'Listo. Siguiente paso:'
-Nota "1. Firmar el índice: herramientas\firmar-indice.ps1 -Indice `"$rutaIndice`""
+Nota "1. Firmar el índice: build\firmar-indice.ps1 -Indice `"$rutaIndice`""
 Nota '2. Subir cada .paquete a la release v<versión> de su repo, y indice.json + indice.json.sig a la release nueva de Dathinel/rodaje-catalogo.'
 Nota '3. Subir los zip a la release de Dathinel/rodaje con SHA256SUMS.txt.'

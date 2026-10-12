@@ -1,7 +1,7 @@
 ﻿# Descarga a .entorno\modelos los modelos de los módulos de IA (fase 7), con SHA-256 fijado y reanudación.
 # Con -Corpus baja además el corpus de prueba de voz a .entorno\corpus (nunca se versiona).
 # Con -Traductor baja además el modelo del traductor (unos 2,5 GB; aparte por su tamaño).
-# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-modelos.ps1 [-Corpus] [-Traductor] [-Forzar]
+# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-modelos.ps1 [-Corpus] [-Traductor] [-Forzar]
 #
 # Resistente a apagones: descarga a .part con curl -C - (reanuda), verifica la huella y renombra. Un archivo con la
 # huella mala se borra. Las URL de Hugging Face y GitHub van fijadas a un commit.
@@ -228,7 +228,7 @@ if ($Corpus) {
     $wav = Join-Path $CarpetaAudioIa 'voz-48k.wav'
     if (-not (Test-Path -LiteralPath $wav) -or $Forzar) {
         $ffmpeg = Join-Path $Entorno 'ffmpeg\bin\ffmpeg.exe'
-        if (-not (Test-Path -LiteralPath $ffmpeg)) { Write-Host "Falta ${ffmpeg}: ejecuta antes herramientas\preparar-entorno.ps1."; exit 1 }
+        if (-not (Test-Path -LiteralPath $ffmpeg)) { Write-Host "Falta ${ffmpeg}: ejecuta antes build\preparar-entorno.ps1."; exit 1 }
         & $ffmpeg -hide_banner -loglevel error -y -i (Join-Path $CarpetaAudioIa $VozAudioIa.Archivo) -ac 1 -ar 48000 -c:a pcm_f32le "$wav.tmp.wav"
         if ($LASTEXITCODE -ne 0) { Write-Host "No se pudo convertir la voz a WAV."; exit 1 }
         Move-Item -LiteralPath "$wav.tmp.wav" -Destination $wav -Force

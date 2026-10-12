@@ -1,6 +1,6 @@
 ﻿# Arma el complemento rodaje-codificadores-gpl: el ffmpeg.exe GPL de BtbN (fijado por SHA-256), el texto de la GPLv3 y
 # el código fuente correspondiente, como .paquete instalable (módulo con protocol 0). No publica nada.
-# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\armar-codificadores-gpl.ps1 [-FuenteCompleta] [-Salida <carpeta>]
+# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File build\armar-codificadores-gpl.ps1 [-FuenteCompleta] [-Salida <carpeta>]
 #
 # Fuente: FFmpeg en el commit exacto de la compilación, los scripts de BtbN de esa release (fijan el commit de cada
 # biblioteca) y x264 y x265 en sus commits. Con -FuenteCompleta baja además cada biblioteca que fijan esos scripts (un

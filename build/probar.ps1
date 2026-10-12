@@ -1,5 +1,5 @@
 ﻿# Corre las pruebas con el SDK de .entorno\ (o RODAJE_ENTORNO) y resume el resultado.
-# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\probar.ps1 [-Cobertura] [-Filtro "texto"]
+# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File build\probar.ps1 [-Cobertura] [-Filtro "texto"]
 # Las de la categoría TiempoReal corren después, solas. Los registros quedan en TestResults\<fecha-hora>\ (se
 # conservan 10). Sale con 0 si todo pasó. Con -Cobertura y sin -Filtro, Rodaje.Core debe quedar en el 99 % de líneas o más.
 # Con RODAJE_PRUEBAS_LARGAS=1 y sin -Filtro hay una fase 5: las pruebas de tiempo de CPU que tienen criterio para código
@@ -48,7 +48,7 @@ if (-not (Test-Path -LiteralPath $Dotnet) -or -not (Test-Path -LiteralPath $Marc
     Nota ''
     Nota 'Cómo arreglarlo (una sola vez, descarga unos 280 MB):'
     Nota '  - Haz doble clic en Probar.bat, que lo prepara solo, o'
-    Nota '  - corre: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-entorno.ps1'
+    Nota '  - corre: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1'
     Terminar 1
 }
 if (-not $FfmpegVersion -or -not (Test-Path -LiteralPath $MarcaFfmpeg)) {
@@ -58,11 +58,11 @@ if (-not $FfmpegVersion -or -not (Test-Path -LiteralPath $MarcaFfmpeg)) {
     Nota ''
     Nota 'Cómo arreglarlo (una sola vez, descarga unos 75 MB):'
     Nota '  - Haz doble clic en Probar.bat, que lo prepara solo, o'
-    Nota '  - corre: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-entorno.ps1'
+    Nota '  - corre: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1'
     Terminar 1
 }
 if (-not (Test-Path -LiteralPath $Solucion)) {
-    Mal "No encuentro la solución $Solucion. ¿Se movió este script fuera de la carpeta herramientas?"
+    Mal "No encuentro la solución $Solucion. ¿Se movió este script fuera de la carpeta build?"
     Terminar 1
 }
 
@@ -79,7 +79,7 @@ if ($r.Codigo -ne 0) {
         Nota 'Parece un problema de conexión: la primera vez hay que tener internet para bajar los paquetes.'
     } elseif ($texto -match 'NU1004|NU1403|lock file|packages.lock.json') {
         Nota 'Los paquetes no coinciden con los fijados en packages.lock.json (alguien cambió un paquete sin'
-        Nota 'actualizar el archivo de bloqueo). Corre herramientas\dotnet-local.cmd restore --force-evaluate y revisa el cambio.'
+        Nota 'actualizar el archivo de bloqueo). Corre build\dotnet-local.cmd restore --force-evaluate y revisa el cambio.'
     }
     if ($errores.Count -gt 0) { Nota ''; Nota 'Primer error:'; Nota ('  ' + (Corto $errores[0])) }
     Terminar 1

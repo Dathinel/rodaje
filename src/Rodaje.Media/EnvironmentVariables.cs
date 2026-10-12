@@ -2,7 +2,7 @@ namespace Rodaje.Media;
 
 /// <summary>
 /// Las variables de entorno <c>RODAJE_*</c> que lee el editor. Las que solo usan las pruebas y los scripts están
-/// en <c>tests\Rodaje.TestMedia\Skip.cs</c> y en <c>herramientas\</c>; la tabla completa, en
+/// en <c>tests\Rodaje.TestMedia\Skip.cs</c> y en <c>build\</c>; la tabla completa, en
 /// <c>docs\variables-entorno.md</c>.
 /// </summary>
 public static class EnvironmentVariables

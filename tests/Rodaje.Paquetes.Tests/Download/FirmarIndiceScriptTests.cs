@@ -4,7 +4,7 @@ using Rodaje.Paquetes.Download;
 
 namespace Rodaje.Paquetes.Tests.Download;
 
-/// <summary>herramientas\firmar-indice.ps1 (Windows PowerShell 5.1) firma lo que el programa acepta.</summary>
+/// <summary>build\firmar-indice.ps1 (Windows PowerShell 5.1) firma lo que el programa acepta.</summary>
 public sealed class FirmarIndiceScriptTests : IDisposable
 {
     private readonly TempFolder _temp = new();
@@ -14,12 +14,12 @@ public sealed class FirmarIndiceScriptTests : IDisposable
     private static string Script()
     {
         string? directory = AppContext.BaseDirectory;
-        while (directory is not null && !File.Exists(Path.Combine(directory, "herramientas", "firmar-indice.ps1")))
+        while (directory is not null && !File.Exists(Path.Combine(directory, "build", "firmar-indice.ps1")))
         {
             directory = Path.GetDirectoryName(directory);
         }
 
-        return Path.Combine(directory ?? throw new InvalidOperationException("No encuentro herramientas\\firmar-indice.ps1."), "herramientas", "firmar-indice.ps1");
+        return Path.Combine(directory ?? throw new InvalidOperationException("No encuentro build\\firmar-indice.ps1."), "build", "firmar-indice.ps1");
     }
 
     private static (int Code, string Output) Run(params string[] arguments)

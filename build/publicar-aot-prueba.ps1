@@ -1,5 +1,5 @@
 ﻿# Publica tests\Rodaje.AotSmoke con Native AOT en dist\prueba-aot\ y lo ejecuta.
-# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\publicar-aot-prueba.ps1
+# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File build\publicar-aot-prueba.ps1
 # Requiere link.exe (Build Tools con C++). Sale con 0 solo si no hubo advertencias y la prueba pasó.
 
 $ErrorActionPreference = 'Stop'
@@ -40,11 +40,11 @@ if (-not (Test-Path -LiteralPath $Dotnet) -or -not (Test-Path -LiteralPath $Marc
     Nota ''
     Nota 'Cómo arreglarlo (una sola vez, descarga unos 280 MB):'
     Nota '  - Haz doble clic en Probar.bat, que lo prepara solo, o'
-    Nota '  - corre: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-entorno.ps1'
+    Nota '  - corre: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1'
     Terminar 1
 }
 if (-not (Test-Path -LiteralPath $Proyecto)) {
-    Mal "No encuentro el proyecto de la prueba: $Proyecto. ¿Se movió este script fuera de la carpeta herramientas?"
+    Mal "No encuentro el proyecto de la prueba: $Proyecto. ¿Se movió este script fuera de la carpeta build?"
     Terminar 1
 }
 
@@ -97,7 +97,7 @@ if ($r.Codigo -ne 0 -or -not (Test-Path -LiteralPath $Exe)) {
     } elseif ($texto -match 'NU1301|NU1101|NU1102|service index|No such host|unable to load') {
         Nota 'Parece un problema de conexión: la primera vez hay que descargar el compilador AOT (unos 50 MB).'
     } elseif ($texto -match 'NU1004|NU1403|lock file|packages.lock.json') {
-        Nota 'Los paquetes no coinciden con packages.lock.json. Corre herramientas\dotnet-local.cmd restore'
+        Nota 'Los paquetes no coinciden con packages.lock.json. Corre build\dotnet-local.cmd restore'
         Nota 'tests\Rodaje.AotSmoke --force-evaluate y revisa el cambio.'
     }
     if ($errores.Count -gt 0) {

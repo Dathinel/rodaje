@@ -30,7 +30,7 @@ Este registro guarda el porqué de cada elección importante de Rodaje. Una deci
 
 ## D-005. Entorno propio en `.entorno\`
 
-- **Decisión.** El SDK de .NET 10.0.401 se descarga a `.entorno\dotnet` con `herramientas\preparar-entorno.ps1`, que verifica el SHA-512 publicado por Microsoft. La versión se fija en `global.json`; la caché de NuGet también vive en `.entorno\` y la restauración usa archivos de bloqueo. Solo `git` y `gh` son globales.
+- **Decisión.** El SDK de .NET 10.0.401 se descarga a `.entorno\dotnet` con `build\preparar-entorno.ps1`, que verifica el SHA-512 publicado por Microsoft. La versión se fija en `global.json`; la caché de NuGet también vive en `.entorno\` y la restauración usa archivos de bloqueo. Solo `git` y `gh` son globales.
 - **Por qué.** El equipo solo tiene los runtimes 6 y 8, y un SDK global mezclaría versiones entre programas. Un contenedor sería excesivo para una aplicación de escritorio.
 - **Consecuencia.** La primera ejecución descarga unos 280 MB. `.entorno\` no se versiona; se versiona el script que lo reconstruye.
 

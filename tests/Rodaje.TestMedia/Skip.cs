@@ -18,7 +18,7 @@ public static class Skip
     /// <summary>Pruebas largas y medidas en tiempo real: <c>Probar.bat aceptacion</c> la pone en 1.</summary>
     public const string LongVariable = "RODAJE_PRUEBAS_LARGAS";
 
-    /// <summary>Los 10 minutos en tiempo real con el dispositivo de audio: <c>herramientas\aceptacion.ps1 -Completa</c>.</summary>
+    /// <summary>Los 10 minutos en tiempo real con el dispositivo de audio: <c>build\aceptacion.ps1 -Completa</c>.</summary>
     public const string CompleteVariable = "RODAJE_PRUEBAS_COMPLETAS";
 
     /// <summary>La prueba que hace sonar un tono de verdad.</summary>
@@ -107,7 +107,7 @@ public static class Skip
 
     public static string? CompleteRun => CompleteRuns
         ? null
-        : $"Omitida: prueba de 10 minutos en tiempo real; se activa con {CompleteVariable}=1 (herramientas\\aceptacion.ps1 -Completa).";
+        : $"Omitida: prueba de 10 minutos en tiempo real; se activa con {CompleteVariable}=1 (build\\aceptacion.ps1 -Completa).";
 
     /// <summary>Las DLL de FFmpeg del editor, con ffmpeg.exe y ffprobe.exe en la misma carpeta.</summary>
     public static string? FfmpegLibraries => FfmpegLibrariesReason.Value;

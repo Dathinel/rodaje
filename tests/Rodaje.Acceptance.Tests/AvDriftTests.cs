@@ -203,7 +203,7 @@ public sealed class AvDriftTests(ITestOutputHelper output)
 
     /// <summary>
     /// El criterio 2 de punta a punta con el dispositivo real: el clip de 10 minutos entero en tiempo real, con
-    /// el reloj del dispositivo de audio (volumen 0). Solo con <c>herramientas\aceptacion.ps1 -Completa</c>.
+    /// el reloj del dispositivo de audio (volumen 0). Solo con <c>build\aceptacion.ps1 -Completa</c>.
     /// </summary>
     [FfmpegLibraryFact(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac, Complete = true)]
     public void Diez_minutos_en_tiempo_real_con_el_reloj_del_dispositivo() =>

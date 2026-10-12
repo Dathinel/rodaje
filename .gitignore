@@ -1,4 +1,4 @@
-# --- Entorno propio (se reconstruye con herramientas/preparar-entorno.ps1) ---
+# --- Entorno propio (se reconstruye con build/preparar-entorno.ps1) ---
 .entorno/
 
 # --- Salidas de compilación y distribución ---

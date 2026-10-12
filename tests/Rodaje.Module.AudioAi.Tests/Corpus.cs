@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 namespace Rodaje.Module.AudioAi.Tests;
 
 /// <summary>
-/// Lo que las pruebas leen de <c>.entorno</c> (nunca del repo): los modelos de <c>herramientas\preparar-modelos.ps1</c> y,
+/// Lo que las pruebas leen de <c>.entorno</c> (nunca del repo): los modelos de <c>build\preparar-modelos.ps1</c> y,
 /// con <c>-Corpus</c>, voz real (LibriVox de dominio público a 48 kHz y FLEURS CC-BY-4.0 a 16 kHz). Sin ellos las pruebas
 /// que los necesitan no comprueban nada y lo dicen en la salida.
 /// </summary>
@@ -19,7 +19,7 @@ internal static class Corpus
 
     public static string? FleursFolder => Environment is { } e && Directory.Exists(Path.Combine(e, "corpus", "fleurs-es", "dev")) ? Path.Combine(e, "corpus", "fleurs-es", "dev") : null;
 
-    public const string Missing = "Sin modelos o corpus en .entorno: ejecuta herramientas\\preparar-modelos.ps1 -Corpus.";
+    public const string Missing = "Sin modelos o corpus en .entorno: ejecuta build\\preparar-modelos.ps1 -Corpus.";
 
     /// <summary>Mono f32 de un WAV PCM de 16 bits o IEEE float (mezcla los canales).</summary>
     public static (float[] Samples, int SampleRate) ReadWav(string path)

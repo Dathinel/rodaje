@@ -8,8 +8,8 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 
 ## Cómo se trabaja aquí
 
-- **.NET:** siempre con `herramientas\dotnet-local.cmd <args>` (SDK 10.0.401 de `.entorno\dotnet`; FFmpeg LGPL 9.0.2 en `.entorno\ffmpeg`; los dos con `herramientas\preparar-entorno.ps1`, hashes fijados). `RODAJE_ENTORNO` apunta a otro `.entorno`, por ejemplo desde un worktree.
-- **`Rodaje.bat`:** publica con AOT en `dist\Rodaje\` si cambió `src\` y abre la app (`herramientas\app.ps1`; `-Medir N`, `-Autoprueba`, `-SoloPublicar` tras unir a main). Detalle en `docs/arranque-y-distribucion.md`.
+- **.NET:** siempre con `build\dotnet-local.cmd <args>` (SDK 10.0.401 de `.entorno\dotnet`; FFmpeg LGPL 9.0.2 en `.entorno\ffmpeg`; los dos con `build\preparar-entorno.ps1`, hashes fijados). `RODAJE_ENTORNO` apunta a otro `.entorno`, por ejemplo desde un worktree.
+- **`Rodaje.bat`:** publica con AOT en `dist\Rodaje\` si cambió `src\` y abre la app (`build\app.ps1`; `-Medir N`, `-Autoprueba`, `-SoloPublicar` tras unir a main). Detalle en `docs/arranque-y-distribucion.md`.
 - **`Probar.bat`:** pruebas (`cobertura`, `aot`, `aceptacion`, `preparar-entorno`). Las largas y de hardware solo con `RODAJE_PRUEBAS_LARGAS=1`. Variables en `docs/variables-entorno.md`.
 - **Agentes:** worktrees en `.claude\worktrees\` (ignorado), se unen con `git merge`, un commit por tarea.
 - **Espacios de nombres en las pruebas:** `Rodaje.X.Tests.Timing` tapa a `Rodaje.Core.Timing`: nombre completo o `using`.

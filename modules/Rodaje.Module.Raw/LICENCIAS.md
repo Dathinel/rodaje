@@ -1,6 +1,6 @@
 # Licencias de modulo-raw
 
-El código del módulo es propio (GPL-3.0-only con los términos de Rodaje, D-032). Lo que trae de terceros conserva su licencia; nada de eso se versiona en el repositorio: lo baja `herramientas\preparar-entorno.ps1` a `.entorno\libraw` con su SHA-256 fijado y la compilación lo copia junto al exe.
+El código del módulo es propio (GPL-3.0-only con los términos de Rodaje, D-032). Lo que trae de terceros conserva su licencia; nada de eso se versiona en el repositorio: lo baja `build\preparar-entorno.ps1` a `.entorno\libraw` con su SHA-256 fijado y la compilación lo copia junto al exe.
 
 ## Bibliotecas
 

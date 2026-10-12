@@ -4,7 +4,7 @@
 # En frío: antes de cada vuelta copia la carpeta del exe con E/S sin búfer (robocopy /J), así sus archivos no están en la
 # caché de Windows; las DLL del sistema sí lo están, como tras un reinicio con el escritorio ya cargado.
 # Uso:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\medir-arranque.ps1 [-Exe dist\Rodaje\app\Rodaje.exe]
+#   powershell -NoProfile -ExecutionPolicy Bypass -File build\medir-arranque.ps1 [-Exe dist\Rodaje\app\Rodaje.exe]
 #       [-Veces 10] [-Frio] [-Argumentos '--arranque'] [-Etiqueta rodaje] [-Matar ms]
 #   -Matar N   para un exe que no se cierra solo: lo termina N ms después de que su cola quede libre.
 #   -Exe dist\Rodaje\Rodaje.exe mide a través del lanzador (la ventana es del app\Rodaje.exe que este abre).

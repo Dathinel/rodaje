@@ -21,7 +21,7 @@ if (args.Length >= 2 && args[0] is "--fonemas" or "--decir")
     }
     if (root is null && (args[0] == "--decir" || language.IsEnglish()))
     {
-        Console.Error.WriteLine("No encuentro modelos\\voz (prepáralo con herramientas\\preparar-modelos.ps1).");
+        Console.Error.WriteLine("No encuentro modelos\\voz (prepáralo con build\\preparar-modelos.ps1).");
         return 66;
     }
     using Synthesizer synth = new(root ?? "");
