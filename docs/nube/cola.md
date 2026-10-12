@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #16, #14, #17, #19, #20, #21, #22, #23, #24, #25, #28.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno (el bloque #14, #16, #17, #19–#25, #28 lo revisa Sonnet desde el 11-oct).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
