@@ -15,7 +15,7 @@ internal sealed partial class KeyboardView : UserControl
     // Las teclas se dibujan algo más altas que anchas para que quepan dos líneas con la acción.
     private const double UnitY = 58;
     private const double Gap = 4;
-    private const string Hint = "Pasa el ratón por una tecla para ver qué hace; haz clic para ver solo sus acciones en la lista.";
+    private const string Hint = "Pasa el ratón por una tecla para ver qué hace; haz clic para cambiarla y ver sus acciones en la lista.";
 
     private readonly List<KeyVisual> _keys = [];
     private KeyModifiers _layer;
@@ -30,8 +30,31 @@ internal sealed partial class KeyboardView : UserControl
         UpdateLayerText();
     }
 
-    /// <summary>Se pulsó una tecla con acciones: la página filtra la lista por ella.</summary>
+    /// <summary>Se pulsó una tecla: la página la abre para cambiarla y filtra la lista por ella.</summary>
     public event EventHandler<int>? KeySelected;
+
+    /// <summary>La persona cambió Ctrl, Mayús o Alt en el dibujo.</summary>
+    public event EventHandler<KeyModifiers>? LayerChanged;
+
+    /// <summary>Muestra las combinaciones con esos modificadores (los que se aprietan de verdad o los del ratón).</summary>
+    public void SetLayer(KeyModifiers layer)
+    {
+        layer &= KeyModifiers.Control | KeyModifiers.Shift | KeyModifiers.Alt;
+        if (layer == _layer)
+        {
+            return;
+        }
+
+        _layer = layer;
+        UpdateLayerText();
+        foreach (KeyVisual key in _keys)
+        {
+            Paint(key);
+        }
+    }
+
+    /// <summary>El botón dibujado de una tecla (para la autoprueba).</summary>
+    internal Button? KeyButton(int virtualKey) => _keys.Find(k => k.State.VirtualKey == virtualKey && k.State.Cap.Modifier == KeyModifiers.None)?.Button;
 
     /// <summary>Pone las teclas al día (estilo, cambios, distribución activa).</summary>
     public void Show(IReadOnlyList<KeyCapState> states, IEnumerable<string> groups)
@@ -151,14 +174,13 @@ internal sealed partial class KeyboardView : UserControl
             }
 
             Describe(key);
+            LayerChanged?.Invoke(this, _layer);
             return;
         }
 
-        if (state.Bindings.Count == 0)
+        if (state.Cap.IsInert)
         {
-            InfoText.Text = state.Cap.IsInert
-                ? $"«{state.Label}» no se usa para atajos."
-                : $"«{state.Label}» no lanza ninguna acción en este estilo. Puedes dársela con «Cambiar» en una fila.";
+            InfoText.Text = $"«{state.Label}» no se usa para atajos.";
             return;
         }
 

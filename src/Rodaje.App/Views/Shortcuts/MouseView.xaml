@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Ratón dibujado junto al teclado: cada botón, la rueda y su inclinación dicen qué hacen en la zona elegida (línea de
+    tiempo, visor o biblioteca) con los modificadores de la capa. Clic en una parte (o en su nombre) la abre para cambiarla.
+-->
+<UserControl
+    x:Class="Rodaje.App.Views.Shortcuts.MouseView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <Style x:Key="MouseTabStyle" TargetType="RadioButton" BasedOn="{StaticResource PanelTabStyle}">
+            <Setter Property="Height" Value="28" />
+        </Style>
+        <Style x:Key="MousePartStyle" TargetType="Button" BasedOn="{StaticResource RodajeButtonStyle}">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FocusVisualMargin" Value="-2" />
+        </Style>
+        <Style x:Key="CalloutStyle" TargetType="Button" BasedOn="{StaticResource RodajeButtonStyle}">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Spacing="8">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+            <StackPanel x:Name="ContextTabs" Orientation="Horizontal" AutomationProperties.Name="Zona del ratón" XYFocusKeyboardNavigation="Enabled">
+                <RadioButton x:Name="TimelineTab" Style="{StaticResource MouseTabStyle}" GroupName="MouseContext" Content="Línea de tiempo"
+                             IsChecked="True" Checked="OnContextChecked" />
+                <RadioButton x:Name="ViewerTab" Style="{StaticResource MouseTabStyle}" GroupName="MouseContext" Content="Visor" Checked="OnContextChecked" />
+                <RadioButton x:Name="LibraryTab" Style="{StaticResource MouseTabStyle}" GroupName="MouseContext" Content="Biblioteca" Checked="OnContextChecked" />
+            </StackPanel>
+            <Rectangle Style="{StaticResource ToolbarSeparatorStyle}" Margin="8,0" />
+            <ToggleButton x:Name="CtrlToggle" Content="Ctrl" MinHeight="26" Padding="8,0" Click="OnModifierClick" ToolTipService.ToolTip="Ver qué hace con Ctrl apretado" />
+            <ToggleButton x:Name="ShiftToggle" Content="Mayús" MinHeight="26" Padding="8,0" Click="OnModifierClick" ToolTipService.ToolTip="Ver qué hace con Mayús apretado" />
+            <ToggleButton x:Name="AltToggle" Content="Alt" MinHeight="26" Padding="8,0" Click="OnModifierClick" ToolTipService.ToolTip="Ver qué hace con Alt apretado" />
+        </StackPanel>
+        <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left" MaxWidth="480">
+            <Canvas x:Name="Board" Width="470" Height="270" XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once"
+                    AutomationProperties.Name="Ratón: cada botón dice qué acción lanza" />
+        </Viewbox>
+        <TextBlock x:Name="InfoText" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" TextTrimming="None" MinHeight="18"
+                   AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+</UserControl>

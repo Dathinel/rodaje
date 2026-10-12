@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    La tecla o el botón elegido en el dibujo: qué hace solo y con cada modificador (en el ratón, en la zona elegida).
+    Cada combinación se cambia eligiendo otra acción de la lista con búsqueda, grabando otra combinación para su acción
+    o quitándola; arriba, restablecer la tecla, el botón o la zona y deshacer el último cambio.
+-->
+<UserControl
+    x:Class="Rodaje.App.Views.Shortcuts.BindingEditor"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Border Padding="12" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" CornerRadius="2">
+        <StackPanel Spacing="8">
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock x:Name="TitleText" Style="{StaticResource PanelTitleTextStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock x:Name="SubtitleText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+                    <Button x:Name="ResetPartButton" Click="OnResetPartClick" />
+                    <Button x:Name="ResetContextButton" Click="OnResetContextClick" />
+                    <Button x:Name="UndoButton" Click="OnUndoClick" ToolTipService.ToolTip="Deshacer el último cambio de atajos">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock FontFamily="{StaticResource IconFontFamily}" Text="&#xE7A7;" VerticalAlignment="Center" />
+                            <TextBlock Text="Deshacer" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource ToolButtonStyle}" Content="&#xE711;" Click="OnCloseClick"
+                            AutomationProperties.Name="Cerrar" ToolTipService.ToolTip="Cerrar" />
+                </StackPanel>
+            </Grid>
+
+            <StackPanel x:Name="Rows" />
+
+            <Border x:Name="CapturePad" Visibility="Collapsed" MinHeight="64" Padding="12" CornerRadius="2" IsTabStop="True"
+                    Background="{StaticResource AccentSubtleBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                    PointerPressed="OnPadPointerPressed" PointerWheelChanged="OnPadWheel" KeyDown="OnPadKeyDown"
+                    AutomationProperties.Name="Recuadro para grabar una combinación del ratón">
+                <StackPanel Spacing="4">
+                    <TextBlock x:Name="CaptureText" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+                    <HyperlinkButton Content="Cancelar" Click="OnCancelCaptureClick" Padding="0" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock x:Name="StatusText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
+                       AutomationProperties.LiveSetting="Polite" />
+        </StackPanel>
+    </Border>
+</UserControl>

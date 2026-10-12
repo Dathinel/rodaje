@@ -275,4 +275,52 @@ public class MouseShortcutsTests
     [Fact]
     public void MouseChord_SeMuestraEnEspanol() =>
         Assert.Equal("Ctrl+Mayús+Rueda", new MouseChord(MouseInput.Wheel, KeyModifiers.Control | KeyModifiers.Shift).ToString());
+
+    [Fact]
+    public void BindingSlots_DeUnaTecla_DanSusOchoCombinacionesConReservadasYAltGr()
+    {
+        ShortcutRegistry registry = Catalog();
+        new ShortcutCustomizer(registry).AssignToKey(KeyChord.Parse("Ctrl+S"), ActionIds.Split, ConflictChoice.Take);
+
+        IReadOnlyList<BindingSlot> s = BindingSlots.ForKey(registry, KeyChord.Parse("S").Key);
+        IReadOnlyList<BindingSlot> f4 = BindingSlots.ForKey(registry, KeyChord.Parse("F4").Key);
+
+        Assert.Equal(8, s.Count);
+        Assert.Equal(ActionIds.Split, s[0].ActionId);
+        Assert.False(s[0].Customized);
+        BindingSlot ctrl = s.Single(x => x.Modifiers == KeyModifiers.Control);
+        Assert.Equal(ActionIds.Split, ctrl.ActionId);
+        Assert.True(ctrl.Customized);
+        Assert.NotNull(s.Single(x => x.Modifiers == (KeyModifiers.Control | KeyModifiers.Alt)).Warning);
+        Assert.True(f4.Single(x => x.Modifiers == KeyModifiers.Alt).IsLocked);
+    }
+
+    [Fact]
+    public void BindingSlots_DelRaton_MarcanFijosYCambiados()
+    {
+        ShortcutRegistry registry = Catalog();
+        new ShortcutCustomizer(registry).AssignMouse(MouseContext.Timeline, X1, ActionIds.Undo);
+
+        IReadOnlyList<BindingSlot> left = BindingSlots.ForMouse(registry, MouseContext.Timeline, MouseInput.Left);
+        IReadOnlyList<BindingSlot> x1 = BindingSlots.ForMouse(registry, MouseContext.Timeline, MouseInput.X1);
+
+        Assert.All(left, slot => Assert.True(slot.IsLocked));
+        Assert.Equal(ActionIds.Undo, x1[0].ActionId);
+        Assert.True(x1[0].Customized);
+        Assert.Equal(BindingSlots.NoAction, x1[1].Label);
+    }
+
+    [Fact]
+    public void Choices_LaRuedaSoloOfreceAccionesDeRuedaDeLaZona_YBuscaSinTildes()
+    {
+        ShortcutRegistry registry = Catalog();
+
+        IReadOnlyList<BindingChoice> wheel = BindingSlots.MouseChoices(registry, MouseContext.Viewer, Wheel, null);
+        IReadOnlyList<BindingChoice> button = BindingSlots.MouseChoices(registry, MouseContext.Timeline, X1, "arrastrar");
+        IReadOnlyList<BindingChoice> keys = BindingSlots.KeyChoices(registry, "rapido");
+
+        Assert.Equal([MouseGestures.Frames, MouseGestures.ViewerZoom], wheel.Select(c => c.Id).Order());
+        Assert.Contains(button, c => c.Id == MouseGestures.Pan);
+        Assert.Contains(keys, c => c.Id == ActionIds.SpeedUp);
+    }
 }
