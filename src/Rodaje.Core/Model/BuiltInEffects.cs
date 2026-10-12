@@ -149,6 +149,55 @@ public static class BuiltInEffects
         public const string Analysis = "analysis";
     }
 
+    /// <summary>
+    /// Máscara de la capa: rectángulo, elipse, trazo libre o imagen (un video gris en <c>&lt;proyecto&gt;.medios</c>). Varias
+    /// máscaras se multiplican. La geometría va en coordenadas de la imagen de la capa (0–1) y se calcula con
+    /// <see cref="Effects.MaskGeometry"/>.
+    /// </summary>
+    public const string Mask = "rodaje.mask";
+
+    public static class MaskParameters
+    {
+        /// <summary>Centro horizontal, de 0 (borde izquierdo de la imagen) a 1. Por defecto 0,5.</summary>
+        public const string X = "x";
+
+        /// <summary>Centro vertical, de 0 (arriba) a 1. Por defecto 0,5.</summary>
+        public const string Y = "y";
+
+        /// <summary>Ancho como fracción del ancho de la imagen. Por defecto 0,5.</summary>
+        public const string Width = "width";
+
+        /// <summary>Alto como fracción del alto de la imagen. Por defecto 0,5.</summary>
+        public const string Height = "height";
+
+        /// <summary>Giro en grados, sentido horario.</summary>
+        public const string Rotation = "rotation";
+
+        /// <summary>Ancho del borde suave como fracción del lado corto de la imagen, de 0 a 1.</summary>
+        public const string Feather = "feather";
+
+        /// <summary>Cuánto se aplica, de 0 a 1. Por defecto 1.</summary>
+        public const string Opacity = "opacity";
+    }
+
+    public static class MaskOptions
+    {
+        /// <summary>Uno de <see cref="Effects.EffectRegistry.MaskShapes"/>.</summary>
+        public const string Shape = "shape";
+
+        /// <summary><c>off</c> o <c>on</c>: se ve lo de afuera de la forma.</summary>
+        public const string Invert = "invert";
+
+        /// <summary>Puntos del trazo libre relativos a la caja de la máscara (<see cref="Effects.MaskGeometry.FormatPath"/>).</summary>
+        public const string Path = "path";
+
+        /// <summary><c>file:</c> más la ruta del video gris de la máscara de imagen, relativa a la carpeta del proyecto.</summary>
+        public const string Matte = "matte";
+
+        /// <summary>Instante del origen del clip (en segundos, cultura invariante) que corresponde al primer cuadro del video gris.</summary>
+        public const string MatteStart = "matteStart";
+    }
+
     /// <summary>Opciones que cualquier efecto puede llevar además de las suyas.</summary>
     public static class CommonOptions
     {
