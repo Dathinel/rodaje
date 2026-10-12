@@ -54,3 +54,10 @@ Rama `claude/plantillas-confirmar`. Sale de lo pendiente de la tarea 35 (`docs/t
   - Guarda una plantilla y elige «Borrar plantilla propia» y luego esa plantilla. Tiene que salir «¿Borrar la plantilla?» con el nombre.
   - «Cancelar», Esc o Intro no borran nada.
   - «Borrar» la quita del menú.
+
+## CI
+
+- **`9a1d5c1`:**
+  - Linux: en verde.
+  - Windows: compila toda la solución, App incluida. `Rodaje.App.Tests` pasa entera: 931 pasan y 2 se omiten de 933, con las 5 pruebas nuevas.
+  - El trabajo de Windows falló en una sola prueba ajena, `Rodaje.TestServer.Tests.HandlerFaultTests.An_unexpected_exception_aborts_the_connection_and_is_recorded`. Esperaba `HttpRequestException` y llegó `TaskCanceledException` tras 12 s. Es el servidor HTTP de pruebas, que esta rama no toca, y el fallo es de tiempos con el runner cargado. No se tocó.
