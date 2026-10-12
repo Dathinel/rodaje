@@ -43,6 +43,13 @@ public sealed record TestResponse
     public long? CutAfterBytes { get; init; }
 
     /// <summary>
+    /// Si no es <c>null</c>, el corte de <see cref="CutAfterBytes"/> espera a que la prueba suelte la señal. Sin
+    /// ella el corte es inmediato y, en Windows, el cliente puede recibir menos bytes que los mandados (HTTP.sys
+    /// corta con un RST que descarta lo no leído): las pruebas que exigen el conteo exacto usan la señal.
+    /// </summary>
+    public CutSignal? CutSignal { get; init; }
+
+    /// <summary>
     /// Deja de mandar tras estos bytes del cuerpo y se queda colgado sin cerrar hasta que el cliente se
     /// rinda o el servidor se cierre. Sirve para probar plazos de espera. Con 0, <see cref="System.Net.HttpListener"/>
     /// tampoco manda las cabeceras (las manda con el primer byte): el cliente espera la respuesta sin recibirla.

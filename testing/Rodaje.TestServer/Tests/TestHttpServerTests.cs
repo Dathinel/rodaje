@@ -220,9 +220,10 @@ public sealed class TestHttpServerTests
     {
         await using var server = TestHttpServer.Start();
         var content = TestPayloads.Deterministic(200_000);
+        var cut = new CutSignal();
         server.Map(
             FilePath,
-            TestResponse.File(content, "\"v1\"") with { CutAfterBytes = 70_000, ChunkSize = 10_000 },
+            TestResponse.File(content, "\"v1\"") with { CutAfterBytes = 70_000, ChunkSize = 10_000, CutSignal = cut },
             TestResponse.File(content, "\"v1\""));
         using var client = NewClient();
 
@@ -232,6 +233,11 @@ public sealed class TestHttpServerTests
             Assert.Equal(HttpStatusCode.OK, first.StatusCode);
             Assert.Equal(content.Length, first.Content.Headers.ContentLength);
             var stream = await first.Content.ReadAsStreamAsync();
+            var buffer = new byte[70_000];
+            await stream.ReadExactlyAsync(buffer);
+            received.Write(buffer);
+            await cut.Reached;
+            cut.Release();
             await Assert.ThrowsAnyAsync<IOException>(() => stream.CopyToAsync(received));
         }
 
@@ -248,20 +254,100 @@ public sealed class TestHttpServerTests
     }
 
     [Fact]
+    public async Task An_immediate_cut_delivers_a_prefix_that_resumes()
+    {
+        // Sin CutSignal, como lo verá un descargador que no controla sus lecturas: en Linux llegan los 70 000
+        // bytes; en Windows pueden llegar menos (HTTP.sys corta con RST). Solo se exige un prefijo y que reanude.
+        await using var server = TestHttpServer.Start();
+        var content = TestPayloads.Deterministic(200_000);
+        server.Map(
+            FilePath,
+            TestResponse.File(content, "\"v1\"") with { CutAfterBytes = 70_000, ChunkSize = 10_000 },
+            TestResponse.File(content, "\"v1\""));
+        using var client = NewClient();
+
+        var received = new MemoryStream();
+        using (var first = await client.GetAsync(server.UrlFor(FilePath), HttpCompletionOption.ResponseHeadersRead))
+        {
+            var stream = await first.Content.ReadAsStreamAsync();
+            await Assert.ThrowsAnyAsync<IOException>(() => stream.CopyToAsync(received));
+        }
+
+        Assert.InRange(received.Length, 0, 70_000);
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Equal(70_000, received.Length);
+        }
+
+        Assert.Equal(content.AsSpan(0, (int)received.Length).ToArray(), received.ToArray());
+
+        using var resume = new HttpRequestMessage(HttpMethod.Get, server.UrlFor(FilePath));
+        resume.Headers.Range = new RangeHeaderValue(received.Length, null);
+        using var second = await client.SendAsync(resume);
+        await (await second.Content.ReadAsStreamAsync()).CopyToAsync(received);
+
+        Assert.Equal(TestPayloads.Sha256Hex(content), TestPayloads.Sha256Hex(received.ToArray()));
+    }
+
+    [Fact]
     public async Task A_cut_inside_a_range_counts_from_the_range_start()
     {
         await using var server = TestHttpServer.Start();
         var content = TestPayloads.Deterministic(10_000);
-        server.Map(FilePath, TestResponse.File(content) with { CutAfterBytes = 10 });
+        var cut = new CutSignal();
+        server.Map(FilePath, TestResponse.File(content) with { CutAfterBytes = 10, CutSignal = cut });
         using var client = NewClient();
 
         using var request = new HttpRequestMessage(HttpMethod.Get, server.UrlFor(FilePath));
         request.Headers.Range = new RangeHeaderValue(1000, null);
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-        var received = new MemoryStream();
-        await Assert.ThrowsAnyAsync<IOException>(async () => await (await response.Content.ReadAsStreamAsync()).CopyToAsync(received));
+        var stream = await response.Content.ReadAsStreamAsync();
+        var received = new byte[10];
+        await stream.ReadExactlyAsync(received);
+        cut.Release();
+        await Assert.ThrowsAnyAsync<IOException>(async () => await stream.ReadExactlyAsync(new byte[1]));
 
-        Assert.Equal(content.AsSpan(1000, 10).ToArray(), received.ToArray());
+        Assert.Equal(content.AsSpan(1000, 10).ToArray(), received);
+    }
+
+    [Fact]
+    public async Task A_waiting_cut_holds_the_connection_until_released()
+    {
+        await using var server = TestHttpServer.Start();
+        var cut = new CutSignal();
+        server.Map(FilePath, TestResponse.File(TestPayloads.Deterministic(1000)) with { CutAfterBytes = 100, CutSignal = cut });
+        using var client = NewClient();
+
+        using var response = await client.GetAsync(server.UrlFor(FilePath), HttpCompletionOption.ResponseHeadersRead);
+        var stream = await response.Content.ReadAsStreamAsync();
+        await stream.ReadExactlyAsync(new byte[100]);
+        await cut.Reached;
+        var next = stream.ReadExactlyAsync(new byte[1]).AsTask();
+        await Task.Delay(100);
+
+        Assert.False(next.IsCompleted);
+        Assert.False(cut.IsReleased);
+        cut.Release();
+        await Assert.ThrowsAnyAsync<IOException>(() => next);
+    }
+
+    [Fact]
+    public async Task Dispose_ends_a_cut_that_is_never_released()
+    {
+        var server = TestHttpServer.Start();
+        var cut = new CutSignal();
+        server.Map(FilePath, TestResponse.File(TestPayloads.Deterministic(1000)) with { CutAfterBytes = 100, CutSignal = cut });
+        using var client = NewClient();
+        using var response = await client.GetAsync(server.UrlFor(FilePath), HttpCompletionOption.ResponseHeadersRead);
+        var read = response.Content.ReadAsByteArrayAsync();
+        await cut.Reached;
+
+        var clock = Stopwatch.StartNew();
+        await server.DisposeAsync();
+        clock.Stop();
+
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(10), $"Tardó {clock.Elapsed.TotalMilliseconds} ms");
+        await Assert.ThrowsAnyAsync<Exception>(() => read);
     }
 
     [Fact]

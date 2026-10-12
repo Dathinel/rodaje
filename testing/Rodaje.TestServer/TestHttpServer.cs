@@ -345,6 +345,11 @@ public sealed class TestHttpServer : IAsyncDisposable
                 {
                 }
             }
+            else if (configured.CutSignal is { } signal)
+            {
+                // Corte controlado por la prueba: espera a que el cliente haya leído lo mandado (ver CutSignal).
+                await signal.WaitForReleaseAsync(token).ConfigureAwait(false);
+            }
 
             // Corte a mitad: se resetea la conexión sin completar el Content-Length anunciado.
             Abort(response);
