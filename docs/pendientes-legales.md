@@ -12,7 +12,7 @@ Lo que queda por resolver para distribuir Rodaje bajo la GNU GPLv3 con términos
 - [x] **Reporte privado de vulnerabilidades** activado en GitHub (`SECURITY.md`).
 - [x] **Logotipo e icono propios.** Diseño original del titular (Dathinel) en `assets/marca/` (SVG maestro y monocromo; iconos con `build/generar-iconos.ps1`).
 - [ ] **Reporte privado de vulnerabilidades** activado en GitHub (`SECURITY.md`).
-- [ ] **Escaneo de secretos** del historial completo con gitleaks.
+- [x] **Escaneo de secretos** del historial completo con gitleaks 8.24.2 (12-oct: 968 commits, sin hallazgos).
 
 ## Para revisar con un abogado de propiedad intelectual
 

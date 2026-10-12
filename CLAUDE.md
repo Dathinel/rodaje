@@ -14,3 +14,9 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 - **Espacios de nombres en las pruebas:** `Rodaje.X.Tests.Timing` tapa a `Rodaje.Core.Timing`: nombre completo o `using`.
 - **Complementos:** contenido en `Dathinel/rodaje-transiciones` y `Dathinel/rodaje-filtros` (CC0); descarga firmada desde `Dathinel/rodaje-catalogo` (`docs/descarga.md`).
 - **Decisiones:** `docs/decisiones.md` (D-001 a D-034). Un cambio de fondo que contradiga una decisión vigente se registra como decisión nueva.
+
+## Para retomar (12-oct, créditos semanales agotados)
+
+- v1.0.0 lista y verificada (Sonnet: lista para publicar). Falta: recompilar con `build\distribuir.ps1` sobre el último commit y publicar con `build\publicar-release.ps1` **solo con el sí del autor**.
+- Pendiente técnico: efectos propios de los clips compuestos (se paró a medias; la limitación está documentada); avisos que faltan en `THIRD-PARTY-NOTICES.txt` (mingw-w64, libiconv, opencore-amr, soxr, crates de rav1e/librsvg, CsWinRT, módulos); `ffmpeg.exe` GPL propio para el complemento x264/x265; PNG del logotipo en el README.
+- La nube y la revisión cada 30 min están apagadas.
