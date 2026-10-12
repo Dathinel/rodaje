@@ -44,7 +44,7 @@ Medido en un Ryzen 7 7435HS con RTX 3050 Laptop:
 
 | Prueba | Resultado |
 |---|---|
-| Pruebas automáticas | Más de 3 000, en Windows y en Linux (núcleo, paquetes y reproducción) en cada cambio |
+| Pruebas automáticas | Más de 5 000, en Windows y en Linux (núcleo, paquetes y reproducción) en cada cambio |
 | Arranque | Ventana visible en **50 ms** en caliente y **215 ms** en frío |
 | Salto exacto al cuadro | **2 864 de 2 864** saltos aleatorios en el cuadro exacto, en H.264 y HEVC, por GPU y por software |
 | Sincronía audio/video | **0 cuadros de error en 10 minutos** |
