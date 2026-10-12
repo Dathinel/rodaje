@@ -2,7 +2,7 @@
 
 Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla con el editor por una tubería con mensajes JSON y recibe cuadros y audio por memoria compartida. Describe la versión 1 del protocolo tal como está en el código de `src/Rodaje.Modules.Protocol/` (decisión D-031, plan en [fase-7.md](fase-7.md)); cada dato cita el archivo de donde sale.
 
-**Estado (11 de octubre de 2026).** El protocolo, el anfitrión para módulos en C# (`ModuleHost`) y el módulo de ejemplo (`modules/Rodaje.Module.Echo/`) existen y tienen pruebas (`tests/Rodaje.Modules.Protocol.Tests/`). **La app todavía no abre módulos**: el `ModuleManager` que los arranca, vigila y cierra es la ronda A de la fase 7 y no está hecho, y el instalador de paquetes solo guarda los módulos sin ejecutarlos ([formato-paquete.md](formato-paquete.md#módulos-de-ia)). Lo que aquí se marca como «previsto» viene del plan y puede cambiar.
+**Estado (12 de octubre de 2026).** El protocolo, el anfitrión para módulos en C# (`ModuleHost`) y el módulo de ejemplo (`modules/Rodaje.Module.Echo/`) existen y tienen pruebas (`tests/Rodaje.Modules.Protocol.Tests/`). **La app ya abre módulos** con el `ModuleManager` (ronda A de la fase 7, `src/Rodaje.App/Services/Modules/`): los busca en disco (`ModuleCatalog`), abre un proceso por módulo con la primera llamada, lo vigila y lo cierra; sus reglas están en [Límites](#límites). Lo que aquí se marca como «previsto» viene del plan y puede cambiar.
 
 **Ejemplos JSON.** Todos los mensajes de esta guía son marcos reales: salen de conectar el `ModuleClient` (el lado del editor) con un `ModuleHost` que registra las funciones del módulo de eco, con el serializador del protocolo, y copiar lo que pasó por el cable. Solo cambian los valores de ejemplo (`appVersion`, `culture`, parámetros). El serializador de .NET escribe las letras no ASCII como escapes (`"parámetros"`); en esta guía se muestran así, tal cual salen. Las dos formas son JSON válido y el lector acepta cualquiera.
 
@@ -74,7 +74,7 @@ Lo primero que pasa por la tubería es el saludo, siempre en este orden: el edit
 |---|---|---|
 | `minProtocol`, `maxProtocol` | entero | El rango de versiones del protocolo que entiende el editor. `minProtocol` ≥ 1 y `maxProtocol` ≥ `minProtocol`. |
 | `app` | texto, hasta 64 | El programa que abre el módulo. Por defecto `rodaje` (`ModuleClientOptions.App`). |
-| `appVersion` | texto, hasta 64 | Su versión. El valor por defecto de la biblioteca es `0.0.0`; el que mandará la app lo fijará el `ModuleManager` (previsto). |
+| `appVersion` | texto, hasta 64 | Su versión. El valor por defecto de la biblioteca es `0.0.0`; la app manda la versión de su ensamblado con tres números (`ModuleManagerOptions.ClientOptions`, armado en `MainWindow.xaml.cs`). |
 | `culture` | texto, hasta 64, opcional | El idioma de la interfaz, para que el módulo responda en él (`es-CO` en el ejemplo). Puede faltar. |
 
 Fuente: `HelloMessage` en `Messages.cs` y `ModuleClientOptions` en `ModuleClient.cs`. La versión actual es `ProtocolVersion.Current = 1` (`MessageChannel.cs`); el editor manda 1–1 por defecto.
@@ -101,7 +101,7 @@ El módulo elige **la mayor versión común**: `min(maxProtocol del módulo, max
 | `functions[].reportsProgress` | booleano | Si manda `progress`. Si falta vale `true`. |
 | `functions[].inputs`, `functions[].outputs` | listas opcionales, hasta 16 | Los tipos de búfer que recibe y devuelve. El comentario del código nombra `video`, `audio` y `bytes`; el validador solo exige que cada uno sea un identificador. |
 
-Fuente: `WelcomeMessage`, `ModuleInfo` y `FunctionInfo` en `Messages.cs`. Hoy el editor guarda la descripción (`ModuleClient.Module`) pero **no usa** `cancellable`, `reportsProgress`, `inputs`, `outputs` ni `device` para decidir nada: los usará el `ModuleManager` (previsto). Tampoco se comprueba todavía que estas funciones coincidan con `module.functions` del `paquete.json`; qué pasa si no coinciden no está decidido.
+Fuente: `WelcomeMessage`, `ModuleInfo` y `FunctionInfo` en `Messages.cs`. Hoy el editor guarda la descripción (`ModuleClient.Module`, que el `ModuleManager` deja ver en `ModuleCall.Info`) pero **no usa** `cancellable`, `reportsProgress`, `inputs`, `outputs` ni `device` para decidir nada: el `ModuleManager` elige el módulo por `module.functions` del `paquete.json` (`FindByFunction`) y decide si usa la GPU por `module.vramMb`. Tampoco se comprueba todavía que estas funciones coincidan con las del `paquete.json`; qué pasa si no coinciden no está decidido.
 
 ### Sin versión común
 
@@ -190,7 +190,7 @@ Reglas (`InvokeMessage`, `ResultMessage` en `Messages.cs`; `ModuleHost.StartAsyn
 {"type":"pong","id":2}
 ```
 
-El módulo contesta cada `ping` con un `pong` del mismo `id`, aunque tenga llamadas en curso (el anfitrión de C# contesta desde el bucle de lectura, sin esperar a las funciones). `ModuleClient.PingAsync` devuelve el tiempo de ida y vuelta (p50 de 83–118 µs en el paso 0, [fase-7.md](fase-7.md#cifras-del-paso-0-11-oct)). A diferencia de los demás, el `id` de `ping` y `pong` no se valida (`PingMessage` y `PongMessage` no tienen `Validate`); el editor usa ids positivos. Solo el editor manda `ping`: un `ping` del módulo corta la conexión. **Previsto** para el `ModuleManager` (ronda A): un `ping` cada 5 s mientras haya una llamada en curso; sin respuesta en 10 s, el módulo se da por colgado.
+El módulo contesta cada `ping` con un `pong` del mismo `id`, aunque tenga llamadas en curso (el anfitrión de C# contesta desde el bucle de lectura, sin esperar a las funciones). `ModuleClient.PingAsync` devuelve el tiempo de ida y vuelta (p50 de 83–118 µs en el paso 0, [fase-7.md](fase-7.md#cifras-del-paso-0-11-oct)). A diferencia de los demás, el `id` de `ping` y `pong` no se valida (`PingMessage` y `PongMessage` no tienen `Validate`); el editor usa ids positivos. Solo el editor manda `ping`: un `ping` del módulo corta la conexión. El `ModuleManager` manda un `ping` cada 5 s mientras haya una llamada en curso (`ModuleManagerOptions.PingInterval`); sin respuesta en 10 s (`PingTimeout`) da el módulo por colgado, lo mata y el trabajo falla con `ModuleHungException` (`ModuleConnection.WatchAsync`).
 
 ### `log`
 
@@ -198,7 +198,7 @@ El módulo contesta cada `ping` con un `pong` del mismo `id`, aunque tenga llama
 {"type":"log","level":"info","text":"Modelo cargado en 840 ms."}
 ```
 
-(Del serializador; el texto es de ejemplo.) `level` es un identificador; el comentario del código nombra `info`, `warn` y `error`, pero el validador acepta cualquier identificador. `text` tiene hasta 4096 caracteres. El editor lo pasa al evento `ModuleClient.Log`; qué hace la app con él no está decidido. **El anfitrión de C# no tiene todavía una forma de mandar `log`** (`ModuleCall` no la expone); un módulo escrito en otro lenguaje sí puede mandarlo.
+(Del serializador; el texto es de ejemplo.) `level` es un identificador; el comentario del código nombra `info`, `warn` y `error`, pero el validador acepta cualquier identificador. `text` tiene hasta 4096 caracteres. El editor lo pasa al evento `ModuleClient.Log`; el `ModuleManager` no lo escucha, así que hoy la app lo descarta (qué hacer con él no está decidido). **El anfitrión de C# no tiene todavía una forma de mandar `log`** (`ModuleCall` no la expone); un módulo escrito en otro lenguaje sí puede mandarlo.
 
 ### `shutdown` y cierre
 
@@ -266,7 +266,7 @@ El editor manda `cancel` con el `id` de la llamada. El módulo deja de trabajar 
   577 ms módulo → editor  {"type":"result","id":2,"value":1}
 ```
 
-- **Plazo de gracia:** el editor espera la confirmación hasta `ModuleClientOptions.CancelGrace`, **2 s** por defecto (`ModuleClient.InvokeAsync`). Si no llega, da el módulo por colgado: corta la conexión, falla todas las llamadas en curso con `ModuleDisconnectedException` («El módulo no confirmó la cancelación en 2 s.») y `ModuleProcess` mata el proceso (prueba `A_module_that_ignores_cancel_is_killed_after_the_grace_period`). Una función que no puede detenerse a tiempo debería declararse `cancellable: false`; el editor todavía no usa ese dato (previsto para el `ModuleManager`).
+- **Plazo de gracia:** el editor espera la confirmación hasta `ModuleClientOptions.CancelGrace`, **2 s** por defecto (`ModuleClient.InvokeAsync`). Si no llega, da el módulo por colgado: corta la conexión, falla todas las llamadas en curso con `ModuleDisconnectedException` («El módulo no confirmó la cancelación en 2 s.») y `ModuleProcess` mata el proceso (prueba `A_module_that_ignores_cancel_is_killed_after_the_grace_period`). Una función que no puede detenerse a tiempo debería declararse `cancellable: false`; el editor todavía no usa ese dato: el `ModuleManager` deja cancelar cualquier trabajo desde Trabajos.
 - Si en el plazo llega un `result` en vez de la confirmación, el `ModuleClient` devuelve ese resultado; si llega cualquier `error`, la llamada termina como cancelada (`OperationCanceledException`).
 - Un `cancel` de una llamada que ya terminó o que no existe se ignora (`ModuleHost.RunAsync`).
 - En el anfitrión de C#, `cancel` cancela el `CancellationToken` que recibe la función. Si la función lanza `OperationCanceledException` con ese token cancelado, el anfitrión manda el `error` `cancelled`; si termina antes, manda su `result`. Una `OperationCanceledException` sin que se haya pedido cancelar cuenta como error `internal`.
@@ -420,7 +420,19 @@ Plazos y cantidades del lado del editor y del anfitrión de C#:
 | Cola de la salida de errores en el mensaje de salida | 2048 caracteres | `ModuleProcess.cs` |
 | Búfer de la tubería, en cada sentido | 64 KB | `ModuleProcess.PipeBufferBytes` |
 
-**Previsto** para el `ModuleManager` (ronda A, [fase-7.md](fase-7.md#arquitectura)) y todavía sin código: un proceso por módulo, abierto al primer uso y cerrado tras 2 min sin llamadas; un Job Object con «matar al cerrar» para que ningún módulo sobreviva al editor; `ping` de vigilancia cada 5 s con una llamada en curso (colgado si no responde en 10 s); un modelo pesado a la vez según `vramMb` del `paquete.json`.
+Lo que añade el `ModuleManager` de la app (ronda A, [fase-7.md](fase-7.md#arquitectura); `src/Rodaje.App/Services/Modules/`):
+
+| Qué | Valor | Dónde |
+|---|---|---|
+| Procesos | uno por módulo, abierto con la primera llamada; si muere, la siguiente lo vuelve a abrir | `ModuleConnection.cs` |
+| Cerrar un módulo ocioso | tras 2 min sin llamadas (`IdleTimeout`) | `ModuleConnection.EndCall` |
+| Vigilancia | `ping` cada 5 s con una llamada en curso (`PingInterval`); colgado si no contesta en 10 s (`PingTimeout`) | `ModuleConnection.WatchAsync` |
+| Que ninguno sobreviva al editor | Job Object con «matar al cerrar»; al salir, `shutdown` y después matar | `ModuleJobObject.cs`, `ModuleManager.DisposeAsync` |
+| Memoria de video | `module.vramMb` mientras vive el proceso; un solo módulo de 1024 MB o más a la vez, y la suma no pasa de la VRAM dedicada menos 3/8 para la vista previa (uno que no cabe ni solo corre solo); para hacer sitio se cierran módulos ociosos | `VramBudget.cs`, `ModuleManager.ReserveVramAsync` |
+| Vista previa | pasa a proxies mientras corre un módulo con `vramMb` > 0 | `IModulePreview` en `ModuleCall.cs` |
+| Fallos | un módulo que muere, se cuelga o manda algo inválido solo falla su trabajo, con un aviso que dice que el proyecto no cambió | `ModuleManager.Friendly` |
+
+Cada llamada es un trabajo en Trabajos, con su avance y su botón de cancelar. Los resultados no editan el proyecto: quien llama los convierte en una propuesta (`ModuleProposal`) que la persona aplica en un paso del historial o descarta.
 
 ## Un módulo mínimo
 
@@ -607,7 +619,9 @@ Un módulo se instala como un paquete con `"kind": "module"` y un bloque `module
 "module": { "entry": "bin/modulo-subtitulos.exe", "protocol": 1, "functions": ["subtitulos"] }
 ```
 
-`entry` es la ruta relativa al ejecutable dentro del paquete, `protocol` la versión del protocolo y `functions` lo que ofrece (`ManifestReader.Module` en `src/Rodaje.Paquetes/ManifestReader.cs`). Se instala en `%LOCALAPPDATA%\Rodaje\complementos\modulos\<id>\`. Hoy el instalador lo guarda pero la app no lo ejecuta. **Previsto** ([fase-7.md](fase-7.md#formatos)): los campos `runtime`, `vramMb` y `models` (modelos con hash, licencia y URL, compartidos entre módulos) y `protocol: 0` para herramientas de línea de órdenes que no hablan este protocolo; el lector de manifiestos todavía no los conoce.
+`entry` es la ruta relativa al ejecutable dentro del paquete, `protocol` la versión del protocolo y `functions` lo que ofrece (`ManifestReader.Module` en `src/Rodaje.Paquetes/ManifestReader.cs`). Se instala en `%LOCALAPPDATA%\Rodaje\complementos\modulos\<id>\`. El `ModuleManager` busca módulos ahí, en `modulos\` junto al ejecutable (los que trae la distribución completa) y, si Rodaje corre desde el repositorio, en su carpeta `modules\`; si un id aparece en varias, gana la versión mayor (`ModuleCatalog.Scan`). Solo abre los que funcionan en `rodaje` y dicen `"protocol": 1`; uno con otra versión del protocolo, o con un `paquete.json` que no se puede leer, queda en la lista de problemas (`ModuleManager.Problems`).
+
+`ModuleCatalog` lee además dos campos de la fase 7 que el lector de manifiestos todavía no expone: `vramMb` (entero; 0 o ausente = solo CPU, acotado a 65 536) y `runtime` (texto de hasta 64 caracteres, guardado pero sin uso por ahora). **Previsto** ([fase-7.md](fase-7.md#formatos)): `models` (modelos con hash, licencia y URL, compartidos entre módulos) y `protocol: 0` para herramientas de línea de órdenes que no hablan este protocolo.
 
 ## Licencia de tu módulo
 
