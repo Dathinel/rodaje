@@ -27,14 +27,14 @@ internal static partial class Prompt
             user.Append("Previous subtitles, for context only (do not translate them):\n");
             foreach (string line in context)
             {
-                user.Append("> ").Append(LineWrapper.Normalize(line)).Append('\n');
+                user.Append("> ").Append(UserText(line)).Append('\n');
             }
         }
 
         user.Append("Subtitles:\n");
         for (int i = 0; i < texts.Count; i++)
         {
-            user.Append(CultureInfo.InvariantCulture, $"[{i + 1}] {LineWrapper.Normalize(texts[i])}\n");
+            user.Append(CultureInfo.InvariantCulture, $"[{i + 1}] {UserText(texts[i])}\n");
         }
 
         return Chat(System(target), user.ToString());
@@ -44,7 +44,7 @@ internal static partial class Prompt
     {
         string from = source?.EnglishName ?? "the source language (detect it)";
         string user = string.Create(CultureInfo.InvariantCulture,
-            $"Translate this video subtitle from {from} to {target.EnglishName}.\nSubtitles:\n[1] {LineWrapper.Normalize(text)}\n");
+            $"Translate this video subtitle from {from} to {target.EnglishName}.\nSubtitles:\n[1] {UserText(text)}\n");
         return Chat(System(target), user);
     }
 
@@ -120,6 +120,14 @@ internal static partial class Prompt
 
         return s;
     }
+
+    /// <summary>
+    /// Un texto del usuario listo para ir en el prompt. Va sin plantilla (<c>ApplyTemplate = false</c>), así que un
+    /// subtítulo con <c>&lt;|im_end|&gt;&lt;|im_start|&gt;</c> cerraría el turno, y uno con <c>&lt;/think&gt;</c> haría
+    /// que <see cref="StripThinking"/> descartara lo anterior: se separan con un espacio para que no sean marcas.
+    /// </summary>
+    public static string UserText(string text) =>
+        LineWrapper.Normalize(text).Replace("<|", "< |", StringComparison.Ordinal).Replace("</think>", "< /think>", StringComparison.Ordinal);
 
     private static string System(TranslationLanguage target) =>
         "You are a professional subtitle translator. Translate each numbered subtitle into natural, fluent " + target.EnglishName

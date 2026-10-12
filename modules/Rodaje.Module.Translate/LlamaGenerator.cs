@@ -85,7 +85,11 @@ internal sealed class LlamaGenerator : ITextGenerator, IDisposable
         throw new ModuleCallException(ErrorCodes.OutOfMemory, "No se pudo cargar el modelo del traductor: " + (last?.Message ?? "sin memoria."));
     }
 
-    public async Task<string> GenerateAsync(string prompt, int maxTokens, CancellationToken cancellationToken)
+    /// <summary>
+    /// Completa <paramref name="prompt"/>. <see cref="StatelessExecutor"/> entrega un trozo por token y para antes de
+    /// entregar el fin de generación: si entregó <paramref name="maxTokens"/> trozos sin cerrar el turno, paró por el tope.
+    /// </summary>
+    public async Task<Generation> GenerateAsync(string prompt, int maxTokens, CancellationToken cancellationToken)
     {
         StatelessExecutor executor = new(_weights, _parameters) { ApplyTemplate = false };
         InferenceParams inference = new()
@@ -96,12 +100,15 @@ internal sealed class LlamaGenerator : ITextGenerator, IDisposable
             SamplingPipeline = new DefaultSamplingPipeline { Temperature = 0 },
         };
         StringBuilder text = new();
+        int pieces = 0;
         await foreach (string piece in executor.InferAsync(prompt, inference, cancellationToken).ConfigureAwait(false))
         {
             text.Append(piece);
+            pieces++;
         }
 
-        return text.ToString();
+        string result = text.ToString();
+        return new Generation(result, pieces >= maxTokens && !result.Contains(Prompt.EndOfTurn, StringComparison.Ordinal));
     }
 
     public void Dispose() => _weights.Dispose();

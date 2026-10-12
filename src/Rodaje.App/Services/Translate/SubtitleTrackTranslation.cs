@@ -35,8 +35,14 @@ public static class SubtitleTrackTranslation
     /// <summary>Subtítulos por llamada: con textos de hasta 500 caracteres el mensaje queda lejos de 1 MiB.</summary>
     public const int MaxPerCall = 400;
 
-    /// <summary>Lo que acepta el módulo por subtítulo; un texto más largo no se manda.</summary>
+    /// <summary>Lo que acepta el módulo por subtítulo; un texto más largo se manda partido (<see cref="Collect"/>).</summary>
     public const int MaxTextLength = 500;
+
+    /// <summary>
+    /// Separa el id del clip del número de parte en los ids de las partes de un texto largo: la primera parte lleva el
+    /// id del clip y las siguientes <c>clip#2</c>, <c>clip#3</c>…
+    /// </summary>
+    public const char PartSeparator = '#';
 
     public const int MaxLineChars = 42;
 
@@ -94,12 +100,85 @@ public static class SubtitleTrackTranslation
         return tracks.Count > 0 ? tracks[0] : null;
     }
 
-    /// <summary>Los clips de texto de la pista, en orden; los textos largos se recortan a lo que acepta el módulo.</summary>
+    /// <summary>
+    /// Los clips de texto de la pista, en orden. Un texto de más de <see cref="MaxTextLength"/> caracteres no se recorta
+    /// (la traducción reemplaza el texto entero y se perdería el resto): se parte en trozos con ids de parte
+    /// (<see cref="PartId"/>) que <see cref="Command"/> vuelve a juntar.
+    /// </summary>
     public static IReadOnlyList<SubtitleText> Collect(Track track)
     {
         ArgumentNullException.ThrowIfNull(track);
-        return [.. track.Clips.Where(IsText).OrderBy(c => c.Start)
-            .Select(c => new SubtitleText(c.Id, c.Generator!.Text.Length > MaxTextLength ? c.Generator.Text[..MaxTextLength] : c.Generator.Text))];
+        List<SubtitleText> texts = [];
+        foreach (Clip clip in track.Clips.Where(IsText).OrderBy(c => c.Start))
+        {
+            IReadOnlyList<string> parts = Split(clip.Generator!.Text, MaxTextLength);
+            texts.Add(new SubtitleText(clip.Id, parts[0]));
+            for (int k = 1; k < parts.Count; k++)
+            {
+                texts.Add(new SubtitleText(PartId(clip.Id, k + 1), parts[k]));
+            }
+        }
+
+        return texts;
+    }
+
+    /// <summary>El id de la parte <paramref name="part"/> (desde 1) del texto de <paramref name="clipId"/>; la 1 es el id del clip.</summary>
+    public static string PartId(string clipId, int part) =>
+        part <= 1 ? clipId : FormattableString.Invariant($"{clipId}{PartSeparator}{part}");
+
+    /// <summary>
+    /// Parte <paramref name="text"/> en trozos de hasta <paramref name="maxLength"/> caracteres: tras un fin de frase o un
+    /// salto de línea si hay uno en la segunda mitad del trozo, si no en un espacio, y si no a la fuerza; nunca entre
+    /// las dos mitades de un par sustituto (un emoji partido no se puede escribir en JSON). Siempre da al menos un trozo.
+    /// </summary>
+    public static IReadOnlyList<string> Split(string text, int maxLength)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxLength, 2);
+        List<string> parts = [];
+        string rest = text;
+        while (rest.Length > maxLength)
+        {
+            int cut = BreakAt(rest, maxLength);
+            string part = rest[..cut].Trim();
+            if (part.Length > 0 || parts.Count == 0)
+            {
+                parts.Add(part);
+            }
+
+            rest = rest[cut..].TrimStart();
+        }
+
+        if (rest.Length > 0 || parts.Count == 0)
+        {
+            parts.Add(rest);
+        }
+
+        return parts;
+    }
+
+    private static int BreakAt(string text, int maxLength)
+    {
+        int sentence = -1;
+        int space = -1;
+        for (int i = maxLength; i > maxLength / 2; i--)
+        {
+            char before = text[i - 1];
+            bool spaceAfter = char.IsWhiteSpace(text[i]);
+            if (before == '\n' || before is '。' or '！' or '？' || (spaceAfter && before is '.' or '!' or '?' or '…' or '؟' or '।'))
+            {
+                sentence = i;
+                break;
+            }
+
+            if (space < 0 && (spaceAfter || char.IsWhiteSpace(before)))
+            {
+                space = i;
+            }
+        }
+
+        int cut = sentence > 0 ? sentence : space > 0 ? space : maxLength;
+        return char.IsHighSurrogate(text[cut - 1]) && char.IsLowSurrogate(text[cut]) ? cut - 1 : cut;
     }
 
     /// <summary>Los parámetros de cada llamada a <c>traducir</c>, de hasta <see cref="MaxPerCall"/> subtítulos.</summary>
@@ -177,7 +256,9 @@ public static class SubtitleTrackTranslation
         List<string> missing = [];
         if (root.TryGetProperty("untranslated", out JsonElement list) && list.ValueKind == JsonValueKind.Array)
         {
-            missing.AddRange(list.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).Where(expected.Contains).Distinct());
+            // Una parte sin traducir de un texto largo cuenta como su clip.
+            missing.AddRange(list.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).Where(expected.Contains)
+                .Select(id => ClipIdOf(id, expected)).Distinct());
         }
 
         untranslated = missing;
@@ -203,7 +284,8 @@ public static class SubtitleTrackTranslation
 
     /// <summary>
     /// Crea una pista de subtítulos justo encima de <paramref name="sourceTrackId"/> con una copia de cada clip de
-    /// texto (mismos tiempos, estilo, caja y efectos; sin enlace) y su texto traducido. La pista original no cambia.
+    /// texto (mismos tiempos, estilo, caja y efectos; sin enlace) y su texto traducido, con las partes de un texto
+    /// largo (<see cref="PartId"/>) juntas en orden. La pista original no cambia.
     /// </summary>
     /// <returns>El comando; en <see cref="SequenceEditCommand.CreatedIds"/>, los clips nuevos y al final la pista.</returns>
     public static SequenceEditCommand Command(string sequenceId, string sourceTrackId, IReadOnlyDictionary<string, string> texts, string trackName, IIdGenerator? ids = null)
@@ -227,7 +309,7 @@ public static class SubtitleTrackTranslation
                 Clip copy = clip.Clone();
                 copy.Id = ctx.Ids.NewId("clip");
                 copy.LinkId = null;
-                copy.Generator!.Text = texts[clip.Id];
+                copy.Generator!.Text = Joined(texts, clip.Id);
                 copies.Add(copy);
             }
 
@@ -247,6 +329,43 @@ public static class SubtitleTrackTranslation
     }
 
     private static bool IsText(Clip clip) => clip.Generator is { Kind: GeneratorKinds.Text };
+
+    /// <summary>El clip de un id de parte (<c>clip#2</c> → <c>clip</c>) si ese clip también se pidió; si no, el mismo id.</summary>
+    private static string ClipIdOf(string id, HashSet<string> expected)
+    {
+        int at = id.LastIndexOf(PartSeparator);
+        return at > 0 && at < id.Length - 1 && !id.AsSpan(at + 1).ContainsAnyExceptInRange('0', '9') && expected.Contains(id[..at])
+            ? id[..at]
+            : id;
+    }
+
+    /// <summary>
+    /// La traducción del clip con sus partes en orden. Si junta más líneas o caracteres de los que admite un texto
+    /// (<see cref="ModelValidator.MaxTextLines"/>, <see cref="ModelValidator.MaxTextLength"/>), las líneas se unen con
+    /// espacios y, como último recurso, se recorta sin partir un par sustituto, para que la pista nueva sea válida.
+    /// </summary>
+    private static string Joined(IReadOnlyDictionary<string, string> texts, string clipId)
+    {
+        List<string> parts = [texts[clipId]];
+        for (int k = 2; texts.TryGetValue(PartId(clipId, k), out string? part); k++)
+        {
+            parts.Add(part);
+        }
+
+        string text = string.Join('\n', parts.Where(p => p.Length > 0));
+        if (text.Count(c => c == '\n') >= ModelValidator.MaxTextLines)
+        {
+            text = text.Replace('\n', ' ');
+        }
+
+        if (text.Length > ModelValidator.MaxTextLength)
+        {
+            int cut = ModelValidator.MaxTextLength;
+            text = text[..(char.IsHighSurrogate(text[cut - 1]) ? cut - 1 : cut)];
+        }
+
+        return text;
+    }
 
     /// <summary>Sin caracteres de control salvo <c>\n</c>, sin <c>\r</c> y sin espacios al final de cada línea.</summary>
     private static string Clean(string text)

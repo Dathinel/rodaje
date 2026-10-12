@@ -504,7 +504,7 @@ Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.x
 
 ## 52. Traducir: salidas cortadas, tokens de control y textos largos
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #67 unido el 12-oct en modo autónomo; TranslateDialog aún cuenta las partes de un texto largo como textos aparte, y falta confirmar con el modelo real que LLamaSharp da un trozo por token)
 - **Rama:** `claude/traducir-robusto`
 - **Caminos:** `modules/Rodaje.Module.Translate/LlamaGenerator.cs`, `modules/Rodaje.Module.Translate/Translation/`, `tests/Rodaje.Module.Translate.Tests/`, `src/Rodaje.App/Services/Translate/SubtitleTrackTranslation.cs`, `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 38, revisión en bloque 4.

@@ -7,20 +7,35 @@ namespace Rodaje.Module.Translate.Tests;
 
 /// <summary>
 /// Un «modelo» de prueba: responde a cada prompt con la función que se le dé. Por defecto traduce cada línea numerada
-/// poniéndole «EN:» delante, como haría un modelo obediente.
+/// poniéndole «EN:» delante, como haría un modelo obediente. Con la segunda forma la función recibe también el tope
+/// de tokens y dice si la respuesta llegó a él (un modelo que se corta).
 /// </summary>
-internal sealed partial class FakeGenerator(Func<string, string>? respond = null) : ITextGenerator
+internal sealed partial class FakeGenerator : ITextGenerator
 {
+    private readonly Func<string, int, Generation> _respond;
+
+    public FakeGenerator(Func<string, string>? respond = null)
+    {
+        Func<string, string> answer = respond ?? Obedient;
+        _respond = (prompt, _) => new Generation(answer(prompt), false);
+    }
+
+    public FakeGenerator(Func<string, int, Generation> respond) => _respond = respond;
+
     public List<string> Prompts { get; } = [];
+
+    /// <summary>El tope de tokens de cada llamada, en el mismo orden que <see cref="Prompts"/>.</summary>
+    public List<int> Limits { get; } = [];
 
     public string Device => "falso";
 
-    public Task<string> GenerateAsync(string prompt, int maxTokens, CancellationToken cancellationToken)
+    public Task<Generation> GenerateAsync(string prompt, int maxTokens, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        Assert.InRange(maxTokens, 1, 1200);
+        Assert.InRange(maxTokens, 1, SubtitleTranslator.MaxRetryTokens);
         Prompts.Add(prompt);
-        return Task.FromResult((respond ?? Obedient)(prompt));
+        Limits.Add(maxTokens);
+        return Task.FromResult(_respond(prompt, maxTokens));
     }
 
     /// <summary>Las líneas <c>[n] texto</c> del mensaje del usuario (sin las de contexto).</summary>
