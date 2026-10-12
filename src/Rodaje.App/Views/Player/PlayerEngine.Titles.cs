@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Rodaje.Core.Timing;
 using Rodaje.Playback.Composition;
 using Rodaje.Render;
@@ -24,6 +25,7 @@ internal sealed partial class PlayerEngine
     private int _captureBypass;
     private int _viewBypass;
     private float _compareSplit = -1;
+    private StrongBox<MaskPreview>? _maskView;
 
     /// <summary>Cambió la lista de fuentes que faltan. Llega desde el hilo de render.</summary>
     public event Action? MissingFontsChanged;
@@ -94,8 +96,17 @@ internal sealed partial class PlayerEngine
         _wake.Set();
     }
 
+    /// <summary>Solo vista previa: una máscara en gris o superpuesta mientras se edita (nula, como se exporta). Desde cualquier hilo.</summary>
+    public void SetMaskView(MaskPreview? view)
+    {
+        Volatile.Write(ref _maskView, view is { } v ? new StrongBox<MaskPreview>(v) : null);
+        _dirty = true;
+        _wake.Set();
+    }
+
     private void ApplyViewOptions(Compositor compositor)
     {
+        compositor.MaskView = Volatile.Read(ref _maskView)?.Value;
         float split = Volatile.Read(ref _compareSplit);
         compositor.CompareSplit = split > 0 ? split : null;
         int capture = _pendingCapture is null ? 0 : Volatile.Read(ref _captureBypass);

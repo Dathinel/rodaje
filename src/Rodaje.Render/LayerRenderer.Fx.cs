@@ -83,7 +83,20 @@ internal sealed unsafe partial class LayerRenderer
     private ImageView? ApplyStep(ImageView view, in SpatialStep step, float perSequencePixel, LayerFrame layer, bool source)
     {
         ImageView? next = ApplySpatial(view, step, perSequencePixel, layer, source);
-        if (next is not { } result || result.Target == view.Target || step.Region == 0 || RegionMaskFor(step) is not { } region)
+        if (next is not { } result || result.Target == view.Target || step.Region == 0)
+        {
+            return next;
+        }
+
+        // Máscaras propias del efecto (su destino): mandan sobre las de «limitar efectos».
+        if (ScopedGroup(step.Index).Count > 0)
+        {
+            ImageView? limited = LimitOwn(view, result, step.Index);
+            _pool.Return(result.Target);
+            return limited;
+        }
+
+        if (RegionMaskFor(step) is not { } region)
         {
             return next;
         }
@@ -106,6 +119,30 @@ internal sealed unsafe partial class LayerRenderer
     private (RenderTarget Target, Float4 Map)? RegionMaskFor(in SpatialStep step) =>
         _regionMask is { } target ? (target, _regionMap) : null;
 
+    /// <summary>
+    /// El efecto ya aplicado en <paramref name="after"/> solo donde lo dejan ver sus máscaras propias (las que tienen de
+    /// destino el efecto <paramref name="index"/>): una vista nueva del tamaño de <paramref name="before"/>, o nula.
+    /// </summary>
+    private ImageView? LimitOwn(ImageView before, ImageView after, int index)
+    {
+        int width = before.Width, height = before.Height;
+        FrameStats stats = default;
+        RenderTarget? mask = DrawMaskGroup(ScopedGroup(index), ref width, ref height, _maskPlacement.LocalWidth, _maskPlacement.LocalHeight,
+            ref stats, out _);
+        if (mask is null)
+        {
+            return null;
+        }
+
+        MaskViewMode view = _maskView is { } shown && shown.Group == index ? shown.Mode : MaskViewMode.None;
+        ImageView? mixed = MixMasked(before, after, new ImageView(mask, width, height), view);
+        _pool.Return(mask);
+        return mixed;
+    }
+
+    /// <summary>La imagen de la capa que se está dibujando por el intermedio (para el tamaño de sus máscaras propias).</summary>
+    private LayerPlacement _maskPlacement;
+
     private ImageView? ApplySpatial(ImageView view, in SpatialStep step, float perSequencePixel, LayerFrame layer, bool source)
     {
         EffectValues values = step.Values;
@@ -113,6 +150,15 @@ internal sealed unsafe partial class LayerRenderer
         float Px(int slot) => Value(values, definition, slot) * perSequencePixel;
         switch (step.Kind)
         {
+            case GpuEffectKind.Pixelate:
+                return Pixelate(view, Px(0));
+            case GpuEffectKind.Color or GpuEffectKind.Vignette or GpuEffectKind.ChromaKey or GpuEffectKind.ColorWheels or GpuEffectKind.Curves
+                or GpuEffectKind.HslQualifier:
+            {
+                FrameStats stats = default;
+                return GradeIntermediate(view, layer.Effects[step.Index], ref stats);
+            }
+
             case GpuEffectKind.Blur:
                 return Choice(values, definition, BuiltInEffects.BlurOptions.Kind) switch
                 {

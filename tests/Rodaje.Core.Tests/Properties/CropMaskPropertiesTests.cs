@@ -286,7 +286,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
         });
 
     private static readonly Gen<MaskSpec> GenMaskSpec = Gen.Select(
-        Gen.Select(Gen.Int[0, 3], Gen.Double[-0.5, 1.5], Gen.Double[-0.5, 1.5], Gen.Double[0, 2], Gen.Double[0, 2], (s, x, y, w, h) => (s, x, y, w, h)),
+        Gen.Select(Gen.Int[0, 5], Gen.Double[-0.5, 1.5], Gen.Double[-0.5, 1.5], Gen.Double[0, 2], Gen.Double[0, 2], (s, x, y, w, h) => (s, x, y, w, h)),
         Gen.Double[-720, 720], Gen.Double[0, 1], Gen.Double[0, 1], Gen.Bool,
         (a, rot, feather, opacity, invert) => new MaskSpec((MaskShape)a.s, a.x, a.y, a.w, a.h, rot, feather, opacity, invert));
 
@@ -302,8 +302,9 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
                 MaskSpec mask = s.Item1;
                 (double w, double h) = s.Item6;
                 double px = s.Item2 * w, py = s.Item3 * h;
-                double f = MaskGeometry.Factor(mask, px, py, w, h, s.Item4, s.Item5);
-                double g = MaskGeometry.Factor(mask with { Invert = !mask.Invert }, px, py, w, h, s.Item4, s.Item5);
+                Vector3[] polyline = [.. s.Item4.Select(p => new Vector3(p, 1))];
+                double f = MaskGeometry.Factor(mask, px, py, w, h, polyline, s.Item5);
+                double g = MaskGeometry.Factor(mask with { Invert = !mask.Invert }, px, py, w, h, polyline, s.Item5);
                 Assert.InRange(f, -Eps, mask.Opacity + Eps);
                 Assert.True(Math.Abs(f + g - mask.Opacity) < 1e-9, Inv($"{f} + {g} != {mask.Opacity}"));
                 if (mask.Shape is MaskShape.Rectangle or MaskShape.Ellipse && mask.Width * w > 4 && mask.Height * h > 4 && !mask.Invert && mask.Feather == 0)

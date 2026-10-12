@@ -20,7 +20,7 @@ public class EffectRegistryTests
             [
                 (BuiltInEffects.Transform, 1), (BuiltInEffects.Color, 2), (BuiltInEffects.Vignette, 3), (BuiltInEffects.Blur, 4),
                 (BuiltInEffects.Sharpen, 5), (BuiltInEffects.Blend, 6), (BuiltInEffects.Audio, 7), (BuiltInEffects.Speed, 8),
-                (BuiltInEffects.Stabilize, 9), (BuiltInEffects.Mask, 10), (BuiltInEffects.Crop, 11),
+                (BuiltInEffects.Stabilize, 9), (BuiltInEffects.Mask, 10), (BuiltInEffects.Crop, 11), (BuiltInEffects.Pixelate, 24),
                 (BuiltInEffects.ChromaKey, 12), (BuiltInEffects.ColorWheels, 13), (BuiltInEffects.Curves, 14),
                 (BuiltInEffects.Grain, 15), (BuiltInEffects.Glow, 16), (BuiltInEffects.ChromaticAberration, 17), (BuiltInEffects.Denoise, 18),
                 (BuiltInEffects.Mirror, 19), (BuiltInEffects.LensDistortion, 22), (BuiltInEffects.HslQualifier, 23),

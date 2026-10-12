@@ -6,7 +6,7 @@ Efectos, color, máscaras, croma y recorte. Todo se calcula en la GPU, se ve al 
 
 - **Propiedades** (panel derecho): la transformación del clip en secciones plegables: «Posición y tamaño» (X, Y, escala, ancho, alto, rotación y voltear), «Ancla e inclinación», «Opacidad y mezcla» (opacidad y modo de mezcla), «Desenfoque de movimiento», «Animaciones», «Gráfica» y «Audio». Ver [Transformar y animar](#transformar-y-animar).
 - **Filtros**: la pila de filtros del clip («Añadir filtro», el ojo para activar o desactivar, subir, bajar, quitar) y, debajo, los parámetros del filtro elegido.
-- **Máscaras**: su pestaña propia.
+- **Máscaras**: su pestaña propia (recortar el clip o limitar un efecto a una zona).
 - Biblioteca › **Efectos** (transformar, viñeta, desenfoque, nitidez, recortar, croma, estabilizar…) y **Filtros** (Color y LUT, Ruedas de color, Curvas y los looks de los paquetes): doble clic o arrastrar al clip los aplica.
 
 Cada parámetro va en una fila: etiqueta, deslizador, valor con unidad, rombo de keyframe y restablecer. Por debajo de 340 px de ancho el deslizador baja a una segunda línea. **Arrastra la etiqueta** a los lados para cambiar el valor (Mayús: fino; Ctrl: grueso); doble clic en ella lo restablece.
@@ -36,9 +36,10 @@ Cada parámetro va en una fila: etiqueta, deslizador, valor con unidad, rombo de
 | Recortar | Quita bordes, libre o con proporción | Izquierda, arriba, derecha, abajo; proporción Libre, 16:9, 9:16, 1:1, 4:5, 4:3 |
 | Croma (fondo verde) | Vuelve transparente un color | Color clave con cuentagotas, tolerancia, suavidad, quitar derrame, limpiar borde |
 | Estabilizar | Quita el temblor | Intensidad; recorte automático o sin recorte. Se analiza desde Estabilizar… |
-| Máscara | Deja ver solo una parte | Ver [Máscaras](#máscaras) |
+| Máscara | Deja ver solo una parte o limita un efecto | Ver [Máscaras](#máscaras) |
+| Pixelar | Bloques del color promedio de su zona | Tamaño del bloque; con una máscara, tapa caras o matrículas |
 
-En los títulos solo se aplican desenfoque y nitidez.
+En los títulos solo se aplican desenfoque, nitidez y pixelar.
 
 ## Keyframes
 
@@ -87,12 +88,44 @@ En los títulos solo se aplican desenfoque y nitidez.
 
 ## Máscaras
 
-Pestaña **Máscaras** (o menú del clip › Máscaras):
+Pestaña **Máscaras** (o menú del clip › Máscaras), con el clip elegido y el cursor encima. Recortan el clip o limitan un efecto (desenfocar solo una cara, corregir el color solo de una zona).
 
-- **Rectángulo** y **Elipse** ponen una forma centrada. **Trazo libre** dibuja el contorno con el ratón sobre el visor; al soltar se cierra; Esc cancela. **Sujeto (Quitar fondo)** la crea la IA (ver [IA local](ia-local.md)).
-- Parámetros, todos con keyframes: centro X e Y, ancho y alto, giro, borde suave e intensidad. Casilla **Invertir** para dejar ver lo de fuera.
-- En el visor, arrastrar dentro mueve la máscara y una esquina cambia el tamaño alrededor de su centro.
-- **Uso:** «Recortar la capa» (lo de siempre) o «Limitar efectos»: la máscara no recorta y marca dónde van los efectos que tienen «Dónde» (desenfoque, nitidez, grano, resplandor, aberración, reducción de ruido): toda la imagen, dentro o fuera de esas máscaras. Por ejemplo, desenfocar una cara.
+![Pestaña Máscaras con una estrella Bézier y una zona desenfocada](img/mascaras.png)
+
+**Dibujar.** Elige una herramienta y trabaja en el visor (las letras valen con el puntero sobre el visor):
+
+| Herramienta | Tecla | Cómo |
+|---|---|---|
+| Elegir y editar | V | Mover, cambiar el tamaño, girar y editar puntos |
+| Rectángulo, Elipse | R, E | Arrastra; con Mayús, cuadrado o círculo |
+| Pluma Bézier | P | Clic pone una esquina; arrastrar saca una curva; clic en el primer punto (o Intro) cierra |
+| Pluma de trazo | Mayús+P | Una línea con grosor; Intro la termina |
+| A mano alzada | F | Dibuja el contorno; al soltar queda una Bézier suave |
+| Estrella | | Arrastra; queda como Bézier editable |
+
+Con la pluma, Retroceso quita el último punto y Esc cancela. **Añadir** trae formas centradas (rectángulo, elipse, polígono, estrella, línea), el **sujeto de «Quitar fondo» como Bézier** (el contorno del cuadro del cursor) y **Desenfocar una zona** o **Pixelar una zona**: el efecto con una elipse suave que lo limita, lista para llevarla sobre la cara y seguirla.
+
+**Editar en el visor.** Se ven todas las máscaras del clip, cada una en su color; la elegida lleva su caja: arrastrar dentro la mueve, las esquinas y los bordes cambian el tamaño (Mayús: proporción) y el círculo de arriba la gira (Mayús: de 15° en 15°). En una Bézier o una pluma:
+
+- Clic en un punto lo elige; Mayús+clic suma o quita; arrastra un recuadro para elegir varios; Ctrl+A, todos. Arrastrar mueve los elegidos; las flechas, de a 1 px (Mayús: 10).
+- Los puntos elegidos muestran sus manejadores: arrastrarlos curva el contorno y el del otro lado sigue alineado; con Alt se quiebran.
+- Alt+clic (o doble clic) en un punto lo pasa de esquina (cuadrado) a suave (círculo) y al revés.
+- Ctrl+clic (o doble clic) en el contorno agrega un punto sin cambiar la curva. Supr quita los elegidos.
+
+**La lista.** Ojo para ver u ocultar, color, nombre y cómo se combina. Arrastra para reordenar. El menú «⋯» renombra, cambia el color, duplica, convierte en Bézier, sube, baja o quita.
+
+**La máscara elegida:**
+
+- **Combinar**: **Sumar** (unión), **Restar**, **Intersecar** o **Diferencia** con las de arriba del mismo destino; **Invertir** deja ver lo de afuera. Las máscaras de proyectos anteriores se intersecan, como antes.
+- **Aplicar a**: la capa (recorta el clip) o solo un efecto de la pila: color, viñeta, croma, ruedas, curvas, desenfoque, nitidez o pixelar. Así se corrige el color de una zona o se desenfoca una cara sin recortar el clip.
+- **Uso** (en «Aplicar a»): «Recortar la capa» (lo de siempre) o «Limitar efectos»: la máscara no recorta y marca dónde van los efectos que tienen «Dónde» (desenfoque, nitidez, grano, resplandor, aberración, reducción de ruido): toda la imagen, dentro o fuera de esas máscaras. Por ejemplo, desenfocar una cara.
+- **Caja**: centro, ancho, alto y giro, con keyframes. Convertir un rectángulo o una elipse en Bézier (botón «A Bézier») conserva la forma.
+- **Borde**: borde suave, expansión (agranda o achica), esquinas redondeadas (rectángulo), grosor (pluma) e intensidad. Con puntos elegidos, **Borde ×** (Bézier) o **Grosor ×** (pluma) cambia solo ahí: borde variable.
+- **Forma animada** (Bézier y pluma): el rombo pone un keyframe de la forma en el cursor; las flechas van al anterior y al siguiente. Con la forma animada, editar puntos cambia el keyframe del cursor. «Quitar la animación» deja la forma del cursor.
+- **Seguimiento**: elige qué seguir (posición, escala, giro y, en una Bézier, cada punto con su zona) y pulsa **Adelante** o **Atrás** (o un cuadro con las flechas). La máscara sigue lo que tiene adentro desde el cuadro del cursor hasta el final o el inicio del clip; el cursor la acompaña y la barra de avisos muestra el avance con **Cancelar** (lo seguido hasta ahí queda). Todo es un paso del historial y los keyframes se pueden retocar después.
+- **Vista en el visor**: **Imagen** (como se exporta), **Máscara** (en gris: blanco lo que se ve) o **Superpuesta** (lo que tapa, en rojo). Solo vista previa.
+
+La máscara de **Sujeto (Quitar fondo)** cambia sola en cada cuadro; su borde suave y la expansión no se le aplican. Para editarla a mano, «Añadir» › «Sujeto de «Quitar fondo» como Bézier».
 
 ## Croma
 

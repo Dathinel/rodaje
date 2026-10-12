@@ -58,7 +58,7 @@ internal sealed partial class FiltersPanel
     /// <summary>Rehace la galería y sus miniaturas en cuanto se pueda (una sola vez aunque se pida varias).</summary>
     private void QueuePresetRefresh()
     {
-        if (MasksOnly || _presetRefreshQueued || _services is null)
+        if (_presetRefreshQueued || _services is null)
         {
             return;
         }

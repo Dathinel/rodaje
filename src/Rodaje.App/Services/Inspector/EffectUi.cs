@@ -89,6 +89,7 @@ public static class EffectUi
         [BuiltInEffects.ChromaKey] = "Croma (fondo verde)",
         [BuiltInEffects.ColorWheels] = "Ruedas de color",
         [BuiltInEffects.Curves] = "Curvas",
+        [BuiltInEffects.Pixelate] = "Pixelar",
         [BuiltInEffects.Grain] = "Grano de película",
         [BuiltInEffects.Glow] = "Resplandor",
         [BuiltInEffects.ChromaticAberration] = "Aberración cromática",
@@ -118,7 +119,8 @@ public static class EffectUi
         [BuiltInEffects.Compressor] = "Empareja el volumen: baja lo que pasa del umbral y compensa.",
         [BuiltInEffects.Speed] = "Reservado y oculto: la velocidad se cambia en la pestaña Velocidad.",
         [BuiltInEffects.Stabilize] = "Quita el temblor de la cámara. Se analiza desde el menú del clip (Estabilizar...).",
-        [BuiltInEffects.Mask] = "Deja ver solo una parte de la capa: rectángulo, elipse, trazo libre o el sujeto de «Quitar fondo».",
+        [BuiltInEffects.Mask] = "Deja ver solo una parte de la capa o de un efecto: rectángulo, elipse, Bézier, pluma, trazo libre o el sujeto de «Quitar fondo».",
+        [BuiltInEffects.Pixelate] = "Bloques del color promedio de su zona; con una máscara tapa caras o matrículas.",
         [BuiltInEffects.Crop] = "Quita bordes de la imagen, libre o con proporción fija (16:9, 9:16, 1:1, 4:5, 4:3); se ajusta con asas en el visor.",
         [BuiltInEffects.ChromaKey] = "Vuelve transparente un color de fondo (pantalla verde o azul) con cuentagotas, suavidad y quitar derrame.",
         [BuiltInEffects.ColorWheels] = "Sombras, medios y luces: un tinte y un nivel para cada zona.",
@@ -273,6 +275,11 @@ public static class EffectUi
             [(BuiltInEffects.Mask, Mk.Rotation)] = new("Giro", "Girar la máscara", "°", 1, 1, 1, UiRange.Custom, -180, 180),
             [(BuiltInEffects.Mask, Mk.Feather)] = new("Borde suave", "Cambiar borde de la máscara", "%", 100, 0.5, 1, UiRange.Custom, 0, 50),
             [(BuiltInEffects.Mask, Mk.Opacity)] = Percent with { Label = "Intensidad", Description = "Cambiar intensidad de la máscara" },
+            [(BuiltInEffects.Mask, Mk.Expansion)] = new("Expansión", "Agrandar o achicar la máscara", "%", 100, 0.25, 1, UiRange.Custom, -20, 20),
+            [(BuiltInEffects.Mask, Mk.Roundness)] = Percent with { Label = "Esquinas", Description = "Redondear las esquinas de la máscara" },
+            [(BuiltInEffects.Mask, Mk.Thickness)] = new("Grosor", "Cambiar el grosor del trazo", "%", 100, 0.1, 1, UiRange.Custom, 0, 20),
+
+            [(BuiltInEffects.Pixelate, BuiltInEffects.PixelateParameters.Size)] = new("Tamaño", "Cambiar el tamaño de los bloques", "px", 1, 1, 0),
 
             [(BuiltInEffects.Crop, Cr.Left)] = Percent with { Label = "Izquierda", Description = "Recortar a la izquierda", Step = 0.5, Decimals = 1 },
             [(BuiltInEffects.Crop, Cr.Top)] = Percent with { Label = "Arriba", Description = "Recortar arriba", Step = 0.5, Decimals = 1 },
@@ -366,6 +373,7 @@ public static class EffectUi
         BuiltInEffects.StabilizeOptions.Crop => value == "auto" ? "Automático" : "Sin recorte",
         BuiltInEffects.MaskOptions.Shape => MaskShapeName(value),
         BuiltInEffects.MaskOptions.Invert => value == "on" ? "Sí" : "No",
+        BuiltInEffects.MaskOptions.Mode => MaskModeName(value),
         BuiltInEffects.CropOptions.Aspect => value == "free" ? "Libre" : value,
         BuiltInEffects.TransformOptions.FlipX or BuiltInEffects.TransformOptions.FlipY => value == "on" ? "Sí" : "No",
         BuiltInEffects.BlurOptions.Kind => value switch
@@ -406,6 +414,7 @@ public static class EffectUi
         BuiltInEffects.StabilizeOptions.Crop => "Recorte",
         BuiltInEffects.MaskOptions.Shape => "Forma",
         BuiltInEffects.MaskOptions.Invert => "Invertir",
+        BuiltInEffects.MaskOptions.Mode => "Combinar",
         BuiltInEffects.CropOptions.Aspect => "Proporción",
         BuiltInEffects.TransformOptions.FlipX => "Voltear en horizontal",
         BuiltInEffects.TransformOptions.FlipY => "Voltear en vertical",
@@ -421,6 +430,17 @@ public static class EffectUi
         "ellipse" => "Elipse",
         "path" => "Trazo libre",
         "image" => "Sujeto (Quitar fondo)",
+        "bezier" => "Bézier",
+        "stroke" => "Pluma de trazo",
         _ => "Rectángulo",
+    };
+
+    /// <summary>Cómo se combina una máscara con las anteriores.</summary>
+    public static string MaskModeName(string mode) => mode switch
+    {
+        "add" => "Sumar",
+        "subtract" => "Restar",
+        "difference" => "Diferencia",
+        _ => "Intersecar",
     };
 }

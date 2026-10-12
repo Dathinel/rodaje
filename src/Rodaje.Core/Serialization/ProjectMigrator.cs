@@ -23,6 +23,7 @@ public sealed class ProjectMigrator
         [4] = AllowGenerators,
         [5] = AllowCompounds,
         [6] = AllowBezierKeyframes,
+        [7] = AllowMaskModes,
     };
 
     private readonly IReadOnlyDictionary<int, Action<JsonObject>> _chain;
@@ -159,6 +160,12 @@ public sealed class ProjectMigrator
     /// la escala por eje, la inclinación, el volteo y el desenfoque de movimiento. Todo es opcional: no hay que convertir nada.
     /// </summary>
     internal static void AllowBezierKeyframes(JsonObject root) => root[VersionProperty] = 7;
+
+    /// <summary>
+    /// 7 → 8: solo el número. Las máscaras de un archivo del formato 7 no tienen <c>combine</c> y se siguen multiplicando
+    /// (intersección); un Rodaje del formato 7 rechaza el 8 en vez de dibujar mal las Bézier, los modos o las máscaras de un efecto.
+    /// </summary>
+    internal static void AllowMaskModes(JsonObject root) => root[VersionProperty] = 8;
 
     private static void RemoveSpeed(JsonNode? effects)
     {

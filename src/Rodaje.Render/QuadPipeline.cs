@@ -16,6 +16,8 @@ internal sealed unsafe class QuadPipeline : IDisposable
     private ID3D11SamplerState* _sampler;
     private ID3D11BlendState* _premultipliedOver;
     private ID3D11RasterizerState* _noCulling;
+    private int _width;
+    private int _height;
 
     public QuadPipeline(ID3D11Device* device, ID3D11DeviceContext* context)
     {
@@ -51,6 +53,8 @@ internal sealed unsafe class QuadPipeline : IDisposable
     public void Bind(ID3D11RenderTargetView* target, int width, int height, ID3D11PixelShader* pixelShader, ID3D11BlendState* blend)
     {
         _context->OMSetRenderTargets(1, &target, null);
+        _width = width;
+        _height = height;
         var viewport = new D3D11_VIEWPORT { Width = width, Height = height, MaxDepth = 1 };
         _context->RSSetViewports(1, &viewport);
         _context->RSSetState(_noCulling);
@@ -71,7 +75,9 @@ internal sealed unsafe class QuadPipeline : IDisposable
     {
         D3D11_MAPPED_SUBRESOURCE mapped;
         Check(_context->Map((ID3D11Resource*)_constants, 0, D3D11_MAP.D3D11_MAP_WRITE_DISCARD, 0, &mapped), "Map(constantes)");
-        *(QuadConstants*)mapped.pData = constants;
+        QuadConstants exact = constants;
+        exact.SetPixelGradients(_width, _height);
+        *(QuadConstants*)mapped.pData = exact;
         _context->Unmap((ID3D11Resource*)_constants, 0);
         _context->Draw(4, 0);
     }
@@ -191,6 +197,9 @@ internal struct QuadConstants
     public Float4 ToRgb;
     public Float4 Shape;
     public Float4 Present;
+    public Float4 PixelOrigin;
+    public Float4 PerPixelX;
+    public Float4 PerPixelY;
 
     /// <summary>Un cuadrilátero que llena el destino, con uv y coordenadas locales de 0 a 1.</summary>
     public static QuadConstants FullTarget() => new()
@@ -205,4 +214,49 @@ internal struct QuadConstants
         LocalBottomRight = new(1, 1, 0, 0),
         Shape = new(1, 1e6f, 1, 1),
     };
+
+    /// <summary>
+    /// Cómo cambian uv y las coordenadas locales por píxel de destino desde la esquina superior izquierda, para que los
+    /// shaders las calculen desde <c>SV_Position</c> en lugar de interpolarlas. WARP recorta en el viewport los triángulos
+    /// que se salen (el margen de un píxel del borde suavizado) y los atributos de los vértices nuevos se desvían hasta
+    /// ~1/150 de texel: en un borde fuerte, 1,5/255 por cada pasada. Solo si el cuadrilátero es un paralelogramo (afín).
+    /// </summary>
+    internal void SetPixelGradients(int width, int height)
+    {
+        (double X, double Y) Pixel(Float4 corner) => ((corner.X + 1) * 0.5 * width, (1 - corner.Y) * 0.5 * height);
+        (double x0, double y0) = Pixel(TopLeft);
+        (double x1, double y1) = Pixel(TopRight);
+        (double x2, double y2) = Pixel(BottomLeft);
+        (double x3, double y3) = Pixel(BottomRight);
+        double ax = x1 - x0, ay = y1 - y0, bx = x2 - x0, by = y2 - y0;
+        double det = (ax * by) - (ay * bx);
+        PixelOrigin = default;
+        if (Math.Abs(det) < 1e-6 || Math.Abs(x3 - x1 - x2 + x0) > 1e-2 || Math.Abs(y3 - y1 - y2 + y0) > 1e-2)
+        {
+            return;
+        }
+
+        Span<double> a0 = [TopLeft.Z, TopLeft.W, LocalTopLeft.X, LocalTopLeft.Y];
+        Span<double> a1 = [TopRight.Z, TopRight.W, LocalTopRight.X, LocalTopRight.Y];
+        Span<double> a2 = [BottomLeft.Z, BottomLeft.W, LocalBottomLeft.X, LocalBottomLeft.Y];
+        Span<double> a3 = [BottomRight.Z, BottomRight.W, LocalBottomRight.X, LocalBottomRight.Y];
+        Span<float> dx = stackalloc float[4];
+        Span<float> dy = stackalloc float[4];
+        for (int k = 0; k < 4; k++)
+        {
+            double d1 = a1[k] - a0[k];
+            double d2 = a2[k] - a0[k];
+            if (Math.Abs(a3[k] - a1[k] - a2[k] + a0[k]) > 1e-4 * (Math.Abs(d1) + Math.Abs(d2) + 1))
+            {
+                return;
+            }
+
+            dx[k] = (float)(((d1 * by) - (d2 * ay)) / det);
+            dy[k] = (float)(((d2 * ax) - (d1 * bx)) / det);
+        }
+
+        PixelOrigin = new((float)x0, (float)y0, 1, 0);
+        PerPixelX = new(dx[0], dx[1], dx[2], dx[3]);
+        PerPixelY = new(dy[0], dy[1], dy[2], dy[3]);
+    }
 }

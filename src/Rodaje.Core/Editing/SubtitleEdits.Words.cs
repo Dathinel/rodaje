@@ -169,13 +169,41 @@ public static partial class SubtitleEdits
         Time shift = (next.Start - next.SourceIn) - (clip.Start - clip.SourceIn);
         left.Words = left.Words is null || right.Words is null
             ? null
-            : [.. left.Words.Select(w => w.Clone()), .. right.Words.Select(w => new GeneratorWord { Start = w.Start + shift, End = w.End + shift, Text = w.Text })];
+            : JoinWords(left.Words, [.. right.Words.Select(w => new GeneratorWord { Start = w.Start + shift, End = w.End + shift, Text = w.Text })],
+                clip.SourceOut, next.SourceIn + shift);
         left.Text = Rewrap(texts);
         left.Edges.Out = right.Edges.Out;
         left.Edges.After = right.Edges.After;
         clip.SourceOut += next.End - clip.End;
         track.Clips.Remove(next);
         ctx.EnsureValid();
+    }
+
+    /// <summary>
+    /// Las palabras de los dos, en orden. Si las que quedaban ocultas junto a la unión (después del final visible del primero,
+    /// <paramref name="leftEnd"/>, o antes del inicio visible del segundo, <paramref name="rightStart"/>) se cruzarían en el
+    /// tiempo, empiezan en ese borde: las visibles no se mueven.
+    /// </summary>
+    private static List<GeneratorWord> JoinWords(List<GeneratorWord> left, List<GeneratorWord> right, Time leftEnd, Time rightStart)
+    {
+        List<GeneratorWord> joined = [.. left.Select(w => w.Clone()), .. right];
+        if (left.Count == 0 || right.Count == 0 || right[0].Start >= left[^1].Start)
+        {
+            return joined;
+        }
+
+        foreach (GeneratorWord word in joined.Take(left.Count).Where(w => w.Start > leftEnd))
+        {
+            word.Start = leftEnd;
+        }
+
+        foreach (GeneratorWord word in joined.Skip(left.Count).Where(w => w.Start < rightStart))
+        {
+            word.Start = rightStart;
+            word.End = Time.Max(word.End, rightStart);
+        }
+
+        return joined;
     }
 
     private static (Clip Clip, List<GeneratorWord> Words) Subtitle(EditContext ctx, string clipId)
