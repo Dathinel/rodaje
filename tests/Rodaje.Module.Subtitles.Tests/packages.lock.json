@@ -135,6 +135,9 @@
       },
       "rodaje.modules.protocol": {
         "type": "Project"
+      },
+      "rodaje.paquetes": {
+        "type": "Project"
       }
     }
   }
