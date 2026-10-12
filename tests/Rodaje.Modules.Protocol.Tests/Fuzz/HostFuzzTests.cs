@@ -13,10 +13,8 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 /// <item><c>RunAsync</c> termina antes de <see cref="FuzzSupport.CaseCap"/>, devuelve un <c>bool</c> y no lanza.</item>
 /// <item>Todo lo que el módulo escribe es un mensaje válido del protocolo para el editor.</item>
 /// </list>
-/// Una excepción de <c>RunAsync</c> es un defecto conocido y aquí se cuenta y registra en vez de fallar: una
-/// <see cref="System.Text.Json.JsonException"/> al no poder escribir la respuesta de <c>eco</c> a unos parámetros con un
-/// sustituto UTF-16 suelto, solo si el caso mandó uno (<see cref="ProtocolDefectTests.A_lone_surrogate_in_parameters_is_rejected"/>).
-/// Ninguna otra excepción se da por buena.
+/// No se tolera ninguna excepción de <c>RunAsync</c> (los defectos 2 y 4 de <see cref="ProtocolDefectTests"/>, que antes
+/// se contaban aquí, están corregidos).
 /// </summary>
 [Collection(FuzzGroup.Name)]
 public sealed class HostFuzzTests(ITestOutputHelper output)
@@ -87,16 +85,9 @@ public sealed class HostFuzzTests(ITestOutputHelper output)
             }
             if (ending != Ending.Shutdown) editor.Dispose();
 
-            try
-            {
-                bool clean = await FuzzSupport.Capped(run, "ModuleHost.RunAsync");
-                if (clean) Interlocked.Increment(ref tally.Clean);
-                else Interlocked.Increment(ref tally.Refused);
-            }
-            catch (System.Text.Json.JsonException ex) when (ex.InnerException is InvalidOperationException && script.Any(FuzzSupport.HasSurrogateEscape))
-            {
-                Interlocked.Increment(ref tally.KnownSurrogate);
-            }
+            bool clean = await FuzzSupport.Capped(run, "ModuleHost.RunAsync");
+            if (clean) Interlocked.Increment(ref tally.Clean);
+            else Interlocked.Increment(ref tally.Refused);
         }
         finally
         {
@@ -159,10 +150,9 @@ public sealed class HostFuzzTests(ITestOutputHelper output)
         public int Clean;
         public int Refused;
         public int Replies;
-        public int KnownSurrogate;
 #pragma warning restore CA1051
 
         public override string ToString() =>
-            $"terminó bien {Clean}, cortó por protocolo o versión {Refused}, mensajes del módulo {Replies}, defecto conocido: JsonException por un sustituto suelto {KnownSurrogate}";
+            $"terminó bien {Clean}, cortó por protocolo o versión {Refused}, mensajes del módulo {Replies}";
     }
 }

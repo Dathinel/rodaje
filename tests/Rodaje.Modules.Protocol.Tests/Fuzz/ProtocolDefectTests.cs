@@ -115,7 +115,7 @@ public sealed class ProtocolDefectTests
     /// del editor, un módulo puede colar el mismo valor en <c>result.value</c> y la app lo recibe como válido. Lo que
     /// debería pasar: <c>Parse</c> lo rechaza como malformado.
     /// </summary>
-    [Fact(Skip = "Defecto: Parse acepta un sustituto UTF-16 suelto (\\ud800) en parameters/value; la respuesta de eco se pierde.")]
+    [Fact]
     public async Task A_lone_surrogate_in_parameters_is_rejected()
     {
         byte[] invoke = Encoding.UTF8.GetBytes("""{"type":"invoke","id":1,"function":"eco","parameters":"\ud800"}""");
