@@ -252,6 +252,100 @@ public static class BuiltInEffects
         public const string MatteStart = "matteStart";
     }
 
+    /// <summary>
+    /// Recorte de la imagen de la capa: lo que queda se ajusta al cuadro como si fuera la imagen entera y las máscaras van
+    /// sobre esa parte. La proporción fija la imponen la interfaz y <see cref="Effects.CropGeometry"/>; el motor solo lee los bordes.
+    /// </summary>
+    public const string Crop = "rodaje.crop";
+
+    public static class CropParameters
+    {
+        /// <summary>Lo que se quita a la izquierda, en fracción del ancho de la imagen. Por defecto 0.</summary>
+        public const string Left = "left";
+
+        public const string Top = "top";
+
+        public const string Right = "right";
+
+        public const string Bottom = "bottom";
+    }
+
+    public static class CropOptions
+    {
+        /// <summary>Uno de <see cref="Effects.EffectRegistry.CropAspects"/>: <c>free</c> o una proporción fija del recorte.</summary>
+        public const string Aspect = "aspect";
+    }
+
+    /// <summary>
+    /// Croma (pantalla verde o azul): vuelve transparente lo que se parece al color clave, en Y'CbCr BT.709. Va antes del
+    /// color y de la LUT, sobre la imagen original, y se multiplica con las máscaras.
+    /// </summary>
+    public const string ChromaKey = "rodaje.chromakey";
+
+    public static class ChromaKeyParameters
+    {
+        /// <summary>Color clave, de 0 a 1 en R'G'B'. No se anima.</summary>
+        public const string Red = "keyRed";
+
+        public const string Green = "keyGreen";
+
+        public const string Blue = "keyBlue";
+
+        /// <summary>Distancia de croma por debajo de la cual el píxel es transparente, de 0 a 1.</summary>
+        public const string Tolerance = "tolerance";
+
+        /// <summary>Ancho de la transición a opaco, de 0 a 1.</summary>
+        public const string Softness = "softness";
+
+        /// <summary>Cuánto se quita del tono de la clave en lo que queda (derrame), de 0 a 1.</summary>
+        public const string Spill = "spill";
+
+        /// <summary>Recorta los semitransparentes del borde por arriba y por abajo, de 0 a 1.</summary>
+        public const string Cleanup = "cleanup";
+    }
+
+    /// <summary>Ruedas de color: sombras (lift), medios (gamma) y luces (gain), cada una con un tinte R'G'B' y un valor general.</summary>
+    public const string ColorWheels = "rodaje.wheels";
+
+    public static class ColorWheelsParameters
+    {
+        public const string LiftRed = "liftRed";
+        public const string LiftGreen = "liftGreen";
+        public const string LiftBlue = "liftBlue";
+
+        /// <summary>Sombras: <c>c + lift·(1 − c)</c>; sube o baja el negro sin mover el blanco.</summary>
+        public const string Lift = "lift";
+
+        public const string GammaRed = "gammaRed";
+        public const string GammaGreen = "gammaGreen";
+        public const string GammaBlue = "gammaBlue";
+
+        /// <summary>Medios: <c>c^(2^−gamma)</c>; positivo aclara.</summary>
+        public const string Gamma = "gamma";
+
+        public const string GainRed = "gainRed";
+        public const string GainGreen = "gainGreen";
+        public const string GainBlue = "gainBlue";
+
+        /// <summary>Luces: <c>c·(1 + gain)</c>.</summary>
+        public const string Gain = "gain";
+    }
+
+    /// <summary>Curvas: una general y una por canal, con puntos que se unen con una cúbica monótona (<see cref="Effects.ToneCurve"/>).</summary>
+    public const string Curves = "rodaje.curves";
+
+    public static class CurvesOptions
+    {
+        /// <summary>Puntos <c>x,y;x,y;…</c> de 0 a 1; vacía es la identidad. La general va después de la del canal.</summary>
+        public const string Master = "master";
+
+        public const string Red = "red";
+
+        public const string Green = "green";
+
+        public const string Blue = "blue";
+    }
+
     /// <summary>Opciones que cualquier efecto puede llevar además de las suyas.</summary>
     public static class CommonOptions
     {

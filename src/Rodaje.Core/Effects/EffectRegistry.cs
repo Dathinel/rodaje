@@ -4,8 +4,10 @@ using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using A = Rodaje.Core.Model.BuiltInEffects.AudioParameters;
 using C = Rodaje.Core.Model.BuiltInEffects.ColorParameters;
+using CK = Rodaje.Core.Model.BuiltInEffects.ChromaKeyParameters;
 using K = Rodaje.Core.Model.BuiltInEffects.CompressorParameters;
 using Q = Rodaje.Core.Model.BuiltInEffects.EqualizerParameters;
+using W = Rodaje.Core.Model.BuiltInEffects.ColorWheelsParameters;
 using M = Rodaje.Core.Model.BuiltInEffects.MaskParameters;
 using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
 
@@ -35,6 +37,9 @@ public static class EffectRegistry
 
     /// <summary>Formas de <see cref="BuiltInEffects.Mask"/>, en el orden de <see cref="MaskShape"/>.</summary>
     public static ImmutableArray<string> MaskShapes { get; } = ["rectangle", "ellipse", "path", "image"];
+
+    /// <summary>Proporciones de <see cref="BuiltInEffects.Crop"/>: libre o ancho:alto del recorte en pantalla.</summary>
+    public static ImmutableArray<string> CropAspects { get; } = ["free", "16:9", "9:16", "1:1", "4:5", "4:3"];
 
     /// <summary>Duración con la que se suelta una transición.</summary>
     public static Time DefaultTransitionDuration { get; } = Time.FromSeconds(0.5);
@@ -109,6 +114,46 @@ public static class EffectRegistry
             OptionDefinition.Text(BuiltInEffects.MaskOptions.Path),
             OptionDefinition.Text(BuiltInEffects.MaskOptions.Matte),
             OptionDefinition.Text(BuiltInEffects.MaskOptions.MatteStart),
+        ]),
+        new(BuiltInEffects.Crop, 11, EffectTarget.Video, EffectStage.Transform,
+        [
+            new(BuiltInEffects.CropParameters.Left, 0, 0, CropGeometry.MaxCrop),
+            new(BuiltInEffects.CropParameters.Top, 0, 0, CropGeometry.MaxCrop),
+            new(BuiltInEffects.CropParameters.Right, 0, 0, CropGeometry.MaxCrop),
+            new(BuiltInEffects.CropParameters.Bottom, 0, 0, CropGeometry.MaxCrop),
+        ],
+        [OptionDefinition.Choice(BuiltInEffects.CropOptions.Aspect, "free", [.. CropAspects])]),
+        new(BuiltInEffects.ChromaKey, 12, EffectTarget.Video, EffectStage.PerPixel,
+        [
+            new(CK.Red, 0, 0, 1, Animatable: false),
+            new(CK.Green, 0.7, 0, 1, Animatable: false),
+            new(CK.Blue, 0.2, 0, 1, Animatable: false),
+            new(CK.Tolerance, 0.2, 0, 1),
+            new(CK.Softness, 0.1, 0, 1),
+            new(CK.Spill, 0.5, 0, 1),
+            new(CK.Cleanup, 0, 0, 1),
+        ]),
+        new(BuiltInEffects.ColorWheels, 13, EffectTarget.Video, EffectStage.PerPixel,
+        [
+            new(W.LiftRed, 0, -0.5, 0.5),
+            new(W.LiftGreen, 0, -0.5, 0.5),
+            new(W.LiftBlue, 0, -0.5, 0.5),
+            new(W.Lift, 0, -0.5, 0.5),
+            new(W.GammaRed, 0, -1, 1),
+            new(W.GammaGreen, 0, -1, 1),
+            new(W.GammaBlue, 0, -1, 1),
+            new(W.Gamma, 0, -1, 1),
+            new(W.GainRed, 0, -1, 1),
+            new(W.GainGreen, 0, -1, 1),
+            new(W.GainBlue, 0, -1, 1),
+            new(W.Gain, 0, -1, 1),
+        ]),
+        new(BuiltInEffects.Curves, 14, EffectTarget.Video, EffectStage.PerPixel, [],
+        [
+            OptionDefinition.Text(BuiltInEffects.CurvesOptions.Master),
+            OptionDefinition.Text(BuiltInEffects.CurvesOptions.Red),
+            OptionDefinition.Text(BuiltInEffects.CurvesOptions.Green),
+            OptionDefinition.Text(BuiltInEffects.CurvesOptions.Blue),
         ]),
 
         new(BuiltInEffects.Equalizer, 20, EffectTarget.Audio, EffectStage.Audio,

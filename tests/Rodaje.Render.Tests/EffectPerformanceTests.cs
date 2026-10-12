@@ -110,6 +110,37 @@ public sealed class EffectPerformanceTests(ITestOutputHelper output)
         }
     }
 
+    [GpuFact]
+    public void One_1080p_layer_with_key_wheels_curves_and_compare()
+    {
+        using GpuDevice gpu = GpuDevice.Create();
+        nint texture = Texture(gpu, 1920, 1088, 1);
+        try
+        {
+            LayerFrame Layer() => Layers.FromTexture(gpu, texture, 0, 1920, 1080, Bt709, LayerTransform.Identity with
+            {
+                Crop = new CropRect(0.05, 0.05, 0.05, 0.05),
+            }, 0, new LayerLook([
+                Fx.Make(BuiltInEffects.ChromaKey, null, (BuiltInEffects.ChromaKeyParameters.Spill, 0.5)),
+                Graded(),
+                Fx.Make(BuiltInEffects.ColorWheels, null, (BuiltInEffects.ColorWheelsParameters.Lift, 0.05), (BuiltInEffects.ColorWheelsParameters.Gamma, 0.2)),
+                new LayerEffect(EffectRegistry.Find(BuiltInEffects.Curves)!.Code, default, new ResourceKey("0,0;0.3,0.25;0.7,0.8;1,1|||")),
+            ]));
+            (double median, _) = Measure(gpu, "1 capa 1080p con recorte, croma, color, LUT, ruedas y curvas", 1920, 1080, 1920, 1080, Layer());
+            _setup = c => c.CompareSplit = 0.5f;
+            (double compare, _) = Measure(gpu, "La misma con antes/después", 1920, 1080, 1920, 1080, Layer());
+            _setup = null;
+            Require(median <= 1.0, $"Una capa 1080p con croma, ruedas y curvas: {median:0.000} ms (objetivo ≤1,0).");
+            Require(compare <= 2.0, $"Con antes/después: {compare:0.000} ms (objetivo ≤2,0).");
+        }
+        finally
+        {
+            Layers.Release(texture);
+        }
+    }
+
+    private Action<Compositor>? _setup;
+
     private static LayerEffect Graded() => Fx.Make(BuiltInEffects.Color, new ResourceKey(Lut), (C.Exposure, 0.2), (C.Contrast, 0.15),
         (C.Saturation, 0.2), (C.Temperature, 0.1), (C.Highlights, -0.2), (C.Shadows, 0.1), (C.LutIntensity, 0.8));
 
@@ -150,6 +181,7 @@ public sealed class EffectPerformanceTests(ITestOutputHelper output)
     {
         using var compositor = new Compositor(gpu, width, height);
         compositor.Resources = new FakeResources().Add(Lut, Luts.Create(33, (r, g, b) => (Math.Sqrt(r), g, b * b)));
+        _setup?.Invoke(compositor);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using var timer = new GpuTimer(gpu);
         using var frame = new CompositionFrame(Rodaje.Core.Timing.Time.Zero, sequenceWidth, sequenceHeight, layers);

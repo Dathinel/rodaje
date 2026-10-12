@@ -30,6 +30,18 @@ public enum GpuEffectKind
     /// <summary>Se dibuja en la textura de máscaras de la capa y multiplica su alfa (<c>PsMask</c>).</summary>
     Mask,
 
+    /// <summary>Llega en <c>LayerTransform.Crop</c>: cambia el tamaño colocado y las esquinas de la textura.</summary>
+    Crop,
+
+    /// <summary>En <c>PsGraded</c> con <c>ADVANCED</c>, antes del color, sobre la imagen original.</summary>
+    ChromaKey,
+
+    /// <summary>En <c>PsGraded</c> con <c>ADVANCED</c>, después del color y antes de la LUT.</summary>
+    ColorWheels,
+
+    /// <summary>En <c>PsGraded</c> con <c>ADVANCED</c>, después de las ruedas: tabla en <c>t10</c>.</summary>
+    Curves,
+
     /// <summary>Transición de paquete: el motor la entrega resuelta a su mezcla; si llega sin resolver, fundido cruzado.</summary>
     Preset,
 }
@@ -53,6 +65,10 @@ public static class GpuEffectRegistry
         new(6, BuiltInEffects.Blend, EffectStage.Blend, GpuEffectKind.Blend),
         new(9, BuiltInEffects.Stabilize, EffectStage.Transform, GpuEffectKind.Stabilize),
         new(10, BuiltInEffects.Mask, EffectStage.PerPixel, GpuEffectKind.Mask),
+        new(11, BuiltInEffects.Crop, EffectStage.Transform, GpuEffectKind.Crop),
+        new(12, BuiltInEffects.ChromaKey, EffectStage.PerPixel, GpuEffectKind.ChromaKey),
+        new(13, BuiltInEffects.ColorWheels, EffectStage.PerPixel, GpuEffectKind.ColorWheels),
+        new(14, BuiltInEffects.Curves, EffectStage.PerPixel, GpuEffectKind.Curves),
         new(101, BuiltInTransitions.Crossfade, EffectStage.Transition, GpuEffectKind.Crossfade),
         new(102, BuiltInTransitions.Dip, EffectStage.Transition, GpuEffectKind.Dip),
         new(103, BuiltInTransitions.Wipe, EffectStage.Transition, GpuEffectKind.Wipe),

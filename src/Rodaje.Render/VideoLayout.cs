@@ -75,6 +75,22 @@ public static class VideoLayout
         };
     }
 
+    /// <summary>Las esquinas de la parte que queda tras el recorte (en fracciones de la imagen en pantalla).</summary>
+    public static QuadTexCoords Crop(in QuadTexCoords corners, Rodaje.Core.Effects.CropRect? crop)
+    {
+        if (crop is not { } c || c.IsNone)
+        {
+            return corners;
+        }
+
+        float l = (float)c.Left, t = (float)c.Top, r = 1 - (float)c.Right, b = 1 - (float)c.Bottom;
+        return new QuadTexCoords(
+            LayerLayout.TexCoordAt(corners, l, t, 1, 1),
+            LayerLayout.TexCoordAt(corners, r, t, 1, 1),
+            LayerLayout.TexCoordAt(corners, l, b, 1, 1),
+            LayerLayout.TexCoordAt(corners, r, b, 1, 1));
+    }
+
     public static int NormalizeRotation(int rotation)
     {
         int r = ((rotation % 360) + 360) % 360;

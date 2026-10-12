@@ -11,6 +11,9 @@ public readonly record struct LayerTransform(double X, double Y, double Scale, d
 
     /// <summary>Corrección de «Estabilizar» del cuadro, que va antes de esta transformación; nula sin estabilizar.</summary>
     public LayerStabilization? Stabilization { get; init; }
+
+    /// <summary>Recorte de «Recortar» (<c>Rodaje.Core.Effects.CropGeometry</c>): lo que queda se ajusta al cuadro como la imagen entera.</summary>
+    public Rodaje.Core.Effects.CropRect? Crop { get; init; }
 }
 
 /// <summary>

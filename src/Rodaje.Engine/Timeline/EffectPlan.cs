@@ -19,6 +19,7 @@ internal sealed class EffectPlan
 {
     private readonly Curve[]? _transform;
     private readonly ImageEffect[] _effects;
+    private Curve[]? _crop;
 
     private EffectPlan(Curve[]? transform, ImageEffect[] effects, BlendMode blend, StabilizationTrack? stabilization)
     {
@@ -35,6 +36,12 @@ internal sealed class EffectPlan
 
     public int EffectCount => _effects.Length;
 
+    /// <summary>Puede dejar ver lo de abajo aunque sea opaca: recorte, máscara o croma.</summary>
+    public bool MayRevealBelow => _crop is not null || Array.Exists(_effects, e => e.Code == MaskCode || e.Code == ChromaKeyCode);
+
+    private static readonly int MaskCode = EffectRegistry.Find(BuiltInEffects.Mask)!.Code;
+    private static readonly int ChromaKeyCode = EffectRegistry.Find(BuiltInEffects.ChromaKey)!.Code;
+
     /// <summary>Nulo si el clip no tiene transformación, efectos de imagen, mezcla ni estabilizar: el camino rápido.</summary>
     /// <param name="effects">La pila del clip.</param>
     /// <param name="content">De dónde salen las correcciones de estabilizar; sin él, no se estabiliza.</param>
@@ -47,6 +54,7 @@ internal sealed class EffectPlan
         bool blended = false;
         StabilizationTrack? stabilization = null;
         bool stabilized = false;
+        Curve[]? crop = null;
         foreach (EffectInstance effect in effects)
         {
             if (!effect.Enabled || EffectRegistry.Find(effect.Type) is not { } definition)
@@ -62,6 +70,12 @@ internal sealed class EffectPlan
                     stabilization = FindStabilization(definition, effect, content);
                 }
 
+                continue;
+            }
+
+            if (effect.Type == BuiltInEffects.Crop)
+            {
+                crop ??= Curves(definition, effect.Parameters);
                 continue;
             }
 
@@ -81,9 +95,9 @@ internal sealed class EffectPlan
             }
         }
 
-        return transform is null && images.Count == 0 && blend == BlendMode.Normal && stabilization is null
+        return transform is null && images.Count == 0 && blend == BlendMode.Normal && stabilization is null && crop is null
             ? null
-            : new EffectPlan(transform, [.. images], blend, stabilization);
+            : new EffectPlan(transform, [.. images], blend, stabilization) { _crop = crop };
     }
 
     private static StabilizationTrack? FindStabilization(EffectDefinition definition, EffectInstance effect, IEffectContent? content)
@@ -106,14 +120,17 @@ internal sealed class EffectPlan
 
     public static LayerTransform Transform(EffectPlan? plan, Time sourceTime)
     {
-        if (plan?._transform is not { } curves)
+        long at = sourceTime.Ticks;
+        LayerTransform transform = plan?._transform is { } curves
+            ? new LayerTransform(curves[0].Evaluate(at), curves[1].Evaluate(at), curves[2].Evaluate(at), curves[3].Evaluate(at), curves[4].Evaluate(at))
+            : LayerTransform.Identity;
+        if (plan?._crop is { } crop)
         {
-            return LayerTransform.Identity;
+            CropRect rect = CropGeometry.Sanitize(new CropRect(crop[0].Evaluate(at), crop[1].Evaluate(at), crop[2].Evaluate(at), crop[3].Evaluate(at)));
+            transform = rect.IsNone ? transform : transform with { Crop = rect };
         }
 
-        long at = sourceTime.Ticks;
-        return new LayerTransform(curves[0].Evaluate(at), curves[1].Evaluate(at), curves[2].Evaluate(at), curves[3].Evaluate(at),
-            curves[4].Evaluate(at));
+        return transform;
     }
 
     /// <summary>La mayor escala de la transformación (1 sin transformación).</summary>
@@ -197,8 +214,19 @@ internal sealed class EffectPlan
                 };
             }
 
+            if (definition.Type == BuiltInEffects.Curves)
+            {
+                // Las cuatro curvas viajan como una clave de texto; el render arma la tabla y la guarda.
+                string key = ToneCurve.Key(effect.Options);
+                return new ImageEffect(definition.Code, [], constants, ToneCurve.IsIdentityKey(key) ? null : new ResourceKey(key)) { KeepsResource = true };
+            }
+
             return new ImageEffect(definition.Code, Curves(definition, effect.Parameters), constants, resource);
         }
+
+        public int Code => code;
+
+        private bool KeepsResource { get; init; }
 
         private bool IsMask { get; init; }
 
@@ -215,6 +243,11 @@ internal sealed class EffectPlan
             if (IsMask)
             {
                 values[MaskGeometry.MatteTimeSlot] = (float)((double)(at - MatteStart) / Time.TicksPerSecond);
+                return new LayerEffect(code, values, resource);
+            }
+
+            if (KeepsResource)
+            {
                 return new LayerEffect(code, values, resource);
             }
 

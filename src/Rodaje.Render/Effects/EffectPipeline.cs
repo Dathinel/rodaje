@@ -21,6 +21,12 @@ internal struct EffectConstants
     public Float4 Mix0;
     public Float4 Mix1;
     public Float4 Canvas;
+    public Float4 Key0;
+    public Float4 Key1;
+    public Float4 Lift;
+    public Float4 GammaExp;
+    public Float4 Gain;
+    public Float4 Extra;
 }
 
 /// <summary>

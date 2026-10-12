@@ -40,7 +40,10 @@ internal static class EffectShaders
     public const int Vignette = 4;
     public const int Blend = 8;
     public const int Mask = 16;
-    public const int GradedVariants = 32;
+
+    /// <summary>Croma, ruedas y curvas: cada uno se enciende con <c>extra</c> (rama uniforme) para no multiplicar las variantes.</summary>
+    public const int Advanced = 32;
+    public const int GradedVariants = 64;
 
     // grade: x = 2^exposición, y = 1 + contraste, z = 1 + saturación, w = intensidad de la LUT.
     // balance: ganancia por canal de temperatura y tinte. tones: x = altas, y = sombras, zw = escala y desplazamiento
@@ -52,6 +55,9 @@ internal static class EffectShaders
     // En PsMask (MaskGeometry es la referencia): mix0 = forma, invertir, opacidad y borde suave en píxeles de la imagen;
     // mix1 = centro y medio tamaño en píxeles de la imagen; kernel = coseno y seno del giro y puntos del trazo; canvas =
     // tamaño de la imagen. En PsGraded con MASK, mapB lleva a la textura de máscaras (t7).
+    // Con ADVANCED: extra = croma, ruedas y curvas encendidos (0 o 1). key0 = Cb y Cr de la clave, tolerancia, suavidad;
+    // key1 = derrame, recorte del borde (0–0,45), dirección unitaria de la clave en CbCr. lift, gain: por canal (ya sumado
+    // el general); gammaExp: exponente 2^−gamma por canal. Curvas: tabla de 1024 × 1 en t10 (canal y luego general).
     private const string Source = RenderShaders.Prelude + """
         cbuffer Effects : register(b1)
         {
@@ -66,6 +72,12 @@ internal static class EffectShaders
             float4 mix0;
             float4 mix1;
             float4 canvas;
+            float4 key0;
+            float4 key1;
+            float4 lift;
+            float4 gammaExp;
+            float4 gain;
+            float4 extra;
         };
 
         Texture2D<float4> background : register(t3);
@@ -75,6 +87,7 @@ internal static class EffectShaders
         Texture2D<float4> maskImage : register(t7);
         Texture2D<float2> pathPoints : register(t8);
         Texture2D<float> matteImage : register(t9);
+        Texture2D<float4> curveTable : register(t10);
 
         static const float3 LumaWeights = float3(0.2126, 0.7152, 0.0722);
 
@@ -96,6 +109,42 @@ internal static class EffectShaders
         {
             float3 graded = lut.SampleLevel(linearClamp, rgb * tones.z + tones.w, 0).rgb;
             return saturate(lerp(rgb, graded, grade.w));
+        }
+
+        static const float CurveSize = 1024.0;
+
+        // Croma en Y'CbCr BT.709: alfa por la distancia de croma a la clave y derrame quitado a lo largo de su dirección,
+        // conservando la luma. Devuelve el color corregido; el alfa sale en keyAlpha.
+        float3 ChromaKey(float3 rgb, out float keyAlpha)
+        {
+            float y = dot(rgb, LumaWeights);
+            float2 c = float2((rgb.b - y) / 1.8556, (rgb.r - y) / 1.5748);
+            float d = 2.0 * length(c - key0.xy);
+            float t = saturate((d - key0.z) / max(key0.w, 1e-3));
+            float a = t * t * (3.0 - 2.0 * t);
+            keyAlpha = saturate((a - key1.y) / (1.0 - 2.0 * key1.y));
+            float along = dot(c, key1.zw);
+            c -= key1.zw * (key1.x * max(along, 0.0));
+            float r = y + 1.5748 * c.y;
+            float b = y + 1.8556 * c.x;
+            float g = (y - 0.2126 * r - 0.0722 * b) / 0.7152;
+            return saturate(float3(r, g, b));
+        }
+
+        float3 Wheels(float3 rgb)
+        {
+            rgb = rgb + lift.rgb * (1.0 - rgb);
+            rgb = rgb * gain.rgb;
+            return saturate(pow(max(rgb, 0.0), gammaExp.rgb));
+        }
+
+        float3 Curves(float3 rgb)
+        {
+            float3 u = saturate(rgb) * ((CurveSize - 1.0) / CurveSize) + 0.5 / CurveSize;
+            return float3(
+                curveTable.SampleLevel(linearClamp, float2(u.r, 0.5), 0).r,
+                curveTable.SampleLevel(linearClamp, float2(u.g, 0.5), 0).g,
+                curveTable.SampleLevel(linearClamp, float2(u.b, 0.5), 0).b);
         }
 
         float VignetteGain(float2 uv)
@@ -156,8 +205,26 @@ internal static class EffectShaders
         float4 PsGraded(VsOut i) : SV_Target
         {
             float3 rgb = SampleRgb(i.uv);
+            float keyAlpha = 1.0;
+        #if ADVANCED
+            [branch] if (extra.x > 0.5)
+            {
+                rgb = ChromaKey(rgb, keyAlpha);
+            }
+        #endif
         #if COLOR
             rgb = Grade(rgb);
+        #endif
+        #if ADVANCED
+            [branch] if (extra.y > 0.5)
+            {
+                rgb = Wheels(rgb);
+            }
+
+            [branch] if (extra.z > 0.5)
+            {
+                rgb = Curves(rgb);
+            }
         #endif
         #if LUT
             rgb = ApplyLut(rgb);
@@ -165,7 +232,7 @@ internal static class EffectShaders
         #if VIGNETTE
             rgb *= VignetteGain(i.local / shape.zw);
         #endif
-            float alpha = shape.x * EdgeCoverage(i.local);
+            float alpha = shape.x * EdgeCoverage(i.local) * keyAlpha;
         #if MASK
             alpha *= maskImage.SampleLevel(linearClamp, min(i.local / shape.zw * mapB.xy, mapB.zw), 0).r;
         #endif
@@ -392,6 +459,11 @@ internal static class EffectShaders
         if ((flags & Mask) != 0)
         {
             defines.Add("MASK");
+        }
+
+        if ((flags & Advanced) != 0)
+        {
+            defines.Add("ADVANCED");
         }
 
         return new ShaderVariant(Source, entryPoint, "ps_5_0", SourceName, [.. defines]);

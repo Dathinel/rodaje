@@ -192,10 +192,9 @@ public sealed unsafe class Compositor : IDisposable
         ObjectDisposedException.ThrowIf(_output is null, this);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frame.Width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frame.Height);
-        int drawn = 0;
+        int drawn;
         var stats = default(FrameStats);
         var destination = new Destination(_output, Width, Height, frame.Width, frame.Height);
-        float pixelScale = destination.PixelScale;
         TitleRasterizer? titles = _titles;
         if (titles is not null)
         {
@@ -216,56 +215,17 @@ public sealed unsafe class Compositor : IDisposable
         _gpu.LockContext();
         try
         {
-            _pipeline.Bind(_output.Rtv, Width, Height, QuadPipeline.Shader.Layer);
-            float* black = stackalloc float[] { 0f, 0f, 0f, TransparentBackground ? 0f : 1f };
-            _context->ClearRenderTargetView(_output.Rtv, black);
-            bool bound = true;
-            IReadOnlyList<LayerFrame> layers = frame.Layers;
-            for (int i = 0; i < layers.Count; i++)
+            PreviewBypass bypass = strict ? PreviewBypass.None : Bypass;
+            _layers.Bypass = bypass;
+            drawn = DrawLayers(frame, geometry, destination, titles, ref stats);
+            if (!strict && CompareSplit is { } split && split > 0 && (bypass & PreviewBypass.Grading) == 0)
             {
-                LayerFrame layer = layers[i];
-                if (layer.Generated is { } generated)
-                {
-                    bound = false;
-                    if (DrawTitle(layer, generated, titles, destination, ref stats))
-                    {
-                        drawn++;
-                    }
-
-                    continue;
-                }
-
-                if (_layers.Usable(layer) is not { } payload)
-                {
-                    stats.LayersSkipped++;
-                    continue;
-                }
-
-                if (layer.IsPlain)
-                {
-                    if (!bound)
-                    {
-                        _pipeline.Bind(_output.Rtv, Width, Height, QuadPipeline.Shader.Layer);
-                        bound = true;
-                    }
-
-                    if (_layers.DrawPlain(layer, payload, geometry?.Invoke(layer) ?? SourceGeometry.Square, frame.Width, frame.Height, pixelScale))
-                    {
-                        drawn++;
-                    }
-
-                    continue;
-                }
-
-                bound = false;
-                if (_layers.Draw(layer, payload, geometry, destination, ref stats))
-                {
-                    drawn++;
-                }
+                DrawCompare(frame, geometry, titles, Math.Clamp(split, 0, 1), bypass);
             }
         }
         finally
         {
+            _layers.Bypass = PreviewBypass.None;
             _pipeline.Unbind();
             _views.EndFrame();
             _pool.EndFrame();
@@ -274,6 +234,98 @@ public sealed unsafe class Compositor : IDisposable
 
         return new CompositeResult(drawn, stats.LayersSkipped, stats.EffectsApplied, stats.EffectsSkipped, stats.MissingContent, _pool.Bytes,
             stats.TitlesPending);
+    }
+
+    /// <summary>
+    /// Solo vista previa: la parte izquierda del cuadro (hasta esta fracción del ancho) se ve sin color, LUT, viñeta, ruedas
+    /// ni curvas, para comparar antes y después. Nulo o 0, sin comparar. La exportación (<see cref="RenderStrict"/>) lo ignora.
+    /// </summary>
+    public float? CompareSplit { get; set; }
+
+    /// <summary>Solo vista previa: efectos que se dejan fuera en todo el cuadro (el cuentagotas del croma mira la imagen sin él).</summary>
+    public PreviewBypass Bypass { get; set; }
+
+    private int DrawLayers(CompositionFrame frame, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination,
+        TitleRasterizer? titles, ref FrameStats stats)
+    {
+        int drawn = 0;
+        RenderTarget target = destination.Target;
+        float pixelScale = destination.PixelScale;
+        _pipeline.Bind(target.Rtv, destination.Width, destination.Height, QuadPipeline.Shader.Layer);
+        float* black = stackalloc float[] { 0f, 0f, 0f, TransparentBackground ? 0f : 1f };
+        _context->ClearRenderTargetView(target.Rtv, black);
+        bool bound = true;
+        IReadOnlyList<LayerFrame> layers = frame.Layers;
+        for (int i = 0; i < layers.Count; i++)
+        {
+            LayerFrame layer = layers[i];
+            if (layer.Generated is { } generated)
+            {
+                bound = false;
+                if (DrawTitle(layer, generated, titles, destination, ref stats))
+                {
+                    drawn++;
+                }
+
+                continue;
+            }
+
+            if (_layers.Usable(layer) is not { } payload)
+            {
+                stats.LayersSkipped++;
+                continue;
+            }
+
+            if (layer.IsPlain)
+            {
+                if (!bound)
+                {
+                    _pipeline.Bind(target.Rtv, destination.Width, destination.Height, QuadPipeline.Shader.Layer);
+                    bound = true;
+                }
+
+                if (_layers.DrawPlain(layer, payload, geometry?.Invoke(layer) ?? SourceGeometry.Square, frame.Width, frame.Height, pixelScale))
+                {
+                    drawn++;
+                }
+
+                continue;
+            }
+
+            bound = false;
+            if (_layers.Draw(layer, payload, geometry, destination, ref stats))
+            {
+                drawn++;
+            }
+        }
+
+        return drawn;
+    }
+
+    /// <summary>Compone otra vez sin el color en un intermedio y copia su parte izquierda sobre la salida.</summary>
+    private void DrawCompare(CompositionFrame frame, Func<LayerFrame, SourceGeometry>? geometry, TitleRasterizer? titles, float split,
+        PreviewBypass bypass)
+    {
+        int width = Math.Clamp((int)MathF.Round(split * Width), 0, Width);
+        RenderTarget? before = width == 0 ? null : _pool.Rent(Width, Height, _output!.Format);
+        if (before is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var stats = default(FrameStats);
+            _layers.Bypass = bypass | PreviewBypass.Grading;
+            DrawLayers(frame, geometry, new Destination(before, Width, Height, frame.Width, frame.Height), titles, ref stats);
+            _pipeline.Unbind();
+            var box = new D3D11_BOX { left = 0, top = 0, right = (uint)width, bottom = (uint)Height, front = 0, back = 1 };
+            _context->CopySubresourceRegion((ID3D11Resource*)_output!.Texture, 0, 0, 0, 0, (ID3D11Resource*)before.Texture, 0, &box);
+        }
+        finally
+        {
+            _pool.Return(before);
+        }
     }
 
     private bool DrawTitle(LayerFrame layer, GeneratedContent content, TitleRasterizer? titles, in Destination destination, ref FrameStats stats)

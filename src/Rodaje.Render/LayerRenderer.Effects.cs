@@ -21,8 +21,10 @@ internal readonly record struct ImageView(RenderTarget Target, int Width, int He
 internal readonly record struct SpatialStep(GpuEffectKind Kind, float Sigma, float Amount);
 
 /// <summary>Efectos por píxel de una capa: banderas de la variante, LUT y cuántos se aplican.</summary>
-internal readonly unsafe struct LayerPlan(int flags, ID3D11ShaderResourceView* lut, int perPixelCount)
+internal readonly unsafe struct LayerPlan(int flags, ID3D11ShaderResourceView* lut, int perPixelCount, ID3D11ShaderResourceView* curves = null)
 {
+    public ID3D11ShaderResourceView* Curves { get; } = curves;
+
     public int Flags { get; } = flags;
 
     public ID3D11ShaderResourceView* Lut { get; } = lut;
@@ -45,6 +47,8 @@ internal sealed unsafe partial class LayerRenderer
         int flags = 0;
         int perPixel = 0;
         ID3D11ShaderResourceView* lut = null;
+        ID3D11ShaderResourceView* curves = null;
+        int advanced = 0;
         IReadOnlyList<LayerEffect> list = layer.Effects;
         for (int i = 0; i < list.Count; i++)
         {
@@ -58,9 +62,14 @@ internal sealed unsafe partial class LayerRenderer
             }
 
             EffectValues values = effect.Values;
+            if (Bypasses(gpu.Kind))
+            {
+                continue;
+            }
+
             switch (gpu.Kind)
             {
-                case GpuEffectKind.Transform or GpuEffectKind.Stabilize or GpuEffectKind.Blend:
+                case GpuEffectKind.Transform or GpuEffectKind.Stabilize or GpuEffectKind.Blend or GpuEffectKind.Crop:
                     // Llegan por LayerFrame.Transform (con LayerTransform.Stabilization) y LayerFrame.Blend.
                     break;
                 case GpuEffectKind.Color when (flags & EffectShaders.Color) == 0:
@@ -96,6 +105,29 @@ internal sealed unsafe partial class LayerRenderer
                 case GpuEffectKind.Mask:
                     _masks.Add(effect);
                     break;
+                case GpuEffectKind.ChromaKey when (advanced & 1) == 0:
+                    advanced |= 1;
+                    perPixel++;
+                    SetChromaKey(ref effects, values, definition);
+                    break;
+                case GpuEffectKind.ColorWheels when (advanced & 2) == 0:
+                    advanced |= 2;
+                    perPixel++;
+                    SetWheels(ref effects, values, definition);
+                    break;
+                case GpuEffectKind.Curves when (advanced & 4) == 0:
+                    advanced |= 4;
+                    perPixel++;
+                    if (effect.Resource is { Reference: { } curveKey })
+                    {
+                        curves = _curves.Upload(curveKey);
+                    }
+                    else
+                    {
+                        advanced &= ~4;
+                    }
+
+                    break;
                 case GpuEffectKind.Blur:
                     _spatial.Add(new SpatialStep(GpuEffectKind.Blur, BlurSigma(Value(values, definition, 0)), 0));
                     break;
@@ -109,7 +141,45 @@ internal sealed unsafe partial class LayerRenderer
             }
         }
 
-        return new LayerPlan(flags, lut, perPixel);
+        if (advanced != 0)
+        {
+            flags |= EffectShaders.Advanced;
+            effects.Extra = new((advanced & 1) != 0 ? 1 : 0, (advanced & 2) != 0 ? 1 : 0, (advanced & 4) != 0 ? 1 : 0, 0);
+        }
+
+        return new LayerPlan(flags, lut, perPixel, curves);
+    }
+
+    /// <summary>Lo que la vista previa deja fuera con <see cref="Bypass"/> (antes/después y cuentagotas).</summary>
+    private bool Bypasses(GpuEffectKind kind) => kind switch
+    {
+        GpuEffectKind.Color or GpuEffectKind.Vignette or GpuEffectKind.ColorWheels or GpuEffectKind.Curves => (Bypass & PreviewBypass.Grading) != 0,
+        GpuEffectKind.ChromaKey => (Bypass & PreviewBypass.Key) != 0,
+        _ => false,
+    };
+
+    /// <summary>
+    /// Croma (referencia en las pruebas): la clave en CbCr BT.709, la distancia ×2 contra tolerancia y suavidad, el recorte
+    /// del borde a 0,45·limpieza por cada lado y la dirección de la clave para quitar el derrame.
+    /// </summary>
+    private static void SetChromaKey(ref EffectConstants effects, in EffectValues values, EffectDefinition definition)
+    {
+        float r = Value(values, definition, 0), g = Value(values, definition, 1), b = Value(values, definition, 2);
+        float y = (0.2126f * r) + (0.7152f * g) + (0.0722f * b);
+        float cb = (b - y) / 1.8556f, cr = (r - y) / 1.5748f;
+        float length = MathF.Sqrt((cb * cb) + (cr * cr));
+        effects.Key0 = new(cb, cr, Value(values, definition, 3), Value(values, definition, 4));
+        effects.Key1 = new(Value(values, definition, 5), 0.45f * Value(values, definition, 6),
+            length > 1e-4f ? cb / length : 0, length > 1e-4f ? cr / length : 0);
+    }
+
+    private static void SetWheels(ref EffectConstants effects, in EffectValues values, EffectDefinition definition)
+    {
+        EffectValues copy = values;
+        float Sum(int channel, int master) => Value(copy, definition, channel) + Value(copy, definition, master);
+        effects.Lift = new(Sum(0, 3), Sum(1, 3), Sum(2, 3), 0);
+        effects.GammaExp = new(MathF.Pow(2, -Sum(4, 7)), MathF.Pow(2, -Sum(5, 7)), MathF.Pow(2, -Sum(6, 7)), 0);
+        effects.Gain = new(1 + Sum(8, 11), 1 + Sum(9, 11), 1 + Sum(10, 11), 0);
     }
 
     /// <summary>Valor del parámetro <paramref name="slot"/> dentro de los límites del registro (sin NaN).</summary>

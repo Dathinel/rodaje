@@ -52,6 +52,46 @@ internal static class EffectReference
         return c.Map(v => Saturate(v + lift));
     }
 
+    /// <summary>Ruedas: lift <c>c + l·(1 − c)</c>, gain <c>c·(1 + g)</c> y gamma <c>c^(2^−γ)</c>, por canal con el general sumado.</summary>
+    public static C3 Wheels(C3 c, C3 lift, C3 gamma, C3 gain)
+    {
+        static double One(double v, double l, double y, double g) =>
+            Saturate(Math.Pow(Math.Max((v + (l * (1 - v))) * (1 + g), 0), Math.Pow(2, -y)));
+        return new C3(One(c.R, lift.R, gamma.R, gain.R), One(c.G, lift.G, gamma.G, gain.G), One(c.B, lift.B, gamma.B, gain.B));
+    }
+
+    /// <summary>
+    /// Croma en Y'CbCr BT.709: alfa = smoothstep(tol, tol + suavidad, 2·|CbCr − clave|) recortado a 0,45·limpieza por cada
+    /// lado; el derrame quita del croma su componente positiva en la dirección de la clave, con la luma fija.
+    /// </summary>
+    public static (C3 Color, double Alpha) ChromaKey(C3 c, C3 key, double tolerance, double softness, double spill, double cleanup)
+    {
+        static (double Y, double Cb, double Cr) ToYcc(C3 v)
+        {
+            double y = (Kr * v.R) + (Kg * v.G) + (Kb * v.B);
+            return (y, (v.B - y) / 1.8556, (v.R - y) / 1.5748);
+        }
+
+        (double y, double cb, double cr) = ToYcc(c);
+        (_, double kcb, double kcr) = ToYcc(key);
+        double distance = 2 * Math.Sqrt(((cb - kcb) * (cb - kcb)) + ((cr - kcr) * (cr - kcr)));
+        double alpha = Smoothstep(tolerance, tolerance + Math.Max(softness, 1e-3), distance);
+        double clip = 0.45 * cleanup;
+        alpha = Saturate((alpha - clip) / (1 - (2 * clip)));
+        double length = Math.Sqrt((kcb * kcb) + (kcr * kcr));
+        if (length > 1e-4)
+        {
+            double along = Math.Max(((cb * kcb) + (cr * kcr)) / length, 0);
+            cb -= spill * along * kcb / length;
+            cr -= spill * along * kcr / length;
+        }
+
+        double r = y + (1.5748 * cr);
+        double b = y + (1.8556 * cb);
+        double g = (y - (Kr * r) - (Kb * b)) / Kg;
+        return (new C3(Saturate(r), Saturate(g), Saturate(b)), alpha);
+    }
+
     /// <summary>LUT con interpolación trilineal entre los N³ puntos y mezcla por intensidad.</summary>
     public static C3 Lut(C3 c, LutData lut, double intensity)
     {

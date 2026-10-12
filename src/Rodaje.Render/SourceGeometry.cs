@@ -9,6 +9,9 @@ public readonly record struct SourceGeometry(Rational SampleAspectRatio, int Rot
 {
     public static SourceGeometry Square { get; } = new(new Rational(1, 1), 0);
 
+    /// <summary>Recorte de la capa (de <c>LayerTransform.Crop</c>): la textura se lee solo en esa parte.</summary>
+    public Rodaje.Core.Effects.CropRect? Crop { get; init; }
+
     /// <summary>Tamaño en pantalla de una imagen de <paramref name="width"/>×<paramref name="height"/> muestras, como lo calcula <c>MediaProbe</c>.</summary>
     public (int Width, int Height) DisplaySize(int width, int height)
     {

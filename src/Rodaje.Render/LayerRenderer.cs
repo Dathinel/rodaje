@@ -24,6 +24,22 @@ internal readonly unsafe struct Destination(RenderTarget target, int width, int 
     public float PixelScale => Math.Min((float)Width / SequenceWidth, (float)Height / SequenceHeight);
 }
 
+/// <summary>Efectos que la vista previa puede dejar fuera: para comparar antes y después y para el cuentagotas del croma.</summary>
+[Flags]
+public enum PreviewBypass
+{
+    None = 0,
+
+    /// <summary>Color y LUT, viñeta, ruedas y curvas.</summary>
+    Grading = 1,
+
+    /// <summary>El croma.</summary>
+    Key = 2,
+
+    /// <summary>El recorte: se ve la imagen entera mientras se ajusta en el visor.</summary>
+    Crop = 4,
+}
+
 /// <summary>Contadores de un cuadro para <see cref="CompositeResult"/>.</summary>
 internal struct FrameStats
 {
@@ -54,6 +70,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     private readonly LutTextures _luts;
     private readonly List<SpatialStep> _spatial = [];
     private readonly MaskTextures _maskTextures;
+    private readonly CurveTextures _curves;
 
     public LayerRenderer(GpuDevice gpu, QuadPipeline quad, EffectPipeline effects, PlaneViewCache views, RenderTargetPool pool, LutTextures luts)
     {
@@ -65,9 +82,17 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         _pool = pool;
         _luts = luts;
         _maskTextures = new MaskTextures((ID3D11Device*)gpu.NativeDevice, _context);
+        _curves = new CurveTextures((ID3D11Device*)gpu.NativeDevice, _context);
     }
 
-    public void Dispose() => _maskTextures.Dispose();
+    public void Dispose()
+    {
+        _maskTextures.Dispose();
+        _curves.Dispose();
+    }
+
+    /// <summary>Solo vista previa: qué efectos se dejan fuera al componer.</summary>
+    public PreviewBypass Bypass { get; set; }
 
     public IEffectResources? Resources { get; set; }
 
@@ -92,6 +117,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     /// <summary>El camino rápido: dibuja con el pipeline ya enlazado (<c>PsLayer</c> y "over").</summary>
     public bool DrawPlain(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight, float pixelScale)
     {
+        geometry = geometry with { Crop = CropOf(layer) };
         if (Place(layer, payload, geometry, sequenceWidth, sequenceHeight) is not { } placement)
         {
             return false;
@@ -131,6 +157,8 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             : DrawSingle(layer, payload, geometry?.Invoke(layer) ?? SourceGeometry.Square, destination, layer.Blend, ref stats);
     }
 
+    private Rodaje.Core.Effects.CropRect? CropOf(LayerFrame layer) => (Bypass & PreviewBypass.Crop) != 0 ? null : layer.Transform.Crop;
+
     private static float Opacity(LayerFrame layer) => (float)Math.Min(layer.Transform.Opacity, 1);
 
     private static LayerPlacement? Place(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight)
@@ -143,12 +171,13 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         (int displayWidth, int displayHeight) = layer.DisplayWidth > 0 && layer.DisplayHeight > 0
             ? (layer.DisplayWidth, layer.DisplayHeight)
             : geometry.DisplaySize(payload.Width, payload.Height);
-        return LayerLayout.Place(sequenceWidth, sequenceHeight, displayWidth, displayHeight, layer.Transform);
+        return LayerLayout.Place(sequenceWidth, sequenceHeight, displayWidth, displayHeight, layer.Transform with { Crop = geometry.Crop });
     }
 
     private bool DrawSingle(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, in Destination destination,
         BlendMode blend, ref FrameStats stats)
     {
+        geometry = geometry with { Crop = CropOf(layer) };
         if (Place(layer, payload, geometry, destination.SequenceWidth, destination.SequenceHeight) is not { } placement)
         {
             return false;
@@ -215,7 +244,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
         effects.BlendInfo.X = (float)blend;
         _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, shader, _effects.BlendState(blend));
-        BindInputs(background, plan.Lut, null, null, mask);
+        BindInputs(background, plan.Lut, null, null, mask, plan.Curves);
         _effects.Set(effects);
         DrawPlanes(payload, quad);
         UnbindInputs();
@@ -254,7 +283,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         var local = new LayerPlacement(Matrix3x2.CreateScale(scaleX, scaleY), placement.LocalWidth, placement.LocalHeight, Math.Min(scaleX, scaleY));
         QuadConstants toIntermediate = LayerQuad(payload, local, geometry, 1, width, height, 1);
         _quad.Bind(first.Rtv, width, height, graded, null);
-        BindInputs(null, plan.Lut, null, null, mask);
+        BindInputs(null, plan.Lut, null, null, mask, plan.Curves);
         _effects.Set(effects);
         DrawPlanes(payload, toIntermediate);
         UnbindInputs();
@@ -335,23 +364,24 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         }
     }
 
-    /// <summary>Enlaza t3 (fondo), t4 (LUT), t5 y t6 (intermedios) y t7 (máscaras). Va después de enlazar el destino.</summary>
+    /// <summary>Enlaza t3 (fondo), t4 (LUT), t5 y t6 (intermedios), t7 (máscaras) y t10 (curvas). Va después de enlazar el destino.</summary>
     private void BindInputs(RenderTarget? background, ID3D11ShaderResourceView* lut, RenderTarget? imageA, RenderTarget? imageB,
-        RenderTarget? mask = null)
+        RenderTarget? mask = null, ID3D11ShaderResourceView* curves = null)
     {
-        ID3D11ShaderResourceView** srvs = stackalloc ID3D11ShaderResourceView*[5];
+        ID3D11ShaderResourceView** srvs = stackalloc ID3D11ShaderResourceView*[8];
         srvs[0] = background is null ? null : background.Srv;
         srvs[1] = lut;
         srvs[2] = imageA is null ? null : imageA.Srv;
         srvs[3] = imageB is null ? null : imageB.Srv;
         srvs[4] = mask is null ? null : mask.Srv;
-        _context->PSSetShaderResources(3, 5, srvs);
+        srvs[7] = curves;
+        _context->PSSetShaderResources(3, 8, srvs);
     }
 
     private void UnbindInputs()
     {
-        ID3D11ShaderResourceView** none = stackalloc ID3D11ShaderResourceView*[5];
-        _context->PSSetShaderResources(3, 5, none);
+        ID3D11ShaderResourceView** none = stackalloc ID3D11ShaderResourceView*[8];
+        _context->PSSetShaderResources(3, 8, none);
     }
 
     /// <summary>Copia del destino en <paramref name="rect"/> para las mezclas por shader; <c>null</c> si no cabe en el pool.</summary>
@@ -406,7 +436,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         YuvToRgb toRgb = YuvToRgb.For(payload.Color.Matrix);
         float uMax = (float)payload.Width / payload.CodedWidth;
         float vMax = (float)payload.Height / payload.CodedHeight;
-        QuadConstants constants = PlacedQuad(placement, VideoLayout.Corners(geometry.Rotation, uMax, vMax), opacity,
+        QuadConstants constants = PlacedQuad(placement, VideoLayout.Crop(VideoLayout.Corners(geometry.Rotation, uMax, vMax), geometry.Crop), opacity,
             sequenceWidth, sequenceHeight, pixelScale);
         constants.Range = new(range.LumaScale, range.LumaBias, range.ChromaScale, range.ChromaBias);
         constants.ToRgb = new(toRgb.RedFromCr, toRgb.GreenFromCb, toRgb.GreenFromCr, toRgb.BlueFromCb);

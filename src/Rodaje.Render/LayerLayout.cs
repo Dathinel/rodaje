@@ -1,4 +1,5 @@
 using System.Numerics;
+using Rodaje.Core.Effects;
 using Rodaje.Playback.Composition;
 
 namespace Rodaje.Render;
@@ -39,10 +40,17 @@ public static class LayerLayout
             return null;
         }
 
+        (displayWidth, displayHeight) = CroppedSize(displayWidth, displayHeight, transform.Crop);
         PixelRect fit = VideoLayout.Fit(sequenceWidth, sequenceHeight, displayWidth, displayHeight);
         return fit.IsEmpty ? null : Transformed(fit.X + (fit.Width / 2.0), fit.Y + (fit.Height / 2.0), fit.Width, fit.Height,
             Stabilize(transform, fit.Height));
     }
+
+    /// <summary>Lo que queda de una imagen de <paramref name="width"/>×<paramref name="height"/> tras el recorte, al menos 1×1.</summary>
+    public static (int Width, int Height) CroppedSize(int width, int height, CropRect? crop) =>
+        crop is not { } c || c.IsNone
+            ? (width, height)
+            : (Math.Max(1, (int)Math.Round(width * c.Width)), Math.Max(1, (int)Math.Round(height * c.Height)));
 
     /// <summary>
     /// Compone la corrección de estabilizar (en altos de la imagen ajustada, sobre su centro) antes de la transformación:

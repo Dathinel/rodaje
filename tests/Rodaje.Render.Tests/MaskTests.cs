@@ -10,7 +10,7 @@ using M = Rodaje.Core.Model.BuiltInEffects.MaskParameters;
 
 namespace Rodaje.Render.Tests;
 
-/// <summary>MÃ¡scaras en la GPU frente a <see cref="MaskGeometry"/> (la referencia de la CPU), pÃ­xel a pÃ­xel.</summary>
+/// <summary>Máscaras en la GPU frente a <see cref="MaskGeometry"/> (la referencia de la CPU), píxel a píxel.</summary>
 public sealed class MaskTests
 {
     private const int Width = 256;
@@ -59,7 +59,7 @@ public sealed class MaskTests
     [GpuFact]
     public void An_image_mask_samples_the_gray_frame_at_its_time()
     {
-        // Rampa horizontal de 64Ã—32: el render la estira a la imagen con filtro bilineal.
+        // Rampa horizontal de 64×32: el render la estira a la imagen con filtro bilineal.
         var gray = new byte[64 * 32];
         for (int y = 0; y < 32; y++)
         {
@@ -90,7 +90,7 @@ public sealed class MaskTests
         Assert.Equal(1, result.MissingContent);
     }
 
-    /// <summary>Capa gris clara con las mÃ¡scaras sobre negro: cada pÃ­xel es el color por el factor de la referencia.</summary>
+    /// <summary>Capa gris clara con las máscaras sobre negro: cada píxel es el color por el factor de la referencia.</summary>
     private static CompositeResult AssertMasked(IReadOnlyList<LayerEffect> masks, IEffectResources? resources, Func<double, double, double> factor)
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -103,7 +103,7 @@ public sealed class MaskTests
         {
             for (int x = 0; x < Width; x += 3)
             {
-                // El borde de la capa misma (medio pÃ­xel) no es de la mÃ¡scara.
+                // El borde de la capa misma (medio píxel) no es de la máscara.
                 if (x is 0 or Width - 1 || y is 0 or Height - 1)
                 {
                     continue;
