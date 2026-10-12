@@ -70,6 +70,25 @@ Hecho en `src/Rodaje.App/Services/Modules` (API en [app.md](arquitectura/app.md#
 | Ritmo ≥100× | 291–348× tiempo real |
 | Ducking: anticipación ≥30 ms | música abajo ≥30 ms antes de cada frase (bordes de voz con 0 ms de error sobre música filtrada a −30 dB); keyframes deshacibles en un paso |
 | Voz ≥100× | 481–643× tiempo real |
+## Subtítulos: cifras (agente E, 11-oct)
+
+`modulo-subtitulos` (`modules/Rodaje.Module.Subtitles`, Native AOT 3,7 MB, sin JIT) con whisper large-v3-turbo q5_0 sobre 10,1 min de FLEURS es_419 dev (CC-BY-4.0, una voz por frase, 49 frases con 0,8 s de silencio entre ellas), RTX 3050 Laptop / Ryzen 7 7435HS. `SubtitleModuleTests` con `RODAJE_PRUEBAS_LARGAS=1`; corpus y modelo con `herramientas\preparar-modelos.ps1 -Corpus`.
+
+| Medida | Resultado | Criterio |
+|---|---|---|
+| Velocidad en GPU (Vulkan) | 10,1 min en 31–56 s, **11–19× tiempo real** (varía con la temperatura del portátil) | ≤1,5 min ✅ |
+| WER | **4,1 %** (1178 palabras) | ≤12 % ✅ |
+| Inicio de la primera palabra de cada frase, solo DTW | mediana **120 ms** tarde | ≤150 ms ✅ |
+| Lo mismo con el ajuste por energía del módulo | mediana 0 ms, p90 30 ms (la verdad sale de un detector parecido: la cifra independiente es la del DTW) | — |
+| VRAM dedicada del proceso, pico | **1098 MB** | `vramMb` 1500 |
+| CPU de respaldo (8 hilos) | **~1,1× tiempo real** (2,1 min en 117 s) | ≤8 min por 10 ❌ (daría ~9) |
+| Cancelación a mitad | confirmada en 49–86 ms | ≤1 s ✅ |
+| Proceso muerto a mitad | la llamada falla en 77–172 ms; un proceso nuevo transcribe | ≤1 s ✅ |
+
+- **Tramos de ≤28 s** cortados en el silencio más hondo: con DTW, Whisper.net 1.9.1 deja de devolver segmentos a partir de la 2.ª o 3.ª ventana de 30 s de una misma llamada (sin error; igual en GPU y CPU). Cada tramo lleva como contexto el texto de los anteriores.
+- **El DTW llega tarde a la primera palabra tras una pausa** (en la frase acierta). El módulo busca el arranque de la voz por energía entre el inicio por marcas y el DTW (`onsets: false` lo desactiva).
+- **Flash attention** rompe el DTW (palabras a −1,3 s) y no acelera en CPU: queda apagada.
+- **CPU:** para cumplir los 8 min habría que bajar a un modelo menor en CPU (medium o small q5) o aceptar ~9 min; decisión pendiente.
 
 ## Funciones, modelos y licencias
 
@@ -167,7 +186,7 @@ Unión 0 → A → B → C → D → E → F → G → H → I → J, suite comp
 - **Fonemizador propio:** el español es regular, el portugués medio; un error se oye. Corpus de palabras difíciles en las pruebas.
 - **Licencias heredadas de datos:** COCO, DIS5K y los datos de Kokoro no son del todo públicos; se anotan por modelo y se revisan antes de publicar.
 - **Patentes y GPL de `rodaje-codificadores-gpl`** y licencias de los SDK RAW: revisar antes de publicar (`pendientes-legales.md`).
-- **Whisper.net y el DTW por palabra:** sin verificar que lo exponga; si no, P/Invoke directo a `whisper.dll`.
+- **Whisper.net y el DTW por palabra:** resuelto (ver «Subtítulos: cifras»): lo expone, pero con DTW deja de devolver segmentos tras la 2.ª o 3.ª ventana de una llamada; el módulo parte el audio en tramos de ≤28 s.
 
 ## Preguntas para Daniel (se avanza con la recomendada, provisional)
 
