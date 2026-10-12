@@ -14,7 +14,7 @@ Tres sesiones: la primera dejó el formato (`generator.words`), la segunda el di
   - Arma un solo paso del historial: `SubtitleEdits.AddSubtitles` (lo mismo que hace `Edits.AddSubtitles`) y, dentro de ese paso, las palabras de cada subtítulo en `generator.words`.
 - **Diálogo** (`Views/Subtitles/AutoSubtitlesDialog.cs`): idioma (detectar, español, inglés o portugués), avance y cancelación, y la lista de subtítulos con sus tiempos y la barra del clip (un clic lleva el cursor a ese subtítulo). También «Transcribir de nuevo» con otro idioma. Al aplicar va por `ModuleProposals` (`Show` y luego `Apply`, un solo Ctrl+Z); si cancela, el proyecto no cambia.
 - **Comando** (`Views/Subtitles/SubtitleCommands.cs`): registra `tools.autoSubtitles`, el mismo id de `QuickTools.AutoSubtitles`. «Subtítulos automáticos...» del menú del clip (`TimelineView.Analysis.cs`) lo invoca, y `MainWindow.xaml.cs` lo une con una línea.
-- **Números para el usuario:** con coma decimal (`AutoSubtitles.Numbers`, igual a `SpanishNumbers.Format` de main). La vigilancia `CurrentCultureNumbersTests` de main rechaza `CultureInfo.CurrentCulture` en `src/Rodaje.App`.
+- **Números para el usuario:** con coma decimal, con `SpanishNumbers.Format` de main (la rama ya trae main desde ca55479; la copia `AutoSubtitles.Numbers` se borró en 68184e8). La vigilancia `CurrentCultureNumbersTests` de main rechaza `CultureInfo.CurrentCulture` en `src/Rodaje.App`.
 
 ## La CI roja de fc0ffec (job 114691679504)
 
@@ -26,13 +26,15 @@ Esta rama no la causó. Falló una sola prueba: `Rodaje.Modules.Protocol.Tests.P
 - **Windows:** compila (diálogo incluido). Fallan 2 de 899 pruebas en `Rodaje.App.Tests`, ninguna de esta rama:
   - `CurrentCultureNumbersTests.LaApp_NoFormateaNumerosConLaCulturaDelHilo`: el único hallazgo es `Views/Translate/TranslateDialog.cs:141`, que viene de main y lo arregla el PR #50. En la vuelta anterior (23d5e38) también señalaba tres líneas de esta rama, que ya están corregidas.
   - `ModuleManagerTests.Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada`: la prueba de tiempos falla por la carga del runner (tarea 47).
-- **`SpanishNumbers.Format`:** no existe en esta rama, porque está en main y aquí no se une main. Por eso `AutoSubtitles.Numbers` es su equivalente exacto. Al unir, conviene reemplazarlo; la prueba de main solo busca `CultureInfo.CurrentCulture`, así que pasa igual.
+
+## La CI roja de ca55479 (job 114759279281)
+
+Linux en verde. En Windows falló una sola prueba, que esta rama no toca: `ExportEncoderAvailabilityTests.Invalidate_during_a_run_starts_the_next_one_only_after_it_ends` (esperaba 1 corrida y hubo 2, `ExportEncoderAvailabilityTests.cs:126`). Ya falló igual en el PR #40, que solo cambia la cola, y la cola la trata en otra tarea. Las demás pasaron, también `Rodaje.App.Tests` y `Rodaje.Module.Subtitles.Tests`. Se relanzó el trabajo una vez y se subió 68184e8, que cambia `AutoSubtitles.Numbers` por `SpanishNumbers.Format`.
 
 ## Pendiente
 
 - **Tarea 51 (otra rama), necesaria para que el comando funcione:** `modules/Rodaje.Module.Subtitles/paquete.json` no tiene `"apps"`. `ManifestReader` lo deja vacío, `ModuleCatalog` (línea 129) descarta los módulos con `!manifest.WorksIn(AppId)`, y entonces `FindByFunction("subtitulos")` da null. Mientras tanto el diálogo solo avisa «Hace falta el módulo "Subtítulos automáticos"». No lo toqué.
 - **Barra rápida:** `QuickTools.State` (`Views/Analysis/Logic/QuickTools.cs`, en main línea 61) sigue devolviendo «Próximamente» para `tools.autoSubtitles`. El archivo está fuera de los caminos de la tarea. El cambio que falta es una línea: el mismo criterio que `analysis.noise` con el módulo de subtítulos. Mientras tanto, la acción ya está registrada.
-- **Al unir con main:** se puede cambiar `AutoSubtitles.Numbers` por `SpanishNumbers.Format`.
 - **Vista previa en la línea de tiempo:** la propuesta se aplica en cuanto se pulsa «Aplicar». La vista previa es la del diálogo (lista y barra), porque la línea de tiempo todavía no dibuja `ModuleProposals.Pending`.
 - **Edición por palabra:** fuera de esta tarea. `generator.words` ya queda guardado para hacerla.
 
