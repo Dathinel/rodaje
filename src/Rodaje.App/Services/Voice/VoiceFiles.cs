@@ -5,19 +5,12 @@ using System.Text;
 namespace Rodaje.App.Services.Voice;
 
 /// <summary>
-/// Dónde y cómo se guarda la voz generada: un WAV f32 mono en «Voz generada» junto al proyecto (o en
-/// <c>%LOCALAPPDATA%\Rodaje\voz</c> si aún no se guardó) y, al lado, un <c>.json</c> con lo que se pidió. El JSON es lo
-/// que reconoce un clip como voz generada; el formato del proyecto no cambia.
+/// Cómo se guarda la voz generada: un WAV f32 mono en la carpeta de medios generados (<see cref="GeneratedMedia"/>) y, al
+/// lado, un <c>.json</c> con lo que se pidió. El JSON es lo que reconoce un clip como voz generada; el formato del
+/// proyecto no cambia.
 /// </summary>
 public static class VoiceFiles
 {
-    public const string ProjectFolderName = "Voz generada";
-
-    public static string Folder(string? projectFile) =>
-        projectFile is { Length: > 0 } && Path.GetDirectoryName(Path.GetFullPath(projectFile)) is { } dir
-            ? Path.Combine(dir, ProjectFolderName)
-            : Path.Combine(AppDataPaths.Root, "voz");
-
     public static string SidecarOf(string wavPath) => Path.ChangeExtension(wavPath, ".json");
 
     /// <summary>«Voz - primeras palabras - huella.wav»: legible en la biblioteca y distinto para cada texto y voz.</summary>

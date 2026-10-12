@@ -23,6 +23,9 @@ public sealed partial class AppSettings
     /// <summary>Última carpeta de la que se importaron medios.</summary>
     public string? LastMediaFolder { get; set; }
 
+    /// <summary>Carpeta para los medios que genera Rodaje; <c>null</c> para <c>Nombre.medios</c> junto al proyecto (D-034).</summary>
+    public string? GeneratedMediaFolder { get; set; }
+
     /// <summary>Última carpeta donde se abrió o guardó un proyecto.</summary>
     public string? LastProjectFolder { get; set; }
 

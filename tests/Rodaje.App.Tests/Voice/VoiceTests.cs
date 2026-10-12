@@ -165,9 +165,8 @@ public class VoiceTests
     public void ElWavYSuJsonQuedanJuntoAlProyecto()
     {
         using var dir = new TempDirectory();
-        string folder = VoiceFiles.Folder(dir.File("mi proyecto.rodaje"));
-        Assert.Equal(Path.Combine(dir.Path, "Voz generada"), folder);
-        Assert.StartsWith(AppDataPaths.Root, VoiceFiles.Folder(null), StringComparison.Ordinal);
+        string folder = GeneratedMedia.Folder(dir.File("mi proyecto.rodaje"), null);
+        Assert.Equal(Path.Combine(dir.Path, "mi proyecto.medios"), folder);
 
         var voice = new SynthesizedVoice([0.5f, -0.5f, 0.25f], 24_000, [], []);
         string wav = VoiceFiles.Save(folder, Hola, voice);
