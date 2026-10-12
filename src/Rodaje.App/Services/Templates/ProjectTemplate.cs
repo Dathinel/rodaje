@@ -149,6 +149,13 @@ public sealed class ProjectTemplate
 
             string name = Clean(track.Name, MaxNameLength);
             string role = Clean(track.Role, 32);
+
+            // El validador del proyecto pide un rol en minúsculas, dígitos y guiones, y «subtitles» solo vale en video.
+            if (!role.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '-') || (role == TrackRoles.Subtitles && label != "Video"))
+            {
+                role = "";
+            }
+
             result.Add(new TemplateTrack
             {
                 Name = name.Length == 0 ? string.Create(CultureInfo.InvariantCulture, $"{label} {result.Count + 1}") : name,

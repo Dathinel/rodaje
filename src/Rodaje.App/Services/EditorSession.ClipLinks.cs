@@ -109,7 +109,7 @@ public sealed partial class EditorSession
         return OnePerLink(_selection).FindAll(id =>
             sequence.FindClip(id) is { } found
             && found.Track.Kind == TrackKind.Video
-            && found.Clip.Generator is null
+            && found.Clip.Generator is null && found.Clip.Speed is not { Freeze: true }
             && Project.FindMedia(found.Clip.MediaId) is { HasAudio: true }
             && !sequence.GetLinkGroup(id).Exists(m => m.Track.Kind == TrackKind.Audio));
     }
