@@ -425,6 +425,7 @@ Lo que añade el `ModuleManager` de la app (ronda A, [fase-7.md](fase-7.md#arqui
 | Qué | Valor | Dónde |
 |---|---|---|
 | Procesos | uno por módulo, abierto con la primera llamada; si muere, la siguiente lo vuelve a abrir | `ModuleConnection.cs` |
+| Abrir y saludar | 30 s (`StartTimeout`, en lugar de los 10 s de `HandshakeTimeout`: el primer arranque de un exe recién instalado pasa por el antivirus) | `ModuleManagerOptions` en `ModuleCall.cs` |
 | Cerrar un módulo ocioso | tras 2 min sin llamadas (`IdleTimeout`) | `ModuleConnection.EndCall` |
 | Vigilancia | `ping` cada 5 s con una llamada en curso (`PingInterval`); colgado si no contesta en 10 s (`PingTimeout`) | `ModuleConnection.WatchAsync` |
 | Que ninguno sobreviva al editor | Job Object con «matar al cerrar»; al salir, `shutdown` y después matar | `ModuleJobObject.cs`, `ModuleManager.DisposeAsync` |
