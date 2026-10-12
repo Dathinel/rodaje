@@ -53,6 +53,12 @@ Rama `claude/fotograma-robusto` (tarea 49 de la cola), PR #46. Sigue a la tarea 
   `Rodaje.Core.Tests.Properties.SpeedMaterialPropertiesTests.EncadenarCurvasYVolverA1x_DevuelveElMaterial`, semilla
   `7LMaTUJGUpm6` («clip-6»: material 412011600, antes 400239840). Esta rama no toca Core, y la vuelta anterior de Linux
   pasó con el mismo código de Core. Hay que investigarla aparte (`CsCheck_Seed=7LMaTUJGUpm6`).
+- Tercera vuelta (403960d, solo documentación): **Linux en verde**. Windows compila; `Rodaje.Export.Tests` 154 pasan y
+  37 omitidas de 191 (las mismas omitidas por hardware que en main: D3D11VA, NVENC, pruebas largas), y todas las
+  `Still*` de codificación y de títulos pasan. En rojo solo `Rodaje.App.Tests.Modules.ModuleManagerTests` (2:
+  `Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada` y
+  `Abre_al_primer_uso_reutiliza_el_proceso_y_lo_cierra_al_quedar_ocioso`, «dejó de responder y se cerró»), ajenas:
+  ya fallaban en la CI de la tarea 29 por la carga del runner.
 
 ## Pendiente
 
