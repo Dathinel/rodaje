@@ -315,6 +315,24 @@ public static partial class ModelValidator
                         break;
                     }
                 }
+
+                foreach (Keyframe key in parameter.Keyframes)
+                {
+                    if (key is null)
+                    {
+                        continue;
+                    }
+
+                    if (key.Ease is { IsValid: false })
+                    {
+                        errors.Add($"La curva Bézier de un keyframe de «{name}» en el efecto «{effect.Id}» está fuera de rango (x de 0 a 1, y de {BezierEase.MinY} a {BezierEase.MaxY}).");
+                    }
+
+                    if ((key.SpatialIn is { } spatialIn && !double.IsFinite(spatialIn)) || (key.SpatialOut is { } spatialOut && !double.IsFinite(spatialOut)))
+                    {
+                        errors.Add($"Una tangente de trayectoria de «{name}» en el efecto «{effect.Id}» no es un número.");
+                    }
+                }
             }
         }
     }

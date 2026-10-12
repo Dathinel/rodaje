@@ -79,7 +79,7 @@ internal sealed partial class TimelineScheduler
     {
         (_, LayerState main, LayerState? incoming) = _stepped[plan.Ordinal];
         return plan.GeneratedAt(time) is { } title
-            ? title.Layer(plan.TrackIndex, time, TitleEffects(plan), _content)
+            ? title.Layer(plan.TrackIndex, time, TitleEffects(plan), _content, FrameTicks)
             : Compose(plan, main, incoming, time);
     }
 
@@ -154,18 +154,23 @@ internal sealed partial class TimelineScheduler
         }
 
         IReadOnlyList<LayerEffect> list = [];
+        EffectListRing ring = GroupEffects(plan, entering);
+        EffectList? lists = null;
         if (effects is { EffectCount: > 0 })
         {
-            EffectList next = GroupEffects(plan, entering).Next();
-            effects.Evaluate(source, next.Reset(effects.EffectCount), _content);
-            list = next;
+            lists = ring.Next();
+            effects.Evaluate(source, lists.Reset(effects.EffectCount), _content);
+            list = lists;
         }
 
+        IReadOnlyList<LayerTransform>? motion = MotionSampler.Sample(effects?.Motion, new GroupMotionSource(group, transition, entering, progress),
+            time, FrameTicks, ring, ref lists);
         return new LayerFrame(plan.TrackIndex, group.ClipId, children, transform)
         {
             Effects = list,
             Blend = effects?.Blend ?? BlendMode.Normal,
             Transition = withTransition,
+            MotionSamples = motion,
         };
     }
 
@@ -280,13 +285,16 @@ internal sealed partial class TimelineScheduler
         }
 
         IReadOnlyList<LayerEffect> effects = [];
+        EffectList? lists = null;
         if (plan is { EffectCount: > 0 })
         {
-            EffectList list = layer.Effects.Next();
-            plan.Evaluate(source, list.Reset(plan.EffectCount), _content);
-            effects = list;
+            lists = layer.Effects.Next();
+            plan.Evaluate(source, lists.Reset(plan.EffectCount), _content);
+            effects = lists;
         }
 
+        IReadOnlyList<LayerTransform>? motion = MotionSampler.Sample(plan?.Motion,
+            new ClipMotionSource(plan, clip, frame.Index, transition, entering, progress), time, FrameTicks, layer.Effects, ref lists);
         Look look = layer.CurrentLook;
         return new LayerFrame(trackIndex, clip.ClipId, frame, transform, look.SampleAspectRatio, look.Rotation)
         {
@@ -296,13 +304,18 @@ internal sealed partial class TimelineScheduler
             Effects = effects,
             Blend = plan?.Blend ?? BlendMode.Normal,
             Transition = withTransition,
+            MotionSamples = motion,
         };
     }
+
+    /// <summary>Un cuadro de la secuencia en ticks: la unidad del obturador del desenfoque de movimiento.</summary>
+    private long FrameTicks => Time.FromFrames(1, _plan.FrameRate).Ticks;
 
     /// <summary>Una capa de la última composición completa, con su propia referencia al cuadro y su copia de los efectos.</summary>
     private sealed class HeldLayer
     {
         private readonly EffectList _effects = new();
+        private bool _hasMotion;
         private DecodedFrame? _frame;
         private int _trackIndex;
         private string _clipId = "";
@@ -365,6 +378,13 @@ internal sealed partial class TimelineScheduler
                 effects[i] = layer.Effects[i];
             }
 
+            _hasMotion = layer.MotionSamples is not null;
+            Span<LayerTransform> samples = _effects.Motion.Reset(layer.MotionSamples?.Count ?? 0);
+            for (int i = 0; i < samples.Length; i++)
+            {
+                samples[i] = layer.MotionSamples![i];
+            }
+
             _hasTransition = false;
             if (layer.Transition is { } transition)
             {
@@ -397,6 +417,7 @@ internal sealed partial class TimelineScheduler
                 return new LayerFrame(_trackIndex, _clipId, children, _transform)
                 {
                     Effects = _effects.Count > 0 ? _effects : [],
+                    MotionSamples = _hasMotion ? _effects.Motion : null,
                     Blend = _blend,
                     Transition = _hasTransition && _incoming!.Present() is { } entering
                         ? new LayerTransition(_transitionCode, _progress, _transitionValues, entering)
@@ -409,6 +430,7 @@ internal sealed partial class TimelineScheduler
                 return new LayerFrame(_trackIndex, _clipId, _generated, _transform)
                 {
                     Effects = _effects.Count > 0 ? _effects : [],
+                    MotionSamples = _hasMotion ? _effects.Motion : null,
                     Blend = _blend,
                 };
             }
@@ -430,6 +452,7 @@ internal sealed partial class TimelineScheduler
                 DisplayHeight = _displayHeight,
                 IsProxy = _isProxy,
                 Effects = _effects.Count > 0 ? _effects : [],
+                MotionSamples = _hasMotion ? _effects.Motion : null,
                 Blend = _blend,
                 Transition = transition,
             };

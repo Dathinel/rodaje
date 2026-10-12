@@ -176,7 +176,7 @@ internal static class ProjectDump
             Line(sb, indent, $"efecto {e.Id} {e.Type} e={e.Enabled} {Options(e.Options)}");
             foreach ((string key, Parameter p) in e.Parameters.OrderBy(p => p.Key, StringComparer.Ordinal))
             {
-                string keys = string.Join(" ", p.Keyframes.Select(k => $"[{k.Time.Ticks}:{R(k.Value)}:{k.Interpolation}]"));
+                string keys = string.Join(" ", p.Keyframes.Select(k => $"[{k.Time.Ticks}:{R(k.Value)}:{k.Interpolation}{k.Ease}{(k.SpatialIn is { } si ? ":in" + R(si) : "")}{(k.SpatialOut is { } so ? ":out" + R(so) : "")}]"));
                 Line(sb, indent + 1, $"{key}={R(p.Value)} {keys}");
             }
         }

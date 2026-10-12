@@ -80,20 +80,24 @@ internal sealed class GeneratedClipPlan
     }
 
     /// <summary>La capa del instante, con los efectos evaluados en una lista de <paramref name="ring"/>.</summary>
-    public LayerFrame Layer(int trackIndex, Time timeline, EffectListRing ring, IEffectResources? resources)
+    /// <param name="frameTicks">Un cuadro de la secuencia, para el obturador del desenfoque de movimiento.</param>
+    public LayerFrame Layer(int trackIndex, Time timeline, EffectListRing ring, IEffectResources? resources, long frameTicks)
     {
         IReadOnlyList<LayerEffect> effects = [];
+        EffectList? lists = null;
         if (Effects is { EffectCount: > 0 } plan)
         {
-            EffectList list = ring.Next();
-            plan.Evaluate(TimeMap.EffectTime(timeline), list.Reset(plan.EffectCount), resources);
-            effects = list;
+            lists = ring.Next();
+            plan.Evaluate(TimeMap.EffectTime(timeline), lists.Reset(plan.EffectCount), resources);
+            effects = lists;
         }
 
+        IReadOnlyList<LayerTransform>? motion = MotionSampler.Sample(Effects?.Motion, new TitleMotionSource(this), timeline, frameTicks, ring, ref lists);
         return new LayerFrame(trackIndex, ClipId, ContentAt(timeline), TransformAt(timeline))
         {
             Effects = effects,
             Blend = Effects?.Blend ?? BlendMode.Normal,
+            MotionSamples = motion,
         };
     }
 

@@ -3,6 +3,7 @@ using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Playback.Composition;
+using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
 
 namespace Rodaje.Engine.Timeline;
 
@@ -36,11 +37,13 @@ internal sealed class EffectPlan
 
     public int EffectCount => _effects.Length;
 
-    /// <summary>Puede dejar ver lo de abajo aunque sea opaca: recorte, máscara o croma.</summary>
-    public bool MayRevealBelow => _crop is not null || Array.Exists(_effects, e => e.Code == MaskCode || e.Code == ChromaKeyCode);
+    /// <summary>Puede dejar ver lo de abajo aunque sea opaca: recorte, máscara que recorta la capa, croma o distorsión.</summary>
+    public bool MayRevealBelow => _crop is not null
+        || Array.Exists(_effects, e => e.CutsLayer || e.Code == ChromaKeyCode || e.Code == DistortionCode);
 
     private static readonly int MaskCode = EffectRegistry.Find(BuiltInEffects.Mask)!.Code;
     private static readonly int ChromaKeyCode = EffectRegistry.Find(BuiltInEffects.ChromaKey)!.Code;
+    private static readonly int DistortionCode = EffectRegistry.Find(BuiltInEffects.LensDistortion)!.Code;
 
     /// <summary>Nulo si el clip no tiene transformación, efectos de imagen, mezcla ni estabilizar: el camino rápido.</summary>
     /// <param name="effects">La pila del clip.</param>
@@ -55,6 +58,9 @@ internal sealed class EffectPlan
         StabilizationTrack? stabilization = null;
         bool stabilized = false;
         Curve[]? crop = null;
+        var ids = new List<string>();
+        bool flipX = false;
+        bool flipY = false;
         foreach (EffectInstance effect in effects)
         {
             if (!effect.Enabled || EffectRegistry.Find(effect.Type) is not { } definition)
@@ -83,9 +89,12 @@ internal sealed class EffectPlan
             {
                 case EffectStage.Transform when transform is null:
                     transform = Curves(definition, effect.Parameters);
+                    flipX = effect.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipX) == "on";
+                    flipY = effect.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipY) == "on";
                     break;
                 case EffectStage.PerPixel or EffectStage.Spatial:
                     images.Add(ImageEffect.From(definition, effect));
+                    ids.Add(effect.Id);
                     break;
                 case EffectStage.Blend when !blended:
                     // Como la transformación, manda el primer modo de mezcla activo de la pila.
@@ -95,10 +104,68 @@ internal sealed class EffectPlan
             }
         }
 
+        ResolveTargets(images, ids);
         return transform is null && images.Count == 0 && blend == BlendMode.Normal && stabilization is null && crop is null
             ? null
-            : new EffectPlan(transform, [.. images], blend, stabilization) { _crop = crop };
+            : new EffectPlan(transform, [.. images], blend, stabilization)
+            {
+                _crop = crop,
+                _flipX = flipX,
+                _flipY = flipY,
+                _shaped = transform is not null && (flipX || flipY || IsShaped(transform)),
+                Motion = transform is null ? null : MotionOf(transform),
+            };
     }
+
+    /// <summary>
+    /// Cada máscara con destino lleva en <see cref="MaskGeometry.TargetSlot"/> el índice de su efecto en la lista de la
+    /// capa más uno; si el efecto no está (apagado, quitado o no es de imagen), <see cref="MaskGeometry.NoTarget"/>.
+    /// </summary>
+    private static void ResolveTargets(List<ImageEffect> images, List<string> ids)
+    {
+        for (int i = 0; i < images.Count; i++)
+        {
+            if (images[i].Target is not { } target)
+            {
+                continue;
+            }
+
+            int index = ids.IndexOf(target);
+            images[i] = images[i].WithTarget(index >= 0 && images[index].Code != MaskCode ? index + 1 : MaskGeometry.NoTarget);
+        }
+    }
+
+    private static readonly int AnchorXSlot = TransformSlot(T.AnchorX);
+    private static readonly int AnchorYSlot = TransformSlot(T.AnchorY);
+    private static readonly int ScaleXSlot = TransformSlot(T.ScaleX);
+    private static readonly int ScaleYSlot = TransformSlot(T.ScaleY);
+    private static readonly int SkewXSlot = TransformSlot(T.SkewX);
+    private static readonly int SkewYSlot = TransformSlot(T.SkewY);
+    private static readonly int ShutterSlot = TransformSlot(T.ShutterAngle);
+    private static readonly int PhaseSlot = TransformSlot(T.ShutterPhase);
+    private static readonly int SamplesSlot = TransformSlot(T.MotionSamples);
+
+    private static int TransformSlot(string name) => EffectRegistry.Find(BuiltInEffects.Transform)!.FindParameter(name)!.Slot;
+
+    private static bool IsShaped(Curve[] transform) =>
+        !Is(transform[AnchorXSlot], 0) || !Is(transform[AnchorYSlot], 0) || !Is(transform[ScaleXSlot], 1) || !Is(transform[ScaleYSlot], 1)
+        || !Is(transform[SkewXSlot], 0) || !Is(transform[SkewYSlot], 0);
+
+    private static bool Is(Curve curve, double value) => curve.IsConstant && curve.First == value;
+
+    private static MotionBlur? MotionOf(Curve[] transform)
+    {
+        double angle = transform[ShutterSlot].First;
+        int samples = (int)Math.Round(transform[SamplesSlot].First);
+        return angle > 0 && samples >= 2 ? new MotionBlur(angle / 360, transform[PhaseSlot].First / 360, samples) : null;
+    }
+
+    private bool _flipX;
+    private bool _flipY;
+    private bool _shaped;
+
+    /// <summary>El desenfoque de movimiento de la transformación; nulo sin él.</summary>
+    public MotionBlur? Motion { get; private init; }
 
     private static StabilizationTrack? FindStabilization(EffectDefinition definition, EffectInstance effect, IEffectContent? content)
     {
@@ -121,9 +188,19 @@ internal sealed class EffectPlan
     public static LayerTransform Transform(EffectPlan? plan, Time sourceTime)
     {
         long at = sourceTime.Ticks;
-        LayerTransform transform = plan?._transform is { } curves
-            ? new LayerTransform(curves[0].Evaluate(at), curves[1].Evaluate(at), curves[2].Evaluate(at), curves[3].Evaluate(at), curves[4].Evaluate(at))
-            : LayerTransform.Identity;
+        LayerTransform transform = LayerTransform.Identity;
+        if (plan?._transform is { } curves)
+        {
+            (double x, double y) = Curve.Position(curves[0], curves[1], at);
+            transform = new LayerTransform(x, y, curves[2].Evaluate(at), curves[3].Evaluate(at), curves[4].Evaluate(at));
+            if (plan._shaped)
+            {
+                var shape = new LayerShape(curves[AnchorXSlot].Evaluate(at), curves[AnchorYSlot].Evaluate(at), curves[ScaleXSlot].Evaluate(at),
+                    curves[ScaleYSlot].Evaluate(at), curves[SkewXSlot].Evaluate(at), curves[SkewYSlot].Evaluate(at), plan._flipX, plan._flipY);
+                transform = shape.IsNone ? transform : transform with { Shape = shape };
+            }
+        }
+
         if (plan?._crop is { } crop)
         {
             CropRect rect = CropGeometry.Sanitize(new CropRect(crop[0].Evaluate(at), crop[1].Evaluate(at), crop[2].Evaluate(at), crop[3].Evaluate(at)));
@@ -134,7 +211,9 @@ internal sealed class EffectPlan
     }
 
     /// <summary>La mayor escala de la transformación (1 sin transformación).</summary>
-    public static double MaxScale(EffectPlan? plan) => plan?._transform is { } curves ? curves[2].Max : 1;
+    public static double MaxScale(EffectPlan? plan) => plan?._transform is { } curves
+        ? curves[2].Max * (plan._shaped ? Math.Max(1, Math.Max(curves[ScaleXSlot].Max, curves[ScaleYSlot].Max)) : 1)
+        : 1;
 
     /// <summary>Escribe los efectos de imagen en <paramref name="destination"/>; una LUT que todavía no está lista sale sin recurso.</summary>
     public void Evaluate(Time sourceTime, Span<LayerEffect> destination, IEffectResources? resources)
@@ -197,20 +276,18 @@ internal sealed class EffectPlan
 
             if (definition.Type == BuiltInEffects.Mask)
             {
-                // El trazo o el video gris viajan como recurso; el render los lee sin pasar por las LUT.
+                // El contorno o el video gris viajan como recurso; el render los lee sin pasar por las LUT.
                 MaskShape shape = MaskGeometry.ParseShape(effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Shape));
-                string? key = shape switch
-                {
-                    MaskShape.Path => effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Path),
-                    MaskShape.Image => effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Matte),
-                    _ => null,
-                };
+                string? key = shape == MaskShape.Image ? effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Matte) : MaskGeometry.ShapeText(effect);
                 double start = double.TryParse(effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.MatteStart),
                     System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double s) && double.IsFinite(s) ? s : 0;
+                string? target = effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Target) is { Length: > 0 } t ? t : null;
                 return new ImageEffect(definition.Code, Curves(definition, effect.Parameters), constants, key is { Length: > 0 } ? new ResourceKey(key) : null)
                 {
                     MatteStart = Time.FromSeconds(start).Ticks,
                     IsMask = true,
+                    Target = target,
+                    LimitsEffects = effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Use) == "effects",
                 };
             }
 
@@ -221,16 +298,37 @@ internal sealed class EffectPlan
                 return new ImageEffect(definition.Code, [], constants, ToneCurve.IsIdentityKey(key) ? null : new ResourceKey(key)) { KeepsResource = true };
             }
 
-            return new ImageEffect(definition.Code, Curves(definition, effect.Parameters), constants, resource);
+            return new ImageEffect(definition.Code, Curves(definition, effect.Parameters), constants, resource)
+            {
+                TimeSlot = definition.UsesTime ? definition.TimeSlot : -1,
+            };
         }
 
         public int Code => code;
+
+        /// <summary>El id del efecto que limita, si es una máscara con destino.</summary>
+        public string? Target { get; private init; }
+
+        /// <summary>Una máscara que recorta la capa (sin destino y sin el uso «limitar efectos»).</summary>
+        public bool CutsLayer => IsMask && Target is null && !LimitsEffects;
+
+        private bool LimitsEffects { get; init; }
 
         private bool KeepsResource { get; init; }
 
         private bool IsMask { get; init; }
 
+        public ImageEffect WithTarget(int index)
+        {
+            EffectValues values = constants;
+            values[MaskGeometry.TargetSlot] = index;
+            return new ImageEffect(code, curves, values, resource) { MatteStart = MatteStart, IsMask = true, Target = Target, LimitsEffects = LimitsEffects };
+        }
+
         private long MatteStart { get; init; }
+
+        /// <summary>Hueco donde va el tiempo del origen en segundos, o −1 si el efecto no lo usa.</summary>
+        private int TimeSlot { get; init; } = -1;
 
         public LayerEffect Evaluate(long at, IEffectResources? resources)
         {
@@ -251,6 +349,11 @@ internal sealed class EffectPlan
                 return new LayerEffect(code, values, resource);
             }
 
+            if (TimeSlot >= 0)
+            {
+                values[TimeSlot] = (float)((double)at / Time.TicksPerSecond);
+            }
+
             ResourceKey? ready = resource is { } key && resources is not null && resources.TryGetLut(key, out _) ? key : null;
             return new LayerEffect(code, values, ready);
         }
@@ -265,6 +368,9 @@ internal sealed class EffectPlan
 internal sealed class EffectList : IReadOnlyList<LayerEffect>
 {
     private LayerEffect[] _items = [];
+
+    /// <summary>Las muestras del desenfoque de movimiento de la misma capa y el mismo refresco.</summary>
+    public TransformList Motion { get; } = new();
 
     public int Count { get; private set; }
 

@@ -9,6 +9,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:properties="using:Rodaje.App.Views.Inspector.Properties"
     xmlns:filters="using:Rodaje.App.Views.Inspector.Filters"
+    xmlns:masks="using:Rodaje.App.Views.Inspector.Masks"
     xmlns:speed="using:Rodaje.App.Views.Inspector.Speed"
     xmlns:text="using:Rodaje.App.Views.Inspector.Text"
     xmlns:history="using:Rodaje.App.Views.Inspector.History"
@@ -99,7 +100,7 @@
             <text:TextPanel x:Name="TextPanel" Visibility="Collapsed" />
             <speed:SpeedPanel x:Name="SpeedPanel" Visibility="Collapsed" />
             <filters:FiltersPanel x:Name="FiltersPanel" Visibility="Collapsed" />
-            <filters:FiltersPanel x:Name="MasksPanel" MasksOnly="True" Visibility="Collapsed" />
+            <masks:MasksPanel x:Name="MasksPanel" Visibility="Collapsed" />
             <dynamics:DynamicsPanel x:Name="DynamicsPanel" Visibility="Collapsed" />
             <history:HistoryPanel x:Name="HistoryPanel" Visibility="Collapsed" />
             <jobs:JobsPanel x:Name="JobsPanel" Visibility="Collapsed" />

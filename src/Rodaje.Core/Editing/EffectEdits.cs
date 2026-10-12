@@ -269,7 +269,105 @@ public static class EffectEdits
         EnsureDefined(interpolation);
         Parameter parameter = FindParameter(FindEffect(EditableHost(ctx, clipId), effectId), name);
         int index = IndexAt(parameter, at, name);
-        parameter.Keyframes[index] = parameter.Keyframes[index] with { Interpolation = interpolation };
+        // Fuera de Bézier los puntos de control no se usan: no se guardan.
+        parameter.Keyframes[index] = parameter.Keyframes[index] with
+        {
+            Interpolation = interpolation,
+            Ease = interpolation == Interpolation.Bezier ? parameter.Keyframes[index].Ease : null,
+        };
+    }
+
+    /// <summary>
+    /// La curva de tiempo del keyframe de <paramref name="at"/> hacia el siguiente como Bézier con esos puntos de control
+    /// (acotados a sus límites); nula la deja en «Suave».
+    /// </summary>
+    public static void SetKeyframeEase(EditContext ctx, string clipId, string effectId, string name, Time at, BezierEase? ease)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        Parameter parameter = FindParameter(FindEffect(EditableHost(ctx, clipId), effectId), name);
+        int index = IndexAt(parameter, at, name);
+        BezierEase? clamped = ease?.Clamped();
+        parameter.Keyframes[index] = parameter.Keyframes[index] with
+        {
+            Interpolation = clamped is null ? Interpolation.EaseInOut : Interpolation.Bezier,
+            Ease = clamped,
+        };
+    }
+
+    /// <summary>
+    /// Las tangentes de trayectoria del keyframe de <paramref name="at"/> (entrada y salida, en unidades del valor); nulas
+    /// dejan recto ese lado. En la posición se fijan en X y en Y a la vez, cada una con su componente.
+    /// </summary>
+    public static void SetSpatialTangents(EditContext ctx, string clipId, string effectId, string name, Time at, double? spatialIn, double? spatialOut)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (spatialIn is { } i)
+        {
+            EnsureFinite(i, name);
+        }
+
+        if (spatialOut is { } o)
+        {
+            EnsureFinite(o, name);
+        }
+
+        Parameter parameter = FindParameter(FindEffect(EditableHost(ctx, clipId), effectId), name);
+        int index = IndexAt(parameter, at, name);
+        parameter.Keyframes[index] = parameter.Keyframes[index] with { SpatialIn = spatialIn, SpatialOut = spatialOut };
+    }
+
+    /// <summary>
+    /// Reemplaza todos los keyframes del parámetro por <paramref name="keys"/> (ordenados, dentro del clip; los valores se
+    /// acotan al registro). Con uno solo, el parámetro queda fijo en ese valor. Para aplicar una animación de fábrica.
+    /// </summary>
+    public static void ReplaceKeyframes(EditContext ctx, string clipId, string effectId, string name, IReadOnlyList<Keyframe> keys)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(keys);
+        Host host = EditableHost(ctx, clipId);
+        EffectInstance effect = FindEffect(host, effectId);
+        var list = new List<Keyframe>(keys.Count);
+        foreach (Keyframe key in keys)
+        {
+            EnsureFinite(key.Value, name);
+            EnsureDefined(key.Interpolation);
+            EnsureInside(host, key.Time);
+            if (list.Count > 0 && key.Time <= list[^1].Time)
+            {
+                throw new EditException($"Los keyframes de «{name}» tienen que ir en orden y sin repetir instantes.");
+            }
+
+            list.Add(key with { Value = Limit(effect, name, key.Value), Ease = key.Ease?.Clamped() });
+        }
+
+        if (list.Count == 0)
+        {
+            throw new EditException($"Hace falta al menos un keyframe de «{name}».");
+        }
+
+        effect.Parameters[name] = list.Count == 1
+            ? new Parameter { Value = list[0].Value }
+            : new Parameter { Value = list[0].Value, Keyframes = list };
+    }
+
+    /// <summary>
+    /// Mueve el keyframe de <paramref name="from"/> a <paramref name="to"/> con su valor y su curva; no puede pasar a sus
+    /// vecinos ni salir del clip.
+    /// </summary>
+    public static void MoveKeyframe(EditContext ctx, string clipId, string effectId, string name, Time from, Time to)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        Host host = EditableHost(ctx, clipId);
+        Parameter parameter = FindParameter(FindEffect(host, effectId), name);
+        int index = IndexAt(parameter, from, name);
+        EnsureInside(host, to);
+        List<Keyframe> keys = parameter.Keyframes;
+        if ((index > 0 && to <= keys[index - 1].Time) || (index + 1 < keys.Count && to >= keys[index + 1].Time))
+        {
+            throw new EditException("Un keyframe no puede pasar a sus vecinos.");
+        }
+
+        keys[index] = keys[index] with { Time = to };
     }
 
     private static void Upsert(Parameter parameter, Time at, double value, Interpolation? interpolation)
@@ -278,7 +376,8 @@ public static class EffectEdits
         int index = keys.FindIndex(k => k.Time >= at);
         if (index >= 0 && keys[index].Time == at)
         {
-            keys[index] = new Keyframe(at, value, interpolation ?? keys[index].Interpolation);
+            // Cambiar el valor conserva la curva Bézier y las tangentes del keyframe.
+            keys[index] = keys[index] with { Value = value, Interpolation = interpolation ?? keys[index].Interpolation };
             return;
         }
 

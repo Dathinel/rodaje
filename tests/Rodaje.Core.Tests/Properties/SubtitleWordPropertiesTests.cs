@@ -176,35 +176,61 @@ public class SubtitleWordPropertiesTests(ITestOutputHelper output)
 
     /// <summary>
     /// Unir dos subtítulos seguidos (pegados o con hueco) deja todas las palabras en su lugar de la línea de tiempo y el texto
-    /// de los dos, en orden; el clip va del inicio del primero al final del segundo.
+    /// de los dos, en orden; el clip va del inicio del primero al final del segundo. Si las palabras ocultas junto a la unión
+    /// (recortadas al final del primero o al inicio del segundo) se cruzarían, empiezan en el borde de su clip.
     /// </summary>
     [Fact]
     public void Unir_ConservaElLugarDeCadaPalabra() =>
         GenPair.Sample(
-            s =>
-            {
-                Clip left = Subtitle("s1", s.Left, F(s.Start));
-                Clip right = Subtitle("s2", s.Right, left.End + F(s.Gap));
-                Project project = Project(left, right);
-                Assert.Empty(ModelValidator.Validate(project));
-                List<(long, long, string)> placed = [.. Placed(left), .. Placed(right)];
-                List<string> tokens = [.. Tokens(left.Generator!.Text), .. Tokens(right.Generator!.Text)];
-                Time end = right.End;
-                string before = ProjectSerializer.Serialize(project);
-
-                var stack = new UndoStack(project);
-                stack.Execute(Edits.JoinSubtitleWithNext(Seq, "s1"));
-                Assert.Empty(ModelValidator.Validate(project));
-                Clip joined = Assert.Single(project.GetSequence(Seq).VideoTracks[0].Clips);
-                Assert.Equal((F(s.Start), end), (joined.Start, joined.End));
-                Assert.Equal(placed, Placed(joined));
-                Assert.Equal(tokens, Tokens(joined.Generator!.Text));
-                stack.Undo();
-                Assert.Equal(before, ProjectSerializer.Serialize(project));
-            },
+            s => AssertJoin(s),
             writeLine: output.WriteLine,
             iter: 2500,
             print: s => Inv($"{s.Left} + {s.Right}, hueco {s.Gap}, en {s.Start}"));
+
+    /// <summary>
+    /// Semilla de la CI (9C0uZsTzbQG2): el segundo empieza recortado 3 cuadros dentro de su primera palabra, que pegada al
+    /// primero quedaba antes de la última de este; unir fallaba con «palabras fuera de orden».
+    /// </summary>
+    [Fact]
+    public void Unir_ConPalabrasOcultasQueSeCruzan_LasLlevaAlBorde() =>
+        AssertJoin((
+            new SubtitleSpec(["uno"], [6], [1], 39350, 5, 0, 3),
+            new SubtitleSpec(["dos", "tres"], [0, 0], [13, 15], 41207, -3, 2, 3),
+            0,
+            269));
+
+    private static void AssertJoin((SubtitleSpec Left, SubtitleSpec Right, int Gap, int Start) s)
+    {
+        Clip left = Subtitle("s1", s.Left, F(s.Start));
+        Clip right = Subtitle("s2", s.Right, left.End + F(s.Gap));
+        Project project = Project(left, right);
+        Assert.Empty(ModelValidator.Validate(project));
+        List<(long, long, string)> placed = [.. Placed(left), .. Placed(right)];
+        if (Placed(right)[0].Item1 < Placed(left)[^1].Item1)
+        {
+            long edge = left.End.Ticks;
+            long start = right.Start.Ticks;
+            placed =
+            [
+                .. Placed(left).Select(w => w.Item1 > edge ? (edge, w.Item2, w.Item3) : w),
+                .. Placed(right).Select(w => w.Item1 < start ? (start, Math.Max(w.Item2, start), w.Item3) : w),
+            ];
+        }
+
+        List<string> tokens = [.. Tokens(left.Generator!.Text), .. Tokens(right.Generator!.Text)];
+        Time end = right.End;
+        string before = ProjectSerializer.Serialize(project);
+
+        var stack = new UndoStack(project);
+        stack.Execute(Edits.JoinSubtitleWithNext(Seq, "s1"));
+        Assert.Empty(ModelValidator.Validate(project));
+        Clip joined = Assert.Single(project.GetSequence(Seq).VideoTracks[0].Clips);
+        Assert.Equal((F(s.Start), end), (joined.Start, joined.End));
+        Assert.Equal(placed, Placed(joined));
+        Assert.Equal(tokens, Tokens(joined.Generator!.Text));
+        stack.Undo();
+        Assert.Equal(before, ProjectSerializer.Serialize(project));
+    }
 
     /// <summary>
     /// Corregir una palabra cambia solo esa: en las palabras y en el texto queda en su lugar lo escrito (partido en sus

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Core.Model;
@@ -25,7 +26,7 @@ public sealed class EffectInstance
     }
 }
 
-/// <summary>Cómo se pasa de un keyframe al siguiente.</summary>
+/// <summary>Cómo se pasa de un keyframe al siguiente. Las fórmulas están en <see cref="KeyframeMath.Ease"/>.</summary>
 public enum Interpolation
 {
     /// <summary>Mantiene el valor hasta el siguiente keyframe y salta.</summary>
@@ -34,10 +35,38 @@ public enum Interpolation
     EaseIn,
     EaseOut,
     EaseInOut,
+
+    /// <summary>Curva Bézier de tiempo con los puntos de <see cref="Keyframe.Ease"/> (sin ellos, como <see cref="EaseInOut"/>).</summary>
+    Bezier,
+
+    /// <summary>Llega rebotando (tres botes que se apagan).</summary>
+    Bounce,
+
+    /// <summary>Se pasa del destino y vuelve oscilando, como un resorte.</summary>
+    Elastic,
 }
 
 /// <summary>Un valor fijado en un instante (tiempo del origen del clip).</summary>
-public sealed record Keyframe(Time Time, double Value, Interpolation Interpolation = Interpolation.Linear);
+/// <remarks>
+/// <see cref="Ease"/> da la forma de la curva de tiempo cuando la interpolación es <see cref="Interpolation.Bezier"/>.
+/// <see cref="SpatialIn"/> y <see cref="SpatialOut"/> son las tangentes de la trayectoria (en unidades del valor,
+/// relativas al keyframe): en la posición, las de X y las de Y forman los manejadores de la curva que sigue la capa.
+/// </remarks>
+public sealed record Keyframe(Time Time, double Value, Interpolation Interpolation = Interpolation.Linear)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BezierEase? Ease { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? SpatialIn { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? SpatialOut { get; init; }
+
+    /// <summary>Lleva tangentes de trayectoria.</summary>
+    [JsonIgnore]
+    public bool IsSpatial => SpatialIn is not null || SpatialOut is not null;
+}
 
 /// <summary>Parámetro escalar animable; sin keyframes vale <see cref="Value"/>.</summary>
 public sealed class Parameter
@@ -69,19 +98,8 @@ public sealed class Parameter
         Keyframe a = Keyframes[right - 1];
         Keyframe b = Keyframes[right];
         double t = (double)(sourceTime - a.Time).Ticks / (b.Time - a.Time).Ticks;
-        return a.Value + ((b.Value - a.Value) * Ease(a.Interpolation, t));
+        return KeyframeMath.Segment(a, b, KeyframeMath.Ease(a.Interpolation, a.Ease, t));
     }
-
-    /// <summary>Curvas de suavizado cúbicas sobre t ∈ [0, 1].</summary>
-    internal static double Ease(Interpolation interpolation, double t) => interpolation switch
-    {
-        Interpolation.Hold => 0,
-        Interpolation.Linear => t,
-        Interpolation.EaseIn => t * t * t,
-        Interpolation.EaseOut => 1 - Math.Pow(1 - t, 3),
-        Interpolation.EaseInOut => t < 0.5 ? 4 * t * t * t : 1 - (Math.Pow((-2 * t) + 2, 3) / 2),
-        _ => throw new ArgumentOutOfRangeException(nameof(interpolation), interpolation, "Interpolación desconocida."),
-    };
 
     public Parameter Clone() => new() { Value = Value, Keyframes = [.. Keyframes] };
 }

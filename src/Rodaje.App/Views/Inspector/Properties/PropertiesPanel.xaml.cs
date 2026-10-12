@@ -2,11 +2,13 @@ using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Theme;
 using Rodaje.App.Services.Audio;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -30,11 +32,16 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     private Time _shownPosition;
     private bool _updatingBlend;
     private bool _updatingPreset;
+    private bool _updatingTransform;
+    private string? _graphName;
+    private readonly List<(Button Button, string Id)> _presetTiles = [];
 
     public PropertiesPanel()
     {
         InitializeComponent();
-        _videoRows = [XRow, YRow, ScaleRow, RotationRow, OpacityRow];
+        _videoRows = [XRow, YRow, ScaleRow, ScaleXRow, ScaleYRow, RotationRow, OpacityRow, AnchorXRow, AnchorYRow, SkewXRow, SkewYRow, ShutterRow, PhaseRow,
+            SamplesRow];
+        BuildPresetTiles();
         _audioRows = [GainRow, FadeInRow, FadeOutRow];
         foreach ((_, string name) in EffectUi.BlendModes)
         {
@@ -113,7 +120,81 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
     }
 
-    private IEnumerable<ParameterRow> PlacementRows => _videoRows.Take(4);
+    private IEnumerable<ParameterRow> PlacementRows => [XRow, YRow, ScaleRow, ScaleXRow, ScaleYRow, RotationRow];
+
+    private IEnumerable<ParameterRow> ShapeRows => [AnchorXRow, AnchorYRow, SkewXRow, SkewYRow];
+
+    private IEnumerable<ParameterRow> MotionRows => [ShutterRow, PhaseRow, SamplesRow];
+
+    /// <summary>Una baldosa por animación de fábrica, con su miniatura: fantasmas de la capa en cuatro instantes y el recorrido del centro.</summary>
+    private void BuildPresetTiles()
+    {
+        const int Columns = 4;
+        IReadOnlyList<MotionPreset> presets = MotionPresets.All;
+        for (int c = 0; c < Columns; c++)
+        {
+            PresetGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        }
+
+        for (int r = 0; r < (presets.Count + Columns - 1) / Columns; r++)
+        {
+            PresetGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+
+        for (int i = 0; i < presets.Count; i++)
+        {
+            MotionPreset preset = presets[i];
+            var label = new TextBlock
+            {
+                Text = preset.Name,
+                FontSize = ThemeResources.Size("CaptionFontSize"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            };
+            var content = new StackPanel { Spacing = 3 };
+            content.Children.Add(MotionPresetThumbnail.Create(preset.Id));
+            content.Children.Add(label);
+            var button = new Button
+            {
+                Content = content,
+                Padding = new Thickness(2, 5, 2, 3),
+                MinWidth = 0,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, "Animación: " + preset.Name);
+            ToolTipService.SetToolTip(button, preset.Name + ". " + preset.Description);
+            string id = preset.Id;
+            button.Click += (_, _) => ApplyPreset(id);
+            Grid.SetColumn(button, i % Columns);
+            Grid.SetRow(button, i / Columns);
+            PresetGrid.Children.Add(button);
+            _presetTiles.Add((button, id));
+        }
+    }
+
+    /// <summary>Para la autoprueba: con <paramref name="animation"/>, pliega posición y opacidad y abre desenfoque, animaciones y gráfica; si no, al revés.</summary>
+    /// <remarks>Con <paramref name="graphOnly"/>, además pliega el desenfoque y las animaciones para que la gráfica quede a la vista.</remarks>
+    internal void ShowAnimationForSelfTest(bool animation, bool graphOnly = false)
+    {
+        PlacementSection.IsExpanded = !animation;
+        OpacitySection.IsExpanded = !animation;
+        AudioSection.IsExpanded = !animation;
+        MotionBlurSection.IsExpanded = animation && !graphOnly;
+        PresetsSection.IsExpanded = animation && !graphOnly;
+        GraphSection.IsExpanded = animation;
+        Body.ChangeView(null, 0, null, disableAnimation: true);
+    }
+
+    private void ApplyPreset(string id)
+    {
+        if (_services is { } services && _videoClipId is { } clipId)
+        {
+            FinishChanges(_videoRows);
+            services.Session.Execute(MotionPresetCommands.Apply(services.Session.SequenceId, clipId, id));
+        }
+    }
 
     public void Attach(EditorServices services)
     {
@@ -133,10 +214,18 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
 
         PlacementSection.Remember(services.Settings);
+        ShapeSection.Remember(services.Settings);
+        MotionBlurSection.Remember(services.Settings);
+        PresetsSection.Remember(services.Settings);
+        GraphSection.Remember(services.Settings);
+        Graph.Attach(services.Session, _editor);
+        Graph.Edited += (_, _) => Refresh();
         OpacitySection.Remember(services.Settings);
         AudioSection.Remember(services.Settings);
 
         EditorSession session = services.Session;
+        RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => session.SetTransformEditing(Visibility == Visibility.Visible));
+        session.SetTransformEditing(Visibility == Visibility.Visible);
         session.SelectionChanged += (_, _) => Refresh();
         session.ProjectEdited += (_, _) => Refresh();
         session.ProjectOpened += (_, _) => Refresh();
@@ -186,6 +275,10 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
         Visibility videoVisible = video is null ? Visibility.Collapsed : Visibility.Visible;
         PlacementSection.Visibility = videoVisible;
+        ShapeSection.Visibility = videoVisible;
+        MotionBlurSection.Visibility = videoVisible;
+        PresetsSection.Visibility = videoVisible;
+        GraphSection.Visibility = videoVisible;
         OpacitySection.Visibility = videoVisible;
         MoreButton.Visibility = videoVisible;
         KeyframeTotal.Visibility = videoVisible;
@@ -209,17 +302,20 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         if (_transformRange != (sequence.Width, sequence.Height))
         {
             _transformRange = (sequence.Width, sequence.Height);
-            IReadOnlyList<ParameterSpec> specs = ParameterSpec.Transform(sequence.Width, sequence.Height);
-            for (int i = 0; i < _videoRows.Length; i++)
+            var specs = ParameterSpec.Transform(sequence.Width, sequence.Height).ToDictionary(s => s.Name, StringComparer.Ordinal);
+            foreach ((ParameterRow row, string name) in RowNames())
             {
-                ParameterSpec spec = specs[i];
-                (string? label, string? axis) = spec.Name switch
+                (string? label, string? axis) = name switch
                 {
                     BuiltInEffects.TransformParameters.X => ("Posición", "X"),
                     BuiltInEffects.TransformParameters.Y => ("", "Y"),
+                    BuiltInEffects.TransformParameters.AnchorX => ("Ancla", "X"),
+                    BuiltInEffects.TransformParameters.AnchorY => ("", "Y"),
+                    BuiltInEffects.TransformParameters.SkewX => ("Inclinación", "X"),
+                    BuiltInEffects.TransformParameters.SkewY => ("", "Y"),
                     _ => ((string?)null, (string?)null),
                 };
-                _videoRows[i].Configure(spec, label, axis);
+                row.Configure(specs[name], label, axis);
             }
         }
 
@@ -227,6 +323,8 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         var values = new Dictionary<string, double>(StringComparer.Ordinal);
         int placementKeyframes = 0;
         int opacityKeyframes = 0;
+        int shapeKeyframes = 0;
+        var animated = new List<ParameterRow>();
         foreach (ParameterRow row in _videoRows)
         {
             ParameterState state = editor.Read(clip, row.Spec.EffectType, row.Spec.Name, row.Spec.DefaultValue);
@@ -235,21 +333,37 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             {
                 opacityKeyframes += state.KeyframeCount;
             }
+            else if (ShapeRows.Contains(row))
+            {
+                shapeKeyframes += state.KeyframeCount;
+            }
             else
             {
                 placementKeyframes += state.KeyframeCount;
             }
 
+            if (state.KeyframeCount >= 2)
+            {
+                animated.Add(row);
+            }
+
             row.Show(state, inside);
         }
 
-        KeyframeTotal.Text = KeyframeText(placementKeyframes + opacityKeyframes);
+        KeyframeTotal.Text = KeyframeText(placementKeyframes + opacityKeyframes + shapeKeyframes);
         PlacementSection.KeyframeSummary = KeyframeText(placementKeyframes);
+        ShapeSection.KeyframeSummary = KeyframeText(shapeKeyframes);
         OpacitySection.KeyframeSummary = KeyframeText(opacityKeyframes);
+        ShapeSection.Summary = "Ancla " + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.AnchorX)) + ", "
+            + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.AnchorY)) + " · "
+            + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.SkewX)) + "° / "
+            + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.SkewY)) + "°";
         PlacementSection.Summary = "X " + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.X))
             + " · Y " + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.Y))
             + " · " + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.Scale)) + " %"
             + " · " + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.Rotation)) + "°";
+        ShowTransformOptions(clip, values);
+        ShowGraph(clip, animated);
 
         ResetAllItem.IsEnabled = ClipPropertyEditor.CanReset(clip, BuiltInEffects.Transform, Defaults(_videoRows));
         PlacementReset.IsEnabled = ClipPropertyEditor.CanReset(clip, BuiltInEffects.Transform, Defaults(PlacementRows));
@@ -265,6 +379,110 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         _updatingBlend = false;
         OpacitySection.Summary = Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.Opacity)) + " % · "
             + EffectUi.BlendModeName(mode);
+    }
+
+    private IEnumerable<(ParameterRow Row, string Name)> RowNames()
+    {
+        yield return (XRow, BuiltInEffects.TransformParameters.X);
+        yield return (YRow, BuiltInEffects.TransformParameters.Y);
+        yield return (ScaleRow, BuiltInEffects.TransformParameters.Scale);
+        yield return (ScaleXRow, BuiltInEffects.TransformParameters.ScaleX);
+        yield return (ScaleYRow, BuiltInEffects.TransformParameters.ScaleY);
+        yield return (RotationRow, BuiltInEffects.TransformParameters.Rotation);
+        yield return (OpacityRow, BuiltInEffects.TransformParameters.Opacity);
+        yield return (AnchorXRow, BuiltInEffects.TransformParameters.AnchorX);
+        yield return (AnchorYRow, BuiltInEffects.TransformParameters.AnchorY);
+        yield return (SkewXRow, BuiltInEffects.TransformParameters.SkewX);
+        yield return (SkewYRow, BuiltInEffects.TransformParameters.SkewY);
+        yield return (ShutterRow, BuiltInEffects.TransformParameters.ShutterAngle);
+        yield return (PhaseRow, BuiltInEffects.TransformParameters.ShutterPhase);
+        yield return (SamplesRow, BuiltInEffects.TransformParameters.MotionSamples);
+    }
+
+    /// <summary>Volteo y desenfoque de movimiento: los botones y el interruptor siguen al modelo.</summary>
+    private void ShowTransformOptions(Clip clip, Dictionary<string, double> values)
+    {
+        EffectInstance? transform = ClipPropertyEditor.FindEffect(clip, BuiltInEffects.Transform);
+        bool flipX = transform?.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipX) == "on";
+        bool flipY = transform?.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipY) == "on";
+        double shutter = values.GetValueOrDefault(BuiltInEffects.TransformParameters.ShutterAngle);
+        _updatingTransform = true;
+        FlipXButton.IsChecked = flipX;
+        FlipYButton.IsChecked = flipY;
+        MotionBlurSwitch.IsOn = shutter > 0;
+        _updatingTransform = false;
+        MotionBlurRows.Visibility = shutter > 0 ? Visibility.Visible : Visibility.Collapsed;
+        MotionBlurSection.Summary = shutter > 0
+            ? $"{Number(shutter)}° · {Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.MotionSamples))} muestras"
+            : "Apagado";
+        string flips = (flipX, flipY) switch
+        {
+            (true, true) => " · volteado ↔↕",
+            (true, false) => " · volteado ↔",
+            (false, true) => " · volteado ↕",
+            _ => "",
+        };
+        PlacementSection.Summary += flips;
+    }
+
+    /// <summary>La gráfica: el parámetro elegido (o el último que se tocó, o el primero animado) y su curva.</summary>
+    private void ShowGraph(Clip clip, List<ParameterRow> animated)
+    {
+        _updatingTransform = true;
+        GraphParameterBox.Items.Clear();
+        foreach (ParameterRow row in animated)
+        {
+            GraphParameterBox.Items.Add(new ComboBoxItem { Content = row.Spec.Label, Tag = row.Spec.Name });
+        }
+
+        ParameterRow? shown = animated.Find(r => r.Spec.Name == _graphName) ?? (animated.Count > 0 ? animated[0] : null);
+        GraphParameterBox.SelectedIndex = shown is null ? -1 : animated.IndexOf(shown);
+        GraphParameterBox.IsEnabled = animated.Count > 0;
+        _updatingTransform = false;
+        GraphSection.Summary = shown is null ? "Sin animación" : shown.Spec.Label;
+        Graph.Show(clip, ClipPropertyEditor.FindEffect(clip, BuiltInEffects.Transform), shown?.Spec);
+    }
+
+    private void OnGraphParameterSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_updatingTransform && GraphParameterBox.SelectedItem is ComboBoxItem { Tag: string name })
+        {
+            _graphName = name;
+            Refresh();
+        }
+    }
+
+    private void OnGraphModeClick(object sender, RoutedEventArgs e)
+    {
+        bool speed = sender is FrameworkElement { Tag: "speed" };
+        GraphValueButton.IsChecked = !speed;
+        GraphSpeedButton.IsChecked = speed;
+        Graph.Mode = speed ? GraphMode.Speed : GraphMode.Value;
+    }
+
+    private void OnFlipClick(object sender, RoutedEventArgs e)
+    {
+        if (_updatingTransform || _services is not { } services || _videoClipId is not { } clipId || sender is not ToggleButton { Tag: string axis } button)
+        {
+            return;
+        }
+
+        bool on = button.IsChecked == true;
+        string option = axis == "x" ? BuiltInEffects.TransformOptions.FlipX : BuiltInEffects.TransformOptions.FlipY;
+        services.Session.Execute(EffectCommands.SetOption(services.Session.SequenceId, clipId, BuiltInEffects.Transform, null, option, on ? "on" : "",
+            axis == "x" ? "Voltear en horizontal" : "Voltear en vertical"));
+    }
+
+    private void OnMotionBlurToggled(object sender, RoutedEventArgs e)
+    {
+        if (_updatingTransform || _editor is not { } editor || ClipFor(ShutterRow) is not { } clip)
+        {
+            return;
+        }
+
+        bool on = MotionBlurSwitch.IsOn;
+        editor.SetValue(clip, BuiltInEffects.Transform, BuiltInEffects.TransformParameters.ShutterAngle, on ? 180 : 0,
+            on ? "Activar el desenfoque de movimiento" : "Quitar el desenfoque de movimiento");
     }
 
     private static string BlendMode(Clip clip) =>
@@ -334,6 +552,11 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         if (sender is not ParameterRow row || _editor is not { } editor || ClipFor(row) is not { } clip)
         {
             return;
+        }
+
+        if (Array.IndexOf(_videoRows, row) >= 0)
+        {
+            _graphName = row.Spec.Name;
         }
 
         if (!ReferenceEquals(_dragRow, row) || !editor.IsDragging)
@@ -415,6 +638,9 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private async void OnPlacementResetClick(object sender, RoutedEventArgs e) =>
         await ResetRowsAsync([.. PlacementRows], "Restablecer posición y tamaño", "la posición y el tamaño");
+
+    private async void OnShapeResetClick(object sender, RoutedEventArgs e) =>
+        await ResetRowsAsync([.. ShapeRows], "Restablecer ancla e inclinación", "el ancla y la inclinación");
 
     private async void OnAudioResetClick(object sender, RoutedEventArgs e) =>
         await ResetRowsAsync(_audioRows, "Restablecer audio", "el volumen y los fundidos");

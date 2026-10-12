@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Rodaje.Core.Timing;
 using Rodaje.Playback.Composition;
 using Rodaje.Render;
@@ -24,6 +25,7 @@ internal sealed partial class PlayerEngine
     private int _captureBypass;
     private int _viewBypass;
     private float _compareSplit = -1;
+    private StrongBox<MaskPreview>? _maskView;
 
     /// <summary>Cambió la lista de fuentes que faltan. Llega desde el hilo de render.</summary>
     public event Action? MissingFontsChanged;
@@ -94,12 +96,22 @@ internal sealed partial class PlayerEngine
         _wake.Set();
     }
 
+    /// <summary>Solo vista previa: una máscara en gris o superpuesta mientras se edita (nula, como se exporta). Desde cualquier hilo.</summary>
+    public void SetMaskView(MaskPreview? view)
+    {
+        Volatile.Write(ref _maskView, view is { } v ? new StrongBox<MaskPreview>(v) : null);
+        _dirty = true;
+        _wake.Set();
+    }
+
     private void ApplyViewOptions(Compositor compositor)
     {
+        compositor.MaskView = Volatile.Read(ref _maskView)?.Value;
         float split = Volatile.Read(ref _compareSplit);
         compositor.CompareSplit = split > 0 ? split : null;
         int capture = _pendingCapture is null ? 0 : Volatile.Read(ref _captureBypass);
         compositor.Bypass = (PreviewBypass)(Volatile.Read(ref _viewBypass) | capture);
+        compositor.ShowQualifierMask = Volatile.Read(ref _showQualifierMask) != 0 && capture == 0;
     }
 
     private void CreateTitles()
@@ -190,8 +202,14 @@ internal sealed partial class PlayerEngine
             }
         }
 
+        bool videoChanged = PublishVideoBoxes(frame);
         if (count == 0 && current.Length == 0)
         {
+            if (videoChanged)
+            {
+                TitleBoxesChanged?.Invoke();
+            }
+
             return;
         }
 
@@ -208,10 +226,51 @@ internal sealed partial class PlayerEngine
 
         if (boxes.AsSpan().SequenceEqual(current))
         {
+            if (videoChanged)
+            {
+                TitleBoxesChanged?.Invoke();
+            }
+
             return;
         }
 
         Volatile.Write(ref _titleBoxes, boxes);
         TitleBoxesChanged?.Invoke();
+    }
+
+    /// <summary>Las capas de video del último cuadro (con su tamaño en pantalla, que se ajusta al cuadro), de abajo arriba.</summary>
+    public IReadOnlyList<TitleBox> VideoBoxes => Volatile.Read(ref _videoBoxes);
+
+    private TitleBox[] _videoBoxes = [];
+
+    private bool PublishVideoBoxes(CompositionFrame frame)
+    {
+        var boxes = new List<TitleBox>(frame.Layers.Count);
+        foreach (LayerFrame layer in frame.Layers)
+        {
+            if (layer.Generated is not null)
+            {
+                continue;
+            }
+
+            (int width, int height) = layer.Nested is not null ? (frame.Width, frame.Height)
+                : layer.DisplayWidth > 0 && layer.DisplayHeight > 0 ? (layer.DisplayWidth, layer.DisplayHeight)
+                : layer.Frame.Payload is Rodaje.Media.Gpu.D3D11TexturePayload payload
+                    ? new SourceGeometry(layer.SampleAspectRatio, layer.Rotation).DisplaySize(payload.Width, payload.Height)
+                    : (0, 0);
+            if (width > 0 && height > 0)
+            {
+                boxes.Add(new TitleBox(layer.ClipId, layer.Transform, width, height) { Fitted = true });
+            }
+        }
+
+        TitleBox[] current = _videoBoxes;
+        if (boxes.Count == current.Length && boxes.SequenceEqual(current))
+        {
+            return false;
+        }
+
+        Volatile.Write(ref _videoBoxes, [.. boxes]);
+        return true;
     }
 }

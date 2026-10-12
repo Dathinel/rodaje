@@ -92,6 +92,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         AttachMaskHandles();
         AttachImageTools();
         Meters.Attach(services);
+        AttachScopes(services);
         UpdateFormat();
         UpdateToolTips();
         Bindings.Update();
@@ -112,6 +113,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         Header.Visibility = chrome;
         Transport.Visibility = chrome;
         Meters.Visibility = chrome;
+        Scopes.Visibility = fullScreen || ScopesButton.IsChecked != true ? Visibility.Collapsed : Visibility.Visible;
         TransportRow.Height = new GridLength(fullScreen ? 0 : 44);
         Stage.Margin = new Thickness(fullScreen ? 0 : 8);
         _services.Shell.SetPlayerFullScreen(fullScreen);
@@ -300,8 +302,8 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     private void OnVideoDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        // Sobre un título, doble clic es escribir; en el resto del visor, pantalla completa.
-        if (!TryEditTitleAt(e.GetPosition(VideoPanel)))
+        // Con las máscaras, doble clic es de ellas; sobre un título, escribir; en el resto del visor, pantalla completa.
+        if (!MaskDoubleTapped(e.GetPosition(VideoPanel)) && !TryEditTitleAt(e.GetPosition(VideoPanel)))
         {
             SetFullScreen(!IsFullScreen);
         }

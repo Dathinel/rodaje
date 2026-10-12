@@ -103,7 +103,7 @@ public sealed class ClipPropertyEditor
         Keyframe? previous = keys.FindLast(k => k.Time < at - tolerance);
         Keyframe? next = keys.Find(k => k.Time > at + tolerance);
         return new ParameterState(
-            parameter.Evaluate(at),
+            PathValue(effect, name, parameter, at),
             keys.Count,
             here,
             previous is null ? null : ToTimeline(clip, previous.Time),
@@ -322,7 +322,10 @@ public sealed class ClipPropertyEditor
             return false;
         }
 
-        return Session.Execute(Edits.SetKeyframeInterpolation(Session.SequenceId, clip.Id, effect.Id, name, keyframe.Time, interpolation));
+        // A Bézier se pasa con la forma que ya tenía (la Bézier más parecida a la curva fija), para seguirla en la gráfica.
+        return interpolation == Interpolation.Bezier
+            ? Session.Execute(Edits.SetKeyframeEase(Session.SequenceId, clip.Id, effect.Id, name, keyframe.Time, keyframe.Ease ?? KeyframeGraph.EaseOf(keyframe)))
+            : Session.Execute(Edits.SetKeyframeInterpolation(Session.SequenceId, clip.Id, effect.Id, name, keyframe.Time, interpolation));
     }
 
     /// <summary>Lleva el cursor al keyframe anterior (<paramref name="direction"/> negativo) o siguiente.</summary>
@@ -336,6 +339,19 @@ public sealed class ClipPropertyEditor
 
         Session.Seek(target);
         return true;
+    }
+
+    /// <summary>X e Y de la posición se leen sobre la trayectoria, como los dibuja el motor.</summary>
+    private static double PathValue(EffectInstance effect, string name, Parameter parameter, Time at)
+    {
+        if (effect.Type == BuiltInEffects.Transform && name is BuiltInEffects.TransformParameters.X or BuiltInEffects.TransformParameters.Y
+            && effect.Parameters.TryGetValue(name == BuiltInEffects.TransformParameters.X ? BuiltInEffects.TransformParameters.Y : BuiltInEffects.TransformParameters.X,
+                out Parameter? partner))
+        {
+            return KeyframeGraph.ValueAt(parameter, partner, name == BuiltInEffects.TransformParameters.X, at);
+        }
+
+        return parameter.Evaluate(at);
     }
 
     private Clip? FirstSelected(TrackKind kind)

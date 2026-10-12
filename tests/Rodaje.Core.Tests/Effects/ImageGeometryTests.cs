@@ -116,6 +116,36 @@ public sealed class ImageGeometryTests
     }
 
     [Fact]
+    public void Hue_curves_are_neutral_without_points_and_wrap_around()
+    {
+        Assert.Equal(0.5, HueCurve.Parse("", periodic: true).Evaluate(0.3));
+        Assert.True(HueCurve.Parse("0.2,0.5;0.7,0.5", periodic: true).IsNeutral);
+        Assert.Equal("", HueCurve.Parse("0.2,0.5;0.7,0.5", periodic: true).Format());
+
+        HueCurve hue = HueCurve.Parse("0.9,0.8;0.1,0.2", periodic: true);
+        Assert.Equal(hue.Evaluate(0.02), hue.Evaluate(1.02), 9);
+        Assert.Equal(0.8, hue.Evaluate(0.9), 5);
+        Assert.Equal(0.2, hue.Evaluate(0.1), 5);
+        // Entre 0,9 y 1,1 pasa por el corte del tono sin saltar.
+        Assert.InRange(hue.Evaluate(0.0), 0.2, 0.8);
+        Assert.Equal(hue.Evaluate(0.999999), hue.Evaluate(0.0), 3);
+
+        HueCurve luma = HueCurve.Parse("0.2,0.3;0.8,0.7", periodic: false);
+        Assert.Equal(0.3, luma.Evaluate(0.05), 6);
+        Assert.Equal(0.7, luma.Evaluate(0.95), 6);
+    }
+
+    [Fact]
+    public void A_curves_key_with_only_neutral_hue_curves_is_the_identity()
+    {
+        Assert.True(ToneCurve.IsIdentityKey("||||0.4,0.5||"));
+        Assert.False(ToneCurve.IsIdentityKey("|||||0.4,0.2|"));
+        Assert.True(ToneCurve.HasHueCurves("||||0.5,0.6||"));
+        float[] row = ToneCurve.HueTable("||||||");
+        Assert.All(row, v => Assert.Equal(0.5f, v));
+    }
+
+    [Fact]
     public void Curves_round_trip_and_identity_is_empty()
     {
         ToneCurve curve = ToneCurve.Parse("0.75,0.8;0,0.1;0.25,0.2;1,1");

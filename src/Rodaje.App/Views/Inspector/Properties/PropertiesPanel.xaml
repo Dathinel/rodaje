@@ -54,13 +54,55 @@
                     <inspector:InspectorSection.Actions>
                         <Button x:Name="PlacementReset" Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="{StaticResource IconFontSize}"
                                 Content="&#xE72C;" Click="OnPlacementResetClick" AutomationProperties.Name="Restablecer posición y tamaño"
-                                ToolTipService.ToolTip="Restablecer posición, escala y rotación" />
+                                ToolTipService.ToolTip="Restablecer posición, escala, estiramiento y rotación" />
                     </inspector:InspectorSection.Actions>
                     <StackPanel>
                         <local:ParameterRow x:Name="XRow" />
                         <local:ParameterRow x:Name="YRow" />
                         <local:ParameterRow x:Name="ScaleRow" />
+                        <local:ParameterRow x:Name="ScaleXRow" />
+                        <local:ParameterRow x:Name="ScaleYRow" />
                         <local:ParameterRow x:Name="RotationRow" />
+                        <Grid Padding="12,3,6,3" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="76" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Voltear" Style="{StaticResource LabelTextStyle}" ToolTipService.ToolTip="Espejar la imagen alrededor de su centro" />
+                            <ToggleButton x:Name="FlipXButton" Grid.Column="1" HorizontalAlignment="Stretch" Height="28" MinWidth="0" Padding="6,0"
+                                          FontSize="{StaticResource BodyFontSize}" Click="OnFlipClick" Tag="x"
+                                          AutomationProperties.Name="Voltear en horizontal" ToolTipService.ToolTip="Voltear en horizontal (espejo)">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE8AB;" FontSize="{StaticResource BodyFontSize}" />
+                                    <TextBlock Text="Horizontal" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <ToggleButton x:Name="FlipYButton" Grid.Column="2" HorizontalAlignment="Stretch" Height="28" MinWidth="0" Padding="6,0"
+                                          FontSize="{StaticResource BodyFontSize}" Click="OnFlipClick" Tag="y"
+                                          AutomationProperties.Name="Voltear en vertical" ToolTipService.ToolTip="Voltear en vertical (cabeza abajo)">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE8CB;" FontSize="{StaticResource BodyFontSize}" />
+                                    <TextBlock Text="Vertical" />
+                                </StackPanel>
+                            </ToggleButton>
+                        </Grid>
+                    </StackPanel>
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="ShapeSection" Key="forma" Title="Ancla e inclinación" CollapsedByDefault="True">
+                    <inspector:InspectorSection.Actions>
+                        <Button Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="{StaticResource IconFontSize}"
+                                Content="&#xE72C;" Click="OnShapeResetClick" AutomationProperties.Name="Restablecer ancla e inclinación"
+                                ToolTipService.ToolTip="Restablecer ancla e inclinación" />
+                    </inspector:InspectorSection.Actions>
+                    <StackPanel>
+                        <local:ParameterRow x:Name="AnchorXRow" />
+                        <local:ParameterRow x:Name="AnchorYRow" />
+                        <local:ParameterRow x:Name="SkewXRow" />
+                        <local:ParameterRow x:Name="SkewYRow" />
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="12,2,12,4" TextWrapping="Wrap" TextTrimming="None"
+                                   Text="Escala, giro e inclinación pivotan en el ancla. En el visor, arrastra la cruz del ancla: la imagen no se mueve." />
                     </StackPanel>
                 </inspector:InspectorSection>
 
@@ -78,6 +120,58 @@
                                       FontSize="{StaticResource BodyFontSize}" AutomationProperties.Name="Modo de mezcla"
                                       SelectionChanged="OnBlendSelected" ToolTipService.ToolTip="Cómo se mezcla este clip con lo que tiene debajo" />
                         </Grid>
+                    </StackPanel>
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="MotionBlurSection" Key="desenfoque-movimiento" Title="Desenfoque de movimiento" CollapsedByDefault="True">
+                    <StackPanel>
+                        <Grid Padding="12,3,6,3" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="76" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Activo" Style="{StaticResource LabelTextStyle}" />
+                            <ToggleSwitch x:Name="MotionBlurSwitch" Grid.Column="1" MinWidth="0" OnContent="Sí" OffContent="No"
+                                          Toggled="OnMotionBlurToggled" AutomationProperties.Name="Desenfoque de movimiento"
+                                          ToolTipService.ToolTip="Promedia la capa a lo largo del obturador: lo que se mueve rápido se ve barrido, como en una cámara" />
+                        </Grid>
+                        <StackPanel x:Name="MotionBlurRows">
+                            <local:ParameterRow x:Name="ShutterRow" />
+                            <local:ParameterRow x:Name="PhaseRow" />
+                            <local:ParameterRow x:Name="SamplesRow" />
+                        </StackPanel>
+                        <TextBlock x:Name="MotionBlurNote" Style="{StaticResource CaptionTextStyle}" Margin="12,2,12,4" TextWrapping="Wrap" TextTrimming="None"
+                                   Text="180° es el obturador de cine. Igual en la vista previa y en la exportación; cada muestra es una pasada más de la capa." />
+                    </StackPanel>
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="PresetsSection" Key="animaciones" Title="Animaciones">
+                    <StackPanel>
+                        <Grid x:Name="PresetGrid" Margin="12,4,6,4" ColumnSpacing="4" RowSpacing="4" />
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,4" TextWrapping="Wrap" TextTrimming="None"
+                                   Text="Un clic pone sus keyframes a lo largo del clip, desde la posición y el tamaño que tiene; después se editan como cualquiera." />
+                    </StackPanel>
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="GraphSection" Key="grafica" Title="Gráfica">
+                    <StackPanel Spacing="4" Padding="12,4,6,8">
+                        <Grid ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="GraphParameterBox" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
+                                      SelectionChanged="OnGraphParameterSelected" AutomationProperties.Name="Parámetro de la gráfica"
+                                      ToolTipService.ToolTip="Parámetro animado que se dibuja" />
+                            <ToggleButton x:Name="GraphValueButton" Grid.Column="1" Content="Valor" Height="28" MinWidth="0" Padding="8,0" IsChecked="True"
+                                          FontSize="{StaticResource BodyFontSize}" Click="OnGraphModeClick" Tag="value"
+                                          ToolTipService.ToolTip="Gráfica del valor con los manejadores Bézier" />
+                            <ToggleButton x:Name="GraphSpeedButton" Grid.Column="2" Content="Velocidad" Height="28" MinWidth="0" Padding="8,0"
+                                          FontSize="{StaticResource BodyFontSize}" Click="OnGraphModeClick" Tag="speed"
+                                          ToolTipService.ToolTip="Cuánto cambia por segundo: muestra dónde acelera y frena" />
+                        </Grid>
+                        <local:KeyframeGraphControl x:Name="Graph" />
                     </StackPanel>
                 </inspector:InspectorSection>
 

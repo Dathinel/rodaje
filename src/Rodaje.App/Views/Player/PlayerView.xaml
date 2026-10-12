@@ -63,6 +63,9 @@
                 <ToggleButton x:Name="CompareButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE89F;"
                               FontFamily="{StaticResource IconFontFamily}" Click="OnCompareClick" AutomationProperties.Name="Antes y después"
                               ToolTipService.ToolTip="Antes y después: divide la imagen con una cortina; a la izquierda se ve sin color, LUT, ruedas ni curvas (solo vista previa)" />
+                <ToggleButton x:Name="ScopesButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE9D2;"
+                              FontFamily="{StaticResource IconFontFamily}" Click="OnScopesClick" AutomationProperties.Name="Monitores de imagen"
+                              ToolTipService.ToolTip="Monitores de imagen: forma de onda, desfile RGB, vectorscopio e histograma" />
                 <Button x:Name="FullScreenButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE740;" Click="OnFullScreenClick" />
             </StackPanel>
         </Grid>
@@ -70,6 +73,7 @@
         <Grid x:Name="ViewerArea" Grid.Row="1" Background="{StaticResource ViewerSurroundBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <!--
@@ -102,14 +106,14 @@
                     <Line x:Name="TitleRotateStem" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
                     <Ellipse x:Name="TitleGripRotate" Width="10" Height="10" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
                 </Canvas>
-                <Canvas x:Name="MaskCanvas" IsHitTestVisible="False" Visibility="Collapsed">
-                    <Polygon x:Name="MaskOutline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.5" StrokeDashArray="4,2" />
-                    <Polyline x:Name="MaskStroke" Stroke="{StaticResource AccentBrush}" StrokeThickness="2" />
-                    <Rectangle x:Name="MaskGripTopLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                    <Rectangle x:Name="MaskGripTopRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                    <Rectangle x:Name="MaskGripBottomRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                    <Rectangle x:Name="MaskGripBottomLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                </Canvas>
+                <Canvas x:Name="TransformCanvas" IsHitTestVisible="False" Visibility="Collapsed" />
+                <!-- Máscaras (PlayerView.Masks): contornos, cajas, vértices y lo que se dibuja; la ayuda de la herramienta arriba. -->
+                <Canvas x:Name="MaskCanvas" IsHitTestVisible="False" Visibility="Collapsed" />
+                <Border x:Name="MaskHint" IsHitTestVisible="False" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Margin="8" Padding="8,4" CornerRadius="4" Background="{StaticResource ScrimBrush}" MaxWidth="560">
+                    <TextBlock x:Name="MaskHintText" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}"
+                               TextWrapping="Wrap" TextTrimming="None" />
+                </Border>
                 <!-- Recorte que se ajusta (PlayerView.Image): la imagen entera, lo que se quita en sombra y ocho asas. -->
                 <Canvas x:Name="CropCanvas" IsHitTestVisible="False" Visibility="Collapsed">
                     <Path x:Name="CropShade" Fill="{StaticResource ShadeBrush}" />
@@ -172,7 +176,8 @@
                 <TextBlock x:Name="OverlayDuration" Grid.Column="3" Style="{StaticResource TimecodeTextStyle}" VerticalAlignment="Center"
                            Foreground="{StaticResource TextMutedBrush}" />
             </Grid>
-            <meters:MetersView x:Name="Meters" x:FieldModifier="internal" Grid.Column="1" />
+            <player:ScopesPanel x:Name="Scopes" x:FieldModifier="internal" Grid.Column="1" Width="340" Visibility="Collapsed" />
+            <meters:MetersView x:Name="Meters" x:FieldModifier="internal" Grid.Column="2" />
         </Grid>
 
         <Grid x:Name="Transport" Grid.Row="2" Padding="12,0" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">

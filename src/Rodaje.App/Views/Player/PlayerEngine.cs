@@ -379,6 +379,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 ProcessCommands();
                 ApplyContentChanges();
                 ApplyTitleChanges();
+                RunGpuWork();
                 if (_session is { IsPlaying: false } && _quality.Paused())
                 {
                     EnsureCompositor();
@@ -419,6 +420,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                     }
                 }
 
+                PumpScopes();
                 PublishSnapshot();
             }
         }
@@ -458,6 +460,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _contentRefresh.Dispose();
         CloseSession();
         _compositor?.Dispose();
+        _scopes?.Dispose();
+        _looks?.Dispose();
         _titles?.Dispose();
         _gpuTimer?.Dispose();
         _presenter?.Dispose();
@@ -820,6 +824,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             drawn = result.LayersDrawn;
             PublishTitleBoxes(frame);
             CompleteCapture();
+            SubmitScope(_compositor);
             lock (_meterLock)
             {
                 _effectTotals = _effectTotals.Add(result);

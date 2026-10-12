@@ -101,6 +101,35 @@ public sealed unsafe class GpuDevice : IDisposable
     public static GpuDevice Create() =>
         TryCreate(out string? reason) ?? throw new MediaException(reason!);
 
+    /// <summary>
+    /// Crea el dispositivo sobre WARP, el rasterizador de software de Direct3D (en la CPU, sin decodificación por
+    /// hardware). Para las pruebas que comparan con una referencia en la CPU igual que en las máquinas sin GPU.
+    /// </summary>
+    /// <exception cref="MediaException">WARP no está disponible.</exception>
+    public static GpuDevice CreateWarp()
+    {
+        D3D_FEATURE_LEVEL* levels = stackalloc D3D_FEATURE_LEVEL[]
+        {
+            D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_1,
+            D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_0,
+        };
+        ID3D11Device* device = null;
+        ID3D11DeviceContext* context = null;
+        D3D_FEATURE_LEVEL level;
+        Check(D3D11CreateDevice(null, D3D_DRIVER_TYPE.D3D_DRIVER_TYPE_WARP, HMODULE.NULL, (uint)D3D11_CREATE_DEVICE_FLAG.D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+            levels, 2, D3D11_SDK_VERSION, &device, &level, &context), "D3D11CreateDevice(WARP)");
+        try
+        {
+            return new GpuDevice(device, context, false);
+        }
+        catch
+        {
+            context->Release();
+            device->Release();
+            throw;
+        }
+    }
+
     /// <summary>Devuelve <c>null</c> y el motivo cuando no hay hardware D3D11; entonces se decodifica en la CPU.</summary>
     public static GpuDevice? TryCreate(out string? failureReason)
     {

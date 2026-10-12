@@ -114,7 +114,7 @@ public class ProjectReaderV6FuzzTests(ITestOutputHelper output)
     public void Seed_OpensWithTwoLevelsOfCompounds()
     {
         Project project = ProjectSerializer.Deserialize(SeedProject());
-        Assert.Equal(6, project.SchemaVersion);
+        Assert.Equal(Project.CurrentSchemaVersion, project.SchemaVersion);
         Assert.Equal(3, project.Sequences.Count);
         Assert.Equal(-3.5, project.Sequences[0].MasterGainDb);
         Assert.Equal(2, ModelValidator.CompoundDepth(project, project.Sequences[0].Id, []));

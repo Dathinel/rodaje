@@ -24,8 +24,14 @@ public sealed class TestHttpServer : IAsyncDisposable
 {
     private const int PortAttempts = 20;
 
-    /// <summary>Fallos al recibir peticiones tras los que el bucle se rinde (para no girar sin fin con el listener roto).</summary>
-    private const int MaxReceiveFailures = 100;
+    /// <summary>El único byte del cuerpo que se manda antes de cortar una respuesta que falló.</summary>
+    private static readonly ReadOnlyMemory<byte> FaultBodyByte = new byte[] { (byte)'!' };
+
+    /// <summary>
+    /// Fallos seguidos al recibir peticiones tras los que el bucle se rinde (para no girar sin fin con el listener
+    /// roto). El contador vuelve a 0 con cada petición recibida: fallos aislados en un servidor de larga vida no lo apagan.
+    /// </summary>
+    internal const int MaxReceiveFailures = 100;
 
     /// <summary>
     /// En Windows, HTTP.sys deja registrar <c>localhost</c> sin permisos de administrador pero no <c>127.0.0.1</c>
@@ -40,13 +46,15 @@ public sealed class TestHttpServer : IAsyncDisposable
     private readonly List<RecordedRequest> _requests = [];
     private readonly HashSet<Task> _handlers = [];
     private readonly List<Exception> _faults = [];
+    private readonly Func<HttpListener, Task<HttpListenerContext>> _receive;
     private readonly Task _acceptLoop;
     private int _disposed;
 
-    private TestHttpServer(HttpListener listener, Uri baseAddress)
+    private TestHttpServer(HttpListener listener, Uri baseAddress, Func<HttpListener, Task<HttpListenerContext>> receive)
     {
         _listener = listener;
         BaseAddress = baseAddress;
+        _receive = receive;
         _acceptLoop = Task.Run(AcceptLoopAsync);
     }
 
@@ -67,8 +75,10 @@ public sealed class TestHttpServer : IAsyncDisposable
 
     /// <summary>
     /// Excepciones inesperadas de los manejadores (no las de un cliente que corta ni las del cierre), que cortaron su
-    /// conexión, y fallos al recibir una petición con el servidor abierto, tras los que se siguió escuchando. Una
-    /// prueba puede exigir que esté vacía para descartar un fallo del propio servidor.
+    /// conexión, y fallos al recibir una petición con el servidor abierto, tras los que se siguió escuchando. Si se
+    /// llega a <see cref="MaxReceiveFailures"/> fallos seguidos, la última entrada es una
+    /// <see cref="InvalidOperationException"/> que dice que el servidor dejó de escuchar. Una prueba puede exigir que
+    /// esté vacía para descartar un fallo del propio servidor.
     /// </summary>
     public IReadOnlyList<Exception> Faults
     {
@@ -82,8 +92,15 @@ public sealed class TestHttpServer : IAsyncDisposable
     }
 
     /// <summary>Arranca un servidor en un puerto libre del bucle local.</summary>
-    public static TestHttpServer Start()
+    public static TestHttpServer Start() => Start(static listener => listener.GetContextAsync());
+
+    /// <summary>
+    /// Como <see cref="Start()"/>, pero cada petición se recibe con <paramref name="receive"/>: las pruebas del propio
+    /// servidor lo usan para simular fallos al recibir.
+    /// </summary>
+    internal static TestHttpServer Start(Func<HttpListener, Task<HttpListenerContext>> receive)
     {
+        ArgumentNullException.ThrowIfNull(receive);
         HttpListenerException? last = null;
         for (var attempt = 0; attempt < PortAttempts; attempt++)
         {
@@ -94,7 +111,7 @@ public sealed class TestHttpServer : IAsyncDisposable
             try
             {
                 listener.Start();
-                return new TestHttpServer(listener, baseAddress);
+                return new TestHttpServer(listener, baseAddress, receive);
             }
             catch (HttpListenerException ex)
             {
@@ -243,27 +260,42 @@ public sealed class TestHttpServer : IAsyncDisposable
             HttpListenerContext context;
             try
             {
-                context = await _listener.GetContextAsync().ConfigureAwait(false);
+                context = await _receive(_listener).ConfigureAwait(false);
             }
 #pragma warning disable CA1031 // Ningún fallo al recibir puede apagar el servidor en silencio: se anota en Faults.
             catch (Exception ex)
 #pragma warning restore CA1031
             {
-                if (_stopping.IsCancellationRequested || !_listener.IsListening || ++failures > MaxReceiveFailures)
+                if (_stopping.IsCancellationRequested || !_listener.IsListening)
                 {
                     return;
                 }
 
                 // En Windows, HTTP.sys puede fallar al recibir una petición (un cliente que corta a mitad de las
                 // cabeceras, E/S abortada) con el servidor sano: antes eso terminaba este bucle y las peticiones
-                // siguientes quedaban sin contestar hasta el plazo del cliente. Se anota y se sigue escuchando.
+                // siguientes quedaban sin contestar hasta el plazo del cliente. Se anota y se sigue escuchando, salvo
+                // que falle demasiadas veces seguidas: entonces el listener está roto y se deja constancia en Faults.
+                var giveUp = ++failures > MaxReceiveFailures;
                 lock (_gate)
                 {
                     _faults.Add(ex);
+                    if (giveUp)
+                    {
+                        _faults.Add(new InvalidOperationException(
+                            string.Create(CultureInfo.InvariantCulture, $"El servidor de pruebas deja de escuchar tras {failures} fallos seguidos al recibir peticiones."),
+                            ex));
+                    }
+                }
+
+                if (giveUp)
+                {
+                    return;
                 }
 
                 continue;
             }
+
+            failures = 0;
 
             var handler = Task.Run(() => HandleAsync(context));
             lock (_gate)
@@ -318,26 +350,51 @@ public sealed class TestHttpServer : IAsyncDisposable
                 _faults.Add(ex);
             }
 
-            AbortAfterFault(response);
+            await AbortAfterFaultAsync(response).ConfigureAwait(false);
         }
     }
 
     /// <summary>
-    /// Corta una respuesta que falló. En Linux, <see cref="HttpListenerResponse.Abort"/> manda antes las cabeceras
-    /// que falten (un 200 vacío si no se llegó a fijar nada), así que primero se anuncia un 500 con un cuerpo que no
-    /// llega: el cliente ve un error en vez de un archivo vacío. En Windows (HTTP.sys) el corte es un RST igual.
+    /// Corta una respuesta que falló. Si las cabeceras no habían salido, se anuncia un 500 de dos bytes, se manda uno y
+    /// se corta: el cliente ve un cuerpo incompleto (un error) en vez de un archivo vacío o una espera.
     /// </summary>
-    private static void AbortAfterFault(HttpListenerResponse response)
+    /// <remarks>
+    /// En Linux, <see cref="HttpListenerResponse.Abort"/> manda antes las cabeceras que falten (un 200 vacío si no se
+    /// llegó a fijar nada). En Windows, <see cref="HttpListenerResponse.Abort"/> sin nada enviado cancela la petición
+    /// en HTTP.sys, pero la CI mostró que a veces la conexión no se reinicia y el cliente espera hasta su plazo. Con las
+    /// cabeceras y un byte ya en el cable, el corte es el mismo que el de <see cref="TestResponse.CutAfterBytes"/> a
+    /// mitad del cuerpo, que HTTP.sys sí reinicia. Escribir cero bytes o vaciar el flujo no basta: en HTTP.sys no
+    /// manda las cabeceras mientras falte cuerpo.
+    /// </remarks>
+    private async Task AbortAfterFaultAsync(HttpListenerResponse response)
     {
+        var headersPending = true;
         try
         {
             response.StatusCode = 500;
             response.SendChunked = false;
-            response.ContentLength64 = 1;
+            response.ContentLength64 = 2;
         }
         catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException or HttpListenerException)
         {
             // Las cabeceras ya salieron: el corte basta.
+            headersPending = false;
+        }
+
+        if (headersPending)
+        {
+            try
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_stopping.Token);
+                timeout.CancelAfter(TimeSpan.FromSeconds(5));
+                var output = response.OutputStream;
+                await output.WriteAsync(FaultBodyByte, timeout.Token).ConfigureAwait(false);
+                await output.FlushAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is HttpListenerException or IOException or ObjectDisposedException or OperationCanceledException or InvalidOperationException)
+            {
+                // El cliente ya se fue o el servidor se cierra: el corte basta.
+            }
         }
 
         Abort(response);

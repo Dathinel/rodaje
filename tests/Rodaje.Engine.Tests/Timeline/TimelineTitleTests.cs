@@ -287,7 +287,7 @@ public sealed class TimelineTitleTests(ITestOutputHelper output)
         Assert.Equal((0, 4), (title.ContentAt(S(10.2)).HighlightStart, title.ContentAt(S(10.2)).HighlightLength));
         Assert.Equal(5, title.ContentAt(S(10.7)).HighlightStart);
         Assert.Equal((7, 5), (title.ContentAt(S(12.9)).HighlightStart, title.ContentAt(S(12.9)).HighlightLength));
-        Assert.Same(title.ContentAt(S(11.5)), title.Layer(0, S(11.5), new EffectListRing(), null).Generated);
+        Assert.Same(title.ContentAt(S(11.5)), title.Layer(0, S(11.5), new EffectListRing(), null, 0).Generated);
 
         // Sin el estilo «palabra resaltada» no hay variantes.
         clip.Generator.Style!.Highlight = null;

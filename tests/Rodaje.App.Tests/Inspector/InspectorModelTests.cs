@@ -151,8 +151,9 @@ public class EffectCatalogTests
     public void Video_OfreceLosFiltrosQueAplicaElMotor_YAudioSuVolumen()
     {
         Assert.Equal(
-            ["Transformar", "Color y LUT", "Viñeta", "Desenfoque", "Nitidez", "Modo de mezcla", "Recortar", "Croma (fondo verde)",
-                "Ruedas de color", "Curvas"],
+            ["Transformar", "Color y LUT", "Viñeta", "Desenfoque", "Nitidez", "Modo de mezcla", "Recortar", "Pixelar", "Croma (fondo verde)",
+                "Ruedas de color", "Curvas", "Grano de película", "Resplandor", "Aberración cromática", "Reducción de ruido",
+                "Espejo y pantalla dividida", "Distorsión de lente", "Corrección secundaria (HSL)"],
             EffectCatalog.For(TrackKind.Video).Select(e => e.Name));
         Assert.Equal([BuiltInEffects.Audio, BuiltInEffects.Equalizer, BuiltInEffects.Compressor], EffectCatalog.For(TrackKind.Audio).Select(e => e.Type));
         Assert.Equal("paquete.raro", EffectCatalog.DisplayName("paquete.raro"));
@@ -207,7 +208,8 @@ public class ParameterSpecTests
         Assert.Equal("150.5", scale.Format(1.505));
         Assert.Equal(-1920, specs[0].Minimum);
         Assert.Equal(1080, specs[1].Maximum);
-        Assert.All(specs, s => Assert.True(s.Animatable));
+        // El obturador, su fase y sus muestras del desenfoque de movimiento no se animan; lo demás, sí.
+        Assert.Equal(["shutterAngle", "shutterPhase", "motionSamples"], specs.Where(s => !s.Animatable).Select(s => s.Name));
     }
 
     [Fact]
@@ -232,8 +234,9 @@ public class ParameterSpecTests
     [Fact]
     public void Curvas_EnElOrdenDelDesplegable()
     {
-        Assert.Equal(["Lineal", "Suave", "Acelerar", "Frenar", "Mantener"], KeyframeEase.Options.Select(o => o.Name));
+        Assert.Equal(["Lineal", "Suave", "Entrada", "Salida", "Rebote", "Elástico", "Bézier", "Mantener"], KeyframeEase.Options.Select(o => o.Name));
         Assert.Equal(1, KeyframeEase.IndexOf(Interpolation.EaseInOut));
-        Assert.Equal(4, KeyframeEase.IndexOf(Interpolation.Hold));
+        Assert.Equal(7, KeyframeEase.IndexOf(Interpolation.Hold));
+        Assert.All(Enum.GetValues<Interpolation>(), i => Assert.Equal(i, KeyframeEase.Options[KeyframeEase.IndexOf(i)].Value));
     }
 }

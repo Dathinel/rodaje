@@ -286,7 +286,7 @@ internal sealed class FloatImage(int width, int height)
         return output;
     }
 
-    private void Fill(Func<int, int, (C3 Color, double Alpha)> pixel)
+    internal void Fill(Func<int, int, (C3 Color, double Alpha)> pixel)
     {
         for (int y = 0; y < Height; y++)
         {
