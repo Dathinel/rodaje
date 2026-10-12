@@ -4,13 +4,14 @@
     soltar archivos, doble clic para añadir a la pista principal, arrastrar a la línea de tiempo (rodaje/media-id) y menú
     contextual. Texto, Efectos, Transiciones y Filtros: lo del motor, lo de los paquetes instalados y lo propio
     (rodaje/elemento; las transiciones también rodaje/transicion); doble clic o el menú los aplican al clip
-    seleccionado. IA: los módulos y si están instalados.
+    seleccionado. IA: los módulos y si están instalados. Marcadores: la lista de marcadores de la secuencia (MarkersPanel).
 -->
 <UserControl
     x:Class="Rodaje.App.Views.Library.LibraryView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:Rodaje.App.Views.Library">
+    xmlns:local="using:Rodaje.App.Views.Library"
+    xmlns:markers="using:Rodaje.App.Views.Markers">
 
     <UserControl.Resources>
         <DataTemplate x:Key="MediaTileTemplate" x:DataType="local:MediaItem">
@@ -70,6 +71,7 @@
                 <RadioButton Style="{StaticResource RailButtonStyle}" GroupName="LibraryRail" Tag="Transitions" Checked="OnCategoryChecked" ToolTipService.ToolTip="Transiciones" AutomationProperties.Name="Transiciones" Content="&#xE8AB;" />
                 <RadioButton Style="{StaticResource RailButtonStyle}" GroupName="LibraryRail" Tag="Filters" Checked="OnCategoryChecked" ToolTipService.ToolTip="Filtros" AutomationProperties.Name="Filtros" Content="&#xE71C;" />
                 <RadioButton Style="{StaticResource RailButtonStyle}" GroupName="LibraryRail" Tag="Ai" Checked="OnCategoryChecked" ToolTipService.ToolTip="IA" AutomationProperties.Name="IA" Content="&#xE945;" />
+                <RadioButton Style="{StaticResource RailButtonStyle}" GroupName="LibraryRail" Tag="Markers" Checked="OnCategoryChecked" ToolTipService.ToolTip="Marcadores" AutomationProperties.Name="Marcadores" Content="&#xE7C1;" />
             </StackPanel>
         </Border>
 
@@ -152,6 +154,8 @@
                 <TextBlock Grid.Row="1" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
                            Text="Cada módulo es un programa aparte con sus modelos: se instala desde Complementos y funciona sin internet." />
             </Grid>
+
+            <markers:MarkersPanel x:Name="MarkersView" Grid.Row="1" Visibility="Collapsed" />
 
             <TextBlock x:Name="EmptyText" Grid.Row="1" Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center" Margin="16" />
         </Grid>
