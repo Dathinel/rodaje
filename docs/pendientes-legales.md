@@ -21,7 +21,7 @@ Lo que falta para publicar Rodaje bajo la GNU GPLv3 con términos adicionales de
 
 ## Obligaciones de terceros antes de distribuir
 
-- [ ] **Código fuente de Rodaje.** Con cada ejecutable entregado, el código fuente correspondiente o un enlace a él (GPLv3, Sección 6). Mientras el repositorio sea privado, el enlace del crédito y el del código no funcionan para terceros.
+- [ ] **Código fuente de Rodaje.** Con cada ejecutable entregado, el código fuente correspondiente o un enlace a él (GPLv3, Sección 6). Desde el 11-oct el repositorio es público y el enlace del crédito funciona para terceros; falta que cada ejecutable señale el código de su versión exacta.
 - [ ] **Código fuente de FFmpeg.** Archivar el tarball del commit `2a571b6` de FFmpeg y el de los scripts de BtbN, y ofrecerlos junto a `dist\` o por oferta escrita (`legal.md`, «Compilación fijada»).
 - [ ] **`THIRD-PARTY-NOTICES.txt` completo.** Avisos del runtime de .NET pegados enteros, bibliotecas externas de las DLL de FFmpeg, Windows App SDK, WebView2, CsWinRT y cada paquete NuGet que viaje en `dist\` (comparar con los `packages.lock.json`).
 - [ ] **Patentes de H.264, HEVC y AAC.** Revisar con el abogado la exposición por decodificar y por exportar (Via LA, Access Advance), aunque la codificación vaya por hardware o Media Foundation (`legal.md`, «Patentes de códecs»).
@@ -31,7 +31,7 @@ Lo que falta para publicar Rodaje bajo la GNU GPLv3 con términos adicionales de
 - [x] **Repositorios de contenido** (decidido el 11-oct: siguen en CC0 y lo nuevo también, contenido libre sin restricción comercial; se mantiene con la GPLv3, D-032). `Dathinel/rodaje-transiciones` y `Dathinel/rodaje-filtros` son públicos y CC0. Qué contienen hoy:
   - `rodaje-transiciones` 1.0.0: contenido real, 8 transiciones en `rodaje.preset` v2 (cuatro deslizamientos, empujar, acercar, alejar y girar), su manifiesto y `empaquetar.ps1`. Un commit (10-oct).
   - `rodaje-filtros` 1.0.0: contenido real, 8 filtros de color con sus LUT 33³ generadas por fórmulas propias en `generar.ps1` (las LUT no se versionan, salen del script). Un commit (10-oct).
-  - Los dos llevan una copia de `formato-paquete.md` de Rodaje (con eso la especificación del formato ya es pública y CC0), no tienen ninguna release publicada aunque el README remite a las releases, y enlazan a `Dathinel/rodaje`, que es privado.
+  - Los dos llevan una copia de `formato-paquete.md` de Rodaje (con eso la especificación del formato ya es pública y CC0), no tienen ninguna release publicada aunque el README remite a las releases, y enlazan a `Dathinel/rodaje`, público desde el 11-oct.
 - [ ] **`rodaje-codificadores-gpl` antes de publicarlo** (`legal.md`, punto h): fuente correspondiente completa (`armar-codificadores-gpl.ps1 -FuenteCompleta` o un `ffmpeg.exe` propio solo con x264 y x265) y el riesgo de patentes de H.264/HEVC codificados en software para quien lo distribuya. Abogado.
 - [ ] **`modulo-raw`:** si el runtime de Visual C++ viaja con el módulo y si los SDK de BRAW, R3D o ARRIRAW se aceptan más adelante (cada uno con su acuerdo). Decide Daniel; el runtime, con el abogado.
 - [ ] **Licencia de los repositorios de módulos** (`modulo-*`, `rodaje-codificadores-gpl`, `rodaje-catalogo`, fase 7). La recomendación de `fase-7.md` era la PolyForm; con D-032 la propuesta pasa a GPLv3 con los mismos términos, o la licencia que Daniel quiera gracias al permiso para complementos. Decide Daniel.

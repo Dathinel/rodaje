@@ -1,6 +1,6 @@
 # Fondo legal de Rodaje
 
-Rodaje vive hoy en un repositorio privado, pero se construye como si fuera a publicarse mañana. Este documento explica la situación legal del programa, qué obligaciones traen sus dependencias y qué hay que comprobar, punto por punto, antes de hacer público el repositorio o de entregar un ejecutable a otra persona. No es asesoría legal: es el resultado de leer las licencias y las guías públicas de cada proyecto, con las fuentes citadas para que cualquiera pueda verificarlas.
+El repositorio de Rodaje (https://github.com/Dathinel/rodaje) es público desde el 11 de octubre de 2026; el programa todavía no se distribuye a terceros. Este documento explica la situación legal del programa, qué obligaciones traen sus dependencias y qué hay que comprobar, punto por punto, antes de entregar un ejecutable a otra persona. No es asesoría legal: es el resultado de leer las licencias y las guías públicas de cada proyecto, con las fuentes citadas para que cualquiera pueda verificarlas.
 
 ## Licencia del código propio
 
@@ -50,9 +50,9 @@ Análisis hecho el 11 de octubre de 2026 al pasar de la PolyForm Noncommercial a
 
 Distinto de la PolyForm: la Sección 4 dice «You may charge any price or no price for each copy that you convey, and you may offer support or warranty protection for a fee», y la Sección 10 impide añadir restricciones. Cualquiera puede vender Rodaje o un derivado, siempre que entregue el código fuente correspondiente bajo la GPLv3 (Sección 6), conserve la atribución de los términos 1 y 3 y, para un derivado publicado, use otro nombre e íconos (`TRADEMARK.md`). Lo que Daniel conserva es el nombre, la marca visual y el crédito; no la exclusividad de venta. Es la decisión que Daniel tomó el 11-oct (D-032).
 
-### e) El enlace del crédito apunta a un repositorio privado
+### e) El enlace del crédito: cumplido
 
-El término 1 exige «un enlace interactivo directo y funcional» a https://github.com/Dathinel/rodaje, y la app lo cumple con el crédito de la barra de título y el diálogo «Acerca de». Hoy el repositorio es privado: para cualquiera que no sea Daniel el enlace da 404, así que el enlace solo funciona de verdad al hacerlo público. Mientras sea privado, Rodaje solo se comparte con personas cercanas; antes de entregar un ejecutable a terceros hay que publicar el repositorio (o al menos el código fuente correspondiente, que la Sección 6 exige igualmente).
+El término 1 exige «un enlace interactivo directo y funcional» a https://github.com/Dathinel/rodaje, y la app lo cumple con el crédito de la barra de título y el diálogo «Acerca de». **Cumplido desde el 11-oct:** el repositorio es público (la API de GitHub da `"private": false` y la página abre sin sesión), así que el enlace ya funciona para cualquiera; hasta entonces daba 404 a quien no fuera Daniel. El repositorio público sirve también de enlace al código fuente de Rodaje, pero no cubre por sí solo la Sección 6 para cada ejecutable entregado: el código tiene que corresponder a esa versión (por ejemplo, una etiqueta por versión) y queda aparte el código fuente de FFmpeg («Compilación fijada y su código fuente»).
 
 ### f) Otros puntos anotados al revisar
 
@@ -228,10 +228,10 @@ Rodaje no envía telemetría ni datos de uso a ningún servidor. Las funciones q
 
 ## Lista de comprobación antes de hacer público el repositorio
 
-Esta lista se recorre completa, en orden, antes de cambiar la visibilidad del repositorio a pública o de entregar un ejecutable a terceros. Cada punto se marca con la fecha y el resultado.
+Esta lista se recorre completa, en orden, antes de cambiar la visibilidad del repositorio a pública o de entregar un ejecutable a terceros. Cada punto se marca con la fecha y el resultado. El repositorio se hizo público el 11-oct sin que ningún punto quedara marcado aquí: la lista sigue vigente para entregar un ejecutable, y los puntos que miran el repositorio en sí (sala limpia, marcas, secretos en el historial, políticas) se aplican ya a lo publicado.
 
 - [ ] **Licencia.** `LICENSE` contiene la cabecera de copyright con el año actualizado, el texto literal de la GNU GPLv3 (SHA-256 del tramo GPL `3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986`, el de https://www.gnu.org/licenses/gpl-3.0.txt) y los términos adicionales revisados por el abogado; `TRADEMARK.md` está al día; los pendientes de [`pendientes-legales.md`](pendientes-legales.md) están resueltos.
-- [ ] **Crédito upstream.** El exe publicado muestra «Código abierto upstream: Rodaje» en la barra de título y el aviso completo en «Ayuda → Acerca de Rodaje», y el enlace abre https://github.com/Dathinel/rodaje, que ya es público (antes de serlo el enlace da 404).
+- [ ] **Crédito upstream.** El exe publicado muestra «Código abierto upstream: Rodaje» en la barra de título y el aviso completo en «Ayuda → Acerca de Rodaje», y el enlace abre https://github.com/Dathinel/rodaje (público desde el 11-oct; antes daba 404).
 - [ ] **Código fuente.** Cada ejecutable entregado va acompañado del código fuente correspondiente de Rodaje o de un enlace a él (GPLv3, Sección 6), además del de FFmpeg.
 - [ ] **Sala limpia.** Se revisa que ningún archivo contenga código copiado de proyectos GPL o de terceros sin licencia compatible. Cualquier duda se resuelve antes de publicar.
 - [ ] **Inventario de dependencias.** `LICENCIAS.md` lista todas las dependencias reales del proyecto (se compara con los archivos `packages.lock.json`), con su versión y licencia verificadas.
