@@ -117,6 +117,13 @@ public sealed class ClipVisualsTests : IDisposable
         ["x1"] = @"C:\videos\raro.mp4",
     };
 
+    /// <summary>
+    /// Tope contra cuelgues, no medida: los hilos de ClipVisuals son de prioridad baja y en el runner de Windows, con todos
+    /// los proyectos de prueba a la vez en 4 núcleos, pasaron más de 10 s sin turno (Windows solo sube a los hilos
+    /// hambrientos tras unos 4 s).
+    /// </summary>
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(60);
+
     private readonly BlockingCollection<ClipVisualsChangedEventArgs> _events = [];
 
     public void Dispose()
@@ -136,7 +143,7 @@ public sealed class ClipVisualsTests : IDisposable
 
     private static T WaitFor<T>(Func<T?> probe) where T : class
     {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
+        var deadline = DateTime.UtcNow + Patience;
         while (DateTime.UtcNow < deadline)
         {
             if (probe() is { } value)
@@ -176,7 +183,7 @@ public sealed class ClipVisualsTests : IDisposable
         _sources.Gate.Set();
 
         var ids = new HashSet<string>();
-        while (ids.Count < 2 && _events.TryTake(out ClipVisualsChangedEventArgs? e, TimeSpan.FromSeconds(10)))
+        while (ids.Count < 2 && _events.TryTake(out ClipVisualsChangedEventArgs? e, Patience))
         {
             Assert.Equal(ClipVisualKind.Thumbnails, e.Kind);
             ids.Add(e.MediaId);
@@ -294,9 +301,14 @@ public sealed class ClipVisualsTests : IDisposable
         using ClipVisuals visuals = Create();
         Time spacing = Time.FromSeconds(2);
 
+        // Con la compuerta cerrada el hilo no termina la miniatura pedida antes de que la llamada busque la más cercana.
+        _sources.Gate.Reset();
         Assert.Null(visuals.GetNearestThumbnail("m1", Time.FromSeconds(4.3), spacing, 40));
+        _sources.Gate.Set();
         BgraImage four = WaitFor(() => visuals.GetNearestThumbnail("m1", Time.FromSeconds(4.3), spacing, 40));
+        _sources.Gate.Reset();
         BgraImage? meanwhile = visuals.GetNearestThumbnail("m1", Time.FromSeconds(8.9), spacing, 40);
+        _sources.Gate.Set();
 
         Assert.Equal(40, four.Pixels[0]);
         Assert.Same(four, meanwhile);
@@ -318,7 +330,7 @@ public sealed class ClipVisualsTests : IDisposable
 
             visuals.GetThumbnail("m1", Time.Zero, 32);
 
-            Assert.Equal(uiThread, await raisedOn.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal(uiThread, await raisedOn.Task.WaitAsync(Patience));
         });
     }
 
@@ -394,11 +406,21 @@ public sealed class ClipVisualsTests : IDisposable
         visuals.GetThumbnail("m1", Time.Zero, 32);
         WaitFor(() => _sources.Attempts > 0 ? "" : null);
 
-        var clock = System.Diagnostics.Stopwatch.StartNew();
-        visuals.Dispose();
-        clock.Stop();
+        // Se cronometra solo Dispose, en un hilo propio de prioridad alta: así la medida no depende de que el pool o el
+        // hilo de la prueba tengan turno en un runner cargado. Los hilos de trabajo siguen en prioridad baja, como en la app.
+        long elapsed = -1;
+        var disposer = new Thread(() =>
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            visuals.Dispose();
+            elapsed = clock.ElapsedMilliseconds;
+        })
+        { IsBackground = true, Name = "Prueba: Dispose de ClipVisuals", Priority = ThreadPriority.Highest };
+        disposer.Start();
+        bool returned = disposer.Join(Patience);
         _sources.Stuck.Set();
 
-        Assert.InRange(clock.ElapsedMilliseconds, 0, 1000);
+        Assert.True(returned, "Dispose no volvió.");
+        Assert.InRange(elapsed, 0, 1000);
     }
 }
