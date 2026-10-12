@@ -27,31 +27,64 @@ internal sealed partial class LibraryView
 
     private LibraryQuery Query() => new(_folderId, SearchBox.Text ?? "", _kind, FavoritesToggle.IsChecked == true);
 
-    /// <summary>Lee las carpetas y favoritos del proyecto la primera vez que se ve (o si cambió de proyecto).</summary>
+    /// <summary>Proyecto (la instancia) cuya organización está cargada; cambia solo al abrir o crear otro.</summary>
+    private Project? _organizationProject;
+
+    /// <summary>Clave de <see cref="LibraryOrganizationStore"/> con la que se guarda la organización cargada.</summary>
+    private string? _organizationKey;
+
+    /// <summary>
+    /// Lee las carpetas y favoritos del proyecto la primera vez que se ve (o si cambió de proyecto). No se poda: los
+    /// medios que el proyecto ya no tiene se quedan en el archivo y la vista solo muestra los que existen (deshacer un
+    /// «Quitar del proyecto» los devuelve a su carpeta).
+    /// </summary>
     private void LoadOrganization(Project project)
     {
-        if (project.Id == _organizationProjectId)
+        if (ReferenceEquals(project, _organizationProject))
         {
+            FollowProjectFile();
             return;
         }
 
-        _organizationProjectId = project.Id;
-        _organization = _organizationStore.Load(project.Id);
-        _organization.Prune(project.Media.Select(m => m.Id));
+        _organizationProject = project;
+        _organizationKey = LibraryOrganizationStore.KeyFor(project.Id, _services?.Session.FilePath);
+        _organization = _organizationStore.Load(_organizationKey, fallbackKey: project.Id);
         _savedRevision = _organization.Revision;
         _folderId = null;
     }
 
+    /// <summary>
+    /// Al guardar por primera vez o con «Guardar como», la organización sigue al archivo nuevo; la del archivo anterior
+    /// queda como estaba (es la de ese otro <c>.rodaje</c>).
+    /// </summary>
+    private void FollowProjectFile()
+    {
+        if (_services is null || !ReferenceEquals(_services.Session.Project, _organizationProject) || _organizationProject is null)
+        {
+            return;
+        }
+
+        string key = LibraryOrganizationStore.KeyFor(_organizationProject.Id, _services.Session.FilePath);
+        if (key == _organizationKey)
+        {
+            return;
+        }
+
+        _organizationKey = key;
+        _savedRevision = -1;
+        SaveOrganization();
+    }
+
     private void SaveOrganization()
     {
-        if (_organizationProjectId is null || _organization.Revision == _savedRevision)
+        if (_organizationKey is null || _organization.Revision == _savedRevision)
         {
             return;
         }
 
         try
         {
-            _organizationStore.Save(_organizationProjectId, _organization);
+            _organizationStore.Save(_organizationKey, _organization);
             _savedRevision = _organization.Revision;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

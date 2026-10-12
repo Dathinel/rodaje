@@ -7,8 +7,9 @@ namespace Rodaje.App.Views.Library;
 
 /// <summary>
 /// Guarda las carpetas y los favoritos de la biblioteca en la carpeta de datos de Rodaje, un archivo por proyecto
-/// (por su id), no dentro del <c>.rodaje</c>: organizan la vista y no cambian el video, así que el formato del proyecto
-/// no sube de versión. Un proyecto copiado a otro PC llega sin sus carpetas (todos los medios quedan en la raíz).
+/// (por su id y la ruta de su <c>.rodaje</c>, ver <see cref="KeyFor"/>), no dentro del <c>.rodaje</c>: organizan la
+/// vista y no cambian el video, así que el formato del proyecto no sube de versión. Un proyecto copiado a otro PC llega
+/// sin sus carpetas (todos los medios quedan en la raíz).
 /// </summary>
 public sealed class LibraryOrganizationStore
 {
@@ -27,24 +28,65 @@ public sealed class LibraryOrganizationStore
 
     public string Directory { get; }
 
-    /// <summary>Archivo del proyecto: su id si es un nombre seguro, o un resumen del id si no.</summary>
-    public string PathFor(string projectId)
+    /// <summary>
+    /// Clave del archivo de organización. Copiar el <c>.rodaje</c> conserva el <c>Project.Id</c>, así que el id solo no
+    /// distingue el original de la copia: con él, las dos compartían archivo y lo que se ordenaba en una cambiaba la otra.
+    /// Por eso, una vez guardado, la clave es el id más la ruta del archivo (sin mirar mayúsculas, como Windows). Un
+    /// proyecto que nunca se guardó usa solo el id, que es nuevo en cada proyecto.
+    /// </summary>
+    public static string KeyFor(string projectId, string? projectFilePath)
     {
         ArgumentNullException.ThrowIfNull(projectId);
-        bool safe = projectId.Length is > 0 and <= 80 && projectId.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
-        string name = safe
+        return string.IsNullOrEmpty(projectFilePath)
             ? projectId
-            : "h-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(projectId)))[..32];
+            : projectId + "|" + projectFilePath.Replace('/', '\\').ToUpperInvariant();
+    }
+
+    /// <summary>Archivo de la clave: la clave si es un nombre seguro, o un resumen de ella si no.</summary>
+    public string PathFor(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        bool safe = key.Length is > 0 and <= 80 && key.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
+        string name = safe
+            ? key
+            : "h-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..32];
         return System.IO.Path.Combine(Directory, name + ".json");
     }
 
     /// <summary>
-    /// Lee la organización del proyecto. Sin archivo, o si estaba dañado (que se aparta con «.dañado»), empieza vacía: en
+    /// Lee la organización de <paramref name="key"/>; si aún no tiene archivo, parte de la de
+    /// <paramref name="fallbackKey"/> (la clave por id de antes, o la del proyecto antes de guardarlo por primera vez), sin
+    /// tocar ese archivo. Así nadie pierde sus carpetas al actualizar, y una copia empieza con las del original pero
+    /// desde ahí guarda las suyas aparte.
+    /// </summary>
+    public LibraryOrganization Load(string key, string? fallbackKey)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        if (fallbackKey is null || fallbackKey == key)
+        {
+            return Load(key);
+        }
+
+        bool exists;
+        try
+        {
+            exists = File.Exists(PathFor(key));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            exists = false;
+        }
+
+        return Load(exists ? key : fallbackKey);
+    }
+
+    /// <summary>
+    /// Lee la organización de la clave (ver <see cref="KeyFor"/>). Sin archivo, o si estaba dañado (que se aparta con «.dañado»), empieza vacía: en
     /// el peor caso los medios se ven todos en la raíz, nunca se pierde un medio.
     /// </summary>
-    public LibraryOrganization Load(string projectId)
+    public LibraryOrganization Load(string key)
     {
-        string path = PathFor(projectId);
+        string path = PathFor(key);
         string text;
         try
         {
@@ -88,10 +130,10 @@ public sealed class LibraryOrganizationStore
     }
 
     /// <summary>Escribe solo si cambió algo; una organización vacía sin archivo previo no crea archivo.</summary>
-    public void Save(string projectId, LibraryOrganization organization)
+    public void Save(string key, LibraryOrganization organization)
     {
         ArgumentNullException.ThrowIfNull(organization);
-        string path = PathFor(projectId);
+        string path = PathFor(key);
         List<LibraryFolderEntry?> folders = [.. organization.Folders.Select(f => new LibraryFolderEntry { Id = f.Id, Name = f.Name, Parent = organization.FindFolder(f.ParentId)?.Id })];
         Dictionary<string, string> media = organization.MediaFolders.Where(p => organization.FindFolder(p.Value) is not null)
             .OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
