@@ -71,6 +71,21 @@ Hecho en `src/Rodaje.App/Services/Modules` (API en [app.md](arquitectura/app.md#
 | Ducking: anticipación ≥30 ms | música abajo ≥30 ms antes de cada frase (bordes de voz con 0 ms de error sobre música filtrada a −30 dB); keyframes deshacibles en un paso |
 | Voz ≥100× | 481–643× tiempo real |
 
+## Resultados del agente D (estabilizar y color automático)
+
+`src/Rodaje.Analysis/Video` (sin modelos, en la CPU, código propio sobre algoritmos publicados): `MotionEstimator` reduce el plano de luma a 640 px (promedio por bloques, 8 o 10 bits), busca esquinas de Shi-Tomasi en una rejilla de 24 px, las sigue con Lucas-Kanade piramidal (ventana 11×11, 4 niveles) y ajusta una similitud con RANSAC y mínimos cuadrados; `CameraPath` suaviza la trayectoria con una gaussiana (sigma = intensidad × 1 s, extremos reflejados de forma impar) y calcula el acercamiento mínimo que cubre todos los cuadros; `MotionTrack` es la caché binaria (`%LOCALAPPDATA%\Rodaje\cache\estabilizar\<clave>.rmot`, clave = huella del archivo + cuadros). `ColorStatistics` mide shades of gray (p = 6) y gray edge en luz lineal sin recortados, mediana entre 16 cuadros; `AutoColor` lo lleva a temperatura, matiz y exposición (balance) y además a exposición y contraste por percentiles (color automático).
+
+- **Motor y render:** `rodaje.stabilize` pasa a la etapa de transformación (intensidad 0–1 sin animar, recorte `auto`/`off`, clave `analysis`). El plan pide las correcciones a `IEffectContent.FindStabilization` (la app las calcula una vez por intensidad y recorte) y cada capa lleva la de su cuadro en `LayerTransform.Stabilization`; `LayerLayout.Place` la compone antes de la transformación, así va por el camino rápido y por el de efectos, en la vista previa y en la exportación.
+- **App:** «Estabilizar...», «Color automático» y «Balance de blancos automático» en el menú del clip (`Views/Analysis`). Estabilizar decodifica en la CPU (no gasta VRAM de la vista previa), muestra temblor antes y después y el acercamiento con cada ajuste, y pone el efecto en un paso. El color mide 16 miniaturas y ajusta el efecto de color existente en un paso, con «Deshacer» en el aviso. «Estabilizar» no sale en la lista de filtros para añadir: necesita el análisis.
+
+| Criterio | Resultado (Release, Ryzen 7 7435HS) |
+|---|---|
+| Movimiento entre cuadros | error máximo 0,009–0,012 px (de 360) y 0,0012° frente al verdadero; ≥338 esquinas coincidentes |
+| Estabilizar −70 % con temblor conocido | temblor (segunda diferencia de centro y esquinas) de 7,9 a 0,005–0,007 px/cuadro²: **−99,9 %** con intensidad 0,5 y 1, recorte ×1,06–1,08; una panorámica sin temblor queda a ≤0,07 px |
+| Análisis ≥60 fps 1080p | **136 cuadros/s** desde el plano de luma (7,3 ms); **101 cuadros/s** con la decodificación H.264 1080p en la CPU incluida |
+| Color: dominante corregida a ΔE ≤3 | cinco dominantes (cálida, fría, verde, magenta, tungsteno): ΔE*ab medio de 8–17 a **0,42–0,87**, peor gris 1,2–2,4; escena neutra: ±0,004 |
+| Color automático | luma 0,17–0,48 de un clip opaco y oscuro a 0,08–0,91 sin mover el balance |
+
 ## Funciones, modelos y licencias
 
 Velocidades estimadas a partir de cifras publicadas; las mide cada agente en el equipo de Daniel. ✅ viable con licencia limpia, ⚠️ viable con condiciones, ❌ sin opción limpia.
