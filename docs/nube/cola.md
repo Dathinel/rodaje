@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #15.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #15, #31, #33, #34.
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -319,7 +319,7 @@ FFV1 con `-g 1` (hoy sale un cuadro clave cada 12); `h264_mf`/`hevc_mf` en MOV e
 
 ## 33. Cancelar la exportación en ≤1 s también con VP9
 
-- **Estado:** pendiente (urgente: `CpuExportCancellationTests.Canceling_mid_export_leaves_no_process_and_no_file` es lo único que falta para que Windows quede en verde tras la tarea 40; Abort vuelve a ~930 ms con ffmpeg en BelowNormal)
+- **Estado:** hecha (PR #33 unido el 12-oct junto con #31 y #34 por el PR de integración, que es el primero con Windows en verde)
 - **Rama:** `claude/export-abort`
 - **Caminos:** `src/Rodaje.Media/Export/FfmpegPipeSink.cs`, `tests/Rodaje.Media.Tests/Export/`, `docs/tareas/`.
 - **Lee:** revisión en bloque (M6), `docs/fase-6.md` (criterio de cancelación).
@@ -382,7 +382,7 @@ Quitar fondo como máscara (FFV1 gris en la caché del proyecto) aplicada por un
 
 ## 40. URGENTE: main en rojo en la CI de Windows (módulos, títulos, codificadores)
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #31 unido el 12-oct por el PR de integración con #33 y #34)
 - **Rama:** `claude/ci-main-verde`
 - **Caminos:** `tests/Rodaje.App.Tests/Modules/`, `tests/Rodaje.App.Tests/Inspector/`, `tests/Rodaje.App.Tests/` (otras pruebas que fallen en main), `src/Rodaje.App/Services/Modules/` y el formateo de números del editor de títulos (solo si el defecto es del código), `tests/Rodaje.Render.Tests/Text/`, `tests/Rodaje.Media.Tests/Export/ExportEncoderAvailabilityTests.cs`, `tests/Rodaje.Core.Tests/` (solo si falla en main), `docs/tareas/`
 - **Lee:** el log de la corrida de main en f89d896 (run 38194016251, job 114632689518), `testing/Rodaje.TestMedia/Skip.cs`.
@@ -410,7 +410,7 @@ Desde f89d896 falla el trabajo de Windows: `ModuleManagerTests` (varias: «El m�
 
 ## 43. `NU1004` intermitente al restaurar en la CI de Windows
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #34 unido el 12-oct por el PR de integración con #31 y #33)
 - **Rama:** `claude/ci-restore-rid`
 - **Caminos:** `.github/workflows/ci.yml`, los `.csproj` y `packages.lock.json` de `src/Rodaje.Modules.Protocol/` y `modules/*/` (solo lo mínimo), `docs/tareas/`
 - **Lee:** jobs 114670188931 (PR #31, falla en `Rodaje.Modules.Protocol`: «runtime identifiers have changed from. Project's runtime identifiers: , lock file's runtime identifiers win-x64») y 114665862040 (PR #30, falla en `Rodaje.Module.Echo`: «win-x64» frente a «linux-x64»).
