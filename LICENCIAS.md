@@ -68,7 +68,95 @@ Revisado el 12 de octubre de 2026. Son bibliotecas que la compilación fijada ac
 | OpenJPEG | `--enable-libopenjpeg` | `8314119b067c0fc77834731168daaebd379fdb12` | BSD-2-Clause (© 2002-2014 Université catholique de Louvain y otros); dice que no concede derechos de patente | https://raw.githubusercontent.com/uclouvain/openjpeg/8314119b067c0fc77834731168daaebd379fdb12/LICENSE | Aviso de copyright y condiciones. | **Sí** (FSF `#FreeBSD`). |
 | libjxl | `--enable-libjxl` | `b87738951c1254cd8cccaa6d47712ba735da56d8` | BSD-3-Clause (© the JPEG XL Project Authors) más la concesión de patentes de Google (`PATENTS`) | https://raw.githubusercontent.com/libjxl/libjxl/b87738951c1254cd8cccaa6d47712ba735da56d8/LICENSE y `PATENTS` del mismo commit | Aviso de copyright y condiciones. La terminación de `PATENTS` se limita a demandas contra «this implementation of JPEG XL», como la de libvpx. Arrastra Little CMS (`scripts.d/50-libjxl/45-lcms2.sh`): **sin revisar**. | **Código: sí** (FSF `#ModifiedBSD`). **Patentes de Google: a confirmar**, igual que libvpx; la entrada «License of WebM» de la FSF no cubre este archivo. |
 
-**Sin revisar.** El resto de lo que activa la línea de configure y sus dependencias no tiene fila: Fontconfig, libvorbis y libogg, libtheora, rav1e, chromaprint, libgme, libaribb24, libaribcaption, liblcevc-dec, OpenCL, Vulkan, LV2 (lilv), OpenAL, liboapv, opencore-amr, libopenmpt, SDL2, Snappy, soxr, TwoLAME, uavs3d, libva, vvenc, zvbi, libiconv, xz, libunibreak (de libass) y libudfread (de libbluray), más las dependencias que BtbN compila para `win64-lgpl` (la lista exacta sale de `ffbuild_enabled` de cada script de `scripts.d/`). Hasta revisarlas no se puede afirmar que ninguna sea solo GPL; la casilla está en `docs/pendientes-legales.md`.
+**Resto de las etapas activas** (12 de octubre de 2026). Las etapas que `scripts.d/` activa para `win64-lgpl-shared` en el commit `6c9aec5fc9a7` de BtbN, sin fila arriba, con los archivos de licencia leídos en el commit que fija cada script. Su texto literal está en `THIRD-PARTY-NOTICES.txt`, sección 7; la licencia SPDX y la compatibilidad de cada una están **sin evaluar**.
+
+| Biblioteca | Commit | Archivos leídos |
+|---|---|---|
+| amf (https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git) | `6277e353fd62` | `LICENSE.txt` |
+| aom (https://aomedia.googlesource.com/aom) | `b4ce2cd097b0` | `AUTHORS`, `LICENSE`, `PATENTS` |
+| brotli (https://github.com/google/brotli.git) | `a3abcbee0d94` | `LICENSE` |
+| cairo (https://gitlab.freedesktop.org/cairo/cairo.git) | `74755964edef` | `AUTHORS`, `COPYING`, `COPYING-LGPL-2.1`, `COPYING-MPL-1.1` |
+| chromaprint (https://github.com/acoustid/chromaprint.git) | `aed8eba2202d` | `LICENSE.md` |
+| dav1d (https://code.videolan.org/videolan/dav1d.git) | `9711965b60bb` | `COPYING` |
+| ffnvcodec (https://github.com/FFmpeg/nv-codec-headers.git) | `eddcea9e27f6` | ninguno en la raíz |
+| ffnvcodec-2 (https://github.com/FFmpeg/nv-codec-headers.git) | `ced4f8eba3ba` | ninguno en la raíz |
+| fftw3 (https://github.com/FFTW/fftw3.git) | `93ed4c786934` | `AUTHORS`, `COPYING`, `COPYRIGHT` |
+| fontconfig (https://gitlab.freedesktop.org/fontconfig/fontconfig.git) | `bd8f7b597de9` | `AUTHORS`, `COPYING` |
+| freetype (https://gitlab.freedesktop.org/freetype/freetype.git) | `d33343963303` | `LICENSE.TXT` |
+| freetype (https://gitlab.freedesktop.org/freetype/freetype.git) | `d33343963303` | `LICENSE.TXT` |
+| fribidi (https://github.com/fribidi/fribidi.git) | `4c914a92e94a` | `AUTHORS`, `COPYING` |
+| glib (https://github.com/GNOME/glib.git) | `5a124d1e66a6` | `COPYING`, `LICENSES/AFL-2.0.txt`, `LICENSES/Apache-2.0.txt`, `LICENSES/CC-BY-SA-3.0.txt`, `LICENSES/CC0-1.0.txt`, `LICENSES/GPL-2.0-or-later.txt`, `LICENSES/LGPL-2.1-only.txt`, `LICENSES/LGPL-2.1-or-later.txt`, `LICENSES/LLVM-exception.txt`, `LICENSES/LicenseRef-old-glib-tests.txt`, `LICENSES/MIT.txt`, `LICENSES/MPL-1.1.txt` |
+| gme (https://github.com/libgme/game-music-emu.git) | `f68963b1de06` | `license.gpl2.txt`, `license.txt` |
+| gmp (https://github.com/BtbN/gmplib.git) | `763b40df71c0` | `AUTHORS`, `COPYING.LESSERv3`, `COPYINGv2`, `COPYINGv3` |
+| harfbuzz (https://github.com/harfbuzz/harfbuzz.git) | `b3bab6230701` | `AUTHORS`, `COPYING` |
+| kvazaar (https://github.com/ultravideo/kvazaar.git) | `2b06691bb584` | `LICENSE`, `LICENSE.EXT.greatest` |
+| lcevcdec (https://github.com/v-novaltd/LCEVCdec.git) | `17804ac54db8` | `COPYING`, `LICENSE.md` |
+| lcms2 (https://github.com/mm2/Little-CMS.git) | `a0b0d7a69b13` | `AUTHORS`, `LICENSE` |
+| libaribb24 (https://github.com/nkoriyama/aribb24.git) | `5e9be272f96e` | `COPYING` |
+| libaribcaption (https://github.com/xqq/libaribcaption.git) | `c64c23b8905b` | `LICENSE` |
+| libass (https://github.com/libass/libass.git) | `f61db567e659` | `COPYING` |
+| libbluray (https://code.videolan.org/videolan/libbluray.git) | `a24f4fad4d62` | `COPYING` |
+| libffi (https://github.com/libffi/libffi.git) | `bc5538673672` | `LICENSE`, `LICENSE-BUILDTOOLS` |
+| libjxl (https://github.com/libjxl/libjxl.git) | `b87738951c12` | `AUTHORS`, `LICENSE`, `PATENTS` |
+| libogg (https://github.com/xiph/ogg.git) | `06a5e0262cdc` | `AUTHORS`, `COPYING` |
+| libopus (https://github.com/xiph/opus.git) | `503d81b138d7` | `AUTHORS`, `COPYING`, `LICENSE_PLEASE_READ.txt` |
+| libplacebo (https://code.videolan.org/videolan/libplacebo.git) | `e2972fdd09ad` | `LICENSE` |
+| libpng (https://github.com/glennrp/libpng.git) | `964b41359497` | `AUTHORS.md`, `LICENSE.md`, `LICENSES/MIT-0.txt`, `LICENSES/MIT.txt` |
+| librist (https://code.videolan.org/rist/librist.git) | `4f45ef8f7898` | `COPYING` |
+| librsvg (https://github.com/GNOME/librsvg.git) | `7612431eb02d` | `AUTHORS`, `COPYING.LIB` |
+| libsamplerate (https://github.com/libsndfile/libsamplerate.git) | `0844c208f683` | `AUTHORS`, `COPYING` |
+| libssh (https://gitlab.com/libssh/libssh-mirror.git) | `76e0a8639e61` | `AUTHORS`, `BSD`, `COPYING` |
+| libtheora (https://github.com/xiph/theora.git) | `28fd5ec77f0a` | `AUTHORS`, `COPYING`, `LICENSE` |
+| libudfread (https://code.videolan.org/videolan/libudfread.git) | `b0bc6957e7e0` | `COPYING` |
+| libunibreak (https://github.com/adah1972/libunibreak.git) | `28a2756b864c` | `AUTHORS`, `LICENCE` |
+| libva (https://github.com/intel/libva.git) | `6b07f7100512` | `COPYING` |
+| libvorbis (https://github.com/xiph/vorbis.git) | `1b75110b5a27` | `AUTHORS`, `COPYING` |
+| libvpx (https://chromium.googlesource.com/webm/libvpx) | `5e680f30801d` | `AUTHORS`, `LICENSE`, `PATENTS` |
+| libwebp (https://chromium.googlesource.com/webm/libwebp) | `5c168cd23b18` | `AUTHORS`, `COPYING`, `PATENTS` |
+| libxml2 (https://github.com/GNOME/libxml2.git) | `91586dc6742a` | `Copyright` |
+| libzmq (https://github.com/zeromq/libzmq.git) | `46493370217a` | `AUTHORS`, `LICENSE` |
+| lilv (https://github.com/lv2/lilv.git) | `4b8f30055fa5` | `AUTHORS`, `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/ISC.txt` |
+| lv2 (https://github.com/lv2/lv2.git) | `3c57dae600a5` | `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/Apache-2.0.txt`, `LICENSES/CC-BY-1.0.txt`, `LICENSES/CC-BY-4.0.txt`, `LICENSES/ISC.txt`, `LICENSES/MIT.txt`, `LICENSES/W3C-19980720.txt`, `LICENSES/W3C-20150513.txt` |
+| mbedtls (https://github.com/ARMmbed/mbedtls.git) | `v4.2.0` | `LICENSE` |
+| mingw-std-threads (https://github.com/meganz/mingw-std-threads.git) | `c931bac289dd` | `LICENSE` |
+| onevpl (https://github.com/intel/libvpl.git) | `674d015bcb29` | `LICENSE` |
+| openal (https://github.com/kcat/openal-soft.git) | `c89b8cf7bba4` | `COPYING`, `LICENSE-pffft`, `LICENSE.Apache-2.0.txt`, `LICENSE.BSD-3-Clause.txt` |
+| openapv (https://github.com/AcademySoftwareFoundation/openapv.git) | `a58ce739be0d` | `LICENSE` |
+| opencl (https://github.com/KhronosGroup/OpenCL-Headers.git) | `e6060189f4eb` | `LICENSE` |
+| opencl-2 (https://github.com/KhronosGroup/OpenCL-ICD-Loader.git) | `5192c84f8059` | `LICENSE` |
+| openh264 (https://github.com/cisco/openh264.git) | `8b2d28faade1` | `LICENSE` |
+| openjpeg (https://github.com/uclouvain/openjpeg.git) | `8314119b067c` | `AUTHORS.md`, `LICENSE` |
+| openmpt (https://github.com/OpenMPT/openmpt.git) | `f83cedb0cd54` | `LICENSE` |
+| openssl (https://github.com/openssl/openssl.git) | `openssl-3.6.` | `AUTHORS.md`, `LICENSE.txt` |
+| pango (https://github.com/GNOME/pango.git) | `8e74c27c113c` | `COPYING` |
+| pcre2 (https://github.com/PCRE2Project/pcre2.git) | `09eb19dc1102` | `AUTHORS.md`, `COPYING`, `LICENCE.md` |
+| pixman (https://gitlab.freedesktop.org/pixman/pixman.git) | `96c04d1b8793` | `AUTHORS`, `COPYING` |
+| rav1e (https://github.com/xiph/rav1e.git) | `31435de9d76f` | `LICENSE`, `PATENTS`, `license_template.txt` |
+| sdl (https://github.com/libsdl-org/SDL.git) | `b90ac95029d8` | `LICENSE.txt` |
+| serd (https://github.com/drobilla/serd.git) | `b6053bb2a453` | `AUTHORS`, `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/BSD-3-Clause.txt`, `LICENSES/ISC.txt` |
+| shaderc (https://github.com/google/shaderc.git) | `a8abeb0b8a9d` | `AUTHORS`, `LICENSE`, `license-checker.cfg` |
+| snappy (https://github.com/google/snappy.git) | `9c28114a3886` | `AUTHORS`, `COPYING`, `COPYING.notestdata` |
+| sord (https://github.com/drobilla/sord.git) | `4b5232bb91e7` | `AUTHORS`, `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/BSD-3-Clause.txt`, `LICENSES/ISC.txt` |
+| spirv-cross (https://github.com/KhronosGroup/SPIRV-Cross.git) | `aa217aeb6c9f` | `LICENSE`, `LICENSES/Apache-2.0.txt`, `LICENSES/CC-BY-4.0.txt`, `LICENSES/LicenseRef-KhronosFreeUse.txt`, `LICENSES/MIT.txt` |
+| spirv-headers (https://github.com/KhronosGroup/SPIRV-Headers.git) | `2b7475f6d664` | `LICENSE`, `LICENSES/CC-BY-4.0.txt`, `LICENSES/MIT.txt` |
+| sratom (https://github.com/lv2/sratom.git) | `9e8ee84eed50` | `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/ISC.txt` |
+| srt (https://github.com/Haivision/srt.git) | `ff8ab25c57ae` | `LICENSE` |
+| svtav1 (https://gitlab.com/AOMediaCodec/SVT-AV1.git) | `5ed9ffbcb508` | `LICENSE-BSD2.md`, `LICENSE.md`, `PATENTS.md` |
+| twolame (https://github.com/njh/twolame.git) | `6fced852d4d5` | `AUTHORS`, `COPYING` |
+| uavs3d (https://github.com/uavs3/uavs3d.git) | `0e20d2c29185` | `COPYING` |
+| vmaf (https://github.com/Netflix/vmaf.git) | `86da14d0306a` | `LICENSE` |
+| vulkan-headers (https://github.com/KhronosGroup/Vulkan-Headers.git) | `v1.4.363` | `LICENSE.md`, `LICENSES/Apache-2.0.txt`, `LICENSES/MIT.txt` |
+| vulkan-loader (https://github.com/BtbN/Vulkan-Shim-Loader.git) | `65b3936528cd` | `LICENSE` |
+| vulkan-loader-2 (https://github.com/KhronosGroup/Vulkan-Headers.git) | `v1.4.363` | `LICENSE.md`, `LICENSES/Apache-2.0.txt`, `LICENSES/MIT.txt` |
+| vvenc (https://github.com/fraunhoferhhi/vvenc.git) | `b1cfb2ad495a` | `AUTHORS.md`, `LICENSE.txt` |
+| xz (https://github.com/tukaani-project/xz.git) | `3b1efb04d17c` | `AUTHORS`, `COPYING`, `COPYING.0BSD`, `COPYING.GPLv2`, `COPYING.GPLv3`, `COPYING.LGPLv2.1` |
+| zimg (https://github.com/sekrit-twc/zimg.git) | `67e0603271c0` | `COPYING` |
+| zix (https://github.com/drobilla/zix.git) | `17d632393f5a` | `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/ISC.txt` |
+| zlib (https://github.com/madler/zlib.git) | `767c4c947852` | `LICENSE` |
+| zstd (https://github.com/facebook/zstd.git) | `01b7154f1172` | `COPYING`, `LICENSE` |
+| zvbi (https://github.com/zapping-vbi/zvbi) | `d3a5ee9f2b04` | `AUTHORS`, `COPYING.md` |
+
+Sin leer todavía (repositorios fuera de GitHub, GitLab y googlesource): mingw-w64 (runtime de MinGW enlazado en las DLL), libiconv y gnulib, opencore-amr y soxr; y las bibliotecas de Rust de rav1e y librsvg (sus `Cargo.lock`). Las etapas de `50-libcurl/` no se compilan: la carpeta se omite porque `libcurl` está apagado.
 
 ## Contenido propio
 
@@ -111,7 +199,7 @@ Para quitar el fondo quedan excluidos RMBG-1.4 y RMBG-2.0, de uso no comercial c
 | Microsoft.NET.Test.Sdk 18.10.1 | MIT, © Microsoft Corporation | Solo pruebas. |
 | coverlet.collector 10.1.0 | MIT, © 2018 Toni Solarin-Sodara | Solo cobertura. |
 | CsCheck 4.9.1 | Apache-2.0, © Anthony Lloyd | Pruebas basadas en propiedades. |
-| Inno Setup 7.1.0 (portable, en `.entorno`) | Licencia propia de Inno Setup | Arma el instalador (`build\instalador.ps1`). El `Rodaje-<v>-instalador.exe` lleva su programa de instalación, así que esa parte sí viaja: **licencia sin revisar en este archivo**, hay que leerla antes de publicar. |
+| Inno Setup 7.1.0 (portable, en `.entorno`) | Licencia propia de Inno Setup (`license.txt`: © 1997-2026 Jordan Russell, partes © 2000-2026 Martijn Laan; uso y redistribución permitidos, también comerciales) | Arma el instalador (`build\instalador.ps1`). El `Rodaje-<v>-instalador.exe` lleva su programa de instalación, así que esa parte viaja. Al distribuir en binario la condición 2 pide conservar el aviso de copyright y las direcciones web que ya trae (por ejemplo en su «Acerca de»); el reconocimiento en la documentación es opcional. Aviso literal en `THIRD-PARTY-NOTICES.txt`, sección 9. |
 | FFmpeg 9.0 de gyan.dev (instalado con winget) | GPL | Solo para pruebas y preparación de material en el equipo de desarrollo. Nunca se copia a `dist\`. |
 | gitleaks | MIT (https://github.com/gitleaks/gitleaks) | Escaneo de secretos del historial antes de publicar. |
 | Git y GitHub CLI | GPL-2.0 (Git) y MIT (gh) | Herramientas globales de gestión, no forman parte del programa. |
