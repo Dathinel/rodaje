@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #43, #42, #45. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50) y #38, #37, #41, #39 (52–55).
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50), #38, #37, #41, #39 (52–55), #43, #42, #45, #26, #27 (58–61) y #49, #52, #48, #54 (62–64).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -247,7 +247,7 @@ Al crear un proyecto: plantillas 16:9 1080p, 9:16 1080×1920 (TikTok/Reels/Short
 
 ## 25. Fuzz del protocolo de módulos
 
-- **Estado:** cambios (PR #27: `ClientFuzzTests` se cuelga en Windows; ver el PR)
+- **Estado:** hecha (PR #27 unido el 12-oct en modo autónomo; defecto 6 corregido; los defectos 1–5 siguen omitidos y pasan a la tarea 59)
 - **Rama:** `claude/modulos-fuzz`
 - **Caminos:** `tests/Rodaje.Modules.Protocol.Tests/` (archivos nuevos), `docs/tareas/`.
 - **Lee:** `docs/fase-7.md`, D-031, `src/Rodaje.Modules.Protocol/`.
@@ -265,7 +265,7 @@ Guía para escribir un módulo de terceros: transporte, saludo y versión, mensa
 
 ## 27. Servidor HTTP local para probar descargas
 
-- **Estado:** cambios (PR #26: un corte con `Abort` en Windows pierde los bytes ya enviados; ver el PR)
+- **Estado:** hecha (PR #26 unido el 12-oct en modo autónomo; nadie lo usa todavía: tarea 61)
 - **Rama:** `claude/descarga-lab`
 - **Caminos:** `testing/Rodaje.TestServer/` (nuevo), `docs/tareas/`.
 - **Lee:** `docs/fase-7.md` (sección Descarga).
@@ -307,6 +307,8 @@ Carpetas en la biblioteca del proyecto (crear, renombrar, arrastrar medios), bú
 - **Lee:** revisión en bloque del 11-oct (M3): hay tres listas (`ExportEncoderCatalog` de #14 sin usar, `ExportEncoderCandidates`/`ProbedEncoderSource` en la app, `ProxyEncoders`).
 
 Conecta `ExportEncoderAvailability` a `IExportEncoderSource` (punto previsto en `ExportEncoderSource.cs:9`), borra `ExportEncoderCandidates` y `ProbedEncoderSource`, y que `ProxyEncoders` use el mismo catálogo. Un codificador de hardware sin dispositivo no debe reintentarse cada 2 min. Pruebas sin dobles duplicados.
+
+Al borrar `ExportEncoderCandidates`, los `BaseArguments` del catálogo deben llegar al camino de la app (`AppExportRunner`), con una prueba que lo vigile (revisión en bloque 5, tarea 58).
 
 ## 32. FFV1 solo intra, rango de color en MOV y pruebas sobre el código real
 
@@ -418,7 +420,7 @@ La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que tod
 
 ## 44. Carrera entre `Abort` y `Complete` en la exportación, y `Kill` fuera del cerrojo
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #48 unido el 12-oct en modo autónomo; sus 4 pruebas son `ProxyFact` y no corren en la CI: tarea 63)
 - **Rama:** `claude/export-abort-carrera`
 - **Caminos:** `src/Rodaje.Media/Export/FfmpegPipeSink.cs`, `tests/Rodaje.Media.Tests/Export/` (archivos nuevos o `FfmpegPipeSinkFailureTests.cs`), `docs/tareas/`
 - **Lee:** revisión en bloque 2 (hallazgos 1 y 5), entrega de la tarea 33 (`docs/tareas/2026-10-12-export-abort.md`).
@@ -452,7 +454,7 @@ La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que tod
 
 ## 47. Pruebas de la App que fallan con el runner de Windows cargado
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #49 unido el 12-oct en modo autónomo; `ClipVisuals.Dispose` ya no espera el candado; queda `ProcessTests.A_module_that_ignores_cancel_is_killed_after_the_grace_period` de Modules.Protocol, en la 57)
 - **Rama:** `claude/app-pruebas-carga`
 - **Caminos:** `tests/Rodaje.App.Tests/Media/ClipVisualsTests.cs`, `tests/Rodaje.App.Tests/` (las otras pruebas citadas), `tests/Rodaje.Media.Tests/Export/ExportEncoderAvailabilityTests.cs`, `tests/Rodaje.Engine.Tests/Timeline/` y `tests/Rodaje.Module.AudioAi.Tests/` (las pruebas citadas), `src/Rodaje.App/Services/` y `src/Rodaje.Media/Export/ExportEncoderAvailability*.cs` (solo si el defecto es del código), `docs/tareas/`
 - **Lee:** el job 114679035551 (PR #32), el comentario del 12-oct en el PR #33 y `testing/Rodaje.TestMedia/Skip.cs`.
@@ -522,7 +524,7 @@ Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.x
 
 ## 54. Biblioteca: proyectos que comparten organización y lectura de códecs
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #56 unido el 12-oct en modo autónomo; límites en la entrega: escritura en segundo plano no esperada al cerrar, `.rodaje` movido desde el Explorador)
 - **Rama:** `claude/biblioteca-robusta`
 - **Caminos:** `src/Rodaje.App/Views/Library/`, `tests/Rodaje.App.Tests/Library/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 30, revisión en bloque 4.
@@ -563,3 +565,76 @@ Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.x
 - **Lee:** la corrida de la CI de main sobre 0a56efa.
 
 En la CI de Windows fallan `SpeedMaterialPropertiesTests.EncadenarCurvasYVolverA1x_DevuelveElMaterial`, `ConnectionTests.Echo_round_trip_keeps_the_parameters` y `ModuleManagerTests.Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada`; en local (RTX 3050) pasan. Averigua por qué en el runner (semilla aleatoria de la propiedad —deja la semilla en el mensaje—, módulo eco publicado o no, tiempos de ping en 2 núcleos), corrige la causa y deja main en verde.
+
+Suma `Rodaje.Modules.Protocol.Tests.ProcessTests.A_module_that_ignores_cancel_is_killed_after_the_grace_period`, que falla en Windows con «tardó 4,6 s» (#41, #44; entrega de la tarea 47). La 47 (PR #49) ya pasó `ModuleManagerTests.Una_llamada_larga…` a `TiempoReal`.
+
+## 58. FFV1 y catálogo: que los argumentos fijos lleguen a la app
+
+- **Estado:** hecha (PR #52 unido el 12-oct en modo autónomo; quedan diferencias que no son argumentos fijos, como `-q:v` frente a `-quality` en h264_mf y el preset de NVENC, para la tarea 31)
+- **Rama:** `claude/export-ffv1-app`
+- **Caminos:** `src/Rodaje.Export/Encoders/ExportEncoderCandidates.cs`, `src/Rodaje.Media/Rodaje.Media.csproj` (solo `InternalsVisibleTo` para `Rodaje.Export.Tests`), `tests/Rodaje.Export.Tests/`, `docs/tareas/`
+- **Lee:** entrega de la tarea 32 (`docs/tareas/2026-10-12-export-ffv1-rango.md`), `src/Rodaje.App/Views/Export/Logic/AppExportRunner.cs:43`, `src/Rodaje.Media/Export/FfmpegPipeSink.cs:725-735`, tarea 31.
+
+La app arma sus codificadores con `ExportEncoderCandidates.All` (`AppExportRunner.cs:43`), no con `ExportEncoderCatalog`. Por eso el `-g 1` de FFV1 de la tarea 32 (`ExportEncoderCatalog.cs:287`) no llega a las exportaciones reales, y tampoco llegan `-level 3 -slicecrc 1`. El FFV1 de `ExportEncoderCandidates.cs:93-98` no tiene `BaseArguments`. Pasa esos `BaseArguments` a `ExportEncoderCandidates`. Revisa uno por uno los demás codificadores frente a `ExportEncoderCatalog` y trae los argumentos fijos que falten. Añade una prueba que arme los argumentos completos de la sink con el spec de `ExportEncoderCandidates.All` y exija `-g 1` en FFV1. Con `InternalsVisibleTo`, quita la copia de `ParseEncoderList` y la reflexión de `SinkRuns.ProcessId` en `tests/Rodaje.Export.Tests/Cpu/CpuExportSupport.cs`, y vuelve a asignar el proceso al `ChildProcessJob` en `RunBinary`.
+
+## 59. Cinco defectos del protocolo de módulos hallados por el fuzz
+
+- **Estado:** pendiente
+- **Rama:** `claude/protocolo-defectos`
+- **Caminos:** `src/Rodaje.Modules.Protocol/ModuleHost.cs`, `ModuleClient.cs`, `MessageChannel.cs`, `Messages.cs`, `tests/Rodaje.Modules.Protocol.Tests/`, `docs/protocolo-modulos.md` (solo si cambia un comportamiento descrito), `docs/tareas/`
+- **Lee:** entrega de la tarea 25 (`docs/tareas/2026-10-11-modulos-fuzz.md`), `tests/Rodaje.Modules.Protocol.Tests/Fuzz/ProtocolDefectTests.cs`, D-031.
+
+Corrige los defectos 1 a 5 de `ProtocolDefectTests` y quita sus `Skip`:
+1. Un `cancel` contra una llamada que termina usa un `CancellationTokenSource` ya desechado (`ModuleHost.cs:127` frente a `:230-231`). La `ObjectDisposedException` corta todas las llamadas. Protégelo, o no deseches el `cts` hasta que salga de `active`.
+2. `RunAsync` no debe lanzar al cerrar (`:148`). El `finally` cancela con la misma protección y siempre espera y libera las regiones.
+3. Una respuesta de más de 1 MiB se contesta con `error`, nunca en silencio (`TrySendAsync`, `:240-251`).
+4. `Parse` rechaza los sustitutos UTF-16 sueltos escapados (`"\ud800"`) dentro de `parameters` y `value` (D-031: UTF-8 estricto).
+5. `ModuleClient.SendAsync` respeta la cancelación del llamador (token enlazado a `_stop`). Un módulo que deja de leer provoca `Fail` tras un plazo, para que `InvokeAsync` y `DisposeAsync` terminen. Esto completa también el arreglo del defecto 6 (`MessageChannel.cs:151`).
+
+Quita la tolerancia de «defectos conocidos» en `HostFuzzTests.cs:101` y `MessageFuzzTests.cs:47` y exige cero. Corre el fuzz largo (`Categoria=TiempoReal`) 3 veces en Linux. Deja en la entrega el conteo de omitidas antes y después.
+
+## 60. Cultura numérica: cerrar la vigilancia de la tarea 42
+
+- **Estado:** hecha (PR #54 unido el 12-oct en modo autónomo; usa `PercentPositivePattern = 0`, que es el que da «35 %» en .NET: el 2 del enunciado daba «%35»)
+- **Rama:** `claude/cultura-vigilancia`
+- **Caminos:** `src/Rodaje.App/Services/Format/SpanishNumbers.cs`, `src/Rodaje.App/Shell/TitleBar.xaml.cs` (solo las dos líneas citadas), `src/Rodaje.App/Views/Analysis/StabilizeDialog.cs`, `tests/Rodaje.App.Tests/Support/`, `tests/Rodaje.App.Tests/Format/`, `docs/tareas/`
+- **Lee:** entrega de la tarea 42 (`docs/tareas/2026-10-12-analisis-cultura.md`), `tests/Rodaje.App.Tests/Support/CurrentCultureNumbersTests.cs`.
+
+La vigilancia de la tarea 42 solo busca el texto `CultureInfo.CurrentCulture`. Con `InvariantGlobalization` también salen con punto `$"{v:0.0}"` y `ToString("0.0")` sin proveedor. Amplía la prueba para detectar, en `src/Rodaje.App/Views/` y `Services/`, las interpolaciones con formato numérico (`:0.`, `:F`, `:P`, `:N`) y los `ToString("…")` numéricos sin `SpanishNumbers.Format` ni `InvariantCulture`. Deja una lista blanca explícita para los diagnósticos (`TimelineBenchmark`, `LibraryScrollMeasurement`, `MeasurementRun`, `Metrics`). Pasa `TitleBar.xaml.cs:168,221` a `SpanishNumbers.Format` y quita sus entradas de `KnownPending`. Fija `PercentPositivePattern = 2` en `SpanishNumbers.Format` («35 %») y ajusta `StabilizeDialog.cs:52-53`. Si la sesión local tiene abierto `TitleBar.xaml.cs`, deja ese punto para el final y anótalo.
+
+## 61. Un solo servidor de pruebas para el descargador
+
+- **Estado:** pendiente
+- **Rama:** `claude/descarga-servidor-unico`
+- **Caminos:** `tests/Rodaje.Paquetes.Tests/Download/`, `tests/Rodaje.Paquetes.Tests/Rodaje.Paquetes.Tests.csproj`, `testing/Rodaje.TestServer/`, `.github/workflows/ci.yml` (solo el bucle de pruebas de Linux), `docs/tareas/`
+- **Lee:** entrega de la tarea 27 (`docs/tareas/2026-10-11-descarga-lab.md`), `tests/Rodaje.Paquetes.Tests/Download/LocalHttpServer.cs`, `src/Rodaje.Paquetes/Download/IndexSignature.cs`.
+
+Ninguna prueba usa `Rodaje.TestServer` (tarea 27, PR #26). El descargador tiene su propio `LocalHttpServer.cs`, y `TestIndexSigner` repite `IndexSignature.Sign` y `Verify` (`IndexSignature.cs:77-103`). Migra `FileDownloaderTests`, `GitHubReleaseDownloaderTests` y `ModelStoreTests` a `TestHttpServer`, aprovechando `CutSignal`, `If-Range`, las redirecciones y las firmas malas, y borra `LocalHttpServer.cs`. Usa `IndexSignature` como firmante y conserva las firmas malas como ayudas. Corrige `ByteRange.cs:80`: un número fuera de `long` no debe devolver el archivo entero, sino 416. Haz que el manejador (`TestHttpServer.cs:227`) observe toda excepción y aborte la conexión en vez de dejarla colgada. Añade el proyecto de pruebas del servidor al bucle de Linux de `ci.yml`. Las pruebas migradas no deben perder cobertura; informa el conteo de omitidas antes y después.
+
+## 62. Limpieza pendiente del sink: dueño de las rutas y `Return` a prueba de excepciones
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-limpieza-pendiente`
+- **Caminos:** `src/Rodaje.Media/Export/FfmpegPipeSink.cs`, `src/Rodaje.Media/Export/ExportOutputGuard.cs` (solo lo mínimo), `tests/Rodaje.Media.Tests/Export/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 44 (`docs/tareas/2026-10-12-export-abort-carrera.md`), `FfmpegPipeSink.cs` (`Abort`, `DeferCleanup`, `ReleaseProcess`), `ExportOutputGuard.cs:15-16` y `:165-184`, revisión en bloque 6.
+
+Cuando `Abort` no consigue matar a ffmpeg.exe, `DeferCleanup` borra los temporales por ruta en cuanto el proceso sale. Pero `ExportOutputGuard.TemporaryPath` es determinista y `Start` no sabe de la limpieza pendiente. Si el usuario reexporta enseguida al mismo archivo, la exportación nueva choca con el ffmpeg viejo o pierde archivos que borra la limpieza antigua (`.ffmeta`, hermanos `name-*`). Lleva un registro estático de rutas con limpieza pendiente. `Start` lo consulta y falla con una `ExportException` clara (o espera un tope corto), y la limpieza solo borra mientras siga siendo la dueña. Además, el `Return(running)` de `Abort` va en un `finally` que cubra cualquier excepción de `Stop` o `Kill`. Hoy, si lanzan algo no capturado, el `Process` no se libera y la excepción sube por el callback de `Cancel()`; captúrala y anótala en `Diagnostics`. Si la tarea 63 ya está unida, haz las pruebas sin ffmpeg.exe real; si no, con `ProxyFact` y el gancho `KillOverride`.
+
+## 63. Pruebas de las carreras del sink sin ffmpeg.exe
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-sink-falso`
+- **Caminos:** `tests/Rodaje.Media.Tests/Export/` (archivos nuevos), `testing/` (un ejecutable falso nuevo, más su entrada en `Rodaje.slnx`), `src/Rodaje.Media/Export/FfmpegPipeSink.cs` (solo un punto de inyección si hace falta, sin cambiar el comportamiento), `docs/tareas/`
+- **Lee:** entrega de la tarea 44, `FfmpegPipeSinkAbortRaceTests.cs`, `FfmpegPipeSinkStuckKillTests.cs`, `FfmpegExecutable.cs` (`EnsureUnchanged`).
+
+Las cuatro pruebas de la tarea 44 son `ProxyFact` y la CI de Windows no tiene ffmpeg.exe, así que ninguna corre. Crea un ejecutable falso que lea stdin y salga con un código elegido, o que se quede dormido para simular un ffmpeg que no muere. Con él deben correr en Linux y en Windows estos casos: cancelar durante `Complete`, `Abort` desde otro hilo, `Abort` después de `Complete`, y el `Abort` que no consigue matar y deja la limpieza pendiente. Sin subir ningún tope. Si el hash de `FfmpegExecutable` lo impide, añade un punto de inyección mínimo y documentado. `BeforeCompleteWaits` y `KillOverride` pueden pasar de propiedades mutables a parámetros del constructor interno. Hazla antes que la 62, que toca el mismo archivo.
+
+## 64. Pruebas de carga: lo que quedó sin vigilar
+
+- **Estado:** pendiente
+- **Rama:** `claude/pruebas-carga-huecos`
+- **Caminos:** `src/Rodaje.App/Services/Media/ClipVisuals.cs` (solo un gancho interno si hace falta), `tests/Rodaje.App.Tests/Media/ClipVisualsTests.cs`, `tests/Rodaje.Module.AudioAi.Tests/ProcessTests.cs`, `docs/tareas/`
+- **Lee:** entrega de la tarea 47 (`docs/tareas/2026-10-12-app-pruebas-carga.md`), revisión en bloque 6.
+
+1. `ClipVisualsTests.Dispose_does_not_wait_for_a_reader_that_ignores_cancellation` no retiene `_gate`, así que volver al `lock` no la haría fallar. Añade una prueba que retenga el candado desde otro hilo (gancho interno o `InternalsVisibleTo`) y compruebe dos cosas: que `Dispose` vuelve en menos de 500 ms y que el hilo de ondas sale después del `PulseAll` diferido.
+2. `AudioAi ProcessTests.Cancel_is_confirmed_quickly_and_the_module_keeps_working` mide reloj (`times.Max() < 1000` y `Ping < 1 s`) sin `Categoria=TiempoReal`, y sin modelos sale con un `return` silencioso. Márcala `TiempoReal` y cambia el `return` por una omisión con causa, como las demás pruebas de modelos. Anota en la entrega que la latencia del ping del módulo ya no se mide en la CI.
