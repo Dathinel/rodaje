@@ -4,16 +4,41 @@ using System.Net.Http.Headers;
 
 namespace Rodaje.TestServer.Tests;
 
-public sealed class TestHttpServerTests
+/// <remarks>
+/// Cada servidor se arranca con <see cref="StartServer"/>: al terminar la prueba se cierran todos y se exige que
+/// <see cref="TestHttpServer.Faults"/> esté vacío, con las excepciones en el mensaje, para que un fallo del propio
+/// servidor (por ejemplo, de HTTP.sys en Windows) no pase por un fallo de la prueba sin diagnóstico.
+/// </remarks>
+public sealed class TestHttpServerTests : IAsyncLifetime
 {
     private const string FilePath = "/releases/download/v1/a.paquete";
 
     private static readonly TimeSpan ClientTimeout = TimeSpan.FromSeconds(30);
 
+    private readonly List<TestHttpServer> _servers = [];
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
+    {
+        var problems = new List<string>();
+        foreach (var server in _servers)
+        {
+            await server.DisposeAsync();
+            var faults = server.Faults;
+            if (faults.Count > 0)
+            {
+                problems.Add($"{server.BaseAddress}: {faults.Count} fallos{Environment.NewLine}{string.Join(Environment.NewLine, faults)}");
+            }
+        }
+
+        Assert.True(problems.Count == 0, "El servidor de pruebas anotó fallos propios:" + Environment.NewLine + string.Join(Environment.NewLine, problems));
+    }
+
     [Fact]
     public async Task Serves_the_whole_file()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         var content = TestPayloads.Deterministic(300_000);
         server.Map(FilePath, TestResponse.File(content, "\"v1\""));
         using var client = NewClient();
@@ -32,7 +57,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Head_reports_the_length_without_a_body()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         server.Map(FilePath, TestResponse.File(TestPayloads.Deterministic(5000)));
         using var client = NewClient();
 
@@ -50,7 +75,7 @@ public sealed class TestHttpServerTests
     [InlineData(null, 100L, 9900L, 9999L)]
     public async Task Serves_ranges_with_206(long? from, long? to, long first, long last)
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         var content = TestPayloads.Deterministic(10_000);
         server.Map(FilePath, TestResponse.File(content));
         using var client = NewClient();
@@ -72,7 +97,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Range_past_the_end_gives_416()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         server.Map(FilePath, TestResponse.File(TestPayloads.Deterministic(100)));
         using var client = NewClient();
 
@@ -88,7 +113,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Without_range_support_the_whole_file_comes_back_with_200()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         var content = TestPayloads.Deterministic(10_000);
         server.Map(FilePath, TestResponse.File(content) with { AcceptRanges = false });
         using var client = NewClient();
@@ -107,7 +132,7 @@ public sealed class TestHttpServerTests
     [InlineData("\"v0\"", HttpStatusCode.OK)]
     public async Task If_range_resumes_only_when_the_etag_matches(string ifRange, HttpStatusCode expected)
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         server.Map(FilePath, TestResponse.File(TestPayloads.Deterministic(1000), "\"v1\""));
         using var client = NewClient();
 
@@ -125,7 +150,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Unmapped_paths_give_404()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         using var client = NewClient();
 
         using var response = await client.GetAsync(server.UrlFor("/no/existe"));
@@ -136,7 +161,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Responses_are_used_in_order_and_the_last_repeats()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         var content = TestPayloads.Deterministic(1000);
         server.Map(FilePath, TestResponse.Status(500, "falla"), TestResponse.Status(503), TestResponse.File(content));
         using var client = NewClient();
@@ -157,7 +182,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Status_responses_carry_their_text()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         server.Map("/x", TestResponse.Status(500, "falla del servidor"));
         using var client = NewClient();
 
@@ -169,8 +194,8 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Follows_redirects_to_another_host()
     {
-        await using var github = TestHttpServer.Start();
-        await using var storage = TestHttpServer.Start();
+        await using var github = StartServer();
+        await using var storage = StartServer();
         var content = TestPayloads.Deterministic(20_000);
         storage.Map("/objeto", TestResponse.File(content));
         github.Map(FilePath, TestResponse.Redirect(storage.UrlFor("/objeto?firma=abc").ToString()));
@@ -189,7 +214,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Redirect_without_following_exposes_the_location()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         server.Map("/a", TestResponse.Redirect("/b", 307));
         using var client = NewClient(allowRedirects: false);
 
@@ -202,7 +227,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Redirect_loops_make_the_client_give_up()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         server.Map("/a", TestResponse.Redirect(server.UrlFor("/b").ToString()));
         server.Map("/b", TestResponse.Redirect(server.UrlFor("/a").ToString()));
         using var handler = new HttpClientHandler { MaxAutomaticRedirections = 5 };
@@ -218,7 +243,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task A_cut_breaks_the_body_and_a_range_request_resumes_it()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         var content = TestPayloads.Deterministic(200_000);
         var cut = new CutSignal();
         server.Map(
@@ -258,7 +283,7 @@ public sealed class TestHttpServerTests
     {
         // Sin CutSignal, como lo verá un descargador que no controla sus lecturas: en Linux llegan los 70 000
         // bytes; en Windows pueden llegar menos (HTTP.sys corta con RST). Solo se exige un prefijo y que reanude.
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         var content = TestPayloads.Deterministic(200_000);
         server.Map(
             FilePath,
@@ -292,7 +317,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task A_cut_inside_a_range_counts_from_the_range_start()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         var content = TestPayloads.Deterministic(10_000);
         var cut = new CutSignal();
         server.Map(FilePath, TestResponse.File(content) with { CutAfterBytes = 10, CutSignal = cut });
@@ -313,7 +338,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task A_waiting_cut_holds_the_connection_until_released()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         var cut = new CutSignal();
         server.Map(FilePath, TestResponse.File(TestPayloads.Deterministic(1000)) with { CutAfterBytes = 100, CutSignal = cut });
         using var client = NewClient();
@@ -334,7 +359,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Dispose_ends_a_cut_that_is_never_released()
     {
-        var server = TestHttpServer.Start();
+        var server = StartServer();
         var cut = new CutSignal();
         server.Map(FilePath, TestResponse.File(TestPayloads.Deterministic(1000)) with { CutAfterBytes = 100, CutSignal = cut });
         using var client = NewClient();
@@ -353,7 +378,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task A_cut_at_zero_bytes_fails_before_the_headers()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         server.Map(FilePath, TestResponse.File(TestPayloads.Deterministic(1000)) with { CutAfterBytes = 0 });
         using var client = NewClient();
 
@@ -363,7 +388,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task A_corrupt_file_is_served_byte_for_byte()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         var good = TestPayloads.Deterministic(4096);
         var bad = TestPayloads.Corrupt(good, 2000);
         server.Map(FilePath, TestResponse.File(bad));
@@ -378,7 +403,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Serves_a_signed_index_and_a_bad_signature()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         using var signer = new TestIndexSigner();
         var index = "{ \"formatVersion\": 1, \"entries\": [] }"u8.ToArray();
         server.Map("/indice.json", TestResponse.File(index) with { ContentType = "application/json" });
@@ -399,7 +424,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Slow_responses_take_at_least_their_delays()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         var content = TestPayloads.Deterministic(4000);
         server.Map(FilePath, TestResponse.File(content) with
         {
@@ -422,7 +447,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task A_stalled_response_trips_the_client_timeout()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         server.Map(FilePath, TestResponse.File(TestPayloads.Deterministic(10_000)) with { StallAfterBytes = 100 });
         using var client = NewClient();
 
@@ -438,7 +463,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Dispose_ends_stalled_responses_quickly()
     {
-        var server = TestHttpServer.Start();
+        var server = StartServer();
 
         // Con 0 bytes HttpListener tampoco manda las cabeceras: el cliente se queda esperando la respuesta.
         server.Map(FilePath, TestResponse.File(TestPayloads.Deterministic(10_000)) with { StallAfterBytes = 0 });
@@ -465,7 +490,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Records_request_headers_and_sends_extra_headers()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         server.Map(FilePath, TestResponse.File(TestPayloads.Deterministic(10)) with
         {
             Headers = new Dictionary<string, string> { ["X-Rodaje-Prueba"] = "1" },
@@ -487,7 +512,7 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Serves_concurrent_downloads()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
         var files = Enumerable.Range(0, 8).Select(i => TestPayloads.Deterministic(50_000, i + 1)).ToArray();
         for (var i = 0; i < files.Length; i++)
         {
@@ -507,9 +532,16 @@ public sealed class TestHttpServerTests
     [Fact]
     public async Task Map_rejects_an_empty_list()
     {
-        await using var server = TestHttpServer.Start();
+        await using var server = StartServer();
 
         Assert.Throws<ArgumentException>(() => server.Map("/x"));
+    }
+
+    private TestHttpServer StartServer()
+    {
+        var server = TestHttpServer.Start();
+        _servers.Add(server);
+        return server;
     }
 
     private static HttpClient NewClient(bool allowRedirects = true)
