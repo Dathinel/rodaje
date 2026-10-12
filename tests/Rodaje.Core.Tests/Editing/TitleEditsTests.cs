@@ -203,6 +203,28 @@ public class TitleEditsTests
     }
 
     [Fact]
+    public void ConvertAnimation_TurnsAndScalesTheOffsetWithTheClip()
+    {
+        // Escala 2 y giro de 90°: los 40 px hacia abajo de la entrada son 80 px a la izquierda en la secuencia.
+        TrimFixture f = new TrimFixture().AddTitle("v2", "t", 0, 50, 0);
+        f.Clip("t").Effects.Add(new EffectInstance
+        {
+            Id = "fx",
+            Type = BuiltInEffects.Transform,
+            Parameters = { ["x"] = new Parameter { Value = 100 }, ["scale"] = new Parameter { Value = 2 }, ["rotation"] = new Parameter { Value = 90 } },
+        });
+
+        TitleEdits.ConvertAnimationToKeyframes(f.Ctx, "t");
+
+        EffectInstance transform = Assert.Single(f.Clip("t").Effects);
+        Assert.Equal([new Keyframe(Time.Zero, 20), new Keyframe(Time.FromSeconds(0.4), 100)], transform.Parameters["x"].Keyframes);
+        Assert.False(transform.Parameters.ContainsKey("y"));
+        Assert.Empty(transform.Parameters["scale"].Keyframes);
+        Assert.Empty(transform.Parameters["rotation"].Keyframes);
+        f.AssertValid();
+    }
+
+    [Fact]
     public void SubtitleTrack_IsAVideoTrackWithItsRole_AndUndoes()
     {
         TrimFixture f = new TrimFixture();

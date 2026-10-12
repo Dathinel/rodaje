@@ -89,8 +89,9 @@ public static class TitleEdits
 
     /// <summary>
     /// Pasa la entrada y la salida activas del estilo a keyframes de <c>rodaje.transform</c> y las quita del estilo: desde
-    /// ahí quedan fijas en el clip y se editan a mano. Combina igual que el motor: suma en posición y rotación, multiplica
-    /// en escala y opacidad, con las posiciones escaladas de la referencia del estilo a la secuencia.
+    /// ahí quedan fijas en el clip y se editan a mano. Compone igual que el motor (<see cref="TitleMotion.Compose"/>): el
+    /// desplazamiento gira y se escala con el clip, la escala y la opacidad se multiplican y el giro se suma, con las
+    /// posiciones escaladas de la referencia del estilo a la secuencia y el desfase de un trozo dividido.
     /// </summary>
     public static void ConvertAnimationToKeyframes(EditContext ctx, string clipId)
     {
@@ -103,18 +104,17 @@ public static class TitleEdits
             throw new EditException("Solo un título con estilo tiene animaciones que convertir.");
         }
 
-        StyleAnimation? entry = clip.Generator.Edges.In ? style.In : null;
-        StyleAnimation? exit = clip.Generator.Edges.Out ? style.Out : null;
-        double entrySeconds = entry?.DurationSeconds ?? 0;
-        double exitSeconds = exit?.DurationSeconds ?? 0;
-        if (entrySeconds + exitSeconds <= 0)
+        GeneratorEdges edges = clip.Generator.Edges;
+        StyleAnimation? entry = edges.In && TitleMotion.Ticks(style.In) > 0 ? style.In : null;
+        StyleAnimation? exit = edges.Out && TitleMotion.Ticks(style.Out) > 0 ? style.Out : null;
+        if (entry is null && exit is null)
         {
             throw new EditException("El título no tiene animación de entrada ni de salida activa.");
         }
 
-        // Si no caben las dos, se encogen por igual, como al evaluarlas.
-        double clipSeconds = clip.Duration.ToSeconds();
-        double fit = Math.Min(1, clipSeconds / (entrySeconds + exitSeconds));
+        // Si no caben las dos en el título entero, se encogen por igual, como al evaluarlas.
+        (long entryTicks, long exitTicks, double stretch) = TitleMotion.Fit(
+            TitleMotion.Ticks(entry), TitleMotion.Ticks(exit), edges.Before.Ticks + clip.Duration.Ticks + edges.After.Ticks);
         double units = Math.Min(
             (double)ctx.Sequence.Width / style.Reference.Width,
             (double)ctx.Sequence.Height / style.Reference.Height);
@@ -122,16 +122,17 @@ public static class TitleEdits
         EffectInstance transform = clip.Effects.Find(e => e.Type == BuiltInEffects.Transform)
             ?? AddTransform(ctx, clip);
         var original = transform.Parameters.ToDictionary(p => p.Key, p => p.Value.Clone(), StringComparer.Ordinal);
-        Time from = clip.ToEffectTime(clip.Start);
-        Time to = from + clip.Duration;
+        Time first = clip.ToEffectTime(clip.Start);
+        Time last = first + clip.Duration;
         if (entry is not null)
         {
-            Bake(transform, original, entry, from, fit, units, from, to);
+            Bake(transform, original, entry, first - edges.Before, Time.FromTicks(entryTicks), stretch, units, first, last);
         }
 
         if (exit is not null)
         {
-            Bake(transform, original, exit, to - Time.FromSeconds(exitSeconds * fit), fit, units, from, to);
+            Time end = last + edges.After;
+            Bake(transform, original, exit, end - Time.FromTicks(exitTicks), Time.FromTicks(exitTicks), stretch, units, first, last);
         }
 
         TextStyle changed = style.Clone();
@@ -207,43 +208,127 @@ public static class TitleEdits
         return effect;
     }
 
+    private static readonly string[] Motion =
+    [
+        BuiltInEffects.TransformParameters.X,
+        BuiltInEffects.TransformParameters.Y,
+        BuiltInEffects.TransformParameters.Scale,
+        BuiltInEffects.TransformParameters.Rotation,
+        BuiltInEffects.TransformParameters.Opacity,
+    ];
+
+    /// <summary>
+    /// Escribe una animación como keyframes en los instantes de sus puntos (y de los keyframes que el clip ya tenía en ese
+    /// tramo, y en los bordes del clip si la animación se sale): en cada uno, la transformación compuesta del motor.
+    /// </summary>
     private static void Bake(
         EffectInstance transform,
         Dictionary<string, Parameter> original,
         StyleAnimation animation,
         Time origin,
-        double fit,
+        Time span,
+        double stretch,
         double units,
         Time first,
         Time last)
     {
-        foreach ((string name, List<StyleKey> keys) in animation.Curves)
+        ParameterDefinition?[] specs = [.. Motion.Select(n => EffectRegistry.Find(BuiltInEffects.Transform)?.FindParameter(n))];
+        var curves = new Parameter?[Motion.Length];
+        Time duration = Time.FromSeconds(animation.DurationSeconds);
+        for (int i = 0; i < Motion.Length; i++)
         {
-            if (keys.Count == 0)
+            if (animation.Curves.TryGetValue(Motion[i], out List<StyleKey>? keys) && keys.Count > 0)
+            {
+                ParameterDefinition? spec = specs[i];
+                curves[i] = new Parameter
+                {
+                    Keyframes = [.. keys
+                        .Where(k => double.IsFinite(k.T) && double.IsFinite(k.Value))
+                        .OrderBy(k => k.T)
+                        .Select(k => new Keyframe(Time.Max(Time.Zero, Time.Min(duration, Time.FromSeconds(k.T))), spec?.Clamp(k.Value) ?? k.Value, k.Interp))],
+                };
+            }
+        }
+
+        Time end = origin + span;
+        var samples = new SortedSet<Time>();
+        foreach (Parameter? curve in curves)
+        {
+            foreach (Keyframe key in curve?.Keyframes ?? [])
+            {
+                samples.Add(origin + Time.FromTicks((long)Math.Round(key.Time.Ticks * stretch)));
+            }
+        }
+
+        foreach (Parameter parameter in original.Values)
+        {
+            foreach (Keyframe key in parameter.Keyframes)
+            {
+                if (key.Time > origin && key.Time < end)
+                {
+                    samples.Add(key.Time);
+                }
+            }
+        }
+
+        foreach (Time edge in (Time[])[first, last])
+        {
+            if (edge > origin && edge < end)
+            {
+                samples.Add(edge);
+            }
+        }
+
+        samples.RemoveWhere(t => t < first || t > last || t < origin || t > end);
+        var rows = new List<(Time At, double[] Values, Interpolation[] Interps)>();
+        bool[] changed = new bool[Motion.Length];
+        foreach (Time at in samples)
+        {
+            // Las curvas están en el tiempo del estilo; si se encogieron, se recorren más rápido.
+            long position = (at - origin).Ticks;
+            var local = Time.FromTicks(stretch < 1 ? (long)Math.Round(position / stretch) : position);
+            double[] baseline = new double[Motion.Length];
+            double[] delta = new double[Motion.Length];
+            for (int i = 0; i < Motion.Length; i++)
+            {
+                double neutral = BuiltInEffects.TransformParameters.DefaultValue(Motion[i]);
+                baseline[i] = original.GetValueOrDefault(Motion[i])?.Evaluate(at) ?? neutral;
+                delta[i] = curves[i]?.Evaluate(local) ?? neutral;
+            }
+
+            (double x, double y, double scale, double rotation, double opacity) = TitleMotion.Compose(
+                baseline[0], baseline[1], baseline[2], baseline[3], baseline[4],
+                delta[0] * units, delta[1] * units, delta[2], delta[3], delta[4]);
+            double[] values = [x, y, scale, rotation, opacity];
+            var interps = new Interpolation[Motion.Length];
+            for (int i = 0; i < Motion.Length; i++)
+            {
+                values[i] = specs[i]?.Clamp(values[i]) ?? values[i];
+                changed[i] |= Math.Abs(values[i] - baseline[i]) > 1e-9;
+                // La posición compuesta sale de las curvas x e y: manda la que hay (x si están las dos).
+                Parameter? source = i < 2 ? curves[0] ?? curves[1] : curves[i];
+                interps[i] = source?.Keyframes.FindLast(k => k.Time <= local)?.Interpolation ?? Interpolation.Linear;
+            }
+
+            rows.Add((at, values, interps));
+        }
+
+        for (int i = 0; i < Motion.Length; i++)
+        {
+            if (!changed[i])
             {
                 continue;
             }
 
-            double neutral = BuiltInEffects.TransformParameters.DefaultValue(name);
-            Parameter? before = original.GetValueOrDefault(name);
-            if (!transform.Parameters.TryGetValue(name, out Parameter? parameter))
+            if (!transform.Parameters.TryGetValue(Motion[i], out Parameter? parameter))
             {
-                parameter = new Parameter { Value = neutral };
-                transform.Parameters[name] = parameter;
+                parameter = new Parameter { Value = BuiltInEffects.TransformParameters.DefaultValue(Motion[i]) };
+                transform.Parameters[Motion[i]] = parameter;
             }
 
-            ParameterDefinition? spec = EffectRegistry.Find(BuiltInEffects.Transform)?.FindParameter(name);
-            foreach (StyleKey key in keys)
+            foreach ((Time at, double[] values, Interpolation[] interps) in rows)
             {
-                Time at = Time.Max(first, Time.Min(last, origin + Time.FromSeconds(key.T * fit)));
-                double baseline = before?.Evaluate(at) ?? neutral;
-                double value = name switch
-                {
-                    BuiltInEffects.TransformParameters.X or BuiltInEffects.TransformParameters.Y => baseline + (key.Value * units),
-                    BuiltInEffects.TransformParameters.Scale or BuiltInEffects.TransformParameters.Opacity => baseline * key.Value,
-                    _ => baseline + key.Value,
-                };
-                Upsert(parameter, at, spec?.Clamp(value) ?? value, key.Interp);
+                Upsert(parameter, at, values[i], interps[i]);
             }
         }
     }

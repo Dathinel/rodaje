@@ -206,6 +206,51 @@ public sealed class TimelineTitleTests(ITestOutputHelper output)
         output.WriteLine($"{expected.Count} instantes, mayor diferencia de opacidad {worst:E2}");
     }
 
+    /// <summary>
+    /// «Convertir en keyframes» deja cada cuadro como estaba aunque el clip esté escalado o girado: el delta de la
+    /// animación gira y se escala con el clip igual que en el motor. También en un trozo dividido en plena entrada.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 0, null)]
+    [InlineData(2, 0, null)]
+    [InlineData(1, 90, null)]
+    [InlineData(2, 90, null)]
+    [InlineData(0.5, -30, null)]
+    [InlineData(2, 90, 0.2)]
+    public void Converting_the_animation_to_keyframes_keeps_every_frame(double scale, double rotation, double? cut)
+    {
+        var b = new TimelineBuilder(1, 0);
+        Clip clip = b.AddTitle(0, S(10), S(3), "Título", Animated(), id: "t");
+        clip.Effects.Add(TimelineEffectsTests.Effect(BuiltInEffects.Transform, (T.Rotation, rotation), (T.Scale, scale), (T.X, 100), (T.Y, 50)));
+        string target = "t";
+        if (cut is { } at)
+        {
+            SequenceEditCommand split = Edits.Split(b.Sequence.Id, "t", S(10 + at));
+            split.Apply(b.Project);
+            target = split.CreatedIds[0];
+        }
+
+        GeneratedClipPlan before = Assert.Single(b.Plan().Layers[0].Generated, p => p.ClipId == target);
+        var expected = new List<(Time At, LayerTransform Transform)>();
+        for (Time t = before.Start; t < before.End; t += S(1.0 / 240))
+        {
+            expected.Add((t, before.TransformAt(t)));
+        }
+
+        Edits.ConvertTitleAnimation(b.Sequence.Id, target).Apply(b.Project);
+        GeneratedClipPlan after = Assert.Single(b.Plan().Layers[0].Generated, p => p.ClipId == target);
+        Assert.Null(after.Animation);
+        foreach ((Time t, LayerTransform want) in expected)
+        {
+            LayerTransform got = after.TransformAt(t);
+            Assert.Equal(want.X, got.X, 6);
+            Assert.Equal(want.Y, got.Y, 6);
+            Assert.Equal(want.Scale, got.Scale, 9);
+            Assert.Equal(want.RotationDegrees, got.RotationDegrees, 9);
+            Assert.Equal(want.Opacity, got.Opacity, 9);
+        }
+    }
+
     [Fact]
     public void The_animation_delta_turns_and_scales_with_the_clip()
     {
