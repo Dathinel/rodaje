@@ -84,6 +84,8 @@ public static partial class ModelValidator
         {
             errors.Add($"{where} tiene una caja de texto con un ancho fuera de rango.");
         }
+
+        ValidateWords(generator, where, errors);
     }
 
     private static void ValidateStyle(TextStyle style, string where, List<string> errors)
