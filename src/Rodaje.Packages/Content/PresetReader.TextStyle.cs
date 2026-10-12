@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace Rodaje.Packages.Content;
 
-/// <summary>Lectura de <c>rodaje.textstyle</c> v1, con las mismas reglas que los otros preajustes.</summary>
+/// <summary>Lectura de <c>rodaje.textstyle</c> v1 y v2, con las mismas reglas que los otros preajustes.</summary>
 internal static partial class PresetReader
 {
     public const double MaxTextSize = 1000;
@@ -35,33 +35,18 @@ internal static partial class PresetReader
         };
 
         string fill = "#FFFFFF";
+        TextStyleGradient? gradient = null;
         if (Section(root, "fill") is { } fillElement)
         {
             fill = Color(fillElement, "fill.color", required: true)!;
+            gradient = Gradient(fillElement);
         }
 
-        TextStyleStroke? stroke = null;
-        if (Section(root, "stroke") is { } s)
-        {
-            TextStyleJoin join = String(s, "join") switch
-            {
-                null or "round" => TextStyleJoin.Round,
-                "miter" => TextStyleJoin.Miter,
-                "bevel" => TextStyleJoin.Bevel,
-                { } other => throw Fail($"stroke.join «{Show(other)}» no existe: round, miter o bevel."),
-            };
-            stroke = new TextStyleStroke(Color(s, "stroke.color", required: true)!, Number(s, "width", null, 0, size / 2, "stroke.width (como mucho la mitad de size)"), join);
-        }
+        TextStyleStroke? stroke = Section(root, "stroke") is { } s ? Stroke(s, "stroke", size) : null;
+        TextStyleShadow? shadow = Section(root, "shadow") is { } sh ? Shadow(sh, "shadow") : null;
+        List<TextStyleStroke> extraStrokes = List(root, "extraStrokes", MaxExtraLayers, (e, at) => Stroke(e, at, size));
+        List<TextStyleShadow> extraShadows = List(root, "extraShadows", MaxExtraLayers, Shadow);
 
-        TextStyleShadow? shadow = null;
-        if (Section(root, "shadow") is { } sh)
-        {
-            shadow = new TextStyleShadow(
-                Color(sh, "shadow.color", required: true)!,
-                Number(sh, "dx", 0, -MaxStyleOffset, MaxStyleOffset, "shadow.dx"),
-                Number(sh, "dy", 0, -MaxStyleOffset, MaxStyleOffset, "shadow.dy"),
-                Number(sh, "blur", 0, 0, MaxShadowBlur, "shadow.blur"));
-        }
 
         TextStyleBackground? background = null;
         if (Section(root, "background") is { } b)
@@ -74,11 +59,141 @@ internal static partial class PresetReader
                 Number(b, "radius", 0, 0, MaxStyleOffset, "background.radius"));
         }
 
-        string? highlight = Section(root, "highlight") is { } h ? Color(h, "highlight.color", required: true) : null;
+        string? highlight = null;
+        string highlightMode = "word";
+        if (Section(root, "highlight") is { } h)
+        {
+            highlight = Color(h, "highlight.color", required: true);
+            highlightMode = Choice(h, "mode", "highlight.mode", "word", "word", "sweep");
+        }
+
+        TextStyleTypography? typography = null;
+        if (Section(root, "typography") is { } t)
+        {
+            bool kerning = !t.TryGetProperty("kerning", out JsonElement k) || k.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                _ => throw Fail("typography.kerning tiene que ser true o false."),
+            };
+            List<string> features = List(t, "features", MaxFeatures, (e, at) =>
+                e.ValueKind == JsonValueKind.String && IsFeature(e.GetString()!) ? e.GetString()!
+                    : throw Fail($"{at} tiene que ser una etiqueta OpenType de 4 caracteres (con «-» delante para apagarla)."));
+            typography = new TextStyleTypography(kerning, Choice(t, "case", "typography.case", "none", "none", "upper", "lower", "smallCaps"),
+                features, Choice(t, "fit", "typography.fit", "none", "none", "shrink", "fill"));
+        }
+
+        double? bend = null;
+        if (Section(root, "path") is { } path)
+        {
+            Choice(path, "kind", "path.kind", "arc", "arc");
+            bend = Number(path, "bend", null, -360, 360, "path.bend");
+        }
 
         return new TextStylePreset(
             id, name, font, size, width, height, lineHeight, letterSpacing, align, fill, stroke, shadow, background,
-            Animation(root, "in"), Animation(root, "out"), highlight);
+            Animation(root, "in"), Animation(root, "out"), highlight)
+        {
+            Gradient = gradient,
+            ExtraStrokes = extraStrokes,
+            ExtraShadows = extraShadows,
+            Typography = typography,
+            PathBend = bend,
+            HighlightMode = highlightMode,
+        };
+    }
+
+    public const int MaxExtraLayers = 4;
+    public const int MaxFeatures = 16;
+    public const int MaxGradientStops = 8;
+
+    private static TextStyleStroke Stroke(JsonElement s, string where, double size)
+    {
+        if (s.ValueKind != JsonValueKind.Object)
+        {
+            throw Fail($"{where} tiene que ser un objeto.");
+        }
+
+        TextStyleJoin join = String(s, "join") switch
+        {
+            null or "round" => TextStyleJoin.Round,
+            "miter" => TextStyleJoin.Miter,
+            "bevel" => TextStyleJoin.Bevel,
+            { } other => throw Fail($"{where}.join «{Show(other)}» no existe: round, miter o bevel."),
+        };
+        return new TextStyleStroke(Color(s, $"{where}.color", required: true)!, Number(s, "width", null, 0, size / 2, $"{where}.width (como mucho la mitad de size)"), join);
+    }
+
+    private static TextStyleShadow Shadow(JsonElement sh, string where)
+    {
+        if (sh.ValueKind != JsonValueKind.Object)
+        {
+            throw Fail($"{where} tiene que ser un objeto.");
+        }
+
+        return new TextStyleShadow(
+            Color(sh, $"{where}.color", required: true)!,
+            Number(sh, "dx", 0, -MaxStyleOffset, MaxStyleOffset, $"{where}.dx"),
+            Number(sh, "dy", 0, -MaxStyleOffset, MaxStyleOffset, $"{where}.dy"),
+            Number(sh, "blur", 0, 0, MaxShadowBlur, $"{where}.blur"));
+    }
+
+    private static TextStyleGradient? Gradient(JsonElement fill)
+    {
+        if (Section(fill, "gradient") is not { } g)
+        {
+            return null;
+        }
+
+        string kind = Choice(g, "kind", "fill.gradient.kind", "linear", "linear", "radial");
+        double angle = Number(g, "angle", 0, -360, 360, "fill.gradient.angle");
+        List<TextStyleGradientStop> stops = List(g, "stops", MaxGradientStops, (e, at) =>
+            e.ValueKind == JsonValueKind.Object
+                ? new TextStyleGradientStop(Number(e, "position", null, 0, 1, $"{at}.position"), Color(e, $"{at}.color", required: true)!)
+                : throw Fail($"{at} tiene que ser un objeto."));
+        if (stops.Count < 2)
+        {
+            throw Fail("fill.gradient.stops necesita al menos dos paradas.");
+        }
+
+        for (int i = 1; i < stops.Count; i++)
+        {
+            if (stops[i].Position < stops[i - 1].Position)
+            {
+                throw Fail($"fill.gradient.stops[{i}].position tiene que ser mayor o igual que la anterior.");
+            }
+        }
+
+        return new TextStyleGradient(kind, angle, stops);
+    }
+
+    private static List<T> List<T>(JsonElement owner, string property, int max, Func<JsonElement, string, T> read)
+    {
+        var result = new List<T>();
+        if (!owner.TryGetProperty(property, out JsonElement list) || list.ValueKind == JsonValueKind.Null)
+        {
+            return result;
+        }
+
+        if (list.ValueKind != JsonValueKind.Array || list.GetArrayLength() > max)
+        {
+            throw Fail($"{property} tiene que ser una lista de hasta {max.ToString(CultureInfo.InvariantCulture)}.");
+        }
+
+        int index = 0;
+        foreach (JsonElement e in list.EnumerateArray())
+        {
+            result.Add(read(e, $"{property}[{index.ToString(CultureInfo.InvariantCulture)}]"));
+            index++;
+        }
+
+        return result;
+    }
+
+    private static bool IsFeature(string tag)
+    {
+        ReadOnlySpan<char> body = tag.Length == 5 && tag[0] == '-' ? tag.AsSpan(1) : tag.AsSpan();
+        return body.Length == 4 && !body.ContainsAnyExceptInRange('!', '~');
     }
 
     private static TextStyleFont Font(JsonElement root)
@@ -144,9 +259,40 @@ internal static partial class PresetReader
         }
 
         double duration = Number(a, "durationSeconds", null, double.Epsilon, MaxStyleAnimationSeconds, $"{property}.durationSeconds");
-        List<PresetCurve> curves = a.TryGetProperty("curves", out JsonElement c) ? Tracks(c, $"{property}.curves", duration) : [];
-        return new TextStyleAnimation(duration, curves);
+        List<PresetCurve> curves = a.TryGetProperty("curves", out JsonElement c) ? StyleTracks(c, $"{property}.curves", duration) : [];
+        return new TextStyleAnimation(duration, curves)
+        {
+            Unit = Choice(a, "unit", $"{property}.unit", "block", "block", "line", "word", "letter"),
+            Stagger = Number(a, "stagger", 0, 0, 1, $"{property}.stagger"),
+            Order = Choice(a, "order", $"{property}.order", "forward", "forward", "backward", "center", "edges", "random"),
+        };
     }
+
+    /// <summary>Como las curvas de la transformación, más <c>blur</c> (radio de 0 a 64) para la animación por unidades.</summary>
+    private static List<PresetCurve> StyleTracks(JsonElement tracks, string where, double duration)
+    {
+        if (tracks.ValueKind != JsonValueKind.Object)
+        {
+            throw Fail($"{where} tiene que ser un objeto.");
+        }
+
+        var curves = new List<PresetCurve>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (JsonProperty p in tracks.EnumerateObject())
+        {
+            string at = $"{where}.{Show(p.Name)}";
+            (double Min, double Max) range = p.Name == "blur" ? (0, MaxShadowBlur) : TransformRange(p.Name, at);
+            if (!seen.Add(p.Name))
+            {
+                throw Fail($"{at} está repetido.");
+            }
+
+            curves.Add(new PresetCurve(Transform, p.Name, Keys(p.Value, at, duration, range)));
+        }
+
+        return curves;
+    }
+
 
     private static (double X, double Y) Padding(JsonElement background)
     {

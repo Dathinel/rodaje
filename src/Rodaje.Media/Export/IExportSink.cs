@@ -49,6 +49,15 @@ public sealed record ExportSinkRequest(
     /// </summary>
     public ExportStreamCopy? VideoCopy { get; init; }
 
+    /// <summary>
+    /// Cuadros que salen del codificador, si no son los que entran por la tubería: entrelazado, entra un cuadro por campo y
+    /// FFmpeg teje cada par en uno. <c>null</c>: <see cref="FrameCount"/>.
+    /// </summary>
+    public long? EncodedFrameCount { get; init; }
+
+    /// <summary>Cuadros del archivo terminado.</summary>
+    public long OutputFrameCount => EncodedFrameCount ?? FrameCount;
+
     public bool HasVideo => Video is not null && VideoEncoder is not null;
 
     public bool HasAudio => Audio is not null && AudioPath is not null && AudioEncoder is not null;

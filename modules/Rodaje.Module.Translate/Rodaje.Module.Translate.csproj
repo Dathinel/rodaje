@@ -16,6 +16,7 @@
     <!-- LLamaSharp no declara soporte de AOT: el módulo sale autocontenido con JIT (D-031). -->
     <PublishAot>false</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <NoWarn>$(NoWarn);CA1303;CA1515;CA1716</NoWarn>
   </PropertyGroup>
 

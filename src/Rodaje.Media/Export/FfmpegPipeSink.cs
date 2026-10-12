@@ -336,10 +336,10 @@ public sealed class FfmpegPipeSink : IExportSink
         }
 
         // En la pasada de análisis algunos codificadores (libvpx) no sacan paquetes: el avance se queda en 0.
-        if (request.HasVideo && !request.IsAnalysisPass && _progressEnded && FramesEncoded != request.FrameCount)
+        if (request.HasVideo && !request.IsAnalysisPass && _progressEnded && FramesEncoded != request.OutputFrameCount)
         {
             ExportException incomplete = new(ExportErrorCode.EncoderFailed,
-                $"ffmpeg.exe codificó {FramesEncoded} de {request.FrameCount} cuadros.");
+                $"ffmpeg.exe codificó {FramesEncoded} de {request.OutputFrameCount} cuadros.");
             Abort();
             throw incomplete;
         }
@@ -1338,7 +1338,11 @@ internal static class FfmpegPipeArguments
                 args.AddRange(video.Color.FfmpegArguments());
             }
 
-            args.AddRange(["-frames:v:0", request.FrameCount.ToString(CultureInfo.InvariantCulture)]);
+            if (request.EncodedFrameCount is null)
+            {
+                // Con cuadros tejidos no: el tope cortaría el audio al terminar el video (los filtros ya dan la cuenta).
+                args.AddRange(["-frames:v:0", request.FrameCount.ToString(CultureInfo.InvariantCulture)]);
+            }
         }
 
         if (thumbnailInput >= 0)

@@ -154,6 +154,18 @@ public static class TitleHandles
     }
 
     /// <summary>El centro de la caja en píxeles de la secuencia: el ancla de la escala.</summary>
+    /// <summary>La mitad de la caja que encierra el título girado y escalado, en píxeles de la secuencia (para pegarlo a las guías).</summary>
+    public static Vector2 HalfSize(TitleBox box)
+    {
+        double radians = box.Transform.RotationDegrees * Math.PI / 180;
+        double scale = Math.Abs(box.Transform.Scale);
+        double cos = Math.Abs(Math.Cos(radians));
+        double sin = Math.Abs(Math.Sin(radians));
+        double w = box.Width * scale / 2;
+        double h = box.Height * scale / 2;
+        return new Vector2((float)((w * cos) + (h * sin)), (float)((w * sin) + (h * cos)));
+    }
+
     public static Vector2 Center(TitleBox box, int sequenceWidth, int sequenceHeight) =>
         new((float)((sequenceWidth / 2.0) + box.Transform.X), (float)((sequenceHeight / 2.0) + box.Transform.Y));
 

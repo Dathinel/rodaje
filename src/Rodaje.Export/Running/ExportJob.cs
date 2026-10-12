@@ -159,6 +159,7 @@ public sealed class ExportJob : IDisposable
                     PassCount = plan.Arguments.PassCount,
                     PassLogPath = Path.Combine(work, "pasadas"),
                     VideoFilters = plan.VideoFilters,
+                    EncodedFrameCount = plan.Interlaced ? plan.EncodedFrameCount : null,
                     VideoCopy = copy,
                 };
                 Result = plan.Video is null || copy is not null ? EncodeAudio(sink, request, token) : EncodeVideo(plan, gpu!, sink, request, token);
@@ -167,6 +168,11 @@ public sealed class ExportJob : IDisposable
             {
                 _converter = null;
                 gpu?.Dispose();
+            }
+
+            if (plan.Settings.Video is { Projection: ExportProjection.Equirectangular } && plan.Video is not null)
+            {
+                SphericalMetadata.Inject(Request.OutputPath);
             }
 
             Verify(plan, token);

@@ -144,6 +144,11 @@ internal static class OfflineProjects
         {
             text.Append(" obturador[").AppendJoin(';', samples).Append(']');
         }
+
+        if (layer.TextMotion != TextMotion.Rest)
+        {
+            text.Append(CultureInfo.InvariantCulture, $" texto[{layer.TextMotion}]");
+        }
     }
 
     private static string Values(EffectValues values)

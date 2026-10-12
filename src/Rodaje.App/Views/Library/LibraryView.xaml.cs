@@ -468,6 +468,11 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             e.Data.SetData(TitleDrag.DragFormat, item.Element.Reference);
         }
 
+        if (item.Element.Kind == ItemKind.Sound)
+        {
+            e.Data.SetData(SoundDrag.DragFormat, item.Element.Reference);
+        }
+
         e.Data.SetText(item.Element.Reference);
         e.Data.RequestedOperation = DataPackageOperation.Copy;
     }
@@ -476,20 +481,31 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     {
         if ((e.OriginalSource as FrameworkElement)?.DataContext is ElementItem item)
         {
+            if (item.Element.Kind == ItemKind.Sound)
+            {
+                AddSoundAtCursor(item.Element);
+                return;
+            }
+
             _ = ApplyElementAsync(item.Element);
         }
     }
 
     private void OnElementContextRequested(UIElement sender, ContextRequestedEventArgs args)
     {
-        if (args.OriginalSource is not FrameworkElement { DataContext: ElementItem item } element || !ElementApplier.CanApply(item.Element))
+        if (args.OriginalSource is not FrameworkElement { DataContext: ElementItem item } element
+            || (item.Element.Kind != ItemKind.Sound && !ElementApplier.CanApply(item.Element)))
         {
             return;
         }
 
         args.Handled = true;
         var menu = new MenuFlyout();
-        if (item.Element.Kind == ItemKind.TextStyle)
+        if (item.Element.Kind == ItemKind.Sound)
+        {
+            AddSoundItems(menu, item.Element);
+        }
+        else if (item.Element.Kind == ItemKind.TextStyle)
         {
             menu.Items.Add(MenuItem("A\u00F1adir texto en el cursor", "\uE8D2", (_, _) => _ = AddTitleAsync(item.Element)));
             if (_services?.Session.SelectedTitle is not null)

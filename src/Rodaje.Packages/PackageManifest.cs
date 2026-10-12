@@ -23,6 +23,9 @@ public enum ItemKind
 
     /// <summary>Zonas seguras para el visor (<c>rodaje.safezones</c>): dónde tapa la interfaz de una red, márgenes propios.</summary>
     SafeZones,
+
+    /// <summary>Un preajuste de exportación (<c>rodaje.exportpreset</c>): contenedor, códecs, tamaño, tasa y sonoridad.</summary>
+    ExportPreset,
 }
 
 /// <summary>

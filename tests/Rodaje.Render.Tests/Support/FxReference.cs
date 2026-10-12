@@ -274,6 +274,13 @@ internal static class FxReference
             return At(source, EffectReference.Saturate(mu), EffectReference.Saturate(mv));
         });
 
+    public static FloatImage Reframe360(FloatImage source, double yaw, double pitch, double roll, double fov, bool stereographic) =>
+        Map(source, source.Width, source.Height, (u, v) =>
+        {
+            (double su, double sv) = Rodaje.Core.Effects.Equirectangular.SourceUv(u, v, yaw, pitch, roll, fov, (double)source.Width / source.Height, stereographic);
+            return At(source, su, sv);
+        });
+
     public static FloatImage Distortion(FloatImage source, double amount, double zoom)
     {
         double aspect = (double)source.Width / source.Height;

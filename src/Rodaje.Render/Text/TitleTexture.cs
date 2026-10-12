@@ -38,6 +38,9 @@ public sealed unsafe class TitleTexture
 
     public long Bytes => Target.Bytes;
 
+    /// <summary>Si es un título por unidades: el atlas es <see cref="Target"/> y esto dice dónde está cada celda y cómo animarla.</summary>
+    public TitleUnitSet? Units { get; init; }
+
     /// <summary><c>ID3D11ShaderResourceView*</c> de la textura; vale mientras el rasterizador la tenga en caché.</summary>
     public nint ShaderResourceView => (nint)Target.Srv;
 

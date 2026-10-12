@@ -35,6 +35,7 @@ public static class ExportSettingsValidator
 
             CheckRate(v.RateControl, video, problems);
             CheckVideoDetails(v, video, problems);
+            CheckScan(settings.Container, v, video, problems);
         }
 
         if (settings.Audio is { } a && audio is not null)
@@ -104,6 +105,41 @@ public static class ExportSettingsValidator
             || v.Crop is { Width: <= 0 } or { Height: <= 0 } or { X: < 0 } or { Y: < 0 } || v.Gop.KeyframeSeconds <= 0 || v.Gop.Length <= 0)
         {
             problems.Add(new(ExportProblemCode.InvalidValue, "El tamaño, el recorte o el GOP tienen un valor imposible."));
+        }
+    }
+
+    /// <summary>Entrelazado (solo ProRes, con tasa fija y alto par de campos) y 360 (MP4 o MOV, 2:1).</summary>
+    private static void CheckScan(ExportContainer container, VideoExportSettings v, EncoderSpec encoder, List<ExportProblem> problems)
+    {
+        if (v.FieldOrder != ExportFieldOrder.Progressive)
+        {
+            if (encoder.Codec != ExportCodec.ProRes)
+            {
+                problems.Add(new(ExportProblemCode.InvalidValue, $"{encoder.Id} no codifica entrelazado: usa ProRes."));
+            }
+
+            if (v.FrameRate is null)
+            {
+                problems.Add(new(ExportProblemCode.InvalidValue, "Un video entrelazado necesita una tasa de cuadros fija."));
+            }
+
+            if (v.Height is { } h && h % 4 != 0)
+            {
+                problems.Add(new(ExportProblemCode.InvalidValue, "Entrelazado, el alto tiene que ser múltiplo de 4."));
+            }
+        }
+
+        if (v.Projection == ExportProjection.Equirectangular)
+        {
+            if (container is not (ExportContainer.Mp4 or ExportContainer.Mov))
+            {
+                problems.Add(new(ExportProblemCode.InvalidValue, "Los metadatos de video 360 van en MP4 o MOV."));
+            }
+
+            if (v.Width is { } w && v.Height is { } h && w != 2 * h)
+            {
+                problems.Add(new(ExportProblemCode.InvalidValue, "Un video 360 equirectangular es 2:1 (por ejemplo 3840×1920)."));
+            }
         }
     }
 

@@ -6,7 +6,7 @@ using static Rodaje.Core.Tests.Model.ModelSamples;
 
 namespace Rodaje.Core.Tests.Serialization;
 
-/// <summary>Formato 5: clips generadores (títulos), rol de pista, migración desde 4 y rechazo del 8.</summary>
+/// <summary>Formato 5: clips generadores (títulos), rol de pista, migración desde 4 y rechazo del 9.</summary>
 public class FormatV5Tests
 {
     private static string Ejemplo(string name) =>
@@ -23,7 +23,7 @@ public class FormatV5Tests
         Project project = ProjectSerializer.Deserialize(Example);
 
         // Al guardar se escribe la versión actual; el resto del archivo no cambia.
-        string saved = Example.Replace("\"schemaVersion\": 5", "\"schemaVersion\": 8", StringComparison.Ordinal);
+        string saved = Example.Replace("\"schemaVersion\": 5", "\"schemaVersion\": 9", StringComparison.Ordinal);
         Assert.Equal(saved, ProjectSerializer.Serialize(project) + "\n");
         Assert.Equal(saved, ProjectSerializer.Serialize(project.Clone()) + "\n");
 
@@ -99,15 +99,15 @@ public class FormatV5Tests
 
         Assert.All(project.Sequences[0].AllTracks.SelectMany(t => t.Clips), c => Assert.Null(c.Generator));
         Assert.All(project.Sequences[0].AllTracks, t => Assert.Null(t.Role));
-        Assert.Equal(v4.Replace("\"schemaVersion\": 4", "\"schemaVersion\": 8", StringComparison.Ordinal), ProjectSerializer.Serialize(project) + "\n");
+        Assert.Equal(v4.Replace("\"schemaVersion\": 4", "\"schemaVersion\": 9", StringComparison.Ordinal), ProjectSerializer.Serialize(project) + "\n");
     }
 
     [Fact]
     public void NewerFormat_AsksToUpdate()
     {
-        string newer = Example.Replace("\"schemaVersion\": 5", "\"schemaVersion\": 9", StringComparison.Ordinal);
+        string newer = Example.Replace("\"schemaVersion\": 5", "\"schemaVersion\": 10", StringComparison.Ordinal);
         var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize(newer));
-        Assert.Contains("formato 8", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("formato 10", ex.Message, StringComparison.Ordinal);
         Assert.Contains("Actualiza Rodaje", ex.Message, StringComparison.Ordinal);
     }
 

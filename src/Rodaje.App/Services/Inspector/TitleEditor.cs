@@ -122,6 +122,47 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
     /// <summary>Se soltó un deslizador o se confirmó un campo: el próximo cambio es otro paso.</summary>
     public void EndChange() => Session.BreakMerge();
 
+    /// <summary>
+    /// Formato propio para un trozo del texto (lo elegido en el campo o en el visor): <paramref name="change"/> recibe lo que
+    /// tenía cada parte. Un paso del historial.
+    /// </summary>
+    public bool FormatText(int start, int length, Func<TextSpan, TextSpan> change, string label = "Dar formato al texto")
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        if (Target() is not { Generator: { } generator } clip || length <= 0 || start < 0 || start + length > generator.Text.Length)
+        {
+            return false;
+        }
+
+        EndTyping();
+        Session.BreakMerge();
+        bool done = Session.Execute(Edits.FormatTitleText(Session.SequenceId, clip.Id, start, length, change, label));
+        Session.BreakMerge();
+        return done;
+    }
+
+    /// <summary>El formato propio del carácter <paramref name="index"/> del título, o nulo si es el del estilo.</summary>
+    public TextSpan? SpanAt(int index) => Rodaje.Core.Text.TextSpans.At(Target()?.Generator?.Spans, index);
+
+    /// <summary>Negrita, cursiva o subrayado de un trozo: si todo el trozo ya lo tiene, lo quita.</summary>
+    public bool Toggle(int start, int length, Func<TextSpan, bool> has, Func<TextSpan, bool, TextSpan> set, string label)
+    {
+        bool all = length > 0 && Enumerable.Range(start, length).All(i => SpanAt(i) is { } span && has(span));
+        return FormatText(start, length, s => set(s, !all), label);
+    }
+
+    /// <summary>La caja del título (ajuste de línea y ajuste del tamaño): un paso del historial.</summary>
+    public bool SetBox(TextFrame? box)
+    {
+        if (Target() is not { Generator: { } } clip)
+        {
+            return false;
+        }
+
+        Session.BreakMerge();
+        return Session.Execute(Edits.SetTitleBox(Session.SequenceId, clip.Id, box));
+    }
+
     /// <summary>Un cambio suelto (un desplegable, una casilla): un paso propio del historial.</summary>
     public bool CommitStyle(string field, Action<TextStyle> change)
     {
@@ -142,12 +183,19 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
     /// «Guardar como estilo»: la copia del estilo del título va a los complementos propios y el título pasa a decir que
     /// salió de ahí (un paso del historial). Nulo si no hay título.
     /// </summary>
-    public (string Path, string Reference)? SaveStyle(string folder, string name)
+    public (string Path, string Reference)? SaveStyle(string folder, string name, bool withAnimation = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        if (Target() is not { Generator.Style: { } style })
+        if (Target() is not { Generator.Style: { } current })
         {
             return null;
+        }
+
+        TextStyle style = current.Clone();
+        if (!withAnimation)
+        {
+            style.In = null;
+            style.Out = null;
         }
 
         (string Path, string Reference) saved = TitleStyleFile.Save(folder, name, style);

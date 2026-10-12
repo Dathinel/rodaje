@@ -25,17 +25,24 @@ Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Decisi�
 | `rodaje-fuentes` | 1.0.0 | 5,1 MB | — |
 | `rodaje-titulos` | 1.0.0 | 25 KB | — |
 | `rodaje-zonas` | 1.0.0 | 20 KB | — |
+| `rodaje-camaras` | 1.0.0 | 1,9 MB | — |
+| `rodaje-sonidos` | 1.0.0 | 15,7 MB | — |
+| `rodaje-preajustes-pro` | 1.0.0 | 11 KB | — |
+| `rodaje-360` | 1.0.0 | 9 KB | — |
 | `modulo-subtitulos` | 1.0.0 y 1.1.0 | 38,9 MB | 2, 729 MB (Hugging Face); 1.1.0: 3, 786 MB (suma Whisper base) |
-| `modulo-traducir` | 1.0.0 | 61,2 MB | 1, 2,3 GB (Hugging Face) |
+| `modulo-traducir` | 1.0.0, 1.0.1 | 61,2 MB | 1, 2,3 GB (Hugging Face) |
 | `modulo-voz` | 1.0.0 | 7,7 MB | 39, 198 MB (Hugging Face y los léxicos misaki en su release) |
 | `modulo-audio-ia` | 1.0.0 | 7,5 MB | 4, 10 MB (en su release: Silero VAD y DeepFilterNet3) |
 | `modulo-vision` | 1.0.0 y 1.1.0 | 17,3 MB | 4, 211 MB (Hugging Face) |
 | `modulo-raw` | 1.0.0 | 1,8 MB | — |
 
+  La 1.0.1 de `modulo-traducir` carga el modelo aunque la carpeta tenga «ñ» o tildes (página de códigos UTF-8 en su manifiesto: LLamaSharp pasa la ruta como texto ANSI).
   Cada repositorio de módulo (GPLv3 con los términos de Rodaje) trae README, `LICENCIAS.md`, `licencias/` y el manifiesto; su release `v1.0.0` adjunta el `.paquete`, el código con el que se compiló (`codigo-fuente-<id>-<commit>.zip`) y, en `modulo-audio-ia` y `modulo-voz`, los modelos que no están en Hugging Face con su licencia (MIT, Apache-2.0).
 - **Prueba contra lo publicado** (`--filter Categoria=Red` con `RODAJE_PRUEBAS_RED=1`; la CI y `probar.ps1` la excluyen porque necesita red):
   - `CatalogoRealTests` (`Rodaje.Packages.Tests`) baja el índice real, verifica la firma con la clave del repo e instala transiciones y filtros; una firma o un índice alterados se rechazan.
   - `CatalogoRealExtremoAExtremoTests` (`Rodaje.App.Tests`) hace lo de la página de Complementos con `PackageService`: instala transiciones y filtros 1.0.0 (con el hash del índice) y los actualiza a 1.1.0 desde el catálogo; instala fuentes, títulos y zonas; aplica el estilo «Karaoke pop» (Montserrat, resaltado `#FFD400`); registra las fuentes en la colección privada y comprueba que DirectWrite resuelve «Montserrat» y «Nunito» (antes de registrarlas no las encontraba); instala `modulo-audio-ia`, baja sus 4 modelos y detecta la voz de un archivo de prueba; lo desinstala con su proceso abierto y desinstala el resto. Además: cada uno de los seis módulos se instala y su proceso saluda con su id y la 1.0.0; una descarga cortada al 40 % sigue con `Range` pidiendo solo lo que falta; y cada uno de los 50 modelos del índice responde con el tamaño firmado. Tiempos y tamaños en `TestResults\catalogo-real.txt`.
+  - `CatalogoRealExtremoAExtremoTests.Nuevos.cs` usa todo el catálogo en un proyecto real: instala los nueve complementos de contenido; aplica el look S-Log3 de `rodaje-camaras` (su LUT da 0,430 al gris del 18 %), el «Paneo de 360°» de `rodaje-360` (keyframes de guiñada), el filtro «Cine», una transición en el corte, el estilo «Karaoke pop» con su fuente y un juego de zonas; suelta un sonido de `rodaje-sonidos`; exporta con «Emisión HD 1080i25 (EBU R128)» de `rodaje-preajustes-pro` (ProRes entrelazado, `field_order=tb`, 25 fps) y con «Video 360 4K (H.264)» (3840×1920 con metadatos esféricos), y desinstala todo. Otra prueba instala `modulo-traducir` 1.0.0, lo actualiza a 1.0.1 y baja los modelos de los seis módulos (3,5 GB), y cada uno hace su función: subtítulos, traducción, voz, reducción de ruido, quitar fondo, reencuadre y CinemaDNG.
+  - Corrida del 12-oct, 22:40 (catálogo `v4`, 6 de 6 en 9 min 10 s): los nueve de contenido se instalan en 0,3–1,2 s cada uno (sonidos, 15,7 MB, en 1,2 s); exportar el proyecto en 1080i25 tarda 45,9 s (170,6 MB) y el 360 4K, 14,4 s; los modelos de los seis módulos bajan en 4 min 42 s (Qwen, 2,3 GB, en 3 min 55 s), y subtítulos tarda 85 s, traducir 30 s, voz 6,9 s, ruido 2,7 s, quitar fondo 9,9 s, reencuadre 4 s y CinemaDNG 0,9 s, incluido abrir cada módulo.
   - Corrida del 12-oct (Wi-Fi doméstica): transiciones 1.0.0 → 1.1.0 en 0,5 s y filtros en 0,8 s; fuentes (5,1 MB) en 1,2 s; `modulo-audio-ia` con sus modelos (7,5 + 10,4 MB) en 3,7 s y la detección de voz, abriendo el módulo, en 4,7 s; los seis módulos instalados y saludando en 17 s; la descarga cortada en 2,1 de 5,1 MB terminó pidiendo 3,1 MB.
 
 ## Publicar una versión nueva

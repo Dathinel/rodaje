@@ -152,6 +152,13 @@ internal sealed partial class MainWindow : Window, IShellHost
             }
         };
         Program.Metrics.Milestone("fuentes");
+        Views.Export.ExportPresetLibrary.Packages = PackageExportPresets.Load(packages.Installed);
+        Services.Inspector.EffectCatalog.EnabledFeatures = Services.Inspector.EffectCatalog.FeaturesFrom(packages.Installed);
+        packages.Changed += (_, _) =>
+        {
+            Views.Export.ExportPresetLibrary.Packages = PackageExportPresets.Load(packages.Installed);
+            Services.Inspector.EffectCatalog.EnabledFeatures = Services.Inspector.EffectCatalog.FeaturesFrom(packages.Installed);
+        };
         MissingContent.Attach(session, packages);
         Views.Relink.RelinkDialog.Attach(_services, _hwnd);
         _bindings.Add(EditorShortcuts.Bind(_router, session));

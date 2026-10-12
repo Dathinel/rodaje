@@ -24,6 +24,7 @@ public sealed class ProjectMigrator
         [5] = AllowCompounds,
         [6] = AllowBezierKeyframes,
         [7] = AllowMaskModes,
+        [8] = AllowProTitles,
     };
 
     private readonly IReadOnlyDictionary<int, Action<JsonObject>> _chain;
@@ -166,6 +167,13 @@ public sealed class ProjectMigrator
     /// (intersección); un Rodaje del formato 7 rechaza el 8 en vez de dibujar mal las Bézier, los modos o las máscaras de un efecto.
     /// </summary>
     internal static void AllowMaskModes(JsonObject root) => root[VersionProperty] = 8;
+
+    /// <summary>
+    /// 8 → 9: los títulos ganan tramos con formato (<c>spans</c>), alto de la caja, tipografía (kerning, mayúsculas,
+    /// funciones OpenType, ajuste), degradado, bordes y sombras adicionales, texto en arco, barrido de karaoke y animación por
+    /// línea, palabra o letra con desfase. Todo es opcional: no hay que convertir nada.
+    /// </summary>
+    internal static void AllowProTitles(JsonObject root) => root[VersionProperty] = 9;
 
     private static void RemoveSpeed(JsonNode? effects)
     {

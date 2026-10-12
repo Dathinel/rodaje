@@ -27,10 +27,10 @@ public sealed class MaskFormatTests
 
         Project project = ProjectSerializer.Deserialize(root.ToJsonString());
 
-        Assert.Equal(8, project.SchemaVersion);
+        Assert.Equal(9, project.SchemaVersion);
         EffectInstance mask = project.Sequences[0].GetClip("v").Clip.Effects[0];
         Assert.Equal(MaskMode.Intersect, MaskGeometry.Evaluate(mask, F(0)).Mode);
-        Assert.Contains("\"schemaVersion\": 8", ProjectSerializer.Serialize(project), StringComparison.Ordinal);
+        Assert.Contains("\"schemaVersion\": 9", ProjectSerializer.Serialize(project), StringComparison.Ordinal);
     }
 
     [Fact]

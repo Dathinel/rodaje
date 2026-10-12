@@ -1,4 +1,5 @@
 using Rodaje.Core.Editing;
+using Rodaje.Core.Text;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -14,9 +15,11 @@ internal sealed class GeneratedClipPlan
 {
     private readonly Time[] _wordStarts;
     private readonly GeneratedContent[] _wordContents;
+    private readonly Time[] _spokenStarts;
+    private readonly Time[] _spokenEnds;
 
     public GeneratedClipPlan(string clipId, ClipTimeMap map, GeneratedContent content, EffectPlan? effects, TitleAnimation? animation,
-        IReadOnlyList<(Time Start, GeneratedContent Content)>? words = null)
+        IReadOnlyList<(Time Start, GeneratedContent Content)>? words = null, IReadOnlyList<GeneratorWord>? spoken = null)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(content);
@@ -28,6 +31,8 @@ internal sealed class GeneratedClipPlan
         _wordStarts = words is null ? [] : [.. words.Select(w => w.Start)];
         _wordContents = words is null ? [] : [.. words.Select(w => w.Content)];
         Contents = [content, .. _wordContents.Distinct()];
+        _spokenStarts = content.UsesUnits && spoken is not null ? [.. spoken.Select(w => w.Start)] : [];
+        _spokenEnds = content.UsesUnits && spoken is not null ? [.. spoken.Select(w => w.End)] : [];
     }
 
     public string ClipId { get; }
@@ -79,6 +84,41 @@ internal sealed class GeneratedClipPlan
         return Animation is { } animation ? animation.Apply(clip, timeline - Start) : clip;
     }
 
+    /// <summary>
+    /// Para un título por unidades: la fase de su animación por unidades y, en karaoke, la palabra que suena (la última
+    /// que empezó) con cuánto se dijo de ella. En reposo si el título se dibuja entero.
+    /// </summary>
+    public TextMotion MotionAt(Time timeline)
+    {
+        if (!Content.UsesUnits)
+        {
+            return TextMotion.Rest;
+        }
+
+        (TextPhase phase, double progress) = Animation?.UnitPhase(timeline - Start) ?? (TextPhase.None, 0);
+        int word = -1;
+        double said = 0;
+        if (_spokenStarts.Length > 0)
+        {
+            Time origin = TimeMap.EffectTime(timeline);
+            int index = Array.BinarySearch(_spokenStarts, origin);
+            index = index >= 0 ? index : ~index - 1;
+            while (index + 1 < _spokenStarts.Length && _spokenStarts[index + 1] == origin)
+            {
+                index++;
+            }
+
+            if (index >= 0)
+            {
+                word = index;
+                long length = (_spokenEnds[index] - _spokenStarts[index]).Ticks;
+                said = length <= 0 ? 1 : Math.Clamp((double)(origin - _spokenStarts[index]).Ticks / length, 0, 1);
+            }
+        }
+
+        return new TextMotion(phase, progress, word, said);
+    }
+
     /// <summary>La capa del instante, con los efectos evaluados en una lista de <paramref name="ring"/>.</summary>
     /// <param name="frameTicks">Un cuadro de la secuencia, para el obturador del desenfoque de movimiento.</param>
     public LayerFrame Layer(int trackIndex, Time timeline, EffectListRing ring, IEffectResources? resources, long frameTicks)
@@ -98,6 +138,7 @@ internal sealed class GeneratedClipPlan
             Effects = effects,
             Blend = Effects?.Blend ?? BlendMode.Normal,
             MotionSamples = motion,
+            TextMotion = MotionAt(timeline),
         };
     }
 
@@ -113,6 +154,10 @@ internal sealed class GeneratedClipPlan
         }
 
         TextStyle style = generator.Style?.Clone() ?? new TextStyle();
+
+        // Un borde sin animación no la necesita en la textura ni en la clave de la caché.
+        style.In = generator.Edges.In ? style.In : null;
+        style.Out = generator.Edges.Out ? style.Out : null;
         double unit = GeneratedContent.UnitScaleFor(style.Reference, sequenceWidth, sequenceHeight);
         double box = generator.Box switch
         {
@@ -123,24 +168,32 @@ internal sealed class GeneratedClipPlan
 
         EffectPlan? effects = EffectPlan.From(clip.Effects);
         TitleAnimation? animation = TitleAnimation.From(style, generator.Edges, clip.Duration, unit);
-        double scale = Math.Clamp(EffectPlan.MaxScale(effects) * (animation?.MaxScale ?? 1), MinRasterScale, MaxRasterScale);
-        var content = new GeneratedContent(generator.Kind, generator.Text, style, box, sequenceWidth, sequenceHeight, scale) { ClipId = clip.Id };
+        double unitScale = Math.Max(TextAnimator.From(style.In)?.MaxScale ?? 1, TextAnimator.From(style.Out)?.MaxScale ?? 1);
+        double scale = Math.Clamp(EffectPlan.MaxScale(effects) * (animation?.MaxScale ?? 1) * unitScale, MinRasterScale, MaxRasterScale);
+        IReadOnlyList<WordRange>? ranges = style.Highlight is not null && generator.Words is { Count: > 0 } spoken
+            ? SubtitleEdits.WordRanges(generator.Text, spoken)
+            : null;
+        var extras = new TextExtras(
+            generator.Spans is { Count: > 0 } spans ? [.. spans] : null,
+            generator.Box?.HeightFraction is > 0 and <= 1 ? generator.Box.HeightFraction.Value * sequenceHeight : 0,
+            ranges?.Select(r => r.Found ? (r.Start, r.Length) : (-1, 0)).ToArray());
+        var content = new GeneratedContent(generator.Kind, generator.Text, style, box, sequenceWidth, sequenceHeight, scale, extras: extras) { ClipId = clip.Id };
         List<(Time Start, GeneratedContent Content)>? words = null;
-        if (style.Highlight is not null && generator.Words is { Count: > 0 } list)
+        if (!content.UsesUnits && ranges is not null && generator.Words is { Count: > 0 } list)
         {
             // Una textura por palabra: un subtítulo lleva pocas y se preparan por adelantado como cualquier título.
-            IReadOnlyList<WordRange> ranges = SubtitleEdits.WordRanges(generator.Text, list);
             words = new List<(Time, GeneratedContent)>(list.Count);
             for (int i = 0; i < list.Count; i++)
             {
                 GeneratedContent shown = ranges[i].Found
-                    ? new GeneratedContent(generator.Kind, generator.Text, style, box, sequenceWidth, sequenceHeight, scale, ranges[i].Start, ranges[i].Length) { ClipId = clip.Id }
+                    ? new GeneratedContent(generator.Kind, generator.Text, style, box, sequenceWidth, sequenceHeight, scale, ranges[i].Start, ranges[i].Length, extras) { ClipId = clip.Id }
                     : content;
                 words.Add((list[i].Start, shown));
             }
         }
 
-        return new GeneratedClipPlan(clip.Id, clip.TimeMap, content, effects, animation, words);
+        return new GeneratedClipPlan(clip.Id, clip.TimeMap, content, effects, animation, words, generator.Words);
+
     }
 
     /// <summary>Por debajo, un título que siempre se ve chico se rasteriza igual a este tamaño (no ahorra lo que pierde).</summary>
@@ -166,9 +219,14 @@ internal sealed class TitleAnimation
     private readonly long _durationTicks;
     private readonly double _stretch;
     private readonly double _unit;
+    private readonly bool _inUnits;
+    private readonly bool _outUnits;
 
-    private TitleAnimation(Curve?[]? @in, long inTicks, Curve?[]? @out, long outTicks, long leadTicks, long durationTicks, double stretch, double unit)
+    private TitleAnimation(Curve?[]? @in, long inTicks, Curve?[]? @out, long outTicks, long leadTicks, long durationTicks, double stretch, double unit,
+        bool inUnits, bool outUnits)
     {
+        _inUnits = inUnits;
+        _outUnits = outUnits;
         _in = @in;
         _out = @out;
         _inTicks = inTicks;
@@ -195,9 +253,12 @@ internal sealed class TitleAnimation
     /// </summary>
     public static TitleAnimation? From(TextStyle style, GeneratorEdges edges, Time duration, double unit)
     {
-        Curve?[]? @in = edges.In ? Curves(style.In) : null;
-        Curve?[]? @out = edges.Out ? Curves(style.Out) : null;
-        if ((@in is null && @out is null) || duration <= Time.Zero)
+        // Por unidades no hay delta del bloque: el rasterizador anima cada unidad con la fase que da UnitPhase.
+        bool inUnits = edges.In && style.In is { PerUnit: true } && TitleMotion.Ticks(style.In) > 0;
+        bool outUnits = edges.Out && style.Out is { PerUnit: true } && TitleMotion.Ticks(style.Out) > 0;
+        Curve?[]? @in = edges.In && !inUnits ? Curves(style.In) : null;
+        Curve?[]? @out = edges.Out && !outUnits ? Curves(style.Out) : null;
+        if ((@in is null && @out is null && !inUnits && !outUnits) || duration <= Time.Zero)
         {
             return null;
         }
@@ -205,11 +266,33 @@ internal sealed class TitleAnimation
         long lead = Math.Max(0, edges.Before.Ticks);
         long whole = lead + duration.Ticks + Math.Max(0, edges.After.Ticks);
         (long inTicks, long outTicks, double stretch) = TitleMotion.Fit(
-            @in is null ? 0 : Time.FromSeconds(style.In!.DurationSeconds).Ticks,
-            @out is null ? 0 : Time.FromSeconds(style.Out!.DurationSeconds).Ticks,
+            @in is null && !inUnits ? 0 : Time.FromSeconds(style.In!.DurationSeconds).Ticks,
+            @out is null && !outUnits ? 0 : Time.FromSeconds(style.Out!.DurationSeconds).Ticks,
             whole);
-        return new TitleAnimation(@in, inTicks, @out, outTicks, lead, whole, stretch, unit);
+        return new TitleAnimation(@in, inTicks, @out, outTicks, lead, whole, stretch, unit, inUnits, outUnits);
     }
+
+    /// <summary>
+    /// La fase por unidades en <paramref name="sinceStart"/> y su avance de 0 a 1 (ya encogida si no cabía); en reposo
+    /// fuera de una entrada o salida por unidades.
+    /// </summary>
+    public (TextPhase Phase, double Progress) UnitPhase(Time sinceStart)
+    {
+        long at = sinceStart.Ticks + _leadTicks;
+        if (_inUnits && at >= 0 && at < _inTicks)
+        {
+            return (TextPhase.In, (double)at / _inTicks);
+        }
+
+        long outStart = _durationTicks - _outTicks;
+        if (_outUnits && at >= outStart && at < _durationTicks)
+        {
+            return (TextPhase.Out, (double)(at - outStart) / _outTicks);
+        }
+
+        return (TextPhase.None, 0);
+    }
+
 
     /// <summary>
     /// Compone el delta de la animación en <paramref name="sinceStart"/> (tiempo desde el borde izquierdo del clip) con la

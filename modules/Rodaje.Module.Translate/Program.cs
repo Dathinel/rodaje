@@ -1,7 +1,7 @@
 using Rodaje.Module.Translate;
 using Rodaje.Modules.Protocol;
 
-ModuleInfo info = new("modulo-traducir", "1.0.0", "Traducir",
+ModuleInfo info = new("modulo-traducir", "1.0.1", "Traducir",
 [
     new FunctionInfo("traducir", "Traducir subtítulos conservando ids y tiempos", Inputs: ["bytes", "bytes"], Outputs: ["bytes"]),
 ], Device: "vulkan, cpu");

@@ -177,6 +177,7 @@ internal static partial class SelfTestRun
         FrameCapture withTitle = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
         await SaveFrameAsync(withTitle, "texto-visor");
         await DragTitleAsync(window, engine, box);
+        await ProTitleAsync(window, engine, editor, id, withTitle);
 
         Clip clip = session.Sequence.GetClip(id).Clip;
         if (!session.Execute(Edits.Split(session.SequenceId, id, clip.Start + Time.FromTicks(clip.Duration.Ticks / 2))))
@@ -210,6 +211,44 @@ internal static partial class SelfTestRun
         {
             throw new InvalidOperationException($"El título no se ve en el visor: solo cambia {changed} píxeles en su caja.");
         }
+    }
+
+    /// <summary>
+    /// Lo profesional del título: degradado, un borde más, arco, «Hola» en negrita roja y salida por letra; el visor tiene
+    /// que cambiar y la pestaña Texto se captura (<c>texto-pro</c>). Los dos pasos se deshacen.
+    /// </summary>
+    private static async Task ProTitleAsync(MainWindow window, PlayerEngine engine, TitleEditor editor, string id, FrameCapture plain)
+    {
+        EditorSession session = window.Session;
+        int steps = session.History.Count;
+        editor.CommitStyle("pro", s =>
+        {
+            s.Fill.Gradient = new StyleGradient { Angle = 90, Stops = [new ColorStop(0, "#FFD400"), new ColorStop(1, "#FF3D00")] };
+            s.ExtraStrokes = [new StyleStroke { Color = "#FFFFFF", Width = 12 }];
+            s.Path = new StylePath { Bend = 50 };
+            s.Out = Rodaje.Core.Text.TextAnimationPresets.Find("rebote")!.Out();
+        });
+        editor.FormatText(0, 4, s => s with { Weight = 900, Color = "#E01010" }, "Negrita");
+        if (session.History.Count != steps + 2)
+        {
+            throw new InvalidOperationException("El formato por tramos o el estilo profesional no quedaron en el historial.");
+        }
+
+        await Task.Delay(400);
+        TitleBox box = await WaitForTitleAsync(engine, id, b => b.Width > 0, "El título en arco no se dibujó en 5 s.");
+        await CaptureAsync(window, "texto-pro");
+        FrameCapture pro = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        await SaveFrameAsync(pro, "texto-pro-visor");
+        int changed = ChangedPixels(plain, pro, box, session.Sequence.Width, session.Sequence.Height);
+        Program.Metrics.Note($"autoprueba: el título profesional cambia {changed} píxeles respecto del simple");
+        if (changed < 500)
+        {
+            throw new InvalidOperationException($"El título profesional se ve igual que el simple ({changed} píxeles distintos).");
+        }
+
+        session.Undo();
+        session.Undo();
+        await Task.Delay(200);
     }
 
     private static async Task<TitleBox> WaitForTitleAsync(PlayerEngine engine, string id, Func<TitleBox, bool> condition, string failure)

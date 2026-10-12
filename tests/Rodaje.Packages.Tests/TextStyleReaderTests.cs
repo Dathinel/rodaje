@@ -74,7 +74,7 @@ public sealed class TextStyleReaderTests
 
     [Theory]
     [InlineData("""{ "format": "rodaje.effect", "version": 1, "name": "x" }""", "se esperaba «rodaje.textstyle»")]
-    [InlineData("""{ "format": "rodaje.textstyle", "version": 2, "name": "x" }""", "actualiza el programa")]
+    [InlineData("""{ "format": "rodaje.textstyle", "version": 3, "name": "x" }""", "actualiza el programa")]
     [InlineData("""{ "format": "rodaje.textstyle", "version": 1, "name": "x", "size": 10 }""", "Falta font")]
     [InlineData("""{ "format": "rodaje.textstyle", "version": 1, "name": "x", "font": { "family": " " }, "size": 10 }""", "font.family")]
     [InlineData("""{ "format": "rodaje.textstyle", "version": 1, "name": "x", "font": { "family": "A" } }""", "Falta size")]
@@ -105,7 +105,7 @@ public sealed class TextStyleReaderTests
     [InlineData(""", "background": { "color": "#000000", "padding": [1, -2] }""", "background.padding")]
     [InlineData(""", "in": { "durationSeconds": 0 }""", "in.durationSeconds")]
     [InlineData(""", "in": { "durationSeconds": 61 }""", "in.durationSeconds")]
-    [InlineData(""", "in": { "durationSeconds": 1, "curves": { "blur": [ { "t": 0, "value": 1 } ] } }""", "no es un parámetro de la transformación")]
+    [InlineData(""", "in": { "durationSeconds": 1, "curves": { "brillo": [ { "t": 0, "value": 1 } ] } }""", "no es un parámetro de la transformación")]
     [InlineData(""", "in": { "durationSeconds": 1, "curves": { "opacity": [ { "t": 0, "value": 2 } ] } }""", "fuera de 0 a 1")]
     [InlineData(""", "out": { "durationSeconds": 1, "curves": { "x": [ { "t": 2, "value": 0 } ] } }""", "fuera de 0 a durationSeconds")]
     [InlineData(""", "out": "no" """, "out tiene que ser un objeto")]

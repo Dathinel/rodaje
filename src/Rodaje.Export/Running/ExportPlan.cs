@@ -39,6 +39,28 @@ public sealed record ExportPlan
 
     public IReadOnlyList<string> VideoFilters { get; init; } = [];
 
+    /// <summary>Tasa del archivo: la de <see cref="OutputRate"/>, o la mitad si es entrelazado (se compone por campos).</summary>
+    public Rational EncodedRate { get; init; }
+
+    /// <summary>Se compone a la tasa de campos y se teje en FFmpeg.</summary>
+    public bool Interlaced => Settings.Video is { FieldOrder: not ExportFieldOrder.Progressive } && Video is not null;
+
+    /// <summary>Cuadros del archivo terminado: <see cref="FrameCount"/>, o la mitad si es entrelazado.</summary>
+    public long EncodedFrameCount => Interlaced ? FrameCount / 2 : FrameCount;
+
+    /// <summary>
+    /// Filtros de FFmpeg que tejen cuadros progresivos a la tasa de campos en cuadros entrelazados (todos LGPL):
+    /// separa cada cuadro en sus dos campos, toma el primero del cuadro par y el segundo del impar, los teje y numera los
+    /// cuadros desde 0 a la tasa del archivo (sin eso el primero empezaría un campo tarde).
+    /// </summary>
+    public static IReadOnlyList<string> WeaveFields(ExportFieldOrder order, ExportPixelFormat pixels, Rational frameRate)
+    {
+        string field = order == ExportFieldOrder.BottomFirst ? "bff" : "tff";
+        string first = order == ExportFieldOrder.BottomFirst ? "bottom" : "top";
+        return [$"setfield={field}", "separatefields", @"select=eq(mod(n\,4)\,0)+eq(mod(n\,4)\,3)", $"weave=first_field={first}",
+            string.Create(CultureInfo.InvariantCulture, $"setpts=N*{frameRate.Den}/({frameRate.Num}*TB)"), $"setfield={field}", $"format={pixels.FfmpegName()}"];
+    }
+
     /// <summary>Inicio del rango, alineado a un cuadro de la salida.</summary>
     public Time Start => Time.FromFrames(FirstFrame, OutputRate);
 
@@ -79,16 +101,20 @@ public sealed record ExportPlan
             throw Invalid("El rango que se exporta está vacío.");
         }
 
-        Rational output = settings.Video?.FrameRate ?? sequence.FrameRate;
-        long first = CeilFrame(range.Start, output);
-        long last = CeilFrame(end, output);
+        Rational encoded = settings.Video?.FrameRate ?? sequence.FrameRate;
+        bool interlaced = settings.Video is { FieldOrder: not ExportFieldOrder.Progressive };
+
+        // Entrelazado: se compone a la tasa de campos (el doble) y FFmpeg teje cada par en un cuadro.
+        Rational output = interlaced ? new Rational(encoded.Num * 2, encoded.Den) : encoded;
+        long first = interlaced ? CeilFrame(range.Start, encoded) * 2 : CeilFrame(range.Start, output);
+        long last = interlaced ? CeilFrame(end, encoded) * 2 : CeilFrame(end, output);
         if (last <= first)
         {
             throw Invalid("El rango es más corto que un cuadro.");
         }
 
         EncoderSpec? video = settings.Video is { } v ? Choose(v.Codec, v.EncoderId, available) : null;
-        EncoderSpec? audio = settings.Audio is { } a ? Choose(a.Codec, a.EncoderId, available) : null;
+        EncoderSpec? audio = settings.Audio is { } a ? Choose(a.Codec, a.EncoderId ?? PcmEncoderId(a), available) : null;
         IReadOnlyList<ExportProblem> problems = ExportSettingsValidator.Validate(settings, video, audio);
         if (problems.Count > 0)
         {
@@ -106,12 +132,16 @@ public sealed record ExportPlan
             {
                 filters = ["split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3"];
             }
+            else if (interlaced)
+            {
+                filters = WeaveFields(vs.FieldOrder, pixels, encoded);
+            }
         }
 
         ExportAudioFormat? wave = settings.Audio is { } au ? new ExportAudioFormat(au.SampleRate, au.Channels) : null;
         long count = last - first;
         TimeSpan seconds = TimeSpan.FromSeconds(count / output.ToDouble());
-        EncoderArguments arguments = FfmpegArguments.Build(settings, video, format?.PixelFormat, audio, output, seconds);
+        EncoderArguments arguments = FfmpegArguments.Build(settings, video, format?.PixelFormat, audio, encoded, seconds);
         ExportMetadata metadata = settings.Metadata;
         if (settings.ChaptersFromMarkers && FfmpegPipeSinkOptions.AllowsChapters(settings.Container))
         {
@@ -133,6 +163,7 @@ public sealed record ExportPlan
             Request = request,
             SequenceRate = sequence.FrameRate,
             OutputRate = output,
+            EncodedRate = encoded,
             FirstFrame = first,
             FrameCount = count,
             VideoEncoder = video,
@@ -161,6 +192,14 @@ public sealed record ExportPlan
         return available.FirstOrDefault(e => e.Codec == codec && e.InDefaults)
             ?? throw new ExportException(ExportErrorCode.EncoderMissing, $"Ningún codificador de {codec} funciona en este equipo.");
     }
+
+    // Los tres PCM comparten códec; el formato de muestra decide cuál.
+    private static string? PcmEncoderId(AudioExportSettings audio) => audio.Codec != ExportCodec.Pcm ? null : audio.PcmFormat switch
+    {
+        ExportSampleFormat.Pcm16 => "pcm_s16le",
+        ExportSampleFormat.PcmFloat => "pcm_f32le",
+        _ => "pcm_s24le",
+    };
 
     /// <summary>
     /// Las pistas de subtítulos visibles con texto en <c>[start, end)</c>, relativas al inicio y recortadas al rango; la
@@ -251,8 +290,8 @@ public sealed record ExportPlan
         {
             Width = Video?.Width,
             Height = Video?.Height,
-            FrameCount = video ? FrameCount : null,
-            FrameRate = video ? OutputRate : null,
+            FrameCount = video ? EncodedFrameCount : null,
+            FrameRate = video ? EncodedRate : null,
             Color = video && VideoEncoder!.Codec is not (ExportCodec.Png or ExportCodec.Tiff or ExportCodec.QtAnimation) ? Video!.Color : null,
             SampleRate = Audio?.SampleRate,
             Channels = Audio?.Channels,

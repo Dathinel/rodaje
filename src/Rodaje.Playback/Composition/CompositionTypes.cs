@@ -176,7 +176,11 @@ public sealed class LayerFrame : IDisposable
     /// </summary>
     public IReadOnlyList<LayerTransform>? MotionSamples { get; init; }
 
+    /// <summary>Un título por unidades: fase de su animación y karaoke en este cuadro (<see cref="TextMotion.Rest"/> si no).</summary>
+    public TextMotion TextMotion { get; init; } = TextMotion.Rest;
+
     /// <summary>Sin efectos, mezcla normal, transición ni desenfoque de movimiento: el camino rápido de siempre.</summary>
+
     public bool IsPlain => Effects.Count == 0 && Blend == BlendMode.Normal && Transition is null && Nested is null && MotionSamples is null;
 
     public void Dispose()

@@ -55,6 +55,10 @@ internal enum FxOp
     ToGamma = 13,
     RegionMix = 14,
     Copy = 15,
+    Reframe360 = 16,
+
+    /// <summary>Una celda del atlas de un título por unidades: nivel de mip, opacidad, rectángulo de la celda y franja visible del karaoke.</summary>
+    TitleUnit = 17,
 }
 
 /// <summary>Fuente HLSL de los efectos y la lista de variantes que se compilan por adelantado.</summary>
@@ -802,11 +806,39 @@ internal static class EffectShaders
                     float4 c = Unpremultiply(SampleA(uv));
                     return float4(ToGamma(c.rgb) * c.a, c.a);
                 }
+                case 16:
+                {
+                    // Equirectangular → vista plana (Equirectangular.SourceUv es la referencia). fx0.y = medio ancho del plano,
+                    // fx0.z = ancho/alto de la salida, fx0.w = 1 estereográfica; fx1.xyz y fx2.xyz = ejes derecha y arriba.
+                    float2 p = float2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0) * float2(fx0.y, fx0.y / fx0.z);
+                    float3 d;
+                    if (fx0.w > 0.5)
+                    {
+                        float r2 = dot(p, p);
+                        d = float3(4.0 * p, 4.0 - r2) / (4.0 + r2);
+                    }
+                    else
+                    {
+                        d = normalize(float3(p, 1.0));
+                    }
+
+                    float3 w = d.x * fx1.xyz + d.y * fx2.xyz + d.z * cross(fx1.xyz, fx2.xyz);
+                    float2 source = float2(0.5 + atan2(w.x, w.z) / 6.28318531, 0.5 - asin(clamp(w.y, -1.0, 1.0)) / 3.14159265);
+                    return SampleA(source);
+                }
                 case 14:
                 {
                     // Antes (A) y después (B) según la máscara de efectos; fx0.y = 1 aplica fuera de ella.
                     float m = maskImage.SampleLevel(linearClamp, min(uv * fx2.xy, fx2.zw), 0).r;
                     return lerp(SampleA(uv), SampleB(uv), fx0.y > 0.5 ? 1.0 - m : m);
+                }
+                case 17:
+                {
+                    // fx0.y = nivel de mip (desenfoque), fx0.z = opacidad; fx1 = la celda en el atlas; fx2.xy = franja visible en u,
+                    // con fx2.z = un píxel de destino en u para suavizar el corte del barrido.
+                    float4 c = imageA.SampleLevel(linearClamp, clamp(uv, fx1.xy, fx1.zw), fx0.y);
+                    float inside = saturate((uv.x - fx2.x) / fx2.z + 0.5) * saturate((fx2.y - uv.x) / fx2.z + 0.5);
+                    return c * fx0.z * inside;
                 }
                 default:
                     return SampleA(uv);

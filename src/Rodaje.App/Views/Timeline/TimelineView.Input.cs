@@ -666,7 +666,12 @@ internal sealed partial class TimelineView
         _dropMediaId = null;
         if (!e.DataView.Contains(MediaIdFormat))
         {
-            if (CarriesTitle(e.DataView))
+            if (CarriesSound(e.DataView))
+            {
+                e.AcceptedOperation = DataPackageOperation.Copy;
+                ReadDroppedSound(e);
+            }
+            else if (CarriesTitle(e.DataView))
             {
                 e.AcceptedOperation = DataPackageOperation.Copy;
                 ReadDroppedTitle(e);
@@ -700,7 +705,11 @@ internal sealed partial class TimelineView
     {
         if (!e.DataView.Contains(MediaIdFormat))
         {
-            if (CarriesTitle(e.DataView))
+            if (CarriesSound(e.DataView))
+            {
+                DragOverSound(e);
+            }
+            else if (CarriesTitle(e.DataView))
             {
                 DragOverTitle(e);
             }
@@ -745,7 +754,11 @@ internal sealed partial class TimelineView
 
         if (!e.DataView.Contains(MediaIdFormat))
         {
-            if (CarriesTitle(e.DataView))
+            if (CarriesSound(e.DataView))
+            {
+                DropSound(e);
+            }
+            else if (CarriesTitle(e.DataView))
             {
                 DropTitle(e);
             }

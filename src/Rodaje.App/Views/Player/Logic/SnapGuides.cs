@@ -10,6 +10,9 @@ public enum SnapKind
     Center,
     Third,
     Edge,
+
+    /// <summary>Margen seguro de títulos (90 %) o un borde de las zonas seguras que se ven.</summary>
+    Safe,
 }
 
 /// <summary>
@@ -43,10 +46,11 @@ public static class SnapGuides
     /// capa puede ir a cualquier línea; sus bordes, a los bordes y tercios.
     /// </summary>
     /// <param name="pixelsPerUnit">Unidades del panel por píxel de la secuencia (para medir el imán en pantalla).</param>
-    public static (Vector2 Correction, IReadOnlyList<SnapLine> Hits) Snap(Vector2 center, Vector2 halfSize, int width, int height, double pixelsPerUnit)
+    public static (Vector2 Correction, IReadOnlyList<SnapLine> Hits) Snap(Vector2 center, Vector2 halfSize, int width, int height, double pixelsPerUnit,
+        IReadOnlyList<SnapLine>? extra = null)
     {
         double reach = MagnetPixels / Math.Max(pixelsPerUnit, 1e-6);
-        IReadOnlyList<SnapLine> lines = Lines(width, height);
+        IReadOnlyList<SnapLine> lines = extra is { Count: > 0 } ? [.. Lines(width, height), .. extra] : Lines(width, height);
         (double dx, SnapLine? vertical) = Best(lines, true, [center.X, center.X - halfSize.X, center.X + halfSize.X], reach);
         (double dy, SnapLine? horizontal) = Best(lines, false, [center.Y, center.Y - halfSize.Y, center.Y + halfSize.Y], reach);
         var hits = new List<SnapLine>(2);
@@ -94,5 +98,47 @@ public static class SnapGuides
         }
 
         return (delta, hit);
+    }
+
+    /// <summary>Margen de títulos de la tele (el 90 % del cuadro): un título se pega a sus cuatro lados.</summary>
+    public const double TitleSafe = 0.9;
+
+    /// <summary>
+    /// Las líneas extra para un título: el margen seguro de títulos y los bordes de las zonas que se ven (en fracciones del
+    /// cuadro, como las de <c>rodaje.safezones</c>), sin repetir las que ya están.
+    /// </summary>
+    public static IReadOnlyList<SnapLine> SafeLines(int width, int height, IEnumerable<(double Left, double Top, double Width, double Height)> zones)
+    {
+        ArgumentNullException.ThrowIfNull(zones);
+        double margin = (1 - TitleSafe) / 2;
+        var lines = new List<SnapLine>
+        {
+            new(true, width * margin, SnapKind.Safe),
+            new(true, width * (1 - margin), SnapKind.Safe),
+            new(false, height * margin, SnapKind.Safe),
+            new(false, height * (1 - margin), SnapKind.Safe),
+        };
+        foreach ((double left, double top, double w, double h) in zones)
+        {
+            foreach (double x in (ReadOnlySpan<double>)[left, left + w])
+            {
+                Add(new SnapLine(true, Math.Clamp(x, 0, 1) * width, SnapKind.Safe));
+            }
+
+            foreach (double y in (ReadOnlySpan<double>)[top, top + h])
+            {
+                Add(new SnapLine(false, Math.Clamp(y, 0, 1) * height, SnapKind.Safe));
+            }
+        }
+
+        return lines;
+
+        void Add(SnapLine line)
+        {
+            if (line.At > 0.5 && line.At < (line.Vertical ? width : height) - 0.5 && !lines.Exists(l => l.Vertical == line.Vertical && Math.Abs(l.At - line.At) < 0.5))
+            {
+                lines.Add(line);
+            }
+        }
     }
 }

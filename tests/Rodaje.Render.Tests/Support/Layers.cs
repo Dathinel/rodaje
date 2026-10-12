@@ -69,6 +69,8 @@ internal sealed record LayerLook(IReadOnlyList<LayerEffect>? Effects = null, Ble
 /// <summary>Píxeles RGBA de 8 bits leídos de la GPU.</summary>
 internal sealed class RgbaImage(byte[] pixels, int width, int height)
 {
+    public byte[] Pixels => pixels;
+
     public int Width { get; } = width;
 
     public int Height { get; } = height;

@@ -77,11 +77,54 @@ public static class TitleStyles
             Background = preset.Background is { } b
                 ? new StyleBackground { Color = b.Color, Padding = [b.PaddingX, b.PaddingY], Radius = b.Radius }
                 : null,
-            Highlight = preset.HighlightColor is { } highlight ? new StyleHighlight { Color = highlight } : null,
+            Highlight = preset.HighlightColor is { } highlight
+                ? new StyleHighlight { Color = highlight, Mode = preset.HighlightMode == "sweep" ? HighlightMode.Sweep : HighlightMode.Word }
+                : null,
             In = Animation(preset.In),
             Out = Animation(preset.Out),
-        };
+            ExtraStrokes = preset.ExtraStrokes.Count > 0 ? [.. preset.ExtraStrokes.Select(Stroke)] : null,
+            ExtraShadows = preset.ExtraShadows.Count > 0 ? [.. preset.ExtraShadows.Select(Shadow)] : null,
+            Typography = preset.Typography is { } t
+                ? new StyleTypography
+                {
+                    Kerning = t.Kerning,
+                    Case = t.Case switch { "upper" => TextCase.Upper, "lower" => TextCase.Lower, "smallCaps" => TextCase.SmallCaps, _ => TextCase.None },
+                    Features = [.. t.Features],
+                    Fit = t.Fit switch { "shrink" => TextFit.Shrink, "fill" => TextFit.Fill, _ => TextFit.None },
+                }
+                : null,
+            Path = preset.PathBend is { } bend ? new StylePath { Kind = TextPathKind.Arc, Bend = bend } : null,
+        }.WithGradient(preset.Gradient);
     }
+
+    private static TextStyle WithGradient(this TextStyle style, TextStyleGradient? gradient)
+    {
+        if (gradient is not null)
+        {
+            style.Fill.Gradient = new StyleGradient
+            {
+                Kind = gradient.Kind == "radial" ? GradientKind.Radial : GradientKind.Linear,
+                Angle = gradient.Angle,
+                Stops = [.. gradient.Stops.Select(s => new ColorStop(s.Position, s.Color))],
+            };
+        }
+
+        return style;
+    }
+
+    private static StyleStroke Stroke(TextStyleStroke s) => new()
+    {
+        Color = s.Color,
+        Width = s.Width,
+        Join = s.Join switch
+        {
+            TextStyleJoin.Miter => StrokeJoin.Miter,
+            TextStyleJoin.Bevel => StrokeJoin.Bevel,
+            _ => StrokeJoin.Round,
+        },
+    };
+
+    private static StyleShadow Shadow(TextStyleShadow s) => new() { Color = s.Color, Dx = s.Dx, Dy = s.Dy, Blur = s.Blur };
 
     private static StyleAnimation? Animation(TextStyleAnimation? animation)
     {
@@ -90,7 +133,20 @@ public static class TitleStyles
             return null;
         }
 
-        var result = new StyleAnimation { DurationSeconds = animation.DurationSeconds };
+        var result = new StyleAnimation
+        {
+            DurationSeconds = animation.DurationSeconds,
+            Unit = animation.Unit switch { "line" => TextUnit.Line, "word" => TextUnit.Word, "letter" => TextUnit.Letter, _ => TextUnit.Block },
+            Stagger = animation.Stagger,
+            Order = animation.Order switch
+            {
+                "backward" => UnitOrder.Backward,
+                "center" => UnitOrder.Center,
+                "edges" => UnitOrder.Edges,
+                "random" => UnitOrder.Random,
+                _ => UnitOrder.Forward,
+            },
+        };
         foreach (PresetCurve curve in animation.Curves)
         {
             result.Curves[curve.Parameter] = [.. curve.Keys.Select(k => new StyleKey(k.T, k.Value, Interp(k.Interpolation)))];
@@ -105,6 +161,10 @@ public static class TitleStyles
         PresetInterpolation.EaseIn => Interpolation.EaseIn,
         PresetInterpolation.EaseOut => Interpolation.EaseOut,
         PresetInterpolation.EaseInOut => Interpolation.EaseInOut,
+        PresetInterpolation.Bezier => Interpolation.EaseInOut,
+        PresetInterpolation.Bounce => Interpolation.Bounce,
+        PresetInterpolation.Elastic => Interpolation.Elastic,
         _ => Interpolation.Linear,
+
     };
 }

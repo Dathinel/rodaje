@@ -43,7 +43,9 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         _editor = new TitleEditor(services.Session);
         BuildRows();
         BuildWordRows();
-        foreach (InspectorSection section in (InspectorSection[])[ContentSection, WordsSection, StyleSection, StrokeSection, ShadowSection, BackgroundSection, AnimationSection])
+        BuildProRows();
+        foreach (InspectorSection section in (InspectorSection[])[ContentSection, WordsSection, StyleSection, TypographySection, FillSection, StrokeSection,
+                     ShadowSection, BackgroundSection, PathSection, AnimationSection])
         {
             section.Remember(services.Settings);
         }
@@ -109,6 +111,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
             StrokeSection.Summary = style.Stroke is null ? "Sin borde" : style.Stroke.Color;
             ShadowSection.Summary = style.Shadow is null ? "Sin sombra" : style.Shadow.Color;
             BackgroundSection.Summary = style.Background is null ? "Sin fondo" : style.Background.Color;
+            RefreshPro(generator, style);
         }
         finally
         {
@@ -194,6 +197,8 @@ internal sealed partial class TextPanel : UserControl, IEditorView
 
         string suggested = style.Name is { Length: > 0 } name ? name : "Mi estilo";
         var nameBox = new TextBox { Text = suggested, SelectionStart = 0, SelectionLength = suggested.Length };
+        bool animated = style.In is not null || style.Out is not null;
+        var withAnimation = new CheckBox { Content = "Con su animación de entrada y salida", IsChecked = animated, IsEnabled = animated };
         var content = new StackPanel { Spacing = 8 };
         content.Children.Add(new TextBlock
         {
@@ -201,6 +206,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
             TextWrapping = TextWrapping.Wrap,
         });
         content.Children.Add(nameBox);
+        content.Children.Add(withAnimation);
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
@@ -220,7 +226,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         string chosen = string.IsNullOrWhiteSpace(nameBox.Text) ? suggested : nameBox.Text.Trim();
         try
         {
-            if (editor.SaveStyle(AnimationPreset.UserFolder, chosen) is { } saved)
+            if (editor.SaveStyle(AnimationPreset.UserFolder, chosen, withAnimation.IsChecked == true) is { } saved)
             {
                 services.Session.Notify(NotificationSeverity.Success, "Estilo guardado", $"«{chosen}» quedó en tus complementos propios: {saved.Path}");
             }

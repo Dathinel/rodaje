@@ -164,6 +164,12 @@ public static class FfmpegArguments
             }
         }
 
+        if (settings.FieldOrder != ExportFieldOrder.Progressive)
+        {
+            // DCT por campos; el orden lo dicen los cuadros tejidos (setfield) y el muxer lo escribe («fiel» en MOV).
+            args.AddRange(["-flags", "+ildct"]);
+        }
+
         if (pixels.HasAlpha())
         {
             switch (family)

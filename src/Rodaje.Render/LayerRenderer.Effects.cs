@@ -120,6 +120,10 @@ internal sealed unsafe partial class LayerRenderer
                     int region = Choice(values, definition, BuiltInEffects.RegionOptions.Region);
                     _spatial.Add(new SpatialStep(gpu.Kind, values, definition, i, limited ? Math.Max(region, 1) : region));
                     break;
+                case GpuEffectKind.Reframe360:
+                    // Cambia la geometría de toda la capa: nunca se limita a las máscaras.
+                    _spatial.Add(new SpatialStep(gpu.Kind, values, definition, i, 0));
+                    break;
                 default:
                     // Una transición o algo que no es de imagen.
                     stats.EffectsSkipped++;

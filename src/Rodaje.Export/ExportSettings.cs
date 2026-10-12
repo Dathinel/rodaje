@@ -98,6 +98,28 @@ public sealed record GopSettings
         KeyframeSeconds is { } seconds ? Math.Max(1, (int)Math.Round(seconds * frameRate.ToDouble())) : Length;
 }
 
+/// <summary>Cómo se barre la imagen de la salida.</summary>
+public enum ExportFieldOrder
+{
+    Progressive,
+
+    /// <summary>Entrelazado, campo superior primero (1080i europeo, 1080i de 29,97).</summary>
+    TopFirst,
+
+    /// <summary>Entrelazado, campo inferior primero (DV, algunos SD).</summary>
+    BottomFirst,
+}
+
+/// <summary>Qué representa la imagen de la salida.</summary>
+public enum ExportProjection
+{
+    /// <summary>Video normal.</summary>
+    Flat,
+
+    /// <summary>Video 360 equirectangular (2:1): se escriben los metadatos esféricos para que los reproductores lo traten como 360.</summary>
+    Equirectangular,
+}
+
 /// <summary>Región de la secuencia que se exporta, en píxeles de la secuencia (recorte espacial).</summary>
 public readonly record struct ExportCrop(int X, int Y, int Width, int Height);
 
@@ -149,6 +171,15 @@ public sealed record VideoExportSettings
     public Rational? FrameRate { get; init; }
 
     public FrameRateConversion FrameRateConversion { get; init; } = FrameRateConversion.Nearest;
+
+    /// <summary>
+    /// Entrelazado: se compone a la tasa de campos (el doble de <see cref="FrameRate"/>) y FFmpeg teje cada par de campos en
+    /// un cuadro. Solo con códecs que lo codifican (ProRes) y con <see cref="FrameRate"/> fija.
+    /// </summary>
+    public ExportFieldOrder FieldOrder { get; init; } = ExportFieldOrder.Progressive;
+
+    /// <summary>Con <see cref="ExportProjection.Equirectangular"/>, el MP4/MOV lleva los metadatos esféricos (<c>sv3d</c>).</summary>
+    public ExportProjection Projection { get; init; } = ExportProjection.Flat;
 
     /// <summary>Tamaño de salida; <c>null</c> en los dos: el de la secuencia. Con uno solo, el otro sigue la forma de la secuencia.</summary>
     public int? Width { get; init; }

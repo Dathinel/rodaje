@@ -14,7 +14,7 @@ internal sealed unsafe partial class LayerRenderer
     /// capa por <c>PsImage</c>. Desenfoque y nitidez pasan por un intermedio con margen del radio; color, LUT y viñeta no
     /// se aplican a los títulos en la v1 y se cuentan como saltados.
     /// </summary>
-    public bool DrawTitle(LayerFrame layer, TitleTexture title, in Destination destination, ref FrameStats stats)
+    private bool DrawTitleImage(LayerFrame layer, TitleImage title, in Destination destination, ref FrameStats stats)
     {
         _effects.BindConstants();
         LayerTransform transform = TransformOf(layer);
@@ -101,7 +101,7 @@ internal sealed unsafe partial class LayerRenderer
     /// El título en un intermedio del tamaño en pantalla con un margen de tres sigmas, desenfocado o enfocado ahí. Devuelve
     /// la vista y su colocación (el mismo centro, más grande por el margen), o nulo si falta un shader o memoria.
     /// </summary>
-    private (ImageView View, LayerPlacement Placement)? TitleThroughIntermediate(LayerFrame layer, TitleTexture title, LayerPlacement placement,
+    private (ImageView View, LayerPlacement Placement)? TitleThroughIntermediate(LayerFrame layer, TitleImage title, LayerPlacement placement,
         LayerTransform transform, in Destination destination, ref FrameStats stats)
     {
         ID3D11PixelShader* copy = _effects.TryGetShader(EffectShader.Image, 0);

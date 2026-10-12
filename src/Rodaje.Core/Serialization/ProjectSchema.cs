@@ -11,11 +11,11 @@ namespace Rodaje.Core.Serialization;
 /// <summary>Genera el esquema JSON (draft 2020-12) de <c>.rodaje</c> desde los mismos metadatos que usa el lector.</summary>
 /// <remarks>
 /// Describe la forma, no las invariantes (<see cref="ModelValidator"/>). Una prueba verifica que
-/// <c>schema/rodaje-proyecto.v8.schema.json</c> coincide con <see cref="Export"/>.
+/// <c>schema/rodaje-proyecto.v9.schema.json</c> coincide con <see cref="Export"/>.
 /// </remarks>
 public static class ProjectSchema
 {
-    public const string SchemaId = "https://github.com/Dathinel/rodaje/schema/rodaje-proyecto.v8.schema.json";
+    public const string SchemaId = "https://github.com/Dathinel/rodaje/schema/rodaje-proyecto.v9.schema.json";
 
     /// <summary>Esquema como JSON indentado con saltos de línea LF.</summary>
     public static string Export()
