@@ -35,6 +35,11 @@ La documentación está en `docs/arquitectura/motor.md`, en la sección «Pausas
 - **En Linux:**
   - `tests/Rodaje.Playback.Tests`: 66 de 66.
   - `tests/Rodaje.Engine.Tests`, compilado con `-p:EnableWindowsTargeting=true` y las rutas `C:\…` de los dobles cambiadas a rutas de Linux, solo en local y sin subir: 347 pasan y 5 fallan, igual que en `main`. Las 5 son `AudioReverseMediaTests` (×4), que necesitan FFmpeg, y `Relative_media_paths…`, por las rutas de Windows. No cambió el resultado de ninguna prueba que ya existía.
+- **CI de Windows:** `Rodaje.Engine.Tests` 355 de 355 con las nuevas (12 omitidas por hardware, como en `main`). El trabajo falla por dos pruebas ajenas a esta rama:
+  - `ModuleManagerTests.Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada` (App, módulos);
+  - `AudioAi ProcessTests.Bad_buffers_fail_the_call_without_closing_the_module`.
+
+  En el primer push falló en cambio `CpuExportCancellationTests` (1571 ms). Son las fallas conocidas de tiempos en el runner que arregla el PR de integración #35.
 - **Pruebas omitidas:** ninguna nueva. La de hardware es `TiempoReal`, como las demás de su clase, y la CI filtra esa categoría.
 
 ## Pendiente y bloqueo parcial
