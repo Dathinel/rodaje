@@ -154,12 +154,13 @@ public sealed class SubtitleModuleTests(ITestOutputHelper output)
         Assert.True(rawMedian <= 0.150, $"mediana solo con DTW {Corpus.Ms(rawMedian)}");
     }
 
-    /// <summary>CPU de respaldo: 2 min de voz para extrapolar el criterio de ≤8 min por cada 10.</summary>
+    /// <summary>CPU de respaldo con el modelo menor (D-034): 3 min de voz para extrapolar el criterio de ≤8 min por cada 10.</summary>
     [ModelFact(Corpus = true, LongRunning = true)]
     [Trait("Categoria", "TiempoReal")]
     public async Task The_cpu_fallback_is_fast_enough()
     {
-        (float[] samples, List<Utterance> utterances) = Corpus.Build(120);
+        Assert.NotNull(Corpus.CpuModelPath);
+        (float[] samples, List<Utterance> utterances) = Corpus.Build(180);
         double seconds = samples.Length / (double)Corpus.Rate;
         await using ModuleProcess module = await ModuleHarness.StartAsync();
         Stopwatch watch = Stopwatch.StartNew();
@@ -169,9 +170,31 @@ public sealed class SubtitleModuleTests(ITestOutputHelper output)
         (double wer, List<double> starts) = Score(transcript, utterances);
         output.WriteLine(Report("CPU", transcript, seconds, watch.Elapsed, wer, starts, double.NaN));
         Assert.Equal("cpu", transcript.Device);
-        // El criterio de la fase pide 0,8 s por segundo (8 min por cada 10); en el Ryzen 7 7435HS da ~0,9: aquí solo se
-        // exige no ir más lento que el tiempo real.
-        Assert.True(watch.Elapsed.TotalSeconds <= seconds, $"{watch.Elapsed.TotalSeconds:0.0} s para {seconds:0} s");
+        // 12-oct, Ryzen 7 7435HS con la máquina cargada: small q5_1 3,9× y WER 10,2 %; base q5_1 8,6× y WER 28,5 %;
+        // large-v3-turbo en la CPU 0,8× y WER 3,6 %.
+        Assert.True(watch.Elapsed.TotalSeconds <= 0.8 * seconds, $"{watch.Elapsed.TotalSeconds:0.0} s para {seconds:0} s");
+        Assert.True(wer <= 0.15, $"WER {wer:P1}");
+    }
+
+    [Fact]
+    public void The_cpu_model_is_the_smaller_one_when_present_and_dtw_heads_follow_the_model()
+    {
+        using var dir = new TempFolder();
+        string large = Path.Combine(dir.Path, Transcriber.ModelFile);
+        string small = Path.Combine(dir.Path, Transcriber.CpuModelFile);
+        File.WriteAllBytes(large, [0]);
+        Assert.Equal(large, Transcriber.CpuModel(Transcriber.Options.Parse(null) with { CpuModel = small }, large));
+        File.WriteAllBytes(small, [0]);
+        Assert.Equal(small, Transcriber.CpuModel(Transcriber.Options.Parse(null) with { CpuModel = small }, large));
+        Assert.Equal(Whisper.net.WhisperAlignmentHeadsPreset.Small, Transcriber.HeadsFor(small));
+        Assert.Equal(Whisper.net.WhisperAlignmentHeadsPreset.LargeV3Turbo, Transcriber.HeadsFor(large));
+    }
+
+    private sealed class TempFolder : IDisposable
+    {
+        public string Path { get; } = Directory.CreateTempSubdirectory("rodaje-subtitulos ñ ").FullName;
+
+        public void Dispose() => Directory.Delete(Path, recursive: true);
     }
 
     /// <summary>WER sobre todo el texto y, por frase, el desvío (hipótesis − verdad) del inicio de su primera palabra.</summary>
