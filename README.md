@@ -68,7 +68,9 @@ Medido en un Ryzen 7 7435HS con RTX 3050 Laptop:
 
 ## Documentación
 
-Índice completo en [docs/README.md](docs/README.md): arquitectura por capas, formatos `.rodaje` y `.paquete`, protocolo de módulos, distribución, decisiones y fondo legal.
+- **[Guía de usuario](docs/guia/README.md):** [instalar](docs/guia/instalar.md), [tu primer proyecto](docs/guia/primer-proyecto.md), [edición](docs/guia/edicion.md), [imagen](docs/guia/imagen.md), [audio](docs/guia/audio.md), [títulos y subtítulos](docs/guia/titulos-y-subtitulos.md), [IA local](docs/guia/ia-local.md), [exportar](docs/guia/exportar.md), [complementos](docs/guia/complementos.md), [atajos](docs/guia/atajos.md) y [solución de problemas](docs/guia/solucion-de-problemas.md).
+- **Para contribuir:** [CONTRIBUTING.md](CONTRIBUTING.md) (entorno, pruebas, estilo, DCO y pull requests) y [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+- **Cómo está hecho:** índice completo en [docs/README.md](docs/README.md): arquitectura por capas, formatos `.rodaje` y `.paquete`, protocolo de módulos, distribución, decisiones y fondo legal.
 
 ## Licencia
 

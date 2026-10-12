@@ -15,6 +15,27 @@ public class OnboardingTests
     }
 
     [Fact]
+    public void LosTextosNombranAtajosQueExistenEnLosTresEstilos()
+    {
+        foreach (TourStep step in OnboardingGuide.Tour)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(step.Title));
+            Assert.False(string.IsNullOrWhiteSpace(step.Text));
+        }
+
+        foreach (Hint hint in OnboardingGuide.Hints)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(hint.Title));
+            Assert.False(string.IsNullOrWhiteSpace(hint.Text));
+            // Ctrl+Y solo rehace en Rodaje y Clásico; Ctrl+Mayús+Z, en los tres estilos.
+            Assert.DoesNotContain("Ctrl+Y", hint.Text);
+        }
+
+        Assert.Contains("Ctrl+Mayús+Z", OnboardingGuide.Hints.Single(h => h.Id == OnboardingGuide.FirstEdit).Text);
+        Assert.Contains("Ctrl+I", OnboardingGuide.Tour[0].Text);
+    }
+
+    [Fact]
     public void CadaPistaUnaSolaVezHastaReactivarlas()
     {
         var settings = new AppSettings();
