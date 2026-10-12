@@ -416,3 +416,12 @@ Desde f89d896 falla el trabajo de Windows: `ModuleManagerTests` (varias: «El m�
 - **Lee:** jobs 114670188931 (PR #31, falla en `Rodaje.Modules.Protocol`: «runtime identifiers have changed from. Project's runtime identifiers: , lock file's runtime identifiers win-x64») y 114665862040 (PR #30, falla en `Rodaje.Module.Echo`: «win-x64» frente a «linux-x64»).
 
 `dotnet restore Rodaje.slnx --locked-mode` falla a veces antes de compilar, cada vez en un proyecto distinto, con los identificadores de runtime cruzados entre los proyectos que publican con AOT (`win-x64`) y `Rodaje.Modules.Protocol`, que no declara ninguno. Averigua la carrera (¿un `RuntimeIdentifier` heredado por referencia de proyecto o un lockfile regenerado en Linux?), corrígela para que la restauración sea determinista en Windows y en Linux, y que la CI lo compruebe.
+
+## 50. Exportar fotograma con título falla al decodificar
+
+- **Estado:** pendiente
+- **Rama:** `claude/fotograma-titulo`
+- **Caminos:** `src/Rodaje.Export/Still/`, `src/Rodaje.Engine/Offline/` (lo mínimo), `tests/Rodaje.Export.Tests/Still/`, `docs/tareas/`.
+- **Lee:** PR #32 (exportar fotograma), `docs/arquitectura/exportacion.md`.
+
+`StillExporterTests.El_png_es_el_cuadro_de_la_vista_previa_con_el_titulo` falla en local (Windows, RTX 3050) con «El medio no tiene ese cuadro» al decodificar en el motor fuera de línea. Reprodúcelo, corrige la causa (no la prueba) y confirma que pasa en la CI de Windows.
