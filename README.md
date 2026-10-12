@@ -1,6 +1,21 @@
-# Rodaje
+<p align="center">
+  <img src="assets/marca/rodaje.svg" alt="Logotipo de Rodaje" width="128">
+</p>
 
-Editor de video nativo para Windows: rápido, por capas, con la comodidad de los editores móviles y la precisión de uno profesional. Compilado de antemano con Native AOT: no necesita .NET ni nada instalado aparte. Con instalador o portable.
+<h1 align="center">Rodaje</h1>
+
+<p align="center">
+  Editor de video nativo para Windows: rápido, por capas, con la comodidad de los editores móviles y la precisión de uno profesional.<br>
+  Compilado de antemano con Native AOT: no necesita .NET ni nada instalado aparte. Con instalador o portable.
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licencia-GPLv3-E8833A?style=flat-square&labelColor=1D1D1D" alt="Licencia GPLv3"></a>
+  <a href="https://github.com/Dathinel/rodaje/releases"><img src="https://img.shields.io/badge/versi%C3%B3n-1.0.0-E8833A?style=flat-square&labelColor=1D1D1D" alt="Versión 1.0.0"></a>
+  <img src="https://img.shields.io/badge/Windows-x64-E8833A?style=flat-square&labelColor=1D1D1D" alt="Windows x64">
+  <img src="https://img.shields.io/badge/.NET-10-E8833A?style=flat-square&labelColor=1D1D1D&logo=dotnet&logoColor=white" alt=".NET 10">
+  <a href="https://github.com/Dathinel/rodaje/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Dathinel/rodaje/ci.yml?branch=main&style=flat-square&labelColor=1D1D1D&label=CI" alt="Estado de la CI"></a>
+</p>
 
 ## Qué hace
 
