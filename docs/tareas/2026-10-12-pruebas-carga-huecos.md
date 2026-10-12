@@ -56,3 +56,10 @@ En Linux, `ProcessTests` (con `-p:EnableWindowsTargeting=true`) da 1 pasada, 1 o
 
 - `ABRIR.bat`: la prueba nueva de ClipVisuals debe pasar en menos de 1 s.
 - Con modelos y `RODAJE_PRUEBAS_LARGAS=1`, la pasada TiempoReal de `probar.ps1` debe incluir `Cancel_is_confirmed_quickly_and_the_module_keeps_working` y pasar.
+
+## CI (primera vuelta, commit 08260f1)
+
+- Linux (Core, Paquetes, Playback): verde.
+- Windows (solución completa): en rojo por una sola prueba ajena, `PackageServiceTests.Simultaneous_installs_refreshes_and_uninstalls_run_one_at_a_time`. Se agotó el tope de 120 s de `UiThread.Run` («Pool: 18 hilos (mínimo 4), 1 trabajos en cola; 4 núcleos»). Es lo que arregla la tarea 57 (`UiThread.cs`), así que aquí no se toca.
+- Rodaje.App.Tests dio 952 pasadas, incluidas las 15 de ClipVisuals con la prueba nueva.
+- AudioAi dio 26 pasadas y 0 omitidas: la prueba de cancelación ya no corre en la CI por el filtro `TiempoReal`.
