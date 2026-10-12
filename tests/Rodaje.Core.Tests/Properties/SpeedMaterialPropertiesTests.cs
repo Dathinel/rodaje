@@ -9,8 +9,10 @@ namespace Rodaje.Core.Tests.Properties;
 
 /// <summary>
 /// Sobre 10 000 proyectos al azar (los de <see cref="EditPropertiesTests"/>): encadenar preajustes, curvas y velocidades
-/// lentas en un clip a 1× y volver a 1× le devuelve exactamente su material, a él y a sus enlazados (si el final de
-/// alguno del grupo no estaba en un cuadro o le quedaba menos de un cuadro de archivo detrás, a lo sumo un cuadro distinto).
+/// lentas en un clip a 1× y volver a 1× deja cada miembro del grupo sin velocidad, con el final en un cuadro de la
+/// secuencia o en el borde del archivo, y el proyecto válido para <see cref="ModelValidator"/>. Su material vuelve
+/// exacto, salvo que su final no estuviera en un cuadro o le quedara menos de un cuadro de archivo detrás
+/// (<see cref="Tolerance"/>), o que empiece en otra fase del cuadro que el clip editado: entonces, a un cuadro como mucho.
 /// </summary>
 /// <remarks>Para reproducir un fallo, pasar la semilla que reporta CsCheck en <c>seed</c> o en <c>CsCheck_Seed</c>.</remarks>
 public class SpeedMaterialPropertiesTests(ITestOutputHelper output)
@@ -46,8 +48,11 @@ public class SpeedMaterialPropertiesTests(ITestOutputHelper output)
         Assert.True(checkedChains > 2500, $"solo {checkedChains} cadenas comprobadas");
     }
 
-    /// <summary>Verdadero si el clip elegido estaba a 1×, se le aplicó algún cambio y volvió a 1×.</summary>
-    internal static bool RunChain(ProjectSpec spec, int clipIndex, int[] steps)
+    /// <summary>
+    /// Verdadero si el clip elegido estaba a 1×, se le aplicó algún cambio y volvió a 1×. <paramref name="seed"/> solo va
+    /// en los mensajes (las pruebas de regresión la pasan; en la propiedad la reporta CsCheck).
+    /// </summary>
+    internal static bool RunChain(ProjectSpec spec, int clipIndex, int[] steps, string? seed = null)
     {
         BuiltProject built = RandomTimeline.Build(spec);
         List<Clip> clips = [.. built.Sequence.AllTracks.Where(t => !t.Locked).SelectMany(t => t.Clips)];
@@ -73,10 +78,13 @@ public class SpeedMaterialPropertiesTests(ITestOutputHelper output)
         }
 
         Dictionary<string, long> original = group.ToDictionary(c => c.Id, Material);
-        // El grupo comparte material: si un enlazado no puede volver exacto (empieza fuera de un cuadro, por ejemplo), el
-        // redondeo a su rejilla lo arrastran los demás, y al volver a 1× cada uno va al punto más cercano de la suya.
-        long groupTolerance = group.Max(c => Tolerance(built, c));
-        Dictionary<string, long> tolerance = group.ToDictionary(c => c.Id, _ => groupTolerance);
+        // El editado (el primero del grupo en Retime) lleva el material compartido a su rejilla, hasta medio cuadro; un enlazado que
+        // empieza en otra fase del cuadro lo redondea a la suya al volver a 1×, otro medio. Ese, y solo ese, puede quedar
+        // a un cuadro aunque su final estuviera en la rejilla (LinkedEnd). Los de la misma fase vuelven como el editado.
+        long frameTicks = Time.FromFrames(1, built.Rate).Ticks;
+        Dictionary<string, long> tolerance = group.ToDictionary(
+            c => c.Id,
+            c => SamePhase(built, c.Start, group.Find(e => e.Id == clipId)!.Start) ? Tolerance(built, c) : Math.Max(Tolerance(built, c), frameTicks));
         bool applied = false;
         foreach (int step in steps)
         {
@@ -107,6 +115,8 @@ public class SpeedMaterialPropertiesTests(ITestOutputHelper output)
             return false;
         }
 
+        HashSet<string> retimed = [.. Group(built, clipId).Where(c => c.Speed is not null).Select(c => c.Id)];
+
         try
         {
             Edits.SetSpeed(Seq, clipId, new Rational(1, 1), ids: built.Ids).Apply(built.Project);
@@ -117,10 +127,19 @@ public class SpeedMaterialPropertiesTests(ITestOutputHelper output)
             return false;
         }
 
+        string where = seed is null ? string.Empty : $" (semilla {seed})";
+        IReadOnlyList<string> errors = ModelValidator.Validate(built.Project);
+        Assert.True(errors.Count == 0, $"el proyecto no es válido al volver a 1×{where}: {string.Join(" | ", errors)}");
         foreach (Clip clip in Group(built, clipId))
         {
-            Assert.Null(clip.Speed);
-            Assert.True(Math.Abs(original[clip.Id] - Material(clip)) <= tolerance[clip.Id], $"«{clip.Id}»: material {Material(clip)}, antes {original[clip.Id]}");
+            Assert.True(clip.Speed is null, $"«{clip.Id}» sigue con velocidad{where}");
+            Time media = built.Project.GetMedia(clip.MediaId).Duration;
+            Assert.True(
+                !retimed.Contains(clip.Id) || clip.End == Time.FromFrames(clip.End.ToFrames(built.Rate), built.Rate) || clip.SourceOut == media,
+                $"«{clip.Id}»: el final {clip.End.Ticks} no está en un cuadro ni en el borde del archivo (salida {clip.SourceOut.Ticks} de {media.Ticks}){where}");
+            Assert.True(
+                Math.Abs(original[clip.Id] - Material(clip)) <= tolerance[clip.Id],
+                $"«{clip.Id}»: material {Material(clip)}, antes {original[clip.Id]}, tolerancia {tolerance[clip.Id]}{where}");
         }
 
         return true;
@@ -138,6 +157,18 @@ public class SpeedMaterialPropertiesTests(ITestOutputHelper output)
         bool exact = clip.End == floor && clip.SourceOut + frame <= built.Project.GetMedia(clip.MediaId).Duration
             && clip.Duration >= Time.FromFrames(ShortClipFrames, built.Rate);
         return exact ? 0 : Time.FromFrames(1, built.Rate).Ticks + (clip.End - floor).Ticks;
+    }
+
+    /// <summary>
+    /// Si dos inicios pasan lo mismo del cuadro anterior, y así comparten rejilla. Con tasas cuyo cuadro no dura un número
+    /// entero de ticks (<see cref="Time.FromFrames"/> redondea), un tick de diferencia es la misma fase.
+    /// </summary>
+    private static bool SamePhase(BuiltProject built, Time a, Time b)
+    {
+        long Phase(Time t) => (t - Time.FromFrames(t.ToFrames(built.Rate), built.Rate)).Ticks;
+        long frame = Time.FromFrames(1, built.Rate).Ticks;
+        long d = Math.Abs(Phase(a) - Phase(b));
+        return d <= 1 || frame - d <= 1;
     }
 
     /// <summary>Una curva de tres puntos que termina a 1× o menos.</summary>

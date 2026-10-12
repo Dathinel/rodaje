@@ -456,6 +456,16 @@ public static partial class TimelineEdits
     /// el cuadro vecino que deja el material más cercano, y al volver a 1× el final va al cuadro más cercano. Nunca pide
     /// material que el archivo no tiene; si nada sirve, queda el mapeo ajustado tal cual. Sin <paramref name="adjustCurve"/>
     /// (un enlazado, que lleva la curva del primero del grupo) la curva no se toca y el final va al cuadro vecino.
+    /// <para>
+    /// Al volver a 1× desde otra velocidad, el clip cumple esto (lo comprueban <c>SpeedMaterialPropertiesTests</c> y
+    /// <c>LinkedBackToNormalSpeedTests</c>): no tiene velocidad, su final está en un cuadro de la secuencia o en el borde
+    /// del archivo (<see cref="Clip.SourceOut"/> igual a la duración del medio, aunque ese final no caiga en un cuadro
+    /// porque el inicio tampoco está en uno), no pide material que el archivo no tiene y la secuencia pasa
+    /// <see cref="ModelValidator"/>. El borde es el único final fuera de la rejilla de la secuencia, salvo cuando ningún
+    /// candidato sirve y queda el mapeo ajustado. Tras velocidades lentas y curvas, el material vuelve exacto si el final
+    /// estaba en un cuadro, con al menos un cuadro de archivo detrás y el clip no era muy corto (16 cuadros con curva);
+    /// si no, a un cuadro como mucho. Una velocidad rápida constante puede dejarlo a un cuadro aunque estuviera en la rejilla.
+    /// </para>
     /// </summary>
     private static ClipTimeMap AlignEnd(EditContext ctx, Clip clip, ClipTimeMap map, ClipSpeed? speed, bool adjustCurve = true)
     {
@@ -478,8 +488,10 @@ public static partial class TimelineEdits
             .OrderBy(end => Int128.Abs((Int128)end.Ticks - map.End.Ticks))];
         if (speed is null && target == available)
         {
-            // A 1× el borde del archivo también es de la rejilla: un clip que empieza fuera de un cuadro y llega al final del
-            // archivo lo conserva; si no, va al cuadro de antes, pierde material y su enlazado ya no comparte el suyo.
+            // A 1× la rejilla del clip son los finales en un cuadro y el borde del archivo (GridMaterial). Si la meta es el
+            // borde, este final deja SourceOut justo en la duración del medio, aunque no caiga en un cuadro si el inicio no
+            // está en uno. Así un clip que empieza fuera de un cuadro y llega al final del archivo lo conserva; si no, iría
+            // al cuadro de antes, perdería material y su enlazado ya no compartiría el suyo.
             ends.Insert(0, map.Start + Time.FromTicks(target));
         }
 
@@ -536,6 +548,12 @@ public static partial class TimelineEdits
     /// El final de un enlazado, que lleva la velocidad del primero del grupo (<paramref name="first"/>, ya ajustado en
     /// <paramref name="firstMap"/>). Si recorría el mismo material, queda con la misma duración, así video y audio siguen
     /// juntos y conservan el mismo material; si no, o si su archivo no alcanza, su final va al cuadro vecino sin tocar la curva.
+    /// <para>
+    /// Al volver a 1× cada enlazado va a su propia rejilla, igual que el primero (<see cref="AlignEnd"/>). Si empieza en la
+    /// misma fase del cuadro que el primero, cumple lo mismo que él. Si empieza en otra fase, no hay material que caiga en las dos
+    /// rejillas: el primero lleva el material compartido a la suya (hasta medio cuadro) y el enlazado lo redondea a la
+    /// propia (otro medio), así que puede volver con hasta un cuadro de material de más o de menos.
+    /// </para>
     /// </summary>
     private static ClipTimeMap LinkedEnd(EditContext ctx, Clip clip, ClipTimeMap map, ClipSpeed? speed, Clip first, ClipTimeMap firstMap)
     {
