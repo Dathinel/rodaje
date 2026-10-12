@@ -148,7 +148,7 @@ internal static class RelinkDialog
             {
                 var scanned = new Progress<int>(n => summary.Text = $"Buscando… {n} archivos");
                 RelinkSearchResult result = await relink.SearchAsync(
-                    project, wanted, folder, scanned, [.. pending.Values.Select(t => t.Path), .. proposed.Values], cancel.Token);
+                    project, wanted, folder, scanned, MediaRelinkService.TakenPaths(pending.Values, proposed.Values), cancel.Token);
                 foreach (RelinkMatch match in result.Found)
                 {
                     Row row = rows.First(r => r.Media.Id == match.MediaId);
@@ -238,7 +238,7 @@ internal static class RelinkDialog
             searching = true;
             Refresh();
             (MediaRelinkTarget? target, string? problem) = await relink.CheckFileAsync(
-                project, row.Media, picked[0], [.. pending.Values.Where(t => t.MediaId != row.Media.Id)]);
+                project, row.Media, picked[0], MediaRelinkService.PendingForOthers(pending.Values, row.Media.Id));
             searching = false;
             if (target is null)
             {
