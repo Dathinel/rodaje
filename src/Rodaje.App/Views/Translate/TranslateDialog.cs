@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Translate;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
@@ -138,7 +139,7 @@ internal static class TranslateDialog
         }
     }
 
-    private static string Fmt(FormattableString s) => s.ToString(CultureInfo.CurrentCulture);
+    private static string Fmt(FormattableString s) => s.ToString(SpanishNumbers.Format);
 
     private sealed record TrackChoice(string TrackId, string Label);
 }
