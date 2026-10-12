@@ -129,7 +129,7 @@ public sealed class ImageEffectTests
     {
         AssertSpatial(Fx.Make(BuiltInEffects.Sharpen, null, (BuiltInEffects.SharpenParameters.Amount, amount),
             (BuiltInEffects.SharpenParameters.Radius, radius), (BuiltInEffects.SharpenParameters.Threshold, threshold)),
-            s => FxReference.SharpenWithThreshold(s, amount, radius, threshold), softwareExtraTolerance: 2 * amount);
+            s => FxReference.SharpenWithThreshold(s, amount, radius, threshold));
     }
 
     [GpuTheory]
@@ -211,6 +211,27 @@ public sealed class ImageEffectTests
         result.AssertColor(110, 40, right.To255());
     }
 
+    /// <summary>
+    /// Un efecto que no cambia nada pasa por tres remuestreos (origen → intermedio → efecto → lienzo) y en WARP debe dar lo
+    /// mismo que en la GPU: antes, el recorte del cuadrilátero en el viewport y el redondeo hacia abajo del bilineal de WARP
+    /// sumaban hasta 2,5/255 en los bordes fuertes.
+    /// </summary>
+    [GpuTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void An_unchanged_pass_through_the_intermediate_is_exact_on_hardware_and_warp(bool warp)
+    {
+        (YuvImage image, FloatImage decoded) = Noise(5);
+        LayerEffect identity = Fx.Make(BuiltInEffects.Mirror, null, (BuiltInEffects.MirrorParameters.Axis, 1.0))
+            .Choose(BuiltInEffects.MirrorOptions.Mode, "left");
+        using GpuDevice gpu = warp ? GpuDevice.CreateWarp() : GpuDevice.Create();
+        foreach (LayerLook look in new[] { new LayerLook([]), new LayerLook([identity]) })
+        {
+            RgbaImage result = EffectFidelityTests.Compose(gpu, Width, Height, out _, null, Layers.From(gpu, image, Bt709, look));
+            AssertImage(result, decoded, tolerance: 1);
+        }
+    }
+
     private static byte[] Render(GpuDevice gpu, LayerEffect effect)
     {
         (YuvImage image, _) = Noise(7);
@@ -247,17 +268,14 @@ public sealed class ImageEffectTests
         return (image, FloatImage.FromColors(Width, Height, (x, y) => C3.From(ReferenceColor.Decode(codes[(y * Width) + x], Bt709, false))));
     }
 
-    private static void AssertSpatial(LayerEffect effect, Func<FloatImage, FloatImage> reference, double softwareExtraTolerance = 0,
-        double outliers = 0)
+    private static void AssertSpatial(LayerEffect effect, Func<FloatImage, FloatImage> reference, double outliers = 0)
     {
         (YuvImage image, FloatImage decoded) = Noise(5);
         using GpuDevice gpu = GpuDevice.Create();
-        bool software = gpu.AdapterName.Contains("Basic Render Driver", StringComparison.OrdinalIgnoreCase)
-            || gpu.AdapterName.Contains("WARP", StringComparison.OrdinalIgnoreCase);
         RgbaImage result = EffectFidelityTests.Compose(gpu, Width, Height, out CompositeResult stats, null,
             Layers.From(gpu, image, Bt709, new LayerLook([effect])));
         Assert.Equal(0, stats.EffectsSkipped);
-        AssertImage(result, reference(decoded), 2 + (software ? softwareExtraTolerance : 0), outliers);
+        AssertImage(result, reference(decoded), outliers: outliers);
     }
 
     /// <summary>Cada píxel contra la referencia compuesta sobre negro; se admite una fracción de píxeles fuera (bordes de celda del grano).</summary>
