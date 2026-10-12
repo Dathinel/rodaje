@@ -50,6 +50,7 @@ internal sealed partial class MainWindow
         registry.Register(new ShortcutAction(WatchedFoldersActionId, "Carpetas vigiladas...", ShortcutGroups.File, []));
         _bindings.Add(_router.Bind(WatchedFoldersActionId, () => _ = EditWatchedFoldersAsync()));
         StartWatchingFolders();
+        AttachOnboarding();
     }
 
     private const string WatchedFoldersActionId = "file.watchedFolders";
@@ -146,6 +147,7 @@ internal sealed partial class MainWindow
             if (Views.Relink.FolderDialog.Pick(_hwnd, "Carpeta que vigilar", s.LastMediaFolder) is { } picked)
             {
                 WatchedFolderScanner.Add(s, picked, DateTime.UtcNow);
+                ShowHint(Services.Onboarding.OnboardingGuide.FirstWatchedFolder);
                 Fill();
             }
         };

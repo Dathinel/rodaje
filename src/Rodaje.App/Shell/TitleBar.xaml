@@ -97,6 +97,9 @@
                 <RadioMenuFlyoutItem x:Name="PresetClassic" Text="Estilo Clásico" GroupName="Preset" Tag="Classic" Click="OnPresetClick" />
             </MenuBarItem>
             <MenuBarItem Title="Ayuda">
+                <MenuFlyoutItem Text="Recorrido inicial" Tag="help.tour" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Volver a mostrar las pistas" Tag="help.resetHints" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Acerca de Rodaje..." Click="OnAboutClick" />
                 <MenuFlyoutItem Text="Repositorio oficial" Click="OnUpstreamClick" />
             </MenuBarItem>

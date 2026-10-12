@@ -293,6 +293,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _ = Task.Run(_modules.Refresh);
         _ = _visuals.TrimDiskCacheAsync();
         _ = OfferExportQueueAsync(Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale()));
+        _ = OfferTourAsync();
         if (_options.StartupProbe)
         {
             _ = StartupTrace.FinishProbeAsync(Program.Metrics, _options.LogPath, _options.Files.Count > 0, () => _engine.FailureMessage, Close);
@@ -423,6 +424,10 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
         Player.SetFullScreen(fullScreen);
+        if (fullScreen)
+        {
+            ShowHint(Services.Onboarding.OnboardingGuide.FirstFullScreen);
+        }
     }
 
     private async Task OpenExportAsync(ExportView view)

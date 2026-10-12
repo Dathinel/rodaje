@@ -23,8 +23,18 @@ public sealed partial class AppSettings
     /// <summary>Archivos de las carpetas vigiladas ya importados o descartados (los más recientes al final).</summary>
     public List<string> HandledWatchedFiles { get; set; } = [];
 
+    /// <summary>Ya se vio (o se saltó) el recorrido del primer arranque.</summary>
+    public bool TutorialSeen { get; set; }
+
+    /// <summary>Mostrar pistas la primera vez que se usa algo.</summary>
+    public bool HintsEnabled { get; set; } = true;
+
+    /// <summary>Pistas ya mostradas (<see cref="Onboarding.OnboardingGuide.Hints"/>).</summary>
+    public List<string> HintsShown { get; set; } = [];
+
     private void NormalizeWorkflow()
     {
+        HintsShown = [.. (HintsShown ?? []).Where(h => !string.IsNullOrWhiteSpace(h)).Distinct()];
         WatchedFolders = [.. (WatchedFolders ?? []).Where(f => f is not null && !string.IsNullOrWhiteSpace(f.Path))
             .DistinctBy(f => f.Path, StringComparer.OrdinalIgnoreCase)];
         HandledWatchedFiles = [.. (HandledWatchedFiles ?? []).Where(f => !string.IsNullOrWhiteSpace(f)).TakeLast(Media.WatchedFolderScanner.MaxHandled)];
