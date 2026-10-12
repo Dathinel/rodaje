@@ -281,8 +281,10 @@ public static class ExportEncoderCatalog
             ExportPixelFormat.Yuv420P, ExportPixelFormat.Yuv420P10, ExportPixelFormat.Yuv422P, ExportPixelFormat.Yuv422P10,
             ExportPixelFormat.Yuv444P, ExportPixelFormat.Yuv444P10, ExportPixelFormat.Yuva420P, ExportPixelFormat.Yuva444P10,
         ],
-        // Versión 3 con CRC por porción: lo habitual para archivo.
-        BaseArguments = ["-level", "3", "-slicecrc", "1"],
+        // Versión 3 con CRC por porción: lo habitual para archivo. «-g 1»: cada cuadro es clave, así que se puede cortar o
+        // buscar en cualquiera. Sin él FFmpeg usa su GOP por defecto (12), porque FfmpegArguments no pone «-g» a los
+        // codificadores que el catálogo marca como solo intra.
+        BaseArguments = ["-level", "3", "-slicecrc", "1", "-g", "1"],
         RateControls = [RateControlMode.Lossless],
         IntraOnly = true,
     };
