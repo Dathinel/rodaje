@@ -357,7 +357,7 @@ Reproduce con la escena de aceptación sin exportar, mide qué bloquea (pre-roll
 
 ## 37. Subtítulos automáticos en la app
 
-- **Estado:** cambios (PR #44: la sesión anterior se cortó con solo `generator.words` en el modelo y Windows en rojo; se retoma)
+- **Estado:** hecha (PR #44 unido el 12-oct en modo autónomo; falta `"apps"` en `modules/Rodaje.Module.Subtitles/paquete.json` para que se encuentre el módulo, y `QuickTools` aún dice «Próximamente» para `tools.autoSubtitles`)
 - **Rama:** `claude/subtitulos-ui`
 - **Caminos:** archivos nuevos en `src/Rodaje.App/Views/Analysis/` o `Views/Subtitles/`, `src/Rodaje.Core/Model/` (campo `generator.words` con migración documentada si hace falta), pruebas, `docs/tareas/`.
 - **Lee:** `docs/fase-7.md` (sección del agente E: lo que queda para la UI), `docs/arquitectura/app.md` («Módulos de IA»), `src/Rodaje.Core/Editing/SubtitleEdits.cs`.
