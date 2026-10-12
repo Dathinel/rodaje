@@ -38,7 +38,9 @@ public sealed class TimelineLoadTests(ITestOutputHelper output)
         Assert.Equal(0, result.Stats.DecodeErrors);
     }
 
+    // El tope del Tick mide el reloj de pared: con la CPU al 100 % el hilo espera al planificador del sistema (ver motor.md).
     [HardwareFact(VideoCodec.H264, VideoCodec.Hevc, Audio = AudioCodec.Aac, LongRunning = true)]
+    [Trait("Categoria", "TiempoReal")]
     public void Four_hevc_4k_tracks_with_cuts_every_3_s_stay_within_the_vram_budget()
     {
         LoadResult result = Run(CutsScenario("4k", 3840, 2160));
