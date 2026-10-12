@@ -80,7 +80,7 @@ public sealed record FunctionInfo(string Id, string Name, bool Cancellable = tru
 /// <summary>Editor → módulo: ejecutar una función. <paramref name="Id"/> lo elige el editor y es único en la conexión.</summary>
 public sealed record InvokeMessage(long Id, string Function, JsonElement? Parameters = null, IReadOnlyList<SharedBufferRef>? Buffers = null) : ModuleMessage
 {
-    internal override string? Validate() => Limits.RequestId(Id) ?? Limits.Identifier(Function) ?? Limits.BufferList(Buffers);
+    internal override string? Validate() => Limits.RequestId(Id) ?? Limits.Identifier(Function) ?? Limits.Json(Parameters) ?? Limits.BufferList(Buffers);
 }
 
 /// <summary>Módulo → editor: avance de 0 a 1 y la etapa en curso.</summary>
@@ -93,7 +93,7 @@ public sealed record ProgressMessage(long Id, double Fraction, string? Stage = n
 /// <summary>Módulo → editor: la función terminó. Los búferes devueltos están en regiones que el editor le pasó.</summary>
 public sealed record ResultMessage(long Id, JsonElement? Value = null, IReadOnlyList<SharedBufferRef>? Buffers = null) : ModuleMessage
 {
-    internal override string? Validate() => Limits.RequestId(Id) ?? Limits.BufferList(Buffers);
+    internal override string? Validate() => Limits.RequestId(Id) ?? Limits.Json(Value) ?? Limits.BufferList(Buffers);
 }
 
 /// <summary>Error de una llamada (<paramref name="Id"/>) o de la conexión (sin id). <paramref name="Code"/> está en <see cref="ErrorCodes"/>.</summary>
@@ -223,6 +223,46 @@ internal static class Limits
         foreach (SharedBufferRef b in list)
             if ((b is null ? "búfer nulo" : b.Validate()) is { } e) return e;
         return null;
+    }
+
+    /// <summary>
+    /// UTF-8 estricto (D-031) también dentro de <c>parameters</c> y <c>value</c>: el JSON puede traer escapes de un
+    /// sustituto UTF-16 suelto (<c>"\ud800"</c>) que el lector acepta dentro de un <see cref="JsonElement"/> pero que no
+    /// se puede convertir a texto ni volver a escribir. Se revisan todos los textos y nombres de propiedad.
+    /// </summary>
+    public static string? Json(JsonElement? element)
+    {
+        if (element is not { } e) return null;
+        try
+        {
+            ReadAllText(e);
+            return null;
+        }
+        catch (InvalidOperationException)
+        {
+            return "texto con un sustituto UTF-16 suelto";
+        }
+    }
+
+    // GetString lanza InvalidOperationException con un sustituto suelto; el anidamiento ya está limitado a 32 niveles.
+    private static void ReadAllText(JsonElement e)
+    {
+        switch (e.ValueKind)
+        {
+            case JsonValueKind.String:
+                _ = e.GetString();
+                break;
+            case JsonValueKind.Array:
+                foreach (JsonElement item in e.EnumerateArray()) ReadAllText(item);
+                break;
+            case JsonValueKind.Object:
+                foreach (JsonProperty property in e.EnumerateObject())
+                {
+                    _ = property.Name;
+                    ReadAllText(property.Value);
+                }
+                break;
+        }
     }
 
     private static string Clip(string s) => s.Length > 32 ? s[..32] + "…" : s;

@@ -21,6 +21,13 @@ public sealed record ModuleClientOptions
 
     /// <summary>Lo que se espera a que el módulo confirme una cancelación antes de darlo por colgado y cortar.</summary>
     public TimeSpan CancelGrace { get; init; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Lo que puede tardar en salir un mensaje hacia el módulo una vez que le toca escribir. Si el módulo deja de leer
+    /// la tubería, al vencer se corta la conexión, para que ninguna llamada ni <see cref="ModuleClient.DisposeAsync"/>
+    /// se quede esperando.
+    /// </summary>
+    public TimeSpan WriteTimeout { get; init; } = TimeSpan.FromSeconds(10);
 }
 
 public readonly record struct ModuleProgress(double Fraction, string? Stage);
@@ -117,7 +124,7 @@ public sealed class ModuleClient : IAsyncDisposable
         _pending[id] = pending;
         try
         {
-            await SendAsync(invoke).ConfigureAwait(false);
+            await SendAsync(invoke, cancellationToken).ConfigureAwait(false);
             try
             {
                 return await pending.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -126,7 +133,8 @@ public sealed class ModuleClient : IAsyncDisposable
             {
             }
 
-            await SendAsync(new CancelMessage(id)).ConfigureAwait(false);
+            // El token del llamador ya está cancelado: el aviso sale con el de la conexión y el plazo de escritura.
+            await SendAsync(new CancelMessage(id), CancellationToken.None).ConfigureAwait(false);
             if (await Task.WhenAny(pending.Completion.Task, Task.Delay(_options.CancelGrace, CancellationToken.None)).ConfigureAwait(false) != pending.Completion.Task)
                 Fail(new ModuleDisconnectedException($"El módulo no confirmó la cancelación en {_options.CancelGrace.TotalSeconds:0.#} s."));
             try
@@ -154,7 +162,7 @@ public sealed class ModuleClient : IAsyncDisposable
         long start = Stopwatch.GetTimestamp();
         try
         {
-            await SendAsync(new PingMessage(id)).ConfigureAwait(false);
+            await SendAsync(new PingMessage(id), cancellationToken).ConfigureAwait(false);
             await pong.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
             return Stopwatch.GetElapsedTime(start);
         }
@@ -292,18 +300,41 @@ public sealed class ModuleClient : IAsyncDisposable
         }
     }
 
-    private async ValueTask SendAsync(ModuleMessage message)
+    /// <summary>
+    /// Escribe con el token del llamador enlazado a <c>_stop</c> y con <see cref="ModuleClientOptions.WriteTimeout"/>
+    /// (defecto 5 de <c>ProtocolDefectTests</c>). Cancelar mientras se espera el turno no cambia nada; cancelar a mitad de
+    /// la escritura deja el marco cortado, así que la conexión falla. Si vence el plazo, el módulo dejó de leer: falla.
+    /// </summary>
+    private async ValueTask SendAsync(ModuleMessage message, CancellationToken cancellationToken = default)
     {
         ThrowIfFailed();
+        CancellationTokenSource? linked = null;
         try
         {
-            await _channel.SendAsync(message, _stop.Token).ConfigureAwait(false);
+            linked = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token, cancellationToken);
+            await _channel.SendAsync(message, _options.WriteTimeout, linked.Token).ConfigureAwait(false);
+        }
+        catch (TimeoutException ex)
+        {
+            Fail(new ModuleDisconnectedException($"El módulo dejó de leer: un mensaje no salió en {_options.WriteTimeout.TotalSeconds:0.#} s.", ex));
+            ThrowIfFailed();
+            throw;
+        }
+        catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
+        {
+            // Quien canceló recibe su cancelación aunque, con el flujo ya cerrado, el bucle de lectura haya fallado antes.
+            if (_channel.Broken) Fail(new ModuleDisconnectedException("Se canceló un mensaje a mitad de la escritura; la conexión ya no es fiable.", ex));
+            throw new OperationCanceledException("Cancelado.", ex, cancellationToken);
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
         {
             Fail(new ModuleDisconnectedException("Se cortó la conexión con el módulo.", ex));
             ThrowIfFailed();
             throw;
+        }
+        finally
+        {
+            linked?.Dispose();
         }
     }
 

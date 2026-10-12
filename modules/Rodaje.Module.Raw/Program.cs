@@ -9,9 +9,7 @@ ModuleInfo info = new("rodaje-raw", "0.1.0", "RAW de cine",
     new FunctionInfo("revelar", "Revelar cuadros RAW (CinemaDNG) con LibRaw", Inputs: ["bytes"], Outputs: ["video"]),
 ], Device: "cpu");
 
-// El editor espera el saludo hasta 30 s (ModuleManagerOptions.StartTimeout); con los 10 s del anfitrión, en un equipo
-// cargado el módulo se rendía antes de recibir «hello» y el editor veía «Se cortó la conexión al saludar».
-ModuleHost host = new(info) { HandshakeTimeout = TimeSpan.FromSeconds(30) };
+ModuleHost host = new(info);
 
 // info: [archivo RAW entero]. El editor lee el archivo; el módulo no abre archivos del usuario.
 host.Register("info", (call, _) =>

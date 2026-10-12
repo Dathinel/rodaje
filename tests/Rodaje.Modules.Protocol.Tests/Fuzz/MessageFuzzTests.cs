@@ -18,7 +18,7 @@ public sealed class MessageFuzzTests(ITestOutputHelper output)
     {
         const int cases = 20_000;
         FuzzFrames frames = new(new Random(FuzzSupport.BaseSeed + (int)direction));
-        int accepted = 0, skipped = 0, rejected = 0, loneSurrogates = 0;
+        int accepted = 0, skipped = 0, rejected = 0;
         for (int i = 0; i < cases; i++)
         {
             byte[] payload = frames.Payload(direction);
@@ -44,25 +44,15 @@ public sealed class MessageFuzzTests(ITestOutputHelper output)
             }
             accepted++;
             Assert.Null(message.Validate());
-            // Lo aceptado se vuelve a escribir y se lee igual. Salvo el defecto conocido: un sustituto suelto dentro de un
-            // JsonElement (ProtocolDefectTests.A_lone_surrogate_in_parameters_is_rejected), que se cuenta aparte.
-            byte[] again;
-            try
-            {
-                again = JsonSerializer.SerializeToUtf8Bytes(message, ProtocolJsonContext.Default.ModuleMessage);
-            }
-            catch (JsonException ex) when (message is InvokeMessage or ResultMessage && ex.InnerException is InvalidOperationException
-                && FuzzSupport.HasSurrogateEscape(payload))
-            {
-                loneSurrogates++;
-                continue;
-            }
+            // Lo aceptado se vuelve a escribir y se lee igual, sin excepciones (un sustituto suelto dentro de un JsonElement ya
+            // no pasa Parse: ProtocolDefectTests.A_lone_surrogate_in_parameters_is_rejected).
+            byte[] again = JsonSerializer.SerializeToUtf8Bytes(message, ProtocolJsonContext.Default.ModuleMessage);
             ModuleMessage? back = MessageChannel.Parse(again);
             Assert.NotNull(back);
             Assert.Equal(message.GetType(), back.GetType());
             Assert.Equal(again, JsonSerializer.SerializeToUtf8Bytes(back, ProtocolJsonContext.Default.ModuleMessage));
         }
-        output.WriteLine($"{direction}: {accepted} aceptados ({loneSurrogates} con un sustituto suelto que no se puede reescribir), {skipped} tipos desconocidos saltados, {rejected} rechazados.");
+        output.WriteLine($"{direction}: {accepted} aceptados, {skipped} tipos desconocidos saltados, {rejected} rechazados.");
         // Que el generador no se vuelva inútil: tiene que haber de todo.
         Assert.True(accepted > cases / 10, $"solo {accepted} aceptados");
         Assert.True(rejected > cases / 10, $"solo {rejected} rechazados");

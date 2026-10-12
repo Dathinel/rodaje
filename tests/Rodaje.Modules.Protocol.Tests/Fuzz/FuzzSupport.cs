@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 
@@ -9,7 +8,7 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 /// Utilidades del fuzz: corre casos con semilla propia (<see cref="BaseSeed"/> + número de caso), con un tope de tiempo
 /// por caso y en paralelo, y junta los fallos con su semilla para poder repetir uno solo.
 /// </summary>
-internal static partial class FuzzSupport
+internal static class FuzzSupport
 {
     public const int BaseSeed = 20261011;
 
@@ -115,15 +114,6 @@ internal static partial class FuzzSupport
         return frames;
     });
 
-    /// <summary>
-    /// Si el JSON lleva un sustituto UTF-16 escapado (<c>\ud800</c>…<c>\udfff</c>): es lo que dispara el defecto de
-    /// <see cref="ProtocolDefectTests.A_lone_surrogate_in_parameters_is_rejected"/>. Un par bien formado también cuenta;
-    /// solo sirve para atribuir un fallo a ese defecto, no para decidir que lo hay.
-    /// </summary>
-    public static bool HasSurrogateEscape(byte[] json) => SurrogateEscape().IsMatch(Encoding.UTF8.GetString(json));
-
-    [GeneratedRegex(@"\\u[dD][89a-fA-F][0-9a-fA-F]{2}")]
-    private static partial Regex SurrogateEscape();
 
     /// <summary>Escribe sin que importe si el otro lado ya cerró.</summary>
     public static async Task<bool> TryWriteAsync(Stream stream, byte[] data)

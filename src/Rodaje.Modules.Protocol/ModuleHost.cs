@@ -70,7 +70,12 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
 
     public int MaxConcurrentCalls { get; init; } = 4;
 
-    public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// Lo que se espera el <c>hello</c> del editor. 30 s, igual que el editor da para abrir y saludar
+    /// (<c>ModuleManagerOptions.StartTimeout</c>): con 10 s, en un equipo cargado el módulo se rendía antes de recibir
+    /// el saludo y el editor veía «Se cortó la conexión al saludar» (tarea 57).
+    /// </summary>
+    public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Registra la función <paramref name="id"/>; tiene que estar en <see cref="ModuleInfo.Functions"/>.</summary>
     public void Register(string id, ModuleFunction function)
@@ -124,7 +129,7 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
                         await StartAsync(channel, invoke, active, stop.Token).ConfigureAwait(false);
                         break;
                     case CancelMessage cancel:
-                        if (active.TryGetValue(cancel.Id, out var call)) await call.Cts.CancelAsync().ConfigureAwait(false);
+                        if (active.TryGetValue(cancel.Id, out var call)) await TryCancelAsync(call.Cts).ConfigureAwait(false);
                         break;
                     case PingMessage ping:
                         await channel.SendAsync(new PongMessage(ping.Id), stop.Token).ConfigureAwait(false);
@@ -145,7 +150,9 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         }
         finally
         {
-            foreach (var call in active.Values) await call.Cts.CancelAsync().ConfigureAwait(false);
+            // Con la misma protección que «cancel»: una llamada que termina ahora ya desechó su CancellationTokenSource
+            // (defecto 2 de ProtocolDefectTests). Cerrar nunca lanza; siempre se espera a las llamadas y se liberan las regiones.
+            foreach (var call in active.Values) await TryCancelAsync(call.Cts).ConfigureAwait(false);
             bool finished = true;
             try
             {
@@ -155,6 +162,12 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
             {
                 // Una función que no atiende la cancelación: sus regiones quedan mapeadas y el proceso sale igual.
                 finished = false;
+            }
+#pragma warning disable CA1031 // Al cerrar, el fallo de una llamada ya no tiene a quién llegar; todas terminaron.
+            catch (Exception)
+#pragma warning restore CA1031
+            {
+                // Task.WhenAll solo lanza otra cosa cuando todas las tareas terminaron.
             }
             if (finished)
             {
@@ -229,25 +242,62 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
             }
             active.TryRemove(invoke.Id, out _);
             cts.Dispose();
-            await TrySendAsync(channel, reply).ConfigureAwait(false);
+            await SendReplyAsync(channel, reply).ConfigureAwait(false);
         }, CancellationToken.None);
         active[invoke.Id] = (cts, task);
         registered.SetResult();
     }
 
+    /// <summary>
+    /// Cancela una llamada que puede estar terminando: su tarea la saca de <c>active</c> y desecha su
+    /// <see cref="CancellationTokenSource"/> en su propio hilo, así que entre leerla de <c>active</c> y cancelarla puede
+    /// quedar desechada. Entonces ya no hay nada que cancelar; la <see cref="ObjectDisposedException"/> no debe cortar
+    /// la conexión (defecto 1 de <c>ProtocolDefectTests</c>).
+    /// </summary>
+    private static async ValueTask TryCancelAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            await cts.CancelAsync().ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
+        {
+            // La llamada ya terminó.
+        }
+    }
+
     private static string Trim(string text) => text.Length <= Limits.MaxText ? text : text[..(Limits.MaxText - 1)] + "…";
 
-    private static async ValueTask TrySendAsync(MessageChannel channel, ModuleMessage message)
+    /// <summary>
+    /// La respuesta final de una llamada. Si un <c>result</c> no se puede escribir (más de 1 MiB, o un valor que no se
+    /// puede serializar), la llamada se contesta con un <c>error</c> <c>internal</c>: nunca queda sin respuesta en
+    /// silencio (defecto 3 de <c>ProtocolDefectTests</c>).
+    /// </summary>
+    private static async ValueTask SendReplyAsync(MessageChannel channel, ModuleMessage reply)
+    {
+        if (await TrySendAsync(channel, reply).ConfigureAwait(false) is { } reason && reply is ResultMessage result)
+            await TrySendAsync(channel, new ErrorMessage(ErrorCodes.Internal, Trim("No se pudo enviar el resultado: " + reason), result.Id)).ConfigureAwait(false);
+    }
+
+    /// <returns>El motivo si el mensaje no se puede escribir (nada llegó al cable); <c>null</c> si se envió o si el editor ya no escucha.</returns>
+    private static async ValueTask<string?> TrySendAsync(MessageChannel channel, ModuleMessage message)
     {
         // Con tiempo límite: si el editor no lee, el módulo no se queda esperando para siempre.
         using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(1));
         try
         {
             await channel.SendAsync(message, timeout.Token).ConfigureAwait(false);
+            return null;
         }
-        catch (Exception ex) when (ex is IOException or ObjectDisposedException or ModuleProtocolException or OperationCanceledException)
+        catch (Exception ex) when (ex is ModuleProtocolException or JsonException or ArgumentException)
+        {
+            // MessageChannel.SendAsync serializa y mide antes de tomar el candado: el mensaje no salió.
+            return ex.Message;
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
         {
             // El editor ya no escucha.
+            return null;
         }
     }
 }
