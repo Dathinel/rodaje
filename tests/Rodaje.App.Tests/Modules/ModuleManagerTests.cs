@@ -223,7 +223,10 @@ public sealed class ModuleManagerTests : IDisposable
         Assert.False(second.IsCompleted);
 
         await first;
-        await second.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Tope contra cuelgues: el segundo tiene que esperar a que se cierre el primero y arrancar su proceso, y con el
+        // runner cargado eso pasó de 5 s (PR #49). Arrancar tiene su propio tope de 30 s (StartTimeout).
+        await second.WaitAsync(TimeSpan.FromSeconds(60));
         Assert.Equal(["voz-gpu"], manager.Budget.Resident);
     }
 
