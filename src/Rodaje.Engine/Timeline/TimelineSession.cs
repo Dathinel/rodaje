@@ -131,6 +131,16 @@ public sealed class TimelineSession : IDisposable
         _mixer?.Underruns ?? 0,
         _mixer?.Errors ?? 0));
 
+    /// <summary>
+    /// Los títulos de las pistas visibles en <c>[from, to)</c>, sin repetir (toda la secuencia si se omiten): para la
+    /// pasada que resuelve las fuentes y avisa de las que faltan antes de reproducir.
+    /// </summary>
+    public IReadOnlyList<GeneratedContent> GeneratedContents(Time? from = null, Time? to = null)
+    {
+        TimelinePlan plan = _scheduler.Plan;
+        return plan.GeneratedContents(from ?? Time.Zero, to ?? Time.Max(plan.Duration, Time.FromTicks(1)));
+    }
+
     /// <summary>Hay mezcla que medir: el audio está activado. Sin ella, <see cref="MeasureAudio"/> siempre da silencio.</summary>
     public bool HasAudioLevels => _mixer is not null;
 

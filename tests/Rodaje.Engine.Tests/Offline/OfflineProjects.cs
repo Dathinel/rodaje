@@ -106,7 +106,8 @@ internal static class OfflineProjects
 
     private static void Describe(LayerFrame layer, StringBuilder text)
     {
-        string source = layer.Frame.Payload is FakeFramePayload fake ? Path.GetFileNameWithoutExtension(fake.Path) : "?";
+        string source = layer.Generated is { } title ? "titulo:" + title.Key
+            : layer.Frame.Payload is FakeFramePayload fake ? Path.GetFileNameWithoutExtension(fake.Path) : "?";
         text.Append(CultureInfo.InvariantCulture,
             $"{layer.TrackIndex}:{layer.ClipId}:{source}#{layer.Frame.Index} {layer.Transform} sar={layer.SampleAspectRatio} rot={layer.Rotation} " +
             $"{layer.Blend} proxy={layer.IsProxy} disp={layer.DisplayWidth}x{layer.DisplayHeight}");

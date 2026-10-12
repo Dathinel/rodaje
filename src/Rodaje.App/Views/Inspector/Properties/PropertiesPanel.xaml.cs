@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
@@ -108,7 +109,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
 
         Clip titled = (video ?? audio)!;
-        ClipTitle.Text = session.Project.FindMedia(titled.MediaId)?.Name ?? "";
+        ClipTitle.Text = ClipLabels.Name(session.Project, titled);
         ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
         Visibility videoVisible = video is null ? Visibility.Collapsed : Visibility.Visible;
         PlacementSection.Visibility = videoVisible;

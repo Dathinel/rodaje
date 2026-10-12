@@ -60,7 +60,7 @@ El volumen lo aplica `MixRenderer` del motor, antes del limitador y de los medid
 - **Ganancia en dB:** la del `rodaje.audio` del clip (keyframes en tiempo del origen) más la de la pista (en tiempo de la secuencia). −60 dB o menos es silencio.
 - **Bloques de 64 muestras** alineados a la línea de tiempo: la ganancia se evalúa en los bordes y se interpola en línea recta; los fundidos de potencia constante (sin(πt/2) al entrar, cos(πt/2) al salir) van exactos por muestra.
 - **Transiciones de audio:** los dos clips suenan a la vez, el que sale alargado media duración y el que entra adelantado otra media, con fundidos complementarios; una transición reemplaza el fundido propio de ese lado. Lo que no existe antes del principio del medio es silencio.
-- **Cambios sin saltos.** Tras una edición la mezcla se rehace desde 50 ms por delante de lo que ya se leyó; cada clip que sonaba parte de la ganancia que tenía y llega a la nueva a 4 dB por bloque (60 dB en 20 ms).
+- **Cambios sin saltos.** Tras una edición la mezcla se rehace desde 30 ms por delante de lo que ya se leyó; cada clip que sonaba parte de la ganancia que tenía y llega a la nueva a 4 dB por bloque (60 dB en 20 ms).
 - **Medido** (`AudioGainTests`): −6 dB = 0,5012; error de los fundidos 3·10⁻⁸; un cruce de ruido rosa conserva la potencia dentro de 0,33 dB (ventanas de 0,5 s); el mayor salto entre muestras al cambiar el volumen es 0,079 dB; el cambio se oye a los 50,7 ms de pedirlo, más el búfer del dispositivo.
 
 ## Velocidad (`Timeline/Retime/`, fase 5c)
@@ -90,7 +90,7 @@ Medido (`AudioRetimeTests`, 11-oct; el tiempo en Release, CPU del hilo con la m�
 | Dividir un clip a 1,5× | — | idéntico muestra a muestra |
 | Dividir en tres un clip con «Montaje», «Bala» (con tono) o «Entrada rápida» (sin tono) | — | idéntico muestra a muestra |
 | Bloque de 1024 cuadros estéreo | ≤ 0,15 ms | 0,036–0,10 ms (WSOLA 0,06–0,10; cinta 0,04–0,09) |
-| Cambio de velocidad reproduciendo (1× → 2×), hasta que se oye | ≤ 60 ms | 50,0 ms de la mezcla + 20 del búfer = 70 ms, con y sin mantener tono: es el margen de 50 ms que la mezcla conserva tras cada edición |
+| Cambio de velocidad reproduciendo (1× → 2×), hasta que se oye | ≤ 60 ms | 30,0 ms de la mezcla + 20 del búfer = 50 ms, con y sin mantener tono: es el margen de 30 ms que la mezcla conserva tras cada edición |
 
 Con un tono puro sostenido, un seek en frío puede dejar la salida con otra fase que la reproducción continua (WSOLA encadena cada trozo con el anterior); no se oye y se corrige sola en la primera pausa (tras silencio el trozo no depende de los anteriores).
 

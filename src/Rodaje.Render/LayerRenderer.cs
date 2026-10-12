@@ -31,6 +31,7 @@ internal struct FrameStats
     public int EffectsApplied;
     public int EffectsSkipped;
     public int MissingContent;
+    public int TitlesPending;
 }
 
 /// <summary>

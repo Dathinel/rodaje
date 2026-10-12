@@ -207,7 +207,6 @@ public class EffectCommandsTests
         Assert.True(await applier.ApplyAsync(Element("p@1.0.0/look", ItemKind.Lut)));
         Assert.False(await applier.ApplyAsync(Element("p@1.0.0/falta", ItemKind.Filter)));
         Assert.True(await applier.ApplyAsync(Element(BuiltInTransitions.Push, ItemKind.Transition, null)));
-        Assert.False(await applier.ApplyAsync(Element("rodaje.text", ItemKind.TextStyle, null)));
 
         Clip clip = First(session);
         Assert.Equal([BuiltInEffects.Blur, BuiltInEffects.Color], clip.Effects.Select(e => e.Type));

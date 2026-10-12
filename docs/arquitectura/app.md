@@ -10,7 +10,7 @@ Sin paquete MSIX, autocontenida y con Native AOT (el [sondeo](../archivo/sondeo-
 
 | Carpeta | Qué hay | Depende de WinUI |
 |---|---|---|
-| `Services/` | `EditorSession`, `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), inspector y velocidad (`Inspector/`: `SpeedEditor`, `SpeedMath`, `SpeedCommands`; los atajos de velocidad están en `EditorSession.Speed`), efectos y contenido (`Effects/`), miniaturas y formas de onda (`Media/`), complementos (`Packages/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs`, `EditorNotification` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
+| `Services/` | `EditorSession`, `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), inspector y velocidad (`Inspector/`: `SpeedEditor`, `SpeedMath`, `SpeedCommands`, `TitleEditor`; los atajos de velocidad están en `EditorSession.Speed` y los de títulos en `EditorSession.Titles`), títulos (`Titles/`: `ClipLabels`, `TitleStyles`, `TitleDrag`, `StyleColors`), efectos y contenido (`Effects/`), miniaturas y formas de onda (`Media/`), complementos (`Packages/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs`, `EditorNotification` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
 | `Views/Timeline/Logic/` | La lógica de la línea de tiempo (ventana, regla, filas, clic, ajuste, arrastres, soltar medios) | **No**: también la compilan las pruebas |
 | `Views/Export/Logic/` | La lógica del diálogo de exportar y de su cola (`ExportDialogModel`, `ExportSettingsEditor`, `ExportJobList`, `IExportRunner`) | **No**: también la compilan las pruebas |
 | `Shell/` | `MainWindow` (distribución, páginas modales y barra de avisos), `TitleBar`, `KeyboardShortcutHost`, `PaneSplitter`, `DialogGate` (un solo `ContentDialog` a la vez), `ShellDialogs` y `FileDialogs`, `EditorServices` e `IEditorView`, `MeasurementRun`, `MeasurementScenarios` | Sí |
@@ -82,7 +82,8 @@ BgraImage? GetNearestThumbnail(string mediaId, Time sourceTime, Time spacing, in
 - **`IContentLoader`** lee el contenido por referencia; `InstalledContentLoader` lo hace sobre lo instalado y los lectores de `Rodaje.Paquetes`. Solo usa `PackageContentStore.ResolveLocalReferences` para las referencias locales de filtros y efectos; no hay otra tienda en medio. Al instalar o desinstalar, `AppEffectContent` engancha `packages.Changed` a `EffectContent.Invalidate()`.
 - **LUT sueltas.** «Cargar .cube…» guarda `file:` más la ruta con `/`, relativa a la carpeta del `.rodaje` si se puede (`LutReference`).
 - **`EffectCommands`** son ediciones de un solo paso que el núcleo no trae sueltas: modo de mezcla y LUT creando el efecto si falta, y aplicar filtros y efectos de paquete copiados con `options.source` (reaplicar el mismo los reemplaza; las curvas de un efecto se colocan al principio, al final o a lo largo del clip medidos en la línea de tiempo, se encogen si no caben y las posiciones se escalan a la secuencia; cada keyframe se guarda con el mapeo del clip, así que a 2× una entrada de 1 s sigue durando 1 s).
-- **`ElementApplier`** aplica un elemento de la biblioteca al clip seleccionado; una transición va al corte donde termina el clip o, si no hay, al de su inicio.
+- **`ElementApplier`** aplica un elemento de la biblioteca al clip seleccionado; una transición va al corte donde termina el clip o, si no hay, al de su inicio; un estilo de texto, al título seleccionado o a uno nuevo en el cursor.
+- **Estilos de texto.** `IContentLoader.LoadTextStyle` lee el `rodaje.textstyle` (lector en `Rodaje.Paquetes`, que no conoce el núcleo) y `TitleStyles.FromPreset` lo copia al modelo con `source` (D-029). El motor nunca lo busca.
 
 ## Cómo se suma una vista
 

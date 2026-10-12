@@ -16,4 +16,7 @@ public static class ContentReaders
 
     /// <summary>Lee <c>rodaje.preset</c> v2 y también v1.</summary>
     public static TransitionPreset ReadTransition(Stream stream) => PresetReader.ReadTransition(stream);
+
+    /// <summary>Lee <c>rodaje.textstyle</c> v1.</summary>
+    public static TextStylePreset ReadTextStyle(Stream stream) => PresetReader.ReadTextStyle(stream);
 }

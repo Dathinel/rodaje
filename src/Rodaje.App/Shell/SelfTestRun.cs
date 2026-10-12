@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Inspector;
 using Rodaje.App.Views.Export;
 using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Player;
@@ -19,7 +20,8 @@ namespace Rodaje.App.Shell;
 
 /// <summary>
 /// <c>--autoprueba</c>: lo mínimo para saber que el exe publicado arranca de verdad. Con el clip de prueba en la pista
-/// principal y seleccionado, muestra cada pestaña del inspector (la curva «Bala» y la reversa en Velocidad), reproduce un segundo y cierra. Sale con 0 si llegó el
+/// principal y seleccionado, muestra cada pestaña del inspector (la curva «Bala» y la reversa en Velocidad), crea un título,
+/// lo escribe, lo divide y lo deshace, reproduce un segundo y cierra. Sale con 0 si llegó el
 /// primer cuadro y nada falló; cualquier excepción queda en <c>rodaje-error.txt</c> y el código es distinto de 0.
 /// </summary>
 internal static class SelfTestRun
@@ -40,6 +42,7 @@ internal static class SelfTestRun
 
             await ShowCurveAsync(window);
             await ToggleReverseAsync(window);
+            await TitleAsync(window);
             await ShowExportAsync(window);
             window.InspectorPane.Show(InspectorView.Tab.Properties);
             if (window.Session.Sequence.Duration.Ticks > 0)
@@ -59,6 +62,11 @@ internal static class SelfTestRun
             {
                 Program.WriteCrash("autoprueba: " + (engine.FailureMessage ?? "no llegó el primer cuadro en 10 s"));
             }
+            else if (!IsUpstreamCreditShown(window))
+            {
+                Program.WriteCrash("autoprueba: el crédito upstream de la barra de título no se ve (LICENSE, término adicional 1)");
+                code = 1;
+            }
         }
 #pragma warning disable CA1031 // La autoprueba informa cualquier fallo con el código de salida.
         catch (Exception ex)
@@ -71,6 +79,10 @@ internal static class SelfTestRun
         Program.ExitCode = code;
         window.Close();
     }
+
+    private static bool IsUpstreamCreditShown(MainWindow window) =>
+        window.UpstreamCredit is { Visibility: Visibility.Visible, ActualWidth: > 0, ActualHeight: > 0 } credit
+        && credit.Content as string == UpstreamAttribution.ShortCredit;
 
     /// <summary>Pone «Bala» al clip para dibujar el editor de curvas y la mini curva con el exe de AOT, y lo deshace.</summary>
     private static async Task ShowCurveAsync(MainWindow window)
@@ -115,6 +127,60 @@ internal static class SelfTestRun
         }
 
         await Task.Delay(100);
+    }
+
+    /// <summary>
+    /// Crea un título con «Añadir texto» (T), cambia su texto en dos tandas de tecleo, lo divide y lo deshace todo, con la
+    /// pestaña Texto a la vista; si el modelo o el historial no siguen, la autoprueba falla.
+    /// </summary>
+    private static async Task TitleAsync(MainWindow window)
+    {
+        EditorSession session = window.Session;
+        int steps = session.History.Count;
+        if (!session.AddTitleAtPlayhead() || session.SelectedTitle is not { } title)
+        {
+            throw new InvalidOperationException("La autoprueba no pudo crear un título.");
+        }
+
+        string id = title.Id;
+        await Task.Delay(250);
+        var editor = new TitleEditor(session);
+        foreach (string text in (string[])["H", "Ho", "Hola", "Hola desde", "Hola desde la autoprueba"])
+        {
+            editor.SetText(text);
+        }
+
+        editor.EndTyping();
+        const string Final = "Hola desde la autoprueba\nsegunda línea";
+        editor.SetText(Final);
+        editor.CommitStyle("stroke-on", s => s.Stroke = new StyleStroke { Color = "#000000", Width = 6 });
+        await Task.Delay(250);
+        await CaptureAsync(window, "texto");
+
+        Clip clip = session.Sequence.GetClip(id).Clip;
+        if (!session.Execute(Edits.Split(session.SequenceId, id, clip.Start + Time.FromTicks(clip.Duration.Ticks / 2))))
+        {
+            throw new InvalidOperationException("La autoprueba no pudo dividir el título.");
+        }
+
+        Track track = session.Sequence.GetClip(id).Track;
+        if (track.Clips.Count(c => c.Generator?.Text == Final) != 2 || session.History.Count != steps + 5)
+        {
+            throw new InvalidOperationException($"El título dividido no quedó bien ({session.History.Count - steps} pasos).");
+        }
+
+        await Task.Delay(250);
+        for (int i = 0; i < 5; i++)
+        {
+            session.Undo();
+        }
+
+        if (session.Sequence.FindClip(id) is not null || session.History.Count != steps)
+        {
+            throw new InvalidOperationException("Deshacer no quitó el título de la autoprueba.");
+        }
+
+        SelectFirstClip(window);
     }
 
     /// <summary>

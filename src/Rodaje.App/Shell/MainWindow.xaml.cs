@@ -186,6 +186,8 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     internal Button ExportButton => TitleBar.ExportButton;
 
+    internal HyperlinkButton UpstreamCredit => TitleBar.UpstreamCredit;
+
     internal SwapChainPanel VideoPanel => Player.VideoPanel;
 
     internal Views.Inspector.InspectorView InspectorPane => Inspector;

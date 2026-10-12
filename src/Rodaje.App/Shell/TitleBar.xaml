@@ -38,9 +38,13 @@
                 <MenuFlyoutItem Text="Recortar el final hasta el cursor" Tag="edit.trimEnd" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Borrar" Tag="edit.delete" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Seleccionar todo" Tag="edit.selectAll" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Añadir texto" Tag="clip.addText" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Añadir pista de subtítulos" Tag="timeline.subtitleTrack" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Ver">
                 <MenuFlyoutItem Text="Propiedades" Tag="inspector:Properties" Click="OnInspectorClick" />
+                <MenuFlyoutItem Text="Texto" Tag="inspector:Text" Click="OnInspectorClick" />
                 <MenuFlyoutItem Text="Filtros" Tag="inspector:Filters" Click="OnInspectorClick" />
                 <MenuFlyoutItem Text="Historial" Tag="inspector:History" Click="OnInspectorClick" />
                 <MenuFlyoutItem Text="Trabajos" Tag="inspector:Jobs" Click="OnInspectorClick" />
@@ -73,6 +77,10 @@
                 <RadioMenuFlyoutItem x:Name="PresetAgile" Text="Estilo Ágil" GroupName="Preset" Tag="Agile" Click="OnPresetClick" />
                 <RadioMenuFlyoutItem x:Name="PresetClassic" Text="Estilo Clásico" GroupName="Preset" Tag="Classic" Click="OnPresetClick" />
             </MenuBarItem>
+            <MenuBarItem Title="Ayuda">
+                <MenuFlyoutItem Text="Acerca de Rodaje..." Click="OnAboutClick" />
+                <MenuFlyoutItem Text="Repositorio oficial" Click="OnUpstreamClick" />
+            </MenuBarItem>
         </MenuBar>
 
         <Border x:Name="DragRegion" x:FieldModifier="internal" Grid.Column="2" Background="Transparent">
@@ -82,7 +90,11 @@
             </StackPanel>
         </Border>
 
-        <TextBlock x:Name="StatsText" Grid.Column="3" Margin="0,0,12,0" Style="{StaticResource CaptionTextStyle}" />
+        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Spacing="12" Margin="0,0,12,0">
+            <!-- Crédito upstream obligatorio (LICENSE, términos adicionales 1 y 3): siempre visible y con enlace. -->
+            <HyperlinkButton x:Name="UpstreamCredit" x:FieldModifier="internal" Padding="4,2" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Click="OnUpstreamClick" />
+            <TextBlock x:Name="StatsText" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
+        </StackPanel>
 
         <Button x:Name="ExportButton" x:FieldModifier="internal" Grid.Column="4" Content="EXPORTAR" Margin="0,0,10,0"
                 Style="{StaticResource AccentButtonStyle}" Click="OnExportClick" />

@@ -39,7 +39,7 @@ public static partial class TimelineEdits
     }
 
     /// <summary>
-    /// Velocidad que cambia a lo largo del clip (su motor llega en la ronda 5c.2); <c>null</c> vuelve a 1×. Se conservan
+    /// Velocidad que cambia a lo largo del clip; <c>null</c> vuelve a 1×. Se conservan
     /// la forma y el material: la duración es la que recorre el tramo del origen con esa forma, y la curva la cubre.
     /// </summary>
     public static void SetCurve(EditContext ctx, string clipId, SpeedCurve? curve, RippleScope scope = RippleScope.Track)
@@ -61,8 +61,8 @@ public static partial class TimelineEdits
     }
 
     /// <summary>
-    /// Invierte o endereza el clip y sus enlazados sin cambiar duración ni material (la reversa se reproduce desde la
-    /// ronda 5c.3). Los keyframes de sus efectos se reflejan en el tramo del origen, así la animación sigue igual en la
+    /// Invierte o endereza el clip y sus enlazados sin cambiar duración ni material.
+    /// Los keyframes de sus efectos se reflejan en el tramo del origen, así la animación sigue igual en la
     /// línea de tiempo; un segundo cambio los deja como estaban.
     /// </summary>
     public static void SetReverse(EditContext ctx, string clipId, bool reverse)

@@ -1,5 +1,6 @@
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Titles;
 using Rodaje.Core.Model;
 using Rodaje.Paquetes;
 using Rodaje.Paquetes.Content;
@@ -47,12 +48,12 @@ public static class LibraryElements
         _ => [],
     };
 
-    /// <summary>Lo que trae el motor en cada categoría, sacado del registro de efectos. El texto llega con los títulos (fase 5b).</summary>
+    /// <summary>Lo que trae el motor en cada categoría, sacado del registro de efectos; en Texto, el estilo de fábrica.</summary>
     public static IReadOnlyList<LibraryElement> BuiltIn(LibraryCategory category) => category switch
     {
         LibraryCategory.Text =>
         [
-            new("Texto", "Fuente, color, borde y sombra.", "Llega con los títulos", "rodaje.text", false, null, ItemKind.TextStyle),
+            new("Texto", "Un título en el cursor: blanco, en negrita y con sombra.", Engine, TitleStyles.BuiltInReference, true, null, ItemKind.TextStyle),
         ],
         LibraryCategory.Effects =>
         [

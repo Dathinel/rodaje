@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Panel derecho: pestañas Propiedades (o la transición seleccionada), Velocidad, Filtros, Historial y Trabajos. Cada pestaña
+    Panel derecho: pestañas Propiedades (o la transición seleccionada), Texto, Velocidad, Filtros, Historial y Trabajos. Cada pestaña
     es su propio control en su carpeta. Si los nombres no caben, las pestañas no elegidas muestran solo su ícono.
 -->
 <UserControl
@@ -10,6 +10,7 @@
     xmlns:properties="using:Rodaje.App.Views.Inspector.Properties"
     xmlns:filters="using:Rodaje.App.Views.Inspector.Filters"
     xmlns:speed="using:Rodaje.App.Views.Inspector.Speed"
+    xmlns:text="using:Rodaje.App.Views.Inspector.Text"
     xmlns:history="using:Rodaje.App.Views.Inspector.History"
     xmlns:jobs="using:Rodaje.App.Views.Inspector.Jobs"
     xmlns:transition="using:Rodaje.App.Views.Inspector.Transition">
@@ -36,6 +37,13 @@
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE9E9;" FontSize="13" Visibility="Collapsed" />
                         <TextBlock x:Name="PropertiesLabel" Text="Propiedades" />
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton x:Name="TextTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
+                             ToolTipService.ToolTip="Texto" AutomationProperties.Name="Texto">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE8D2;" FontSize="13" Visibility="Collapsed" />
+                        <TextBlock x:Name="TextLabel" Text="Texto" />
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="SpeedTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
@@ -73,6 +81,7 @@
         <Grid Grid.Row="1">
             <properties:PropertiesPanel x:Name="PropertiesPanel" />
             <transition:TransitionPanel x:Name="TransitionPanel" Visibility="Collapsed" />
+            <text:TextPanel x:Name="TextPanel" Visibility="Collapsed" />
             <speed:SpeedPanel x:Name="SpeedPanel" Visibility="Collapsed" />
             <filters:FiltersPanel x:Name="FiltersPanel" Visibility="Collapsed" />
             <history:HistoryPanel x:Name="HistoryPanel" Visibility="Collapsed" />

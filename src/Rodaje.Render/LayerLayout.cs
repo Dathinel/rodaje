@@ -40,26 +40,42 @@ public static class LayerLayout
         }
 
         PixelRect fit = VideoLayout.Fit(sequenceWidth, sequenceHeight, displayWidth, displayHeight);
-        if (fit.IsEmpty)
+        return fit.IsEmpty ? null : Transformed(fit.X + (fit.Width / 2.0), fit.Y + (fit.Height / 2.0), fit.Width, fit.Height, transform);
+    }
+
+    /// <summary>
+    /// Una capa generada (un título): a su tamaño nativo de <paramref name="width"/>×<paramref name="height"/> píxeles de
+    /// la secuencia, centrada, sin ajuste al cuadro; después la misma transformación que <see cref="Place"/>.
+    /// </summary>
+    public static LayerPlacement? PlaceNative(int sequenceWidth, int sequenceHeight, double width, double height, LayerTransform transform)
+    {
+        if (!double.IsFinite(transform.X) || !double.IsFinite(transform.Y) || !double.IsFinite(transform.RotationDegrees)
+            || !(transform.Scale > 0) || !double.IsFinite(transform.Scale) || !(width > 0) || !(height > 0)
+            || !double.IsFinite(width) || !double.IsFinite(height))
         {
             return null;
         }
 
+        return Transformed(sequenceWidth / 2.0, sequenceHeight / 2.0, width, height, transform);
+    }
+
+    private static LayerPlacement Transformed(double rectCenterX, double rectCenterY, double width, double height, LayerTransform transform)
+    {
         double radians = transform.RotationDegrees % 360 * Math.PI / 180;
         double cos = Math.Cos(radians);
         double sin = Math.Sin(radians);
         double s = transform.Scale;
-        double halfWidth = fit.Width / 2.0;
-        double halfHeight = fit.Height / 2.0;
-        double centerX = fit.X + halfWidth + transform.X;
-        double centerY = fit.Y + halfHeight + transform.Y;
+        double halfWidth = width / 2.0;
+        double halfHeight = height / 2.0;
+        double centerX = rectCenterX + transform.X;
+        double centerY = rectCenterY + transform.Y;
         // Con y hacia abajo, x' = x·cos − y·sin, y' = x·sin + y·cos gira en sentido horario en pantalla.
         var matrix = new Matrix3x2(
             (float)(s * cos), (float)(s * sin),
             (float)(-s * sin), (float)(s * cos),
             (float)(centerX - (s * ((halfWidth * cos) - (halfHeight * sin)))),
             (float)(centerY - (s * ((halfWidth * sin) + (halfHeight * cos)))));
-        return new LayerPlacement(matrix, fit.Width, fit.Height, (float)s);
+        return new LayerPlacement(matrix, (float)width, (float)height, (float)s);
     }
 
     /// <summary>Coordenada de textura en un punto local, extendiendo linealmente la de las esquinas (también fuera del rectángulo).</summary>

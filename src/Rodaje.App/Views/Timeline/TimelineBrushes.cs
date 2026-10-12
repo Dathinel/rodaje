@@ -28,6 +28,8 @@ internal sealed class TimelineBrushes
         Keyframe = Get("KeyframeBrush");
         VideoClip = Get("VideoClipBrush");
         VideoClipEdge = Get("VideoClipEdgeBrush");
+        TextClip = Get("TextClipBrush");
+        TextClipEdge = Get("TextClipEdgeBrush");
         AudioClip = Get("AudioClipBrush");
         AudioClipEdge = Get("AudioClipEdgeBrush");
         Scrim = Get("ScrimBrush");
@@ -74,6 +76,10 @@ internal sealed class TimelineBrushes
     public Brush VideoClip { get; }
 
     public Brush VideoClipEdge { get; }
+
+    public Brush TextClip { get; }
+
+    public Brush TextClipEdge { get; }
 
     public Brush AudioClip { get; }
 

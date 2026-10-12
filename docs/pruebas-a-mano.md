@@ -34,8 +34,21 @@ odaje-transiciones-1.0.0.paquete` (ya generados; se regeneran con el `empaquetar
 - [ ] **Calidad de vista previa:** ¿se nota cuando Auto baja?; ¿se entiende «Auto · ½»?
 - [ ] **Biblioteca sin paquetes:** se ve bien y «Conseguir más en Complementos» lleva a Complementos.
 
-## Fase 5c: curvas de velocidad
+## Fase 5c: velocidad, curvas y reversa
 
+- [ ] **Velocidad constante:** Velocidad → deslizador a 2× y 4× frente a CapCut con el mismo clip (¿fluido?); cámara lenta a 0,25×; voz y música con y sin «Mantener tono» (a 1× el interruptor queda apagado); por encima de 8× el audio suena granuloso y el inspector avisa; Alt + arrastrar un borde estira el clip; «Congelar» (Mayús+R) inserta el cuadro y corre lo que sigue; atajos Ctrl+R, Ctrl+Alt+. y Ctrl+Alt+,; al acortar un clip el siguiente se une, al alargarlo respeta los huecos.
 - [ ] **Curvas:** en Velocidad → Curva, probar los 5 preajustes reproduciendo (¿las rampas se sienten como en CapCut?); arrastrar puntos arriba y abajo y a los lados (¿cómoda la escala logarítmica y el imán en 1×?); doble clic para añadir y quitar; Ctrl+Z deshace cada arrastre de una vez; la mini curva y el nombre del preajuste en el clip, con clips cortos (el nombre del clip nunca queda tapado); Alt + borde sobre un clip con curva.
 - [ ] **Reversa 1080p:** Velocidad → «Congelar e invertir» → «Invertir» en un clip 1080p con voz o música. Reproducir de principio a fin y con saltos (clic en la regla, J/K/L): ¿fluido, sin tirones al cruzar los cortes ni al empezar? ¿el sonido va hacia atrás limpio, sin chasquidos, y a 2× invertido también? Ctrl+Z quita la reversa de una vez; «◀» aparece en el clip y «◀ Invertido» en el inspector; «Mantener tono» se apaga a 1× y se enciende a 2×.
 - [ ] **Reversa 4K:** lo mismo con un clip 4K: el aviso amarillo dice que se genera el proxy con su porcentaje y luego «listo» en gris; mientras se genera puede ir a saltos, ya listo debe ir fluido. ¿Se entiende el aviso? ¿Molesta?
+
+## Fase 5b: títulos en la app
+
+Mientras el motor no dibuje el texto, el título no se ve en el visor: se prueban la línea de tiempo, el inspector y el historial.
+
+- [ ] **Crear:** con el cursor sobre un clip pulsar T (y Editar → «Añadir texto»): aparece «Texto» de 5 s en morado en la pista de arriba libre, seleccionado, y el inspector salta a la pestaña Texto. Otra T en el mismo punto crea la pista «Texto» encima. ¿5 s está bien? ¿El morado se distingue del video?
+- [ ] **Escribir:** teclear en la pestaña Texto (con tildes, ñ, emoji e Intro para otra línea): el clip muestra la primera línea. Ctrl+Z deshace una tanda entera, no letra a letra; una pausa de 1 s o salir del campo empieza otra. ¿Ese segundo es el corte justo?
+- [ ] **Estilo:** fuente (de la lista o escribiendo una del sistema), grosor, cursiva, tamaño, color (con transparencia), alineación, interlineado, espaciado, borde, sombra y fondo. Arrastrar un deslizador es un paso del historial. ¿Falta algo que CapCut tenga a mano?
+- [ ] **Biblioteca → Texto:** doble clic en «Texto» crea un título; con un título seleccionado, doble clic en un estilo de paquete lo cambia y el inspector dice «Copiado de…»; arrastrar un estilo a una pista libre lo pone donde cae.
+- [ ] **Línea de tiempo:** mover, recortar y alargar sin tope (también por delante de su inicio), cortar con S; Alt + arrastrar el cuerpo o un borde no cambia nada y el globo explica por qué; Ctrl+R muestra en Velocidad que un título no tiene material.
+- [ ] **Entrada y salida:** con un estilo animado, desmarcar «Animar la entrada» y pulsar «Convertir en keyframes»: los rombos aparecen en Propiedades.
+- [ ] **Subtítulos:** clic derecho en una cabecera → «Añadir pista de subtítulos» (o «Usar para subtítulos» en una de video): la cabecera dice «Subtítulos» y T no pone títulos ahí.

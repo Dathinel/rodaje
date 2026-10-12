@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Media;
+using Rodaje.App.Services.Titles;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Windows.Foundation;
@@ -272,7 +273,7 @@ internal sealed class TimelineRenderer
                 double x1 = (clip.End.ToSeconds() * pps) - _windowLeft;
                 double left = Math.Max(x0, -4);
                 double right = Math.Min(x1 - 1, windowWidth + 4);
-                string name = scene.Project.FindMedia(clip.MediaId)?.Name ?? "";
+                string name = ClipLabels.Name(scene.Project, clip);
                 var draw = new ClipDraw(
                     clip,
                     row.Kind,

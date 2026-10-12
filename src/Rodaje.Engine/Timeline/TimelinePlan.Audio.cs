@@ -9,7 +9,7 @@ internal sealed partial class TimelinePlan
 {
     private static AudioTrackPlan AudioTrack(Track track, Dictionary<string, MediaRef> media, string projectDirectory)
     {
-        List<Clip> included = [.. Ordered(track).Where(c => c.Enabled && c.Duration > Time.Zero
+        List<Clip> included = [.. Ordered(track).Where(c => c.Enabled && c.Duration > Time.Zero && c.Generator is null
             && media.TryGetValue(c.MediaId, out MediaRef? m) && m.HasAudio)];
         List<Cut> cuts = Cuts(track, included);
         Curve? trackDb = GainCurve(track.Effects);
