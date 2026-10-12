@@ -130,10 +130,10 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         switch (action)
         {
             case ExportErrorAction.Retry:
-                jobs.Retry(entry);
+                jobs.Retry(entry, current: services.Session.Project);
                 break;
             case ExportErrorAction.ContinueWithout:
-                jobs.Retry(entry, continueWithoutMissing: true);
+                jobs.Retry(entry, continueWithoutMissing: true, current: services.Session.Project);
                 break;
             case ExportErrorAction.ChooseOutput or ExportErrorAction.ChangeSettings:
                 services.Shortcuts.Invoke(ActionIds.Export);
@@ -279,7 +279,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
 
                     break;
                 case ExportJobState.Canceled:
-                    AddAction("Volver a exportar", () => _owner._jobs?.Retry(_entry));
+                    AddAction("Volver a exportar", () => _owner._jobs?.Retry(_entry, current: _owner._services?.Session.Project));
                     break;
                 default:
                     return;

@@ -77,6 +77,41 @@ internal static class ExportProjects
         return project;
     }
 
+    /// <summary>
+    /// Como un video de teléfono: HEVC Main 10 vertical a 30 con cuadros B y un AAC que dura un poco más que el video,
+    /// así que la duración del medio (la del contenedor) pasa al último cuadro.
+    /// </summary>
+    public static MediaSpec Phone { get; } = new("telefono-hevc10-vertical-cola-audio", 1080, 1920, Rational.Fps30, TimeSpan.FromSeconds(2))
+    {
+        Codec = VideoCodec.Hevc,
+        BitDepth = 10,
+        GopLength = 30,
+        BFrames = 1,
+        Audio = AudioCodec.Aac,
+        AudioTail = TimeSpan.FromMilliseconds(17),
+    };
+
+    /// <summary>Secuencia 9:16 a 30 con <paramref name="count"/> veces el medio <see cref="Phone"/> entero, con su audio, uno tras otro.</summary>
+    public static Project PhoneClips(int count)
+    {
+        TestMediaGenerator generator = TestMediaGenerator.CreateDefault()!;
+        var sequence = new Sequence { Id = "sec", Name = "Teléfono", FrameRate = Rational.Fps30, Width = 1080, Height = 1920 };
+        var project = new Project { Id = "p", Name = "Teléfono", Sequences = [sequence] };
+        MediaRef phone = AddMedia(project, generator, Phone, "tel");
+        var video = new Track { Id = "v0", Kind = TrackKind.Video, Name = "Video 1" };
+        var audio = new Track { Id = "a0", Kind = TrackKind.Audio, Name = "Audio 1" };
+        sequence.VideoTracks.Add(video);
+        sequence.AudioTracks.Add(audio);
+        for (int i = 0; i < count; i++)
+        {
+            Time at = Time.FromTicks(phone.Duration.Ticks * i);
+            Add(video, phone.Id, $"video{i}", at, Time.Zero, phone.Duration).LinkId = $"l{i}";
+            Add(audio, phone.Id, $"audio{i}", at, Time.Zero, phone.Duration).LinkId = $"l{i}";
+        }
+
+        return project;
+    }
+
     private static MediaRef AddMedia(Project project, TestMediaGenerator generator, MediaSpec spec, string id)
     {
         var reference = new MediaRef { Id = id, Path = generator.GetOrCreate(spec).Path };

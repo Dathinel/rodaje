@@ -89,6 +89,32 @@ public class ExportJobListTests
         Assert.Single(list.Entries);
     });
 
+    [Fact]
+    public void Reintentar_ExportaElProyectoDeAhoraSiEsElMismo() => UiThread.Run(async () =>
+    {
+        var damaged = new ExportException(ExportErrorCode.DecodeFailed, "x") { Culprit = @"C:\medios\clip.mp4" };
+        SimulatedExportRunner runner = FastRunner(damaged);
+        using var list = new ExportJobList(runner, SynchronizationContext.Current);
+        ExportEntry entry = list.Enqueue(Request("falla.mp4"));
+        await WaitAsync(() => entry.IsFinished);
+
+        // Se quitó el clip que fallaba; otro proyecto abierto con otro id no cuenta.
+        Project current = entry.Request.Project.Clone();
+        current.Sequences[0].VideoTracks[0].Clips.RemoveAt(1);
+        Project other = current.Clone();
+        other.Id = "otro";
+
+        ExportEntry stale = list.Retry(entry, current: other);
+        await WaitAsync(() => stale.IsFinished);
+        ExportEntry fresh = list.Retry(stale, current: current);
+        await WaitAsync(() => fresh.IsFinished);
+
+        Assert.Equal(2, runner.Started[^2].Request.Project.Sequences[0].VideoTracks[0].Clips.Count);
+        Assert.Single(runner.Started[^1].Request.Project.Sequences[0].VideoTracks[0].Clips);
+        Assert.NotSame(current, runner.Started[^1].Request.Project);
+        Assert.Equal(entry.Request.OutputPath, runner.Started[^1].Request.OutputPath);
+    });
+
     [Theory]
     [InlineData(ExportErrorCode.DiskFull, ExportErrorAction.ChooseOutput)]
     [InlineData(ExportErrorCode.OutputNotWritable, ExportErrorAction.ChooseOutput)]
@@ -103,6 +129,17 @@ public class ExportJobListTests
         Assert.Equal(action, view.Action);
         Assert.False(string.IsNullOrWhiteSpace(view.Title));
         Assert.EndsWith(".", view.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UnCuadroQueNoSeDecodificaDiceElCuadroDelMedioYElDeLaExportacion()
+    {
+        var error = new ExportException(ExportErrorCode.DecodeFailed, "x") { Frame = 9430, MediaFrame = 430, Culprit = @"C:\videos\parte 6.mp4" };
+
+        string message = ExportErrorText.For(error).Message;
+
+        Assert.StartsWith("No se pudo decodificar el cuadro 430 de «parte 6.mp4» (cuadro 9430 de la exportación).", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("está dañado", message, StringComparison.Ordinal);
     }
 
     [Fact]

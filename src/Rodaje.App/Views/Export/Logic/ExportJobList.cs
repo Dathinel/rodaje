@@ -1,3 +1,4 @@
+using Rodaje.Core.Model;
 using Rodaje.Export;
 using Rodaje.Media.Export;
 using Rodaje.Media.Video;
@@ -64,12 +65,22 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
         return entry;
     }
 
-    /// <summary>Repite una exportación terminada con los mismos datos; <paramref name="continueWithoutMissing"/> tras «Exportar sin él».</summary>
-    public ExportEntry Retry(ExportEntry entry, bool continueWithoutMissing = false)
+    /// <summary>
+    /// Repite una exportación terminada con los mismos ajustes; <paramref name="continueWithoutMissing"/> tras «Exportar sin él».
+    /// Con <paramref name="current"/> (el proyecto abierto) y si es el mismo proyecto con la misma secuencia, exporta su estado
+    /// de ahora: lo que se arregló después del fallo (un clip o medio quitado) ya no está en la copia que se repite.
+    /// </summary>
+    public ExportEntry Retry(ExportEntry entry, bool continueWithoutMissing = false, Project? current = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        ExportRequest request = entry.Request;
+        if (current is { Id.Length: > 0 } && current.Id == request.Project.Id && current.Sequences.Exists(s => s.Id == request.SequenceId))
+        {
+            request = request with { Project = current.Clone() };
+        }
+
         Remove(entry);
-        return Enqueue(entry.Request, continueWithoutMissing || entry.ContinueWithoutMissing);
+        return Enqueue(request, continueWithoutMissing || entry.ContinueWithoutMissing);
     }
 
     public void Cancel(ExportEntry entry)

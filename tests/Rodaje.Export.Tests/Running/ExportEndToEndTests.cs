@@ -174,6 +174,37 @@ public sealed class ExportEndToEndTests(ITestOutputHelper output) : IDisposable
         Assert.True(FfmpegProcesses().Count(ffmpegBefore.Contains) < ffmpegBefore.Length);
     }
 
+    /// <summary>
+    /// Un medio cuyo audio dura más que su video (como «parte 6.mp4»: 430 cuadros y 14,35 s de contenedor) entero en la
+    /// línea de tiempo: el clip pasa al último cuadro y la exportación lo congela en vez de fallar con «dañado».
+    /// </summary>
+    [ExportFact]
+    public async Task A_clip_whose_audio_outlasts_its_video_exports_holding_the_last_frame()
+    {
+        Project project = PhoneClips(2);
+        MediaRef phone = project.Media[0];
+        Time videoEnd = Time.FromFrames(Phone.FrameCount, Rational.Fps30);
+        Assert.True(phone.Duration > videoEnd, $"El medio dura {phone.Duration} y su video {videoEnd}: no reproduce el caso.");
+        var settings = new ExportSettings
+        {
+            Video = new VideoExportSettings { Codec = ExportCodec.H264, EncoderId = "h264_nvenc" },
+            Audio = new AudioExportSettings { Codec = ExportCodec.Aac },
+        };
+
+        (ExportJob job, string path) = await RunAsync(project, settings, "telefono.mp4");
+
+        Sequence sequence = project.Sequences[0];
+        long frames = (sequence.Duration - Time.FromTicks(1)).ToFrames(sequence.FrameRate) + 1;
+        output.WriteLine($"Medio {phone.Duration.ToSeconds():0.000} s, video {videoEnd.ToSeconds():0.000} s; {job.Report!.Video} / {job.Report.Audio}");
+        Assert.Equal(frames, job.Report.Video!.FrameCount);
+        Assert.InRange(job.Report.Audio!.DurationSeconds, sequence.Duration.ToSeconds() - 0.045, sequence.Duration.ToSeconds() + 0.045);
+        // El cuadro congelado es el último del medio, el mismo que el anterior salvo la pérdida del codificador.
+        byte[] held = await DecodeRgbAsync(path, frames - 1, 1080, 1920);
+        byte[] last = await DecodeRgbAsync(path, frames - 2, 1080, 1920);
+        double difference = held.Zip(last, (x, y) => Math.Abs(x - y)).Average();
+        Assert.True(difference < 1.5, $"Diferencia media {difference:0.00}");
+    }
+
     [ExportFact]
     public async Task A_missing_medium_fails_with_its_code_before_writing()
     {

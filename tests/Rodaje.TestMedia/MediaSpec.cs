@@ -74,14 +74,18 @@ public sealed record MediaSpec
     /// <summary>Desplazamiento de las marcas de tiempo del contenedor (el primer cuadro empieza aquí).</summary>
     public TimeSpan StartOffset { get; init; } = TimeSpan.Zero;
 
+    /// <summary>Cuánto dura el audio más que el video, como en un video de teléfono: la duración del contenedor es la suya.</summary>
+    public TimeSpan AudioTail { get; init; } = TimeSpan.Zero;
+
     public int? VideoBitrateKbps { get; init; }
     public int AudioBitrateKbps { get; init; } = 128;
 
     /// <summary>Cuadros redondeados al más cercano: 20 s a 30000/1001 son 599 cuadros.</summary>
     public int FrameCount => checked((int)RoundDiv((Int128)Duration.Ticks * FrameRate.Num, (Int128)TimeSpan.TicksPerSecond * FrameRate.Den));
 
-    /// <summary>Muestras por canal que cubren exactamente los <see cref="FrameCount"/> cuadros.</summary>
-    public long AudioSampleCount => (long)RoundDiv((Int128)FrameCount * FrameRate.Den * AudioSampleRate, FrameRate.Num);
+    /// <summary>Muestras por canal que cubren exactamente los <see cref="FrameCount"/> cuadros, más <see cref="AudioTail"/>.</summary>
+    public long AudioSampleCount => (long)RoundDiv((Int128)FrameCount * FrameRate.Den * AudioSampleRate, FrameRate.Num)
+        + (long)RoundDiv((Int128)AudioTail.Ticks * AudioSampleRate, TimeSpan.TicksPerSecond);
 
     public int EffectiveVideoBitrateKbps =>
         VideoBitrateKbps ?? (int)Math.Max(300, Width * (long)Height * FrameRate.Num / FrameRate.Den / 10_000);
@@ -117,6 +121,11 @@ public sealed record MediaSpec
             canonical += "|bits" + BitDepth.ToString(CultureInfo.InvariantCulture);
         }
 
+        if (AudioTail != TimeSpan.Zero)
+        {
+            canonical += "|cola" + AudioTail.Ticks.ToString(CultureInfo.InvariantCulture);
+        }
+
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
         return Convert.ToHexStringLower(hash.AsSpan(0, 8));
     }
@@ -131,6 +140,11 @@ public sealed record MediaSpec
         }
 
         ArgumentOutOfRangeException.ThrowIfLessThan(AudioBitrateKbps, 8);
+        if (AudioTail < TimeSpan.Zero || (AudioTail > TimeSpan.Zero && Audio == AudioCodec.None))
+        {
+            throw new ArgumentOutOfRangeException(nameof(AudioTail), "La cola de audio no puede ser negativa ni ir sin audio.");
+        }
+
         if (StartOffset < TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(StartOffset), "El desplazamiento inicial no puede ser negativo.");
