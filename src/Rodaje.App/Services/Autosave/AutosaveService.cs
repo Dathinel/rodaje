@@ -202,6 +202,9 @@ public sealed partial class AutosaveService : IDisposable
             target = Path.GetFullPath(ProjectPaths.WithProjectExtension(picked));
         }
 
+        // Si el archivo no existía, es nuestro: si la apertura no sale, se borra para que cada reintento no deje otro
+        // «(recuperado N)» huérfano. Uno que la persona eligió pisar en el diálogo se deja como está.
+        bool created = !File.Exists(target);
         try
         {
             string folder = Path.GetDirectoryName(target)!;
@@ -213,8 +216,15 @@ public sealed partial class AutosaveService : IDisposable
             return false;
         }
 
+        // Abrir puede no salir: la persona cancela el aviso de cambios sin guardar, el editor está ocupado o el archivo
+        // no se deja leer. La copia sigue en el autoguardado y se puede volver a intentar.
         if (!await _session.OpenProjectAsync(target))
         {
+            if (created)
+            {
+                DeleteQuietly(target);
+            }
+
             return false;
         }
 
@@ -236,6 +246,18 @@ public sealed partial class AutosaveService : IDisposable
             $"Se guardó como «{Path.GetFileName(target)}» en «{Path.GetDirectoryName(target)}». " +
             $"Es la copia n.º {snapshot.Number} de la sesión que se cerró.");
         return true;
+    }
+
+    private static void DeleteQuietly(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Queda el archivo huérfano, como antes; la copia sigue en el autoguardado.
+        }
     }
 
     /// <summary>
