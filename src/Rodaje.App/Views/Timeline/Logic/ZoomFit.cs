@@ -17,13 +17,14 @@ public static class ZoomFit
     public const double SelectionMarginFraction = 0.05;
 
     /// <summary>
-    /// Toda la secuencia desde el borde izquierdo, con el mismo margen que <see cref="TimelineViewport.FitTo"/> (el 95 %
-    /// del ancho); una secuencia de menos de un segundo se muestra como si durara uno.
+    /// Toda la secuencia desde el borde izquierdo: el encuadre de <see cref="TimelineViewport.FitTo"/> (el 95 % del
+    /// ancho), calculado sin tocar la vista; una secuencia de menos de un segundo se muestra como si durara uno.
     /// </summary>
     public static ViewFrame Whole(Time duration, double width)
     {
-        double seconds = Math.Max(duration.ToSeconds(), 1);
-        return new ViewFrame(ClampZoom(Math.Max(1, width * 0.95) / seconds), 0);
+        var viewport = new TimelineViewport { Width = width };
+        viewport.FitTo(duration);
+        return new ViewFrame(viewport.PixelsPerSecond, viewport.ScrollX);
     }
 
     /// <summary>

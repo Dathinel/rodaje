@@ -53,6 +53,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     public TimelineView()
     {
         InitializeComponent();
+        Unloaded += OnUnloaded;
     }
 
     public EditorSession? Session { get; private set; }
@@ -555,6 +556,9 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             SyncZoomSlider();
         }
     }
+
+    /// <summary>Una animación de zoom a medias no sigue enganchada a <see cref="CompositionTarget.Rendering"/> con la vista fuera.</summary>
+    private void OnUnloaded(object sender, RoutedEventArgs e) => StopZoomAnimation();
 
     private void StopZoomAnimation()
     {

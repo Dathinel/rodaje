@@ -7,7 +7,7 @@ namespace Rodaje.App.Services;
 
 /// <summary>
 /// Cortar en el cursor en todas las pistas y borrar a la izquierda o a la derecha del cursor (Q/W), cada uno en un paso
-/// del historial. Borrar a un lado actúa sobre los mismos clips que <see cref="TrimStartToPlayhead"/>: los seleccionados
+/// del historial. Borrar a un lado actúa sobre los mismos clips que <see cref="SplitAtPlayhead"/>: los seleccionados
 /// que pasan por el cursor o, sin selección, el de la pista principal.
 /// </summary>
 public sealed partial class EditorSession

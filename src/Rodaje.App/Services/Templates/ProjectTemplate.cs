@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json.Serialization;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
+using Rodaje.Paquetes;
 
 namespace Rodaje.App.Services.Templates;
 
@@ -96,7 +97,7 @@ public sealed class ProjectTemplate
     public static string NewUserId() => "propia." + Guid.NewGuid().ToString("N");
 
     /// <summary>
-    /// Copia corregida para usarla o guardarla: nombre sin caracteres de control y acotado, lados pares entre
+    /// Copia corregida para usarla o guardarla: nombre sin caracteres de control ni marcas bidi y acotado, lados pares entre
     /// <see cref="MinSide"/> y <see cref="MaxSide"/>, de 1 a <see cref="NewProjectTracks.Max"/> pistas de cada tipo
     /// (las vacías toman «Video N» / «Audio N»). Devuelve <c>null</c> si no tiene arreglo: sin identificador, sin
     /// nombre, o con una tasa o una frecuencia imposibles (lo que llega de un archivo editado a mano).
@@ -181,7 +182,8 @@ public sealed class ProjectTemplate
             return "";
         }
 
-        string kept = new([.. text.Where(c => !char.IsControl(c))]);
+        // Sin marcas de dirección (bidi), que pueden disfrazar el nombre en el menú.
+        string kept = new([.. text.Where(c => !char.IsControl(c) && !SafeText.IsBidiControl(c))]);
         kept = kept.Trim();
         if (kept.Length <= maxLength)
         {
