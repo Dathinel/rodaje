@@ -48,7 +48,7 @@ Rama `claude/autoguardado-recuperado`, PR #69. Sigue a la tarea 34 (`2026-10-12-
 ## CI
 
 - En `d5dad3a9`, los dos trabajos («Linux (Core, Paquetes, Playback)» y «Windows (solución completa)») salieron en verde. El de Windows corre la solución completa, incluidas estas pruebas.
-- En `b4eecec9` (solo cambia esta entrega), el trabajo de Windows falló en el paso «Pruebas» y salió en verde al volver a correrlo, sin cambios. No pude ver qué prueba falló: el registro y el artefacto `pruebas-windows` se descargan de `blob.core.windows.net`, y el proxy de esta sesión lo bloquea (403). Como el código era el mismo que en `d5dad3a9`, que salió en verde, apunta a una prueba inestable en Windows. Conviene mirar el artefacto de ese primer intento (trabajo 114800236627).
+- En `b4eecec9` y `3475f579` (los dos solo cambian esta entrega), el trabajo de Windows falló de forma intermitente; al volver a correr `b4eecec9` salió en verde. El registro (leído con la herramienta de GitHub, porque el proxy bloquea `blob.core.windows.net`) muestra que el fallo es ajeno a esta tarea: `Rodaje.Media.Tests.Export.FfmpegPipeSinkPendingCleanupTests.Kill_that_throws_while_canceling_is_noted_and_the_process_is_still_released` da «Assert.Throws() Failure: No exception was thrown». `Rodaje.App.Tests` pasó entero en Windows: 980 pasan y 2 se omiten.
 
 ## Qué comprobar en Windows
 
