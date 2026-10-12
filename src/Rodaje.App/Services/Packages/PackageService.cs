@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Packages.Download;
 using Rodaje.Paquetes;
 
 namespace Rodaje.App.Services.Packages;
@@ -49,7 +50,7 @@ public sealed class PackageService
         ArgumentNullException.ThrowIfNull(catalog);
         Locations = locations;
         Catalog = catalog;
-        Downloader = downloader ?? new UnavailablePackageDownloader("Descarga desde GitHub: próximamente.");
+        Downloader = downloader ?? CatalogSource.CreateDownloader(locations);
         _installer = new PackageInstaller(locations, AppId);
         _instances = instances;
     }
@@ -140,8 +141,12 @@ public sealed class PackageService
             }
         });
 
-    /// <summary>Descarga e instala una entrada del catálogo con <see cref="Downloader"/> (desde la fase 7).</summary>
-    /// <exception cref="NotSupportedException">No hay descarga todavía.</exception>
+    /// <summary>
+    /// Descarga e instala (o actualiza) una entrada del catálogo con <see cref="Downloader"/>. Una descarga cancelada o
+    /// cortada deja su parcial para reanudar; lo descargado se borra después de instalarlo o si no se pudo instalar.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Esta versión no descarga.</exception>
+    /// <exception cref="Rodaje.Paquetes.Download.PackageDownloadException">No se pudo descargar o no es lo publicado (ya se borró).</exception>
     /// <exception cref="PackageInstallException">No se pudo instalar.</exception>
     public async Task<InstallResult> InstallFromCatalogAsync(CatalogEntry entry, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -152,7 +157,58 @@ public sealed class PackageService
         }
 
         DownloadedPackage downloaded = await Downloader.DownloadAsync(entry, progress, cancellationToken);
-        return await InstallFromFileAsync(downloaded.Path, downloaded.ExpectedSha256);
+        try
+        {
+            return await InstallFromFileAsync(downloaded.Path, downloaded.ExpectedSha256);
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(downloaded.Path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    /// <summary>
+    /// Versión publicada más nueva de cada complemento, para ofrecer «Actualizar». Sin conexión o sin catálogo publicado
+    /// devuelve lo último que supo (vacío al principio) y deja el motivo en <see cref="UpdatesProblem"/>.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, PackageVersion>> AvailableVersionsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!Downloader.IsAvailable)
+        {
+            return Available;
+        }
+
+        try
+        {
+            Available = await Downloader.AvailableVersionsAsync(cancellationToken);
+            UpdatesProblem = null;
+        }
+        catch (Exception ex) when (ex is Rodaje.Paquetes.Download.PackageDownloadException or HttpRequestException or IOException)
+        {
+            UpdatesProblem = ex.Message;
+        }
+
+        return Available;
+    }
+
+    /// <summary>Lo último que se supo de las versiones publicadas.</summary>
+    public IReadOnlyDictionary<string, PackageVersion> Available { get; private set; } = new Dictionary<string, PackageVersion>();
+
+    /// <summary>Por qué no se pudo consultar el catálogo la última vez, o <c>null</c>.</summary>
+    public string? UpdatesProblem { get; private set; }
+
+    /// <summary>Hay una versión publicada más nueva que la instalada (solo para lo instalado por la persona).</summary>
+    public bool HasUpdate(PluginEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return entry.Installed is { Origin: PackageOrigin.Installed } installed && entry.Catalog is not null
+            && Available.TryGetValue(entry.Id, out PackageVersion? published) && published.CompareTo(installed.Manifest.Version) > 0;
     }
 
     /// <exception cref="PackageInstallException">No se pudo desinstalar.</exception>

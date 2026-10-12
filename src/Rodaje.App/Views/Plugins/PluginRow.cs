@@ -5,9 +5,13 @@ using Rodaje.Paquetes;
 namespace Rodaje.App.Views.Plugins;
 
 /// <summary>Una fila de la página de complementos.</summary>
-/// <param name="othersOpen">Hay otras instancias de Rodaje abiertas: no se puede desinstalar.</param>
-internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader downloader, bool othersOpen)
+/// <param name="othersOpen">Hay otras instancias de Rodaje abiertas: no se puede desinstalar ni actualizar.</param>
+/// <param name="hasUpdate">Hay una versión publicada más nueva que la instalada.</param>
+/// <param name="download">La descarga de este complemento (en curso o no).</param>
+internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader downloader, bool othersOpen, bool hasUpdate, DownloadState download)
 {
+    public DownloadState Download { get; } = download;
+
     public PluginEntry Entry { get; } = entry;
 
     public string Name { get; } = entry.Name;
@@ -33,11 +37,15 @@ internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader do
 
     public Visibility RepositoryVisibility { get; } = entry.Repository is null ? Visibility.Collapsed : Visibility.Visible;
 
-    public Visibility InstallVisibility { get; } = entry.IsInstalled || entry.Catalog is null ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility InstallVisibility { get; } = entry.Catalog is not null && (!entry.IsInstalled || hasUpdate) ? Visibility.Visible : Visibility.Collapsed;
 
-    public bool CanDownload { get; } = downloader.IsAvailable;
+    public string InstallText { get; } = hasUpdate ? "Actualizar" : "Instalar";
 
-    public string InstallTooltip { get; } = downloader.IsAvailable ? "Descargar e instalar desde GitHub" : downloader.UnavailableReason ?? "";
+    public bool CanDownload { get; } = downloader.IsAvailable && !(hasUpdate && othersOpen);
+
+    public string InstallTooltip { get; } = !downloader.IsAvailable ? downloader.UnavailableReason ?? ""
+        : hasUpdate ? "Descargar la versión nueva desde GitHub, comprobar su firma y su hash, y reemplazar la instalada"
+        : "Descargar desde GitHub, comprobar su firma y su hash, e instalar";
 
     public Visibility UninstallVisibility { get; } = entry.CanUninstall ? Visibility.Visible : Visibility.Collapsed;
 

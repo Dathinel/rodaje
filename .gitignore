@@ -12,6 +12,8 @@ coverage/
 *.trx
 
 # --- Secretos ---
+# La clave privada del catálogo vive en %USERPROFILE%\.rodaje-claves; por si acaso, nunca se versiona una.
+*.pem
 .env
 .env.*
 !.env.example
