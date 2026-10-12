@@ -151,6 +151,11 @@ internal sealed partial class TimelineView
                 Session.Select([clicked.Id]);
             }
 
+            if (hit.Clip is not null)
+            {
+                ShowClipMenu(p);
+            }
+
             return;
         }
 
