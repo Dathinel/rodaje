@@ -44,6 +44,16 @@ Rama `claude/fotograma-robusto` (tarea 49 de la cola), PR #46. Sigue a la tarea 
 - `StillExportCommand` no tiene pruebas automáticas (es interfaz WinUI con diálogo modal); no compila en Linux (el
   compilador XAML es de Windows): lo verifica la CI de Windows.
 
+## CI
+
+- Primera vuelta: Windows no compilaba (`CsWinRT1028`: `Runner` implementa `IDisposable`, que CsWinRT ve como interfaz
+  WinRT, y debe ser `partial`, igual que la clase que lo contiene). Corregido.
+- Segunda vuelta (844cc63): **Windows en verde** (la solución completa compila y pasan las pruebas, también
+  `CurrentCultureNumbersTests`). Linux en rojo por una prueba ajena de propiedades con semilla aleatoria:
+  `Rodaje.Core.Tests.Properties.SpeedMaterialPropertiesTests.EncadenarCurvasYVolverA1x_DevuelveElMaterial`, semilla
+  `7LMaTUJGUpm6` («clip-6»: material 412011600, antes 400239840). Esta rama no toca Core, y la vuelta anterior de Linux
+  pasó con el mismo código de Core. Hay que investigarla aparte (`CsCheck_Seed=7LMaTUJGUpm6`).
+
 ## Pendiente
 
 - Nada de la tarea. Si se quiere, un indicador en la barra de estado en vez del aviso.
