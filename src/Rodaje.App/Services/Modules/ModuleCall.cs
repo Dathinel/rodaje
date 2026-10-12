@@ -113,6 +113,14 @@ public sealed record ModuleManagerOptions
 
     public TimeSpan PingTimeout { get; init; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>
+    /// Lo que puede tardar un módulo en conectarse y saludar; sustituye al <c>HandshakeTimeout</c> de
+    /// <see cref="ClientOptions"/> (10 s). En Windows el primer arranque de un exe recién instalado pasa por el antivirus y
+    /// por el arranque de .NET, y con el equipo cargado 10 s no alcanzaban. Un módulo que muere al abrir se nota enseguida
+    /// (ModuleProcess también espera su salida), así que el tope más largo solo pesa con uno vivo que no contesta.
+    /// </summary>
+    public TimeSpan StartTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
     /// <summary>VRAM dedicada (para el presupuesto); 0 si no se sabe. Se consulta con la primera llamada.</summary>
     public Func<long> DedicatedVideoMemory { get; init; } = () => 0;
 
