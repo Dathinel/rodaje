@@ -115,7 +115,7 @@ internal sealed partial class PlayerView
 
     private string SafeZonesToolTip() => ShownSafeZones is { } shown
         ? $"Zonas seguras: {shown.Name}. Clic para elegir otras"
-        : "Zonas seguras: márgenes clásicos o la interfaz de TikTok, Reels, Shorts…";
+        : "Zonas seguras: márgenes clásicos o la interfaz de las apps de video corto…";
 
     private void OnSafeZonesMenuOpening(object sender, object e)
     {

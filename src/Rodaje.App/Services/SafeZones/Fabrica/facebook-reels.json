@@ -1,4 +1,4 @@
-{ "format": "rodaje.safezones", "version": 1, "id": "facebook-reels", "name": "Facebook Reels",
+{ "format": "rodaje.safezones", "version": 1, "id": "facebook-reels", "name": "Vertical corto con pie y lateral (9:16)",
   "aspect": { "width": 9, "height": 16 },
   "zones": [
     { "label": "Título y cámara", "rect": [0, 0, 1, 0.08] },

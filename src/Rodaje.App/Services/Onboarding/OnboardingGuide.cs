@@ -44,7 +44,7 @@ public static class OnboardingGuide
         new(TourTarget.Inspector, "5 · Ajusta cada clip",
             "Posición, texto, velocidad, filtros y máscaras del clip elegido. En Trabajos ves las exportaciones y los proxies."),
         new(TourTarget.Export, "6 · Exporta",
-            "Elige un preajuste (YouTube, Reels…) o varias versiones de una vez y sigue editando mientras se exporta."),
+            "Elige un preajuste (web 1080p, vertical 9:16…) o varias versiones de una vez y sigue editando mientras se exporta."),
     ];
 
     public static IReadOnlyList<Hint> Hints { get; } =

@@ -43,7 +43,7 @@ public static class ExportPresets
 {
     private static readonly AudioExportSettings Aac192 = new() { Codec = ExportCodec.Aac };
 
-    public static ExportPreset YouTube1080p { get; } = Factory("rodaje.youtube-1080p", "YouTube 1080p",
+    public static ExportPreset YouTube1080p { get; } = Factory("rodaje.youtube-1080p", "Web 1080p",
         "H.264 por GPU, 1080p a la tasa de la secuencia, calidad alta.", ExportPresetCategory.Platform,
         new ExportSettings
         {
@@ -55,7 +55,7 @@ public static class ExportPresets
             Audio = Aac192 with { Loudness = LoudnessTarget.Platforms },
         });
 
-    public static ExportPreset YouTube4K { get; } = Factory("rodaje.youtube-4k", "YouTube 4K",
+    public static ExportPreset YouTube4K { get; } = Factory("rodaje.youtube-4k", "Web 4K",
         "HEVC por GPU, 2160p, calidad alta.", ExportPresetCategory.Platform,
         new ExportSettings
         {
@@ -67,7 +67,7 @@ public static class ExportPresets
             Audio = Aac192 with { Loudness = LoudnessTarget.Platforms },
         });
 
-    public static ExportPreset Vertical { get; } = Factory("rodaje.vertical-1080x1920", "Reels / TikTok 9:16",
+    public static ExportPreset Vertical { get; } = Factory("rodaje.vertical-1080x1920", "Vertical 9:16",
         "H.264 para redes, 1080 de ancho. Pon el proyecto en 9:16.", ExportPresetCategory.Platform,
         new ExportSettings
         {
@@ -79,7 +79,7 @@ public static class ExportPresets
             Audio = Aac192 with { Loudness = LoudnessTarget.Platforms },
         });
 
-    public static ExportPreset Square { get; } = Factory("rodaje.cuadrado-1080x1080", "Instagram 1:1",
+    public static ExportPreset Square { get; } = Factory("rodaje.cuadrado-1080x1080", "Cuadrado 1:1",
         "H.264 para redes, 1080 de lado. Pon el proyecto en 1:1.", ExportPresetCategory.Platform,
         new ExportSettings
         {

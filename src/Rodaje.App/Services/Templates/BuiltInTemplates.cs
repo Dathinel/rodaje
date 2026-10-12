@@ -15,9 +15,9 @@ public static class BuiltInTemplates
     public static IReadOnlyList<ProjectTemplate> All { get; } =
     [
         Create(Landscape1080Id, "Horizontal 16:9 (1080p)", 1920, 1080),
-        Create(Vertical1080Id, "Vertical 9:16 (TikTok, Reels, Shorts)", 1080, 1920),
+        Create(Vertical1080Id, "Vertical 9:16 (videos cortos)", 1080, 1920),
         Create(Square1080Id, "Cuadrado 1:1", 1080, 1080),
-        Create(Portrait1080Id, "Retrato 4:5 (Instagram)", 1080, 1350),
+        Create(Portrait1080Id, "Retrato 4:5 (publicaciones)", 1080, 1350),
         Create(Landscape4KId, "Horizontal 16:9 (4K)", 3840, 2160),
     ];
 

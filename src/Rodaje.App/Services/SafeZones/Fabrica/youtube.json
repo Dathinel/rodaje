@@ -1,4 +1,4 @@
-{ "format": "rodaje.safezones", "version": 1, "id": "youtube", "name": "YouTube (16:9)",
+{ "format": "rodaje.safezones", "version": 1, "id": "youtube", "name": "Horizontal con controles (16:9)",
   "aspect": { "width": 16, "height": 9 },
   "zones": [
     { "label": "Título y botones (al pausar)", "rect": [0, 0, 1, 0.12] },

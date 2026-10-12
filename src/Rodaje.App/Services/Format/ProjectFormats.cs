@@ -46,10 +46,10 @@ public static class ProjectFormats
 
     public static IReadOnlyList<AspectChoice> Aspects { get; } =
     [
-        new("16:9", "Horizontal · YouTube", 16, 9),
-        new("9:16", "Vertical · TikTok, Reels, Shorts", 9, 16),
-        new("1:1", "Cuadrado · Instagram", 1, 1),
-        new("4:5", "Retrato · Instagram", 4, 5),
+        new("16:9", "Horizontal · video web", 16, 9),
+        new("9:16", "Vertical · videos cortos", 9, 16),
+        new("1:1", "Cuadrado · publicaciones", 1, 1),
+        new("4:5", "Retrato · publicaciones", 4, 5),
         new("4:3", "Clásico", 4, 3),
         new("21:9", "Cine", 21, 9),
         new("Personalizado", "Ancho y alto a mano", 0, 0),

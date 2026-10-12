@@ -15,7 +15,7 @@ public class SafeZonesTests
         Assert.Equal(SafeZoneCatalog.Classic, builtIn[0].Reference);
         Assert.True(builtIn[0].Preset.Center);
         Assert.All(builtIn[0].Preset.Zones, z => Assert.Equal(SafeZoneKind.Safe, z.Kind));
-        Assert.Equal(["TikTok", "Instagram Reels", "YouTube Shorts", "Facebook Reels", "Historias de Instagram", "YouTube (16:9)"],
+        Assert.Equal(["Vertical corto con barra lateral (9:16)", "Vertical corto con pie amplio (9:16)", "Vertical corto con botones abajo (9:16)", "Vertical corto con pie y lateral (9:16)", "Historia vertical (9:16)", "Horizontal con controles (16:9)"],
             builtIn.Skip(1).Select(c => c.Name));
         foreach (SafeZoneChoice network in builtIn.Skip(1))
         {

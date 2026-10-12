@@ -1,4 +1,4 @@
-{ "format": "rodaje.safezones", "version": 1, "id": "tiktok", "name": "TikTok",
+{ "format": "rodaje.safezones", "version": 1, "id": "tiktok", "name": "Vertical corto con barra lateral (9:16)",
   "aspect": { "width": 9, "height": 16 },
   "zones": [
     { "label": "Pestañas y búsqueda", "rect": [0, 0, 1, 0.08] },

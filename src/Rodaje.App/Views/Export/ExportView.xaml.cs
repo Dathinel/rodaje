@@ -22,7 +22,7 @@ internal sealed partial class ExportView : UserControl
     private static readonly (string Label, LoudnessTarget? Value)[] LoudnessChoices =
     [
         ("No", null),
-        ("−14 LUFS (YouTube, Spotify, redes)", LoudnessTarget.Platforms),
+        ("−14 LUFS (plataformas de video y música)", LoudnessTarget.Platforms),
         ("−16 LUFS (pódcast)", new LoudnessTarget(-16)),
         ("−23 LUFS (televisión, EBU R128)", LoudnessTarget.EbuR128),
     ];

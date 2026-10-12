@@ -1,4 +1,4 @@
-{ "format": "rodaje.safezones", "version": 1, "id": "instagram-historias", "name": "Historias de Instagram",
+{ "format": "rodaje.safezones", "version": 1, "id": "instagram-historias", "name": "Historia vertical (9:16)",
   "aspect": { "width": 9, "height": 16 },
   "zones": [
     { "label": "Barra de avance, perfil y cerrar", "rect": [0, 0, 1, 0.14] },

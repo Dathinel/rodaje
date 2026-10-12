@@ -134,8 +134,8 @@ public class ExportQueueTests
             [ExportPresets.YouTube1080p.Id, ExportPresets.Vertical.Id], project.Clone(), "sec", null);
 
         Assert.Equal(2, requests.Count);
-        Assert.Equal("Viaje - YouTube 1080p.mp4", Path.GetFileName(requests[0].OutputPath));
-        Assert.Equal("Viaje - Reels _ TikTok 9_16.mp4", Path.GetFileName(requests[1].OutputPath));
+        Assert.Equal("Viaje - Web 1080p.mp4", Path.GetFileName(requests[0].OutputPath));
+        Assert.Equal("Viaje - Vertical 9_16.mp4", Path.GetFileName(requests[1].OutputPath));
         Assert.Equal((1920, 1080), (requests[0].Settings.Video!.Width, requests[0].Settings.Video!.Height));
         Assert.Equal((1080, 1920), (requests[1].Settings.Video!.Width, requests[1].Settings.Video!.Height));
         Assert.Equal(ExportFit.Crop, requests[1].Settings.Video!.Fit);

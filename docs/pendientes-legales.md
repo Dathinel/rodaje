@@ -9,7 +9,7 @@ Lo que queda por resolver para distribuir Rodaje bajo la GNU GPLv3 con términos
 - [ ] **Código fuente de FFmpeg.** Archivar los tarballs del commit `2a571b6` de FFmpeg, de los scripts de BtbN y de cada biblioteca externa que fijan, y ofrecerlos junto a la descarga o por oferta escrita ([legal.md](legal.md), «Compilación fijada»). Añadir el enlace a esa fuente en «Acerca de».
 - [ ] **Bibliotecas de FFmpeg sin revisar.** Leer en el commit que fija BtbN la licencia de librist, libbluray y las que no tienen fila en `LICENCIAS.md` (Fontconfig, GLib, cairo y Pango de librsvg, Vulkan y shaderc de libplacebo, Little CMS, libvorbis, rav1e y el resto), buscar la nota «Incompatible With Secondary Licenses» en libzmq y SRT, y confirmar en gnu.org las marcadas «a confirmar» (HarfBuzz, libvmaf, `PATENTS` de libjxl).
 - [ ] **Logotipo e icono propios.** `TRADEMARK.md` los reserva, pero la app todavía no tiene logotipo ni icono definitivos.
-- [ ] **Reporte privado de vulnerabilidades** activado en GitHub (`SECURITY.md`).
+- [x] **Reporte privado de vulnerabilidades** activado en GitHub (`SECURITY.md`).
 - [ ] **Escaneo de secretos** del historial completo con gitleaks.
 
 ## Para revisar con un abogado de propiedad intelectual
@@ -24,7 +24,7 @@ Por ahora Rodaje se distribuye sin fines comerciales; la consulta es necesaria a
 - [ ] **Activos reservados.** Cómo se combina la reserva del logotipo y el icono de `TRADEMARK.md` con la GPLv3 si viajan dentro del ejecutable.
 - [ ] **Patentes de H.264, HEVC y AAC.** Exposición al decodificar y al exportar (Via LA, Access Advance), aunque la codificación vaya por GPU o Media Foundation, a la vista de la nota de AMD ([legal.md](legal.md), «Quién cubre las patentes»). El resultado se anota como decisión en [decisiones.md](decisiones.md).
 - [ ] **Licencias de patentes de las bibliotecas.** Terminación defensiva de la AOM Patent License 1.0 (SVT-AV1, libaom), declaraciones de Opus ante la IETF y, si se llegara a usar, el binario de OpenH264 de Cisco (punto e).
-- [ ] **Nombres de redes en las zonas seguras del visor.** Los juegos de fábrica se llaman «TikTok», «Instagram Reels», «YouTube Shorts», «Facebook Reels»… solo para decir a qué interfaz se refieren, con dibujo propio y sin logotipos ([formato-paquete.md](formato-paquete.md), `safe-zones`). Confirmar que basta y si conviene una nota de marcas ajenas en la app.
+- [x] **Nombres de redes en las zonas seguras del visor** (resuelto: la app ya no nombra ninguna red; preajustes, formatos y zonas usan nombres genéricos por tipo y forma). Los juegos de fábrica se llaman «TikTok», «Instagram Reels», «YouTube Shorts», «Facebook Reels»… solo para decir a qué interfaz se refieren, con dibujo propio y sin logotipos ([formato-paquete.md](formato-paquete.md), `safe-zones`). Confirmar que basta y si conviene una nota de marcas ajenas en la app.
 
 ## Marca y registro
 

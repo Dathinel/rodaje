@@ -371,7 +371,7 @@ internal static partial class SelfTestRun
         player.ChooseSafeZones("fabrica/tiktok");
         if (player.EditSafeZonesForSelfTest(true) != 5)
         {
-            throw new InvalidOperationException("El editor de zonas propias no empezó de las de TikTok con una zona nueva.");
+            throw new InvalidOperationException("El editor de zonas propias no empezó de las de fábrica con una zona nueva.");
         }
 
         await CaptureAsync(window, "zonas-editor");

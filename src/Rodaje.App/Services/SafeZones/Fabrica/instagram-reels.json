@@ -1,4 +1,4 @@
-{ "format": "rodaje.safezones", "version": 1, "id": "instagram-reels", "name": "Instagram Reels",
+{ "format": "rodaje.safezones", "version": 1, "id": "instagram-reels", "name": "Vertical corto con pie amplio (9:16)",
   "aspect": { "width": 9, "height": 16 },
   "zones": [
     { "label": "Título y cámara", "rect": [0, 0, 1, 0.07] },
