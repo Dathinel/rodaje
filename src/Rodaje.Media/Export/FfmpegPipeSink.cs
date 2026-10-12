@@ -64,7 +64,8 @@ public sealed class FfmpegPipeSink : IExportSink
     private static readonly TimeSpan TreeKillWait = TimeSpan.FromMilliseconds(300);
     private static readonly TimeSpan CleanupRetry = TimeSpan.FromSeconds(2);
 
-    private readonly FfmpegExecutable _ffmpeg;
+    private readonly FfmpegExecutable? _ffmpeg;
+    private readonly string _executablePath;
     private readonly FfmpegPipeSinkOptions _options;
     private readonly Lock _gate = new();
     private readonly StringBuilder _stderr = new();
@@ -93,9 +94,25 @@ public sealed class FfmpegPipeSink : IExportSink
     private Task? _pendingCleanup;
 
     public FfmpegPipeSink(FfmpegExecutable ffmpeg, FfmpegPipeSinkOptions? options = null)
+        : this(ffmpeg ?? throw new ArgumentNullException(nameof(ffmpeg)), ffmpeg.Path, options)
     {
-        ArgumentNullException.ThrowIfNull(ffmpeg);
+    }
+
+    /// <summary>
+    /// Solo para las pruebas: lanza <paramref name="unverifiedExecutable"/> sin pasar por <see cref="FfmpegExecutable"/>,
+    /// cuya verificación (LGPL, DLL, serie de libavcodec) un ejecutable falso no puede pasar. Así las carreras de
+    /// <see cref="Complete"/> y <see cref="Abort"/> se prueban donde no hay ffmpeg.exe (tarea 63).
+    /// </summary>
+    internal FfmpegPipeSink(string unverifiedExecutable, FfmpegPipeSinkOptions? options = null)
+        : this(null, unverifiedExecutable, options)
+    {
+    }
+
+    private FfmpegPipeSink(FfmpegExecutable? ffmpeg, string executablePath, FfmpegPipeSinkOptions? options)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
         _ffmpeg = ffmpeg;
+        _executablePath = executablePath;
         _options = options ?? new FfmpegPipeSinkOptions();
         ArgumentOutOfRangeException.ThrowIfLessThan(_options.WriteChunkBytes, 1024 * 1024);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(_options.WriteChunkBytes, 16 * 1024 * 1024);
@@ -497,8 +514,8 @@ public sealed class FfmpegPipeSink : IExportSink
 
     private void Launch(ExportSinkRequest request)
     {
-        _ffmpeg.EnsureUnchanged();
-        var info = new ProcessStartInfo(_ffmpeg.Path)
+        _ffmpeg?.EnsureUnchanged();
+        var info = new ProcessStartInfo(_executablePath)
         {
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -507,7 +524,7 @@ public sealed class FfmpegPipeSink : IExportSink
             RedirectStandardError = true,
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
-            WorkingDirectory = Path.GetDirectoryName(_ffmpeg.Path)!,
+            WorkingDirectory = Path.GetDirectoryName(_executablePath)!,
         };
         // SVT-AV1 escribe su configuración en la salida de error si no se le dice lo contrario.
         info.Environment["SVT_LOG"] = "1";
@@ -562,10 +579,15 @@ public sealed class FfmpegPipeSink : IExportSink
         {
             process.Dispose();
             DeleteTemporaries(keepPassLog: false);
-            throw new ExportException(ExportErrorCode.EncoderMissing, $"No se pudo ejecutar {_ffmpeg.Path}: {ex.Message}", ex);
+            throw new ExportException(ExportErrorCode.EncoderMissing, $"No se pudo ejecutar {_executablePath}: {ex.Message}", ex);
         }
 
-        ChildProcessJob.TryAssign(process);
+        // El job es de Windows; fuera de Windows (solo las pruebas con el ffmpeg falso) no hay a qué asignarlo.
+        if (OperatingSystem.IsWindows())
+        {
+            ChildProcessJob.TryAssign(process);
+        }
+
         try
         {
             process.PriorityClass = _options.Priority;

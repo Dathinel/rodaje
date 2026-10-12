@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Apoyo a pruebas (no es un proyecto de pruebas): un ffmpeg.exe falso para probar las carreras de FfmpegPipeSink
+    (cancelar durante Complete, Abort desde otro hilo, un ffmpeg que no muere) donde no hay ffmpeg.exe, como la CI.
+    Lee la entrada estándar hasta el final y sale con el código pedido, o se queda dormido. Sin dependencias; compila
+    para net10.0 y corre en Windows y en Linux. Opciones en Program.cs.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Rodaje.FakeFfmpeg</RootNamespace>
+    <AssemblyName>Rodaje.FakeFfmpeg</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Apoyo a pruebas: sin las reglas de nombres ni de localización del núcleo -->
+    <NoWarn>$(NoWarn);CA1303;CA1515</NoWarn>
+  </PropertyGroup>
+
+</Project>
