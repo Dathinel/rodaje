@@ -37,7 +37,7 @@ public sealed class ExportQualityAcceptanceTests(ITestOutputHelper output)
             await ExportAsync(output, scene.Project, path, settings with { Audio = null, Performance = ExportPerformance.Fastest }, Range);
             (double mean, double p1, double psnr) = Vmaf(reference, path, folder);
             double mbps = new FileInfo(path).Length * 8 / Range.Duration.ToSeconds() / 1e6;
-            string line = string.Create(CultureInfo.InvariantCulture, $"{name}: VMAF {mean:0.00} (1 % peor {p1:0.00}), PSNR-Y {psnr:0.00} dB, {mbps:0.00} Mbps");
+            string line = string.Create(CultureInfo.InvariantCulture, $"{name}: VMAF {mean:0.00} (1 % peor {p1:0.00}), PSNR-Y {psnr:0.00} dB, {mbps:0.00} Mbps; peores {Worst}");
             output.WriteLine(line);
             results.Add(line);
             return (mean, p1, mbps);
@@ -53,7 +53,7 @@ public sealed class ExportQualityAcceptanceTests(ITestOutputHelper output)
             Video = new VideoExportSettings { Codec = ExportCodec.H264, EncoderId = "h264_nvenc", RateControl = RateControl.ConstantQuality(23), Profile = "high" },
         });
         int lo = 20;
-        int hi = 55;
+        int hi = 63;
         (double Vmaf, double Mbps, int Crf)? match = null;
         while (lo <= hi)
         {

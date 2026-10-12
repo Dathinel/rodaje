@@ -9,13 +9,15 @@ namespace Rodaje.Export.Running;
 /// </summary>
 /// <param name="PausePreview">Alto rendimiento: la vista previa se pausa al empezar (se puede volver a reproducir).</param>
 /// <param name="PreviewProxies">Con menos de <see cref="LowVideoMemoryBytes"/> de VRAM, la vista previa pasa a proxies y Mitad mientras exporta.</param>
+/// <param name="GpuPriority">Prioridad del dispositivo de la exportación en el planificador de la GPU (−7 a 7): en bajo, la vista previa pasa antes.</param>
 public sealed record ExportPerformanceProfile(
     ThreadPriority ThreadPriority,
     ProcessPriorityClass EncoderPriority,
     int LookaheadFrames,
     int MaxDecodersPerMedia,
     bool PausePreview,
-    bool PreviewProxies)
+    bool PreviewProxies,
+    int GpuPriority = 0)
 {
     public const long LowVideoMemoryBytes = 4L * 1024 * 1024 * 1024;
 
@@ -25,7 +27,7 @@ public sealed record ExportPerformanceProfile(
         bool lowVram = dedicatedVideoMemory is > 0 and < LowVideoMemoryBytes;
         return mode == ExportPerformance.Fastest
             ? new(ThreadPriority.Normal, FfmpegPipeSinkOptions.PriorityFor(fastest: true), 8, 4, PausePreview: true, lowVram)
-            : new(ThreadPriority.BelowNormal, FfmpegPipeSinkOptions.PriorityFor(fastest: false), 3, 2, PausePreview: false, lowVram);
+            : new(ThreadPriority.BelowNormal, FfmpegPipeSinkOptions.PriorityFor(fastest: false), 3, 2, PausePreview: false, lowVram, GpuPriority: -7);
     }
 }
 

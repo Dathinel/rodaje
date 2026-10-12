@@ -6,21 +6,21 @@ using Rodaje.TestMedia;
 
 namespace Rodaje.Export.Tests.Acceptance;
 
-/// <summary>DÃ³nde se lee el nÃºmero dibujado de una capa en la salida de 1920Ã—1080.</summary>
+/// <summary>Dónde se lee el número dibujado de una capa en la salida de 1920×1080.</summary>
 internal sealed record CodeRegion(int X, int Y, int Width, int Height);
 
-/// <summary>Una capa de la escena: sus clips, su medio y los intervalos en que una transiciÃ³n tapa el nÃºmero.</summary>
+/// <summary>Una capa de la escena: sus clips, su medio y los intervalos en que una transición tapa el número.</summary>
 internal sealed record SceneLayer(string Name, CodeRegion Region, Rational MediaRate, IReadOnlyList<Clip> Clips, IReadOnlyList<(Time From, Time To)> Covered);
 
 /// <summary>
-/// La escena de la aceptaciÃ³n de la fase 6: 1080p30, tres capas con efectos, velocidades y transiciones, y el audio del
-/// medio principal a 1Ã— en toda la duraciÃ³n. Cada capa deja su nÃºmero de cuadro legible en un lugar fijo de la salida:
+/// La escena de la aceptación de la fase 6: 1080p30, tres capas con efectos, velocidades y transiciones, y el audio del
+/// medio principal a 1× en toda la duración. Cada capa deja su número de cuadro legible en un lugar fijo de la salida:
 /// la principal arriba a la izquierda (pantalla completa), las otras dos como PiP a la mitad en los cuadrantes de abajo.
 /// </summary>
 /// <remarks>
-/// La principal repite un bloque de 60 s: 10 s a 1Ã— con color, 2Ã—, 0,5Ã—, 1001/1000Ã—, Â«BalaÂ» y congelado hasta el final
-/// del bloque, con fundido, cortinilla, empuje y fundido a negro entre los cinco primeros. El PiP izquierdo alterna 1Ã— y
-/// 2Ã— de un HEVC a 25 fps con color; el derecho, clips a 1Ã— de un H.264 a 23,976 con fundidos.
+/// La principal repite un bloque de 60 s: 10 s a 1× con color, 2×, 0,5×, 1001/1000×, «Bala» y congelado hasta el final
+/// del bloque, con fundido, cortinilla, empuje y fundido a negro entre los cinco primeros. El PiP izquierdo alterna 1× y
+/// 2× de un HEVC a 25 fps con color; el derecho, clips a 1× de un H.264 a 23,976 con fundidos.
 /// </remarks>
 internal sealed class AcceptanceScene
 {
@@ -29,7 +29,7 @@ internal sealed class AcceptanceScene
     public const int Height = 1080;
     public static readonly Rational Rate = Rational.Fps30;
 
-    /// <summary>Del audio: el clip empieza en este segundo del medio principal y suena a 1Ã— desde 0.</summary>
+    /// <summary>Del audio: el clip empieza en este segundo del medio principal y suena a 1× desde 0.</summary>
     public static readonly Time AudioSourceIn = Time.FromSeconds(1);
 
     /// <summary>11 min de 1080p a 29,97 con AAC y la marca de audio por segundo.</summary>
@@ -65,7 +65,7 @@ internal sealed class AcceptanceScene
     /// <summary>Transiciones de la escena (todas las pistas).</summary>
     public int Transitions => Project.Sequences[0].VideoTracks.Sum(t => t.Transitions.Count);
 
-    /// <param name="length">MÃºltiplo de 60 s.</param>
+    /// <param name="length">Múltiplo de 60 s.</param>
     public static AcceptanceScene Build(Time length)
     {
         if (length <= Time.Zero || length.Ticks % Block.Ticks != 0)
@@ -74,8 +74,8 @@ internal sealed class AcceptanceScene
         }
 
         TestMediaGenerator generator = TestMediaGenerator.CreateDefault() ?? throw new InvalidOperationException(FfmpegTool.UnavailableReason);
-        var sequence = new Sequence { Id = SequenceId, Name = "AceptaciÃ³n", FrameRate = Rate, Width = Width, Height = Height };
-        var project = new Project { Id = "p", Name = "AceptaciÃ³n de la exportaciÃ³n", Sequences = [sequence] };
+        var sequence = new Sequence { Id = SequenceId, Name = "Aceptación", FrameRate = Rate, Width = Width, Height = Height };
+        var project = new Project { Id = "p", Name = "Aceptación de la exportación", Sequences = [sequence] };
         MediaRef main = AddMedia(project, generator, MainMedia, "a");
         MediaRef left = AddMedia(project, generator, TestMediaPresets.Hevc25Mkv, "b");
         MediaRef right = AddMedia(project, generator, TestMediaPresets.H264Ntsc24Aac, "c");
@@ -94,7 +94,7 @@ internal sealed class AcceptanceScene
         IReadOnlyList<string> issues = ModelValidator.Validate(project);
         if (issues.Count > 0)
         {
-            throw new InvalidOperationException("La escena de aceptaciÃ³n no es vÃ¡lida: " + string.Join("; ", issues));
+            throw new InvalidOperationException("La escena de aceptación no es válida: " + string.Join("; ", issues));
         }
 
         Time duration = sequence.Duration;
@@ -107,8 +107,8 @@ internal sealed class AcceptanceScene
     }
 
     /// <summary>
-    /// El cuadro del medio que la capa debe mostrar en el cuadro <paramref name="frame"/> de la secuencia, segÃºn
-    /// <see cref="ClipTimeMap"/>; <c>null</c> si una transiciÃ³n tapa el nÃºmero o no hay clip.
+    /// El cuadro del medio que la capa debe mostrar en el cuadro <paramref name="frame"/> de la secuencia, según
+    /// <see cref="ClipTimeMap"/>; <c>null</c> si una transición tapa el número o no hay clip.
     /// </summary>
     public static long? Expected(SceneLayer layer, long frame)
     {
@@ -133,7 +133,7 @@ internal sealed class AcceptanceScene
         return null;
     }
 
-    /// <summary>Lee el nÃºmero de la capa en la luma de un cuadro de 1920Ã—1080 (una muestra por pÃ­xel).</summary>
+    /// <summary>Lee el número de la capa en la luma de un cuadro de 1920×1080 (una muestra por píxel).</summary>
     public static int? Read(SceneLayer layer, ReadOnlySpan<byte> luma)
     {
         CodeRegion r = layer.Region;
@@ -174,7 +174,7 @@ internal sealed class AcceptanceScene
             cursor = bullet.End;
             if (cursor >= end)
             {
-                throw new InvalidOperationException($"El bloque {block} no cabe en 60 s: Â«BalaÂ» termina en {cursor}.");
+                throw new InvalidOperationException($"El bloque {block} no cabe en 60 s: «Bala» termina en {cursor}.");
             }
 
             var frozen = new ClipSpeed { Rate = new Rational(1, 1), Freeze = true };
@@ -254,7 +254,7 @@ internal sealed class AcceptanceScene
         return reference;
     }
 
-    // Mitad de tamaÃ±o, centrada en el cuadrante de abajo: su nÃºmero cae en el mismo lugar relativo que en 960Ã—540.
+    // Mitad de tamaño, centrada en el cuadrante de abajo: su número cae en el mismo lugar relativo que en 960×540.
     private static EffectInstance Pip(string clipId, double x) => Effect(clipId + "-pip", BuiltInEffects.Transform,
         (BuiltInEffects.TransformParameters.Scale, 0.5), (BuiltInEffects.TransformParameters.X, x), (BuiltInEffects.TransformParameters.Y, Height / 4.0));
 

@@ -42,6 +42,7 @@ public sealed class ExportCancelAcceptanceTests(ITestOutputHelper output)
         var stopTimes = new List<double>();
         var states = new List<string>();
         long worstVram = 0;
+        long busiest = 0;
         var problems = new List<string>();
         int pid = Environment.ProcessId;
         for (int n = 0; n < 20; n++)
@@ -49,9 +50,19 @@ public sealed class ExportCancelAcceptanceTests(ITestOutputHelper output)
             string path = Path.Combine(folder, $"cancelada {n}.mp4");
             var runner = new ExportRunner(new ExportRunnerOptions { Ffmpeg = Ffmpeg, TemporaryDirectory = folder });
             using ExportJob job = runner.Start(new ExportRequest(scene.Project.Clone(), AcceptanceScene.SequenceId, path, Settings), encoders);
-            await Task.Delay(random.Next(0, 4000));
+            // La mitad en la preparación o el audio; la otra mitad ya codificando.
+            if (n % 2 == 1)
+            {
+                while (job.Progress.State != ExportJobState.Encoding && !job.Completion.IsCompleted)
+                {
+                    await Task.Delay(5);
+                }
+            }
+
+            await Task.Delay(random.Next(0, n % 2 == 1 ? 1500 : 4000));
             var seen = FfmpegChildren(pid);
             ExportJobState state = job.Progress.State;
+            busiest = Math.Max(busiest, (probe.QueryLocalVideoMemoryUsage() ?? 0) - baseline);
             var watch = Stopwatch.StartNew();
             job.Cancel();
             await job.Completion.WaitAsync(TimeSpan.FromSeconds(10));
@@ -87,7 +98,7 @@ public sealed class ExportCancelAcceptanceTests(ITestOutputHelper output)
         }
 
         output.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"20 cancelaciones: mediana {Percentile(stopTimes, 0.5):0} ms, máximo {stopTimes.Max():0} ms; VRAM peor ±{worstVram / (double)Mb:0.0} MB. {string.Join(" ", states)}"));
+            $"20 cancelaciones: mediana {Percentile(stopTimes, 0.5):0} ms, máximo {stopTimes.Max():0} ms; VRAM del proceso {baseline / Mb} MB de base, hasta +{busiest / Mb} MB exportando, peor tras cancelar ±{worstVram / (double)Mb:0.0} MB. {string.Join(" ", states)}"));
         Delete(folder);
         Assert.True(stopTimes.Max() <= 1000, $"{stopTimes.Max():0} ms");
         Assert.True(problems.Count == 0, string.Join("; ", problems));
@@ -139,9 +150,19 @@ public sealed class ExportCancelAcceptanceTests(ITestOutputHelper output)
         }
 
         bool ffmpegGone = !ffmpeg.Any(IsAlive);
-        IReadOnlyList<string> cleaned = ExportRunner.CleanupStale(journal);
-        string[] after = [.. Directory.GetFileSystemEntries(folder, "*", SearchOption.AllDirectories).Where(p => Path.GetFileName(p) != ExportJournal.FileName)];
-        output.WriteLine($"Hijo {child} con ffmpeg {string.Join(",", ffmpeg)} muerto; ffmpeg terminó solo: {ffmpegGone} en {dying.ElapsedMilliseconds} ms. " +
+
+        // El arranque siguiente: si algo seguía abierto, la entrada se queda y el otro arranque lo borra.
+        var cleaned = new List<string>();
+        int starts = 0;
+        do
+        {
+            cleaned.AddRange(ExportRunner.CleanupStale(journal));
+            starts++;
+        }
+        while (journal.Entries().Count > 0 && starts < 5 && await Delay());
+
+        string[] after = [.. Directory.GetFileSystemEntries(folder, "*", SearchOption.AllDirectories).Where(p => !Path.GetFileName(p).StartsWith(ExportJournal.FileName, StringComparison.Ordinal))];
+        output.WriteLine($"Hijo {child} con ffmpeg {string.Join(",", ffmpeg)} muerto; ffmpeg terminó solo: {ffmpegGone} en {dying.ElapsedMilliseconds} ms; limpio en {starts} arranque(s). " +
             $"Antes: {string.Join(", ", before.Select(Path.GetFileName))}. Limpiados: {string.Join(", ", cleaned.Select(Path.GetFileName))}. Quedan: {string.Join(", ", after.Select(Path.GetFileName))}.");
         try
         {
@@ -156,6 +177,12 @@ public sealed class ExportCancelAcceptanceTests(ITestOutputHelper output)
         Assert.True(ffmpegGone);
         Assert.Empty(after);
         Assert.Empty(journal.Entries());
+    }
+
+    private static async Task<bool> Delay()
+    {
+        await Task.Delay(1000);
+        return true;
     }
 
     /// <summary>Solo como proceso hijo de la prueba anterior: exporta hasta que lo maten.</summary>

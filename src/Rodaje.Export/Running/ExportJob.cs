@@ -123,6 +123,10 @@ public sealed class ExportJob : IDisposable
             {
                 Profile = ExportPerformanceProfile.For(Request.Settings.Performance, gpu?.DedicatedVideoMemory ?? 0);
                 Thread.CurrentThread.Priority = Profile.ThreadPriority;
+                if (gpu is not null && Profile.GpuPriority != 0)
+                {
+                    ExportGpuPriority.TrySet(gpu, Profile.GpuPriority);
+                }
                 token.ThrowIfCancellationRequested();
                 Directory.CreateDirectory(work);
                 _options.Journal?.Register(journalId, Request.OutputPath, [work]);

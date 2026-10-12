@@ -199,28 +199,35 @@ internal static partial class AcceptanceSupport
     /// <summary>VMAF (modelo v0.6.1) de <paramref name="distorted"/> contra <paramref name="reference"/>: media y percentil 1 por cuadro.</summary>
     public static (double Mean, double P1, double Psnr) Vmaf(string reference, string distorted, string folder)
     {
-        string log = Path.Combine(folder, "vmaf-" + Path.GetFileNameWithoutExtension(distorted) + ".json");
-        // El filtro necesita la ruta del registro con ':' y '\' escapados.
-        string escaped = log.Replace("\\", "/", StringComparison.Ordinal).Replace(":", "\\:", StringComparison.Ordinal);
+        // El registro va por nombre relativo a la carpeta: una ruta con ':' no pasa bien por la sintaxis de filtros.
+        string name = "vmaf-" + Path.GetFileNameWithoutExtension(distorted) + ".json";
+        string log = Path.Combine(folder, name);
         string threads = Math.Max(2, Environment.ProcessorCount - 2).ToString(CultureInfo.InvariantCulture);
-        using Process process = Start(Ffmpeg.Path, "-hide_banner", "-loglevel", "error", "-nostdin", "-i", distorted, "-i", reference,
-            "-lavfi", $"[0:v]format=yuv420p,setpts=PTS-STARTPTS[d];[1:v]format=yuv420p,setpts=PTS-STARTPTS[r];[d][r]libvmaf=log_fmt=json:log_path='{escaped}':n_threads={threads}:feature=name=psnr",
+        using Process process = StartIn(folder, Ffmpeg.Path, "-hide_banner", "-loglevel", "error", "-nostdin", "-i", distorted, "-i", reference,
+            "-lavfi", $"[0:v]format=yuv420p,settb=1/30,setpts=N[d];[1:v]format=yuv420p,settb=1/30,setpts=N[r];[d][r]libvmaf=log_fmt=json:log_path={name}:n_threads={threads}:feature=name=psnr",
             "-f", "null", "-");
         string error = process.StandardError.ReadToEnd();
         process.WaitForExit();
         Assert.True(process.ExitCode == 0, error);
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(log));
         List<double> scores = [.. doc.RootElement.GetProperty("frames").EnumerateArray().Select(f => f.GetProperty("metrics").GetProperty("vmaf").GetDouble())];
+        Worst = string.Join(" ", scores.Select((v, i) => (v, i)).OrderBy(x => x.v).Take(8).Select(x => string.Create(CultureInfo.InvariantCulture, $"{x.i}:{x.v:0}")));
         scores.Sort();
         JsonElement pooled = doc.RootElement.GetProperty("pooled_metrics");
         return (pooled.GetProperty("vmaf").GetProperty("mean").GetDouble(), scores[(int)(scores.Count * 0.01)],
             pooled.GetProperty("psnr_y").GetProperty("mean").GetDouble());
     }
 
-    public static Process Start(string exe, params string[] arguments)
+    /// <summary>Los cuadros peores de la última medida de <see cref="Vmaf"/> (índice:puntuación).</summary>
+    public static string Worst { get; private set; } = "";
+
+    public static Process Start(string exe, params string[] arguments) => StartIn(null, exe, arguments);
+
+    public static Process StartIn(string? directory, string exe, params string[] arguments)
     {
         var info = new ProcessStartInfo(exe)
         {
+            WorkingDirectory = directory ?? "",
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
