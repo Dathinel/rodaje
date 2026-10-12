@@ -555,9 +555,9 @@ Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.x
 
 `StillExporterTests.El_png_es_el_cuadro_de_la_vista_previa_con_el_titulo` falla en local (Windows, RTX 3050) con «El medio no tiene ese cuadro» al decodificar en el motor fuera de línea. Reprodúcelo, corrige la causa (no la prueba) y confirma que pasa en la CI de Windows.
 
-## 51. URGENTE: main en rojo en la CI de Windows (3 pruebas intermitentes)
+## 57. URGENTE: main en rojo en la CI de Windows (3 pruebas intermitentes)
 
-- **Estado:** pendiente
+- **Estado:** pendiente (la sesión local la añadió como 51 en 71bcbc3; se renumera porque la 51 ya era «Enganchar Traducir pista» en el PR #40. `ModuleManagerTests.Una_llamada_larga…` también está en la 47, PR #46: mirar ese PR antes. En la CI del PR #48 sobre main falló además `CinemaDngImportTests.A_cinemadng_folder_becomes_a_prores_file_with_the_right_frames_and_gray` con «Se cortó la conexión al saludar» (`Pipe is broken`, job 114755697386))
 - **Rama:** `claude/main-verde-2`
 - **Caminos:** las pruebas afectadas y, si la causa es real, el código mínimo; `docs/tareas/`.
 - **Lee:** la corrida de la CI de main sobre 0a56efa.
