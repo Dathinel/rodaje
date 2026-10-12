@@ -310,7 +310,10 @@ internal sealed partial class TimelineScheduler
             }
         }
 
-        pairs.Sort((a, b) => a.Cost != b.Cost ? a.Cost.CompareTo(b.Cost) : a.Cluster.Urgency.CompareTo(b.Cluster.Urgency));
+        // Lo que se ve ya elige primero: un decodificador que se adelantó a un pre-roll vuelve a la capa visible con un
+        // seek en vez de dejarla sin decodificador (y abrir otro).
+        pairs.Sort((a, b) => a.Cluster.Visible != b.Cluster.Visible ? (a.Cluster.Visible ? -1 : 1)
+            : a.Cost != b.Cost ? a.Cost.CompareTo(b.Cost) : a.Cluster.Urgency.CompareTo(b.Cluster.Urgency));
         var served = new HashSet<Cluster>();
         var busy = new HashSet<DecoderState>();
         foreach ((Cluster cluster, DecoderState decoder, _) in pairs)
@@ -376,6 +379,14 @@ internal sealed partial class TimelineScheduler
             return;
         }
 
+        if (Leaving(media, cluster) is { } leaving)
+        {
+            // Lo que le queda al clip que sale cabe en un paso atrás del decodificador que ya sirve al que entra.
+            leaving.Assigned.AddRange(cluster.Windows);
+            leaving.IdleSince = null;
+            return;
+        }
+
         int live = media.Decoders.Count(d => !d.Retiring);
         long estimate = Estimate(media);
         bool canOpen = live < _maxDecodersPerMedia && MakeRoom(estimate, posts);
@@ -423,17 +434,20 @@ internal sealed partial class TimelineScheduler
 
     /// <summary>
     /// El decodificador del medio que, avanzando con el clip que ya sirve, llega sin buscar keyframe al pre-roll
-    /// <paramref name="cluster"/> antes de que se deba mostrar: ese clip pasa por el primer cuadro del tramo, o termina a
-    /// menos de <see cref="ForwardReach"/> cuadros de él, no más tarde que el corte. Es el caso de los cortes sin salto en
-    /// el material (una velocidad que cambia donde terminó el clip anterior, con o sin transición): el pre-roll abría otro
-    /// decodificador del mismo medio para cuadros por los que el primero iba a pasar igual. Nulo si no hay ninguno: el
-    /// tramo necesita el suyo (también cuando el clip que entra va por delante del que sale, como un 0,5× que entra en una
-    /// transición desde un 2×: adelantarse obligaría a volver con un seek y el tramo visible quedaría sin decodificador).
+    /// <paramref name="cluster"/>: ese clip termina pasado el primer cuadro del tramo o a menos de
+    /// <see cref="ForwardReach"/> cuadros de él, y lo pasa antes de que se deba mostrar o deja de verse poco después
+    /// (<see cref="ContinuationOverlap"/>: es el que sale en la transición hacia ese tramo). Es el caso de los cortes sin
+    /// salto en el material (una velocidad que cambia donde terminó el clip anterior, con o sin transición): el pre-roll
+    /// abría otro decodificador del mismo medio para cuadros por los que el primero iba a pasar igual. Nulo si no hay
+    /// ninguno: el tramo necesita el suyo.
     /// </summary>
     /// <param name="share">
-    /// Verdadero si el tramo ya se le asigna: empieza después de todo lo que muestra el clip, la ventana del clip ya llegó a
-    /// su último cuadro y el decodificador lo alcanza sin buscar, así que pedirlo no lo hace volver atrás. Si no, el tramo
-    /// espera sin decodificador; cuando el clip se acerque, sus ventanas quedan en el mismo tramo o llega este caso.
+    /// Verdadero si el tramo ya se le asigna; si no, espera sin decodificador. Se asigna cuando el decodificador lo alcanza
+    /// sin buscar y, además, el tramo empieza después de todo lo que muestra el clip y la ventana del clip ya llegó a su
+    /// último cuadro (pedirlo no lo hace volver atrás), o el clip no llega a tiempo por sí solo: en una transición desde un
+    /// 2× hacia un 0,5× el que entra va por delante del que sale, y el decodificador se adelanta una vez y vuelve con un
+    /// seek, que no detiene la composición como abrir otro. Si el clip pasa por el tramo a tiempo, se espera: sus ventanas
+    /// terminan en el mismo tramo. Un decodificador que ya se adelantó sigue sirviendo el tramo.
     /// </param>
     private DecoderState? Continuing(MediaState media, Cluster cluster, out bool share)
     {
@@ -445,8 +459,20 @@ internal sealed partial class TimelineScheduler
 
         foreach (DecoderState decoder in media.Decoders)
         {
-            if (decoder.Retiring || decoder.Closed || decoder.ReverseClip is not null || decoder.Position >= cluster.Start)
+            if (decoder.Retiring || decoder.Closed || decoder.ReverseClip is not null)
             {
+                continue;
+            }
+
+            if (decoder.Position >= cluster.Start)
+            {
+                // Ya se adelantó a este tramo por el clip que sale: lo que falte está a un paso, aunque sea hacia atrás.
+                share = decoder.Position <= cluster.End + ForwardReach && decoder.Assigned.Exists(w => CatchesUp(w, cluster));
+                if (share)
+                {
+                    return decoder;
+                }
+
                 continue;
             }
 
@@ -454,18 +480,81 @@ internal sealed partial class TimelineScheduler
             {
                 VideoClipPlan clip = window.Clip;
                 long highest = clip.HighestFrame;
-                if (window.Warm || !clip.Forward || highest < cluster.Start - ForwardReach
-                    || ShownDelay(clip, Math.Min(cluster.Start, highest)) > cluster.Urgency)
+                if (window.Warm || !clip.Forward || highest < cluster.Start - ForwardReach)
                 {
                     continue;
                 }
 
-                share = cluster.Start > highest && window.End > highest && Cost(decoder, cluster) < SeekCost;
-                return decoder;
+                bool passes = ShownDelay(clip, Math.Min(cluster.Start, highest)) <= cluster.Urgency;
+                bool reachable = Cost(decoder, cluster) < SeekCost;
+                if (passes)
+                {
+                    share = reachable && cluster.Start > highest && window.End > highest;
+                    return decoder;
+                }
+
+                if (cluster.Start <= highest && CatchesUp(window, cluster))
+                {
+                    share = reachable;
+                    return decoder;
+                }
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Lo que puede seguir viéndose el clip de un decodificador después de que deba mostrarse un pre-roll que ese
+    /// decodificador sirve adelantándose: una transición habitual, no dos capas que se pisan durante mucho tiempo.
+    /// </summary>
+    private static readonly Time ContinuationOverlap = Time.FromSeconds(2);
+
+    /// <summary>
+    /// Reproduciendo, el decodificador del medio que puede servir de paso un tramo visible al que le quedan pocos cuadros:
+    /// todos sus clips dejan de verse en menos de <c>PreRollFrames</c> cuadros de la secuencia y el decodificador está a
+    /// menos de <see cref="ForwardReach"/> cuadros. Es el que sale de una transición hacia un clip más rápido del mismo
+    /// medio: al final queda detrás del que entra, sus ventanas se separan y abrir un decodificador para sus últimos
+    /// cuadros detenía la vista previa; volver un paso con un seek no.
+    /// </summary>
+    private DecoderState? Leaving(MediaState media, Cluster cluster)
+    {
+        Time soon = _demandTime + Time.FromFrames(_preRollFrames, _plan.FrameRate);
+        if (!_clock.IsRunning || !cluster.Visible || cluster.ReverseClip is not null || !cluster.Windows.TrueForAll(w => w.Clip.End <= soon))
+        {
+            return null;
+        }
+
+        DecoderState? best = null;
+        foreach (DecoderState decoder in media.Decoders)
+        {
+            if (!decoder.Retiring && !decoder.Closed && decoder.ReverseClip is null && decoder.Assigned.Count > 0
+                && Math.Abs(cluster.Start - decoder.Position) <= ForwardReach
+                && (best is null || Math.Abs(cluster.Start - decoder.Position) < Math.Abs(cluster.Start - best.Position)))
+            {
+                best = decoder;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// El clip de la ventana sale poco después de que deba mostrarse el tramo (<see cref="ContinuationOverlap"/>), lo
+    /// alcanza antes de salir y va al menos tan rápido como los clips del tramo: el que entra en la transición va por
+    /// delante, pero el que sale lo pasa y los dos siguen juntos.
+    /// </summary>
+    private bool CatchesUp(in Window window, Cluster cluster)
+    {
+        VideoClipPlan clip = window.Clip;
+        if (window.Warm || !clip.Forward || clip.HighestFrame < cluster.Start
+            || (clip.End - _demandTime).Ticks > cluster.Urgency + ContinuationOverlap.Ticks)
+        {
+            return false;
+        }
+
+        double rate = Math.Abs(clip.RateAt(clip.End - Time.FromTicks(1)));
+        return cluster.Windows.TrueForAll(w => w.Clip.MaxRate <= rate);
     }
 
     /// <summary>Cuánto falta, en ticks desde el cuadro de la demanda, para que el clip muestre ese cuadro o uno posterior.</summary>

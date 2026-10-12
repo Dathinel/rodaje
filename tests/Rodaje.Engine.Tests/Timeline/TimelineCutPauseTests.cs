@@ -21,15 +21,14 @@ public sealed class TimelineCutPauseTests(ITestOutputHelper output)
 
     /// <summary>
     /// La pista principal de la escena de aceptación, dos bloques: 1×, 2×, 0,5× y 1001/1000×, cada uno donde terminó el
-    /// material del anterior, con fundido, cortinilla y empuje entre ellos. El decodificador que ya avanza por el medio llega
-    /// solo a la entrada del 2× (antes, su pre-roll abría otro a los 9,75 s). La cortinilla hacia el 0,5× sí necesita un
-    /// segundo decodificador (el que entra va por delante del que sale) y se abre una sola vez: en los cortes siguientes
-    /// queda ocioso y se reutiliza.
+    /// material del anterior, con fundido, cortinilla y empuje entre ellos. El decodificador que ya avanza por el medio
+    /// sirve cada corte: no se abre ninguno reproduciendo (antes, con pre-roll de 0,5 s se abrían 4, uno en la entrada
+    /// del 2× y otro en la del 0,5× de cada bloque, y con 2 s, 11).
     /// </summary>
     [Theory]
     [InlineData(500)]
     [InlineData(2000)]
-    public void Contiguous_cuts_with_speed_and_transitions_open_at_most_one_decoder_in_the_whole_run(int preRollMs)
+    public void Contiguous_cuts_with_speed_and_transitions_open_no_decoder_while_playing(int preRollMs)
     {
         var backend = new FakeTimelineBackend { ManualDecoding = true, KeyframeInterval = 60 };
         var b = new TimelineBuilder(1, 0);
@@ -71,10 +70,110 @@ public sealed class TimelineCutPauseTests(ITestOutputHelper output)
         Assert.Equal(0, wrong);
         Assert.Equal(opened.Count, stats.DecodersOpenedWhilePlaying);
         Assert.Equal(before + opened.Count, backend.Videos.Count);
-        Assert.True(opened.Count <= 1, $"Se abrieron {opened.Count} decodificadores reproduciendo.");
-        Assert.All(opened, t => Assert.InRange(t, 17.0, 20.25));
+        Assert.Empty(opened);
         Assert.Equal(0, stats.LateRefreshes);
         Assert.Equal(0, stats.FramesDropped);
+        Assert.Equal(0, stats.PreRollMisses);
+    }
+
+    /// <summary>
+    /// La escena de aceptación entera (<c>AcceptanceScene</c> de las pruebas de exportación) con dobles: la pista
+    /// principal con sus velocidades, «Bala», congelado y transiciones, y los dos PiP que vuelven al principio de su
+    /// material en cada corte. En dos minutos se abren solo los dos decodificadores que los PiP necesitan de verdad en su
+    /// primer corte (antes, uno por corte y otro por cada entrada a un clip más rápido de la principal).
+    /// </summary>
+    [Fact]
+    public void The_acceptance_scene_opens_only_one_decoder_per_pip_in_two_minutes()
+    {
+        var backend = new FakeTimelineBackend { ManualDecoding = true, KeyframeInterval = 50 };
+        var b = new TimelineBuilder(3, 0);
+        b.AddMedia("principal", Rational.Ntsc30, 40_000, backend: backend);
+        b.AddMedia("izquierdo", Rational.Fps25, 500, backend: backend);
+        b.AddMedia("derecho", Rational.Ntsc24, 720, backend: backend);
+        Time length = S(120);
+        var clips = new List<Clip>();
+        Track main = b.Sequence.VideoTracks[0];
+        Time source = S(1);
+        for (Time block = Time.Zero; block < length; block += S(60))
+        {
+            Time cursor = block;
+            var made = new List<Clip>();
+            foreach ((Rational? rate, double material) in new (Rational?, double)[]
+                { (null, 10), (new Rational(2, 1), 20), (new Rational(1, 2), 5), (new Rational(1001, 1000), 10.01), (null, 8) })
+            {
+                Clip clip = b.AddVideo(0, "principal", cursor, source, S(material), $"p{clips.Count + made.Count}");
+                if (rate is { } r)
+                {
+                    Fit(clip, r, source, source + S(material));
+                }
+
+                made.Add(clip);
+                source += S(material);
+                cursor = clip.End;
+            }
+
+            Rodaje.Core.Commands.Edits.ApplySpeedPreset(b.Sequence.Id, made[^1].Id, SpeedPreset.Bullet).Apply(b.Project);
+            var frozen = new ClipSpeed { Rate = new Rational(1, 1), Freeze = true };
+            var still = new Clip { Id = $"p{clips.Count + made.Count}", MediaId = "principal", Speed = frozen };
+            ClipTimeMap.Create(made[^1].End, block + S(60) - made[^1].End, source, frozen).ApplyTo(still);
+            main.Clips.Add(still);
+            main.SortClips();
+            string[] kinds = [BuiltInTransitions.Crossfade, BuiltInTransitions.Wipe, BuiltInTransitions.Push, BuiltInTransitions.Dip];
+            for (int k = 0; k < kinds.Length; k++)
+            {
+                TimelineEffectsTests.AddTransition(b, kinds[k], made[k].Id, made[k + 1].Id, S(0.5));
+            }
+
+            clips.AddRange(made);
+            clips.Add(still);
+        }
+
+        Time left = Time.Zero;
+        for (int n = 0; left < length; n++)
+        {
+            Clip clip = b.AddVideo(1, "izquierdo", left, S(1), S(18), $"izq{n}");
+            if (n % 2 == 1)
+            {
+                Fit(clip, new Rational(2, 1), S(1), S(19));
+            }
+
+            clip.Effects.Add(Pip(clip.Id, -480));
+            clips.Add(clip);
+            left = clip.End;
+        }
+
+        Clip? previous = null;
+        for (Time right = Time.Zero; right < length; right += S(25))
+        {
+            Clip clip = b.AddVideo(2, "derecho", right, S(2), S(25), $"der{clips.Count}");
+            clip.Effects.Add(Pip(clip.Id, 480));
+            if (previous is not null)
+            {
+                TimelineEffectsTests.AddTransition(b, BuiltInTransitions.Crossfade, previous.Id, clip.Id, S(0.5), track: 2);
+            }
+
+            clips.Add(clip);
+            previous = clip;
+        }
+
+        var time = new ManualTimeProvider();
+        using TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { EnableAudio = false, TimeProvider = time });
+        Settle(session, backend);
+        int before = backend.Videos.Count;
+        session.ResetStats();
+
+        session.Play();
+        var opened = new List<double>();
+        Play(session, backend, time, length - S(1), clips, opened);
+
+        TimelineStats stats = session.Stats;
+        output.WriteLine($"aperturas al reproducir en [{string.Join(", ", opened.Select(t => $"{t:0.00} s"))}] " +
+            $"({string.Join(", ", backend.Videos.Skip(before).Select(v => Path.GetFileNameWithoutExtension(v.Path)))}), abiertos al final {stats.DecodersOpen}, " +
+            $"tarde {stats.LateRefreshes}, perdidos {stats.FramesDropped}, cortes {stats.Cuts} (pre-roll {stats.PreRollHits}/{stats.PreRollMisses}), " +
+            $"transiciones {stats.TransitionPreRollHits}/{stats.TransitionPreRollMisses}, seeks {backend.Videos.Sum(v => v.Seeks)}");
+        Assert.Equal(["derecho", "izquierdo"], backend.Videos.Skip(before).Select(v => Path.GetFileNameWithoutExtension(v.Path)).Order());
+        Assert.Equal(2, stats.DecodersOpenedWhilePlaying);
+        Assert.Equal(0, stats.LateRefreshes);
         Assert.Equal(0, stats.PreRollMisses);
     }
 
@@ -160,6 +259,18 @@ public sealed class TimelineCutPauseTests(ITestOutputHelper output)
 
         Assert.Equal(1, session.Stats.DecodersOpen);
     }
+
+    private static EffectInstance Pip(string clipId, double x) => new()
+    {
+        Id = clipId + "-pip",
+        Type = BuiltInEffects.Transform,
+        Parameters = new()
+        {
+            [BuiltInEffects.TransformParameters.Scale] = new Parameter { Value = 0.5 },
+            [BuiltInEffects.TransformParameters.X] = new Parameter { Value = x },
+            [BuiltInEffects.TransformParameters.Y] = new Parameter { Value = 270 },
+        },
+    };
 
     private static Clip Fit(Clip clip, Rational rate, Time sourceIn, Time sourceOut)
     {
