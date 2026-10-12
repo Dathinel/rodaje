@@ -1,5 +1,6 @@
 using System.Globalization;
 using Rodaje.App.Services.Effects;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
@@ -28,8 +29,8 @@ public enum ReapplyResult
 public sealed class TitleEditor(EditorSession session, TimeProvider? clock = null)
 {
     // La app corre con InvariantGlobalization (no hay «es-ES»), así que CurrentCulture daría «0.5»: coma decimal fija,
-    // igual que SpeedMath.
-    private static readonly NumberFormatInfo Spanish = new() { NumberDecimalSeparator = ",", NumberGroupSeparator = "." };
+    // con el formato común de la app.
+    private static readonly NumberFormatInfo Spanish = SpanishNumbers.Format;
 
     /// <summary>Una pausa más larga que esto al escribir empieza otro paso del historial.</summary>
     public static readonly TimeSpan TypingPause = TimeSpan.FromSeconds(1);
@@ -221,5 +222,5 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
 
     /// <summary>El nombre de un peso, o su número si no tiene.</summary>
     public static string WeightName(int weight) =>
-        Weights.FirstOrDefault(w => w.Weight == weight).Name ?? weight.ToString(CultureInfo.CurrentCulture);
+        Weights.FirstOrDefault(w => w.Weight == weight).Name ?? weight.ToString(Spanish);
 }

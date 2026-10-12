@@ -142,6 +142,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(Views.Analysis.AnalysisCommands.Bind(_router, _services));
         _bindings.Add(Views.Voice.VoiceCommands.Bind(_router, _services));
         _bindings.Add(Views.Subtitles.SubtitleCommands.Bind(_router, _services));
+        _bindings.Add(Views.Raw.RawCommands.Bind(_router, _services));
         _keyboard = new KeyboardShortcutHost(Root, _router, InterceptKey);
 
         TitleBar.Attach(_services);

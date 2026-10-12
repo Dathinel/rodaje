@@ -2,7 +2,7 @@ using Rodaje.Core.Timing;
 using Rodaje.Media.Export;
 using Xunit.Abstractions;
 
-namespace Rodaje.Media.Tests.Export;
+namespace Rodaje.Export.Tests.Cpu;
 
 /// <summary>
 /// Con un codificador sin pérdidas, lo que sale del archivo es byte a byte lo que entró por la tubería: el sink quita el
@@ -23,7 +23,7 @@ public sealed class CpuExportLosslessTests(ITestOutputHelper output)
         var source = new LavfiFrames(format, distinct: 7);
         string outputPath = scratch.Combine($"sin pérdidas {pixels}.mkv");
         var request = new ExportSinkRequest(outputPath, ExportContainer.Mkv, format, CpuExportArguments.Spec("ffv1"),
-            CpuExportArguments.Video("ffv1", pixels), null, null, null, [], frames);
+            CpuExportArguments.Build(ExportContainer.Mkv, "ffv1", pixels, null, frames).Video, null, null, null, [], frames);
         using var sink = new FfmpegPipeSink(CpuExportEnvironment.Ffmpeg);
 
         source.Run(sink, request);
@@ -43,8 +43,8 @@ public sealed class CpuExportLosslessTests(ITestOutputHelper output)
         ExportVideoFormat format = new(160, 90, Rational.Fps30, pixels, ExportColor.Srgb);
         var source = new LavfiFrames(format, distinct: 4);
         string folder = scratch.Combine("cuadros png");
-        var request = new ExportSinkRequest(folder, ExportContainer.ImageSequence, format, CpuExportArguments.Spec("png"), [],
-            null, null, null, [], frames);
+        var request = new ExportSinkRequest(folder, ExportContainer.ImageSequence, format, CpuExportArguments.Spec("png"),
+            CpuExportArguments.Build(ExportContainer.ImageSequence, "png", pixels, null, frames).Video, null, null, null, [], frames);
         using var sink = new FfmpegPipeSink(CpuExportEnvironment.Ffmpeg);
 
         ExportSinkResult result = source.Run(sink, request).Result;

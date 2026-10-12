@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Rodaje.Media.Export;
 using Xunit.Abstractions;
 
-namespace Rodaje.Media.Tests.Export;
+namespace Rodaje.Export.Tests.Cpu;
 
 /// <summary>
 /// Cancelar una exportación por CPU a mitad (con el token, desde otro hilo) no deja <c>ffmpeg.exe</c> vivo, ni archivo,
@@ -29,13 +29,13 @@ public sealed class CpuExportCancellationTests(ITestOutputHelper output)
             string wav = CpuExportEnvironment.SineWav(scratch.Combine("mezcla.rodaje-tmp.wav"), 20);
             string outputPath = scratch.Combine($"cancelada {video}.{container.Extension()}");
             var journal = new ExportJournal(scratch.Combine("registro"));
-            var request = new ExportSinkRequest(outputPath, container, format, CpuExportArguments.Spec(video),
-                [.. CpuExportArguments.Video(video, pixels), .. CpuExportArguments.Container(container)],
-                ExportAudioFormat.Default, wav, CpuExportArguments.Spec(audio), CpuExportArguments.Audio(audio), 600);
+            EncoderArguments arguments = CpuExportArguments.Build(container, video, pixels, audio, 600);
+            var request = new ExportSinkRequest(outputPath, container, format, CpuExportArguments.Spec(video), arguments.Video,
+                ExportAudioFormat.Default, wav, CpuExportArguments.Spec(audio), arguments.Audio, 600);
             using var cancellation = new CancellationTokenSource();
             using var sink = new FfmpegPipeSink(CpuExportEnvironment.Ffmpeg, new FfmpegPipeSinkOptions { Journal = journal });
             sink.Start(request, cancellation.Token);
-            int? processId = sink.ProcessId;
+            int? processId = SinkRuns.ProcessId(sink);
             Assert.True(SinkRuns.IsAlive(processId));
             Assert.Single(journal.Entries());
             // Para saber dónde se va el tiempo: cuándo muere ffmpeg.exe (ExitTime de Windows) y cuándo vuelve Cancel, que
@@ -79,7 +79,7 @@ public sealed class CpuExportCancellationTests(ITestOutputHelper output)
             Assert.True(written < request.FrameCount, "La exportación terminó antes de cancelarla; la prueba no midió nada.");
             Assert.True(latency <= Limit, $"La cancelación tardó {latency.TotalMilliseconds:0} ms.");
             Assert.False(SinkRuns.IsAlive(processId), $"ffmpeg.exe ({processId}) sigue vivo tras cancelar.");
-            Assert.Null(sink.ProcessId);
+            Assert.Null(SinkRuns.ProcessId(sink));
             Assert.Equal([wav, journal.Directory], scratch.Leftovers());
             Assert.Empty(journal.Entries());
         }

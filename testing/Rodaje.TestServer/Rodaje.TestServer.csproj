@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Apoyo a pruebas (no es un proyecto de pruebas): servidor HTTP en proceso sobre HttpListener del BCL para
+    probar la descarga de complementos (fase 7, ronda B) sin red. Sirve archivos con Range, cortes a mitad,
+    redirecciones, contenido con hash o firma mala, lentitud y errores 404/500, configurable por prueba.
+    Sin dependencias NuGet ni del framework ASP.NET; compila para net10.0 y corre también en Linux.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Rodaje.TestServer</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <!-- Biblioteca de apoyo a pruebas: sin las reglas de nombres ni de localización del núcleo -->
+    <NoWarn>$(NoWarn);CA1303;CA1515</NoWarn>
+    <!-- Las pruebas propias viven en Tests\ con su propio proyecto -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);Tests\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rodaje.TestServer.Tests" />
+  </ItemGroup>
+
+</Project>

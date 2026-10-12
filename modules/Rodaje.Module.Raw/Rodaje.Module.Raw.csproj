@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    modulo-raw (fase 7 J): revela CinemaDNG con LibRaw (LGPL-2.1, DLL dinámica sin modificar). La DLL no va en el repo:
+    la baja herramientas\preparar-entorno.ps1 a .entorno\libraw con su SHA-256 fijado y se copia junto al exe.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RootNamespace>Rodaje.Module.Raw</RootNamespace>
+    <AssemblyName>Rodaje.Module.Raw</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+    <IsAotCompatible>true</IsAotCompatible>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CA1303;CA1515</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <RodajeEntorno Condition="'$(RODAJE_ENTORNO)' != ''">$(RODAJE_ENTORNO)</RodajeEntorno>
+    <RodajeEntorno Condition="'$(RodajeEntorno)' == ''">$(MSBuildThisFileDirectory)..\..\.entorno</RodajeEntorno>
+    <LibRawFolder>$(RodajeEntorno)\libraw</LibRawFolder>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(LibRawFolder)\bin\libraw.dll')">
+    <None Include="$(LibRawFolder)\bin\libraw.dll" Link="libraw.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(LibRawFolder)\LICENSE.LGPL" Link="licencias\libraw\LICENSE.LGPL" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(LibRawFolder)\COPYRIGHT" Link="licencias\libraw\COPYRIGHT" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rodaje.Module.Raw.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+  </ItemGroup>
+
+</Project>

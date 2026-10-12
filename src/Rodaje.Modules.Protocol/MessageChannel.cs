@@ -141,9 +141,12 @@ internal sealed class MessageChannel(Stream stream, int maxFrameBytes = Protocol
         return true;
     }
 
-    public void Dispose()
-    {
-        stream.Dispose();
-        _writeLock.Dispose();
-    }
+    /// <summary>
+    /// Cierra el flujo. El candado de escritura no se desecha: <see cref="SemaphoreSlim.Dispose()"/> vacía su cola sin
+    /// despertar a quien espera, y una escritura que esperaba con un token ya cancelado (por ejemplo <c>_stop</c> de
+    /// <see cref="ModuleClient"/>, que se cancela justo antes de llegar aquí) se quedaba colgada para siempre. Sin desecharlo,
+    /// esa espera termina con su cancelación y una escritura posterior falla con el flujo ya cerrado. El semáforo no tiene
+    /// recursos que liberar mientras nadie pida <see cref="SemaphoreSlim.AvailableWaitHandle"/>.
+    /// </summary>
+    public void Dispose() => stream.Dispose();
 }
