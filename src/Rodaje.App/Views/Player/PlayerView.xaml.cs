@@ -89,6 +89,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         UpdateSafeAreas();
         AttachTitleHandles();
         AttachMaskHandles();
+        AttachImageTools();
         Meters.Attach(services);
         UpdateFormat();
         UpdateToolTips();
@@ -138,6 +139,8 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         PushPanelSize();
         UpdateSafeAreas();
         UpdateTitleHandles();
+        UpdateCropHandles();
+        UpdateCompare();
     }
 
     private void PushPanelSize()

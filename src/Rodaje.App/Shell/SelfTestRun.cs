@@ -29,7 +29,7 @@ namespace Rodaje.App.Shell;
 /// lo escribe, comprueba que el visor lo dibuja y que las asas lo mueven, lo divide y lo deshace, reproduce un segundo y cierra. Sale con 0 si llegó el
 /// primer cuadro y nada falló; cualquier excepción queda en <c>rodaje-error.txt</c> y el código es distinto de 0.
 /// </summary>
-internal static class SelfTestRun
+internal static partial class SelfTestRun
 {
     private const string CapturesVariable = "RODAJE_AUTOPRUEBA_CAPTURAS";
 
@@ -50,6 +50,7 @@ internal static class SelfTestRun
             await ShowCurveAsync(window);
             await ToggleReverseAsync(window);
             await TitleAsync(window, engine);
+            await ImageAsync(window, engine);
             await ShowExportAsync(window);
             await ModuleAsync(window);
             await FormatAsync(window, engine);

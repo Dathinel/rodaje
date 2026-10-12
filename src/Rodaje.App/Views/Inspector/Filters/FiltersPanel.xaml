@@ -137,6 +137,35 @@
                         <CheckBox x:Name="InvertBox" Grid.Column="2" Content="Invertir" MinWidth="0" Click="OnInvertClick"
                                   ToolTipService.ToolTip="Deja ver lo de afuera de la forma" />
                     </Grid>
+                    <!-- Recortar: proporción; las asas están en el visor mientras el recorte está elegido. -->
+                    <Grid x:Name="AspectRow" Padding="12,3,6,3" ColumnSpacing="4" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Proporción" Style="{StaticResource LabelTextStyle}" />
+                        <ComboBox x:Name="AspectBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
+                                  AutomationProperties.Name="Proporción del recorte" SelectionChanged="OnAspectSelected"
+                                  ToolTipService.ToolTip="Libre o con proporción fija; al elegir una, el recorte pasa al más grande centrado con ella" />
+                    </Grid>
+                    <!-- Croma: color clave con cuentagotas en el visor. -->
+                    <Grid x:Name="KeyRow" Padding="12,3,6,3" ColumnSpacing="6" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Color clave" Style="{StaticResource LabelTextStyle}" />
+                        <Border x:Name="KeySwatch" Grid.Column="1" Width="28" Height="22" CornerRadius="3" BorderThickness="1"
+                                BorderBrush="{StaticResource ControlBorderBrush}" />
+                        <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Height="28" Padding="8,0" HorizontalAlignment="Left"
+                                Click="OnPickKeyClick" AutomationProperties.Name="Cuentagotas"
+                                ToolTipService.ToolTip="Haz clic en el fondo, en el visor, para tomar su color">
+                            <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xEF3C;" FontSize="12" /><TextBlock Text="Cuentagotas" /></StackPanel>
+                        </Button>
+                    </Grid>
+                    <local:ColorWheelsControl x:Name="Wheels" Visibility="Collapsed" />
+                    <local:ToneCurveControl x:Name="CurveEditor" Visibility="Collapsed" />
                     <StackPanel x:Name="ParameterRows" />
                 </StackPanel>
             </inspector:InspectorSection>

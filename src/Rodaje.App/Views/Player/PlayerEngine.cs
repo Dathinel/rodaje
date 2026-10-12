@@ -775,6 +775,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 _gpuTimer!.Begin();
             }
 
+            ApplyViewOptions(_compositor);
             CompositeResult result = _compositor.Render(frame, Geometry);
             drawn = result.LayersDrawn;
             PublishTitleBoxes(frame);

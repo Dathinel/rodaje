@@ -16,9 +16,9 @@ using M = Rodaje.Core.Model.BuiltInEffects.MaskParameters;
 namespace Rodaje.App.Views.Player;
 
 /// <summary>
-/// MÃ¡scaras en el visor, con la pestaÃ±a Â«MÃ¡scarasÂ» a la vista: el contorno de la elegida, arrastrar dentro la mueve y una
-/// esquina la agranda alrededor de su centro (un paso del historial por arrastre; con keyframes, el del cursor). Â«Trazo
-/// libreÂ» dibuja el contorno con el ratÃ³n y lo vuelve una mÃ¡scara nueva; Esc lo cancela.
+/// Máscaras en el visor, con la pestaña «Máscaras» a la vista: el contorno de la elegida, arrastrar dentro la mueve y una
+/// esquina la agranda alrededor de su centro (un paso del historial por arrastre; con keyframes, el del cursor). «Trazo
+/// libre» dibuja el contorno con el ratón y lo vuelve una máscara nueva; Esc lo cancela.
 /// </summary>
 internal sealed partial class PlayerView
 {
@@ -115,7 +115,7 @@ internal sealed partial class PlayerView
         }
     }
 
-    /// <summary>Atiende el clic si es sobre la mÃ¡scara elegida o si se estÃ¡ dibujando un trazo.</summary>
+    /// <summary>Atiende el clic si es sobre la máscara elegida o si se está dibujando un trazo.</summary>
     private bool MaskPointerPressed(PointerRoutedEventArgs e)
     {
         PointerPoint point = e.GetCurrentPoint(VideoPanel);
@@ -150,7 +150,7 @@ internal sealed partial class PlayerView
         _maskGrip = grip;
         _maskFrom = MaskHandles.ToImage(box.Layer, frame.ToSequence(panel.X, panel.Y));
         _maskAt = _properties.KeyframeTimeAtPlayhead(found.Clip);
-        Session.BeginGesture(grip == MaskGrip.Body ? "Mover la mÃ¡scara" : "Cambiar el tamaÃ±o de la mÃ¡scara");
+        Session.BeginGesture(grip == MaskGrip.Body ? "Mover la máscara" : "Cambiar el tamaño de la máscara");
         VideoPanel.CapturePointer(e.Pointer);
         e.Handled = true;
         return true;
@@ -188,7 +188,7 @@ internal sealed partial class PlayerView
         if (_maskGrip == MaskGrip.Body)
         {
             (double x, double y) = MaskHandles.Moved(start, _maskFrom, now);
-            Session.Execute(new SequenceEditCommand("Mover la mÃ¡scara", Session.SequenceId, ctx =>
+            Session.Execute(new SequenceEditCommand("Mover la máscara", Session.SequenceId, ctx =>
             {
                 EffectEdits.SetParameter(ctx, clipId, effectId, M.X, Math.Round(x, 4), at);
                 EffectEdits.SetParameter(ctx, clipId, effectId, M.Y, Math.Round(y, 4), at);
@@ -197,7 +197,7 @@ internal sealed partial class PlayerView
         else
         {
             (double width, double height) = MaskHandles.Resized(start, now);
-            Session.Execute(new SequenceEditCommand("Cambiar el tamaÃ±o de la mÃ¡scara", Session.SequenceId, ctx =>
+            Session.Execute(new SequenceEditCommand("Cambiar el tamaño de la máscara", Session.SequenceId, ctx =>
             {
                 EffectEdits.SetParameter(ctx, clipId, effectId, M.Width, Math.Round(width, 4), at);
                 EffectEdits.SetParameter(ctx, clipId, effectId, M.Height, Math.Round(height, 4), at);
@@ -236,7 +236,7 @@ internal sealed partial class PlayerView
     {
         if (Session?.Sequence.FindClip(clipId) is not { } found || !(_properties?.IsPlayheadInside(found.Clip) ?? false))
         {
-            Session?.Notify(NotificationSeverity.Informational, "Trazo libre", "Lleva el cursor sobre el clip para dibujar su mÃ¡scara en el visor.");
+            Session?.Notify(NotificationSeverity.Informational, "Trazo libre", "Lleva el cursor sobre el clip para dibujar su máscara en el visor.");
             return;
         }
 
@@ -244,7 +244,7 @@ internal sealed partial class PlayerView
         _stroke.Clear();
         MaskStroke.Points = [];
         ProtectedCursor = InputSystemCursor.Create(InputSystemCursorShape.Cross);
-        StatusText.Text = "Dibuja el contorno con el ratÃ³n; al soltar se cierra. Esc cancela.";
+        StatusText.Text = "Dibuja el contorno con el ratón; al soltar se cierra. Esc cancela.";
         UpdateMaskHandles();
         Focus(FocusState.Programmatic);
     }

@@ -1,5 +1,6 @@
 using Rodaje.Core.Timing;
 using Rodaje.Playback.Composition;
+using Rodaje.Render;
 using Rodaje.Render.Text;
 
 namespace Rodaje.App.Views.Player;
@@ -20,6 +21,9 @@ internal sealed partial class PlayerEngine
     private IReadOnlyList<MissingFont> _missingFonts = [];
     private TitleBox[] _titleBoxes = [];
     private TaskCompletionSource<FrameCapture>? _pendingCapture;
+    private int _captureBypass;
+    private int _viewBypass;
+    private float _compareSplit = -1;
 
     /// <summary>Cambió la lista de fuentes que faltan. Llega desde el hilo de render.</summary>
     public event Action? MissingFontsChanged;
@@ -49,9 +53,11 @@ internal sealed partial class PlayerEngine
     /// El próximo cuadro compuesto en RGBA de 8 bits (a la resolución del compositor), para la autoprueba: lo que dibuja
     /// la GPU no sale en una captura de XAML.
     /// </summary>
-    public Task<FrameCapture> CaptureFrameAsync()
+    /// <param name="bypass">Efectos que se dejan fuera en ese cuadro (el cuentagotas del croma mira la imagen sin él).</param>
+    public Task<FrameCapture> CaptureFrameAsync(PreviewBypass bypass = PreviewBypass.None)
     {
         var capture = new TaskCompletionSource<FrameCapture>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Volatile.Write(ref _captureBypass, (int)bypass);
         Interlocked.Exchange(ref _pendingCapture, capture)?.TrySetCanceled();
         _dirty = true;
         _wake.Set();
@@ -63,7 +69,37 @@ internal sealed partial class PlayerEngine
         if (_compositor is { } compositor && Interlocked.Exchange(ref _pendingCapture, null) is { } capture)
         {
             capture.TrySetResult(new FrameCapture(compositor.ReadbackRgba(), compositor.Width, compositor.Height));
+            if (Volatile.Read(ref _captureBypass) != 0)
+            {
+                // El cuadro sin efectos no se queda en pantalla: se vuelve a componer enseguida.
+                Volatile.Write(ref _captureBypass, 0);
+                _dirty = true;
+            }
         }
+    }
+
+    /// <summary>Antes/después: la fracción del ancho que se ve sin color (nula, sin comparar). Desde cualquier hilo.</summary>
+    public void SetCompare(float? split)
+    {
+        Volatile.Write(ref _compareSplit, split is { } s and > 0 ? Math.Clamp(s, 0, 1) : -1);
+        _dirty = true;
+        _wake.Set();
+    }
+
+    /// <summary>Efectos que la vista previa deja fuera (el recorte mientras se ajusta). Desde cualquier hilo.</summary>
+    public void SetBypass(PreviewBypass bypass)
+    {
+        Volatile.Write(ref _viewBypass, (int)bypass);
+        _dirty = true;
+        _wake.Set();
+    }
+
+    private void ApplyViewOptions(Compositor compositor)
+    {
+        float split = Volatile.Read(ref _compareSplit);
+        compositor.CompareSplit = split > 0 ? split : null;
+        int capture = _pendingCapture is null ? 0 : Volatile.Read(ref _captureBypass);
+        compositor.Bypass = (PreviewBypass)(Volatile.Read(ref _viewBypass) | capture);
     }
 
     private void CreateTitles()

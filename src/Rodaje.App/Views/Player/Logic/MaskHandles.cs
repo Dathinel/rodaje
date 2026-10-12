@@ -61,17 +61,24 @@ public static class MaskHandles
         return new MaskBox(clip.Id, effect.Id, layer, mask, path);
     }
 
-    /// <summary>La primera transformación activa del clip en <paramref name="sourceTime"/>, como la arma el motor.</summary>
+    /// <summary>La primera transformación y el primer recorte activos del clip en <paramref name="sourceTime"/>, como los arma el motor.</summary>
     public static LayerTransform TransformAt(Clip clip, Time sourceTime)
     {
         ArgumentNullException.ThrowIfNull(clip);
-        if (clip.Effects.Find(e => e.Enabled && e.Type == BuiltInEffects.Transform) is not { } transform)
+        LayerTransform result = LayerTransform.Identity;
+        if (clip.Effects.Find(e => e.Enabled && e.Type == BuiltInEffects.Transform) is { } transform)
         {
-            return LayerTransform.Identity;
+            double Value(string name) => transform.Parameters.TryGetValue(name, out Parameter? p) ? p.Evaluate(sourceTime) : T.DefaultValue(name);
+            result = new LayerTransform(Value(T.X), Value(T.Y), Value(T.Scale), Value(T.Rotation), Value(T.Opacity));
         }
 
-        double Value(string name) => transform.Parameters.TryGetValue(name, out Parameter? p) ? p.Evaluate(sourceTime) : T.DefaultValue(name);
-        return new LayerTransform(Value(T.X), Value(T.Y), Value(T.Scale), Value(T.Rotation), Value(T.Opacity));
+        if (clip.Effects.Find(e => e.Enabled && e.Type == BuiltInEffects.Crop) is { } crop
+            && CropGeometry.Evaluate(crop, sourceTime) is { IsNone: false } rect)
+        {
+            result = result with { Crop = rect };
+        }
+
+        return result;
     }
 
     /// <summary>Un punto de la imagen de la capa (en píxeles de la imagen) en la secuencia.</summary>

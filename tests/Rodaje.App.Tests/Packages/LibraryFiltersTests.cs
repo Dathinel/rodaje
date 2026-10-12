@@ -20,9 +20,9 @@ public sealed class LibraryFiltersTests : IDisposable
 
         IReadOnlyList<LibraryElement> filters = LibraryElements.For(LibraryCategory.Filters, scan);
 
-        Assert.Equal(["Color y LUT", "Cálido", "LUT suelta"], filters.Select(f => f.Name));
-        Assert.Equal("looks@1.0.0/lut-suelta", filters[2].Reference);
-        Assert.Equal(ItemKind.Lut, filters[2].Kind);
+        Assert.Equal(["Color y LUT", "Ruedas de color", "Curvas", "Cálido", "LUT suelta"], filters.Select(f => f.Name));
+        Assert.Equal("looks@1.0.0/lut-suelta", filters[4].Reference);
+        Assert.Equal(ItemKind.Lut, filters[4].Kind);
     }
 
     [Fact]

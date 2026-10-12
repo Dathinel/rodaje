@@ -104,7 +104,13 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     public FiltersPanel()
     {
         InitializeComponent();
-        RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => PublishMaskEditing());
+        RegisterPropertyChangedCallback(VisibilityProperty, (_, _) =>
+        {
+            PublishMaskEditing();
+            PublishCropEditing();
+        });
+        Wheels.WheelChanged += OnWheelChanged;
+        CurveEditor.CurveChanged += OnCurveChanged;
     }
 
     /// <summary>La pestaña «Máscaras»: solo las máscaras del clip, con botones de forma en vez de «Añadir filtro».</summary>
@@ -190,6 +196,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             NoFiltersText.Visibility = Visibility.Collapsed;
             Details.Visibility = Visibility.Collapsed;
             PublishMaskEditing();
+            PublishCropEditing();
             return;
         }
 
@@ -274,6 +281,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     {
         EffectInstance? effect = _effectId is null ? null : clip.Effects.Find(e => e.Id == _effectId);
         PublishMaskEditing();
+        PublishCropEditing();
         if (effect is null || _editor is not { } editor || _services is null)
         {
             Details.Visibility = Visibility.Collapsed;
@@ -324,6 +332,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         DetailsNote.Visibility = note.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowLut(effect);
         ShowMaskOptions(effect);
+        ShowImageOptions(clip, effect);
     }
 
     private bool Shows(EffectInstance effect) => !MasksOnly || effect.Type == BuiltInEffects.Mask;
@@ -417,7 +426,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         FinishChanges();
         ParameterRows.Children.Clear();
         _rows.Clear();
-        foreach (ParameterSpec spec in ParameterSpec.ForEffect(type, context))
+        foreach (ParameterSpec spec in ParameterSpec.ForEffect(type, context).Where(s => !HidesRow(type, s.Name)))
         {
             var row = new ParameterRow();
             row.Configure(spec);

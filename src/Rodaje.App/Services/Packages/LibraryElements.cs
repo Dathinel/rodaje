@@ -57,7 +57,7 @@ public static class LibraryElements
         ],
         LibraryCategory.Effects =>
         [
-            .. EffectCatalog.For(TrackKind.Video).Where(e => e.Type != BuiltInEffects.Color)
+            .. EffectCatalog.For(TrackKind.Video).Where(e => !IsColorTool(e.Type))
                 .Select(e => new LibraryElement(e.Name, EffectUi.Description(e.Type), Engine, e.Type, true, null, ItemKind.Effect)),
         ],
         LibraryCategory.Transitions =>
@@ -67,10 +67,15 @@ public static class LibraryElements
         ],
         LibraryCategory.Filters =>
         [
-            new(EffectUi.Name(BuiltInEffects.Color), EffectUi.Description(BuiltInEffects.Color), Engine, BuiltInEffects.Color, true, null, ItemKind.Filter),
+            .. ColorTools.Select(type => new LibraryElement(EffectUi.Name(type), EffectUi.Description(type), Engine, type, true, null, ItemKind.Filter)),
         ],
         _ => [],
     };
+
+    /// <summary>Lo de color va en Filtros; el resto de los efectos del motor, en Efectos.</summary>
+    private static readonly string[] ColorTools = [BuiltInEffects.Color, BuiltInEffects.ColorWheels, BuiltInEffects.Curves];
+
+    private static bool IsColorTool(string type) => Array.IndexOf(ColorTools, type) >= 0;
 
     /// <summary>Título de la sección con lo propio de cada categoría.</summary>
     public static string OwnTitle(LibraryCategory category) => category switch

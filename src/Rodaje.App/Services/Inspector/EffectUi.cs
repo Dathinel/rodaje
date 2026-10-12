@@ -5,7 +5,10 @@ using A = Rodaje.Core.Model.BuiltInEffects.AudioParameters;
 using C = Rodaje.Core.Model.BuiltInEffects.ColorParameters;
 using K = Rodaje.Core.Model.BuiltInEffects.CompressorParameters;
 using Q = Rodaje.Core.Model.BuiltInEffects.EqualizerParameters;
+using Ck = Rodaje.Core.Model.BuiltInEffects.ChromaKeyParameters;
+using Cr = Rodaje.Core.Model.BuiltInEffects.CropParameters;
 using Mk = Rodaje.Core.Model.BuiltInEffects.MaskParameters;
+using Wh = Rodaje.Core.Model.BuiltInEffects.ColorWheelsParameters;
 using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
 using Tr = Rodaje.Core.Model.BuiltInTransitions;
 
@@ -73,6 +76,10 @@ public static class EffectUi
         [BuiltInEffects.Speed] = "Velocidad",
         [BuiltInEffects.Stabilize] = "Estabilizar",
         [BuiltInEffects.Mask] = "Máscara",
+        [BuiltInEffects.Crop] = "Recortar",
+        [BuiltInEffects.ChromaKey] = "Croma (fondo verde)",
+        [BuiltInEffects.ColorWheels] = "Ruedas de color",
+        [BuiltInEffects.Curves] = "Curvas",
         [Tr.Crossfade] = "Fundido cruzado",
         [Tr.Dip] = "Fundido a color",
         [Tr.Wipe] = "Barrido",
@@ -96,6 +103,10 @@ public static class EffectUi
         [BuiltInEffects.Speed] = "Reservado y oculto: la velocidad se cambia en la pestaña Velocidad.",
         [BuiltInEffects.Stabilize] = "Quita el temblor de la cámara. Se analiza desde el menú del clip (Estabilizar...).",
         [BuiltInEffects.Mask] = "Deja ver solo una parte de la capa: rectángulo, elipse, trazo libre o el sujeto de «Quitar fondo».",
+        [BuiltInEffects.Crop] = "Quita bordes de la imagen, libre o con proporción fija (16:9, 9:16, 1:1, 4:5, 4:3); se ajusta con asas en el visor.",
+        [BuiltInEffects.ChromaKey] = "Vuelve transparente un color de fondo (pantalla verde o azul) con cuentagotas, suavidad y quitar derrame.",
+        [BuiltInEffects.ColorWheels] = "Sombras, medios y luces: un tinte y un nivel para cada zona.",
+        [BuiltInEffects.Curves] = "Curva general y por canal con puntos que se arrastran.",
         [Tr.Crossfade] = "Mezcla un clip con el siguiente.",
         [Tr.Dip] = "Baja a un color (negro por defecto) y sube desde él.",
         [Tr.Wipe] = "Un borde suave barre un clip y descubre el otro.",
@@ -169,6 +180,32 @@ public static class EffectUi
             [(BuiltInEffects.Mask, Mk.Feather)] = new("Borde suave", "Cambiar borde de la máscara", "%", 100, 0.5, 1, UiRange.Custom, 0, 50),
             [(BuiltInEffects.Mask, Mk.Opacity)] = Percent with { Label = "Intensidad", Description = "Cambiar intensidad de la máscara" },
 
+            [(BuiltInEffects.Crop, Cr.Left)] = Percent with { Label = "Izquierda", Description = "Recortar a la izquierda", Step = 0.5, Decimals = 1 },
+            [(BuiltInEffects.Crop, Cr.Top)] = Percent with { Label = "Arriba", Description = "Recortar arriba", Step = 0.5, Decimals = 1 },
+            [(BuiltInEffects.Crop, Cr.Right)] = Percent with { Label = "Derecha", Description = "Recortar a la derecha", Step = 0.5, Decimals = 1 },
+            [(BuiltInEffects.Crop, Cr.Bottom)] = Percent with { Label = "Abajo", Description = "Recortar abajo", Step = 0.5, Decimals = 1 },
+
+            [(BuiltInEffects.ChromaKey, Ck.Red)] = Percent with { Label = "Clave rojo", Description = "Cambiar el color clave" },
+            [(BuiltInEffects.ChromaKey, Ck.Green)] = Percent with { Label = "Clave verde", Description = "Cambiar el color clave" },
+            [(BuiltInEffects.ChromaKey, Ck.Blue)] = Percent with { Label = "Clave azul", Description = "Cambiar el color clave" },
+            [(BuiltInEffects.ChromaKey, Ck.Tolerance)] = Percent with { Label = "Tolerancia", Description = "Cambiar la tolerancia del croma" },
+            [(BuiltInEffects.ChromaKey, Ck.Softness)] = Percent with { Label = "Suavidad", Description = "Cambiar la suavidad del croma" },
+            [(BuiltInEffects.ChromaKey, Ck.Spill)] = Percent with { Label = "Quitar derrame", Description = "Cambiar el derrame del croma" },
+            [(BuiltInEffects.ChromaKey, Ck.Cleanup)] = Percent with { Label = "Limpiar borde", Description = "Cambiar la limpieza del borde" },
+
+            [(BuiltInEffects.ColorWheels, Wh.LiftRed)] = Percent with { Label = "Sombras rojo", Description = "Cambiar el tinte de las sombras" },
+            [(BuiltInEffects.ColorWheels, Wh.LiftGreen)] = Percent with { Label = "Sombras verde", Description = "Cambiar el tinte de las sombras" },
+            [(BuiltInEffects.ColorWheels, Wh.LiftBlue)] = Percent with { Label = "Sombras azul", Description = "Cambiar el tinte de las sombras" },
+            [(BuiltInEffects.ColorWheels, Wh.Lift)] = Percent with { Label = "Sombras", Description = "Cambiar las sombras" },
+            [(BuiltInEffects.ColorWheels, Wh.GammaRed)] = Percent with { Label = "Medios rojo", Description = "Cambiar el tinte de los medios" },
+            [(BuiltInEffects.ColorWheels, Wh.GammaGreen)] = Percent with { Label = "Medios verde", Description = "Cambiar el tinte de los medios" },
+            [(BuiltInEffects.ColorWheels, Wh.GammaBlue)] = Percent with { Label = "Medios azul", Description = "Cambiar el tinte de los medios" },
+            [(BuiltInEffects.ColorWheels, Wh.Gamma)] = Percent with { Label = "Medios", Description = "Cambiar los medios" },
+            [(BuiltInEffects.ColorWheels, Wh.GainRed)] = Percent with { Label = "Luces rojo", Description = "Cambiar el tinte de las luces" },
+            [(BuiltInEffects.ColorWheels, Wh.GainGreen)] = Percent with { Label = "Luces verde", Description = "Cambiar el tinte de las luces" },
+            [(BuiltInEffects.ColorWheels, Wh.GainBlue)] = Percent with { Label = "Luces azul", Description = "Cambiar el tinte de las luces" },
+            [(BuiltInEffects.ColorWheels, Wh.Gain)] = Percent with { Label = "Luces", Description = "Cambiar las luces" },
+
             [(Tr.Dip, Tr.DipParameters.Red)] = Percent with { Label = "Rojo", Description = "Cambiar color del fundido" },
             [(Tr.Dip, Tr.DipParameters.Green)] = Percent with { Label = "Verde", Description = "Cambiar color del fundido" },
             [(Tr.Dip, Tr.DipParameters.Blue)] = Percent with { Label = "Azul", Description = "Cambiar color del fundido" },
@@ -235,6 +272,7 @@ public static class EffectUi
         BuiltInEffects.StabilizeOptions.Crop => value == "auto" ? "Automático" : "Sin recorte",
         BuiltInEffects.MaskOptions.Shape => MaskShapeName(value),
         BuiltInEffects.MaskOptions.Invert => value == "on" ? "Sí" : "No",
+        BuiltInEffects.CropOptions.Aspect => value == "free" ? "Libre" : value,
         _ => value,
     };
 
@@ -247,6 +285,7 @@ public static class EffectUi
         BuiltInEffects.StabilizeOptions.Crop => "Recorte",
         BuiltInEffects.MaskOptions.Shape => "Forma",
         BuiltInEffects.MaskOptions.Invert => "Invertir",
+        BuiltInEffects.CropOptions.Aspect => "Proporción",
         _ => option,
     };
 
