@@ -43,7 +43,7 @@
     <ProjectReference Include="..\..\src\Rodaje.Engine\Rodaje.Engine.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Analysis\Rodaje.Analysis.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Export\Rodaje.Export.csproj" />
-    <ProjectReference Include="..\..\src\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Packages\Rodaje.Packages.csproj" />
     <!-- La prueba de punta a punta con los paquetes de contenido compone con el render real. -->
     <ProjectReference Include="..\..\src\Rodaje.Render\Rodaje.Render.csproj" />
     <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />

@@ -13,7 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <!-- Para leer el paquete.json del módulo con ManifestReader, como la app. -->
-    <ProjectReference Include="..\..\src\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Packages\Rodaje.Packages.csproj" />
     <!-- Para WordBuilder y para que Rodaje.Module.Subtitles.exe y sus DLL nativas queden junto a las pruebas. -->
     <ProjectReference Include="..\..\modules\Rodaje.Module.Subtitles\Rodaje.Module.Subtitles.csproj" />
   </ItemGroup>

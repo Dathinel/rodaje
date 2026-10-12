@@ -17,7 +17,7 @@
     <Project Path="src/Rodaje.Launcher/Rodaje.Launcher.csproj" />
     <Project Path="src/Rodaje.Media/Rodaje.Media.csproj" />
     <Project Path="src/Rodaje.Modules.Protocol/Rodaje.Modules.Protocol.csproj" />
-    <Project Path="src/Rodaje.Paquetes/Rodaje.Paquetes.csproj" />
+    <Project Path="src/Rodaje.Packages/Rodaje.Packages.csproj" />
     <Project Path="src/Rodaje.Playback/Rodaje.Playback.csproj" />
     <Project Path="src/Rodaje.Render/Rodaje.Render.csproj" />
   </Folder>
@@ -38,7 +38,7 @@
     <Project Path="tests/Rodaje.Module.Raw.Tests/Rodaje.Module.Raw.Tests.csproj" />
     <Project Path="tests/Rodaje.Module.Translate.Tests/Rodaje.Module.Translate.Tests.csproj" />
     <Project Path="tests/Rodaje.Modules.Protocol.Tests/Rodaje.Modules.Protocol.Tests.csproj" />
-    <Project Path="tests/Rodaje.Paquetes.Tests/Rodaje.Paquetes.Tests.csproj" />
+    <Project Path="tests/Rodaje.Packages.Tests/Rodaje.Packages.Tests.csproj" />
     <Project Path="tests/Rodaje.Playback.Tests/Rodaje.Playback.Tests.csproj" />
     <Project Path="tests/Rodaje.Render.Tests/Rodaje.Render.Tests.csproj" />
     <Project Path="tests/Rodaje.TestMedia/Rodaje.TestMedia.csproj" />

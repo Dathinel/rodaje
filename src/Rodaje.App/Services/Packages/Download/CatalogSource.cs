@@ -1,6 +1,6 @@
 using System.Net;
-using Rodaje.Paquetes;
-using Rodaje.Paquetes.Download;
+using Rodaje.Packages;
+using Rodaje.Packages.Download;
 
 namespace Rodaje.App.Services.Packages.Download;
 

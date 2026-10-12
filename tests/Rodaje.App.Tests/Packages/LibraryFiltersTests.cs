@@ -2,8 +2,8 @@ using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Tests.Support;
 using Rodaje.Core.Model;
-using Rodaje.Paquetes;
-using Rodaje.Paquetes.Content;
+using Rodaje.Packages;
+using Rodaje.Packages.Content;
 
 namespace Rodaje.App.Tests.Packages;
 

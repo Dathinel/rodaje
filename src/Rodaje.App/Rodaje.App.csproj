@@ -44,7 +44,7 @@
     <ProjectReference Include="..\Rodaje.Engine\Rodaje.Engine.csproj" />
     <ProjectReference Include="..\Rodaje.Export\Rodaje.Export.csproj" />
     <ProjectReference Include="..\Rodaje.Render\Rodaje.Render.csproj" />
-    <ProjectReference Include="..\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
+    <ProjectReference Include="..\Rodaje.Packages\Rodaje.Packages.csproj" />
     <ProjectReference Include="..\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
   </ItemGroup>
 

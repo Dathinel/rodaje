@@ -1,5 +1,5 @@
 using Rodaje.App.Services.Packages.Download;
-using Rodaje.Paquetes;
+using Rodaje.Packages;
 
 namespace Rodaje.App.Services.Packages;
 
@@ -146,7 +146,7 @@ public sealed class PackageService
     /// cortada deja su parcial para reanudar; lo descargado se borra después de instalarlo o si no se pudo instalar.
     /// </summary>
     /// <exception cref="NotSupportedException">Esta versión no descarga.</exception>
-    /// <exception cref="Rodaje.Paquetes.Download.PackageDownloadException">No se pudo descargar o no es lo publicado (ya se borró).</exception>
+    /// <exception cref="Rodaje.Packages.Download.PackageDownloadException">No se pudo descargar o no es lo publicado (ya se borró).</exception>
     /// <exception cref="PackageInstallException">No se pudo instalar.</exception>
     public async Task<InstallResult> InstallFromCatalogAsync(CatalogEntry entry, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -189,7 +189,7 @@ public sealed class PackageService
             Available = await Downloader.AvailableVersionsAsync(cancellationToken);
             UpdatesProblem = null;
         }
-        catch (Exception ex) when (ex is Rodaje.Paquetes.Download.PackageDownloadException or HttpRequestException or IOException)
+        catch (Exception ex) when (ex is Rodaje.Packages.Download.PackageDownloadException or HttpRequestException or IOException)
         {
             UpdatesProblem = ex.Message;
         }

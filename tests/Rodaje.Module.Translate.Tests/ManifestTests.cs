@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Rodaje.Paquetes;
+using Rodaje.Packages;
 
 namespace Rodaje.Module.Translate.Tests;
 

@@ -1,6 +1,6 @@
 using Microsoft.UI.Xaml;
 using Rodaje.App.Services.Packages;
-using Rodaje.Paquetes;
+using Rodaje.Packages;
 
 namespace Rodaje.App.Views.Plugins;
 

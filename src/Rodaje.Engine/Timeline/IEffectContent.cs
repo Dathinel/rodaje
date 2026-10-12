@@ -5,7 +5,7 @@ namespace Rodaje.Engine.Timeline;
 
 /// <summary>
 /// Contenido de paquetes que necesita el motor: LUT (por <see cref="IEffectResources"/>) y las curvas de las
-/// transiciones de paquete. La app lo implementa sobre <c>Rodaje.Paquetes</c>; el motor no conoce los paquetes.
+/// transiciones de paquete. La app lo implementa sobre <c>Rodaje.Packages</c>; el motor no conoce los paquetes.
 /// </summary>
 public interface IEffectContent : IEffectResources
 {

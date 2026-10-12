@@ -4,7 +4,7 @@ using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Tests.Support;
 using Rodaje.Core.Model;
-using Rodaje.Paquetes;
+using Rodaje.Packages;
 
 namespace Rodaje.App.Tests.Inspector;
 

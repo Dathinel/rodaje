@@ -2,8 +2,8 @@ using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Model;
-using Rodaje.Paquetes;
-using Rodaje.Paquetes.Content;
+using Rodaje.Packages;
+using Rodaje.Packages.Content;
 
 namespace Rodaje.App.Services.Packages;
 

@@ -1,5 +1,5 @@
 using Rodaje.Core.Model;
-using Rodaje.Paquetes.Content;
+using Rodaje.Packages.Content;
 
 namespace Rodaje.App.Services.Titles;
 

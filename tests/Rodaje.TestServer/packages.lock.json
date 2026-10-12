@@ -2,7 +2,7 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
-      "rodaje.paquetes": {
+      "rodaje.packages": {
         "type": "Project"
       }
     }

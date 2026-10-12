@@ -11,7 +11,7 @@ flowchart TB
     Media["Medios: Rodaje.Media<br/>FFmpeg LGPL, D3D11VA, proxies"]
     Playback["Reproducción: Rodaje.Playback<br/>programador, caché, composición"]
     Core["Núcleo: Rodaje.Core<br/>tiempo, modelo, ediciones, .rodaje"]
-    Paquetes["Paquetes: Rodaje.Paquetes<br/>formato .paquete, sin dependencias"]
+    Paquetes["Paquetes: Rodaje.Packages<br/>formato .paquete, sin dependencias"]
     App --> Engine
     App --> Paquetes
     App --> Render

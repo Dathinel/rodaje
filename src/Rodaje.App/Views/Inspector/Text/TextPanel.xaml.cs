@@ -8,8 +8,8 @@ using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.Core.Model;
-using Rodaje.Paquetes;
-using Rodaje.Paquetes.Content;
+using Rodaje.Packages;
+using Rodaje.Packages.Content;
 
 namespace Rodaje.App.Views.Inspector.Text;
 

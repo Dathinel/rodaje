@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Core\Rodaje.Core.csproj" />
-    <ProjectReference Include="..\..\src\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Packages\Rodaje.Packages.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <!-- Para el traductor y para que Rodaje.Module.Translate.exe y sus DLL nativas queden junto a las pruebas. -->
     <ProjectReference Include="..\..\modules\Rodaje.Module.Translate\Rodaje.Module.Translate.csproj" />

@@ -5,7 +5,7 @@
     probar la descarga de complementos (fase 7, ronda B) sin red. Sirve archivos con Range, cortes a mitad,
     redirecciones, contenido con hash o firma mala, lentitud y errores 404/500, configurable por prueba.
     Sin dependencias NuGet ni del framework ASP.NET; compila para net10.0 y corre también en Linux. Firma el índice
-    con Rodaje.Paquetes (IndexSignature), el mismo código que lo verifica en el programa.
+    con Rodaje.Packages (IndexSignature), el mismo código que lo verifica en el programa.
   -->
   <PropertyGroup>
     <RootNamespace>Rodaje.TestServer</RootNamespace>
@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Packages\Rodaje.Packages.csproj" />
   </ItemGroup>
 
   <ItemGroup>

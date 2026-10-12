@@ -236,7 +236,7 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - **Rejilla de potencias de dos** para los instantes de una tira y **clases de alto** (32 a 256 px): al hacer zoom o desplazar se reutiliza casi todo.
 - **Caché en memoria y en disco** con la huella del original (la misma de los proxies) en la clave; un archivo que cambia no reutiliza nada viejo.
 - **`IClipVisuals` no bloquea nunca:** devuelve lo que hay, pide lo que falta y avisa con `Changed` en el hilo de la interfaz.
-- **`.paquete` v0** en una biblioteca sin dependencias (`Rodaje.Paquetes`), con manifiesto validado con `JsonDocument` (apto para AOT), instalación que nunca escribe fuera de su carpeta y referencias estables `paquete@versión/elemento` ([formato](formato-paquete.md)). Los módulos de IA se declaran pero no se ejecutan hasta la fase 7.
+- **`.paquete` v0** en una biblioteca sin dependencias (`Rodaje.Packages`), con manifiesto validado con `JsonDocument` (apto para AOT), instalación que nunca escribe fuera de su carpeta y referencias estables `paquete@versión/elemento` ([formato](formato-paquete.md)). Los módulos de IA se declaran pero no se ejecutan hasta la fase 7.
 
 **Resultado.** Biblioteca con 200 medios 1080p: 60 cuadros por segundo al desplazar despacio y de golpe, sin ningún intervalo de más de 33 ms; portadas de la primera pantalla en 169 ms en frío y 107 ms con la caché en disco.
 
@@ -273,7 +273,7 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - **Paquetes solo con primitivas**, sin shaders propios: filtros y efectos se copian al proyecto (con `options.source`), LUT y transiciones se referencian.
 - **Registro estático** (`Rodaje.Core/Effects/EffectRegistry`) con códigos enteros estables, destino, etapa, parámetros (hasta 16, con valor por defecto y límites) y opciones, en `FrozenDictionary`, sin reflexión. Un tipo desconocido se conserva intacto.
 - **Formato 3:** `EffectInstance.Options`, `Track.Effects` (keyframes en tiempo de la secuencia) y `Track.Transitions`. La migración 2 → 3 convierte `rodaje.volume` lineal en `rodaje.audio` en dB; el volumen se guarda siempre en `gainDb`, con −60 dB como silencio.
-- **Hacia la GPU:** `LayerFrame` suma `Effects` (`LayerEffect` con `EffectValues` en `InlineArray`, por valor), `Blend` (13 modos) y `Transition`; sin nada de eso es el camino rápido de siempre. Los recursos (LUT) se piden con `IEffectResources`, que nunca bloquea; el motor recibe el contenido de paquetes por `IEffectContent` y no conoce `Rodaje.Paquetes`.
+- **Hacia la GPU:** `LayerFrame` suma `Effects` (`LayerEffect` con `EffectValues` en `InlineArray`, por valor), `Blend` (13 modos) y `Transition`; sin nada de eso es el camino rápido de siempre. Los recursos (LUT) se piden con `IEffectResources`, que nunca bloquea; el motor recibe el contenido de paquetes por `IEffectContent` y no conoce `Rodaje.Packages`.
 
 **Consecuencias.** Un proyecto guardado con la fase 5 no abre en versiones anteriores (la `.bak` conserva el formato 2). Cambiar un código del registro rompe la tabla de la GPU: una prueba los fija.
 
