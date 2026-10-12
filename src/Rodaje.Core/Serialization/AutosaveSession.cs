@@ -112,17 +112,22 @@ public sealed class AutosaveSession : IDisposable
     /// <param name="project">Una copia que nadie más modifica mientras se escribe (por ejemplo, <see cref="Project.Clone"/>).</param>
     /// <param name="projectPath">El <c>.rodaje</c> del proyecto, o <c>null</c> si nunca se guardó.</param>
     /// <returns>La ruta de la copia.</returns>
-    /// <exception cref="IOException">Si no se pudo escribir; las copias anteriores quedan como estaban.</exception>
+    /// <exception cref="IOException">
+    /// Si no se pudo escribir; las copias anteriores quedan como estaban y la sesión sigue marcada con cambios sin guardar.
+    /// </exception>
     public string Write(Project project, string? projectPath)
     {
         ArgumentNullException.ThrowIfNull(project);
         lock (_gate)
         {
             ThrowIfCompleted();
+            // Primero el aviso de cambios sin guardar y después la copia: si el editor se cae entre los dos, se ofrece
+            // la copia anterior (o nada, si no la hay). Al revés, una copia nueva tras un MarkSaved quedaría con
+            // «unsavedChanges: false» y no se ofrecería nunca.
+            WriteInfo(Directory, project.Name, projectPath, unsavedChanges: true);
             string path = SnapshotPath(Directory, _nextNumber);
             ProjectSerializer.Save(project, path, _fileSystem);
             _nextNumber++;
-            WriteInfo(project.Name, projectPath, unsavedChanges: true);
             Rotate();
             return path;
         }
@@ -138,7 +143,7 @@ public sealed class AutosaveSession : IDisposable
         lock (_gate)
         {
             ThrowIfCompleted();
-            WriteInfo(projectName, projectPath, unsavedChanges: false);
+            WriteInfo(Directory, projectName, projectPath, unsavedChanges: false);
         }
     }
 
@@ -149,12 +154,26 @@ public sealed class AutosaveSession : IDisposable
         lock (_gate)
         {
             ThrowIfCompleted();
-            WriteInfo(projectName, projectPath, unsavedChanges: false);
+            WriteInfo(Directory, projectName, projectPath, unsavedChanges: false);
             foreach (AutosaveSnapshot snapshot in AutosaveRecovery.ListSnapshots(Directory))
             {
                 TryDelete(snapshot.Path);
             }
         }
+    }
+
+    /// <summary>
+    /// Anota en la carpeta de una sesión que terminó mal (ya recuperada) que no tiene nada que ofrecer, como
+    /// <see cref="MarkSaved"/>. Así no se vuelve a ofrecer aunque <see cref="RecoverableSession.Discard"/> no logre
+    /// borrar su bloqueo. Las copias se quedan como historial.
+    /// </summary>
+    /// <exception cref="IOException">Si no se pudo escribir.</exception>
+    /// <exception cref="UnauthorizedAccessException">Si la carpeta no se puede escribir.</exception>
+    public static void MarkRecovered(string sessionDirectory, string projectName, string? projectPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionDirectory);
+        ArgumentNullException.ThrowIfNull(projectName);
+        WriteInfo(sessionDirectory, projectName, projectPath, unsavedChanges: false);
     }
 
     /// <summary>Las copias de esta sesión, de la más nueva a la más vieja.</summary>
@@ -229,7 +248,7 @@ public sealed class AutosaveSession : IDisposable
         }
     }
 
-    private void WriteInfo(string projectName, string? projectPath, bool unsavedChanges)
+    private static void WriteInfo(string directory, string projectName, string? projectPath, bool unsavedChanges)
     {
         var info = new JsonObject
         {
@@ -238,7 +257,7 @@ public sealed class AutosaveSession : IDisposable
             ["unsavedChanges"] = unsavedChanges,
             ["updated"] = DateTimeOffset.Now.ToString("O", CultureInfo.InvariantCulture),
         };
-        string path = Path.Combine(Directory, InfoFileName);
+        string path = Path.Combine(directory, InfoFileName);
         string temp = path + ProjectSerializer.TempSuffix;
         byte[] bytes = Utf8NoBom.GetBytes(info.ToJsonString(Indented) + "\n");
         using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
