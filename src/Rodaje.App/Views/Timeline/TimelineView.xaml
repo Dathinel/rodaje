@@ -17,7 +17,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1" Padding="6,0">
+        <Grid Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1" Padding="8,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -28,6 +28,8 @@
                 <ToggleButton x:Name="EnvelopeToolButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE9D9;" Click="OnToolClick" />
                 <ToggleButton x:Name="SelectionToolButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE8B3;" Click="OnToolClick" />
                 <ToggleButton x:Name="ZoomToolButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE71E;" Click="OnToolClick" />
+                <ToggleButton x:Name="RollToolButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE78A;" Click="OnToolClick" />
+                <ToggleButton x:Name="SlideToolButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE7C2;" Click="OnToolClick" />
                 <Rectangle Style="{StaticResource ToolbarSeparatorStyle}" />
                 <ToggleButton x:Name="MagneticButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE840;" Click="OnToggleClick" />
                 <ToggleButton x:Name="SnappingButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE71B;" Click="OnToggleClick" />
@@ -60,13 +62,13 @@
                 <Button x:Name="ZoomInButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE8A3;" Click="OnActionClick" />
                 <Button x:Name="ZoomFitButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE9A6;" Click="OnActionClick" />
                 <Button x:Name="ZoomSelectionButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE740;" Click="OnActionClick" />
-                <TextBlock Margin="10,0,4,0" Text="{x:Bind Session.PositionText, Mode=OneWay, FallbackValue=''}" Style="{StaticResource TimecodeTextStyle}" />
+                <TextBlock Margin="12,0,4,0" Text="{x:Bind Session.PositionText, Mode=OneWay, FallbackValue=''}" Style="{StaticResource TimecodeTextStyle}" />
             </StackPanel>
         </Grid>
 
         <!-- Migas de pan dentro de un clip compuesto y estado del visor de origen; ocultas si no hay nada que decir. -->
         <Border x:Name="ContextBar" Grid.Row="1" Visibility="Collapsed" Background="{StaticResource BarBrush}"
-                BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1" Padding="6,2">
+                BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1" Padding="8,2">
             <StackPanel Orientation="Horizontal" Spacing="12">
                 <StackPanel x:Name="BreadcrumbPanel" Orientation="Horizontal" VerticalAlignment="Center" Spacing="2" />
                 <StackPanel x:Name="SourcePanel" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8" Visibility="Collapsed" />
@@ -86,7 +88,7 @@
             </Grid.RowDefinitions>
 
             <Border Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,1,1">
-                <TextBlock x:Name="SummaryText" Margin="10,0" Style="{StaticResource CaptionTextStyle}" />
+                <TextBlock x:Name="SummaryText" Margin="12,0" Style="{StaticResource CaptionTextStyle}" />
             </Border>
 
             <Canvas x:Name="RulerCanvas" Grid.Column="1" Background="{StaticResource BarBrush}"

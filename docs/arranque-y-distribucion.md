@@ -82,6 +82,30 @@ Margen que queda: el XAML de las vistas (91 ms) se podría partir con `x:Load` e
 - **Comprobación** (`build\probar-instalador.ps1`, la corre `distribuir.ps1`): instala en silencio en una carpeta temporal con espacios y tildes, revisa archivos, accesos y asociaciones, abre el exe instalado con `--autoprueba` y el lanzador con `--arranque`, desinstala y comprueba que no queda nada.
 - **Publicar** (`build\publicar-release.ps1`): verifica los hashes, que la etiqueta no exista y que el commit del exe esté en `origin/main`, y crea la release `v<v>` con `gh` (`-Borrador` para dejarla en borrador).
 
+## Pruebas en máquinas limpias
+
+`.github/workflows/distribucion.yml` (a mano con `gh workflow run distribucion.yml --ref <rama>` una vez que esté en `main`, y con cada etiqueta `v*`) arma instalador y portable con `distribuir.ps1 -SinModulos -SinCompleta -SinComprobar` y los prueba en **otra** VM `windows-latest` recién creada, solo con los artefactos y `build\`, y el PATH reducido al de Windows (ni dotnet, ni git, ni Visual Studio). Lo hace `build\probar-maquina-limpia.ps1`, que genera el material con el `ffmpeg.exe` LGPL que trae Rodaje (OpenH264 + AAC) y deja registros, entorno, cifras y capturas como artefacto `maquina-<variante>`:
+
+- **limpia:** instalar en silencio, archivos, accesos y asociaciones, `--autoprueba` del exe instalado, lanzador, desinstalar sin restos (`probar-instalador.ps1`); portable descomprimido en una ruta con tildes, abierto por el lanzador (oculta `app\`), `--autoprueba`, ventana abierta a mano y capturada; arranque en caliente y en frío (5 vueltas, por el lanzador).
+- **hostil:** lo mismo con `LocalAppData` y `%TEMP%` en `C:\Usuarios de prueba\José Núñez Peña\…` (el instalador usa su carpeta por defecto), 1920×1080 al **150 %**, la salida a internet de los cuatro `Rodaje.exe` bloqueada en el cortafuegos y un proyecto `.rodaje` (el ejemplo del formato 5) con su material en **otra unidad** (`D:\Proyectos de prueba\Boda de Ñuño`).
+
+Las dos máquinas son Windows Server 2025 en inglés (en-US, decimal con punto), **sin GPU** (Microsoft Basic Render Driver, D3D11 nivel 11_1 por WARP, sin D3D11VA), **sin ningún dispositivo de audio** (ni salida ni micrófono) y sin Media Foundation para H.264. Resultado de la última corrida (12-oct): **las dos pasan todo**.
+
+| Máquina limpia, ms (mediana de 5) | Caliente: visible / usable | Frío: visible / usable |
+|---|---:|---:|
+| limpia, 1024×768 al 100 % | 39 / 422 | 315 / 1440 (otra corrida: 4869 / 16 543) |
+| hostil, 1920×1080 al 150 % | 37 / 336 | 265 / 1228 |
+
+En caliente la ventana sale igual que en el equipo de desarrollo (~40 ms). En frío la ventana sigue bajo el objetivo de 1 s, pero la interfaz usable pasa de 0,79 s a ~1,2–1,4 s: WARP y el disco de una VM compartida. Una corrida dio 5 s / 16 s en frío con las mismas condiciones (la varianza de los runners y el antivirus al ver cada copia nueva); no se repitió y no cuenta como cifra. Instalar en silencio tarda 13–23 s y ocupa 242 MB; desinstalar, 2–14 s.
+
+Lo que encontraron y se arregló:
+
+- **Sin H.264 (Windows N, Windows Server).** Sin GPU ni Media Foundation no hay codificador de H.264 ni HEVC (D-028), y la cola decía «No está el ffmpeg.exe LGPL de Rodaje. Reinstala Rodaje», falso y sin salida. Ahora el diálogo explica por qué y pide AV1 o VP9, y el error de la cola ofrece «Cambiar ajustes». La autoprueba exporta en AV1 en esos equipos.
+- **Pantallas de 1024×768.** El visor compone a la mitad cuando el panel no llega a la mitad de la secuencia (a propósito); la autoprueba lo tomaba por fallo.
+- **Complementos sin red:** la autoprueba ahora abre la página y espera la consulta del catálogo. Sin conexión abre igual y lo dice en la nota (con el texto del error de Windows, en el idioma del sistema).
+
+Sin probar: **Windows Sandbox** no está instalado en el equipo de desarrollo (`WindowsSandbox.exe` no existe y consultar la característica pide administrador). Un escritorio Windows 11 de consumo (no Server) con Media Foundation tampoco: lo cubre el equipo de desarrollo.
+
 ## Por qué sigue con WinUI 3
 
 **Se sigue con WinUI 3.** Con el armazón, la ventana aparece a los 50 ms (215 en frío), al nivel de una app Win32 mínima. Lo que queda por ganar es entre que aparece y que se puede usar: ~400 ms en caliente y ~550 en frío, de los que unos 325 / 350 son el piso de WinUI con barra propia.

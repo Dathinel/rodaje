@@ -7,7 +7,7 @@
 
     <StackPanel Spacing="8">
         <Border x:Name="Card" Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1"
-                CornerRadius="2" Padding="20,16" HorizontalAlignment="Left">
+                CornerRadius="{StaticResource ControlCornerRadius}" Padding="20,16" HorizontalAlignment="Left">
             <StackPanel Spacing="4">
                 <TextBlock x:Name="TitleText" Style="{StaticResource HeaderTextStyle}" />
                 <TextBlock x:Name="SubtitleText" Style="{StaticResource CaptionTextStyle}" Margin="0,0,0,8" />

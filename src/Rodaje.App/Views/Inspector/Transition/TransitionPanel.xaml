@@ -9,16 +9,16 @@
 
     <ScrollViewer Background="{StaticResource PanelBrush}" VerticalScrollBarVisibility="Auto">
         <StackPanel Padding="0,0,0,12">
-            <Grid Height="36" Padding="12,0,6,0">
+            <Grid Height="36" Padding="12,0,8,0">
                 <TextBlock x:Name="CutText" Style="{StaticResource BodyTextStyle}" />
             </Grid>
             <inspector:InspectorSection x:Name="TransitionSection" Title="Transición">
                 <inspector:InspectorSection.Actions>
-                    <Button Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="11" Content="&#xE74D;" Click="OnRemoveClick"
+                    <Button Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="{StaticResource IconFontSize}" Content="&#xE74D;" Click="OnRemoveClick"
                             AutomationProperties.Name="Quitar transición" ToolTipService.ToolTip="Quitar: deja el corte seco" />
                 </inspector:InspectorSection.Actions>
                 <StackPanel>
-                    <Grid Padding="12,3,6,3" ColumnSpacing="4">
+                    <Grid Padding="12,4,8,4" ColumnSpacing="4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="76" />
                             <ColumnDefinition Width="*" />
@@ -32,7 +32,7 @@
 
                     <properties:ParameterRow x:Name="DurationRow" />
 
-                    <Grid x:Name="DirectionRow" Padding="12,3,6,3" ColumnSpacing="4" Visibility="Collapsed">
+                    <Grid x:Name="DirectionRow" Padding="12,4,8,4" ColumnSpacing="4" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="76" />
                             <ColumnDefinition Width="*" />

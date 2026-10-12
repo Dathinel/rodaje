@@ -46,13 +46,18 @@ public static class ExportSettingsEditor
         return (video, audio);
     }
 
+    /// <summary>Sin GPU compatible ni Media Foundation (Windows N sin Media Feature Pack, Windows Server) no hay H.264 ni HEVC (D-028).</summary>
+    public const string NoH26xMessage = "Este equipo no puede exportar H.264 ni HEVC: no tiene GPU compatible ni el codificador de Windows (Media Foundation falta en las ediciones N sin el Media Feature Pack y en Windows Server). Elige AV1 o VP9 en Avanzado.";
+
     /// <summary>Problemas que quedan; vacío si se puede exportar.</summary>
     public static IReadOnlyList<ExportProblem> Validate(ExportSettings settings, IReadOnlyList<EncoderSpec> encoders)
     {
         (EncoderSpec? video, EncoderSpec? audio) = Encoders(settings, encoders);
         if ((settings.Video is not null && video is null) || (settings.Audio is not null && audio is null))
         {
-            return [new ExportProblem(ExportProblemCode.InvalidValue, "Este equipo no tiene un codificador para el formato elegido.")];
+            return [new ExportProblem(ExportProblemCode.InvalidValue, settings.Video?.Codec is ExportCodec.H264 or ExportCodec.Hevc && video is null
+                ? NoH26xMessage
+                : "Este equipo no tiene un codificador para el formato elegido.")];
         }
 
         return ExportSettingsValidator.Validate(settings, video, audio);

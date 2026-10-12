@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 using Rodaje.App.Views.Shared;
 using Rodaje.Export;
 using Rodaje.Media.Video;
@@ -54,7 +55,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         Grid.SetColumn(_clear, 2);
         header.Children.Add(_clear);
         _clear.Click += (_, _) => _jobs?.ClearFinished();
-        var root = new StackPanel { Spacing = 6, Padding = new Thickness(12, 10, 12, 12) };
+        var root = new StackPanel { Spacing = 8, Padding = new Thickness(12, 10, 12, 12) };
         root.Children.Add(header);
         root.Children.Add(_empty);
         root.Children.Add(_list);
@@ -209,8 +210,8 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock _error = new() { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
         private readonly ProgressBar _bar = new() { Maximum = 1, Margin = new Thickness(0, 4, 0, 0) };
-        private readonly Button _cancel = new() { Content = "", FontSize = 11 };
-        private readonly StackPanel _actions = new() { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 6, 0, 0) };
+        private readonly Button _cancel = new() { Content = "", FontSize = ThemeResources.Size("CaptionFontSize") };
+        private readonly StackPanel _actions = new() { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 6, 0, 0) };
         private BgraImage? _shownThumbnail;
         private ExportJobState? _shownState;
         private int _shownPosition = -1;
@@ -231,7 +232,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
 
             var thumbFrame = new Border
             {
-                Width = 96, Height = 54, Background = Resource<Brush>("BackgroundBrush"), CornerRadius = new CornerRadius(2),
+                Width = 96, Height = 54, Background = Resource<Brush>("BackgroundBrush"), CornerRadius = ThemeResources.Corner("ControlCornerRadius"),
                 Child = _thumbnail, VerticalAlignment = VerticalAlignment.Top,
             };
             var text = new StackPanel { Spacing = 2 };
@@ -241,7 +242,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             text.Children.Add(_error);
             text.Children.Add(_actions);
 
-            var grid = new Grid { ColumnSpacing = 10 };
+            var grid = new Grid { ColumnSpacing = 8 };
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -253,7 +254,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             grid.Children.Add(_cancel);
             Root = new Border
             {
-                Child = grid, Padding = new Thickness(10, 8, 6, 8), CornerRadius = new CornerRadius(2), BorderThickness = new Thickness(1),
+                Child = grid, Padding = new Thickness(10, 8, 6, 8), CornerRadius = ThemeResources.Corner("ControlCornerRadius"), BorderThickness = new Thickness(1),
                 Background = Resource<Brush>("ControlBrush"), BorderBrush = Resource<Brush>("StrokeBrush"),
             };
         }

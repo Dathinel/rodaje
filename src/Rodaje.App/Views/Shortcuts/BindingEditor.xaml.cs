@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Theme;
 
 namespace Rodaje.App.Views.Shortcuts;
 
@@ -171,15 +172,15 @@ internal sealed partial class BindingEditor : UserControl
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var combo = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        var combo = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         combo.Children.Add(new Border
         {
             Background = GroupBrushes.Resource("ControlBrush"),
             BorderBrush = GroupBrushes.Resource("StrokeBrush"),
             BorderThickness = new Thickness(1, 1, 1, 2),
-            CornerRadius = new CornerRadius(2),
+            CornerRadius = ThemeResources.Corner("ControlCornerRadius"),
             Padding = new Thickness(6, 1, 6, 1),
-            Child = new TextBlock { Text = slot.Text, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+            Child = new TextBlock { Text = slot.Text, FontSize = ThemeResources.Size("CaptionFontSize"), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
         });
         if (slot.Warning is { } warning)
         {
@@ -228,7 +229,7 @@ internal sealed partial class BindingEditor : UserControl
             return row;
         }
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         var choose = new Button { Content = slot.ActionId is null ? "Elegir acción…" : "Cambiar…" };
         choose.Flyout = BuildPicker(slot, choose);
         AutomationProperties.SetName(choose, $"Elegir la acción de {slot.Text}");

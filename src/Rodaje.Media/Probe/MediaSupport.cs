@@ -34,7 +34,7 @@ public static class MediaSupport
         ArgumentNullException.ThrowIfNull(info);
         if (info.Video is { } video && !info.HasAudio && (StillImageFormats.Contains(info.ContainerFormat) || video.FrameCount <= 1))
         {
-            return "es una imagen fija; los clips de imagen llegarán en una fase posterior";
+            return "es una imagen fija y Rodaje todavía no usa imágenes como clips; conviértela en un video corto para usarla";
         }
 
         return info.Duration > Time.Zero ? null : "no tiene duración";

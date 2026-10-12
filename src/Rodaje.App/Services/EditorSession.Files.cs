@@ -215,6 +215,12 @@ public sealed partial class EditorSession
             MediaImported?.Invoke(this, added);
         }
 
+        if (added.Where(i => i.Video?.HdrTransfer is not null).Select(i => $"{Path.GetFileName(i.Path)} ({i.Video!.HdrTransfer})").ToList() is { Count: > 0 } hdr)
+        {
+            Notify(NotificationSeverity.Warning, hdr.Count == 1 ? "Video HDR" : "Videos HDR",
+                $"{string.Join(", ", hdr)}: Rodaje todavía no convierte HDR a SDR, así que se verá y se exportará con los colores apagados.");
+        }
+
         if (skipped.Count > 0)
         {
             Notify(NotificationSeverity.Warning,

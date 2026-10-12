@@ -38,11 +38,13 @@ internal static partial class SelfTestRun
         int code = 1;
         try
         {
+            await CaptureAsync(window, "inicio");
             SelectFirstClip(window);
             foreach (InspectorView.Tab tab in Enum.GetValues<InspectorView.Tab>())
             {
                 window.InspectorPane.Show(tab);
                 await Task.Delay(250);
+                await CaptureAsync(window, "inspector-" + tab.ToString().ToLowerInvariant());
             }
 
             await ToolsAsync(window);
@@ -52,9 +54,11 @@ internal static partial class SelfTestRun
             await TitleAsync(window, engine);
             await ImageAsync(window, engine);
             await ShowExportAsync(window);
+            await PluginsAsync(window);
             await ModuleAsync(window);
             await FormatAsync(window, engine);
             window.InspectorPane.Show(InspectorView.Tab.Properties);
+            await LayoutAsync(window);
             if (window.Session.Sequence.Duration.Ticks > 0)
             {
                 window.Session.Play();
@@ -298,7 +302,8 @@ internal static partial class SelfTestRun
 
             await Task.Delay(400);
             FrameCapture frame = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
-            if ((frame.Width, frame.Height) != (width, height))
+            // Con el panel a menos de la mitad de la secuencia (pantallas de 1024×768) el visor compone a la mitad a propósito.
+            if ((frame.Width, frame.Height) != (width, height) && (frame.Width, frame.Height) != (width / 2, height / 2))
             {
                 throw new InvalidOperationException($"El visor compone {frame.Width}×{frame.Height} en vez de {width}×{height}.");
             }
@@ -617,14 +622,21 @@ internal static partial class SelfTestRun
     private static async Task ShowExportAsync(MainWindow window)
     {
         window.ShowPage(ShellPage.Export);
-        for (int i = 0; i < 50 && window.ExportPage?.Model is null; i++)
+        string[] cards = [ExportPresets.Vertical.Id, ExportPresets.YouTube4K.Id, ExportPresets.AudioOnly.Id, ExportPresets.YouTube1080p.Id];
+        // La sonda de codificadores puede tardar (la primera vez, o con la GPU ocupada): se esperan las tarjetas, no un plazo fijo.
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        while (window.ExportPage is not { Model: not null } ready || !ready.HasPresetCards(cards))
         {
+            if (waited.Elapsed > TimeSpan.FromSeconds(90))
+            {
+                throw new InvalidOperationException("Exportar: las tarjetas de preajustes no llegaron en 90 s (la sonda de codificadores sigue «Comprobando…»).");
+            }
+
             await Task.Delay(100);
         }
 
         await CaptureAsync(window, "exportar-sencillo");
-        if (window.ExportPage is { } page && await page.CheckSwitchingAsync(
-            [ExportPresets.Vertical.Id, ExportPresets.YouTube4K.Id, ExportPresets.AudioOnly.Id, ExportPresets.YouTube1080p.Id]) is { } failure)
+        if (window.ExportPage is { } page && await page.CheckSwitchingAsync(cards) is { } failure)
         {
             throw new InvalidOperationException("Exportar: " + failure);
         }
@@ -642,8 +654,16 @@ internal static partial class SelfTestRun
         }
 
         string output = Path.Combine(Path.GetTempPath(), $"rodaje-autoprueba-{Environment.ProcessId}.mp4");
+        ExportSettings settings = ExportPresets.YouTube1080p.Settings;
+        if (window.ExportPage?.Model is { } model && ExportSettingsEditor.Validate(settings, model.Encoders).Count > 0)
+        {
+            // Sin GPU ni Media Foundation (Windows N, Windows Server) no hay H.264: AV1, la salida que ofrece D-028.
+            settings = settings with { Video = ExportSettingsEditor.DefaultVideo(ExportCodec.Av1, model.Encoders) };
+            Program.Metrics.Note("autoprueba: sin codificador de H.264, se exporta en AV1");
+        }
+
         ExportEntry entry = window.Exports.Enqueue(new ExportRequest(window.Session.Project.Clone(), window.Session.SequenceId, output,
-            ExportPresets.YouTube1080p.Settings, new ExportRange(Time.Zero, Time.Min(window.Session.Sequence.Duration, Time.FromSeconds(2)))));
+            settings, new ExportRange(Time.Zero, Time.Min(window.Session.Sequence.Duration, Time.FromSeconds(2)))));
         window.InspectorPane.Show(InspectorView.Tab.Jobs);
         for (int i = 0; i < 100 && entry.Progress.State != ExportJobState.Encoding && !entry.IsFinished; i++)
         {
@@ -668,6 +688,24 @@ internal static partial class SelfTestRun
         {
             CheckExported(output, entry.Request);
         }
+    }
+
+    /// <summary>
+    /// Abre Complementos y espera la consulta del catálogo publicado: sin conexión la página sigue y solo lo dice en la nota.
+    /// </summary>
+    private static async Task PluginsAsync(MainWindow window)
+    {
+        window.ShowPage(ShellPage.Plugins);
+        Task check = window.PluginsPage?.UpdatesChecked ?? Task.CompletedTask;
+        if (await Task.WhenAny(check, Task.Delay(TimeSpan.FromSeconds(60))) != check)
+        {
+            throw new InvalidOperationException("Complementos no terminó de consultar el catálogo en 60 s.");
+        }
+
+        await check;
+        await CaptureAsync(window, "complementos");
+        Program.Metrics.Note($"autoprueba: complementos, {window.PluginsPage?.DownloadNoteShown}");
+        window.ClosePage();
     }
 
     /// <summary>
@@ -716,14 +754,15 @@ internal static partial class SelfTestRun
         }
     }
 
-    /// <summary>El MP4 de la autoprueba: video H.264 de la duración pedida con <c>moov</c> al principio y audio AAC.</summary>
+    /// <summary>El MP4 de la autoprueba: video H.264 (AV1 si el equipo no tiene H.264) de la duración pedida con <c>moov</c> al principio y audio AAC.</summary>
     private static void CheckExported(string output, ExportRequest request)
     {
         try
         {
             ExportReport report = ExportVerifier.For(FfmpegExecutable.Locate()).Inspect(output);
             double expected = request.Range!.Value.Duration.ToSeconds();
-            if (report.Video is not { Codec: "h264" } video || Math.Abs(video.DurationSeconds - expected) > 0.05 || report.MoovAtStart != true
+            string codec = request.Settings.Video?.Codec == ExportCodec.Av1 ? "av1" : "h264";
+            if (report.Video is not { } video || video.Codec != codec || Math.Abs(video.DurationSeconds - expected) > 0.05 || report.MoovAtStart != true
                 || report.Audio is not { Codec: "aac" })
             {
                 throw new InvalidOperationException($"El MP4 exportado no es el esperado: {report}");
@@ -733,6 +772,34 @@ internal static partial class SelfTestRun
         {
             File.Delete(output);
         }
+    }
+
+    /// <summary>Con capturas: la página de complementos y la ventana a 1280×720 (lo mínimo que se cuida), y la deja como estaba.</summary>
+    private static async Task LayoutAsync(MainWindow window)
+    {
+        if (Environment.GetEnvironmentVariable(CapturesVariable) is not { Length: > 0 })
+        {
+            return;
+        }
+
+        window.ShowPage(ShellPage.Plugins);
+        await CaptureAsync(window, "complementos");
+        window.ClosePage();
+        var presenter = window.AppWindow.Presenter as Microsoft.UI.Windowing.OverlappedPresenter;
+        bool maximized = presenter?.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized;
+        presenter?.Restore();
+        Windows.Graphics.SizeInt32 before = window.AppWindow.Size;
+        double scale = window.Content.XamlRoot.RasterizationScale;
+        window.AppWindow.Resize(new Windows.Graphics.SizeInt32((int)(1280 * scale), (int)(720 * scale)));
+        await Task.Delay(500);
+        await CaptureAsync(window, "ventana-1280x720");
+        window.AppWindow.Resize(before);
+        if (maximized)
+        {
+            presenter!.Maximize();
+        }
+
+        await Task.Delay(200);
     }
 
     /// <summary>

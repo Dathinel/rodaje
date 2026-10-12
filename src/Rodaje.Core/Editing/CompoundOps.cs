@@ -4,13 +4,13 @@ using Rodaje.Core.Timing;
 namespace Rodaje.Core.Editing;
 
 /// <summary>
-/// Clips compuestos: un clip que muestra un tramo de otra secuencia del proyecto (formato 6). <see cref="Flatten"/> da la
+/// Clips compuestos: un clip que muestra un tramo de otra secuencia del proyecto (formato 6). <see cref="Flatten(Project, Sequence)"/> da la
 /// secuencia con cada compuesto reemplazado por los clips que muestra, que es lo que reproducen la vista previa y la
 /// exportación.
 /// </summary>
 public static class CompoundOps
 {
-    /// <summary>Separador de los ids que <see cref="Flatten"/> da a lo que saca de un compuesto: <c>compuesto/interno</c>.</summary>
+    /// <summary>Separador de los ids que <see cref="Flatten(Project, Sequence)"/> da a lo que saca de un compuesto: <c>compuesto/interno</c>.</summary>
     public const char IdSeparator = '/';
 
     /// <summary>Hasta dónde llega el origen de un compuesto: el final de su secuencia.</summary>
@@ -33,14 +33,32 @@ public static class CompoundOps
     /// a su tramo. Es recursivo; un ciclo o más de <see cref="ModelValidator.MaxCompoundDepth"/> niveles no se muestran.
     /// Las pistas anidadas ocultas (video) o mudas (audio) no entran. Sin compuestos devuelve la misma secuencia.
     /// </summary>
-    public static Sequence Flatten(Project project, Sequence sequence)
+    public static Sequence Flatten(Project project, Sequence sequence) => Flatten(project, sequence, null, null);
+
+    /// <summary>
+    /// Como <see cref="Flatten(Project, Sequence)"/>, pero deja tal cual los compuestos para los que <paramref name="keep"/>
+    /// (con su pista) dice que sí: quien reproduce los compone aparte, con sus efectos y transiciones. <paramref name="path"/>
+    /// son las secuencias que ya contienen a esta, para cortar ciclos y la profundidad; por omisión, solo ella.
+    /// </summary>
+    public static Sequence Flatten(Project project, Sequence sequence, Func<Track, Clip, bool>? keep, IReadOnlyList<string>? path = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(sequence);
-        return HasCompounds(sequence) ? FlattenPath(project, sequence, [sequence.Id]) : sequence;
+        return HasCompounds(sequence) ? FlattenPath(project, sequence, path is null ? [sequence.Id] : [.. path], keep) : sequence;
     }
 
-    private static Sequence FlattenPath(Project project, Sequence sequence, List<string> path) => new()
+    /// <summary>Un compuesto que se puede mostrar desde <paramref name="path"/>: sin ciclo ni más niveles de los permitidos.</summary>
+    public static Sequence? Nested(Project project, Clip compound, IReadOnlyList<string> path)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(compound);
+        ArgumentNullException.ThrowIfNull(path);
+        return compound.SequenceId is { } id && !path.Contains(id) && path.Count <= ModelValidator.MaxCompoundDepth
+            ? project.FindSequence(id)
+            : null;
+    }
+
+    private static Sequence FlattenPath(Project project, Sequence sequence, List<string> path, Func<Track, Clip, bool>? keep) => new()
     {
         Id = sequence.Id,
         Name = sequence.Name,
@@ -48,38 +66,39 @@ public static class CompoundOps
         Width = sequence.Width,
         Height = sequence.Height,
         SampleRate = sequence.SampleRate,
+        MasterGainDb = sequence.MasterGainDb,
+        MasterEffects = sequence.MasterEffects,
         Markers = sequence.Markers,
         Regions = sequence.Regions,
-        VideoTracks = Expand(project, sequence.VideoTracks, TrackKind.Video, path),
-        AudioTracks = Expand(project, sequence.AudioTracks, TrackKind.Audio, path),
+        VideoTracks = Expand(project, sequence.VideoTracks, TrackKind.Video, path, keep),
+        AudioTracks = Expand(project, sequence.AudioTracks, TrackKind.Audio, path, keep),
     };
 
-    private static List<Track> Expand(Project project, List<Track> tracks, TrackKind kind, List<string> path)
+    private static List<Track> Expand(Project project, List<Track> tracks, TrackKind kind, List<string> path, Func<Track, Clip, bool>? keep)
     {
         var result = new List<Track>();
         foreach (Track track in tracks)
         {
-            if (!track.Clips.Exists(c => c.IsCompound))
+            bool Expands(Clip c) => c.IsCompound && (keep is null || !keep(track, c));
+            if (!track.Clips.Exists(Expands))
             {
                 result.Add(track);
                 continue;
             }
 
-            var compoundIds = track.Clips.Where(c => c.IsCompound).Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
+            var compoundIds = track.Clips.Where(Expands).Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
             Track lane0 = track.Clone();
-            lane0.Clips.RemoveAll(c => c.IsCompound);
+            lane0.Clips.RemoveAll(c => compoundIds.Contains(c.Id));
             lane0.Transitions.RemoveAll(t => compoundIds.Contains(t.From) || compoundIds.Contains(t.To));
             var lanes = new List<Track> { lane0 };
-            foreach (Clip compound in track.Clips.Where(c => c.IsCompound && c.Enabled))
+            foreach (Clip compound in track.Clips.Where(c => compoundIds.Contains(c.Id) && c.Enabled))
             {
-                string nestedId = compound.SequenceId!;
-                if (path.Contains(nestedId) || path.Count > ModelValidator.MaxCompoundDepth
-                    || project.FindSequence(nestedId) is not { } nested)
+                if (Nested(project, compound, path) is not { } nested)
                 {
                     continue;
                 }
 
-                Sequence flat = FlattenPath(project, nested, [.. path, nestedId]);
+                Sequence flat = FlattenPath(project, nested, [.. path, nested.Id], keep);
                 List<Track> inner = kind == TrackKind.Video
                     ? flat.VideoTracks.FindAll(t => !t.Hidden)
                     : flat.AudioTracks.FindAll(t => !t.Muted);
@@ -121,8 +140,12 @@ public static class CompoundOps
     /// fuera (como al dividirlo), así se ve igual que dentro.
     /// </summary>
     /// <returns>Los clips copiados.</returns>
-    internal static List<Clip> Window(Track source, Clip compound, Track target, Func<string, string> rename)
+    public static List<Clip> Window(Track source, Clip compound, Track target, Func<string, string> rename)
     {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(compound);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(rename);
         Time from = compound.SourceIn;
         Time to = compound.SourceOut;
         Time offset = compound.Start - compound.SourceIn;

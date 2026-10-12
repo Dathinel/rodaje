@@ -17,6 +17,7 @@ public sealed class SequenceSnapshot
     private readonly int _height;
     private readonly int _sampleRate;
     private readonly double _masterGainDb;
+    private readonly EffectInstance[] _masterEffects;
     private readonly TrackEntry[] _videoTracks;
     private readonly TrackEntry[] _audioTracks;
     private readonly Marker[] _markers;
@@ -31,6 +32,7 @@ public sealed class SequenceSnapshot
         _height = sequence.Height;
         _sampleRate = sequence.SampleRate;
         _masterGainDb = sequence.MasterGainDb;
+        _masterEffects = [.. sequence.MasterEffects.Select(e => e.Clone())];
         _videoTracks = [.. sequence.VideoTracks.Select(t => new TrackEntry(t, t.Clone()))];
         _audioTracks = [.. sequence.AudioTracks.Select(t => new TrackEntry(t, t.Clone()))];
         _markers = [.. sequence.Markers.Select(m => m.Clone())];
@@ -60,6 +62,7 @@ public sealed class SequenceSnapshot
         sequence.Height = _height;
         sequence.SampleRate = _sampleRate;
         sequence.MasterGainDb = _masterGainDb;
+        sequence.MasterEffects = [.. _masterEffects.Select(e => e.Clone())];
         RestoreTracks(sequence.VideoTracks, _videoTracks);
         RestoreTracks(sequence.AudioTracks, _audioTracks);
         sequence.Markers.Clear();
@@ -79,6 +82,7 @@ public sealed class SequenceSnapshot
             && sequence.Height == _height
             && sequence.SampleRate == _sampleRate
             && sequence.MasterGainDb.Equals(_masterGainDb)
+            && SequenceEqual(sequence.MasterEffects, [.. _masterEffects], EffectStateEquals)
             && TracksMatch(sequence.VideoTracks, _videoTracks)
             && TracksMatch(sequence.AudioTracks, _audioTracks)
             && sequence.Markers.Count == _markers.Length

@@ -1,4 +1,4 @@
-# Licencias de rodaje-vision
+# Licencias de modulo-vision
 
 El código del módulo es propio (GPL-3.0-only con los términos de Rodaje, D-032): el preprocesado, la decodificación de las salidas, el filtro temporal de la máscara, el seguimiento y el reencuadre. Los modelos conservan su licencia; ninguno se versiona en el repositorio: los baja `build\preparar-modelos.ps1` (o el gestor de complementos) con su SHA-256 fijado. RMBG, RVM y YOLO se descartaron por licencia (D-034).
 

@@ -55,11 +55,11 @@ public sealed class ConnectionTests
 
     /// <remarks>
     /// Con una gracia larga, la conexión solo sigue viva si el módulo confirmó la cancelación (si no, el cliente la corta).
-    /// Cuánto tarda en confirmarla lo mide <c>ProcessTests.Cancellation_in_a_real_process_is_fast</c> (TiempoReal): con el
-    /// runner de Windows cargado, la cota de 1 s que había aquí llegó a 4,6 s sin defecto.
+    /// No mide rapidez: cuánto tarda en confirmarla lo mide <c>ProcessTests.Cancellation_in_a_real_process_is_fast</c>
+    /// (TiempoReal); con el runner de Windows cargado, la cota de 1 s que había aquí llegó a 4,6 s sin defecto.
     /// </remarks>
     [Fact]
-    public async Task Cancelling_is_confirmed_quickly_and_the_connection_keeps_working()
+    public async Task Cancelling_is_confirmed_and_the_connection_keeps_working()
     {
         (ModuleClient client, _) = await Support.ConnectInProcessAsync(options: new ModuleClientOptions { CancelGrace = TimeSpan.FromSeconds(60) });
         await using (client)

@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Theme;
 
 namespace Rodaje.App.Views.Shortcuts;
 
@@ -74,7 +75,7 @@ internal sealed partial class KeyboardView : UserControl
         Legend.Children.Clear();
         foreach (string group in groups)
         {
-            var item = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
+            var item = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
             item.Children.Add(new Rectangle { Width = 10, Height = 10, RadiusX = 2, RadiusY = 2, Fill = GroupBrushes.For(group), VerticalAlignment = VerticalAlignment.Center });
             item.Children.Add(new TextBlock { Text = group, Style = (Style)Application.Current.Resources["CaptionTextStyle"] });
             Legend.Children.Add(item);
@@ -98,10 +99,10 @@ internal sealed partial class KeyboardView : UserControl
         foreach (KeyCapState state in states)
         {
             KeyCap cap = state.Cap;
-            var label = new TextBlock { FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis };
+            var label = new TextBlock { FontSize = ThemeResources.Size("CaptionFontSize"), TextTrimming = TextTrimming.CharacterEllipsis };
             var action = new TextBlock
             {
-                FontSize = 9,
+                FontSize = ThemeResources.Size("MicroFontSize"),
                 TextWrapping = TextWrapping.WrapWholeWords,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 MaxLines = 2,

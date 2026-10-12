@@ -23,6 +23,7 @@ En su proceso, Rodaje solo carga un FFmpeg LGPL de la versión verificada y por 
 - **[`GpuDevice`](../../src/Rodaje.Media/Gpu/GpuDevice.cs).** `TryCreate` crea un dispositivo D3D11 (nivel 11_1 u 11_0, con soporte de video si existe) y activa la protección multihilo. Sin hardware devuelve null y todo se decodifica en CPU.
 - **D3D11VA sin copias.** Si hay D3D11VA, el contexto de FFmpeg se construye sobre **este** dispositivo, así que los cuadros decodificados son texturas que el compositor muestrea directamente. `LockContext`/`UnlockContext` usan el mismo candado que FFmpeg y son obligatorios en secuencias de varias llamadas.
 - **Lo que expone.** `SupportsHardwareDecoding`, `SupportsNv12Textures`, `SupportsP010Textures`, `DedicatedVideoMemory` y `QueryLocalVideoMemoryUsage`; el motor usa la VRAM para su presupuesto.
+- **Perfil del equipo.** [`GpuProfileReader`](../../src/Rodaje.Media/Gpu/GpuProfileReader.cs) enumera los adaptadores de DXGI (fabricante e id PCI, modelo, VRAM, versión del controlador) y los perfiles de D3D11VA que declara el principal, comprobando el formato de salida (NV12 u P010): H.264, HEVC Main y Main 10, VP9 0 y 2, AV1 y MPEG-2, con los GUID de DXVA que trae avcodec (comprobados en `avcodec-63.dll`). Lo guarda en `gpu-perfil.json` (carpeta de datos) con la clave de adaptadores y controladores. [`GpuGenerations`](../../src/Rodaje.Media/Gpu/GpuGenerations.cs) traduce el nombre a generación (NVENC/NVDEC por arquitectura, AMD VCN, Intel Quick Sync) con lo que codifica cada una; ante un modelo desconocido no descarta nada. [`GpuProfile.SkipReason`](../../src/Rodaje.Media/Gpu/GpuProfile.cs) dice qué codificadores de GPU no vale la pena probar (falta la GPU de ese fabricante, o AV1 en una RTX 30) y `PreferredEncoderVendor` cuál va primero (la GPU principal en un portátil híbrido). `GpuDevice` expone además `Vendor` y `DecodeProfiles` de su propio dispositivo.
 - **[`D3D11TexturePayload`](../../src/Rodaje.Media/Gpu/D3D11TexturePayload.cs)** es una capa de un arreglo de texturas con conteo de referencias. **[`DecoderSurfacePool`](../../src/Rodaje.Media/Gpu/DecoderSurfacePool.cs)** describe el arreglo de un decodificador (superficies, bytes, si ya se cerró).
 
 ## Decodificar video (`Video/`)
@@ -42,6 +43,8 @@ Antes de cada seek, `ResetDecoder` vacía los hilos por cuadro (`DrainFrameThrea
 
 Tolera 64 errores seguidos antes de lanzar `MediaException`.
 
+**Hardware o software.** Antes de abrir el códec, [`HardwareDecodeSupport.Evaluate`](../../src/Rodaje.Media/Gpu/HardwareDecodeSupport.cs) cruza el flujo (códec, píxel, bits) con lo que tiene FFmpeg (`avcodec_get_hw_config`) y lo que declara el controlador: `Supported` abre D3D11VA, `Unsupported` abre por software con todos los hilos (ProRes, DNxHR, H.264 de 10 bits o 4:2:2, HEVC 4:2:2 fuera de Intel, AV1 sin el perfil) y `Unknown` intenta D3D11VA. Si FFmpeg rechaza el flujo en `get_format`, el decodificador se reabre por software en la siguiente petición y `GpuDevice` lo recuerda para los siguientes del mismo tipo. Antes D3D11VA fijaba un hilo y el respaldo por software se quedaba con él.
+
 **Hardware.**
 - `get_format` es un puntero a función `[UnmanagedCallersOnly]`, compatible con AOT y sin delegados.
 - El pool D3D11VA se crea con `SHADER_RESOURCE` y su tamaño es referencias + extra, con un tope de 64 superficies (`VideoDecoder.MaxHardwarePoolSurfaces`): medido con NVDEC en la RTX 3050, FFmpeg no pasa de 64 y, si se retienen más cuadros de los que sobran, la decodificación falla o pisa superficies en uso. `DecoderSurfacePool.SpareSurfaces` dice cuántos cuadros se pueden retener.
@@ -50,7 +53,7 @@ Tolera 64 errores seguidos antes de lanzar `MediaException`.
 
 **Entrega.** Cada cuadro sale en uno de tres formatos:
 - con D3D11VA, una capa del pool;
-- por software con dispositivo, una textura NV12/P010 propia ([`FrameUploader`](../../src/Rodaje.Media/Video/FrameUploader.cs));
+- por software con dispositivo, una textura NV12/P010 propia ([`FrameUploader`](../../src/Rodaje.Media/Video/FrameUploader.cs)): 4:2:0 y 4:2:2 planos (8 y 10 bits) se empaquetan sin swscale (el 4:2:2 promedia dos filas de croma), en bandas de filas en paralelo y con la luma de 10 bits vectorizada; el resto pasa por swscale;
 - sin dispositivo, [`CpuFramePayload`](../../src/Rodaje.Media/Video/CpuFramePayload.cs).
 
 **Alta velocidad.** `GetFrame(n, DecodeAccuracy)` admite dos modos aproximados, que solo actúan si el decodificador se abrió con `VideoDecoderOptions.SkipNonReference` (al exportar no se activa):
@@ -73,6 +76,18 @@ Un cuadro aproximado lleva su índice real (menor o igual al pedido), así la ca
 | 4K H.264, software | 50 fps (1,7×) | 2–2,7× | 29× |
 | 4K HEVC, D3D11VA | 210–330 fps (7–11×) | 12–13× | 110–250× |
 | 4K HEVC, software | 51–55 fps (1,7–1,8×) | 1,7–2× | 30× |
+
+**Ruta de cada formato** (RTX 3050 Laptop, 16 hilos, 4K30 de 10 s con ruido, con el dispositivo de la vista previa; [`DecodePathBenchmarkTests`](../../tests/Rodaje.Media.Tests/DecodePathBenchmarkTests.cs) con `RODAJE_MEDIR_CARPETA`; máquina compartida con otros procesos):
+
+| 4K30 | Antes | Ahora | Ruta |
+|---|---|---|---|
+| ProRes 422 HQ | 3,2 fps | 26–33 fps (0,9–1,1×) | software, todos los hilos |
+| DNxHR HQ | 7,7 fps | 47–68 fps (1,6–2,3×) | software |
+| H.264 4:2:2 10 bits | 4,7 fps | 33–48 fps (1,1–1,6×) | software |
+| HEVC 4:2:2 10 bits | 2,7 fps | 30–39 fps (1,0–1,3×) | software |
+| HEVC Main 10 | 185 fps | 170–204 fps | D3D11VA, sin cambio |
+
+El rango es la carga de la máquina (75–90 % de CPU de otros procesos). Sin subir a la GPU, la CPU decodifica esos mismos ProRes a 41–52 fps y H.264 4:2:2 a 87–141: lo que queda es la subida (crear la textura en cada cuadro). En 4K la política de proxies ya los recomienda por resolución, y al importar se generan solos.
 
 Qué significa al reproducir: por hardware, 1080p y 4K pasan holgados a 2× y 4× con una capa. Por software, 4K no llega a 2× y necesita proxy. `AVDISCARD_NONREF` rinde según el codificador: con H.264 de NVENC (B que no son referencia) decodifica un tercio de los cuadros, y con HEVC de NVENC (B de referencia) no ahorra nada. Con material de cámara a más tasa de bits, las cifras serán menores.
 
@@ -113,7 +128,7 @@ Un proxy es una copia ligera (540p o 720p, H.264, GOP 15 sin cuadros B) **con lo
 |---|---|
 | [`ProxyStore`](../../src/Rodaje.Media/Proxies/ProxyStore.cs) | Carpeta `RODAJE_PROXIES` o `%LOCALAPPDATA%\Rodaje\proxies`. Archivos `<huella>-<ajustes>.mp4` con su `.json`; la huella ([`SourceFingerprint`](../../src/Rodaje.Media/Proxies/SourceFingerprint.cs)) es SHA-256 de ruta, tamaño, fecha y primer y último MiB. Un proxy solo cuenta si el JSON coincide. Todo se escribe como `.tmp` y se renombra al final. `Cleanup` borra temporales viejos, huérfanos y proxies de orígenes que cambiaron, y desaloja por LRU hasta un tope |
 | [`FfmpegExecutable`](../../src/Rodaje.Media/Proxies/FfmpegExecutable.cs) | Solo acepta el `ffmpeg.exe` de la carpeta de las DLL; verifica que sea LGPL y de la misma compilación, y prueba de verdad cada codificador. `OpenGplAddOn` verifica aparte el `ffmpeg.exe` estático del complemento `rodaje-codificadores-gpl` (x264 y x265, nunca `nonfree`), que solo corre como proceso |
-| [`ProxyEncoders`](../../src/Rodaje.Media/Proxies/ProxyEncoders.cs) | Preferencia `h264_nvenc`, `h264_mf`, `libopenh264` (ninguno GPL). Argumentos con `-copyts`, `-fps_mode passthrough`, sin audio y con `-progress` |
+| [`ProxyEncoders`](../../src/Rodaje.Media/Proxies/ProxyEncoders.cs) | H.264 8 bits 4:2:0 en todos los equipos (lo decodifican por hardware todas las GPU y la CPU sin esfuerzo a 540p). `PreferenceFor(perfil)`: el codificador de la GPU principal (`h264_nvenc`, `h264_amf` o `h264_qsv`), el de otra GPU, `h264_mf` y `libopenh264` (ninguno GPL). Argumentos con `-copyts`, `-fps_mode passthrough`, sin audio y con `-progress` |
 | [`ProxyGenerator`](../../src/Rodaje.Media/Proxies/ProxyGenerator.cs) | Hasta 2 trabajos a la vez. Pedidos iguales comparten un trabajo, que solo se cancela si todos cancelan. `ffmpeg.exe` corre en un Job de Windows que lo mata si Rodaje cae. Si un codificador falla prueba el siguiente; al terminar verifica número de cuadros, inicio y tasa |
 | [`ProxyPolicy`](../../src/Rodaje.Media/Proxies/ProxyPolicy.cs) | Recomienda proxy por encima de 1920×1088, con HEVC de 10 bits en varias capas, con GOP de más de 60, por encima de 80 Mbps o si la decodificación medida no llega a 1,5× por capa. `HighSpeed`: entre 1× y 16×, si la velocidad del clip × capas × 1,25 supera lo medido por `DecodeSpeedProbe`. `Reverse`: obligatoria (`IsRequired`) en reversa por encima de 1080p |
 | [`MediaSourceResolver`](../../src/Rodaje.Media/Proxies/MediaSourceResolver.cs) | Decide qué archivo usar según el propósito (vista previa o exportación) y publica el estado del proxy (`Recommended`, `Generating`, `Ready`...) |
@@ -125,6 +140,7 @@ El contrato (`IExportSink`, `ExportVideoFrame`, formatos, `EncoderSpec`, `Export
 | Pieza | Qué hace |
 |---|---|
 | [`FfmpegPipeSink`](../../src/Rodaje.Media/Export/FfmpegPipeSink.cs) | `-f rawvideo -i pipe:0` más el WAV como segunda entrada. Un único búfer de 4 MB se llena fila a fila (quita el pitch) y se vacía a la tubería: sin reservas por cuadro. Etiqueta el color en la entrada y en la salida (`bt709`/`tv`/`left`, BT.601 en SD). `ChildProcessJob`, prioridad Normal o BelowNormal según el modo (`PriorityFor`), `-progress` para `FramesEncoded`. Capítulos por `ffmetadata`, portada en MP4/MOV, secuencias de imágenes en carpeta, dos pasadas con `-pass`. `Abort` (o el token) mata el proceso y borra los temporales antes de volver |
+| [`StreamCopySource`](../../src/Rodaje.Media/Export/StreamCopySource.cs) | Para la copia directa: el tramo empieza en un keyframe y termina en otro (o al final), ninguno de los dos cortes cae en un GOP abierto (sin cuadros que se presenten antes del keyframe tras él en decodificación) y no es HDR; da el `-ss` exacto (un microsegundo tras el keyframe). Con `ExportSinkRequest.VideoCopy` el sink lee el original con `-ss`, copia con `-c:v copy -copypriorss 1 -frames:v N` y etiqueta el color con `h264_metadata`/`hevc_metadata` |
 | [`FfmpegMessages`](../../src/Rodaje.Media/Export/FfmpegMessages.cs) | La salida de error de ffmpeg a `ExportErrorCode` y un mensaje en español, con el detalle técnico al final entre paréntesis |
 | [`ExportOutputGuard`](../../src/Rodaje.Media/Export/ExportOutputGuard.cs) | Temporal `<salida>.rodaje-tmp` y renombrado; la salida no puede ser un medio de la secuencia ni estar abierta en otro programa; espacio libre antes de empezar y cada segundo mientras se escribe (reserva de 64 MB) |
 | [`ExportJournal`](../../src/Rodaje.Media/Export/ExportJournal.cs) | `%LOCALAPPDATA%\Rodaje\exportando.json`: temporales de cada exportación con el proceso dueño. `CleanupStale` (al arrancar) borra los de procesos muertos, y solo rutas con `.rodaje-tmp` |
@@ -134,7 +150,7 @@ El contrato (`IExportSink`, `ExportVideoFrame`, formatos, `EncoderSpec`, `Export
 
 **Cifras (RTX 3050 Laptop, 12-oct).** Tubería del sink a `h264_nvenc` p4: 1080p NV12 a 295–322 fps (0,9–1,0 GB/s), 4K a 85–86 fps (~1,05 GB/s). Cancelación: mediana 3 ms y máxima 7 ms en 10 rondas, sin proceso ni archivo. Inicio de audio y video en 0 ±1 ms en MP4, MOV, MKV, WebM, MXF y MPEG-TS (en MPEG-TS con `-muxdelay 0`); MP3 en MPEG-TS adelanta el video 23 ms (retardo de LAME sin lista de edición), por eso se prueba MP3 en MP4.
 
-**Codificadores probados en el equipo de desarrollo** con exportaciones cortas verificadas con ffprobe: `h264_nvenc`, `hevc_nvenc` (8 y 10 bits), `h264_mf`, `libsvtav1` (8 y 10 bits), `libvpx-vp9` (también dos pasadas), `prores_ks` (422 HQ y 4444 con alfa), `dnxhd` (DNxHR SQ en MOV y HQX en MXF), `ffv1`, `png` (secuencia); audio `aac_mf`, `aac`, `libopus`, `flac`, `alac`, `libmp3lame`, `pcm_s16le`, `pcm_s24le`. AMF y QSV tienen argumentos pero no se han podido probar (el equipo es NVIDIA). MXF etiqueta BT.601 como `bt470bg` (la misma matriz); el verificador los da por iguales.
+**Codificadores probados en el equipo de desarrollo** con exportaciones cortas verificadas con ffprobe: `h264_nvenc`, `hevc_nvenc` (8 y 10 bits), `h264_mf`, `libsvtav1` (8 y 10 bits), `libvpx-vp9` (también dos pasadas), `prores_ks` (422 HQ y 4444 con alfa), `dnxhd` (DNxHR SQ en MOV y HQX en MXF), `ffv1`, `png` (secuencia); audio `aac_mf`, `aac`, `libopus`, `flac`, `alac`, `libmp3lame`, `pcm_s16le`, `pcm_s24le`. AMF y QSV tienen argumentos y entran en la sonda de la app, pero no se han podido probar (el equipo es NVIDIA); las pruebas con perfiles simulados cubren qué se elige en cada fabricante. MXF etiqueta BT.601 como `bt470bg` (la misma matriz); el verificador los da por iguales.
 
 ## Pruebas
 

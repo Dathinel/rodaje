@@ -98,6 +98,17 @@ public static class ExportEncoderChooser
         return chosen is null ? null : new ExportEncoderChoice(chosen, chosen.Codec, chosen.InDefaults ? null : chosen.Note);
     }
 
+    /// <summary>
+    /// La lista con los codificadores por GPU del fabricante de la GPU principal delante de los de otras GPU (en un portátil
+    /// híbrido, NVENC de la dedicada antes que Quick Sync de la integrada; en un equipo AMD con gráfica Intel, AMF antes que
+    /// Quick Sync), y el resto detrás, sin cambiar el orden dentro de cada grupo.
+    /// </summary>
+    public static IReadOnlyList<EncoderSpec> PreferVendor(IEnumerable<EncoderSpec> encoders, EncoderVendor? preferred)
+    {
+        ArgumentNullException.ThrowIfNull(encoders);
+        return [.. encoders.OrderBy(e => !e.IsHardware ? 2 : e.Vendor == preferred ? 0 : 1)];
+    }
+
     private static string NoLicensedH26xNote(EncoderSpec chosen, ExportCodec? requested = null)
     {
         string what = requested switch

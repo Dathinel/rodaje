@@ -82,6 +82,49 @@ public sealed partial class EditorSession
         return Execute(Edits.SetTrackRole(SequenceId, trackId, subtitles ? TrackRoles.Subtitles : null, _ids));
     }
 
+    /// <summary>
+    /// Importa subtítulos de un archivo a una pista de subtítulos nueva con el estilo de subtítulos por defecto, en un
+    /// paso del historial, y deja seleccionados sus clips. Devuelve cuántos entraron (0 si no se pudo).
+    /// </summary>
+    public int ImportSubtitles(IReadOnlyList<SubtitleCue> cues, string trackName)
+    {
+        VerifyAccess();
+        ArgumentNullException.ThrowIfNull(cues);
+        SequenceEditCommand command = Edits.ImportSubtitles(SequenceId, cues, SubtitleStyles.NewSubtitle(), UniqueTrackName(trackName), _ids);
+        if (!Execute(command))
+        {
+            return 0;
+        }
+
+        Select(command.CreatedIds.Take(command.CreatedIds.Count - 1));
+        return command.CreatedIds.Count - 1;
+    }
+
+    /// <summary>
+    /// La pista de subtítulos que se exporta: la pedida, la del clip de texto seleccionado o la de subtítulos más alta
+    /// con texto; nula si no hay ninguna con texto.
+    /// </summary>
+    public Track? SubtitleTrackToExport(string? trackId = null)
+    {
+        Sequence sequence = Sequence;
+        static bool HasText(Track t) => t.Clips.Any(c => c.Generator is { Kind: GeneratorKinds.Text });
+        if (trackId is not null)
+        {
+            return sequence.FindTrack(trackId) is { } chosen && HasText(chosen) ? chosen : null;
+        }
+
+        foreach (string id in _selection)
+        {
+            if (sequence.FindClip(id) is { Clip.Generator.Kind: GeneratorKinds.Text } found && found.Track.Kind == TrackKind.Video)
+            {
+                return found.Track;
+            }
+        }
+
+        return sequence.VideoTracks.LastOrDefault(t => t.Role == TrackRoles.Subtitles && HasText(t))
+            ?? sequence.VideoTracks.LastOrDefault(HasText);
+    }
+
     /// <summary>«Texto», o «Texto 2», «Texto 3»… si ya hay una pista con ese nombre.</summary>
     private string UniqueTrackName(string name)
     {

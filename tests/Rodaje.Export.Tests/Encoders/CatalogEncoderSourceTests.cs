@@ -1,6 +1,7 @@
 using Rodaje.Core.Timing;
 using Rodaje.Export.Encoders;
 using Rodaje.Media.Export;
+using Rodaje.Media.Gpu;
 using Rodaje.TestMedia;
 
 namespace Rodaje.Export.Tests.Encoders;
@@ -30,6 +31,24 @@ public sealed class CatalogEncoderSourceTests
             ExportEncoderCatalog.All.Where(e => e.Vendor is not (EncoderVendor.Amd or EncoderVendor.Intel) && e.Id != "av1_nvenc").Select(e => e.Id),
             encoders.Select(e => e.Id));
         Assert.All(encoders, e => Assert.Same(ExportEncoderCatalog.Find(e.Id), e));
+    }
+
+    [Fact]
+    public async Task With_an_amd_profile_the_other_gpus_are_not_probed_and_amf_goes_first()
+    {
+        GpuProfile amd = new([new GpuAdapter("AMD Radeon RX 6600", 0x1002, 0x73FF, 8L << 30, 0, false, "1")], HardwareDecodeProfiles.None, 16);
+        var probe = new FakeEncoderProbe(_ => ExportProbeResult.Ok);
+        var source = new CatalogEncoderSource(new ExportEncoderAvailability(new GpuProfileEncoderProbe(probe, amd)), amd.PreferredEncoderVendor);
+
+        IReadOnlyList<EncoderSpec> encoders = await source.GetAsync();
+        ExportEncoderReport report = await source.Availability.GetAsync();
+
+        Assert.Equal("h264_amf", encoders[0].Id);
+        Assert.DoesNotContain(encoders, e => e.Vendor is EncoderVendor.Nvidia or EncoderVendor.Intel);
+        Assert.Equal(0, probe.CallsFor("h264_nvenc") + probe.CallsFor("h264_qsv"));
+        Assert.Equal(ExportProbeStatus.NoDevice, report.Find("h264_nvenc")!.Result.Status);
+        Assert.False(report.HasFailures);
+        Assert.Equal("h264_amf", ExportEncoderChooser.ChooseDefault(encoders)!.Encoder.Id);
     }
 
     [Fact]

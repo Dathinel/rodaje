@@ -90,6 +90,21 @@ public sealed class LayerFrame : IDisposable
         Generated = content;
     }
 
+    /// <summary>
+    /// Una capa compuesta (un clip compuesto con efectos, transformación o transición propios): sus capas de abajo arriba se
+    /// componen en un intermedio transparente del tamaño de la secuencia y ese intermedio se dibuja como una capa más. Es
+    /// dueña de sus capas y las libera al desecharse.
+    /// </summary>
+    public LayerFrame(int trackIndex, string clipId, IReadOnlyList<LayerFrame> nested, LayerTransform transform)
+        : this(trackIndex, clipId, new DecodedFrame(0, Time.Zero, Time.FromTicks(1), null, 0), transform, new Rational(1, 1), 0)
+    {
+        ArgumentNullException.ThrowIfNull(nested);
+        Nested = nested;
+    }
+
+    /// <summary>Las capas de una capa compuesta, de abajo arriba; nulo en las demás.</summary>
+    public IReadOnlyList<LayerFrame>? Nested { get; }
+
     /// <summary>El descriptor de una capa generada; nulo en una de video.</summary>
     public GeneratedContent? Generated { get; }
 
@@ -131,11 +146,19 @@ public sealed class LayerFrame : IDisposable
     public LayerTransition? Transition { get; init; }
 
     /// <summary>Sin efectos, mezcla normal ni transición: el camino rápido de siempre.</summary>
-    public bool IsPlain => Effects.Count == 0 && Blend == BlendMode.Normal && Transition is null;
+    public bool IsPlain => Effects.Count == 0 && Blend == BlendMode.Normal && Transition is null && Nested is null;
 
     public void Dispose()
     {
         Frame.Dispose();
+        if (Nested is { } nested)
+        {
+            foreach (LayerFrame layer in nested)
+            {
+                layer.Dispose();
+            }
+        }
+
         Transition?.Incoming.Dispose();
     }
 }

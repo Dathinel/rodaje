@@ -47,6 +47,33 @@ public sealed class EffectPerformanceTests(ITestOutputHelper output)
         }
     }
 
+    [GpuArrayFact]
+    public void A_1080p_compound_with_color_and_opacity_costs_one_more_pass()
+    {
+        using GpuDevice gpu = GpuDevice.Create();
+        nint texture = Texture(gpu, 1920, 1088, 2);
+        try
+        {
+            LayerFrame[] Loose() =>
+            [
+                Layers.FromTexture(gpu, texture, 0, 1920, 1080, Bt709, LayerTransform.Identity, 0),
+                Layers.FromTexture(gpu, texture, 1, 1920, 1080, Bt709, LayerTransform.Identity with { Scale = 0.5 }, 1),
+            ];
+            (double loose, _) = Measure(gpu, "2 capas 1080p sueltas", 1920, 1080, 1920, 1080, Loose());
+            var compound = new LayerFrame(0, "compuesto", Loose(), LayerTransform.Identity with { Opacity = 0.5 })
+            {
+                Effects = [Fx.Color((C.Exposure, 0.3))],
+            };
+            (double nested, _) = Measure(gpu, "las mismas en un compuesto con color y opacidad", 1920, 1080, 1920, 1080, compound);
+            output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Coste extra del compuesto 1080p: {nested - loose:0.000} ms por cuadro."));
+            Require(nested - loose <= 0.5, $"Compuesto 1080p: {nested - loose:0.000} ms más (objetivo ≤0,5).");
+        }
+        finally
+        {
+            Layers.Release(texture);
+        }
+    }
+
     [GpuFact]
     public void One_4k_layer_with_color_and_lut()
     {

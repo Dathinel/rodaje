@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
+using Rodaje.App.Theme;
 using Rodaje.Core.Model;
 using Windows.UI;
 
@@ -31,7 +32,7 @@ internal sealed partial class TextPanel
         _reapplyButton = new Button { Content = "Reaplicar estilo", FontSize = Resource<double>("BodyFontSize") };
         ToolTipService.SetToolTip(_reapplyButton, "Vuelve a copiar el estilo del paquete del que salió, con lo que ese paquete tenga hoy");
         _reapplyButton.Click += OnReapplyStyleClick;
-        StyleRows.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(12, 0, 6, 6), Children = { saveStyle, _reapplyButton } });
+        StyleRows.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(12, 0, 6, 6), Children = { saveStyle, _reapplyButton } });
 
         StyleRows.Children.Add(FontRow());
         StyleRows.Children.Add(WeightRow());
@@ -125,7 +126,7 @@ internal sealed partial class TextPanel
 
         var italic = new ToggleButton
         {
-            Content = new FontIcon { Glyph = "", FontSize = 13 },
+            Content = new FontIcon { Glyph = "", FontSize = ThemeResources.Size("IconFontSize") },
             Width = NumberWidth,
             Height = 28,
             MinHeight = 28,
@@ -159,7 +160,7 @@ internal sealed partial class TextPanel
         {
             var button = new ToggleButton
             {
-                Content = new FontIcon { Glyph = glyph, FontSize = 13 },
+                Content = new FontIcon { Glyph = glyph, FontSize = ThemeResources.Size("IconFontSize") },
                 Width = 36,
                 Height = 28,
                 MinHeight = 28,
@@ -274,7 +275,7 @@ internal sealed partial class TextPanel
     /// <summary>Muestra del color con su selector (con transparencia) y el código <c>#RRGGBB[AA]</c> escrito.</summary>
     private Grid ColorRow(string label, string field, Func<TextStyle, string?> get, Action<TextStyle, string> set)
     {
-        var swatch = new Border { Width = 18, Height = 18, CornerRadius = new CornerRadius(2), BorderThickness = new Thickness(1), BorderBrush = Resource<Brush>("ControlBorderBrush") };
+        var swatch = new Border { Width = 18, Height = 18, CornerRadius = ThemeResources.Corner("ControlCornerRadius"), BorderThickness = new Thickness(1), BorderBrush = Resource<Brush>("ControlBorderBrush") };
         var picker = new ColorPicker
         {
             IsAlphaEnabled = true,

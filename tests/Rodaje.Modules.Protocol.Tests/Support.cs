@@ -16,6 +16,13 @@ internal static class Support
         new FunctionInfo("copiar", "Copiar"),
     ]);
 
+    /// <summary>
+    /// Cota de las pruebas que corren en la CI y miden algo que debe pasar «pronto» (fallar, matar, salir). Holgada para el
+    /// runner de Windows cargado, donde 1 s llegó a 4,6 s sin defecto, pero no un tope contra cuelgues: un retraso de
+    /// segundos sigue fallando. La cota fina va en las gemelas <c>TiempoReal</c>.
+    /// </summary>
+    public static readonly TimeSpan CiBound = TimeSpan.FromSeconds(10);
+
     /// <summary>El módulo de ejemplo; <c>RODAJE_MODULO_ECO</c> apunta a otro, por ejemplo el publicado con AOT.</summary>
     public static string EchoExe =>
         Environment.GetEnvironmentVariable("RODAJE_MODULO_ECO") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Echo.exe");

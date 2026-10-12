@@ -8,7 +8,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Grid x:Name="Root" Padding="12,3,6,3" ColumnSpacing="4" Background="Transparent">
+    <Grid x:Name="Root" Padding="12,4,8,4" ColumnSpacing="4" Background="Transparent">
         <Grid.ContextFlyout>
             <MenuFlyout>
                 <MenuFlyoutItem x:Name="ResetItem" Text="Restablecer" Click="OnResetClick">
@@ -58,26 +58,26 @@
                 Click="OnKeyframeClick">
             <!-- Sin animar: rombo hueco. Animado: rombo lleno. Con un keyframe en el cursor: además, un recuadro alrededor. -->
             <Grid Width="20" Height="20">
-                <Border x:Name="HereRing" BorderBrush="{StaticResource KeyframeBrush}" BorderThickness="1" CornerRadius="2" Visibility="Collapsed" />
-                <TextBlock x:Name="DiamondEmpty" Text="&#x25C7;" FontFamily="{StaticResource UiFontFamily}" FontSize="14"
+                <Border x:Name="HereRing" BorderBrush="{StaticResource KeyframeBrush}" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Visibility="Collapsed" />
+                <TextBlock x:Name="DiamondEmpty" Text="&#x25C7;" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource HeaderFontSize}"
                            Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                <TextBlock x:Name="DiamondAnimated" Text="&#x25C6;" FontFamily="{StaticResource UiFontFamily}" FontSize="14"
+                <TextBlock x:Name="DiamondAnimated" Text="&#x25C6;" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource HeaderFontSize}"
                            Foreground="{StaticResource KeyframeBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
             </Grid>
         </Button>
-        <Button x:Name="ResetButton" Grid.Column="5" Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="11"
+        <Button x:Name="ResetButton" Grid.Column="5" Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="{StaticResource IconFontSize}"
                 Content="&#xE72C;" Click="OnResetClick" />
 
         <!-- Solo con keyframes: ir al anterior o al siguiente, la curva del keyframe del cursor y cuántos hay. -->
         <StackPanel x:Name="KeyframeStrip" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="5" Orientation="Horizontal" Spacing="2"
                     Margin="0,2,0,2" Visibility="Collapsed">
-            <Button x:Name="PreviousButton" Style="{StaticResource ToolButtonStyle}" Width="22" Height="24" FontSize="10"
+            <Button x:Name="PreviousButton" Style="{StaticResource ToolButtonStyle}" Width="22" Height="24" FontSize="{StaticResource IconSmallFontSize}"
                     Content="&#xE76B;" Click="OnPreviousClick" ToolTipService.ToolTip="Keyframe anterior"
                     AutomationProperties.Name="Keyframe anterior" />
-            <ComboBox x:Name="EaseBox" MinWidth="0" Width="96" Height="24" Padding="6,0,0,0"
+            <ComboBox x:Name="EaseBox" MinWidth="0" Width="96" Height="24" Padding="8,0,0,0"
                       FontSize="{StaticResource CaptionFontSize}" ToolTipService.ToolTip="Curva hasta el keyframe siguiente"
                       AutomationProperties.Name="Curva hasta el keyframe siguiente" SelectionChanged="OnEaseChanged" />
-            <Button x:Name="NextButton" Style="{StaticResource ToolButtonStyle}" Width="22" Height="24" FontSize="10"
+            <Button x:Name="NextButton" Style="{StaticResource ToolButtonStyle}" Width="22" Height="24" FontSize="{StaticResource IconSmallFontSize}"
                     Content="&#xE76C;" Click="OnNextClick" ToolTipService.ToolTip="Keyframe siguiente"
                     AutomationProperties.Name="Keyframe siguiente" />
             <TextBlock x:Name="CountText" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource KeyframeBrush}"

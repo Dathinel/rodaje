@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Theme;
 using Rodaje.App.Views.Subtitles;
 using Rodaje.Core.Model;
 using Windows.System;
@@ -95,7 +96,7 @@ internal sealed partial class TextPanel
 
         var split = new Button
         {
-            Content = new FontIcon { Glyph = "", FontSize = 12 },
+            Content = new FontIcon { Glyph = "", FontSize = ThemeResources.Size("IconFontSize") },
             Width = 28,
             Height = 28,
             MinHeight = 28,

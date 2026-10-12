@@ -227,10 +227,32 @@ public sealed record ExportSettings
     /// <summary>Capítulos desde los marcadores de la secuencia (en los contenedores que los admiten).</summary>
     public bool ChaptersFromMarkers { get; init; }
 
+    /// <summary>Las pistas de subtítulos: quemadas en la imagen, como flujo aparte que se activa en el reproductor o las dos.</summary>
+    public SubtitleExport Subtitles { get; init; } = SubtitleExport.Burned;
+
     /// <summary><c>moov</c> al principio en MP4/MOV, para reproducir mientras descarga.</summary>
     public bool FastStart { get; init; } = true;
 
     public ExportPerformance Performance { get; init; } = ExportPerformance.Background;
+
+    /// <summary>
+    /// Copia directa («smart render»): si el rango es un solo tramo sin cambios con el formato de la salida y cortes en
+    /// keyframes, el video se copia del original sin recodificar (<c>StreamCopyPlanner</c>).
+    /// </summary>
+    public bool SmartRender { get; init; } = true;
+}
+
+/// <summary>Qué se hace con las pistas de subtítulos al exportar video.</summary>
+public enum SubtitleExport
+{
+    /// <summary>En la imagen, como se ven en el visor.</summary>
+    Burned,
+
+    /// <summary>Solo como flujo de subtítulos (en los contenedores que lo admiten); la imagen sale sin ellos.</summary>
+    Embedded,
+
+    /// <summary>En la imagen y además como flujo de subtítulos.</summary>
+    Both,
 }
 
 /// <summary>Rango de la secuencia que se exporta, <c>[Start, End)</c>.</summary>

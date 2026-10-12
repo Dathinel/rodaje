@@ -1,10 +1,10 @@
-using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.Analysis;
 using Rodaje.App.Services.Format;
+using Rodaje.App.Theme;
 
 namespace Rodaje.App.Views.Analysis;
 
@@ -50,7 +50,7 @@ internal static class AnalysisUi
     public static void DrawRanges(Canvas canvas, double duration, IEnumerable<TimeRange> ranges, Windows.UI.Color color)
     {
         canvas.Children.Clear();
-        canvas.Children.Add(new Rectangle { Width = PreviewWidth, Height = canvas.Height, Fill = new SolidColorBrush(Color(0x33, 0x3A, 0x45)) });
+        canvas.Children.Add(new Rectangle { Width = PreviewWidth, Height = canvas.Height, Fill = ThemeResources.Brush("ControlBrush") });
         if (duration <= 0)
         {
             return;
@@ -71,6 +71,4 @@ internal static class AnalysisUi
     }
 
     public static Canvas Preview() => new() { Width = PreviewWidth, Height = 28, Margin = new Thickness(0, 4, 0, 8) };
-
-    public static Windows.UI.Color Color(byte r, byte g, byte b) => ColorHelper.FromArgb(0xFF, r, g, b);
 }

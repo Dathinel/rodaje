@@ -24,6 +24,19 @@ internal readonly unsafe struct Destination(RenderTarget target, int width, int 
     public float PixelScale => Math.Min((float)Width / SequenceWidth, (float)Height / SequenceHeight);
 }
 
+/// <summary>
+/// Lo que dibuja una capa: los planos Y'CbCr de un cuadro decodificado o el intermedio RGBA premultiplicado de una capa
+/// compuesta, que ocupa el cuadro de la secuencia.
+/// </summary>
+internal readonly record struct LayerSource(D3D11TexturePayload? Planes, ImageView Image)
+{
+    public static LayerSource Of(D3D11TexturePayload payload) => new(payload, default);
+
+    public static LayerSource Of(ImageView image) => new(null, image);
+
+    public bool IsImage => Planes is null;
+}
+
 /// <summary>Efectos que la vista previa puede dejar fuera: para comparar antes y después y para el cuentagotas del croma.</summary>
 [Flags]
 public enum PreviewBypass
@@ -59,7 +72,7 @@ internal struct FrameStats
 /// <remarks>Lo que no se puede aplicar en este cuadro (shader sin compilar, pool lleno) se salta y se cuenta; nunca se espera.</remarks>
 internal sealed unsafe partial class LayerRenderer : IDisposable
 {
-    private const DXGI_FORMAT IntermediateFormat = DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT;
+    internal const DXGI_FORMAT IntermediateFormat = DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT;
 
     private readonly GpuDevice _gpu;
     private readonly ID3D11DeviceContext* _context;
@@ -148,33 +161,45 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         return true;
     }
 
-    /// <summary>Dibuja una capa con efectos, mezcla o transición. Deja el pipeline enlazado a otra cosa: quien llama lo vuelve a enlazar.</summary>
-    public bool Draw(LayerFrame layer, D3D11TexturePayload payload, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination, ref FrameStats stats)
+    /// <summary>
+    /// Dibuja una capa con efectos, mezcla o transición, o una capa compuesta. Deja el pipeline enlazado a otra cosa: quien
+    /// llama lo vuelve a enlazar.
+    /// </summary>
+    /// <param name="incoming">El origen del clip que entra si la capa está en una transición; nulo si no se puede dibujar.</param>
+    public bool Draw(LayerFrame layer, LayerSource source, LayerSource? incoming, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination,
+        ref FrameStats stats)
     {
         _effects.BindConstants();
         return layer.Transition is { } transition
-            ? DrawTransition(layer, payload, transition, geometry, destination, ref stats)
-            : DrawSingle(layer, payload, geometry?.Invoke(layer) ?? SourceGeometry.Square, destination, layer.Blend, ref stats);
+            ? DrawTransition(layer, source, transition, incoming, geometry, destination, ref stats)
+            : DrawSingle(layer, source, GeometryOf(layer, source, geometry), destination, layer.Blend, ref stats);
     }
+
+    /// <summary>Una capa compuesta ya tiene la forma de la secuencia: no lleva relación de aspecto ni giro del origen.</summary>
+    private static SourceGeometry GeometryOf(LayerFrame layer, LayerSource source, Func<LayerFrame, SourceGeometry>? geometry) =>
+        source.IsImage ? SourceGeometry.Square : geometry?.Invoke(layer) ?? SourceGeometry.Square;
 
     private Rodaje.Core.Effects.CropRect? CropOf(LayerFrame layer) => (Bypass & PreviewBypass.Crop) != 0 ? null : layer.Transform.Crop;
 
     private static float Opacity(LayerFrame layer) => (float)Math.Min(layer.Transform.Opacity, 1);
 
-    private static LayerPlacement? Place(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight)
+    private static LayerPlacement? Place(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight) =>
+        Place(layer, LayerSource.Of(payload), geometry, sequenceWidth, sequenceHeight);
+
+    private static LayerPlacement? Place(LayerFrame layer, LayerSource source, SourceGeometry geometry, int sequenceWidth, int sequenceHeight)
     {
         if (!(layer.Transform.Opacity > 0))
         {
             return null;
         }
 
-        (int displayWidth, int displayHeight) = layer.DisplayWidth > 0 && layer.DisplayHeight > 0
-            ? (layer.DisplayWidth, layer.DisplayHeight)
+        (int displayWidth, int displayHeight) = source.Planes is not { } payload ? (sequenceWidth, sequenceHeight)
+            : layer.DisplayWidth > 0 && layer.DisplayHeight > 0 ? (layer.DisplayWidth, layer.DisplayHeight)
             : geometry.DisplaySize(payload.Width, payload.Height);
         return LayerLayout.Place(sequenceWidth, sequenceHeight, displayWidth, displayHeight, layer.Transform with { Crop = geometry.Crop });
     }
 
-    private bool DrawSingle(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, in Destination destination,
+    private bool DrawSingle(LayerFrame layer, LayerSource payload, SourceGeometry geometry, in Destination destination,
         BlendMode blend, ref FrameStats stats)
     {
         geometry = geometry with { Crop = CropOf(layer) };
@@ -196,7 +221,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         }
     }
 
-    private bool DrawPlanned(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, in Destination destination,
+    private bool DrawPlanned(LayerFrame layer, LayerSource payload, SourceGeometry geometry, in Destination destination,
         BlendMode blend, LayerPlacement placement, LayerPlan plan, EffectConstants effects, RenderTarget? mask, ref FrameStats stats)
     {
         int blendCount = blend == BlendMode.Normal ? 0 : 1;
@@ -220,7 +245,13 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             // Variante todavía sin compilar: la capa sale sin efectos y con mezcla normal.
             _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, QuadPipeline.Shader.Layer);
             stats.EffectsSkipped += plan.PerPixelCount + blendCount;
-            return DrawPlain(layer, payload, geometry, destination.SequenceWidth, destination.SequenceHeight, destination.PixelScale);
+            if (payload.Planes is not { } planes)
+            {
+                stats.LayersSkipped++;
+                return false;
+            }
+
+            return DrawPlain(layer, planes, geometry, destination.SequenceWidth, destination.SequenceHeight, destination.PixelScale);
         }
 
         QuadConstants quad = LayerQuad(payload, placement, geometry, Opacity(layer), destination.SequenceWidth, destination.SequenceHeight,
@@ -243,6 +274,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         }
 
         effects.BlendInfo.X = (float)blend;
+        PrepareSource(payload, ref effects);
         _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, shader, _effects.BlendState(blend));
         BindInputs(background, plan.Lut, null, null, mask, plan.Curves);
         _effects.Set(effects);
@@ -253,7 +285,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         return true;
     }
 
-    private bool DrawThroughIntermediate(D3D11TexturePayload payload, LayerPlacement placement, SourceGeometry geometry, float opacity,
+    private bool DrawThroughIntermediate(LayerSource payload, LayerPlacement placement, SourceGeometry geometry, float opacity,
         in LayerPlan plan, EffectConstants effects, RenderTarget? mask, in Destination destination, BlendMode blend, ref FrameStats stats,
         out bool blendDropped)
     {
@@ -282,6 +314,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         float scaleY = height / placement.LocalHeight;
         var local = new LayerPlacement(Matrix3x2.CreateScale(scaleX, scaleY), placement.LocalWidth, placement.LocalHeight, Math.Min(scaleX, scaleY));
         QuadConstants toIntermediate = LayerQuad(payload, local, geometry, 1, width, height, 1);
+        PrepareSource(payload, ref effects);
         _quad.Bind(first.Rtv, width, height, graded, null);
         BindInputs(null, plan.Lut, null, null, mask, plan.Curves);
         _effects.Set(effects);
@@ -343,8 +376,28 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         return true;
     }
 
-    private void DrawPlanes(D3D11TexturePayload payload, in QuadConstants quad)
+    /// <summary>Una capa compuesta se lee de t5 con su mapa (<c>extra.w</c> en <c>PsGraded</c>).</summary>
+    private static void PrepareSource(LayerSource source, ref EffectConstants effects)
     {
+        if (source.IsImage)
+        {
+            effects.Extra.W = 1;
+            effects.MapA = source.Image.Map;
+        }
+    }
+
+    private void DrawPlanes(LayerSource source, in QuadConstants quad)
+    {
+        if (source.Planes is not { } payload)
+        {
+            ID3D11ShaderResourceView* srv = source.Image.Target.Srv;
+            _context->PSSetShaderResources(5, 1, &srv);
+            _quad.Draw(quad);
+            srv = null;
+            _context->PSSetShaderResources(5, 1, &srv);
+            return;
+        }
+
         PlaneViews views = _views.Get(payload, out bool owned);
         try
         {
@@ -426,6 +479,12 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         int bottom = Math.Clamp((int)MathF.Ceiling((1 - minY) * 0.5f * destination.Height), 0, destination.Height);
         return new PixelRect(left, top, right - left, bottom - top);
     }
+
+    private static QuadConstants LayerQuad(LayerSource source, in LayerPlacement placement, SourceGeometry geometry,
+        float opacity, float sequenceWidth, float sequenceHeight, float pixelScale) =>
+        source.Planes is { } payload
+            ? LayerQuad(payload, placement, geometry, opacity, sequenceWidth, sequenceHeight, pixelScale)
+            : PlacedQuad(placement, VideoLayout.Crop(VideoLayout.Corners(0, 1, 1), geometry.Crop), opacity, sequenceWidth, sequenceHeight, pixelScale);
 
     /// <summary>Constantes de una capa YUV: colocación, rango, matriz y recorte del relleno del decodificador.</summary>
     internal static QuadConstants LayerQuad(D3D11TexturePayload payload, in LayerPlacement placement, SourceGeometry geometry,

@@ -6,7 +6,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <StackPanel>
-        <Grid Height="34" Padding="4,0,8,0" ColumnSpacing="6" Background="{StaticResource BarBrush}"
+        <Grid Height="34" Padding="4,0,8,0" ColumnSpacing="8" Background="{StaticResource BarBrush}"
               BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -16,13 +16,13 @@
             <Button x:Name="ToggleButton" Style="{StaticResource ToolButtonStyle}" Width="NaN" Height="30" Padding="4,0"
                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" FontFamily="{StaticResource UiFontFamily}"
                     FontSize="{StaticResource BodyFontSize}" Click="OnToggleClick">
-                <Grid ColumnSpacing="6">
+                <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="Chevron" Text="&#xE70D;" FontFamily="{StaticResource IconFontFamily}" FontSize="10"
+                    <TextBlock x:Name="Chevron" Text="&#xE70D;" FontFamily="{StaticResource IconFontFamily}" FontSize="{StaticResource IconSmallFontSize}"
                                Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
                     <TextBlock x:Name="TitleText" Grid.Column="1" Style="{StaticResource PanelTitleTextStyle}" />
                     <TextBlock x:Name="SummaryText" Grid.Column="2" Style="{StaticResource CaptionTextStyle}" Margin="2,0,0,0" Visibility="Collapsed" />

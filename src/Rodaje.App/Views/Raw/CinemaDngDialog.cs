@@ -25,7 +25,7 @@ internal static class CinemaDngDialog
         EditorSession session = services.Session;
         if (services.Modules?.FindByFunction(CinemaDngImport.Function) is not { } module)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "Hace falta el módulo «RAW de cine». Instálalo desde Complementos.");
+            session.Notify(NotificationSeverity.Informational, Title, "Hace falta el módulo «RAW de cine». Instálalo desde Complementos › Módulos de IA.");
             return;
         }
 
@@ -56,7 +56,7 @@ internal static class CinemaDngDialog
             return;
         }
 
-        var panel = new StackPanel { Spacing = 6, Width = AnalysisUi.PreviewWidth };
+        var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(new TextBlock
         {
             Text = string.Create(SpanishNumbers.Format, $"«{sequence.Name}»: {sequence.Frames.Count} cuadros")

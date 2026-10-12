@@ -1,6 +1,21 @@
-# Rodaje
+<p align="center">
+  <img src="assets/marca/rodaje.svg" alt="Logotipo de Rodaje" width="128">
+</p>
 
-Editor de video nativo para Windows: rápido, por capas, con la comodidad de los editores móviles y la precisión de uno profesional. Compilado de antemano con Native AOT: no necesita .NET ni nada instalado aparte. Con instalador o portable.
+<h1 align="center">Rodaje</h1>
+
+<p align="center">
+  Editor de video nativo para Windows: rápido, por capas, con la comodidad de los editores móviles y la precisión de uno profesional.<br>
+  Compilado de antemano con Native AOT: no necesita .NET ni nada instalado aparte. Con instalador o portable.
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licencia-GPLv3-E8833A?style=flat-square&labelColor=1D1D1D" alt="Licencia GPLv3"></a>
+  <a href="https://github.com/Dathinel/rodaje/releases"><img src="https://img.shields.io/badge/versi%C3%B3n-1.0.0-E8833A?style=flat-square&labelColor=1D1D1D" alt="Versión 1.0.0"></a>
+  <img src="https://img.shields.io/badge/Windows-x64-E8833A?style=flat-square&labelColor=1D1D1D" alt="Windows x64">
+  <img src="https://img.shields.io/badge/.NET-10-E8833A?style=flat-square&labelColor=1D1D1D&logo=dotnet&logoColor=white" alt=".NET 10">
+  <a href="https://github.com/Dathinel/rodaje/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Dathinel/rodaje/ci.yml?branch=main&style=flat-square&labelColor=1D1D1D&label=CI" alt="Estado de la CI"></a>
+</p>
 
 ## Qué hace
 
@@ -49,11 +64,14 @@ Medido en un Ryzen 7 7435HS con RTX 3050 Laptop:
 | Salto exacto al cuadro | **2 864 de 2 864** saltos aleatorios en el cuadro exacto, en H.264 y HEVC, por GPU y por software |
 | Sincronía audio/video | **0 cuadros de error en 10 minutos** |
 | Exportación | 1 min 1080p de dos capas con efectos a H.264 por GPU en **9 s** (~200 fps) |
+| Formatos | **37 de 37** casos de la matriz con la respuesta esperada: 33 de video y audio de punta a punta, con seek exacto y exportación verificada, y las imágenes rechazadas con su motivo ([docs/formatos.md](docs/formatos.md)) |
 | Native AOT | **0 advertencias** |
 
 ## Documentación
 
-Índice completo en [docs/README.md](docs/README.md): arquitectura por capas, formatos `.rodaje` y `.paquete`, protocolo de módulos, distribución, decisiones y fondo legal.
+- **[Guía de usuario](docs/guia/README.md):** [instalar](docs/guia/instalar.md), [tu primer proyecto](docs/guia/primer-proyecto.md), [edición](docs/guia/edicion.md), [imagen](docs/guia/imagen.md), [audio](docs/guia/audio.md), [títulos y subtítulos](docs/guia/titulos-y-subtitulos.md), [IA local](docs/guia/ia-local.md), [exportar](docs/guia/exportar.md), [complementos](docs/guia/complementos.md), [atajos](docs/guia/atajos.md) y [solución de problemas](docs/guia/solucion-de-problemas.md).
+- **Para contribuir:** [CONTRIBUTING.md](CONTRIBUTING.md) (entorno, pruebas, estilo, DCO y pull requests) y [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+- **Cómo está hecho:** índice completo en [docs/README.md](docs/README.md): arquitectura por capas, formatos `.rodaje` y `.paquete`, protocolo de módulos, distribución, decisiones y fondo legal.
 
 ## Licencia
 

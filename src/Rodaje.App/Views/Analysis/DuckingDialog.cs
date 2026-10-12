@@ -6,6 +6,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -13,11 +14,13 @@ using Rodaje.Core.Timing;
 namespace Rodaje.App.Views.Analysis;
 
 /// <summary>
-/// «Ducking automático»: el clip seleccionado es la música; se busca la voz en otra pista (sus clips que se cruzan con la
+/// «Bajar música bajo la voz» (ducking): el clip seleccionado es la música; se busca la voz en otra pista (sus clips que se cruzan con la
 /// música) y la música baja con keyframes de volumen antes de cada frase. Un paso del historial.
 /// </summary>
 internal static class DuckingDialog
 {
+    public const string Title = "Bajar música bajo la voz";
+
     /// <summary>El detector; cuando exista el módulo VAD se elige aquí sin tocar el resto.</summary>
     internal static IVoiceActivityDetector Detector { get; set; } = new EnergyVoiceDetector();
 
@@ -26,7 +29,7 @@ internal static class DuckingDialog
         EditorSession session = services.Session;
         if (ClipAudioSource.SelectedAudioClip(session) is not { } music || services.Shell.XamlRoot is not { } root)
         {
-            session.Notify(NotificationSeverity.Informational, "Ducking automático", "Selecciona el clip de música.");
+            session.Notify(NotificationSeverity.Informational, Title, "Selecciona el clip de música.");
             return;
         }
 
@@ -34,7 +37,7 @@ internal static class DuckingDialog
         List<Track> voiceTracks = [.. session.Sequence.AllTracks.Where(t => t != musicTrack && VoiceClips(session, t, music).Count > 0)];
         if (voiceTracks.Count == 0)
         {
-            session.Notify(NotificationSeverity.Informational, "Ducking automático", "No hay otra pista con sonido debajo de la música.");
+            session.Notify(NotificationSeverity.Informational, Title, "No hay otra pista con sonido debajo de la música.");
             return;
         }
 
@@ -65,7 +68,7 @@ internal static class DuckingDialog
             options = options with { ReductionDb = reduction.Value, Anticipation = anticipation.Value, Release = release.Value };
             plan = DuckingPlanner.Plan(voice, options);
             IEnumerable<TimeRange> ducked = plan.Chunk(4).Where(c => c.Length == 4).Select(c => new TimeRange(c[0].Time - origin, c[3].Time - origin));
-            AnalysisUi.DrawRanges(preview, length, ducked, AnalysisUi.Color(0x4F, 0x9D, 0xE0));
+            AnalysisUi.DrawRanges(preview, length, ducked, ThemeResources.Color("VoiceMarkColor"));
             status.Text = string.Create(SpanishNumbers.Format, $"{voice.Count} tramos de voz; la música baja {-options.ReductionDb:0} dB en cada uno.");
         }
 
@@ -73,7 +76,7 @@ internal static class DuckingDialog
         anticipation = AnalysisUi.Slider(panel, "Baja antes de la voz", DuckingOptions.MinimumAnticipation, 0.5, options.Anticipation, 0.01, AnalysisUi.Ms, Refresh);
         release = AnalysisUi.Slider(panel, "Vuelve a subir en", 0.1, 2, options.Release, 0.05, AnalysisUi.Sec, Refresh);
 
-        ContentDialog dialog = AnalysisUi.Dialog(root, "Ducking automático", "Aplicar", panel);
+        ContentDialog dialog = AnalysisUi.Dialog(root, Title, "Aplicar", panel);
         CancellationTokenSource cancel = new();
         Task analysis = Analyze(voiceTracks[0], cancel.Token);
         trackBox.SelectionChanged += (_, _) =>

@@ -39,6 +39,8 @@ public sealed class ClipDragSession
         DragOperation.TrimStart => "Recortar inicio",
         DragOperation.TrimEnd => "Recortar final",
         DragOperation.StretchStart or DragOperation.StretchEnd => "Cambiar velocidad",
+        DragOperation.Roll => "Roll",
+        DragOperation.Slide => "Slide",
         _ => "Slip",
     };
 

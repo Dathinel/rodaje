@@ -71,7 +71,8 @@ Un proyecto que usa un elemento de un paquete guarda `paquete@versión/elemento`
 | Carpeta | Qué hay | Quién escribe |
 |---|---|---|
 | `%LOCALAPPDATA%\Rodaje\complementos\paquetes\<id>\` | Paquetes de contenido instalados | El instalador |
-| `%LOCALAPPDATA%\Rodaje\complementos\modulos\<id>\` | Módulos de IA instalados | El instalador |
+| `%LOCALAPPDATA%\Rodaje\complementos\modulos\<id>\` | Módulos de IA instalados, con sus modelos en `<file>` | El instalador y la descarga de modelos |
+| `%LOCALAPPDATA%\Rodaje\complementos\modelos\<sha256>` | Almacén de modelos, uno por contenido (enlazados desde cada módulo) | La descarga de modelos |
 | `%LOCALAPPDATA%\Rodaje\complementos\propios\` | Lo que hace la persona en Rodaje, por ejemplo «Guardar como transición» del inspector | El programa |
 | `app\paquetes\` y `app\modulos\` (junto a `app\Rodaje.exe`) | Lo que trae la distribución completa | Nadie: solo lectura |
 
@@ -155,11 +156,12 @@ Curvas de la transformación del clip que sale (`outgoing`) y del que entra (`in
   "fill": { "color": "#FFFFFF" }, "stroke": { "color": "#000000", "width": 6, "join": "round" },
   "shadow": { "color": "#00000099", "dx": 4, "dy": 6, "blur": 8 },
   "background": { "color": "#00000080", "padding": [24, 12], "radius": 12 },
+  "highlight": { "color": "#FFD400" },
   "in":  { "durationSeconds": 0.4, "curves": { "opacity": [ { "t": 0, "value": 0, "interp": "easeOut" }, { "t": 0.4, "value": 1 } ] } },
   "out": { "durationSeconds": 0.3, "curves": { "opacity": [ { "t": 0, "value": 1 }, { "t": 0.3, "value": 0 } ] } } }
 ```
 
-Un estilo de título. Obligatorios `font.family` y `size` (mayor que 0 y hasta 1000); lo demás tiene valor por defecto (peso 400, interlineado 1,2, centrado, relleno blanco) o falta (sin borde, sombra, fondo ni animación). Medidas en píxeles de `reference`; colores `#RRGGBB` o `#RRGGBBAA`; peso entero de 100 a 900; hasta 8 fuentes de respaldo; `font.source` es la referencia de un elemento `font`; borde de hasta la mitad de `size`, `blur` de 0 a 64, desplazamientos y márgenes de hasta 1000; `in` y `out` (hasta 60 s) son curvas de `rodaje.transform` por parámetro, como en `rodaje.preset`, en segundos desde su borde del clip. Al aplicarlo el proyecto guarda una copia con `source` (D-029): actualizar el paquete no cambia los títulos ya puestos.
+Un estilo de título. Obligatorios `font.family` y `size` (mayor que 0 y hasta 1000); lo demás tiene valor por defecto (peso 400, interlineado 1,2, centrado, relleno blanco) o falta (sin borde, sombra, fondo ni animación). Medidas en píxeles de `reference`; colores `#RRGGBB` o `#RRGGBBAA`; peso entero de 100 a 900; hasta 8 fuentes de respaldo; `font.source` es la referencia de un elemento `font`; borde de hasta la mitad de `size`, `blur` de 0 a 64, desplazamientos y márgenes de hasta 1000; `highlight.color` es el color de la palabra que se está diciendo en los subtítulos con tiempos por palabra (karaoke); `in` y `out` (hasta 60 s) son curvas de `rodaje.transform` por parámetro, como en `rodaje.preset`, en segundos desde su borde del clip. Al aplicarlo el proyecto guarda una copia con `source` (D-029): actualizar el paquete no cambia los títulos ya puestos.
 
 ### `safe-zones`: `rodaje.safezones` v1
 
@@ -199,8 +201,13 @@ Rodaje viene completo como editor y exportador; el contenido es opcional y vive 
 
 | Repositorio | Id | Trae |
 |---|---|---|
-| `Dathinel/rodaje-transiciones` | `rodaje-transiciones` | 8 transiciones `rodaje.preset` v2 |
-| `Dathinel/rodaje-filtros` | `rodaje-filtros` | 8 looks: cada uno un filtro con su LUT 33³, generada por fórmulas propias (`generar.ps1`) |
+| `Dathinel/rodaje-transiciones` | `rodaje-transiciones` | 1.1.0: 22 transiciones `rodaje.preset` v2 (la 1.0.0 traía las 8 de abajo) |
+| `Dathinel/rodaje-filtros` | `rodaje-filtros` | 1.1.0: 13 looks, cada uno un filtro con su LUT 33³ generada por fórmulas propias (`generar.ps1`); la 1.0.0 traía 8 |
+| `Dathinel/rodaje-fuentes` | `rodaje-fuentes` | 10 familias OFL sin modificar (elementos `font`) |
+| `Dathinel/rodaje-titulos` | `rodaje-titulos` | 15 estilos `rodaje.textstyle`, con subtítulos y karaoke (`highlight`) |
+| `Dathinel/rodaje-zonas` | `rodaje-zonas` | 12 juegos de zonas `rodaje.safezones` genéricos |
+
+Los módulos de IA viven en repositorios propios con el mismo patrón (GPLv3 con los términos de Rodaje; el código está en `modules/` de Rodaje y cada release adjunta el que se compiló): `modulo-subtitulos`, `modulo-traducir`, `modulo-voz`, `modulo-audio-ia`, `modulo-vision` y `modulo-raw`, todos en 1.0.0 ([descarga.md](descarga.md#estado)).
 
 | Transición | Curvas | Mezcla |
 |---|---|---|
@@ -239,14 +246,14 @@ Además, instalar, desinstalar y limpiar toman `complementos\.operacion.lock` (a
 Un módulo es un paquete con `"kind": "module"` y un bloque `module`:
 
 ```json
-"module": { "entry": "bin/Rodaje.Module.Subtitles.exe", "protocol": 1, "functions": ["subtitulos"], "vramMb": 1500 }
+"module": { "entry": "Rodaje.Module.Subtitles.exe", "protocol": 1, "functions": ["subtitulos"], "vramMb": 1500 }
 ```
 
-Se instala en `modulos\<id>\` y la página de complementos y el panel IA de la biblioteca muestran si está instalado. La app lo abre como proceso aparte con el [protocolo de módulos](protocolo-modulos.md): lo que devuelve se convierte en una propuesta que se aplica como un paso normal del historial (Ctrl+Z la deshace). Los campos `vramMb`, `runtime` y `models` se describen en [Empaquetarlo](protocolo-modulos.md#empaquetarlo).
+`entry` va en la raíz del paquete: el módulo busca sus modelos en `modelos\` junto a su exe, y cada `file` de `models` es `modelos/…`. Se instala en `modulos\<id>\` sin los modelos; Rodaje los baja después y los deja en `<carpeta del módulo>\<file>` ([descarga.md](descarga.md#cómo-funciona)). La página de complementos y el panel IA de la biblioteca muestran si está instalado y si le faltan modelos. La app lo abre como proceso aparte con el [protocolo de módulos](protocolo-modulos.md): lo que devuelve se convierte en una propuesta que se aplica como un paso normal del historial (Ctrl+Z la deshace). Los campos `vramMb`, `runtime` y `models` se describen en [Empaquetarlo](protocolo-modulos.md#empaquetarlo).
 
 ## Catálogo
 
-`src/Rodaje.App/Services/Packages/catalogo.json` viaja dentro del ejecutable y lista los complementos conocidos: id, tipo, nombre, descripción, repositorio, programas y lo que trae. También nombra los programas (`rodaje`, y los editores de audio y de fotos como «en planes») para mostrar «Funciona en». El catálogo solo informa: lo que se instala siempre pasa por la validación del manifiesto. La descarga usa el índice firmado de `Dathinel/rodaje-catalogo` ([descarga.md](descarga.md)); también se puede instalar con «Instalar desde archivo…» o soltando el `.paquete` en la biblioteca.
+`src/Rodaje.App/Services/Packages/catalogo.json` viaja dentro del ejecutable y lista los complementos publicados (transiciones, filtros, fuentes, títulos, zonas y los seis módulos): id, tipo, nombre, descripción, repositorio, programas y lo que trae (en un módulo, sus funciones). También nombra los programas (`rodaje`, y los editores de audio y de fotos como «en planes») para mostrar «Funciona en». El catálogo solo informa: lo que se instala siempre pasa por la validación del manifiesto. La descarga usa el índice firmado de `Dathinel/rodaje-catalogo` ([descarga.md](descarga.md)); también se puede instalar con «Instalar desde archivo…» o soltando el `.paquete` en la biblioteca.
 
 ## Archivos
 
@@ -260,7 +267,7 @@ Se instala en `modulos\<id>\` y la página de complementos y el panel IA de la b
 | `PackageLibrary.cs` | Carpetas de paquetes, recorrido de lo instalado y elementos propios |
 | `PackageInstaller.cs` | Instalar, desinstalar y limpiar restos |
 | `PackageCatalog.cs` | Catálogo y la interfaz de descarga |
-| `Download/` | Índice firmado, política de URL, descarga reanudable y almacén de modelos ([descarga.md](descarga.md)) |
+| `Download/` | Índice firmado, política de URL, descarga reanudable, almacén de modelos y `module.models` (`ModuleModels`) ([descarga.md](descarga.md)) |
 | `Content/ContentTypes.cs`, `TextStyleTypes.cs` | `LutTable`, los preajustes ya leídos (`FilterPreset`, `EffectPreset`, `TransitionPreset`) y el estilo de texto |
 | `Content/ContentReaders.cs`, `CubeReader.cs`, `PresetReader.cs`, `PresetReader.TextStyle.cs` | Los lectores de `.cube`, `rodaje.filter`, `rodaje.effect`, `rodaje.preset` y `rodaje.textstyle` |
 | `Content/PresetReader.SafeZones.cs`, `SafeZoneTypes.cs` | Lector y escritor de `rodaje.safezones` |

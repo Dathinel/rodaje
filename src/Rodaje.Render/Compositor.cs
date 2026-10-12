@@ -202,13 +202,7 @@ public sealed unsafe class Compositor : IDisposable
             if (strict)
             {
                 // La exportación espera a sus títulos; se rasterizan antes de enlazar nada en el contexto.
-                foreach (LayerFrame layer in frame.Layers)
-                {
-                    if (layer.Generated is { } content)
-                    {
-                        titles.Rasterize(content);
-                    }
-                }
+                RasterizeTitles(titles, frame.Layers);
             }
         }
 
@@ -246,16 +240,21 @@ public sealed unsafe class Compositor : IDisposable
     public PreviewBypass Bypass { get; set; }
 
     private int DrawLayers(CompositionFrame frame, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination,
-        TitleRasterizer? titles, ref FrameStats stats)
+        TitleRasterizer? titles, ref FrameStats stats) =>
+        DrawLayers(frame.Layers, geometry, destination, titles, TransparentBackground, ref stats);
+
+    private int DrawLayers(IReadOnlyList<LayerFrame> layers, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination,
+        TitleRasterizer? titles, bool transparent, ref FrameStats stats)
     {
         int drawn = 0;
         RenderTarget target = destination.Target;
         float pixelScale = destination.PixelScale;
+        int sequenceWidth = destination.SequenceWidth;
+        int sequenceHeight = destination.SequenceHeight;
         _pipeline.Bind(target.Rtv, destination.Width, destination.Height, QuadPipeline.Shader.Layer);
-        float* black = stackalloc float[] { 0f, 0f, 0f, TransparentBackground ? 0f : 1f };
+        float* black = stackalloc float[] { 0f, 0f, 0f, transparent ? 0f : 1f };
         _context->ClearRenderTargetView(target.Rtv, black);
         bool bound = true;
-        IReadOnlyList<LayerFrame> layers = frame.Layers;
         for (int i = 0; i < layers.Count; i++)
         {
             LayerFrame layer = layers[i];
@@ -263,6 +262,17 @@ public sealed unsafe class Compositor : IDisposable
             {
                 bound = false;
                 if (DrawTitle(layer, generated, titles, destination, ref stats))
+                {
+                    drawn++;
+                }
+
+                continue;
+            }
+
+            if (layer.Nested is not null || layer.Transition?.Incoming.Nested is not null)
+            {
+                bound = false;
+                if (DrawWithNested(layer, geometry, destination, titles, ref stats))
                 {
                     drawn++;
                 }
@@ -284,7 +294,7 @@ public sealed unsafe class Compositor : IDisposable
                     bound = true;
                 }
 
-                if (_layers.DrawPlain(layer, payload, geometry?.Invoke(layer) ?? SourceGeometry.Square, frame.Width, frame.Height, pixelScale))
+                if (_layers.DrawPlain(layer, payload, geometry?.Invoke(layer) ?? SourceGeometry.Square, sequenceWidth, sequenceHeight, pixelScale))
                 {
                     drawn++;
                 }
@@ -293,13 +303,86 @@ public sealed unsafe class Compositor : IDisposable
             }
 
             bound = false;
-            if (_layers.Draw(layer, payload, geometry, destination, ref stats))
+            LayerSource? incoming = layer.Transition is { } transition && _layers.Usable(transition.Incoming) is { } entering
+                ? LayerSource.Of(entering)
+                : null;
+            if (_layers.Draw(layer, LayerSource.Of(payload), incoming, geometry, destination, ref stats))
             {
                 drawn++;
             }
         }
 
         return drawn;
+    }
+
+    /// <summary>
+    /// Una capa compuesta, o una transición con una de cada lado: cada capa compuesta se compone antes en un intermedio
+    /// transparente del tamaño del destino (recursivo) y se dibuja como una capa más con sus efectos y su transición.
+    /// </summary>
+    private bool DrawWithNested(LayerFrame layer, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination, TitleRasterizer? titles,
+        ref FrameStats stats)
+    {
+        RenderTarget? outgoing = null;
+        RenderTarget? incoming = null;
+        try
+        {
+            LayerSource? source = Source(layer, geometry, destination, titles, ref stats, ref outgoing);
+            if (source is not { } drawable)
+            {
+                stats.LayersSkipped++;
+                return false;
+            }
+
+            LayerSource? entering = layer.Transition is { } transition ? Source(transition.Incoming, geometry, destination, titles, ref stats, ref incoming) : null;
+            return _layers.Draw(layer, drawable, entering, geometry, destination, ref stats);
+        }
+        finally
+        {
+            _pool.Return(outgoing);
+            _pool.Return(incoming);
+        }
+    }
+
+    /// <summary>Lo que dibuja la capa: sus planos o, si es compuesta, su intermedio recién compuesto (que queda en <paramref name="rented"/>).</summary>
+    private LayerSource? Source(LayerFrame layer, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination, TitleRasterizer? titles,
+        ref FrameStats stats, ref RenderTarget? rented)
+    {
+        if (layer.Nested is not { } nested)
+        {
+            return _layers.Usable(layer) is { } payload ? LayerSource.Of(payload) : null;
+        }
+
+        rented = _pool.Rent(destination.Width, destination.Height, LayerRenderer.IntermediateFormat);
+        if (rented is null)
+        {
+            stats.EffectsSkipped++;
+            return null;
+        }
+
+        var inner = new Destination(rented, destination.Width, destination.Height, destination.SequenceWidth, destination.SequenceHeight);
+        DrawLayers(nested, geometry, inner, titles, transparent: true, ref stats);
+        return LayerSource.Of(new ImageView(rented, destination.Width, destination.Height));
+    }
+
+    private static void RasterizeTitles(TitleRasterizer titles, IReadOnlyList<LayerFrame> layers)
+    {
+        foreach (LayerFrame layer in layers)
+        {
+            if (layer.Generated is { } content)
+            {
+                titles.Rasterize(content);
+            }
+
+            if (layer.Nested is { } nested)
+            {
+                RasterizeTitles(titles, nested);
+            }
+
+            if (layer.Transition?.Incoming is { } incoming)
+            {
+                RasterizeTitles(titles, [incoming]);
+            }
+        }
     }
 
     /// <summary>Compone otra vez sin el color en un intermedio y copia su parte izquierda sobre la salida.</summary>

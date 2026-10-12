@@ -14,6 +14,14 @@ public static class ClipLabels
     /// <summary>Por qué un título no admite velocidad, slip ni estirar.</summary>
     public const string NoMaterial = "Un título no tiene material: su duración se cambia recortando sus bordes.";
 
+    /// <summary>Cuánto se corrió un corte o un clip, en cuadros con signo: «+12 cuadros», «−1 cuadro», «0 cuadros».</summary>
+    public static string FrameShift(Rodaje.Core.Timing.Time shift, Rodaje.Core.Timing.Rational frameRate)
+    {
+        long frames = (long)Math.Round(shift.ToSeconds() * frameRate.ToDouble());
+        string sign = frames > 0 ? "+" : frames < 0 ? "−" : "";
+        return FormattableString.Invariant($"{sign}{Math.Abs(frames)} {(Math.Abs(frames) == 1 ? "cuadro" : "cuadros")}");
+    }
+
     /// <summary>Nombre del clip; <paramref name="fallback"/> si es un medio que ya no está.</summary>
     public static string Name(Project project, Clip clip, string fallback = "")
     {

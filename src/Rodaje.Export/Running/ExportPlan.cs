@@ -1,4 +1,5 @@
 using System.Globalization;
+using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Export;
@@ -117,6 +118,16 @@ public sealed record ExportPlan
             metadata = metadata with { Chapters = Chapters(sequence.Markers, Time.FromFrames(first, output), Time.FromFrames(last, output)) };
         }
 
+        bool embed = settings.Subtitles != SubtitleExport.Burned && format is not null && FfmpegPipeSinkOptions.AllowsSoftSubtitles(settings.Container);
+        if (embed)
+        {
+            metadata = metadata with { Subtitles = SubtitleTracks(sequence, Time.FromFrames(first, output), Time.FromFrames(last, output)) };
+            if (settings.Subtitles == SubtitleExport.Embedded)
+            {
+                request = request with { Project = WithoutBurnedSubtitles(request.Project, sequence.Id) };
+            }
+        }
+
         return new ExportPlan
         {
             Request = request,
@@ -149,6 +160,41 @@ public sealed record ExportPlan
 
         return available.FirstOrDefault(e => e.Codec == codec && e.InDefaults)
             ?? throw new ExportException(ExportErrorCode.EncoderMissing, $"Ningún codificador de {codec} funciona en este equipo.");
+    }
+
+    /// <summary>
+    /// Las pistas de subtítulos visibles con texto en <c>[start, end)</c>, relativas al inicio y recortadas al rango; la
+    /// más alta primero, como en el visor.
+    /// </summary>
+    public static IReadOnlyList<ExportSubtitleTrack> SubtitleTracks(Sequence sequence, Time start, Time end)
+    {
+        ArgumentNullException.ThrowIfNull(sequence);
+        var tracks = new List<ExportSubtitleTrack>();
+        foreach (Track track in sequence.VideoTracks.Where(t => t.Role == TrackRoles.Subtitles && !t.Hidden).Reverse())
+        {
+            List<SubtitleCue> cues = [.. SubtitleEdits.CuesOf(track)
+                .Where(c => c.End > start && c.Start < end)
+                .Select(c => new SubtitleCue(Time.Max(c.Start, start) - start, Time.Min(c.End, end) - start, c.Text))];
+            if (cues.Count > 0)
+            {
+                tracks.Add(new ExportSubtitleTrack(track.Name, cues));
+            }
+        }
+
+        return tracks;
+    }
+
+    /// <summary>Una copia del proyecto con las pistas de subtítulos de la secuencia ocultas: la imagen sale sin ellas.</summary>
+    public static Project WithoutBurnedSubtitles(Project project, string sequenceId)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        Project copy = project.Clone();
+        foreach (Track track in copy.FindSequence(sequenceId)?.VideoTracks.Where(t => t.Role == TrackRoles.Subtitles) ?? [])
+        {
+            track.Hidden = true;
+        }
+
+        return copy;
     }
 
     /// <summary>
@@ -213,6 +259,7 @@ public sealed record ExportPlan
             AudioDurationSeconds = Audio is null ? null : (End - Start).ToSeconds(),
             FastStart = Settings.FastStart && container is ExportContainer.Mp4 or ExportContainer.Mov or ExportContainer.M4a,
             Chapters = Metadata.Chapters.Count > 0 ? Metadata.Chapters.Count : null,
+            SubtitleStreams = video && FfmpegPipeSinkOptions.AllowsSoftSubtitles(container) ? Metadata.Subtitles.Count : null,
         };
     }
 

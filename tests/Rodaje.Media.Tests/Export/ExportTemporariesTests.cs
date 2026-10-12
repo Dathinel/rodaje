@@ -237,6 +237,19 @@ public sealed class ExportTemporariesTests(ITestOutputHelper output)
         ], problems);
     }
 
+    /// <summary>Matriz de formatos: un VFR de teléfono da una secuencia a 90000/3061 y el MKV en milisegundos la devuelve como 19082/649.</summary>
+    [Fact]
+    public void A_frame_rate_rounded_to_milliseconds_is_the_same_rate()
+    {
+        static ExportReport Report(Rodaje.Core.Timing.Rational rate) => new("matroska,webm", 2, 1000, false,
+            new ExportVideoReport("ffv1", null, 1080, 1920, "yuv420p", "bt709", "bt709", "bt709", "tv", "left", rate, 69, 0.0, 2, 1, 1, false),
+            null, 0, new Dictionary<string, string>());
+        var expected = new ExportExpectation { FrameRate = new Rodaje.Core.Timing.Rational(90000, 3061) };
+
+        Assert.Empty(ExportVerifier.Check(Report(new Rodaje.Core.Timing.Rational(19082, 649)), expected));
+        Assert.Equal(["La tasa es 30 y se esperaba 90000/3061."], ExportVerifier.Check(Report(Rodaje.Core.Timing.Rational.Fps30), expected));
+    }
+
     private static byte[] Box(string type, int size)
     {
         byte[] box = new byte[size];

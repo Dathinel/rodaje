@@ -113,7 +113,10 @@ internal sealed partial class MainWindow : Window, IShellHost
         var preview = new PreviewYield(engine, engine.SetPreviewQuality, () => settings.Current);
         _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed)), SynchronizationContext.Current)
         {
-            Concurrency = new ExportConcurrency(Environment.ProcessorCount, () => engine.DedicatedVideoMemory),
+            Concurrency = new ExportConcurrency(Environment.ProcessorCount, () => engine.DedicatedVideoMemory)
+            {
+                Profile = () => Rodaje.Media.Gpu.GpuProfileReader.Current,
+            },
             Store = options.IsAutomated ? null : new ExportQueueStore(ExportQueueStore.DefaultPath),
         };
         _modules = new ModuleManager(new ModuleManagerOptions
@@ -123,6 +126,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             ClientOptions = new() { AppVersion = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "0.0.0" },
         }, new ModulePreviewYield(preview), SynchronizationContext.Current);
         _modules.Failed += (_, f) => session.Notify(NotificationSeverity.Error, f.Title, f.Message);
+        packages.CloseModule = _modules.CloseModuleAsync;
         packages.Changed += (_, _) => _ = Task.Run(_modules.Refresh);
         Program.Metrics.Milestone("modulos");
         _longActions = new LongActionService(session);
@@ -157,6 +161,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(Views.Analysis.AnalysisCommands.Bind(_router, _services));
         _bindings.Add(Views.Voice.VoiceCommands.Bind(_router, _services));
         _bindings.Add(Views.Subtitles.SubtitleCommands.Bind(_router, _services));
+        _bindings.Add(Views.Subtitles.SubtitleFileCommands.Bind(_router, _services));
         _bindings.Add(Views.Translate.TranslateCommands.Bind(_router, _services));
         _bindings.Add(Views.Raw.RawCommands.Bind(_router, _services));
         _bindings.Add(Views.Vision.VisionCommands.Bind(_router, _services));
@@ -241,6 +246,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         InspectorSplitter.Resized += (_, size) => settings.Current.InspectorWidth = size;
         MainArea.SizeChanged += (_, _) => FitSidePanels();
         TimelineSplitter.Resized += (_, size) => settings.Current.TimelineHeight = size;
+        // Un aviso abierto empuja la página modal hacia abajo en lugar de taparle la cabecera.
+        Notification.SizeChanged += (_, e) => ModalFrame.Margin = new Thickness(48, 56 + e.NewSize.Height, 48, 40);
         Activated += OnActivated;
         AppWindow.Closing += OnClosing;
         Closed += OnClosed;
@@ -332,6 +339,8 @@ internal sealed partial class MainWindow : Window, IShellHost
     internal ExportView? ExportPage => _exportView;
 
     internal ShortcutsView? ShortcutsPage => _shortcutsView;
+
+    internal PluginsView? PluginsPage => _pluginsView;
 
     /// <summary>La barra de herramientas rápidas, para la autoprueba.</summary>
     internal Views.Tools.ToolsBar QuickTools => Tools;
@@ -512,8 +521,11 @@ internal sealed partial class MainWindow : Window, IShellHost
         bar.PreferredHeightOption = TitleBarHeightOption.Tall;
         bar.ButtonBackgroundColor = Colors.Transparent;
         bar.ButtonInactiveBackgroundColor = Colors.Transparent;
-        bar.ButtonForegroundColor = ColorHelper.FromArgb(0xFF, 0xD8, 0xD8, 0xD8);
-        bar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(0xFF, 0x23, 0x23, 0x23);
+        bar.ButtonForegroundColor = Theme.ThemeResources.SolidColor("TextBrush");
+        bar.ButtonHoverForegroundColor = Theme.ThemeResources.SolidColor("TextBrush");
+        bar.ButtonHoverBackgroundColor = Theme.ThemeResources.SolidColor("ControlHoverBrush");
+        bar.ButtonPressedBackgroundColor = Theme.ThemeResources.SolidColor("ControlPressedBrush");
+        bar.ButtonInactiveForegroundColor = Theme.ThemeResources.SolidColor("TextMutedBrush");
     }
 
     private void RestoreLayout()

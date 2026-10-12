@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 using Rodaje.App.Views.Analysis;
 using Rodaje.Audio;
 using Rodaje.Audio.Capture;
@@ -104,10 +105,10 @@ internal static class VoiceOverDialog
             return;
         }
 
-        var status = new TextBlock { FontSize = 28, HorizontalAlignment = HorizontalAlignment.Center };
+        var status = new TextBlock { FontSize = ThemeResources.Size("DisplayFontSize"), HorizontalAlignment = HorizontalAlignment.Center };
         var level = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth, Height = 6 };
         var note = new TextBlock { Style = (Style)Application.Current.Resources["CaptionTextStyle"], TextWrapping = TextWrapping.Wrap, Width = AnalysisUi.PreviewWidth };
-        var content = new StackPanel { Spacing = 10 };
+        var content = new StackPanel { Spacing = 8 };
         content.Children.Add(status);
         content.Children.Add(level);
         content.Children.Add(note);

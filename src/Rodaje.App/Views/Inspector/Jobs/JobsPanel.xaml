@@ -40,7 +40,7 @@
             </ListView.ItemContainerStyle>
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="local:JobItem">
-                    <Grid Padding="0,6" ColumnSpacing="6" RowSpacing="4">
+                    <Grid Padding="0,8" ColumnSpacing="8" RowSpacing="4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -55,7 +55,7 @@
                                    Foreground="{StaticResource MeterHighBrush}" Opacity="{x:Bind ErrorOpacity}" />
                         <TextBlock Grid.Row="1" Text="{x:Bind Status}" Style="{StaticResource CaptionTextStyle}" Opacity="{x:Bind PlainOpacity}" />
                         <ProgressBar Grid.Row="2" Value="{x:Bind Percent}" Maximum="100" Visibility="{x:Bind ActiveVisibility}" />
-                        <Button Grid.Column="1" Grid.RowSpan="3" Style="{StaticResource ToolButtonStyle}" Content="&#xE711;" FontSize="11"
+                        <Button Grid.Column="1" Grid.RowSpan="3" Style="{StaticResource ToolButtonStyle}" Content="&#xE711;" FontSize="{StaticResource IconFontSize}"
                                 Tag="{x:Bind SourcePath}" Visibility="{x:Bind ActiveVisibility}" Click="OnCancelClick"
                                 ToolTipService.ToolTip="Cancelar" />
                     </Grid>

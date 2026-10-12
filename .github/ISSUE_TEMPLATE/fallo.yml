@@ -1,0 +1,68 @@
+name: Informar un fallo
+description: Algo no funciona como debería (la app se cierra, un archivo no abre, una exportación falla…).
+title: "[Fallo] "
+labels: ["fallo"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por avisar. Antes de seguir, mira la [solución de problemas](../blob/main/docs/guia/solucion-de-problemas.md) de la guía: puede que ya esté explicado.
+        **Si es un problema de seguridad, no lo cuentes aquí:** sigue [SECURITY.md](../blob/main/SECURITY.md).
+  - type: textarea
+    id: que-pasa
+    attributes:
+      label: Qué pasa
+      description: Qué hiciste, qué esperabas y qué ocurrió. Si hay un mensaje de error, cópialo tal cual.
+      placeholder: "Al exportar a WebM con el preajuste … la app muestra «…» y el archivo no se crea."
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducirlo
+      description: Lo más cortos posible. Si pasa con un archivo concreto, di su formato (códec, resolución, fps) o adjúntalo si puedes.
+      placeholder: |
+        1. Importa un .mov ProRes 4K.
+        2. Ponlo en la pista principal y pulsa Ctrl+E.
+        3. Elige «Reels / TikTok 9:16» y Exportar.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versión de Rodaje
+      description: Ayuda › Acerca de, o el nombre del archivo descargado (por ejemplo, 1.0.0).
+    validations:
+      required: true
+  - type: dropdown
+    id: distribucion
+    attributes:
+      label: Cómo lo instalaste
+      options:
+        - Instalador
+        - Portable (zip)
+        - Completo (zip con complementos y modelos)
+        - Compilado desde el código
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Versión de Windows y GPU
+      description: Por ejemplo, «Windows 11 24H2, RTX 3050» (la GPU se ve en la barra superior de la app).
+    validations:
+      required: true
+  - type: textarea
+    id: registro
+    attributes:
+      label: Registro de error
+      description: Si existe, pega aquí el contenido de `app\rodaje-error.txt` (en la carpeta de Rodaje; con el instalador, `%LOCALAPPDATA%\Programs\Rodaje\app`). Quita cualquier ruta o dato que no quieras compartir.
+      render: text
+  - type: checkboxes
+    id: comprobaciones
+    attributes:
+      label: Comprobaciones
+      options:
+        - label: Busqué si ya hay un issue sobre esto.
+          required: true
+        - label: Probé con la última versión publicada en Releases.

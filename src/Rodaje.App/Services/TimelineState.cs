@@ -9,6 +9,12 @@ public enum TimelineTool
     Envelope,
     Selection,
     Zoom,
+
+    /// <summary>Arrastrar un corte lo mueve sin cambiar la duración total (roll).</summary>
+    Roll,
+
+    /// <summary>Arrastrar un clip lo corre entre sus vecinos, que se recortan (slide).</summary>
+    Slide,
 }
 
 /// <summary>Qué se corre con el ripple automático.</summary>

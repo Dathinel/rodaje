@@ -74,9 +74,11 @@ internal static partial class PresetReader
                 Number(b, "radius", 0, 0, MaxStyleOffset, "background.radius"));
         }
 
+        string? highlight = Section(root, "highlight") is { } h ? Color(h, "highlight.color", required: true) : null;
+
         return new TextStylePreset(
             id, name, font, size, width, height, lineHeight, letterSpacing, align, fill, stroke, shadow, background,
-            Animation(root, "in"), Animation(root, "out"));
+            Animation(root, "in"), Animation(root, "out"), highlight);
     }
 
     private static TextStyleFont Font(JsonElement root)

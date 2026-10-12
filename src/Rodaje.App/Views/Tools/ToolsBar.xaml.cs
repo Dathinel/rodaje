@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 using Rodaje.App.Views.Analysis;
 
 namespace Rodaje.App.Views.Tools;
@@ -30,8 +31,8 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
         foreach (QuickTool tool in QuickTools.All)
         {
             var label = new TextBlock { Text = tool.Label, Style = (Style)Application.Current.Resources["BodyTextStyle"], VerticalAlignment = VerticalAlignment.Center };
-            var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-            var icon = new FontIcon { Glyph = tool.Glyph, FontSize = 14 };
+            var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            var icon = new FontIcon { Glyph = tool.Glyph, FontSize = ThemeResources.Size("IconFontSize") };
             // Mientras la acción corre, el ícono pasa a un giro (con el avance si se conoce) y el botón no se vuelve a pulsar.
             var ring = new ProgressRing { Width = 14, Height = 14, MinWidth = 0, MinHeight = 0, IsActive = false, Visibility = Visibility.Collapsed, Maximum = 1 };
             content.Children.Add(icon);

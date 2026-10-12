@@ -287,11 +287,11 @@ public sealed class OfflineAudio : IDisposable
         long from = start.ToSamples(SampleRate);
         long to = end.ToSamples(SampleRate);
         var seen = new HashSet<SourceKey>();
-        foreach (AudioTrackPlan track in _plan.Audio.Tracks)
+        foreach (AudioTrackPlan track in AudioPlan.AllTracks(_plan.Audio.Tracks))
         {
             foreach (AudioClipPlan clip in track.Clips)
             {
-                if (clip.EndSample <= from || clip.StartSample >= to || !seen.Add(clip.Source))
+                if (clip.Bus is not null || clip.EndSample <= from || clip.StartSample >= to || !seen.Add(clip.Source))
                 {
                     continue;
                 }

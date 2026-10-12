@@ -12,7 +12,7 @@ public sealed record TrackTranslation(IReadOnlyDictionary<string, string> Texts,
 /// </summary>
 public sealed class ModuleSubtitleTranslator(ModuleManager modules)
 {
-    public const string NotInstalled = "Instala el módulo «Traducir subtítulos» (Complementos → IA) para traducir pistas.";
+    public const string NotInstalled = "Hace falta el módulo «Traducir subtítulos». Instálalo desde Complementos › Módulos de IA.";
 
     public bool IsInstalled => modules.Find(SubtitleTrackTranslation.ModuleId) is not null;
 

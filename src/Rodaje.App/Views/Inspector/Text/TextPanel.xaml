@@ -15,12 +15,12 @@
 
         <ScrollViewer x:Name="Body" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
             <StackPanel Padding="0,0,0,12">
-                <Grid Height="36" Padding="12,0,6,0">
+                <Grid Height="36" Padding="12,0,8,0">
                     <TextBlock x:Name="ClipTitle" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" />
                 </Grid>
 
                 <inspector:InspectorSection x:Name="ContentSection" Key="texto-contenido" Title="Texto">
-                    <StackPanel Padding="12,4,6,6" Spacing="4">
+                    <StackPanel Padding="12,4,8,8" Spacing="4">
                         <TextBox x:Name="ContentBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" MaxHeight="220"
                                  FontSize="{StaticResource BodyFontSize}" ScrollViewer.VerticalScrollBarVisibility="Auto"
                                  AutomationProperties.Name="Contenido del texto" PlaceholderText="Escribe el título"
@@ -31,10 +31,10 @@
                 </inspector:InspectorSection>
 
                 <inspector:InspectorSection x:Name="WordsSection" Key="texto-palabras" Title="Palabras" Visibility="Collapsed">
-                    <StackPanel Padding="0,0,0,6" Spacing="4">
+                    <StackPanel Padding="0,0,0,8" Spacing="4">
                         <StackPanel x:Name="HighlightRows" />
-                        <StackPanel x:Name="WordList" Padding="12,0,6,0" Spacing="2" />
-                        <Button x:Name="JoinButton" Content="Unir con el siguiente" Margin="12,4,6,0" Click="OnJoinClick"
+                        <StackPanel x:Name="WordList" Padding="12,0,8,0" Spacing="2" />
+                        <Button x:Name="JoinButton" Content="Unir con el siguiente" Margin="12,4,8,0" Click="OnJoinClick"
                                 ToolTipService.ToolTip="Junta este subtítulo con el que sigue en la pista, con todas sus palabras" />
                         <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Margin="12,0,12,0"
                                    Text="Corrige una palabra y pulsa Intro. La tijera parte el subtítulo donde empieza esa palabra; la hora lleva el cursor ahí." />
@@ -58,7 +58,7 @@
                 </inspector:InspectorSection>
 
                 <inspector:InspectorSection x:Name="AnimationSection" Key="texto-animacion" Title="Entrada y salida">
-                    <StackPanel Padding="12,4,6,6" Spacing="6">
+                    <StackPanel Padding="12,4,8,8" Spacing="8">
                         <CheckBox x:Name="InBox" Content="Animar la entrada" FontSize="{StaticResource BodyFontSize}" Click="OnEdgesClick" />
                         <TextBlock x:Name="InText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Margin="28,-6,0,0" />
                         <CheckBox x:Name="OutBox" Content="Animar la salida" FontSize="{StaticResource BodyFontSize}" Click="OnEdgesClick" />

@@ -112,6 +112,13 @@ public static class TitleStyleFile
                 json.WriteEndObject();
             }
 
+            if (style.Highlight is { } highlight)
+            {
+                json.WriteStartObject("highlight");
+                json.WriteString("color", highlight.Color);
+                json.WriteEndObject();
+            }
+
             Animation(json, "in", style.In);
             Animation(json, "out", style.Out);
             json.WriteEndObject();

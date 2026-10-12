@@ -84,7 +84,18 @@ public static unsafe class FrameReadback
 
                     break;
                 default:
-                    throw new NotSupportedException($"La lectura de luma no admite el formato {cpu.FfmpegPixelFormat}.");
+                    if (!cpu.TryGetLumaLayout(out int depth, out int step, out int offset))
+                    {
+                        throw new NotSupportedException($"La lectura de luma no admite el formato {cpu.FfmpegPixelFormat}.");
+                    }
+
+                    for (int x = 0; x < width; x++)
+                    {
+                        int at = (x * step) + offset;
+                        target[x] = depth == 8 ? row[at] : (byte)((row[at] | (row[at + 1] << 8)) >> (depth - 8));
+                    }
+
+                    break;
             }
         }
 

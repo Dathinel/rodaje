@@ -29,9 +29,9 @@ public static class QuickTools
         new("analysis.noise", "Reducir ruido", "", "Limpia el ruido de fondo de la voz (módulo «Audio con IA»)."),
         new("analysis.stabilize", "Estabilizar", "", "Quita el temblor del video elegido."),
         new("analysis.autocolor", "Color automático", "", "Corrige exposición y contraste del video elegido."),
-        new("analysis.whitebalance", "Balance de blancos", "", "Neutraliza el tono del video elegido."),
+        new("analysis.whitebalance", "Balance de blancos automático", "", "Neutraliza el tono del video elegido."),
         new(RemoveBackground, "Quitar fondo", "\uE7A8", "Recorta a la persona del video elegido y vuelve transparente el fondo (módulo «Visión con IA»)."),
-        new(Reframe, "Reencuadre", "\uE7AD", "Sigue al sujeto con un recorte 9:16, 1:1 o 4:5 que se mueve suave (módulo «Visión con IA»)."),
+        new(Reframe, "Reencuadre automático", "\uE7AD", "Sigue al sujeto con un recorte 9:16, 1:1 o 4:5 que se mueve suave (módulo «Visión con IA»)."),
         new(AutoSubtitles, "Subtítulos automáticos", "", "Escribe los subtítulos a partir de la voz."),
         new(TextToSpeech, "Texto a voz", "", "Lee un texto en voz alta y lo pone en una pista de audio."),
         new(AddText, "Añadir texto", "", "Un título de 5 s en el cursor."),
@@ -61,14 +61,14 @@ public static class QuickTools
                 ? Yes : No("Hace falta una voz en otra pista mientras suena la música."),
             "analysis.noise" when NoiseReduction.TargetClip(sequence, selection, HasAudio) is null =>
                 No("Selecciona un clip con voz en una pista de audio (o un video con su audio enlazado)."),
-            "analysis.noise" when !noiseModule => No("Hace falta el módulo «Audio con IA»: instálalo desde Complementos."),
+            "analysis.noise" when !noiseModule => No("Hace falta el módulo «Audio con IA». Instálalo desde Complementos › Módulos de IA."),
             "analysis.noise" => Yes,
             "analysis.stabilize" or "analysis.autocolor" or "analysis.whitebalance" => video ? Yes : No("Selecciona un clip de video."),
             RemoveBackground or Reframe when !video => No("Selecciona un clip de video."),
-            RemoveBackground or Reframe when !visionModule => No("Hace falta el módulo «Visión con IA»: instálalo desde Complementos."),
+            RemoveBackground or Reframe when !visionModule => No("Hace falta el módulo «Visión con IA». Instálalo desde Complementos › Módulos de IA."),
             AutoSubtitles when Subtitles.AutoSubtitles.TargetClip(sequence, selection, HasAudio) is null =>
                 No("Selecciona un clip con voz (un video con sonido o un clip de audio)."),
-            AutoSubtitles when !subtitleModule => No("Hace falta el módulo «Subtítulos automáticos»: instálalo desde Complementos."),
+            AutoSubtitles when !subtitleModule => No("Hace falta el módulo «Subtítulos automáticos». Instálalo desde Complementos › Módulos de IA."),
             _ => Yes,
         };
     }

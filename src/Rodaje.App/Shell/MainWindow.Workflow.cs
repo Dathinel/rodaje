@@ -156,7 +156,7 @@ internal sealed partial class MainWindow
             XamlRoot = xamlRoot, Title = "Carpetas vigiladas",
             Content = new StackPanel
             {
-                Spacing = 10,
+                Spacing = 8,
                 Children =
                 {
                     new TextBlock

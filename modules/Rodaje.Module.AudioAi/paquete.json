@@ -1,12 +1,13 @@
 {
   "formatVersion": 1,
-  "id": "rodaje-audio-ia",
-  "version": "0.1.0",
+  "id": "modulo-audio-ia",
+  "version": "1.0.0",
   "kind": "module",
   "name": "Audio con IA",
   "description": "Reduce el ruido de la voz (DeepFilterNet3) y detecta dónde se habla (Silero VAD) para quitar silencios y el ducking. Corre en la CPU, sin conexión.",
   "author": "Dathinel",
   "license": "GPL-3.0-only",
+  "repository": "https://github.com/Dathinel/modulo-audio-ia",
   "apps": ["rodaje"],
   "module": {
     "entry": "Rodaje.Module.AudioAi.exe",
@@ -16,13 +17,13 @@
     "vramMb": 0,
     "models": [
       { "id": "silero-vad", "file": "modelos/silero_vad.onnx", "size": 2327524, "sha256": "1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3", "license": "MIT",
-        "url": "https://github.com/snakers4/silero-vad/raw/5cd7945676eb32225748052e2e6a0580e4686a08/src/silero_vad/data/silero_vad.onnx" },
+        "url": "https://github.com/Dathinel/modulo-audio-ia/releases/download/v1.0.0/silero_vad.onnx" },
       { "id": "deepfilternet3-enc", "file": "modelos/deepfilternet3-enc.onnx", "size": 1954042, "sha256": "7c5399d3da8a50ebef1c1a0ae421b33376aa5e45d0e92df16da7e83c9c131916", "license": "MIT OR Apache-2.0",
-        "url": "https://github.com/Rikorose/DeepFilterNet/raw/d375b2d8309e0935d165700c91da9de862a99c31/models/DeepFilterNet3_onnx.tar.gz" },
+        "url": "https://github.com/Dathinel/modulo-audio-ia/releases/download/v1.0.0/deepfilternet3-enc.onnx" },
       { "id": "deepfilternet3-erb-dec", "file": "modelos/deepfilternet3-erb_dec.onnx", "size": 3292397, "sha256": "ab669a1d10afe20911728b33053a452071042317a90581092b325da7b2f9d895", "license": "MIT OR Apache-2.0",
-        "url": "https://github.com/Rikorose/DeepFilterNet/raw/d375b2d8309e0935d165700c91da9de862a99c31/models/DeepFilterNet3_onnx.tar.gz" },
+        "url": "https://github.com/Dathinel/modulo-audio-ia/releases/download/v1.0.0/deepfilternet3-erb_dec.onnx" },
       { "id": "deepfilternet3-df-dec", "file": "modelos/deepfilternet3-df_dec.onnx", "size": 3340803, "sha256": "23114ce3b0f6464b763ee62f7bb8aab6b2a129a21eabd5bcfe59413db05f278a", "license": "MIT OR Apache-2.0",
-        "url": "https://github.com/Rikorose/DeepFilterNet/raw/d375b2d8309e0935d165700c91da9de862a99c31/models/DeepFilterNet3_onnx.tar.gz" }
+        "url": "https://github.com/Dathinel/modulo-audio-ia/releases/download/v1.0.0/deepfilternet3-df_dec.onnx" }
     ]
   }
 }

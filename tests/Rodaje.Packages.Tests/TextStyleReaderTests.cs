@@ -49,6 +49,15 @@ public sealed class TextStyleReaderTests
     }
 
     [Fact]
+    public void Lee_el_color_de_la_palabra_dicha()
+    {
+        Assert.Null(ContentReaders.ReadTextStyle(Utf8(Minimal())).HighlightColor);
+        Assert.Equal("#FFD400", ContentReaders.ReadTextStyle(Utf8(Minimal(""", "highlight": { "color": "#ffd400" }"""))).HighlightColor);
+        Assert.Contains("highlight.color", Error(Minimal(""", "highlight": { }""")));
+        Assert.Contains("highlight.color", Error(Minimal(""", "highlight": { "color": "amarillo" }""")));
+    }
+
+    [Fact]
     public void Lo_opcional_toma_valores_por_defecto()
     {
         TextStylePreset style = ContentReaders.ReadTextStyle(Utf8(Minimal()));

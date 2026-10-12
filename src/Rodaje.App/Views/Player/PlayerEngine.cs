@@ -102,6 +102,9 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     private readonly Lock _meterLock = new();
     private TimelineSession? _meterSession;
+    private DynamicsMonitor? _dynamicsMonitor;
+    private DynamicsMonitor? _dynamicsApplied;
+    private TimelineSession? _dynamicsSession;
     private Time _meterPosition;
     private long _meterStamp;
     private bool _meterPlaying;
@@ -253,6 +256,43 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
 
         return _meterReader.Take(session is { HasAudioLevels: true } ? session : null, position, playing, Stopwatch.GetElapsedTime(stamp), MeasureMix);
+    }
+
+    /// <summary>
+    /// El compresor cuyo medidor se lee con <see cref="TakeDynamics"/> y, solo en la escucha, si suena su sidechain o sin
+    /// comprimir; nulo, ninguno. Desde el hilo de la interfaz: el de render lo pasa a la sesión en su próxima vuelta.
+    /// </summary>
+    public void MonitorDynamics(DynamicsMonitor? monitor)
+    {
+        Volatile.Write(ref _dynamicsMonitor, monitor);
+        _wake.Set();
+    }
+
+    /// <summary>
+    /// Entrada, salida y reducción del compresor que se mira en los últimos 50 ms de lo que suena; nulo en pausa o sin datos.
+    /// Solo desde el hilo de la interfaz; no espera al render ni reserva memoria.
+    /// </summary>
+    public Rodaje.Audio.Processing.DynamicsReading? TakeDynamics()
+    {
+        TimelineSession? session;
+        Time position;
+        long stamp;
+        bool playing;
+        lock (_meterLock)
+        {
+            session = _meterSession;
+            position = _meterPosition;
+            stamp = _meterStamp;
+            playing = _meterPlaying;
+        }
+
+        if (session is not { HasAudioLevels: true } || !playing)
+        {
+            return null;
+        }
+
+        Time now = position + Time.FromSeconds(Math.Min(0.1, Stopwatch.GetElapsedTime(stamp).TotalSeconds));
+        return session.MeasureDynamics(now - Time.FromSeconds(0.05), now);
     }
 
     /// <summary>
@@ -877,6 +917,14 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             {
                 _usesProxy |= layer.UsesProxy;
             }
+        }
+
+        DynamicsMonitor? monitor = Volatile.Read(ref _dynamicsMonitor);
+        if (!ReferenceEquals(s, _dynamicsSession) || !Equals(monitor, _dynamicsApplied))
+        {
+            s.MonitorDynamics(monitor);
+            _dynamicsSession = s;
+            _dynamicsApplied = monitor;
         }
 
         Time position = s.Position;

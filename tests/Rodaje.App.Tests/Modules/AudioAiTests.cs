@@ -84,6 +84,26 @@ public sealed class AudioAiTests : IDisposable
         Assert.Equal(0, undo.Count);
     }
 
+    /// <summary>Matriz de formatos: un AVI con MP3 de 12,042449 s, limpiado entero, se rechazaba por una fracción de muestra.</summary>
+    [Fact]
+    public void A_clip_that_reaches_a_media_end_between_samples_fits_the_clean_audio()
+    {
+        Project project = Talk();
+        Time end = Time.FromSeconds(12.042449);
+        project.Media[0].Duration = end;
+        Clip audio = project.Sequences[0].AudioTracks[0].Clips[0];
+        (audio.SourceIn, audio.SourceOut) = (S(1), end);
+        audio.Effects.Clear();
+        (Time start, Time stop) = NoiseReduction.Window(audio, end);
+        long frames = stop.ToSamples(48_000) - start.ToSamples(48_000);
+        var clean = new CleanAudio("ruido.wav", "x.avi", start, stop - start, frames);
+        var undo = new UndoStack(project);
+
+        undo.Execute(NoiseReduction.Command("s", "a", NoiseReduction.Media("limpio", clean, "x"), clean.Offset));
+
+        Assert.Equal(("limpio", end), (audio.MediaId, audio.SourceOut));
+    }
+
     [Fact]
     public void A_clip_trimmed_past_the_clean_audio_is_refused()
     {

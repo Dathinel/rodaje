@@ -76,6 +76,10 @@ internal sealed partial class ExportView : UserControl
     /// Autoprueba: pulsa las tarjetas y elige cada rango como lo haría la persona (por el par de automatización, que lanza el
     /// mismo Click) y comprueba que cada elección queda marcada. Devuelve el fallo o <c>null</c>.
     /// </summary>
+    /// <summary>Si ya están dibujadas las tarjetas de esos preajustes (la sonda de codificadores terminó).</summary>
+    internal bool HasPresetCards(IEnumerable<string> presetIds) =>
+        presetIds.All(id => PresetCards.Children.OfType<Button>().Any(b => b.Tag as string == id));
+
     internal async Task<string?> CheckSwitchingAsync(IReadOnlyList<string> presetIds)
     {
         foreach (string id in presetIds)
@@ -206,7 +210,7 @@ internal sealed partial class ExportView : UserControl
 
     private Button PresetCard(string id, string name, string description)
     {
-        var text = new StackPanel { Spacing = 3 };
+        var text = new StackPanel { Spacing = 4 };
         text.Children.Add(new TextBlock { Text = name, Style = (Style)Application.Current.Resources["PanelTitleTextStyle"], TextTrimming = TextTrimming.CharacterEllipsis });
         text.Children.Add(new TextBlock
         {
@@ -264,6 +268,10 @@ internal sealed partial class ExportView : UserControl
         FastStartBox.IsEnabled = s.Container is ExportContainer.Mp4 or ExportContainer.Mov or ExportContainer.M4a;
         ChaptersBox.IsChecked = s.ChaptersFromMarkers;
         ChaptersBox.IsEnabled = s.Container is ExportContainer.Mp4 or ExportContainer.Mov or ExportContainer.Mkv;
+        Visibility subtitles = model.HasSubtitles ? Visibility.Visible : Visibility.Collapsed;
+        SubtitlesLabel.Visibility = SubtitlesBox.Visibility = subtitles;
+        Fill(SubtitlesBox, SubtitleModes.Select(m => m.Name), model.AllowsSoftSubtitles ? IndexOf(SubtitleModes, m => m.Mode == s.Subtitles) : 0);
+        SubtitlesBox.IsEnabled = model.AllowsSoftSubtitles;
 
         _videoCodecs = ExportChoices.VideoCodecs(s.Container, model.Encoders);
         VideoSwitch.IsOn = s.Video is not null;
@@ -383,8 +391,8 @@ internal sealed partial class ExportView : UserControl
         EstimateText.Text = (estimate.Approximate ? "≈ " : "") + ExportText.Bytes(estimate.Bytes);
         EstimateDetail.Text = $"Unos {ExportText.Duration(estimate.Time)} con {(model.Performance == ExportPerformance.Fastest ? "alto" : "bajo")} rendimiento"
             + (estimate.Approximate ? ". En calidad constante el tamaño depende de la imagen." : ".");
-        AdjustmentsText.Text = string.Join("\n", model.Adjustments);
-        AdjustmentsText.Visibility = model.Adjustments.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        RefreshStreamCopy(model);
+        ShowAdjustments(model);
         IReadOnlyList<string> problems = model.Problems;
         ProblemsText.Text = string.Join("\n", problems);
         ProblemsText.Visibility = problems.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -564,6 +572,22 @@ internal sealed partial class ExportView : UserControl
     }
 
     private void OnFastStartClick(object sender, RoutedEventArgs e) => _model?.Update(s => s with { FastStart = FastStartBox.IsChecked == true });
+
+    private static readonly (SubtitleExport Mode, string Name)[] SubtitleModes =
+    [
+        (SubtitleExport.Burned, "Quemados en la imagen"),
+        (SubtitleExport.Both, "Quemados y como pista aparte"),
+        (SubtitleExport.Embedded, "Solo como pista aparte (se activan en el reproductor)"),
+    ];
+
+    private void OnSubtitlesChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (TryChange(SubtitlesBox, out int index))
+        {
+            SubtitleExport mode = SubtitleModes[index].Mode;
+            _model!.Update(s => s with { Subtitles = mode });
+        }
+    }
 
     private void OnChaptersClick(object sender, RoutedEventArgs e) =>
         _model?.Update(s => s with { ChaptersFromMarkers = ChaptersBox.IsChecked == true });

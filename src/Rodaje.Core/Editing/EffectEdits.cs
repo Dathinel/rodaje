@@ -6,8 +6,9 @@ namespace Rodaje.Core.Editing;
 
 /// <summary>Ediciones de la pila de efectos de un clip o de una pista y de sus parámetros animables.</summary>
 /// <remarks>
-/// <c>clipId</c> puede ser también el de una pista (los identificadores son únicos en el proyecto). Los keyframes de un
-/// clip van en tiempo del origen y deben caer dentro de él; los de una pista, en tiempo de la secuencia y desde cero.
+/// <c>clipId</c> puede ser también el de una pista (los identificadores son únicos en el proyecto) o el de la secuencia, para
+/// los efectos de toda la mezcla (<see cref="Sequence.MasterEffects"/>). Los keyframes de un clip van en tiempo del origen y
+/// deben caer dentro de él; los de una pista o la mezcla, en tiempo de la secuencia y desde cero.
 /// </remarks>
 public static class EffectEdits
 {
@@ -201,7 +202,7 @@ public static class EffectEdits
         ArgumentNullException.ThrowIfNull(ctx);
         EnsureFinite(deltaDb, BuiltInEffects.AudioParameters.GainDb);
         Host host = EditableHost(ctx, clipId);
-        if (host.Track.Kind != TrackKind.Audio && host.Clip is null)
+        if (host.Kind != TrackKind.Audio && host.Clip is null)
         {
             throw new EditException("El volumen solo se cambia en clips o pistas de audio.");
         }
@@ -290,10 +291,12 @@ public static class EffectEdits
         keys.Insert(index < 0 ? keys.Count : index, new Keyframe(at, value, inherited));
     }
 
-    /// <summary>Dueño de una pila de efectos: un clip (<see cref="Clip"/> no nulo) o una pista entera.</summary>
-    private sealed record Host(Track Track, Clip? Clip)
+    /// <summary>Dueño de una pila de efectos: un clip (<see cref="Clip"/> no nulo), una pista entera o la mezcla (<see cref="Master"/>).</summary>
+    private sealed record Host(Track? Track, Clip? Clip, List<EffectInstance>? Master = null)
     {
-        public List<EffectInstance> Effects => Clip?.Effects ?? Track.Effects;
+        public List<EffectInstance> Effects => Master ?? Clip?.Effects ?? Track!.Effects;
+
+        public TrackKind Kind => Track?.Kind ?? TrackKind.Audio;
     }
 
     private static Host EditableHost(EditContext ctx, string clipId)
@@ -303,8 +306,13 @@ public static class EffectEdits
             ? new Host(found.Track, found.Clip)
             : ctx.Sequence.FindTrack(clipId) is { } track
                 ? new Host(track, null)
-                : throw new EditException($"El clip «{clipId}» ya no está en la secuencia.");
-        EditContext.EnsureUnlocked(host.Track);
+                : clipId == ctx.Sequence.Id
+                    ? new Host(null, null, ctx.Sequence.MasterEffects)
+                    : throw new EditException($"El clip «{clipId}» ya no está en la secuencia.");
+        if (host.Track is { } owner)
+        {
+            EditContext.EnsureUnlocked(owner);
+        }
         return host;
     }
 
@@ -316,10 +324,10 @@ public static class EffectEdits
             throw new EditException($"«{type}» es una transición: va en un corte, no en la pila de efectos.");
         }
 
-        EffectTarget target = host.Track.Kind == TrackKind.Video ? EffectTarget.Video : EffectTarget.Audio;
+        EffectTarget target = host.Kind == TrackKind.Video ? EffectTarget.Video : EffectTarget.Audio;
         if (host.Clip is null && (definition is null || (definition.Target & target) == 0))
         {
-            throw new EditException($"«{type}» no se puede aplicar a una pista de {TrackOps.KindName(host.Track.Kind)}.");
+            throw new EditException(host.Track is null ? $"«{type}» no se puede aplicar a la mezcla." : $"«{type}» no se puede aplicar a una pista de {TrackOps.KindName(host.Kind)}.");
         }
     }
 

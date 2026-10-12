@@ -1,6 +1,7 @@
 using System.Globalization;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Export;
+using Rodaje.Media.Gpu;
 
 namespace Rodaje.Media.Proxies;
 
@@ -14,23 +15,58 @@ public sealed record ProxyEncodeInput(string SourcePath, int StreamIndex, int Di
 
 /// <summary>Codificadores de H.264 para proxies y la línea de comandos de cada uno.</summary>
 /// <remarks>
-/// Salen del catálogo de la exportación (<see cref="ExportEncoderCatalog"/>): los de H.264 en su orden de preferencia
-/// y con su formato de píxel, de los que aquí se sabe armar la tasa de un proxy. Hoy son NVENC (GPU NVIDIA), Media
-/// Foundation (el codificador de Windows, que sin <c>-hw_encoding</c> usa el de la GPU si lo hay) y OpenH264 (software,
-/// incluido en la compilación LGPL). Ninguno es GPL. Los argumentos fijos del catálogo no se copian: los de un proxy
-/// (tasa, GOP corto, sin cuadros B) son otros, y el <c>-hw_encoding 0</c> de Media Foundation lo haría más lento.
+/// <para>El proxy es H.264 8 bits 4:2:0 en todos los equipos: es el único perfil que decodifican por hardware todas las
+/// GPU de NVIDIA, AMD e Intel de los últimos diez años, y a 540p la CPU lo decodifica a cientos de cuadros por segundo
+/// donde no hay GPU. HEVC o AV1 no decodificarían más rápido y dejarían fuera a las GPU viejas.</para>
+/// <para>Lo que cambia por fabricante es quién lo codifica (<see cref="PreferenceFor"/>): el de la GPU principal (NVENC,
+/// AMF o Quick Sync), luego el de otra GPU del equipo, luego Media Foundation (CPU) y OpenH264. Ninguno es GPL.</para>
+/// <para>Los codificadores y su formato de píxel salen del catálogo de la exportación (<see cref="ExportEncoderCatalog"/>):
+/// los de H.264 de los que aquí se sabe armar la tasa de un proxy. Sus argumentos fijos no se copian: los de un proxy (tasa,
+/// GOP corto, sin cuadros B) son otros, y el <c>-hw_encoding 0</c> de Media Foundation lo haría más lento.</para>
 /// </remarks>
 public static class ProxyEncoders
 {
-    // Los que tienen tasa de proxy en BuildArguments; los demás de H.264 del catálogo (AMF, Quick Sync) no se usan aquí.
-    private static readonly string[] WithProxyRate = ["h264_nvenc", "h264_mf", "libopenh264"];
+    // Los que tienen tasa de proxy en BuildArguments.
+    private static readonly string[] WithProxyRate = ["h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "libopenh264"];
 
+    // Los de H.264 del catálogo con tasa de proxy, en el orden del catálogo (GPU, Media Foundation, OpenH264).
+    private static readonly EncoderSpec[] Candidates =
+        [.. ExportEncoderCatalog.Video.Where(e => e.Codec == ExportCodec.H264 && WithProxyRate.Contains(e.Id))];
+
+    /// <summary>El orden de un equipo NVIDIA (y el de siempre).</summary>
     public static IReadOnlyList<string> Preference { get; } =
-        [.. ExportEncoderCatalog.Video.Where(e => e.Codec == ExportCodec.H264 && WithProxyRate.Contains(e.Id)).Select(e => e.Id)];
+        [.. Candidates.Where(e => !e.IsHardware || e.Vendor == EncoderVendor.Nvidia).Select(e => e.Id)];
+
+    /// <summary>Codificadores de proxy del más al menos preferido en este equipo: primero los de su GPU principal.</summary>
+    public static IReadOnlyList<string> PreferenceFor(GpuProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        var order = new List<string>();
+        IEnumerable<GpuVendor> vendors = profile.Adapters.Where(a => !a.IsSoftware).Select(a => a.Vendor).Distinct();
+        foreach (GpuVendor vendor in vendors)
+        {
+            EncoderVendor? encoderVendor = vendor switch
+            {
+                GpuVendor.Nvidia => EncoderVendor.Nvidia,
+                GpuVendor.Amd => EncoderVendor.Amd,
+                GpuVendor.Intel => EncoderVendor.Intel,
+                _ => null,
+            };
+            string? id = Candidates.FirstOrDefault(e => e.IsHardware && e.Vendor == encoderVendor)?.Id;
+            if (id is not null && profile.Adapters.First(a => !a.IsSoftware && a.Vendor == vendor).Generation is var generation
+                && (!generation.Known || generation.Encodes(HardwareEncodeCodecs.H264)))
+            {
+                order.Add(id);
+            }
+        }
+
+        order.AddRange(Candidates.Where(e => !e.IsHardware).Select(e => e.Id));
+        return order;
+    }
 
     /// <summary>
-    /// Formato de píxel del proxy con cada codificador: el primero de 8 bits 4:2:0 que el catálogo le da (NV12 en NVENC y
-    /// en Media Foundation, que solo negocia NV12; <c>yuv420p</c> en OpenH264).
+    /// Formato de píxel del proxy con cada codificador: el primero de 8 bits 4:2:0 que el catálogo le da (NV12 en NVENC,
+    /// AMF, Quick Sync y Media Foundation, que solo negocia NV12; <c>yuv420p</c> en OpenH264).
     /// </summary>
     public static IReadOnlyList<string> PixelFormatArguments(string encoder)
     {
@@ -80,6 +116,9 @@ public static class ProxyEncoders
             "h264_nvenc" => ["-preset", "p4", "-tune", "hq", "-profile:v", "high", "-rc", "vbr", "-b:v", bitrate,
                 "-maxrate", maxrate, "-bufsize", maxrate, "-no-scenecut", "1", "-forced-idr", "1"],
             "h264_mf" => ["-rate_control", "pc_vbr", "-b:v", bitrate, "-maxrate", maxrate],
+            "h264_amf" => ["-usage", "transcoding", "-quality", "speed", "-profile:v", "high", "-rc", "vbr_peak", "-b:v", bitrate,
+                "-maxrate", maxrate, "-bufsize", maxrate],
+            "h264_qsv" => ["-preset", "veryfast", "-profile:v", "high", "-b:v", bitrate, "-maxrate", maxrate, "-bufsize", maxrate],
             "libopenh264" => ["-rc_mode", "bitrate", "-b:v", bitrate, "-maxrate", maxrate, "-allow_skip_frames", "0"],
             _ => ["-b:v", bitrate],
         });

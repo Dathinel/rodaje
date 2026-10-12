@@ -20,12 +20,17 @@ public sealed class ProcessTests(ITestOutputHelper output)
         Assert.Equal(0, await module.Exited.WaitAsync(TimeSpan.FromSeconds(3)));
     }
 
-    /// <remarks>La cota de 1 s la mide <see cref="A_module_that_dies_mid_call_fails_the_call_within_a_second"/> (TiempoReal).</remarks>
+    /// <remarks>
+    /// Cota holgada de <see cref="Support.CiBound"/>; la de 1 s la mide
+    /// <see cref="A_module_that_dies_mid_call_fails_the_call_within_a_second"/> (TiempoReal).
+    /// </remarks>
     [Fact]
     public async Task A_module_that_dies_mid_call_fails_the_call_fast()
     {
         await using ModuleProcess module = await ModuleProcess.StartAsync(Support.EchoExe);
+        Stopwatch watch = Stopwatch.StartNew();
         await Assert.ThrowsAnyAsync<ModuleDisconnectedException>(() => module.Client.InvokeAsync("morir", Support.Json("{\"codigo\":3}")).WaitAsync(TimeSpan.FromSeconds(60)));
+        Assert.True(watch.Elapsed < Support.CiBound, $"la llamada tardó {watch.ElapsedMilliseconds} ms en fallar");
         Assert.Equal(3, await module.Exited.WaitAsync(TimeSpan.FromSeconds(60)));
         await Assert.ThrowsAnyAsync<ModuleDisconnectedException>(() => module.Client.InvokeAsync("eco"));
     }
@@ -52,9 +57,9 @@ public sealed class ProcessTests(ITestOutputHelper output)
     }
 
     /// <remarks>
-    /// Comprueba que el módulo que no confirma la cancelación se mata y la llamada termina cancelada. Cuánto tarda lo mide
-    /// <see cref="A_module_that_ignores_cancel_is_killed_soon_after_the_grace_period"/> (TiempoReal): con el runner de
-    /// Windows cargado, matar el árbol de procesos llegó a tardar 4,6 s y esta prueba fallaba sin defecto.
+    /// Comprueba que el módulo que no confirma la cancelación se mata pronto y la llamada termina cancelada, con la cota
+    /// holgada de <see cref="Support.CiBound"/> (con el runner de Windows cargado, 1,5 s llegó a 4,6 s sin defecto). La
+    /// cota fina la mide <see cref="A_module_that_ignores_cancel_is_killed_soon_after_the_grace_period"/> (TiempoReal).
     /// </remarks>
     [Fact]
     public async Task A_module_that_ignores_cancel_is_killed_after_the_grace_period()
@@ -64,7 +69,9 @@ public sealed class ProcessTests(ITestOutputHelper output)
         Stopwatch watch = Stopwatch.StartNew();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => module.Client.InvokeAsync("colgar", cancellationToken: cts.Token).WaitAsync(TimeSpan.FromSeconds(60)));
         Assert.True(watch.Elapsed >= TimeSpan.FromMilliseconds(300), $"no esperó la gracia: {watch.ElapsedMilliseconds} ms");
+        Assert.True(watch.Elapsed < Support.CiBound, $"la llamada tardó {watch.ElapsedMilliseconds} ms en terminar");
         await module.Exited.WaitAsync(TimeSpan.FromSeconds(60));
+        Assert.True(watch.Elapsed < Support.CiBound, $"el módulo colgado tardó {watch.ElapsedMilliseconds} ms en morir");
     }
 
     [Fact]

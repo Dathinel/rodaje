@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
     Gestor de complementos: paquetes de contenido (.paquete, sin código) y módulos de IA (procesos aparte), cada uno en su
     repositorio de github.com/Dathinel y con los programas en los que funciona. Se instalan y actualizan desde las releases
@@ -12,16 +12,16 @@
 
     <UserControl.Resources>
         <DataTemplate x:Key="PluginTemplate" x:DataType="local:PluginRow">
-            <Grid Padding="12,10" ColumnSpacing="12" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
-                  BorderThickness="1" CornerRadius="2" Margin="0,0,0,6">
+            <Grid Padding="12,12" ColumnSpacing="12" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
+                  BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <FontIcon Glyph="{x:Bind Glyph}" FontSize="18" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{StaticResource TextMutedBrush}" />
-                <StackPanel Grid.Column="1" Spacing="3">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
+                <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconLargeFontSize}" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{StaticResource TextMutedBrush}" />
+                <StackPanel Grid.Column="1" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Text="{x:Bind Name}" Style="{StaticResource PanelTitleTextStyle}" />
                         <TextBlock Text="{x:Bind State}" Style="{StaticResource CaptionTextStyle}" Opacity="{x:Bind StateOpacity}" />
                         <TextBlock Text="{x:Bind Contents}" Style="{StaticResource CaptionTextStyle}" />
@@ -29,9 +29,9 @@
                     <TextBlock Text="{x:Bind Description}" Style="{StaticResource LabelTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
                     <TextBlock Text="{x:Bind WorksIn}" Style="{StaticResource CaptionTextStyle}" />
                     <HyperlinkButton Content="{x:Bind RepositoryText}" Visibility="{x:Bind RepositoryVisibility}" Click="OnRepositoryClick"
-                                     Padding="0" FontSize="11" Foreground="{StaticResource AccentBrush}" ToolTipService.ToolTip="Abrir el repositorio en el navegador" />
+                                     Padding="0" FontSize="{StaticResource CaptionFontSize}" Foreground="{StaticResource AccentBrush}" ToolTipService.ToolTip="Abrir el repositorio en el navegador" />
                 </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
                             Visibility="{x:Bind Download.IdleVisibility, Mode=OneWay}">
                     <Button Content="{x:Bind InstallText}" Visibility="{x:Bind InstallVisibility}" IsEnabled="{x:Bind CanDownload}" Click="OnInstallClick"
                             ToolTipService.ToolTip="{x:Bind InstallTooltip}" />
@@ -69,20 +69,20 @@
             <Button x:Name="InstallFileButton" Grid.Column="3" Style="{StaticResource AccentButtonStyle}" Content="Instalar desde archivo…" Click="OnInstallFileClick" />
         </Grid>
 
-        <Border Grid.Row="1" Background="{StaticResource AccentSubtleBrush}" CornerRadius="2" Padding="10,6">
+        <Border Grid.Row="1" Background="{StaticResource AccentSubtleBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="12,8">
             <TextBlock x:Name="DownloadNote" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
         </Border>
 
         <Border x:Name="InstancesNote" Grid.Row="2" Visibility="Collapsed" Background="{StaticResource ControlBrush}"
-                BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="2" Padding="10,6">
+                BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Padding="12,8">
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <FontIcon Glyph="&#xE7BA;" FontSize="14" Foreground="{StaticResource TextMutedBrush}" />
+                <FontIcon Glyph="&#xE7BA;" FontSize="{StaticResource IconFontSize}" Foreground="{StaticResource TextMutedBrush}" />
                 <TextBlock x:Name="InstancesText" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
             </StackPanel>
         </Border>
 
         <ScrollViewer Grid.Row="3" HorizontalScrollMode="Disabled">
-            <StackPanel Spacing="6" Padding="0,0,12,0">
+            <StackPanel Spacing="8" Padding="0,0,12,0">
                 <TextBlock Text="Contenido" Style="{StaticResource HeaderTextStyle}" Margin="0,4,0,2" />
                 <ItemsControl ItemsSource="{x:Bind ContentPackages}" ItemTemplate="{StaticResource PluginTemplate}" />
                 <TextBlock Text="Módulos de IA" Style="{StaticResource HeaderTextStyle}" Margin="0,8,0,2" />

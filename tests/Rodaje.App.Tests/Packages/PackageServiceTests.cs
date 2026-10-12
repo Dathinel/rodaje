@@ -21,7 +21,8 @@ public sealed class PackageServiceTests : IDisposable
 
         Assert.Empty(problems);
         Assert.Equal(
-            ["modulo-quitar-fondo", "modulo-ritmo", "modulo-silencios", "modulo-subtitulos", "rodaje-filtros", "rodaje-titulos", "rodaje-transiciones"],
+            ["modulo-audio-ia", "modulo-raw", "modulo-subtitulos", "modulo-traducir", "modulo-vision", "modulo-voz",
+             "rodaje-filtros", "rodaje-fuentes", "rodaje-titulos", "rodaje-transiciones", "rodaje-zonas"],
             catalog.Entries.Select(e => e.Id).Order());
         Assert.All(catalog.Entries, e =>
         {
@@ -31,6 +32,58 @@ public sealed class PackageServiceTests : IDisposable
             Assert.Equal(e.Id.StartsWith("modulo-", StringComparison.Ordinal) ? PackageKind.Module : PackageKind.Content, e.Kind);
         });
         Assert.Equal("Editor de audio (en planes)", catalog.AppName("editor-audio"));
+    }
+
+    /// <summary>
+    /// Cada módulo de <c>modules\</c> (menos el eco de pruebas) está en el catálogo con su id, sus funciones y su
+    /// repositorio, va en la versión 1.0.0 con el exe en la raíz (los modelos van en <c>&lt;carpeta&gt;\modelos</c>, junto
+    /// a él) y cada modelo se baja de un origen permitido: Hugging Face por commit o una release de Dathinel.
+    /// </summary>
+    [Fact]
+    public void Every_module_in_the_repository_is_in_the_catalog_with_downloadable_models()
+    {
+        PackageCatalog catalog = PackageService.LoadBundledCatalog();
+        string modules = Path.Combine(RepositoryRoot(), "modules");
+        int count = 0;
+        foreach (string manifest in Directory.GetFiles(modules, "paquete.json", SearchOption.AllDirectories)
+            .Where(p => !p.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)))
+        {
+            ManifestResult read = ManifestReader.ReadFile(manifest, checkFiles: false);
+            PackageManifest m = Assert.IsType<PackageManifest>(read.Manifest);
+            if (m.Id == "rodaje-eco")
+            {
+                continue;
+            }
+
+            count++;
+            CatalogEntry entry = Assert.IsType<CatalogEntry>(catalog.Find(m.Id));
+            Assert.Equal(PackageKind.Module, entry.Kind);
+            Assert.Equal("1.0.0", m.Version.ToString());
+            Assert.Equal(m.Module!.Functions.Order(), entry.Provides.Order());
+            Assert.Equal(entry.Repository, m.Repository);
+            Assert.DoesNotContain('/', m.Module.Entry);
+            foreach (Rodaje.Packages.Download.ModuleModel model in Rodaje.Packages.Download.ModuleModels.Read(manifest))
+            {
+                Assert.StartsWith("modelos/", model.File, StringComparison.Ordinal);
+                Assert.True(Rodaje.Packages.Download.DownloadUrlPolicy.Default.IsAllowed(model.Url, out string? reason), $"{m.Id}/{model.Id}: {reason}");
+            }
+        }
+
+        Assert.Equal(6, count);
+    }
+
+    private static string RepositoryRoot()
+    {
+        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "Rodaje.slnx")))
+            {
+                return dir.FullName;
+            }
+        }
+
+        throw new DirectoryNotFoundException("No encuentro la raíz del repositorio.");
     }
 
     [Fact]
@@ -56,8 +109,8 @@ public sealed class PackageServiceTests : IDisposable
         Assert.NotNull(titles.Catalog);
         PluginEntry loose = entries.Single(e => e.Id == "paquete-suelto");
         Assert.Null(loose.Catalog);
-        Assert.False(entries.Single(e => e.Id == "modulo-ritmo").IsInstalled);
-        Assert.Contains("Editor de audio (en planes)", entries.Single(e => e.Id == "modulo-ritmo").WorksIn);
+        Assert.False(entries.Single(e => e.Id == "modulo-audio-ia").IsInstalled);
+        Assert.Contains("Editor de audio (en planes)", entries.Single(e => e.Id == "modulo-audio-ia").WorksIn);
         Assert.Equal(PackageKind.Content, entries[0].Kind);
         Assert.Equal(PackageKind.Module, entries[^1].Kind);
 

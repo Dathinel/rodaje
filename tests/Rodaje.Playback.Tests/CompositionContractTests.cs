@@ -23,7 +23,7 @@ public class CompositionContractTests
 
         Assert.Equal(EffectDefinition.MaxParameters * sizeof(float), Unsafe.SizeOf<EffectValues>());
         Assert.Equal(2.5f, values[EffectDefinition.MaxParameters - 1]);
-        Assert.True(EffectRegistry.All.All(d => d.Parameters.Length <= EffectDefinition.MaxParameters));
+        Assert.True(EffectRegistry.All.Where(d => d.Stage != EffectStage.Audio).All(d => d.Parameters.Length <= EffectDefinition.MaxParameters));
     }
 
     [Fact]

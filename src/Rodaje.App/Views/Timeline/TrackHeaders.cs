@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Audio;
+using Rodaje.App.Theme;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Timeline;
@@ -61,11 +62,17 @@ internal sealed class TrackHeaders
     /// <summary>Del menú de una cabecera de video: usarla (o dejar de usarla) como pista de subtítulos.</summary>
     public event Action<string, bool>? SubtitleRoleRequested;
 
+    /// <summary>Del menú de una cabecera de subtítulos: importar un archivo (null) o exportar la pista.</summary>
+    public event Action<string?>? SubtitleFileRequested;
+
     /// <summary>Del menú de una cabecera de audio: un preajuste de ecualizador y compresor para la pista (nulo: quitarlos).</summary>
     public event Action<string, AudioPreset?>? AudioPresetRequested;
 
     /// <summary>El botón del micrófono (o el menú) de una cabecera de audio: grabar voz en off en esa pista.</summary>
     public event Action<string>? VoiceOverRequested;
+
+    /// <summary>«Compresor de la pista…»: abre la pestaña Dinámica con el compresor de esa pista.</summary>
+    public event Action<string>? DynamicsRequested;
 
     public double ScrollY
     {
@@ -131,7 +138,7 @@ internal sealed class TrackHeaders
         labels.Children.Add(new TextBlock
         {
             Text = track.Name,
-            FontSize = 12,
+            FontSize = ThemeResources.Size("BodyFontSize"),
             FontWeight = row.IsMain ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
             Foreground = track.Hidden || track.Muted ? _brushes.TextMuted : _brushes.Text,
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -145,7 +152,7 @@ internal sealed class TrackHeaders
             labels.Children.Add(new TextBlock
             {
                 Text = Caption(row, magnetic),
-                FontSize = 10,
+                FontSize = ThemeResources.Size("MicroFontSize"),
                 Foreground = row.IsMain && magnetic ? _brushes.Accent : _brushes.TextMuted,
                 TextTrimming = TextTrimming.CharacterEllipsis,
             });
@@ -162,7 +169,7 @@ internal sealed class TrackHeaders
         {
             var record = new ToggleButton
             {
-                Content = new FontIcon { Glyph = "\uE720", FontSize = 12 },
+                Content = new FontIcon { Glyph = "\uE720", FontSize = ThemeResources.Size("IconFontSize") },
                 Style = _toggleStyle,
                 IsEnabled = !track.Locked,
             };
@@ -197,17 +204,31 @@ internal sealed class TrackHeaders
             string trackId = row.TrackId;
             role.Click += (_, _) => SubtitleRoleRequested?.Invoke(trackId, !subtitles);
             menu.Items.Add(role);
+            if (subtitles)
+            {
+                var import = new MenuFlyoutItem { Text = Subtitles.SubtitleFileCommands.ImportLabel, Icon = new FontIcon { Glyph = "" } };
+                import.Click += (_, _) => SubtitleFileRequested?.Invoke(null);
+                var export = new MenuFlyoutItem { Text = Subtitles.SubtitleFileCommands.ExportLabel, Icon = new FontIcon { Glyph = "" } };
+                export.Click += (_, _) => SubtitleFileRequested?.Invoke(trackId);
+                menu.Items.Add(new MenuFlyoutSeparator());
+                menu.Items.Add(import);
+                menu.Items.Add(export);
+            }
         }
 
         if (row.Kind == TrackKind.Audio)
         {
-            var effects = new MenuFlyoutSubItem { Text = "Ecualizador y compresor", Icon = new FontIcon { Glyph = "\uE9E9" } };
+            var effects = new MenuFlyoutSubItem { Text = "Preajuste de audio", Icon = new FontIcon { Glyph = "\uE9E9" } };
+            var dynamics = new MenuFlyoutItem { Text = "Compresor de la pista\u2026" };
+            string dynamicsTrack = row.TrackId;
+            dynamics.Click += (_, _) => DynamicsRequested?.Invoke(dynamicsTrack);
             var voice = new MenuFlyoutItem { Text = "Grabar voz en off aquí…", Icon = new FontIcon { Glyph = "\uE720" }, IsEnabled = !row.Track.Locked };
             string voiceTrack = row.TrackId;
             voice.Click += (_, _) => VoiceOverRequested?.Invoke(voiceTrack);
             menu.Items.Add(new MenuFlyoutSeparator());
             menu.Items.Add(voice);
             menu.Items.Add(effects);
+            menu.Items.Add(dynamics);
             Track track = row.Track;
 
             // Se arma al abrir: la cabecera no se rehace cuando cambian los efectos de la pista.
@@ -217,6 +238,7 @@ internal sealed class TrackHeaders
                 effects.IsEnabled = !track.Locked;
                 AudioPreset? current = AudioPresetCommands.Match(track.Effects, out bool has);
                 effects.Items.Add(PresetItem(track.Id, null, "Sin ecualizador ni compresor", !has));
+                effects.Items.Add(new MenuFlyoutSeparator());
                 foreach (AudioPreset preset in AudioPresets.All)
                 {
                     effects.Items.Add(PresetItem(track.Id, preset, preset.Name, ReferenceEquals(preset, current)));
@@ -249,7 +271,7 @@ internal sealed class TrackHeaders
         var text = new TextBlock
         {
             Text = GainText(_gainOf?.Invoke(track) ?? 0),
-            FontSize = 10,
+            FontSize = ThemeResources.Size("MicroFontSize"),
             Foreground = track.Locked ? _brushes.TextDisabled : _brushes.TextMuted,
             HorizontalAlignment = HorizontalAlignment.Left,
             Padding = new Thickness(0, 0, 8, 0),
@@ -334,7 +356,7 @@ internal sealed class TrackHeaders
             Style = _toggleStyle,
             Width = 24,
             Height = 24,
-            FontSize = 12,
+            FontSize = ThemeResources.Size("BodyFontSize"),
             Content = glyph,
             IsChecked = isOn,
         };

@@ -145,6 +145,9 @@ public sealed record ExportAudioFormat
 /// <summary>Un capítulo del archivo (por ejemplo, desde un marcador), en el tiempo de la salida.</summary>
 public sealed record ExportChapter(Time Start, Time End, string Title);
 
+/// <summary>Una pista de subtítulos que va en el archivo como flujo aparte, con los tiempos de la salida.</summary>
+public sealed record ExportSubtitleTrack(string Name, IReadOnlyList<Rodaje.Core.Editing.SubtitleCue> Cues);
+
 /// <summary>Metadatos que se escriben en el contenedor, si los admite.</summary>
 public sealed record ExportMetadata
 {
@@ -160,6 +163,9 @@ public sealed record ExportMetadata
     public DateTimeOffset? Date { get; init; }
 
     public IReadOnlyList<ExportChapter> Chapters { get; init; } = [];
+
+    /// <summary>Subtítulos que se activan en el reproductor (MP4 y MOV con <c>mov_text</c>, MKV con SRT, WebM con WebVTT).</summary>
+    public IReadOnlyList<ExportSubtitleTrack> Subtitles { get; init; } = [];
 
     /// <summary>Imagen (PNG o JPEG) para incrustar como portada; <c>null</c> sin portada.</summary>
     public string? ThumbnailPath { get; init; }

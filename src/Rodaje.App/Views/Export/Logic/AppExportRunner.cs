@@ -40,7 +40,7 @@ public sealed partial class AppExportRunner : IExportRunner
                 FontFiles = fontFiles,
                 Preview = preview,
                 Journal = journal ?? ExportJournal.Default,
-                Encoders = new CatalogEncoderSource(ffmpeg),
+                Encoders = new CatalogEncoderSource(ffmpeg, Rodaje.Media.Gpu.GpuProfileReader.Current),
             }), null);
         }, LazyThreadSafetyMode.ExecutionAndPublication);
     }

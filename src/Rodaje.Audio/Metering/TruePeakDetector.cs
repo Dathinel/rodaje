@@ -18,6 +18,13 @@ public sealed class TruePeakDetector
 
     private static readonly float[][] Phases = BuildPhases();
 
+    /// <summary>Coeficientes de la fase <paramref name="phase"/> (1 a 3) para la ventana <c>x[n-15] .. x[n]</c>; los comparte el limitador.</summary>
+    internal static ReadOnlySpan<float> Phase(int phase) => Phases[phase];
+
+    internal const int WindowTaps = Taps;
+
+    internal const int Delay = HalfTaps;
+
     // Las últimas 16 muestras, escritas dos veces para leerlas siempre como un tramo contiguo.
     private readonly float[] _history = new float[Taps * 2];
     private int _head;

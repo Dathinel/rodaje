@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Theme;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 
@@ -65,9 +66,9 @@ internal sealed partial class CheatSheetView : UserControl
                     Background = GroupBrushes.Resource("ControlBrush"),
                     BorderBrush = GroupBrushes.For(entry.Group),
                     BorderThickness = new Thickness(1, 1, 1, 2),
-                    CornerRadius = new CornerRadius(2),
+                    CornerRadius = ThemeResources.Corner("ControlCornerRadius"),
                     Padding = new Thickness(6, 1, 6, 1),
-                    Child = new TextBlock { Text = key, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = GroupBrushes.Resource("TextBrush") },
+                    Child = new TextBlock { Text = key, FontSize = ThemeResources.Size("CaptionFontSize"), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = GroupBrushes.Resource("TextBrush") },
                 });
             }
 
