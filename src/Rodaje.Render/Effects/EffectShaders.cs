@@ -336,18 +336,20 @@ internal static class EffectShaders
         #endif
         }
 
+        // Con el mismo corrimiento de 1/1024 de texel que SampleRgb (mapA.xy − mapA.zw es medio texel).
         float4 SampleA(float2 uv)
         {
-            return imageA.SampleLevel(linearClamp, min(uv * mapA.xy, mapA.zw), 0);
+            return imageA.SampleLevel(linearClamp, min(uv * mapA.xy + (mapA.xy - mapA.zw) * (1.0 / 512.0), mapA.zw), 0);
         }
 
         float4 SampleB(float2 uv)
         {
-            return imageB.SampleLevel(linearClamp, min(uv * mapB.xy, mapB.zw), 0);
+            return imageB.SampleLevel(linearClamp, min(uv * mapB.xy + (mapB.xy - mapB.zw) * (1.0 / 512.0), mapB.zw), 0);
         }
 
         float4 PsGraded(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float3 rgb;
             float keyAlpha = 1.0;
             float sourceAlpha = 1.0;
@@ -458,6 +460,7 @@ internal static class EffectShaders
 
         float4 PsMask(VsOut i) : SV_Target
         {
+            i = Exact(i);
             int kind = (int)mix0.x;
             float coverage = 0.0;
             if (kind == 3)
@@ -524,6 +527,7 @@ internal static class EffectShaders
 
         float4 PsMaskMix(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float4 before = SampleA(i.uv);
             float4 after = SampleB(i.uv);
             float m = maskImage.SampleLevel(linearClamp, min(i.uv * mix1.xy, mix1.zw), 0).r;
@@ -539,6 +543,7 @@ internal static class EffectShaders
 
         float4 PsPixelate(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float2 px = i.uv * canvas.xy;
             float2 origin = floor(px / kernel.x) * kernel.x;
             float2 size = min(origin + kernel.x, canvas.xy) - origin;
@@ -558,6 +563,7 @@ internal static class EffectShaders
 
         float4 PsImage(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float4 c = SampleA(i.uv);
             float alpha = c.a * shape.x * EdgeCoverage(i.local);
             return Composite(i.position, c.a > 0 ? c.rgb / c.a : 0, alpha);
@@ -565,11 +571,13 @@ internal static class EffectShaders
 
         float4 PsDownsample(VsOut i) : SV_Target
         {
+            i = Exact(i);
             return SampleA(i.uv);
         }
 
         float4 PsBlur(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float k = -0.5 / (kernel.z * kernel.z);
             float4 sum = SampleA(i.uv);
             float total = 1.0;
@@ -588,6 +596,7 @@ internal static class EffectShaders
         // kernel.y: umbral; las diferencias de luma más chicas no se realzan (rampa suave hasta el doble del umbral).
         float4 PsSharpen(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float4 original = SampleA(i.uv);
             float4 blurred = SampleB(i.uv);
             float4 detail = original - blurred;
@@ -682,6 +691,7 @@ internal static class EffectShaders
         // Pasadas de los efectos espaciales sobre intermedios premultiplicados: t5 = A, t6 = B, t7 = máscara de efectos.
         float4 PsFx(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float2 uv = i.uv;
             switch ((int)fx0.x)
             {
@@ -815,6 +825,7 @@ internal static class EffectShaders
 
         float4 PsTransition(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float2 uv = i.local;
             float p = mix0.y;
             float4 m;
