@@ -117,10 +117,13 @@ public sealed class ModuleProcess : IAsyncDisposable
             module._exited.TrySetResult(t.Result);
             client.Fail(new ModuleExitedException(t.Result, Tail(stderr)));
         }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        // Matar el árbol de procesos puede tardar segundos con la CPU llena: va al pool, nunca en línea con Fail, para que
+        // las llamadas fallen enseguida y el proceso muera después. Sin ExecuteSynchronously no depende de cómo complete
+        // el cliente su Completion.
         _ = client.Completion.ContinueWith(t =>
         {
             if (t.IsFaulted) Kill(process);
-        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
         return module;
     }
 
