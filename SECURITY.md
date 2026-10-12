@@ -1,7 +1,5 @@
 # Política de seguridad
 
-> **Preparado para una futura publicación.** Hoy el repositorio de Rodaje es privado y este documento todavía no está en vigor. Se deja escrito para que, el día que el repositorio se haga público, la forma de reportar problemas de seguridad ya esté definida. Al publicar, se quita este aviso y se activa el reporte privado de vulnerabilidades de GitHub (ver la lista de `docs/legal.md`).
-
 ## Versiones con soporte
 
 Rodaje no tiene todavía versiones publicadas. Cuando las tenga, solo la versión más reciente recibirá correcciones de seguridad; las anteriores se consideran sin soporte y la recomendación será actualizar.
@@ -14,7 +12,7 @@ No se consideran problemas de seguridad los fallos que solo cierran el programa 
 
 ## Cómo reportar
 
-Por favor, no abras un issue público para un problema de seguridad. Usa el reporte privado de vulnerabilidades del repositorio en GitHub (pestaña "Security", botón "Report a vulnerability"). En el reporte incluye la versión de Rodaje, la versión de Windows, los pasos para reproducir el problema y, si es posible, un archivo de ejemplo que lo provoque.
+Por favor, no abras un issue público para un problema de seguridad. Usa el reporte privado de vulnerabilidades del repositorio en GitHub (pestaña "Security", botón "Report a vulnerability"). Si ese botón no aparece, abre un issue que solo pida un canal privado, sin detalles del problema. En el reporte incluye la versión de Rodaje, la versión de Windows, los pasos para reproducir el problema y, si es posible, un archivo de ejemplo que lo provoque.
 
 Recibirás una primera respuesta en un plazo de siete días. Este es un proyecto personal mantenido por una sola persona, así que los tiempos de corrección dependerán de la gravedad, pero cada reporte se tomará en serio y se te mantendrá al tanto.
 

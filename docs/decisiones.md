@@ -351,7 +351,7 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 
 ## D-031. Arquitectura de la fase 7: protocolo de módulos v1, análisis en la app y descarga firmada (11 de octubre de 2026)
 
-**Contexto.** La fase 7 trae la IA local de la [propuesta de módulos](propuesta-modulos.md) y la descarga de complementos (`IPackageDownloader`). Antes de repartirla hace falta fijar el protocolo, el aislamiento y de dónde sale cada modelo.
+**Contexto.** La fase 7 trae la IA local de la propuesta de módulos ([arquitectura](arquitectura/README.md#núcleo-contenido-e-ia)) y la descarga de complementos (`IPackageDownloader`). Antes de repartirla hace falta fijar el protocolo, el aislamiento y de dónde sale cada modelo.
 
 **Decisión.**
 - **Protocolo v1** en `src/Rodaje.Modules.Protocol` (sin referencias a Rodaje, AOT, compartible): marco de 4 bytes + JSON UTF-8 de hasta 1 MiB con `type`, mensajes `hello`/`welcome`/`invoke`/`progress`/`result`/`error`/`cancel`/`ping`/`pong`/`log`/`shutdown` con `JsonSerializerContext`, negociación de versión por rango, capacidades en `welcome`, avance limitado a uno cada 50 ms, cancelación confirmada con 2 s de gracia y muerte del proceso si no llega, códigos de error estables. Campos y tipos de mensaje desconocidos se ignoran; un mensaje inválido cierra la conexión.

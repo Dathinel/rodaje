@@ -1,6 +1,6 @@
 # Arquitectura de Rodaje
 
-Rodaje es un editor de video nativo para Windows escrito en C# sobre .NET 10. Se entrega como un ejecutable Native AOT autocontenido y sin instalador. El código se reparte en capas, cada una en su propio proyecto y apoyada solo en las de abajo. Cada documento describe una capa tal como está hoy (fases 1 a 5), con sus archivos, su lógica y cómo se prueba.
+Rodaje es un editor de video nativo para Windows escrito en C# sobre .NET 10. Se entrega como un ejecutable Native AOT autocontenido y sin instalador. El código se reparte en capas, cada una en su propio proyecto y apoyada solo en las de abajo. Cada documento describe una capa tal como está hoy, con sus archivos, su lógica y cómo se prueba.
 
 ```mermaid
 flowchart TB
@@ -38,6 +38,21 @@ flowchart TB
 | Paquetes | [formato-paquete.md](../formato-paquete.md) | Manifiesto, instalación segura y catálogo de los complementos, para compartir con los demás programas |
 | App | [app.md](app.md) | El contrato de la interfaz WinUI 3: `EditorSession`, comandos y eventos, atajos, ajustes, avisos, miniaturas y complementos |
 | Vistas | [app-vistas.md](app-vistas.md) | Qué hace cada vista: biblioteca, reproductor y medidores, línea de tiempo, inspector, atajos y complementos |
+
+## Núcleo, contenido e IA
+
+El ejecutable trae solo el código del motor y un conjunto fijo de primitivas: transformar, opacidad, recorte y modos de mezcla; color y LUT; desenfoque y máscara; texto con borde y sombra; fundidos; ganancia y fundidos de audio. Lo demás va fuera y se instala o no (D-031):
+
+```
+Rodaje.exe        lanzador; el programa va en app\
+app\paquetes\     contenido sin código: transiciones, filtros, estilos de texto, plantillas
+app\modulos\      IA local: procesos aparte con sus modelos
+```
+
+- **Paquetes** ([formato-paquete.md](../formato-paquete.md)): un zip con `paquete.json` y sus recursos, nunca código, con su licencia declarada. Un proyecto guarda `paquete@versión/elemento`; si el paquete falta, el proyecto abre igual, avisa y ofrece instalarlo.
+- **Módulos de IA** ([protocolo-modulos.md](../protocolo-modulos.md)): procesos aparte que hablan por una tubería con JSON y reciben cuadros y audio por memoria compartida. Un modelo que se queda sin memoria cierra su módulo, no el editor; el ejecutable sigue pequeño y AOT, y cada módulo lleva su licencia. **La IA no edita:** lo que devuelve se convierte en comandos del núcleo, se ve antes de aplicarse y se deshace con Ctrl+Z.
+- **Distribución:** zip base (el editor) y completo (con paquetes, módulos y modelos), más el gestor de complementos de la app, que baja lo mismo desde un catálogo firmado ([descarga.md](../descarga.md), [arranque-y-distribucion.md](../arranque-y-distribucion.md)).
+- **Sin plugins con código dentro del proceso:** Native AOT no carga ensamblados en tiempo de ejecución; lo que necesite código va como módulo.
 
 ## Reglas que atraviesan todas las capas
 
@@ -79,4 +94,5 @@ flowchart TB
 - [Formato de proyecto](../formato-proyecto.md)
 - [Decisiones](../decisiones.md)
 - [Fondo legal](../legal.md)
-- [Propuesta de módulos](../propuesta-modulos.md)
+- [Protocolo de módulos](../protocolo-modulos.md) y [descarga de complementos](../descarga.md)
+- [Variables de entorno](../variables-entorno.md)

@@ -245,7 +245,7 @@ Esta lista se recorre completa, en orden, antes de cambiar la visibilidad del re
 - [ ] **Nombre.** Se consulta "Rodaje" en las bases de marcas de la USPTO (https://tmsearch.uspto.gov), la EUIPO (https://euipo.europa.eu/eSearch/) y la Superintendencia de Industria y Comercio de Colombia (https://www.sic.gov.co), en las clases 9 y 42 de Niza.
 - [ ] **Secretos.** Se escanea el historial completo del repositorio, no solo la última versión, con gitleaks (https://github.com/gitleaks/gitleaks), y se confirma que no aparece ningún `.env`, clave de API ni token. Si aparece alguno, se revoca la clave y se reescribe el historial antes de publicar.
 - [ ] **Privacidad.** Se confirma que no hay telemetría y que toda función que envíe datos a un servicio externo es opcional y está explicada.
-- [ ] **Políticas del repositorio.** Se quita la marca de "preparado para el futuro" de `SECURITY.md` y `CONTRIBUTING.md`, se activa el reporte privado de vulnerabilidades en GitHub y se revisa que el requisito de firma DCO esté vigente.
+- [ ] **Políticas del repositorio.** Hecho el 12-oct: `SECURITY.md` y `CONTRIBUTING.md` sin la marca de "preparado para el futuro". Falta: se activa el reporte privado de vulnerabilidades en GitHub y se revisa que el requisito de firma DCO esté vigente.
 
 ### Lista de comprobación de la exportación
 

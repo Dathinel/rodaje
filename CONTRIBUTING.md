@@ -1,6 +1,6 @@
 # Cómo contribuir a Rodaje
 
-> **Preparado para una futura publicación.** Hoy el repositorio de Rodaje es privado y no acepta contribuciones externas. Este documento se deja escrito para que, el día que el repositorio se haga público, las reglas ya estén claras. Al publicar, se quita este aviso (ver la lista de `docs/legal.md`).
+> **Hoy no se aceptan pull requests externos:** antes hace falta un acuerdo de contribuidor ([`docs/contribuciones.md`](docs/contribuciones.md)). Los issues con errores, dudas y propuestas sí son bienvenidos. Las reglas de abajo valdrán cuando se abran las contribuciones.
 
 Gracias por tu interés en Rodaje. Es un editor de video nativo para Windows que construye una sola persona, así que las contribuciones son bienvenidas, pero siguen algunas reglas que protegen la licencia del proyecto y la calidad del código.
 
@@ -10,7 +10,7 @@ Para cambios grandes, como una función nueva o una reorganización del código,
 
 ## Preparar el entorno
 
-Rodaje no depende de nada instalado globalmente salvo Git. La primera vez, el script `build\preparar-entorno.ps1` descarga el SDK de .NET fijado en `global.json` dentro de la carpeta `.entorno\` del proyecto y verifica su huella SHA-512. Después, `build\dotnet-local.cmd` ejecuta ese SDK local; por ejemplo, `build\dotnet-local.cmd test` compila y corre todas las pruebas. La ruta del proyecto puede contener espacios y tildes, así que cualquier script que añadas debe manejarlas.
+Rodaje no depende de nada instalado globalmente salvo Git. La primera vez, el script `build\preparar-entorno.ps1` descarga el SDK de .NET fijado en `global.json` dentro de la carpeta `.entorno\` del proyecto y verifica su huella SHA-512. Después, `build\dotnet-local.cmd` ejecuta ese SDK local; por ejemplo, `build\dotnet-local.cmd test` compila y corre todas las pruebas; `Probar.bat` hace lo mismo con un resumen en español y prepara el entorno si falta. La ruta del proyecto puede contener espacios y tildes, así que cualquier script que añadas debe manejarlas.
 
 ## Reglas del código
 

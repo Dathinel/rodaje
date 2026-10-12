@@ -1,6 +1,6 @@
 # Formato `.paquete` (versión 0, `formatVersion` 1)
 
-Un paquete es la forma en que llega a Rodaje todo lo que no es código del motor: transiciones, estilos de texto, efectos armados con las primitivas, filtros, LUT, plantillas y sonidos. También describe los módulos de IA, que son programas aparte. La [propuesta de módulos](propuesta-modulos.md) aprobada fija las reglas de fondo: un paquete de contenido **nunca trae código**, cada paquete vive en su propio repositorio de GitHub (Dathinel) y el formato se comparte con los demás programas de Dathinel. Por eso la lógica está en `src/Rodaje.Packages`, una biblioteca sin dependencias ni WinUI que puede salir tal cual a su propio repositorio cuando llegue el segundo programa.
+Un paquete es la forma en que llega a Rodaje todo lo que no es código del motor: transiciones, estilos de texto, efectos armados con las primitivas, filtros, LUT, plantillas y sonidos. También describe los módulos de IA, que son programas aparte. La [arquitectura](arquitectura/README.md#núcleo-contenido-e-ia) fija las reglas de fondo: un paquete de contenido **nunca trae código**, cada paquete vive en su propio repositorio de GitHub (Dathinel) y el formato se comparte con los demás programas de Dathinel. Por eso la lógica está en `src/Rodaje.Packages`, una biblioteca sin dependencias ni WinUI que puede salir tal cual a su propio repositorio cuando llegue el segundo programa.
 
 ## El archivo
 

@@ -11,6 +11,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 - **.NET:** siempre con `build\dotnet-local.cmd <args>` (SDK 10.0.401 de `.entorno\dotnet`; FFmpeg LGPL 9.0.2 en `.entorno\ffmpeg`; los dos con `build\preparar-entorno.ps1`, hashes fijados). `RODAJE_ENTORNO` apunta a otro `.entorno`, por ejemplo desde un worktree.
 - **`Rodaje.bat`:** publica con AOT en `dist\Rodaje\` si cambió `src\` y abre la app (`build\app.ps1`; `-Medir N`, `-Autoprueba`, `-SoloPublicar` tras unir a main). Detalle en `docs/arranque-y-distribucion.md`.
 - **`Probar.bat`:** pruebas (`cobertura`, `aot`, `aceptacion`, `preparar-entorno`). Las largas y de hardware solo con `RODAJE_PRUEBAS_LARGAS=1`. Variables en `docs/variables-entorno.md`.
+- **Estructura:** `src/` (capas), `modules/` (módulos de IA), `tests/` (pruebas y sus bibliotecas de apoyo), `build/` (scripts), `docs/` (arquitectura, formatos, decisiones, legal). Carpetas e identificadores en inglés (D-011); `.md`, mensajes y scripts que se ejecutan a mano, en español.
 - **Agentes:** worktrees en `.claude\worktrees\` (ignorado), se unen con `git merge`, un commit por tarea.
 - **Espacios de nombres en las pruebas:** `Rodaje.X.Tests.Timing` tapa a `Rodaje.Core.Timing`: nombre completo o `using`.
 - **Complementos:** contenido en `Dathinel/rodaje-transiciones` y `Dathinel/rodaje-filtros` (CC0, en `..\Complementos\`); descarga firmada desde `Dathinel/rodaje-catalogo` (`docs/descarga.md`).
@@ -24,9 +25,9 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 
 ## Estado
 
-Fases 1–6 y 5c construidas y verificadas; 5b (títulos) y 7 (IA local) en curso. Detalle y cifras en `.proceso\fases\`; decisiones en `docs/decisiones.md` (D-001 a D-034).
+Fases 1–6, 5b y 5c construidas y verificadas; 7 (IA local) en curso; la 8 se eliminó (D-034). Detalle y cifras en `.proceso\fases\`; decisiones en `docs/decisiones.md` (D-001 a D-034).
 
-- **Siguiente:** fase 7 restante (traducir, visión, RAW y GPL, edición por palabras) y su verificación (Sonnet).
-- **Reorganización del repo (11/12-oct):** hechos los pasos 1, 2 y 7; quedan los que tocan `.github/workflows/ci.yml` o la app (`.proceso\reorganizacion.md`).
+- **Siguiente:** cerrar la fase 7 (visión, edición por palabras, carpeta de medios elegible, Whisper menor para CPU, ruido sin DirectML) y su verificación (Sonnet); después las funciones de calidad de vida de la v1 (`.proceso\pendientes.md`), instalador y primera versión.
+- **Reorganización del repo (12-oct):** hecha salvo el paso 5 (movimientos dentro de `Rodaje.App`: `.proceso\reorganizacion.md`). La rutina de la nube quedó pausada: se reactiva con las rutas nuevas al unir la rama.
 - **Antes de publicar:** casillas de `docs/pendientes-legales.md`.
 - **Para la interfaz:** decidir el ripple con enlazados de distinto largo y si se limpian los enlaces huérfanos.
