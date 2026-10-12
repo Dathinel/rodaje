@@ -56,6 +56,8 @@ Sin tecla de fábrica (se asignan en el panel): Invertir, Añadir pista de subt�
 | Herramienta normal | V | A | Ctrl+D |
 | Herramienta de envolvente | E | (sin tecla) | E |
 | Herramienta de zoom | Z | (sin tecla) | Z |
+| Herramienta de roll | Y | Mayús+Y | N |
+| Herramienta de slide | U | Mayús+U | U |
 | Acercar | Ctrl++ (también en el numérico) | = | ↑ |
 | Alejar | Ctrl+- | = | ↓ |
 | Ajustar a la ventana | Mayús+Z | = | = |

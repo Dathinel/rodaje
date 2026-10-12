@@ -43,7 +43,7 @@ En los títulos solo se aplican desenfoque y nitidez.
 1. **Color y LUT** para lo básico: exposición, contraste, saturación, temperatura, matiz, luces y sombras.
 2. **Ruedas de color**: arrastra el punto de cada rueda para teñir sombras, medios o luces (rojo a 0°, verde a 120°, azul a 240°); el deslizador de cada zona sube o baja su nivel. Doble clic vuelve al centro.
 3. **Curvas**: un clic añade un punto, arrastrar lo mueve entre sus vecinos, doble clic o clic derecho lo quita. General (RGB) o por canal.
-4. **Color automático** y **Balance de blancos** (Herramientas o menú del clip) fijan temperatura, matiz y exposición (y contraste, en Color automático) y avisan con lo que cambiaron y **Deshacer**.
+4. **Color automático** y **Balance de blancos automático** (Herramientas o menú del clip) fijan temperatura, matiz y exposición (y contraste, en Color automático) y avisan con lo que cambiaron y **Deshacer**.
 5. **LUT**: en la fila «LUT» de Color y LUT elige una de los paquetes instalados o «Cargar .cube…» (tablas 3D de 2 a 65 puntos). «Intensidad de la LUT» la mezcla con la imagen original.
 
 **Antes y después:** el botón del visor divide la imagen con una cortina; a la izquierda se ve sin color, LUT, viñeta, ruedas ni curvas; a la derecha, con todo. Arrastra el asa. Solo es vista previa.

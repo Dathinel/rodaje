@@ -129,6 +129,24 @@
                     <TextBlock x:Name="CompareBefore" Text="Antes" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" IsHitTestVisible="False" />
                     <TextBlock x:Name="CompareAfter" Text="Después" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" IsHitTestVisible="False" />
                 </Canvas>
+                <!-- Roll y slide: los dos cuadros del corte mientras se arrastra (PlayerView.TrimPreview). -->
+                <Grid x:Name="TrimPreviewHost" Visibility="Collapsed" IsHitTestVisible="False" Background="{StaticResource BackgroundBrush}"
+                      ColumnSpacing="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid>
+                        <Image x:Name="TrimLeftImage" Stretch="Uniform" />
+                        <TextBlock x:Name="TrimLeftCaption" Margin="8" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                   Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" />
+                    </Grid>
+                    <Grid Grid.Column="1">
+                        <Image x:Name="TrimRightImage" Stretch="Uniform" />
+                        <TextBlock x:Name="TrimRightCaption" Margin="8" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                   Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" />
+                    </Grid>
+                </Grid>
                 <Canvas x:Name="TitleEditCanvas" Visibility="Collapsed">
                     <TextBox x:Name="TitleEditBox" AcceptsReturn="True" TextWrapping="Wrap" MinWidth="120" Padding="4,2"
                              Background="{StaticResource ScrimBrush}" BorderBrush="{StaticResource AccentBrush}" AutomationProperties.Name="Texto del título"

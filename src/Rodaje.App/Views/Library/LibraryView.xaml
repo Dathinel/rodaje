@@ -121,7 +121,7 @@
                 <RadioButton Style="{StaticResource RailButtonStyle}" GroupName="LibraryRail" Tag="Effects" Checked="OnCategoryChecked" ToolTipService.ToolTip="Efectos" AutomationProperties.Name="Efectos" Content="&#xE790;" />
                 <RadioButton Style="{StaticResource RailButtonStyle}" GroupName="LibraryRail" Tag="Transitions" Checked="OnCategoryChecked" ToolTipService.ToolTip="Transiciones" AutomationProperties.Name="Transiciones" Content="&#xE8AB;" />
                 <RadioButton Style="{StaticResource RailButtonStyle}" GroupName="LibraryRail" Tag="Filters" Checked="OnCategoryChecked" ToolTipService.ToolTip="Filtros" AutomationProperties.Name="Filtros" Content="&#xE71C;" />
-                <RadioButton Style="{StaticResource RailButtonStyle}" GroupName="LibraryRail" Tag="Ai" Checked="OnCategoryChecked" ToolTipService.ToolTip="IA" AutomationProperties.Name="IA" Content="&#xE945;" />
+                <RadioButton Style="{StaticResource RailButtonStyle}" GroupName="LibraryRail" Tag="Ai" Checked="OnCategoryChecked" ToolTipService.ToolTip="Módulos de IA" AutomationProperties.Name="Módulos de IA" Content="&#xE945;" />
                 <RadioButton Style="{StaticResource RailButtonStyle}" GroupName="LibraryRail" Tag="Markers" Checked="OnCategoryChecked" ToolTipService.ToolTip="Marcadores" AutomationProperties.Name="Marcadores" Content="&#xE7C1;" />
             </StackPanel>
         </Border>

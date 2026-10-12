@@ -246,7 +246,7 @@ public sealed class ExportJob : IDisposable
             LookaheadFrames = Profile!.LookaheadFrames,
             MaxDecodersPerMedia = Profile.MaxDecodersPerMedia,
         };
-        using OfflineTimeline timeline = OfflineTimeline.Open(Request.Project, Request.SequenceId, gpu, options);
+        using OfflineTimeline timeline = OfflineTimeline.Open(plan.Request.Project, Request.SequenceId, gpu, options);
         Time end = plan.End > timeline.Duration ? timeline.Duration : plan.End;
         timeline.Prepare(plan.Start, end, token);
         CheckFonts(titles, timeline.GeneratedContents(plan.Start, end));

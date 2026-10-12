@@ -46,7 +46,11 @@ public sealed record ExportReport(
     ExportVideoReport? Video,
     ExportAudioReport? Audio,
     int Chapters,
-    IReadOnlyDictionary<string, string> Tags);
+    IReadOnlyDictionary<string, string> Tags)
+{
+    /// <summary>Códec de cada flujo de subtítulos, en orden.</summary>
+    public IReadOnlyList<string> SubtitleCodecs { get; init; } = [];
+}
 
 /// <summary>Lo que se espera de un archivo exportado. Lo que es <c>null</c> no se comprueba.</summary>
 public sealed record ExportExpectation
@@ -85,6 +89,8 @@ public sealed record ExportExpectation
     public double StartToleranceSeconds { get; init; } = 0.001;
 
     public int? Chapters { get; init; }
+
+    public int? SubtitleStreams { get; init; }
 }
 
 /// <summary>
@@ -134,6 +140,7 @@ public sealed class ExportVerifier
 
         ExportVideoReport? video = null;
         ExportAudioReport? audio = null;
+        var subtitles = new List<string>();
         foreach (JsonElement stream in root.GetProperty("streams").EnumerateArray())
         {
             string type = String(stream, "codec_type") ?? "";
@@ -162,6 +169,10 @@ public sealed class ExportVerifier
                     keyframes,
                     Int(stream, "has_b_frames") > 0);
             }
+            else if (type == "subtitle")
+            {
+                subtitles.Add(String(stream, "codec_name") ?? "");
+            }
             else if (type == "audio" && audio is null)
             {
                 audio = new ExportAudioReport(
@@ -176,7 +187,10 @@ public sealed class ExportVerifier
 
         string formatName = String(format, "format_name") ?? "";
         int chapters = root.TryGetProperty("chapters", out JsonElement list) ? list.GetArrayLength() : 0;
-        return new ExportReport(formatName, Double(format, "duration"), new FileInfo(full).Length, MoovBeforeMdat(full), video, audio, chapters, tags);
+        return new ExportReport(formatName, Double(format, "duration"), new FileInfo(full).Length, MoovBeforeMdat(full), video, audio, chapters, tags)
+        {
+            SubtitleCodecs = subtitles,
+        };
     }
 
     /// <summary>Lo que no cumple, en español; vacía si el archivo es lo esperado.</summary>
@@ -271,6 +285,7 @@ public sealed class ExportVerifier
         }
 
         Same(problems, "capítulos", expected.Chapters, report.Chapters);
+        Same(problems, "pistas de subtítulos", expected.SubtitleStreams, report.SubtitleCodecs.Count);
         return problems;
     }
 

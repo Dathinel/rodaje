@@ -10,10 +10,10 @@ Toda la IA de Rodaje corre en tu equipo: nada se envía a internet. Cada funció
 | **Traducir subtítulos** (`modulo-traducir`) | Traducir pista…, a 20 idiomas conservando los tiempos | Qwen3-4B-Instruct (unos 2,5 GB; se baja desde Complementos, no cabe en la distribución completa) | GPU por Vulkan (unos 3 GB de VRAM) o CPU; si no cabe entero en la GPU, reparte capas y si no, va a la CPU |
 | **Texto a voz** (`modulo-voz`) | Texto a voz… | Kokoro-82M (170 MB) y 34 voces | CPU |
 | **Audio con IA** (`modulo-audio-ia`) | Reducir ruido; detección de voz para el ducking | DeepFilterNet3 (9 MB) y Silero VAD (2 MB) | CPU |
-| **Visión** (`modulo-vision`; en los diálogos, «Visión con IA») | Quitar fondo, Reencuadre automático | MODNet (26 MB), BiRefNet-lite (115 MB), YuNet (rostros) y RT-DETRv2 (personas, 81 MB) | GPU por DirectML (cualquier GPU con DirectX 12; unos 1,3 GB de VRAM, 2,8 GB en calidad alta) o CPU |
+| **Visión con IA** (`modulo-vision`) | Quitar fondo, Reencuadre automático | MODNet (26 MB), BiRefNet-lite (115 MB), YuNet (rostros) y RT-DETRv2 (personas, 81 MB) | GPU por DirectML (cualquier GPU con DirectX 12; unos 1,3 GB de VRAM, 2,8 GB en calidad alta) o CPU |
 | **RAW de cine** (`modulo-raw`) | Importar CinemaDNG… | Sin modelos (LibRaw) | CPU |
 
-No usan módulos, aunque están en la misma barra: Quitar silencios, Detectar ritmo, Estabilizar, Color automático, Balance de blancos y Grabar voz. Funcionan siempre.
+No usan módulos, aunque están en la misma barra: Quitar silencios, Detectar ritmo, Estabilizar, Color automático, Balance de blancos automático y Grabar voz. Funcionan siempre.
 
 ### GPU y VRAM
 
@@ -25,10 +25,10 @@ No usan módulos, aunque están en la misma barra: Quitar silencios, Detectar ri
 
 ## Dónde están
 
-- Barra **Herramientas**, encima de la línea de tiempo: Quitar silencios, Detectar ritmo, Bajar música bajo la voz, Reducir ruido, Estabilizar, Color automático, Balance de blancos, Quitar fondo, Reencuadre, Subtítulos automáticos, Texto a voz, Añadir texto y Grabar voz. Cada botón actúa sobre lo seleccionado; si no aplica, se ve atenuado y su ayuda explica por qué.
-- Menú **Editar**: Quitar silencios..., Detectar ritmo..., Ducking automático..., Reducir ruido..., Texto a voz...
+- Barra **Herramientas**, encima de la línea de tiempo: Quitar silencios, Detectar ritmo, Bajar música bajo la voz, Reducir ruido, Estabilizar, Color automático, Balance de blancos automático, Quitar fondo, Reencuadre automático, Subtítulos automáticos, Texto a voz, Añadir texto y Grabar voz. Cada botón actúa sobre lo seleccionado; si no aplica, se ve atenuado y su ayuda explica por qué.
+- Menú **Editar**: Quitar silencios..., Detectar ritmo..., Bajar música bajo la voz..., Reducir ruido..., Texto a voz..., Traducir pista...
 - **Menú contextual del clip**: todo lo anterior más Estabilizar..., Color automático, Balance de blancos automático, Quitar fondo..., Reencuadre automático..., Subtítulos automáticos... y Traducir pista...
-- Categoría **IA** de la biblioteca (riel izquierdo): los módulos y si están instalados.
+- Categoría **Módulos de IA** de la biblioteca (riel izquierdo): los módulos y si están instalados.
 
 Si falta el módulo, el botón lo dice: «Hace falta el módulo «Audio con IA». Instálalo desde Complementos.»
 
@@ -46,7 +46,7 @@ Mientras una acción corre, su botón gira con el porcentaje y la barra de aviso
 
 **Reducir ruido.** Selecciona el clip; escucha «A: original» / «B: limpio», elige «Cuánto ruido se quita» (hasta 48 dB) y dónde se guarda el archivo limpio. Crea «<nombre> (sin ruido)» en la biblioteca y el clip pasa a usarlo; el original queda intacto. Límite: una hora.
 
-**Bajar música bajo la voz** (ducking). Ver [Audio](audio.md#ducking-bajar-la-música-bajo-la-voz). Con «Audio con IA» instalado detecta la voz con Silero; sin él, por la energía del audio.
+**Bajar música bajo la voz** (ducking). Ver [Audio](audio.md#bajar-música-bajo-la-voz-ducking). Con «Audio con IA» instalado detecta la voz con Silero; sin él, por la energía del audio.
 
 **Quitar fondo.** Calidad «Normal · personas, rápido (MODNet)» o «Alta · bordes finos y objetos, lento (BiRefNet)». «Empezar» analiza y «Aplicar» deja una máscara de imagen sobre el clip (un video en escala de grises en medios generados). Se ajusta en la pestaña Máscaras (invertir, intensidad).
 

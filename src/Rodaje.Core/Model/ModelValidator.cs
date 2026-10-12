@@ -233,6 +233,8 @@ public static partial class ModelValidator
             {
                 errors.Add($"El marcador «{marker.Id}» está antes del inicio de la línea de tiempo.");
             }
+
+            ValidateMarkerStyle("El marcador", marker.Id, marker.Color, marker.Note, errors);
         }
 
         foreach (Region region in sequence.Regions)
@@ -247,6 +249,21 @@ public static partial class ModelValidator
             {
                 errors.Add($"La región «{region.Id}» tiene duración cero o negativa.");
             }
+
+            ValidateMarkerStyle("La región", region.Id, region.Color, region.Note, errors);
+        }
+    }
+
+    private static void ValidateMarkerStyle(string what, string id, string? color, string? note, List<string> errors)
+    {
+        if (color is not null && !MarkerStyle.IsColor(color))
+        {
+            errors.Add($"{what} «{id}» tiene un color que no es #RRGGBB: «{color}».");
+        }
+
+        if (note is { Length: > MarkerStyle.MaxNoteLength })
+        {
+            errors.Add($"{what} «{id}» tiene una nota de más de {MarkerStyle.MaxNoteLength} caracteres.");
         }
     }
 

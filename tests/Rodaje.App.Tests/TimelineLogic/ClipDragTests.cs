@@ -283,4 +283,76 @@ public class ClipDragTests
         Assert.Equal((3, S(22)), ClipDrag.MagneticSlot(others, S(2), S(60), S(2)));
         Assert.Equal((0, Time.Zero), ClipDrag.MagneticSlot([], Time.Zero, S(5), S(2)));
     }
+
+    [Fact]
+    public void Roll_MueveElCorteSinCambiarLaDuracionYMuestraLosDosCuadros() => UiThread.Run(async () =>
+    {
+        EditorSession session = await ThreeClips();
+        string seq = session.SequenceId;
+        Assert.True(session.Execute(Edits.Trim(seq, ClipOf(session, "b").Id, TrimEdge.In, S(3))));
+        Assert.True(session.Execute(Edits.Move(seq, ClipOf(session, "b").Id, S(10), null, PlacementMode.Strict)));
+        Assert.Equal("a@0-10 b@10-17 c@20-25", MainLayout(session));
+        int steps = session.History.Count;
+        ClipDragSession drag = Start(session, ClipOf(session, "a"), DragOperation.Roll, 10, Options(session));
+        TrackRow main = Row(session, session.MainTrack!);
+
+        DragPlan plan = drag.Move(S(8), main);
+        Assert.Equal("a@0-8 b@8-17 c@20-25", MainLayout(session));
+        Assert.Equal(S(1), ClipOf(session, "b").SourceIn);
+        Assert.Equal("a@0-8 b@8-17 c@20-25", Layout(session, session.Sequence.AudioTracks[0]));
+        Assert.Equal(Rodaje.App.Services.Titles.ClipLabels.FrameShift(S(-2), session.Sequence.FrameRate), plan.Balloon!.Value.Text);
+        Assert.Equal("\u221248 cuadros", Rodaje.App.Services.Titles.ClipLabels.FrameShift(S(-2), Rational.Fps24));
+        Assert.Equal("+1 cuadro", Rodaje.App.Services.Titles.ClipLabels.FrameShift(Time.FromFrames(1, Rational.Fps25), Rational.Fps25));
+
+        TrimPreview preview = TrimPreview.Of(session.Sequence, drag.Drag.ClipId, roll: true)!;
+        Assert.Equal(session.Project.Media.First(m => m.Name == "a").Id, preview.Left.MediaId);
+        Assert.Equal(S(8) - Time.FromFrames(1, session.Sequence.FrameRate), preview.Left.SourceTime);
+        Assert.Equal((session.Project.Media.First(m => m.Name == "b").Id, S(1)), (preview.Right.MediaId, preview.Right.SourceTime));
+
+        drag.Move(S(2), main);
+        Assert.Equal("a@0-7 b@7-17 c@20-25", MainLayout(session));
+        drag.Move(S(15), main);
+        Assert.Equal("a@0-10 b@10-17 c@20-25", MainLayout(session));
+        drag.Move(S(9), main);
+        drag.Complete();
+
+        Assert.Equal("a@0-9 b@9-17 c@20-25", MainLayout(session));
+        Assert.Equal(steps + 1, session.History.Count);
+        Assert.Equal("Roll", session.UndoDescription);
+    });
+
+    [Fact]
+    public void Slide_CorreElClipEntreSusVecinosQueSeRecortan() => UiThread.Run(async () =>
+    {
+        EditorSession session = await ThreeClips();
+        string seq = session.SequenceId;
+        Assert.True(session.Execute(Edits.Trim(seq, ClipOf(session, "a").Id, TrimEdge.Out, S(-2))));
+        Assert.True(session.Execute(Edits.Trim(seq, ClipOf(session, "b").Id, TrimEdge.In, S(3))));
+        Assert.True(session.Execute(Edits.Move(seq, ClipOf(session, "b").Id, S(8), null, PlacementMode.Strict)));
+        Assert.True(session.Execute(Edits.Move(seq, ClipOf(session, "c").Id, S(15), null, PlacementMode.Strict)));
+        Assert.Equal("a@0-8 b@8-15 c@15-20", MainLayout(session));
+        int steps = session.History.Count;
+        ClipDragSession drag = Start(session, ClipOf(session, "b"), DragOperation.Slide, 11, Options(session));
+        TrackRow main = Row(session, session.MainTrack!);
+
+        drag.Move(S(12), main);
+        Assert.Equal("a@0-9 b@9-16 c@16-20", MainLayout(session));
+        Assert.Equal(S(1), ClipOf(session, "c").SourceIn);
+        Assert.Equal(S(3), ClipOf(session, "b").SourceIn);
+        TrimPreview preview = TrimPreview.Of(session.Sequence, drag.Drag.ClipId, roll: false)!;
+        Assert.Equal(session.Project.Media.First(m => m.Name == "a").Id, preview.Left.MediaId);
+        Assert.Equal((session.Project.Media.First(m => m.Name == "c").Id, S(1)), (preview.Right.MediaId, preview.Right.SourceTime));
+
+        drag.Move(S(30), main);
+        Assert.Equal("a@0-10 b@10-17 c@17-20", MainLayout(session));
+        drag.Move(S(0), main);
+        Assert.Equal("a@0-8 b@8-15 c@15-20", MainLayout(session));
+        drag.Move(S(12), main);
+        drag.Complete();
+
+        Assert.Equal("a@0-9 b@9-16 c@16-20", Layout(session, session.Sequence.AudioTracks[0]));
+        Assert.Equal(steps + 1, session.History.Count);
+        Assert.Equal("Slide", session.UndoDescription);
+        Assert.Null(TrimPreview.Of(session.Sequence, "no-existe", roll: false));
+    });
 }

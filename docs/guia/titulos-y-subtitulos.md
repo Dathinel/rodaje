@@ -46,7 +46,7 @@ En la misma sección, **Resaltar la palabra que suena** pinta cada palabra en el
 
 ## Traducir
 
-Clic derecho en un subtítulo › **Traducir pista…** (módulo «Traducir subtítulos»): elige la pista, el idioma del original (o Detectar) y el destino entre 20 idiomas. Crea una pista nueva encima, «<pista> (<idioma>)», con los mismos tiempos; la original no cambia. Lo que no se pudo traducir conserva el original y se avisa.
+Clic derecho en un subtítulo o Editar › **Traducir pista…** (módulo «Traducir subtítulos»): elige la pista, el idioma del original (o Detectar) y el destino entre 20 idiomas. Crea una pista nueva encima, «<pista> (<idioma>)», con los mismos tiempos; la original no cambia. Lo que no se pudo traducir conserva el original y se avisa.
 
 ## Texto a voz
 
@@ -56,6 +56,8 @@ Clic derecho en un subtítulo › **Traducir pista…** (módulo «Traducir subt
 
 Los paquetes pueden traer estilos de texto (categoría Texto de la biblioteca) y fuentes. Un estilo de paquete se copia al título con su origen, así que el proyecto sigue abriendo aunque desinstales el paquete. Ver [Complementos](complementos.md).
 
-## Importar o exportar SRT
+## Importar o exportar SRT y VTT
 
-Esta versión no lee ni escribe archivos SRT o VTT: los subtítulos viven en el proyecto y se queman en el video al exportar.
+- **Importar subtítulos…** (Archivo, o clic derecho en la cabecera de una pista de subtítulos) lee un `.srt` o un `.vtt` (UTF-8, UTF-16 o Latin 1) y crea una pista de subtítulos nueva, con el nombre del archivo y el estilo de subtítulos por defecto. Conserva los saltos de línea y quita las etiquetas de estilo (`<i>`, `{\an8}`…). Los tiempos van al cuadro; si dos se pisan, el primero termina donde empieza el segundo. Es un solo paso del historial: Ctrl+Z la quita entera.
+- **Exportar subtítulos…** (Archivo o el menú de la cabecera) guarda la pista como `.srt` o `.vtt` en UTF-8, al milisegundo. Desde Archivo exporta la pista del subtítulo seleccionado o, si no hay, la de subtítulos más alta.
+- **Al exportar el video**, Avanzado › Contenedor › «Subtítulos» elige entre quemarlos en la imagen (lo de siempre), quemarlos y además llevarlos como pista aparte, o solo como pista aparte, que el reproductor activa o desactiva: MP4 y MOV con `mov_text`, MKV con SRT y WebM con WebVTT. Ver [Exportar](exportar.md#avanzado).

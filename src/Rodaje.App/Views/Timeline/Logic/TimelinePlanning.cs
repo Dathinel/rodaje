@@ -104,16 +104,23 @@ public static class TimelinePlanning
     }
 
     /// <summary>
-    /// El tramo de una región nueva: el rango marcado si lo hay; si no, lo que abarcan los clips seleccionados; si no, el
-    /// clip de la pista principal bajo el cursor; y si tampoco, unos segundos desde el cursor.
+    /// El tramo de una región nueva: el rango marcado si lo hay; si no, la entrada y la salida de la secuencia (I y O);
+    /// si no, lo que abarcan los clips seleccionados; si no, el clip de la pista principal bajo el cursor; y si tampoco,
+    /// unos segundos desde el cursor.
     /// </summary>
-    public static (Time Start, Time End) RegionSpan(Sequence sequence, IReadOnlyList<string> selection, (Time Start, Time End)? range, Track? mainTrack, Time playhead)
+    public static (Time Start, Time End) RegionSpan(Sequence sequence, IReadOnlyList<string> selection, (Time Start, Time End)? range, Track? mainTrack, Time playhead,
+        (Time? In, Time? Out) marks = default)
     {
         ArgumentNullException.ThrowIfNull(sequence);
         ArgumentNullException.ThrowIfNull(selection);
         if (range is { } r && r.End > r.Start)
         {
             return r;
+        }
+
+        if (marks is ({ } markIn, { } markOut) && markOut > markIn)
+        {
+            return (markIn, markOut);
         }
 
         List<Clip> selected = [.. selection.Select(id => sequence.FindClip(id)?.Clip).OfType<Clip>()];

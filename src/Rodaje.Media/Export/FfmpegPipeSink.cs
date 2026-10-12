@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using Rodaje.Core.Serialization;
 using Rodaje.Media.Proxies;
 
 namespace Rodaje.Media.Export;
@@ -44,6 +45,8 @@ public sealed record FfmpegPipeSinkOptions
 
     /// <summary>Si el contenedor guarda capítulos (en los demás se omiten).</summary>
     public static bool AllowsChapters(ExportContainer container) => FfmpegPipeArguments.AllowsChapters(container);
+
+    public static bool AllowsSoftSubtitles(ExportContainer container) => FfmpegPipeArguments.AllowsSoftSubtitles(container);
 }
 
 /// <summary>
@@ -204,8 +207,10 @@ public sealed class FfmpegPipeSink : IExportSink
 
         _temporaryOutput = request.IsAnalysisPass ? null : ExportOutputGuard.TemporaryPath(output);
         string? metadataFile = WriteMetadataFile(request, output);
+        List<string> subtitleFiles = WriteSubtitleFiles(request, output);
         RegisterTemporaries(output, metadataFile);
-        Arguments = FfmpegPipeArguments.Build(request, _temporaryOutput, metadataFile);
+        _temporaries.AddRange(subtitleFiles);
+        Arguments = FfmpegPipeArguments.Build(request, _temporaryOutput, metadataFile, subtitleFiles);
         _buffer ??= GC.AllocateUninitializedArray<byte>(_options.WriteChunkBytes, pinned: true);
         _nextDiskCheck = Stopwatch.GetTimestamp() + (long)(_options.DiskCheckInterval.TotalSeconds * Stopwatch.Frequency);
         Launch(request);
@@ -760,6 +765,24 @@ public sealed class FfmpegPipeSink : IExportSink
         return path;
     }
 
+    private static List<string> WriteSubtitleFiles(ExportSinkRequest request, string output)
+    {
+        if (request.IsAnalysisPass || !request.HasVideo || !FfmpegPipeArguments.AllowsSoftSubtitles(request.Container))
+        {
+            return [];
+        }
+
+        var files = new List<string>();
+        foreach (ExportSubtitleTrack track in request.Metadata.Subtitles.Where(t => t.Cues.Count > 0))
+        {
+            string path = ExportOutputGuard.TemporaryPath(output) + string.Create(CultureInfo.InvariantCulture, $".{files.Count}.srt");
+            SubtitleFiles.Write(path, track.Cues, SubtitleFormat.Srt);
+            files.Add(path);
+        }
+
+        return files;
+    }
+
     private void RegisterTemporaries(string output, string? metadataFile)
     {
         _temporaries.Clear();
@@ -1197,7 +1220,8 @@ public sealed class FfmpegPipeSink : IExportSink
 /// <summary>La línea de comandos de <see cref="FfmpegPipeSink"/>; los ajustes del codificador ya vienen armados en la petición.</summary>
 internal static class FfmpegPipeArguments
 {
-    public static IReadOnlyList<string> Build(ExportSinkRequest request, string? temporaryOutput, string? metadataFile)
+    public static IReadOnlyList<string> Build(ExportSinkRequest request, string? temporaryOutput, string? metadataFile,
+        IReadOnlyList<string>? subtitleFiles = null)
     {
         var args = new List<string>
         {
@@ -1246,6 +1270,14 @@ internal static class FfmpegPipeArguments
             thumbnailInput = inputs++;
         }
 
+        int subtitleInput = inputs;
+        IReadOnlyList<string> subtitles = request.IsAnalysisPass ? [] : subtitleFiles ?? [];
+        foreach (string file in subtitles)
+        {
+            args.AddRange(["-f", "srt", "-i", file]);
+            inputs++;
+        }
+
         if (videoInput >= 0)
         {
             args.AddRange(["-map", $"{videoInput}:v:0"]);
@@ -1259,6 +1291,11 @@ internal static class FfmpegPipeArguments
         if (thumbnailInput >= 0)
         {
             args.AddRange(["-map", $"{thumbnailInput}:v:0"]);
+        }
+
+        for (int i = 0; i < subtitles.Count; i++)
+        {
+            args.AddRange(["-map", string.Create(CultureInfo.InvariantCulture, $"{subtitleInput + i}:s:0")]);
         }
 
         args.AddRange(["-map_metadata", metadataInput >= 0 ? metadataInput.ToString(CultureInfo.InvariantCulture) : "-1"]);
@@ -1296,6 +1333,16 @@ internal static class FfmpegPipeArguments
             args.AddRange(["-c:a:0", request.AudioEncoder!.Id]);
             args.AddRange(request.AudioEncoder.BaseArguments);
             args.AddRange(request.AudioArguments);
+        }
+
+        if (subtitles.Count > 0)
+        {
+            args.AddRange(["-c:s", SubtitleCodec(request.Container)]);
+            List<ExportSubtitleTrack> tracks = [.. request.Metadata.Subtitles.Where(t => t.Cues.Count > 0)];
+            for (int i = 0; i < subtitles.Count && i < tracks.Count; i++)
+            {
+                args.AddRange([string.Create(CultureInfo.InvariantCulture, $"-metadata:s:s:{i}"), $"title={tracks[i].Name}"]);
+            }
         }
 
         if (!request.IsAnalysisPass)
@@ -1339,6 +1386,17 @@ internal static class FfmpegPipeArguments
     public static bool AllowsChapters(ExportContainer container) =>
         container is ExportContainer.Mp4 or ExportContainer.Mov or ExportContainer.Mkv or ExportContainer.WebM or ExportContainer.M4a
             or ExportContainer.Ogg;
+
+    /// <summary>Contenedores con subtítulos que se activan en el reproductor.</summary>
+    public static bool AllowsSoftSubtitles(ExportContainer container) =>
+        container is ExportContainer.Mp4 or ExportContainer.Mov or ExportContainer.Mkv or ExportContainer.WebM;
+
+    public static string SubtitleCodec(ExportContainer container) => container switch
+    {
+        ExportContainer.Mkv => "srt",
+        ExportContainer.WebM => "webvtt",
+        _ => "mov_text",
+    };
 
     public static bool AllowsAttachedPicture(ExportContainer container) =>
         container is ExportContainer.Mp4 or ExportContainer.Mov or ExportContainer.M4a;

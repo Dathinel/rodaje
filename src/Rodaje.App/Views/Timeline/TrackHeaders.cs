@@ -62,6 +62,9 @@ internal sealed class TrackHeaders
     /// <summary>Del menú de una cabecera de video: usarla (o dejar de usarla) como pista de subtítulos.</summary>
     public event Action<string, bool>? SubtitleRoleRequested;
 
+    /// <summary>Del menú de una cabecera de subtítulos: importar un archivo (null) o exportar la pista.</summary>
+    public event Action<string?>? SubtitleFileRequested;
+
     /// <summary>Del menú de una cabecera de audio: un preajuste de ecualizador y compresor para la pista (nulo: quitarlos).</summary>
     public event Action<string, AudioPreset?>? AudioPresetRequested;
 
@@ -198,6 +201,16 @@ internal sealed class TrackHeaders
             string trackId = row.TrackId;
             role.Click += (_, _) => SubtitleRoleRequested?.Invoke(trackId, !subtitles);
             menu.Items.Add(role);
+            if (subtitles)
+            {
+                var import = new MenuFlyoutItem { Text = Subtitles.SubtitleFileCommands.ImportLabel, Icon = new FontIcon { Glyph = "" } };
+                import.Click += (_, _) => SubtitleFileRequested?.Invoke(null);
+                var export = new MenuFlyoutItem { Text = Subtitles.SubtitleFileCommands.ExportLabel, Icon = new FontIcon { Glyph = "" } };
+                export.Click += (_, _) => SubtitleFileRequested?.Invoke(trackId);
+                menu.Items.Add(new MenuFlyoutSeparator());
+                menu.Items.Add(import);
+                menu.Items.Add(export);
+            }
         }
 
         if (row.Kind == TrackKind.Audio)

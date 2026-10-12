@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Lista de marcadores de la secuencia, en orden de tiempo. Doble clic (o Entrar) lleva el cursor al marcador;
-    «Anterior» y «Siguiente» saltan desde el cursor. Cada fila se renombra o se quita con sus botones o con el menú
-    contextual, y cada cambio es un paso del historial. El color es el de los marcadores de la línea de tiempo: el
-    formato aún no guarda un color por marcador.
+    Marcadores y regiones de la secuencia, en orden de tiempo, cada uno con su color. Doble clic (o Entrar) lleva el
+    cursor ahí; «Anterior» y «Siguiente» saltan entre marcadores desde el cursor. Cada fila se edita (nombre, color y
+    nota) o se quita con sus botones o con el menú contextual, y cada cambio es un paso del historial.
 -->
 <UserControl
     x:Class="Rodaje.App.Views.Markers.MarkersPanel"
@@ -23,13 +22,16 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock x:Name="SummaryText" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+            <TextBlock x:Name="SummaryText" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
             <Button Grid.Column="1" Style="{StaticResource ToolButtonStyle}" Content="&#xE892;" Click="OnPreviousClick"
                     AutomationProperties.Name="Marcador anterior" ToolTipService.ToolTip="Ir al marcador anterior" />
             <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Content="&#xE893;" Click="OnNextClick"
                     AutomationProperties.Name="Marcador siguiente" ToolTipService.ToolTip="Ir al marcador siguiente" />
-            <Button Grid.Column="3" Content="Añadir" Click="OnAddClick" ToolTipService.ToolTip="Añadir un marcador en el cursor" />
+            <Button Grid.Column="3" Content="Marcador" Click="OnAddClick" ToolTipService.ToolTip="Añadir un marcador en el cursor (M)" />
+            <Button Grid.Column="4" Content="Región" Click="OnAddRegionClick"
+                    ToolTipService.ToolTip="Añadir una región con el tramo marcado, la entrada y la salida (I y O), la selección o el clip bajo el cursor (R)" />
         </Grid>
 
         <ListView x:Name="MarkerList" Grid.Row="1" SelectionMode="Single" IsDoubleTapEnabled="True" DoubleTapped="OnItemDoubleTapped"
@@ -43,27 +45,34 @@
             </ListView.ItemContainerStyle>
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="local:MarkerItem">
-                    <Grid Height="30" Padding="12,0,8,0" ColumnSpacing="8" ToolTipService.ToolTip="Doble clic para ir al marcador">
+                    <Grid Height="30" Padding="12,0,8,0" ColumnSpacing="8" ToolTipService.ToolTip="{x:Bind Tip}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Polygon Points="0,0 10,0 10,7 5,11 0,7" Fill="{StaticResource KeyframeBrush}" VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="2" Text="{x:Bind TimeText}" Style="{StaticResource TimecodeTextStyle}" VerticalAlignment="Center" />
-                        <Button Grid.Column="3" Style="{StaticResource ToolButtonStyle}" Content="&#xE70F;" Tag="{x:Bind Id}" Click="OnRenameClick"
-                                AutomationProperties.Name="Renombrar marcador" ToolTipService.ToolTip="Renombrar" />
-                        <Button Grid.Column="4" Style="{StaticResource ToolButtonStyle}" Content="&#xE74D;" Tag="{x:Bind Id}" Click="OnRemoveClick"
-                                AutomationProperties.Name="Quitar marcador" ToolTipService.ToolTip="Quitar" />
+                        <Grid Width="14" VerticalAlignment="Center">
+                            <Polygon Points="0,0 10,0 10,7 5,11 0,7" Fill="{x:Bind Brush}" Visibility="{x:Bind MarkerVisibility}" />
+                            <Rectangle Width="14" Height="8" RadiusX="2" RadiusY="2" Fill="{x:Bind Brush}" Visibility="{x:Bind RegionVisibility}" />
+                        </Grid>
+                        <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                        <FontIcon Grid.Column="2" Glyph="&#xE70B;" FontSize="12" Visibility="{x:Bind NoteVisibility}"
+                                  Foreground="{StaticResource TextMutedBrush}" />
+                        <TextBlock Grid.Column="3" Text="{x:Bind TimeText}" Style="{StaticResource TimecodeTextStyle}" VerticalAlignment="Center" />
+                        <Button Grid.Column="4" Style="{StaticResource ToolButtonStyle}" Content="&#xE70F;" Tag="{x:Bind Key}" Click="OnEditClick"
+                                AutomationProperties.Name="Editar" ToolTipService.ToolTip="Editar nombre, color y nota" />
+                        <Button Grid.Column="5" Style="{StaticResource ToolButtonStyle}" Content="&#xE74D;" Tag="{x:Bind Key}" Click="OnRemoveClick"
+                                AutomationProperties.Name="Quitar" ToolTipService.ToolTip="Quitar" />
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
 
         <TextBlock x:Name="EmptyText" Grid.Row="1" Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center" Margin="16"
-                   Text="Aún no hay marcadores. Pulsa M en la línea de tiempo o «Añadir» para dejar uno en el cursor." />
+                   Text="Aún no hay marcadores ni regiones. Pulsa M (marcador) o R (región) en la línea de tiempo, o los botones de arriba." />
     </Grid>
 </UserControl>

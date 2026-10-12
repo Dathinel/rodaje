@@ -118,6 +118,12 @@ public class PlanningTests
         Assert.Equal((S(0), S(20)), TimelinePlanning.RegionSpan(sequence, [main.Clips[1].Id, main.Clips[0].Id, "nada"], null, main, S(3)));
         Assert.Equal((S(0), S(10)), TimelinePlanning.RegionSpan(sequence, [], null, main, S(3)));
         Assert.Equal((S(40), S(45)), TimelinePlanning.RegionSpan(sequence, [], null, main, S(40)));
+
+        // Entrada y salida (I y O): antes que la selección, después del tramo marcado; con una sola marca no cuentan.
+        Assert.Equal((S(3), S(7)), TimelinePlanning.RegionSpan(sequence, [main.Clips[1].Id], null, main, S(3), (S(3), S(7))));
+        Assert.Equal((S(1), S(2)), TimelinePlanning.RegionSpan(sequence, [], (S(1), S(2)), main, S(3), (S(3), S(7))));
+        Assert.Equal((S(10), S(20)), TimelinePlanning.RegionSpan(sequence, [main.Clips[1].Id], null, main, S(3), (S(3), null)));
+        Assert.Equal((S(0), S(10)), TimelinePlanning.RegionSpan(sequence, [], null, main, S(3), (S(7), S(3))));
     });
 
     [Fact]

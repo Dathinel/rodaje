@@ -53,6 +53,8 @@ public static class ActionIds
     public const string EnvelopeTool = "tool.envelope";
     public const string SelectionTool = "tool.selection";
     public const string ZoomTool = "tool.zoom";
+    public const string RollTool = "tool.roll";
+    public const string SlideTool = "tool.slide";
 
     public const string ShowShortcuts = "view.shortcuts";
     public const string ShowPlugins = "view.plugins";
@@ -119,6 +121,8 @@ public static partial class EditorShortcuts
 
         new(ActionIds.NormalTool, "Herramienta normal", ShortcutGroups.Tools, ["V"], agile: ["A"], classic: ["Ctrl+D"]) { ShortLabel = "Normal", Description = "Seleccionar, mover y recortar clips con el ratón." },
         new(ActionIds.EnvelopeTool, "Herramienta de envolvente", ShortcutGroups.Tools, ["E"], agile: []) { ShortLabel = "Envolvente", Description = "Dibuja curvas de volumen u opacidad sobre los clips." },
+        new(ActionIds.RollTool, "Herramienta de roll", ShortcutGroups.Tools, ["Y"], agile: ["Mayús+Y"], classic: ["N"]) { ShortLabel = "Roll", Description = "Arrastra un corte: un clip crece lo que el otro pierde (o Ctrl+Alt en un borde)." },
+        new(ActionIds.SlideTool, "Herramienta de slide", ShortcutGroups.Tools, ["U"], agile: ["Mayús+U"], classic: ["U"]) { ShortLabel = "Slide", Description = "Corre un clip entre sus vecinos, que se recortan (o Ctrl+Alt en el cuerpo)." },
         new(ActionIds.SelectionTool, "Herramienta de selección", ShortcutGroups.Tools, []) { ShortLabel = "Selección", Description = "Arrastra un recuadro para seleccionar varios clips." },
         new(ActionIds.ZoomTool, "Herramienta de zoom", ShortcutGroups.Tools, ["Z"], agile: []) { ShortLabel = "Zoom", Description = "Haz clic o arrastra en la línea de tiempo para acercar ese tramo." },
 
@@ -179,6 +183,8 @@ public static partial class EditorShortcuts
             router.Bind(ActionIds.EnvelopeTool, () => timeline.Tool = TimelineTool.Envelope),
             router.Bind(ActionIds.SelectionTool, () => timeline.Tool = TimelineTool.Selection),
             router.Bind(ActionIds.ZoomTool, () => timeline.Tool = TimelineTool.Zoom),
+            router.Bind(ActionIds.RollTool, () => timeline.Tool = TimelineTool.Roll),
+            router.Bind(ActionIds.SlideTool, () => timeline.Tool = TimelineTool.Slide),
         ];
         return new BindingSet(bindings);
     }

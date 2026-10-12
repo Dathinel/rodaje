@@ -33,7 +33,7 @@ internal static class NoiseReductionDialog
 
         if (services.Modules?.FindByFunction(NoiseReduction.Function) is not { } module)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "Hace falta el módulo «Audio con IA». Instálalo desde Complementos.");
+            session.Notify(NotificationSeverity.Informational, Title, "Hace falta el módulo «Audio con IA». Instálalo desde Complementos › Módulos de IA.");
             return;
         }
 

@@ -25,7 +25,7 @@ internal static class CinemaDngDialog
         EditorSession session = services.Session;
         if (services.Modules?.FindByFunction(CinemaDngImport.Function) is not { } module)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "Hace falta el módulo «RAW de cine». Instálalo desde Complementos.");
+            session.Notify(NotificationSeverity.Informational, Title, "Hace falta el módulo «RAW de cine». Instálalo desde Complementos › Módulos de IA.");
             return;
         }
 

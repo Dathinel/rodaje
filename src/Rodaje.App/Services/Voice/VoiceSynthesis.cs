@@ -165,7 +165,7 @@ public interface IVoiceSynthesizer
 /// <summary><see cref="IVoiceSynthesizer"/> sobre el <see cref="ModuleManager"/>.</summary>
 public sealed class ModuleVoiceSynthesizer(ModuleManager modules) : IVoiceSynthesizer
 {
-    public const string NotInstalled = "Instala el módulo de voz (Complementos → IA) para generar voz a partir de texto.";
+    public const string NotInstalled = "Hace falta el módulo «Texto a voz». Instálalo desde Complementos › Módulos de IA.";
 
     public bool IsInstalled => modules.Find(VoiceSynthesis.ModuleId) is not null;
 

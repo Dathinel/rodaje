@@ -69,6 +69,13 @@ public sealed class ExportDialogModel
 
     public Rational SequenceFrameRate => _sequence.FrameRate;
 
+    /// <summary>Si alguna pista de subtítulos visible tiene texto: solo entonces se ofrece cómo exportarlos.</summary>
+    public bool HasSubtitles => _sequence.VideoTracks.Any(t => t.Role == TrackRoles.Subtitles && !t.Hidden
+        && t.Clips.Any(c => c.Generator is { Kind: GeneratorKinds.Text }));
+
+    /// <summary>Si el contenedor elegido lleva subtítulos que se activan en el reproductor.</summary>
+    public bool AllowsSoftSubtitles => Settings.Video is not null && FfmpegPipeSinkOptions.AllowsSoftSubtitles(Settings.Container);
+
     public Rational FrameRate => Settings.Video?.FrameRate ?? _sequence.FrameRate;
 
     public Time Duration => Ranges[RangeIndex].Range?.Duration ?? _sequence.Duration;
@@ -131,7 +138,8 @@ public sealed class ExportDialogModel
 
         ExportPreset preset = ExportPresetLibrary.Find(_preferences, id) ?? throw new ArgumentException($"No hay un preajuste «{id}».", nameof(id));
         PresetId = preset.Id;
-        ApplySettings(ExportGeometry.FollowSequence(preset.Settings, SequenceWidth, SequenceHeight), keepPreset: true);
+        // Cómo van los subtítulos es del proyecto, no del preajuste: se conserva al cambiar de tarjeta.
+        ApplySettings(ExportGeometry.FollowSequence(preset.Settings, SequenceWidth, SequenceHeight) with { Subtitles = Settings.Subtitles }, keepPreset: true);
     }
 
     /// <summary>Un cambio desde Avanzado: se ajusta a lo posible y, si ya no es el del preajuste, pasa a «Personalizado».</summary>

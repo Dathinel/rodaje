@@ -4,7 +4,7 @@ Todo lo que pasa en la línea de tiempo. Los atajos son los del estilo Rodaje; l
 
 ## La línea de tiempo
 
-- **Barra de herramientas** (de izquierda a derecha): herramienta normal (V), envolvente (E), selección y zoom (Z); los interruptores **pista principal magnética**, **ajuste** (N), **ripple automático** (Ctrl+L) con su ámbito («Ripple: pistas afectadas», «todas las pistas» o «pistas, marcadores y regiones»), **fundido cruzado automático**, **bloquear envolventes** e **ignorar grupos**; las acciones cortar (S), recortar inicio (Q) y final (W), borrar (Supr), marcador (M), región (R), deshacer y rehacer; y el zoom.
+- **Barra de herramientas** (de izquierda a derecha): herramienta normal (V), envolvente (E), selección, zoom (Z), roll (Y) y slide (U); los interruptores **pista principal magnética**, **ajuste** (N), **ripple automático** (Ctrl+L) con su ámbito («Ripple: pistas afectadas», «todas las pistas» o «pistas, marcadores y regiones»), **fundido cruzado automático**, **bloquear envolventes** e **ignorar grupos**; las acciones cortar (S), recortar inicio (Q) y final (W), borrar (Supr), marcador (M), región (R), deshacer y rehacer; y el zoom.
 - **Pistas.** Cada cabecera tiene el nombre, ocultar o silenciar y bloquear. La primera pista de video es la **principal**; las de audio muestran su volumen («Volumen 0,0 dB»). Clic derecho en una cabecera: añadir pista de subtítulos, usar una pista de video para subtítulos, grabar voz en off, ecualizador y compresor de la pista.
 - **Clips.** Color por tipo, nombre, tira de película o forma de onda, rombos de keyframes, envolvente de volumen. Delante del nombre, un indicador de velocidad cuando no es 1× («2,0×», «◀ 0,5×», «❚❚ Congelado» o la mini curva).
 - **Zoom y desplazamiento.** Rueda desplaza en el tiempo, Mayús+rueda cambia de pistas, Ctrl+rueda hace zoom alrededor del puntero. Ctrl++ y Ctrl+- acercan y alejan; Mayús+Z ajusta todo a la ventana; Ctrl+Alt+Z hace zoom a la selección. El botón central arrastra la vista.
@@ -22,15 +22,16 @@ Clic selecciona; Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro 
 | Recortar hasta el cursor | Q borra lo que queda a la izquierda del cursor; W, lo de la derecha |
 | Borrar | Supr o Retroceso. En la pista principal magnética o con ripple automático, lo de después se corre para cerrar el hueco; en las demás pistas, queda el hueco |
 
-## Mover, recortar, slip
+## Mover, recortar, slip, roll y slide
 
 - **Mover:** arrastra el cuerpo. No pisa nada en pistas libres; con **ajuste** (N) se pega a bordes, cursor, marcadores y regiones. Alt al arrastrar ignora el ajuste. En la principal magnética lo **reordena**: sacarlo cierra el hueco y meterlo lo abre, también en las pistas de sus enlazados.
 - **Recortar:** arrastra un borde. Un globo muestra el resultado. En la principal magnética o con ripple automático es un **recorte ripple**: lo de después se corre.
 - **Slip:** Alt + arrastrar el cuerpo mueve el contenido dentro del clip sin cambiar su sitio ni su duración.
 - **Estirar (velocidad):** Alt + arrastrar un borde cambia la velocidad para que el mismo material dure lo arrastrado (de 0,1× a 100×). Ver [Velocidad](#velocidad-y-reversa).
+- **Roll:** con la herramienta de roll (Y; Mayús+Y en Ágil, N en Clásico), o con **Ctrl+Alt** sobre un borde, se arrastra un corte entre dos clips pegados: uno crece lo que el otro pierde y nada más se corre. Agarrar el borde de entrada (o la mitad izquierda del clip) mueve el corte con el anterior.
+- **Slide:** con la herramienta de slide (U; Mayús+U en Ágil), o con **Ctrl+Alt** sobre el cuerpo, el clip corre entre sus vecinos pegados, que se recortan para seguir tocándolo; su contenido no cambia.
+- En los dos, el puntero lleva su marca («]|[» roll, «[↔]» slide), un globo dice cuántos cuadros se corrió y el **visor muestra lado a lado los dos cuadros del corte**: en el roll, el último del clip que sale y el primero del que entra; en el slide, el último del vecino de la izquierda y el primero del de la derecha. Van con los enlazados, se pegan al cuadro y a los puntos de ajuste y no pasan del material que haya.
 - **Esc** cancela cualquier arrastre en curso.
-
-Roll y slide no tienen gesto en esta versión.
 
 ## Pista principal magnética
 
@@ -49,7 +50,7 @@ Un video con sonido entra como dos clips enlazados que se mueven, cortan y recor
 
 ## Clips compuestos
 
-Selecciona varios clips y pulsa **Alt+G** (Crear clip compuesto): quedan como uno solo. **Doble clic** entra a editar su secuencia; las migas de pan en la barra de contexto vuelven al proyecto. **Alt+Mayús+G** descompone. Los efectos propios del compuesto como un todo son una limitación conocida de esta versión.
+Selecciona varios clips y pulsa **Alt+G** (Crear clip compuesto): quedan como uno solo. **Doble clic** entra a editar su secuencia; las migas de pan en la barra de contexto vuelven al proyecto. **Alt+Mayús+G** descompone. El compuesto lleva sus propios efectos, transformación, opacidad, máscaras, mezcla y transiciones, como cualquier clip.
 
 ## Velocidad y reversa
 
@@ -74,8 +75,9 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
 
 ## Marcadores y regiones
 
-- **M** deja un marcador en el cursor («Marcador N»). En la regla, arrastrarlo lo mueve y clic derecho lo borra. La categoría **Marcadores** de la biblioteca los lista: ir al anterior o al siguiente, Añadir, doble clic o Intro para ir, F2 renombra, Supr quita. Los marcadores se convierten en capítulos al exportar.
-- **R** crea una región («Región N») sobre el rango marcado, la selección o el clip bajo el cursor. Las regiones sirven como rangos de exportación.
+- **M** deja un marcador en el cursor («Marcador N»). En la regla, arrastrarlo lo mueve y clic derecho lo borra. Los marcadores se convierten en capítulos al exportar.
+- **R** crea una región («Región N») sobre el rango marcado; si no hay, sobre la entrada y la salida de la secuencia (I y O); si no, sobre la selección o el clip bajo el cursor. Las regiones sirven como rangos de exportación.
+- La categoría **Marcadores** de la biblioteca lista marcadores y regiones en orden de tiempo, cada uno con su color: ir al marcador anterior o al siguiente, «Marcador» y «Región» para añadir, doble clic o Intro para ir ahí, F2 o el lápiz para **editar** (nombre, color y nota), Supr o la papelera para quitar. El color elegido (rojo, naranja, amarillo, verde, turquesa, azul, violeta, rosa o el de siempre) se ve en la regla, la línea y la banda de la región; una nota se marca con un icono y se lee al pasar el ratón. Cada cambio es un paso del historial.
 - **Detectar ritmo** deja un marcador «Pulso» en cada tiempo de la música (ver [Audio](audio.md#detectar-ritmo)).
 
 ## Medios: reemplazar, volver a enlazar, carpetas vigiladas

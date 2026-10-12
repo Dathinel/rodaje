@@ -72,6 +72,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         }
 
         RegisterActions(services);
+        AttachTrimPreview(services);
         AttachFullScreenControls(services);
         AttachFormat(services);
         Shortcuts.MouseShortcutHost.Attach(ViewerArea, MouseContext.Viewer, services, wheel: true,

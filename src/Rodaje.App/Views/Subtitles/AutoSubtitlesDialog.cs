@@ -49,7 +49,7 @@ internal static class AutoSubtitlesDialog
 
         if (services.Modules is not { } modules || modules.FindByFunction(AutoSubtitles.Function) is not { } module)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "Hace falta el módulo «Subtítulos automáticos». Instálalo desde Complementos.");
+            session.Notify(NotificationSeverity.Informational, Title, "Hace falta el módulo «Subtítulos automáticos». Instálalo desde Complementos › Módulos de IA.");
             return;
         }
 

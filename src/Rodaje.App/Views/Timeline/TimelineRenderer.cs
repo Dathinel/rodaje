@@ -92,6 +92,8 @@ internal sealed class TimelineRenderer
     private readonly Path _playheadHead = new();
     private readonly TextBlock _balloonText = new() { FontSize = ThemeResources.Size("CaptionFontSize"), TextWrapping = TextWrapping.NoWrap };
     private readonly Border _balloon = new() { Padding = new Thickness(6, 2, 6, 3), IsHitTestVisible = false };
+    private readonly TextBlock _cursorBadgeText = new() { FontSize = ThemeResources.Size("CaptionFontSize"), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.NoWrap };
+    private readonly Border _cursorBadge = new() { Padding = new Thickness(4, 0, 4, 0), CornerRadius = ThemeResources.Corner("ControlCornerRadius"), IsHitTestVisible = false };
     private readonly Border _ghost = new() { CornerRadius = ThemeResources.Corner("ControlCornerRadius"), BorderThickness = new Thickness(1) };
     private readonly Border _linkedGhost = new() { CornerRadius = ThemeResources.Corner("ControlCornerRadius"), BorderThickness = new Thickness(1) };
     private readonly Rectangle _insertLine = new() { Width = 2 };
@@ -144,7 +146,10 @@ internal sealed class TimelineRenderer
         _balloon.BorderThickness = new Thickness(1);
         _balloonText.Foreground = brushes.Text;
         _balloon.Child = _balloonText;
-        foreach (UIElement element in (UIElement[])[_timeRange, _ghost, _linkedGhost, _insertLine, _snapGuide, _marquee, _balloon])
+        _cursorBadge.Background = brushes.Accent;
+        _cursorBadgeText.Foreground = brushes.Panel;
+        _cursorBadge.Child = _cursorBadgeText;
+        foreach (UIElement element in (UIElement[])[_timeRange, _ghost, _linkedGhost, _insertLine, _snapGuide, _marquee, _balloon, _cursorBadge])
         {
             element.Visibility = Visibility.Collapsed;
             _overlayCanvas.Children.Add(element);
@@ -463,8 +468,9 @@ internal sealed class TimelineRenderer
 
             double x0 = Math.Max(-4, (region.Start.ToSeconds() * pps) - _windowLeft);
             double x1 = Math.Min(_windowRight - _windowLeft + 4, (region.End.ToSeconds() * pps) - _windowLeft);
+            var own = _brushes.Marked(region.Color);
             Rectangle band = Pooled(_regionBands, _clipsCanvas, bands++);
-            band.Fill = _brushes.Region;
+            band.Fill = own?.Band ?? _brushes.Region;
             band.Width = Math.Max(1, x1 - x0);
             band.Height = layout.TotalHeight;
             Canvas.SetZIndex(band, 0);
@@ -472,7 +478,7 @@ internal sealed class TimelineRenderer
             Canvas.SetTop(band, 0);
 
             Rectangle ruler = Pooled(_regionRulerBands, _rulerContent, rulerBands++);
-            ruler.Fill = _brushes.RegionRuler;
+            ruler.Fill = own?.Ruler ?? _brushes.RegionRuler;
             ruler.Width = Math.Max(1, x1 - x0);
             ruler.Height = 9;
             Canvas.SetLeft(ruler, x0);
@@ -488,8 +494,9 @@ internal sealed class TimelineRenderer
             }
 
             double x = Math.Round((marker.Time.ToSeconds() * pps) - _windowLeft);
+            var color = _brushes.Marked(marker.Color);
             Rectangle line = Pooled(_markerLines, _clipsCanvas, lines++);
-            line.Fill = _brushes.MarkerLine;
+            line.Fill = color?.Line ?? _brushes.MarkerLine;
             line.Width = 1;
             line.Height = layout.TotalHeight;
             Canvas.SetZIndex(line, 3);
@@ -497,10 +504,10 @@ internal sealed class TimelineRenderer
             Canvas.SetTop(line, 0);
 
             Path flag = Pooled(_markerFlags, _rulerContent, flags++, () => new Path { Data = MarkerGeometry() });
-            flag.Fill = _brushes.Keyframe;
+            flag.Fill = color?.Solid ?? _brushes.Keyframe;
             Canvas.SetLeft(flag, x);
             Canvas.SetTop(flag, 0);
-            Label(ref names, marker.Name, x + 8, -1, _brushes.Keyframe);
+            Label(ref names, marker.Name, x + 8, -1, color?.Solid ?? _brushes.Keyframe);
         }
 
         HideFrom(_regionBands, bands);
@@ -637,6 +644,28 @@ internal sealed class TimelineRenderer
             _timeRange.Visibility = Visibility.Collapsed;
             _timeRangeRuler.Visibility = Visibility.Collapsed;
         }
+    }
+
+    /// <summary>
+    /// La marca de la herramienta junto al puntero («]|[» roll, «[↔]» slide): con la flecha del sistema forma el cursor
+    /// propio de cada una. <c>null</c> la quita. Va aparte del dibujo para no rearmar nada en cada movimiento.
+    /// </summary>
+    public void PlaceCursorBadge(string? text, double x, double y)
+    {
+        if (text is null)
+        {
+            _cursorBadge.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        if (!string.Equals(_cursorBadgeText.Text, text, StringComparison.Ordinal))
+        {
+            _cursorBadgeText.Text = text;
+        }
+
+        _cursorBadge.Visibility = Visibility.Visible;
+        Canvas.SetLeft(_cursorBadge, x + 12);
+        Canvas.SetTop(_cursorBadge, y + 14);
     }
 
     private void PlaceBalloon((string TrackId, Time At, string Text)? balloon, TrackLayout layout)

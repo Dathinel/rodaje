@@ -95,6 +95,7 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock Text="Formato del archivo" Style="{StaticResource FieldLabelStyle}" />
                             <ComboBox x:Name="ContainerBox" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnContainerChanged" />
@@ -102,6 +103,9 @@
                                 <CheckBox x:Name="FastStartBox" Content="Reproducir mientras se descarga (faststart)" Click="OnFastStartClick" />
                                 <CheckBox x:Name="ChaptersBox" Content="Capítulos desde los marcadores" Click="OnChaptersClick" />
                             </StackPanel>
+                            <TextBlock x:Name="SubtitlesLabel" Grid.Row="2" Text="Subtítulos" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="SubtitlesBox" Grid.Row="2" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSubtitlesChanged"
+                                      ToolTipService.ToolTip="Quemados se ven siempre; como pista aparte se activan o desactivan en el reproductor (MP4, MOV, MKV y WebM)." />
                         </Grid>
 
                         <Grid ColumnSpacing="8">

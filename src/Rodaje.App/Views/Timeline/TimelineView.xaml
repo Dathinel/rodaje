@@ -28,6 +28,8 @@
                 <ToggleButton x:Name="EnvelopeToolButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE9D9;" Click="OnToolClick" />
                 <ToggleButton x:Name="SelectionToolButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE8B3;" Click="OnToolClick" />
                 <ToggleButton x:Name="ZoomToolButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE71E;" Click="OnToolClick" />
+                <ToggleButton x:Name="RollToolButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE78A;" Click="OnToolClick" />
+                <ToggleButton x:Name="SlideToolButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE7C2;" Click="OnToolClick" />
                 <Rectangle Style="{StaticResource ToolbarSeparatorStyle}" />
                 <ToggleButton x:Name="MagneticButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE840;" Click="OnToggleClick" />
                 <ToggleButton x:Name="SnappingButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE71B;" Click="OnToggleClick" />

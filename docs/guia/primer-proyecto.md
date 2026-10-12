@@ -4,7 +4,7 @@ Diez minutos: importar un video, cortarlo, ponerle música, un título y sacarlo
 
 ![La ventana de Rodaje: biblioteca, reproductor, panel derecho, herramientas y línea de tiempo](img/herramientas.png)
 
-La ventana tiene cinco zonas: la **biblioteca** a la izquierda (con un riel de categorías: Medios, Audio, Texto, Efectos, Transiciones, Filtros, IA y Marcadores), el **reproductor** en el centro con los medidores de audio, el **panel derecho** (Propiedades, Texto, Velocidad, Filtros, Máscaras, Historial y Trabajos), la barra de **Herramientas** y la **línea de tiempo** abajo.
+La ventana tiene cinco zonas: la **biblioteca** a la izquierda (con un riel de categorías: Medios, Audio, Texto, Efectos, Transiciones, Filtros, Módulos de IA y Marcadores), el **reproductor** en el centro con los medidores de audio, el **panel derecho** (Propiedades, Texto, Velocidad, Filtros, Máscaras, Historial y Trabajos), la barra de **Herramientas** y la **línea de tiempo** abajo.
 
 ## 1. Elige el formato
 
@@ -33,7 +33,7 @@ Si hay partes habladas con silencios, **Quitar silencios** en la barra de Herram
 
 1. Importa la canción. En la biblioteca, categoría **Audio**, arrástrala a una pista de audio libre (si no hay, suéltala en el espacio vacío debajo: se crea una).
 2. Recórtala por los bordes o con S y Supr para que dure lo que el video.
-3. Selecciona el clip de música y pulsa **Bajar música bajo la voz** en Herramientas. El diálogo «Ducking automático» analiza dónde habla la voz de la otra pista y baja la música 12 dB en cada tramo (ajustable, igual que cuánto antes baja y cuánto tarda en subir). **Aplicar** deja keyframes de volumen en la canción.
+3. Selecciona el clip de música y pulsa **Bajar música bajo la voz** en Herramientas. El diálogo «Bajar música bajo la voz» analiza dónde habla la voz de la otra pista y baja la música 12 dB en cada tramo (ajustable, igual que cuánto antes baja y cuánto tarda en subir). **Aplicar** deja keyframes de volumen en la canción.
 4. Para que la canción no empiece de golpe, en el panel derecho › **Propiedades › Audio** pon un fundido de «Entrada» y de «Salida» de 1 s.
 
 Los medidores a la derecha del reproductor muestran el nivel. Para dejar la mezcla al nivel que piden las plataformas, al exportar elige «Normalizar sonoridad: −14 LUFS» (ya viene en el preajuste Vertical 9:16).

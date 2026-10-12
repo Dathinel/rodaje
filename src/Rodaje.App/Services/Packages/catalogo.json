@@ -90,7 +90,7 @@
     {
       "id": "modulo-vision",
       "kind": "module",
-      "name": "Visión",
+      "name": "Visión con IA",
       "description": "Quita el fondo de las personas, detecta rostros y personas y calcula un reencuadre que sigue al sujeto.",
       "repository": "https://github.com/Dathinel/modulo-vision",
       "apps": ["rodaje", "editor-fotos"],

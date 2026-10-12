@@ -248,17 +248,17 @@ public class AudioGainPropertiesTests(ITestOutputHelper output)
         Assert.Equal(Text(before.Where(e => e != old && e.Id != now.Id)), Text(after.Where(e => e != now)));
         Parameter? was = old?.Parameters.GetValueOrDefault(A.GainDb);
         Parameter gain = now.Parameters[A.GainDb];
-        Assert.Equal(Math.Clamp((was?.Value ?? 0) + delta, Min, Max), gain.Value, 9);
+        Assert.Equal(Math.Clamp((was?.Value ?? 0) + delta, Min, Max), gain.Value, 1e-9);
         Assert.Equal(was?.Keyframes.Count ?? 0, gain.Keyframes.Count);
         for (int i = 0; i < gain.Keyframes.Count; i++)
         {
             Keyframe a = was!.Keyframes[i], b = gain.Keyframes[i];
             Assert.Equal((a.Time, a.Interpolation), (b.Time, b.Interpolation));
-            Assert.Equal(Math.Clamp(a.Value + delta, Min, Max), b.Value, 9);
+            Assert.Equal(Math.Clamp(a.Value + delta, Min, Max), b.Value, 1e-9);
             if (i > 0 && a.Value + delta is > Min and < Max && was.Keyframes[i - 1].Value + delta is > Min and < Max)
             {
                 // La forma: la diferencia con el keyframe anterior no cambia.
-                Assert.Equal(a.Value - was.Keyframes[i - 1].Value, b.Value - gain.Keyframes[i - 1].Value, 9);
+                Assert.Equal(a.Value - was.Keyframes[i - 1].Value, b.Value - gain.Keyframes[i - 1].Value, 1e-9);
             }
         }
 

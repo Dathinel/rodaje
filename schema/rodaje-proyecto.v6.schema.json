@@ -695,6 +695,18 @@
                 },
                 "name": {
                   "type": "string"
+                },
+                "color": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               }
             }
@@ -717,6 +729,18 @@
                 },
                 "name": {
                   "type": "string"
+                },
+                "color": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               }
             }

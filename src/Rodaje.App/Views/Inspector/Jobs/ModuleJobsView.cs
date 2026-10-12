@@ -20,7 +20,7 @@ internal sealed partial class ModuleJobsView : UserControl, IEditorView
 
     public ModuleJobsView()
     {
-        var title = new TextBlock { Text = "IA", Style = Resource<Style>("PanelTitleTextStyle"), VerticalAlignment = VerticalAlignment.Center };
+        var title = new TextBlock { Text = "Módulos de IA", Style = Resource<Style>("PanelTitleTextStyle"), VerticalAlignment = VerticalAlignment.Center };
         var header = new Grid { ColumnSpacing = 8 };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });

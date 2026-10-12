@@ -26,9 +26,9 @@ Rodaje mide con EBU R128, el estándar que usan las plataformas y la televisión
 - **Preajuste rápido:** Propiedades › Audio › fila «Voz y música»: **Voz clara** (quita el retumbe, da presencia y empareja la voz), **Podcast** (voz cálida con compresión firme) o **Música suave** (más cuerpo y aire, compresión lenta). Pone un ecualizador y un compresor en un paso; «Sin ecualizador ni compresor» los quita.
 - **A mano:** Filtros › Añadir filtro › **Ecualizador** (corte de graves hasta 500 Hz; estantes de graves y agudos; campanas de medios y presencia con frecuencia y ancho Q; ±18 dB) y **Compresor** (umbral, relación 1:1 a 20:1, ataque, relajación, compensación y rodilla). Solo se aplica el primero de cada tipo que esté activo. También en las pistas.
 
-## Ducking: bajar la música bajo la voz
+## Bajar música bajo la voz (ducking)
 
-Selecciona el clip de **música** y pulsa **Bajar música bajo la voz** en Herramientas (Editar › Ducking automático..., o el menú del clip). El diálogo «Ducking automático»:
+Selecciona el clip de **música** y pulsa **Bajar música bajo la voz** en Herramientas (Editar › Bajar música bajo la voz..., o el menú del clip). El diálogo «Bajar música bajo la voz»:
 
 - «Voz en «pista»»: la pista con la voz, entre las que suenan debajo de la música.
 - Analiza la voz (con el módulo «Audio con IA» usa Silero; sin él, la energía del audio) y muestra «N tramos de voz; la música baja 12 dB en cada uno» con una barra de los tramos.

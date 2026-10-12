@@ -58,7 +58,7 @@ internal static class VisionDialogs
 
         if (services.Modules?.FindByFunction(VisionTools.RemoveBackgroundFunction) is not { } module)
         {
-            session.Notify(NotificationSeverity.Informational, RemoveBackgroundTitle, "Hace falta el módulo «Visión con IA». Instálalo desde Complementos.");
+            session.Notify(NotificationSeverity.Informational, RemoveBackgroundTitle, "Hace falta el módulo «Visión con IA». Instálalo desde Complementos › Módulos de IA.");
             return;
         }
 
@@ -172,7 +172,7 @@ internal static class VisionDialogs
 
         if (services.Modules?.FindByFunction(VisionTools.ReframeFunction) is not { } module)
         {
-            session.Notify(NotificationSeverity.Informational, ReframeTitle, "Hace falta el módulo «Visión con IA». Instálalo desde Complementos.");
+            session.Notify(NotificationSeverity.Informational, ReframeTitle, "Hace falta el módulo «Visión con IA». Instálalo desde Complementos › Módulos de IA.");
             return;
         }
 

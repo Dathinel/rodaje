@@ -622,14 +622,21 @@ internal static partial class SelfTestRun
     private static async Task ShowExportAsync(MainWindow window)
     {
         window.ShowPage(ShellPage.Export);
-        for (int i = 0; i < 50 && window.ExportPage?.Model is null; i++)
+        string[] cards = [ExportPresets.Vertical.Id, ExportPresets.YouTube4K.Id, ExportPresets.AudioOnly.Id, ExportPresets.YouTube1080p.Id];
+        // La sonda de codificadores puede tardar (la primera vez, o con la GPU ocupada): se esperan las tarjetas, no un plazo fijo.
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        while (window.ExportPage is not { Model: not null } ready || !ready.HasPresetCards(cards))
         {
+            if (waited.Elapsed > TimeSpan.FromSeconds(90))
+            {
+                throw new InvalidOperationException("Exportar: las tarjetas de preajustes no llegaron en 90 s (la sonda de codificadores sigue «Comprobando…»).");
+            }
+
             await Task.Delay(100);
         }
 
         await CaptureAsync(window, "exportar-sencillo");
-        if (window.ExportPage is { } page && await page.CheckSwitchingAsync(
-            [ExportPresets.Vertical.Id, ExportPresets.YouTube4K.Id, ExportPresets.AudioOnly.Id, ExportPresets.YouTube1080p.Id]) is { } failure)
+        if (window.ExportPage is { } page && await page.CheckSwitchingAsync(cards) is { } failure)
         {
             throw new InvalidOperationException("Exportar: " + failure);
         }
