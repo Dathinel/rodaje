@@ -34,6 +34,27 @@ internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore setti
         };
     }
 
+    public async Task<bool> ConfirmAsync(string title, string message, string confirmText)
+    {
+        if (window.Content?.XamlRoot is not { } root)
+        {
+            return false;
+        }
+
+        // Lo que no se deshace no se confirma con Intro: el botón por defecto es Cancelar.
+        var dialog = new ContentDialog
+        {
+            XamlRoot = root,
+            Title = title,
+            Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = confirmText,
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
+    }
+
     public Task<string?> PickProjectToOpenAsync()
     {
         IReadOnlyList<string> picked = FileDialogs.Open(hwnd, "Abrir proyecto", multiple: false,

@@ -327,7 +327,8 @@ internal sealed partial class TitleBar : UserControl
         }
     }
 
-    private void OnDeleteTemplateClick(object sender, RoutedEventArgs e)
+    /// <summary>Borra una plantilla propia después de confirmarlo (no se puede deshacer).</summary>
+    private async void OnDeleteTemplateClick(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: string id } || _services is null || _templates is null)
         {
@@ -336,7 +337,10 @@ internal sealed partial class TitleBar : UserControl
 
         try
         {
-            _templates.Remove(id);
+            if (!await _services.Session.DeleteUserTemplateAsync(_templates, id))
+            {
+                return;
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

@@ -98,6 +98,18 @@ internal sealed class FakeDialogs : IEditorDialogs
     }
 
     public Task<IReadOnlyList<string>> PickMediaFilesAsync() => Task.FromResult(MediaFiles);
+
+    /// <summary>Lo que contesta <see cref="ConfirmAsync"/>; por defecto no confirma, como quien cierra el diálogo.</summary>
+    public bool ConfirmAnswer { get; set; }
+
+    /// <summary>Las confirmaciones pedidas, en orden.</summary>
+    public List<(string Title, string Message, string ConfirmText)> Confirmations { get; } = [];
+
+    public Task<bool> ConfirmAsync(string title, string message, string confirmText)
+    {
+        Confirmations.Add((title, message, confirmText));
+        return Task.FromResult(ConfirmAnswer);
+    }
 }
 
 internal static class MediaSamples
