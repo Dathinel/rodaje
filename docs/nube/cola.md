@@ -425,3 +425,12 @@ Desde f89d896 falla el trabajo de Windows: `ModuleManagerTests` (varias: «El m�
 - **Lee:** PR #32 (exportar fotograma), `docs/arquitectura/exportacion.md`.
 
 `StillExporterTests.El_png_es_el_cuadro_de_la_vista_previa_con_el_titulo` falla en local (Windows, RTX 3050) con «El medio no tiene ese cuadro» al decodificar en el motor fuera de línea. Reprodúcelo, corrige la causa (no la prueba) y confirma que pasa en la CI de Windows.
+
+## 51. URGENTE: main en rojo en la CI de Windows (3 pruebas intermitentes)
+
+- **Estado:** pendiente
+- **Rama:** `claude/main-verde-2`
+- **Caminos:** las pruebas afectadas y, si la causa es real, el código mínimo; `docs/tareas/`.
+- **Lee:** la corrida de la CI de main sobre 0a56efa.
+
+En la CI de Windows fallan `SpeedMaterialPropertiesTests.EncadenarCurvasYVolverA1x_DevuelveElMaterial`, `ConnectionTests.Echo_round_trip_keeps_the_parameters` y `ModuleManagerTests.Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada`; en local (RTX 3050) pasan. Averigua por qué en el runner (semilla aleatoria de la propiedad —deja la semilla en el mensaje—, módulo eco publicado o no, tiempos de ping en 2 núcleos), corrige la causa y deja main en verde.
