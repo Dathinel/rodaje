@@ -68,7 +68,7 @@ En los diagramas cada carácter es un segundo, con A de 0 a 4 s, B de 4 a 10 s, 
 
 Aparte, `EffectEdits` (añadir, quitar, mover y activar efectos, parámetros y keyframes, en un clip o en una pista), `TransitionEdits` (añadir, quitar y cambiar duración, tipo, parámetros y opciones) y `TimelineEdits.Speed` (`SetSpeed`, `SetCurve`, `SetReverse`, `SetPreservePitch`, `RateStretch` y `FreezeFrame`) siguen las mismas reglas. El cambio de velocidad mantiene siempre el magnetismo (D-026), en cualquier pista y respetando el `RippleScope` de la sesión: al acortarse el clip, el siguiente se une y la transición se queda; al crecer respeta los huecos y solo empuja lo que pisa; [`TrackKeyframes`](../../src/Rodaje.Core/Editing/TrackKeyframes.cs) mueve los keyframes de pista con los clips y `TransitionOps.Reconcile` reajusta las transiciones tras cada edición.
 
-## Velocidad (fase 5c)
+## Velocidad
 
 La velocidad es `Clip.Speed` ([`ClipSpeed`](../../src/Rodaje.Core/Model/ClipSpeed.cs)) y todo tiempo pasa por [`ClipTimeMap`](../../src/Rodaje.Core/Timing/ClipTimeMap.cs), exacto en `Int128` con [`RetimeMath`](../../src/Rodaje.Core/Timing/RetimeMath.cs); el contrato y el formato están en [D-026](../decisiones.md) y [formato-proyecto.md](../formato-proyecto.md). Además del origen de cada instante, `ClipTimeMap` da `RateRange` (menor y mayor velocidad de un tramo; en una curva, en sus nudos), `SameCourse` (dos mapeos muestran el mismo origen donde coinciden, como las mitades de un clip dividido) y `Join` (une dos mitades).
 
@@ -134,7 +134,7 @@ JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`
   - que slip, roll, slide y cortar conservan lo que deben.
   Otros 5 000 escenarios comprueban que un arrastre se funde en un paso, y otros 10 000 tienen curvas o preajustes en casi todos los clips y cortan, recortan y estiran: dividir y recortar no cambian el origen de ningún instante.
 - [`tests/Rodaje.AotSmoke`](../../tests/Rodaje.AotSmoke/Program.cs) es un programa que se publica con Native AOT (`Probar.bat aot`): recorre todas las familias de edición, deshace y rehace 16 pasos comparando cada estado, y guarda y abre en una carpeta con espacios y una ñ. El ejecutable pesa unos 3,4 MB.
-- La cobertura de `Rodaje.Core` se mide con `Probar.bat cobertura` (criterio de la fase 1: al menos 90 %).
+- La cobertura de `Rodaje.Core` se mide con `Probar.bat cobertura` (mínimo 99 % de líneas).
 
 ## Pendiente
 

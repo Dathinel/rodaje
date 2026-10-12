@@ -54,4 +54,4 @@ Se construye con `(ClipTiming, IAudioClock, IVideoFrameSource, FrameCache, IDeco
 - **Propiedades con CsCheck:** el seek muestra el cuadro exacto, el instante muestra el cuadro que lo contiene y ninguna secuencia aleatoria filtra cuadros.
 - **Sincronía:** `AvSyncTests` reproduce 10 minutos a 23,976, 25, 29,97 y 59,94 fps con el reloj ±0,1 % desviado, y el cuadro mostrado nunca se aleja un cuadro del reloj.
 
-La aceptación de la fase 2 con decodificador y dispositivo reales está en [Audio](audio.md#aceptación-de-la-fase-2).
+Las pruebas de aceptación con decodificador y dispositivo reales están en [Audio](audio.md#pruebas-de-aceptación).

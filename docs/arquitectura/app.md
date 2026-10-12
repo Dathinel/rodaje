@@ -1,21 +1,21 @@
 # App: el contrato de `Rodaje.App`
 
-`Rodaje.App` es la interfaz del editor en WinUI 3 (fase 4): junta [Motor](motor.md) y [Render](render.md) en una ventana. Este documento es el contrato entre la sesión y las vistas, lo que hay que respetar para tocar o sumar una vista; qué hace cada una está en [Vistas](app-vistas.md). El diseño aprobado es la maqueta de [D-018](../decisiones.md). El visor Win32 de las fases 2 y 3 se retiró (D-022).
+`Rodaje.App` es la interfaz del editor en WinUI 3: junta [Motor](motor.md) y [Render](render.md) en una ventana. Este documento es el contrato entre la sesión y las vistas, lo que hay que respetar para tocar o sumar una vista; qué hace cada una está en [Vistas](app-vistas.md). El diseño parte de la maqueta de [D-018](../decisiones.md).
 
 ## Proyecto
 
-Sin paquete MSIX, autocontenida y con Native AOT (confirmado por un sondeo en la fase 4). `build\app.ps1` la publica en `dist\Rodaje\` con FFmpeg LGPL y la abre; la usan `Rodaje.bat` y `app.ps1 -Medir N`, que reproduce, mide y cierra. El Windows App SDK ocupa unos 57 MB junto al exe y sus términos están en [`LICENCIAS.md`](../../LICENCIAS.md).
+Sin paquete MSIX, autocontenida y con Native AOT. `build\app.ps1` la publica en `dist\Rodaje\app\` con FFmpeg LGPL, pone al lado el lanzador `dist\Rodaje\Rodaje.exe` ([arranque-y-distribucion.md](../arranque-y-distribucion.md)) y la abre; la usan `Rodaje.bat` y `app.ps1 -Medir N`, que reproduce, mide y cierra. El Windows App SDK ocupa unos 57 MB junto al exe y sus términos están en [`LICENCIAS.md`](../../LICENCIAS.md).
 
 `Rodaje.exe` es `net10.0-windows10.0.26100.0` para win-x64, con `WindowsPackageType=None`, Windows App SDK autocontenido y `PublishAot`. `EnableMsixTooling` se deja activo (sin él no hay `resources.pri`), y se usan los paquetes sueltos `WinUI`, `Foundation` e `InteractiveExperiences` en vez del metapaquete.
 
 | Carpeta | Qué hay | Depende de WinUI |
 |---|---|---|
-| `Services/` | `EditorSession`, módulos de IA (`Modules/`: `ModuleManager`, `ModuleCatalog`, `VramBudget`, `ModuleProposal`), `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), inspector y velocidad (`Inspector/`: `SpeedEditor`, `SpeedMath`, `SpeedCommands`, `TitleEditor`; los atajos de velocidad están en `EditorSession.Speed` y los de títulos en `EditorSession.Titles`), títulos (`Titles/`: `ClipLabels`, `TitleStyles`, `TitleDrag`, `StyleColors`), formato del proyecto (`Format/`: `ProjectFormats`, `SequenceFormatEdit`), efectos y contenido (`Effects/`), miniaturas y formas de onda (`Media/`), complementos (`Packages/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs`, `EditorNotification` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
+| `Services/` | `EditorSession`, módulos de IA (`Modules/`: `ModuleManager`, `ModuleCatalog`, `VramBudget`, `ModuleProposal`), `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), inspector y velocidad (`Inspector/`: `SpeedEditor`, `SpeedMath`, `SpeedCommands`, `TitleEditor`; los atajos de velocidad están en `EditorSession.Speed` y los de títulos en `EditorSession.Titles`), títulos (`Titles/`: `ClipLabels`, `TitleStyles`, `TitleDrag`, `StyleColors`), formato del proyecto (`Format/`: `ProjectFormats`, `SequenceFormatEdit`), efectos y contenido (`Effects/`), miniaturas y formas de onda (`Media/`), complementos (`Packages/`), los servicios de cada función (`Autosave/`, `LongActions/`, `Onboarding/`, `Relink/`, `SafeZones/`, `Templates/`, `Translate/`, `Voice/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs`, `EditorNotification` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
 | `Views/Timeline/Logic/` | La lógica de la línea de tiempo (ventana, regla, filas, clic, ajuste, arrastres, soltar medios) | **No**: también la compilan las pruebas |
 | `Views/Export/Logic/` | La lógica del diálogo de exportar y de su cola (`ExportDialogModel`, `ExportSettingsEditor`, `ExportJobList`, `IExportRunner`) | **No**: también la compilan las pruebas |
 | `Shell/` | `MainWindow` (distribución, páginas modales y barra de avisos), `TitleBar`, `KeyboardShortcutHost`, `PaneSplitter`, `DialogGate` (un solo `ContentDialog` a la vez), `ShellDialogs` y `FileDialogs`, `EditorServices` e `IEditorView`, `MeasurementRun`, `MeasurementScenarios` | Sí |
 | `Theme/` | `Palette.xaml` (colores de D-018 con el contraste de D-027 y claves de WinUI redefinidas), `Typography.xaml`, `Controls.xaml` (esquinas de 2 px y transiciones de 60 ms) | Sí |
-| `Views/<Área>/` | Una vista por carpeta: `Library`, `Player`, `Meters`, `Inspector`, `Timeline`, `Tools`, `Shortcuts`, `Plugins`, `Export` | Sí |
+| `Views/<Área>/` | Una vista por carpeta: `Library`, `Player`, `Meters`, `Inspector`, `Timeline`, `Markers`, `Tools`, `Analysis`, `Subtitles`, `Translate`, `Voice`, `Vision`, `Raw`, `Relink`, `Shortcuts`, `Plugins`, `Export`; lo común en `Shared` | Sí |
 
 ## Cómo se habla con el editor
 
@@ -72,7 +72,7 @@ BgraImage? GetNearestThumbnail(string mediaId, Time sourceTime, Time spacing, in
 
 ## Complementos (`Services/Packages`)
 
-`PackageService` junta el catálogo que viaja en el ejecutable (`catalogo.json`), lo instalado y el instalador de [`Rodaje.Packages`](../formato-paquete.md); lee el disco fuera del hilo de la interfaz y avisa con `Changed`. `MissingContent.Attach` avisa («Faltan paquetes») al abrir un proyecto que referencia paquetes no instalados y cuando al abierto le faltan por desinstalar. `LibraryElements` decide qué muestra cada categoría de la biblioteca: lo que trae el motor (sacado del registro de efectos; el texto llega con los títulos), lo de los paquetes y lo propio.
+`PackageService` junta el catálogo que viaja en el ejecutable (`catalogo.json`), lo instalado, el instalador de [`Rodaje.Packages`](../formato-paquete.md) y el descargador del catálogo firmado (`Download/CatalogSource`, [descarga.md](../descarga.md)); lee el disco fuera del hilo de la interfaz y avisa con `Changed`. `MissingContent.Attach` avisa («Faltan paquetes») al abrir un proyecto que referencia paquetes no instalados y cuando al abierto le faltan por desinstalar. `LibraryElements` decide qué muestra cada categoría de la biblioteca: lo que trae el motor (sacado del registro de efectos; el texto llega con los títulos), lo de los paquetes y lo propio.
 
 - **Arrastrar una transición.** Lleva `rodaje/elemento` y además `rodaje/transicion` (`TransitionDrag.DragFormat`) con el mismo texto: el tipo de una transición propia (`rodaje.wipe`) o la referencia `paquete@versión/elemento` de una de paquete. Quien la suelta usa `TransitionDrag.TryParse(texto)` y `CreateCommand(secuencia, clipQueSale)`, que pone tipo y preajuste en un solo paso del historial.
 
@@ -122,7 +122,7 @@ Los tiempos del módulo (segundos del búfer entregado) se llevan a la secuencia
 
 ## Cómo se suma una vista
 
-1. Un `UserControl` en `Views/<Área>/` que implementa `IEditorView`; `MainWindow` (o el anfitrión, como `InspectorView`) lo crea desde XAML y llama a `Attach(EditorServices)` una vez. `EditorServices` trae `Session`, `Shortcuts` (con su `ShortcutRegistry`), `Settings`, `Player`, `Shell`, `Visuals`, `Packages`, `Content` (LUT y transiciones de paquete para el motor) y `Exports` (la cola de exportaciones), más `SetPreviewQuality`.
+1. Un `UserControl` en `Views/<Área>/` que implementa `IEditorView`; `MainWindow` (o el anfitrión, como `InspectorView`) lo crea desde XAML y llama a `Attach(EditorServices)` una vez. `EditorServices` trae `Session`, `Shortcuts` (con su `ShortcutRegistry`), `Settings`, `Player`, `Shell`, `Visuals`, `Packages`, `Content` (LUT y transiciones de paquete para el motor), `Exports` (la cola de exportaciones), `Modules` y `Proposals` (IA), `LongActions`, `AutoProxies` y `WatchedFolders`, más `SetPreviewQuality`.
 2. En `Attach` se suscribe a los eventos de `services.Session`, registra sus acciones con `services.ShortcutRegistry.Register(new ShortcutAction(...))` y las une con `services.Shortcuts.Bind(id, ejecutar, puedeEjecutar)`. Los botones llaman a `services.Shortcuts.Invoke(id)`.
 3. Avisa con `services.Session.Notify`, nunca con un `InfoBar` propio.
 4. Solo `x:Bind` (con `Bindings.Update()` al final de `Attach`) y colores del tema (`StaticResource`), nunca sueltos.

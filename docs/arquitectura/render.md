@@ -1,6 +1,6 @@
 # Render: `Rodaje.Render`
 
-Compone en Direct3D 11 las capas de un `CompositionFrame` y presenta el resultado en la cadena de intercambio de una ventana, o lo convierte para la exportación. Referencia [Medios](medios.md) (por `GpuDevice` y `D3D11TexturePayload`) y [Reproducción](reproduccion.md) (por los tipos de `Composition`), y usa TerraFX.Interop.Windows. No depende del motor: el contrato entre ambos es `Rodaje.Playback.Composition`. La vista previa y la futura exportación comparten este mismo compositor, para que lo que se ve sea lo que se exporta.
+Compone en Direct3D 11 las capas de un `CompositionFrame` y presenta el resultado en la cadena de intercambio de una ventana, o lo convierte para la exportación. Referencia [Medios](medios.md) (por `GpuDevice` y `D3D11TexturePayload`) y [Reproducción](reproduccion.md) (por los tipos de `Composition`), y usa TerraFX.Interop.Windows. No depende del motor: el contrato entre ambos es `Rodaje.Playback.Composition`. La vista previa y la exportación comparten este mismo compositor, para que lo que se ve sea lo que se exporta.
 
 ```mermaid
 flowchart LR
@@ -25,9 +25,9 @@ flowchart LR
 - **Tamaño.** El compositor puede ser más chico que la secuencia (vista previa a media resolución): posiciones y radios siguen en píxeles de secuencia y se escalan.
 - **Contexto compartido.** El compositor toma `GpuDevice.LockContext()`, porque FFmpeg usa el mismo contexto. Al terminar, `QuadPipeline.Unbind` suelta las superficies para que el decodificador pueda reutilizarlas.
 
-## Efectos (fase 5)
+## Efectos
 
-[`LayerRenderer`](../../src/Rodaje.Render/LayerRenderer.cs) dibuja cada capa. Una capa con `IsPlain` (sin efectos, mezcla normal ni transición) va por el **camino rápido de la fase 3**, sin cambios: un cuadrilátero con `PsLayer`. El resto:
+[`LayerRenderer`](../../src/Rodaje.Render/LayerRenderer.cs) dibuja cada capa. Una capa con `IsPlain` (sin efectos, mezcla normal ni transición) va por el **camino rápido**: un cuadrilátero con `PsLayer`. El resto:
 
 | Etapa | Cómo | Dónde |
 |---|---|---|
@@ -46,7 +46,7 @@ flowchart LR
 - **Mezcla**: con fuente premultiplicada y fondo opaco, `Cb·(1 − a) + a·B(Cb, Cs)` con las funciones B de W3C (*Compositing and Blending Level 1*). La suma es `Cb + a·Cs` y en RGBA16F no se recorta hasta la salida.
 - **Transiciones** (`p` de 0 a 1, exactas en los extremos): fundido `A·(1 − p) + B·p`; a color en dos mitades a través del color; barrido con borde lineal de ancho `suavidad` en la dirección del ángulo (0 = de izquierda a derecha); empujar, con el saliente corrido `p` cuadros; zoom y desenfoque con un peso `4p(1 − p)` que vale 0 en los extremos. Un `rodaje.preset` que llega sin resolver (falta el paquete) cae a fundido cruzado y cuenta como contenido que falta.
 
-**Imagen y color (v1).** Croma, ruedas y curvas van en `PsGraded` con la bandera `ADVANCED` (64 variantes) y cada uno se enciende con una rama uniforme (`extra`), así no se multiplican las variantes. Orden: croma (sobre la imagen original) → color → ruedas → curvas → LUT → viñeta; el alfa del croma se multiplica con el de las máscaras.
+**Imagen y color.** Croma, ruedas y curvas van en `PsGraded` con la bandera `ADVANCED` (64 variantes) y cada uno se enciende con una rama uniforme (`extra`), así no se multiplican las variantes. Orden: croma (sobre la imagen original) → color → ruedas → curvas → LUT → viñeta; el alfa del croma se multiplica con el de las máscaras.
 
 - **Croma** en Y'CbCr BT.709: `Cb = (B − Y)/1,8556`, `Cr = (R − Y)/1,5748`; alfa = `smoothstep(tol, tol + suavidad, 2·|CbCr − clave|)`, recortado a `0,45·limpieza` por abajo y por arriba; el derrame quita del croma su componente positiva en la dirección de la clave (`·derrame`) y la luma queda igual.
 - **Ruedas**, por canal con el general sumado: `c + lift·(1 − c)`, luego `·(1 + gain)`, luego `^(2^−gamma)`.
@@ -56,7 +56,7 @@ flowchart LR
 - **Pruebas** (`ImageColorTests`, contra `EffectReference` y `ToneCurve` en la CPU, ≤2/255): ruedas (6 casos), curvas, pantalla verde con derrame, pantalla azul con limpieza, croma con máscara y sin croma en vista previa, antes/después y exportación sin cortina, recorte (3 casos). En la GPU de verdad localmente y en el adaptador básico (WARP) en la CI.
 - **Cifras** (RTX 3050 Laptop, Release, mediana de 300 cuadros): una capa 1080p con recorte, croma, color, LUT, ruedas y curvas, **0,16 ms**; con antes/después, **0,30 ms** (15 MB de pool). La capa 4K con color y LUT sigue en 0,33 ms.
 
-**Estabilizar** (fase 7). No es una etapa propia: la corrección del cuadro llega en `LayerTransform.Stabilization` (similitud sobre el centro de la imagen ajustada, en altos de esa imagen) y `LayerLayout.Place` la compone antes de la transformación (`S·s`, `u + θ`, desplazamiento `S·R(u)·h·t`), así la capa sigue siendo un cuadrilátero por cualquiera de los caminos.
+**Estabilizar.** No es una etapa propia: la corrección del cuadro llega en `LayerTransform.Stabilization` (similitud sobre el centro de la imagen ajustada, en altos de esa imagen) y `LayerLayout.Place` la compone antes de la transformación (`S·s`, `u + θ`, desplazamiento `S·R(u)·h·t`), así la capa sigue siendo un cuadrilátero por cualquiera de los caminos.
 
 **Unidades.** Los radios están en píxeles de la secuencia: el intermedio mide en píxeles de pantalla y los radios se multiplican por esa escala, así la vista previa a media resolución se ve como la exportación. Medida: 0,64/255 de diferencia media entre mitad y completa reducida.
 
@@ -66,11 +66,11 @@ flowchart LR
 
 ### Shaders y memoria
 
-- **[`ShaderCache`](../../src/Rodaje.Render/Shaders/ShaderCache.cs)**: bytecode en memoria y en `%LOCALAPPDATA%\Rodaje\cache\shaders\<sha256>.cso` (o `RODAJE_DATOS\cache\shaders`). La clave incluye fuente, variante, perfil y opciones del compilador. `EffectPipeline` crea las 72 variantes en segundo plano al abrir el compositor (`ShadersReady`); hasta entonces la capa sale por el camino rápido. Los shaders base (`VsQuad`, `PsLayer`, `PsPresent`) siguen compilándose al arrancar, como en D-015.
+- **[`ShaderCache`](../../src/Rodaje.Render/Shaders/ShaderCache.cs)**: bytecode en memoria y en `%LOCALAPPDATA%\Rodaje\cache\shaders\<sha256>.cso` (o `RODAJE_DATOS\cache\shaders`). La clave incluye fuente, variante, perfil y opciones del compilador. `EffectPipeline` crea las 72 variantes en segundo plano al abrir el compositor (`ShadersReady`); hasta entonces la capa sale por el camino rápido. Los shaders base (`VsQuad`, `PsLayer`, `PsPresent`) se compilan al arrancar ([D-015](../decisiones.md)).
 - **[`RenderTargetPool`](../../src/Rodaje.Render/RenderTargetPool.cs)**: intermedios reutilizados, con tamaños redondeados a 64 px y un tope del 7,5 % de la VRAM entre 96 y 300 MB (300 MB con 4 GB), fuera del presupuesto de los decodificadores. Si una textura no cabe, el efecto se salta. Las libres se sueltan tras 240 cuadros sin uso o con `TrimCachedViews`.
 - **[`GpuEffectRegistry`](../../src/Rodaje.Render/Effects/GpuEffectRegistry.cs)**: tabla explícita código → implementación, sin reflexión; una prueba exige que coincida con `EffectRegistry`.
 
-## Exportación (fase 6)
+## Exportación
 
 [`ExportFrameConverter`](../../src/Rodaje.Render/Export/ExportFrameConverter.cs) lleva la composición R'G'B' (premultiplicada, con mips) al cuadro que recibe el sink ([D-028](../decisiones.md)). Todo va en compute shaders ([`ExportShaders`](../../src/Rodaje.Render/Export/ExportShaders.cs)):
 
@@ -94,9 +94,9 @@ flowchart LR
 | 4K → 4K NV12 | 2,4 ms | ~460 fps |
 | 4K → 4K P010 | 3,2 ms | 248–271 fps |
 
-El prototipo del paso 0 bajaba un NV12 1080p en 3,2–3,3 ms con `Map` síncrono; con el anillo son 0,5 ms, así que la bajada deja de ser el cuello frente a los ≥150 fps sin codificar.
+Con `Map` síncrono, bajar un NV12 1080p cuesta 3,2–3,3 ms; con el anillo son 0,5 ms, así que la bajada no es el cuello de botella frente a los ≥150 fps sin codificar.
 
-## Títulos (fase 5b)
+## Títulos
 
 [`Text/TitleRasterizer`](../../src/Rodaje.Render/Text/TitleRasterizer.cs), uno por `GpuDevice`, rasteriza un `GeneratedContent` con DirectWrite y Direct2D sobre el dispositivo D3D11 (con `LockContext` y `ClearState` al terminar, porque el contexto es compartido):
 
@@ -104,8 +104,9 @@ El prototipo del paso 0 bajaba un NV12 1080p en 3,2–3,3 ms con `Map` síncrono
 - **Dibujo.** Fondo redondeado; borde con el contorno de los glifos (`GlyphOutlines`: un `IDWriteTextRenderer` propio con tabla COM y `UnmanagedCallersOnly`, apto para AOT) trazado al doble de ancho bajo el relleno; relleno con `DrawTextLayout` (emoji de color, sin ajuste a píxel, antialias gris); sombra con el efecto de sombra de Direct2D sobre la capa de borde y relleno (sigma = desenfoque / 2). Alineación, ajuste en la caja, interlineado uniforme, espaciado de letras y bidi de DirectWrite.
 - **Fuentes.** `RegisterFonts` arma una colección privada (`CreateFontSetBuilder`/`AddFontFile`, hasta 20 MB por archivo; lo que DirectWrite rechaza vuelve en la lista) que se busca antes que la del sistema; si falta la familia se usa el primer respaldo y si no Segoe UI. `FindMissingFonts` es la pasada que solo resuelve.
 - **Hilos.** `Prepare` (la interfaz `IGeneratedContentCache` del motor) encola y lo rasteriza un hilo propio (`Changed` avisa); `TryGet` nunca espera; `Rasterize` lo hace en el acto.
-- **Composición.** `Compositor.Titles` conecta el rasterizador. La capa va por `PsImage` con `LayerLayout.PlaceNative` (tamaño nativo, centrada; `scale` 1 = tamaño del texto), opacidad y mezcla; desenfoque y nitidez pasan por un intermedio con margen de tres sigmas; color, LUT y viñeta no se aplican en la v1 (`EffectsSkipped`). Un título sin rasterizar sale sin él y cuenta en `CompositeResult.TitlesPending`; uno con fuente de respaldo, en `MissingContent`. `RenderStrict` rasteriza antes de componer: vista previa y exportación dan los mismos bytes (probado, también con desenfoque).
+- **Composición.** `Compositor.Titles` conecta el rasterizador. La capa va por `PsImage` con `LayerLayout.PlaceNative` (tamaño nativo, centrada; `scale` 1 = tamaño del texto), opacidad y mezcla; desenfoque y nitidez pasan por un intermedio con margen de tres sigmas; color, LUT y viñeta no se aplican a los títulos (`EffectsSkipped`). Un título sin rasterizar sale sin él y cuenta en `CompositeResult.TitlesPending`; uno con fuente de respaldo, en `MissingContent`. `RenderStrict` rasteriza antes de componer: vista previa y exportación dan los mismos bytes (probado, también con desenfoque).
 - **Cifras** (RTX 3050 Laptop, Release, `TitleRasterizerTests`): rasterizar un título 1080p de una línea 0,36 ms de mediana; dos líneas con borde de 6 px y sombra desenfocada 1,36 ms (p90 1,68); componerlo ya rasterizado 0,01 ms de GPU por cuadro. Publicado con Native AOT sin advertencias y probado (borde, sombra, fondo y hebreo).
+
 ## Archivos
 
 | Archivo | Qué hace |
