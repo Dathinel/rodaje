@@ -30,21 +30,25 @@ internal static partial class StillExportCommand
         return new Runner(router, services, owner);
     }
 
-    /// <summary>El estado de una ventana: la exportación en marcha, si hay. Se usa solo desde el hilo de la interfaz.</summary>
+    /// <summary>
+    /// El estado de una ventana: el atajo y <see cref="StillExportFlow"/>, que lleva la exportación en marcha. Aquí solo
+    /// queda lo de interfaz (el diálogo de guardar) y armar el exportador real. Se usa solo desde el hilo de la interfaz.
+    /// </summary>
     private sealed partial class Runner : IDisposable
     {
         private readonly EditorServices _services;
         private readonly nint _owner;
         private readonly IDisposable _binding;
-        /// <summary>La exportación en marcha (o el diálogo de guardar abierto); <c>null</c> si no hay ninguna.</summary>
-        private CancellationTokenSource? _running;
+        private readonly StillExportFlow _flow;
         private bool _disposed;
 
         public Runner(ShortcutRouter router, EditorServices services, nint owner)
         {
             _services = services;
             _owner = owner;
-            _binding = router.Bind(ActionIds.ExportFrame, () => Start(request: null));
+            _flow = new StillExportFlow(Ask, ExportAsync,
+                n => _services.Session.Notify(n.Severity, n.Title, n.Message, n.Action));
+            _binding = router.Bind(ActionIds.ExportFrame, () => _ = _flow.StartAsync(request: null));
         }
 
         public void Dispose()
@@ -56,48 +60,7 @@ internal static partial class StillExportCommand
 
             _disposed = true;
             _binding.Dispose();
-            _running?.Cancel();
-        }
-
-        /// <summary>Lanza una exportación (con <paramref name="request"/>, el reintento «exportar sin él») si no hay otra.</summary>
-        private async void Start(StillRequest? request)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            if (_running is { } current)
-            {
-                // Ctrl+Mayús+E repetido: no se lanza otra; se recuerda la que va y cómo pararla.
-                if (!current.IsCancellationRequested)
-                {
-                    NotifyExporting(current);
-                }
-
-                return;
-            }
-
-            using var cancel = new CancellationTokenSource();
-            _running = cancel;
-            try
-            {
-                request ??= Ask();
-                if (request is not null)
-                {
-                    await ExportAsync(request, cancel);
-                }
-            }
-#pragma warning disable CA1031 // Un fotograma que falla no debe cerrar la app: se avisa.
-            catch (Exception ex)
-#pragma warning restore CA1031
-            {
-                _services.Session.Notify(NotificationSeverity.Error, "No se pudo exportar el fotograma", ex.Message);
-            }
-            finally
-            {
-                _running = null;
-            }
+            _flow.Dispose();
         }
 
         /// <summary>Abre el diálogo de guardar; <c>null</c> si se cancela.</summary>
@@ -124,52 +87,19 @@ internal static partial class StillExportCommand
                 new StillSettings { Format = format }) { ProjectDirectory = projectFolder };
         }
 
-        private async Task ExportAsync(StillRequest request, CancellationTokenSource cancel)
+        /// <summary>Busca el ffmpeg.exe LGPL y exporta el fotograma con el render real.</summary>
+        private async Task<StillResult> ExportAsync(StillRequest request, CancellationToken cancellationToken)
         {
-            EditorSession session = _services.Session;
-            NotifyExporting(cancel);
-            try
+            FfmpegExecutable ffmpeg = await Task.Run(() => FfmpegExecutable.TryLocate(out string? reason)
+                ?? throw new ExportException(ExportErrorCode.EncoderMissing, reason ?? "No se encontró el ffmpeg.exe LGPL."), cancellationToken);
+            var exporter = new StillExporter(new ExportRunnerOptions
             {
-                FfmpegExecutable ffmpeg = await Task.Run(() => FfmpegExecutable.TryLocate(out string? reason)
-                    ?? throw new ExportException(ExportErrorCode.EncoderMissing, reason ?? "No se encontró el ffmpeg.exe LGPL."), cancel.Token);
-                var exporter = new StillExporter(new ExportRunnerOptions
-                {
-                    Ffmpeg = ffmpeg,
-                    Content = _services.Content,
-                    FontFiles = () => TitleFontFiles.Find(_services.Packages.Installed),
-                    Journal = ExportJournal.Default,
-                });
-                StillResult result = await exporter.ExportAsync(request, cancel.Token);
-                session.Notify(NotificationSeverity.Success, "Fotograma exportado",
-                    string.Create(SpanishNumbers.Format, $"Cuadro {result.Frame} guardado en «{result.OutputPath}» ({result.Width}×{result.Height})."));
-            }
-            catch (Exception error) when (cancel.IsCancellationRequested && error is OperationCanceledException or ExportException)
-            {
-                if (!_disposed)
-                {
-                    session.Notify(NotificationSeverity.Informational, "Fotograma cancelado", "No se guardó ningún archivo.");
-                }
-            }
-            catch (ExportException error)
-            {
-                ExportErrorView view = ExportErrorText.For(error);
-                NotificationAction? action = view.Action == ExportErrorAction.ContinueWithout && !request.ContinueWithoutMissing
-                    ? new NotificationAction(view.ActionText ?? "Exportar sin él", () => Start(request with { ContinueWithoutMissing = true }))
-                    : null;
-                session.Notify(NotificationSeverity.Error, view.Title, view.Message, action);
-            }
+                Ffmpeg = ffmpeg,
+                Content = _services.Content,
+                FontFiles = () => TitleFontFiles.Find(_services.Packages.Installed),
+                Journal = ExportJournal.Default,
+            });
+            return await exporter.ExportAsync(request, cancellationToken);
         }
-
-        /// <summary>El indicador de «exportando»: un aviso con el botón para cancelar.</summary>
-        private void NotifyExporting(CancellationTokenSource cancel) =>
-            _services.Session.Notify(NotificationSeverity.Informational, "Exportando fotograma...",
-                "Se guarda el cuadro del cursor; el atajo no lanza otro hasta que termine.",
-                new NotificationAction("Cancelar", () =>
-                {
-                    if (ReferenceEquals(_running, cancel))
-                    {
-                        cancel.Cancel();
-                    }
-                }));
     }
 }

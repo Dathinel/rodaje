@@ -48,6 +48,9 @@ public sealed class StillExtensionTests
     [InlineData("foto", "foto.png")]
     [InlineData("Proyecto v1.2 - cuadro 10", "Proyecto v1.2 - cuadro 10.png")]
     [InlineData("foto.png", "foto.png")]
+    [InlineData("foto.", "foto.png")]
+    [InlineData("foto..", "foto.png")]
+    [InlineData("Proyecto v1.2.", "Proyecto v1.2.png")]
     public void La_ruta_del_dialogo_recibe_la_extension_del_formato(string chosen, string expected)
     {
         // Lo que hace «Exportar fotograma»: el formato sale de la extensión y, si no es de imagen, se añade la de PNG.
