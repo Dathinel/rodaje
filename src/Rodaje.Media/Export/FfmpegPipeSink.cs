@@ -63,6 +63,8 @@ public sealed class FfmpegPipeSink : IExportSink
     private static readonly TimeSpan KillWait = TimeSpan.FromMilliseconds(600);
     private static readonly TimeSpan TreeKillWait = TimeSpan.FromMilliseconds(300);
     private static readonly TimeSpan CleanupRetry = TimeSpan.FromSeconds(2);
+    // Lo que Start espera a que termine la limpieza pendiente de una exportación cancelada a la misma salida.
+    private static readonly TimeSpan PendingCleanupWait = TimeSpan.FromSeconds(1);
 
     private readonly FfmpegExecutable? _ffmpeg;
     private readonly string _executablePath;
@@ -175,6 +177,7 @@ public sealed class FfmpegPipeSink : IExportSink
         cancellationToken.ThrowIfCancellationRequested();
         Validate(request);
         string output = Path.GetFullPath(request.OutputPath);
+        WaitForPendingCleanup(request, output, cancellationToken);
         if (!request.IsAnalysisPass)
         {
             ExportOutputGuard.CheckOutput(output, request.Container, _options.SourcePaths);
@@ -439,30 +442,37 @@ public sealed class FfmpegPipeSink : IExportSink
             return;
         }
 
+        // Si la limpieza queda pendiente, el proceso prestado lo devuelve ella; si no, se devuelve aquí pase lo que pase.
+        bool handedOff = false;
         try
         {
             long start = Stopwatch.GetTimestamp();
-            if (running is null || Stop(running.Process))
+            if (running is null || TryStop(running.Process, processId, quiet: false))
             {
-                try
-                {
-                    ClosePipe(pipe);
-                    DeleteFiles(temporaries, journalId, processId);
-                }
-                finally
-                {
-                    Return(running);
-                }
+                ClosePipe(pipe);
+                DeleteFiles(temporaries, journalId, processId);
             }
             else
             {
                 Note($"ffmpeg.exe ({processId}) no salió {Stopwatch.GetElapsedTime(start).TotalMilliseconds:0} ms después de matarlo; " +
                     "los temporales se borran cuando salga.");
                 DeferCleanup(running, pipe, temporaries, journalId, processId, start);
+                handedOff = true;
             }
+        }
+#pragma warning disable CA1031 // Abort corre en el callback de Cancel(): una excepción subiría al hilo que cancela.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            Note($"Cancelar ffmpeg.exe ({processId}) falló: {ex.GetType().Name}: {ex.Message}");
         }
         finally
         {
+            if (!handedOff)
+            {
+                Return(running);
+            }
+
             finished.TrySetResult();
         }
     }
@@ -887,6 +897,67 @@ public sealed class FfmpegPipeSink : IExportSink
 
     private bool Stop(Process process) => KillOverride is { } kill ? kill(process) : Kill(process);
 
+    // Stop sin dejar escapar nada: si lanza, se anota (salvo con quiet) y vale lo que diga el proceso en ese momento.
+    private bool TryStop(Process process, int? processId, bool quiet)
+    {
+        try
+        {
+            return Stop(process);
+        }
+#pragma warning disable CA1031 // Cualquier fallo al matar se trata como «no se sabe si salió»: se mira y se sigue.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            if (!quiet)
+            {
+                Note($"Matar a ffmpeg.exe ({processId}) lanzó {ex.GetType().Name}: {ex.Message}");
+            }
+
+            return WaitQuietly(process, TimeSpan.Zero);
+        }
+    }
+
+    // Las rutas que escribiría la pasada (DeleteTemporary borra además sus hermanos «-*»).
+    private static List<string> PlannedTemporaries(ExportSinkRequest request, string output)
+    {
+        var paths = new List<string>();
+        if (!request.IsAnalysisPass)
+        {
+            string temporary = ExportOutputGuard.TemporaryPath(output);
+            paths.Add(temporary);
+            paths.Add(temporary + ".ffmeta");
+        }
+
+        if (request.PassCount > 1 && !string.IsNullOrWhiteSpace(request.PassLogPath))
+        {
+            paths.Add(Path.GetFullPath(request.PassLogPath));
+        }
+
+        return paths;
+    }
+
+    // Una exportación cancelada cuyo ffmpeg.exe no salió todavía tiene sus temporales pendientes de borrar, y son los
+    // mismos (TemporaryPath es determinista): si esta pasada arrancara, chocaría con el ffmpeg.exe viejo o perdería sus
+    // archivos cuando la limpieza vieja los borre. Se espera un tope corto y, si sigue, se falla con un mensaje claro.
+    private static void WaitForPendingCleanup(ExportSinkRequest request, string output, CancellationToken cancellationToken)
+    {
+        List<string> planned = PlannedTemporaries(request, output);
+        PendingOwner? owner = PendingTemporaries.FindOwner(planned);
+        if (owner is null)
+        {
+            return;
+        }
+
+        owner.Finished.Task.Wait((int)PendingCleanupWait.TotalMilliseconds, cancellationToken);
+        owner = PendingTemporaries.FindOwner(planned);
+        if (owner is not null)
+        {
+            throw new ExportException(ExportErrorCode.OutputNotWritable,
+                $"Una exportación cancelada a {output} todavía se está cerrando (ffmpeg.exe {owner.ProcessId} no salió). " +
+                "Espera unos segundos o elige otro nombre.") { Culprit = output };
+        }
+    }
+
     private static bool WaitQuietly(Process process, TimeSpan timeout)
     {
         try
@@ -916,14 +987,27 @@ public sealed class FfmpegPipeSink : IExportSink
 
     // Borra los temporales de un Abort. El registro solo se suelta si no quedó nada: si no, al reabrir Rodaje
     // ExportJournal.CleanupStale vuelve a intentarlo.
-    private bool DeleteFiles(IEnumerable<string> paths, string? journalId, int? processId)
+    // Con owner (limpieza pendiente), solo borra las rutas que siguen siendo suyas; las demás no las toca y tampoco se
+    // reintentan al reabrir.
+    private bool DeleteFiles(IEnumerable<string> paths, string? journalId, int? processId, PendingOwner? owner = null)
     {
         var left = new List<string>();
-        foreach (string path in paths)
+        if (owner is null)
         {
-            if (ExportOutputGuard.DeleteTemporary(path))
+            foreach (string path in paths)
             {
-                left.Add(path);
+                if (ExportOutputGuard.DeleteTemporary(path))
+                {
+                    left.Add(path);
+                }
+            }
+        }
+        else
+        {
+            List<string> foreign = PendingTemporaries.DeleteOwned(owner, paths, left);
+            if (foreign.Count > 0)
+            {
+                Note($"La limpieza pendiente de ffmpeg.exe ({processId}) ya no es dueña de {string.Join(", ", foreign)}; no los borra.");
             }
         }
 
@@ -944,37 +1028,57 @@ public sealed class FfmpegPipeSink : IExportSink
 
     // ffmpeg.exe no salió dentro de Abort: un hilo aparte reintenta matarlo y, cuando sale, cierra la tubería, borra los
     // temporales y devuelve el proceso prestado (que entonces se libera).
+    // Mientras tanto, sus rutas quedan a nombre de esta limpieza en PendingTemporaries: Start no reusa la salida y la
+    // limpieza solo borra lo que sigue siendo suyo.
     private void DeferCleanup(RunningProcess running, Stream? pipe, string[] temporaries, string? journalId, int? processId, long start)
     {
-        Task cleanup = Task.Factory.StartNew(() =>
+        var owner = new PendingOwner(processId);
+        PendingTemporaries.Claim(owner, temporaries);
+        Task cleanup;
+        try
         {
-            try
+            cleanup = Task.Factory.StartNew(() =>
             {
-                Process process = running.Process;
-                while (!Stop(process))
+                try
                 {
-                    if (WaitQuietly(process, CleanupRetry))
+                    Process process = running.Process;
+                    bool quiet = false;
+                    while (!TryStop(process, processId, quiet))
                     {
-                        break;
+                        // Un fallo al matar se anota una vez; los reintentos cada 2 s no llenan el diagnóstico.
+                        quiet = true;
+                        if (WaitQuietly(process, CleanupRetry))
+                        {
+                            break;
+                        }
+                    }
+
+                    ClosePipe(pipe);
+                    if (DeleteFiles(temporaries, journalId, processId, owner))
+                    {
+                        Note($"ffmpeg.exe ({processId}) salió a los {Stopwatch.GetElapsedTime(start).TotalMilliseconds:0} ms de cancelar; " +
+                            "temporales borrados.");
                     }
                 }
-
-                ClosePipe(pipe);
-                if (DeleteFiles(temporaries, journalId, processId))
+#pragma warning disable CA1031 // Hilo de fondo: una excepción sin capturar se perdería; se anota.
+                catch (Exception ex)
+#pragma warning restore CA1031
                 {
-                    Note($"ffmpeg.exe ({processId}) salió a los {Stopwatch.GetElapsedTime(start).TotalMilliseconds:0} ms de cancelar; " +
-                        "temporales borrados.");
+                    Note($"La limpieza pendiente de ffmpeg.exe ({processId}) falló: {ex.GetType().Name}: {ex.Message}");
                 }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
-            {
-                Note($"La limpieza pendiente de ffmpeg.exe ({processId}) falló: {ex.Message}");
-            }
-            finally
-            {
-                Return(running);
-            }
-        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                finally
+                {
+                    PendingTemporaries.Release(owner);
+                    Return(running);
+                }
+            }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        }
+        catch
+        {
+            PendingTemporaries.Release(owner);
+            throw;
+        }
+
         lock (_gate)
         {
             _pendingCleanup = cleanup;
@@ -989,6 +1093,94 @@ public sealed class FfmpegPipeSink : IExportSink
         }
 
         Trace.WriteLine($"Rodaje: {message}");
+    }
+
+    /// <summary>Una limpieza pendiente, dueña de sus temporales en <see cref="PendingTemporaries"/> hasta que termina.</summary>
+    private sealed class PendingOwner(int? processId)
+    {
+        public int? ProcessId { get; } = processId;
+
+        /// <summary>Se completa cuando la limpieza soltó sus rutas.</summary>
+        public TaskCompletionSource Finished { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    /// <summary>
+    /// Registro de todo el proceso con las rutas de las limpiezas pendientes (de cualquier sink) y su dueña. Se borra con el
+    /// cerrojo tomado, así que un Start que pregunte mientras tanto espera y ya no encuentra nada que choque.
+    /// </summary>
+    private static class PendingTemporaries
+    {
+        private static readonly Lock Gate = new();
+        private static readonly Dictionary<string, PendingOwner> Owners = new(StringComparer.OrdinalIgnoreCase);
+
+        public static void Claim(PendingOwner owner, IEnumerable<string> paths)
+        {
+            lock (Gate)
+            {
+                foreach (string path in paths)
+                {
+                    Owners.TryAdd(Path.GetFullPath(path), owner);
+                }
+            }
+        }
+
+        public static PendingOwner? FindOwner(IReadOnlyCollection<string> planned)
+        {
+            lock (Gate)
+            {
+                foreach ((string pending, PendingOwner owner) in Owners)
+                {
+                    if (planned.Any(path => Overlaps(path, pending)))
+                    {
+                        return owner;
+                    }
+                }
+
+                return null;
+            }
+        }
+
+        // Borra las rutas que siguen siendo de owner y añade a left las que no se pudieron borrar; devuelve las ajenas.
+        public static List<string> DeleteOwned(PendingOwner owner, IEnumerable<string> paths, List<string> left)
+        {
+            var foreign = new List<string>();
+            lock (Gate)
+            {
+                foreach (string path in paths)
+                {
+                    if (!Owners.TryGetValue(Path.GetFullPath(path), out PendingOwner? current) || current != owner)
+                    {
+                        foreign.Add(path);
+                    }
+                    else if (ExportOutputGuard.DeleteTemporary(path))
+                    {
+                        left.Add(path);
+                    }
+                }
+            }
+
+            return foreign;
+        }
+
+        public static void Release(PendingOwner owner)
+        {
+            lock (Gate)
+            {
+                foreach (string path in Owners.Where(pair => pair.Value == owner).Select(pair => pair.Key).ToList())
+                {
+                    Owners.Remove(path);
+                }
+            }
+
+            owner.Finished.TrySetResult();
+        }
+
+        // La misma ruta, o una que DeleteTemporary borraría como hermana («-*») o que se le cuelga (.ffmeta).
+        private static bool Overlaps(string a, string b) =>
+            string.Equals(a, b, StringComparison.OrdinalIgnoreCase) || Extends(a, b) || Extends(b, a);
+
+        private static bool Extends(string path, string prefix) =>
+            path.Length > prefix.Length && path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && path[prefix.Length] is '-' or '.';
     }
 
     /// <summary>El <c>ffmpeg.exe</c> de una pasada y cuántos lo usan; los campos se tocan con <c>_gate</c> tomado.</summary>
