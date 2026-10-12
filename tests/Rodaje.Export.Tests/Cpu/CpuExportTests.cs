@@ -2,12 +2,13 @@ using Rodaje.Core.Timing;
 using Rodaje.Media.Export;
 using Xunit.Abstractions;
 
-namespace Rodaje.Media.Tests.Export;
+namespace Rodaje.Export.Tests.Cpu;
 
 /// <summary>
 /// Exportaciones cortas de verdad con los codificadores que tiene un equipo sin GPU (el runner de Windows de la CI):
-/// cuadros de lavfi por <see cref="FfmpegPipeSink"/>, audio de lavfi como WAV y el archivo comprobado con
-/// <see cref="ExportVerifier"/>. Solo se omiten si falta <c>ffmpeg.exe</c> o un codificador no está compilado.
+/// argumentos de <see cref="FfmpegArguments.Build"/>, cuadros de lavfi por <see cref="FfmpegPipeSink"/>, audio de lavfi
+/// como WAV y el archivo comprobado con <see cref="ExportVerifier"/>. Solo se omiten si falta <c>ffmpeg.exe</c> o un
+/// codificador no está compilado.
 /// </summary>
 public sealed class CpuExportTests(ITestOutputHelper output)
 {
@@ -28,18 +29,16 @@ public sealed class CpuExportTests(ITestOutputHelper output)
     {
         EncoderSpec videoSpec = CpuExportArguments.Spec(video);
         EncoderSpec audioSpec = CpuExportArguments.Spec(audio);
-        string? profile = CpuExportArguments.Profile(video, pixels);
-        Assert.Empty(ExportCompatibility.Check(container, videoSpec, pixels, audioSpec, profile).Select(p => p.Message));
         Assert.False(videoSpec.IsHardware);
+        EncoderArguments arguments = CpuExportArguments.Build(container, video, pixels, audio, Frames);
 
         using var scratch = new ExportScratch();
         ExportVideoFormat format = CpuExportEnvironment.Format(640, 360, pixels);
         var source = new LavfiFrames(format, distinct: 15);
         string wav = CpuExportEnvironment.SineWav(scratch.Combine("mezcla.rodaje-tmp.wav"), Frames / 30.0);
         string outputPath = scratch.Combine($"salida {video}.{container.Extension()}");
-        var request = new ExportSinkRequest(outputPath, container, format, videoSpec,
-            [.. CpuExportArguments.Video(video, pixels), .. CpuExportArguments.Container(container)],
-            ExportAudioFormat.Default, wav, audioSpec, CpuExportArguments.Audio(audio), Frames);
+        var request = new ExportSinkRequest(outputPath, container, format, videoSpec, arguments.Video,
+            ExportAudioFormat.Default, wav, audioSpec, arguments.Audio, Frames);
         using var sink = new FfmpegPipeSink(CpuExportEnvironment.Ffmpeg);
 
         (ExportSinkResult result, TimeSpan elapsed) = source.Run(sink, request);
@@ -49,7 +48,7 @@ public sealed class CpuExportTests(ITestOutputHelper output)
         Assert.Equal(outputPath, result.OutputPath);
         Assert.Equal(Frames, result.FramesWritten);
         Assert.Equal(Frames, sink.FramesEncoded);
-        Assert.False(SinkRuns.IsAlive(sink.ProcessId));
+        Assert.False(SinkRuns.IsAlive(SinkRuns.ProcessId(sink)));
         Assert.Equal([outputPath], scratch.Leftovers(wav));
 
         ExportReport report = new ExportVerifier(CpuExportEnvironment.FfprobePath).Inspect(outputPath);
@@ -108,13 +107,13 @@ public sealed class CpuExportTests(ITestOutputHelper output)
     public void An_audio_only_cpu_export_is_what_was_asked(ExportContainer container, string audio)
     {
         EncoderSpec audioSpec = CpuExportArguments.Spec(audio);
-        Assert.Empty(ExportCompatibility.Check(container, null, null, audioSpec).Select(p => p.Message));
+        EncoderArguments arguments = CpuExportArguments.Build(container, null, null, audio, 45);
 
         using var scratch = new ExportScratch();
         string wav = CpuExportEnvironment.SineWav(scratch.Combine("mezcla.rodaje-tmp.wav"), 1.5);
         string outputPath = scratch.Combine($"solo audio {audio}.{container.Extension()}");
         var request = new ExportSinkRequest(outputPath, container, null, null, [], ExportAudioFormat.Default, wav, audioSpec,
-            [.. CpuExportArguments.Audio(audio), .. CpuExportArguments.Container(container)], 0);
+            arguments.Audio, 0);
         using var sink = new FfmpegPipeSink(CpuExportEnvironment.Ffmpeg);
 
         sink.Start(request, CancellationToken.None);
@@ -123,7 +122,7 @@ public sealed class CpuExportTests(ITestOutputHelper output)
         output.WriteLine(string.Join(' ', sink.Arguments));
         Assert.Equal(outputPath, result.OutputPath);
         Assert.True(result.Bytes > 0);
-        Assert.False(SinkRuns.IsAlive(sink.ProcessId));
+        Assert.False(SinkRuns.IsAlive(SinkRuns.ProcessId(sink)));
         Assert.Equal([outputPath], scratch.Leftovers(wav));
         ExportReport report = new ExportVerifier(CpuExportEnvironment.FfprobePath).Inspect(outputPath);
         output.WriteLine($"{report.FormatName}: {report.Audio}");

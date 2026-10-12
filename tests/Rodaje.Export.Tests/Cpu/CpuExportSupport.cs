@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
+using System.Text;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Export;
 using Rodaje.Media.Proxies;
 using Xunit.Sdk;
 
-namespace Rodaje.Media.Tests.Export;
+namespace Rodaje.Export.Tests.Cpu;
 
 /// <summary>
 /// Lo único que necesita una exportación por CPU: el <c>ffmpeg.exe</c> LGPL verificado y su <c>ffprobe.exe</c> junto a las
@@ -41,9 +42,16 @@ internal static class CpuExportEnvironment
             return (null, null);
         }
 
-        (int exitCode, string output, string error) = ffmpeg.Run(["-hide_banner", "-nostdin", "-encoders"], TimeSpan.FromSeconds(30));
-        HashSet<string> encoders = FfmpegExportEncoderProbe.ParseEncoderList(output);
-        return exitCode == 0 && encoders.Count > 0 ? (encoders, null) : (null, $"ffmpeg -encoders terminó con código {exitCode}: {error}");
+        try
+        {
+            string output = Encoding.UTF8.GetString(RunBinary(ffmpeg.Path, ["-hide_banner", "-nostdin", "-encoders"], TimeSpan.FromSeconds(30)));
+            HashSet<string> encoders = ParseEncoderList(output);
+            return encoders.Count > 0 ? (encoders, null) : (null, "ffmpeg -encoders no listó ningún codificador.");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or TimeoutException)
+        {
+            return (null, ex.Message);
+        }
     });
 
     /// <summary>Motivo para omitir, o <c>null</c> si hay <c>ffmpeg.exe</c> y <c>ffprobe.exe</c> LGPL.</summary>
@@ -92,12 +100,9 @@ internal static class CpuExportEnvironment
             info.ArgumentList.Add(argument);
         }
 
+        // Sin el trabajo de Windows de Rodaje.Media (ChildProcessJob es interno): si la prueba se corta, el tiempo de espera
+        // de abajo mata el proceso.
         using var process = Process.Start(info) ?? throw new InvalidOperationException($"No arrancó {executable}.");
-        if (OperatingSystem.IsWindows())
-        {
-            ChildProcessJob.TryAssign(process);
-        }
-
         process.StandardInput.Close();
         Task<string> error = process.StandardError.ReadToEndAsync();
         using var output = new MemoryStream();
@@ -134,6 +139,89 @@ internal static class CpuExportEnvironment
 
     public static ExportVideoFormat Format(int width, int height, ExportPixelFormat pixels) =>
         new(width, height, Rational.Fps30, pixels, ExportColor.For(width, height, pixels));
+
+    /// <summary>
+    /// Ids de codificadores de <c>ffmpeg -encoders</c>: líneas « V....D libsvtav1 …», con banderas de 6 caracteres que
+    /// empiezan por V (video) o A (audio); la leyenda (« V..... = Video») se descarta por el «=». Es lo mismo que hace
+    /// <c>FfmpegExportEncoderProbe.ParseEncoderList</c>, que es interno de <c>Rodaje.Media</c>.
+    /// </summary>
+    private static HashSet<string> ParseEncoderList(string output)
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string line in output.Split('\n'))
+        {
+            string[] parts = line.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2 && parts[0].Length == 6 && parts[0][0] is 'V' or 'A' && parts[1] != "=")
+            {
+                ids.Add(parts[1]);
+            }
+        }
+
+        return ids;
+    }
+}
+
+/// <summary>Carpeta temporal de una prueba (con espacios y «ñ» en la ruta), que se borra al terminar.</summary>
+internal sealed class ExportScratch : IDisposable
+{
+    public ExportScratch()
+    {
+        Directory = Path.Combine(Path.GetTempPath(), "rodaje-pruebas-export", "carpeta con espacios ñ", Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(Directory);
+    }
+
+    public string Directory { get; }
+
+    public string Combine(string name) => Path.Combine(Directory, name);
+
+    /// <summary>Archivos que quedan en la carpeta (para comprobar que no quedan temporales).</summary>
+    public string[] Leftovers(params string[] except) =>
+        [.. System.IO.Directory.EnumerateFileSystemEntries(Directory).Where(p => !except.Contains(p, StringComparer.OrdinalIgnoreCase))];
+
+    public void Dispose()
+    {
+        try
+        {
+            System.IO.Directory.Delete(Directory, recursive: true);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+}
+
+/// <summary>El proceso <c>ffmpeg.exe</c> de un <see cref="FfmpegPipeSink"/>.</summary>
+internal static class SinkRuns
+{
+    // FfmpegPipeSink.ProcessId es interno y Rodaje.Media solo abre sus internos a Rodaje.Media.Tests; estas pruebas viven
+    // aquí para usar FfmpegArguments (Rodaje.Export), así que lo leen por reflexión.
+    private static readonly PropertyInfo ProcessIdProperty =
+        typeof(FfmpegPipeSink).GetProperty("ProcessId", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("FfmpegPipeSink ya no tiene la propiedad ProcessId.");
+
+    /// <summary>Id del <c>ffmpeg.exe</c> en marcha, o <c>null</c> si no hay.</summary>
+    public static int? ProcessId(FfmpegPipeSink sink) => (int?)ProcessIdProperty.GetValue(sink);
+
+    public static bool IsAlive(int? processId)
+    {
+        if (processId is not { } id)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var process = Process.GetProcessById(id);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
 }
 
 /// <summary>
