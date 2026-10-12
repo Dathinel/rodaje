@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Modules;
 using Rodaje.Engine.Timeline;
 using Rodaje.Export;
 using Rodaje.Export.Encoders;
@@ -44,11 +45,17 @@ public sealed partial class AppExportRunner : IExportRunner
         }, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
+    private readonly Lock _gplGate = new();
+    private (FfmpegExecutable Ffmpeg, ProbedEncoderSource Source)? _gpl;
+
     public bool IsSimulation => false;
+
+    /// <summary>Cómo se busca el complemento de codificadores GPL (en las pruebas, otra carpeta); por omisión, los módulos instalados.</summary>
+    public Func<FfmpegExecutable?> FindGplFfmpeg { get; init; } = () => GplEncoderPack.TryOpen(null, out _);
 
     public async Task<IReadOnlyList<EncoderSpec>> GetEncodersAsync(CancellationToken cancellationToken = default)
     {
-        (ExportRunner? runner, _) = await Task.Run(() => _setup.Value, cancellationToken).ConfigureAwait(false);
+        (ExportRunner? runner, _) = await Task.Run(() => WithGplAddOn(_setup.Value), cancellationToken).ConfigureAwait(false);
         return runner?.Options.Encoders is { } source ? await source.GetAsync(cancellationToken).ConfigureAwait(false) : [];
     }
 
@@ -56,10 +63,37 @@ public sealed partial class AppExportRunner : IExportRunner
     {
         ArgumentNullException.ThrowIfNull(request);
         request = request with { ContinueWithoutMissing = request.ContinueWithoutMissing || continueWithoutMissing };
-        (ExportRunner? runner, string? problem) = _setup.Value;
+        (ExportRunner? runner, string? problem) = WithGplAddOn(_setup.Value);
         return runner is null
             ? new FailedJob(request, new ExportException(ExportErrorCode.EncoderMissing, problem!))
             : new JobView(runner.Start(request));
+    }
+
+    // Con el complemento GPL instalado (se mira cada vez: se puede instalar con la app abierta), x264 y x265 se suman a
+    // los codificadores y se codifican con su ffmpeg.exe; su sonda se guarda mientras el exe no cambie.
+    private (ExportRunner? Runner, string? Problem) WithGplAddOn((ExportRunner? Runner, string? Problem) setup)
+    {
+        if (setup.Runner is not { } runner || FindGplFfmpeg() is not { } gpl)
+        {
+            return setup;
+        }
+
+        ProbedEncoderSource source;
+        lock (_gplGate)
+        {
+            if (_gpl is not { } known || !ReferenceEquals(known.Ffmpeg, gpl))
+            {
+                _gpl = (gpl, new ProbedEncoderSource(gpl, GplEncoderCandidates.All));
+            }
+
+            source = _gpl.Value.Source;
+        }
+
+        return (new ExportRunner(runner.Options with
+        {
+            GplFfmpeg = gpl,
+            Encoders = runner.Options.Encoders is { } lgpl ? new CombinedEncoderSource(lgpl, source) : source,
+        }), null);
     }
 
     /// <summary>Un <see cref="ExportJob"/> visto como <see cref="IExportJob"/>: la miniatura pasa a <see cref="BgraImage"/>.</summary>

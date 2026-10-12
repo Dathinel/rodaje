@@ -435,6 +435,9 @@ public static class ExportEncoderCatalog
         ["libvpx-vp9"] = "libvpx (VP9)",
         ["libkvazaar"] = "kvazaar (HEVC)",
         ["libopenh264"] = "OpenH264 (H.264, calidad baja)",
+        // Solo con el complemento rodaje-codificadores-gpl (Rodaje.Export.Encoders.GplEncoderCandidates); no están en el catálogo.
+        ["libx264"] = "x264 (H.264, complemento GPL)",
+        ["libx265"] = "x265 (HEVC, complemento GPL)",
         ["prores_ks"] = "Apple ProRes",
         ["dnxhd"] = "Avid DNxHR",
         ["cfhd"] = "GoPro CineForm",
