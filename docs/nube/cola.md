@@ -407,3 +407,12 @@ Desde f89d896 falla el trabajo de Windows: `ModuleManagerTests` (varias: «El m�
 
 `AnalysisUi.Sec`, el BPM de `RhythmDialog` y `StabilizeDialog` formatean con CurrentCulture y salen con punto. Usar el mismo formato que `SpeedMath`, con pruebas.
 
+
+## 43. `NU1004` intermitente al restaurar en la CI de Windows
+
+- **Estado:** pendiente
+- **Rama:** `claude/ci-restore-rid`
+- **Caminos:** `.github/workflows/ci.yml`, los `.csproj` y `packages.lock.json` de `src/Rodaje.Modules.Protocol/` y `modules/*/` (solo lo mínimo), `docs/tareas/`
+- **Lee:** jobs 114670188931 (PR #31, falla en `Rodaje.Modules.Protocol`: «runtime identifiers have changed from. Project's runtime identifiers: , lock file's runtime identifiers win-x64») y 114665862040 (PR #30, falla en `Rodaje.Module.Echo`: «win-x64» frente a «linux-x64»).
+
+`dotnet restore Rodaje.slnx --locked-mode` falla a veces antes de compilar, cada vez en un proyecto distinto, con los identificadores de runtime cruzados entre los proyectos que publican con AOT (`win-x64`) y `Rodaje.Modules.Protocol`, que no declara ninguno. Averigua la carrera (¿un `RuntimeIdentifier` heredado por referencia de proyecto o un lockfile regenerado en Linux?), corrígela para que la restauración sea determinista en Windows y en Linux, y que la CI lo compruebe.
