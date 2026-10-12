@@ -41,7 +41,7 @@ internal struct FrameStats
 /// shader con una copia del fondo; y una transición, en dos lienzos que mezcla un shader.
 /// </summary>
 /// <remarks>Lo que no se puede aplicar en este cuadro (shader sin compilar, pool lleno) se salta y se cuenta; nunca se espera.</remarks>
-internal sealed unsafe partial class LayerRenderer
+internal sealed unsafe partial class LayerRenderer : IDisposable
 {
     private const DXGI_FORMAT IntermediateFormat = DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT;
 
@@ -53,6 +53,7 @@ internal sealed unsafe partial class LayerRenderer
     private readonly RenderTargetPool _pool;
     private readonly LutTextures _luts;
     private readonly List<SpatialStep> _spatial = [];
+    private readonly MaskTextures _maskTextures;
 
     public LayerRenderer(GpuDevice gpu, QuadPipeline quad, EffectPipeline effects, PlaneViewCache views, RenderTargetPool pool, LutTextures luts)
     {
@@ -63,7 +64,10 @@ internal sealed unsafe partial class LayerRenderer
         _views = views;
         _pool = pool;
         _luts = luts;
+        _maskTextures = new MaskTextures((ID3D11Device*)gpu.NativeDevice, _context);
     }
+
+    public void Dispose() => _maskTextures.Dispose();
 
     public IEffectResources? Resources { get; set; }
 
@@ -152,10 +156,24 @@ internal sealed unsafe partial class LayerRenderer
 
         EffectConstants effects = default;
         LayerPlan plan = BuildPlan(layer, ref effects, ref stats);
+        RenderTarget? mask = PrepareMasks(placement, destination, ref plan, ref effects, ref stats);
+        try
+        {
+            return DrawPlanned(layer, payload, geometry, destination, blend, placement, plan, effects, mask, ref stats);
+        }
+        finally
+        {
+            _pool.Return(mask);
+        }
+    }
+
+    private bool DrawPlanned(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, in Destination destination,
+        BlendMode blend, LayerPlacement placement, LayerPlan plan, EffectConstants effects, RenderTarget? mask, ref FrameStats stats)
+    {
         int blendCount = blend == BlendMode.Normal ? 0 : 1;
         if (_spatial.Count > 0)
         {
-            if (DrawThroughIntermediate(payload, placement, geometry, Opacity(layer), plan, effects, destination, blend, ref stats,
+            if (DrawThroughIntermediate(payload, placement, geometry, Opacity(layer), plan, effects, mask, destination, blend, ref stats,
                 out bool blendDropped))
             {
                 stats.EffectsApplied += plan.PerPixelCount + (blendDropped ? 0 : blendCount);
@@ -197,7 +215,7 @@ internal sealed unsafe partial class LayerRenderer
 
         effects.BlendInfo.X = (float)blend;
         _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, shader, _effects.BlendState(blend));
-        BindInputs(background, plan.Lut, null, null);
+        BindInputs(background, plan.Lut, null, null, mask);
         _effects.Set(effects);
         DrawPlanes(payload, quad);
         UnbindInputs();
@@ -207,7 +225,8 @@ internal sealed unsafe partial class LayerRenderer
     }
 
     private bool DrawThroughIntermediate(D3D11TexturePayload payload, LayerPlacement placement, SourceGeometry geometry, float opacity,
-        in LayerPlan plan, EffectConstants effects, in Destination destination, BlendMode blend, ref FrameStats stats, out bool blendDropped)
+        in LayerPlan plan, EffectConstants effects, RenderTarget? mask, in Destination destination, BlendMode blend, ref FrameStats stats,
+        out bool blendDropped)
     {
         blendDropped = false;
         bool shaderBlend = EffectPipeline.IsShaderBlend(blend);
@@ -235,7 +254,7 @@ internal sealed unsafe partial class LayerRenderer
         var local = new LayerPlacement(Matrix3x2.CreateScale(scaleX, scaleY), placement.LocalWidth, placement.LocalHeight, Math.Min(scaleX, scaleY));
         QuadConstants toIntermediate = LayerQuad(payload, local, geometry, 1, width, height, 1);
         _quad.Bind(first.Rtv, width, height, graded, null);
-        BindInputs(null, plan.Lut, null, null);
+        BindInputs(null, plan.Lut, null, null, mask);
         _effects.Set(effects);
         DrawPlanes(payload, toIntermediate);
         UnbindInputs();
@@ -316,21 +335,23 @@ internal sealed unsafe partial class LayerRenderer
         }
     }
 
-    /// <summary>Enlaza t3 (fondo), t4 (LUT), t5 y t6 (intermedios). Va después de enlazar el destino.</summary>
-    private void BindInputs(RenderTarget? background, ID3D11ShaderResourceView* lut, RenderTarget? imageA, RenderTarget? imageB)
+    /// <summary>Enlaza t3 (fondo), t4 (LUT), t5 y t6 (intermedios) y t7 (máscaras). Va después de enlazar el destino.</summary>
+    private void BindInputs(RenderTarget? background, ID3D11ShaderResourceView* lut, RenderTarget? imageA, RenderTarget? imageB,
+        RenderTarget? mask = null)
     {
-        ID3D11ShaderResourceView** srvs = stackalloc ID3D11ShaderResourceView*[4];
+        ID3D11ShaderResourceView** srvs = stackalloc ID3D11ShaderResourceView*[5];
         srvs[0] = background is null ? null : background.Srv;
         srvs[1] = lut;
         srvs[2] = imageA is null ? null : imageA.Srv;
         srvs[3] = imageB is null ? null : imageB.Srv;
-        _context->PSSetShaderResources(3, 4, srvs);
+        srvs[4] = mask is null ? null : mask.Srv;
+        _context->PSSetShaderResources(3, 5, srvs);
     }
 
     private void UnbindInputs()
     {
-        ID3D11ShaderResourceView** none = stackalloc ID3D11ShaderResourceView*[4];
-        _context->PSSetShaderResources(3, 4, none);
+        ID3D11ShaderResourceView** none = stackalloc ID3D11ShaderResourceView*[5];
+        _context->PSSetShaderResources(3, 5, none);
     }
 
     /// <summary>Copia del destino en <paramref name="rect"/> para las mezclas por shader; <c>null</c> si no cabe en el pool.</summary>

@@ -29,7 +29,7 @@
                        Text="En los títulos solo se aplican desenfoque y nitidez: color, LUT y viñeta no los cambian en esta versión." />
             <inspector:InspectorSection x:Name="StackSection" Key="filtros-pila" Title="Filtros del clip">
                 <StackPanel>
-                    <Grid Padding="12,3,6,6" ColumnSpacing="4">
+                    <Grid x:Name="AddRow" Padding="12,3,6,6" ColumnSpacing="4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="48" />
@@ -38,6 +38,21 @@
                                   FontSize="{StaticResource BodyFontSize}" AutomationProperties.Name="Añadir filtro" SelectionChanged="OnAddSelected"
                                   ToolTipService.ToolTip="Se aplican de arriba abajo" />
                     </Grid>
+                    <!-- En la pestaña Máscaras: una forma nueva centrada, o un trazo que se dibuja en el visor. -->
+                    <StackPanel x:Name="MaskBar" Orientation="Horizontal" Spacing="4" Padding="12,3,6,6" Visibility="Collapsed">
+                        <Button Style="{StaticResource ToolButtonStyle}" Height="28" Padding="8,0" Click="OnAddRectangleClick"
+                                ToolTipService.ToolTip="Añadir una máscara rectangular en el centro" AutomationProperties.Name="Rectángulo">
+                            <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE739;" FontSize="12" /><TextBlock Text="Rectángulo" /></StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource ToolButtonStyle}" Height="28" Padding="8,0" Click="OnAddEllipseClick"
+                                ToolTipService.ToolTip="Añadir una máscara elíptica en el centro" AutomationProperties.Name="Elipse">
+                            <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xEA3A;" FontSize="12" /><TextBlock Text="Elipse" /></StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource ToolButtonStyle}" Height="28" Padding="8,0" Click="OnDrawPathClick"
+                                ToolTipService.ToolTip="Dibujar el contorno con el ratón sobre el visor (Esc cancela)" AutomationProperties.Name="Trazo libre">
+                            <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xEE56;" FontSize="12" /><TextBlock Text="Trazo libre" /></StackPanel>
+                        </Button>
+                    </StackPanel>
                     <ListView x:Name="List" Visibility="Collapsed" ItemsSource="{x:Bind Items}" SelectionMode="Single" MaxHeight="220"
                               CanDragItems="True" CanReorderItems="True" AllowDrop="True" DragItemsCompleted="OnDragItemsCompleted"
                               SelectionChanged="OnListSelectionChanged">
@@ -109,6 +124,18 @@
                         <ComboBox x:Name="LutBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
                                   AutomationProperties.Name="LUT" SelectionChanged="OnLutSelected"
                                   ToolTipService.ToolTip="Tabla de color .cube: de un paquete instalado o de un archivo" />
+                    </Grid>
+                    <Grid x:Name="MaskRow" Padding="12,3,6,3" ColumnSpacing="4" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Forma" Style="{StaticResource LabelTextStyle}" />
+                        <ComboBox x:Name="ShapeBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
+                                  AutomationProperties.Name="Forma de la máscara" SelectionChanged="OnShapeSelected" />
+                        <CheckBox x:Name="InvertBox" Grid.Column="2" Content="Invertir" MinWidth="0" Click="OnInvertClick"
+                                  ToolTipService.ToolTip="Deja ver lo de afuera de la forma" />
                     </Grid>
                     <StackPanel x:Name="ParameterRows" />
                 </StackPanel>

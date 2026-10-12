@@ -46,6 +46,7 @@ public sealed class ShaderCompileTests : IDisposable
         indices.Add(EffectShaders.IndexOf(EffectShader.Downsample, 0));
         indices.Add(EffectShaders.IndexOf(EffectShader.Blur, 0));
         indices.Add(EffectShaders.IndexOf(EffectShader.Sharpen, 0));
+        indices.Add(EffectShaders.IndexOf(EffectShader.Mask, 0));
         Assert.Equal(Enumerable.Range(0, EffectShaders.All.Length), indices.Order());
     }
 

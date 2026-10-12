@@ -17,6 +17,8 @@ public static class QuickTools
     public const string AutoSubtitles = "tools.autoSubtitles";
     public const string TextToSpeech = "voice.textToSpeech";
     public const string AddText = "clip.addText";
+    public const string RemoveBackground = "vision.removeBackground";
+    public const string Reframe = "vision.reframe";
 
     /// <summary>Lo que no existe todavía: el botón se ve, explica y no hace nada.</summary>
     public const string ComingSoon = "Próximamente.";
@@ -30,13 +32,17 @@ public static class QuickTools
         new("analysis.stabilize", "Estabilizar", "", "Quita el temblor del video elegido."),
         new("analysis.autocolor", "Color automático", "", "Corrige exposición y contraste del video elegido."),
         new("analysis.whitebalance", "Balance de blancos", "", "Neutraliza el tono del video elegido."),
+        new(RemoveBackground, "Quitar fondo", "\uE7A8", "Recorta a la persona del video elegido y vuelve transparente el fondo (módulo «Visión con IA»)."),
+        new(Reframe, "Reencuadre", "\uE7AD", "Sigue al sujeto con un recorte 9:16, 1:1 o 4:5 que se mueve suave (módulo «Visión con IA»)."),
         new(AutoSubtitles, "Subtítulos automáticos", "", "Escribe los subtítulos a partir de la voz."),
         new(TextToSpeech, "Texto a voz", "", "Lee un texto en voz alta y lo pone en una pista de audio."),
         new(AddText, "Añadir texto", "", "Un título de 5 s en el cursor."),
     ];
 
     /// <param name="noiseModule">Si está instalado el módulo que limpia el ruido.</param>
-    public static QuickToolState State(string actionId, Project project, Sequence sequence, IReadOnlyList<string> selection, bool noiseModule)
+    /// <param name="visionModule">Si está instalado el módulo de visión (quitar fondo y reencuadre).</param>
+    public static QuickToolState State(string actionId, Project project, Sequence sequence, IReadOnlyList<string> selection, bool noiseModule,
+        bool visionModule = false)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(sequence);
@@ -58,6 +64,8 @@ public static class QuickTools
             "analysis.noise" when !noiseModule => No("Hace falta el módulo «Audio con IA»: instálalo desde Complementos."),
             "analysis.noise" => Yes,
             "analysis.stabilize" or "analysis.autocolor" or "analysis.whitebalance" => video ? Yes : No("Selecciona un clip de video."),
+            RemoveBackground or Reframe when !video => No("Selecciona un clip de video."),
+            RemoveBackground or Reframe when !visionModule => No("Hace falta el módulo «Visión con IA»: instálalo desde Complementos."),
             AutoSubtitles => No(ComingSoon),
             _ => Yes,
         };

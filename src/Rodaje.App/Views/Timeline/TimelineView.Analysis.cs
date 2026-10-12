@@ -21,6 +21,14 @@ internal sealed partial class TimelineView
             menu.Items.Add(item);
         }
 
+        menu.Items.Add(new MenuFlyoutSeparator());
+        foreach ((string id, string label, string glyph) in Vision.VisionCommands.Menu)
+        {
+            var item = new MenuFlyoutItem { Text = label, Icon = new FontIcon { Glyph = glyph } };
+            item.Click += (_, _) => services.Shortcuts.Invoke(id);
+            menu.Items.Add(item);
+        }
+
         var voice = new MenuFlyoutItem { Text = Voice.VoiceCommands.Label, Icon = new FontIcon { Glyph = Voice.VoiceCommands.Glyph } };
         voice.Click += (_, _) => services.Shortcuts.Invoke(Voice.VoiceCommands.TextToSpeech);
         menu.Items.Add(new MenuFlyoutSeparator());

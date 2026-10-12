@@ -418,6 +418,7 @@ public sealed unsafe class Compositor : IDisposable
         _views.Dispose();
         _pool.Dispose();
         _luts.Dispose();
+        _layers?.Dispose();
         _effects?.Dispose();
         _pipeline?.Dispose();
         Com.Release(ref _staging);

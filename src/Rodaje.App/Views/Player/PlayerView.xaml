@@ -85,6 +85,14 @@
                 <Line x:Name="TitleRotateStem" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
                 <Ellipse x:Name="TitleGripRotate" Width="10" Height="10" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
             </Canvas>
+            <Canvas x:Name="MaskCanvas" Margin="8" IsHitTestVisible="False" Visibility="Collapsed">
+                <Polygon x:Name="MaskOutline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.5" StrokeDashArray="4,2" />
+                <Polyline x:Name="MaskStroke" Stroke="{StaticResource AccentBrush}" StrokeThickness="2" />
+                <Rectangle x:Name="MaskGripTopLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                <Rectangle x:Name="MaskGripTopRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                <Rectangle x:Name="MaskGripBottomRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                <Rectangle x:Name="MaskGripBottomLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+            </Canvas>
             <Canvas x:Name="TitleEditCanvas" Margin="8" Visibility="Collapsed">
                 <TextBox x:Name="TitleEditBox" AcceptsReturn="True" TextWrapping="Wrap" MinWidth="120" Padding="4,2"
                          Background="#B0000000" BorderBrush="{StaticResource AccentBrush}" AutomationProperties.Name="Texto del título"
