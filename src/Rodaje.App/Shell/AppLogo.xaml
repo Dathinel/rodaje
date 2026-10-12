@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logotipo vectorial (assets\marca): de 16 a 32 px la versión pequeña; con Detailed, la de las perforaciones finas. -->
+<UserControl
+    x:Class="Rodaje.App.Shell.AppLogo"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    IsTabStop="False">
+
+    <Viewbox>
+        <Grid Width="256" Height="256">
+            <Grid x:Name="Small">
+                <Rectangle Margin="4" RadiusX="48" RadiusY="48" Fill="{StaticResource PanelBrush}" Stroke="{StaticResource StrokeBrush}" StrokeThickness="8" />
+                <Path Fill="{StaticResource AccentBrush}" Data="F0 M52 40H112V220H52Z M70 64h24v24h-24Z M70 118h24v24h-24Z M70 172h24v24h-24Z" />
+                <Path Fill="{StaticResource AccentBrush}" Data="M112 40H142A66 66 0 0 1 142 172H112V124H142A18 18 0 0 0 142 88H112Z" />
+                <Path Fill="{StaticResource AccentBrush}" Data="M116 156H172L224 220H168Z" />
+            </Grid>
+            <Grid x:Name="Large" Visibility="Collapsed">
+                <Rectangle Margin="10" RadiusX="54" RadiusY="54" Fill="{StaticResource PanelBrush}" Stroke="{StaticResource StrokeBrush}" StrokeThickness="4" />
+                <Path Fill="{StaticResource AccentBrush}" Data="F0 M60 44H112V216H60Z M68 56h8v12h-8Z M96 56h8v12h-8Z M68 80h8v12h-8Z M96 80h8v12h-8Z M68 104h8v12h-8Z M96 104h8v12h-8Z M68 128h8v12h-8Z M96 128h8v12h-8Z M68 152h8v12h-8Z M96 152h8v12h-8Z M68 176h8v12h-8Z M96 176h8v12h-8Z M68 200h8v12h-8Z M96 200h8v12h-8Z" />
+                <Path Fill="{StaticResource AccentBrush}" Data="M112 44H140A64 64 0 0 1 140 172H112V128H140A20 20 0 0 0 140 88H112Z" />
+                <Path Fill="{StaticResource AccentBrush}" Data="M118 160H170L218 216H166Z" />
+            </Grid>
+        </Grid>
+    </Viewbox>
+</UserControl>

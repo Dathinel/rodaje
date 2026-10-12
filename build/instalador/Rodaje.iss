@@ -40,6 +40,7 @@ CloseApplications=yes
 RestartApplications=no
 UninstallDisplayName=Rodaje
 UninstallDisplayIcon={app}\app\Rodaje.exe
+SetupIconFile=..\..\assets\marca\rodaje.ico
 WizardStyle=modern
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -72,7 +73,7 @@ Name: "{autodesktop}\Rodaje"; Filename: "{app}\Rodaje.exe"; IconFilename: "{app}
 Root: HKA; Subkey: "Software\Classes\.rodaje"; ValueType: string; ValueName: ""; ValueData: "Rodaje.Proyecto"; Flags: uninsdeletevalue; Tasks: proyectos
 Root: HKA; Subkey: "Software\Classes\.rodaje\OpenWithProgids"; ValueType: string; ValueName: "Rodaje.Proyecto"; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty; Tasks: proyectos
 Root: HKA; Subkey: "Software\Classes\Rodaje.Proyecto"; ValueType: string; ValueName: ""; ValueData: "Proyecto de Rodaje"; Flags: uninsdeletekey; Tasks: proyectos
-Root: HKA; Subkey: "Software\Classes\Rodaje.Proyecto\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\app\Rodaje.exe,0"; Tasks: proyectos
+Root: HKA; Subkey: "Software\Classes\Rodaje.Proyecto\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\app\rodaje-proyecto.ico"; Tasks: proyectos
 Root: HKA; Subkey: "Software\Classes\Rodaje.Proyecto\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Rodaje.exe"" ""%1"""; Tasks: proyectos
 Root: HKA; Subkey: "Software\Classes\Rodaje.Medio"; ValueType: string; ValueName: ""; ValueData: "Video o audio (Rodaje)"; Flags: uninsdeletekey; Tasks: videos
 Root: HKA; Subkey: "Software\Classes\Rodaje.Medio\shell\open"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "Rodaje"; Tasks: videos

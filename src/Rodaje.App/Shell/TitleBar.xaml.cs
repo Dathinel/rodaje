@@ -458,6 +458,7 @@ internal sealed partial class TitleBar : UserControl
         var link = new HyperlinkButton { Content = UpstreamAttribution.RepositoryUrl, Padding = new Thickness(0) };
         link.Click += (_, _) => OpenUpstream();
         var body = new StackPanel { Spacing = 10, MaxWidth = 460 };
+        body.Children.Add(new AppLogo { Detailed = true, Width = 72, Height = 72, HorizontalAlignment = HorizontalAlignment.Left });
         string? version = typeof(TitleBar).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         body.Children.Add(new TextBlock { Text = $"Versión {version}", IsTextSelectionEnabled = true });
         body.Children.Add(new TextBlock { Text = UpstreamAttribution.Notice, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });

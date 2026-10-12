@@ -40,6 +40,7 @@ internal static unsafe partial class StartupSplash
             _timeline = settings.TimelineHeight;
             nint instance = GetModuleHandleW(null);
             _panelBrush = CreateSolidBrush(PanelColor);
+            string iconPath = Path.Combine(AppContext.BaseDirectory, AppIcon.FileName);
             fixed (char* name = ClassName)
             {
                 var wc = new WNDCLASSEXW
@@ -47,6 +48,8 @@ internal static unsafe partial class StartupSplash
                     cbSize = (uint)sizeof(WNDCLASSEXW),
                     lpfnWndProc = &WindowProc,
                     hInstance = instance,
+                    hIcon = LoadIconFile(iconPath, GetSystemMetrics(11)), // SM_CXICON
+                    hIconSm = LoadIconFile(iconPath, GetSystemMetrics(49)), // SM_CXSMICON
                     hCursor = LoadCursorW(0, 32650), // IDC_APPSTARTING
                     hbrBackground = CreateSolidBrush(BackgroundColor),
                     lpszClassName = name,
@@ -174,6 +177,13 @@ internal static unsafe partial class StartupSplash
         _ = FillRect(dc, &r, _panelBrush);
     }
 
+    private static nint LoadIconFile(string path, int size)
+    {
+        const uint ImageIcon = 1;
+        const uint LoadFromFile = 0x10;
+        return LoadImageW(0, path, ImageIcon, size, size, LoadFromFile);
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
     {
@@ -250,6 +260,12 @@ internal static unsafe partial class StartupSplash
 
     [LibraryImport("user32.dll")]
     private static partial nint LoadCursorW(nint instance, nint name);
+
+    [LibraryImport("user32.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial nint LoadImageW(nint instance, string name, uint type, int width, int height, uint flags);
+
+    [LibraryImport("user32.dll")]
+    private static partial int GetSystemMetrics(int index);
 
     [LibraryImport("user32.dll")]
     private static partial nint BeginPaint(nint hwnd, PAINTSTRUCT* paint);
