@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #15, #31, #33, #34.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno (el bloque #15, #31, #33, #34 lo revisó Sonnet el 12-oct: tareas 42 ampliada, 44, 45 y 46).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -398,15 +398,14 @@ Desde f89d896 falla el trabajo de Windows: `ModuleManagerTests` (varias: «El m�
 
 `EditPropertiesTests.OperacionesAleatorias_CumplenTodasLasReglas` falla con `CsCheck_Seed=5ZOfD5KG8C16`: Overwrite cambia el `gainDb` con keyframes del efecto de pista v1. Prueba de regresión con esa semilla y corrección en el núcleo.
 
-## 42. Números con coma decimal en los diálogos de análisis
+## 42. Números con coma decimal en toda la App
 
 - **Estado:** pendiente
 - **Rama:** `claude/analisis-cultura`
-- **Caminos:** `src/Rodaje.App/Views/Analysis/`, `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`
-- **Lee:** entrega de la tarea 40 (la app corre con InvariantGlobalization; `TitleEditor.DescribeAnimation` ya usa coma fija como `SpeedMath`).
+- **Caminos:** `src/Rodaje.App/Views/Analysis/`, `src/Rodaje.App/Services/Titles/SubtitleStyles.cs`, `src/Rodaje.App/Views/Inspector/Text/TextPanel.xaml.cs`, `src/Rodaje.App/Views/Voice/VoiceDialog.cs`, `src/Rodaje.App/Services/Format/` (un archivo nuevo para el formato común), `src/Rodaje.App/Services/Inspector/TitleEditor.cs` y el `SpeedMath` de la App (solo para usar el formato común), `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 40 (la app corre con InvariantGlobalization; `TitleEditor.DescribeAnimation` ya usa coma fija como `SpeedMath`), revisión en bloque 2 (hallazgo 4).
 
-`AnalysisUi.Sec`, el BPM de `RhythmDialog` y `StabilizeDialog` formatean con CurrentCulture y salen con punto. Usar el mismo formato que `SpeedMath`, con pruebas.
-
+La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que todo formato con `CurrentCulture` sale con punto decimal. Siguen así: `AnalysisUi.Db/Ms/Sec` (`AnalysisUi.cs:43-47`), el BPM de `RhythmDialog` (`:95`), el contraste de `SubtitleStyles` (`:54,83`), `StabilizeDialog` (`:50,57`), `SilenceDialog` (`:58`), `DuckingDialog` (`:68`), `NoiseReductionDialog` (`:71`), `AutoColorAction` (`:36-38`), `TextPanel.xaml.cs:106` y `VoiceDialog.cs:274`. Un solo `NumberFormatInfo` en español compartido (hoy `TitleEditor` y `SpeedMath` duplican el suyo), usado en todos esos sitios, con pruebas y una prueba que falle si vuelve a aparecer `CurrentCulture` en un formato numérico de `src/Rodaje.App`.
 
 ## 43. `NU1004` intermitente al restaurar en la CI de Windows
 
@@ -416,3 +415,37 @@ Desde f89d896 falla el trabajo de Windows: `ModuleManagerTests` (varias: «El m�
 - **Lee:** jobs 114670188931 (PR #31, falla en `Rodaje.Modules.Protocol`: «runtime identifiers have changed from. Project's runtime identifiers: , lock file's runtime identifiers win-x64») y 114665862040 (PR #30, falla en `Rodaje.Module.Echo`: «win-x64» frente a «linux-x64»).
 
 `dotnet restore Rodaje.slnx --locked-mode` falla a veces antes de compilar, cada vez en un proyecto distinto, con los identificadores de runtime cruzados entre los proyectos que publican con AOT (`win-x64`) y `Rodaje.Modules.Protocol`, que no declara ninguno. Averigua la carrera (¿un `RuntimeIdentifier` heredado por referencia de proyecto o un lockfile regenerado en Linux?), corrígela para que la restauración sea determinista en Windows y en Linux, y que la CI lo compruebe.
+
+## 44. Carrera entre `Abort` y `Complete` en la exportación, y `Kill` fuera del cerrojo
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-abort-carrera`
+- **Caminos:** `src/Rodaje.Media/Export/FfmpegPipeSink.cs`, `tests/Rodaje.Media.Tests/Export/` (archivos nuevos o `FfmpegPipeSinkFailureTests.cs`), `docs/tareas/`
+- **Lee:** revisión en bloque 2 (hallazgos 1 y 5), entrega de la tarea 33 (`docs/tareas/2026-10-12-export-abort.md`).
+
+1. Si se cancela mientras `Complete` espera a que ffmpeg cierre el contenedor (`while (!process.WaitForExit(100))`, ~`:234`), `Abort` corre en el hilo que cancela, mata y libera el `Process` (`ReleaseProcess`, ~`:610`), y `Complete` sigue esperando sobre un objeto liberado: sale `InvalidOperationException`/`ObjectDisposedException` en vez de `OperationCanceledException`. `Failure` (~`:530`) lee `_process` fuera del cerrojo. Que `Complete` y `Failure` no usen un `Process` liberado (leerlo bajo `_gate`, o no liberarlo mientras `Complete` está dentro) y que una cancelación siempre llegue como cancelación. Prueba que cancele durante `Complete`.
+2. `Kill` (`:622-653`) espera `KillWait` dos veces con `_gate` tomado (peor caso ~1,8 s, por encima del criterio de 1 s). Si ffmpeg sigue vivo tras el segundo intento, hoy se libera igual y se intenta borrar temporales que ffmpeg tiene abiertos. Esperar sin el cerrojo, no liberar ni borrar si no salió (reintentar o encolar el borrado) y registrarlo en el diagnóstico.
+
+## 45. `docs/legal.md` al día con `LICENSE` y el repo público
+
+- **Estado:** pendiente
+- **Rama:** `claude/legal-al-dia`
+- **Caminos:** `docs/legal.md`, `LICENCIAS.md`, `docs/pendientes-legales.md`, `docs/tareas/`
+- **Lee:** `LICENSE`, `Directory.Build.props`, D-032, `docs/ffmpeg-configure.txt`, revisión en bloque 2 (hallazgos 2 y 3).
+
+1. `docs/legal.md:59` («Versión de la GPL») dice que `LICENSE` no fija la versión; `LICENSE:4-5` dice «version 3 only (SPDX: GPL-3.0-only)» y `Directory.Build.props:14` también. Marcarlo resuelto con la cita.
+2. `docs/legal.md:55` (sección e) dice que el repositorio es privado y el enlace del crédito da 404; es público desde el 11-oct. Marcarlo cumplido.
+3. `docs/legal.md:129` concluye «Ninguna es GPL-only» para las bibliotecas de la FFmpeg que no son de exportación (dav1d, freetype, harfbuzz, fribidi, libass, zimg, libvmaf, libzmq, libssh, libsrt, librist, libplacebo, libbluray, gmp, librsvg, libxml2, libopenjpeg, libjxl…) sin filas ni fuente. Añadir las filas con licencia y enlace en `LICENCIAS.md` y su compatibilidad con la GPLv3 (ojo con FreeType FTL/GPLv2, gmp LGPLv3/GPLv2, libzmq), o reescribir la frase como «sin revisar» y llevarlo a `docs/pendientes-legales.md`. La fila de IJG (`docs/legal.md:70`) necesita su fuente. Solo hechos verificables con enlace.
+
+## 46. Limpiezas de la revisión en bloque 2
+
+- **Estado:** pendiente
+- **Rama:** `claude/limpiezas-bloque-2`
+- **Caminos:** `herramientas/app.ps1` (solo la línea del eco), `.github/workflows/ci.yml` (paso «Lockfiles deterministas»), `tests/Rodaje.Engine.Tests/Offline/` (archivos nuevos), `tests/Rodaje.Engine.Tests/Timeline/TimelineSpeedTests.cs`, `tests/Rodaje.App.Tests/Modules/` (archivos nuevos), `docs/tareas/`
+- **Lee:** revisión en bloque 2 (hallazgos 6 y 7), entregas de las tareas 40 y 43.
+
+1. Quitar el `-r win-x64` que sobra al publicar el eco en `herramientas/app.ps1:169` y que el paso «Lockfiles deterministas» restaure en modo bloqueado, con `-r win-x64`, todos los proyectos que se publican con AOT (Echo, Voice, Subtitles y AudioAi), no solo el eco.
+2. `OfflineTimelineTests` usa ahora un reloj quieto: añadir una prueba aparte con reloj real que cubra el cierre de decodificadores ociosos y el tope de composición a medias (con `Categoria=TiempoReal` si mide tiempo).
+3. `TimelineSpeedTests.Speed_adds_no_bytes_to_what_each_tick_already_reserves` falló una vez por 1 B en la CI de Windows: averiguar qué reserva de más y corregir la causa, o justificar el margen.
+4. Una prueba que fije `ModuleManagerOptions.StartTimeout` (30 s) y el camino «no se conectó a tiempo» con un tope corto inyectado.
+
