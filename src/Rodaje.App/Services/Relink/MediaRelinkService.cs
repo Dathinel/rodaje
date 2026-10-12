@@ -57,7 +57,10 @@ public sealed class MediaRelinkService
 
     /// <summary>
     /// Busca en <paramref name="folder"/> los archivos de <paramref name="missing"/>. <paramref name="taken"/> son las rutas
-    /// que ya se resolvieron para otros medios (en el diálogo, lo pendiente de aplicar): no se dan a ningún otro.
+    /// que ya se resolvieron para otros medios (en el diálogo, lo pendiente de aplicar): no se dan a ningún otro. Las rutas
+    /// ocupadas (estas, las de <see cref="SearchOptions"/> y las de los medios que no faltan) se pasan normalizadas con
+    /// <see cref="MediaRelinkEdits.NormalizePath"/>, porque la búsqueda las compara como texto con las rutas completas
+    /// del disco.
     /// </summary>
     public Task<RelinkSearchResult> SearchAsync(
         Project project, IReadOnlyList<MediaRef> missing, string folder, IProgress<int>? filesScanned = null,
@@ -67,7 +70,12 @@ public sealed class MediaRelinkService
         ArgumentNullException.ThrowIfNull(missing);
         Project copy = project.Clone();
         List<MediaRef> wanted = [.. missing.Select(m => copy.FindMedia(m.Id)).OfType<MediaRef>()];
-        RelinkSearchOptions options = SearchOptions with { TakenPaths = [.. SearchOptions.TakenPaths, .. taken ?? []] };
+        var missingIds = wanted.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
+        IEnumerable<string> linked = copy.Media.Where(m => !missingIds.Contains(m.Id) && m.Path.Length > 0).Select(m => m.Path);
+        RelinkSearchOptions options = SearchOptions with
+        {
+            TakenPaths = [.. SearchOptions.TakenPaths.Concat(taken ?? []).Concat(linked).Select(MediaRelinkEdits.NormalizePath)],
+        };
         return Task.Run(
             () => MediaRelinkSearch.Search(copy, wanted, folder, _fileSystem, options, filesScanned, cancellationToken),
             cancellationToken);
@@ -104,6 +112,25 @@ public sealed class MediaRelinkService
         {
             return (null, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Las rutas que una búsqueda del diálogo no puede dar a ningún medio: las de <paramref name="pending"/> (lo resuelto y
+    /// aún sin aplicar) y las de <paramref name="proposed"/> (lo encontrado con otro nombre que espera confirmación).
+    /// </summary>
+    public static IReadOnlyList<string> TakenPaths(IEnumerable<MediaRelinkTarget> pending, IEnumerable<string> proposed)
+    {
+        ArgumentNullException.ThrowIfNull(pending);
+        ArgumentNullException.ThrowIfNull(proposed);
+        return [.. pending.Select(t => t.Path), .. proposed];
+    }
+
+    /// <summary>Lo resuelto para los demás medios: con lo que se compara un archivo elegido a mano para <paramref name="mediaId"/>.</summary>
+    public static IReadOnlyList<MediaRelinkTarget> PendingForOthers(IEnumerable<MediaRelinkTarget> pending, string mediaId)
+    {
+        ArgumentNullException.ThrowIfNull(pending);
+        ArgumentNullException.ThrowIfNull(mediaId);
+        return [.. pending.Where(t => t.MediaId != mediaId)];
     }
 
     /// <summary>Aplica los cambios en un solo paso del historial; <c>false</c> si no hay ninguno o la edición no se pudo.</summary>
