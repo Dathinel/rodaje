@@ -31,7 +31,7 @@ public sealed class FfmpegPipeSinkAbortOwnerTests
             killEntered.Set();
             release.Wait();
             process.Kill();
-            return process.WaitForExit(TimeSpan.FromSeconds(10));
+            return HasExitedWithin(process, TimeSpan.FromSeconds(10));
         };
         aborted.Start(request, CancellationToken.None);
         int? processId = aborted.ProcessId;
@@ -106,6 +106,24 @@ public sealed class FfmpegPipeSinkAbortOwnerTests
         ExportSinkResult result = aborted.Complete(CancellationToken.None);
         Assert.Equal(again.FrameCount * FrameBytes, new FileInfo(result.OutputPath).Length);
         Assert.Equal([result.OutputPath], scratch.Leftovers());
+    }
+
+    // Solo el proceso, no sus tuberías: WaitForExit con tope espera además el fin de la salida redirigida, y en Windows
+    // otro falso colgado de una prueba en paralelo puede haber heredado esas tuberías y retrasarlo hasta agotar el tope.
+    private static bool HasExitedWithin(Process process, TimeSpan limit)
+    {
+        long start = Stopwatch.GetTimestamp();
+        while (!process.HasExited)
+        {
+            if (Stopwatch.GetElapsedTime(start) > limit)
+            {
+                return false;
+            }
+
+            Thread.Sleep(10);
+        }
+
+        return true;
     }
 
     // Se abre el proceso al arrancar, por si su id se reusa antes de que haga falta matarlo.
