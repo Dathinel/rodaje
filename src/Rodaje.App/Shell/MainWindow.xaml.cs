@@ -333,6 +333,8 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     internal ShortcutsView? ShortcutsPage => _shortcutsView;
 
+    internal PluginsView? PluginsPage => _pluginsView;
+
     /// <summary>La barra de herramientas rápidas, para la autoprueba.</summary>
     internal Views.Tools.ToolsBar QuickTools => Tools;
 

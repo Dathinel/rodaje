@@ -178,4 +178,14 @@ public class ExportSettingsEditorTests
         Assert.Equal(48_000, coerced.Settings.Audio.SampleRate);
         Assert.Empty(ExportSettingsEditor.Validate(coerced.Settings, All));
     }
+
+    [Fact]
+    public void SinH264NiHevc_ComoWindowsNoServer_DiceQueElijaAv1OVp9_YAv1Exporta()
+    {
+        EncoderSpec[] sinH26x = [.. All.Where(e => e.Codec is not (ExportCodec.H264 or ExportCodec.Hevc))];
+        ExportSettings settings = ExportPresets.YouTube1080p.Settings;
+
+        Assert.Equal(ExportSettingsEditor.NoH26xMessage, Assert.Single(ExportSettingsEditor.Validate(settings, sinH26x)).Message);
+        Assert.Empty(ExportSettingsEditor.Validate(settings with { Video = ExportSettingsEditor.DefaultVideo(ExportCodec.Av1, sinH26x) }, sinH26x));
+    }
 }

@@ -4,8 +4,11 @@
 # Ojo: mientras dura, la asociación de .rodaje y el acceso de Inicio son reales (del usuario actual).
 # Uso:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File build\probar-instalador.ps1 [-Instalador dist\distribucion\Rodaje-<v>-instalador.exe]
+#       [-Abrir video.mp4|proyecto.rodaje] [-CarpetaPorDefecto] [-Registro carpeta]
+#   -Abrir              lo que abre la autoprueba en vez del clip de TestResults\media-cache.
+#   -CarpetaPorDefecto  instala donde elige el instalador (%LOCALAPPDATA%\Programs\Rodaje), no en una carpeta temporal.
 [CmdletBinding()]
-param([string]$Instalador = '')
+param([string]$Instalador = '', [string]$Abrir = '', [switch]$CarpetaPorDefecto, [string]$Registro = '')
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -18,7 +21,7 @@ if (-not $Instalador) { $Instalador = Join-Path $Raiz "dist\distribucion\Rodaje-
 if (-not (Test-Path -LiteralPath $Instalador)) { throw "No existe $Instalador (corre build\instalador.ps1)." }
 
 $destino = Join-Path ([System.IO.Path]::GetTempPath()) ("Rodaje prueba á " + (Get-Date -Format 'HHmmss'))
-$registro = Join-Path $Raiz 'TestResults\instalador'
+$registro = if ($Registro) { $Registro } else { Join-Path $Raiz 'TestResults\instalador' }
 New-Item -ItemType Directory -Force -Path $registro | Out-Null
 $fallos = New-Object System.Collections.Generic.List[string]
 function Comprobar([bool]$ok, [string]$texto) { if ($ok) { Bien $texto } else { Mal $texto; $fallos.Add($texto) } }
@@ -28,8 +31,14 @@ if (Test-Path -LiteralPath $clave) { throw 'Rodaje ya está instalado para este 
 
 Titulo "Prueba del instalador: $(Split-Path -Leaf $Instalador)"
 $reloj = [System.Diagnostics.Stopwatch]::StartNew()
-$p = Start-Process -FilePath $Instalador -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$destino`"", "/LOG=`"$registro\instalar.log`"" -PassThru -Wait
+$opciones = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=`"$registro\instalar.log`"")
+if (-not $CarpetaPorDefecto) { $opciones += "/DIR=`"$destino`"" }
+$p = Start-Process -FilePath $Instalador -ArgumentList $opciones -PassThru -Wait
 Comprobar ($p.ExitCode -eq 0) ("Instalado en silencio en {0:0.0} s (código {1})" -f $reloj.Elapsed.TotalSeconds, $p.ExitCode)
+if ($CarpetaPorDefecto) {
+    $destino = "$((Get-ItemProperty -LiteralPath $clave -ErrorAction SilentlyContinue).InstallLocation)".TrimEnd('\')
+    Comprobar ($destino -and (Test-Path -LiteralPath $destino)) "Instalado en la carpeta por defecto: $destino"
+}
 $exe = Join-Path $destino 'app\Rodaje.exe'
 Comprobar ((Test-Path -LiteralPath (Join-Path $destino 'Rodaje.exe')) -and (Test-Path -LiteralPath $exe)) 'Rodaje.exe (lanzador) y app\Rodaje.exe instalados'
 Comprobar ((Get-Item -LiteralPath (Join-Path $destino 'app') -Force).Attributes -band [IO.FileAttributes]::Hidden) 'app\ oculta'
@@ -44,6 +53,7 @@ Comprobar ($null -ne (Get-ItemProperty -LiteralPath 'HKCU:\Software\Classes\.mp4
 
 $clip = Get-ChildItem -Path (Join-Path $Raiz 'TestResults\media-cache') -Filter 'h264-1080p-23976-aac-*.mp4' -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $clip -and $env:RODAJE_REPO) { $clip = Get-ChildItem -Path (Join-Path $env:RODAJE_REPO 'TestResults\media-cache') -Filter 'h264-1080p-23976-aac-*.mp4' -ErrorAction SilentlyContinue | Select-Object -First 1 }
+if ($Abrir) { $clip = Get-Item -LiteralPath $Abrir }
 $argumentos = @('--autoprueba'); if ($clip) { $argumentos += "`"$($clip.FullName)`"" } else { Aviso 'Sin clip de prueba en TestResults\media-cache: la autoprueba abre la app vacía.' }
 Remove-Item Env:DOTNET_ROOT -ErrorAction SilentlyContinue
 $reloj.Restart()
