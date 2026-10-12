@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Análisis de audio sin modelos (fase 7): silencios, ritmo y voz para el ducking. DSP propio en C#, por bloques, sin
+    Análisis de audio sin modelos: silencios, ritmo y voz para el ducking. DSP propio en C#, por bloques, sin
     guardar el audio entero en memoria. Solo depende del núcleo (tiempos y mapeo de clips).
   -->
   <PropertyGroup>

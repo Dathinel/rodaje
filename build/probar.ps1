@@ -136,7 +136,7 @@ $r = Invocar-Dotnet (Join-Path $script:Corrida '3-probar.log') $argumentos $alVu
 if ($script:Hechas -ge 25) { Write-Host ("`r    pruebas ejecutadas: {0}" -f $script:Hechas) }
 # Cuenta, para cada ensamblado con mínimo, el informe de su proyecto de pruebas en esta pasada: es el único que mide solo
 # ese ensamblado (su coverlet.runsettings); los de otros proyectos miden otras rutas y la pasada de tiempo real escribe uno
-# propio casi vacío. Rodaje.Export entra con la fase 6 (criterio de terminado: 90 %).
+# propio casi vacío. Rodaje.Export tiene un mínimo del 90 %.
 $MinimosCobertura = [ordered]@{ 'Rodaje.Core' = 99.0; 'Rodaje.Export' = 90.0 }
 $script:CoberturaBaja = @()
 $todosLosInformes = @(Get-ChildItem -LiteralPath $script:Corrida -Recurse -Filter 'coverage.cobertura.xml' -ErrorAction SilentlyContinue)

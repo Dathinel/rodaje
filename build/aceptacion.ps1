@@ -1,4 +1,4 @@
-﻿# Corre la aceptación de la fase 2 con el decodificador real y resume cada criterio con sus cifras.
+﻿# Corre las pruebas de aceptación con el decodificador real y resume cada criterio con sus cifras.
 # Uso: powershell -NoProfile -ExecutionPolicy Bypass -File build\aceptacion.ps1 [-Completa] [-Resumir <carpeta>]
 #   -Completa agrega (con RODAJE_PRUEBAS_COMPLETAS=1) el clip de 10 minutos entero en tiempo real con el reloj
 #             del dispositivo de audio a volumen 0; suma unos 11 minutos.
@@ -100,7 +100,7 @@ function Resultado-Guardado([string]$carpeta) {
     return [pscustomobject]@{ Codigo = 0; Lineas = (New-Object System.Collections.Generic.List[string]); Resultados = (Leer-Trx $carpeta) }
 }
 
-Titulo 'Rodaje - aceptación de la fase 2 (seek exacto y sincronía audio/video)'
+Titulo 'Rodaje - aceptación (seek exacto y sincronía audio/video)'
 Nota "Proyecto: $Raiz"
 Nota 'Corre con RODAJE_PRUEBAS_LARGAS=1, una suite tras otra. Tarda varios minutos: no uses el equipo'
 Nota 'para cosas pesadas mientras tanto, porque las medidas en tiempo real se falsean con la carga.'
@@ -270,12 +270,12 @@ $estados = @((Estado $seek), (Estado $deriva), (Estado $real), (Estado $audio))
 if ($Completa) { $estados += (Estado $diez) }
 Write-Host ''
 if ($fallidas.Count -gt 0 -or $estados -contains 'FALLA') {
-    Mal 'RESULTADO: la fase 2 NO cumple todos los criterios. Arriba está qué falló y con qué cifras.'
+    Mal 'RESULTADO: NO se cumplen todos los criterios de aceptación. Arriba está qué falló y con qué cifras.'
     Terminar 1
 }
 if ($estados -contains 'SIN DATOS' -or $a.Codigo -ne 0 -or $b.Codigo -ne 0) {
     Aviso 'RESULTADO: no se pudo medir todo (ver las pruebas omitidas o el registro). No se da por aceptada.'
     Terminar 1
 }
-Bien 'RESULTADO: la fase 2 cumple los criterios de aceptación.'
+Bien 'RESULTADO: se cumplen todos los criterios de aceptación.'
 Terminar 0

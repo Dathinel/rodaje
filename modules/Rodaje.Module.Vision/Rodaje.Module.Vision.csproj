@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    modulo-vision (fase 7): quitar el fondo (MODNet, BiRefNet_lite), detectar rostros (YuNet) y personas (RT-DETRv2) con
+    modulo-vision: quitar el fondo (MODNet, BiRefNet_lite), detectar rostros (YuNet) y personas (RT-DETRv2) con
     ONNX Runtime, y reencuadre automático (código propio). DirectML si hay GPU, CPU si no. Los modelos no van en el repo:
     ver LICENCIAS.md y build\preparar-modelos.ps1.
   -->

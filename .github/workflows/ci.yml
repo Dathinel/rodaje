@@ -47,7 +47,7 @@ jobs:
       - name: Versión del SDK
         run: dotnet --version
 
-      # Los lockfiles no dependen del anfitrión ni de «-r win-x64» (tarea 43, NU1004): la solución entera se restaura en
+      # Los lockfiles no dependen del anfitrión ni de «-r win-x64» (NU1004): la solución entera se restaura en
       # Linux con los mismos RID que en Windows, y el módulo de eco igual que lo publica build\app.ps1.
       - name: Lockfiles deterministas
         shell: bash

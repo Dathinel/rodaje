@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Criterios de aceptación de la fase 2 con el decodificador real sobre los medios con código de cuadro:
+    Criterios de aceptación con el decodificador real sobre los medios con código de cuadro:
     seek exacto al cuadro (suite normal) y deriva A/V en 10 minutos (RODAJE_PRUEBAS_LARGAS=1, Probar.bat aceptacion).
   -->
   <PropertyGroup>

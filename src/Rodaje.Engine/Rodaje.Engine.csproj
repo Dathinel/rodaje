@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Rodaje.Engine.Tests" />
-    <!-- Velocidad (fase 5c): reloj manual y lectura directa de la mezcla -->
+    <!-- Pruebas de velocidad: reloj manual y lectura directa de la mezcla -->
     <InternalsVisibleTo Include="Rodaje.Acceptance.Tests" />
   </ItemGroup>
 

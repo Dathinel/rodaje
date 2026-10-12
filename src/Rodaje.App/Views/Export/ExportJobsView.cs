@@ -194,7 +194,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
 
     private void NotWritten(ExportEntry entry) => _services?.Session.Notify(NotificationSeverity.Warning, "No está el archivo",
         _jobs?.Runner.IsSimulation == true
-            ? "Esta exportación fue una simulación: todavía no se escribe ningún archivo."
+            ? "Esta exportación fue una simulación: no se escribió ningún archivo."
             : $"«{entry.Title}» ya no está en su carpeta; quizá se movió o se borró.");
 
     private static T Resource<T>(string key) => (T)Application.Current.Resources[key];

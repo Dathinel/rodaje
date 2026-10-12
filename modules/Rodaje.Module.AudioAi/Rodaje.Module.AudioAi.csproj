@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    modulo-audio-ia (fase 7 I): reducción de ruido de voz (DeepFilterNet3) y detección de voz (Silero VAD) con ONNX
+    modulo-audio-ia: reducción de ruido de voz (DeepFilterNet3) y detección de voz (Silero VAD) con ONNX
     Runtime, solo en CPU (D-034). Los modelos no van en el repo: ver LICENCIAS.md y build\preparar-modelos.ps1.
   -->
   <PropertyGroup>

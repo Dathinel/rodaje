@@ -390,7 +390,7 @@ internal sealed partial class ExportView : UserControl
         ProblemsText.Visibility = problems.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ExportButton.IsEnabled = problems.Count == 0;
         FooterNote.Text = _jobs.Runner.IsSimulation
-            ? "Vista previa del diálogo: la exportación real llega con la orquestación de la fase 6 (ahora se simula y no se escribe ningún archivo)."
+            ? "Simulación: no se escribe ningún archivo."
             : _jobs.ActiveCount > 0 ? "Hay otra exportación en curso: esta esperará su turno." : "";
     }
 

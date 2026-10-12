@@ -1,14 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Protocolo de módulos (fase 7, D-031): mensajes JSON por named pipe, cliente (editor) y anfitrión (módulo), memoria
+    Protocolo de módulos (D-031): mensajes JSON por named pipe, cliente (editor) y anfitrión (módulo), memoria
     compartida para cuadros y audio. Sin referencias a otros proyectos de Rodaje para sacarlo a su propio repositorio.
   -->
   <PropertyGroup>
     <RootNamespace>Rodaje.Modules.Protocol</RootNamespace>
     <IsAotCompatible>true</IsAotCompatible>
     <!-- Mismo RID con y sin «-r win-x64»: al publicar un módulo con -r, el RID llega aquí como propiedad global y el
-         lockfile ganaba o perdía «net10.0/win-x64» según el último comando (NU1004 en la CI, tarea 43). -->
+         lockfile ganaba o perdía «net10.0/win-x64» según el último comando (NU1004 en la CI). -->
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

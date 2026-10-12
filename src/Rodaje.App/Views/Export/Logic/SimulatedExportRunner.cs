@@ -8,7 +8,7 @@ namespace Rodaje.App.Views.Export;
 
 /// <summary>
 /// Doble de <see cref="IExportRunner"/> para la demo y las pruebas: recorre los estados de un trabajo real a un ritmo
-/// fijo, dibuja una miniatura de muestra y no escribe nada. La orquestación real (agente D) lo reemplaza.
+/// fijo, dibuja una miniatura de muestra y no escribe nada. La app usa la orquestación real.
 /// </summary>
 public sealed partial class SimulatedExportRunner(IReadOnlyList<EncoderSpec>? encoders = null) : IExportRunner
 {

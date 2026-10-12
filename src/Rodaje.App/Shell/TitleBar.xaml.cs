@@ -132,7 +132,7 @@ internal sealed partial class TitleBar : UserControl
     {
         if (sender is FrameworkElement { Tag: string id } && _services is not null && !_services.Shortcuts.Invoke(id))
         {
-            _services.Session.Notify(NotificationSeverity.Informational, "Todavía no", "Esta acción llega con su vista.");
+            _services.Session.Notify(NotificationSeverity.Informational, "No disponible", "Esta acción no está disponible en este momento.");
         }
     }
 

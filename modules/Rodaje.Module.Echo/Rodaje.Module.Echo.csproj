@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Módulo de ejemplo del protocolo (fase 7): responde, informa avance, se cancela, copia búferes de memoria compartida
+    Módulo de ejemplo del protocolo: responde, informa avance, se cancela, copia búferes de memoria compartida
     y sabe morir o colgarse para las pruebas. Plantilla para los módulos reales (modulo-*).
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <!-- RID fijo: con PublishAot y sin RID el SDK toma el del anfitrión (linux-x64 en la nube) y el lockfile cambia (tarea 43) -->
+    <!-- RID fijo: con PublishAot y sin RID el SDK toma el del anfitrión (linux-x64 en la CI) y el lockfile cambia -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <RootNamespace>Rodaje.Module.Echo</RootNamespace>
     <AssemblyName>Rodaje.Module.Echo</AssemblyName>

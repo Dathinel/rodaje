@@ -1,9 +1,9 @@
 @echo off
-rem Prepara .entorno\ la primera vez y corre las pruebas del nucleo.
+rem Prepara .entorno\ la primera vez y corre las pruebas.
 rem   Probar.bat                    todas las pruebas
 rem   Probar.bat cobertura          pruebas + cobertura de Rodaje.Core
 rem   Probar.bat aot                publica con Native AOT y ejecuta el .exe
-rem   Probar.bat aceptacion         criterios de la fase 2 con video y audio reales (varios minutos)
+rem   Probar.bat aceptacion         pruebas con video y audio reales (varios minutos)
 rem   Probar.bat preparar-entorno   vuelve a descargar el SDK y FFmpeg
 rem   Probar.bat -Filtro Recorte    otros argumentos pasan tal cual a probar.ps1
 rem Variables: RODAJE_ENTORNO (otro entorno), RODAJE_SIN_PAUSA=1 (sin pausa final).
@@ -33,7 +33,7 @@ echo   capa de medios (decodificación, GPU y audio).
 echo.
 echo     cobertura    pruebas + cobertura de Rodaje.Core
 echo     aot          publica con Native AOT y ejecuta el .exe
-echo     aceptacion   criterios de la fase 2 con video y audio reales
+echo     aceptacion   pruebas con video y audio reales
 echo.
 
 set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"

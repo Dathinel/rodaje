@@ -1,4 +1,4 @@
-﻿# Descarga a .entorno\modelos los modelos de los módulos de IA (fase 7), con SHA-256 fijado y reanudación.
+﻿# Descarga a .entorno\modelos los modelos de los módulos de IA, con SHA-256 fijado y reanudación.
 # Con -Corpus baja además el corpus de prueba de voz a .entorno\corpus (nunca se versiona).
 # Con -Traductor baja además el modelo del traductor (unos 2,5 GB; aparte por su tamaño).
 # Uso: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-modelos.ps1 [-Corpus] [-Traductor] [-Forzar]
@@ -159,7 +159,7 @@ $Voz = @(
 )
 
 # modulo-traducir: Qwen3-4B-Instruct-2507 cuantizado Q4_K_M (Apache-2.0, equipo Qwen de Alibaba; conversión GGUF de
-# unsloth). OJO: la huella sale de un espejo que dice ser copia exacta, sin verificar (la nube no llega a Hugging Face) y
+# unsloth). OJO: la huella sale de un espejo que dice ser copia exacta, sin verificar (el entorno de CI no llega a Hugging Face) y
 # la URL no está fijada a un commit; hay que comprobarla y fijarla antes de publicar (modules/Rodaje.Module.Translate/LICENCIAS.md).
 # Sin tamaño conocido: si ya está, se comprueba por la huella. Si no coincide, la descarga se borra y no se usa.
 $ModeloTraductor = @{
