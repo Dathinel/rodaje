@@ -116,7 +116,7 @@ El editor lo convierte en `ModuleVersionException` con ese mensaje (`ModuleClien
 ### Plazos y errores del saludo
 
 - El editor espera el `welcome` hasta `HandshakeTimeout` (10 s; `ModuleClient.cs`). Si no llega: «El módulo no saludó en 10 s.» (`ModuleProtocolException`). Si el módulo cierra: `ModuleDisconnectedException`. Cualquier otra respuesta que no sea `welcome` ni `error` `version-incompatible` es un error de protocolo («El módulo no respondió al saludo con «welcome».»).
-- El anfitrión de C# espera el `hello` hasta su propio `HandshakeTimeout` (10 s; `ModuleHost.cs`). Si lo primero que llega no es `hello`, contesta un `error` `malformed` sin id y cierra. Marco real, tras recibir `{"type":"ping","id":1}` como primer mensaje:
+- El anfitrión de C# espera el `hello` hasta su propio `HandshakeTimeout` (30 s, lo mismo que el editor da para abrir y saludar con `StartTimeout`; `ModuleHost.cs`). Si lo primero que llega no es `hello`, contesta un `error` `malformed` sin id y cierra. Marco real, tras recibir `{"type":"ping","id":1}` como primer mensaje:
 
 ```json
 {"type":"error","code":"malformed","message":"Lo primero tiene que ser «hello»."}
@@ -411,7 +411,8 @@ Plazos y cantidades del lado del editor y del anfitrión de C#:
 |---|---|---|
 | Conectarse a la tubería (editor) | 10 s (`HandshakeTimeout`) | `ModuleProcess.cs`, `ModuleClient.cs` |
 | Contestar el saludo con `welcome` (editor) | 10 s (`HandshakeTimeout`) | `ModuleClient.cs` |
-| Conectarse a la tubería y recibir `hello` (anfitrión) | 10 s cada uno | `ModuleHost.cs` |
+| Conectarse a la tubería (anfitrión) | 10 s | `ModuleHost.cs` |
+| Recibir `hello` (anfitrión) | 30 s (`HandshakeTimeout`) | `ModuleHost.cs` |
 | Confirmar un `cancel` | 2 s (`CancelGrace`) | `ModuleClient.cs` |
 | Escribir un mensaje hacia el módulo, una vez que le toca (editor) | 10 s (`WriteTimeout`); después se corta la conexión | `ModuleClient.cs` |
 | Llamadas a la vez en el anfitrión de C# | 4 (`MaxConcurrentCalls`); después, `busy` | `ModuleHost.cs` |
@@ -510,7 +511,7 @@ Notas:
 
 - Cada función recibe un `ModuleCall` (`Id`, `Function`, `Parameters`, `Buffers`, `Map` y `ReportProgressAsync`) y un `CancellationToken`, y devuelve un `ModuleOutput(Value, Buffers)`. `Register` falla si la función no está en `ModuleInfo.Functions`, y `new ModuleHost(info)` falla si `info` no cumple los [límites](#límites) (`ModuleHost.cs`).
 - Para un error con código, lanza `ModuleCallException(ErrorCodes.…, mensaje)`; para cancelar, deja que salga la `OperationCanceledException` del token.
-- `MaxConcurrentCalls` (4) y `HandshakeTimeout` (10 s) se cambian al crear el anfitrión (`new ModuleHost(info) { MaxConcurrentCalls = 1 }`). Si tu módulo habla varias versiones, pásalas como `minProtocol` y `maxProtocol` del constructor.
+- `MaxConcurrentCalls` (4) y `HandshakeTimeout` (30 s) se cambian al crear el anfitrión (`new ModuleHost(info) { MaxConcurrentCalls = 1 }`). Si tu módulo habla varias versiones, pásalas como `minProtocol` y `maxProtocol` del constructor.
 - **Comprobado:** compila sin advertencias con .NET 10 y, conectado a un `ModuleClient` por un socket en Linux, `contar-palabras` devuelve `{"palabras":2}` para `{"texto":"hola mundo"}`, y sin parámetros, o `invertir` sin búfer, dan `invalid-parameters`. `invertir` con un búfer real no se probó: la memoria compartida con nombre solo existe en Windows. Sin `--rodaje-pipe` sale con 64.
 - Hoy la biblioteca solo está en este repositorio. Cómo la recibirá un tercero (repositorio propio, paquete NuGet) **no está decidido**: D-031 dice que sale a su propio repositorio con el segundo programa de Dathinel.
 - El eco se publica con Native AOT (3,3 MB, arranque y saludo en 31–33 ms; [fase-7.md](fase-7.md#cifras-del-paso-0-11-oct)). Un módulo que no admita AOT puede salir autocontenido con JIT (provisional, pregunta 3 de la fase 7).

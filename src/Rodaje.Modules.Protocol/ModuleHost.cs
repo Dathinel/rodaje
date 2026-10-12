@@ -70,7 +70,12 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
 
     public int MaxConcurrentCalls { get; init; } = 4;
 
-    public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// Lo que se espera el <c>hello</c> del editor. 30 s, igual que el editor da para abrir y saludar
+    /// (<c>ModuleManagerOptions.StartTimeout</c>): con 10 s, en un equipo cargado el módulo se rendía antes de recibir
+    /// el saludo y el editor veía «Se cortó la conexión al saludar» (tarea 57).
+    /// </summary>
+    public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Registra la función <paramref name="id"/>; tiene que estar en <see cref="ModuleInfo.Functions"/>.</summary>
     public void Register(string id, ModuleFunction function)
