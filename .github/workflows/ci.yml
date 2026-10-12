@@ -47,6 +47,15 @@ jobs:
       - name: Versión del SDK
         run: dotnet --version
 
+      # Los lockfiles no dependen del anfitrión ni de «-r win-x64» (tarea 43, NU1004): la solución entera se restaura en
+      # Linux con los mismos RID que en Windows, y el módulo de eco igual que lo publica herramientas\app.ps1.
+      - name: Lockfiles deterministas
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet restore Rodaje.slnx --locked-mode -p:EnableWindowsTargeting=true
+          dotnet restore modules/Rodaje.Module.Echo/Rodaje.Module.Echo.csproj -r win-x64 --locked-mode -p:EnableWindowsTargeting=true
+
       # SoloWindows: pruebas que dependen de códigos de error de Windows. TiempoReal y Rendimiento miden contra el
       # reloj de pared y en un runner compartido dan falsos fallos.
       - name: Pruebas
