@@ -21,7 +21,7 @@ namespace Rodaje.App.Views.Export;
 /// menú no lanzan otra (dos al mismo destino compartirían la carpeta temporal); vuelven a mostrar el aviso
 /// «Exportando fotograma» con su botón «Cancelar». Al cerrar la ventana se cancela la que haya.
 /// </remarks>
-internal static class StillExportCommand
+internal static partial class StillExportCommand
 {
     public static IDisposable Bind(ShortcutRouter router, EditorServices services, nint owner)
     {
@@ -31,7 +31,7 @@ internal static class StillExportCommand
     }
 
     /// <summary>El estado de una ventana: la exportación en marcha, si hay. Se usa solo desde el hilo de la interfaz.</summary>
-    private sealed class Runner : IDisposable
+    private sealed partial class Runner : IDisposable
     {
         private readonly EditorServices _services;
         private readonly nint _owner;
