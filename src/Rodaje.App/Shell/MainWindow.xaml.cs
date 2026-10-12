@@ -142,6 +142,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         Inspector.Attach(_services);
         Timeline.Attach(_services);
         Timeline.ClipVisuals = _visuals;
+        Tools.Attach(_services);
 
         session.Notified += (_, n) => ShowNotification(n);
         session.ProjectOpened += (_, _) => RememberProject();
@@ -239,6 +240,9 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     internal ExportView? ExportPage => _exportView;
 
+    /// <summary>La barra de herramientas rápidas, para la autoprueba.</summary>
+    internal Views.Tools.ToolsBar QuickTools => Tools;
+
     internal ExportJobList Exports => _exports;
 
     internal ModuleManager Modules => _modules;
@@ -320,7 +324,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         MainArea.ColumnDefinitions[3].Width = splitter;
         Root.RowDefinitions[3].Height = splitter;
         Visibility chrome = fullScreen ? Visibility.Collapsed : Visibility.Visible;
-        foreach (UIElement element in new UIElement[] { TitleBar, Library, LibrarySplitter, Inspector, InspectorSplitter, TimelineSplitter, Timeline })
+        foreach (UIElement element in new UIElement[] { TitleBar, Library, LibrarySplitter, Inspector, InspectorSplitter, TimelineSplitter, Tools, Timeline })
         {
             element.Visibility = chrome;
         }

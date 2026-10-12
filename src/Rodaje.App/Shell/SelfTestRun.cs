@@ -43,6 +43,7 @@ internal static class SelfTestRun
                 await Task.Delay(250);
             }
 
+            await ToolsAsync(window);
             await ShowCurveAsync(window);
             await ToggleReverseAsync(window);
             await TitleAsync(window, engine);
@@ -319,6 +320,21 @@ internal static class SelfTestRun
         {
             throw new InvalidOperationException("Deshacer no devolvió el formato del proyecto.");
         }
+    }
+
+    /// <summary>La barra de herramientas con un video elegido: aplica estabilizar, los subtítulos dicen «Próximamente».</summary>
+    private static async Task ToolsAsync(MainWindow window)
+    {
+        SelectFirstClip(window);
+        await Task.Delay(200);
+        (bool stabilize, _) = window.QuickTools.Describe("analysis.stabilize");
+        (bool subtitles, string tip) = window.QuickTools.Describe(Views.Analysis.QuickTools.AutoSubtitles);
+        if (!stabilize || subtitles || !tip.Contains(Views.Analysis.QuickTools.ComingSoon, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"La barra de herramientas no sigue a la selección (estabilizar {stabilize}, subtítulos {subtitles}).");
+        }
+
+        await CaptureAsync(window, "herramientas");
     }
 
     private static async Task SaveFrameAsync(FrameCapture frame, string name)
