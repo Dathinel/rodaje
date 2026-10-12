@@ -90,12 +90,25 @@ public sealed record StillSettings
     /// <summary>
     /// <paramref name="path"/> con la extensión de <paramref name="format"/>: igual si ya la tiene; si no, se le añade
     /// (<c>foto.bmp</c> → <c>foto.bmp.png</c>). Añadir y no cambiar no pierde nada de un nombre con puntos
-    /// (<c>Proyecto v1.2 - cuadro 10</c>), y el archivo dice siempre lo que es.
+    /// (<c>Proyecto v1.2 - cuadro 10</c>), y el archivo dice siempre lo que es. Un punto final sin extensión no se
+    /// duplica: <c>foto.</c> → <c>foto.png</c>, no <c>foto..png</c>.
     /// </summary>
     public static string WithExtension(string path, StillFormat format)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        return HasExtensionOf(path, format) ? path : path + "." + Extension(format);
+        if (HasExtensionOf(path, format))
+        {
+            return path;
+        }
+
+        // Windows quita los puntos finales de un nombre; aquí se quitan antes de añadir la extensión.
+        string stem = path.TrimEnd('.');
+        if (stem.Length == 0 || stem[^1] == Path.DirectorySeparatorChar || stem[^1] == Path.AltDirectorySeparatorChar)
+        {
+            stem = path;
+        }
+
+        return stem + "." + Extension(format);
     }
 
     /// <summary>
