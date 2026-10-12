@@ -282,7 +282,7 @@ mundo",
       "stroke": { "color": "#000000", "width": 6, "join": "round" },
       "shadow": { "color": "#00000099", "dx": 4, "dy": 6, "blur": 8 },
       "background": { "color": "#00000080", "padding": [24, 12], "radius": 12 },
-      "in": { "durationSeconds": 0.4, "curves": { "opacity": [ { "t": 0, "value": 0, "interp": "linear" }, { "t": 0.4, "value": 1, "interp": "easeOut" } ] } },
+      "in": { "durationSeconds": 0.4, "curves": { "opacity": [ { "t": 0, "value": 0, "interp": "easeOut" }, { "t": 0.4, "value": 1, "interp": "linear" } ] } },
       "out": { "durationSeconds": 0.3, "curves": { "opacity": [ { "t": 0, "value": 1, "interp": "linear" }, { "t": 0.3, "value": 0, "interp": "linear" } ] } } },
     "box": { "widthFraction": 0.8 },
     "edges": { "in": true, "out": true } },
@@ -295,7 +295,7 @@ mundo",
 ` y tabulaciones, y las marcas de dirección (bidi); ningún otro carácter de control. Hasta 10 000 caracteres y 200 líneas. |
 | `style` | **Copia completa** del estilo `rodaje.textstyle` v1 del que salió (D-029), obligatoria en `text`. `source` (`paquete@versión/estilo`) solo dice de dónde salió: el proyecto se ve igual sin el paquete y no cambia si el paquete se actualiza. Las medidas van en píxeles de `reference` y se escalan a la secuencia con `min(ancho/refAncho, alto/refAlto)`; los colores son `#RRGGBB` o `#RRGGBBAA`. `stroke`, `shadow`, `background`, `in` y `out` son opcionales. |
 | `style.font` | `family` y `weight` (100–900), `italic`, `source` si la fuente es de un paquete (`font`) y hasta 8 familias de respaldo en `fallback`. Si la fuente falta, se usa el respaldo con aviso. |
-| `style.in`, `style.out` | Entrada y salida pegadas a los bordes del clip: `durationSeconds` (0–60) y curvas por parámetro (`x`, `y`, `scale`, `rotation`, `opacity`), con `t` en segundos desde su borde (0 a `durationSeconds`, en orden estricto), `value` dentro del rango de `rodaje.transform` e `interp` como en los keyframes. Son un delta sobre `rodaje.transform` del clip: suman en `x`, `y` y `rotation` y multiplican en `scale` y `opacity`. Si el clip es más corto que las dos juntas, ambas se escalan por igual al evaluar. |
+| `style.in`, `style.out` | Entrada y salida pegadas a los bordes del clip: `durationSeconds` (0–60) y curvas por parámetro (`x`, `y`, `scale`, `rotation`, `opacity`), con `t` en segundos desde su borde (0 a `durationSeconds`, en orden estricto), `value` dentro del rango de `rodaje.transform` e `interp` como en los keyframes: es la del tramo hasta el punto siguiente, así que en el último no tiene efecto. Son un delta sobre `rodaje.transform` del clip: suman en `x`, `y` y `rotation` y multiplican en `scale` y `opacity`. Si el clip es más corto que las dos juntas, ambas se escalan por igual al evaluar. |
 | `box` | Opcional. Ancho para el ajuste de línea: `width` en píxeles de `reference` o `widthFraction` (0–1] del ancho de la secuencia, que manda si están los dos. |
 | `edges` | Qué bordes animan: `in` la entrada y `out` la salida (las dos verdaderas por omisión). `before` y `after` (ticks, opcionales, 0 por omisión) dicen cuánto del título original queda antes del borde izquierdo y después del derecho: dividir un título los guarda para que cada trozo se vea igual que antes, también con el corte en plena entrada o salida, y apaga el borde interno cuya animación quedó entera al otro lado (un corte lejos de la entrada y la salida deja los bordes internos apagados y sin desfase). Recortar no los toca, así que la animación sigue al nuevo borde. |
 
