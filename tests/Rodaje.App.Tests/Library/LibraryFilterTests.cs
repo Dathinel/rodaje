@@ -92,4 +92,18 @@ public class LibraryFilterTests
         Assert.StartsWith("Carpeta vacía", LibraryFilter.EmptyMessage(new LibraryQuery("f"), false), StringComparison.Ordinal);
         Assert.Equal("", LibraryFilter.EmptyMessage(new LibraryQuery(), false));
     }
+
+    [Fact]
+    public void FichaDeCarpeta_CuentaMediosYSubcarpetas()
+    {
+        var org = new LibraryOrganization();
+        LibraryFolder folder = org.CreateFolder(null);
+        org.MoveMedia(["toma", "foto"], folder.Id);
+
+        Assert.Equal(2, LibraryFilter.CountIn(All, org, folder.Id));
+        Assert.Equal("2 medios · 1 carpeta", LibraryFilter.FolderSummary(2, 1));
+        Assert.Equal("1 medio", LibraryFilter.FolderSummary(1, 0));
+        Assert.Equal("3 carpetas", LibraryFilter.FolderSummary(0, 3));
+        Assert.Equal("Vacía", LibraryFilter.FolderSummary(0, 0));
+    }
 }

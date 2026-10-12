@@ -43,6 +43,18 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     private readonly MenuFlyoutItem _proxyItem;
     private readonly MenuFlyoutItem _revealItem;
     private readonly MenuFlyoutItem _removeItem;
+    private readonly MenuFlyoutItem _favoriteItem;
+    private readonly MenuFlyoutSubItem _moveItem;
+    private readonly LibraryOrganizationStore _organizationStore = new(Path.Combine(AppDataPaths.Root, LibraryOrganizationStore.FolderName));
+    private LibraryOrganization _organization = new();
+    private string? _organizationProjectId;
+    private int _savedRevision;
+    private List<MediaItem> _allMedia = [];
+    private Dictionary<string, MediaItem> _itemsById = new(StringComparer.Ordinal);
+    private string? _folderId;
+    private LibraryKind _kind = LibraryKind.All;
+    private string[] _dragMediaIds = [];
+    private int _codecScan;
     private EditorServices? _services;
     private DispatcherQueue? _dispatcher;
     private DispatcherQueueTimer? _ownRefresh;
@@ -67,14 +79,23 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         _mediaMenu.Items.Add(_addItem);
         _mediaMenu.Items.Add(_replaceItem);
         _mediaMenu.Items.Add(_proxyItem);
+        _favoriteItem = MenuItem("Añadir a favoritos", "\uE734", (_, _) => ToggleFavoriteTarget());
+        _moveItem = new MenuFlyoutSubItem { Text = "Mover a", Icon = new FontIcon { Glyph = "\uE8DE" } };
         _mediaMenu.Items.Add(_revealItem);
         _mediaMenu.Items.Add(new MenuFlyoutSeparator());
+        _mediaMenu.Items.Add(_favoriteItem);
+        _mediaMenu.Items.Add(_moveItem);
+        _mediaMenu.Items.Add(new MenuFlyoutSeparator());
         _mediaMenu.Items.Add(_removeItem);
+        KindButton.Flyout = KindMenu();
     }
 
     public ObservableCollection<MediaItem> Media { get; } = [];
 
     public ObservableCollection<MediaItem> AudioMedia { get; } = [];
+
+    /// <summary>Las carpetas que cuelgan de la carpeta abierta (ninguna mientras se busca).</summary>
+    public ObservableCollection<FolderItem> Folders { get; } = [];
 
     public ObservableCollection<ElementItem> Elements { get; } = [];
 
@@ -120,39 +141,60 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
 
         EditorSession session = _services.Session;
+        LoadOrganization(session.Project);
         var used = new HashSet<string>(
             session.Project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Select(c => c.MediaId), StringComparer.Ordinal);
-        Sync(Media, session.Project.Media.Select(m => new MediaItem(m, used.Contains(m.Id))).ToList());
-        Sync(AudioMedia, session.Project.Media.Where(m => m.HasAudio && !m.HasVideo).Select(m => new MediaItem(m, used.Contains(m.Id))).ToList());
-        UpdateVisibility();
+        _allMedia = BuildItems(session.Project.Media, used);
+        _itemsById = _allMedia.GroupBy(i => i.Id, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        Sync(AudioMedia, session.Project.Media.Where(m => m.HasAudio && !m.HasVideo).Select(m => _itemsById[m.Id]).ToList());
+        ApplyFilter();
     }
 
-    /// <summary>Reemplaza la colección solo si cambió algo que se ve, para no perder portadas ni la posición del scroll.</summary>
-    private static void Sync(ObservableCollection<MediaItem> target, List<MediaItem> next)
+    /// <summary>
+    /// Una ficha por medio del proyecto. Se reutiliza la anterior si no cambió nada de lo que muestra, para no perder
+    /// portadas, el estado del proxy ni los códecs ya leídos; si cambió, la nueva hereda lo del mismo archivo.
+    /// </summary>
+    private List<MediaItem> BuildItems(List<Rodaje.Core.Model.MediaRef> media, HashSet<string> used)
     {
-        bool same = target.Count == next.Count && target.Zip(next).All(p =>
-            p.First.Id == p.Second.Id && p.First.Name == p.Second.Name && p.First.Path == p.Second.Path);
-        if (same)
+        var next = new List<MediaItem>(media.Count);
+        foreach (Rodaje.Core.Model.MediaRef m in media)
         {
-            for (int i = 0; i < next.Count; i++)
+            _itemsById.TryGetValue(m.Id, out MediaItem? old);
+            MediaItem item;
+            if (old is not null && old.Shows(m))
             {
-                target[i].IsUsed = next[i].IsUsed;
+                item = old;
+                item.IsUsed = used.Contains(m.Id);
+            }
+            else
+            {
+                // La portada se pide al hacerse visible (OnMediaContainerChanging), no aquí: con cientos de medios se haría todo.
+                item = new MediaItem(m, used.Contains(m.Id));
+                if (old is not null && old.Path == item.Path)
+                {
+                    item.CopyFrom(old);
+                }
             }
 
+            item.IsFavorite = _organization.IsFavorite(m.Id);
+            next.Add(item);
+        }
+
+        return next;
+    }
+
+    /// <summary>Reemplaza la colección solo si cambió qué fichas se ven, para no perder la posición del scroll.</summary>
+    private static void Sync<T>(ObservableCollection<T> target, List<T> next)
+        where T : class
+    {
+        if (target.Count == next.Count && target.Zip(next).All(p => ReferenceEquals(p.First, p.Second)))
+        {
             return;
         }
 
-        Dictionary<string, MediaItem> previous = target.GroupBy(i => i.Id).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         target.Clear();
-        foreach (MediaItem item in next)
+        foreach (T item in next)
         {
-            if (previous.TryGetValue(item.Id, out MediaItem? old) && old.Path == item.Path)
-            {
-                item.Thumbnail = old.Thumbnail;
-                item.Badge = old.Badge;
-            }
-
-            // La portada se pide al hacerse visible (OnMediaContainerChanging), no aquí: con cientos de medios se haría todo.
             target.Add(item);
         }
     }
@@ -199,8 +241,17 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         bool audio = !markers && _category == LibraryCategory.Audio;
         bool ai = !markers && _category == LibraryCategory.Ai;
         bool elements = !markers && !media && !audio && !ai;
+        bool library = _allMedia.Count > 0 || _organization.Folders.Count > 0;
+        bool details = DetailsToggle.IsChecked == true;
+        LibraryQuery query = Query();
         MarkersView.Visibility = markers ? Visibility.Visible : Visibility.Collapsed;
-        MediaGrid.Visibility = media && Media.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        MediaPanel.Visibility = media && library ? Visibility.Visible : Visibility.Collapsed;
+        MediaGrid.Visibility = !details && Media.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        MediaList.Visibility = details && Media.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        DetailsHeader.Visibility = MediaList.Visibility;
+        FolderGrid.Visibility = Folders.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        FolderBar.Visibility = !query.IsGlobal && _folderId is not null ? Visibility.Visible : Visibility.Collapsed;
+        NewFolderButton.Visibility = media && library ? Visibility.Visible : Visibility.Collapsed;
         AudioPanel.Visibility = audio && (AudioMedia.Count > 0 || Sounds.Count > 0) ? Visibility.Visible : Visibility.Collapsed;
         AudioGrid.Visibility = AudioMedia.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         SoundsPanel.Visibility = Sounds.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -210,8 +261,9 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         ImportButton.Visibility = media || audio ? Visibility.Visible : Visibility.Collapsed;
         string? empty = markers ? null : _category switch
         {
-            LibraryCategory.Media when Media.Count == 0 =>
+            LibraryCategory.Media when !library =>
                 "Importa videos o audios, o arrástralos aquí. Doble clic en uno lo añade al final de la pista principal; también puedes arrastrarlo a la línea de tiempo.",
+            LibraryCategory.Media when Media.Count == 0 && Folders.Count == 0 && LibraryFilter.EmptyMessage(query, FolderHasMedia()) is { Length: > 0 } message => message,
             LibraryCategory.Audio when AudioMedia.Count == 0 && Sounds.Count == 0 =>
                 "Importa música o efectos de sonido, o instala un paquete de sonidos desde Complementos.",
             _ when elements && Elements.Count + OwnElements.Count == 0 => "Instala un paquete desde Complementos para ver más elementos aquí.",
@@ -249,7 +301,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             return;
         }
 
-        foreach (MediaItem item in Media)
+        foreach (MediaItem item in _allMedia)
         {
             if (item.Id == e.MediaId && item.Thumbnail is null && item.HasVideo
                 && _services.Visuals.GetThumbnail(item.Id, item.CoverTime, CoverHeight) is { } image)
@@ -279,7 +331,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     private void ScanVisibleCovers()
     {
         _coverScanScheduled = false;
-        if (_services is null || MediaGrid.Visibility != Visibility.Visible)
+        if (_services is null || MediaPanel.Visibility != Visibility.Visible || MediaGrid.Visibility != Visibility.Visible)
         {
             return;
         }
@@ -377,6 +429,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             return;
         }
 
+        _dragMediaIds = [.. e.Items.OfType<MediaItem>().Select(i => i.Id)];
         e.Data.SetData(MediaDragFormat, item.Id);
         e.Data.SetText(item.Id);
         e.Data.RequestedOperation = DataPackageOperation.Copy;
@@ -471,7 +524,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         FrameworkElement? element = args.OriginalSource as FrameworkElement;
         MediaItem? item = element switch
         {
-            GridViewItem { Content: MediaItem content } => content,
+            SelectorItem { Content: MediaItem content } => content,
             { DataContext: MediaItem context } => context,
             _ => null,
         };
@@ -485,6 +538,10 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         _proxyItem.IsEnabled = item.HasVideo;
         _removeItem.IsEnabled = !item.IsUsed;
         _removeItem.Text = item.IsUsed ? "Quitar del proyecto (está en uso)" : "Quitar del proyecto";
+        bool favorite = _organization.IsFavorite(item.Id);
+        _favoriteItem.Text = favorite ? "Quitar de favoritos" : "Añadir a favoritos";
+        _favoriteItem.Icon = new FontIcon { Glyph = favorite ? "\uE735" : "\uE734" };
+        FillMoveMenu(item);
         if (args.TryGetPosition(element, out Point point))
         {
             _mediaMenu.ShowAt(element, new FlyoutShowOptions { Position = point });
@@ -646,7 +703,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             ProxyState.Failed => "Proxy falló",
             _ => "",
         };
-        foreach (MediaItem item in Media.Where(i => string.Equals(i.Path, status.SourcePath, StringComparison.OrdinalIgnoreCase)))
+        foreach (MediaItem item in _allMedia.Where(i => string.Equals(i.Path, status.SourcePath, StringComparison.OrdinalIgnoreCase)))
         {
             item.Badge = badge;
         }

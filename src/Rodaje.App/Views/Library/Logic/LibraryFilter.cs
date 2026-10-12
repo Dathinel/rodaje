@@ -73,6 +73,31 @@ public static class LibraryFilter
         return query.IsGlobal ? [] : organization.Children(query.FolderId);
     }
 
+    /// <summary>«3 medios», «1 medio · 2 carpetas», «Vacía»: lo que hay directamente en la carpeta, para su ficha.</summary>
+    public static string FolderSummary(int media, int folders)
+    {
+        var parts = new List<string>();
+        if (media > 0)
+        {
+            parts.Add(media == 1 ? "1 medio" : $"{media} medios");
+        }
+
+        if (folders > 0)
+        {
+            parts.Add(folders == 1 ? "1 carpeta" : $"{folders} carpetas");
+        }
+
+        return parts.Count == 0 ? "Vacía" : string.Join(" · ", parts);
+    }
+
+    /// <summary>Cuántos medios de <paramref name="media"/> están directamente en la carpeta.</summary>
+    public static int CountIn(IEnumerable<MediaRef> media, LibraryOrganization organization, string folderId)
+    {
+        ArgumentNullException.ThrowIfNull(media);
+        ArgumentNullException.ThrowIfNull(organization);
+        return media.Count(m => organization.FolderOf(m.Id) == folderId);
+    }
+
     /// <summary>Cada palabra buscada aparece en el nombre o en el nombre del archivo, sin mirar mayúsculas ni tildes.</summary>
     public static bool Matches(MediaRef media, IReadOnlyList<string> words)
     {
