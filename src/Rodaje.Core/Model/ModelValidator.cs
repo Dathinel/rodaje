@@ -97,6 +97,11 @@ public static partial class ModelValidator
             errors.Add($"La secuencia «{sequence.Id}» tiene dimensiones o frecuencia de muestreo no positivas.");
         }
 
+        if (!double.IsFinite(sequence.MasterGainDb) || sequence.MasterGainDb < Sequence.MinMasterGainDb || sequence.MasterGainDb > Sequence.MaxMasterGainDb)
+        {
+            errors.Add($"La secuencia «{sequence.Id}» tiene una ganancia maestra fuera de rango ({Sequence.MinMasterGainDb} a +{Sequence.MaxMasterGainDb} dB).");
+        }
+
         // default(Rational) es 0/0: el constructor lo impide, pero puede llegar desde un archivo
         if (sequence.FrameRate.Num <= 0 || sequence.FrameRate.Den <= 0)
         {

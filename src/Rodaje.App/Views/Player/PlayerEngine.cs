@@ -255,6 +255,27 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         return _meterReader.Take(session is { HasAudioLevels: true } ? session : null, position, playing, Stopwatch.GetElapsedTime(stamp), MeasureMix);
     }
 
+    /// <summary>
+    /// Potencia ponderada K de lo que sonó en los últimos 400 ms (momentánea) y 3 s (corta), hasta la última lectura de
+    /// <see cref="TakeAudioLevels"/>; nulo en pausa. Desde el mismo hilo que esa lectura.
+    /// </summary>
+    public (double Momentary, double ShortTerm)? TakeLoudness()
+    {
+        TimelineSession? session;
+        lock (_meterLock)
+        {
+            session = _meterSession;
+        }
+
+        if (session is not { HasAudioLevels: true } || _meterReader.LastRead is not { } to)
+        {
+            return null;
+        }
+
+        Time floor = _meterReader.Floor;
+        return (session.MeasureLoudnessPower(to, TimeSpan.FromMilliseconds(400), floor), session.MeasureLoudnessPower(to, TimeSpan.FromSeconds(3), floor));
+    }
+
     public void Dispose()
     {
         if (_disposed)

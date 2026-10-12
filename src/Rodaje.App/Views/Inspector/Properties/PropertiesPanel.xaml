@@ -89,6 +89,20 @@
                     </inspector:InspectorSection.Actions>
                     <StackPanel>
                         <local:ParameterRow x:Name="GainRow" />
+                        <Grid Padding="12,3,6,3" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="76" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Sonoridad" Style="{StaticResource LabelTextStyle}" ToolTipService.ToolTip="Sonoridad integrada (EBU R128)" />
+                            <DropDownButton x:Name="NormalizeButton" Grid.Column="1" Content="Normalizar" Height="28" MinWidth="0"
+                                            FontSize="{StaticResource BodyFontSize}" AutomationProperties.Name="Normalizar la sonoridad del clip"
+                                            ToolTipService.ToolTip="Mide la sonoridad del clip solo (EBU R128) y ajusta su volumen al objetivo, en un paso del historial">
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout x:Name="NormalizeMenu" Placement="BottomEdgeAlignedLeft" />
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
+                        </Grid>
                         <TextBlock Text="Fundidos" Style="{StaticResource CaptionTextStyle}" Margin="12,6,12,0" />
                         <local:ParameterRow x:Name="FadeInRow" />
                         <local:ParameterRow x:Name="FadeOutRow" />

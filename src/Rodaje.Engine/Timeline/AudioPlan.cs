@@ -37,7 +37,8 @@ internal sealed record AudioRetime(ClipTimeMap Map, bool PreservePitch, ClipTime
 
 internal sealed record AudioTrackPlan(string TrackId, IReadOnlyList<AudioClipPlan> Clips);
 
-internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks)
+/// <param name="MasterDb">Ganancia de toda la mezcla, antes del limitador (<c>Sequence.MasterGainDb</c>).</param>
+internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks, double MasterDb = 0)
 {
     public static AudioPlan Empty { get; } = new([]);
 
@@ -45,7 +46,7 @@ internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks)
     public bool SoundsLike(AudioPlan other)
     {
         ArgumentNullException.ThrowIfNull(other);
-        if (Tracks.Count != other.Tracks.Count)
+        if (Tracks.Count != other.Tracks.Count || !MasterDb.Equals(other.MasterDb))
         {
             return false;
         }

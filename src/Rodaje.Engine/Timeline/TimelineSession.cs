@@ -167,6 +167,23 @@ public sealed class TimelineSession : IDisposable
         return mixer.Levels.Measure(from.ToSamples(rate), end, rmsStart);
     }
 
+    /// <summary>
+    /// Potencia ponderada K (BS.1770) de los <paramref name="window"/> de mezcla que terminan en <paramref name="to"/>,
+    /// sin pasar de <paramref name="floor"/>: 400 ms es la sonoridad momentánea y 3 s la corta. Mismas reglas de hilos que
+    /// <see cref="MeasureAudio"/>.
+    /// </summary>
+    public double MeasureLoudnessPower(Time to, TimeSpan window, Time floor = default)
+    {
+        if (_mixer is not { } mixer)
+        {
+            return 0;
+        }
+
+        int rate = TimelinePlan.AudioSampleRate;
+        long end = to.ToSamples(rate);
+        return mixer.Levels.WeightedPower(Math.Max(end - (long)(window.TotalSeconds * rate), floor.ToSamples(rate)), end);
+    }
+
     /// <summary>Abre la secuencia con FFmpeg, el dispositivo de audio predeterminado y un hilo de decodificación por medio.</summary>
     /// <param name="device">Dispositivo del compositor; los cuadros llegan como texturas suyas. Sin él se decodifica en la CPU.</param>
     /// <exception cref="KeyNotFoundException">La secuencia no existe en el proyecto.</exception>

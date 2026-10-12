@@ -106,7 +106,9 @@ internal sealed class MixRenderer : IPcmSource
     private readonly List<Reader> _readers = [];
     private readonly HashSet<SourceKey> _failed = [];
     private readonly AudioLevelAnalyzer? _levels;
+    private readonly bool _limit;
     private AudioPlan _plan;
+    private double _masterDb;
     private AudioPlan? _pendingPlan;
     private float[] _scratch = new float[4096 * Channels];
     private float[] _beforeLimiter = [];
@@ -121,12 +123,16 @@ internal sealed class MixRenderer : IPcmSource
     private bool _anchorPending;
     private long _anchor;
 
-    public MixRenderer(AudioPlan plan, Func<string, IPcmSource> openDecoder, TimeSpan idleTimeout, TimeProvider time, AudioLevelAnalyzer? levels = null)
+    /// <param name="limit">Pasa la suma por <see cref="SoftClip"/>; sin él (para medir un clip) sale tal cual.</param>
+    public MixRenderer(AudioPlan plan, Func<string, IPcmSource> openDecoder, TimeSpan idleTimeout, TimeProvider time, AudioLevelAnalyzer? levels = null,
+        bool limit = true)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(openDecoder);
         ArgumentNullException.ThrowIfNull(time);
         _plan = plan;
+        _masterDb = plan.MasterDb;
+        _limit = limit;
         _open = openDecoder;
         _idleTimeout = idleTimeout;
         _time = time;
@@ -185,6 +191,7 @@ internal sealed class MixRenderer : IPcmSource
             }
         }
 
+        ApplyMaster(interleaved);
         Span<float> beforeLimiter = default;
         if (_levels is not null)
         {
@@ -197,7 +204,7 @@ internal sealed class MixRenderer : IPcmSource
             interleaved.CopyTo(beforeLimiter);
         }
 
-        for (int i = 0; i < interleaved.Length; i++)
+        for (int i = 0; _limit && i < interleaved.Length; i++)
         {
             interleaved[i] = SoftClip(interleaved[i]);
         }
@@ -212,6 +219,7 @@ internal sealed class MixRenderer : IPcmSource
     {
         AdoptPlan();
         _position = Math.Max(0, position.ToSamples(TimelinePlan.AudioSampleRate));
+        _masterDb = _plan.MasterDb;
         if (_retiredPlan is not null)
         {
             // La edición rebobina la mezcla hasta aquí: lo que ya suena salió con la ganancia del plan anterior.
@@ -236,6 +244,37 @@ internal sealed class MixRenderer : IPcmSource
 
         _readers.Clear();
         Volatile.Write(ref _decodersOpen, 0);
+    }
+
+    /// <summary>
+    /// La ganancia maestra; tras un cambio llega a la nueva a <see cref="SlewDbPerBlock"/> por bloque, como el volumen de
+    /// los clips. Tras un seek ya está en la del plan.
+    /// </summary>
+    private void ApplyMaster(Span<float> mix)
+    {
+        double target = _plan.MasterDb;
+        if (_masterDb == target)
+        {
+            if (target != 0)
+            {
+                float gain = (float)GainPlan.ToLinear(target);
+                for (int i = 0; i < mix.Length; i++)
+                {
+                    mix[i] *= gain;
+                }
+            }
+
+            return;
+        }
+
+        const double step = SlewDbPerBlock / GainBlock;
+        for (int i = 0; i + 1 < mix.Length; i += Channels)
+        {
+            _masterDb = _masterDb < target ? Math.Min(target, _masterDb + step) : Math.Max(target, _masterDb - step);
+            float gain = (float)GainPlan.ToLinear(_masterDb);
+            mix[i] *= gain;
+            mix[i + 1] *= gain;
+        }
     }
 
     /// <summary>Identidad hasta <see cref="Knee"/>; por encima se curva con tanh hacia 1 sin alcanzarlo.</summary>

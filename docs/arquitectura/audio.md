@@ -113,6 +113,14 @@ flowchart LR
 
 Con un dispositivo simulado (búfer de 20 ms) y los chirps de `AudioCode`, el pico aparece entre 1,4 ms antes (un bloque) y 0,6 ms después de que la señal pasa el umbral en la posición del reloj, también con un AAC real; la mezcla iba unos 300 ms por delante (`AudioLevelSyncTests`).
 
+## Sonoridad y «Normalizar» (EBU R128)
+
+- **Cuentas comunes** ([`Metering/Loudness.cs`](../../src/Rodaje.Audio/Metering/Loudness.cs)): `KWeightingFilter` (BS.1770-4 a 48 kHz), `Loudness.Gated` (puertas de −70 LUFS y relativa) y `LoudnessIntegrator`. Las usan el medidor de la exportación (`LoudnessMeter`) y los medidores en vivo.
+- **En vivo.** `AudioLevelAnalyzer` suma también la potencia ponderada K de cada bloque (`LevelBlock.Weighted`); `AudioLevelRing.WeightedPower` y `TimelineSession.MeasureLoudnessPower` dan la momentánea (400 ms) y la corta (3 s) de lo que suena. `MetersView` muestra la corta y la integrada desde el último clic (un bloque de 400 ms cada 100 ms mientras suena) y en la ayuda la momentánea, la integrada y la ganancia maestra; el pico real ya estaba.
+- **Por clip.** «Normalizar» en la sección Audio del inspector (−14, −16, −23 LUFS u otro): `OfflineAudio.MeasureClip` mide el clip solo (su volumen y su velocidad; sin pista, fundidos, transiciones, ganancia maestra ni limitador) y `Edits.ShiftGain` sube o baja su `gainDb` (valor y keyframes, así la envolvente conserva su forma) en un paso, para todos los clips de audio seleccionados.
+- **Mezcla.** Menú contextual de los medidores: mide la secuencia con `OfflineAudio.MeasureLoudness` y fija `Sequence.MasterGainDb` (−60 a +24 dB, sin pasar de −1 dBTP) con `Edits.SetMasterGain`. `MixRenderer` la aplica antes del limitador y de los medidores; un cambio llega con la misma rampa que el volumen de los clips (4 dB cada 64 muestras) y tras un seek ya está aplicada, igual que en la exportación.
+- **Medido** (`AudioLoudnessTests`, señales de EBU Tech 3341): casos 1–5 integrados a −22,993/−32,993/−23,014/−23,014/−22,979 LUFS (tolerancia ±0,1), iguales fuera de línea y en vivo; momentánea y corta del caso 1, −22,99. Pico verdadero de fs/4 a −6 dBFS con fase 0/45/60/67,5°: −6,021/−5,908/−6,072/−5,997 dBTP (pedido −6,4 a −5,8). Un clip a −20 dBFS con +3 dB mide −16,993 y normalizado a −14 da −14,000; la mezcla a −26 normalizada a −16 da −16,003, y al quitar la maestra el mayor salto entre muestras es 0,983 veces el del seno.
+
 ## Archivos
 
 | Archivo | Qué hace |

@@ -134,6 +134,57 @@ public sealed class AudioLevelRing
             clipped);
     }
 
+    /// <summary>
+    /// Potencia ponderada K media (canales sumados, BS.1770) de lo que suena en <c>(<paramref name="from"/>,
+    /// <paramref name="to"/>]</c>; 0 si no hay bloques. Con <see cref="Loudness.ToLufs"/> da la sonoridad momentánea
+    /// (400 ms) o corta (3 s). Mismas reglas de lectura que <see cref="Measure"/>.
+    /// </summary>
+    public double WeightedPower(long from, long to)
+    {
+        if (to <= from)
+        {
+            return 0;
+        }
+
+        long count = Volatile.Read(ref _count);
+        long oldest = Math.Max(0, count - _entries.Length);
+        long covered = long.MaxValue;
+        double sum = 0;
+        long frames = 0;
+        for (long index = count - 1; index >= oldest; index--)
+        {
+            ref Entry entry = ref _entries[index % _entries.Length];
+            long before = Volatile.Read(ref entry.Sequence);
+            LevelBlock block = entry.Block;
+            Interlocked.MemoryBarrier();
+            if (before != index || Volatile.Read(ref entry.Sequence) != index)
+            {
+                break;
+            }
+
+            if (block.Start >= covered)
+            {
+                continue;
+            }
+
+            long end = Math.Min(block.Start + block.Frames, covered);
+            covered = block.Start;
+            long overlap = Math.Min(end, to) - Math.Max(block.Start, from);
+            if (overlap > 0 && block.Frames > 0)
+            {
+                sum += block.Weighted * overlap / block.Frames;
+                frames += overlap;
+            }
+
+            if (block.Start <= from)
+            {
+                break;
+            }
+        }
+
+        return frames > 0 ? sum / frames : 0;
+    }
+
     private struct Entry
     {
         public long Sequence;
@@ -151,6 +202,7 @@ public sealed class AudioLevelRing
 /// <param name="SquaresLeft">Suma de los cuadrados de las muestras (para el RMS de cualquier tramo de bloques).</param>
 /// <param name="SquaresRight">Lo mismo del canal derecho.</param>
 /// <param name="Clipped">La suma pasó de 0 dBFS antes del limitador en este bloque.</param>
+/// <param name="Weighted">Suma de los cuadrados ponderados K de los dos canales (BS.1770), para la sonoridad.</param>
 public readonly record struct LevelBlock(
     long Start,
     int Frames,
@@ -160,4 +212,5 @@ public readonly record struct LevelBlock(
     float TruePeakRight,
     double SquaresLeft,
     double SquaresRight,
-    bool Clipped);
+    bool Clipped,
+    double Weighted = 0);

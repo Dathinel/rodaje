@@ -34,6 +34,24 @@ internal sealed partial class TimelinePlan
     }
 
     /// <summary>
+    /// El clip de audio solo, para medirlo: su tramo propio en la línea de tiempo, su volumen y su velocidad, sin la pista,
+    /// fundidos ni transiciones (aunque la pista esté silenciada). Nulo si no es un clip con sonido.
+    /// </summary>
+    internal static AudioClipPlan? Isolated(Project project, string sequenceId, string clipId, string projectDirectory)
+    {
+        if (project.GetSequence(sequenceId).FindClip(clipId) is not { } found || found.Track.Kind != TrackKind.Audio
+            || found.Clip is not { Generator: null } clip || clip.Duration <= Time.Zero
+            || project.Media.Find(m => m.Id == clip.MediaId) is not { HasAudio: true } media)
+        {
+            return null;
+        }
+
+        Curve? db = GainCurve(clip.Effects);
+        return new AudioClipPlan(clip.Id, Key(media, projectDirectory), clip.Start.ToSamples(AudioSampleRate), clip.End.ToSamples(AudioSampleRate),
+            clip.SourceIn.ToSamples(AudioSampleRate), db is null ? null : new GainPlan(db, null, default, default, default, default), Retime(clip));
+    }
+
+    /// <summary>
     /// Los trozos seguidos de un clip dividido (sin transición entre medias, mismo medio y mismo tono) comparten el mapeo
     /// de todos juntos, así el lector pasa de uno a otro sin rehacer nada y suena igual que el clip entero.
     /// </summary>

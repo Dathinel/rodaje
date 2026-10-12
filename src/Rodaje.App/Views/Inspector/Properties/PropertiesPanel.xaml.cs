@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Audio;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
@@ -37,6 +38,67 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         foreach ((_, string name) in EffectUi.BlendModes)
         {
             BlendBox.Items.Add(name);
+        }
+
+        foreach ((double lufs, string name) in LoudnessNormalizer.Targets)
+        {
+            var item = new MenuFlyoutItem { Text = name };
+            item.Click += async (_, _) => await NormalizeAsync(lufs);
+            NormalizeMenu.Items.Add(item);
+        }
+
+        NormalizeMenu.Items.Add(new MenuFlyoutSeparator());
+        var custom = new MenuFlyoutItem { Text = "Otro objetivo…" };
+        custom.Click += async (_, _) =>
+        {
+            if (await AskTargetAsync(XamlRoot, "Normalizar el clip") is { } lufs)
+            {
+                await NormalizeAsync(lufs);
+            }
+        };
+        NormalizeMenu.Items.Add(custom);
+    }
+
+    /// <summary>Pide un objetivo en LUFS; nulo si se cancela o no es un número entre −60 y 0.</summary>
+    internal static async Task<double?> AskTargetAsync(XamlRoot root, string title)
+    {
+        if (DialogGate.IsOpen)
+        {
+            return null;
+        }
+
+        var box = new TextBox { Text = "−18", Header = "Objetivo en LUFS (de −60 a 0)" };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = root,
+            Title = title,
+            Content = box,
+            PrimaryButtonText = "Normalizar",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Primary,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary ? LoudnessNormalizer.ParseTarget(box.Text) : null;
+    }
+
+    private async Task NormalizeAsync(double lufs)
+    {
+        if (_services is not { } services || _audioClipId is not { } current)
+        {
+            return;
+        }
+
+        IReadOnlyList<string> clips = LoudnessNormalizer.AudioClips(services.Session);
+        NormalizeButton.IsEnabled = false;
+        NormalizeButton.Content = "Midiendo…";
+        try
+        {
+            await LoudnessNormalizer.NormalizeClipsAsync(services.Session, clips.Count > 0 ? clips : [current], lufs);
+        }
+        finally
+        {
+            NormalizeButton.Content = "Normalizar";
+            NormalizeButton.IsEnabled = true;
         }
     }
 
