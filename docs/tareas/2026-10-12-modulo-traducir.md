@@ -105,3 +105,13 @@ analizadores, con sustitutos de `EditorServices`, `EditorSession` y `ShortcutRou
 3. Que el módulo arranque con Vulkan y, con la GPU ocupada, baje capas a la CPU sin fallar.
 4. Tras enganchar la acción: traducir una pista de subtítulos generada por «Subtítulos automáticos», ver la pista
    nueva encima con los mismos tiempos y deshacerla con un solo Ctrl+Z.
+
+## CI
+
+- Linux en verde en todos los empujes.
+- Windows compila la solución entera, App WinUI incluida (con el diálogo nuevo). `Rodaje.Module.Translate.Tests` dio 37 correctas y 3 omitidas por falta del modelo.
+- Las dos primeras corridas de Windows fallaron por pruebas de tiempo ajenas a este cambio, una distinta cada vez:
+  - `TimelineEffectsTests.Effect_evaluation_itself_reserves_nothing`: 3760 bytes reservados en vez de 0.
+  - `OfflineTimelineTests.Cancelling_while_a_decoder_is_busy_returns_promptly_and_releases_everything`: 2041 ms desde cancelar.
+  - `ModuleManagerTests.Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada`: el eco se tomó por colgado.
+- La tercera corrida quedó en verde sin cambios.
