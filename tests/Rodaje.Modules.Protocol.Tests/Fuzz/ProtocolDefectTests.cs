@@ -6,8 +6,8 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 
 /// <summary>
 /// Defectos de <c>src/Rodaje.Modules.Protocol</c> que encontró el fuzz (tarea 25). Cada prueba reproduce uno y dice lo
-/// que debería pasar; las de los defectos sin corregir están omitidas. La del defecto 6 ya es de regresión. Todas tienen tope de
-/// tiempo: al quitar el <c>Skip</c> con el defecto aún presente, fallan en vez de colgarse.
+/// que debería pasar. Los seis están corregidos (el 6 en la tarea 25, del 1 al 5 en la tarea 59), así que todas son de
+/// regresión. Todas tienen tope de tiempo: si un defecto vuelve, fallan en vez de colgarse.
 /// </summary>
 [Collection(FuzzGroup.Name)]
 public sealed class ProtocolDefectTests
