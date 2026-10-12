@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.Analysis;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
@@ -158,7 +159,7 @@ internal static class AutoSubtitlesDialog
                 Show(cues);
                 status.Text = cues.Count == 0
                     ? "No se oyó voz en el clip."
-                    : string.Create(AutoSubtitles.Numbers, $"{cues.Count} subtítulos{(transcript.Language is { Length: > 0 } found && wanted == "auto" ? $" (idioma: {found})" : "")}. Revísalos y aplica.");
+                    : string.Create(SpanishNumbers.Format, $"{cues.Count} subtítulos{(transcript.Language is { Length: > 0 } found && wanted == "auto" ? $" (idioma: {found})" : "")}. Revísalos y aplica.");
             }
             catch (OperationCanceledException)
             {
@@ -216,7 +217,7 @@ internal static class AutoSubtitlesDialog
             proposals.Show(proposal);
             if (proposals.Apply())
             {
-                session.Notify(NotificationSeverity.Success, Title, string.Create(AutoSubtitles.Numbers, $"Se pusieron {cues.Count} subtítulos."));
+                session.Notify(NotificationSeverity.Success, Title, string.Create(SpanishNumbers.Format, $"Se pusieron {cues.Count} subtítulos."));
             }
         }
         else if (session.SequenceId == sequenceId)
