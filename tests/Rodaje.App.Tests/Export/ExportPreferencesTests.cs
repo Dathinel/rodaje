@@ -116,9 +116,15 @@ public class ExportPreferencesTests
         Assert.Equal(ExportPresets.Vertical.Id, model.PresetId);
         Assert.Equal(ExportPerformance.Fastest, model.Performance);
         Assert.Equal(dir.File("Mi película_ versión 1.mp4"), model.OutputPath);
-        Assert.True(model.ShapeDiffers);
-        Assert.Equal((1080, 1920), model.OutputSize);
+        // El formato es el del proyecto (16:9): el preajuste vertical sale con su forma y lo avisa.
+        Assert.False(model.ShapeDiffers);
+        Assert.Equal((1920, 1080), model.OutputSize);
+        Assert.NotNull(model.PresetShapeNote);
         Assert.True(model.CanExport, string.Join(" ", model.Problems));
+
+        model.Update(s => s with { Video = s.Video! with { Width = 1080, Height = 1920 } });
+        Assert.True(model.ShapeDiffers);
+        Assert.Equal(ExportPresetLibrary.CustomId, model.PresetId);
     }
 
     [Fact]

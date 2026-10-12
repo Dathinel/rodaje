@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -19,6 +18,7 @@ internal static class PlayerActionIds
     public const string ShuttleForward = ActionIds.ShuttleForward;
     public const string FullScreen = "view.playerFullScreen";
     public const string SafeAreas = "view.safeAreas";
+    public const string ProjectFormat = "project.format";
 }
 
 /// <summary>
@@ -75,6 +75,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         }
 
         RegisterActions(services);
+        AttachFormat(services);
         VideoPanel.SizeChanged += (_, _) => OnPanelSizeChanged();
         VideoPanel.CompositionScaleChanged += (_, _) => OnPanelSizeChanged();
         Session.TransportChanged += (_, _) => UpdateTransport();
@@ -197,13 +198,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
             return;
         }
 
-        Sequence sequence = Session.Sequence;
-        int divisor = Gcd(sequence.Width, sequence.Height);
-        double fps = sequence.FrameRate.Num / (double)sequence.FrameRate.Den;
-        AspectText.Text = string.Create(CultureInfo.InvariantCulture, $"{sequence.Width / divisor}:{sequence.Height / divisor}");
-        // La app corre con globalización invariante: la coma decimal se pone a mano.
-        string rate = fps.ToString("0.###", CultureInfo.InvariantCulture).Replace('.', ',');
-        ToolTipService.SetToolTip(AspectText, string.Create(CultureInfo.InvariantCulture, $"{sequence.Width} × {sequence.Height} · {rate} fps"));
+        UpdateFormatButton();
         UpdateTransport();
         UpdateSafeAreas();
         UpdateTitleHandles();
@@ -212,6 +207,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     /// <summary>Dibuja los márgenes seguros sobre el rectángulo donde el render pone la imagen, con el zoom actual.</summary>
     private void UpdateSafeAreas()
     {
+        UpdateCanvasOutline();
         bool show = SafeAreasButton.IsChecked == true && Session is not null;
         SafeAreaCanvas.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         if (!show)
@@ -337,16 +333,4 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     private void OnPreviousFrame(object sender, RoutedEventArgs e) => _shortcuts?.Invoke(ActionIds.PreviousFrame);
 
     private void OnNextFrame(object sender, RoutedEventArgs e) => _shortcuts?.Invoke(ActionIds.NextFrame);
-
-    private static int Gcd(int a, int b)
-    {
-        a = Math.Abs(a);
-        b = Math.Abs(b);
-        while (b != 0)
-        {
-            (a, b) = (b, a % b);
-        }
-
-        return Math.Max(1, a);
-    }
 }

@@ -16,8 +16,12 @@
         <Grid x:Name="Header" Style="{StaticResource PanelHeaderStyle}" Padding="12,0,6,0">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <TextBlock Text="Reproductor" Style="{StaticResource PanelTitleTextStyle}" />
-                <TextBlock Text="·" Style="{StaticResource LabelTextStyle}" />
-                <TextBlock x:Name="AspectText" Style="{StaticResource LabelTextStyle}" />
+                <DropDownButton x:Name="FormatButton" MinHeight="26" Padding="8,0" Margin="4,0,0,0" FontSize="{StaticResource BodyFontSize}"
+                                AutomationProperties.Name="Formato del proyecto">
+                    <DropDownButton.Flyout>
+                        <MenuFlyout x:Name="FormatMenu" Placement="BottomEdgeAlignedLeft" Opening="OnFormatMenuOpening" />
+                    </DropDownButton.Flyout>
+                </DropDownButton>
                 <Border x:Name="ShuttleBadge" Visibility="Collapsed" Background="{StaticResource AccentSubtleBrush}" CornerRadius="2" Padding="6,1">
                     <TextBlock x:Name="ShuttleText" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource AccentBrush}" />
                 </Border>
@@ -54,7 +58,7 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1" Background="{StaticResource BackgroundBrush}">
+        <Grid Grid.Row="1" Background="{StaticResource ViewerSurroundBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -62,6 +66,10 @@
             <SwapChainPanel x:Name="VideoPanel" x:FieldModifier="internal" Margin="8" DoubleTapped="OnVideoDoubleTapped"
                             PointerPressed="OnVideoPointerPressed" PointerMoved="OnVideoPointerMoved"
                             PointerReleased="OnVideoPointerReleased" PointerCaptureLost="OnVideoPointerCaptureLost" />
+            <!-- El borde del lienzo: el render pinta la imagen en negro sobre el gris del visor; el contorno marca su forma real. -->
+            <Canvas x:Name="FrameCanvas" Margin="8" IsHitTestVisible="False">
+                <Rectangle x:Name="CanvasOutline" Stroke="{StaticResource StrokeBrush}" StrokeThickness="1" />
+            </Canvas>
             <Canvas x:Name="SafeAreaCanvas" Margin="8" IsHitTestVisible="False" Visibility="Collapsed">
                 <Rectangle x:Name="ActionSafe" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1" StrokeDashArray="4,3" Opacity="0.8" />
                 <Rectangle x:Name="TitleSafe" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1" StrokeDashArray="2,3" Opacity="0.8" />

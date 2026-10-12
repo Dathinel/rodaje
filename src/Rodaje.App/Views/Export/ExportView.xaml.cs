@@ -241,15 +241,18 @@ internal sealed partial class ExportView : UserControl
         if (model.ShapeDiffers && model.Settings.Video is { } video)
         {
             (int w, int h) = model.OutputSize;
-            ShapeText.Text = $"La secuencia es {ExportGeometry.AspectName(model.SequenceWidth, model.SequenceHeight)} ({model.SequenceWidth}×{model.SequenceHeight}) "
-                + $"y la salida {ExportGeometry.AspectName(w, h)} ({w}×{h}). ¿Cómo encaja la imagen?";
+            ShapeText.Text = $"El proyecto es {ExportGeometry.AspectName(model.SequenceWidth, model.SequenceHeight)} ({model.SequenceWidth}×{model.SequenceHeight}) "
+                + $"y elegiste una salida {ExportGeometry.AspectName(w, h)} ({w}×{h}). ¿Cómo encaja la imagen?";
             FitBars.IsChecked = video.Fit == ExportFit.Bars;
             FitCrop.IsChecked = video.Fit == ExportFit.Crop;
             FitStretch.IsChecked = video.Fit == ExportFit.Stretch;
-            ChangeSequenceButton.Content = $"Cambiar la secuencia a {ExportGeometry.AspectName(w, h)}";
-            ToolTipService.SetToolTip(ChangeSequenceButton,
-                $"La secuencia pasa a {w}×{h} para encuadrar cada clip a mano. Se puede deshacer con Ctrl+Z.");
         }
+
+        string? presetNote = model.PresetShapeNote;
+        PresetShapeText.Text = presetNote ?? "";
+        PresetShapePanel.Visibility = presetNote is null ? Visibility.Collapsed : Visibility.Visible;
+        ProjectFormatText.Text = $"Formato del proyecto: {ExportGeometry.AspectName(model.SequenceWidth, model.SequenceHeight)} · "
+            + $"{model.SequenceWidth}×{model.SequenceHeight} · {ExportText.Number(model.SequenceFrameRate.ToDouble(), 3)} fps";
     }
 
     private void RefreshVideo(ExportDialogModel model)
@@ -534,23 +537,14 @@ internal sealed partial class ExportView : UserControl
         }
     }
 
-    private void OnChangeSequenceClick(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// El formato se cambia en la edición, no aquí: cierra Exportar y abre «Formato del proyecto» del reproductor. Al volver
+    /// a Exportar, la salida sigue al formato nuevo.
+    /// </summary>
+    private void OnChangeProjectFormatClick(object sender, RoutedEventArgs e)
     {
-        if (_model is not { } model || !model.ShapeDiffers)
-        {
-            return;
-        }
-
-        (int w, int h) = model.OutputSize;
-        EditorSession session = _services.Session;
-        var command = new SequenceShapeCommand(session.SequenceId, w, h);
-        if (session.Execute(command))
-        {
-            session.Notify(NotificationSeverity.Success, command.Description,
-                $"La secuencia ahora mide {w}×{h}. Encuadra cada clip en Propiedades; Ctrl+Z lo deshace.",
-                new NotificationAction("Deshacer", () => session.Undo()));
-            Refresh();
-        }
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+        DispatcherQueue.TryEnqueue(() => _services.Shortcuts.Invoke(Views.Player.PlayerActionIds.ProjectFormat));
     }
 
     private void OnAdvancedClick(object sender, RoutedEventArgs e)

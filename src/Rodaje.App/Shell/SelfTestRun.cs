@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Services.Modules;
@@ -47,6 +48,7 @@ internal static class SelfTestRun
             await TitleAsync(window, engine);
             await ShowExportAsync(window);
             await ModuleAsync(window);
+            await FormatAsync(window, engine);
             window.InspectorPane.Show(InspectorView.Tab.Properties);
             if (window.Session.Sequence.Duration.Ticks > 0)
             {
@@ -260,6 +262,65 @@ internal static class SelfTestRun
     }
 
     /// <summary>Con <c>RODAJE_AUTOPRUEBA_CAPTURAS</c>, guarda un cuadro del visor (lo que compone la GPU) en PNG.</summary>
+    /// <summary>
+    /// Cambia el formato del proyecto como el selector del reproductor (9:16 rellenando, 1:1 y 4:5 encajando), dibuja el
+    /// visor y el cuadro compuesto de cada uno, abre Exportar con el proyecto vertical (debe salir 1080×1920 sin pedir
+    /// barras) y deshace todo.
+    /// </summary>
+    private static async Task FormatAsync(MainWindow window, PlayerEngine engine)
+    {
+        EditorSession session = window.Session;
+        int steps = session.History.Count;
+        (int Width, int Height) original = (session.Sequence.Width, session.Sequence.Height);
+        foreach ((string name, int width, int height, ClipFit fit) in new[]
+        {
+            ("formato-9x16", 1080, 1920, ClipFit.Fill), ("formato-1x1", 1080, 1080, ClipFit.Fit), ("formato-4x5", 1080, 1350, ClipFit.Fit),
+        })
+        {
+            if (!session.ChangeFormat(width, height, session.Sequence.FrameRate, fit))
+            {
+                throw new InvalidOperationException($"No se pudo cambiar el formato a {width}×{height}.");
+            }
+
+            await Task.Delay(400);
+            FrameCapture frame = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            if ((frame.Width, frame.Height) != (width, height))
+            {
+                throw new InvalidOperationException($"El visor compone {frame.Width}×{frame.Height} en vez de {width}×{height}.");
+            }
+
+            await CaptureAsync(window, name);
+            await SaveFrameAsync(frame, name + "-cuadro");
+            if (name == "formato-9x16")
+            {
+                window.ShowPage(ShellPage.Export);
+                for (int i = 0; i < 50 && window.ExportPage?.Model is null; i++)
+                {
+                    await Task.Delay(100);
+                }
+
+                window.ExportPage?.Model?.SelectPreset(ExportPresets.YouTube1080p.Id);
+                await CaptureAsync(window, "exportar-proyecto-vertical");
+                if (window.ExportPage?.Model is { } model && (model.OutputSize != (1080, 1920) || model.ShapeDiffers))
+                {
+                    throw new InvalidOperationException($"Exportar no siguió al proyecto vertical: sale {model.OutputSize}.");
+                }
+
+                window.ClosePage();
+            }
+        }
+
+        while (session.History.Count > steps)
+        {
+            session.Undo();
+        }
+
+        if ((session.Sequence.Width, session.Sequence.Height) != original)
+        {
+            throw new InvalidOperationException("Deshacer no devolvió el formato del proyecto.");
+        }
+    }
+
     private static async Task SaveFrameAsync(FrameCapture frame, string name)
     {
         if (Environment.GetEnvironmentVariable(CapturesVariable) is not { Length: > 0 } folder)
