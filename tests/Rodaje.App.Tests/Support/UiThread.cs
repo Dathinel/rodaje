@@ -65,15 +65,47 @@ internal static class UiThread
         return Task.CompletedTask;
     });
 
+    /// <summary>
+    /// Continuaciones que llegaron después de cerrar el hilo (por ejemplo, la de un <c>await</c> que la prueba dejó sin
+    /// esperar) y corrieron en el pool. Antes tumbaban el proceso de pruebas entero («Test Run Aborted»).
+    /// </summary>
+    public static int LatePosts => _latePosts;
+
+    private static int _latePosts;
+
     private sealed class LoopContext : SynchronizationContext, IDisposable
     {
         private readonly BlockingCollection<(SendOrPostCallback Callback, object? State)> _queue = [];
+        private readonly Lock _gate = new();
+        private bool _closed;
 
-        public override void Post(SendOrPostCallback d, object? state) => _queue.Add((d, state));
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            lock (_gate)
+            {
+                if (!_closed)
+                {
+                    _queue.Add((d, state));
+                    return;
+                }
+            }
+
+            // El hilo ya cerró: se corre en el pool para que la continuación termine y no tumbe el proceso.
+            Interlocked.Increment(ref _latePosts);
+            System.Diagnostics.Trace.WriteLine($"UiThread: continuación tardía tras cerrar el hilo ({d.Method.DeclaringType}.{d.Method.Name}); va al pool.");
+            ThreadPool.QueueUserWorkItem(static s => s.d(s.state), (d, state), preferLocal: false);
+        }
 
         public override void Send(SendOrPostCallback d, object? state) => throw new NotSupportedException();
 
-        public void Complete() => _queue.CompleteAdding();
+        public void Complete()
+        {
+            lock (_gate)
+            {
+                _closed = true;
+                _queue.CompleteAdding();
+            }
+        }
 
         public void RunUntilComplete()
         {
@@ -83,6 +115,15 @@ internal static class UiThread
             }
         }
 
-        public void Dispose() => _queue.Dispose();
+        public void Dispose()
+        {
+            lock (_gate)
+            {
+                _closed = true;
+                _queue.CompleteAdding();
+            }
+
+            _queue.Dispose();
+        }
     }
 }
