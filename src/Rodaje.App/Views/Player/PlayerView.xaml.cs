@@ -76,7 +76,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
 
         RegisterActions(services);
         AttachFormat(services);
-        Shortcuts.MouseShortcutHost.Attach((UIElement)VideoPanel.Parent, MouseContext.Viewer, services, wheel: true,
+        Shortcuts.MouseShortcutHost.Attach(ViewerArea, MouseContext.Viewer, services, wheel: true,
             axis: (action, _, steps) => action == MouseGestures.ViewerZoom && StepZoom(steps));
         VideoPanel.SizeChanged += (_, _) => OnPanelSizeChanged();
         VideoPanel.CompositionScaleChanged += (_, _) => OnPanelSizeChanged();

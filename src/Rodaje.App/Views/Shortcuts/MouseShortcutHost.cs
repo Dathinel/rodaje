@@ -42,7 +42,7 @@ internal sealed partial class MouseShortcutHost
         return new MouseShortcutHost(element, context, services, axis, wheel);
     }
 
-    /// <summary>La acción del ratón para lo que acaba de pasar en <paramref name="e"/>, en la zona.</summary>
+    /// <summary>La acción de esa parte del ratón con esos modificadores, en la zona.</summary>
     public static string? Resolve(ShortcutRegistry registry, MouseContext context, MouseInput input, VirtualKeyModifiers modifiers) =>
         registry.Mouse.Get(context, new MouseChord(input, Modifiers(modifiers)));
 

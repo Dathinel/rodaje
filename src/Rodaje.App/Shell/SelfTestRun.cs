@@ -7,9 +7,11 @@ using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Services.Modules;
+using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Views.Export;
 using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Player;
+using Rodaje.App.Views.Shortcuts;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -44,6 +46,7 @@ internal static class SelfTestRun
             }
 
             await ToolsAsync(window);
+            await ShortcutsAsync(window);
             await ShowCurveAsync(window);
             await ToggleReverseAsync(window);
             await TitleAsync(window, engine);
@@ -329,6 +332,64 @@ internal static class SelfTestRun
         {
             throw new InvalidOperationException("Deshacer no devolvió el formato del proyecto.");
         }
+    }
+
+    /// <summary>
+    /// La página de atajos con el teclado y el ratón dibujados: abre una tecla y le da una acción a una combinación libre,
+    /// abre un botón lateral del ratón y hace lo mismo, y restablece las dos. Si el registro no siguió, falla.
+    /// </summary>
+    private static async Task ShortcutsAsync(MainWindow window)
+    {
+        window.ShowPage(ShellPage.Shortcuts);
+        if (window.ShortcutsPage is not { } page)
+        {
+            throw new InvalidOperationException("No se abrió la página de atajos.");
+        }
+
+        page.AdvancedModeTab.IsChecked = true;
+        page.DrawingsToggle.IsChecked = true;
+        await Task.Delay(300);
+        ShortcutRegistry registry = page.Registry;
+
+        var chord = new KeyChord(0x4A, KeyModifiers.Control | KeyModifiers.Shift);
+        if (registry.FindOwner(chord) is { } taken)
+        {
+            throw new InvalidOperationException($"Ctrl+Mayús+J ya es de {taken}; la autoprueba necesita una combinación libre.");
+        }
+
+        page.OpenKey(chord.Key);
+        await page.BindingPanel.ChooseAsync(chord.Modifiers, ActionIds.AddMarker);
+        if (registry.FindOwner(chord) != ActionIds.AddMarker)
+        {
+            throw new InvalidOperationException("El teclado dibujado no asignó Ctrl+Mayús+J.");
+        }
+
+        await CaptureAsync(window, "atajos-teclado");
+        page.BindingPanel.ResetPart();
+        if (registry.FindOwner(chord) is not null)
+        {
+            throw new InvalidOperationException("Restablecer la tecla J no devolvió lo de fábrica.");
+        }
+
+        var side = new MouseChord(MouseInput.X1, KeyModifiers.Control);
+        page.MouseDrawingView.SetContext(MouseContext.Timeline);
+        page.OpenMouse(MouseInput.X1);
+        await page.BindingPanel.ChooseAsync(side.Modifiers, ActionIds.Split);
+        if (registry.Mouse.Get(MouseContext.Timeline, side) != ActionIds.Split)
+        {
+            throw new InvalidOperationException("El ratón dibujado no asignó Ctrl+lateral atrás.");
+        }
+
+        await CaptureAsync(window, "atajos-raton");
+        page.BindingPanel.ResetPart();
+        if (registry.Mouse.Get(MouseContext.Timeline, side) is not null || registry.Mouse.IsCustomized(MouseContext.Timeline, side))
+        {
+            throw new InvalidOperationException("Restablecer el botón lateral no devolvió lo de fábrica.");
+        }
+
+        page.CloseEditor();
+        window.ClosePage();
+        await Task.Delay(200);
     }
 
     /// <summary>La barra de herramientas con un video elegido: aplica estabilizar, los subtítulos dicen «Próximamente».</summary>

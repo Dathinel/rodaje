@@ -234,15 +234,31 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         MouseDrawing.Select(null);
         Editor.ShowKey(virtualKey);
         Editor.Visibility = Visibility.Visible;
+        RevealEditor();
     }
 
     /// <summary>Abre una parte del ratón dibujado, en la zona elegida, para cambiarla.</summary>
     internal void OpenMouse(MouseInput input)
     {
+        if (_keyFilter is not null)
+        {
+            _keyFilter = null;
+            KeyFilterChip.Visibility = Visibility.Collapsed;
+            ApplyFilter();
+        }
+
         MouseDrawing.Select(input);
         Keyboard.Select(null);
         Editor.ShowMouse(MouseDrawing.Context, input);
         Editor.Visibility = Visibility.Visible;
+        RevealEditor();
+    }
+
+    /// <summary>Lleva el editor a la vista, con el dibujo encima si cabe.</summary>
+    private void RevealEditor()
+    {
+        Editor.UpdateLayout();
+        Editor.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = false, VerticalAlignmentRatio = 1 });
     }
 
     private void OnDrawingsSizeChanged(object sender, SizeChangedEventArgs e)
@@ -897,6 +913,12 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
     public void ShowChange(ShortcutChange change)
     {
         ArgumentNullException.ThrowIfNull(change);
+        if (Editor.Visibility == Visibility.Visible && !Editor.IsCapturing)
+        {
+            // El historial se apunta después de avisar del cambio: «Deshacer» del editor se pone al día aquí.
+            Editor.Refresh();
+        }
+
         if (change.Changed)
         {
             string message = change.Warning is { } warning ? $"{change.Message}. Ojo: {warning}" : change.Message;

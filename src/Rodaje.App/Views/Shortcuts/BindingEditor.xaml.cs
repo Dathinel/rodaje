@@ -167,7 +167,7 @@ internal sealed partial class BindingEditor : UserControl
             BorderBrush = GroupBrushes.Resource("StrokeBrush"),
             BorderThickness = new Thickness(0, 0, 0, 1),
         };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
@@ -461,6 +461,8 @@ internal sealed partial class BindingEditor : UserControl
         {
             StatusText.Text = $"Se deshizo: {undone.Message}.";
         }
+
+        Refresh();
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e)

@@ -288,6 +288,8 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     internal ExportView? ExportPage => _exportView;
 
+    internal ShortcutsView? ShortcutsPage => _shortcutsView;
+
     /// <summary>La barra de herramientas rápidas, para la autoprueba.</summary>
     internal Views.Tools.ToolsBar QuickTools => Tools;
 
@@ -307,7 +309,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             }
 
             view = _shortcutsView;
-            ModalTitle.Text = "Atajos de teclado";
+            ModalTitle.Text = "Atajos de teclado y ratón";
         }
         else if (page == ShellPage.Export)
         {

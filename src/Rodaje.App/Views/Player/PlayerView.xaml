@@ -58,7 +58,7 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1" Background="{StaticResource ViewerSurroundBrush}">
+        <Grid x:Name="ViewerArea" Grid.Row="1" Background="{StaticResource ViewerSurroundBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
