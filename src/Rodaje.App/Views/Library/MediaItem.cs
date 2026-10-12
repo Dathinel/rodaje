@@ -52,6 +52,9 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed) : Observabl
 
     public bool CodecsKnown => _codecsKnown;
 
+    /// <summary>No se pudo leer el códec; se reintenta en la próxima lectura (solo abre el archivo si cambió).</summary>
+    public bool CodecsFailed { get; private set; }
+
     public bool IsFavorite
     {
         get => _isFavorite;
@@ -102,8 +105,13 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed) : Observabl
     public Visibility BadgeVisibility => _badge.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
 
     /// <summary>Pone los códecs leídos del archivo (vacíos si no se pudo leer).</summary>
-    public void SetCodecs(string? video, string? audio)
+    public void SetCodecs(string? video, string? audio) => SetCodecs(new MediaCodecs(video, audio, Failed: false));
+
+    /// <summary>Pone lo leído del archivo; si falló, la columna queda vacía y <see cref="CodecsFailed"/> lo recuerda.</summary>
+    public void SetCodecs(MediaCodecs codecs)
     {
+        (string? video, string? audio) = (codecs.Video, codecs.Audio);
+        CodecsFailed = codecs.Failed;
         _codecsKnown = true;
         _codecs = MediaDetails.Codecs(video, audio, known: true);
         OnPropertyChanged(nameof(Codecs));
@@ -120,6 +128,7 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed) : Observabl
         {
             _codecsKnown = true;
             _codecs = previous._codecs;
+            CodecsFailed = previous.CodecsFailed;
         }
     }
 

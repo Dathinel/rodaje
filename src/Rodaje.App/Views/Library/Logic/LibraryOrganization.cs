@@ -349,11 +349,15 @@ public sealed class LibraryOrganization
         return unique;
     }
 
+    /// <summary>
+    /// Un id que no se repite aunque se borren carpetas: «folder-N» volvía a dar el de una carpeta borrada, y lo que aún
+    /// apuntaba a ella (un diálogo abierto, la organización de una copia) caía en la carpeta nueva.
+    /// </summary>
     private string NewId()
     {
-        for (int n = _folders.Count + 1; ; n++)
+        while (true)
         {
-            string id = $"folder-{n}";
+            string id = "folder-" + Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(6));
             if (FindFolder(id) is null)
             {
                 return id;

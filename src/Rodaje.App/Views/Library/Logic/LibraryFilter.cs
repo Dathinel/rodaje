@@ -1,4 +1,5 @@
 using Rodaje.Core.Model;
+using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Views.Library;
 
@@ -38,7 +39,14 @@ public static class LibraryFilter
         (LibraryKind.Audio, "Audio"),
     ];
 
-    /// <summary>Audio si no tiene imagen; imagen si es una foto (sin tasa de cuadros o con extensión de imagen); si no, video.</summary>
+    /// <summary>Más corto que esto, sin tasa de cuadros y sin sonido, es una imagen fija aunque su extensión no lo diga.</summary>
+    private static readonly Time StillDuration = Time.FromSeconds(1);
+
+    /// <summary>
+    /// Audio si no tiene imagen; imagen si tiene extensión de imagen, o si no tiene tasa de cuadros ni sonido y dura menos
+    /// de un segundo (una foto en un formato raro); si no, video. Un video al que el lector no le dio tasa de cuadros
+    /// (algunos de tasa variable) sigue siendo video.
+    /// </summary>
     public static LibraryKind KindOf(MediaRef media)
     {
         ArgumentNullException.ThrowIfNull(media);
@@ -47,7 +55,12 @@ public static class LibraryFilter
             return LibraryKind.Audio;
         }
 
-        return media.FrameRate is null || ImageExtensions.Contains(System.IO.Path.GetExtension(media.Path)) ? LibraryKind.Image : LibraryKind.Video;
+        if (ImageExtensions.Contains(System.IO.Path.GetExtension(media.Path)))
+        {
+            return LibraryKind.Image;
+        }
+
+        return media.FrameRate is null && !media.HasAudio && media.Duration < StillDuration ? LibraryKind.Image : LibraryKind.Video;
     }
 
     /// <summary>Los medios que se ven con <paramref name="query"/>, en el orden del proyecto.</summary>
@@ -137,7 +150,9 @@ public static class LibraryFilter
 
 /// <summary>
 /// Texto para buscar sin mirar mayúsculas ni tildes («Montaña» encuentra «montana»). La app corre con globalización
-/// invariante, así que no se usa la comparación de la cultura: se pliegan a mano las letras latinas con tilde.
+/// invariante, así que no se usa la comparación de la cultura: se pliegan a mano las letras latinas con tilde y se quitan
+/// las marcas combinantes, que es como llegan las tildes en un texto descompuesto (NFD, por ejemplo nombres de archivo
+/// copiados de un Mac: «a» seguida de U+0301).
 /// </summary>
 public static class SearchText
 {
@@ -154,6 +169,11 @@ public static class SearchText
         var builder = new System.Text.StringBuilder(text.Length);
         foreach (char raw in text)
         {
+            if (IsCombiningMark(raw))
+            {
+                continue;
+            }
+
             char c = char.ToLowerInvariant(raw);
             int index = Accented.IndexOf(c, StringComparison.Ordinal);
             if (index < 0)
@@ -173,6 +193,11 @@ public static class SearchText
 
         return builder.ToString();
     }
+
+    /// <summary>Marcas diacríticas combinantes (los bloques de Unicode que solo llevan tildes y signos sobre la letra).</summary>
+    private static bool IsCombiningMark(char c) =>
+        c is (>= '\u0300' and <= '\u036F') or (>= '\u1AB0' and <= '\u1AFF') or (>= '\u1DC0' and <= '\u1DFF')
+            or (>= '\u20D0' and <= '\u20FF') or (>= '\uFE20' and <= '\uFE2F');
 
     /// <summary>Las palabras del texto buscado, ya plegadas.</summary>
     public static string[] Words(string? text) =>
