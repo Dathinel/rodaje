@@ -472,9 +472,20 @@ public static class ManifestReader
     /// GitHub, o un archivo de GitHub con el commit de 40 caracteres en la ruta (<c>github.com/&lt;dueño&gt;/&lt;repo&gt;/raw/&lt;commit&gt;/…</c>
     /// o <c>raw.githubusercontent.com/&lt;dueño&gt;/&lt;repo&gt;/&lt;commit&gt;/…</c>). <c>resolve/main</c> o una rama no valen.
     /// </summary>
+    /// <remarks>
+    /// Una dirección http o https de este equipo (127.0.0.1, localhost) también se acepta: es la del servidor de pruebas,
+    /// que solo se baja con <see cref="DownloadUrlPolicy.WithLoopback"/>; la política real la sigue rechazando.
+    /// </remarks>
     public static bool IsPinnedModelUrl(string text, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Uri? url)
     {
         url = null;
+        if (Uri.TryCreate(text, UriKind.Absolute, out Uri? local) && local.IsLoopback
+            && (local.Scheme == Uri.UriSchemeHttp || local.Scheme == Uri.UriSchemeHttps))
+        {
+            url = local;
+            return true;
+        }
+
         if (!SafeText.TryParseHttpsUri(text, out Uri? parsed) || parsed.Query.Length > 0 || parsed.Fragment.Length > 0)
         {
             return false;

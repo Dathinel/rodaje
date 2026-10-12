@@ -75,6 +75,8 @@ public sealed class ManifestModelsValidationTests
     [InlineData("https://github.com/snakers4/silero-vad/raw/5cd7945676eb32225748052e2e6a0580e4686a08/src/silero_vad/data/silero_vad.onnx")]
     [InlineData("https://raw.githubusercontent.com/hexgrad/misaki/fba1236595f2d2bf21d414ba6e57d25256afada3/misaki/data/us_gold.json")]
     [InlineData("https://github.com/Dathinel/rodaje-modelos/releases/download/v1/modelo.gguf")]
+    [InlineData("http://localhost:64254/modelos/1.0.0/voz")]
+    [InlineData("http://127.0.0.1:8080/modelo.gguf")]
     public void Pinned_urls_are_accepted(string url)
     {
         Assert.True(ManifestReader.IsPinnedModelUrl(url, out Uri? parsed));
@@ -86,6 +88,15 @@ public sealed class ManifestModelsValidationTests
     {
         Assert.True(ManifestReader.IsPinnedModelUrl(PinnedUrl, out Uri? url));
         Assert.True(DownloadUrlPolicy.Default.IsAllowed(url!, out _));
+    }
+
+    /// <summary>El servidor de pruebas pasa el lector, pero la política real de descarga no lo baja.</summary>
+    [Fact]
+    public void A_loopback_url_passes_the_reader_but_not_the_real_download_policy()
+    {
+        Assert.True(ManifestReader.IsPinnedModelUrl("http://localhost:64254/modelos/1.0.0/voz", out Uri? url));
+        Assert.False(DownloadUrlPolicy.Default.IsAllowed(url!, out _));
+        Assert.True(DownloadUrlPolicy.WithLoopback("Dathinel").IsAllowed(url!, out _));
     }
 
     [Theory]
