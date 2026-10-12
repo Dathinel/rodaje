@@ -77,6 +77,6 @@ Medido el 9 y el 10 de octubre de 2026 en un Ryzen 7 7435HS con RTX 3050 Laptop:
 
 ## Licencia
 
-Código disponible, uso libre no comercial: [PolyForm Noncommercial 1.0.0](LICENSE). Puedes usarlo, estudiarlo, modificarlo y compartirlo para fines personales, educativos y de investigación, o desde una organización sin ánimo de lucro, educativa o pública. **El uso comercial, incluida la venta del programa o de versiones modificadas, requiere permiso escrito de Daniel (Dathinel).**
+Código abierto bajo la [GNU GPLv3 con atribución obligatoria](LICENSE) (términos adicionales de la Sección 7). Puedes usarlo, estudiarlo, modificarlo, redistribuirlo e incluso venderlo, siempre con el código fuente bajo la misma licencia y conservando el crédito visible en la interfaz («Basado en el editor de video de código abierto de Daniel (Dathinel) / Rodaje», con enlace a https://github.com/Dathinel/rodaje) y en las páginas de descarga o venta. Los complementos que se conectan por las interfaces públicas pueden llevar la licencia que elija su autor (permiso adicional en `LICENSE`). El nombre «Rodaje» y sus logotipos no se licencian con el código: un derivado publicado debe usar nombre e íconos propios ([TRADEMARK.md](TRADEMARK.md)).
 
 Las dependencias y sus licencias están en [LICENCIAS.md](LICENCIAS.md); FFmpeg y el resto de componentes de terceros conservan sus propias licencias. Todo el código es propio: los editores de código abierto se estudiaron solo a nivel de diseño, y no se usan recursos ni marcas de productos comerciales.

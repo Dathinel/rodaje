@@ -1,6 +1,6 @@
 # Rodaje: estado
 
-Editor de video nativo para Windows con la experiencia de uso de CapCut y código propio. Repositorio privado `Dathinel/rodaje`, licencia PolyForm Noncommercial 1.0.0 (código disponible, uso libre no comercial; D-030). Las reglas generales están en `..\CLAUDE.md`.
+Editor de video nativo para Windows con la experiencia de uso de CapCut y código propio. Repositorio privado `Dathinel/rodaje`, licencia GNU GPLv3 con términos adicionales de atribución (Sección 7) y permiso para complementos; marca en `TRADEMARK.md`; crédito visible en la barra de título y en «Ayuda → Acerca de» (D-032, sustituye a la PolyForm de D-030). Las reglas generales están en `..\CLAUDE.md`.
 
 ## Cómo se trabaja aquí
 
@@ -79,7 +79,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 6. **Después:** fase 5b (texto y títulos, repo `rodaje-titulos`), luego fase 6 (exportación).
 
 **En curso (11-oct, tarde):**
-- **En main:** fase 5c completa (5c.1, curvas, reversa con su interfaz); fase 6 construida (contrato, conversor GPU, salida FFmpeg, motor fuera de línea, diálogo y orquestación: la app exporta de verdad, 1 min 1080p en ~9 s con NVENC); paso 0 de la 5b (formato 5 con títulos, D-029); licencia PolyForm Noncommercial (D-030; complementos siguen CC0; abogado aplazado).
+- **En main:** fase 5c completa (5c.1, curvas, reversa con su interfaz); fase 6 construida (contrato, conversor GPU, salida FFmpeg, motor fuera de línea, diálogo y orquestación: la app exporta de verdad, 1 min 1080p en ~9 s con NVENC); paso 0 de la 5b (formato 5 con títulos, D-029); licencia GPLv3 con atribución obligatoria (D-032, sustituye a la PolyForm de D-030; complementos de contenido siguen CC0; abogado aplazado, pendientes en `docs/legal.md`).
 - **Agentes locales:** verificación de la 5c (Sonnet); fase 6 F (medición y aceptación); 5b títulos en motor y render; 5b títulos en la app; fase 7 plan y paso 0 (protocolo de módulos).
 - **Pendiente:** la reversa en la exportación hace un seek por cuadro (conectar `ReverseFrameReader` en `OfflineTimeline` cuando termine el agente de la 5b del motor); verificación de la fase 6 (Sonnet) tras F.
 - **Nube:** Opus, hasta 5 tareas por corrida, sin revisor por tarea; la sesión local une los PR en verde y revisa por bloques cada ~4 PR (lista en `docs/nube/cola.md`).
@@ -106,7 +106,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 
 ## Decisiones
 
-- **Registro:** `docs/decisiones.md`, de D-001 a D-030.
+- **Registro:** `docs/decisiones.md`, de D-001 a D-032.
 - **Módulos:** `docs/propuesta-modulos.md`, aprobada. Núcleo en el exe, contenido en `.paquete` sin código, IA como procesos C#.
 - **Pendientes para la interfaz:** decidir cómo funciona el ripple con enlazados de distinto largo y si se limpian los enlaces huérfanos.
 - **Archivo:** la investigación y el sondeo están en `docs/archivo/`; el código del sondeo, en la etiqueta git `sondeo-interop-aot`.

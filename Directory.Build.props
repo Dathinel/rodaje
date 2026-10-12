@@ -9,8 +9,10 @@
     <Deterministic>true</Deterministic>
     <Authors>Daniel (Dathinel)</Authors>
     <Product>Rodaje</Product>
-    <Copyright>Copyright (c) 2026 Daniel (Dathinel)</Copyright>
-    <PackageLicenseExpression>PolyForm-Noncommercial-1.0.0</PackageLicenseExpression>
+    <Copyright>Copyright (C) 2026 Daniel (Dathinel)</Copyright>
+    <!-- GPLv3 con términos adicionales de la Sección 7 (atribución) y permiso para complementos: ver LICENSE (D-032) -->
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Dathinel/rodaje</PackageProjectUrl>
     <!-- Ninguna telemetría ni restauración desde orígenes no declarados -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>

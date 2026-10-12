@@ -244,3 +244,30 @@ Guardar una copia del proyecto cada N minutos y tras cambios (en segundo plano, 
 - **Lee:** `docs/pendientes.md` (función 33), PR #10 (pistas por defecto), `docs/formato-proyecto.md`.
 
 Al crear un proyecto: plantillas 16:9 1080p, 9:16 1080×1920 (TikTok/Reels/Shorts), 1:1, 4K, con fps y pistas; y «guardar como plantilla» desde el proyecto actual (formato, pistas, nombres de pista). Pruebas de la lógica.
+
+## 25. Fuzz del protocolo de módulos
+
+- **Estado:** pendiente
+- **Rama:** `claude/modulos-fuzz`
+- **Caminos:** `tests/Rodaje.Modules.Protocol.Tests/` (archivos nuevos), `docs/tareas/`.
+- **Lee:** `docs/fase-7.md`, D-031, `src/Rodaje.Modules.Protocol/`.
+
+Mensajes y marcos al azar en los dos sentidos (largos, JSON hostil, ids repetidos, regiones de memoria fuera de rango, versiones raras): `ModuleClient` nunca se cuelga ni lanza excepciones no controladas, y `ModuleHost` se cierra limpio. Semillas reproducibles y un tope de tiempo por caso; lo largo con `Categoria=TiempoReal`.
+
+## 26. Documentación del protocolo para terceros
+
+- **Estado:** pendiente
+- **Rama:** `claude/modulos-doc`
+- **Caminos:** `docs/protocolo-modulos.md` (nuevo), `docs/tareas/`.
+- **Lee:** `docs/fase-7.md`, D-031, D-032 (excepción para complementos de `LICENSE`), `src/Rodaje.Modules.Protocol/`, `modules/Rodaje.Module.Echo/`.
+
+Guía para escribir un módulo de terceros: transporte, saludo y versión, mensajes con ejemplos JSON reales, progreso, cancelación, errores, memoria compartida, límites, y un módulo mínimo de ejemplo. Cada afirmación verificada contra el código. Explica que los complementos que hablan por este protocolo pueden tener su propia licencia (término 4 de `LICENSE`).
+
+## 27. Servidor HTTP local para probar descargas
+
+- **Estado:** pendiente
+- **Rama:** `claude/descarga-lab`
+- **Caminos:** `testing/Rodaje.TestServer/` (nuevo), `docs/tareas/`.
+- **Lee:** `docs/fase-7.md` (sección Descarga).
+
+Servidor de pruebas en proceso (Kestrel o `HttpListener`) que sirve archivos con `Range`, cortes a mitad, redirecciones, hashes y firmas malas, lentitud y 404/500, configurable por prueba, para el agente local que hace `GitHubReleaseDownloader`. Con sus propias pruebas.

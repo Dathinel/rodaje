@@ -113,6 +113,7 @@ function Publicar {
     if (Test-Path -LiteralPath $licenciaFfmpeg) { Copy-Item -LiteralPath $licenciaFfmpeg -Destination (Join-Path $destino 'LICENSE.txt') -Force }
     Copy-Item -LiteralPath (Join-Path $Raiz 'THIRD-PARTY-NOTICES.txt') -Destination $Salida -Force
     Copy-Item -LiteralPath (Join-Path $Raiz 'LICENSE') -Destination (Join-Path $Salida 'LICENSE.txt') -Force
+    Copy-Item -LiteralPath (Join-Path $Raiz 'TRADEMARK.md') -Destination $Salida -Force
     Get-ChildItem -LiteralPath $Salida -Filter '*.pdb' -Recurse | Remove-Item -Force
 
     $tamExe = (Get-Item -LiteralPath $Exe).Length
