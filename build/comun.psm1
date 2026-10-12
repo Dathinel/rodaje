@@ -140,4 +140,38 @@ function Donde-Fallo([string]$pila) {
     return ($pila -split "`r?`n") | Where-Object { $_ -match ' in .+:line \d+' -or $_ -match ' en .+:l.nea \d+' } | Select-Object -First 1
 }
 
+# La versión única de Directory.Build.props (<Version>).
+function Version-Rodaje {
+    $props = [xml](Get-Content -LiteralPath (Join-Path $script:Raiz 'Directory.Build.props') -Raw -Encoding UTF8)
+    $v = @($props.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ })[0]
+    if (-not $v) { throw 'No encuentro <Version> en Directory.Build.props.' }
+    return $v
+}
+
+# Firma de código. Sin RODAJE_CERTIFICADO (ruta a un .pfx, con RODAJE_CERTIFICADO_CLAVE si tiene contraseña, o la
+# huella SHA-1 de un certificado del almacén del usuario) devuelve $null y no se firma nada.
+function Comando-Firma {
+    $cert = $env:RODAJE_CERTIFICADO
+    if (-not $cert) { return $null }
+    $signtool = Get-ChildItem -Path (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin\*\x64\signtool.exe') -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending | Select-Object -First 1
+    if (-not $signtool) { throw 'RODAJE_CERTIFICADO está puesto pero no encuentro signtool.exe (Windows SDK).' }
+    $argumentos = @('sign', '/fd', 'sha256', '/tr', 'http://timestamp.digicert.com', '/td', 'sha256', '/d', 'Rodaje')
+    if (Test-Path -LiteralPath $cert -PathType Leaf) {
+        $argumentos += @('/f', $cert)
+        if ($env:RODAJE_CERTIFICADO_CLAVE) { $argumentos += @('/p', $env:RODAJE_CERTIFICADO_CLAVE) }
+    } else {
+        $argumentos += @('/sha1', $cert)
+    }
+    return [pscustomobject]@{ Exe = $signtool.FullName; Argumentos = $argumentos }
+}
+
+function Firmar-Codigo([string[]]$archivos) {
+    $firma = Comando-Firma
+    if (-not $firma) { return $false }
+    & $firma.Exe @($firma.Argumentos + $archivos) | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "signtool no pudo firmar: $($archivos -join ', ')" }
+    return $true
+}
+
 Export-ModuleMember -Function *

@@ -1,6 +1,6 @@
 # Rodaje
 
-Editor de video nativo para Windows: rápido, por capas, con la comodidad de los editores móviles y la precisión de uno profesional. Un solo `Rodaje.exe` compilado con Native AOT, sin instalador y sin necesitar .NET instalado.
+Editor de video nativo para Windows: rápido, por capas, con la comodidad de los editores móviles y la precisión de uno profesional. Compilado con Native AOT, sin necesitar .NET instalado; con instalador o portable.
 
 ## Qué hace
 
@@ -15,10 +15,13 @@ Editor de video nativo para Windows: rápido, por capas, con la comodidad de los
 
 ## Descargar y abrir
 
-1. Descarga el zip de la última versión en [Releases](https://github.com/Dathinel/rodaje/releases): **base** (el editor) o **completa** (con complementos y modelos de IA).
-2. Descomprímelo donde quieras y abre **`Rodaje.exe`**. No instala nada ni toca el registro; para quitarlo basta con borrar la carpeta.
+Descarga la última versión en [Releases](https://github.com/Dathinel/rodaje/releases):
 
-**Requisitos:** Windows 10 u 11 de 64 bits. Una GPU con Direct3D 11 acelera la decodificación, los efectos y la exportación; sin ella todo funciona por CPU.
+- **Instalador** (`Rodaje-<versión>-instalador.exe`): por usuario, sin permisos de administrador; crea el acceso en Inicio y abre los `.rodaje`.
+- **Portable** (`-portable.zip`): descomprime y abre **`Rodaje.exe`**. No toca el registro; para quitarlo basta con borrar la carpeta.
+- **Completo** (`-completo.zip`): el portable con complementos, módulos y modelos de IA.
+
+**Requisitos:** Windows 10 1809 o posterior, u 11, de 64 bits. Una GPU con Direct3D 11 acelera la decodificación, los efectos y la exportación; sin ella todo funciona por CPU.
 
 ## Compilar
 
@@ -28,7 +31,7 @@ Todo el entorno (SDK de .NET 10 y FFmpeg LGPL, con versiones y huellas fijadas) 
 |---|---|
 | Compilar y abrir el editor | Doble clic en `Rodaje.bat` (la primera vez prepara el entorno y publica en `dist\Rodaje\`) |
 | Correr las pruebas | Doble clic en `Probar.bat`; `Probar.bat cobertura`, `aot` o `aceptacion` para las variantes |
-| Armar los zip de distribución | `build\distribuir.ps1` |
+| Armar instalador, zip y notas | `build\distribuir.ps1` |
 
 Variables de entorno opcionales en [docs/variables-entorno.md](docs/variables-entorno.md).
 

@@ -14,6 +14,7 @@ coverage/
 # --- Secretos ---
 # La clave privada del catálogo vive en %USERPROFILE%\.rodaje-claves; por si acaso, nunca se versiona una.
 *.pem
+*.pfx
 .env
 .env.*
 

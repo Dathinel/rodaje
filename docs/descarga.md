@@ -25,7 +25,7 @@ Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Arquite
 4. **Catálogo**: `gh release create v<n+1> indice.json indice.json.sig -R Dathinel/rodaje-catalogo`. Las releases viejas se pueden dejar: la app solo toma la última y rechaza índices más viejos que el último visto.
 5. **Comprobar**: `build\dotnet-local.cmd test tests\Rodaje.Packages.Tests --filter Categoria=Red` con `RODAJE_PRUEBAS_RED=1`.
 
-La distribución completa: `distribuir.ps1` sin opciones publica la app (Native AOT) y deja además `Rodaje-<versión>-base.zip`, `Rodaje-<versión>-completa.zip` y `SHA256SUMS.txt`; la completa trae cada `.paquete` extraído en `paquetes\<id>` o `modulos\<id>` y los modelos de cada módulo (de `.entorno\modelos` o bajados y verificados). Un modelo de más de 2 GiB queda fuera (límite de un asset de GitHub) y se baja desde el gestor. Los zip van a la release de `rodaje`.
+La distribución completa: `distribuir.ps1` sin opciones publica la app (Native AOT) y deja además el instalador, `Rodaje-<versión>-portable.zip`, `Rodaje-<versión>-completo.zip`, `SHA256SUMS.txt` y las notas (ver [arranque-y-distribucion.md](arranque-y-distribucion.md#versión-e-instalador-v1)); la completa trae cada `.paquete` extraído en `paquetes\<id>` o `modulos\<id>` y los modelos de cada módulo (de `.entorno\modelos` o bajados y verificados). Un modelo de más de 2 GiB queda fuera (límite de un asset de GitHub) y se baja desde el gestor. Los zip y el instalador van a la release de `rodaje` con `build\publicar-release.ps1`.
 
 ## Pruebas
 

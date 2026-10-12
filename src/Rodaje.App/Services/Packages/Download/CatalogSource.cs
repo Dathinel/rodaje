@@ -13,8 +13,8 @@ public static class CatalogSource
 {
     public const string PublicKeyResourceName = "Rodaje.App.clave-catalogo.txt";
 
-    /// <summary>Versión del programa que se compara con el <c>minApp</c> de cada entrada. Sube con cada versión publicada.</summary>
-    public static PackageVersion AppVersion { get; } = PackageVersion.Parse("0.7.0");
+    /// <summary>Versión del programa que se compara con el <c>minApp</c> de cada entrada (la de <c>Directory.Build.props</c>).</summary>
+    public static PackageVersion AppVersion { get; } = PackageVersion.Parse(typeof(CatalogSource).Assembly.GetName().Version?.ToString(3) ?? "0.0.0");
 
     public static Uri IndexUrl { get; } = new("https://github.com/Dathinel/rodaje-catalogo/releases/latest/download/indice.json");
 
