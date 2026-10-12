@@ -32,12 +32,6 @@ public sealed partial class EditorSession
                 : null);
     }
 
-    /// <summary>Recorta el inicio de los clips hasta el cursor (Q en el estilo Rodaje).</summary>
-    public bool TrimStartToPlayhead() => TrimToPlayhead(TrimEdge.In);
-
-    /// <summary>Recorta el final de los clips hasta el cursor (W en el estilo Rodaje).</summary>
-    public bool TrimEndToPlayhead() => TrimToPlayhead(TrimEdge.Out);
-
     /// <summary>
     /// Borra los clips seleccionados con sus enlazados. En la pista principal magnética (o con ripple automático) se
     /// cierra el hueco; en las demás queda. Con una transición seleccionada, borra solo la transición.
@@ -83,47 +77,6 @@ public sealed partial class EditorSession
     {
         VerifyAccess();
         Select(Sequence.AllTracks.SelectMany(t => t.Clips).Select(c => c.Id));
-    }
-
-    private bool TrimToPlayhead(TrimEdge edge)
-    {
-        VerifyAccess();
-        Time at = EditPosition;
-        List<string> targets = ClipsAtPlayhead(at);
-        if (targets.Count == 0)
-        {
-            return false;
-        }
-
-        Time? seekTo = null;
-        bool done = RunAsOneStep(edge == TrimEdge.In ? "Recortar inicio" : "Recortar final", targets, id =>
-        {
-            if (Sequence.FindClip(id) is not { } found || !(found.Clip.Start < at && at < found.Clip.End))
-            {
-                return null;
-            }
-
-            Time delta = at - (edge == TrimEdge.In ? found.Clip.Start : found.Clip.End);
-            if (!ClosesGaps(found.Track))
-            {
-                return Edits.Trim(SequenceId, id, edge, delta, _ids);
-            }
-
-            // Con ripple el inicio recortado queda donde estaba el clip, y el cursor va ahí para seguir viendo lo mismo.
-            if (edge == TrimEdge.In)
-            {
-                seekTo ??= found.Clip.Start;
-            }
-
-            return Edits.RippleTrim(SequenceId, id, edge, delta, Timeline.RippleScope, _ids);
-        });
-
-        if (done && seekTo is { } position)
-        {
-            Seek(position);
-        }
-
-        return done;
     }
 
     private bool ClosesGaps(Track track) =>
