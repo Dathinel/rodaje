@@ -546,3 +546,11 @@ Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.x
 
 `RecoverOnceAsync` (`AutosaveService.cs:205-219`) escribe el proyecto recuperado y luego llama a `OpenProjectAsync`. Si la persona cancela el aviso de cambios sin guardar, cada reintento crea otro «(recuperado N)» huérfano. Reutilizar la ruta ya escrita en la misma sesión, o borrar el archivo si la apertura falla. La prueba de doble clic usa `Task.Delay(200)`: cambiarla por un `TaskCompletionSource` en el arnés.
 
+## 56. Exportar fotograma con título falla al decodificar
+
+- **Estado:** pendiente (la sesión local la añadió como 50 en 0a56efa; se renumera porque la 50 ya era «Confirmar al borrar una plantilla propia» en el PR #40. Toca `src/Rodaje.Export/Still/` como la 49, PR #49: hacerla después)
+- **Rama:** `claude/fotograma-titulo`
+- **Caminos:** `src/Rodaje.Export/Still/`, `src/Rodaje.Engine/Offline/` (lo mínimo), `tests/Rodaje.Export.Tests/Still/`, `docs/tareas/`.
+- **Lee:** PR #32 (exportar fotograma), `docs/arquitectura/exportacion.md`.
+
+`StillExporterTests.El_png_es_el_cuadro_de_la_vista_previa_con_el_titulo` falla en local (Windows, RTX 3050) con «El medio no tiene ese cuadro» al decodificar en el motor fuera de línea. Reprodúcelo, corrige la causa (no la prueba) y confirma que pasa en la CI de Windows.

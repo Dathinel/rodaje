@@ -138,7 +138,7 @@ internal static class TranslateDialog
         }
     }
 
-    private static string Fmt(FormattableString s) => s.ToString(CultureInfo.CurrentCulture);
+    private static string Fmt(FormattableString s) => s.ToString(CultureInfo.InvariantCulture);
 
     private sealed record TrackChoice(string TrackId, string Label);
 }
