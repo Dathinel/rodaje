@@ -22,7 +22,9 @@ public sealed class StreamCopyTests(ITestOutputHelper output)
     // H.264 1080p a 29,97 con GOP 60 y cuadros B: keyframes en 0, 60, 120…
     private static readonly MediaSpec Source = TestMediaPresets.H264Ntsc30BFrames;
 
-    private static readonly IReadOnlyList<EncoderSpec> Encoders = [.. ExportEncoderCandidates.All.Except(ExportEncoderCandidates.OtherGpus)];
+    // El catálogo como lo deja la sonda en una RTX 3050: sin AMD, sin Intel y sin el AV1 de NVENC (solo RTX 40).
+    private static readonly IReadOnlyList<EncoderSpec> Encoders =
+        [.. ExportEncoderCatalog.All.Where(e => e.Vendor is not (EncoderVendor.Amd or EncoderVendor.Intel) && e.Id != "av1_nvenc")];
 
     private static readonly ExportSettings H264 = new() { Video = new VideoExportSettings { Codec = ExportCodec.H264 } };
 
@@ -33,7 +35,7 @@ public sealed class StreamCopyTests(ITestOutputHelper output)
         string path = Path.Combine(Path.GetTempPath(), $"rodaje-copia-{Guid.NewGuid():N}.mp4");
         try
         {
-            IReadOnlyList<EncoderSpec> encoders = await new ProbedEncoderSource(Skip.ProxyExecutable!, ExportEncoderCandidates.All).GetAsync();
+            IReadOnlyList<EncoderSpec> encoders = await new CatalogEncoderSource(Skip.ProxyExecutable!).GetAsync();
             var runner = new ExportRunner(new ExportRunnerOptions { Ffmpeg = Skip.ProxyExecutable! });
             var watch = Stopwatch.StartNew();
             using ExportJob job = runner.Start(new ExportRequest(project, "sec", path, H264), encoders);

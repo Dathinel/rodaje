@@ -30,7 +30,7 @@ public sealed class ExportSpeedBenchmarkTests(ITestOutputHelper output)
             return;
         }
 
-        IReadOnlyList<EncoderSpec> encoders = await new ProbedEncoderSource(Skip.ProxyExecutable, ExportEncoderCandidates.All).GetAsync();
+        IReadOnlyList<EncoderSpec> encoders = await new CatalogEncoderSource(Skip.ProxyExecutable).GetAsync();
         var runner = new ExportRunner(new ExportRunnerOptions { Ffmpeg = Skip.ProxyExecutable });
         string target = Path.Combine(Path.GetTempPath(), "rodaje-medir-exportar");
         Directory.CreateDirectory(target);

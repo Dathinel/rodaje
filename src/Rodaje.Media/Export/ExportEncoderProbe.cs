@@ -13,10 +13,18 @@ public enum ExportProbeStatus
     NotCompiled,
 
     /// <summary>
-    /// Está en el FFmpeg pero la prueba falló: falta el hardware o el controlador (lo normal), o algo pasajero (la GPU
-    /// ocupada, un proceso que no respondió, el exe que no se pudo leer). Se reintenta pasado un rato.
+    /// Está en el FFmpeg pero la prueba falló por algo que puede ser pasajero (la GPU ocupada o sin sesiones libres, un
+    /// proceso que no respondió, el exe que no se pudo leer) o por un codificador de software que no abrió. Se reintenta
+    /// pasado un rato.
     /// </summary>
     Failed,
+
+    /// <summary>
+    /// Es de hardware y este equipo no tiene el dispositivo o el controlador que pide (NVENC sin GPU NVIDIA, AV1 de NVENC
+    /// en una RTX 30…). No cambia sin cambiar el equipo o el controlador: no se reintenta hasta
+    /// <see cref="ExportEncoderAvailability.Invalidate"/>.
+    /// </summary>
+    NoDevice,
 }
 
 /// <summary>Resultado de probar un codificador en esta máquina.</summary>
@@ -31,6 +39,8 @@ public sealed record ExportProbeResult(ExportProbeStatus Status, string? Reason 
     public static ExportProbeResult NotCompiled(string reason) => new(ExportProbeStatus.NotCompiled, reason);
 
     public static ExportProbeResult Fail(string reason) => new(ExportProbeStatus.Failed, reason);
+
+    public static ExportProbeResult NoDevice(string reason) => new(ExportProbeStatus.NoDevice, reason);
 }
 
 /// <summary>Comprueba si un codificador funciona. Se sustituye por un doble en las pruebas.</summary>
@@ -104,9 +114,15 @@ public sealed class FfmpegExportEncoderProbe : IExportEncoderProbe
                 (exitCode, _, error) = _run(arguments, ProbeTimeout);
             }
 
-            return exitCode == 0
-                ? ExportProbeResult.Ok
-                : ExportProbeResult.Fail($"{encoder.Id} no funciona en este equipo: {UsefulLines(error, encoder.Id)}");
+            if (exitCode == 0)
+            {
+                return ExportProbeResult.Ok;
+            }
+
+            string reason = $"{encoder.Id} no funciona en este equipo: {UsefulLines(error, encoder.Id)}";
+            return encoder.IsHardware && exitCode != TimedOutExitCode && !LooksTransient(error)
+                ? ExportProbeResult.NoDevice(reason)
+                : ExportProbeResult.Fail(reason);
         }
         catch (FfmpegNotFoundException ex)
         {
@@ -205,6 +221,16 @@ public sealed class FfmpegExportEncoderProbe : IExportEncoderProbe
 
         return chosen.Length == 0 ? "sin mensaje de error." : string.Join(" | ", chosen.Take(3));
     }
+
+    /// <summary>
+    /// Si el error de un codificador de hardware puede pasarse solo: la GPU sin memoria o sin sesiones libres (NVENC da
+    /// «out of memory» o «incompatible client key» cuando otras aplicaciones ocupan todas las sesiones) u ocupada. Lo demás
+    /// («No capable devices found», «unsupported device», la DLL del controlador que no está) es que falta el hardware.
+    /// </summary>
+    internal static bool LooksTransient(string error) =>
+        error.Contains("out of memory", StringComparison.OrdinalIgnoreCase)
+        || error.Contains("incompatible client key", StringComparison.OrdinalIgnoreCase)
+        || error.Contains("busy", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsGenericNoise(string line) =>
         line.Contains("Conversion failed", StringComparison.Ordinal)

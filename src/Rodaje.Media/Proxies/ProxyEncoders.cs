@@ -1,5 +1,6 @@
 using System.Globalization;
 using Rodaje.Core.Timing;
+using Rodaje.Media.Export;
 using Rodaje.Media.Gpu;
 
 namespace Rodaje.Media.Proxies;
@@ -19,11 +20,22 @@ public sealed record ProxyEncodeInput(string SourcePath, int StreamIndex, int Di
 /// donde no hay GPU. HEVC o AV1 no decodificarían más rápido y dejarían fuera a las GPU viejas.</para>
 /// <para>Lo que cambia por fabricante es quién lo codifica (<see cref="PreferenceFor"/>): el de la GPU principal (NVENC,
 /// AMF o Quick Sync), luego el de otra GPU del equipo, luego Media Foundation (CPU) y OpenH264. Ninguno es GPL.</para>
+/// <para>Los codificadores y su formato de píxel salen del catálogo de la exportación (<see cref="ExportEncoderCatalog"/>):
+/// los de H.264 de los que aquí se sabe armar la tasa de un proxy. Sus argumentos fijos no se copian: los de un proxy (tasa,
+/// GOP corto, sin cuadros B) son otros, y el <c>-hw_encoding 0</c> de Media Foundation lo haría más lento.</para>
 /// </remarks>
 public static class ProxyEncoders
 {
+    // Los que tienen tasa de proxy en BuildArguments.
+    private static readonly string[] WithProxyRate = ["h264_nvenc", "h264_amf", "h264_qsv", "h264_mf", "libopenh264"];
+
+    // Los de H.264 del catálogo con tasa de proxy, en el orden del catálogo (GPU, Media Foundation, OpenH264).
+    private static readonly EncoderSpec[] Candidates =
+        [.. ExportEncoderCatalog.Video.Where(e => e.Codec == ExportCodec.H264 && WithProxyRate.Contains(e.Id))];
+
     /// <summary>El orden de un equipo NVIDIA (y el de siempre).</summary>
-    public static IReadOnlyList<string> Preference { get; } = ["h264_nvenc", "h264_mf", "libopenh264"];
+    public static IReadOnlyList<string> Preference { get; } =
+        [.. Candidates.Where(e => !e.IsHardware || e.Vendor == EncoderVendor.Nvidia).Select(e => e.Id)];
 
     /// <summary>Codificadores de proxy del más al menos preferido en este equipo: primero los de su GPU principal.</summary>
     public static IReadOnlyList<string> PreferenceFor(GpuProfile profile)
@@ -33,13 +45,14 @@ public static class ProxyEncoders
         IEnumerable<GpuVendor> vendors = profile.Adapters.Where(a => !a.IsSoftware).Select(a => a.Vendor).Distinct();
         foreach (GpuVendor vendor in vendors)
         {
-            string? id = vendor switch
+            EncoderVendor? encoderVendor = vendor switch
             {
-                GpuVendor.Nvidia => "h264_nvenc",
-                GpuVendor.Amd => "h264_amf",
-                GpuVendor.Intel => "h264_qsv",
+                GpuVendor.Nvidia => EncoderVendor.Nvidia,
+                GpuVendor.Amd => EncoderVendor.Amd,
+                GpuVendor.Intel => EncoderVendor.Intel,
                 _ => null,
             };
+            string? id = Candidates.FirstOrDefault(e => e.IsHardware && e.Vendor == encoderVendor)?.Id;
             if (id is not null && profile.Adapters.First(a => !a.IsSoftware && a.Vendor == vendor).Generation is var generation
                 && (!generation.Known || generation.Encodes(HardwareEncodeCodecs.H264)))
             {
@@ -47,13 +60,21 @@ public static class ProxyEncoders
             }
         }
 
-        order.AddRange(["h264_mf", "libopenh264"]);
+        order.AddRange(Candidates.Where(e => !e.IsHardware).Select(e => e.Id));
         return order;
     }
 
-    /// <summary>Formato de píxel que acepta cada codificador (Media Foundation, AMF y Quick Sync, NV12).</summary>
-    public static IReadOnlyList<string> PixelFormatArguments(string encoder) =>
-        encoder is "h264_mf" or "h264_amf" or "h264_qsv" ? ["-pix_fmt", "nv12"] : ["-pix_fmt", "yuv420p"];
+    /// <summary>
+    /// Formato de píxel del proxy con cada codificador: el primero de 8 bits 4:2:0 que el catálogo le da (NV12 en NVENC,
+    /// AMF, Quick Sync y Media Foundation, que solo negocia NV12; <c>yuv420p</c> en OpenH264).
+    /// </summary>
+    public static IReadOnlyList<string> PixelFormatArguments(string encoder)
+    {
+        ExportPixelFormat pixels = ExportEncoderCatalog.Find(encoder)?.PixelFormats
+            .FirstOrDefault(f => f.BitDepth() == 8 && f.Chroma() == ChromaSubsampling.Chroma420 && !f.HasAlpha(), ExportPixelFormat.Yuv420P)
+            ?? ExportPixelFormat.Yuv420P;
+        return ["-pix_fmt", pixels.FfmpegName()];
+    }
 
     /// <summary>
     /// Argumentos completos de <c>ffmpeg.exe</c> para un proxy: mismos cuadros y mismas marcas que el original.

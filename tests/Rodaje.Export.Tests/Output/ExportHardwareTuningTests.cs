@@ -1,5 +1,4 @@
 using Rodaje.Core.Timing;
-using Rodaje.Export.Encoders;
 using Rodaje.Export.Tuning;
 using Rodaje.Media.Export;
 using Rodaje.Media.Gpu;
@@ -18,7 +17,7 @@ public sealed class ExportHardwareTuningTests
     private static readonly GpuProfile NoGpu = GpuProfile.CpuOnly(8);
 
     private static IReadOnlyList<EncoderSpec> Probed(GpuProfile profile) => ExportEncoderChooser.PreferVendor(
-        ExportEncoderCandidates.All.Where(e => profile.SkipReason(e) is null), profile.PreferredEncoderVendor);
+        ExportEncoderCatalog.All.Where(e => profile.SkipReason(e) is null), profile.PreferredEncoderVendor);
 
     [Fact]
     public void Default_h264_follows_the_vendor()

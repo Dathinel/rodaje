@@ -30,7 +30,7 @@ public sealed class ExportAcceptanceGroup
 internal static partial class AcceptanceSupport
 {
     private static readonly Lazy<Task<IReadOnlyList<EncoderSpec>>> SharedEncoders = new(() =>
-        new ProbedEncoderSource(Ffmpeg, ExportEncoderCandidates.All).GetAsync());
+        new CatalogEncoderSource(Ffmpeg).GetAsync());
 
     private static readonly Dictionary<int, AcceptanceScene> Scenes = [];
 

@@ -50,7 +50,7 @@ public sealed class ExportLocalMediaTests(ITestOutputHelper output)
         }
 
         Assert.Empty(ModelValidator.Validate(project));
-        IReadOnlyList<EncoderSpec> encoders = await new ProbedEncoderSource(Skip.ProxyExecutable!, ExportEncoderCandidates.All).GetAsync();
+        IReadOnlyList<EncoderSpec> encoders = await new CatalogEncoderSource(Skip.ProxyExecutable!).GetAsync();
         string folder = Path.Combine(Path.GetTempPath(), "rodaje-pruebas-locales");
         Directory.CreateDirectory(folder);
         string path = Path.Combine(folder, $"{files.Length}-clips.mp4");

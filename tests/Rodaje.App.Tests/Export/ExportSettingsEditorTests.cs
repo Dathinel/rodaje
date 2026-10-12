@@ -102,17 +102,18 @@ public class ExportSettingsEditorTests
     }
 
     [Fact]
-    public void TamanoObjetivoEnNvenc_PasaACalidadConstante()
+    public void TamanoObjetivoSinDosPasadas_PasaACalidadConstante()
     {
-        ExportSettings settings = ExportPresets.YouTube1080p.Settings;
+        // SVT-AV1 no hace dos pasadas por FFmpeg; NVENC sí (en la misma codificación, con -multipass).
+        ExportSettings settings = ExportPresets.SmallFile.Settings;
         settings = settings with { Video = settings.Video! with { RateControl = RateControl.TargetSize(50_000_000) } };
 
         CoercedSettings coerced = ExportSettingsEditor.Coerce(settings, All);
 
         Assert.Equal(RateControlMode.ConstantQuality, coerced.Settings.Video!.RateControl.Mode);
         Assert.Single(coerced.Changes);
-        Assert.DoesNotContain(RateChoice.TargetSize, ExportChoices.RateChoices(SimulatedEncoders.H264Nvenc));
-        Assert.Contains(RateChoice.TargetSize, ExportChoices.RateChoices(SimulatedEncoders.SvtAv1));
+        Assert.Contains(RateChoice.TargetSize, ExportChoices.RateChoices(SimulatedEncoders.H264Nvenc));
+        Assert.DoesNotContain(RateChoice.TargetSize, ExportChoices.RateChoices(SimulatedEncoders.SvtAv1));
     }
 
     [Fact]
@@ -143,14 +144,15 @@ public class ExportSettingsEditorTests
     {
         Assert.Equal([ExportCodec.Vp9, ExportCodec.Av1], ExportChoices.VideoCodecs(ExportContainer.WebM, All));
         Assert.Equal([ExportCodec.Opus], ExportChoices.AudioCodecs(ExportContainer.WebM, All));
-        Assert.DoesNotContain(ExportContainer.WebP, ExportChoices.Containers(All));
+        Assert.Contains(ExportContainer.WebP, ExportChoices.Containers(All));
+        Assert.DoesNotContain(ExportContainer.WebP, ExportChoices.Containers([.. All.Where(e => e.Id != "libwebp")]));
         Assert.Contains(ExportContainer.Wav, ExportChoices.Containers(All));
         Assert.Equal([8, 10], ExportChoices.BitDepths(SimulatedEncoders.HevcNvenc));
         Assert.Equal([1, 2, 6], ExportChoices.Channels(SimulatedEncoders.AacMf));
         Assert.Equal([1, 2], ExportChoices.Channels(SimulatedEncoders.Mp3));
         Assert.StartsWith("GPU · NVIDIA", ExportChoices.EncoderLabel(SimulatedEncoders.H264Nvenc), StringComparison.Ordinal);
         Assert.StartsWith("CPU", ExportChoices.EncoderLabel(SimulatedEncoders.SvtAv1), StringComparison.Ordinal);
-        Assert.Equal(["h264_nvenc", "h264_mf"], ExportChoices.EncodersFor(ExportCodec.H264, All).Select(e => e.Id));
+        Assert.Equal(["h264_nvenc", "h264_mf", "libopenh264"], ExportChoices.EncodersFor(ExportCodec.H264, All).Select(e => e.Id));
     }
 
     [Fact]

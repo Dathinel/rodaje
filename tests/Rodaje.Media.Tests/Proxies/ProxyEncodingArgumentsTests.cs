@@ -86,7 +86,7 @@ public sealed class ProxyEncodingArgumentsTests
         IReadOnlyList<string> openh264 = ProxyEncoders.BuildArguments(Input, ProxySettings.Default, "libopenh264", "o.mp4", false);
 
         AssertSequence(nvenc, "-c:v", "h264_nvenc");
-        AssertSequence(nvenc, "-pix_fmt", "yuv420p");
+        AssertSequence(nvenc, "-pix_fmt", "nv12");
         AssertSequence(nvenc, "-no-scenecut", "1");
         AssertSequence(mf, "-pix_fmt", "nv12");
         AssertSequence(mf, "-c:v", "h264_mf");

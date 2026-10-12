@@ -160,7 +160,8 @@ public sealed class FfmpegExportEncoderProbeTests
 
         ExportProbeResult result = runner.Probe().Probe(Spec("h264_nvenc"));
 
-        Assert.Equal(ExportProbeStatus.Failed, result.Status);
+        // De hardware y sin GPU NVIDIA: falla como «sin dispositivo», que no se reintenta (HardwareProbeStatusTests).
+        Assert.Equal(ExportProbeStatus.NoDevice, result.Status);
         Assert.False(result.Works);
         Assert.Equal("h264_nvenc no funciona en este equipo: OpenEncodeSessionEx failed: unsupported device (2): (no details) | No capable devices found",
             result.Reason);

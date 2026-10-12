@@ -27,7 +27,7 @@ public sealed class ExportEndToEndTests(ITestOutputHelper output) : IDisposable
     private static readonly System.Collections.Concurrent.ConcurrentBag<string> Created = [];
 
     private static readonly Lazy<Task<IReadOnlyList<EncoderSpec>>> Encoders = new(() =>
-        new ProbedEncoderSource(Skip.ProxyExecutable!, ExportEncoderCandidates.All).GetAsync());
+        new CatalogEncoderSource(Skip.ProxyExecutable!).GetAsync());
 
     [ExportFact]
     public async Task H264_nvenc_mp4_with_aac_loudness_and_chapters_matches_the_preview()

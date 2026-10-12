@@ -40,13 +40,13 @@ public sealed partial class AppExportRunner : IExportRunner
                 FontFiles = fontFiles,
                 Preview = preview,
                 Journal = journal ?? ExportJournal.Default,
-                Encoders = new ProbedEncoderSource(ffmpeg, ExportEncoderCandidates.All, Rodaje.Media.Gpu.GpuProfileReader.Current),
+                Encoders = new CatalogEncoderSource(ffmpeg, Rodaje.Media.Gpu.GpuProfileReader.Current),
             }), null);
         }, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     private readonly Lock _gplGate = new();
-    private (FfmpegExecutable Ffmpeg, ProbedEncoderSource Source)? _gpl;
+    private (FfmpegExecutable Ffmpeg, CatalogEncoderSource Source)? _gpl;
 
     public bool IsSimulation => false;
 
@@ -78,12 +78,12 @@ public sealed partial class AppExportRunner : IExportRunner
             return setup;
         }
 
-        ProbedEncoderSource source;
+        CatalogEncoderSource source;
         lock (_gplGate)
         {
             if (_gpl is not { } known || !ReferenceEquals(known.Ffmpeg, gpl))
             {
-                _gpl = (gpl, new ProbedEncoderSource(gpl, GplEncoderCandidates.All));
+                _gpl = (gpl, CatalogEncoderSource.ForGplAddOn(gpl));
             }
 
             source = _gpl.Value.Source;

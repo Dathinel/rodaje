@@ -117,9 +117,11 @@ public static class ExportSettingsEditor
         }
 
         ExportCodec codec = video.Codec;
-        if (!codecs.Contains(codec))
+        // Un códec cuyos codificadores están todos fuera de los valores por defecto (OpenH264 o kvazaar sin GPU ni Media
+        // Foundation, x264 del complemento) solo vale si se eligió uno de ellos; si no, se cambia como si no estuviera.
+        if (!codecs.Contains(codec) || ExportChoices.Resolve(codec, video.EncoderId, encoders) is null)
         {
-            codec = codecs[0];
+            codec = codecs.FirstOrDefault(c => ExportChoices.DefaultEncoder(c, encoders) is not null, codecs[0]);
             changes.Add($"{where} no admite {ExportChoices.CodecName(video.Codec)} en este equipo: se usa {ExportChoices.CodecName(codec)}.");
             video = DefaultVideo(codec, encoders) with
             {
@@ -128,7 +130,7 @@ public static class ExportSettingsEditor
             };
         }
 
-        EncoderSpec spec = ExportChoices.Resolve(codec, video.EncoderId, encoders)!;
+        EncoderSpec spec = ExportChoices.Resolve(codec, video.EncoderId, encoders) ?? ExportChoices.EncodersFor(codec, encoders)[0];
         string? encoderId = video.EncoderId == spec.Id ? spec.Id : null;
         int bitDepth = video.BitDepth;
         IReadOnlyList<int> depths = ExportChoices.BitDepths(spec);

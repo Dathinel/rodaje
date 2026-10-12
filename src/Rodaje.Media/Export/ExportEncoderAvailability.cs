@@ -28,7 +28,7 @@ public sealed class ExportEncoderReport
     /// <summary>Cuándo terminó la última prueba (la completa o el reintento de los fallos).</summary>
     public DateTimeOffset ProbedAt { get; }
 
-    /// <summary>Si alguno falló al probarse (no cuenta «no compilado»): esos se reintentan.</summary>
+    /// <summary>Si alguno falló al probarse (no cuentan «no compilado» ni «sin dispositivo»): esos se reintentan.</summary>
     public bool HasFailures => All.Any(s => s.Result.Status == ExportProbeStatus.Failed);
 
     public ExportEncoderStatus? Find(string id) => All.FirstOrDefault(s => string.Equals(s.Encoder.Id, id, StringComparison.Ordinal));
@@ -49,8 +49,9 @@ public sealed class ExportEncoderReport
 /// <para>Las sondas reales tardan segundos (lanzan procesos y abren la GPU), así que se cachea: todos los que piden
 /// <see cref="GetAsync"/> mientras corre comparten la misma tarea y los siguientes reciben el resultado guardado.</para>
 /// <para>Un codificador que <see cref="ExportProbeStatus.Failed">falló</see> se vuelve a probar en la primera petición
-/// que llegue pasado <c>failureRetryInterval</c> (la GPU pudo estar ocupada); los que funcionan o no están compilados no
-/// se repiten. Si todos los fallos son de hardware que no hay, el reintento solo cuesta esas pocas sondas.</para>
+/// que llegue pasado <c>failureRetryInterval</c> (la GPU pudo estar ocupada); los que funcionan, los que no están
+/// compilados y los de hardware <see cref="ExportProbeStatus.NoDevice">sin dispositivo</see> no se repiten (abrir la GPU
+/// que no hay cada 2 minutos no aporta nada).</para>
 /// <para><see cref="Invalidate"/> obliga a probar todo de nuevo (por ejemplo tras cambiar el controlador de la GPU). Si
 /// llega con una prueba en curso, quien ya esperaba recibe esa prueba; la nueva empieza cuando la anterior acaba, para
 /// no abrir la GPU dos veces a la vez.</para>

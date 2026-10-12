@@ -40,7 +40,7 @@ public sealed class FormatMatrixTests(ITestOutputHelper output)
     });
 
     private static readonly Lazy<Task<IReadOnlyList<EncoderSpec>>> Encoders = new(() =>
-        new ProbedEncoderSource(Skip.ProxyExecutable!, ExportEncoderCandidates.All).GetAsync());
+        new CatalogEncoderSource(Skip.ProxyExecutable!).GetAsync());
 
     public static TheoryData<string> Cases => MatrixCases.Names();
 

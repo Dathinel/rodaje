@@ -78,7 +78,7 @@ public sealed class GplEncoderPackTests(ITestOutputHelper output) : IDisposable
         Assert.Throws<FfmpegNotFoundException>(() => FfmpegExecutable.Open(gpl.Path));
         Assert.Same(gpl, gpl.EnsureUnchanged());
 
-        var source = new ProbedEncoderSource(gpl, GplEncoderCandidates.All);
+        CatalogEncoderSource source = CatalogEncoderSource.ForGplAddOn(gpl);
         IReadOnlyList<EncoderSpec> probed = await source.GetAsync();
         Assert.Equal(["libx264", "libx265"], probed.Select(e => e.Id));
 
