@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #38, #37, #41, #39. Los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47) y #30, #32, #18, #36 (tareas 48–50) los revisó Sonnet el 12-oct.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50) y #38, #37, #41, #39 (52–55).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -499,4 +499,50 @@ Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.x
 
 1. Registrar `Views.Translate.TranslateCommands.Bind(_router, _services)` en `MainWindow.xaml.cs` (junto a la línea 135, como los demás) y añadir «Traducir pista» al menú de la pista de subtítulos, como el de voz en `TimelineView.Analysis.cs`.
 2. `modules/Rodaje.Module.Subtitles/paquete.json` no tiene `"apps"` y `ManifestReader` lo rechaza. Corregirlo, con una prueba que lea el manifiesto real con `ManifestReader`, como `ManifestTests` del módulo de traducir.
+
+## 52. Traducir: salidas cortadas, tokens de control y textos largos
+
+- **Estado:** pendiente
+- **Rama:** `claude/traducir-robusto`
+- **Caminos:** `modules/Rodaje.Module.Translate/LlamaGenerator.cs`, `modules/Rodaje.Module.Translate/Translation/`, `tests/Rodaje.Module.Translate.Tests/`, `src/Rodaje.App/Services/Translate/SubtitleTrackTranslation.cs`, `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 38, revisión en bloque 4.
+
+1. `SubtitleTranslator.cs:25` fija el tope de tokens por el largo del texto de origen, y `GenerateAsync` no mira por qué paró el modelo. Una traducción al hindi, árabe, japonés o coreano se corta a mitad de frase y se acepta como buena (`:73-78`). Que el generador diga si llegó al tope. Si llegó, reintentar ese subtítulo suelto con el doble; si vuelve a llegar, va a `untranslated`. Subir el factor para esas escrituras. Prueba con un `FakeGenerator` que corte.
+2. `Prompt.cs:30,37,47`: un subtítulo con `<|im_end|><|im_start|>` o `</think>` llega tal cual al prompt (`ApplyTemplate=false`) y puede cerrar el turno o hacer que `StripThinking` descarte texto. Neutralizar `<|` y `</think>` en el texto del usuario, con prueba en `PromptTests`.
+3. `SubtitleTrackTranslation.cs:102` recorta el texto a 500 caracteres sin avisar, y la traducción reemplaza el texto entero. Si el corte cae en medio de un par sustituto, `Utf8JsonWriter` lanza una excepción y falla la pista entera. Recortar respetando los sustitutos, y marcar o partir los textos largos en lugar de truncarlos. Pruebas con 501 caracteres y con un emoji en el borde.
+
+## 53. Modelo del traductor instalable desde Complementos
+
+- **Estado:** pendiente (hacerla después de la 51, que toca el mismo `paquete.json`)
+- **Rama:** `claude/traducir-modelo`
+- **Caminos:** `modules/Rodaje.Module.Translate/paquete.json`, `modules/Rodaje.Module.Translate/ModelFiles.cs`, `modules/Rodaje.Module.Translate/LICENCIAS.md`, `src/Rodaje.Paquetes/ManifestReader.cs`, `tests/Rodaje.Paquetes.Tests/` (archivos nuevos), `src/Rodaje.App/Services/Translate/`, `docs/tareas/`
+- **Lee:** entrega de la tarea 38, `src/Rodaje.Paquetes/Download/ModelStore.cs`, `DownloadUrlPolicy.cs`, `docs/descarga.md`, revisión en bloque 4.
+
+`ModelStore.EnsureAsync` exige `size > 0` y una URL de Hugging Face fijada a un commit de 40 hex; el manifiesto trae `resolve/main` sin `size`. Nadie llama a `ModelStore`, `ManifestReader` no valida `models`, y `ModelFiles.Search` no mira `complementos\modelos\<sha256>`. Además, el error remite a `herramientas\preparar-modelos.ps1`, que no se distribuye. Que `ModelFiles` encuentre el modelo con `ModelStore.Find` por su sha256. Que `ManifestReader` exija `size` y una URL fijada en cada modelo, con prueba. Que la acción avise «falta el modelo, instálalo desde Complementos». Añadir a `LICENCIAS.md` el texto de Apache-2.0 y el NOTICE para cuando se redistribuya el modelo. La URL fijada, el tamaño y el SHA-256 verificado los pone Daniel, porque la nube no llega a Hugging Face: deja marcadores claros y anótalo en la entrega.
+
+## 54. Biblioteca: proyectos que comparten organización y lectura de códecs
+
+- **Estado:** pendiente
+- **Rama:** `claude/biblioteca-robusta`
+- **Caminos:** `src/Rodaje.App/Views/Library/`, `tests/Rodaje.App.Tests/Library/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 30, revisión en bloque 4.
+
+1. `LibraryOrganizationStore.PathFor` (`:31-39`) usa `Project.Id`, que no cambia al copiar el `.rodaje`. La copia comparte el JSON y `Prune` al cargar (`LibraryView.Folders.cs:40`) borra del archivo compartido los medios que la copia no tiene. Usar como clave el id más la ruta, o su hash, y no podar al cargar: filtrar solo al mostrar.
+2. `ReadCodecs` (`LibraryView.Folders.cs:395-413`) guarda los fallos para toda la sesión y solo captura tres excepciones. Una inesperada detiene la lectura y los demás medios quedan en «…». Capturar por medio y no guardar los fallos, o guardarlos con la fecha de modificación.
+3. Menores:
+   - Una versión futura del JSON se sobrescribe; apartarla.
+   - Un id como `CON` o `nul` da un nombre reservado de Windows.
+   - `KindOf` toma por imagen un video con `FrameRate == null`.
+   - `SearchText.Fold` no pliega las tildes descompuestas (NFD).
+   - `NewId` reutiliza `folder-N`.
+   - `Save` hace `Flush(true)` en el hilo de la interfaz.
+
+## 55. Autoguardado: «(recuperado N)» huérfanos al cancelar la apertura
+
+- **Estado:** pendiente
+- **Rama:** `claude/autoguardado-recuperado`
+- **Caminos:** `src/Rodaje.App/Services/Autosave/AutosaveService.cs`, `tests/Rodaje.App.Tests/Autosave/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 34, revisión en bloque 4.
+
+`RecoverOnceAsync` (`AutosaveService.cs:205-219`) escribe el proyecto recuperado y luego llama a `OpenProjectAsync`. Si la persona cancela el aviso de cambios sin guardar, cada reintento crea otro «(recuperado N)» huérfano. Reutilizar la ruta ya escrita en la misma sesión, o borrar el archivo si la apertura falla. La prueba de doble clic usa `Task.Delay(200)`: cambiarla por un `TaskCompletionSource` en el arnés.
 
