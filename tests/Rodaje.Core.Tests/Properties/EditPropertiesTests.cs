@@ -203,7 +203,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
                 iter: 5000,
                 print: s => $"{s.Item1}\nArrastre {s.Item2} del clip {s.Item3}: [{string.Join(", ", s.Item4)}] ripple-todas={s.Item5}");
 
-    private static void RunScenario(ProjectSpec spec, OpSpec[] ops)
+    internal static void RunScenario(ProjectSpec spec, OpSpec[] ops)
     {
         BuiltProject built = RandomTimeline.Build(spec);
         Project project = built.Project;
@@ -478,6 +478,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
     /// <remarks>
     /// Se salta el recorte con ripple (un clip de otra pista puede quedar a caballo del punto que se corre), los
     /// keyframes puestos a mano y el clip que se mueve o desliza sin ripple, que no se lleva la curva de la pista.
+    /// También el clip que cambia de duración: lo recortaron (por ejemplo, al sobrescribir encima) y sus puntos ya no
+    /// son los mismos. Un cuadro congelado recortado conserva su origen, así que el origen no basta para notarlo.
     /// </remarks>
     private static string? CheckTrackCurves(ResolvedOp op, List<GroupMember> group, Dictionary<string, Track> before, Sequence after)
     {
@@ -520,7 +522,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
                     foreach (Clip clip in now.Clips)
                     {
                         Clip? was = old.Clips.Find(c => c.Id == clip.Id);
-                        if (was is null || moved.Contains(clip.Id) || was.SourceIn != clip.SourceIn || was.SourceOut != clip.SourceOut)
+                        if (was is null || moved.Contains(clip.Id) || was.SourceIn != clip.SourceIn || was.SourceOut != clip.SourceOut
+                            || was.Duration != clip.Duration)
                         {
                             continue;
                         }
