@@ -79,6 +79,7 @@ public static class TitleEdits
         GeneratorEdges edges = Generator(ctx, clipId).Edges;
         edges.In = animateIn ?? edges.In;
         edges.Out = animateOut ?? edges.Out;
+        ctx.EnsureValid();
     }
 
     public static void SetBox(EditContext ctx, string clipId, TextFrame? box)

@@ -84,6 +84,68 @@ public sealed class ExportTitleTests(ITestOutputHelper output) : IDisposable
         Assert.True(fill > 5000, $"Con el respaldo el título tiene que verse ({fill} px).");
     }
 
+    /// <summary>
+    /// Un título con entrada (opacidad y subida de 200 px en 1 s) y salida (opacidad en 1 s): la exportación evalúa la
+    /// animación como la vista previa, cuadro a cuadro, también a mitad de la entrada y de la salida.
+    /// </summary>
+    [ExportFact]
+    public async Task Un_titulo_animado_entra_y_sale_igual_que_en_la_vista_previa()
+    {
+        TextStyle style = Style("Segoe UI");
+        style.In = new StyleAnimation
+        {
+            DurationSeconds = 1,
+            Curves = new Dictionary<string, List<StyleKey>>
+            {
+                [BuiltInEffects.TransformParameters.Opacity] = [new StyleKey(0, 0), new StyleKey(1, 1)],
+                [BuiltInEffects.TransformParameters.Y] = [new StyleKey(0, 200, Interpolation.EaseOut), new StyleKey(1, 0)],
+            },
+        };
+        style.Out = new StyleAnimation
+        {
+            DurationSeconds = 1,
+            Curves = new Dictionary<string, List<StyleKey>> { [BuiltInEffects.TransformParameters.Opacity] = [new StyleKey(0, 1), new StyleKey(1, 0)] },
+        };
+        Project project = TitleOnly(style);
+        Clip title = project.Sequences[0].VideoTracks[0].Clips[0];
+        title.SourceOut = S(3);
+        title.Generator!.Edges = new GeneratorEdges();
+        var settings = new ExportSettings
+        {
+            Video = new VideoExportSettings { Codec = ExportCodec.H264, EncoderId = "h264_nvenc", RateControl = RateControl.ConstantQuality(16), Profile = "high" },
+        };
+
+        (ExportJob job, string path) = await RunAsync(project, settings, "titulo-animado.mp4", continueWithout: false);
+        Assert.True(job.Progress.State == ExportJobState.Completed, job.Failure?.ToString());
+
+        var bright = new Dictionary<long, double>();
+        foreach (long frame in (long[])[0, 15, 45, 75, 89])
+        {
+            byte[] preview = Preview(project, frame);
+            byte[] exported = await DecodeRgbAsync(path, frame, 1920, 1080);
+            double psnr = LumaPsnr(preview, exported);
+            bright[frame] = MeanLuma(exported);
+            output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"cuadro {frame}: PSNR de luma {psnr:0.0} dB; luma media {bright[frame]:0.00}"));
+            Assert.True(psnr >= 35, $"Cuadro {frame}: PSNR {psnr:0.0} dB contra la vista previa.");
+        }
+
+        Assert.True(bright[0] < 0.5, "En el primer cuadro el título todavía no se ve.");
+        Assert.InRange(bright[15], bright[45] * 0.2, bright[45] * 0.8);
+        Assert.InRange(bright[75], bright[45] * 0.3, bright[45] * 0.7);
+        Assert.True(bright[89] < bright[45] * 0.1, "En el último cuadro el título ya salió.");
+    }
+
+    private static double MeanLuma(byte[] rgb)
+    {
+        double sum = 0;
+        for (int j = 0; j < rgb.Length; j += 3)
+        {
+            sum += Luma(rgb[j], rgb[j + 1], rgb[j + 2]);
+        }
+
+        return sum / (rgb.Length / 3);
+    }
+
     private static TextStyle Style(string family) => new()
     {
         Name = "Prueba",

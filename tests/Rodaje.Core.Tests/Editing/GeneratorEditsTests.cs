@@ -127,6 +127,14 @@ public class GeneratorEditsTests
     }
 
     [Fact]
+    public void SetEdges_ValidatesTheProjectLikeTheOtherTitleEdits()
+    {
+        TrimFixture f = Fixture();
+        G(f, "t").Edges.Before = Time.FromTicks(-1);
+        AssertFails(() => TitleEdits.SetEdges(f.Ctx, "t", false, null), "desfase");
+    }
+
+    [Fact]
     public void Split_KeepsATransitionBetweenTitlesOnItsCut()
     {
         TrimFixture f = new TrimFixture().AddTitle("v1", "a", 0, 20, 0).AddTitle("v1", "b", 0, 20, 20);
