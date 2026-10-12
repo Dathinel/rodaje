@@ -1,0 +1,122 @@
+# Distribución probada fuera de la máquina de desarrollo.
+# - armar: compila instalador y portable con build\distribuir.ps1 (sin módulos ni completa) y los sube como artefacto.
+# - maquina-limpia: en otra VM windows-latest recién creada (sin GPU: WARP; sin audio; Windows en inglés), solo con los
+#   artefactos y build\, y el PATH reducido al del sistema: instala, abre con --autoprueba, desinstala, abre el portable
+#   y mide el arranque (build\probar-maquina-limpia.ps1). «hostil» suma rutas con tildes, 150 %, sin red y otra unidad.
+# Se lanza a mano (gh workflow run distribucion.yml --ref <rama>) y con cada etiqueta v*.
+
+name: Distribución
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+    branches: [prueba-externa]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: distribucion-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+
+jobs:
+  armar:
+    name: Armar instalador y portable
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # Las mismas cachés que ci.yml (desde main se comparten).
+      - name: Caché del SDK y FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: |
+            .entorno/dotnet
+            .entorno/ffmpeg
+          key: entorno-windows-${{ hashFiles('build/preparar-entorno.ps1', 'global.json') }}
+
+      - name: Caché de NuGet
+        uses: actions/cache@v4
+        with:
+          path: .entorno/nuget
+          key: nuget-windows-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: nuget-windows-
+
+      - name: Preparar el entorno
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1
+
+      # La prueba del instalador corre en la máquina limpia, no aquí.
+      - name: Distribuir
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\distribuir.ps1 -SinModulos -SinCompleta -SinComprobar
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Artefactos
+        uses: actions/upload-artifact@v4
+        with:
+          name: distribucion
+          path: |
+            dist/distribucion/*.exe
+            dist/distribucion/*.zip
+            dist/distribucion/SHA256SUMS.txt
+            dist/distribucion/*-notas.md
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Registros de la compilación
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: registros-armar
+          path: TestResults/**/*.log
+          if-no-files-found: ignore
+
+  maquina-limpia:
+    name: Máquina limpia (${{ matrix.variante }})
+    needs: armar
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variante: [limpia, hostil]
+    steps:
+      # Solo los scripts de build\ y el proyecto de ejemplo: nada se compila en esta máquina.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            build
+            tests/Rodaje.Core.Tests/Serialization/ejemplos
+            global.json
+            Directory.Build.props
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: distribucion
+          path: distribucion
+
+      # PATH solo con Windows: ni dotnet, ni git, ni Visual Studio, ni el SDK de Windows.
+      - name: Probar
+        shell: powershell
+        run: |
+          $env:PATH = "$env:SystemRoot\system32;$env:SystemRoot;$env:SystemRoot\System32\Wbem;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
+          Remove-Item Env:DOTNET_ROOT, Env:DOTNET_ROOT_X64, Env:DOTNET_ROOT_X86 -ErrorAction SilentlyContinue
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\probar-maquina-limpia.ps1 -Distribucion distribucion -Salida resultado -Variante ${{ matrix.variante }}
+          exit $LASTEXITCODE
+
+      - name: Registros y capturas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maquina-${{ matrix.variante }}
+          path: resultado
+          if-no-files-found: warn
