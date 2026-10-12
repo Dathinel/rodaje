@@ -34,8 +34,14 @@ Rama `claude/ci-main-verde`, PR #31. Desde f89d896 (run 38194016251) el trabajo 
   - En los dos primeros intentos, App (765 sin fallos, antes con 10), Render (5 omitidas) y Core pasaron. Engine pasó en el primero.
   - **Intento 1:** falló `CpuExportCancellationTests.Canceling_mid_export_leaves_no_process_and_no_file` (Media), 3 casos con «La cancelación tardó 3924, 4861 y 5781 ms» frente a un tope de 3 s. `Abort` volvía a los ~930 ms y ffmpeg.exe no se veía muerto («NaN ms»): con el equipo saturado, Windows tarda segundos en terminar un ffmpeg grande. En el intento 2 Media pasó entero.
   - **Intento 2:** falló `TimelineSpeedTests.Speed_adds_no_bytes_to_what_each_tick_already_reserves` (Engine): 3175 frente a 3176 bytes por tick en pausa. Es 1 B de media, unos 200 B en 200 refrescos, medidos con `GC.GetAllocatedBytesForCurrentThread`. En el intento 1 pasó.
-  - **Intento 3:** el resultado va en el comentario del PR.
-- **Las dos fallas de Windows están fuera de los caminos de esta tarea.** Ni esas pruebas ni `src/Rodaje.Media/` cambiaron desde f89d896, y en main pasaron. Hacen falta tareas con esos archivos en sus caminos (ver «Pendiente»).
+- **Run 38205735276** (1e2d2f6, sobre e890f54 de main): pasaron App (793), Engine (350), Render (5 omitidas), Core, Paquetes y los demás. Entre ellas, todas las que el coordinador vio fallar en e890f54: `ClipPropertyEditorTests`, `TitleEditorTests`, `PackageServiceTests` (2), `PlanningTests`, `TitleHandlesTests`, `ExportEncoderAvailabilityTests`, `ProcessTests` y `TitleRasterizerTests`.
+  - Solo volvió a fallar `CpuExportCancellationTests`, con 3 casos: 3040, 4893 y 6887 ms.
+- **Causa probable de `CpuExportCancellationTests`**, por las 8 líneas de diagnóstico de las dos corridas:
+  - `Abort` vuelve siempre a los 917–945 ms, es decir, cuando se agota `KillWait` (900 ms) sin que ffmpeg.exe haya salido. Además, `ExitTime` no se puede leer («NaN»).
+  - El sink lanza ffmpeg con prioridad `BelowNormal` (`FfmpegPipeSinkOptions.Priority`). Con la CPU saturada por los demás procesos de prueba, Windows tarda segundos en dar tiempo a los hilos de un proceso de baja prioridad para terminar. Mientras tanto, la escritura en la tubería sigue bloqueada.
+  - Un arreglo posible, en `src/Rodaje.Media/Export/FfmpegPipeSink.cs` (fuera de los caminos): subir el proceso a `Normal` antes de matarlo en `Abort`. En la app también se notaría al cancelar con el equipo ocupado.
+
+- **Las fallas de Windows que quedan están fuera de los caminos de esta tarea.** Ni esas pruebas ni `src/Rodaje.Media/` cambiaron desde f89d896, y en main pasaron. Hacen falta tareas con esos archivos en sus caminos (ver «Pendiente»).
 
 ## Decisiones
 
@@ -46,7 +52,7 @@ Rama `claude/ci-main-verde`, PR #31. Desde f89d896 (run 38194016251) el trabajo 
 ## Pendiente
 
 - El defecto de `Overwrite` con keyframes de `gainDb` en `src/Rodaje.Core/Editing/`, con la semilla de arriba.
-- `CpuExportCancellationTests` (tope de 3 s) en un runner cargado. Hace falta una tarea con `tests/Rodaje.Media.Tests/Export/CpuExportCancellationTests.cs` en sus caminos. Conviene medir desde que ffmpeg.exe muere, o separar el tiempo de `Abort` del de la salida del proceso.
+- `CpuExportCancellationTests` (tope de 3 s) falló en 2 de 3 corridas del PR, y no falló en las de main que vi. Hace falta una tarea con `src/Rodaje.Media/Export/FfmpegPipeSink.cs` y esa prueba en sus caminos: subir la prioridad antes de matar (ver «Estado de la CI»).
 - `TimelineSpeedTests.Speed_adds_no_bytes_to_what_each_tick_already_reserves`: la igualdad exacta en pausa falló una vez por 1 B por tick. Hace falta mirar qué reserva de más (algo del runtime en el mismo hilo o un camino raro del Tick) antes de darle margen. Camino: `tests/Rodaje.Engine.Tests/Timeline/`.
 - Otros textos de la app formatean decimales con `CurrentCulture` y salen con punto por `InvariantGlobalization`: `Views/Analysis/AnalysisUi.Sec`, el tempo de `RhythmDialog` y el estado de `StabilizeDialog`. Están fuera de los caminos.
 
