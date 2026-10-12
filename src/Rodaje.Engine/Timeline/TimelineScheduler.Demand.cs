@@ -363,6 +363,19 @@ internal sealed partial class TimelineScheduler
     {
         MediaState media = request.Media;
         Cluster cluster = request.Cluster;
+        if (Continuing(media, cluster, out bool share) is { } continuing)
+        {
+            // El decodificador que ya avanza por el medio llega solo a este pre-roll: abrir otro solo costaría una pausa
+            // (crear el decodificador de D3D11VA toma el candado del contexto que usa la composición).
+            if (share)
+            {
+                continuing.Assigned.AddRange(cluster.Windows);
+                continuing.IdleSince = null;
+            }
+
+            return;
+        }
+
         int live = media.Decoders.Count(d => !d.Retiring);
         long estimate = Estimate(media);
         bool canOpen = live < _maxDecodersPerMedia && MakeRoom(estimate, posts);
@@ -399,6 +412,7 @@ internal sealed partial class TimelineScheduler
         };
         decoder.Pump = () => Pump(decoder);
         decoder.Executor = _backend.CreateExecutor();
+        _openedWhilePlaying += _clock.IsRunning ? 1 : 0;
         decoder.Assigned.AddRange(cluster.Windows);
         _cache.SetSourceLimit(decoder.Id, _maxFramesPerSource);
         media.Decoders.Add(decoder);
@@ -406,6 +420,56 @@ internal sealed partial class TimelineScheduler
         TrackPeak();
         posts.Add((decoder.Executor, () => Open(decoder)));
     }
+
+    /// <summary>
+    /// El decodificador del medio que, avanzando con el clip que ya sirve, llega sin buscar keyframe al pre-roll
+    /// <paramref name="cluster"/> antes de que se deba mostrar: ese clip pasa por el primer cuadro del tramo, o termina a
+    /// menos de <see cref="ForwardReach"/> cuadros de él, no más tarde que el corte. Es el caso de los cortes sin salto en
+    /// el material (una velocidad que cambia donde terminó el clip anterior, con o sin transición): el pre-roll abría otro
+    /// decodificador del mismo medio para cuadros por los que el primero iba a pasar igual. Nulo si no hay ninguno: el
+    /// tramo necesita el suyo (también cuando el clip que entra va por delante del que sale, como un 0,5× que entra en una
+    /// transición desde un 2×: adelantarse obligaría a volver con un seek y el tramo visible quedaría sin decodificador).
+    /// </summary>
+    /// <param name="share">
+    /// Verdadero si el tramo ya se le asigna: empieza después de todo lo que muestra el clip, la ventana del clip ya llegó a
+    /// su último cuadro y el decodificador lo alcanza sin buscar, así que pedirlo no lo hace volver atrás. Si no, el tramo
+    /// espera sin decodificador; cuando el clip se acerque, sus ventanas quedan en el mismo tramo o llega este caso.
+    /// </param>
+    private DecoderState? Continuing(MediaState media, Cluster cluster, out bool share)
+    {
+        share = false;
+        if (cluster.Visible || cluster.ReverseClip is not null || !cluster.Windows.TrueForAll(w => !w.Warm && w.Clip.Forward))
+        {
+            return null;
+        }
+
+        foreach (DecoderState decoder in media.Decoders)
+        {
+            if (decoder.Retiring || decoder.Closed || decoder.ReverseClip is not null || decoder.Position >= cluster.Start)
+            {
+                continue;
+            }
+
+            foreach (Window window in decoder.Assigned)
+            {
+                VideoClipPlan clip = window.Clip;
+                long highest = clip.HighestFrame;
+                if (window.Warm || !clip.Forward || highest < cluster.Start - ForwardReach
+                    || ShownDelay(clip, Math.Min(cluster.Start, highest)) > cluster.Urgency)
+                {
+                    continue;
+                }
+
+                share = cluster.Start > highest && window.End > highest && Cost(decoder, cluster) < SeekCost;
+                return decoder;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Cuánto falta, en ticks desde el cuadro de la demanda, para que el clip muestre ese cuadro o uno posterior.</summary>
+    private long ShownDelay(VideoClipPlan clip, long index) => Math.Max(0, (clip.ShownAt(index) - _demandTime).Ticks);
 
     /// <summary>Si cabe <paramref name="bytes"/> más en el presupuesto, cerrando primero los decodificadores sin demanda.</summary>
     private bool MakeRoom(long bytes, List<(IDecodeExecutor, Action)> posts)
@@ -540,11 +604,12 @@ internal sealed partial class TimelineScheduler
     {
         long now = _time.GetTimestamp();
         int live = _decoders.Values.Count(d => !d.Closed);
-        TimeSpan timeout = live > Math.Max(2, 2 * _plan.Layers.Count) ? _idleTimeout / 4 : _idleTimeout;
+        bool many = live > Math.Max(2, 2 * _plan.Layers.Count);
+        TimeSpan timeout = many ? _idleTimeout / 4 : _idleTimeout;
         foreach (DecoderState decoder in _decoders.Values.ToList())
         {
             if (!decoder.Closed && decoder.IdleSince is { } since && !decoder.Opening && decoder.InFlight is null
-                && (decoder.Retiring || _time.GetElapsedTime(since, now) >= timeout))
+                && (decoder.Retiring || (_time.GetElapsedTime(since, now) >= timeout && (many || !KeptForCut(decoder)))))
             {
                 Close(decoder, posts);
             }
@@ -560,6 +625,34 @@ internal sealed partial class TimelineScheduler
             }
         }
     }
+
+    /// <summary>
+    /// Reproduciendo, un decodificador ocioso se guarda mientras su medio vuelva en un corte de las próximas
+    /// <see cref="IdleKeepHorizon"/>: el pre-roll de ese corte lo reutiliza con un seek en vez de abrir otro, y abrir uno
+    /// (crear el decodificador de D3D11VA) es una pausa de la vista previa. No pasa del presupuesto: <see cref="MakeRoom"/>
+    /// cierra primero los ociosos. En pausa, o con muchos abiertos, se cierra a su tiempo como siempre.
+    /// </summary>
+    private bool KeptForCut(DecoderState decoder)
+    {
+        if (!_clock.IsRunning || decoder.ReverseClip is not null || decoder.Variant != decoder.Media.Variant)
+        {
+            return false;
+        }
+
+        foreach (VideoLayerPlan lane in _plan.Lanes)
+        {
+            if (lane.NextAfter(_demandTime) is { } next && next.Source == decoder.Media.Key && next.Forward
+                && next.Start - _demandTime <= IdleKeepHorizon)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Hasta dónde mira <see cref="KeptForCut"/>: más que el plazo de los ociosos, menos que guardar todo.</summary>
+    private static readonly Time IdleKeepHorizon = Time.FromSeconds(30);
 
     /// <summary>Saca el decodificador del reparto y de la caché, y encola su cierre en el ejecutor de servicio.</summary>
     private void Close(DecoderState decoder, List<(IDecodeExecutor, Action)> posts)
