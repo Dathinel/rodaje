@@ -1,12 +1,14 @@
 ﻿# Descarga a .entorno\modelos los modelos de los módulos de IA (fase 7), con SHA-256 fijado y reanudación.
 # Con -Corpus baja además el corpus de prueba de voz a .entorno\corpus (nunca se versiona).
-# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-modelos.ps1 [-Corpus] [-Forzar]
+# Con -Traductor baja además el modelo del traductor (unos 2,5 GB; aparte por su tamaño, docs/fase-7.md, pregunta 5).
+# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-modelos.ps1 [-Corpus] [-Traductor] [-Forzar]
 #
 # Resistente a apagones: descarga a .part con curl -C - (reanuda), verifica la huella y renombra. Un archivo con la
 # huella mala se borra. Las URL de Hugging Face y GitHub van fijadas a un commit.
 
 param(
     [switch]$Corpus,
+    [switch]$Traductor,
     [switch]$Forzar
 )
 
@@ -111,6 +113,16 @@ $Voz = @(
     @{ Carpeta = 'voz\voces'; Archivo = 'bm_lewis.bin'; Url = 'https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/voices/bm_lewis.bin'; Sha256 = 'b8f671cef828c30e66fdf0b0756a76bba58f6bb3398cbbf27058642acbcedb97'; Bytes = 522240 },
     @{ Carpeta = 'voz\voces'; Archivo = 'bm_daniel.bin'; Url = 'https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/voices/bm_daniel.bin'; Sha256 = '6b3194bbceffb746733cbc22c8f593dd44e401a71d53895a2dca891bc595a1e8'; Bytes = 522240 }
 )
+
+# modulo-traducir: Qwen3-4B-Instruct-2507 cuantizado Q4_K_M (Apache-2.0, equipo Qwen de Alibaba; conversión GGUF de
+# unsloth). OJO: la huella sale de un espejo que dice ser copia exacta, sin verificar (la nube no llega a Hugging Face) y
+# la URL no está fijada a un commit; hay que comprobarla y fijarla antes de publicar (modules/Rodaje.Module.Translate/LICENCIAS.md).
+# Sin tamaño conocido: si ya está, se comprueba por la huella. Si no coincide, la descarga se borra y no se usa.
+$ModeloTraductor = @{
+    Nombre = 'Qwen3-4B-Instruct-2507 Q4_K_M (traductor)'; Archivo = 'Qwen3-4B-Instruct-2507-Q4_K_M.gguf'; Peso = 'unos 2,5 GB'
+    Url = 'https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf'
+    Sha256 = '3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597'; Bytes = -1
+}
 
 function Paso([string]$texto) { Write-Host "[modelos] $texto" }
 
@@ -222,6 +234,16 @@ if ($Corpus) {
         Move-Item -LiteralPath "$wav.tmp.wav" -Destination $wav -Force
     }
     Paso "Voz de 48 kHz lista en $wav (LibriVox, dominio público)."
+}
+
+if ($Traductor) {
+    $destino = Join-Path $CarpetaModelos $ModeloTraductor.Archivo
+    if ((Test-Path -LiteralPath $destino) -and -not $Forzar -and (Huella $destino) -eq $ModeloTraductor.Sha256) {
+        Paso "Ya está $($ModeloTraductor.Nombre)"
+    }
+    else {
+        Bajar $ModeloTraductor $CarpetaModelos
+    }
 }
 
 Paso "Modelos listos en $CarpetaModelos."
