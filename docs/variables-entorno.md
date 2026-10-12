@@ -16,6 +16,7 @@ Todas las variables que lee Rodaje empiezan con `RODAJE_`. Ninguna es obligatori
 | `RODAJE_PRUEBAS_COMPLETAS` | Con `1`, corre además el clip de 10 minutos en tiempo real con el dispositivo de audio. La pone `aceptacion.ps1 -Completa` | `Skip.CompleteRun` (tests) | Solo pruebas |
 | `RODAJE_PRUEBAS_AUDIO` | Con `1`, corre la prueba que hace sonar un tono de 3 s | `Skip.AudioTone` (tests) | Solo pruebas |
 | `RODAJE_COMPLEMENTOS` | Carpeta con los repositorios de contenido (`rodaje-filtros`, `rodaje-transiciones`) para la prueba de punta a punta; sin ella se busca una carpeta `Complementos` subiendo desde las pruebas, y si no está la prueba se omite | `ContentFactAttribute` (Rodaje.App.Tests) | Solo pruebas |
+| `RODAJE_MEDIOS_LOCALES` | Carpeta con videos propios (`.mp4`): `ExportLocalMediaTests` (`Categoria=Local`) los pone uno tras otro en una secuencia 9:16 con su audio y exporta todos y todos menos el último a MP4 en `%TEMP%odaje-pruebas-locales`, verificados con ffprobe. Sin ella se omiten; los medios nunca se versionan | `LocalMediaFactAttribute` (Rodaje.Export.Tests) | Solo pruebas |
 | `RODAJE_MEDIA_CACHE` | Carpeta de los medios de prueba generados; sin ella, `TestResults\media-cache` en la raíz del repositorio | `TestMediaGenerator.DefaultCacheDirectory` (tests) | Solo pruebas |
 | `RODAJE_REGENERAR_ESQUEMA` | Con `1`, la prueba del esquema reescribe `schema/rodaje-proyecto.v5.schema.json` (el de la versión actual) desde el código en vez de solo compararlo | `ProjectSchemaTests` (Rodaje.Core.Tests) | Solo pruebas |
 

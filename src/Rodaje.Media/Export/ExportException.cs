@@ -70,6 +70,9 @@ public sealed class ExportException : Exception
     /// <summary>Cuadro de la salida en el que falló, si se sabe.</summary>
     public long? Frame { get; init; }
 
+    /// <summary>Cuadro del medio (<see cref="Culprit"/>) que no se pudo leer, si se sabe; otra base que <see cref="Frame"/>.</summary>
+    public long? MediaFrame { get; init; }
+
     /// <summary>Medio o recurso causante (ruta o referencia de paquete), si se sabe.</summary>
     public string? Culprit { get; init; }
 

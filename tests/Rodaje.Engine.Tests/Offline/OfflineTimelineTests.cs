@@ -485,12 +485,46 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
         }
 
         ExportException decode = Assert.Throws<ExportException>(() => offline.Render(30, CancellationToken.None));
-        Assert.Equal((ExportErrorCode.DecodeFailed, 30L, TimelineBuilder.PathOf("a")), (decode.Code, decode.Frame!.Value, decode.Culprit));
+        Assert.Equal((ExportErrorCode.DecodeFailed, 30L, 30L, TimelineBuilder.PathOf("a")), (decode.Code, decode.Frame!.Value, decode.MediaFrame!.Value, decode.Culprit));
 
         ExportException open = Assert.Throws<ExportException>(() => offline.Render(60, CancellationToken.None));
         Assert.Equal((ExportErrorCode.MediaMissing, 60L, TimelineBuilder.PathOf("b")), (open.Code, open.Frame!.Value, open.Culprit));
         offline.Dispose();
         Assert.Equal(0, backend.Live.Value);
+    }
+
+    /// <summary>
+    /// Un medio cuyo audio dura medio cuadro más que el video (430 cuadros, 14,35 s de contenedor, como un video de
+    /// teléfono): el clip entero termina después del último cuadro y ahí se congela el último, hacia adelante y en reversa.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_clip_longer_than_its_video_stream_holds_the_last_frame(bool reversed)
+    {
+        var backend = new FakeTimelineBackend();
+        var b = new TimelineBuilder(1, 0);
+        b.AddMedia("antes", Rational.Fps30, 90, backend: backend);
+        MediaRef phone = b.AddMedia("telefono", Rational.Fps30, 430, backend: backend);
+        phone.Duration = S(14.35);
+        b.AddVideo(0, "antes", Time.Zero, Time.Zero, S(3));
+        Clip clip = b.AddVideo(0, "telefono", S(3), Time.Zero, phone.Duration);
+        if (reversed)
+        {
+            OfflineProjects.Reversed(clip, Time.Zero, phone.Duration);
+        }
+
+        using OfflineTimeline offline = OfflineProjects.Open(b, backend, new OfflineTimelineOptions { LookaheadFrames = 4 });
+
+        Assert.Equal(90 + 431, offline.FrameCount);
+        for (long f = 0; f < offline.FrameCount; f++)
+        {
+            using CompositionFrame frame = offline.Render(f, CancellationToken.None);
+            if (f == offline.FrameCount - 1)
+            {
+                Assert.Equal(reversed ? 0 : 429, Assert.Single(frame.Layers).Frame.Index);
+            }
+        }
     }
 
     [Fact]

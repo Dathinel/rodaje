@@ -22,7 +22,7 @@ public static class ExportErrors
         return error switch
         {
             ExportException { Frame: null } export when frame is not null =>
-                new ExportException(export.Code, export.Message, export.InnerException) { Frame = frame, Culprit = export.Culprit },
+                new ExportException(export.Code, export.Message, export.InnerException) { Frame = frame, MediaFrame = export.MediaFrame, Culprit = export.Culprit },
             ExportException export => export,
             AggregateException { InnerExceptions.Count: 1 } aggregate => Map(aggregate.InnerExceptions[0], frame),
             OperationCanceledException => new ExportException(ExportErrorCode.Canceled, "Exportación cancelada.", error),
