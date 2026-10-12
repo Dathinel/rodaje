@@ -494,7 +494,7 @@ Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.x
 
 ## 51. Enganchar «Traducir pista» y el manifiesto de subtítulos
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #64 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/traducir-enganche`
 - **Caminos:** `src/Rodaje.App/Shell/MainWindow.xaml.cs` (una línea), `src/Rodaje.App/Views/Timeline/TimelineView.Analysis.cs` (la entrada de menú), `modules/Rodaje.Module.Subtitles/paquete.json`, `tests/Rodaje.Module.Subtitles.Tests/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 38 (`docs/tareas/2026-10-12-modulo-traducir.md`).
