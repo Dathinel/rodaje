@@ -631,7 +631,7 @@ Las cuatro pruebas de la tarea 44 son `ProxyFact` y la CI de Windows no tiene ff
 
 ## 64. Pruebas de carga: lo que quedó sin vigilar
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #61 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/pruebas-carga-huecos`
 - **Caminos:** `src/Rodaje.App/Services/Media/ClipVisuals.cs` (solo un gancho interno si hace falta), `tests/Rodaje.App.Tests/Media/ClipVisualsTests.cs`, `tests/Rodaje.Module.AudioAi.Tests/ProcessTests.cs`, `docs/tareas/`
 - **Lee:** entrega de la tarea 47 (`docs/tareas/2026-10-12-app-pruebas-carga.md`), revisión en bloque 6.
