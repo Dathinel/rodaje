@@ -27,6 +27,9 @@ public static class EffectRegistry
     /// <summary>Hacia dónde sale el clip en <see cref="BuiltInTransitions.Push"/>.</summary>
     public static ImmutableArray<string> PushDirections { get; } = ["left", "right", "up", "down"];
 
+    /// <summary>Recorte de <see cref="BuiltInEffects.Stabilize"/>: automático o ninguno.</summary>
+    public static ImmutableArray<string> StabilizeCrops { get; } = ["auto", "off"];
+
     /// <summary>Duración con la que se suelta una transición.</summary>
     public static Time DefaultTransitionDuration { get; } = Time.FromSeconds(0.5);
 
@@ -79,7 +82,11 @@ public static class EffectRegistry
             new(A.FadeOut, 0, 0, Inf, Animatable: false),
         ]),
         new(BuiltInEffects.Speed, 8, EffectTarget.Video | EffectTarget.Audio, EffectStage.Deferred) { Hidden = true },
-        new(BuiltInEffects.Stabilize, 9, EffectTarget.Video, EffectStage.Deferred),
+        new(BuiltInEffects.Stabilize, 9, EffectTarget.Video, EffectStage.Transform,
+        [
+            new(BuiltInEffects.StabilizeParameters.Intensity, 0.5, 0, 1, Animatable: false),
+        ],
+        [OptionDefinition.Choice(BuiltInEffects.StabilizeOptions.Crop, "auto", [.. StabilizeCrops])]),
 
         new(BuiltInTransitions.Crossfade, 101, EffectTarget.Transition, EffectStage.Transition),
         new(BuiltInTransitions.Dip, 102, EffectTarget.Transition, EffectStage.Transition,
