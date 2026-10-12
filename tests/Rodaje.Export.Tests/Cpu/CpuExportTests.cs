@@ -54,10 +54,8 @@ public sealed class CpuExportTests(ITestOutputHelper output)
         ExportReport report = new ExportVerifier(CpuExportEnvironment.FfprobePath).Inspect(outputPath);
         output.WriteLine($"{report.Video} / {report.Audio}");
         bool isoBmff = container is ExportContainer.Mp4 or ExportContainer.Mov;
-        // h264_mf no escribe el rango en el VUI del H.264, y la caja «colr» de MOV es «nclc», que no tiene campo de rango
-        // (en MP4 es «nclx», que sí lo lleva). Así que en MOV el rango solo existe si lo pone el codificador: ffprobe da «».
-        // El resto del color sí llega por «nclc». Es un hallazgo de la tarea 20 (ver la entrega), no algo que el sink arregle.
-        bool rangeOnlyInBitstream = video == "h264_mf" && container == ExportContainer.Mov;
+        // Todo el color, también el rango en MOV con h264_mf: no lo escribe en el VUI y la caja «colr» de MOV («nclc») no
+        // tiene campo de rango, así que FfmpegArguments lo pone con h264_metadata (tarea 32; antes se aceptaba que faltara).
         IReadOnlyList<string> problems = ExportVerifier.Check(report, new ExportExpectation
         {
             VideoCodec = CpuExportArguments.ProbeCodec(video),
@@ -72,7 +70,7 @@ public sealed class CpuExportTests(ITestOutputHelper output)
                 ExportPixelFormat.Yuva444P10 => null,
                 _ => pixels.FfmpegName(),
             },
-            Color = rangeOnlyInBitstream ? null : format.Color,
+            Color = format.Color,
             // Los solo intra (ProRes, DNxHR y FFV1, que lleva «-g 1» en el catálogo) son un cuadro clave por cuadro.
             MaxGop = videoSpec.IntraOnly ? 1 : null,
             AudioCodec = CpuExportArguments.ProbeCodec(audio),
@@ -82,15 +80,6 @@ public sealed class CpuExportTests(ITestOutputHelper output)
             FastStart = isoBmff,
         });
         Assert.True(problems.Count == 0, string.Join("\n", problems));
-        if (rangeOnlyInBitstream)
-        {
-            ExportVideoReport v = report.Video!;
-            Assert.Equal(format.Color.FfmpegColorspace, v.ColorSpace);
-            Assert.Equal(format.Color.FfmpegPrimaries, v.ColorPrimaries);
-            Assert.Equal(format.Color.FfmpegTransfer, v.ColorTransfer);
-            Assert.True(string.IsNullOrEmpty(v.ColorRange) || v.ColorRange == format.Color.FfmpegRange,
-                $"Rango de color «{v.ColorRange}»: o falta (MOV sin rango en el VUI) o es «{format.Color.FfmpegRange}».");
-        }
 
         if (pixels.HasAlpha())
         {

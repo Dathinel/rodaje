@@ -63,4 +63,40 @@ public sealed class CpuExportArgumentsTests
         // FfmpegArguments no pone «+cgop» a libvpx.
         Assert.Equal(["-crf", "31", "-b:v", "0", "-g", "60"], vp9);
     }
+
+    [Theory]
+    [InlineData("h264_mf", "h264_metadata")]
+    [InlineData("hevc_mf", "hevc_metadata")]
+    public void Media_foundation_in_mov_writes_the_range_in_the_bitstream(string id, string filter)
+    {
+        IReadOnlyList<string> mov = CpuExportArguments.Build(ExportContainer.Mov, id, ExportPixelFormat.Nv12, null, 45).Video;
+        IReadOnlyList<string> mp4 = CpuExportArguments.Build(ExportContainer.Mp4, id, ExportPixelFormat.Nv12, null, 45).Video;
+
+        int bsf = mov.ToList().IndexOf("-bsf:v:0");
+        Assert.True(bsf >= 0, string.Join(' ', mov));
+        Assert.Equal($"{filter}=video_full_range_flag=0", mov[bsf + 1]);
+        // En MP4 la caja «nclx» ya lleva el rango.
+        Assert.DoesNotContain("-bsf:v:0", mp4);
+    }
+
+    [Fact]
+    public void The_range_in_the_bitstream_follows_export_color()
+    {
+        EncoderSpec mf = CpuExportArguments.Spec("h264_mf");
+        ExportSettings settings = CpuExportArguments.Settings(ExportContainer.Mov, "h264_mf", ExportPixelFormat.Nv12, null);
+        ExportSettings full = settings with { Video = settings.Video! with { Color = ExportColor.Bt709Limited with { FullRange = true } } };
+
+        EncoderArguments arguments = FfmpegArguments.Build(full, mf, ExportPixelFormat.Nv12, null, Rodaje.Core.Timing.Rational.Fps30,
+            TimeSpan.FromSeconds(1));
+
+        Assert.Contains("h264_metadata=video_full_range_flag=1", arguments.Video);
+        Assert.Equal(["-bsf:v:0", "h264_metadata=video_full_range_flag=0"], FfmpegArguments.RangeInBitstream(mf, fullRange: false));
+    }
+
+    [Theory]
+    [InlineData("h264_nvenc")]
+    [InlineData("prores_ks")]
+    [InlineData("libsvtav1")]
+    public void Encoders_that_write_their_range_need_no_filter(string id) =>
+        Assert.Empty(FfmpegArguments.RangeInBitstream(CpuExportArguments.Spec(id), fullRange: false));
 }
