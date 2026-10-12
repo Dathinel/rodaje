@@ -6,7 +6,7 @@ using Windows.Foundation;
 
 namespace Rodaje.App.Views.Timeline;
 
-/// <summary>Menú contextual de un clip: enlazar o desenlazar, separar audio, y copiar y pegar atributos.</summary>
+/// <summary>Menú contextual de un clip: enlazar o desenlazar, separar audio, y copiar y pegar atributos, y análisis de audio.</summary>
 internal sealed partial class TimelineView
 {
     private static readonly (ClipAttributeKinds Kind, string Text)[] PasteChoices =
@@ -56,6 +56,7 @@ internal sealed partial class TimelineView
         }
 
         menu.Items.Add(paste);
+        AddAnalysisItems(menu);
         menu.ShowAt(LanesHost, new FlyoutShowOptions { Position = p });
     }
 }
