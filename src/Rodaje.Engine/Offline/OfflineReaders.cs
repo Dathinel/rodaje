@@ -116,6 +116,13 @@ internal sealed class OfflineReaders : IDisposable
         }
     }
 
+    /// <summary>
+    /// Tope de la capacidad de un lector: la lectura por adelantado, pero nunca menos de los 2 cuadros mínimos. Con
+    /// <c>LookaheadFrames = 1</c> (el fotograma) <c>Math.Clamp(x, 2, 1)</c> lanzaba dentro del <c>get_format</c> de
+    /// FFmpeg, el pool de D3D11VA no se creaba y el cuadro salía como «El medio no tiene ese cuadro».
+    /// </summary>
+    private int MaxCapacity => Math.Max(2, _lookahead);
+
     /// <summary>Lectores cuyo pool no cabía en el presupuesto y se abrieron con la capacidad mínima.</summary>
     public int VramOverruns { get; private set; }
 
@@ -741,7 +748,7 @@ internal sealed class OfflineReaders : IDisposable
         {
             long free = _vramBudget - _reserved;
             int fits = (int)Math.Clamp((free / surface) - fixedSurfaces, int.MinValue / 2, int.MaxValue / 2);
-            int capacity = Math.Clamp(fits, 2, _lookahead);
+            int capacity = Math.Clamp(fits, 2, MaxCapacity);
             if (fits < 2)
             {
                 VramOverruns++;
@@ -776,7 +783,7 @@ internal sealed class OfflineReaders : IDisposable
             }
 
             int room = Math.Max(minimum, Math.Min(fits, VideoDecoder.MaxHardwarePoolSurfaces - fixedSurfaces));
-            reader.Capacity = Math.Clamp(room - (4 * MinReverseRetained), 2, _lookahead);
+            reader.Capacity = Math.Clamp(room - (4 * MinReverseRetained), 2, MaxCapacity);
             reader.Reserved = (fixedSurfaces + room) * surface;
             if (!reader.Closed)
             {
