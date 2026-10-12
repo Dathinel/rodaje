@@ -46,6 +46,7 @@ Archivos:
 
 - 28 pruebas nuevas en `tests/Rodaje.App.Tests/Library/` (organización, filtro y búsqueda, datos del medio y archivo). Ese proyecto es `net10.0-windows`, así que en Linux las corrí con un proyecto temporal fuera del repo. Compilaba los mismos fuentes de `Logic/` y las pruebas contra `Rodaje.Core`, con `TreatWarningsAsErrors`, `latest-recommended` e `InvariantGlobalization`: **28 de 28 en verde**. En la CI corren dentro de `Rodaje.App.Tests`, en el trabajo de Windows.
 - No toqué Core, Paquetes ni Playback, así que las pruebas de Linux de la CI no cambian.
+- **CI:** Linux y Windows en verde en `9f649154` (compilación, pruebas y las 28 nuevas dentro de `Rodaje.App.Tests`). Dos errores de compilación que solo se ven en Windows quedaron corregidos: `AppDataPaths` chocaba con `Windows.Storage.AppDataPaths` y faltaba suprimir CA1001 en el parcial nuevo. En el primer push falló una vez `ModuleManagerTests.Abre_al_primer_uso_reutiliza_el_proceso_y_lo_cierra_al_quedar_ocioso`, que depende de tiempos y es ajena a esta tarea; después pasó.
 - **Pruebas omitidas:** ninguna nueva. Las omitidas siguen siendo las mismas que antes.
 
 ## Posibles choques
