@@ -28,5 +28,5 @@ Cómo está hecho Rodaje, sus formatos y su fondo legal. Para usarlo o compilarl
 - [Decisiones de diseño](decisiones.md) (D-001 a D-034).
 - [Fondo legal](legal.md) y [pendientes legales antes de publicar](pendientes-legales.md).
 - [Contribuciones externas](contribuciones.md).
-- [Configuración de FFmpeg](ffmpeg-configure.txt) de la compilación LGPL que se distribuye.
+- [Configuración de FFmpeg](ffmpeg-configure.txt) de la compilación LGPL que se distribuye, y los [crates de Rust](crates-ffmpeg.md) que rav1e y librsvg meten en sus DLL.
 - En la raíz: [LICENSE](../LICENSE), [TRADEMARK.md](../TRADEMARK.md), [LICENCIAS.md](../LICENCIAS.md) y [THIRD-PARTY-NOTICES.txt](../THIRD-PARTY-NOTICES.txt).

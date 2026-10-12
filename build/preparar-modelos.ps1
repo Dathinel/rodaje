@@ -159,13 +159,12 @@ $Voz = @(
 )
 
 # modulo-traducir: Qwen3-4B-Instruct-2507 cuantizado Q4_K_M (Apache-2.0, equipo Qwen de Alibaba; conversión GGUF de
-# unsloth). OJO: la huella sale de un espejo que dice ser copia exacta, sin verificar (el entorno de CI no llega a Hugging Face) y
-# la URL no está fijada a un commit; hay que comprobarla y fijarla antes de publicar (modules/Rodaje.Module.Translate/LICENCIAS.md).
-# Sin tamaño conocido: si ya está, se comprueba por la huella. Si no coincide, la descarga se borra y no se usa.
+# unsloth, commit a06e946b). Huella comprobada el 12-oct-2026 sobre el archivo descargado (coincide con el oid LFS de
+# Hugging Face). Si no coincide, la descarga se borra y no se usa.
 $ModeloTraductor = @{
-    Nombre = 'Qwen3-4B-Instruct-2507 Q4_K_M (traductor)'; Archivo = 'Qwen3-4B-Instruct-2507-Q4_K_M.gguf'; Peso = 'unos 2,5 GB'
-    Url = 'https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf'
-    Sha256 = '3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597'; Bytes = -1
+    Nombre = 'Qwen3-4B-Instruct-2507 Q4_K_M (traductor)'; Archivo = 'Qwen3-4B-Instruct-2507-Q4_K_M.gguf'; Peso = '2,5 GB'
+    Url = 'https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/a06e946bb6b655725eafa393f4a9745d460374c9/Qwen3-4B-Instruct-2507-Q4_K_M.gguf'
+    Sha256 = '3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597'; Bytes = 2497281120
 }
 
 function Paso([string]$texto) { Write-Host "[modelos] $texto" }
