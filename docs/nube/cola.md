@@ -298,3 +298,48 @@ Exportar el cuadro del cursor a PNG (con alfa si la secuencia lo tiene) o JPEG c
 - **Lee:** `docs/pendientes.md` (función 38), `docs/formato-proyecto.md`, D-027 (estilo).
 
 Carpetas en la biblioteca del proyecto (crear, renombrar, arrastrar medios), búsqueda por nombre, filtro por tipo, favoritos, y columna de datos (resolución, duración, códec, fps). Sin tocar los paneles de títulos ni análisis.
+
+## 31. Un solo catálogo de codificadores
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-catalogo-unico`
+- **Caminos:** `src/Rodaje.Media/Export/`, `src/Rodaje.Export/Encoders/`, `src/Rodaje.Media/Proxies/ProxyEncoders.cs`, sus pruebas, `docs/arquitectura/exportacion.md`, `docs/tareas/`.
+- **Lee:** revisión en bloque del 11-oct (M3): hay tres listas (`ExportEncoderCatalog` de #14 sin usar, `ExportEncoderCandidates`/`ProbedEncoderSource` en la app, `ProxyEncoders`).
+
+Conecta `ExportEncoderAvailability` a `IExportEncoderSource` (punto previsto en `ExportEncoderSource.cs:9`), borra `ExportEncoderCandidates` y `ProbedEncoderSource`, y que `ProxyEncoders` use el mismo catálogo. Un codificador de hardware sin dispositivo no debe reintentarse cada 2 min. Pruebas sin dobles duplicados.
+
+## 32. FFV1 solo intra, rango de color en MOV y pruebas sobre el código real
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-ffv1-rango`
+- **Caminos:** `src/Rodaje.Media/Export/ExportEncoderCatalog.cs`, `src/Rodaje.Export/FfmpegArguments.cs`, `tests/Rodaje.Media.Tests/Export/CpuExport*` (moverlas a `tests/Rodaje.Export.Tests/`), `docs/tareas/`.
+- **Lee:** revisión en bloque (M4, M5, M7).
+
+FFV1 con `-g 1` (hoy sale un cuadro clave cada 12); `h264_mf`/`hevc_mf` en MOV escriben el rango con `h264_metadata`/`hevc_metadata` según `ExportColor` (y la prueba deja de aceptar «vacío»); las pruebas de exportación por CPU usan `FfmpegArguments.Build` real en vez de una copia.
+
+## 33. Cancelar la exportación en ≤1 s también con VP9
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-abort`
+- **Caminos:** `src/Rodaje.Media/Export/FfmpegPipeSink.cs`, `tests/Rodaje.Media.Tests/Export/`, `docs/tareas/`.
+- **Lee:** revisión en bloque (M6), `docs/fase-6.md` (criterio de cancelación).
+
+`Abort` espera 900 ms y el escritor queda bloqueado en `WriteFile` (1,6–6,3 s en la CI con VP9). Esperar sin el cerrojo o terminar el Job Object al vencer; bajar el límite de `CpuExportCancellationTests` a 1 s y que sea estable.
+
+## 34. Autoguardado: pruebas del servicio y orden de escritura
+
+- **Estado:** pendiente
+- **Rama:** `claude/autoguardado-pruebas`
+- **Caminos:** `src/Rodaje.App/Services/Autosave/`, `src/Rodaje.Core/` (solo `AutosaveSession`), `tests/`, `docs/tareas/`.
+- **Lee:** revisión en bloque (M8, M9).
+
+Pruebas de `AutosaveService` con reloj falso y un doble de `IEditorDialogs`: `Tick`, cola de escrituras, `MarkSaved` al guardar o deshacer hasta lo guardado, `Clear` al abrir, `RecoverAsync` con copia dañada y con `sesion.json` corrupto, `Discard` que falla al borrar el bloqueo (`AutosaveRecovery.cs:69`), doble clic en «Recuperar». Escribe `sesion.json` (`unsavedChanges: true`) antes de la copia en `AutosaveSession.Write` (`:125`).
+
+## 35. Limpiezas de la revisión en bloque
+
+- **Estado:** pendiente
+- **Rama:** `claude/limpiezas-bloque-1`
+- **Caminos:** `src/Rodaje.App/Services/EditorSession*.cs`, `src/Rodaje.Core/Editing/ClipAttributes.cs`, `src/Rodaje.App/Views/Timeline/` (zoom), `src/Rodaje.App/Services/Templates/`, `docs/protocolo-modulos.md`, sus pruebas, `docs/tareas/`.
+- **Lee:** revisión en bloque (menores y M10).
+
+Quitar `TrimStartToPlayhead`/`TrimEndToPlayhead`/`TrimToPlayhead` (`EditorSession.Editing.cs:36,39`) y migrar `EditingAtPlayheadTests` a `DeleteLeft/RightOfPlayhead`; pegar velocidad 1× restablece tono y muestreo (`ClipAttributes.cs:257`) y los keyframes se recortan a la duración del destino; el zoom desengancha `CompositionTarget.Rendering` al descargar la vista y usa `TimelineViewport.FitTo`; plantillas: quitar bidi en `Clean`, confirmar al borrar, no permitir el nombre de una de fábrica; `docs/protocolo-modulos.md` al día con el `ModuleManager` ya en main.
