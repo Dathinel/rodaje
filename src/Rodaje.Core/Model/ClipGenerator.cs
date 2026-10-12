@@ -30,6 +30,13 @@ public sealed class ClipGenerator
     /// <summary>Qué bordes del clip animan la entrada y la salida del estilo y dónde quedan si el clip salió de dividir otro.</summary>
     public GeneratorEdges Edges { get; set; } = new();
 
+    /// <summary>
+    /// Palabras transcritas con sus tiempos en el origen del clip (subtítulos automáticos), para editar por palabra;
+    /// <c>null</c> en un título escrito a mano. Dividir el clip las copia enteras a los dos trozos.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<GeneratorWord>? Words { get; set; }
+
     public ClipGenerator Clone() => new()
     {
         Kind = Kind,
@@ -37,6 +44,7 @@ public sealed class ClipGenerator
         Style = Style?.Clone(),
         Box = Box?.Clone(),
         Edges = Edges.Clone(),
+        Words = Words?.ConvertAll(w => w.Clone()),
     };
 
     public bool ContentEquals(ClipGenerator other)
@@ -52,7 +60,9 @@ public sealed class ClipGenerator
         return Kind == other.Kind
             && Text == other.Text
             && (Style is null ? other.Style is null : other.Style is not null && Style.ContentEquals(other.Style))
-            && (Box is null ? other.Box is null : other.Box is not null && Box.Width == other.Box.Width && Box.WidthFraction == other.Box.WidthFraction);
+            && (Box is null ? other.Box is null : other.Box is not null && Box.Width == other.Box.Width && Box.WidthFraction == other.Box.WidthFraction)
+            && (Words is null ? other.Words is null : other.Words is not null && Words.Count == other.Words.Count
+                && Words.Zip(other.Words).All(p => p.First.ContentEquals(p.Second)));
     }
 }
 

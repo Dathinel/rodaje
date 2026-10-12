@@ -519,6 +519,28 @@
                                 "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
                               }
                             }
+                          },
+                          "words": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "start": {
+                                  "type": "integer",
+                                  "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                                },
+                                "end": {
+                                  "type": "integer",
+                                  "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                                },
+                                "text": {
+                                  "type": "string"
+                                }
+                              }
+                            }
                           }
                         }
                       },
