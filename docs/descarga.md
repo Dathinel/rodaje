@@ -21,7 +21,7 @@ Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Arquite
 
 ## Publicar
 
-1. `herramientas\distribuir.ps1` publica la app (Native AOT) y deja en `dist\distribucion\`: `Rodaje-<versión>-base.zip`, `Rodaje-<versión>-completa.zip`, `indice.json` (sin firmar) y `SHA256SUMS.txt`. Toma el último `.paquete` de `..\Complementos\<repo>\dist\` (o `-Paquetes`), extrae cada uno en `paquetes\<id>` o `modulos\<id>` de la completa y suma los modelos de cada módulo (de `.entorno\modelos` o bajados y verificados). Un modelo de más de 2 GiB queda fuera de la completa (es el límite de un asset de GitHub) y se baja desde el gestor.
+1. `herramientas\distribuir.ps1` publica la app (Native AOT; `Rodaje.exe` lanzador más `app\`, ver [arranque-y-distribucion.md](arranque-y-distribucion.md)) y deja en `dist\distribucion\`: `Rodaje-<versión>-base.zip`, `Rodaje-<versión>-completa.zip`, `indice.json` (sin firmar) y `SHA256SUMS.txt`. Toma el último `.paquete` de `..\Complementos\<repo>\dist\` (o `-Paquetes`), extrae cada uno en `app\paquetes\<id>` o `app\modulos\<id>` de la completa y suma los modelos de cada módulo (de `.entorno\modelos` o bajados y verificados). Un modelo de más de 2 GiB queda fuera de la completa (es el límite de un asset de GitHub) y se baja desde el gestor.
 2. `herramientas\firmar-indice.ps1 -Indice dist\distribucion\indice.json` firma y comprueba que la clave pública del repo corresponde a la privada.
 3. Cada `.paquete` va a la release `v<versión>` de su repo (el nombre del archivo es el de la URL del índice); `indice.json` e `indice.json.sig` a una release nueva de `rodaje-catalogo`; los zip a la release de `rodaje`.
 

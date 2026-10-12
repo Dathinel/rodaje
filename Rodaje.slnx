@@ -11,6 +11,7 @@
     <Project Path="src/Rodaje.Core/Rodaje.Core.csproj" />
     <Project Path="src/Rodaje.Engine/Rodaje.Engine.csproj" />
     <Project Path="src/Rodaje.Export/Rodaje.Export.csproj" />
+    <Project Path="src/Rodaje.Launcher/Rodaje.Launcher.csproj" />
     <Project Path="src/Rodaje.Media/Rodaje.Media.csproj" />
     <Project Path="src/Rodaje.Modules.Protocol/Rodaje.Modules.Protocol.csproj" />
     <Project Path="src/Rodaje.Paquetes/Rodaje.Paquetes.csproj" />

@@ -1,4 +1,5 @@
-﻿# Publica Rodaje (src\Rodaje.App: WinUI 3 sin empaquetar, autocontenido, Native AOT) en dist\Rodaje\ y lo abre.
+﻿# Publica Rodaje (src\Rodaje.App: WinUI 3 sin empaquetar, autocontenido, Native AOT) y lo abre. En dist\Rodaje\ queda
+# solo Rodaje.exe (el lanzador, src\Rodaje.Launcher) y la carpeta app\ con el programa de verdad, que el lanzador oculta.
 # Uso:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\app.ps1 [video.mp4 [otro.mp4 ...] | proyecto.rodaje]
 #   ... -Medir 10        abre el clip de prueba (o los archivos), reproduce 10 s, mide y muestra las cifras
@@ -38,7 +39,9 @@ Import-Module (Join-Path $PSScriptRoot 'comun.psm1') -DisableNameChecking -Force
 $E = Inicializar-Rodaje $Raiz
 $Proyecto = Join-Path $Raiz 'src\Rodaje.App\Rodaje.App.csproj'
 $Salida = Join-Path $Raiz 'dist\Rodaje'
-$Exe = Join-Path $Salida 'Rodaje.exe'
+$Carpeta = Join-Path $Salida 'app'
+$Exe = Join-Path $Carpeta 'Rodaje.exe'
+$Lanzador = Join-Path $Salida 'Rodaje.exe'
 $FfmpegBin = $E.FfmpegBin
 $Bibliotecas = @('avutil-61', 'swresample-7', 'swscale-10', 'avcodec-63', 'avformat-63')
 # ffmpeg.exe (proxies) importa además estas dos; FfmpegExecutable.ExtraLibraries las exige.
@@ -61,13 +64,17 @@ function Publicar {
     if (Test-Path -LiteralPath $Salida) { Remove-Item -LiteralPath $Salida -Recurse -Force }
 
     # Sin -r: el RID ya está en el .csproj; como propiedad global cambiaría los packages.lock.json de las bibliotecas.
-    $r = Invocar-Dotnet $log @('publish', $Proyecto, '-c', 'Release', '-o', $Salida, '--nologo')
-    $errores = Diagnosticos-De $r.Lineas 'error'
-    $advertencias = Diagnosticos-De $r.Lineas 'warning'
+    $r = Invocar-Dotnet $log @('publish', $Proyecto, '-c', 'Release', '-o', $Carpeta, '--nologo')
+    $tmpLanzador = Join-Path $resultados 'lanzador'
+    $l = Invocar-Dotnet (Join-Path $resultados 'app-lanzador.log') @('publish', (Join-Path $Raiz 'src\Rodaje.Launcher\Rodaje.Launcher.csproj'), '-c', 'Release', '-o', $tmpLanzador, '--nologo')
+    $lineas = New-Object System.Collections.Generic.List[string]
+    $lineas.AddRange([string[]]@($r.Lineas)); $lineas.AddRange([string[]]@($l.Lineas))
+    $errores = Diagnosticos-De $lineas 'error'
+    $advertencias = Diagnosticos-De $lineas 'warning'
     $avisos = @($errores) + @($advertencias)
-    if ($r.Codigo -ne 0 -or -not (Test-Path -LiteralPath $Exe)) {
+    if ($r.Codigo -ne 0 -or $l.Codigo -ne 0 -or -not (Test-Path -LiteralPath $Exe)) {
         Mal 'No se pudo publicar Rodaje.'
-        $texto = $r.Lineas -join "`n"
+        $texto = $lineas -join "`n"
         if ($texto -match '(?i)link\.exe|vswhere|Platform linker|desktop development with C\+\+|Desarrollo para el escritorio') {
             Nota 'Native AOT necesita el enlazador de C++ de Microsoft. Instala Visual Studio Build Tools 2022 con'
             Nota '"Desarrollo para el escritorio con C++":'
@@ -95,7 +102,8 @@ function Publicar {
         Mal "El ffmpeg.exe de $(Corto $FfmpegBin) no es la compilación LGPL esperada; no se copia a dist."
         return $false
     }
-    $destino = Join-Path $Salida 'ffmpeg'
+    Copy-Item -LiteralPath (Join-Path $tmpLanzador 'Rodaje.exe') -Destination $Lanzador -Force
+    $destino = Join-Path $Carpeta 'ffmpeg'
     New-Item -ItemType Directory -Force -Path $destino | Out-Null
     foreach ($b in $Bibliotecas + $BibliotecasDelExe) {
         $dll = Join-Path $FfmpegBin "$b.dll"
@@ -111,23 +119,25 @@ function Publicar {
     if (Test-Path -LiteralPath $ffprobeExe) { Copy-Item -LiteralPath $ffprobeExe -Destination $destino -Force }
     $licenciaFfmpeg = Join-Path $E.Entorno 'ffmpeg\LICENSE.txt'
     if (Test-Path -LiteralPath $licenciaFfmpeg) { Copy-Item -LiteralPath $licenciaFfmpeg -Destination (Join-Path $destino 'LICENSE.txt') -Force }
-    Copy-Item -LiteralPath (Join-Path $Raiz 'THIRD-PARTY-NOTICES.txt') -Destination $Salida -Force
-    Copy-Item -LiteralPath (Join-Path $Raiz 'LICENSE') -Destination (Join-Path $Salida 'LICENSE.txt') -Force
-    Copy-Item -LiteralPath (Join-Path $Raiz 'TRADEMARK.md') -Destination $Salida -Force
+    Copy-Item -LiteralPath (Join-Path $Raiz 'THIRD-PARTY-NOTICES.txt') -Destination $Carpeta -Force
+    Copy-Item -LiteralPath (Join-Path $Raiz 'LICENSE') -Destination (Join-Path $Carpeta 'LICENSE.txt') -Force
+    Copy-Item -LiteralPath (Join-Path $Raiz 'TRADEMARK.md') -Destination $Carpeta -Force
     Get-ChildItem -LiteralPath $Salida -Filter '*.pdb' -Recurse | Remove-Item -Force
+    # La documentación XML de las bibliotecas solo sirve al compilar.
+    Get-ChildItem -LiteralPath $Carpeta -Filter 'Rodaje.*.xml' | Remove-Item -Force
 
     $tamExe = (Get-Item -LiteralPath $Exe).Length
     $archivos = Get-ChildItem -LiteralPath $Salida -File -Recurse
     $tamCarpeta = ($archivos | Measure-Object -Property Length -Sum).Sum
     $tamFfmpeg = ($archivos | Where-Object { $_.FullName -like (Join-Path $destino '*') } | Measure-Object -Property Length -Sum).Sum
     Bien 'Publicado sin advertencias (ni de recorte ni de AOT).'
-    Nota ("Ejecutable: {0} ({1:0.0} MB)" -f (Corto $Exe), ($tamExe / 1MB))
+    Nota ("Ejecutable: {0} ({1:0.0} MB), abierto por {2} ({3:0.0} MB)" -f (Corto $Exe), ($tamExe / 1MB), (Corto $Lanzador), ((Get-Item -LiteralPath $Lanzador).Length / 1MB))
     Nota ("Carpeta completa: {0:0.0} MB en {1} archivos (FFmpeg {2:0.0} MB). Se puede copiar a otro PC tal cual." -f ($tamCarpeta / 1MB), $archivos.Count, ($tamFfmpeg / 1MB))
     return $true
 }
 
 Titulo 'Rodaje'
-$hayCambios = $Publicar -or -not (Test-Path -LiteralPath $Exe)
+$hayCambios = $Publicar -or -not (Test-Path -LiteralPath $Exe) -or -not (Test-Path -LiteralPath $Lanzador)
 if (-not $hayCambios) {
     $fechaExe = (Get-Item -LiteralPath $Exe).LastWriteTimeUtc
     $hayCambios = [bool](Get-ChildItem -LiteralPath (Join-Path $Raiz 'src') -Recurse -File -Include *.cs, *.csproj, *.xaml, *.hlsl, *.manifest |
@@ -150,7 +160,7 @@ foreach ($a in @($Archivos | Where-Object { $_ })) {
 Remove-Item Env:DOTNET_ROOT -ErrorAction SilentlyContinue
 
 if ($Autoprueba) {
-    $errorTxt = Join-Path $Salida 'rodaje-error.txt'
+    $errorTxt = Join-Path $Carpeta 'rodaje-error.txt'
     Remove-Item -LiteralPath $errorTxt -ErrorAction SilentlyContinue
     # El módulo eco con AOT (no necesita el runtime de .NET) para el paso de IA: Rodaje lo encuentra porque corre desde el repositorio.
     Usar-DotnetLocal $E
@@ -188,12 +198,12 @@ if ($Medir -gt 0) {
         Nota ''
         Nota "Registro: $(Corto $registro)"
     } else {
-        Mal 'Rodaje no dejó registro; mira dist\Rodaje\rodaje-error.txt.'
+        Mal 'Rodaje no dejó registro; mira dist\Rodaje\app\rodaje-error.txt.'
     }
     if ($p.ExitCode -eq 0) { Bien 'La medida terminó bien.' } else { Mal "La medida terminó con código $($p.ExitCode)." }
     exit $p.ExitCode
 }
 
-if ($argumentos.Count -gt 0) { Start-Process -FilePath $Exe -ArgumentList $argumentos } else { Start-Process -FilePath $Exe }
+if ($argumentos.Count -gt 0) { Start-Process -FilePath $Lanzador -ArgumentList $argumentos } else { Start-Process -FilePath $Lanzador }
 Bien 'Rodaje abierto. Importa videos (Ctrl+I o arrastrándolos) y haz doble clic en uno para ponerlo en la pista principal.'
 exit 0
