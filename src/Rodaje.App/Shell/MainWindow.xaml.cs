@@ -507,6 +507,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     {
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBar.DragRegion);
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, AppIcon.FileName));
         AppWindowTitleBar bar = AppWindow.TitleBar;
         bar.PreferredHeightOption = TitleBarHeightOption.Tall;
         bar.ButtonBackgroundColor = Colors.Transparent;

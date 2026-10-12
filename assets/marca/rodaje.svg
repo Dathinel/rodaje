@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Rodaje: una R cuyo trazo vertical es una tira de película perforada. Grafito #1D1D1D, borde #3A3A3A, acento #E8833A. -->
+  <rect x="10" y="10" width="236" height="236" rx="54" fill="#1D1D1D" stroke="#3A3A3A" stroke-width="4"/>
+  <g fill="#E8833A">
+    <path fill-rule="evenodd" d="M60 44H112V216H60Z M68 56h8v12h-8Z M96 56h8v12h-8Z M68 80h8v12h-8Z M96 80h8v12h-8Z M68 104h8v12h-8Z M96 104h8v12h-8Z M68 128h8v12h-8Z M96 128h8v12h-8Z M68 152h8v12h-8Z M96 152h8v12h-8Z M68 176h8v12h-8Z M96 176h8v12h-8Z M68 200h8v12h-8Z M96 200h8v12h-8Z"/>
+    <path d="M112 44H140A64 64 0 0 1 140 172H112V128H140A20 20 0 0 0 140 88H112Z"/>
+    <path d="M118 160H170L218 216H166Z"/>
+  </g>
+</svg>

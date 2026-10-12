@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Rodaje en una sola tinta (currentColor) y sin fondo: para fondos claros u oscuros, sellos y grabados. -->
+  <g fill="currentColor">
+    <path fill-rule="evenodd" d="M60 44H112V216H60Z M68 56h8v12h-8Z M96 56h8v12h-8Z M68 80h8v12h-8Z M96 80h8v12h-8Z M68 104h8v12h-8Z M96 104h8v12h-8Z M68 128h8v12h-8Z M96 128h8v12h-8Z M68 152h8v12h-8Z M96 152h8v12h-8Z M68 176h8v12h-8Z M96 176h8v12h-8Z M68 200h8v12h-8Z M96 200h8v12h-8Z"/>
+    <path d="M112 44H140A64 64 0 0 1 140 172H112V128H140A20 20 0 0 0 140 88H112Z"/>
+    <path d="M118 160H170L218 216H166Z"/>
+  </g>
+</svg>
