@@ -62,8 +62,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for p in Core Paquetes Playback; do
+          for p in Core Paquetes Playback TestServer; do
             proyecto="tests/Rodaje.$p.Tests/Rodaje.$p.Tests.csproj"
+            # Las pruebas del servidor HTTP de pruebas viven junto a él, en testing/ (tarea 61).
+            if [ "$p" = TestServer ]; then proyecto="testing/Rodaje.TestServer/Tests/Rodaje.TestServer.Tests.csproj"; fi
             dotnet restore "$proyecto" --locked-mode
             dotnet test "$proyecto" --no-restore \
               --filter "Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento" \
