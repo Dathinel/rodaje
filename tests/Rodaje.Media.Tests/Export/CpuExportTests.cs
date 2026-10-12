@@ -74,9 +74,8 @@ public sealed class CpuExportTests(ITestOutputHelper output)
                 _ => pixels.FfmpegName(),
             },
             Color = rangeOnlyInBitstream ? null : format.Color,
-            // FFV1 figura como intra en el catálogo, pero sin -g FFmpeg reinicia sus contextos (cuadro clave) cada 12 cuadros:
-            // ver la entrega docs/tareas/2026-10-11-export-ci.md. ProRes y DNxHR sí son un cuadro clave por cuadro.
-            MaxGop = videoSpec.IntraOnly && video != "ffv1" ? 1 : null,
+            // Los solo intra (ProRes, DNxHR y FFV1, que lleva «-g 1» en el catálogo) son un cuadro clave por cuadro.
+            MaxGop = videoSpec.IntraOnly ? 1 : null,
             AudioCodec = CpuExportArguments.ProbeCodec(audio),
             AudioDurationSeconds = Frames / 30.0,
             SampleRate = 48_000,
