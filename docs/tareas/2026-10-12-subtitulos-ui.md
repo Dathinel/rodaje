@@ -31,6 +31,12 @@ Esta rama no la causó. Falló una sola prueba: `Rodaje.Modules.Protocol.Tests.P
 
 Linux en verde. En Windows falló una sola prueba, que esta rama no toca: `ExportEncoderAvailabilityTests.Invalidate_during_a_run_starts_the_next_one_only_after_it_ends` (esperaba 1 corrida y hubo 2, `ExportEncoderAvailabilityTests.cs:126`). Ya falló igual en el PR #40, que solo cambia la cola, y la cola la trata en otra tarea. Las demás pasaron, también `Rodaje.App.Tests` y `Rodaje.Module.Subtitles.Tests`. Se relanzó el trabajo una vez y se subió 68184e8, que cambia `AutoSubtitles.Numbers` por `SpanishNumbers.Format`.
 
+## CI de esta entrega (run 38237365201, sobre 5224a00: 68184e8 y main unidos)
+
+- **Linux:** en verde.
+- **Windows:** en verde.
+- Antes, la corrida de 4ee9359 falló en Linux por `SpeedMaterialPropertiesTests.EncadenarCurvasYVolverA1x_DevuelveElMaterial` (semilla `f8WpeepvLc36`), la prueba de propiedades intermitente de main que trata la tarea 57; esta rama no toca Core en esa parte. Se canceló sola al llegar 5224a00.
+
 ## Pendiente
 
 - **Tarea 51 (otra rama), necesaria para que el comando funcione:** `modules/Rodaje.Module.Subtitles/paquete.json` no tiene `"apps"`. `ManifestReader` lo deja vacío, `ModuleCatalog` (línea 129) descarta los módulos con `!manifest.WorksIn(AppId)`, y entonces `FindByFunction("subtitulos")` da null. Mientras tanto el diálogo solo avisa «Hace falta el módulo "Subtítulos automáticos"». No lo toqué.
