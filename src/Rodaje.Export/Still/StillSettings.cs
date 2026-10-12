@@ -63,7 +63,11 @@ public sealed record StillSettings
         };
     }
 
-    /// <summary>El formato que corresponde a la extensión de <paramref name="path"/>: JPEG con <c>.jpg</c> o <c>.jpeg</c>, PNG en lo demás.</summary>
+    /// <summary>
+    /// El formato que corresponde a la extensión de <paramref name="path"/>: JPEG con <c>.jpg</c> o <c>.jpeg</c>, PNG en lo
+    /// demás. Con una extensión que no es de imagen (<c>foto.bmp</c>), la ruta no vale tal cual: <see cref="WithExtension"/>
+    /// le añade la del formato y <see cref="StillPlan.Create"/> la rechaza.
+    /// </summary>
     public static StillFormat FormatFor(string path)
     {
         ArgumentNullException.ThrowIfNull(path);
@@ -72,6 +76,48 @@ public sealed record StillSettings
             ? StillFormat.Jpeg
             : StillFormat.Png;
     }
+
+    /// <summary>Si la extensión de <paramref name="path"/> es la de <paramref name="format"/>: <c>.png</c>, o <c>.jpg</c>/<c>.jpeg</c>.</summary>
+    public static bool HasExtensionOf(string path, StillFormat format)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        string extension = Path.GetExtension(path);
+        return format == StillFormat.Jpeg
+            ? extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)
+            : extension.Equals(".png", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// <paramref name="path"/> con la extensión de <paramref name="format"/>: igual si ya la tiene; si no, se le añade
+    /// (<c>foto.bmp</c> → <c>foto.bmp.png</c>). Añadir y no cambiar no pierde nada de un nombre con puntos
+    /// (<c>Proyecto v1.2 - cuadro 10</c>), y el archivo dice siempre lo que es.
+    /// </summary>
+    public static string WithExtension(string path, StillFormat format)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        return HasExtensionOf(path, format) ? path : path + "." + Extension(format);
+    }
+
+    /// <summary>
+    /// Por qué no se puede escribir un <paramref name="format"/> en <paramref name="path"/>, en español; <c>null</c> si la
+    /// extensión es la del formato. Sin esto, <c>foto.bmp</c> o un JPEG en <c>foto.png</c> quedarían con un nombre que miente.
+    /// </summary>
+    public static string? ExtensionProblem(string path, StillFormat format)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (HasExtensionOf(path, format))
+        {
+            return null;
+        }
+
+        string extension = Path.GetExtension(path);
+        string expected = format == StillFormat.Jpeg ? ".jpg o .jpeg" : ".png";
+        return extension.Length == 0
+            ? $"El archivo «{Path.GetFileName(path)}» no tiene extensión: un fotograma {Name(format)} debe terminar en {expected}."
+            : $"Un fotograma {Name(format)} debe terminar en {expected}, no en «{extension}».";
+    }
+
+    private static string Name(StillFormat format) => format == StillFormat.Jpeg ? "JPEG" : "PNG";
 
     /// <summary>Extensión sin punto de cada formato.</summary>
     public static string Extension(StillFormat format) => format == StillFormat.Jpeg ? "jpg" : "png";

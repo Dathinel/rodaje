@@ -54,8 +54,11 @@ internal static class StillExportCommand
             return;
         }
 
+        // «foto.bmp» no sale como un PNG con nombre BMP: se le añade «.png» («foto.bmp.png»).
+        StillFormat format = StillSettings.FormatFor(path);
+        path = StillSettings.WithExtension(path, format);
         var request = new StillRequest(session.Project.Clone(), session.SequenceId, position, path,
-            new StillSettings { Format = StillSettings.FormatFor(path) }) { ProjectDirectory = projectFolder };
+            new StillSettings { Format = format }) { ProjectDirectory = projectFolder };
         await ExportAsync(services, request);
     }
 

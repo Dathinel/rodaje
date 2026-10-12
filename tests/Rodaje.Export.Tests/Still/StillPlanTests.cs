@@ -16,7 +16,7 @@ public sealed class StillPlanTests
     };
 
     private static StillPlan Plan(StillSettings settings, Time? position = null, Project? project = null) =>
-        StillPlan.Create(new StillRequest(project ?? Project(), "sec", position ?? Time.Zero, "/tmp/foto.png", settings));
+        StillPlan.Create(new StillRequest(project ?? Project(), "sec", position ?? Time.Zero, "/tmp/foto." + StillSettings.Extension(settings.Format), settings));
 
     [Fact]
     public void Por_omision_sale_un_png_rgb_del_tamano_de_la_secuencia()
