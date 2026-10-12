@@ -180,4 +180,74 @@ public sealed class ProtocolDefectTests
             foreach (CancellationTokenSource cts in tokens) cts.Dispose();
         }
     }
+
+    /// <summary>
+    /// Cuando el cliente falla (<c>ModuleClient.Fail</c>), primero cancela <c>_stop</c> y enseguida desecha el canal, y
+    /// con él el <see cref="SemaphoreSlim"/> que ordena las escrituras. Una llamada o un ping que esperaba ese candado con
+    /// <c>_stop.Token</c> procesa su cancelación en otro hilo; si para entonces el semáforo ya está desechado,
+    /// <see cref="SemaphoreSlim"/> no la saca de la cola y su tarea no termina nunca, aunque la del llamador tenga su propia
+    /// cancelación. Es lo que hizo fallar el fuzz del cliente en la CI de Windows (PR #27, 11 de 300 casos: el cliente ya
+    /// había fallado, <c>ping[4]</c> seguía pendiente y el candado en 0). En Linux se reproduce aquí con una tubería cuyas
+    /// escrituras esperan (búfer lleno): se colgó en 45 y 46 de 50 rondas. El comportamiento del semáforo se comprobó
+    /// aparte (<c>WaitAsync(token)</c>, <c>Cancel()</c> y <c>Dispose()</c> seguidos: 48 de 50 esperas colgadas).
+    /// </summary>
+    [Fact(Skip = "Defecto: si ModuleClient falla mientras una llamada o un ping espera el candado de escritura, esa operación no termina nunca (SemaphoreSlim desechado tras cancelar).")]
+    public async Task Operations_waiting_to_write_finish_when_the_client_fails()
+    {
+        for (int round = 0; round < 50; round++)
+        {
+            (NamedPipeServerStream editor, NamedPipeClientStream module) = await Support.PipePairAsync();
+            using (module)
+            {
+                Task greet = Task.Run(async () =>
+                {
+                    await FuzzSupport.ReadFrameAsync(module);
+                    await module.WriteAsync(Support.Frame(Support.WelcomeJson));
+                });
+                StalledWrites stream = new(editor);
+                ModuleClient client = await ModuleClient.ConnectAsync(stream);
+                await greet;
+                stream.Stall = true;
+                using CancellationTokenSource callCts = new(300), pingCts = new(300);
+                List<Task> operations = [client.InvokeAsync("eco", cancellationToken: callCts.Token)];
+                for (int i = 0; i < 8; i++) operations.Add(client.PingAsync(pingCts.Token));
+                await Task.Delay(50);
+                // El módulo manda basura: el cliente falla con las operaciones esperando el candado.
+                await module.WriteAsync(Support.Frame("[basura"));
+                Task all = Task.WhenAll(operations);
+                await Task.WhenAny(all, Task.Delay(TimeSpan.FromSeconds(3)));
+                Assert.True(all.IsCompleted, $"Ronda {round}: {operations.Count(o => !o.IsCompleted)} operaciones colgadas tras fallar el cliente.");
+                foreach (Task operation in operations)
+                    Assert.True(operation.Exception?.InnerException is null or OperationCanceledException or ModuleException, operation.Exception?.ToString());
+                await FuzzSupport.Capped(client.DisposeAsync().AsTask(), "DisposeAsync");
+            }
+        }
+    }
+
+    /// <summary>Una tubería cuyo búfer de escritura está lleno: las escrituras esperan hasta que se cancelen.</summary>
+    private sealed class StalledWrites(Stream inner) : Stream
+    {
+        public volatile bool Stall;
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => inner.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => inner.ReadAsync(buffer, cancellationToken);
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => inner.Write(buffer, offset, count);
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (Stall) await Task.Delay(Timeout.Infinite, cancellationToken);
+            await inner.WriteAsync(buffer, cancellationToken);
+        }
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) inner.Dispose();
+            base.Dispose(disposing);
+        }
+    }
 }
