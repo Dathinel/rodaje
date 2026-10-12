@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #15, #31, #33, #34.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #43, #42, #45. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50) y #38, #37, #41, #39 (52–55).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -166,7 +166,7 @@ Segunda mitad de lo pedido por Daniel: en Ajustes, elegir de qué pistas de vide
 
 ## 16. Material perdido al encadenar curvas de velocidad
 
-- **Estado:** cambios (PR #18: rompe `SpeedDragTests.EstirarUnaCurva_SaleDelInicioDelGesto_YNoDependeDelCamino`; ver el PR)
+- **Estado:** hecha (PR #18 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/curvas-material`
 - **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Timing/` (solo si hace falta), `tests/Rodaje.Core.Tests/` (archivos nuevos), `docs/tareas/`
 - **Lee:** `docs/fase-5c.md`, `docs/arquitectura/nucleo.md` (sección Velocidad), `src/Rodaje.Core/Editing/TimelineEdits.Speed.cs` (`AlignEnd`), `src/Rodaje.Core/Model/SpeedPresets.cs`.
@@ -292,7 +292,7 @@ Exportar el cuadro del cursor a PNG (con alfa si la secuencia lo tiene) o JPEG c
 
 ## 30. Biblioteca con carpetas, búsqueda y favoritos
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #38 unido el 12-oct en modo autónomo; carpetas y favoritos en `%LOCALAPPDATA%`, fuera del `.rodaje`)
 - **Rama:** `claude/qdv-biblioteca`
 - **Caminos:** `src/Rodaje.App/Views/Library/`, `src/Rodaje.Core/Model/` (solo si hace falta guardar carpetas en el proyecto, con migración de formato documentada), pruebas, `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (función 38), `docs/formato-proyecto.md`, D-027 (estilo).
@@ -310,7 +310,7 @@ Conecta `ExportEncoderAvailability` a `IExportEncoderSource` (punto previsto en 
 
 ## 32. FFV1 solo intra, rango de color en MOV y pruebas sobre el código real
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #42 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/export-ffv1-rango`
 - **Caminos:** `src/Rodaje.Media/Export/ExportEncoderCatalog.cs`, `src/Rodaje.Export/FfmpegArguments.cs`, `tests/Rodaje.Media.Tests/Export/CpuExport*` (moverlas a `tests/Rodaje.Export.Tests/`), `docs/tareas/`.
 - **Lee:** revisión en bloque (M4, M5, M7).
@@ -328,7 +328,7 @@ FFV1 con `-g 1` (hoy sale un cuadro clave cada 12); `h264_mf`/`hevc_mf` en MOV e
 
 ## 34. Autoguardado: pruebas del servicio y orden de escritura
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #37 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/autoguardado-pruebas`
 - **Caminos:** `src/Rodaje.App/Services/Autosave/`, `src/Rodaje.Core/` (solo `AutosaveSession`), `tests/`, `docs/tareas/`.
 - **Lee:** revisión en bloque (M8, M9).
@@ -337,7 +337,7 @@ Pruebas de `AutosaveService` con reloj falso y un doble de `IEditorDialogs`: `Ti
 
 ## 35. Limpiezas de la revisión en bloque
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #36 unido el 12-oct en modo autónomo; falta confirmar al borrar una plantilla, que vive en `Shell/TitleBar.xaml.cs`, fuera de los caminos)
 - **Rama:** `claude/limpiezas-bloque-1`
 - **Caminos:** `src/Rodaje.App/Services/EditorSession*.cs`, `src/Rodaje.Core/Editing/ClipAttributes.cs`, `src/Rodaje.App/Views/Timeline/` (zoom), `src/Rodaje.App/Services/Templates/`, `docs/protocolo-modulos.md`, sus pruebas, `docs/tareas/`.
 - **Lee:** revisión en bloque (menores y M10).
@@ -346,7 +346,7 @@ Quitar `TrimStartToPlayhead`/`TrimEndToPlayhead`/`TrimToPlayhead` (`EditorSessio
 
 ## 36. Pausas de la vista previa en cortes con velocidad y transiciones
 
-- **Estado:** pendiente
+- **Estado:** hecha en parte (PR #41 unido el 12-oct: ya no se abren decodificadores en los cortes del mismo medio, de 18 a 2 aperturas en la escena con dobles; falta medir en la RTX 3050 `TimelineCutPauseHardwareTests` y la aceptación sin exportar, y la primera apertura de cada PiP sigue siendo una pausa probable, que pide tocar `Rodaje.Media`)
 - **Rama:** `claude/vista-previa-pausas`
 - **Caminos:** `src/Rodaje.Engine/Timeline/`, `src/Rodaje.Playback/`, sus pruebas, `docs/arquitectura/motor.md`, `docs/tareas/`.
 - **Lee:** `docs/fase-6.md` («Cifras de la aceptación»: bloqueos de 59–370 ms sin exportar en cortes y transiciones), `tests/Rodaje.Export.Tests/Acceptance/AcceptanceScene.cs`.
@@ -355,7 +355,7 @@ Reproduce con la escena de aceptación sin exportar, mide qué bloquea (pre-roll
 
 ## 37. Subtítulos automáticos en la app
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #44: la sesión anterior se cortó con solo `generator.words` en el modelo y Windows en rojo; se retoma)
 - **Rama:** `claude/subtitulos-ui`
 - **Caminos:** archivos nuevos en `src/Rodaje.App/Views/Analysis/` o `Views/Subtitles/`, `src/Rodaje.Core/Model/` (campo `generator.words` con migración documentada si hace falta), pruebas, `docs/tareas/`.
 - **Lee:** `docs/fase-7.md` (sección del agente E: lo que queda para la UI), `docs/arquitectura/app.md` («Módulos de IA»), `src/Rodaje.Core/Editing/SubtitleEdits.cs`.
@@ -364,7 +364,7 @@ Reproduce con la escena de aceptación sin exportar, mide qué bloquea (pre-roll
 
 ## 38. Traducir subtítulos (módulo)
 
-- **Estado:** pendiente
+- **Estado:** hecha en parte (PR #39 unido el 12-oct: módulo, servicio y diálogo; falta engancharlo, en la tarea 51, y que Daniel verifique la SHA-256 del modelo, ver la entrega)
 - **Rama:** `claude/modulo-traducir`
 - **Caminos:** `modules/Rodaje.Module.Translate/` (nuevo), `tests/Rodaje.Module.Translate.Tests/` (nuevo), `herramientas/preparar-modelos.ps1` (añadir entradas), archivos nuevos en la App para la acción, `docs/tareas/`.
 - **Lee:** `docs/fase-7.md` (agente F: Qwen3-4B-Instruct-2507 Q4 Apache-2.0 con LLamaSharp; Opus-MT como opción ligera; NLLB descartado por no comercial), D-031, D-032, `modules/Rodaje.Module.Subtitles/` como patrón.
@@ -391,22 +391,21 @@ Desde f89d896 falla el trabajo de Windows: `ModuleManagerTests` (varias: «El m�
 
 ## 41. Overwrite cambia el volumen con keyframes del efecto de pista
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #45 unido el 12-oct en modo autónomo: era un falso positivo de la propiedad 8 con un cuadro congelado recortado; el núcleo no cambia)
 - **Rama:** `claude/overwrite-gain-keyframes`
 - **Caminos:** `src/Rodaje.Core/Editing/`, `tests/Rodaje.Core.Tests/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 40 (`docs/tareas/2026-10-12-ci-main-verde.md`), `docs/arquitectura/nucleo.md`.
 
 `EditPropertiesTests.OperacionesAleatorias_CumplenTodasLasReglas` falla con `CsCheck_Seed=5ZOfD5KG8C16`: Overwrite cambia el `gainDb` con keyframes del efecto de pista v1. Prueba de regresión con esa semilla y corrección en el núcleo.
 
-## 42. Números con coma decimal en los diálogos de análisis
+## 42. Números con coma decimal en toda la App
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #43 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/analisis-cultura`
-- **Caminos:** `src/Rodaje.App/Views/Analysis/`, `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`
-- **Lee:** entrega de la tarea 40 (la app corre con InvariantGlobalization; `TitleEditor.DescribeAnimation` ya usa coma fija como `SpeedMath`).
+- **Caminos:** `src/Rodaje.App/Views/Analysis/`, `src/Rodaje.App/Services/Titles/SubtitleStyles.cs`, `src/Rodaje.App/Views/Inspector/Text/TextPanel.xaml.cs`, `src/Rodaje.App/Views/Voice/VoiceDialog.cs`, `src/Rodaje.App/Services/Format/` (un archivo nuevo para el formato común), `src/Rodaje.App/Services/Inspector/TitleEditor.cs` y el `SpeedMath` de la App (solo para usar el formato común), `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 40 (la app corre con InvariantGlobalization; `TitleEditor.DescribeAnimation` ya usa coma fija como `SpeedMath`), revisión en bloque 2 (hallazgo 4).
 
-`AnalysisUi.Sec`, el BPM de `RhythmDialog` y `StabilizeDialog` formatean con CurrentCulture y salen con punto. Usar el mismo formato que `SpeedMath`, con pruebas.
-
+La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que todo formato con `CurrentCulture` sale con punto decimal. Siguen así: `AnalysisUi.Db/Ms/Sec` (`AnalysisUi.cs:43-47`), el BPM de `RhythmDialog` (`:95`), el contraste de `SubtitleStyles` (`:54,83`), `StabilizeDialog` (`:50,57`), `SilenceDialog` (`:58`), `DuckingDialog` (`:68`), `NoiseReductionDialog` (`:71`), `AutoColorAction` (`:36-38`), `TextPanel.xaml.cs:106` y `VoiceDialog.cs:274`. Un solo `NumberFormatInfo` en español compartido (hoy `TitleEditor` y `SpeedMath` duplican el suyo), usado en todos esos sitios, con pruebas y una prueba que falle si vuelve a aparecer `CurrentCulture` en un formato numérico de `src/Rodaje.App`.
 
 ## 43. `NU1004` intermitente al restaurar en la CI de Windows
 
@@ -417,18 +416,148 @@ Desde f89d896 falla el trabajo de Windows: `ModuleManagerTests` (varias: «El m�
 
 `dotnet restore Rodaje.slnx --locked-mode` falla a veces antes de compilar, cada vez en un proyecto distinto, con los identificadores de runtime cruzados entre los proyectos que publican con AOT (`win-x64`) y `Rodaje.Modules.Protocol`, que no declara ninguno. Averigua la carrera (¿un `RuntimeIdentifier` heredado por referencia de proyecto o un lockfile regenerado en Linux?), corrígela para que la restauración sea determinista en Windows y en Linux, y que la CI lo compruebe.
 
-## 50. Exportar fotograma con título falla al decodificar
+## 44. Carrera entre `Abort` y `Complete` en la exportación, y `Kill` fuera del cerrojo
 
 - **Estado:** pendiente
+- **Rama:** `claude/export-abort-carrera`
+- **Caminos:** `src/Rodaje.Media/Export/FfmpegPipeSink.cs`, `tests/Rodaje.Media.Tests/Export/` (archivos nuevos o `FfmpegPipeSinkFailureTests.cs`), `docs/tareas/`
+- **Lee:** revisión en bloque 2 (hallazgos 1 y 5), entrega de la tarea 33 (`docs/tareas/2026-10-12-export-abort.md`).
+
+1. Si se cancela mientras `Complete` espera a que ffmpeg cierre el contenedor (`while (!process.WaitForExit(100))`, ~`:234`), `Abort` corre en el hilo que cancela, mata y libera el `Process` (`ReleaseProcess`, ~`:610`), y `Complete` sigue esperando sobre un objeto liberado: sale `InvalidOperationException`/`ObjectDisposedException` en vez de `OperationCanceledException`. `Failure` (~`:530`) lee `_process` fuera del cerrojo. Que `Complete` y `Failure` no usen un `Process` liberado (leerlo bajo `_gate`, o no liberarlo mientras `Complete` está dentro) y que una cancelación siempre llegue como cancelación. Prueba que cancele durante `Complete`.
+2. `Kill` (`:622-653`) espera `KillWait` dos veces con `_gate` tomado (peor caso ~1,8 s, por encima del criterio de 1 s). Si ffmpeg sigue vivo tras el segundo intento, hoy se libera igual y se intenta borrar temporales que ffmpeg tiene abiertos. Esperar sin el cerrojo, no liberar ni borrar si no salió (reintentar o encolar el borrado) y registrarlo en el diagnóstico.
+
+## 45. `docs/legal.md` al día con `LICENSE` y el repo público
+
+- **Estado:** pendiente
+- **Rama:** `claude/legal-al-dia`
+- **Caminos:** `docs/legal.md`, `LICENCIAS.md`, `docs/pendientes-legales.md`, `docs/tareas/`
+- **Lee:** `LICENSE`, `Directory.Build.props`, D-032, `docs/ffmpeg-configure.txt`, revisión en bloque 2 (hallazgos 2 y 3).
+
+1. `docs/legal.md:59` («Versión de la GPL») dice que `LICENSE` no fija la versión; `LICENSE:4-5` dice «version 3 only (SPDX: GPL-3.0-only)» y `Directory.Build.props:14` también. Marcarlo resuelto con la cita.
+2. `docs/legal.md:55` (sección e) dice que el repositorio es privado y el enlace del crédito da 404; es público desde el 11-oct. Marcarlo cumplido.
+3. `docs/legal.md:129` concluye «Ninguna es GPL-only» para las bibliotecas de la FFmpeg que no son de exportación (dav1d, freetype, harfbuzz, fribidi, libass, zimg, libvmaf, libzmq, libssh, libsrt, librist, libplacebo, libbluray, gmp, librsvg, libxml2, libopenjpeg, libjxl…) sin filas ni fuente. Añadir las filas con licencia y enlace en `LICENCIAS.md` y su compatibilidad con la GPLv3 (ojo con FreeType FTL/GPLv2, gmp LGPLv3/GPLv2, libzmq), o reescribir la frase como «sin revisar» y llevarlo a `docs/pendientes-legales.md`. La fila de IJG (`docs/legal.md:70`) necesita su fuente. Solo hechos verificables con enlace.
+
+## 46. Limpiezas de la revisión en bloque 2
+
+- **Estado:** pendiente
+- **Rama:** `claude/limpiezas-bloque-2`
+- **Caminos:** `herramientas/app.ps1` (solo la línea del eco), `.github/workflows/ci.yml` (paso «Lockfiles deterministas»), `tests/Rodaje.Engine.Tests/Offline/` (archivos nuevos), `tests/Rodaje.Engine.Tests/Timeline/TimelineSpeedTests.cs`, `tests/Rodaje.App.Tests/Modules/` (archivos nuevos), `docs/tareas/`
+- **Lee:** revisión en bloque 2 (hallazgos 6 y 7), entregas de las tareas 40 y 43.
+
+1. Quitar el `-r win-x64` que sobra al publicar el eco en `herramientas/app.ps1:169` y que el paso «Lockfiles deterministas» restaure en modo bloqueado, con `-r win-x64`, todos los proyectos que se publican con AOT (Echo, Voice, Subtitles y AudioAi), no solo el eco.
+2. `OfflineTimelineTests` usa ahora un reloj quieto: añadir una prueba aparte con reloj real que cubra el cierre de decodificadores ociosos y el tope de composición a medias (con `Categoria=TiempoReal` si mide tiempo).
+3. `TimelineSpeedTests.Speed_adds_no_bytes_to_what_each_tick_already_reserves` falló una vez por 1 B en la CI de Windows: averiguar qué reserva de más y corregir la causa, o justificar el margen.
+4. Una prueba que fije `ModuleManagerOptions.StartTimeout` (30 s) y el camino «no se conectó a tiempo» con un tope corto inyectado.
+
+
+## 47. Pruebas de la App que fallan con el runner de Windows cargado
+
+- **Estado:** pendiente
+- **Rama:** `claude/app-pruebas-carga`
+- **Caminos:** `tests/Rodaje.App.Tests/Media/ClipVisualsTests.cs`, `tests/Rodaje.App.Tests/` (las otras pruebas citadas), `tests/Rodaje.Media.Tests/Export/ExportEncoderAvailabilityTests.cs`, `tests/Rodaje.Engine.Tests/Timeline/` y `tests/Rodaje.Module.AudioAi.Tests/` (las pruebas citadas), `src/Rodaje.App/Services/` y `src/Rodaje.Media/Export/ExportEncoderAvailability*.cs` (solo si el defecto es del código), `docs/tareas/`
+- **Lee:** el job 114679035551 (PR #32), el comentario del 12-oct en el PR #33 y `testing/Rodaje.TestMedia/Skip.cs`.
+
+`ClipVisualsTests.Dispose_does_not_wait_for_a_reader_that_ignores_cancellation` exige que `Dispose` vuelva en menos de 1 s y en la CI tardó 8082 ms (`ClipVisualsTests.cs:402`), en un PR que no toca esa parte. En el job 114683663348 (PR #40) falló `ClipVisualsTests.A_second_session_reads_thumbnails_and_peaks_from_disk` con «No llegó a tiempo» (`:150`, `:272`). En la corrida de #33 fallaron además `PackageServiceTests`, `ModuleMediaTests` y `VideoAnalysisTests`. En el job 114681867969 (PR #40, que solo cambia la cola) falló `ExportEncoderAvailabilityTests.Invalidate_during_a_run_starts_the_next_one_only_after_it_ends` (esperaba 1 corrida y hubo 2): puede ser una carrera real en `Invalidate`. También fallaron una vez, en PR que no las tocan: `ModuleManagerTests.Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada` (#36, #37, #41), `AudioAi ProcessTests.Bad_buffers_fail_the_call_without_closing_the_module` (#41), `TimelineReverseTests.A_paused_tick_reserves_the_same_in_reverse_as_forward` (#37) y `TimelineSpeedTests.Speed_mapping_in_the_plan_reserves_nothing` (#38). Que la CI de Windows de main salga en verde varias veces seguidas. Averigua la causa de cada una. Si `Dispose` de verdad espera al lector (un `Wait` o un `Join` en el camino), es un defecto: corrígelo. Si no, haz que la medición no dependa del planificador del runner (cronometrar solo `Dispose`, hilos dedicados) sin subir el tope que mide. Si alguna prueba mide tiempo real, va con `Categoria=TiempoReal`.
+
+## 48. Reenlazar: un archivo asignado a dos medios
+
+- **Estado:** pendiente
+- **Rama:** `claude/reenlazar-duplicados`
+- **Caminos:** `src/Rodaje.Core/Editing/MediaRelinkSearch.cs`, `src/Rodaje.Core/Editing/MediaRelink.cs`, `src/Rodaje.App/Services/Relink/`, `src/Rodaje.App/Views/Relink/`, `tests/Rodaje.Core.Tests/Editing/Relink/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 28 (`docs/tareas/2026-10-12-qdv-reenlazar.md`), revisión en bloque 3.
+
+1. `MediaRelinkSearch.cs:142` (`taken`) solo cuenta las rutas de los medios que no faltan. Lo ya resuelto en el diálogo (`pending`) no cuenta. Si faltan A y B, ambos 1080p de 10 s, y el usuario elige a mano `\nuevo\b.mp4` para B, la búsqueda que lanza `PickAsync` (`RelinkDialog.cs:225`) asigna ese mismo archivo a A por la pasada «Renamed». Arreglo: pasar las rutas ya resueltas como ocupadas y rechazar en `TargetFor` o en el servicio un archivo que ya use otro medio del proyecto o de `pending`, sin distinguir mayúsculas. Prueba de la búsqueda por tandas, como la hace el diálogo.
+2. La pasada «Renamed» (`:253`) enlaza un único candidato con la misma extensión, pistas, tamaño y duración (±50 ms) sin comparar contenido: que en el diálogo salga como «confirmar».
+3. `AttributesToSkip` (`:28`) no excluye `Offline` ni `RecallOnDataAccess`, así que abrir con FFmpeg puede descargar medios de OneDrive que solo están en la nube. Excluirlos en esa pasada.
+4. `RelinkDialog.cs:262`: «Volver a enlazar» en el aviso no hace nada si ya no falta ningún medio. Avisar «Ya están todos los medios» y, si el motor guarda el medio como fallido, pedir un refresco.
+
+## 49. Exportar fotograma: extensión, cancelación y reentrada
+
+- **Estado:** pendiente
+- **Rama:** `claude/fotograma-robusto`
+- **Caminos:** `src/Rodaje.Export/Still/`, `src/Rodaje.App/Views/Export/StillExportCommand.cs`, `tests/Rodaje.Export.Tests/Still/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 29 (`docs/tareas/2026-10-12-qdv-fotograma.md`), revisión en bloque 3.
+
+1. `StillSettings.FormatFor` saca PNG para cualquier extensión que no sea `.jpg` o `.jpeg`, y `StillEncoder` escribe en la ruta tal cual: `foto.bmp` termina siendo un PNG con nombre BMP. Aceptar solo `.png`, `.jpg` y `.jpeg`, y con otra extensión añadir la del formato o rechazarla con `InvalidSettings`. Prueba en `StillPlanTests`.
+2. `StillExportCommand.cs:76` llama a `ExportAsync` sin `CancellationToken` y sin bloquear la reentrada. Si se repite Ctrl+Mayús+E con el mismo destino, dos exportaciones comparten la carpeta temporal. Añadir cancelación, un indicador de «exportando» y que el atajo se ignore mientras haya una en marcha.
+
+## 50. Confirmar al borrar una plantilla propia
+
+- **Estado:** pendiente
+- **Rama:** `claude/plantillas-confirmar`
+- **Caminos:** `src/Rodaje.App/Shell/TitleBar.xaml.cs` (solo el borrado de plantillas), `src/Rodaje.App/Services/` (la confirmación en `IEditorDialogs`, si hace falta), `tests/Rodaje.App.Tests/Templates/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 35 (`docs/tareas/2026-10-12-limpiezas-bloque-1.md`).
+
+Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.xaml.cs:330`) pide confirmación con el estilo de la app (D-027). Si `IEditorDialogs` no tiene una confirmación genérica, añadirla con su doble de pruebas.
+
+## 51. Enganchar «Traducir pista» y el manifiesto de subtítulos
+
+- **Estado:** pendiente
+- **Rama:** `claude/traducir-enganche`
+- **Caminos:** `src/Rodaje.App/Shell/MainWindow.xaml.cs` (una línea), `src/Rodaje.App/Views/Timeline/TimelineView.Analysis.cs` (la entrada de menú), `modules/Rodaje.Module.Subtitles/paquete.json`, `tests/Rodaje.Module.Subtitles.Tests/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 38 (`docs/tareas/2026-10-12-modulo-traducir.md`).
+
+1. Registrar `Views.Translate.TranslateCommands.Bind(_router, _services)` en `MainWindow.xaml.cs` (junto a la línea 135, como los demás) y añadir «Traducir pista» al menú de la pista de subtítulos, como el de voz en `TimelineView.Analysis.cs`.
+2. `modules/Rodaje.Module.Subtitles/paquete.json` no tiene `"apps"` y `ManifestReader` lo rechaza. Corregirlo, con una prueba que lea el manifiesto real con `ManifestReader`, como `ManifestTests` del módulo de traducir.
+
+## 52. Traducir: salidas cortadas, tokens de control y textos largos
+
+- **Estado:** pendiente
+- **Rama:** `claude/traducir-robusto`
+- **Caminos:** `modules/Rodaje.Module.Translate/LlamaGenerator.cs`, `modules/Rodaje.Module.Translate/Translation/`, `tests/Rodaje.Module.Translate.Tests/`, `src/Rodaje.App/Services/Translate/SubtitleTrackTranslation.cs`, `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 38, revisión en bloque 4.
+
+1. `SubtitleTranslator.cs:25` fija el tope de tokens por el largo del texto de origen, y `GenerateAsync` no mira por qué paró el modelo. Una traducción al hindi, árabe, japonés o coreano se corta a mitad de frase y se acepta como buena (`:73-78`). Que el generador diga si llegó al tope. Si llegó, reintentar ese subtítulo suelto con el doble; si vuelve a llegar, va a `untranslated`. Subir el factor para esas escrituras. Prueba con un `FakeGenerator` que corte.
+2. `Prompt.cs:30,37,47`: un subtítulo con `<|im_end|><|im_start|>` o `</think>` llega tal cual al prompt (`ApplyTemplate=false`) y puede cerrar el turno o hacer que `StripThinking` descarte texto. Neutralizar `<|` y `</think>` en el texto del usuario, con prueba en `PromptTests`.
+3. `SubtitleTrackTranslation.cs:102` recorta el texto a 500 caracteres sin avisar, y la traducción reemplaza el texto entero. Si el corte cae en medio de un par sustituto, `Utf8JsonWriter` lanza una excepción y falla la pista entera. Recortar respetando los sustitutos, y marcar o partir los textos largos en lugar de truncarlos. Pruebas con 501 caracteres y con un emoji en el borde.
+
+## 53. Modelo del traductor instalable desde Complementos
+
+- **Estado:** pendiente (hacerla después de la 51, que toca el mismo `paquete.json`)
+- **Rama:** `claude/traducir-modelo`
+- **Caminos:** `modules/Rodaje.Module.Translate/paquete.json`, `modules/Rodaje.Module.Translate/ModelFiles.cs`, `modules/Rodaje.Module.Translate/LICENCIAS.md`, `src/Rodaje.Paquetes/ManifestReader.cs`, `tests/Rodaje.Paquetes.Tests/` (archivos nuevos), `src/Rodaje.App/Services/Translate/`, `docs/tareas/`
+- **Lee:** entrega de la tarea 38, `src/Rodaje.Paquetes/Download/ModelStore.cs`, `DownloadUrlPolicy.cs`, `docs/descarga.md`, revisión en bloque 4.
+
+`ModelStore.EnsureAsync` exige `size > 0` y una URL de Hugging Face fijada a un commit de 40 hex; el manifiesto trae `resolve/main` sin `size`. Nadie llama a `ModelStore`, `ManifestReader` no valida `models`, y `ModelFiles.Search` no mira `complementos\modelos\<sha256>`. Además, el error remite a `herramientas\preparar-modelos.ps1`, que no se distribuye. Que `ModelFiles` encuentre el modelo con `ModelStore.Find` por su sha256. Que `ManifestReader` exija `size` y una URL fijada en cada modelo, con prueba. Que la acción avise «falta el modelo, instálalo desde Complementos». Añadir a `LICENCIAS.md` el texto de Apache-2.0 y el NOTICE para cuando se redistribuya el modelo. La URL fijada, el tamaño y el SHA-256 verificado los pone Daniel, porque la nube no llega a Hugging Face: deja marcadores claros y anótalo en la entrega.
+
+## 54. Biblioteca: proyectos que comparten organización y lectura de códecs
+
+- **Estado:** pendiente
+- **Rama:** `claude/biblioteca-robusta`
+- **Caminos:** `src/Rodaje.App/Views/Library/`, `tests/Rodaje.App.Tests/Library/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 30, revisión en bloque 4.
+
+1. `LibraryOrganizationStore.PathFor` (`:31-39`) usa `Project.Id`, que no cambia al copiar el `.rodaje`. La copia comparte el JSON y `Prune` al cargar (`LibraryView.Folders.cs:40`) borra del archivo compartido los medios que la copia no tiene. Usar como clave el id más la ruta, o su hash, y no podar al cargar: filtrar solo al mostrar.
+2. `ReadCodecs` (`LibraryView.Folders.cs:395-413`) guarda los fallos para toda la sesión y solo captura tres excepciones. Una inesperada detiene la lectura y los demás medios quedan en «…». Capturar por medio y no guardar los fallos, o guardarlos con la fecha de modificación.
+3. Menores:
+   - Una versión futura del JSON se sobrescribe; apartarla.
+   - Un id como `CON` o `nul` da un nombre reservado de Windows.
+   - `KindOf` toma por imagen un video con `FrameRate == null`.
+   - `SearchText.Fold` no pliega las tildes descompuestas (NFD).
+   - `NewId` reutiliza `folder-N`.
+   - `Save` hace `Flush(true)` en el hilo de la interfaz.
+
+## 55. Autoguardado: «(recuperado N)» huérfanos al cancelar la apertura
+
+- **Estado:** pendiente
+- **Rama:** `claude/autoguardado-recuperado`
+- **Caminos:** `src/Rodaje.App/Services/Autosave/AutosaveService.cs`, `tests/Rodaje.App.Tests/Autosave/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 34, revisión en bloque 4.
+
+`RecoverOnceAsync` (`AutosaveService.cs:205-219`) escribe el proyecto recuperado y luego llama a `OpenProjectAsync`. Si la persona cancela el aviso de cambios sin guardar, cada reintento crea otro «(recuperado N)» huérfano. Reutilizar la ruta ya escrita en la misma sesión, o borrar el archivo si la apertura falla. La prueba de doble clic usa `Task.Delay(200)`: cambiarla por un `TaskCompletionSource` en el arnés.
+
+## 56. Exportar fotograma con título falla al decodificar
+
+- **Estado:** pendiente (la sesión local la añadió como 50 en 0a56efa; se renumera porque la 50 ya era «Confirmar al borrar una plantilla propia» en el PR #40. Toca `src/Rodaje.Export/Still/` como la 49, PR #49: hacerla después)
 - **Rama:** `claude/fotograma-titulo`
 - **Caminos:** `src/Rodaje.Export/Still/`, `src/Rodaje.Engine/Offline/` (lo mínimo), `tests/Rodaje.Export.Tests/Still/`, `docs/tareas/`.
 - **Lee:** PR #32 (exportar fotograma), `docs/arquitectura/exportacion.md`.
 
 `StillExporterTests.El_png_es_el_cuadro_de_la_vista_previa_con_el_titulo` falla en local (Windows, RTX 3050) con «El medio no tiene ese cuadro» al decodificar en el motor fuera de línea. Reprodúcelo, corrige la causa (no la prueba) y confirma que pasa en la CI de Windows.
 
-## 51. URGENTE: main en rojo en la CI de Windows (3 pruebas intermitentes)
+## 57. URGENTE: main en rojo en la CI de Windows (3 pruebas intermitentes)
 
-- **Estado:** pendiente
+- **Estado:** pendiente (la sesión local la añadió como 51 en 71bcbc3; se renumera porque la 51 ya era «Enganchar Traducir pista» en el PR #40. `ModuleManagerTests.Una_llamada_larga…` también está en la 47, PR #46: mirar ese PR antes. En la CI del PR #48 sobre main falló además `CinemaDngImportTests.A_cinemadng_folder_becomes_a_prores_file_with_the_right_frames_and_gray` con «Se cortó la conexión al saludar» (`Pipe is broken`, job 114755697386))
 - **Rama:** `claude/main-verde-2`
 - **Caminos:** las pruebas afectadas y, si la causa es real, el código mínimo; `docs/tareas/`.
 - **Lee:** la corrida de la CI de main sobre 0a56efa.
