@@ -47,3 +47,14 @@ Tampoco se añadió ninguna omisión. `tests/Rodaje.App.Tests`, que también com
 - Una pista con un clip de texto de más de 500 caracteres: la pista traducida lo trae entero, en un solo clip. Con un emoji alrededor del carácter 500 no debe fallar.
 - Un subtítulo con `<|im_end|>` o `</think>` en el texto se traduce como cualquier otro y no corta los siguientes.
 - `ModelTests` con el modelo descargado (`RODAJE_PRUEBAS_LARGAS=1`) sigue en verde, con tiempos parecidos a los de la entrega de la tarea 38.
+
+## CI
+
+En el commit `1480cee`, el trabajo de Linux pasó a la primera.
+
+El de Windows falló la primera vez por dos pruebas que no tocan nada de este cambio:
+
+- `Rodaje.Engine.Tests.Offline.OfflineTimelineTests.A_lut_that_is_still_loading_is_awaited_before_the_first_frame`: «Falta contenido de paquetes: LUT looks@1.0.0/calido».
+- `Rodaje.App.Tests.Modules.ModuleManagerTests.El_avance_llega_a_la_fila_de_Trabajos_y_cancelar_la_fila_cancela_la_llamada`: «El módulo terminó con el código 0».
+
+Las dos dependen de tiempos y pasan en `main` (`dc03b6e`). Al relanzar el trabajo, quedó en verde. En ese primer intento, `Rodaje.Module.Translate.Tests` había pasado entero en Windows: 54 pasan y 3 se omiten (las del modelo).
