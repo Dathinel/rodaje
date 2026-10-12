@@ -289,13 +289,6 @@ public sealed class FfmpegPipeSink : IExportSink
             if (_process is { } process)
             {
                 Kill(process);
-                try
-                {
-                    process.WaitForExit(KillWait);
-                }
-                catch (InvalidOperationException)
-                {
-                }
             }
 
             try
@@ -620,11 +613,35 @@ public sealed class FfmpegPipeSink : IExportSink
         ProcessId = null;
     }
 
+    // Matar no es instantáneo: Windows termina el proceso cuando cada uno de sus hilos llega a ejecutar su salida. Con
+    // ffmpeg.exe en BelowNormal y la CPU saturada por hilos Normal, esos hilos pasaban segundos sin turno (hasta que el
+    // planificador sube a los hilos hambrientos, unos 4 s), la tubería no se rompía y el escritor seguía bloqueado en
+    // WriteFile (1,6–6,3 s con VP9 en la CI). Por eso se sube primero a High: un proceso que ya muere no compite con
+    // nadie. Después TerminateProcess directo, sin recorrer antes todos los procesos del sistema como hace
+    // Kill(entireProcessTree), y la espera; el árbol solo se recorre si a pesar de todo no salió a tiempo.
     private static void Kill(Process process)
     {
         try
         {
+            process.PriorityClass = ProcessPriorityClass.High;
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+        }
+
+        try
+        {
+            process.Kill();
+            if (process.WaitForExit(KillWait))
+            {
+                return;
+            }
+
             process.Kill(entireProcessTree: true);
+            process.WaitForExit(KillWait);
         }
         catch (InvalidOperationException)
         {
