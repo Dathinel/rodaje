@@ -396,6 +396,33 @@ public static class BuiltInEffects
         public const string Mode = "mode";
     }
 
+    /// <summary>
+    /// Reencuadre de video 360 equirectangular a una vista plana (<see cref="Effects.Equirectangular"/>). Lo trae el motor
+    /// pero solo se ofrece con el complemento <c>rodaje-360</c> instalado (<see cref="Effects.EffectDefinition.Feature"/>).
+    /// </summary>
+    public const string Reframe360 = "rodaje.reframe360";
+
+    public static class Reframe360Parameters
+    {
+        /// <summary>Guiñada en grados, de −180 a 180: positiva mira a la derecha.</summary>
+        public const string Yaw = "yaw";
+
+        /// <summary>Cabeceo en grados, de −90 a 90: positivo mira arriba.</summary>
+        public const string Pitch = "pitch";
+
+        /// <summary>Alabeo en grados, de −180 a 180: positivo gira la imagen en sentido horario.</summary>
+        public const string Roll = "roll";
+
+        /// <summary>Campo de visión horizontal en grados, de 20 a 330 (la rectilínea llega hasta 170).</summary>
+        public const string Fov = "fov";
+    }
+
+    public static class Reframe360Options
+    {
+        /// <summary><c>rectilinear</c> (una cámara normal) o <c>stereographic</c> (pequeño planeta).</summary>
+        public const string Projection = "projection";
+    }
+
     /// <summary>Distorsión de lente: barril (positivo) o cojín (negativo).</summary>
     public const string LensDistortion = "rodaje.distortion";
 

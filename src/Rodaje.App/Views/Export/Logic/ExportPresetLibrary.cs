@@ -21,10 +21,14 @@ public static class ExportPresetLibrary
     /// <summary>Los de fábrica en el orden de las tarjetas.</summary>
     public static IReadOnlyList<ExportPreset> Factory => ExportPresets.All;
 
+    /// <summary>Los de los paquetes instalados (<see cref="Services.Packages.PackageExportPresets"/>); los pone la ventana al cambiar lo instalado.</summary>
+    public static IReadOnlyList<ExportPreset> Packages { get; set; } = [];
+
+    /// <summary>Los de fábrica, los de los paquetes y los propios, en ese orden.</summary>
     public static IReadOnlyList<ExportPreset> All(ExportPreferences preferences)
     {
         ArgumentNullException.ThrowIfNull(preferences);
-        return [.. Factory, .. preferences.UserPresets];
+        return [.. Factory, .. Packages, .. preferences.UserPresets];
     }
 
     public static ExportPreset? Find(ExportPreferences preferences, string? id) =>
@@ -157,7 +161,7 @@ public static class ExportPresetLibrary
         slug = slug.Trim('-');
         string id = "usuario." + (slug.Length == 0 ? "preajuste" : slug);
         string candidate = id;
-        for (int n = 2; preferences.UserPresets.Any(p => p.Id == candidate) || Factory.Any(p => p.Id == candidate); n++)
+        for (int n = 2; preferences.UserPresets.Any(p => p.Id == candidate) || Factory.Any(p => p.Id == candidate) || Packages.Any(p => p.Id == candidate); n++)
         {
             candidate = $"{id}-{n}";
         }

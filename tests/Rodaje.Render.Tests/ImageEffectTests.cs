@@ -86,6 +86,60 @@ public sealed class ImageEffectTests
     }
 
     [GpuTheory]
+    [InlineData(0.0, 0.0, 0.0, 90.0, "rectilinear")]
+    [InlineData(60.0, 20.0, 0.0, 100.0, "rectilinear")]
+    [InlineData(-120.0, -35.0, 25.0, 70.0, "rectilinear")]
+    [InlineData(0.0, -90.0, 0.0, 270.0, "stereographic")]
+    public void Reframe_360_matches_the_reference(double yaw, double pitch, double roll, double fov, string projection)
+    {
+        // Fuente con bordes duros: donde la vista pasa por el borde de un bloque, la diferencia de precisión de atan2 y asin en la
+        // GPU mueve la muestra; se admite un 3 % de píxeles fuera.
+        AssertSpatial(Fx.Make(BuiltInEffects.Reframe360, null, (BuiltInEffects.Reframe360Parameters.Yaw, yaw), (BuiltInEffects.Reframe360Parameters.Pitch, pitch),
+            (BuiltInEffects.Reframe360Parameters.Roll, roll), (BuiltInEffects.Reframe360Parameters.Fov, fov))
+            .Choose(BuiltInEffects.Reframe360Options.Projection, projection),
+            s => FxReference.Reframe360(s, yaw, pitch, roll, fov, projection == "stereographic"), outliers: 0.03);
+    }
+
+    [GpuFact]
+    public void Reframe_360_on_warp_matches_the_reference()
+    {
+        (YuvImage image, FloatImage decoded) = Noise(5);
+        using GpuDevice gpu = GpuDevice.CreateWarp();
+        LayerEffect reframe = Fx.Make(BuiltInEffects.Reframe360, null, (BuiltInEffects.Reframe360Parameters.Yaw, 60.0),
+            (BuiltInEffects.Reframe360Parameters.Pitch, 20.0), (BuiltInEffects.Reframe360Parameters.Fov, 100.0));
+        RgbaImage result = EffectFidelityTests.Compose(gpu, Width, Height, out CompositeResult stats, null, Layers.From(gpu, image, Bt709, new LayerLook([reframe])));
+        Assert.Equal(0, stats.EffectsSkipped);
+        AssertImage(result, FxReference.Reframe360(decoded, 60, 20, 0, 100, false), outliers: 0.03);
+    }
+
+    [GpuFact]
+    public void A_reframed_clip_fills_a_sequence_of_another_shape_with_the_view_of_that_shape()
+    {
+        (YuvImage image, FloatImage decoded) = Noise(9);
+        using GpuDevice gpu = GpuDevice.Create();
+        const int wide = 160, high = 90;
+        LayerEffect reframe = Fx.Make(BuiltInEffects.Reframe360, null, (BuiltInEffects.Reframe360Parameters.Yaw, 30.0), (BuiltInEffects.Reframe360Parameters.Fov, 80.0));
+
+        RgbaImage result = EffectFidelityTests.Compose(gpu, wide, high, out CompositeResult stats, null, Layers.From(gpu, image, Bt709, new LayerLook([reframe])));
+
+        Assert.Equal(0, stats.EffectsSkipped);
+        int bad = 0;
+        for (int y = 0; y < high; y++)
+        {
+            for (int x = 0; x < wide; x++)
+            {
+                (double u, double v) = Rodaje.Core.Effects.Equirectangular.SourceUv((x + 0.5) / wide, (y + 0.5) / high, 30, 0, 0, 80, (double)wide / high, false);
+                Rgb want = decoded.Sample(u, v).Color.Map(EffectReference.Saturate).To255();
+                (byte r, byte g, byte b, _) = result.At(x, y);
+                bad += Math.Abs(r - want.R) > 2 || Math.Abs(g - want.G) > 2 || Math.Abs(b - want.B) > 2 ? 1 : 0;
+            }
+        }
+
+        // Sin barras: la vista llena el cuadro de 16:9 aunque el origen sea de otra forma.
+        Assert.True(bad <= 0.03 * wide * high, $"{bad} píxeles fuera de ±2.");
+    }
+
+    [GpuTheory]
     [InlineData(0.6, 1.0)]
     [InlineData(-0.5, 1.2)]
     public void Lens_distortion_matches_the_reference(double amount, double zoom)

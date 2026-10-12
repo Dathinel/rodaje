@@ -87,6 +87,37 @@ public sealed class ExportEndToEndTests(ITestOutputHelper output) : IDisposable
     }
 
     [ExportFact]
+    public async Task Prores_1080i25_weaves_fields_and_360_mp4_carries_spherical_metadata()
+    {
+        var interlaced = new ExportSettings
+        {
+            Container = ExportContainer.Mov,
+            Video = new VideoExportSettings
+            {
+                Codec = ExportCodec.ProRes, Profile = "hq", BitDepth = 10, Chroma = ChromaSubsampling.Chroma422, RateControl = RateControl.ProfileDefined,
+                FrameRate = new Rational(25, 1), FieldOrder = ExportFieldOrder.TopFirst,
+            },
+            Audio = new AudioExportSettings { Codec = ExportCodec.Pcm, RateControl = RateControl.Lossless, Loudness = LoudnessTarget.EbuR128 },
+            FastStart = false,
+        };
+
+        (ExportJob job, _) = await RunAsync(TwoTracks(), interlaced, "1080i25.mov");
+
+        output.WriteLine($"{job.Report!.Video} / {job.Report.Audio}");
+        Assert.Equal((175L, 1920, 1080), (job.Report.Video!.FrameCount, job.Report.Video.Width, job.Report.Video.Height));
+        Assert.Equal(350L, job.Plan!.FrameCount);
+
+        var spherical = new ExportSettings
+        {
+            Video = new VideoExportSettings { Codec = ExportCodec.H264, EncoderId = "h264_nvenc", Width = 1920, Height = 960, Fit = ExportFit.Stretch,
+                Projection = ExportProjection.Equirectangular },
+            Audio = new AudioExportSettings { Codec = ExportCodec.Aac },
+        };
+        (_, string path) = await RunAsync(TwoTracks(), spherical, "360.mp4");
+        Assert.True(SphericalMetadata.IsEquirectangular(path));
+    }
+
+    [ExportFact]
     public async Task Av1_on_the_cpu_in_mkv_with_opus()
     {
         var settings = new ExportSettings

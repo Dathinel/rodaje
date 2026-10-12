@@ -22,7 +22,8 @@ public sealed class PackageServiceTests : IDisposable
         Assert.Empty(problems);
         Assert.Equal(
             ["modulo-audio-ia", "modulo-raw", "modulo-subtitulos", "modulo-traducir", "modulo-vision", "modulo-voz",
-             "rodaje-filtros", "rodaje-fuentes", "rodaje-titulos", "rodaje-transiciones", "rodaje-zonas"],
+             "rodaje-360", "rodaje-camaras", "rodaje-filtros", "rodaje-fuentes", "rodaje-preajustes-pro", "rodaje-sonidos", "rodaje-titulos",
+             "rodaje-transiciones", "rodaje-zonas"],
             catalog.Entries.Select(e => e.Id).Order());
         Assert.All(catalog.Entries, e =>
         {

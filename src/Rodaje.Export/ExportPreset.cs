@@ -25,6 +25,15 @@ public enum ExportPresetCategory
     Web,
     AudioOnly,
     Custom,
+
+    /// <summary>Entrega a televisión (entrelazado, EBU R128 o ATSC A/85).</summary>
+    Broadcast,
+
+    /// <summary>Maestros para cine (2K/4K a 24 fps).</summary>
+    Cinema,
+
+    /// <summary>Archivo sin pérdidas.</summary>
+    Archive,
 }
 
 /// <summary>Un preajuste: unos ajustes con nombre. Es solo datos (se guardan y se importan como archivo).</summary>

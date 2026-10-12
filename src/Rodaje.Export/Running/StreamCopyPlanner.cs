@@ -125,6 +125,11 @@ public static class StreamCopyPlanner
 
     private static string? SettingsProblem(VideoExportSettings video)
     {
+        if (video.FieldOrder != ExportFieldOrder.Progressive)
+        {
+            return "la salida es entrelazada";
+        }
+
         RateControl rate = video.RateControl;
         if (rate.TargetSizeBytes is not null || rate.Passes > 1
             || rate.Mode is RateControlMode.Vbr or RateControlMode.Cbr or RateControlMode.Abr)

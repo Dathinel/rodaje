@@ -26,7 +26,7 @@ namespace Rodaje.App.Tests.Packages;
 /// <c>--filter Categoria=Red</c> con <c>RODAJE_PRUEBAS_RED=1</c>. Anota tiempos y tamaños en <c>TestResults\catalogo-real.txt</c>.
 /// </summary>
 [Trait("Categoria", "Red")]
-public sealed class CatalogoRealExtremoAExtremoTests(ITestOutputHelper output) : IDisposable
+public sealed partial class CatalogoRealExtremoAExtremoTests(ITestOutputHelper output) : IDisposable
 {
     private static readonly string[] Contenido = ["rodaje-fuentes", "rodaje-titulos", "rodaje-zonas"];
 
@@ -81,7 +81,7 @@ public sealed class CatalogoRealExtremoAExtremoTests(ITestOutputHelper output) :
         Assert.Null(service.UpdatesProblem);
         Assert.Equal("1.1.0", available["rodaje-transiciones"].ToString());
         Assert.Equal("1.1.0", available["rodaje-filtros"].ToString());
-        Assert.All(Contenido.Concat(Modulos), id => Assert.Equal("1.0.0", available[id].ToString()));
+        Assert.All(Contenido.Concat(Modulos), id => Assert.Equal(id == "modulo-traducir" ? "1.0.1" : "1.0.0", available[id].ToString()));
         Assert.All(service.Catalog.Entries, e => Assert.True(available.ContainsKey(e.Id), $"{e.Id} no está publicado."));
         Note($"Índice {index.Generated:O}: {index.Entries.Count} entradas.");
 
@@ -205,8 +205,8 @@ public sealed class CatalogoRealExtremoAExtremoTests(ITestOutputHelper output) :
             Assert.DoesNotContain('/', result.Package.Manifest.Module!.Entry);
             modules.Refresh();
             Rodaje.Modules.Protocol.ModuleInfo info = await modules.RunAsync(id, "Saludo", call => Task.FromResult(call.Info));
-            Assert.Equal((id, "1.0.0"), (info.Id, info.Version));
-            Note($"{id}: {Size(size)}, instalado y saludando en {watch.Elapsed.TotalSeconds:0.0} s; le faltan {service.MissingModelsOf(id).Count} modelos ({Size(service.MissingModelsOf(id).Sum(m => m.Size))}).");
+            Assert.Equal((id, result.Package.Manifest.Version.ToString()), (info.Id, info.Version));
+            Note($"{id}: {Size(size)}, {info.Version}, instalado y saludando en {watch.Elapsed.TotalSeconds:0.0} s; le faltan {service.MissingModelsOf(id).Count} modelos ({Size(service.MissingModelsOf(id).Sum(m => m.Size))}).");
             await service.UninstallAsync(id);
             Assert.False(Directory.Exists(result.Package.Directory));
         }

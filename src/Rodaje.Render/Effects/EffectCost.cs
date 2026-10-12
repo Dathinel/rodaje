@@ -53,6 +53,7 @@ public static class EffectCost
             BuiltInEffects.Grain => 0.3,
             BuiltInEffects.Glow => 0.22,
             BuiltInEffects.ChromaticAberration or BuiltInEffects.Mirror or BuiltInEffects.LensDistortion => 0.09,
+            BuiltInEffects.Reframe360 => 0.15,
             BuiltInEffects.Denoise => 0.55,
             _ => 0,
         };

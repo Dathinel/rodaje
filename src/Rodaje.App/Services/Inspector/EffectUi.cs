@@ -17,6 +17,7 @@ using Ab = Rodaje.Core.Model.BuiltInEffects.ChromaticAberrationParameters;
 using Dn = Rodaje.Core.Model.BuiltInEffects.DenoiseParameters;
 using Mi = Rodaje.Core.Model.BuiltInEffects.MirrorParameters;
 using Ld = Rodaje.Core.Model.BuiltInEffects.LensDistortionParameters;
+using R360 = Rodaje.Core.Model.BuiltInEffects.Reframe360Parameters;
 using Hq = Rodaje.Core.Model.BuiltInEffects.HslQualifierParameters;
 using Vg = Rodaje.Core.Model.BuiltInEffects.VignetteParameters;
 using Bl = Rodaje.Core.Model.BuiltInEffects.BlurParameters;
@@ -96,6 +97,7 @@ public static class EffectUi
         [BuiltInEffects.Denoise] = "Reducción de ruido",
         [BuiltInEffects.Mirror] = "Espejo y pantalla dividida",
         [BuiltInEffects.LensDistortion] = "Distorsión de lente",
+        [BuiltInEffects.Reframe360] = "Reencuadre 360",
         [BuiltInEffects.HslQualifier] = "Corrección secundaria (HSL)",
         [Tr.Crossfade] = "Fundido cruzado",
         [Tr.Dip] = "Fundido a color",
@@ -131,6 +133,7 @@ public static class EffectUi
         [BuiltInEffects.Denoise] = "Suaviza el ruido respetando los bordes y, al reproducir y exportar, con el cuadro anterior.",
         [BuiltInEffects.Mirror] = "Refleja una mitad o repite la imagen en mosaico.",
         [BuiltInEffects.LensDistortion] = "Curva la imagen hacia afuera (barril) o hacia adentro (cojín).",
+        [BuiltInEffects.Reframe360] = "Elige hacia dónde mira la cámara dentro de un video 360 y lo convierte en un video plano.",
         [BuiltInEffects.HslQualifier] = "Elige un color por tono, saturación y luma y cambia solo ese: tono, saturación y exposición.",
         [Tr.Crossfade] = "Mezcla un clip con el siguiente.",
         [Tr.Dip] = "Baja a un color (negro por defecto) y sube desde él.",
@@ -209,6 +212,10 @@ public static class EffectUi
             [(BuiltInEffects.Mirror, Mi.Tiles)] = new("Copias", "Cambiar las copias del mosaico", "", 1, 1, 0),
 
             [(BuiltInEffects.LensDistortion, Ld.Amount)] = Percent with { Label = "Cantidad", Description = "Cambiar la distorsión" },
+            [(BuiltInEffects.Reframe360, R360.Yaw)] = new("Mirar a los lados", "Girar la cámara 360 a la izquierda o a la derecha", "°", 1, 1, 0),
+            [(BuiltInEffects.Reframe360, R360.Pitch)] = new("Mirar arriba o abajo", "Inclinar la cámara 360", "°", 1, 1, 0),
+            [(BuiltInEffects.Reframe360, R360.Roll)] = new("Girar el horizonte", "Girar la imagen de la cámara 360", "°", 1, 1, 0),
+            [(BuiltInEffects.Reframe360, R360.Fov)] = new("Campo de visión", "Abrir o cerrar el campo de visión", "°", 1, 1, 0),
             [(BuiltInEffects.LensDistortion, Ld.Zoom)] = new("Acercamiento", "Cambiar el acercamiento", "%", 100, 1, 0, UiRange.Custom, 50, 200),
 
             [(BuiltInEffects.HslQualifier, Hq.HueCenter)] = new("Tono", "Cambiar el tono elegido", "°", 1, 1, 0),
@@ -390,6 +397,7 @@ public static class EffectUi
             _ => "Toda la imagen",
         },
         BuiltInEffects.MaskOptions.Use => value == "effects" ? "Limitar efectos" : "Recortar la capa",
+        BuiltInEffects.Reframe360Options.Projection => value == "stereographic" ? "Pequeño planeta" : "Cámara normal",
         BuiltInEffects.MirrorOptions.Mode => value switch
         {
             "left" => "Izquierda a la derecha",
@@ -422,6 +430,7 @@ public static class EffectUi
         BuiltInEffects.RegionOptions.Region => "Dónde",
         BuiltInEffects.MaskOptions.Use => "Uso",
         BuiltInEffects.MirrorOptions.Mode => "Modo",
+        BuiltInEffects.Reframe360Options.Projection => "Proyección",
         _ => option,
     };
 

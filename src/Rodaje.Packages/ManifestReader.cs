@@ -522,6 +522,7 @@ public static class ManifestReader
         "sound" => ItemKind.Sound,
         "font" => ItemKind.Font,
         "safe-zones" => ItemKind.SafeZones,
+        "export-preset" => ItemKind.ExportPreset,
         _ => null,
     };
 
@@ -536,6 +537,7 @@ public static class ManifestReader
         ItemKind.Sound => "sound",
         ItemKind.Font => "font",
         ItemKind.SafeZones => "safe-zones",
+        ItemKind.ExportPreset => "export-preset",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 

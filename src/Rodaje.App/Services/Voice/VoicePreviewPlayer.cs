@@ -4,7 +4,7 @@ using Rodaje.Core.Timing;
 namespace Rodaje.App.Services.Voice;
 
 /// <summary>
-/// «Escuchar»: reproduce la voz generada por la salida de audio predeterminada, sin tocar el proyecto. Abre su propio
+/// «Escuchar»: reproduce la voz generada (o un sonido de la biblioteca) por la salida de audio predeterminada, sin tocar el proyecto. Abre su propio
 /// flujo WASAPI compartido (48 kHz estéreo) y lo cierra al terminar o al pedir otra.
 /// </summary>
 public sealed partial class VoicePreviewPlayer : IDisposable
@@ -24,6 +24,17 @@ public sealed partial class VoicePreviewPlayer : IDisposable
         ArgumentNullException.ThrowIfNull(voice);
         Stop();
         _source = new Source(ToStereo48k(voice.Samples, voice.SampleRate));
+        _output = AudioOutput.Open(_source, new AudioOutputOptions { SampleRate = OutputRate });
+        Problem = _output.FallbackReason;
+        _output.Clock.Start();
+    }
+
+    /// <summary>Reproduce un sonido de la biblioteca: muestras intercaladas de 1 a 8 canales (se oyen los dos primeros).</summary>
+    public void Play(float[] interleaved, int channels, int sampleRate)
+    {
+        ArgumentNullException.ThrowIfNull(interleaved);
+        Stop();
+        _source = new Source(ToStereo48k(interleaved, channels, sampleRate));
         _output = AudioOutput.Open(_source, new AudioOutputOptions { SampleRate = OutputRate });
         Problem = _output.FallbackReason;
         _output.Clock.Start();
@@ -60,6 +71,34 @@ public sealed partial class VoicePreviewPlayer : IDisposable
         }
 
         return stereo;
+    }
+
+    /// <summary>Lleva audio intercalado de cualquier frecuencia a estéreo de 48 kHz: mono a los dos lados, de más canales los dos primeros.</summary>
+    public static float[] ToStereo48k(ReadOnlySpan<float> interleaved, int channels, int sampleRate)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(channels, 1);
+        if (channels == 1)
+        {
+            return ToStereo48k(interleaved, sampleRate);
+        }
+
+        int frames = interleaved.Length / channels;
+        float[] left = new float[frames];
+        float[] right = new float[frames];
+        for (int i = 0; i < frames; i++)
+        {
+            left[i] = interleaved[i * channels];
+            right[i] = interleaved[(i * channels) + 1];
+        }
+
+        float[] l = ToStereo48k(left, sampleRate);
+        float[] r = ToStereo48k(right, sampleRate);
+        for (int i = 1; i < l.Length; i += 2)
+        {
+            l[i] = r[i];
+        }
+
+        return l;
     }
 
     private sealed partial class Source(float[] stereo) : IAudioSampleSource

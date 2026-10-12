@@ -2,7 +2,7 @@
 
 Este registro guarda el porqué de cada elección importante de Rodaje. Una decisión no se borra cuando cambia: se marca como sustituida y otra explica el cambio.
 
-**Estado.** Vigentes: D-003 a D-014, D-016 a D-029 y D-031 a D-036 (D-017 la amplía D-019; D-028 la corrige D-033 en la parte de 9:16). Sustituidas: D-001 (por D-014), D-002 en la licencia y D-030 (por D-032), D-015 en el visor (por D-022) y en la caché (por D-017).
+**Estado.** Vigentes: D-003 a D-014, D-016 a D-029 y D-031 a D-038 (D-017 la amplía D-019; D-028 la corrige D-033 en la parte de 9:16). Sustituidas: D-001 (por D-014), D-002 en la licencia y D-030 (por D-032), D-015 en el visor (por D-022) y en la caché (por D-017).
 
 ---
 
@@ -350,3 +350,13 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
   - **Pruebas:** `RODAJE_SIMULAR_VRAM_MB` y `RODAJE_SIMULAR_RAM_MB` cambian lo que ve el perfil (no los módulos); solo para pruebas.
 - **Medido** (RTX 3050 de 4 GB, 16 hilos, con otros 8 procesos de compilación y pruebas en marcha; `AiProfileRealTests`, 12 s de voz, 90 cuadros con MODNet y 15 con BiRefNet): todas las funciones terminan con el perfil real (2477 MB para la IA: turbo en la GPU, 24 capas del traductor en la GPU), con 2 GB simulados (small en la GPU, 10 capas; la calidad alta pasa a la CPU, 228 s en lugar de 59) y sin GPU (todo en la CPU: subtítulos en 12,5 s, traducción en 32 s, MODNet en 19 s). En la 3050 el reparto es casi el de antes y, con el equipo cargado, los tiempos quedaron dentro del ruido (turbo 4,5 s frente a 3,6; traducción 10 s frente a 8,4): la ganancia está en los extremos, donde antes se probaba a ciegas. Lo que sí acelera en la 3050 son los tramos a la vez de Whisper: 3 min de voz en 17,7 s con dos en la GPU frente a 29,6 con uno (WER 3,3 % en los dos), y en la CPU 111 s con dos de 4 hilos frente a 167 con uno de 8 (WER 10,2 %); por eso van dos desde que caben (1850 MB con turbo) y desde 16 hilos.
 - **Consecuencias.** Las decisiones dependen de cifras de memoria medidas en un solo equipo; en AMD e Intel el reparto es el mismo, pero las velocidades de la tabla no se han medido. El módulo de subtítulos 1.1 pesa 57 MB más (Whisper base). Un traductor más pequeño que Qwen3-4B queda pendiente: con poca RAM solo se avisa.
+## D-038. Complementos profesionales: looks de cámara, preajustes, sonidos y video 360 (12 de octubre de 2026)
+
+- **Contexto.** Lo profesional va como complemento aparte en el GitHub de Dathinel (pendiente del 11-oct): looks de cámara, preajustes de exportación, biblioteca de efectos de sonido y video 360. El formato ya nombraba `sound`, pero sin lector ni uso, y no tenía preajustes de exportación.
+- **Decisión.**
+  - **Cuatro repositorios de contenido, CC0 y sin código:** `rodaje-camaras` (LUT 33³ de log a Rec.709 calculadas con las fórmulas publicadas por cada fabricante), `rodaje-preajustes-pro`, `rodaje-sonidos` (síntesis propia por script, sin muestras ajenas) y `rodaje-360`.
+  - **Tipo `export-preset`** (`rodaje.exportpreset` v1): el lector de `Rodaje.Packages` es neutro (nombres de contenedor y códec como texto) y la app lo traduce a sus ajustes; un códec que no conoce se rechaza con «actualiza el programa». Los preajustes de paquete van en el diálogo entre los de fábrica y los propios.
+  - **Entrelazado al exportar** (para la entrega a televisión): se compone a la tasa de campos y FFmpeg teje los pares con filtros LGPL (`separatefields`, `select`, `weave`). Solo ProRes, que lo codifica por campos.
+  - **`sound` es un WAV** (PCM de 16, 24 o 32 bits o float): al usarlo se copia a la carpeta de medios del proyecto (`<proyecto>.medios\sonidos`), así el proyecto no depende del paquete instalado.
+  - **Video 360: el motor trae el código y el complemento lo activa.** `rodaje.reframe360` está en el registro con `Feature = "360"`: se aplica siempre que un proyecto lo traiga (nada se rompe al desinstalar), pero la interfaz solo lo ofrece con `rodaje-360` instalado. Los metadatos esféricos (Spherical Video V2) los escribe un editor de cajas MP4 propio después de FFmpeg, que no los escribe desde la línea de comandos.
+- **Consecuencia.** Un Rodaje anterior no entiende `export-preset`: `rodaje-preajustes-pro` le resulta un paquete sin elementos y no lo instala. Los efectos de `rodaje-360` en un Rodaje sin el reencuadre se conservan en el proyecto, pero no se aplican.

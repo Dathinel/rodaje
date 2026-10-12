@@ -52,6 +52,42 @@
       "provides": ["safe-zones"]
     },
     {
+      "id": "rodaje-camaras",
+      "kind": "content",
+      "name": "Looks de cámara",
+      "description": "De log a Rec.709 con las fórmulas de cada fabricante: S-Log3, V-Log, C-Log2, C-Log3, LogC3, BMDFilm Gen5, F-Log, N-Log y HLG.",
+      "repository": "https://github.com/Dathinel/rodaje-camaras",
+      "apps": ["rodaje"],
+      "provides": ["filter", "lut"]
+    },
+    {
+      "id": "rodaje-sonidos",
+      "kind": "content",
+      "name": "Efectos de sonido",
+      "description": "50 sonidos sintetizados: golpes, swooshes, clics, transiciones, notificaciones, risers, impactos y ambientes en bucle.",
+      "repository": "https://github.com/Dathinel/rodaje-sonidos",
+      "apps": ["rodaje"],
+      "provides": ["sound"]
+    },
+    {
+      "id": "rodaje-preajustes-pro",
+      "kind": "content",
+      "name": "Preajustes profesionales",
+      "description": "Maestros ProRes y DNxHR, emisión 1080i con EBU R128 y ATSC A/85, cine 2K y 4K, archivo FFV1 y web con dos pasadas.",
+      "repository": "https://github.com/Dathinel/rodaje-preajustes-pro",
+      "apps": ["rodaje"],
+      "provides": ["export-preset"]
+    },
+    {
+      "id": "rodaje-360",
+      "kind": "content",
+      "name": "Video 360",
+      "description": "Activa el reencuadre 360 con keyframes, el pequeño planeta y la exportación 360 con metadatos esféricos.",
+      "repository": "https://github.com/Dathinel/rodaje-360",
+      "apps": ["rodaje"],
+      "provides": ["effect", "export-preset"]
+    },
+    {
       "id": "modulo-subtitulos",
       "kind": "module",
       "name": "Subtítulos automáticos",

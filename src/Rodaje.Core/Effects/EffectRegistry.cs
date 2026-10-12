@@ -57,6 +57,9 @@ public static class EffectRegistry
     /// <summary>Modos de <see cref="BuiltInEffects.Mirror"/>: qué mitad se refleja, las cuatro, o un mosaico.</summary>
     public static ImmutableArray<string> MirrorModes { get; } = ["left", "right", "top", "bottom", "quad", "tiles"];
 
+    /// <summary>Proyecciones de <see cref="BuiltInEffects.Reframe360"/>: una cámara normal o el pequeño planeta.</summary>
+    public static ImmutableArray<string> Reframe360Projections { get; } = ["rectilinear", "stereographic"];
+
     /// <summary>Modos de <see cref="BuiltInEffects.ChromaticAberration"/>.</summary>
     public static ImmutableArray<string> AberrationModes { get; } = ["radial", "lateral"];
 
@@ -254,6 +257,17 @@ public static class EffectRegistry
             new(BuiltInEffects.MirrorParameters.Tiles, 2, 1, 6),
         ],
         [OptionDefinition.Choice(BuiltInEffects.MirrorOptions.Mode, "left", [.. MirrorModes])]),
+        new(BuiltInEffects.Reframe360, 30, EffectTarget.Video, EffectStage.Spatial,
+        [
+            new(BuiltInEffects.Reframe360Parameters.Yaw, 0, -180, 180),
+            new(BuiltInEffects.Reframe360Parameters.Pitch, 0, -90, 90),
+            new(BuiltInEffects.Reframe360Parameters.Roll, 0, -180, 180),
+            new(BuiltInEffects.Reframe360Parameters.Fov, 90, 20, 330),
+        ],
+        [OptionDefinition.Choice(BuiltInEffects.Reframe360Options.Projection, "rectilinear", [.. Reframe360Projections])])
+        {
+            Feature = EffectFeatures.Video360,
+        },
         new(BuiltInEffects.LensDistortion, 22, EffectTarget.Video, EffectStage.Spatial,
         [
             new(BuiltInEffects.LensDistortionParameters.Amount, 0.2, -1, 1),

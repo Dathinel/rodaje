@@ -23,6 +23,15 @@ public static class ContentReaders
     /// <summary>Lee <c>rodaje.safezones</c> v1.</summary>
     public static SafeZonePreset ReadSafeZones(Stream stream) => PresetReader.ReadSafeZones(stream);
 
+    /// <summary>Lee <c>rodaje.exportpreset</c> v1.</summary>
+    public static ExportPresetDefinition ReadExportPreset(Stream stream) => PresetReader.ReadExportPreset(stream);
+
+    /// <summary>La cabecera del WAV de un elemento <c>sound</c>, sin leer las muestras.</summary>
+    public static SoundInfo ReadSoundInfo(Stream stream) => WaveReader.ReadInfo(stream);
+
+    /// <summary>El WAV de un elemento <c>sound</c> con sus muestras en float, intercaladas por canal.</summary>
+    public static (SoundInfo Info, float[] Samples) ReadSound(Stream stream) => WaveReader.ReadSamples(stream);
+
     /// <summary>
     /// Escribe <c>rodaje.safezones</c> v1 en UTF-8. Con <paramref name="kind"/> (<c>safe-zones</c>) el archivo sirve
     /// además como elemento propio suelto en la carpeta <c>propios</c>.

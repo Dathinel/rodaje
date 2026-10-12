@@ -222,7 +222,8 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             return null;
         }
 
-        (int displayWidth, int displayHeight) = source.Planes is not { } payload ? (sequenceWidth, sequenceHeight)
+        // Reencuadrado desde 360, el clip llena la secuencia como un video plano de su misma forma.
+        (int displayWidth, int displayHeight) = source.Planes is not { } payload || Reframes(layer) ? (sequenceWidth, sequenceHeight)
             : layer.DisplayWidth > 0 && layer.DisplayHeight > 0 ? (layer.DisplayWidth, layer.DisplayHeight)
             : geometry.DisplaySize(payload.Width, payload.Height);
         return LayerLayout.Place(sequenceWidth, sequenceHeight, displayWidth, displayHeight, TransformOf(layer) with { Crop = geometry.Crop });
@@ -336,18 +337,24 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         float fit = Math.Min(1f, Math.Max(destination.Width, destination.Height) / wanted);
         int width = Math.Max(1, (int)MathF.Ceiling(placement.LocalWidth * onScreen * fit));
         int height = Math.Max(1, (int)MathF.Ceiling(placement.LocalHeight * onScreen * fit));
-        RenderTarget? first = _pool.Rent(width, height, IntermediateFormat);
+
+        // El reencuadre 360 lee el equirectangular entero: el primer intermedio va al tamaño del origen, no al de la salida.
+        int reframe = _spatial.FindIndex(s => s.Kind == GpuEffectKind.Reframe360);
+        (int firstWidth, int firstHeight) = reframe >= 0 ? EquirectangularSize(payload) : (width, height);
+        RenderTarget? first = _pool.Rent(firstWidth, firstHeight, IntermediateFormat);
         if (first is null)
         {
             return false;
         }
 
         float scaleX = width / placement.LocalWidth;
-        float scaleY = height / placement.LocalHeight;
-        var local = new LayerPlacement(Matrix3x2.CreateScale(scaleX, scaleY), placement.LocalWidth, placement.LocalHeight, Math.Min(scaleX, scaleY));
-        QuadConstants toIntermediate = LayerQuad(payload, local, geometry, 1, width, height, 1);
+        float firstScaleX = firstWidth / placement.LocalWidth;
+        float firstScaleY = firstHeight / placement.LocalHeight;
+        var local = new LayerPlacement(Matrix3x2.CreateScale(firstScaleX, firstScaleY), placement.LocalWidth, placement.LocalHeight,
+            Math.Min(firstScaleX, firstScaleY));
+        QuadConstants toIntermediate = LayerQuad(payload, local, geometry, 1, firstWidth, firstHeight, 1);
         PrepareSource(payload, ref effects);
-        _quad.Bind(first.Rtv, width, height, graded, null);
+        _quad.Bind(first.Rtv, firstWidth, firstHeight, graded, null);
         BindInputs(null, plan.Lut, null, null, mask, plan.Curves);
         _effects.Set(effects);
         DrawPlanes(payload, toIntermediate);
@@ -355,7 +362,21 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
         // Píxeles del intermedio por píxel de la secuencia: los radios se escalan igual en la vista previa reducida.
         float perSequencePixel = scaleX / placement.Scale;
-        var view = new ImageView(first, width, height);
+        var view = new ImageView(first, firstWidth, firstHeight);
+        if (reframe >= 0)
+        {
+            if (Reframe(view, _spatial[reframe], width, height) is { } flat)
+            {
+                _pool.Return(view.Target);
+                view = flat;
+                stats.EffectsApplied++;
+            }
+            else
+            {
+                stats.EffectsSkipped++;
+            }
+        }
+
         // En la vista de las máscaras de la capa en gris, lo que viene después taparía la máscara.
         bool steps = _maskView is not { Group: -1, Mode: MaskViewMode.Matte };
         _maskPlacement = placement;
@@ -364,6 +385,11 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             if (!steps)
             {
                 break;
+            }
+
+            if (step.Kind == GpuEffectKind.Reframe360)
+            {
+                continue;
             }
 
             ImageView? next = ApplyStep(view, step, perSequencePixel, layer, payload.IsImage);

@@ -23,7 +23,7 @@ public class EffectRegistryTests
                 (BuiltInEffects.Stabilize, 9), (BuiltInEffects.Mask, 10), (BuiltInEffects.Crop, 11), (BuiltInEffects.Pixelate, 24),
                 (BuiltInEffects.ChromaKey, 12), (BuiltInEffects.ColorWheels, 13), (BuiltInEffects.Curves, 14),
                 (BuiltInEffects.Grain, 15), (BuiltInEffects.Glow, 16), (BuiltInEffects.ChromaticAberration, 17), (BuiltInEffects.Denoise, 18),
-                (BuiltInEffects.Mirror, 19), (BuiltInEffects.LensDistortion, 22), (BuiltInEffects.HslQualifier, 23),
+                (BuiltInEffects.Mirror, 19), (BuiltInEffects.Reframe360, 30), (BuiltInEffects.LensDistortion, 22), (BuiltInEffects.HslQualifier, 23),
                 (BuiltInEffects.Equalizer, 20), (BuiltInEffects.Compressor, 21),
                 (BuiltInTransitions.Crossfade, 101), (BuiltInTransitions.Dip, 102),
                 (BuiltInTransitions.Wipe, 103), (BuiltInTransitions.Push, 104), (BuiltInTransitions.ZoomDissolve, 105),

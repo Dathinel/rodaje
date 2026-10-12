@@ -219,6 +219,7 @@ Los tipos que el motor entiende están en `EffectRegistry` (`src/Rodaje.Core/Eff
 | `rodaje.denoise` | `strength` (0,5), `temporal` (0,5), `detail` (0,5) | `region` |
 | `rodaje.mirror` | `axis` (0,5), `tiles` (2, de 1 a 6) | `mode`: `left`, `right`, `top`, `bottom`, `quad`, `tiles` |
 | `rodaje.distortion` | `amount` (0,2, de −1 cojín a 1 barril), `zoom` (1) | |
+| `rodaje.reframe360` | `yaw` (0, de −180 a 180: positivo mira a la derecha), `pitch` (0, de −90 a 90: positivo mira arriba), `roll` (0, de −180 a 180: positivo gira la imagen en sentido horario), `fov` (90, de 20 a 330: campo de visión horizontal en grados; la rectilínea llega a 170) | `projection`: `rectilinear` (por defecto) o `stereographic` (pequeño planeta). Lee el clip como equirectangular 360 y lo convierte en una vista plana que llena la secuencia; va antes que los demás efectos de imagen. Lo trae el motor y se aplica siempre, pero la interfaz solo lo ofrece con el complemento `rodaje-360` (D-038) |
 | `rodaje.qualifier` | Selección: `hueCenter` (120°), `hueWidth` (30°), `hueSoftness` (15°), `satLow` (0,1), `satHigh` (1), `lumaLow` (0), `lumaHigh` (1), `softness` (0,1). Corrección: `hueShift` (0°), `saturation` (0), `exposure` (0 EV) | `invert`: `off` u `on` |
 | `rodaje.blend` | | `blendMode`: `normal`, `add`, `multiply`, `screen`, `overlay`, `softLight`, `hardLight`, `darken`, `lighten`, `difference`, `exclusion`, `colorDodge` o `colorBurn` |
 | `rodaje.audio` | `gainDb` (0; −60 o menos es silencio), `fadeIn` y `fadeOut` en segundos (0, sin keyframes) | |

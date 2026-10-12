@@ -211,6 +211,12 @@ public sealed class EffectDefinition
     /// <summary>Reservado: se reconoce, pero no se ofrece ni se acepta en un proyecto (<c>rodaje.speed</c>).</summary>
     public bool Hidden { get; init; }
 
+    /// <summary>
+    /// Función que lo activa (<see cref="EffectFeatures"/>): sin ella el motor lo aplica igual si un proyecto lo trae,
+    /// pero la interfaz no lo ofrece. <c>null</c> en los de siempre.
+    /// </summary>
+    public string? Feature { get; init; }
+
     /// <summary>El motor le pasa los segundos del origen en <see cref="TimeSlot"/> (el grano cambia en cada cuadro).</summary>
     public bool UsesTime { get; init; }
 

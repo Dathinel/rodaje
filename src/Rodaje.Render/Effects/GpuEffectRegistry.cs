@@ -67,6 +67,9 @@ public enum GpuEffectKind
 
     /// <summary>En <c>PsGraded</c> con <c>ADVANCED</c>, después de las curvas y antes de la LUT.</summary>
     HslQualifier,
+
+    /// <summary>Antes que los demás del intermedio: del equirectangular entero a la vista plana de la cámara 360.</summary>
+    Reframe360,
 }
 
 /// <summary>Una fila de la tabla: código y tipo del registro del núcleo, etapa e implementación.</summary>
@@ -100,6 +103,7 @@ public static class GpuEffectRegistry
         new(19, BuiltInEffects.Mirror, EffectStage.Spatial, GpuEffectKind.Mirror),
         new(22, BuiltInEffects.LensDistortion, EffectStage.Spatial, GpuEffectKind.LensDistortion),
         new(23, BuiltInEffects.HslQualifier, EffectStage.PerPixel, GpuEffectKind.HslQualifier),
+        new(30, BuiltInEffects.Reframe360, EffectStage.Spatial, GpuEffectKind.Reframe360),
         new(101, BuiltInTransitions.Crossfade, EffectStage.Transition, GpuEffectKind.Crossfade),
         new(102, BuiltInTransitions.Dip, EffectStage.Transition, GpuEffectKind.Dip),
         new(103, BuiltInTransitions.Wipe, EffectStage.Transition, GpuEffectKind.Wipe),

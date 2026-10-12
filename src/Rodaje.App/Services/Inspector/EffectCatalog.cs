@@ -25,7 +25,35 @@ public static class EffectCatalog
     /// necesita el análisis (se pone desde «Estabilizar...» del menú del clip), ni las máscaras, que tienen su pestaña.
     /// </summary>
     public static IReadOnlyList<EffectDescriptor> For(TrackKind kind) =>
-        [.. All.Where(e => e.Kind == kind && e.IsRendered && e.Type is not (BuiltInEffects.Stabilize or BuiltInEffects.Mask))];
+        [.. All.Where(e => e.Kind == kind && e.IsRendered && e.Type is not (BuiltInEffects.Stabilize or BuiltInEffects.Mask) && IsOffered(e.Type))];
+
+    /// <summary>
+    /// Funciones que activa un complemento instalado (<see cref="EffectFeatures"/>); las pone la ventana al cambiar lo
+    /// instalado. Sus efectos solo se ofrecen con la función activa, aunque el motor los aplica siempre.
+    /// </summary>
+    public static IReadOnlySet<string> EnabledFeatures { get; set; } = new HashSet<string>();
+
+    /// <summary>Si la interfaz ofrece este tipo: los de siempre, y los de una función solo con ella activa.</summary>
+    public static bool IsOffered(string type) =>
+        EffectRegistry.Find(type) is not { Feature: { } feature } || EnabledFeatures.Contains(feature);
+
+    /// <summary>
+    /// Las funciones que activa lo instalado: <see cref="EffectFeatures.Video360"/> con el complemento <c>rodaje-360</c>.
+    /// </summary>
+    public static IReadOnlySet<string> FeaturesFrom(Rodaje.Packages.PackageScan installed)
+    {
+        ArgumentNullException.ThrowIfNull(installed);
+        var features = new HashSet<string>(StringComparer.Ordinal);
+        if (installed.Find(Video360Package) is not null)
+        {
+            features.Add(EffectFeatures.Video360);
+        }
+
+        return features;
+    }
+
+    /// <summary>El complemento que activa el video 360.</summary>
+    public const string Video360Package = "rodaje-360";
 
     public static EffectDescriptor? Find(string type) => All.FirstOrDefault(e => e.Type == type);
 
