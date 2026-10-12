@@ -72,6 +72,17 @@ public static class AnimationPreset
                     json.WriteNumber("t", Round((key.Time - first).ToSeconds()));
                     json.WriteNumber("value", key.Value);
                     json.WriteString("interp", InterpolationName(key.Interpolation));
+                    if (key.Interpolation == Interpolation.Bezier)
+                    {
+                        BezierEase ease = key.Ease ?? BezierEase.Smooth;
+                        json.WriteStartArray("ease");
+                        json.WriteNumberValue(ease.X1);
+                        json.WriteNumberValue(ease.Y1);
+                        json.WriteNumberValue(ease.X2);
+                        json.WriteNumberValue(ease.Y2);
+                        json.WriteEndArray();
+                    }
+
                     json.WriteEndObject();
                 }
 
@@ -143,6 +154,9 @@ public static class AnimationPreset
         Interpolation.EaseIn => "easeIn",
         Interpolation.EaseOut => "easeOut",
         Interpolation.EaseInOut => "easeInOut",
+        Interpolation.Bezier => "bezier",
+        Interpolation.Bounce => "bounce",
+        Interpolation.Elastic => "elastic",
         _ => throw new ArgumentOutOfRangeException(nameof(interpolation), interpolation, null),
     };
 

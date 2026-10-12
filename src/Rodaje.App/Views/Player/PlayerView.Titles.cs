@@ -96,6 +96,7 @@ internal sealed partial class PlayerView
             ? TitleHandles.Corners(box, Session!.Sequence.Width, Session.Sequence.Height, frame)
             : null;
         TitleCanvas.Visibility = corners is null ? Visibility.Collapsed : Visibility.Visible;
+        UpdateTransformHandles();
         if (corners is null)
         {
             return;
@@ -154,6 +155,7 @@ internal sealed partial class PlayerView
 
         if (target is not { } hit)
         {
+            TransformPointerPressed(e);
             return;
         }
 
@@ -188,7 +190,7 @@ internal sealed partial class PlayerView
             return;
         }
 
-        if (_titleDrag is not { } drag || Image() is not { } frame)
+        if (TransformPointerMoved(e) || _titleDrag is not { } drag || Image() is not { } frame)
         {
             return;
         }
@@ -230,6 +232,7 @@ internal sealed partial class PlayerView
 
     private void EndTitleDrag()
     {
+        EndTransformDrag();
         TitleTransformDrag? drag = _titleDrag;
         _titleDrag = null;
         drag?.Complete();

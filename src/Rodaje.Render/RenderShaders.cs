@@ -5,7 +5,8 @@ internal static class RenderShaders
 {
     // corners[i]: xy = NDC, zw = uv; local[i].xy = punto en el espacio local de la capa; orden TL, TR, BL, BR.
     // range, toRgb y limits: YuvRange, YuvToRgb y tope de uv a medio texel del borde visible.
-    // shape: x = opacidad, y = píxeles de destino por píxel local, zw = tamaño local. La cobertura del borde se
+    // shape: x = opacidad, y = píxeles de destino por píxel local (hacia los lados verticales), zw = tamaño local;
+    // present.y, si no es 0, la misma escala hacia los lados horizontales (capas estiradas o inclinadas). La cobertura del borde se
     // calcula con la distancia al lado más cercano en píxeles de destino, así un borde girado sale suavizado y uno
     // alineado con la rejilla queda nítido (los centros de sus píxeles están a 0,5 px o más del lado).
     // present: x > 0 pide muestreo con mipmaps (destino más pequeño que la fuente).
@@ -20,6 +21,9 @@ internal static class RenderShaders
             float4 toRgb;
             float4 shape;
             float4 present;
+            float4 pixelOrigin;
+            float4 perPixelX;
+            float4 perPixelY;
         };
 
         Texture2DArray<float> lumaPlane : register(t0);
@@ -33,8 +37,12 @@ internal static class RenderShaders
             float2 local : TEXCOORD1;
         };
 
+        // WARP redondea hacia abajo la fracción del bilineal: una coordenada un pelo antes del centro de un texel toma
+        // 1/256 del vecino. Se corre 1/1024 de texel (limits.xy − limits.zw es medio texel de luma), que el hardware
+        // redondea a 0.
         float3 SampleRgb(float2 uv)
         {
+            uv += (limits.xy - limits.zw) * (1.0 / 512.0);
             float y = lumaPlane.SampleLevel(linearClamp, float3(min(uv, limits.xy), 0), 0) * range.x + range.y;
             float2 c = chromaPlane.SampleLevel(linearClamp, float3(min(uv, limits.zw), 0), 0) * range.z + range.w;
             return saturate(float3(
@@ -43,10 +51,25 @@ internal static class RenderShaders
                 y + toRgb.w * c.x));
         }
 
+        // uv y local desde SV_Position y no interpoladas: WARP recorta en el viewport el cuadrilátero que se sale y los
+        // vértices nuevos llevan atributos desviados (QuadConstants.SetPixelGradients).
+        VsOut Exact(VsOut i)
+        {
+            [branch] if (pixelOrigin.z > 0)
+            {
+                float2 d = i.position.xy - pixelOrigin.xy;
+                float4 a = float4(corners[0].zw, local[0].xy) + perPixelX * d.x + perPixelY * d.y;
+                i.uv = a.xy;
+                i.local = a.zw;
+            }
+
+            return i;
+        }
+
         float EdgeCoverage(float2 p)
         {
-            float2 inside = min(p, shape.zw - p);
-            return saturate(min(inside.x, inside.y) * shape.y + 0.5);
+            float2 inside = min(p, shape.zw - p) * float2(shape.y, present.y > 0 ? present.y : shape.y);
+            return saturate(min(inside.x, inside.y) + 0.5);
         }
 
         """;
@@ -65,6 +88,7 @@ internal static class RenderShaders
 
         float4 PsLayer(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float3 rgb = SampleRgb(i.uv);
             float alpha = shape.x * EdgeCoverage(i.local);
             return float4(rgb * alpha, alpha);
@@ -72,6 +96,7 @@ internal static class RenderShaders
 
         float4 PsPresent(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float3 rgb = present.x > 0
                 ? composite.Sample(linearClamp, i.uv).rgb
                 : composite.SampleLevel(linearClamp, i.uv, 0).rgb;

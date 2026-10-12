@@ -128,7 +128,7 @@ public class ParameterTests
         var ex = Assert.Throws<ArgumentOutOfRangeException>(() => p.Evaluate(Time.FromSeconds(0.5)));
         Assert.Equal("interpolation", ex.ParamName);
         Assert.Equal((Interpolation)42, ex.ActualValue);
-        Assert.Throws<ArgumentOutOfRangeException>(() => Parameter.Ease((Interpolation)(-1), 0.5));
+        Assert.Throws<ArgumentOutOfRangeException>(() => KeyframeMath.Ease((Interpolation)(-1), null, 0.5));
 
         // En los extremos no hace falta interpolar
         Assert.Equal(0, p.Evaluate(Time.Zero));
@@ -138,7 +138,7 @@ public class ParameterTests
     [Fact]
     public void Ease_Hold_IsAlwaysZero()
     {
-        Gen.Double[0, 1].Sample(t => Assert.Equal(0, Parameter.Ease(Interpolation.Hold, t)));
+        Gen.Double[0, 1].Sample(t => Assert.Equal(0, KeyframeMath.Ease(Interpolation.Hold, null, t)));
     }
 
     [Theory]
@@ -148,15 +148,15 @@ public class ParameterTests
     [InlineData(Interpolation.EaseInOut)]
     public void Ease_StartsAtZeroEndsAtOneAndIsMonotonic(Interpolation interpolation)
     {
-        Assert.Equal(0, Parameter.Ease(interpolation, 0), 15);
-        Assert.Equal(1, Parameter.Ease(interpolation, 1), 15);
+        Assert.Equal(0, KeyframeMath.Ease(interpolation, null, 0), 15);
+        Assert.Equal(1, KeyframeMath.Ease(interpolation, null, 1), 15);
 
         Gen.Select(Gen.Double[0, 1], Gen.Double[0, 1]).Sample((x, y) =>
         {
             double lo = Math.Min(x, y);
             double hi = Math.Max(x, y);
-            double eLo = Parameter.Ease(interpolation, lo);
-            double eHi = Parameter.Ease(interpolation, hi);
+            double eLo = KeyframeMath.Ease(interpolation, null, lo);
+            double eHi = KeyframeMath.Ease(interpolation, null, hi);
             Assert.True(eLo <= eHi, $"Ease({lo}) = {eLo} > Ease({hi}) = {eHi}");
             Assert.InRange(eLo, 0, 1);
             Assert.InRange(eHi, 0, 1);

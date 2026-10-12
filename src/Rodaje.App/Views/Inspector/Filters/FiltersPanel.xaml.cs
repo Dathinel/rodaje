@@ -14,13 +14,15 @@ using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Packages;
+using Rodaje.Render.Effects;
 
 namespace Rodaje.App.Views.Inspector.Filters;
 
 /// <summary>Un efecto de la pila tal como se muestra.</summary>
 internal sealed partial class FilterItem : IEquatable<FilterItem>
 {
-    public FilterItem(EffectInstance effect, EffectSupport support, int index, int count)
+    public FilterItem(EffectInstance effect, EffectSupport support, int index, int count, bool previewOff = false,
+        EffectCostEstimate? cost = null, bool reorderable = true)
     {
         EffectId = effect.Id;
         Name = EffectCatalog.DisplayName(effect.Type);
@@ -36,8 +38,6 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
                 ? "Solo se aplica el primer modo de mezcla activo"
                 : "Solo se aplica la primera transformación activa",
             EffectSupport.Unknown => "De un complemento que no está: se conserva sin aplicarse",
-            _ when effect.Type == BuiltInEffects.Mask => EffectUi.MaskShapeName(effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Shape, "rectangle"))
-                + (effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Invert) == "on" ? " · invertida" : ""),
             _ when effect.Type == BuiltInEffects.Blend => EffectUi.BlendModeName(
                 effect.Options.GetValueOrDefault(BuiltInEffects.BlendOptions.Mode, "normal")),
             _ => "",
@@ -45,7 +45,44 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
         NoteVisibility = Note.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         CanMoveUp = index > 0;
         CanMoveDown = index < count - 1;
+        IsPreviewOff = previewOff;
+        bool image = cost is { Milliseconds: > 0 };
+        CompareVisibility = image && effect.Enabled ? Visibility.Visible : Visibility.Collapsed;
+        CostVisibility = image ? Visibility.Visible : Visibility.Collapsed;
+        HandleVisibility = reorderable ? Visibility.Visible : Visibility.Collapsed;
+        if (cost is { } c)
+        {
+            CostGlyph = c.Level switch
+            {
+                CostLevel.High => "●●●",
+                CostLevel.Medium => "●●○",
+                _ => "●○○",
+            };
+            string level = c.Level switch
+            {
+                CostLevel.High => "alto",
+                CostLevel.Medium => "medio",
+                _ => "bajo",
+            };
+            CostTip = string.Create(Services.Format.SpanishNumbers.Format,
+                $"Costo {level}: unos {c.Milliseconds:0.00} ms de GPU por cuadro en la resolución de la secuencia (medido en una RTX 3050).");
+            CostBrush = Theme.ThemeResources.Brush(c.Level == CostLevel.High ? "KeyframeBrush" : "TextMutedBrush");
+        }
     }
+
+    public bool IsPreviewOff { get; }
+
+    public Visibility CompareVisibility { get; }
+
+    public Visibility CostVisibility { get; }
+
+    public Visibility HandleVisibility { get; }
+
+    public string CostGlyph { get; } = "";
+
+    public string CostTip { get; } = "";
+
+    public Microsoft.UI.Xaml.Media.Brush? CostBrush { get; }
 
     public string EffectId { get; }
 
@@ -71,7 +108,8 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
 
     public bool Equals(FilterItem? other) =>
         other is not null && EffectId == other.EffectId && Name == other.Name && IsEnabled == other.IsEnabled
-        && Note == other.Note && CanMoveUp == other.CanMoveUp && CanMoveDown == other.CanMoveDown;
+        && Note == other.Note && CanMoveUp == other.CanMoveUp && CanMoveDown == other.CanMoveDown
+        && IsPreviewOff == other.IsPreviewOff && CostGlyph == other.CostGlyph && CostTip == other.CostTip;
 
     public override bool Equals(object? obj) => Equals(obj as FilterItem);
 
@@ -106,15 +144,19 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         InitializeComponent();
         RegisterPropertyChangedCallback(VisibilityProperty, (_, _) =>
         {
-            PublishMaskEditing();
             PublishCropEditing();
+            if (Visibility == Visibility.Visible)
+            {
+                QueuePresetRefresh();
+            }
+            else
+            {
+                SetMaskView(false);
+            }
         });
         Wheels.WheelChanged += OnWheelChanged;
         CurveEditor.CurveChanged += OnCurveChanged;
     }
-
-    /// <summary>La pestaña «Máscaras»: solo las máscaras del clip, con botones de forma en vez de «Añadir filtro».</summary>
-    public bool MasksOnly { get; set; }
 
     public ObservableCollection<FilterItem> Items { get; } = [];
 
@@ -122,18 +164,6 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     {
         ArgumentNullException.ThrowIfNull(services);
         _services = services;
-        if (MasksOnly)
-        {
-            StackSection.Key = "mascaras-pila";
-            StackSection.Title = "Máscaras del clip";
-            AddRow.Visibility = Visibility.Collapsed;
-            MaskBar.Visibility = Visibility.Visible;
-            EmptyText.Text = "Selecciona un clip de video para recortarlo con una máscara.";
-            NoFiltersText.Text = "Este clip no tiene máscaras. Elige una forma aquí arriba o usa «Quitar fondo».";
-            List.CanReorderItems = false;
-            List.CanDragItems = false;
-        }
-
         StackSection.Remember(services.Settings);
         EditorSession session = services.Session;
         _editor = new ClipPropertyEditor(session);
@@ -147,7 +177,14 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
                 Refresh();
             }
         };
-        services.Packages.Changed += (_, _) => Refresh();
+        services.Packages.Changed += (_, _) =>
+        {
+            Refresh();
+            QueuePresetRefresh();
+        };
+        session.PreviewOffChanged += (_, _) => Refresh();
+        PresetsSection.Remember(services.Settings);
+
         Refresh();
         Bindings.Update();
     }
@@ -190,12 +227,12 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         if (target is not { } found)
         {
             FinishChanges();
+            LeaveClip();
             _clipId = null;
             _effectId = null;
             Items.Clear();
             NoFiltersText.Visibility = Visibility.Collapsed;
             Details.Visibility = Visibility.Collapsed;
-            PublishMaskEditing();
             PublishCropEditing();
             return;
         }
@@ -205,6 +242,8 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         {
             FinishChanges();
             _effectId = null;
+            LeaveClip();
+            QueuePresetRefresh();
         }
 
         _clipId = clip.Id;
@@ -239,8 +278,8 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             EffectInstance effect = clip.Effects[i];
             if (Shows(effect))
             {
-                // Entre las máscaras el orden no cambia nada (se multiplican): sin flechas.
-                next.Add(new FilterItem(effect, EffectCatalog.Support(clip, effect, track.Kind), MasksOnly ? 0 : i, MasksOnly ? 1 : clip.Effects.Count));
+                next.Add(new FilterItem(effect, EffectCatalog.Support(clip, effect, track.Kind), i, clip.Effects.Count,
+                    _services!.Session.IsPreviewOff(effect.Id), track.Kind == TrackKind.Video ? Cost(effect) : null, true));
             }
         }
 
@@ -264,12 +303,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         _updating = false;
         NoFiltersText.Visibility = next.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         int active = next.Count(i => i.IsEnabled);
-        StackSection.Summary = MasksOnly ? next.Count switch
-        {
-            0 => "ninguna",
-            1 => "1 máscara",
-            _ => $"{next.Count} máscaras",
-        } : next.Count switch
+        StackSection.Summary = next.Count switch
         {
             0 => "ninguno",
             1 => active == 1 ? "1 filtro" : "1 filtro, desactivado",
@@ -280,7 +314,6 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     private void ShowDetails(Clip clip)
     {
         EffectInstance? effect = _effectId is null ? null : clip.Effects.Find(e => e.Id == _effectId);
-        PublishMaskEditing();
         PublishCropEditing();
         if (effect is null || _editor is not { } editor || _services is null)
         {
@@ -331,95 +364,14 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         DetailsNote.Text = note;
         DetailsNote.Visibility = note.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowLut(effect);
-        ShowMaskOptions(effect);
         ShowImageOptions(clip, effect);
+        ShowChoices(effect);
+        ShowColorTools(clip, effect);
+        ShowRowVisibility(effect);
     }
 
-    private bool Shows(EffectInstance effect) => !MasksOnly || effect.Type == BuiltInEffects.Mask;
-
-    private void ShowMaskOptions(EffectInstance effect)
-    {
-        if (effect.Type != BuiltInEffects.Mask)
-        {
-            MaskRow.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        MaskRow.Visibility = Visibility.Visible;
-        string shape = effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Shape, "rectangle");
-        _updating = true;
-        if (ShapeBox.Items.Count == 0)
-        {
-            foreach (string value in EffectRegistry.MaskShapes)
-            {
-                ShapeBox.Items.Add(EffectUi.MaskShapeName(value));
-            }
-        }
-
-        ShapeBox.SelectedIndex = Math.Max(0, EffectRegistry.MaskShapes.IndexOf(shape));
-        // El trazo y la imagen solo se cambian dibujando o con «Quitar fondo».
-        ShapeBox.IsEnabled = shape is "rectangle" or "ellipse";
-        InvertBox.IsChecked = effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Invert) == "on";
-        _updating = false;
-    }
-
-    /// <summary>Con la pestaña de máscaras a la vista, el visor dibuja las asas de la máscara elegida.</summary>
-    private void PublishMaskEditing()
-    {
-        if (MasksOnly && _services is not null)
-        {
-            _services.Session.SetMaskEditing(Visibility == Visibility.Visible && _clipId is not null, _effectId);
-        }
-    }
-
-    private void OnAddRectangleClick(object sender, RoutedEventArgs e) => AddMask(MaskShape.Rectangle);
-
-    private void OnAddEllipseClick(object sender, RoutedEventArgs e) => AddMask(MaskShape.Ellipse);
-
-    private void AddMask(MaskShape shape)
-    {
-        if (_services is null || _clipId is null)
-        {
-            return;
-        }
-
-        var command = Edits.AddMask(_services.Session.SequenceId, _clipId, shape);
-        if (_services.Session.Execute(command))
-        {
-            _effectId = command.CreatedIds[0];
-            Refresh();
-        }
-    }
-
-    private void OnDrawPathClick(object sender, RoutedEventArgs e)
-    {
-        if (_services is not null && _clipId is not null)
-        {
-            _services.Session.RequestMaskDrawing(_clipId);
-        }
-    }
-
-    private void OnShapeSelected(object sender, SelectionChangedEventArgs e)
-    {
-        if (_updating || ShapeBox.SelectedIndex is < 0 or > 1 || _effectId is not { } effectId || _clipId is null || _services is null)
-        {
-            return;
-        }
-
-        _services.Session.Execute(Edits.SetEffectOption(_services.Session.SequenceId, _clipId, effectId, BuiltInEffects.MaskOptions.Shape,
-            EffectRegistry.MaskShapes[ShapeBox.SelectedIndex]));
-    }
-
-    private void OnInvertClick(object sender, RoutedEventArgs e)
-    {
-        if (_effectId is not { } effectId || _clipId is null || _services is null)
-        {
-            return;
-        }
-
-        _services.Session.Execute(Edits.SetEffectOption(_services.Session.SequenceId, _clipId, effectId, BuiltInEffects.MaskOptions.Invert,
-            InvertBox.IsChecked == true ? "on" : "off"));
-    }
+    /// <summary>Las máscaras tienen su pestaña: aquí no se listan.</summary>
+    private static bool Shows(EffectInstance effect) => effect.Type != BuiltInEffects.Mask;
 
     private void BuildRows(string type, ParameterSpec.Context context)
     {
@@ -458,6 +410,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
         _rowsType = type;
         _rowsContext = context;
+        BuildChoices(type);
     }
 
     private void ShowLut(EffectInstance effect)

@@ -51,6 +51,9 @@ public enum PreviewBypass
 
     /// <summary>El recorte: se ve la imagen entera mientras se ajusta en el visor.</summary>
     Crop = 4,
+
+    /// <summary>El calificador HSL (su cuentagotas mira el color que él recibe).</summary>
+    Qualifier = 8,
 }
 
 /// <summary>Contadores de un cuadro para <see cref="CompositeResult"/>.</summary>
@@ -84,6 +87,8 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     private readonly List<SpatialStep> _spatial = [];
     private readonly MaskTextures _maskTextures;
     private readonly CurveTextures _curves;
+    private LayerTransform? _motionTransform;
+    private float _motionWeight;
 
     public LayerRenderer(GpuDevice gpu, QuadPipeline quad, EffectPipeline effects, PlaneViewCache views, RenderTargetPool pool, LutTextures luts)
     {
@@ -100,6 +105,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
     public void Dispose()
     {
+        ReleaseHistory();
         _maskTextures.Dispose();
         _curves.Dispose();
     }
@@ -172,23 +178,46 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         _effects.BindConstants();
         return layer.Transition is { } transition
             ? DrawTransition(layer, source, transition, incoming, geometry, destination, ref stats)
-            : DrawSingle(layer, source, GeometryOf(layer, source, geometry), destination, layer.Blend, ref stats);
+            : DrawSingle(layer, source, GeometryOf(layer, source, geometry), destination, BlendOf(layer), ref stats);
     }
 
     /// <summary>Una capa compuesta ya tiene la forma de la secuencia: no lleva relación de aspecto ni giro del origen.</summary>
     private static SourceGeometry GeometryOf(LayerFrame layer, LayerSource source, Func<LayerFrame, SourceGeometry>? geometry) =>
         source.IsImage ? SourceGeometry.Square : geometry?.Invoke(layer) ?? SourceGeometry.Square;
 
-    private Rodaje.Core.Effects.CropRect? CropOf(LayerFrame layer) => (Bypass & PreviewBypass.Crop) != 0 ? null : layer.Transform.Crop;
+    private Rodaje.Core.Effects.CropRect? CropOf(LayerFrame layer) => (Bypass & PreviewBypass.Crop) != 0 ? null : TransformOf(layer).Crop;
 
-    private static float Opacity(LayerFrame layer) => (float)Math.Min(layer.Transform.Opacity, 1);
+    private float Opacity(LayerFrame layer) => (float)Math.Min(TransformOf(layer).Opacity, 1) * (_motionWeight > 0 ? _motionWeight : 1);
 
-    private static LayerPlacement? Place(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight) =>
+    /// <summary>
+    /// Desenfoque de movimiento: mientras dura, cada capa se dibuja con <paramref name="transform"/>, con el peso
+    /// <paramref name="weight"/> en la opacidad, mezcla normal y suma en el destino (un intermedio transparente que
+    /// acumula el promedio de las muestras).
+    /// </summary>
+    public void BeginMotionSample(LayerTransform transform, float weight)
+    {
+        _motionTransform = transform;
+        _motionWeight = weight;
+    }
+
+    public void EndMotion()
+    {
+        _motionTransform = null;
+        _motionWeight = 0;
+    }
+
+    private LayerTransform TransformOf(LayerFrame layer) => _motionTransform ?? layer.Transform;
+
+    private BlendMode BlendOf(LayerFrame layer) => _motionWeight > 0 ? BlendMode.Normal : layer.Blend;
+
+    private ID3D11BlendState* StateFor(BlendMode blend) => _motionWeight > 0 ? _effects.Accumulate : _effects.BlendState(blend);
+
+    private LayerPlacement? Place(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight) =>
         Place(layer, LayerSource.Of(payload), geometry, sequenceWidth, sequenceHeight);
 
-    private static LayerPlacement? Place(LayerFrame layer, LayerSource source, SourceGeometry geometry, int sequenceWidth, int sequenceHeight)
+    private LayerPlacement? Place(LayerFrame layer, LayerSource source, SourceGeometry geometry, int sequenceWidth, int sequenceHeight)
     {
-        if (!(layer.Transform.Opacity > 0))
+        if (!(TransformOf(layer).Opacity > 0))
         {
             return null;
         }
@@ -196,7 +225,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         (int displayWidth, int displayHeight) = source.Planes is not { } payload ? (sequenceWidth, sequenceHeight)
             : layer.DisplayWidth > 0 && layer.DisplayHeight > 0 ? (layer.DisplayWidth, layer.DisplayHeight)
             : geometry.DisplaySize(payload.Width, payload.Height);
-        return LayerLayout.Place(sequenceWidth, sequenceHeight, displayWidth, displayHeight, layer.Transform with { Crop = geometry.Crop });
+        return LayerLayout.Place(sequenceWidth, sequenceHeight, displayWidth, displayHeight, TransformOf(layer) with { Crop = geometry.Crop });
     }
 
     private bool DrawSingle(LayerFrame layer, LayerSource payload, SourceGeometry geometry, in Destination destination,
@@ -211,6 +240,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         EffectConstants effects = default;
         LayerPlan plan = BuildPlan(layer, ref effects, ref stats);
         RenderTarget? mask = PrepareMasks(placement, destination, ref plan, ref effects, ref stats);
+        _regionMask = _spatial.Count > 0 ? PrepareRegionMask(placement, destination, ref stats) : null;
         try
         {
             return DrawPlanned(layer, payload, geometry, destination, blend, placement, plan, effects, mask, ref stats);
@@ -218,6 +248,8 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         finally
         {
             _pool.Return(mask);
+            _pool.Return(_regionMask);
+            _regionMask = null;
         }
     }
 
@@ -227,7 +259,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         int blendCount = blend == BlendMode.Normal ? 0 : 1;
         if (_spatial.Count > 0)
         {
-            if (DrawThroughIntermediate(payload, placement, geometry, Opacity(layer), plan, effects, mask, destination, blend, ref stats,
+            if (DrawThroughIntermediate(layer, payload, placement, geometry, Opacity(layer), plan, effects, mask, destination, blend, ref stats,
                 out bool blendDropped))
             {
                 stats.EffectsApplied += plan.PerPixelCount + (blendDropped ? 0 : blendCount);
@@ -275,7 +307,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
         effects.BlendInfo.X = (float)blend;
         PrepareSource(payload, ref effects);
-        _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, shader, _effects.BlendState(blend));
+        _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, shader, StateFor(blend));
         BindInputs(background, plan.Lut, null, null, mask, plan.Curves);
         _effects.Set(effects);
         DrawPlanes(payload, quad);
@@ -285,7 +317,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         return true;
     }
 
-    private bool DrawThroughIntermediate(LayerSource payload, LayerPlacement placement, SourceGeometry geometry, float opacity,
+    private bool DrawThroughIntermediate(LayerFrame layer, LayerSource payload, LayerPlacement placement, SourceGeometry geometry, float opacity,
         in LayerPlan plan, EffectConstants effects, RenderTarget? mask, in Destination destination, BlendMode blend, ref FrameStats stats,
         out bool blendDropped)
     {
@@ -299,7 +331,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         }
 
         // Del tamaño en pantalla, sin pasar del lado mayor del destino (una capa muy ampliada pierde algo de detalle).
-        float onScreen = placement.Scale * destination.PixelScale;
+        float onScreen = placement.MaxAxisScale * destination.PixelScale;
         float wanted = Math.Max(placement.LocalWidth, placement.LocalHeight) * onScreen;
         float fit = Math.Min(1f, Math.Max(destination.Width, destination.Height) / wanted);
         int width = Math.Max(1, (int)MathF.Ceiling(placement.LocalWidth * onScreen * fit));
@@ -324,11 +356,17 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         // Píxeles del intermedio por píxel de la secuencia: los radios se escalan igual en la vista previa reducida.
         float perSequencePixel = scaleX / placement.Scale;
         var view = new ImageView(first, width, height);
+        // En la vista de las máscaras de la capa en gris, lo que viene después taparía la máscara.
+        bool steps = _maskView is not { Group: -1, Mode: MaskViewMode.Matte };
+        _maskPlacement = placement;
         foreach (SpatialStep step in _spatial)
         {
-            ImageView? next = step.Kind == GpuEffectKind.Blur
-                ? Blur(view, step.Sigma * perSequencePixel)
-                : Sharpen(view, step.Amount, step.Sigma * perSequencePixel);
+            if (!steps)
+            {
+                break;
+            }
+
+            ImageView? next = ApplyStep(view, step, perSequencePixel, layer, payload.IsImage);
             if (next is not { } result)
             {
                 stats.EffectsSkipped++;
@@ -366,13 +404,58 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
         effects.BlendInfo.X = (float)blend;
         effects.MapA = view.Map;
-        _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, image, _effects.BlendState(blend));
+        _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, image, StateFor(blend));
         BindInputs(background, null, view.Target, null);
         _effects.Set(effects);
         _quad.Draw(quad);
         UnbindInputs();
         _pool.Return(background);
         _pool.Return(view.Target);
+        return true;
+    }
+
+    /// <summary>
+    /// Dibuja un intermedio premultiplicado del tamaño del destino (el promedio de las muestras del desenfoque de
+    /// movimiento) sobre el destino, con la mezcla de la capa.
+    /// </summary>
+    public bool DrawImage(ImageView view, BlendMode blend, in Destination destination, ref FrameStats stats)
+    {
+        _effects.BindConstants();
+        bool shaderBlend = EffectPipeline.IsShaderBlend(blend);
+        ID3D11PixelShader* image = _effects.TryGetShader(EffectShader.Image, shaderBlend ? EffectShaders.Blend : 0);
+        if (image == null)
+        {
+            return false;
+        }
+
+        var placement = new LayerPlacement(Matrix3x2.Identity, destination.SequenceWidth, destination.SequenceHeight, 1);
+        QuadConstants quad = PlacedQuad(placement, VideoLayout.Corners(0, 1, 1), 1, destination.SequenceWidth, destination.SequenceHeight,
+            destination.PixelScale);
+        EffectConstants effects = default;
+        RenderTarget? background = null;
+        if (shaderBlend)
+        {
+            background = CopyBackground(destination, Bounds(quad, destination), ref effects);
+            if (background is null)
+            {
+                image = _effects.TryGetShader(EffectShader.Image, 0);
+                blend = BlendMode.Normal;
+                stats.EffectsSkipped++;
+                if (image == null)
+                {
+                    return false;
+                }
+            }
+        }
+
+        effects.BlendInfo.X = (float)blend;
+        effects.MapA = view.Map;
+        _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, image, _effects.BlendState(blend));
+        BindInputs(background, null, view.Target, null);
+        _effects.Set(effects);
+        _quad.Draw(quad);
+        UnbindInputs();
+        _pool.Return(background);
         return true;
     }
 
@@ -512,15 +595,22 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         float sequenceWidth, float sequenceHeight, float pixelScale)
     {
         float screenScale = placement.Scale * pixelScale;
+        float edgeX = placement.EdgeScaleX;
+        float edgeY = placement.EdgeScaleY;
+        bool uniform = Math.Abs(edgeX - placement.Scale) <= 1e-4f * placement.Scale && Math.Abs(edgeY - placement.Scale) <= 1e-4f * placement.Scale;
+        float screenX = uniform ? screenScale : edgeX * pixelScale;
+        float screenY = uniform ? screenScale : edgeY * pixelScale;
+
         // Un píxel de destino más allá del borde, para que la cobertura lo suavice también hacia afuera.
-        float margin = 1f / screenScale;
+        float marginX = 1f / screenX;
+        float marginY = 1f / screenY;
         float w = placement.LocalWidth;
         float h = placement.LocalHeight;
-        var constants = new QuadConstants { Shape = new(opacity, screenScale, w, h) };
-        constants.TopLeft = Corner(placement, uv, -margin, -margin, sequenceWidth, sequenceHeight, out constants.LocalTopLeft);
-        constants.TopRight = Corner(placement, uv, w + margin, -margin, sequenceWidth, sequenceHeight, out constants.LocalTopRight);
-        constants.BottomLeft = Corner(placement, uv, -margin, h + margin, sequenceWidth, sequenceHeight, out constants.LocalBottomLeft);
-        constants.BottomRight = Corner(placement, uv, w + margin, h + margin, sequenceWidth, sequenceHeight, out constants.LocalBottomRight);
+        var constants = new QuadConstants { Shape = new(opacity, screenX, w, h), Present = new(0, uniform ? 0 : screenY, 0, 0) };
+        constants.TopLeft = Corner(placement, uv, -marginX, -marginY, sequenceWidth, sequenceHeight, out constants.LocalTopLeft);
+        constants.TopRight = Corner(placement, uv, w + marginX, -marginY, sequenceWidth, sequenceHeight, out constants.LocalTopRight);
+        constants.BottomLeft = Corner(placement, uv, -marginX, h + marginY, sequenceWidth, sequenceHeight, out constants.LocalBottomLeft);
+        constants.BottomRight = Corner(placement, uv, w + marginX, h + marginY, sequenceWidth, sequenceHeight, out constants.LocalBottomRight);
         return constants;
     }
 

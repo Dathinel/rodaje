@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Monitores de imagen junto al visor: forma de onda (luma o RGB), desfile, vectorscopio e histograma. La imagen la
+    dibuja la GPU (Rodaje.Render.Scopes); la retícula y sus rótulos van encima en XAML, nítidos a cualquier tamaño.
+-->
+<UserControl
+    x:Class="Rodaje.App.Views.Player.ScopesPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1,0,0,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Height="34" Padding="8,0,4,0" ColumnSpacing="6" Background="{StaticResource BarBrush}"
+              BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled"
+                          VerticalScrollBarVisibility="Disabled" VerticalAlignment="Center">
+                <StackPanel x:Name="KindBar" Orientation="Horizontal" Spacing="2">
+                    <ToggleButton x:Name="LumaButton" Style="{StaticResource ToolToggleButtonStyle}" Content="Luma" Width="Auto" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Padding="8,0"
+                                  Tag="Waveform" Click="OnKindClick" ToolTipService.ToolTip="Forma de onda de la luma: el brillo de cada columna de la imagen" />
+                    <ToggleButton x:Name="RgbButton" Style="{StaticResource ToolToggleButtonStyle}" Content="RGB" Width="Auto" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Padding="8,0"
+                                  Tag="WaveformRgb" Click="OnKindClick" ToolTipService.ToolTip="Forma de onda de rojo, verde y azul superpuestos" />
+                    <ToggleButton x:Name="ParadeButton" Style="{StaticResource ToolToggleButtonStyle}" Content="Desfile" Width="Auto" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Padding="8,0"
+                                  Tag="Parade" Click="OnKindClick" ToolTipService.ToolTip="Desfile RGB: rojo, verde y azul uno al lado del otro, para igualar el balance" />
+                    <ToggleButton x:Name="VectorButton" Style="{StaticResource ToolToggleButtonStyle}" Content="Vectores" Width="Auto" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Padding="8,0"
+                                  Tag="Vectorscope" Click="OnKindClick" ToolTipService.ToolTip="Vectorscopio: tono y saturación, con los objetivos de las barras al 75 % y la línea de piel" />
+                    <ToggleButton x:Name="HistogramButton" Style="{StaticResource ToolToggleButtonStyle}" Content="Histograma" Width="Auto" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Padding="8,0"
+                                  Tag="Histogram" Click="OnKindClick" ToolTipService.ToolTip="Histograma de rojo, verde, azul y luma (línea blanca)" />
+                </StackPanel>
+            </ScrollViewer>
+            <Button Grid.Column="1" Style="{StaticResource ToolButtonStyle}" Width="26" Height="26" FontSize="11" Content="&#xE711;"
+                    Click="OnCloseClick" AutomationProperties.Name="Cerrar los monitores" ToolTipService.ToolTip="Cerrar los monitores" />
+        </Grid>
+
+        <Grid x:Name="ScopeArea" Grid.Row="1" Margin="10,10,10,6" SizeChanged="OnAreaSizeChanged">
+            <Border x:Name="ScopeFrame" Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="3">
+                <Grid>
+                    <Image x:Name="ScopeImage" Stretch="Fill" />
+                    <Canvas x:Name="Graticule" IsHitTestVisible="False" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <TextBlock x:Name="Caption" Grid.Row="2" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,8" TextWrapping="Wrap"
+                   TextTrimming="None" />
+    </Grid>
+</UserControl>

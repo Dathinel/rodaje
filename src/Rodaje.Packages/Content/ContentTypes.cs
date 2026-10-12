@@ -24,13 +24,22 @@ public enum PresetInterpolation
     EaseIn,
     EaseOut,
     EaseInOut,
+
+    /// <summary>Curva Bézier de tiempo con los puntos de <see cref="PresetKey.Ease"/>.</summary>
+    Bezier,
+    Bounce,
+    Elastic,
 }
 
 /// <summary>Una clave de una curva: <paramref name="T"/> en segundos desde el inicio del preajuste.</summary>
 /// <param name="T">Segundos desde el inicio.</param>
 /// <param name="Value">Valor del parámetro.</param>
 /// <param name="Interpolation">Cómo se llega a la clave siguiente.</param>
-public readonly record struct PresetKey(double T, double Value, PresetInterpolation Interpolation);
+public readonly record struct PresetKey(double T, double Value, PresetInterpolation Interpolation)
+{
+    /// <summary>Puntos de control (x1, y1, x2, y2) de la curva Bézier, como <c>cubic-bezier</c> de CSS; solo con <see cref="PresetInterpolation.Bezier"/>.</summary>
+    public (double X1, double Y1, double X2, double Y2)? Ease { get; init; }
+}
 
 /// <summary>Curva de un parámetro de un efecto primitivo (por ejemplo <c>rodaje.transform</c> / <c>scale</c>).</summary>
 public sealed record PresetCurve(string Effect, string Parameter, IReadOnlyList<PresetKey> Keys);

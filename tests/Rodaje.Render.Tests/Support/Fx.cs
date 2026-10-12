@@ -39,6 +39,34 @@ internal static class Fx
         (BuiltInEffects.SharpenParameters.Amount, amount), (BuiltInEffects.SharpenParameters.Radius, radius));
 
     public static EffectValues Transition(string type, params (string Name, double Value)[] values) => Make(type, null, values).Values;
+
+    /// <summary>Elige una opción como lo hace el motor: su índice en el hueco que sigue a los parámetros.</summary>
+    public static LayerEffect Choose(this LayerEffect effect, string option, string value)
+    {
+        EffectDefinition definition = EffectRegistry.Find(effect.Code)!;
+        int slot = definition.Parameters.Length;
+        foreach (OptionDefinition candidate in definition.Options.Where(o => o.Kind == OptionKind.Choice))
+        {
+            if (candidate.Name == option)
+            {
+                EffectValues values = effect.Values;
+                values[slot] = candidate.Choices.IndexOf(value);
+                return effect with { Values = values };
+            }
+
+            slot++;
+        }
+
+        throw new ArgumentException(option);
+    }
+
+    /// <summary>Los segundos del origen que el motor pasa a los efectos que cambian con el tiempo (el grano).</summary>
+    public static LayerEffect At(this LayerEffect effect, double seconds)
+    {
+        EffectValues values = effect.Values;
+        values[EffectRegistry.Find(effect.Code)!.TimeSlot] = (float)seconds;
+        return effect with { Values = values };
+    }
 }
 
 /// <summary>LUT ya cargadas; una referencia que no está devuelve <c>false</c>, como un paquete que falta.</summary>

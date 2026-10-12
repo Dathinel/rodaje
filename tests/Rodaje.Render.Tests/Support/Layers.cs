@@ -30,10 +30,10 @@ internal static class Layers
 
     /// <summary>Capa sobre una textura existente; toma su propia referencia.</summary>
     public static LayerFrame FromTexture(GpuDevice gpu, nint texture, int slice, int visibleWidth, int visibleHeight,
-        VideoColor color, LayerTransform transform, int track = 0, LayerLook? look = null)
+        VideoColor color, LayerTransform transform, int track = 0, LayerLook? look = null, Time? pts = null, Time? duration = null)
     {
         D3D11TexturePayload payload = D3D11TexturePayload.FromTexture(gpu, texture, slice, visibleWidth, visibleHeight, color);
-        var frame = new DecodedFrame(0, Time.Zero, Time.FromTicks(1), payload, 0);
+        var frame = new DecodedFrame(0, pts ?? Time.Zero, duration ?? Time.FromTicks(1), payload, 0);
         return new LayerFrame(track, $"clip-{track}", frame, transform)
         {
             Effects = look?.Effects ?? [],
@@ -42,13 +42,14 @@ internal static class Layers
         };
     }
 
-    /// <summary>Una capa con efectos, mezcla o transición.</summary>
-    public static LayerFrame From(GpuDevice gpu, YuvImage image, VideoColor color, LayerLook look, LayerTransform? transform = null, int track = 0)
+    /// <summary>Una capa con efectos, mezcla o transición; <paramref name="pts"/> y <paramref name="duration"/> son los del cuadro del origen.</summary>
+    public static LayerFrame From(GpuDevice gpu, YuvImage image, VideoColor color, LayerLook look, LayerTransform? transform = null, int track = 0,
+        Time? pts = null, Time? duration = null)
     {
         nint texture = YuvImage.CreateTexture(gpu, [image]);
         try
         {
-            return FromTexture(gpu, texture, 0, image.Width, image.Height, color, transform ?? LayerTransform.Identity, track, look);
+            return FromTexture(gpu, texture, 0, image.Width, image.Height, color, transform ?? LayerTransform.Identity, track, look, pts, duration);
         }
         finally
         {

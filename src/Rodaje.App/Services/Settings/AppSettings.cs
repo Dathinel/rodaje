@@ -64,6 +64,12 @@ public sealed partial class AppSettings
     /// <summary>Las zonas del visor: <c>fabrica/clasicos</c>, una red de fábrica o la referencia de un paquete o de las propias.</summary>
     public string? SafeZones { get; set; }
 
+    /// <summary>El panel de monitores de imagen junto al visor está abierto.</summary>
+    public bool ShowScopes { get; set; }
+
+    /// <summary>El monitor elegido (<c>Rodaje.Render.Scopes.ScopeKind</c> por su nombre); vacío, la forma de onda de la luma.</summary>
+    public string? Scope { get; set; }
+
     /// <summary>Cómo quedan los clips al cambiar el formato del proyecto desde el reproductor.</summary>
     public Format.ClipFit FormatClipFit { get; set; } = Format.ClipFit.Fit;
 

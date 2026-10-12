@@ -74,7 +74,7 @@
             <Button x:Name="PreviousButton" Style="{StaticResource ToolButtonStyle}" Width="22" Height="24" FontSize="{StaticResource IconSmallFontSize}"
                     Content="&#xE76B;" Click="OnPreviousClick" ToolTipService.ToolTip="Keyframe anterior"
                     AutomationProperties.Name="Keyframe anterior" />
-            <ComboBox x:Name="EaseBox" MinWidth="0" Width="96" Height="24" Padding="8,0,0,0"
+            <ComboBox x:Name="EaseBox" MinWidth="0" Width="104" Height="24" Padding="8,0,0,0"
                       FontSize="{StaticResource CaptionFontSize}" ToolTipService.ToolTip="Curva hasta el keyframe siguiente"
                       AutomationProperties.Name="Curva hasta el keyframe siguiente" SelectionChanged="OnEaseChanged" />
             <Button x:Name="NextButton" Style="{StaticResource ToolButtonStyle}" Width="22" Height="24" FontSize="{StaticResource IconSmallFontSize}"

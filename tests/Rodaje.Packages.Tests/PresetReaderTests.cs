@@ -99,6 +99,16 @@ public sealed class PresetReaderTests
     }
 
     [Fact]
+    public void Lee_rebote_elastico_y_bezier_con_sus_puntos()
+    {
+        string curves = """[ { "effect": "rodaje.transform", "parameter": "scale", "keys": [ { "t": 0, "value": 1.3, "interp": "bezier", "ease": [0.2, 1.4, 0.4, 1] }, { "t": 0.2, "value": 1, "interp": "bounce" }, { "t": 0.4, "value": 1.1, "interp": "elastic" }, { "t": 0.5, "value": 1 } ] } ]""";
+        PresetCurve curve = Assert.Single(ContentReaders.ReadEffect(Utf8(Effect(curves: curves))).Curves);
+        Assert.Equal([PresetInterpolation.Bezier, PresetInterpolation.Bounce, PresetInterpolation.Elastic, PresetInterpolation.Linear], curve.Keys.Select(k => k.Interpolation));
+        Assert.Equal((0.2, 1.4, 0.4, 1.0), curve.Keys[0].Ease);
+        Assert.Null(curve.Keys[1].Ease);
+    }
+
+    [Fact]
     public void Un_efecto_puede_animar_un_efecto_propio_de_su_lista()
     {
         EffectPreset effect = ContentReaders.ReadEffect(Utf8(Effect(
@@ -139,7 +149,9 @@ public sealed class PresetReaderTests
     [InlineData("""[{ "t": 0.2, "value": 1 }, { "t": 0.2, "value": 2 }]""", "[1].t tiene que ser mayor que el de la clave anterior")]
     [InlineData("""[{ "t": 0 }]""", "[0].value tiene que ser un número")]
     [InlineData("""[{ "t": 0, "value": 2 }]""", "[0].value queda fuera de 0 a 1")]
-    [InlineData("""[{ "t": 0, "value": 1, "interp": "bounce" }]""", "interp «bounce» no existe")]
+    [InlineData("""[{ "t": 0, "value": 1, "interp": "rebote" }]""", "interp «rebote» no existe")]
+    [InlineData("""[{ "t": 0, "value": 1, "interp": "bezier" }]""", "[0].ease tiene que ser [x1, y1, x2, y2]")]
+    [InlineData("""[{ "t": 0, "value": 1, "interp": "bezier", "ease": [1.5, 0, 0.5, 1] }]""", "[0].ease: x1 y x2 van de 0 a 1")]
     public void Rechaza_claves_con_el_motivo(string keys, string expected)
     {
         string json = $$"""{ "format": "rodaje.effect", "version": 1, "name": "x", "anchor": "start", "durationSeconds": 1, "curves": [{ "effect": "rodaje.transform", "parameter": "opacity", "keys": {{keys}} }] }""";

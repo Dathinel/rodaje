@@ -73,7 +73,7 @@ public static class LibraryElements
     };
 
     /// <summary>Lo de color va en Filtros; el resto de los efectos del motor, en Efectos.</summary>
-    private static readonly string[] ColorTools = [BuiltInEffects.Color, BuiltInEffects.ColorWheels, BuiltInEffects.Curves];
+    private static readonly string[] ColorTools = [BuiltInEffects.Color, BuiltInEffects.ColorWheels, BuiltInEffects.Curves, BuiltInEffects.HslQualifier];
 
     private static bool IsColorTool(string type) => Array.IndexOf(ColorTools, type) >= 0;
 

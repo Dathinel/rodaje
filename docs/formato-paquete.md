@@ -107,7 +107,7 @@ Los lectores están en `ContentReaders` (`src/Rodaje.Packages/Content`). Ninguno
 | Tipos de efecto en minúsculas con un punto (`rodaje.color`, `otro.efecto`); nombres de parámetro y opción ASCII empezando por letra | Un tipo desconocido se conserva en el proyecto, pero el motor no lo aplica |
 | Hasta 32 efectos, 64 curvas, 16 parámetros y 16 opciones por efecto, 1000 claves por curva, opciones de hasta 256 caracteres | Se rechaza el archivo |
 | Valores finitos; `scale` de 0 a 100 y `opacity` de 0 a 1 en la transformación | Se rechaza el archivo |
-| Claves `{ t, value, interp }`: `t` en segundos de 0 a `durationSeconds`, estrictamente creciente; `interp` es `hold`, `linear` (por defecto), `easeIn`, `easeOut` o `easeInOut` | Se rechaza el archivo |
+| Claves `{ t, value, interp }`: `t` en segundos de 0 a `durationSeconds`, estrictamente creciente; `interp` es `hold`, `linear` (por defecto), `easeIn`, `easeOut`, `easeInOut`, `bounce`, `elastic` o `bezier`, que pide además `ease: [x1, y1, x2, y2]` (x de 0 a 1, y de −2 a 3) | Se rechaza el archivo |
 | `reference: { width, height }` (16 a 16384, por defecto 1920 × 1080): las posiciones van en píxeles de esa secuencia y se escalan a la del proyecto | Se rechaza el archivo |
 
 ### `lut`: `.cube` 3D

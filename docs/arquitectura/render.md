@@ -24,6 +24,7 @@ flowchart LR
 - **Geometría.** [`LayerLayout.Place`](../../src/Rodaje.Render/LayerLayout.cs) encaja el tamaño visible en la secuencia ("contain"). Después escala sobre el centro, rota en sentido horario y desplaza en píxeles de secuencia. [`SourceGeometry`](../../src/Rodaje.Render/SourceGeometry.cs) aplica el aspecto de píxel y la rotación del archivo, y [`VideoLayout.Corners`](../../src/Rodaje.Render/VideoLayout.cs) recorta el relleno de la textura. El shader calcula la cobertura del borde en píxeles de destino, así los bordes rotados salen suavizados.
 - **Tamaño.** El compositor puede ser más chico que la secuencia (vista previa a media resolución): posiciones y radios siguen en píxeles de secuencia y se escalan.
 - **Contexto compartido.** El compositor toma `GpuDevice.LockContext()`, porque FFmpeg usa el mismo contexto. Al terminar, `QuadPipeline.Unbind` suelta las superficies para que el decodificador pueda reutilizarlas.
+- **Igual en WARP que en la GPU.** Los shaders no usan uv ni coordenadas locales interpoladas: `QuadConstants.SetPixelGradients` las pasa como afín de `SV_Position` (`Exact` en el HLSL), porque WARP recorta en el viewport el cuadrilátero con margen de borde y sus vértices nuevos se desviaban hasta ~1/150 de texel. Además cada muestreo de un plano o intermedio se corre 1/1024 de texel: WARP redondea hacia abajo la fracción del bilineal y una coordenada un pelo antes del centro tomaba 1/256 del vecino. Con las dos cosas, el mismo cuadro da el mismo error que en la GPU (≤0,6/255 frente a la referencia, antes 2,5 tras un intermedio) y las pruebas de efectos no tienen tolerancia propia para WARP.
 
 ## Efectos
 
@@ -40,9 +41,10 @@ flowchart LR
 
 - **Color**, en este orden: exposición `c·2^e`; contraste `(c − 0,5)·(1 + k) + 0,5`; saturación `L + (c − L)·(1 + s)` con L de BT.709; temperatura y tinte como ganancias `R·(1 + 0,2t)`, `G·(1 − 0,2m)`, `B·(1 − 0,2t)`; altas y sombras suman `0,25·(h·smoothstep(0,5; 1; L) + s·(1 − smoothstep(0; 0,5; L)))`; recorte a 0–1.
 - **LUT 3D**: `Texture3D` RGBA16F con filtro trilineal del hardware y `lerp(c, LUT(c), intensidad)`. Una LUT de menos de 17³ se subdivide al subirla (sin cambiar el resultado), porque el filtro pondera con unos 8 bits de fracción. Se pide con `IEffectResources.TryGetLut`, que nunca espera: si no está, la capa sale sin LUT y se cuenta.
-- **Viñeta**: `d = |2·(uv − 0,5)|/√2` en el espacio de la capa; `t = saturate((d − tamaño)/suavidad)`; ganancia `1 − cantidad·smoothstep(t)`.
+- **Viñeta**: con redondez r y centro c, `sx = 1 + (ancho/alto − 1)·r`, `p = 2·(uv − c)·(sx, 1)`, `d = |p| / |(sx, 1)|` (con r = 0 y c = 0,5 es `|2·(uv − 0,5)|/√2`); `t = saturate((d − tamaño)/suavidad)`; ganancia `1 − cantidad·smoothstep(t)`.
+- **Protección de piel** (en Color): peso de piel `w = (1 − smoothstep(12°, 28°, |ángulo(CbCr) − 123°|))·smoothstep(0,015; 0,05; |CbCr|)·(1 − smoothstep(0,3; 0,45; |CbCr|))`; el resultado es `lerp(color, color sin saturación ni temperatura ni tinte, protección·w)`.
 - **Desenfoque**: gaussiano con sigma = radio/3. Mientras sigma pase de 2 px se reduce a la mitad (promedio de 2×2, pirámide ½, ¼…), y en ese nivel van dos pasadas separables de ⌈3σ⌉ muestras por lado.
-- **Nitidez**: máscara de enfoque `saturate(c + cantidad·(c − gauss(c, σ = radio)))`.
+- **Nitidez**: máscara de enfoque `saturate(c + cantidad·k·(c − gauss(c, σ = radio)))`, con `k = smoothstep(umbral, 2·umbral, |luma del detalle|)` (1 sin umbral).
 - **Mezcla**: con fuente premultiplicada y fondo opaco, `Cb·(1 − a) + a·B(Cb, Cs)` con las funciones B de W3C (*Compositing and Blending Level 1*). La suma es `Cb + a·Cs` y en RGBA16F no se recorta hasta la salida.
 - **Transiciones** (`p` de 0 a 1, exactas en los extremos): fundido `A·(1 − p) + B·p`; a color en dos mitades a través del color; barrido con borde lineal de ancho `suavidad` en la dirección del ángulo (0 = de izquierda a derecha); empujar, con el saliente corrido `p` cuadros; zoom y desenfoque con un peso `4p(1 − p)` que vale 0 en los extremos. Un `rodaje.preset` que llega sin resolver (falta el paquete) cae a fundido cruzado y cuenta como contenido que falta.
 
@@ -57,6 +59,39 @@ flowchart LR
 - **Pruebas** (`ImageColorTests`, contra `EffectReference` y `ToneCurve` en la CPU, ≤2/255): ruedas (6 casos), curvas, pantalla verde con derrame, pantalla azul con limpieza, croma con máscara y sin croma en vista previa, antes/después y exportación sin cortina, recorte (3 casos). En la GPU de verdad localmente y en el adaptador básico (WARP) en la CI.
 - **Cifras** (RTX 3050 Laptop, Release, mediana de 300 cuadros): una capa 1080p con recorte, croma, color, LUT, ruedas y curvas, **0,16 ms**; con antes/después, **0,30 ms** (15 MB de pool). La capa 4K con color y LUT sigue en 0,33 ms.
 
+**Máscaras** ([`LayerRenderer.Masks`](../../src/Rodaje.Render/LayerRenderer.Masks.cs), referencia [`MaskGeometry`](../../src/Rodaje.Core/Effects/MaskGeometry.cs) y [`MaskPath`](../../src/Rodaje.Core/Effects/MaskPath.cs)):
+
+- **Una textura por destino.** Las máscaras de la capa y las de cada efecto limitado se dibujan aparte con `PsMask` en una textura RGBA16F que cubre la imagen de la capa (del tamaño en pantalla, hasta 2048 px). Arranca en 0 si la primera suma o hace la diferencia y en 1 si resta o interseca, y cada máscara se combina por estado de mezcla, sin leer la textura: unión `m·(1 − a) + a`, resta `a·(1 − m)`, intersección `a·m` y o exclusiva `m·(1 − a) + a·(1 − m)` (operadores de Porter y Duff sobre la cobertura `m`, ya invertida y por su opacidad).
+- **Formas.** Rectángulo con esquinas redondeadas (distancia de caja redondeada), elipse (aproximación de Quílez) y contornos de vértices: la Bézier y la pluma se aplanan en la CPU a una polilínea de hasta 1024 puntos con error acotado (`|B''|/8n²` ≤ 0,2 px más un 2 % del borde suave) y suben a `t8` como x, y y peso. La distancia al contorno se mide a la polilínea (con signo por paridad si es cerrada) y el peso se interpola en el tramo más cercano: en la Bézier multiplica el borde suave (borde variable) y en la pluma el medio grosor. La cobertura es `saturate(0,5 − (d − expansión)/borde)` con un píxel de borde mínimo.
+- **Rápido con muchos vértices.** Fuera de la caja de la polilínea (más el borde) no se recorre nada. Con más de 24 puntos va primero una pasada gruesa de 1/8 de lado que guarda la distancia; la pasada fina decide sin recorrer la polilínea toda celda a más de media diagonal y medio borde del contorno (la distancia cambia a lo sumo lo que se mueve el punto, así el resultado es el mismo). Con todos los bordes de un grupo de 8 px o más, la textura se achica hasta ¼ por lado y el filtro bilineal rehace la rampa (±4/255 contra la referencia).
+- **Máscara por efecto.** Un efecto limitado no se fusiona en la pasada base: se aplica sobre el intermedio de la capa en el orden de la pila (color, viñeta, croma, ruedas y curvas con `PsGraded` leyendo el intermedio como capa compuesta; desenfoque, nitidez y pixelar como siempre) y `PsMaskMix` mezcla lo de antes y lo de después con su textura. La capa sigue recortada solo por sus propias máscaras.
+- **Pixelar** (`rodaje.pixelate`, `PsPixelate`): cada bloque es el promedio de 16 muestras bilineales repartidas en él, del tamaño en píxeles de la secuencia escalado como los radios.
+- **Vista de la máscara** (`Compositor.MaskView`, solo vista previa; la exportación la ignora): el grupo de la máscara elegida en gris (`blendInfo.w = 1` en `PsGraded`, o `PsMaskMix` con `mix0.x = 1` en una por efecto) o superpuesto, con lo que tapa teñido de rojo al 55 %.
+- **Pruebas** ([`MaskTests`](../../tests/Rodaje.Render.Tests/MaskTests.cs), contra la CPU, ±4/255): 13 formas (rectángulo, elipse, trazo de antes, Bézier con borde variable, pluma con grosor variable; giro, borde, opacidad e invertir), esquinas redondeadas y expansión, los cuatro modos encadenados, las máscaras del formato 6 que se multiplican, la forma animada a su instante, color y desenfoque limitados a una elipse (y una máscara sin efecto que no hace nada), pixelar limitado, la vista en gris y superpuesta, vista previa igual a exportación y la máscara de imagen.
+- **Cifras** (RTX 3050 Laptop, Release, mediana de 300 cuadros): una capa con 4 máscaras difuminadas (2 Bézier de 24 vértices con borde variable, elipse y rectángulo redondeado), **1,02 ms a 1080p y 1,10 ms a 4K** (antes de la pasada gruesa y la textura reducida, 9,9 y 15,3 ms); una zona desenfocada en 4K, **0,97 ms**.
+
+**Efectos del intermedio nuevos** (`LayerRenderer.Fx`, una variante de `PsFx` con la operación en `fx0.x`; referencias en [`FxReference`](../../tests/Rodaje.Render.Tests/Support/FxReference.cs)). Cada uno va en el orden de la pila y puede limitarse a las máscaras que «limitan efectos» (`RegionMix`: `lerp(antes, después, máscara)` o `1 − máscara`):
+
+| Efecto | Cómo |
+|---|---|
+| Grano | Ruido de valor (hash de enteros por celda del tamaño del grano en píxeles de la secuencia, interpolado con smoothstep), semilla de los segundos del origen (`EffectDefinition.UsesTime`); `c + cantidad·0,7·peso·ruido`, peso `lerp(1, 4y(1 − y), respuesta)`, gris o de color |
+| Resplandor | `k = saturate((max(rgb) − umbral)/(1 − umbral))`, luz lineal `rgb^2,2·k²`, gaussiano de radio/3 y `gamma(lineal(c) + intensidad·halo)` |
+| Aberración | Radial: rojo en `0,5 + d·(1 + k)` y azul en `0,5 + d·(1 − k)` con `k` = separación / media diagonal; lateral: ± el desplazamiento en el ángulo |
+| Desenfoque de lente | Luz lineal, mitades hasta un radio de 8 px y un disco con la espiral de Vogel (`clamp(⌈3,2r²⌉, 16, 160)` muestras), vuelta a gamma |
+| Direccional y radial | Dos pasadas de caja de 25 muestras (gruesa y fina, 625 efectivas): a lo largo del ángulo (con mitades hasta 48 px) o escalando la distancia al centro |
+| Espejo | Otra lectura de uv: refleja respecto del eje (izquierda, derecha, arriba, abajo, cuatro) o `frac(uv·n)` en mosaico |
+| Distorsión | `uv' = 0,5 + d·(1 + 0,5·cantidad·r²)/zoom` con r² = 1 en la esquina; fuera de la imagen, transparente |
+| Reducción de ruido | Bilateral 5 × 5 (σ espacial `0,8 + 1,2·fuerza`, σ de luma `0,12 − 0,095·detalle`) y, si el cuadro anterior de la misma capa es el inmediatamente anterior del origen, `lerp(ahora, antes, 0,85·temporal·(1 − smoothstep(a, b, |Δluma|)))`. La historia avanza solo con un cuadro nuevo: recomponer el mismo da los mismos bytes |
+
+**Calificador HSL y curvas de tono** (en `PsGraded` con `ADVANCED`, ramas uniformes en `qual3`). Orden: croma → color → ruedas → curvas (tono por canal y luego tono contra tono, tono contra saturación y luma contra saturación) → calificador → LUT → viñeta.
+
+- **Calificador:** máscara = término de tono (HSV, distancia circular al centro contra medio ancho y suavidad) × término de saturación (HSL) × término de luma (BT.709), con bordes smoothstep; la corrección gira CbCr, lo escala por `1 + saturación` y multiplica por `2^exposición`; `lerp(c, corregido, máscara)`. «Ver máscara» (solo vista previa, `Compositor.ShowQualifierMask`) saca la máscara en gris.
+- **Curvas de ajuste:** segunda fila de la tabla de `t10` (1024 × 2): giro de CbCr por `(y − 0,5)` vueltas según el tono y ganancia de saturación `4·y(tono)·y(luma)`. `HueCurve` repite los puntos a cada lado del corte del tono para que la curva no salte.
+
+**Transformación ampliada** (D-036). `LayerTransform.Shape` (nulo si todo está de fábrica) lleva ancla, escala por eje, inclinación y volteo; `LayerLayout` arma con ellos una afín cualquiera, `q' = C + t + a + R·K·S·(F(q) − c − a)`, así la capa sigue siendo un cuadrilátero por el camino rápido (sin coste: 0,055 ms una capa 1080p inclinada, estirada y volteada). Con la capa estirada o inclinada el suavizado del borde mide la distancia a cada lado con su propia escala (`|det|/|eje|`, en `shape.y` y `present.y`), así sigue siendo de un píxel.
+
+**Desenfoque de movimiento.** El motor pone en `LayerFrame.MotionSamples` la transformación en cada muestra del obturador (D-036). `Compositor.DrawMotion` dibuja la capa una vez por muestra en un intermedio RGBA16F transparente del tamaño del destino, con mezcla normal, peso 1/n en la opacidad y suma en los cuatro canales (`EffectPipeline.Accumulate`); el promedio se dibuja después con la mezcla de la capa (`LayerRenderer.DrawImage`). Una capa compuesta se compone una vez; color, máscaras y desenfoque se aplican en cada muestra; una capa en transición sale sin desenfoque. Contra la referencia en la CPU (cobertura por píxel con la regla del borde, promediada) en la RTX 3050 y en WARP (`GpuDevice.CreateWarp`): movimiento horizontal (8 muestras), giro con opacidad que cambia (16) y capa inclinada y estirada con ancla, ≤2/255; volteo igual a la imagen espejada ≤1/255; vista previa y exportación (`RenderStrict`) dan los mismos bytes (`TransformMotionTests`). Coste con 16 muestras (mediana de 300 cuadros): 1080p **0,69 ms** (p95 1,4; 15 MB de pool), 4K **2,8 ms** (p95 6,5; 63 MB).
+
 **Estabilizar.** No es una etapa propia: la corrección del cuadro llega en `LayerTransform.Stabilization` (similitud sobre el centro de la imagen ajustada, en altos de esa imagen) y `LayerLayout.Place` la compone antes de la transformación (`S·s`, `u + θ`, desplazamiento `S·R(u)·h·t`), así la capa sigue siendo un cuadrilátero por cualquiera de los caminos.
 
 **Unidades.** Los radios están en píxeles de la secuencia: el intermedio mide en píxeles de pantalla y los radios se multiplican por esa escala, así la vista previa a media resolución se ve como la exportación. Medida: 0,64/255 de diferencia media entre mitad y completa reducida.
@@ -67,9 +102,20 @@ flowchart LR
 
 ### Shaders y memoria
 
-- **[`ShaderCache`](../../src/Rodaje.Render/Shaders/ShaderCache.cs)**: bytecode en memoria y en `%LOCALAPPDATA%\Rodaje\cache\shaders\<sha256>.cso` (o `RODAJE_DATOS\cache\shaders`). La clave incluye fuente, variante, perfil y opciones del compilador. `EffectPipeline` crea las 72 variantes en segundo plano al abrir el compositor (`ShadersReady`); hasta entonces la capa sale por el camino rápido. Los shaders base (`VsQuad`, `PsLayer`, `PsPresent`) se compilan al arrancar ([D-015](../decisiones.md)).
+- **[`ShaderCache`](../../src/Rodaje.Render/Shaders/ShaderCache.cs)**: bytecode en memoria y en `%LOCALAPPDATA%\Rodaje\cache\shaders\<sha256>.cso` (o `RODAJE_DATOS\cache\shaders`). La clave incluye fuente, variante, perfil y opciones del compilador. `EffectPipeline` crea las 73 variantes en segundo plano al abrir el compositor (`ShadersReady`); hasta entonces la capa sale por el camino rápido. Los shaders base (`VsQuad`, `PsLayer`, `PsPresent`) se compilan al arrancar ([D-015](../decisiones.md)).
 - **[`RenderTargetPool`](../../src/Rodaje.Render/RenderTargetPool.cs)**: intermedios reutilizados, con tamaños redondeados a 64 px y un tope del 7,5 % de la VRAM entre 96 y 300 MB (300 MB con 4 GB), fuera del presupuesto de los decodificadores. Si una textura no cabe, el efecto se salta. Las libres se sueltan tras 240 cuadros sin uso o con `TrimCachedViews`.
 - **[`GpuEffectRegistry`](../../src/Rodaje.Render/Effects/GpuEffectRegistry.cs)**: tabla explícita código → implementación, sin reflexión; una prueba exige que coincida con `EffectRegistry`.
+
+## Monitores
+
+[`Scopes/ScopeRenderer`](../../src/Rodaje.Render/Scopes/ScopeRenderer.cs), tras componer, en el hilo de render y con el candado del contexto:
+
+1. **Cuentas** (`CsAccumulate`, 16 × 16 hilos): cada píxel de la salida del compositor (uno de cada 2 por eje por encima de 1920 de ancho) suma en un búfer crudo su nivel 0–255 de R, G, B y luma en su columna (512 columnas), su celda del vectorscopio (`128 + Cb·236`, `128 − Cr·236`) y su nivel del histograma, que primero se suma en memoria del grupo.
+2. **Máximo del histograma** sin los extremos (`CsMaximum`, un grupo de 256).
+3. **Dibujo** (`CsDraw`) en una imagen BGRA de 512 × 256: brillo `1 − exp(−cuentas·ganancia/esperado)`; el vectorscopio pinta cada celda con su propio color.
+4. **Lectura** por un anillo de tres `Staging` con `DO_NOT_WAIT` (`TryRead`); `MeasureNow` espera y devuelve las cuentas (pruebas).
+
+La retícula (niveles, objetivos de las barras al 75 % y 100 %, línea de piel a 123°) sale de [`ScopeGraticule`](../../src/Rodaje.Render/Scopes/ScopeGraticule.cs), con las mismas cuentas, y la dibuja la interfaz. **Pruebas** (`ScopeTests`): barras SMPTE al 75 % caen en su nivel de luma en cada columna y a menos de 1,5 celdas de su objetivo; histograma y forma de onda contra los píxeles leídos (≤0,5 % de cuentas distintas por redondeo); rampa de gris. **Cifras** (RTX 3050): 1,0–1,4 ms de GPU por medición en 1080p y en 4K, 0,2–0,4 ms de CPU al encolar; con el panel cerrado no cuesta nada.
 
 ## Exportación
 
@@ -138,6 +184,8 @@ Con `Map` síncrono, bajar un NV12 1080p cuesta 3,2–3,3 ms; con el anillo son 
 - **`EffectPipelineTests`**: la tabla de la GPU coincide con el registro; un cuadro no espera a un shader; el pool lleno salta efectos sin fallar.
 - **`ShaderCompileTests`**: todas las variantes compilan con las advertencias como errores; la caché en disco se lee en otra sesión.
 - **`EffectPerformanceTests`** y **`CompositorPerformanceTests`** miden con `GpuTimer`; los objetivos se exigen con `RODAJE_PRUEBAS_LARGAS=1`.
+- **`ImageEffectTests`** y **`SecondaryColorTests`**: cada pasada nueva y el calificador, las curvas de tono, la protección de piel y la viñeta con forma contra su referencia en la CPU, píxel a píxel (≤2/255; 42 casos, también en WARP); el calificador con máscaras conocidas («ver máscara»); la reducción de ruido temporal con dos cuadros seguidos, el mismo otra vez y un salto; la zona de las máscaras que limitan efectos.
+- **`PreviewExportTests`**: seis efectos nuevos dan los mismos bytes en `Render` y en `RenderStrict`; media resolución ≤3/255 de la completa reducida; una rampa P010 con contraste y curva sale sin saltos de más de 2 códigos de 10 bits (leída en 8 bits serían de 4).
 
 **Cifras** (RTX 3050 Laptop, mediana de 300 cuadros):
 
@@ -150,5 +198,9 @@ Con `Map` síncrono, bajar un NV12 1080p cuesta 3,2–3,3 ms; con el anillo son 
 | Ídem con desenfoque | ≤5 ms | 1,2–1,5 ms |
 | Media resolución | ≤40 % | 19–32 % |
 | Pool en 4K | ≤300 MB | 92 MB (3 capas), 151 MB (transición con desenfoque) |
+| 1 capa 1080p con 6 efectos nuevos (color, calificador, curvas de tono, lente, resplandor, grano) | ≤4 ms | 1,08 ms (p95 2,0) |
+| Ídem en 4K | ≤12 ms | 4,8 ms (p95 9,1), pool 165 MB |
+
+**Costo por efecto** (una capa 1080p, sobre la misma con color; lo que muestra la pila con `EffectCost`, escalado por píxeles): calificador 0,08 ms, curvas de tono 0,06, gaussiano 0,13, lente 0,28, direccional 0,96, radial 1,03, nitidez 0,41, grano 0,42, resplandor 0,28, aberración, espejo y distorsión 0,15, reducción de ruido 0,60.
 
 Los rangos son de dos corridas: la GPU de un portátil varía con el reloj.

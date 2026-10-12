@@ -57,8 +57,21 @@ internal static class OfflineProjects
         EffectInstance transform = TimelineEffectsTests.Effect(BuiltInEffects.Transform, (BuiltInEffects.TransformParameters.Scale, 0.5));
         transform.Parameters[BuiltInEffects.TransformParameters.X] = new Parameter
         {
-            Keyframes = [new Keyframe(S(40), -300), new Keyframe(S(41.5), 300)],
+            Keyframes =
+            [
+                new Keyframe(S(40), -300, Interpolation.Bezier) { Ease = new BezierEase(0.2, 1.3, 0.4, 1), SpatialOut = 100 },
+                new Keyframe(S(41.5), 300) { SpatialIn = -50 },
+            ],
         };
+        transform.Parameters[BuiltInEffects.TransformParameters.Y] = new Parameter
+        {
+            Keyframes = [new Keyframe(S(40), 0) { SpatialOut = -200 }, new Keyframe(S(41.5), 0) { SpatialIn = -200 }],
+        };
+        transform.Parameters[BuiltInEffects.TransformParameters.SkewX] = new Parameter { Value = 10 };
+        transform.Parameters[BuiltInEffects.TransformParameters.AnchorX] = new Parameter { Value = 40 };
+        transform.Parameters[BuiltInEffects.TransformParameters.ShutterAngle] = new Parameter { Value = 180 };
+        transform.Parameters[BuiltInEffects.TransformParameters.MotionSamples] = new Parameter { Value = 6 };
+        transform.Options[BuiltInEffects.TransformOptions.FlipX] = "on";
         moving.Effects.Add(transform);
         EffectInstance blend = TimelineEffectsTests.Effect(BuiltInEffects.Blend);
         blend.Options[BuiltInEffects.BlendOptions.Mode] = "screen";
@@ -125,6 +138,11 @@ internal static class OfflineProjects
         foreach (LayerEffect effect in layer.Effects)
         {
             text.Append(CultureInfo.InvariantCulture, $" fx{effect.Code}[{Values(effect.Values)}]{effect.Resource?.Reference}");
+        }
+
+        if (layer.MotionSamples is { } samples)
+        {
+            text.Append(" obturador[").AppendJoin(';', samples).Append(']');
         }
     }
 

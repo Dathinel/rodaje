@@ -101,6 +101,7 @@ public sealed class ClipAttributes
                 parameter.Keyframes = parameter.Keyframes.ConvertAll(k => k with { Time = map.ToOffset(k.Time) });
             }
 
+            MaskEdits.MapShapeKeys(copy, map.ToOffset);
             effects.Add(copy);
         }
 
@@ -185,6 +186,7 @@ public static class ClipAttributeEdits
     {
         var map = new KeyframeMap(clip);
         var pasted = new List<EffectInstance>();
+        var ids = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (EffectInstance source in side.Effects)
         {
             if ((KindOf(source) & kinds) == 0)
@@ -194,12 +196,23 @@ public static class ClipAttributeEdits
 
             EffectInstance copy = source.Clone();
             copy.Id = ctx.Ids.NewId("effect");
+            ids[source.Id] = copy.Id;
             foreach (Parameter parameter in copy.Parameters.Values)
             {
                 parameter.Keyframes = map.FromOffsets(TrimToLength(parameter, clip.Duration));
             }
 
+            MaskEdits.MapShapeKeys(copy, map.FromOffset);
             pasted.Add(copy);
+        }
+
+        // Una máscara que limita un efecto sigue a la copia de ese efecto.
+        foreach (EffectInstance copy in pasted)
+        {
+            if (copy.Type == BuiltInEffects.Mask && copy.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Target) is { Length: > 0 } target)
+            {
+                copy.Options[BuiltInEffects.MaskOptions.Target] = ids.GetValueOrDefault(target, target);
+            }
         }
 
         var result = new List<EffectInstance>(clip.Effects.Count + pasted.Count);

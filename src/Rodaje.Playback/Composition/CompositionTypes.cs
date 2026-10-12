@@ -14,6 +14,30 @@ public readonly record struct LayerTransform(double X, double Y, double Scale, d
 
     /// <summary>Recorte de «Recortar» (<c>Rodaje.Core.Effects.CropGeometry</c>): lo que queda se ajusta al cuadro como la imagen entera.</summary>
     public Rodaje.Core.Effects.CropRect? Crop { get; init; }
+
+    /// <summary>Anclaje, escala por eje, inclinación y volteo; nulo si todos están en su valor de fábrica.</summary>
+    public LayerShape? Shape { get; init; }
+}
+
+/// <summary>
+/// La parte de la transformación que no es mover, escalar, girar ni opacidad. Con la imagen ajustada al cuadro en
+/// píxeles locales q, su centro c y el ancla a: <c>q' = C + (X, Y) + a + R(giro)·K(inclinación)·S(escala·escala por
+/// eje)·(F(q) − c − a)</c>, donde F voltea alrededor del centro de la imagen. Mover el ancla no mueve la imagen.
+/// </summary>
+/// <param name="AnchorX">Ancla desde el centro de la imagen, en píxeles de la secuencia a escala 1 (positivo a la derecha).</param>
+/// <param name="AnchorY">Ídem en vertical (positivo hacia abajo).</param>
+/// <param name="ScaleX">Escala horizontal que multiplica a la escala uniforme.</param>
+/// <param name="ScaleY">Escala vertical que multiplica a la escala uniforme.</param>
+/// <param name="SkewX">Inclinación de los lados verticales, en grados (positivo: la parte de abajo se corre a la derecha).</param>
+/// <param name="SkewY">Inclinación de los lados horizontales, en grados (positivo: el lado derecho baja).</param>
+/// <param name="FlipX">Voltear en horizontal alrededor del centro de la imagen.</param>
+/// <param name="FlipY">Voltear en vertical alrededor del centro de la imagen.</param>
+public readonly record struct LayerShape(double AnchorX, double AnchorY, double ScaleX, double ScaleY, double SkewX, double SkewY, bool FlipX,
+    bool FlipY)
+{
+    public static readonly LayerShape None = new(0, 0, 1, 1, 0, 0, false, false);
+
+    public bool IsNone => this == None;
 }
 
 /// <summary>
@@ -145,8 +169,15 @@ public sealed class LayerFrame : IDisposable
     /// <summary>Si la capa está en una transición: esta capa es el clip que sale y la transición trae el que entra.</summary>
     public LayerTransition? Transition { get; init; }
 
-    /// <summary>Sin efectos, mezcla normal ni transición: el camino rápido de siempre.</summary>
-    public bool IsPlain => Effects.Count == 0 && Blend == BlendMode.Normal && Transition is null && Nested is null;
+    /// <summary>
+    /// Desenfoque de movimiento: la transformación en cada instante de la apertura del obturador, en orden. La capa se
+    /// dibuja una vez por muestra y se promedia; <see cref="Transform"/> sigue siendo la del instante del cuadro. Nulo sin
+    /// desenfoque.
+    /// </summary>
+    public IReadOnlyList<LayerTransform>? MotionSamples { get; init; }
+
+    /// <summary>Sin efectos, mezcla normal, transición ni desenfoque de movimiento: el camino rápido de siempre.</summary>
+    public bool IsPlain => Effects.Count == 0 && Blend == BlendMode.Normal && Transition is null && Nested is null && MotionSamples is null;
 
     public void Dispose()
     {

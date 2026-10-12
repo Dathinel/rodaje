@@ -30,7 +30,7 @@ internal sealed partial class PlayerView
     private CropGrip _cropGrip;
     private Vector2 _cropFrom;
     private Time _cropAt;
-    private (string ClipId, string EffectId)? _keyPick;
+    private (string ClipId, string EffectId, ColorPick Purpose)? _keyPick;
     private double _compareSplit = 0.5;
     private bool _compareDragging;
     private PreviewBypass _bypassSent;
@@ -54,7 +54,8 @@ internal sealed partial class PlayerView
         Session.SelectionChanged += (_, _) => UpdateCropHandles();
         Session.ProjectEdited += (_, _) => UpdateCropHandles();
         Session.TransportChanged += (_, _) => UpdateCropHandles();
-        Session.KeyPickRequested += (_, target) => BeginKeyPick(target);
+        Session.KeyPickRequested += (_, target) => BeginKeyPick((target.ClipId, target.EffectId, ColorPick.Key));
+        Session.ColorPickRequested += (_, target) => BeginKeyPick(target);
         VideoPanel.SizeChanged += (_, _) =>
         {
             UpdateCropHandles();
@@ -224,17 +225,22 @@ internal sealed partial class PlayerView
         EffectEdits.SetParameter(ctx, clipId, effectId, P.Bottom, crop.Bottom, at);
     }
 
-    private void BeginKeyPick((string ClipId, string EffectId) target)
+    private void BeginKeyPick((string ClipId, string EffectId, ColorPick Purpose) target)
     {
         if (Session?.Sequence.FindClip(target.ClipId) is not { } found || !(_properties?.IsPlayheadInside(found.Clip) ?? false))
         {
-            Session?.Notify(NotificationSeverity.Informational, "Cuentagotas", "Lleva el cursor sobre el clip para tomar el color del fondo en el visor.");
+            Session?.Notify(NotificationSeverity.Informational, "Cuentagotas", "Lleva el cursor sobre el clip para tomar el color en el visor.");
             return;
         }
 
         _keyPick = target;
         ProtectedCursor = InputSystemCursor.Create(InputSystemCursorShape.Cross);
-        StatusText.Text = "Haz clic en el fondo que quieres quitar. Esc cancela.";
+        StatusText.Text = target.Purpose switch
+        {
+            ColorPick.WhiteBalance => "Haz clic en algo que debería ser blanco o gris. Esc cancela.",
+            ColorPick.Qualifier => "Haz clic en el color que quieres cambiar. Esc cancela.",
+            _ => "Haz clic en el fondo que quieres quitar. Esc cancela.",
+        };
         Focus(FocusState.Programmatic);
     }
 
@@ -245,18 +251,27 @@ internal sealed partial class PlayerView
         StatusText.Text = "";
     }
 
-    /// <summary>Compone el cuadro sin croma ni color, promedia 5×5 píxeles bajo el clic y lo vuelve el color clave (un paso).</summary>
-    private async Task PickKeyAsync((string ClipId, string EffectId) target, Vector2 sequence)
+    /// <summary>
+    /// Compone el cuadro sin lo que el cuentagotas no debe ver, promedia 5×5 píxeles bajo el clic y lo aplica en un paso:
+    /// el color clave (sin croma ni color), el balance de blancos (sin color) o el tono del calificador (sin él).
+    /// </summary>
+    private async Task PickKeyAsync((string ClipId, string EffectId, ColorPick Purpose) target, Vector2 sequence)
     {
         if (_engine is null || Session is null)
         {
             return;
         }
 
+        PreviewBypass bypass = target.Purpose switch
+        {
+            ColorPick.WhiteBalance => PreviewBypass.Grading,
+            ColorPick.Qualifier => PreviewBypass.Qualifier,
+            _ => PreviewBypass.Key | PreviewBypass.Grading,
+        };
         FrameCapture capture;
         try
         {
-            capture = await _engine.CaptureFrameAsync(PreviewBypass.Key | PreviewBypass.Grading).WaitAsync(TimeSpan.FromSeconds(5));
+            capture = await _engine.CaptureFrameAsync(bypass).WaitAsync(TimeSpan.FromSeconds(5));
         }
         catch (Exception ex) when (ex is TimeoutException or TaskCanceledException)
         {
@@ -266,6 +281,12 @@ internal sealed partial class PlayerView
         if (KeyColor.Average(capture.Rgba, capture.Width, capture.Height, sequence.X / Session.Sequence.Width,
             sequence.Y / Session.Sequence.Height) is not { } color)
         {
+            return;
+        }
+
+        if (target.Purpose != ColorPick.Key)
+        {
+            ApplyColorPick(target, color);
             return;
         }
 

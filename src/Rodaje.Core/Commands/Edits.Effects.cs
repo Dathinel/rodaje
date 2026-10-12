@@ -109,6 +109,57 @@ public static partial class Edits
             ctx => EffectEdits.SetKeyframeInterpolation(ctx, clipId, effectId, name, at, interpolation),
             ids);
 
+    /// <summary>La curva Bézier del keyframe de <paramref name="at"/>; se funde con los cambios siguientes del mismo keyframe (un arrastre, un paso).</summary>
+    public static SequenceEditCommand SetKeyframeEase(
+        string sequenceId,
+        string clipId,
+        string effectId,
+        string name,
+        Time at,
+        BezierEase? ease,
+        IIdGenerator? ids = null) =>
+        new(
+            "Cambiar curva",
+            sequenceId,
+            ctx => EffectEdits.SetKeyframeEase(ctx, clipId, effectId, name, at, ease),
+            ids,
+            ParameterKey("ease", clipId, effectId, name, at));
+
+    /// <summary>
+    /// Las tangentes de trayectoria de la posición en el keyframe de <paramref name="at"/>, en X y en Y a la vez; se funde
+    /// con los cambios siguientes del mismo keyframe.
+    /// </summary>
+    public static SequenceEditCommand SetPathTangents(
+        string sequenceId,
+        string clipId,
+        string effectId,
+        Time at,
+        (double X, double Y)? spatialIn,
+        (double X, double Y)? spatialOut,
+        IIdGenerator? ids = null) =>
+        new(
+            "Cambiar trayectoria",
+            sequenceId,
+            ctx =>
+            {
+                EffectEdits.SetSpatialTangents(ctx, clipId, effectId, BuiltInEffects.TransformParameters.X, at, spatialIn?.X, spatialOut?.X);
+                EffectEdits.SetSpatialTangents(ctx, clipId, effectId, BuiltInEffects.TransformParameters.Y, at, spatialIn?.Y, spatialOut?.Y);
+            },
+            ids,
+            ParameterKey("trayectoria", clipId, effectId, BuiltInEffects.TransformParameters.X, at));
+
+    /// <summary>Mueve un keyframe en el tiempo; se funde con los movimientos siguientes del mismo arrastre.</summary>
+    public static SequenceEditCommand MoveKeyframe(
+        string sequenceId,
+        string clipId,
+        string effectId,
+        string name,
+        Time from,
+        Time to,
+        string mergeKey,
+        IIdGenerator? ids = null) =>
+        new("Mover keyframe", sequenceId, ctx => EffectEdits.MoveKeyframe(ctx, clipId, effectId, name, from, to), ids, mergeKey);
+
     /// <summary>Sube o baja el volumen de cada clip o pista (valor y keyframes) en los dB de <paramref name="deltaDbByOwner"/>, en un solo paso.</summary>
     public static SequenceEditCommand ShiftGain(
         string sequenceId,
