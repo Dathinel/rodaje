@@ -39,30 +39,19 @@ public static class AutoColor
     }
 
     /// <summary>
-    /// Color automático: el balance de blancos más niveles. La exposición lleva el percentil 99,5 de la luma a 0,95
-    /// (entre −1 y +1,5 pasos) y el contraste estira lo que quede sin recortar más allá de 0,03 y 0,97.
+    /// Color automático: el balance de blancos más niveles. Exposición y contraste llevan los percentiles 0,5 y 99,5 de la
+    /// luma a 0,03 y 0,95; el contraste no pasa de 0,8 y nunca baja (con el rango ya lleno solo se lleva el 99,5 a 0,95).
     /// </summary>
     public static ColorSettings Auto(ColorEstimate estimate)
     {
         ColorSettings balance = WhiteBalance(estimate);
-        double high = Math.Max(estimate.High, 0.02);
-        double levels = Math.Clamp(Math.Log2(0.95 / high), -1, 1.5);
-        double exposure = Math.Clamp(balance.Exposure + levels, -4, 4);
-        double factor = Math.Pow(2, levels);
-        double low = estimate.Low * factor;
-        high *= factor;
-        double stretch = double.PositiveInfinity;
-        if (high > 0.5)
-        {
-            stretch = Math.Min(stretch, 0.47 / (high - 0.5));
-        }
-
-        if (low < 0.5)
-        {
-            stretch = Math.Min(stretch, 0.47 / (0.5 - low));
-        }
-
-        double contrast = double.IsFinite(stretch) ? Math.Clamp(stretch - 1, 0, 0.6) : 0;
+        double high = Math.Clamp(estimate.High, 0.02, 1);
+        double low = Math.Clamp(estimate.Low, 0, high - 0.01);
+        // (hi·E − 0,5)(1 + k) = 0,45 y (lo·E − 0,5)(1 + k) = −0,47.
+        double full = 0.9787 / (high + (0.957 * low));
+        double contrast = Math.Clamp((0.92 / (full * (high - low))) - 1, 0, 0.8);
+        double gain = contrast > 0 ? (0.5 - (0.01 / (1 + contrast))) / ((low + high) / 2) : 0.95 / high;
+        double exposure = Math.Clamp(balance.Exposure + Math.Clamp(Math.Log2(gain), -1, 2), -4, 4);
         return balance with { Exposure = exposure, Contrast = contrast };
     }
 }
