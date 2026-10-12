@@ -10,6 +10,7 @@ internal static partial class AnalysisCommands
     public const string RemoveSilences = "analysis.silences";
     public const string DetectBeats = "analysis.beats";
     public const string Ducking = "analysis.ducking";
+    public const string ReduceNoise = "analysis.noise";
 
     public static IReadOnlyList<(string Id, string Label, string Glyph)> Menu { get; } =
     [
@@ -27,7 +28,14 @@ internal static partial class AnalysisCommands
             router.Bind(RemoveSilences, () => Run(services.Session, () => SilenceDialog.ShowAsync(services))),
             router.Bind(DetectBeats, () => Run(services.Session, () => RhythmDialog.ShowAsync(services))),
             router.Bind(Ducking, () => Run(services.Session, () => DuckingDialog.ShowAsync(services))),
+            router.Bind(ReduceNoise, () => Run(services.Session, () => NoiseReductionDialog.ShowAsync(services))),
         ];
+        if (services.Modules is { } modules)
+        {
+            // Con modulo-audio-ia instalado, el ducking busca la voz con Silero; si no, con la energía, como antes.
+            DuckingDialog.Detector = new Services.Modules.ModuleVoiceDetector(modules, new Rodaje.Analysis.Ducking.EnergyVoiceDetector());
+        }
+
         return new Bindings(bindings);
     }
 
