@@ -232,7 +232,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             Sequence = session.Sequence,
             MainTrack = session.MainTrack,
             Selection = _selection,
-            Position = session.Position,
+            Position = session.ProgramPosition,
             ShowEnvelopes = State.Tool == TimelineTool.Envelope,
             AutoCrossfade = State.AutoCrossfade,
             SelectedTransitionId = session.SelectedTransitionId,
@@ -246,7 +246,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         TrackLayout layout = TrackLayout.Build(session.Sequence, session.MainTrack);
         _renderer!.Layout = layout;
         _headers!.Update(layout, State.MagneticMainTrack, HeadersCanvas.ActualWidth > 0 ? HeadersCanvas.ActualWidth : 172);
-        _headers.RefreshGains(track => EnvelopeEdits.TrackGainDb(track, session.Position), layout);
+        _headers.RefreshGains(track => EnvelopeEdits.TrackGainDb(track, session.ProgramPosition), layout);
         int clips = session.Sequence.AllTracks.Sum(t => t.Clips.Count);
         SummaryText.Text = string.Create(CultureInfo.InvariantCulture, $"{clips} clip{(clips == 1 ? "" : "s")} · {Timecode.Format(session.Sequence.Duration)}");
         Invalidate(content: true);
@@ -292,7 +292,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             return;
         }
 
-        Time position = Session.Position;
+        Time position = Session.ProgramPosition;
         if (Session.IsPlaying && _mode == PointerMode.None)
         {
             double x = Viewport.TimeToX(position);
@@ -482,6 +482,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         router.Bind(ActionIds.ZoomToFit, ZoomToFit);
         router.Bind(ActionIds.ZoomToSelection, ZoomToSelection, () => Session is not null && SelectionSpan() is not null);
         RegisterCompoundActions(services);
+        RegisterThreePointActions(services);
     }
 
     private void AddMarker()

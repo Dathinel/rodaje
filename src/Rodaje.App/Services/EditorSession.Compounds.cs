@@ -96,6 +96,11 @@ public sealed partial class EditorSession
 
     private void ShowSequence(string sequenceId)
     {
+        if (IsSourceActive || SequenceIn is not null || SequenceOut is not null)
+        {
+            ResetSource(forget: false);
+        }
+
         SequenceId = sequenceId;
         _selection = [];
         _selectedTransition = null;

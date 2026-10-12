@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Shell;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Timeline;
@@ -103,6 +104,4 @@ internal sealed partial class TimelineView
             ? Visibility.Visible
             : Visibility.Collapsed;
     }
-
-    private void RefreshSourcePanel() => SourcePanel.Visibility = Visibility.Collapsed;
 }

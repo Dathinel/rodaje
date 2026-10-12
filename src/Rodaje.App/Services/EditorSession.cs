@@ -356,13 +356,13 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>Mueve el cursor de reproducción, dentro de la secuencia.</summary>
     public void Seek(Time position)
     {
-        Time end = Sequence.Duration;
+        Time end = PlaybackDuration;
         _playback.Seek(position < Time.Zero ? Time.Zero : position > end ? end : position);
     }
 
     public void SeekToStart() => Seek(Time.Zero);
 
-    public void SeekToEnd() => Seek(Sequence.Duration);
+    public void SeekToEnd() => Seek(PlaybackDuration);
 
     /// <summary>Copia el estado que publicó el reproductor; la ventana lo llama con su temporizador.</summary>
     public void UpdateTransport(PlaybackSnapshot snapshot)
@@ -414,7 +414,7 @@ public sealed partial class EditorSession : ObservableObject
     public NewProjectTracks NewProjectTracks { get; set; } = NewProjectTracks.Default;
 
     /// <summary>La copia del proyecto que recibe el reproductor.</summary>
-    private Project PlaybackProject() => Project.Clone();
+    private Project PlaybackProject() => IsSourceActive && SourceMedia is { } media ? SourceProject(media) : Project.Clone();
 
     private Project CreateEmptyProject() => NewProjectTracks.CreateProject(UntitledName, _ids);
 
@@ -425,6 +425,7 @@ public sealed partial class EditorSession : ObservableObject
         Project = project;
         SequenceId = sequenceId;
         _sequencePath.Clear();
+        ResetSource(forget: true);
         History = new UndoStack(project);
         History.Changed += OnHistoryChanged;
         _originDescription = originDescription;
@@ -444,9 +445,15 @@ public sealed partial class EditorSession : ObservableObject
     private void AfterEdit(EditKind kind, ICommand? command)
     {
         _editVersion++;
-        if (LeaveRemovedSequences())
+        bool lostSource = IsSourceActive && SourceMedia is null;
+        if (lostSource)
         {
-            _playback.Load(PlaybackProject(), SequenceId);
+            ResetSource(forget: true);
+        }
+
+        if (LeaveRemovedSequences() | lostSource)
+        {
+            _playback.Load(PlaybackProject(), PlaybackSequenceId);
         }
         else
         {

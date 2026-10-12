@@ -76,6 +76,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         _revealItem = MenuItem("Mostrar en el Explorador", "\uEC50", (_, _) => RevealTarget());
         _removeItem = MenuItem("Quitar del proyecto", "\uE74D", (_, _) => RemoveTarget());
         _mediaMenu.Items.Add(_addItem);
+        _mediaMenu.Items.Add(MenuItem("Abrir en el visor de origen", "", (_, _) => OpenTargetInSource()));
         _mediaMenu.Items.Add(_replaceItem);
         _mediaMenu.Items.Add(_proxyItem);
         _favoriteItem = MenuItem("Añadir a favoritos", "\uE734", (_, _) => ToggleFavoriteTarget());
@@ -559,6 +560,15 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
 
         args.Handled = true;
+    }
+
+    /// <summary>El visor de origen: marcar entrada y salida (I/O) y editar con tres o cuatro puntos (, y .).</summary>
+    private void OpenTargetInSource()
+    {
+        if (_menuTarget is { } item)
+        {
+            _services?.Session.OpenSource(item.Id);
+        }
     }
 
     private void AppendTarget()
