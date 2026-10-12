@@ -7,6 +7,7 @@
   "description": "Transcribe la voz con tiempos por palabra (Whisper large-v3-turbo) en la GPU por Vulkan o en la CPU.",
   "author": "Dathinel",
   "license": "GPL-3.0-only",
+  "apps": ["rodaje"],
   "module": {
     "entry": "bin/Rodaje.Module.Subtitles.exe",
     "protocol": 1,
