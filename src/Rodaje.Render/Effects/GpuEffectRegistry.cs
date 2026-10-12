@@ -10,6 +10,9 @@ public enum GpuEffectKind
 {
     /// <summary>Llega en <c>LayerFrame.Transform</c>.</summary>
     Transform,
+
+    /// <summary>Llega en <c>LayerTransform.Stabilization</c>: se compone antes de la transformación al colocar la capa.</summary>
+    Stabilize,
     Color,
     Vignette,
     Blur,
@@ -45,6 +48,7 @@ public static class GpuEffectRegistry
         new(4, BuiltInEffects.Blur, EffectStage.Spatial, GpuEffectKind.Blur),
         new(5, BuiltInEffects.Sharpen, EffectStage.Spatial, GpuEffectKind.Sharpen),
         new(6, BuiltInEffects.Blend, EffectStage.Blend, GpuEffectKind.Blend),
+        new(9, BuiltInEffects.Stabilize, EffectStage.Transform, GpuEffectKind.Stabilize),
         new(101, BuiltInTransitions.Crossfade, EffectStage.Transition, GpuEffectKind.Crossfade),
         new(102, BuiltInTransitions.Dip, EffectStage.Transition, GpuEffectKind.Dip),
         new(103, BuiltInTransitions.Wipe, EffectStage.Transition, GpuEffectKind.Wipe),

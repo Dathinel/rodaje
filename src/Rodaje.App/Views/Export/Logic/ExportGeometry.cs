@@ -1,5 +1,3 @@
-using Rodaje.Core.Commands;
-using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Export;
 
@@ -61,59 +59,26 @@ public static class ExportGeometry
         return w <= 32 && h <= 32 ? $"{w}:{h}" : ExportText.Number((double)width / height, 2) + ":1";
     }
 
-    /// <summary>Medidas de la secuencia en 9:16 con el mismo lado corto: 1920×1080 pasa a 1080×1920.</summary>
-    public static (int Width, int Height) Vertical(int sequenceWidth, int sequenceHeight)
+    /// <summary>
+    /// El formato lo decide el proyecto: si un preajuste (o lo recordado) trae medidas de otra forma, se exporta con la
+    /// forma de la secuencia y el lado corto del preajuste (YouTube 4K sobre un proyecto 9:16 sale 2160×3840). Lo que solo
+    /// fija un lado (el GIF de 480 de ancho) ya sigue a la secuencia.
+    /// </summary>
+    public static ExportSettings FollowSequence(ExportSettings settings, int sequenceWidth, int sequenceHeight)
     {
-        int shortSide = Math.Min(sequenceWidth, sequenceHeight) & ~1;
-        return (shortSide, (int)Math.Round(shortSide * 16 / 9.0) & ~1);
+        ArgumentNullException.ThrowIfNull(settings);
+        if (settings.Video is not { Width: { } width, Height: { } height } video || !ShapeDiffers(width, height, sequenceWidth, sequenceHeight)
+            || sequenceWidth <= 0 || sequenceHeight <= 0)
+        {
+            return settings;
+        }
+
+        int shortSide = Math.Min(width, height);
+        (int w, int h) = sequenceWidth >= sequenceHeight
+            ? ((int)Math.Round(shortSide * (double)sequenceWidth / sequenceHeight), shortSide)
+            : (shortSide, (int)Math.Round(shortSide * (double)sequenceHeight / sequenceWidth));
+        return settings with { Video = video with { Width = Math.Max(2, w & ~1), Height = Math.Max(2, h & ~1) } };
     }
 
     private static int Gcd(int a, int b) => b == 0 ? Math.Max(1, a) : Gcd(b, a % b);
-}
-
-/// <summary>
-/// «Cambiar la secuencia a 9:16» (D-028): cambia el tamaño de una secuencia aunque tenga clips, conservando la tasa.
-/// Es un paso del historial.
-/// </summary>
-public sealed class SequenceShapeCommand : ICommand
-{
-    private readonly string _sequenceId;
-    private readonly int _width;
-    private readonly int _height;
-    private (int Width, int Height)? _previous;
-
-    public SequenceShapeCommand(string sequenceId, int width, int height)
-    {
-        ArgumentNullException.ThrowIfNull(sequenceId);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        _sequenceId = sequenceId;
-        _width = width;
-        _height = height;
-    }
-
-    public string Description => $"Cambiar la secuencia a {ExportGeometry.AspectName(_width, _height)}";
-
-    public void Apply(Project project)
-    {
-        ArgumentNullException.ThrowIfNull(project);
-        Sequence sequence = project.GetSequence(_sequenceId);
-        _previous = (sequence.Width, sequence.Height);
-        sequence.Width = _width;
-        sequence.Height = _height;
-    }
-
-    public void Revert(Project project)
-    {
-        ArgumentNullException.ThrowIfNull(project);
-        if (_previous is not { } previous)
-        {
-            throw new InvalidOperationException("No se puede revertir un comando que todavía no se ha aplicado.");
-        }
-
-        Sequence sequence = project.GetSequence(_sequenceId);
-        (sequence.Width, sequence.Height) = previous;
-    }
-
-    public bool TryMerge(ICommand following) => false;
 }

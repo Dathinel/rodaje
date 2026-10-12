@@ -25,7 +25,7 @@ Rodaje.exe ─ ModuleManager (App) ─ ModuleProcess ─ named pipe (JSON) ─ M
 - **La IA no edita** (regla de la propuesta): un módulo devuelve datos (segmentos, marcadores, rangos, keyframes, máscaras, audio) y la app los convierte en comandos normales del núcleo con vista previa antes de aplicar y un solo Ctrl+Z.
 - **El editor decodifica:** los módulos no abren archivos del usuario ni traen FFmpeg. La app baja el audio (f32, 16 o 48 kHz) o los cuadros a la resolución de análisis (512–1024 px) a un anillo de regiones; el módulo devuelve resultados. Las máscaras se guardan en la caché del proyecto como video FFV1 gris y las usa la primitiva de máscara.
 - **Sin modelo, en la app:** silencios, ritmo, ducking, estabilizar y color automático no necesitan IA ni licencias ajenas; van en un proyecto `Rodaje.Analysis` (y en shaders de `Rodaje.Render`), no como módulos (pregunta 1).
-- **Descarga** (ronda B): `GitHubReleaseDownloader` implementa `IPackageDownloader`. Un **índice firmado** (`indice.json` + `indice.json.sig`, ECDSA P-256 con la clave pública dentro del exe; .NET 10 no trae Ed25519) en las releases de `Dathinel/rodaje-catalogo` lista cada paquete, módulo y modelo con versión, URL, SHA-256, tamaño y versión mínima de Rodaje. Las URL son `github.com/Dathinel/<repo>/releases/download/<tag>/<archivo>` (no gastan la cuota de 60/h de la API; se siguen las redirecciones sin fijar el host) y, para modelos grandes, `huggingface.co/<repo>/resolve/<commit>/<archivo>` fijado por commit. Se verifica el hash al vuelo, se reanuda con `Range`, se instala de forma atómica (temporal y renombrar, con la recuperación tras apagón que ya tiene el instalador) y un hash o firma que no coincide borra el archivo. «Instalar desde archivo» sigue.
+- **Descarga** (ronda B): `GitHubReleaseDownloader` implementa `IPackageDownloader`. Un **índice firmado** (`indice.json` + `indice.json.sig`, ECDSA P-256 con la clave pública dentro del exe; .NET 10 no trae Ed25519) en las releases de `Dathinel/rodaje-catalogo` lista cada paquete, módulo y modelo con versión, URL, SHA-256, tamaño y versión mínima de Rodaje. Las URL son `github.com/Dathinel/<repo>/releases/download/<tag>/<archivo>` (no gastan la cuota de 60/h de la API; se siguen las redirecciones sin fijar el host) y, para modelos grandes, `huggingface.co/<repo>/resolve/<commit>/<archivo>` fijado por commit. Se verifica el hash al vuelo, se reanuda con `Range`, se instala de forma atómica (temporal y renombrar, con la recuperación tras apagón que ya tiene el instalador) y un hash o firma que no coincide borra el archivo. «Instalar desde archivo» sigue. Construido en la ronda B: detalle, pasos para crear la clave y publicar en [descarga.md](descarga.md).
 - **Distribución:** **base** (Rodaje.exe + FFmpeg LGPL, ~60 MB, sin módulos) y **completa** (base + paquetes + módulos + modelos por defecto, ~1,3 GB sin el modelo de traducción, que se baja aparte: un asset de GitHub no pasa de 2 GiB). Los dos zip los arma el mismo script que usa el gestor (`herramientas\distribuir.ps1`).
 
 ## Cifras del paso 0 (11-oct)
@@ -46,6 +46,98 @@ RTX 3050 Laptop / Ryzen 7 7435HS, `ProcessTests.Latency_and_shared_memory_throug
 
 **Conclusiones.** El protocolo no limita a ninguna función: un cuadro 1080p por referencia cuesta 0,1 ms y copiado 1,4 ms, frente a los 15–250 ms por cuadro de los modelos. No hace falta otro transporte. Las tuberías se crean con 64 KB de búfer: con el valor por defecto (0) una escritura espera a que el otro lado lea, y un editor que no lee colgaba al módulo (lo encontró una prueba).
 
+## Ronda A: `ModuleManager` en la app (11-oct)
+
+Hecho en `src/Rodaje.App/Services/Modules` (API en [app.md](arquitectura/app.md#módulos-de-ia-servicesmodules)). Pruebas en `tests/Rodaje.App.Tests/Modules` con el módulo eco como proceso real (22, estables en 5 corridas seguidas):
+
+| Medida | Resultado |
+|---|---|
+| Módulo matado a mitad de «contar» | solo falla su trabajo; historial y proyecto (serializado) idénticos; la próxima llamada abre otro proceso |
+| Módulo que muere solo (`morir`) | falla en <1 s con su código de salida |
+| Módulo congelado (proceso suspendido, sin pong) | detectado y muerto en <2 s con plazos de prueba (en la app: ping 5 s, 10 s sin respuesta) |
+| Cerrar el `ModuleManager` con una llamada en curso | 0 procesos de módulo vivos; cerrar el Job Object mata los que queden |
+| Dos módulos pesados (1500 y 1200 MB, VRAM de 4 GB) | el segundo espera o cierra al ocioso; vista previa baja solo durante la llamada de GPU |
+| Autoprueba del exe AOT | eco publicado con AOT, «contar» en Trabajos, propuesta aplicada en un paso y deshecha; 0 procesos al cerrar |
+## Resultados del agente C (silencios, ritmo y ducking)
+
+`src/Rodaje.Analysis` (sin modelos, AOT, solo depende del núcleo): analizadores por bloques que no guardan el audio (`LevelEnvelope`, `OnsetEnvelope`, `IVoiceActivityDetector`); las ediciones son `AnalysisEdits` con sus fábricas `Edits.RemoveSilences`, `AddBeatMarkers`, `CutToBeats` y `Duck`, cada una un paso del historial. Interfaz en `Views/Analysis` (diálogos con vista previa), menú del clip y Editar. Cifras en Release con señales sintéticas:
+
+| Criterio | Resultado |
+|---|---|
+| Silencios ±20 ms | error máximo de borde 4,5–4,9 ms (silencio digital y con ruido a −60 dBFS) |
+| 1 h en ≤10 s | 0,8 s (4500× tiempo real), sin contar la decodificación |
+| Ritmo F ≥0,9 y ±1 BPM | clics a 90–160 BPM: F 0,991–1,000, tempo ±0,01; batería a 100–128: F 0,976–1,000, ±0,14 BPM. A 174 BPM sale 87 (la mitad) salvo que se suba la preferencia |
+| Ritmo ≥100× | 291–348× tiempo real |
+| Ducking: anticipación ≥30 ms | música abajo ≥30 ms antes de cada frase (bordes de voz con 0 ms de error sobre música filtrada a −30 dB); keyframes deshacibles en un paso |
+| Voz ≥100× | 481–643× tiempo real |
+## Subtítulos: cifras (agente E, 11-oct)
+
+`modulo-subtitulos` (`modules/Rodaje.Module.Subtitles`, Native AOT 3,7 MB, sin JIT) con whisper large-v3-turbo q5_0 sobre 10,1 min de FLEURS es_419 dev (CC-BY-4.0, una voz por frase, 49 frases con 0,8 s de silencio entre ellas), RTX 3050 Laptop / Ryzen 7 7435HS. `SubtitleModuleTests` con `RODAJE_PRUEBAS_LARGAS=1`; corpus y modelo con `herramientas\preparar-modelos.ps1 -Corpus`.
+
+| Medida | Resultado | Criterio |
+|---|---|---|
+| Velocidad en GPU (Vulkan) | 10,1 min en 31–56 s, **11–19× tiempo real** (varía con la temperatura del portátil) | ≤1,5 min ✅ |
+| WER | **4,1 %** (1178 palabras) | ≤12 % ✅ |
+| Inicio de la primera palabra de cada frase, solo DTW | mediana **120 ms** tarde | ≤150 ms ✅ |
+| Lo mismo con el ajuste por energía del módulo | mediana 0 ms, p90 30 ms (la verdad sale de un detector parecido: la cifra independiente es la del DTW) | — |
+| VRAM dedicada del proceso, pico | **1098 MB** | `vramMb` 1500 |
+| CPU de respaldo (8 hilos) | **~1,1× tiempo real** (2,1 min en 117 s) | ≤8 min por 10 ❌ (daría ~9) |
+| Cancelación a mitad | confirmada en 49–86 ms | ≤1 s ✅ |
+| Proceso muerto a mitad | la llamada falla en 77–172 ms; un proceso nuevo transcribe | ≤1 s ✅ |
+
+- **Tramos de ≤28 s** cortados en el silencio más hondo: con DTW, Whisper.net 1.9.1 deja de devolver segmentos a partir de la 2.ª o 3.ª ventana de 30 s de una misma llamada (sin error; igual en GPU y CPU). Cada tramo lleva como contexto el texto de los anteriores.
+- **El DTW llega tarde a la primera palabra tras una pausa** (en la frase acierta). El módulo busca el arranque de la voz por energía entre el inicio por marcas y el DTW (`onsets: false` lo desactiva).
+- **Flash attention** rompe el DTW (palabras a −1,3 s) y no acelera en CPU: queda apagada.
+- **CPU:** para cumplir los 8 min habría que bajar a un modelo menor en CPU (medium o small q5) o aceptar ~9 min; decisión pendiente.
+
+## Resultados del agente D (estabilizar y color automático)
+
+`src/Rodaje.Analysis/Video` (sin modelos, en la CPU, código propio sobre algoritmos publicados): `MotionEstimator` reduce el plano de luma a 640 px (promedio por bloques, 8 o 10 bits), busca esquinas de Shi-Tomasi en una rejilla de 24 px, las sigue con Lucas-Kanade piramidal (ventana 11×11, 4 niveles) y ajusta una similitud con RANSAC y mínimos cuadrados; `CameraPath` suaviza la trayectoria con una gaussiana (sigma = intensidad × 1 s, extremos reflejados de forma impar) y calcula el acercamiento mínimo que cubre todos los cuadros; `MotionTrack` es la caché binaria (`%LOCALAPPDATA%\Rodaje\cache\estabilizar\<clave>.rmot`, clave = huella del archivo + cuadros). `ColorStatistics` mide shades of gray (p = 6) y gray edge en luz lineal sin recortados, mediana entre 16 cuadros; `AutoColor` lo lleva a temperatura, matiz y exposición (balance) y además a exposición y contraste por percentiles (color automático).
+
+- **Motor y render:** `rodaje.stabilize` pasa a la etapa de transformación (intensidad 0–1 sin animar, recorte `auto`/`off`, clave `analysis`). El plan pide las correcciones a `IEffectContent.FindStabilization` (la app las calcula una vez por intensidad y recorte) y cada capa lleva la de su cuadro en `LayerTransform.Stabilization`; `LayerLayout.Place` la compone antes de la transformación, así va por el camino rápido y por el de efectos, en la vista previa y en la exportación.
+- **App:** «Estabilizar...», «Color automático» y «Balance de blancos automático» en el menú del clip (`Views/Analysis`). Estabilizar decodifica en la CPU (no gasta VRAM de la vista previa), muestra temblor antes y después y el acercamiento con cada ajuste, y pone el efecto en un paso. El color mide 16 miniaturas y ajusta el efecto de color existente en un paso, con «Deshacer» en el aviso. «Estabilizar» no sale en la lista de filtros para añadir: necesita el análisis.
+
+| Criterio | Resultado (Release, Ryzen 7 7435HS) |
+|---|---|
+| Movimiento entre cuadros | error máximo 0,009–0,012 px (de 360) y 0,0012° frente al verdadero; ≥338 esquinas coincidentes |
+| Estabilizar −70 % con temblor conocido | temblor (segunda diferencia de centro y esquinas) de 7,9 a 0,005–0,007 px/cuadro²: **−99,9 %** con intensidad 0,5 y 1, recorte ×1,06–1,08; una panorámica sin temblor queda a ≤0,07 px |
+| Análisis ≥60 fps 1080p | **136 cuadros/s** desde el plano de luma (7,3 ms); **101 cuadros/s** con la decodificación H.264 1080p en la CPU incluida |
+| Color: dominante corregida a ΔE ≤3 | cinco dominantes (cálida, fría, verde, magenta, tungsteno): ΔE*ab medio de 8–17 a **0,42–0,87**, peor gris 1,2–2,4; escena neutra: ±0,004 |
+| Color automático | luma 0,17–0,48 de un clip opaco y oscuro a 0,08–0,91 sin mover el balance |
+
+## Resultados del agente I (modulo-audio-ia: ruido y voz)
+
+`modules/Rodaje.Module.AudioAi` (AOT, 4,2 MB, 0 advertencias; arranque y saludo 46 ms): `ruido` con **DeepFilterNet3** (tres grafos ONNX; la STFT de 960 puntos, las bandas ERB y la normalización de rasgos de libDF reescritas en C#) y `detectar-voz` con **Silero VAD v6.2.3**. Modelos en `.entorno\modelos` con SHA-256 fijado (`herramientas\preparar-modelos.ps1`), licencias en el `LICENCIAS.md` del módulo. En la app: «Reducir ruido...» (Editar y menú del clip) con escucha A/B e intensidad, y `ModuleVoiceDetector` para el ducking, que vuelve al detector de energía si el módulo no está o falla. Cifras en Release, Ryzen 7 7435HS:
+
+| Criterio | Resultado |
+|---|---|
+| Ruido: +10 dB de SNR | Voz real de 48 kHz (LibriVox) con ruido sintético, SI-SNR: blanco a 0 dB **+15,2**, rosa a 0 dB **+11,1**, zumbido de red a 0 dB +9,7; a 5 dB de entrada +10,6 / +9,1 / +7,9. Doce hablantes de FLEURS con ruido rosa a 0 dB: **+10,8 de media** (+9,4 a +12,5). La SNR simple da 1–4 dB menos a 5 dB de entrada porque el modelo baja la voz ~2 dB con mucho ruido. Voz limpia: sale a 33,9 dB de la entrada (casi intacta) |
+| Ruido ≥10× tiempo real en CPU | **37×** (5 min en 8,1 s); por el protocolo con el exe AOT, 20 s en 0,71 s con la copia de búferes |
+| VAD contra verdad conocida | 20 frases de FLEURS con pausas de 0,8–2 s y ruido a 0–10 dB: exactitud **94,5–95,9 %**, sensibilidad 93,5–96,6 %, precisión 97,2–98,2 %, error mediano del inicio **7–25 ms**. El detector de energía marca todo como voz con ruido continuo |
+| VAD ≥100× | 117–153× tiempo real (una inferencia por ventana de 32 ms) |
+| Cancelación | Confirmada por el protocolo en mediana 15–29 ms, máximo 200 ms; corta también la inferencia en curso (`RunOptions.Terminate`) y el módulo sigue atendiendo |
+| VRAM | **0 MB**: corre en la CPU (`vramMb: 0`, la vista previa no baja). Con DirectML, 1,1 GB y solo **2× tiempo real**: las GRU van mal en DirectML con secuencias largas, así que la GPU queda como parámetro (`"dispositivo": "gpu"`) para medir |
+| Aplicar y deshacer | El clip pasa al WAV limpio (estéreo f32 de 48 kHz, en `<proyecto>.medios\`, con 2 s de margen a cada lado) en un paso; los keyframes de sus efectos se corren con el origen; un Ctrl+Z deja el proyecto idéntico (serializado) |
+
+**Decisiones provisionales.** RNNoise no se hizo: DeepFilterNet3 ya va a 37× en la CPU, así que un «modo rápido» no ahorra nada que se note y sería otro modelo que mantener. El zumbido de red es el ruido que peor quita (+8–10 dB); un corte de graves antes o después no lo mejoró en las pruebas.
+
+## Resultados del agente G (modulo-voz: texto a voz, 12-oct)
+
+`modules/Rodaje.Module.Voice` (funciones `voces`, `voz`, `entregar`; CPU, `vramMb` 0) y el diálogo «Texto a voz» de la app (Editar y menú del clip: escribir o tomar el texto de un título, idioma, voz, velocidad, tono, pausas y `[pausa N]`, escuchar, insertar en el cursor o regenerar en un paso; WAV y `.json` en «Voz generada» junto al `.rodaje`). Kokoro-82M v1.0 **uint8** (177 MB): el q8 previsto (92 MB) es 3× más lento en la CPU con ONNX Runtime 1.30 y DirectML falla en un `ConvTranspose` del modelo. Fonemizadores propios por reglas para es (con seseo y yeísmo en es-419) y pt-BR; inglés con el léxico misaki. Licencias y voces en `modules/Rodaje.Module.Voice/LICENCIAS.md`. Release, Ryzen 7 7435HS:
+
+| Criterio | Resultado |
+|---|---|
+| es, en y pt-BR con ≥2 voces | 3 es, 3 pt-BR, 20 en-US, 8 en-GB (Kokoro, Apache-2.0) |
+| ≥5× tiempo real en CPU | 5,6× en la prueba (tres trozos a la vez, 8 hilos), 6,9× con el equipo más libre; 1 trozo a la vez: 3,7× |
+| Inteligibilidad (audio → modulo-subtitulos) | WER 0 % en las 5 frases de prueba (es, es-419, pt-BR ×2, en-US) |
+| Fonemas frente a espeak-ng (solo para medir, en una carpeta temporal) | FLEURS dev: es 0,7 % de error por fonema, pt-BR 3,0 %; corpus de 110 palabras difíciles en las pruebas |
+| Cancelación | 15 ms en proceso; 0,56 s confirmada por el protocolo con tres trozos en curso |
+| VRAM / RAM | 0 / 292 MB de pico en el proceso del módulo |
+| Native AOT | 0 advertencias; exe de 4,6 MB más `onnxruntime.dll` (16 MB) |
+| Vuelve a generarse al cambiar texto o voz | «Regenerar» en el diálogo, un paso del historial (20 pruebas de la app) |
+
+Voces de Piper: todas las candidatas (davefx, faber, cadu, jeff, libritts_r, ald) son derivadas de `lessac` según sus fichas, y `es_MX-claude` no dice de cuál parte; ninguna entra en la v1 (pregunta 9).
+
 ## Funciones, modelos y licencias
 
 Velocidades estimadas a partir de cifras publicadas; las mide cada agente en el equipo de Daniel. ✅ viable con licencia limpia, ⚠️ viable con condiciones, ❌ sin opción limpia.
@@ -55,8 +147,8 @@ Velocidades estimadas a partir de cifras publicadas; las mide cada agente en el 
 | Subtítulos automáticos con palabras | `modulo-subtitulos` | Whisper.net (MIT) con Vulkan (solo el `vulkan-1.dll` del driver), CPU de respaldo | **whisper large-v3-turbo q5_0** (MIT, [openai/whisper](https://github.com/openai/whisper/blob/main/LICENSE)); palabras con DTW de whisper.cpp. Alternativa: Parakeet-TDT-0.6B-v3 (CC-BY-4.0, es/pt/en con palabras nativas) | ~550 MB / ~1–1,5 GB | 10–20× tiempo real en GPU, 1–3× en CPU | ✅ |
 | Traducir subtítulos | `modulo-traducir` | LLamaSharp (MIT) con Vulkan y descarga parcial a CPU | **Qwen3-4B-Instruct-2507 Q4_K_M** (Apache-2.0). Alternativas: Opus-MT por par (CC-BY-4.0, ~300 MB, CPU), MADLAD-400-3B (Apache-2.0). NLLB-200 es NC ❌ | ~2,5 GB / no cabe entero con el editor: capas repartidas | 30–50 tok/s entero; ~10–20 con reparto | ✅ |
 | Texto a voz (es, en, pt) | `modulo-voz` | ONNX Runtime (MIT) en CPU o DirectML | **Kokoro-82M** (Apache-2.0): es `ef_dora`, `em_alex`, `em_santa`; pt-BR `pf_dora`, `pm_alex`, `pm_santa`; en ~20 voces. Extra: Piper `es_ES-davefx` (CC0), `pt_BR-faber` (CC0), `es_MX-claude` (Apache-2.0), `en_US-libritts_r` (CC-BY-4.0). **Fonemizador propio en C#** (es, pt) y léxico misaki (Apache-2.0) para en: espeak-ng es GPL y no entra | ~90 MB (q8) + ~60 MB por voz Piper | >5× tiempo real en CPU | ⚠️ pt-PT sin voz limpia; Piper `lessac` y sus derivadas fuera (licencia Blizzard) |
-| Reducción de ruido de voz | `modulo-audio-ia` | ONNX Runtime CPU | **DeepFilterNet3** (MIT/Apache-2.0), 48 kHz; RNNoise (BSD-3) como modo rápido | ~10 MB | tiempo real holgado en CPU | ✅ |
-| Detección de voz (mejora silencios y ducking) | `modulo-audio-ia` | ONNX Runtime CPU | **Silero VAD v5** (MIT) | ~2 MB | >100× tiempo real | ✅ |
+| Reducción de ruido de voz | `modulo-audio-ia` | ONNX Runtime CPU | **DeepFilterNet3** (MIT/Apache-2.0), 48 kHz; RNNoise (BSD-3) como modo rápido, no hecho: DFN3 ya va a 37× | ~10 MB | medido: 37× en CPU | ✅ |
+| Detección de voz (mejora silencios y ducking) | `modulo-audio-ia` | ONNX Runtime CPU | **Silero VAD v6.2.3** (MIT; misma interfaz que la v5) | ~2 MB | medido: 117–153× | ✅ |
 | Quitar silencios | App (`Rodaje.Analysis`) | DSP propio: RMS con histéresis, umbral y margen | — (con VAD si el módulo está) | — | 1 h en ≤10 s | ✅ |
 | Ajuste al ritmo | App | Onsets por flujo espectral log-mel, tempograma y seguimiento por programación dinámica (Ellis 2007) | — (Beat This!, MIT según el repo original, como mejora si se confirma su LICENSE) | — | ≥100× tiempo real | ✅ |
 | Ducking automático | App | Envolvente con ataque, liberación y anticipación sobre la voz (RMS o VAD) → keyframes de volumen en la música | — | — | inmediato | ✅ |
@@ -142,7 +234,7 @@ Unión 0 → A → B → C → D → E → F → G → H → I → J, suite comp
 - **Fonemizador propio:** el español es regular, el portugués medio; un error se oye. Corpus de palabras difíciles en las pruebas.
 - **Licencias heredadas de datos:** COCO, DIS5K y los datos de Kokoro no son del todo públicos; se anotan por modelo y se revisan antes de publicar.
 - **Patentes y GPL de `rodaje-codificadores-gpl`** y licencias de los SDK RAW: revisar antes de publicar (`pendientes-legales.md`).
-- **Whisper.net y el DTW por palabra:** sin verificar que lo exponga; si no, P/Invoke directo a `whisper.dll`.
+- **Whisper.net y el DTW por palabra:** resuelto (ver «Subtítulos: cifras»): lo expone, pero con DTW deja de devolver segmentos tras la 2.ª o 3.ª ventana de una llamada; el módulo parte el audio en tramos de ≤28 s.
 
 ## Preguntas para Daniel (se avanza con la recomendada, provisional)
 
@@ -154,3 +246,4 @@ Unión 0 → A → B → C → D → E → F → G → H → I → J, suite comp
 6. **Voz en portugués de Portugal:** no hay voz con licencia limpia. **Recomendado: solo pt-BR** en la v1 y buscar una voz CC0/CC-BY después.
 7. **BiRefNet_lite (datos DIS5K):** su uso no comercial es libre; el comercial pide firmar términos. **Recomendado: incluirlo** como «Calidad alta» opcional, con MODNet por defecto, y anotarlo en `pendientes-legales.md`.
 8. **Clave de firma del índice:** **recomendado:** ECDSA P-256 generada en tu PC, guardada fuera del repo con una copia de respaldo; se firma en local con un script. Si se pierde, la próxima versión de Rodaje trae otra clave pública.
+9. **Voces extra de Piper:** las que el plan daba por limpias se afinaron desde `lessac` (licencia Blizzard). **Recomendado:** v1 solo con Kokoro (34 voces) y buscar voces CC0 entrenadas desde cero más adelante.

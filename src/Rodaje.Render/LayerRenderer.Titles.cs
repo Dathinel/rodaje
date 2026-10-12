@@ -32,7 +32,7 @@ internal sealed unsafe partial class LayerRenderer
             EffectDefinition? definition = EffectRegistry.Find(list[i].Code);
             switch (gpu?.Kind)
             {
-                case GpuEffectKind.Transform or GpuEffectKind.Blend:
+                case GpuEffectKind.Transform or GpuEffectKind.Stabilize or GpuEffectKind.Blend:
                     break;
                 case GpuEffectKind.Blur:
                     _spatial.Add(new SpatialStep(GpuEffectKind.Blur, BlurSigma(Value(list[i].Values, definition!, 0)), 0));

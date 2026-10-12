@@ -6,6 +6,7 @@ using Rodaje.Media.Gpu;
 using Rodaje.Playback.Composition;
 using Rodaje.Render;
 using Rodaje.Render.Export;
+using Rodaje.Render.Text;
 
 namespace Rodaje.Export.Running;
 
@@ -123,6 +124,10 @@ public sealed class ExportJob : IDisposable
             {
                 Profile = ExportPerformanceProfile.For(Request.Settings.Performance, gpu?.DedicatedVideoMemory ?? 0);
                 Thread.CurrentThread.Priority = Profile.ThreadPriority;
+                if (gpu is not null && Profile.GpuPriority != 0)
+                {
+                    ExportGpuPriority.TrySet(gpu, Profile.GpuPriority);
+                }
                 token.ThrowIfCancellationRequested();
                 Directory.CreateDirectory(work);
                 _options.Journal?.Register(journalId, Request.OutputPath, [work]);
@@ -225,8 +230,10 @@ public sealed class ExportJob : IDisposable
     private ExportSinkResult EncodeVideo(ExportPlan plan, GpuDevice gpu, FfmpegPipeSink sink, ExportSinkRequest request, CancellationToken token)
     {
         VideoExportSettings settings = plan.Settings.Video!;
+        using TitleRasterizer titles = CreateTitles(gpu);
         var options = new OfflineTimelineOptions
         {
+            Titles = titles,
             ProjectDirectory = Request.ProjectDirectory,
             Content = _options.Content,
             MissingContent = Request.ContinueWithoutMissing ? MissingContentPolicy.ContinueWithout : MissingContentPolicy.Fail,
@@ -234,12 +241,15 @@ public sealed class ExportJob : IDisposable
             MaxDecodersPerMedia = Profile.MaxDecodersPerMedia,
         };
         using OfflineTimeline timeline = OfflineTimeline.Open(Request.Project, Request.SequenceId, gpu, options);
-        timeline.Prepare(plan.Start, plan.End > timeline.Duration ? timeline.Duration : plan.End, token);
+        Time end = plan.End > timeline.Duration ? timeline.Duration : plan.End;
+        timeline.Prepare(plan.Start, end, token);
+        CheckFonts(titles, timeline.GeneratedContents(plan.Start, end));
         ExportVideoFormat format = plan.Video!;
         bool alpha = format.PixelFormat.HasAlpha();
         bool blend = plan.ConvertsRate && settings.FrameRateConversion == FrameRateConversion.Blend;
-        using var frames = new FrameSource(this, plan, timeline, gpu, alpha, blend);
-        using var converter = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter);
+        using var frames = new FrameSource(this, plan, timeline, gpu, titles, alpha, blend);
+        ExportSourceRegion? region = settings.Crop is { } crop ? new ExportSourceRegion(crop.X, crop.Y, crop.Width, crop.Height) : null;
+        using var converter = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter, region: region);
         _converter = converter;
         void Write(in ExportVideoFrame frame)
         {
@@ -289,6 +299,48 @@ public sealed class ExportJob : IDisposable
         }
 
         return result!;
+    }
+
+    private TitleRasterizer CreateTitles(GpuDevice gpu)
+    {
+        var titles = new TitleRasterizer(gpu);
+        try
+        {
+            if (_options.FontFiles?.Invoke() is { Count: > 0 } fonts)
+            {
+                titles.RegisterFonts(fonts);
+            }
+        }
+        catch
+        {
+            titles.Dispose();
+            throw;
+        }
+
+        return titles;
+    }
+
+    /// <summary>
+    /// La política de contenido que falta para las fuentes de los títulos, antes del primer cuadro: sin permiso para
+    /// seguir, para con <see cref="ExportErrorCode.ContentMissing"/>; con él, los títulos salen con la fuente de respaldo.
+    /// </summary>
+    private void CheckFonts(TitleRasterizer titles, IReadOnlyList<GeneratedContent> contents)
+    {
+        if (contents.Count == 0 || Request.ContinueWithoutMissing)
+        {
+            return;
+        }
+
+        IReadOnlyList<MissingFont> missing = titles.FindMissingFonts(contents);
+        if (missing.Count > 0)
+        {
+            string families = string.Join(", ", missing.Select(m => $"«{m.Family}»").Distinct(StringComparer.Ordinal));
+            throw new ExportException(ExportErrorCode.ContentMissing,
+                $"Falta{(missing.Count > 1 ? "n" : "")} fuente{(missing.Count > 1 ? "s" : "")} de títulos: {families}. Instala su paquete o exporta con la fuente de respaldo ({missing[0].UsedFamily}).")
+            {
+                Culprit = $"fuente «{missing[0].Family}»",
+            };
+        }
     }
 
     private void Verify(ExportPlan plan, CancellationToken token)
@@ -401,7 +453,7 @@ public sealed class ExportJob : IDisposable
         private readonly long[] _held = [-1, -1];
         private readonly Time _sequenceFrame;
 
-        public FrameSource(ExportJob job, ExportPlan plan, OfflineTimeline timeline, GpuDevice gpu, bool alpha, bool blend)
+        public FrameSource(ExportJob job, ExportPlan plan, OfflineTimeline timeline, GpuDevice gpu, TitleRasterizer titles, bool alpha, bool blend)
         {
             _job = job;
             _plan = plan;
@@ -413,6 +465,7 @@ public sealed class ExportJob : IDisposable
                 _compositors[c] = new Compositor(gpu, timeline.Width, timeline.Height)
                 {
                     Resources = job._options.Content,
+                    Titles = titles,
                     TransparentBackground = alpha,
                 };
             }

@@ -86,7 +86,7 @@ public static class EffectUi
         [BuiltInEffects.Blend] = "Cómo se mezcla la capa con lo que tiene debajo.",
         [BuiltInEffects.Audio] = "Volumen con keyframes y fundidos de entrada y salida.",
         [BuiltInEffects.Speed] = "Reservado y oculto: la velocidad se cambia en la pestaña Velocidad.",
-        [BuiltInEffects.Stabilize] = "Quita el temblor de la cámara. Todavía no se aplica.",
+        [BuiltInEffects.Stabilize] = "Quita el temblor de la cámara. Se analiza desde el menú del clip (Estabilizar...).",
         [Tr.Crossfade] = "Mezcla un clip con el siguiente.",
         [Tr.Dip] = "Baja a un color (negro por defecto) y sube desde él.",
         [Tr.Wipe] = "Un borde suave barre un clip y descubre el otro.",
@@ -129,6 +129,9 @@ public static class EffectUi
             [(BuiltInEffects.Audio, A.GainDb)] = new("Volumen", "Cambiar volumen", "dB", 1, 0.5, 1),
             [(BuiltInEffects.Audio, A.FadeIn)] = new("Fundido de entrada", "Fundido de entrada", "s", 1, 0.1, 1, UiRange.HalfClip),
             [(BuiltInEffects.Audio, A.FadeOut)] = new("Fundido de salida", "Fundido de salida", "s", 1, 0.1, 1, UiRange.HalfClip),
+
+            [(BuiltInEffects.Stabilize, BuiltInEffects.StabilizeParameters.Intensity)] =
+                Percent with { Label = "Intensidad", Description = "Cambiar intensidad de estabilizar" },
 
             [(Tr.Dip, Tr.DipParameters.Red)] = Percent with { Label = "Rojo", Description = "Cambiar color del fundido" },
             [(Tr.Dip, Tr.DipParameters.Green)] = Percent with { Label = "Verde", Description = "Cambiar color del fundido" },
@@ -193,6 +196,7 @@ public static class EffectUi
     {
         BuiltInEffects.BlendOptions.Mode => BlendModeName(value),
         Tr.PushOptions.Direction => PushDirections.FirstOrDefault(d => d.Value == value).Name ?? value,
+        BuiltInEffects.StabilizeOptions.Crop => value == "auto" ? "Automático" : "Sin recorte",
         _ => value,
     };
 
@@ -202,6 +206,7 @@ public static class EffectUi
         BuiltInEffects.ColorOptions.Lut => "LUT",
         Tr.PushOptions.Direction => "Dirección",
         Tr.PresetOptions.Preset => "Transición",
+        BuiltInEffects.StabilizeOptions.Crop => "Recorte",
         _ => option,
     };
 }

@@ -22,7 +22,7 @@ public sealed partial class AppExportRunner : IExportRunner
 {
     private readonly Lazy<(ExportRunner? Runner, string? Problem)> _setup;
 
-    public AppExportRunner(IEffectContent? content, IExportPreview? preview, ExportJournal? journal = null)
+    public AppExportRunner(IEffectContent? content, IExportPreview? preview, Func<IReadOnlyList<string>>? fontFiles = null, ExportJournal? journal = null)
     {
         _setup = new(() =>
         {
@@ -36,6 +36,7 @@ public sealed partial class AppExportRunner : IExportRunner
             {
                 Ffmpeg = ffmpeg,
                 Content = content,
+                FontFiles = fontFiles,
                 Preview = preview,
                 Journal = journal ?? ExportJournal.Default,
                 Encoders = new ProbedEncoderSource(ffmpeg, ExportEncoderCandidates.All),

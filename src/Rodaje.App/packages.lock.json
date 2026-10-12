@@ -88,6 +88,12 @@
           "Microsoft.Windows.SDK.BuildTools.MSIX": "1.7.251221100"
         }
       },
+      "rodaje.analysis": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Core": "[1.0.0, )"
+        }
+      },
       "rodaje.audio": {
         "type": "Project",
         "dependencies": {
@@ -121,6 +127,9 @@
           "Rodaje.Playback": "[1.0.0, )",
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
+      },
+      "rodaje.modules.protocol": {
+        "type": "Project"
       },
       "rodaje.paquetes": {
         "type": "Project"

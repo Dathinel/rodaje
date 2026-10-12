@@ -6,11 +6,15 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Autosave;
 using Rodaje.App.Services.Media;
+using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Services.Titles;
 using Rodaje.App.Views.Export;
 using Rodaje.App.Views.Player;
 using Rodaje.App.Views.Plugins;
@@ -53,6 +57,8 @@ internal sealed partial class MainWindow : Window, IShellHost
     private PluginsView? _pluginsView;
     private ExportView? _exportView;
     private readonly ExportJobList _exports;
+    private readonly ModuleManager _modules;
+    private readonly AutosaveService? _autosave;
     private IDisposable? _pageShortcuts;
     private bool _activatedOnce;
     private bool _allowClose;
@@ -66,11 +72,14 @@ internal sealed partial class MainWindow : Window, IShellHost
         _options = options;
         _engine = engine;
         _settings = settings;
+        Program.Metrics.Milestone("ventana_inicio");
         InitializeComponent();
+        Program.Metrics.Milestone("ventana_xaml");
         _dispatcher = DispatcherQueue.GetForCurrentThread();
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         SetUpTitleBar();
         RestoreLayout();
+        StartupSplash.PlaceOver(AppWindow, _hwnd);
 
         // Las teclas de signos se muestran como están impresas en el teclado de la persona (español: «'» y no «[»).
         KeyNames.DisplayLayout = SystemKeyboardLayout.Instance;
@@ -80,30 +89,58 @@ internal sealed partial class MainWindow : Window, IShellHost
         _shortcutStore = new ShortcutStore(ShortcutStore.DefaultPath);
         string? shortcutsWarning = _shortcutStore.Load(registry);
         _router = new ShortcutRouter(registry);
+        Program.Metrics.Milestone("atajos");
 
-        var session = new EditorSession(engine, prober, new ShellDialogs(this, _hwnd, settings),
+        var dialogs = new ShellDialogs(this, _hwnd, settings);
+        var session = new EditorSession(engine, prober, dialogs,
             newProjectTracks: settings.Current.NewProjectTracks)
         {
             LinkedAudioTracks = settings.Current.LinkedAudioTracks,
         };
         _visuals = new ClipVisuals(id => session.Project.FindMedia(id)?.Path, new FfmpegVisualsSources(),
             new ClipVisualsOptions { CacheDirectory = ClipVisualsOptions.DefaultCacheDirectory }, SynchronizationContext.Current);
-        _ = _visuals.TrimDiskCacheAsync();
+        Program.Metrics.Milestone("sesion");
         var packages = new PackageService(PackageService.DefaultLocations(), PackageService.LoadBundledCatalog(), instances: _instance);
         IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
-        _ = Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale());
+        Program.Metrics.Milestone("paquetes");
         var preview = new PreviewYield(engine, engine.SetPreviewQuality, () => settings.Current);
-        _exports = new ExportJobList(new AppExportRunner(content, preview), SynchronizationContext.Current);
+        _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed)), SynchronizationContext.Current);
+        _modules = new ModuleManager(new ModuleManagerOptions
+        {
+            Roots = ModuleCatalog.DefaultRoots(),
+            DedicatedVideoMemory = () => engine.DedicatedVideoMemory,
+            ClientOptions = new() { AppVersion = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "0.0.0" },
+        }, new ModulePreviewYield(preview), SynchronizationContext.Current);
+        _modules.Failed += (_, f) => session.Notify(NotificationSeverity.Error, f.Title, f.Message);
+        packages.Changed += (_, _) => _ = Task.Run(_modules.Refresh);
+        Program.Metrics.Milestone("modulos");
         _services = new EditorServices(session, _router, settings, engine, this)
         {
             Visuals = _visuals, Packages = packages, Content = content, Exports = _exports,
+            Modules = _modules, Proposals = new ModuleProposals(session),
         };
         engine.SetContent(content);
+        IReadOnlyList<string> fonts = TitleFontFiles.Find(packages.Installed);
+        engine.SetTitleFonts(fonts);
+        packages.Changed += (_, _) =>
+        {
+            IReadOnlyList<string> now = TitleFontFiles.Find(packages.Installed);
+            if (!now.SequenceEqual(fonts, StringComparer.OrdinalIgnoreCase))
+            {
+                fonts = now;
+                engine.SetTitleFonts(now);
+            }
+        };
+        Program.Metrics.Milestone("fuentes");
         MissingContent.Attach(session, packages);
+        Views.Relink.RelinkDialog.Attach(_services, _hwnd);
         _bindings.Add(EditorShortcuts.Bind(_router, session));
         _bindings.Add(_router.Bind(ActionIds.Export, () => ShowPage(ShellPage.Export)));
+        _bindings.Add(Views.Export.StillExportCommand.Bind(_router, _services, _hwnd));
         _bindings.Add(_router.Bind(ActionIds.ShowShortcuts, () => ShowPage(ShellPage.Shortcuts)));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
+        _bindings.Add(Views.Analysis.AnalysisCommands.Bind(_router, _services));
+        _bindings.Add(Views.Voice.VoiceCommands.Bind(_router, _services));
         _keyboard = new KeyboardShortcutHost(Root, _router, InterceptKey);
 
         TitleBar.Attach(_services);
@@ -114,6 +151,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         Inspector.Attach(_services);
         Timeline.Attach(_services);
         Timeline.ClipVisuals = _visuals;
+        Tools.Attach(_services);
+        Program.Metrics.Milestone("vistas_unidas");
 
         session.Notified += (_, n) => ShowNotification(n);
         session.ProjectOpened += (_, _) => RememberProject();
@@ -150,6 +189,18 @@ internal sealed partial class MainWindow : Window, IShellHost
         _settingsTimer = _dispatcher.CreateTimer();
         _settingsTimer.Interval = TimeSpan.FromSeconds(2);
         _settingsTimer.Tick += (_, _) => SaveSettingsIfChanged();
+
+        // Autoguardado (no en las mediciones ni en la autoprueba): el mismo temporizador decide si toca una copia.
+        if (!options.IsAutomated)
+        {
+            var autosave = new AutosaveService(session, dialogs, AutosaveService.DefaultRoot);
+            _autosave = autosave;
+            if (autosave.Start())
+            {
+                _settingsTimer.Tick += (_, _) => autosave.Tick();
+            }
+        }
+
         _settingsTimer.Start();
 
         LibrarySplitter.Resized += (_, size) => settings.Current.LibraryWidth = size;
@@ -168,9 +219,49 @@ internal sealed partial class MainWindow : Window, IShellHost
             }
         }
 
+        if (_autosave is { IsActive: true })
+        {
+            _ = _autosave.OfferRecoveryAsync();
+        }
+
         if (options.Files.Count > 0 || options.SelfTest)
         {
             _ = OpenStartupFilesAsync(options.Files);
+        }
+
+        StartupTrace.Watch(Program.Metrics, OnStartupUsable);
+        if (StartupSplash.IsShown)
+        {
+            // Por si WinUI no pintara mientras está oculta: a los 3 s se muestra igual.
+            DispatcherQueueTimer reveal = _dispatcher.CreateTimer();
+            reveal.Interval = TimeSpan.FromSeconds(3);
+            reveal.IsRepeating = false;
+            reveal.Tick += (_, _) => StartupSplash.Reveal(_hwnd);
+            reveal.Start();
+        }
+
+        Program.Metrics.Milestone("ventana_lista");
+    }
+
+    /// <summary>
+    /// Lo que no hace falta para ver la ventana empieza después de su primer cuadro: el motor (FFmpeg y la GPU, si no
+    /// arrancó antes para abrir archivos), los módulos de IA y la limpieza de cachés y exportaciones a medias.
+    /// </summary>
+    private void OnStartupUsable()
+    {
+        StartupSplash.Reveal(_hwnd);
+        if (_options.Files.Count == 0)
+        {
+            _engine.Start();
+            Program.Metrics.Milestone("motor_lanzado");
+        }
+
+        _ = Task.Run(_modules.Refresh);
+        _ = _visuals.TrimDiskCacheAsync();
+        _ = Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale());
+        if (_options.StartupProbe)
+        {
+            _ = StartupTrace.FinishProbeAsync(Program.Metrics, _options.LogPath, _options.Files.Count > 0, () => _engine.FailureMessage, Close);
         }
     }
 
@@ -194,7 +285,12 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     internal ExportView? ExportPage => _exportView;
 
+    /// <summary>La barra de herramientas rápidas, para la autoprueba.</summary>
+    internal Views.Tools.ToolsBar QuickTools => Tools;
+
     internal ExportJobList Exports => _exports;
+
+    internal ModuleManager Modules => _modules;
 
     public void ShowPage(ShellPage page)
     {
@@ -273,7 +369,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         MainArea.ColumnDefinitions[3].Width = splitter;
         Root.RowDefinitions[3].Height = splitter;
         Visibility chrome = fullScreen ? Visibility.Collapsed : Visibility.Visible;
-        foreach (UIElement element in new UIElement[] { TitleBar, Library, LibrarySplitter, Inspector, InspectorSplitter, TimelineSplitter, Timeline })
+        foreach (UIElement element in new UIElement[] { TitleBar, Library, LibrarySplitter, Inspector, InspectorSplitter, TimelineSplitter, Tools, Timeline })
         {
             element.Visibility = chrome;
         }
@@ -581,13 +677,13 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     /// <summary>Avisa de un error que nadie esperaba; los detalles quedan en <c>rodaje-error.txt</c>.</summary>
     internal void ReportUnexpectedError(string message) =>
-        Session.Notify(NotificationSeverity.Error, "Algo falló", $"{message} Los detalles quedaron en rodaje-error.txt, junto al programa.");
+        Session.Notify(NotificationSeverity.Error, "Algo falló", $"{message} Los detalles quedaron en app\\rodaje-error.txt, dentro de la carpeta de Rodaje.");
 
     private void OnCloseModal(object sender, RoutedEventArgs e) => ClosePage();
 
     private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (_allowClose || _options.MeasureSeconds is not null || _options.SelfTest)
+        if (_allowClose || _options.IsAutomated)
         {
             return;
         }
@@ -628,6 +724,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _closed = true;
+        StartupSplash.Close();
         CompositionTarget.Rendering -= OnRendering;
         _transportTimer.Stop();
         _settingsTimer.Stop();
@@ -662,10 +759,22 @@ internal sealed partial class MainWindow : Window, IShellHost
         {
         }
 
+        _autosave?.Complete();
         _exports.Dispose();
+        // Pide shutdown a los módulos abiertos; si alguno no sale, lo mata (y el Job Object cubre el resto).
+        _modules.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(3));
         _engine.Dispose();
         _visuals.Dispose();
         _instance.Dispose();
         MeasurementRun.WriteReportIfMeasuring(_options, _engine, Program.Metrics, VideoPanel.CompositionScaleX);
+    }
+
+    /// <summary>Un módulo de GPU baja la vista previa como una exportación con poca VRAM (proxies y Mitad), con el mismo contador.</summary>
+    private sealed class ModulePreviewYield(PreviewYield preview) : IModulePreview
+    {
+        private static readonly Rodaje.Export.Running.ExportPerformanceProfile LowerOnly = new(
+            ThreadPriority.Normal, System.Diagnostics.ProcessPriorityClass.Normal, 0, 0, PausePreview: false, PreviewProxies: true);
+
+        public IDisposable Lower() => preview.Yield(LowerOnly);
     }
 }

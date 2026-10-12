@@ -8,6 +8,9 @@ internal readonly record struct ContentRect(int X, int Y, int Width, int Height)
     public bool Covers(int width, int height) => X == 0 && Y == 0 && Width == width && Height == height;
 }
 
+/// <summary>Región de la composición que se exporta (recorte espacial), en píxeles de la secuencia.</summary>
+public readonly record struct ExportSourceRegion(int X, int Y, int Width, int Height);
+
 /// <summary>Núcleo con que se remuestrea; los valores son los de <c>options.x</c> en <see cref="ExportShaders"/>.</summary>
 internal enum ScaleKernel
 {
@@ -50,8 +53,34 @@ internal static class ExportGeometry
         return new ContentRect(x, y, w, h);
     }
 
+    /// <summary>
+    /// Último nivel de mip que se puede leer: la composición y la región deben caer en texels enteros de ese nivel
+    /// (cada nivel es el promedio 2×2 exacto del anterior).
+    /// </summary>
+    public static int MaxLevel(int sourceWidth, int sourceHeight, ExportSourceRegion region)
+    {
+        int level = (int)Math.Log2(Math.Max(sourceWidth, sourceHeight));
+        if (region.Width == sourceWidth && region.Height == sourceHeight)
+        {
+            return level;
+        }
+
+        foreach (int value in (int[])[region.X, region.Y, region.Width, region.Height, sourceWidth, sourceHeight])
+        {
+            if (value != 0)
+            {
+                level = Math.Min(level, System.Numerics.BitOperations.TrailingZeroCount(value));
+            }
+        }
+
+        return level;
+    }
+
+    /// <param name="sourceWidth">Ancho de lo que se escala: la composición o la región recortada.</param>
     /// <param name="maxLevel">Último nivel de mip que tiene la textura de la composición (0 sin mips).</param>
-    public static ScalePlan Plan(int sourceWidth, int sourceHeight, int width, int height, ContentRect rect, ExportScaleFilter filter, int maxLevel)
+    /// <param name="whole">Se lee la composición entera; con recorte nunca se pasa directo.</param>
+    public static ScalePlan Plan(int sourceWidth, int sourceHeight, int width, int height, ContentRect rect, ExportScaleFilter filter, int maxLevel,
+        bool whole = true)
     {
         double sx = (double)rect.Width / sourceWidth;
         double sy = (double)rect.Height / sourceHeight;
@@ -81,7 +110,7 @@ internal static class ExportGeometry
         };
         float widenX = Widen(sx * (1 << level));
         float widenY = Widen(sy * (1 << level));
-        return new ScalePlan(rect, level, kernel, widenX, widenY, identity && rect.Covers(width, height));
+        return new ScalePlan(rect, level, kernel, widenX, widenY, whole && identity && rect.Covers(width, height));
     }
 
     private static float Widen(double residual) => (float)Math.Clamp(1 / residual, 1, MaxWiden);

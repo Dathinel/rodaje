@@ -33,6 +33,19 @@ public sealed class OfflineHardwareTests(ITestOutputHelper output)
         new("capas-640-2997", 640, 360, Rational.Ntsc30, TimeSpan.FromSeconds(14)) { GopLength = 60, BFrames = 2 },
     ];
 
+    private static readonly MediaSpec ReverseUhd = new("reversa-hevc-2160p-30", 3840, 2160, Rational.Fps30, TimeSpan.FromSeconds(14))
+    {
+        Codec = VideoCodec.Hevc,
+        GopLength = 30,
+        BFrames = 2,
+    };
+
+    private static readonly MediaSpec ReverseHd = new("velocidad-h264-1080p-45s", 1920, 1080, Rational.Fps30, TimeSpan.FromSeconds(45))
+    {
+        GopLength = 60,
+        BFrames = 2,
+    };
+
     [HardwareFact(VideoCodec.H264, Audio = AudioCodec.Aac)]
     public void Every_frame_matches_the_settled_preview_pixel_for_pixel_on_another_device()
     {
@@ -139,6 +152,60 @@ public sealed class OfflineHardwareTests(ITestOutputHelper output)
         {
             Assert.InRange(a - b, -50L * 1024 * 1024, 50L * 1024 * 1024);
         }
+    }
+
+    /// <summary>
+    /// Un clip invertido a 1× de 10 s, 4K HEVC (GOP 30) y 1080p H.264 (GOP 60): cada cuadro exportado lleva el número que
+    /// dibuja el medio y la exportación va al menos a tiempo real sin proxy (la exportación nunca usa proxies).
+    /// </summary>
+    [HardwareFact(VideoCodec.H264, VideoCodec.Hevc)]
+    [Trait("Categoria", "TiempoReal")]
+    public void A_reversed_4k_clip_exports_at_real_time_with_the_backward_reader()
+    {
+        var failures = new List<string>();
+        foreach (MediaSpec spec in new[] { ReverseUhd, ReverseHd })
+        {
+            (Project project, Clip clip) = ReverseProject(spec);
+            using GpuDevice gpu = GpuDevice.Create();
+            using (OfflineTimeline exact = OfflineTimeline.Open(project, "sec", gpu))
+            {
+                for (long f = 0; f < exact.FrameCount; f++)
+                {
+                    using CompositionFrame frame = exact.Render(f, CancellationToken.None);
+                    LayerFrame layer = Assert.Single(frame.Layers);
+                    LumaImage luma = FrameReadback.ReadLuma(layer.Frame);
+                    int? code = FrameCode.Read(luma.Pixels, luma.Width, luma.Height, luma.Width);
+                    long expected = SpeedClips.Expected(clip, spec.FrameRate, frame.TimelineTime);
+                    if (code != expected || layer.Frame.Index != expected)
+                    {
+                        failures.Add(string.Create(CultureInfo.InvariantCulture,
+                            $"{spec.Name} cuadro {f}: índice {layer.Frame.Index}, código {code}, esperado {expected}"));
+                    }
+                }
+            }
+
+            using OfflineTimeline offline = OfflineTimeline.Open(project, "sec", gpu);
+            using var compositor = new Compositor(gpu, offline.Width, offline.Height);
+            offline.Prepare(Time.Zero, offline.Duration, CancellationToken.None);
+            var watch = Stopwatch.StartNew();
+            for (long f = 0; f < offline.FrameCount; f++)
+            {
+                using CompositionFrame frame = offline.Render(f, CancellationToken.None);
+                compositor.RenderStrict(frame);
+            }
+
+            watch.Stop();
+            double fps = offline.FrameCount / watch.Elapsed.TotalSeconds;
+            output.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"{spec.Name} invertido: {offline.FrameCount} cuadros en {watch.Elapsed.TotalSeconds:0.00} s, {fps:0.0} fps compuestos " +
+                $"(tiempo real: {spec.FrameRate.ToDouble():0}); pico de VRAM de los decodificadores {offline.PeakDecoderVramBytes / (1024 * 1024)} MB."));
+            if (fps < spec.FrameRate.ToDouble())
+            {
+                failures.Add(string.Create(CultureInfo.InvariantCulture, $"{spec.Name}: {fps:0.0} fps, por debajo del tiempo real."));
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures.Take(20)));
     }
 
     /// <summary>
@@ -260,6 +327,24 @@ public sealed class OfflineHardwareTests(ITestOutputHelper output)
         var issues = ModelValidator.Validate(b.Project);
         Assert.True(issues.Count == 0, string.Join("; ", issues));
         return b.Project;
+    }
+
+    /// <summary>Un clip de 10 s del medio invertido a 1× en una secuencia de su mismo tamaño a 30.</summary>
+    private static (Project Project, Clip Clip) ReverseProject(MediaSpec spec)
+    {
+        GeneratedMedia media = TestMediaGenerator.CreateDefault()!.GetOrCreate(spec);
+        var sequence = new Sequence { Id = "sec", Name = "Reversa", FrameRate = Rational.Fps30, Width = spec.Width, Height = spec.Height };
+        var project = new Project { Id = "p", Name = "Reversa", Sequences = [sequence] };
+        var reference = new MediaRef { Id = "m", Path = media.Path };
+        MediaProbe.Probe(media.Path).ApplyTo(reference);
+        project.Media.Add(reference);
+        var track = new Track { Id = "v0", Kind = TrackKind.Video, Name = "Video 1" };
+        sequence.VideoTracks.Add(track);
+        var clip = new Clip { Id = "c", MediaId = "m", Start = Time.Zero, SourceIn = S(2), SourceOut = S(12) };
+        SpeedClips.Reversed(clip, new Rational(1, 1), S(2), S(12));
+        track.Clips.Add(clip);
+        Assert.Empty(ModelValidator.Validate(project));
+        return (project, clip);
     }
 
     /// <summary>Cuadro que muestra la capa según el plan: el del clip del carril principal o el del compañero.</summary>

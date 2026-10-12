@@ -161,8 +161,8 @@ public sealed record PackageCatalog(IReadOnlyList<CatalogApp> Apps, IReadOnlyLis
 }
 
 /// <summary>
-/// Trae el <c>.paquete</c> de una entrada del catálogo a un archivo local, con su hash si el origen lo publica. La
-/// descarga desde las releases de GitHub llega en la fase 7; hasta entonces se usa <see cref="UnavailablePackageDownloader"/>.
+/// Trae el <c>.paquete</c> de una entrada del catálogo a un archivo local, con su hash si el origen lo publica:
+/// <see cref="Download.GitHubReleaseDownloader"/> o, sin clave del catálogo, <see cref="UnavailablePackageDownloader"/>.
 /// </summary>
 public interface IPackageDownloader
 {
@@ -173,6 +173,10 @@ public interface IPackageDownloader
 
     /// <returns>La ruta del archivo descargado y su SHA-256 esperado (o <c>null</c> si el origen no lo publica).</returns>
     Task<DownloadedPackage> DownloadAsync(CatalogEntry entry, IProgress<double>? progress, CancellationToken cancellationToken);
+
+    /// <summary>La versión más nueva publicada de cada id que funciona con este programa (para ofrecer «Actualizar»).</summary>
+    Task<IReadOnlyDictionary<string, PackageVersion>> AvailableVersionsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<string, PackageVersion>>(new Dictionary<string, PackageVersion>());
 }
 
 public sealed record DownloadedPackage(string Path, string? ExpectedSha256);

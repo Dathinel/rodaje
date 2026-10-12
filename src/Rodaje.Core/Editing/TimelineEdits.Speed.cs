@@ -145,7 +145,7 @@ public static partial class TimelineEdits
                 }
 
                 return speed;
-            }, (clip, fit) => ExactLength(ctx, primary, clip, fit, length), keepOffset: true);
+            }, (clip, fit, speed) => ExactLength(ctx, primary, clip, fit, length, speed), keepOffset: true);
             return;
         }
 
@@ -154,22 +154,49 @@ public static partial class TimelineEdits
         {
             speed.Rate = rate;
             return speed;
-        }, (clip, fit) => ExactLength(ctx, primary, clip, fit, duration));
+        }, (clip, fit, _) => ExactLength(ctx, primary, clip, fit, duration));
     }
 
-    /// <summary>El clip arrastrado llega justo a <paramref name="duration"/> si su archivo tiene material; los enlazados quedan con su largo.</summary>
-    private static ClipTimeMap ExactLength(EditContext ctx, Clip primary, Clip clip, ClipTimeMap fit, Time duration)
+    /// <summary>
+    /// El clip arrastrado llega justo a <paramref name="duration"/> si su archivo tiene material; los enlazados quedan con su largo.
+    /// Con curva (<paramref name="speed"/>) se ajusta su <see cref="SpeedCurve.Span"/> para que esa duración recorra el
+    /// mismo material que antes del estiramiento: las velocidades redondeadas a centésimas no comen ni piden material, y
+    /// un clip que usa el archivo entero no se queda corto porque la curva estirada pediría unos ticks de más.
+    /// </summary>
+    private static ClipTimeMap ExactLength(EditContext ctx, Clip primary, Clip clip, ClipTimeMap fit, Time duration, ClipSpeed? speed = null)
     {
         bool exact = ReferenceEquals(clip, primary);
         Time start = clip.Start;
         ClipTimeMap moved = fit.MoveTo(start);
-        if (!exact || moved.Duration == duration)
+        if (!exact)
+        {
+            return moved;
+        }
+
+        Time media = ctx.MediaOf(clip).Duration;
+        if (speed?.Curve is { } own)
+        {
+            bool reverse = speed.Reverse;
+            long available = reverse ? clip.SourceOut.Ticks : (media - clip.SourceIn).Ticks;
+            long material = Math.Min((clip.SourceOut - clip.SourceIn).Ticks, available);
+            SpeedCurve curve = CurveForMaterial(own, speed.Offset.Ticks, duration.Ticks, material, available, Time.FromFrames(1, ctx.Sequence.FrameRate).Ticks);
+            ClipSpeed trial = speed.Clone();
+            trial.Curve = curve;
+            ClipTimeMap kept = ClipTimeMap.Create(start, duration, reverse ? moved.SourceOut : moved.SourceIn, trial);
+            if (kept.SourceIn >= Time.Zero && kept.SourceOut <= media)
+            {
+                speed.Curve = curve;
+                return kept;
+            }
+        }
+
+        if (moved.Duration == duration)
         {
             return moved;
         }
 
         ClipTimeMap stretched = moved.TrimOut(start + duration);
-        return stretched.SourceIn >= Time.Zero && stretched.SourceOut <= ctx.MediaOf(clip).Duration ? stretched : moved;
+        return stretched.SourceIn >= Time.Zero && stretched.SourceOut <= media ? stretched : moved;
     }
 
     /// <summary>
@@ -309,14 +336,15 @@ public static partial class TimelineEdits
     /// <summary>
     /// Cambia la velocidad del grupo con <paramref name="change"/> (sobre una copia, con desplazamiento 0 salvo
     /// <paramref name="keepOffset"/>) y ajusta cada miembro a su
-    /// material; <paramref name="place"/> puede rehacer el mapeo ajustado. Comprueba, aplica y corre lo que haga falta.
+    /// material; <paramref name="place"/> puede rehacer el mapeo ajustado (y retocar la curva de la velocidad). Los
+    /// enlazados llevan la curva que quedó en el primero del grupo. Comprueba, aplica y corre lo que haga falta.
     /// </summary>
     private static void Retime(
         EditContext ctx,
         string clipId,
         RippleScope scope,
         Func<Clip, ClipSpeed, ClipSpeed> change,
-        Func<Clip, ClipTimeMap, ClipTimeMap>? place = null,
+        Func<Clip, ClipTimeMap, ClipSpeed?, ClipTimeMap>? place = null,
         bool keepOffset = false)
     {
         List<(Track Track, Clip Clip)> group = EditableSpeedGroup(ctx, clipId);
@@ -326,11 +354,19 @@ public static partial class TimelineEdits
         }
 
         var plans = new List<(TrimPlan Plan, ClipSpeed? Speed)>(group.Count);
+        // El primero del grupo ajusta la curva a su material; los enlazados toman la misma, porque deben tener igual velocidad.
+        SpeedCurve? shared = null;
         foreach ((Track track, Clip clip) in group)
         {
+            bool first = plans.Count == 0;
             ClipSpeed changed = change(clip, clip.Speed?.Clone() ?? new ClipSpeed());
             changed.Offset = keepOffset ? changed.Offset : Time.Zero;
             ClipSpeed? speed = Normalize(changed);
+            if (!first && shared is not null && speed?.Curve is not null)
+            {
+                speed.Curve = shared.Clone();
+            }
+
             ClipTimeMap map;
             try
             {
@@ -341,7 +377,10 @@ public static partial class TimelineEdits
                 throw new EditException($"El clip «{clip.Id}» es demasiado corto para esa velocidad.");
             }
 
-            map = place is null ? AlignEnd(ctx, clip, map, speed) : place(clip, map);
+            map = place is not null ? place(clip, map, speed)
+                : first ? AlignEnd(ctx, clip, map, speed)
+                : LinkedEnd(ctx, clip, map, speed, group[0].Clip, plans[0].Plan.Map!);
+            shared = first ? speed?.Curve : shared;
             plans.Add((new TrimPlan(track, clip, map), speed));
         }
 
@@ -410,35 +449,191 @@ public static partial class TimelineEdits
     }
 
     /// <summary>
-    /// Con velocidad, el final va al cuadro de la secuencia más cercano (al anterior si el archivo no tiene material
-    /// para el siguiente). Al más cercano y no siempre hacia abajo para que repetir el cambio, como al arrastrar el
-    /// deslizador, no vaya comiendo material.
+    /// Con velocidad, el final va a un cuadro de la secuencia sin ir perdiendo material al encadenar cambios. El material
+    /// buscado es el del clip llevado a la rejilla de 1× (<see cref="GridMaterial"/>), así un redondeo anterior no se
+    /// suma al siguiente. Con curva se ajusta su <see cref="SpeedCurve.Span"/> para recorrer justo ese material con el
+    /// final en un cuadro (en <paramref name="speed"/>); con velocidad constante, que no puede conservarlo exacto, se elige
+    /// el cuadro vecino que deja el material más cercano, y al volver a 1× el final va al cuadro más cercano. Nunca pide
+    /// material que el archivo no tiene; si nada sirve, queda el mapeo ajustado tal cual. Sin <paramref name="adjustCurve"/>
+    /// (un enlazado, que lleva la curva del primero del grupo) la curva no se toca y el final va al cuadro vecino.
     /// </summary>
-    private static ClipTimeMap AlignEnd(EditContext ctx, Clip clip, ClipTimeMap map, ClipSpeed? speed)
+    private static ClipTimeMap AlignEnd(EditContext ctx, Clip clip, ClipTimeMap map, ClipSpeed? speed, bool adjustCurve = true)
     {
-        if (speed is null)
+        if (speed is null && clip.Speed is null)
         {
             return map;
         }
 
         Rational fps = ctx.Sequence.FrameRate;
-        Time floor = Time.FromFrames(map.End.ToFrames(fps), fps);
-        Time nearest = map.End.SnapToFrame(fps);
-        foreach (Time end in (Time[])[nearest, floor])
+        Time media = ctx.MediaOf(clip).Duration;
+        bool reverse = speed is { Reverse: true };
+        long available = reverse ? clip.SourceOut.Ticks : (media - clip.SourceIn).Ticks;
+        long target = GridMaterial(clip, fps, available);
+        Time anchor = reverse ? map.SourceOut : map.SourceIn;
+        long frame = map.End.ToFrames(fps);
+
+        // Los cuadros vecinos del final ajustado, del más cercano al más lejano.
+        List<Time> ends = [.. Enumerable.Range(-1, 4).Select(k => Time.FromFrames(frame + k, fps))
+            .Where(end => end > map.Start && Int128.Abs(map.Offset.Ticks) + end.Ticks - map.Start.Ticks <= RetimeMath.MaxExtent)
+            .OrderBy(end => Int128.Abs((Int128)end.Ticks - map.End.Ticks))];
+
+        ClipTimeMap? best = null;
+        SpeedCurve? bestCurve = null;
+        Int128 bestError = Int128.MaxValue;
+        foreach (Time end in ends)
         {
-            if (end == map.End)
+            ClipTimeMap aligned;
+            SpeedCurve? curve = null;
+            if (adjustCurve && speed?.Curve is { } own)
             {
-                return map;
+                curve = CurveForMaterial(own, speed.Offset.Ticks, (end - map.Start).Ticks, target, available, Time.FromFrames(1, fps).Ticks);
+                ClipSpeed trial = speed.Clone();
+                trial.Curve = curve;
+                aligned = ClipTimeMap.Create(map.Start, end - map.Start, anchor, trial);
+            }
+            else
+            {
+                aligned = end == map.End ? map : map.TrimOut(end);
             }
 
-            if (end > map.Start && end.Ticks - map.Start.Ticks <= RetimeMath.MaxExtent && map.TrimOut(end) is { } aligned
-                && aligned.SourceIn >= Time.Zero && aligned.SourceOut <= ctx.MediaOf(clip).Duration)
+            if (aligned.SourceIn < Time.Zero || aligned.SourceOut > media)
             {
-                return aligned;
+                continue;
+            }
+
+            Int128 error = Int128.Abs((Int128)(aligned.SourceOut - aligned.SourceIn).Ticks - target);
+            if (error < bestError)
+            {
+                (best, bestCurve, bestError) = (aligned, curve, error);
+            }
+
+            if (error == 0)
+            {
+                break;
             }
         }
 
-        return map;
+        if (best is null)
+        {
+            return map;
+        }
+
+        if (bestCurve is not null)
+        {
+            speed!.Curve = bestCurve;
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// El final de un enlazado, que lleva la velocidad del primero del grupo (<paramref name="first"/>, ya ajustado en
+    /// <paramref name="firstMap"/>). Si recorría el mismo material, queda con la misma duración, así video y audio siguen
+    /// juntos y conservan el mismo material; si no, o si su archivo no alcanza, su final va al cuadro vecino sin tocar la curva.
+    /// </summary>
+    private static ClipTimeMap LinkedEnd(EditContext ctx, Clip clip, ClipTimeMap map, ClipSpeed? speed, Clip first, ClipTimeMap firstMap)
+    {
+        if (speed is not null && clip.SourceDuration == first.SourceDuration)
+        {
+            ClipTimeMap same = ClipTimeMap.Create(clip.Start, firstMap.Duration, speed.Reverse ? map.SourceOut : map.SourceIn, speed);
+            if (same.SourceIn >= Time.Zero && same.SourceOut <= ctx.MediaOf(clip).Duration)
+            {
+                return same;
+            }
+        }
+
+        return AlignEnd(ctx, clip, map, speed, adjustCurve: false);
+    }
+
+    /// <summary>
+    /// El material que debe recorrer el clip: el actual llevado al punto más cercano de su rejilla de 1×, que son los
+    /// finales en un cuadro de la secuencia y el borde del archivo (un clip que llega al final del archivo lo conserva).
+    /// Sin ninguno dentro del archivo, el actual. Como la rejilla no depende del redondeo anterior, un cambio que quede a
+    /// menos de medio cuadro de ella no se suma al siguiente.
+    /// </summary>
+    private static long GridMaterial(Clip clip, Rational fps, long available)
+    {
+        long current = (clip.SourceOut - clip.SourceIn).Ticks;
+        long frame = (clip.Start + Time.FromTicks(current)).ToFrames(fps);
+        long best = current;
+        Int128 distance = Int128.MaxValue;
+        // A igual distancia gana el primero: el borde del archivo y luego el cuadro siguiente, como en SnapToFrame.
+        foreach (long grid in (long[])[available, (Time.FromFrames(frame + 1, fps) - clip.Start).Ticks, (Time.FromFrames(frame, fps) - clip.Start).Ticks])
+        {
+            Int128 d = Int128.Abs((Int128)grid - current);
+            if (grid > 0 && grid <= available && d < distance)
+            {
+                (best, distance) = (grid, d);
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// La curva con la misma forma y el <see cref="SpeedCurve.Span"/> con el que <paramref name="duration"/> ticks
+    /// recorren <paramref name="material"/> ticks del origen, o lo más cerca posible sin pasar de
+    /// <paramref name="available"/> (a unos ticks si la curva cambia más de un tick de origen por tick de duración). El
+    /// <see cref="SpeedCurve.Span"/> se busca a un octavo de la duración del actual, con no menos de dos cuadros
+    /// (<paramref name="frame"/>) ni más de ocho, para que la forma siga cubriendo el clip.
+    /// </summary>
+    private static SpeedCurve CurveForMaterial(SpeedCurve curve, long offset, long duration, long material, long available, long frame)
+    {
+        long window = Math.Clamp(duration / 8, 2 * frame, 8 * frame);
+        long low = Math.Max(1, curve.Span.Ticks - window);
+        long high = Math.Min(RetimeMath.MaxExtent, curve.Span.Ticks + window);
+        SpeedCurve With(long span) => new() { Span = Time.FromTicks(span), Points = [.. curve.Points] };
+        long Walk(long span)
+        {
+            RetimeMath math = RetimeMath.FromCurve(With(span));
+            return math.Ceiling(offset + duration) - math.Floor(offset);
+        }
+
+        // Pasarse del archivo es peor que cualquier falta.
+        Int128 Miss(long walked) => walked > available ? Int128.MaxValue / 2 + walked - available : Int128.Abs((Int128)walked - material);
+
+        long x0 = Math.Clamp(curve.Span.Ticks, low, high);
+        long g0 = Walk(x0);
+        long best = x0;
+        Int128 bestError = Miss(g0);
+        long x1 = Math.Clamp(duration, low, high);
+        if (x1 == x0)
+        {
+            x1 = x0 < high ? Math.Min(high, x0 + Math.Max(1, window / 64)) : Math.Max(low, x0 - Math.Max(1, window / 64));
+        }
+
+        // Secante: cerca del final la forma es casi lineal en el Span.
+        for (int i = 0; i < 40 && bestError != 0 && x1 != x0; i++)
+        {
+            long g1 = Walk(x1);
+            Int128 error = Miss(g1);
+            if (error < bestError)
+            {
+                (best, bestError) = (x1, error);
+            }
+
+            if (error == 0 || g1 == g0)
+            {
+                break;
+            }
+
+            Int128 next = x1 + (((Int128)material - g1) * (x1 - x0) / (g1 - g0));
+            (x0, g0) = (x1, g1);
+            x1 = (long)Int128.Clamp(next, low, high);
+        }
+
+        // Los ticks vecinos: la búsqueda puede quedar a uno o dos del exacto.
+        long from = Math.Max(low, best - 8), to = Math.Min(high, best + 8);
+        for (long s = from; s <= to && bestError != 0; s++)
+        {
+            Int128 error = Miss(Walk(s));
+            if (error < bestError)
+            {
+                (best, bestError) = (s, error);
+            }
+        }
+
+        return With(best);
     }
 
     /// <summary>Una velocidad que equivale a 1× sin desplazamiento vuelve a ser nula, como en el formato 3.</summary>

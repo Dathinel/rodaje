@@ -32,6 +32,22 @@ public sealed class PackageInstallerTests : IDisposable
     }
 
     [Fact]
+    public void Installing_fonts_warns_how_much_they_take()
+    {
+        string items = """[{ "id": "inter", "kind": "font", "name": "Inter", "license": "OFL-1.1", "files": ["fuentes/a.ttf", "fuentes/b.ttf"] }]""";
+        string archive = Samples.Zip(_folder.Combine("f.paquete"),
+            ("paquete.json", Samples.Manifest(id: "rodaje-fuentes", items: items)),
+            ("fuentes/a.ttf", new string('a', 3000)),
+            ("fuentes/b.ttf", new string('b', 2000)));
+
+        InstallResult result = _installer.Install(archive);
+
+        string warning = Assert.Single(result.Warnings);
+        Assert.StartsWith("Trae una fuente que ocupa 4", warning, StringComparison.Ordinal);
+        Assert.EndsWith("9 KB.", warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_wrapping_folder_like_github_release_zips_is_removed()
     {
         string archive = Samples.Zip(_folder.Combine("t.paquete"),

@@ -173,34 +173,35 @@ public sealed unsafe class TitleRasterizer : IGeneratedContentCache, IDisposable
 
     /// <summary>
     /// La pasada que solo resuelve fuentes: las de <paramref name="contents"/> que no están (una por familia y clip).
-    /// La exportación aplica con esto su <c>MissingContentPolicy</c>; la vista previa avisa en el inspector.
+    /// La exportación aplica con esto su <c>MissingContentPolicy</c>; la vista previa avisa en el inspector. No espera a
+    /// que termine el rasterizado en curso: solo pregunta a las colecciones de fuentes.
     /// </summary>
     public IReadOnlyList<MissingFont> FindMissingFonts(IEnumerable<GeneratedContent> contents)
     {
         ArgumentNullException.ThrowIfNull(contents);
+        TitleFonts fonts = Volatile.Read(ref _fonts) ?? throw new ObjectDisposedException(nameof(TitleRasterizer));
         var missing = new List<MissingFont>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        lock (_raster)
+        foreach (GeneratedContent content in contents)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            foreach (GeneratedContent content in contents)
+            if (content.Kind != GeneratorKinds.Text)
             {
-                if (content.Kind != GeneratorKinds.Text)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                StyleFont font = content.Style.Font;
-                ResolvedFont resolved = _fonts!.Resolve(font);
-                if (resolved.Missing && seen.Add(font.Family + "\u001f" + content.ClipId))
-                {
-                    missing.Add(new MissingFont(font.Family, font.Source, content.ClipId, resolved.Family));
-                }
+            StyleFont font = content.Style.Font;
+            ResolvedFont resolved = fonts.Resolve(font);
+            if (resolved.Missing && seen.Add(font.Family + "" + content.ClipId))
+            {
+                missing.Add(new MissingFont(font.Family, font.Source, content.ClipId, resolved.Family));
             }
         }
 
         return missing;
     }
+
+    /// <summary>Para las pruebas: el candado que toma el rasterizado.</summary>
+    internal Lock RasterLock => _raster;
 
     /// <summary>Verdadero si ya está rasterizado (o no se puede: no hay nada que esperar); si no, lo encola.</summary>
     public bool Prepare(GeneratedContent content)

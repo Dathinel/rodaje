@@ -70,6 +70,14 @@ public class FormatV5Tests
     }
 
     [Fact]
+    public void LoneSurrogate_InAnyText_IsAFormatError_NotAnInvalidOperation()
+    {
+        string broken = Example.Replace("Hola\\nmundo", "Hola\\" + "ud800mundo", StringComparison.Ordinal);
+        Assert.NotEqual(Example, broken);
+        Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize(broken));
+    }
+
+    [Fact]
     public void Migrate_V4_OnlyBumpsTheVersion()
     {
         JsonObject root = JsonNode.Parse(Ejemplo("proyecto-v4.rodaje"))!.AsObject();

@@ -194,12 +194,24 @@ public sealed class ExportEncoderAvailabilityTests
         var probe = new FakeProbe(_ =>
         {
             // Solo avanza si tres sondas coinciden; en serie se agotaría el tiempo.
-            barrier.SignalAndWait(TimeSpan.FromSeconds(10));
+            barrier.SignalAndWait(TimeSpan.FromSeconds(60));
             return ExportProbeResult.Ok;
         });
         var availability = new ExportEncoderAvailability(probe, maxParallelism: 3, catalog: ExportEncoderCatalog.All.Take(3));
 
-        await availability.GetAsync();
+        // Cada sonda ocupa un hilo del pool hasta que llegan las tres. Con el runner cargado, las demás pruebas del
+        // proceso tienen ocupado el pool y el tercer hilo tardaba más de 10 s en crearse (salía 2): eso mide al pool y no
+        // el límite de ExportEncoderAvailability. Se asegura que el pool pueda dar los hilos enseguida y se espera más.
+        ThreadPool.GetMinThreads(out int workers, out int io);
+        ThreadPool.SetMinThreads(Math.Max(workers, ThreadPool.ThreadCount + 3), io);
+        try
+        {
+            await availability.GetAsync();
+        }
+        finally
+        {
+            ThreadPool.SetMinThreads(workers, io);
+        }
 
         Assert.Equal(3, probe.MaxRunning);
     }

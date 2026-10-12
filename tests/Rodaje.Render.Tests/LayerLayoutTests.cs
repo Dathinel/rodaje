@@ -118,6 +118,35 @@ public sealed class LayerLayoutTests
         Assert.Equal((1920, 1080), SourceGeometry.Square.DisplaySize(1920, 1080));
     }
 
+    /// <summary>
+    /// Estabilizar va antes de la transformación: cada punto de la imagen ajustada (centrado, en píxeles de la secuencia)
+    /// se corrige con la similitud medida en altos de la imagen y después se transforma.
+    /// </summary>
+    [Theory]
+    [InlineData(1920, 1080, 0, 0, 1, 0)]
+    [InlineData(1920, 1080, 100, -40, 1.5, 30)]
+    [InlineData(640, 480, -25, 60, 0.75, -120)]
+    public void Stabilization_is_composed_before_the_transform(int width, int height, double x, double y, double scale, double degrees)
+    {
+        var correction = new LayerStabilization(1.08 * Math.Cos(0.02), 1.08 * Math.Sin(0.02), 0.013, -0.021);
+        var transform = new LayerTransform(x, y, scale, degrees, 1) { Stabilization = correction };
+        LayerPlacement p = LayerLayout.Place(1920, 1080, width, height, transform)!.Value;
+        LayerPlacement plain = LayerLayout.Place(1920, 1080, width, height, transform with { Stabilization = null })!.Value;
+
+        double fitHeight = plain.LocalHeight;
+        double radians = degrees * Math.PI / 180;
+        foreach ((float lx, float ly) in new[] { (0f, 0f), (plain.LocalWidth, 0f), (plain.LocalWidth * 0.3f, plain.LocalHeight * 0.8f) })
+        {
+            double qx = lx - (plain.LocalWidth / 2.0);
+            double qy = ly - (plain.LocalHeight / 2.0);
+            double cx = (correction.A * qx) - (correction.B * qy) + (correction.X * fitHeight);
+            double cy = (correction.B * qx) + (correction.A * qy) + (correction.Y * fitHeight);
+            double ex = (scale * ((cx * Math.Cos(radians)) - (cy * Math.Sin(radians)))) + 960 + x;
+            double ey = (scale * ((cx * Math.Sin(radians)) + (cy * Math.Cos(radians)))) + 540 + y;
+            AssertPoint(new Vector2((float)ex, (float)ey), p.Map(lx, ly));
+        }
+    }
+
     private static void AssertPoint(Vector2 expected, Vector2 actual)
     {
         Assert.True(Vector2.Distance(expected, actual) < Precision, $"Se esperaba {expected} y se obtuvo {actual}.");

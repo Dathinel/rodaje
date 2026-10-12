@@ -25,6 +25,7 @@ internal sealed partial class PluginsView : UserControl, IEditorView
     private DispatcherQueueTimer? _instancesTimer;
     private int _instances = 1;
     private int _busy;
+    private readonly Dictionary<string, DownloadState> _downloads = new(StringComparer.Ordinal);
 
     public PluginsView()
     {
@@ -44,8 +45,8 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         services.Packages.Changed += (_, _) => Refresh();
         IPackageDownloader downloader = services.Packages.Downloader;
         DownloadNote.Text = downloader.IsAvailable
-            ? "Los complementos se descargan de las releases de GitHub y se comprueba su hash antes de instalarlos."
-            : "Descarga desde GitHub: próximamente. Mientras tanto, baja el archivo .paquete de la release del repositorio y usa «Instalar desde archivo…», o suéltalo en la biblioteca.";
+            ? DownloadNoteText
+            : (downloader.UnavailableReason ?? "") + " También puedes soltar el .paquete en la biblioteca.";
         _instances = services.Packages.ActiveInstances();
         _instancesTimer = DispatcherQueue.CreateTimer();
         _instancesTimer.Interval = InstancesPoll;
@@ -63,6 +64,35 @@ internal sealed partial class PluginsView : UserControl, IEditorView
 
         Refresh();
         _ = services.Packages.RefreshAsync();
+        _ = CheckUpdatesAsync();
+    }
+
+    private const string DownloadNoteText = "Los complementos se descargan de las releases de GitHub con un índice firmado por Dathinel; cada archivo se comprueba con su SHA-256 antes de instalarse.";
+
+    /// <summary>Consulta las versiones publicadas para ofrecer «Actualizar»; sin conexión solo lo avisa en la nota.</summary>
+    private async Task CheckUpdatesAsync()
+    {
+        if (_services is null || !_services.Packages.Downloader.IsAvailable)
+        {
+            return;
+        }
+
+        await _services.Packages.AvailableVersionsAsync();
+        DownloadNote.Text = _services.Packages.UpdatesProblem is { } problem
+            ? $"{DownloadNoteText} Ahora no se pudo consultar el catálogo: {problem}"
+            : DownloadNoteText;
+        Refresh();
+    }
+
+    private DownloadState DownloadFor(string id)
+    {
+        if (!_downloads.TryGetValue(id, out DownloadState? state))
+        {
+            state = new DownloadState();
+            _downloads[id] = state;
+        }
+
+        return state;
     }
 
     private void CheckInstances()
@@ -97,7 +127,8 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         Modules.Clear();
         foreach (PluginEntry entry in packages.Entries())
         {
-            (entry.Kind == PackageKind.Module ? Modules : ContentPackages).Add(new PluginRow(entry, packages.Downloader, othersOpen));
+            (entry.Kind == PackageKind.Module ? Modules : ContentPackages).Add(
+                new PluginRow(entry, packages.Downloader, othersOpen, packages.HasUpdate(entry), DownloadFor(entry.Id)));
         }
 
         Problems.Clear();
@@ -131,23 +162,46 @@ internal sealed partial class PluginsView : UserControl, IEditorView
 
     private async void OnInstallClick(object sender, RoutedEventArgs e)
     {
-        if (_services is null || (sender as FrameworkElement)?.DataContext is not PluginRow { Entry.Catalog: { } entry })
+        if (_services is null || (sender as FrameworkElement)?.DataContext is not PluginRow { Entry.Catalog: { } entry } row || row.Download.IsActive)
         {
             return;
         }
 
-        await RunBusyAsync($"No se instaló «{entry.Name}»", async () =>
+        DownloadState state = row.Download;
+        CancellationToken cancellation = state.Start();
+        var progress = new Progress<double>(state.Report);
+        try
         {
-            try
-            {
-                InstallResult result = await _services.Packages.InstallFromCatalogAsync(entry);
-                _services.Session.Notify(NotificationSeverity.Success, $"«{result.Package.Manifest.Name}» instalado", $"Versión {result.Package.Manifest.Version}.");
-            }
-            catch (NotSupportedException ex)
-            {
-                _services.Session.Notify(NotificationSeverity.Informational, "Todavía no", ex.Message);
-            }
-        });
+            InstallResult result = await _services.Packages.InstallFromCatalogAsync(entry, progress, cancellation);
+            PackageManifest manifest = result.Package.Manifest;
+            string what = result.Outcome == InstallOutcome.Updated ? $"Se actualizó de la {result.PreviousVersion} a la {manifest.Version}." : $"Versión {manifest.Version}.";
+            _services.Session.Notify(NotificationSeverity.Success, $"«{manifest.Name}» instalado", what);
+        }
+        catch (OperationCanceledException)
+        {
+            _services.Session.Notify(NotificationSeverity.Informational, $"Descarga de «{entry.Name}» en pausa", "Lo descargado se guardó; «Instalar» sigue desde ahí.");
+        }
+        catch (NotSupportedException ex)
+        {
+            _services.Session.Notify(NotificationSeverity.Informational, "Todavía no", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _services.Session.Notify(NotificationSeverity.Error, $"No se instaló «{entry.Name}»", ex.Message);
+        }
+        finally
+        {
+            state.Finish();
+            Refresh();
+        }
+    }
+
+    private void OnCancelDownloadClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is PluginRow row)
+        {
+            row.Download.Cancel();
+        }
     }
 
     private async void OnUninstallClick(object sender, RoutedEventArgs e)

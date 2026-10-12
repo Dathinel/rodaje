@@ -73,7 +73,7 @@ public sealed class PackageServiceTests : IDisposable
 
         var ex = await Assert.ThrowsAsync<NotSupportedException>(() => service.InstallFromCatalogAsync(entry));
 
-        Assert.Contains("próximamente", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("Instalar desde archivo", ex.Message, StringComparison.Ordinal);
         Assert.False(service.Downloader.IsAvailable);
     });
 
@@ -202,6 +202,84 @@ public sealed class PackageServiceTests : IDisposable
         await service.RefreshAsync();
         Assert.False(Directory.Exists(extracting));
     });
+
+    [Fact]
+    public void Installing_from_the_catalog_downloads_installs_and_deletes_the_download() => UiThread.Run(async () =>
+    {
+        string archive = Path.Combine(_folder.Path, "descargado.paquete");
+        WriteArchive(archive, "rodaje-filtros", "filter");
+        var downloader = new FakeDownloader(archive, InstallerHash(archive));
+        PackageService service = new(PackageLocations.Under(Path.Combine(_folder.Path, "complementos")), PackageService.LoadBundledCatalog(), downloader);
+
+        InstallResult result = await service.InstallFromCatalogAsync(service.Catalog.Find("rodaje-filtros")!);
+
+        Assert.Equal("rodaje-filtros", result.Package.Id);
+        Assert.False(File.Exists(archive));
+        Assert.True(service.Entries().Single(e => e.Id == "rodaje-filtros").IsInstalled);
+    });
+
+    [Fact]
+    public void A_download_whose_hash_does_not_match_is_deleted_and_nothing_is_installed() => UiThread.Run(async () =>
+    {
+        string archive = Path.Combine(_folder.Path, "descargado.paquete");
+        WriteArchive(archive, "rodaje-filtros", "filter");
+        PackageService service = new(PackageLocations.Under(Path.Combine(_folder.Path, "complementos")), PackageService.LoadBundledCatalog(),
+            new FakeDownloader(archive, new string('0', 64)));
+
+        await Assert.ThrowsAsync<PackageInstallException>(() => service.InstallFromCatalogAsync(service.Catalog.Find("rodaje-filtros")!));
+
+        Assert.False(File.Exists(archive));
+        Assert.False(service.Entries().Single(e => e.Id == "rodaje-filtros").IsInstalled);
+    });
+
+    [Fact]
+    public void A_newer_published_version_offers_an_update() => UiThread.Run(async () =>
+    {
+        string archive = Path.Combine(_folder.Path, "f.paquete");
+        WriteArchive(archive, "rodaje-filtros", "filter");
+        var downloader = new FakeDownloader(archive, null) { Versions = new() { ["rodaje-filtros"] = PackageVersion.Parse("1.2.0") } };
+        PackageService service = new(PackageLocations.Under(Path.Combine(_folder.Path, "complementos")), PackageService.LoadBundledCatalog(), downloader);
+        await service.InstallFromFileAsync(archive);
+        Assert.False(service.HasUpdate(service.Entries().Single(e => e.Id == "rodaje-filtros")));
+
+        await service.AvailableVersionsAsync();
+
+        Assert.True(service.HasUpdate(service.Entries().Single(e => e.Id == "rodaje-filtros")));
+        Assert.False(service.HasUpdate(service.Entries().Single(e => e.Id == "rodaje-titulos")));
+        Assert.Null(service.UpdatesProblem);
+    });
+
+    [Fact]
+    public void The_app_downloader_needs_the_catalog_key()
+    {
+        PackageLocations locations = PackageLocations.Under(Path.Combine(_folder.Path, "complementos"));
+        Assert.False(Rodaje.App.Services.Packages.Download.CatalogSource.CreateDownloader(locations, publicKey: "").IsAvailable);
+        using var key = System.Security.Cryptography.ECDsa.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+        IPackageDownloader downloader = Rodaje.App.Services.Packages.Download.CatalogSource.CreateDownloader(locations, Convert.ToBase64String(key.ExportSubjectPublicKeyInfo()));
+        Assert.True(downloader.IsAvailable);
+        (downloader as IDisposable)?.Dispose();
+        Assert.EndsWith(Path.Combine("complementos", "descargas"), Rodaje.App.Services.Packages.Download.CatalogSource.DownloadFolder(locations), StringComparison.Ordinal);
+    }
+
+    private static string InstallerHash(string path) => PackageInstaller.ComputeSha256(path);
+
+    private sealed class FakeDownloader(string path, string? sha) : IPackageDownloader
+    {
+        public Dictionary<string, PackageVersion> Versions { get; init; } = [];
+
+        public bool IsAvailable => true;
+
+        public string? UnavailableReason => null;
+
+        public Task<DownloadedPackage> DownloadAsync(CatalogEntry entry, IProgress<double>? progress, CancellationToken cancellationToken)
+        {
+            progress?.Report(1);
+            return Task.FromResult(new DownloadedPackage(path, sha));
+        }
+
+        public Task<IReadOnlyDictionary<string, PackageVersion>> AvailableVersionsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<string, PackageVersion>>(Versions);
+    }
 
     private PackageService Create(InstanceRegistry? instances = null) =>
         new(PackageLocations.Under(Path.Combine(_folder.Path, "complementos")), PackageService.LoadBundledCatalog(), instances: instances);

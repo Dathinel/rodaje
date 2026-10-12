@@ -28,8 +28,9 @@ public sealed class ExportDialogModel
         Performance = preferences.Performance;
 
         ExportPreset? remembered = ExportPresetLibrary.Find(preferences, preferences.PresetId);
-        ExportSettings start = preferences.Settings ?? remembered?.Settings ?? ExportPresets.YouTube1080p.Settings;
-        PresetId = remembered is not null && ExportPresetLibrary.Matches(remembered, start) ? remembered.Id
+        ExportSettings start = ExportGeometry.FollowSequence(preferences.Settings ?? remembered?.Settings ?? ExportPresets.YouTube1080p.Settings,
+            sequence.Width, sequence.Height);
+        PresetId = remembered is not null && PresetMatches(remembered, start) ? remembered.Id
             : preferences.Settings is null ? ExportPresets.YouTube1080p.Id : ExportPresetLibrary.CustomId;
         ApplySettings(start, keepPreset: true);
 
@@ -66,6 +67,8 @@ public sealed class ExportDialogModel
 
     public int SequenceHeight => _sequence.Height;
 
+    public Rational SequenceFrameRate => _sequence.FrameRate;
+
     public Rational FrameRate => Settings.Video?.FrameRate ?? _sequence.FrameRate;
 
     public Time Duration => Ranges[RangeIndex].Range?.Duration ?? _sequence.Duration;
@@ -76,7 +79,18 @@ public sealed class ExportDialogModel
 
     public (int Width, int Height) OutputSize => Settings.Video is { } v ? ExportGeometry.OutputSize(v, SequenceWidth, SequenceHeight) : (0, 0);
 
-    /// <summary>La salida tiene otra forma que la secuencia: se ofrece barras/recorte/estirar y «Cambiar la secuencia».</summary>
+    /// <summary>
+    /// El preajuste elegido es de redes con otra forma que la del proyecto (Reels 9:16 con un proyecto 16:9): la salida
+    /// sigue al proyecto y la vista ofrece cambiar el formato del proyecto. Los de 16:9 (YouTube, maestros) no avisan. Nulo si no.
+    /// </summary>
+    public string? PresetShapeNote =>
+        ExportPresetLibrary.Find(_preferences, PresetId) is { Settings.Video: { Width: { } w, Height: { } h } } preset
+        && ExportGeometry.ShapeDiffers(w, h, SequenceWidth, SequenceHeight) && ExportGeometry.ShapeDiffers(w, h, 16, 9)
+            ? $"«{preset.Name}» es para {ExportGeometry.AspectName(w, h)} y el proyecto es {ExportGeometry.AspectName(SequenceWidth, SequenceHeight)}: "
+              + "se exporta con la forma del proyecto."
+            : null;
+
+    /// <summary>La salida tiene otra forma que la secuencia (solo si se eligió en Avanzado): barras, recorte o estirar.</summary>
     public bool ShapeDiffers => Settings.Video is not null && OutputSize is var (w, h) && ExportGeometry.ShapeDiffers(w, h, SequenceWidth, SequenceHeight);
 
     public ExportEstimate Estimate => ExportEstimator.Estimate(Settings with { Performance = Performance }, VideoEncoder, OutputSize.Width,
@@ -117,7 +131,7 @@ public sealed class ExportDialogModel
 
         ExportPreset preset = ExportPresetLibrary.Find(_preferences, id) ?? throw new ArgumentException($"No hay un preajuste «{id}».", nameof(id));
         PresetId = preset.Id;
-        ApplySettings(preset.Settings, keepPreset: true);
+        ApplySettings(ExportGeometry.FollowSequence(preset.Settings, SequenceWidth, SequenceHeight), keepPreset: true);
     }
 
     /// <summary>Un cambio desde Avanzado: se ajusta a lo posible y, si ya no es el del preajuste, pasa a «Personalizado».</summary>
@@ -197,12 +211,16 @@ public sealed class ExportDialogModel
         return new ExportRequest(projectCopy, sequenceId, OutputPath, settings, Ranges[RangeIndex].Range) { ProjectDirectory = projectDirectory };
     }
 
+    /// <summary>Si los ajustes son los del preajuste ya llevado a la forma del proyecto.</summary>
+    private bool PresetMatches(ExportPreset preset, ExportSettings settings) =>
+        ExportPresetLibrary.Matches(preset with { Settings = ExportGeometry.FollowSequence(preset.Settings, SequenceWidth, SequenceHeight) }, settings);
+
     private void ApplySettings(ExportSettings settings, bool keepPreset)
     {
         CoercedSettings coerced = ExportSettingsEditor.Coerce(settings, Encoders);
         Settings = coerced.Settings;
         Adjustments = coerced.Changes;
-        if (!keepPreset && ExportPresetLibrary.Find(_preferences, PresetId) is { } preset && !ExportPresetLibrary.Matches(preset, Settings))
+        if (!keepPreset && ExportPresetLibrary.Find(_preferences, PresetId) is { } preset && !PresetMatches(preset, Settings))
         {
             PresetId = ExportPresetLibrary.CustomId;
         }

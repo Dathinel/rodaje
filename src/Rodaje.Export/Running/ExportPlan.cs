@@ -63,13 +63,13 @@ public sealed record ExportPlan
             throw Invalid("No hay ni video ni audio que exportar.");
         }
 
-        if (settings.Video?.Crop is not null)
-        {
-            throw Invalid("El recorte por región todavía no se puede exportar; usa «Recortar» en la forma.");
-        }
-
         Sequence sequence = request.Project.FindSequence(request.SequenceId)
             ?? throw Invalid($"La secuencia {request.SequenceId} no existe.");
+        if (settings.Video?.Crop is { } crop && (crop.X + crop.Width > sequence.Width || crop.Y + crop.Height > sequence.Height))
+        {
+            throw Invalid($"El recorte se sale de la secuencia de {sequence.Width}×{sequence.Height}.");
+        }
+
         Time duration = sequence.Duration;
         ExportRange range = request.Range ?? new ExportRange(Time.Zero, duration);
         Time end = range.End > duration ? duration : range.End;

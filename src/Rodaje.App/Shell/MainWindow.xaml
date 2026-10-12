@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Distribución D-018: barra de título; biblioteca con su riel, reproductor y panel derecho; línea de tiempo abajo. Los
+    Distribución D-018: barra de título; biblioteca con su riel, reproductor y panel derecho; herramientas rápidas y línea de tiempo abajo. Los
     separadores cambian el tamaño de cada zona y se recuerda en ajustes.json. Las páginas de atajos y complementos se
     abren encima (ModalLayer).
 -->
@@ -13,6 +13,7 @@
     xmlns:player="using:Rodaje.App.Views.Player"
     xmlns:inspector="using:Rodaje.App.Views.Inspector"
     xmlns:timeline="using:Rodaje.App.Views.Timeline"
+    xmlns:tools="using:Rodaje.App.Views.Tools"
     Title="Rodaje">
 
     <Grid x:Name="Root" Background="{StaticResource BackgroundBrush}" AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop">
@@ -51,7 +52,15 @@
 
         <shell:PaneSplitter x:Name="TimelineSplitter" Grid.Row="3" ResizesColumn="False" TargetIndex="4" GrowsTowardEnd="False" MinSize="160" MaxSize="1400" ReserveForStar="240" />
 
-        <timeline:TimelineView x:Name="Timeline" Grid.Row="4" />
+        <!-- Herramientas rápidas encima de la línea de tiempo: siempre a la vista, cerca de los clips que se eligen. -->
+        <Grid Grid.Row="4">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <tools:ToolsBar x:Name="Tools" />
+            <timeline:TimelineView x:Name="Timeline" Grid.Row="1" />
+        </Grid>
 
         <Grid x:Name="ModalLayer" Grid.RowSpan="5" Visibility="Collapsed" Background="{StaticResource ScrimBrush}">
             <Border Margin="48,56,48,40" MaxWidth="1100" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="2">

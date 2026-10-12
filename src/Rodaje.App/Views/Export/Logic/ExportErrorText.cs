@@ -29,6 +29,9 @@ public sealed record ExportErrorView(string Title, string Message, ExportErrorAc
 /// <summary>Textos en español por <see cref="ExportErrorCode"/>; el mensaje del trabajo se añade si aporta.</summary>
 public static class ExportErrorText
 {
+    /// <summary>Así empieza <see cref="ExportException.Culprit"/> cuando falta la fuente de un título.</summary>
+    private const string FontCulprit = "fuente «";
+
     public static ExportErrorView For(ExportException error)
     {
         ArgumentNullException.ThrowIfNull(error);
@@ -50,6 +53,11 @@ public static class ExportErrorText
             ExportErrorCode.Canceled => ("Exportación cancelada", "No se guardó ningún archivo.", ExportErrorAction.None),
             _ => ("La exportación falló", "Algo inesperado la detuvo. Vuelve a intentarlo; los detalles quedan en rodaje-error.txt.", ExportErrorAction.Retry),
         };
+
+        if (error.Code == ExportErrorCode.ContentMissing && error.Culprit?.StartsWith(FontCulprit, StringComparison.Ordinal) == true)
+        {
+            (title, message) = ("Falta una fuente", $"Un título usa la {error.Culprit}, que no está instalada. Instala su paquete o exporta con la fuente de respaldo.");
+        }
 
         if (error.Code == ExportErrorCode.ContentMissing && !error.CanContinueWithout)
         {

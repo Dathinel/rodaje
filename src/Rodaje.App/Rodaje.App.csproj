@@ -40,14 +40,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Rodaje.Analysis\Rodaje.Analysis.csproj" />
     <ProjectReference Include="..\Rodaje.Engine\Rodaje.Engine.csproj" />
     <ProjectReference Include="..\Rodaje.Export\Rodaje.Export.csproj" />
     <ProjectReference Include="..\Rodaje.Render\Rodaje.Render.csproj" />
     <ProjectReference Include="..\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
+    <ProjectReference Include="..\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Services\Packages\catalogo.json" LogicalName="Rodaje.App.catalogo.json" />
+    <EmbeddedResource Include="Services\Packages\clave-catalogo.txt" LogicalName="Rodaje.App.clave-catalogo.txt" />
   </ItemGroup>
 
   <ItemGroup>

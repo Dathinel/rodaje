@@ -121,7 +121,7 @@ function Argumentos-Prueba([string]$prefijo, [string]$categoria) {
 }
 
 Fase 3 $(if ($Cobertura) { 'corriendo las pruebas y midiendo la cobertura...' } else { 'corriendo las pruebas...' })
-$argumentos = Argumentos-Prueba 'resultados' 'Categoria!=TiempoReal'
+$argumentos = Argumentos-Prueba 'resultados' 'Categoria!=TiempoReal&Categoria!=Red'
 if ($Cobertura) { $argumentos += '--collect:XPlat Code Coverage' }
 
 $script:Hechas = 0
