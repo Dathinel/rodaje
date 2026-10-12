@@ -1,3 +1,4 @@
+using Rodaje.Core.Editing;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -92,7 +93,8 @@ internal sealed partial class TimelinePlan
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(sequenceId);
-        Sequence sequence = project.GetSequence(sequenceId);
+        // Cada clip compuesto se despliega en los clips que muestra (recursivo, sin ciclos): el resto del plan no los ve.
+        Sequence sequence = CompoundOps.Flatten(project, project.GetSequence(sequenceId));
         var media = new Dictionary<string, MediaRef>();
         foreach (MediaRef m in project.Media)
         {

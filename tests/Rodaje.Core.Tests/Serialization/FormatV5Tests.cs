@@ -22,8 +22,10 @@ public class FormatV5Tests
     {
         Project project = ProjectSerializer.Deserialize(Example);
 
-        Assert.Equal(Example, ProjectSerializer.Serialize(project) + "\n");
-        Assert.Equal(Example, ProjectSerializer.Serialize(project.Clone()) + "\n");
+        // Al guardar se escribe la versión actual; el resto del archivo no cambia.
+        string saved = Example.Replace("\"schemaVersion\": 5", "\"schemaVersion\": 6", StringComparison.Ordinal);
+        Assert.Equal(saved, ProjectSerializer.Serialize(project) + "\n");
+        Assert.Equal(saved, ProjectSerializer.Serialize(project.Clone()) + "\n");
 
         Track subtitles = project.Sequences[0].VideoTracks[1];
         Assert.Equal(TrackRoles.Subtitles, subtitles.Role);
@@ -97,15 +99,15 @@ public class FormatV5Tests
 
         Assert.All(project.Sequences[0].AllTracks.SelectMany(t => t.Clips), c => Assert.Null(c.Generator));
         Assert.All(project.Sequences[0].AllTracks, t => Assert.Null(t.Role));
-        Assert.Equal(v4.Replace("\"schemaVersion\": 4", "\"schemaVersion\": 5", StringComparison.Ordinal), ProjectSerializer.Serialize(project) + "\n");
+        Assert.Equal(v4.Replace("\"schemaVersion\": 4", "\"schemaVersion\": 6", StringComparison.Ordinal), ProjectSerializer.Serialize(project) + "\n");
     }
 
     [Fact]
-    public void Format6_AsksToUpdate()
+    public void Format7_AsksToUpdate()
     {
-        string v6 = Example.Replace("\"schemaVersion\": 5", "\"schemaVersion\": 6", StringComparison.Ordinal);
+        string v6 = Example.Replace("\"schemaVersion\": 5", "\"schemaVersion\": 7", StringComparison.Ordinal);
         var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize(v6));
-        Assert.Contains("formato 6", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("formato 7", ex.Message, StringComparison.Ordinal);
         Assert.Contains("Actualiza Rodaje", ex.Message, StringComparison.Ordinal);
     }
 

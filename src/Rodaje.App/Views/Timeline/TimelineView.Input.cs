@@ -178,6 +178,12 @@ internal sealed partial class TimelineView
             return;
         }
 
+        if (IsCompoundDoubleClick(hit.Clip))
+        {
+            Session.EnterCompound(hit.Clip!.Id);
+            return;
+        }
+
         _pressPoint = p;
         _pressTime = hit.Time;
         _pressHit = hit;
@@ -339,7 +345,7 @@ internal sealed partial class TimelineView
             HitKind.ClipEnd => alt ? DragOperation.StretchEnd : DragOperation.TrimEnd,
             _ => alt ? DragOperation.Slip : DragOperation.Move,
         };
-        var drag = new ClipDrag(session.Project, session.SequenceId, clip.Id, operation, _pressTime, Options(), session.Position);
+        var drag = new ClipDrag(session.Project, session.SequenceId, clip.Id, operation, _pressTime, Options(), session.ProgramPosition);
         _drag = new ClipDragSession(session, drag);
         _drag.Begin();
         _mode = PointerMode.DraggingClip;
@@ -379,7 +385,7 @@ internal sealed partial class TimelineView
             if (_pressHit.Clip is null)
             {
                 _overlay.TimeRange = null;
-                session.Seek(_pressTime.SnapToFrame(session.Sequence.FrameRate));
+                SeekProgram(_pressTime.SnapToFrame(session.Sequence.FrameRate));
             }
 
             Invalidate();
@@ -514,7 +520,7 @@ internal sealed partial class TimelineView
         else
         {
             _mode = PointerMode.Scrub;
-            Session.Seek(Viewport.XToTime(x));
+            SeekProgram(Viewport.XToTime(x));
         }
 
         Capture(RulerCanvas, e);
@@ -531,7 +537,7 @@ internal sealed partial class TimelineView
         if (_mode == PointerMode.Scrub)
         {
             EdgeScroll(x);
-            Session.Seek(Viewport.XToTime(x));
+            SeekProgram(Viewport.XToTime(x));
             Invalidate();
         }
         else if (_mode == PointerMode.DraggingMarker && _markerId is { } id)
@@ -539,7 +545,7 @@ internal sealed partial class TimelineView
             Time at = Viewport.XToTime(x).SnapToFrame(Session.Sequence.FrameRate);
             if (State.Snapping)
             {
-                SnapPoints snaps = SnapPoints.Collect(Session.Sequence, new HashSet<string>(), Session.Position);
+                SnapPoints snaps = SnapPoints.Collect(Session.Sequence, new HashSet<string>(), Session.ProgramPosition);
                 at = snaps.Nearest(at, Viewport.PixelsToDuration(SnapPoints.ThresholdPixels)) ?? at;
             }
 
@@ -710,6 +716,6 @@ internal sealed partial class TimelineView
 
         Point p = e.GetPosition(LanesHost);
         bool insert = e.Modifiers.HasFlag(DragDropModifiers.Control);
-        return TimelinePlanning.PlanDrop(Session.Project, Session.Sequence, media, layout.RowAt(ContentY(p.Y)), Viewport.XToTime(p.X), insert, Options(), Session.Position);
+        return TimelinePlanning.PlanDrop(Session.Project, Session.Sequence, media, layout.RowAt(ContentY(p.Y)), Viewport.XToTime(p.X), insert, Options(), Session.ProgramPosition);
     }
 }

@@ -141,6 +141,7 @@ public sealed class SequenceSnapshot
         ArgumentNullException.ThrowIfNull(b);
         return a.Id == b.Id
             && a.MediaId == b.MediaId
+            && a.SequenceId == b.SequenceId
             && a.SourceIn == b.SourceIn
             && a.SourceOut == b.SourceOut
             && a.Start == b.Start

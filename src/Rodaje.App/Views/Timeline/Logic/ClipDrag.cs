@@ -322,7 +322,7 @@ public sealed class ClipDrag
         Time high = Time.FromTicks(long.MaxValue / 4);
         foreach ((Track t, Clip c) in members)
         {
-            Time mediaDuration = project.FindMedia(c.MediaId)?.Duration ?? c.SourceOut;
+            Time mediaDuration = c.IsCompound ? CompoundOps.SourceLimit(project, c) : project.FindMedia(c.MediaId)?.Duration ?? c.SourceOut;
             if (edge == TrimEdge.In)
             {
                 low = Time.Max(low, -Room(c, TrimEdge.In, mediaDuration));
@@ -511,7 +511,7 @@ public sealed class ClipDrag
         Time high = Time.FromTicks(long.MaxValue / 4);
         foreach ((_, Clip c) in Members(sequence, track, clip))
         {
-            Time mediaDuration = project.FindMedia(c.MediaId)?.Duration ?? c.SourceOut;
+            Time mediaDuration = c.IsCompound ? CompoundOps.SourceLimit(project, c) : project.FindMedia(c.MediaId)?.Duration ?? c.SourceOut;
             low = Time.Max(low, -c.SourceIn);
             high = Time.Min(high, mediaDuration - c.SourceOut);
         }

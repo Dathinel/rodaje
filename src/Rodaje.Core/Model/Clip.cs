@@ -22,7 +22,7 @@ public sealed class Clip
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     internal string? StoredMediaId
     {
-        get => Generator is not null && MediaId.Length == 0 ? null : MediaId;
+        get => (Generator is not null || SequenceId is not null) && MediaId.Length == 0 ? null : MediaId;
         set => MediaId = value ?? "";
     }
 
@@ -57,6 +57,16 @@ public sealed class Clip
     /// <summary>Contenido generado (un título) en lugar de un medio; nulo en un clip de medio.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ClipGenerator? Generator { get; set; }
+
+    /// <summary>
+    /// Clip compuesto (formato 6): la secuencia anidada que muestra. Su origen es el tiempo de esa secuencia y se compone
+    /// como una capa; no lleva medio, generador ni velocidad.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SequenceId { get; set; }
+
+    [JsonIgnore]
+    public bool IsCompound => SequenceId is not null;
 
     /// <summary>Efectos aplicados en orden. Sus keyframes están en tiempo del origen.</summary>
     public List<EffectInstance> Effects { get; set; } = [];
