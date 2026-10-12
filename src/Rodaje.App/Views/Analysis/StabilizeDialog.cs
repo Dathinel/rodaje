@@ -50,7 +50,7 @@ internal static class StabilizeDialog
             status.Text = string.Create(SpanishNumbers.Format,
                 $"Temblor: {result.ShakeBefore * pixels:0.0} → {result.ShakeAfter * pixels:0.00} px por cuadro² " +
                 $"({(result.ShakeBefore > 0 ? 1 - (result.ShakeAfter / result.ShakeBefore) : 0):P0} menos). " +
-                $"Acercamiento: {(result.Zoom - 1) * 100:0} %. Cuadros con movimiento medido: {Math.Min(1, reliable):P0}.");
+                $"Acercamiento: {result.Zoom - 1:P0}. Cuadros con movimiento medido: {Math.Min(1, reliable):P0}.");
         }
 
         intensity = AnalysisUi.Slider(panel, "Intensidad", 0, 1, intensityValue, 0.05,
