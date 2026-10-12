@@ -66,7 +66,7 @@ No hay omisiones nuevas: ninguna prueba nueva lleva categoría ni `Skip`. Los co
 
 ## CI
 
-Pendiente al escribir esta entrega; se completa abajo.
+Linux y Windows en verde en f31784e (código y pruebas) y en 641b1d7 (con esta entrega).
 
 ## Qué comprobar en Windows
 
