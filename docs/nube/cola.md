@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50) y #38, #37, #41, #39 (52–55).
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #43, #42, #45. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50) y #38, #37, #41, #39 (52–55).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -310,7 +310,7 @@ Conecta `ExportEncoderAvailability` a `IExportEncoderSource` (punto previsto en 
 
 ## 32. FFV1 solo intra, rango de color en MOV y pruebas sobre el código real
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #42 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/export-ffv1-rango`
 - **Caminos:** `src/Rodaje.Media/Export/ExportEncoderCatalog.cs`, `src/Rodaje.Export/FfmpegArguments.cs`, `tests/Rodaje.Media.Tests/Export/CpuExport*` (moverlas a `tests/Rodaje.Export.Tests/`), `docs/tareas/`.
 - **Lee:** revisión en bloque (M4, M5, M7).
@@ -355,7 +355,7 @@ Reproduce con la escena de aceptación sin exportar, mide qué bloquea (pre-roll
 
 ## 37. Subtítulos automáticos en la app
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #44: la sesión anterior se cortó con solo `generator.words` en el modelo y Windows en rojo; se retoma)
 - **Rama:** `claude/subtitulos-ui`
 - **Caminos:** archivos nuevos en `src/Rodaje.App/Views/Analysis/` o `Views/Subtitles/`, `src/Rodaje.Core/Model/` (campo `generator.words` con migración documentada si hace falta), pruebas, `docs/tareas/`.
 - **Lee:** `docs/fase-7.md` (sección del agente E: lo que queda para la UI), `docs/arquitectura/app.md` («Módulos de IA»), `src/Rodaje.Core/Editing/SubtitleEdits.cs`.
@@ -391,7 +391,7 @@ Desde f89d896 falla el trabajo de Windows: `ModuleManagerTests` (varias: «El m�
 
 ## 41. Overwrite cambia el volumen con keyframes del efecto de pista
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #45 unido el 12-oct en modo autónomo: era un falso positivo de la propiedad 8 con un cuadro congelado recortado; el núcleo no cambia)
 - **Rama:** `claude/overwrite-gain-keyframes`
 - **Caminos:** `src/Rodaje.Core/Editing/`, `tests/Rodaje.Core.Tests/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 40 (`docs/tareas/2026-10-12-ci-main-verde.md`), `docs/arquitectura/nucleo.md`.
@@ -400,7 +400,7 @@ Desde f89d896 falla el trabajo de Windows: `ModuleManagerTests` (varias: «El m�
 
 ## 42. Números con coma decimal en toda la App
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #43 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/analisis-cultura`
 - **Caminos:** `src/Rodaje.App/Views/Analysis/`, `src/Rodaje.App/Services/Titles/SubtitleStyles.cs`, `src/Rodaje.App/Views/Inspector/Text/TextPanel.xaml.cs`, `src/Rodaje.App/Views/Voice/VoiceDialog.cs`, `src/Rodaje.App/Services/Format/` (un archivo nuevo para el formato común), `src/Rodaje.App/Services/Inspector/TitleEditor.cs` y el `SpeedMath` de la App (solo para usar el formato común), `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 40 (la app corre con InvariantGlobalization; `TitleEditor.DescribeAnimation` ya usa coma fija como `SpeedMath`), revisión en bloque 2 (hallazgo 4).
