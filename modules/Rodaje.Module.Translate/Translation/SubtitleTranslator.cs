@@ -1,12 +1,15 @@
 namespace Rodaje.Module.Translate.Translation;
 
-/// <summary>El modelo de lenguaje, visto desde el traductor: completa un prompt hasta el fin de turno.</summary>
+/// <summary>Lo que escribió el modelo y si paró por llegar al tope de tokens (la respuesta puede estar cortada).</summary>
+internal readonly record struct Generation(string Text, bool HitLimit);
+
+/// <summary>El modelo de lenguaje, visto desde el traductor: completa un prompt hasta el fin de turno o el tope de tokens.</summary>
 internal interface ITextGenerator
 {
     /// <summary>Dónde corre: <c>vulkan</c>, <c>vulkan+cpu</c> (capas repartidas) o <c>cpu</c>.</summary>
     string Device { get; }
 
-    Task<string> GenerateAsync(string prompt, int maxTokens, CancellationToken cancellationToken);
+    Task<Generation> GenerateAsync(string prompt, int maxTokens, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -21,8 +24,37 @@ internal sealed class SubtitleTranslator(ITextGenerator generator)
 
     public const int ContextLines = 2;
 
-    /// <summary>Tope de tokens de la respuesta: un subtítulo no da más tokens que caracteres, más el número y el salto.</summary>
-    public static int MaxTokens(IEnumerable<string> texts) => Math.Min(1200, 32 + texts.Sum(t => t.Length + 8));
+    /// <summary>Tope de tokens de la respuesta de un lote: con el prompt (~800 tokens) cabe en el contexto.</summary>
+    public const int MaxBatchTokens = 1200;
+
+    /// <summary>Tope del reintento de un subtítulo suelto: su prompt (≤500 caracteres) y esto caben en 3072 tokens.</summary>
+    public const int MaxRetryTokens = 2048;
+
+    /// <summary>
+    /// Tope de tokens de la respuesta: por carácter de origen, uno en escrituras latinas, cirílicas o chinas; en
+    /// devanagari, árabe, japonés y coreano Qwen gasta más tokens por palabra, y la traducción se cortaba a mitad de
+    /// frase. Más el número y el salto de cada subtítulo.
+    /// </summary>
+    public static int MaxTokens(IEnumerable<string> texts, TranslationLanguage target) =>
+        Math.Min(MaxBatchTokens, EstimatedTokens(texts, target));
+
+    /// <summary>Tokens por carácter de origen que se reservan para la respuesta en <paramref name="target"/>.</summary>
+    public static int TokensPerChar(TranslationLanguage target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return target.Code switch
+        {
+            "hi" => 3,
+            "ar" or "ja" or "ko" => 2,
+            _ => 1,
+        };
+    }
+
+    private static int EstimatedTokens(IEnumerable<string> texts, TranslationLanguage target)
+    {
+        int factor = TokensPerChar(target);
+        return 32 + texts.Sum(t => (t.Length * factor) + 8);
+    }
 
     public async Task<TranslationResult> TranslateAsync(TranslationRequest request, IProgress<double>? progress, CancellationToken cancellationToken)
     {
@@ -44,19 +76,23 @@ internal sealed class SubtitleTranslator(ITextGenerator generator)
                 continue;
             }
 
-            // El lote: subtítulos con texto seguidos, hasta BatchSize o MaxBatchChars.
+            // El lote: subtítulos con texto seguidos, hasta BatchSize, MaxBatchChars o lo que quepa en MaxBatchTokens.
             List<int> batch = [];
             int chars = 0;
+            int tokens = 32;
+            int factor = TokensPerChar(request.Target);
             for (int j = i; j < segments.Count && batch.Count < request.BatchSize; j++)
             {
                 string text = LineWrapper.Normalize(segments[j].Text);
-                if (text.Length == 0 || (batch.Count > 0 && chars + text.Length > MaxBatchChars))
+                int more = (text.Length * factor) + 8;
+                if (text.Length == 0 || (batch.Count > 0 && (chars + text.Length > MaxBatchChars || tokens + more > MaxBatchTokens)))
                 {
                     break;
                 }
 
                 batch.Add(j);
                 chars += text.Length;
+                tokens += more;
             }
 
             List<string> context = [.. Enumerable.Range(0, i).Reverse().Select(k => LineWrapper.Normalize(segments[k].Text))
@@ -64,8 +100,7 @@ internal sealed class SubtitleTranslator(ITextGenerator generator)
             List<string> texts = [.. batch.Select(k => LineWrapper.Normalize(segments[k].Text))];
             string?[] translated = batch.Count == 1
                 ? [await SingleAsync(texts[0], request, cancellationToken).ConfigureAwait(false)]
-                : Prompt.Parse(await generator.GenerateAsync(Prompt.Batch(texts, context, request.Source, request.Target), MaxTokens(texts), cancellationToken)
-                    .ConfigureAwait(false), batch.Count);
+                : await BatchAsync(texts, context, request, cancellationToken).ConfigureAwait(false);
 
             for (int b = 0; b < batch.Count; b++)
             {
@@ -99,7 +134,37 @@ internal sealed class SubtitleTranslator(ITextGenerator generator)
             untranslated);
     }
 
-    private async Task<string> SingleAsync(string text, TranslationRequest request, CancellationToken cancellationToken) =>
-        Prompt.ParseSingle(await generator.GenerateAsync(Prompt.Single(text, request.Source, request.Target), MaxTokens([text]), cancellationToken)
-            .ConfigureAwait(false));
+    /// <summary>
+    /// Un lote. Si el modelo llegó al tope, la última traducción que escribía puede estar cortada: se descarta y se pide
+    /// suelta, igual que las que no llegó a escribir.
+    /// </summary>
+    private async Task<string?[]> BatchAsync(List<string> texts, List<string> context, TranslationRequest request, CancellationToken cancellationToken)
+    {
+        Generation g = await generator.GenerateAsync(Prompt.Batch(texts, context, request.Source, request.Target), MaxTokens(texts, request.Target), cancellationToken)
+            .ConfigureAwait(false);
+        string?[] parsed = Prompt.Parse(g.Text, texts.Count);
+        if (g.HitLimit && Array.FindLastIndex(parsed, t => t is not null) is int last and >= 0)
+        {
+            parsed[last] = null;
+        }
+
+        return parsed;
+    }
+
+    /// <summary>
+    /// Un subtítulo suelto. Si el modelo llega al tope se reintenta con el doble (hasta <see cref="MaxRetryTokens"/>); si
+    /// vuelve a llegar, no se acepta una traducción cortada: sale vacío y queda en <c>untranslated</c>.
+    /// </summary>
+    private async Task<string> SingleAsync(string text, TranslationRequest request, CancellationToken cancellationToken)
+    {
+        string prompt = Prompt.Single(text, request.Source, request.Target);
+        int maxTokens = MaxTokens([text], request.Target);
+        Generation g = await generator.GenerateAsync(prompt, maxTokens, cancellationToken).ConfigureAwait(false);
+        if (g.HitLimit)
+        {
+            g = await generator.GenerateAsync(prompt, Math.Min(MaxRetryTokens, maxTokens * 2), cancellationToken).ConfigureAwait(false);
+        }
+
+        return g.HitLimit ? "" : Prompt.ParseSingle(g.Text);
+    }
 }
