@@ -75,7 +75,7 @@ internal static class ClipVideoSource
         }, cancellationToken);
     }
 
-    private static (string Key, MotionTrack Track) Motion(string path, Time sourceIn, Time sourceOut, StabilizationStore store,
+    internal static (string Key, MotionTrack Track) Motion(string path, Time sourceIn, Time sourceOut, StabilizationStore store,
         IProgress<double>? progress, CancellationToken cancellationToken)
     {
         using VideoDecoder decoder = VideoDecoder.Open(path, new VideoDecoderOptions { AllowHardwareDecoding = false });
@@ -112,13 +112,7 @@ internal static class ClipVideoSource
             }
 
             ReadOnlySpan<byte> luma = payload.GetPlane(0, out int stride);
-            LumaFormat format = payload.PixelFormat switch
-            {
-                FramePixelFormat.P010 => LumaFormat.Gray16High,
-                FramePixelFormat.Yuv420P10 => LumaFormat.Gray16Low10,
-                FramePixelFormat.Nv12 or FramePixelFormat.Yuv420P => LumaFormat.Gray8,
-                _ => throw new NotSupportedException($"No se puede analizar el formato {payload.FfmpegPixelFormat}."),
-            };
+            LumaFormat format = LumaFormatOf(payload);
             estimator ??= new MotionEstimator(payload.Width, payload.Height);
             if (payload.Width != estimator.SourceWidth || payload.Height != estimator.SourceHeight)
             {
@@ -144,6 +138,23 @@ internal static class ClipVideoSource
         store.Save(key, track);
         return (key, track);
     }
+
+    /// <summary>La luma de cualquier YUV plano: 4:2:0, y también 4:2:2, 4:4:4 y con alfa (ProRes, DNxHR, lo que sale de CinemaDNG).</summary>
+    internal static LumaFormat LumaFormatOf(CpuFramePayload payload) => payload.PixelFormat switch
+    {
+        FramePixelFormat.P010 => LumaFormat.Gray16High,
+        FramePixelFormat.Yuv420P10 => LumaFormat.Gray16Low10,
+        FramePixelFormat.Nv12 or FramePixelFormat.Yuv420P => LumaFormat.Gray8,
+        _ when payload.TryGetLumaLayout(out int depth, out int step, out int offset) && offset == 0 => (depth, step) switch
+        {
+            (8, 1) => LumaFormat.Gray8,
+            (10, 2) => LumaFormat.Gray16Low10,
+            (12, 2) => LumaFormat.Gray16Low12,
+            (16, 2) => LumaFormat.Gray16High,
+            _ => throw new NotSupportedException($"No se puede analizar el formato {payload.FfmpegPixelFormat}."),
+        },
+        _ => throw new NotSupportedException($"No se puede analizar el formato {payload.FfmpegPixelFormat}."),
+    };
 
     /// <summary>
     /// El análisis mide en la imagen codificada; la corrección va en la que se ve. Con un giro de 90° o 270° la traslación

@@ -43,7 +43,7 @@ internal static class ClipAudioSource
         return Task.Run(() => Decode(path, sourceIn, sourceOut, analyzer, progress, cancellationToken), cancellationToken);
     }
 
-    private static void Decode(string path, Time sourceIn, Time sourceOut, IAudioAnalyzer analyzer, IProgress<double>? progress, CancellationToken cancellationToken)
+    internal static void Decode(string path, Time sourceIn, Time sourceOut, IAudioAnalyzer analyzer, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         using AudioDecoder decoder = AudioDecoder.Open(path);
         decoder.Seek(sourceIn);

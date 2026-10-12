@@ -62,6 +62,9 @@ public sealed record VideoStreamInfo
     /// <summary>Matriz y rango que declara el flujo, o los habituales para su tamaño si no los declara.</summary>
     public VideoColor Color { get; init; } = VideoColor.Bt709Limited;
 
+    /// <summary>«PQ» o «HLG» si el flujo es HDR. Rodaje no hace mapeo de tonos: lo trata como SDR (se ve apagado).</summary>
+    public string? HdrTransfer { get; init; }
+
     /// <summary>Tamaño del cuadro decodificado, antes de aplicar rotación o relación de aspecto del píxel.</summary>
     public required int Width { get; init; }
 

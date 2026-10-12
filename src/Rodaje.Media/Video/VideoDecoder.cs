@@ -39,6 +39,12 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     /// </summary>
     public const int MaxHardwarePoolSurfaces = 64;
 
+    /// <summary>
+    /// Con más de 48 superficies, D3D11VA entrega cuadros VP9 negros (medido en una RTX 3050; H.264 y HEVC llegan a 64).
+    /// Le pasaba a la reversa de la exportación, que pide el pool más grande que cabe.
+    /// </summary>
+    public const int MaxVp9HardwarePoolSurfaces = 48;
+
     private readonly VideoDecoderOptions _options;
     private readonly GpuDevice? _device;
     private readonly int _streamIndex;
@@ -383,7 +389,8 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         int extra = _options.HardwarePoolSizer is { } sizer
             ? sizer(new HardwarePoolRequest(framesContext->width, framesContext->height, surfaceBytes, references))
             : _options.ExtraHardwareFrames;
-        framesContext->initial_pool_size = Math.Min(MaxHardwarePoolSurfaces, references + Math.Max(0, extra));
+        int ceiling = context->codec_id == AVCodecID.AV_CODEC_ID_VP9 ? MaxVp9HardwarePoolSurfaces : MaxHardwarePoolSurfaces;
+        framesContext->initial_pool_size = Math.Min(ceiling, references + Math.Max(0, extra));
         if (ffmpeg.av_hwframe_ctx_init(frames) < 0)
         {
             ffmpeg.av_buffer_unref(&frames);
@@ -701,8 +708,9 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         {
             if (!NextFrame(cancellationToken))
             {
-                // Fin del flujo: el último cuadro solo cubre índices dentro de la duración (tasa variable).
-                if (_hasHeld && Time.FromFrames(frameIndex, FrameRate) < Stream.Duration)
+                // Fin del flujo: el último cuadro cubre los índices dentro de la duración (tasa variable) y los que el
+                // archivo cuenta (un VFR con marcas repetidas tiene más cuadros que su duración por la tasa nominal).
+                if (_hasHeld && (Time.FromFrames(frameIndex, FrameRate) < Stream.Duration || frameIndex < FrameCount))
                 {
                     _lastIndex = frameIndex;
                     result = Deliver(frameIndex);

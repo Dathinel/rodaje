@@ -64,6 +64,7 @@ Medido en un Ryzen 7 7435HS con RTX 3050 Laptop:
 | Salto exacto al cuadro | **2 864 de 2 864** saltos aleatorios en el cuadro exacto, en H.264 y HEVC, por GPU y por software |
 | Sincronía audio/video | **0 cuadros de error en 10 minutos** |
 | Exportación | 1 min 1080p de dos capas con efectos a H.264 por GPU en **9 s** (~200 fps) |
+| Formatos | **37 de 37** casos de la matriz con la respuesta esperada: 33 de video y audio de punta a punta, con seek exacto y exportación verificada, y las imágenes rechazadas con su motivo ([docs/formatos.md](docs/formatos.md)) |
 | Native AOT | **0 advertencias** |
 
 ## Documentación

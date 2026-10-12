@@ -177,6 +177,12 @@ public static unsafe class MediaProbe
             PixelFormat = Av.PixelFormatName(pixelFormat),
             BitDepth = bitDepth,
             Color = VideoColor.Resolve(par->color_space, par->color_range, pixelFormat, par->height),
+            HdrTransfer = par->color_trc switch
+            {
+                AVColorTransferCharacteristic.AVCOL_TRC_SMPTE2084 => "PQ",
+                AVColorTransferCharacteristic.AVCOL_TRC_ARIB_STD_B67 => "HLG",
+                _ => null,
+            },
             Width = par->width,
             Height = par->height,
             SampleAspectRatio = sar,

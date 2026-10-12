@@ -30,6 +30,9 @@
     <!-- Estabilizar y color automático: la caché de análisis y las ediciones, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\StabilizationStore.cs" Link="Analysis\StabilizationStore.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\VideoAnalysisEdits.cs" Link="Analysis\VideoAnalysisEdits.cs" />
+    <!-- La matriz de formatos corre los análisis con la misma decodificación que la app. -->
+    <Compile Include="..\..\src\Rodaje.App\Views\Analysis\ClipVideoSource.cs" Link="Analysis\ClipVideoSource.cs" />
+    <Compile Include="..\..\src\Rodaje.App\Views\Analysis\ClipAudioSource.cs" Link="Analysis\ClipAudioSource.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\Logic\**\*.cs" Link="AnalysisLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Subtítulos automáticos: leer el resultado del módulo, llevarlo a la secuencia y armar el paso, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Subtitles\Logic\**\*.cs" Link="SubtitlesLogic\%(RecursiveDir)%(Filename)%(Extension)" />

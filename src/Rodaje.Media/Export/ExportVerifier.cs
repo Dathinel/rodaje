@@ -219,7 +219,8 @@ public sealed class ExportVerifier
             Same(problems, "alto", expected.Height, v.Height);
             Same(problems, "formato de píxel", expected.PixelFormat, v.PixelFormat);
             Same(problems, "cuadros", expected.FrameCount, v.FrameCount);
-            if (expected.FrameRate is { } rate && v.FrameRate != rate)
+            // Matroska guarda las marcas en milisegundos: una tasa no estándar (90000/3061) vuelve como 19082/649.
+            if (expected.FrameRate is { } rate && (v.FrameRate is not { } actual || Math.Abs(actual.ToDouble() - rate.ToDouble()) > rate.ToDouble() * 1e-4))
             {
                 problems.Add($"La tasa es {v.FrameRate} y se esperaba {rate}.");
             }

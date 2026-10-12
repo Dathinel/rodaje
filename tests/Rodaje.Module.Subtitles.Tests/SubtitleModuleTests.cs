@@ -176,6 +176,28 @@ public sealed class SubtitleModuleTests(ITestOutputHelper output)
         Assert.True(wer <= 0.15, $"WER {wer:P1}");
     }
 
+    /// <summary>Matriz de formatos: el módulo no veía el modelo en <c>RODAJE_ENTORNO\modelos</c>, donde lo buscan los demás.</summary>
+    [Fact]
+    public void The_model_is_also_found_where_the_other_modules_look()
+    {
+        using var dir = new TempFolder();
+        string file = $"modelo-{Guid.NewGuid():N}.bin";
+        Directory.CreateDirectory(Path.Combine(dir.Path, "modelos"));
+        File.WriteAllBytes(Path.Combine(dir.Path, "modelos", file), [0]);
+        string? before = Environment.GetEnvironmentVariable("RODAJE_ENTORNO");
+        try
+        {
+            Environment.SetEnvironmentVariable("RODAJE_ENTORNO", dir.Path);
+            Assert.Equal(Path.Combine(dir.Path, "modelos", file), Transcriber.FindModel(null, file));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("RODAJE_ENTORNO", before);
+        }
+
+        Assert.Throws<Rodaje.Modules.Protocol.ModuleCallException>(() => Transcriber.FindModel(null, file));
+    }
+
     [Fact]
     public void The_cpu_model_is_the_smaller_one_when_present_and_dtw_heads_follow_the_model()
     {
