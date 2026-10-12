@@ -61,3 +61,14 @@ Rama `claude/traducir-enganche`. Dos commits, uno por punto.
 2. Clic derecho en un clip de subtítulos → «Traducir pista...»: el diálogo elige esa pista; al traducir aparece la
    pista nueva encima con los mismos tiempos y un Ctrl+Z la quita.
 3. Sin `modulo-traducir`, «Traducir pista...» avisa que falta el módulo y no hace nada más.
+
+## CI (run 38240481635, sobre 1e91708)
+
+- **Linux:** en verde.
+- **Windows:** compila la solución entera, App WinUI incluida, con las dos entradas nuevas. `Rodaje.App.Tests` da
+  966 correctas y 2 omitidas. `Rodaje.Module.Subtitles.Tests` da 7 correctas (las 2 nuevas incluidas) y 3 omitidas
+  por falta del modelo, las mismas 3 que antes. Falla una sola prueba, ajena a esta rama:
+  `Rodaje.TestServer.Tests.HandlerFaultTests.An_unexpected_exception_aborts_the_connection_and_is_recorded`
+  («El cliente esperó al plazo: la conexión quedó colgada.», 9 s). Es del servidor HTTP de pruebas
+  (`testing/Rodaje.TestServer`, tarea 61), depende de los tiempos del runner y en Linux pasó en la misma corrida.
+  No la toqué.
