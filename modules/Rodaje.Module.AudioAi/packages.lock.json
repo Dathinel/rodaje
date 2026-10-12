@@ -8,14 +8,13 @@
         "resolved": "10.0.12",
         "contentHash": "AawF393Q+VkdrnrnI1gu612zh5iqpa1AGSvnKCQ3IkMgSKJXIQbO1sXYRgEzOU4f0cPZ6MaCCF29xZSGWlmbuQ=="
       },
-      "Microsoft.ML.OnnxRuntime.DirectML": {
+      "Microsoft.ML.OnnxRuntime": {
         "type": "Direct",
-        "requested": "[1.24.4, )",
-        "resolved": "1.24.4",
-        "contentHash": "rXEy9biJdgr55TdDaHrhl35K0FRXRCbvyRUv4S4C3jTxyxrqSh8YcEp5bzw4S9UlcqQKNfpb3sE+VWvO2DZY6A==",
+        "requested": "[1.30.0, )",
+        "resolved": "1.30.0",
+        "contentHash": "RaF3KjPXB/IbNvvrcQtrxS/NZjB9dEHnZQTsdJCLP5Fnn1Jj3LomeqR1mMAoRFKinJ0pIe85PLhLlfGBYqzgWA==",
         "dependencies": {
-          "Microsoft.AI.DirectML": "1.15.4",
-          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
+          "Microsoft.ML.OnnxRuntime.Managed": "1.30.0"
         }
       },
       "Microsoft.NET.ILLink.Tasks": {
@@ -24,15 +23,10 @@
         "resolved": "10.0.12",
         "contentHash": "xi+BDjFpW+Sb+MHFHaH6Y/gV9I8BluFwRXc1QyCdoZbIK26eNiBeFuMTe/FMwc33G1wdHCyDg7CVTmb8OdQrMQ=="
       },
-      "Microsoft.AI.DirectML": {
-        "type": "Transitive",
-        "resolved": "1.15.4",
-        "contentHash": "UblWBtQxcXcxwcn+jh0pfbq4zv2b6w7ThJ35qUV9gd8niGofrFWzVqZ6yqYDMiE+IJf8LRpG+H1cZpswceOeiA=="
-      },
       "Microsoft.ML.OnnxRuntime.Managed": {
         "type": "Transitive",
-        "resolved": "1.24.4",
-        "contentHash": "e5jsEo0HcCKDMkuRsMSievKoMv10Odv4MGmxbCin8SEm4Pto1qTpwti47xRwMtk9I/zVvfAiFIWquOq/0+22DA==",
+        "resolved": "1.30.0",
+        "contentHash": "KHW+vp+i4Mdf6RhIsMvurTVepafXHjg8/VQ0o6sa2wEK0KzV/4iEoRTUvsymcRP+XPAM/r6kZCaTADdV6Xn4RA==",
         "dependencies": {
           "System.Numerics.Tensors": "9.0.0"
         }
@@ -56,14 +50,13 @@
           "runtime.win-x64.Microsoft.DotNet.ILCompiler": "10.0.12"
         }
       },
-      "Microsoft.ML.OnnxRuntime.DirectML": {
+      "Microsoft.ML.OnnxRuntime": {
         "type": "Direct",
-        "requested": "[1.24.4, )",
-        "resolved": "1.24.4",
-        "contentHash": "rXEy9biJdgr55TdDaHrhl35K0FRXRCbvyRUv4S4C3jTxyxrqSh8YcEp5bzw4S9UlcqQKNfpb3sE+VWvO2DZY6A==",
+        "requested": "[1.30.0, )",
+        "resolved": "1.30.0",
+        "contentHash": "RaF3KjPXB/IbNvvrcQtrxS/NZjB9dEHnZQTsdJCLP5Fnn1Jj3LomeqR1mMAoRFKinJ0pIe85PLhLlfGBYqzgWA==",
         "dependencies": {
-          "Microsoft.AI.DirectML": "1.15.4",
-          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
+          "Microsoft.ML.OnnxRuntime.Managed": "1.30.0"
         }
       },
       "runtime.win-x64.Microsoft.DotNet.ILCompiler": {

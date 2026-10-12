@@ -11,10 +11,10 @@ public class NoiseReductionTests(ITestOutputHelper output)
 {
     private const int Rate = 48_000;
 
-    internal static async Task<float[]> ReduceAsync(AudioAiFunctions functions, float[] input, int channels, ComputeDevice device, CancellationToken token = default)
+    internal static async Task<float[]> ReduceAsync(AudioAiFunctions functions, float[] input, int channels, CancellationToken token = default)
     {
         var result = new float[input.Length];
-        await functions.ReduceNoiseAsync(() => input, () => result, channels, input.Length / channels, device, _ => ValueTask.CompletedTask, token);
+        await functions.ReduceNoiseAsync(() => input, () => result, channels, input.Length / channels, _ => ValueTask.CompletedTask, token);
         return result;
     }
 
@@ -54,7 +54,7 @@ public class NoiseReductionTests(ITestOutputHelper output)
         Noise.Kind kind = Enum.Parse<Noise.Kind>(noise);
         float[] noisy = Noise.Mix(clean, Noise.Make(kind, clean.Length, Rate, seed: 7), inputSnr);
         using var functions = new AudioAiFunctions(Corpus.Models);
-        float[] enhanced = await ReduceAsync(functions, noisy, 1, ComputeDevice.Cpu);
+        float[] enhanced = await ReduceAsync(functions, noisy, 1);
 
         double before = Noise.Snr(clean, noisy), after = Noise.Snr(clean, enhanced);
         double siBefore = Noise.SiSnr(clean, noisy), siAfter = Noise.SiSnr(clean, enhanced);
@@ -79,7 +79,7 @@ public class NoiseReductionTests(ITestOutputHelper output)
         {
             float[] clean = Corpus.Upsample3(phrase);
             float[] noisy = Noise.Mix(clean, Noise.Make(Noise.Kind.Pink, clean.Length, Rate, seed++), 0);
-            float[] enhanced = await ReduceAsync(functions, noisy, 1, ComputeDevice.Cpu);
+            float[] enhanced = await ReduceAsync(functions, noisy, 1);
             gains.Add(Noise.SiSnr(clean, enhanced) - Noise.SiSnr(clean, noisy));
         }
 
@@ -97,7 +97,7 @@ public class NoiseReductionTests(ITestOutputHelper output)
         }
 
         using var functions = new AudioAiFunctions(Corpus.Models);
-        float[] enhanced = await ReduceAsync(functions, clean, 1, ComputeDevice.Cpu);
+        float[] enhanced = await ReduceAsync(functions, clean, 1);
         double si = Noise.SiSnr(clean, enhanced);
         output.WriteLine($"Voz limpia: SI-SNR de la salida frente a la entrada {si:0.0} dB");
         Assert.True(si >= 15, $"La voz limpia cambió demasiado: {si:0.0} dB");
@@ -127,8 +127,8 @@ public class NoiseReductionTests(ITestOutputHelper output)
         using var functions = new AudioAiFunctions(Corpus.Models);
         var outStereo = new float[stereo.Length];
         var outDual = new float[dual.Length];
-        NoiseResult a = await functions.ReduceNoiseAsync(() => stereo, () => outStereo, 2, clean.Length, ComputeDevice.Cpu, _ => ValueTask.CompletedTask, default);
-        NoiseResult b = await functions.ReduceNoiseAsync(() => dual, () => outDual, 2, clean.Length, ComputeDevice.Cpu, _ => ValueTask.CompletedTask, default);
+        NoiseResult a = await functions.ReduceNoiseAsync(() => stereo, () => outStereo, 2, clean.Length, _ => ValueTask.CompletedTask, default);
+        NoiseResult b = await functions.ReduceNoiseAsync(() => dual, () => outDual, 2, clean.Length, _ => ValueTask.CompletedTask, default);
         Assert.Equal(2, a.ChannelsProcessed);
         Assert.Equal(1, b.ChannelsProcessed);
         float[] l = [.. Enumerable.Range(0, clean.Length).Select(i => outStereo[2 * i])];
@@ -153,7 +153,7 @@ public class NoiseReductionTests(ITestOutputHelper output)
         using var cancel = new CancellationTokenSource();
         long cancelledAt = 0;
         int steps = 0;
-        Task run = functions.ReduceNoiseAsync(() => clean, () => result, 1, clean.Length, ComputeDevice.Cpu, _ =>
+        Task run = functions.ReduceNoiseAsync(() => clean, () => result, 1, clean.Length, _ =>
         {
             if (++steps == 1)
             {
@@ -170,14 +170,11 @@ public class NoiseReductionTests(ITestOutputHelper output)
         Assert.True(ms < 1000, $"{ms:0} ms");
     }
 
-    [Theory]
+    [Fact]
     [Trait("Categoria", "TiempoReal")]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Speed_in_times_real_time(bool gpu)
+    public async Task Speed_in_times_real_time()
     {
-        ComputeDevice device = gpu ? ComputeDevice.Gpu : ComputeDevice.Cpu;
-        if (!Corpus.HasModels || Voice(gpu ? 30 : 300) is not { } clean)
+        if (!Corpus.HasModels || Voice(300) is not { } clean)
         {
             output.WriteLine(Corpus.Missing);
             return;
@@ -185,15 +182,12 @@ public class NoiseReductionTests(ITestOutputHelper output)
 
         float[] noisy = Noise.Mix(clean, Noise.Make(Noise.Kind.Pink, clean.Length, Rate, 9), 5);
         using var functions = new AudioAiFunctions(Corpus.Models);
-        await ReduceAsync(functions, noisy.AsSpan(0, Rate).ToArray(), 1, device); // carga y primera inferencia
+        await ReduceAsync(functions, noisy.AsSpan(0, Rate).ToArray(), 1); // carga y primera inferencia
         var watch = Stopwatch.StartNew();
         var result = new float[noisy.Length];
-        NoiseResult r = await functions.ReduceNoiseAsync(() => noisy, () => result, 1, noisy.Length, device, _ => ValueTask.CompletedTask, default);
+        NoiseResult r = await functions.ReduceNoiseAsync(() => noisy, () => result, 1, noisy.Length, _ => ValueTask.CompletedTask, default);
         double speed = noisy.Length / (double)Rate / watch.Elapsed.TotalSeconds;
         output.WriteLine($"{r.Device}: {noisy.Length / Rate} s de voz en {watch.Elapsed.TotalSeconds:0.00} s = {speed:0.0}× tiempo real");
-        if (device == ComputeDevice.Cpu)
-        {
-            Assert.True(speed >= 10, $"{speed:0.0}×");
-        }
+        Assert.True(speed >= 10, $"{speed:0.0}×");
     }
 }

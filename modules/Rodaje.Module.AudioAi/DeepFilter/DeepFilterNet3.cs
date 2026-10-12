@@ -28,7 +28,7 @@ internal sealed class DeepFilterNet3 : IDisposable
         _encoder = sessions.Create(models.Path(ModelFiles.DfnEncoder));
         _erbDecoder = sessions.Create(models.Path(ModelFiles.DfnErbDecoder));
         _dfDecoder = sessions.Create(models.Path(ModelFiles.DfnDfDecoder));
-        Device = sessions.Device;
+        Device = SessionFactory.Device;
     }
 
     public string Device { get; }
