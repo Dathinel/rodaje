@@ -379,3 +379,13 @@ Traduce los clips de una pista de subtítulos a otro idioma creando una pista nu
 - **Lee:** `docs/fase-7.md` (agente H: MODNet Apache-2.0 por defecto, BiRefNet_lite MIT como calidad alta; YuNet MIT y RT-DETRv2 Apache-2.0 para reencuadre; RMBG y RVM y YOLO descartados), D-031, D-032.
 
 Quitar fondo como máscara (FFV1 gris en la caché del proyecto) aplicada por una primitiva de máscara del render; reencuadre a 9:16/1:1 siguiendo rostros o personas con keyframes de transformación suavizados. Pruebas con imágenes sintéticas y medidas de velocidad/VRAM.
+
+## 40. URGENTE: main en rojo en la CI de Windows (módulos, títulos, codificadores)
+
+- **Estado:** pendiente
+- **Rama:** `claude/ci-main-verde`
+- **Caminos:** `tests/Rodaje.App.Tests/Modules/`, `tests/Rodaje.App.Tests/Inspector/`, `tests/Rodaje.App.Tests/` (otras pruebas que fallen en main), `src/Rodaje.App/Services/Modules/` y el formateo de números del editor de títulos (solo si el defecto es del código), `tests/Rodaje.Render.Tests/Text/`, `tests/Rodaje.Media.Tests/Export/ExportEncoderAvailabilityTests.cs`, `tests/Rodaje.Core.Tests/` (solo si falla en main), `docs/tareas/`
+- **Lee:** el log de la corrida de main en f89d896 (run 38194016251, job 114632689518), `testing/Rodaje.TestMedia/Skip.cs`.
+
+Desde f89d896 falla el trabajo de Windows: `ModuleManagerTests` (varias: «El módulo no se conectó en 10 s», `TimeoutException` en lugar de `ModuleHungException`, «No se cumplió a tiempo»), `TitleEditorTests.BordesYConvertirEnKeyframes` («0.5» frente a «0,5»: cultura del runner), `TitleRasterizerTests.Composing_a_ready_title_costs_little_gpu_time` (3,8 ms en WARP), `ExportEncoderAvailabilityTests.Probes_run_in_parallel_up_to_the_limit` (2 frente a 3 con el runner cargado); en otros PR además `TitleClipTests.ElTituloSeVeEnElVisor` y `EditPropertiesTests.OperacionesAleatorias_CumplenTodasLasReglas`. Causa de cada una; corrige el código si es un defecto (p. ej. formatear con la cultura de la app), haz robustas las que dependen de la carga, y omite solo con causa concreta (WARP sin GPU), con conteo de omitidas antes y después. Objetivo: Windows de main en verde para que el modo autónomo pueda volver a unir.
+
