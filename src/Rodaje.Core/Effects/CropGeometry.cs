@@ -101,7 +101,8 @@ public static class CropGeometry
         double cx = (current.Left + (current.Width / 2)) * imageWidth;
         double cy = (current.Top + (current.Height / 2)) * imageHeight;
         double w = Math.Min(imageWidth, imageHeight * ratio);
-        double h = w / ratio;
+        // h = w / ratio puede salir un ulp mayor que el alto (1366×768 a 4:5): se acota para que el corrimiento no sea negativo.
+        double h = Math.Min(w / ratio, imageHeight);
         double x0 = Math.Clamp(cx - (w / 2), 0, imageWidth - w);
         double y0 = Math.Clamp(cy - (h / 2), 0, imageHeight - h);
         return FromPixels(x0, y0, x0 + w, y0 + h, imageWidth, imageHeight);
@@ -153,7 +154,9 @@ public static class CropGeometry
 
         double maxW = sx < 0 ? x1 : sx > 0 ? width - x0 : width;
         double maxH = sy < 0 ? y1 : sy > 0 ? height - y0 : height;
-        double min = MinSize * Math.Min(width, height);
+        // El mínimo de cada lado es el de Sanitize (el 2 % de ese lado); si fuera menor, Sanitize lo agrandaría moviendo
+        // también el borde que debe quedar fijo y la proporción se perdería.
+        double minW = MinSize * width, minH = MinSize * height;
         if (ratio is { } r && r > 0 && double.IsFinite(r))
         {
             if (sx != 0 && sy != 0)
@@ -166,13 +169,13 @@ public static class CropGeometry
             }
 
             double limit = Math.Min(maxW, maxH * r);
-            w = Math.Clamp(w, Math.Min(Math.Max(min, min * r), limit), limit);
-            h = w / r;
+            w = Math.Clamp(w, Math.Min(Math.Max(minW, minH * r), limit), limit);
+            h = Math.Min(w / r, maxH); // w / r puede pasarse un ulp de maxH, como en FitAspect
         }
         else
         {
-            w = Math.Clamp(w, Math.Min(min, maxW), maxW);
-            h = Math.Clamp(h, Math.Min(min, maxH), maxH);
+            w = Math.Clamp(w, Math.Min(minW, maxW), maxW);
+            h = Math.Clamp(h, Math.Min(minH, maxH), maxH);
         }
 
         double nx = sx < 0 ? x1 - w : sx > 0 ? x0 : Math.Clamp(((x0 + x1) / 2) - (w / 2), 0, width - w);

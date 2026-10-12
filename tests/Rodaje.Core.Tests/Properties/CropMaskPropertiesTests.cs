@@ -96,7 +96,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
 
     /// <summary>Ajustar a una proporción nunca lanza, con cualquier tamaño de imagen.</summary>
     /// <remarks>Semilla que lo muestra: <c>9xxIgTuLcv_4</c> (72×24 a 4:5).</remarks>
-    [Fact(Skip = "Defecto: FitAspect calcula h = w / ratio y llama a Math.Clamp(…, 0, alto − h); si h sale un ulp mayor que el alto, el máximo es negativo y lanza ArgumentException (p. ej., 1366×768 a 4:5). Semilla 9xxIgTuLcv_4.")]
+    [Fact]
     public void AjustarProporcion_NuncaLanza() =>
         Gen.Select(GenCrop, Gen.Int[0, Aspects.Length - 1], GenImage).Sample(
             s => _ = CropGeometry.FitAspect(s.Item1, CropGeometry.Ratio(Aspects[s.Item2])!.Value, s.Item3.W, s.Item3.H),
@@ -105,7 +105,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
             print: s => Inv($"{s.Item1}, {Aspects[s.Item2]}, imagen {s.Item3.W}×{s.Item3.H}"));
 
     /// <summary>Una captura de pantalla de portátil (1366×768) recortada a 4:5 desde la interfaz.</summary>
-    [Fact(Skip = "Defecto: FitAspect lanza ArgumentException con 1366×768 a 4:5 (ver AjustarProporcion_NuncaLanza).")]
+    [Fact]
     public void AjustarProporcion_1366x768_A_4x5()
     {
         CropRect fit = CropGeometry.FitAspect(CropRect.None, CropGeometry.Ratio("4:5")!.Value, 1366, 768);
@@ -179,7 +179,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
 
     /// <summary>Todos los arrastres sin proporción, también hasta el mínimo.</summary>
     /// <remarks>Semilla que lo muestra: <c>8F6S2txnOB42</c>.</remarks>
-    [Fact(Skip = "Defecto: Drag limita el tamaño al 2 % del lado corto en píxeles, pero Sanitize exige el 2 % de cada lado; en una imagen no cuadrada, al encoger al mínimo Sanitize lo agranda moviendo también el borde que debía quedar fijo. Semilla 8F6S2txnOB42.")]
+    [Fact]
     public void Arrastrar_HastaElMinimo_RespetaLaEsquinaOpuesta() => RunDrag(awayFromMinimum: false);
 
     /// <summary>
@@ -216,7 +216,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
 
     /// <summary>Todos los arrastres con proporción, también hasta el mínimo.</summary>
     /// <remarks>Semilla que lo muestra: <c>bpmvvnb_mwT4</c> (imagen 20×16, 9:16).</remarks>
-    [Fact(Skip = "Defecto: con proporción, Drag deja el lado menor en el 2 % del lado corto de la imagen, que en una imagen apaisada recortada a 9:16 (o vertical a 16:9) es menos del 2 % de su lado; Sanitize lo agranda y la proporción se pierde (9:16 pasa a ~0,70). Semilla bpmvvnb_mwT4.")]
+    [Fact]
     public void ArrastrarConProporcion_HastaElMinimo_LaConserva() => RunDragWithRatio(awayFromMinimum: false);
 
     private static readonly Gen<Vector2> GenPoint = Gen.Select(Gen.Float[-0.5f, 0.5f], Gen.Float[-0.5f, 0.5f], (x, y) => new Vector2(x, y));
