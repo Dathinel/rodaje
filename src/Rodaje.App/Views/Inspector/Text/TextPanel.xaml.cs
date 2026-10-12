@@ -9,6 +9,7 @@ using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.Core.Model;
 using Rodaje.Paquetes;
+using Rodaje.Paquetes.Content;
 
 namespace Rodaje.App.Views.Inspector.Text;
 
@@ -26,11 +27,13 @@ internal sealed partial class TextPanel : UserControl, IEditorView
     private bool _updating;
     private ComboBox? _styleBox;
     private TextBlock? _sourceText;
+    private Button? _reapplyButton;
     private PackageScan? _stylesScan;
 
     public TextPanel()
     {
         InitializeComponent();
+        ContentBox.MaxLength = ModelValidator.MaxTextLength;
     }
 
     public void Attach(EditorServices services)
@@ -98,6 +101,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
 
             ShowStyleChoice(style);
             ShowFontWarning(clip.Id, style);
+            ShowLegibility(clip.Id, style);
             ShowAnimation(generator, style);
             StyleSection.Summary = string.Create(CultureInfo.CurrentCulture, $"{style.Font.Family} · {style.Size:0}");
             StrokeSection.Summary = style.Stroke is null ? "Sin borde" : style.Stroke.Color;
@@ -114,8 +118,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
     {
         if (!_updating && _editor is { } editor)
         {
-            // Windows escribe «\r» al pulsar Intro en un TextBox; el formato guarda «\n».
-            editor.SetText(ContentBox.Text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n'));
+            editor.SetText(TitleEditor.FromTextBox(ContentBox.Text));
         }
     }
 
@@ -169,6 +172,90 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         FontWarning.Visibility = warning is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
+    /// <summary>En una pista de subtítulos, avisa si el estilo baja del tamaño o del contraste mínimos.</summary>
+    private void ShowLegibility(string clipId, TextStyle style)
+    {
+        Sequence? sequence = _services?.Session.Sequence;
+        string? warning = sequence?.FindClip(clipId) is { Track.Role: TrackRoles.Subtitles }
+            ? SubtitleStyles.Legibility(style, sequence.Width, sequence.Height)
+            : null;
+        LegibilityWarning.Text = warning ?? "";
+        LegibilityWarning.Visibility = warning is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private async void OnSaveStyleClick(object sender, RoutedEventArgs e)
+    {
+        if (DialogGate.IsOpen || _services is not { } services || _editor is not { } editor || editor.Target() is not { Generator.Style: { } style })
+        {
+            return;
+        }
+
+        string suggested = style.Name is { Length: > 0 } name ? name : "Mi estilo";
+        var nameBox = new TextBox { Text = suggested, SelectionStart = 0, SelectionLength = suggested.Length };
+        var content = new StackPanel { Spacing = 8 };
+        content.Children.Add(new TextBlock
+        {
+            Text = "El estilo quedará en tus complementos propios, en la biblioteca de Texto, listo para otros títulos o para publicarlo como paquete.",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        content.Children.Add(nameBox);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "Guardar como estilo",
+            Content = content,
+            PrimaryButtonText = "Guardar",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Primary,
+            RequestedTheme = ElementTheme.Dark,
+        };
+
+        if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        string chosen = string.IsNullOrWhiteSpace(nameBox.Text) ? suggested : nameBox.Text.Trim();
+        try
+        {
+            if (editor.SaveStyle(AnimationPreset.UserFolder, chosen) is { } saved)
+            {
+                services.Session.Notify(NotificationSeverity.Success, "Estilo guardado", $"«{chosen}» quedó en tus complementos propios: {saved.Path}");
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            services.Session.Notify(NotificationSeverity.Error, "No se pudo guardar el estilo", ex.Message);
+        }
+    }
+
+    private void OnReapplyStyleClick(object sender, RoutedEventArgs e)
+    {
+        if (_services is not { } services || _editor is not { } editor)
+        {
+            return;
+        }
+
+        try
+        {
+            // Un estilo es un JSON de hasta 1 MB: se lee en el momento, como al elegirlo de la lista.
+            ReapplyResult result = editor.ReapplyStyle(new InstalledContentLoader(() => services.Packages.Installed));
+            switch (result)
+            {
+                case ReapplyResult.Missing:
+                    services.Session.Notify(NotificationSeverity.Warning, "No se pudo reaplicar el estilo", "El paquete del que salió ya no está instalado.");
+                    break;
+                case ReapplyResult.Unchanged:
+                    services.Session.Notify(NotificationSeverity.Informational, "El estilo ya está al día", "El título tiene el estilo del paquete tal cual.");
+                    break;
+            }
+        }
+        catch (Exception ex) when (ex is PackageContentException or IOException or UnauthorizedAccessException)
+        {
+            services.Session.Notify(NotificationSeverity.Warning, "No se pudo reaplicar el estilo", ex.Message);
+        }
+    }
+
     private void ShowStyleChoice(TextStyle style)
     {
         if (_styleBox is null || _services is null)
@@ -198,6 +285,11 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         {
             _sourceText.Text = style.Source is null ? "" : $"Copiado de {style.Source}: actualizar el paquete no lo cambia.";
             _sourceText.Visibility = style.Source is null ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        if (_reapplyButton is not null)
+        {
+            _reapplyButton.IsEnabled = style.Source is { } from && from != TitleStyles.BuiltInReference;
         }
     }
 

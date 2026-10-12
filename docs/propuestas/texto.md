@@ -76,8 +76,8 @@ Elemento `text-style` ya reservado en `paquete.json`. Archivo `rodaje.textstyle`
   "stroke": { "color": "#000000", "width": 6, "join": "round" },
   "shadow": { "color": "#00000099", "dx": 4, "dy": 6, "blur": 8 },
   "background": { "color": "#00000080", "padding": [24, 12], "radius": 12 },
-  "in":  { "durationSeconds": 0.4, "curves": { "opacity": [ { "t": 0, "value": 0 }, { "t": 0.4, "value": 1, "interp": "easeOut" } ],
-                                             "y": [ { "t": 0, "value": 40 }, { "t": 0.4, "value": 0, "interp": "easeOut" } ] } },
+  "in":  { "durationSeconds": 0.4, "curves": { "opacity": [ { "t": 0, "value": 0, "interp": "easeOut" }, { "t": 0.4, "value": 1 } ],
+                                             "y": [ { "t": 0, "value": 40, "interp": "easeOut" }, { "t": 0.4, "value": 0 } ] } },
   "out": { "durationSeconds": 0.3, "curves": { "opacity": [ { "t": 0, "value": 1 }, { "t": 0.3, "value": 0 } ] } } }
 ```
 

@@ -14,6 +14,7 @@ public static partial class ModelValidator
     private const int MaxReferenceSide = 16_384;
     private const double MaxOffset = 1000;
     private const double MaxAnimationSeconds = 60;
+    private const double MaxEdgeOffsetSeconds = 360_000;
 
     private static readonly string[] AnimatedParameters =
     [
@@ -51,7 +52,8 @@ public static partial class ModelValidator
             errors.Add($"{where} tiene un texto de más de {MaxTextLength} caracteres.");
         }
 
-        if (text.Count(c => c == '\n') >= MaxTextLines)
+        // DirectWrite también parte la línea en los separadores de Unicode, que no son de control.
+        if (text.Count(c => c is '\n' or '\u2028' or '\u2029') >= MaxTextLines)
         {
             errors.Add($"{where} tiene un texto de más de {MaxTextLines} líneas.");
         }
@@ -59,6 +61,11 @@ public static partial class ModelValidator
         if (text.Any(c => char.IsControl(c) && c is not '\n' and not '\t'))
         {
             errors.Add($"{where} tiene un texto con caracteres de control (solo admite saltos de línea y tabulaciones).");
+        }
+
+        if (!InRange(generator.Edges.Before.ToSeconds(), 0, MaxEdgeOffsetSeconds) || !InRange(generator.Edges.After.ToSeconds(), 0, MaxEdgeOffsetSeconds))
+        {
+            errors.Add($"{where} tiene en sus bordes un desfase negativo o de más de {MaxEdgeOffsetSeconds} s.");
         }
 
         if (generator.Kind == GeneratorKinds.Text && generator.Style is null)

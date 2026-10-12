@@ -1,8 +1,10 @@
 using Rodaje.App.Services;
+using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Tests.Support;
 using Rodaje.Core.Model;
+using Rodaje.Paquetes;
 
 namespace Rodaje.App.Tests.Inspector;
 
@@ -95,6 +97,90 @@ public class TitleEditorTests
         // Un estilo inválido avisa y no cambia nada.
         Assert.False(editor.CommitStyle("font-size", s => s.Size = 5000));
         Assert.Equal(150, Title(session).Generator!.Style!.Size);
+    });
+
+    /// <summary>
+    /// «Guardar como estilo» escribe un <c>rodaje.textstyle</c> en los propios que la biblioteca lee tal cual, y el título
+    /// pasa a salir de ahí; «Reaplicar estilo» vuelve a copiarlo sobre un título cambiado.
+    /// </summary>
+    [Fact]
+    public void GuardarComoEstiloYReaplicarloDesdeSuOrigen() => UiThread.Run(async () =>
+    {
+        using var folder = new TempDirectory();
+        TextStyle full = TitleStyles.Default();
+        full.Stroke = new StyleStroke { Color = "#102030", Width = 6, Join = StrokeJoin.Bevel };
+        full.Background = new StyleBackground { Color = "#00000080", Padding = [24, 12], Radius = 12 };
+        full.Align = TextAlign.Left;
+        full.Font.Italic = true;
+        full.In = new StyleAnimation
+        {
+            DurationSeconds = 0.4,
+            Curves = { ["opacity"] = [new StyleKey(0, 0, Interpolation.EaseOut), new StyleKey(0.4, 1)], ["y"] = [new StyleKey(0, 40), new StyleKey(0.4, 0)] },
+        };
+        full.Out = new StyleAnimation { DurationSeconds = 0.3, Curves = { ["scale"] = [new StyleKey(0, 1), new StyleKey(0.3, 1.5, Interpolation.EaseIn)] } };
+        (EditorSession session, TitleEditor editor, _) = await WithTitle(full);
+        string own = Path.Combine(folder.Path, "propios");
+
+        (string path, string reference) = editor.SaveStyle(own, "Mi Neón")!.Value;
+        Assert.True(File.Exists(path));
+        Assert.Equal("propios@0.0.0/mi-neon", reference);
+        Assert.Equal(reference, Title(session).Generator!.Style!.Source);
+        Assert.Equal("Mi Neón", Title(session).Generator!.Style!.Name);
+
+        PackageScan scan = PackageLibrary.Scan(new PackageLocations(Path.Combine(folder.Path, "p"), Path.Combine(folder.Path, "m"), own, []), "rodaje");
+        var loader = new InstalledContentLoader(() => scan);
+        TextStyle read = TitleStyles.FromPreset(loader.LoadTextStyle(reference)!, reference);
+        Assert.True(read.ContentEquals(Title(session).Generator!.Style!));
+
+        int steps = session.History.Count;
+        Assert.True(editor.CommitStyle("font-size", s => s.Size = 30));
+        Assert.Equal(ReapplyResult.Applied, editor.ReapplyStyle(loader));
+        Assert.Equal(96, Title(session).Generator!.Style!.Size);
+        Assert.Equal(steps + 2, session.History.Count);
+        Assert.Equal(ReapplyResult.Unchanged, editor.ReapplyStyle(loader));
+
+        Assert.True(editor.CommitStyle("source", s => s.Source = "rodaje-titulos@1.0.0/no-esta"));
+        Assert.Equal(ReapplyResult.Missing, editor.ReapplyStyle(loader));
+        Assert.True(editor.CommitStyle("source", s => s.Source = null));
+        Assert.Equal(ReapplyResult.NoSource, editor.ReapplyStyle(loader));
+    });
+
+    [Fact]
+    public void LosSubtitulosNacenLegiblesYElAvisoMiraTamanoYContraste()
+    {
+        TextStyle subtitle = SubtitleStyles.Default();
+        Assert.Null(SubtitleStyles.Legibility(subtitle, 1920, 1080));
+        Assert.Null(SubtitleStyles.Legibility(subtitle, 1080, 1920));
+        Assert.Equal(0.8, SubtitleStyles.NewSubtitle().Box!.WidthFraction);
+
+        TextStyle small = subtitle.Clone();
+        small.Size = 30;
+        Assert.Contains("px", SubtitleStyles.Legibility(small, 1920, 1080), StringComparison.Ordinal);
+
+        TextStyle bare = TitleStyles.Default();
+        Assert.Contains("Sin fondo ni borde", SubtitleStyles.Legibility(bare, 1920, 1080), StringComparison.Ordinal);
+        bare.Stroke = new StyleStroke { Color = "#000000", Width = 6 };
+        Assert.Null(SubtitleStyles.Legibility(bare, 1920, 1080));
+
+        TextStyle grey = subtitle.Clone();
+        grey.Fill.Color = "#555555";
+        Assert.Contains(":1", SubtitleStyles.Legibility(grey, 1920, 1080), StringComparison.Ordinal);
+        Assert.Equal(21, SubtitleStyles.Contrast((255, 255, 255, 255), (255, 0, 0, 0)), 3);
+    }
+
+    [Fact]
+    public void UnTextoSueltoEnUnaPistaDeSubtitulosTomaElEstiloDeSubtitulos() => UiThread.Run(async () =>
+    {
+        (EditorSession session, _, _) = await WithTitle();
+        Assert.True(session.AddSubtitleTrack());
+        string track = session.Sequence.VideoTracks[^1].Id;
+        Assert.True(session.AddTitleAt(track, Rodaje.Core.Timing.Time.FromSeconds(6), TitleStyles.Default()));
+        Assert.Equal("Subtítulo", Title(session).Generator!.Style!.Name);
+
+        TextStyle mine = TitleStyles.Default();
+        mine.Size = 70;
+        Assert.True(session.AddTitleAt(track, Rodaje.Core.Timing.Time.FromSeconds(12), mine));
+        Assert.Equal(70, Title(session).Generator!.Style!.Size);
     });
 
     [Fact]

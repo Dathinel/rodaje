@@ -156,28 +156,99 @@ public sealed class TimelineTitleTests(ITestOutputHelper output)
         Assert.Equal(0.5, title.TransformAt(S(1.275)).Opacity, 6);
     }
 
-    [Fact]
-    public void Splitting_in_the_middle_of_the_entrance_keeps_opacity_and_position_continuous()
+    /// <summary>
+    /// Dividir no cambia ningún cuadro: cada trozo sigue la animación del título entero, también con el corte en plena
+    /// entrada o salida, con dos cortes y con un clip tan corto que las animaciones se encogen.
+    /// </summary>
+    [Theory]
+    [InlineData(3, 0.2, null)]
+    [InlineData(3, 2.85, null)]
+    [InlineData(3, 1.5, null)]
+    [InlineData(3, 0.1, 2.8)]
+    [InlineData(3, 0.3, 0.35)]
+    [InlineData(0.5, 0.1, null)]
+    [InlineData(0.5, 0.1, 0.4)]
+    public void Splitting_a_title_keeps_every_frame_as_it_was(double seconds, double cut, double? secondCut)
     {
         var b = new TimelineBuilder(1, 0);
-        b.AddTitle(0, S(10), S(3), "Título", Animated(), id: "t");
-        Edits.Split(b.Sequence.Id, "t", S(10.2)).Apply(b.Project);
-        Assert.Equal(2, b.Sequence.VideoTracks[0].Clips.Count);
+        Clip clip = b.AddTitle(0, S(10), S(seconds), "Título", Animated(), id: "t");
+        clip.Effects.Add(TimelineEffectsTests.Effect(BuiltInEffects.Transform, (T.Rotation, 30), (T.Scale, 1.5), (T.Y, 100)));
+        GeneratedClipPlan whole = Single(b);
+        Time step = S(1.0 / 240);
+        var expected = new List<(Time At, LayerTransform Transform)>();
+        for (Time at = whole.Start; at < whole.End; at += step)
+        {
+            expected.Add((at, whole.TransformAt(at)));
+        }
+
+        SequenceEditCommand split = Edits.Split(b.Sequence.Id, "t", S(10 + cut));
+        split.Apply(b.Project);
+        string right = Assert.Single(split.CreatedIds);
+        if (secondCut is { } again)
+        {
+            Edits.Split(b.Sequence.Id, again > cut ? right : "t", S(10 + again)).Apply(b.Project);
+        }
 
         IReadOnlyList<GeneratedClipPlan> pieces = b.Plan().Layers[0].Generated;
-        Assert.Equal(2, pieces.Count);
-        Clip left = b.Sequence.VideoTracks[0].Clips[0];
-        Clip right = b.Sequence.VideoTracks[0].Clips[1];
-        Assert.True(left.Generator!.Edges is { In: true, Out: false });
-        Assert.True(right.Generator!.Edges is { In: false, Out: true });
+        Assert.Equal(secondCut is null ? 2 : 3, pieces.Count);
+        double worst = 0;
+        foreach ((Time at, LayerTransform want) in expected)
+        {
+            LayerTransform got = Assert.Single(pieces, p => p.Covers(at)).TransformAt(at);
+            worst = Math.Max(worst, Math.Abs(got.Opacity - want.Opacity));
+            Assert.Equal(want.Opacity, got.Opacity, 9);
+            Assert.Equal(want.X, got.X, 6);
+            Assert.Equal(want.Y, got.Y, 6);
+            Assert.Equal(want.Scale, got.Scale, 9);
+            Assert.Equal(want.RotationDegrees, got.RotationDegrees, 9);
+        }
 
-        LayerTransform before = pieces[0].TransformAt(S(10.2) - Time.FromTicks(1));
-        LayerTransform after = pieces[1].TransformAt(S(10.2));
-        Assert.Equal(after.Opacity, before.Opacity, 6);
-        Assert.Equal(after.Y, before.Y, 4);
-        Assert.Equal(0, pieces[0].TransformAt(S(10)).Opacity, Tolerance);
-        Assert.Equal(1, pieces[1].TransformAt(S(12.6)).Opacity, Tolerance);
-        Assert.Equal(0.5, pieces[1].TransformAt(S(12.85)).Opacity, 6);
+        output.WriteLine($"{expected.Count} instantes, mayor diferencia de opacidad {worst:E2}");
+    }
+
+    /// <summary>
+    /// «Convertir en keyframes» deja cada cuadro como estaba aunque el clip esté escalado o girado: el delta de la
+    /// animación gira y se escala con el clip igual que en el motor. También en un trozo dividido en plena entrada.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 0, null)]
+    [InlineData(2, 0, null)]
+    [InlineData(1, 90, null)]
+    [InlineData(2, 90, null)]
+    [InlineData(0.5, -30, null)]
+    [InlineData(2, 90, 0.2)]
+    public void Converting_the_animation_to_keyframes_keeps_every_frame(double scale, double rotation, double? cut)
+    {
+        var b = new TimelineBuilder(1, 0);
+        Clip clip = b.AddTitle(0, S(10), S(3), "Título", Animated(), id: "t");
+        clip.Effects.Add(TimelineEffectsTests.Effect(BuiltInEffects.Transform, (T.Rotation, rotation), (T.Scale, scale), (T.X, 100), (T.Y, 50)));
+        string target = "t";
+        if (cut is { } at)
+        {
+            SequenceEditCommand split = Edits.Split(b.Sequence.Id, "t", S(10 + at));
+            split.Apply(b.Project);
+            target = split.CreatedIds[0];
+        }
+
+        GeneratedClipPlan before = Assert.Single(b.Plan().Layers[0].Generated, p => p.ClipId == target);
+        var expected = new List<(Time At, LayerTransform Transform)>();
+        for (Time t = before.Start; t < before.End; t += S(1.0 / 240))
+        {
+            expected.Add((t, before.TransformAt(t)));
+        }
+
+        Edits.ConvertTitleAnimation(b.Sequence.Id, target).Apply(b.Project);
+        GeneratedClipPlan after = Assert.Single(b.Plan().Layers[0].Generated, p => p.ClipId == target);
+        Assert.Null(after.Animation);
+        foreach ((Time t, LayerTransform want) in expected)
+        {
+            LayerTransform got = after.TransformAt(t);
+            Assert.Equal(want.X, got.X, 6);
+            Assert.Equal(want.Y, got.Y, 6);
+            Assert.Equal(want.Scale, got.Scale, 9);
+            Assert.Equal(want.RotationDegrees, got.RotationDegrees, 9);
+            Assert.Equal(want.Opacity, got.Opacity, 9);
+        }
     }
 
     [Fact]

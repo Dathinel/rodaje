@@ -25,6 +25,13 @@ internal sealed partial class TextPanel
         StyleRows.Children.Add(Row("Estilo", _styleBox));
         _sourceText = new TextBlock { Style = Resource<Style>("CaptionTextStyle"), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.None, Margin = new Thickness(12, 0, 12, 4) };
         StyleRows.Children.Add(_sourceText);
+        var saveStyle = new Button { Content = "Guardar como estilo", FontSize = Resource<double>("BodyFontSize") };
+        ToolTipService.SetToolTip(saveStyle, "Guarda este estilo en tus complementos propios para usarlo en otros títulos o publicarlo como paquete");
+        saveStyle.Click += OnSaveStyleClick;
+        _reapplyButton = new Button { Content = "Reaplicar estilo", FontSize = Resource<double>("BodyFontSize") };
+        ToolTipService.SetToolTip(_reapplyButton, "Vuelve a copiar el estilo del paquete del que salió, con lo que ese paquete tenga hoy");
+        _reapplyButton.Click += OnReapplyStyleClick;
+        StyleRows.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(12, 0, 6, 6), Children = { saveStyle, _reapplyButton } });
 
         StyleRows.Children.Add(FontRow());
         StyleRows.Children.Add(WeightRow());

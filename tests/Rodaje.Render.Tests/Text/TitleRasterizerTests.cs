@@ -193,6 +193,26 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
     }
 
     [GpuFact]
+    public void The_font_pass_does_not_wait_for_a_rasterization_in_progress()
+    {
+        using GpuDevice gpu = GpuDevice.Create();
+        using var titles = new TitleRasterizer(gpu, new TitleRasterizerOptions { BackgroundThread = false });
+        TextStyle style = Style(fill: "#FFFFFF");
+        style.Font = new StyleFont { Family = "Fuente Que No Existe", Fallback = ["Arial"] };
+        GeneratedContent content = TitleImage.Content("Respaldo", style);
+
+        // Con el candado del rasterizado tomado (como mientras el hilo de fondo dibuja 1500 emoji), la pasada responde.
+        Task<IReadOnlyList<MissingFont>> pass;
+        using (titles.RasterLock.EnterScope())
+        {
+            pass = Task.Run(() => titles.FindMissingFonts([content]));
+            Assert.True(pass.Wait(TimeSpan.FromSeconds(5)), "la pasada de fuentes esperó al rasterizado");
+        }
+
+        Assert.Equal("Fuente Que No Existe", Assert.Single(pass.Result).Family);
+    }
+
+    [GpuFact]
     public void Private_fonts_register_without_installing_and_bad_files_are_rejected()
     {
         using GpuDevice gpu = GpuDevice.Create();

@@ -74,6 +74,13 @@
                 <Rectangle x:Name="TitleGripTopRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
                 <Rectangle x:Name="TitleGripBottomRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
                 <Rectangle x:Name="TitleGripBottomLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                <Line x:Name="TitleRotateStem" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                <Ellipse x:Name="TitleGripRotate" Width="10" Height="10" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+            </Canvas>
+            <Canvas x:Name="TitleEditCanvas" Margin="8" Visibility="Collapsed">
+                <TextBox x:Name="TitleEditBox" AcceptsReturn="True" TextWrapping="Wrap" MinWidth="120" Padding="4,2"
+                         Background="#B0000000" BorderBrush="{StaticResource AccentBrush}" AutomationProperties.Name="Texto del título"
+                         TextChanged="OnTitleEditChanged" LostFocus="OnTitleEditLostFocus" KeyDown="OnTitleEditKeyDown" />
             </Canvas>
             <TextBlock x:Name="StatusText" Style="{StaticResource LabelTextStyle}" Margin="16,12"
                        HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" />

@@ -50,7 +50,13 @@ rodaje-transiciones.paquete
 | `items` | No | Elementos, cada uno con `id` (único en el paquete), `kind`, `name` y, si los necesita, `file`, `description`, `license` (cuando no es la del paquete) y `preview`. |
 | `module` | Solo en módulos | `entry` (ejecutable relativo), `protocol` (versión del protocolo de módulos) y `functions` (lo que ofrece). |
 
-Los tipos de elemento son `transition`, `text-style`, `effect`, `filter`, `lut`, `template` y `sound`. La biblioteca los reparte por categoría: Texto muestra `text-style`; Efectos, `effect`; Transiciones, `transition`; Filtros, `filter` y `lut`; Audio, `sound`. Las plantillas se ven en la página de complementos hasta que exista su panel. El contenido de los archivos `lut`, `filter`, `effect`, `transition` y `text-style` está en [Contenido de los elementos](#contenido-de-los-elementos); `text-style` es `rodaje.textstyle` v1, y de `template` y `sound` el formato solo garantiza que el archivo existe y está dentro del paquete.
+Los tipos de elemento son `transition`, `text-style`, `effect`, `filter`, `lut`, `template`, `sound` y `font`. La biblioteca los reparte por categoría: Texto muestra `text-style`; Efectos, `effect`; Transiciones, `transition`; Filtros, `filter` y `lut`; Audio, `sound`. Las plantillas se ven en la página de complementos hasta que exista su panel. El contenido de los archivos `lut`, `filter`, `effect`, `transition` y `text-style` está en [Contenido de los elementos](#contenido-de-los-elementos); `text-style` es `rodaje.textstyle` v1, y de `template` y `sound` el formato solo garantiza que el archivo existe y está dentro del paquete.
+
+**Fuentes (`font`, D-029).** Una familia por elemento, con sus archivos sin modificar en `files` (o uno en `file`): de 1 a 32 `.ttf`, `.otf`, `.ttc` u `.otc`, cada uno de hasta 20 MB y la familia de hasta 100 MB. `license` es obligatoria (por ejemplo `OFL-1.1`): una fuente de terceros no tiene la licencia del paquete. Rodaje solo registra en su colección privada de DirectWrite (no en Windows) los archivos que un elemento `font` declara, nunca otros archivos del paquete ni fuentes sueltas de un proyecto; un archivo que DirectWrite rechaza deja esa familia con su respaldo. Al instalar se avisa de cuánto ocupan. Un estilo apunta a la familia con `font.family` y a su elemento con `font.source`.
+
+```json
+{ "id": "inter", "kind": "font", "name": "Inter", "license": "OFL-1.1", "files": ["fuentes/inter/Inter-Regular.ttf", "fuentes/inter/Inter-Bold.ttf"] }
+```
 
 **Textos.** De todos los textos se quitan los caracteres de control y las marcas de dirección de Unicode (bidi, como U+202E), que pueden disfrazar un nombre o una extensión; las rutas que los traen se rechazan. Un texto que pasa de su largo es un error; los que no tienen uno propio (id, versión, rutas, funciones de un módulo) admiten hasta 256 caracteres, y cada función, 64. Los elementos propios y el catálogo se limpian igual, pero se recortan en lugar de rechazarse. Un texto que no es Unicode válido (UTF-8 dañado o un sustituto suelto escrito como escape, como `\ud800`) hace inválido el archivo entero: el manifiesto y el contenido se rechazan con un mensaje en español, el catálogo no se lee (`FormatException`) y un elemento propio se omite. El manifiesto y los elementos propios se leen del disco como UTF-8 estricto (`SafeText.ReadAllTextStrict`), sin sustituir bytes inválidos por U+FFFD y tolerando una marca BOM inicial (EF BB BF), que se salta; el catálogo, con `PackageCatalog.ParseUtf8` desde sus bytes (también con BOM tolerado). Una cadena de .NET con un sustituto suelto (`ManifestReader.Read(string)`, `PackageCatalog.Parse(string)`) da el mismo error, no `ArgumentException`. Una `repository` cuyo dominio no se puede pasar a ASCII (por ejemplo con U+FFFD) se trata como dirección no válida.
 
@@ -149,7 +155,7 @@ Curvas de la transformación del clip que sale (`outgoing`) y del que entra (`in
   "fill": { "color": "#FFFFFF" }, "stroke": { "color": "#000000", "width": 6, "join": "round" },
   "shadow": { "color": "#00000099", "dx": 4, "dy": 6, "blur": 8 },
   "background": { "color": "#00000080", "padding": [24, 12], "radius": 12 },
-  "in":  { "durationSeconds": 0.4, "curves": { "opacity": [ { "t": 0, "value": 0 }, { "t": 0.4, "value": 1, "interp": "easeOut" } ] } },
+  "in":  { "durationSeconds": 0.4, "curves": { "opacity": [ { "t": 0, "value": 0, "interp": "easeOut" }, { "t": 0.4, "value": 1 } ] } },
   "out": { "durationSeconds": 0.3, "curves": { "opacity": [ { "t": 0, "value": 1 }, { "t": 0.3, "value": 0 } ] } } }
 ```
 

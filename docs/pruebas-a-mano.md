@@ -58,6 +58,19 @@ El título se ve en el visor y sale en la exportación (la autoprueba lo comprue
 - [ ] **Filtros sobre un título:** la pestaña Filtros avisa de que color, LUT y viñeta no aplican; desenfoque y nitidez sí.
 - [ ] **Subtítulos:** clic derecho en una cabecera → «Añadir pista de subtítulos» (o «Usar para subtítulos» en una de video): la cabecera dice «Subtítulos» y T no pone títulos ahí.
 
+**Tras la verificación (12-oct):**
+- [ ] **S en plena entrada o salida:** con un estilo animado, cortar con S a mitad de la entrada y a mitad de la salida y reproducir el tramo: no tiene que verse ningún salto ni repetición en el corte (cada trozo sigue la animación del título entero).
+- [ ] **Convertir en keyframes con escala y giro:** título a escala 2 y girado 90° en Propiedades; en plena entrada, «Convertir en keyframes»: el título no se mueve de donde estaba, ni durante la entrada ni al final.
+- [ ] **Asas:** el asa redonda encima del borde gira el título (con Mayús, de 15 en 15°). En plena entrada, escalar y girar no lo sacan de su sitio. ¿El asa queda cómoda o tapa el texto?
+- [ ] **Escribir en el visor:** doble clic sobre el título abre un cuadro encima; escribir, Intro para otra línea, Esc o clic fuera para cerrar. Doble clic fuera de un título sigue siendo pantalla completa. ¿El cuadro se parece lo bastante al título?
+- [ ] **Texto difícil:** un texto largo (cientos de caracteres) con caja, uno en árabe o hebreo (el cuadro del visor se abre de derecha a izquierda), mezcla RTL con números, y emoji con ZWJ (familias, banderas): se ven bien y el reproductor no se traba mientras se rasteriza.
+- [ ] **IME y tildes muertas:** escribir ´ + a, ¨ + u, ~ + n en la pestaña Texto y en el cuadro del visor; con el IME japonés o chino (Win + .), componer y confirmar. Ctrl+Z deshace por tandas.
+- [ ] **200+ subtítulos:** un proyecto con más de 200 clips en la pista de subtítulos (por ejemplo con el módulo de subtítulos sobre un video largo): la línea de tiempo se desplaza sin tirones, la reproducción no pierde cuadros y exportar los quema todos.
+- [ ] **Estilo de subtítulos:** soltar «Texto» en una pista de subtítulos crea un subtítulo blanco con caja negra. Bajar el tamaño o quitar la caja: la pestaña Texto avisa de tamaño o contraste.
+- [ ] **Guardar como estilo / Reaplicar:** «Guardar como estilo» pide un nombre y el estilo aparece en Biblioteca → Texto; cambiar el título y «Reaplicar estilo» lo devuelve al del paquete.
+- [ ] **3 capas de video con títulos:** tres videos superpuestos (4K si hay) y tres títulos animados encima: reproducir sin cuadros perdidos y exportar igual que el visor.
+- [ ] **Paquete de fuentes real:** armar un `.paquete` con un elemento `font` (por ejemplo Inter, OFL, con `license`) e instalarlo: el aviso dice cuánto ocupa; un estilo con esa familia se ve con ella en el visor y al exportar. Un `.ttf` suelto en el paquete sin elemento `font` no se usa.
+
 ## Fase 7: silencios, ritmo y ducking
 
 Clic derecho en un clip con sonido, o Editar, con el clip seleccionado.
