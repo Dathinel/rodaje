@@ -20,5 +20,10 @@ internal sealed partial class TimelineView
             item.Click += (_, _) => services.Shortcuts.Invoke(id);
             menu.Items.Add(item);
         }
+
+        var voice = new MenuFlyoutItem { Text = Voice.VoiceCommands.Label, Icon = new FontIcon { Glyph = Voice.VoiceCommands.Glyph } };
+        voice.Click += (_, _) => services.Shortcuts.Invoke(Voice.VoiceCommands.TextToSpeech);
+        menu.Items.Add(new MenuFlyoutSeparator());
+        menu.Items.Add(voice);
     }
 }
