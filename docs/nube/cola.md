@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno (el bloque #15, #31, #33, #34 lo revisó Sonnet el 12-oct: tareas 42 ampliada, 44, 45 y 46).
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #30, #32, #18 (el bloque #15, #31, #33, #34 lo revisó Sonnet el 12-oct: tareas 42 ampliada y 44–47).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -454,7 +454,7 @@ La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que tod
 
 - **Estado:** pendiente
 - **Rama:** `claude/app-pruebas-carga`
-- **Caminos:** `tests/Rodaje.App.Tests/Media/ClipVisualsTests.cs`, `tests/Rodaje.App.Tests/` (las otras pruebas citadas), `src/Rodaje.App/Services/` (solo si el defecto es del código), `docs/tareas/`
+- **Caminos:** `tests/Rodaje.App.Tests/Media/ClipVisualsTests.cs`, `tests/Rodaje.App.Tests/` (las otras pruebas citadas), `tests/Rodaje.Media.Tests/Export/ExportEncoderAvailabilityTests.cs`, `src/Rodaje.App/Services/` y `src/Rodaje.Media/Export/ExportEncoderAvailability*.cs` (solo si el defecto es del código), `docs/tareas/`
 - **Lee:** el job 114679035551 (PR #32), el comentario del 12-oct en el PR #33 y `testing/Rodaje.TestMedia/Skip.cs`.
 
-`ClipVisualsTests.Dispose_does_not_wait_for_a_reader_that_ignores_cancellation` exige que `Dispose` vuelva en menos de 1 s y en la CI tardó 8082 ms (`ClipVisualsTests.cs:402`), en un PR que no toca esa parte. En la corrida de #33 fallaron además `PackageServiceTests`, `ModuleMediaTests` y `VideoAnalysisTests`. Averigua la causa de cada una. Si `Dispose` de verdad espera al lector (un `Wait` o un `Join` en el camino), es un defecto: corrígelo. Si no, haz que la medición no dependa del planificador del runner (cronometrar solo `Dispose`, hilos dedicados) sin subir el tope que mide. Si alguna prueba mide tiempo real, va con `Categoria=TiempoReal`.
+`ClipVisualsTests.Dispose_does_not_wait_for_a_reader_that_ignores_cancellation` exige que `Dispose` vuelva en menos de 1 s y en la CI tardó 8082 ms (`ClipVisualsTests.cs:402`), en un PR que no toca esa parte. En la corrida de #33 fallaron además `PackageServiceTests`, `ModuleMediaTests` y `VideoAnalysisTests`. En el job 114681867969 (PR #40, que solo cambia la cola) falló `ExportEncoderAvailabilityTests.Invalidate_during_a_run_starts_the_next_one_only_after_it_ends` (esperaba 1 corrida y hubo 2): puede ser una carrera real en `Invalidate`. Averigua la causa de cada una. Si `Dispose` de verdad espera al lector (un `Wait` o un `Join` en el camino), es un defecto: corrígelo. Si no, haz que la medición no dependa del planificador del runner (cronometrar solo `Dispose`, hilos dedicados) sin subir el tope que mide. Si alguna prueba mide tiempo real, va con `Categoria=TiempoReal`.
