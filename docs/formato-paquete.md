@@ -1,6 +1,6 @@
-# Formato `.paquete` (versión 0, `formatVersion` 1)
+# Formato `.paquete` (`formatVersion` 1)
 
-Un paquete es la forma en que llega a Rodaje todo lo que no es código del motor: transiciones, estilos de texto, efectos armados con las primitivas, filtros, LUT, plantillas y sonidos. También describe los módulos de IA, que son programas aparte. La [arquitectura](arquitectura/README.md#núcleo-contenido-e-ia) fija las reglas de fondo: un paquete de contenido **nunca trae código**, cada paquete vive en su propio repositorio de GitHub (Dathinel) y el formato se comparte con los demás programas de Dathinel. Por eso la lógica está en `src/Rodaje.Packages`, una biblioteca sin dependencias ni WinUI que puede salir tal cual a su propio repositorio cuando llegue el segundo programa.
+Un paquete es la forma en que llega a Rodaje todo lo que no es código del motor: transiciones, estilos de texto, efectos armados con las primitivas, filtros, LUT, plantillas y sonidos. También describe los módulos de IA, que son programas aparte. La [arquitectura](arquitectura/README.md#núcleo-contenido-e-ia) fija las reglas de fondo: un paquete de contenido **nunca trae código**, cada paquete vive en su propio repositorio de GitHub y el formato se comparte con otros programas de Dathinel. Por eso la lógica está en `src/Rodaje.Packages`, una biblioteca sin dependencias ni WinUI que puede salir tal cual a su propio repositorio cuando otro programa la necesite.
 
 ## El archivo
 
@@ -25,7 +25,7 @@ rodaje-transiciones.paquete
   "name": "Transiciones",
   "description": "Fundidos, deslizamientos y zooms hechos con keyframes.",
   "author": "Dathinel",
-  "license": "MIT",
+  "license": "CC0-1.0",
   "repository": "https://github.com/Dathinel/rodaje-transiciones",
   "apps": ["rodaje"],
   "items": [
@@ -48,7 +48,7 @@ rodaje-transiciones.paquete
 | `repository` | No | Repositorio de origen: solo `https`, sin usuario ni contraseña y con el dominio en ASCII (se rechazan los dominios internacionales, también escritos como `xn--`, porque permiten imitar a otro con letras parecidas). |
 | `apps` | Sí | Programas en los que funciona, por su id (`rodaje`, `editor-audio`…). El instalador de cada programa rechaza lo que no lo nombra. |
 | `items` | No | Elementos, cada uno con `id` (único en el paquete), `kind`, `name` y, si los necesita, `file`, `description`, `license` (cuando no es la del paquete) y `preview`. |
-| `module` | Solo en módulos | `entry` (ejecutable relativo), `protocol` (versión del protocolo de módulos) y `functions` (lo que ofrece). |
+| `module` | Solo en módulos | `entry` (ejecutable relativo), `protocol` (versión del protocolo de módulos) y `functions` (lo que ofrece); opcionales `vramMb`, `runtime` y `models` ([Módulos de IA](#módulos-de-ia)). |
 
 Los tipos de elemento son `transition`, `text-style`, `effect`, `filter`, `lut`, `template`, `sound`, `font` y `safe-zones`. La biblioteca los reparte por categoría: Texto muestra `text-style`; Efectos, `effect`; Transiciones, `transition`; Filtros, `filter` y `lut`; Audio, `sound`. Las plantillas se ven en la página de complementos hasta que exista su panel; las zonas (`safe-zones`), en el botón de zonas seguras del visor. El contenido de los archivos `lut`, `filter`, `effect`, `transition`, `text-style` y `safe-zones` está en [Contenido de los elementos](#contenido-de-los-elementos); `text-style` es `rodaje.textstyle` v1, y de `template` y `sound` el formato solo garantiza que el archivo existe y está dentro del paquete.
 
@@ -73,7 +73,7 @@ Un proyecto que usa un elemento de un paquete guarda `paquete@versión/elemento`
 | `%LOCALAPPDATA%\Rodaje\complementos\paquetes\<id>\` | Paquetes de contenido instalados | El instalador |
 | `%LOCALAPPDATA%\Rodaje\complementos\modulos\<id>\` | Módulos de IA instalados | El instalador |
 | `%LOCALAPPDATA%\Rodaje\complementos\propios\` | Lo que hace la persona en Rodaje, por ejemplo «Guardar como transición» del inspector | El programa |
-| `paquetes\` y `modulos\` junto a `Rodaje.exe` | Lo que trae la distribución completa | Nadie: solo lectura |
+| `app\paquetes\` y `app\modulos\` (junto a `app\Rodaje.exe`) | Lo que trae la distribución completa | Nadie: solo lectura |
 
 `RODAJE_DATOS` cambia la carpeta de datos, como para el resto de los archivos de la persona. Si un mismo id aparece en varias carpetas, gana la versión mayor; a igual versión, el instalado sobre el incluido.
 
@@ -91,9 +91,9 @@ Los tiempos van relativos al primer keyframe y las posiciones en píxeles de la 
 
 ## Contenido de los elementos
 
-Desde la fase 5 los paquetes traen solo **primitivas**: valores y curvas sobre los efectos que el motor ya sabe dibujar (`rodaje.color`, `rodaje.transform`…), nunca shaders ni código. Los filtros y efectos se **copian** al proyecto al aplicarlos (con `options.source` = su referencia); las LUT y las transiciones se **referencian**, y si falta el paquete el proyecto abre igual: la capa sale sin LUT y la transición se ve como fundido cruzado, con aviso.
+Los paquetes traen solo **primitivas**: valores y curvas sobre los efectos que el motor ya sabe dibujar (`rodaje.color`, `rodaje.transform`…), nunca shaders ni código. Los filtros y efectos se **copian** al proyecto al aplicarlos (con `options.source` = su referencia); las LUT y las transiciones se **referencian**, y si falta el paquete el proyecto abre igual: la capa sale sin LUT y la transición se ve como fundido cruzado, con aviso.
 
-Los cuatro lectores están en `ContentReaders` (`src/Rodaje.Packages/Content`). Ninguno confía en el archivo: los JSON se leen con `JsonDocument` (apto para AOT) y cualquier problema lanza `PackageContentException` con el motivo en español, que nombra el campo (`curves[0].keys[1].t tiene que ser mayor que el de la clave anterior`). Cada regla tiene su prueba.
+Los lectores están en `ContentReaders` (`src/Rodaje.Packages/Content`). Ninguno confía en el archivo: los JSON se leen con `JsonDocument` (apto para AOT) y cualquier problema lanza `PackageContentException` con el motivo en español, que nombra el campo (`curves[0].keys[1].t tiene que ser mayor que el de la clave anterior`). Cada regla tiene su prueba.
 
 ### Reglas comunes de los JSON
 
@@ -216,7 +216,7 @@ Las curvas de deslizar y empujar van lineales para que el borde del barrido coin
 
 `PackageInstaller` hace la instalación en pasos que nunca dejan una mezcla:
 
-1. Si se da un SHA-256 esperado (lo hará la descarga de la fase 7), se compara con el del archivo antes de abrirlo.
+1. Si se da un SHA-256 esperado (lo da la descarga desde el catálogo), se compara con el del archivo antes de abrirlo.
 2. Se extrae a `paquetes\.instalando-<aleatorio>`. Cada entrada del zip pasa por `SafePaths`: se rechazan rutas con raíz o unidad, `..` y `.`, segmentos vacíos, dos puntos (unidades y flujos alternos de NTFS), caracteres de control, prohibidos o de dirección (bidi), nombres reservados de Windows (`CON`, `NUL`, `COM1`…, también con extensión) y segmentos que terminan en punto o espacio, que Windows recorta y harían que dos entradas distintas acaben en el mismo archivo. Además se comprueba que la ruta final quede dentro de la carpeta, y se rechazan entradas repetidas sin distinguir mayúsculas. Hay límites contra zips maliciosos, que se comprueban antes de escribir nada: 20 000 entradas, 8 GB descomprimidos (los módulos traen modelos grandes), una tasa de compresión de 200 a 1 en cada entrada de más de 1 MB y en el paquete entero si pasa de 16 MB (muchas entradas chicas muy comprimidas esquivan el límite de cada una), y espacio libre en el disco para todo lo descomprimido más 256 MB. Durante la copia, una entrada que trae más bytes de los que declara se corta.
 3. Se lee y valida `paquete.json` con sus archivos, y se comprueba que el paquete funcione en este programa.
 4. Si ya hay una versión instalada, se compara: una más nueva actualiza, la misma reinstala y una más vieja se rechaza salvo que se pida (`allowDowngrade`). La carpeta anterior se aparta como `.anterior-<aleatorio>-<id>`, la nueva entra con otro cambio de nombre (sus archivos ya están escritos en el disco) y la vieja se borra después; si algo falla a mitad, la anterior vuelve a su lugar.
@@ -239,14 +239,14 @@ Además, instalar, desinstalar y limpiar toman `complementos\.operacion.lock` (a
 Un módulo es un paquete con `"kind": "module"` y un bloque `module`:
 
 ```json
-"module": { "entry": "bin/modulo-subtitulos.exe", "protocol": 1, "functions": ["subtitulos"] }
+"module": { "entry": "bin/Rodaje.Module.Subtitles.exe", "protocol": 1, "functions": ["subtitulos"], "vramMb": 1500 }
 ```
 
-Se instala en `modulos\<id>\` y la página de complementos y el panel IA de la biblioteca muestran si está instalado. En esta versión **no se ejecuta nada**: el protocolo de módulos (proceso aparte, tubería con JSON, lo devuelto se convierte en comandos normales que se deshacen con Ctrl+Z) llega en la fase 7.
+Se instala en `modulos\<id>\` y la página de complementos y el panel IA de la biblioteca muestran si está instalado. La app lo abre como proceso aparte con el [protocolo de módulos](protocolo-modulos.md): lo que devuelve se convierte en una propuesta que se aplica como un paso normal del historial (Ctrl+Z la deshace). Los campos `vramMb`, `runtime` y `models` se describen en [Empaquetarlo](protocolo-modulos.md#empaquetarlo).
 
 ## Catálogo
 
-`src/Rodaje.App/Services/Packages/catalogo.json` viaja dentro del ejecutable y lista los complementos conocidos: id, tipo, nombre, descripción, repositorio, programas y lo que trae. También nombra los programas (`rodaje`, y los editores de audio y de fotos como «en planes») para mostrar «Funciona en». El catálogo solo informa: lo que se instala siempre pasa por la validación del manifiesto. La descarga desde las releases de GitHub se conecta en la fase 7 implementando `IPackageDownloader` (descarga el `.paquete` y su hash y los entrega al instalador); hasta entonces el botón Instalar del catálogo dice «Descarga desde GitHub: próximamente» y se instala con «Instalar desde archivo…» o soltando el `.paquete` en la biblioteca.
+`src/Rodaje.App/Services/Packages/catalogo.json` viaja dentro del ejecutable y lista los complementos conocidos: id, tipo, nombre, descripción, repositorio, programas y lo que trae. También nombra los programas (`rodaje`, y los editores de audio y de fotos como «en planes») para mostrar «Funciona en». El catálogo solo informa: lo que se instala siempre pasa por la validación del manifiesto. La descarga usa el índice firmado de `Dathinel/rodaje-catalogo` ([descarga.md](descarga.md)); también se puede instalar con «Instalar desde archivo…» o soltando el `.paquete` en la biblioteca.
 
 ## Archivos
 
@@ -260,7 +260,8 @@ Se instala en `modulos\<id>\` y la página de complementos y el panel IA de la b
 | `PackageLibrary.cs` | Carpetas de paquetes, recorrido de lo instalado y elementos propios |
 | `PackageInstaller.cs` | Instalar, desinstalar y limpiar restos |
 | `PackageCatalog.cs` | Catálogo y la interfaz de descarga |
-| `Content/ContentTypes.cs` | `LutTable` y los preajustes ya leídos (`FilterPreset`, `EffectPreset`, `TransitionPreset`) |
-| `Content/ContentReaders.cs`, `CubeReader.cs`, `PresetReader.cs` | Los lectores de `.cube`, `rodaje.filter`, `rodaje.effect` y `rodaje.preset` |
+| `Download/` | Índice firmado, política de URL, descarga reanudable y almacén de modelos ([descarga.md](descarga.md)) |
+| `Content/ContentTypes.cs`, `TextStyleTypes.cs` | `LutTable`, los preajustes ya leídos (`FilterPreset`, `EffectPreset`, `TransitionPreset`) y el estilo de texto |
+| `Content/ContentReaders.cs`, `CubeReader.cs`, `PresetReader.cs`, `PresetReader.TextStyle.cs` | Los lectores de `.cube`, `rodaje.filter`, `rodaje.effect`, `rodaje.preset` y `rodaje.textstyle` |
 | `Content/PresetReader.SafeZones.cs`, `SafeZoneTypes.cs` | Lector y escritor de `rodaje.safezones` |
 | `Content/PackageContentStore.cs` | Carga y caché del contenido por referencia |

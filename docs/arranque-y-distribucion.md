@@ -1,10 +1,10 @@
 # Arranque y distribución
 
-Qué tarda Rodaje en abrir, qué se hizo para que se sienta instantáneo, cómo se entrega para que quien lo descarga vea solo `Rodaje.exe`, y si conviene seguir con WinUI 3. Medido el 12-oct en el PC de Daniel (Ryzen 7 7435HS, RTX 3050, Windows 11 26100), exe Native AOT publicado.
+Qué tarda Rodaje en abrir, qué se hizo para que se sienta instantáneo, cómo se entrega para que quien lo descarga vea solo `Rodaje.exe`, y por qué sigue con WinUI 3. Medido en el equipo de desarrollo (Ryzen 7 7435HS, RTX 3050, Windows 11 26100) con el exe Native AOT publicado.
 
 ## Cómo se mide
 
-`build\medir-arranque.ps1` lanza el exe N veces y toma, desde fuera, cuándo existe su ventana, cuándo es visible y cuándo su cola de mensajes queda libre. Con `--arranque`, Rodaje anota marcas internas (desde que Windows creó el proceso), espera a que la interfaz responda y se cierra solo, sin autoguardado. `-Frio` copia antes la carpeta con E/S sin búfer (`robocopy /J`): sus archivos no están en la caché de Windows, como la primera vez tras descargar. Es el peor caso: tras un reinicio, el prefetcher de Windows ayuda a un programa ya usado. ETW (WPR) pide permisos de administrador, que esta sesión no tiene; por eso las fases salen de marcas propias.
+`build\medir-arranque.ps1` lanza el exe N veces y toma, desde fuera, cuándo existe su ventana, cuándo es visible y cuándo su cola de mensajes queda libre. Con `--arranque`, Rodaje anota marcas internas (desde que Windows creó el proceso), espera a que la interfaz responda y se cierra solo, sin autoguardado. `-Frio` copia antes la carpeta con E/S sin búfer (`robocopy /J`): sus archivos no están en la caché de Windows, como la primera vez tras descargar. Es el peor caso: tras un reinicio, el prefetcher de Windows ayuda a un programa ya usado. ETW (WPR) pide permisos de administrador; por eso las etapas salen de marcas propias.
 
 - **Ventana visible:** el primer píxel de Rodaje en pantalla.
 - **Interfaz completa:** primer cuadro de XAML (`primer_render`).
@@ -21,7 +21,7 @@ Qué tarda Rodaje en abrir, qué se hizo para que se sienta instantáneo, cómo 
 | Visor listo (cadena de intercambio en el panel) | 777 | 500 | 1629 | 1165 |
 | Primer cuadro de video (con un clip) | 1196 | 1194 | | |
 
-«Después» incluye el lanzador (unos 17 ms en caliente y 75 ms en frío). Abriendo `app\Rodaje.exe` directamente, la ventana aparece a los 33 ms. Objetivo del encargo: ventana visible ≤300 ms en caliente y ≤1 s en frío. **Cumplido**, con margen en las dos cifras, y la interfaz completa también queda bajo 1 s en frío.
+«Después» incluye el lanzador (unos 17 ms en caliente y 75 ms en frío). Abriendo `app\Rodaje.exe` directamente, la ventana aparece a los 33 ms. Objetivo: ventana visible ≤300 ms en caliente y ≤1 s en frío. **Cumplido**, con margen en las dos cifras, y la interfaz completa también queda bajo 1 s en frío.
 
 ### Pisos de cada tecnología (mismo método, caliente / frío)
 
@@ -34,9 +34,9 @@ Qué tarda Rodaje en abrir, qué se hizo para que se sienta instantáneo, cómo 
 
 Extender el contenido a la barra de título cuesta en WinUI unos 100 ms fijos (la llamada adelanta y alarga la preparación de la ventana; probado antes y después de crear el XAML, con la API de `Window` y la de `AppWindow`). Rodaje queda a ~80 ms del piso de WinUI con barra propia: lo que suma su interfaz.
 
-### Fases (después, caliente; entre paréntesis, antes en frío)
+### Etapas (después, caliente; entre paréntesis, antes en frío)
 
-| Fase | ms |
+| Etapa | ms |
 |---|---:|
 | Proceso, cargador y runtime AOT hasta `Main` | 24 (93) |
 | Leer `ajustes.json` y pintar el armazón | 22 |
@@ -60,7 +60,7 @@ Las sondas de codificadores no corren al arrancar (las hace Exportar al abrirse)
 3. **Lo demás, también después:** `ModuleManager.Refresh`, el recorte de la caché de miniaturas y la limpieza de exportaciones a medias.
 4. **Marcas de arranque** en `Program`, `App` y `MainWindow`, y `--arranque` para medir sin tocar el autoguardado.
 
-Lo que no se tocó: el XAML de las vistas (91 ms) se podría partir con `x:Load` en el panel derecho y la línea de tiempo, pero esos archivos los editan otros agentes. La barra de título propia es parte del diseño (D-018).
+Margen que queda: el XAML de las vistas (91 ms) se podría partir con `x:Load` en el panel derecho y la línea de tiempo. La barra de título propia es parte del diseño (D-018).
 
 ## Distribución: que se vea solo `Rodaje.exe`
 
@@ -71,7 +71,7 @@ Lo que no se tocó: el XAML de las vistas (91 ms) se podría partir con `x:Load`
 | (c) Atributo oculto | Sí, como parte de (a): el lanzador oculta `app\` la primera vez | 0 | Igual | Igual | Solo no basta: el zip no guarda el atributo y con «ver ocultos» se ve todo |
 | (d) Instalador (Inno Setup) | Sí, desde la v1: `build\instalador.ps1`, Inno Setup 7.1.0 portable en `.entorno` (MSIX descartado: necesita firma de confianza o modo desarrollador) | 0 | Sin firma, SmartScreen avisa igual; firma lista con `RODAJE_CERTIFICADO` | Entrada en «Aplicaciones», acceso en Inicio, `.rodaje` y «Abrir con» de videos; desinstalación limpia | **Junto al portable** |
 
-**Resultado:** al descomprimir `Rodaje-<versión>-portable.zip` se ve la carpeta `Rodaje` con `Rodaje.exe` y `app` (oculta tras el primer arranque). `app.ps1` publica así (`dist\Rodaje\Rodaje.exe` + `dist\Rodaje\app\`), `distribuir.ps1` arma los zip igual y la completa pone paquetes, módulos y modelos en `app\`. Para las pruebas y las medidas se usa `app\Rodaje.exe` directamente; el doble clic de Daniel y `Rodaje.bat` pasan por el lanzador. Detalles que cambian: `rodaje-error.txt` queda en `app\` (el aviso de la app lo dice) y las licencias (`LICENSE.txt`, `THIRD-PARTY-NOTICES.txt`, `TRADEMARK.md`) viajan en `app\` junto al exe que cubren.
+**Resultado:** al descomprimir `Rodaje-<versión>-portable.zip` se ve la carpeta `Rodaje` con `Rodaje.exe` y `app` (oculta tras el primer arranque). `app.ps1` publica así (`dist\Rodaje\Rodaje.exe` + `dist\Rodaje\app\`), `distribuir.ps1` arma los zip igual y la completa pone paquetes, módulos y modelos en `app\`. Para las pruebas y las medidas se usa `app\Rodaje.exe` directamente; el doble clic y `Rodaje.bat` pasan por el lanzador. Detalles que cambian: `rodaje-error.txt` queda en `app\` (el aviso de la app lo dice) y las licencias (`LICENSE.txt`, `THIRD-PARTY-NOTICES.txt`, `TRADEMARK.md`) viajan en `app\` junto al exe que cubren.
 
 ## Versión e instalador (v1)
 
@@ -82,9 +82,9 @@ Lo que no se tocó: el XAML de las vistas (91 ms) se podría partir con `x:Load`
 - **Comprobación** (`build\probar-instalador.ps1`, la corre `distribuir.ps1`): instala en silencio en una carpeta temporal con espacios y tildes, revisa archivos, accesos y asociaciones, abre el exe instalado con `--autoprueba` y el lanzador con `--arranque`, desinstala y comprueba que no queda nada.
 - **Publicar** (`build\publicar-release.ps1`): verifica los hashes, que la etiqueta no exista y que el commit del exe esté en `origin/main`, y crea la release `v<v>` con `gh` (`-Borrador` para dejarla en borrador).
 
-## ¿Seguir con WinUI 3?
+## Por qué sigue con WinUI 3
 
-**Recomendación: seguir con WinUI 3.** Con el armazón, la ventana aparece a los 50 ms (215 en frío), al nivel de una app Win32 mínima. Lo que queda por ganar es entre que aparece y que se puede usar: ~400 ms en caliente y ~550 en frío, de los que unos 325 / 350 son el piso de WinUI con barra propia.
+**Se sigue con WinUI 3.** Con el armazón, la ventana aparece a los 50 ms (215 en frío), al nivel de una app Win32 mínima. Lo que queda por ganar es entre que aparece y que se puede usar: ~400 ms en caliente y ~550 en frío, de los que unos 325 / 350 son el piso de WinUI con barra propia.
 
 | Opción | Interfaz usable (estimado) | Gana | Pierde | Costo de migrar |
 |---|---|---|---|---|
@@ -94,4 +94,4 @@ Lo que no se tocó: el XAML de las vistas (91 ms) se podría partir con `x:Load`
 | Avalonia (AOT, Skia) | parecido a WinUI | Multiplataforma | Otro dialecto de XAML, su propio piso de arranque, otro runtime gráfico junto al D3D11 del visor | Reescribir las vistas: semanas a meses |
 | WPF / WinForms | peor | — | Sin Native AOT completo; WPF arranca más lento | Reescribir |
 
-Los servicios (`Services/`, 13 600 líneas) no dependen de WinUI y sobrevivirían a cualquier cambio. Aun así, una reescritura gana unos 350 ms una vez por sesión, a cambio de meses sin avanzar en el editor y de perder accesibilidad e IME hechos. Con la ventana visible a los 50 ms, la sensación de rapidez ya está; si Daniel nota el cambio del armazón a la ventana real, el siguiente paso es la ventana Win32 propia con XAML dentro, no cambiar de tecnología.
+Los servicios (`Services/`, 13 600 líneas) no dependen de WinUI y sobrevivirían a cualquier cambio. Aun así, una reescritura gana unos 350 ms una vez por sesión, a cambio de meses sin avanzar en el editor y de perder accesibilidad e IME hechos. Con la ventana visible a los 50 ms, la sensación de rapidez ya está; si se nota el cambio del armazón a la ventana real, el siguiente paso es la ventana Win32 propia con XAML dentro, no cambiar de tecnología.

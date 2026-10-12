@@ -1,4 +1,4 @@
-# Licencias de modulo-raw
+# Licencias de rodaje-raw
 
 El código del módulo es propio (GPL-3.0-only con los términos de Rodaje, D-032). Lo que trae de terceros conserva su licencia; nada de eso se versiona en el repositorio: lo baja `build\preparar-entorno.ps1` a `.entorno\libraw` con su SHA-256 fijado y la compilación lo copia junto al exe.
 
@@ -16,7 +16,7 @@ El código del módulo es propio (GPL-3.0-only con los términos de Rodaje, D-03
 
 | Formato | Por qué |
 |---|---|
-| **Blackmagic RAW** (`.braw`) | El SDK es gratuito pero se baja con registro y trae su propia licencia (binarios cerrados, sin ingeniería inversa, condiciones de redistribución de `BlackmagicRawAPI.dll`). Aceptarla es una decisión de licencia de Daniel; su API es COM de C++. |
+| **Blackmagic RAW** (`.braw`) | El SDK es gratuito pero se baja con registro y trae su propia licencia (binarios cerrados, sin ingeniería inversa, condiciones de redistribución de `BlackmagicRawAPI.dll`). Aceptarla es una decisión de licencia del autor; su API es COM de C++. |
 | **REDCODE RAW** (`.r3d`) | El R3D SDK de RED se baja con cuenta de desarrollador y acuerdo de licencia: DLL cerradas (`REDDecoder`, `REDR3D`…) redistribuibles solo con sus condiciones y avisos, y reglas sobre la marca RED. |
 | **ARRIRAW** (`.ari`, `.mxf`) | El ARRI Image SDK solo se da por el programa de socios de ARRI (solicitud y acuerdo de confidencialidad); no hay descarga pública. |
 | **Apple ProRes RAW** | Apple no publica un SDK de ProRes RAW para Windows. FFmpeg 8 o posterior trae un decodificador propio (`prores_raw`, también en la compilación LGPL de Rodaje), hecho sin el SDK de Apple; usarlo es una cuestión de patentes para el abogado antes de ofrecerlo. |

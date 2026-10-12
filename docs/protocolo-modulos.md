@@ -2,7 +2,7 @@
 
 Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla con el editor por una tubería con mensajes JSON y recibe cuadros y audio por memoria compartida. Describe la versión 1 del protocolo tal como está en el código de `src/Rodaje.Modules.Protocol/` (decisión D-031); cada dato cita el archivo de donde sale.
 
-**Estado (12 de octubre de 2026).** El protocolo, el anfitrión para módulos en C# (`ModuleHost`) y el módulo de ejemplo (`modules/Rodaje.Module.Echo/`) existen y tienen pruebas (`tests/Rodaje.Modules.Protocol.Tests/`). **La app ya abre módulos** con el `ModuleManager` (ronda A de la fase 7, `src/Rodaje.App/Services/Modules/`): los busca en disco (`ModuleCatalog`), abre un proceso por módulo con la primera llamada, lo vigila y lo cierra; sus reglas están en [Límites](#límites). Lo que aquí se marca como «previsto» viene del plan y puede cambiar.
+**Qué hay.** El protocolo, el anfitrión para módulos en C# (`ModuleHost`) y el módulo de ejemplo (`modules/Rodaje.Module.Echo/`) tienen pruebas en `tests/Rodaje.Modules.Protocol.Tests/`. La app abre los módulos con el `ModuleManager` (`src/Rodaje.App/Services/Modules/`): los busca en disco (`ModuleCatalog`), abre un proceso por módulo con la primera llamada, lo vigila y lo cierra; sus reglas están en [Límites](#límites). Los módulos de Rodaje (audio, subtítulos, traducción, voz, visión y RAW) usan este mismo protocolo.
 
 **Ejemplos JSON.** Todos los mensajes de esta guía son marcos reales: salen de conectar el `ModuleClient` (el lado del editor) con un `ModuleHost` que registra las funciones del módulo de eco, con el serializador del protocolo, y copiar lo que pasó por el cable. Solo cambian los valores de ejemplo (`appVersion`, `culture`, parámetros). El serializador de .NET escribe las letras no ASCII como escapes (`"parámetros"`); en esta guía se muestran así, tal cual salen. Las dos formas son JSON válido y el lector acepta cualquiera.
 
@@ -423,7 +423,7 @@ Plazos y cantidades del lado del editor y del anfitrión de C#:
 | Cola de la salida de errores en el mensaje de salida | 2048 caracteres | `ModuleProcess.cs` |
 | Búfer de la tubería, en cada sentido | 64 KB | `ModuleProcess.PipeBufferBytes` |
 
-Lo que añade el `ModuleManager` de la app (ronda A; `src/Rodaje.App/Services/Modules/`):
+Lo que añade el `ModuleManager` de la app (`src/Rodaje.App/Services/Modules/`):
 
 | Qué | Valor | Dónde |
 |---|---|---|
@@ -513,7 +513,7 @@ Notas:
 - Para un error con código, lanza `ModuleCallException(ErrorCodes.…, mensaje)`; para cancelar, deja que salga la `OperationCanceledException` del token.
 - `MaxConcurrentCalls` (4) y `HandshakeTimeout` (30 s) se cambian al crear el anfitrión (`new ModuleHost(info) { MaxConcurrentCalls = 1 }`). Si tu módulo habla varias versiones, pásalas como `minProtocol` y `maxProtocol` del constructor.
 - **Comprobado:** compila sin advertencias con .NET 10 y, conectado a un `ModuleClient` por un socket en Linux, `contar-palabras` devuelve `{"palabras":2}` para `{"texto":"hola mundo"}`, y sin parámetros, o `invertir` sin búfer, dan `invalid-parameters`. `invertir` con un búfer real no se probó: la memoria compartida con nombre solo existe en Windows. Sin `--rodaje-pipe` sale con 64.
-- Hoy la biblioteca solo está en este repositorio. Cómo la recibirá un tercero (repositorio propio, paquete NuGet) **no está decidido**: D-031 dice que sale a su propio repositorio con el segundo programa de Dathinel.
+- La biblioteca solo está en este repositorio. Cómo la recibirá un tercero (repositorio propio, paquete NuGet) **no está decidido**: D-031 prevé sacarla a su propio repositorio cuando otro programa la necesite.
 - El eco se publica con Native AOT (3,3 MB, arranque y saludo en 31–33 ms). Un módulo que no admita AOT puede salir autocontenido con JIT (D-034).
 
 ### En otro lenguaje
@@ -620,12 +620,12 @@ Lo mínimo que tiene que hacer cualquier módulo:
 Un módulo se instala como un paquete con `"kind": "module"` y un bloque `module` en su `paquete.json` ([formato-paquete.md](formato-paquete.md#módulos-de-ia)):
 
 ```json
-"module": { "entry": "bin/modulo-subtitulos.exe", "protocol": 1, "functions": ["subtitulos"] }
+"module": { "entry": "bin/Rodaje.Module.Subtitles.exe", "protocol": 1, "functions": ["subtitulos"], "runtime": "vulkan", "vramMb": 1500, "models": [ … ] }
 ```
 
-`entry` es la ruta relativa al ejecutable dentro del paquete, `protocol` la versión del protocolo y `functions` lo que ofrece (`ManifestReader.Module` en `src/Rodaje.Packages/ManifestReader.cs`). Se instala en `%LOCALAPPDATA%\Rodaje\complementos\modulos\<id>\`. El `ModuleManager` busca módulos ahí, en `modulos\` junto al ejecutable (los que trae la distribución completa) y, si Rodaje corre desde el repositorio, en su carpeta `modules\`; si un id aparece en varias, gana la versión mayor (`ModuleCatalog.Scan`). Solo abre los que funcionan en `rodaje` y dicen `"protocol": 1`; uno con otra versión del protocolo, o con un `paquete.json` que no se puede leer, queda en la lista de problemas (`ModuleManager.Problems`).
+`entry` es la ruta relativa al ejecutable dentro del paquete, `protocol` la versión del protocolo y `functions` lo que ofrece (`ManifestReader.Module` en `src/Rodaje.Packages/ManifestReader.cs`). Se instala en `%LOCALAPPDATA%\Rodaje\complementos\modulos\<id>\`. El `ModuleManager` busca módulos ahí, en `modulos\` junto al ejecutable (los que trae la distribución completa) y, si Rodaje corre desde el repositorio, en su carpeta `modules\`; si un id aparece en varias, gana la versión mayor (`ModuleCatalog.Scan`). Solo abre los que funcionan en `rodaje` y dicen `"protocol": 1`; uno con otra versión del protocolo (salvo 0, abajo), o con un `paquete.json` que no se puede leer, queda en la lista de problemas (`ModuleManager.Problems`).
 
-`ModuleCatalog` lee además dos campos de la fase 7 que el lector de manifiestos todavía no expone: `vramMb` (entero; 0 o ausente = solo CPU, acotado a 65 536) y `runtime` (texto de hasta 64 caracteres, guardado pero sin uso por ahora). **Previsto**: `models` (modelos con hash, licencia y URL, compartidos entre módulos) y `protocol: 0` para herramientas de línea de órdenes que no hablan este protocolo.
+`ModuleCatalog` lee además dos campos que el lector de manifiestos no expone: `vramMb` (entero; 0 o ausente = solo CPU, acotado a 65 536) y `runtime` (texto de hasta 64 caracteres, informativo). `models` lista los modelos del módulo, cada uno con `id`, `file`, `size`, `sha256`, `license` y `url`: lo usan `build\distribuir.ps1` (para meterlos en la distribución completa y en el índice del catálogo) y el gestor de complementos (para bajarlos y verificarlos, [descarga.md](descarga.md)); la app no lo lee del manifiesto instalado. Con `"protocol": 0` el paquete es una herramienta de línea de órdenes que no habla este protocolo: el `ModuleManager` no lo abre y lo usa quien lo conoce (hoy, `rodaje-codificadores-gpl`, el `ffmpeg.exe` GPL que Exportar usa para x264 y x265; `GplEncoderPack.cs`).
 
 ## Licencia de tu módulo
 
@@ -637,7 +637,7 @@ Rodaje se licencia bajo la GNU GPL versión 3 solamente, con términos adicional
 
 Es decir: un módulo que habla con Rodaje por este protocolo puede llevar **su propia licencia**, también privativa o de pago. El mismo término aclara que la excepción no autoriza modificar ni distribuir el núcleo de Rodaje sin cumplir la atribución y el copyleft de los términos 1 a 3.
 
-Lo que esta guía **no** resuelve, y queda para Daniel y el abogado ([legal.md](legal.md)):
+Lo que esta guía **no** resuelve, y queda para el autor y el abogado ([legal.md](legal.md)):
 
 - Si un módulo que **incluye** la biblioteca `Rodaje.Modules.Protocol` (código de este repositorio, bajo la misma licencia) cuenta como «conectarse a través de las interfaces públicas» o necesita otro permiso. Un módulo que implementa el protocolo por su cuenta, como el ejemplo en Python, solo se comunica por IPC. La licencia con que saldrá la biblioteca en su propio repositorio no está decidida.
 - Las licencias de los modelos, voces y bibliotecas que use tu módulo son aparte y las cumples tú.

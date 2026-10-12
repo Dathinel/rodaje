@@ -1,6 +1,6 @@
 # modulo-traducir
 
-Módulo de IA de Rodaje (fase 7, agente F): traduce los textos de una pista de subtítulos a otro idioma. La app crea
+Módulo de IA de Rodaje: traduce los textos de una pista de subtítulos a otro idioma. La app crea
 una pista nueva con los mismos tiempos; el módulo solo devuelve los textos con los mismos ids. Proceso aparte que
 habla el protocolo v1 (`src/Rodaje.Modules.Protocol`).
 

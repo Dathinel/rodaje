@@ -19,23 +19,30 @@ Microsoft y no quedan sujetos a la GPLv3 de Rodaje.
 [Redacción de este párrafo pendiente de revisión legal.]
 
 Este archivo reúne los avisos de licencia de los componentes de terceros que
-viajan dentro de la carpeta dist\ junto con Rodaje.exe. Debe acompañar
-siempre al ejecutable: si se copia, comprime o entrega Rodaje.exe, este
-archivo va con él.
+viajan con Rodaje, en la carpeta app\ junto a Rodaje.exe. Debe acompañar
+siempre al programa: si se copia, comprime o entrega, este archivo va con él.
 
-Se regenera en cada versión publicada a partir de las dependencias reales de
-esa versión (ver LICENCIAS.md). Las dependencias que solo se usan para compilar
-o probar no aparecen aquí porque no se redistribuyen.
+Se revisa en cada versión publicada a partir de las dependencias reales de
+esa versión (ver LICENCIAS.md en el código fuente). Las dependencias que solo
+se usan para compilar o probar no aparecen aquí porque no se redistribuyen.
+Los módulos de IA y los paquetes de contenido (distribución completa o gestor
+de complementos) llevan sus propios avisos en su carpeta (LICENCIAS.md).
 
-Versión de este archivo: fase 3 (sin versión publicada todavía).
-Componentes incluidos: runtime de .NET 10 (embebido por la publicación
-autocontenida / Native AOT) y FFmpeg (DLL separadas y ffmpeg.exe, LGPL).
+Versión de este archivo: Rodaje 1.0.0.
+Componentes incluidos:
+  1. Runtime de .NET 10 y compilador Native AOT (dentro de Rodaje.exe).
+  2. FFmpeg 9.0 (DLL separadas, ffmpeg.exe y ffprobe.exe; LGPL v3).
+  3. FFmpeg.AutoGen 9.0.1.1 (dentro de Rodaje.exe; MIT).
+  4. TerraFX.Interop.Windows 10.0.26100.6 (dentro de Rodaje.exe; MIT).
+  5. Windows App SDK 2.5.1 / WinUI 3 (DLL junto a Rodaje.exe; términos de
+     Microsoft), con Microsoft.Web.WebView2 1.0.3719.77 (licencia de tipo BSD).
+  6. Proyección de C# del Windows SDK y CsWinRT (dentro de Rodaje.exe).
 
 
 ===============================================================================
 1. .NET Runtime y compilador Native AOT, serie 10.0
    (paquetes Microsoft.NETCore.App.Runtime.win-x64 y
-   Microsoft.DotNet.ILCompiler, compilados con el SDK 10.0.401)
+   Microsoft.DotNet.ILCompiler 10.0.12, compilados con el SDK 10.0.401)
    https://github.com/dotnet/runtime
    Licencia: MIT
 ===============================================================================
@@ -80,9 +87,10 @@ versión correspondiente al runtime usado (también incluido en el SDK de
 .entorno\dotnet como ThirdPartyNotices.txt), se pega en esta sección.
 
 
+
 ===============================================================================
 2. FFmpeg 9.0 (avcodec-63, avformat-63, avutil-61, swresample-7, swscale-10,
-   avfilter-12, avdevice-63 y ffmpeg.exe)
+   avfilter-12, avdevice-63, ffmpeg.exe y ffprobe.exe)
    https://ffmpeg.org
    Licencia: GNU Lesser General Public License, versión 3 o posterior
 ===============================================================================
@@ -92,10 +100,11 @@ Rodaje usa bibliotecas del proyecto FFmpeg (https://ffmpeg.org), Copyright
 o posterior. FFmpeg es una marca de Fabrice Bellard. Rodaje no es parte de
 FFmpeg ni está respaldado por él.
 
-Las bibliotecas se distribuyen como DLL separadas y sin modificar; se pueden
-reemplazar por otra compilación compatible de la misma versión mayor.
-ffmpeg.exe, de la misma compilación y sin modificar, se ejecuta como un
-proceso aparte para generar los proxies de vista previa.
+Las bibliotecas se distribuyen en app\ffmpeg\ como DLL separadas y sin
+modificar; se pueden reemplazar por otra compilación compatible de la misma
+versión mayor. ffmpeg.exe y ffprobe.exe, de la misma compilación y sin
+modificar, se ejecutan como procesos aparte: el primero genera los proxies de
+vista previa y el segundo comprueba cada archivo exportado.
 
 Compilación: ffmpeg-n9.0.2-17-g2a571b6068-win64-lgpl-shared-9.0 de BtbN
   https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-30-13-08
@@ -106,23 +115,113 @@ Código fuente correspondiente:
     https://github.com/FFmpeg/FFmpeg/commit/2a571b606854520cf89804d8030c8b328e621689
   Scripts de compilación y versiones de las bibliotecas externas:
     https://github.com/BtbN/FFmpeg-Builds/tree/autobuild-2026-09-30-13-08
-Línea de configuración: docs/ffmpeg-configure.txt (sin --enable-gpl ni
---enable-nonfree).
+Línea de configuración: docs/ffmpeg-configure.txt del código fuente de Rodaje
+(sin --enable-gpl ni --enable-nonfree).
 
-El texto de la LGPL versión 3 viaja en el LICENSE.txt de la compilación. Como
-la LGPLv3 incorpora la GPL versión 3, al publicar se copian junto a las DLL
-los dos textos: https://www.gnu.org/licenses/lgpl-3.0.txt y
+El texto de la LGPL versión 3 está en app\ffmpeg\LICENSE.txt. La LGPLv3
+incorpora la GPL versión 3, cuyo texto completo está en app\LICENSE.txt.
+También en https://www.gnu.org/licenses/lgpl-3.0.txt y
 https://www.gnu.org/licenses/gpl-3.0.txt.
 
 Las DLL contienen bibliotecas externas con licencias propias (dav1d, libvpx,
 opus, openh264, SVT-AV1, kvazaar, libaom, freetype, harfbuzz, fribidi, libass,
-lame, zimg, zlib y otras). Sus avisos se añadirán aquí antes de publicar una
-versión.
+lame, zimg, zlib y otras). La lista, con la licencia y la fuente de cada una,
+está en LICENCIAS.md del código fuente; sus textos de aviso se añadirán aquí.
 
 
 ===============================================================================
-Componentes previstos (todavía no incluidos)
+3. FFmpeg.AutoGen 9.0.1.1 (FFmpeg.AutoGen.Abstractions y
+   FFmpeg.AutoGen.Bindings.DynamicallyLinked)
+   https://github.com/Ruslan-B/FFmpeg.AutoGen
+   Licencia: MIT
 ===============================================================================
 
-Cuando se incorporen, sus avisos se añadirán aquí: FFmpeg.AutoGen, Vortice.Windows, Windows App SDK, NAudio, Whisper.net,
-whisper.cpp, ONNX Runtime, DirectML y los modelos de IA que se distribuyan.
+MIT License
+
+Copyright (c) 2025 Ruslan Balanukhin (Rationale One)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+===============================================================================
+4. TerraFX.Interop.Windows 10.0.26100.6
+   https://github.com/terrafx/terrafx.interop.windows
+   Licencia: MIT
+===============================================================================
+
+Copyright © Tanner Gooding and Contributors
+
+Licencia MIT, con el mismo texto que la sección 3 (de "Permission is hereby
+granted" a "OTHER DEALINGS IN THE SOFTWARE.").
+
+
+===============================================================================
+5. Windows App SDK 2.5.1 (WinUI 3) y Microsoft.Web.WebView2 1.0.3719.77
+   https://github.com/microsoft/WindowsAppSDK
+   Licencia: términos de licencia de software de Microsoft (Windows App SDK);
+   licencia de tipo BSD de Microsoft (WebView2)
+===============================================================================
+
+Los archivos del Windows App SDK (paquetes Microsoft.WindowsAppSDK.WinUI
+2.3.9, .Foundation 2.3.12, .InteractiveExperiences 2.1.9 y .Base 2.0.4) que
+van junto a Rodaje.exe se redistribuyen con los términos de licencia de
+software de Microsoft para el Windows App SDK, no con la licencia de Rodaje.
+Texto completo: https://www.nuget.org/packages/Microsoft.WindowsAppSDK/2.5.1/License
+
+Microsoft.Web.WebView2.Core.dll y WebView2Loader.dll:
+
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * The name of Microsoft Corporation, or the names of its contributors
+may not be used to endorse or promote products derived from this
+software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+===============================================================================
+6. Proyección de C# del Windows SDK (Microsoft.Windows.SDK.NET.Ref
+   10.0.26100.57) y CsWinRT (WinRT.Runtime)
+   https://github.com/microsoft/CsWinRT
+   Licencia: términos del Windows SDK (proyección); MIT (CsWinRT)
+===============================================================================
+
+Compiladas dentro de Rodaje.exe por Native AOT. La proyección se rige por los
+términos del Windows SDK (https://aka.ms/WinSDKLicenseURL). CsWinRT es MIT,
+Copyright (c) Microsoft Corporation, con el mismo texto de la sección 3.
