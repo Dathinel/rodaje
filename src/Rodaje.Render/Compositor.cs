@@ -211,6 +211,7 @@ public sealed unsafe partial class Compositor : IDisposable
         {
             PreviewBypass bypass = strict ? PreviewBypass.None : Bypass;
             _layers.Bypass = bypass;
+            _layers.MaskView = strict ? null : MaskView;
             _layers.ShowQualifierMask = !strict && ShowQualifierMask;
             drawn = DrawLayers(frame, geometry, destination, titles, ref stats);
             if (!strict && CompareSplit is { } split && split > 0 && (bypass & PreviewBypass.Grading) == 0)
@@ -221,6 +222,7 @@ public sealed unsafe partial class Compositor : IDisposable
         finally
         {
             _layers.Bypass = PreviewBypass.None;
+            _layers.MaskView = null;
             _layers.ShowQualifierMask = false;
             _layers.EndFrame();
             _pipeline.Unbind();
@@ -242,6 +244,8 @@ public sealed unsafe partial class Compositor : IDisposable
     /// <summary>Solo vista previa: efectos que se dejan fuera en todo el cuadro (el cuentagotas del croma mira la imagen sin él).</summary>
     public PreviewBypass Bypass { get; set; }
 
+    /// <summary>Solo vista previa: una máscara que se ve en gris o superpuesta mientras se edita (la exportación la ignora).</summary>
+    public MaskPreview? MaskView { get; set; }
     /// <summary>Solo vista previa: el calificador HSL se ve como su máscara en gris (blanco = elegido). La exportación lo ignora.</summary>
     public bool ShowQualifierMask { get; set; }
 

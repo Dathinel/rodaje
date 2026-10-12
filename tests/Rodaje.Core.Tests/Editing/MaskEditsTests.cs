@@ -116,7 +116,7 @@ public sealed class MaskEditsTests
     [InlineData(MaskShape.Path)]
     public void Coverage_is_full_inside_empty_outside_and_half_on_the_edge(MaskShape shape)
     {
-        Vector2[] square = [new(-0.5f, -0.5f), new(0.5f, -0.5f), new(0.5f, 0.5f), new(-0.5f, 0.5f)];
+        Vector3[] square = [new(-0.5f, -0.5f, 1), new(0.5f, -0.5f, 1), new(0.5f, 0.5f, 1), new(-0.5f, 0.5f, 1)];
         var spec = new MaskSpec(shape, 0.5, 0.5, 0.5, 0.5, 0, 0.1, 1, false);
         Assert.Equal(1, MaskGeometry.Factor(spec, 100, 50, 200, 100, square), 6);
         Assert.Equal(0, MaskGeometry.Factor(spec, 2, 2, 200, 100, square), 6);
@@ -132,5 +132,153 @@ public sealed class MaskEditsTests
         Assert.True(path.Accepts("0,0;1,0;0,1"));
         Assert.False(path.Accepts("0,0\n1,0"));
         Assert.False(path.Accepts(new string('1', OptionDefinition.MaxTextLength + 1)));
+    }
+
+    [Fact]
+    public void A_bezier_mask_adds_to_the_others_and_keeps_its_name_and_color()
+    {
+        TrimFixture f = Clip();
+        var undo = new UndoStack(f.Project);
+        undo.Execute(Edits.AddMask("seq", "v", MaskShape.Ellipse));
+        undo.Execute(Edits.AddVertexMask("seq", "v", MaskShape.Bezier, 0.4, 0.5, 0.3, 0.3, MaskPath.Star(5)));
+
+        EffectInstance bezier = f.Clip("v").Effects[1];
+        Assert.Equal("bezier", bezier.Options[O.Shape]);
+        Assert.Equal("add", bezier.Options[O.Mode]);
+        Assert.Equal("Máscara 2", bezier.Options[O.Name]);
+        Assert.Equal(MaskEdits.Palette[1], bezier.Options[O.Color]);
+        Assert.Equal(10, MaskGeometry.Vertices(bezier, F(0)).Length);
+        Assert.Empty(ModelValidator.Validate(f.Project));
+        Assert.Throws<EditException>(() => undo.Execute(Edits.AddVertexMask("seq", "v", MaskShape.Bezier, 0.5, 0.5, 0.2, 0.2, MaskPath.Rectangle()[..2])));
+    }
+
+    [Fact]
+    public void Shape_keys_animate_the_vertices_and_editing_writes_the_key_under_the_playhead()
+    {
+        TrimFixture f = Clip();
+        var undo = new UndoStack(f.Project);
+        undo.Execute(Edits.AddVertexMask("seq", "v", MaskShape.Bezier, 0.5, 0.5, 0.5, 0.5, MaskPath.Rectangle()));
+        string id = f.Clip("v").Effects[0].Id;
+        undo.Execute(Edits.SetMaskShapeKey("seq", "v", id, F(0)));
+        MaskVertex[] bigger = [.. MaskPath.Rectangle().Select(v => v with { Point = v.Point * 1.5f })];
+        undo.Execute(Edits.SetMaskVertices("seq", "v", id, bigger, F(100)));
+
+        EffectInstance mask = f.Clip("v").Effects[0];
+        Assert.True(MaskGeometry.IsShapeAnimated(mask));
+        Assert.Equal(-0.625f, MaskGeometry.Vertices(mask, F(50))[0].Point.X, 4);
+        Assert.Empty(ModelValidator.Validate(f.Project));
+
+        undo.Execute(Edits.RemoveMaskShapeKey("seq", "v", id, F(0)));
+        undo.Execute(Edits.RemoveMaskShapeKey("seq", "v", id, F(100)));
+        mask = f.Clip("v").Effects[0];
+        Assert.False(MaskGeometry.IsShapeAnimated(mask));
+        Assert.Equal(-0.75f, MaskGeometry.Vertices(mask, F(0))[0].Point.X, 4);
+        Assert.Throws<EditException>(() => undo.Execute(Edits.SetMaskShapeKey("seq", "v", id, F(500))));
+    }
+
+    [Theory]
+    [InlineData(MaskShape.Rectangle, 0)]
+    [InlineData(MaskShape.Rectangle, 0.6)]
+    [InlineData(MaskShape.Ellipse, 0)]
+    public void Converting_to_bezier_keeps_the_same_coverage(MaskShape shape, double roundness)
+    {
+        TrimFixture f = Clip();
+        var undo = new UndoStack(f.Project);
+        undo.Execute(Edits.AddMask("seq", "v", shape, 0.45, 0.55, 0.4, 0.5));
+        string id = f.Clip("v").Effects[0].Id;
+        undo.Execute(Edits.SetParameter("seq", "v", id, M.Rotation, 20, F(0)));
+        undo.Execute(Edits.SetParameter("seq", "v", id, M.Feather, 0.02, F(0)));
+        undo.Execute(Edits.SetParameter("seq", "v", id, M.Roundness, roundness, F(0)));
+        MaskSpec before = MaskGeometry.Evaluate(f.Clip("v").Effects[0], F(0));
+
+        undo.Execute(Edits.ConvertMaskToBezier("seq", "v", id, F(0), 320.0 / 180));
+        EffectInstance mask = f.Clip("v").Effects[0];
+        MaskSpec after = MaskGeometry.Evaluate(mask, F(0));
+        Assert.Equal(MaskShape.Bezier, after.Shape);
+        Vector3[] polyline = MaskGeometry.Polyline(MaskShape.Bezier, MaskGeometry.Vertices(mask, F(0)), (float)(after.Width * 320), (float)(after.Height * 180),
+            (float)(after.Feather * 180));
+        double worst = 0;
+        for (int y = 0; y < 180; y += 3)
+        {
+            for (int x = 0; x < 320; x += 3)
+            {
+                worst = Math.Max(worst, Math.Abs(MaskGeometry.Factor(before, x + 0.5, y + 0.5, 320, 180)
+                    - MaskGeometry.Factor(after, x + 0.5, y + 0.5, 320, 180, polyline)));
+            }
+        }
+
+        Assert.InRange(worst, 0, 0.12);
+    }
+
+    [Fact]
+    public void A_mask_can_limit_an_effect_and_the_zone_preset_wires_it()
+    {
+        TrimFixture f = Clip();
+        var undo = new UndoStack(f.Project);
+        var zone = Edits.AddMaskedZone("seq", "v", ZoneEffect.Pixelate);
+        undo.Execute(zone);
+        (string effectId, string maskId) = (zone.CreatedIds[0], zone.CreatedIds[1]);
+        Clip clip = f.Clip("v");
+        Assert.Equal(BuiltInEffects.Pixelate, clip.Effects.Single(e => e.Id == effectId).Type);
+        Assert.Equal(effectId, clip.Effects.Single(e => e.Id == maskId).Options[O.Target]);
+
+        undo.Execute(Edits.SetMaskTarget("seq", "v", maskId, ""));
+        Assert.False(f.Clip("v").Effects.Single(e => e.Id == maskId).Options.ContainsKey(O.Target));
+        undo.Execute(Edits.AddEffect("seq", "v", BuiltInEffects.Transform));
+        string transform = f.Clip("v").Effects[^1].Id;
+        Assert.Throws<EditException>(() => undo.Execute(Edits.SetMaskTarget("seq", "v", maskId, transform)));
+        Assert.Throws<EditException>(() => undo.Execute(Edits.SetMaskTarget("seq", "v", maskId, "no-existe")));
+        Assert.Empty(ModelValidator.Validate(f.Project));
+    }
+
+    [Fact]
+    public void Splitting_and_pasting_attributes_keep_masks_on_their_effects_and_shape_keys_in_place()
+    {
+        TrimFixture f = Clip().Add("v2", "w", "m2", 50, 150, 0);
+        var undo = new UndoStack(f.Project);
+        var zone = Edits.AddMaskedZone("seq", "v", ZoneEffect.Blur);
+        undo.Execute(zone);
+        string maskId = zone.CreatedIds[1];
+        undo.Execute(Edits.ConvertMaskToBezier("seq", "v", maskId, F(0), 16.0 / 9));
+        undo.Execute(Edits.SetMaskShapeKey("seq", "v", maskId, F(20)));
+
+        ClipAttributes copied = ClipAttributes.Capture(f.Sequence, "v");
+        undo.Execute(Edits.PasteAttributes("seq", ["w"], copied, ClipAttributeKinds.Effects));
+        Clip w = f.Clip("w");
+        EffectInstance pastedMask = w.Effects.Single(e => e.Type == BuiltInEffects.Mask);
+        Assert.Equal(w.Effects.Single(e => e.Type == BuiltInEffects.Blur).Id, pastedMask.Options[O.Target]);
+        // El keyframe estaba 20 cuadros después del inicio de «v»; en «w» (que empieza en el cuadro 50 del origen) cae en el 70.
+        Assert.Equal(F(70), MaskShapeTrack.Parse(pastedMask.Options[O.ShapeKeys])!.TimeAt(0));
+
+        Clip right = TrackOps.SplitOff(f.Ctx, f.Clip("v"), F(100));
+        EffectInstance splitMask = right.Effects.Single(e => e.Type == BuiltInEffects.Mask);
+        Assert.Equal(right.Effects.Single(e => e.Type == BuiltInEffects.Blur).Id, splitMask.Options[O.Target]);
+        Assert.Empty(ModelValidator.Validate(f.Project));
+    }
+
+    [Fact]
+    public void Tracking_replaces_the_keys_in_its_range_and_keeps_the_rest()
+    {
+        TrimFixture f = Clip();
+        var undo = new UndoStack(f.Project);
+        undo.Execute(Edits.AddVertexMask("seq", "v", MaskShape.Bezier, 0.5, 0.5, 0.2, 0.2, MaskPath.Rectangle()));
+        string id = f.Clip("v").Effects[0].Id;
+        undo.Execute(Edits.SetKeyframe("seq", "v", id, M.X, F(150), 0.9));
+        MaskTrackKey[] keys = [.. Enumerable.Range(10, 21).Select(i =>
+            new MaskTrackKey(F(i), 0.5 + (0.01 * (i - 10)), 0.5, 0.2, 0.2, i - 10,
+                [.. MaskPath.Rectangle().Select(v => v with { Point = v.Point + new Vector2(0.001f * (i - 10), 0) })]))];
+        undo.Execute(Edits.ApplyMaskTrack("seq", "v", id, keys, MaskTrackParts.Position | MaskTrackParts.Rotation | MaskTrackParts.Shape));
+
+        EffectInstance mask = f.Clip("v").Effects[0];
+        Assert.Equal(22, mask.Parameters[M.X].Keyframes.Count);
+        Assert.Equal(0.9, mask.Parameters[M.X].Evaluate(F(150)), 9);
+        Assert.Equal(0.65, mask.Parameters[M.X].Evaluate(F(25)), 9);
+        Assert.Equal(15, mask.Parameters[M.Rotation].Evaluate(F(25)), 9);
+        Assert.False(mask.Parameters.TryGetValue(M.Width, out Parameter? width) && width.Keyframes.Count > 0);
+        // Los vértices se mueven en línea recta: el seguimiento por vértice se reduce a sus dos extremos.
+        MaskShapeTrack track = MaskShapeTrack.Parse(mask.Options[O.ShapeKeys])!;
+        Assert.Equal(2, track.Count);
+        Assert.Equal(-0.495f, track.Evaluate(F(15))[0].Point.X, 4);
+        Assert.Empty(ModelValidator.Validate(f.Project));
     }
 }

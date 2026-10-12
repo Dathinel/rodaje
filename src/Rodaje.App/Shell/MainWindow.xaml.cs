@@ -471,6 +471,11 @@ internal sealed partial class MainWindow : Window, IShellHost
             return false;
         }
 
+        if (Player.HandleMaskKey(chord))
+        {
+            return true;
+        }
+
         if (chord == new KeyChord(0x1B))
         {
             if (_playerFullScreen)

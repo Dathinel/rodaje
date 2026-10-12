@@ -36,7 +36,7 @@ internal sealed unsafe partial class LayerRenderer
                 case GpuEffectKind.Transform or GpuEffectKind.Stabilize or GpuEffectKind.Blend:
                     break;
                 case GpuEffectKind.Blur or GpuEffectKind.Sharpen or GpuEffectKind.Grain or GpuEffectKind.Glow
-                    or GpuEffectKind.ChromaticAberration or GpuEffectKind.Mirror or GpuEffectKind.LensDistortion:
+                    or GpuEffectKind.ChromaticAberration or GpuEffectKind.Mirror or GpuEffectKind.LensDistortion or GpuEffectKind.Pixelate:
                     _spatial.Add(new SpatialStep(gpu.Kind, list[i].Values, definition!, i, 0));
                     break;
                 default:
