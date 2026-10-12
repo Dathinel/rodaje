@@ -49,6 +49,14 @@ public sealed class ByteRangeOverflowTests
 
         using var response = await http.SendAsync(request);
 
+        // En Windows, HTTP.sys rechaza la cabecera con 400 antes de que llegue al servidor; en los dos casos el
+        // cliente no recibe el archivo entero, que es lo que pasaba antes.
+        if (OperatingSystem.IsWindows() && response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            Assert.Empty(server.Requests);
+            return;
+        }
+
         Assert.Equal(System.Net.HttpStatusCode.RequestedRangeNotSatisfiable, response.StatusCode);
         Assert.Equal("bytes */1000", response.Content.Headers.GetValues("Content-Range").Single());
         Assert.Empty(await response.Content.ReadAsByteArrayAsync());
