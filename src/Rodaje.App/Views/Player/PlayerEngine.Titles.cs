@@ -1,3 +1,4 @@
+using Rodaje.Core.Timing;
 using Rodaje.Playback.Composition;
 using Rodaje.Render.Text;
 
