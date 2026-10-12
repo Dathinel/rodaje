@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.Analysis.Video;
 using Rodaje.App.Services;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Shell;
 using Rodaje.Core.Model;
@@ -14,7 +15,7 @@ namespace Rodaje.App.Views.Analysis;
 /// </summary>
 internal static class StabilizeDialog
 {
-    public static async Task ShowAsync(EditorServices services)
+    public static async Task ShowAsync(EditorServices services, LongActionScope? scope = null)
     {
         EditorSession session = services.Session;
         if (ClipVideoSource.SelectedVideoClip(session) is not { } clip || services.Shell.XamlRoot is not { } root)
@@ -85,7 +86,7 @@ internal static class StabilizeDialog
         {
             try
             {
-                analysis = await ClipVideoSource.AnalyzeMotionAsync(session, clip, store, new Progress<double>(p => progress.Value = p), cancel.Token);
+                analysis = await ClipVideoSource.AnalyzeMotionAsync(session, clip, store, new Progress<double>(p => scope?.Report(progress.Value = p, "Analizando el movimiento…")), cancel.Token);
                 progress.Visibility = Visibility.Collapsed;
                 Refresh();
                 dialog.IsPrimaryButtonEnabled = true;

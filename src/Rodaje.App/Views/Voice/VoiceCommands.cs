@@ -18,17 +18,6 @@ internal static class VoiceCommands
         return router.Bind(TextToSpeech, () => Run(services));
     }
 
-    private static async void Run(EditorServices services)
-    {
-        try
-        {
-            await VoiceDialog.ShowAsync(services);
-        }
-#pragma warning disable CA1031 // Un fallo del diálogo no debe cerrar la app: se avisa.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            services.Session.Notify(NotificationSeverity.Error, "Texto a voz", ex.Message);
-        }
-    }
+    private static void Run(EditorServices services) =>
+        _ = services.LongActions.RunAsync(TextToSpeech, "Texto a voz", scope => VoiceDialog.ShowAsync(services, scope));
 }

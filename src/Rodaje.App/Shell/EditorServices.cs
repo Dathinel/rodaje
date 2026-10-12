@@ -74,6 +74,9 @@ internal sealed class EditorServices(
     /// <summary>Módulos de IA: descubrir, correr como trabajos y vigilar; nulo si la ventana no lo creó.</summary>
     public ModuleManager? Modules { get; init; }
 
+    /// <summary>Las acciones largas en marcha: su botón ocupado, el avance en la barra de avisos y «Cancelar».</summary>
+    public required Services.LongActions.LongActionService LongActions { get; init; }
+
     /// <summary>La propuesta de un módulo que se ve antes de aplicarse en un paso del historial.</summary>
     public ModuleProposals? Proposals { get; init; }
 

@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Shell;
@@ -18,7 +19,7 @@ namespace Rodaje.App.Views.Analysis;
 /// </summary>
 internal static class NoiseReductionDialog
 {
-    public static async Task ShowAsync(EditorServices services)
+    public static async Task ShowAsync(EditorServices services, LongActionScope? scope = null)
     {
         EditorSession session = services.Session;
         const string Title = "Reducir ruido";
@@ -121,6 +122,7 @@ internal static class NoiseReductionDialog
             if (job is not null)
             {
                 progress.Value = job.Progress;
+                scope?.Report(job.Progress, "Limpiando la voz…");
                 status.Text = (job.Stage ?? "Limpiando la voz") + "…";
             }
         };

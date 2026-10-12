@@ -498,6 +498,46 @@ internal static class SelfTestRun
         }
 
         await CaptureAsync(window, "herramientas");
+        await LongActionAsync(window);
+    }
+
+    /// <summary>
+    /// «Color automático» desde la barra: al instante el botón queda ocupado y la barra de avisos muestra el avance con
+    /// «Cancelar»; un segundo clic no arranca otra; al terminar queda el aviso con «Deshacer». Lo deshace.
+    /// </summary>
+    private static async Task LongActionAsync(MainWindow window)
+    {
+        const string id = Views.Analysis.AnalysisCommands.AutoColor;
+        EditorSession session = window.Session;
+        int steps = session.History.Count;
+        window.Router.Invoke(id);
+        window.Router.Invoke(id);
+        await Task.Delay(30);
+        (bool busy, _) = window.QuickTools.Busy(id);
+        var bar = window.NotificationState;
+        if (!busy || !bar.Open || !bar.Progress || bar.Button != "Cancelar" || window.LongActions.Running.Count != 1)
+        {
+            throw new InvalidOperationException($"Color automático no se ve en marcha (botón {busy}, barra {bar}, en marcha {window.LongActions.Running.Count}).");
+        }
+
+        await CaptureAsync(window, "accion-en-marcha");
+        for (int i = 0; i < 150 && window.LongActions.IsRunning(id); i++)
+        {
+            await Task.Delay(100);
+        }
+
+        await Task.Delay(100);
+        bar = window.NotificationState;
+        if (window.LongActions.IsRunning(id) || window.QuickTools.Busy(id).Busy || bar.Progress || bar.Button != "Deshacer")
+        {
+            throw new InvalidOperationException($"Color automático no terminó con su aviso y «Deshacer» (barra {bar}).");
+        }
+
+        await CaptureAsync(window, "accion-terminada");
+        while (session.History.Count > steps)
+        {
+            session.Undo();
+        }
     }
 
     private static async Task SaveFrameAsync(FrameCapture frame, string name)
