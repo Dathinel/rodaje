@@ -112,16 +112,18 @@ internal sealed class TitleAnimation
     private readonly Curve?[]? _out;
     private readonly long _inTicks;
     private readonly long _outTicks;
+    private readonly long _leadTicks;
     private readonly long _durationTicks;
     private readonly double _stretch;
     private readonly double _unit;
 
-    private TitleAnimation(Curve?[]? @in, long inTicks, Curve?[]? @out, long outTicks, long durationTicks, double stretch, double unit)
+    private TitleAnimation(Curve?[]? @in, long inTicks, Curve?[]? @out, long outTicks, long leadTicks, long durationTicks, double stretch, double unit)
     {
         _in = @in;
         _out = @out;
         _inTicks = inTicks;
         _outTicks = outTicks;
+        _leadTicks = leadTicks;
         _durationTicks = durationTicks;
         _stretch = stretch;
         _unit = unit;
@@ -131,13 +133,16 @@ internal sealed class TitleAnimation
     /// <summary>Mayor escala de las dos animaciones (al menos 1, la de en medio).</summary>
     public double MaxScale { get; }
 
-    /// <summary>Tramo de la entrada, ya escalado al clip.</summary>
+    /// <summary>Tramo de la entrada, ya escalado al título entero.</summary>
     public Time InDuration => Time.FromTicks(_inTicks);
 
-    /// <summary>Tramo de la salida, ya escalado al clip.</summary>
+    /// <summary>Tramo de la salida, ya escalado al título entero.</summary>
     public Time OutDuration => Time.FromTicks(_outTicks);
 
-    /// <summary>Nula si el estilo no anima ningún borde activo.</summary>
+    /// <summary>
+    /// Nula si el estilo no anima ningún borde activo. Un trozo de un título dividido se anima como el título entero:
+    /// <see cref="GeneratorEdges.Before"/> y <see cref="GeneratorEdges.After"/> lo alargan por los dos lados.
+    /// </summary>
     public static TitleAnimation? From(TextStyle style, GeneratorEdges edges, Time duration, double unit)
     {
         Curve?[]? @in = edges.In ? Curves(style.In) : null;
@@ -147,19 +152,13 @@ internal sealed class TitleAnimation
             return null;
         }
 
-        long inTicks = @in is null ? 0 : Time.FromSeconds(style.In!.DurationSeconds).Ticks;
-        long outTicks = @out is null ? 0 : Time.FromSeconds(style.Out!.DurationSeconds).Ticks;
-        long total = inTicks + outTicks;
-        double stretch = 1;
-        if (total > duration.Ticks)
-        {
-            // Las dos se encogen por igual y conservan su forma: suman exactamente el clip, sin solaparse.
-            stretch = (double)duration.Ticks / total;
-            inTicks = Math.Min(duration.Ticks, (long)Math.Round(inTicks * stretch));
-            outTicks = @out is null ? 0 : duration.Ticks - inTicks;
-        }
-
-        return new TitleAnimation(@in, inTicks, @out, outTicks, duration.Ticks, stretch, unit);
+        long lead = Math.Max(0, edges.Before.Ticks);
+        long whole = lead + duration.Ticks + Math.Max(0, edges.After.Ticks);
+        (long inTicks, long outTicks, double stretch) = TitleMotion.Fit(
+            @in is null ? 0 : Time.FromSeconds(style.In!.DurationSeconds).Ticks,
+            @out is null ? 0 : Time.FromSeconds(style.Out!.DurationSeconds).Ticks,
+            whole);
+        return new TitleAnimation(@in, inTicks, @out, outTicks, lead, whole, stretch, unit);
     }
 
     /// <summary>
@@ -169,7 +168,7 @@ internal sealed class TitleAnimation
     /// </summary>
     public LayerTransform Apply(LayerTransform clip, Time sinceStart)
     {
-        long at = sinceStart.Ticks;
+        long at = sinceStart.Ticks + _leadTicks;
         Curve?[]? curves;
         long position;
         if (_in is not null && at >= 0 && at < _inTicks)
@@ -197,18 +196,12 @@ internal sealed class TitleAnimation
         return Compose(clip, dx, dy, scale, rotation, opacity);
     }
 
-    /// <summary>Primero el delta, luego el clip: el desplazamiento del delta gira y escala con el clip.</summary>
+    /// <summary>Primero el delta, luego el clip: el desplazamiento del delta gira y escala con el clip (<see cref="TitleMotion.Compose"/>).</summary>
     internal static LayerTransform Compose(LayerTransform clip, double dx, double dy, double scale, double rotation, double opacity)
     {
-        double radians = clip.RotationDegrees * Math.PI / 180;
-        double cos = Math.Cos(radians);
-        double sin = Math.Sin(radians);
-        return new LayerTransform(
-            clip.X + (clip.Scale * ((dx * cos) - (dy * sin))),
-            clip.Y + (clip.Scale * ((dx * sin) + (dy * cos))),
-            clip.Scale * scale,
-            clip.RotationDegrees + rotation,
-            Math.Clamp(clip.Opacity * opacity, 0, 1));
+        (double x, double y, double s, double r, double o) = TitleMotion.Compose(
+            clip.X, clip.Y, clip.Scale, clip.RotationDegrees, clip.Opacity, dx, dy, scale, rotation, opacity);
+        return new LayerTransform(x, y, s, r, o);
     }
 
     private static Curve?[]? Curves(StyleAnimation? animation)

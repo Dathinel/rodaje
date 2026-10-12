@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Rodaje.Core.Timing;
 
 namespace Rodaje.Core.Model;
 
@@ -26,7 +27,7 @@ public sealed class ClipGenerator
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public TextFrame? Box { get; set; }
 
-    /// <summary>Qué bordes del clip animan la entrada y la salida del estilo; dividir apaga los bordes internos.</summary>
+    /// <summary>Qué bordes del clip animan la entrada y la salida del estilo y dónde quedan si el clip salió de dividir otro.</summary>
     public GeneratorEdges Edges { get; set; } = new();
 
     public ClipGenerator Clone() => new()
@@ -41,7 +42,7 @@ public sealed class ClipGenerator
     public bool ContentEquals(ClipGenerator other)
     {
         ArgumentNullException.ThrowIfNull(other);
-        return SameContent(other) && Edges.In == other.Edges.In && Edges.Out == other.Edges.Out;
+        return SameContent(other) && Edges.ContentEquals(other.Edges);
     }
 
     /// <summary>Igual salvo por <see cref="Edges"/>: las dos mitades de un título dividido.</summary>
@@ -55,14 +56,32 @@ public sealed class ClipGenerator
     }
 }
 
-/// <summary>Bordes con animación: <see cref="In"/> el izquierdo (entrada), <see cref="Out"/> el derecho (salida).</summary>
+/// <summary>
+/// Bordes con animación: <see cref="In"/> el izquierdo (entrada), <see cref="Out"/> el derecho (salida). Un trozo de un
+/// título dividido sigue la animación del título entero: <see cref="Before"/> y <see cref="After"/> dicen cuánto se
+/// extendía el original antes de su borde izquierdo y después del derecho.
+/// </summary>
 public sealed class GeneratorEdges
 {
     public bool In { get; set; } = true;
 
     public bool Out { get; set; } = true;
 
-    public GeneratorEdges Clone() => new() { In = In, Out = Out };
+    /// <summary>Lo que había del título original antes del borde izquierdo: la entrada empieza ahí.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Time Before { get; set; }
+
+    /// <summary>Lo que había del título original después del borde derecho: la salida termina ahí.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Time After { get; set; }
+
+    public GeneratorEdges Clone() => new() { In = In, Out = Out, Before = Before, After = After };
+
+    public bool ContentEquals(GeneratorEdges other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return In == other.In && Out == other.Out && Before == other.Before && After == other.After;
+    }
 }
 
 /// <summary>Caja del texto para el ajuste de línea; sin ancho, el texto solo corta en <c>\n</c>.</summary>

@@ -1,4 +1,4 @@
-using Rodaje.Core.Commands;
+﻿using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Tests.Editing.Trimming;
@@ -73,28 +73,57 @@ public class GeneratorEditsTests
     }
 
     [Fact]
-    public void Split_TurnsOffTheInnerEdges_AndKeepsContentAndKeyframes()
+    public void Split_FarFromTheAnimation_TurnsOffTheInnerEdges_AndKeepsContentAndKeyframes()
     {
-        TrimFixture f = Fixture();
-        string right = Assert.Single(TimelineEdits.Split(f.Ctx, "t", F(14)));
+        // Título de 4 s (100 cuadros): entrada de 10 cuadros y salida de 7,5; el corte en el cuadro 50 no toca ninguna.
+        TrimFixture f = new TrimFixture().AddTitle("v2", "t", 0, 100, 10);
+        string right = Assert.Single(TimelineEdits.Split(f.Ctx, "t", F(60)));
 
-        f.AssertClip("t", 0, 4, 10);
-        f.AssertClip(right, 4, 20, 14);
-        Assert.True(G(f, "t").Edges.In);
-        Assert.False(G(f, "t").Edges.Out);
-        Assert.False(G(f, right).Edges.In);
-        Assert.True(G(f, right).Edges.Out);
+        f.AssertClip("t", 0, 50, 10);
+        f.AssertClip(right, 50, 100, 60);
+        Assert.True(G(f, "t").Edges is { In: true, Out: false, Before.Ticks: 0, After.Ticks: 0 });
+        Assert.True(G(f, right).Edges is { In: false, Out: true, Before.Ticks: 0, After.Ticks: 0 });
         Assert.True(G(f, "t").SameContent(G(f, right)));
         Assert.NotSame(G(f, "t").Style, G(f, right).Style);
-        Assert.Equal(F(5), f.Clip(right).Effects[0].Parameters["opacity"].Keyframes[0].Time);
 
         // Dividir otra vez el derecho deja el trozo del medio sin entrada ni salida; recortar no los vuelve a encender.
-        string third = Assert.Single(TimelineEdits.Split(f.Ctx, right, F(20)));
+        string third = Assert.Single(TimelineEdits.Split(f.Ctx, right, F(100)));
         Assert.False(G(f, right).Edges.In || G(f, right).Edges.Out);
         Assert.True(G(f, third).Edges.Out);
         TimelineEdits.Trim(f.Ctx, right, TrimEdge.Out, F(-2));
         Assert.False(G(f, right).Edges.Out);
         f.AssertValid();
+    }
+
+    [Fact]
+    public void Split_InsideTheEntrance_KeepsWhereTheWholeTitleWas()
+    {
+        // Título de 20 cuadros: el corte en el cuadro 4 cae en la entrada (10 cuadros).
+        TrimFixture f = Fixture();
+        string right = Assert.Single(TimelineEdits.Split(f.Ctx, "t", F(14)));
+
+        f.AssertClip("t", 0, 4, 10);
+        f.AssertClip(right, 4, 20, 14);
+        // La izquierda no ve la salida, pero sin el resto del título su entrada se encogería: guarda los 16 cuadros.
+        Assert.True(G(f, "t").Edges is { In: true, Out: false });
+        Assert.Equal(F(16), G(f, "t").Edges.After);
+        // La derecha sigue la entrada desde su cuadro 4.
+        Assert.True(G(f, right).Edges is { In: true, Out: true });
+        Assert.Equal(F(4), G(f, right).Edges.Before);
+        Assert.Equal(F(5), f.Clip(right).Effects[0].Parameters["opacity"].Keyframes[0].Time);
+
+        // El trozo del medio de un segundo corte (cuadros 4 a 10 del original) aún lleva el final de la entrada.
+        string third = Assert.Single(TimelineEdits.Split(f.Ctx, right, F(20)));
+        Assert.True(G(f, right).Edges is { In: true, Out: false, After.Ticks: 0 });
+        Assert.Equal(F(4), G(f, right).Edges.Before);
+        Assert.True(G(f, third).Edges is { In: false, Out: true, Before.Ticks: 0 });
+        f.AssertValid();
+
+        var history = new UndoStack(f.Project);
+        history.Execute(Edits.SetTitleEdges("seq", third, true, null));
+        Assert.True(G(f, third).Edges.In);
+        history.Undo();
+        Assert.False(G(f, third).Edges.In);
     }
 
     [Fact]

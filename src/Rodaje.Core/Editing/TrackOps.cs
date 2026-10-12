@@ -28,8 +28,16 @@ internal static class TrackOps
 
             if (startsBefore && endsAfter)
             {
-                Clip right = SplitOff(ctx, clip, to);
+                Clip right = SplitOff(ctx, clip, to, tidy: false);
                 clip.TimeMap.TrimOut(from).ApplyTo(clip);
+                if (clip.Generator is { } generator)
+                {
+                    // Lo que se borra también era del título: los dos trozos siguen su animación entera.
+                    generator.Edges.After += to - from;
+                    Tidy(generator.Edges, generator.Style, clip.Duration);
+                    Tidy(right.Generator!.Edges, generator.Style, right.Duration);
+                }
+
                 AddClipSorted(track, right);
             }
             else if (startsBefore)
@@ -85,9 +93,9 @@ internal static class TrackOps
     /// <summary>
     /// Recorta el clip a la izquierda de <paramref name="at"/> y devuelve la derecha sin agregarla a ninguna pista: un
     /// identificador nuevo, un enlace derivado, la misma velocidad y copias de los efectos. En un generador el corte es un
-    /// borde interno: la izquierda pierde la salida y la derecha la entrada (D-029), así el corte no parpadea.
+    /// borde interno: cada trozo guarda cuánto del título queda al otro lado y sigue su animación (D-029).
     /// </summary>
-    public static Clip SplitOff(EditContext ctx, Clip clip, Time at)
+    public static Clip SplitOff(EditContext ctx, Clip clip, Time at, bool tidy = true)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         ArgumentNullException.ThrowIfNull(clip);
@@ -104,11 +112,57 @@ internal static class TrackOps
         leftMap.ApplyTo(clip);
         if (clip.Generator is { } generator)
         {
-            generator.Edges.Out = false;
-            right.Generator!.Edges.In = false;
+            GeneratorEdges leftEdges = generator.Edges;
+            GeneratorEdges rightEdges = right.Generator!.Edges;
+            leftEdges.After += right.Duration;
+            rightEdges.Before += clip.Duration;
+            if (tidy)
+            {
+                Tidy(leftEdges, generator.Style, clip.Duration);
+                Tidy(rightEdges, generator.Style, right.Duration);
+            }
         }
 
         return right;
+    }
+
+    /// <summary>
+    /// Tras dividir, cada trozo sigue la animación del título entero (D-029, sin parpadeo en el corte). Un borde cuya
+    /// animación quedó entera fuera del trozo se apaga, y el desfase que ya no cambia nada se olvida: un corte lejos de la
+    /// entrada y la salida deja los bordes internos apagados y sin desfase, como siempre.
+    /// </summary>
+    private static void Tidy(GeneratorEdges edges, TextStyle? style, Time duration)
+    {
+        long entry = edges.In ? TitleMotion.Ticks(style?.In) : 0;
+        long exit = edges.Out ? TitleMotion.Ticks(style?.Out) : 0;
+        long whole = edges.Before.Ticks + duration.Ticks + edges.After.Ticks;
+        if (TitleMotion.Fit(entry, exit, whole).Stretch < 1)
+        {
+            // Encogidas, la forma depende del largo entero: se conserva tal cual.
+            return;
+        }
+
+        if (edges.In && edges.Before > Time.Zero && edges.Before.Ticks >= entry)
+        {
+            edges.In = false;
+        }
+
+        if (edges.Out && edges.After > Time.Zero && edges.After.Ticks >= exit)
+        {
+            edges.Out = false;
+        }
+
+        entry = edges.In ? entry : 0;
+        exit = edges.Out ? exit : 0;
+        if (!edges.In && exit <= duration.Ticks + edges.After.Ticks)
+        {
+            edges.Before = Time.Zero;
+        }
+
+        if (!edges.Out && entry <= edges.Before.Ticks + duration.Ticks)
+        {
+            edges.After = Time.Zero;
+        }
     }
 
     public static List<(Track Track, Clip Clip)> ResolveLinkGroup(EditContext ctx, string clipId)
