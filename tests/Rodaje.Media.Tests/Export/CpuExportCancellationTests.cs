@@ -6,12 +6,12 @@ namespace Rodaje.Media.Tests.Export;
 
 /// <summary>
 /// Cancelar una exportación por CPU a mitad (con el token, desde otro hilo) no deja <c>ffmpeg.exe</c> vivo, ni archivo,
-/// ni temporales, ni entradas en <c>exportando.json</c>. El límite de 1 s del criterio de la fase 6 lo mide
-/// <see cref="FfmpegPipeSinkFailureTests"/> en el equipo de Daniel; en el runner compartido se da margen y se anota el tiempo.
+/// ni temporales, ni entradas en <c>exportando.json</c>, y para en 1 s como pide el criterio de la fase 6, también en el
+/// runner compartido de la CI con la CPU saturada (el sink sube ffmpeg.exe a prioridad alta antes de matarlo).
 /// </summary>
 public sealed class CpuExportCancellationTests(ITestOutputHelper output)
 {
-    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(1);
 
     [CpuExportTheory]
     [CpuExportCase("libsvtav1", ExportContainer.Mkv, ExportPixelFormat.Yuv420P, "libopus")]
@@ -41,6 +41,8 @@ public sealed class CpuExportCancellationTests(ITestOutputHelper output)
             // Para saber dónde se va el tiempo: cuándo muere ffmpeg.exe (ExitTime de Windows) y cuándo vuelve Cancel, que
             // ejecuta Abort del sink en este mismo hilo (matar el árbol, esperar la salida y borrar temporales).
             using Process watched = Process.GetProcessById(processId!.Value);
+            // Abrir el handle ya: si no, tras morir ffmpeg.exe y soltarlo el sink, ExitTime no se puede leer (salía «NaN»).
+            _ = watched.Handle;
             long canceledAt = 0;
             long cancelReturnedAt = 0;
             DateTime canceledWall = default;
