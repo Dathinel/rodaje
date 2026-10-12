@@ -14,7 +14,7 @@ namespace Rodaje.App.Views.Export;
 /// Se usa desde un solo hilo (el de la interfaz en la app): no tiene cerrojos. <see cref="StartAsync"/> nunca lanza;
 /// todo error termina en un aviso.
 /// </remarks>
-internal sealed class StillExportFlow : IDisposable
+internal sealed partial class StillExportFlow : IDisposable
 {
     private readonly Func<StillRequest?> _ask;
     private readonly Func<StillRequest, CancellationToken, Task<StillResult>> _export;
