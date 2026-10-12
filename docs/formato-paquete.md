@@ -50,7 +50,7 @@ rodaje-transiciones.paquete
 | `items` | No | Elementos, cada uno con `id` (único en el paquete), `kind`, `name` y, si los necesita, `file`, `description`, `license` (cuando no es la del paquete) y `preview`. |
 | `module` | Solo en módulos | `entry` (ejecutable relativo), `protocol` (versión del protocolo de módulos) y `functions` (lo que ofrece). |
 
-Los tipos de elemento son `transition`, `text-style`, `effect`, `filter`, `lut`, `template`, `sound` y `font`. La biblioteca los reparte por categoría: Texto muestra `text-style`; Efectos, `effect`; Transiciones, `transition`; Filtros, `filter` y `lut`; Audio, `sound`. Las plantillas se ven en la página de complementos hasta que exista su panel. El contenido de los archivos `lut`, `filter`, `effect`, `transition` y `text-style` está en [Contenido de los elementos](#contenido-de-los-elementos); `text-style` es `rodaje.textstyle` v1, y de `template` y `sound` el formato solo garantiza que el archivo existe y está dentro del paquete.
+Los tipos de elemento son `transition`, `text-style`, `effect`, `filter`, `lut`, `template`, `sound`, `font` y `safe-zones`. La biblioteca los reparte por categoría: Texto muestra `text-style`; Efectos, `effect`; Transiciones, `transition`; Filtros, `filter` y `lut`; Audio, `sound`. Las plantillas se ven en la página de complementos hasta que exista su panel; las zonas (`safe-zones`), en el botón de zonas seguras del visor. El contenido de los archivos `lut`, `filter`, `effect`, `transition`, `text-style` y `safe-zones` está en [Contenido de los elementos](#contenido-de-los-elementos); `text-style` es `rodaje.textstyle` v1, y de `template` y `sound` el formato solo garantiza que el archivo existe y está dentro del paquete.
 
 **Fuentes (`font`, D-029).** Una familia por elemento, con sus archivos sin modificar en `files` (o uno en `file`): de 1 a 32 `.ttf`, `.otf`, `.ttc` u `.otc`, cada uno de hasta 20 MB y la familia de hasta 100 MB. `license` es obligatoria (por ejemplo `OFL-1.1`): una fuente de terceros no tiene la licencia del paquete. Rodaje solo registra en su colección privada de DirectWrite (no en Windows) los archivos que un elemento `font` declara, nunca otros archivos del paquete ni fuentes sueltas de un proyecto; un archivo que DirectWrite rechaza deja esa familia con su respaldo. Al instalar se avisa de cuánto ocupan. Un estilo apunta a la familia con `font.family` y a su elemento con `font.source`.
 
@@ -161,6 +161,20 @@ Curvas de la transformación del clip que sale (`outgoing`) y del que entra (`in
 
 Un estilo de título. Obligatorios `font.family` y `size` (mayor que 0 y hasta 1000); lo demás tiene valor por defecto (peso 400, interlineado 1,2, centrado, relleno blanco) o falta (sin borde, sombra, fondo ni animación). Medidas en píxeles de `reference`; colores `#RRGGBB` o `#RRGGBBAA`; peso entero de 100 a 900; hasta 8 fuentes de respaldo; `font.source` es la referencia de un elemento `font`; borde de hasta la mitad de `size`, `blur` de 0 a 64, desplazamientos y márgenes de hasta 1000; `in` y `out` (hasta 60 s) son curvas de `rodaje.transform` por parámetro, como en `rodaje.preset`, en segundos desde su borde del clip. Al aplicarlo el proyecto guarda una copia con `source` (D-029): actualizar el paquete no cambia los títulos ya puestos.
 
+### `safe-zones`: `rodaje.safezones` v1
+
+```json
+{ "format": "rodaje.safezones", "version": 1, "id": "reels", "name": "Reels",
+  "aspect": { "width": 9, "height": 16 },
+  "zones": [ { "label": "Botones", "rect": [0.86, 0.5, 0.14, 0.4] },
+             { "label": "Nombre y pie de foto", "kind": "interface", "rect": [0, 0.78, 0.84, 0.16] },
+             { "label": "Títulos", "kind": "safe", "rect": [0.05, 0.05, 0.9, 0.9] } ] }
+```
+
+Zonas que el visor dibuja encima de la imagen para no poner títulos debajo de la interfaz de una red, o unos márgenes propios. Solo datos: rectángulos y etiquetas que Rodaje dibuja a su manera (zona sombreada con su etiqueta, o línea discontinua), nunca imágenes, logotipos ni capturas de otras apps. `rect` es `[x, y, ancho, alto]` en fracciones de la imagen (0 a 1, desde arriba a la izquierda), con ancho y alto mayores que 0 y sin salirse (`x + ancho` e `y + alto` hasta 1); de 1 a 32 zonas; `label` de 1 a 60 caracteres; `kind` es `interface` (por defecto: lo que tapa la interfaz) o `safe` (el borde de un margen seguro). `aspect` (enteros de 1 a 100) es la forma para la que se pensó: sin él sirve para cualquiera, y si el proyecto tiene otra el visor lo dibuja igual y avisa «Pensadas para 9:16». `center: true` pone la cruz del centro. El escritor (`ContentReaders.WriteSafeZones`) da el mismo JSON.
+
+**De fábrica** (`src/Rodaje.App/Services/SafeZones/Fabrica`, incluidos en el ejecutable y leídos con este mismo lector): los clásicos (acción 93 % y títulos 90 %, EBU R 95), TikTok, Instagram Reels, YouTube Shorts, Facebook Reels, Historias de Instagram y YouTube 16:9, con referencias `fabrica/<id>`. Las posiciones son aproximadas y esquemáticas (las apps cambian su interfaz): se corrigen editando el JSON. Los nombres de las redes son marcas de sus dueños y solo se usan para decir a qué interfaz se refiere cada juego. **Propias:** el editor del visor guarda `propios\<nombre>.json` con `"kind": "safe-zones"` además de `format`, así el mismo archivo es un elemento propio suelto y se puede publicar tal cual en un paquete.
+
 ### `PackageContentStore`
 
 Carga el contenido de lo instalado por referencia; vive en `Rodaje.Packages` y no conoce el motor.
@@ -248,4 +262,5 @@ Se instala en `modulos\<id>\` y la página de complementos y el panel IA de la b
 | `PackageCatalog.cs` | Catálogo y la interfaz de descarga |
 | `Content/ContentTypes.cs` | `LutTable` y los preajustes ya leídos (`FilterPreset`, `EffectPreset`, `TransitionPreset`) |
 | `Content/ContentReaders.cs`, `CubeReader.cs`, `PresetReader.cs` | Los lectores de `.cube`, `rodaje.filter`, `rodaje.effect` y `rodaje.preset` |
+| `Content/PresetReader.SafeZones.cs`, `SafeZoneTypes.cs` | Lector y escritor de `rodaje.safezones` |
 | `Content/PackageContentStore.cs` | Carga y caché del contenido por referencia |

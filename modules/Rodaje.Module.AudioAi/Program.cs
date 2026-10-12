@@ -12,8 +12,8 @@ ModuleInfo info = new("rodaje-audio-ia", "0.1.0", "Audio con IA",
 using var functions = new AudioAiFunctions(new ModelFiles());
 ModuleHost host = new(info);
 
-// ruido: [entrada, salida], f32 intercalado de 48 kHz, 1 o 2 canales, mismo largo. Parámetro opcional «dispositivo»:
-// «cpu» (por omisión: 37× tiempo real) o «gpu» (DirectML; con estas GRU va a 2× en la RTX 3050, solo para medir).
+// ruido: [entrada, salida], f32 intercalado de 48 kHz, 1 o 2 canales, mismo largo. Siempre en CPU (D-034); el parámetro
+// «dispositivo» de versiones anteriores se ignora.
 host.Register("ruido", async (call, ct) =>
 {
     if (call.Buffers.Count != 2 || call.Buffers[0].Audio is not { } layout || layout.SampleRate != 48_000 || layout.Channels is not (1 or 2)
@@ -23,9 +23,8 @@ host.Register("ruido", async (call, ct) =>
         throw new ModuleCallException(ErrorCodes.InvalidParameters, "«ruido» necesita audio f32 de 48 kHz (1 o 2 canales) y un búfer de salida del mismo tamaño.");
     }
 
-    ComputeDevice device = Text(call.Parameters, "dispositivo") == "gpu" ? ComputeDevice.Gpu : ComputeDevice.Cpu;
     NoiseResult result = await Guard(() => functions.ReduceNoiseAsync(
-        () => Floats(call, 0), () => Floats(call, 1), layout.Channels, layout.Frames, device,
+        () => Floats(call, 0), () => Floats(call, 1), layout.Channels, layout.Frames,
         p => call.ReportProgressAsync(p, "Limpiando la voz", ct), ct)).ConfigureAwait(false);
     return new ModuleOutput(Json($$"""{"dispositivo":"{{result.Device}}","canales":{{result.ChannelsProcessed}},"segundos":{{result.Seconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}}}"""),
         [call.Buffers[1]]);
@@ -49,9 +48,6 @@ host.Register("detectar-voz", async (call, ct) =>
 return await host.RunAsync(args).ConfigureAwait(false);
 
 static Span<float> Floats(ModuleCall call, int index) => MemoryMarshal.Cast<byte, float>(call.Map(call.Buffers[index]));
-
-static string? Text(JsonElement? parameters, string name) =>
-    parameters is { ValueKind: JsonValueKind.Object } p && p.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
 static JsonElement Json(string text)
 {

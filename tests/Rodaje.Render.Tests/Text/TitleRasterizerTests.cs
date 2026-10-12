@@ -63,6 +63,33 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
     }
 
     [GpuFact]
+    public void The_highlighted_word_takes_its_color_and_the_rest_keeps_the_fill()
+    {
+        using GpuDevice gpu = GpuDevice.Create();
+        using var titles = new TitleRasterizer(gpu, new TitleRasterizerOptions { BackgroundThread = false });
+        TextStyle style = Style(fill: "#FFFFFF");
+        style.Highlight = new StyleHighlight { Color = "#FFD400" };
+        const string Text = "uno dos tres";
+        GeneratedContent plain = TitleImage.Content(Text, style);
+        GeneratedContent second = new(GeneratorKinds.Text, Text, style, 0, 1920, 1080, 1, 4, 3) { ClipId = "titulo" };
+        Assert.NotEqual(plain.Key, second.Key);
+
+        TitleImage without = TitleImage.Read(gpu, titles.Rasterize(plain)!);
+        TitleImage with = TitleImage.Read(gpu, titles.Rasterize(second)!);
+        bool Yellow((byte B, byte G, byte R, byte A) p) => p.A == 255 && p.R > 245 && p.G is > 200 and < 225 && p.B < 10;
+        bool White((byte B, byte G, byte R, byte A) p) => p.A == 255 && p.R > 245 && p.G > 245 && p.B > 245;
+        int yellow = with.Count(Yellow), white = with.Count(White);
+        output.WriteLine($"Amarillo {yellow} px, blanco {white} px (sin resaltar: {without.Count(White)} blancos)");
+        Assert.Equal(0, without.Count(Yellow));
+        Assert.True(yellow > 500, "«dos» debería verse amarillo.");
+        Assert.True(white > yellow, "«uno» y «tres» siguen blancos.");
+
+        // «dos» está en el medio: su tinta amarilla queda centrada entre la blanca de los lados.
+        (double yellowX, _) = Center(with, Yellow);
+        Assert.InRange(yellowX, (with.Width / 2.0) - 60, (with.Width / 2.0) + 60);
+    }
+
+    [GpuFact]
     public void The_shadow_is_offset_and_blurred_below_the_text()
     {
         using GpuDevice gpu = GpuDevice.Create();

@@ -117,9 +117,6 @@
           "sampleRate": {
             "type": "integer"
           },
-          "masterGainDb": {
-            "type": "number"
-          },
           "videoTracks": {
             "type": "array",
             "items": {
@@ -423,6 +420,17 @@
                                   },
                                   "radius": {
                                     "type": "number"
+                                  }
+                                }
+                              },
+                              "highlight": {
+                                "type": [
+                                  "object",
+                                  "null"
+                                ],
+                                "properties": {
+                                  "color": {
+                                    "type": "string"
                                   }
                                 }
                               },

@@ -48,6 +48,9 @@ internal sealed class OfflineReaders : IDisposable
     /// <summary><c>M</c> sin pool de D3D11VA (cuadros en la memoria del sistema).</summary>
     internal const int SoftwareReverseRetained = 32;
 
+    /// <summary>Cuadros que se retrocede al final del flujo si el conteo del contenedor era una estimación y se pasaba.</summary>
+    internal const int TailSlack = 2;
+
     private readonly object _gate = new();
     private readonly IClipBackend _backend;
     private readonly VideoDecoderOptions _decoderOptions;
@@ -209,6 +212,7 @@ internal sealed class OfflineReaders : IDisposable
                         $"El cuadro {slot.Index} de «{Path.GetFileName(slot.Source.Key.Path)}» no llegó en {timeout.TotalSeconds:0} s.")
                     {
                         Frame = frame,
+                        MediaFrame = slot.Index,
                         Culprit = slot.Source.Key.Path,
                     };
                 }
@@ -235,6 +239,7 @@ internal sealed class OfflineReaders : IDisposable
                 $"El cuadro {slot.Index} de «{name}» no se pudo decodificar{(slot.Error is { } e ? ": " + e.Message : ".")}", slot.Error)
             {
                 Frame = frame,
+                MediaFrame = slot.Index,
                 Culprit = slot.Source.Key.Path,
             };
         }
@@ -562,14 +567,25 @@ internal sealed class OfflineReaders : IDisposable
             {
                 try
                 {
-                    frame = reader.Reverse is { } clip ? Backward(reader, video, clip, slot.Index) : Exact(video, slot.Index);
+                    long index = Math.Min(slot.Index, LastFrame(video));
+                    long asked = index;
+                    frame = reader.Reverse is { } clip ? Backward(reader, video, clip, index) : Exact(video, index);
+                    for (int back = 1; frame is null && reader.Reverse is null && back <= TailSlack && index - back >= 0
+                        && index + TailSlack >= video.Stream.FrameCount; back++)
+                    {
+                        asked = index - back;
+                        frame = Exact(video, asked);
+                    }
+
                     if (frame is null)
                     {
-                        error = new InvalidOperationException("El medio no tiene ese cuadro.");
+                        error = new InvalidOperationException(slot.Index >= video.Stream.FrameCount
+                            ? $"El medio tiene {video.Stream.FrameCount} cuadros y no se pudo leer el último."
+                            : "El decodificador no entregó ese cuadro.");
                     }
-                    else if (frame.Index != slot.Index)
+                    else if (frame.Index != asked)
                     {
-                        error = new InvalidOperationException($"El decodificador devolvió el cuadro {frame.Index} cuando se pidió el {slot.Index}.");
+                        error = new InvalidOperationException($"El decodificador devolvió el cuadro {frame.Index} cuando se pidió el {asked}.");
                         frame.Dispose();
                         frame = null;
                     }
@@ -606,6 +622,12 @@ internal sealed class OfflineReaders : IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// El último cuadro del flujo de video. El clip puede durar más que él: la duración del medio es la del contenedor,
+    /// que sigue al flujo más largo (un audio que acaba un cuadro después), y ahí se congela el último cuadro.
+    /// </summary>
+    private static long LastFrame(IClipVideo video) => video.Stream.FrameCount > 0 ? video.Stream.FrameCount - 1 : long.MaxValue;
 
     private DecodedFrame? Exact(IClipVideo video, long index)
     {

@@ -13,7 +13,7 @@ namespace Rodaje.App.Services;
 public sealed partial class EditorSession
 {
     /// <summary>El cursor llevado al inicio del cuadro más cercano de la secuencia: ahí se corta y se recorta.</summary>
-    public Time EditPosition => Position.SnapToFrame(Sequence.FrameRate);
+    public Time EditPosition => ProgramPosition.SnapToFrame(Sequence.FrameRate);
 
     /// <summary>Corta en el cursor; los enlazados se cortan con su clip.</summary>
     public bool SplitAtPlayhead()

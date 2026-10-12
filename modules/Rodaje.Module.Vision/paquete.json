@@ -1,0 +1,28 @@
+{
+  "formatVersion": 1,
+  "id": "rodaje-vision",
+  "version": "0.1.0",
+  "kind": "module",
+  "name": "Visión",
+  "description": "Quita el fondo de las personas (MODNet; calidad alta con BiRefNet_lite), detecta rostros (YuNet) y personas (RT-DETRv2) y calcula un reencuadre que sigue al sujeto. DirectML si hay GPU, CPU si no; sin conexión. La calidad alta pide unos 2,8 GB de VRAM y es lenta (unos 2 s por cuadro en una RTX 3050 de 4 GB).",
+  "author": "Daniel (Dathinel)",
+  "license": "GPL-3.0-only",
+  "apps": ["rodaje"],
+  "module": {
+    "entry": "Rodaje.Module.Vision.exe",
+    "protocol": 1,
+    "functions": ["quitar-fondo", "detectar", "reencuadre"],
+    "runtime": "directml",
+    "vramMb": 1300,
+    "models": [
+      { "id": "modnet", "file": "modelos/modnet.onnx", "size": 25888640, "sha256": "07c308cf0fc7e6e8b2065a12ed7fc07e1de8febb7dc7839d7b7f15dd66584df9", "license": "Apache-2.0",
+        "url": "https://huggingface.co/Xenova/modnet/resolve/fa2fa546052fba4c08921230a26cc69a333fca12/onnx/model.onnx" },
+      { "id": "birefnet-lite-fp16", "file": "modelos/birefnet_lite_fp16.onnx", "size": 114538221, "sha256": "d39b897ceb16ae654c1731f3dba0cf9b368d9cae74b5a57459b455cc8bfec402", "license": "MIT",
+        "url": "https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/de15b22ba131738a16dff04aab8bdf8dc32e3ac1/onnx/model_fp16.onnx" },
+      { "id": "yunet-2023mar", "file": "modelos/face_detection_yunet_2023mar.onnx", "size": 232589, "sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4", "license": "MIT",
+        "url": "https://huggingface.co/opencv/face_detection_yunet/resolve/3cc26e7f1014a5ee5d74a42acee58bafc9d0a310/face_detection_yunet_2023mar.onnx" },
+      { "id": "rtdetr-v2-r18", "file": "modelos/rtdetr_v2_r18vd.onnx", "size": 81057510, "sha256": "583a236ac21c95a7fd94f284fc21485e42355bfef82c27011ba78fbc09ee87e2", "license": "Apache-2.0",
+        "url": "https://huggingface.co/onnx-community/rtdetr_v2_r18vd-ONNX/resolve/936f90b6a476c6da4dfe053fc521af55285976ba/onnx/model.onnx" }
+    ]
+  }
+}

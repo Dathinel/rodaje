@@ -1,0 +1,7 @@
+{ "format": "rodaje.safezones", "version": 1, "id": "instagram-reels", "name": "Instagram Reels",
+  "aspect": { "width": 9, "height": 16 },
+  "zones": [
+    { "label": "Título y cámara", "rect": [0, 0, 1, 0.07] },
+    { "label": "Me gusta, comentarios, compartir y audio", "rect": [0.86, 0.5, 0.14, 0.4] },
+    { "label": "Nombre, pie de foto y audio", "rect": [0, 0.78, 0.84, 0.16] },
+    { "label": "Barra de la app", "rect": [0, 0.94, 1, 0.06] } ] }

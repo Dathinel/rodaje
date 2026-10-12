@@ -31,6 +31,7 @@ public sealed class EffectContent : IAwaitableEffectContent
     private readonly ConcurrentDictionary<string, LutEntry> _luts = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, TransitionCurves?> _transitions = new(StringComparer.Ordinal);
     private volatile string? _projectFolder;
+    private readonly MatteReader _mattes = new();
     private int _generation;
 
     public EffectContent(IContentLoader loader)
@@ -103,6 +104,16 @@ public sealed class EffectContent : IAwaitableEffectContent
 
         return false;
     }
+
+    /// <summary>El cuadro del video gris de una máscara de imagen (<c>file:</c> relativo a la carpeta del proyecto).</summary>
+    public bool TryGetMatte(ResourceKey key, double seconds, out MatteFrame? frame)
+    {
+        frame = null;
+        return LutReference.ResolveFile(key.Reference, _projectFolder) is { } path && _mattes.TryGet(path, seconds, out frame);
+    }
+
+    /// <summary>Olvida lo leído de un video de máscara que se acaba de escribir de nuevo.</summary>
+    public void ForgetMatte(string path) => _mattes.Forget(path);
 
     public TransitionCurves? FindTransition(string reference)
     {

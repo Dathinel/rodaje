@@ -31,6 +31,8 @@
                 <MenuFlyoutItem Text="Exportar..." Tag="file.export" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Exportar fotograma..." Tag="file.exportFrame" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Carpeta de medios generados..." Click="OnGeneratedFolderClick" />
+                <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Salir" Click="OnExitClick" />
             </MenuBarItem>
             <MenuBarItem Title="Editar">

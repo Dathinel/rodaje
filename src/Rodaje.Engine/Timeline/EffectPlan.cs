@@ -178,8 +178,31 @@ internal sealed class EffectPlan
                 }
             }
 
+            if (definition.Type == BuiltInEffects.Mask)
+            {
+                // El trazo o el video gris viajan como recurso; el render los lee sin pasar por las LUT.
+                MaskShape shape = MaskGeometry.ParseShape(effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Shape));
+                string? key = shape switch
+                {
+                    MaskShape.Path => effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Path),
+                    MaskShape.Image => effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Matte),
+                    _ => null,
+                };
+                double start = double.TryParse(effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.MatteStart),
+                    System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double s) && double.IsFinite(s) ? s : 0;
+                return new ImageEffect(definition.Code, Curves(definition, effect.Parameters), constants, key is { Length: > 0 } ? new ResourceKey(key) : null)
+                {
+                    MatteStart = Time.FromSeconds(start).Ticks,
+                    IsMask = true,
+                };
+            }
+
             return new ImageEffect(definition.Code, Curves(definition, effect.Parameters), constants, resource);
         }
+
+        private bool IsMask { get; init; }
+
+        private long MatteStart { get; init; }
 
         public LayerEffect Evaluate(long at, IEffectResources? resources)
         {
@@ -187,6 +210,12 @@ internal sealed class EffectPlan
             for (int i = 0; i < curves.Length; i++)
             {
                 values[i] = (float)curves[i].Evaluate(at);
+            }
+
+            if (IsMask)
+            {
+                values[MaskGeometry.MatteTimeSlot] = (float)((double)(at - MatteStart) / Time.TicksPerSecond);
+                return new LayerEffect(code, values, resource);
             }
 
             ResourceKey? ready = resource is { } key && resources is not null && resources.TryGetLut(key, out _) ? key : null;

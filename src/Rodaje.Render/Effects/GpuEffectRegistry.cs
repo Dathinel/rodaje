@@ -27,6 +27,9 @@ public enum GpuEffectKind
     ZoomDissolve,
     BlurDissolve,
 
+    /// <summary>Se dibuja en la textura de máscaras de la capa y multiplica su alfa (<c>PsMask</c>).</summary>
+    Mask,
+
     /// <summary>Transición de paquete: el motor la entrega resuelta a su mezcla; si llega sin resolver, fundido cruzado.</summary>
     Preset,
 }
@@ -49,6 +52,7 @@ public static class GpuEffectRegistry
         new(5, BuiltInEffects.Sharpen, EffectStage.Spatial, GpuEffectKind.Sharpen),
         new(6, BuiltInEffects.Blend, EffectStage.Blend, GpuEffectKind.Blend),
         new(9, BuiltInEffects.Stabilize, EffectStage.Transform, GpuEffectKind.Stabilize),
+        new(10, BuiltInEffects.Mask, EffectStage.PerPixel, GpuEffectKind.Mask),
         new(101, BuiltInTransitions.Crossfade, EffectStage.Transition, GpuEffectKind.Crossfade),
         new(102, BuiltInTransitions.Dip, EffectStage.Transition, GpuEffectKind.Dip),
         new(103, BuiltInTransitions.Wipe, EffectStage.Transition, GpuEffectKind.Wipe),

@@ -1,3 +1,4 @@
+using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Timeline;
@@ -116,7 +117,7 @@ public sealed class OfflineTimeline : IDisposable
         options.Validate();
         _options = options;
         _device = device;
-        _sequence = project.GetSequence(sequenceId);
+        _sequence = CompoundOps.Flatten(project, project.GetSequence(sequenceId));
         _plan = TimelinePlan.Build(project, sequenceId, options.ProjectDirectory ?? Environment.CurrentDirectory, options.Content);
         _mediaExists = mediaExists ?? (backend is MediaClipBackend ? File.Exists : static _ => true);
         Backend = backend;
@@ -365,7 +366,10 @@ public sealed class OfflineTimeline : IDisposable
             IReadOnlyList<GeneratedClipPlan> generated = lane.Layer.Generated;
             for (int i = lane.Layer.FirstGeneratedEndingAfter(time); i < generated.Count && generated[i].Start <= until; i++)
             {
-                titles.Prepare(generated[i].Content);
+                foreach (GeneratedContent content in generated[i].Contents)
+                {
+                    titles.Prepare(content);
+                }
             }
         }
     }

@@ -87,7 +87,7 @@ internal static class VoiceOverDialog
         EditorSession session = services.Session;
         session.Pause();
         Time start = session.EditPosition;
-        string folder = NoiseReduction.GeneratedFolder(session.FilePath);
+        string folder = GeneratedMedia.Ensure(session.FilePath, services.Settings.Current.GeneratedMediaFolder);
         string path = Path.Combine(folder, "voz-en-off-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".wav");
 
         VoiceOverRecorder recorder;

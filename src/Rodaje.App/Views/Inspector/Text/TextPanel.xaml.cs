@@ -42,7 +42,8 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         _services = services;
         _editor = new TitleEditor(services.Session);
         BuildRows();
-        foreach (InspectorSection section in (InspectorSection[])[ContentSection, StyleSection, StrokeSection, ShadowSection, BackgroundSection, AnimationSection])
+        BuildWordRows();
+        foreach (InspectorSection section in (InspectorSection[])[ContentSection, WordsSection, StyleSection, StrokeSection, ShadowSection, BackgroundSection, AnimationSection])
         {
             section.Remember(services.Settings);
         }
@@ -103,6 +104,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
             ShowFontWarning(clip.Id, style);
             ShowLegibility(clip.Id, style);
             ShowAnimation(generator, style);
+            ShowWords(clip, generator);
             StyleSection.Summary = string.Create(SpanishNumbers.Format, $"{style.Font.Family} · {style.Size:0}");
             StrokeSection.Summary = style.Stroke is null ? "Sin borde" : style.Stroke.Color;
             ShadowSection.Summary = style.Shadow is null ? "Sin sombra" : style.Shadow.Color;

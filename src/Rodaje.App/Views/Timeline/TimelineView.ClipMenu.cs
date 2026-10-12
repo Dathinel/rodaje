@@ -56,6 +56,7 @@ internal sealed partial class TimelineView
         }
 
         menu.Items.Add(paste);
+        AddCompoundItems(menu);
         AddAnalysisItems(menu);
         menu.ShowAt(LanesHost, new FlyoutShowOptions { Position = p });
     }

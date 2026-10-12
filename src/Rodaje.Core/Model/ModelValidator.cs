@@ -125,8 +125,12 @@ public static partial class ModelValidator
                 checkId(clip.Id, "un clip");
                 string where = $"El clip «{clip.Id}» de la pista «{track.Name}»";
 
-                MediaRef? media = clip.Generator is null ? project.FindMedia(clip.MediaId) : null;
-                if (clip.Generator is not null)
+                MediaRef? media = clip.Generator is null && !clip.IsCompound ? project.FindMedia(clip.MediaId) : null;
+                if (clip.IsCompound)
+                {
+                    ValidateCompound(project, sequence, clip, where, errors);
+                }
+                else if (clip.Generator is not null)
                 {
                     if (clip.MediaId.Length > 0)
                     {

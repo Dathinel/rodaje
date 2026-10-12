@@ -1,3 +1,4 @@
+using Rodaje.Core.Editing;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -11,7 +12,11 @@ namespace Rodaje.Engine.Timeline;
 /// </summary>
 internal sealed class GeneratedClipPlan
 {
-    public GeneratedClipPlan(string clipId, ClipTimeMap map, GeneratedContent content, EffectPlan? effects, TitleAnimation? animation)
+    private readonly Time[] _wordStarts;
+    private readonly GeneratedContent[] _wordContents;
+
+    public GeneratedClipPlan(string clipId, ClipTimeMap map, GeneratedContent content, EffectPlan? effects, TitleAnimation? animation,
+        IReadOnlyList<(Time Start, GeneratedContent Content)>? words = null)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(content);
@@ -20,6 +25,9 @@ internal sealed class GeneratedClipPlan
         Content = content;
         Effects = effects;
         Animation = animation;
+        _wordStarts = words is null ? [] : [.. words.Select(w => w.Start)];
+        _wordContents = words is null ? [] : [.. words.Select(w => w.Content)];
+        Contents = [content, .. _wordContents.Distinct()];
     }
 
     public string ClipId { get; }
@@ -30,7 +38,30 @@ internal sealed class GeneratedClipPlan
 
     public Time End => TimeMap.End;
 
+    /// <summary>El título sin palabra resaltada: el de antes de la primera palabra y el de los avisos de fuentes.</summary>
     public GeneratedContent Content { get; }
+
+    /// <summary>Todo lo que puede verse del título (con cada palabra resaltada, en karaoke), para prepararlo antes.</summary>
+    public IReadOnlyList<GeneratedContent> Contents { get; }
+
+    /// <summary>Lo que se ve en <paramref name="timeline"/>: en karaoke, el título con la palabra que suena resaltada.</summary>
+    public GeneratedContent ContentAt(Time timeline)
+    {
+        if (_wordStarts.Length == 0)
+        {
+            return Content;
+        }
+
+        Time origin = TimeMap.EffectTime(timeline);
+        int index = Array.BinarySearch(_wordStarts, origin);
+        index = index >= 0 ? index : ~index - 1;
+        while (index + 1 < _wordStarts.Length && _wordStarts[index + 1] == origin)
+        {
+            index++;
+        }
+
+        return index >= 0 ? _wordContents[index] : Content;
+    }
 
     public EffectPlan? Effects { get; }
 
@@ -59,7 +90,7 @@ internal sealed class GeneratedClipPlan
             effects = list;
         }
 
-        return new LayerFrame(trackIndex, ClipId, Content, TransformAt(timeline))
+        return new LayerFrame(trackIndex, ClipId, ContentAt(timeline), TransformAt(timeline))
         {
             Effects = effects,
             Blend = Effects?.Blend ?? BlendMode.Normal,
@@ -90,7 +121,22 @@ internal sealed class GeneratedClipPlan
         TitleAnimation? animation = TitleAnimation.From(style, generator.Edges, clip.Duration, unit);
         double scale = Math.Clamp(EffectPlan.MaxScale(effects) * (animation?.MaxScale ?? 1), MinRasterScale, MaxRasterScale);
         var content = new GeneratedContent(generator.Kind, generator.Text, style, box, sequenceWidth, sequenceHeight, scale) { ClipId = clip.Id };
-        return new GeneratedClipPlan(clip.Id, clip.TimeMap, content, effects, animation);
+        List<(Time Start, GeneratedContent Content)>? words = null;
+        if (style.Highlight is not null && generator.Words is { Count: > 0 } list)
+        {
+            // Una textura por palabra: un subtítulo lleva pocas y se preparan por adelantado como cualquier título.
+            IReadOnlyList<WordRange> ranges = SubtitleEdits.WordRanges(generator.Text, list);
+            words = new List<(Time, GeneratedContent)>(list.Count);
+            for (int i = 0; i < list.Count; i++)
+            {
+                GeneratedContent shown = ranges[i].Found
+                    ? new GeneratedContent(generator.Kind, generator.Text, style, box, sequenceWidth, sequenceHeight, scale, ranges[i].Start, ranges[i].Length) { ClipId = clip.Id }
+                    : content;
+                words.Add((list[i].Start, shown));
+            }
+        }
+
+        return new GeneratedClipPlan(clip.Id, clip.TimeMap, content, effects, animation, words);
     }
 
     /// <summary>Por debajo, un título que siempre se ve chico se rasteriza igual a este tamaño (no ahorra lo que pierde).</summary>

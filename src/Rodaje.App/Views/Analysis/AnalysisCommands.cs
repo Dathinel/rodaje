@@ -1,4 +1,5 @@
 using Rodaje.App.Services;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 
@@ -31,13 +32,14 @@ internal static partial class AnalysisCommands
         ArgumentNullException.ThrowIfNull(services);
         IDisposable[] bindings =
         [
-            router.Bind(RemoveSilences, () => Run(services.Session, () => SilenceDialog.ShowAsync(services))),
-            router.Bind(DetectBeats, () => Run(services.Session, () => RhythmDialog.ShowAsync(services))),
-            router.Bind(Ducking, () => Run(services.Session, () => DuckingDialog.ShowAsync(services))),
-            router.Bind(Stabilize, () => Run(services.Session, () => StabilizeDialog.ShowAsync(services))),
-            router.Bind(AutoColor, () => Run(services.Session, () => AutoColorAction.RunAsync(services, levels: true))),
-            router.Bind(WhiteBalance, () => Run(services.Session, () => AutoColorAction.RunAsync(services, levels: false))),
-            router.Bind(ReduceNoise, () => Run(services.Session, () => NoiseReductionDialog.ShowAsync(services))),
+            router.Bind(RemoveSilences, () => Run(services, RemoveSilences, "Quitar silencios", scope => SilenceDialog.ShowAsync(services, scope))),
+            router.Bind(DetectBeats, () => Run(services, DetectBeats, "Detectar ritmo", scope => RhythmDialog.ShowAsync(services, scope))),
+            router.Bind(Ducking, () => Run(services, Ducking, "Bajar música bajo la voz", scope => DuckingDialog.ShowAsync(services, scope))),
+            router.Bind(Stabilize, () => Run(services, Stabilize, "Estabilizar", scope => StabilizeDialog.ShowAsync(services, scope))),
+            router.Bind(AutoColor, () => Run(services, AutoColor, "Color automático", scope => AutoColorAction.RunAsync(services, levels: true, scope), canCancel: true)),
+            router.Bind(WhiteBalance, () => Run(services, WhiteBalance, "Balance de blancos automático",
+                scope => AutoColorAction.RunAsync(services, levels: false, scope), canCancel: true)),
+            router.Bind(ReduceNoise, () => Run(services, ReduceNoise, "Reducir ruido", scope => NoiseReductionDialog.ShowAsync(services, scope))),
         ];
         if (services.Modules is { } modules)
         {
@@ -48,19 +50,9 @@ internal static partial class AnalysisCommands
         return new Bindings(bindings);
     }
 
-    private static async void Run(EditorSession session, Func<Task> show)
-    {
-        try
-        {
-            await show();
-        }
-#pragma warning disable CA1031 // Un análisis que falla no debe cerrar la app: se avisa.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            session.Notify(NotificationSeverity.Error, "El análisis falló", ex.Message);
-        }
-    }
+    /// <summary>Cada análisis corre como acción larga: su botón queda ocupado y la barra de avisos muestra el avance.</summary>
+    private static void Run(EditorServices services, string id, string title, Func<LongActionScope, Task> work, bool canCancel = false) =>
+        _ = services.LongActions.RunAsync(id, title, work, canCancel);
 
     private sealed partial class Bindings(IDisposable[] items) : IDisposable
     {

@@ -35,29 +35,23 @@
         "resolved": "4.0.1",
         "contentHash": "8CoAaZkniVekR1ycJyxn+hOz+6ZQCDPcoIsIs6ujd4WyFcBMlxGNU15Qb8Uxd4iO4UmOuETb0M6vzBbwX/mfLA=="
       },
-      "Microsoft.AI.DirectML": {
-        "type": "Transitive",
-        "resolved": "1.15.4",
-        "contentHash": "UblWBtQxcXcxwcn+jh0pfbq4zv2b6w7ThJ35qUV9gd8niGofrFWzVqZ6yqYDMiE+IJf8LRpG+H1cZpswceOeiA=="
-      },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
         "resolved": "18.10.1",
         "contentHash": "tV7tCyp/t+DuwQugLkCeUN7NBFFB4fEGRPr0gkMQ2nQgAvQQjmGlZZi1dsLzbyoe/A0mbnKybmkIh8qhT9p4Zw=="
       },
-      "Microsoft.ML.OnnxRuntime.DirectML": {
+      "Microsoft.ML.OnnxRuntime": {
         "type": "Transitive",
-        "resolved": "1.24.4",
-        "contentHash": "rXEy9biJdgr55TdDaHrhl35K0FRXRCbvyRUv4S4C3jTxyxrqSh8YcEp5bzw4S9UlcqQKNfpb3sE+VWvO2DZY6A==",
+        "resolved": "1.30.0",
+        "contentHash": "RaF3KjPXB/IbNvvrcQtrxS/NZjB9dEHnZQTsdJCLP5Fnn1Jj3LomeqR1mMAoRFKinJ0pIe85PLhLlfGBYqzgWA==",
         "dependencies": {
-          "Microsoft.AI.DirectML": "1.15.4",
-          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
+          "Microsoft.ML.OnnxRuntime.Managed": "1.30.0"
         }
       },
       "Microsoft.ML.OnnxRuntime.Managed": {
         "type": "Transitive",
-        "resolved": "1.24.4",
-        "contentHash": "e5jsEo0HcCKDMkuRsMSievKoMv10Odv4MGmxbCin8SEm4Pto1qTpwti47xRwMtk9I/zVvfAiFIWquOq/0+22DA==",
+        "resolved": "1.30.0",
+        "contentHash": "KHW+vp+i4Mdf6RhIsMvurTVepafXHjg8/VQ0o6sa2wEK0KzV/4iEoRTUvsymcRP+XPAM/r6kZCaTADdV6Xn4RA==",
         "dependencies": {
           "System.Numerics.Tensors": "9.0.0"
         }
@@ -132,7 +126,7 @@
       "rodaje.module.audioai": {
         "type": "Project",
         "dependencies": {
-          "Microsoft.ML.OnnxRuntime.DirectML": "[1.24.4, )",
+          "Microsoft.ML.OnnxRuntime": "[1.30.0, )",
           "Rodaje.Modules.Protocol": "[1.0.0, )"
         }
       },

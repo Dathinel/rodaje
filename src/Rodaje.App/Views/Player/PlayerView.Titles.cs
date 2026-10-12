@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
+using Rodaje.Render;
 using Windows.Foundation;
 
 namespace Rodaje.App.Views.Player;
@@ -41,29 +42,34 @@ internal sealed partial class PlayerView
         };
     }
 
-    /// <summary>Dónde pone el render la imagen dentro del panel, en unidades del panel; nulo sin tamaño.</summary>
-    private ImageFrame? Image()
+    /// <summary>Dónde pone el render la imagen dentro del panel (la misma cuenta que el render); nulo sin tamaño.</summary>
+    private ViewerPlacement? Placement() => Session is null
+        ? null
+        : ViewerGeometry.Place(VideoPanel.ActualWidth, VideoPanel.ActualHeight, VideoPanel.CompositionScaleX, VideoPanel.CompositionScaleY,
+            Session.Sequence.Width, Session.Sequence.Height, _zoom);
+
+    /// <summary>
+    /// Para la autoprueba: la imagen en píxeles del área cliente de la ventana (donde el render la pinta) y el texto del
+    /// aviso del visor en DIP de la ventana.
+    /// </summary>
+    internal (PixelRect Image, PanelRect Status)? PlacementInWindow()
     {
-        if (Session is null)
+        if (Placement() is not { } placement || XamlRoot is null)
         {
             return null;
         }
 
-        int sequenceWidth = Session.Sequence.Width;
-        int sequenceHeight = Session.Sequence.Height;
-        double width = VideoPanel.ActualWidth;
-        double height = VideoPanel.ActualHeight;
-        if (width <= 0 || height <= 0 || sequenceWidth <= 0 || sequenceHeight <= 0)
-        {
-            return null;
-        }
-
-        // Con zoom, el render pone un píxel de la secuencia por píxel físico multiplicado por el zoom.
-        double scale = _zoom > 0
-            ? _zoom / Math.Max(0.01, VideoPanel.CompositionScaleX)
-            : Math.Min(width / sequenceWidth, height / sequenceHeight);
-        return new ImageFrame((width - (sequenceWidth * scale)) / 2, (height - (sequenceHeight * scale)) / 2, scale);
+        double scale = XamlRoot.RasterizationScale;
+        Point origin = VideoPanel.TransformToVisual(null).TransformPoint(new Point(0, 0));
+        int x = (int)Math.Round(origin.X * scale) + placement.Pixels.X;
+        int y = (int)Math.Round(origin.Y * scale) + placement.Pixels.Y;
+        Point status = StatusText.TransformToVisual(null).TransformPoint(new Point(0, 0));
+        return (new PixelRect(x, y, placement.Pixels.Width, placement.Pixels.Height),
+            new PanelRect(status.X, status.Y, StatusText.ActualWidth, StatusText.ActualHeight));
     }
+
+    /// <summary>La esquina y la escala de la imagen en unidades del panel; nulo sin tamaño.</summary>
+    private ImageFrame? Image() => Placement()?.Frame;
 
     private TitleBox? SelectedTitleBox()
     {
@@ -121,6 +127,11 @@ internal sealed partial class PlayerView
 
     private void OnVideoPointerPressed(object sender, PointerRoutedEventArgs e)
     {
+        if (MaskPointerPressed(e))
+        {
+            return;
+        }
+
         PointerPoint point = e.GetCurrentPoint(VideoPanel);
         if (!point.Properties.IsLeftButtonPressed || Session is null || _engine is null || _properties is null || Image() is not { } frame)
         {
@@ -172,6 +183,11 @@ internal sealed partial class PlayerView
 
     private void OnVideoPointerMoved(object sender, PointerRoutedEventArgs e)
     {
+        if (MaskPointerMoved(e))
+        {
+            return;
+        }
+
         if (_titleDrag is not { } drag || Image() is not { } frame)
         {
             return;
@@ -196,9 +212,21 @@ internal sealed partial class PlayerView
         e.Handled = true;
     }
 
-    private void OnVideoPointerReleased(object sender, PointerRoutedEventArgs e) => EndTitleDrag();
+    private void OnVideoPointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!MaskPointerReleased())
+        {
+            EndTitleDrag();
+        }
+    }
 
-    private void OnVideoPointerCaptureLost(object sender, PointerRoutedEventArgs e) => EndTitleDrag();
+    private void OnVideoPointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        if (!MaskPointerReleased())
+        {
+            EndTitleDrag();
+        }
+    }
 
     private void EndTitleDrag()
     {

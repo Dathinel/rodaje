@@ -1,0 +1,5 @@
+{ "format": "rodaje.safezones", "version": 1, "id": "instagram-historias", "name": "Historias de Instagram",
+  "aspect": { "width": 9, "height": 16 },
+  "zones": [
+    { "label": "Barra de avance, perfil y cerrar", "rect": [0, 0, 1, 0.14] },
+    { "label": "Responder y reacciones", "rect": [0, 0.86, 1, 0.14] } ] }

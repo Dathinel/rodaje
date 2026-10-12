@@ -20,7 +20,7 @@ public class EffectRegistryTests
             [
                 (BuiltInEffects.Transform, 1), (BuiltInEffects.Color, 2), (BuiltInEffects.Vignette, 3), (BuiltInEffects.Blur, 4),
                 (BuiltInEffects.Sharpen, 5), (BuiltInEffects.Blend, 6), (BuiltInEffects.Audio, 7), (BuiltInEffects.Speed, 8),
-                (BuiltInEffects.Stabilize, 9), (BuiltInEffects.Equalizer, 20), (BuiltInEffects.Compressor, 21),
+                (BuiltInEffects.Stabilize, 9), (BuiltInEffects.Mask, 10), (BuiltInEffects.Equalizer, 20), (BuiltInEffects.Compressor, 21),
                 (BuiltInTransitions.Crossfade, 101), (BuiltInTransitions.Dip, 102),
                 (BuiltInTransitions.Wipe, 103), (BuiltInTransitions.Push, 104), (BuiltInTransitions.ZoomDissolve, 105),
                 (BuiltInTransitions.BlurDissolve, 106), (BuiltInTransitions.Preset, 107),

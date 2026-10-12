@@ -120,7 +120,12 @@ internal sealed partial class TimelineScheduler
         Time until = time + _titleLookahead;
         for (int i = lane.FirstGeneratedEndingAfter(time); i < titles.Count && titles[i].Start <= until; i++)
         {
-            bool ready = _titles.Prepare(titles[i].Content);
+            bool ready = _titles.Prepare(titles[i].Start <= time ? titles[i].ContentAt(time) : titles[i].Content);
+            foreach (GeneratedContent other in titles[i].Contents)
+            {
+                _titles.Prepare(other);
+            }
+
             if (titles[i].Start <= time && !ready)
             {
                 settled = false;

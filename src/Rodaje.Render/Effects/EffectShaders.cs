@@ -23,6 +23,9 @@ internal enum EffectShader
 
     /// <summary>Mezcla los dos intermedios de una transición.</summary>
     Transition,
+
+    /// <summary>Una máscara (rectángulo, elipse, trazo o imagen) multiplicada sobre la textura de máscaras de la capa.</summary>
+    Mask,
 }
 
 /// <summary>Fuente HLSL de los efectos y la lista de variantes que se compilan por adelantado.</summary>
@@ -36,7 +39,8 @@ internal static class EffectShaders
     public const int Lut = 2;
     public const int Vignette = 4;
     public const int Blend = 8;
-    public const int GradedVariants = 16;
+    public const int Mask = 16;
+    public const int GradedVariants = 32;
 
     // grade: x = 2^exposición, y = 1 + contraste, z = 1 + saturación, w = intensidad de la LUT.
     // balance: ganancia por canal de temperatura y tinte. tones: x = altas, y = sombras, zw = escala y desplazamiento
@@ -45,6 +49,9 @@ internal static class EffectShaders
     // mapA, mapB: de uv de la imagen (0–1) a uv de la textura (xy) y tope de uv (zw), porque el pool redondea tamaños.
     // kernel: xy = paso entre muestras en uv de la imagen, z = sigma, w = muestras a cada lado; en nitidez, x = cantidad.
     // mix0: x = tipo de transición, y = progreso, z = peso de la mitad 4p(1 − p). mix1: según el tipo. canvas: tamaño.
+    // En PsMask (MaskGeometry es la referencia): mix0 = forma, invertir, opacidad y borde suave en píxeles de la imagen;
+    // mix1 = centro y medio tamaño en píxeles de la imagen; kernel = coseno y seno del giro y puntos del trazo; canvas =
+    // tamaño de la imagen. En PsGraded con MASK, mapB lleva a la textura de máscaras (t7).
     private const string Source = RenderShaders.Prelude + """
         cbuffer Effects : register(b1)
         {
@@ -65,6 +72,9 @@ internal static class EffectShaders
         Texture3D<float4> lut : register(t4);
         Texture2D<float4> imageA : register(t5);
         Texture2D<float4> imageB : register(t6);
+        Texture2D<float4> maskImage : register(t7);
+        Texture2D<float2> pathPoints : register(t8);
+        Texture2D<float> matteImage : register(t9);
 
         static const float3 LumaWeights = float3(0.2126, 0.7152, 0.0722);
 
@@ -155,7 +165,77 @@ internal static class EffectShaders
         #if VIGNETTE
             rgb *= VignetteGain(i.local / shape.zw);
         #endif
-            return Composite(i.position, rgb, shape.x * EdgeCoverage(i.local));
+            float alpha = shape.x * EdgeCoverage(i.local);
+        #if MASK
+            alpha *= maskImage.SampleLevel(linearClamp, min(i.local / shape.zw * mapB.xy, mapB.zw), 0).r;
+        #endif
+            return Composite(i.position, rgb, alpha);
+        }
+
+        float PolygonDistance(float2 p, int count, float2 size)
+        {
+            float2 v0 = pathPoints.Load(int3(0, 0, 0)) * size;
+            float best = dot(p - v0, p - v0);
+            float s = 1.0;
+            int j = count - 1;
+            [loop]
+            for (int k = 0; k < count; k++)
+            {
+                float2 vi = pathPoints.Load(int3(k, 0, 0)) * size;
+                float2 vj = pathPoints.Load(int3(j, 0, 0)) * size;
+                float2 e = vj - vi;
+                float2 w = p - vi;
+                float2 b = w - e * saturate(dot(w, e) / max(dot(e, e), 1e-12));
+                best = min(best, dot(b, b));
+                bool c1 = p.y >= vi.y;
+                bool c2 = p.y < vj.y;
+                bool c3 = e.x * w.y > e.y * w.x;
+                if ((c1 && c2 && c3) || (!c1 && !c2 && !c3))
+                {
+                    s = -s;
+                }
+
+                j = k;
+            }
+
+            return s * sqrt(best);
+        }
+
+        float4 PsMask(VsOut i) : SV_Target
+        {
+            int kind = (int)mix0.x;
+            float coverage;
+            if (kind == 3)
+            {
+                coverage = matteImage.SampleLevel(linearClamp, i.local, 0);
+            }
+            else
+            {
+                float2 d = i.local * canvas.xy - mix1.xy;
+                float2 l = float2(kernel.x * d.x + kernel.y * d.y, -kernel.y * d.x + kernel.x * d.y);
+                float2 h = max(mix1.zw, 1e-6);
+                float dist;
+                if (kind == 1)
+                {
+                    float k1 = length(l / h);
+                    float k2 = length(l / (h * h));
+                    dist = k2 < 1e-30 ? -min(h.x, h.y) : k1 * (k1 - 1.0) / k2;
+                }
+                else if (kind == 2)
+                {
+                    dist = PolygonDistance(l, (int)kernel.z, 2.0 * h);
+                }
+                else
+                {
+                    float2 q = abs(l) - h;
+                    dist = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+                }
+
+                coverage = saturate(0.5 - dist / mix0.w);
+            }
+
+            float f = mix0.z * (mix0.y > 0.5 ? 1.0 - coverage : coverage);
+            return float4(f, f, f, f);
         }
 
         float4 PsImage(VsOut i) : SV_Target
@@ -263,6 +343,7 @@ internal static class EffectShaders
         EffectShader.Downsample => GradedVariants + 4,
         EffectShader.Blur => GradedVariants + 5,
         EffectShader.Sharpen => GradedVariants + 6,
+        EffectShader.Mask => GradedVariants + 7,
         _ => throw new ArgumentOutOfRangeException(nameof(shader)),
     };
 
@@ -281,6 +362,7 @@ internal static class EffectShaders
         all.Add(Variant("PsDownsample", 0));
         all.Add(Variant("PsBlur", 0));
         all.Add(Variant("PsSharpen", 0));
+        all.Add(Variant("PsMask", 0));
         return all.ToImmutable();
     }
 
@@ -305,6 +387,11 @@ internal static class EffectShaders
         if ((flags & Blend) != 0)
         {
             defines.Add("BLEND");
+        }
+
+        if ((flags & Mask) != 0)
+        {
+            defines.Add("MASK");
         }
 
         return new ShaderVariant(Source, entryPoint, "ps_5_0", SourceName, [.. defines]);

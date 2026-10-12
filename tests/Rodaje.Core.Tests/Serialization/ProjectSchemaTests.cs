@@ -8,7 +8,7 @@ public class ProjectSchemaTests
 {
     private const string RegenerateVariable = "RODAJE_REGENERAR_ESQUEMA";
 
-    private static string SchemaPath => Path.Combine(FindRepoRoot(), "schema", "rodaje-proyecto.v5.schema.json");
+    private static string SchemaPath => Path.Combine(FindRepoRoot(), "schema", "rodaje-proyecto.v6.schema.json");
 
     /// <summary>Para regenerar el esquema versionado: RODAJE_REGENERAR_ESQUEMA=1 y correr las pruebas.</summary>
     [Fact]
@@ -36,6 +36,7 @@ public class ProjectSchemaTests
     [InlineData(2)]
     [InlineData(3)]
     [InlineData(4)]
+    [InlineData(5)]
     public void PublishedOldSchemas_AreKept(int version)
     {
         string path = Path.Combine(FindRepoRoot(), "schema", $"rodaje-proyecto.v{version}.schema.json");

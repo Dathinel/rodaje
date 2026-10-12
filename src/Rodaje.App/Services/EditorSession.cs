@@ -14,6 +14,9 @@ public enum EditKind
     Redo,
     Jump,
     GestureCancelled,
+
+    /// <summary>Se pasó a ver otra secuencia (entrar o salir de un clip compuesto); el proyecto no cambió.</summary>
+    SequenceChanged,
 }
 
 public sealed class ProjectEditedEventArgs(EditKind kind, ICommand? command) : EventArgs
@@ -353,13 +356,13 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>Mueve el cursor de reproducción, dentro de la secuencia.</summary>
     public void Seek(Time position)
     {
-        Time end = Sequence.Duration;
+        Time end = PlaybackDuration;
         _playback.Seek(position < Time.Zero ? Time.Zero : position > end ? end : position);
     }
 
     public void SeekToStart() => Seek(Time.Zero);
 
-    public void SeekToEnd() => Seek(Sequence.Duration);
+    public void SeekToEnd() => Seek(PlaybackDuration);
 
     /// <summary>Copia el estado que publicó el reproductor; la ventana lo llama con su temporizador.</summary>
     public void UpdateTransport(PlaybackSnapshot snapshot)
@@ -410,6 +413,9 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>Pistas de los proyectos nuevos; la ventana lo actualiza desde los ajustes.</summary>
     public NewProjectTracks NewProjectTracks { get; set; } = NewProjectTracks.Default;
 
+    /// <summary>La copia del proyecto que recibe el reproductor.</summary>
+    private Project PlaybackProject() => IsSourceActive && SourceMedia is { } media ? SourceProject(media) : Project.Clone();
+
     private Project CreateEmptyProject() => NewProjectTracks.CreateProject(UntitledName, _ids);
 
     /// <summary>Cambia de proyecto: historial nuevo, selección vacía y el reproductor desde el principio.</summary>
@@ -418,6 +424,8 @@ public sealed partial class EditorSession : ObservableObject
         History.Changed -= OnHistoryChanged;
         Project = project;
         SequenceId = sequenceId;
+        _sequencePath.Clear();
+        ResetSource(forget: true);
         History = new UndoStack(project);
         History.Changed += OnHistoryChanged;
         _originDescription = originDescription;
@@ -437,8 +445,22 @@ public sealed partial class EditorSession : ObservableObject
     private void AfterEdit(EditKind kind, ICommand? command)
     {
         _editVersion++;
+        bool lostSource = IsSourceActive && SourceMedia is null;
+        if (lostSource)
+        {
+            ResetSource(forget: true);
+        }
+
+        if (LeaveRemovedSequences() | lostSource)
+        {
+            _playback.Load(PlaybackProject(), PlaybackSequenceId);
+        }
+        else
+        {
+            _playback.Reload(PlaybackProject());
+        }
+
         PruneSelection();
-        _playback.Reload(Project.Clone());
         OnPropertyChanged(nameof(ProjectName));
         ProjectEdited?.Invoke(this, new ProjectEditedEventArgs(kind, command));
     }

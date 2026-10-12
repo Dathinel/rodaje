@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.Analysis;
 using Rodaje.Analysis.Ducking;
 using Rodaje.App.Services;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Shell;
 using Rodaje.Core.Commands;
@@ -20,7 +21,7 @@ internal static class DuckingDialog
     /// <summary>El detector; cuando exista el módulo VAD se elige aquí sin tocar el resto.</summary>
     internal static IVoiceActivityDetector Detector { get; set; } = new EnergyVoiceDetector();
 
-    public static async Task ShowAsync(EditorServices services)
+    public static async Task ShowAsync(EditorServices services, LongActionScope? scope = null)
     {
         EditorSession session = services.Session;
         if (ClipAudioSource.SelectedAudioClip(session) is not { } music || services.Shell.XamlRoot is not { } root)
@@ -121,7 +122,7 @@ internal static class DuckingDialog
                     Clip clip = clips[i];
                     IVoiceActivitySession detection = Detector.Begin(ClipAudioSource.SampleRate, ClipAudioSource.Channels);
                     int index = i;
-                    await ClipAudioSource.AnalyzeAsync(session, clip, detection, new Progress<double>(p => progress.Value = (index + p) / clips.Count), token);
+                    await ClipAudioSource.AnalyzeAsync(session, clip, detection, new Progress<double>(p => scope?.Report(progress.Value = (index + p) / clips.Count, "Buscando la voz…")), token);
                     foreach (TimeRange r in await detection.FinishAsync(token))
                     {
                         (Time start, Time end) = ClipAudioMap.ToTimeline(clip, r);

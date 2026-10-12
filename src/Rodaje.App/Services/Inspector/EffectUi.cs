@@ -5,6 +5,7 @@ using A = Rodaje.Core.Model.BuiltInEffects.AudioParameters;
 using C = Rodaje.Core.Model.BuiltInEffects.ColorParameters;
 using K = Rodaje.Core.Model.BuiltInEffects.CompressorParameters;
 using Q = Rodaje.Core.Model.BuiltInEffects.EqualizerParameters;
+using Mk = Rodaje.Core.Model.BuiltInEffects.MaskParameters;
 using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
 using Tr = Rodaje.Core.Model.BuiltInTransitions;
 
@@ -71,6 +72,7 @@ public static class EffectUi
         [BuiltInEffects.Compressor] = "Compresor",
         [BuiltInEffects.Speed] = "Velocidad",
         [BuiltInEffects.Stabilize] = "Estabilizar",
+        [BuiltInEffects.Mask] = "Máscara",
         [Tr.Crossfade] = "Fundido cruzado",
         [Tr.Dip] = "Fundido a color",
         [Tr.Wipe] = "Barrido",
@@ -93,6 +95,7 @@ public static class EffectUi
         [BuiltInEffects.Compressor] = "Empareja el volumen: baja lo que pasa del umbral y compensa.",
         [BuiltInEffects.Speed] = "Reservado y oculto: la velocidad se cambia en la pestaña Velocidad.",
         [BuiltInEffects.Stabilize] = "Quita el temblor de la cámara. Se analiza desde el menú del clip (Estabilizar...).",
+        [BuiltInEffects.Mask] = "Deja ver solo una parte de la capa: rectángulo, elipse, trazo libre o el sujeto de «Quitar fondo».",
         [Tr.Crossfade] = "Mezcla un clip con el siguiente.",
         [Tr.Dip] = "Baja a un color (negro por defecto) y sube desde él.",
         [Tr.Wipe] = "Un borde suave barre un clip y descubre el otro.",
@@ -158,6 +161,14 @@ public static class EffectUi
             [(BuiltInEffects.Stabilize, BuiltInEffects.StabilizeParameters.Intensity)] =
                 Percent with { Label = "Intensidad", Description = "Cambiar intensidad de estabilizar" },
 
+            [(BuiltInEffects.Mask, Mk.X)] = new("Centro X", "Mover la máscara", "%", 100, 0.5, 1, UiRange.Custom, -50, 150),
+            [(BuiltInEffects.Mask, Mk.Y)] = new("Centro Y", "Mover la máscara", "%", 100, 0.5, 1, UiRange.Custom, -50, 150),
+            [(BuiltInEffects.Mask, Mk.Width)] = new("Ancho", "Cambiar ancho de la máscara", "%", 100, 0.5, 1, UiRange.Custom, 0, 200),
+            [(BuiltInEffects.Mask, Mk.Height)] = new("Alto", "Cambiar alto de la máscara", "%", 100, 0.5, 1, UiRange.Custom, 0, 200),
+            [(BuiltInEffects.Mask, Mk.Rotation)] = new("Giro", "Girar la máscara", "°", 1, 1, 1, UiRange.Custom, -180, 180),
+            [(BuiltInEffects.Mask, Mk.Feather)] = new("Borde suave", "Cambiar borde de la máscara", "%", 100, 0.5, 1, UiRange.Custom, 0, 50),
+            [(BuiltInEffects.Mask, Mk.Opacity)] = Percent with { Label = "Intensidad", Description = "Cambiar intensidad de la máscara" },
+
             [(Tr.Dip, Tr.DipParameters.Red)] = Percent with { Label = "Rojo", Description = "Cambiar color del fundido" },
             [(Tr.Dip, Tr.DipParameters.Green)] = Percent with { Label = "Verde", Description = "Cambiar color del fundido" },
             [(Tr.Dip, Tr.DipParameters.Blue)] = Percent with { Label = "Azul", Description = "Cambiar color del fundido" },
@@ -222,6 +233,8 @@ public static class EffectUi
         BuiltInEffects.BlendOptions.Mode => BlendModeName(value),
         Tr.PushOptions.Direction => PushDirections.FirstOrDefault(d => d.Value == value).Name ?? value,
         BuiltInEffects.StabilizeOptions.Crop => value == "auto" ? "Automático" : "Sin recorte",
+        BuiltInEffects.MaskOptions.Shape => MaskShapeName(value),
+        BuiltInEffects.MaskOptions.Invert => value == "on" ? "Sí" : "No",
         _ => value,
     };
 
@@ -232,6 +245,16 @@ public static class EffectUi
         Tr.PushOptions.Direction => "Dirección",
         Tr.PresetOptions.Preset => "Transición",
         BuiltInEffects.StabilizeOptions.Crop => "Recorte",
+        BuiltInEffects.MaskOptions.Shape => "Forma",
+        BuiltInEffects.MaskOptions.Invert => "Invertir",
         _ => option,
+    };
+
+    public static string MaskShapeName(string shape) => shape switch
+    {
+        "ellipse" => "Elipse",
+        "path" => "Trazo libre",
+        "image" => "Sujeto (Quitar fondo)",
+        _ => "Rectángulo",
     };
 }

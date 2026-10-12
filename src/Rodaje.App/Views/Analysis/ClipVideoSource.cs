@@ -48,7 +48,7 @@ internal static class ClipVideoSource
     }
 
     /// <summary>La estadística de color de <see cref="ColorSamples"/> cuadros repartidos por el clip, en miniaturas de 270 px.</summary>
-    public static Task<ColorEstimate> AnalyzeColorAsync(EditorSession session, Clip clip, CancellationToken cancellationToken)
+    public static Task<ColorEstimate> AnalyzeColorAsync(EditorSession session, Clip clip, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         MediaRef media = session.Project.FindMedia(clip.MediaId)
             ?? throw new InvalidOperationException("El clip usa un medio que ya no está en el proyecto.");
@@ -67,6 +67,8 @@ internal static class ClipVideoSource
                 {
                     statistics.PushBgra(image.Pixels, image.Width, image.Height, image.Width * 4);
                 }
+
+                progress?.Report((i + 1) / (double)ColorSamples);
             }
 
             return statistics.Estimate();

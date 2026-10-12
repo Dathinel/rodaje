@@ -98,7 +98,8 @@ internal static class TrimmingSupport
                     throw new EditException($"El clip «{name}» empezaría antes del inicio del archivo.");
                 }
 
-                if (map.SourceOut > ctx.MediaOf(plan.Clip).Duration)
+                Time limit = plan.Clip.IsCompound ? CompoundOps.SourceLimit(ctx.Project, plan.Clip) : ctx.MediaOf(plan.Clip).Duration;
+                if (map.SourceOut > limit)
                 {
                     throw new EditException($"El clip «{name}» llegaría más allá del final del archivo.");
                 }

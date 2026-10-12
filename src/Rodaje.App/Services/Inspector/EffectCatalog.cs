@@ -22,10 +22,10 @@ public static class EffectCatalog
 
     /// <summary>
     /// Los que se ofrecen para un clip de ese tipo de pista: solo los que el motor aplica. «Estabilizar» no, porque
-    /// necesita el análisis: se pone desde «Estabilizar...» del menú del clip.
+    /// necesita el análisis (se pone desde «Estabilizar...» del menú del clip), ni las máscaras, que tienen su pestaña.
     /// </summary>
     public static IReadOnlyList<EffectDescriptor> For(TrackKind kind) =>
-        [.. All.Where(e => e.Kind == kind && e.IsRendered && e.Type != BuiltInEffects.Stabilize)];
+        [.. All.Where(e => e.Kind == kind && e.IsRendered && e.Type is not (BuiltInEffects.Stabilize or BuiltInEffects.Mask))];
 
     public static EffectDescriptor? Find(string type) => All.FirstOrDefault(e => e.Type == type);
 

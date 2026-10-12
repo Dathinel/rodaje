@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.Analysis;
 using Rodaje.Analysis.Rhythm;
 using Rodaje.App.Services;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Shell;
 using Rodaje.Core.Commands;
@@ -17,7 +18,7 @@ namespace Rodaje.App.Views.Analysis;
 /// </summary>
 internal static class RhythmDialog
 {
-    public static async Task ShowAsync(EditorServices services)
+    public static async Task ShowAsync(EditorServices services, LongActionScope? scope = null)
     {
         EditorSession session = services.Session;
         if (ClipAudioSource.SelectedAudioClip(session) is not { } clip || services.Shell.XamlRoot is not { } root)
@@ -85,7 +86,7 @@ internal static class RhythmDialog
         {
             try
             {
-                await ClipAudioSource.AnalyzeAsync(session, clip, envelope, new Progress<double>(p => progress.Value = p), cancel.Token);
+                await ClipAudioSource.AnalyzeAsync(session, clip, envelope, new Progress<double>(p => scope?.Report(progress.Value = p, "Analizando el audio…")), cancel.Token);
                 result = await Task.Run(() => BeatTracker.Track(envelope), cancel.Token);
                 progress.Visibility = Visibility.Collapsed;
                 double width = Math.Max(0.02, result.Duration / AnalysisUi.PreviewWidth);

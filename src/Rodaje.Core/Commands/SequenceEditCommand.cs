@@ -15,6 +15,10 @@ public sealed class SequenceEditCommand : ICommand
     private SequenceSnapshot? _before;
     private SequenceSnapshot? _after;
 
+    // Solo si la operación agregó o quitó secuencias (un clip compuesto): la lista entera antes y después.
+    private List<Sequence>? _sequencesBefore;
+    private List<Sequence>? _sequencesAfter;
+
     /// <param name="description">Texto para el menú de deshacer.</param>
     /// <param name="sequenceId">Secuencia que se edita.</param>
     /// <param name="operation">La edición; devuelve los identificadores de lo que creó.</param>
@@ -66,10 +70,12 @@ public sealed class SequenceEditCommand : ICommand
         if (_after is not null)
         {
             _after.Restore(sequence);
+            SetSequences(project, _sequencesAfter);
             return;
         }
 
         SequenceSnapshot before = SequenceSnapshot.Capture(sequence);
+        List<Sequence> sequencesBefore = [.. project.Sequences];
         IReadOnlyList<string> created;
         try
         {
@@ -79,11 +85,18 @@ public sealed class SequenceEditCommand : ICommand
         catch
         {
             before.Restore(sequence);
+            SetSequences(project, sequencesBefore);
             throw;
         }
 
         _before = before;
         _after = SequenceSnapshot.Capture(sequence);
+        if (!project.Sequences.SequenceEqual(sequencesBefore))
+        {
+            _sequencesBefore = sequencesBefore;
+            _sequencesAfter = [.. project.Sequences];
+        }
+
         CreatedIds = created is null ? [] : [.. created];
     }
 
@@ -96,6 +109,16 @@ public sealed class SequenceEditCommand : ICommand
         }
 
         _before.Restore(FindSequence(project));
+        SetSequences(project, _sequencesBefore);
+    }
+
+    private static void SetSequences(Project project, List<Sequence>? sequences)
+    {
+        if (sequences is not null && !project.Sequences.SequenceEqual(sequences))
+        {
+            project.Sequences.Clear();
+            project.Sequences.AddRange(sequences);
+        }
     }
 
     public bool TryMerge(ICommand following)
@@ -106,7 +129,9 @@ public sealed class SequenceEditCommand : ICommand
             || next.MergeKey != MergeKey
             || next.SequenceId != SequenceId
             || _after is null
-            || next._after is null)
+            || next._after is null
+            || _sequencesAfter is not null
+            || next._sequencesAfter is not null)
         {
             return false;
         }

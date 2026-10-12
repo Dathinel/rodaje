@@ -72,16 +72,6 @@ internal static class NoiseReduction
         return (start, end);
     }
 
-    /// <summary>Carpeta de los medios que crea Rodaje: junto al proyecto (<c>Nombre.medios</c>) o, sin guardar, en los datos de la app.</summary>
-    public static string GeneratedFolder(string? projectFile)
-    {
-        string folder = projectFile is { Length: > 0 }
-            ? System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(projectFile))!, System.IO.Path.GetFileNameWithoutExtension(projectFile) + ".medios")
-            : System.IO.Path.Combine(AppDataPaths.Root, "medios-generados");
-        Directory.CreateDirectory(folder);
-        return folder;
-    }
-
     /// <summary>
     /// Pide al módulo el audio limpio de <paramref name="window"/> y lo escribe en <paramref name="folder"/>. Es un trabajo de
     /// Trabajos (avance, cancelar); el archivo aparece entero o no aparece.

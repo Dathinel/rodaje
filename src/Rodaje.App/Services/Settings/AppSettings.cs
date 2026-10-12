@@ -23,6 +23,9 @@ public sealed partial class AppSettings
     /// <summary>Última carpeta de la que se importaron medios.</summary>
     public string? LastMediaFolder { get; set; }
 
+    /// <summary>Carpeta para los medios que genera Rodaje; <c>null</c> para <c>Nombre.medios</c> junto al proyecto (D-034).</summary>
+    public string? GeneratedMediaFolder { get; set; }
+
     /// <summary>Última carpeta donde se abrió o guardó un proyecto.</summary>
     public string? LastProjectFolder { get; set; }
 
@@ -55,8 +58,11 @@ public sealed partial class AppSettings
     /// <summary>Velocidad de caída de los medidores de audio, en dB por segundo.</summary>
     public double MeterDecayDbPerSecond { get; set; } = 20;
 
-    /// <summary>El reproductor muestra los márgenes seguros de acción y de títulos.</summary>
+    /// <summary>El reproductor muestra las zonas seguras elegidas en <see cref="SafeZones"/>.</summary>
     public bool ShowSafeAreas { get; set; }
+
+    /// <summary>Las zonas del visor: <c>fabrica/clasicos</c>, una red de fábrica o la referencia de un paquete o de las propias.</summary>
+    public string? SafeZones { get; set; }
 
     /// <summary>Cómo quedan los clips al cambiar el formato del proyecto desde el reproductor.</summary>
     public Format.ClipFit FormatClipFit { get; set; } = Format.ClipFit.Fit;

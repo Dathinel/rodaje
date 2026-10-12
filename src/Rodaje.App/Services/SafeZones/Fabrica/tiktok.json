@@ -1,0 +1,7 @@
+{ "format": "rodaje.safezones", "version": 1, "id": "tiktok", "name": "TikTok",
+  "aspect": { "width": 9, "height": 16 },
+  "zones": [
+    { "label": "Pestañas y búsqueda", "rect": [0, 0, 1, 0.08] },
+    { "label": "Perfil, me gusta, comentarios y compartir", "rect": [0.86, 0.36, 0.14, 0.5] },
+    { "label": "Nombre, descripción y sonido", "rect": [0, 0.77, 0.84, 0.15] },
+    { "label": "Barra de la app", "rect": [0, 0.92, 1, 0.08] } ] }

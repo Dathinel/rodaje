@@ -20,6 +20,9 @@ public enum ItemKind
 
     /// <summary>Una familia tipográfica: sus archivos <c>.ttf</c>/<c>.otf</c> sin modificar, con su licencia (D-029).</summary>
     Font,
+
+    /// <summary>Zonas seguras para el visor (<c>rodaje.safezones</c>): dónde tapa la interfaz de una red, márgenes propios.</summary>
+    SafeZones,
 }
 
 /// <summary>

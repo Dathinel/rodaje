@@ -6,6 +6,7 @@ using A = Rodaje.Core.Model.BuiltInEffects.AudioParameters;
 using C = Rodaje.Core.Model.BuiltInEffects.ColorParameters;
 using K = Rodaje.Core.Model.BuiltInEffects.CompressorParameters;
 using Q = Rodaje.Core.Model.BuiltInEffects.EqualizerParameters;
+using M = Rodaje.Core.Model.BuiltInEffects.MaskParameters;
 using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
 
 namespace Rodaje.Core.Effects;
@@ -31,6 +32,9 @@ public static class EffectRegistry
 
     /// <summary>Recorte de <see cref="BuiltInEffects.Stabilize"/>: automático o ninguno.</summary>
     public static ImmutableArray<string> StabilizeCrops { get; } = ["auto", "off"];
+
+    /// <summary>Formas de <see cref="BuiltInEffects.Mask"/>, en el orden de <see cref="MaskShape"/>.</summary>
+    public static ImmutableArray<string> MaskShapes { get; } = ["rectangle", "ellipse", "path", "image"];
 
     /// <summary>Duración con la que se suelta una transición.</summary>
     public static Time DefaultTransitionDuration { get; } = Time.FromSeconds(0.5);
@@ -89,6 +93,23 @@ public static class EffectRegistry
             new(BuiltInEffects.StabilizeParameters.Intensity, 0.5, 0, 1, Animatable: false),
         ],
         [OptionDefinition.Choice(BuiltInEffects.StabilizeOptions.Crop, "auto", [.. StabilizeCrops])]),
+        new(BuiltInEffects.Mask, 10, EffectTarget.Video, EffectStage.PerPixel,
+        [
+            new(M.X, 0.5, -Inf, Inf),
+            new(M.Y, 0.5, -Inf, Inf),
+            new(M.Width, 0.5, 0, 100),
+            new(M.Height, 0.5, 0, 100),
+            new(M.Rotation, 0, -Inf, Inf),
+            new(M.Feather, 0, 0, 1),
+            new(M.Opacity, 1, 0, 1),
+        ],
+        [
+            OptionDefinition.Choice(BuiltInEffects.MaskOptions.Shape, "rectangle", [.. MaskShapes]),
+            OptionDefinition.Choice(BuiltInEffects.MaskOptions.Invert, "off", "off", "on"),
+            OptionDefinition.Text(BuiltInEffects.MaskOptions.Path),
+            OptionDefinition.Text(BuiltInEffects.MaskOptions.Matte),
+            OptionDefinition.Text(BuiltInEffects.MaskOptions.MatteStart),
+        ]),
 
         new(BuiltInEffects.Equalizer, 20, EffectTarget.Audio, EffectStage.Audio,
         [

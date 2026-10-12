@@ -30,10 +30,6 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     private const string PlayGlyphText = "";
     private const string PauseGlyphText = "";
 
-    // Márgenes seguros de EBU R 95: acción al 93 % y gráficos (títulos) al 90 % de la imagen.
-    private const double ActionSafeFraction = 0.93;
-    private const double TitleSafeFraction = 0.90;
-
     private readonly List<IDisposable> _bindings = [];
     private EditorServices? _services;
     private PlayerEngine? _engine;
@@ -43,6 +39,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     private bool _usesProxy;
     private int _shuttleRate;
     private int _previewDivisor = 1;
+    private bool _hintForSelfTest;
 
     public PlayerView()
     {
@@ -84,12 +81,13 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         Session.ProjectOpened += (_, _) => UpdateFormat();
         Session.ProjectEdited += (_, _) => UpdateFormat();
         services.ShortcutRegistry.Changed += (_, _) => UpdateToolTips();
-        SafeAreasButton.IsChecked = services.Settings.Current.ShowSafeAreas;
         services.PreviewQualityChanged += (_, _) => UpdateQuality();
         _engine.SetPreviewQuality(services.Settings.Current.PreviewQuality);
         UpdateQuality();
+        AttachSafeZones();
         UpdateSafeAreas();
         AttachTitleHandles();
+        AttachMaskHandles();
         Meters.Attach(services);
         UpdateFormat();
         UpdateToolTips();
@@ -112,10 +110,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         Transport.Visibility = chrome;
         Meters.Visibility = chrome;
         TransportRow.Height = new GridLength(fullScreen ? 0 : 44);
-        var margin = new Thickness(fullScreen ? 0 : 8);
-        VideoPanel.Margin = margin;
-        SafeAreaCanvas.Margin = margin;
-        TitleCanvas.Margin = margin;
+        Stage.Margin = new Thickness(fullScreen ? 0 : 8);
         _services.Shell.SetPlayerFullScreen(fullScreen);
     }
 
@@ -126,18 +121,14 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         registry.Register(new ShortcutAction(PlayerActionIds.ShuttleStop, "Lanzadera: detener", ShortcutGroups.Playback, ["K"]));
         registry.Register(new ShortcutAction(PlayerActionIds.ShuttleForward, "Lanzadera hacia adelante (más rápido con cada pulsación)", ShortcutGroups.Playback, ["L"]));
         registry.Register(new ShortcutAction(PlayerActionIds.FullScreen, "Reproductor en pantalla completa", ShortcutGroups.Windows, ["F"]));
-        registry.Register(new ShortcutAction(PlayerActionIds.SafeAreas, "Mostrar los márgenes seguros", ShortcutGroups.Windows, []));
+        registry.Register(new ShortcutAction(PlayerActionIds.SafeAreas, "Mostrar u ocultar las zonas seguras", ShortcutGroups.Windows, []));
 
         ShortcutRouter router = services.Shortcuts;
         _bindings.Add(router.Bind(PlayerActionIds.ShuttleReverse, () => _engine!.ShuttleKey(ShuttleKey.Reverse)));
         _bindings.Add(router.Bind(PlayerActionIds.ShuttleStop, () => _engine!.ShuttleKey(ShuttleKey.Stop)));
         _bindings.Add(router.Bind(PlayerActionIds.ShuttleForward, () => _engine!.ShuttleKey(ShuttleKey.Forward)));
         _bindings.Add(router.Bind(PlayerActionIds.FullScreen, () => SetFullScreen(!IsFullScreen)));
-        _bindings.Add(router.Bind(PlayerActionIds.SafeAreas, () =>
-        {
-            SafeAreasButton.IsChecked = SafeAreasButton.IsChecked != true;
-            OnSafeAreasChanged();
-        }));
+        _bindings.Add(router.Bind(PlayerActionIds.SafeAreas, ToggleSafeZones));
     }
 
     private void OnPanelSizeChanged()
@@ -169,7 +160,8 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         PlaybackSnapshot transport = Session.Transport;
         if (_error is null)
         {
-            StatusText.Text = transport.IsPlaying || Session.Sequence.Duration.Ticks > 0 ? "" : "Importa un video y haz doble clic en él para empezar.";
+            bool empty = !transport.IsPlaying && Session.Sequence.Duration.Ticks == 0;
+            SetStatus(empty || _hintForSelfTest ? "Importa un video y haz doble clic en él para empezar." : "");
         }
 
         if (transport.UsesProxy != _usesProxy)
@@ -206,43 +198,12 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         UpdateTitleHandles();
     }
 
-    /// <summary>Dibuja los márgenes seguros sobre el rectángulo donde el render pone la imagen, con el zoom actual.</summary>
-    private void UpdateSafeAreas()
+    private static void PlaceRect(FrameworkElement element, PanelRect rect)
     {
-        UpdateCanvasOutline();
-        bool show = SafeAreasButton.IsChecked == true && Session is not null;
-        SafeAreaCanvas.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        if (!show)
-        {
-            return;
-        }
-
-        if (Image() is not { } frame)
-        {
-            return;
-        }
-
-        Sequence sequence = Session!.Sequence;
-        double imageWidth = sequence.Width * frame.Scale;
-        double imageHeight = sequence.Height * frame.Scale;
-        double left = frame.Left;
-        double top = frame.Top;
-        PlaceSafe(ActionSafe, left, top, imageWidth, imageHeight, ActionSafeFraction);
-        PlaceSafe(TitleSafe, left, top, imageWidth, imageHeight, TitleSafeFraction);
-        double centerX = left + (imageWidth / 2);
-        double centerY = top + (imageHeight / 2);
-        Canvas.SetLeft(CenterH, centerX - (CenterH.Width / 2));
-        Canvas.SetTop(CenterH, centerY);
-        Canvas.SetLeft(CenterV, centerX);
-        Canvas.SetTop(CenterV, centerY - (CenterV.Height / 2));
-    }
-
-    private static void PlaceSafe(FrameworkElement rectangle, double left, double top, double width, double height, double fraction)
-    {
-        rectangle.Width = width * fraction;
-        rectangle.Height = height * fraction;
-        Canvas.SetLeft(rectangle, left + (width * (1 - fraction) / 2));
-        Canvas.SetTop(rectangle, top + (height * (1 - fraction) / 2));
+        element.Width = rect.Width;
+        element.Height = rect.Height;
+        Canvas.SetLeft(element, rect.Left);
+        Canvas.SetTop(element, rect.Top);
     }
 
     private void UpdateToolTips()
@@ -256,7 +217,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         SetToolTip(PlayButton, "Reproducir o pausar", ActionIds.TogglePlay);
         SetToolTip(NextFrameButton, "Cuadro siguiente", ActionIds.NextFrame);
         SetToolTip(FullScreenButton, "Pantalla completa (Esc o doble clic para salir)", PlayerActionIds.FullScreen);
-        SetToolTip(SafeAreasButton, "Márgenes seguros de acción (93 %) y de títulos (90 %)", PlayerActionIds.SafeAreas);
+        SetToolTip(SafeAreasButton, SafeZonesToolTip(), PlayerActionIds.SafeAreas);
     }
 
     private void SetToolTip(FrameworkElement element, string label, string actionId)
@@ -268,17 +229,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     private void ShowError(string message)
     {
         _error = message;
-        StatusText.Text = "Error: " + message;
-    }
-
-    private void OnSafeAreasChanged()
-    {
-        if (_services is not null)
-        {
-            _services.Settings.Current.ShowSafeAreas = SafeAreasButton.IsChecked == true;
-        }
-
-        UpdateSafeAreas();
+        SetStatus("Error: " + message);
     }
 
     private void OnZoomClick(object sender, RoutedEventArgs e) =>
@@ -307,8 +258,6 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         UpdateSafeAreas();
         UpdateTitleHandles();
     }
-
-    private void OnSafeAreasClick(object sender, RoutedEventArgs e) => OnSafeAreasChanged();
 
     private void OnQualityClick(object sender, RoutedEventArgs e)
     {

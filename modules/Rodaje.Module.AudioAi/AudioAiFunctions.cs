@@ -20,7 +20,7 @@ internal sealed class AudioAiFunctions(ModelFiles models) : IDisposable
     private const int VadWindowsPerStep = 1024;
 
     private readonly Lock _gate = new();
-    private readonly Dictionary<ComputeDevice, DeepFilterNet3> _denoisers = [];
+    private DeepFilterNet3? _denoiser;
     private SileroVad? _vad;
 
     public ModelFiles Models { get; } = models;
@@ -29,13 +29,13 @@ internal sealed class AudioAiFunctions(ModelFiles models) : IDisposable
     /// Limpia <paramref name="frames"/> cuadros intercalados de 48 kHz. Si los dos canales son iguales (mono grabado en
     /// estéreo, lo habitual en cámaras) se procesa uno y se copia.
     /// </summary>
-    public async ValueTask<NoiseResult> ReduceNoiseAsync(AudioBuffer input, AudioBuffer output, int channels, long frames, ComputeDevice device,
+    public async ValueTask<NoiseResult> ReduceNoiseAsync(AudioBuffer input, AudioBuffer output, int channels, long frames,
         Func<double, ValueTask> progress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(progress);
-        DeepFilterNet3 model = Denoiser(device);
+        DeepFilterNet3 model = Denoiser();
         long start = Stopwatch.GetTimestamp();
         bool dualMono = channels == 2 && IsDualMono(input(), frames);
         int processed = dualMono ? 1 : channels;
@@ -105,12 +105,8 @@ internal sealed class AudioAiFunctions(ModelFiles models) : IDisposable
     {
         lock (_gate)
         {
-            foreach (DeepFilterNet3 model in _denoisers.Values)
-            {
-                model.Dispose();
-            }
-
-            _denoisers.Clear();
+            _denoiser?.Dispose();
+            _denoiser = null;
             _vad?.Dispose();
             _vad = null;
         }
@@ -129,17 +125,11 @@ internal sealed class AudioAiFunctions(ModelFiles models) : IDisposable
         return difference <= peak * 1e-4f;
     }
 
-    private DeepFilterNet3 Denoiser(ComputeDevice device)
+    private DeepFilterNet3 Denoiser()
     {
         lock (_gate)
         {
-            if (!_denoisers.TryGetValue(device, out DeepFilterNet3? model))
-            {
-                model = new DeepFilterNet3(Models, new SessionFactory(device));
-                _denoisers[device] = model;
-            }
-
-            return model;
+            return _denoiser ??= new DeepFilterNet3(Models, new SessionFactory());
         }
     }
 

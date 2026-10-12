@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
 
@@ -14,6 +15,7 @@ namespace Rodaje.App.Views.Tools;
 internal sealed partial class ToolsBar : UserControl, IEditorView
 {
     private readonly Dictionary<string, Button> _buttons = [];
+    private readonly Dictionary<string, (FontIcon Icon, ProgressRing Ring, TextBlock Label)> _parts = [];
     private EditorServices? _services;
 
     public ToolsBar()
@@ -29,8 +31,13 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
         {
             var label = new TextBlock { Text = tool.Label, Style = (Style)Application.Current.Resources["BodyTextStyle"], VerticalAlignment = VerticalAlignment.Center };
             var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-            content.Children.Add(new FontIcon { Glyph = tool.Glyph, FontSize = 14 });
+            var icon = new FontIcon { Glyph = tool.Glyph, FontSize = 14 };
+            // Mientras la acción corre, el ícono pasa a un giro (con el avance si se conoce) y el botón no se vuelve a pulsar.
+            var ring = new ProgressRing { Width = 14, Height = 14, MinWidth = 0, MinHeight = 0, IsActive = false, Visibility = Visibility.Collapsed, Maximum = 1 };
+            content.Children.Add(icon);
+            content.Children.Add(ring);
             content.Children.Add(label);
+            _parts[tool.ActionId] = (icon, ring, label);
             var button = new Button { Content = content, Tag = tool.ActionId, Style = (Style)Resources["QuickToolButtonStyle"] };
             AutomationProperties.SetName(button, tool.Label);
             button.Click += OnToolClick;
@@ -48,7 +55,36 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
             modules.ModulesChanged += (_, _) => DispatcherQueue.TryEnqueue(Refresh);
         }
 
+        services.LongActions.Changed += (_, _) => DispatcherQueue.TryEnqueue(UpdateBusy);
         Refresh();
+    }
+
+    /// <summary>Para la autoprueba: si el botón está ocupado y qué dice.</summary>
+    internal (bool Busy, string Label) Busy(string actionId) =>
+        _parts.TryGetValue(actionId, out var parts) ? (parts.Ring.Visibility == Visibility.Visible, parts.Label.Text) : (false, "");
+
+    private void UpdateBusy()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        IReadOnlyList<LongActionStatus> running = _services.LongActions.Running;
+        foreach (QuickTool tool in QuickTools.All)
+        {
+            (FontIcon icon, ProgressRing ring, TextBlock label) = _parts[tool.ActionId];
+            LongActionStatus? status = running.FirstOrDefault(r => r.ActionId == tool.ActionId);
+            bool busy = status is not null;
+            icon.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
+            ring.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+            ring.IsActive = busy;
+            ring.IsIndeterminate = status?.Progress is null;
+            ring.Value = status?.Progress ?? 0;
+            label.Text = status is { ProgressText.Length: > 0 } ? $"{tool.Label} · {status.ProgressText}" : tool.Label;
+            _buttons[tool.ActionId].IsEnabled = !busy;
+            AutomationProperties.SetItemStatus(_buttons[tool.ActionId], busy ? "En marcha " + status!.ProgressText : "");
+        }
     }
 
     /// <summary>Estado de un botón, para la autoprueba: si aplica y la ayuda que muestra.</summary>
@@ -59,7 +95,9 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
     {
         EditorSession session = _services!.Session;
         bool noiseModule = _services.Modules?.FindByFunction(NoiseReduction.Function) is not null;
-        return QuickTools.State(actionId, session.Project, session.Sequence, [.. session.SelectedClipIds], noiseModule);
+        bool visionModule = _services.Modules?.FindByFunction(Vision.VisionTools.RemoveBackgroundFunction) is not null;
+        bool subtitleModule = _services.Modules?.FindByFunction(Subtitles.AutoSubtitles.Function) is not null;
+        return QuickTools.State(actionId, session.Project, session.Sequence, [.. session.SelectedClipIds], noiseModule, visionModule, subtitleModule);
     }
 
     private void Refresh()

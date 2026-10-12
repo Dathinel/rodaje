@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.Analysis;
 using Rodaje.App.Services;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Titles;
@@ -28,23 +29,14 @@ internal static class AutoSubtitlesDialog
 
     private static string _language = "auto";
 
-    /// <summary>Lo que llama el menú: un fallo se avisa, no cierra la app.</summary>
-    public static async void Run(EditorServices services)
+    /// <summary>Lo que llama el menú, como acción larga: un fallo se avisa, no cierra la app.</summary>
+    public static void Run(EditorServices services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        try
-        {
-            await ShowAsync(services);
-        }
-#pragma warning disable CA1031 // Un fallo del diálogo no debe cerrar la app: se avisa.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            services.Session.Notify(NotificationSeverity.Error, Title, ex.Message);
-        }
+        _ = services.LongActions.RunAsync(SubtitleCommands.AutoSubtitles, Title, scope => ShowAsync(services, scope));
     }
 
-    public static async Task ShowAsync(EditorServices services)
+    public static async Task ShowAsync(EditorServices services, LongActionScope? scope = null)
     {
         EditorSession session = services.Session;
         if (AutoSubtitles.TargetClip(session.Sequence, session.SelectedClipIds, c => ClipAudioSource.HasAudio(session, c)) is not { } clip
@@ -121,6 +113,7 @@ internal static class AutoSubtitlesDialog
             if (job is not null)
             {
                 progress.Value = job.Progress;
+                scope?.Report(job.Progress, "Transcribiendo la voz…");
                 status.Text = (job.Stage ?? "Transcribiendo") + "…";
             }
         };

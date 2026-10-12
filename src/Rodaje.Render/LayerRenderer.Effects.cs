@@ -41,6 +41,7 @@ internal sealed unsafe partial class LayerRenderer
     private LayerPlan BuildPlan(LayerFrame layer, ref EffectConstants effects, ref FrameStats stats)
     {
         _spatial.Clear();
+        _masks.Clear();
         int flags = 0;
         int perPixel = 0;
         ID3D11ShaderResourceView* lut = null;
@@ -91,6 +92,9 @@ internal sealed unsafe partial class LayerRenderer
                         Value(values, definition, 1),
                         Math.Max(Value(values, definition, 2), 1e-3f),
                         0);
+                    break;
+                case GpuEffectKind.Mask:
+                    _masks.Add(effect);
                     break;
                 case GpuEffectKind.Blur:
                     _spatial.Add(new SpatialStep(GpuEffectKind.Blur, BlurSigma(Value(values, definition, 0)), 0));

@@ -1,0 +1,5 @@
+{ "format": "rodaje.safezones", "version": 1, "id": "clasicos", "name": "Clásicos (acción y títulos)",
+  "center": true,
+  "zones": [
+    { "label": "Acción 93 %", "kind": "safe", "rect": [0.035, 0.035, 0.93, 0.93] },
+    { "label": "Títulos 90 %", "kind": "safe", "rect": [0.05, 0.05, 0.9, 0.9] } ] }

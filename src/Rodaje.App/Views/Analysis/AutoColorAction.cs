@@ -1,6 +1,7 @@
 using Rodaje.Analysis.Video;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Format;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Shell;
 
 namespace Rodaje.App.Views.Analysis;
@@ -11,7 +12,7 @@ namespace Rodaje.App.Views.Analysis;
 /// </summary>
 internal static class AutoColorAction
 {
-    public static async Task RunAsync(EditorServices services, bool levels)
+    public static async Task RunAsync(EditorServices services, bool levels, LongActionScope scope)
     {
         EditorSession session = services.Session;
         string title = levels ? "Color automático" : "Balance de blancos automático";
@@ -21,7 +22,8 @@ internal static class AutoColorAction
             return;
         }
 
-        ColorEstimate estimate = await ClipVideoSource.AnalyzeColorAsync(session, clip, CancellationToken.None);
+        scope.Report(0, "Midiendo el color…");
+        ColorEstimate estimate = await ClipVideoSource.AnalyzeColorAsync(session, clip, scope.Progress, scope.Token);
         if (session.Sequence.FindClip(clip.Id) is null)
         {
             return;

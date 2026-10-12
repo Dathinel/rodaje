@@ -713,6 +713,7 @@ public sealed unsafe class TitleRasterizer : IGeneratedContentCache, IDisposable
         ID2D1SolidColorBrush* fill = null;
         ID2D1SolidColorBrush* stroke = null;
         ID2D1SolidColorBrush* background = null;
+        ID2D1SolidColorBrush* highlight = null;
         ID2D1StrokeStyle* strokeStyle = null;
         ID2D1GeometryGroup* outline = null;
         ID2D1Bitmap1* layer = null;
@@ -738,6 +739,14 @@ public sealed unsafe class TitleRasterizer : IGeneratedContentCache, IDisposable
             D2D_MATRIX_3X2_F world = Matrix(toTexture);
             D2D_MATRIX_3X2_F identity = Matrix(System.Numerics.Matrix3x2.Identity);
             fill = Brush(style.Fill.Color);
+            if (style.Highlight is { } word && content.HighlightLength > 0)
+            {
+                // Karaoke: la palabra que suena con otro pincel; el borde y la sombra no cambian.
+                highlight = Brush(word.Color);
+                Check(layout->SetDrawingEffect((IUnknown*)highlight,
+                    new DWRITE_TEXT_RANGE { startPosition = (uint)content.HighlightStart, length = (uint)content.HighlightLength }), "SetDrawingEffect");
+            }
+
             if (style.Stroke is { } s && shape.Stroke > 0)
             {
                 stroke = Brush(s.Color);
@@ -866,6 +875,7 @@ public sealed unsafe class TitleRasterizer : IGeneratedContentCache, IDisposable
             Com.Release(ref outline);
             Com.Release(ref strokeStyle);
             Com.Release(ref background);
+            Com.Release(ref highlight);
             Com.Release(ref stroke);
             Com.Release(ref fill);
             Com.Release(ref bitmap);

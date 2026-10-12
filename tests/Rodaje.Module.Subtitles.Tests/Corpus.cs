@@ -42,6 +42,10 @@ internal static class Corpus
     public static string? ModelPath =>
         Environment is { } env && Path.Combine(env, "modelos", "ggml-large-v3-turbo-q5_0.bin") is var p && File.Exists(p) ? p : null;
 
+    /// <summary>El modelo menor de la CPU (D-034); <c>RODAJE_WHISPER_CPU</c> elige otro archivo de <c>modelos</c> para comparar.</summary>
+    public static string? CpuModelPath =>
+        Environment is { } env && Path.Combine(env, "modelos", System.Environment.GetEnvironmentVariable("RODAJE_WHISPER_CPU") is { Length: > 0 } f ? f : "ggml-small-q5_1.bin") is var p && File.Exists(p) ? p : null;
+
     public static string? FleursDirectory =>
         Environment is { } env && Path.Combine(env, "corpus", "fleurs-es") is var d && File.Exists(Path.Combine(d, ".audio-dev")) ? d : null;
 
