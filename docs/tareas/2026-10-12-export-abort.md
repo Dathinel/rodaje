@@ -29,7 +29,8 @@ No se omitió ni se desactivó ninguna prueba.
 
 ## Estado de la CI
 
-Ver el comentario «Listo para revisar» del PR.
+- **Linux:** en verde. `Rodaje.Media.Tests` compila en Linux con `-p:EnableWindowsTargeting=true`, sin advertencias.
+- **Windows:** sin resultado de pruebas. En las dos corridas (run 38206623708, intentos 1 y 2, sobre la unión con `ecd16a9` de main) `dotnet restore --locked-mode` falla antes de compilar, con NU1004 en `src/Rodaje.Modules.Protocol` (tarea 43, fuera de los caminos). Por eso `CpuExportCancellationTests` todavía no se ha visto pasar con el tope de 1 s. Al unirse la tarea 43 hay que relanzar la CI de este PR y mirar las líneas «cancelada a los … ms».
 
 ## Posibles choques
 
