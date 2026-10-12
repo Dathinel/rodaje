@@ -64,6 +64,9 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private GpuDevice? _gpu;
     private TimelineSession? _session;
     private Compositor? _compositor;
+    /// <summary>El gris de alrededor del lienzo, igual que <c>ViewerSurroundColor</c> de <c>Palette.xaml</c> (#242424).</summary>
+    private static readonly (float R, float G, float B) SurroundColor = (0x24 / 255f, 0x24 / 255f, 0x24 / 255f);
+
     private Presenter? _presenter;
     private CompositionSwapChain? _swapChain;
     private GpuTimer? _gpuTimer;
@@ -354,7 +357,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         _gpu = GpuDevice.TryCreate(out string? gpuFailure) ?? throw new InvalidOperationException("Hace falta una GPU con Direct3D 11. " + gpuFailure);
         DeviceDescription = _gpu.ToString();
-        _presenter = new Presenter(_gpu);
+        _presenter = new Presenter(_gpu) { Surround = SurroundColor };
         _gpuTimer = new GpuTimer(_gpu);
         CreateTitles();
         _metrics.Milestone("gpu_lista");

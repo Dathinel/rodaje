@@ -51,7 +51,7 @@ Fases 1–5, 5c y 6 construidas; 5b (títulos) y 7 (IA local) en curso. Detalle 
 
 ## Decisiones
 
-- **Registro:** `docs/decisiones.md`, de D-001 a D-032.
+- **Registro:** `docs/decisiones.md`, de D-001 a D-033 (D-033, provisional: formato en el reproductor, exportar sigue al proyecto y herramientas rápidas).
 - **Módulos:** `docs/propuesta-modulos.md`, aprobada. Núcleo en el exe, contenido en `.paquete` sin código, IA como procesos C#.
 - **Pendientes para la interfaz:** decidir cómo funciona el ripple con enlazados de distinto largo y si se limpian los enlaces huérfanos.
 - **Archivo:** la investigación y el sondeo están en `docs/archivo/`; el código del sondeo, en la etiqueta git `sondeo-interop-aot`.

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Herramientas rápidas encima de la línea de tiempo: las que se usan a cada rato, con ícono y nombre, a un clic. Las que
+    no aplican a lo seleccionado se ven atenuadas y dicen por qué (en la ayuda y al pulsarlas). Los menús siguen igual.
+-->
+<UserControl
+    x:Class="Rodaje.App.Views.Tools.ToolsBar"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <Style x:Key="QuickToolButtonStyle" TargetType="Button" BasedOn="{StaticResource RodajeButtonStyle}">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0" Padding="8,3" ColumnSpacing="6">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="Herramientas" Style="{StaticResource PanelTitleTextStyle}" VerticalAlignment="Center" Margin="4,0,6,0" />
+        <ScrollViewer Grid.Column="1" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled"
+                      VerticalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="Buttons" Orientation="Horizontal" Spacing="2" />
+        </ScrollViewer>
+    </Grid>
+</UserControl>

@@ -38,6 +38,19 @@ public class TemplateSessionTests
     });
 
     [Fact]
+    public void ElegirElFormatoEnUnProyectoVacio_ElPrimerVideoNoLoCambia() => UiThread.Run(async () =>
+    {
+        var prober = new FakeProber().Video("a.mp4", 10, 1920, 1080, new Rational(25, 1));
+        var session = new EditorSession(new FakePlayback(), prober, new FakeDialogs(), new SequentialIdGenerator());
+        Assert.True(session.ChangeFormat(1080, 1920, Rational.Fps30, Rodaje.App.Services.Format.ClipFit.Fit));
+
+        await session.ImportMediaAsync([Path.GetFullPath("a.mp4")]);
+
+        Assert.Equal((1080, 1920), (session.Sequence.Width, session.Sequence.Height));
+        Assert.True(session.History.CanUndo);
+    });
+
+    [Fact]
     public void ProyectoNuevoCorriente_SigueTomandoElFormatoDelPrimerVideo() => UiThread.Run(async () =>
     {
         var prober = new FakeProber().Video("a.mp4", 10, 3840, 2160, new Rational(25, 1));

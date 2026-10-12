@@ -7,8 +7,11 @@ namespace Rodaje.App.Services.Settings;
 /// <summary>Preferencias de la persona que sobreviven entre sesiones (<c>ajustes.json</c>).</summary>
 public sealed partial class AppSettings
 {
-    /// <summary>2: el panel derecho pasa a 380 px por defecto para que sus pestañas quepan con nombre.</summary>
-    public const int CurrentVersion = 2;
+    /// <summary>
+    /// 2: el panel derecho pasa a 380 px por defecto para que sus pestañas quepan con nombre. 3: los márgenes seguros se
+    /// apagan una vez (Daniel los confundió con guías de recorte de la secuencia vertical).
+    /// </summary>
+    public const int CurrentVersion = 3;
 
     public const double DefaultLibraryWidth = 280;
 
@@ -55,6 +58,9 @@ public sealed partial class AppSettings
     /// <summary>El reproductor muestra los márgenes seguros de acción y de títulos.</summary>
     public bool ShowSafeAreas { get; set; }
 
+    /// <summary>Cómo quedan los clips al cambiar el formato del proyecto desde el reproductor.</summary>
+    public Format.ClipFit FormatClipFit { get; set; } = Format.ClipFit.Fit;
+
     /// <summary>Secciones del inspector abiertas (true) o plegadas (false); las que faltan siguen su valor de fábrica.</summary>
     public Dictionary<string, bool> InspectorSections { get; set; } = [];
 
@@ -99,6 +105,11 @@ public sealed partial class AppSettings
         if (Version < 2)
         {
             InspectorWidth = Math.Max(InspectorWidth, DefaultInspectorWidth);
+        }
+
+        if (Version < 3)
+        {
+            ShowSafeAreas = false;
             Version = CurrentVersion;
         }
 

@@ -12,6 +12,7 @@ public class ProjectTemplateTests
     [InlineData(BuiltInTemplates.Landscape1080Id, 1920, 1080)]
     [InlineData(BuiltInTemplates.Vertical1080Id, 1080, 1920)]
     [InlineData(BuiltInTemplates.Square1080Id, 1080, 1080)]
+    [InlineData(BuiltInTemplates.Portrait1080Id, 1080, 1350)]
     [InlineData(BuiltInTemplates.Landscape4KId, 3840, 2160)]
     public void DeFabrica_CreanUnProyectoVálidoConSuFormato(string id, int width, int height)
     {
@@ -35,9 +36,9 @@ public class ProjectTemplateTests
     [Fact]
     public void DeFabrica_TienenIdentificadoresYNombresDistintos()
     {
-        Assert.Equal(4, BuiltInTemplates.All.Count);
-        Assert.Equal(4, BuiltInTemplates.All.Select(t => t.Id).Distinct().Count());
-        Assert.Equal(4, BuiltInTemplates.All.Select(t => t.Name).Distinct().Count());
+        Assert.Equal(5, BuiltInTemplates.All.Count);
+        Assert.Equal(5, BuiltInTemplates.All.Select(t => t.Id).Distinct().Count());
+        Assert.Equal(5, BuiltInTemplates.All.Select(t => t.Name).Distinct().Count());
         Assert.All(BuiltInTemplates.All, t => Assert.Same(t, BuiltInTemplates.Find(t.Id)));
     }
 

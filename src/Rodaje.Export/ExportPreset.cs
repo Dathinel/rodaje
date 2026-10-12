@@ -68,7 +68,7 @@ public static class ExportPresets
         });
 
     public static ExportPreset Vertical { get; } = Factory("rodaje.vertical-1080x1920", "Reels / TikTok 9:16",
-        "1080×1920 con barras si la secuencia es horizontal.", ExportPresetCategory.Platform,
+        "H.264 para redes, 1080 de ancho. Pon el proyecto en 9:16.", ExportPresetCategory.Platform,
         new ExportSettings
         {
             Video = new VideoExportSettings
@@ -80,7 +80,7 @@ public static class ExportPresets
         });
 
     public static ExportPreset Square { get; } = Factory("rodaje.cuadrado-1080x1080", "Instagram 1:1",
-        "1080×1080 con barras si la secuencia es horizontal.", ExportPresetCategory.Platform,
+        "H.264 para redes, 1080 de lado. Pon el proyecto en 1:1.", ExportPresetCategory.Platform,
         new ExportSettings
         {
             Video = new VideoExportSettings
