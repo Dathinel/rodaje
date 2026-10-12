@@ -120,7 +120,7 @@ public class ExportJobListTests
     [InlineData(ExportErrorCode.OutputNotWritable, ExportErrorAction.ChooseOutput)]
     [InlineData(ExportErrorCode.EncoderRejected, ExportErrorAction.ChangeSettings)]
     [InlineData(ExportErrorCode.GpuFailed, ExportErrorAction.Retry)]
-    [InlineData(ExportErrorCode.EncoderMissing, ExportErrorAction.None)]
+    [InlineData(ExportErrorCode.EncoderMissing, ExportErrorAction.ChangeSettings)]
     [InlineData(ExportErrorCode.EffectFailed, ExportErrorAction.ContinueWithout)]
     public void CadaErrorTraeSuAccion(ExportErrorCode code, ExportErrorAction action)
     {

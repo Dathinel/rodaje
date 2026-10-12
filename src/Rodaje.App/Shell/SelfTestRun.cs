@@ -643,8 +643,16 @@ internal static partial class SelfTestRun
         }
 
         string output = Path.Combine(Path.GetTempPath(), $"rodaje-autoprueba-{Environment.ProcessId}.mp4");
+        ExportSettings settings = ExportPresets.YouTube1080p.Settings;
+        if (window.ExportPage?.Model is { } model && ExportSettingsEditor.Validate(settings, model.Encoders).Count > 0)
+        {
+            // Sin GPU ni Media Foundation (Windows N, Windows Server) no hay H.264: AV1, la salida que ofrece D-028.
+            settings = settings with { Video = ExportSettingsEditor.DefaultVideo(ExportCodec.Av1, model.Encoders) };
+            Program.Metrics.Note("autoprueba: sin codificador de H.264, se exporta en AV1");
+        }
+
         ExportEntry entry = window.Exports.Enqueue(new ExportRequest(window.Session.Project.Clone(), window.Session.SequenceId, output,
-            ExportPresets.YouTube1080p.Settings, new ExportRange(Time.Zero, Time.Min(window.Session.Sequence.Duration, Time.FromSeconds(2)))));
+            settings, new ExportRange(Time.Zero, Time.Min(window.Session.Sequence.Duration, Time.FromSeconds(2)))));
         window.InspectorPane.Show(InspectorView.Tab.Jobs);
         for (int i = 0; i < 100 && entry.Progress.State != ExportJobState.Encoding && !entry.IsFinished; i++)
         {
@@ -735,14 +743,15 @@ internal static partial class SelfTestRun
         }
     }
 
-    /// <summary>El MP4 de la autoprueba: video H.264 de la duración pedida con <c>moov</c> al principio y audio AAC.</summary>
+    /// <summary>El MP4 de la autoprueba: video H.264 (AV1 si el equipo no tiene H.264) de la duración pedida con <c>moov</c> al principio y audio AAC.</summary>
     private static void CheckExported(string output, ExportRequest request)
     {
         try
         {
             ExportReport report = ExportVerifier.For(FfmpegExecutable.Locate()).Inspect(output);
             double expected = request.Range!.Value.Duration.ToSeconds();
-            if (report.Video is not { Codec: "h264" } video || Math.Abs(video.DurationSeconds - expected) > 0.05 || report.MoovAtStart != true
+            string codec = request.Settings.Video?.Codec == ExportCodec.Av1 ? "av1" : "h264";
+            if (report.Video is not { } video || video.Codec != codec || Math.Abs(video.DurationSeconds - expected) > 0.05 || report.MoovAtStart != true
                 || report.Audio is not { Codec: "aac" })
             {
                 throw new InvalidOperationException($"El MP4 exportado no es el esperado: {report}");
