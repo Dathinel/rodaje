@@ -39,6 +39,22 @@ public sealed class ModuleCall
         return region;
     }
 
+    /// <summary>Los bytes de un búfer de una región de esta llamada (por ejemplo, lo que devolvió el módulo); comprueba los límites.</summary>
+    /// <exception cref="ModuleCallException">Si el búfer no es de una región de la llamada o se sale de ella.</exception>
+    public Span<byte> Map(SharedBufferRef buffer)
+    {
+        ArgumentNullException.ThrowIfNull(buffer);
+        foreach (SharedMemoryRegion region in _regions)
+        {
+            if (region.Name == buffer.Region)
+            {
+                return region.GetSpan(buffer);
+            }
+        }
+
+        throw new ModuleCallException(ErrorCodes.BufferOutOfRange, "El búfer no es de esta llamada.");
+    }
+
     /// <summary>Avance propio de la app (por ejemplo «Leyendo el audio»), de 0 a 1 sobre el trabajo entero.</summary>
     public void Report(double fraction, string? stage = null) => Job.Report(fraction, stage);
 
