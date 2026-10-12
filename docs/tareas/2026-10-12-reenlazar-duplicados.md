@@ -44,6 +44,7 @@ Rama `claude/reenlazar-duplicados` (tarea 48 de la cola), PR #47. Sigue a la tar
 ## Pendiente
 
 - Una prueba de la app (Windows) del diálogo con un renombrado que se confirma, si se quiere cubrir la interfaz.
+- `MediaRelinkEdits.CheckReplacement` (de la tarea 28, `MediaRelink.cs`) formatea la duración con `{…:0.##}` y la cultura del hilo: con `InvariantGlobalization` la app mostraría «10.5 s». El núcleo no tiene `SpanishNumbers` (está en `Rodaje.App/Services/Format`), así que no se tocó aquí. El diálogo de esta tarea solo muestra enteros y no usa `CultureInfo.CurrentCulture`.
 
 ## Qué comprobar en Windows
 
