@@ -41,8 +41,25 @@ public sealed class ProcessTests(ITestOutputHelper output)
         await Assert.ThrowsAnyAsync<ModuleDisconnectedException>(() => call.WaitAsync(TimeSpan.FromSeconds(2)));
     }
 
+    /// <remarks>
+    /// Comprueba que el módulo que no confirma la cancelación se mata y la llamada termina cancelada. Cuánto tarda lo mide
+    /// <see cref="A_module_that_ignores_cancel_is_killed_soon_after_the_grace_period"/> (TiempoReal): con el runner de
+    /// Windows cargado, matar el árbol de procesos llegó a tardar 4,6 s y esta prueba fallaba sin defecto.
+    /// </remarks>
     [Fact]
     public async Task A_module_that_ignores_cancel_is_killed_after_the_grace_period()
+    {
+        await using ModuleProcess module = await ModuleProcess.StartAsync(Support.EchoExe, options: new ModuleClientOptions { CancelGrace = TimeSpan.FromMilliseconds(300) });
+        using CancellationTokenSource cts = new(TimeSpan.FromMilliseconds(100));
+        Stopwatch watch = Stopwatch.StartNew();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => module.Client.InvokeAsync("colgar", cancellationToken: cts.Token).WaitAsync(TimeSpan.FromSeconds(60)));
+        Assert.True(watch.Elapsed >= TimeSpan.FromMilliseconds(300), $"no esperó la gracia: {watch.ElapsedMilliseconds} ms");
+        await module.Exited.WaitAsync(TimeSpan.FromSeconds(60));
+    }
+
+    [Fact]
+    [Trait("Categoria", "TiempoReal")]
+    public async Task A_module_that_ignores_cancel_is_killed_soon_after_the_grace_period()
     {
         await using ModuleProcess module = await ModuleProcess.StartAsync(Support.EchoExe, options: new ModuleClientOptions { CancelGrace = TimeSpan.FromMilliseconds(300) });
         using CancellationTokenSource cts = new(TimeSpan.FromMilliseconds(100));
