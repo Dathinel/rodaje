@@ -1,42 +1,44 @@
 # Pendientes legales
 
-Lo que falta para publicar Rodaje bajo la GNU GPLv3 con términos adicionales de atribución y permiso para complementos (D-032, que sustituye a la PolyForm Noncommercial de D-030). Las consultas y los trámites son de Daniel; el material de apoyo está en [`legal.md`](legal.md) y [`LICENCIAS.md`](../LICENCIAS.md). Cada casilla se marca con la fecha y el resultado.
+Lo que queda por resolver para distribuir Rodaje bajo la GNU GPLv3 con términos adicionales de atribución y permiso para complementos (D-032). El análisis de fondo está en [legal.md](legal.md) y las licencias de cada dependencia en [`LICENCIAS.md`](../LICENCIAS.md). Cada casilla se marca con la fecha y el resultado.
+
+## Antes de distribuir la v1
+
+- [ ] **`THIRD-PARTY-NOTICES.txt` completo.** Hoy solo trae el runtime de .NET y una nota sobre FFmpeg. Faltan los avisos de las bibliotecas dentro de las DLL de FFmpeg (con AOM, `PATENTS` de Google, LAME, IJG y la nota de AMD), Windows App SDK, WebView2, CsWinRT, FFmpeg.AutoGen, TerraFX y cada paquete NuGet que viaja en la distribución (comparar con los `packages.lock.json`).
+- [ ] **Código fuente de Rodaje por versión.** Cada ejecutable señala el código de su versión exacta (etiqueta `v1.0.0` o equivalente).
+- [ ] **Código fuente de FFmpeg.** Archivar los tarballs del commit `2a571b6` de FFmpeg, de los scripts de BtbN y de cada biblioteca externa que fijan, y ofrecerlos junto a la descarga o por oferta escrita ([legal.md](legal.md), «Compilación fijada»). Añadir el enlace a esa fuente en «Acerca de».
+- [ ] **Bibliotecas de FFmpeg sin revisar.** Leer en el commit que fija BtbN la licencia de librist, libbluray y las que no tienen fila en `LICENCIAS.md` (Fontconfig, GLib, cairo y Pango de librsvg, Vulkan y shaderc de libplacebo, Little CMS, libvorbis, rav1e y el resto), buscar la nota «Incompatible With Secondary Licenses» en libzmq y SRT, y confirmar en gnu.org las marcadas «a confirmar» (HarfBuzz, libvmaf, `PATENTS` de libjxl).
+- [ ] **Logotipo e icono propios.** `TRADEMARK.md` los reserva, pero la app todavía no tiene logotipo ni icono definitivos.
+- [ ] **Reporte privado de vulnerabilidades** activado en GitHub (`SECURITY.md`).
+- [ ] **Escaneo de secretos** del historial completo con gitleaks.
+
+## Para revisar con un abogado de propiedad intelectual
+
+Por ahora Rodaje se distribuye sin fines comerciales; la consulta es necesaria antes de cualquier distribución comercial y recomendable antes de la primera versión pública.
+
+- [ ] **Autoría con código escrito con IA.** Buena parte del código se escribió con asistentes de IA dirigidos por el autor. Qué protección de autor tiene ese código en Colombia y qué significa para el copyright de `LICENSE` y para hacer valer los términos de atribución.
+- [ ] **Términos adicionales de la Sección 7.** Si los términos 1 a 3 caben en 7(b) y 7(c), en especial el 2 (avisos en tiendas y páginas de venta), que podría ser una «further restriction» eliminable ([legal.md](legal.md), punto c).
+- [ ] **Permiso para complementos.** Redacción del término 4 frente a la Sección 7 y a las excepciones de la FSF, y si cubre módulos propios que lleven DirectML u otros binarios de Microsoft.
+- [ ] **Windows App SDK.** Si la excepción de «System Libraries» lo cubre o hace falta un permiso adicional de enlace, y qué texto de usuario final cumple su cláusula 3.b (punto b). Revisar el aviso sobre los binarios de Microsoft que muestra el instalador.
+- [ ] **LGPL de FFmpeg.** Confirmar la compatibilidad con la GPLv3 y el párrafo de `THIRD-PARTY-NOTICES.txt` marcado como pendiente de revisión legal (punto a).
+- [ ] **Activos reservados.** Cómo se combina la reserva del logotipo y el icono de `TRADEMARK.md` con la GPLv3 si viajan dentro del ejecutable.
+- [ ] **Patentes de H.264, HEVC y AAC.** Exposición al decodificar y al exportar (Via LA, Access Advance), aunque la codificación vaya por GPU o Media Foundation, a la vista de la nota de AMD ([legal.md](legal.md), «Quién cubre las patentes»). El resultado se anota como decisión en [decisiones.md](decisiones.md).
+- [ ] **Licencias de patentes de las bibliotecas.** Terminación defensiva de la AOM Patent License 1.0 (SVT-AV1, libaom), declaraciones de Opus ante la IETF y, si se llegara a usar, el binario de OpenH264 de Cisco (punto e).
+- [ ] **Nombres de redes en las zonas seguras del visor.** Los juegos de fábrica se llaman «TikTok», «Instagram Reels», «YouTube Shorts», «Facebook Reels»… solo para decir a qué interfaz se refieren, con dibujo propio y sin logotipos ([formato-paquete.md](formato-paquete.md), `safe-zones`). Confirmar que basta y si conviene una nota de marcas ajenas en la app.
 
 ## Marca y registro
 
-- [x] **Nombre «Rodaje» en la SIC** (11-oct: Daniel comprobó que no está registrado; el registro se decide antes de la versión pública). Buscarlo en la Superintendencia de Industria y Comercio (https://www.sic.gov.co), clase 9 de Niza (software descargable; mirar también la 42). Si sigue libre, decidir si se registra. Con la GPLv3 el nombre es lo que impide que otro venda «Rodaje» tal cual: `TRADEMARK.md` lo reserva, pero sin registro su fuerza es menor.
-- [ ] **Logotipo e icono propios.** `TRADEMARK.md` los reserva; hoy la app no tiene logotipo ni icono definitivos. Hacerlos antes de publicar.
-- [ ] **Nombres de redes en las zonas seguras del visor.** Los juegos de fábrica se llaman «TikTok», «Instagram Reels», «YouTube Shorts», «Facebook Reels»… solo para decir a qué interfaz se refieren (uso nominativo), con dibujo propio y sin logotipos ni capturas (`formato-paquete.md`, `safe-zones`). Confirmar con el abogado que basta y si conviene una nota de marcas ajenas en la app.
-- [ ] **Registro de derechos de autor (opcional).** Ante la Dirección Nacional de Derechos de Autor (https://www.derechodeautor.gov.co), como soporte lógico. No es obligatorio para tener los derechos, pero sirve de prueba de fecha y autoría.
+- [x] **Nombre «Rodaje» en la SIC:** no está registrado (consulta del 11 de octubre de 2026).
+- [ ] **Búsqueda de marcas** en USPTO y EUIPO, clases 9 y 42 de Niza, y decidir si se registra en la SIC. Con la GPLv3, el nombre es lo que impide que otro venda «Rodaje» tal cual: `TRADEMARK.md` lo reserva, pero sin registro su fuerza es menor.
+- [ ] **Registro de derechos de autor (opcional)** ante la Dirección Nacional de Derechos de Autor (https://www.derechodeautor.gov.co), como soporte lógico. No es obligatorio, pero sirve de prueba de fecha y autoría.
 
-## Consulta con un abogado de propiedad intelectual
+## Complementos y módulos
 
-**Aplazada** (Daniel, 11-oct): por ahora Rodaje es para uso propio y de personas cercanas; la consulta se hace antes de publicarlo. Los puntos de la GPLv3 están en `legal.md`, «Compatibilidad con la GPLv3».
-
-- [ ] **Autoría con código escrito por IA.** Buena parte del código lo escribieron agentes de IA dirigidos por Daniel. Preguntar qué protección de autor tiene ese código en Colombia y qué significa para el copyright de `LICENSE` y para hacer valer los términos de atribución.
-- [ ] **Términos adicionales de la Sección 7.** Si los términos 1 a 3 caben en 7(b) y 7(c), en especial el 2 (obligaciones en tiendas y páginas de venta), que podría ser una «further restriction» eliminable (`legal.md`, punto c).
-- [ ] **Permiso para complementos.** Revisar la redacción del término 4 frente a la Sección 7 y al modelo de excepciones de la FSF, y si cubre los módulos de IA propios que lleven DirectML u otros binarios de Microsoft.
-- [x] **Versión de la GPL** (11-oct, commit `2d7db6d`: la cabecera de `LICENSE` dice «version 3 only (SPDX: GPL-3.0-only), not any later version», igual que `Directory.Build.props`; `legal.md`, punto f). Antes no lo decía y la Sección 14 dejaba elegir cualquier versión.
-- [ ] **Windows App SDK frente a la GPLv3.** Su cláusula 3.c prohíbe someter sus archivos a copyleft y 3.b pide términos que protejan a Microsoft. Confirmar si la excepción de «System Libraries» los cubre o si hace falta un permiso adicional de enlace, y qué texto de usuario final cumple 3.b (`legal.md`, punto b).
-- [ ] **LGPL de FFmpeg.** Confirmar la conclusión de `legal.md` (LGPL v3 compatible con la GPLv3) y revisar el párrafo de `THIRD-PARTY-NOTICES.txt` marcado como pendiente de revisión legal.
-
-## Obligaciones de terceros antes de distribuir
-
-- [ ] **Código fuente de Rodaje.** Con cada ejecutable entregado, el código fuente correspondiente o un enlace a él (GPLv3, Sección 6). Desde el 11-oct el repositorio es público y el enlace del crédito funciona para terceros; falta que cada ejecutable señale el código de su versión exacta.
-- [ ] **Código fuente de FFmpeg.** Archivar el tarball del commit `2a571b6` de FFmpeg y el de los scripts de BtbN, y ofrecerlos junto a `dist\` o por oferta escrita (`legal.md`, «Compilación fijada»).
-- [ ] **`THIRD-PARTY-NOTICES.txt` completo.** Avisos del runtime de .NET pegados enteros, bibliotecas externas de las DLL de FFmpeg, Windows App SDK, WebView2, CsWinRT y cada paquete NuGet que viaje en `dist\` (comparar con los `packages.lock.json`).
-- [ ] **Licencias de las bibliotecas de FFmpeg sin revisar.** `LICENCIAS.md`, «Otras bibliotecas dentro de las DLL de FFmpeg»: leer en el commit que fija BtbN la licencia de librist y libbluray (code.videolan.org no respondía desde la nube) y de las que quedan sin fila (Fontconfig, GLib, cairo y Pango de librsvg, Vulkan y shaderc de libplacebo, Little CMS, libvorbis, rav1e y el resto de la lista), buscar la nota «Incompatible With Secondary Licenses» en libzmq y SRT, y confirmar en gnu.org las marcas «a confirmar» (HarfBuzz, libvmaf, `PATENTS` de libjxl). Hasta entonces no se puede decir que ninguna sea solo GPL (`legal.md`, «`ffmpeg.exe` para los proxies»).
-- [ ] **Patentes de H.264, HEVC y AAC.** Revisar con el abogado la exposición por decodificar y por exportar (Via LA, Access Advance), aunque la codificación vaya por hardware o Media Foundation (`legal.md`, «Patentes de códecs»).
-
-## Licencias propias que quedan por decidir
-
-- [x] **Repositorios de contenido** (decidido el 11-oct: siguen en CC0 y lo nuevo también, contenido libre sin restricción comercial; se mantiene con la GPLv3, D-032). `Dathinel/rodaje-transiciones` y `Dathinel/rodaje-filtros` son públicos y CC0. Qué contienen hoy:
-  - `rodaje-transiciones` 1.0.0: contenido real, 8 transiciones en `rodaje.preset` v2 (cuatro deslizamientos, empujar, acercar, alejar y girar), su manifiesto y `empaquetar.ps1`. Un commit (10-oct).
-  - `rodaje-filtros` 1.0.0: contenido real, 8 filtros de color con sus LUT 33³ generadas por fórmulas propias en `generar.ps1` (las LUT no se versionan, salen del script). Un commit (10-oct).
-  - Los dos llevan una copia de `formato-paquete.md` de Rodaje (con eso la especificación del formato ya es pública y CC0), no tienen ninguna release publicada aunque el README remite a las releases, y enlazan a `Dathinel/rodaje`, público desde el 11-oct.
-- [ ] **`rodaje-codificadores-gpl` antes de publicarlo** (`legal.md`, punto h): fuente correspondiente completa (`armar-codificadores-gpl.ps1 -FuenteCompleta` o un `ffmpeg.exe` propio solo con x264 y x265) y el riesgo de patentes de H.264/HEVC codificados en software para quien lo distribuya. Abogado.
-- [ ] **BiRefNet_lite (datos DIS5K).** Va como «Calidad alta» opcional con su licencia de uso no comercial (D-034); para una versión comercial hay que firmar sus términos o quitarlo.
-- [ ] **`modulo-raw`:** si el runtime de Visual C++ viaja con el módulo y si los SDK de BRAW, R3D o ARRIRAW se aceptan más adelante (cada uno con su acuerdo). Decide Daniel; el runtime, con el abogado.
-- [ ] **`modulo-vision`, datos de entrenamiento:** BiRefNet_lite (pesos MIT) se entrenó con DIS5K, de uso no comercial; RT-DETRv2 y YuNet, con COCO y WIDER FACE. Confirmar que los pesos se pueden redistribuir sin heredar esas condiciones o dejar «calidad alta» como descarga aparte (`modules/Rodaje.Module.Vision/LICENCIAS.md`). Decide Daniel, con el abogado.
-- [ ] **Licencia de los repositorios de módulos** (`modulo-*`, `rodaje-codificadores-gpl`, `rodaje-catalogo`, fase 7). Privados hasta publicar (D-034). La recomendación inicial era la PolyForm; con D-032 la propuesta pasa a GPLv3 con los mismos términos, o la licencia que Daniel quiera gracias al permiso para complementos. Decide Daniel.
-- [ ] **Acuerdo de contribuidor.** Antes de aceptar contribuciones externas, un acuerdo que permita relicenciar y conceder permisos adicionales (ver [`contribuciones.md`](contribuciones.md)).
+- [x] **Repositorios de contenido:** CC0. `Dathinel/rodaje-transiciones` y `Dathinel/rodaje-filtros` (1.0.0, publicados en el catálogo) y `Dathinel/rodaje-catalogo` son públicos y CC0; los dos primeros incluyen una copia de `formato-paquete.md`, así que la especificación del formato también es CC0.
+- [ ] **`rodaje-codificadores-gpl`, antes de publicarlo:** compilar el `ffmpeg.exe` GPL propio decidido en D-034 (hoy el script empaqueta el de BtbN) y publicar su fuente correspondiente completa; revisar el riesgo de patentes de H.264 y HEVC codificados en software para quien lo distribuya ([legal.md](legal.md), «Complementos con otras licencias»).
+- [ ] **BiRefNet_lite** («calidad alta» del módulo de visión): pesos MIT entrenados con DIS5K, de uso no comercial. Confirmar si los pesos se pueden redistribuir sin heredar esa condición; si no, dejarlo como descarga aparte o quitarlo de una distribución comercial. Lo mismo, con menos riesgo, para YuNet (WIDER FACE) y RT-DETRv2 (COCO).
+- [ ] **Kokoro-82M:** sus datos de entrenamiento no son todos públicos; anotar la ficha del modelo antes de publicar el módulo de voz.
+- [ ] **Qwen3-4B:** comprobar la huella del archivo, fijar la URL a un commit de Hugging Face y anotar el tamaño antes de publicar el módulo de traducción.
+- [ ] **`modulo-raw`:** si el runtime de Visual C++ viaja con el módulo (redistribuible según Visual Studio; probablemente «System Library»), y si más adelante se aceptan los SDK de Blackmagic RAW, RED o ARRI, cada uno con su acuerdo. ProRes RAW, pendiente por patentes de Apple.
+- [ ] **Licencia de los repositorios de módulos** (`modulo-*`, `rodaje-codificadores-gpl`). Privados hasta publicarlos (D-034). La propuesta es la GPLv3 con los mismos términos que Rodaje (es la que declaran hoy sus `LICENCIAS.md`); el permiso para complementos permitiría cualquier otra.
+- [ ] **Acuerdo de contribuidor** antes de aceptar contribuciones externas ([contribuciones.md](contribuciones.md)).
