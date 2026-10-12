@@ -31,7 +31,9 @@ Rama `claude/qdv-fotograma` (tarea 29 de la cola, función 34 de `docs/pendiente
 
 La comparación con la vista previa usa el mismo método que `ExportTitleTests`: sesión, rasterizador y compositor como el reproductor en pausa, ya asentado.
 
-**Omitidas.** En Linux: antes 0 de este grupo (no existía), ahora 12 de 30 (las 6 de `StillEncoderTests` por falta de las bibliotecas FFmpeg 9 y del `ffmpeg.exe` LGPL; las 6 de `StillExporterTests` por lo mismo, y sin Direct3D 11). En la CI de Windows: las 4 de medios se omiten por no haber decodificación D3D11VA (WARP); las de codificación y las de títulos deberían correr (en la primera corrida se omitían todas porque pedían los codificadores de proxies; el commit «que corran en la CI de Windows» lo corrige: solo piden el `ffmpeg.exe` LGPL verificado y, las de títulos, la GPU con texturas). Cifras de la CI en el PR.
+**Omitidas.** En Linux: antes 0 de este grupo (no existía), ahora 12 de 30 (las 6 de `StillEncoderTests` por falta de las bibliotecas FFmpeg 9 y del `ffmpeg.exe` LGPL; las 6 de `StillExporterTests` por lo mismo, y sin Direct3D 11). En la CI de Windows: las 4 de medios se omiten por no haber decodificación D3D11VA (WARP); las de codificación y las de títulos deberían correr (en la primera corrida se omitían todas porque pedían los codificadores de proxies; el commit «que corran en la CI de Windows» lo corrige: solo piden el `ffmpeg.exe` LGPL verificado y, las de títulos, la GPU con texturas). En la CI de Windows (corrida 38205500886) `Rodaje.Export.Tests` da 89 pasan y 37 omitidas de 126 (antes del ajuste, 81 y 44 de 125): pasan las 6 de codificación con el FFmpeg 9 LGPL y las 2 de títulos en WARP (incluida la comparación con la vista previa); se omiten solo las 4 que necesitan D3D11VA.
+
+La CI de Windows sigue en rojo por pruebas ajenas a esta tarea: `ModuleManagerTests` (2), `TitleEditorTests.BordesYConvertirEnKeyframes`, `TitleRasterizerTests.Composing_a_ready_title_costs_little_gpu_time` (tiempo de GPU en WARP), `ExportEncoderAvailabilityTests.Probes_run_in_parallel_up_to_the_limit` y `SubtitleModuleTests.Audio_at_the_wrong_rate_is_rejected_without_closing_the_module`. La aplicación compila con `StillExportCommand`.
 
 ## Pendiente
 
@@ -40,7 +42,7 @@ La comparación con la vista previa usa el mismo método que `ExportTitleTests`:
 
 ## Posibles choques
 
-- `src/Rodaje.App/Shell/MainWindow.xaml.cs`: **una línea** tras `AnalysisCommands.Bind` (`StillExportCommand.Bind(_router, _services, _hwnd)`).
+- `src/Rodaje.App/Shell/MainWindow.xaml.cs`: **una línea** (`StillExportCommand.Bind(_router, _services, _hwnd)`) tras la de `ActionIds.Export`. Primero iba tras `AnalysisCommands.Bind` y chocaba con `VoiceCommands.Bind`, que entró en main mientras tanto (el PR quedó sin poder unirse y sin CI); se movió sin tocar main.
 - `src/Rodaje.App/Shell/TitleBar.xaml`: una línea en el menú Archivo tras «Exportar...».
 - `src/Rodaje.App/Services/Shortcuts/EditorShortcuts.cs`: una constante en `ActionIds` y una línea en `Catalog`.
 - Tarea 31 (catálogo único de codificadores): `StillPlan` toma `png` y `mjpeg` de `ExportEncoderCatalog.Find`, no de `ExportEncoderCandidates`; si el catálogo cambia de nombre o de forma, solo cambian esas dos líneas.
