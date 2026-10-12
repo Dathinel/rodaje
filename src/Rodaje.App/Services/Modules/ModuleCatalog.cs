@@ -171,7 +171,9 @@ public static class ModuleCatalog
         try
         {
             return Directory.EnumerateFiles(bin, fileName, SearchOption.AllDirectories)
-                .Where(p => !p.Contains(Path.DirectorySeparatorChar + "ref" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                // «native» es el exe AOT a medio publicar, sin las DLL nativas que pueda necesitar al lado.
+                .Where(p => !p.Contains(Path.DirectorySeparatorChar + "ref" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                    && !p.Contains(Path.DirectorySeparatorChar + "native" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(File.GetLastWriteTimeUtc)
                 .FirstOrDefault();
         }

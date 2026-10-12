@@ -29,3 +29,7 @@ Siempre se trabaja con varios agentes en paralelo, como hace la sesión local. N
 - **Cierre:** cada tarea con su PR y su entrega; tu resumen final lista todas.
 
 Luego vuelve a «Cómo elegir la siguiente tarea».
+
+## Modo autónomo (Daniel, 11-oct: estará lejos del PC bastante tiempo)
+
+Mientras la sesión local no responda, la nube **une sus propios PR** cuando se cumple todo esto: los dos trabajos de la CI (Linux y Windows) en verde, solo caminos permitidos, entrega en `docs/tareas/` y ninguna prueba omitida nueva sin causa concreta. Une con `gh pr merge <n> --merge` (nunca `--admin`, nunca push directo a main), marca la tarea `hecha` en `cola.md` en el mismo PR antes de unir, y anota el número en «PR sin revisar». Cada 4 PR unidos así, un agente revisor nuevo **con otro modelo** (`model: sonnet`) revisa el bloque y sus hallazgos se vuelven tareas nuevas en la cola (en un PR propio). Si la cola se queda sin tareas `pendiente`, agrega 1–3 de `docs/fase-*.md` o `docs/pendientes.md` (en un PR propio). Si una tarea toca `src/Rodaje.App/Shell/MainWindow.xaml.cs`, `SelfTestRun.cs` o `Rodaje.slnx`, cambia solo lo mínimo para evitar choques.

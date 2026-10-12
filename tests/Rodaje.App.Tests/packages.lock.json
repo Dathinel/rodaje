@@ -111,6 +111,12 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
+      "rodaje.analysis": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Core": "[1.0.0, )"
+        }
+      },
       "rodaje.audio": {
         "type": "Project",
         "dependencies": {

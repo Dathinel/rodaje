@@ -39,7 +39,7 @@ public enum EffectStage
     /// <summary>En el mezclador de audio.</summary>
     Audio,
 
-    /// <summary>Registrado para reconocerlo, pero el motor todavía no lo aplica (velocidad, estabilizar).</summary>
+    /// <summary>Registrado para reconocerlo, pero el motor no lo aplica como efecto (la velocidad).</summary>
     Deferred,
 }
 

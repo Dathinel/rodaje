@@ -59,8 +59,8 @@ internal sealed unsafe partial class LayerRenderer
             EffectValues values = effect.Values;
             switch (gpu.Kind)
             {
-                case GpuEffectKind.Transform or GpuEffectKind.Blend:
-                    // Llegan por LayerFrame.Transform y LayerFrame.Blend.
+                case GpuEffectKind.Transform or GpuEffectKind.Stabilize or GpuEffectKind.Blend:
+                    // Llegan por LayerFrame.Transform (con LayerTransform.Stabilization) y LayerFrame.Blend.
                     break;
                 case GpuEffectKind.Color when (flags & EffectShaders.Color) == 0:
                     flags |= EffectShaders.Color;
