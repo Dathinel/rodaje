@@ -56,7 +56,7 @@ internal static class CinemaDngDialog
             return;
         }
 
-        var panel = new StackPanel { Spacing = 6, Width = AnalysisUi.PreviewWidth };
+        var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(new TextBlock
         {
             Text = string.Create(SpanishNumbers.Format, $"«{sequence.Name}»: {sequence.Frames.Count} cuadros")

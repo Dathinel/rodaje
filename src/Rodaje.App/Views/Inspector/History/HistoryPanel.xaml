@@ -52,7 +52,7 @@
                             </Grid>
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" Opacity="{x:Bind SavedOpacity}"
                                         ToolTipService.ToolTip="Así está el proyecto guardado en el archivo">
-                                <FontIcon Glyph="&#xE74E;" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                <FontIcon Glyph="&#xE74E;" FontSize="{StaticResource IconFontSize}" Foreground="{StaticResource TextMutedBrush}" />
                                 <TextBlock Text="guardado" Style="{StaticResource CaptionTextStyle}" />
                             </StackPanel>
                         </Grid>

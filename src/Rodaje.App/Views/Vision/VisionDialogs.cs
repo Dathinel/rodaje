@@ -71,7 +71,7 @@ internal static class VisionDialogs
 
         session.Pause();
         (_, int frames) = VisionTools.FrameSpan(clip, media.FrameRate!.Value);
-        var panel = new StackPanel { Spacing = 6, Width = AnalysisUi.PreviewWidth };
+        var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(new TextBlock
         {
             Text = string.Create(SpanishNumbers.Format, $"«{media.Name}»: {frames} cuadros. El sujeto queda y el fondo se vuelve transparente; debajo se ve la pista de abajo."),
@@ -177,7 +177,7 @@ internal static class VisionDialogs
         }
 
         session.Pause();
-        var panel = new StackPanel { Spacing = 6, Width = AnalysisUi.PreviewWidth };
+        var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(new TextBlock
         {
             Text = "Sigue al sujeto con un recorte que se mueve suave: queda quieto mientras el sujeto cabe y se desliza cuando sale.",

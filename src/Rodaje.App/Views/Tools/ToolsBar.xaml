@@ -19,12 +19,12 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0" Padding="8,3" ColumnSpacing="6">
+    <Grid Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0" Padding="8,4" ColumnSpacing="8">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
-        <TextBlock Text="Herramientas" Style="{StaticResource PanelTitleTextStyle}" VerticalAlignment="Center" Margin="4,0,6,0" />
+        <TextBlock Text="Herramientas" Style="{StaticResource PanelTitleTextStyle}" VerticalAlignment="Center" Margin="4,0,8,0" />
         <ScrollViewer Grid.Column="1" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled"
                       VerticalScrollBarVisibility="Disabled">
             <StackPanel x:Name="Buttons" Orientation="Horizontal" Spacing="2" />

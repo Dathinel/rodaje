@@ -31,10 +31,10 @@
         </Grid.RowDefinitions>
 
         <!-- Preajustes -->
-        <StackPanel Padding="20,14,20,10" Spacing="8" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1">
+        <StackPanel Padding="20,16,20,12" Spacing="8" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1">
             <TextBlock Text="Preajuste" Style="{StaticResource PanelTitleTextStyle}" />
             <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
-                <StackPanel x:Name="PresetCards" Orientation="Horizontal" Spacing="6" Padding="0,0,0,8" />
+                <StackPanel x:Name="PresetCards" Orientation="Horizontal" Spacing="8" Padding="0,0,0,8" />
             </ScrollViewer>
         </StackPanel>
 
@@ -48,7 +48,7 @@
                 <!-- Vista sencilla y Avanzado -->
                 <StackPanel Spacing="8">
                     <TextBlock Text="Archivo" Style="{StaticResource SectionTitleStyle}" Margin="0" />
-                    <Grid ColumnSpacing="6">
+                    <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -58,7 +58,7 @@
                     </Grid>
                     <TextBlock x:Name="PathNote" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
 
-                    <Grid ColumnSpacing="10" RowSpacing="8">
+                    <Grid ColumnSpacing="8" RowSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="110" />
                             <ColumnDefinition Width="*" />
@@ -78,16 +78,16 @@
                         <TextBlock x:Name="PresetShapeText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
                         <HyperlinkButton Content="Cambiar el formato del proyecto" Padding="0,2" Click="OnChangeProjectFormatClick" />
                     </StackPanel>
-                    <ToggleButton x:Name="AdvancedToggle" Margin="0,8,0,0" Padding="10,5" Click="OnAdvancedClick">
+                    <ToggleButton x:Name="AdvancedToggle" Margin="0,8,0,0" Padding="12,4" Click="OnAdvancedClick">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon x:Name="AdvancedGlyph" Glyph="&#xE76C;" FontSize="10" />
+                            <FontIcon x:Name="AdvancedGlyph" Glyph="&#xE76C;" FontSize="{StaticResource IconSmallFontSize}" />
                             <TextBlock Text="Avanzado" />
                         </StackPanel>
                     </ToggleButton>
 
-                    <StackPanel x:Name="AdvancedPanel" Visibility="Collapsed" Spacing="6">
+                    <StackPanel x:Name="AdvancedPanel" Visibility="Collapsed" Spacing="8">
                         <TextBlock Text="Contenedor" Style="{StaticResource SectionTitleStyle}" />
-                        <Grid ColumnSpacing="10" RowSpacing="6">
+                        <Grid ColumnSpacing="8" RowSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="150" />
                                 <ColumnDefinition Width="*" />
@@ -104,7 +104,7 @@
                             </StackPanel>
                         </Grid>
 
-                        <Grid ColumnSpacing="10">
+                        <Grid ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -112,11 +112,11 @@
                             <TextBlock Text="Video" Style="{StaticResource SectionTitleStyle}" />
                             <ToggleSwitch x:Name="VideoSwitch" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" Toggled="OnVideoToggled" />
                         </Grid>
-                        <StackPanel x:Name="ProjectFormatRow" Orientation="Horizontal" Spacing="10">
+                        <StackPanel x:Name="ProjectFormatRow" Orientation="Horizontal" Spacing="8">
                             <TextBlock x:Name="ProjectFormatText" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
                             <HyperlinkButton Content="Cambiar el formato del proyecto" Padding="0,2" Click="OnChangeProjectFormatClick" />
                         </StackPanel>
-                        <Grid x:Name="VideoGrid" ColumnSpacing="10" RowSpacing="6">
+                        <Grid x:Name="VideoGrid" ColumnSpacing="8" RowSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="150" />
                                 <ColumnDefinition Width="*" />
@@ -140,7 +140,7 @@
                             <ComboBox x:Name="EncoderBox" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnEncoderChanged" />
                             <TextBlock Grid.Row="2" Text="Control de tasa" Style="{StaticResource FieldLabelStyle}" />
                             <ComboBox x:Name="RateBox" Grid.Row="2" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnRateChanged" />
-                            <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                            <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Spacing="8">
                                 <NumberBox x:Name="RateValueBox" Width="96" SpinButtonPlacementMode="Hidden" ValueChanged="OnRateValueChanged" />
                                 <NumberBox x:Name="RateMaxBox" Width="96" SpinButtonPlacementMode="Hidden" ValueChanged="OnRateMaxChanged" />
                                 <TextBlock x:Name="RateUnit" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
@@ -158,7 +158,7 @@
                             <TextBlock Grid.Row="8" Text="Velocidad del codificador" Style="{StaticResource FieldLabelStyle}" />
                             <ComboBox x:Name="SpeedPresetBox" Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSpeedPresetChanged" />
                             <TextBlock Grid.Row="9" Text="Cuadro clave cada" Style="{StaticResource FieldLabelStyle}" />
-                            <StackPanel Grid.Row="9" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6">
+                            <StackPanel Grid.Row="9" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
                                 <NumberBox x:Name="KeyframeBox" Width="96" SpinButtonPlacementMode="Hidden" Minimum="0.1" Maximum="60" ValueChanged="OnKeyframeChanged" />
                                 <TextBlock Text="s" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
                             </StackPanel>
@@ -166,7 +166,7 @@
 
                         <!-- Resolución con otra forma que el proyecto, elegida aquí: cómo encaja la imagen. -->
                         <Border x:Name="ShapePanel" Visibility="Collapsed" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
-                                BorderThickness="1" CornerRadius="2" Padding="12,10" Margin="0,4,0,0">
+                                BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Padding="12,12" Margin="0,4,0,0">
                             <StackPanel Spacing="8">
                                 <TextBlock x:Name="ShapeText" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
                                 <StackPanel Orientation="Horizontal" Spacing="16">
@@ -178,7 +178,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Grid ColumnSpacing="10">
+                        <Grid ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -186,7 +186,7 @@
                             <TextBlock Text="Audio" Style="{StaticResource SectionTitleStyle}" />
                             <ToggleSwitch x:Name="AudioSwitch" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" Toggled="OnAudioToggled" />
                         </Grid>
-                        <Grid x:Name="AudioGrid" ColumnSpacing="10" RowSpacing="6">
+                        <Grid x:Name="AudioGrid" ColumnSpacing="8" RowSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="150" />
                                 <ColumnDefinition Width="*" />
@@ -202,7 +202,7 @@
                             <TextBlock Text="Códec" Style="{StaticResource FieldLabelStyle}" />
                             <ComboBox x:Name="AudioCodecBox" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnAudioCodecChanged" />
                             <TextBlock Grid.Row="1" Text="Tasa" Style="{StaticResource FieldLabelStyle}" />
-                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6">
+                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
                                 <NumberBox x:Name="AudioRateBox" Width="96" SpinButtonPlacementMode="Hidden" Minimum="32" Maximum="512" ValueChanged="OnAudioRateChanged" />
                                 <TextBlock x:Name="AudioRateUnit" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
                             </StackPanel>
@@ -215,7 +215,7 @@
                         </Grid>
 
                         <TextBlock Text="Preajustes propios" Style="{StaticResource SectionTitleStyle}" />
-                        <StackPanel Orientation="Horizontal" Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="Guardar como preajuste…" Click="OnSavePresetClick" />
                             <Button Content="Importar…" Click="OnImportPresetClick" />
                             <Button x:Name="ExportPresetButton" Content="Guardar en archivo…" Click="OnExportPresetClick" />
@@ -240,7 +240,7 @@
                         </StackPanel>
                     </RadioButton>
 
-                    <Border Margin="0,8,0,0" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="2" Padding="12,10">
+                    <Border Margin="0,8,0,0" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Padding="12,12">
                         <StackPanel Spacing="2">
                             <TextBlock Text="Estimación" Style="{StaticResource CaptionTextStyle}" />
                             <TextBlock x:Name="EstimateText" Style="{StaticResource HeaderTextStyle}" TextWrapping="Wrap" />
@@ -255,7 +255,7 @@
             </Grid>
         </ScrollViewer>
 
-        <Grid Grid.Row="2" Padding="20,10" ColumnSpacing="8" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
+        <Grid Grid.Row="2" Padding="20,12" ColumnSpacing="8" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />

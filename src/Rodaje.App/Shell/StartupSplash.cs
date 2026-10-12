@@ -7,7 +7,8 @@ namespace Rodaje.App.Shell;
 
 /// <summary>
 /// Armazón de la ventana en Win32 y GDI, antes de cargar WinUI: a los ~30 ms de abrir el programa ya hay una ventana
-/// oscura con los paneles en su sitio (biblioteca, visor, panel derecho y línea de tiempo con los anchos guardados).
+/// oscura con los paneles en su sitio (biblioteca, visor, panel derecho y línea de tiempo con los anchos guardados) y el
+/// logotipo en el centro del visor.
 /// WinUI tarda unos 0,4 s en caliente y 0,7 s en frío en tener su primer cuadro; su ventana se pone en el mismo lugar,
 /// oculta para DWM (cloak) hasta ese cuadro, y entonces se muestra y el armazón se cierra. Sin parpadeo blanco.
 /// </summary>
@@ -17,6 +18,7 @@ internal static unsafe partial class StartupSplash
     private const uint BackgroundColor = 0x101010; // COLORREF (BGR) de BackgroundColor de Palette.xaml
     private const uint PanelColor = 0x1D1D1D;
     private const uint AccentColor = 0x3A83E8; // #E8833A
+    private const int LogoSize = 72;
     private const int DwmUseImmersiveDarkMode = 20;
     private const int DwmCloak = 13;
     private const int DwmCaptionColor = 35;
@@ -24,6 +26,8 @@ internal static unsafe partial class StartupSplash
 
     private static nint _hwnd;
     private static nint _panelBrush;
+    private static nint _logo;
+    private static int _logoSize;
     private static double _library;
     private static double _inspector;
     private static double _timeline;
@@ -40,6 +44,8 @@ internal static unsafe partial class StartupSplash
             _timeline = settings.TimelineHeight;
             nint instance = GetModuleHandleW(null);
             _panelBrush = CreateSolidBrush(PanelColor);
+            _logoSize = (int)(LogoSize * GetDpiForSystem() / 96.0);
+            _logo = LoadIconFile(Path.Combine(AppContext.BaseDirectory, AppIcon.FileName), _logoSize);
             string iconPath = Path.Combine(AppContext.BaseDirectory, AppIcon.FileName);
             fixed (char* name = ClassName)
             {
@@ -124,6 +130,12 @@ internal static unsafe partial class StartupSplash
         if (_hwnd != 0)
         {
             _ = DestroyWindow(_hwnd);
+            if (_logo != 0)
+            {
+                _ = DestroyIcon(_logo);
+                _logo = 0;
+            }
+
             _hwnd = 0;
         }
     }
@@ -161,6 +173,12 @@ internal static unsafe partial class StartupSplash
             Fill(dc, library + gap, top, w - inspector - gap, timelineTop - gap);
             Fill(dc, w - inspector, top, w, timelineTop - gap);
             Fill(dc, 0, timelineTop, w, h);
+            int viewerLeft = library + gap;
+            int viewerRight = w - inspector - gap;
+            if (_logo != 0 && viewerRight - viewerLeft > _logoSize && timelineTop - gap - top > _logoSize)
+            {
+                _ = DrawIconEx(dc, (viewerLeft + viewerRight - _logoSize) / 2, (top + timelineTop - gap - _logoSize) / 2, _logo, _logoSize, _logoSize, 0, 0, 3); // DI_NORMAL
+            }
         }
 
         _ = EndPaint(hwnd, &ps);
@@ -275,6 +293,12 @@ internal static unsafe partial class StartupSplash
 
     [LibraryImport("user32.dll")]
     private static partial int FillRect(nint dc, RECT* rect, nint brush);
+
+    [LibraryImport("user32.dll")]
+    private static partial int DrawIconEx(nint dc, int x, int y, nint icon, int width, int height, uint step, nint flickerBrush, uint flags);
+
+    [LibraryImport("user32.dll")]
+    private static partial int DestroyIcon(nint icon);
 
     [LibraryImport("gdi32.dll")]
     private static partial nint CreateSolidBrush(uint color);

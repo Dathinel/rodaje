@@ -38,11 +38,13 @@ internal static partial class SelfTestRun
         int code = 1;
         try
         {
+            await CaptureAsync(window, "inicio");
             SelectFirstClip(window);
             foreach (InspectorView.Tab tab in Enum.GetValues<InspectorView.Tab>())
             {
                 window.InspectorPane.Show(tab);
                 await Task.Delay(250);
+                await CaptureAsync(window, "inspector-" + tab.ToString().ToLowerInvariant());
             }
 
             await ToolsAsync(window);
@@ -56,6 +58,7 @@ internal static partial class SelfTestRun
             await ModuleAsync(window);
             await FormatAsync(window, engine);
             window.InspectorPane.Show(InspectorView.Tab.Properties);
+            await LayoutAsync(window);
             if (window.Session.Sequence.Duration.Ticks > 0)
             {
                 window.Session.Play();
@@ -762,6 +765,34 @@ internal static partial class SelfTestRun
         {
             File.Delete(output);
         }
+    }
+
+    /// <summary>Con capturas: la página de complementos y la ventana a 1280×720 (lo mínimo que se cuida), y la deja como estaba.</summary>
+    private static async Task LayoutAsync(MainWindow window)
+    {
+        if (Environment.GetEnvironmentVariable(CapturesVariable) is not { Length: > 0 })
+        {
+            return;
+        }
+
+        window.ShowPage(ShellPage.Plugins);
+        await CaptureAsync(window, "complementos");
+        window.ClosePage();
+        var presenter = window.AppWindow.Presenter as Microsoft.UI.Windowing.OverlappedPresenter;
+        bool maximized = presenter?.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized;
+        presenter?.Restore();
+        Windows.Graphics.SizeInt32 before = window.AppWindow.Size;
+        double scale = window.Content.XamlRoot.RasterizationScale;
+        window.AppWindow.Resize(new Windows.Graphics.SizeInt32((int)(1280 * scale), (int)(720 * scale)));
+        await Task.Delay(500);
+        await CaptureAsync(window, "ventana-1280x720");
+        window.AppWindow.Resize(before);
+        if (maximized)
+        {
+            presenter!.Maximize();
+        }
+
+        await Task.Delay(200);
     }
 
     /// <summary>

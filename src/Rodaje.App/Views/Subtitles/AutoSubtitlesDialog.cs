@@ -7,6 +7,7 @@ using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 using Rodaje.App.Views.Analysis;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -125,7 +126,7 @@ internal static class AutoSubtitlesDialog
             list.ItemsSource = labels;
             AnalysisUi.DrawRanges(bar, clipSeconds,
                 shown.Select(c => new TimeRange((c.Start - clip.Start).ToSeconds(), (c.End - clip.Start).ToSeconds())),
-                AnalysisUi.Color(0xF2, 0xC1, 0x4E));
+                ThemeResources.Color("BeatMarkColor"));
         }
 
         async Task Transcribe()

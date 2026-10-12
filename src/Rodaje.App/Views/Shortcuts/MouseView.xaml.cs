@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Theme;
 
 namespace Rodaje.App.Views.Shortcuts;
 
@@ -120,7 +121,7 @@ internal sealed partial class MouseView : UserControl
         foreach (PartGeometry g in Geometry)
         {
             var name = new TextBlock { Style = (Style)Application.Current.Resources["CaptionTextStyle"], TextTrimming = TextTrimming.CharacterEllipsis };
-            var action = new TextBlock { FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+            var action = new TextBlock { FontSize = ThemeResources.Size("BodyFontSize"), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
             var stack = new StackPanel { Spacing = 1 };
             stack.Children.Add(name);
             stack.Children.Add(action);
@@ -140,7 +141,7 @@ internal sealed partial class MouseView : UserControl
                 Width = g.Width,
                 Height = g.Height,
                 CornerRadius = g.Corners,
-                Content = g.Input == MouseInput.Tilt ? new TextBlock { Text = "‹›", FontSize = 9 } : null,
+                Content = g.Input == MouseInput.Tilt ? new TextBlock { Text = "‹›", FontSize = ThemeResources.Size("MicroFontSize") } : null,
             };
             Canvas.SetLeft(button, g.X);
             Canvas.SetTop(button, g.Y);

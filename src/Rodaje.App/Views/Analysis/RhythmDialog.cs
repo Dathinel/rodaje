@@ -6,6 +6,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -27,7 +28,7 @@ internal static class RhythmDialog
             return;
         }
 
-        var panel = new StackPanel { Spacing = 6, Width = AnalysisUi.PreviewWidth };
+        var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         var status = new TextBlock { Text = "Analizando el audio…", TextWrapping = TextWrapping.Wrap };
         var progress = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth };
         Canvas preview = AnalysisUi.Preview();
@@ -90,7 +91,7 @@ internal static class RhythmDialog
                 result = await Task.Run(() => BeatTracker.Track(envelope), cancel.Token);
                 progress.Visibility = Visibility.Collapsed;
                 double width = Math.Max(0.02, result.Duration / AnalysisUi.PreviewWidth);
-                AnalysisUi.DrawRanges(preview, result.Duration, result.Beats.Select(b => new TimeRange(b, b + width)), AnalysisUi.Color(0xF2, 0xB1, 0x34));
+                AnalysisUi.DrawRanges(preview, result.Duration, result.Beats.Select(b => new TimeRange(b, b + width)), ThemeResources.Color("BeatMarkColor"));
                 status.Text = result.Beats.Count == 0
                     ? "No se encontró un pulso regular en este clip."
                     : string.Create(SpanishNumbers.Format, $"Tempo: {result.Bpm:0.0} BPM · {result.Beats.Count} pulsos.");

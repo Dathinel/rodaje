@@ -2,6 +2,12 @@
 
 Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas cumplen (sesión, comandos, atajos, avisos) están en el [contrato](app.md).
 
+## Tema (`Theme/`)
+
+- **Claves únicas.** Colores en `Palette.xaml` (contraste medido, D-027), tamaños de letra e íconos en `Typography.xaml` (texto 10, 11, 12, 13, 14, 20 y 28; íconos 10, 14, 16 y 24) y estilos de controles en `Controls.xaml`. Las vistas no llevan colores, tamaños de letra ni radios sueltos; desde el código se leen con `ThemeResources`. Espaciado en la rejilla de 4 px.
+- **Contraste alto.** Con el de Windows, `ThemeResources.ApplyHighContrast` pasa los pinceles de la paleta a los colores del sistema antes de crear la ventana; `RODAJE_CONTRASTE_ALTO=1` lo simula en la autoprueba, para las capturas. Los diccionarios Default, Light y Dark llevan el acento naranja (`ControlColors.xaml`): fuera del contraste alto nunca se ve el del sistema.
+- **Marca.** El logotipo (`Shell/AppLogo`) está en la barra de título, en «Acerca de», en el estado vacío de la biblioteca y, dibujado con GDI, en el armazón de arranque (`StartupSplash`).
+
 ## Biblioteca (`Views/Library`)
 
 - **Medios.** Portada real, duración y resolución. Se importa con el botón, Ctrl+I o soltando archivos; un `.paquete` soltado se instala.

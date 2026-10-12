@@ -10,7 +10,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Width="60">
 
-    <Grid Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1,0,0,0" Padding="2,8,6,6" RowSpacing="4">
+    <Grid Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1,0,0,0" Padding="2,8,8,8" RowSpacing="4">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="22" />
             <ColumnDefinition Width="*" />
@@ -49,8 +49,8 @@
         <Grid x:Name="BarsHost" Grid.Row="1" Grid.Column="1" />
 
         <Grid Grid.Row="2" Grid.Column="1">
-            <TextBlock Text="L" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Left" Margin="3,0,0,0" />
-            <TextBlock Text="R" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Right" Margin="0,0,3,0" />
+            <TextBlock Text="L" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Left" Margin="4,0,0,0" />
+            <TextBlock Text="R" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Right" Margin="0,0,4,0" />
         </Grid>
 
         <TextBlock x:Name="PeakText" Grid.Row="3" Grid.ColumnSpan="2" Text="−∞" HorizontalAlignment="Center"

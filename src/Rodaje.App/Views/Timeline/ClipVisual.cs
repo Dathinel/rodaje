@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Media;
+using Rodaje.App.Theme;
 using Rodaje.App.Views.Shared;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -61,9 +62,9 @@ internal sealed class ClipVisual
     private readonly Polyline _envelope = new() { StrokeThickness = 1.5 };
     private readonly Path _envelopePoints = new() { StrokeThickness = 1 };
     private readonly Path _keys = new();
-    private readonly TextBlock _name = new() { FontSize = 11, TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock _name = new() { FontSize = ThemeResources.Size("CaptionFontSize"), TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Border _badge = new() { Padding = new Thickness(4, 0, 4, 1), Height = NameHeight - 1 };
-    private readonly TextBlock _badgeText = new() { FontSize = 10, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _badgeText = new() { FontSize = ThemeResources.Size("MicroFontSize"), TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
 
     // La mini curva, a la derecha del texto del indicador.
     private readonly Polyline _badgeCurve = new()
@@ -100,7 +101,7 @@ internal sealed class ClipVisual
         _badgeText.Foreground = brushes.Text;
         _badgeCurve.Stroke = brushes.Text;
         _badge.Background = brushes.Scrim;
-        var badgeRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
+        var badgeRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         badgeRow.Children.Add(_badgeText);
         badgeRow.Children.Add(_badgeCurve);
         _badge.Child = badgeRow;

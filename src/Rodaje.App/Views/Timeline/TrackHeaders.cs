@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Audio;
+using Rodaje.App.Theme;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Timeline;
@@ -131,7 +132,7 @@ internal sealed class TrackHeaders
         labels.Children.Add(new TextBlock
         {
             Text = track.Name,
-            FontSize = 12,
+            FontSize = ThemeResources.Size("BodyFontSize"),
             FontWeight = row.IsMain ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
             Foreground = track.Hidden || track.Muted ? _brushes.TextMuted : _brushes.Text,
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -145,7 +146,7 @@ internal sealed class TrackHeaders
             labels.Children.Add(new TextBlock
             {
                 Text = Caption(row, magnetic),
-                FontSize = 10,
+                FontSize = ThemeResources.Size("MicroFontSize"),
                 Foreground = row.IsMain && magnetic ? _brushes.Accent : _brushes.TextMuted,
                 TextTrimming = TextTrimming.CharacterEllipsis,
             });
@@ -162,7 +163,7 @@ internal sealed class TrackHeaders
         {
             var record = new ToggleButton
             {
-                Content = new FontIcon { Glyph = "\uE720", FontSize = 12 },
+                Content = new FontIcon { Glyph = "\uE720", FontSize = ThemeResources.Size("IconFontSize") },
                 Style = _toggleStyle,
                 IsEnabled = !track.Locked,
             };
@@ -249,7 +250,7 @@ internal sealed class TrackHeaders
         var text = new TextBlock
         {
             Text = GainText(_gainOf?.Invoke(track) ?? 0),
-            FontSize = 10,
+            FontSize = ThemeResources.Size("MicroFontSize"),
             Foreground = track.Locked ? _brushes.TextDisabled : _brushes.TextMuted,
             HorizontalAlignment = HorizontalAlignment.Left,
             Padding = new Thickness(0, 0, 8, 0),
@@ -334,7 +335,7 @@ internal sealed class TrackHeaders
             Style = _toggleStyle,
             Width = 24,
             Height = 24,
-            FontSize = 12,
+            FontSize = ThemeResources.Size("BodyFontSize"),
             Content = glyph,
             IsChecked = isOn,
         };

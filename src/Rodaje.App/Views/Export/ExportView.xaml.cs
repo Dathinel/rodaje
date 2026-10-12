@@ -206,7 +206,7 @@ internal sealed partial class ExportView : UserControl
 
     private Button PresetCard(string id, string name, string description)
     {
-        var text = new StackPanel { Spacing = 3 };
+        var text = new StackPanel { Spacing = 4 };
         text.Children.Add(new TextBlock { Text = name, Style = (Style)Application.Current.Resources["PanelTitleTextStyle"], TextTrimming = TextTrimming.CharacterEllipsis });
         text.Children.Add(new TextBlock
         {

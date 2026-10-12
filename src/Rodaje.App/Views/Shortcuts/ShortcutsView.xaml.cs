@@ -10,6 +10,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 using VirtualKey = Windows.System.VirtualKey;
 
 namespace Rodaje.App.Views.Shortcuts;
@@ -478,9 +479,9 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
                     Background = GroupBrushes.Resource("ControlBrush"),
                     BorderBrush = GroupBrushes.For(entry.Group),
                     BorderThickness = new Thickness(1, 1, 1, 2),
-                    CornerRadius = new CornerRadius(2),
+                    CornerRadius = ThemeResources.Corner("ControlCornerRadius"),
                     Padding = new Thickness(6, 1, 6, 1),
-                    Child = new TextBlock { Text = key, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = GroupBrushes.Resource("TextBrush") },
+                    Child = new TextBlock { Text = key, FontSize = ThemeResources.Size("CaptionFontSize"), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = GroupBrushes.Resource("TextBrush") },
                 });
             }
 

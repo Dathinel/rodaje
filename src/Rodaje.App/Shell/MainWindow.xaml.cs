@@ -241,6 +241,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         InspectorSplitter.Resized += (_, size) => settings.Current.InspectorWidth = size;
         MainArea.SizeChanged += (_, _) => FitSidePanels();
         TimelineSplitter.Resized += (_, size) => settings.Current.TimelineHeight = size;
+        // Un aviso abierto empuja la página modal hacia abajo en lugar de taparle la cabecera.
+        Notification.SizeChanged += (_, e) => ModalFrame.Margin = new Thickness(48, 56 + e.NewSize.Height, 48, 40);
         Activated += OnActivated;
         AppWindow.Closing += OnClosing;
         Closed += OnClosed;
@@ -514,8 +516,11 @@ internal sealed partial class MainWindow : Window, IShellHost
         bar.PreferredHeightOption = TitleBarHeightOption.Tall;
         bar.ButtonBackgroundColor = Colors.Transparent;
         bar.ButtonInactiveBackgroundColor = Colors.Transparent;
-        bar.ButtonForegroundColor = ColorHelper.FromArgb(0xFF, 0xD8, 0xD8, 0xD8);
-        bar.ButtonHoverBackgroundColor = ColorHelper.FromArgb(0xFF, 0x23, 0x23, 0x23);
+        bar.ButtonForegroundColor = Theme.ThemeResources.SolidColor("TextBrush");
+        bar.ButtonHoverForegroundColor = Theme.ThemeResources.SolidColor("TextBrush");
+        bar.ButtonHoverBackgroundColor = Theme.ThemeResources.SolidColor("ControlHoverBrush");
+        bar.ButtonPressedBackgroundColor = Theme.ThemeResources.SolidColor("ControlPressedBrush");
+        bar.ButtonInactiveForegroundColor = Theme.ThemeResources.SolidColor("TextMutedBrush");
     }
 
     private void RestoreLayout()

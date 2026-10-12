@@ -10,6 +10,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 using Rodaje.App.Views.Shared;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -63,7 +64,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
                 Content = SpeedMath.FormatRate(rate),
                 Padding = new Thickness(2, 2, 2, 2),
                 MinWidth = 0,
-                FontSize = 12,
+                FontSize = ThemeResources.Size("BodyFontSize"),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 Tag = rate,
             };
@@ -108,7 +109,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
             var label = new TextBlock
             {
                 Text = option.Name,
-                FontSize = 11,
+                FontSize = ThemeResources.Size("CaptionFontSize"),
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 TextWrapping = TextWrapping.NoWrap,
                 HorizontalAlignment = HorizontalAlignment.Center,

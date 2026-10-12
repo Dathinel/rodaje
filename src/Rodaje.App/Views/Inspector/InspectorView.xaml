@@ -34,50 +34,50 @@
             <StackPanel x:Name="TabStrip" Orientation="Horizontal">
                 <RadioButton x:Name="PropertiesTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" IsChecked="True" Checked="OnTabChecked"
                              ToolTipService.ToolTip="Propiedades" AutomationProperties.Name="Propiedades">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE9E9;" FontSize="13" Visibility="Collapsed" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE9E9;" FontSize="{StaticResource IconFontSize}" Visibility="Collapsed" />
                         <TextBlock x:Name="PropertiesLabel" Text="Propiedades" />
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="TextTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
                              ToolTipService.ToolTip="Texto" AutomationProperties.Name="Texto">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE8D2;" FontSize="13" Visibility="Collapsed" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE8D2;" FontSize="{StaticResource IconFontSize}" Visibility="Collapsed" />
                         <TextBlock x:Name="TextLabel" Text="Texto" />
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="SpeedTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
                              ToolTipService.ToolTip="Velocidad" AutomationProperties.Name="Velocidad">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xEC4A;" FontSize="13" Visibility="Collapsed" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xEC4A;" FontSize="{StaticResource IconFontSize}" Visibility="Collapsed" />
                         <TextBlock x:Name="SpeedLabel" Text="Velocidad" />
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="FiltersTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
                              ToolTipService.ToolTip="Filtros" AutomationProperties.Name="Filtros">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE71C;" FontSize="13" Visibility="Collapsed" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE71C;" FontSize="{StaticResource IconFontSize}" Visibility="Collapsed" />
                         <TextBlock x:Name="FiltersLabel" Text="Filtros" />
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="MasksTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
                              ToolTipService.ToolTip="Máscaras" AutomationProperties.Name="Máscaras">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE7A8;" FontSize="13" Visibility="Collapsed" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE7A8;" FontSize="{StaticResource IconFontSize}" Visibility="Collapsed" />
                         <TextBlock x:Name="MasksLabel" Text="Máscaras" />
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="HistoryTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
                              ToolTipService.ToolTip="Historial" AutomationProperties.Name="Historial">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE81C;" FontSize="13" Visibility="Collapsed" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE81C;" FontSize="{StaticResource IconFontSize}" Visibility="Collapsed" />
                         <TextBlock x:Name="HistoryLabel" Text="Historial" />
                     </StackPanel>
                 </RadioButton>
                 <RadioButton x:Name="JobsTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
                              ToolTipService.ToolTip="Trabajos" AutomationProperties.Name="Trabajos">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE9F5;" FontSize="13" Visibility="Collapsed" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE9F5;" FontSize="{StaticResource IconFontSize}" Visibility="Collapsed" />
                         <TextBlock x:Name="JobsLabel" Text="Trabajos" />
                     </StackPanel>
                 </RadioButton>

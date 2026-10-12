@@ -9,6 +9,7 @@
 -->
 <UserControl
     x:Class="Rodaje.App.Views.Library.LibraryView"
+    xmlns:shell="using:Rodaje.App.Shell"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Rodaje.App.Views.Library"
@@ -21,34 +22,34 @@
                     <RowDefinition Height="66" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <Border Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="2">
+                <Border Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}">
                     <Grid>
-                        <FontIcon Glyph="{x:Bind Glyph}" FontSize="22" Foreground="{StaticResource TextMutedBrush}" Visibility="{x:Bind GlyphVisibility, Mode=OneWay}" />
+                        <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconHeroFontSize}" Foreground="{StaticResource TextMutedBrush}" Visibility="{x:Bind GlyphVisibility, Mode=OneWay}" />
                         <Image Source="{x:Bind Thumbnail, Mode=OneWay}" Stretch="UniformToFill" />
-                        <Border Background="{StaticResource ScrimBrush}" CornerRadius="2" Padding="4,1" Margin="4"
+                        <Border Background="{StaticResource ScrimBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
                                 HorizontalAlignment="Left" VerticalAlignment="Top" Visibility="{x:Bind BadgeVisibility, Mode=OneWay}">
-                            <TextBlock Text="{x:Bind Badge, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="10" />
+                            <TextBlock Text="{x:Bind Badge, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
                         </Border>
-                        <Border Background="{StaticResource ScrimBrush}" CornerRadius="2" Padding="4,1" Margin="4"
+                        <Border Background="{StaticResource ScrimBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom">
-                            <TextBlock Text="{x:Bind DurationText}" Style="{StaticResource TimecodeTextStyle}" FontSize="10" />
+                            <TextBlock Text="{x:Bind DurationText}" Style="{StaticResource TimecodeTextStyle}" FontSize="{StaticResource MicroFontSize}" />
                         </Border>
-                        <Border Background="{StaticResource ScrimBrush}" CornerRadius="2" Padding="3" Margin="4"
+                        <Border Background="{StaticResource ScrimBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4" Margin="4"
                                 HorizontalAlignment="Right" VerticalAlignment="Top" Visibility="{x:Bind FavoriteVisibility, Mode=OneWay}">
-                            <FontIcon Glyph="&#xE735;" FontSize="10" Foreground="{StaticResource AccentBrush}" />
+                            <FontIcon Glyph="&#xE735;" FontSize="{StaticResource IconSmallFontSize}" Foreground="{StaticResource AccentBrush}" />
                         </Border>
                     </Grid>
                 </Border>
-                <StackPanel Grid.Row="1" Padding="2,3,2,0">
-                    <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="11" />
-                    <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                <StackPanel Grid.Row="1" Padding="2,4,2,0">
+                    <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
+                    <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
                 </StackPanel>
             </Grid>
         </DataTemplate>
 
         <!-- Fila de la lista: nombre y, debajo, la columna de datos con los mismos anchos que la cabecera. -->
         <DataTemplate x:Key="MediaRowTemplate" x:DataType="local:MediaItem">
-            <Grid Padding="0,4" RowSpacing="2" ColumnSpacing="6" ToolTipService.ToolTip="{x:Bind Tooltip, Mode=OneWay}">
+            <Grid Padding="0,4" RowSpacing="2" ColumnSpacing="8" ToolTipService.ToolTip="{x:Bind Tooltip, Mode=OneWay}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -58,9 +59,9 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <FontIcon Glyph="{x:Bind Glyph}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" />
-                <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="11" />
-                <FontIcon Grid.Column="2" Glyph="&#xE735;" FontSize="10" Foreground="{StaticResource AccentBrush}" Visibility="{x:Bind FavoriteVisibility, Mode=OneWay}" />
+                <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconFontSize}" Foreground="{StaticResource TextMutedBrush}" />
+                <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
+                <FontIcon Grid.Column="2" Glyph="&#xE735;" FontSize="{StaticResource IconSmallFontSize}" Foreground="{StaticResource AccentBrush}" Visibility="{x:Bind FavoriteVisibility, Mode=OneWay}" />
                 <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnSpacing="4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -68,40 +69,40 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="{x:Bind ResolutionText}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
-                    <TextBlock Grid.Column="1" Text="{x:Bind DurationText}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
-                    <TextBlock Grid.Column="2" Text="{x:Bind FrameRateText}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
-                    <TextBlock Grid.Column="3" Text="{x:Bind Codecs, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                    <TextBlock Text="{x:Bind ResolutionText}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Grid.Column="1" Text="{x:Bind DurationText}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Grid.Column="2" Text="{x:Bind FrameRateText}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Grid.Column="3" Text="{x:Bind Codecs, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
                 </Grid>
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="FolderTileTemplate" x:DataType="local:FolderItem">
-            <Grid Width="118" Height="40" Padding="8,4" ColumnSpacing="6" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
-                  BorderThickness="1" CornerRadius="2" ToolTipService.ToolTip="{x:Bind Tooltip}">
+            <Grid Width="118" Height="40" Padding="8,4" ColumnSpacing="8" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
+                  BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" ToolTipService.ToolTip="{x:Bind Tooltip}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <FontIcon Glyph="&#xE8B7;" FontSize="14" Foreground="{StaticResource TextMutedBrush}" />
+                <FontIcon Glyph="&#xE8B7;" FontSize="{StaticResource IconFontSize}" Foreground="{StaticResource TextMutedBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="11" />
-                    <TextBlock Text="{x:Bind Summary}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                    <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
+                    <TextBlock Text="{x:Bind Summary}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
                 </StackPanel>
             </Grid>
         </DataTemplate>
 
         <DataTemplate x:Key="ElementTileTemplate" x:DataType="local:ElementItem">
-            <Grid Width="118" Height="64" Padding="8,6" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
-                  BorderThickness="1" CornerRadius="2" Opacity="{x:Bind Opacity}" ToolTipService.ToolTip="{x:Bind Tooltip}" RowSpacing="2">
+            <Grid Width="118" Height="64" Padding="8,8" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
+                  BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Opacity="{x:Bind Opacity}" ToolTipService.ToolTip="{x:Bind Tooltip}" RowSpacing="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <FontIcon Glyph="{x:Bind Glyph}" FontSize="14" HorizontalAlignment="Left" Foreground="{StaticResource TextMutedBrush}" />
-                <TextBlock Grid.Row="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="11" />
-                <TextBlock Grid.Row="2" Text="{x:Bind Source}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconFontSize}" HorizontalAlignment="Left" Foreground="{StaticResource TextMutedBrush}" />
+                <TextBlock Grid.Row="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
+                <TextBlock Grid.Row="2" Text="{x:Bind Source}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
@@ -130,7 +131,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <Grid Style="{StaticResource PanelHeaderStyle}" ColumnSpacing="6">
+            <Grid Style="{StaticResource PanelHeaderStyle}" ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -174,7 +175,7 @@
                 </Grid>
 
                 <!-- Dónde se está; el botón sube a la carpeta de arriba y también recibe medios soltados. -->
-                <Grid x:Name="FolderBar" Grid.Row="1" Padding="4,6,8,0" ColumnSpacing="2" Visibility="Collapsed">
+                <Grid x:Name="FolderBar" Grid.Row="1" Padding="4,8,8,0" ColumnSpacing="2" Visibility="Collapsed">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -196,10 +197,10 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Resolución" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
-                    <TextBlock Grid.Column="1" Text="Duración" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
-                    <TextBlock Grid.Column="2" Text="Fps" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
-                    <TextBlock Grid.Column="3" Text="Códec" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                    <TextBlock Text="Resolución" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Grid.Column="1" Text="Duración" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Grid.Column="2" Text="Fps" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Grid.Column="3" Text="Códec" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
                 </Grid>
 
                 <GridView x:Name="MediaGrid" Grid.Row="4" Padding="8" SelectionMode="Single" IsDoubleTapEnabled="True"
@@ -213,9 +214,9 @@
                           ItemsSource="{x:Bind Media}" ItemTemplate="{StaticResource MediaRowTemplate}" />
 
                 <!-- Medios nuevos de las carpetas vigiladas (LibraryView.Watched): importar con un clic o descartar. -->
-                <Border x:Name="WatchedBanner" Grid.Row="4" VerticalAlignment="Bottom" Margin="8" Padding="10,8" Visibility="Collapsed" CornerRadius="2"
+                <Border x:Name="WatchedBanner" Grid.Row="4" VerticalAlignment="Bottom" Margin="8" Padding="12,8" Visibility="Collapsed" CornerRadius="{StaticResource ControlCornerRadius}"
                         Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1">
-                    <Grid ColumnSpacing="6">
+                    <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -275,7 +276,7 @@
                 <ListView SelectionMode="None" ItemsSource="{x:Bind Modules}">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="local:ModuleItem">
-                            <StackPanel Padding="0,6" Spacing="2" ToolTipService.ToolTip="{x:Bind Description}">
+                            <StackPanel Padding="0,8" Spacing="2" ToolTipService.ToolTip="{x:Bind Description}">
                                 <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" />
                                 <TextBlock Text="{x:Bind State}" Style="{StaticResource CaptionTextStyle}" Opacity="{x:Bind StateOpacity}" />
                                 <TextBlock Text="{x:Bind Description}" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" MaxLines="2" />
@@ -289,7 +290,11 @@
 
             <markers:MarkersPanel x:Name="MarkersView" Grid.Row="1" Visibility="Collapsed" />
 
-            <TextBlock x:Name="EmptyText" Grid.Row="1" Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center" Margin="16" />
+            <!-- Estado vacío: el logotipo atenuado y qué hacer; sigue a EmptyText, que maneja el código. -->
+            <StackPanel Grid.Row="1" VerticalAlignment="Center" Spacing="12" Margin="16" Visibility="{x:Bind EmptyText.Visibility, Mode=OneWay}">
+                <shell:AppLogo Width="48" Height="48" Opacity="0.5" />
+                <TextBlock x:Name="EmptyText" Style="{StaticResource PlaceholderTextStyle}" />
+            </StackPanel>
         </Grid>
     </Grid>
 </UserControl>

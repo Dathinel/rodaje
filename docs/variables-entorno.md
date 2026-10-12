@@ -21,6 +21,7 @@ Todas las variables que lee Rodaje empiezan con `RODAJE_`. Ninguna es obligatori
 | `RODAJE_MEDIR_BIBLIOTECA` | Archivo donde la biblioteca escribe su medida: espera a que carguen los medios, desplaza la cuadrícula despacio y de golpe, anota los intervalos entre cuadros y las portadas, y cierra la app | `LibraryScrollMeasurement` (Rodaje.App) |
 | `RODAJE_MEDIR_LINEA` | Ruta de un informe: al abrir, la línea de tiempo arma un proyecto de 200 clips con el primer video abierto (o uno sintético), mide desplazamiento, zoom y arrastre, escribe el informe y cierra la app | `TimelineBenchmark` (Rodaje.App) |
 | `RODAJE_AUTOPRUEBA_CAPTURAS` | Carpeta donde `--autoprueba` guarda en PNG la ventana (dibujada por XAML) y cuadros del visor | `SelfTestRun` (Rodaje.App) |
+| `RODAJE_CONTRASTE_ALTO` | Solo con `--autoprueba` y `1`: la paleta propia toma colores de contraste alto (negro, blanco y cian) sin cambiar Windows, para revisar las vistas propias en capturas; los controles de WinUI no cambian de tema | `ThemeResources` (Rodaje.App) |
 
 ## Pruebas
 

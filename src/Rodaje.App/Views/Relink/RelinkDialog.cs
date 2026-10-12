@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Relink;
 using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -64,7 +65,7 @@ internal static class RelinkDialog
             TextWrapping = TextWrapping.Wrap,
         });
 
-        var list = new StackPanel { Spacing = 6 };
+        var list = new StackPanel { Spacing = 8 };
         foreach (MediaRef media in missing)
         {
             var grid = new Grid { ColumnSpacing = 12 };
@@ -73,8 +74,8 @@ internal static class RelinkDialog
             var text = new StackPanel();
             int clips = MediaRelinkEdits.CountClips(project, media.Id);
             text.Children.Add(new TextBlock { Text = MediaRelinkSearch.FileName(media.Path), FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-            text.Children.Add(new TextBlock { Text = media.Path, FontSize = 12, Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis });
-            var status = new TextBlock { Text = clips == 1 ? "Falta · en 1 clip" : $"Falta · en {clips} clips", FontSize = 12, TextWrapping = TextWrapping.Wrap };
+            text.Children.Add(new TextBlock { Text = media.Path, FontSize = ThemeResources.Size("BodyFontSize"), Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis });
+            var status = new TextBlock { Text = clips == 1 ? "Falta · en 1 clip" : $"Falta · en {clips} clips", FontSize = ThemeResources.Size("BodyFontSize"), TextWrapping = TextWrapping.Wrap };
             text.Children.Add(status);
             var pick = new Button { Content = "Elegir…", VerticalAlignment = VerticalAlignment.Center };
             var confirm = new Button { Content = "Confirmar", VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
