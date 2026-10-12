@@ -46,6 +46,16 @@ flowchart LR
 - **Mezcla**: con fuente premultiplicada y fondo opaco, `Cb·(1 − a) + a·B(Cb, Cs)` con las funciones B de W3C (*Compositing and Blending Level 1*). La suma es `Cb + a·Cs` y en RGBA16F no se recorta hasta la salida.
 - **Transiciones** (`p` de 0 a 1, exactas en los extremos): fundido `A·(1 − p) + B·p`; a color en dos mitades a través del color; barrido con borde lineal de ancho `suavidad` en la dirección del ángulo (0 = de izquierda a derecha); empujar, con el saliente corrido `p` cuadros; zoom y desenfoque con un peso `4p(1 − p)` que vale 0 en los extremos. Un `rodaje.preset` que llega sin resolver (falta el paquete) cae a fundido cruzado y cuenta como contenido que falta.
 
+**Imagen y color (v1).** Croma, ruedas y curvas van en `PsGraded` con la bandera `ADVANCED` (64 variantes) y cada uno se enciende con una rama uniforme (`extra`), así no se multiplican las variantes. Orden: croma (sobre la imagen original) → color → ruedas → curvas → LUT → viñeta; el alfa del croma se multiplica con el de las máscaras.
+
+- **Croma** en Y'CbCr BT.709: `Cb = (B − Y)/1,8556`, `Cr = (R − Y)/1,5748`; alfa = `smoothstep(tol, tol + suavidad, 2·|CbCr − clave|)`, recortado a `0,45·limpieza` por abajo y por arriba; el derrame quita del croma su componente positiva en la dirección de la clave (`·derrame`) y la luma queda igual.
+- **Ruedas**, por canal con el general sumado: `c + lift·(1 − c)`, luego `·(1 + gain)`, luego `^(2^−gamma)`.
+- **Curvas**: cúbica de Hermite con pendientes de Fritsch–Carlson (no se pasa de los puntos), canal y luego general, en una tabla RGBA16F de 1024 × 1 en `t10` (`CurveTextures`, se sube solo si cambia).
+- **Recorte** (`LayerTransform.Crop`): `LayerLayout.Place` ajusta el tamaño que queda y `VideoLayout.Crop` lleva las esquinas de la textura a esa parte; vale por los dos caminos y por el intermedio.
+- **Antes/después y cuentagotas** (`Compositor.CompareSplit`, `Compositor.Bypass`, solo vista previa): con la cortina se compone otra vez sin color en un intermedio del pool y se copia su parte izquierda sobre la salida; `PreviewBypass` deja fuera el color, el croma o el recorte en todo el cuadro. `RenderStrict` no los mira.
+- **Pruebas** (`ImageColorTests`, contra `EffectReference` y `ToneCurve` en la CPU, ≤2/255): ruedas (6 casos), curvas, pantalla verde con derrame, pantalla azul con limpieza, croma con máscara y sin croma en vista previa, antes/después y exportación sin cortina, recorte (3 casos). En la GPU de verdad localmente y en el adaptador básico (WARP) en la CI.
+- **Cifras** (RTX 3050 Laptop, Release, mediana de 300 cuadros): una capa 1080p con recorte, croma, color, LUT, ruedas y curvas, **0,16 ms**; con antes/después, **0,30 ms** (15 MB de pool). La capa 4K con color y LUT sigue en 0,33 ms.
+
 **Estabilizar** (fase 7). No es una etapa propia: la corrección del cuadro llega en `LayerTransform.Stabilization` (similitud sobre el centro de la imagen ajustada, en altos de esa imagen) y `LayerLayout.Place` la compone antes de la transformación (`S·s`, `u + θ`, desplazamiento `S·R(u)·h·t`), así la capa sigue siendo un cuadrilátero por cualquiera de los caminos.
 
 **Unidades.** Los radios están en píxeles de la secuencia: el intermedio mide en píxeles de pantalla y los radios se multiplican por esa escala, así la vista previa a media resolución se ve como la exportación. Medida: 0,64/255 de diferencia media entre mitad y completa reducida.
@@ -56,7 +66,7 @@ flowchart LR
 
 ### Shaders y memoria
 
-- **[`ShaderCache`](../../src/Rodaje.Render/Shaders/ShaderCache.cs)**: bytecode en memoria y en `%LOCALAPPDATA%\Rodaje\cache\shaders\<sha256>.cso` (o `RODAJE_DATOS\cache\shaders`). La clave incluye fuente, variante, perfil y opciones del compilador. `EffectPipeline` crea las 23 variantes en segundo plano al abrir el compositor (`ShadersReady`); hasta entonces la capa sale por el camino rápido. Los shaders base (`VsQuad`, `PsLayer`, `PsPresent`) siguen compilándose al arrancar, como en D-015.
+- **[`ShaderCache`](../../src/Rodaje.Render/Shaders/ShaderCache.cs)**: bytecode en memoria y en `%LOCALAPPDATA%\Rodaje\cache\shaders\<sha256>.cso` (o `RODAJE_DATOS\cache\shaders`). La clave incluye fuente, variante, perfil y opciones del compilador. `EffectPipeline` crea las 72 variantes en segundo plano al abrir el compositor (`ShadersReady`); hasta entonces la capa sale por el camino rápido. Los shaders base (`VsQuad`, `PsLayer`, `PsPresent`) siguen compilándose al arrancar, como en D-015.
 - **[`RenderTargetPool`](../../src/Rodaje.Render/RenderTargetPool.cs)**: intermedios reutilizados, con tamaños redondeados a 64 px y un tope del 7,5 % de la VRAM entre 96 y 300 MB (300 MB con 4 GB), fuera del presupuesto de los decodificadores. Si una textura no cabe, el efecto se salta. Las libres se sueltan tras 240 cuadros sin uso o con `TrimCachedViews`.
 - **[`GpuEffectRegistry`](../../src/Rodaje.Render/Effects/GpuEffectRegistry.cs)**: tabla explícita código → implementación, sin reflexión; una prueba exige que coincida con `EffectRegistry`.
 
