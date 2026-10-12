@@ -127,6 +127,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             }
         };
         MissingContent.Attach(session, packages);
+        Views.Relink.RelinkDialog.Attach(_services, _hwnd);
         _bindings.Add(EditorShortcuts.Bind(_router, session));
         _bindings.Add(_router.Bind(ActionIds.Export, () => ShowPage(ShellPage.Export)));
         _bindings.Add(_router.Bind(ActionIds.ShowShortcuts, () => ShowPage(ShellPage.Shortcuts)));
