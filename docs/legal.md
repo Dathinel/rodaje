@@ -4,11 +4,62 @@ Rodaje vive hoy en un repositorio privado, pero se construye como si fuera a pub
 
 ## Licencia del código propio
 
-Todo el código escrito para Rodaje se publica bajo la licencia MIT, con el aviso `Copyright (c) 2026 Daniel (Dathinel)` en el archivo `LICENSE` de la raíz. MIT permite a cualquiera usar, copiar, modificar y redistribuir el programa, incluso con fines comerciales, con la única condición de conservar el aviso de copyright y el texto de la licencia. Al ser tan permisiva, es compatible con enlazar dinámicamente bibliotecas LGPL, pero no con incorporar código GPL: si algún día se copiara código literal de un proyecto GPL, todo el programa distribuido tendría que pasar a GPL. Por eso la regla es estudiar el diseño de los proyectos GPL sin tomar su código, y detenerse a consultar si alguna vez se plantea lo contrario.
+Todo el código escrito para Rodaje se publica bajo la GNU General Public License v3 (texto oficial completo en `LICENSE`, de https://www.gnu.org/licenses/gpl-3.0.txt), con la cabecera `Copyright (C) 2026 Daniel (Dathinel)` y la URL oficial https://github.com/Dathinel/rodaje (decisión D-032, que sustituye a la PolyForm Noncommercial de D-030 y esta a la MIT de D-002; el repositorio nunca se publicó con ninguna de las dos). Al final de `LICENSE` van los términos adicionales de la Sección 7:
+
+1. **Atribución en la interfaz** (7.b y 7.c): toda versión interactiva conserva, visible y con enlace funcional, el aviso «Basado en el editor de video de código abierto de Daniel (Dathinel) / Rodaje (https://github.com/Dathinel/rodaje)». En Rodaje lo cumplen el crédito fijo de la barra de título y el diálogo «Ayuda → Acerca de Rodaje»; las cadenas viven en `src/Rodaje.App/Services/UpstreamAttribution.cs`, una prueba las fija contra `LICENSE` y `app.ps1 -Autoprueba` falla si el crédito no se ve.
+2. **Aviso en los canales de distribución y venta**: quien lo ofrezca o venda dice que deriva de un proyecto libre y gratuito y enlaza al repositorio oficial.
+3. **Prohibición de retirar** el crédito y el enlace.
+4. **Permiso adicional para complementos**: lo que se conecta por las interfaces públicas, puntos de extensión o IPC/CLI no se considera obra derivada y puede llevar cualquier licencia, también privativa y de pago.
+
+Es una licencia de código abierto: cualquiera puede usar, estudiar, modificar, redistribuir y vender el programa, con el código fuente y bajo la misma licencia. El nombre «Rodaje», el logotipo, el icono y el material gráfico no se licencian con el código ([`TRADEMARK.md`](../TRADEMARK.md)): un derivado publicado debe usar nombre e íconos propios. Las dudas sobre el alcance de los términos adicionales están en «Compatibilidad con la GPLv3», más abajo.
+
+Ser GPLv3 no cambia la regla con el código GPL ajeno: no se copia. El permiso para complementos y los términos de atribución solo los puede dar el titular del código, así que código GPL de terceros dentro de Rodaje los dejaría sin efecto sobre esa parte y quitaría a Daniel la titularidad única. Por eso se estudia el diseño de los proyectos GPL sin tomar su código, y se detiene el trabajo a consultar si alguna vez se plantea lo contrario.
 
 ## Sala limpia
 
 Los editores de código abierto estudiados (MLT, Kdenlive, Shotcut, OpenShot, Olive y LosslessCut, con sus licencias en `docs/archivo/investigacion.md`) se analizaron solo a nivel de arquitectura y comportamiento. No se copió, tradujo ni adaptó código de ninguno de ellos. De los programas comerciales que inspiran la experiencia de uso solo se toman ideas de producto: nunca se descompilan ni se analizan sus binarios, y nunca se extraen sus recursos (efectos, plantillas, fuentes, música, íconos). Todos los recursos que se incluyan en Rodaje deben ser propios o tener una licencia que permita redistribución y uso comercial, registrada en `LICENCIAS.md`.
+
+## Compatibilidad con la GPLv3
+
+Análisis hecho el 11 de octubre de 2026 al pasar de la PolyForm Noncommercial a la GPLv3 con términos adicionales (D-032), leyendo `LICENSE` y las licencias de las dependencias. No cambia el código. Las citas en inglés son literales de cada licencia (la GPLv3 de `LICENSE`, la LGPL v3 y el `license.txt` del Windows App SDK). Todo lo que sigue son **pendientes para el abogado** (ver [`pendientes-legales.md`](pendientes-legales.md)): no se redacta ningún texto legal nuevo aquí.
+
+### a) FFmpeg (LGPL v3) con la GPLv3
+
+**Qué dicen las licencias.** Las DLL y el `ffmpeg.exe` distribuidos son LGPL v3 (`--enable-version3`). La LGPL v3 se define como la GPLv3 más permisos adicionales: «This version of the GNU Lesser General Public License incorporates the terms and conditions of version 3 of the GNU General Public License, supplemented by the additional permissions listed below». Su sección 4 («Combined Works») pide que los términos de la obra combinada no restrinjan la modificación de la biblioteca ni «reverse engineering for debugging such modifications». La GPLv3 no prohíbe nada de eso: concede la modificación (Sección 2) y su Sección 3 renuncia a las medidas anti-elusión.
+
+**Conclusión de trabajo.** Compatible: la LGPL v3 es compatible con la GPLv3 por construcción, y la versión 2.1 de la LGPL (la licencia por defecto de FFmpeg) también lo es por su opción de pasar a la GPL (LGPL 2.1, sección 3). Siguen en pie las obligaciones de siempre (DLL sin renombrar, código fuente u oferta, línea de configure, crédito) y una condición: ningún texto añadido (por ejemplo, el que exija el Windows App SDK, punto b) puede prohibir la ingeniería inversa de la combinación con FFmpeg. El párrafo de `THIRD-PARTY-NOTICES.txt` sigue marcado como pendiente de revisión.
+
+### b) Windows App SDK: cláusula 3.c frente al copyleft de la GPLv3
+
+**Qué dice Microsoft.** La prohibición de copyleft está en la cláusula 3.c.ii de los términos del Windows App SDK (`license.txt` del paquete `Microsoft.WindowsAppSDK.WinUI` 2.3.9; resumida en `LICENCIAS.md`, que la cita junto a la 3.b): «You may not: [...] modify or distribute the source code of any distributable code so that any part of it becomes subject to any license that requires that the distributable code, any other part of the software, or any of Microsoft's other intellectual property be disclosed or distributed in source code form, or that others have the right to modify it.» La 3.b.ii pide además «require distributors and external end users to agree to terms that protect it and Microsoft at least as much as this agreement», y la 3.b.iii una indemnización. Rodaje se distribuye autocontenido con unas 240 DLL, `.pri` y `.winmd` del SDK junto a `Rodaje.exe`. Matiz para el abogado: la 3.c.ii habla de modificar o distribuir el **código fuente** de lo redistribuible, y Rodaje solo distribuye los binarios sin modificar.
+
+**Qué dice la GPLv3.** La Sección 6 obliga a dar el «Corresponding Source» del ejecutable, definido en la Sección 1 como «all the source code needed to generate, install, and (for an executable work) run the object code», pero que «does not include the work's System Libraries». Y: «The "System Libraries" of an executable work include anything, other than the work as a whole, that (a) is included in the normal form of packaging a Major Component, but which is not part of that Major Component, and (b) serves only to enable use of the work with that Major Component, or to implement a Standard Interface for which an implementation is available to the public in source code form. A "Major Component", in this context, means a major essential component (kernel, window system, and so on) of the specific operating system (if any) on which the executable work runs, or a compiler used to produce the work, or an object code interpreter used to run it.»
+
+**Dudas para el abogado.**
+1. Si el Windows App SDK cuenta como System Library: sirve para usar el sistema de ventanas de Windows (un Major Component), pero no viene con Windows (se distribuye por NuGet y en este caso dentro de la carpeta de Rodaje). El código fuente de WinUI es MIT en GitHub, pero los binarios del paquete llevan los términos de Microsoft.
+2. Si no lo es, Daniel (único titular) puede añadir un permiso adicional de enlace en `LICENSE` (Sección 7, «additional permissions»), como el del término 4 para complementos, para el Windows App SDK, la proyección del Windows SDK y, si llega, DirectML. **No se redacta aquí.** Ojo: un permiso adicional lo puede quitar quien redistribuya (Sección 7: «When you convey a copy of a covered work, you may at your option remove any additional permissions from that copy»), y entonces esa copia ya no se podría distribuir con las DLL.
+3. Si la GPLv3, aunque no se aplique a las DLL, «somete» igualmente esos archivos a copyleft en el sentido de la 3.c.ii al distribuirlos juntos, y qué texto de usuario final cumple la 3.b sin restringir los derechos de la GPLv3 (Sección 10: «You may not impose any further restrictions on the exercise of the rights granted or affirmed under this License») ni la LGPL de FFmpeg. La lista de cláusulas de Microsoft que debería cubrir ese texto (archivos solo licenciados, ingeniería inversa limitada a esos archivos, sin quitar avisos, exclusión de garantías que proteja a Microsoft, aviso de datos de uso 2.a, exportación, marcas, transmisión a redistribuidores, aceptación sin instalador, alcance de la indemnización) se mantiene del análisis anterior.
+
+### c) Término adicional 2 (tiendas y páginas de venta): ¿cabe en la Sección 7?
+
+**Qué permite la GPLv3.** La Sección 7 solo admite términos adicionales de una lista cerrada. Los usados son: «b) Requiring preservation of specified reasonable legal notices or author attributions in that material or in the Appropriate Legal Notices displayed by works containing it» y «c) Prohibiting misrepresentation of the origin of that material, or requiring that modified versions of such material be marked in reasonable ways as different from the original version». Y añade: «All other non-permissive additional terms are considered "further restrictions" within the meaning of section 10. If the Program as you received it, or any part of it, contains a notice stating that it is governed by this License along with a term that is a further restriction, you may remove that term.»
+
+**Duda.** Los términos 1 y 3 (aviso en la interfaz y prohibición de quitarlo) encajan bien en 7(b) y 7(c), y también la marca: 7(e) permite «Declining to grant rights under trademark law for use of some trade names, trademarks, or service marks», que respalda `TRADEMARK.md`. El término 2 obliga a poner texto en la **descripción del producto, la página de venta o el proceso de descarga**, que no son parte del material ni de sus «Appropriate Legal Notices»: puede exceder 7(b) y ser una «further restriction» que cualquier receptor puede eliminar. Si es así, el riesgo no es que la licencia caiga, sino que ese término no se pueda hacer cumplir. También conviene revisar si «sin obstrucciones» y «en la ventana o diálogo de Acerca de, barra de estado o pantalla de inicio» del término 1 son «reasonable» en el sentido de 7(b).
+
+### d) La GPLv3 permite vender el programa
+
+Distinto de la PolyForm: la Sección 4 dice «You may charge any price or no price for each copy that you convey, and you may offer support or warranty protection for a fee», y la Sección 10 impide añadir restricciones. Cualquiera puede vender Rodaje o un derivado, siempre que entregue el código fuente correspondiente bajo la GPLv3 (Sección 6), conserve la atribución de los términos 1 y 3 y, para un derivado publicado, use otro nombre e íconos (`TRADEMARK.md`). Lo que Daniel conserva es el nombre, la marca visual y el crédito; no la exclusividad de venta. Es la decisión que Daniel tomó el 11-oct (D-032).
+
+### e) El enlace del crédito apunta a un repositorio privado
+
+El término 1 exige «un enlace interactivo directo y funcional» a https://github.com/Dathinel/rodaje, y la app lo cumple con el crédito de la barra de título y el diálogo «Acerca de». Hoy el repositorio es privado: para cualquiera que no sea Daniel el enlace da 404, así que el enlace solo funciona de verdad al hacerlo público. Mientras sea privado, Rodaje solo se comparte con personas cercanas; antes de entregar un ejecutable a terceros hay que publicar el repositorio (o al menos el código fuente correspondiente, que la Sección 6 exige igualmente).
+
+### f) Otros puntos anotados al revisar
+
+- **Versión de la GPL.** `LICENSE` lleva el texto de la versión 3 pero no dice «solo la versión 3» ni «o cualquier versión posterior». La Sección 14 dice: «If the Program does not specify a version number of the GNU General Public License, you may choose any version ever published by the Free Software Foundation». Los términos adicionales hablan de «GNU GPLv3», lo que probablemente basta, y `Directory.Build.props` declara `GPL-3.0-only`; confirmar si la cabecera debe decirlo de forma expresa.
+- **Activos con todos los derechos reservados.** `TRADEMARK.md` reserva el logotipo, el icono y el material gráfico. Si esos archivos viajan dentro del ejecutable o de `dist\`, forman parte de lo que se redistribuye: revisar cómo se combina con la GPLv3 (por ejemplo, ponerlos aparte del código o exigir solo que un derivado los reemplace).
+- **Permiso para complementos frente a quien redistribuye.** Como todo permiso adicional, quien redistribuya una versión modificada puede quitar el término 4 de su copia (Sección 7). No afecta a la versión de Daniel.
+- **«Appropriate Legal Notices».** La Sección 5(d) exige que cada interfaz interactiva de una versión modificada los muestre: aviso de copyright, que no hay garantía, que se puede redistribuir bajo la licencia y cómo ver la licencia (Sección 0). El diálogo «Ayuda → Acerca de Rodaje» ya los incluye junto al crédito (`UpstreamAttribution`).
 
 ## FFmpeg y la LGPL
 
@@ -21,8 +72,8 @@ La página legal de FFmpeg ofrece una lista de comprobación para cumplir la LGP
 3. **DLL sin renombrar ni ofuscar.** Se conservan los nombres originales, de modo que el usuario pueda reemplazarlas por otra compilación compatible, que es el derecho central de la LGPL.
 4. **Código fuente correspondiente.** Junto a cada versión distribuida se ofrece el código fuente exacto de las DLL incluidas, o una oferta escrita de entregarlo. Como las compilaciones de BtbN se publican con etiqueta y fecha, se registra la URL exacta de la versión usada y su hash, y se archiva el tarball del código fuente correspondiente.
 5. **Línea de configuración documentada.** Se incluye un archivo de texto con la línea de `configure` de la compilación distribuida.
-6. **Crédito en "Acerca de".** El cuadro "Acerca de" de Rodaje menciona que el programa usa bibliotecas de FFmpeg bajo la LGPL, con enlace a https://ffmpeg.org y al código fuente.
-7. **EULA y ingeniería inversa.** Si algún día Rodaje tiene términos de uso, no pueden prohibir la ingeniería inversa de la parte LGPL ni reclamar la propiedad de FFmpeg; deben indicar quiénes son sus autores. La licencia MIT actual no impone ninguna prohibición de ese tipo.
+6. **Crédito en "Acerca de".** El cuadro "Acerca de" de Rodaje menciona que el programa usa bibliotecas de FFmpeg bajo la LGPL, con enlace a https://ffmpeg.org y al código fuente. Desde el 11-oct «Ayuda → Acerca de Rodaje» ya lo menciona; falta el enlace al código fuente archivado.
+7. **EULA y ingeniería inversa.** Si algún día Rodaje tiene términos de uso, no pueden prohibir la ingeniería inversa de la parte LGPL ni reclamar la propiedad de FFmpeg; deben indicar quiénes son sus autores. La GPLv3 de Rodaje no impone ninguna prohibición de ese tipo (análisis en «Compatibilidad con la GPLv3»).
 8. **Mismo cuidado con las bibliotecas que FFmpeg incluye.** Cada biblioteca externa compilada dentro de las DLL de BtbN tiene su propia licencia, que se revisa y se lista en `THIRD-PARTY-NOTICES.txt` en la versión en que FFmpeg se distribuya.
 
 ### Compilación fijada y su código fuente
@@ -51,61 +102,7 @@ Una advertencia específica del equipo de desarrollo: el FFmpeg 9.0 de gyan.dev 
 
 Las licencias de software no resuelven las patentes. H.264/AVC y H.265/HEVC son formatos cubiertos por patentes administradas por consorcios: el programa AVC/H.264 de Via LA (https://www.via-la.com/licensing-2/avc-h-264/) y los programas de Access Advance para HEVC (https://accessadvance.com/), que además absorbió el antiguo programa HEVC/VVC de Via LA. La propia página legal de FFmpeg reconoce que no puede afirmar si su código usa algoritmos patentados y recuerda que el riesgo depende de la jurisdicción y del uso comercial.
 
-Rodaje mitiga este riesgo de tres formas. Primero, la codificación H.264 y HEVC se delega en los codificadores por hardware de la GPU (por ejemplo NVENC) o en los de Media Foundation incluidos en Windows, cuyos fabricantes gestionan sus propias licencias de patentes. Segundo, se priorizan formatos libres de regalías como AV1, VP9 y Opus cuando el usuario no necesite un formato concreto. Tercero, el programa no se vende ni se distribuye comercialmente mientras no se haga una revisión legal específica. Nada de esto es asesoría legal: si Rodaje se distribuyera comercialmente, habría que consultar a un abogado de propiedad intelectual.
-
-## Exportación: codificadores, licencias y patentes
-
-Revisado el 11 de octubre de 2026 para la fase 6 (D-028, tarea 21 de la nube). **No es asesoramiento legal:** recoge lo que dicen las licencias y las páginas oficiales, con su enlace, y marca como «sin verificar» lo que no se pudo leer en la fuente primaria. Las licencias de copyright de cada biblioteca, con el commit que fija BtbN, están en `LICENCIAS.md`, sección «Bibliotecas de la exportación».
-
-La exportación de la v1 no añade binarios: usa el mismo `ffmpeg.exe` y las mismas DLL LGPL de los proxies. Todo lo que puede codificar ya viaja hoy en `dist\`, aunque el usuario nunca lo elija, porque las bibliotecas externas van estáticas dentro de `avcodec-63.dll`. Que un codificador exista en la compilación se comprobó en la línea de configure (`docs/ffmpeg-configure.txt`) y en `libavcodec/allcodecs.c` del commit `2a571b6068` de FFmpeg; que funcione en el equipo lo decide la sonda de la tarea 13.
-
-### Qué codifica cada cosa y qué obliga
-
-| Códec (`ExportCodec`) | Codificador | Quién lo hace | Licencia del código | ¿Lo redistribuye Rodaje? | Patentes del formato |
-|---|---|---|---|---|---|
-| H.264 | `h264_nvenc`, `h264_amf`, `h264_qsv` | GPU (NVIDIA, AMD, Intel) | Encabezados MIT dentro de FFmpeg; el codificador es el controlador | Solo los encabezados compilados en `avcodec`; el controlador no | Pool AVC/H.264 de Via LA. Ver «Quién cubre las patentes» más abajo |
-| H.264 | `h264_mf` | Media Foundation de Windows | Parte de Windows | No | Igual |
-| H.264 | `libopenh264` (no por defecto) | CPU | BSD-2-Clause | Sí, dentro de `avcodec` | Sin cobertura: la licencia de Cisco es solo para su binario |
-| HEVC | `hevc_nvenc`, `hevc_amf`, `hevc_qsv`, `hevc_mf` | GPU o Media Foundation | Igual que H.264 | Igual | Pool HEVC Advance de Access Advance y titulares fuera de pools |
-| HEVC | `libkvazaar` (no por defecto) | CPU | BSD-3-Clause | Sí | Sin cobertura |
-| AV1 | `libsvtav1`, `libaom-av1` | CPU | BSD 3-Clause Clear / BSD-2-Clause, más la AOM Patent License 1.0 | Sí | Licencia de patentes de AOM sin regalías; Sisvel ofrece además un pool de AV1 |
-| AV1 | `av1_nvenc`, `av1_amf`, `av1_qsv` | GPU | Encabezados MIT | Solo encabezados | Igual que AV1 |
-| VP9 | `libvpx-vp9` | CPU | BSD-3-Clause más la concesión de patentes de Google | Sí | Concesión de Google; Sisvel ofrece además un pool de VP9 |
-| ProRes, DNxHR, CineForm, FFV1, MJPEG, PNG, QT Animation, GIF, TIFF, EXR | `prores_ks`, `dnxhd`, `cfhd`, `ffv1`, `mjpeg`, `png`, `qtrle`, `gif`, `tiff`, `exr` | CPU, código propio de FFmpeg | LGPL de FFmpeg (PNG, TIFF y EXR usan zlib) | Sí | Sin verificar (ver abajo) |
-| WebP | `libwebp_anim` | CPU | BSD-3-Clause más la concesión de patentes de Google | Sí | Concesión de Google |
-| AAC | `aac_mf` (preferido), `aac` | Media Foundation / código de FFmpeg | Windows / LGPL | `aac`, sí | Pool AAC de Via LA |
-| Opus | `libopus` | CPU | BSD-3-Clause | Sí | Licencias sin regalías declaradas ante la IETF |
-| MP3 | `libmp3lame` | CPU | LGPL (LAME) | Sí | Sin verificar (ver abajo) |
-| FLAC, ALAC, PCM | `flac`, `alac`, `pcm_*` | CPU, código de FFmpeg | LGPL | Sí | Sin verificar; no se encontró ningún pool |
-
-### Obligaciones de copyright que añade la exportación
-
-1. **Avisos en `THIRD-PARTY-NOTICES.txt`** de cada biblioteca de la tabla de `LICENCIAS.md`: las BSD (SVT-AV1, libaom, libvpx, libopus, kvazaar, OpenH264, libwebp) piden reproducir el copyright, las condiciones y el descargo «en la documentación u otros materiales» del binario; las MIT (encabezados de NVENC, AMF y libvpl) piden incluir el aviso. Las fuentes son los archivos `LICENSE`/`COPYING` enlazados en `LICENCIAS.md`.
-2. **AOM Patent License 1.0 completa** (SVT-AV1 y libaom): su cláusula 1.2.1.b exige, al distribuir en binario, incluir el texto de la licencia «in the documentation, legal notices, and/or other written materials». Tiene además una terminación defensiva (1.3): quien demande alegando que una implementación de AV1 infringe sus patentes pierde la licencia. Fuente: https://gitlab.com/AOMediaCodec/SVT-AV1/-/blob/master/PATENTS.md.
-3. **Concesiones de patentes de Google** (`PATENTS` de libvpx y de libwebp): se incluyen junto a sus licencias. Fuentes: https://github.com/webmproject/libvpx/blob/main/PATENTS y https://github.com/webmproject/libwebp/blob/main/PATENTS.
-4. **LAME:** su `LICENSE` pide reconocer que se usa LAME, con enlace a https://lame.sourceforge.io/, y enlazarla como biblioteca separada. Aquí va estática dentro de `avcodec-63.dll`, que es una DLL LGPL reemplazable; el código de LAME (revisión 6835) entra en el código fuente correspondiente que se ofrece con FFmpeg. Fuente: https://sourceforge.net/p/lame/svn/HEAD/tree/trunk/lame/LICENSE.
-5. **IJG:** el `LICENSE.md` de FFmpeg (commit `2a571b6068`) dice que `jfdctfst.c`, `jfdctint_template.c` y `jrevdct.c` vienen de libjpeg y que, si solo se distribuyen ejecutables, hay que dar crédito al Independent JPEG Group en la documentación. `jfdctfst`/`jfdctint` se compilan con `fdctdsp`, que piden `dnxhd`, `prores_ks` y `prores_aw` (`configure`), y `jrevdct` con `idctdsp`. Fuente: https://github.com/FFmpeg/FFmpeg/blob/2a571b606854520cf89804d8030c8b328e621689/LICENSE.md.
-6. **Código fuente correspondiente de FFmpeg:** ya era obligatorio por los proxies (sección «FFmpeg y la LGPL»); con la exportación no cambia, pero el archivo que se archive debe incluir también el código de cada biblioteca externa en el commit que fija `scripts.d/` de BtbN (commit `6c9aec5fc9a72ec3abedd1fa84db141fa18cf52b`), porque van dentro de la DLL.
-7. **Ninguna biblioteca GPL ni nonfree:** la línea de configure lleva `--disable-libx264`, `--disable-libx265`, `--disable-libxvid` y `--disable-libfdk-aac`. El `LICENSE.md` de FFmpeg lista libx264, libx265 y libxvid entre las que obligan a `--enable-gpl`, y FDK AAC entre las incompatibles que piden `--enable-nonfree`. x264 y x265 quedan para un complemento aparte (D-028).
-
-### Quién cubre las patentes de H.264, HEVC y AAC
-
-Lo que dicen hoy `docs/legal.md` («Patentes de códecs»), D-028 y `docs/fase-6.md` es que, al codificar H.264 y HEVC con la GPU o con Media Foundation, «sus fabricantes gestionan sus propias licencias de patentes» o «las cubren». **Las fuentes primarias que se pudieron leer no lo confirman, y una lo contradice:**
-
-- **AMD (AMF):** el `LICENSE.txt` del SDK de AMF, en el mismo commit que compila BtbN, empieza con una «Notice Regarding Standards»: AMD no concede licencia ni sublicencia sobre derechos de propiedad intelectual de estándares, «including … AVC/H.264; HEVC/H.265; AAC decode/FFMPEG; AAC encode/FFMPEG; VC-1; and MP3», y «you will pay any royalties due for such third party technologies». Fuente: https://github.com/GPUOpen-LibrariesAndSDKs/AMF/blob/6277e353fd625121a8f627b1d0540323ef372a49/LICENSE.txt.
-- **Intel (QSV):** la documentación de `vpl-gpu-rt` dice que las implementaciones de códecs MPEG «may require licenses from various entities, including Intel Corporation». Fuente: https://github.com/intel/vpl-gpu-rt/blob/main/doc/HyperEncode_FeatureDeveloperGuide.md.
-- **NVIDIA (NVENC):** **sin verificar.** Copias de terceros del acuerdo del SDK de NVIDIA dicen que obtener licencias de terceros para codificadores y decodificadores (menciona MPEG LA) es responsabilidad del licenciatario, pero no se pudo leer en el acuerdo vigente (https://developer.nvidia.com/nvidia-video-codec-sdk-license-agreement). Rodaje no usa el SDK de NVIDIA, solo los encabezados MIT de `nv-codec-headers` y el controlador del usuario.
-- **Microsoft (Media Foundation):** las páginas de Microsoft sobre el codificador H.264, el HEVC y el AAC de Media Foundation describen perfiles y parámetros (H.264 Baseline y Main, High desde Windows 8; HEVC Main; AAC-LC) pero **no dicen nada** sobre si una aplicación que los llama hereda una licencia de patentes. Fuentes: https://learn.microsoft.com/windows/win32/medfound/h-264-video-encoder, https://learn.microsoft.com/windows/win32/medfound/codecobjects y https://learn.microsoft.com/windows/win32/medfound/aac-encoder. Las ediciones N de Windows no traen esos códecs hasta instalar el Media Feature Pack (https://support.microsoft.com/topic/78cfeea5-c7d9-4aa8-b38f-ee4df1392009).
-- **Via LA, AVC/H.264:** su programa licencia a fabricantes de productos finales con codificadores o decodificadores; la tabla de tarifas da 0 USD por las primeras 100 000 unidades al año por grupo empresarial. **Sin verificar** en la página (el entorno de la nube no pudo abrirla; el dato viene de un resumen de búsqueda): https://www.via-la.com/licensing-2/avc-h-264/avc-h-264-license-fees.
-- **Access Advance, HEVC Advance:** el resumen del programa de julio de 2026 está en https://accessadvance.com/wp-content/uploads/2025/07/HEVC-Advance-Program-Overview-July-2026.pdf. **Sin verificar** qué tarifa o exención aplicaría a un editor gratuito que llama a un codificador de la GPU o de Windows.
-- **Via LA, AAC:** licencia a fabricantes de productos finales con codificador o decodificador AAC; según su FAQ, los flujos codificados en AAC no pagan por distribuirse. **Sin verificar** en la página: https://www.via-la.com/licensing-2/aac/.
-- **OpenH264:** la licencia de patentes que paga Cisco cubre solo su binario descargado aparte por el usuario final, con atribución «OpenH264 Video Codec provided by Cisco Systems, Inc.». La OpenH264 de BtbN está compilada desde el código y no la tiene. **Sin verificar** en https://www.openh264.org/ (solo se leyeron copias del texto).
-- **MP3:** Fraunhofer IIS y Technicolor dieron por terminado su programa de licencias de MP3 en abril de 2017. **Sin verificar** en una fuente primaria.
-- **AV1 y VP9:** además de las concesiones sin regalías de AOM y de Google, Sisvel administra pools de patentes de AV1 y de VP9 dirigidos a dispositivos (https://www.sisvel.com/insights/sisvel-announces-first-licensees-of-av1-vp9-patent-pools/). **Sin verificar** si alcanzan al software.
-- **ProRes, DNxHR, CineForm:** **sin verificar.** Los codificadores de FFmpeg son implementaciones propias del proyecto, no las de Apple, Avid o GoPro; no se buscó si sus dueños exigen licencia de patentes o de marca para codificar. Nombrar «ProRes» o «DNxHR» en la interfaz usa marcas ajenas (ver «Marcas»).
-- **FFmpeg:** su página legal advierte que no puede asegurar que su código no use algoritmos patentados (https://ffmpeg.org/legal.html, ya citada arriba).
-
-**Consecuencia para Rodaje:** la mitigación de «Patentes de códecs» (delegar H.264/HEVC en la GPU o en Windows) reduce el código propio que implementa formatos patentados, pero no está demostrado que traslade la licencia al editor, y AMD dice expresamente que no. Mientras Rodaje no se venda ni se distribuya comercialmente el riesgo práctico es bajo, pero antes de una versión pública hay que decidirlo con alguien de licencias. Es la decisión pendiente número 1 de la entrega de esta tarea.
+Rodaje mitiga este riesgo de tres formas. Primero, la codificación H.264 y HEVC se delega en los codificadores por hardware de la GPU (por ejemplo NVENC) o en los de Media Foundation incluidos en Windows, cuyos fabricantes gestionan sus propias licencias de patentes. Segundo, se priorizan formatos libres de regalías como AV1, VP9 y Opus cuando el usuario no necesite un formato concreto. Tercero, Daniel no vende ni distribuye comercialmente el programa mientras no se haga una revisión legal específica. La GPLv3 sí permite que terceros lo vendan, y su Sección 11 trata las licencias de patentes que cada distribuidor obtenga; la exposición de quien distribuya es asunto suyo, pero conviene que los avisos lo recuerden. Nada de esto es asesoría legal: si Rodaje se distribuyera comercialmente, habría que consultar a un abogado de propiedad intelectual.
 
 ## Modelos de inteligencia artificial
 
@@ -117,7 +114,7 @@ Solo se usan modelos cuya licencia permita expresamente la redistribución y el 
 | MODNet | Quitar fondo de personas | Apache-2.0 (el README extiende la licencia a "código, modelos y demos", salvo los GIF) | Candidato, confirmar pesos concretos | https://github.com/ZHKKKe/MODNet |
 | U²-Net | Quitar fondo general | Apache-2.0 para el repositorio; los pesos no tienen licencia aparte y algunos se entrenaron con conjuntos de datos de terceros | Candidato, revisar conjuntos de datos | https://github.com/xuebinqin/U-2-Net |
 | BiRefNet | Quitar fondo de alta calidad | MIT en el código y en la ficha de Hugging Face de los pesos | Candidato | https://huggingface.co/ZhengPeng7/BiRefNet |
-| RMBG-1.4 y RMBG-2.0 de BRIA | Quitar fondo | Uso no comercial; lo comercial exige acuerdo aparte | Excluido | https://huggingface.co/briaai/RMBG-1.4 |
+| RMBG-1.4 y RMBG-2.0 de BRIA | Quitar fondo | Uso no comercial; lo comercial exige acuerdo aparte. Incompatible con la GPLv3, que permite el uso comercial | Excluido | https://huggingface.co/briaai/RMBG-1.4 |
 
 La licencia del repositorio no siempre cubre los pesos, y los pesos pueden heredar restricciones de los datos con que se entrenaron. Antes de incluir cualquiera de los candidatos hay que leer la licencia del archivo exacto que se va a descargar.
 
@@ -137,7 +134,9 @@ Rodaje no envía telemetría ni datos de uso a ningún servidor. Las funciones q
 
 Esta lista se recorre completa, en orden, antes de cambiar la visibilidad del repositorio a pública o de entregar un ejecutable a terceros. Cada punto se marca con la fecha y el resultado.
 
-- [ ] **Licencia.** `LICENSE` contiene el texto MIT con el aviso de copyright correcto y el año actualizado.
+- [ ] **Licencia.** `LICENSE` contiene la cabecera de copyright con el año actualizado, el texto literal de la GNU GPLv3 (SHA-256 del tramo GPL `3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986`, el de https://www.gnu.org/licenses/gpl-3.0.txt) y los términos adicionales revisados por el abogado; `TRADEMARK.md` está al día; los pendientes de [`pendientes-legales.md`](pendientes-legales.md) están resueltos.
+- [ ] **Crédito upstream.** El exe publicado muestra «Código abierto upstream: Rodaje» en la barra de título y el aviso completo en «Ayuda → Acerca de Rodaje», y el enlace abre https://github.com/Dathinel/rodaje, que ya es público (antes de serlo el enlace da 404).
+- [ ] **Código fuente.** Cada ejecutable entregado va acompañado del código fuente correspondiente de Rodaje o de un enlace a él (GPLv3, Sección 6), además del de FFmpeg.
 - [ ] **Sala limpia.** Se revisa que ningún archivo contenga código copiado de proyectos GPL o de terceros sin licencia compatible. Cualquier duda se resuelve antes de publicar.
 - [ ] **Inventario de dependencias.** `LICENCIAS.md` lista todas las dependencias reales del proyecto (se compara con los archivos `packages.lock.json`), con su versión y licencia verificadas.
 - [ ] **FFmpeg.** La compilación incluida es `lgpl-shared`, su línea de configuración no contiene `--enable-gpl` ni `--enable-nonfree`, las DLL y `ffmpeg.exe` vienen de esa misma compilación y conservan sus nombres, se archivó el código fuente exacto (o se redactó la oferta escrita), se registraron la URL y el hash de la compilación y el cuadro "Acerca de" da el crédito correspondiente.
@@ -151,21 +150,3 @@ Esta lista se recorre completa, en orden, antes de cambiar la visibilidad del re
 - [ ] **Secretos.** Se escanea el historial completo del repositorio, no solo la última versión, con gitleaks (https://github.com/gitleaks/gitleaks), y se confirma que no aparece ningún `.env`, clave de API ni token. Si aparece alguno, se revoca la clave y se reescribe el historial antes de publicar.
 - [ ] **Privacidad.** Se confirma que no hay telemetría y que toda función que envíe datos a un servicio externo es opcional y está explicada.
 - [ ] **Políticas del repositorio.** Se quita la marca de "preparado para el futuro" de `SECURITY.md` y `CONTRIBUTING.md`, se activa el reporte privado de vulnerabilidades en GitHub y se revisa que el requisito de firma DCO esté vigente.
-
-### Lista de comprobación de la exportación
-
-Se recorre junto con la anterior antes de entregar un ejecutable que exporte. Cada punto se marca con la fecha y el resultado.
-
-- [ ] **Bibliotecas reales.** Se comparan las bibliotecas de `ffmpeg -buildconf` de la compilación distribuida con la tabla «Bibliotecas de la exportación» de `LICENCIAS.md`, y los commits con los de `scripts.d/` de BtbN para esa release; si cambió la compilación, se vuelve a leer cada licencia.
-- [ ] **Sin GPL ni nonfree.** `-buildconf` lleva `--disable-libx264`, `--disable-libx265`, `--disable-libxvid` y `--disable-libfdk-aac`, y ni `--enable-gpl` ni `--enable-nonfree`; `ffmpeg -encoders` no lista `libx264`, `libx265` ni `libfdk_aac`.
-- [ ] **Avisos.** `THIRD-PARTY-NOTICES.txt` trae el copyright y la licencia de SVT-AV1, libaom, libvpx, libopus, LAME, kvazaar, OpenH264, libwebp, zlib, nv-codec-headers, AMF y libvpl.
-- [ ] **AOM.** El texto completo de la Alliance for Open Media Patent License 1.0 va en los avisos (cláusula 1.2.1.b).
-- [ ] **Google.** Los `PATENTS` de libvpx y libwebp van en los avisos.
-- [ ] **LAME.** El cuadro «Acerca de» o los avisos dicen que se usa LAME, con enlace a https://lame.sourceforge.io/.
-- [ ] **IJG.** Los avisos incluyen el crédito al Independent JPEG Group que pide el `LICENSE.md` de FFmpeg.
-- [ ] **AMF.** La «Notice Regarding Standards» de AMD va en los avisos tal cual.
-- [ ] **Código fuente.** El archivo del código fuente correspondiente incluye FFmpeg y cada biblioteca externa en el commit que fija BtbN (o la oferta escrita los cubre).
-- [ ] **Valores por defecto.** `libkvazaar` y `libopenh264` siguen con `InDefaults = false` y ningún preajuste de fábrica los usa; la elección automática de H.264/HEVC solo toma codificadores de GPU o de Media Foundation, y sin ellos ofrece AV1 o VP9.
-- [ ] **Patentes de H.264, HEVC y AAC.** Hay una decisión escrita (en `docs/decisiones.md`) sobre quién cubre las patentes al codificar con la GPU, con Media Foundation y con `aac`, tomada con alguien de licencias, a la vista de la nota de AMD de «Quién cubre las patentes».
-- [ ] **Puntos «sin verificar».** Se leyó en la fuente primaria cada punto marcado «sin verificar» en «Exportación: codificadores, licencias y patentes», o se dejó constancia de por qué no aplica.
-- [ ] **Marcas de formatos.** Los nombres ProRes, DNxHR, CineForm, NVENC, Quick Sync y AMF se usan solo para describir el formato o el hardware, sin logotipos ni sugerir respaldo.
