@@ -113,6 +113,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         Viewport.PixelsPerSecond = State.PixelsPerSecond;
 
         RegisterActions(services);
+        Views.Shortcuts.MouseShortcutHost.Attach(this, MouseContext.Timeline, services);
         services.ShortcutRegistry.Changed += (_, _) => UpdateTooltips();
         Session.ProjectOpened += (_, _) => OnProjectOpened();
         Session.ProjectEdited += OnProjectEdited;

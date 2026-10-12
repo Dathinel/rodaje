@@ -76,6 +76,8 @@ internal sealed partial class PlayerView : UserControl, IEditorView
 
         RegisterActions(services);
         AttachFormat(services);
+        Shortcuts.MouseShortcutHost.Attach((UIElement)VideoPanel.Parent, MouseContext.Viewer, services, wheel: true,
+            axis: (action, _, steps) => action == MouseGestures.ViewerZoom && StepZoom(steps));
         VideoPanel.SizeChanged += (_, _) => OnPanelSizeChanged();
         VideoPanel.CompositionScaleChanged += (_, _) => OnPanelSizeChanged();
         Session.TransportChanged += (_, _) => UpdateTransport();
@@ -279,9 +281,27 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         UpdateSafeAreas();
     }
 
-    private void OnZoomClick(object sender, RoutedEventArgs e)
+    private void OnZoomClick(object sender, RoutedEventArgs e) =>
+        SetZoom(ReferenceEquals(sender, ZoomHalfItem) ? ZoomHalfItem : ReferenceEquals(sender, ZoomFullItem) ? ZoomFullItem : ZoomFitItem);
+
+    /// <summary>La rueda del ratón pasa entre Ajustar, 50 % y 100 % (abajo aleja).</summary>
+    private bool StepZoom(int steps)
     {
-        (_zoom, string label) = ReferenceEquals(sender, ZoomHalfItem) ? (0.5, "50 %") : ReferenceEquals(sender, ZoomFullItem) ? (1.0, "100 %") : (0.0, "Ajustar");
+        RadioMenuFlyoutItem[] order = [ZoomFitItem, ZoomHalfItem, ZoomFullItem];
+        int at = Array.FindIndex(order, item => item.IsChecked);
+        int next = Math.Clamp(at - Math.Sign(steps), 0, order.Length - 1);
+        if (next != at)
+        {
+            SetZoom(order[next]);
+        }
+
+        return true;
+    }
+
+    private void SetZoom(RadioMenuFlyoutItem item)
+    {
+        item.IsChecked = true;
+        (_zoom, string label) = ReferenceEquals(item, ZoomHalfItem) ? (0.5, "50 %") : ReferenceEquals(item, ZoomFullItem) ? (1.0, "100 %") : (0.0, "Ajustar");
         ZoomButton.Content = label;
         _engine?.SetZoom(_zoom);
         UpdateSafeAreas();
