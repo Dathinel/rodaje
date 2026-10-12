@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #61, #64, #65. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50), #38, #37, #41, #39 (52–55), #43, #42, #45, #26, #27 (58–61) #49, #52, #48, #54 (62–64) #55, #56, #57, #44 (65–68) y #53, #46, #47, #59, #60 (69–72).
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50), #38, #37, #41, #39 (52–55), #43, #42, #45, #26, #27 (58–61) #49, #52, #48, #54 (62–64) #55, #56, #57, #44 (65–68) #53, #46, #47, #59, #60 (69–72), #61, #64, #65, #66 (76–79) y #71, #67, #70, #69 (80–82).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -724,3 +724,114 @@ La 57 hizo que `AlignEnd` a 1× ofrezca `map.Start + target` como primer final y
 2. **El falso nunca muere solo:** `testing/Rodaje.FakeFfmpeg/Program.cs:28-31` duerme con `Timeout.Infinite`. Ponle un tope (unos 2 min) o que salga si desaparece el padre.
 3. **Aserción de reloj frágil:** `:145` exige `Abort` en menos de 1000 ms. Compruébalo sin reloj: `Abort` vuelve mientras `release` sigue sin soltarse y `cleanup.IsCompleted` es falso.
 4. **Opcional de la 63:** `BeforeCompleteWaits` y `KillOverride` (`FfmpegPipeSink.cs`) siguen siendo propiedades mutables; pásalas a parámetros del constructor interno solo si cabe sin tocar más que lo mínimo (esta tarea no tiene `FfmpegPipeSink.cs` en sus caminos: si hace falta, anótalo en la entrega).
+
+## 73. Prueba de regresión del lector fuera de línea con lectura por adelantado de 1
+
+- **Estado:** pendiente
+- **Rama:** `claude/offline-lookahead-1`
+- **Caminos:** `tests/Rodaje.Engine.Tests/Offline/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 56 (`docs/tareas/2026-10-12-fotograma-titulo.md`, «Pendiente / sugerido»), `src/Rodaje.Engine/Offline/OfflineReaders.cs` (`SizePool`, `SizeReversePool`).
+
+La 56 corrigió `Math.Clamp(fits, 2, 1)` en `OfflineReaders` (con `LookaheadFrames = 1` y decodificación por hardware), pero la prueba que lo reproducía quedó fuera del repo. Súbela: `OfflineTimeline` con `LookaheadFrames = 1` y `MaxDecodersPerMedia = 1` sobre `FakeTimelineBackend` con `PoolSurfaceBytes`, `Render(15)` hacia adelante y en reversa. Debe fallar con el código de antes del PR #71 (compruébalo revirtiendo a mano) y pasar en Linux sin GPU.
+
+Que el error de `SelectPixelFormat` deje rastro es la tarea 81; aquí solo la prueba.
+
+## 74. Pruebas intermitentes en la CI de Windows: LUT que carga y avance de módulos
+
+- **Estado:** pendiente
+- **Rama:** `claude/ci-intermitentes-3`
+- **Caminos:** `tests/Rodaje.Engine.Tests/Offline/OfflineTimelineTests.cs`, `tests/Rodaje.App.Tests/Modules/ModuleManagerTests.cs`, `docs/tareas/`
+- **Lee:** entrega de la tarea 52 (`docs/tareas/2026-10-12-traducir-robusto.md`, sección de la CI), entrega de la tarea 57.
+
+El 12-oct, la CI de Windows de main y de varios PR que solo tocaban la cola falló y pasó al repetirla. Además del sink (tarea 76) y de `HandlerFaultTests` (tarea 69), fallaron:
+- `OfflineTimelineTests.A_lut_that_is_still_loading_is_awaited_before_the_first_frame`: «Falta contenido de paquetes: LUT looks@1.0.0/calido».
+- `ModuleManagerTests.El_avance_llega_a_la_fila_de_Trabajos_y_cancelar_la_fila_cancela_la_llamada`: «El módulo terminó con el código 0».
+
+Encuentra la carrera de cada una (no sirve subir esperas a ciegas), corrígela en la prueba o explica por qué el código está mal y propón el arreglo en la entrega. Nada de omitir. Los logs de Actions se leen con la herramienta `get_job_logs` del MCP de GitHub (el proxy bloquea `blob.core.windows.net`). Informa de 10 corridas seguidas en `windows-latest` de cada prueba.
+
+## 75. Velocidad rápida constante: perder un cuadro al volver a 1×
+
+- **Estado:** pendiente (después de la 67, ya unida)
+- **Rama:** `claude/velocidad-rapida-1x`
+- **Caminos:** `src/Rodaje.Core/Editing/TimelineEdits.Speed.cs`, `tests/Rodaje.Core.Tests/Editing/Speed/` (archivos nuevos), `tests/Rodaje.Core.Tests/Properties/SpeedMaterialPropertiesTests.cs`, `docs/tareas/`
+- **Lee:** entrega de la tarea 67 (`docs/tareas/2026-10-12-enlazados-1x.md`, «Fuera de alcance»), comentario de `AlignEnd`.
+
+Un clip en la rejilla de 100 cuadros a 3× que vuelve a 1× queda con 99. La propiedad de la 67 solo prueba velocidades lentas y curvas, por eso no lo ve. Amplía la propiedad a velocidades rápidas constantes (2×, 3×, 7,5×, 100×) y corrige `AlignEnd` para que un clip que empieza en la rejilla vuelva con el mismo material, sin romper los ejemplos de `LinkedBackToNormalSpeedTests` ni las semillas de `SpeedMaterialRegressionTests`.
+
+## 76. Prueba intermitente del Kill que lanza: PID, esperas y gracia tras el fallo
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-kill-lanza-estable`
+- **Caminos:** `src/Rodaje.Media/Export/FfmpegPipeSink.cs` (solo `TryStop`), `tests/Rodaje.Media.Tests/Export/FfmpegPipeSinkPendingCleanupTests.cs`, `docs/tareas/`
+- **Lee:** entrega de la tarea 62 (`docs/tareas/2026-10-12-export-limpieza-pendiente.md`), `FfmpegPipeSink.cs:858-917`, `tests/Rodaje.Media.Tests/Export/ExportSinkTestSupport.cs:204-220`, revisión en bloque 9.
+
+`Kill_that_throws_while_canceling_is_noted_and_the_process_is_still_released` falló de forma intermitente en la CI de Windows en varios PR ajenos (logs con `get_job_logs` del MCP de GitHub). Arregla las tres causas probables, cada una con su comentario:
+1. `FfmpegPipeSinkPendingCleanupTests.cs:105` (y `:61`, `:148`): `SinkRuns.IsAlive(pid)` mira el PID cuando el proceso ya se liberó, y Windows reutiliza PID enseguida. Justo después de `Start`, abre `Process.GetProcessById(processId)` (con `using`) y al final comprueba `HasExited`; con el handle abierto el PID no se reutiliza. Usa el mismo handle para las comprobaciones de «sigue vivo» (`:35`, `:136`).
+2. `:88` y `:166`: sube `WaitForExit(TimeSpan.FromSeconds(10))` a 60 s y, antes del `Kill`, sube `PriorityClass` a `High` con try/catch, como `FfmpegPipeSink.Kill` (`:862-880`).
+3. `FfmpegPipeSink.cs:916`: `TryStop` usa `WaitQuietly(process, TimeSpan.Zero)` tras una excepción y da por vivo a un proceso que está terminando. Cambia `Zero` por `TreeKillWait` (300 ms), con prueba determinista: un `KillOverride` que mata, no espera y lanza acaba sin `PendingCleanup`.
+
+Además, muestra `Leftovers()` y `Diagnostics` en los mensajes de las aserciones de esa prueba, para que un fallo futuro diga qué quedó.
+
+## 77. Pruebas de la tarea 64: la CI sin relojes y sin perder la cancelación
+
+- **Estado:** pendiente
+- **Rama:** `claude/pruebas-carga-sin-reloj`
+- **Caminos:** `tests/Rodaje.App.Tests/Media/ClipVisualsTests.cs`, `tests/Rodaje.Module.AudioAi.Tests/ProcessTests.cs`, `docs/tareas/`
+- **Lee:** entrega de la tarea 64 (`docs/tareas/2026-10-12-pruebas-carga-huecos.md`), `src/Rodaje.App/Services/Media/ClipVisuals.cs:251-293`, revisión en bloque 9.
+
+1. `ClipVisualsTests.cs:479` (`Dispose_does_not_wait_for_a_held_gate_and_the_waveform_thread_leaves_afterwards`): `Assert.InRange(elapsed, 0, 499)` es una aserción de reloj sin `TiempoReal`, y `Dispose` espera a propósito 200 ms en `Monitor.TryEnter`. Deja en la CI solo lo estructural (`returned` con `Join` de 5 s y la salida del hilo de ondas) y pasa la cota de 500 ms a una prueba gemela `TiempoReal`. `:445` usa `Thread.Sleep(100)` y `ThreadState.WaitSleepJoin`, que no distingue `Monitor.Wait` de `Enter` bloqueado: documéntalo en la prueba.
+2. `ProcessTests.cs:72-82` (`Cancel_is_confirmed_quickly_and_the_module_keeps_working`): al marcarla entera `TiempoReal`, la CI perdió también las aserciones funcionales. Divídela: la funcional (cancelación como excepción, módulo vivo, `PingAsync().WaitAsync(60 s)`, `Exited` sin completar) solo con `ModelsAndVoiceFact`; la de latencia con `TiempoReal`. Anota en la entrega que la funcional se omite en la CI mientras no haya modelos.
+
+## 78. Traducir: nota vieja y guarda de los manifiestos de módulos
+
+- **Estado:** pendiente
+- **Rama:** `claude/traducir-guardas`
+- **Caminos:** `src/Rodaje.App/Views/Translate/TranslateCommands.cs` (solo el comentario), `tests/Rodaje.App.Tests/Modules/` (archivo nuevo), `docs/tareas/`
+- **Lee:** entrega de la tarea 51 (`docs/tareas/2026-10-12-traducir-enganche.md`), `src/Rodaje.App/Services/Modules/ModuleCatalog.cs:129`, `tests/Rodaje.Module.Translate.Tests/ManifestTests.cs`, revisión en bloque 9.
+
+1. `TranslateCommands.cs:9` sigue diciendo «Falta engancharla (un Bind en MainWindow.xaml.cs y la entrada de menú)», pero el PR #64 ya la enganchó (`MainWindow.xaml.cs:145`, menú del clip en `TimelineView.Analysis.cs`). Corrige el comentario y quita la promesa de menús que no existen.
+2. Prueba nueva que recorra todos los `modules/*/paquete.json`, los lea con `ManifestReader.ReadFile(path, checkFiles: false)` y exija `Errors` vacío y `WorksIn(ModuleCatalog.AppId)`, para que el próximo módulo sin `"apps"` rompa la CI y no el comando.
+3. `QuickTools.State` sigue con «Próximamente» para `tools.autoSubtitles` (`Views/Analysis/Logic/QuickTools.cs:61`): no es de esta tarea (es la 66); déjalo anotado en la entrega.
+
+## 79. Biblioteca: la plantilla por id no puede pisar el estado de un original sin archivo propio
+
+- **Estado:** pendiente
+- **Rama:** `claude/biblioteca-plantilla-aislada`
+- **Caminos:** `src/Rodaje.App/Views/Library/Logic/LibraryOrganizationStore.cs`, `src/Rodaje.App/Views/Library/LibraryView.Folders.cs`, `tests/Rodaje.App.Tests/Library/`, `docs/tareas/`
+- **Lee:** entrega de la tarea 65 (`docs/tareas/2026-10-12-biblioteca-herencia.md`, «Decisión del punto 2»), `LibraryOrganizationStore.cs` (`Load(key, fallbackKey)` y `PrepareWithTemplate`), `LibraryView.Folders.cs:44-125`, revisión en bloque 9.
+
+`SaveOrganization` escribe con `PrepareWithTemplate(...)`, así que cualquier proyecto con ese id reescribe el archivo por id. Secuencia: (a) el `.rodaje` A, con carpetas solo en el archivo por id (anterior a la tarea 54), se copia a B; (b) se abre B, se editan sus carpetas y se guarda, lo que reescribe también el archivo por id; (c) al abrir A, `Exists(A)` es falso y `Load` devuelve el estado de B: A pierde sus carpetas. Opción preferida: al heredar en `Load`, escribir enseguida el archivo propio de la clave con lo heredado, para que cada proyecto fije su estado en la primera apertura (eso hace innecesario `_inherited`); documenta la ventana que queda (B edita antes de que A se abra) o no escribas la plantilla desde una clave que acaba de heredar. Prueba: archivo por id con «Viaje»; B hereda, añade «Solo B» y guarda con plantilla; `Load(KeyFor(id, rutaA), id)` sigue dando «Viaje» sin «Solo B» (hoy falla). Mantén en verde `CopiaHechaDespues_HeredaElEstadoActualDelOriginal` y `GuardarConPlantilla_ElOriginalSigueConSuArchivo`.
+
+## 80. Autoguardado: cancelar la apertura pisa para siempre el archivo existente elegido
+
+- **Estado:** pendiente
+- **Rama:** `claude/autoguardado-pisa-existente`
+- **Caminos:** `src/Rodaje.App/Services/Autosave/AutosaveService.cs`, `tests/Rodaje.App.Tests/Autosave/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 55 (`docs/tareas/2026-10-12-autoguardado-recuperado.md`, PR #69), revisión en bloque 10.
+
+`RecoverOnceAsync` (`AutosaveService.cs:207-225`) guarda `created = !File.Exists(target)` y escribe el recuperado con `ProjectSerializer.Save` (que reemplaza con `File.Replace`, `ProjectSerializer.cs:142`) antes de `OpenProjectAsync`. Si la persona eligió en el diálogo un «Existente.rodaje» y luego cancela el aviso de cambios sin guardar, el archivo no se borra, pero sus bytes originales ya se perdieron. La prueba `Recuperar_SobreUnArchivoElegidoQueYaExistia_NoLoBorraSiSeCancela` escribe `""` y solo mira `File.Exists`.
+1. Preferible: pedir primero la confirmación de cambios sin guardar y escribir solo tras aceptar. Si eso exige tocar `EditorSession` (fuera de los caminos), anótalo y usa la opción 2.
+2. Si `target` existía, guardar sus bytes antes de `Save` y restaurarlos si `OpenProjectAsync` devuelve `false`; si no existía, borrar como ahora.
+3. Prueba con contenido reconocible que siga idéntico tras cancelar.
+4. Comprueba si `Save` deja un `.tmp` al fallar a medias (el `catch` de `:213-217` no lo toca) y límpialo si queda.
+
+## 81. Decodificador: un fallo al dimensionar el pool no debe matar la decodificación sin rastro
+
+- **Estado:** pendiente
+- **Rama:** `claude/decodificador-getformat`
+- **Caminos:** `src/Rodaje.Media/Video/VideoDecoder.cs`, `tests/Rodaje.Media.Tests/Video/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 56 (`docs/tareas/2026-10-12-fotograma-titulo.md`, «Pendiente / sugerido»), revisión en bloque 10.
+
+`VideoDecoder.SelectPixelFormat` (`:324-359`) envuelve todo en un `try/catch (Exception)` que devuelve `AV_PIX_FMT_NONE` (`:354-357`). Si `TryCreateHardwareFrames` (`:334`) lanza, no cae al formato de software (`:340-344`) y el error acaba como «El medio no tiene ese cuadro»: así se escondió el `Math.Clamp(2, 1)` de la tarea 56.
+1. Que el `try/catch` rodee solo `TryCreateHardwareFrames`; si lanza, guardar la excepción en el decodificador, tratarla como `false` y seguir con software.
+2. Si de verdad no se puede decodificar, que el error incluya ese texto.
+3. Prueba con un `HardwarePoolSizer` que lanza; si en Linux no se llega a `get_format`, extraer la selección a un método interno estático y probarla sin FFmpeg.
+
+## 82. Traducir: comprobar `HitLimit` con el modelo real
+
+- **Estado:** pendiente
+- **Rama:** `claude/traducir-hitlimit-real`
+- **Caminos:** `modules/Rodaje.Module.Translate/LlamaGenerator.cs`, `tests/Rodaje.Module.Translate.Tests/ModelTests.cs`, `docs/tareas/`
+- **Lee:** entrega de la tarea 52 (`docs/tareas/2026-10-12-traducir-robusto.md`, «Detección del tope»), revisión en bloque 10.
+
+`LlamaGenerator.cs:111` marca `HitLimit` con `pieces >= maxTokens && !result.Contains(Prompt.EndOfTurn)`, suponiendo un trozo por token en `StatelessExecutor` (sin verificar). Solo `FakeGenerator` ejercita `HitLimit`. Añade a `ModelTests` (con `[ModelFact]`): tope de 5 sobre un texto largo → `HitLimit == true`; tope holgado y subtítulo corto → `false`; hacia hindi o japonés con tope ajustado → `HitLimit` coincide con salida cortada. Según el resultado, ajusta la cuenta (tokens generados de verdad) o quita la condición `Contains(EndOfTurn)` si nunca se cumple. Documenta lo medido; Daniel debe correrlas con el modelo en Windows.
