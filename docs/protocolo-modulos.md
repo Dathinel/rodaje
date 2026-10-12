@@ -51,7 +51,7 @@ Cada mensaje es un **marco**: 4 bytes con el largo del JSON como entero de 32 bi
 - El JSON es un objeto con el campo **`type`**, que puede ir en cualquier posición (`AllowOutOfOrderMetadataProperties`; prueba `Type_can_come_after_other_properties`). Los nombres de campo van en camelCase.
 - Los campos opcionales con valor nulo no se escriben (`DefaultIgnoreCondition = WhenWritingNull`). Al leer, un campo obligatorio que falta o un `null` donde no se admite hacen inválido el mensaje (`RespectRequiredConstructorParameters`, `RespectNullableAnnotations`).
 - **UTF-8 estricto:** bytes que no son UTF-8 válido hacen inválido el mensaje (prueba `Invalid_utf8_is_rejected`). También un escape de un sustituto UTF-16 suelto (`"\ud800"` sin su pareja), en cualquier texto o nombre de propiedad, incluidos los de `parameters` y `value` (`Limits.Json` en `Messages.cs`; prueba `A_lone_surrogate_in_parameters_is_rejected`). Un par bien formado (`"\ud83d\ude00"`) es válido. Anidamiento máximo: 32 niveles en todo el mensaje, `parameters` y `value` incluidos (`MaxDepth = 32`; prueba `Deep_nesting_is_rejected`).
-- Las escrituras de un lado se serializan (un marco no se mezcla con otro) y cada marco se escribe entero con un `Flush`.
+- Las escrituras de un lado se serializan (un marco no se mezcla con otro) y cada marco se escribe entero con un `Flush`. Si una escritura se interrumpe a mitad (cancelada o fuera de plazo), el marco pudo quedar cortado: ese lado cierra la tubería (`MessageChannel.Broken`).
 - Si la conexión se corta entre dos marcos, es un cierre normal; si se corta a mitad de uno (en la cabecera o en el JSON), es un error de protocolo (prueba `A_truncated_frame_is_an_error_but_a_clean_end_is_not`).
 
 **Compatibilidad hacia delante** (`MessageChannel.Parse`):
@@ -317,6 +317,7 @@ El editor **desconfía del módulo** (D-031): ante cualquiera de estos casos cor
 - Un `error` **sin `id`** después del saludo («El módulo informó un error de conexión: …»).
 - Un `result` con búferes fuera de las regiones del editor.
 - No confirmar un `cancel` dentro del plazo de gracia.
+- Dejar de leer la tubería: un mensaje del editor que no sale en `ModuleClientOptions.WriteTimeout` (10 s desde que le toca escribir) corta la conexión («El módulo dejó de leer: …»), y así ninguna llamada ni `DisposeAsync` se queda esperando (prueba `A_module_that_stops_reading_does_not_hang_the_editor`, `WriteTimeoutTests`). Una llamada cancelada mientras espera su turno para escribir termina cancelada sin tocar la conexión; cancelada a mitad de la escritura, termina cancelada y la conexión se corta.
 - El proceso termina o cierra la tubería (`ModuleDisconnectedException`, o `ModuleExitedException` con `ExitCode`).
 
 Excepciones del editor (`ModuleExceptions.cs`), todas derivadas de `ModuleException`, con su `Code`:
@@ -412,11 +413,12 @@ Plazos y cantidades del lado del editor y del anfitrión de C#:
 | Contestar el saludo con `welcome` (editor) | 10 s (`HandshakeTimeout`) | `ModuleClient.cs` |
 | Conectarse a la tubería y recibir `hello` (anfitrión) | 10 s cada uno | `ModuleHost.cs` |
 | Confirmar un `cancel` | 2 s (`CancelGrace`) | `ModuleClient.cs` |
+| Escribir un mensaje hacia el módulo, una vez que le toca (editor) | 10 s (`WriteTimeout`); después se corta la conexión | `ModuleClient.cs` |
 | Llamadas a la vez en el anfitrión de C# | 4 (`MaxConcurrentCalls`); después, `busy` | `ModuleHost.cs` |
 | Avance | uno cada 50 ms por llamada como mucho | `ModuleHost.cs` (`ModuleCall`) |
 | Salir tras `shutdown` antes de que lo maten | 2 s | `ModuleProcess.DisposeAsync` |
 | Funciones activas al cerrar la conexión (anfitrión) | 2 s para terminar | `ModuleHost.RunAsync` |
-| Enviar la respuesta final si el editor no lee (anfitrión) | 1 s; después se descarta. Un `result` que no se puede escribir se contesta con `error` `internal` | `ModuleHost.TrySendAsync`, `ModuleHost.SendReplyAsync` |
+| Enviar la respuesta final si el editor no lee (anfitrión) | 1 s; después se descarta, y si vence a mitad de la escritura el anfitrión cierra la conexión. Un `result` que no se puede escribir se contesta con `error` `internal` | `ModuleHost.TrySendAsync`, `ModuleHost.SendReplyAsync` |
 | Cola de la salida de errores en el mensaje de salida | 2048 caracteres | `ModuleProcess.cs` |
 | Búfer de la tubería, en cada sentido | 64 KB | `ModuleProcess.PipeBufferBytes` |
 

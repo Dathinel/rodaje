@@ -148,7 +148,7 @@ public sealed class ProtocolDefectTests
     /// <c>Client.DisposeAsync</c> antes de matar el proceso, así que tampoco termina. Se reprodujo en Linux; en Windows el
     /// búfer de la tubería es de 64 KB (<c>ModuleProcess.PipeBufferBytes</c>), así que pasa antes.
     /// </summary>
-    [Fact(Skip = "Defecto: un módulo que deja de leer cuelga InvokeAsync (ignora la cancelación) y DisposeAsync del editor.")]
+    [Fact]
     public async Task A_module_that_stops_reading_does_not_hang_the_editor()
     {
         (NamedPipeServerStream editor, NamedPipeClientStream module) = await Support.PipePairAsync();

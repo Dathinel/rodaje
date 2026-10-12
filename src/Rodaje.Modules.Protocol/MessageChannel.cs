@@ -36,7 +36,24 @@ internal sealed class MessageChannel(Stream stream, int maxFrameBytes = Protocol
     /// <summary>Mensajes con un <c>type</c> desconocido que se saltaron (compatibilidad hacia delante).</summary>
     public int SkippedUnknown { get; private set; }
 
-    public async ValueTask SendAsync(ModuleMessage message, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Una escritura se interrumpió a medias (cancelada o pasado su plazo): el marco pudo quedar cortado, así que el flujo
+    /// ya se cerró y la conexión no sirve.
+    /// </summary>
+    public bool Broken { get; private set; }
+
+    /// <summary>Escribe un marco sin plazo de escritura.</summary>
+    /// <exception cref="ModuleProtocolException">El mensaje pasa del máximo; no se escribió nada.</exception>
+    public ValueTask SendAsync(ModuleMessage message, CancellationToken cancellationToken = default) => SendAsync(message, null, cancellationToken);
+
+    /// <summary>
+    /// Escribe un marco. <paramref name="cancellationToken"/> vale para la espera del candado y para la escritura; si
+    /// corta la escritura, o si esta pasa de <paramref name="writeTimeout"/> (contado desde que se tiene el candado), el
+    /// marco pudo quedar a medias: se cierra el flujo, se marca <see cref="Broken"/> y sale
+    /// <see cref="OperationCanceledException"/> o, por el plazo, <see cref="TimeoutException"/>.
+    /// </summary>
+    /// <exception cref="ModuleProtocolException">El mensaje pasa del máximo; no se escribió nada.</exception>
+    public async ValueTask SendAsync(ModuleMessage message, TimeSpan? writeTimeout, CancellationToken cancellationToken)
     {
         ArrayBufferWriter<byte> buffer = new(256);
         buffer.GetSpan(4);
@@ -51,8 +68,23 @@ internal sealed class MessageChannel(Stream stream, int maxFrameBytes = Protocol
         await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await stream.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
-            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            using CancellationTokenSource? limit = writeTimeout.HasValue ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken) : null;
+            if (writeTimeout is { } after) limit!.CancelAfter(after);
+            CancellationToken token = limit?.Token ?? cancellationToken;
+            try
+            {
+                await stream.WriteAsync(frame, token).ConfigureAwait(false);
+                await stream.FlushAsync(token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException ex) when (token.IsCancellationRequested)
+            {
+                // El marco pudo quedar a medias: lo que siga en el flujo ya no sería un marco válido.
+                Broken = true;
+                stream.Dispose();
+                if (!cancellationToken.IsCancellationRequested)
+                    throw new TimeoutException($"Una escritura no terminó en {writeTimeout!.Value.TotalSeconds:0.#} s: el otro lado no lee.", ex);
+                throw;
+            }
         }
         finally
         {
@@ -146,7 +178,9 @@ internal sealed class MessageChannel(Stream stream, int maxFrameBytes = Protocol
     /// despertar a quien espera, y una escritura que esperaba con un token ya cancelado (por ejemplo <c>_stop</c> de
     /// <see cref="ModuleClient"/>, que se cancela justo antes de llegar aquí) se quedaba colgada para siempre. Sin desecharlo,
     /// esa espera termina con su cancelación y una escritura posterior falla con el flujo ya cerrado. El semáforo no tiene
-    /// recursos que liberar mientras nadie pida <see cref="SemaphoreSlim.AvailableWaitHandle"/>.
+    /// recursos que liberar mientras nadie pida <see cref="SemaphoreSlim.AvailableWaitHandle"/>. Quien tiene el candado
+    /// tampoco lo retiene para siempre si el otro lado deja de leer: <see cref="ModuleClient"/> escribe con un plazo
+    /// (<c>writeTimeout</c>) y con el token del llamador, y al vencer falla y cierra (defecto 5 de <c>ProtocolDefectTests</c>).
     /// </summary>
     public void Dispose() => stream.Dispose();
 }
