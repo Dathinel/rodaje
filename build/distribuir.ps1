@@ -9,7 +9,7 @@
 # Uso:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File build\distribuir.ps1 [-SinPublicar] [-SinCompleta]
 #       [-Complementos <carpeta con <repo>\dist\*.paquete>] [-Paquetes a.paquete,b.paquete] [-Modelos <caché de modelos>]
-#       [-Excluir modelo-x,...] [-Version 0.7.0] [-Salida dist\distribucion]
+#       [-Excluir modelo-x,...] [-Version 1.0.0] [-Salida dist\distribucion]
 [CmdletBinding()]
 param(
     [string]$Version = '',
@@ -37,9 +37,9 @@ $LimiteAsset = 2GB
 $Utf8 = New-Object System.Text.UTF8Encoding($false)
 
 if (-not $Version) {
-    $fuente = Get-Content -LiteralPath (Join-Path $Raiz 'src\Rodaje.App\Services\Packages\Download\CatalogSource.cs') -Raw
-    if ($fuente -notmatch 'AppVersion \{ get; \} = PackageVersion\.Parse\("([^"]+)"\)') { throw 'No encuentro la versión en CatalogSource.cs; pásala con -Version.' }
-    $Version = $Matches[1]
+    $props = [xml](Get-Content -LiteralPath (Join-Path $Raiz 'Directory.Build.props') -Raw -Encoding UTF8)
+    $Version = @($props.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ })[0]
+    if (-not $Version) { throw 'No encuentro <Version> en Directory.Build.props; pásala con -Version.' }
 }
 
 Titulo "Distribución de Rodaje $Version"

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Reflection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -456,6 +457,8 @@ internal sealed partial class TitleBar : UserControl
         var link = new HyperlinkButton { Content = UpstreamAttribution.RepositoryUrl, Padding = new Thickness(0) };
         link.Click += (_, _) => OpenUpstream();
         var body = new StackPanel { Spacing = 10, MaxWidth = 460 };
+        string? version = typeof(TitleBar).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        body.Children.Add(new TextBlock { Text = $"Versión {version}", IsTextSelectionEnabled = true });
         body.Children.Add(new TextBlock { Text = UpstreamAttribution.Notice, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
         body.Children.Add(link);
         body.Children.Add(new TextBlock { Text = UpstreamAttribution.Copyright, TextWrapping = TextWrapping.Wrap });
