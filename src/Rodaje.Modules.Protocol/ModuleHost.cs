@@ -237,7 +237,7 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
             }
             active.TryRemove(invoke.Id, out _);
             cts.Dispose();
-            await TrySendAsync(channel, reply).ConfigureAwait(false);
+            await SendReplyAsync(channel, reply).ConfigureAwait(false);
         }, CancellationToken.None);
         active[invoke.Id] = (cts, task);
         registered.SetResult();
@@ -263,17 +263,36 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
 
     private static string Trim(string text) => text.Length <= Limits.MaxText ? text : text[..(Limits.MaxText - 1)] + "…";
 
-    private static async ValueTask TrySendAsync(MessageChannel channel, ModuleMessage message)
+    /// <summary>
+    /// La respuesta final de una llamada. Si un <c>result</c> no se puede escribir (más de 1 MiB, o un valor que no se
+    /// puede serializar), la llamada se contesta con un <c>error</c> <c>internal</c>: nunca queda sin respuesta en
+    /// silencio (defecto 3 de <c>ProtocolDefectTests</c>).
+    /// </summary>
+    private static async ValueTask SendReplyAsync(MessageChannel channel, ModuleMessage reply)
+    {
+        if (await TrySendAsync(channel, reply).ConfigureAwait(false) is { } reason && reply is ResultMessage result)
+            await TrySendAsync(channel, new ErrorMessage(ErrorCodes.Internal, Trim("No se pudo enviar el resultado: " + reason), result.Id)).ConfigureAwait(false);
+    }
+
+    /// <returns>El motivo si el mensaje no se puede escribir (nada llegó al cable); <c>null</c> si se envió o si el editor ya no escucha.</returns>
+    private static async ValueTask<string?> TrySendAsync(MessageChannel channel, ModuleMessage message)
     {
         // Con tiempo límite: si el editor no lee, el módulo no se queda esperando para siempre.
         using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(1));
         try
         {
             await channel.SendAsync(message, timeout.Token).ConfigureAwait(false);
+            return null;
         }
-        catch (Exception ex) when (ex is IOException or ObjectDisposedException or ModuleProtocolException or OperationCanceledException)
+        catch (Exception ex) when (ex is ModuleProtocolException or JsonException or ArgumentException)
+        {
+            // MessageChannel.SendAsync serializa y mide antes de tomar el candado: el mensaje no salió.
+            return ex.Message;
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
         {
             // El editor ya no escucha.
+            return null;
         }
     }
 }

@@ -89,7 +89,7 @@ public sealed class ProtocolDefectTests
     /// ni <c>error</c>. La llamada del editor espera para siempre (o hasta que la cancele) aunque la conexión siga viva.
     /// Debería llegar un <c>error</c> (por ejemplo <c>internal</c>, «resultado demasiado grande») para esa llamada.
     /// </summary>
-    [Fact(Skip = "Defecto: ModuleHost pierde en silencio una respuesta de más de 1 MiB; la llamada del editor no termina nunca.")]
+    [Fact]
     public async Task A_result_over_the_frame_limit_is_answered_with_an_error()
     {
         ModuleHost host = new(new ModuleInfo("grande", "1.0.0", "Grande", [new FunctionInfo("grande", "Grande")]));
@@ -97,9 +97,10 @@ public sealed class ProtocolDefectTests
         (ModuleClient client, _) = await Support.ConnectInProcessAsync(host);
         await using (client)
         {
-            ModuleCallException ex = await Assert.ThrowsAsync<ModuleCallException>(() => client.InvokeAsync("grande").WaitAsync(TimeSpan.FromSeconds(5)));
+            ModuleCallException ex = await Assert.ThrowsAsync<ModuleCallException>(() => FuzzSupport.Capped(client.InvokeAsync("grande"), "la llamada grande"));
             Assert.Equal(ErrorCodes.Internal, ex.Code);
-            Assert.True((await client.PingAsync().WaitAsync(TimeSpan.FromSeconds(5))) < TimeSpan.FromSeconds(5));
+            // La conexión sigue sirviendo. Solo tope contra cuelgues: la latencia se mide en las pruebas TiempoReal.
+            await FuzzSupport.Capped(client.PingAsync(), "el ping");
         }
     }
 

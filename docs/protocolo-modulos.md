@@ -288,7 +288,7 @@ Un `error` **con `id`** termina esa llamada y la conexión sigue sirviendo (prue
 | `out-of-memory` | El anfitrión de C#, si la función lanza `OutOfMemoryException` o `InsufficientExecutionStackException`. |
 | `buffer-out-of-range` | Un búfer que no se puede usar: región con nombre inválido o que no existe, búfer de otra región, o fuera de los límites de la región (`SharedMemoryRegion.cs`). |
 | `malformed` | El módulo, sin `id`, justo antes de cerrar porque el editor mandó algo inválido. |
-| `internal` | Cualquier otro fallo. El anfitrión de C# manda «`Tipo`: mensaje» de la excepción, o «Resultado inválido: …». |
+| `internal` | Cualquier otro fallo. El anfitrión de C# manda «`Tipo`: mensaje» de la excepción, «Resultado inválido: …», o «No se pudo enviar el resultado: …» si el `result` no cabe en un marco de 1 MiB o no se puede serializar (`ModuleHost.SendReplyAsync`; prueba `A_result_over_the_frame_limit_is_answered_with_an_error`). |
 
 `message` es un texto de hasta 4096 caracteres (el anfitrión de C# recorta los más largos con «…»). Escríbelo para una persona, en el idioma de `hello.culture` si puedes: la app mostrará los errores del módulo en lenguaje simple, sin trazas ([fase-7.md](fase-7.md#interfaz)). Marcos reales:
 
@@ -416,7 +416,7 @@ Plazos y cantidades del lado del editor y del anfitrión de C#:
 | Avance | uno cada 50 ms por llamada como mucho | `ModuleHost.cs` (`ModuleCall`) |
 | Salir tras `shutdown` antes de que lo maten | 2 s | `ModuleProcess.DisposeAsync` |
 | Funciones activas al cerrar la conexión (anfitrión) | 2 s para terminar | `ModuleHost.RunAsync` |
-| Enviar la respuesta final si el editor no lee (anfitrión) | 1 s; después se descarta | `ModuleHost.TrySendAsync` |
+| Enviar la respuesta final si el editor no lee (anfitrión) | 1 s; después se descarta. Un `result` que no se puede escribir se contesta con `error` `internal` | `ModuleHost.TrySendAsync`, `ModuleHost.SendReplyAsync` |
 | Cola de la salida de errores en el mensaje de salida | 2048 caracteres | `ModuleProcess.cs` |
 | Búfer de la tubería, en cada sentido | 64 KB | `ModuleProcess.PipeBufferBytes` |
 
