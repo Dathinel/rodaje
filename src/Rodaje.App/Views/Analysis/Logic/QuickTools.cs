@@ -15,7 +15,7 @@ public readonly record struct QuickToolState(bool Available, string? Reason);
 public static class QuickTools
 {
     public const string AutoSubtitles = "tools.autoSubtitles";
-    public const string TextToSpeech = "tools.textToSpeech";
+    public const string TextToSpeech = "voice.textToSpeech";
     public const string AddText = "clip.addText";
 
     /// <summary>Lo que no existe todavía: el botón se ve, explica y no hace nada.</summary>
@@ -58,7 +58,7 @@ public static class QuickTools
             "analysis.noise" when !noiseModule => No("Hace falta el módulo «Audio con IA»: instálalo desde Complementos."),
             "analysis.noise" => Yes,
             "analysis.stabilize" or "analysis.autocolor" or "analysis.whitebalance" => video ? Yes : No("Selecciona un clip de video."),
-            AutoSubtitles or TextToSpeech => No(ComingSoon),
+            AutoSubtitles => No(ComingSoon),
             _ => Yes,
         };
     }

@@ -70,7 +70,7 @@ public class QuickToolsTests
     public void LoQueNoExisteTodavia_DiceProximamente()
     {
         Assert.Equal(QuickTools.ComingSoon, State(QuickTools.AutoSubtitles, ["cam"]).Reason);
-        Assert.Equal(QuickTools.ComingSoon, State(QuickTools.TextToSpeech, []).Reason);
+        Assert.True(State(QuickTools.TextToSpeech, []).Available);
         Assert.Equal(10, QuickTools.All.Count);
     }
 }
