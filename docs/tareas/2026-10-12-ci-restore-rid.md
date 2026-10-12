@@ -22,3 +22,12 @@ En Linux, borrando `obj` entre corridas, tres veces seguidas: la solución en mo
 - Los PR abiertos que traen un lockfile de módulo regenerado en Linux (por ejemplo el #30 con `linux-x64` en el eco) deben volver a tomar el lockfile de `main` después de unir este PR.
 - Fuera de los caminos de la tarea: el `-r win-x64` de `herramientas/app.ps1` (línea 159) ya sobra.
 - **Daniel en Windows:** `Rodaje.bat` y `app.ps1 -Autoprueba` deben seguir publicando el eco y los módulos. Después de un `dotnet restore`, `git status` no debe mostrar ningún `packages.lock.json` cambiado.
+
+## Resultado de la CI (run 38207280099)
+- **Linux:** en verde, también el paso nuevo «Lockfiles deterministas».
+- **Windows:** «Restaurar» y «Compilar» pasan. «Pruebas» falla por pruebas ajenas a esta tarea que también fallan en `main` (4795266, en rojo en Windows), que es lo que ataca la tarea 40 (`claude/ci-main-verde`):
+  - `TitleEditorTests.BordesYConvertirEnKeyframes`: cultura, «0.5» frente a «0,5».
+  - `TitleRasterizerTests.Composing_a_ready_title_costs_little_gpu_time`: 2,3 ms con Basic Render Driver.
+  - `CpuExportCancellationTests` (dnxhd/mxf y prores/mov): la cancelación tarda.
+  - `ExportEncoderAvailabilityTests.Probes_run_in_parallel_up_to_the_limit`.
+- Que la restauración pase una vez no demuestra nada por sí solo. El arreglo vale porque elimina la dependencia del anfitrión y del `-r`, y la CI de Linux lo comprueba.
