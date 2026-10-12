@@ -12,7 +12,10 @@ public class SpeedMaterialRegressionTests
     /// <c>0pZ2Mq9N8IE2</c>: un enlazado que empieza fuera de un cuadro y llega al final del archivo, al volver a 1× iba al
     /// cuadro de antes (perdía material que su primero recuperaba) y desde ahí cada cambio le comía más: tres cuadros.
     /// Los demás: enlazados con el inicio en fases distintas del cuadro, que comparten un material que solo puede caer
-    /// en la rejilla de uno; al volver a 1× quedan a un cuadro como mucho.
+    /// en la rejilla de uno. En las cuatro se edita el que empieza fuera de un cuadro. En
+    /// <c>7LMaTUJGUpm6</c>, <c>ePnp7RIsF_41</c> y <c>7UwXLCK11vo3</c> el otro, que empieza en un cuadro y tenía el final en
+    /// la rejilla, vuelve a 1× con un cuadro de diferencia: es lo que admite la propiedad para el miembro fuera de fase
+    /// con el editado.
     /// </summary>
     [Theory]
     [InlineData("0pZ2Mq9N8IE2")]
@@ -24,7 +27,7 @@ public class SpeedMaterialRegressionTests
     {
         bool checkedChain = false;
         SpeedMaterialPropertiesTests.GenChain.Sample(
-            s => checkedChain = SpeedMaterialPropertiesTests.RunChain(s.Project, s.Clip, s.Steps),
+            s => checkedChain = SpeedMaterialPropertiesTests.RunChain(s.Project, s.Clip, s.Steps, seed),
             seed: seed,
             iter: 1,
             threads: 1);
