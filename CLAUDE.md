@@ -2,7 +2,7 @@
 
 Editor de video nativo para Windows con la experiencia de uso de CapCut y código propio. Repositorio público `Dathinel/rodaje`, licencia GNU GPLv3 con términos adicionales de atribución (Sección 7) y permiso para complementos; marca en `TRADEMARK.md`; crédito visible en la barra de título y en «Ayuda → Acerca de» (D-032, sustituye a la PolyForm de D-030). Las reglas generales están en `..\CLAUDE.md`.
 
-**Pendiente de Daniel:** `PARA-DANIEL.md` (crear y respaldar la firma de descargas, pruebas a mano, preguntas abiertas). Recuérdaselo al empezar cada sesión hasta que esté hecho.
+**Pendiente de Daniel:** `PARA-DANIEL.md` (respaldar la clave de descargas, pruebas a mano, preguntas abiertas). Recuérdaselo al empezar cada sesión hasta que esté hecho.
 
 ## Cómo se trabaja aquí
 
@@ -19,7 +19,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 
 - **Pruebas largas y de hardware:** solo corren con `RODAJE_PRUEBAS_LARGAS=1`, que activa la aceptación. Con ella `probar.ps1` suma la fase 5: tiempos en Release y `app.ps1 -Autoprueba`, que publica con AOT y arranca la app de verdad (todas las pestañas del inspector). Los medios de prueba con el número de cuadro codificado están en `testing/Rodaje.TestMedia` y se guardan en caché en `TestResults\media-cache`.
 - **Nube:** la rutina «Rodaje: cola de tareas de la nube» (claude.ai/code/routines, cada hora, Opus desde el 11-oct) toma la siguiente tarea libre de `docs/nube/cola.md` y abre un PR en borrador; la sesión local revisa, une, marca `hecha` y repone la cola. La CI (`.github/workflows/ci.yml`) corre en cada PR.
-- **Descarga directa de complementos:** sigue en la fase 7 (`IPackageDownloader`), decidido por Daniel el 11-oct; hasta entonces «Instalar desde archivo».
+- **Descarga directa de complementos:** activa desde el 12-oct (índice firmado en `Dathinel/rodaje-catalogo`); cómo publicar una versión nueva en `docs/descarga.md`.
 - **Contenido:** fuera de este repo, en `Dathinel/rodaje-transiciones` y `Dathinel/rodaje-filtros` (públicos, CC0), clonados en `..\Complementos\`.
 - **Agentes:** trabajan en worktrees dentro de `.claude\worktrees\` (ignorado), se unen con `git merge` y hacen un commit por tarea.
 - **Espacios de nombres en las pruebas:** `Rodaje.X.Tests.Timing` tapa a `Rodaje.Core.Timing`, así que hay que usar el nombre completo o un `using`.
@@ -29,7 +29,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 Fases 1–5, 5c y 6 construidas; 5b (títulos) y 7 (IA local) en curso. Detalle y cifras de cada fase en `docs/fase-*.md`; decisiones en `docs/decisiones.md`.
 
 **En curso (12-oct, madrugada; Daniel lejos del PC un buen tiempo):**
-- **En main:** fases 5c, 5b y 6 cerradas y verificadas (6: todos los criterios salvo pausas de la vista previa en cortes con velocidad → tarea 36 de la nube); fase 7: protocolo, ModuleManager, descargas firmadas (falta la clave de Daniel, `PARA-DANIEL.md`), `Rodaje.Analysis` (silencios, ritmo, ducking, estabilizar, color automático), módulos de subtítulos (Whisper) y de audio IA (ruido, VAD); licencia GPLv3 con términos adicionales (D-032); repo público.
+- **En main:** fases 5c, 5b y 6 cerradas y verificadas (6: todos los criterios salvo pausas de la vista previa en cortes con velocidad → tarea 36 de la nube); fase 7: protocolo, ModuleManager, descargas firmadas (activas; falta el respaldo de la clave, `PARA-DANIEL.md`), `Rodaje.Analysis` (silencios, ritmo, ducking, estabilizar, color automático), módulos de subtítulos (Whisper) y de audio IA (ruido, VAD); licencia GPLv3 con términos adicionales (D-032); repo público.
 - **Nube en modo autónomo** (`docs/nube/README.md`): une sus propios PR con la CI en verde y revisa por bloques con Sonnet; cola con tareas 28–39.
 - **Agentes locales que quedaron trabajando** (si se cortaron, `git branch --no-merged main` y revisar sus worktrees): correcciones de la verificación de la 5b (asa de rotar, escribir en el visor, estilos, fuentes por elemento `font`) y módulo de texto a voz (`modulo-voz`).
 - **Siguiente al volver:** unir esas dos ramas; revisar lo que unió la nube (bloques de Sonnet); fase 7 restante (traducir, visión, RAW y GPL, edición por palabras); verificación de la fase 7 (Sonnet); reorganización del repo (`docs/reorganizacion.md`).
