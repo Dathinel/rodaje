@@ -120,7 +120,14 @@ public sealed class ClientFuzzTests(ITestOutputHelper output)
                     tokens.Add(new CancellationTokenSource(200));
                     operations.Add(ObservePingAsync(client.PingAsync(tokens[^1].Token)));
                 }
-                foreach (Task operation in operations) await FuzzSupport.Capped(operation, "una llamada");
+                try
+                {
+                    foreach (Task operation in operations) await FuzzSupport.Capped(operation, "una llamada");
+                }
+                catch (TimeoutException ex)
+                {
+                    throw new TimeoutException($"{ex.Message} {Describe(client, operations)} módulo={moduleSide.Status} final={ending}", ex);
+                }
             }
             finally
             {
@@ -139,6 +146,41 @@ public sealed class ClientFuzzTests(ITestOutputHelper output)
             module.Dispose();
             await FuzzSupport.Capped(moduleSide, "el módulo hostil");
         }
+    }
+
+    /// <summary>El estado interno del cliente cuando algo se cuelga, para saber dónde (por reflexión: solo diagnóstico).</summary>
+    private static string Describe(ModuleClient client, List<Task> operations)
+    {
+        static object? Field(object target, string name) =>
+            target.GetType().GetField(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(target);
+        StringBuilder text = new("Estado:");
+        text.Append(" operaciones=").AppendJoin(",", operations.Select(o => o.Status));
+        text.Append(" failure=").Append(Field(client, "_failure")?.GetType().Name ?? "null");
+        text.Append(" completion=").Append(client.Completion.Status);
+        text.Append(" stop=").Append((Field(client, "_stop") as CancellationTokenSource)?.IsCancellationRequested);
+        text.Append(" readLoop=").Append((Field(client, "_readLoop") as Task)?.Status);
+        if (Field(client, "_pending") is System.Collections.IEnumerable pending)
+            foreach (object entry in pending)
+            {
+                object? value = entry.GetType().GetProperty("Value")?.GetValue(entry);
+                object? completion = value?.GetType().GetProperty("Completion")?.GetValue(value);
+                Task? task = completion?.GetType().GetProperty("Task")?.GetValue(completion) as Task;
+                text.Append(" pendiente[").Append(entry.GetType().GetProperty("Key")?.GetValue(entry)).Append("]=").Append(task?.Status);
+            }
+        if (Field(client, "_pings") is System.Collections.IEnumerable pings)
+            foreach (object entry in pings) text.Append(" ping[").Append(entry.GetType().GetProperty("Key")?.GetValue(entry)).Append(']');
+        if (Field(client, "_channel") is { } channel && Field(channel, "_writeLock") is SemaphoreSlim writeLock)
+        {
+            try
+            {
+                text.Append(" candado=").Append(writeLock.CurrentCount);
+            }
+            catch (ObjectDisposedException)
+            {
+                text.Append(" candado=desechado");
+            }
+        }
+        return text.ToString();
     }
 
     private static async Task ObserveCallAsync(Task<ModuleResult> call, ProgressCheck progress, Tally tally)
