@@ -267,7 +267,7 @@ public sealed class HostileMessageTests(ITestOutputHelper output)
     /// canales, largo 2147483647). Los ejemplos fijos lo reproducen siempre. Lo que debería pasar: rechazarlo como «el audio no cabe en el búfer»
     /// (por ejemplo, comparando <c>Frames &gt; Length / (Channels * 4)</c>).
     /// </summary>
-    [Fact(Skip = "Defecto: SharedBufferRef.Validate desborda frames × channels × 4 y acepta audio que no cabe (frames = 4611686018427387904, 1 canal, largo 1).")]
+    [Fact]
     public void Las_formas_de_audio_aceptadas_caben_en_su_bufer()
     {
         Rejected(Region(""","audio":{"sampleRate":48000,"channels":1,"frames":4611686018427387904}""", 1));
@@ -298,7 +298,7 @@ public sealed class HostileMessageTests(ITestOutputHelper output)
     /// así mandar basura sin que el editor lo note mientras empiece por un <c>type</c> nuevo. Lo que debería pasar: un
     /// marco que no es JSON completo y válido es malformado aunque su <c>type</c> sea desconocido.
     /// </summary>
-    [Fact(Skip = "Defecto: MessageChannel.Parse salta como tipo desconocido un marco que no es JSON válido ({\"type\":\"futuro\", cortado).")]
+    [Fact]
     public void Un_tipo_desconocido_que_no_es_json_valido_es_malformado()
     {
         Rejected("""{"type":"futuro",""");
