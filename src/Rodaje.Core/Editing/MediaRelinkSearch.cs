@@ -95,6 +95,12 @@ public sealed record RelinkSearchOptions
 
     /// <summary>Busca también archivos renombrados (otro nombre, misma extensión y mismos datos); hay que leerlos todos.</summary>
     public bool IncludeRenamed { get; init; } = true;
+
+    /// <summary>
+    /// Rutas que no se dan a ningún medio (sin distinguir mayúsculas), además de las de los medios que no faltan: las que el
+    /// diálogo ya resolvió para otros medios en una búsqueda anterior o a mano.
+    /// </summary>
+    public IReadOnlyCollection<string> TakenPaths { get; init; } = [];
 }
 
 /// <summary>
@@ -140,7 +146,7 @@ public static class MediaRelinkSearch
 
         var missingIds = missing.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
         var taken = new HashSet<string>(
-            project.Media.Where(m => !missingIds.Contains(m.Id)).Select(m => m.Path), StringComparer.OrdinalIgnoreCase);
+            project.Media.Where(m => !missingIds.Contains(m.Id)).Select(m => m.Path).Concat(options.TakenPaths), StringComparer.OrdinalIgnoreCase);
         var probes = new Dictionary<string, RelinkProbe?>(StringComparer.Ordinal);
         var fingerprints = new Dictionary<string, string?>(StringComparer.Ordinal);
         var found = new Dictionary<string, RelinkMatch>(StringComparer.Ordinal);
