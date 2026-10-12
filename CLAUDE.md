@@ -33,3 +33,11 @@ Fases 1–6, 5b y 5c construidas y verificadas; 7 (IA local) en curso; la 8 se e
 - **Reorganización del repo (12-oct):** hecha salvo el paso 5 (movimientos dentro de `Rodaje.App`: `.proceso\reorganizacion.md`). La rutina de la nube quedó pausada: se reactiva con las rutas nuevas al unir la rama.
 - **Antes de publicar:** casillas de `docs/pendientes-legales.md`.
 - **Para la interfaz:** decidir el ripple con enlazados de distinto largo y si se limpian los enlaces huérfanos.
+
+## Plan para terminar la v1 (12-oct, límite semanal al 72 %)
+
+Nube **apagada** (rutina deshabilitada y sin revisión cada 30 min) para que todo lo haga la sesión local con menos tokens. Sin revisores por pieza; una sola verificación final.
+
+1. **Ola 1 (en curso):** exportación con clip borrado; visor (texto, centrado, progreso de acciones, márgenes de redes); rescatar los 7 PR de la nube; módulo de visión y máscaras; cierres de la fase 7 (carpeta de medios, Whisper para CPU, sin DirectML, subtítulos por palabra).
+2. **Ola 2:** imagen (recorte con proporción, croma, antes/después, ruedas y curvas); audio (LUFS por clip y mezcla, ecualizador y compresor, voz en off); edición (clips compuestos, tres y cuatro puntos); flujo (proxies automáticos, cola de exportaciones, perfiles de espacio de trabajo, pantalla completa y segunda pantalla, carpetas vigiladas, tutorial).
+3. **Ola 3:** reorganización paso 5 (dentro de `Rodaje.App`), versión e instalador, primera release en GitHub, verificación final (Sonnet) y `app.ps1 -SoloPublicar`.
