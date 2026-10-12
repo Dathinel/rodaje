@@ -10,12 +10,12 @@ Sin paquete MSIX, autocontenida y con Native AOT (el [sondeo](../archivo/sondeo-
 
 | Carpeta | Qué hay | Depende de WinUI |
 |---|---|---|
-| `Services/` | `EditorSession`, módulos de IA (`Modules/`: `ModuleManager`, `ModuleCatalog`, `VramBudget`, `ModuleProposal`), `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), inspector y velocidad (`Inspector/`: `SpeedEditor`, `SpeedMath`, `SpeedCommands`, `TitleEditor`; los atajos de velocidad están en `EditorSession.Speed` y los de títulos en `EditorSession.Titles`), títulos (`Titles/`: `ClipLabels`, `TitleStyles`, `TitleDrag`, `StyleColors`), efectos y contenido (`Effects/`), miniaturas y formas de onda (`Media/`), complementos (`Packages/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs`, `EditorNotification` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
+| `Services/` | `EditorSession`, módulos de IA (`Modules/`: `ModuleManager`, `ModuleCatalog`, `VramBudget`, `ModuleProposal`), `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), inspector y velocidad (`Inspector/`: `SpeedEditor`, `SpeedMath`, `SpeedCommands`, `TitleEditor`; los atajos de velocidad están en `EditorSession.Speed` y los de títulos en `EditorSession.Titles`), títulos (`Titles/`: `ClipLabels`, `TitleStyles`, `TitleDrag`, `StyleColors`), formato del proyecto (`Format/`: `ProjectFormats`, `SequenceFormatEdit`), efectos y contenido (`Effects/`), miniaturas y formas de onda (`Media/`), complementos (`Packages/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs`, `EditorNotification` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
 | `Views/Timeline/Logic/` | La lógica de la línea de tiempo (ventana, regla, filas, clic, ajuste, arrastres, soltar medios) | **No**: también la compilan las pruebas |
 | `Views/Export/Logic/` | La lógica del diálogo de exportar y de su cola (`ExportDialogModel`, `ExportSettingsEditor`, `ExportJobList`, `IExportRunner`) | **No**: también la compilan las pruebas |
 | `Shell/` | `MainWindow` (distribución, páginas modales y barra de avisos), `TitleBar`, `KeyboardShortcutHost`, `PaneSplitter`, `DialogGate` (un solo `ContentDialog` a la vez), `ShellDialogs` y `FileDialogs`, `EditorServices` e `IEditorView`, `MeasurementRun`, `MeasurementScenarios` | Sí |
 | `Theme/` | `Palette.xaml` (colores de D-018 con el contraste de D-027 y claves de WinUI redefinidas), `Typography.xaml`, `Controls.xaml` (esquinas de 2 px y transiciones de 60 ms) | Sí |
-| `Views/<Área>/` | Una vista por carpeta: `Library`, `Player`, `Meters`, `Inspector`, `Timeline`, `Shortcuts`, `Plugins`, `Export` | Sí |
+| `Views/<Área>/` | Una vista por carpeta: `Library`, `Player`, `Meters`, `Inspector`, `Timeline`, `Tools`, `Shortcuts`, `Plugins`, `Export` | Sí |
 
 ## Cómo se habla con el editor
 
