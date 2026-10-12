@@ -124,7 +124,7 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
                         await StartAsync(channel, invoke, active, stop.Token).ConfigureAwait(false);
                         break;
                     case CancelMessage cancel:
-                        if (active.TryGetValue(cancel.Id, out var call)) await call.Cts.CancelAsync().ConfigureAwait(false);
+                        if (active.TryGetValue(cancel.Id, out var call)) await TryCancelAsync(call.Cts).ConfigureAwait(false);
                         break;
                     case PingMessage ping:
                         await channel.SendAsync(new PongMessage(ping.Id), stop.Token).ConfigureAwait(false);
@@ -233,6 +233,24 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         }, CancellationToken.None);
         active[invoke.Id] = (cts, task);
         registered.SetResult();
+    }
+
+    /// <summary>
+    /// Cancela una llamada que puede estar terminando: su tarea la saca de <c>active</c> y desecha su
+    /// <see cref="CancellationTokenSource"/> en su propio hilo, así que entre leerla de <c>active</c> y cancelarla puede
+    /// quedar desechada. Entonces ya no hay nada que cancelar; la <see cref="ObjectDisposedException"/> no debe cortar
+    /// la conexión (defecto 1 de <c>ProtocolDefectTests</c>).
+    /// </summary>
+    private static async ValueTask TryCancelAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            await cts.CancelAsync().ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
+        {
+            // La llamada ya terminó.
+        }
     }
 
     private static string Trim(string text) => text.Length <= Limits.MaxText ? text : text[..(Limits.MaxText - 1)] + "…";

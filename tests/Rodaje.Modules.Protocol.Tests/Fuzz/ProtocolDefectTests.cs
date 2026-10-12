@@ -22,7 +22,7 @@ public sealed class ProtocolDefectTests
     /// curso. Le puede pasar a un <see cref="ModuleClient"/> normal que cancela una llamada que estaba por terminar.
     /// Se reprodujo en Linux en 3 a 12 de cada 200 rondas.
     /// </summary>
-    [Fact(Skip = "Defecto: ModuleHost cierra la conexión si un cancel llega mientras la llamada termina (CancelAsync sobre un CancellationTokenSource ya desechado).")]
+    [Fact]
     public async Task Cancel_racing_the_end_of_a_call_does_not_close_the_connection()
     {
         for (int round = 0; round < 200; round++)
