@@ -550,7 +550,7 @@ Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.x
 
 ## 56. Exportar fotograma con título falla al decodificar
 
-- **Estado:** pendiente (la sesión local la añadió como 50 en 0a56efa; se renumera porque la 50 ya era «Confirmar al borrar una plantilla propia» en el PR #40. Toca `src/Rodaje.Export/Still/` como la 49, PR #49: hacerla después)
+- **Estado:** hecha (PR #71 unido el 12-oct en modo autónomo; la causa era Math.Clamp(fits, 2, 1) en OfflineReaders con LookaheadFrames = 1 y D3D11VA; en la CI la prueba se omite sin D3D11VA: falta correr StillExporterTests en la RTX 3050 y la prueba de regresión en Engine.Tests, tarea 73)
 - **Rama:** `claude/fotograma-titulo`
 - **Caminos:** `src/Rodaje.Export/Still/`, `src/Rodaje.Engine/Offline/` (lo mínimo), `tests/Rodaje.Export.Tests/Still/`, `docs/tareas/`.
 - **Lee:** PR #32 (exportar fotograma), `docs/arquitectura/exportacion.md`.
