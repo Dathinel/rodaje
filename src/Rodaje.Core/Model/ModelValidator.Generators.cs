@@ -52,7 +52,8 @@ public static partial class ModelValidator
             errors.Add($"{where} tiene un texto de más de {MaxTextLength} caracteres.");
         }
 
-        if (text.Count(c => c == '\n') >= MaxTextLines)
+        // DirectWrite también parte la línea en los separadores de Unicode, que no son de control.
+        if (text.Count(c => c is '\n' or '\u2028' or '\u2029') >= MaxTextLines)
         {
             errors.Add($"{where} tiene un texto de más de {MaxTextLines} líneas.");
         }

@@ -99,6 +99,9 @@ public class GeneratorValidationTests
 
         AssertError(c => c.Generator!.Text = new string('a', ModelValidator.MaxTextLength + 1), $"más de {ModelValidator.MaxTextLength} caracteres");
         AssertError(c => c.Generator!.Text = new string('\n', ModelValidator.MaxTextLines), $"más de {ModelValidator.MaxTextLines} líneas");
+        AssertError(
+            c => c.Generator!.Text = new string('\u2028', ModelValidator.MaxTextLines / 2) + new string('\u2029', ModelValidator.MaxTextLines / 2),
+            $"más de {ModelValidator.MaxTextLines} líneas");
     }
 
     [Fact]

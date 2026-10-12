@@ -31,6 +31,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
     public TextPanel()
     {
         InitializeComponent();
+        ContentBox.MaxLength = ModelValidator.MaxTextLength;
     }
 
     public void Attach(EditorServices services)

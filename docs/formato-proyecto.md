@@ -272,8 +272,7 @@ Un clip puede llevar `generator` en lugar de `mediaId`: su imagen no sale de un 
 ```
 { "id": "clip-9", "sourceIn": 0, "sourceOut": 2116800000, "start": 705600000, "linkId": null, "enabled": true,
   "generator": {
-    "kind": "text", "text": "Hola
-mundo",
+    "kind": "text", "text": "Hola\nmundo",
     "style": {
       "source": "rodaje-titulos@1.0.0/clasico", "name": "Clásico",
       "font": { "family": "Inter", "weight": 700, "italic": false, "source": "rodaje-fuentes@1.0.0/inter", "fallback": ["Segoe UI"] },
@@ -291,8 +290,7 @@ mundo",
 
 | Campo | Qué es |
 |---|---|
-| `text` | El texto. Admite saltos de línea `
-` y tabulaciones, y las marcas de dirección (bidi); ningún otro carácter de control. Hasta 10 000 caracteres y 200 líneas. |
+| `text` | El texto. Admite saltos de línea `\n` y tabulaciones, y las marcas de dirección (bidi); ningún otro carácter de control. Hasta 10 000 caracteres y 200 líneas; los separadores de línea y de párrafo de Unicode (U+2028, U+2029) también cuentan como salto. |
 | `style` | **Copia completa** del estilo `rodaje.textstyle` v1 del que salió (D-029), obligatoria en `text`. `source` (`paquete@versión/estilo`) solo dice de dónde salió: el proyecto se ve igual sin el paquete y no cambia si el paquete se actualiza. Las medidas van en píxeles de `reference` y se escalan a la secuencia con `min(ancho/refAncho, alto/refAlto)`; los colores son `#RRGGBB` o `#RRGGBBAA`. `stroke`, `shadow`, `background`, `in` y `out` son opcionales. |
 | `style.font` | `family` y `weight` (100–900), `italic`, `source` si la fuente es de un paquete (`font`) y hasta 8 familias de respaldo en `fallback`. Si la fuente falta, se usa el respaldo con aviso. |
 | `style.in`, `style.out` | Entrada y salida pegadas a los bordes del clip: `durationSeconds` (0–60) y curvas por parámetro (`x`, `y`, `scale`, `rotation`, `opacity`), con `t` en segundos desde su borde (0 a `durationSeconds`, en orden estricto), `value` dentro del rango de `rodaje.transform` e `interp` como en los keyframes: es la del tramo hasta el punto siguiente, así que en el último no tiene efecto. Son un delta sobre `rodaje.transform` del clip: suman en `x`, `y` y `rotation` y multiplican en `scale` y `opacity`. Si el clip es más corto que las dos juntas, ambas se escalan por igual al evaluar. |
