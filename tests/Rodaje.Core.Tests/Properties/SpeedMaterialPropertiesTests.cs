@@ -9,8 +9,8 @@ namespace Rodaje.Core.Tests.Properties;
 
 /// <summary>
 /// Sobre 10 000 proyectos al azar (los de <see cref="EditPropertiesTests"/>): encadenar preajustes, curvas y velocidades
-/// lentas en un clip a 1× y volver a 1× le devuelve exactamente su material, a él y a sus enlazados (si su final no
-/// estaba en un cuadro o le quedaba menos de un cuadro de archivo detrás, a lo sumo un cuadro distinto).
+/// lentas en un clip a 1× y volver a 1× le devuelve exactamente su material, a él y a sus enlazados (si el final de
+/// alguno del grupo no estaba en un cuadro o le quedaba menos de un cuadro de archivo detrás, a lo sumo un cuadro distinto).
 /// </summary>
 /// <remarks>Para reproducir un fallo, pasar la semilla que reporta CsCheck en <c>seed</c> o en <c>CsCheck_Seed</c>.</remarks>
 public class SpeedMaterialPropertiesTests(ITestOutputHelper output)
@@ -23,7 +23,7 @@ public class SpeedMaterialPropertiesTests(ITestOutputHelper output)
     /// </summary>
     private const int ShortClipFrames = 16;
 
-    private static readonly Gen<(ProjectSpec Project, int Clip, int[] Steps)> GenChain =
+    internal static readonly Gen<(ProjectSpec Project, int Clip, int[] Steps)> GenChain =
         Gen.Select(RandomTimeline.GenProject, Gen.Int[0, 1000], Gen.Int[0, 100_000].Array[1, 6]);
 
     [Fact]
@@ -47,7 +47,7 @@ public class SpeedMaterialPropertiesTests(ITestOutputHelper output)
     }
 
     /// <summary>Verdadero si el clip elegido estaba a 1×, se le aplicó algún cambio y volvió a 1×.</summary>
-    private static bool RunChain(ProjectSpec spec, int clipIndex, int[] steps)
+    internal static bool RunChain(ProjectSpec spec, int clipIndex, int[] steps)
     {
         BuiltProject built = RandomTimeline.Build(spec);
         List<Clip> clips = [.. built.Sequence.AllTracks.Where(t => !t.Locked).SelectMany(t => t.Clips)];
@@ -73,7 +73,10 @@ public class SpeedMaterialPropertiesTests(ITestOutputHelper output)
         }
 
         Dictionary<string, long> original = group.ToDictionary(c => c.Id, Material);
-        Dictionary<string, long> tolerance = group.ToDictionary(c => c.Id, c => Tolerance(built, c));
+        // El grupo comparte material: si un enlazado no puede volver exacto (empieza fuera de un cuadro, por ejemplo), el
+        // redondeo a su rejilla lo arrastran los demás, y al volver a 1× cada uno va al punto más cercano de la suya.
+        long groupTolerance = group.Max(c => Tolerance(built, c));
+        Dictionary<string, long> tolerance = group.ToDictionary(c => c.Id, _ => groupTolerance);
         bool applied = false;
         foreach (int step in steps)
         {

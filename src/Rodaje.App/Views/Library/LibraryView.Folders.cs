@@ -22,42 +22,109 @@ internal sealed partial class LibraryView
 {
     private const string RootName = "Todos los medios";
 
-    /// <summary>Códecs ya leídos por ruta, para no volver a abrir el archivo al cambiar de carpeta o de proyecto.</summary>
-    private static readonly Dictionary<string, (string? Video, string? Audio)> CodecCache = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// Códecs ya leídos por ruta (y fecha y tamaño del archivo), para no volver a abrirlo al cambiar de carpeta o de
+    /// proyecto; un archivo que cambió se vuelve a leer, también si antes había fallado.
+    /// </summary>
+    private static readonly MediaCodecCache CodecCache = new();
 
     private LibraryQuery Query() => new(_folderId, SearchBox.Text ?? "", _kind, FavoritesToggle.IsChecked == true);
 
-    /// <summary>Lee las carpetas y favoritos del proyecto la primera vez que se ve (o si cambió de proyecto).</summary>
+    /// <summary>Proyecto (la instancia) cuya organización está cargada; cambia solo al abrir o crear otro.</summary>
+    private Project? _organizationProject;
+
+    /// <summary>Clave de <see cref="LibraryOrganizationStore"/> con la que se guarda la organización cargada.</summary>
+    private string? _organizationKey;
+
+    /// <summary>La última escritura de la organización en curso; las siguientes van detrás, en orden.</summary>
+    private Task _organizationWrite = Task.CompletedTask;
+
+    /// <summary>
+    /// Lee las carpetas y favoritos del proyecto la primera vez que se ve (o si cambió de proyecto). No se poda: los
+    /// medios que el proyecto ya no tiene se quedan en el archivo y la vista solo muestra los que existen (deshacer un
+    /// «Quitar del proyecto» los devuelve a su carpeta).
+    /// </summary>
     private void LoadOrganization(Project project)
     {
-        if (project.Id == _organizationProjectId)
+        if (ReferenceEquals(project, _organizationProject))
         {
+            FollowProjectFile();
             return;
         }
 
-        _organizationProjectId = project.Id;
-        _organization = _organizationStore.Load(project.Id);
-        _organization.Prune(project.Media.Select(m => m.Id));
+        _organizationProject = project;
+        _organizationKey = LibraryOrganizationStore.KeyFor(project.Id, _services?.Session.FilePath);
+        _organization = _organizationStore.Load(_organizationKey, fallbackKey: project.Id);
         _savedRevision = _organization.Revision;
         _folderId = null;
     }
 
-    private void SaveOrganization()
+    /// <summary>
+    /// Al guardar por primera vez o con «Guardar como», la organización sigue al archivo nuevo; la del archivo anterior
+    /// queda como estaba (es la de ese otro <c>.rodaje</c>).
+    /// </summary>
+    private void FollowProjectFile()
     {
-        if (_organizationProjectId is null || _organization.Revision == _savedRevision)
+        if (_services is null || !ReferenceEquals(_services.Session.Project, _organizationProject) || _organizationProject is null)
         {
             return;
         }
 
-        try
+        string key = LibraryOrganizationStore.KeyFor(_organizationProject.Id, _services.Session.FilePath);
+        if (key == _organizationKey)
         {
-            _organizationStore.Save(_organizationProjectId, _organization);
-            _savedRevision = _organization.Revision;
+            return;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+
+        _organizationKey = key;
+        _savedRevision = -1;
+        SaveOrganization();
+    }
+
+    /// <summary>
+    /// Toma una foto de la organización aquí (en el hilo de la interfaz, que es el que la cambia) y la escribe en segundo
+    /// plano, una escritura tras otra: vaciar al disco con <c>Flush(true)</c> podía trabar la interfaz.
+    /// </summary>
+    private void SaveOrganization()
+    {
+        if (_organizationKey is null || _organization.Revision == _savedRevision)
         {
-            _services?.Session.Notify(NotificationSeverity.Warning, "No se pudieron guardar las carpetas de la biblioteca", ex.Message);
+            return;
         }
+
+        LibrarySaveRequest? request = _organizationStore.Prepare(_organizationKey, _organization);
+        _savedRevision = _organization.Revision;
+        if (request is null)
+        {
+            return;
+        }
+
+        LibraryOrganization organization = _organization;
+        DispatcherQueue? dispatcher = _dispatcher;
+        _organizationWrite = _organizationWrite.ContinueWith(
+            _ =>
+            {
+                try
+                {
+                    _organizationStore.Write(request);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    dispatcher?.TryEnqueue(() =>
+                    {
+                        if (ReferenceEquals(organization, _organization))
+                        {
+                            // Que el próximo cambio vuelva a intentarlo.
+                            _savedRevision = -1;
+                        }
+
+                        _services?.Session.Notify(NotificationSeverity.Warning, "No se pudieron guardar las carpetas de la biblioteca", ex.Message);
+                    });
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.None,
+            TaskScheduler.Default);
     }
 
     /// <summary>Muestra los medios y carpetas que corresponden a la carpeta abierta, la búsqueda, el tipo y los favoritos.</summary>
@@ -352,7 +419,8 @@ internal sealed partial class LibraryView
 
     /// <summary>
     /// Con la lista abierta, lee en segundo plano el códec de los medios que se ven y aún no lo tienen (el proyecto no
-    /// lo guarda). Uno a la vez para no competir con la vista previa; un filtro nuevo corta la lectura anterior.
+    /// lo guarda), o que fallaron: esos solo se vuelven a abrir si el archivo cambió. Uno a la vez para no competir con
+    /// la vista previa; un filtro nuevo corta la lectura anterior. Un error con un medio solo afecta a ese medio.
     /// </summary>
     private void StartCodecScan()
     {
@@ -361,19 +429,7 @@ internal sealed partial class LibraryView
             return;
         }
 
-        var pending = new List<MediaItem>();
-        foreach (MediaItem item in Media.Where(i => !i.CodecsKnown))
-        {
-            if (CodecCache.TryGetValue(item.Path, out (string? Video, string? Audio) cached))
-            {
-                item.SetCodecs(cached.Video, cached.Audio);
-            }
-            else
-            {
-                pending.Add(item);
-            }
-        }
-
+        List<MediaItem> pending = [.. Media.Where(i => !i.CodecsKnown || i.CodecsFailed)];
         int scan = Interlocked.Increment(ref _codecScan);
         if (pending.Count == 0)
         {
@@ -389,26 +445,21 @@ internal sealed partial class LibraryView
                     return;
                 }
 
-                (string? Video, string? Audio) codecs = ReadCodecs(item.Path);
-                dispatcher.TryEnqueue(DispatcherQueuePriority.Low, () =>
+                bool failedBefore = item.CodecsKnown && item.CodecsFailed;
+                MediaCodecs codecs = CodecCache.Read(item.Path, ReadCodecs);
+                if (failedBefore && codecs.Failed)
                 {
-                    CodecCache[item.Path] = codecs;
-                    item.SetCodecs(codecs.Video, codecs.Audio);
-                });
+                    continue;
+                }
+
+                dispatcher.TryEnqueue(DispatcherQueuePriority.Low, () => item.SetCodecs(codecs));
             }
         });
     }
 
     private static (string? Video, string? Audio) ReadCodecs(string path)
     {
-        try
-        {
-            MediaProbeResult result = new FfmpegMediaProber().Probe(path);
-            return (result.Info?.Video?.Codec, result.Info?.Audio?.Codec);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
-        {
-            return (null, null);
-        }
+        MediaProbeResult result = new FfmpegMediaProber().Probe(path);
+        return (result.Info?.Video?.Codec, result.Info?.Audio?.Codec);
     }
 }
