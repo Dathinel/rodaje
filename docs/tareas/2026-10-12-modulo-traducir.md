@@ -94,8 +94,8 @@ analizadores, con sustitutos de `EditorServices`, `EditorSession` y `ShortcutRou
 - `Rodaje.slnx`: una línea en `/modules/` y otra en `/tests/`.
 - `herramientas/preparar-modelos.ps1`: el parámetro `-Traductor`, la entrada y un bloque al final.
 - El PR #34 (NU1004) fija el RID de Echo, Voice y Subtitles; este módulo ya nace con `RuntimeIdentifier` win-x64.
-- Visto de paso: los `paquete.json` de `modulo-subtitulos` y `modulo-voz` no tienen `"apps": ["rodaje"]`, que
-  `ManifestReader` exige («Falta «apps»»), así que el catálogo de módulos los descartaría. Este módulo sí lo trae.
+- Visto de paso: el `paquete.json` de `modulo-subtitulos` no tiene `"apps": ["rodaje"]`, que `ManifestReader` exige
+  («Falta «apps»»), así que el catálogo de módulos lo descartaría. Este módulo sí lo trae.
 
 ## Qué comprobar en Windows
 
