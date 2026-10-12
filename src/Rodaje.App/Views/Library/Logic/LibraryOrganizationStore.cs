@@ -27,6 +27,12 @@ public sealed class LibraryOrganizationStore
     };
 
     private readonly Dictionary<string, string> _lastWritten = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Archivos de claves que se cargaron por herencia (sin archivo propio, desde el de <c>fallbackKey</c>). Para ellos
+    /// una organización vacía sí se escribe: si no, la próxima vez se volvería a heredar lo que se borró.
+    /// </summary>
+    private readonly HashSet<string> _inherited = new(StringComparer.Ordinal);
     private readonly Lock _lock = new();
 
     public LibraryOrganizationStore(string directory)
@@ -69,7 +75,8 @@ public sealed class LibraryOrganizationStore
     /// Lee la organización de <paramref name="key"/>; si aún no tiene archivo, parte de la de
     /// <paramref name="fallbackKey"/> (la clave por id de antes, o la del proyecto antes de guardarlo por primera vez), sin
     /// tocar ese archivo. Así nadie pierde sus carpetas al actualizar, y una copia empieza con las del original pero
-    /// desde ahí guarda las suyas aparte.
+    /// desde ahí guarda las suyas aparte. Para que la copia parta del estado actual y no de uno viejo, la vista guarda con
+    /// <see cref="PrepareWithTemplate"/>, que mantiene al día el archivo por id.
     /// </summary>
     public LibraryOrganization Load(string key, string? fallbackKey)
     {
@@ -79,17 +86,32 @@ public sealed class LibraryOrganizationStore
             return Load(key);
         }
 
-        bool exists;
+        if (Exists(key))
+        {
+            return Load(key);
+        }
+
+        if (Exists(fallbackKey))
+        {
+            lock (_lock)
+            {
+                _inherited.Add(PathFor(key));
+            }
+        }
+
+        return Load(fallbackKey);
+    }
+
+    private bool Exists(string key)
+    {
         try
         {
-            exists = File.Exists(PathFor(key));
+            return File.Exists(PathFor(key));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            exists = false;
+            return false;
         }
-
-        return Load(exists ? key : fallbackKey);
     }
 
     /// <summary>
@@ -142,13 +164,48 @@ public sealed class LibraryOrganizationStore
             file.Favorites);
     }
 
-    /// <summary>Escribe solo si cambió algo; una organización vacía sin archivo previo no crea archivo.</summary>
+    /// <summary>
+    /// Escribe solo si cambió algo; una organización vacía sin archivo previo no crea archivo, salvo que la clave se haya
+    /// cargado por herencia (ver <see cref="Load(string, string?)"/>).
+    /// </summary>
     public void Save(string key, LibraryOrganization organization)
     {
         if (Prepare(key, organization) is { } request)
         {
             Write(request);
         }
+    }
+
+    /// <summary>Como <see cref="Save(string, LibraryOrganization)"/>, y además actualiza la plantilla (ver <see cref="PrepareWithTemplate"/>).</summary>
+    public void Save(string key, string? templateKey, LibraryOrganization organization)
+    {
+        foreach (LibrarySaveRequest request in PrepareWithTemplate(key, templateKey, organization))
+        {
+            Write(request);
+        }
+    }
+
+    /// <summary>
+    /// Lo que hay que escribir para <paramref name="key"/> y, si es otra, también para <paramref name="templateKey"/> (la
+    /// clave por id). El archivo por id es la plantilla de la que parte una copia del <c>.rodaje</c> que aún no tiene
+    /// archivo propio; si solo se escribiera la clave con ruta, quedaría congelado en un estado viejo y la copia no
+    /// heredaría el estado actual del proyecto. Se escriben en este orden.
+    /// </summary>
+    public IReadOnlyList<LibrarySaveRequest> PrepareWithTemplate(string key, string? templateKey, LibraryOrganization organization)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        List<LibrarySaveRequest> requests = [];
+        if (Prepare(key, organization) is { } own)
+        {
+            requests.Add(own);
+        }
+
+        if (templateKey is not null && templateKey != key && Prepare(templateKey, organization) is { } template)
+        {
+            requests.Add(template);
+        }
+
+        return requests;
     }
 
     /// <summary>
@@ -165,15 +222,19 @@ public sealed class LibraryOrganizationStore
         List<string> favorites = [.. organization.Favorites.Order(StringComparer.Ordinal)];
         var file = new LibraryFile { Version = CurrentVersion, Folders = folders, Media = media, Favorites = favorites };
         string json = JsonSerializer.Serialize(file, LibraryJsonContext.Default.LibraryFile);
+        bool inherited;
         lock (_lock)
         {
             if (_lastWritten.TryGetValue(path, out string? last) && last == json)
             {
                 return null;
             }
+
+            inherited = _inherited.Contains(path);
         }
 
-        return new LibrarySaveRequest(path, json, Empty: folders.Count == 0 && favorites.Count == 0);
+        // Vacía y heredada sí se escribe: si no, al abrir otra vez se heredaría de nuevo lo que se borró.
+        return new LibrarySaveRequest(path, json, Empty: folders.Count == 0 && favorites.Count == 0 && !inherited);
     }
 
     /// <summary>
