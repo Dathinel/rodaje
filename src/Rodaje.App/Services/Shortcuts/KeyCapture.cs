@@ -30,6 +30,16 @@ public static class ReservedKeys
     }
 
     public static bool IsReserved(KeyChord chord) => Reason(chord) is not null;
+
+    /// <summary>
+    /// Una combinación que se puede usar pero conviene evitar, o <c>null</c>. Ctrl+Alt es lo mismo que AltGr en los
+    /// teclados español y latinoamericano: con letras o signos puede tapar «@», «#», «€» o «\» al escribir.
+    /// </summary>
+    public static string? Warning(KeyChord chord) =>
+        (chord.Modifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == (KeyModifiers.Control | KeyModifiers.Alt)
+        && chord.Key is (>= 0x30 and <= 0x5A) or (>= 0xBA and <= 0xC0) or (>= 0xDB and <= 0xE2)
+            ? "Ctrl+Alt es AltGr en los teclados en español y latinoamericanos: en un campo de texto puede impedir escribir «@», «#» o «€»."
+            : null;
 }
 
 public enum CaptureStatus

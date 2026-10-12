@@ -28,10 +28,15 @@ public sealed class ShortcutRegistry
     private Dictionary<KeyChord, string>? _lookup;
     private ShortcutPreset _preset;
 
+    public ShortcutRegistry() => Mouse = new MouseMap(this);
+
     /// <summary>Cambió el estilo, una tecla o el catálogo.</summary>
     public event EventHandler? Changed;
 
     public IReadOnlyList<ShortcutAction> Actions => _actions;
+
+    /// <summary>El ratón: qué hace cada botón y la rueda en cada zona, con los cambios de la persona.</summary>
+    public MouseMap Mouse { get; }
 
     public ShortcutPreset Preset
     {
@@ -117,10 +122,10 @@ public sealed class ShortcutRegistry
 
     /// <summary>
     /// Asigna <paramref name="chord"/> a la acción, en lugar de <paramref name="replacing"/> si se da (y la acción la
-    /// tiene) o además de las que ya tiene. Si otra acción usaba esa combinación, la pierde y recibe a cambio
-    /// <paramref name="replacing"/>: las dos intercambian sus teclas.
+    /// tiene) o además de las que ya tiene. Si otra acción usaba esa combinación, la pierde y, con
+    /// <paramref name="swap"/>, recibe a cambio <paramref name="replacing"/>: las dos intercambian sus teclas.
     /// </summary>
-    public RebindResult Rebind(string actionId, KeyChord chord, KeyChord? replacing = null)
+    public RebindResult Rebind(string actionId, KeyChord chord, KeyChord? replacing = null, bool swap = true)
     {
         if (!_byId.ContainsKey(actionId))
         {
@@ -165,7 +170,7 @@ public sealed class ShortcutRegistry
         {
             List<KeyChord> theirs = [.. GetKeys(owner)];
             int at = theirs.IndexOf(chord);
-            if (given is { } back && FindOwner(back, except: actionId) is null && !theirs.Contains(back))
+            if (swap && given is { } back && FindOwner(back, except: actionId) is null && !theirs.Contains(back))
             {
                 theirs[at] = back;
                 swapped = back;
@@ -255,6 +260,48 @@ public sealed class ShortcutRegistry
         });
     }
 
+    /// <summary>La acción que tiene la combinación, sin contar <paramref name="except"/>.</summary>
+    public string? FindOwner(KeyChord chord, string? except = null) =>
+        _actions.FirstOrDefault(a => a.Id != except && GetKeys(a.Id).Contains(chord))?.Id;
+
+    /// <summary>Todos los cambios de la persona (teclas y ratón, de todos los estilos), para deshacer.</summary>
+    public ShortcutSnapshot TakeSnapshot()
+    {
+        var keys = new Dictionary<ShortcutPreset, IReadOnlyDictionary<string, IReadOnlyList<KeyChord>>>();
+        var mouse = new Dictionary<ShortcutPreset, IReadOnlyDictionary<MouseContext, IReadOnlyDictionary<MouseChord, string?>>>();
+        foreach (ShortcutPreset preset in Enum.GetValues<ShortcutPreset>())
+        {
+            keys[preset] = GetOverrides(preset);
+            mouse[preset] = Mouse.GetOverrides(preset);
+        }
+
+        return new ShortcutSnapshot(keys, mouse);
+    }
+
+    /// <summary>Deja los cambios como estaban en <paramref name="snapshot"/>: los de todos los estilos o solo los de <paramref name="only"/>.</summary>
+    public void Restore(ShortcutSnapshot snapshot, ShortcutPreset? only = null)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        foreach (ShortcutPreset preset in Enum.GetValues<ShortcutPreset>().Where(p => only is null || p == only))
+        {
+            Dictionary<string, KeyChord[]> map = Overrides(preset);
+            map.Clear();
+            if (snapshot.Keys.TryGetValue(preset, out IReadOnlyDictionary<string, IReadOnlyList<KeyChord>>? keys))
+            {
+                foreach ((string id, IReadOnlyList<KeyChord> chords) in keys)
+                {
+                    map[id] = [.. chords.Distinct()];
+                }
+            }
+
+            Mouse.SetOverrides(preset, snapshot.Mouse.GetValueOrDefault(preset) ?? new Dictionary<MouseContext, IReadOnlyDictionary<MouseChord, string?>>(), notify: false);
+        }
+
+        OnChanged();
+    }
+
+    internal void NotifyChanged() => OnChanged();
+
     private Dictionary<string, KeyChord[]> CurrentOverrides => Overrides(_preset);
 
     private Dictionary<string, KeyChord[]> Overrides(ShortcutPreset preset)
@@ -279,9 +326,6 @@ public sealed class ShortcutRegistry
         }
     }
 
-    private string? FindOwner(KeyChord chord, string except) =>
-        _actions.FirstOrDefault(a => a.Id != except && GetKeys(a.Id).Contains(chord))?.Id;
-
     private Dictionary<KeyChord, string> BuildLookup()
     {
         var lookup = new Dictionary<KeyChord, string>();
@@ -301,4 +345,12 @@ public sealed class ShortcutRegistry
         _lookup = null;
         Changed?.Invoke(this, EventArgs.Empty);
     }
+}
+
+/// <summary>Todos los cambios de atajos en un momento: teclas y ratón de cada estilo.</summary>
+public sealed record ShortcutSnapshot(
+    IReadOnlyDictionary<ShortcutPreset, IReadOnlyDictionary<string, IReadOnlyList<KeyChord>>> Keys,
+    IReadOnlyDictionary<ShortcutPreset, IReadOnlyDictionary<MouseContext, IReadOnlyDictionary<MouseChord, string?>>> Mouse)
+{
+    public bool IsEmpty => Keys.Values.All(k => k.Count == 0) && Mouse.Values.All(m => m.Count == 0);
 }
