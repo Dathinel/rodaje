@@ -45,7 +45,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     private readonly MenuFlyoutItem _removeItem;
     private readonly MenuFlyoutItem _favoriteItem;
     private readonly MenuFlyoutSubItem _moveItem;
-    private readonly LibraryOrganizationStore _organizationStore = new(Path.Combine(AppDataPaths.Root, LibraryOrganizationStore.FolderName));
+    private readonly LibraryOrganizationStore _organizationStore = new(Path.Combine(Rodaje.App.Services.AppDataPaths.Root, LibraryOrganizationStore.FolderName));
     private LibraryOrganization _organization = new();
     private string? _organizationProjectId;
     private int _savedRevision;
