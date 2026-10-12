@@ -54,18 +54,22 @@ public sealed record FfmpegPipeSinkOptions
 /// <remarks>
 /// Sin reservas por cuadro: un solo búfer de <see cref="FfmpegPipeSinkOptions.WriteChunkBytes"/> se llena fila a fila y
 /// se vacía a la tubería en escrituras de 1–4 MB. El proceso va dentro del <c>ChildProcessJob</c> (muere si Rodaje
-/// muere). <see cref="Abort"/> lo mata y borra los temporales en menos de 1 s.
+/// muere). <see cref="Abort"/> lo mata y borra los temporales en menos de 1 s; si no sale, la limpieza queda pendiente.
 /// </remarks>
 public sealed class FfmpegPipeSink : IExportSink
 {
     private const int StderrLimit = 16 * 1024;
-    private static readonly TimeSpan KillWait = TimeSpan.FromMilliseconds(900);
+    // Entre las dos esperas, menos de 1 s (el criterio de la fase 6); si ffmpeg.exe no salió, la limpieza queda pendiente.
+    private static readonly TimeSpan KillWait = TimeSpan.FromMilliseconds(600);
+    private static readonly TimeSpan TreeKillWait = TimeSpan.FromMilliseconds(300);
+    private static readonly TimeSpan CleanupRetry = TimeSpan.FromSeconds(2);
 
     private readonly FfmpegExecutable _ffmpeg;
     private readonly FfmpegPipeSinkOptions _options;
     private readonly Lock _gate = new();
     private readonly StringBuilder _stderr = new();
     private readonly List<string> _temporaries = [];
+    private readonly List<string> _diagnostics = [];
 
     private RunningProcess? _running;
     private Stream? _pipe;
@@ -85,6 +89,8 @@ public sealed class FfmpegPipeSink : IExportSink
     private CancellationTokenRegistration _registration;
     private long _nextDiskCheck;
     private TaskCompletionSource? _stdoutClosed;
+    private TaskCompletionSource? _abortFinished;
+    private Task? _pendingCleanup;
 
     public FfmpegPipeSink(FfmpegExecutable ffmpeg, FfmpegPipeSinkOptions? options = null)
     {
@@ -110,6 +116,36 @@ public sealed class FfmpegPipeSink : IExportSink
     /// <summary>Solo para las pruebas: corre en <see cref="Complete"/> justo antes de esperar a que ffmpeg.exe cierre el contenedor.</summary>
     internal Action? BeforeCompleteWaits { get; set; }
 
+    /// <summary>
+    /// Solo para las pruebas: reemplaza a <see cref="Kill"/> (en Abort y en los reintentos de la limpieza pendiente) y
+    /// devuelve si ffmpeg.exe salió. Sirve para simular un ffmpeg.exe que no muere.
+    /// </summary>
+    internal Func<Process, bool>? KillOverride { get; set; }
+
+    /// <summary>Limpieza de un Abort cuyo ffmpeg.exe no salió a tiempo, o <c>null</c>; termina cuando salió y se borró todo.</summary>
+    internal Task? PendingCleanup
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _pendingCleanup;
+            }
+        }
+    }
+
+    /// <summary>Lo que salió mal al cancelar (ffmpeg.exe que no murió, temporales que no se pudieron borrar).</summary>
+    internal IReadOnlyList<string> Diagnostics
+    {
+        get
+        {
+            lock (_diagnostics)
+            {
+                return [.. _diagnostics];
+            }
+        }
+    }
+
     public void Start(ExportSinkRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -134,6 +170,7 @@ public sealed class FfmpegPipeSink : IExportSink
             _aborted = false;
             _completed = false;
             _committing = false;
+            _abortFinished = null;
         }
 
         _framesWritten = 0;
@@ -334,31 +371,82 @@ public sealed class FfmpegPipeSink : IExportSink
         return result;
     }
 
+    /// <remarks>
+    /// Mata a ffmpeg.exe sin tener <c>_gate</c> tomado. Si no sale a tiempo, no se libera el proceso ni se borran los
+    /// temporales que tiene abiertos: lo hace <see cref="PendingCleanup"/> cuando salga, y queda en
+    /// <see cref="Diagnostics"/>. Quien llame mientras otro hilo aborta espera a que ese termine.
+    /// </remarks>
     public void Abort()
     {
+        Task? inProgress = null;
+        TaskCompletionSource? finished = null;
+        RunningProcess? running = null;
+        Stream? pipe = null;
+        string[] temporaries = [];
+        string? journalId = null;
+        int? processId = null;
         lock (_gate)
         {
-            if (_aborted || _completed || _committing)
+            if (_completed || _committing)
             {
                 return;
             }
 
-            _aborted = true;
-            if (_running is { } running)
+            if (_aborted)
             {
-                Kill(running.Process);
+                inProgress = _abortFinished?.Task;
             }
+            else
+            {
+                _aborted = true;
+                finished = _abortFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                running = _running;
+                if (running is not null)
+                {
+                    running.Users++;
+                }
 
-            try
-            {
-                _pipe?.Dispose();
+                pipe = _pipe;
+                processId = ProcessId;
+                temporaries = [.. _temporaries];
+                journalId = _journalId;
+                _journalId = null;
+                // Nadie más lo toma prestado; Complete y Failure, si ya lo tenían, lo siguen usando hasta devolverlo.
+                ReleaseProcess();
             }
-            catch (IOException)
-            {
-            }
+        }
 
-            DeleteTemporaries(keepPassLog: false);
-            ReleaseProcess();
+        if (finished is null)
+        {
+            inProgress?.Wait();
+            return;
+        }
+
+        try
+        {
+            long start = Stopwatch.GetTimestamp();
+            if (running is null || Stop(running.Process))
+            {
+                try
+                {
+                    ClosePipe(pipe);
+                    DeleteFiles(temporaries, journalId, processId);
+                }
+                finally
+                {
+                    Return(running);
+                }
+            }
+            else
+            {
+                Note($"ffmpeg.exe ({processId}) no salió {Stopwatch.GetElapsedTime(start).TotalMilliseconds:0} ms después de matarlo; " +
+                    "los temporales se borran cuando salga.");
+                DeferCleanup(running, pipe, temporaries, journalId, processId, start);
+            }
+        }
+        finally
+        {
+            finished.TrySetResult();
         }
     }
 
@@ -738,7 +826,8 @@ public sealed class FfmpegPipeSink : IExportSink
     // WriteFile (1,6–6,3 s con VP9 en la CI). Por eso se sube primero a High: un proceso que ya muere no compite con
     // nadie. Después TerminateProcess directo, sin recorrer antes todos los procesos del sistema como hace
     // Kill(entireProcessTree), y la espera; el árbol solo se recorre si a pesar de todo no salió a tiempo.
-    private static void Kill(Process process)
+    // Se llama sin _gate tomado. Devuelve si ffmpeg.exe salió.
+    private static bool Kill(Process process)
     {
         try
         {
@@ -756,18 +845,128 @@ public sealed class FfmpegPipeSink : IExportSink
             process.Kill();
             if (process.WaitForExit(KillWait))
             {
-                return;
+                return true;
             }
 
             process.Kill(entireProcessTree: true);
-            process.WaitForExit(KillWait);
+            return process.WaitForExit(TreeKillWait);
         }
         catch (InvalidOperationException)
         {
+            // Sin proceso asociado: no hay nada que esperar.
+            return true;
         }
         catch (System.ComponentModel.Win32Exception)
         {
+            // Acceso denegado mientras ya está terminando.
+            return WaitQuietly(process, TreeKillWait);
         }
+    }
+
+    private bool Stop(Process process) => KillOverride is { } kill ? kill(process) : Kill(process);
+
+    private static bool WaitQuietly(Process process, TimeSpan timeout)
+    {
+        try
+        {
+            return process.WaitForExit(timeout);
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    private static void ClosePipe(Stream? pipe)
+    {
+        try
+        {
+            pipe?.Dispose();
+        }
+        catch (IOException)
+        {
+        }
+    }
+
+    // Borra los temporales de un Abort. El registro solo se suelta si no quedó nada: si no, al reabrir Rodaje
+    // ExportJournal.CleanupStale vuelve a intentarlo.
+    private bool DeleteFiles(IEnumerable<string> paths, string? journalId, int? processId)
+    {
+        var left = new List<string>();
+        foreach (string path in paths)
+        {
+            if (ExportOutputGuard.DeleteTemporary(path))
+            {
+                left.Add(path);
+            }
+        }
+
+        if (left.Count > 0)
+        {
+            Note($"No se pudieron borrar los temporales de ffmpeg.exe ({processId}): {string.Join(", ", left)}; " +
+                "se reintenta al reabrir Rodaje.");
+            return false;
+        }
+
+        if (journalId is not null && _options.Journal is { } journal)
+        {
+            journal.Remove(journalId);
+        }
+
+        return true;
+    }
+
+    // ffmpeg.exe no salió dentro de Abort: un hilo aparte reintenta matarlo y, cuando sale, cierra la tubería, borra los
+    // temporales y devuelve el proceso prestado (que entonces se libera).
+    private void DeferCleanup(RunningProcess running, Stream? pipe, string[] temporaries, string? journalId, int? processId, long start)
+    {
+        Task cleanup = Task.Factory.StartNew(() =>
+        {
+            try
+            {
+                Process process = running.Process;
+                while (!Stop(process))
+                {
+                    if (WaitQuietly(process, CleanupRetry))
+                    {
+                        break;
+                    }
+                }
+
+                ClosePipe(pipe);
+                if (DeleteFiles(temporaries, journalId, processId))
+                {
+                    Note($"ffmpeg.exe ({processId}) salió a los {Stopwatch.GetElapsedTime(start).TotalMilliseconds:0} ms de cancelar; " +
+                        "temporales borrados.");
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                Note($"La limpieza pendiente de ffmpeg.exe ({processId}) falló: {ex.Message}");
+            }
+            finally
+            {
+                Return(running);
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        lock (_gate)
+        {
+            _pendingCleanup = cleanup;
+        }
+    }
+
+    private void Note(string message)
+    {
+        lock (_diagnostics)
+        {
+            _diagnostics.Add(message);
+        }
+
+        Trace.WriteLine($"Rodaje: {message}");
     }
 
     /// <summary>El <c>ffmpeg.exe</c> de una pasada y cuántos lo usan; los campos se tocan con <c>_gate</c> tomado.</summary>
