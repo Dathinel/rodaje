@@ -10,7 +10,9 @@ namespace Rodaje.App;
 /// medir 3 capas con efectos y 4 transiciones sobre el medio, y mueve un deslizador de color al reproducir;
 /// <c>--sin-proxies</c> reproduce siempre el original (para medir el peor caso), sin tocar los ajustes;
 /// <c>--autoprueba</c> abre la ventana con el clip de prueba, pasa por todas las pestañas del inspector con un clip
-/// seleccionado, reproduce un momento y sale con 0 (la usa <c>probar.ps1</c> con el exe de Native AOT).
+/// seleccionado, reproduce un momento y sale con 0 (la usa <c>probar.ps1</c> con el exe de Native AOT);
+/// <c>--arranque</c> escribe las marcas de arranque en el registro en cuanto la interfaz responde (con archivos, cuando se
+/// ve el primer cuadro) y cierra (la usa <c>herramientas\medir-arranque.ps1</c>).
 /// </summary>
 internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSeconds, string? LogPath, bool EnableAudio, int UiHz)
 {
@@ -19,6 +21,11 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
     public bool NoProxies { get; init; }
 
     public bool SelfTest { get; init; }
+
+    public bool StartupProbe { get; init; }
+
+    /// <summary>La maneja una herramienta (medida, autoprueba, arranque): sin autoguardado ni preguntas al cerrar.</summary>
+    public bool IsAutomated => MeasureSeconds is not null || SelfTest || StartupProbe;
 
     public const string TestClipPattern = "h264-1080p-23976-aac-*.mp4";
 
@@ -32,6 +39,7 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
         string? scenario = null;
         bool noProxies = false;
         bool selfTest = false;
+        bool startup = false;
         for (int i = 0; i < args.Length; i++)
         {
             string a = args[i];
@@ -59,6 +67,10 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             {
                 selfTest = true;
             }
+            else if (a.Equals("--arranque", StringComparison.OrdinalIgnoreCase))
+            {
+                startup = true;
+            }
             else if (a.Equals("--sin-audio", StringComparison.OrdinalIgnoreCase))
             {
                 audio = false;
@@ -74,7 +86,7 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             files.Add(clip);
         }
 
-        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario, NoProxies = noProxies, SelfTest = selfTest };
+        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario, NoProxies = noProxies, SelfTest = selfTest, StartupProbe = startup };
     }
 
     private static string? FindTestClip()

@@ -355,6 +355,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             throw new InvalidOperationException(ffmpegFailure);
         }
 
+        _metrics.Milestone("ffmpeg_lista");
+
         _gpu = GpuDevice.TryCreate(out string? gpuFailure) ?? throw new InvalidOperationException("Hace falta una GPU con Direct3D 11. " + gpuFailure);
         DeviceDescription = _gpu.ToString();
         _presenter = new Presenter(_gpu) { Surround = SurroundColor };

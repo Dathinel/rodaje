@@ -20,7 +20,7 @@ Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Arquite
 ## Publicar una versión nueva
 
 1. **Paquete de contenido**: sube `version` en su `paquete.json`, `empaquetar.ps1` (deja `dist\<id>-<versión>.paquete`), commit y push, y `gh release create v<versión> dist\<id>-<versión>.paquete` en su repo.
-2. **Índice**: `herramientas\distribuir.ps1` (con `-SinPublicar -SinCompleta` si solo cambia contenido y `dist\Rodaje` ya está publicado) deja `dist\distribucion\indice.json` con el último `.paquete` de cada `..\Complementos\<repo>\dist\`. La app solo lee el índice de la última release, así que **cada índice lista todo lo publicado**, no solo lo nuevo, y su `generated` es posterior al anterior.
+2. **Índice**: `herramientas\distribuir.ps1` (deja `Rodaje.exe` lanzador más `app\`, ver [arranque-y-distribucion.md](arranque-y-distribucion.md)) (con `-SinPublicar -SinCompleta` si solo cambia contenido y `dist\Rodaje` ya está publicado) deja `dist\distribucion\indice.json` con el último `.paquete` de cada `..\Complementos\<repo>\dist\`. La app solo lee el índice de la última release, así que **cada índice lista todo lo publicado**, no solo lo nuevo, y su `generated` es posterior al anterior.
 3. **Firma**: `herramientas\firmar-indice.ps1 -Indice dist\distribucion\indice.json` firma y comprueba que la clave pública del repo corresponde a la privada.
 4. **Catálogo**: `gh release create v<n+1> indice.json indice.json.sig -R Dathinel/rodaje-catalogo`. Las releases viejas se pueden dejar: la app solo toma la última y rechaza índices más viejos que el último visto.
 5. **Comprobar**: `herramientas\dotnet-local.cmd test tests\Rodaje.Paquetes.Tests --filter Categoria=Red` con `RODAJE_PRUEBAS_RED=1`.

@@ -1,6 +1,7 @@
 ﻿# Arma la distribución de Rodaje en dist\distribucion\: los zip «base» y «completa» y el índice del catálogo.
-#   base      Rodaje.exe + FFmpeg LGPL (dist\Rodaje tal cual), sin complementos.
-#   completa  base + paquetes en paquetes\<id>, módulos en modulos\<id> y sus modelos en modelos\<sha256>.
+#   base      dist\Rodaje tal cual: Rodaje.exe (el lanzador) y app\ con el programa y FFmpeg LGPL, sin complementos.
+#   completa  base + en app\: paquetes en paquetes\<id>, módulos en modulos\<id> y sus modelos en modelos\<sha256>.
+#             Al descomprimir se ve solo Rodaje.exe y la carpeta app, que el lanzador oculta la primera vez.
 #   indice.json  lo que el gestor de complementos puede descargar (paquetes, módulos y modelos) con URL, SHA-256 y
 #             tamaño; se firma después con herramientas\firmar-indice.ps1. El gestor y este script usan los mismos
 #             .paquete, así que lo que trae la completa es exactamente lo que el gestor bajaría.
@@ -47,7 +48,9 @@ if (-not $SinPublicar) {
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'app.ps1') -SoloPublicar
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo publicar Rodaje.' }
 }
-if (-not (Test-Path -LiteralPath (Join-Path $App 'Rodaje.exe'))) { throw "No está publicado $App\Rodaje.exe (quita -SinPublicar)." }
+foreach ($exe in 'Rodaje.exe', 'app\Rodaje.exe') {
+    if (-not (Test-Path -LiteralPath (Join-Path $App $exe))) { throw "No está publicado $App\$exe (quita -SinPublicar)." }
+}
 
 if ($Paquetes.Count -eq 0) {
     if (-not $Complementos) { $Complementos = Join-Path (Split-Path -Parent $Raiz) 'Complementos' }
@@ -145,7 +148,7 @@ function Comprimir([string]$carpeta, [string]$zip) {
     $padre = (Split-Path -Parent (Resolve-Path -LiteralPath $carpeta).Path).TrimEnd('\') + '\'
     $archivo = [System.IO.Compression.ZipFile]::Open($zip, [System.IO.Compression.ZipArchiveMode]::Create)
     try {
-        foreach ($f in Get-ChildItem -LiteralPath $carpeta -Recurse -File) {
+        foreach ($f in Get-ChildItem -LiteralPath $carpeta -Recurse -File -Force) {
             $nombre = $f.FullName.Substring($padre.Length).Replace('\', '/')
             [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archivo, $f.FullName, $nombre, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
         }
@@ -161,7 +164,10 @@ if (Test-Path -LiteralPath $temporal) { Remove-Item -LiteralPath $temporal -Recu
 try {
     $base = Join-Path $temporal 'base\Rodaje'
     New-Item -ItemType Directory -Force -Path $base | Out-Null
-    Copy-Item -Path (Join-Path $App '*') -Destination $base -Recurse -Force -Exclude '*.pdb', 'rodaje-error.txt'
+    Copy-Item -Path (Join-Path $App '*') -Destination $base -Recurse -Force -Exclude '*.pdb'
+    Get-ChildItem -LiteralPath $base -Recurse -Force -File | Where-Object { $_.Name -in 'rodaje-error.txt', 'arranque.txt', 'medidas.txt' } | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force }
+    # El atributo oculto no viaja en el zip; lo pone el lanzador al primer arranque.
+    (Get-Item -LiteralPath (Join-Path $base 'app') -Force).Attributes = 'Directory'
     Comprimir $base (Join-Path $Salida "Rodaje-$Version-base.zip")
 
     if (-not $SinCompleta) {
@@ -170,12 +176,12 @@ try {
         Move-Item -LiteralPath $base -Destination $completa
         foreach ($l in $leidos) {
             $raizTipo = if ($l.Tipo -eq 'module') { 'modulos' } else { 'paquetes' }
-            Extraer $l.Ruta (Join-Path $completa "$raizTipo\$($l.Manifiesto.id)") $l.Manifiesto.Envoltorio
+            Extraer $l.Ruta (Join-Path $completa "app\$raizTipo\$($l.Manifiesto.id)") $l.Manifiesto.Envoltorio
         }
         foreach ($sha in $modelosCompleta.Keys) {
             $origen = Obtener-Modelo $modelosCompleta[$sha]
-            New-Item -ItemType Directory -Force -Path (Join-Path $completa 'modelos') | Out-Null
-            Copy-Item -LiteralPath $origen -Destination (Join-Path $completa "modelos\$sha")
+            New-Item -ItemType Directory -Force -Path (Join-Path $completa 'app\modelos') | Out-Null
+            Copy-Item -LiteralPath $origen -Destination (Join-Path $completa "app\modelos\$sha")
         }
         Comprimir $completa (Join-Path $Salida "Rodaje-$Version-completa.zip")
     }

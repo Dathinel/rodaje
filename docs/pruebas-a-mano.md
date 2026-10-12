@@ -2,6 +2,11 @@
 
 Lo que solo Daniel puede juzgar. Se abre con `Rodaje.bat` (o `dist\Rodaje\Rodaje.exe` si ya está compilado). Al probar algo, se marca con la fecha y lo que se vio; lo que falle pasa a `CLAUDE.md` como pendiente.
 
+## Arranque (12-oct)
+
+- [ ] **Doble clic en `dist\Rodaje\Rodaje.exe`:** aparece al instante un armazón oscuro con los paneles y, a los ~0,4 s, la interfaz en el mismo sitio. ¿Se nota el cambio (parpadeo, salto, dos botones en la barra de tareas)? ¿Se siente rápido? Probar también maximizada y con la ventana en el segundo monitor.
+- [ ] **Carpeta:** tras el primer arranque, en `dist\Rodaje\` se ve solo `Rodaje.exe` (la carpeta `app` queda oculta).
+
 ## Correcciones tras la prueba del 10-oct
 
 - [ ] **Inspector:** el ↻ se apaga en un parámetro sin cambios; restablecer sin keyframes no pregunta; con keyframes avisa con el número y Esc cancela; «Restablecer todo» (menú «⋯» de Propiedades) da el total; el ↻ de la cabecera de «Posición y tamaño» y de «Audio» restablece solo su sección; clic derecho en una fila muestra «Quitar keyframes»; Ctrl+Z deshace cada cosa de una vez.
