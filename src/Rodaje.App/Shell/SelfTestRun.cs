@@ -304,6 +304,7 @@ internal static class SelfTestRun
 
             await CaptureAsync(window, name);
             await SaveFrameAsync(frame, name + "-cuadro");
+            await CheckCanvasAsync(window, name);
             if (name == "formato-9x16")
             {
                 window.ShowPage(ShellPage.Export);
@@ -332,6 +333,98 @@ internal static class SelfTestRun
         {
             throw new InvalidOperationException("Deshacer no devolvió el formato del proyecto.");
         }
+    }
+
+    /// <summary>
+    /// Con la ventana compuesta de verdad (la imagen del render incluida), recorre la fila y la columna del medio del lienzo
+    /// desde fuera: el primer píxel distinto del gris del visor tiene que ser el contorno, justo un píxel antes de la imagen,
+    /// en los cuatro lados. Después muestra el aviso del visor vacío y comprueba que queda dentro de la imagen.
+    /// </summary>
+    private static async Task CheckCanvasAsync(MainWindow window, string name)
+    {
+        PlayerView player = window.PlayerPane;
+        await Task.Delay(300);
+        if (player.PlacementInWindow() is not { } placed || WindowCapture.Client(window.Hwnd) is not { } shot)
+        {
+            throw new InvalidOperationException($"No se pudo medir el lienzo del visor en {name}.");
+        }
+
+        if (Environment.GetEnvironmentVariable(CapturesVariable) is { Length: > 0 } folder)
+        {
+            await SavePngAsync(folder, name + "-pantalla", shot.Bgra, shot.Width, shot.Height);
+        }
+
+        Rodaje.Render.PixelRect r = placed.Image;
+        int midX = r.X + (r.Width / 2);
+        int midY = r.Y + (r.Height / 2);
+        int[] found =
+        [
+            Edge(shot, r.X - 6, midY, 1, 0), Edge(shot, r.X + r.Width + 5, midY, -1, 0),
+            Edge(shot, midX, r.Y - 6, 0, 1), Edge(shot, midX, r.Y + r.Height + 5, 0, -1),
+        ];
+        // El área cliente que da Windows puede correrse un píxel respecto del XAML: se mide el lienzo entre sus contornos.
+        bool crisp = found.All(at => at >= 0) && IsOutline(shot, found[0], midY) && IsOutline(shot, found[1], midY)
+            && IsOutline(shot, midX, found[2]) && IsOutline(shot, midX, found[3])
+            && !IsOutline(shot, found[0] + 1, midY) && !IsOutline(shot, found[1] - 1, midY)
+            && !IsOutline(shot, midX, found[2] + 1) && !IsOutline(shot, midX, found[3] - 1);
+        int width = found[1] - found[0] - 1;
+        int height = found[3] - found[2] - 1;
+        if (!crisp || width != r.Width || height != r.Height || Math.Abs(found[0] + 1 - r.X) > 1 || Math.Abs(found[2] + 1 - r.Y) > 1)
+        {
+            throw new InvalidOperationException(
+                $"El contorno del lienzo no coincide con la imagen en {name}: contornos en {string.Join(", ", found)} (izquierda, derecha, arriba, abajo), " +
+                $"lienzo de {width}×{height} y el render pinta {r.Width}×{r.Height} en ({r.X}, {r.Y}); contorno de un píxel nítido: {crisp}.");
+        }
+
+        player.ShowHintForSelfTest(true);
+        await Task.Delay(200);
+        if (player.PlacementInWindow() is { } hinted)
+        {
+            double scale = window.Content.XamlRoot.RasterizationScale;
+            PanelRectCheck(hinted.Status, r, scale, name);
+        }
+
+        await CaptureAsync(window, name + "-aviso");
+        player.ShowHintForSelfTest(false);
+    }
+
+    private static void PanelRectCheck(PanelRect status, Rodaje.Render.PixelRect image, double scale, string name)
+    {
+        bool inside = status.Width > 0 && status.Left * scale >= image.X - 0.5 && status.Top * scale >= image.Y - 0.5
+            && status.Right * scale <= image.X + image.Width + 0.5 && status.Bottom * scale <= image.Y + image.Height + 0.5;
+        double offCenter = Math.Abs(((status.Left + status.Right) / 2 * scale) - (image.X + (image.Width / 2.0)));
+        if (!inside || offCenter > 2)
+        {
+            throw new InvalidOperationException($"El aviso del visor vacío se sale del lienzo o no queda centrado en {name}.");
+        }
+    }
+
+    /// <summary>El píxel es del contorno del lienzo (#3A3A3A).</summary>
+    private static bool IsOutline((byte[] Bgra, int Width, int Height) shot, int x, int y)
+    {
+        int at = ((y * shot.Width) + x) * 4;
+        return x >= 0 && y >= 0 && x < shot.Width && y < shot.Height
+            && Math.Abs(shot.Bgra[at] - 0x3A) <= 3 && Math.Abs(shot.Bgra[at + 1] - 0x3A) <= 3 && Math.Abs(shot.Bgra[at + 2] - 0x3A) <= 3;
+    }
+
+    /// <summary>Desde (x, y) hacia (dx, dy): dónde está el primer píxel que no es el gris del visor (#242424).</summary>
+    private static int Edge((byte[] Bgra, int Width, int Height) shot, int x, int y, int dx, int dy)
+    {
+        for (int i = 0; i < 12; i++, x += dx, y += dy)
+        {
+            if (x < 0 || y < 0 || x >= shot.Width || y >= shot.Height)
+            {
+                break;
+            }
+
+            int at = ((y * shot.Width) + x) * 4;
+            if (Math.Abs(shot.Bgra[at] - 0x24) > 3 || Math.Abs(shot.Bgra[at + 1] - 0x24) > 3 || Math.Abs(shot.Bgra[at + 2] - 0x24) > 3)
+            {
+                return dx != 0 ? x : y;
+            }
+        }
+
+        return -1;
     }
 
     /// <summary>

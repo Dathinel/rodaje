@@ -284,6 +284,8 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     internal SwapChainPanel VideoPanel => Player.VideoPanel;
 
+    internal PlayerView PlayerPane => Player;
+
     internal Views.Inspector.InspectorView InspectorPane => Inspector;
 
     internal ExportView? ExportPage => _exportView;

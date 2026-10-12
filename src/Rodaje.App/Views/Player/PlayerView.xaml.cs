@@ -2,6 +2,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
@@ -43,6 +44,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     private bool _usesProxy;
     private int _shuttleRate;
     private int _previewDivisor = 1;
+    private bool _hintForSelfTest;
 
     public PlayerView()
     {
@@ -112,10 +114,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         Transport.Visibility = chrome;
         Meters.Visibility = chrome;
         TransportRow.Height = new GridLength(fullScreen ? 0 : 44);
-        var margin = new Thickness(fullScreen ? 0 : 8);
-        VideoPanel.Margin = margin;
-        SafeAreaCanvas.Margin = margin;
-        TitleCanvas.Margin = margin;
+        Stage.Margin = new Thickness(fullScreen ? 0 : 8);
         _services.Shell.SetPlayerFullScreen(fullScreen);
     }
 
@@ -169,7 +168,8 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         PlaybackSnapshot transport = Session.Transport;
         if (_error is null)
         {
-            StatusText.Text = transport.IsPlaying || Session.Sequence.Duration.Ticks > 0 ? "" : "Importa un video y haz doble clic en él para empezar.";
+            bool empty = !transport.IsPlaying && Session.Sequence.Duration.Ticks == 0;
+            SetStatus(empty || _hintForSelfTest ? "Importa un video y haz doble clic en él para empezar." : "");
         }
 
         if (transport.UsesProxy != _usesProxy)
@@ -217,32 +217,32 @@ internal sealed partial class PlayerView : UserControl, IEditorView
             return;
         }
 
-        if (Image() is not { } frame)
+        if (Placement() is not { } placement)
         {
             return;
         }
 
-        Sequence sequence = Session!.Sequence;
-        double imageWidth = sequence.Width * frame.Scale;
-        double imageHeight = sequence.Height * frame.Scale;
-        double left = frame.Left;
-        double top = frame.Top;
-        PlaceSafe(ActionSafe, left, top, imageWidth, imageHeight, ActionSafeFraction);
-        PlaceSafe(TitleSafe, left, top, imageWidth, imageHeight, TitleSafeFraction);
-        double centerX = left + (imageWidth / 2);
-        double centerY = top + (imageHeight / 2);
-        Canvas.SetLeft(CenterH, centerX - (CenterH.Width / 2));
-        Canvas.SetTop(CenterH, centerY);
-        Canvas.SetLeft(CenterV, centerX);
-        Canvas.SetTop(CenterV, centerY - (CenterV.Height / 2));
+        PlaceSafe(ActionSafe, placement, ActionSafeFraction);
+        PlaceSafe(TitleSafe, placement, TitleSafeFraction);
+        double line = placement.Hairline;
+        PanelRect center = placement.Fraction(0.5, 0.5, 0, 0);
+        PlaceRect(CenterH, new PanelRect(center.Left - 8, center.Top, 16, line));
+        PlaceRect(CenterV, new PanelRect(center.Left, center.Top - 8, line, 16));
     }
 
-    private static void PlaceSafe(FrameworkElement rectangle, double left, double top, double width, double height, double fraction)
+    private static void PlaceSafe(Shape rectangle, ViewerPlacement placement, double fraction)
     {
-        rectangle.Width = width * fraction;
-        rectangle.Height = height * fraction;
-        Canvas.SetLeft(rectangle, left + (width * (1 - fraction) / 2));
-        Canvas.SetTop(rectangle, top + (height * (1 - fraction) / 2));
+        double margin = (1 - fraction) / 2;
+        rectangle.StrokeThickness = placement.Hairline;
+        PlaceRect(rectangle, placement.Fraction(margin, margin, fraction, fraction));
+    }
+
+    private static void PlaceRect(FrameworkElement element, PanelRect rect)
+    {
+        element.Width = rect.Width;
+        element.Height = rect.Height;
+        Canvas.SetLeft(element, rect.Left);
+        Canvas.SetTop(element, rect.Top);
     }
 
     private void UpdateToolTips()
@@ -268,7 +268,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     private void ShowError(string message)
     {
         _error = message;
-        StatusText.Text = "Error: " + message;
+        SetStatus("Error: " + message);
     }
 
     private void OnSafeAreasChanged()

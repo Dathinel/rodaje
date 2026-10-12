@@ -63,35 +63,43 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <SwapChainPanel x:Name="VideoPanel" x:FieldModifier="internal" Margin="8" DoubleTapped="OnVideoDoubleTapped"
-                            PointerPressed="OnVideoPointerPressed" PointerMoved="OnVideoPointerMoved"
-                            PointerReleased="OnVideoPointerReleased" PointerCaptureLost="OnVideoPointerCaptureLost" />
-            <!-- El borde del lienzo: el render pinta la imagen en negro sobre el gris del visor; el contorno marca su forma real. -->
-            <Canvas x:Name="FrameCanvas" Margin="8" IsHitTestVisible="False">
-                <Rectangle x:Name="CanvasOutline" Stroke="{StaticResource StrokeBrush}" StrokeThickness="1" />
-            </Canvas>
-            <Canvas x:Name="SafeAreaCanvas" Margin="8" IsHitTestVisible="False" Visibility="Collapsed">
-                <Rectangle x:Name="ActionSafe" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1" StrokeDashArray="4,3" Opacity="0.8" />
-                <Rectangle x:Name="TitleSafe" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1" StrokeDashArray="2,3" Opacity="0.8" />
-                <Rectangle x:Name="CenterH" Fill="{StaticResource TextMutedBrush}" Width="16" Height="1" Opacity="0.8" />
-                <Rectangle x:Name="CenterV" Fill="{StaticResource TextMutedBrush}" Width="1" Height="16" Opacity="0.8" />
-            </Canvas>
-            <Canvas x:Name="TitleCanvas" Margin="8" IsHitTestVisible="False" Visibility="Collapsed">
-                <Polygon x:Name="TitleOutline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                <Rectangle x:Name="TitleGripTopLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                <Rectangle x:Name="TitleGripTopRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                <Rectangle x:Name="TitleGripBottomRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                <Rectangle x:Name="TitleGripBottomLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                <Line x:Name="TitleRotateStem" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                <Ellipse x:Name="TitleGripRotate" Width="10" Height="10" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-            </Canvas>
-            <Canvas x:Name="TitleEditCanvas" Margin="8" Visibility="Collapsed">
-                <TextBox x:Name="TitleEditBox" AcceptsReturn="True" TextWrapping="Wrap" MinWidth="120" Padding="4,2"
-                         Background="#B0000000" BorderBrush="{StaticResource AccentBrush}" AutomationProperties.Name="Texto del título"
-                         TextChanged="OnTitleEditChanged" LostFocus="OnTitleEditLostFocus" KeyDown="OnTitleEditKeyDown" />
-            </Canvas>
-            <TextBlock x:Name="StatusText" Style="{StaticResource LabelTextStyle}" Margin="16,12"
-                       HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" />
+            <!--
+                El escenario: la imagen del render y todo lo que se dibuja encima comparten el mismo margen y el mismo
+                rectángulo (ViewerGeometry), en píxeles físicos enteros. El render pinta la imagen sobre el gris del visor;
+                el contorno marca su forma real y el aviso del visor vacío va dentro de ella.
+            -->
+            <Grid x:Name="Stage" Margin="8">
+                <SwapChainPanel x:Name="VideoPanel" x:FieldModifier="internal" DoubleTapped="OnVideoDoubleTapped"
+                                PointerPressed="OnVideoPointerPressed" PointerMoved="OnVideoPointerMoved"
+                                PointerReleased="OnVideoPointerReleased" PointerCaptureLost="OnVideoPointerCaptureLost" />
+                <Canvas x:Name="FrameCanvas" IsHitTestVisible="False">
+                    <Rectangle x:Name="CanvasOutline" Stroke="{StaticResource StrokeBrush}" StrokeThickness="1" />
+                    <Border x:Name="StatusHost" Padding="16,12">
+                        <TextBlock x:Name="StatusText" x:FieldModifier="internal" Style="{StaticResource LabelTextStyle}" TextWrapping="Wrap"
+                                   TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                </Canvas>
+                <Canvas x:Name="SafeAreaCanvas" IsHitTestVisible="False" Visibility="Collapsed">
+                    <Rectangle x:Name="ActionSafe" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1" StrokeDashArray="4,3" Opacity="0.8" />
+                    <Rectangle x:Name="TitleSafe" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1" StrokeDashArray="2,3" Opacity="0.8" />
+                    <Rectangle x:Name="CenterH" Fill="{StaticResource TextMutedBrush}" Opacity="0.8" />
+                    <Rectangle x:Name="CenterV" Fill="{StaticResource TextMutedBrush}" Opacity="0.8" />
+                </Canvas>
+                <Canvas x:Name="TitleCanvas" IsHitTestVisible="False" Visibility="Collapsed">
+                    <Polygon x:Name="TitleOutline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                    <Rectangle x:Name="TitleGripTopLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                    <Rectangle x:Name="TitleGripTopRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                    <Rectangle x:Name="TitleGripBottomRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                    <Rectangle x:Name="TitleGripBottomLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                    <Line x:Name="TitleRotateStem" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                    <Ellipse x:Name="TitleGripRotate" Width="10" Height="10" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                </Canvas>
+                <Canvas x:Name="TitleEditCanvas" Visibility="Collapsed">
+                    <TextBox x:Name="TitleEditBox" AcceptsReturn="True" TextWrapping="Wrap" MinWidth="120" Padding="4,2"
+                             Background="#B0000000" BorderBrush="{StaticResource AccentBrush}" AutomationProperties.Name="Texto del título"
+                             TextChanged="OnTitleEditChanged" LostFocus="OnTitleEditLostFocus" KeyDown="OnTitleEditKeyDown" />
+                </Canvas>
+            </Grid>
             <meters:MetersView x:Name="Meters" x:FieldModifier="internal" Grid.Column="1" />
         </Grid>
 
