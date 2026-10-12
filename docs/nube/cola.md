@@ -343,3 +343,39 @@ Pruebas de `AutosaveService` con reloj falso y un doble de `IEditorDialogs`: `Ti
 - **Lee:** revisión en bloque (menores y M10).
 
 Quitar `TrimStartToPlayhead`/`TrimEndToPlayhead`/`TrimToPlayhead` (`EditorSession.Editing.cs:36,39`) y migrar `EditingAtPlayheadTests` a `DeleteLeft/RightOfPlayhead`; pegar velocidad 1× restablece tono y muestreo (`ClipAttributes.cs:257`) y los keyframes se recortan a la duración del destino; el zoom desengancha `CompositionTarget.Rendering` al descargar la vista y usa `TimelineViewport.FitTo`; plantillas: quitar bidi en `Clean`, confirmar al borrar, no permitir el nombre de una de fábrica; `docs/protocolo-modulos.md` al día con el `ModuleManager` ya en main.
+
+## 36. Pausas de la vista previa en cortes con velocidad y transiciones
+
+- **Estado:** pendiente
+- **Rama:** `claude/vista-previa-pausas`
+- **Caminos:** `src/Rodaje.Engine/Timeline/`, `src/Rodaje.Playback/`, sus pruebas, `docs/arquitectura/motor.md`, `docs/tareas/`.
+- **Lee:** `docs/fase-6.md` («Cifras de la aceptación»: bloqueos de 59–370 ms sin exportar en cortes y transiciones), `tests/Rodaje.Export.Tests/Acceptance/AcceptanceScene.cs`.
+
+Reproduce con la escena de aceptación sin exportar, mide qué bloquea (pre-roll, apertura de decodificadores, compilación de shaders) y corrígelo para que ningún refresco tarde >50 ms en una máquina normal. Prueba que lo exija (con `Categoria=TiempoReal` si mide tiempo).
+
+## 37. Subtítulos automáticos en la app
+
+- **Estado:** pendiente
+- **Rama:** `claude/subtitulos-ui`
+- **Caminos:** archivos nuevos en `src/Rodaje.App/Views/Analysis/` o `Views/Subtitles/`, `src/Rodaje.Core/Model/` (campo `generator.words` con migración documentada si hace falta), pruebas, `docs/tareas/`.
+- **Lee:** `docs/fase-7.md` (sección del agente E: lo que queda para la UI), `docs/arquitectura/app.md` («Módulos de IA»), `src/Rodaje.Core/Editing/SubtitleEdits.cs`.
+
+«Subtítulos automáticos» en el menú del clip: baja el audio a f32 16 kHz con `ModuleMedia`, llama a `modulo-subtitulos` por el `ModuleManager`, pasa los tiempos con `ModuleTime`/`ClipTimeMap` y muestra una propuesta con vista previa que aplica `Edits.AddSubtitles` en un paso. Guarda los tiempos por palabra (`generator.words`) para editar por palabra después.
+
+## 38. Traducir subtítulos (módulo)
+
+- **Estado:** pendiente
+- **Rama:** `claude/modulo-traducir`
+- **Caminos:** `modules/Rodaje.Module.Translate/` (nuevo), `tests/Rodaje.Module.Translate.Tests/` (nuevo), `herramientas/preparar-modelos.ps1` (añadir entradas), archivos nuevos en la App para la acción, `docs/tareas/`.
+- **Lee:** `docs/fase-7.md` (agente F: Qwen3-4B-Instruct-2507 Q4 Apache-2.0 con LLamaSharp; Opus-MT como opción ligera; NLLB descartado por no comercial), D-031, D-032, `modules/Rodaje.Module.Subtitles/` como patrón.
+
+Traduce los clips de una pista de subtítulos a otro idioma creando una pista nueva, conservando tiempos. Licencias en `LICENCIAS.md` del módulo; modelos con SHA-256 fijado. Pruebas con frases conocidas y medida de velocidad.
+
+## 39. Quitar fondo y reencuadre automático (módulo de visión)
+
+- **Estado:** pendiente
+- **Rama:** `claude/modulo-vision`
+- **Caminos:** `modules/Rodaje.Module.Vision/` (nuevo), sus pruebas, `herramientas/preparar-modelos.ps1`, la primitiva de máscara en Render y archivos nuevos en la App, `docs/tareas/`.
+- **Lee:** `docs/fase-7.md` (agente H: MODNet Apache-2.0 por defecto, BiRefNet_lite MIT como calidad alta; YuNet MIT y RT-DETRv2 Apache-2.0 para reencuadre; RMBG y RVM y YOLO descartados), D-031, D-032.
+
+Quitar fondo como máscara (FFV1 gris en la caché del proyecto) aplicada por una primitiva de máscara del render; reencuadre a 9:16/1:1 siguiendo rostros o personas con keyframes de transformación suavizados. Pruebas con imágenes sintéticas y medidas de velocidad/VRAM.

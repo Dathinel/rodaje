@@ -2,6 +2,8 @@
 
 Editor de video nativo para Windows con la experiencia de uso de CapCut y código propio. Repositorio público `Dathinel/rodaje`, licencia GNU GPLv3 con términos adicionales de atribución (Sección 7) y permiso para complementos; marca en `TRADEMARK.md`; crédito visible en la barra de título y en «Ayuda → Acerca de» (D-032, sustituye a la PolyForm de D-030). Las reglas generales están en `..\CLAUDE.md`.
 
+**Pendiente de Daniel:** `PARA-DANIEL.md` (crear y respaldar la firma de descargas, pruebas a mano, preguntas abiertas). Recuérdaselo al empezar cada sesión hasta que esté hecho.
+
 ## Cómo se trabaja aquí
 
 - **.NET:** siempre con `herramientas\dotnet-local.cmd <args>`, que usa el SDK 10.0.401 de `.entorno\dotnet`. La FFmpeg LGPL 9.0.2 está en `.entorno\ffmpeg`. Las dos se instalan con `herramientas\preparar-entorno.ps1`, con hashes fijados. `RODAJE_ENTORNO` apunta a otro `.entorno`, por ejemplo desde un worktree.
