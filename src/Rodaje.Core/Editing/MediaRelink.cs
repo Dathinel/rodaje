@@ -128,9 +128,30 @@ public static class MediaRelinkEdits
     }
 
     /// <summary>
+    /// La ruta completa y sin rodeos (<c>.</c>, <c>..</c>, <c>/</c> en vez de <c>\</c> en Windows) para comparar dos rutas
+    /// que nombran el mismo archivo; si no se puede (una ruta vacía o con caracteres que no valen), la misma ruta.
+    /// </summary>
+    public static string NormalizePath(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or System.Security.SecurityException)
+        {
+            return path;
+        }
+    }
+
+    /// <summary>¿Nombran <paramref name="a"/> y <paramref name="b"/> el mismo archivo? Sin distinguir mayúsculas, como en Windows.</summary>
+    public static bool SamePath(string a, string b) =>
+        string.Equals(NormalizePath(a), NormalizePath(b), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Por qué <paramref name="path"/> no puede ser el archivo de <paramref name="media"/> porque ya es el de otro medio del
     /// proyecto o el que se eligió para otro en <paramref name="pending"/> (cambios aún sin aplicar). Las rutas se comparan
-    /// sin distinguir mayúsculas, como en Windows. <c>null</c> si está libre.
+    /// sin distinguir mayúsculas, como en Windows, y después de <see cref="NormalizePath"/>. <c>null</c> si está libre.
     /// </summary>
     public static string? CheckTaken(Project project, MediaRef media, string path, IEnumerable<MediaRelinkTarget>? pending = null)
     {
@@ -140,7 +161,7 @@ public static class MediaRelinkEdits
         List<MediaRelinkTarget> others = [.. pending ?? []];
         foreach (MediaRelinkTarget target in others)
         {
-            if (target.MediaId != media.Id && string.Equals(target.Path, path, StringComparison.OrdinalIgnoreCase))
+            if (target.MediaId != media.Id && SamePath(target.Path, path))
             {
                 string name = project.FindMedia(target.MediaId)?.Name ?? target.MediaId;
                 return $"Ese archivo ya está elegido para «{name}»; un archivo no puede ser el de dos medios.";
@@ -150,7 +171,7 @@ public static class MediaRelinkEdits
         // Un medio que se va a enlazar con otro archivo deja libre su ruta de antes.
         var moving = others.Select(t => t.MediaId).ToHashSet(StringComparer.Ordinal);
         MediaRef? owner = project.Media.FirstOrDefault(m =>
-            m.Id != media.Id && !moving.Contains(m.Id) && string.Equals(m.Path, path, StringComparison.OrdinalIgnoreCase));
+            m.Id != media.Id && !moving.Contains(m.Id) && SamePath(m.Path, path));
         return owner is null ? null : $"Ese archivo ya es el de «{owner.Name}»; un archivo no puede ser el de dos medios.";
     }
 
@@ -180,7 +201,9 @@ public static class MediaRelinkEdits
     /// <summary>
     /// Cambia la ruta (y, si se dan, los datos) de cada medio. Los clips, los efectos y los keyframes no se tocan: siguen
     /// apuntando al mismo identificador de medio. Lanza <see cref="EditException"/> sin cambiar nada si algún medio no
-    /// existe, se repite o una ruta está vacía.
+    /// existe, se repite, una ruta está vacía o un archivo quedaría como el de dos medios: dos destinos iguales en el lote, o
+    /// un destino igual a la ruta de un medio que no se reenlaza en el lote (sin distinguir mayúsculas y después de
+    /// <see cref="NormalizePath"/>). Intercambiar las rutas de dos medios en el mismo lote sí vale.
     /// </summary>
     public static void Relink(Project project, IReadOnlyList<MediaRelinkTarget> targets)
     {
@@ -202,6 +225,27 @@ public static class MediaRelinkEdits
             }
 
             media.Add(project.FindMedia(target.MediaId) ?? throw new EditException($"No existe el medio «{target.MediaId}» en el proyecto."));
+        }
+
+        // Un archivo no puede quedar como el de dos medios. Se mira antes de cambiar nada.
+        var destinations = new Dictionary<string, MediaRef>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < targets.Count; i++)
+        {
+            if (!destinations.TryAdd(NormalizePath(targets[i].Path), media[i]))
+            {
+                MediaRef first = destinations[NormalizePath(targets[i].Path)];
+                throw new EditException(
+                    $"«{first.Name}» y «{media[i].Name}» se volverían a enlazar con el mismo archivo; un archivo no puede ser el de dos medios.");
+            }
+        }
+
+        foreach (MediaRef other in project.Media.Where(m => !seen.Contains(m.Id) && m.Path.Length > 0))
+        {
+            if (destinations.TryGetValue(NormalizePath(other.Path), out MediaRef? relinked))
+            {
+                throw new EditException(
+                    $"El archivo nuevo de «{relinked.Name}» ya es el de «{other.Name}»; un archivo no puede ser el de dos medios.");
+            }
         }
 
         for (int i = 0; i < targets.Count; i++)
