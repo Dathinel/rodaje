@@ -489,9 +489,10 @@ public static class BuiltInEffects
     }
 
     /// <summary>
-    /// Máscara de la capa: rectángulo, elipse, trazo libre o imagen (un video gris en <c>&lt;proyecto&gt;.medios</c>). Varias
-    /// máscaras se multiplican. La geometría va en coordenadas de la imagen de la capa (0–1) y se calcula con
-    /// <see cref="Effects.MaskGeometry"/>.
+    /// Máscara de la capa o de un efecto de la pila (<see cref="MaskOptions.Target"/>): rectángulo (con esquinas
+    /// redondeadas), elipse, trazo libre, Bézier, pluma de trazo o imagen (un video gris en <c>&lt;proyecto&gt;.medios</c>).
+    /// Las máscaras de un mismo destino se combinan en orden con su <see cref="MaskOptions.Mode"/>. La geometría va en
+    /// coordenadas de la imagen de la capa (0–1) y se calcula con <see cref="Effects.MaskGeometry"/>.
     /// </summary>
     public const string Mask = "rodaje.mask";
 
@@ -517,6 +518,15 @@ public static class BuiltInEffects
 
         /// <summary>Cuánto se aplica, de 0 a 1. Por defecto 1.</summary>
         public const string Opacity = "opacity";
+
+        /// <summary>Agranda (positivo) o achica el contorno, en fracción del lado corto de la imagen, de −0,5 a 0,5.</summary>
+        public const string Expansion = "expansion";
+
+        /// <summary>Radio de las esquinas del rectángulo, en fracción de la mitad de su lado corto, de 0 a 1.</summary>
+        public const string Roundness = "roundness";
+
+        /// <summary>Grosor de la pluma de trazo, en fracción del lado corto de la imagen. Por defecto 0,02.</summary>
+        public const string Thickness = "thickness";
     }
 
     public static class MaskOptions
@@ -535,6 +545,30 @@ public static class BuiltInEffects
 
         /// <summary>Instante del origen del clip (en segundos, cultura invariante) que corresponde al primer cuadro del video gris.</summary>
         public const string MatteStart = "matteStart";
+
+        /// <summary>
+        /// Uno de <see cref="Effects.EffectRegistry.MaskModes"/>: cómo se combina con las anteriores del mismo destino. Sin
+        /// la opción vale <c>intersect</c> (se multiplican, como antes del formato 7).
+        /// </summary>
+        public const string Mode = "combine";
+
+        /// <summary>Vértices de Bézier o de la pluma de trazo (<see cref="Effects.MaskPath.Format"/>), relativos a la caja.</summary>
+        public const string Points = "points";
+
+        /// <summary>
+        /// Forma animada: keyframes de los vértices en tiempo del origen (<see cref="Effects.MaskShapeTrack"/>). Si tiene
+        /// alguno, manda sobre <see cref="Points"/>.
+        /// </summary>
+        public const string ShapeKeys = "shapeKeys";
+
+        /// <summary>Identificador de un efecto de imagen del mismo clip: la máscara limita ese efecto en vez de la capa.</summary>
+        public const string Target = "target";
+
+        /// <summary>Nombre que ve quien edita; no cambia la imagen.</summary>
+        public const string Name = "name";
+
+        /// <summary>Color del contorno en el visor (<c>#RRGGBB</c>); no cambia la imagen.</summary>
+        public const string Color = "color";
 
         /// <summary>
         /// Uno de <see cref="Effects.EffectRegistry.MaskUses"/>: <c>cut</c> (por defecto) recorta la capa; <c>effects</c> no
@@ -565,6 +599,15 @@ public static class BuiltInEffects
     {
         /// <summary>Uno de <see cref="Effects.EffectRegistry.CropAspects"/>: <c>free</c> o una proporción fija del recorte.</summary>
         public const string Aspect = "aspect";
+    }
+
+    /// <summary>Pixelar: bloques del tamaño dado, en píxeles de la secuencia. Con una máscara, tapa una zona (caras, matrículas).</summary>
+    public const string Pixelate = "rodaje.pixelate";
+
+    public static class PixelateParameters
+    {
+        /// <summary>Lado del bloque en píxeles de la secuencia, de 2 a 256. Por defecto 24.</summary>
+        public const string Size = "size";
     }
 
     /// <summary>

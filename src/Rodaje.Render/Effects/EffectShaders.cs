@@ -24,8 +24,14 @@ internal enum EffectShader
     /// <summary>Mezcla los dos intermedios de una transición.</summary>
     Transition,
 
-    /// <summary>Una máscara (rectángulo, elipse, trazo o imagen) multiplicada sobre la textura de máscaras de la capa.</summary>
+    /// <summary>Una máscara (rectángulo, elipse, trazo, Bézier, pluma o imagen) combinada sobre una textura de máscaras.</summary>
     Mask,
+
+    /// <summary>Mezcla un intermedio antes y después de un efecto con su textura de máscaras (máscara por efecto).</summary>
+    MaskMix,
+
+    /// <summary>Bloques del promedio de su zona (pixelar).</summary>
+    Pixelate,
 
     /// <summary>Una pasada de los efectos espaciales nuevos (<see cref="FxOp"/>): grano, resplandor, aberración, espejo…</summary>
     Fx,
@@ -76,8 +82,15 @@ internal static class EffectShaders
     // kernel: xy = paso entre muestras en uv de la imagen, z = sigma, w = muestras a cada lado; en nitidez, x = cantidad.
     // mix0: x = tipo de transición, y = progreso, z = peso de la mitad 4p(1 − p). mix1: según el tipo. canvas: tamaño.
     // En PsMask (MaskGeometry es la referencia): mix0 = forma, invertir, opacidad y borde suave en píxeles de la imagen;
-    // mix1 = centro y medio tamaño en píxeles de la imagen; kernel = coseno y seno del giro y puntos del trazo; canvas =
-    // tamaño de la imagen. En PsGraded con MASK, mapB lleva a la textura de máscaras (t7).
+    // mix1 = centro y medio tamaño en píxeles de la imagen; kernel = coseno y seno del giro, puntos de la polilínea y
+    // expansión en píxeles; canvas = tamaño de la imagen; key0 = radio de las esquinas, medio grosor de la pluma, borde
+    // mínimo (un píxel de la máscara) y margen de la caja de la polilínea; key1 = esa caja en píxeles del sistema de la
+    // máscara (fuera de ella no hay cobertura). La polilínea (x, y relativos a la caja y peso) está en t8. canvas.z = 1:
+    // pasada gruesa, escribe la distancia corrida (sin invertir ni opacidad); canvas.z = 2: lee esa distancia de t11
+    // (tones.xy = su tamaño) y, si está a más de canvas.w del contorno, decide sin recorrer la polilínea.
+    // En PsGraded con MASK, mapB lleva a la textura de máscaras (t7); blendInfo.w = 1 la muestra en gris y 2 la superpone
+    // (vista de la máscara). PsMaskMix: mezcla t5 (antes) y t6 (después) con t7 por el mapa mix1; mix0.x = vista.
+    // PsPixelate: kernel.x = lado del bloque y canvas.xy = tamaño del intermedio, en píxeles.
     // extra.w = 1: el origen no son los planos Y'CbCr sino el intermedio RGBA premultiplicado de t5 (una capa compuesta).
     // skin.x: protección de piel (0 apagada). vignette2: x = redondez, yz = centro.
     // qual0: tono central y medio ancho (en vueltas), suavidad del tono, invertir. qual1: saturación baja y alta, luma baja
@@ -123,11 +136,13 @@ internal static class EffectShaders
         Texture2D<float4> imageA : register(t5);
         Texture2D<float4> imageB : register(t6);
         Texture2D<float4> maskImage : register(t7);
-        Texture2D<float2> pathPoints : register(t8);
+        Texture2D<float4> pathPoints : register(t8);
         Texture2D<float> matteImage : register(t9);
         Texture2D<float4> curveTable : register(t10);
+        Texture2D<float4> coarseDistance : register(t11);
 
         static const float3 LumaWeights = float3(0.2126, 0.7152, 0.0722);
+        static const float3 MaskTint = float3(1.0, 0.22, 0.18);
 
         float2 ToCbCr(float3 rgb, float y)
         {
@@ -321,18 +336,20 @@ internal static class EffectShaders
         #endif
         }
 
+        // Con el mismo corrimiento de 1/1024 de texel que SampleRgb (mapA.xy − mapA.zw es medio texel).
         float4 SampleA(float2 uv)
         {
-            return imageA.SampleLevel(linearClamp, min(uv * mapA.xy, mapA.zw), 0);
+            return imageA.SampleLevel(linearClamp, min(uv * mapA.xy + (mapA.xy - mapA.zw) * (1.0 / 512.0), mapA.zw), 0);
         }
 
         float4 SampleB(float2 uv)
         {
-            return imageB.SampleLevel(linearClamp, min(uv * mapB.xy, mapB.zw), 0);
+            return imageB.SampleLevel(linearClamp, min(uv * mapB.xy + (mapB.xy - mapB.zw) * (1.0 / 512.0), mapB.zw), 0);
         }
 
         float4 PsGraded(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float3 rgb;
             float keyAlpha = 1.0;
             float sourceAlpha = 1.0;
@@ -387,44 +404,65 @@ internal static class EffectShaders
         #endif
             float alpha = shape.x * EdgeCoverage(i.local) * keyAlpha * sourceAlpha;
         #if MASK
-            alpha *= maskImage.SampleLevel(linearClamp, min(i.local / shape.zw * mapB.xy, mapB.zw), 0).r;
+            float m = maskImage.SampleLevel(linearClamp, min(i.local / shape.zw * mapB.xy, mapB.zw), 0).r;
+            [branch] if (blendInfo.w > 0.5)
+            {
+                // Vista de la máscara: en gris (la capa entera, opaca donde se ve) o superpuesta en rojo sobre lo que tapa.
+                return blendInfo.w < 1.5
+                    ? Composite(i.position, float3(m, m, m), shape.x * EdgeCoverage(i.local))
+                    : Composite(i.position, lerp(rgb, MaskTint, 0.55 * (1.0 - m)), alpha);
+            }
+
+            alpha *= m;
         #endif
             return Composite(i.position, rgb, alpha);
         }
 
-        float PolygonDistance(float2 p, int count, float2 size)
+        // Distancia a la polilínea de t8 (con signo por paridad si es cerrada) y peso interpolado en el tramo más cercano.
+        float2 PolylineDistance(float2 p, int count, float2 size, bool closed)
         {
-            float2 v0 = pathPoints.Load(int3(0, 0, 0)) * size;
-            float best = dot(p - v0, p - v0);
+            float3 a = pathPoints.Load(int3(0, 0, 0)).xyz;
+            float best = 1e30;
+            float weight = 1.0;
             float s = 1.0;
-            int j = count - 1;
+            int segments = closed ? count : count - 1;
             [loop]
-            for (int k = 0; k < count; k++)
+            for (int k = 0; k < segments; k++)
             {
-                float2 vi = pathPoints.Load(int3(k, 0, 0)) * size;
-                float2 vj = pathPoints.Load(int3(j, 0, 0)) * size;
+                int next = k + 1 == count ? 0 : k + 1;
+                float3 b = pathPoints.Load(int3(next, 0, 0)).xyz;
+                float2 vi = a.xy * size;
+                float2 vj = b.xy * size;
                 float2 e = vj - vi;
                 float2 w = p - vi;
-                float2 b = w - e * saturate(dot(w, e) / max(dot(e, e), 1e-12));
-                best = min(best, dot(b, b));
+                float t = saturate(dot(w, e) / max(dot(e, e), 1e-12));
+                float2 q = w - e * t;
+                float d = dot(q, q);
+                if (d < best)
+                {
+                    best = d;
+                    weight = lerp(a.z, b.z, t);
+                }
+
                 bool c1 = p.y >= vi.y;
                 bool c2 = p.y < vj.y;
                 bool c3 = e.x * w.y > e.y * w.x;
-                if ((c1 && c2 && c3) || (!c1 && !c2 && !c3))
+                if (closed && ((c1 && c2 && c3) || (!c1 && !c2 && !c3)))
                 {
                     s = -s;
                 }
 
-                j = k;
+                a = b;
             }
 
-            return s * sqrt(best);
+            return float2(s * sqrt(best), weight);
         }
 
         float4 PsMask(VsOut i) : SV_Target
         {
+            i = Exact(i);
             int kind = (int)mix0.x;
-            float coverage;
+            float coverage = 0.0;
             if (kind == 3)
             {
                 coverage = matteImage.SampleLevel(linearClamp, i.local, 0);
@@ -434,32 +472,98 @@ internal static class EffectShaders
                 float2 d = i.local * canvas.xy - mix1.xy;
                 float2 l = float2(kernel.x * d.x + kernel.y * d.y, -kernel.y * d.x + kernel.x * d.y);
                 float2 h = max(mix1.zw, 1e-6);
-                float dist;
-                if (kind == 1)
+                bool vertices = kind == 2 || kind >= 4;
+                float shifted = 1e4;
+                [branch] if (!vertices || all(l >= key1.xy - key0.w && l <= key1.zw + key0.w))
                 {
-                    float k1 = length(l / h);
-                    float k2 = length(l / (h * h));
-                    dist = k2 < 1e-30 ? -min(h.x, h.y) : k1 * (k1 - 1.0) / k2;
-                }
-                else if (kind == 2)
-                {
-                    dist = PolygonDistance(l, (int)kernel.z, 2.0 * h);
-                }
-                else
-                {
-                    float2 q = abs(l) - h;
-                    dist = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+                    float coarse = 0.0;
+                    if (canvas.z > 1.5)
+                    {
+                        int2 cell = min(int2(i.local * tones.xy), int2(tones.xy) - 1);
+                        coarse = coarseDistance.Load(int3(cell, 0)).r;
+                    }
+
+                    [branch] if (canvas.z > 1.5 && abs(coarse) > canvas.w)
+                    {
+                        coverage = coarse > 0.0 ? 0.0 : 1.0;
+                    }
+                    else
+                    {
+                        float dist;
+                        float weight = 1.0;
+                        if (kind == 1)
+                        {
+                            float k1 = length(l / h);
+                            float k2 = length(l / (h * h));
+                            dist = k2 < 1e-30 ? -min(h.x, h.y) : k1 * (k1 - 1.0) / k2;
+                        }
+                        else if (vertices)
+                        {
+                            float2 r = PolylineDistance(l, (int)kernel.z, 2.0 * h, kind != 5);
+                            dist = kind == 5 ? r.x - key0.y * r.y : r.x;
+                            weight = r.y;
+                        }
+                        else
+                        {
+                            float2 q = abs(l) - h + key0.x;
+                            dist = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - key0.x;
+                        }
+
+                        shifted = dist - kernel.w;
+                        float soft = max(mix0.w * (kind == 4 ? weight : 1.0), key0.z);
+                        coverage = saturate(0.5 - shifted / soft);
+                    }
                 }
 
-                coverage = saturate(0.5 - dist / mix0.w);
+                if (canvas.z > 0.5 && canvas.z < 1.5)
+                {
+                    return float4(shifted, 0.0, 0.0, 1.0);
+                }
             }
 
             float f = mix0.z * (mix0.y > 0.5 ? 1.0 - coverage : coverage);
             return float4(f, f, f, f);
         }
 
+        float4 PsMaskMix(VsOut i) : SV_Target
+        {
+            i = Exact(i);
+            float4 before = SampleA(i.uv);
+            float4 after = SampleB(i.uv);
+            float m = maskImage.SampleLevel(linearClamp, min(i.uv * mix1.xy, mix1.zw), 0).r;
+            [branch] if (mix0.x > 1.5)
+            {
+                float4 c = lerp(before, after, m);
+                c.rgb = lerp(c.rgb, MaskTint * c.a, 0.55 * (1.0 - m));
+                return c;
+            }
+
+            return mix0.x > 0.5 ? float4(m, m, m, 1.0) * before.a : lerp(before, after, m);
+        }
+
+        float4 PsPixelate(VsOut i) : SV_Target
+        {
+            i = Exact(i);
+            float2 px = i.uv * canvas.xy;
+            float2 origin = floor(px / kernel.x) * kernel.x;
+            float2 size = min(origin + kernel.x, canvas.xy) - origin;
+            float4 sum = 0;
+            [unroll]
+            for (int y = 0; y < 4; y++)
+            {
+                [unroll]
+                for (int x = 0; x < 4; x++)
+                {
+                    sum += SampleA((origin + (float2(x, y) + 0.5) * size * 0.25) / canvas.xy);
+                }
+            }
+
+            return sum * (1.0 / 16.0);
+        }
+
         float4 PsImage(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float4 c = SampleA(i.uv);
             float alpha = c.a * shape.x * EdgeCoverage(i.local);
             return Composite(i.position, c.a > 0 ? c.rgb / c.a : 0, alpha);
@@ -467,11 +571,13 @@ internal static class EffectShaders
 
         float4 PsDownsample(VsOut i) : SV_Target
         {
+            i = Exact(i);
             return SampleA(i.uv);
         }
 
         float4 PsBlur(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float k = -0.5 / (kernel.z * kernel.z);
             float4 sum = SampleA(i.uv);
             float total = 1.0;
@@ -490,6 +596,7 @@ internal static class EffectShaders
         // kernel.y: umbral; las diferencias de luma más chicas no se realzan (rampa suave hasta el doble del umbral).
         float4 PsSharpen(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float4 original = SampleA(i.uv);
             float4 blurred = SampleB(i.uv);
             float4 detail = original - blurred;
@@ -584,6 +691,7 @@ internal static class EffectShaders
         // Pasadas de los efectos espaciales sobre intermedios premultiplicados: t5 = A, t6 = B, t7 = máscara de efectos.
         float4 PsFx(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float2 uv = i.uv;
             switch ((int)fx0.x)
             {
@@ -717,6 +825,7 @@ internal static class EffectShaders
 
         float4 PsTransition(VsOut i) : SV_Target
         {
+            i = Exact(i);
             float2 uv = i.local;
             float p = mix0.y;
             float4 m;
@@ -775,7 +884,9 @@ internal static class EffectShaders
         EffectShader.Blur => GradedVariants + 5,
         EffectShader.Sharpen => GradedVariants + 6,
         EffectShader.Mask => GradedVariants + 7,
-        EffectShader.Fx => GradedVariants + 8,
+        EffectShader.MaskMix => GradedVariants + 8,
+        EffectShader.Pixelate => GradedVariants + 9,
+        EffectShader.Fx => GradedVariants + 10,
         _ => throw new ArgumentOutOfRangeException(nameof(shader)),
     };
 
@@ -795,6 +906,8 @@ internal static class EffectShaders
         all.Add(Variant("PsBlur", 0));
         all.Add(Variant("PsSharpen", 0));
         all.Add(Variant("PsMask", 0));
+        all.Add(Variant("PsMaskMix", 0));
+        all.Add(Variant("PsPixelate", 0));
         all.Add(Variant("PsFx", 0));
         return all.ToImmutable();
     }

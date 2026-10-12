@@ -151,7 +151,7 @@ public class EffectCatalogTests
     public void Video_OfreceLosFiltrosQueAplicaElMotor_YAudioSuVolumen()
     {
         Assert.Equal(
-            ["Transformar", "Color y LUT", "Viñeta", "Desenfoque", "Nitidez", "Modo de mezcla", "Recortar", "Croma (fondo verde)",
+            ["Transformar", "Color y LUT", "Viñeta", "Desenfoque", "Nitidez", "Modo de mezcla", "Recortar", "Pixelar", "Croma (fondo verde)",
                 "Ruedas de color", "Curvas", "Grano de película", "Resplandor", "Aberración cromática", "Reducción de ruido",
                 "Espejo y pantalla dividida", "Distorsión de lente", "Corrección secundaria (HSL)"],
             EffectCatalog.For(TrackKind.Video).Select(e => e.Name));

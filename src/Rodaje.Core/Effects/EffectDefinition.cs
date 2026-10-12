@@ -51,7 +51,7 @@ public enum OptionKind
     /// <summary>Referencia <c>paquete@versión/elemento</c>, o vacía.</summary>
     PackageReference,
 
-    /// <summary>Texto libre de hasta <see cref="OptionDefinition.MaxTextLength"/> caracteres, sin caracteres de control.</summary>
+    /// <summary>Texto libre de hasta <see cref="OptionDefinition.MaxLength"/> caracteres, sin caracteres de control.</summary>
     Text,
 }
 
@@ -83,6 +83,12 @@ public sealed record OptionDefinition(string Name, OptionKind Kind, string Defau
 
     public static OptionDefinition Text(string name) => new(name, OptionKind.Text, "", []);
 
+    /// <summary>Texto libre con un tope propio (los vértices y los keyframes de forma de una máscara).</summary>
+    public static OptionDefinition Text(string name, int maxLength) => new(name, OptionKind.Text, "", []) { MaxLength = maxLength };
+
+    /// <summary>Tope de una opción de texto; <see cref="MaxTextLength"/> salvo que la defina con otro.</summary>
+    public int MaxLength { get; init; } = MaxTextLength;
+
     /// <summary>Prefijo de un archivo suelto en una referencia que lo admite (<see cref="AllowsFile"/>).</summary>
     public const string FilePrefix = "file:";
 
@@ -113,7 +119,7 @@ public sealed record OptionDefinition(string Name, OptionKind Kind, string Defau
         return Kind switch
         {
             OptionKind.PackageReference => value.Length == 0 || IsWellFormedReference(value) || (AllowsFile && IsFileReference(value)),
-            OptionKind.Text => value.Length <= MaxTextLength && !value.AsSpan().ContainsAnyInRange((char)0, (char)0x1f),
+            OptionKind.Text => value.Length <= MaxLength && !value.AsSpan().ContainsAnyInRange((char)0, (char)0x1f),
             _ => Choices.Contains(value),
         };
     }

@@ -42,21 +42,6 @@
                                 AutomationProperties.Name="Guardar como preset"
                                 ToolTipService.ToolTip="Guardar los filtros de imagen del clip como preset propio (queda en «Mis filtros» y se puede publicar en un paquete)" />
                     </Grid>
-                    <!-- En la pestaña Máscaras: una forma nueva centrada, o un trazo que se dibuja en el visor. -->
-                    <StackPanel x:Name="MaskBar" Orientation="Horizontal" Spacing="4" Padding="12,4,8,8" Visibility="Collapsed">
-                        <Button Style="{StaticResource ToolButtonStyle}" Height="28" Width="Auto" Padding="8,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Click="OnAddRectangleClick"
-                                ToolTipService.ToolTip="Añadir una máscara rectangular en el centro" AutomationProperties.Name="Rectángulo">
-                            <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE739;" FontSize="{StaticResource IconFontSize}" /><TextBlock Text="Rectángulo" /></StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource ToolButtonStyle}" Height="28" Width="Auto" Padding="8,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Click="OnAddEllipseClick"
-                                ToolTipService.ToolTip="Añadir una máscara elíptica en el centro" AutomationProperties.Name="Elipse">
-                            <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xEA3A;" FontSize="{StaticResource IconFontSize}" /><TextBlock Text="Elipse" /></StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource ToolButtonStyle}" Height="28" Width="Auto" Padding="8,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Click="OnDrawPathClick"
-                                ToolTipService.ToolTip="Dibujar el contorno con el ratón sobre el visor (Esc cancela)" AutomationProperties.Name="Trazo libre">
-                            <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xEE56;" FontSize="{StaticResource IconFontSize}" /><TextBlock Text="Trazo libre" /></StackPanel>
-                        </Button>
-                    </StackPanel>
                     <ListView x:Name="List" Visibility="Collapsed" ItemsSource="{x:Bind Items}" SelectionMode="Single" MaxHeight="220"
                               CanDragItems="True" CanReorderItems="True" AllowDrop="True" DragItemsCompleted="OnDragItemsCompleted"
                               SelectionChanged="OnListSelectionChanged">
@@ -185,18 +170,6 @@
                         <ComboBox x:Name="LutBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
                                   AutomationProperties.Name="LUT" SelectionChanged="OnLutSelected"
                                   ToolTipService.ToolTip="Tabla de color .cube: de un paquete instalado o de un archivo" />
-                    </Grid>
-                    <Grid x:Name="MaskRow" Padding="12,4,8,4" ColumnSpacing="4" Visibility="Collapsed">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="76" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="Forma" Style="{StaticResource LabelTextStyle}" />
-                        <ComboBox x:Name="ShapeBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
-                                  AutomationProperties.Name="Forma de la máscara" SelectionChanged="OnShapeSelected" />
-                        <CheckBox x:Name="InvertBox" Grid.Column="2" Content="Invertir" MinWidth="0" Click="OnInvertClick"
-                                  ToolTipService.ToolTip="Deja ver lo de afuera de la forma" />
                     </Grid>
                     <!-- Recortar: proporción; las asas están en el visor mientras el recorte está elegido. -->
                     <Grid x:Name="AspectRow" Padding="12,4,8,4" ColumnSpacing="4" Visibility="Collapsed">

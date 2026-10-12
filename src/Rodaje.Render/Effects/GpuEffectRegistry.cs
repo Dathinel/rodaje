@@ -45,6 +45,8 @@ public enum GpuEffectKind
     /// <summary>Transición de paquete: el motor la entrega resuelta a su mezcla; si llega sin resolver, fundido cruzado.</summary>
     Preset,
 
+    /// <summary>En un intermedio, como el desenfoque: bloques del promedio de su zona (<c>PsPixelate</c>).</summary>
+    Pixelate,
     /// <summary>En el intermedio, con <c>PsFx</c>: ruido de valor por cuadro.</summary>
     Grain,
 
@@ -87,6 +89,7 @@ public static class GpuEffectRegistry
         new(9, BuiltInEffects.Stabilize, EffectStage.Transform, GpuEffectKind.Stabilize),
         new(10, BuiltInEffects.Mask, EffectStage.PerPixel, GpuEffectKind.Mask),
         new(11, BuiltInEffects.Crop, EffectStage.Transform, GpuEffectKind.Crop),
+        new(24, BuiltInEffects.Pixelate, EffectStage.Spatial, GpuEffectKind.Pixelate),
         new(12, BuiltInEffects.ChromaKey, EffectStage.PerPixel, GpuEffectKind.ChromaKey),
         new(13, BuiltInEffects.ColorWheels, EffectStage.PerPixel, GpuEffectKind.ColorWheels),
         new(14, BuiltInEffects.Curves, EffectStage.PerPixel, GpuEffectKind.Curves),

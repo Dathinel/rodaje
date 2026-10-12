@@ -53,7 +53,10 @@ internal sealed unsafe class EffectPipeline : IDisposable
     private ID3D11BlendState* _accumulate;
     private ID3D11BlendState* _multiply;
     private ID3D11BlendState* _screen;
+    private ID3D11BlendState* _maskAdd;
+    private ID3D11BlendState* _maskSubtract;
     private ID3D11BlendState* _maskMultiply;
+    private ID3D11BlendState* _maskDifference;
     private bool _disposed;
 
     public EffectPipeline(ID3D11Device* device, ID3D11DeviceContext* context, ShaderCache cache)
@@ -107,8 +110,18 @@ internal sealed unsafe class EffectPipeline : IDisposable
     /// <summary>Suma en los cuatro canales: acumula las muestras premultiplicadas del desenfoque de movimiento.</summary>
     public ID3D11BlendState* Accumulate => _accumulate;
 
-    /// <summary>Destino × fuente en los cuatro canales: cada máscara multiplica la textura de máscaras.</summary>
-    public ID3D11BlendState* MaskBlend => _maskMultiply;
+
+    /// <summary>
+    /// Cómo combina una máscara su cobertura <c>m</c> con la textura de máscaras <c>a</c>, en los cuatro canales: suma
+    /// <c>m·(1 − a) + a</c>, resta <c>a·(1 − m)</c>, intersección <c>a·m</c> y diferencia <c>m·(1 − a) + a·(1 − m)</c>.
+    /// </summary>
+    public ID3D11BlendState* MaskBlend(Rodaje.Core.Effects.MaskMode mode) => mode switch
+    {
+        Rodaje.Core.Effects.MaskMode.Add => _maskAdd,
+        Rodaje.Core.Effects.MaskMode.Subtract => _maskSubtract,
+        Rodaje.Core.Effects.MaskMode.Difference => _maskDifference,
+        _ => _maskMultiply,
+    };
 
     public void BindConstants()
     {
@@ -143,7 +156,10 @@ internal sealed unsafe class EffectPipeline : IDisposable
         Com.Release(ref _accumulate);
         Com.Release(ref _multiply);
         Com.Release(ref _screen);
+        Com.Release(ref _maskAdd);
+        Com.Release(ref _maskSubtract);
         Com.Release(ref _maskMultiply);
+        Com.Release(ref _maskDifference);
     }
 
     private void CreateShaders(ID3D11Device* device, ShaderCache cache)
@@ -196,8 +212,14 @@ internal sealed unsafe class EffectPipeline : IDisposable
             D3D11_BLEND.D3D11_BLEND_ONE);
         _multiply = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_DEST_COLOR, D3D11_BLEND.D3D11_BLEND_INV_SRC_ALPHA);
         _screen = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_INV_DEST_COLOR, D3D11_BLEND.D3D11_BLEND_ONE);
+        _maskAdd = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_INV_DEST_COLOR, D3D11_BLEND.D3D11_BLEND_ONE,
+            D3D11_BLEND.D3D11_BLEND_INV_DEST_ALPHA, D3D11_BLEND.D3D11_BLEND_ONE);
+        _maskSubtract = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_ZERO, D3D11_BLEND.D3D11_BLEND_INV_SRC_COLOR,
+            D3D11_BLEND.D3D11_BLEND_ZERO, D3D11_BLEND.D3D11_BLEND_INV_SRC_ALPHA);
         _maskMultiply = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_ZERO, D3D11_BLEND.D3D11_BLEND_SRC_COLOR,
             D3D11_BLEND.D3D11_BLEND_ZERO, D3D11_BLEND.D3D11_BLEND_SRC_ALPHA);
+        _maskDifference = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_INV_DEST_COLOR, D3D11_BLEND.D3D11_BLEND_INV_SRC_COLOR,
+            D3D11_BLEND.D3D11_BLEND_INV_DEST_ALPHA, D3D11_BLEND.D3D11_BLEND_INV_SRC_ALPHA);
     }
 
     private static ID3D11BlendState* CreateBlend(ID3D11Device* device, D3D11_BLEND source, D3D11_BLEND destination,

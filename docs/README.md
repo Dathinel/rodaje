@@ -18,7 +18,7 @@ Cómo está hecho Rodaje, sus formatos y su fondo legal. Para usarlo está la [g
 ## Formatos y extensiones
 
 - [Formatos compatibles](formatos.md): qué video, audio e imágenes abre Rodaje y cómo responde cada herramienta de IA, medido con la matriz de formatos.
-- [Formato de proyecto `.rodaje`](formato-proyecto.md), con su [esquema JSON](../schema/rodaje-proyecto.v6.schema.json).
+- [Formato de proyecto `.rodaje`](formato-proyecto.md), con su [esquema JSON](../schema/rodaje-proyecto.v8.schema.json).
 - [Formato `.paquete`](formato-paquete.md): complementos de contenido y módulos.
 - [Protocolo de módulos](protocolo-modulos.md): cómo escribir un módulo de IA en cualquier lenguaje.
 - [Descarga de complementos](descarga.md): catálogo firmado, índice y claves.

@@ -102,10 +102,7 @@ internal static class TrackOps
         Clip right = clip.Clone();
         right.Id = ctx.Ids.NewId("clip");
         right.LinkId = ctx.DerivedLinkId(clip.LinkId);
-        foreach (EffectInstance effect in right.Effects)
-        {
-            effect.Id = ctx.Ids.NewId("fx");
-        }
+        MaskEdits.RenewIds(ctx, right.Effects, "fx");
 
         (ClipTimeMap leftMap, ClipTimeMap rightMap) = clip.TimeMap.SplitAt(at);
         rightMap.ApplyTo(right);

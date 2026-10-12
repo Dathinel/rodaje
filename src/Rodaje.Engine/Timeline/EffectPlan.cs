@@ -37,9 +37,9 @@ internal sealed class EffectPlan
 
     public int EffectCount => _effects.Length;
 
-    /// <summary>Puede dejar ver lo de abajo aunque sea opaca: recorte, máscara o croma.</summary>
+    /// <summary>Puede dejar ver lo de abajo aunque sea opaca: recorte, máscara que recorta la capa, croma o distorsión.</summary>
     public bool MayRevealBelow => _crop is not null
-        || Array.Exists(_effects, e => e.Code == MaskCode || e.Code == ChromaKeyCode || e.Code == DistortionCode);
+        || Array.Exists(_effects, e => e.CutsLayer || e.Code == ChromaKeyCode || e.Code == DistortionCode);
 
     private static readonly int MaskCode = EffectRegistry.Find(BuiltInEffects.Mask)!.Code;
     private static readonly int ChromaKeyCode = EffectRegistry.Find(BuiltInEffects.ChromaKey)!.Code;
@@ -58,6 +58,7 @@ internal sealed class EffectPlan
         StabilizationTrack? stabilization = null;
         bool stabilized = false;
         Curve[]? crop = null;
+        var ids = new List<string>();
         bool flipX = false;
         bool flipY = false;
         foreach (EffectInstance effect in effects)
@@ -93,6 +94,7 @@ internal sealed class EffectPlan
                     break;
                 case EffectStage.PerPixel or EffectStage.Spatial:
                     images.Add(ImageEffect.From(definition, effect));
+                    ids.Add(effect.Id);
                     break;
                 case EffectStage.Blend when !blended:
                     // Como la transformación, manda el primer modo de mezcla activo de la pila.
@@ -102,6 +104,7 @@ internal sealed class EffectPlan
             }
         }
 
+        ResolveTargets(images, ids);
         return transform is null && images.Count == 0 && blend == BlendMode.Normal && stabilization is null && crop is null
             ? null
             : new EffectPlan(transform, [.. images], blend, stabilization)
@@ -112,6 +115,24 @@ internal sealed class EffectPlan
                 _shaped = transform is not null && (flipX || flipY || IsShaped(transform)),
                 Motion = transform is null ? null : MotionOf(transform),
             };
+    }
+
+    /// <summary>
+    /// Cada máscara con destino lleva en <see cref="MaskGeometry.TargetSlot"/> el índice de su efecto en la lista de la
+    /// capa más uno; si el efecto no está (apagado, quitado o no es de imagen), <see cref="MaskGeometry.NoTarget"/>.
+    /// </summary>
+    private static void ResolveTargets(List<ImageEffect> images, List<string> ids)
+    {
+        for (int i = 0; i < images.Count; i++)
+        {
+            if (images[i].Target is not { } target)
+            {
+                continue;
+            }
+
+            int index = ids.IndexOf(target);
+            images[i] = images[i].WithTarget(index >= 0 && images[index].Code != MaskCode ? index + 1 : MaskGeometry.NoTarget);
+        }
     }
 
     private static readonly int AnchorXSlot = TransformSlot(T.AnchorX);
@@ -255,20 +276,18 @@ internal sealed class EffectPlan
 
             if (definition.Type == BuiltInEffects.Mask)
             {
-                // El trazo o el video gris viajan como recurso; el render los lee sin pasar por las LUT.
+                // El contorno o el video gris viajan como recurso; el render los lee sin pasar por las LUT.
                 MaskShape shape = MaskGeometry.ParseShape(effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Shape));
-                string? key = shape switch
-                {
-                    MaskShape.Path => effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Path),
-                    MaskShape.Image => effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Matte),
-                    _ => null,
-                };
+                string? key = shape == MaskShape.Image ? effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Matte) : MaskGeometry.ShapeText(effect);
                 double start = double.TryParse(effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.MatteStart),
                     System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double s) && double.IsFinite(s) ? s : 0;
+                string? target = effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Target) is { Length: > 0 } t ? t : null;
                 return new ImageEffect(definition.Code, Curves(definition, effect.Parameters), constants, key is { Length: > 0 } ? new ResourceKey(key) : null)
                 {
                     MatteStart = Time.FromSeconds(start).Ticks,
                     IsMask = true,
+                    Target = target,
+                    LimitsEffects = effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Use) == "effects",
                 };
             }
 
@@ -287,9 +306,24 @@ internal sealed class EffectPlan
 
         public int Code => code;
 
+        /// <summary>El id del efecto que limita, si es una máscara con destino.</summary>
+        public string? Target { get; private init; }
+
+        /// <summary>Una máscara que recorta la capa (sin destino y sin el uso «limitar efectos»).</summary>
+        public bool CutsLayer => IsMask && Target is null && !LimitsEffects;
+
+        private bool LimitsEffects { get; init; }
+
         private bool KeepsResource { get; init; }
 
         private bool IsMask { get; init; }
+
+        public ImageEffect WithTarget(int index)
+        {
+            EffectValues values = constants;
+            values[MaskGeometry.TargetSlot] = index;
+            return new ImageEffect(code, curves, values, resource) { MatteStart = MatteStart, IsMask = true, Target = Target, LimitsEffects = LimitsEffects };
+        }
 
         private long MatteStart { get; init; }
 

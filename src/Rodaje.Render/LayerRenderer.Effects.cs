@@ -20,7 +20,9 @@ internal readonly record struct ImageView(RenderTarget Target, int Width, int He
 
 /// <summary>
 /// Un efecto que va en el intermedio, en el orden de la pila: sus valores evaluados (radios en píxeles de la secuencia), su
-/// lugar en la pila (para la historia de la reducción de ruido) y dónde se aplica respecto de las máscaras de efectos.
+/// lugar en la pila (para la historia de la reducción de ruido y sus máscaras propias) y dónde se aplica respecto de las
+/// máscaras de efectos (0 en toda la imagen, 1 dentro, 2 fuera). Los efectos por píxel limitados por máscaras propias también
+/// van aquí, con <c>Region</c> 1.
 /// </summary>
 internal readonly record struct SpatialStep(GpuEffectKind Kind, EffectValues Values, EffectDefinition Definition, int Index, int Region);
 
@@ -49,12 +51,15 @@ internal sealed unsafe partial class LayerRenderer
         _spatial.Clear();
         _masks.Clear();
         _regionMasks.Clear();
+        _scopedMasks.Clear();
+        ResolveMaskView(layer);
+        IReadOnlyList<LayerEffect> list = layer.Effects;
+        ulong scoped = ScopedEffects(list);
         int flags = 0;
         int perPixel = 0;
         ID3D11ShaderResourceView* lut = null;
         ID3D11ShaderResourceView* curves = null;
         int advanced = 0;
-        IReadOnlyList<LayerEffect> list = layer.Effects;
         for (int i = 0; i < list.Count; i++)
         {
             LayerEffect effect = list[i];
@@ -72,80 +77,51 @@ internal sealed unsafe partial class LayerRenderer
                 continue;
             }
 
+            bool limited = i < 64 && (scoped & (1UL << i)) != 0;
             switch (gpu.Kind)
             {
                 case GpuEffectKind.Transform or GpuEffectKind.Stabilize or GpuEffectKind.Blend or GpuEffectKind.Crop:
                     // Llegan por LayerFrame.Transform (con LayerTransform.Stabilization) y LayerFrame.Blend.
                     break;
-                case GpuEffectKind.Color when (flags & EffectShaders.Color) == 0:
-                    flags |= EffectShaders.Color;
-                    perPixel++;
-                    SetColor(ref effects, values, definition);
-                    if (effect.Resource is { } key)
+                case GpuEffectKind.Mask:
+                    int target = MaskTarget(values);
+                    if (target == -1)
                     {
-                        if (Resources is { } resources && resources.TryGetLut(key, out LutData? data) && data is not null)
-                        {
-                            lut = _luts.Get(key, data);
-                            flags |= EffectShaders.Lut;
-                            int size = LutTextures.TextureSize(data.Size);
-                            effects.Tones.Z = (size - 1f) / size;
-                            effects.Tones.W = 0.5f / size;
-                        }
-                        else
-                        {
-                            stats.MissingContent++;
-                        }
+                        // Sin destino: recorta la capa o, con el uso «limitar efectos», marca la zona de los efectos con zona.
+                        (values[MaskGeometry.UseSlot] >= 0.5f ? _regionMasks : _masks).Add(effect);
+                    }
+                    else if (target >= 0 && target < Math.Min(list.Count, 64) && (scoped & (1UL << target)) != 0)
+                    {
+                        _scopedMasks.Add((target, effect));
                     }
 
+                    // Sin destino válido (su efecto está apagado o no existe) no hace nada.
                     break;
-                case GpuEffectKind.Vignette when (flags & EffectShaders.Vignette) == 0:
-                    flags |= EffectShaders.Vignette;
-                    perPixel++;
-                    effects.Vignette = new(
-                        Value(values, definition, 0),
-                        Value(values, definition, 1),
-                        Math.Max(Value(values, definition, 2), 1e-3f),
-                        0);
-                    effects.Vignette2 = new(Value(values, definition, 3), Value(values, definition, 4), Value(values, definition, 5), 0);
+                case GpuEffectKind.Color or GpuEffectKind.Vignette or GpuEffectKind.ChromaKey or GpuEffectKind.ColorWheels
+                    or GpuEffectKind.Curves or GpuEffectKind.HslQualifier when limited:
+                    _spatial.Add(new SpatialStep(gpu.Kind, values, definition, i, 1));
                     break;
-                case GpuEffectKind.Mask:
-                    (values[MaskGeometry.UseSlot] >= 0.5f ? _regionMasks : _masks).Add(effect);
-                    break;
-                case GpuEffectKind.ChromaKey when (advanced & 1) == 0:
-                    advanced |= 1;
-                    perPixel++;
-                    SetChromaKey(ref effects, values, definition);
-                    break;
-                case GpuEffectKind.ColorWheels when (advanced & 2) == 0:
-                    advanced |= 2;
-                    perPixel++;
-                    SetWheels(ref effects, values, definition);
-                    break;
-                case GpuEffectKind.Curves when (advanced & 4) == 0:
-                    advanced |= 4;
-                    perPixel++;
-                    if (effect.Resource is { Reference: { } curveKey })
+                case GpuEffectKind.Color or GpuEffectKind.Vignette or GpuEffectKind.ChromaKey or GpuEffectKind.ColorWheels
+                    or GpuEffectKind.Curves or GpuEffectKind.HslQualifier:
+                    if (AddPerPixel(effect, gpu.Kind, definition, ref effects, ref flags, ref advanced, ref lut, ref curves, ref stats))
                     {
-                        curves = _curves.Upload(curveKey);
-                        effects.Qual3.W = _curves.HasHueCurves(curveKey) ? 1 : 0;
+                        perPixel++;
                     }
                     else
                     {
-                        advanced &= ~4;
+                        // Un segundo color, viñeta, croma, ruedas o curvas: van fusionados una vez.
+                        stats.EffectsSkipped++;
                     }
 
                     break;
-                case GpuEffectKind.HslQualifier when (advanced & 8) == 0:
-                    advanced |= 8;
-                    perPixel++;
-                    SetQualifier(ref effects, values, definition);
-                    break;
                 case GpuEffectKind.Blur or GpuEffectKind.Sharpen or GpuEffectKind.Grain or GpuEffectKind.Glow
-                    or GpuEffectKind.ChromaticAberration or GpuEffectKind.Denoise or GpuEffectKind.Mirror or GpuEffectKind.LensDistortion:
-                    _spatial.Add(new SpatialStep(gpu.Kind, values, definition, i, Choice(values, definition, BuiltInEffects.RegionOptions.Region)));
+                    or GpuEffectKind.ChromaticAberration or GpuEffectKind.Denoise or GpuEffectKind.Mirror or GpuEffectKind.LensDistortion
+                    or GpuEffectKind.Pixelate:
+                    int region = Choice(values, definition, BuiltInEffects.RegionOptions.Region);
+                    _spatial.Add(new SpatialStep(gpu.Kind, values, definition, i, limited ? Math.Max(region, 1) : region));
                     break;
                 default:
-                    // Un segundo color o viñeta (van fusionados una vez), una transición o algo que no es de imagen.
+                    // Una transición o algo que no es de imagen.
                     stats.EffectsSkipped++;
                     break;
             }
@@ -160,6 +136,180 @@ internal sealed unsafe partial class LayerRenderer
         }
 
         return new LayerPlan(flags, lut, perPixel, curves);
+    }
+
+    /// <summary>Los efectos de imagen (de los 64 primeros) que limita alguna máscara de la capa, como máscara de bits.</summary>
+    private static ulong ScopedEffects(IReadOnlyList<LayerEffect> list)
+    {
+        ulong scoped = 0;
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (list[i].Code != MaskCode)
+            {
+                continue;
+            }
+
+            int target = MaskTarget(list[i].Values);
+            if (target >= 0 && target < Math.Min(list.Count, 64)
+                && GpuEffectRegistry.Find(list[target].Code)?.Kind is GpuEffectKind.Color or GpuEffectKind.Vignette or GpuEffectKind.ChromaKey
+                    or GpuEffectKind.ColorWheels or GpuEffectKind.Curves or GpuEffectKind.HslQualifier or GpuEffectKind.Blur or GpuEffectKind.Sharpen
+                    or GpuEffectKind.Pixelate or GpuEffectKind.Grain or GpuEffectKind.Glow or GpuEffectKind.ChromaticAberration
+                    or GpuEffectKind.Denoise or GpuEffectKind.Mirror or GpuEffectKind.LensDistortion)
+            {
+                scoped |= 1UL << target;
+            }
+        }
+
+        return scoped;
+    }
+
+    /// <summary>A qué limita una máscara: −1 la capa, el índice del efecto, o −2 nada (<see cref="MaskGeometry.TargetSlot"/>).</summary>
+    internal static int MaskTarget(in EffectValues values)
+    {
+        float slot = values[MaskGeometry.TargetSlot];
+        return float.IsNaN(slot) || Math.Abs(slot) < 0.5f ? -1 : slot < 0 ? -2 : (int)MathF.Round(slot) - 1;
+    }
+
+    /// <summary>
+    /// Suma un efecto por píxel a las constantes y banderas de <c>PsGraded</c>. <c>false</c> si ya hay uno de su clase
+    /// (cada uno va fusionado una sola vez).
+    /// </summary>
+    private bool AddPerPixel(LayerEffect effect, GpuEffectKind kind, EffectDefinition definition, ref EffectConstants effects, ref int flags,
+        ref int advanced, ref ID3D11ShaderResourceView* lut, ref ID3D11ShaderResourceView* curves, ref FrameStats stats)
+    {
+        EffectValues values = effect.Values;
+        switch (kind)
+        {
+            case GpuEffectKind.Color when (flags & EffectShaders.Color) == 0:
+                flags |= EffectShaders.Color;
+                SetColor(ref effects, values, definition);
+                if (effect.Resource is { } key)
+                {
+                    if (Resources is { } resources && resources.TryGetLut(key, out LutData? data) && data is not null)
+                    {
+                        lut = _luts.Get(key, data);
+                        flags |= EffectShaders.Lut;
+                        int size = LutTextures.TextureSize(data.Size);
+                        effects.Tones.Z = (size - 1f) / size;
+                        effects.Tones.W = 0.5f / size;
+                    }
+                    else
+                    {
+                        stats.MissingContent++;
+                    }
+                }
+
+                return true;
+            case GpuEffectKind.Vignette when (flags & EffectShaders.Vignette) == 0:
+                flags |= EffectShaders.Vignette;
+                effects.Vignette = new(
+                    Value(values, definition, 0),
+                    Value(values, definition, 1),
+                    Math.Max(Value(values, definition, 2), 1e-3f),
+                    0);
+                effects.Vignette2 = new(Value(values, definition, 3), Value(values, definition, 4), Value(values, definition, 5), 0);
+                return true;
+            case GpuEffectKind.ChromaKey when (advanced & 1) == 0:
+                advanced |= 1;
+                SetChromaKey(ref effects, values, definition);
+                return true;
+            case GpuEffectKind.ColorWheels when (advanced & 2) == 0:
+                advanced |= 2;
+                SetWheels(ref effects, values, definition);
+                return true;
+            case GpuEffectKind.Curves when (advanced & 4) == 0:
+                advanced |= 4;
+                if (effect.Resource is { Reference: { } curveKey })
+                {
+                    curves = _curves.Upload(curveKey);
+                    effects.Qual3.W = _curves.HasHueCurves(curveKey) ? 1 : 0;
+                }
+                else
+                {
+                    advanced &= ~4;
+                }
+
+                return true;
+            case GpuEffectKind.HslQualifier when (advanced & 8) == 0:
+                advanced |= 8;
+                SetQualifier(ref effects, values, definition);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Un efecto por píxel solo, sobre un intermedio (lo limita una máscara): <c>PsGraded</c> lee el intermedio como capa
+    /// compuesta. Devuelve la vista nueva o nula si falta su variante o memoria.
+    /// </summary>
+    private ImageView? GradeIntermediate(ImageView view, LayerEffect effect, ref FrameStats stats)
+    {
+        GpuEffect? gpu = GpuEffectRegistry.Find(effect.Code);
+        EffectDefinition? definition = EffectRegistry.Find(effect.Code);
+        if (gpu is null || definition is null)
+        {
+            return null;
+        }
+
+        EffectConstants constants = default;
+        int flags = 0, advanced = 0;
+        ID3D11ShaderResourceView* lut = null;
+        ID3D11ShaderResourceView* curves = null;
+        AddPerPixel(effect, gpu.Kind, definition, ref constants, ref flags, ref advanced, ref lut, ref curves, ref stats);
+        if (advanced != 0)
+        {
+            flags |= EffectShaders.Advanced;
+            constants.Extra = new((advanced & 1) != 0 ? 1 : 0, (advanced & 2) != 0 ? 1 : 0, (advanced & 4) != 0 ? 1 : 0, 0);
+            constants.Qual3.Z = (advanced & 8) != 0 ? 1 : 0;
+            constants.Qual3.Y = (advanced & 8) != 0 && ShowQualifierMask ? 1 : 0;
+        }
+
+        ID3D11PixelShader* shader = _effects.TryGetShader(EffectShader.Graded, flags);
+        RenderTarget? output = shader == null ? null : _pool.Rent(view.Width, view.Height, IntermediateFormat);
+        if (output is null)
+        {
+            return null;
+        }
+
+        constants.Extra.W = 1;
+        constants.MapA = view.Map;
+        var result = new ImageView(output, view.Width, view.Height);
+        _quad.Bind(output.Rtv, view.Width, view.Height, shader, null);
+        BindInputs(null, lut, view.Target, null, null, curves);
+        _effects.Set(constants);
+        _quad.Draw(QuadConstants.FullTarget());
+        UnbindInputs();
+        return result;
+    }
+
+    /// <summary>Pixelar: bloques de <paramref name="block"/> píxeles del intermedio. Una vista nueva, o nula sin shader o memoria.</summary>
+    private ImageView? Pixelate(ImageView source, float block)
+    {
+        ID3D11PixelShader* shader = _effects.TryGetShader(EffectShader.Pixelate, 0);
+        if (shader == null)
+        {
+            return null;
+        }
+
+        if (!(block > 1))
+        {
+            return source;
+        }
+
+        RenderTarget? output = _pool.Rent(source.Width, source.Height, IntermediateFormat);
+        if (output is null)
+        {
+            return null;
+        }
+
+        var result = new ImageView(output, source.Width, source.Height);
+        EffectConstants constants = default;
+        constants.MapA = source.Map;
+        constants.Kernel = new(block, 0, 0, 0);
+        constants.Canvas = new(source.Width, source.Height, 0, 0);
+        Pass(shader, result, constants, source.Target, null);
+        return result;
     }
 
     /// <summary>Lo que la vista previa deja fuera con <see cref="Bypass"/> (antes/después y cuentagotas).</summary>

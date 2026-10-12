@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Pestaña Máscaras: herramientas del visor, la lista de máscaras del clip (color, nombre, a qué se aplican, cómo se
+    combinan, ver u ocultar) y la máscara elegida en secciones: forma y caja, borde, forma animada, seguimiento y vista.
+-->
+<UserControl
+    x:Class="Rodaje.App.Views.Inspector.Masks.MasksPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:inspector="using:Rodaje.App.Views.Inspector"
+    xmlns:local="using:Rodaje.App.Views.Inspector.Masks">
+
+    <UserControl.Resources>
+        <Style x:Key="MaskToolStyle" TargetType="ToggleButton" BasedOn="{StaticResource ToolToggleButtonStyle}">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource PanelBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="EmptyText" Grid.RowSpan="2" Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center" Margin="24,0"
+                   TextWrapping="Wrap" Text="Selecciona un clip de video y lleva el cursor sobre él para recortarlo o tapar una zona con máscaras." />
+
+        <StackPanel x:Name="Header" Visibility="Collapsed">
+            <Grid Height="36" Padding="12,0,6,0">
+                <TextBlock x:Name="ClipTitle" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" />
+            </Grid>
+
+            <!-- Herramientas del visor: una a la vez; la tecla va entre paréntesis en la ayuda. -->
+            <Grid Padding="8,0,8,6" ColumnSpacing="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="2">
+                    <ToggleButton x:Name="SelectTool" Style="{StaticResource MaskToolStyle}" Tag="Select" Click="OnToolClick" Content="&#xE8B0;"
+                                  FontFamily="{StaticResource IconFontFamily}" AutomationProperties.Name="Elegir y editar"
+                                  ToolTipService.ToolTip="Elegir y editar (V): mover, tamaño, giro, puntos y manejadores" />
+                    <ToggleButton x:Name="RectangleTool" Style="{StaticResource MaskToolStyle}" Tag="Rectangle" Click="OnToolClick" Content="&#xE739;"
+                                  FontFamily="{StaticResource IconFontFamily}" AutomationProperties.Name="Rectángulo"
+                                  ToolTipService.ToolTip="Rectángulo (R): arrastra en el visor; con Mayús, cuadrado" />
+                    <ToggleButton x:Name="EllipseTool" Style="{StaticResource MaskToolStyle}" Tag="Ellipse" Click="OnToolClick" Content="&#xEA3A;"
+                                  FontFamily="{StaticResource IconFontFamily}" AutomationProperties.Name="Elipse"
+                                  ToolTipService.ToolTip="Elipse (E): arrastra en el visor; con Mayús, círculo" />
+                    <ToggleButton x:Name="PenTool" Style="{StaticResource MaskToolStyle}" Tag="Pen" Click="OnToolClick" Content="&#xEDFB;"
+                                  FontFamily="{StaticResource IconFontFamily}" AutomationProperties.Name="Pluma Bézier"
+                                  ToolTipService.ToolTip="Pluma Bézier (P): clic pone esquinas, arrastrar saca curvas, clic en el primer punto cierra" />
+                    <ToggleButton x:Name="StrokeTool" Style="{StaticResource MaskToolStyle}" Tag="StrokePen" Click="OnToolClick" Content="&#xE76D;"
+                                  FontFamily="{StaticResource IconFontFamily}" AutomationProperties.Name="Pluma de trazo"
+                                  ToolTipService.ToolTip="Pluma de trazo (Mayús+P): una línea con grosor; Intro la termina" />
+                    <ToggleButton x:Name="FreehandTool" Style="{StaticResource MaskToolStyle}" Tag="Freehand" Click="OnToolClick" Content="&#xEE56;"
+                                  FontFamily="{StaticResource IconFontFamily}" AutomationProperties.Name="A mano alzada"
+                                  ToolTipService.ToolTip="A mano alzada (F): dibuja el contorno; al soltar queda una Bézier suave" />
+                    <ToggleButton x:Name="StarTool" Style="{StaticResource MaskToolStyle}" Tag="Star" Click="OnToolClick" Content="&#xE734;"
+                                  FontFamily="{StaticResource IconFontFamily}" AutomationProperties.Name="Estrella"
+                                  ToolTipService.ToolTip="Estrella: arrastra en el visor (queda como Bézier editable)" />
+                </StackPanel>
+                <DropDownButton Grid.Column="2" Height="30" Padding="8,0" AutomationProperties.Name="Más máscaras"
+                                ToolTipService.ToolTip="Formas de partida, máscara del sujeto y zonas para tapar">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE710;" FontSize="12" />
+                        <TextBlock Text="Añadir" />
+                    </StackPanel>
+                    <DropDownButton.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuFlyoutItem Text="Rectángulo en el centro" Tag="rectangle" Click="OnAddClick" />
+                            <MenuFlyoutItem Text="Elipse en el centro" Tag="ellipse" Click="OnAddClick" />
+                            <MenuFlyoutItem Text="Polígono de 6 lados" Tag="polygon" Click="OnAddClick" />
+                            <MenuFlyoutItem Text="Estrella de 5 puntas" Tag="star" Click="OnAddClick" />
+                            <MenuFlyoutItem Text="Línea (pluma de dos puntos)" Tag="line" Click="OnAddClick" />
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutItem x:Name="FromSubjectItem" Text="Sujeto de «Quitar fondo» como Bézier" Tag="subject" Click="OnAddClick" />
+                            <MenuFlyoutSeparator />
+                            <MenuFlyoutItem Text="Desenfocar una zona (caras, matrículas)" Tag="blur" Click="OnAddClick" />
+                            <MenuFlyoutItem Text="Pixelar una zona" Tag="pixelate" Click="OnAddClick" />
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+            </Grid>
+
+            <inspector:InspectorSection x:Name="ListSection" Key="mascaras-lista" Title="Máscaras del clip">
+                <StackPanel>
+                    <ListView x:Name="List" ItemsSource="{x:Bind Items}" SelectionMode="Single" MaxHeight="232"
+                              CanDragItems="True" CanReorderItems="True" AllowDrop="True" DragItemsCompleted="OnDragItemsCompleted"
+                              SelectionChanged="OnListSelectionChanged">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="Padding" Value="6,0,4,0" />
+                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="MinHeight" Value="40" />
+                                <Setter Property="CornerRadius" Value="0" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="local:MaskItem">
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ToggleButton Style="{StaticResource ToolToggleButtonStyle}" Width="24" Height="24" FontSize="12"
+                                                  Content="{x:Bind EnabledGlyph}" IsChecked="{x:Bind IsHidden}" Tag="{x:Bind EffectId}"
+                                                  Click="OnEnabledClick" ToolTipService.ToolTip="{x:Bind EnabledTip}"
+                                                  AutomationProperties.Name="{x:Bind EnabledTip}" />
+                                    <Border Grid.Column="1" Width="12" Height="12" CornerRadius="3" Background="{x:Bind Swatch}"
+                                            BorderBrush="{StaticResource ControlBorderBrush}" BorderThickness="1" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Opacity="{x:Bind TextOpacity}"
+                                                ToolTipService.ToolTip="{x:Bind Name}">
+                                        <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" />
+                                        <TextBlock Text="{x:Bind Note}" Style="{StaticResource CaptionTextStyle}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="3" Text="{x:Bind ModeLabel}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center"
+                                               ToolTipService.ToolTip="Cómo se combina con las de arriba" />
+                                    <Button Grid.Column="4" Style="{StaticResource ToolButtonStyle}" Width="24" Height="24" Content="&#xE712;" FontSize="12"
+                                            Tag="{x:Bind EffectId}" Click="OnItemMenuClick" ToolTipService.ToolTip="Más acciones"
+                                            AutomationProperties.Name="Más acciones de la máscara" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                    <TextBlock x:Name="NoMasksText" Style="{StaticResource CaptionTextStyle}" Margin="12,2,12,4" Visibility="Collapsed"
+                               TextWrapping="Wrap" TextTrimming="None"
+                               Text="Este clip no tiene máscaras. Dibuja una en el visor con las herramientas de arriba o usa «Añadir»." />
+                </StackPanel>
+            </inspector:InspectorSection>
+        </StackPanel>
+
+        <ScrollViewer x:Name="Details" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,0,12">
+                <inspector:InspectorSection x:Name="ShapeSection" Key="mascara-forma" Title="Forma">
+                    <inspector:InspectorSection.Actions>
+                        <Button x:Name="ConvertButton" Style="{StaticResource ToolButtonStyle}" Height="26" Padding="6,0" Click="OnConvertClick"
+                                ToolTipService.ToolTip="Pasa la forma a vértices Bézier para editarla punto a punto" Content="A Bézier" />
+                    </inspector:InspectorSection.Actions>
+                    <StackPanel>
+                        <Grid Padding="12,3,6,3" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="76" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Combinar" Style="{StaticResource LabelTextStyle}"
+                                       ToolTipService.ToolTip="Cómo se combina con las máscaras de arriba del mismo destino" />
+                            <ComboBox x:Name="ModeBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28"
+                                      FontSize="{StaticResource BodyFontSize}" AutomationProperties.Name="Combinar" SelectionChanged="OnModeSelected" />
+                            <CheckBox x:Name="InvertBox" Grid.Column="2" Content="Invertir" MinWidth="0" Click="OnInvertClick"
+                                      ToolTipService.ToolTip="Deja ver lo de afuera de la forma" />
+                        </Grid>
+                        <Grid Padding="12,3,6,3" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="76" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Aplicar a" Style="{StaticResource LabelTextStyle}"
+                                       ToolTipService.ToolTip="A toda la capa (recorta el clip) o solo a un efecto de la pila" />
+                            <ComboBox x:Name="TargetBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28"
+                                      FontSize="{StaticResource BodyFontSize}" AutomationProperties.Name="Aplicar a" SelectionChanged="OnTargetSelected" />
+                        </Grid>
+                        <TextBlock x:Name="ShapeNote" Style="{StaticResource CaptionTextStyle}" Margin="12,2,12,4" TextWrapping="Wrap" TextTrimming="None" />
+                        <StackPanel x:Name="BoxRows" />
+                    </StackPanel>
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="EdgeSection" Key="mascara-borde" Title="Borde">
+                    <StackPanel>
+                        <StackPanel x:Name="EdgeRows" />
+                        <!-- Borde variable (Bézier) o grosor (pluma) de los puntos elegidos en el visor. -->
+                        <Grid x:Name="WeightRow" Padding="12,3,6,3" ColumnSpacing="6" Visibility="Collapsed">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="76" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="44" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="WeightLabel" Text="Puntos" Style="{StaticResource LabelTextStyle}" />
+                            <Slider x:Name="WeightSlider" Grid.Column="1" Minimum="0" Maximum="4" StepFrequency="0.05" VerticalAlignment="Center"
+                                    AutomationProperties.Name="Borde de los puntos elegidos" ValueChanged="OnWeightChanged"
+                                    PointerCaptureLost="OnWeightReleased" />
+                            <TextBlock x:Name="WeightText" Grid.Column="2" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                        </Grid>
+                    </StackPanel>
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="AnimationSection" Key="mascara-forma-animada" Title="Forma animada">
+                    <StackPanel Padding="12,3,8,6" Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Button x:Name="PreviousKeyButton" Style="{StaticResource ToolButtonStyle}" Width="30" Height="28" Content="&#xE76B;"
+                                    FontSize="12" Click="OnPreviousKeyClick" AutomationProperties.Name="Keyframe de forma anterior"
+                                    ToolTipService.ToolTip="Ir al keyframe de forma anterior" />
+                            <ToggleButton x:Name="KeyButton" Style="{StaticResource ToolToggleButtonStyle}" Width="30" Height="28" FontSize="13"
+                                          Content="&#xE915;" Click="OnKeyClick" AutomationProperties.Name="Keyframe de forma en el cursor"
+                                          ToolTipService.ToolTip="Poner o quitar un keyframe de la forma en el cursor" />
+                            <Button x:Name="NextKeyButton" Style="{StaticResource ToolButtonStyle}" Width="30" Height="28" Content="&#xE76C;"
+                                    FontSize="12" Click="OnNextKeyClick" AutomationProperties.Name="Keyframe de forma siguiente"
+                                    ToolTipService.ToolTip="Ir al keyframe de forma siguiente" />
+                            <TextBlock x:Name="KeysText" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                        </StackPanel>
+                        <Button x:Name="ClearKeysButton" Style="{StaticResource ToolButtonStyle}" Height="28" Padding="8,0" Click="OnClearKeysClick"
+                                Content="Quitar la animación (deja la forma del cursor)" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="TrackSection" Key="mascara-seguimiento" Title="Seguimiento">
+                    <StackPanel Padding="12,3,8,6" Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <CheckBox x:Name="TrackPosition" Content="Posición" IsChecked="True" MinWidth="0" />
+                            <CheckBox x:Name="TrackScale" Content="Escala" IsChecked="True" MinWidth="0" />
+                            <CheckBox x:Name="TrackRotation" Content="Giro" IsChecked="True" MinWidth="0" />
+                            <CheckBox x:Name="TrackShape" Content="Puntos" MinWidth="0"
+                                      ToolTipService.ToolTip="Cada vértice sigue también el movimiento de su zona (deforma la Bézier)" />
+                        </StackPanel>
+                        <StackPanel x:Name="TrackButtons" Orientation="Horizontal" Spacing="4">
+                            <Button Style="{StaticResource ToolButtonStyle}" Height="30" Padding="8,0" Tag="back" Click="OnTrackClick"
+                                    AutomationProperties.Name="Seguir hacia atrás" ToolTipService.ToolTip="Seguir hacia atrás hasta el inicio del clip">
+                                <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE892;" FontSize="12" /><TextBlock Text="Atrás" /></StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource ToolButtonStyle}" Width="32" Height="30" Tag="back1" Click="OnTrackClick" Content="&#xE76B;" FontSize="12"
+                                    AutomationProperties.Name="Seguir un cuadro hacia atrás" ToolTipService.ToolTip="Seguir un cuadro hacia atrás" />
+                            <Button Style="{StaticResource ToolButtonStyle}" Width="32" Height="30" Tag="forward1" Click="OnTrackClick" Content="&#xE76C;" FontSize="12"
+                                    AutomationProperties.Name="Seguir un cuadro hacia adelante" ToolTipService.ToolTip="Seguir un cuadro hacia adelante" />
+                            <Button Style="{StaticResource AccentButtonStyle}" Height="30" Padding="10,0" Tag="forward" Click="OnTrackClick"
+                                    AutomationProperties.Name="Seguir hacia adelante" ToolTipService.ToolTip="Seguir hacia adelante hasta el final del clip">
+                                <StackPanel Orientation="Horizontal" Spacing="6"><TextBlock Text="Adelante" /><FontIcon Glyph="&#xE893;" FontSize="12" /></StackPanel>
+                            </Button>
+                        </StackPanel>
+                        <Grid x:Name="TrackProgressRow" ColumnSpacing="8" Visibility="Collapsed">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ProgressBar x:Name="TrackProgress" Minimum="0" Maximum="1" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="Cancelar" Height="28" Click="OnTrackCancelClick" />
+                        </Grid>
+                        <TextBlock x:Name="TrackText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+                    </StackPanel>
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="ViewSection" Key="mascara-vista" Title="Vista en el visor">
+                    <StackPanel Orientation="Horizontal" Spacing="2" Padding="12,3,8,6">
+                        <ToggleButton x:Name="ViewNormal" Style="{StaticResource ToolToggleButtonStyle}" Height="28" Padding="10,0" Tag="None"
+                                      Click="OnViewClick" Content="Imagen" ToolTipService.ToolTip="La imagen como se exporta" />
+                        <ToggleButton x:Name="ViewMatte" Style="{StaticResource ToolToggleButtonStyle}" Height="28" Padding="10,0" Tag="Matte"
+                                      Click="OnViewClick" Content="Máscara" ToolTipService.ToolTip="La máscara en gris: blanco lo que se ve, negro lo que tapa (solo vista previa)" />
+                        <ToggleButton x:Name="ViewOverlay" Style="{StaticResource ToolToggleButtonStyle}" Height="28" Padding="10,0" Tag="Overlay"
+                                      Click="OnViewClick" Content="Superpuesta" ToolTipService.ToolTip="La imagen entera con lo que tapa la máscara en rojo (solo vista previa)" />
+                    </StackPanel>
+                </inspector:InspectorSection>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
