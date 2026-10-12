@@ -70,6 +70,18 @@ internal static class VoiceDialog
         row.Children.Add(busy);
         row.Children.Add(status);
         panel.Children.Add(row);
+        var advice = new Shared.AiAdvicePanel();
+        panel.Children.Add(advice.Panel);
+        if (synth is ModuleVoiceSynthesizer estimating)
+        {
+            advice.Show(estimating.Estimate(text.Text));
+            text.TextChanged += (_, _) => advice.Show(estimating.Estimate(text.Text));
+        }
+        else
+        {
+            advice.Show(null);
+        }
+
         var saveIn = new GeneratedFolderRow(services);
         panel.Children.Add(saveIn.Element);
 

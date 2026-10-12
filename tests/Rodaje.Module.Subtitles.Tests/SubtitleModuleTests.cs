@@ -154,6 +154,38 @@ public sealed class SubtitleModuleTests(ITestOutputHelper output)
         Assert.True(rawMedian <= 0.150, $"mediana solo con DTW {Corpus.Ms(rawMedian)}");
     }
 
+    /// <summary>
+    /// «parallel» (1.1, D-037): los mismos 3 min con uno y con dos tramos a la vez, en la GPU y en la CPU con la mitad de
+    /// hilos cada uno. Mide; el criterio es solo que la calidad no empeore (los cortes entre grupos pierden el contexto).
+    /// </summary>
+    [ModelFact(Corpus = true, LongRunning = true)]
+    [Trait("Categoria", "TiempoReal")]
+    public async Task Two_chunks_at_once_keep_the_quality()
+    {
+        (float[] samples, List<Utterance> utterances) = Corpus.Build(180);
+        double seconds = samples.Length / (double)Corpus.Rate;
+        await using ModuleProcess module = await ModuleHarness.StartAsync();
+        foreach ((string device, int threads) in new[] { ("auto", 8), ("cpu", 8) })
+        {
+            double? single = null;
+            foreach (int parallel in new[] { 1, 2 })
+            {
+                using JsonDocument p = JsonDocument.Parse(JsonSerializer.Serialize(new Dictionary<string, object>
+                {
+                    ["language"] = "es", ["device"] = device, ["threads"] = threads / parallel, ["parallel"] = parallel,
+                    ["model"] = Corpus.ModelPath!, ["cpuModel"] = Corpus.CpuModelPath ?? Corpus.ModelPath!,
+                }));
+                Stopwatch watch = Stopwatch.StartNew();
+                Transcript transcript = ModuleHarness.Parse(await module.Client.InvokeAsync("subtitulos", p.RootElement, [ModuleHarness.Upload(module.Client, samples)]));
+                watch.Stop();
+                (double wer, List<double> starts) = Score(transcript, utterances);
+                output.WriteLine($"parallel {parallel}: " + Report(device, transcript, seconds, watch.Elapsed, wer, starts, double.NaN));
+                single ??= wer;
+                Assert.True(wer <= single.Value + 0.03, $"WER {wer:P1} con {parallel} frente a {single:P1}");
+            }
+        }
+    }
+
     /// <summary>CPU de respaldo con el modelo menor (D-034): 3 min de voz para extrapolar el criterio de ≤8 min por cada 10.</summary>
     [ModelFact(Corpus = true, LongRunning = true)]
     [Trait("Categoria", "TiempoReal")]
@@ -196,6 +228,19 @@ public sealed class SubtitleModuleTests(ITestOutputHelper output)
         }
 
         Assert.Throws<Rodaje.Modules.Protocol.ModuleCallException>(() => Transcriber.FindModel(null, file));
+    }
+
+    [Fact]
+    public void Parallel_comes_from_the_ai_profile_and_is_clamped()
+    {
+        using System.Text.Json.JsonDocument four = System.Text.Json.JsonDocument.Parse("""{"parallel":3,"threads":8,"device":"auto"}""");
+        Transcriber.Options options = Transcriber.Options.Parse(four.RootElement);
+        Assert.Equal(3, options.Parallel);
+        Assert.Equal(8, options.Threads);
+        using System.Text.Json.JsonDocument many = System.Text.Json.JsonDocument.Parse("""{"parallel":50}""");
+        Assert.Equal(Transcriber.MaxParallel, Transcriber.Options.Parse(many.RootElement).Parallel);
+        Assert.Equal(1, Transcriber.Options.Parse(null).Parallel);
+        Assert.Equal(Whisper.net.WhisperAlignmentHeadsPreset.Base, Transcriber.HeadsFor("ggml-base-q5_1.bin"));
     }
 
     [Fact]

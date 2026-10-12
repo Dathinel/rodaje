@@ -123,6 +123,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         {
             Roots = ModuleCatalog.DefaultRoots(),
             DedicatedVideoMemory = () => engine.DedicatedVideoMemory,
+            Ai = AiProfile.ForThisMachine(() => settings.Current.AiQuality),
             ClientOptions = new() { AppVersion = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "0.0.0" },
         }, new ModulePreviewYield(preview), SynchronizationContext.Current);
         _modules.Failed += (_, f) => session.Notify(NotificationSeverity.Error, f.Title, f.Message);

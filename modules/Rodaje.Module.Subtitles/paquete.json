@@ -1,7 +1,7 @@
 {
   "formatVersion": 1,
   "id": "modulo-subtitulos",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "kind": "module",
   "name": "Subtítulos automáticos",
   "description": "Transcribe la voz con tiempos por palabra (Whisper large-v3-turbo) en la GPU por Vulkan o en la CPU.",
@@ -31,6 +31,14 @@
         "sha256": "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
         "license": "MIT",
         "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small-q5_1.bin"
+      },
+      {
+        "id": "whisper-base-q5-rapido",
+        "file": "modelos/ggml-base-q5_1.bin",
+        "size": 59707625,
+        "sha256": "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898",
+        "license": "MIT",
+        "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base-q5_1.bin"
       }
     ]
   }

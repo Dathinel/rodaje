@@ -22,6 +22,9 @@ internal sealed class Transcriber : IDisposable
     /// <summary>Por debajo del máximo de 1 MiB de un mensaje, con margen para el sobre.</summary>
     private const int MaxInlineResult = 900 * 1024;
 
+    /// <summary>Tramos a la vez como mucho («parallel»).</summary>
+    public const int MaxParallel = 4;
+
     private WhisperFactory? _factory;
     private string? _factoryKey;
     private string _device = "cpu";
@@ -144,72 +147,127 @@ internal sealed class Transcriber : IDisposable
         WhisperFactory factory = Factory(model, gpu);
         onLoaded();
         IReadOnlyList<(int Start, int Length)> chunks = AudioChunks.Split(samples, SampleRate);
-        List<TranscriptSegment> segments = [];
+        // En la CPU, un hilo por núcleo físico (whisper.cpp pone 4 por defecto); en la GPU casi no influye.
+        int threads = options.Threads > 0 ? options.Threads : Math.Max(4, Environment.ProcessorCount / 2);
         string language = options.Language;
-        string? prompt = options.Prompt;
-        for (int c = 0; c < chunks.Count; c++)
+        int done = 0;
+        void Report(double fraction) => onProgress((int)((Volatile.Read(ref done) + fraction) * 100 / chunks.Count));
+
+        // Varios tramos a la vez (con mucha VRAM o muchos hilos): grupos seguidos, cada uno con su estado de Whisper y su
+        // contexto; el modelo se comparte. Con «auto», el primer tramo va solo para saber el idioma.
+        int groups = Math.Clamp(options.Parallel, 1, MaxParallel);
+        var segments = new List<TranscriptSegment>?[chunks.Count];
+        int first = 0;
+        if (groups > 1 && chunks.Count > 1 && language == "auto")
         {
-            ct.ThrowIfCancellationRequested();
-            (int from, int length) = chunks[c];
-            double offset = (double)from / SampleRate;
-            int done = c;
-            WhisperProcessorBuilder builder = factory.CreateBuilder()
-                .WithLanguage(language)
-                .WithTokenTimestamps()
-                .WithProbabilities()
-                .WithProgressHandler(p => onProgress((int)((done + (p / 100.0)) * 100 / chunks.Count)))
-                .WithEncoderBeginHandler(_ => !ct.IsCancellationRequested);
-            // En la CPU, un hilo por núcleo físico (whisper.cpp pone 4 por defecto); en la GPU casi no influye.
-            int threads = options.Threads > 0 ? options.Threads : Math.Max(4, Environment.ProcessorCount / 2);
-            builder = builder.WithThreads(threads);
+            (segments[0], language) = await TranscribeChunkAsync(factory, samples, chunks[0], language, options.Prompt, threads, Report, ct)
+                .ConfigureAwait(false);
+            Interlocked.Increment(ref done);
+            first = 1;
+        }
 
-            if (!string.IsNullOrEmpty(prompt))
+        int remaining = chunks.Count - first;
+        groups = Math.Max(1, Math.Min(groups, remaining));
+        var detected = new string?[groups];
+        string known = language;
+        await Task.WhenAll(Enumerable.Range(0, groups).Select(g => Task.Run(async () =>
+        {
+            int from = first + (remaining * g / groups), to = first + (remaining * (g + 1) / groups);
+            string groupLanguage = known;
+            string? prompt = Context(segments, from) ?? options.Prompt;
+            for (int c = from; c < to; c++)
             {
-                builder = builder.WithPrompt(prompt);
+                ct.ThrowIfCancellationRequested();
+                (segments[c], groupLanguage) = await TranscribeChunkAsync(factory, samples, chunks[c], groupLanguage, prompt, threads, groups == 1 ? Report : _ => { }, ct)
+                    .ConfigureAwait(false);
+                Interlocked.Increment(ref done);
+                if (groups > 1)
+                {
+                    Report(0);
+                }
+
+                // El tramo siguiente sigue con el contexto del anterior, como haría Whisper en una sola pasada.
+                prompt = Context(segments, c + 1) ?? options.Prompt;
             }
 
-            await using WhisperProcessor processor = builder.Build();
-            await foreach (SegmentData segment in processor.ProcessAsync(new ReadOnlyMemory<float>(samples, from, length), ct).ConfigureAwait(false))
-            {
-                if (language == "auto" && !string.IsNullOrEmpty(segment.Language))
-                {
-                    language = segment.Language;
-                }
-
-                double start = offset + segment.Start.TotalSeconds;
-                double end = Math.Max(start, offset + segment.End.TotalSeconds);
-                List<TokenTiming> tokens = new(segment.Tokens.Length);
-                foreach (WhisperToken t in segment.Tokens)
-                {
-                    tokens.Add(new TokenTiming(t.Text ?? "", offset + (t.Start / 100.0), offset + (t.End / 100.0),
-                        t.DtwTimestamp >= 0 ? offset + (t.DtwTimestamp / 100.0) : -1, t.Probability));
-                }
-
-                string text = segment.Text.Trim();
-                if (text.Length > 0)
-                {
-                    segments.Add(new TranscriptSegment(WordBuilder.Round(start), WordBuilder.Round(end), text, WordBuilder.Build(tokens, start, end, text)));
-                }
-            }
-
-            // El tramo siguiente sigue con el contexto del anterior, como haría Whisper en una sola pasada.
-            string context = string.Join(' ', segments.TakeLast(3).Select(s => s.Text));
-            prompt = context.Length > 0 ? context[Math.Max(0, context.Length - 200)..] : options.Prompt;
+            detected[g] = groupLanguage;
+        }, ct))).ConfigureAwait(false);
+        if (language == "auto")
+        {
+            language = detected.FirstOrDefault(l => l is not null and not "auto") ?? "auto";
         }
 
         ct.ThrowIfCancellationRequested();
+        List<TranscriptSegment> all = [.. segments.SelectMany(s => s ?? [])];
         if (options.Onsets)
         {
             OnsetRefiner refiner = new(samples, SampleRate);
             double previousEnd = 0;
-            for (int i = 0; i < segments.Count; i++)
+            for (int i = 0; i < all.Count; i++)
             {
-                segments[i] = refiner.Refine(segments[i], previousEnd);
-                previousEnd = segments[i].Words.Count > 0 ? segments[i].Words[^1].End : segments[i].End;
+                all[i] = refiner.Refine(all[i], previousEnd);
+                previousEnd = all[i].Words.Count > 0 ? all[i].Words[^1].End : all[i].End;
             }
         }
 
-        return new Transcript(language == "auto" ? "und" : language, _device, segments);
+        return new Transcript(language == "auto" ? "und" : language, _device, all);
+    }
+
+    /// <summary>Las últimas frases antes del tramo <paramref name="next"/> (hasta 200 caracteres), o <c>null</c>.</summary>
+    private static string? Context(List<TranscriptSegment>?[] segments, int next)
+    {
+        if (next <= 0 || segments[next - 1] is not { Count: > 0 } previous)
+        {
+            return null;
+        }
+
+        string context = string.Join(' ', previous.TakeLast(3).Select(s => s.Text));
+        return context.Length > 0 ? context[Math.Max(0, context.Length - 200)..] : null;
+    }
+
+    private static async Task<(List<TranscriptSegment> Segments, string Language)> TranscribeChunkAsync(WhisperFactory factory, float[] samples,
+        (int Start, int Length) chunk, string language, string? prompt, int threads, Action<double> onProgress, CancellationToken ct)
+    {
+        (int from, int length) = chunk;
+        double offset = (double)from / SampleRate;
+        WhisperProcessorBuilder builder = factory.CreateBuilder()
+            .WithLanguage(language)
+            .WithTokenTimestamps()
+            .WithProbabilities()
+            .WithProgressHandler(p => onProgress(p / 100.0))
+            .WithEncoderBeginHandler(_ => !ct.IsCancellationRequested)
+            .WithThreads(threads);
+        if (!string.IsNullOrEmpty(prompt))
+        {
+            builder = builder.WithPrompt(prompt);
+        }
+
+        List<TranscriptSegment> segments = [];
+        await using WhisperProcessor processor = builder.Build();
+        await foreach (SegmentData segment in processor.ProcessAsync(new ReadOnlyMemory<float>(samples, from, length), ct).ConfigureAwait(false))
+        {
+            if (language == "auto" && !string.IsNullOrEmpty(segment.Language))
+            {
+                language = segment.Language;
+            }
+
+            double start = offset + segment.Start.TotalSeconds;
+            double end = Math.Max(start, offset + segment.End.TotalSeconds);
+            List<TokenTiming> tokens = new(segment.Tokens.Length);
+            foreach (WhisperToken t in segment.Tokens)
+            {
+                tokens.Add(new TokenTiming(t.Text ?? "", offset + (t.Start / 100.0), offset + (t.End / 100.0),
+                    t.DtwTimestamp >= 0 ? offset + (t.DtwTimestamp / 100.0) : -1, t.Probability));
+            }
+
+            string text = segment.Text.Trim();
+            if (text.Length > 0)
+            {
+                segments.Add(new TranscriptSegment(WordBuilder.Round(start), WordBuilder.Round(end), text, WordBuilder.Build(tokens, start, end, text)));
+            }
+        }
+
+        return (segments, language);
     }
 
     private WhisperFactory Factory(string model, bool gpu)
@@ -316,7 +374,7 @@ internal sealed class Transcriber : IDisposable
         return new ModuleOutput(doc.RootElement.Clone());
     }
 
-    internal sealed record Options(string Language, string Device, string? Model, string? Prompt, int Threads, bool Onsets, string? CpuModel = null)
+    internal sealed record Options(string Language, string Device, string? Model, string? Prompt, int Threads, bool Onsets, string? CpuModel = null, int Parallel = 1)
     {
         public static Options Parse(JsonElement? parameters)
         {
@@ -337,7 +395,11 @@ internal sealed class Transcriber : IDisposable
                 : 0;
             // «onsets»: false deja los inicios tal como los da el DTW (para medir el ajuste por energía).
             bool onsets = !(parameters is { ValueKind: JsonValueKind.Object } q && q.TryGetProperty("onsets", out JsonElement o) && o.ValueKind == JsonValueKind.False);
-            return new Options(language, device, Text(parameters, "model"), Text(parameters, "prompt"), threads, onsets, Text(parameters, "cpuModel"));
+            // «parallel» (v1.1): tramos a la vez; los módulos 1.0 lo ignoran.
+            int parallel = parameters is { ValueKind: JsonValueKind.Object } r && r.TryGetProperty("parallel", out JsonElement pe) && pe.TryGetInt32(out int pn)
+                ? Math.Clamp(pn, 1, MaxParallel)
+                : 1;
+            return new Options(language, device, Text(parameters, "model"), Text(parameters, "prompt"), threads, onsets, Text(parameters, "cpuModel"), parallel);
         }
 
         private static string? Text(JsonElement? parameters, string name) =>

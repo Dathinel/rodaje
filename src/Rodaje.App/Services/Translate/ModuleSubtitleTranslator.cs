@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Rodaje.App.Services.Modules;
+using Rodaje.Media.Ai;
 using Rodaje.Modules.Protocol;
 
 namespace Rodaje.App.Services.Translate;
@@ -31,9 +33,14 @@ public sealed class ModuleSubtitleTranslator(ModuleManager modules)
             throw new TranslationException(TranslatorModel.Missing);
         }
 
-        IReadOnlyList<System.Text.Json.JsonElement> requests = SubtitleTrackTranslation.Requests(texts, source, target);
-        return modules.RunAsync(SubtitleTrackTranslation.ModuleId, title, async call =>
+        AiPlan? plan = modules.Ai?.Plan();
+        IReadOnlyList<System.Text.Json.JsonElement> requests = SubtitleTrackTranslation.Requests(texts, source, target,
+            plan is null ? null : w => AiParameters.WriteTranslate(w, plan.Translate));
+        ModuleDemand? demand = plan is null ? null : AiParameters.Demand(plan.Translate.Device, plan.Translate.VramMb);
+        int characters = Characters(texts);
+        return modules.RunAsync(SubtitleTrackTranslation.ModuleId, title, demand, async call =>
         {
+            var watch = Stopwatch.StartNew();
             Dictionary<string, string> all = new(StringComparer.Ordinal);
             List<string> untranslated = [];
             for (int i = 0; i < requests.Count; i++)
@@ -50,7 +57,18 @@ public sealed class ModuleSubtitleTranslator(ModuleManager modules)
                 untranslated.AddRange(missing);
             }
 
+            if (plan is not null)
+            {
+                modules.Ai?.Rates.Record(AiEstimator.ForTranslate(plan, characters).Key, characters, watch.Elapsed.TotalSeconds);
+            }
+
             return new TrackTranslation(all, untranslated);
         }, cancellationToken);
     }
+
+    /// <summary>Cuánto tardará en este equipo, o <c>null</c> sin perfil de IA.</summary>
+    public AiEstimate? Estimate(IReadOnlyList<SubtitleText> texts) =>
+        modules.Ai is { } ai ? AiEstimator.ForTranslate(ai.Plan(), Characters(texts), ai.Rates) : null;
+
+    private static int Characters(IReadOnlyList<SubtitleText> texts) => texts.Sum(t => t.Text.Length);
 }

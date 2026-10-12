@@ -6,6 +6,7 @@ using Rodaje.App.Services.Modules;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
+using Rodaje.Media.Ai;
 using Rodaje.Media.Proxies;
 using Rodaje.Media.Video;
 using Rodaje.Modules.Protocol;
@@ -61,6 +62,22 @@ internal static class VisionTools
 
     public static double Fps(Rational rate) => rate.Num > 0 && rate.Den > 0 ? (double)rate.Num / rate.Den : 30;
 
+    /// <summary>Cuánto tardará «Quitar fondo» en este equipo (con su aviso si la calidad alta no cabe), o <c>null</c> sin perfil de IA.</summary>
+    public static AiEstimate? EstimateRemoveBackground(ModuleManager modules, Clip clip, Rational frameRate, bool highQuality)
+    {
+        ArgumentNullException.ThrowIfNull(modules);
+        return modules.Ai is { } ai ? AiEstimator.ForRemoveBackground(ai.Plan(), FrameSpan(clip, frameRate).Count, highQuality, ai.Rates) : null;
+    }
+
+    /// <summary>Cuánto tardará el análisis del reencuadre, o <c>null</c> sin perfil de IA.</summary>
+    public static AiEstimate? EstimateReframe(ModuleManager modules, Clip clip)
+    {
+        ArgumentNullException.ThrowIfNull(modules);
+        ArgumentNullException.ThrowIfNull(clip);
+        int count = Math.Clamp((int)Math.Ceiling(Math.Max(clip.SourceDuration.ToSeconds(), 1e-3) * ReframeRate), 1, 20_000);
+        return modules.Ai is { } ai ? AiEstimator.ForDetect(ai.Plan(), count, ai.Rates) : null;
+    }
+
     /// <summary>
     /// Pide al módulo la máscara de cada cuadro del clip y la guarda como video gris FFV1 en <paramref name="folder"/>. Es un
     /// trabajo de Trabajos (avance, cancelar); el archivo aparece entero o no aparece.
@@ -73,14 +90,19 @@ internal static class VisionTools
         ArgumentNullException.ThrowIfNull(ffmpeg);
         (long first, int count) = FrameSpan(clip, frameRate);
         double fps = Fps(frameRate);
-        return modules.RunAsync(module.Id, title, async call =>
+        AiPlan? plan = modules.Ai?.Plan();
+        int batchSize = plan?.Vision.FramesPerCall ?? MaskBatch;
+        ModuleDemand? demand = plan is null ? null
+            : AiParameters.Demand(AiParameters.RemoveBackgroundDevice(plan, highQuality), highQuality ? plan.Vision.HighVramMb : plan.Vision.VramMb);
+        return modules.RunAsync(module.Id, title, demand, async call =>
         {
             started?.Invoke(call.Job);
             CancellationToken token = call.CancellationToken;
-            int side = MaskSide(highQuality);
+            var watch = Stopwatch.StartNew();
+            int side = highQuality || plan is null ? MaskSide(highQuality) : plan.Vision.MaskSide;
             using ThumbnailDecoder decoder = await Task.Run(() => ThumbnailDecoder.Open(mediaPath), token).ConfigureAwait(false);
             long frameBytes = ModuleMedia.FrameBytes(side);
-            SharedMemoryRegion region = call.CreateRegion(MaskBatch * (frameBytes + (frameBytes / 4)));
+            SharedMemoryRegion region = call.CreateRegion(batchSize * (frameBytes + (frameBytes / 4)));
             Directory.CreateDirectory(folder);
             string final = Path.Combine(folder, $"fondo-{Guid.NewGuid():N}.mkv");
             string temporary = final + ".rodaje-tmp";
@@ -91,10 +113,10 @@ internal static class VisionTools
             string session = Guid.NewGuid().ToString("N");
             try
             {
-                for (int start = 0; start < count; start += MaskBatch)
+                for (int start = 0; start < count; start += batchSize)
                 {
                     token.ThrowIfCancellationRequested();
-                    int batch = Math.Min(MaskBatch, count - start);
+                    int batch = Math.Min(batchSize, count - start);
                     var pairs = new List<SharedBufferRef>(batch * 2);
                     long at = 0;
                     for (int i = 0; i < batch; i++)
@@ -121,7 +143,8 @@ internal static class VisionTools
                         errors = encoder.StandardError.ReadToEndAsync(CancellationToken.None);
                     }
 
-                    using JsonDocument parameters = JsonDocument.Parse(string.Create(CultureInfo.InvariantCulture,
+                    using JsonDocument parameters = plan is not null ? AiParameters.RemoveBackground(plan, highQuality, session, start == 0)
+                        : JsonDocument.Parse(string.Create(CultureInfo.InvariantCulture,
                         $$"""{"calidad":"{{(highQuality ? "alta" : "normal")}}","sesion":"{{session}}","reiniciar":{{(start == 0 ? "true" : "false")}}}"""));
                     double from = 0.97 * start / count, to = 0.97 * (start + batch) / count;
                     ModuleResult result = await call.InvokeAsync(RemoveBackgroundFunction, parameters.RootElement, pairs, from, to).ConfigureAwait(false);
@@ -162,6 +185,11 @@ internal static class VisionTools
 
                 File.Move(temporary, final);
                 done = true;
+                if (plan is not null)
+                {
+                    modules.Ai?.Rates.Record(AiEstimator.ForRemoveBackground(plan, count, highQuality).Key, count, watch.Elapsed.TotalSeconds);
+                }
+
                 return new MatteVideo(final, Time.FromSeconds(first / fps), count, width, height);
             }
             finally
@@ -198,15 +226,19 @@ internal static class VisionTools
         double startSeconds = clip.SourceIn.ToSeconds();
         double span = Math.Max(clip.SourceDuration.ToSeconds(), 1e-3);
         int count = Math.Clamp((int)Math.Ceiling(span * ReframeRate), 1, 20_000);
-        return modules.RunAsync(module.Id, title, async call =>
+        AiPlan? plan = modules.Ai?.Plan();
+        ModuleDemand? demand = plan is null ? null : AiParameters.Demand(plan.Vision.Device, plan.Vision.VramMb);
+        return modules.RunAsync(module.Id, title, demand, async call =>
         {
             started?.Invoke(call.Job);
             CancellationToken token = call.CancellationToken;
+            var watch = Stopwatch.StartNew();
             using ThumbnailDecoder decoder = await Task.Run(() => ThumbnailDecoder.Open(mediaPath), token).ConfigureAwait(false);
             SharedMemoryRegion region = call.CreateRegion(DetectBatch * ModuleMedia.FrameBytes(ReframeSide));
             var frames = new List<(double Seconds, IReadOnlyList<DetectedBox> Boxes)>(count);
             int sourceWidth = 0, sourceHeight = 0;
-            using JsonDocument detect = JsonDocument.Parse(faces ? """{"objetivo":"rostros"}""" : """{"objetivo":"personas"}""");
+            using JsonDocument detect = plan is not null ? AiParameters.Detect(plan, faces)
+                : JsonDocument.Parse(faces ? """{"objetivo":"rostros"}""" : """{"objetivo":"personas"}""");
             for (int start = 0; start < count; start += DetectBatch)
             {
                 token.ThrowIfCancellationRequested();
@@ -249,8 +281,13 @@ internal static class VisionTools
             }
 
             call.Report(0.92, "Calculando el recorrido");
-            using JsonDocument plan = JsonDocument.Parse(PlanRequest(aspect, sourceWidth, sourceHeight, frames, smoothing));
-            ModuleResult planned = await call.InvokeAsync(ReframeFunction, plan.RootElement, null, 0.92, 1).ConfigureAwait(false);
+            using JsonDocument request = JsonDocument.Parse(PlanRequest(aspect, sourceWidth, sourceHeight, frames, smoothing));
+            ModuleResult planned = await call.InvokeAsync(ReframeFunction, request.RootElement, null, 0.92, 1).ConfigureAwait(false);
+            if (plan is not null)
+            {
+                modules.Ai?.Rates.Record(AiEstimator.ForDetect(plan, count).Key, count, watch.Elapsed.TotalSeconds);
+            }
+
             return ReadPlan(planned.Value, frames.Count);
         }, cancellationToken);
     }

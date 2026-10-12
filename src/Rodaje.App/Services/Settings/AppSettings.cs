@@ -55,6 +55,9 @@ public sealed partial class AppSettings
     /// <summary>Resolución de la vista previa; Auto baja sola al reproducir si la GPU no llega.</summary>
     public PreviewQuality PreviewQuality { get; set; } = PreviewQuality.Auto;
 
+    /// <summary>Calidad de la IA local (Ver › Calidad de la IA): automática según el equipo, rápida o máxima (D-037).</summary>
+    public Rodaje.Media.Ai.AiQuality AiQuality { get; set; } = Rodaje.Media.Ai.AiQuality.Auto;
+
     /// <summary>Velocidad de caída de los medidores de audio, en dB por segundo.</summary>
     public double MeterDecayDbPerSecond { get; set; } = 20;
 

@@ -6,7 +6,7 @@ using Microsoft.ML.OnnxRuntime;
 using Rodaje.Module.Vision;
 using Rodaje.Modules.Protocol;
 
-ModuleInfo info = new("modulo-vision", "1.0.0", "Visión con IA",
+ModuleInfo info = new("modulo-vision", "1.1.0", "Visión con IA",
 [
     new FunctionInfo("quitar-fondo", "Quitar el fondo (MODNet; «alta»: BiRefNet_lite)", Inputs: ["video"], Outputs: ["video"]),
     new FunctionInfo("detectar", "Detectar rostros (YuNet) o personas (RT-DETRv2)", Inputs: ["video"]),
@@ -22,6 +22,8 @@ ModuleHost host = new(info);
 
 // quitar-fondo: [entrada0, salida0, entrada1, salida1, …] (hasta 8 pares). Entrada bgra8; salida gray8 del mismo tamaño
 // (stride = ancho), 255 = sujeto. «calidad» normal|alta, «sesion» (estado temporal compartido), «reiniciar», «dispositivo».
+// Desde 1.1, lo que decide el perfil de IA del editor: «lado» (de MODNet, 256–1024), «hilos» (de la CPU) y «paralelo»
+// (cuadros a la vez en la CPU, 1–4).
 host.Register("quitar-fondo", async (call, ct) =>
 {
     int count = call.Buffers.Count;
@@ -53,20 +55,34 @@ host.Register("quitar-fondo", async (call, ct) =>
     ComputeDevice device = Device(call.Parameters);
     string? session = Text(call.Parameters, "sesion");
     bool reset = Flag(call.Parameters, "reiniciar");
+    int side = Int(call.Parameters, "lado") is { } l
+        ? (l is >= Matting.MinSide and <= Matting.MaxSide ? l : throw Invalid($"«lado» va de {Matting.MinSide} a {Matting.MaxSide}."))
+        : Matting.DefaultSide;
+    models.CpuThreads = Math.Clamp(Int(call.Parameters, "hilos") ?? 0, 0, 64);
+    // DirectML serializa la sesión: varios cuadros a la vez solo en la CPU.
+    int parallel = device == ComputeDevice.Cpu ? Math.Clamp(Int(call.Parameters, "paralelo") ?? 1, 1, 4) : 1;
     // En cadena: la CPU prepara los cuadros por adelantado y estabiliza/escribe el anterior mientras la GPU corre el actual.
     var watch = Stopwatch.StartNew();
     Task<MatteInput>[] prepared = [.. Enumerable.Range(0, outputs.Length).Select(i =>
-        Task.Run(() => Guard(() => Matting.Prepare(Copy(call, call.Buffers[i * 2]), high)), ct))];
+        Task.Run(() => Guard(() => Matting.Prepare(Copy(call, call.Buffers[i * 2]), high, side)), ct))];
     Task written = Task.CompletedTask;
     MatteResult? last = null;
-    for (int i = 0; i < outputs.Length; i++)
+    for (int i = 0; i < outputs.Length; i += parallel)
     {
         ct.ThrowIfCancellationRequested();
-        MatteInput input = await prepared[i].ConfigureAwait(false);
-        MatteResult matte = await Task.Run(() => Guard(() => matting.Infer(input, device)), ct).ConfigureAwait(false);
-        written = Write(written, i, matte);
-        last = matte;
-        await call.ReportProgressAsync((i + 1.0) / outputs.Length, "Quitando el fondo", ct).ConfigureAwait(false);
+        int first = i, wave = Math.Min(parallel, outputs.Length - i);
+        MatteResult[] mattes = await Task.WhenAll(Enumerable.Range(first, wave).Select(k => Task.Run(async () =>
+        {
+            MatteInput input = await prepared[k].ConfigureAwait(false);
+            return Guard(() => matting.Infer(input, device));
+        }, ct))).ConfigureAwait(false);
+        for (int k = 0; k < wave; k++)
+        {
+            written = Write(written, first + k, mattes[k]);
+            last = mattes[k];
+        }
+
+        await call.ReportProgressAsync((double)(first + wave) / outputs.Length, "Quitando el fondo", ct).ConfigureAwait(false);
     }
 
     await written.ConfigureAwait(false);
@@ -105,6 +121,7 @@ host.Register("detectar", async (call, ct) =>
         _ => throw Invalid("«objetivo» es «rostros» o «personas»."),
     };
     ComputeDevice device = Device(call.Parameters);
+    models.CpuThreads = Math.Clamp(Int(call.Parameters, "hilos") ?? 0, 0, 64);
     var watch = Stopwatch.StartNew();
     var found = new List<Box>[call.Buffers.Count];
     string used = "";
@@ -220,6 +237,9 @@ static ComputeDevice Device(JsonElement? parameters) => Text(parameters, "dispos
 
 static string? Text(JsonElement? parameters, string name) =>
     parameters is { ValueKind: JsonValueKind.Object } p && p.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+static int? Int(JsonElement? parameters, string name) =>
+    parameters is { ValueKind: JsonValueKind.Object } p && p.TryGetProperty(name, out JsonElement v) && v.TryGetInt32(out int n) ? n : null;
 
 static bool Flag(JsonElement? parameters, string name) =>
     parameters is { ValueKind: JsonValueKind.Object } p && p.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.True;

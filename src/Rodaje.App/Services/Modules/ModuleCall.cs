@@ -121,7 +121,10 @@ public sealed record ModuleManagerOptions
     /// </summary>
     public TimeSpan StartTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>VRAM dedicada (para el presupuesto); 0 si no se sabe. Se consulta con la primera llamada.</summary>
+    /// <summary>El perfil de IA: con él, el presupuesto de VRAM, los pesados y los huecos de CPU salen de su plan.</summary>
+    public AiProfile? Ai { get; init; }
+
+    /// <summary>VRAM dedicada (para el presupuesto sin perfil de IA); 0 si no se sabe. Se consulta con la primera llamada.</summary>
     public Func<long> DedicatedVideoMemory { get; init; } = () => 0;
 
     public ModuleClientOptions ClientOptions { get; init; } = new();

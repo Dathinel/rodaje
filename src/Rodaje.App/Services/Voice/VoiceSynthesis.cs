@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Rodaje.App.Services.Modules;
+using Rodaje.Media.Ai;
 using Rodaje.Modules.Protocol;
 
 namespace Rodaje.App.Services.Voice;
@@ -179,8 +181,22 @@ public sealed class ModuleVoiceSynthesizer(ModuleManager modules) : IVoiceSynthe
     public Task<SynthesizedVoice> SynthesizeAsync(VoiceSettings settings, string title, CancellationToken cancellationToken)
     {
         EnsureInstalled();
-        return modules.RunAsync(VoiceSynthesis.ModuleId, title, call => VoiceSynthesis.SynthesizeAsync(new Adapter(call), settings), cancellationToken);
+        ArgumentNullException.ThrowIfNull(settings);
+        return modules.RunAsync(VoiceSynthesis.ModuleId, title, async call =>
+        {
+            var watch = Stopwatch.StartNew();
+            SynthesizedVoice voice = await VoiceSynthesis.SynthesizeAsync(new Adapter(call), settings).ConfigureAwait(false);
+            if (modules.Ai is { } ai)
+            {
+                ai.Rates.Record(AiEstimator.ForVoice(ai.Plan(), settings.Text.Length).Key, settings.Text.Length, watch.Elapsed.TotalSeconds);
+            }
+
+            return voice;
+        }, cancellationToken);
     }
+
+    /// <summary>Cuánto tardará en este equipo, o <c>null</c> sin perfil de IA.</summary>
+    public AiEstimate? Estimate(string text) => modules.Ai is { } ai ? AiEstimator.ForVoice(ai.Plan(), text?.Length ?? 0, ai.Rates) : null;
 
     private void EnsureInstalled()
     {

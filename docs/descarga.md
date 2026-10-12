@@ -16,7 +16,7 @@ Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Decisi�
 ## Estado
 
 - **Clave**: la privada vive fuera del repositorio, en `%USERPROFILE%\.rodaje-claves\catalogo-privada.pem` de quien publica (`*.pem` está en `.gitignore`), con al menos dos respaldos físicos fuera del equipo; la pública, en `clave-catalogo.txt`. Si se pierde, los Rodaje ya publicados no aceptarán índices nuevos; si alguien la copia, se genera otra con `-NuevaClave -Reemplazar` y se publica una versión nueva de Rodaje.
-- **Catálogo**: `Dathinel/rodaje-catalogo` (público, CC0, sin código), release `v2` (12-oct, 63 entradas) con todo lo publicado:
+- **Catálogo**: `Dathinel/rodaje-catalogo` (público, CC0, sin código), release `v5` (12-oct, 78 entradas) con todo lo publicado:
 
 | Repositorio | Versiones | `.paquete` | Modelos |
 |---|---|---|---|
@@ -25,11 +25,11 @@ Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Decisi�
 | `rodaje-fuentes` | 1.0.0 | 5,1 MB | — |
 | `rodaje-titulos` | 1.0.0 | 25 KB | — |
 | `rodaje-zonas` | 1.0.0 | 20 KB | — |
-| `modulo-subtitulos` | 1.0.0 | 38,9 MB | 2, 729 MB (Hugging Face) |
+| `modulo-subtitulos` | 1.0.0 y 1.1.0 | 38,9 MB | 2, 729 MB (Hugging Face); 1.1.0: 3, 786 MB (suma Whisper base) |
 | `modulo-traducir` | 1.0.0 | 61,2 MB | 1, 2,3 GB (Hugging Face) |
 | `modulo-voz` | 1.0.0 | 7,7 MB | 39, 198 MB (Hugging Face y los léxicos misaki en su release) |
 | `modulo-audio-ia` | 1.0.0 | 7,5 MB | 4, 10 MB (en su release: Silero VAD y DeepFilterNet3) |
-| `modulo-vision` | 1.0.0 | 17,3 MB | 4, 211 MB (Hugging Face) |
+| `modulo-vision` | 1.0.0 y 1.1.0 | 17,3 MB | 4, 211 MB (Hugging Face) |
 | `modulo-raw` | 1.0.0 | 1,8 MB | — |
 
   Cada repositorio de módulo (GPLv3 con los términos de Rodaje) trae README, `LICENCIAS.md`, `licencias/` y el manifiesto; su release `v1.0.0` adjunta el `.paquete`, el código con el que se compiló (`codigo-fuente-<id>-<commit>.zip`) y, en `modulo-audio-ia` y `modulo-voz`, los modelos que no están en Hugging Face con su licencia (MIT, Apache-2.0).

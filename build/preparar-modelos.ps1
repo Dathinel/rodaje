@@ -35,6 +35,12 @@ $Modelos = @(
         Sha256 = 'ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb'; Bytes = 190085487
     },
     @{
+        # «Calidad de la IA › Rápida» sin GPU o con muy poca RAM (D-037).
+        Nombre = 'whisper base q5_1 (rápido)'; Archivo = 'ggml-base-q5_1.bin'; Peso = 'unos 57 MB'
+        Url = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base-q5_1.bin'
+        Sha256 = '422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898'; Bytes = 59707625
+    },
+    @{
         Nombre = 'Silero VAD v6.2.3'; Archivo = 'silero_vad.onnx'; Peso = '2,3 MB'
         Url = "https://github.com/snakers4/silero-vad/raw/$SileroCommit/src/silero_vad/data/silero_vad.onnx"
         Sha256 = '1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3'; Bytes = 2327524

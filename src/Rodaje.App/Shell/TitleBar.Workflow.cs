@@ -25,6 +25,9 @@ internal sealed partial class TitleBar
 
         AppSettings settings = _services.Settings.Current;
         AutoProxiesItem.IsChecked = settings.AutoProxies;
+        AiQualityAuto.IsChecked = settings.AiQuality == Rodaje.Media.Ai.AiQuality.Auto;
+        AiQualityFast.IsChecked = settings.AiQuality == Rodaje.Media.Ai.AiQuality.Fast;
+        AiQualityMax.IsChecked = settings.AiQuality == Rodaje.Media.Ai.AiQuality.Max;
         WorkspaceMenu.Items.Clear();
         foreach (WorkspaceProfile profile in WorkspaceProfiles.All(settings))
         {
@@ -52,6 +55,14 @@ internal sealed partial class TitleBar
             }
 
             WorkspaceMenu.Items.Add(remove);
+        }
+    }
+
+    private void OnAiQualityClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string tag } && _services is not null && Enum.TryParse(tag, out Rodaje.Media.Ai.AiQuality quality))
+        {
+            _services.Settings.Current.AiQuality = quality;
         }
     }
 

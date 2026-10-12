@@ -71,6 +71,8 @@ internal static class TranslateDialog
         panel.Children.Add(track);
         panel.Children.Add(source);
         panel.Children.Add(target);
+        var advice = new Shared.AiAdvicePanel();
+        panel.Children.Add(advice.Panel);
         panel.Children.Add(row);
 
         ContentDialog dialog = AnalysisUi.Dialog(root, "Traducir pista", "Traducir", panel);
@@ -80,7 +82,15 @@ internal static class TranslateDialog
         void Refresh() => dialog.IsPrimaryButtonEnabled = !running && track.SelectedItem is TrackChoice && target.SelectedItem is TranslationLanguage to
             && (source.SelectedItem as TranslationLanguage)?.Code != to.Code;
 
-        track.SelectionChanged += (_, _) => Refresh();
+        void Estimate() => advice.Show(track.SelectedItem is TrackChoice c && session.Sequence.FindTrack(c.TrackId) is { } chosen
+            ? translator.Estimate(SubtitleTrackTranslation.Collect(chosen))
+            : null);
+        Estimate();
+        track.SelectionChanged += (_, _) =>
+        {
+            Refresh();
+            Estimate();
+        };
         source.SelectionChanged += (_, _) => Refresh();
         target.SelectionChanged += (_, _) => Refresh();
         Refresh();

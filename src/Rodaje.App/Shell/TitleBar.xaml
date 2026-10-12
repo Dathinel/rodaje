@@ -89,6 +89,11 @@
                     <RadioMenuFlyoutItem x:Name="QualityHalf" Text="Mitad" GroupName="Quality" Tag="Half" Click="OnQualityClick" />
                     <RadioMenuFlyoutItem x:Name="QualityQuarter" Text="Cuarto" GroupName="Quality" Tag="Quarter" Click="OnQualityClick" />
                 </MenuFlyoutSubItem>
+                <MenuFlyoutSubItem Text="Calidad de la IA">
+                    <RadioMenuFlyoutItem x:Name="AiQualityAuto" Text="Automática (según el equipo)" GroupName="AiQuality" Tag="Auto" Click="OnAiQualityClick" />
+                    <RadioMenuFlyoutItem x:Name="AiQualityFast" Text="Rápida" GroupName="AiQuality" Tag="Fast" Click="OnAiQualityClick" />
+                    <RadioMenuFlyoutItem x:Name="AiQualityMax" Text="Máxima" GroupName="AiQuality" Tag="Max" Click="OnAiQualityClick" />
+                </MenuFlyoutSubItem>
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Acercar" Tag="timeline.zoomIn" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Alejar" Tag="timeline.zoomOut" Click="OnActionClick" />

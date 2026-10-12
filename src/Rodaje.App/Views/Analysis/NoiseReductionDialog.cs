@@ -56,6 +56,12 @@ internal static class NoiseReductionDialog
         var progress = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(status);
         panel.Children.Add(progress);
+        if (services.Modules is { } estimating)
+        {
+            var advice = new Shared.AiAdvicePanel();
+            advice.Show(NoiseReduction.Estimate(estimating, window));
+            panel.Children.Add(advice.Panel);
+        }
 
         var listen = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Visibility = Visibility.Collapsed };
         var play = new Button { Content = "Escuchar" };

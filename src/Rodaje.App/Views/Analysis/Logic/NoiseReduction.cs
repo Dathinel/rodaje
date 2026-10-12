@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Rodaje.App.Services;
@@ -7,6 +8,7 @@ using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
+using Rodaje.Media.Ai;
 using Rodaje.Media.Audio;
 using Rodaje.Modules.Protocol;
 
@@ -72,6 +74,13 @@ internal static class NoiseReduction
         return (start, end);
     }
 
+    /// <summary>Cuánto tardará en este equipo, o <c>null</c> sin perfil de IA.</summary>
+    public static AiEstimate? Estimate(ModuleManager modules, (Time Start, Time End) window)
+    {
+        ArgumentNullException.ThrowIfNull(modules);
+        return modules.Ai is { } ai ? AiEstimator.ForNoiseReduction(ai.Plan(), (window.End - window.Start).ToSeconds(), ai.Rates) : null;
+    }
+
     /// <summary>
     /// Pide al módulo el audio limpio de <paramref name="window"/> y lo escribe en <paramref name="folder"/>. Es un trabajo de
     /// Trabajos (avance, cancelar); el archivo aparece entero o no aparece.
@@ -84,6 +93,7 @@ internal static class NoiseReduction
         return modules.RunAsync(module.Id, title, async call =>
         {
             started?.Invoke(call.Job);
+            var watch = Stopwatch.StartNew();
             SharedBufferRef input = await ModuleMedia.WriteAudioAsync(call, sourcePath, window.Start, window.End, SampleRate, Channels, 0, 0.1).ConfigureAwait(false);
             SharedMemoryRegion outputRegion = call.CreateRegion(input.Length);
             SharedBufferRef output = outputRegion.Describe(0, input.Length, audio: input.Audio);
@@ -99,6 +109,12 @@ internal static class NoiseReduction
             long frames = input.Audio!.Frames;
             await Task.Run(() => Wav.Write(path, Channels, SampleRate, frames, (offset, count) =>
                 MemoryMarshal.Cast<byte, float>(call.Map(result.Buffers[0]).Slice((int)(offset * sizeof(float)), count * sizeof(float)))), call.CancellationToken).ConfigureAwait(false);
+            if (modules.Ai is { } ai)
+            {
+                double seconds = (window.End - window.Start).ToSeconds();
+                ai.Rates.Record(AiEstimator.ForNoiseReduction(ai.Plan(), seconds).Key, seconds, watch.Elapsed.TotalSeconds);
+            }
+
             return new CleanAudio(path, sourcePath, window.Start, window.End - window.Start, frames);
         }, cancellationToken);
     }

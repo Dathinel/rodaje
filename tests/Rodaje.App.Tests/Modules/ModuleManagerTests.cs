@@ -42,6 +42,27 @@ public sealed class ModuleManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task Con_un_solo_hueco_de_CPU_el_segundo_trabajo_espera_al_primero()
+    {
+        // 4 hilos y 8 GB: el perfil de IA deja un trabajo de CPU a la vez.
+        var ai = new AiProfile(() => Rodaje.Media.Gpu.GpuProfile.CpuOnly(4), () => (8L << 30, 4L << 30), () => Rodaje.Media.Ai.AiQuality.Auto,
+            new Rodaje.Media.Ai.AiMeasuredRates("prueba"));
+        await using ModuleManager manager = _modules.Manager(new ModuleManagerOptions { Ai = ai });
+        Task<ModuleResult> first = manager.InvokeAsync("eco-a", "contar", EchoModules.Json(LongCount), "Primero");
+        ModuleJob running = Assert.Single(manager.Jobs.Jobs);
+        await WaitUntil(() => running.Progress > 0);
+        Task<ModuleResult> second = manager.InvokeAsync("eco-b", "eco", null, "Segundo");
+        ModuleJob waiting = manager.Jobs.Jobs.Single(j => j != running);
+        await WaitUntil(() => waiting.Stage == "Esperando la CPU");
+        Assert.False(second.IsCompleted);
+
+        running.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        await second;
+        Assert.Equal(ModuleJobState.Completed, waiting.State);
+    }
+
+    [Fact]
     public async Task El_avance_llega_a_la_fila_de_Trabajos_y_cancelar_la_fila_cancela_la_llamada()
     {
         await using ModuleManager manager = _modules.Manager();

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Rodaje.Analysis;
@@ -8,6 +9,7 @@ using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
+using Rodaje.Media.Ai;
 using Rodaje.Modules.Protocol;
 
 namespace Rodaje.App.Views.Subtitles;
@@ -19,7 +21,11 @@ internal sealed record TranscriptWord(double Start, double End, string Text);
 internal sealed record TranscriptSegment(double Start, double End, string Text, IReadOnlyList<TranscriptWord> Words);
 
 /// <summary>Lo que devuelve modulo-subtitulos (formato en <c>modules/Rodaje.Module.Subtitles/README.md</c>).</summary>
-internal sealed record Transcript(string? Language, IReadOnlyList<TranscriptSegment> Segments);
+internal sealed record Transcript(string? Language, IReadOnlyList<TranscriptSegment> Segments)
+{
+    /// <summary>Dónde corrió («vulkan», «cpu»), si el módulo lo dijo.</summary>
+    public string? Device { get; init; }
+}
 
 /// <summary>Un idioma que se puede pedir al módulo (<c>auto</c> lo detecta).</summary>
 internal sealed record SubtitleLanguage(string Id, string Name);
@@ -94,6 +100,20 @@ internal static class AutoSubtitles
         return JsonDocument.Parse(stream.ToArray());
     }
 
+    /// <summary>El plan de subtítulos de este equipo con las variantes de Whisper instaladas, o <c>null</c> sin perfil de IA.</summary>
+    public static AiPlan? Plan(ModuleManager modules, ModuleDescriptor module)
+    {
+        ArgumentNullException.ThrowIfNull(modules);
+        ArgumentNullException.ThrowIfNull(module);
+        return modules.Ai?.Plan() is { } plan ? AiParameters.WithInstalledWhisper(plan, m => ModelPath(module, m) is not null) : null;
+    }
+
+    /// <summary>Cuánto tardará en este equipo transcribir <paramref name="window"/>, o <c>null</c> sin perfil de IA.</summary>
+    public static AiEstimate? Estimate(ModuleManager modules, ModuleDescriptor module, (Time Start, Time End) window) =>
+        Plan(modules, module) is { } plan ? AiEstimator.ForSubtitles(plan, (window.End - window.Start).ToSeconds(), modules.Ai!.Rates) : null;
+
+    private static string? ModelPath(ModuleDescriptor module, WhisperModel model) => ModuleModelFiles.Find(module, AiParameters.WhisperFile(model));
+
     /// <summary>
     /// Transcribe <paramref name="window"/> del medio. Es un trabajo de Trabajos (avance, cancelar); el resultado va al
     /// búfer de salida (<c>value</c> = <c>{"bytes": n}</c>) o, si el módulo lo devuelve en línea, en <c>value</c>.
@@ -103,16 +123,27 @@ internal static class AutoSubtitles
     {
         ArgumentNullException.ThrowIfNull(modules);
         ArgumentNullException.ThrowIfNull(module);
-        return modules.RunAsync(module.Id, title, async call =>
+        AiPlan? plan = Plan(modules, module);
+        ModuleDemand? demand = plan is null ? null : AiParameters.Demand(plan.Subtitles.Device, plan.Subtitles.VramMb);
+        return modules.RunAsync(module.Id, title, demand, async call =>
         {
             started?.Invoke(call.Job);
+            var watch = Stopwatch.StartNew();
             SharedBufferRef audio = await ModuleMedia.WriteAudioAsync(call, sourcePath, window.Start, window.End, SampleRate, 1, 0, 0.1).ConfigureAwait(false);
             long capacity = ResultCapacity(window.End - window.Start);
             SharedBufferRef output = call.CreateRegion(capacity).Describe(0, capacity);
-            using JsonDocument parameters = Parameters(language);
+            using JsonDocument parameters = plan is null ? Parameters(language) : AiParameters.Subtitles(language, plan, m => ModelPath(module, m));
             call.Report(0.1, "Transcribiendo");
             ModuleResult result = await call.InvokeAsync(Function, parameters.RootElement, [audio, output], 0.1, 1).ConfigureAwait(false);
-            return result.Buffers.Count > 0 ? FromResult(result.Value, call.Map(result.Buffers[0])) : FromResult(result.Value, []);
+            Transcript transcript = result.Buffers.Count > 0 ? FromResult(result.Value, call.Map(result.Buffers[0])) : FromResult(result.Value, []);
+            // Solo cuenta si corrió donde decía el plan (si la GPU falló y siguió en la CPU, la medida no es de la GPU).
+            if (plan is not null && (transcript.Device == "cpu") == (plan.Subtitles.Device == AiDevice.Cpu))
+            {
+                double seconds = (window.End - window.Start).ToSeconds();
+                modules.Ai?.Rates.Record(AiEstimator.ForSubtitles(plan, seconds).Key, seconds, watch.Elapsed.TotalSeconds);
+            }
+
+            return transcript;
         }, cancellationToken);
     }
 
@@ -183,7 +214,8 @@ internal static class AutoSubtitles
             list.Add(new TranscriptSegment(start, end, text, words));
         }
 
-        return new Transcript(language, list);
+        string? device = root.TryGetProperty("device", out JsonElement d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null;
+        return new Transcript(language, list) { Device = device };
 
         static bool TryTimes(JsonElement e, out double start, out double end)
         {

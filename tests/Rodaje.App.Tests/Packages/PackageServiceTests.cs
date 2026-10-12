@@ -59,7 +59,7 @@ public sealed class PackageServiceTests : IDisposable
             count++;
             CatalogEntry entry = Assert.IsType<CatalogEntry>(catalog.Find(m.Id));
             Assert.Equal(PackageKind.Module, entry.Kind);
-            Assert.Equal("1.0.0", m.Version.ToString());
+            Assert.Matches(@"^1\.\d+\.\d+$", m.Version.ToString());
             Assert.Equal(m.Module!.Functions.Order(), entry.Provides.Order());
             Assert.Equal(entry.Repository, m.Repository);
             Assert.DoesNotContain('/', m.Module.Entry);

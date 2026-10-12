@@ -7,21 +7,24 @@ internal sealed record MatteResult(float[] Alpha, float[] Gray, int Width, int H
 internal sealed record MatteInput(float[] Tensor, float[] Gray, int Width, int Height, bool High);
 
 /// <summary>
-/// Quitar el fondo. «normal»: MODNet (retrato) a unos 512×512 píxeles de área, lados múltiplos de 32. «alta»: BiRefNet_lite
+/// Quitar el fondo. «normal»: MODNet (retrato) a unos 512×512 píxeles de área (o el «lado» que pida el editor según el
+/// equipo), lados múltiplos de 32. «alta»: BiRefNet_lite
 /// en fp16 a 1024×1024 fijo (estirado, como se entrenó), con sigmoide a la salida.
 /// </summary>
 internal sealed class Matting(VisionModels models)
 {
-    private const int ModnetArea = 512 * 512;
+    public const int DefaultSide = 512;
+    public const int MinSide = 256;
+    public const int MaxSide = 1024;
     private static readonly PlanarFormat ModnetFormat = PlanarFormat.Normalized(true, [0.5f, 0.5f, 0.5f], [0.5f, 0.5f, 0.5f]);
     private static readonly PlanarFormat ImageNetFormat = PlanarFormat.Normalized(true, [0.485f, 0.456f, 0.406f], [0.229f, 0.224f, 0.225f]);
 
-    public MatteResult Run(BgraFrame frame, bool high, ComputeDevice device) => Infer(Prepare(frame, high), device);
+    public MatteResult Run(BgraFrame frame, bool high, ComputeDevice device, int side = DefaultSide) => Infer(Prepare(frame, high, side), device);
 
     /// <summary>La parte de CPU (remuestreo y normalización): se adelanta mientras la GPU corre el cuadro anterior.</summary>
-    public static MatteInput Prepare(BgraFrame frame, bool high)
+    public static MatteInput Prepare(BgraFrame frame, bool high, int side = DefaultSide)
     {
-        (int w, int h) = high ? (1024, 1024) : ModnetSize(frame.Width, frame.Height);
+        (int w, int h) = high ? (1024, 1024) : ModnetSize(frame.Width, frame.Height, side);
         var tensor = new float[3 * w * h];
         var gray = new float[w * h];
         Imaging.ToPlanar(frame, tensor, 0, w, h, w, h, high ? ImageNetFormat : ModnetFormat, gray);
@@ -46,9 +49,9 @@ internal sealed class Matting(VisionModels models)
         return new MatteResult(alpha, gray, w, h, high ? "birefnet-lite" : "modnet", result.Device);
     }
 
-    internal static (int Width, int Height) ModnetSize(int width, int height)
+    internal static (int Width, int Height) ModnetSize(int width, int height, int side = DefaultSide)
     {
-        double scale = Math.Sqrt(ModnetArea / ((double)width * height));
+        double scale = Math.Sqrt((double)side * side / ((double)width * height));
         return (Math.Max(32, (int)Math.Round(width * scale / 32) * 32), Math.Max(32, (int)Math.Round(height * scale / 32) * 32));
     }
 }

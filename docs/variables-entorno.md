@@ -13,6 +13,7 @@ Todas las variables que lee Rodaje empiezan con `RODAJE_`. Ninguna es obligatori
 | `RODAJE_MODELOS` | Carpeta de modelos de IA que los módulos miran antes que `modelos\` junto a su exe y que el almacén compartido | Módulos de audio, subtítulos, traducción, visión y voz (`ModelFiles`, `Transcriber`, `Voices`) |
 | `RODAJE_VOZ_MODELO` | Otro archivo `.onnx` de Kokoro para el módulo de voz | `KokoroEngine` (módulo de voz) |
 | `RODAJE_VOZ_HILOS`, `RODAJE_VOZ_PARALELO` | Hilos de ONNX Runtime por síntesis (por omisión, la mitad de los núcleos, de 1 a 16) y síntesis en paralelo (un quinto de los núcleos, de 1 a 3) | `KokoroEngine`, `Synthesizer` (módulo de voz) |
+| `RODAJE_SIMULAR_VRAM_MB`, `RODAJE_SIMULAR_RAM_MB` | Solo para pruebas: el perfil de IA ve otra VRAM dedicada (MB; `0` = sin GPU) u otra RAM total (la libre se escala en proporción) y decide modelos, capas en la GPU, lotes y avisos con eso (D-037). Los módulos no se enteran: usan la GPU real con lo que se les pide | `AiMachine`, `AiProfile.ForThisMachine` (Rodaje.Media, Rodaje.App) |
 
 ## Medidas y autoprueba
 

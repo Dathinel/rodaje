@@ -50,10 +50,44 @@ public sealed partial class ModuleManager : IAsyncDisposable
                 return budget;
             }
 
-            Interlocked.CompareExchange(ref _budget, new VramBudget(_options.DedicatedVideoMemory()), null);
+            VramBudget created = _options.Ai?.Plan() is { } plan
+                ? new VramBudget(plan.GpuBudgetMb, plan.MaxHeavyAtOnce)
+                : new VramBudget(_options.DedicatedVideoMemory());
+            Interlocked.CompareExchange(ref _budget, created, null);
             return _budget;
         }
     }
+
+    private SemaphoreSlim? _cpuSlots;
+
+    /// <summary>Trabajos de IA por CPU a la vez (<see cref="Rodaje.Media.Ai.AiPlan.CpuSlots"/>; sin perfil, sin límite).</summary>
+    private SemaphoreSlim? CpuSlots
+    {
+        get
+        {
+            if (_options.Ai is null)
+            {
+                return null;
+            }
+
+            if (Volatile.Read(ref _cpuSlots) is { } slots)
+            {
+                return slots;
+            }
+
+            int count = _options.Ai.Plan().CpuSlots;
+            var created = new SemaphoreSlim(count, count);
+            if (Interlocked.CompareExchange(ref _cpuSlots, created, null) is not null)
+            {
+                created.Dispose();
+            }
+
+            return _cpuSlots;
+        }
+    }
+
+    /// <summary>El perfil de IA del equipo (plan por módulo, estimaciones), o <c>null</c> en las pruebas que no lo usan.</summary>
+    public AiProfile? Ai => _options.Ai;
 
     /// <summary>Windows dio el Job Object «matar al cerrar».</summary>
     public bool KillsOnClose => _job.IsAvailable;
@@ -91,22 +125,40 @@ public sealed partial class ModuleManager : IAsyncDisposable
     /// </summary>
     /// <exception cref="OperationCanceledException">Cancelado (desde la fila o con <paramref name="cancellationToken"/>).</exception>
     /// <exception cref="ModuleException">El módulo falló, murió (<see cref="ModuleExitedException"/>) o se colgó (<see cref="ModuleHungException"/>).</exception>
-    public async Task<T> RunAsync<T>(string moduleId, string title, Func<ModuleCall, Task<T>> work, CancellationToken cancellationToken = default)
+    public Task<T> RunAsync<T>(string moduleId, string title, Func<ModuleCall, Task<T>> work, CancellationToken cancellationToken = default) =>
+        RunAsync(moduleId, title, null, work, cancellationToken);
+
+    /// <summary>
+    /// Como <see cref="RunAsync{T}(string, string, Func{ModuleCall, Task{T}}, CancellationToken)"/>, con lo que pide este
+    /// trabajo según el perfil de IA (<paramref name="demand"/>; sin él, el <c>vramMb</c> del módulo): la VRAM que se reserva
+    /// y si espera un hueco de CPU.
+    /// </summary>
+    public async Task<T> RunAsync<T>(string moduleId, string title, ModuleDemand? demand, Func<ModuleCall, Task<T>> work, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(work);
         ObjectDisposedException.ThrowIf(_disposed, this);
         ModuleDescriptor module = Find(moduleId) ?? throw new ModuleException("not-installed", $"El módulo {moduleId} no está instalado.");
+        ModuleDemand need = demand ?? ModuleDemand.For(module);
         ModuleJob job = Jobs.Add(title, module.Name, cancellationToken);
         ModuleConnection connection = _connections.GetOrAdd(module.Id, _ => new ModuleConnection(module, _options, _job, OnClosed));
         connection.BeginCall();
         ModuleCall? call = null;
         ModuleProcess? process = null;
+        SemaphoreSlim? cpu = need.UsesCpu ? CpuSlots : null;
+        bool cpuTaken = false;
         try
         {
-            await ReserveVramAsync(module, job).ConfigureAwait(false);
+            await ReserveVramAsync(module, need.VramMb, job).ConfigureAwait(false);
+            if (cpu is not null && !cpu.Wait(0, CancellationToken.None))
+            {
+                job.SetWaiting("Esperando la CPU");
+                await cpu.WaitAsync(job.Token).ConfigureAwait(false);
+            }
+
+            cpuTaken = cpu is not null;
             job.SetWaiting("Abriendo el módulo");
             process = await connection.EnsureStartedAsync(job.Token).ConfigureAwait(false);
-            using IDisposable? lowered = module.UsesGpu ? _preview?.Lower() : null;
+            using IDisposable? lowered = need.VramMb > 0 ? _preview?.Lower() : null;
             call = new ModuleCall(module, process, job);
             job.SetRunning();
             T result = await work(call).ConfigureAwait(false);
@@ -138,6 +190,11 @@ public sealed partial class ModuleManager : IAsyncDisposable
         }
         finally
         {
+            if (cpuTaken)
+            {
+                cpu!.Release();
+            }
+
             call?.ReleaseRegions();
             connection.EndCall();
             if (!connection.IsAlive)
@@ -189,6 +246,7 @@ public sealed partial class ModuleManager : IAsyncDisposable
         }
 
         _job.Dispose();
+        _cpuSlots?.Dispose();
     }
 
     /// <summary>Texto para la persona, sin trazas. Siempre aclara que el proyecto no cambió.</summary>
@@ -228,16 +286,16 @@ public sealed partial class ModuleManager : IAsyncDisposable
         return connection.WasHung ? new ModuleHungException($"«{module.Name}» dejó de responder y se cerró.", ex) : ex;
     }
 
-    private async Task ReserveVramAsync(ModuleDescriptor module, ModuleJob job)
+    private async Task ReserveVramAsync(ModuleDescriptor module, int vramMb, ModuleJob job)
     {
-        while (!Budget.TryReserve(module.Id, module.VramMb))
+        while (!Budget.TryReserve(module.Id, vramMb))
         {
             job.SetWaiting("Esperando memoria de video");
             Task changed = Budget.Changed;
             bool freed = false;
-            foreach (string id in Budget.Blocking(module.VramMb))
+            foreach (string id in Budget.Blocking(vramMb))
             {
-                if (_connections.TryGetValue(id, out ModuleConnection? other) && other.ActiveCalls == 0)
+                if (id != module.Id && _connections.TryGetValue(id, out ModuleConnection? other) && other.ActiveCalls == 0)
                 {
                     freed |= await other.CloseIfIdleAsync().ConfigureAwait(false);
                 }

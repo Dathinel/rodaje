@@ -81,6 +81,12 @@ internal static class VisionDialogs
         quality.Items.Add("Normal · personas, rápido (MODNet)");
         quality.Items.Add("Alta · bordes finos y objetos, lento (BiRefNet)");
         panel.Children.Add(quality);
+        var advice = new Shared.AiAdvicePanel();
+        panel.Children.Add(advice.Panel);
+        void Estimate() => advice.Show(VisionTools.EstimateRemoveBackground(services.Modules!, clip, media.FrameRate!.Value, quality.SelectedIndex == 1),
+            () => quality.SelectedIndex = 0);
+        Estimate();
+        quality.SelectionChanged += (_, _) => Estimate();
         var start = new Button { Content = "Empezar" };
         panel.Children.Add(start);
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
@@ -196,6 +202,9 @@ internal static class VisionDialogs
         subject.Items.Add("Rostros (YuNet)");
         subject.Items.Add("Personas de cuerpo entero (RT-DETRv2)");
         panel.Children.Add(subject);
+        var advice = new Shared.AiAdvicePanel();
+        advice.Show(VisionTools.EstimateReframe(services.Modules!, clip));
+        panel.Children.Add(advice.Panel);
         double smoothing = 0.5;
         Slider? smooth = null;
         smooth = AnalysisUi.Slider(panel, "Suavidad", 0, 1, smoothing, 0.05, v => string.Create(SpanishNumbers.Format, $"{v * 100:0} %"),

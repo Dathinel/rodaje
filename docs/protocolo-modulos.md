@@ -16,9 +16,10 @@ Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla c
 6. [Errores](#errores)
 7. [Memoria compartida](#memoria-compartida)
 8. [Límites](#límites)
-9. [Un módulo mínimo](#un-módulo-mínimo)
-10. [Empaquetarlo](#empaquetarlo)
-11. [Licencia de tu módulo](#licencia-de-tu-módulo)
+9. [Perfil de IA](#perfil-de-ia)
+10. [Un módulo mínimo](#un-módulo-mínimo)
+11. [Empaquetarlo](#empaquetarlo)
+12. [Licencia de tu módulo](#licencia-de-tu-módulo)
 
 ## Transporte
 
@@ -432,11 +433,45 @@ Lo que añade el `ModuleManager` de la app (`src/Rodaje.App/Services/Modules/`):
 | Cerrar un módulo ocioso | tras 2 min sin llamadas (`IdleTimeout`) | `ModuleConnection.EndCall` |
 | Vigilancia | `ping` cada 5 s con una llamada en curso (`PingInterval`); colgado si no contesta en 10 s (`PingTimeout`) | `ModuleConnection.WatchAsync` |
 | Que ninguno sobreviva al editor | Job Object con «matar al cerrar»; al salir, `shutdown` y después matar | `ModuleJobObject.cs`, `ModuleManager.DisposeAsync` |
-| Memoria de video | `module.vramMb` mientras vive el proceso; un solo módulo de 1024 MB o más a la vez, y la suma no pasa de la VRAM dedicada menos 3/8 para la vista previa (uno que no cabe ni solo corre solo); para hacer sitio se cierran módulos ociosos | `VramBudget.cs`, `ModuleManager.ReserveVramAsync` |
-| Vista previa | pasa a proxies mientras corre un módulo con `vramMb` > 0 | `IModulePreview` en `ModuleCall.cs` |
+| Memoria de video | lo que pide el [perfil de IA](#perfil-de-ia) para esa llamada (sin perfil, `module.vramMb`) mientras vive el proceso; si una llamada pide más, la reserva crece. Un módulo de 1024 MB o más a la vez (dos con 9 GB o más para la IA, tres con 18), y la suma no pasa del presupuesto: la VRAM dedicada menos 3/8 para la vista previa, hasta 3 GB (en una integrada, un tope de la compartida). Uno que no cabe ni solo corre solo; para hacer sitio se cierran módulos ociosos | `VramBudget.cs`, `ModuleManager.ReserveVramAsync` |
+| CPU | trabajos de IA por CPU a la vez según el perfil (1 con 4 hilos o 8 GB de RAM, 2 hasta 12 hilos, 3 desde ahí); los demás esperan con «Esperando la CPU» | `ModuleManager.CpuSlots` |
+| Vista previa | pasa a proxies mientras corre una llamada que reserva VRAM | `IModulePreview` en `ModuleCall.cs` |
 | Fallos | un módulo que muere, se cuelga o manda algo inválido solo falla su trabajo, con un aviso que dice que el proyecto no cambió | `ModuleManager.Friendly` |
 
 Cada llamada es un trabajo en Trabajos, con su avance y su botón de cancelar. Los resultados no editan el proyecto: quien llama los convierte en una propuesta (`ModuleProposal`) que la persona aplica en un paso del historial o descarta.
+
+## Perfil de IA
+
+El editor decide cómo corre cada módulo según el equipo (D-037) y se lo dice **en los parámetros de cada llamada**: no hay mensajes ni versión de protocolo nuevos. Son campos opcionales; un módulo que no los conoce los ignora, como cualquier campo desconocido. El plan sale de `AiHardwarePlan` (`src/Rodaje.Media/Ai`) y los parámetros de `AiParameters` (`src/Rodaje.App/Services/Modules`).
+
+| Módulo | Campo | Qué es | Desde |
+|---|---|---|---|
+| `modulo-subtitulos` | `device` | `auto` con el plan en la GPU (si la GPU falla, sigue en la CPU), `cpu` si no | 1.0 |
+| | `model`, `cpuModel` | Rutas de la variante de Whisper para la GPU y para la CPU (turbo, small o base) | 1.0 |
+| | `threads` | Hilos de whisper.cpp por tramo | 1.0 |
+| | `parallel` | Tramos de ~28 s a la vez (1–4), en grupos seguidos con su propio contexto; con `language` `auto`, el primero va solo | 1.1 |
+| `modulo-traducir` | `device`, `gpuLayers` | `auto` con N capas en la GPU (99 = todas) o `cpu`; si no carga, el módulo prueba con 18 y con 0 | 1.0 |
+| | `threads` | Hilos de llama.cpp | 1.0 |
+| `modulo-vision` | `dispositivo` | `gpu` o `cpu`; la calidad alta va a la CPU si BiRefNet_lite no cabe | 1.0 |
+| | `lado` | Lado de trabajo de MODNet (256–1024; área lado²) | 1.1 |
+| | `hilos` | Hilos de ONNX Runtime en la CPU | 1.1 |
+| | `paralelo` | Cuadros que se infieren a la vez en la CPU (1–4; DirectML serializa) | 1.1 |
+
+Qué decide para cada equipo (con «Calidad de la IA» automática; presupuesto = VRAM para la IA):
+
+| Equipo | Presupuesto | Subtítulos | Traductor (36 capas) | Quitar fondo | Pesados a la vez |
+|---|---|---|---|---|---|
+| Sin GPU, 16 hilos | 0 | small en la CPU, 2 tramos de 4 hilos | CPU | MODNet 512 en la CPU, 2 cuadros a la vez | — |
+| Integrada (Iris Xe), 8 GB de RAM | 1152 MB | small en la GPU | CPU | MODNet 512 en la GPU; alta en la CPU | 1 |
+| 2 GB de VRAM | 1280 MB | small en la GPU, 2 tramos a la vez | 10 capas en la GPU | MODNet 512 en la GPU; alta en la CPU | 1 |
+| 4 GB (RTX 3050) | 2560 MB | turbo en la GPU, 2 tramos a la vez | 25 capas en la GPU | MODNet 512; alta en la GPU | 1 |
+| 8 GB | 5120 MB | turbo, 2 tramos a la vez | entero en la GPU | MODNet 512 (640 con «Máxima») | 1 |
+| 12 GB | 9216 MB | turbo, 3 tramos a la vez | entero | igual | 2 |
+| 24 GB | 21 504 MB | turbo, 4 tramos a la vez | entero | igual | 3 |
+| Sin GPU, 4 hilos, 8 GB | 0 | small, 4 hilos (base con «Rápida») | CPU | MODNet 384, lotes de 4 | — |
+| Sin GPU, 32 hilos | 0 | small, 2 tramos de 8 hilos (turbo con «Máxima») | CPU, 16 hilos | MODNet 512, 2 cuadros a la vez | — |
+
+Un módulo de otro autor puede leer los mismos campos si le sirven; si no, basta con ignorarlos.
 
 ## Un módulo mínimo
 

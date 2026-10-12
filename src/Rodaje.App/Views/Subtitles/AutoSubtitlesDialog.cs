@@ -81,6 +81,9 @@ internal static class AutoSubtitlesDialog
             SelectedIndex = Math.Max(0, AutoSubtitles.Languages.ToList().FindIndex(l => l.Id == _language)),
         };
         panel.Children.Add(language);
+        var advice = new Views.Shared.AiAdvicePanel();
+        advice.Show(AutoSubtitles.Estimate(modules, module, window));
+        panel.Children.Add(advice.Panel);
 
         var again = new Button { Content = "Transcribir de nuevo", IsEnabled = false, Margin = new Thickness(0, 4, 0, 4) };
         panel.Children.Add(again);

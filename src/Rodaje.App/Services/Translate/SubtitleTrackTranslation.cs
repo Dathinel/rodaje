@@ -182,7 +182,7 @@ public static class SubtitleTrackTranslation
     }
 
     /// <summary>Los parámetros de cada llamada a <c>traducir</c>, de hasta <see cref="MaxPerCall"/> subtítulos.</summary>
-    public static IReadOnlyList<JsonElement> Requests(IReadOnlyList<SubtitleText> texts, string? source, string target)
+    public static IReadOnlyList<JsonElement> Requests(IReadOnlyList<SubtitleText> texts, string? source, string target, Action<Utf8JsonWriter>? extra = null)
     {
         ArgumentNullException.ThrowIfNull(texts);
         ArgumentException.ThrowIfNullOrEmpty(target);
@@ -196,6 +196,9 @@ public static class SubtitleTrackTranslation
                 w.WriteString("source", string.IsNullOrEmpty(source) ? "auto" : source);
                 w.WriteString("target", target);
                 w.WriteNumber("maxLineChars", MaxLineChars);
+                // Los campos del perfil de IA (dispositivo, capas en la GPU, hilos), si los hay.
+                extra?.Invoke(w);
+
                 w.WriteStartArray("segments");
                 foreach (SubtitleText t in texts.Skip(from).Take(MaxPerCall))
                 {

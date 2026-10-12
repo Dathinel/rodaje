@@ -6,8 +6,8 @@ Toda la IA de Rodaje corre en tu equipo: nada se envía a internet. Cada funció
 
 | Módulo | Funciones en la app | Modelos | Dónde corre |
 |---|---|---|---|
-| **Subtítulos automáticos** (`modulo-subtitulos`) | Subtítulos automáticos, con el tiempo de cada palabra | Whisper large-v3-turbo (550 MB) en GPU; Whisper small (180 MB) en CPU | GPU por Vulkan (unos 1,5 GB de VRAM) o CPU |
-| **Traducir subtítulos** (`modulo-traducir`) | Traducir pista…, a 20 idiomas conservando los tiempos | Qwen3-4B-Instruct (unos 2,5 GB; se baja desde Complementos, no cabe en la distribución completa) | GPU por Vulkan (unos 3 GB de VRAM) o CPU; si no cabe entero en la GPU, reparte capas y si no, va a la CPU |
+| **Subtítulos automáticos** (`modulo-subtitulos`) | Subtítulos automáticos, con el tiempo de cada palabra | Whisper large-v3-turbo (550 MB), small (180 MB) y base (57 MB), según el equipo | GPU por Vulkan (turbo, unos 1,5 GB de VRAM; small, 0,7) o CPU |
+| **Traducir subtítulos** (`modulo-traducir`) | Traducir pista…, a 20 idiomas conservando los tiempos | Qwen3-4B-Instruct (unos 2,5 GB; se baja desde Complementos, no cabe en la distribución completa) | GPU por Vulkan (entero, unos 3,3 GB de VRAM) o CPU; si no cabe entero, reparte las capas que quepan |
 | **Texto a voz** (`modulo-voz`) | Texto a voz… | Kokoro-82M (170 MB) y 34 voces | CPU |
 | **Audio con IA** (`modulo-audio-ia`) | Reducir ruido; detección de voz para el ducking | DeepFilterNet3 (9 MB) y Silero VAD (2 MB) | CPU |
 | **Visión con IA** (`modulo-vision`) | Quitar fondo, Reencuadre automático | MODNet (26 MB), BiRefNet-lite (115 MB), YuNet (rostros) y RT-DETRv2 (personas, 81 MB) | GPU por DirectML (cualquier GPU con DirectX 12; unos 1,3 GB de VRAM, 2,8 GB en calidad alta) o CPU |
@@ -15,13 +15,24 @@ Toda la IA de Rodaje corre en tu equipo: nada se envía a internet. Cada funció
 
 No usan módulos, aunque están en la misma barra: Quitar silencios, Detectar ritmo, Estabilizar, Color automático, Balance de blancos automático y Grabar voz. Funcionan siempre.
 
-### GPU y VRAM
+### Según el equipo
 
-- Sin GPU, o si la GPU falla a mitad, cada módulo pasa a la CPU solo: tarda más, pero termina. Los subtítulos en CPU van unas 4 veces más rápido que el tiempo real.
-- Rodaje reparte la memoria de video: los módulos pueden usar la VRAM dedicada menos tres octavos, que se reservan para la vista previa. Solo corre un módulo «pesado» (más de 1 GB) a la vez; los demás esperan con «Esperando memoria de video» en Trabajos.
-- Mientras corre un módulo de GPU, la vista previa pasa a proxies.
+Rodaje mira la GPU (VRAM propia y compartida, si es integrada), la RAM libre y los hilos de la CPU, y decide para cada función qué modelo usa, dónde corre y cuánto hace a la vez (D-037). Funciona desde un portátil sin GPU o con una integrada y 8 GB de RAM hasta una GPU de 24 GB con 32 hilos:
+
+| Equipo | Subtítulos | Traducir | Quitar fondo |
+|---|---|---|---|
+| Sin GPU o integrada con poca memoria | Whisper small en la CPU (base con «Rápida») | Qwen3-4B en la CPU | MODNet en la CPU (o en la integrada); «Alta» va por la CPU, muy lenta |
+| 2 GB de VRAM | Whisper small en la GPU, dos tramos a la vez | Repartido: 10 de 36 capas en la GPU | MODNet en la GPU; «Alta» por la CPU |
+| 4 GB (RTX 3050) | Whisper large-v3-turbo en la GPU, dos tramos a la vez | Repartido: 25 de 36 capas en la GPU | Las dos calidades en la GPU |
+| 8 GB o más | turbo en la GPU (con 12 GB, tres tramos a la vez; con 24, cuatro) | Entero en la GPU | Las dos en la GPU; con «Máxima», MODNet a más resolución |
+
+- **Antes de empezar**, cada diálogo dice cuánto tardará en este equipo y dónde corre («En este equipo: unos 40 s (GPU · Whisper large-v3-turbo)»). La primera vez es una estimación; después usa lo que tardó de verdad. Si la memoria no alcanza, lo avisa y ofrece la alternativa (por ejemplo, «Usar la calidad normal (MODNet)»).
+- **Medido en una RTX 3050 de 4 GB y 16 hilos** (12 s de voz, 3 s de video): subtítulos en 4,5 s con la GPU y 12,5 s sin ella (3 min de voz: 17,7 s con dos tramos a la vez en la GPU, frente a 29,6 con uno; en la CPU, 111 s frente a 167, con el mismo acierto); traducir tres subtítulos en 10 s (24 de 36 capas en la GPU) y 32 s en la CPU; quitar el fondo de 90 cuadros en 9,5 s (GPU) o 19 s (CPU). Con solo 2 GB de VRAM todo termina, pero la calidad alta va por la CPU: 15 cuadros en casi 4 minutos.
+- **Ver › Calidad de la IA:** «Automática (según el equipo)», «Rápida» (modelos menores y menos resolución) o «Máxima» (lo mejor que quepa, aunque tarde más).
+- Sin GPU, o si la GPU falla a mitad, cada módulo pasa a la CPU solo: tarda más, pero termina.
+- La memoria de video se reparte: la vista previa se queda con 3/8 de la VRAM (como mucho 3 GB) y el resto es para la IA. Con hasta 8 GB corre un modelo pesado (más de 1 GB) a la vez; con 12 GB, dos; con 24, tres. Los demás esperan con «Esperando memoria de video» en Trabajos. En equipos con pocos hilos o 8 GB de RAM, los trabajos por CPU van de a uno («Esperando la CPU»).
+- Mientras corre un módulo en la GPU, la vista previa pasa a proxies.
 - Un módulo que lleva 2 minutos sin trabajo se cierra solo y libera la memoria.
-- Con 4 GB de VRAM todo funciona; la calidad «Alta» de Quitar fondo es lenta (unos 2 s por cuadro en una RTX 3050) y la traducción puede repartirse entre GPU y CPU.
 
 ## Dónde están
 

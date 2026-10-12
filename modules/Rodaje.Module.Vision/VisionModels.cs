@@ -6,10 +6,10 @@ namespace Rodaje.Module.Vision;
 /// <summary>Salidas de un modelo, ya en float, y dónde corrió.</summary>
 internal sealed record ModelOutput(float[][] Values, string Device);
 
-/// <summary>Una sesión abierta. DirectML no admite <c>Run</c> concurrentes en la misma sesión: se serializan.</summary>
+/// <summary>Una sesión abierta. DirectML no admite <c>Run</c> concurrentes en la misma sesión: se serializan; en la CPU van a la vez.</summary>
 internal sealed class LoadedModel(InferenceSession session, string device) : IDisposable
 {
-    private readonly Lock _gate = new();
+    private readonly ReaderWriterLockSlim _gate = new();
     private readonly bool _half = session.InputMetadata.Values.First().ElementDataType == TensorElementType.Float16;
     private bool _disposed;
 
@@ -23,20 +23,46 @@ internal sealed class LoadedModel(InferenceSession session, string device) : IDi
             ? OrtValue.CreateTensorValueFromMemory(Array.ConvertAll(data, v => (Float16)v), shape)
             : OrtValue.CreateTensorValueFromMemory(data, shape);
         using RunOptions options = new();
-        lock (_gate)
+        bool exclusive = Device == "directml";
+        if (exclusive)
+        {
+            _gate.EnterWriteLock();
+        }
+        else
+        {
+            _gate.EnterReadLock();
+        }
+
+        try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             using IDisposableReadOnlyCollection<OrtValue> results = session.Run(options, [input], [value], outputs);
             return [.. results.Select(r => _half ? Widen(r.GetTensorDataAsSpan<Float16>()) : r.GetTensorDataAsSpan<float>().ToArray())];
         }
+        finally
+        {
+            if (exclusive)
+            {
+                _gate.ExitWriteLock();
+            }
+            else
+            {
+                _gate.ExitReadLock();
+            }
+        }
     }
 
     public void Dispose()
     {
-        lock (_gate)
+        _gate.EnterWriteLock();
+        try
         {
             _disposed = true;
             session.Dispose();
+        }
+        finally
+        {
+            _gate.ExitWriteLock();
         }
     }
 
@@ -65,6 +91,14 @@ internal sealed class VisionModels(ModelFiles files) : IDisposable
     private readonly HashSet<string> _gpuFailed = [];
     private readonly Lock _gate = new();
     private long _clock;
+    private int _cpuThreads;
+
+    /// <summary>Hilos de ONNX Runtime de las sesiones de CPU que se abran desde ahora (0 = uno por núcleo físico).</summary>
+    public int CpuThreads
+    {
+        get => Volatile.Read(ref _cpuThreads);
+        set => Volatile.Write(ref _cpuThreads, Math.Clamp(value, 0, 64));
+    }
 
     public ModelOutput Run(ModelFile model, ComputeDevice device, string input, float[] data, long[] shape, string[] outputs)
     {
@@ -101,7 +135,8 @@ internal sealed class VisionModels(ModelFiles files) : IDisposable
             }
 
             bool fixedShape = model.FreeDimensions is not null && device == ComputeDevice.Gpu;
-            string prefix = $"{model.FileName}|{device}|";
+            int threads = device == ComputeDevice.Cpu ? CpuThreads : 0;
+            string prefix = $"{model.FileName}|{device}|{threads}|";
             string key = prefix + (fixedShape ? string.Join('x', shape) : "");
             if (!_loaded.TryGetValue(key, out LoadedModel? loaded))
             {
@@ -121,7 +156,7 @@ internal sealed class VisionModels(ModelFiles files) : IDisposable
                     siblings[i].Value.Dispose();
                 }
 
-                var factory = new SessionFactory(device, fuseGraph: !model.NoGraphFusion);
+                var factory = new SessionFactory(device, threads, fuseGraph: !model.NoGraphFusion);
                 loaded = new LoadedModel(factory.Create(files.Path(model), overrides), factory.Device);
                 _loaded[key] = loaded;
             }
