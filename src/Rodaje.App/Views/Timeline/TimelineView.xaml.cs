@@ -108,6 +108,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _headers.GainCommitted += OnTrackGainCommitted;
         _headers.SubtitleTrackRequested += () => Session?.AddSubtitleTrack();
         _headers.SubtitleRoleRequested += (trackId, subtitles) => Session?.SetSubtitleRole(trackId, subtitles);
+        _headers.VoiceOverRequested += trackId => Voice.VoiceCommands.RecordVoiceOver(services, trackId);
         _headers.AudioPresetRequested += (trackId, preset) =>
         {
             if (Session is { } session)

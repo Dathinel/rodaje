@@ -1,4 +1,6 @@
+using Rodaje.App.Services;
 using Rodaje.App.Services.Audio;
+using Rodaje.App.Tests.Support;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -43,6 +45,29 @@ public sealed class AudioToolsTests
     [InlineData("abc", null)]
     public void Custom_targets_are_parsed_in_spanish(string text, double? expected) =>
         Assert.Equal(expected, LoudnessNormalizer.ParseTarget(text));
+
+    [Fact]
+    public void A_voice_over_take_goes_to_its_track_if_free_or_to_a_new_one_in_one_step() => UiThread.Run(async () =>
+    {
+        var session = new EditorSession(new FakePlayback(), new FakeProber().Video("a.mp4", 10), new FakeDialogs(), new SequentialIdGenerator());
+        await session.OpenFilesAsync([Path.GetFullPath("a.mp4")]);
+        string trackId = session.Sequence.AudioTracks[0].Id;
+        int tracks = session.Sequence.AudioTracks.Count;
+        int steps = session.History.Count;
+
+        Assert.True(session.InsertVoiceOver(@"C:\medios\voz-en-off-1.wav", 96_000, 48_000, Time.FromSeconds(3), trackId));
+        Clip first = session.Sequence.GetClip(session.SelectedClipIds[0]).Clip;
+        Assert.Equal(tracks + 1, session.Sequence.AudioTracks.Count);
+        Assert.Equal(EditorSession.VoiceOverTrackName, session.Sequence.AudioTracks[^1].Name);
+        Assert.Equal((Time.FromSeconds(3), Time.FromSeconds(5)), (first.Start, first.End));
+
+        Assert.True(session.InsertVoiceOver(@"C:\medios\voz-en-off-2.wav", 48_000, 48_000, Time.FromSeconds(12), trackId));
+        Assert.Equal(trackId, session.Sequence.GetClip(session.SelectedClipIds[0]).Track.Id);
+        Assert.Equal(steps + 2, session.History.Count);
+        Assert.True(session.Undo());
+        Assert.True(session.Undo());
+        Assert.Equal(tracks, session.Sequence.AudioTracks.Count);
+    });
 
     private static (Project, Sequence, Clip) Build()
     {

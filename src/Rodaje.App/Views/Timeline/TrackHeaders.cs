@@ -64,6 +64,9 @@ internal sealed class TrackHeaders
     /// <summary>Del menú de una cabecera de audio: un preajuste de ecualizador y compresor para la pista (nulo: quitarlos).</summary>
     public event Action<string, AudioPreset?>? AudioPresetRequested;
 
+    /// <summary>El botón del micrófono (o el menú) de una cabecera de audio: grabar voz en off en esa pista.</summary>
+    public event Action<string>? VoiceOverRequested;
+
     public double ScrollY
     {
         get => -_shift.Y;
@@ -157,6 +160,21 @@ internal sealed class TrackHeaders
         }
         else
         {
+            var record = new ToggleButton
+            {
+                Content = new FontIcon { Glyph = "\uE720", FontSize = 12 },
+                Style = _toggleStyle,
+                IsEnabled = !track.Locked,
+            };
+            ToolTipService.SetToolTip(record, "Grabar voz en off en esta pista");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(record, "Grabar voz en off en esta pista");
+            string recordTrack = track.Id;
+            record.Click += (_, _) =>
+            {
+                record.IsChecked = false;
+                VoiceOverRequested?.Invoke(recordTrack);
+            };
+            toggles.Children.Add(record);
             toggles.Children.Add(Toggle(track, TrackToggle.Muted, track.Muted, track.Muted ? "" : "", track.Muted ? "Activar sonido" : "Silenciar pista"));
         }
 
@@ -184,7 +202,11 @@ internal sealed class TrackHeaders
         if (row.Kind == TrackKind.Audio)
         {
             var effects = new MenuFlyoutSubItem { Text = "Ecualizador y compresor", Icon = new FontIcon { Glyph = "\uE9E9" } };
+            var voice = new MenuFlyoutItem { Text = "Grabar voz en off aquí…", Icon = new FontIcon { Glyph = "\uE720" }, IsEnabled = !row.Track.Locked };
+            string voiceTrack = row.TrackId;
+            voice.Click += (_, _) => VoiceOverRequested?.Invoke(voiceTrack);
             menu.Items.Add(new MenuFlyoutSeparator());
+            menu.Items.Add(voice);
             menu.Items.Add(effects);
             Track track = row.Track;
 

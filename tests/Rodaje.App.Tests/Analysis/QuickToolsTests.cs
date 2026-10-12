@@ -71,6 +71,7 @@ public class QuickToolsTests
     {
         Assert.Equal(QuickTools.ComingSoon, State(QuickTools.AutoSubtitles, ["cam"]).Reason);
         Assert.True(State(QuickTools.TextToSpeech, []).Available);
-        Assert.Equal(10, QuickTools.All.Count);
+        Assert.True(State(QuickTools.VoiceOver, []).Available);
+        Assert.Equal(11, QuickTools.All.Count);
     }
 }

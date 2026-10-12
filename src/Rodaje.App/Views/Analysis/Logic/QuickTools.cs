@@ -17,6 +17,7 @@ public static class QuickTools
     public const string AutoSubtitles = "tools.autoSubtitles";
     public const string TextToSpeech = "voice.textToSpeech";
     public const string AddText = "clip.addText";
+    public const string VoiceOver = "audio.voiceOver";
 
     /// <summary>Lo que no existe todavía: el botón se ve, explica y no hace nada.</summary>
     public const string ComingSoon = "Próximamente.";
@@ -33,6 +34,7 @@ public static class QuickTools
         new(AutoSubtitles, "Subtítulos automáticos", "", "Escribe los subtítulos a partir de la voz."),
         new(TextToSpeech, "Texto a voz", "", "Lee un texto en voz alta y lo pone en una pista de audio."),
         new(AddText, "Añadir texto", "", "Un título de 5 s en el cursor."),
+        new(VoiceOver, "Grabar voz", "", "Graba tu voz desde el cursor mientras suena el resto."),
     ];
 
     /// <param name="noiseModule">Si está instalado el módulo que limpia el ruido.</param>
