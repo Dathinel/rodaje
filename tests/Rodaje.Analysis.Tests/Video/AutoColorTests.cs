@@ -3,6 +3,7 @@ using Xunit.Abstractions;
 
 namespace Rodaje.Analysis.Tests.Video;
 
+[Collection(VideoTestGroup.Name)]
 public sealed class AutoColorTests(ITestOutputHelper output)
 {
     private const int Side = 320;

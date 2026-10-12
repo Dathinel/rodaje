@@ -8,8 +8,12 @@ using Xunit.Abstractions;
 namespace Rodaje.App.Tests.Analysis;
 
 /// <summary>El análisis de «Estabilizar» con la decodificación de verdad: H.264 1080p en la CPU, como lo hace la app.</summary>
+/// <remarks>Usa todos los núcleos: corre sola, después del resto.</remarks>
+[Collection(Name)]
 public sealed class StabilizeDecodeTests(ITestOutputHelper output)
 {
+    public const string Name = "Estabilizar con decodificación";
+
     [FfmpegLibraryFact(VideoCodec.H264)]
     [Trait("Categoria", "TiempoReal")]
     public void A_1080p_clip_is_decoded_and_analyzed_at_60_fps_or_more()
@@ -35,6 +39,12 @@ public sealed class StabilizeDecodeTests(ITestOutputHelper output)
         output.WriteLine($"1080p H.264 en la CPU: {fps:F0} cuadros/s en total; decodificar {decoding / count * 1000:F2} ms y analizar " +
             $"{(watch.Elapsed.TotalSeconds - decoding) / count * 1000:F2} ms por cuadro");
         Assert.Equal(count, estimator.Motions.Count);
-        Assert.True(fps >= 60, $"{fps:F0} cuadros/s");
+        // El criterio se exige compilado en Release; en Debug el JIT no optimiza y solo se pide un tercio.
+        bool optimized = typeof(MotionEstimator).Assembly.GetCustomAttributes(typeof(System.Diagnostics.DebuggableAttribute), false)
+            .Cast<System.Diagnostics.DebuggableAttribute>().All(a => !a.IsJITOptimizerDisabled);
+        Assert.True(fps >= (optimized ? 60 : 20), $"{fps:F0} cuadros/s (optimizado: {optimized})");
     }
 }
+
+[CollectionDefinition(StabilizeDecodeTests.Name, DisableParallelization = true)]
+public sealed class StabilizeDecodeGroup;

@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 
 namespace Rodaje.Analysis.Tests.Video;
 
+[Collection(VideoTestGroup.Name)]
 public sealed class StabilizeTests(ITestOutputHelper output)
 {
     private const int Width = 640;
@@ -175,7 +176,10 @@ public sealed class StabilizeTests(ITestOutputHelper output)
         watch.Stop();
         double fps = count / watch.Elapsed.TotalSeconds;
         output.WriteLine($"1080p: {fps:F0} cuadros/s ({watch.Elapsed.TotalMilliseconds / count:F2} ms por cuadro), {Environment.ProcessorCount} hilos");
-        Assert.True(fps >= 60, $"{fps:F0} cuadros/s");
+        // El criterio se exige compilado en Release; en Debug el JIT no optimiza y solo se pide un tercio.
+        bool optimized = typeof(MotionEstimator).Assembly.GetCustomAttributes(typeof(System.Diagnostics.DebuggableAttribute), false)
+            .Cast<System.Diagnostics.DebuggableAttribute>().All(a => !a.IsJITOptimizerDisabled);
+        Assert.True(fps >= (optimized ? 60 : 20), $"{fps:F0} cuadros/s (optimizado: {optimized})");
     }
 
     [Fact]
