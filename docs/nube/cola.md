@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno (el bloque #14, #16, #17, #19–#25, #28 lo revisa Sonnet desde el 11-oct).
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #15.
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -211,7 +211,7 @@ Exportaciones cortas reales con fuentes `lavfi` por `FfmpegPipeSink` y `FfmpegAr
 
 ## 21. Licencias de la exportación
 
-- **Estado:** cambios (PR #15: falta evaluar las filas contra la GPLv3 de D-032; ver el PR)
+- **Estado:** hecha (PR #15 unido en local el 12-oct)
 - **Rama:** `claude/export-licencias`
 - **Caminos:** `LICENCIAS.md`, `docs/legal.md`, `docs/tareas/`.
 - **Lee:** `docs/fase-6.md` (LGPL en la v1), `docs/ffmpeg-configure.txt`, `src/Rodaje.Media/Export/` (catálogo y codificadores).
