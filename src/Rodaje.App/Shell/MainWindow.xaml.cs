@@ -132,6 +132,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             Visuals = _visuals, Packages = packages, Content = content, Exports = _exports,
             Modules = _modules, Proposals = new ModuleProposals(session), LongActions = _longActions,
             AutoProxies = CreateAutoProxies(session),
+            WatchedFolders = new WatchedFolderInbox(session, () => settings.Current),
         };
         engine.SetContent(content);
         IReadOnlyList<string> fonts = TitleFontFiles.Find(packages.Installed);

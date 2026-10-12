@@ -83,6 +83,9 @@ internal sealed class EditorServices(
     /// <summary>Proxies automáticos al importar; nulo si la ventana no lo creó.</summary>
     public AutoProxyService? AutoProxies { get; init; }
 
+    /// <summary>Medios nuevos de las carpetas vigiladas; nulo si la ventana no lo creó.</summary>
+    public WatchedFolderInbox? WatchedFolders { get; init; }
+
     /// <summary>Cambió la calidad de la vista previa (desde el reproductor o desde el menú Ver).</summary>
     public event EventHandler? PreviewQualityChanged;
 

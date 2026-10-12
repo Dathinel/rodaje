@@ -28,6 +28,7 @@
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Importar medios..." Tag="file.import" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Importar CinemaDNG..." Tag="file.importCinemaDng" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Carpetas vigiladas..." Tag="file.watchedFolders" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Exportar..." Tag="file.export" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Exportar fotograma..." Tag="file.exportFrame" Click="OnActionClick" />
                 <MenuFlyoutSeparator />

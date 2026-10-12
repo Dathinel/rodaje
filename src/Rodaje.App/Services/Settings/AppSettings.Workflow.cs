@@ -17,8 +17,17 @@ public sealed partial class AppSettings
     /// <summary>Pestañas del panel derecho escondidas por el espacio de trabajo, por su nombre visible.</summary>
     public List<string> HiddenInspectorTabs { get; set; } = [];
 
+    /// <summary>Carpetas cuyos medios nuevos se ofrecen en la biblioteca.</summary>
+    public List<Media.WatchedFolder> WatchedFolders { get; set; } = [];
+
+    /// <summary>Archivos de las carpetas vigiladas ya importados o descartados (los más recientes al final).</summary>
+    public List<string> HandledWatchedFiles { get; set; } = [];
+
     private void NormalizeWorkflow()
     {
+        WatchedFolders = [.. (WatchedFolders ?? []).Where(f => f is not null && !string.IsNullOrWhiteSpace(f.Path))
+            .DistinctBy(f => f.Path, StringComparer.OrdinalIgnoreCase)];
+        HandledWatchedFiles = [.. (HandledWatchedFiles ?? []).Where(f => !string.IsNullOrWhiteSpace(f)).TakeLast(Media.WatchedFolderScanner.MaxHandled)];
         Workspaces = WorkspaceProfiles.Normalize(Workspaces);
         HiddenInspectorTabs = [.. (HiddenInspectorTabs ?? []).Where(t => !string.IsNullOrWhiteSpace(t)).Distinct()];
         if (Workspace is not null && WorkspaceProfiles.Find(this, Workspace) is null)

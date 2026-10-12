@@ -122,6 +122,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             }
         };
         services.Visuals.Changed += OnVisualsChanged;
+        AttachWatched(services);
         if (services.AutoProxies is { } autoProxies)
         {
             autoProxies.StatusChanged += (_, status) => ShowProxyStatus(status);

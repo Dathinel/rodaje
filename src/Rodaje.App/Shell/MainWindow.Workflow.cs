@@ -46,6 +46,129 @@ internal sealed partial class MainWindow
             registry.Register(new ShortcutAction(id, $"Espacio de trabajo «{profile.Name}»", ShortcutGroups.Windows, []));
             _bindings.Add(_router.Bind(id, () => ApplyWorkspace(profile.Id)));
         }
+
+        registry.Register(new ShortcutAction(WatchedFoldersActionId, "Carpetas vigiladas...", ShortcutGroups.File, []));
+        _bindings.Add(_router.Bind(WatchedFoldersActionId, () => _ = EditWatchedFoldersAsync()));
+        StartWatchingFolders();
+    }
+
+    private const string WatchedFoldersActionId = "file.watchedFolders";
+
+    private readonly WatchedFolderScanner _scanner = new();
+    private bool _scanning;
+
+    /// <summary>Cada 4 s mira las carpetas vigiladas fuera del hilo de la interfaz; lo nuevo y ya copiado se ofrece en la biblioteca.</summary>
+    private void StartWatchingFolders()
+    {
+        if (_options.IsAutomated || _services.WatchedFolders is not { } inbox)
+        {
+            return;
+        }
+
+        inbox.Arrived += (_, files) => Session.Notify(NotificationSeverity.Informational, "Medios nuevos", WatchedFolderInbox.Describe(files) + ".",
+            new NotificationAction("Importar", () => _ = inbox.ImportAsync()));
+        Microsoft.UI.Dispatching.DispatcherQueueTimer timer = _dispatcher.CreateTimer();
+        timer.Interval = TimeSpan.FromSeconds(4);
+        timer.Tick += (_, _) => _ = ScanWatchedFoldersAsync(inbox);
+        timer.Start();
+    }
+
+    private async Task ScanWatchedFoldersAsync(WatchedFolderInbox inbox)
+    {
+        AppSettings s = _settings.Current;
+        if (_scanning || _closed || s.WatchedFolders.Count == 0)
+        {
+            if (!_scanning && inbox.Pending.Count > 0 && s.WatchedFolders.Count == 0)
+            {
+                inbox.Update([]);
+            }
+
+            return;
+        }
+
+        _scanning = true;
+        try
+        {
+            WatchedFolder[] folders = [.. s.WatchedFolders];
+            string[] handled = [.. s.HandledWatchedFiles];
+            var library = new HashSet<string>(Session.Project.Media.Select(m => m.Path), StringComparer.OrdinalIgnoreCase);
+            IReadOnlyList<WatchedFile> found = await Task.Run(() => _scanner.Scan(folders, handled, library.Contains)).ConfigureAwait(true);
+            if (!_closed)
+            {
+                inbox.Update(found);
+            }
+        }
+        finally
+        {
+            _scanning = false;
+        }
+    }
+
+    private async Task EditWatchedFoldersAsync()
+    {
+        if (Root.XamlRoot is not { } xamlRoot)
+        {
+            return;
+        }
+
+        AppSettings s = _settings.Current;
+        var list = new StackPanel { Spacing = 4 };
+        void Fill()
+        {
+            list.Children.Clear();
+            if (s.WatchedFolders.Count == 0)
+            {
+                list.Children.Add(new TextBlock { Text = "Ninguna todavía.", Opacity = 0.7 });
+            }
+
+            foreach (WatchedFolder folder in s.WatchedFolders.ToArray())
+            {
+                var row = new Grid { ColumnSpacing = 8 };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                row.Children.Add(new TextBlock { Text = folder.Path, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
+                var remove = new Button { Content = "Quitar" };
+                Grid.SetColumn(remove, 1);
+                remove.Click += (_, _) =>
+                {
+                    s.WatchedFolders.Remove(folder);
+                    Fill();
+                };
+                row.Children.Add(remove);
+                list.Children.Add(row);
+            }
+        }
+
+        Fill();
+        var add = new Button { Content = "Añadir carpeta..." };
+        add.Click += (_, _) =>
+        {
+            if (Views.Relink.FolderDialog.Pick(_hwnd, "Carpeta que vigilar", s.LastMediaFolder) is { } picked)
+            {
+                WatchedFolderScanner.Add(s, picked, DateTime.UtcNow);
+                Fill();
+            }
+        };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = xamlRoot, Title = "Carpetas vigiladas",
+            Content = new StackPanel
+            {
+                Spacing = 10,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        TextWrapping = TextWrapping.Wrap,
+                        Text = "Los videos y audios que lleguen a estas carpetas (la de la cámara, la que sincroniza el teléfono) aparecen en la biblioteca con un aviso para importarlos con un clic. Lo que ya estaba no cuenta.",
+                    },
+                    list,
+                    add,
+                },
+            },
+            CloseButtonText = "Listo", RequestedTheme = ElementTheme.Dark,
+        };
+        await DialogGate.ShowAsync(dialog).ConfigureAwait(true);
     }
 
     /// <summary>Lleva los paneles a la distribución elegida: anchos, alto de la línea de tiempo y pestañas del panel derecho.</summary>
