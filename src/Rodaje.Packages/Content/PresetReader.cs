@@ -190,7 +190,15 @@ internal static partial class PresetReader
         JsonDocument document;
         try
         {
-            document = JsonDocument.Parse(buffer.GetBuffer().AsMemory(0, (int)buffer.Length), DocumentOptions);
+            // Una marca BOM inicial se salta, como al leer los elementos propios (SafeText.ReadAllTextStrict): si no, la
+            // biblioteca listaría un estilo o unas zonas que luego no se pueden leer.
+            ReadOnlyMemory<byte> json = buffer.GetBuffer().AsMemory(0, (int)buffer.Length);
+            if (json.Span.StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]))
+            {
+                json = json[3..];
+            }
+
+            document = JsonDocument.Parse(json, DocumentOptions);
         }
         catch (JsonException ex)
         {
