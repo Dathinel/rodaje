@@ -53,7 +53,7 @@ public class CompoundPropertiesTests(ITestOutputHelper output)
     /// <see cref="CompoundOps.Flatten(Project, Sequence)"/>) es lo mismo antes y después de crear el compuesto.
     /// </summary>
     /// <remarks>Semilla que lo muestra: <c>2wMq_kCYfmj2</c>.</remarks>
-    [Fact(Skip = "Defecto: el compuesto va en la pista más baja tocada y las anidadas nuevas no copian Hidden ni Muted; si esa pista está oculta (o muda) desaparece lo elegido de pistas visibles, y al revés lo oculto pasa a verse. Semilla 2wMq_kCYfmj2.")]
+    [Fact]
     public void CrearCompuesto_NoCambiaLoQueSeVe() =>
         GenScenario.Sample(
             s => { _ = RunCreateDecompose(s.Project, s.Pick, s.Flags, checkVisible: true); },
@@ -239,7 +239,7 @@ public class CompoundPropertiesTests(ITestOutputHelper output)
     /// Un archivo de pocos kilobytes con 17 niveles de 3 secuencias, cada una con compuestos a las 3 del nivel siguiente
     /// (sin ciclos), se valida en poco tiempo.
     /// </summary>
-    [Fact(Skip = "Defecto: ModelValidator.CompoundDepth recorre cada camino sin memoria; un archivo de unas decenas de KB con 17 niveles de 3 secuencias cruzadas tardaría decenas de minutos en abrir (3^16 caminos por compuesto; con 12 niveles ya son unos 9 s). Ver el PR.")]
+    [Fact]
     public async Task GrafoEnRombo_SeValidaRapido()
     {
         const int levels = 17, width = 3;
