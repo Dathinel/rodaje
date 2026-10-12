@@ -65,6 +65,13 @@ public class SpeedMaterialPropertiesTests(ITestOutputHelper output)
             return false;
         }
 
+        // Enlazados con material distinto comparten la curva del primero, que solo puede ajustarse a uno: los demás
+        // llevan su final al cuadro vecino (como en main), así que no vuelven exactos. Eso se prueba en CurveLinkTests.
+        if (group.Exists(c => Material(c) != Material(group[0])))
+        {
+            return false;
+        }
+
         Dictionary<string, long> original = group.ToDictionary(c => c.Id, Material);
         Dictionary<string, long> tolerance = group.ToDictionary(c => c.Id, c => Tolerance(built, c));
         bool applied = false;
