@@ -92,6 +92,7 @@ BgraImage? GetNearestThumbnail(string mediaId, Time sourceTime, Time spacing, in
 - **Descubrimiento.** `ModuleCatalog.DefaultRoots()`: `%LOCALAPPDATA%\Rodaje\complementos\modulos`, `modulos\` junto al exe y, si Rodaje corre desde el repositorio, `modules\` (el exe más reciente bajo `bin\`). Lee `module.vramMb` y `module.runtime`; se refresca al cambiar los paquetes.
 - **Procesos.** Uno por módulo, abierto con la primera llamada y cerrado tras 2 min sin llamadas; todos en un Job Object «matar al cerrar»; tubería solo del usuario actual. Con una llamada en curso, `ping` cada 5 s; sin respuesta en 10 s se mata (`ModuleHungException`). Al cerrar la ventana se pide `shutdown` y se mata lo que no sale.
 - **VRAM.** `VramBudget`: los módulos usan hasta 5/8 de la VRAM (la vista previa tiene 3/8), un pesado (≥1 GB) a la vez; para abrir uno que no entra se cierran los ociosos que estorban, o se espera. Mientras corre uno de GPU la vista previa baja a proxies y Mitad con el mismo `PreviewYield` de exportar.
+- **Voz con modelo.** `ModuleVoiceDetector` implementa `IVoiceActivityDetector` con `detectar-voz` (Silero, modulo-audio-ia) y alimenta a la vez al detector de energía, que responde si el módulo falta o falla. «Reducir ruido» (`Views/Analysis`, lógica en `Logic/NoiseReduction.cs`) guarda el WAV limpio en `<proyecto>.medios\`.
 - **Trabajos.** Cada `RunAsync` es una fila de `ModuleJobList` (Trabajos → IA) con etapa, avance, tiempo restante y cancelar. Un fallo se avisa con un texto sin trazas que termina en «El proyecto no cambió».
 
 ```csharp

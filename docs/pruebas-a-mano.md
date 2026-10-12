@@ -65,3 +65,10 @@ Clic derecho en un clip con sonido, o Editar, con el clip seleccionado.
 - [ ] **Quitar silencios:** en una toma tuya hablando, «Quitar silencios...»: la barra muestra en rojo lo que se corta y cambia al mover umbral, silencio mínimo y margen. «Quitar» corta video y audio juntos y cierra los huecos si la casilla de ripple está marcada (empieza como el ripple automático de la línea de tiempo); Ctrl+Z lo deshace todo de una vez. ¿Los cortes suenan naturales con el margen de 100 ms? ¿Acierta el umbral de −35 dB?
 - [ ] **Detectar ritmo:** en una canción, «Detectar ritmo...» dice el tempo; «Aplicar» pone un marcador por pulso y, con «Cortar el clip al ritmo», corta cada 4 pulsos (u otro). ¿Los marcadores caen en el golpe? ¿El tempo es el que conoces (en temas muy rápidos puede salir la mitad)?
 - [ ] **Ducking:** selecciona la música y elige la pista de la voz: «Aplicar» pone keyframes de volumen que bajan la música antes de cada frase y la suben después. ¿−12 dB y 100 ms de anticipación suenan bien? ¿La subida de 0,5 s es lenta o rápida?
+
+## Fase 7: reducir ruido y voz con IA (modulo-audio-ia)
+
+Antes, una vez: `powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-modelos.ps1` (baja DeepFilterNet3 y Silero VAD, 10 MB). Rodaje encuentra el módulo en `modules\` si corre desde el repositorio.
+
+- [ ] **Reducir ruido:** en una toma tuya con ruido (ventilador, calle, aire acondicionado), clic derecho → «Reducir ruido...» (también sobre el video: usa su audio enlazado). Mientras limpia, Trabajos → IA muestra el avance y se puede cancelar. Con «Escuchar», alternar «A: original» y «B: limpio»: ¿el cambio es inmediato y en el mismo punto? ¿La voz suena natural o «robótica»? Bajar «Cuánto ruido se quita» a 12–20 dB: ¿suena mejor dejando algo de ambiente? «Aplicar»: el clip pasa a «… (sin ruido)» y Ctrl+Z vuelve al original de una vez. Recortar un poco el clip después (hasta 2 s) sigue funcionando.
+- [ ] **Ducking con Silero:** repetir el ducking de arriba con el módulo instalado: ¿la música baja solo cuando se habla, también con ruido de fondo o música en la pista de voz? (Sin el módulo usa la energía, como antes.)
