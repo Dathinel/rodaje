@@ -112,17 +112,22 @@ public sealed class AutosaveSession : IDisposable
     /// <param name="project">Una copia que nadie más modifica mientras se escribe (por ejemplo, <see cref="Project.Clone"/>).</param>
     /// <param name="projectPath">El <c>.rodaje</c> del proyecto, o <c>null</c> si nunca se guardó.</param>
     /// <returns>La ruta de la copia.</returns>
-    /// <exception cref="IOException">Si no se pudo escribir; las copias anteriores quedan como estaban.</exception>
+    /// <exception cref="IOException">
+    /// Si no se pudo escribir; las copias anteriores quedan como estaban y la sesión sigue marcada con cambios sin guardar.
+    /// </exception>
     public string Write(Project project, string? projectPath)
     {
         ArgumentNullException.ThrowIfNull(project);
         lock (_gate)
         {
             ThrowIfCompleted();
+            // Primero el aviso de cambios sin guardar y después la copia: si el editor se cae entre los dos, se ofrece
+            // la copia anterior (o nada, si no la hay). Al revés, una copia nueva tras un MarkSaved quedaría con
+            // «unsavedChanges: false» y no se ofrecería nunca.
+            WriteInfo(project.Name, projectPath, unsavedChanges: true);
             string path = SnapshotPath(Directory, _nextNumber);
             ProjectSerializer.Save(project, path, _fileSystem);
             _nextNumber++;
-            WriteInfo(project.Name, projectPath, unsavedChanges: true);
             Rotate();
             return path;
         }
