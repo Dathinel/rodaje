@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #38, #37, #41. Los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47) y #30, #32, #18, #36 (tareas 48–50) los revisó Sonnet el 12-oct.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #38, #37, #41, #39. Los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47) y #30, #32, #18, #36 (tareas 48–50) los revisó Sonnet el 12-oct.
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -364,7 +364,7 @@ Reproduce con la escena de aceptación sin exportar, mide qué bloquea (pre-roll
 
 ## 38. Traducir subtítulos (módulo)
 
-- **Estado:** pendiente
+- **Estado:** hecha en parte (PR #39 unido el 12-oct: módulo, servicio y diálogo; falta engancharlo, en la tarea 51, y que Daniel verifique la SHA-256 del modelo, ver la entrega)
 - **Rama:** `claude/modulo-traducir`
 - **Caminos:** `modules/Rodaje.Module.Translate/` (nuevo), `tests/Rodaje.Module.Translate.Tests/` (nuevo), `herramientas/preparar-modelos.ps1` (añadir entradas), archivos nuevos en la App para la acción, `docs/tareas/`.
 - **Lee:** `docs/fase-7.md` (agente F: Qwen3-4B-Instruct-2507 Q4 Apache-2.0 con LLamaSharp; Opus-MT como opción ligera; NLLB descartado por no comercial), D-031, D-032, `modules/Rodaje.Module.Subtitles/` como patrón.
@@ -489,4 +489,14 @@ La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que tod
 - **Lee:** entrega de la tarea 35 (`docs/tareas/2026-10-12-limpiezas-bloque-1.md`).
 
 Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.xaml.cs:330`) pide confirmación con el estilo de la app (D-027). Si `IEditorDialogs` no tiene una confirmación genérica, añadirla con su doble de pruebas.
+
+## 51. Enganchar «Traducir pista» y el manifiesto de subtítulos
+
+- **Estado:** pendiente
+- **Rama:** `claude/traducir-enganche`
+- **Caminos:** `src/Rodaje.App/Shell/MainWindow.xaml.cs` (una línea), `src/Rodaje.App/Views/Timeline/TimelineView.Analysis.cs` (la entrada de menú), `modules/Rodaje.Module.Subtitles/paquete.json`, `tests/Rodaje.Module.Subtitles.Tests/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 38 (`docs/tareas/2026-10-12-modulo-traducir.md`).
+
+1. Registrar `Views.Translate.TranslateCommands.Bind(_router, _services)` en `MainWindow.xaml.cs` (junto a la línea 135, como los demás) y añadir «Traducir pista» al menú de la pista de subtítulos, como el de voz en `TimelineView.Analysis.cs`.
+2. `modules/Rodaje.Module.Subtitles/paquete.json` no tiene `"apps"` y `ManifestReader` lo rechaza. Corregirlo, con una prueba que lea el manifiesto real con `ManifestReader`, como `ManifestTests` del módulo de traducir.
 
