@@ -1,4 +1,5 @@
 using Rodaje.App.Services;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
@@ -107,7 +108,7 @@ internal static class StillExportCommand
             Time position = session.Position;
             long frame = position.ToFrames(rate);
             string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
-            string name = string.Concat($"{session.ProjectName} - cuadro {frame}".Split(Path.GetInvalidFileNameChars()));
+            string name = string.Concat(string.Create(SpanishNumbers.Format, $"{session.ProjectName} - cuadro {frame}").Split(Path.GetInvalidFileNameChars()));
             string? path = FileDialogs.Save(_owner, "Exportar fotograma", name + ".png", "png",
                 projectFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
                 ("Imagen PNG (*.png)", "*.png"), ("Imagen JPEG (*.jpg)", "*.jpg;*.jpeg"));
@@ -140,7 +141,7 @@ internal static class StillExportCommand
                 });
                 StillResult result = await exporter.ExportAsync(request, cancel.Token);
                 session.Notify(NotificationSeverity.Success, "Fotograma exportado",
-                    $"Cuadro {result.Frame} guardado en «{result.OutputPath}» ({result.Width}×{result.Height}).");
+                    string.Create(SpanishNumbers.Format, $"Cuadro {result.Frame} guardado en «{result.OutputPath}» ({result.Width}×{result.Height})."));
             }
             catch (Exception error) when (cancel.IsCancellationRequested && error is OperationCanceledException or ExportException)
             {

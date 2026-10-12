@@ -21,7 +21,9 @@ Rama `claude/fotograma-robusto` (tarea 49 de la cola), PR #46. Sigue a la tarea 
      reciben `Task.Run` (buscar `ffmpeg.exe`) y `StillExporter.ExportAsync`; al cancelar sale «Fotograma cancelado. No se
      guardó ningún archivo.»;
    - al cerrar la ventana (`Dispose` del enlace) se cancela la que haya, sin aviso;
-   - el reintento «Exportar sin él» pasa por el mismo control.
+   - el reintento «Exportar sin él» pasa por el mismo control;
+   - los números para el usuario (cuadro, tamaño, nombre propuesto) van con `SpanishNumbers.Format`, no con la cultura
+     del hilo.
 
 ## Decisiones
 
