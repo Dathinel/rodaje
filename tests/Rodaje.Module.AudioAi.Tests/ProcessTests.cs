@@ -115,6 +115,10 @@ public class ProcessTests(ITestOutputHelper output)
         Assert.Equal(ErrorCodes.InvalidParameters, error.Code);
         using JsonDocument parameters = JsonDocument.Parse("""{"dispositivo":"cpu"}""");
         await Assert.ThrowsAsync<ModuleCallException>(() => module.Client.InvokeAsync("detectar-voz", parameters.RootElement, [input]));
-        Assert.True((await module.Client.PingAsync()) < TimeSpan.FromSeconds(1));
+
+        // Que siga abierto: contesta el ping (el tope es contra cuelgues). Lo que tarda en contestar no se mide aquí: en
+        // la CI, con el runner cargado, pasó de 1 s; la latencia la mide Cancel_is_confirmed_quickly_and_the_module_keeps_working.
+        await module.Client.PingAsync().WaitAsync(TimeSpan.FromSeconds(60));
+        Assert.False(module.Exited.IsCompleted);
     }
 }

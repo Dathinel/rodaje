@@ -52,7 +52,10 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
     private long _decodedCount;
     private long _diskHits;
     private bool _flushPosted;
-    private bool _disposed;
+    private int _disposeStarted;
+
+    // volatile: Dispose lo pone sin tomar _gate (ver Dispose); los hilos lo leen dentro y fuera del candado.
+    private volatile bool _disposed;
 
     /// <param name="resolveMediaPath">Ruta absoluta del archivo de un medio del proyecto, o <c>null</c> si no existe el medio.</param>
     /// <param name="sources">Decodificadores; <see cref="FfmpegVisualsSources"/> en la app.</param>
@@ -239,26 +242,49 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
     }
 
     /// <summary>Pide a los hilos que paren y no los espera más que un instante: cada uno cierra lo suyo al salir.</summary>
+    /// <remarks>
+    /// No espera el candado <c>_gate</c> más que ese instante. Los hilos de trabajo son <see cref="ThreadPriority.BelowNormal"/>
+    /// y lo toman a menudo (al reclamar y soltar cada miniatura, al avisar y al despertar cada 2 s). Con la CPU llena, uno
+    /// puede quedarse sin turno con el candado tomado y Windows solo sube a los hilos hambrientos tras unos 4 s: con
+    /// <c>lock</c>, <c>Dispose</c> (llamado desde la interfaz) esperaba ese tiempo, y en la CI tardó 8 s.
+    /// </remarks>
     public void Dispose()
     {
-        lock (_gate)
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
         {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-            _stop.Cancel();
-            Monitor.PulseAll(_gate);
+            return;
         }
 
+        _disposed = true;
+        _stop.Cancel();
         long deadline = Stopwatch.GetTimestamp() + Stopwatch.Frequency / 5;
+        if (Monitor.TryEnter(_gate, Left(deadline)))
+        {
+            try
+            {
+                Monitor.PulseAll(_gate);
+            }
+            finally
+            {
+                Monitor.Exit(_gate);
+            }
+        }
+        else
+        {
+            // Quien tiene el candado ve _disposed al soltarlo; el aviso es para los que ya esperan en Monitor.Wait.
+            ThreadPool.UnsafeQueueUserWorkItem(static gate =>
+            {
+                lock (gate)
+                {
+                    Monitor.PulseAll(gate);
+                }
+            }, _gate, preferLocal: false);
+        }
+
         bool stopped = true;
         foreach (Thread thread in _thumbnailThreads.Append(_waveformThread))
         {
-            TimeSpan left = Stopwatch.GetElapsedTime(Stopwatch.GetTimestamp(), deadline);
-            stopped &= thread.Join(left > TimeSpan.Zero ? left : TimeSpan.Zero);
+            stopped &= thread.Join(Left(deadline));
         }
 
         if (stopped)
@@ -266,6 +292,12 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
             // Si un hilo sigue en una lectura larga, todavía mira el token: se deja para el recolector.
             _stop.Dispose();
         }
+    }
+
+    private static TimeSpan Left(long deadline)
+    {
+        TimeSpan left = Stopwatch.GetElapsedTime(Stopwatch.GetTimestamp(), deadline);
+        return left > TimeSpan.Zero ? left : TimeSpan.Zero;
     }
 
     private string? Resolve(string mediaId)

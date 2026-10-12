@@ -35,7 +35,8 @@ public sealed class ModuleManagerTests : IDisposable
         await manager.InvokeAsync("eco-a", "eco", null, "Eco otra vez");
         Assert.Equal(pid, Assert.Single(manager.ProcessIds));
 
-        Assert.True(EchoModules.HasExited(pid));
+        // Se cierra solo tras 300 ms ocioso; con el runner cargado, salir le llevó más de los 3 s de HasExited.
+        await WaitUntil(() => EchoModules.HasExited(pid));
         await WaitUntil(() => manager.ProcessIds.Count == 0);
         Assert.All(manager.Jobs.Jobs, j => Assert.Equal(ModuleJobState.Completed, j.State));
     }
@@ -129,10 +130,12 @@ public sealed class ModuleManagerTests : IDisposable
     }
 
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public async Task Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada()
     {
         // La llamada (unos 3 s) dura más que el tope del ping (1,5 s): solo sigue viva si el módulo contesta cada ping.
-        // Con 500 ms de tope, una respuesta que el pool del runner cargado atendía tarde mataba a un módulo sano.
+        // Con 500 ms de tope, una respuesta que el pool del runner cargado atendía tarde mataba a un módulo sano, y con
+        // 1,5 s siguió pasando en la CI (#36, #37, #41, #44). Exige contestar cada ping en 1,5 s de reloj: es TiempoReal.
         await using ModuleManager manager = _modules.Manager(new ModuleManagerOptions
         {
             PingInterval = TimeSpan.FromMilliseconds(50),
@@ -220,7 +223,10 @@ public sealed class ModuleManagerTests : IDisposable
         Assert.False(second.IsCompleted);
 
         await first;
-        await second.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Tope contra cuelgues: el segundo tiene que esperar a que se cierre el primero y arrancar su proceso, y con el
+        // runner cargado eso pasó de 5 s (PR #49). Arrancar tiene su propio tope de 30 s (StartTimeout).
+        await second.WaitAsync(TimeSpan.FromSeconds(60));
         Assert.Equal(["voz-gpu"], manager.Budget.Resident);
     }
 
