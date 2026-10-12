@@ -53,17 +53,20 @@ public sealed class ConnectionTests
         }
     }
 
+    /// <remarks>
+    /// Con una gracia larga, la conexión solo sigue viva si el módulo confirmó la cancelación (si no, el cliente la corta).
+    /// Cuánto tarda en confirmarla lo mide <c>ProcessTests.Cancellation_in_a_real_process_is_fast</c> (TiempoReal): con el
+    /// runner de Windows cargado, la cota de 1 s que había aquí llegó a 4,6 s sin defecto.
+    /// </remarks>
     [Fact]
     public async Task Cancelling_is_confirmed_quickly_and_the_connection_keeps_working()
     {
-        (ModuleClient client, _) = await Support.ConnectInProcessAsync();
+        (ModuleClient client, _) = await Support.ConnectInProcessAsync(options: new ModuleClientOptions { CancelGrace = TimeSpan.FromSeconds(60) });
         await using (client)
         {
             using CancellationTokenSource cts = new(TimeSpan.FromMilliseconds(100));
-            Stopwatch watch = Stopwatch.StartNew();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                client.InvokeAsync("contar", Support.Json("""{"pasos":10000,"msPorPaso":10}"""), cancellationToken: cts.Token));
-            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"tardó {watch.ElapsedMilliseconds} ms");
+                client.InvokeAsync("contar", Support.Json("""{"pasos":10000,"msPorPaso":10}"""), cancellationToken: cts.Token).WaitAsync(TimeSpan.FromSeconds(60)));
             Assert.Equal("1", (await client.InvokeAsync("eco", Support.Json("1"))).Value!.Value.GetRawText());
         }
     }

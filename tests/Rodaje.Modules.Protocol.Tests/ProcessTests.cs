@@ -20,15 +20,25 @@ public sealed class ProcessTests(ITestOutputHelper output)
         Assert.Equal(0, await module.Exited.WaitAsync(TimeSpan.FromSeconds(3)));
     }
 
+    /// <remarks>La cota de 1 s la mide <see cref="A_module_that_dies_mid_call_fails_the_call_within_a_second"/> (TiempoReal).</remarks>
     [Fact]
     public async Task A_module_that_dies_mid_call_fails_the_call_fast()
+    {
+        await using ModuleProcess module = await ModuleProcess.StartAsync(Support.EchoExe);
+        await Assert.ThrowsAnyAsync<ModuleDisconnectedException>(() => module.Client.InvokeAsync("morir", Support.Json("{\"codigo\":3}")).WaitAsync(TimeSpan.FromSeconds(60)));
+        Assert.Equal(3, await module.Exited.WaitAsync(TimeSpan.FromSeconds(60)));
+        await Assert.ThrowsAnyAsync<ModuleDisconnectedException>(() => module.Client.InvokeAsync("eco"));
+    }
+
+    [Fact]
+    [Trait("Categoria", "TiempoReal")]
+    public async Task A_module_that_dies_mid_call_fails_the_call_within_a_second()
     {
         await using ModuleProcess module = await ModuleProcess.StartAsync(Support.EchoExe);
         Stopwatch watch = Stopwatch.StartNew();
         await Assert.ThrowsAnyAsync<ModuleDisconnectedException>(() => module.Client.InvokeAsync("morir", Support.Json("{\"codigo\":3}")));
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"tardó {watch.ElapsedMilliseconds} ms");
         Assert.Equal(3, await module.Exited.WaitAsync(TimeSpan.FromSeconds(3)));
-        await Assert.ThrowsAnyAsync<ModuleDisconnectedException>(() => module.Client.InvokeAsync("eco"));
     }
 
     [Fact]
