@@ -2,7 +2,7 @@
 
   <!--
     modulo-audio-ia (fase 7 I): reducción de ruido de voz (DeepFilterNet3) y detección de voz (Silero VAD) con ONNX
-    Runtime. DirectML si hay GPU, CPU si no. Los modelos no van en el repo: ver LICENCIAS.md y build\preparar-modelos.ps1.
+    Runtime, solo en CPU (D-034). Los modelos no van en el repo: ver LICENCIAS.md y build\preparar-modelos.ps1.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -26,7 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.30.0" />
   </ItemGroup>
 
 </Project>

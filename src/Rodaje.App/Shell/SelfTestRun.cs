@@ -392,14 +392,17 @@ internal static class SelfTestRun
         await Task.Delay(200);
     }
 
-    /// <summary>La barra de herramientas con un video elegido: aplica estabilizar, los subtítulos dicen «Próximamente».</summary>
+    /// <summary>
+    /// La barra de herramientas con un video elegido: aplica estabilizar, y subtítulos aplica si está su módulo o, si no,
+    /// dice que falta.
+    /// </summary>
     private static async Task ToolsAsync(MainWindow window)
     {
         SelectFirstClip(window);
         await Task.Delay(200);
         (bool stabilize, _) = window.QuickTools.Describe("analysis.stabilize");
         (bool subtitles, string tip) = window.QuickTools.Describe(Views.Analysis.QuickTools.AutoSubtitles);
-        if (!stabilize || subtitles || !tip.Contains(Views.Analysis.QuickTools.ComingSoon, StringComparison.Ordinal))
+        if (!stabilize || tip.Contains("Próximamente", StringComparison.Ordinal) || (!subtitles && !tip.Contains("módulo", StringComparison.Ordinal)))
         {
             throw new InvalidOperationException($"La barra de herramientas no sigue a la selección (estabilizar {stabilize}, subtítulos {subtitles}).");
         }

@@ -140,7 +140,7 @@ internal static class VisionDialogs
             try
             {
                 matte = await VisionTools.RemoveBackgroundAsync(services.Modules, module, ffmpeg, media.Path, clip, media.FrameRate!.Value,
-                    quality.SelectedIndex == 1, AnalysisFolder(session), $"Quitar fondo de «{media.Name}»", cancel.Token, j => job = j);
+                    quality.SelectedIndex == 1, AnalysisFolder(services), $"Quitar fondo de «{media.Name}»", cancel.Token, j => job = j);
                 status.Text = "Listo. Aplica para ver el resultado; un Ctrl+Z lo quita.";
                 dialog.IsPrimaryButtonEnabled = true;
             }
@@ -286,8 +286,9 @@ internal static class VisionDialogs
         }
     }
 
-    /// <summary>Carpeta de los medios que crea Rodaje (la misma de «Reducir ruido»).</summary>
-    private static string AnalysisFolder(EditorSession session) => NoiseReduction.GeneratedFolder(session.FilePath);
+    /// <summary>Carpeta de los medios que crea Rodaje (la elegida en «Carpeta de medios generados», D-034).</summary>
+    private static string AnalysisFolder(EditorServices services) =>
+        GeneratedMedia.Ensure(services.Session.FilePath, services.Settings.Current.GeneratedMediaFolder);
 
     private static bool Apply(EditorServices services, ModuleProposal proposal)
     {

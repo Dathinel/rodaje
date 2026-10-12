@@ -17,8 +17,7 @@ El código del módulo es propio (GPL-3.0-only con los términos de Rodaje, D-03
 
 | Biblioteca | Versión | Licencia | Nota |
 |---|---|---|---|
-| ONNX Runtime con DirectML (`Microsoft.ML.OnnxRuntime.DirectML`) | 1.24.4 | MIT | `onnxruntime.dll` |
-| DirectML (`Microsoft.AI.DirectML`) | 1.15.4 | Licencia de software de Microsoft (redistribuible) | `DirectML.dll`; `DirectML.Debug.dll` no se distribuye |
+| ONNX Runtime (`Microsoft.ML.OnnxRuntime`, solo CPU) | 1.30.0 | MIT | `onnxruntime.dll` |
 
 ## Corpus de prueba (solo en `.entorno`, nunca en el repo ni en la distribución)
 

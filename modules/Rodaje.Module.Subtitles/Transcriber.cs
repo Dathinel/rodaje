@@ -13,6 +13,10 @@ namespace Rodaje.Module.Subtitles;
 internal sealed class Transcriber : IDisposable
 {
     public const string ModelFile = "ggml-large-v3-turbo-q5_0.bin";
+
+    /// <summary>Sin GPU (o si falla), un modelo menor para no pasar de 8 min por cada 10 de audio (D-034).</summary>
+    public const string CpuModelFile = "ggml-small-q5_1.bin";
+
     public const int SampleRate = 16000;
 
     /// <summary>Por debajo del máximo de 1 MiB de un mensaje, con margen para el sobre.</summary>
@@ -39,7 +43,7 @@ internal sealed class Transcriber : IDisposable
         }
 
         float[] samples = ReadMono(call.Map(call.Buffers[0]), audio);
-        string model = FindModel(options.Model);
+        string model = FindModel(options.Model, ModelFile);
 
         int progress = 0;
         string stage = "cargando";
@@ -63,7 +67,11 @@ internal sealed class Transcriber : IDisposable
 
     public void Dispose() => _factory?.Dispose();
 
-    internal static string FindModel(string? requested)
+    internal static string FindModel(string? requested, string file) =>
+        TryFindModel(requested, file)
+            ?? throw new ModuleCallException(ErrorCodes.InvalidParameters, $"Falta el modelo {file}: reinstala el módulo de subtítulos.");
+
+    internal static string? TryFindModel(string? requested, string file)
     {
         List<string> candidates = [];
         if (!string.IsNullOrWhiteSpace(requested))
@@ -71,30 +79,41 @@ internal sealed class Transcriber : IDisposable
             candidates.Add(requested);
         }
 
-        candidates.Add(Path.Combine(AppContext.BaseDirectory, "modelos", ModelFile));
+        candidates.Add(Path.Combine(AppContext.BaseDirectory, "modelos", file));
         if (Environment.GetEnvironmentVariable("RODAJE_MODELOS") is { Length: > 0 } dir)
         {
-            candidates.Add(Path.Combine(dir, ModelFile));
+            candidates.Add(Path.Combine(dir, file));
         }
 
-        return candidates.FirstOrDefault(File.Exists)
-            ?? throw new ModuleCallException(ErrorCodes.InvalidParameters, $"Falta el modelo {ModelFile}: reinstala el módulo de subtítulos.");
+        return candidates.FirstOrDefault(File.Exists);
     }
+
+    /// <summary>El modelo de la CPU: <c>cpuModel</c>, el menor junto al exe o en RODAJE_MODELOS, y si falta, el grande.</summary>
+    internal static string CpuModel(Options options, string gpuModel) => TryFindModel(options.CpuModel, CpuModelFile) ?? gpuModel;
 
     private async Task<Transcript> TranscribeWithFallbackAsync(
         float[] samples, string model, Options options, Action<int> onProgress, Action onLoaded, CancellationToken ct)
     {
-        bool gpu = options.Device != "cpu";
-        try
+        if (options.Device != "cpu")
         {
-            return await TranscribeAsync(samples, model, gpu, options, onProgress, onLoaded, ct).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (gpu && options.Device == "auto" && ex is not OperationCanceledException and not ModuleException)
-        {
-            // La GPU no pudo (sin memoria, controlador): se repite en la CPU.
+            try
+            {
+                Factory(model, gpu: true);
+                // Sin Vulkan, whisper.cpp abre el modelo en la CPU: con «auto» se pasa al menor.
+                if (_device == "vulkan" || options.Device == "gpu")
+                {
+                    return await TranscribeAsync(samples, model, true, options, onProgress, onLoaded, ct).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex) when (options.Device == "auto" && ex is not OperationCanceledException and not ModuleException)
+            {
+                // La GPU no pudo (sin memoria, controlador): se repite en la CPU.
+            }
+
             ResetFactory();
-            return await TranscribeAsync(samples, model, false, options, onProgress, onLoaded, ct).ConfigureAwait(false);
         }
+
+        return await TranscribeAsync(samples, CpuModel(options, model), false, options, onProgress, onLoaded, ct).ConfigureAwait(false);
     }
 
     private async Task<Transcript> TranscribeAsync(
@@ -184,11 +203,21 @@ internal sealed class Transcriber : IDisposable
         {
             UseGpu = gpu,
             UseDtwTimeStamps = true,
-            HeadsPreset = WhisperAlignmentHeadsPreset.LargeV3Turbo,
+            HeadsPreset = HeadsFor(model),
         });
         _factoryKey = key;
         _device = gpu && RuntimeOptions.LoadedLibrary == RuntimeLibrary.Vulkan ? "vulkan" : "cpu";
         return _factory;
+    }
+
+    /// <summary>Las cabezas de alineamiento del DTW dependen del tamaño del modelo; se deduce del nombre del archivo ggml.</summary>
+    internal static WhisperAlignmentHeadsPreset HeadsFor(string model)
+    {
+        string name = Path.GetFileName(model);
+        return name.Contains("-small", StringComparison.OrdinalIgnoreCase) ? WhisperAlignmentHeadsPreset.Small
+            : name.Contains("-base", StringComparison.OrdinalIgnoreCase) ? WhisperAlignmentHeadsPreset.Base
+            : name.Contains("-tiny", StringComparison.OrdinalIgnoreCase) ? WhisperAlignmentHeadsPreset.Tiny
+            : WhisperAlignmentHeadsPreset.LargeV3Turbo;
     }
 
     private void ResetFactory()
@@ -265,7 +294,7 @@ internal sealed class Transcriber : IDisposable
         return new ModuleOutput(doc.RootElement.Clone());
     }
 
-    internal sealed record Options(string Language, string Device, string? Model, string? Prompt, int Threads, bool Onsets)
+    internal sealed record Options(string Language, string Device, string? Model, string? Prompt, int Threads, bool Onsets, string? CpuModel = null)
     {
         public static Options Parse(JsonElement? parameters)
         {
@@ -286,7 +315,7 @@ internal sealed class Transcriber : IDisposable
                 : 0;
             // «onsets»: false deja los inicios tal como los da el DTW (para medir el ajuste por energía).
             bool onsets = !(parameters is { ValueKind: JsonValueKind.Object } q && q.TryGetProperty("onsets", out JsonElement o) && o.ValueKind == JsonValueKind.False);
-            return new Options(language, device, Text(parameters, "model"), Text(parameters, "prompt"), threads, onsets);
+            return new Options(language, device, Text(parameters, "model"), Text(parameters, "prompt"), threads, onsets, Text(parameters, "cpuModel"));
         }
 
         private static string? Text(JsonElement? parameters, string name) =>

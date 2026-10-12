@@ -4,6 +4,7 @@ using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
+using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Services.Inspector;
 
@@ -182,6 +183,39 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
         }
 
         return Session.ApplyTitleStyle(clip.Id, fresh) ? ReapplyResult.Applied : ReapplyResult.Unchanged;
+    }
+
+    /// <summary>Corrige la palabra <paramref name="index"/> de un subtítulo automático (con espacios, varias; vacía, se borra).</summary>
+    public bool CorrectWord(int index, string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (Target() is not { Generator.Words: { } words } clip || index < 0 || index >= words.Count || words[index].Text == text.Trim())
+        {
+            return false;
+        }
+
+        Session.BreakMerge();
+        return Session.Execute(Edits.CorrectSubtitleWord(Session.SequenceId, clip.Id, index, text));
+    }
+
+    /// <summary>Divide el subtítulo donde empieza la palabra <paramref name="index"/>; el trozo de la izquierda sigue elegido.</summary>
+    public bool SplitAtWord(int index) =>
+        Target() is { } clip && Session.Execute(Edits.SplitSubtitleAtWord(Session.SequenceId, clip.Id, index));
+
+    public bool JoinWithNext() =>
+        Target() is { } clip && Session.Execute(Edits.JoinSubtitleWithNext(Session.SequenceId, clip.Id));
+
+    /// <summary>Hay otro texto después del elegido en su pista, para «Unir con el siguiente».</summary>
+    public bool HasNextTitle() =>
+        Target() is { } clip && Session.Sequence.FindClip(clip.Id) is { Track: var track }
+        && track.Clips.Any(c => c.Start >= clip.End && c.Generator is { Kind: GeneratorKinds.Text });
+
+    /// <summary>Dónde suena la palabra en la línea de tiempo.</summary>
+    public static Time WordTime(Clip clip, GeneratorWord word)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(word);
+        return clip.Start + (word.Start - clip.SourceIn);
     }
 
     public bool SetEdges(bool? animateIn, bool? animateOut) =>

@@ -37,7 +37,7 @@ public sealed record SubtitleLayout
 public readonly record struct SubtitleCue(Time Start, Time End, string Text);
 
 /// <summary>Convierte una transcripción con tiempos por palabra en clips de texto de una pista de subtítulos.</summary>
-public static class SubtitleEdits
+public static partial class SubtitleEdits
 {
     /// <summary>
     /// Pone los subtítulos de <paramref name="segments"/> como clips de texto (copias de <paramref name="template"/>)

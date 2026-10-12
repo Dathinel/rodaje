@@ -5,6 +5,7 @@ using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Voice;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
+using Rodaje.App.Views.Shared;
 
 namespace Rodaje.App.Views.Voice;
 
@@ -68,6 +69,8 @@ internal static class VoiceDialog
         row.Children.Add(busy);
         row.Children.Add(status);
         panel.Children.Add(row);
+        var saveIn = new GeneratedFolderRow(services);
+        panel.Children.Add(saveIn.Element);
 
         ContentDialog dialog = AnalysisUi.Dialog(root, "Texto a voz", existing is null ? "Insertar en el cursor" : "Regenerar", panel);
         if (existing is not null)
@@ -217,10 +220,11 @@ internal static class VoiceDialog
         }
 
         _last = done.Settings;
-        string folder = VoiceFiles.Folder(session.FilePath);
+        string folder = GeneratedMedia.Folder(session.FilePath, services.Settings.Current.GeneratedMediaFolder);
         string wav;
         try
         {
+            folder = saveIn.Folder;
             wav = await Task.Run(() => VoiceFiles.Save(folder, done.Settings, chosen));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

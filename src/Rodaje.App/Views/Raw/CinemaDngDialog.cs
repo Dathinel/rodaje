@@ -6,6 +6,7 @@ using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
+using Rodaje.App.Views.Shared;
 using Rodaje.Media.Proxies;
 using Rodaje.Modules.Protocol;
 
@@ -76,11 +77,12 @@ internal static class CinemaDngDialog
         panel.Children.Add(quality);
         panel.Children.Add(new TextBlock
         {
-            Text = "Se guarda una copia ProRes 422 HQ en la carpeta de medios del proyecto; los DNG no cambian. "
-                + "Para revelar con otros ajustes, vuelve a importar.",
+            Text = "Se guarda una copia ProRes 422 HQ; los DNG no cambian. Para revelar con otros ajustes, vuelve a importar.",
             TextWrapping = TextWrapping.Wrap,
             Opacity = 0.8,
         });
+        var saveIn = new GeneratedFolderRow(services);
+        panel.Children.Add(saveIn.Element);
 
         ContentDialog dialog = AnalysisUi.Dialog(root, Title, "Importar", panel);
         dialog.IsPrimaryButtonEnabled = true;
@@ -95,7 +97,7 @@ internal static class CinemaDngDialog
         try
         {
             result = await CinemaDngImport.RunAsync(services.Modules, module, ffmpeg, sequence, options,
-                NoiseReduction.GeneratedFolder(session.FilePath), $"CinemaDNG «{sequence.Name}»");
+                saveIn.Folder, $"CinemaDNG «{sequence.Name}»");
         }
         catch (OperationCanceledException)
         {

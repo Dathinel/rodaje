@@ -421,6 +421,31 @@ internal sealed partial class TitleBar : UserControl
         }
     }
 
+    private async void OnGeneratedFolderClick(object sender, RoutedEventArgs e)
+    {
+        if (DialogGate.IsOpen || _services is not { } services || XamlRoot is null)
+        {
+            return;
+        }
+
+        var body = new StackPanel { Spacing = 10, MaxWidth = 460 };
+        body.Children.Add(new TextBlock
+        {
+            Text = "Dónde guarda Rodaje lo que crea: audio sin ruido, voz, copias ProRes de CinemaDNG y máscaras. Lo ya creado no se mueve.",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        body.Children.Add(new Views.Shared.GeneratedFolderRow(services).Element);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "Carpeta de medios generados",
+            Content = body,
+            CloseButtonText = "Listo",
+            RequestedTheme = ElementTheme.Dark,
+        };
+        await DialogGate.ShowAsync(dialog);
+    }
+
     private async void OnAboutClick(object sender, RoutedEventArgs e)
     {
         if (XamlRoot is null)

@@ -53,12 +53,18 @@ internal static class ModuleHarness
 
     public static JsonElement Parameters(string device = "auto", string language = "es")
     {
-        string json = JsonSerializer.Serialize(new Dictionary<string, string>
+        var parameters = new Dictionary<string, string>
         {
             ["model"] = Corpus.ModelPath!,
             ["device"] = device,
             ["language"] = language,
-        });
+        };
+        if (Corpus.CpuModelPath is { } cpu)
+        {
+            parameters["cpuModel"] = cpu;
+        }
+
+        string json = JsonSerializer.Serialize(parameters);
         using JsonDocument doc = JsonDocument.Parse(json);
         return doc.RootElement.Clone();
     }

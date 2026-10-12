@@ -5,6 +5,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Shared;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Modules.Protocol;
@@ -80,6 +81,8 @@ internal static class NoiseReductionDialog
             TextWrapping = TextWrapping.Wrap,
             Opacity = 0.7,
         });
+        var saveIn = new GeneratedFolderRow(services);
+        panel.Children.Add(saveIn.Element);
 
         void Choose(bool listenOriginal)
         {
@@ -126,8 +129,7 @@ internal static class NoiseReductionDialog
         };
         timer.Start();
 
-        string folder = NoiseReduction.GeneratedFolder(session.FilePath);
-        Task<CleanAudio> work = NoiseReduction.RunAsync(services.Modules, module, media.Path, window, folder,
+        Task<CleanAudio> work = NoiseReduction.RunAsync(services.Modules, module, media.Path, window, saveIn.Folder,
             $"Reducir ruido de «{media.Name}»", cancel.Token, j => job = j);
         CleanAudio? clean = null;
         Task ready = Prepare();
@@ -169,6 +171,15 @@ internal static class NoiseReductionDialog
             Delete(clean.Path);
         }
 
+        try
+        {
+            path = MoveTo(path, saveIn.Folder);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            session.Notify(NotificationSeverity.Warning, Title, $"No se pudo mover el audio limpio a la carpeta elegida; queda en {Path.GetDirectoryName(path)}.");
+        }
+
         MediaRef cleanMedia = NoiseReduction.Media(Guid.NewGuid().ToString("N"), clean with { Path = path }, media.Name + " (sin ruido)");
         if (session.Sequence.FindClip(clip.Id) is null || !session.Execute(NoiseReduction.Command(session.SequenceId, clip.Id, cleanMedia, clean.Offset)))
         {
@@ -199,6 +210,19 @@ internal static class NoiseReductionDialog
                 timer.Stop();
             }
         }
+    }
+
+    /// <summary>Si la persona cambió de carpeta mientras se limpiaba, el WAV se pasa a la nueva.</summary>
+    private static string MoveTo(string path, string folder)
+    {
+        if (string.Equals(Path.GetDirectoryName(Path.GetFullPath(path)), Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+        {
+            return path;
+        }
+
+        string target = Path.Combine(folder, Path.GetFileName(path));
+        File.Move(path, target);
+        return target;
     }
 
     private static void Delete(string? path)

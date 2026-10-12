@@ -52,6 +52,13 @@ public sealed class TextStyle
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public StyleBackground? Background { get; set; }
 
+    /// <summary>
+    /// «Palabra resaltada» (karaoke): en un subtítulo con palabras transcritas, la que suena se pinta de este color. Solo
+    /// del proyecto: el formato <c>rodaje.textstyle</c> v1 de los paquetes no la lleva.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public StyleHighlight? Highlight { get; set; }
+
     /// <summary>Entrada, anclada al borde izquierdo del clip (si <see cref="GeneratorEdges.In"/>).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public StyleAnimation? In { get; set; }
@@ -74,6 +81,7 @@ public sealed class TextStyle
         Stroke = Stroke is null ? null : new StyleStroke { Color = Stroke.Color, Width = Stroke.Width, Join = Stroke.Join },
         Shadow = Shadow is null ? null : new StyleShadow { Color = Shadow.Color, Dx = Shadow.Dx, Dy = Shadow.Dy, Blur = Shadow.Blur },
         Background = Background?.Clone(),
+        Highlight = Highlight is null ? null : new StyleHighlight { Color = Highlight.Color },
         In = In?.Clone(),
         Out = Out?.Clone(),
     };
@@ -94,6 +102,7 @@ public sealed class TextStyle
             && Same(Stroke, other.Stroke, (a, b) => a.Color == b.Color && a.Width.Equals(b.Width) && a.Join == b.Join)
             && Same(Shadow, other.Shadow, (a, b) => a.Color == b.Color && a.Dx.Equals(b.Dx) && a.Dy.Equals(b.Dy) && a.Blur.Equals(b.Blur))
             && Same(Background, other.Background, (a, b) => a.Color == b.Color && a.Radius.Equals(b.Radius) && a.Padding.SequenceEqual(b.Padding))
+            && Same(Highlight, other.Highlight, (a, b) => a.Color == b.Color)
             && Same(In, other.In, (a, b) => a.ContentEquals(b))
             && Same(Out, other.Out, (a, b) => a.ContentEquals(b));
     }
@@ -146,6 +155,11 @@ public sealed class StyleStroke
     public double Width { get; set; }
 
     public StrokeJoin Join { get; set; }
+}
+
+public sealed class StyleHighlight
+{
+    public string Color { get; set; } = "#FFD400";
 }
 
 public sealed class StyleShadow
