@@ -25,6 +25,7 @@ Archivos nuevos en `tests/Rodaje.Modules.Protocol.Tests/Fuzz/`. No se tocó nada
   - El módulo saluda bien o con un `welcome` raro, manda hasta 13 marcos y luego cierra, se calla, manda basura o contesta todo bien.
   - El cliente hace de 1 a 3 llamadas con cancelación de 20 a 300 ms, a veces un ping, y luego `DisposeAsync` y `Completion`.
   - Se exige que nada pase del tope y que solo salgan `ModuleException` u `OperationCanceledException`. Un resultado aceptado no trae búferes (el cliente no creó regiones) y ningún avance fuera de 0–1 llega al llamador.
+  - Una operación que sigue colgada 3 s después de que el cliente falló, con el candado de escritura tomado, es el defecto 6: se cuenta («defecto conocido (operación colgada tras fallar el cliente)») y el caso sigue. Cualquier otro cuelgue falla con el estado interno del cliente (leído por reflexión: fallo, `_stop`, bucle de lectura, llamadas y pings pendientes, candado), el del módulo hostil y el final del caso.
   - Hay 300 casos en la suite normal y 5000 con `Categoria=TiempoReal`.
 - **`HostFuzzTests.cs`**: un editor hostil habla con el `ModuleHost` real, el de las funciones `eco`, `contar`, `fallar` y `copiar` o sin funciones.
   - Versiones al azar en los dos lados. El editor manda hasta 19 marcos: llamadas con ids nuevos o repetidos, `cancel` y `ping` a ids al azar, búferes de regiones que no existen y basura.
@@ -35,13 +36,13 @@ Archivos nuevos en `tests/Rodaje.Modules.Protocol.Tests/Fuzz/`. No se tocó nada
   - Un módulo hostil devuelve un búfer al azar. El cliente lo acepta solo si está entero en una región suya; si no, `ModuleProtocolException`.
   - `copiar` con dos búferes al azar: copia, o `buffer-out-of-range` si uno se sale, o `internal` si el destino es corto. La conexión sigue sirviendo.
   - Son 200 casos cada una.
-- **`ProtocolDefectTests.cs`**: los cinco defectos de abajo, cada uno con su reproducción y omitido con `Skip = "Defecto: …"`. Todos tienen tope de tiempo: si se les quita el `Skip` y el defecto sigue, fallan en vez de colgarse. Comprobé que fallan los cinco quitándoles el `Skip`.
+- **`ProtocolDefectTests.cs`**: los seis defectos de abajo, cada uno con su reproducción y omitido con `Skip = "Defecto: …"`. Todos tienen tope de tiempo: si se les quita el `Skip` y el defecto sigue, fallan en vez de colgarse. Comprobé que fallan los seis quitándoles el `Skip`.
 
 Tiempos en Linux: la suite normal del fuzz tarda unos 4 s, y las dos pruebas `TiempoReal` unos 25 s juntas. Corrí la suite normal 5 veces y la larga 2 veces, todas en verde.
 
 ## Defectos encontrados (no corregidos: `src/` está fuera de los caminos)
 
-Los cinco se reprodujeron en Linux antes de declararlos.
+Los seis se reprodujeron en Linux antes de declararlos.
 
 1. **Un `cancel` que llega cuando la llamada termina cierra la conexión.**
    - Dónde: `ModuleHost.RunAsync`, en `case CancelMessage`.
@@ -70,8 +71,15 @@ Los cinco se reprodujeron en Linux antes de declararlos.
      - `ModuleProcess.DisposeAsync` espera a `Client.DisposeAsync` antes de matar el proceso, así que tampoco termina.
    - Se reprodujo en Linux con 8 llamadas de 900 KB canceladas a los 500 ms: seguían colgadas a los 12 s.
    - Prueba: `A_module_that_stops_reading_does_not_hang_the_editor`.
+6. **Si el cliente falla mientras una llamada o un ping espera el candado de escritura, esa operación no termina nunca.**
+   - Dónde: `ModuleClient.Fail` hace `_stop.Cancel()` y enseguida `_channel.Dispose()`, que desecha el `SemaphoreSlim` de las escrituras (`MessageChannel._writeLock`).
+   - Qué pasa: la operación que esperaba el candado con `_stop.Token` procesa su cancelación en otro hilo. Si para entonces el semáforo ya está desechado, `SemaphoreSlim` no la saca de la cola y su tarea queda pendiente para siempre, aunque el llamador haya pasado su propia cancelación. Lo comprobé aparte con `WaitAsync(token)`, `Cancel()` y `Dispose()` seguidos: 48 de 50 esperas quedaron colgadas.
+   - Así falló el fuzz del cliente en la CI de Windows: 9 y 11 de 300 casos, todos con ping. El estado era siempre el mismo: el cliente ya había fallado (`failure=ModuleProtocolException`, `stop=True`, bucle de lectura terminado), el ping seguía en `_pings` y el candado estaba en 0. Ejemplo: semilla 20261032. En Linux esas semillas no fallan, porque las escrituras terminan antes.
+   - Reproducción en Linux: una tubería cuyas escrituras esperan hasta que las cancelen, como si el búfer estuviera lleno. Una llamada y 8 pings esperan el candado, el módulo manda basura y el cliente falla. Quedó colgado en 45 y 46 de 50 rondas.
+   - No es el defecto 5: allí nadie llama a `Fail`; aquí `Fail` ya corrió y la operación sigue colgada.
+   - Prueba: `Operations_waiting_to_write_finish_when_the_client_fails`.
 
-El fuzz del anfitrión tolera solo los defectos 2 y 4, y los cuenta. El 4 se tolera solo si el caso mandó un escape de sustituto. El fuzz de mensajes cuenta aparte los aceptados que no se pueden reescribir por el defecto 4. Al corregirlos se quitan los `Skip` y esos `catch`.
+El fuzz del anfitrión tolera solo los defectos 2 y 4, y los cuenta; el del cliente tolera solo el 6 y lo cuenta. El 4 se tolera solo si el caso mandó un escape de sustituto. El fuzz de mensajes cuenta aparte los aceptados que no se pueden reescribir por el defecto 4. Al corregirlos se quitan los `Skip` y esos `catch`.
 
 **Observaciones del código, sin prueba propia y sin declararlas defectos:**
 - Un `error` con código `cancelled` para una llamada que el editor no canceló llega como `OperationCanceledException`, así que un módulo puede hacer pasar un fallo por una cancelación.
@@ -80,8 +88,8 @@ El fuzz del anfitrión tolera solo los defectos 2 y 4, y los cuenta. El 4 se tol
 ## Pruebas omitidas
 
 - **Antes:** 0 omitidas en `Rodaje.Modules.Protocol.Tests` (83 pruebas).
-- **Después:** 97 pruebas (14 nuevas), con 7 omitidas en Linux y 5 en Windows:
-  - 5 por defecto concreto del código, en `ProtocolDefectTests` (arriba);
+- **Después:** 98 pruebas (15 nuevas), con 8 omitidas en Linux y 6 en Windows:
+  - 6 por defecto concreto del código, en `ProtocolDefectTests` (arriba);
   - 2 por plataforma, solo en Linux: `RegionFuzzTests`, porque no hay memoria compartida con nombre («Named maps are not supported»).
 - Además hay 2 pruebas nuevas con `Categoria=TiempoReal` (las corridas de 5000 casos). La CI las excluye, igual que las demás `TiempoReal`, y `probar.ps1` las corre en su pasada aparte.
 
@@ -96,11 +104,15 @@ El fuzz del anfitrión tolera solo los defectos 2 y 4, y los cuenta. El 4 se tol
 - Todas las pruebas nuevas pasan en Linux, salvo las omitidas.
 - Al restaurar en Linux se reescribe `modules/Rodaje.Module.Echo/packages.lock.json` (de `win-x64` a `linux-x64`, por `PublishAot`). No lo subí.
 
-**CI:** no arrancó. Desde las 18:52 UTC todos los trabajos de GitHub Actions fallan en unos 3 s y sin registros, por algo ajeno al PR (parece la facturación). **Falta la verificación en Windows.**
+**CI:** el 11 de octubre no arrancó: desde las 18:52 UTC todos los trabajos fallaban en unos 3 s y sin registros, por algo ajeno al PR. Cuando volvió:
+- Sobre 84fda79 y 13e5a06, el trabajo de Windows falló por `ClientFuzzTests.A_hostile_module_never_hangs_or_crashes_the_client` (9 y luego 11 de 300 casos). Era el defecto 6, ahora tolerado y contado.
+- En esas corridas, en Windows pasó todo lo demás del proyecto: 86 pruebas, entre ellas las 2 de `RegionFuzzTests` y las que ya existían de procesos y memoria compartida, con 5 omitidas por defecto.
+- También fallaron `TitleEditorTests` y `TitleRasterizerTests`, que fallan igual en `main` y no son de este PR.
+- **Falta ver la CI de Windows en verde sobre el último commit.**
 
 ## Qué comprobar en Windows
 
-1. `dotnet test tests/Rodaje.Modules.Protocol.Tests --filter "FullyQualifiedName~Fuzz&Categoria!=TiempoReal"`: tienen que pasar las 3 de mensajes, las 2 de cliente y anfitrión y **las 2 de regiones**, que solo corren allí y nunca se ejecutaron. Si falla una de regiones, el mensaje da el caso y los rangos.
+1. `dotnet test tests/Rodaje.Modules.Protocol.Tests --filter "FullyQualifiedName~Fuzz&Categoria!=TiempoReal"`: tienen que pasar las 3 de mensajes, las 2 de cliente y anfitrión y las 2 de regiones (estas ya pasaron en la CI). El fuzz del cliente debería contar algún caso del defecto 6.
 2. Las largas: `--filter "FullyQualifiedName~Fuzz&Categoria=TiempoReal"`. En Linux tardan unos 25 s.
 3. Para confirmar los defectos en Windows, quitar el `Skip` de cada prueba de `ProtocolDefectTests` y ver que falla. El 5 debería fallar antes, porque el búfer de la tubería es de 64 KB.
 
@@ -113,4 +125,4 @@ El fuzz del anfitrión tolera solo los defectos 2 y 4, y los cuenta. El 4 se tol
 
 ## Choques
 
-Ninguno. Solo archivos nuevos en `tests/Rodaje.Modules.Protocol.Tests/Fuzz/` y esta entrega. `origin/main` no cambió mientras trabajaba (seguía en 2d7db6d).
+Ninguno. Solo archivos nuevos en `tests/Rodaje.Modules.Protocol.Tests/Fuzz/` y esta entrega. Desde 2d7db6d, `origin/main` (2226c2d) cambió `ModuleProcess.StartAsync`: tiene un parámetro `started` nuevo antes del token. Estas pruebas no usan `ModuleProcess`, así que no las afecta.
