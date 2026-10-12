@@ -8,6 +8,7 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 /// solo pueden devolver un mensaje válido, saltar un tipo desconocido o lanzar <see cref="ModuleProtocolException"/>.
 /// Lo que aceptan vuelve a pasar igual por el cable. Semillas fijas (<see cref="FuzzSupport.BaseSeed"/>).
 /// </summary>
+[Collection(FuzzGroup.Name)]
 public sealed class MessageFuzzTests(ITestOutputHelper output)
 {
     [Theory]

@@ -18,6 +18,7 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 /// El módulo hostil siempre lee lo que le llega: el caso de un módulo que deja de leer está aparte, en
 /// <see cref="ProtocolDefectTests"/>. Un cuelgue falla con el estado interno del cliente. Cada caso tiene su semilla (<see cref="FuzzSupport.BaseSeed"/> + n).
 /// </summary>
+[Collection(FuzzGroup.Name)]
 public sealed class ClientFuzzTests(ITestOutputHelper output)
 {
     private static readonly ModuleClientOptions Options = new()

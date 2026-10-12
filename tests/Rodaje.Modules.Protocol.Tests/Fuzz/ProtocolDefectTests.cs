@@ -9,6 +9,7 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 /// que debería pasar; las de los defectos sin corregir están omitidas. La del defecto 6 ya es de regresión. Todas tienen tope de
 /// tiempo: al quitar el <c>Skip</c> con el defecto aún presente, fallan en vez de colgarse.
 /// </summary>
+[Collection(FuzzGroup.Name)]
 public sealed class ProtocolDefectTests
 {
     private const string Hello = """{"type":"hello","minProtocol":1,"maxProtocol":1,"app":"rodaje","appVersion":"1"}""";

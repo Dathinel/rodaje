@@ -20,6 +20,7 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 /// sustituto UTF-16 suelto, solo si el caso mandó uno (<see cref="ProtocolDefectTests.A_lone_surrogate_in_parameters_is_rejected"/>).
 /// Ninguna otra excepción se da por buena.
 /// </summary>
+[Collection(FuzzGroup.Name)]
 public sealed class HostFuzzTests(ITestOutputHelper output)
 {
     [Fact]

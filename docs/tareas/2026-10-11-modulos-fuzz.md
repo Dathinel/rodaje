@@ -137,6 +137,10 @@ El fuzz del anfitrión tolera solo los defectos 2 y 4, y los cuenta. El del clie
 
 ## Decisiones
 
+- **El fuzz no corre en paralelo con el resto del proyecto.** Todas las clases de `Fuzz/` están en la colección `FuzzGroup`, que tiene `DisableParallelization = true`; xUnit la corre al final y sola.
+  - Motivo: en la CI de Windows sobre caf7800, `ProcessTests.A_killed_module_fails_the_running_call` falló con «El módulo no saludó en 10 s». El proceso de eco arrancaba mientras corrían en paralelo los casos del fuzz, que van de 8 en 8. En `main` ya había fallado otra de `ProcessTests` por la carga.
+  - Coste en Linux: el proyecto sin `TiempoReal` pasa de unos 7 s a 11–12 s, y entero (con las dos corridas largas) de unos 29 s a 49 s.
+
 - **El tope de tiempo es por paso** (conexión, cada llamada, `DisposeAsync`, `RunAsync`) y no por caso, para que el mensaje diga qué se colgó.
 - **El módulo hostil del fuzz siempre lee lo que le llega.** Si no leyera, el defecto 5 colgaría casos al azar. Ese caso tiene su propia prueba.
 - **Las regiones usan capacidades múltiplos de 4096.** El módulo abre la región con capacidad 0, así que su `Capacity` es la de la vista y puede ser mayor que la del editor si no es múltiplo de página. Así la prueba no depende de eso.

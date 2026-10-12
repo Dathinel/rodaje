@@ -141,6 +141,17 @@ internal static partial class FuzzSupport
     }
 }
 
+/// <summary>
+/// Colección de todas las pruebas de <c>Fuzz/</c>: sin paralelismo con el resto del proyecto. Cada caso ya corre de 8 en
+/// 8, y en la CI de Windows, a la par de <c>ProcessTests</c> (que arranca el módulo de eco como proceso), el arranque de
+/// ese proceso pasó de los 10 s de saludo. xUnit corre las colecciones sin paralelismo al final, solas.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class FuzzGroup
+{
+    public const string Name = "Fuzz del protocolo";
+}
+
 /// <summary>Omite la prueba fuera de Windows: la memoria compartida con nombre no existe en Linux («Named maps are not supported»).</summary>
 public sealed class WindowsFactAttribute : FactAttribute
 {

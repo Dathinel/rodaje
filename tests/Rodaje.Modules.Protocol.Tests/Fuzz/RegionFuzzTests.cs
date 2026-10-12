@@ -9,6 +9,7 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 /// <c>MemoryMappedFile</c> con nombre). Las capacidades son múltiplos de 4096 para que la región que abre el módulo (que
 /// toma el tamaño de la vista, redondeado a página) mida lo mismo que la que creó el editor.
 /// </summary>
+[Collection(FuzzGroup.Name)]
 public sealed class RegionFuzzTests
 {
     private const int Cases = 200;
