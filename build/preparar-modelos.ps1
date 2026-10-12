@@ -42,6 +42,44 @@ $Modelos = @(
             @{ Dentro = 'tmp/export/erb_dec.onnx'; Archivo = 'deepfilternet3-erb_dec.onnx'; Sha256 = 'ab669a1d10afe20911728b33053a452071042317a90581092b325da7b2f9d895' },
             @{ Dentro = 'tmp/export/df_dec.onnx'; Archivo = 'deepfilternet3-df_dec.onnx'; Sha256 = '23114ce3b0f6464b763ee62f7bb8aab6b2a129a21eabd5bcfe59413db05f278a' }
         )
+    },
+    # modulo-vision (detalle en modules/Rodaje.Module.Vision/LICENCIAS.md). MODNet (Apache-2.0) y RT-DETRv2-R18 (Apache-2.0)
+    # en las exportaciones ONNX de Xenova/onnx-community; BiRefNet_lite (MIT) en fp16: en fp32 no cabe en 4 GB de VRAM;
+    # YuNet 2023mar (MIT) del espejo de opencv_zoo en Hugging Face.
+    @{
+        Nombre = 'MODNet (quitar el fondo)'; Archivo = 'modnet.onnx'; Peso = '25 MB'
+        Url = 'https://huggingface.co/Xenova/modnet/resolve/fa2fa546052fba4c08921230a26cc69a333fca12/onnx/model.onnx'
+        Sha256 = '07c308cf0fc7e6e8b2065a12ed7fc07e1de8febb7dc7839d7b7f15dd66584df9'; Bytes = 25888640
+    },
+    @{
+        Nombre = 'BiRefNet_lite fp16 (quitar el fondo, calidad alta)'; Archivo = 'birefnet_lite_fp16.onnx'; Peso = '109 MB'
+        Url = 'https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/de15b22ba131738a16dff04aab8bdf8dc32e3ac1/onnx/model_fp16.onnx'
+        Sha256 = 'd39b897ceb16ae654c1731f3dba0cf9b368d9cae74b5a57459b455cc8bfec402'; Bytes = 114538221
+    },
+    @{
+        Nombre = 'YuNet 2023mar (rostros)'; Archivo = 'face_detection_yunet_2023mar.onnx'; Peso = '227 KB'
+        Url = 'https://huggingface.co/opencv/face_detection_yunet/resolve/3cc26e7f1014a5ee5d74a42acee58bafc9d0a310/face_detection_yunet_2023mar.onnx'
+        Sha256 = '8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4'; Bytes = 232589
+    },
+    @{
+        Nombre = 'RT-DETRv2-R18 (personas)'; Archivo = 'rtdetr_v2_r18vd.onnx'; Peso = '77 MB'
+        Url = 'https://huggingface.co/onnx-community/rtdetr_v2_r18vd-ONNX/resolve/936f90b6a476c6da4dfe053fc521af55285976ba/onnx/model.onnx'
+        Sha256 = '583a236ac21c95a7fd94f284fc21485e42355bfef82c27011ba78fbc09ee87e2'; Bytes = 81057510
+    }
+)
+
+# Recortes de persona con alfa real para las pruebas de modulo-vision (dominio público, Wikimedia Commons): se componen
+# sobre fondos sintéticos y la alfa del recorte es la verdad. Solo en .entorno\corpus\vision.
+$CorpusVision = @(
+    @{
+        Nombre = 'Retrato de Lewis M. Blanton (dominio público, gobierno de EE. UU.)'; Archivo = 'retrato.png'; Peso = '221 KB'
+        Url = 'https://upload.wikimedia.org/wikipedia/commons/e/ed/Lewis_M._Blanton%2C_U.S._Magistrate_Judge_%28transparent_background%29.png'
+        Sha256 = '9130b12894af2d350a33c54158b446992bf66eef4b08fb1cf45b8dd6046cd23e'; Bytes = 226061
+    },
+    @{
+        Nombre = 'Alfred Hitchcock, 1960, cuerpo entero (dominio público)'; Archivo = 'cuerpo.png'; Peso = '1,4 MB'
+        Url = 'https://upload.wikimedia.org/wikipedia/commons/b/b5/Alfred_Hitchcock_-_1960%2C_no_late_admissions_%28transparent%29.png'
+        Sha256 = '09af95f6a8c471494f0cb6d767f40390dcd4ac1b7e95e98880079f5e3e6987c2'; Bytes = 1494643
     }
 )
 
@@ -234,6 +272,8 @@ if ($Corpus) {
         Move-Item -LiteralPath "$wav.tmp.wav" -Destination $wav -Force
     }
     Paso "Voz de 48 kHz lista en $wav (LibriVox, dominio público)."
+
+    foreach ($a in $CorpusVision) { Bajar $a (Join-Path $Entorno 'corpus\vision') }
 }
 
 if ($Traductor) {
