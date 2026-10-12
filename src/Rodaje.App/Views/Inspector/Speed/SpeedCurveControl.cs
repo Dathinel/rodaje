@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Theme;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Windows.Foundation;
@@ -37,7 +38,7 @@ internal sealed partial class SpeedCurveControl : Grid
     private readonly Path _points = new() { StrokeThickness = 1.5 };
     private readonly Ellipse _active = new() { Width = 2 * (PointRadius + 1.5), Height = 2 * (PointRadius + 1.5), Visibility = Visibility.Collapsed };
     private readonly Rectangle _playhead = new() { Width = 1 };
-    private readonly TextBlock _readout = new() { FontSize = 11, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 3, 8, 0), IsHitTestVisible = false };
+    private readonly TextBlock _readout = new() { FontSize = ThemeResources.Size("CaptionFontSize"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 3, 8, 0), IsHitTestVisible = false };
     private readonly TextBlock[] _labels = new TextBlock[3];
 
     private SpeedEditor? _editor;
@@ -71,7 +72,7 @@ internal sealed partial class SpeedCurveControl : Grid
         string[] texts = ["10×", "1×", "0,1×"];
         for (int i = 0; i < _labels.Length; i++)
         {
-            _labels[i] = new TextBlock { Text = texts[i], FontSize = 10, Foreground = Brush("TextMutedBrush"), IsHitTestVisible = false };
+            _labels[i] = new TextBlock { Text = texts[i], FontSize = ThemeResources.Size("MicroFontSize"), Foreground = Brush("TextMutedBrush"), IsHitTestVisible = false };
             _canvas.Children.Add(_labels[i]);
         }
 

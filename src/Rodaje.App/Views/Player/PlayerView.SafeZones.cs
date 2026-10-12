@@ -1,4 +1,3 @@
-using Microsoft.UI;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -8,6 +7,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.SafeZones;
+using Rodaje.App.Theme;
 using Rodaje.Packages.Content;
 using Windows.Foundation;
 
@@ -22,10 +22,10 @@ internal sealed partial class PlayerView
 {
     private const string SafeZonesNone = "";
 
-    private static readonly SolidColorBrush ZoneFill = new(ColorHelper.FromArgb(0x70, 0x00, 0x00, 0x00));
-    private static readonly SolidColorBrush ZoneStroke = new(ColorHelper.FromArgb(0xB0, 0xFF, 0xFF, 0xFF));
-    private static readonly SolidColorBrush ZoneText = new(ColorHelper.FromArgb(0xFF, 0xF2, 0xF2, 0xF2));
-    private static readonly SolidColorBrush NoteFill = new(ColorHelper.FromArgb(0xC0, 0x1A, 0x1A, 0x1A));
+    private static readonly Brush ZoneFill = ThemeResources.Brush("SafeZoneFillBrush");
+    private static readonly Brush ZoneStroke = ThemeResources.Brush("SafeZoneStrokeBrush");
+    private static readonly Brush ZoneText = ThemeResources.Brush("SafeZoneTextBrush");
+    private static readonly Brush NoteFill = ThemeResources.Brush("SafeZoneNoteBrush");
 
     private IReadOnlyList<SafeZoneChoice> _safeZoneChoices = SafeZoneCatalog.BuiltIn;
     private SafeZoneEditor? _zoneEditor;
@@ -214,7 +214,7 @@ internal sealed partial class PlayerView
             {
                 Background = NoteFill,
                 Padding = new Thickness(6, 2, 6, 2),
-                CornerRadius = new CornerRadius(2),
+                CornerRadius = ThemeResources.Corner("ControlCornerRadius"),
                 MaxWidth = Math.Max(0, image.Width - 8),
                 Child = new TextBlock
                 {

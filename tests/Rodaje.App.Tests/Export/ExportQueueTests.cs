@@ -77,6 +77,24 @@ public class ExportQueueTests
     }
 
     [Fact]
+    public void GpuYCpuALaVez_EnUnEquipoModesto()
+    {
+        var profile = new Rodaje.Media.Gpu.GpuProfile(
+            [new Rodaje.Media.Gpu.GpuAdapter("NVIDIA GeForce RTX 3050 Laptop GPU", 0x10DE, 0x25A2, 4L << 30, 0, false, "1")],
+            Rodaje.Media.Gpu.HardwareDecodeProfiles.None, 8);
+        var laptop = new ExportConcurrency(8, () => 4L << 30) { Profile = () => profile };
+        ExportSettings nvenc = ExportPresets.YouTube1080p.Settings;
+        ExportSettings prores = nvenc with { Video = new VideoExportSettings { Codec = Rodaje.Media.Export.ExportCodec.ProRes } };
+
+        Assert.True(laptop.Allows([nvenc], prores));
+        Assert.True(laptop.Allows([prores], nvenc));
+        Assert.False(laptop.Allows([nvenc], nvenc));
+        Assert.False(laptop.Allows([nvenc], prores with { Performance = ExportPerformance.Fastest }));
+        Assert.False(new ExportConcurrency(8, () => 4L << 30).Allows([nvenc], prores));
+        Assert.False((laptop with { LogicalCores = 4 }).Allows([nvenc], prores));
+    }
+
+    [Fact]
     public void ConEquipoDeSobra_LaSegundaArrancaEnseguida() => UiThread.Run(async () =>
     {
         using var list = new ExportJobList(SlowRunner(), SynchronizationContext.Current) { Concurrency = new ExportConcurrency(16, () => 8L << 30) };

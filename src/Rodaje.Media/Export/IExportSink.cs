@@ -42,12 +42,26 @@ public sealed record ExportSinkRequest(
     /// <summary>Filtros de <c>ffmpeg.exe</c> que no se hacen en la GPU (la paleta del GIF); vacío casi siempre.</summary>
     public IReadOnlyList<string> VideoFilters { get; init; } = [];
 
+    /// <summary>
+    /// Copia directa: el video sale del archivo original sin recodificar (<c>-c:v copy</c>) y no llegan cuadros por la
+    /// tubería; el audio sigue igual y <see cref="VideoArguments"/> solo lleva los del contenedor. <c>null</c> en una
+    /// exportación normal.
+    /// </summary>
+    public ExportStreamCopy? VideoCopy { get; init; }
+
     public bool HasVideo => Video is not null && VideoEncoder is not null;
 
     public bool HasAudio => Audio is not null && AudioPath is not null && AudioEncoder is not null;
 
     public bool IsAnalysisPass => PassCount > 1 && Pass < PassCount;
 }
+
+/// <summary>Tramo del original que se copia tal cual.</summary>
+/// <param name="SourcePath">Archivo de origen.</param>
+/// <param name="StreamIndex">Flujo de video del original.</param>
+/// <param name="SeekSeconds"><c>-ss</c> antes de <c>-i</c> (<see cref="StreamCopySource"/>).</param>
+/// <param name="BitstreamFilters">Filtros de flujo para etiquetar el color sin recodificar (<c>h264_metadata</c>…); vacío si no hacen falta.</param>
+public sealed record ExportStreamCopy(string SourcePath, int StreamIndex, double SeekSeconds, IReadOnlyList<string> BitstreamFilters);
 
 /// <summary>Lo que dejó un sink al terminar bien.</summary>
 /// <param name="OutputPath">Archivo (o carpeta) final, ya renombrado; en una pasada de análisis, el registro.</param>

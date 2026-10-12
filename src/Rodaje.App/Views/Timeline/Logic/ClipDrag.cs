@@ -23,6 +23,12 @@ public enum DragOperation
 
     /// <summary>Alt+arrastrar el borde de salida: como <see cref="StretchStart"/>, con el inicio quieto.</summary>
     StretchEnd,
+
+    /// <summary>Roll: mueve el corte entre el clip y el que va pegado después; la duración total no cambia.</summary>
+    Roll,
+
+    /// <summary>Slide: mueve el clip entre sus vecinos pegados, que se recortan para seguir tocándolo.</summary>
+    Slide,
 }
 
 /// <summary>Las opciones de la barra que cambian lo que hace un arrastre.</summary>
@@ -159,6 +165,8 @@ public sealed class ClipDrag
             DragOperation.Move => PlanMove(sequence, found.Track, found.Clip, offset, row),
             DragOperation.Slip => PlanSlip(project, sequence, found.Track, found.Clip, offset),
             DragOperation.StretchStart or DragOperation.StretchEnd => PlanStretch(project, sequence, found.Track, found.Clip, offset),
+            DragOperation.Roll => PlanRoll(project, sequence, found.Track, found.Clip, offset),
+            DragOperation.Slide => PlanSlide(project, sequence, found.Track, found.Clip, offset),
             _ => PlanTrim(project, sequence, found.Track, found.Clip, offset),
         };
     }
@@ -529,6 +537,112 @@ public sealed class ClipDrag
             : () => Edits.Slip(_sequenceId, _clipId, d, _ids);
         return new DragPlan(build, true, clip.Start, clip.End, track.Id, null, null);
     }
+
+    /// <summary>
+    /// Roll del corte de salida del clip: el corte va al cuadro (y a los puntos de ajuste) y no pasa del cuadro que le
+    /// queda a cada lado ni del material de los dos clips, en él y en sus enlazados. Sin vecino pegado es recortar la salida.
+    /// </summary>
+    private DragPlan PlanRoll(Project project, Sequence sequence, Track track, Clip clip, Time offset)
+    {
+        Time frame = Frame;
+        Time low = Time.FromTicks(long.MinValue / 4);
+        Time high = Time.FromTicks(long.MaxValue / 4);
+        foreach ((Track t, Clip c) in Members(sequence, track, clip))
+        {
+            low = Time.Max(low, frame - c.Duration);
+            high = Time.Min(high, Room(c, TrimEdge.Out, MediaDuration(project, c)));
+            if (Next(t, c) is { } next && next.Start == c.End)
+            {
+                low = Time.Max(low, -Room(next, TrimEdge.In, MediaDuration(project, next)));
+                high = Time.Min(high, next.Duration - frame);
+            }
+            else if (Next(t, c) is { } gap)
+            {
+                high = Time.Min(high, gap.Start - c.End);
+            }
+        }
+
+        Time desiredCut = (_originStart + _originDuration + offset).SnapToFrame(_frameRate);
+        Time? guide = null;
+        if (_snaps.Count > 0 && _snaps.Nearest(desiredCut, SnapThreshold) is { } snapped)
+        {
+            desiredCut = snapped;
+            guide = snapped;
+        }
+
+        Time delta = low > high ? Time.Zero : Time.Min(Time.Max(desiredCut - clip.End, low), high);
+        (Time, string) balloon = (clip.End + delta, ClipLabels.FrameShift(clip.End + delta - (_originStart + _originDuration), _frameRate));
+        if (delta == Time.Zero)
+        {
+            return new DragPlan(null, true, clip.Start, clip.End, track.Id, guide, null, balloon);
+        }
+
+        Time d = delta;
+        Func<ICommand> build = _options.IgnoreGroups && clip.LinkId is not null
+            ? () => Solo("Roll", _sequenceId, _clipId, ctx => TimelineEdits.Roll(ctx, _clipId, d), $"roll-solo:{_clipId}", _ids)
+            : () => Edits.Roll(_sequenceId, _clipId, d, _ids);
+        return new DragPlan(build, true, clip.Start, clip.End + delta, track.Id, guide, null, balloon);
+    }
+
+    /// <summary>
+    /// Slide: el clip corre entre sus vecinos pegados, que se recortan; sin vecino, hasta el hueco que tenga. Pegado al
+    /// cuadro y a los puntos de ajuste, en él y en sus enlazados.
+    /// </summary>
+    private DragPlan PlanSlide(Project project, Sequence sequence, Track track, Clip clip, Time offset)
+    {
+        Time frame = Frame;
+        Time low = Time.FromTicks(long.MinValue / 4);
+        Time high = Time.FromTicks(long.MaxValue / 4);
+        foreach ((Track t, Clip c) in Members(sequence, track, clip))
+        {
+            Clip? previous = Previous(t, c);
+            if (previous is not null && previous.End == c.Start)
+            {
+                low = Time.Max(low, frame - previous.Duration);
+                high = Time.Min(high, Room(previous, TrimEdge.Out, MediaDuration(project, previous)));
+            }
+            else
+            {
+                low = Time.Max(low, (previous?.End ?? Time.Zero) - c.Start);
+            }
+
+            Clip? next = Next(t, c);
+            if (next is not null && next.Start == c.End)
+            {
+                low = Time.Max(low, -Room(next, TrimEdge.In, MediaDuration(project, next)));
+                high = Time.Min(high, next.Duration - frame);
+            }
+            else if (next is not null)
+            {
+                high = Time.Min(high, next.Start - c.End);
+            }
+        }
+
+        Time duration = clip.Duration;
+        Time desired = (_originStart + offset).SnapToFrame(_frameRate);
+        Time? guide = null;
+        if (_snaps.Count > 0)
+        {
+            (Time correction, guide) = _snaps.SnapSpan(desired, desired + duration, SnapThreshold);
+            desired += correction;
+        }
+
+        Time delta = low > high ? Time.Zero : Time.Min(Time.Max(desired - clip.Start, low), high);
+        (Time, string) balloon = (clip.Start + delta, ClipLabels.FrameShift(clip.Start + delta - _originStart, _frameRate));
+        if (delta == Time.Zero)
+        {
+            return new DragPlan(null, true, clip.Start, clip.End, track.Id, guide, null, balloon);
+        }
+
+        Time d = delta;
+        Func<ICommand> build = _options.IgnoreGroups && clip.LinkId is not null
+            ? () => Solo("Slide", _sequenceId, _clipId, ctx => TimelineEdits.Slide(ctx, _clipId, d), $"slide-solo:{_clipId}", _ids)
+            : () => Edits.Slide(_sequenceId, _clipId, d, _ids);
+        return new DragPlan(build, true, clip.Start + delta, clip.End + delta, track.Id, guide, null, balloon);
+    }
+
+    private static Time MediaDuration(Project project, Clip clip) =>
+        clip.IsCompound ? CompoundOps.SourceLimit(project, clip) : project.FindMedia(clip.MediaId)?.Duration ?? clip.SourceOut;
 
     /// <summary>
     /// Slip y Alt + borde no se aplican a un título (no tiene material ni velocidad): el gesto queda quieto y el globo lo

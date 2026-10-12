@@ -3,6 +3,8 @@ using System.Text;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Probe;
 
+using Rodaje.Media.Gpu;
+
 namespace Rodaje.Media.Proxies;
 
 /// <summary>Etapa de un trabajo de proxy.</summary>
@@ -39,7 +41,7 @@ public sealed record ProxyGeneratorOptions
     public int MaxConcurrent { get; init; } = 2;
 
     /// <summary>Codificadores en orden de preferencia; se usa el primero que funcione en este equipo.</summary>
-    public IReadOnlyList<string> EncoderPreference { get; init; } = ProxyEncoders.Preference;
+    public IReadOnlyList<string> EncoderPreference { get; init; } = ProxyEncoders.PreferenceFor(GpuProfileReader.Current);
 
     /// <summary>Decodifica el original con D3D11VA dentro de ffmpeg; si falla, se repite por software.</summary>
     public bool HardwareDecoding { get; init; } = true;

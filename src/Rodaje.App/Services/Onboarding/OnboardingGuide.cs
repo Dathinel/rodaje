@@ -50,7 +50,7 @@ public static class OnboardingGuide
     public static IReadOnlyList<Hint> Hints { get; } =
     [
         new(FirstImport, "Medios en la biblioteca", "Doble clic o arrastrar lleva un medio a la línea de tiempo. Clic derecho para más opciones."),
-        new(FirstEdit, "Todo se deshace", "Ctrl+Z deshace y Ctrl+Y rehace. El panel derecho, en Historial, lleva a cualquier paso anterior."),
+        new(FirstEdit, "Todo se deshace", "Ctrl+Z deshace y Ctrl+Mayús+Z rehace. El panel derecho, en Historial, lleva a cualquier paso anterior."),
         new(FirstExport, "Se exporta en segundo plano", "Puedes seguir editando. El avance, el orden de la cola y pausarla están en Trabajos."),
         new(FirstFullScreen, "Pantalla completa", "Mueve el ratón para ver los controles. Esc o doble clic vuelve al editor."),
         new(FirstWatchedFolder, "Carpetas vigiladas", "Lo nuevo que llegue a la carpeta aparece al pie de la biblioteca para importarlo con un clic."),

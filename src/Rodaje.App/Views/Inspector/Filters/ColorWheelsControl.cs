@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Theme;
 using Windows.Foundation;
 using Path = Microsoft.UI.Xaml.Shapes.Path;
 
@@ -27,13 +28,13 @@ internal sealed partial class ColorWheelsControl : Grid
 
     public ColorWheelsControl()
     {
-        ColumnSpacing = 6;
+        ColumnSpacing = 8;
         Padding = new Thickness(12, 4, 6, 6);
         for (int i = 0; i < 3; i++)
         {
             ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var stack = new StackPanel { Spacing = 4, HorizontalAlignment = HorizontalAlignment.Center };
-            stack.Children.Add(new TextBlock { Text = Labels[i], HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12 });
+            stack.Children.Add(new TextBlock { Text = Labels[i], HorizontalAlignment = HorizontalAlignment.Center, FontSize = ThemeResources.Size("BodyFontSize") });
             Grid wheel = Wheel();
             int index = i;
             _pucks[i] = new Ellipse

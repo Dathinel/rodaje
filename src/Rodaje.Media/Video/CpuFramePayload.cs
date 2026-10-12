@@ -59,6 +59,19 @@ public sealed unsafe class CpuFramePayload : IDisposable
         return new ReadOnlySpan<byte>(_frame->data[(uint)plane], stride * rows);
     }
 
+    /// <summary>Cómo está la luma en el plano 0 de un formato YUV cualquiera (4:2:2, 4:4:4, con alfa, 10 o 12 bits).</summary>
+    public bool TryGetLumaLayout(out int depth, out int step, out int offset)
+    {
+        ObjectDisposedException.ThrowIf(_frame == null, this);
+        AVPixFmtDescriptor* desc = ffmpeg.av_pix_fmt_desc_get((AVPixelFormat)_frame->format);
+        bool yuv = desc != null && (desc->flags & (ffmpeg.AV_PIX_FMT_FLAG_RGB | ffmpeg.AV_PIX_FMT_FLAG_BE | ffmpeg.AV_PIX_FMT_FLAG_HWACCEL)) == 0
+            && desc->nb_components >= 3 && desc->comp[0].plane == 0 && desc->comp[0].shift == 0;
+        depth = yuv ? desc->comp[0].depth : 0;
+        step = yuv ? desc->comp[0].step : 0;
+        offset = yuv ? desc->comp[0].offset : 0;
+        return yuv && depth is >= 8 and <= 16;
+    }
+
     public void Dispose()
     {
         AVFrame* frame = _frame;

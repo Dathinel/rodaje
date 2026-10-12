@@ -6,6 +6,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -55,7 +56,7 @@ internal static class SilenceDialog
                 PaddingAfter = margin.Value,
             };
             result = SilenceDetector.Detect(envelope, options);
-            AnalysisUi.DrawRanges(preview, result.Duration, result.Cuts, AnalysisUi.Color(0xE0, 0x4F, 0x5F));
+            AnalysisUi.DrawRanges(preview, result.Duration, result.Cuts, ThemeResources.Color("CutMarkColor"));
             status.Text = string.Create(SpanishNumbers.Format,
                 $"{result.Cuts.Count} tramos; el clip pasa de {AnalysisUi.Sec(result.Duration)} a {AnalysisUi.Sec(result.Duration - result.CutSeconds)}.");
         }

@@ -157,7 +157,7 @@ internal sealed partial class PlayerView
         }
 
         Sequence sequence = session.Sequence;
-        var panel = new StackPanel { Spacing = 10, Width = 420 };
+        var panel = new StackPanel { Spacing = 8, Width = 420 };
         var aspectBox = new ComboBox { Header = "Proporción", HorizontalAlignment = HorizontalAlignment.Stretch };
         foreach (AspectChoice aspect in ProjectFormats.Aspects)
         {

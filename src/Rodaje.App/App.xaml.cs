@@ -30,6 +30,8 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         Program.Metrics.Milestone("onlaunched");
+        // Antes de crear la ventana: en el constructor Application.Current todavía no da sus recursos.
+        Theme.ThemeResources.ApplyHighContrast(_options.SelfTest);
         _window = new MainWindow(_options, _engine, _prober, _settings, _settingsWarning);
         _window.Activate();
     }

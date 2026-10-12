@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 
 namespace Rodaje.App.Views.Inspector.Jobs;
 
@@ -12,14 +13,14 @@ namespace Rodaje.App.Views.Inspector.Jobs;
 /// </summary>
 internal sealed partial class ModuleJobsView : UserControl, IEditorView
 {
-    private readonly StackPanel _list = new() { Spacing = 6 };
+    private readonly StackPanel _list = new() { Spacing = 8 };
     private readonly Button _clear = new() { Content = "Limpiar terminados", IsEnabled = false };
     private readonly Dictionary<ModuleJob, Row> _rows = [];
     private ModuleJobList? _jobs;
 
     public ModuleJobsView()
     {
-        var title = new TextBlock { Text = "IA", Style = Resource<Style>("PanelTitleTextStyle"), VerticalAlignment = VerticalAlignment.Center };
+        var title = new TextBlock { Text = "Módulos de IA", Style = Resource<Style>("PanelTitleTextStyle"), VerticalAlignment = VerticalAlignment.Center };
         var header = new Grid { ColumnSpacing = 8 };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -27,7 +28,7 @@ internal sealed partial class ModuleJobsView : UserControl, IEditorView
         Grid.SetColumn(_clear, 1);
         header.Children.Add(_clear);
         _clear.Click += (_, _) => _jobs?.ClearFinished();
-        var root = new StackPanel { Spacing = 6, Padding = new Thickness(12, 10, 12, 4) };
+        var root = new StackPanel { Spacing = 8, Padding = new Thickness(12, 10, 12, 4) };
         root.Children.Add(header);
         root.Children.Add(_list);
         Content = root;
@@ -81,7 +82,7 @@ internal sealed partial class ModuleJobsView : UserControl, IEditorView
         private readonly ModuleJob _job;
         private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
         private readonly ProgressBar _bar = new() { Maximum = 1 };
-        private readonly Button _cancel = new() { Content = "", FontSize = 11, VerticalAlignment = VerticalAlignment.Top };
+        private readonly Button _cancel = new() { Content = "", FontSize = ThemeResources.Size("CaptionFontSize"), VerticalAlignment = VerticalAlignment.Top };
 
         public Row(ModuleJob job)
         {
@@ -96,7 +97,7 @@ internal sealed partial class ModuleJobsView : UserControl, IEditorView
             text.Children.Add(title);
             text.Children.Add(_status);
             text.Children.Add(_bar);
-            var grid = new Grid { ColumnSpacing = 6 };
+            var grid = new Grid { ColumnSpacing = 8 };
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.Children.Add(text);

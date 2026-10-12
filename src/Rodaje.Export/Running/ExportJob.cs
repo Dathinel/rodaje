@@ -66,6 +66,9 @@ public sealed class ExportJob : IDisposable
 
     public ExportPerformanceProfile? Profile { get; private set; }
 
+    /// <summary>Si el video se copió del original sin recodificar y por qué (o por qué no); <c>null</c> sin video.</summary>
+    public StreamCopyDecision? StreamCopy { get; private set; }
+
     /// <summary>El archivo escrito, al completar.</summary>
     public ExportSinkResult? Result { get; private set; }
 
@@ -125,7 +128,9 @@ public sealed class ExportJob : IDisposable
             IReadOnlyList<EncoderSpec> encoders = _encoders ?? _options.Encoders!.GetAsync(token).GetAwaiter().GetResult();
             ExportPlan plan = ExportPlan.Create(Request, encoders);
             Plan = plan;
-            GpuDevice? gpu = plan.Video is null ? null : CreateDevice();
+            StreamCopy = plan.Video is null ? null : StreamCopyPlanner.Decide(plan, token);
+            ExportStreamCopy? copy = StreamCopy?.Copy;
+            GpuDevice? gpu = plan.Video is null || copy is not null ? null : CreateDevice();
             try
             {
                 Profile = ExportPerformanceProfile.For(Request.Settings.Performance, gpu?.DedicatedVideoMemory ?? 0);
@@ -137,7 +142,7 @@ public sealed class ExportJob : IDisposable
                 token.ThrowIfCancellationRequested();
                 Directory.CreateDirectory(work);
                 _options.Journal?.Register(journalId, Request.OutputPath, [work]);
-                using IDisposable? yielded = plan.Video is null ? null : _options.Preview?.Yield(Profile);
+                using IDisposable? yielded = plan.Video is null || copy is not null ? null : _options.Preview?.Yield(Profile);
                 string? wave = plan.Audio is null ? null : MixAudio(plan, work, token);
                 using var sink = new FfmpegPipeSink(EncoderExecutable(plan), new FfmpegPipeSinkOptions
                 {
@@ -146,15 +151,17 @@ public sealed class ExportJob : IDisposable
                     SourcePaths = SourcePaths(),
                     EstimatedBytes = EstimateBytes(plan),
                 });
-                var request = new ExportSinkRequest(Request.OutputPath, plan.Settings.Container, plan.Video, plan.VideoEncoder, plan.Arguments.Video,
+                var request = new ExportSinkRequest(Request.OutputPath, plan.Settings.Container, plan.Video, plan.VideoEncoder,
+                    copy is null ? plan.Arguments.Video : FfmpegArguments.Container(plan.Settings),
                     plan.Audio, wave, plan.AudioEncoder, plan.Arguments.Audio, plan.Video is null ? 0 : plan.FrameCount)
                 {
                     Metadata = plan.Metadata,
                     PassCount = plan.Arguments.PassCount,
                     PassLogPath = Path.Combine(work, "pasadas"),
                     VideoFilters = plan.VideoFilters,
+                    VideoCopy = copy,
                 };
-                Result = plan.Video is null ? EncodeAudio(sink, request, token) : EncodeVideo(plan, gpu!, sink, request, token);
+                Result = plan.Video is null || copy is not null ? EncodeAudio(sink, request, token) : EncodeVideo(plan, gpu!, sink, request, token);
             }
             finally
             {
@@ -246,7 +253,7 @@ public sealed class ExportJob : IDisposable
             LookaheadFrames = Profile!.LookaheadFrames,
             MaxDecodersPerMedia = Profile.MaxDecodersPerMedia,
         };
-        using OfflineTimeline timeline = OfflineTimeline.Open(Request.Project, Request.SequenceId, gpu, options);
+        using OfflineTimeline timeline = OfflineTimeline.Open(plan.Request.Project, Request.SequenceId, gpu, options);
         Time end = plan.End > timeline.Duration ? timeline.Duration : plan.End;
         timeline.Prepare(plan.Start, end, token);
         CheckFonts(titles, timeline.GeneratedContents(plan.Start, end));

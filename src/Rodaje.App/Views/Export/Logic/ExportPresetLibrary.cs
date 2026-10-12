@@ -147,7 +147,7 @@ public static class ExportPresetLibrary
 
     /// <summary>Sin metadatos (son del proyecto) y con el modo de rendimiento fijo, para comparar y guardar.</summary>
     private static ExportSettings Canonical(ExportSettings settings) =>
-        settings with { Metadata = Rodaje.Media.Export.ExportMetadata.Empty, Performance = ExportPerformance.Background };
+        settings with { Metadata = Rodaje.Media.Export.ExportMetadata.Empty, Performance = ExportPerformance.Background, Subtitles = SubtitleExport.Burned };
 
     private static string UniqueId(ExportPreferences preferences, string name)
     {

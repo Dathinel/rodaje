@@ -74,25 +74,44 @@ internal sealed partial class TimelineScheduler
         return layer;
     }
 
-    /// <summary>
-    /// La capa de la pista: el clip del carril principal con sus efectos y, si está en una transición y el carril
-    /// compañero ya tiene el clip que entra, la transición con ese clip. Sin principal, el que entra va solo.
-    /// </summary>
-    private LayerFrame? Compose(int trackIndex, LayerState main, LayerState? incoming, Time time)
+    /// <summary>La capa del carril en este refresco: su título, su compuesto o su clip (con la transición, si la hay).</summary>
+    private LayerFrame? Assemble(VideoLayerPlan plan, Time time)
     {
-        if (main.Current is null || main.CurrentClip is not { } clip)
+        (_, LayerState main, LayerState? incoming) = _stepped[plan.Ordinal];
+        return plan.GeneratedAt(time) is { } title
+            ? title.Layer(plan.TrackIndex, time, TitleEffects(plan), _content)
+            : Compose(plan, main, incoming, time);
+    }
+
+    /// <summary>
+    /// La capa de la pista: el clip (o el compuesto) del carril principal con sus efectos y, si está en una transición y
+    /// el carril compañero ya tiene lo que entra, la transición con eso. Sin principal, lo que entra va solo.
+    /// </summary>
+    private LayerFrame? Compose(VideoLayerPlan plan, LayerState main, LayerState? incoming, Time time)
+    {
+        int trackIndex = plan.TrackIndex;
+        GroupClipPlan? group = plan.GroupAt(time);
+        if (group is null && (main.Current is null || main.CurrentClip is null))
         {
-            return incoming is { Current: not null, CurrentClip: not null } alone ? Build(trackIndex, alone, time, null, false, 0, null) : null;
+            return plan.IncomingGroupAt(time) is { } enteringGroup ? BuildGroup(plan, enteringGroup, time, null, true, 0, null)
+                : incoming is { Current: not null, CurrentClip: not null } alone ? Build(trackIndex, alone, time, null, false, 0, null)
+                : null;
         }
 
-        if (clip.Outgoing is { } transition && transition.Covers(time)
-            && incoming is { Current: not null, CurrentClip: { } entering } && entering.ClipId == transition.ToClipId)
+        if ((group is not null ? group.Outgoing : main.CurrentClip!.Outgoing) is { } transition && transition.Covers(time))
         {
             float progress = transition.Progress(time);
-            if (Build(trackIndex, incoming, time, transition, true, progress, null) is { } inFrame)
+            LayerFrame? inFrame = plan.IncomingGroupAt(time) is { } entering && entering.ClipId == transition.ToClipId
+                ? BuildGroup(plan, entering, time, transition, true, progress, null)
+                : incoming is { Current: not null, CurrentClip: { } clip } && clip.ClipId == transition.ToClipId
+                    ? Build(trackIndex, incoming, time, transition, true, progress, null)
+                    : null;
+            if (inFrame is not null)
             {
-                LayerFrame? outFrame = Build(trackIndex, main, time, transition, false, progress,
-                    new LayerTransition(transition.Code, progress, transition.Values, inFrame));
+                var mix = new LayerTransition(transition.Code, progress, transition.Values, inFrame);
+                LayerFrame? outFrame = group is not null
+                    ? BuildGroup(plan, group, time, transition, false, progress, mix)
+                    : Build(trackIndex, main, time, transition, false, progress, mix);
                 if (outFrame is null)
                 {
                     inFrame.Dispose();
@@ -102,7 +121,64 @@ internal sealed partial class TimelineScheduler
             }
         }
 
-        return Build(trackIndex, main, time, null, false, 0, null);
+        return group is not null ? BuildGroup(plan, group, time, null, false, 0, null) : Build(trackIndex, main, time, null, false, 0, null);
+    }
+
+    /// <summary>
+    /// Un compuesto: las capas de sus carriles en una capa compuesta con su transformación, sus efectos y su transición.
+    /// Sin nada que mostrar ni transición, no hay capa.
+    /// </summary>
+    private LayerFrame? BuildGroup(VideoLayerPlan plan, GroupClipPlan group, Time time, TransitionPlan? transition, bool entering, float progress,
+        LayerTransition? withTransition)
+    {
+        var children = new List<LayerFrame>(group.Lanes.Count);
+        foreach (VideoLayerPlan lane in group.Lanes)
+        {
+            if (Assemble(lane, time) is { } child)
+            {
+                children.Add(child);
+            }
+        }
+
+        if (children.Count == 0 && withTransition is null && transition is null)
+        {
+            return null;
+        }
+
+        Time source = group.EffectTimeAt(time);
+        EffectPlan? effects = group.Effects;
+        LayerTransform transform = EffectPlan.Transform(effects, source);
+        if (transition is not null)
+        {
+            transform = transition.Apply(transform, entering, progress);
+        }
+
+        IReadOnlyList<LayerEffect> list = [];
+        if (effects is { EffectCount: > 0 })
+        {
+            EffectList next = GroupEffects(plan, entering).Next();
+            effects.Evaluate(source, next.Reset(effects.EffectCount), _content);
+            list = next;
+        }
+
+        return new LayerFrame(plan.TrackIndex, group.ClipId, children, transform)
+        {
+            Effects = list,
+            Blend = effects?.Blend ?? BlendMode.Normal,
+            Transition = withTransition,
+        };
+    }
+
+    private EffectListRing GroupEffects(VideoLayerPlan lane, bool entering)
+    {
+        string key = entering ? lane.TrackId + VideoLayerPlan.CompanionSuffix : lane.TrackId;
+        if (!_groupEffects.TryGetValue(key, out EffectListRing? ring))
+        {
+            ring = new EffectListRing();
+            _groupEffects.Add(key, ring);
+        }
+
+        return ring;
     }
 
     /// <summary>
@@ -243,15 +319,36 @@ internal sealed partial class TimelineScheduler
         private EffectValues _transitionValues;
         private HeldLayer? _incoming;
         private GeneratedContent? _generated;
+        private readonly List<HeldLayer> _nested = [];
+        private int _nestedCount = -1;
 
         public bool Capture(LayerFrame layer)
         {
-            if (!layer.Frame.TryRetain())
+            if (layer.Nested is { } nested)
+            {
+                _nestedCount = 0;
+                foreach (LayerFrame child in nested)
+                {
+                    if (_nestedCount == _nested.Count)
+                    {
+                        _nested.Add(new HeldLayer());
+                    }
+
+                    if (_nested[_nestedCount].Capture(child))
+                    {
+                        _nestedCount++;
+                    }
+                }
+            }
+            else if (!layer.Frame.TryRetain())
             {
                 return false;
             }
+            else
+            {
+                _frame = layer.Frame;
+            }
 
-            _frame = layer.Frame;
             _generated = layer.Generated;
             _trackIndex = layer.TrackIndex;
             _clipId = layer.ClipId;
@@ -286,6 +383,27 @@ internal sealed partial class TimelineScheduler
 
         public LayerFrame? Present()
         {
+            if (_nestedCount >= 0)
+            {
+                var children = new List<LayerFrame>(_nestedCount);
+                for (int i = 0; i < _nestedCount; i++)
+                {
+                    if (_nested[i].Present() is { } child)
+                    {
+                        children.Add(child);
+                    }
+                }
+
+                return new LayerFrame(_trackIndex, _clipId, children, _transform)
+                {
+                    Effects = _effects.Count > 0 ? _effects : [],
+                    Blend = _blend,
+                    Transition = _hasTransition && _incoming!.Present() is { } entering
+                        ? new LayerTransition(_transitionCode, _progress, _transitionValues, entering)
+                        : null,
+                };
+            }
+
             if (_generated is not null)
             {
                 return new LayerFrame(_trackIndex, _clipId, _generated, _transform)
@@ -319,6 +437,12 @@ internal sealed partial class TimelineScheduler
 
         public void Release(List<DecodedFrame> released)
         {
+            for (int i = 0; i < _nestedCount; i++)
+            {
+                _nested[i].Release(released);
+            }
+
+            _nestedCount = -1;
             if (_frame is not null)
             {
                 released.Add(_frame);

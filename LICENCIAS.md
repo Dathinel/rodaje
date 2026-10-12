@@ -1,8 +1,8 @@
 # Licencias de las dependencias
 
-Componentes de terceros que usa Rodaje, con su licencia verificada, la fuente donde se verificó y lo que implica. El código propio de Rodaje va bajo la GNU GPLv3 con términos adicionales de la Sección 7 y un permiso adicional para complementos (D-032), y se entrega como ejecutable autocontenido. Este archivo se actualiza cada vez que se añade, quita o actualiza una dependencia; la última verificación se hizo el 9 de octubre de 2026 con los metadatos de nuget.org y los archivos de licencia de cada repositorio.
+Componentes de terceros que usa Rodaje, con su licencia verificada, la fuente donde se verificó y lo que implica. El código propio de Rodaje va bajo la GNU GPLv3 con términos adicionales de la Sección 7 y un permiso adicional para complementos (D-032), y se entrega como ejecutable autocontenido. Este archivo se actualiza cada vez que se añade, quita o actualiza una dependencia; la última verificación se hizo el 12 de octubre de 2026 con los metadatos de nuget.org, los archivos de licencia de cada repositorio en su commit y los scripts de BtbN del commit fijado.
 
-**Compatibilidad con la GPLv3** (revisada fila a fila el 11 de octubre de 2026). Todo lo que se redistribuye es MIT, BSD, Apache-2.0 o LGPL v3, compatibles con la GPLv3 (más zlib, la licencia del IJG y LAME, Library GPL 2 o posterior, dentro de las DLL de FFmpeg: «Bibliotecas de la exportación»; el resto de las bibliotecas de esas DLL está en «Otras bibliotecas dentro de las DLL de FFmpeg», con varias todavía sin revisar). La excepción son los binarios de Microsoft con términos propios (Windows App SDK, la proyección del Windows SDK y DirectML, este solo en el módulo de visión), que dependen de la excepción de «System Libraries» o de un permiso adicional de enlace: **pendiente para el abogado** en `docs/legal.md`, «Compatibilidad con la GPLv3». También quedan pendientes las licencias de patentes que traen aparte algunas bibliotecas (la AOM Patent License 1.0 de SVT-AV1 y libaom, por su terminación defensiva, y las de Opus ante la IETF): mismo documento, punto g).
+**Compatibilidad con la GPLv3** (revisada fila a fila el 11 y el 12 de octubre de 2026). Todo lo que se redistribuye es MIT, BSD, Apache-2.0 o LGPL v3, compatibles con la GPLv3 (más zlib, la licencia del IJG y LAME, Library GPL 2 o posterior, dentro de las DLL de FFmpeg: «Bibliotecas de la exportación»; el resto de las bibliotecas de esas DLL está en «Otras bibliotecas dentro de las DLL de FFmpeg» y en «Resto de las etapas activas», ya todas con licencia y compatibilidad anotadas). **Dos de ellas son GPL y no LGPL** (fftw3, GPL-2.0-or-later, que chromaprint enlaza; y dos archivos GPL-2.0-only de zvbi): compatibles o no con la GPLv3 de Rodaje, desmienten que las DLL de BtbN sean solo LGPL. Está en `docs/pendientes-legales.md`. La excepción son los binarios de Microsoft con términos propios (Windows App SDK, la proyección del Windows SDK y DirectML, este solo en el módulo de visión), que dependen de la excepción de «System Libraries» o de un permiso adicional de enlace: **pendiente para el abogado** en `docs/legal.md`, «Compatibilidad con la GPLv3». También quedan pendientes las licencias de patentes que traen aparte algunas bibliotecas (la AOM Patent License 1.0 de SVT-AV1 y libaom, por su terminación defensiva, y las de Opus ante la IETF): mismo documento, punto g).
 
 Hay una diferencia importante entre dos tipos de dependencias. Las que se usan solo para compilar o probar, como xUnit, nunca salen del equipo de desarrollo: no se copian a `dist\` ni viajan con el programa, así que su licencia solo importa para el uso interno. Las que se redistribuyen dentro de `dist\`, como el runtime de .NET o las DLL de FFmpeg, imponen obligaciones al entregar el programa, y sus avisos deben ir en `THIRD-PARTY-NOTICES.txt`.
 
@@ -17,7 +17,7 @@ Hay una diferencia importante entre dos tipos de dependencias. Las que se usan s
 | FFmpeg.AutoGen (`FFmpeg.AutoGen.Abstractions` y `FFmpeg.AutoGen.Bindings.DynamicallyLinked`) | 9.0.1.1 | MIT, © 2025 Ruslan Balanukhin (Rationale One) (`LICENSE.txt` del paquete) | Sí, compilado dentro de `app\Rodaje.exe` | https://www.nuget.org/packages/FFmpeg.AutoGen/9.0.1.1/License | Aviso MIT en los avisos. Las versiones antiguas del paquete eran LGPL; el cambio a MIT llegó en la serie 8.x, así que nunca se fija una versión anterior sin revisar su licencia. Cubre solo las vinculaciones de C#, no las DLL de FFmpeg. Su `LibraryVersionMap` pide avcodec 63, avformat 63, avutil 61, swresample 7, swscale 10, avfilter 12 y avdevice 63, que coinciden con la compilación fijada. |
 | TerraFX.Interop.Windows (Direct3D 11, DXGI, WASAPI) | 10.0.26100.6 | MIT, © Tanner Gooding and Contributors | Sí, compilado dentro de `app\Rodaje.exe` | https://www.nuget.org/packages/TerraFX.Interop.Windows/10.0.26100.6 | Aviso MIT en los avisos. Elegido sobre Vortice porque este produce advertencias de AOT (el sondeo está en la etiqueta de git `sondeo-interop-aot`). |
 | Microsoft.Web.WebView2 (dependencia de WinUI) | 1.0.3719.77 | Licencia propia de Microsoft de tipo BSD de 3 cláusulas (`LICENSE.txt` del paquete) | Sí: `Microsoft.Web.WebView2.Core.dll` y `WebView2Loader.dll` | `LICENSE.txt` del paquete en `.entorno\nuget` | Conservar el aviso de copyright y la lista de condiciones en los avisos; no usar el nombre de Microsoft para promocionar; de tipo BSD, compatible con la GPLv3. El runtime de WebView2 no se redistribuye y solo haría falta si se usara el control WebView2. |
-| Proyección de C# del Windows SDK (`Microsoft.Windows.SDK.NET.Ref` 10.0.26100.57) y CsWinRT (`WinRT.Runtime`) | la que trae el SDK 10.0.401 para `net10.0-windows10.0.26100.0` | CsWinRT: MIT (https://github.com/microsoft/CsWinRT). La proyección: términos del Windows SDK (https://aka.ms/WinSDKLicenseURL) | Sí, compiladas dentro de `Rodaje.exe` por Native AOT | metadatos de los paquetes | Es la proyección que llevan todas las aplicaciones .NET para Windows; antes de publicar se confirma en los términos del Windows SDK que permiten redistribuirla compilada y se añade el aviso MIT de CsWinRT. CsWinRT (MIT) es compatible con la GPLv3; la proyección entra en la misma consulta que el Windows App SDK. |
+| Proyección de C# del Windows SDK (`Microsoft.Windows.SDK.NET.Ref` 10.0.26100.57: `Microsoft.Windows.SDK.NET.dll` y `Microsoft.Windows.UI.Xaml.dll`) y CsWinRT (`WinRT.Runtime.dll` 2.2.0.48161, commit `8649ee3e`) | la que trae el SDK 10.0.401 para `net10.0-windows10.0.26100.0` | CsWinRT: MIT (`LICENSE` del commit `8649ee3eeb2445ca2a36d80d878ef60b96a6c65d` de https://github.com/microsoft/CsWinRT, leído el 12 de octubre de 2026; SPDX `MIT`). La proyección: términos de licencia de software de Microsoft para el Windows SDK (https://aka.ms/WinSDKLicenseURL, documento RTF; el paquete no trae archivo de licencia, solo `licenseUrl` y «© Microsoft Corporation. All rights reserved.») | Sí, compiladas dentro de `Rodaje.exe` por Native AOT | `.nuspec` del paquete en `.entorno\nuget`, el `WinRT.Runtime.dll` del paquete (versión de archivo y commit) y los dos documentos citados | Aviso MIT de CsWinRT ya literal en `THIRD-PARTY-NOTICES.txt`, sección 6. Los términos del Windows SDK (leídos el 12 de octubre) permiten redistribuir el «Distributable Code» de su lista REDIST.TXT con condiciones parecidas a las del Windows App SDK (funcionalidad principal, términos que protejan el código, indemnizar a Microsoft, no someterlo a una «Excluded License» copyleft); **no se comprobó que los dos DLL de la proyección estén en esa lista**, y la cláusula de «Excluded License» choca con la GPLv3 igual que el Windows App SDK: misma consulta al abogado (`docs/legal.md`, «Compatibilidad con la GPLv3»). CsWinRT (MIT) es compatible con la GPLv3 (`#Expat`). |
 
 ## Bibliotecas de la exportación (dentro de las DLL de FFmpeg)
 
@@ -58,105 +58,112 @@ Revisado el 12 de octubre de 2026. Son bibliotecas que la compilación fijada ac
 | libzmq | `--enable-libzmq` | `46493370217ac135246617fa2f6ac819d8b61bfc` | MPL-2.0 (`LICENSE`; `SPDX-License-Identifier: MPL-2.0` en `src/ctx.cpp`) | https://raw.githubusercontent.com/zeromq/libzmq/46493370217ac135246617fa2f6ac819d8b61bfc/LICENSE | El código MPL tiene que estar disponible en forma de código fuente (va en el código fuente correspondiente). | **Sí** (FSF `#MPL-2.0`), salvo archivos con la nota «Incompatible With Secondary Licenses» (Anexo B de la MPL). Solo se miró `src/ctx.cpp`: **falta buscar la nota en todo el árbol**. |
 | libssh | `--enable-libssh` | `76e0a8639e61436c28d877586f65a7707edc6ee5` de https://gitlab.com/libssh/libssh-mirror | LGPL-2.1-or-later (`COPYING`; encabezado de `src/session.c`) | https://gitlab.com/libssh/libssh-mirror/-/blob/76e0a8639e61436c28d877586f65a7707edc6ee5/COPYING | Igual que FriBidi. | **Sí** (FSF `#LGPLv2.1`). |
 | SRT | `--enable-libsrt` | `ff8ab25c57aece5b7351defe36dacc94fc28527f` | MPL-2.0 (`LICENSE`; encabezado de `srtcore/core.cpp`) | https://raw.githubusercontent.com/Haivision/srt/ff8ab25c57aece5b7351defe36dacc94fc28527f/LICENSE | Igual que libzmq. | **Sí** (FSF `#MPL-2.0`), con la misma salvedad que libzmq: **falta buscar la nota del Anexo B en todo el árbol**. |
-| librist | `--enable-librist` | `4f45ef8f78983892d52ccd52d9f675435b23738f` de https://code.videolan.org/rist/librist | **Sin verificar**: code.videolan.org no respondió durante la revisión y no se encontró un espejo con ese commit | — | Leer `COPYING` en ese commit antes de publicar. | **Sin revisar.** |
+| librist | `--enable-librist` | `4f45ef8f78983892d52ccd52d9f675435b23738f` de https://code.videolan.org/rist/librist | BSD-2-Clause (© 2019-2020 VideoLAN and librist authors) | `COPYING` de ese commit, copiado en `THIRD-PARTY-NOTICES.txt`, sección 7 | Aviso de copyright y condiciones. | **Sí** (FSF `#FreeBSD`). |
 | Mbed TLS (dependencia de librist) | — | etiqueta `v4.2.0` (BtbN fija la etiqueta, no un commit) | Apache-2.0 o GPL-2.0-or-later, a elegir (`LICENSE`) | https://raw.githubusercontent.com/Mbed-TLS/mbedtls/v4.2.0/LICENSE | Con Apache-2.0: aviso, texto de la licencia y archivo NOTICE si lo hay. | **Sí** (FSF `#apache2`, compatible con la GPLv3; la vía GPL v2 «o posterior» también deja tomar la v3). |
 | libplacebo | `--enable-libplacebo` | `e2972fdd09adacd383656738d7d280f0cd84a761` de https://code.videolan.org/videolan/libplacebo | LGPL-2.1-or-later (`LICENSE`; encabezado de `src/common.c`) | https://raw.githubusercontent.com/haasn/libplacebo/e2972fdd09adacd383656738d7d280f0cd84a761/LICENSE (repositorio del autor en GitHub; code.videolan.org no respondió durante la revisión) | Igual que FriBidi. Lo que arrastra (Vulkan y shaderc, `-Dvulkan=enabled` y `-Dshaderc=enabled` en su script) **sin revisar**. | **Sí** (FSF `#LGPLv2.1`). |
-| libbluray | `--enable-libbluray` | `a24f4fad4d62893de647abc8671397747b2359dd` de https://code.videolan.org/videolan/libbluray | **Sin verificar**: code.videolan.org no respondió durante la revisión y no se encontró un espejo con ese commit | — | Leer `COPYING` en ese commit antes de publicar, y la de su dependencia libudfread. | **Sin revisar.** |
+| libbluray | `--enable-libbluray` | `a24f4fad4d62893de647abc8671397747b2359dd` de https://code.videolan.org/videolan/libbluray | LGPL-2.1-or-later (`COPYING`); su dependencia libudfread, igual | `COPYING` de ese commit, copiado en `THIRD-PARTY-NOTICES.txt`, sección 7 | Igual que FriBidi. | **Sí** (FSF `#LGPLv2.1`). |
 | GMP | `--enable-gmp` | `763b40df71c0f4d5f5d7b33dc55038c8c9377ecf` de https://github.com/BtbN/gmplib (copia de GMP que mantiene BtbN) | Doble, a elegir: LGPL-3.0-or-later o GPL-2.0-or-later (`README`: «under the terms of either [...] or both in parallel»; `COPYING.LESSERv3` y `COPYINGv2`) | https://raw.githubusercontent.com/BtbN/gmplib/763b40df71c0f4d5f5d7b33dc55038c8c9377ecf/README | Igual que FriBidi. Es la copia de BtbN, no el repositorio de https://gmplib.org: comprobar que coincide con una versión oficial. | **Sí, por cualquiera de las dos vías:** LGPL v3 (FSF `#LGPLv3`) o GPL v2 «o posterior», que deja tomar la v3. |
 | librsvg | `--enable-librsvg` | `7612431eb02dc009319094f8513d63c1faaecfb4` | LGPL-2.1-or-later (`COPYING.LIB`; `Cargo.toml`: `license = "LGPL-2.1-or-later"`) | https://raw.githubusercontent.com/GNOME/librsvg/7612431eb02dc009319094f8513d63c1faaecfb4/COPYING.LIB | Igual que FriBidi. Arrastra GLib, cairo y Pango (BtbN las fija en `scripts.d/50-librsvg/`) y las bibliotecas de Rust de su `Cargo.lock`: **sin revisar**. | **Sí** (FSF `#LGPLv2.1`) para librsvg; sus dependencias, sin revisar. |
 | libxml2 | `--enable-libxml2` | `91586dc6742ab335682235120363f6e126eea5e2` | Texto de tipo MIT (archivo `Copyright`; `dict.c` y `list.c` con una licencia parecida y otros avisos) | https://raw.githubusercontent.com/GNOME/libxml2/91586dc6742ab335682235120363f6e126eea5e2/Copyright | Aviso de copyright y permiso en los avisos. | **Sí** (el texto es el de la licencia Expat, FSF `#Expat`). |
 | OpenJPEG | `--enable-libopenjpeg` | `8314119b067c0fc77834731168daaebd379fdb12` | BSD-2-Clause (© 2002-2014 Université catholique de Louvain y otros); dice que no concede derechos de patente | https://raw.githubusercontent.com/uclouvain/openjpeg/8314119b067c0fc77834731168daaebd379fdb12/LICENSE | Aviso de copyright y condiciones. | **Sí** (FSF `#FreeBSD`). |
 | libjxl | `--enable-libjxl` | `b87738951c1254cd8cccaa6d47712ba735da56d8` | BSD-3-Clause (© the JPEG XL Project Authors) más la concesión de patentes de Google (`PATENTS`) | https://raw.githubusercontent.com/libjxl/libjxl/b87738951c1254cd8cccaa6d47712ba735da56d8/LICENSE y `PATENTS` del mismo commit | Aviso de copyright y condiciones. La terminación de `PATENTS` se limita a demandas contra «this implementation of JPEG XL», como la de libvpx. Arrastra Little CMS (`scripts.d/50-libjxl/45-lcms2.sh`): **sin revisar**. | **Código: sí** (FSF `#ModifiedBSD`). **Patentes de Google: a confirmar**, igual que libvpx; la entrada «License of WebM» de la FSF no cubre este archivo. |
 
-**Resto de las etapas activas** (12 de octubre de 2026). Las etapas que `scripts.d/` activa para `win64-lgpl-shared` en el commit `6c9aec5fc9a7` de BtbN, sin fila arriba, con los archivos de licencia leídos en el commit que fija cada script. Su texto literal está en `THIRD-PARTY-NOTICES.txt`, sección 7; la licencia SPDX y la compatibilidad de cada una están **sin evaluar**.
+**Resto de las etapas activas** (revisado el 12 de octubre de 2026). Las etapas que `scripts.d/` activa para `win64-lgpl-shared` en el commit `6c9aec5fc9a7` de BtbN, sin fila arriba, con los archivos de licencia leídos en el commit que fija cada script; su texto literal está en `THIRD-PARTY-NOTICES.txt`, sección 7. La licencia SPDX sale de esos textos y la compatibilidad se lee como en las tablas anteriores (anclas de https://www.gnu.org/licenses/license-list.html, confirmadas en la página el 12 de octubre: existen `#clearbsd`, `#WebM`, `#Zero-BSD`, `#ZLib`, `#FreeBSD`, `#ModifiedBSD`, `#Expat`, `#ISC`, `#MPL-2.0`, `#LGPLv2.1`, `#LGPLv3`, `#apache2`, `#WTFPL`, `#freetype`, `#ijg`, `#Zope2.0`, `#X11License` y `#Unicode`; no hay entrada para libpng, BSD-2-Clause-Patent ni el «Old MIT» de HarfBuzz). Las dos últimas filas antes de las nuevas (fftw3 y zvbi) son las que **rompen la premisa de que las DLL son solo LGPL**: ver `docs/pendientes-legales.md`.
 
-| Biblioteca | Commit | Archivos leídos |
-|---|---|---|
-| amf (https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git) | `6277e353fd62` | `LICENSE.txt` |
-| aom (https://aomedia.googlesource.com/aom) | `b4ce2cd097b0` | `AUTHORS`, `LICENSE`, `PATENTS` |
-| brotli (https://github.com/google/brotli.git) | `a3abcbee0d94` | `LICENSE` |
-| cairo (https://gitlab.freedesktop.org/cairo/cairo.git) | `74755964edef` | `AUTHORS`, `COPYING`, `COPYING-LGPL-2.1`, `COPYING-MPL-1.1` |
-| chromaprint (https://github.com/acoustid/chromaprint.git) | `aed8eba2202d` | `LICENSE.md` |
-| dav1d (https://code.videolan.org/videolan/dav1d.git) | `9711965b60bb` | `COPYING` |
-| ffnvcodec (https://github.com/FFmpeg/nv-codec-headers.git) | `eddcea9e27f6` | ninguno en la raíz |
-| ffnvcodec-2 (https://github.com/FFmpeg/nv-codec-headers.git) | `ced4f8eba3ba` | ninguno en la raíz |
-| fftw3 (https://github.com/FFTW/fftw3.git) | `93ed4c786934` | `AUTHORS`, `COPYING`, `COPYRIGHT` |
-| fontconfig (https://gitlab.freedesktop.org/fontconfig/fontconfig.git) | `bd8f7b597de9` | `AUTHORS`, `COPYING` |
-| freetype (https://gitlab.freedesktop.org/freetype/freetype.git) | `d33343963303` | `LICENSE.TXT` |
-| freetype (https://gitlab.freedesktop.org/freetype/freetype.git) | `d33343963303` | `LICENSE.TXT` |
-| fribidi (https://github.com/fribidi/fribidi.git) | `4c914a92e94a` | `AUTHORS`, `COPYING` |
-| glib (https://github.com/GNOME/glib.git) | `5a124d1e66a6` | `COPYING`, `LICENSES/AFL-2.0.txt`, `LICENSES/Apache-2.0.txt`, `LICENSES/CC-BY-SA-3.0.txt`, `LICENSES/CC0-1.0.txt`, `LICENSES/GPL-2.0-or-later.txt`, `LICENSES/LGPL-2.1-only.txt`, `LICENSES/LGPL-2.1-or-later.txt`, `LICENSES/LLVM-exception.txt`, `LICENSES/LicenseRef-old-glib-tests.txt`, `LICENSES/MIT.txt`, `LICENSES/MPL-1.1.txt` |
-| gme (https://github.com/libgme/game-music-emu.git) | `f68963b1de06` | `license.gpl2.txt`, `license.txt` |
-| gmp (https://github.com/BtbN/gmplib.git) | `763b40df71c0` | `AUTHORS`, `COPYING.LESSERv3`, `COPYINGv2`, `COPYINGv3` |
-| harfbuzz (https://github.com/harfbuzz/harfbuzz.git) | `b3bab6230701` | `AUTHORS`, `COPYING` |
-| kvazaar (https://github.com/ultravideo/kvazaar.git) | `2b06691bb584` | `LICENSE`, `LICENSE.EXT.greatest` |
-| lcevcdec (https://github.com/v-novaltd/LCEVCdec.git) | `17804ac54db8` | `COPYING`, `LICENSE.md` |
-| lcms2 (https://github.com/mm2/Little-CMS.git) | `a0b0d7a69b13` | `AUTHORS`, `LICENSE` |
-| libaribb24 (https://github.com/nkoriyama/aribb24.git) | `5e9be272f96e` | `COPYING` |
-| libaribcaption (https://github.com/xqq/libaribcaption.git) | `c64c23b8905b` | `LICENSE` |
-| libass (https://github.com/libass/libass.git) | `f61db567e659` | `COPYING` |
-| libbluray (https://code.videolan.org/videolan/libbluray.git) | `a24f4fad4d62` | `COPYING` |
-| libffi (https://github.com/libffi/libffi.git) | `bc5538673672` | `LICENSE`, `LICENSE-BUILDTOOLS` |
-| libjxl (https://github.com/libjxl/libjxl.git) | `b87738951c12` | `AUTHORS`, `LICENSE`, `PATENTS` |
-| libogg (https://github.com/xiph/ogg.git) | `06a5e0262cdc` | `AUTHORS`, `COPYING` |
-| libopus (https://github.com/xiph/opus.git) | `503d81b138d7` | `AUTHORS`, `COPYING`, `LICENSE_PLEASE_READ.txt` |
-| libplacebo (https://code.videolan.org/videolan/libplacebo.git) | `e2972fdd09ad` | `LICENSE` |
-| libpng (https://github.com/glennrp/libpng.git) | `964b41359497` | `AUTHORS.md`, `LICENSE.md`, `LICENSES/MIT-0.txt`, `LICENSES/MIT.txt` |
-| librist (https://code.videolan.org/rist/librist.git) | `4f45ef8f7898` | `COPYING` |
-| librsvg (https://github.com/GNOME/librsvg.git) | `7612431eb02d` | `AUTHORS`, `COPYING.LIB` |
-| libsamplerate (https://github.com/libsndfile/libsamplerate.git) | `0844c208f683` | `AUTHORS`, `COPYING` |
-| libssh (https://gitlab.com/libssh/libssh-mirror.git) | `76e0a8639e61` | `AUTHORS`, `BSD`, `COPYING` |
-| libtheora (https://github.com/xiph/theora.git) | `28fd5ec77f0a` | `AUTHORS`, `COPYING`, `LICENSE` |
-| libudfread (https://code.videolan.org/videolan/libudfread.git) | `b0bc6957e7e0` | `COPYING` |
-| libunibreak (https://github.com/adah1972/libunibreak.git) | `28a2756b864c` | `AUTHORS`, `LICENCE` |
-| libva (https://github.com/intel/libva.git) | `6b07f7100512` | `COPYING` |
-| libvorbis (https://github.com/xiph/vorbis.git) | `1b75110b5a27` | `AUTHORS`, `COPYING` |
-| libvpx (https://chromium.googlesource.com/webm/libvpx) | `5e680f30801d` | `AUTHORS`, `LICENSE`, `PATENTS` |
-| libwebp (https://chromium.googlesource.com/webm/libwebp) | `5c168cd23b18` | `AUTHORS`, `COPYING`, `PATENTS` |
-| libxml2 (https://github.com/GNOME/libxml2.git) | `91586dc6742a` | `Copyright` |
-| libzmq (https://github.com/zeromq/libzmq.git) | `46493370217a` | `AUTHORS`, `LICENSE` |
-| lilv (https://github.com/lv2/lilv.git) | `4b8f30055fa5` | `AUTHORS`, `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/ISC.txt` |
-| lv2 (https://github.com/lv2/lv2.git) | `3c57dae600a5` | `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/Apache-2.0.txt`, `LICENSES/CC-BY-1.0.txt`, `LICENSES/CC-BY-4.0.txt`, `LICENSES/ISC.txt`, `LICENSES/MIT.txt`, `LICENSES/W3C-19980720.txt`, `LICENSES/W3C-20150513.txt` |
-| mbedtls (https://github.com/ARMmbed/mbedtls.git) | `v4.2.0` | `LICENSE` |
-| mingw-std-threads (https://github.com/meganz/mingw-std-threads.git) | `c931bac289dd` | `LICENSE` |
-| onevpl (https://github.com/intel/libvpl.git) | `674d015bcb29` | `LICENSE` |
-| openal (https://github.com/kcat/openal-soft.git) | `c89b8cf7bba4` | `COPYING`, `LICENSE-pffft`, `LICENSE.Apache-2.0.txt`, `LICENSE.BSD-3-Clause.txt` |
-| openapv (https://github.com/AcademySoftwareFoundation/openapv.git) | `a58ce739be0d` | `LICENSE` |
-| opencl (https://github.com/KhronosGroup/OpenCL-Headers.git) | `e6060189f4eb` | `LICENSE` |
-| opencl-2 (https://github.com/KhronosGroup/OpenCL-ICD-Loader.git) | `5192c84f8059` | `LICENSE` |
-| openh264 (https://github.com/cisco/openh264.git) | `8b2d28faade1` | `LICENSE` |
-| openjpeg (https://github.com/uclouvain/openjpeg.git) | `8314119b067c` | `AUTHORS.md`, `LICENSE` |
-| openmpt (https://github.com/OpenMPT/openmpt.git) | `f83cedb0cd54` | `LICENSE` |
-| openssl (https://github.com/openssl/openssl.git) | `openssl-3.6.` | `AUTHORS.md`, `LICENSE.txt` |
-| pango (https://github.com/GNOME/pango.git) | `8e74c27c113c` | `COPYING` |
-| pcre2 (https://github.com/PCRE2Project/pcre2.git) | `09eb19dc1102` | `AUTHORS.md`, `COPYING`, `LICENCE.md` |
-| pixman (https://gitlab.freedesktop.org/pixman/pixman.git) | `96c04d1b8793` | `AUTHORS`, `COPYING` |
-| rav1e (https://github.com/xiph/rav1e.git) | `31435de9d76f` | `LICENSE`, `PATENTS`, `license_template.txt` |
-| sdl (https://github.com/libsdl-org/SDL.git) | `b90ac95029d8` | `LICENSE.txt` |
-| serd (https://github.com/drobilla/serd.git) | `b6053bb2a453` | `AUTHORS`, `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/BSD-3-Clause.txt`, `LICENSES/ISC.txt` |
-| shaderc (https://github.com/google/shaderc.git) | `a8abeb0b8a9d` | `AUTHORS`, `LICENSE`, `license-checker.cfg` |
-| snappy (https://github.com/google/snappy.git) | `9c28114a3886` | `AUTHORS`, `COPYING`, `COPYING.notestdata` |
-| sord (https://github.com/drobilla/sord.git) | `4b5232bb91e7` | `AUTHORS`, `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/BSD-3-Clause.txt`, `LICENSES/ISC.txt` |
-| spirv-cross (https://github.com/KhronosGroup/SPIRV-Cross.git) | `aa217aeb6c9f` | `LICENSE`, `LICENSES/Apache-2.0.txt`, `LICENSES/CC-BY-4.0.txt`, `LICENSES/LicenseRef-KhronosFreeUse.txt`, `LICENSES/MIT.txt` |
-| spirv-headers (https://github.com/KhronosGroup/SPIRV-Headers.git) | `2b7475f6d664` | `LICENSE`, `LICENSES/CC-BY-4.0.txt`, `LICENSES/MIT.txt` |
-| sratom (https://github.com/lv2/sratom.git) | `9e8ee84eed50` | `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/ISC.txt` |
-| srt (https://github.com/Haivision/srt.git) | `ff8ab25c57ae` | `LICENSE` |
-| svtav1 (https://gitlab.com/AOMediaCodec/SVT-AV1.git) | `5ed9ffbcb508` | `LICENSE-BSD2.md`, `LICENSE.md`, `PATENTS.md` |
-| twolame (https://github.com/njh/twolame.git) | `6fced852d4d5` | `AUTHORS`, `COPYING` |
-| uavs3d (https://github.com/uavs3/uavs3d.git) | `0e20d2c29185` | `COPYING` |
-| vmaf (https://github.com/Netflix/vmaf.git) | `86da14d0306a` | `LICENSE` |
-| vulkan-headers (https://github.com/KhronosGroup/Vulkan-Headers.git) | `v1.4.363` | `LICENSE.md`, `LICENSES/Apache-2.0.txt`, `LICENSES/MIT.txt` |
-| vulkan-loader (https://github.com/BtbN/Vulkan-Shim-Loader.git) | `65b3936528cd` | `LICENSE` |
-| vulkan-loader-2 (https://github.com/KhronosGroup/Vulkan-Headers.git) | `v1.4.363` | `LICENSE.md`, `LICENSES/Apache-2.0.txt`, `LICENSES/MIT.txt` |
-| vvenc (https://github.com/fraunhoferhhi/vvenc.git) | `b1cfb2ad495a` | `AUTHORS.md`, `LICENSE.txt` |
-| xz (https://github.com/tukaani-project/xz.git) | `3b1efb04d17c` | `AUTHORS`, `COPYING`, `COPYING.0BSD`, `COPYING.GPLv2`, `COPYING.GPLv3`, `COPYING.LGPLv2.1` |
-| zimg (https://github.com/sekrit-twc/zimg.git) | `67e0603271c0` | `COPYING` |
-| zix (https://github.com/drobilla/zix.git) | `17d632393f5a` | `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/ISC.txt` |
-| zlib (https://github.com/madler/zlib.git) | `767c4c947852` | `LICENSE` |
-| zstd (https://github.com/facebook/zstd.git) | `01b7154f1172` | `COPYING`, `LICENSE` |
-| zvbi (https://github.com/zapping-vbi/zvbi) | `d3a5ee9f2b04` | `AUTHORS`, `COPYING.md` |
+| Biblioteca | Commit | Archivos leídos | Licencia (SPDX) | Compatibilidad con la GPLv3 |
+|---|---|---|---|---|
+| amf (https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git) | `6277e353fd62` | `LICENSE.txt` | MIT, más la «Notice Regarding Standards» de AMD | Sí (`#Expat`). |
+| aom (https://aomedia.googlesource.com/aom) | `b4ce2cd097b0` | `AUTHORS`, `LICENSE`, `PATENTS` | BSD-2-Clause más la Alliance for Open Media Patent License 1.0 | Código sí (`#FreeBSD`); patentes de AOM pendientes del abogado (tabla «Bibliotecas de la exportación»). |
+| brotli (https://github.com/google/brotli.git) | `a3abcbee0d94` | `LICENSE` | MIT | Sí (`#Expat`). |
+| cairo (https://gitlab.freedesktop.org/cairo/cairo.git) | `74755964edef` | `AUTHORS`, `COPYING`, `COPYING-LGPL-2.1`, `COPYING-MPL-1.1` | LGPL-2.1-only OR MPL-1.1; se toma la LGPL 2.1 | Sí (`#LGPLv2.1`). |
+| chromaprint (https://github.com/acoustid/chromaprint.git) | `aed8eba2202d` | `LICENSE.md` | LGPL-2.1-or-later (su código es MIT, pero incluye partes de FFmpeg LGPL 2.1). **BtbN la compila con `-DFFT_LIB=fftw3`** | Sí para chromaprint (`#LGPLv2.1`). Arrastra fftw3: ver su fila. |
+| dav1d (https://code.videolan.org/videolan/dav1d.git) | `9711965b60bb` | `COPYING` | BSD-2-Clause | Sí (`#FreeBSD`). |
+| ffnvcodec (https://github.com/FFmpeg/nv-codec-headers.git) | `eddcea9e27f6` | ninguno en la raíz | MIT (encabezados) | Sí (`#Expat`). |
+| ffnvcodec-2 (https://github.com/FFmpeg/nv-codec-headers.git) | `ced4f8eba3ba` | ninguno en la raíz | MIT (encabezados) | Sí (`#Expat`). |
+| fftw3 (https://github.com/FFTW/fftw3.git) | `93ed4c786934` | `AUTHORS`, `COPYING`, `COPYRIGHT` | **GPL-2.0-or-later** (`COPYING` y `COPYRIGHT`) | **Con la GPLv3 de Rodaje, sí** (`#GPLv2` con «o posterior»). **Pero es código GPL dentro de una DLL que se presenta como LGPL**: con fftw3 enlazada por chromaprint, `avformat-63.dll` solo puede distribuirse bajo la GPL, lo que contradice el párrafo de la sección 2 de `THIRD-PARTY-NOTICES.txt` (DLL LGPL, reemplazables) y el punto a) de `docs/legal.md`. Pendiente del abogado, o recompilar sin `--enable-chromaprint`. |
+| fontconfig (https://gitlab.freedesktop.org/fontconfig/fontconfig.git) | `bd8f7b597de9` | `AUTHORS`, `COPYING` | MIT (texto histórico de tipo X11; `fc-case/CaseFolding.txt` con licencia de Unicode y otros avisos en `COPYING`) | Sí (`#X11License`, `#Unicode`). |
+| freetype (https://gitlab.freedesktop.org/freetype/freetype.git) | `d33343963303` | `LICENSE.TXT` | FTL OR GPL-2.0-or-later | Sí (`#freetype`). |
+| freetype (https://gitlab.freedesktop.org/freetype/freetype.git) | `d33343963303` | `LICENSE.TXT` | FTL OR GPL-2.0-or-later | Sí (`#freetype`). |
+| fribidi (https://github.com/fribidi/fribidi.git) | `4c914a92e94a` | `AUTHORS`, `COPYING` | LGPL-2.1-or-later | Sí (`#LGPLv2.1`). |
+| glib (https://github.com/GNOME/glib.git) | `5a124d1e66a6` | `COPYING`, `LICENSES/AFL-2.0.txt`, `LICENSES/Apache-2.0.txt`, `LICENSES/CC-BY-SA-3.0.txt`, `LICENSES/CC0-1.0.txt`, `LICENSES/GPL-2.0-or-later.txt`, `LICENSES/LGPL-2.1-only.txt`, `LICENSES/LGPL-2.1-or-later.txt`, `LICENSES/LLVM-exception.txt`, `LICENSES/LicenseRef-old-glib-tests.txt`, `LICENSES/MIT.txt`, `LICENSES/MPL-1.1.txt` | LGPL-2.1-or-later (`COPYING`); el resto de `LICENSES/` es de pruebas, documentación y herramientas | Sí (`#LGPLv2.1`). |
+| gme (https://github.com/libgme/game-music-emu.git) | `f68963b1de06` | `license.gpl2.txt`, `license.txt` | LGPL-2.1-or-later (`license.txt`); el repositorio trae también `license.gpl2.txt`: **falta comprobar qué partes son GPL y si BtbN las compila** | Sí para las partes LGPL; a confirmar el resto. |
+| gmp (https://github.com/BtbN/gmplib.git) | `763b40df71c0` | `AUTHORS`, `COPYING.LESSERv3`, `COPYINGv2`, `COPYINGv3` | LGPL-3.0-or-later OR GPL-2.0-or-later | Sí (`#LGPLv3`). |
+| harfbuzz (https://github.com/harfbuzz/harfbuzz.git) | `b3bab6230701` | `AUTHORS`, `COPYING` | MIT («Old MIT»); partes con `COPYING` propios en subcarpetas, sin revisar | A confirmar: sin entrada propia en la lista de la FSF; solo pide conservar el aviso. |
+| kvazaar (https://github.com/ultravideo/kvazaar.git) | `2b06691bb584` | `LICENSE`, `LICENSE.EXT.greatest` | BSD-3-Clause (`greatest`, ISC, solo en las pruebas) | Sí (`#ModifiedBSD`). |
+| lcevcdec (https://github.com/v-novaltd/LCEVCdec.git) | `17804ac54db8` | `COPYING`, `LICENSE.md` | BSD-3-Clause-Clear, con el aviso adicional de `COPYING` (no concede patentes y exige conservar ese aviso) | Sí (`#clearbsd`); el aviso adicional no restringe el uso, solo obliga a conservarlo y ya está en la sección 7. |
+| lcms2 (https://github.com/mm2/Little-CMS.git) | `a0b0d7a69b13` | `AUTHORS`, `LICENSE` | MIT | Sí (`#Expat`). |
+| libaribb24 (https://github.com/nkoriyama/aribb24.git) | `5e9be272f96e` | `COPYING` | LGPL-3.0-or-later | Sí (`#LGPLv3`). |
+| libaribcaption (https://github.com/xqq/libaribcaption.git) | `c64c23b8905b` | `LICENSE` | MIT | Sí (`#Expat`). |
+| libass (https://github.com/libass/libass.git) | `f61db567e659` | `COPYING` | ISC | Sí (`#ISC`). |
+| libbluray (https://code.videolan.org/videolan/libbluray.git) | `a24f4fad4d62` | `COPYING` | LGPL-2.1-or-later (`COPYING`) | Sí (`#LGPLv2.1`). |
+| libffi (https://github.com/libffi/libffi.git) | `bc5538673672` | `LICENSE`, `LICENSE-BUILDTOOLS` | MIT | Sí (`#Expat`). |
+| libjxl (https://github.com/libjxl/libjxl.git) | `b87738951c12` | `AUTHORS`, `LICENSE`, `PATENTS` | BSD-3-Clause más `PATENTS` de Google | Código sí (`#ModifiedBSD`); patentes a confirmar (tabla anterior). |
+| libogg (https://github.com/xiph/ogg.git) | `06a5e0262cdc` | `AUTHORS`, `COPYING` | BSD-3-Clause | Sí (`#ModifiedBSD`). |
+| libopus (https://github.com/xiph/opus.git) | `503d81b138d7` | `AUTHORS`, `COPYING`, `LICENSE_PLEASE_READ.txt` | BSD-3-Clause | Sí (tabla «Bibliotecas de la exportación»). |
+| libplacebo (https://code.videolan.org/videolan/libplacebo.git) | `e2972fdd09ad` | `LICENSE` | LGPL-2.1-or-later | Sí (`#LGPLv2.1`). |
+| libpng (https://github.com/glennrp/libpng.git) | `964b41359497` | `AUTHORS.md`, `LICENSE.md`, `LICENSES/MIT-0.txt`, `LICENSES/MIT.txt` | libpng-2.0 (PNG Reference Library License v2; `LICENSES/MIT*` para archivos auxiliares) | A confirmar: sin entrada en la lista de la FSF; permisiva, solo pide conservar el aviso. |
+| librist (https://code.videolan.org/rist/librist.git) | `4f45ef8f7898` | `COPYING` | BSD-2-Clause (`COPYING`, © 2019-2020 VideoLAN and librist authors) | Sí (`#FreeBSD`). |
+| librsvg (https://github.com/GNOME/librsvg.git) | `7612431eb02d` | `AUTHORS`, `COPYING.LIB` | LGPL-2.1-or-later; sus crates de Rust en `docs/crates-ffmpeg.md` | Sí (`#LGPLv2.1`); crates: ver la fila «Crates de Rust». |
+| libsamplerate (https://github.com/libsndfile/libsamplerate.git) | `0844c208f683` | `AUTHORS`, `COPYING` | BSD-2-Clause | Sí (`#FreeBSD`). |
+| libssh (https://gitlab.com/libssh/libssh-mirror.git) | `76e0a8639e61` | `AUTHORS`, `BSD`, `COPYING` | LGPL-2.1-or-later, con partes BSD-2-Clause (`BSD`) | Sí (`#LGPLv2.1`). |
+| libtheora (https://github.com/xiph/theora.git) | `28fd5ec77f0a` | `AUTHORS`, `COPYING`, `LICENSE` | BSD-3-Clause, más la declaración de patentes de On2 (`LICENSE`, sin condiciones) | Sí (`#ModifiedBSD`). |
+| libudfread (https://code.videolan.org/videolan/libudfread.git) | `b0bc6957e7e0` | `COPYING` | LGPL-2.1-or-later | Sí (`#LGPLv2.1`). |
+| libunibreak (https://github.com/adah1972/libunibreak.git) | `28a2756b864c` | `AUTHORS`, `LICENCE` | Zlib | Sí (`#ZLib`). |
+| libva (https://github.com/intel/libva.git) | `6b07f7100512` | `COPYING` | MIT | Sí (`#Expat`). |
+| libvorbis (https://github.com/xiph/vorbis.git) | `1b75110b5a27` | `AUTHORS`, `COPYING` | BSD-3-Clause | Sí (`#ModifiedBSD`). |
+| libvpx (https://chromium.googlesource.com/webm/libvpx) | `5e680f30801d` | `AUTHORS`, `LICENSE`, `PATENTS` | BSD-3-Clause más `PATENTS` de Google | Sí (tabla «Bibliotecas de la exportación»). |
+| libwebp (https://chromium.googlesource.com/webm/libwebp) | `5c168cd23b18` | `AUTHORS`, `COPYING`, `PATENTS` | BSD-3-Clause más `PATENTS` de Google | Sí (tabla «Bibliotecas de la exportación»). |
+| libxml2 (https://github.com/GNOME/libxml2.git) | `91586dc6742a` | `Copyright` | MIT | Sí (`#Expat`). |
+| libzmq (https://github.com/zeromq/libzmq.git) | `46493370217a` | `AUTHORS`, `LICENSE` | MPL-2.0 | Sí (`#MPL-2.0`), salvo archivos con la nota del Anexo B: sin buscar. |
+| lilv (https://github.com/lv2/lilv.git) | `4b8f30055fa5` | `AUTHORS`, `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/ISC.txt` | ISC (algunos archivos 0BSD) | Sí (`#ISC`, `#Zero-BSD`). |
+| lv2 (https://github.com/lv2/lv2.git) | `3c57dae600a5` | `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/Apache-2.0.txt`, `LICENSES/CC-BY-1.0.txt`, `LICENSES/CC-BY-4.0.txt`, `LICENSES/ISC.txt`, `LICENSES/MIT.txt`, `LICENSES/W3C-19980720.txt`, `LICENSES/W3C-20150513.txt` | ISC (0BSD en algunos archivos; Apache-2.0, MIT, CC-BY y W3C solo en documentación y ejemplos) | Sí (`#ISC`). |
+| mbedtls (https://github.com/ARMmbed/mbedtls.git) | `v4.2.0` | `LICENSE` | Apache-2.0 OR GPL-2.0-or-later | Sí (`#apache2`). |
+| mingw-std-threads (https://github.com/meganz/mingw-std-threads.git) | `c931bac289dd` | `LICENSE` | BSD-2-Clause | Sí (`#FreeBSD`). |
+| onevpl (https://github.com/intel/libvpl.git) | `674d015bcb29` | `LICENSE` | MIT | Sí (`#Expat`). |
+| openal (https://github.com/kcat/openal-soft.git) | `c89b8cf7bba4` | `COPYING`, `LICENSE-pffft`, `LICENSE.Apache-2.0.txt`, `LICENSE.BSD-3-Clause.txt` | LGPL-2.0-or-later (Library GPL 2), con partes Apache-2.0, BSD-3-Clause y PFFFT (tipo BSD) | Sí: el «o posterior» y la sección 3 de la Library GPL 2 permiten pasar a la GPL v3. |
+| openapv (https://github.com/AcademySoftwareFoundation/openapv.git) | `a58ce739be0d` | `LICENSE` | BSD-3-Clause | Sí (`#ModifiedBSD`). |
+| opencl (https://github.com/KhronosGroup/OpenCL-Headers.git) | `e6060189f4eb` | `LICENSE` | Apache-2.0 | Sí (`#apache2`). |
+| opencl-2 (https://github.com/KhronosGroup/OpenCL-ICD-Loader.git) | `5192c84f8059` | `LICENSE` | Apache-2.0 | Sí (`#apache2`). |
+| openh264 (https://github.com/cisco/openh264.git) | `8b2d28faade1` | `LICENSE` | BSD-2-Clause | Sí (tabla «Bibliotecas de la exportación»). |
+| openjpeg (https://github.com/uclouvain/openjpeg.git) | `8314119b067c` | `AUTHORS.md`, `LICENSE` | BSD-2-Clause | Sí (`#FreeBSD`). |
+| openmpt (https://github.com/OpenMPT/openmpt.git) | `f83cedb0cd54` | `LICENSE` | BSD-3-Clause | Sí (`#ModifiedBSD`). |
+| openssl (https://github.com/openssl/openssl.git) | `openssl-3.6.` | `AUTHORS.md`, `LICENSE.txt` | Apache-2.0 (la usa libssh; FFmpeg en Windows usa schannel) | Sí (`#apache2`). |
+| pango (https://github.com/GNOME/pango.git) | `8e74c27c113c` | `COPYING` | LGPL-2.0-or-later (Library GPL 2) | Sí, igual que openal. |
+| pcre2 (https://github.com/PCRE2Project/pcre2.git) | `09eb19dc1102` | `AUTHORS.md`, `COPYING`, `LICENCE.md` | BSD-3-Clause WITH PCRE2-exception | Sí (`#ModifiedBSD`; la excepción solo añade permisos). |
+| pixman (https://gitlab.freedesktop.org/pixman/pixman.git) | `96c04d1b8793` | `AUTHORS`, `COPYING` | MIT | Sí (`#Expat`). |
+| rav1e (https://github.com/xiph/rav1e.git) | `31435de9d76f` | `LICENSE`, `PATENTS`, `license_template.txt` | BSD-2-Clause más la Alliance for Open Media Patent License 1.0; sus crates en `docs/crates-ffmpeg.md` | Código sí (`#FreeBSD`); patentes de AOM pendientes del abogado, igual que SVT-AV1. |
+| sdl (https://github.com/libsdl-org/SDL.git) | `b90ac95029d8` | `LICENSE.txt` | Zlib | Sí (`#ZLib`). |
+| serd (https://github.com/drobilla/serd.git) | `b6053bb2a453` | `AUTHORS`, `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/BSD-3-Clause.txt`, `LICENSES/ISC.txt` | ISC (algunos archivos 0BSD y BSD-3-Clause) | Sí (`#ISC`). |
+| shaderc (https://github.com/google/shaderc.git) | `a8abeb0b8a9d` | `AUTHORS`, `LICENSE`, `license-checker.cfg` | Apache-2.0 | Sí (`#apache2`). |
+| snappy (https://github.com/google/snappy.git) | `9c28114a3886` | `AUTHORS`, `COPYING`, `COPYING.notestdata` | BSD-3-Clause | Sí (`#ModifiedBSD`). |
+| sord (https://github.com/drobilla/sord.git) | `4b5232bb91e7` | `AUTHORS`, `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/BSD-3-Clause.txt`, `LICENSES/ISC.txt` | ISC (algunos archivos 0BSD y BSD-3-Clause) | Sí (`#ISC`). |
+| spirv-cross (https://github.com/KhronosGroup/SPIRV-Cross.git) | `aa217aeb6c9f` | `LICENSE`, `LICENSES/Apache-2.0.txt`, `LICENSES/CC-BY-4.0.txt`, `LICENSES/LicenseRef-KhronosFreeUse.txt`, `LICENSES/MIT.txt` | Apache-2.0 OR MIT (documentación CC-BY-4.0) | Sí (`#apache2`). |
+| spirv-headers (https://github.com/KhronosGroup/SPIRV-Headers.git) | `2b7475f6d664` | `LICENSE`, `LICENSES/CC-BY-4.0.txt`, `LICENSES/MIT.txt` | MIT (variante de Khronos sobre «Materials»; documentación CC-BY-4.0) | Sí (`#Expat`). |
+| sratom (https://github.com/lv2/sratom.git) | `9e8ee84eed50` | `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/ISC.txt` | ISC (algunos archivos 0BSD) | Sí (`#ISC`). |
+| srt (https://github.com/Haivision/srt.git) | `ff8ab25c57ae` | `LICENSE` | MPL-2.0 | Sí (`#MPL-2.0`), con la misma salvedad que libzmq. |
+| svtav1 (https://gitlab.com/AOMediaCodec/SVT-AV1.git) | `5ed9ffbcb508` | `LICENSE-BSD2.md`, `LICENSE.md`, `PATENTS.md` | BSD-3-Clause-Clear (y BSD-2-Clause en partes) más la Alliance for Open Media Patent License 1.0 | Tabla «Bibliotecas de la exportación». |
+| twolame (https://github.com/njh/twolame.git) | `6fced852d4d5` | `AUTHORS`, `COPYING` | LGPL-2.1-or-later | Sí (`#LGPLv2.1`). |
+| uavs3d (https://github.com/uavs3/uavs3d.git) | `0e20d2c29185` | `COPYING` | BSD-3-Clause | Sí (`#ModifiedBSD`). |
+| vmaf (https://github.com/Netflix/vmaf.git) | `86da14d0306a` | `LICENSE` | BSD-2-Clause-Patent | A confirmar (tabla anterior). |
+| vulkan-headers (https://github.com/KhronosGroup/Vulkan-Headers.git) | `v1.4.363` | `LICENSE.md`, `LICENSES/Apache-2.0.txt`, `LICENSES/MIT.txt` | Apache-2.0 OR MIT | Sí (`#apache2`). |
+| vulkan-loader (https://github.com/BtbN/Vulkan-Shim-Loader.git) | `65b3936528cd` | `LICENSE` | MIT | Sí (`#Expat`). |
+| vulkan-loader-2 (https://github.com/KhronosGroup/Vulkan-Headers.git) | `v1.4.363` | `LICENSE.md`, `LICENSES/Apache-2.0.txt`, `LICENSES/MIT.txt` | Apache-2.0 OR MIT | Sí (`#apache2`). |
+| vvenc (https://github.com/fraunhoferhhi/vvenc.git) | `b1cfb2ad495a` | `AUTHORS.md`, `LICENSE.txt` | BSD-3-Clause-Clear (sin licencia de patentes) | Sí (`#clearbsd`). |
+| xz (https://github.com/tukaani-project/xz.git) | `3b1efb04d17c` | `AUTHORS`, `COPYING`, `COPYING.0BSD`, `COPYING.GPLv2`, `COPYING.GPLv3`, `COPYING.LGPLv2.1` | 0BSD (liblzma) | Sí (`#Zero-BSD`). |
+| zimg (https://github.com/sekrit-twc/zimg.git) | `67e0603271c0` | `COPYING` | WTFPL | Sí (`#WTFPL`). |
+| zix (https://github.com/drobilla/zix.git) | `17d632393f5a` | `COPYING`, `LICENSES/0BSD.txt`, `LICENSES/ISC.txt` | ISC (algunos archivos 0BSD) | Sí (`#ISC`). |
+| zlib (https://github.com/madler/zlib.git) | `767c4c947852` | `LICENSE` | Zlib | Sí (`#ZLib`). |
+| zstd (https://github.com/facebook/zstd.git) | `01b7154f1172` | `COPYING`, `LICENSE` | BSD-3-Clause OR GPL-2.0-only; se toma la BSD | Sí (`#ModifiedBSD`). |
+| zvbi (https://github.com/zapping-vbi/zvbi) | `d3a5ee9f2b04` | `AUTHORS`, `COPYING.md` | `src/*` LGPL-2.0-or-later y `src/ure.*` MIT, **pero `src/packet-830.*` y `src/pdc.*` son GPL-2.0-only** (`COPYING.md`); herramientas y ejemplos GPL-2.0-or-later y BSD-2-Clause | **A revisar.** GPL-2.0-only es incompatible con la GPLv3: si esos dos objetos quedan enlazados en `avcodec-63.dll`, hay el mismo problema que con fftw3 y además sin salida por «o posterior». Pendiente del abogado o comprobar los símbolos de la DLL. |
+| mingw-w64, runtime (`mingw-w64-crt` con UCRT y `mingw-w64-headers`; https://git.code.sf.net/p/mingw-w64/mingw-w64.git) | `57b595039040` | `COPYING`, `COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt` | ZPL-2.1 en conjunto; partes en dominio público, BSD-3-Clause, MIT y LGPL según el aviso del runtime | Sí: la FSF marca la ZPL 2.1 compatible (`#Zope2.0`) y el propio aviso lo dice; el resto son licencias permisivas (`#FreeBSD`, `#Expat`). |
+| winpthreads (`mingw-w64-libraries/winpthreads`, estática) | `57b595039040` | `COPYING` | MIT, con partes BSD-3-Clause (Lockless Inc.) | Sí (`#Expat`, `#ModifiedBSD`). |
+| Runtime de GCC 16.2.0 (libgcc, libstdc++ y libgomp, estáticos: `-static-libgcc -static-libstdc++`, `-lgomp` por soxr; https://gcc.gnu.org/git/gcc.git) | `releases/gcc-16.2.0` | `COPYING.RUNTIME` | GPL-3.0-or-later WITH GCC-exception-3.1 | Sí: la excepción permite enlazarlo con cualquier programa; con la GPLv3 de Rodaje ni haría falta. |
+| libiconv (GNU libiconv, con módulos de gnulib; https://git.savannah.gnu.org/git/libiconv.git y `.../gnulib.git`) | `1df3087ba811` y gnulib `eb72eb6f75f5` | `README`, `COPYING.LIB`, `COPYING`, `gnulib/COPYING` | LGPL-2.1-or-later para la biblioteca y sus cabeceras (`README`; `COPYING`, GPL-3.0, es solo para el programa `iconv`, que no se compila). Los módulos de gnulib que importa una biblioteca LGPL llevan su propia licencia por archivo, «mostly GPL or LGPL»: **falta listar los módulos que entran** | Sí (`#LGPLv2.1`) para libiconv; gnulib a confirmar módulo a módulo. |
+| opencore-amr (https://git.code.sf.net/p/opencore-amr/code) | `7dba8c322384` | `README`, `LICENSE` | Apache-2.0 | Sí (`#apache2`). Codificador y decodificador AMR-NB y decodificador AMR-WB: patentes de AMR aparte, como las de H.264 (`docs/legal.md`). |
+| soxr (SoX Resampler Library; https://git.code.sf.net/p/soxr/code) | `945b592b7047` | `LICENCE`, `README`, `src/pffft.c` | LGPL-2.1-or-later; `pffft.c` (FFTPACK, © Julien Pommier y UCAR) con licencia permisiva de tipo BSD-3-Clause | Sí (`#LGPLv2.1`, `#ModifiedBSD`). |
+| Crates de Rust de rav1e y librsvg (248 crates, 211 dentro del binario; https://crates.io) | los de cada `Cargo.lock` | `LICENSE*`, `COPYING*` y `NOTICE*` de cada tarball | MIT OR Apache-2.0 (124), MIT (51), Unicode-3.0 (18), MPL-2.0 (6: cssparser, cssparser-color, dtoa-short, mp4parse, selectors y la proc-macro), Apache-2.0 (4), BSD-2-Clause (3), Unlicense OR MIT (4, se toma MIT) y otras combinaciones permisivas; tabla completa en `docs/crates-ffmpeg.md` | Sí todos (`#Expat`, `#apache2`, `#Unicode`, `#MPL-2.0`, `#FreeBSD`). `selectors` no trae el texto de la MPL en su tarball: el texto va con cssparser. 33 crates solo los arrastra la feature `binaries` de rav1e y el enlazador probablemente los descarta; se listan igual. |
 
-Sin leer todavía (repositorios fuera de GitHub, GitLab y googlesource): mingw-w64 (runtime de MinGW enlazado en las DLL), libiconv y gnulib, opencore-amr y soxr; y las bibliotecas de Rust de rav1e y librsvg (sus `Cargo.lock`). Las etapas de `50-libcurl/` no se compilan: la carpeta se omite porque `libcurl` está apagado.
+Las etapas de `50-libcurl/` no se compilan (`libcurl` apagado), y `whisper`, `rubberband`, `vidstab`, `avisynth`, `frei0r`, `x264`, `x265`, `xavs2`, `davs2`, `xvid`, `fdk-aac` y `libdvdcss` quedan fuera de la variante `lgpl` por sus propios scripts (`ffbuild_enabled`). Las partes de zvbi y fftw3 marcadas arriba se revisan en `docs/pendientes-legales.md`.
 
 ## Contenido propio
 
@@ -171,16 +178,16 @@ CC0 renuncia a los derechos hasta donde la ley lo permite: cualquiera puede usar
 
 ## Módulos de IA y complementos
 
-No van en la distribución base: llegan con la distribución completa (`app\modulos\`) o desde el gestor de complementos, y cada uno corre en su propio proceso. El detalle de cada componente, con versiones, hashes y fuentes, está en el `LICENCIAS.md` de su carpeta.
+No van en la distribución base: llegan con la distribución completa (`app\modulos\`) o desde el gestor de complementos, y cada uno corre en su propio proceso. El detalle de cada componente, con versiones, hashes y fuentes, está en el `LICENCIAS.md` de su carpeta; los textos literales (licencias de los paquetes, `ThirdPartyNotices.txt` de ONNX Runtime y DirectML, licencias de los repositorios de cada modelo en su commit y la ficha de Kokoro) están en `THIRD-PARTY-NOTICES.txt`, sección 10 (12 de octubre de 2026). Todas las bibliotecas y modelos son MIT o Apache-2.0 (compatibles, `#Expat` y `#apache2`), LibRaw LGPL-2.1 (`#LGPLv2.1`), salvo DirectML (términos de Microsoft: misma consulta que el Windows App SDK). El `ThirdPartyNotices.txt` de ONNX Runtime enumera componentes con licencias que no son libres (por ejemplo la «Intel Simplified Software License» de Intel MKL, que prohíbe la ingeniería inversa); **falta confirmar cuáles de ellos van realmente dentro del `onnxruntime.dll` del paquete NuGet** (la compilación de CPU usa MLAS, no MKL).
 
 | Módulo | Bibliotecas | Modelos | Detalle |
 |---|---|---|---|
-| `rodaje-audio-ia` (ruido y detección de voz) | ONNX Runtime 1.30.0 (MIT) | DeepFilterNet3 (MIT o Apache-2.0), Silero VAD (MIT) | [LICENCIAS.md](modules/Rodaje.Module.AudioAi/LICENCIAS.md) |
+| `modulo-audio-ia` (ruido y detección de voz) | ONNX Runtime 1.30.0 (MIT) | DeepFilterNet3 (MIT o Apache-2.0), Silero VAD (MIT) | [LICENCIAS.md](modules/Rodaje.Module.AudioAi/LICENCIAS.md) |
 | `modulo-subtitulos` (Whisper) | Whisper.net 1.9.1 y whisper.cpp (MIT) | whisper large-v3-turbo y small (MIT, pesos de OpenAI) | [LICENCIAS.md](modules/Rodaje.Module.Subtitles/LICENCIAS.md) |
 | `modulo-traducir` | LLamaSharp 0.27.0 y llama.cpp (MIT) | Qwen3-4B-Instruct-2507 (Apache-2.0) | [LICENCIAS.md](modules/Rodaje.Module.Translate/LICENCIAS.md) |
 | `modulo-voz` (Kokoro) | ONNX Runtime 1.30.0 (MIT) | Kokoro-82M v1.0 y sus voces, léxico de misaki (Apache-2.0) | [LICENCIAS.md](modules/Rodaje.Module.Voice/LICENCIAS.md) |
-| `rodaje-vision` (quitar fondo, reencuadre, detección) | ONNX Runtime con DirectML 1.24.4 (MIT), DirectML 1.15.4 (licencia de Microsoft) | MODNet y RT-DETRv2 (Apache-2.0), BiRefNet_lite y YuNet (MIT) | [LICENCIAS.md](modules/Rodaje.Module.Vision/LICENCIAS.md) |
-| `rodaje-raw` (CinemaDNG) | LibRaw 0.22.2 (LGPL-2.1) | — | [LICENCIAS.md](modules/Rodaje.Module.Raw/LICENCIAS.md) y abajo |
+| `modulo-vision` (quitar fondo, reencuadre, detección) | ONNX Runtime con DirectML 1.24.4 (MIT), DirectML 1.15.4 (licencia de Microsoft) | MODNet y RT-DETRv2 (Apache-2.0), BiRefNet_lite y YuNet (MIT) | [LICENCIAS.md](modules/Rodaje.Module.Vision/LICENCIAS.md) |
+| `modulo-raw` (CinemaDNG) | LibRaw 0.22.2 (LGPL-2.1) | — | [LICENCIAS.md](modules/Rodaje.Module.Raw/LICENCIAS.md) y abajo |
 
 Para quitar el fondo quedan excluidos RMBG-1.4 y RMBG-2.0, de uso no comercial con términos propios de BRIA: la GPLv3 permite el uso comercial y no admite esa restricción.
 
@@ -188,7 +195,7 @@ Para quitar el fondo quedan excluidos RMBG-1.4 y RMBG-2.0, de uso no comercial c
 
 | Componente | Versión | Licencia | ¿Se redistribuye? | Fuente | Qué implica |
 |---|---|---|---|---|---|
-| LibRaw (`rodaje-raw`, `.entorno\libraw`) | 0.22.2, `libraw.dll` oficial Win64, SHA-256 del zip `ac64fa12bb00a7581332d4c6ab918c0533fb3f119d6b668d47a6875410dca948` | LGPL-2.1 o CDDL-1.0 a elección; se usa la LGPL-2.1. Dentro: partes de dcraw, DCB y FBDD (BSD-3), X3F (BSD) y el Adobe DNG SDK 1.4 (MIT) | Sí, dentro del paquete de `rodaje-raw` | https://www.libraw.org/download y `COPYRIGHT` del zip | DLL dinámica sin modificar, reemplazable; se entregan `LICENSE.LGPL`, `COPYRIGHT` y el código fuente correspondiente (lo trae el mismo zip). LGPL-2.1 es compatible con la GPLv3 (sección 3). Importa el runtime de Visual C++ 2015-2022 (redistribuible de Microsoft; pendiente decidir si viaja con el módulo, `docs/legal.md`). |
+| LibRaw (`modulo-raw`, `.entorno\libraw`) | 0.22.2, `libraw.dll` oficial Win64, SHA-256 del zip `ac64fa12bb00a7581332d4c6ab918c0533fb3f119d6b668d47a6875410dca948` | LGPL-2.1 o CDDL-1.0 a elección; se usa la LGPL-2.1. Dentro: partes de dcraw, DCB y FBDD (BSD-3), X3F (BSD) y el Adobe DNG SDK 1.4 (MIT) | Sí, dentro del paquete de `modulo-raw` | https://www.libraw.org/download y `COPYRIGHT` del zip | DLL dinámica sin modificar, reemplazable; se entregan `LICENSE.LGPL`, `COPYRIGHT` y el código fuente correspondiente (lo trae el mismo zip). LGPL-2.1 es compatible con la GPLv3 (sección 3). Importa el runtime de Visual C++ 2015-2022 (redistribuible de Microsoft; pendiente decidir si viaja con el módulo, `docs/legal.md`). |
 | FFmpeg `win64-gpl-9.0` de BtbN (`rodaje-codificadores-gpl`, solo `ffmpeg.exe`) | `n9.0.2-17-g2a571b6068`, release `autobuild-2026-09-30-13-08`, zip SHA-256 `a0e45723c72141975f51d8666302e614711745f3102b704ca3f82c897a58d278` | GPL-3.0-or-later (`--enable-gpl --enable-version3`), con x264 y x265 (GPL-2.0-or-later) y otras bibliotecas libres dentro | Solo dentro del complemento, que se instala aparte; nunca en `dist\` del editor | https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-30-13-08 | Proceso aparte por tubería. Se entrega con la GPLv3, la línea de configure y la fuente (FFmpeg, scripts de BtbN, x264, x265; la del resto con `-FuenteCompleta`). Patentes de H.264/HEVC en software: pendiente del abogado (`docs/legal.md`, punto h). |
 
 ## Herramientas de desarrollo y pruebas

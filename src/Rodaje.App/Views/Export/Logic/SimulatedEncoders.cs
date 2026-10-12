@@ -6,7 +6,7 @@ namespace Rodaje.App.Views.Export;
 /// <summary>El catálogo de candidatos (<see cref="ExportEncoderCandidates"/>) sin sonda: lo que daría una RTX 3050, para la simulación y las pruebas.</summary>
 public static class SimulatedEncoders
 {
-    public static IReadOnlyList<EncoderSpec> All => ExportEncoderCandidates.All;
+    public static IReadOnlyList<EncoderSpec> All { get; } = [.. ExportEncoderCandidates.All.Except(ExportEncoderCandidates.OtherGpus)];
 
     public static EncoderSpec AacMf => ExportEncoderCandidates.AacMf;
 

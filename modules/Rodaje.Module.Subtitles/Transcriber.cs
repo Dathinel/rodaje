@@ -68,7 +68,7 @@ internal sealed class Transcriber : IDisposable
     public void Dispose() => _factory?.Dispose();
 
     internal static string FindModel(string? requested, string file) =>
-        TryFindModel(requested, file)
+        TryFindModel(requested, file) ?? TryFindShared(file)
             ?? throw new ModuleCallException(ErrorCodes.InvalidParameters, $"Falta el modelo {file}: reinstala el módulo de subtítulos.");
 
     internal static string? TryFindModel(string? requested, string file)
@@ -83,6 +83,28 @@ internal sealed class Transcriber : IDisposable
         if (Environment.GetEnvironmentVariable("RODAJE_MODELOS") is { Length: > 0 } dir)
         {
             candidates.Add(Path.Combine(dir, file));
+        }
+
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    /// <summary>Como los demás módulos: el almacén compartido de complementos y, al desarrollar, el <c>.entorno</c>.</summary>
+    private static string? TryFindShared(string file)
+    {
+        List<string> candidates = [];
+        candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Rodaje", "complementos", "modelos", file));
+        if (Environment.GetEnvironmentVariable("RODAJE_ENTORNO") is { Length: > 0 } entorno)
+        {
+            candidates.Add(Path.Combine(entorno, "modelos", file));
+        }
+
+        for (DirectoryInfo? d = new(AppContext.BaseDirectory); d is not null; d = d.Parent)
+        {
+            if (Directory.Exists(Path.Combine(d.FullName, ".entorno", "modelos")))
+            {
+                candidates.Add(Path.Combine(d.FullName, ".entorno", "modelos", file));
+                break;
+            }
         }
 
         return candidates.FirstOrDefault(File.Exists);

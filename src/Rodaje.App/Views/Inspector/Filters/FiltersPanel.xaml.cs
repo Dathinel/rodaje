@@ -442,6 +442,20 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             ParameterRows.Children.Add(row);
         }
 
+        if (type == BuiltInEffects.Compressor)
+        {
+            // El compresor tiene su propia pestaña, con curva, medidores, escucha y sidechain.
+            var open = new Button { Content = "Abrir en Dinámica", Margin = new Thickness(12, 4, 12, 4) };
+            open.Click += (_, _) =>
+            {
+                if (_services is not null && _clipId is not null)
+                {
+                    _services.Session.ShowDynamics(new Services.Audio.DynamicsOwner(Services.Audio.DynamicsOwnerKind.Clip, _clipId));
+                }
+            };
+            ParameterRows.Children.Add(open);
+        }
+
         _rowsType = type;
         _rowsContext = context;
     }

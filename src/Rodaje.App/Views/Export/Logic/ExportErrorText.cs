@@ -47,7 +47,7 @@ public static class ExportErrorText
             ExportErrorCode.ContentMissing => ("Falta contenido", $"La secuencia usa una LUT, transición o paquete que no está instalado{culprit}. Puedes instalarlo o exportar sin él.", ExportErrorAction.ContinueWithout),
             ExportErrorCode.EffectFailed => ("Un efecto falló", $"Un efecto no se pudo aplicar{culprit}{frame}. Puedes exportar sin él o quitarlo del clip.", ExportErrorAction.ContinueWithout),
             ExportErrorCode.GpuFailed => ("La tarjeta gráfica se quedó sin memoria", "Cierra otros programas que usen la GPU o elige «Bajo rendimiento» y vuelve a intentarlo.", ExportErrorAction.Retry),
-            ExportErrorCode.EncoderMissing => ("Falta el codificador", "No está el ffmpeg.exe LGPL de Rodaje. Reinstala Rodaje o ejecuta «preparar-entorno».", ExportErrorAction.None),
+            ExportErrorCode.EncoderMissing => ("Falta el codificador", $"Este equipo no tiene el codificador que pide el formato{culprit}. Sin GPU compatible ni Media Foundation (Windows N o Windows Server) no hay H.264 ni HEVC: elige AV1 o VP9. Si falla con todos, reinstala Rodaje.", ExportErrorAction.ChangeSettings),
             ExportErrorCode.EncoderRejected => ("El codificador no aceptó los ajustes", "Elige otro codificador (por ejemplo, el de CPU) o vuelve a un preajuste.", ExportErrorAction.ChangeSettings),
             ExportErrorCode.EncoderFailed => ("El codificador se detuvo", "Prueba otra vez; si se repite, elige otro codificador en Avanzado.", ExportErrorAction.Retry),
             ExportErrorCode.DiskFull => ("No hay espacio en el disco", "Libera espacio o guarda en otro disco.", ExportErrorAction.ChooseOutput),

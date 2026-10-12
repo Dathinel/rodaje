@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     Paleta grafito de la maqueta aprobada (D-018). Las vistas usan solo estas claves (StaticResource), nunca colores
-    sueltos. Debajo, las claves de WinUI que se redefinen para que los controles de fábrica tomen la misma paleta.
+    sueltos. Debajo, los diccionarios de tema: Default, Light y Dark llevan la paleta a los controles de WinUI (ControlColors.xaml);
+    en el contraste alto real, WinUI y ThemeResources usan los colores del sistema.
 -->
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -25,6 +26,8 @@
     <Color x:Key="AccentHoverColor">#EE9A5C</Color>
     <Color x:Key="AccentPressedColor">#C96D29</Color>
     <Color x:Key="AccentSubtleColor">#4DE8833A</Color>
+    <!-- Texto sobre el naranja lleno (botón principal): 6,8:1. Sobre AccentSubtle el naranja da 3,7:1: ahí va TextBrush. -->
+    <Color x:Key="AccentForegroundColor">#141414</Color>
     <Color x:Key="VideoClipColor">#33587C</Color>
     <Color x:Key="VideoClipEdgeColor">#7FB0DE</Color>
     <Color x:Key="TextClipColor">#574573</Color>
@@ -36,6 +39,16 @@
     <Color x:Key="MeterMidColor">#F2D16B</Color>
     <Color x:Key="MeterHighColor">#E5534B</Color>
     <Color x:Key="ScrimColor">#B3000000</Color>
+    <!-- Encima del video: sombra del recorte y zonas seguras (contorno y texto claros sobre cualquier imagen). -->
+    <Color x:Key="ShadeColor">#99000000</Color>
+    <Color x:Key="SafeZoneFillColor">#70000000</Color>
+    <Color x:Key="SafeZoneStrokeColor">#B0FFFFFF</Color>
+    <Color x:Key="SafeZoneTextColor">#F2F2F2</Color>
+    <Color x:Key="SafeZoneNoteColor">#C01A1A1A</Color>
+    <!-- Marcas de los análisis (silencios, ritmo, voz, subtítulos): de la misma familia que clips y medidores. -->
+    <Color x:Key="CutMarkColor">#E5534B</Color>
+    <Color x:Key="BeatMarkColor">#F2B134</Color>
+    <Color x:Key="VoiceMarkColor">#7FB0DE</Color>
 
     <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
     <SolidColorBrush x:Key="BarBrush" Color="{StaticResource BarColor}" />
@@ -64,120 +77,29 @@
     <SolidColorBrush x:Key="MeterMidBrush" Color="{StaticResource MeterMidColor}" />
     <SolidColorBrush x:Key="MeterHighBrush" Color="{StaticResource MeterHighColor}" />
     <SolidColorBrush x:Key="ScrimBrush" Color="{StaticResource ScrimColor}" />
+    <SolidColorBrush x:Key="AccentForegroundBrush" Color="{StaticResource AccentForegroundColor}" />
+    <SolidColorBrush x:Key="ShadeBrush" Color="{StaticResource ShadeColor}" />
+    <SolidColorBrush x:Key="SafeZoneFillBrush" Color="{StaticResource SafeZoneFillColor}" />
+    <SolidColorBrush x:Key="SafeZoneStrokeBrush" Color="{StaticResource SafeZoneStrokeColor}" />
+    <SolidColorBrush x:Key="SafeZoneTextBrush" Color="{StaticResource SafeZoneTextColor}" />
+    <SolidColorBrush x:Key="SafeZoneNoteBrush" Color="{StaticResource SafeZoneNoteColor}" />
     <SolidColorBrush x:Key="TransparentBrush" Color="Transparent" />
 
-    <!-- Esquinas casi rectas y transiciones cortas en toda la app -->
+    <!--
+        Esquinas casi rectas (2 px) en controles, tarjetas y paneles flotantes; los círculos (asas) son la única excepción.
+        Bordes de 1 px. Espaciado en la rejilla de 4 px (4, 8, 12, 16, 24); 1 y 2 solo para trazos y ajustes finos.
+    -->
     <CornerRadius x:Key="ControlCornerRadius">2</CornerRadius>
     <CornerRadius x:Key="OverlayCornerRadius">2</CornerRadius>
     <CornerRadius x:Key="RodajeCornerRadius">2</CornerRadius>
 
     <ResourceDictionary.ThemeDictionaries>
-        <ResourceDictionary x:Key="Dark">
-            <Color x:Key="SystemAccentColor">#E8833A</Color>
-            <Color x:Key="SystemAccentColorLight1">#EE9A5C</Color>
-            <Color x:Key="SystemAccentColorLight2">#F2B080</Color>
-            <Color x:Key="SystemAccentColorLight3">#F6C7A4</Color>
-            <Color x:Key="SystemAccentColorDark1">#C96D29</Color>
-            <Color x:Key="SystemAccentColorDark2">#A85A20</Color>
-            <Color x:Key="SystemAccentColorDark3">#874818</Color>
-
-            <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#101010" />
-
-            <SolidColorBrush x:Key="ButtonBackground" Color="#2C2C2C" />
-            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#3A3A3A" />
-            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#4A4A4A" />
-            <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent" />
-            <SolidColorBrush x:Key="ButtonForeground" Color="#ECECEC" />
-            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFF" />
-            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#FFFFFF" />
-            <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#7A7A7A" />
-            <SolidColorBrush x:Key="ButtonBorderBrush" Color="#737373" />
-            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#8C8C8C" />
-            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#A0A0A0" />
-            <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="#3A3A3A" />
-
-            <SolidColorBrush x:Key="ToggleButtonBackground" Color="#2C2C2C" />
-            <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#3A3A3A" />
-            <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="#4A4A4A" />
-            <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#4DE8833A" />
-            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#66E8833A" />
-            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#80E8833A" />
-            <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#E8833A" />
-            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="#EE9A5C" />
-            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="#E8833A" />
-
-            <SolidColorBrush x:Key="SliderTrackFill" Color="#6E6E6E" />
-            <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#808080" />
-            <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#808080" />
-            <SolidColorBrush x:Key="SliderTrackValueFill" Color="#E8833A" />
-            <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#EE9A5C" />
-            <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#C96D29" />
-            <SolidColorBrush x:Key="SliderThumbBackground" Color="#E8833A" />
-            <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="#EE9A5C" />
-            <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="#C96D29" />
-            <SolidColorBrush x:Key="SliderOuterThumbBackground" Color="#2C2C2C" />
-
-            <SolidColorBrush x:Key="ComboBoxBackground" Color="#2C2C2C" />
-            <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#3A3A3A" />
-            <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#4A4A4A" />
-            <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#737373" />
-            <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#8C8C8C" />
-            <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#262626" />
-            <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#5C5C5C" />
-
-            <SolidColorBrush x:Key="TextControlBackground" Color="#2C2C2C" />
-            <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#3A3A3A" />
-            <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#141414" />
-            <SolidColorBrush x:Key="TextControlBorderBrush" Color="#737373" />
-            <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#8C8C8C" />
-
-            <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#262626" />
-            <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#5C5C5C" />
-            <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#3A3A3A" />
-            <SolidColorBrush x:Key="MenuBarItemBackgroundPointerOver" Color="#2C2C2C" />
-            <SolidColorBrush x:Key="MenuBarItemBackgroundPressed" Color="#4A4A4A" />
-            <SolidColorBrush x:Key="MenuBarItemBackgroundSelected" Color="#3A3A3A" />
-
-            <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#2C2C2C" />
-            <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#3A3A3A" />
-            <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#4A4A4A" />
-            <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="#4A4A4A" />
-
-            <SolidColorBrush x:Key="ToolTipBackground" Color="#2C2C2C" />
-            <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#737373" />
-            <SolidColorBrush x:Key="ToolTipForeground" Color="#ECECEC" />
-            <SolidColorBrush x:Key="ContentDialogBackground" Color="#262626" />
-            <SolidColorBrush x:Key="ContentDialogBorderBrush" Color="#5C5C5C" />
-            <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="#262626" />
-            <SolidColorBrush x:Key="FlyoutBorderThemeBrush" Color="#5C5C5C" />
-            <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#E8833A" />
-            <SolidColorBrush x:Key="TextControlForeground" Color="#ECECEC" />
-            <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="#ECECEC" />
-            <SolidColorBrush x:Key="TextControlForegroundFocused" Color="#FFFFFF" />
-            <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="#B0B0B0" />
-            <SolidColorBrush x:Key="TextControlForegroundDisabled" Color="#7A7A7A" />
-            <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#232323" />
-            <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#3A3A3A" />
-            <SolidColorBrush x:Key="ComboBoxForeground" Color="#ECECEC" />
-            <SolidColorBrush x:Key="ComboBoxPlaceHolderForeground" Color="#B0B0B0" />
-            <SolidColorBrush x:Key="ComboBoxForegroundDisabled" Color="#7A7A7A" />
-            <SolidColorBrush x:Key="ComboBoxBackgroundDisabled" Color="#232323" />
-            <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled" Color="#3A3A3A" />
-            <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="#3A3A3A" />
-            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="#3A3A3A" />
-            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="#4A4A4A" />
-            <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUnchecked" Color="#8C8C8C" />
-            <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedPointerOver" Color="#B0B0B0" />
-            <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUnchecked" Color="#2C2C2C" />
-            <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillUncheckedPointerOver" Color="#3A3A3A" />
-            <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeUncheckedDisabled" Color="#5C5C5C" />
-            <SolidColorBrush x:Key="CheckBoxForegroundUncheckedDisabled" Color="#7A7A7A" />
-            <SolidColorBrush x:Key="CheckBoxForegroundCheckedDisabled" Color="#7A7A7A" />
-            <SolidColorBrush x:Key="ListViewItemForeground" Color="#ECECEC" />
-            <SolidColorBrush x:Key="MenuFlyoutItemForeground" Color="#ECECEC" />
-            <SolidColorBrush x:Key="MenuFlyoutItemForegroundDisabled" Color="#7A7A7A" />
-            <SolidColorBrush x:Key="MenuFlyoutSeparatorBackground" Color="#5C5C5C" />
-            <SolidColorBrush x:Key="ScrollBarThumbFill" Color="#6E6E6E" />
+        <ResourceDictionary x:Key="Default" Source="ms-appx:///Theme/ControlColors.xaml" />
+        <ResourceDictionary x:Key="Light" Source="ms-appx:///Theme/ControlColors.xaml" />
+        <ResourceDictionary x:Key="Dark" Source="ms-appx:///Theme/ControlColors.xaml" />
+        <!-- Contraste alto real de Windows: sin acento propio; WinUI da sus controles en los colores del sistema. -->
+        <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="{ThemeResource SystemColorWindowColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

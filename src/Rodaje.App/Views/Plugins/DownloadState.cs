@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Microsoft.UI.Xaml;
+using Rodaje.App.Services.Packages;
 
 namespace Rodaje.App.Views.Plugins;
 
@@ -48,10 +49,14 @@ internal sealed partial class DownloadState : INotifyPropertyChanged, IDisposabl
     }
 
     /// <summary>Avance de 0 a 1; llega por <see cref="Progress{T}"/>, ya en el hilo de la interfaz.</summary>
-    public void Report(double fraction)
+    public void Report(double fraction) => Report(new InstallProgress(fraction, ""));
+
+    /// <summary>Avance de la etapa en curso (el paquete o cada modelo).</summary>
+    public void Report(InstallProgress progress)
     {
-        Percent = Math.Clamp(fraction, 0, 1) * 100;
-        Text = fraction >= 1 ? "Instalando…" : $"{Percent:0} %";
+        Percent = Math.Clamp(progress.Fraction, 0, 1) * 100;
+        string stage = progress.Stage.Length > 0 ? progress.Stage + " · " : "";
+        Text = progress.Fraction >= 1 && progress.Stage is "" or "Paquete" or "Módulo" ? "Instalando…" : $"{stage}{Percent:0} %";
     }
 
     public void Cancel() => _cancel?.Cancel();

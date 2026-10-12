@@ -30,6 +30,9 @@
     <!-- Estabilizar y color automático: la caché de análisis y las ediciones, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\StabilizationStore.cs" Link="Analysis\StabilizationStore.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\VideoAnalysisEdits.cs" Link="Analysis\VideoAnalysisEdits.cs" />
+    <!-- La matriz de formatos corre los análisis con la misma decodificación que la app. -->
+    <Compile Include="..\..\src\Rodaje.App\Views\Analysis\ClipVideoSource.cs" Link="Analysis\ClipVideoSource.cs" />
+    <Compile Include="..\..\src\Rodaje.App\Views\Analysis\ClipAudioSource.cs" Link="Analysis\ClipAudioSource.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\Logic\**\*.cs" Link="AnalysisLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Subtítulos automáticos: leer el resultado del módulo, llevarlo a la secuencia y armar el paso, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Subtitles\Logic\**\*.cs" Link="SubtitlesLogic\%(RecursiveDir)%(Filename)%(Extension)" />
@@ -49,6 +52,8 @@
     <!-- La prueba de punta a punta con los paquetes de contenido compone con el render real. -->
     <ProjectReference Include="..\..\src\Rodaje.Render\Rodaje.Render.csproj" />
     <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
+    <!-- Servidor HTTP local para bajar los modelos de un módulo instalado (Packages/ModuleInstallTests). -->
+    <ProjectReference Include="..\Rodaje.TestServer\Rodaje.TestServer.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <!-- Solo para que Rodaje.Module.Echo.exe quede junto a las pruebas de Modules/. -->
     <ProjectReference Include="..\..\modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj" />

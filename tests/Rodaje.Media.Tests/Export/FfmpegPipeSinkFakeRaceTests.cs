@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Rodaje.Media.Export;
 
 namespace Rodaje.Media.Tests.Export;
@@ -113,6 +114,7 @@ public sealed class FfmpegPipeSinkFakeRaceTests
         var journal = new ExportJournal(scratch.Combine("registro"));
         ExportSinkRequest request = Request(scratch, "no muere.mkv", FakeFfmpeg.Hang);
         using var release = new ManualResetEventSlim();
+        using var killWaits = new ManualResetEventSlim();
         int attempts = 0;
         using FfmpegPipeSink sink = FakeFfmpeg.Sink(new FfmpegPipeSinkOptions { Journal = journal });
         sink.KillOverride = process =>
@@ -122,42 +124,150 @@ public sealed class FfmpegPipeSinkFakeRaceTests
                 return false;
             }
 
+            killWaits.Set();
             release.Wait();
             process.Kill();
             return process.WaitForExit(TimeSpan.FromSeconds(10));
         };
         sink.Start(request, CancellationToken.None);
         int? processId = sink.ProcessId;
-        var source = new SyntheticFrames(request.Video!);
-        for (long i = 0; i < 6; i++)
+        using Process? fake = Open(processId);
+        Task? cleanup = null;
+        try
         {
-            sink.WriteVideo(source.Frame(i), CancellationToken.None);
+            var source = new SyntheticFrames(request.Video!);
+            for (long i = 0; i < 6; i++)
+            {
+                sink.WriteVideo(source.Frame(i), CancellationToken.None);
+            }
+
+            sink.Abort();
+            sink.Abort();
+
+            // Sin reloj: Abort ya volvió, y la limpieza de fondo está parada dentro del kill que espera a release, que
+            // nadie ha soltado. Si Abort esperara a esa limpieza, la prueba se quedaría aquí colgada.
+            cleanup = sink.PendingCleanup;
+            Assert.NotNull(cleanup);
+            Assert.True(killWaits.Wait(TimeSpan.FromSeconds(30)), "La limpieza pendiente no volvió a intentar matar.");
+            Assert.False(release.IsSet);
+            Assert.False(cleanup.IsCompleted);
+            Assert.True(SinkRuns.IsAlive(processId), "La prueba necesita al ffmpeg falso vivo tras el primer intento.");
+            Assert.Null(sink.ProcessId);
+            Assert.Single(journal.Entries());
+            Assert.Contains(sink.Diagnostics, d => d.Contains("no salió", StringComparison.Ordinal));
+            Assert.IsAssignableFrom<OperationCanceledException>(
+                Record.Exception(() => sink.WriteVideo(source.Frame(6), CancellationToken.None)));
+
+            release.Set();
+
+            Assert.Same(cleanup, await Task.WhenAny(cleanup, Task.Delay(TimeSpan.FromSeconds(30))));
+            await cleanup;
+            Assert.False(SinkRuns.IsAlive(processId), $"El ffmpeg falso ({processId}) sigue vivo.");
+            Assert.Equal([journal.Directory], scratch.Leftovers());
+            Assert.Empty(journal.Entries());
+            Assert.Contains(sink.Diagnostics, d => d.Contains("temporales borrados", StringComparison.Ordinal));
+        }
+        finally
+        {
+            // Si una aserción falló antes de soltarlo, el kill de la limpieza seguiría en release.Wait() y el falso
+            // colgado, vivo: se suelta, se mata y se espera a la limpieza antes de desechar release y la carpeta.
+            release.Set();
+            KillIfAlive(fake);
+            try
+            {
+                (cleanup ?? sink.PendingCleanup)?.Wait(TimeSpan.FromSeconds(30));
+            }
+            catch (AggregateException)
+            {
+                // Lo que falle en la limpieza ya lo dicen las aserciones; aquí no debe tapar el fallo original.
+            }
+        }
+    }
+
+    [Fact]
+    public void Hanging_fake_exits_by_itself_when_the_test_process_is_gone()
+    {
+        string path = FakeFfmpeg.Path;
+        int deadParent;
+        using (Process gone = StartFake(path, null))
+        {
+            gone.StandardInput.Close();
+            Assert.True(gone.WaitForExit(TimeSpan.FromSeconds(30)), "El ffmpeg falso sin colgar no salió.");
+            deadParent = gone.Id;
         }
 
-        var watch = System.Diagnostics.Stopwatch.StartNew();
-        sink.Abort();
-        sink.Abort();
-        watch.Stop();
+        using Process hanging = StartFake(path, deadParent, FakeFfmpeg.Hang);
+        try
+        {
+            hanging.StandardInput.Close();
 
-        Task? cleanup = sink.PendingCleanup;
-        Assert.NotNull(cleanup);
-        Assert.False(cleanup.IsCompleted);
-        Assert.True(watch.ElapsedMilliseconds < 1000, $"Abort tardó {watch.ElapsedMilliseconds} ms.");
-        Assert.True(SinkRuns.IsAlive(processId), "La prueba necesita al ffmpeg falso vivo tras el primer intento.");
-        Assert.Null(sink.ProcessId);
-        Assert.Single(journal.Entries());
-        Assert.Contains(sink.Diagnostics, d => d.Contains("no salió", StringComparison.Ordinal));
-        Assert.IsAssignableFrom<OperationCanceledException>(
-            Record.Exception(() => sink.WriteVideo(source.Frame(6), CancellationToken.None)));
+            // El tope de dos minutos no llega a contar: sale porque el «padre» ya no existe.
+            Assert.True(hanging.WaitForExit(TimeSpan.FromSeconds(60)), "El ffmpeg falso colgado no salió al faltar el padre.");
+            Assert.Equal(FakeFfmpeg.HangExitCode, hanging.ExitCode);
+        }
+        finally
+        {
+            KillIfAlive(hanging);
+        }
+    }
 
-        release.Set();
+    private static Process StartFake(string path, int? parent, params string[] options)
+    {
+        var info = new ProcessStartInfo(path) { RedirectStandardInput = true, UseShellExecute = false };
+        foreach (string option in options)
+        {
+            info.ArgumentList.Add(option);
+        }
 
-        Assert.Same(cleanup, await Task.WhenAny(cleanup, Task.Delay(TimeSpan.FromSeconds(30))));
-        await cleanup;
-        Assert.False(SinkRuns.IsAlive(processId), $"El ffmpeg falso ({processId}) sigue vivo.");
-        Assert.Equal([journal.Directory], scratch.Leftovers());
-        Assert.Empty(journal.Entries());
-        Assert.Contains(sink.Diagnostics, d => d.Contains("temporales borrados", StringComparison.Ordinal));
+        if (parent is { } id)
+        {
+            info.Environment[FakeFfmpeg.ParentVariable] = id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return Process.Start(info) ?? throw new InvalidOperationException("No arrancó el ffmpeg falso.");
+    }
+
+    // Se abre el proceso al arrancar, por si su id se reusa antes de que haga falta matarlo.
+    private static Process? Open(int? processId)
+    {
+        if (processId is not { } id)
+        {
+            return null;
+        }
+
+        try
+        {
+            return Process.GetProcessById(id);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    private static void KillIfAlive(Process? process)
+    {
+        if (process is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill();
+                process.WaitForExit(TimeSpan.FromSeconds(10));
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Ya salió.
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // Está saliendo.
+        }
     }
 
     private static ExportSinkRequest Request(ExportScratch scratch, string name, params string[] fakeOptions)

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Problema de seguridad
+    url: https://github.com/Dathinel/rodaje/security/advisories/new
+    about: Repórtalo en privado; nunca en un issue público (ver SECURITY.md).
+  - name: Guía de usuario
+    url: https://github.com/Dathinel/rodaje/blob/main/docs/guia/README.md
+    about: Cómo instalar, editar, exportar y resolver los problemas más comunes.

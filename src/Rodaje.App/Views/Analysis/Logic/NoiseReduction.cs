@@ -160,7 +160,9 @@ internal static class NoiseReduction
         Id = id,
         Path = clean.Path,
         Name = name,
-        Duration = Time.FromSeconds((double)clean.Frames / SampleRate),
+        // El tramo entero aunque no caiga en una muestra (un MP3 de 12,042449 s): con la duración de las muestras, un clip
+        // que llega al final del medio quedaba una fracción de muestra fuera del audio limpio y se rechazaba.
+        Duration = clean.Frames >= clean.Duration.ToSamples(SampleRate) ? clean.Duration : Time.FromSamples(clean.Frames, SampleRate),
         HasAudio = true,
         SampleRate = SampleRate,
         AudioChannels = Channels,

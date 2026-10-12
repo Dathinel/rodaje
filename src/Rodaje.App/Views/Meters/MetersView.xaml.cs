@@ -10,6 +10,7 @@ using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services.Audio;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 using Rodaje.App.Views.Player;
 using Rodaje.Audio.Metering;
 using Windows.UI;
@@ -179,7 +180,7 @@ internal sealed partial class MetersView : UserControl, IEditorView
 
     private TextBlock ScaleLabel(Style style, string text)
     {
-        var label = new TextBlock { Text = text, Style = style, FontSize = 9, Width = 20, TextAlignment = TextAlignment.Right };
+        var label = new TextBlock { Text = text, Style = style, FontSize = ThemeResources.Size("MicroFontSize"), Width = 20, TextAlignment = TextAlignment.Right };
         ScaleCanvas.Children.Add(label);
         return label;
     }
@@ -514,5 +515,13 @@ internal sealed partial class MetersView : UserControl, IEditorView
         public float LastRms { get; set; } = float.NaN;
 
         public float LastHold { get; set; } = float.NaN;
+    }
+
+    private void OnMixCompressorClick(object sender, RoutedEventArgs e)
+    {
+        if (_services is { } services)
+        {
+            services.Session.ShowDynamics(Services.Audio.DynamicsOwner.Mix(services.Session.Sequence));
+        }
     }
 }

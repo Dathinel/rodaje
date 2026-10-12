@@ -1,6 +1,6 @@
 # Documentación de Rodaje
 
-Cómo está hecho Rodaje, sus formatos y su fondo legal. Para usarlo o compilarlo basta con el [README](../README.md) de la raíz.
+Cómo está hecho Rodaje, sus formatos y su fondo legal. Para usarlo está la [guía de usuario](guia/README.md); para compilarlo y contribuir, [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Arquitectura
 
@@ -17,6 +17,7 @@ Cómo está hecho Rodaje, sus formatos y su fondo legal. Para usarlo o compilarl
 
 ## Formatos y extensiones
 
+- [Formatos compatibles](formatos.md): qué video, audio e imágenes abre Rodaje y cómo responde cada herramienta de IA, medido con la matriz de formatos.
 - [Formato de proyecto `.rodaje`](formato-proyecto.md), con su [esquema JSON](../schema/rodaje-proyecto.v6.schema.json).
 - [Formato `.paquete`](formato-paquete.md): complementos de contenido y módulos.
 - [Protocolo de módulos](protocolo-modulos.md): cómo escribir un módulo de IA en cualquier lenguaje.
@@ -28,5 +29,7 @@ Cómo está hecho Rodaje, sus formatos y su fondo legal. Para usarlo o compilarl
 - [Decisiones de diseño](decisiones.md) (D-001 a D-034).
 - [Fondo legal](legal.md) y [pendientes legales antes de publicar](pendientes-legales.md).
 - [Contribuciones externas](contribuciones.md).
+- [Configuración de FFmpeg](ffmpeg-configure.txt) de la compilación LGPL que se distribuye, y los [crates de Rust](crates-ffmpeg.md) que rav1e y librsvg meten en sus DLL.
+- [Contribuciones externas](contribuciones.md) (fondo legal: DCO 1.1) y [cómo contribuir](../CONTRIBUTING.md).
 - [Configuración de FFmpeg](ffmpeg-configure.txt) de la compilación LGPL que se distribuye.
 - En la raíz: [LICENSE](../LICENSE), [TRADEMARK.md](../TRADEMARK.md), [LICENCIAS.md](../LICENCIAS.md) y [THIRD-PARTY-NOTICES.txt](../THIRD-PARTY-NOTICES.txt).

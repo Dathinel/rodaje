@@ -324,11 +324,10 @@ internal sealed unsafe partial class LayerRenderer
         UnbindInputs();
     }
 
-    private bool DrawTransition(LayerFrame outgoing, D3D11TexturePayload outgoingPayload, LayerTransition transition,
+    private bool DrawTransition(LayerFrame outgoing, LayerSource outgoingPayload, LayerTransition transition, LayerSource? incomingPayload,
         Func<LayerFrame, SourceGeometry>? geometry, in Destination destination, ref FrameStats stats)
     {
         float progress = float.IsNaN(transition.Progress) ? 0 : Math.Clamp(transition.Progress, 0, 1);
-        D3D11TexturePayload? incomingPayload = Usable(transition.Incoming);
         if (incomingPayload is null)
         {
             stats.LayersSkipped++;
@@ -361,8 +360,8 @@ internal sealed unsafe partial class LayerRenderer
             _pool.Return(canvasA);
             stats.EffectsSkipped++;
             return progress < 0.5f || incomingPayload is null
-                ? DrawSingle(outgoing, outgoingPayload, geometry?.Invoke(outgoing) ?? SourceGeometry.Square, destination, outgoing.Blend, ref stats)
-                : DrawSingle(transition.Incoming, incomingPayload, geometry?.Invoke(transition.Incoming) ?? SourceGeometry.Square, destination,
+                ? DrawSingle(outgoing, outgoingPayload, GeometryOf(outgoing, outgoingPayload, geometry), destination, outgoing.Blend, ref stats)
+                : DrawSingle(transition.Incoming, incomingPayload.Value, GeometryOf(transition.Incoming, incomingPayload.Value, geometry), destination,
                     outgoing.Blend, ref stats);
         }
 
@@ -372,9 +371,9 @@ internal sealed unsafe partial class LayerRenderer
         var sideA = new Destination(canvasA, destination.Width, destination.Height, destination.SequenceWidth, destination.SequenceHeight);
         var sideB = new Destination(canvasB, destination.Width, destination.Height, destination.SequenceWidth, destination.SequenceHeight);
         DrawSide(outgoing, outgoingPayload, geometry, sideA, ref stats);
-        if (incomingPayload is not null)
+        if (incomingPayload is { } incomingSource)
         {
-            DrawSide(transition.Incoming, incomingPayload, geometry, sideB, ref stats);
+            DrawSide(transition.Incoming, incomingSource, geometry, sideB, ref stats);
         }
 
         var viewA = new ImageView(canvasA, destination.Width, destination.Height);
@@ -442,14 +441,14 @@ internal sealed unsafe partial class LayerRenderer
     }
 
     /// <summary>Un lado de la transición en su lienzo transparente, con sus efectos y mezcla normal.</summary>
-    private void DrawSide(LayerFrame side, D3D11TexturePayload payload, Func<LayerFrame, SourceGeometry>? geometry, in Destination canvas,
+    private void DrawSide(LayerFrame side, LayerSource payload, Func<LayerFrame, SourceGeometry>? geometry, in Destination canvas,
         ref FrameStats stats)
     {
-        SourceGeometry sourceGeometry = geometry?.Invoke(side) ?? SourceGeometry.Square;
-        if (side.Effects.Count == 0)
+        SourceGeometry sourceGeometry = GeometryOf(side, payload, geometry);
+        if (side.Effects.Count == 0 && payload.Planes is { } planes)
         {
             _quad.Bind(canvas.Target.Rtv, canvas.Width, canvas.Height, QuadPipeline.Shader.Layer);
-            DrawPlain(side, payload, sourceGeometry, canvas.SequenceWidth, canvas.SequenceHeight, canvas.PixelScale);
+            DrawPlain(side, planes, sourceGeometry, canvas.SequenceWidth, canvas.SequenceHeight, canvas.PixelScale);
             return;
         }
 

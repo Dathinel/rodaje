@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Rodaje.App.Services.Packages.Download;
 using Rodaje.Packages;
+using Rodaje.Packages.Download;
 
 namespace Rodaje.App.Services.Packages;
 
@@ -21,6 +23,9 @@ public sealed record PluginEntry(
     public string? InstalledVersion => Installed?.Manifest.Version.ToString();
 }
 
+/// <summary>Avance de una instalación: qué se está haciendo («Paquete», «Modelo 2 de 4: …») y cuánto va de eso, de 0 a 1.</summary>
+public readonly record struct InstallProgress(double Fraction, string Stage);
+
 /// <summary>
 /// Los complementos de Rodaje: el catálogo que viaja con el programa, lo instalado en
 /// <c>%LOCALAPPDATA%\Rodaje\complementos</c> (y en <c>paquetes\</c> y <c>modulos\</c> junto al exe, en la distribución
@@ -38,22 +43,48 @@ public sealed class PackageService
 
     public const string OtherInstancesMessage = "Cierra las otras ventanas de Rodaje para desinstalar o actualizar complementos.";
 
+    /// <summary>Ids de módulos que cambiaron de nombre al publicarse en su repositorio (v1.0.0): lo instalado se migra.</summary>
+    public static IReadOnlyDictionary<string, string> RenamedModules { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["rodaje-audio-ia"] = "modulo-audio-ia",
+        ["rodaje-vision"] = "modulo-vision",
+        ["rodaje-raw"] = "modulo-raw",
+    };
+
     private readonly PackageInstaller _installer;
     private readonly InstanceRegistry? _instances;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _leftoversResolved;
 
     /// <param name="instances">Para saber si hay otras instancias abiertas; sin él, esta se cree sola.</param>
-    public PackageService(PackageLocations locations, PackageCatalog catalog, IPackageDownloader? downloader = null, InstanceRegistry? instances = null)
+    /// <param name="models">Dónde se guardan y de dónde se bajan los modelos de los módulos; por defecto, <c>complementos\modelos</c>.</param>
+    public PackageService(PackageLocations locations, PackageCatalog catalog, IPackageDownloader? downloader = null, InstanceRegistry? instances = null,
+        ModelStore? models = null)
     {
         ArgumentNullException.ThrowIfNull(locations);
         ArgumentNullException.ThrowIfNull(catalog);
         Locations = locations;
         Catalog = catalog;
         Downloader = downloader ?? CatalogSource.CreateDownloader(locations);
+        Models = models ?? CatalogSource.CreateModelStore(locations);
         _installer = new PackageInstaller(locations, AppId);
         _instances = instances;
     }
+
+    /// <summary>Almacén de modelos de los módulos.</summary>
+    public ModelStore Models { get; }
+
+    /// <summary>
+    /// Cierra el proceso de un módulo antes de desinstalarlo o de reemplazar sus archivos (lo pone la ventana con
+    /// <c>ModuleManager.CloseModuleAsync</c>); sin él, un módulo abierto bloquearía su carpeta.
+    /// </summary>
+    public Func<string, Task>? CloseModule { get; set; }
+
+    /// <summary>Modelos que les faltan a los módulos instalados por la persona, por id de módulo.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<ModuleModel>> MissingModels { get; private set; } = new Dictionary<string, IReadOnlyList<ModuleModel>>();
+
+    /// <summary>Lo que falta bajar para que <paramref name="moduleId"/> funcione (vacío si nada).</summary>
+    public IReadOnlyList<ModuleModel> MissingModelsOf(string moduleId) => MissingModels.TryGetValue(moduleId, out IReadOnlyList<ModuleModel>? missing) ? missing : [];
 
     /// <summary>Cambió lo instalado.</summary>
     public event EventHandler? Changed;
@@ -127,13 +158,24 @@ public sealed class PackageService
         return Installed;
     }
 
+    /// <summary>
+    /// Instala un <c>.paquete</c>. Un módulo abierto con el mismo id se cierra antes de poner la versión nueva; sus modelos
+    /// se bajan aparte (<see cref="EnsureModelsAsync"/>).
+    /// </summary>
     /// <exception cref="PackageInstallException">No se pudo instalar.</exception>
     public Task<InstallResult> InstallFromFileAsync(string path, string? expectedSha256 = null, bool allowDowngrade = false) =>
         ExclusiveAsync(() =>
         {
             try
             {
-                return _installer.Install(path, expectedSha256, allowDowngrade, allowReplace: ActiveInstances() == 1);
+                return _installer.Install(path, expectedSha256, allowDowngrade, allowReplace: ActiveInstances() == 1,
+                    beforeCommit: m =>
+                    {
+                        if (m.Kind == PackageKind.Module)
+                        {
+                            CloseModuleNow(m.Id);
+                        }
+                    });
             }
             catch (PackageReplaceBlockedException ex)
             {
@@ -142,13 +184,15 @@ public sealed class PackageService
         });
 
     /// <summary>
-    /// Descarga e instala (o actualiza) una entrada del catálogo con <see cref="Downloader"/>. Una descarga cancelada o
-    /// cortada deja su parcial para reanudar; lo descargado se borra después de instalarlo o si no se pudo instalar.
+    /// Descarga e instala (o actualiza) una entrada del catálogo con <see cref="Downloader"/> y, si es un módulo, baja sus
+    /// modelos (<see cref="EnsureModelsAsync"/>). Una descarga cancelada o cortada deja su parcial para reanudar; lo
+    /// descargado se borra después de instalarlo o si no se pudo instalar.
     /// </summary>
     /// <exception cref="NotSupportedException">Esta versión no descarga.</exception>
-    /// <exception cref="Rodaje.Packages.Download.PackageDownloadException">No se pudo descargar o no es lo publicado (ya se borró).</exception>
+    /// <exception cref="PackageDownloadException">No se pudo descargar o no es lo publicado (ya se borró).</exception>
+    /// <exception cref="ModelsPendingException">El módulo quedó instalado, pero faltan modelos (se reanudan con <see cref="EnsureModelsAsync"/>).</exception>
     /// <exception cref="PackageInstallException">No se pudo instalar.</exception>
-    public async Task<InstallResult> InstallFromCatalogAsync(CatalogEntry entry, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<InstallResult> InstallFromCatalogAsync(CatalogEntry entry, IProgress<InstallProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
         if (!Downloader.IsAvailable)
@@ -156,10 +200,13 @@ public sealed class PackageService
             throw new NotSupportedException(Downloader.UnavailableReason);
         }
 
-        DownloadedPackage downloaded = await Downloader.DownloadAsync(entry, progress, cancellationToken);
+        string stage = entry.Kind == PackageKind.Module ? "Módulo" : "Paquete";
+        IProgress<double>? package = progress is null ? null : new DirectProgress<double>(f => progress.Report(new InstallProgress(f, stage)));
+        DownloadedPackage downloaded = await Downloader.DownloadAsync(entry, package, cancellationToken);
+        InstallResult result;
         try
         {
-            return await InstallFromFileAsync(downloaded.Path, downloaded.ExpectedSha256);
+            result = await InstallFromFileAsync(downloaded.Path, downloaded.ExpectedSha256);
         }
         finally
         {
@@ -171,7 +218,57 @@ public sealed class PackageService
             {
             }
         }
+
+        if (result.Package.Manifest.Kind == PackageKind.Module)
+        {
+            try
+            {
+                await EnsureModelsAsync(result.Package.Id, progress, cancellationToken);
+            }
+            catch (Exception ex) when (ex is PackageDownloadException or IOException or UnauthorizedAccessException or HttpRequestException or OperationCanceledException)
+            {
+                throw new ModelsPendingException(result, ex);
+            }
+        }
+
+        return result;
     }
+
+    /// <summary>
+    /// Baja con <see cref="Models"/> (hash al vuelo y reanudación) los modelos que declara un módulo instalado y los deja
+    /// en su carpeta, donde los busca (<c>&lt;carpeta del módulo&gt;\&lt;file&gt;</c>). Lo ya presente no se vuelve a bajar.
+    /// </summary>
+    /// <exception cref="PackageDownloadException">Un modelo no se pudo bajar o no es el publicado.</exception>
+    /// <exception cref="OperationCanceledException">Se canceló; lo recibido queda para reanudar.</exception>
+    public async Task EnsureModelsAsync(string moduleId, IProgress<InstallProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        if (Installed.Find(moduleId) is not { Origin: PackageOrigin.Installed, Manifest.Kind: PackageKind.Module } module)
+        {
+            return;
+        }
+
+        try
+        {
+            IReadOnlyList<ModuleModel> models = await Task.Run(() => ModuleModels.Read(Path.Combine(module.Directory, PackageManifest.FileName)), cancellationToken);
+            for (int i = 0; i < models.Count; i++)
+            {
+                ModuleModel model = models[i];
+                string stage = $"Modelo {i + 1} de {models.Count}: {model.Id} ({FormatSize(model.Size)})";
+                IProgress<DownloadProgress>? bytes = progress is null ? null : new DirectProgress<DownloadProgress>(p => progress.Report(new InstallProgress(p.Fraction, stage)));
+                await Task.Run(() => Models.PlaceAsync(model, module.Directory, bytes, cancellationToken), cancellationToken);
+            }
+        }
+        finally
+        {
+            await RefreshAsync();
+        }
+    }
+
+    /// <summary>«1,2 GB», «340 MB».</summary>
+    public static string FormatSize(long bytes) =>
+        bytes >= 1L << 30
+            ? string.Create(Rodaje.App.Services.Format.SpanishNumbers.Format, $"{bytes / (double)(1L << 30):0.0} GB")
+            : string.Create(Rodaje.App.Services.Format.SpanishNumbers.Format, $"{Math.Max(1, (long)Math.Round(bytes / (double)(1L << 20)))} MB");
 
     /// <summary>
     /// Versión publicada más nueva de cada complemento, para ofrecer «Actualizar». Sin conexión o sin catálogo publicado
@@ -211,6 +308,7 @@ public sealed class PackageService
             && Available.TryGetValue(entry.Id, out PackageVersion? published) && published.CompareTo(installed.Manifest.Version) > 0;
     }
 
+    /// <summary>Desinstala; un módulo abierto se cierra antes y los modelos que ya no usa nadie se borran del almacén.</summary>
     /// <exception cref="PackageInstallException">No se pudo desinstalar.</exception>
     public Task UninstallAsync(string packageId) => ExclusiveAsync(() =>
     {
@@ -219,9 +317,99 @@ public sealed class PackageService
             throw new PackageInstallException(OtherInstancesMessage);
         }
 
+        if (Installed.Find(packageId) is null or { Manifest.Kind: PackageKind.Module })
+        {
+            CloseModuleNow(packageId);
+        }
+
         _installer.Uninstall(packageId);
+        PruneModels();
         return true;
     });
+
+    /// <summary>Cierra el módulo desde el hilo de trabajo de <see cref="ExclusiveAsync{T}"/> (sin contexto de la interfaz).</summary>
+    private void CloseModuleNow(string moduleId)
+    {
+        if (CloseModule is { } close)
+        {
+            close(moduleId).GetAwaiter().GetResult();
+        }
+    }
+
+    private void PruneModels()
+    {
+        PackageScan scan = PackageLibrary.Scan(Locations, AppId);
+        var inUse = new List<string>();
+        foreach (InstalledPackage module in scan.Packages.Where(p => p.Manifest.Kind == PackageKind.Module))
+        {
+            inUse.AddRange(ModuleModels.Read(Path.Combine(module.Directory, PackageManifest.FileName)).Select(m => m.Sha256));
+        }
+
+        Models.Prune(inUse);
+    }
+
+    /// <summary>
+    /// Pasa los módulos instalados con un id viejo (<see cref="RenamedModules"/>) al nuevo: cambia el id de su manifiesto y
+    /// el nombre de su carpeta. Si el nuevo ya está instalado, el viejo se borra. Devuelve cuántos migró o borró.
+    /// </summary>
+    public static int MigrateRenamedModules(PackageLocations locations)
+    {
+        ArgumentNullException.ThrowIfNull(locations);
+        int migrated = 0;
+        foreach ((string oldId, string newId) in RenamedModules)
+        {
+            string from = Path.Combine(locations.Modules, oldId);
+            if (!Directory.Exists(from))
+            {
+                continue;
+            }
+
+            string to = Path.Combine(locations.Modules, newId);
+            if (Directory.Exists(to))
+            {
+                Directory.Delete(from, recursive: true);
+                migrated++;
+                continue;
+            }
+
+            string manifest = Path.Combine(from, PackageManifest.FileName);
+            if (File.Exists(manifest))
+            {
+                File.WriteAllBytes(manifest, WithId(File.ReadAllBytes(manifest), oldId, newId));
+            }
+
+            Directory.Move(from, to);
+            migrated++;
+        }
+
+        return migrated;
+    }
+
+    /// <summary>El mismo JSON con <c>id</c> = <paramref name="newId"/> si era <paramref name="oldId"/>; lo demás, igual.</summary>
+    private static byte[] WithId(byte[] json, string oldId, string newId)
+    {
+        using JsonDocument document = JsonDocument.Parse(json, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
+        {
+            writer.WriteStartObject();
+            foreach (JsonProperty property in document.RootElement.EnumerateObject())
+            {
+                if (property.NameEquals("id") && property.Value.ValueKind == JsonValueKind.String && property.Value.GetString() == oldId)
+                {
+                    writer.WriteString("id", newId);
+                }
+                else
+                {
+                    property.WriteTo(writer);
+                }
+            }
+
+            writer.WriteEndObject();
+        }
+
+        return buffer.ToArray();
+    }
 
     /// <summary>Hace <paramref name="work"/> fuera del hilo de la interfaz y sin otra operación a la vez, y vuelve a leer lo instalado.</summary>
     private async Task<T> ExclusiveAsync<T>(Func<T> work)
@@ -230,12 +418,15 @@ public sealed class PackageService
         T value;
         try
         {
-            (value, PackageScan scan) = await Task.Run(() =>
+            (value, PackageScan scan, Dictionary<string, IReadOnlyList<ModuleModel>> missing) = await Task.Run(() =>
             {
                 ResolveLeftoversOnce();
-                return (work(), PackageLibrary.Scan(Locations, AppId));
+                T result = work();
+                PackageScan found = PackageLibrary.Scan(Locations, AppId);
+                return (result, found, FindMissingModels(found));
             });
             Installed = scan;
+            MissingModels = missing;
             HasScanned = true;
         }
         finally
@@ -245,6 +436,21 @@ public sealed class PackageService
 
         Changed?.Invoke(this, EventArgs.Empty);
         return value;
+    }
+
+    private static Dictionary<string, IReadOnlyList<ModuleModel>> FindMissingModels(PackageScan scan)
+    {
+        var missing = new Dictionary<string, IReadOnlyList<ModuleModel>>(StringComparer.Ordinal);
+        foreach (InstalledPackage module in scan.Packages.Where(p => p is { Origin: PackageOrigin.Installed, Manifest.Kind: PackageKind.Module }))
+        {
+            ModuleModel[] absent = [.. ModuleModels.Read(Path.Combine(module.Directory, PackageManifest.FileName)).Where(m => !m.IsPresentIn(module.Directory))];
+            if (absent.Length > 0)
+            {
+                missing[module.Id] = absent;
+            }
+        }
+
+        return missing;
     }
 
     private void ResolveLeftoversOnce()
@@ -257,6 +463,7 @@ public sealed class PackageService
         try
         {
             _installer.CleanUpLeftovers();
+            MigrateRenamedModules(Locations);
             _leftoversResolved = true;
         }
         catch (PackageInstallException)
@@ -271,4 +478,17 @@ public sealed class PackageService
             _leftoversResolved = true;
         }
     }
+}
+
+/// <summary>El módulo quedó instalado, pero no se pudieron bajar todos sus modelos; lo bajado se guarda para reanudar.</summary>
+public sealed class ModelsPendingException(InstallResult result, Exception inner)
+    : Exception($"«{result.Package.Manifest.Name}» quedó instalado, pero faltan sus modelos: {inner.Message} «Bajar modelos» sigue desde donde quedó.", inner)
+{
+    public InstallResult Result { get; } = result;
+}
+
+/// <summary>Progreso sin pasar por el contexto de sincronización (lo reenvía quien llama con su propio <see cref="Progress{T}"/>).</summary>
+internal sealed class DirectProgress<T>(Action<T> report) : IProgress<T>
+{
+    public void Report(T value) => report(value);
 }

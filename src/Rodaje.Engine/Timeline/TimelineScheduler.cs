@@ -87,6 +87,7 @@ internal sealed partial class TimelineScheduler : IDisposable
     private readonly IGeneratedContentCache? _titles;
     private readonly Time _titleLookahead;
     private readonly Dictionary<string, EffectListRing> _titleEffects = [];
+    private readonly Dictionary<string, EffectListRing> _groupEffects = [];
     private long _lateTitles;
     private readonly List<HeldLayer> _held = [];
     private int _heldCount;
@@ -341,12 +342,9 @@ internal sealed partial class TimelineScheduler : IDisposable
             }
             else
             {
-                foreach ((VideoLayerPlan layerPlan, LayerState main, LayerState? incoming) in _stepped)
+                foreach ((VideoLayerPlan layerPlan, LayerState _, LayerState? _) in _stepped)
                 {
-                    LayerFrame? layer = layerPlan.GeneratedAt(time) is { } title
-                        ? title.Layer(layerPlan.TrackIndex, time, TitleEffects(layerPlan), _content)
-                        : Compose(layerPlan.TrackIndex, main, incoming, time);
-                    if (layer is not null)
+                    if (!layerPlan.IsNested && Assemble(layerPlan, time) is { } layer)
                     {
                         layers.Add(layer);
                     }

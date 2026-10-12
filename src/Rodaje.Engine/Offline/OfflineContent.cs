@@ -68,9 +68,9 @@ internal static class OfflineContent
         var missing = new List<MissingContentItem>();
         foreach (VideoLayerPlan layer in plan.Layers)
         {
-            foreach (VideoClipPlan clip in layer.Clips)
+            foreach (TransitionPlan? outgoing in layer.Clips.Select(c => c.Outgoing).Concat(layer.Groups.Select(g => g.Outgoing)))
             {
-                if (clip.Outgoing is not { FellBack: true } transition || transition.End <= start || transition.Start >= end)
+                if (outgoing is not { FellBack: true } transition || transition.End <= start || transition.Start >= end)
                 {
                     continue;
                 }
@@ -166,6 +166,14 @@ internal static class OfflineContent
                 if (clip.End > start && clip.Start < end)
                 {
                     clips.Add(clip.ClipId);
+                }
+            }
+
+            foreach (GroupClipPlan group in lane.Groups.Concat(lane.IncomingGroups))
+            {
+                if (group.End > start && group.Start < end)
+                {
+                    clips.Add(group.ClipId);
                 }
             }
         }

@@ -20,8 +20,19 @@ public sealed class AudioToolsTests
         Assert.Same(AudioPresets.Podcast, AudioPresetCommands.Match(clip.Effects, out bool has));
         Assert.True(has);
 
-        stack.Execute(AudioPresetCommands.Apply(sequence.Id, sequence.AudioTracks[0].Id, AudioPresets.SoftMusic));
-        Assert.Same(AudioPresets.SoftMusic, AudioPresetCommands.Match(sequence.AudioTracks[0].Effects, out _));
+        stack.Execute(AudioPresetCommands.Apply(sequence.Id, sequence.AudioTracks[0].Id, AudioPresets.MusicGlue));
+        Assert.Same(AudioPresets.MusicGlue, AudioPresetCommands.Match(sequence.AudioTracks[0].Effects, out _));
+
+        // Un preajuste sin ecualizador deja el que hay; la mezcla (la secuencia) también admite preajustes.
+        stack.Execute(AudioPresetCommands.Apply(sequence.Id, clip.Id, AudioPresets.MixLimiter));
+        Assert.Contains(clip.Effects, e => e.Type == BuiltInEffects.Equalizer);
+        Assert.Same(AudioPresets.MixLimiter, AudioPresetCommands.Match(clip.Effects, out _));
+        stack.Execute(AudioPresetCommands.Apply(sequence.Id, sequence.Id, AudioPresets.MixLimiter));
+        Assert.Same(AudioPresets.MixLimiter, AudioPresetCommands.Match(sequence.MasterEffects, out _));
+        Assert.True(stack.Undo());
+        Assert.Empty(sequence.MasterEffects);
+        Assert.True(stack.Undo());
+        clip = sequence.GetClip(clip.Id).Clip;
 
         clip.Effects.Find(e => e.Type == BuiltInEffects.Compressor)!.Parameters[BuiltInEffects.CompressorParameters.Ratio].Value = 7;
         Assert.Null(AudioPresetCommands.Match(clip.Effects, out has));

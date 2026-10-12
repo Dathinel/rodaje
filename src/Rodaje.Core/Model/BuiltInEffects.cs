@@ -77,7 +77,10 @@ public static class BuiltInEffects
         public const string HighFrequency = "highFrequency";
     }
 
-    /// <summary>Compresor de un clip o de una pista de audio, después del ecualizador (sin keyframes).</summary>
+    /// <summary>
+    /// Compresor de un clip, de una pista de audio o de la mezcla, después del ecualizador. Umbral, relación y mezcla
+    /// admiten keyframes; los interruptores valen 0 o 1.
+    /// </summary>
     public const string Compressor = "rodaje.compressor";
 
     public static class CompressorParameters
@@ -85,7 +88,7 @@ public static class BuiltInEffects
         /// <summary>Umbral en dBFS.</summary>
         public const string Threshold = "threshold";
 
-        /// <summary>Relación (4 = 4:1).</summary>
+        /// <summary>Relación (4 = 4:1); 100 es ∞:1 (limitador).</summary>
         public const string Ratio = "ratio";
 
         /// <summary>Ataque en milisegundos.</summary>
@@ -99,6 +102,63 @@ public static class BuiltInEffects
 
         /// <summary>Ancho de la rodilla suave en dB.</summary>
         public const string Knee = "knee";
+
+        /// <summary>Mezcla en paralelo en %: 0 la señal original, 100 solo la comprimida.</summary>
+        public const string Mix = "mix";
+
+        /// <summary>Anticipación del detector en ms (0 a 10); la línea de tiempo la compensa.</summary>
+        public const string Lookahead = "lookahead";
+
+        /// <summary>Detector: 0 pico, 1 RMS.</summary>
+        public const string Detector = "detector";
+
+        /// <summary>Ventana del RMS en ms.</summary>
+        public const string RmsWindow = "rmsWindow";
+
+        /// <summary>1: relajación dependiente del programa.</summary>
+        public const string AutoRelease = "autoRelease";
+
+        /// <summary>1: compensación automática según umbral y relación (se suma a <see cref="Makeup"/>).</summary>
+        public const string AutoMakeup = "autoMakeup";
+
+        /// <summary>1: estéreo enlazado (una reducción para los dos canales); 0, por canal.</summary>
+        public const string StereoLink = "stereoLink";
+
+        /// <summary>Pasa altos del detector en Hz; 0 lo apaga.</summary>
+        public const string SidechainHighPass = "sidechainHighPass";
+
+        /// <summary>Bandas: 1 o 3 (multibanda).</summary>
+        public const string Bands = "bands";
+
+        public const string LowCrossover = "lowCrossover";
+
+        public const string HighCrossover = "highCrossover";
+
+        /// <summary>Desplazamiento del umbral de la banda grave respecto del general, en dB.</summary>
+        public const string LowThreshold = "lowThreshold";
+
+        public const string MidThreshold = "midThreshold";
+
+        public const string HighThreshold = "highThreshold";
+
+        /// <summary>Ganancia de salida de la banda grave, en dB.</summary>
+        public const string LowGain = "lowGain";
+
+        public const string MidGain = "midGain";
+
+        public const string HighGain = "highGain";
+
+        /// <summary>1: limitador de pico verdadero al final.</summary>
+        public const string Limiter = "limiter";
+
+        /// <summary>Techo del limitador en dBTP.</summary>
+        public const string Ceiling = "ceiling";
+    }
+
+    public static class CompressorOptions
+    {
+        /// <summary>Identificador de la pista cuya mezcla dispara el compresor (sidechain externo); sin ella, el propio audio.</summary>
+        public const string Sidechain = "sidechain";
     }
 
     /// <summary>Corrección de color y LUT.</summary>

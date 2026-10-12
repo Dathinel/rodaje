@@ -26,6 +26,9 @@ internal sealed partial class TimelineView
     private static readonly InputCursor MoveCursor = InputSystemCursor.Create(InputSystemCursorShape.SizeAll);
     private static readonly InputCursor CrossCursor = InputSystemCursor.Create(InputSystemCursorShape.Cross);
 
+    private const string RollBadge = "]|[";
+    private const string SlideBadge = "[↔]";
+
     private PointerMode _mode;
     private Point _pressPoint;
     private Time _pressTime;
@@ -63,6 +66,12 @@ internal sealed partial class TimelineView
         _drag = null;
         _markerId = null;
         _mode = PointerMode.None;
+        if (Session is { } session)
+        {
+            session.CurrentTrimPreview = null;
+        }
+
+        _renderer?.PlaceCursorBadge(null, 0, 0);
         ClearDragOverlay();
         _overlay.Marquee = null;
         ReleaseCapture();
@@ -190,7 +199,8 @@ internal sealed partial class TimelineView
         _pressCtrl = ctrl;
         if (hit.Clip is { } clip)
         {
-            if (ctrl)
+            // Ctrl+Alt es el gesto de roll o slide, no Ctrl+clic.
+            if (ctrl && !e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu))
             {
                 Session.ToggleSelection(clip.Id);
             }
@@ -225,7 +235,9 @@ internal sealed partial class TimelineView
         switch (_mode)
         {
             case PointerMode.None:
-                UpdateCursor(TimelineHitTest.Hit(layout, Viewport, p.X, ContentY(p.Y)), HitTransition(layout, p).Kind);
+                TimelineHit hover = TimelineHitTest.Hit(layout, Viewport, p.X, ContentY(p.Y));
+                UpdateCursor(hover, HitTransition(layout, p).Kind);
+                _renderer.PlaceCursorBadge(Badge(hover, e.KeyModifiers), p.X, p.Y);
                 return;
             case PointerMode.Pan:
                 Viewport.ScrollX -= p.X - _pressPoint.X;
@@ -237,7 +249,7 @@ internal sealed partial class TimelineView
             case PointerMode.PendingClip:
                 if (Distance(p, _pressPoint) >= DragThreshold)
                 {
-                    StartClipDrag(e.KeyModifiers.HasFlag(VirtualKeyModifiers.Menu));
+                    StartClipDrag(e.KeyModifiers);
                     ContinueClipDrag(p, layout);
                 }
 
@@ -245,6 +257,11 @@ internal sealed partial class TimelineView
             case PointerMode.DraggingClip:
                 EdgeScroll(p.X);
                 ContinueClipDrag(p, layout);
+                if (_drag?.Drag.Operation is DragOperation.Roll or DragOperation.Slide)
+                {
+                    _renderer.PlaceCursorBadge(_drag.Drag.Operation == DragOperation.Roll ? RollBadge : SlideBadge, p.X, p.Y);
+                }
+
                 return;
             case PointerMode.DraggingTransition:
                 ContinueTransitionDrag(p);
@@ -326,10 +343,11 @@ internal sealed partial class TimelineView
         if (_mode == PointerMode.None)
         {
             UpdateCursor(null);
+            _renderer?.PlaceCursorBadge(null, 0, 0);
         }
     }
 
-    private void StartClipDrag(bool alt)
+    private void StartClipDrag(VirtualKeyModifiers modifiers)
     {
         EditorSession session = Session!;
         Clip clip = _pressHit.Clip!;
@@ -339,16 +357,66 @@ internal sealed partial class TimelineView
             return;
         }
 
-        DragOperation operation = _pressHit.Kind switch
+        bool alt = modifiers.HasFlag(VirtualKeyModifiers.Menu);
+        (DragOperation operation, string clipId) = TrimGesture(_pressHit, modifiers) switch
         {
-            HitKind.ClipStart => alt ? DragOperation.StretchStart : DragOperation.TrimStart,
-            HitKind.ClipEnd => alt ? DragOperation.StretchEnd : DragOperation.TrimEnd,
-            _ => alt ? DragOperation.Slip : DragOperation.Move,
+            DragOperation.Roll => RollTarget(_pressHit, _pressTime),
+            DragOperation.Slide => (DragOperation.Slide, clip.Id),
+            _ => (_pressHit.Kind switch
+            {
+                HitKind.ClipStart => alt ? DragOperation.StretchStart : DragOperation.TrimStart,
+                HitKind.ClipEnd => alt ? DragOperation.StretchEnd : DragOperation.TrimEnd,
+                _ => alt ? DragOperation.Slip : DragOperation.Move,
+            }, clip.Id),
         };
-        var drag = new ClipDrag(session.Project, session.SequenceId, clip.Id, operation, _pressTime, Options(), session.ProgramPosition);
+        var drag = new ClipDrag(session.Project, session.SequenceId, clipId, operation, _pressTime, Options(), session.ProgramPosition);
         _drag = new ClipDragSession(session, drag);
         _drag.Begin();
         _mode = PointerMode.DraggingClip;
+    }
+
+    /// <summary>
+    /// Roll o slide, si el arrastre lo es: con su herramienta, o con Ctrl+Alt en la normal (sobre un borde, roll; sobre
+    /// el cuerpo, slide). <c>null</c> en los demás casos.
+    /// </summary>
+    private DragOperation? TrimGesture(TimelineHit hit, VirtualKeyModifiers modifiers)
+    {
+        if (hit.Clip is null)
+        {
+            return null;
+        }
+
+        bool chord = State.Tool == TimelineTool.Normal && modifiers.HasFlag(VirtualKeyModifiers.Control) && modifiers.HasFlag(VirtualKeyModifiers.Menu);
+        return State.Tool == TimelineTool.Roll || (chord && hit.Kind is HitKind.ClipStart or HitKind.ClipEnd) ? DragOperation.Roll
+            : State.Tool == TimelineTool.Slide || (chord && hit.Kind == HitKind.ClipBody) ? DragOperation.Slide
+            : null;
+    }
+
+    private string? Badge(TimelineHit hit, VirtualKeyModifiers modifiers) => TrimGesture(hit, modifiers) switch
+    {
+        DragOperation.Roll => RollBadge,
+        DragOperation.Slide => SlideBadge,
+        _ => null,
+    };
+
+    /// <summary>
+    /// El corte que mueve un roll: el de salida del clip, o el de entrada si se agarró el borde de entrada o la mitad
+    /// izquierda (ese corte es la salida del clip anterior pegado). Sin anterior pegado, el borde de entrada se recorta.
+    /// </summary>
+    private static (DragOperation Operation, string ClipId) RollTarget(TimelineHit hit, Time at)
+    {
+        Clip clip = hit.Clip!;
+        bool entry = hit.Kind == HitKind.ClipStart || (hit.Kind == HitKind.ClipBody && at < clip.Start + Time.FromTicks(clip.Duration.Ticks / 2));
+        if (!entry)
+        {
+            return (DragOperation.Roll, clip.Id);
+        }
+
+        Track? track = hit.Row?.Track;
+        int index = track?.Clips.IndexOf(clip) ?? -1;
+        return index > 0 && track!.Clips[index - 1].End == clip.Start
+            ? (DragOperation.Roll, track.Clips[index - 1].Id)
+            : (DragOperation.TrimStart, clip.Id);
     }
 
     private void ContinueClipDrag(Point p, TrackLayout layout)
@@ -364,6 +432,11 @@ internal sealed partial class TimelineView
         _overlay.InsertLine = plan.InsertAt is { } at ? (plan.GhostTrackId, at) : null;
         _overlay.SnapGuide = plan.SnapGuide;
         _overlay.Balloon = plan.Balloon is { } balloon ? (plan.GhostTrackId, balloon.At, balloon.Text) : null;
+        if (_drag.Drag.Operation is DragOperation.Roll or DragOperation.Slide)
+        {
+            Session!.CurrentTrimPreview = TrimPreview.Of(Session.Sequence, _drag.Drag.ClipId, _drag.Drag.Operation == DragOperation.Roll);
+        }
+
         Invalidate();
     }
 
@@ -371,6 +444,8 @@ internal sealed partial class TimelineView
     {
         ClipDragSession? drag = _drag;
         _drag = null;
+        Session!.CurrentTrimPreview = null;
+        _renderer?.PlaceCursorBadge(null, 0, 0);
         ClearDragOverlay();
         drag?.Complete();
         Invalidate();
@@ -418,6 +493,8 @@ internal sealed partial class TimelineView
             : hit is { } h && EditsEnvelope(h) ? CrossCursor
             : transition is TransitionHitKind.StartHandle or TransitionHitKind.EndHandle ? ResizeCursor
             : transition is TransitionHitKind.Body or TransitionHitKind.AutoCrossfade ? ArrowCursor
+            : hit?.Clip is not null && State.Tool == TimelineTool.Roll ? ResizeCursor
+            : hit?.Clip is not null && State.Tool == TimelineTool.Slide ? MoveCursor
             : hit?.Kind is HitKind.ClipStart or HitKind.ClipEnd && State.Tool != TimelineTool.Selection ? ResizeCursor
             : hit?.Kind is HitKind.ClipBody && State.Tool == TimelineTool.Normal ? MoveCursor
             : ArrowCursor;

@@ -19,7 +19,7 @@ Todas son vectores de estilo de Kokoro-82M v1.0 (`voices/<id>.bin` de la misma e
 | Inglés de EE. UU. | `af_heart`, `af_bella`, `af_nicole`, `af_sarah`, `af_sky`, `af_alloy`, `af_aoede`, `af_jessica`, `af_kore`, `af_nova`, `af_river`, `am_michael`, `am_fenrir`, `am_puck`, `am_adam`, `am_echo`, `am_eric`, `am_liam`, `am_onyx`, `am_santa` |
 | Inglés británico | `bf_emma`, `bf_isabella`, `bf_alice`, `bf_lily`, `bm_george`, `bm_fable`, `bm_lewis`, `bm_daniel` |
 
-**Datos de entrenamiento de Kokoro:** según su ficha, audio de dominio público, con licencia permisiva o no protegido, más audio sintético. No son todos públicos: se anota antes de publicar (`docs/pendientes-legales.md`).
+**Datos de entrenamiento de Kokoro** (ficha del modelo, `README.md` de `hexgrad/Kokoro-82M`, commit `f3ff3571`, anotada el 12 de octubre de 2026): «Kokoro was trained exclusively on permissive/non-copyrighted audio data and IPA phoneme labels»: audio de dominio público, audio con licencia Apache, MIT y similares, y audio sintético de modelos de TTS cerrados de grandes proveedores (sin audio sintético de modelos abiertos ni de «custom voice clones»). Unas pocas cientos de horas en total; el conjunto no es público. La ficha atribuye dos fuentes CC BY que entraron desde la v0.19: Koniwa `tnc` (<1 h, CC BY 3.0) y SIWIS (<11 h, CC BY 4.0). Arquitectura StyleTTS 2 e ISTFTNet; modelo base `yl4579/StyleTTS2-LJSpeech`. Las secciones literales están en `THIRD-PARTY-NOTICES.txt` de Rodaje, sección 10, junto a los textos de las licencias.
 
 ## Lo que no se usa y por qué
 

@@ -1,7 +1,7 @@
 using Rodaje.Module.Subtitles;
 using Rodaje.Modules.Protocol;
 
-ModuleInfo info = new("modulo-subtitulos", "0.1.0", "Subtítulos",
+ModuleInfo info = new("modulo-subtitulos", "1.0.0", "Subtítulos",
 [
     new FunctionInfo("subtitulos", "Transcribir con tiempos por palabra", Inputs: ["audio", "bytes"], Outputs: ["bytes"]),
 ], Device: "vulkan, cpu");

@@ -135,6 +135,54 @@ public sealed class ExportTitleTests(ITestOutputHelper output) : IDisposable
         Assert.True(bright[89] < bright[45] * 0.1, "En el último cuadro el título ya salió.");
     }
 
+    [ExportFact]
+    public async Task Los_subtitulos_van_como_pista_aparte_en_mp4_y_mkv_ademas_de_quemados()
+    {
+        Project project = TwoTracks();
+        var track = new Track { Id = "subs", Kind = TrackKind.Video, Name = "Español", Role = TrackRoles.Subtitles };
+        string[] texts = ["¿Qué tal, señoría?\nÁrbol y pingüino", "Último & más"];
+        for (int i = 0; i < texts.Length; i++)
+        {
+            track.Clips.Add(new Clip
+            {
+                Id = $"sub{i}",
+                Start = S(i * 3),
+                SourceIn = Time.Zero,
+                SourceOut = i == 0 ? S(2) : S(4),
+                Generator = new ClipGenerator { Text = texts[i], Style = Style("Segoe UI"), Edges = new GeneratorEdges { In = false, Out = false } },
+            });
+        }
+
+        project.Sequences[0].VideoTracks.Add(track);
+        var yellow = new List<int>();
+        foreach ((ExportContainer container, SubtitleExport mode, string name, string codec) in
+            ((ExportContainer, SubtitleExport, string, string)[])[(ExportContainer.Mp4, SubtitleExport.Both, "subs.mp4", "mov_text"), (ExportContainer.Mkv, SubtitleExport.Embedded, "subs.mkv", "subrip")])
+        {
+            var settings = new ExportSettings
+            {
+                Container = container,
+                Subtitles = mode,
+                Video = new VideoExportSettings { Codec = ExportCodec.H264, EncoderId = "h264_nvenc", RateControl = RateControl.ConstantQuality(20) },
+            };
+
+            (ExportJob job, string path) = await RunAsync(project, settings, name, continueWithout: false);
+            Assert.True(job.Progress.State == ExportJobState.Completed, job.Failure?.ToString());
+            Assert.Equal([codec], job.Report!.SubtitleCodecs);
+            string srt = System.Text.Encoding.UTF8.GetString(await RunFfmpegAsync(["-i", path, "-map", "0:s:0", "-f", "srt", "pipe:1"]));
+            output.WriteLine(srt);
+            Rodaje.Core.Serialization.SubtitleFileContent read = Rodaje.Core.Serialization.SubtitleFiles.Parse(srt);
+            Assert.Equal(texts, read.Cues.Select(c => c.Text));
+            Assert.Equal(S(3), read.Cues[1].Start);
+            Assert.Equal(S(7), read.Cues[1].End);
+
+            byte[] rgb = await DecodeRgbAsync(path, 30, 1920, 1080);
+            yellow.Add(Enumerable.Range(0, rgb.Length / 3).Count(p => rgb[p * 3] > 200 && rgb[(p * 3) + 1] > 180 && rgb[(p * 3) + 2] < 90));
+        }
+
+        // Quemado en el MP4, fuera de la imagen en el MKV.
+        Assert.True(yellow[0] - yellow[1] > 5000, $"Relleno amarillo: {yellow[0]} px quemado, {yellow[1]} px solo como pista.");
+    }
+
     private static double MeanLuma(byte[] rgb)
     {
         double sum = 0;

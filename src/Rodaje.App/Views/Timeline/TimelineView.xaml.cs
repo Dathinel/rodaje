@@ -112,6 +112,18 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _headers.SubtitleTrackRequested += () => Session?.AddSubtitleTrack();
         _headers.SubtitleRoleRequested += (trackId, subtitles) => Session?.SetSubtitleRole(trackId, subtitles);
         _headers.VoiceOverRequested += trackId => Voice.VoiceCommands.RecordVoiceOver(services, trackId);
+        _headers.SubtitleFileRequested += trackId =>
+        {
+            if (trackId is null)
+            {
+                services.Shortcuts.Invoke(Subtitles.SubtitleFileCommands.ImportId);
+            }
+            else
+            {
+                Subtitles.SubtitleFileCommands.ExportTrack(services, trackId);
+            }
+        };
+        _headers.DynamicsRequested += trackId => services.Session.ShowDynamics(new Rodaje.App.Services.Audio.DynamicsOwner(Rodaje.App.Services.Audio.DynamicsOwnerKind.Track, trackId));
         _headers.AudioPresetRequested += (trackId, preset) =>
         {
             if (Session is { } session)
@@ -503,7 +515,8 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     private void AddRegion()
     {
         EditorSession session = Session!;
-        (Time start, Time end) = TimelinePlanning.RegionSpan(session.Sequence, session.SelectedClipIds, _overlay.TimeRange, session.MainTrack, session.EditPosition);
+        (Time start, Time end) = TimelinePlanning.RegionSpan(session.Sequence, session.SelectedClipIds, _overlay.TimeRange, session.MainTrack, session.EditPosition,
+            (session.SequenceIn, session.SequenceOut));
         string name = TimelinePlanning.NextName("Región", session.Sequence.Regions.Select(r => r.Name));
         if (session.Execute(Edits.AddRegion(session.SequenceId, start, end, name)))
         {
@@ -638,6 +651,8 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         (EnvelopeToolButton, ActionIds.EnvelopeTool),
         (SelectionToolButton, ActionIds.SelectionTool),
         (ZoomToolButton, ActionIds.ZoomTool),
+        (RollToolButton, ActionIds.RollTool),
+        (SlideToolButton, ActionIds.SlideTool),
     ];
 
     private (ToggleButton Button, string ActionId)[] ToggleButtons() =>
@@ -708,6 +723,8 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         EnvelopeToolButton.IsChecked = state.Tool == TimelineTool.Envelope;
         SelectionToolButton.IsChecked = state.Tool == TimelineTool.Selection;
         ZoomToolButton.IsChecked = state.Tool == TimelineTool.Zoom;
+        RollToolButton.IsChecked = state.Tool == TimelineTool.Roll;
+        SlideToolButton.IsChecked = state.Tool == TimelineTool.Slide;
         MagneticButton.IsChecked = state.MagneticMainTrack;
         SnappingButton.IsChecked = state.Snapping;
         AutoRippleButton.IsChecked = state.AutoRipple;

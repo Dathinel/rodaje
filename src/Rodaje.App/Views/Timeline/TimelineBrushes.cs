@@ -129,6 +129,29 @@ internal sealed class TimelineBrushes
 
     public Brush ClipEdge(TrackKind kind) => kind == TrackKind.Audio ? AudioClipEdge : VideoClipEdge;
 
+    private readonly Dictionary<string, (Brush Solid, Brush Line, Brush Band, Brush Ruler)> _marked = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Los pinceles de un marcador o una región con color propio (<c>#RRGGBB</c>): bandera y nombre, línea, banda de la
+    /// región y su franja en la regla. Se crean una vez por color.
+    /// </summary>
+    public (Brush Solid, Brush Line, Brush Band, Brush Ruler)? Marked(string? color)
+    {
+        if (color is null || !MarkerStyle.IsColor(color))
+        {
+            return null;
+        }
+
+        if (!_marked.TryGetValue(color, out var brushes))
+        {
+            Color c = ColorHelper.FromArgb(0xFF, Convert.ToByte(color[1..3], 16), Convert.ToByte(color[3..5], 16), Convert.ToByte(color[5..7], 16));
+            brushes = (new SolidColorBrush(c), new SolidColorBrush(WithAlpha(c, 0x60)), new SolidColorBrush(WithAlpha(c, 0x1C)), new SolidColorBrush(WithAlpha(c, 0x60)));
+            _marked[color] = brushes;
+        }
+
+        return brushes;
+    }
+
     private static Brush Get(string key) => (Brush)Application.Current.Resources[key];
 
     private static Color Color(Brush brush) => brush is SolidColorBrush solid ? solid.Color : Colors.Gray;

@@ -20,7 +20,7 @@ internal static partial class AnalysisCommands
     [
         (RemoveSilences, "Quitar silencios...", ""),
         (DetectBeats, "Detectar ritmo...", ""),
-        (Ducking, "Ducking automático...", ""),
+        (Ducking, "Bajar música bajo la voz...", ""),
         (Stabilize, "Estabilizar...", ""),
         (AutoColor, "Color automático", ""),
         (WhiteBalance, "Balance de blancos automático", ""),
@@ -34,7 +34,7 @@ internal static partial class AnalysisCommands
         [
             router.Bind(RemoveSilences, () => Run(services, RemoveSilences, "Quitar silencios", scope => SilenceDialog.ShowAsync(services, scope))),
             router.Bind(DetectBeats, () => Run(services, DetectBeats, "Detectar ritmo", scope => RhythmDialog.ShowAsync(services, scope))),
-            router.Bind(Ducking, () => Run(services, Ducking, "Bajar música bajo la voz", scope => DuckingDialog.ShowAsync(services, scope))),
+            router.Bind(Ducking, () => Run(services, Ducking, DuckingDialog.Title, scope => DuckingDialog.ShowAsync(services, scope))),
             router.Bind(Stabilize, () => Run(services, Stabilize, "Estabilizar", scope => StabilizeDialog.ShowAsync(services, scope))),
             router.Bind(AutoColor, () => Run(services, AutoColor, "Color automático", scope => AutoColorAction.RunAsync(services, levels: true, scope), canCancel: true)),
             router.Bind(WhiteBalance, () => Run(services, WhiteBalance, "Balance de blancos automático",

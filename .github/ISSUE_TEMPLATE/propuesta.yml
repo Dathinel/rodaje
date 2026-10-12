@@ -1,0 +1,50 @@
+name: Proponer una mejora
+description: Una función nueva, un cambio en cómo funciona algo o un complemento para el catálogo.
+title: "[Propuesta] "
+labels: ["propuesta"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Para un cambio grande conviene abrir la propuesta antes de escribir código: así se discute el enfoque contra las [decisiones de diseño](../blob/main/docs/decisiones.md) ya tomadas. Cómo contribuir: [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md).
+  - type: dropdown
+    id: tipo
+    attributes:
+      label: Tipo
+      options:
+        - Función nueva
+        - Cambio en algo que ya existe
+        - Complemento o módulo para el catálogo
+        - Documentación
+        - Otro
+    validations:
+      required: true
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qué problema resuelve
+      description: Qué quieres hacer hoy y no puedes, o qué te cuesta más de lo que debería.
+    validations:
+      required: true
+  - type: textarea
+    id: propuesta
+    attributes:
+      label: Qué propones
+      description: Cómo lo ves en la interfaz (menú, panel, atajo) o en el formato. Si conoces cómo lo hacen otros editores, cuéntalo como idea de producto, nunca como código o recursos para copiar.
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas que consideraste
+  - type: textarea
+    id: complemento
+    attributes:
+      label: Si es un complemento o módulo
+      description: Enlace a su repositorio, licencia, qué trae y en qué equipo se probó (GPU y VRAM si es un módulo de IA).
+  - type: checkboxes
+    id: hacerlo
+    attributes:
+      label: Participación
+      options:
+        - label: Puedo hacerlo yo y abrir el pull request.

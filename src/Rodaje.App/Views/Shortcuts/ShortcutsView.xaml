@@ -23,7 +23,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Padding="16,8,16,10" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1">
+        <Grid Padding="16,8,16,12" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -55,18 +55,18 @@
             </StackPanel>
 
             <StackPanel x:Name="AdvancedTools" Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="12,8,0,0" VerticalAlignment="Center">
-                <ToggleButton x:Name="KeyboardToggle" Checked="OnKeyboardToggleChanged" Unchecked="OnKeyboardToggleChanged" MinHeight="26" Padding="10,0" FontSize="{StaticResource BodyFontSize}"
+                <ToggleButton x:Name="KeyboardToggle" Checked="OnKeyboardToggleChanged" Unchecked="OnKeyboardToggleChanged" MinHeight="26" Padding="12,0" FontSize="{StaticResource BodyFontSize}"
                               AutomationProperties.Name="Ver teclado y ratón"
                               ToolTipService.ToolTip="Mostrar el teclado y el ratón con lo que hace cada tecla y botón; clic en uno para cambiarlo">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock FontFamily="{StaticResource IconFontFamily}" Text="&#xE765;" VerticalAlignment="Center" />
                         <TextBlock Text="Teclado y ratón" VerticalAlignment="Center" />
                     </StackPanel>
                 </ToggleButton>
-                <ToggleButton x:Name="CheatSheetToggle" Checked="OnCheatSheetToggleChanged" Unchecked="OnCheatSheetToggleChanged" MinHeight="26" Padding="10,0" FontSize="{StaticResource BodyFontSize}"
+                <ToggleButton x:Name="CheatSheetToggle" Checked="OnCheatSheetToggleChanged" Unchecked="OnCheatSheetToggleChanged" MinHeight="26" Padding="12,0" FontSize="{StaticResource BodyFontSize}"
                               AutomationProperties.Name="Hoja rápida"
                               ToolTipService.ToolTip="Los 15 atajos más útiles, para imprimir o guardar">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock FontFamily="{StaticResource IconFontFamily}" Text="&#xE8A5;" VerticalAlignment="Center" />
                         <TextBlock Text="Hoja rápida" VerticalAlignment="Center" />
                     </StackPanel>
@@ -79,7 +79,7 @@
                         ToolTipService.ToolTip="Volver a las teclas de fábrica de este estilo (se puede deshacer)" />
             </StackPanel>
 
-            <Grid x:Name="SearchRow" Grid.Row="1" ColumnSpacing="10" Margin="0,8,0,0">
+            <Grid x:Name="SearchRow" Grid.Row="1" ColumnSpacing="8" Margin="0,8,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" MaxWidth="380" />
                     <ColumnDefinition Width="Auto" />
@@ -88,9 +88,9 @@
                 <TextBox x:Name="SearchBox" MinWidth="160" PlaceholderText="Busca una acción («cortar») o una tecla («Ctrl+S»)"
                          TextChanged="OnSearchChanged" AutomationProperties.Name="Buscar atajos por acción o por tecla" />
                 <Button x:Name="KeyFilterChip" Grid.Column="1" Visibility="Collapsed" Click="OnKeyFilterClick" BorderBrush="{StaticResource AccentBrush}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock x:Name="KeyFilterText" VerticalAlignment="Center" />
-                        <TextBlock FontFamily="{StaticResource IconFontFamily}" FontSize="9" Text="&#xE711;" VerticalAlignment="Center" />
+                        <TextBlock FontFamily="{StaticResource IconFontFamily}" FontSize="{StaticResource IconSmallFontSize}" Text="&#xE711;" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
                 <TextBlock x:Name="CountText" Grid.Column="2" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center"
@@ -101,10 +101,10 @@
         <ScrollViewer x:Name="Scroller" Grid.Row="1" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
             <Grid Padding="16,12,16,20">
-                <StackPanel x:Name="EssentialPanel" Spacing="14">
+                <StackPanel x:Name="EssentialPanel" Spacing="16">
                     <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
                                Text="Los atajos que más vas a usar. Para ver todas las acciones y cambiar teclas, pasa a «Avanzado»." />
-                    <Border Padding="12" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="2">
+                    <Border Padding="12" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}">
                         <Grid x:Name="EssentialDrawings" ColumnSpacing="16" RowSpacing="12" SizeChanged="OnDrawingsSizeChanged">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -121,12 +121,12 @@
                     <Grid x:Name="EssentialList" ColumnSpacing="28" SizeChanged="OnEssentialListSizeChanged" />
                 </StackPanel>
 
-                <StackPanel x:Name="AdvancedPanel" Spacing="14" Visibility="Collapsed">
+                <StackPanel x:Name="AdvancedPanel" Spacing="16" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
                                Text="Pulsa «Cambiar» (o una tecla de la fila) y después la combinación nueva, o abre «Teclado y ratón» y haz clic en una tecla o un botón. Si ya era de otra acción, eliges entre intercambiarlas o quitársela, y puedes deshacerlo. La barra naranja marca lo que cambiaste; cada estilo guarda sus propios cambios." />
 
                     <Border x:Name="KeyboardPanel" Visibility="Collapsed" Padding="12" Background="{StaticResource BarBrush}"
-                            BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="2">
+                            BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}">
                         <StackPanel Spacing="12">
                             <Grid x:Name="Drawings" ColumnSpacing="16" RowSpacing="12" SizeChanged="OnDrawingsSizeChanged">
                                 <Grid.ColumnDefinitions>
@@ -145,7 +145,7 @@
                     </Border>
 
                     <Border x:Name="CheatSheetPanel" Visibility="Collapsed" Padding="12" Background="{StaticResource BarBrush}"
-                            BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="2">
+                            BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}">
                         <local:CheatSheetView x:Name="Sheet" />
                     </Border>
 
@@ -156,8 +156,8 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel x:Name="LeftColumn" Spacing="18" />
-                        <StackPanel x:Name="RightColumn" Grid.Column="1" Spacing="18" />
+                        <StackPanel x:Name="LeftColumn" Spacing="16" />
+                        <StackPanel x:Name="RightColumn" Grid.Column="1" Spacing="16" />
                     </Grid>
                 </StackPanel>
             </Grid>

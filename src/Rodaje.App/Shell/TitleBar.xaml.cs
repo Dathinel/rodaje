@@ -9,6 +9,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Services.Templates;
+using Rodaje.App.Theme;
 using Rodaje.App.Views.Inspector;
 using Rodaje.Engine.Timeline;
 
@@ -66,6 +67,7 @@ internal sealed partial class TitleBar : UserControl
         long dropped = _services.Session.Transport.FramesDropped;
         string frames = dropped == 0 ? "sin cuadros perdidos" : string.Create(CultureInfo.InvariantCulture, $"{dropped} cuadros perdidos");
         StatsText.Text = gpu.Length == 0 ? "" : $"{gpu} · {frames}";
+        ToolTipService.SetToolTip(StatsText, StatsText.Text.Length == 0 ? null : StatsText.Text);
     }
 
     private void UpdateUndoText()
@@ -430,7 +432,7 @@ internal sealed partial class TitleBar : UserControl
             return;
         }
 
-        var body = new StackPanel { Spacing = 10, MaxWidth = 460 };
+        var body = new StackPanel { Spacing = 8, MaxWidth = 460 };
         body.Children.Add(new TextBlock
         {
             Text = "Dónde guarda Rodaje lo que crea: audio sin ruido, voz, copias ProRes de CinemaDNG y máscaras. Lo ya creado no se mueve.",
@@ -457,15 +459,21 @@ internal sealed partial class TitleBar : UserControl
 
         var link = new HyperlinkButton { Content = UpstreamAttribution.RepositoryUrl, Padding = new Thickness(0) };
         link.Click += (_, _) => OpenUpstream();
-        var body = new StackPanel { Spacing = 10, MaxWidth = 460 };
-        body.Children.Add(new AppLogo { Detailed = true, Width = 72, Height = 72, HorizontalAlignment = HorizontalAlignment.Left });
         string? version = typeof(TitleBar).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        body.Children.Add(new TextBlock { Text = $"Versión {version}", IsTextSelectionEnabled = true });
+        var name = new StackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        name.Children.Add(new TextBlock { Text = "Rodaje", Style = ThemeResources.Style("SubtitleTextStyle") });
+        name.Children.Add(new TextBlock { Text = $"Editor de video para Windows · versión {version}", Style = ThemeResources.Style("LabelTextStyle"), IsTextSelectionEnabled = true });
+        var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
+        header.Children.Add(new AppLogo { Detailed = true, Width = 64, Height = 64 });
+        header.Children.Add(name);
+        var body = new StackPanel { Spacing = 12, MaxWidth = 460 };
+        body.Children.Add(header);
+        body.Children.Add(new Border { Height = 1, Margin = new Thickness(0, 4, 0, 4), Background = ThemeResources.Brush("StrokeBrush") });
         body.Children.Add(new TextBlock { Text = UpstreamAttribution.Notice, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true });
         body.Children.Add(link);
-        body.Children.Add(new TextBlock { Text = UpstreamAttribution.Copyright, TextWrapping = TextWrapping.Wrap });
-        body.Children.Add(new TextBlock { Text = UpstreamAttribution.LicenseLine, TextWrapping = TextWrapping.Wrap, Style = (Style)Application.Current.Resources["CaptionTextStyle"] });
-        body.Children.Add(new TextBlock { Text = UpstreamAttribution.FfmpegCredit, TextWrapping = TextWrapping.Wrap, Style = (Style)Application.Current.Resources["CaptionTextStyle"] });
+        body.Children.Add(new TextBlock { Text = UpstreamAttribution.Copyright, TextWrapping = TextWrapping.Wrap, Style = ThemeResources.Style("LabelTextStyle"), TextTrimming = TextTrimming.None });
+        body.Children.Add(new TextBlock { Text = UpstreamAttribution.LicenseLine, TextWrapping = TextWrapping.Wrap, Style = ThemeResources.Style("CaptionTextStyle"), TextTrimming = TextTrimming.None });
+        body.Children.Add(new TextBlock { Text = UpstreamAttribution.FfmpegCredit, TextWrapping = TextWrapping.Wrap, Style = ThemeResources.Style("CaptionTextStyle"), TextTrimming = TextTrimming.None });
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,

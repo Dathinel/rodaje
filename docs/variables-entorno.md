@@ -21,6 +21,7 @@ Todas las variables que lee Rodaje empiezan con `RODAJE_`. Ninguna es obligatori
 | `RODAJE_MEDIR_BIBLIOTECA` | Archivo donde la biblioteca escribe su medida: espera a que carguen los medios, desplaza la cuadrícula despacio y de golpe, anota los intervalos entre cuadros y las portadas, y cierra la app | `LibraryScrollMeasurement` (Rodaje.App) |
 | `RODAJE_MEDIR_LINEA` | Ruta de un informe: al abrir, la línea de tiempo arma un proyecto de 200 clips con el primer video abierto (o uno sintético), mide desplazamiento, zoom y arrastre, escribe el informe y cierra la app | `TimelineBenchmark` (Rodaje.App) |
 | `RODAJE_AUTOPRUEBA_CAPTURAS` | Carpeta donde `--autoprueba` guarda en PNG la ventana (dibujada por XAML) y cuadros del visor | `SelfTestRun` (Rodaje.App) |
+| `RODAJE_CONTRASTE_ALTO` | Solo con `--autoprueba` y `1`: la paleta propia toma colores de contraste alto (negro, blanco y cian) sin cambiar Windows, para revisar las vistas propias en capturas; los controles de WinUI no cambian de tema | `ThemeResources` (Rodaje.App) |
 
 ## Pruebas
 
@@ -34,6 +35,7 @@ Todas las variables que lee Rodaje empiezan con `RODAJE_`. Ninguna es obligatori
 | `RODAJE_CODIFICADORES_GPL` | Ruta del `.paquete` de los codificadores GPL; sin ella se usa el de `dist\complementos` y, si no hay, las pruebas se omiten | `GplEncoderPackTests` (Rodaje.App.Tests), `GplAddOnExportTests` (Rodaje.Export.Tests) |
 | `RODAJE_MEDIOS_LOCALES` | Carpeta con videos propios (`.mp4`): `ExportLocalMediaTests` (`Categoria=Local`) los pone uno tras otro en una secuencia 9:16 con su audio y exporta todos y todos menos el último a MP4 en `%TEMP%\rodaje-pruebas-locales`, verificados con ffprobe. Sin ella se omiten; los medios nunca se versionan | `LocalMediaFactAttribute` (Rodaje.Export.Tests) |
 | `RODAJE_MEDIA_CACHE` | Carpeta de los medios de prueba generados; sin ella, `TestResults\media-cache` en la raíz del repositorio | `TestMediaGenerator.DefaultCacheDirectory` |
+| `RODAJE_VIDEOS_AUTOR` | Carpeta con videos reales (solo se leen) para la matriz de formatos; sin ella, `%USERPROFILE%\Videos\capcut` si existe ([formatos.md](formatos.md)) | `AuthorVideosTests` |
 | `RODAJE_REGENERAR_ESQUEMA` | Con `1`, la prueba del esquema reescribe `schema/rodaje-proyecto.v6.schema.json` (el de la versión actual) desde el código en vez de solo compararlo | `ProjectSchemaTests` (Rodaje.Core.Tests) |
 | `RODAJE_MODULO_AUDIO_IA`, `RODAJE_MODULO_ECO`, `RODAJE_MODULO_RAW`, `RODAJE_MODULO_SUBTITULOS`, `RODAJE_MODULO_TRADUCIR`, `RODAJE_MODULO_VISION`, `RODAJE_MODULO_VOZ` | Ruta de otro exe del módulo (por ejemplo, el publicado con Native AOT) para las pruebas que lo abren como proceso; sin ella, el compilado junto a las pruebas | Pruebas de cada módulo y de `Rodaje.Modules.Protocol` |
 | `RODAJE_WHISPER_CPU` | Otro archivo de `modelos` para el modelo de la CPU en las pruebas de subtítulos, para comparar | `Corpus` (Rodaje.Module.Subtitles.Tests) |

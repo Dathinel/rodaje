@@ -117,8 +117,8 @@ public sealed class OfflineTimeline : IDisposable
         options.Validate();
         _options = options;
         _device = device;
-        _sequence = CompoundOps.Flatten(project, project.GetSequence(sequenceId));
         _plan = TimelinePlan.Build(project, sequenceId, options.ProjectDirectory ?? Environment.CurrentDirectory, options.Content);
+        _sequence = _plan.Expanded;
         _mediaExists = mediaExists ?? (backend is MediaClipBackend ? File.Exists : static _ => true);
         Backend = backend;
         _frameDuration = Time.FromFrames(1, _plan.FrameRate);
@@ -381,39 +381,9 @@ public sealed class OfflineTimeline : IDisposable
         {
             foreach (Lane lane in _lanes)
             {
-                if (lane.Layer.GeneratedAt(time) is { } title)
+                if (!lane.Layer.IsNested && Assemble(lane, time, frame, cancellationToken) is { } layer)
                 {
-                    layers.Add(title.Layer(lane.Layer.TrackIndex, time, lane.TitleEffects, lane.Content));
-                    continue;
-                }
-
-                if (lane.Main is not { } main)
-                {
-                    continue;
-                }
-
-                DecodedFrame mainFrame = _readers.Wait(lane.MainSlot!, _options.FrameTimeout, frame, cancellationToken);
-                LayerFrame? incoming = null;
-                try
-                {
-                    if (lane.Incoming is { } entering && lane.Transition is { } transition)
-                    {
-                        float progress = transition.Progress(time);
-                        DecodedFrame inFrame = _readers.Wait(lane.IncomingSlot!, _options.FrameTimeout, frame, cancellationToken);
-                        incoming = Layer(lane, entering, inFrame, lane.IncomingEffects, lane.IncomingSlot!, time, transition, entering: true, progress, null);
-                        layers.Add(Layer(lane, main, mainFrame, lane.MainEffects, lane.MainSlot!, time, transition, entering: false, progress,
-                            new LayerTransition(transition.Code, progress, transition.Values, incoming)));
-                    }
-                    else
-                    {
-                        layers.Add(Layer(lane, main, mainFrame, lane.MainEffects, lane.MainSlot!, time, null, entering: false, 0, null));
-                    }
-                }
-                catch
-                {
-                    mainFrame.Dispose();
-                    incoming?.Dispose();
-                    throw;
+                    layers.Add(layer);
                 }
             }
 
@@ -424,6 +394,104 @@ public sealed class OfflineTimeline : IDisposable
             layers.ForEach(l => l.Dispose());
             throw;
         }
+    }
+
+    /// <summary>Como <c>TimelineScheduler.Assemble</c>: el título, el compuesto o el clip del carril, con su transición.</summary>
+    private LayerFrame? Assemble(Lane lane, Time time, long frame, CancellationToken cancellationToken)
+    {
+        if (lane.Layer.GeneratedAt(time) is { } title)
+        {
+            return title.Layer(lane.Layer.TrackIndex, time, lane.TitleEffects, lane.Content);
+        }
+
+        GroupClipPlan? group = lane.Layer.GroupAt(time);
+        if (group is null && lane.Main is null)
+        {
+            return lane.Layer.IncomingGroupAt(time) is { } alone ? Group(lane, alone, time, frame, null, entering: true, 0, null, cancellationToken) : null;
+        }
+
+        LayerFrame? incoming = null;
+        try
+        {
+            if (lane.Transition is { } transition)
+            {
+                float progress = transition.Progress(time);
+                incoming = lane.Incoming is { } entering
+                    ? Layer(lane, entering, _readers.Wait(lane.IncomingSlot!, _options.FrameTimeout, frame, cancellationToken), lane.IncomingEffects,
+                        lane.IncomingSlot!, time, transition, entering: true, progress, null)
+                    : lane.Layer.IncomingGroupAt(time) is { } enteringGroup
+                        ? Group(lane, enteringGroup, time, frame, transition, entering: true, progress, null, cancellationToken)
+                        : null;
+                if (incoming is not null)
+                {
+                    var mix = new LayerTransition(transition.Code, progress, transition.Values, incoming);
+                    return group is not null
+                        ? Group(lane, group, time, frame, transition, entering: false, progress, mix, cancellationToken)
+                        : Layer(lane, lane.Main!, _readers.Wait(lane.MainSlot!, _options.FrameTimeout, frame, cancellationToken), lane.MainEffects,
+                            lane.MainSlot!, time, transition, entering: false, progress, mix);
+                }
+            }
+
+            return group is not null
+                ? Group(lane, group, time, frame, null, entering: false, 0, null, cancellationToken)
+                : Layer(lane, lane.Main!, _readers.Wait(lane.MainSlot!, _options.FrameTimeout, frame, cancellationToken), lane.MainEffects,
+                    lane.MainSlot!, time, null, entering: false, 0, null);
+        }
+        catch
+        {
+            incoming?.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>Como <c>TimelineScheduler.BuildGroup</c>: las capas de los carriles del compuesto en una capa compuesta.</summary>
+    private LayerFrame? Group(Lane lane, GroupClipPlan group, Time time, long frame, TransitionPlan? transition, bool entering, float progress,
+        LayerTransition? withTransition, CancellationToken cancellationToken)
+    {
+        var children = new List<LayerFrame>(group.Lanes.Count);
+        try
+        {
+            foreach (VideoLayerPlan inner in group.Lanes)
+            {
+                if (Assemble(_lanes[inner.Ordinal], time, frame, cancellationToken) is { } child)
+                {
+                    children.Add(child);
+                }
+            }
+        }
+        catch
+        {
+            children.ForEach(c => c.Dispose());
+            throw;
+        }
+
+        if (children.Count == 0 && transition is null)
+        {
+            return null;
+        }
+
+        Time source = group.EffectTimeAt(time);
+        EffectPlan? plan = group.Effects;
+        LayerTransform transform = EffectPlan.Transform(plan, source);
+        if (transition is not null)
+        {
+            transform = transition.Apply(transform, entering, progress);
+        }
+
+        IReadOnlyList<LayerEffect> effects = [];
+        if (plan is { EffectCount: > 0 })
+        {
+            EffectList list = (entering ? lane.IncomingGroupEffects : lane.GroupEffects).Next();
+            plan.Evaluate(source, list.Reset(plan.EffectCount), lane.Content);
+            effects = list;
+        }
+
+        return new LayerFrame(lane.Layer.TrackIndex, group.ClipId, children, transform)
+        {
+            Effects = effects,
+            Blend = plan?.Blend ?? BlendMode.Normal,
+            Transition = withTransition,
+        };
     }
 
     /// <summary>Como <c>TimelineScheduler.Build</c>: transformación, transición, efectos en tiempo del origen y mezcla.</summary>
@@ -469,6 +537,10 @@ public sealed class OfflineTimeline : IDisposable
 
         public EffectListRing TitleEffects { get; } = new();
 
+        public EffectListRing GroupEffects { get; } = new();
+
+        public EffectListRing IncomingGroupEffects { get; } = new();
+
         public VideoClipPlan? Main { get; private set; }
 
         public VideoClipPlan? Incoming { get; private set; }
@@ -491,18 +563,29 @@ public sealed class OfflineTimeline : IDisposable
         /// Como <c>TimelineScheduler.Compose</c> con todas las capas listas: el clip del carril principal y, si está en su
         /// transición, el que entra por el compañero; sin principal, el que entra va solo y sin transición.
         /// </summary>
+        /// <remarks>Con un compuesto en el principal no hay clip principal; uno que entra va en <see cref="Incoming"/> solo con su transición.</remarks>
         private (VideoClipPlan?, VideoClipPlan?, TransitionPlan?) Choose(Time time)
         {
             VideoClipPlan? main = Layer.ClipAt(time);
             VideoClipPlan? incoming = Layer.Companion?.ClipAt(time);
-            if (main is null)
+            GroupClipPlan? group = Layer.GroupAt(time);
+            GroupClipPlan? enteringGroup = Layer.IncomingGroupAt(time);
+            if (group is null && main is null)
             {
-                return (incoming, null, null);
+                return (enteringGroup is null ? incoming : null, null, null);
             }
 
-            return main.Outgoing is { } transition && transition.Covers(time) && incoming is not null && incoming.ClipId == transition.ToClipId
-                ? (main, incoming, transition)
-                : (main, null, null);
+            if ((group is not null ? group.Outgoing : main!.Outgoing) is not { } transition || !transition.Covers(time))
+            {
+                return (main, null, null);
+            }
+
+            if (incoming is not null && incoming.ClipId == transition.ToClipId)
+            {
+                return (main, incoming, transition);
+            }
+
+            return (main, null, enteringGroup?.ClipId == transition.ToClipId ? transition : null);
         }
     }
 }

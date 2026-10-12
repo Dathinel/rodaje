@@ -3,10 +3,10 @@ using Rodaje.Packages.Download;
 namespace Rodaje.Packages.Tests;
 
 /// <summary>
-/// <c>module.models</c>: cada modelo con tamaño, SHA-256 y una dirección fijada, que es lo que necesitan el gestor de
-/// complementos (<see cref="ModelStore"/>) y la distribución completa; y la búsqueda del modelo ya instalado.
+/// <c>module.models</c> en el lector de manifiestos: cada modelo con tamaño, SHA-256 y una dirección fijada, que es lo
+/// que necesitan «Bajar modelos» (<see cref="ModelStore"/>) y la distribución completa.
 /// </summary>
-public sealed class ModuleModelsTests
+public sealed class ManifestModelsValidationTests
 {
     private const string Sha = "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597";
     private const string Commit = "5359861c739e955e79d9a303bcbc70fb988958b1";
@@ -42,6 +42,7 @@ public sealed class ModuleModelsTests
     [InlineData("-5", "size")]
     [InlineData("1.5", "size")]
     [InlineData("\"123\"", "size")]
+    [InlineData("68719476737", "size")]
     public void A_model_needs_its_exact_size(string? size, string expected)
     {
         ManifestResult result = ManifestReader.Read(Manifest(Model(size: size)));
@@ -116,74 +117,9 @@ public sealed class ModuleModelsTests
         ManifestResult repeated = ManifestReader.Read(Manifest(Model(), Model()));
         Assert.False(repeated.IsValid);
         Assert.Contains(repeated.Errors, e => e.Contains("repetido", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void ReadModels_returns_the_validated_models_or_null()
-    {
-        using var temp = new TempFolder();
-        string path = temp.Combine(PackageManifest.FileName);
-        File.WriteAllText(path, Manifest(Model(size: "2500000000")));
-        ModuleModel model = Assert.Single(ManifestReader.ReadModels(path)!);
-        Assert.Equal(("modelo", "modelos/modelo.gguf", Sha, 2_500_000_000L, "Apache-2.0"), (model.Id, model.File, model.Sha256, model.Size, model.License));
-        Assert.Equal(new ModelSpec("modelo", new Uri(PinnedUrl), Sha, 2_500_000_000L), model.Spec);
-
-        File.WriteAllText(path, Manifest(Model(size: null)));
-        Assert.Null(ManifestReader.ReadModels(path));
-        File.WriteAllText(path, Samples.Manifest());
-        Assert.Null(ManifestReader.ReadModels(path));
-        Assert.Null(ManifestReader.ReadModels(temp.Combine("no-existe.json")));
-    }
-
-    [Fact]
-    public void Find_looks_in_the_store_by_hash_and_in_the_module_folder_by_name_with_the_exact_size()
-    {
-        using var temp = new TempFolder();
-        string store = temp.Combine("complementos", "modelos");
-        string bundled = temp.Combine("app", "modelos");
-        string moduleDir = temp.Combine("complementos", "modulos", "modulo-prueba");
-        Directory.CreateDirectory(store);
-        Directory.CreateDirectory(bundled);
-        Directory.CreateDirectory(Path.Combine(moduleDir, "modelos"));
-        using var http = new HttpClient();
-        var modelStore = new ModelStore(store, new FileDownloader(http), bundledFolders: [bundled]);
-        var model = new ModuleModel("modelo", "modelos/modelo.gguf", Sha, 4, "Apache-2.0", new Uri(PinnedUrl));
-
-        Assert.Null(model.Find(modelStore, moduleDir));
-
-        // Por nombre en la carpeta del módulo, solo con el tamaño exacto.
-        string named = Path.Combine(moduleDir, "modelos", "modelo.gguf");
-        File.WriteAllBytes(named, [1, 2, 3]);
-        Assert.Null(model.Find(modelStore, moduleDir));
-        File.WriteAllBytes(named, [1, 2, 3, 4]);
-        Assert.Equal(Path.GetFullPath(named), model.Find(modelStore, moduleDir));
-        Assert.Null(model.Find(modelStore, null));
-        File.Delete(named);
-
-        // Por hash en la distribución completa y, antes, en el almacén.
-        File.WriteAllBytes(Path.Combine(bundled, Sha), [1, 2, 3, 4]);
-        Assert.Equal(Path.Combine(bundled, Sha), model.Find(modelStore, moduleDir));
-        File.WriteAllBytes(Path.Combine(store, Sha), [1, 2, 3, 4]);
-        Assert.Equal(Path.Combine(store, Sha), model.Find(modelStore, moduleDir));
-
-        // Un archivo con el nombre de otro hash no cuenta.
-        File.Delete(Path.Combine(store, Sha));
-        File.Delete(Path.Combine(bundled, Sha));
-        File.WriteAllBytes(Path.Combine(store, new string('a', 64)), [1, 2, 3, 4]);
-        Assert.Null(model.Find(modelStore, moduleDir));
-    }
-
-    [Fact]
-    public void A_model_file_outside_the_module_folder_is_not_found()
-    {
-        using var temp = new TempFolder();
-        string moduleDir = temp.Combine("modulo");
-        Directory.CreateDirectory(moduleDir);
-        File.WriteAllBytes(temp.Combine("fuera.gguf"), [1, 2, 3, 4]);
-        using var http = new HttpClient();
-        var store = new ModelStore(temp.Combine("almacen"), new FileDownloader(http));
-        var model = new ModuleModel("modelo", "../fuera.gguf", Sha, 4, "Apache-2.0", new Uri(PinnedUrl));
-        Assert.Null(model.Find(store, moduleDir));
+        ManifestResult sameFile = ManifestReader.Read(Manifest(Model(), Model(id: "otro")));
+        Assert.False(sameFile.IsValid);
+        Assert.Contains(sameFile.Errors, e => e.Contains("repite el archivo", StringComparison.Ordinal));
     }
 
     /// <summary>Los manifiestos de los módulos del repositorio siguen siendo válidos con la validación de los modelos.</summary>
@@ -211,9 +147,13 @@ public sealed class ModuleModelsTests
         {
             ManifestResult result = ManifestReader.ReadFile(manifest, checkFiles: false);
             Assert.True(result.IsValid, manifest + ": " + string.Join(" ", result.Errors));
-            IReadOnlyList<ModuleModel>? models = ManifestReader.ReadModels(manifest);
-            Assert.NotNull(models);
-            withModels += models.Count > 0 ? 1 : 0;
+            // Lo que valida el lector es lo mismo que ModuleModels no omite: todos los declarados llegan al gestor.
+            using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(manifest));
+            int declared = document.RootElement.TryGetProperty("module", out var module) && module.TryGetProperty("models", out var list) ? list.GetArrayLength() : 0;
+            var problems = new List<string>();
+            Assert.Equal(declared, ModuleModels.Read(manifest, problems).Count);
+            Assert.Empty(problems);
+            withModels += declared > 0 ? 1 : 0;
         }
 
         Assert.True(withModels >= 5, $"Solo {withModels} módulos declaran modelos.");

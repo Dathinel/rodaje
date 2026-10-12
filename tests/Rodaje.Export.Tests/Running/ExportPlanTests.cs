@@ -13,7 +13,8 @@ namespace Rodaje.Export.Tests.Running;
 /// <summary>Lo que se decide antes de exportar, sin GPU ni procesos.</summary>
 public sealed class ExportPlanTests
 {
-    private static readonly IReadOnlyList<EncoderSpec> Encoders = ExportEncoderCandidates.All;
+    // Los de un equipo NVIDIA: sin AV1 por GPU ni AMD/Intel.
+    private static readonly IReadOnlyList<EncoderSpec> Encoders = [.. ExportEncoderCandidates.All.Except(ExportEncoderCandidates.OtherGpus)];
 
     private static ExportSettings H264 { get; } = new()
     {
@@ -103,6 +104,63 @@ public sealed class ExportPlanTests
         Assert.Empty(ExportPlan.Create(Request(project, H264), Encoders).Metadata.Chapters);
         Assert.Empty(ExportPlan.Chapters([], Time.Zero, Time.FromSeconds(1)));
         Assert.Single(ExportPlan.Chapters([new Marker { Time = Time.Zero, Name = "a" }, new Marker { Time = Time.Zero, Name = "b" }], Time.Zero, Time.FromSeconds(1)));
+    }
+
+    [Fact]
+    public void Soft_subtitles_are_cut_to_the_range_and_embedded_alone_hides_the_burned_ones()
+    {
+        Project project = Project(Time.FromSeconds(60));
+        var subtitles = new Track { Id = "subs", Kind = TrackKind.Video, Name = "Inglés", Role = TrackRoles.Subtitles };
+        foreach ((string id, double start, double length, string text) in ((string, double, double, string)[])[("s1", 5, 10, "Cruza el inicio"), ("s2", 20, 2, "Dentro\ncon salto"), ("s3", 45, 2, "Fuera")])
+        {
+            subtitles.Clips.Add(new Clip
+            {
+                Id = id, Start = Time.FromSeconds(start), SourceIn = Time.Zero, SourceOut = Time.FromSeconds(length),
+                Generator = new ClipGenerator { Text = text, Style = new TextStyle() },
+            });
+        }
+
+        project.Sequences[0].VideoTracks.Add(subtitles);
+        var range = new ExportRange(Time.FromSeconds(10), Time.FromSeconds(40));
+
+        ExportPlan both = ExportPlan.Create(Request(project, H264 with { Subtitles = SubtitleExport.Both }, range), Encoders);
+        ExportSubtitleTrack track = Assert.Single(both.Metadata.Subtitles);
+        Assert.Equal("Inglés", track.Name);
+        Assert.Equal(
+        [
+            new Rodaje.Core.Editing.SubtitleCue(Time.Zero, Time.FromSeconds(5), "Cruza el inicio"),
+            new Rodaje.Core.Editing.SubtitleCue(Time.FromSeconds(10), Time.FromSeconds(12), "Dentro\ncon salto"),
+        ], track.Cues);
+        Assert.Equal(1, both.Expectation()!.SubtitleStreams);
+        Assert.False(both.Request.Project.Sequences[0].VideoTracks[^1].Hidden);
+
+        ExportPlan embedded = ExportPlan.Create(Request(project, H264 with { Subtitles = SubtitleExport.Embedded }, range), Encoders);
+        Assert.True(embedded.Request.Project.Sequences[0].VideoTracks[^1].Hidden);
+        Assert.False(subtitles.Hidden);
+
+        Assert.Empty(ExportPlan.Create(Request(project, H264, range), Encoders).Metadata.Subtitles);
+        Assert.Empty(ExportPlan.Create(Request(project, H264 with { Container = ExportContainer.MpegTs, Subtitles = SubtitleExport.Both }, range), Encoders).Metadata.Subtitles);
+    }
+
+    [Fact]
+    public void The_sink_maps_each_subtitle_file_with_the_codec_of_the_container()
+    {
+        var format = new ExportVideoFormat(320, 180, Rational.Fps30, ExportPixelFormat.Nv12, ExportColor.Bt709Limited);
+        EncoderSpec h264 = Encoders.First(e => e.Id == "h264_nvenc");
+        var metadata = new ExportMetadata
+        {
+            Subtitles = [new ExportSubtitleTrack("Español", [new(Time.Zero, Time.FromSeconds(1), "Hola")])],
+        };
+        foreach ((ExportContainer container, string codec) in ((ExportContainer, string)[])[(ExportContainer.Mp4, "mov_text"), (ExportContainer.Mkv, "srt"), (ExportContainer.WebM, "webvtt")])
+        {
+            var request = new ExportSinkRequest("salida", container, format, h264, [], null, null, null, [], 30) { Metadata = metadata };
+            List<string> line = [.. FfmpegPipeArguments.Build(request, "salida.tmp", null, ["a.0.srt"])];
+            string joined = string.Join(' ', line);
+            Assert.Contains("-f srt -i a.0.srt", joined, StringComparison.Ordinal);
+            Assert.Contains("-map 1:s:0", joined, StringComparison.Ordinal);
+            Assert.Equal(codec, line[line.IndexOf("-c:s") + 1]);
+            Assert.Equal("title=Español", line[line.IndexOf("-metadata:s:s:0") + 1]);
+        }
     }
 
     [Fact]

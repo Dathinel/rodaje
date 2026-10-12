@@ -43,7 +43,7 @@ internal sealed partial class TimelineScheduler
                 AddLaneWindows(companion, time, sequenceFrame, priority);
             }
 
-            covered |= CoversFrame(layer, time);
+            covered |= !layer.IsNested && CoversFrame(layer, time);
         }
 
         long now = _time.GetTimestamp();

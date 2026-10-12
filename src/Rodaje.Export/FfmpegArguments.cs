@@ -1,5 +1,6 @@
 using System.Globalization;
 using Rodaje.Core.Timing;
+using Rodaje.Export.Tuning;
 using Rodaje.Media.Export;
 
 namespace Rodaje.Export;
@@ -45,7 +46,7 @@ public static class FfmpegArguments
             ExportPixelFormat format = pixels ?? video.PixelFormatFor(v.BitDepth, v.Chroma, v.Alpha)
                 ?? throw new ArgumentException($"{video.Id} no tiene formato de píxel para estos ajustes.", nameof(pixels));
             int audioKbps = settings.Audio is null ? 0 : AudioKbps(settings.Audio, audio);
-            videoArgs.AddRange(Video(v, video, format, frameRate, duration, audioKbps));
+            videoArgs.AddRange(Video(v, video, format, frameRate, duration, audioKbps, settings.Performance));
             passes = PassCount(v.RateControl, video);
             if (video.Codec == ExportCodec.Hevc && settings.Container is ExportContainer.Mp4 or ExportContainer.Mov)
             {
@@ -108,8 +109,9 @@ public static class FfmpegArguments
     }
 
     /// <summary>Control de tasa, perfil, nivel, preset, tune, GOP, cuadros B, referencias y alfa.</summary>
+    /// <param name="performance">Sin preset elegido, el afinado por fabricante para el modo (<see cref="ExportHardwareTuning"/>).</param>
     public static IReadOnlyList<string> Video(VideoExportSettings settings, EncoderSpec encoder, ExportPixelFormat pixels, Rational frameRate,
-        TimeSpan duration, int audioKbps)
+        TimeSpan duration, int audioKbps, ExportPerformance performance = ExportPerformance.Background)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(encoder);
@@ -128,7 +130,7 @@ public static class FfmpegArguments
             args.AddRange(["-level:v", level]);
         }
 
-        if ((settings.SpeedPreset ?? encoder.DefaultSpeedPreset) is { } preset)
+        if ((settings.SpeedPreset ?? ExportHardwareTuning.SpeedPreset(encoder, performance)) is { } preset)
         {
             args.AddRange(["-preset", preset]);
         }

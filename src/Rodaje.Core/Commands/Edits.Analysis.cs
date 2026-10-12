@@ -34,7 +34,7 @@ public static partial class Edits
         return new("Cortar al ritmo", sequenceId, ctx => AnalysisEdits.SplitAt(ctx, clipId, copy), ids);
     }
 
-    /// <summary>Ducking automático: la misma envolvente en cada clip de música, en un solo paso.</summary>
+    /// <summary>Bajar música bajo la voz (ducking): la misma envolvente en cada clip de música, en un solo paso.</summary>
     public static SequenceEditCommand Duck(
         string sequenceId,
         IEnumerable<string> musicClipIds,
@@ -43,7 +43,7 @@ public static partial class Edits
     {
         string[] clips = CopySelection(musicClipIds);
         (Time, double)[] copy = [.. envelope];
-        return new("Ducking automático", sequenceId, ctx =>
+        return new("Bajar música bajo la voz", sequenceId, ctx =>
         {
             foreach (string clip in clips)
             {

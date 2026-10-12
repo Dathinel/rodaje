@@ -203,4 +203,31 @@ public class TitleSessionTests
         Assert.True(session.Undo());
         Assert.Equal(TrackRoles.Subtitles, session.Sequence.GetTrack(subtitles.Id).Role);
     });
+
+    [Fact]
+    public void ImportarSubtitulosCreaUnaPistaConElEstiloDeSubtitulosYSeExportaIgual() => UiThread.Run(async () =>
+    {
+        EditorSession session = await OneClip();
+        Assert.Null(session.SubtitleTrackToExport());
+        Rodaje.Core.Serialization.SubtitleFileContent file = Rodaje.Core.Serialization.SubtitleFiles.Parse(
+            "1\n00:00:01,000 --> 00:00:02,500\n¿Cómo estás?\nBien, ¿y tú?\n\n2\n00:00:03,000 --> 00:00:04,000\nAdiós\n");
+        int steps = session.History.Count;
+
+        Assert.Equal(2, session.ImportSubtitles(file.Cues, "entrevista"));
+
+        Assert.Equal(steps + 1, session.History.Count);
+        Track track = session.Sequence.VideoTracks[^1];
+        Assert.Equal((TrackRoles.Subtitles, "entrevista"), (track.Role, track.Name));
+        Assert.All(track.Clips, c => Assert.Equal(SubtitleStyles.Default().Size, c.Generator!.Style!.Size));
+        Assert.Equal(2, session.SelectedClipIds.Count);
+        Assert.Same(track, session.SubtitleTrackToExport());
+        Assert.Equal(file.Cues, SubtitleEdits.CuesOf(track));
+        Assert.Equal("Proyecto - entrevista_ 1.srt", Rodaje.Core.Serialization.SubtitleFiles.SuggestedFileName("Proyecto", "entrevista? 1"));
+
+        Assert.Equal(1, session.ImportSubtitles(file.Cues.Take(1).ToList(), "entrevista"));
+        Assert.Equal("entrevista 2", session.Sequence.VideoTracks[^1].Name);
+        session.Undo();
+        session.Undo();
+        Assert.Null(session.SubtitleTrackToExport());
+    });
 }

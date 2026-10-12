@@ -13,6 +13,9 @@ public enum LumaFormat
 
     /// <summary>Palabras de 16 bits con el dato de 10 bits en los bits bajos (yuv420p10).</summary>
     Gray16Low10,
+
+    /// <summary>Palabras de 16 bits con el dato de 12 bits en los bits bajos (ProRes 4444, yuv444p12).</summary>
+    Gray16Low12,
 }
 
 /// <summary>Plano de luma de un cuadro tal como sale del decodificador: <c>height</c> filas de <c>stride</c> bytes.</summary>
@@ -85,6 +88,13 @@ internal sealed class GrayImage
                                     for (int dx = 0; dx < factor; dx++)
                                     {
                                         sum += Unsafe.ReadUnaligned<ushort>(line + ((sx + dx) * 2)) * (1f / 256);
+                                    }
+
+                                    break;
+                                case LumaFormat.Gray16Low12:
+                                    for (int dx = 0; dx < factor; dx++)
+                                    {
+                                        sum += Unsafe.ReadUnaligned<ushort>(line + ((sx + dx) * 2)) * (1f / 16);
                                     }
 
                                     break;

@@ -4,38 +4,6 @@ using Rodaje.Packages.Download;
 
 namespace Rodaje.Packages;
 
-/// <summary>
-/// Un modelo de <c>module.models</c>, ya validado: su id, la ruta relativa con que lo busca el módulo, el SHA-256 y el
-/// tamaño exactos, la licencia y una dirección fijada (que no cambia de contenido).
-/// </summary>
-public sealed record ModuleModel(string Id, string File, string Sha256, long Size, string License, Uri Url)
-{
-    /// <summary>Lo que necesita <see cref="ModelStore"/> para buscarlo o bajarlo.</summary>
-    public ModelSpec Spec => new(Id, Url, Sha256, Size);
-
-    /// <summary>
-    /// La ruta del modelo si ya está: por su hash en el almacén (<see cref="ModelStore.Find"/>: <c>complementos\modelos</c>
-    /// y las carpetas de la distribución completa) o por su <see cref="File"/> dentro de la carpeta del módulo, siempre
-    /// con el tamaño exacto. <c>null</c> si falta.
-    /// </summary>
-    public string? Find(ModelStore store, string? moduleDirectory)
-    {
-        ArgumentNullException.ThrowIfNull(store);
-        if (store.Find(Spec) is { } stored)
-        {
-            return stored;
-        }
-
-        if (moduleDirectory is null || !SafePaths.TryNormalizeRelative(File, out string? relative))
-        {
-            return null;
-        }
-
-        string path = Path.GetFullPath(Path.Combine(moduleDirectory, relative));
-        return SafePaths.IsInside(path, moduleDirectory) && System.IO.File.Exists(path) && new FileInfo(path).Length == Size ? path : null;
-    }
-}
-
 /// <summary>Resultado de leer un <c>paquete.json</c>: el manifiesto si es válido, y los errores y avisos en español.</summary>
 public sealed record ManifestResult(PackageManifest? Manifest, IReadOnlyList<string> Errors, IReadOnlyList<string> Warnings)
 {
@@ -407,58 +375,33 @@ public static class ManifestReader
     }
 
     /// <summary>
-    /// Los modelos de un manifiesto de módulo (<c>module.models</c>), validados como en <see cref="Read"/>; lista vacía
-    /// si no declara ninguno, o <c>null</c> si el manifiesto no se puede leer o algún modelo no es válido.
-    /// </summary>
-    public static IReadOnlyList<ModuleModel>? ReadModels(string manifestPath)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(manifestPath);
-        if (ReadFile(manifestPath, checkFiles: false).Manifest is not { Kind: PackageKind.Module })
-        {
-            return null;
-        }
-
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(SafeText.ReadAllTextStrict(manifestPath), DocumentOptions);
-            var errors = new List<string>();
-            List<ModuleModel> models = Models(document.RootElement.GetProperty("module"), errors);
-            return errors.Count == 0 ? models : null;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or DecoderFallbackException)
-        {
-            // Cambió entre las dos lecturas.
-            return null;
-        }
-    }
-
-    /// <summary>
     /// <c>module.models</c>: cada uno con <c>id</c>, <c>file</c> (relativa; el archivo no viaja en el paquete, no se
     /// comprueba que exista), <c>sha256</c> en minúsculas, <c>size</c> en bytes mayor que 0, <c>license</c> y una
     /// <c>url</c> fijada (ver <see cref="IsPinnedModelUrl"/>). Sin tamaño ni dirección fijada, el gestor de complementos
-    /// no puede bajarlo ni la distribución completa comprobarlo.
+    /// no puede bajarlo ni la distribución completa comprobarlo. <c>ModuleModels.Read</c> omite en silencio lo que no sirve;
+    /// aquí es un error del manifiesto, para que quien publica el módulo lo vea al validarlo o instalarlo.
     /// </summary>
-    private static List<ModuleModel> Models(JsonElement module, List<string> errors)
+    private static void Models(JsonElement module, List<string> errors)
     {
-        var models = new List<ModuleModel>();
         if (!module.TryGetProperty("models", out JsonElement array) || array.ValueKind == JsonValueKind.Null)
         {
-            return models;
+            return;
         }
 
         if (array.ValueKind != JsonValueKind.Array)
         {
             errors.Add("module.models debe ser una lista.");
-            return models;
+            return;
         }
 
-        if (array.GetArrayLength() > MaxItems)
+        if (array.GetArrayLength() > ModuleModels.MaxModels)
         {
-            errors.Add($"module.models tiene más de {MaxItems} modelos.");
-            return models;
+            errors.Add($"module.models tiene más de {ModuleModels.MaxModels} modelos.");
+            return;
         }
 
         var ids = new HashSet<string>(StringComparer.Ordinal);
+        var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         int index = 0;
         foreach (JsonElement element in array.EnumerateArray())
         {
@@ -489,24 +432,18 @@ public static class ManifestReader
                 local.Add("«sha256» debe tener 64 cifras hexadecimales en minúsculas");
             }
 
-            long? size = null;
             if (!element.TryGetProperty("size", out JsonElement sizeElement))
             {
                 local.Add("falta «size» (el tamaño exacto en bytes)");
             }
-            else if (sizeElement.ValueKind != JsonValueKind.Number || !sizeElement.TryGetInt64(out long bytes) || bytes <= 0)
+            else if (sizeElement.ValueKind != JsonValueKind.Number || !sizeElement.TryGetInt64(out long bytes) || bytes <= 0 || bytes > SignedIndex.MaxEntrySize)
             {
                 local.Add("«size» debe ser el tamaño en bytes, un entero mayor que 0");
             }
-            else
-            {
-                size = bytes;
-            }
 
-            string? license = Text(element, "license", local, SafeText.MaxLicense);
+            Text(element, "license", local, SafeText.MaxLicense);
             string? urlText = Text(element, "url", local, SafeText.MaxUri);
-            Uri? url = null;
-            if (urlText is not null && !IsPinnedModelUrl(urlText, out url))
+            if (urlText is not null && !IsPinnedModelUrl(urlText, out _))
             {
                 local.Add($"la url «{urlText}» no está fijada: usa Hugging Face con …/resolve/<commit de 40 caracteres>/…, "
                     + "GitHub con el commit en la ruta (…/raw/<commit>/… o raw.githubusercontent.com/…/<commit>/…) o un asset de una release de GitHub");
@@ -521,13 +458,12 @@ public static class ManifestReader
             if (!ids.Add(id!))
             {
                 errors.Add($"El id de modelo «{id}» está repetido.");
-                continue;
             }
-
-            models.Add(new ModuleModel(id!, file!, sha256!, size!.Value, license!, url!));
+            else if (!files.Add(file!))
+            {
+                errors.Add($"El modelo «{id}» repite el archivo «{file}».");
+            }
         }
-
-        return models;
     }
 
     /// <summary>
