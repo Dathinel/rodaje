@@ -69,6 +69,7 @@ Rama `claude/autoguardado-pruebas`, PR #37. Hallazgos M8 y M9 de la revisión en
   - `Rodaje.Playback.Tests`: pasan 65 de 65.
   - `Rodaje.App.Tests` compila en Linux con `-p:EnableWindowsTargeting=true` y sus pruebas de autoguardado corren ahí: pasan 23 de 23, repetidas 3 veces.
 - **CI** del commit de pruebas (`0d2d5cf7`): Linux y Windows en verde. En Windows, `Rodaje.App.Tests` pasa 841 y omite 2, las mismas que en `main`.
+- **CI del commit de la entrega (`c25cb44c`):** en la primera corrida de Windows falló una prueba ajena, `ModuleManagerTests.Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada`. Depende del tiempo (5 s) y el commit solo cambiaba documentación. Al relanzar, los dos trabajos salieron en verde.
 - **Pruebas omitidas:** las mismas antes y después. No se omite ninguna nueva.
 
 ## Posibles choques
