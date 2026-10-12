@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #55. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50), #38, #37, #41, #39 (52–55), #43, #42, #45, #26, #27 (58–61) y #49, #52, #48, #54 (62–64).
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #46, #47. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50), #38, #37, #41, #39 (52–55), #43, #42, #45, #26, #27 (58–61) #49, #52, #48, #54 (62–64) y #55, #56, #57, #44 (65–68).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -559,7 +559,7 @@ Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.x
 
 ## 57. URGENTE: main en rojo en la CI de Windows (3 pruebas intermitentes)
 
-- **Estado:** pendiente (la sesión local la añadió como 51 en 71bcbc3; se renumera porque la 51 ya era «Enganchar Traducir pista» en el PR #40. `ModuleManagerTests.Una_llamada_larga…` también está en la 47, PR #46: mirar ese PR antes. En la CI del PR #48 sobre main falló además `CinemaDngImportTests.A_cinemadng_folder_becomes_a_prores_file_with_the_right_frames_and_gray` con «Se cortó la conexión al saludar» (`Pipe is broken`, job 114755697386))
+- **Estado:** hecha (PR #57 unido el 12-oct en modo autónomo; la revisión en bloque 7 deja la 67 y la 68 sobre lo que relajó)
 - **Rama:** `claude/main-verde-2`
 - **Caminos:** las pruebas afectadas y, si la causa es real, el código mínimo; `docs/tareas/`.
 - **Lee:** la corrida de la CI de main sobre 0a56efa.
@@ -638,3 +638,44 @@ Las cuatro pruebas de la tarea 44 son `ProxyFact` y la CI de Windows no tiene ff
 
 1. `ClipVisualsTests.Dispose_does_not_wait_for_a_reader_that_ignores_cancellation` no retiene `_gate`, así que volver al `lock` no la haría fallar. Añade una prueba que retenga el candado desde otro hilo (gancho interno o `InternalsVisibleTo`) y compruebe dos cosas: que `Dispose` vuelve en menos de 500 ms y que el hilo de ondas sale después del `PulseAll` diferido.
 2. `AudioAi ProcessTests.Cancel_is_confirmed_quickly_and_the_module_keeps_working` mide reloj (`times.Max() < 1000` y `Ping < 1 s`) sin `Categoria=TiempoReal`, y sin modelos sale con un `return` silencioso. Márcala `TiempoReal` y cambia el `return` por una omisión con causa, como las demás pruebas de modelos. Anota en la entrega que la latencia del ping del módulo ya no se mide en la CI.
+
+## 65. Biblioteca: organización vacía y herencia de la copia
+
+- **Estado:** pendiente
+- **Rama:** `claude/biblioteca-herencia`
+- **Caminos:** `src/Rodaje.App/Views/Library/`, `tests/Rodaje.App.Tests/Library/`, `docs/tareas/`
+- **Lee:** entrega de la tarea 54 (`docs/tareas/2026-10-12-biblioteca-robusta.md`), `LibraryOrganizationStore.cs` (`Load(key, fallbackKey)` y `Write`), `LibraryView.Folders.cs:56-81`, revisión en bloque 7.
+
+1. Un proyecto que cargó su organización por `fallbackKey` (copia o `.rodaje` anterior a la 54) y la vacía (borra todas las carpetas y favoritos) no la guarda: `Write` descarta un `Empty` si el archivo de la clave nueva no existe, y en la siguiente apertura `Load` vuelve a caer en el archivo por id y las carpetas reaparecen. Que el vacío se escriba cuando la clave se cargó por herencia; cambia `PrepararVacia_SinArchivo_NoCreaArchivo` solo para ese caso y añade la prueba Load(copia) → vaciar → guardar → Load.
+2. Tras guardar, todo va al archivo `id|ruta` y el archivo por id queda congelado, así que una copia hecha después hereda un estado viejo, no el actual del original; la comprobación 1 de la entrega fallaría. Elige una opción y alinea código, prueba y entrega: o no heredar nada con clave nueva, o actualizar también el archivo por id al guardar como plantilla. Explica la elección en la entrega.
+
+## 66. Subtítulos automáticos: herramienta rápida y transcripción fallida
+
+- **Estado:** pendiente (después de la 51, que añade `"apps"` al `paquete.json` de subtítulos)
+- **Rama:** `claude/subtitulos-robusto`
+- **Caminos:** `src/Rodaje.App/Views/Subtitles/`, `src/Rodaje.App/Views/Analysis/Logic/QuickTools.cs` (solo `tools.autoSubtitles`), `tests/Rodaje.App.Tests/Subtitles/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 37 (`docs/tareas/2026-10-12-subtitulos-ui.md`), `AutoSubtitlesDialog.cs` (`Transcribe()`), revisión en bloque 7.
+
+1. `QuickTools.State` (`QuickTools.cs:61`) sigue en «Próximamente» para `tools.autoSubtitles`: que abra el mismo comando que el menú del clip.
+2. Si «Transcribir de nuevo» falla o se cancela (por ejemplo, tras cambiar el idioma), el estado dice «No se pudo transcribir… El proyecto no cambió», pero `segments`/`cues` siguen con la transcripción anterior y el `finally` deja «Aplicar» activo con `cues.Count > 0`: se aplicaría la del idioma anterior. Limpia la propuesta al empezar una transcripción nueva (o consérvala y dilo en el estado y en el botón), con una prueba de la lógica.
+3. Anota en la entrega, para la futura edición por palabra, que `TitleEdits.SetText` no toca `generator.words` (como documenta `docs/formato-proyecto.md`), así que texto y palabras pueden dejar de coincidir; no lo cambies aquí.
+
+## 67. Contrato de los enlazados al volver a 1×
+
+- **Estado:** pendiente
+- **Rama:** `claude/enlazados-1x`
+- **Caminos:** `src/Rodaje.Core/Editing/TimelineEdits.Speed.cs`, `tests/Rodaje.Core.Tests/Properties/`, `tests/Rodaje.Core.Tests/Editing/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 57, `TimelineEdits.Speed.cs:479-484` (`AlignEnd`), `SpeedMaterialPropertiesTests.cs` y `SpeedMaterialRegressionTests.cs`, revisión en bloque 7.
+
+La 57 hizo que `AlignEnd` a 1× ofrezca `map.Start + target` como primer final y relajó la propiedad a `group.Max(Tolerance)` para todo el grupo. Con un clip cuyo inicio está fuera de la rejilla, ese final puede quedar fuera de la rejilla de la secuencia, y el comentario «también es de la rejilla» no tiene invariante ni prueba. Además, un enlazado que antes debía volver exacto ahora puede perder un cuadro sin que la propiedad falle. Define y documenta qué cumple cada miembro del grupo al volver a 1×, con ejemplos fijos (inicio en rejilla y fuera de ella), añade a la propiedad que el resultado pase `ModelValidator`, y estrecha la tolerancia al miembro que empieza fuera de fase. Deja las semillas en los mensajes.
+
+## 68. Protocolo de módulos: matar fuera de `Fail`, cotas holgadas en la CI y saludo de 30 s
+
+- **Estado:** pendiente (después de la 59, que toca los mismos archivos)
+- **Rama:** `claude/protocolo-tiempos`
+- **Caminos:** `src/Rodaje.Modules.Protocol/ModuleProcess.cs`, `src/Rodaje.Modules.Protocol/ModuleHost.cs` (solo el valor por defecto de `HandshakeTimeout`), `modules/Rodaje.Module.Raw/Program.cs` (quitar el valor propio si sobra), `tests/Rodaje.Modules.Protocol.Tests/`, `docs/protocolo-modulos.md`, `docs/tareas/`
+- **Lee:** entrega de la tarea 57, `ModuleProcess.cs:108-144`, `ProcessTests.cs`, `ConnectionTests.cs`, `.github/workflows/ci.yml:71` y `:133`, revisión en bloque 7.
+
+1. «Matar el árbol de procesos tardó 4,6 s» se tomó por carga del runner, pero `Kill(entireProcessTree: true)` corre dentro de la continuación síncrona de `Fail`. Mídelo y, si es latencia real, sácalo de esa ruta (`Task.Run`) para que la llamada falle enseguida.
+2. Con las cotas pasadas a `TiempoReal`, la CI ya no comprueba que un módulo colgado se mate pronto ni que morir a mitad de llamada falle rápido. Deja en las pruebas de la CI una cota holgada (unos 10 s, no 60) y renombra `Cancelling_is_confirmed_quickly_and_the_connection_keeps_working`, que ya no mide rapidez.
+3. El saludo de 30 s solo se subió en el módulo RAW; la causa vale para todos (eco, subtítulos, voz, traducir, audio IA). Sube el valor por defecto de `ModuleHost.HandshakeTimeout` a 30 s, como `StartTimeout`, y actualiza `docs/protocolo-modulos.md`.
