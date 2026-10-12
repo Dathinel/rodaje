@@ -1,6 +1,7 @@
-<Solution>
+﻿<Solution>
   <Folder Name="/modules/">
     <Project Path="modules/Rodaje.Module.Echo/Rodaje.Module.Echo.csproj" />
+    <Project Path="modules/Rodaje.Module.Subtitles/Rodaje.Module.Subtitles.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Rodaje.App/Rodaje.App.csproj" />
