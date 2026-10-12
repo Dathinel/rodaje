@@ -59,12 +59,21 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <SwapChainPanel x:Name="VideoPanel" x:FieldModifier="internal" Margin="8" DoubleTapped="OnVideoDoubleTapped" />
+            <SwapChainPanel x:Name="VideoPanel" x:FieldModifier="internal" Margin="8" DoubleTapped="OnVideoDoubleTapped"
+                            PointerPressed="OnVideoPointerPressed" PointerMoved="OnVideoPointerMoved"
+                            PointerReleased="OnVideoPointerReleased" PointerCaptureLost="OnVideoPointerCaptureLost" />
             <Canvas x:Name="SafeAreaCanvas" Margin="8" IsHitTestVisible="False" Visibility="Collapsed">
                 <Rectangle x:Name="ActionSafe" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1" StrokeDashArray="4,3" Opacity="0.8" />
                 <Rectangle x:Name="TitleSafe" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1" StrokeDashArray="2,3" Opacity="0.8" />
                 <Rectangle x:Name="CenterH" Fill="{StaticResource TextMutedBrush}" Width="16" Height="1" Opacity="0.8" />
                 <Rectangle x:Name="CenterV" Fill="{StaticResource TextMutedBrush}" Width="1" Height="16" Opacity="0.8" />
+            </Canvas>
+            <Canvas x:Name="TitleCanvas" Margin="8" IsHitTestVisible="False" Visibility="Collapsed">
+                <Polygon x:Name="TitleOutline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                <Rectangle x:Name="TitleGripTopLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                <Rectangle x:Name="TitleGripTopRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                <Rectangle x:Name="TitleGripBottomRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
+                <Rectangle x:Name="TitleGripBottomLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
             </Canvas>
             <TextBlock x:Name="StatusText" Style="{StaticResource LabelTextStyle}" Margin="16,12"
                        HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" />

@@ -86,6 +86,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         _engine.SetPreviewQuality(services.Settings.Current.PreviewQuality);
         UpdateQuality();
         UpdateSafeAreas();
+        AttachTitleHandles();
         Meters.Attach(services);
         UpdateFormat();
         UpdateToolTips();
@@ -111,6 +112,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         var margin = new Thickness(fullScreen ? 0 : 8);
         VideoPanel.Margin = margin;
         SafeAreaCanvas.Margin = margin;
+        TitleCanvas.Margin = margin;
         _services.Shell.SetPlayerFullScreen(fullScreen);
     }
 
@@ -139,6 +141,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     {
         PushPanelSize();
         UpdateSafeAreas();
+        UpdateTitleHandles();
     }
 
     private void PushPanelSize()
@@ -203,6 +206,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         ToolTipService.SetToolTip(AspectText, string.Create(CultureInfo.InvariantCulture, $"{sequence.Width} × {sequence.Height} · {rate} fps"));
         UpdateTransport();
         UpdateSafeAreas();
+        UpdateTitleHandles();
     }
 
     /// <summary>Dibuja los márgenes seguros sobre el rectángulo donde el render pone la imagen, con el zoom actual.</summary>
@@ -215,31 +219,16 @@ internal sealed partial class PlayerView : UserControl, IEditorView
             return;
         }
 
-        Sequence sequence = Session!.Sequence;
-        double width = VideoPanel.ActualWidth;
-        double height = VideoPanel.ActualHeight;
-        if (width <= 0 || height <= 0 || sequence.Width <= 0 || sequence.Height <= 0)
+        if (Image() is not { } frame)
         {
             return;
         }
 
-        double imageWidth;
-        double imageHeight;
-        if (_zoom > 0)
-        {
-            // El render pone un píxel de la secuencia por píxel físico multiplicado por el zoom.
-            imageWidth = sequence.Width * _zoom / Math.Max(0.01, VideoPanel.CompositionScaleX);
-            imageHeight = sequence.Height * _zoom / Math.Max(0.01, VideoPanel.CompositionScaleY);
-        }
-        else
-        {
-            double scale = Math.Min(width / sequence.Width, height / sequence.Height);
-            imageWidth = sequence.Width * scale;
-            imageHeight = sequence.Height * scale;
-        }
-
-        double left = (width - imageWidth) / 2;
-        double top = (height - imageHeight) / 2;
+        Sequence sequence = Session!.Sequence;
+        double imageWidth = sequence.Width * frame.Scale;
+        double imageHeight = sequence.Height * frame.Scale;
+        double left = frame.Left;
+        double top = frame.Top;
         PlaceSafe(ActionSafe, left, top, imageWidth, imageHeight, ActionSafeFraction);
         PlaceSafe(TitleSafe, left, top, imageWidth, imageHeight, TitleSafeFraction);
         double centerX = left + (imageWidth / 2);
@@ -300,6 +289,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         ZoomButton.Content = label;
         _engine?.SetZoom(_zoom);
         UpdateSafeAreas();
+        UpdateTitleHandles();
     }
 
     private void OnSafeAreasClick(object sender, RoutedEventArgs e) => OnSafeAreasChanged();

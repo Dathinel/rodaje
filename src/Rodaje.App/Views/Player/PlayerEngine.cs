@@ -284,6 +284,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 ApplyProject();
                 ProcessCommands();
                 ApplyContentChanges();
+                ApplyTitleChanges();
                 if (_session is { IsPlaying: false } && _quality.Paused())
                 {
                     EnsureCompositor();
@@ -352,6 +353,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         DeviceDescription = _gpu.ToString();
         _presenter = new Presenter(_gpu);
         _gpuTimer = new GpuTimer(_gpu);
+        CreateTitles();
         _metrics.Milestone("gpu_lista");
     }
 
@@ -360,6 +362,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _contentRefresh.Dispose();
         CloseSession();
         _compositor?.Dispose();
+        _titles?.Dispose();
         _gpuTimer?.Dispose();
         _presenter?.Dispose();
         _swapChain?.Dispose();
@@ -449,6 +452,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 Warning?.Invoke(ex.Message);
             }
 
+            UpdateMissingFonts();
             if (_editMarkTaken != 0)
             {
                 _editAppliedAt = Stopwatch.GetTimestamp();
@@ -490,6 +494,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 UseProxies = _proxyUsage,
                 ProxyResolver = _proxyUsage == ProxyUsage.Never ? null : _proxies?.Resolver,
                 Content = _content,
+                Titles = _titles,
             });
         }
 #pragma warning disable CA1031 // Una secuencia que no abre deja el reproductor vacío, no el hilo muerto.
@@ -503,6 +508,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _session.DecodeFailed += (_, e) => _metrics.Note($"decodificación falló en {Path.GetFileName(e.Path)} cuadro {e.FrameIndex}: {e.Error.Message}");
         _metrics.Milestone("sesion_abierta");
         _lastSignature = 0;
+        UpdateMissingFonts();
         EnsureCompositor();
         _dirty = true;
     }
@@ -667,7 +673,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         _compositor?.Dispose();
         _compositor = null;
-        _compositor = new Compositor(_gpu, width, height) { Resources = _content };
+        _compositor = new Compositor(_gpu, width, height) { Resources = _content, Titles = _titles };
     }
 
     /// <summary>Una LUT terminó de cargar o cambiaron los paquetes: en pausa también hay que volver a componer.</summary>
@@ -714,6 +720,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
             CompositeResult result = _compositor.Render(frame, Geometry);
             drawn = result.LayersDrawn;
+            PublishTitleBoxes(frame);
+            CompleteCapture();
             lock (_meterLock)
             {
                 _effectTotals = _effectTotals.Add(result);

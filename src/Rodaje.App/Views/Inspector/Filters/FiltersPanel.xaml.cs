@@ -185,6 +185,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         _shownPosition = session.Position;
         ClipTitle.Text = ClipLabels.Name(session.Project, clip, "Clip");
         ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
+        TitleNote.Visibility = clip.Generator is null ? Visibility.Collapsed : Visibility.Visible;
         if (_kind != track.Kind || _addable.Count == 0)
         {
             _kind = track.Kind;
