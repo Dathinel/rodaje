@@ -409,11 +409,18 @@ public sealed class TimelineSpeedTests(ITestOutputHelper output)
         VideoClipPlan[] plans = [.. b.Plan().Layers.Select(l => l.Clips[0])];
         long sum = Exercise(plans, 50);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        sum += Exercise(plans, 5_000);
-        long after = GC.GetAllocatedBytesForCurrentThread();
+        // Cuenta la ventana con menos bytes de hasta tres. Una reserva por llamada sale en todas; en la CI de Windows, con
+        // el runner cargado, una sola ventana contó 3744 bytes de una vez (del runtime en este hilo, no de las 15 000
+        // llamadas: 0,25 bytes por llamada no es ningún objeto).
+        long fewest = long.MaxValue;
+        for (int round = 0; round < 3 && fewest != 0; round++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            sum += Exercise(plans, 5_000);
+            fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
 
-        Assert.Equal(0, after - before);
+        Assert.Equal(0, fewest);
         Assert.NotEqual(0, sum);
     }
 
