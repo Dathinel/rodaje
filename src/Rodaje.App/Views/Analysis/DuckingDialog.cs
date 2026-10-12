@@ -1,9 +1,9 @@
-using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.Analysis;
 using Rodaje.Analysis.Ducking;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Shell;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
@@ -65,7 +65,7 @@ internal static class DuckingDialog
             plan = DuckingPlanner.Plan(voice, options);
             IEnumerable<TimeRange> ducked = plan.Chunk(4).Where(c => c.Length == 4).Select(c => new TimeRange(c[0].Time - origin, c[3].Time - origin));
             AnalysisUi.DrawRanges(preview, length, ducked, AnalysisUi.Color(0x4F, 0x9D, 0xE0));
-            status.Text = string.Create(CultureInfo.CurrentCulture, $"{voice.Count} tramos de voz; la música baja {-options.ReductionDb:0} dB en cada uno.");
+            status.Text = string.Create(SpanishNumbers.Format, $"{voice.Count} tramos de voz; la música baja {-options.ReductionDb:0} dB en cada uno.");
         }
 
         reduction = AnalysisUi.Slider(panel, "Cuánto baja la música", -30, -3, options.ReductionDb, 1, AnalysisUi.Db, Refresh);

@@ -1,6 +1,6 @@
-using System.Globalization;
 using Rodaje.Analysis.Video;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Shell;
 
 namespace Rodaje.App.Views.Analysis;
@@ -33,9 +33,9 @@ internal static class AutoColorAction
             return;
         }
 
-        string message = string.Create(CultureInfo.CurrentCulture,
+        string message = string.Create(SpanishNumbers.Format,
             $"Temperatura {settings.Temperature * 100:+0;-0;0} %, matiz {settings.Tint * 100:+0;-0;0} %, exposición {settings.Exposure:+0.00;-0.00;0} EV")
-            + (levels ? string.Create(CultureInfo.CurrentCulture, $", contraste {settings.Contrast * 100:+0;-0;0} %.") : ".");
+            + (levels ? string.Create(SpanishNumbers.Format, $", contraste {settings.Contrast * 100:+0;-0;0} %.") : ".");
         session.Notify(NotificationSeverity.Success, title, message, new NotificationAction("Deshacer", () => session.Undo()));
     }
 }

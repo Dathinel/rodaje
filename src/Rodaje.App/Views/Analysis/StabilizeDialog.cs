@@ -1,8 +1,8 @@
-using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.Analysis.Video;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Shell;
 using Rodaje.Core.Model;
 
@@ -47,14 +47,14 @@ internal static class StabilizeDialog
             StabilizationResult result = a.Track.Stabilize(new StabilizeOptions(intensity.Value, crop.IsChecked == true));
             double pixels = a.Track.Height;
             double reliable = a.Track.Motions.Count(m => m.Inliers > 0) / (double)Math.Max(1, a.Track.Motions.Count - 1);
-            status.Text = string.Create(CultureInfo.CurrentCulture,
+            status.Text = string.Create(SpanishNumbers.Format,
                 $"Temblor: {result.ShakeBefore * pixels:0.0} → {result.ShakeAfter * pixels:0.00} px por cuadro² " +
                 $"({(result.ShakeBefore > 0 ? 1 - (result.ShakeAfter / result.ShakeBefore) : 0):P0} menos). " +
                 $"Acercamiento: {(result.Zoom - 1) * 100:0} %. Cuadros con movimiento medido: {Math.Min(1, reliable):P0}.");
         }
 
         intensity = AnalysisUi.Slider(panel, "Intensidad", 0, 1, intensityValue, 0.05,
-            v => string.Create(CultureInfo.CurrentCulture, $"{v * 100:0} %"), Refresh);
+            v => string.Create(SpanishNumbers.Format, $"{v * 100:0} %"), Refresh);
         crop = new CheckBox { Content = "Recortar el borde automáticamente", IsChecked = cropValue };
         crop.Checked += (_, _) => Refresh();
         crop.Unchecked += (_, _) => Refresh();

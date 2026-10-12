@@ -1,4 +1,4 @@
-using System.Globalization;
+using Rodaje.App.Services.Format;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Services.Titles;
@@ -51,7 +51,7 @@ public static class SubtitleStyles
         double minimum = MinSizeFraction * Math.Min(sequenceWidth, sequenceHeight);
         if (size < minimum)
         {
-            return string.Create(CultureInfo.CurrentCulture,
+            return string.Create(SpanishNumbers.Format,
                 $"La letra mide {size:0} px y en esta secuencia un subtítulo se lee bien desde unos {minimum:0} px.");
         }
 
@@ -80,7 +80,7 @@ public static class SubtitleStyles
         }
 
         return best < MinContrast
-            ? string.Create(CultureInfo.CurrentCulture, $"El texto contrasta {best:0.0}:1 con su fondo o su borde; para leerlo bien hace falta {MinContrast:0.0}:1.")
+            ? string.Create(SpanishNumbers.Format, $"El texto contrasta {best:0.0}:1 con su fondo o su borde; para leerlo bien hace falta {MinContrast:0.0}:1.")
             : null;
     }
 
