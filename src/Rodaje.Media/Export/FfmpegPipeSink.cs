@@ -54,20 +54,24 @@ public sealed record FfmpegPipeSinkOptions
 /// <remarks>
 /// Sin reservas por cuadro: un solo búfer de <see cref="FfmpegPipeSinkOptions.WriteChunkBytes"/> se llena fila a fila y
 /// se vacía a la tubería en escrituras de 1–4 MB. El proceso va dentro del <c>ChildProcessJob</c> (muere si Rodaje
-/// muere). <see cref="Abort"/> lo mata y borra los temporales en menos de 1 s.
+/// muere). <see cref="Abort"/> lo mata y borra los temporales en menos de 1 s; si no sale, la limpieza queda pendiente.
 /// </remarks>
 public sealed class FfmpegPipeSink : IExportSink
 {
     private const int StderrLimit = 16 * 1024;
-    private static readonly TimeSpan KillWait = TimeSpan.FromMilliseconds(900);
+    // Entre las dos esperas, menos de 1 s (el criterio de la fase 6); si ffmpeg.exe no salió, la limpieza queda pendiente.
+    private static readonly TimeSpan KillWait = TimeSpan.FromMilliseconds(600);
+    private static readonly TimeSpan TreeKillWait = TimeSpan.FromMilliseconds(300);
+    private static readonly TimeSpan CleanupRetry = TimeSpan.FromSeconds(2);
 
     private readonly FfmpegExecutable _ffmpeg;
     private readonly FfmpegPipeSinkOptions _options;
     private readonly Lock _gate = new();
     private readonly StringBuilder _stderr = new();
     private readonly List<string> _temporaries = [];
+    private readonly List<string> _diagnostics = [];
 
-    private Process? _process;
+    private RunningProcess? _running;
     private Stream? _pipe;
     private byte[]? _buffer;
     private int _buffered;
@@ -80,10 +84,13 @@ public sealed class FfmpegPipeSink : IExportSink
     private volatile bool _aborted;
     private bool _disposed;
     private bool _completed;
+    private bool _committing;
     private CancellationToken _registeredToken;
     private CancellationTokenRegistration _registration;
     private long _nextDiskCheck;
     private TaskCompletionSource? _stdoutClosed;
+    private TaskCompletionSource? _abortFinished;
+    private Task? _pendingCleanup;
 
     public FfmpegPipeSink(FfmpegExecutable ffmpeg, FfmpegPipeSinkOptions? options = null)
     {
@@ -106,11 +113,44 @@ public sealed class FfmpegPipeSink : IExportSink
     /// <summary>Proceso de la pasada actual, o <c>null</c>; para comprobar que no queda vivo.</summary>
     internal int? ProcessId { get; private set; }
 
+    /// <summary>Solo para las pruebas: corre en <see cref="Complete"/> justo antes de esperar a que ffmpeg.exe cierre el contenedor.</summary>
+    internal Action? BeforeCompleteWaits { get; set; }
+
+    /// <summary>
+    /// Solo para las pruebas: reemplaza a <see cref="Kill"/> (en Abort y en los reintentos de la limpieza pendiente) y
+    /// devuelve si ffmpeg.exe salió. Sirve para simular un ffmpeg.exe que no muere.
+    /// </summary>
+    internal Func<Process, bool>? KillOverride { get; set; }
+
+    /// <summary>Limpieza de un Abort cuyo ffmpeg.exe no salió a tiempo, o <c>null</c>; termina cuando salió y se borró todo.</summary>
+    internal Task? PendingCleanup
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _pendingCleanup;
+            }
+        }
+    }
+
+    /// <summary>Lo que salió mal al cancelar (ffmpeg.exe que no murió, temporales que no se pudieron borrar).</summary>
+    internal IReadOnlyList<string> Diagnostics
+    {
+        get
+        {
+            lock (_diagnostics)
+            {
+                return [.. _diagnostics];
+            }
+        }
+    }
+
     public void Start(ExportSinkRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_process is not null)
+        if (_running is not null)
         {
             throw new InvalidOperationException("El sink ya tiene una pasada en marcha.");
         }
@@ -125,8 +165,14 @@ public sealed class FfmpegPipeSink : IExportSink
         }
 
         _request = request;
-        _aborted = false;
-        _completed = false;
+        lock (_gate)
+        {
+            _aborted = false;
+            _completed = false;
+            _committing = false;
+            _abortFinished = null;
+        }
+
         _framesWritten = 0;
         _framesEncoded = 0;
         _progressEnded = false;
@@ -211,9 +257,23 @@ public sealed class FfmpegPipeSink : IExportSink
     public ExportSinkResult Complete(CancellationToken cancellationToken)
     {
         ExportSinkRequest request = _request ?? throw new InvalidOperationException("Falta Start.");
-        Process process = _process ?? throw new InvalidOperationException("Falta Start.");
         Register(cancellationToken);
-        ThrowIfStopped(cancellationToken);
+        // Con el proceso prestado, un Abort desde otro hilo lo mata pero no lo libera mientras se espera aquí.
+        RunningProcess? running = Lease();
+        try
+        {
+            ThrowIfStopped(cancellationToken);
+            Process process = running?.Process ?? throw new InvalidOperationException("Falta Start.");
+            return Finish(request, process, cancellationToken);
+        }
+        finally
+        {
+            Return(running);
+        }
+    }
+
+    private ExportSinkResult Finish(ExportSinkRequest request, Process process, CancellationToken cancellationToken)
+    {
         if (request.HasVideo && _framesWritten != request.FrameCount)
         {
             Abort();
@@ -230,7 +290,13 @@ public sealed class FfmpegPipeSink : IExportSink
         {
             throw Failure(ex, cancellationToken);
         }
+        catch (ObjectDisposedException ex)
+        {
+            // Un Abort desde otro hilo ya cerró la tubería.
+            throw Failure(ex, cancellationToken);
+        }
 
+        BeforeCompleteWaits?.Invoke();
         while (!process.WaitForExit(100))
         {
             ThrowIfStopped(cancellationToken);
@@ -253,22 +319,51 @@ public sealed class FfmpegPipeSink : IExportSink
             throw incomplete;
         }
 
-        ExportSinkResult result;
-        string output = Path.GetFullPath(request.OutputPath);
-        if (request.IsAnalysisPass)
+        // Punto sin vuelta atrás: desde aquí Abort no borra nada y el archivo se entrega. Una cancelación que llegue
+        // antes gana; una que llegue durante el renombrado llega tarde y la exportación termina bien.
+        bool commit;
+        lock (_gate)
         {
-            result = new ExportSinkResult(request.PassLogPath ?? "", 0, _framesWritten);
-        }
-        else
-        {
-            long bytes = ExportOutputGuard.Commit(_temporaryOutput!, output, request.Container);
-            result = new ExportSinkResult(output, bytes, _framesWritten);
+            commit = !_aborted && !cancellationToken.IsCancellationRequested;
+            _committing = commit;
         }
 
-        DeleteTemporaries(keepPassLog: request.IsAnalysisPass);
+        if (!commit)
+        {
+            throw Canceled(null, cancellationToken);
+        }
+
+        ExportSinkResult result;
+        try
+        {
+            string output = Path.GetFullPath(request.OutputPath);
+            if (request.IsAnalysisPass)
+            {
+                result = new ExportSinkResult(request.PassLogPath ?? "", 0, _framesWritten);
+            }
+            else
+            {
+                long bytes = ExportOutputGuard.Commit(_temporaryOutput!, output, request.Container);
+                result = new ExportSinkResult(output, bytes, _framesWritten);
+            }
+
+            DeleteTemporaries(keepPassLog: request.IsAnalysisPass);
+        }
+        catch
+        {
+            lock (_gate)
+            {
+                _committing = false;
+            }
+
+            Abort();
+            throw;
+        }
+
         lock (_gate)
         {
             _completed = true;
+            _committing = false;
             ReleaseProcess();
         }
 
@@ -276,31 +371,82 @@ public sealed class FfmpegPipeSink : IExportSink
         return result;
     }
 
+    /// <remarks>
+    /// Mata a ffmpeg.exe sin tener <c>_gate</c> tomado. Si no sale a tiempo, no se libera el proceso ni se borran los
+    /// temporales que tiene abiertos: lo hace <see cref="PendingCleanup"/> cuando salga, y queda en
+    /// <see cref="Diagnostics"/>. Quien llame mientras otro hilo aborta espera a que ese termine.
+    /// </remarks>
     public void Abort()
     {
+        Task? inProgress = null;
+        TaskCompletionSource? finished = null;
+        RunningProcess? running = null;
+        Stream? pipe = null;
+        string[] temporaries = [];
+        string? journalId = null;
+        int? processId = null;
         lock (_gate)
         {
-            if (_aborted || _completed)
+            if (_completed || _committing)
             {
                 return;
             }
 
-            _aborted = true;
-            if (_process is { } process)
+            if (_aborted)
             {
-                Kill(process);
+                inProgress = _abortFinished?.Task;
             }
+            else
+            {
+                _aborted = true;
+                finished = _abortFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                running = _running;
+                if (running is not null)
+                {
+                    running.Users++;
+                }
 
-            try
-            {
-                _pipe?.Dispose();
+                pipe = _pipe;
+                processId = ProcessId;
+                temporaries = [.. _temporaries];
+                journalId = _journalId;
+                _journalId = null;
+                // Nadie más lo toma prestado; Complete y Failure, si ya lo tenían, lo siguen usando hasta devolverlo.
+                ReleaseProcess();
             }
-            catch (IOException)
-            {
-            }
+        }
 
-            DeleteTemporaries(keepPassLog: false);
-            ReleaseProcess();
+        if (finished is null)
+        {
+            inProgress?.Wait();
+            return;
+        }
+
+        try
+        {
+            long start = Stopwatch.GetTimestamp();
+            if (running is null || Stop(running.Process))
+            {
+                try
+                {
+                    ClosePipe(pipe);
+                    DeleteFiles(temporaries, journalId, processId);
+                }
+                finally
+                {
+                    Return(running);
+                }
+            }
+            else
+            {
+                Note($"ffmpeg.exe ({processId}) no salió {Stopwatch.GetElapsedTime(start).TotalMilliseconds:0} ms después de matarlo; " +
+                    "los temporales se borran cuando salga.");
+                DeferCleanup(running, pipe, temporaries, journalId, processId, start);
+            }
+        }
+        finally
+        {
+            finished.TrySetResult();
         }
     }
 
@@ -435,7 +581,7 @@ public sealed class FfmpegPipeSink : IExportSink
         process.BeginErrorReadLine();
         lock (_gate)
         {
-            _process = process;
+            _running = new RunningProcess(process);
             _stdoutClosed = stdoutClosed;
             ProcessId = process.Id;
             _pipe = process.StandardInput.BaseStream;
@@ -511,11 +657,18 @@ public sealed class FfmpegPipeSink : IExportSink
 
     private void ThrowIfStopped(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (_aborted)
+        if (cancellationToken.IsCancellationRequested || _aborted)
         {
-            throw new OperationCanceledException("La exportación se canceló.");
+            throw Canceled(null, cancellationToken);
         }
+    }
+
+    // La cancelación sale siempre como OperationCanceledException, y después de que Abort haya matado a ffmpeg.exe y
+    // borrado los temporales (si otro hilo está abortando, Abort espera a que termine).
+    private OperationCanceledException Canceled(Exception? inner, CancellationToken cancellationToken)
+    {
+        Abort();
+        return new OperationCanceledException("La exportación se canceló.", inner, cancellationToken);
     }
 
     // ffmpeg murió o cerró la tubería: cancelación si fue a propósito; si no, su error traducido.
@@ -523,16 +676,31 @@ public sealed class FfmpegPipeSink : IExportSink
     {
         if (cancellationToken.IsCancellationRequested || _aborted)
         {
-            Abort();
-            return new OperationCanceledException("La exportación se canceló.", inner, cancellationToken);
+            return Canceled(inner, cancellationToken);
         }
 
-        Process? process = _process;
         int exitCode = -1;
-        if (process is not null && process.WaitForExit(TimeSpan.FromSeconds(5)))
+        RunningProcess? running = Lease();
+        try
         {
-            process.WaitForExit();
-            exitCode = process.ExitCode;
+            if (running?.Process is { } process && process.WaitForExit(TimeSpan.FromSeconds(5)))
+            {
+                process.WaitForExit();
+                exitCode = process.ExitCode;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        finally
+        {
+            Return(running);
+        }
+
+        if (_aborted)
+        {
+            // Un Abort desde otro hilo llegó mientras se esperaba el código de salida.
+            return Canceled(inner, cancellationToken);
         }
 
         string log;
@@ -605,12 +773,51 @@ public sealed class FfmpegPipeSink : IExportSink
         }
     }
 
+    // Con _gate tomado. El Process se libera cuando nadie lo tiene prestado (Complete, Failure o una limpieza pendiente).
     private void ReleaseProcess()
     {
-        _process?.Dispose();
-        _process = null;
+        if (_running is { } running)
+        {
+            running.Released = true;
+            if (running.Users == 0)
+            {
+                running.Process.Dispose();
+            }
+        }
+
+        _running = null;
         _pipe = null;
         ProcessId = null;
+    }
+
+    private RunningProcess? Lease()
+    {
+        lock (_gate)
+        {
+            if (_running is { } running)
+            {
+                running.Users++;
+            }
+
+            return _running;
+        }
+    }
+
+    private void Return(RunningProcess? running)
+    {
+        if (running is null)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            running.Users--;
+            if (running.Released && running.Users == 0)
+            {
+                running.Process.Dispose();
+            }
+        }
     }
 
     // Matar no es instantáneo: Windows termina el proceso cuando cada uno de sus hilos llega a ejecutar su salida. Con
@@ -619,7 +826,8 @@ public sealed class FfmpegPipeSink : IExportSink
     // WriteFile (1,6–6,3 s con VP9 en la CI). Por eso se sube primero a High: un proceso que ya muere no compite con
     // nadie. Después TerminateProcess directo, sin recorrer antes todos los procesos del sistema como hace
     // Kill(entireProcessTree), y la espera; el árbol solo se recorre si a pesar de todo no salió a tiempo.
-    private static void Kill(Process process)
+    // Se llama sin _gate tomado. Devuelve si ffmpeg.exe salió.
+    private static bool Kill(Process process)
     {
         try
         {
@@ -637,18 +845,138 @@ public sealed class FfmpegPipeSink : IExportSink
             process.Kill();
             if (process.WaitForExit(KillWait))
             {
-                return;
+                return true;
             }
 
             process.Kill(entireProcessTree: true);
-            process.WaitForExit(KillWait);
+            return process.WaitForExit(TreeKillWait);
         }
         catch (InvalidOperationException)
         {
+            // Sin proceso asociado: no hay nada que esperar.
+            return true;
         }
         catch (System.ComponentModel.Win32Exception)
         {
+            // Acceso denegado mientras ya está terminando.
+            return WaitQuietly(process, TreeKillWait);
         }
+    }
+
+    private bool Stop(Process process) => KillOverride is { } kill ? kill(process) : Kill(process);
+
+    private static bool WaitQuietly(Process process, TimeSpan timeout)
+    {
+        try
+        {
+            return process.WaitForExit(timeout);
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    private static void ClosePipe(Stream? pipe)
+    {
+        try
+        {
+            pipe?.Dispose();
+        }
+        catch (IOException)
+        {
+        }
+    }
+
+    // Borra los temporales de un Abort. El registro solo se suelta si no quedó nada: si no, al reabrir Rodaje
+    // ExportJournal.CleanupStale vuelve a intentarlo.
+    private bool DeleteFiles(IEnumerable<string> paths, string? journalId, int? processId)
+    {
+        var left = new List<string>();
+        foreach (string path in paths)
+        {
+            if (ExportOutputGuard.DeleteTemporary(path))
+            {
+                left.Add(path);
+            }
+        }
+
+        if (left.Count > 0)
+        {
+            Note($"No se pudieron borrar los temporales de ffmpeg.exe ({processId}): {string.Join(", ", left)}; " +
+                "se reintenta al reabrir Rodaje.");
+            return false;
+        }
+
+        if (journalId is not null && _options.Journal is { } journal)
+        {
+            journal.Remove(journalId);
+        }
+
+        return true;
+    }
+
+    // ffmpeg.exe no salió dentro de Abort: un hilo aparte reintenta matarlo y, cuando sale, cierra la tubería, borra los
+    // temporales y devuelve el proceso prestado (que entonces se libera).
+    private void DeferCleanup(RunningProcess running, Stream? pipe, string[] temporaries, string? journalId, int? processId, long start)
+    {
+        Task cleanup = Task.Factory.StartNew(() =>
+        {
+            try
+            {
+                Process process = running.Process;
+                while (!Stop(process))
+                {
+                    if (WaitQuietly(process, CleanupRetry))
+                    {
+                        break;
+                    }
+                }
+
+                ClosePipe(pipe);
+                if (DeleteFiles(temporaries, journalId, processId))
+                {
+                    Note($"ffmpeg.exe ({processId}) salió a los {Stopwatch.GetElapsedTime(start).TotalMilliseconds:0} ms de cancelar; " +
+                        "temporales borrados.");
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                Note($"La limpieza pendiente de ffmpeg.exe ({processId}) falló: {ex.Message}");
+            }
+            finally
+            {
+                Return(running);
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        lock (_gate)
+        {
+            _pendingCleanup = cleanup;
+        }
+    }
+
+    private void Note(string message)
+    {
+        lock (_diagnostics)
+        {
+            _diagnostics.Add(message);
+        }
+
+        Trace.WriteLine($"Rodaje: {message}");
+    }
+
+    /// <summary>El <c>ffmpeg.exe</c> de una pasada y cuántos lo usan; los campos se tocan con <c>_gate</c> tomado.</summary>
+    private sealed class RunningProcess(Process process)
+    {
+        public Process Process { get; } = process;
+
+        public int Users { get; set; }
+
+        public bool Released { get; set; }
     }
 }
 
