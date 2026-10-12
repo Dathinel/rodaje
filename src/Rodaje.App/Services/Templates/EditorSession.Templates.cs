@@ -36,4 +36,30 @@ public sealed partial class EditorSession
         VerifyAccess();
         return ProjectTemplate.FromSequence(name, Sequence);
     }
+
+    /// <summary>
+    /// «Borrar plantilla propia»: pregunta antes, porque no se puede deshacer, y solo si la persona confirma la quita de
+    /// <paramref name="store"/> y escribe el archivo. <c>false</c> si no era una propia de ese almacén o no se confirmó.
+    /// </summary>
+    /// <exception cref="IOException">No se pudo escribir el archivo de plantillas (no cambia nada).</exception>
+    /// <exception cref="UnauthorizedAccessException">Sin permiso para escribir el archivo de plantillas (no cambia nada).</exception>
+    public async Task<bool> DeleteUserTemplateAsync(ProjectTemplateStore store, string id)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        VerifyAccess();
+        if (store.UserTemplates.FirstOrDefault(t => t.Id == id) is not { } template)
+        {
+            return false;
+        }
+
+        if (!await _dialogs.ConfirmAsync(
+                "¿Borrar la plantilla?",
+                $"«{template.Name}» se borra de Archivo › Proyecto nuevo desde plantilla. No se puede deshacer; los proyectos ya creados con ella no cambian.",
+                "Borrar"))
+        {
+            return false;
+        }
+
+        return store.Remove(id);
+    }
 }
