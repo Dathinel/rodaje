@@ -8,7 +8,7 @@ namespace Rodaje.App.Services.Modules;
 /// Job Object con «matar al cerrar» para los procesos de módulos: si Rodaje termina (aunque sea de golpe), Windows cierra
 /// el handle y mata todo lo que quedó dentro. <see cref="Dispose"/> hace lo mismo a propósito.
 /// </summary>
-public sealed unsafe class ModuleJobObject : IDisposable
+public sealed unsafe partial class ModuleJobObject : IDisposable
 {
     // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE de winnt.h (TerraFX no la declara).
     private const uint KillOnJobClose = 0x2000;

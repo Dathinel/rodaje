@@ -140,6 +140,9 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     /// <summary>Los proxies de la vista previa, cuando el hilo de render ya los creó; para la pestaña Trabajos.</summary>
     public Rodaje.Media.Proxies.MediaSourceResolver? ProxyResolver => Volatile.Read(ref _proxies)?.Resolver;
 
+    /// <summary>VRAM dedicada de la GPU del reproductor; 0 mientras no abrió (la usa el presupuesto de los módulos).</summary>
+    public long DedicatedVideoMemory => Volatile.Read(ref _gpu)?.DedicatedVideoMemory ?? 0;
+
     public int SwapChainWidth => _swapChain?.Width ?? 0;
 
     public int SwapChainHeight => _swapChain?.Height ?? 0;

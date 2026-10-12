@@ -97,8 +97,8 @@ public sealed record ModuleManagerOptions
 
     public TimeSpan PingTimeout { get; init; } = TimeSpan.FromSeconds(10);
 
-    /// <summary>VRAM dedicada (para el presupuesto); 0 si no se sabe.</summary>
-    public long DedicatedVideoMemory { get; init; }
+    /// <summary>VRAM dedicada (para el presupuesto); 0 si no se sabe. Se consulta con la primera llamada.</summary>
+    public Func<long> DedicatedVideoMemory { get; init; } = () => 0;
 
     public ModuleClientOptions ClientOptions { get; init; } = new();
 }

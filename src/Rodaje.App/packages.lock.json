@@ -122,6 +122,9 @@
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
       },
+      "rodaje.modules.protocol": {
+        "type": "Project"
+      },
       "rodaje.paquetes": {
         "type": "Project"
       },

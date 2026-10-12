@@ -11,7 +11,7 @@ namespace Rodaje.App.Services.Modules;
 /// avance y cancelar. Un módulo que muere, se cuelga o manda basura solo falla su trabajo: la app y el proyecto siguen.
 /// Los resultados nunca editan: quien llama los convierte en una <see cref="ModuleProposal"/>.
 /// </summary>
-public sealed class ModuleManager : IAsyncDisposable
+public sealed partial class ModuleManager : IAsyncDisposable
 {
     private static readonly TimeSpan EvictionRetry = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan ExitCodeWait = TimeSpan.FromMilliseconds(500);
@@ -29,7 +29,6 @@ public sealed class ModuleManager : IAsyncDisposable
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _preview = preview;
         _context = context;
-        Budget = new VramBudget(options.DedicatedVideoMemory);
         Jobs = new ModuleJobList(context);
     }
 
@@ -39,7 +38,22 @@ public sealed class ModuleManager : IAsyncDisposable
 
     public ModuleJobList Jobs { get; }
 
-    public VramBudget Budget { get; }
+    private VramBudget? _budget;
+
+    /// <summary>Se arma con la primera llamada: la GPU del reproductor abre después que la ventana.</summary>
+    public VramBudget Budget
+    {
+        get
+        {
+            if (Volatile.Read(ref _budget) is { } budget)
+            {
+                return budget;
+            }
+
+            Interlocked.CompareExchange(ref _budget, new VramBudget(_options.DedicatedVideoMemory()), null);
+            return _budget;
+        }
+    }
 
     /// <summary>Windows dio el Job Object «matar al cerrar».</summary>
     public bool KillsOnClose => _job.IsAvailable;

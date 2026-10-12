@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Media;
+using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
@@ -69,6 +70,12 @@ internal sealed class EditorServices(
 
     /// <summary>La cola de exportaciones (Trabajos → Exportaciones); nula si la ventana no la creó.</summary>
     public ExportJobList? Exports { get; init; }
+
+    /// <summary>Módulos de IA: descubrir, correr como trabajos y vigilar; nulo si la ventana no lo creó.</summary>
+    public ModuleManager? Modules { get; init; }
+
+    /// <summary>La propuesta de un módulo que se ve antes de aplicarse en un paso del historial.</summary>
+    public ModuleProposals? Proposals { get; init; }
 
     /// <summary>Cambió la calidad de la vista previa (desde el reproductor o desde el menú Ver).</summary>
     public event EventHandler? PreviewQualityChanged;

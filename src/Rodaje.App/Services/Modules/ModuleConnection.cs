@@ -8,7 +8,7 @@ namespace Rodaje.App.Services.Modules;
 /// sin llamadas y se vigila con <c>ping</c> mientras hay alguna (sin respuesta en <see cref="ModuleManagerOptions.PingTimeout"/>
 /// se da por colgado y se mata). Si muere, la próxima llamada lo vuelve a abrir.
 /// </summary>
-internal sealed class ModuleConnection(ModuleDescriptor descriptor, ModuleManagerOptions options, ModuleJobObject? job, Action<ModuleConnection> closed) : IDisposable
+internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, ModuleManagerOptions options, ModuleJobObject? job, Action<ModuleConnection> closed) : IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _lock = new();

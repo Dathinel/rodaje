@@ -90,6 +90,7 @@ public sealed class ModuleManagerTests : IDisposable
     public async Task Un_modulo_que_muere_solo_falla_rapido_con_su_codigo()
     {
         await using ModuleManager manager = _modules.Manager();
+        await manager.InvokeAsync("eco-a", "eco", null, "Abrir");
         Stopwatch watch = Stopwatch.StartNew();
         ModuleExitedException error = await Assert.ThrowsAsync<ModuleExitedException>(() => manager.InvokeAsync("eco-a", "morir", EchoModules.Json("""{"codigo":7}"""), "Morir"));
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"{watch.ElapsedMilliseconds} ms");
@@ -178,7 +179,7 @@ public sealed class ModuleManagerTests : IDisposable
     {
         using EchoModules gpu = new EchoModules().Add("vision", vramMb: 1500).Add("voz-gpu", vramMb: 1200).Add("cpu");
         var preview = new CountingPreview();
-        await using ModuleManager manager = gpu.Manager(new ModuleManagerOptions { DedicatedVideoMemory = 4L << 30 }, preview);
+        await using ModuleManager manager = gpu.Manager(new ModuleManagerOptions { DedicatedVideoMemory = () => 4L << 30 }, preview);
 
         Task<ModuleResult> call = manager.InvokeAsync("vision", "contar", EchoModules.Json("""{"pasos":20,"msPorPaso":10}"""), "Quitar fondo");
         await WaitUntil(() => preview.Active == 1);
@@ -201,7 +202,7 @@ public sealed class ModuleManagerTests : IDisposable
     public async Task Un_modulo_pesado_espera_a_que_termine_el_otro()
     {
         using EchoModules gpu = new EchoModules().Add("vision", vramMb: 1500).Add("voz-gpu", vramMb: 1200);
-        await using ModuleManager manager = gpu.Manager(new ModuleManagerOptions { DedicatedVideoMemory = 4L << 30 });
+        await using ModuleManager manager = gpu.Manager(new ModuleManagerOptions { DedicatedVideoMemory = () => 4L << 30 });
 
         Task<ModuleResult> first = manager.InvokeAsync("vision", "contar", EchoModules.Json("""{"pasos":30,"msPorPaso":10}"""), "Primero");
         await WaitUntil(() => manager.ProcessIds.Count == 1);
