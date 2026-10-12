@@ -4,6 +4,8 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 
 **Pendiente de Daniel:** `PARA-DANIEL.md` (respaldar la clave de descargas, pruebas a mano, preguntas abiertas). Recuérdaselo al empezar cada sesión hasta que esté hecho.
 
+**Al retomar (12-oct, corte por límite):** (1) la rutina de la nube está **pausada** (`enabled: false`) por la reorganización: reactivarla al unir la rama de la reorganización, con las rutas nuevas (`.proceso/` en el repo privado `Dathinel/rodaje-proceso`). (2) Ramas locales por unir (`git branch --no-merged main`): reorganización como app profesional (proceso a `rodaje-proceso`, README profesional, `testing/`→`tests/`, `herramientas/`→`build/`, `Rodaje.Paquetes`→`Rodaje.Packages`, D-034 con las respuestas de Daniel, fase 8 eliminada) y atajos con ratón y edición gráfica; si se cortaron, revisar sus worktrees y relanzar desde ahí. (3) Luego: cerrar la fase 7 (módulo de visión, edición por palabras, carpeta de medios elegible, Whisper menor para CPU, quitar DirectML del ruido) y su verificación; después las funciones de calidad de vida aprobadas para la v1 (`pendientes.md`), instalador y primera versión.
+
 ## Cómo se trabaja aquí
 
 - **.NET:** siempre con `herramientas\dotnet-local.cmd <args>`, que usa el SDK 10.0.401 de `.entorno\dotnet`. La FFmpeg LGPL 9.0.2 está en `.entorno\ffmpeg`. Las dos se instalan con `herramientas\preparar-entorno.ps1`, con hashes fijados. `RODAJE_ENTORNO` apunta a otro `.entorno`, por ejemplo desde un worktree.
