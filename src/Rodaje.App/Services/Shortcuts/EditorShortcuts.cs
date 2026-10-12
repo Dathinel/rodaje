@@ -9,6 +9,7 @@ public static class ActionIds
     public const string SaveAs = "file.saveAs";
     public const string Import = "file.import";
     public const string Export = "file.export";
+    public const string ExportFrame = "file.exportFrame";
 
     public const string Undo = "edit.undo";
     public const string Redo = "edit.redo";
@@ -86,6 +87,7 @@ public static partial class EditorShortcuts
         new(ActionIds.SaveAs, "Guardar como", ShortcutGroups.File, ["Ctrl+Mayús+S"]) { ShortLabel = "Guardar como", WorksInTextInput = true, Description = "Guarda una copia con otro nombre o en otra carpeta." },
         new(ActionIds.Import, "Importar medios", ShortcutGroups.File, ["Ctrl+I"]) { ShortLabel = "Importar", Description = "Trae videos, audios o imágenes a la biblioteca." },
         new(ActionIds.Export, "Exportar", ShortcutGroups.File, ["Ctrl+E", "Ctrl+M"], agile: ["Ctrl+E"], classic: ["Ctrl+M"]) { WorksInTextInput = true, Description = "Convierte el proyecto en un video terminado." },
+        new(ActionIds.ExportFrame, "Exportar fotograma", ShortcutGroups.File, ["Ctrl+Mayús+E"]) { ShortLabel = "Fotograma", Description = "Guarda como imagen PNG o JPEG el cuadro que está bajo el cursor." },
 
         new(ActionIds.Undo, "Deshacer", ShortcutGroups.Edit, ["Ctrl+Z"]) { Repeats = true, Description = "Vuelve atrás el último cambio." },
         new(ActionIds.Redo, "Rehacer", ShortcutGroups.Edit, ["Ctrl+Mayús+Z", "Ctrl+Y"], agile: ["Ctrl+Mayús+Z"], classic: ["Ctrl+Y", "Ctrl+Mayús+Z"]) { Repeats = true, Description = "Repite lo que acabas de deshacer." },
