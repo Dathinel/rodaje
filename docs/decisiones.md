@@ -388,7 +388,7 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 
 **Consecuencias.** La línea de tiempo cede 36 px a la barra. Cambiar los fps con clips no los reajusta al cuadro nuevo (como CapCut).
 
-## D-034. Respuestas de Daniel a las preguntas abiertas de la fase 7 y de D-033 (12 de octubre de 2026)
+## D-034. Respuestas de Daniel a las preguntas abiertas de la fase 7 y de D-033, y fin de la fase 8 (12 de octubre de 2026)
 
 **Contexto.** Las preguntas de D-033 y de la fase 7 se habían resuelto con la opción recomendada, de forma provisional. Daniel las respondió el 12-oct.
 
@@ -406,5 +406,6 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 - **Módulo de ruido:** se quita el paquete DirectML; corre en CPU.
 - **Medios generados** (audio limpio, voz, ProRes de CinemaDNG): por defecto en `<proyecto>.medios\` junto al proyecto, pero la persona puede elegir otra carpeta, en Configuración y al generar.
 - **Estabilización:** el análisis va en la caché de la app, no junto al proyecto.
+- **Sin fase 8:** el control físico con ESP32 sale del plan y las órdenes en lenguaje natural quedan como idea para después de la v1. Las funciones de calidad de vida que se habían anotado para la fase 8 siguen aprobadas, para la v1.
 
 **Consecuencias.** Tres tareas nuevas: carpeta de medios generados elegible, modelo de Whisper para CPU y módulo de ruido sin DirectML. BiRefNet_lite no puede ir en una versión comercial sin firmar sus términos.

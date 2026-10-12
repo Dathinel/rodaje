@@ -82,7 +82,7 @@ Ediciones (en `TimelineEdits.Speed`, fábricas en `Edits.Speed`): `SetSpeed`, `S
 
 ## Deshacer y rehacer (`Commands/`)
 
-Nada fuera del núcleo cambia el modelo directamente. La interfaz pide un comando a [`Edits`](../../src/Rodaje.Core/Commands/Edits.cs) (unas 50 fábricas, repartidas en archivos parciales de la clase `Edits`: `Edits.Split`, `Edits.Move`, `Edits.SetSpeed`...) y lo pasa por [`UndoStack.Execute`](../../src/Rodaje.Core/Commands/UndoStack.cs). La IA y las órdenes en lenguaje natural harán lo mismo.
+Nada fuera del núcleo cambia el modelo directamente. La interfaz pide un comando a [`Edits`](../../src/Rodaje.Core/Commands/Edits.cs) (unas 50 fábricas, repartidas en archivos parciales de la clase `Edits`: `Edits.Split`, `Edits.Move`, `Edits.SetSpeed`...) y lo pasa por [`UndoStack.Execute`](../../src/Rodaje.Core/Commands/UndoStack.cs). La IA hace lo mismo.
 
 ```mermaid
 sequenceDiagram

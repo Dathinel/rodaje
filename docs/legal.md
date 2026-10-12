@@ -220,7 +220,7 @@ Rodaje no usa marcas ajenas en su código, su interfaz, sus íconos ni sus recur
 
 ## Privacidad y secretos
 
-Rodaje no envía telemetría ni datos de uso a ningún servidor. Las funciones que usen servicios externos, como un asistente de lenguaje natural, serán opcionales, explicarán qué se envía y leerán su clave desde un archivo `.env` local. El `.env` está en `.gitignore` y nunca se sube.
+Rodaje no envía telemetría ni datos de uso a ningún servidor. Si alguna función llega a usar servicios externos, será opcional, explicará qué se envía y leerá su clave desde un archivo `.env` local. El `.env` está en `.gitignore` y nunca se sube.
 
 ## Avisos de terceros
 

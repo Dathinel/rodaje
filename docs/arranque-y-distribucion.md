@@ -73,7 +73,7 @@ Lo que no se tocó: el XAML de las vistas (91 ms) se podría partir con `x:Load`
 
 **Resultado:** al descomprimir `Rodaje-<versión>-base.zip` se ve la carpeta `Rodaje` con `Rodaje.exe` y `app` (oculta tras el primer arranque). `app.ps1` publica así (`dist\Rodaje\Rodaje.exe` + `dist\Rodaje\app\`), `distribuir.ps1` arma los zip igual y la completa pone paquetes, módulos y modelos en `app\`. Para las pruebas y las medidas se usa `app\Rodaje.exe` directamente; el doble clic de Daniel y `Rodaje.bat` pasan por el lanzador. Detalles que cambian: `rodaje-error.txt` queda en `app\` (el aviso de la app lo dice) y las licencias (`LICENSE.txt`, `THIRD-PARTY-NOTICES.txt`, `TRADEMARK.md`) viajan en `app\` junto al exe que cubren.
 
-Pendiente para el instalador (fase 8 o versión pública): asociar `.rodaje` y vídeos, acceso directo en Inicio y firma de código, que es lo que de verdad quita el aviso de SmartScreen. Un instalador no hace el arranque más rápido.
+Pendiente para el instalador (versión pública): asociar `.rodaje` y vídeos, acceso directo en Inicio y firma de código, que es lo que de verdad quita el aviso de SmartScreen. Un instalador no hace el arranque más rápido.
 
 ## ¿Seguir con WinUI 3?
 

@@ -41,7 +41,7 @@ flowchart TB
 
 ## Reglas que atraviesan todas las capas
 
-- **La interfaz no toca el modelo.** Todo cambio es un comando del núcleo (`Edits` + `UndoStack`), así que todo se deshace con Ctrl+Z, también lo que hagan la IA o las órdenes en lenguaje natural.
+- **La interfaz no toca el modelo.** Todo cambio es un comando del núcleo (`Edits` + `UndoStack`), así que todo se deshace con Ctrl+Z, también lo que haga la IA.
 - **El audio manda.** El video sigue al reloj de la salida de audio: si el equipo no alcanza, se pierde un cuadro, nunca una muestra.
 - **Nada espera en el camino de render.** `Tick` muestra lo mejor que hay; abrir, decodificar y cerrar archivos ocurre en otros hilos.
 - **Un solo dispositivo D3D11** compartido por FFmpeg y el compositor: los cuadros decodificados se muestrean sin copiarlos.
