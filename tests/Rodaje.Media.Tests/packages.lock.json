@@ -120,6 +120,9 @@
       "rodaje.core": {
         "type": "Project"
       },
+      "rodaje.fakeffmpeg": {
+        "type": "Project"
+      },
       "rodaje.media": {
         "type": "Project",
         "dependencies": {

@@ -15,6 +15,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Media\Rodaje.Media.csproj" />
     <ProjectReference Include="..\..\testing\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
+    <!-- Solo para que el ffmpeg falso quede junto a las pruebas de Export/ (FfmpegPipeSinkFakeRaceTests). -->
+    <ProjectReference Include="..\..\testing\Rodaje.FakeFfmpeg\Rodaje.FakeFfmpeg.csproj" />
   </ItemGroup>
 
   <ItemGroup>
