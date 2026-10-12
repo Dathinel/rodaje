@@ -449,3 +449,12 @@ La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que tod
 3. `TimelineSpeedTests.Speed_adds_no_bytes_to_what_each_tick_already_reserves` falló una vez por 1 B en la CI de Windows: averiguar qué reserva de más y corregir la causa, o justificar el margen.
 4. Una prueba que fije `ModuleManagerOptions.StartTimeout` (30 s) y el camino «no se conectó a tiempo» con un tope corto inyectado.
 
+
+## 47. Pruebas de la App que fallan con el runner de Windows cargado
+
+- **Estado:** pendiente
+- **Rama:** `claude/app-pruebas-carga`
+- **Caminos:** `tests/Rodaje.App.Tests/Media/ClipVisualsTests.cs`, `tests/Rodaje.App.Tests/` (las otras pruebas citadas), `src/Rodaje.App/Services/` (solo si el defecto es del código), `docs/tareas/`
+- **Lee:** el job 114679035551 (PR #32), el comentario del 12-oct en el PR #33 y `testing/Rodaje.TestMedia/Skip.cs`.
+
+`ClipVisualsTests.Dispose_does_not_wait_for_a_reader_that_ignores_cancellation` exige que `Dispose` vuelva en menos de 1 s y en la CI tardó 8082 ms (`ClipVisualsTests.cs:402`), en un PR que no toca esa parte. En la corrida de #33 fallaron además `PackageServiceTests`, `ModuleMediaTests` y `VideoAnalysisTests`. Averigua la causa de cada una. Si `Dispose` de verdad espera al lector (un `Wait` o un `Join` en el camino), es un defecto: corrígelo. Si no, haz que la medición no dependa del planificador del runner (cronometrar solo `Dispose`, hilos dedicados) sin subir el tope que mide. Si alguna prueba mide tiempo real, va con `Categoria=TiempoReal`.
