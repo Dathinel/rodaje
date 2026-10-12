@@ -12,7 +12,7 @@ public sealed record TranslatedSegment(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("text")] string Text);
 
-/// <summary>El resultado de <c>traducir</c> (<c>docs/fase-7.md</c>): los mismos ids, en el mismo orden.</summary>
+/// <summary>El resultado de <c>traducir</c>: los mismos ids, en el mismo orden.</summary>
 public sealed record TranslationResult(
     [property: JsonPropertyName("source")] string Source,
     [property: JsonPropertyName("target")] string Target,

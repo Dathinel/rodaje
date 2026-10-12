@@ -155,7 +155,7 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
   | 8 | 0,53 ms | 0,37 ms |
 
   Incluso con 8 capas, componer usa menos del 4 % de los 16,7 ms que dura un cuadro a 60 fps.
-- Con los efectos de la fase 5 el camino rápido no cambió (8 capas 1080p: 0,54 ms) y 3 capas 4K con color, LUT, desenfoque y superponer cuestan 2,7 ms; la tabla completa está en [fase-5.md](fase-5.md#medido-en-la-integración-10-de-octubre-rtx-3050-laptop).
+- Con los efectos de la fase 5 el camino rápido no cambió (8 capas 1080p: 0,54 ms) y 3 capas 4K con color, LUT, desenfoque y superponer cuestan 2,7 ms.
 - El visor sigue dibujando con su `VideoRenderer`; cuando muestre varias capas usará `Compositor` y `Presenter`.
 - Reducir una capa a menos de la mitad produce aliasing, hasta que existan proxies o un filtro de varias muestras.
 - Cuando el motor ponga el SAR y la rotación en `LayerFrame`, el parámetro `geometry` de `Compositor.Render` se puede retirar.
@@ -244,13 +244,13 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 
 **Contexto.** El visor de las fases 2 y 3 (D-015) era una herramienta de prueba. La app WinUI 3 ya reproduce, edita y mide (`app.ps1 -Medir N`) con el mismo motor y el mismo compositor.
 
-**Decisión.** Se borran `src/Rodaje.Visor`, sus pruebas, `herramientas/visor.ps1`, la acción `ABRIR.bat visor` y `herramientas/sondeo-winui.ps1`. El código queda en la etiqueta de git `visor-fase3`; el informe del sondeo pasa a `docs/archivo/sondeo-winui.md`.
+**Decisión.** Se borran `src/Rodaje.Visor`, sus pruebas, `herramientas/visor.ps1`, la acción `ABRIR.bat visor` y `herramientas/sondeo-winui.ps1`. El código queda en la etiqueta de git `visor-fase3`; el informe del sondeo pasa a `docs/archivo/sondeo-winui.md` (hoy en la etiqueta `archivo-proceso-2026-10`).
 
 **Consecuencias.** Un solo ejecutable que mantener. D-015 y D-016 siguen valiendo para el motor y el render aunque nombren el visor.
 
 ## D-023. Estilos de atajos con nombres propios (10 de octubre de 2026)
 
-**Decisión.** Los estilos de D-018 se llaman «Rodaje», «Ágil» y «Clásico» (`ShortcutPreset.Rodaje`, `Agile` y `Classic`). Ni la interfaz ni el código nombran otros programas; las referencias de experiencia de uso quedan en estas decisiones y en `docs/archivo/`. `atajos.json` y `ajustes.json` guardados con los nombres anteriores se leen como Ágil y Clásico y se reescriben con los nuevos; un estilo desconocido vuelve a Rodaje sin dar por dañado el archivo.
+**Decisión.** Los estilos de D-018 se llaman «Rodaje», «Ágil» y «Clásico» (`ShortcutPreset.Rodaje`, `Agile` y `Classic`). Ni la interfaz ni el código nombran otros programas; las referencias de experiencia de uso quedan en estas decisiones. `atajos.json` y `ajustes.json` guardados con los nombres anteriores se leen como Ágil y Clásico y se reescriben con los nuevos; un estilo desconocido vuelve a Rodaje sin dar por dañado el archivo.
 
 ## D-024. Restablecer un parámetro y quitar keyframes, con aviso (10 de octubre de 2026)
 
@@ -265,7 +265,7 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 
 ## D-025. Contrato de la fase 5: registro de efectos, formato 3 y transiciones en el corte (10 de octubre de 2026)
 
-**Contexto.** El plan de la fase 5 ([fase-5.md](fase-5.md)) reparte el trabajo entre seis agentes en paralelo; antes hace falta un contrato que no cambie mientras trabajan.
+**Contexto.** El plan de la fase 5 reparte el trabajo entre seis agentes en paralelo; antes hace falta un contrato que no cambie mientras trabajan.
 
 **Decisión (aprobada por Daniel).**
 - **Transiciones centradas en el corte y sin solapar clips.** Viven en la pista (`Track.Transitions`: `from`, `to`, `duration`, `parameters`, `options`); cada lado usa el material sobrante y, si no hay, congela el cuadro del borde. Seis propias (fundido cruzado, a color, barrido, empujar, zoom y desenfoque) y `rodaje.preset` para las de paquete, que cae a fundido cruzado si falta el paquete. `TransitionOps.Reconcile` corre al final de cada edición, dentro del mismo paso del deshacer.
@@ -279,7 +279,7 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 
 ## D-026. Contrato de la fase 5c: velocidad como propiedad del clip y formato 4 (10 de octubre de 2026)
 
-**Contexto.** El plan de la fase 5c ([fase-5c.md](fase-5c.md)) reparte la velocidad entre siete agentes; el formato y la aritmética del tiempo no pueden cambiar mientras trabajan.
+**Contexto.** El plan de la fase 5c reparte la velocidad entre siete agentes; el formato y la aritmética del tiempo no pueden cambiar mientras trabajan.
 
 **Decisión.**
 - **`Clip.Speed`** (`ClipSpeed`: `Rate` racional de 1/10 a 100, `Curve` lineal a tramos en centésimas de 0,1× a 10× con puntos en diezmilésimas de `Span`, `Offset`, `Reverse`, `Freeze`, `PreservePitch`, `FrameSampling`) y `Clip.Duration` guardada cuando hay velocidad. `rodaje.speed` queda reservado (código 8) y oculto; la migración 3 → 4 quita sus instancias.
@@ -307,7 +307,7 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 
 ## D-028. Arquitectura de la exportación: tubería a `ffmpeg.exe` y LGPL en la v1 (11 de octubre de 2026)
 
-**Contexto.** El plan de la fase 6 ([fase-6.md](fase-6.md)) reparte la exportación entre seis agentes (A–F) y la nube; antes hace falta fijar el camino del cuadro, el color y la licencia.
+**Contexto.** El plan de la fase 6 reparte la exportación entre seis agentes (A–F) y la nube; antes hace falta fijar el camino del cuadro, el color y la licencia.
 
 **Decisión (las tres preguntas del plan, respondidas por Daniel el 11 de octubre).**
 - **Licencia:** LGPL en la v1, como recomendaba el plan (detalle abajo).
@@ -319,14 +319,14 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - **Audio a un temporal:** `OfflineAudio` (el `MixRenderer` continuo, sin margen de recarga) escribe la mezcla del rango en un WAV temporal antes del video; así no hay dos tuberías que se bloqueen entre sí y el audio se prueba muestra a muestra.
 - **Salida v1 por tubería a `ffmpeg.exe`** (el mismo exe LGPL verificado de los proxies, dentro del `ChildProcessJob`): `rawvideo` por la entrada estándar, el WAV como segunda entrada, `-progress` para el avance, escritura atómica (`.rodaje-tmp` y renombrar), espacio en disco comprobado y limpieza tras un apagón. `NvencDirectSink` (textura directa a NVENC) solo en una ronda 6.2 si las cifras lo piden.
 - **Licencia LGPL en la v1:** H.264 y HEVC solo por GPU (NVENC, AMF, QSV) o por Media Foundation, cuyos fabricantes cubren las patentes; la CPU exporta AV1 (SVT-AV1) y VP9 (libvpx); maestros FFV1 y DNxHR; audio AAC preferido con `aac_mf`, además `aac`, Opus, MP3 (LAME), FLAC y PCM. **kvazaar y OpenH264 quedan fuera de los valores por defecto** (contradicen la mitigación de patentes de `legal.md`): solo se usan si el usuario los elige. x264 sería un complemento GPL aparte, con su propio `ffmpeg.exe` y el mismo protocolo, más adelante y tras consultar a alguien de licencias.
-- **Alcance profesional** (Daniel, 11 de octubre; `fase-6.md`): el contrato cubre ya todo lo que permite el FFmpeg LGPL aunque la v1 implemente primero lo común (MP4/MOV/MKV/WebM, H.264/HEVC por GPU, AV1, ProRes, AAC/Opus/PCM). Lo que necesite otra licencia (x264, x265) va como complemento en un repo de Dathinel, con su propio `ffmpeg.exe` y el mismo protocolo de tubería.
+- **Alcance profesional** (Daniel, 11 de octubre): el contrato cubre ya todo lo que permite el FFmpeg LGPL aunque la v1 implemente primero lo común (MP4/MOV/MKV/WebM, H.264/HEVC por GPU, AV1, ProRes, AAC/Opus/PCM). Lo que necesite otra licencia (x264, x265) va como complemento en un repo de Dathinel, con su propio `ffmpeg.exe` y el mismo protocolo de tubería.
 - **Contrato:**
   - `Rodaje.Media/Export`: `IExportSink` (con `ExportSinkRequest`: pasadas, metadatos y capítulos), `ExportVideoFrame` (hasta 4 planos con pitch), `ExportVideoFormat`, `ExportAudioFormat`, `ExportPixelFormat` (NV12, P010, YUV 4:2:0/4:2:2/4:4:4 de 8 y 10 bits, YUVA, RGB/RGBA de 8 y 16), `ExportColor` (BT.709/BT.601, rango, sRGB para imágenes), `ExportContainer` (16, de MP4 a secuencias de imágenes y solo audio), `ExportException` con `ExportErrorCode` estables, `EncoderSpec` con capacidades (perfiles con sus píxeles, niveles, modos de `RateControlMode`, escala de calidad, dos pasadas, cuadros B, presets, solo intra, alfa, frecuencias y canales; `InDefaults = false` en kvazaar y OpenH264) y `ExportCompatibility`, la matriz contenedor × códec × píxel × perfil × audio con el motivo de cada rechazo.
   - `Rodaje.Engine/Offline`: `OfflineTimeline.Render(long frame, CancellationToken)` y `RenderAt(Time, …)` para la conversión de tasa; `OfflineAudio` (lectura continua, `MeasureLoudness` EBU R128 y `WriteWave` con ganancia).
   - `Rodaje.Render/Export`: `ExportFrameConverter` (`Submit`, `SubmitBlend`, `TryRead` con un anillo de `Staging`).
   - `Rodaje.Export` (proyecto nuevo, sin interfaz): `ExportSettings` (contenedor; video con códec, `RateControl` —modo, CRF/CQ, tasas, búfer, pasadas, tamaño objetivo—, perfil, nivel, preset, tune, GOP, bits, croma, alfa, color, tasa con conversión, tamaño, forma, filtro y recorte; audio con códec, tasa, perfil, frecuencia, canales, PCM y sonoridad LUFS; metadatos, capítulos desde marcadores, `faststart` y `Performance`), `ExportRequest`, `ExportPreset` (de fábrica, del usuario o de un `.paquete`), `ExportProgress`, `ExportJobState` y `ExportSettingsValidator`.
 
-**Consecuencias.** La exportación necesita `ffmpeg.exe` junto a las DLL, igual que los proxies. La tubería cuesta una copia por cuadro a la CPU (a 4K60 unos 750 MB/s); el prototipo del paso 0 mueve 2,8–3,8 GB/s a 4K y da 250–290 fps sin codificar con 3 capas 1080p, así que la v1 no necesita `NvencDirectSink` (cifras en `fase-6.md`). Un equipo sin GPU ni Media Foundation (Windows N) no exporta H.264: se le ofrece AV1 o VP9.
+**Consecuencias.** La exportación necesita `ffmpeg.exe` junto a las DLL, igual que los proxies. La tubería cuesta una copia por cuadro a la CPU (a 4K60 unos 750 MB/s); el prototipo del paso 0 mueve 2,8–3,8 GB/s a 4K y da 250–290 fps sin codificar con 3 capas 1080p, así que la v1 no necesita `NvencDirectSink`. Un equipo sin GPU ni Media Foundation (Windows N) no exporta H.264: se le ofrece AV1 o VP9.
 
 ## D-029: Texto y títulos (5b), decisiones de producto (11-oct)
 
@@ -351,7 +351,7 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 
 ## D-031. Arquitectura de la fase 7: protocolo de módulos v1, análisis en la app y descarga firmada (11 de octubre de 2026)
 
-**Contexto.** La fase 7 ([fase-7.md](fase-7.md)) trae la IA local de la [propuesta de módulos](propuesta-modulos.md) y la descarga de complementos (`IPackageDownloader`). Antes de repartirla hace falta fijar el protocolo, el aislamiento y de dónde sale cada modelo.
+**Contexto.** La fase 7 trae la IA local de la [propuesta de módulos](propuesta-modulos.md) y la descarga de complementos (`IPackageDownloader`). Antes de repartirla hace falta fijar el protocolo, el aislamiento y de dónde sale cada modelo.
 
 **Decisión.**
 - **Protocolo v1** en `src/Rodaje.Modules.Protocol` (sin referencias a Rodaje, AOT, compartible): marco de 4 bytes + JSON UTF-8 de hasta 1 MiB con `type`, mensajes `hello`/`welcome`/`invoke`/`progress`/`result`/`error`/`cancel`/`ping`/`pong`/`log`/`shutdown` con `JsonSerializerContext`, negociación de versión por rango, capacidades en `welcome`, avance limitado a uno cada 50 ms, cancelación confirmada con 2 s de gracia y muerte del proceso si no llega, códigos de error estables. Campos y tipos de mensaje desconocidos se ignoran; un mensaje inválido cierra la conexión.
@@ -360,7 +360,7 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 - **Ciclo de vida:** un proceso por módulo, al primer uso y cerrado tras 2 min ocioso, Job Object con «matar al cerrar», `ping` de vigilancia, un modelo pesado a la vez según `vramMb`.
 - **La IA no edita:** devuelve datos que la app convierte en comandos con vista previa y un solo Ctrl+Z.
 - **Sin modelo, en la app** (provisional, pregunta 1 de la fase): silencios, ritmo, ducking, estabilizar y color automático.
-- **Runtimes:** ONNX Runtime con DirectML (provisional frente a Windows ML), Whisper.net con Vulkan y LLamaSharp para el traductor; CUDA no se redistribuye. Modelos y voces solo con licencias que permitan redistribuirlos (tabla en `fase-7.md`); espeak-ng (GPL) se sustituye por un fonemizador propio.
+- **Runtimes:** ONNX Runtime con DirectML (provisional frente a Windows ML), Whisper.net con Vulkan y LLamaSharp para el traductor; CUDA no se redistribuye. Modelos y voces solo con licencias que permitan redistribuirlos; espeak-ng (GPL) se sustituye por un fonemizador propio.
 - **Descarga:** `GitHubReleaseDownloader` con un índice firmado con ECDSA P-256 (clave pública en el exe), SHA-256 de cada archivo, reanudación e instalación atómica; releases de GitHub de Dathinel y Hugging Face fijado por commit para los modelos grandes. `paquete.json` suma a `module` los campos `runtime`, `vramMb` y `models` sin cambiar el `formatVersion`.
 
 **Consecuencias.** El paso 0 mide 0,1 ms por cuadro 1080p por referencia, 1,4 ms copiado (~700 cuadros/s), ping de ~0,1 ms, arranque de 31 ms con AOT y cancelación en <1 ms: el protocolo no es cuello para ningún modelo. Los repositorios de los módulos esperan la respuesta de Daniel; mientras, viven en `modules/`. Un módulo que no admita AOT sale autocontenido con JIT (provisional).

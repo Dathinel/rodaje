@@ -17,7 +17,7 @@ using static TerraFX.Interop.Windows.Windows;
 namespace Rodaje.App.Shell;
 
 /// <summary>
-/// Recorrido de medida de <c>--medir N</c> (docs/archivo/sondeo-winui.md): espera el primer cuadro, reproduce, deja 1,5 s de
+/// Recorrido de medida de <c>--medir N</c>: espera el primer cuadro, reproduce, deja 1,5 s de
 /// calentamiento, mide N s con un "ping" a la cola de la interfaz cada 50 ms; luego inyecta Espacio con el foco en
 /// EXPORTAR (el atajo no debe pulsarlo) y redimensiona la ventana. Al cerrar se escribe el informe. Con un escenario
 /// («efectos», «velocidad») arma antes el proyecto (<see cref="MeasurementScenarios"/>) y, después de medir, repite 30

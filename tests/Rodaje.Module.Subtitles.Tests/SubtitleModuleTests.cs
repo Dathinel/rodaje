@@ -170,7 +170,7 @@ public sealed class SubtitleModuleTests(ITestOutputHelper output)
         output.WriteLine(Report("CPU", transcript, seconds, watch.Elapsed, wer, starts, double.NaN));
         Assert.Equal("cpu", transcript.Device);
         // El criterio de la fase pide 0,8 s por segundo (8 min por cada 10); en el Ryzen 7 7435HS da ~0,9: aquí solo se
-        // exige no ir más lento que el tiempo real, y la diferencia queda anotada en docs/fase-7.md.
+        // exige no ir más lento que el tiempo real.
         Assert.True(watch.Elapsed.TotalSeconds <= seconds, $"{watch.Elapsed.TotalSeconds:0.0} s para {seconds:0} s");
     }
 

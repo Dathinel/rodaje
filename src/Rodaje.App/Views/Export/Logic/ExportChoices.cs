@@ -3,8 +3,8 @@ using Rodaje.Media.Export;
 namespace Rodaje.App.Views.Export;
 
 /// <summary>
-/// Qué ofrece el diálogo según los codificadores que pasaron la sonda: solo combinaciones posibles (validación honesta,
-/// <c>docs/fase-6.md</c>). Todo es puro; el orden de las listas es el de las opciones en pantalla.
+/// Qué ofrece el diálogo según los codificadores que pasaron la sonda: solo combinaciones posibles (validación honesta).
+/// Todo es puro; el orden de las listas es el de las opciones en pantalla.
 /// </summary>
 public static class ExportChoices
 {

@@ -6,7 +6,7 @@ using static Rodaje.Core.Tests.Editing.Placement.PlacementBuilder;
 
 namespace Rodaje.Core.Tests.Editing.Placement;
 
-/// <summary>Reemplazar el medio de un clip conservando duración, efectos y keyframes (función 8 de docs/pendientes.md).</summary>
+/// <summary>Reemplazar el medio de un clip conservando duración, efectos y keyframes.</summary>
 public class ReplaceMediaTests
 {
     private static PlacementBuilder WithMedia(params MediaRef[] extra)

@@ -1,6 +1,6 @@
 # Protocolo de módulos v1: guía para terceros
 
-Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla con el editor por una tubería con mensajes JSON y recibe cuadros y audio por memoria compartida. Describe la versión 1 del protocolo tal como está en el código de `src/Rodaje.Modules.Protocol/` (decisión D-031, plan en [fase-7.md](fase-7.md)); cada dato cita el archivo de donde sale.
+Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla con el editor por una tubería con mensajes JSON y recibe cuadros y audio por memoria compartida. Describe la versión 1 del protocolo tal como está en el código de `src/Rodaje.Modules.Protocol/` (decisión D-031); cada dato cita el archivo de donde sale.
 
 **Estado (12 de octubre de 2026).** El protocolo, el anfitrión para módulos en C# (`ModuleHost`) y el módulo de ejemplo (`modules/Rodaje.Module.Echo/`) existen y tienen pruebas (`tests/Rodaje.Modules.Protocol.Tests/`). **La app ya abre módulos** con el `ModuleManager` (ronda A de la fase 7, `src/Rodaje.App/Services/Modules/`): los busca en disco (`ModuleCatalog`), abre un proceso por módulo con la primera llamada, lo vigila y lo cierra; sus reglas están en [Límites](#límites). Lo que aquí se marca como «previsto» viene del plan y puede cambiar.
 
@@ -29,7 +29,7 @@ Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla c
 - El directorio de trabajo es la carpeta del ejecutable, sin ventana (`CreateNoWindow`) (`ModuleProcess.cs`).
 - **La salida estándar no sirve para nada:** el editor la lee y la descarta. La salida de errores sí se guarda: los últimos 2048 caracteres (`StderrTail`) se agregan al mensaje de error cuando el proceso termina («El módulo terminó con el código 3. …», `ModuleExitedException`, `ModuleExceptions.cs`). La entrada estándar no se redirige: no la uses.
 - Si alguien abre el módulo a mano, sin `--rodaje-pipe`, el anfitrión de C# escribe en la salida de errores «Este programa es un módulo de Rodaje (…); lo abre el editor.» y sale con el código 64. Códigos de salida de `ModuleHost.RunAsync(string[])`: **0** bien, **2** error de protocolo o de conexión, **64** sin tubería (`ModuleHost.cs`; el 64 lo fija la prueba `Started_by_hand_the_module_explains_itself_and_exits`).
-- Si el proceso termina antes de conectarse, el editor falla con el código de salida y la cola de la salida de errores. Si termina a mitad de una llamada, la llamada falla en menos de 1 s (criterio de [fase-7.md](fase-7.md), prueba `A_module_that_dies_mid_call_fails_the_call_fast`).
+- Si el proceso termina antes de conectarse, el editor falla con el código de salida y la cola de la salida de errores. Si termina a mitad de una llamada, la llamada falla en menos de 1 s (prueba `A_module_that_dies_mid_call_fails_the_call_fast`).
 
 ### La tubería
 
@@ -190,7 +190,7 @@ Reglas (`InvokeMessage`, `ResultMessage` en `Messages.cs`; `ModuleHost.StartAsyn
 {"type":"pong","id":2}
 ```
 
-El módulo contesta cada `ping` con un `pong` del mismo `id`, aunque tenga llamadas en curso (el anfitrión de C# contesta desde el bucle de lectura, sin esperar a las funciones). `ModuleClient.PingAsync` devuelve el tiempo de ida y vuelta (p50 de 83–118 µs en el paso 0, [fase-7.md](fase-7.md#cifras-del-paso-0-11-oct)). A diferencia de los demás, el `id` de `ping` y `pong` no se valida (`PingMessage` y `PongMessage` no tienen `Validate`); el editor usa ids positivos. Solo el editor manda `ping`: un `ping` del módulo corta la conexión. El `ModuleManager` manda un `ping` cada 5 s mientras haya una llamada en curso (`ModuleManagerOptions.PingInterval`); sin respuesta en 10 s (`PingTimeout`) da el módulo por colgado, lo mata y el trabajo falla con `ModuleHungException` (`ModuleConnection.WatchAsync`).
+El módulo contesta cada `ping` con un `pong` del mismo `id`, aunque tenga llamadas en curso (el anfitrión de C# contesta desde el bucle de lectura, sin esperar a las funciones). `ModuleClient.PingAsync` devuelve el tiempo de ida y vuelta (p50 de 83–118 µs en el paso 0). A diferencia de los demás, el `id` de `ping` y `pong` no se valida (`PingMessage` y `PongMessage` no tienen `Validate`); el editor usa ids positivos. Solo el editor manda `ping`: un `ping` del módulo corta la conexión. El `ModuleManager` manda un `ping` cada 5 s mientras haya una llamada en curso (`ModuleManagerOptions.PingInterval`); sin respuesta en 10 s (`PingTimeout`) da el módulo por colgado, lo mata y el trabajo falla con `ModuleHungException` (`ModuleConnection.WatchAsync`).
 
 ### `log`
 
@@ -270,7 +270,7 @@ El editor manda `cancel` con el `id` de la llamada. El módulo deja de trabajar 
 - Si en el plazo llega un `result` en vez de la confirmación, el `ModuleClient` devuelve ese resultado; si llega cualquier `error`, la llamada termina como cancelada (`OperationCanceledException`).
 - Un `cancel` de una llamada que ya terminó o que no existe se ignora (`ModuleHost.RunAsync`).
 - En el anfitrión de C#, `cancel` cancela el `CancellationToken` que recibe la función. Si la función lanza `OperationCanceledException` con ese token cancelado, el anfitrión manda el `error` `cancelled`; si termina antes, manda su `result`. Una `OperationCanceledException` sin que se haya pedido cancelar cuenta como error `internal`.
-- En el paso 0 la confirmación tardó una mediana de 0,6 ms entre procesos ([fase-7.md](fase-7.md#cifras-del-paso-0-11-oct)).
+- En el paso 0 la confirmación tardó una mediana de 0,6 ms entre procesos.
 
 ## Errores
 
@@ -290,7 +290,7 @@ Un `error` **con `id`** termina esa llamada y la conexión sigue sirviendo (prue
 | `malformed` | El módulo, sin `id`, justo antes de cerrar porque el editor mandó algo inválido. |
 | `internal` | Cualquier otro fallo. El anfitrión de C# manda «`Tipo`: mensaje» de la excepción, o «Resultado inválido: …». |
 
-`message` es un texto de hasta 4096 caracteres (el anfitrión de C# recorta los más largos con «…»). Escríbelo para una persona, en el idioma de `hello.culture` si puedes: la app mostrará los errores del módulo en lenguaje simple, sin trazas ([fase-7.md](fase-7.md#interfaz)). Marcos reales:
+`message` es un texto de hasta 4096 caracteres (el anfitrión de C# recorta los más largos con «…»). Escríbelo para una persona, en el idioma de `hello.culture` si puedes: la app mostrará los errores del módulo en lenguaje simple, sin trazas. Marcos reales:
 
 ```json
 {"type":"error","code":"unknown-function","message":"El m\u00F3dulo no tiene la funci\u00F3n \u00ABnada\u00BB.","id":1}
@@ -369,7 +369,7 @@ Un búfer es de video, de audio o de bytes sueltos (sin `video` ni `audio`), nun
 | `rgba16f` | 8 |
 | `gray8` | 1 |
 
-Las filas van una tras otra cada `stride` bytes desde `offset`. El código no fija el orden de las filas (de arriba abajo o al revés), el espacio de color ni si el alfa va premultiplicado: **no está decidido**. Según el plan, la app mandará los cuadros a la resolución de análisis (512–1024 px) y recibirá máscaras `gray8` ([fase-7.md](fase-7.md#arquitectura)).
+Las filas van una tras otra cada `stride` bytes desde `offset`. El código no fija el orden de las filas (de arriba abajo o al revés), el espacio de color ni si el alfa va premultiplicado: **no está decidido**. Según el plan, la app mandará los cuadros a la resolución de análisis (512–1024 px) y recibirá máscaras `gray8`.
 
 **Audio** (`AudioLayout`): muestras `f32` **intercaladas** (`sampleFormat`, el único valor admitido, `SampleFormats.F32`); `sampleRate` de 8000 a 384 000; `channels` de 1 a 32; `frames` (muestras por canal) ≥ 0; `frames` × `channels` × 4 ≤ `length`. Ejemplo del serializador, 1 s estéreo a 48 kHz:
 
@@ -377,9 +377,9 @@ Las filas van una tras otra cada `stride` bytes desde `offset`. El código no fi
 {"type":"invoke","id":10,"function":"ruido","buffers":[{"region":"Rodaje.Mod.3f1c0d9a8b7e4c2a9d6f5e4b3a2c1d0e","offset":0,"length":384000,"audio":{"sampleRate":48000,"channels":2,"frames":48000,"sampleFormat":"f32"}}]}
 ```
 
-(`ruido` es un nombre de ejemplo de [fase-7.md](fase-7.md#formatos), no una función que exista.)
+(`ruido` es un nombre de ejemplo, no una función que exista.)
 
-**Rendimiento** medido en el paso 0 entre dos procesos ([fase-7.md](fase-7.md#cifras-del-paso-0-11-oct)): un cuadro 1080p por referencia cuesta 0,1 ms; escribirlo, copiarlo en el módulo y leerlo, 1,3–1,4 ms (691–750 cuadros/s).
+**Rendimiento** medido en el paso 0 entre dos procesos: un cuadro 1080p por referencia cuesta 0,1 ms; escribirlo, copiarlo en el módulo y leerlo, 1,3–1,4 ms (691–750 cuadros/s).
 
 ## Límites
 
@@ -420,7 +420,7 @@ Plazos y cantidades del lado del editor y del anfitrión de C#:
 | Cola de la salida de errores en el mensaje de salida | 2048 caracteres | `ModuleProcess.cs` |
 | Búfer de la tubería, en cada sentido | 64 KB | `ModuleProcess.PipeBufferBytes` |
 
-Lo que añade el `ModuleManager` de la app (ronda A, [fase-7.md](fase-7.md#arquitectura); `src/Rodaje.App/Services/Modules/`):
+Lo que añade el `ModuleManager` de la app (ronda A; `src/Rodaje.App/Services/Modules/`):
 
 | Qué | Valor | Dónde |
 |---|---|---|
@@ -511,7 +511,7 @@ Notas:
 - `MaxConcurrentCalls` (4) y `HandshakeTimeout` (10 s) se cambian al crear el anfitrión (`new ModuleHost(info) { MaxConcurrentCalls = 1 }`). Si tu módulo habla varias versiones, pásalas como `minProtocol` y `maxProtocol` del constructor.
 - **Comprobado:** compila sin advertencias con .NET 10 y, conectado a un `ModuleClient` por un socket en Linux, `contar-palabras` devuelve `{"palabras":2}` para `{"texto":"hola mundo"}`, y sin parámetros, o `invertir` sin búfer, dan `invalid-parameters`. `invertir` con un búfer real no se probó: la memoria compartida con nombre solo existe en Windows. Sin `--rodaje-pipe` sale con 64.
 - Hoy la biblioteca solo está en este repositorio. Cómo la recibirá un tercero (repositorio propio, paquete NuGet) **no está decidido**: D-031 dice que sale a su propio repositorio con el segundo programa de Dathinel.
-- El eco se publica con Native AOT (3,3 MB, arranque y saludo en 31–33 ms; [fase-7.md](fase-7.md#cifras-del-paso-0-11-oct)). Un módulo que no admita AOT puede salir autocontenido con JIT (provisional, pregunta 3 de la fase 7).
+- El eco se publica con Native AOT (3,3 MB, arranque y saludo en 31–33 ms). Un módulo que no admita AOT puede salir autocontenido con JIT (provisional, pregunta 3 de la fase 7).
 
 ### En otro lenguaje
 
@@ -622,7 +622,7 @@ Un módulo se instala como un paquete con `"kind": "module"` y un bloque `module
 
 `entry` es la ruta relativa al ejecutable dentro del paquete, `protocol` la versión del protocolo y `functions` lo que ofrece (`ManifestReader.Module` en `src/Rodaje.Paquetes/ManifestReader.cs`). Se instala en `%LOCALAPPDATA%\Rodaje\complementos\modulos\<id>\`. El `ModuleManager` busca módulos ahí, en `modulos\` junto al ejecutable (los que trae la distribución completa) y, si Rodaje corre desde el repositorio, en su carpeta `modules\`; si un id aparece en varias, gana la versión mayor (`ModuleCatalog.Scan`). Solo abre los que funcionan en `rodaje` y dicen `"protocol": 1`; uno con otra versión del protocolo, o con un `paquete.json` que no se puede leer, queda en la lista de problemas (`ModuleManager.Problems`).
 
-`ModuleCatalog` lee además dos campos de la fase 7 que el lector de manifiestos todavía no expone: `vramMb` (entero; 0 o ausente = solo CPU, acotado a 65 536) y `runtime` (texto de hasta 64 caracteres, guardado pero sin uso por ahora). **Previsto** ([fase-7.md](fase-7.md#formatos)): `models` (modelos con hash, licencia y URL, compartidos entre módulos) y `protocol: 0` para herramientas de línea de órdenes que no hablan este protocolo.
+`ModuleCatalog` lee además dos campos de la fase 7 que el lector de manifiestos todavía no expone: `vramMb` (entero; 0 o ausente = solo CPU, acotado a 65 536) y `runtime` (texto de hasta 64 caracteres, guardado pero sin uso por ahora). **Previsto**: `models` (modelos con hash, licencia y URL, compartidos entre módulos) y `protocol: 0` para herramientas de línea de órdenes que no hablan este protocolo.
 
 ## Licencia de tu módulo
 

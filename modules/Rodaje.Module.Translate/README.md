@@ -30,7 +30,7 @@ Búferes opcionales, de bytes: si los subtítulos no caben en un mensaje (1 MiB)
 primero (sin `segments` en los parámetros); un segundo búfer (o el único, si los subtítulos van en los parámetros)
 recibe el resultado, y `value` es entonces `{ "bytes": n }`.
 
-Resultado (`docs/fase-7.md`):
+Resultado:
 
 ```json
 { "source": "es", "target": "en", "device": "vulkan", "untranslated": [],

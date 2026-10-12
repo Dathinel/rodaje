@@ -88,7 +88,7 @@ public sealed class ExportResponsivenessAcceptanceTests(ITestOutputHelper output
         }
 
         // Los bloqueos de más de 50 ms se anotan pero no se exigen: también salen sin exportar, en los cortes y transiciones de
-        // la vista previa (pre-roll del clip a 2×), y con la máquina cargada por otros procesos (docs/fase-6.md, cifras).
+        // la vista previa (pre-roll del clip a 2×), y con la máquina cargada por otros procesos.
         foreach ((string name, Measure m) in results)
         {
             Assert.True((double)m.Late / m.Refreshes <= 0.01, $"{name}: {m.Late} refrescos tarde de {m.Refreshes}");

@@ -12,7 +12,7 @@
 | Vulkan | `vulkan-1.dll` del controlador de la GPU | no se redistribuye | — |
 
 **Modelo:** Apache-2.0 permite redistribuirlo y usarlo comercialmente; hay que conservar el aviso de licencia y el
-`NOTICE` si lo hubiera. No entra en el zip completo (pesa unos 2,5 GB, `docs/fase-7.md`, pregunta 5): se baja aparte.
+`NOTICE` si lo hubiera. No entra en el zip completo (pesa unos 2,5 GB): se baja aparte.
 
 **Huella sin verificar (12-oct):** la sesión en la nube no llega a Hugging Face (el proxy lo bloquea), así que la
 SHA-256 de `paquete.json` y de `herramientas\preparar-modelos.ps1` sale de un espejo de terceros que dice ser copia

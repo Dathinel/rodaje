@@ -17,7 +17,7 @@ Ser GPLv3 no cambia la regla con el código GPL ajeno: no se copia. El permiso p
 
 ## Sala limpia
 
-Los editores de código abierto estudiados (MLT, Kdenlive, Shotcut, OpenShot, Olive y LosslessCut, con sus licencias en `docs/archivo/investigacion.md`) se analizaron solo a nivel de arquitectura y comportamiento. No se copió, tradujo ni adaptó código de ninguno de ellos. De los programas comerciales que inspiran la experiencia de uso solo se toman ideas de producto: nunca se descompilan ni se analizan sus binarios, y nunca se extraen sus recursos (efectos, plantillas, fuentes, música, íconos). Todos los recursos que se incluyan en Rodaje deben ser propios o tener una licencia que permita redistribución y uso comercial, registrada en `LICENCIAS.md`.
+Los editores de código abierto estudiados (MLT, Kdenlive, Shotcut, OpenShot, Olive y LosslessCut, con sus licencias en `docs/archivo/investigacion.md` de la etiqueta `archivo-proceso-2026-10`) se analizaron solo a nivel de arquitectura y comportamiento. No se copió, tradujo ni adaptó código de ninguno de ellos. De los programas comerciales que inspiran la experiencia de uso solo se toman ideas de producto: nunca se descompilan ni se analizan sus binarios, y nunca se extraen sus recursos (efectos, plantillas, fuentes, música, íconos). Todos los recursos que se incluyan en Rodaje deben ser propios o tener una licencia que permita redistribución y uso comercial, registrada en `LICENCIAS.md`.
 
 ## Compatibilidad con la GPLv3
 
@@ -183,7 +183,7 @@ La exportación de la v1 no añade binarios: usa el mismo `ffmpeg.exe` y las mis
 
 ### Quién cubre las patentes de H.264, HEVC y AAC
 
-Lo que dicen hoy `docs/legal.md` («Patentes de códecs»), D-028 y `docs/fase-6.md` es que, al codificar H.264 y HEVC con la GPU o con Media Foundation, «sus fabricantes gestionan sus propias licencias de patentes» o «las cubren». **Las fuentes primarias que se pudieron leer no lo confirman, y una lo contradice:**
+Lo que dicen hoy `docs/legal.md` («Patentes de códecs»), D-028 y el plan de la fase 6 es que, al codificar H.264 y HEVC con la GPU o con Media Foundation, «sus fabricantes gestionan sus propias licencias de patentes» o «las cubren». **Las fuentes primarias que se pudieron leer no lo confirman, y una lo contradice:**
 
 - **AMD (AMF):** el `LICENSE.txt` del SDK de AMF, en el mismo commit que compila BtbN, empieza con una «Notice Regarding Standards»: AMD no concede licencia ni sublicencia sobre derechos de propiedad intelectual de estándares, «including … AVC/H.264; HEVC/H.265; AAC decode/FFMPEG; AAC encode/FFMPEG; VC-1; and MP3», y «you will pay any royalties due for such third party technologies». Fuente: https://github.com/GPUOpen-LibrariesAndSDKs/AMF/blob/6277e353fd625121a8f627b1d0540323ef372a49/LICENSE.txt.
 - **Intel (QSV):** la documentación de `vpl-gpu-rt` dice que las implementaciones de códecs MPEG «may require licenses from various entities, including Intel Corporation». Fuente: https://github.com/intel/vpl-gpu-rt/blob/main/doc/HyperEncode_FeatureDeveloperGuide.md.

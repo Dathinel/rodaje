@@ -17,7 +17,7 @@ namespace Rodaje.Export.Tests.Prototype;
 
 /// <summary>
 /// Prototipo del paso 0 de la fase 6 (no es producto): fija las cifras de la tubería a <c>ffmpeg.exe</c> y del canal sin
-/// codificar en este equipo. Solo informa; los criterios los mide el agente F. Cifras anotadas en <c>docs/fase-6.md</c>.
+/// codificar en este equipo. Solo informa; los criterios los mide el agente F.
 /// </summary>
 public sealed class ExportThroughputPrototype(ITestOutputHelper output)
 {

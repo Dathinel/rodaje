@@ -1,6 +1,6 @@
 # Descarga de complementos y distribución
 
-Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Arquitectura en D-031 y [fase-7.md](fase-7.md).
+Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Arquitectura en D-031 y el [protocolo de módulos](protocolo-modulos.md).
 
 ## Cómo funciona
 
@@ -13,7 +13,7 @@ Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Arquite
 
 ## Estado: activo (12-oct)
 
-- **Clave**: creada; la privada en `%USERPROFILE%\.rodaje-claves\catalogo-privada.pem` (nunca se versiona; `*.pem` está en `.gitignore`), la pública en `clave-catalogo.txt`. Falta su respaldo físico (`PARA-DANIEL.md`). Si se pierde, los Rodaje ya publicados no aceptarán índices nuevos; si alguien la copia, se genera otra con `-NuevaClave -Reemplazar` y se publica una versión nueva de Rodaje.
+- **Clave**: creada; la privada en `%USERPROFILE%\.rodaje-claves\catalogo-privada.pem` (nunca se versiona; `*.pem` está en `.gitignore`), la pública en `clave-catalogo.txt`. Debe tener al menos dos respaldos físicos fuera del equipo. Si se pierde, los Rodaje ya publicados no aceptarán índices nuevos; si alguien la copia, se genera otra con `-NuevaClave -Reemplazar` y se publica una versión nueva de Rodaje.
 - **Catálogo**: `Dathinel/rodaje-catalogo` (público, CC0, sin código), release `v1` con `rodaje-transiciones` 1.0.0 y `rodaje-filtros` 1.0.0, cada uno en la release `v1.0.0` de su repo.
 - **Prueba contra lo publicado**: `CatalogoRealTests` (`--filter Categoria=Red` con `RODAJE_PRUEBAS_RED=1`; la CI y `probar.ps1` la excluyen porque necesita red) baja el índice real, verifica la firma con la clave del repo e instala los dos paquetes en una carpeta temporal; una firma o un índice alterados se rechazan.
 

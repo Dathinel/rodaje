@@ -4,7 +4,7 @@ using Rodaje.Core.Model;
 namespace Rodaje.Core.Commands;
 
 /// <summary>
-/// Vuelve a enlazar uno o varios medios con su archivo en un solo paso del historial (función 32 de docs/pendientes.md).
+/// Vuelve a enlazar uno o varios medios con su archivo en un solo paso del historial.
 /// Solo cambian la ruta y, si el archivo nuevo es distinto, los datos del medio; los clips, los efectos y los keyframes
 /// siguen igual porque apuntan al identificador del medio.
 /// </summary>

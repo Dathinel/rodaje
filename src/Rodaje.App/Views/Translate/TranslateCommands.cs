@@ -5,9 +5,8 @@ using Rodaje.App.Shell;
 namespace Rodaje.App.Views.Translate;
 
 /// <summary>
-/// «Traducir pista...»: la acción para el menú de la pista de subtítulos, Editar y la barra de herramientas. Sin atajo
-/// por omisión. Falta engancharla (un <c>Bind</c> en <c>MainWindow.xaml.cs</c> y la entrada de menú), que toca
-/// archivos existentes fuera de esta tarea: ver <c>docs/tareas/2026-10-12-modulo-traducir.md</c>.
+/// «Traducir pista...»: la acción para el menú de la pista de subtítulos, Editar y la barra de herramientas.
+/// Sin atajo por omisión.
 /// </summary>
 internal static class TranslateCommands
 {

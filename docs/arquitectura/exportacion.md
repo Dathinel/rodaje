@@ -1,6 +1,6 @@
 # Exportación: la orquestación (`Rodaje.Export`)
 
-Junta las piezas de la fase 6 ([D-028](../decisiones.md), [fase-6.md](../fase-6.md)): el motor fuera de línea ([motor.md](motor.md)), el conversor de salida ([render.md](render.md)) y el sink de `ffmpeg.exe` ([medios.md](medios.md)). Sin interfaz; la app lo usa por `IExportRunner` ([app-vistas.md](app-vistas.md)).
+Junta las piezas de la fase 6 ([D-028](../decisiones.md)): el motor fuera de línea ([motor.md](motor.md)), el conversor de salida ([render.md](render.md)) y el sink de `ffmpeg.exe` ([medios.md](medios.md)). Sin interfaz; la app lo usa por `IExportRunner` ([app-vistas.md](app-vistas.md)).
 
 ## Archivos
 
@@ -33,4 +33,4 @@ Progreso cada 100 ms como mucho: estado, cuadros, fps de los últimos 2 s, resta
 
 ## Pruebas
 
-[`tests/Rodaje.Export.Tests/Running`](../../tests/Rodaje.Export.Tests/Running): el plan, errores y perfiles sin hardware; con `ffmpeg.exe` y la GPU, los formatos de extremo a extremo, conversión de tasa, dos pasadas, LUT que falta, cancelación y los tiempos (`TiempoReal`). [`Acceptance`](../../tests/Rodaje.Export.Tests/Acceptance) (con `RODAJE_PRUEBAS_LARGAS=1`) mide los criterios de terminado sobre 10 min de 3 capas; las cifras están en [fase-6.md](../fase-6.md#cifras-de-la-aceptación-agente-f-11-oct).
+[`tests/Rodaje.Export.Tests/Running`](../../tests/Rodaje.Export.Tests/Running): el plan, errores y perfiles sin hardware; con `ffmpeg.exe` y la GPU, los formatos de extremo a extremo, conversión de tasa, dos pasadas, LUT que falta, cancelación y los tiempos (`TiempoReal`). [`Acceptance`](../../tests/Rodaje.Export.Tests/Acceptance) (con `RODAJE_PRUEBAS_LARGAS=1`) mide los criterios de terminado sobre 10 min de 3 capas.

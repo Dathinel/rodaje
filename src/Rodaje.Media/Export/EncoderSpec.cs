@@ -119,8 +119,8 @@ public sealed record QualityScale(string Name, string Argument, double Min, doub
 
 /// <summary>Un codificador de salida de <c>ffmpeg.exe</c> y lo que admite, para elegirlo, validar y armar la línea de comandos.</summary>
 /// <remarks>
-/// Es solo el dato; el catálogo en orden de preferencia y la sonda que dice cuáles funcionan en el equipo son de la tarea 13
-/// de la nube (<c>docs/nube/cola.md</c>), en esta misma carpeta. Las capacidades son las del codificador; las del
+/// Es solo el dato; el catálogo en orden de preferencia y la sonda que dice cuáles funcionan en el equipo están en esta
+/// misma carpeta. Las capacidades son las del codificador; las del
 /// contenedor están en <see cref="ExportCompatibility"/>.
 /// </remarks>
 public sealed record EncoderSpec

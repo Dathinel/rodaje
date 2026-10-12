@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace Rodaje.Modules.Protocol;
 
 /// <summary>
-/// Un mensaje del protocolo. En el cable es un objeto JSON con <c>type</c>; ver <c>docs/fase-7.md</c>.
+/// Un mensaje del protocolo. En el cable es un objeto JSON con <c>type</c>; ver <c>docs/protocolo-modulos.md</c>.
 /// </summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(HelloMessage), "hello")]

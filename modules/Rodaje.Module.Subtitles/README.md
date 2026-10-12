@@ -12,7 +12,7 @@ Entrada: un búfer `audio` f32 mono a 16 kHz; opcionalmente un segundo búfer `b
 
 Parámetros (todos opcionales): `language` (`auto` o código ISO, p. ej. `es`), `device` (`auto`, `gpu`, `cpu`), `model` (ruta del `.bin`), `prompt`, `threads`.
 
-Resultado (`docs/fase-7.md`, tiempos en segundos del audio):
+Resultado (tiempos en segundos del audio):
 
 ```json
 { "language": "es", "device": "vulkan", "segments": [ { "start": 0.0, "end": 3.2, "text": "Hola a todos.",

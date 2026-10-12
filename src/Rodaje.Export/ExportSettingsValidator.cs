@@ -5,7 +5,7 @@ namespace Rodaje.Export;
 
 /// <summary>
 /// Dice si unos ajustes se pueden exportar con los codificadores elegidos y, si no, por qué. El diálogo solo ofrece lo
-/// que pasa por aquí (validación honesta, <c>docs/fase-6.md</c>).
+/// que pasa por aquí (validación honesta).
 /// </summary>
 /// <remarks>Primera versión del paso 0: la matriz contenedor × códec × píxel × perfil y las capacidades de <see cref="EncoderSpec"/>.</remarks>
 public static class ExportSettingsValidator

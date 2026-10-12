@@ -1,6 +1,6 @@
 ﻿# Descarga a .entorno\modelos los modelos de los módulos de IA (fase 7), con SHA-256 fijado y reanudación.
 # Con -Corpus baja además el corpus de prueba de voz a .entorno\corpus (nunca se versiona).
-# Con -Traductor baja además el modelo del traductor (unos 2,5 GB; aparte por su tamaño, docs/fase-7.md, pregunta 5).
+# Con -Traductor baja además el modelo del traductor (unos 2,5 GB; aparte por su tamaño).
 # Uso: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-modelos.ps1 [-Corpus] [-Traductor] [-Forzar]
 #
 # Resistente a apagones: descarga a .part con curl -C - (reanuda), verifica la huella y renombra. Un archivo con la

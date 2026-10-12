@@ -36,3 +36,6 @@ muestras/
 
 # --- Worktrees de agentes de Claude Code ---
 .claude/
+
+# --- Proceso (repo privado Dathinel/rodaje-proceso, clonado aquí) ---
+.proceso/

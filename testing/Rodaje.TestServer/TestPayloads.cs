@@ -27,7 +27,7 @@ public static class TestPayloads
         return bytes;
     }
 
-    /// <summary>SHA-256 en hexadecimal minúsculo, como lo lista el índice (<c>docs/fase-7.md</c>).</summary>
+    /// <summary>SHA-256 en hexadecimal minúsculo, como lo lista el índice.</summary>
     public static string Sha256Hex(ReadOnlySpan<byte> content) =>
         Convert.ToHexStringLower(SHA256.HashData(content));
 

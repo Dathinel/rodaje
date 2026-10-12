@@ -87,7 +87,7 @@ BgraImage? GetNearestThumbnail(string mediaId, Time sourceTime, Time spacing, in
 
 ## Módulos de IA (`Services/Modules`)
 
-`ModuleManager` (en `EditorServices.Modules`) corre los módulos del [protocolo](../fase-7.md) como procesos aparte y nunca deja que editen: devuelven datos y la app los convierte en una `ModuleProposal`.
+`ModuleManager` (en `EditorServices.Modules`) corre los módulos del [protocolo](../protocolo-modulos.md) como procesos aparte y nunca deja que editen: devuelven datos y la app los convierte en una `ModuleProposal`.
 
 - **Descubrimiento.** `ModuleCatalog.DefaultRoots()`: `%LOCALAPPDATA%\Rodaje\complementos\modulos`, `modulos\` junto al exe y, si Rodaje corre desde el repositorio, `modules\` (el exe más reciente bajo `bin\`). Lee `module.vramMb` y `module.runtime`; se refresca al cambiar los paquetes.
 - **Procesos.** Uno por módulo, abierto con la primera llamada y cerrado tras 2 min sin llamadas; todos en un Job Object «matar al cerrar»; tubería solo del usuario actual. Con una llamada en curso, `ping` cada 5 s; sin respuesta en 10 s se mata (`ModuleHungException`). Al cerrar la ventana se pide `shutdown` y se mata lo que no sale.
