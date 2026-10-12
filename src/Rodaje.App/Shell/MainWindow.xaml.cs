@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Autosave;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Settings;
@@ -53,6 +54,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     private PluginsView? _pluginsView;
     private ExportView? _exportView;
     private readonly ExportJobList _exports;
+    private readonly AutosaveService? _autosave;
     private IDisposable? _pageShortcuts;
     private bool _activatedOnce;
     private bool _allowClose;
@@ -81,7 +83,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         string? shortcutsWarning = _shortcutStore.Load(registry);
         _router = new ShortcutRouter(registry);
 
-        var session = new EditorSession(engine, prober, new ShellDialogs(this, _hwnd, settings),
+        var dialogs = new ShellDialogs(this, _hwnd, settings);
+        var session = new EditorSession(engine, prober, dialogs,
             newProjectTracks: settings.Current.NewProjectTracks)
         {
             LinkedAudioTracks = settings.Current.LinkedAudioTracks,
@@ -150,6 +153,18 @@ internal sealed partial class MainWindow : Window, IShellHost
         _settingsTimer = _dispatcher.CreateTimer();
         _settingsTimer.Interval = TimeSpan.FromSeconds(2);
         _settingsTimer.Tick += (_, _) => SaveSettingsIfChanged();
+
+        // Autoguardado (no en las mediciones ni en la autoprueba): el mismo temporizador decide si toca una copia.
+        if (options.MeasureSeconds is null && !options.SelfTest)
+        {
+            var autosave = new AutosaveService(session, dialogs, AutosaveService.DefaultRoot);
+            _autosave = autosave;
+            if (autosave.Start())
+            {
+                _settingsTimer.Tick += (_, _) => autosave.Tick();
+            }
+        }
+
         _settingsTimer.Start();
 
         LibrarySplitter.Resized += (_, size) => settings.Current.LibraryWidth = size;
@@ -166,6 +181,11 @@ internal sealed partial class MainWindow : Window, IShellHost
             {
                 session.Notify(NotificationSeverity.Warning, "Ajustes", warning);
             }
+        }
+
+        if (_autosave is { IsActive: true })
+        {
+            _ = _autosave.OfferRecoveryAsync();
         }
 
         if (options.Files.Count > 0 || options.SelfTest)
@@ -662,6 +682,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         {
         }
 
+        _autosave?.Complete();
         _exports.Dispose();
         _engine.Dispose();
         _visuals.Dispose();
