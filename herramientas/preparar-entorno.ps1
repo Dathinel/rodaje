@@ -29,6 +29,14 @@ $FfmpegRelease = 'autobuild-2026-09-30-13-08'
 $FfmpegUrl     = "https://github.com/BtbN/FFmpeg-Builds/releases/download/$FfmpegRelease/ffmpeg-$FfmpegVersion-win64-lgpl-shared-9.0.zip"
 $FfmpegSha256  = '7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646'
 
+# LibRaw para modulo-raw (CinemaDNG): binarios oficiales de libraw.org, LGPL-2.1 o CDDL-1.0 a elegir (se usa la LGPL,
+# como DLL dinámica). La DLL importa el runtime de Visual C++ 2015-2022 (msvcp140, vcruntime140, vcruntime140_1).
+# Fuente correspondiente: https://www.libraw.org/data/LibRaw-0.22.2.tar.gz
+#   SHA-256 de86b035655accff8d4010f1a221fdf50d353cb7b1422ba26f14a0db92612cfa
+$LibRawVersion = '0.22.2'
+$LibRawUrl     = "https://www.libraw.org/data/LibRaw-$LibRawVersion-Win64.zip"
+$LibRawSha256  = 'ac64fa12bb00a7581332d4c6ab918c0533fb3f119d6b668d47a6875410dca948'
+
 function Paso([string]$texto) { Write-Host "[entorno] $texto" }
 
 $Raiz    = Split-Path -Parent $PSScriptRoot
@@ -60,7 +68,7 @@ if ($env:RODAJE_SDK_URL -or $env:RODAJE_SDK_SHA512) {
 
 # Restos de una instalación cortada.
 if (Test-Path -LiteralPath $Entorno) {
-    Get-ChildItem -LiteralPath $Entorno -Directory | Where-Object { $_.Name -like 'dotnet.tmp-*' -or $_.Name -like 'ffmpeg.tmp-*' } | ForEach-Object {
+    Get-ChildItem -LiteralPath $Entorno -Directory | Where-Object { $_.Name -like 'dotnet.tmp-*' -or $_.Name -like 'ffmpeg.tmp-*' -or $_.Name -like 'libraw.tmp-*' } | ForEach-Object {
         Paso "Borrando restos de una instalación anterior que no terminó: $($_.Name)"
         Remove-Item -LiteralPath $_.FullName -Recurse -Force
     }
@@ -171,6 +179,14 @@ Instalar @{
         'bin\avutil-61.dll', 'bin\swresample-7.dll', 'bin\swscale-10.dll')
     Url = $FfmpegUrl; Hash = $FfmpegSha256; Algoritmo = 'SHA256'
     Zip = "$FfmpegCarpeta.zip"; Peso = 'unos 75 MB'
+}
+
+Instalar @{
+    Nombre = "LibRaw $LibRawVersion (LGPL-2.1)"; Carpeta = 'libraw'; Version = $LibRawVersion
+    Marca = ".libraw-$LibRawVersion"; Interior = "LibRaw-$LibRawVersion"
+    Archivos = @('bin\libraw.dll', 'LICENSE.LGPL', 'COPYRIGHT')
+    Url = $LibRawUrl; Hash = $LibRawSha256; Algoritmo = 'SHA256'
+    Zip = "LibRaw-$LibRawVersion-Win64.zip"; Peso = 'unos 3,5 MB'
 }
 
 Paso "Entorno listo dentro del proyecto."

@@ -27,6 +27,7 @@
                 <MenuFlyoutItem Text="Guardar como plantilla..." Click="OnSaveTemplateClick" />
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Importar medios..." Tag="file.import" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Importar CinemaDNG..." Tag="file.importCinemaDng" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Exportar..." Tag="file.export" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Exportar fotograma..." Tag="file.exportFrame" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
