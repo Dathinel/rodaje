@@ -9,10 +9,12 @@ public static class ActionIds
     public const string SaveAs = "file.saveAs";
     public const string Import = "file.import";
     public const string Export = "file.export";
+    public const string ExportFrame = "file.exportFrame";
 
     public const string Undo = "edit.undo";
     public const string Redo = "edit.redo";
     public const string Split = "edit.split";
+    public const string SplitAllTracks = "edit.splitAll";
     public const string Delete = "edit.delete";
     public const string TrimStart = "edit.trimStart";
     public const string TrimEnd = "edit.trimEnd";
@@ -42,6 +44,7 @@ public static class ActionIds
     public const string ZoomIn = "timeline.zoomIn";
     public const string ZoomOut = "timeline.zoomOut";
     public const string ZoomToFit = "timeline.zoomFit";
+    public const string ZoomToSelection = "timeline.zoomSelection";
     public const string ToggleSnapping = "timeline.snapping";
     public const string ToggleAutoRipple = "timeline.autoRipple";
     public const string ToggleMagneticMain = "timeline.magneticMain";
@@ -84,13 +87,15 @@ public static partial class EditorShortcuts
         new(ActionIds.SaveAs, "Guardar como", ShortcutGroups.File, ["Ctrl+Mayús+S"]) { ShortLabel = "Guardar como", WorksInTextInput = true, Description = "Guarda una copia con otro nombre o en otra carpeta." },
         new(ActionIds.Import, "Importar medios", ShortcutGroups.File, ["Ctrl+I"]) { ShortLabel = "Importar", Description = "Trae videos, audios o imágenes a la biblioteca." },
         new(ActionIds.Export, "Exportar", ShortcutGroups.File, ["Ctrl+E", "Ctrl+M"], agile: ["Ctrl+E"], classic: ["Ctrl+M"]) { WorksInTextInput = true, Description = "Convierte el proyecto en un video terminado." },
+        new(ActionIds.ExportFrame, "Exportar fotograma", ShortcutGroups.File, ["Ctrl+Mayús+E"]) { ShortLabel = "Fotograma", Description = "Guarda como imagen PNG o JPEG el cuadro que está bajo el cursor." },
 
         new(ActionIds.Undo, "Deshacer", ShortcutGroups.Edit, ["Ctrl+Z"]) { Repeats = true, Description = "Vuelve atrás el último cambio." },
         new(ActionIds.Redo, "Rehacer", ShortcutGroups.Edit, ["Ctrl+Mayús+Z", "Ctrl+Y"], agile: ["Ctrl+Mayús+Z"], classic: ["Ctrl+Y", "Ctrl+Mayús+Z"]) { Repeats = true, Description = "Repite lo que acabas de deshacer." },
         new(ActionIds.Split, "Cortar en el cursor", ShortcutGroups.Edit, ["S", "Ctrl+B"], agile: ["Ctrl+B"], classic: ["S"]) { ShortLabel = "Cortar", Description = "Parte en dos el clip que está bajo el cursor de reproducción." },
         new(ActionIds.Delete, "Borrar", ShortcutGroups.Edit, ["Supr", "Retroceso"], classic: ["Supr"]) { Description = "Quita de la línea de tiempo los clips o la transición seleccionados." },
-        new(ActionIds.TrimStart, "Recortar el inicio hasta el cursor", ShortcutGroups.Edit, ["Q"], classic: ["Alt+["]) { ShortLabel = "Recortar inicio", Description = "Quita lo que hay del clip antes del cursor." },
-        new(ActionIds.TrimEnd, "Recortar el final hasta el cursor", ShortcutGroups.Edit, ["W"], classic: ["Alt+]"]) { ShortLabel = "Recortar final", Description = "Quita lo que hay del clip después del cursor." },
+        new(ActionIds.SplitAllTracks, "Cortar en todas las pistas", ShortcutGroups.Edit, ["Ctrl+Mayús+B"], classic: ["Ctrl+Mayús+K"]) { ShortLabel = "Cortar todo", Description = "Parte en el cursor los clips de todas las pistas desbloqueadas a la vez." },
+        new(ActionIds.TrimStart, "Borrar a la izquierda del cursor", ShortcutGroups.Edit, ["Q"], classic: ["Alt+["]) { ShortLabel = "Borrar izquierda", Description = "Quita del clip lo que hay antes del cursor; en la principal no deja hueco." },
+        new(ActionIds.TrimEnd, "Borrar a la derecha del cursor", ShortcutGroups.Edit, ["W"], classic: ["Alt+]"]) { ShortLabel = "Borrar derecha", Description = "Quita del clip lo que hay después del cursor; en la principal no deja hueco." },
         new(ActionIds.SelectAll, "Seleccionar todo", ShortcutGroups.Edit, ["Ctrl+A"]) { ShortLabel = "Todo", Description = "Selecciona todos los clips de la secuencia." },
         new(ActionIds.ClipSpeed, "Velocidad del clip…", ShortcutGroups.Edit, ["Ctrl+R"]) { ShortLabel = "Velocidad", Description = "Abre la pestaña Velocidad del clip seleccionado o del que está bajo el cursor." },
         new(ActionIds.FreezeFrame, "Congelar cuadro", ShortcutGroups.Edit, ["Mayús+R"]) { ShortLabel = "Congelar", Description = "Detiene la imagen del cursor 3 segundos y corre lo que sigue." },
@@ -119,14 +124,15 @@ public static partial class EditorShortcuts
 
         new(ActionIds.ZoomIn, "Acercar", ShortcutGroups.View, ["Ctrl++", "Ctrl+Num +"], classic: ["↑"]) { Repeats = true, Description = "Agranda la línea de tiempo para ver más detalle." },
         new(ActionIds.ZoomOut, "Alejar", ShortcutGroups.View, ["Ctrl+-", "Ctrl+Num -"], classic: ["↓"]) { Repeats = true, Description = "Achica la línea de tiempo para ver más tiempo a la vez." },
-        new(ActionIds.ZoomToFit, "Ver toda la secuencia", ShortcutGroups.View, ["Mayús+Z"]) { ShortLabel = "Ver todo", Description = "Ajusta el zoom para que la secuencia quepa entera." },
+        new(ActionIds.ZoomToFit, "Ajustar a la ventana", ShortcutGroups.View, ["Mayús+Z"]) { ShortLabel = "Ver todo", Description = "Ajusta el zoom para que todo el proyecto quepa en la vista." },
+        new(ActionIds.ZoomToSelection, "Zoom a la selección", ShortcutGroups.View, ["Ctrl+Alt+Z"]) { ShortLabel = "Ver selección", Description = "Acerca hasta que los clips seleccionados o el tramo marcado llenen la vista." },
         new(ActionIds.ShowShortcuts, "Atajos de teclado", ShortcutGroups.View, ["Ctrl+Alt+K"]) { ShortLabel = "Atajos", Description = "Abre esta página para ver y cambiar las teclas." },
         new(ActionIds.ShowPlugins, "Complementos", ShortcutGroups.View, []) { Description = "Abre el gestor de paquetes y módulos de IA." },
     ];
 
     /// <summary>
     /// Une las acciones de edición, reproducción y archivo con la sesión. Las de la ventana (exportar, páginas) y las de
-    /// la línea de tiempo que todavía no existen en el modelo (marcadores, regiones, ver todo) las une quien las tiene.
+    /// la línea de tiempo que todavía no existen en el modelo (marcadores, regiones, ver todo, ver la selección) las une quien las tiene.
     /// </summary>
     public static IDisposable Bind(ShortcutRouter router, EditorSession session)
     {
@@ -145,8 +151,9 @@ public static partial class EditorShortcuts
             router.Bind(ActionIds.Redo, () => session.Redo(), () => session.CanRedo),
             router.Bind(ActionIds.Split, () => session.SplitAtPlayhead()),
             router.Bind(ActionIds.Delete, () => session.DeleteSelection(), () => session.SelectedClipIds.Count > 0 || session.SelectedTransitionId is not null),
-            router.Bind(ActionIds.TrimStart, () => session.TrimStartToPlayhead()),
-            router.Bind(ActionIds.TrimEnd, () => session.TrimEndToPlayhead()),
+            router.Bind(ActionIds.SplitAllTracks, () => session.SplitAllTracksAtPlayhead()),
+            router.Bind(ActionIds.TrimStart, () => session.DeleteLeftOfPlayhead()),
+            router.Bind(ActionIds.TrimEnd, () => session.DeleteRightOfPlayhead()),
             router.Bind(ActionIds.SelectAll, session.SelectAll),
             router.Bind(ActionIds.ClipSpeed, () => session.ShowClipSpeed()),
             router.Bind(ActionIds.FreezeFrame, () => session.FreezeFrameAtPlayhead()),

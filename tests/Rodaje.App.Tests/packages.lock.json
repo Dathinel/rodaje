@@ -111,6 +111,12 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
+      "rodaje.analysis": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Core": "[1.0.0, )"
+        }
+      },
       "rodaje.audio": {
         "type": "Project",
         "dependencies": {
@@ -144,6 +150,15 @@
           "Rodaje.Playback": "[1.0.0, )",
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
+      },
+      "rodaje.module.echo": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Modules.Protocol": "[1.0.0, )"
+        }
+      },
+      "rodaje.modules.protocol": {
+        "type": "Project"
       },
       "rodaje.paquetes": {
         "type": "Project"

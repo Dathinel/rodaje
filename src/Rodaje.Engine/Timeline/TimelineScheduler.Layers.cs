@@ -192,7 +192,7 @@ internal sealed partial class TimelineScheduler
 
         Time source = clip.EffectTimeAt(time);
         EffectPlan? plan = clip.Effects;
-        LayerTransform transform = EffectPlan.Transform(plan, source);
+        LayerTransform transform = EffectPlan.Stabilized(plan, EffectPlan.Transform(plan, source), frame.Index);
         if (transition is not null)
         {
             transform = transition.Apply(transform, entering, progress);

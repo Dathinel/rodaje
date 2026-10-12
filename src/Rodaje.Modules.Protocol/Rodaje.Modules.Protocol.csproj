@@ -7,6 +7,9 @@
   <PropertyGroup>
     <RootNamespace>Rodaje.Modules.Protocol</RootNamespace>
     <IsAotCompatible>true</IsAotCompatible>
+    <!-- Mismo RID con y sin «-r win-x64»: al publicar un módulo con -r, el RID llega aquí como propiedad global y el
+         lockfile ganaba o perdía «net10.0/win-x64» según el último comando (NU1004 en la CI, tarea 43). -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>

@@ -125,8 +125,29 @@ public static class BuiltInEffects
     /// <summary>Reservado y oculto: la velocidad es <see cref="Clip.Speed"/> (formato 4) y la migración 3 → 4 quita sus instancias.</summary>
     public const string Speed = "rodaje.speed";
 
-    /// <summary>Fuera de la fase 5: necesita análisis (fase 7).</summary>
+    /// <summary>
+    /// Quita el temblor de la cámara con el análisis de movimiento guardado en la caché (fase 7). La corrección de cada
+    /// cuadro va antes de la transformación.
+    /// </summary>
     public const string Stabilize = "rodaje.stabilize";
+
+    public static class StabilizeParameters
+    {
+        /// <summary>De 0 (sin corrección) a 1 (trayectoria lo más suave). Por defecto 0,5. No se anima.</summary>
+        public const string Intensity = "intensity";
+    }
+
+    public static class StabilizeOptions
+    {
+        /// <summary><c>auto</c> acerca lo justo para no ver el borde; <c>off</c> deja ver el borde que mueve la corrección.</summary>
+        public const string Crop = "crop";
+
+        /// <summary>
+        /// Clave del análisis de movimiento en la caché (la pone «Estabilizar» al analizar). Sin ella, o si falta en la caché,
+        /// el efecto no corrige nada. No está en el registro: se guarda y se valida como texto libre.
+        /// </summary>
+        public const string Analysis = "analysis";
+    }
 
     /// <summary>Opciones que cualquier efecto puede llevar además de las suyas.</summary>
     public static class CommonOptions

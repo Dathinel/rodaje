@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    modulo-subtitulos (fase 7): transcribe audio f32 de 16 kHz con Whisper (whisper.cpp vía Whisper.net, MIT) en la GPU
+    por Vulkan o en la CPU, y devuelve segmentos y palabras con tiempos (DTW) e idioma. Licencias en LICENCIAS.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- RID fijo: con PublishAot y sin RID el SDK toma el del anfitrión (linux-x64 en la nube) y el lockfile cambia (tarea 43) -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RootNamespace>Rodaje.Module.Subtitles</RootNamespace>
+    <AssemblyName>Rodaje.Module.Subtitles</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+    <IsAotCompatible>true</IsAotCompatible>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <NoWarn>$(NoWarn);CA1303;CA1515;CA1716</NoWarn>
+    <!-- IL3000 sale de Whisper.net (Assembly.Location al buscar sus DLL nativas); también busca junto al ejecutable,
+         que es lo que vale con AOT. Lo comprueba la suite con RODAJE_MODULO_SUBTITULOS apuntando al publicado. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);IL3000</WarningsNotAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rodaje.Module.Subtitles.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" Version="1.9.1" />
+  </ItemGroup>
+
+</Project>

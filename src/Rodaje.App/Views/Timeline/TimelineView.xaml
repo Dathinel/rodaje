@@ -58,6 +58,7 @@
                         IsThumbToolTipEnabled="False" ValueChanged="OnZoomSliderChanged" />
                 <Button x:Name="ZoomInButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE8A3;" Click="OnActionClick" />
                 <Button x:Name="ZoomFitButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE9A6;" Click="OnActionClick" />
+                <Button x:Name="ZoomSelectionButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE740;" Click="OnActionClick" />
                 <TextBlock Margin="10,0,4,0" Text="{x:Bind Session.PositionText, Mode=OneWay, FallbackValue=''}" Style="{StaticResource TimecodeTextStyle}" />
             </StackPanel>
         </Grid>

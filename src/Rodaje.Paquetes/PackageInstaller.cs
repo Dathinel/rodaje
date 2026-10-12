@@ -178,6 +178,14 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
                 throw new PackageInstallException($"El id «{PackageLibrary.OwnPackageId}» está reservado para los elementos propios.");
             }
 
+            List<string> warnings = [.. read.Warnings];
+            if (FontBytes(manifest, staging) is var (families, fontBytes) && families > 0)
+            {
+                warnings.Add(families == 1
+                    ? $"Trae una fuente que ocupa {FormatBytes(fontBytes)}."
+                    : $"Trae {families} fuentes que ocupan {FormatBytes(fontBytes)}.");
+            }
+
             string root = Locations.InstallRoot(manifest.Kind);
             Directory.CreateDirectory(root);
             string target = Path.Combine(root, manifest.Id);
@@ -228,7 +236,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
                 TryDelete(movedAside);
             }
 
-            return new InstallResult(new InstalledPackage(manifest, Path.GetFullPath(target), PackageOrigin.Installed), outcome, previous, read.Warnings);
+            return new InstallResult(new InstalledPackage(manifest, Path.GetFullPath(target), PackageOrigin.Installed), outcome, previous, warnings);
         }
         finally
         {
@@ -531,6 +539,26 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         {
             return null;
         }
+    }
+
+    /// <summary>Cuántas familias tipográficas trae el paquete y cuánto ocupan sus archivos (ya validados por el lector).</summary>
+    private static (int Families, long Bytes) FontBytes(PackageManifest manifest, string directory)
+    {
+        int families = 0;
+        long bytes = 0;
+        foreach (PackageItem item in manifest.Items.Where(i => i.Kind == ItemKind.Font))
+        {
+            families++;
+            foreach (string relative in item.Files ?? [])
+            {
+                if (SafePaths.TryNormalizeRelative(relative, out string? normalized))
+                {
+                    bytes += new FileInfo(Path.Combine(directory, normalized)).Length;
+                }
+            }
+        }
+
+        return (families, bytes);
     }
 
     private static string FormatBytes(long bytes) => bytes switch

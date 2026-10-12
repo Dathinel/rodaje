@@ -27,7 +27,10 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
         var backend = new FakeTimelineBackend();
         var content = new FakeEffectContent();
         TimelineBuilder b = OfflineProjects.Full(rate, backend, content);
-        using TimelineSession preview = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { Content = content });
+        // Reloj quieto: con el reloj del sistema y el runner cargado, entre dos refrescos pasaba más que el tope de la
+        // composición a medias o el cierre de decodificadores ociosos (1,25 s con muchos abiertos), y la vista previa no
+        // llegaba a asentarse en 20 refrescos. Aquí se compara qué compone, no cuánto tarda.
+        using TimelineSession preview = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { Content = content, TimeProvider = new ManualTimeProvider() });
         using OfflineTimeline offline = OfflineProjects.Open(b, backend, new OfflineTimelineOptions { Content = content });
 
         Assert.Equal(preview.FrameCount, offline.FrameCount);
@@ -166,11 +169,72 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
         Assert.Equal(Enumerable.Range(300, 60).Reverse().Select(i => (long)i), shown);
     }
 
-    [Fact(Skip = "TODO(5c.3): la reversa decodifica exacta pero con un seek al keyframe anterior por cuadro; el lector hacia atrás " +
-        "de la reversa (src/Rodaje.Media/Video) todavía no está en main. Al unirlo, OfflineTimeline le pide los tramos invertidos " +
-        "y esta prueba exige 4K invertido a ≥30 fps en la RTX 3050.")]
-    public void A_reversed_4k_clip_exports_at_real_time_with_the_backward_reader()
+    [Fact]
+    public void A_reversed_clip_decodes_each_gop_once_from_its_keyframe_within_the_pool()
     {
+        const long Surface = 16L * 1024 * 1024;
+        var backend = new FakeTimelineBackend { KeyframeInterval = 15, PoolSurfaceBytes = Surface, PoolReferences = 10 };
+        var b = new TimelineBuilder(1, 0);
+        b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
+        OfflineProjects.Reversed(b.AddVideo(0, "m", Time.Zero, S(10), S(10)), S(10), S(20));
+        using OfflineTimeline offline = OfflineProjects.Open(b, backend);
+
+        for (long f = 0; f < offline.FrameCount; f++)
+        {
+            using CompositionFrame frame = offline.Render(f, CancellationToken.None);
+            Assert.Equal(599 - f, Assert.Single(frame.Layers).Frame.Index);
+        }
+
+        // Un pool de 64: 10 referencias, 5 del decodificador, 3 de margen, 1 guardado, 8 pedidos y M = 37 (tramos de 18).
+        FakeMediaVideo video = Assert.Single(backend.Videos);
+        Assert.Equal(54, video.SpareSurfaces);
+        Assert.Equal(54, video.ExtraSurfaces);
+        output.WriteLine($"300 cuadros hacia atrás con GOP 15: {video.Seeks} seeks, {video.DecodedFrames} cuadros decodificados.");
+        Assert.True(video.Seeks <= (300 / 15) + 1, $"{video.Seeks} seeks");
+        Assert.True(video.DecodedFrames <= 300 + 15, $"{video.DecodedFrames} decodificados");
+        Assert.Equal(0, offline.VramOverruns);
+    }
+
+    [Theory]
+    [InlineData(2, 1)]
+    [InlineData(1, 2)]
+    [InlineData(3, 2)]
+    public void A_reversed_clip_stays_exact_at_any_rate_and_on_another_output_grid(long num, long den)
+    {
+        var backend = new FakeTimelineBackend { KeyframeInterval = 24 };
+        var b = new TimelineBuilder(1, 0);
+        b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
+        Clip clip = SpeedClips.Reversed(b.AddVideo(0, "m", S(1), S(10), S(4)), new Rational(num, den), S(10), S(10) + Time.FromSeconds(4.0 * num / den));
+        using (OfflineTimeline offline = OfflineProjects.Open(b, backend))
+        {
+            for (long f = 0; f < offline.FrameCount; f++)
+            {
+                using CompositionFrame frame = offline.Render(f, CancellationToken.None);
+                if (frame.TimelineTime >= clip.Start && frame.TimelineTime < clip.End)
+                {
+                    Assert.Equal(SpeedClips.Expected(clip, Rational.Fps30, frame.TimelineTime), Assert.Single(frame.Layers).Frame.Index);
+                }
+            }
+        }
+
+        using OfflineTimeline other = OfflineProjects.Open(b, backend);
+        for (long n = 0; ; n++)
+        {
+            Time at = F(n, Rational.Fps60);
+            if (at >= other.Duration)
+            {
+                break;
+            }
+
+            using CompositionFrame frame = other.RenderAt(at, CancellationToken.None);
+            if (at >= clip.Start && at < clip.End)
+            {
+                Assert.Equal(SpeedClips.Expected(clip, Rational.Fps30, at), Assert.Single(frame.Layers).Frame.Index);
+            }
+        }
+
+        other.Dispose();
+        Assert.Equal(0, backend.Live.Value);
     }
 
     [Fact]
@@ -193,13 +257,21 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
 
         (await first).Dispose();
         using var cancel = new CancellationTokenSource();
-        var watch = Stopwatch.StartNew();
-        Task<CompositionFrame> stuck = Task.Run(() => offline.Render(200, cancel.Token));
+        // Hilo propio y no del pool: con el runner cargado, Task.Run tardaba más de 1 s en empezar y la prueba medía la
+        // espera del pool, no la cancelación. El tiempo se cuenta desde que se cancela.
+        using var started = new ManualResetEventSlim();
+        Task<CompositionFrame> stuck = Task.Factory.StartNew(() =>
+        {
+            started.Set();
+            return offline.Render(200, cancel.Token);
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        Assert.True(started.Wait(TimeSpan.FromSeconds(30)), "El hilo del render no arrancó.");
         Thread.Sleep(100);
         Assert.False(stuck.IsCompleted);
+        var watch = Stopwatch.StartNew();
         cancel.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stuck.WaitAsync(TimeSpan.FromSeconds(1)));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1.2), $"Tardó {watch.Elapsed.TotalMilliseconds:0} ms.");
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stuck.WaitAsync(TimeSpan.FromSeconds(30)));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"Tardó {watch.Elapsed.TotalMilliseconds:0} ms desde cancelar.");
 
         offline.Dispose();
         Assert.Equal(0, backend.Live.Value);

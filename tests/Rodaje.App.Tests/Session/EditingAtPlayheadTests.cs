@@ -72,37 +72,37 @@ public class EditingAtPlayheadTests
     });
 
     [Fact]
-    public void RecortarInicio_EnLaPrincipalMagnetica_CierraElHuecoYMueveElCursor() => UiThread.Run(async () =>
+    public void BorrarALaIzquierda_EnLaPrincipalMagnetica_CierraElHuecoYMueveElCursor() => UiThread.Run(async () =>
     {
         (EditorSession session, FakePlayback playback) = NewSession();
         await session.OpenFilesAsync([Path.GetFullPath("a.mp4"), Path.GetFullPath("b.mp4")]);
         At(session, 13);
 
-        Assert.True(session.TrimStartToPlayhead());
+        Assert.True(session.DeleteLeftOfPlayhead());
 
         Assert.Equal([(S(0), S(10)), (S(10), S(17))], MainClips(session));
         Assert.Equal(S(10), playback.Seeks[^1]);
     });
 
     [Fact]
-    public void RecortarFinal_SinMagnetica_DejaElHueco() => UiThread.Run(async () =>
+    public void BorrarALaDerecha_SinMagnetica_DejaElHueco() => UiThread.Run(async () =>
     {
         EditorSession session = await TwoClips();
         session.Timeline.MagneticMainTrack = false;
         At(session, 6);
 
-        Assert.True(session.TrimEndToPlayhead());
+        Assert.True(session.DeleteRightOfPlayhead());
 
         Assert.Equal([(S(0), S(6)), (S(10), S(20))], MainClips(session));
     });
 
     [Fact]
-    public void RecortarFinal_EnLaPrincipalMagnetica_CorreLoQueSigue() => UiThread.Run(async () =>
+    public void BorrarALaDerecha_EnLaPrincipalMagnetica_CorreLoQueSigue() => UiThread.Run(async () =>
     {
         EditorSession session = await TwoClips();
         At(session, 6);
 
-        Assert.True(session.TrimEndToPlayhead());
+        Assert.True(session.DeleteRightOfPlayhead());
 
         Assert.Equal([(S(0), S(6)), (S(6), S(16))], MainClips(session));
     });

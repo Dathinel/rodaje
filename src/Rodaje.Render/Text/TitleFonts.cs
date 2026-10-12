@@ -29,6 +29,9 @@ internal sealed unsafe class TitleFonts : IDisposable
     public const string LastResort = "Segoe UI";
 
     private readonly IDWriteFactory5* _factory;
+    // Resolver es corto y se pide desde la pasada de fuentes sin esperar al rasterizado: esto solo cuida el diccionario y
+    // las colecciones, no el dibujo.
+    private readonly Lock _gate = new();
     private readonly Dictionary<string, ResolvedFont> _resolved = new(StringComparer.Ordinal);
     private readonly HashSet<string> _files = new(StringComparer.OrdinalIgnoreCase);
     private IDWriteFontCollection* _system;
@@ -52,6 +55,15 @@ internal sealed unsafe class TitleFonts : IDisposable
     /// </summary>
     public List<string> Register(IEnumerable<string> paths)
     {
+        lock (_gate)
+        {
+            return RegisterLocked(paths);
+        }
+    }
+
+    private List<string> RegisterLocked(IEnumerable<string> paths)
+    {
+        ObjectDisposedException.ThrowIf(_system == null, this);
         var rejected = new List<string>();
         if (_builder == null)
         {
@@ -125,6 +137,15 @@ internal sealed unsafe class TitleFonts : IDisposable
     /// </summary>
     public ResolvedFont Resolve(StyleFont font)
     {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_system == null, this);
+            return ResolveLocked(font);
+        }
+    }
+
+    private ResolvedFont ResolveLocked(StyleFont font)
+    {
         string key = font.Family + "\u001f" + string.Join('\u001f', font.Fallback);
         if (_resolved.TryGetValue(key, out ResolvedFont known))
         {
@@ -142,10 +163,13 @@ internal sealed unsafe class TitleFonts : IDisposable
 
     public void Dispose()
     {
-        _resolved.Clear();
-        Com.Release(ref _private);
-        Com.Release(ref _builder);
-        Com.Release(ref _system);
+        lock (_gate)
+        {
+            _resolved.Clear();
+            Com.Release(ref _private);
+            Com.Release(ref _builder);
+            Com.Release(ref _system);
+        }
     }
 
     private ResolvedFont? Find(string family)

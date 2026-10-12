@@ -69,6 +69,10 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
 
     public bool UsesHardwareDecoding => true;
 
+    public int? SpareSurfaces => ExtraSurfaces >= 0
+        ? Math.Min(Rodaje.Media.Video.VideoDecoder.MaxHardwarePoolSurfaces, owner.PoolReferences + ExtraSurfaces) - owner.PoolReferences
+        : null;
+
     public VideoDecoderStatistics Statistics => new(0, _requests.Count, 0);
 
     public bool Disposed => _disposed;

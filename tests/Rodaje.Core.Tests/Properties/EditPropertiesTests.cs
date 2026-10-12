@@ -203,7 +203,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
                 iter: 5000,
                 print: s => $"{s.Item1}\nArrastre {s.Item2} del clip {s.Item3}: [{string.Join(", ", s.Item4)}] ripple-todas={s.Item5}");
 
-    private static void RunScenario(ProjectSpec spec, OpSpec[] ops)
+    internal static void RunScenario(ProjectSpec spec, OpSpec[] ops)
     {
         BuiltProject built = RandomTimeline.Build(spec);
         Project project = built.Project;
@@ -478,6 +478,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
     /// <remarks>
     /// Se salta el recorte con ripple (un clip de otra pista puede quedar a caballo del punto que se corre), los
     /// keyframes puestos a mano y el clip que se mueve o desliza sin ripple, que no se lleva la curva de la pista.
+    /// También el clip que cambia de duración: lo recortaron (por ejemplo, al sobrescribir encima) y sus puntos ya no
+    /// son los mismos. Un cuadro congelado recortado conserva su origen, así que el origen no basta para notarlo.
     /// </remarks>
     private static string? CheckTrackCurves(ResolvedOp op, List<GroupMember> group, Dictionary<string, Track> before, Sequence after)
     {
@@ -520,7 +522,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
                     foreach (Clip clip in now.Clips)
                     {
                         Clip? was = old.Clips.Find(c => c.Id == clip.Id);
-                        if (was is null || moved.Contains(clip.Id) || was.SourceIn != clip.SourceIn || was.SourceOut != clip.SourceOut)
+                        if (was is null || moved.Contains(clip.Id) || was.SourceIn != clip.SourceIn || was.SourceOut != clip.SourceOut
+                            || was.Duration != clip.Duration)
                         {
                             continue;
                         }
@@ -598,8 +601,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
 
     /// <summary>
     /// Un grupo con un título no acepta slip ni velocidad; ningún título cambia de contenido ni enciende un borde, y solo
-    /// lo que parte clips (cortar, insertar, sobrescribir o mover insertando) apaga alguno. Al cortar un título, su
-    /// mitad izquierda pierde la salida y la derecha la entrada. Todo título nuevo sale de uno que ya estaba.
+    /// lo que parte clips (cortar, insertar, sobrescribir o mover insertando) apaga alguno. Al cortar un título, cada mitad
+    /// apaga su borde interno o guarda cuánto del título queda al otro lado. Todo título nuevo sale de uno que ya estaba.
     /// </summary>
     private static string? CheckGenerators(ResolvedOp op, List<GroupMember> group, Dictionary<string, Track> before, Sequence after)
     {
@@ -659,9 +662,15 @@ public class EditPropertiesTests(ITestOutputHelper output)
                 Track track = after.GetTrack(member.TrackId);
                 Clip left = track.Clips.Find(c => c.Id == member.ClipId)!;
                 Clip? right = track.Clips.Find(c => c.Start == op.At);
-                if (left.Generator!.Edges.Out || right?.Generator is not { Edges.In: false })
+                if (right?.Generator is not { } r || !old.TryGetValue(member.ClipId, out ClipGenerator? was))
                 {
-                    return $"cortar el título «{member.ClipId}» dejó encendido un borde interno.";
+                    return $"cortar el título «{member.ClipId}» no dejó la mitad derecha.";
+                }
+
+                GeneratorEdges l = left.Generator!.Edges;
+                if ((l.Out && l.After != was.Edges.After + right.Duration) || (r.Edges.In && r.Edges.Before != was.Edges.Before + left.Duration))
+                {
+                    return $"cortar el título «{member.ClipId}» dejó un borde interno encendido sin el resto del título.";
                 }
             }
         }

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Análisis de audio sin modelos (fase 7): silencios, ritmo y voz para el ducking. DSP propio en C#, por bloques, sin
+    guardar el audio entero en memoria. Solo depende del núcleo (tiempos y mapeo de clips).
+  -->
+  <PropertyGroup>
+    <RootNamespace>Rodaje.Analysis</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rodaje.Core\Rodaje.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rodaje.Analysis.Tests" />
+  </ItemGroup>
+
+</Project>

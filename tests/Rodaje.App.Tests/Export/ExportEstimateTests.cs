@@ -1,5 +1,4 @@
 using Rodaje.App.Views.Export;
-using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Export;
 using Rodaje.Media.Export;
@@ -112,11 +111,17 @@ public class ExportEstimateTests
     }
 
     [Theory]
-    [InlineData(1920, 1080, 1080, 1920)]
-    [InlineData(3840, 2160, 2160, 3840)]
-    [InlineData(1280, 720, 720, 1280)]
-    public void LaSecuenciaVerticalConservaElLadoCorto(int w, int h, int vw, int vh) =>
-        Assert.Equal((vw, vh), ExportGeometry.Vertical(w, h));
+    [InlineData(1920, 1080, 1080, 1920, 1080, 1920)]
+    [InlineData(3840, 2160, 1080, 1920, 2160, 3840)]
+    [InlineData(1080, 1920, 1920, 1080, 1920, 1080)]
+    [InlineData(1080, 1080, 1080, 1350, 1080, 1350)]
+    [InlineData(1920, 1080, 1920, 1080, 1920, 1080)]
+    public void LaSalida_TomaLaFormaDelProyecto_ConElLadoCortoDelPreajuste(int pw, int ph, int sw, int sh, int ow, int oh)
+    {
+        var settings = new ExportSettings { Video = new VideoExportSettings { Codec = ExportCodec.H264, Width = pw, Height = ph } };
+        VideoExportSettings video = ExportGeometry.FollowSequence(settings, sw, sh).Video!;
+        Assert.Equal((ow, oh), (video.Width, video.Height));
+    }
 
     [Fact]
     public void ConUnaSolaMedida_LaOtraSigueLaFormaYEsPar()
@@ -136,20 +141,5 @@ public class ExportEstimateTests
         Assert.Equal("9:16", ExportGeometry.AspectName(1080, 1920));
         Assert.Equal("16:9", ExportGeometry.AspectName(3840, 2160));
         Assert.Equal("1,78:1", ExportGeometry.AspectName(854, 480));
-    }
-
-    [Fact]
-    public void CambiarLaSecuenciaA916_SeDeshace()
-    {
-        Project project = ExportTestData.Project();
-        var stack = new UndoStack(project);
-        var command = new SequenceShapeCommand("sec", 1080, 1920);
-
-        stack.Execute(command);
-        Assert.Equal((1080, 1920), (project.Sequences[0].Width, project.Sequences[0].Height));
-        Assert.Equal("Cambiar la secuencia a 9:16", command.Description);
-
-        stack.Undo();
-        Assert.Equal((1920, 1080), (project.Sequences[0].Width, project.Sequences[0].Height));
     }
 }

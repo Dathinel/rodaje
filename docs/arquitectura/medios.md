@@ -36,7 +36,9 @@ Rodaje no es GPL, así que solo carga un FFmpeg LGPL con la versión verificada 
 3. Descarta los cuadros iniciales de un GOP abierto y los anteriores al objetivo.
 4. En VFR, un hueco lo cubre el cuadro anterior.
 
-Antes de cada seek, `ResetDecoder` vacía los hilos por cuadro (`DrainFrameThreads`, hasta 64 cuadros) para ver el daño que quedaba dentro del decodificador; si hubo errores o cuadros dañados desde el último reset, reabre el códec (`ReopenCodec`, conservando `skip_frame`) en lugar del flush, porque `avcodec_flush_buffers` no limpia todo el estado de `h264dec`. Con clips limpios no reabre nunca y el costo es el del flush.
+Antes de cada seek, `ResetDecoder` vacía los hilos por cuadro (`DrainFrameThreads`, hasta 64 cuadros) para ver el daño que quedaba dentro del decodificador; si hubo errores o cuadros dañados desde el último reset, reabre el códec (`ReopenCodec`, conservando `skip_frame`) en lugar del flush, porque `avcodec_flush_buffers` no limpia todo el estado de `h264dec`. Con clips limpios no reabre nunca y el costo es el del flush. Tras el flush recoge y tira lo que el decodificador todavía devuelva sin paquetes nuevos (`DiscardStaleOutput`): el HEVC de FFmpeg sin hilos por cuadro (el camino de D3D11VA) pasa varios cuadros de una vez a su cola de salida, al final del flujo o en un IRAP, y `avcodec_flush_buffers` no la vacía; sin esto, tras un seek salían cuadros del sitio anterior y, con GOP abierto, la petición exacta acababa en null.
+
+**GOP abierto (HEVC con CRA).** Al buscar un CRA, sus cuadros RASL (anteriores en presentación, posteriores en decodificación) no se pueden decodificar y FFmpeg los tira; `_minValidSlot` descarta además lo que salga antes del keyframe. Si se pide un RASL, el keyframe del CRA queda por encima del objetivo y el seek retrocede al keyframe anterior. Lo cubre [`OpenGopDecodeTests`](../../tests/Rodaje.Media.Tests/OpenGopDecodeTests.cs) con el preset `OpenGopMediaPresets.HevcOpenGop` (libkvazaar, del build LGPL: IDR en 0 y CRA en 64, 128 y 192), por software con hilos, con un hilo y por hardware.
 
 Tolera 64 errores seguidos antes de lanzar `MediaException`.
 
@@ -53,7 +55,7 @@ Tolera 64 errores seguidos antes de lanzar `MediaException`.
 
 **Alta velocidad (fase 5c).** `GetFrame(n, DecodeAccuracy)` admite dos modos aproximados, que solo actúan si el decodificador se abrió con `VideoDecoderOptions.SkipNonReference` (al exportar no se activa):
 - `SkipNonReference` pone `AVDISCARD_NONREF` y entrega el último cuadro decodificado que no pasa del pedido;
-- `Keyframe` deja en el demuxer los paquetes que no son clave y entrega el último keyframe que no pasa del pedido. Con `VideoDecoderOptions.Keyframes` va directo al keyframe sin leer el siguiente.
+- `Keyframe` deja en el demuxer los paquetes que no son clave y entrega el último keyframe que no pasa del pedido. Con `VideoDecoderOptions.Keyframes` va directo al keyframe sin leer el siguiente. En HEVC cada keyframe se decodifica aparte: antes del siguiente se vacía el decodificador (fin de flujo) y se hace flush, como tras un seek. Sin eso, un CRA calcula su POC desde cuadros descartados, choca con el keyframe anterior («Duplicate POC») y FFmpeg lo tira, así que con GOP abierto solo salía el primer IDR. Con un HEVC 1080p de GOP cerrado no cuesta más (medido en Linux, 4 núcleos: 356–371 ms frente a 492–527 ms sin aislar, 47 peticiones a 16×).
 
 Un cuadro aproximado lleva su índice real (menor o igual al pedido), así la caché nunca lo confunde con el pedido. `GetFrame(n)` e `IVideoFrameSource` son siempre exactos, y tras descartar, la primera petición exacta vuelve a buscar el keyframe.
 

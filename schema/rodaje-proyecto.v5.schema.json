@@ -509,6 +509,14 @@
                               },
                               "out": {
                                 "type": "boolean"
+                              },
+                              "before": {
+                                "type": "integer",
+                                "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                              },
+                              "after": {
+                                "type": "integer",
+                                "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
                               }
                             }
                           }

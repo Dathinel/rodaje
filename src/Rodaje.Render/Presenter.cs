@@ -3,7 +3,7 @@ using TerraFX.Interop.DirectX;
 
 namespace Rodaje.Render;
 
-/// <summary>Dibuja la composición en el búfer de una cadena de intercambio, centrada y con barras negras.</summary>
+/// <summary>Dibuja la composición en el búfer de una cadena de intercambio, centrada y con barras del color de <see cref="Surround"/>.</summary>
 /// <remarks>
 /// Si el destino es más pequeño que la composición genera sus mipmaps y muestrea trilinealmente, para que una vista
 /// previa reducida no tenga aliasing; a tamaño igual o mayor muestrea bilinealmente el nivel 0.
@@ -23,13 +23,16 @@ public sealed unsafe class Presenter : IDisposable
     }
 
     /// <summary>
-    /// Limpia <paramref name="renderTargetView"/> a negro y dibuja encima la composición ajustada. Al volver no queda
+    /// Limpia <paramref name="renderTargetView"/> con <see cref="Surround"/> y dibuja encima la composición ajustada. Al volver no queda
     /// ningún destino enlazado: quien llama enlaza el suyo para dibujar lo demás (barras, textos) y presenta.
     /// </summary>
     /// <param name="renderTargetView"><c>ID3D11RenderTargetView*</c> del búfer de la cadena, de este dispositivo.</param>
     /// <returns>El rectángulo donde quedó la imagen.</returns>
     public PixelRect Draw(nint renderTargetView, int targetWidth, int targetHeight, Compositor source) =>
         Draw(renderTargetView, targetWidth, targetHeight, source, null);
+
+    /// <summary>Color de lo que queda fuera de la imagen (R, G, B de 0 a 1); negro por omisión.</summary>
+    public (float R, float G, float B) Surround { get; set; }
 
     /// <summary>Como <see cref="Draw(nint, int, int, Compositor)"/>, pero en <paramref name="placement"/> si se da (puede salirse del destino).</summary>
     public PixelRect Draw(nint renderTargetView, int targetWidth, int targetHeight, Compositor source, PixelRect? placement)
@@ -46,8 +49,8 @@ public sealed unsafe class Presenter : IDisposable
         _gpu.LockContext();
         try
         {
-            float* black = stackalloc float[] { 0f, 0f, 0f, 1f };
-            _context->ClearRenderTargetView(target, black);
+            float* surround = stackalloc float[] { Surround.R, Surround.G, Surround.B, 1f };
+            _context->ClearRenderTargetView(target, surround);
             if (rect.IsEmpty)
             {
                 return rect;

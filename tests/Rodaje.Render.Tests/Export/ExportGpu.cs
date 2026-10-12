@@ -48,8 +48,9 @@ internal sealed unsafe class ExportGpu : IDisposable
         new((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, gpu, owned: false);
 
     public ExportFrameConverter Converter(int sourceWidth, int sourceHeight, ExportVideoFormat output, ExportFit fit = ExportFit.Bars,
-        ExportScaleFilter filter = ExportScaleFilter.Auto, int ring = ExportFrameConverter.DefaultRingSize, TimeProvider? time = null, bool dither = true) =>
-        new(Gpu, Device, Context, sourceWidth, sourceHeight, output, fit, filter, ring, ShaderCache.Default, time ?? TimeProvider.System)
+        ExportScaleFilter filter = ExportScaleFilter.Auto, int ring = ExportFrameConverter.DefaultRingSize, TimeProvider? time = null, bool dither = true,
+        ExportSourceRegion? region = null) =>
+        new(Gpu, Device, Context, sourceWidth, sourceHeight, output, fit, filter, ring, ShaderCache.Default, time ?? TimeProvider.System, region)
         {
             Dither = dither,
         };

@@ -34,8 +34,9 @@ public sealed class ModuleProcess : IAsyncDisposable
     public Task<int> Exited => _exited.Task;
 
     /// <param name="fileName">El ejecutable del módulo (<c>module.entry</c> del paquete).</param>
+    /// <param name="started">Se llama con el proceso recién creado, antes del saludo (por ejemplo, para meterlo en un Job Object).</param>
     public static async Task<ModuleProcess> StartAsync(string fileName, IEnumerable<string>? arguments = null,
-        ModuleClientOptions? options = null, CancellationToken cancellationToken = default)
+        ModuleClientOptions? options = null, Action<Process>? started = null, CancellationToken cancellationToken = default)
     {
         options ??= new ModuleClientOptions();
         string pipeName = SharedMemoryRegion.NamePrefix + "pipe." + Guid.NewGuid().ToString("N");
@@ -72,6 +73,7 @@ public sealed class ModuleProcess : IAsyncDisposable
         try
         {
             if (!process.Start()) throw new ModuleExitedException("No se pudo abrir el módulo.");
+            started?.Invoke(process);
         }
         catch (System.ComponentModel.Win32Exception ex)
         {

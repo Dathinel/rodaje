@@ -23,11 +23,13 @@ public partial class App : Application
         _settings = settings;
         _settingsWarning = settingsWarning;
         InitializeComponent();
+        Program.Metrics.Milestone("app_xaml");
         UnhandledException += OnUnhandledException;
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        Program.Metrics.Milestone("onlaunched");
         _window = new MainWindow(_options, _engine, _prober, _settings, _settingsWarning);
         _window.Activate();
     }
@@ -39,6 +41,7 @@ public partial class App : Application
         Program.WriteCrash(e.Exception?.ToString() ?? e.Message);
         if (_window is null)
         {
+            StartupSplash.Close();
             return;
         }
 

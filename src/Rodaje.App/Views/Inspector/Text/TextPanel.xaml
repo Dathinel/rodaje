@@ -26,6 +26,7 @@
                                  AutomationProperties.Name="Contenido del texto" PlaceholderText="Escribe el título"
                                  TextChanged="OnContentChanged" LostFocus="OnContentLostFocus" />
                         <TextBlock x:Name="FontWarning" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed" />
+                        <TextBlock x:Name="LegibilityWarning" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed" />
                     </StackPanel>
                 </inspector:InspectorSection>
 

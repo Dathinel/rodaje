@@ -17,13 +17,17 @@ public enum ItemKind
     Lut,
     Template,
     Sound,
+
+    /// <summary>Una familia tipográfica: sus archivos <c>.ttf</c>/<c>.otf</c> sin modificar, con su licencia (D-029).</summary>
+    Font,
 }
 
 /// <summary>
-/// Un elemento de un paquete: una transición, un estilo de texto, un efecto, un filtro, una LUT, una plantilla o un sonido.
-/// <see cref="Id"/> es único dentro del paquete y forma parte de la referencia estable <c>paquete@versión/elemento</c>;
-/// <see cref="File"/> es relativa a la carpeta del paquete, con <c>/</c>; <see cref="License"/> se da cuando no es la del
-/// paquete (por ejemplo, un sonido CC BY).
+/// Un elemento de un paquete: una transición, un estilo de texto, un efecto, un filtro, una LUT, una plantilla, un sonido o
+/// una fuente. <see cref="Id"/> es único dentro del paquete y forma parte de la referencia estable
+/// <c>paquete@versión/elemento</c>; <see cref="File"/> es relativa a la carpeta del paquete, con <c>/</c>;
+/// <see cref="License"/> se da cuando no es la del paquete (por ejemplo, un sonido CC BY) y es obligatoria en una fuente.
+/// <see cref="Files"/> son los archivos de una fuente (uno por peso y cursiva, o uno variable).
 /// </summary>
 public sealed record PackageItem(
     string Id,
@@ -32,7 +36,20 @@ public sealed record PackageItem(
     string? File = null,
     string? Description = null,
     string? License = null,
-    string? Preview = null);
+    string? Preview = null,
+    IReadOnlyList<string>? Files = null)
+{
+    /// <summary>Tope de un archivo de fuente (D-029).</summary>
+    public const long MaxFontFileBytes = 20L * 1024 * 1024;
+
+    /// <summary>Tope de una familia, sumando sus archivos (D-029).</summary>
+    public const long MaxFontFamilyBytes = 100L * 1024 * 1024;
+
+    public const int MaxFontFiles = 32;
+
+    /// <summary>Extensiones de un archivo de fuente.</summary>
+    public static IReadOnlyList<string> FontExtensions { get; } = [".ttf", ".otf", ".ttc", ".otc"];
+}
 
 /// <summary>
 /// Cómo arranca un módulo de IA: su ejecutable relativo a la carpeta del módulo, la versión del protocolo de módulos

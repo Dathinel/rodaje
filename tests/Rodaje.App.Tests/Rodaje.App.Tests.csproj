@@ -2,13 +2,15 @@
 
   <!--
     Pruebas de la lógica de la app que no depende de WinUI: compila aquí los fuentes de src\Rodaje.App\Services, de
-    src\Rodaje.App\Views\Timeline\Logic y de src\Rodaje.App\Views\Export\Logic, que por contrato no usan WinUI (si alguno lo hiciera, este proyecto dejaría de compilar).
+    src\Rodaje.App\Views\Timeline\Logic, de src\Rodaje.App\Views\Export\Logic, de src\Rodaje.App\Views\Player\Logic y de src\Rodaje.App\Views\Analysis\Logic, que por contrato no usan WinUI (si alguno lo hiciera, este proyecto dejaría de compilar).
   -->
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <IsPackable>false</IsPackable>
     <RootNamespace>Rodaje.App.Tests</RootNamespace>
+    <!-- Services/Modules usa P/Invoke de TerraFX (Job Object). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>$(NoWarn);CA1707;CA1515;CA1861</NoWarn>
   </PropertyGroup>
 
@@ -23,15 +25,27 @@
     <EmbeddedResource Include="..\..\src\Rodaje.App\Services\Packages\catalogo.json" LogicalName="Rodaje.App.catalogo.json" Link="Services\Packages\catalogo.json" />
     <Compile Include="..\..\src\Rodaje.App\Views\Timeline\Logic\**\*.cs" Link="Timeline\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Rodaje.App\Views\Export\Logic\**\*.cs" Link="ExportLogic\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Rodaje.App\Views\Player\Logic\**\*.cs" Link="PlayerLogic\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Estabilizar y color automático: la caché de análisis y las ediciones, sin WinUI. -->
+    <Compile Include="..\..\src\Rodaje.App\Views\Analysis\StabilizationStore.cs" Link="Analysis\StabilizationStore.cs" />
+    <Compile Include="..\..\src\Rodaje.App\Views\Analysis\VideoAnalysisEdits.cs" Link="Analysis\VideoAnalysisEdits.cs" />
+    <Compile Include="..\..\src\Rodaje.App\Views\Analysis\Logic\**\*.cs" Link="AnalysisLogic\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Biblioteca: carpetas, favoritos, búsqueda y datos de los medios, sin WinUI. -->
+    <Compile Include="..\..\src\Rodaje.App\Views\Library\Logic\**\*.cs" Link="LibraryLogic\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Rodaje.Analysis\Rodaje.Analysis.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Engine\Rodaje.Engine.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Analysis\Rodaje.Analysis.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Export\Rodaje.Export.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
     <!-- La prueba de punta a punta con los paquetes de contenido compone con el render real. -->
     <ProjectReference Include="..\..\src\Rodaje.Render\Rodaje.Render.csproj" />
     <ProjectReference Include="..\..\testing\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <!-- Solo para que Rodaje.Module.Echo.exe quede junto a las pruebas de Modules/. -->
+    <ProjectReference Include="..\..\modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -52,6 +52,11 @@ public static class FfmpegArguments
                 // «hvc1» es lo que piden QuickTime, Safari y Películas y TV para HEVC en MP4/MOV.
                 videoArgs.AddRange(["-tag:v", "hvc1"]);
             }
+
+            if (settings.Container == ExportContainer.Mov)
+            {
+                videoArgs.AddRange(RangeInBitstream(video, v.Color?.FullRange ?? format.IsRgb()));
+            }
         }
 
         (videoArgs.Count > 0 || settings.Video is not null ? videoArgs : audioArgs).AddRange(Container(settings));
@@ -65,6 +70,31 @@ public static class FfmpegArguments
         return settings.FastStart && settings.Container is ExportContainer.Mp4 or ExportContainer.Mov or ExportContainer.M4a
             ? ["-movflags", "+faststart"]
             : [];
+    }
+
+    /// <summary>
+    /// Filtro de flujo que escribe el rango en el VUI de H.264 o HEVC cuando el codificador no lo hace: <c>h264_mf</c> y
+    /// <c>hevc_mf</c> no lo escriben, y en MOV la caja «colr» es «nclc», que lleva matriz, primarios y curva pero no rango
+    /// (en MP4 es «nclx», que sí lo lleva). Sin esto un MOV de Media Foundation sale sin rango. Vacío en los demás.
+    /// </summary>
+    /// <param name="encoder">Codificador de video.</param>
+    /// <param name="fullRange">El rango de <see cref="ExportColor"/>: completo o limitado.</param>
+    public static IReadOnlyList<string> RangeInBitstream(EncoderSpec encoder, bool fullRange)
+    {
+        ArgumentNullException.ThrowIfNull(encoder);
+        if (Family(encoder) != EncoderFamily.MediaFoundation)
+        {
+            return [];
+        }
+
+        string? filter = encoder.Codec switch
+        {
+            ExportCodec.H264 => "h264_metadata",
+            ExportCodec.Hevc => "hevc_metadata",
+            _ => null,
+        };
+        // «:0»: solo el video principal; la miniatura adjunta es otro flujo de video (copia de una imagen).
+        return filter is null ? [] : ["-bsf:v:0", $"{filter}=video_full_range_flag={(fullRange ? 1 : 0)}"];
     }
 
     /// <summary>2 si hay que componer el video dos veces (dos pasadas con <c>-pass</c>); 1 en lo demás.</summary>

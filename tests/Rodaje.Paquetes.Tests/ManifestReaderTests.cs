@@ -47,6 +47,7 @@ public sealed class ManifestReaderTests
     [InlineData("lut", ItemKind.Lut)]
     [InlineData("template", ItemKind.Template)]
     [InlineData("sound", ItemKind.Sound)]
+    [InlineData("font", ItemKind.Font)]
     public void Every_item_kind_round_trips(string text, ItemKind kind)
     {
         Assert.Equal(kind, ManifestReader.ParseItemKind(text));
@@ -225,6 +226,64 @@ public sealed class ManifestReaderTests
 
         Assert.Contains(missing.Errors, e => e.Contains("falta el archivo", StringComparison.Ordinal));
         Assert.True(present.IsValid);
+    }
+
+    private const string InterFont = """[{ "id": "inter", "kind": "font", "name": "Inter", "license": "OFL-1.1", "files": ["fuentes/Inter-Regular.ttf", "fuentes/Inter-Bold.otf"] }]""";
+
+    [Fact]
+    public void A_font_lists_its_files_with_its_own_license()
+    {
+        using var folder = new TempFolder();
+        Directory.CreateDirectory(folder.Combine("fuentes"));
+        File.WriteAllBytes(folder.Combine("fuentes", "Inter-Regular.ttf"), new byte[1000]);
+        File.WriteAllBytes(folder.Combine("fuentes", "Inter-Bold.otf"), new byte[1000]);
+
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(items: InterFont), folder.Path);
+
+        Assert.True(result.IsValid, string.Join(" ", result.Errors));
+        PackageItem font = Assert.Single(result.Manifest!.Items);
+        Assert.Equal(ItemKind.Font, font.Kind);
+        Assert.Equal("OFL-1.1", font.License);
+        Assert.Equal(["fuentes/Inter-Regular.ttf", "fuentes/Inter-Bold.otf"], font.Files);
+        Assert.True(ManifestReader.Read(Samples.Manifest(items: """[{ "id": "a", "kind": "font", "name": "A", "license": "OFL-1.1", "file": "a.ttf" }]""")).IsValid);
+    }
+
+    [Theory]
+    [InlineData("""{ "id": "f", "kind": "font", "name": "F", "files": ["f.ttf"] }""", "license")]
+    [InlineData("""{ "id": "f", "kind": "font", "name": "F", "license": "OFL-1.1" }""", "files")]
+    [InlineData("""{ "id": "f", "kind": "font", "name": "F", "license": "OFL-1.1", "files": [] }""", "de 1 a 32")]
+    [InlineData("""{ "id": "f", "kind": "font", "name": "F", "license": "OFL-1.1", "files": ["f.exe"] }""", "no es un archivo de fuente")]
+    [InlineData("""{ "id": "f", "kind": "font", "name": "F", "license": "OFL-1.1", "files": ["../f.ttf"] }""", "no es relativa")]
+    public void A_font_without_license_or_proper_files_is_invalid(string item, string expected)
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(items: $"[{item}]"));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains(expected, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_font_file_over_20_mb_or_a_family_over_100_mb_is_refused()
+    {
+        using var folder = new TempFolder();
+        Directory.CreateDirectory(folder.Combine("fuentes"));
+        string[] names = [.. Enumerable.Range(0, 6).Select(i => $"fuentes/f{i}.ttf")];
+        foreach (string name in names)
+        {
+            using var file = new FileStream(folder.Combine(name), FileMode.Create);
+            file.SetLength(PackageItem.MaxFontFileBytes);
+        }
+
+        string family = $"[{{ \"id\": \"f\", \"kind\": \"font\", \"name\": \"F\", \"license\": \"OFL-1.1\", \"files\": [{string.Join(", ", names.Select(n => $"\"{n}\""))}] }}]";
+        Assert.Contains(ManifestReader.Read(Samples.Manifest(items: family), folder.Path).Errors, e => e.Contains("100 MB", StringComparison.Ordinal));
+
+        using (var big = new FileStream(folder.Combine("fuentes", "f0.ttf"), FileMode.Open))
+        {
+            big.SetLength(PackageItem.MaxFontFileBytes + 1);
+        }
+
+        string one = """[{ "id": "f", "kind": "font", "name": "F", "license": "OFL-1.1", "files": ["fuentes/f0.ttf"] }]""";
+        Assert.Contains(ManifestReader.Read(Samples.Manifest(items: one), folder.Path).Errors, e => e.Contains("20 MB", StringComparison.Ordinal));
     }
 
     [Fact]

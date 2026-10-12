@@ -1,8 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
     Gestor de complementos: paquetes de contenido (.paquete, sin código) y módulos de IA (procesos aparte), cada uno en su
-    repositorio de github.com/Dathinel y con los programas en los que funciona. Instalar desde archivo y desinstalar ya
-    funcionan; la descarga desde las releases de GitHub llega en la fase 7.
+    repositorio de github.com/Dathinel y con los programas en los que funciona. Se instalan y actualizan desde las releases
+    de GitHub (índice firmado, hash comprobado, con avance y cancelar), desde un archivo, y se desinstalan.
 -->
 <UserControl
     x:Class="Rodaje.App.Views.Plugins.PluginsView"
@@ -31,10 +31,17 @@
                     <HyperlinkButton Content="{x:Bind RepositoryText}" Visibility="{x:Bind RepositoryVisibility}" Click="OnRepositoryClick"
                                      Padding="0" FontSize="11" Foreground="{StaticResource AccentBrush}" ToolTipService.ToolTip="Abrir el repositorio en el navegador" />
                 </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <Button Content="Instalar" Visibility="{x:Bind InstallVisibility}" IsEnabled="{x:Bind CanDownload}" Click="OnInstallClick"
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                            Visibility="{x:Bind Download.IdleVisibility, Mode=OneWay}">
+                    <Button Content="{x:Bind InstallText}" Visibility="{x:Bind InstallVisibility}" IsEnabled="{x:Bind CanDownload}" Click="OnInstallClick"
                             ToolTipService.ToolTip="{x:Bind InstallTooltip}" />
                     <Button Content="Desinstalar" Visibility="{x:Bind UninstallVisibility}" IsEnabled="{x:Bind CanUninstallNow}" Click="OnUninstallClick" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                            Visibility="{x:Bind Download.ActiveVisibility, Mode=OneWay}">
+                    <ProgressBar Width="140" Minimum="0" Maximum="100" Value="{x:Bind Download.Percent, Mode=OneWay}" VerticalAlignment="Center" />
+                    <TextBlock Text="{x:Bind Download.Text, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" MinWidth="64" VerticalAlignment="Center" />
+                    <Button Content="Cancelar" Click="OnCancelDownloadClick" ToolTipService.ToolTip="Lo descargado se guarda y se sigue desde ahí la próxima vez" />
                 </StackPanel>
             </Grid>
         </DataTemplate>

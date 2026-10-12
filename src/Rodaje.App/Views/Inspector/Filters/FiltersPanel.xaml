@@ -24,6 +24,9 @@
             <Grid Height="36" Padding="12,0,6,0">
                 <TextBlock x:Name="ClipTitle" Style="{StaticResource BodyTextStyle}" />
             </Grid>
+            <TextBlock x:Name="TitleNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,6" Visibility="Collapsed"
+                       TextWrapping="Wrap" TextTrimming="None"
+                       Text="En los títulos solo se aplican desenfoque y nitidez: color, LUT y viñeta no los cambian en esta versión." />
             <inspector:InspectorSection x:Name="StackSection" Key="filtros-pila" Title="Filtros del clip">
                 <StackPanel>
                     <Grid Padding="12,3,6,6" ColumnSpacing="4">

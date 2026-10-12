@@ -37,7 +37,7 @@ public sealed record ExportPreset(string Id, string Name, string Description, Ex
 }
 
 /// <summary>
-/// Los preajustes de fábrica. Las cifras son provisionales hasta la calibración con VMAF (criterios de <c>docs/fase-6.md</c>).
+/// Los preajustes de fábrica, calibrados con VMAF en la aceptación de la fase 6 (<c>docs/fase-6.md</c>).
 /// </summary>
 public static class ExportPresets
 {
@@ -68,7 +68,7 @@ public static class ExportPresets
         });
 
     public static ExportPreset Vertical { get; } = Factory("rodaje.vertical-1080x1920", "Reels / TikTok 9:16",
-        "1080×1920 con barras si la secuencia es horizontal.", ExportPresetCategory.Platform,
+        "H.264 para redes, 1080 de ancho. Pon el proyecto en 9:16.", ExportPresetCategory.Platform,
         new ExportSettings
         {
             Video = new VideoExportSettings
@@ -80,7 +80,7 @@ public static class ExportPresets
         });
 
     public static ExportPreset Square { get; } = Factory("rodaje.cuadrado-1080x1080", "Instagram 1:1",
-        "1080×1080 con barras si la secuencia es horizontal.", ExportPresetCategory.Platform,
+        "H.264 para redes, 1080 de lado. Pon el proyecto en 1:1.", ExportPresetCategory.Platform,
         new ExportSettings
         {
             Video = new VideoExportSettings
@@ -103,12 +103,14 @@ public static class ExportPresets
         });
 
     public static ExportPreset SmallFile { get; } = Factory("rodaje.archivo-pequeno", "Archivo pequeño",
-        "AV1 por CPU, 1080p, unos 3 Mbps.", ExportPresetCategory.Quality,
+        "AV1 por CPU, 1080p, hasta 3 Mbps.", ExportPresetCategory.Quality,
         new ExportSettings
         {
             Video = new VideoExportSettings
             {
-                Codec = ExportCodec.Av1, Width = 1920, Height = 1080, RateControl = RateControl.ConstantQuality(35),
+                // Calibrado con VMAF (fase 6): CRF 38 con techo de 3 Mbps; en la escena de aceptación da VMAF ≥99 por debajo del techo.
+                Codec = ExportCodec.Av1, Width = 1920, Height = 1080,
+                RateControl = RateControl.ConstantQuality(38) with { MaxBitrateKbps = 3_000, BufferKbps = 6_000 },
             },
             Audio = new AudioExportSettings { Codec = ExportCodec.Opus, RateControl = new() { Mode = RateControlMode.Vbr, BitrateKbps = 96 } },
         });

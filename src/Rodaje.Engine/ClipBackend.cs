@@ -35,6 +35,12 @@ internal interface IClipVideo : IVideoFrameSource, IDisposable
     VideoDecoderStatistics Statistics { get; }
 
     /// <summary>
+    /// Superficies del pool de D3D11VA fuera de las referencias (<see cref="Rodaje.Media.Gpu.DecoderSurfacePool.SpareSurfaces"/>);
+    /// nulo sin pool o antes del primer cuadro, que es cuando se crea.
+    /// </summary>
+    int? SpareSurfaces => null;
+
+    /// <summary>
     /// Pide el cuadro con la exactitud dada (<see cref="DecodeAccuracy"/>): uno aproximado trae su índice real, que puede
     /// ser menor que el pedido. Sin modos rápidos es siempre exacto.
     /// </summary>
@@ -83,6 +89,8 @@ internal sealed class MediaClipBackend : IClipBackend
         public bool UsesHardwareDecoding => decoder.UsesHardwareDecoding;
 
         public VideoDecoderStatistics Statistics => decoder.Statistics;
+
+        public int? SpareSurfaces => decoder.SurfacePool?.SpareSurfaces;
 
         public ValueTask<DecodedFrame?> GetFrameAsync(long frameIndex, CancellationToken cancellationToken) =>
             decoder.GetFrameAsync(frameIndex, cancellationToken);
