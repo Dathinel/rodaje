@@ -29,7 +29,8 @@ public enum ClipAttributeKinds
 /// Copia de los atributos de un clip y de sus enlazados, tomada con <see cref="Capture"/> para pegarla después en otros
 /// con <see cref="ClipAttributeEdits.Paste"/>. Lo de imagen sale del clip de video del grupo (el elegido si es de video) y
 /// lo de sonido, del de audio; la velocidad la comparte todo el grupo. Los keyframes se guardan como distancia al inicio
-/// del clip en la línea de tiempo, así la animación cae en el mismo lugar del clip donde se pegue.
+/// del clip en la línea de tiempo, así la animación cae en el mismo lugar del clip donde se pegue; lo que no cabe en el
+/// destino se recorta en su borde.
 /// </summary>
 public sealed class ClipAttributes
 {
@@ -195,7 +196,7 @@ public static class ClipAttributeEdits
             copy.Id = ctx.Ids.NewId("effect");
             foreach (Parameter parameter in copy.Parameters.Values)
             {
-                parameter.Keyframes = map.FromOffsets(parameter.Keyframes);
+                parameter.Keyframes = map.FromOffsets(TrimToLength(parameter, clip.Duration));
             }
 
             pasted.Add(copy);
@@ -219,6 +220,34 @@ public static class ClipAttributeEdits
         if (!inserted)
         {
             result.AddRange(pasted);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Los keyframes (en distancia al inicio) acotados a <c>[0, length]</c>: los que caen fuera del clip destino se quitan
+    /// y en el borde que cruzaban entra uno con el valor que tenía la animación ahí, así lo que se ve dentro del clip no
+    /// cambia (exacto con interpolación lineal o constante; con suavizado, el último tramo se acorta).
+    /// </summary>
+    internal static List<Keyframe> TrimToLength(Parameter parameter, Time length)
+    {
+        List<Keyframe> keys = parameter.Keyframes;
+        if (keys.Count == 0 || (keys[0].Time >= Time.Zero && keys[^1].Time <= length))
+        {
+            return keys;
+        }
+
+        var result = new List<Keyframe>(keys.Count + 2);
+        if (keys[0].Time < Time.Zero && keys.FindLast(k => k.Time < Time.Zero) is { } before && !keys.Exists(k => k.Time == Time.Zero))
+        {
+            result.Add(new Keyframe(Time.Zero, parameter.Evaluate(Time.Zero), before.Interpolation));
+        }
+
+        result.AddRange(keys.Where(k => k.Time >= Time.Zero && k.Time <= length));
+        if (keys[^1].Time > length && !keys.Exists(k => k.Time == length))
+        {
+            result.Add(new Keyframe(length, parameter.Evaluate(length)));
         }
 
         return result;
@@ -254,15 +283,15 @@ public static class ClipAttributeEdits
             }
 
             TimelineEdits.SetReverse(ctx, clip.Id, speed is { Reverse: true });
-            if (speed is not null)
+
+            // A 1× el origen no tiene velocidad: el destino vuelve al tono y al muestreo por defecto, no se queda con los suyos.
+            TimelineEdits.SetPreservePitch(ctx, clip.Id, speed?.PreservePitch ?? true);
+            FrameSampling sampling = speed?.FrameSampling ?? default;
+            foreach ((_, Clip member) in ctx.Sequence.GetLinkGroup(clip.Id))
             {
-                TimelineEdits.SetPreservePitch(ctx, clip.Id, speed.PreservePitch);
-                foreach ((_, Clip member) in ctx.Sequence.GetLinkGroup(clip.Id))
+                if (member.Speed is { } own)
                 {
-                    if (member.Speed is { } own)
-                    {
-                        own.FrameSampling = speed.FrameSampling;
-                    }
+                    own.FrameSampling = sampling;
                 }
             }
         }
