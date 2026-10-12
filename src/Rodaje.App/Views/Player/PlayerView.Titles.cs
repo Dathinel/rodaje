@@ -142,7 +142,7 @@ internal sealed partial class PlayerView
             Session.Select([hit.Box.ClipId]);
         }
 
-        _titleDrag = TitleTransformDrag.Begin(Session, _properties, hit.Box.ClipId, scale: hit.Grip != TitleGrip.Body);
+        _titleDrag = TitleTransformDrag.Begin(Session, _properties, hit.Box.ClipId, scale: hit.Grip != TitleGrip.Body, hit.Box.Transform);
         if (_titleDrag is null)
         {
             return;

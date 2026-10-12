@@ -103,4 +103,52 @@ public class TitleHandlesTests
         Assert.Null(TitleTransformDrag.Begin(session, editor, id, scale: false));
         Assert.False(session.IsInGesture);
     });
+
+    /// <summary>
+    /// En plena entrada, con el clip a escala 2 y girado 90°, el título se ve desplazado por el delta de la animación (que
+    /// gira y se escala con el clip). Mover lleva lo que se ve justo con el puntero y escalar no lo saca de su sitio.
+    /// </summary>
+    [Fact]
+    public void EnPlenaEntradaMoverYEscalarSiguenLoQueSeVe() => UiThread.Run(async () =>
+    {
+        var session = new EditorSession(new FakePlayback(), new FakeProber().Video("a.mp4", 10), new FakeDialogs(), new SequentialIdGenerator());
+        await session.OpenFilesAsync([Path.GetFullPath("a.mp4")]);
+        SequenceEditCommand insert = Edits.InsertTitle(session.SequenceId, Time.FromSeconds(2), Time.FromSeconds(5), TitleStyles.NewTitle());
+        Assert.True(session.Execute(insert));
+        string id = insert.CreatedIds[0];
+        Assert.True(session.Execute(Edits.EnsureEffect(session.SequenceId, id, BuiltInEffects.Transform)));
+        string fx = session.Sequence.GetClip(id).Clip.Effects[0].Id;
+        Assert.True(session.Execute(Edits.SetParameter(session.SequenceId, id, fx, T.Scale, 2, Time.Zero)));
+        Assert.True(session.Execute(Edits.SetParameter(session.SequenceId, id, fx, T.Rotation, 90, Time.Zero)));
+        session.UpdateTransport(PlaybackSnapshot.Empty with { Position = Time.FromSeconds(2.2) });
+        var editor = new ClipPropertyEditor(session);
+
+        // A mitad de una entrada que sube desde 40 px con salida suave, el delta es de 5 px hacia abajo en la capa.
+        const double Delta = 5;
+        LayerTransform Shown()
+        {
+            Clip clip = session.Sequence.GetClip(id).Clip;
+            double Read(string name, double neutral) => editor.Read(clip, BuiltInEffects.Transform, name, neutral).Value;
+            (double x, double y, double s, double r, double o) = TitleMotion.Compose(
+                Read(T.X, 0), Read(T.Y, 0), Read(T.Scale, 1), Read(T.Rotation, 0), 1, 0, Delta, 1, 0, 1);
+            return new LayerTransform(x, y, s, r, o);
+        }
+
+        LayerTransform before = Shown();
+        Assert.Equal(-10, before.X, 6);
+        TitleTransformDrag grow = TitleTransformDrag.Begin(session, editor, id, scale: true, before)!;
+        Assert.True(grow.Scale(3));
+        grow.Complete();
+        LayerTransform scaled = Shown();
+        Assert.Equal(3, scaled.Scale, 6);
+        Assert.Equal(before.X, scaled.X, 1);
+        Assert.Equal(before.Y, scaled.Y, 1);
+
+        TitleTransformDrag move = TitleTransformDrag.Begin(session, editor, id, scale: false, scaled)!;
+        Assert.True(move.Move(move.StartX + 120, move.StartY - 30));
+        move.Complete();
+        LayerTransform moved = Shown();
+        Assert.Equal(scaled.X + 120, moved.X, 1);
+        Assert.Equal(scaled.Y - 30, moved.Y, 1);
+    });
 }
