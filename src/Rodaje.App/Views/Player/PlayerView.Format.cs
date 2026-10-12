@@ -43,20 +43,38 @@ internal sealed partial class PlayerView
         ToolTipService.SetToolTip(FormatButton, $"Formato del proyecto: {ProjectFormats.Describe(sequence)}. Clic para cambiarlo.");
     }
 
-    /// <summary>El contorno del lienzo donde el render pone la imagen: así se ve la forma real (9:16 vertical, 1:1…).</summary>
+    /// <summary>
+    /// El contorno del lienzo donde el render pone la imagen (así se ve la forma real: 9:16 vertical, 1:1…) y el aviso del
+    /// visor, centrado dentro de la imagen y con salto de línea a su ancho.
+    /// </summary>
     private void UpdateCanvasOutline()
     {
-        if (Session is null || Image() is not { } frame)
+        ViewerPlacement? placement = Placement();
+        if (placement is { } p)
+        {
+            CanvasOutline.Visibility = Visibility.Visible;
+            CanvasOutline.StrokeThickness = p.Hairline;
+            PlaceRect(CanvasOutline, p.Outline);
+            PlaceRect(StatusHost, p.Image);
+        }
+        else
         {
             CanvasOutline.Visibility = Visibility.Collapsed;
-            return;
+            PlaceRect(StatusHost, new PanelRect(0, 0, Math.Max(0, VideoPanel.ActualWidth), Math.Max(0, VideoPanel.ActualHeight)));
         }
+    }
 
-        CanvasOutline.Visibility = Visibility.Visible;
-        CanvasOutline.Width = Math.Max(0, (Session.Sequence.Width * frame.Scale) + 2);
-        CanvasOutline.Height = Math.Max(0, (Session.Sequence.Height * frame.Scale) + 2);
-        Canvas.SetLeft(CanvasOutline, frame.Left - 1);
-        Canvas.SetTop(CanvasOutline, frame.Top - 1);
+    /// <summary>Para la autoprueba: muestra el aviso del visor vacío aunque haya clips, para medir dónde queda.</summary>
+    internal void ShowHintForSelfTest(bool show)
+    {
+        _hintForSelfTest = show;
+        UpdateTransport();
+    }
+
+    private void SetStatus(string text)
+    {
+        StatusText.Text = text;
+        StatusHost.Visibility = text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void OnFormatMenuOpening(object sender, object e)

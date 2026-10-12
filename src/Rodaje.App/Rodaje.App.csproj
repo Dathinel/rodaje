@@ -51,6 +51,8 @@
   <ItemGroup>
     <EmbeddedResource Include="Services\Packages\catalogo.json" LogicalName="Rodaje.App.catalogo.json" />
     <EmbeddedResource Include="Services\Packages\clave-catalogo.txt" LogicalName="Rodaje.App.clave-catalogo.txt" />
+    <!-- Zonas seguras de fábrica: datos en el formato de los paquetes (rodaje.safezones). -->
+    <EmbeddedResource Include="Services\SafeZones\Fabrica\*.json" LogicalName="Rodaje.App.zonas.%(Filename).json" />
   </ItemGroup>
 
   <ItemGroup>

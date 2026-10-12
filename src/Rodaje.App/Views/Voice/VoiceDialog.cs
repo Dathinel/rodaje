@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Voice;
 using Rodaje.App.Shell;
@@ -18,7 +19,7 @@ internal static class VoiceDialog
 {
     private static VoiceSettings _last = new("");
 
-    public static async Task ShowAsync(EditorServices services)
+    public static async Task ShowAsync(EditorServices services, LongActionScope? scope = null)
     {
         EditorSession session = services.Session;
         if (services.Shell.XamlRoot is not { } root)
@@ -123,6 +124,7 @@ internal static class VoiceDialog
             generating = true;
             busy.IsActive = true;
             status.Text = "Generando la voz…";
+            scope?.Report(null, "Generando la voz…");
             Refresh();
             try
             {

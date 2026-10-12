@@ -19,4 +19,13 @@ public static class ContentReaders
 
     /// <summary>Lee <c>rodaje.textstyle</c> v1.</summary>
     public static TextStylePreset ReadTextStyle(Stream stream) => PresetReader.ReadTextStyle(stream);
+
+    /// <summary>Lee <c>rodaje.safezones</c> v1.</summary>
+    public static SafeZonePreset ReadSafeZones(Stream stream) => PresetReader.ReadSafeZones(stream);
+
+    /// <summary>
+    /// Escribe <c>rodaje.safezones</c> v1 en UTF-8. Con <paramref name="kind"/> (<c>safe-zones</c>) el archivo sirve
+    /// además como elemento propio suelto en la carpeta <c>propios</c>.
+    /// </summary>
+    public static byte[] WriteSafeZones(SafeZonePreset preset, string? kind = null) => PresetReader.WriteSafeZones(preset, kind);
 }

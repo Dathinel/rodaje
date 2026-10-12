@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Autosave;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Modules;
@@ -54,6 +55,12 @@ internal sealed partial class MainWindow : Window, IShellHost
     private readonly InstanceRegistry _instance = InstanceRegistry.Register(InstanceRegistry.DefaultDirectory);
     private ShortcutsView? _shortcutsView;
     private NotificationAction? _notificationAction;
+    private readonly LongActionService _longActions;
+
+    // La barra de avisos muestra el avance de una acción larga hasta que llega un aviso; al cerrarse ese aviso vuelve al avance.
+    private bool _showingProgress;
+    private string? _dismissedAction;
+    private readonly HashSet<string> _shownActions = [];
     private PluginsView? _pluginsView;
     private ExportView? _exportView;
     private readonly ExportJobList _exports;
@@ -114,10 +121,12 @@ internal sealed partial class MainWindow : Window, IShellHost
         _modules.Failed += (_, f) => session.Notify(NotificationSeverity.Error, f.Title, f.Message);
         packages.Changed += (_, _) => _ = Task.Run(_modules.Refresh);
         Program.Metrics.Milestone("modulos");
+        _longActions = new LongActionService(session);
+        _longActions.Changed += (_, _) => _dispatcher.TryEnqueue(ShowLongActions);
         _services = new EditorServices(session, _router, settings, engine, this)
         {
             Visuals = _visuals, Packages = packages, Content = content, Exports = _exports,
-            Modules = _modules, Proposals = new ModuleProposals(session),
+            Modules = _modules, Proposals = new ModuleProposals(session), LongActions = _longActions,
         };
         engine.SetContent(content);
         IReadOnlyList<string> fonts = TitleFontFiles.Find(packages.Installed);
@@ -175,6 +184,19 @@ internal sealed partial class MainWindow : Window, IShellHost
         _notificationTimer.Interval = TimeSpan.FromSeconds(6);
         _notificationTimer.IsRepeating = false;
         _notificationTimer.Tick += (_, _) => Notification.IsOpen = false;
+        Notification.Closed += (_, _) =>
+        {
+            if (_showingProgress)
+            {
+                // Cerrada a mano mientras corre: no se vuelve a abrir por el avance de esa misma acción.
+                _showingProgress = false;
+                _dismissedAction = _longActions.Current?.ActionId;
+            }
+            else
+            {
+                ShowLongActions();
+            }
+        };
 
         // El transporte se copia del reproductor a la sesión a un ritmo fijo (30 Hz por defecto, --ui-hz).
         _transportTimer = _dispatcher.CreateTimer();
@@ -284,6 +306,17 @@ internal sealed partial class MainWindow : Window, IShellHost
     internal HyperlinkButton UpstreamCredit => TitleBar.UpstreamCredit;
 
     internal SwapChainPanel VideoPanel => Player.VideoPanel;
+
+    internal PlayerView PlayerPane => Player;
+
+    internal Services.Settings.AppSettings Settings => _settings.Current;
+
+    /// <summary>Para la autoprueba: lo que muestra la barra de avisos.</summary>
+    internal (bool Open, string Title, bool Progress, string? Button) NotificationState =>
+        (Notification.IsOpen, Notification.Title, NotificationProgress.Visibility == Visibility.Visible,
+            NotificationButton.Visibility == Visibility.Visible ? NotificationButton.Content as string : null);
+
+    internal Services.LongActions.LongActionService LongActions => _longActions;
 
     internal Views.Inspector.InspectorView InspectorPane => Inspector;
 
@@ -589,6 +622,9 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private void ShowNotification(EditorNotification notification)
     {
+        _showingProgress = false;
+        NotificationProgress.Visibility = Visibility.Collapsed;
+        NotificationButton.IsEnabled = true;
         Notification.Severity = notification.Severity switch
         {
             NotificationSeverity.Success => InfoBarSeverity.Success,
@@ -616,11 +652,81 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private void OnNotificationButtonClick(object sender, RoutedEventArgs e)
     {
+        if (_showingProgress)
+        {
+            if (_longActions.Current is { CanCancel: true } running)
+            {
+                _longActions.Cancel(running.ActionId);
+                NotificationButton.IsEnabled = false;
+            }
+
+            return;
+        }
+
         NotificationAction? action = _notificationAction;
         _notificationAction = null;
         _notificationTimer.Stop();
         Notification.IsOpen = false;
         action?.Run();
+    }
+
+    /// <summary>
+    /// El avance de la acción larga más reciente en la barra de avisos: título, mensaje, barra (indeterminada si no se sabe
+    /// cuánto falta) y «Cancelar» si la acción lo admite. Un aviso nuevo la tapa; cuando no queda nada en marcha se cierra.
+    /// </summary>
+    private void ShowLongActions()
+    {
+        LongActionStatus? current = _longActions.Current;
+        if (current is null)
+        {
+            _dismissedAction = null;
+            _shownActions.Clear();
+            if (_showingProgress)
+            {
+                _showingProgress = false;
+                NotificationProgress.Visibility = Visibility.Collapsed;
+                Notification.IsOpen = false;
+            }
+
+            return;
+        }
+
+        if (current.ActionId == _dismissedAction)
+        {
+            return;
+        }
+
+        _dismissedAction = null;
+        _shownActions.IntersectWith(_longActions.Running.Select(r => r.ActionId));
+        bool started = _shownActions.Add(current.ActionId);
+        if (!started && !_showingProgress && Notification.IsOpen)
+        {
+            // Llegó un aviso después de que empezó: se queda a la vista; el botón de la barra dice que sigue en marcha.
+            return;
+        }
+
+        // Una acción que acaba de empezar tapa el aviso anterior: es lo que la persona acaba de pedir.
+        bool fresh = started || !_showingProgress;
+        _showingProgress = true;
+        _notificationAction = null;
+        _notificationTimer.Stop();
+        Notification.Severity = InfoBarSeverity.Informational;
+        Notification.Title = current.Title;
+        Notification.Message = current.Message.Length > 0 ? current.Message : "En marcha…";
+        NotificationProgress.Visibility = Visibility.Visible;
+        NotificationProgressBar.IsIndeterminate = current.Progress is null;
+        NotificationProgressBar.Value = current.Progress ?? 0;
+        NotificationProgressText.Text = current.ProgressText;
+        NotificationButton.Content = "Cancelar";
+        NotificationButton.Visibility = current.CanCancel ? Visibility.Visible : Visibility.Collapsed;
+        AutomationProperties.SetName(NotificationButton, "Cancelar");
+        if (fresh)
+        {
+            NotificationButton.IsEnabled = true;
+            Notification.IsOpen = true;
+            FrameworkElementAutomationPeer.FromElement(Notification)?.RaiseNotificationEvent(
+                AutomationNotificationKind.ActionCompleted, AutomationNotificationProcessing.ImportantMostRecent, current.Title + ": en marcha", "rodaje.avance");
+        }
     }
 
     private void OnActivated(object sender, WindowActivatedEventArgs args)

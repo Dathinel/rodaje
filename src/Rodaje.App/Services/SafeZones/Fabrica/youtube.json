@@ -1,0 +1,6 @@
+{ "format": "rodaje.safezones", "version": 1, "id": "youtube", "name": "YouTube (16:9)",
+  "aspect": { "width": 16, "height": 9 },
+  "zones": [
+    { "label": "Título y botones (al pausar)", "rect": [0, 0, 1, 0.12] },
+    { "label": "Marca de agua del canal", "rect": [0.89, 0.76, 0.09, 0.09] },
+    { "label": "Barra de tiempo y controles", "rect": [0, 0.86, 1, 0.14] } ] }

@@ -742,7 +742,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
 
         _lastSignature = Signature(frame);
-        PixelRect? placement = _zoom > 0 ? VideoLayout.Centered(_swapChain!.Width, _swapChain.Height, _session.Width, _session.Height, _zoom) : null;
+        // La misma cuenta que el contorno y las guías del visor (ViewerGeometry), con la forma de la secuencia y no la de la composición.
+        PixelRect placement = ViewerGeometry.Image(_swapChain!.Width, _swapChain.Height, _session.Width, _session.Height, _zoom);
         _swapChain!.Render(_presenter!, _compositor, placement);
         long presented = Stopwatch.GetTimestamp();
         _metrics.Presented(_session.IsPlaying && !_session.IsSeekPending, Stopwatch.GetElapsedTime(start, presented).TotalMilliseconds);
