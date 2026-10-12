@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Titles;
 using Rodaje.App.Views.Export;
 using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Player;
@@ -21,7 +22,7 @@ namespace Rodaje.App.Shell;
 /// <summary>
 /// <c>--autoprueba</c>: lo mínimo para saber que el exe publicado arranca de verdad. Con el clip de prueba en la pista
 /// principal y seleccionado, muestra cada pestaña del inspector (la curva «Bala» y la reversa en Velocidad), crea un título,
-/// lo escribe, lo divide y lo deshace, reproduce un segundo y cierra. Sale con 0 si llegó el
+/// lo escribe, comprueba que el visor lo dibuja y que las asas lo mueven, lo divide y lo deshace, reproduce un segundo y cierra. Sale con 0 si llegó el
 /// primer cuadro y nada falló; cualquier excepción queda en <c>rodaje-error.txt</c> y el código es distinto de 0.
 /// </summary>
 internal static class SelfTestRun
@@ -42,7 +43,7 @@ internal static class SelfTestRun
 
             await ShowCurveAsync(window);
             await ToggleReverseAsync(window);
-            await TitleAsync(window);
+            await TitleAsync(window, engine);
             await ShowExportAsync(window);
             window.InspectorPane.Show(InspectorView.Tab.Properties);
             if (window.Session.Sequence.Duration.Ticks > 0)
@@ -133,7 +134,7 @@ internal static class SelfTestRun
     /// Crea un título con «Añadir texto» (T), cambia su texto en dos tandas de tecleo, lo divide y lo deshace todo, con la
     /// pestaña Texto a la vista; si el modelo o el historial no siguen, la autoprueba falla.
     /// </summary>
-    private static async Task TitleAsync(MainWindow window)
+    private static async Task TitleAsync(MainWindow window, PlayerEngine engine)
     {
         EditorSession session = window.Session;
         int steps = session.History.Count;
@@ -155,7 +156,11 @@ internal static class SelfTestRun
         editor.SetText(Final);
         editor.CommitStyle("stroke-on", s => s.Stroke = new StyleStroke { Color = "#000000", Width = 6 });
         await Task.Delay(250);
+        TitleBox box = await WaitForTitleAsync(engine, id, b => b.Width > 0, "El título no se dibujó en el visor en 5 s.");
         await CaptureAsync(window, "texto");
+        FrameCapture withTitle = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        await SaveFrameAsync(withTitle, "texto-visor");
+        await DragTitleAsync(window, engine, box);
 
         Clip clip = session.Sequence.GetClip(id).Clip;
         if (!session.Execute(Edits.Split(session.SequenceId, id, clip.Start + Time.FromTicks(clip.Duration.Ticks / 2))))
@@ -181,6 +186,92 @@ internal static class SelfTestRun
         }
 
         SelectFirstClip(window);
+        await Task.Delay(250);
+        FrameCapture without = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        int changed = ChangedPixels(withTitle, without, box, session.Sequence.Width, session.Sequence.Height);
+        Program.Metrics.Note($"autoprueba: el título cambia {changed} píxeles del visor");
+        if (changed < 500)
+        {
+            throw new InvalidOperationException($"El título no se ve en el visor: solo cambia {changed} píxeles en su caja.");
+        }
+    }
+
+    private static async Task<TitleBox> WaitForTitleAsync(PlayerEngine engine, string id, Func<TitleBox, bool> condition, string failure)
+    {
+        for (int i = 0; i < 50; i++)
+        {
+            foreach (TitleBox box in engine.TitleBoxes)
+            {
+                if (box.ClipId == id && condition(box))
+                {
+                    return box;
+                }
+            }
+
+            await Task.Delay(100);
+        }
+
+        throw new InvalidOperationException(failure);
+    }
+
+    /// <summary>Mueve el título 200 px con las asas (el mismo gesto que el ratón) y lo deshace; el visor tiene que seguirlo.</summary>
+    private static async Task DragTitleAsync(MainWindow window, PlayerEngine engine, TitleBox box)
+    {
+        EditorSession session = window.Session;
+        var properties = new ClipPropertyEditor(session);
+        TitleTransformDrag drag = TitleTransformDrag.Begin(session, properties, box.ClipId, scale: false)
+            ?? throw new InvalidOperationException("La autoprueba no pudo agarrar el título.");
+        drag.Move(drag.StartX + 100, drag.StartY);
+        drag.Move(drag.StartX + 200, drag.StartY);
+        drag.Complete();
+        await WaitForTitleAsync(engine, box.ClipId, b => b.Transform.X > box.Transform.X + 150, "El visor no siguió al título movido con las asas.");
+        await CaptureAsync(window, "texto-movido");
+        session.Undo();
+        await WaitForTitleAsync(engine, box.ClipId, b => Math.Abs(b.Transform.X - box.Transform.X) < 1, "Deshacer no devolvió el título a su sitio.");
+    }
+
+    /// <summary>Píxeles que cambian más de 40 niveles entre los dos cuadros dentro de la caja del título.</summary>
+    private static int ChangedPixels(FrameCapture a, FrameCapture b, TitleBox box, int sequenceWidth, int sequenceHeight)
+    {
+        if (a.Width != b.Width || a.Height != b.Height
+            || TitleHandles.Corners(box, sequenceWidth, sequenceHeight, new ImageFrame(0, 0, a.Width / (double)sequenceWidth)) is not { } corners)
+        {
+            return 0;
+        }
+
+        int left = Math.Clamp((int)corners.Min(c => c.X), 0, a.Width);
+        int right = Math.Clamp((int)Math.Ceiling(corners.Max(c => c.X)), 0, a.Width);
+        int top = Math.Clamp((int)corners.Min(c => c.Y), 0, a.Height);
+        int bottom = Math.Clamp((int)Math.Ceiling(corners.Max(c => c.Y)), 0, a.Height);
+        int changed = 0;
+        for (int y = top; y < bottom; y++)
+        {
+            for (int x = left; x < right; x++)
+            {
+                int i = ((y * a.Width) + x) * 4;
+                int d = Math.Abs(a.Rgba[i] - b.Rgba[i]) + Math.Abs(a.Rgba[i + 1] - b.Rgba[i + 1]) + Math.Abs(a.Rgba[i + 2] - b.Rgba[i + 2]);
+                changed += d > 40 ? 1 : 0;
+            }
+        }
+
+        return changed;
+    }
+
+    /// <summary>Con <c>RODAJE_AUTOPRUEBA_CAPTURAS</c>, guarda un cuadro del visor (lo que compone la GPU) en PNG.</summary>
+    private static async Task SaveFrameAsync(FrameCapture frame, string name)
+    {
+        if (Environment.GetEnvironmentVariable(CapturesVariable) is not { Length: > 0 } folder)
+        {
+            return;
+        }
+
+        byte[] bgra = (byte[])frame.Rgba.Clone();
+        for (int i = 0; i < bgra.Length; i += 4)
+        {
+            (bgra[i], bgra[i + 2]) = (bgra[i + 2], bgra[i]);
+        }
+
+        await SavePngAsync(folder, name, bgra, frame.Width, frame.Height);
     }
 
     /// <summary>
@@ -272,9 +363,14 @@ internal static class SelfTestRun
         var bitmap = new RenderTargetBitmap();
         await bitmap.RenderAsync(root);
         byte[] pixels = (await bitmap.GetPixelsAsync()).ToArray();
+        await SavePngAsync(folder, name, pixels, bitmap.PixelWidth, bitmap.PixelHeight);
+    }
+
+    private static async Task SavePngAsync(string folder, string name, byte[] bgra, int width, int height)
+    {
         using var stream = new InMemoryRandomAccessStream();
         BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
-        encoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied, (uint)bitmap.PixelWidth, (uint)bitmap.PixelHeight, 96, 96, pixels);
+        encoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied, (uint)width, (uint)height, 96, 96, bgra);
         await encoder.FlushAsync();
         stream.Seek(0);
         Directory.CreateDirectory(folder);

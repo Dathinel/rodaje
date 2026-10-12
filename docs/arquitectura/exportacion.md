@@ -17,7 +17,7 @@ Junta las piezas de la fase 6 ([D-028](../decisiones.md), [fase-6.md](../fase-6.
 
 1. **Preparar.** Sonda (en el hilo del trabajo si no se dio), `ExportPlan`, `GpuDevice` propio, prioridad del hilo, temporales en `%TEMP%\rodaje-exportar-<id>.rodaje-tmp` anotados en `ExportJournal`, y la vista previa cede.
 2. **Audio.** `OfflineAudio`: con LUFS, `MeasureLoudness` y `GainTo`; luego `WriteWave` del rango exacto al WAV temporal, float a la frecuencia y canales de salida.
-3. **Video.** `OfflineTimeline.Prepare` (medios y LUT; `ContentMissing` salvo «exportar sin él») y por cada cuadro `Render(n)` (o `RenderAt` y mezcla de dos compositores si cambia la tasa) → `Compositor.RenderStrict` → `ExportFrameConverter.Submit` → `TryRead` → `FfmpegPipeSink.WriteVideo`, con el anillo lleno como contrapresión. Dos pasadas componen dos veces.
+3. **Video.** Un `TitleRasterizer` sobre el dispositivo de la exportación con las fuentes de los paquetes (`ExportRunnerOptions.FontFiles`), en `OfflineTimeline` y en los compositores. `OfflineTimeline.Prepare` (medios y LUT; `ContentMissing` salvo «exportar sin él»), luego `FindMissingFonts` sobre los títulos del rango (`ContentMissing` con `Culprit` «fuente «X»», o la fuente de respaldo si se aceptó), y por cada cuadro `Render(n)` (o `RenderAt` y mezcla de dos compositores si cambia la tasa) → `Compositor.RenderStrict` → `ExportFrameConverter.Submit` → `TryRead` → `FfmpegPipeSink.WriteVideo`, con el anillo lleno como contrapresión. Dos pasadas componen dos veces.
 4. **Final.** `Complete` renombra el temporal; `ExportVerifier` comprueba cuadros, tasa, color, duración del audio, `moov` y capítulos (si falla, el trabajo falla y el archivo queda). Sin `ffprobe.exe` exporta sin verificar.
 
 Progreso cada 100 ms como mucho: estado, cuadros, fps de los últimos 2 s, restante (con las pasadas que faltan), pasada y la miniatura de 320 px del conversor. Cancelar mata `ffmpeg.exe` desde el token y borra todo.
@@ -27,6 +27,7 @@ Progreso cada 100 ms como mucho: estado, cuadros, fps de los últimos 2 s, resta
 - **1 min 1080p30**, dos pistas (H.264 1080p y HEVC en PiP con transformación y color) a H.264 NVENC 12 Mbps: **9,0 s en alto rendimiento y 8,8 s en bajo** (~200 fps los dos).
 - **7 s con dos pistas, color, fundido, 2× y reversa**, más AAC a −14 LUFS y capítulos: 8–10 s (la reversa hace un seek por cuadro hasta que llegue el lector hacia atrás); PSNR contra la composición de la vista previa ≥38,5 dB en los cuadros comprobados a CQ 16.
 - Formatos comprobados con ffprobe: H.264 NVENC + AAC (MP4, `moov` al principio, `bt709/tv/left`, 210 de 210 cuadros, audio 7,02 s), HEVC NVENC 10 bits Main 10, ProRes 422 HQ + PCM 24 en MOV, AV1 SVT + Opus en MKV, 9:16 con barras, VP9 en dos pasadas, conversión a 25 (mezcla) y 23,976 (más cercano), solo audio M4A.
+- **Títulos** (`ExportTitleTests`): título con borde y sombra sobre las dos pistas a H.264 NVENC CQ 16, contra la vista previa asentada (sesión, rasterizador y compositor como el reproductor): PSNR de luma 40,6–51,3 dB (el croma 4:2:0 de un borde azul junto a un relleno amarillo baja el PSNR de RGB a ~33 dB). La fuente que falta para con `ContentMissing` en 0,2 s.
 - **Cancelar** a mitad: 128 ms, sin archivo, temporal ni `ffmpeg.exe`.
 - `Rodaje.Export`: 94,5 % de líneas cubiertas.
 

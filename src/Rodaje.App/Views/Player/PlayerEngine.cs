@@ -721,6 +721,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             CompositeResult result = _compositor.Render(frame, Geometry);
             drawn = result.LayersDrawn;
             PublishTitleBoxes(frame);
+            CompleteCapture();
             lock (_meterLock)
             {
                 _effectTotals = _effectTotals.Add(result);

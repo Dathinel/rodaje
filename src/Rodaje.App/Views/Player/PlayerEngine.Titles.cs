@@ -4,6 +4,9 @@ using Rodaje.Render.Text;
 
 namespace Rodaje.App.Views.Player;
 
+/// <summary>Un cuadro compuesto bajado a la CPU, RGBA de 8 bits fila tras fila.</summary>
+internal sealed record FrameCapture(byte[] Rgba, int Width, int Height);
+
 /// <summary>
 /// Títulos del reproductor: un <see cref="TitleRasterizer"/> sobre el dispositivo del hilo de render, conectado a la
 /// sesión (precarga) y al compositor; las fuentes de los paquetes; las que faltan, para el aviso de la pestaña Texto; y
@@ -16,6 +19,7 @@ internal sealed partial class PlayerEngine
     private IReadOnlyList<string>? _pendingFonts;
     private IReadOnlyList<MissingFont> _missingFonts = [];
     private TitleBox[] _titleBoxes = [];
+    private TaskCompletionSource<FrameCapture>? _pendingCapture;
 
     /// <summary>Cambió la lista de fuentes que faltan. Llega desde el hilo de render.</summary>
     public event Action? MissingFontsChanged;
@@ -39,6 +43,27 @@ internal sealed partial class PlayerEngine
         }
 
         _wake.Set();
+    }
+
+    /// <summary>
+    /// El próximo cuadro compuesto en RGBA de 8 bits (a la resolución del compositor), para la autoprueba: lo que dibuja
+    /// la GPU no sale en una captura de XAML.
+    /// </summary>
+    public Task<FrameCapture> CaptureFrameAsync()
+    {
+        var capture = new TaskCompletionSource<FrameCapture>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Interlocked.Exchange(ref _pendingCapture, capture)?.TrySetCanceled();
+        _dirty = true;
+        _wake.Set();
+        return capture.Task;
+    }
+
+    private void CompleteCapture()
+    {
+        if (_compositor is { } compositor && Interlocked.Exchange(ref _pendingCapture, null) is { } capture)
+        {
+            capture.TrySetResult(new FrameCapture(compositor.ReadbackRgba(), compositor.Width, compositor.Height));
+        }
     }
 
     private void CreateTitles()

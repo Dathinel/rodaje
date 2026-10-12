@@ -43,7 +43,7 @@ odaje-transiciones-1.0.0.paquete` (ya generados; se regeneran con el `empaquetar
 
 ## Fase 5b: títulos en la app
 
-Mientras el motor no dibuje el texto, el título no se ve en el visor: se prueban la línea de tiempo, el inspector y el historial.
+El título se ve en el visor y sale en la exportación (la autoprueba lo comprueba en el exe publicado; `ExportTitleTests` compara el MP4 con la vista previa).
 
 - [ ] **Crear:** con el cursor sobre un clip pulsar T (y Editar → «Añadir texto»): aparece «Texto» de 5 s en morado en la pista de arriba libre, seleccionado, y el inspector salta a la pestaña Texto. Otra T en el mismo punto crea la pista «Texto» encima. ¿5 s está bien? ¿El morado se distingue del video?
 - [ ] **Escribir:** teclear en la pestaña Texto (con tildes, ñ, emoji e Intro para otra línea): el clip muestra la primera línea. Ctrl+Z deshace una tanda entera, no letra a letra; una pausa de 1 s o salir del campo empieza otra. ¿Ese segundo es el corte justo?
@@ -51,4 +51,9 @@ Mientras el motor no dibuje el texto, el título no se ve en el visor: se prueba
 - [ ] **Biblioteca → Texto:** doble clic en «Texto» crea un título; con un título seleccionado, doble clic en un estilo de paquete lo cambia y el inspector dice «Copiado de…»; arrastrar un estilo a una pista libre lo pone donde cae.
 - [ ] **Línea de tiempo:** mover, recortar y alargar sin tope (también por delante de su inicio), cortar con S; Alt + arrastrar el cuerpo o un borde no cambia nada y el globo explica por qué; Ctrl+R muestra en Velocidad que un título no tiene material.
 - [ ] **Entrada y salida:** con un estilo animado, desmarcar «Animar la entrada» y pulsar «Convertir en keyframes»: los rombos aparecen en Propiedades.
+- [ ] **En el visor:** el título aparece al instante al crearlo y cambia mientras se escribe o se mueve un deslizador del estilo, también en pausa. ¿Se nota algún parpadeo o retraso al teclear?
+- [ ] **Asas:** con el título seleccionado, el visor lo enmarca con cuatro esquinas. Arrastrar el texto lo mueve; arrastrar una esquina lo agranda o achica desde el centro; un clic sobre otro título lo selecciona. Cada arrastre es un Ctrl+Z; Esc a mitad lo revierte. Con zoom 50 % y 100 % las asas siguen al texto. ¿Se agarra con comodidad? ¿Falta girar?
+- [ ] **Fuente que falta:** escribir en Fuente una que no esté instalada: el texto se ve con la de respaldo y la pestaña Texto avisa. Exportar: el diálogo dice «Falta una fuente» y «Exportar sin él» sale con el respaldo.
+- [ ] **Exportar:** un título con borde y sombra sobre un video a MP4: se ve igual que en el visor.
+- [ ] **Filtros sobre un título:** la pestaña Filtros avisa de que color, LUT y viñeta no aplican; desenfoque y nitidez sí.
 - [ ] **Subtítulos:** clic derecho en una cabecera → «Añadir pista de subtítulos» (o «Usar para subtítulos» en una de video): la cabecera dice «Subtítulos» y T no pone títulos ahí.
