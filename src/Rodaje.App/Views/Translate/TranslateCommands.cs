@@ -1,12 +1,11 @@
-using Rodaje.App.Services;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 
 namespace Rodaje.App.Views.Translate;
 
 /// <summary>
-/// «Traducir pista...»: la acción para el menú de la pista de subtítulos, Editar y la barra de herramientas.
-/// Sin atajo por omisión.
+/// «Traducir pista...»: la acción del menú de análisis de la línea de tiempo. Corre como acción larga
+/// (<see cref="EditorServices.LongActions"/>): el segundo clic no abre otro diálogo y un fallo se avisa. Sin atajo por omisión.
 /// </summary>
 internal static class TranslateCommands
 {
@@ -21,17 +20,6 @@ internal static class TranslateCommands
         return router.Bind(TranslateTrack, () => Run(services));
     }
 
-    private static async void Run(EditorServices services)
-    {
-        try
-        {
-            await TranslateDialog.ShowAsync(services);
-        }
-#pragma warning disable CA1031 // Un fallo del diálogo no debe cerrar la app: se avisa.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            services.Session.Notify(NotificationSeverity.Error, "Traducir pista", ex.Message);
-        }
-    }
+    private static void Run(EditorServices services) =>
+        _ = services.LongActions.RunAsync(TranslateTrack, "Traducir pista", _ => TranslateDialog.ShowAsync(services));
 }
