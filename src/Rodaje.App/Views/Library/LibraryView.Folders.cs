@@ -15,7 +15,10 @@ namespace Rodaje.App.Views.Library;
 /// Carpetas, búsqueda, filtro por tipo, favoritos y la lista con datos de la biblioteca de medios. Las reglas están en
 /// Logic/ (sin WinUI, con pruebas); aquí solo se conectan con la vista y se guardan por proyecto.
 /// </summary>
+// CA1001: como en LibraryView.xaml.cs, la vista vive lo mismo que la ventana.
+#pragma warning disable CA1001
 internal sealed partial class LibraryView
+#pragma warning restore CA1001
 {
     private const string RootName = "Todos los medios";
 
