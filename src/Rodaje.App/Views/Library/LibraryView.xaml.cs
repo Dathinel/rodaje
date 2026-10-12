@@ -110,6 +110,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         ArgumentNullException.ThrowIfNull(services);
         _services = services;
         _dispatcher = DispatcherQueue;
+        Shortcuts.MouseShortcutHost.Attach(this, MouseContext.Library, services);
         services.Session.ProjectOpened += (_, _) => RefreshMedia();
         services.Session.ProjectEdited += (_, _) => RefreshMedia();
         services.Session.PropertyChanged += (_, e) =>

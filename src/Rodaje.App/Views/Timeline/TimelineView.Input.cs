@@ -2,6 +2,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Shortcuts;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -124,8 +125,14 @@ internal sealed partial class TimelineView
         bool ctrl = e.KeyModifiers.HasFlag(VirtualKeyModifiers.Control);
         e.Handled = true;
 
-        if (props.IsMiddleButtonPressed)
+        if (Views.Shortcuts.MouseShortcutHost.PressedButton(props) is { } button)
         {
+            // El central y los laterales hacen lo que diga el ratón de la línea de tiempo; las acciones de teclado las lanza MouseShortcutHost.
+            if (Views.Shortcuts.MouseShortcutHost.Resolve(_services!.ShortcutRegistry, MouseContext.Timeline, button, e.KeyModifiers) != MouseGestures.Pan)
+            {
+                return;
+            }
+
             _mode = PointerMode.Pan;
             _pressPoint = p;
             Capture(LanesHost, e);
@@ -438,26 +445,35 @@ internal sealed partial class TimelineView
 
         PointerPoint point = e.GetCurrentPoint(LanesHost);
         int delta = point.Properties.MouseWheelDelta;
-        VirtualKeyModifiers keys = e.KeyModifiers;
+        bool tilt = point.Properties.IsHorizontalMouseWheel;
         e.Handled = true;
-        if (point.Properties.IsHorizontalMouseWheel)
+
+        // Lo que haga la rueda sale del ratón del estilo (Ajustes de atajos); el paso positivo es abajo o a la derecha.
+        int signed = tilt ? delta : -delta;
+        string? gesture = Views.Shortcuts.MouseShortcutHost.Resolve(
+            _services!.ShortcutRegistry, MouseContext.Timeline, tilt ? MouseInput.Tilt : MouseInput.Wheel, e.KeyModifiers);
+        if (gesture == MouseGestures.ScrollTime && ReferenceEquals(sender, HeadersCanvas) && !tilt)
         {
-            Viewport.ScrollX += delta;
+            gesture = MouseGestures.ScrollTracks;
         }
-        else if (keys.HasFlag(VirtualKeyModifiers.Control))
+
+        switch (gesture)
         {
-            double anchor = ReferenceEquals(sender, HeadersCanvas) ? Viewport.Width / 2 : Math.Clamp(point.Position.X, 0, Viewport.Width);
-            ZoomAt(anchor, Math.Pow(WheelStep, delta / 120.0));
-            return;
-        }
-        else if (keys.HasFlag(VirtualKeyModifiers.Shift) || ReferenceEquals(sender, HeadersCanvas))
-        {
-            SetScrollY(_renderer.ScrollY - (delta * 0.5));
-            return;
-        }
-        else
-        {
-            Viewport.ScrollX -= delta;
+            case MouseGestures.Zoom:
+                double anchor = ReferenceEquals(sender, HeadersCanvas) ? Viewport.Width / 2 : Math.Clamp(point.Position.X, 0, Viewport.Width);
+                ZoomAt(anchor, Math.Pow(WheelStep, -signed / 120.0));
+                return;
+            case MouseGestures.ScrollTracks:
+                SetScrollY(_renderer.ScrollY + (signed * 0.5));
+                return;
+            case MouseGestures.Frames:
+                Views.Shortcuts.MouseShortcutHost.StepFrames(_services.Shortcuts, Views.Shortcuts.MouseShortcutHost.Steps(point.Properties));
+                return;
+            case MouseGestures.ScrollTime:
+                Viewport.ScrollX += signed;
+                break;
+            default:
+                return;
         }
 
         Viewport.ClampScroll(Session.Sequence.Duration);

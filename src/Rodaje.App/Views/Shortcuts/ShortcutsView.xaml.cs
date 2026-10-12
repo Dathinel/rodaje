@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
@@ -14,14 +15,18 @@ using VirtualKey = Windows.System.VirtualKey;
 namespace Rodaje.App.Views.Shortcuts;
 
 /// <summary>
-/// Página de atajos de teclado. La vista esencial muestra el teclado con los atajos básicos y su lista; la avanzada
-/// permite ver, buscar y cambiar las teclas de cada acción, con estilos, teclado dibujado y hoja rápida. La vista
-/// elegida se recuerda en los ajustes. Mientras captura una combinación nueva suspende el <see cref="ShortcutRouter"/> y se queda con todas las
-/// teclas hasta que se sueltan, para que ninguna lance una acción ni active el botón con el foco.
+/// Página de atajos de teclado y ratón. La vista esencial muestra el teclado y el ratón con los atajos básicos y su
+/// lista; la avanzada permite ver, buscar y cambiar las teclas de cada acción y lo que hace cada botón del ratón por
+/// zona, con estilos, dibujos que se editan con un clic, hoja rápida y exportar o importar. La vista elegida se
+/// recuerda en los ajustes. Mientras captura una combinación nueva suspende el <see cref="ShortcutRouter"/> y se queda
+/// con todas las teclas hasta que se sueltan, para que ninguna lance una acción ni active el botón con el foco.
 /// </summary>
-internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcutRowHost
+internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcutRowHost, IBindingEditorHost
 {
     private const double SingleColumnWidth = 760;
+    private const double SideBySideWidth = 1100;
+
+    private static readonly (string Name, string Spec) JsonFilter = ("Mapa de atajos", "*.json");
 
     private readonly Dictionary<string, ShortcutRowView> _rows = new(StringComparer.Ordinal);
     private readonly List<GroupSection> _groups = [];
@@ -32,8 +37,11 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
     private DispatcherQueueTimer? _releaseTimer;
     private KeyCapture? _capture;
     private ShortcutRowView? _captureView;
+    private BindingEditor? _captureEditor;
+    private string? _captureAction;
     private KeyChord? _captureReplacing;
     private IDisposable? _suspension;
+    private IDisposable? _mouseSuspension;
     private int? _keyFilter;
     private bool _syncingPreset;
     private bool _singleColumn;
@@ -47,7 +55,20 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
 
     private static IKeyboardLayout? Layout => KeyNames.DisplayLayout;
 
-    private ShortcutRegistry Registry => _registry ?? throw new InvalidOperationException("La página de atajos no está unida.");
+    public ShortcutRegistry Registry => _registry ?? throw new InvalidOperationException("La página de atajos no está unida.");
+
+    public ShortcutCustomizer Customizer => _customizer ?? throw new InvalidOperationException("La página de atajos no está unida.");
+
+    /// <summary>El editor de la tecla o el botón elegido (para la autoprueba).</summary>
+    internal BindingEditor BindingPanel => Editor;
+
+    internal KeyboardView KeyboardDrawing => Keyboard;
+
+    internal MouseView MouseDrawingView => MouseDrawing;
+
+    internal ToggleButton DrawingsToggle => KeyboardToggle;
+
+    internal RadioButton AdvancedModeTab => AdvancedTab;
 
     public void Attach(EditorServices services)
     {
@@ -56,7 +77,20 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         _registry = services.ShortcutRegistry;
         _customizer = new ShortcutCustomizer(_registry);
         _registry.Changed += (_, _) => OnRegistryChanged();
-        Keyboard.KeySelected += (_, vk) => SetKeyFilter(vk);
+        Keyboard.KeySelected += (_, vk) => OpenKey(vk);
+        Keyboard.LayerChanged += (_, layer) => MouseDrawing.SetLayer(layer);
+        MouseDrawing.LayerChanged += (_, layer) => Keyboard.SetLayer(layer);
+        MouseDrawing.PartSelected += (_, input) => OpenMouse(input);
+        MouseDrawing.ContextChanged += (_, context) =>
+        {
+            if (Editor.MousePart is { } part)
+            {
+                Editor.ShowMouse(context, part.Input);
+            }
+        };
+        EssentialKeyboard.LayerChanged += (_, layer) => EssentialMouse.SetLayer(layer);
+        EssentialMouse.LayerChanged += (_, layer) => EssentialKeyboard.SetLayer(layer);
+        Editor.Attach(this);
         Sheet.Saved += OnSheetSaved;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -78,14 +112,218 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
     {
         ArgumentNullException.ThrowIfNull(view);
         EndCapture();
-        _capture = new KeyCapture();
+        Editor.EndCapture();
+        StartCapture();
         _captureView = view;
+        _captureAction = view.Row.ActionId;
         _captureReplacing = replacing;
-        _releaseTimer?.Stop();
-        _suspension ??= _services?.Shortcuts.Suspend();
         string prompt = replacing is { } old ? $"En lugar de «{old}», pulsa la nueva combinación… Esc cancela" : KeyCapture.Prompt;
         view.Row.BeginCapture(prompt);
     }
+
+    public void BeginKeyCapture(BindingEditor editor, string actionId, KeyChord replacing)
+    {
+        ArgumentNullException.ThrowIfNull(editor);
+        EndCapture();
+        StartCapture();
+        _captureEditor = editor;
+        _captureAction = actionId;
+        _captureReplacing = replacing;
+    }
+
+    public void CancelKeyCapture() => EndCapture();
+
+    public void HoldShortcuts(bool hold)
+    {
+        if (hold)
+        {
+            _mouseSuspension ??= _services?.Shortcuts.Suspend();
+        }
+        else
+        {
+            _mouseSuspension?.Dispose();
+            _mouseSuspension = null;
+        }
+    }
+
+    public void CloseEditor()
+    {
+        Editor.EndCapture();
+        Editor.Visibility = Visibility.Collapsed;
+        MouseDrawing.Select(null);
+        Keyboard.Select(_keyFilter);
+    }
+
+    public async Task AssignKeyAsync(string actionId, KeyChord chord, KeyChord? replacing, bool toSlot)
+    {
+        ConflictChoice choice = ConflictChoice.Swap;
+        if (ReservedKeys.Reason(chord) is null && Customizer.OwnerOf(chord, actionId) is { } owner)
+        {
+            bool canSwap = toSlot ? Registry.GetKeys(actionId).Count > 0 : replacing is not null;
+            if (await AskConflictAsync(KeyNames.Format(chord), Customizer.LabelOf(owner), Customizer.LabelOf(actionId), canSwap) is not { } answer)
+            {
+                return;
+            }
+
+            choice = answer;
+        }
+
+        ShowChange(toSlot ? Customizer.AssignToKey(chord, actionId, choice) : Customizer.Assign(actionId, chord, replacing, choice));
+    }
+
+    public async Task AssignMouseAsync(MouseContext context, MouseChord chord, string actionId, MouseChord? from)
+    {
+        ConflictChoice choice = ConflictChoice.Swap;
+        if (Registry.Mouse.Reason(context, chord, actionId) is null && Registry.Mouse.Get(context, chord) is { } owner && owner != actionId)
+        {
+            bool canSwap = (from ?? Registry.Mouse.FindChord(context, actionId, except: chord)) is { } back && Registry.Mouse.Reason(context, back, owner) is null;
+            if (await AskConflictAsync($"{chord} ({MouseNames.Display(context).ToLowerInvariant()})", Customizer.LabelOf(owner), Customizer.LabelOf(actionId), canSwap) is not { } answer)
+            {
+                return;
+            }
+
+            choice = answer;
+        }
+
+        ShowChange(Customizer.AssignMouse(context, chord, actionId, from, choice));
+    }
+
+    /// <summary>
+    /// La combinación ya era de otra acción: intercambiarlas (si se puede) o quitársela. <c>null</c> si se canceló. Si el
+    /// diálogo no se puede abrir (otro abierto), se intercambia, que se puede deshacer.
+    /// </summary>
+    private async Task<ConflictChoice?> AskConflictAsync(string combination, string theirs, string mine, bool canSwap)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = $"«{combination}» ya es de «{theirs}»",
+            Content = new TextBlock
+            {
+                Text = canSwap
+                    ? $"Intercambiar: «{mine}» se queda con «{combination}» y «{theirs}» pasa a la combinación que deja «{mine}».\nQuitársela: «{theirs}» se queda sin «{combination}»."
+                    : $"«{theirs}» se quedará sin «{combination}».",
+                TextWrapping = TextWrapping.Wrap,
+            },
+            PrimaryButtonText = canSwap ? "Intercambiar" : "Quitársela",
+            SecondaryButtonText = canSwap ? "Quitársela" : "",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        ContentDialogResult? result = await DialogGate.ShowAsync(dialog);
+        return result switch
+        {
+            null => ConflictChoice.Swap,
+            ContentDialogResult.Primary => canSwap ? ConflictChoice.Swap : ConflictChoice.Take,
+            ContentDialogResult.Secondary => ConflictChoice.Take,
+            _ => null,
+        };
+    }
+
+    private void StartCapture()
+    {
+        _capture = new KeyCapture();
+        _releaseTimer?.Stop();
+        _suspension ??= _services?.Shortcuts.Suspend();
+    }
+
+    /// <summary>Abre una tecla del dibujo para cambiarla y filtra la lista por ella.</summary>
+    internal void OpenKey(int virtualKey)
+    {
+        SetKeyFilter(virtualKey);
+        MouseDrawing.Select(null);
+        Editor.ShowKey(virtualKey);
+        Editor.Visibility = Visibility.Visible;
+        RevealEditor();
+    }
+
+    /// <summary>Abre una parte del ratón dibujado, en la zona elegida, para cambiarla.</summary>
+    internal void OpenMouse(MouseInput input)
+    {
+        if (_keyFilter is not null)
+        {
+            _keyFilter = null;
+            KeyFilterChip.Visibility = Visibility.Collapsed;
+            ApplyFilter();
+        }
+
+        MouseDrawing.Select(input);
+        Keyboard.Select(null);
+        Editor.ShowMouse(MouseDrawing.Context, input);
+        Editor.Visibility = Visibility.Visible;
+        RevealEditor();
+    }
+
+    /// <summary>Lleva el editor a la vista, con el dibujo encima si cabe.</summary>
+    private void RevealEditor()
+    {
+        Editor.UpdateLayout();
+        Editor.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = false, VerticalAlignmentRatio = 1 });
+    }
+
+    private void OnDrawingsSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var grid = (Grid)sender;
+        bool side = e.NewSize.Width >= SideBySideWidth;
+        var mouse = (FrameworkElement)grid.Children[1];
+        Grid.SetColumn(mouse, side ? 1 : 0);
+        Grid.SetRow(mouse, side ? 0 : 1);
+        grid.ColumnDefinitions[1].Width = side ? GridLength.Auto : new GridLength(0);
+    }
+
+    private void SetCaptureText(string text)
+    {
+        if (_captureView is not null)
+        {
+            _captureView.Row.CaptureText = text;
+        }
+        else
+        {
+            _captureEditor?.SetCaptureText(text);
+        }
+    }
+
+    private void OnExportClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (FileDialogs.Save(Owner(), "Exportar atajos", "atajos-rodaje.json", "json", null, JsonFilter) is not { } path)
+            {
+                return;
+            }
+
+            ShortcutStore.Export(Registry, path);
+            ShowNotice($"Atajos exportados a {System.IO.Path.GetFileName(path)}", new NotificationAction("Abrir", () => Open(path)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            ShowNotice($"No se pudieron exportar los atajos: {ex.Message}", severity: NotificationSeverity.Warning);
+        }
+    }
+
+    private void OnImportClick(object sender, RoutedEventArgs e)
+    {
+        IReadOnlyList<string> picked;
+        try
+        {
+            picked = FileDialogs.Open(Owner(), "Importar atajos", multiple: false, null, JsonFilter, FileDialogs.AllFilter);
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            ShowNotice($"No se pudo abrir el diálogo: {ex.Message}", severity: NotificationSeverity.Warning);
+            return;
+        }
+
+        if (picked.Count > 0)
+        {
+            EndCapture();
+            Editor.EndCapture();
+            ShowChange(Customizer.Import(picked[0]));
+        }
+    }
+
+    private nint Owner() =>
+        XamlRoot?.ContentIslandEnvironment is { } environment ? Microsoft.UI.Win32Interop.GetWindowFromWindowId(environment.AppWindowId) : 0;
 
     public void CancelCapture() => EndCapture();
 
@@ -190,6 +428,7 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         EssentialKeyboard.Show(
             KeyboardGeometry.Map(Registry, Layout, include: EssentialShortcuts.Contains),
             _groups.Select(g => g.Name).Where(g => entries.Any(e => e.Group == g)));
+        EssentialMouse.Show(Registry);
         BuildEssentialList(entries);
     }
 
@@ -429,7 +668,12 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         }
 
         Keyboard.Show(KeyboardGeometry.Map(Registry, Layout), _groups.Select(g => g.Name));
-        Keyboard.Select(_keyFilter);
+        Keyboard.Select(Editor.MousePart is null ? _keyFilter : null);
+        MouseDrawing.Show(Registry);
+        if (Editor.Visibility == Visibility.Visible && !Editor.IsCapturing)
+        {
+            Editor.Refresh();
+        }
     }
 
     private void RefreshSheet()
@@ -506,6 +750,11 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         _keyFilter = null;
         KeyFilterChip.Visibility = Visibility.Collapsed;
         Keyboard.Select(null);
+        if (Editor.Key is not null)
+        {
+            CloseEditor();
+        }
+
         ApplyFilter();
         SearchBox.Focus(FocusState.Keyboard);
     }
@@ -525,6 +774,7 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
     private void OnResetAllClick(object sender, RoutedEventArgs e)
     {
         EndCapture();
+        Editor.EndCapture();
         ShowChange(_customizer!.ResetAll());
     }
 
@@ -554,8 +804,14 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
 
     private void OnPreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (_capture is null || _captureView is null)
+        if (_capture is null)
         {
+            // Ctrl, Mayús o Alt apretados de verdad muestran sus combinaciones en el teclado y el ratón dibujados.
+            if (KeyChord.IsModifierKey((int)e.Key))
+            {
+                ShowLayer(KeyboardShortcutHost.CurrentModifiers() | KeyCapture.ModifierOf((int)e.Key));
+            }
+
             return;
         }
 
@@ -567,7 +823,6 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         }
 
         CaptureResult result = _capture.KeyDown((int)e.Key, KeyboardShortcutHost.CurrentModifiers());
-        ShortcutRowView view = _captureView;
         switch (result.Status)
         {
             case CaptureStatus.Cancelled:
@@ -575,11 +830,12 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
                 break;
             case CaptureStatus.Accepted:
                 KeyChord? replacing = _captureReplacing;
+                string actionId = _captureAction!;
                 EndCapture();
-                ShowChange(_customizer!.Assign(view.Row.ActionId, result.Chord, replacing));
+                _ = AssignKeyAsync(actionId, result.Chord, replacing, toSlot: false);
                 break;
             default:
-                view.Row.CaptureText = result.Message;
+                SetCaptureText(result.Message);
                 break;
         }
     }
@@ -591,27 +847,47 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
             e.Handled = true;
         }
 
-        if (_capture is not null && _captureView is not null)
+        if (_capture is not null)
         {
-            _captureView.Row.CaptureText = _capture.KeyUp((int)e.Key, KeyboardShortcutHost.CurrentModifiers()).Message;
+            SetCaptureText(_capture.KeyUp((int)e.Key, KeyboardShortcutHost.CurrentModifiers()).Message);
+            return;
         }
-        else if (_swallowKeyUp.Count == 0)
+
+        if (KeyChord.IsModifierKey((int)e.Key))
+        {
+            ShowLayer(KeyboardShortcutHost.CurrentModifiers() & ~KeyCapture.ModifierOf((int)e.Key));
+        }
+
+        if (_swallowKeyUp.Count == 0)
         {
             ReleaseShortcuts();
         }
     }
 
+    private void ShowLayer(KeyModifiers layer)
+    {
+        Keyboard.SetLayer(layer);
+        MouseDrawing.SetLayer(layer);
+        EssentialKeyboard.SetLayer(layer);
+        EssentialMouse.SetLayer(layer);
+    }
+
     private void EndCapture()
     {
-        if (_captureView is not { } view)
+        if (_capture is null)
         {
             return;
         }
 
+        ShortcutRowView? view = _captureView;
+        BindingEditor? editor = _captureEditor;
         _capture = null;
         _captureView = null;
+        _captureEditor = null;
+        _captureAction = null;
         _captureReplacing = null;
-        view.Row.EndCapture();
+        view?.Row.EndCapture();
+        editor?.KeyCaptureEnded();
         if (_swallowKeyUp.Count == 0)
         {
             ReleaseShortcuts();
@@ -634,15 +910,23 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         _suspension = null;
     }
 
-    private void ShowChange(ShortcutChange change)
+    public void ShowChange(ShortcutChange change)
     {
+        ArgumentNullException.ThrowIfNull(change);
+        if (Editor.Visibility == Visibility.Visible && !Editor.IsCapturing)
+        {
+            // El historial se apunta después de avisar del cambio: «Deshacer» del editor se pone al día aquí.
+            Editor.Refresh();
+        }
+
         if (change.Changed)
         {
-            ShowNotice(change.Message, new NotificationAction("Deshacer", () =>
+            string message = change.Warning is { } warning ? $"{change.Message}. Ojo: {warning}" : change.Message;
+            ShowNotice(message, new NotificationAction("Deshacer", () =>
             {
                 _customizer!.Undo(change);
                 ShowNotice("Se deshizo el cambio.");
-            }));
+            }), change.Warning is null ? NotificationSeverity.Informational : NotificationSeverity.Warning);
         }
         else if (change.Message.Length > 0)
         {

@@ -191,4 +191,139 @@ public class ShortcutCustomizerTests
 
         Assert.Equal("«Acción C» ahora se lanza con «Ñ»", customizer.Assign("c", new KeyChord(0xC0)).Message);
     }
+
+    [Fact]
+    public void AssignToKey_Intercambiar_LaOtraSeQuedaConLaTeclaDeLaElegida()
+    {
+        ShortcutRegistry registry = Small();
+        var customizer = new ShortcutCustomizer(registry);
+        Assert.Equal("b", customizer.OwnerOf(K("B")));
+
+        ShortcutChange change = customizer.AssignToKey(K("B"), "a", ConflictChoice.Swap);
+
+        Assert.True(change.Changed);
+        Assert.Equal([K("B")], registry.GetKeys("a"));
+        Assert.Equal([K("A"), K("Ctrl+B")], registry.GetKeys("b"));
+        Assert.Empty(registry.FindConflicts());
+    }
+
+    [Fact]
+    public void AssignToKey_Quitar_LaOtraPierdeLaTeclaYLaElegidaConservaLasSuyas()
+    {
+        ShortcutRegistry registry = Small();
+        var customizer = new ShortcutCustomizer(registry);
+
+        customizer.AssignToKey(K("B"), "a", ConflictChoice.Take);
+
+        Assert.Equal([K("A"), K("B")], registry.GetKeys("a"));
+        Assert.Equal([K("Ctrl+B")], registry.GetKeys("b"));
+        Assert.Empty(registry.FindConflicts());
+    }
+
+    [Fact]
+    public void Assign_GrabarConQuitar_NoDevuelveLaTeclaReemplazada()
+    {
+        ShortcutRegistry registry = Small();
+        var customizer = new ShortcutCustomizer(registry);
+
+        customizer.Assign("a", K("B"), replacing: K("A"), ConflictChoice.Take);
+
+        Assert.Equal([K("B")], registry.GetKeys("a"));
+        Assert.Equal([K("Ctrl+B")], registry.GetKeys("b"));
+        Assert.Null(customizer.OwnerOf(K("A")));
+    }
+
+    [Fact]
+    public void ClearKey_DejaLaCombinacionSinAccion()
+    {
+        ShortcutRegistry registry = Small();
+        var customizer = new ShortcutCustomizer(registry);
+
+        Assert.True(customizer.ClearKey(K("Ctrl+B")).Changed);
+        Assert.False(customizer.ClearKey(K("Ctrl+B")).Changed);
+        Assert.Equal([K("B")], registry.GetKeys("b"));
+    }
+
+    [Theory]
+    [InlineData("Alt+F4")]
+    [InlineData("Ctrl+Alt+Supr")]
+    [InlineData("Ctrl+Mayús+Esc")]
+    public void AssignToKey_Reservadas_NoSeAsignan(string text)
+    {
+        ShortcutRegistry registry = Small();
+        var customizer = new ShortcutCustomizer(registry);
+
+        ShortcutChange change = customizer.AssignToKey(K(text), "c");
+
+        Assert.False(change.Changed);
+        Assert.Empty(registry.GetKeys("c"));
+    }
+
+    [Fact]
+    public void CtrlAlt_SeAsignaConAdvertenciaDeAltGr()
+    {
+        ShortcutRegistry registry = Small();
+        var customizer = new ShortcutCustomizer(registry);
+
+        ShortcutChange letter = customizer.Assign("c", K("Ctrl+Alt+Q"));
+        ShortcutChange arrow = customizer.Assign("a", K("Ctrl+Alt+→"));
+        ShortcutChange ctrl = customizer.Assign("a", K("Ctrl+Q"));
+
+        Assert.True(letter.Changed);
+        Assert.Contains("AltGr", letter.Warning, StringComparison.Ordinal);
+        Assert.Null(arrow.Warning);
+        Assert.Null(ctrl.Warning);
+    }
+
+    [Fact]
+    public void ResetKey_DevuelveSoloLasCombinacionesDeEsaTecla()
+    {
+        ShortcutRegistry registry = Small();
+        var customizer = new ShortcutCustomizer(registry);
+        customizer.AssignToKey(K("B"), "c", ConflictChoice.Take);
+        customizer.Assign("c", K("Ctrl+Mayús+C"));
+        customizer.Assign("a", K("Ctrl+A"));
+
+        ShortcutChange change = customizer.ResetKey(K("B").Key);
+
+        Assert.True(change.Changed);
+        Assert.Equal([K("B"), K("Ctrl+B")], registry.GetKeys("b"));
+        Assert.Equal([K("Ctrl+Mayús+C")], registry.GetKeys("c"));
+        Assert.Equal([K("A"), K("Ctrl+A")], registry.GetKeys("a"));
+        Assert.False(registry.IsCustomized("b"));
+        Assert.False(customizer.ResetKey(K("B").Key).Changed);
+    }
+
+    [Fact]
+    public void UndoLast_DeshaceEnOrdenInverso()
+    {
+        ShortcutRegistry registry = Small();
+        var customizer = new ShortcutCustomizer(registry);
+        customizer.Assign("c", K("X"));
+        customizer.Assign("c", K("Y"));
+
+        Assert.True(customizer.CanUndo);
+        customizer.UndoLast();
+        Assert.Equal([K("X")], registry.GetKeys("c"));
+        customizer.UndoLast();
+        Assert.Empty(registry.GetKeys("c"));
+        Assert.False(customizer.CanUndo);
+        Assert.Null(customizer.UndoLast());
+    }
+
+    [Fact]
+    public void ResetAll_TambienDevuelveElRaton()
+    {
+        ShortcutRegistry registry = Catalog();
+        var customizer = new ShortcutCustomizer(registry);
+        var x1 = new MouseChord(MouseInput.X1);
+        customizer.AssignMouse(MouseContext.Timeline, x1, ActionIds.Undo);
+
+        ShortcutChange change = customizer.ResetAll();
+
+        Assert.True(change.Changed);
+        Assert.Equal(ActionIds.PreviousFrame, registry.Mouse.Get(MouseContext.Timeline, x1));
+        customizer.Undo(change);
+        Assert.Equal(ActionIds.Undo, registry.Mouse.Get(MouseContext.Timeline, x1));
+    }
 }

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Página de atajos (D-018). Vista esencial: el teclado con los atajos básicos y su lista. Vista avanzada: estilo de
-    teclado, búsqueda por acción o por tecla, teclado dibujado, hoja rápida y los grupos en dos columnas. Cada fila
-    cambia sus teclas con un clic; si la tecla era de otra acción, se intercambian y el aviso permite deshacerlo.
+    Página de atajos (D-018). Vista esencial: el teclado y el ratón con los atajos básicos y su lista. Vista avanzada:
+    estilo, búsqueda por acción o por tecla, teclado y ratón dibujados (clic en una tecla o un botón para cambiarlo),
+    hoja rápida, exportar e importar y los grupos en dos columnas. Si una combinación era de otra acción, se pregunta si
+    intercambiarlas o quitársela, y el aviso permite deshacerlo.
 -->
 <UserControl
     x:Class="Rodaje.App.Views.Shortcuts.ShortcutsView"
@@ -55,11 +56,11 @@
 
             <StackPanel x:Name="AdvancedTools" Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="12,8,0,0" VerticalAlignment="Center">
                 <ToggleButton x:Name="KeyboardToggle" Checked="OnKeyboardToggleChanged" Unchecked="OnKeyboardToggleChanged" MinHeight="26" Padding="10,0" FontSize="{StaticResource BodyFontSize}"
-                              AutomationProperties.Name="Ver teclado"
-                              ToolTipService.ToolTip="Mostrar un teclado con lo que hace cada tecla">
+                              AutomationProperties.Name="Ver teclado y ratón"
+                              ToolTipService.ToolTip="Mostrar el teclado y el ratón con lo que hace cada tecla y botón; clic en uno para cambiarlo">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock FontFamily="{StaticResource IconFontFamily}" Text="&#xE765;" VerticalAlignment="Center" />
-                        <TextBlock Text="Ver teclado" VerticalAlignment="Center" />
+                        <TextBlock Text="Teclado y ratón" VerticalAlignment="Center" />
                     </StackPanel>
                 </ToggleButton>
                 <ToggleButton x:Name="CheatSheetToggle" Checked="OnCheatSheetToggleChanged" Unchecked="OnCheatSheetToggleChanged" MinHeight="26" Padding="10,0" FontSize="{StaticResource BodyFontSize}"
@@ -70,6 +71,10 @@
                         <TextBlock Text="Hoja rápida" VerticalAlignment="Center" />
                     </StackPanel>
                 </ToggleButton>
+                <Button Content="Exportar…" Click="OnExportClick"
+                        ToolTipService.ToolTip="Guardar tus teclas y tu ratón de todos los estilos en un archivo JSON" />
+                <Button Content="Importar…" Click="OnImportClick"
+                        ToolTipService.ToolTip="Usar las teclas y el ratón de un archivo exportado (se puede deshacer)" />
                 <Button Content="Restablecer todo" Click="OnResetAllClick"
                         ToolTipService.ToolTip="Volver a las teclas de fábrica de este estilo (se puede deshacer)" />
             </StackPanel>
@@ -100,18 +105,43 @@
                     <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
                                Text="Los atajos que más vas a usar. Para ver todas las acciones y cambiar teclas, pasa a «Avanzado»." />
                     <Border Padding="12" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="2">
-                        <local:KeyboardView x:Name="EssentialKeyboard" />
+                        <Grid x:Name="EssentialDrawings" ColumnSpacing="16" RowSpacing="12" SizeChanged="OnDrawingsSizeChanged">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <local:KeyboardView x:Name="EssentialKeyboard" />
+                            <local:MouseView x:Name="EssentialMouse" Grid.Column="1" />
+                        </Grid>
                     </Border>
                     <Grid x:Name="EssentialList" ColumnSpacing="28" SizeChanged="OnEssentialListSizeChanged" />
                 </StackPanel>
 
                 <StackPanel x:Name="AdvancedPanel" Spacing="14" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
-                               Text="Pulsa «Cambiar» (o una tecla de la fila) y después la combinación nueva. Si ya era de otra acción, se intercambian y puedes deshacerlo arriba. La barra naranja marca lo que cambiaste; cada estilo guarda sus propios cambios." />
+                               Text="Pulsa «Cambiar» (o una tecla de la fila) y después la combinación nueva, o abre «Teclado y ratón» y haz clic en una tecla o un botón. Si ya era de otra acción, eliges entre intercambiarlas o quitársela, y puedes deshacerlo. La barra naranja marca lo que cambiaste; cada estilo guarda sus propios cambios." />
 
                     <Border x:Name="KeyboardPanel" Visibility="Collapsed" Padding="12" Background="{StaticResource BarBrush}"
                             BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="2">
-                        <local:KeyboardView x:Name="Keyboard" />
+                        <StackPanel Spacing="12">
+                            <Grid x:Name="Drawings" ColumnSpacing="16" RowSpacing="12" SizeChanged="OnDrawingsSizeChanged">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <local:KeyboardView x:Name="Keyboard" />
+                                <local:MouseView x:Name="MouseDrawing" Grid.Column="1" />
+                            </Grid>
+                            <local:BindingEditor x:Name="Editor" Visibility="Collapsed" />
+                        </StackPanel>
                     </Border>
 
                     <Border x:Name="CheatSheetPanel" Visibility="Collapsed" Padding="12" Background="{StaticResource BarBrush}"

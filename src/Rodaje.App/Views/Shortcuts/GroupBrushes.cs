@@ -15,6 +15,7 @@ internal static class GroupBrushes
         ShortcutGroups.Tools => "TextClipEdgeBrush",
         ShortcutGroups.View => "KeyframeBrush",
         ShortcutGroups.File => "TextMutedBrush",
+        MouseGestures.Group => "TextBrush",
         _ => "MeterHighBrush",
     });
 
