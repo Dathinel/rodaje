@@ -391,8 +391,8 @@ internal sealed partial class ExportView : UserControl
         EstimateText.Text = (estimate.Approximate ? "≈ " : "") + ExportText.Bytes(estimate.Bytes);
         EstimateDetail.Text = $"Unos {ExportText.Duration(estimate.Time)} con {(model.Performance == ExportPerformance.Fastest ? "alto" : "bajo")} rendimiento"
             + (estimate.Approximate ? ". En calidad constante el tamaño depende de la imagen." : ".");
-        AdjustmentsText.Text = string.Join("\n", model.Adjustments);
-        AdjustmentsText.Visibility = model.Adjustments.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        RefreshStreamCopy(model);
+        ShowAdjustments(model);
         IReadOnlyList<string> problems = model.Problems;
         ProblemsText.Text = string.Join("\n", problems);
         ProblemsText.Visibility = problems.Count > 0 ? Visibility.Visible : Visibility.Collapsed;

@@ -32,6 +32,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private const int MaxDrainFrames = 64;
     private const uint D3D11BindShaderResource = 0x8;
     private const int WorstCaseReferences = 16;
+    private const int HwConfigMethodDeviceContext = 0x01; // AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX
 
     /// <summary>
     /// Superficies que admite un pool de D3D11VA (medido con NVDEC en la RTX 3050: FFmpeg lo deja en 64 y, si se retienen
@@ -75,6 +76,10 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private int _consecutiveErrors;
     private int _busy;
     private volatile bool _hardwareActive;
+
+    // El hardware rechazó el flujo en get_format: el próximo reset reabre por software con hilos (ver SelectPixelFormat).
+    private bool _softwareReopenPending;
+    private bool _forceSoftware;
     private long _seeks;
     private long _decodedFrames;
     private long _decodeErrors;
@@ -198,6 +203,14 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
                 ReopenCodec();
             }
 
+            if (_softwareReopenPending)
+            {
+                // Se reabre en el próximo ResetDecoder; forzar la búsqueda lo provoca ya.
+                _forceSoftware = true;
+                _device?.RememberHardwareRefusal(StreamKey);
+                _positionValid = false;
+            }
+
             DecodeAccuracy mode = _options.SkipNonReference ? accuracy : DecodeAccuracy.Exact;
             _approximate = mode != DecodeAccuracy.Exact;
             if (mode == DecodeAccuracy.Keyframe && _options.Keyframes?.AtOrBefore(frameIndex) is { } keyframe)
@@ -301,7 +314,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         _codec = ffmpeg.avcodec_alloc_context3(codec);
         Av.Check(ffmpeg.avcodec_parameters_to_context(_codec, stream->codecpar), "avcodec_parameters_to_context");
         _codec->pkt_timebase = _timeBase;
-        if (_options.AllowHardwareDecoding && _device is { SupportsHardwareDecoding: true })
+        if (!_forceSoftware && _options.AllowHardwareDecoding && _device is { SupportsHardwareDecoding: true } && WantsHardware(codec))
         {
             _self = GCHandle.Alloc(this);
             _codec->opaque = (void*)GCHandle.ToIntPtr(_self);
@@ -322,6 +335,41 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         if (r < 0)
         {
             throw new MediaException($"No se pudo abrir el decodificador de {Stream.Codec}: {Av.ErrorText(r)}.", r);
+        }
+    }
+
+    /// <summary>Clave del tipo de flujo para recordar los rechazos del hardware: códec, píxel y bits.</summary>
+    private string StreamKey => $"{Stream.Codec}:{Stream.PixelFormat}:{Stream.BitDepth}";
+
+    // Con D3D11VA el decodificador va con un solo hilo; si el hardware no puede con el flujo, se decide aquí y el
+    // software arranca con todos los hilos en lugar de heredar ese único hilo.
+    private bool WantsHardware(AVCodec* codec)
+    {
+        if (_device!.HardwareRefused(StreamKey))
+        {
+            return false;
+        }
+
+        HardwareDecodeVerdict verdict = HardwareDecodeSupport.Evaluate(Stream.Codec, Stream.PixelFormat, Stream.BitDepth,
+            HasD3D11Va(codec), _device.DecodeProfiles, _device.Vendor);
+        return verdict != HardwareDecodeVerdict.Unsupported;
+    }
+
+    internal static bool HasD3D11Va(AVCodec* codec)
+    {
+        for (int i = 0; ; i++)
+        {
+            AVCodecHWConfig* config = ffmpeg.avcodec_get_hw_config(codec, i);
+            if (config == null)
+            {
+                return false;
+            }
+
+            if (config->device_type == AVHWDeviceType.AV_HWDEVICE_TYPE_D3D11VA
+                && (config->methods & HwConfigMethodDeviceContext) != 0)
+            {
+                return true;
+            }
         }
     }
 
@@ -353,6 +401,10 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
             if (self is not null)
             {
                 self._hardwareActive = false;
+                if (context->hw_device_ctx != null && !self._forceSoftware)
+                {
+                    self._softwareReopenPending = true;
+                }
             }
 
             return software;
@@ -601,8 +653,9 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         }
 
         long errors = Interlocked.Read(ref _decodeErrors);
-        if (_codec == null || errors != _errorsAtLastReset || _damagedFrame)
+        if (_codec == null || errors != _errorsAtLastReset || _damagedFrame || _softwareReopenPending)
         {
+            _softwareReopenPending = false;
             ReopenCodec();
             _errorsAtLastReset = errors;
             _damagedFrame = false;

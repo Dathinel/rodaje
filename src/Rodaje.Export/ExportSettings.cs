@@ -234,6 +234,12 @@ public sealed record ExportSettings
     public bool FastStart { get; init; } = true;
 
     public ExportPerformance Performance { get; init; } = ExportPerformance.Background;
+
+    /// <summary>
+    /// Copia directa («smart render»): si el rango es un solo tramo sin cambios con el formato de la salida y cortes en
+    /// keyframes, el video se copia del original sin recodificar (<c>StreamCopyPlanner</c>).
+    /// </summary>
+    public bool SmartRender { get; init; } = true;
 }
 
 /// <summary>Qué se hace con las pistas de subtítulos al exportar video.</summary>

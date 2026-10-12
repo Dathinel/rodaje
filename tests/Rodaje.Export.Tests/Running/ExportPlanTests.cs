@@ -13,7 +13,8 @@ namespace Rodaje.Export.Tests.Running;
 /// <summary>Lo que se decide antes de exportar, sin GPU ni procesos.</summary>
 public sealed class ExportPlanTests
 {
-    private static readonly IReadOnlyList<EncoderSpec> Encoders = ExportEncoderCandidates.All;
+    // Los de un equipo NVIDIA: sin AV1 por GPU ni AMD/Intel.
+    private static readonly IReadOnlyList<EncoderSpec> Encoders = [.. ExportEncoderCandidates.All.Except(ExportEncoderCandidates.OtherGpus)];
 
     private static ExportSettings H264 { get; } = new()
     {

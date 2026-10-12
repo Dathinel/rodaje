@@ -113,7 +113,10 @@ internal sealed partial class MainWindow : Window, IShellHost
         var preview = new PreviewYield(engine, engine.SetPreviewQuality, () => settings.Current);
         _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed)), SynchronizationContext.Current)
         {
-            Concurrency = new ExportConcurrency(Environment.ProcessorCount, () => engine.DedicatedVideoMemory),
+            Concurrency = new ExportConcurrency(Environment.ProcessorCount, () => engine.DedicatedVideoMemory)
+            {
+                Profile = () => Rodaje.Media.Gpu.GpuProfileReader.Current,
+            },
             Store = options.IsAutomated ? null : new ExportQueueStore(ExportQueueStore.DefaultPath),
         };
         _modules = new ModuleManager(new ModuleManagerOptions

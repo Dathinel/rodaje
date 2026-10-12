@@ -12,6 +12,7 @@ Para quien descarga Rodaje y quiere editar. Cada página es corta y va con los m
 | [Títulos y subtítulos](titulos-y-subtitulos.md) | Títulos sobre el visor, subtítulos automáticos, por palabra, karaoke, traducción |
 | [IA local](ia-local.md) | Qué módulo hace qué, cómo se instala, GPU y VRAM |
 | [Exportar](exportar.md) | Preajustes, Avanzado, varias versiones, la cola, rendimiento, verificación |
+| [Rendimiento](rendimiento.md) | Qué esperar con NVIDIA, AMD, Intel y sin GPU: decodificación, proxies, exportación y copia directa |
 | [Complementos](complementos.md) | Instalar, actualizar, desinstalar y crear los tuyos |
 | [Atajos](atajos.md) | Teclado y ratón en los tres estilos, y cómo cambiarlos |
 | [Preguntas frecuentes y solución de problemas](solucion-de-problemas.md) | La app no abre, un formato no se decodifica, la exportación falla, dónde están los registros, cómo informar |

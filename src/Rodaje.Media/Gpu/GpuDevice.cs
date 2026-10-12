@@ -30,7 +30,8 @@ public sealed unsafe class GpuDevice : IDisposable
         _context = context;
         HasVideoSupport = videoSupport;
         EnableMultithreadProtection();
-        (AdapterName, DedicatedVideoMemory) = ReadAdapter();
+        (AdapterName, DedicatedVideoMemory, VendorId, DeviceId) = ReadAdapter();
+        DecodeProfiles = videoSupport ? GpuProfileReader.ReadDecodeProfiles(device) : HardwareDecodeProfiles.None;
         FeatureLevel = FormatFeatureLevel(device->GetFeatureLevel());
         SupportsNv12Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_NV12);
         SupportsP010Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_P010);
@@ -51,6 +52,15 @@ public sealed unsafe class GpuDevice : IDisposable
     public bool SupportsP010Textures { get; }
 
     public string AdapterName { get; }
+
+    public uint VendorId { get; }
+
+    public uint DeviceId { get; }
+
+    public GpuVendor Vendor => GpuVendors.FromPciId(VendorId);
+
+    /// <summary>Perfiles de D3D11VA que declara el controlador de este dispositivo (formato de salida comprobado).</summary>
+    public HardwareDecodeProfiles DecodeProfiles { get; }
 
     public string FeatureLevel { get; }
 
@@ -365,21 +375,31 @@ public sealed unsafe class GpuDevice : IDisposable
         return hr.SUCCEEDED ? adapter : null;
     }
 
-    private (string Name, long DedicatedVideoMemory) ReadAdapter()
+    private (string Name, long DedicatedVideoMemory, uint VendorId, uint DeviceId) ReadAdapter()
     {
         IDXGIAdapter* adapter = GetAdapter();
         if (adapter == null)
         {
-            return ("desconocido", 0);
+            return ("desconocido", 0, 0, 0);
         }
 
         DXGI_ADAPTER_DESC desc;
         HRESULT hr = adapter->GetDesc(&desc);
         adapter->Release();
         return hr.SUCCEEDED
-            ? (new string((char*)&desc.Description).TrimEnd('\0'), (long)desc.DedicatedVideoMemory)
-            : ("desconocido", 0);
+            ? (new string((char*)&desc.Description).TrimEnd('\0'), (long)desc.DedicatedVideoMemory, desc.VendorId, desc.DeviceId)
+            : ("desconocido", 0, 0, 0);
     }
+
+    /// <summary>
+    /// Flujos que el hardware rechazó al abrirlos (FFmpeg volvió a software en <c>get_format</c>): los siguientes del mismo
+    /// tipo se abren directamente por software con todos los hilos.
+    /// </summary>
+    internal bool HardwareRefused(string streamKey) => _refused.ContainsKey(streamKey);
+
+    internal void RememberHardwareRefusal(string streamKey) => _refused.TryAdd(streamKey, 0);
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _refused = new(StringComparer.Ordinal);
 
     // Receta del sondeo: FFmpeg recibe NUESTRO dispositivo, así sus cuadros son texturas que el
     // renderizador puede muestrear sin copiarlas entre dispositivos.

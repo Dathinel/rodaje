@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Rodaje.Media.Export;
+using Rodaje.Media.Gpu;
 using Rodaje.Media.Proxies;
 
 namespace Rodaje.Export.Encoders;
@@ -21,15 +22,23 @@ public sealed class ProbedEncoderSource : IExportEncoderSource
 
     private readonly FfmpegExecutable _ffmpeg;
     private readonly IReadOnlyList<EncoderSpec> _candidates;
+    private readonly GpuProfile? _profile;
     private readonly Lock _gate = new();
     private Task<IReadOnlyList<EncoderSpec>>? _probe;
 
-    public ProbedEncoderSource(FfmpegExecutable ffmpeg, IReadOnlyList<EncoderSpec> candidates)
+    /// <param name="ffmpeg">El <c>ffmpeg.exe</c> verificado.</param>
+    /// <param name="candidates">Los que se prueban, en orden de preferencia.</param>
+    /// <param name="profile">
+    /// Perfil del equipo: los codificadores de GPU que no pueden existir aquí no se prueban, y los de la GPU principal van
+    /// delante de los de otra GPU. Sin él se prueba todo en el orden dado.
+    /// </param>
+    public ProbedEncoderSource(FfmpegExecutable ffmpeg, IReadOnlyList<EncoderSpec> candidates, GpuProfile? profile = null)
     {
         ArgumentNullException.ThrowIfNull(ffmpeg);
         ArgumentNullException.ThrowIfNull(candidates);
         _ffmpeg = ffmpeg;
         _candidates = candidates;
+        _profile = profile;
     }
 
     /// <summary>Motivo por el que falló cada candidato descartado (tras <see cref="GetAsync"/>).</summary>
@@ -80,14 +89,14 @@ public sealed class ProbedEncoderSource : IExportEncoderSource
         var works = new bool[_candidates.Count];
         Parallel.For(0, _candidates.Count, new ParallelOptions { MaxDegreeOfParallelism = 4 }, i =>
         {
-            string? problem = Probe(_candidates[i]);
+            string? problem = _profile?.SkipReason(_candidates[i]) ?? Probe(_candidates[i]);
             works[i] = problem is null;
             if (problem is not null)
             {
                 _rejected[_candidates[i].Id] = problem;
             }
         });
-        return [.. _candidates.Where((_, i) => works[i])];
+        return ExportEncoderChooser.PreferVendor(_candidates.Where((_, i) => works[i]), _profile?.PreferredEncoderVendor);
     }
 
     private string? Probe(EncoderSpec encoder)

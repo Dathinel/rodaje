@@ -62,13 +62,17 @@ El botón **«Varias versiones...»** del pie abre «Exportar varias versiones»
 
 Panel derecho › pestaña **Trabajos** (o Ver › Trabajos), sección «Exportaciones»:
 
-- Una a la vez; dos si el equipo tiene 8 hilos y 6 GB de VRAM y ninguna pide alto rendimiento. Las demás esperan: «En cola · N.º», con «Empezar antes» y «Empezar después».
+- Una a la vez; dos si el equipo tiene 8 hilos y 6 GB de VRAM, o si una codifica en la GPU y la otra en la CPU (por ejemplo H.264 y un maestro ProRes, con 6 hilos y 3 GB), y ninguna pide alto rendimiento. Las demás esperan: «En cola · N.º», con «Empezar antes» y «Empezar después».
 - Cada trabajo muestra la miniatura del último cuadro, el estado («Preparando», «Midiendo la sonoridad», «Mezclando el audio», «Exportando», «Pasada 1 de 2», «Cerrando el archivo»), el porcentaje, los fps y el tiempo que queda. La X cancela.
 - **Pausar la cola**: lo que está en marcha termina, pero no empieza nada más.
 - Al terminar: «Abrir carpeta» y «Reproducir». La barra de avisos también lo anuncia.
 - Si falla: el motivo en español y qué hacer (reintentar, exportar sin lo que falta, elegir otra carpeta…). Ver [Solución de problemas](solucion-de-problemas.md#la-exportación-falla).
 
 La cola se guarda en disco. Si cierras Rodaje con exportaciones pendientes, al abrirlo pregunta «Exportaciones sin terminar»: **Reanudar** (la que estaba a medias empieza de nuevo) o **Descartar**.
+
+## Copia directa
+
+Si lo que exportas es un tramo de un solo clip sin cambios (sin efectos, transiciones, velocidad, títulos ni otras capas) y el archivo ya tiene el formato de la salida (mismo códec, tamaño, tasa, bits y color), Rodaje copia el video tal cual en lugar de recodificarlo: misma calidad que el original y segundos en vez de minutos. Hace falta que los dos cortes caigan en cuadros clave del original. El lado del diálogo dice si se copia o por qué se recodifica («el tramo empieza en el cuadro 61, que no es un keyframe…»). No se copia si pides una tasa de bits, un tamaño de archivo, un perfil o un GOP concretos. El audio siempre sale de la mezcla. Qué esperar de cada equipo: [Rendimiento](rendimiento.md).
 
 ## Qué se comprueba al terminar
 

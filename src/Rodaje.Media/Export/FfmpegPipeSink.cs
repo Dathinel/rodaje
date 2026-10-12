@@ -299,7 +299,7 @@ public sealed class FfmpegPipeSink : IExportSink
 
     private ExportSinkResult Finish(ExportSinkRequest request, Process process, CancellationToken cancellationToken)
     {
-        if (request.HasVideo && _framesWritten != request.FrameCount)
+        if (request.HasVideo && request.VideoCopy is null && _framesWritten != request.FrameCount)
         {
             Abort();
             throw new ExportException(ExportErrorCode.EncoderFailed,
@@ -1232,7 +1232,12 @@ internal static class FfmpegPipeArguments
         int audioInput = -1;
         int metadataInput = -1;
         int thumbnailInput = -1;
-        if (request.HasVideo)
+        if (request.VideoCopy is { } copy)
+        {
+            args.AddRange(["-ss", copy.SeekSeconds.ToString("0.######", CultureInfo.InvariantCulture), "-i", copy.SourcePath]);
+            videoInput = inputs++;
+        }
+        else if (request.HasVideo)
         {
             ExportVideoFormat video = request.Video!;
             args.AddRange([
@@ -1280,7 +1285,9 @@ internal static class FfmpegPipeArguments
 
         if (videoInput >= 0)
         {
-            args.AddRange(["-map", $"{videoInput}:v:0"]);
+            args.AddRange(["-map", request.VideoCopy is { } copied
+                ? string.Create(CultureInfo.InvariantCulture, $"{videoInput}:{copied.StreamIndex}")
+                : $"{videoInput}:v:0"]);
         }
 
         if (audioInput >= 0)
@@ -1300,7 +1307,19 @@ internal static class FfmpegPipeArguments
 
         args.AddRange(["-map_metadata", metadataInput >= 0 ? metadataInput.ToString(CultureInfo.InvariantCulture) : "-1"]);
         args.AddRange(["-map_chapters", metadataInput >= 0 ? metadataInput.ToString(CultureInfo.InvariantCulture) : "-1"]);
-        if (request.HasVideo)
+        if (request.VideoCopy is { } streamCopy)
+        {
+            // Sin -copypriorss el keyframe, que queda a un microsegundo antes de -ss, se descartaría.
+            args.AddRange(["-c:v:0", "copy", "-copypriorss", "1"]);
+            if (streamCopy.BitstreamFilters.Count > 0)
+            {
+                args.AddRange(["-bsf:v:0", string.Join(',', streamCopy.BitstreamFilters)]);
+            }
+
+            args.AddRange(["-frames:v:0", request.FrameCount.ToString(CultureInfo.InvariantCulture)]);
+            args.AddRange(request.VideoArguments);
+        }
+        else if (request.HasVideo)
         {
             ExportVideoFormat video = request.Video!;
             args.AddRange(["-c:v:0", request.VideoEncoder!.Id]);

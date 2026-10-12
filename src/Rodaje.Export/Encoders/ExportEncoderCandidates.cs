@@ -51,7 +51,7 @@ public static class ExportEncoderCandidates
         PixelFormats = [ExportPixelFormat.Yuv420P, ExportPixelFormat.Yuv420P10],
         Profiles = [new("main", "Main")], RateControls = [RateControlMode.ConstantQuality, RateControlMode.Vbr, RateControlMode.Abr],
         Quality = new("CRF", "-crf", 1, 63, 35), SupportsTwoPass = true,
-        SpeedPresets = ["12", "10", "8", "6", "4"], DefaultSpeedPreset = "8",
+        SpeedPresets = ["12", "10", "9", "8", "6", "4"], DefaultSpeedPreset = "8",
     };
 
     public static EncoderSpec Vp9 { get; } = new()
@@ -135,9 +135,16 @@ public static class ExportEncoderCandidates
     public static EncoderSpec Pcm { get; } = Audio("pcm_s24le", ExportCodec.Pcm, EncoderVendor.Software, EncoderLicense.FfmpegLgpl,
         [RateControlMode.Lossless], AudioRates, 6);
 
+    /// <summary>
+    /// AV1 por NVENC y los de AMD (AMF) e Intel (Quick Sync), tal como los describe el catálogo. El perfil del equipo
+    /// (<see cref="Rodaje.Media.Gpu.GpuProfile.SkipReason"/>) evita probar los que no pueden existir en esta máquina.
+    /// </summary>
+    public static IReadOnlyList<EncoderSpec> OtherGpus { get; } =
+        [.. new[] { "av1_nvenc", "h264_amf", "hevc_amf", "av1_amf", "h264_qsv", "hevc_qsv", "av1_qsv" }.Select(id => ExportEncoderCatalog.Find(id)!)];
+
     /// <summary>En orden de preferencia: hardware primero.</summary>
     public static IReadOnlyList<EncoderSpec> All { get; } =
-        [H264Nvenc, HevcNvenc, H264Mf, SvtAv1, Vp9, ProRes, DnxHr, Ffv1, Gif, Png, AacMf, Aac, Opus, Mp3, Flac, Pcm];
+        [H264Nvenc, HevcNvenc, .. OtherGpus, H264Mf, SvtAv1, Vp9, ProRes, DnxHr, Ffv1, Gif, Png, AacMf, Aac, Opus, Mp3, Flac, Pcm];
 
     private static EncoderSpec Audio(string id, ExportCodec codec, EncoderVendor vendor, EncoderLicense license,
         RateControlMode[] modes, int[] rates, int channels) => new()

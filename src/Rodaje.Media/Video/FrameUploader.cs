@@ -8,7 +8,8 @@ namespace Rodaje.Media.Video;
 /// <summary>Sube un cuadro decodificado en la CPU a una textura NV12 o P010, como las de D3D11VA.</summary>
 /// <remarks>
 /// Así el renderizador tiene un solo camino de muestreo. La textura se redondea a dimensiones pares
-/// (requisito de NV12) repitiendo la última columna o fila. Otros formatos pasan antes por swscale.
+/// (requisito de NV12) repitiendo la última columna o fila. 4:2:0 y 4:2:2 planos se empaquetan directamente, en
+/// paralelo por bandas; los demás formatos pasan antes por swscale.
 /// </remarks>
 internal sealed unsafe class FrameUploader : IDisposable
 {
@@ -24,8 +25,7 @@ internal sealed unsafe class FrameUploader : IDisposable
         var format = (AVPixelFormat)frame->format;
         bool tenBit = TargetIsTenBit(frame);
         AVFrame* source = frame;
-        if (format is not (AVPixelFormat.AV_PIX_FMT_YUV420P or AVPixelFormat.AV_PIX_FMT_YUVJ420P or AVPixelFormat.AV_PIX_FMT_NV12
-            or AVPixelFormat.AV_PIX_FMT_YUV420P10LE or AVPixelFormat.AV_PIX_FMT_P010LE))
+        if (!PacksDirectly(format))
         {
             source = Convert(frame, tenBit ? AVPixelFormat.AV_PIX_FMT_P010LE : AVPixelFormat.AV_PIX_FMT_NV12);
             color = ConvertedColor(format, color);
@@ -82,77 +82,159 @@ internal sealed unsafe class FrameUploader : IDisposable
         return desc != null && desc->comp[0].depth > 8;
     }
 
+    // Formatos que se empaquetan sin pasar por swscale: 4:2:0 y 4:2:2 planos (el 4:2:2 promedia dos filas de croma).
+    private static bool PacksDirectly(AVPixelFormat format) => format is AVPixelFormat.AV_PIX_FMT_YUV420P or AVPixelFormat.AV_PIX_FMT_YUVJ420P
+        or AVPixelFormat.AV_PIX_FMT_NV12 or AVPixelFormat.AV_PIX_FMT_YUV420P10LE or AVPixelFormat.AV_PIX_FMT_P010LE
+        or AVPixelFormat.AV_PIX_FMT_YUV422P or AVPixelFormat.AV_PIX_FMT_YUV422P10LE;
+
+    // Por bandas de filas en paralelo: en 4K un solo hilo tardaba más que decodificar (ProRes 4K: 6 fps con la subida
+    // frente a 45 sin ella, medido en la RTX 3050 con 16 hilos).
+    private static void ForBands(int rows, Action<int, int> body)
+    {
+        int bands = Math.Clamp(rows / 128, 1, Environment.ProcessorCount);
+        if (bands == 1)
+        {
+            body(0, rows);
+            return;
+        }
+
+        int step = (rows + bands - 1) / bands;
+        Parallel.For(0, bands, band => body(band * step, Math.Min(rows, (band + 1) * step)));
+    }
+
     private static void PackNv12(AVFrame* f, byte* dst, int evenWidth, int evenHeight)
     {
         int w = f->width;
         int h = f->height;
-        for (int y = 0; y < evenHeight; y++)
+        var format = (AVPixelFormat)f->format;
+        bool interleaved = format == AVPixelFormat.AV_PIX_FMT_NV12;
+        bool chroma422 = format == AVPixelFormat.AV_PIX_FMT_YUV422P;
+        int chromaRows = chroma422 ? h : (h + 1) / 2;
+        nint frame = (nint)f;
+        nint target = (nint)dst;
+        ForBands(evenHeight, (from, to) =>
         {
-            byte* src = f->data[0] + (long)Math.Min(y, h - 1) * f->linesize[0];
-            byte* row = dst + (long)y * evenWidth;
-            new ReadOnlySpan<byte>(src, w).CopyTo(new Span<byte>(row, w));
-            if (evenWidth > w)
+            var source = (AVFrame*)frame;
+            byte* destination = (byte*)target;
+            for (int y = from; y < to; y++)
             {
-                row[w] = src[w - 1];
-            }
-        }
-
-        byte* uv = dst + (long)evenWidth * evenHeight;
-        int chromaWidth = evenWidth / 2;
-        bool interleaved = (AVPixelFormat)f->format == AVPixelFormat.AV_PIX_FMT_NV12;
-        for (int y = 0; y < evenHeight / 2; y++)
-        {
-            byte* row = uv + (long)y * evenWidth;
-            if (interleaved)
-            {
-                new ReadOnlySpan<byte>(f->data[1] + (long)y * f->linesize[1], evenWidth).CopyTo(new Span<byte>(row, evenWidth));
-                continue;
+                byte* src = source->data[0] + (long)Math.Min(y, h - 1) * source->linesize[0];
+                byte* row = destination + (long)y * evenWidth;
+                new ReadOnlySpan<byte>(src, w).CopyTo(new Span<byte>(row, w));
+                if (evenWidth > w)
+                {
+                    row[w] = src[w - 1];
+                }
             }
 
-            byte* u = f->data[1] + (long)y * f->linesize[1];
-            byte* v = f->data[2] + (long)y * f->linesize[2];
-            for (int x = 0; x < chromaWidth; x++)
+            byte* uv = destination + (long)evenWidth * evenHeight;
+            int chromaWidth = evenWidth / 2;
+            for (int y = (from + 1) / 2; y < (to + 1) / 2 && y < evenHeight / 2; y++)
             {
-                row[2 * x] = u[x];
-                row[(2 * x) + 1] = v[x];
+                byte* row = uv + (long)y * evenWidth;
+                if (interleaved)
+                {
+                    new ReadOnlySpan<byte>(source->data[1] + (long)y * source->linesize[1], evenWidth).CopyTo(new Span<byte>(row, evenWidth));
+                    continue;
+                }
+
+                (int a, int b) = ChromaRows(y, chroma422, chromaRows);
+                byte* ua = source->data[1] + (long)a * source->linesize[1];
+                byte* ub = source->data[1] + (long)b * source->linesize[1];
+                byte* va = source->data[2] + (long)a * source->linesize[2];
+                byte* vb = source->data[2] + (long)b * source->linesize[2];
+                var pairs = (ushort*)row;
+                for (int x = 0; x < chromaWidth; x++)
+                {
+                    int u = (ua[x] + ub[x] + 1) >> 1;
+                    int v = (va[x] + vb[x] + 1) >> 1;
+                    pairs[x] = (ushort)(u | (v << 8));
+                }
             }
-        }
+        });
     }
 
     private static void PackP010(AVFrame* f, ushort* dst, int evenWidth, int evenHeight)
     {
         int w = f->width;
         int h = f->height;
-        bool alreadyHigh = (AVPixelFormat)f->format == AVPixelFormat.AV_PIX_FMT_P010LE;
+        var format = (AVPixelFormat)f->format;
+        bool alreadyHigh = format == AVPixelFormat.AV_PIX_FMT_P010LE;
+        bool chroma422 = format == AVPixelFormat.AV_PIX_FMT_YUV422P10LE;
+        int chromaRows = chroma422 ? h : (h + 1) / 2;
         int shift = alreadyHigh ? 0 : 6;
-        for (int y = 0; y < evenHeight; y++)
+        nint frame = (nint)f;
+        nint target = (nint)dst;
+        ForBands(evenHeight, (from, to) =>
         {
-            var src = (ushort*)(f->data[0] + (long)Math.Min(y, h - 1) * f->linesize[0]);
-            ushort* row = dst + (long)y * evenWidth;
-            for (int x = 0; x < evenWidth; x++)
+            var source = (AVFrame*)frame;
+            var destination = (ushort*)target;
+            for (int y = from; y < to; y++)
             {
-                row[x] = (ushort)(src[Math.Min(x, w - 1)] << shift);
+                var src = (ushort*)(source->data[0] + (long)Math.Min(y, h - 1) * source->linesize[0]);
+                ushort* row = destination + (long)y * evenWidth;
+                ShiftRow(src, row, w, shift);
+                if (evenWidth > w)
+                {
+                    row[w] = row[w - 1];
+                }
+            }
+
+            ushort* uv = destination + (long)evenWidth * evenHeight;
+            int chromaWidth = evenWidth / 2;
+            for (int y = (from + 1) / 2; y < (to + 1) / 2 && y < evenHeight / 2; y++)
+            {
+                ushort* row = uv + (long)y * evenWidth;
+                if (alreadyHigh)
+                {
+                    new ReadOnlySpan<ushort>(source->data[1] + (long)y * source->linesize[1], evenWidth).CopyTo(new Span<ushort>(row, evenWidth));
+                    continue;
+                }
+
+                (int a, int b) = ChromaRows(y, chroma422, chromaRows);
+                var ua = (ushort*)(source->data[1] + (long)a * source->linesize[1]);
+                var ub = (ushort*)(source->data[1] + (long)b * source->linesize[1]);
+                var va = (ushort*)(source->data[2] + (long)a * source->linesize[2]);
+                var vb = (ushort*)(source->data[2] + (long)b * source->linesize[2]);
+                var pairs = (uint*)row;
+                for (int x = 0; x < chromaWidth; x++)
+                {
+                    uint u = (uint)((ua[x] + ub[x] + 1) >> 1) << 6;
+                    uint v = (uint)((va[x] + vb[x] + 1) >> 1) << 6;
+                    pairs[x] = u | (v << 16);
+                }
+            }
+        });
+    }
+
+    // Fila y de croma 4:2:0 → filas de origen: la misma dos veces (4:2:0) o las dos que cubre (4:2:2), sin salirse.
+    private static (int A, int B) ChromaRows(int y, bool chroma422, int chromaRows) => chroma422
+        ? (Math.Min(2 * y, chromaRows - 1), Math.Min((2 * y) + 1, chromaRows - 1))
+        : (Math.Min(y, chromaRows - 1), Math.Min(y, chromaRows - 1));
+
+    private static void ShiftRow(ushort* src, ushort* dst, int width, int shift)
+    {
+        var source = new ReadOnlySpan<ushort>(src, width);
+        var target = new Span<ushort>(dst, width);
+        if (shift == 0)
+        {
+            source.CopyTo(target);
+            return;
+        }
+
+        int x = 0;
+        if (System.Numerics.Vector.IsHardwareAccelerated)
+        {
+            int lanes = System.Numerics.Vector<ushort>.Count;
+            for (; x <= width - lanes; x += lanes)
+            {
+                System.Numerics.Vector.ShiftLeft(new System.Numerics.Vector<ushort>(source[x..]), shift).CopyTo(target[x..]);
             }
         }
 
-        ushort* uv = dst + (long)evenWidth * evenHeight;
-        int chromaWidth = evenWidth / 2;
-        for (int y = 0; y < evenHeight / 2; y++)
+        for (; x < width; x++)
         {
-            ushort* row = uv + (long)y * evenWidth;
-            if (alreadyHigh)
-            {
-                new ReadOnlySpan<ushort>(f->data[1] + (long)y * f->linesize[1], evenWidth).CopyTo(new Span<ushort>(row, evenWidth));
-                continue;
-            }
-
-            var u = (ushort*)(f->data[1] + (long)y * f->linesize[1]);
-            var v = (ushort*)(f->data[2] + (long)y * f->linesize[2]);
-            for (int x = 0; x < chromaWidth; x++)
-            {
-                row[2 * x] = (ushort)(u[x] << 6);
-                row[(2 * x) + 1] = (ushort)(v[x] << 6);
-            }
+            target[x] = (ushort)(source[x] << shift);
         }
     }
 
