@@ -67,7 +67,7 @@ public sealed class FfmpegPipeSink : IExportSink
     private readonly StringBuilder _stderr = new();
     private readonly List<string> _temporaries = [];
 
-    private Process? _process;
+    private RunningProcess? _running;
     private Stream? _pipe;
     private byte[]? _buffer;
     private int _buffered;
@@ -80,6 +80,7 @@ public sealed class FfmpegPipeSink : IExportSink
     private volatile bool _aborted;
     private bool _disposed;
     private bool _completed;
+    private bool _committing;
     private CancellationToken _registeredToken;
     private CancellationTokenRegistration _registration;
     private long _nextDiskCheck;
@@ -106,11 +107,14 @@ public sealed class FfmpegPipeSink : IExportSink
     /// <summary>Proceso de la pasada actual, o <c>null</c>; para comprobar que no queda vivo.</summary>
     internal int? ProcessId { get; private set; }
 
+    /// <summary>Solo para las pruebas: corre en <see cref="Complete"/> justo antes de esperar a que ffmpeg.exe cierre el contenedor.</summary>
+    internal Action? BeforeCompleteWaits { get; set; }
+
     public void Start(ExportSinkRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_process is not null)
+        if (_running is not null)
         {
             throw new InvalidOperationException("El sink ya tiene una pasada en marcha.");
         }
@@ -125,8 +129,13 @@ public sealed class FfmpegPipeSink : IExportSink
         }
 
         _request = request;
-        _aborted = false;
-        _completed = false;
+        lock (_gate)
+        {
+            _aborted = false;
+            _completed = false;
+            _committing = false;
+        }
+
         _framesWritten = 0;
         _framesEncoded = 0;
         _progressEnded = false;
@@ -211,9 +220,23 @@ public sealed class FfmpegPipeSink : IExportSink
     public ExportSinkResult Complete(CancellationToken cancellationToken)
     {
         ExportSinkRequest request = _request ?? throw new InvalidOperationException("Falta Start.");
-        Process process = _process ?? throw new InvalidOperationException("Falta Start.");
         Register(cancellationToken);
-        ThrowIfStopped(cancellationToken);
+        // Con el proceso prestado, un Abort desde otro hilo lo mata pero no lo libera mientras se espera aquí.
+        RunningProcess? running = Lease();
+        try
+        {
+            ThrowIfStopped(cancellationToken);
+            Process process = running?.Process ?? throw new InvalidOperationException("Falta Start.");
+            return Finish(request, process, cancellationToken);
+        }
+        finally
+        {
+            Return(running);
+        }
+    }
+
+    private ExportSinkResult Finish(ExportSinkRequest request, Process process, CancellationToken cancellationToken)
+    {
         if (request.HasVideo && _framesWritten != request.FrameCount)
         {
             Abort();
@@ -230,7 +253,13 @@ public sealed class FfmpegPipeSink : IExportSink
         {
             throw Failure(ex, cancellationToken);
         }
+        catch (ObjectDisposedException ex)
+        {
+            // Un Abort desde otro hilo ya cerró la tubería.
+            throw Failure(ex, cancellationToken);
+        }
 
+        BeforeCompleteWaits?.Invoke();
         while (!process.WaitForExit(100))
         {
             ThrowIfStopped(cancellationToken);
@@ -253,22 +282,51 @@ public sealed class FfmpegPipeSink : IExportSink
             throw incomplete;
         }
 
-        ExportSinkResult result;
-        string output = Path.GetFullPath(request.OutputPath);
-        if (request.IsAnalysisPass)
+        // Punto sin vuelta atrás: desde aquí Abort no borra nada y el archivo se entrega. Una cancelación que llegue
+        // antes gana; una que llegue durante el renombrado llega tarde y la exportación termina bien.
+        bool commit;
+        lock (_gate)
         {
-            result = new ExportSinkResult(request.PassLogPath ?? "", 0, _framesWritten);
-        }
-        else
-        {
-            long bytes = ExportOutputGuard.Commit(_temporaryOutput!, output, request.Container);
-            result = new ExportSinkResult(output, bytes, _framesWritten);
+            commit = !_aborted && !cancellationToken.IsCancellationRequested;
+            _committing = commit;
         }
 
-        DeleteTemporaries(keepPassLog: request.IsAnalysisPass);
+        if (!commit)
+        {
+            throw Canceled(null, cancellationToken);
+        }
+
+        ExportSinkResult result;
+        try
+        {
+            string output = Path.GetFullPath(request.OutputPath);
+            if (request.IsAnalysisPass)
+            {
+                result = new ExportSinkResult(request.PassLogPath ?? "", 0, _framesWritten);
+            }
+            else
+            {
+                long bytes = ExportOutputGuard.Commit(_temporaryOutput!, output, request.Container);
+                result = new ExportSinkResult(output, bytes, _framesWritten);
+            }
+
+            DeleteTemporaries(keepPassLog: request.IsAnalysisPass);
+        }
+        catch
+        {
+            lock (_gate)
+            {
+                _committing = false;
+            }
+
+            Abort();
+            throw;
+        }
+
         lock (_gate)
         {
             _completed = true;
+            _committing = false;
             ReleaseProcess();
         }
 
@@ -280,15 +338,15 @@ public sealed class FfmpegPipeSink : IExportSink
     {
         lock (_gate)
         {
-            if (_aborted || _completed)
+            if (_aborted || _completed || _committing)
             {
                 return;
             }
 
             _aborted = true;
-            if (_process is { } process)
+            if (_running is { } running)
             {
-                Kill(process);
+                Kill(running.Process);
             }
 
             try
@@ -435,7 +493,7 @@ public sealed class FfmpegPipeSink : IExportSink
         process.BeginErrorReadLine();
         lock (_gate)
         {
-            _process = process;
+            _running = new RunningProcess(process);
             _stdoutClosed = stdoutClosed;
             ProcessId = process.Id;
             _pipe = process.StandardInput.BaseStream;
@@ -511,11 +569,18 @@ public sealed class FfmpegPipeSink : IExportSink
 
     private void ThrowIfStopped(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (_aborted)
+        if (cancellationToken.IsCancellationRequested || _aborted)
         {
-            throw new OperationCanceledException("La exportación se canceló.");
+            throw Canceled(null, cancellationToken);
         }
+    }
+
+    // La cancelación sale siempre como OperationCanceledException, y después de que Abort haya matado a ffmpeg.exe y
+    // borrado los temporales (si otro hilo está abortando, Abort espera a que termine).
+    private OperationCanceledException Canceled(Exception? inner, CancellationToken cancellationToken)
+    {
+        Abort();
+        return new OperationCanceledException("La exportación se canceló.", inner, cancellationToken);
     }
 
     // ffmpeg murió o cerró la tubería: cancelación si fue a propósito; si no, su error traducido.
@@ -523,16 +588,31 @@ public sealed class FfmpegPipeSink : IExportSink
     {
         if (cancellationToken.IsCancellationRequested || _aborted)
         {
-            Abort();
-            return new OperationCanceledException("La exportación se canceló.", inner, cancellationToken);
+            return Canceled(inner, cancellationToken);
         }
 
-        Process? process = _process;
         int exitCode = -1;
-        if (process is not null && process.WaitForExit(TimeSpan.FromSeconds(5)))
+        RunningProcess? running = Lease();
+        try
         {
-            process.WaitForExit();
-            exitCode = process.ExitCode;
+            if (running?.Process is { } process && process.WaitForExit(TimeSpan.FromSeconds(5)))
+            {
+                process.WaitForExit();
+                exitCode = process.ExitCode;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        finally
+        {
+            Return(running);
+        }
+
+        if (_aborted)
+        {
+            // Un Abort desde otro hilo llegó mientras se esperaba el código de salida.
+            return Canceled(inner, cancellationToken);
         }
 
         string log;
@@ -605,12 +685,51 @@ public sealed class FfmpegPipeSink : IExportSink
         }
     }
 
+    // Con _gate tomado. El Process se libera cuando nadie lo tiene prestado (Complete, Failure o una limpieza pendiente).
     private void ReleaseProcess()
     {
-        _process?.Dispose();
-        _process = null;
+        if (_running is { } running)
+        {
+            running.Released = true;
+            if (running.Users == 0)
+            {
+                running.Process.Dispose();
+            }
+        }
+
+        _running = null;
         _pipe = null;
         ProcessId = null;
+    }
+
+    private RunningProcess? Lease()
+    {
+        lock (_gate)
+        {
+            if (_running is { } running)
+            {
+                running.Users++;
+            }
+
+            return _running;
+        }
+    }
+
+    private void Return(RunningProcess? running)
+    {
+        if (running is null)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            running.Users--;
+            if (running.Released && running.Users == 0)
+            {
+                running.Process.Dispose();
+            }
+        }
     }
 
     // Matar no es instantáneo: Windows termina el proceso cuando cada uno de sus hilos llega a ejecutar su salida. Con
@@ -649,6 +768,16 @@ public sealed class FfmpegPipeSink : IExportSink
         catch (System.ComponentModel.Win32Exception)
         {
         }
+    }
+
+    /// <summary>El <c>ffmpeg.exe</c> de una pasada y cuántos lo usan; los campos se tocan con <c>_gate</c> tomado.</summary>
+    private sealed class RunningProcess(Process process)
+    {
+        public Process Process { get; } = process;
+
+        public int Users { get; set; }
+
+        public bool Released { get; set; }
     }
 }
 
