@@ -40,7 +40,18 @@ Ninguna depende de los tiempos del runner.
 
 ## Pruebas omitidas
 
-No se omitió ni se desactivó ninguna prueba. En Linux, las de `Rodaje.Media.Tests` que necesitan ffmpeg.exe (`ProxyFact`) se saltan igual que antes. `Rodaje.Media.Tests` compila en Linux con `-p:EnableWindowsTargeting=true`, sin advertencias.
+No se omitió ni se desactivó ninguna prueba a propósito. Las cuatro pruebas nuevas son `ProxyFact`, así que se saltan donde no hay ffmpeg.exe:
+
+- **En la CI de Windows también se saltan.** El runner no tiene ffmpeg.exe, igual que pasa con el resto de las pruebas del sink. En `Rodaje.Media.Tests` las omitidas pasan de 64 a 68. Por eso **hay que correrlas en el PC de Daniel**.
+- **En Linux no se ejecutan.** `Rodaje.Media.Tests` compila con `-p:EnableWindowsTargeting=true`, sin advertencias.
+
+## Estado de la CI (run 38230961273, commit `25fae27`)
+
+- **Linux:** en verde.
+- **Windows:** en rojo, por dos pruebas de `Rodaje.App.Tests` que no tienen relación con esta tarea (esta rama no toca `src/Rodaje.App`):
+  - `CurrentCultureNumbersTests.LaApp_NoFormateaNumerosConLaCulturaDelHilo`: main también está en rojo por `Views/Translate/TranslateDialog.cs:141`, y lo arregla el PR #50.
+  - `AutosaveRecoveryServiceTests.Recuperar_DobleClicEnElBotonDelAviso_RecuperaUnaSolaVez` (19 s): parece depender de los tiempos del runner.
+- **El resto de Windows pasa:** Media 456, con 68 omitidas; Export 137, con 37 omitidas; Render, Playback y los módulos, todos en verde.
 
 ## Decisiones
 
