@@ -100,6 +100,7 @@ internal sealed partial class PlayerEngine
         compositor.CompareSplit = split > 0 ? split : null;
         int capture = _pendingCapture is null ? 0 : Volatile.Read(ref _captureBypass);
         compositor.Bypass = (PreviewBypass)(Volatile.Read(ref _viewBypass) | capture);
+        compositor.ShowQualifierMask = Volatile.Read(ref _showQualifierMask) != 0 && capture == 0;
     }
 
     private void CreateTitles()

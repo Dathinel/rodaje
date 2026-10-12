@@ -414,7 +414,7 @@ public sealed partial class EditorSession : ObservableObject
     public NewProjectTracks NewProjectTracks { get; set; } = NewProjectTracks.Default;
 
     /// <summary>La copia del proyecto que recibe el reproductor.</summary>
-    private Project PlaybackProject() => IsSourceActive && SourceMedia is { } media ? SourceProject(media) : Project.Clone();
+    private Project PlaybackProject() => IsSourceActive && SourceMedia is { } media ? SourceProject(media) : WithPreviewOff(Project.Clone());
 
     private Project CreateEmptyProject() => NewProjectTracks.CreateProject(UntitledName, _ids);
 
@@ -433,6 +433,7 @@ public sealed partial class EditorSession : ObservableObject
         _selectedTransition = null;
         _editVersion++;
         FilePath = filePath;
+        _previewOff.Clear();
         _playback.Load(project.Clone(), sequenceId);
         RaiseHistoryProperties();
         OnPropertyChanged(nameof(Project));

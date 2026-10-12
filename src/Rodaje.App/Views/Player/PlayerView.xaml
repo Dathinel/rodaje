@@ -63,6 +63,9 @@
                 <ToggleButton x:Name="CompareButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE89F;"
                               FontFamily="{StaticResource IconFontFamily}" Click="OnCompareClick" AutomationProperties.Name="Antes y después"
                               ToolTipService.ToolTip="Antes y después: divide la imagen con una cortina; a la izquierda se ve sin color, LUT, ruedas ni curvas (solo vista previa)" />
+                <ToggleButton x:Name="ScopesButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE9D2;"
+                              FontFamily="{StaticResource IconFontFamily}" Click="OnScopesClick" AutomationProperties.Name="Monitores de imagen"
+                              ToolTipService.ToolTip="Monitores de imagen: forma de onda, desfile RGB, vectorscopio e histograma" />
                 <Button x:Name="FullScreenButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE740;" Click="OnFullScreenClick" />
             </StackPanel>
         </Grid>
@@ -70,6 +73,7 @@
         <Grid x:Name="ViewerArea" Grid.Row="1" Background="{StaticResource ViewerSurroundBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <!--
@@ -172,7 +176,8 @@
                 <TextBlock x:Name="OverlayDuration" Grid.Column="3" Style="{StaticResource TimecodeTextStyle}" VerticalAlignment="Center"
                            Foreground="{StaticResource TextMutedBrush}" />
             </Grid>
-            <meters:MetersView x:Name="Meters" x:FieldModifier="internal" Grid.Column="1" />
+            <player:ScopesPanel x:Name="Scopes" x:FieldModifier="internal" Grid.Column="1" Width="340" Visibility="Collapsed" />
+            <meters:MetersView x:Name="Meters" x:FieldModifier="internal" Grid.Column="2" />
         </Grid>
 
         <Grid x:Name="Transport" Grid.Row="2" Padding="12,0" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">

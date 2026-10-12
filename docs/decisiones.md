@@ -2,7 +2,7 @@
 
 Este registro guarda el porqué de cada elección importante de Rodaje. Una decisión no se borra cuando cambia: se marca como sustituida y otra explica el cambio.
 
-**Estado.** Vigentes: D-003 a D-014, D-016 a D-029 y D-031 a D-034 (D-017 la amplía D-019; D-028 la corrige D-033 en la parte de 9:16). Sustituidas: D-001 (por D-014), D-002 en la licencia y D-030 (por D-032), D-015 en el visor (por D-022) y en la caché (por D-017).
+**Estado.** Vigentes: D-003 a D-014, D-016 a D-029 y D-031 a D-035 (D-017 la amplía D-019; D-028 la corrige D-033 en la parte de 9:16). Sustituidas: D-001 (por D-014), D-002 en la licencia y D-030 (por D-032), D-015 en el visor (por D-022) y en la caché (por D-017).
 
 ---
 
@@ -312,3 +312,15 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
   - **Medios generados** (audio limpio, voz, ProRes de CinemaDNG): por defecto en `<proyecto>.medios\` junto al proyecto; la persona puede elegir otra carpeta en Configuración y al generar.
   - **Estabilización:** el análisis va en la caché de la app, no junto al proyecto.
 - **Consecuencia.** BiRefNet_lite no puede ir en una distribución comercial sin resolver la licencia de sus datos de entrenamiento.
+
+## D-035. Color, efectos y monitores de nivel profesional (12 de octubre de 2026)
+
+- **Contexto.** Faltaban monitores para corregir el color con datos, una corrección secundaria, curvas de tono y efectos ópticos (grano, resplandor, desenfoques de lente, direccional y radial…), y la pila de filtros no dejaba comparar ni guardar presets.
+- **Decisión.**
+  - **Espacio de trabajo:** el color sigue en gamma, como la mezcla de capas (D-016), para que los controles respondan como los de cualquier editor; lo óptico (resplandor y desenfoque de lente) va en luz lineal (gamma 2,2) y vuelve a gamma. Los intermedios son RGBA16F: una rampa de 10 bits pasa por el color sin perder códigos.
+  - **Monitores en la GPU** (compute shaders): forma de onda de luma y RGB, desfile, vectorscopio con objetivos al 75 % y línea de piel, histograma. Solo miden con el panel abierto y como mucho 30 veces por segundo; la imagen baja por un anillo sin esperar a la GPU.
+  - **Máscaras que limitan efectos:** una máscara puede recortar la capa (como siempre) o, con uso «limitar efectos», marcar dónde van los efectos del intermedio, cada uno con su zona (toda la imagen, dentro o fuera). Queda un punto de enganche para una máscara propia por efecto.
+  - **A/B por efecto y ver la máscara del calificador:** solo en la copia del proyecto que recibe el reproductor; no tocan el historial ni la exportación.
+  - **Reducción de ruido temporal:** usa el cuadro anterior de la misma capa solo si es el inmediatamente anterior del origen (al reproducir y al exportar); en pausa o tras un salto se ve la parte espacial. Es la única diferencia admitida entre vista previa y exportación.
+  - **Presets:** las miniaturas se componen en la GPU sobre el cuadro actual sin el color del clip; «Guardar como preset» escribe un `rodaje.filter` en los complementos propios, el mismo archivo que va en un `.paquete`.
+- **Consecuencia.** Un efecto nuevo del intermedio cuesta un intermedio del tamaño de la capa más sus pasadas (medido por efecto en `EffectCost`); seis efectos en una capa 4K entran en 5 ms de mediana en la RTX 3050.

@@ -57,7 +57,7 @@ public readonly record struct CompositeResult(int LayersDrawn, int LayersSkipped
 /// de <see cref="LayerTransform"/> siguen en píxeles de la secuencia y se escalan al destino.
 /// </para>
 /// </remarks>
-public sealed unsafe class Compositor : IDisposable
+public sealed unsafe partial class Compositor : IDisposable
 {
     private readonly GpuDevice _gpu;
     private readonly ID3D11Device* _device;
@@ -211,6 +211,7 @@ public sealed unsafe class Compositor : IDisposable
         {
             PreviewBypass bypass = strict ? PreviewBypass.None : Bypass;
             _layers.Bypass = bypass;
+            _layers.ShowQualifierMask = !strict && ShowQualifierMask;
             drawn = DrawLayers(frame, geometry, destination, titles, ref stats);
             if (!strict && CompareSplit is { } split && split > 0 && (bypass & PreviewBypass.Grading) == 0)
             {
@@ -220,6 +221,8 @@ public sealed unsafe class Compositor : IDisposable
         finally
         {
             _layers.Bypass = PreviewBypass.None;
+            _layers.ShowQualifierMask = false;
+            _layers.EndFrame();
             _pipeline.Unbind();
             _views.EndFrame();
             _pool.EndFrame();
@@ -238,6 +241,9 @@ public sealed unsafe class Compositor : IDisposable
 
     /// <summary>Solo vista previa: efectos que se dejan fuera en todo el cuadro (el cuentagotas del croma mira la imagen sin él).</summary>
     public PreviewBypass Bypass { get; set; }
+
+    /// <summary>Solo vista previa: el calificador HSL se ve como su máscara en gris (blanco = elegido). La exportación lo ignora.</summary>
+    public bool ShowQualifierMask { get; set; }
 
     private int DrawLayers(CompositionFrame frame, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination,
         TitleRasterizer? titles, ref FrameStats stats) =>
@@ -470,6 +476,57 @@ public sealed unsafe class Compositor : IDisposable
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Copia el último cuadro compuesto a la CPU en RGBA de coma flotante (media precisión en Rgba16Float), fila tras fila:
+    /// para medir lo que una lectura de 8 bits redondea (bandas en 10 bits).
+    /// </summary>
+    public float[] ReadbackRgbaFloat()
+    {
+        ObjectDisposedException.ThrowIf(_output is null, this);
+        var pixels = new float[Width * Height * 4];
+        _gpu.LockContext();
+        try
+        {
+            ID3D11Texture2D* staging = Staging();
+            _context->CopySubresourceRegion((ID3D11Resource*)staging, 0, 0, 0, 0, (ID3D11Resource*)_output.Texture, 0, null);
+            D3D11_MAPPED_SUBRESOURCE mapped;
+            Check(_context->Map((ID3D11Resource*)staging, 0, D3D11_MAP.D3D11_MAP_READ, 0, &mapped), "Map(lectura)");
+            try
+            {
+                for (int y = 0; y < Height; y++)
+                {
+                    byte* row = (byte*)mapped.pData + ((nuint)y * mapped.RowPitch);
+                    Span<float> target = pixels.AsSpan(y * Width * 4, Width * 4);
+                    if (Format == CompositeFormat.Rgba8Unorm)
+                    {
+                        for (int i = 0; i < target.Length; i++)
+                        {
+                            target[i] = row[i] / 255f;
+                        }
+
+                        continue;
+                    }
+
+                    var halves = new ReadOnlySpan<Half>(row, Width * 4);
+                    for (int i = 0; i < target.Length; i++)
+                    {
+                        target[i] = (float)halves[i];
+                    }
+                }
+            }
+            finally
+            {
+                _context->Unmap((ID3D11Resource*)staging, 0);
+            }
+        }
+        finally
+        {
+            _gpu.UnlockContext();
+        }
+
+        return pixels;
     }
 
     /// <summary>Copia el último cuadro compuesto a la CPU en RGBA de 8 bits, fila tras fila (para pruebas y miniaturas).</summary>

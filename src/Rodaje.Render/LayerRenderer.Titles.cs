@@ -34,11 +34,9 @@ internal sealed unsafe partial class LayerRenderer
             {
                 case GpuEffectKind.Transform or GpuEffectKind.Stabilize or GpuEffectKind.Blend:
                     break;
-                case GpuEffectKind.Blur:
-                    _spatial.Add(new SpatialStep(GpuEffectKind.Blur, BlurSigma(Value(list[i].Values, definition!, 0)), 0));
-                    break;
-                case GpuEffectKind.Sharpen:
-                    _spatial.Add(new SpatialStep(GpuEffectKind.Sharpen, Value(list[i].Values, definition!, 1), Value(list[i].Values, definition!, 0)));
+                case GpuEffectKind.Blur or GpuEffectKind.Sharpen or GpuEffectKind.Grain or GpuEffectKind.Glow
+                    or GpuEffectKind.ChromaticAberration or GpuEffectKind.Mirror or GpuEffectKind.LensDistortion:
+                    _spatial.Add(new SpatialStep(gpu.Kind, list[i].Values, definition!, i, 0));
                     break;
                 default:
                     stats.EffectsSkipped++;
@@ -49,7 +47,7 @@ internal sealed unsafe partial class LayerRenderer
         var view = new ImageView(title.Target, title.Width, title.Height);
         if (_spatial.Count > 0)
         {
-            if (TitleThroughIntermediate(title, placement, layer.Transform, destination, ref stats) is { } spatial)
+            if (TitleThroughIntermediate(layer, title, placement, layer.Transform, destination, ref stats) is { } spatial)
             {
                 (view, placement) = spatial;
             }
@@ -102,7 +100,7 @@ internal sealed unsafe partial class LayerRenderer
     /// El título en un intermedio del tamaño en pantalla con un margen de tres sigmas, desenfocado o enfocado ahí. Devuelve
     /// la vista y su colocación (el mismo centro, más grande por el margen), o nulo si falta un shader o memoria.
     /// </summary>
-    private (ImageView View, LayerPlacement Placement)? TitleThroughIntermediate(TitleTexture title, LayerPlacement placement,
+    private (ImageView View, LayerPlacement Placement)? TitleThroughIntermediate(LayerFrame layer, TitleTexture title, LayerPlacement placement,
         LayerTransform transform, in Destination destination, ref FrameStats stats)
     {
         ID3D11PixelShader* copy = _effects.TryGetShader(EffectShader.Image, 0);
@@ -115,7 +113,7 @@ internal sealed unsafe partial class LayerRenderer
         float reach = 0;
         foreach (SpatialStep step in _spatial)
         {
-            reach += 3 * step.Sigma;
+            reach += Reach(step);
         }
 
         float margin = (reach / placement.Scale) + 1;
@@ -153,9 +151,7 @@ internal sealed unsafe partial class LayerRenderer
         var view = new ImageView(first, width, height);
         foreach (SpatialStep step in _spatial)
         {
-            ImageView? next = step.Kind == GpuEffectKind.Blur
-                ? Blur(view, step.Sigma * perSequencePixel)
-                : Sharpen(view, step.Amount, step.Sigma * perSequencePixel);
+            ImageView? next = ApplySpatial(view, step, perSequencePixel, layer, source: true);
             if (next is not { } result)
             {
                 stats.EffectsSkipped++;

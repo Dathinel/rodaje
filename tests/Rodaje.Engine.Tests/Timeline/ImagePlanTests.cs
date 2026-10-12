@@ -38,10 +38,44 @@ public sealed class ImagePlanTests
         plan.Evaluate(Time.Zero, effects, null);
 
         Assert.Equal(14, effects[0].Code);
-        Assert.Equal("|0,0.1;1,0.9||", effects[0].Resource?.Reference);
+        Assert.Equal("|0,0.1;1,0.9|||||", effects[0].Resource?.Reference);
         Assert.Equal(12, effects[1].Code);
         Assert.Equal(0.7f, effects[1].Values[1]);
         Assert.True(plan.MayRevealBelow);
+    }
+
+    [Fact]
+    public void Grain_gets_the_source_time_and_choices_follow_the_parameters()
+    {
+        var grain = new EffectInstance { Id = "g", Type = BuiltInEffects.Grain };
+        grain.Options[BuiltInEffects.RegionOptions.Region] = "outside";
+        var blur = new EffectInstance { Id = "b", Type = BuiltInEffects.Blur };
+        blur.Options[BuiltInEffects.BlurOptions.Kind] = "radial";
+        var mask = new EffectInstance { Id = "m", Type = BuiltInEffects.Mask };
+        mask.Options[BuiltInEffects.MaskOptions.Use] = "effects";
+        EffectPlan plan = EffectPlan.From([grain, blur, mask])!;
+        var effects = new LayerEffect[3];
+
+        plan.Evaluate(Time.FromSeconds(2.5), effects, null);
+
+        EffectDefinition definition = EffectRegistry.Find(BuiltInEffects.Grain)!;
+        Assert.Equal(5, definition.TimeSlot);
+        Assert.Equal(2, effects[0].Values[4]);
+        Assert.Equal(2.5f, effects[0].Values[definition.TimeSlot]);
+        Assert.Equal(3, effects[1].Values[4]);
+        Assert.Equal(0, effects[1].Values[5]);
+        Assert.Equal(1, effects[2].Values[MaskGeometry.UseSlot]);
+    }
+
+    [Fact]
+    public void Hue_curves_alone_send_a_resource()
+    {
+        var curves = new EffectInstance { Id = "k", Type = BuiltInEffects.Curves };
+        curves.Options[BuiltInEffects.CurvesOptions.HueSaturation] = "0.3,0.2";
+        EffectPlan plan = EffectPlan.From([curves])!;
+        var effects = new LayerEffect[1];
+        plan.Evaluate(Time.Zero, effects, null);
+        Assert.Equal("|||||0.3,0.2|", effects[0].Resource?.Reference);
     }
 
     [Fact]

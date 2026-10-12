@@ -17,7 +17,7 @@ namespace Rodaje.Render.Tests;
 /// y se detecta una regresión grave.
 /// </summary>
 [Trait("Categoria", "Rendimiento")]
-public sealed class EffectPerformanceTests(ITestOutputHelper output)
+public sealed partial class EffectPerformanceTests(ITestOutputHelper output)
 {
     private const int Warmup = 30;
     private const int Measured = 300;

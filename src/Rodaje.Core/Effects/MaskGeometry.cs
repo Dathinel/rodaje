@@ -45,10 +45,13 @@ public static class MaskGeometry
     public const int MaxPathPoints = 256;
 
     /// <summary>
-    /// Hueco de los valores evaluados (tras los 7 parámetros y las 2 elecciones) donde el motor deja los segundos del video
-    /// gris que tocan en el cuadro: tiempo del origen menos <see cref="BuiltInEffects.MaskOptions.MatteStart"/>.
+    /// Hueco de los valores evaluados (tras los 7 parámetros y las 3 elecciones: forma, invertir y uso) donde el motor deja
+    /// los segundos del video gris que tocan en el cuadro: tiempo del origen menos <see cref="BuiltInEffects.MaskOptions.MatteStart"/>.
     /// </summary>
-    public const int MatteTimeSlot = 9;
+    public const int MatteTimeSlot = 10;
+
+    /// <summary>Hueco del uso de la máscara (<see cref="BuiltInEffects.MaskOptions.Use"/>): 0 recorta la capa, 1 limita efectos.</summary>
+    public const int UseSlot = 9;
 
     /// <summary>Lee una forma: un valor desconocido es un rectángulo, como en el registro.</summary>
     public static MaskShape ParseShape(string? value)

@@ -14,13 +14,15 @@ using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Packages;
+using Rodaje.Render.Effects;
 
 namespace Rodaje.App.Views.Inspector.Filters;
 
 /// <summary>Un efecto de la pila tal como se muestra.</summary>
 internal sealed partial class FilterItem : IEquatable<FilterItem>
 {
-    public FilterItem(EffectInstance effect, EffectSupport support, int index, int count)
+    public FilterItem(EffectInstance effect, EffectSupport support, int index, int count, bool previewOff = false,
+        EffectCostEstimate? cost = null, bool reorderable = true)
     {
         EffectId = effect.Id;
         Name = EffectCatalog.DisplayName(effect.Type);
@@ -37,7 +39,8 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
                 : "Solo se aplica la primera transformación activa",
             EffectSupport.Unknown => "De un complemento que no está: se conserva sin aplicarse",
             _ when effect.Type == BuiltInEffects.Mask => EffectUi.MaskShapeName(effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Shape, "rectangle"))
-                + (effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Invert) == "on" ? " · invertida" : ""),
+                + (effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Invert) == "on" ? " · invertida" : "")
+                + (effect.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Use) == "effects" ? " · limita efectos" : ""),
             _ when effect.Type == BuiltInEffects.Blend => EffectUi.BlendModeName(
                 effect.Options.GetValueOrDefault(BuiltInEffects.BlendOptions.Mode, "normal")),
             _ => "",
@@ -45,7 +48,44 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
         NoteVisibility = Note.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         CanMoveUp = index > 0;
         CanMoveDown = index < count - 1;
+        IsPreviewOff = previewOff;
+        bool image = cost is { Milliseconds: > 0 };
+        CompareVisibility = image && effect.Enabled ? Visibility.Visible : Visibility.Collapsed;
+        CostVisibility = image ? Visibility.Visible : Visibility.Collapsed;
+        HandleVisibility = reorderable ? Visibility.Visible : Visibility.Collapsed;
+        if (cost is { } c)
+        {
+            CostGlyph = c.Level switch
+            {
+                CostLevel.High => "●●●",
+                CostLevel.Medium => "●●○",
+                _ => "●○○",
+            };
+            string level = c.Level switch
+            {
+                CostLevel.High => "alto",
+                CostLevel.Medium => "medio",
+                _ => "bajo",
+            };
+            CostTip = string.Create(Services.Format.SpanishNumbers.Format,
+                $"Costo {level}: unos {c.Milliseconds:0.00} ms de GPU por cuadro en la resolución de la secuencia (medido en una RTX 3050).");
+            CostBrush = Theme.ThemeResources.Brush(c.Level == CostLevel.High ? "KeyframeBrush" : "TextMutedBrush");
+        }
     }
+
+    public bool IsPreviewOff { get; }
+
+    public Visibility CompareVisibility { get; }
+
+    public Visibility CostVisibility { get; }
+
+    public Visibility HandleVisibility { get; }
+
+    public string CostGlyph { get; } = "";
+
+    public string CostTip { get; } = "";
+
+    public Microsoft.UI.Xaml.Media.Brush? CostBrush { get; }
 
     public string EffectId { get; }
 
@@ -71,7 +111,8 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
 
     public bool Equals(FilterItem? other) =>
         other is not null && EffectId == other.EffectId && Name == other.Name && IsEnabled == other.IsEnabled
-        && Note == other.Note && CanMoveUp == other.CanMoveUp && CanMoveDown == other.CanMoveDown;
+        && Note == other.Note && CanMoveUp == other.CanMoveUp && CanMoveDown == other.CanMoveDown
+        && IsPreviewOff == other.IsPreviewOff && CostGlyph == other.CostGlyph && CostTip == other.CostTip;
 
     public override bool Equals(object? obj) => Equals(obj as FilterItem);
 
@@ -108,6 +149,14 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         {
             PublishMaskEditing();
             PublishCropEditing();
+            if (Visibility == Visibility.Visible)
+            {
+                QueuePresetRefresh();
+            }
+            else
+            {
+                SetMaskView(false);
+            }
         });
         Wheels.WheelChanged += OnWheelChanged;
         CurveEditor.CurveChanged += OnCurveChanged;
@@ -147,7 +196,22 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
                 Refresh();
             }
         };
-        services.Packages.Changed += (_, _) => Refresh();
+        services.Packages.Changed += (_, _) =>
+        {
+            Refresh();
+            QueuePresetRefresh();
+        };
+        session.PreviewOffChanged += (_, _) => Refresh();
+        if (MasksOnly)
+        {
+            PresetsSection.Visibility = Visibility.Collapsed;
+            SavePresetButton.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            PresetsSection.Remember(services.Settings);
+        }
+
         Refresh();
         Bindings.Update();
     }
@@ -190,6 +254,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         if (target is not { } found)
         {
             FinishChanges();
+            LeaveClip();
             _clipId = null;
             _effectId = null;
             Items.Clear();
@@ -205,6 +270,8 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         {
             FinishChanges();
             _effectId = null;
+            LeaveClip();
+            QueuePresetRefresh();
         }
 
         _clipId = clip.Id;
@@ -240,7 +307,8 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             if (Shows(effect))
             {
                 // Entre las máscaras el orden no cambia nada (se multiplican): sin flechas.
-                next.Add(new FilterItem(effect, EffectCatalog.Support(clip, effect, track.Kind), MasksOnly ? 0 : i, MasksOnly ? 1 : clip.Effects.Count));
+                next.Add(new FilterItem(effect, EffectCatalog.Support(clip, effect, track.Kind), MasksOnly ? 0 : i, MasksOnly ? 1 : clip.Effects.Count,
+                    _services!.Session.IsPreviewOff(effect.Id), track.Kind == TrackKind.Video && !MasksOnly ? Cost(effect) : null, !MasksOnly));
             }
         }
 
@@ -333,6 +401,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         ShowLut(effect);
         ShowMaskOptions(effect);
         ShowImageOptions(clip, effect);
+        ShowChoices(effect);
+        ShowColorTools(clip, effect);
+        ShowRowVisibility(effect);
     }
 
     private bool Shows(EffectInstance effect) => !MasksOnly || effect.Type == BuiltInEffects.Mask;
@@ -458,6 +529,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
         _rowsType = type;
         _rowsContext = context;
+        BuildChoices(type);
     }
 
     private void ShowLut(EffectInstance effect)

@@ -184,6 +184,7 @@ public sealed class EffectDefinition
         Stage = stage;
         Parameters = [.. parameters.Select((p, i) => p with { Slot = i })];
         Options = options.IsDefault ? [] : options;
+        TimeSlot = Parameters.Length + Options.Count(o => o.Kind == OptionKind.Choice);
     }
 
     public string Type { get; }
@@ -203,6 +204,12 @@ public sealed class EffectDefinition
 
     /// <summary>Reservado: se reconoce, pero no se ofrece ni se acepta en un proyecto (<c>rodaje.speed</c>).</summary>
     public bool Hidden { get; init; }
+
+    /// <summary>El motor le pasa los segundos del origen en <see cref="TimeSlot"/> (el grano cambia en cada cuadro).</summary>
+    public bool UsesTime { get; init; }
+
+    /// <summary>Hueco de los valores evaluados que sigue a los parámetros y a las opciones de elección.</summary>
+    public int TimeSlot { get; }
 
     public ParameterDefinition? FindParameter(string name)
     {

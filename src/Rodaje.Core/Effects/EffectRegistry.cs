@@ -7,6 +7,7 @@ using C = Rodaje.Core.Model.BuiltInEffects.ColorParameters;
 using CK = Rodaje.Core.Model.BuiltInEffects.ChromaKeyParameters;
 using K = Rodaje.Core.Model.BuiltInEffects.CompressorParameters;
 using Q = Rodaje.Core.Model.BuiltInEffects.EqualizerParameters;
+using Hq = Rodaje.Core.Model.BuiltInEffects.HslQualifierParameters;
 using W = Rodaje.Core.Model.BuiltInEffects.ColorWheelsParameters;
 using M = Rodaje.Core.Model.BuiltInEffects.MaskParameters;
 using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
@@ -41,6 +42,23 @@ public static class EffectRegistry
     /// <summary>Proporciones de <see cref="BuiltInEffects.Crop"/>: libre o ancho:alto del recorte en pantalla.</summary>
     public static ImmutableArray<string> CropAspects { get; } = ["free", "16:9", "9:16", "1:1", "4:5", "4:3"];
 
+    /// <summary>Tipos de <see cref="BuiltInEffects.Blur"/>.</summary>
+    public static ImmutableArray<string> BlurKinds { get; } = ["gaussian", "lens", "directional", "radial"];
+
+    /// <summary>Dónde se aplica un efecto de imagen: en toda la imagen, o dentro o fuera de las máscaras que limitan efectos.</summary>
+    public static ImmutableArray<string> Regions { get; } = ["all", "inside", "outside"];
+
+    /// <summary>Para qué sirve una máscara: recortar la capa o marcar dónde van los efectos.</summary>
+    public static ImmutableArray<string> MaskUses { get; } = ["cut", "effects"];
+
+    /// <summary>Modos de <see cref="BuiltInEffects.Mirror"/>: qué mitad se refleja, las cuatro, o un mosaico.</summary>
+    public static ImmutableArray<string> MirrorModes { get; } = ["left", "right", "top", "bottom", "quad", "tiles"];
+
+    /// <summary>Modos de <see cref="BuiltInEffects.ChromaticAberration"/>.</summary>
+    public static ImmutableArray<string> AberrationModes { get; } = ["radial", "lateral"];
+
+    private static OptionDefinition Region => OptionDefinition.Choice(BuiltInEffects.RegionOptions.Region, "all", [.. Regions]);
+
     /// <summary>Duración con la que se suelta una transición.</summary>
     public static Time DefaultTransitionDuration { get; } = Time.FromSeconds(0.5);
 
@@ -67,6 +85,7 @@ public static class EffectRegistry
             new(C.Highlights, 0, -1, 1),
             new(C.Shadows, 0, -1, 1),
             new(C.LutIntensity, 1, 0, 1),
+            new(C.SkinProtection, 0, 0, 1),
         ],
         [OptionDefinition.Reference(BuiltInEffects.ColorOptions.Lut, allowsFile: true)]),
         new(BuiltInEffects.Vignette, 3, EffectTarget.Video, EffectStage.PerPixel,
@@ -74,16 +93,25 @@ public static class EffectRegistry
             new(BuiltInEffects.VignetteParameters.Amount, 0.5, 0, 1),
             new(BuiltInEffects.VignetteParameters.Size, 0.5, 0, 1),
             new(BuiltInEffects.VignetteParameters.Softness, 0.5, 0, 1),
+            new(BuiltInEffects.VignetteParameters.Roundness, 0, 0, 1),
+            new(BuiltInEffects.VignetteParameters.CenterX, 0.5, -0.5, 1.5),
+            new(BuiltInEffects.VignetteParameters.CenterY, 0.5, -0.5, 1.5),
         ]),
         new(BuiltInEffects.Blur, 4, EffectTarget.Video, EffectStage.Spatial,
         [
             new(BuiltInEffects.BlurParameters.Radius, 10, 0, 500),
-        ]),
+            new(BuiltInEffects.BlurParameters.Angle, 0, -360, 360),
+            new(BuiltInEffects.BlurParameters.CenterX, 0.5, -0.5, 1.5),
+            new(BuiltInEffects.BlurParameters.CenterY, 0.5, -0.5, 1.5),
+        ],
+        [OptionDefinition.Choice(BuiltInEffects.BlurOptions.Kind, "gaussian", [.. BlurKinds]), Region]),
         new(BuiltInEffects.Sharpen, 5, EffectTarget.Video, EffectStage.Spatial,
         [
             new(BuiltInEffects.SharpenParameters.Amount, 0.5, 0, 4),
             new(BuiltInEffects.SharpenParameters.Radius, 1, 0.5, 10),
-        ]),
+            new(BuiltInEffects.SharpenParameters.Threshold, 0, 0, 0.25),
+        ],
+        [Region]),
         new(BuiltInEffects.Blend, 6, EffectTarget.Video, EffectStage.Blend, [],
         [OptionDefinition.Choice(BuiltInEffects.BlendOptions.Mode, "normal", [.. BlendModes])]),
         new(BuiltInEffects.Audio, 7, EffectTarget.Audio, EffectStage.Audio,
@@ -114,6 +142,7 @@ public static class EffectRegistry
             OptionDefinition.Text(BuiltInEffects.MaskOptions.Path),
             OptionDefinition.Text(BuiltInEffects.MaskOptions.Matte),
             OptionDefinition.Text(BuiltInEffects.MaskOptions.MatteStart),
+            OptionDefinition.Choice(BuiltInEffects.MaskOptions.Use, "cut", [.. MaskUses]),
         ]),
         new(BuiltInEffects.Crop, 11, EffectTarget.Video, EffectStage.Transform,
         [
@@ -154,7 +183,64 @@ public static class EffectRegistry
             OptionDefinition.Text(BuiltInEffects.CurvesOptions.Red),
             OptionDefinition.Text(BuiltInEffects.CurvesOptions.Green),
             OptionDefinition.Text(BuiltInEffects.CurvesOptions.Blue),
+            OptionDefinition.Text(BuiltInEffects.CurvesOptions.HueHue),
+            OptionDefinition.Text(BuiltInEffects.CurvesOptions.HueSaturation),
+            OptionDefinition.Text(BuiltInEffects.CurvesOptions.LumaSaturation),
         ]),
+        new(BuiltInEffects.Grain, 15, EffectTarget.Video, EffectStage.Spatial,
+        [
+            new(BuiltInEffects.GrainParameters.Amount, 0.25, 0, 1),
+            new(BuiltInEffects.GrainParameters.Size, 1.5, 0.5, 8),
+            new(BuiltInEffects.GrainParameters.Color, 0.15, 0, 1),
+            new(BuiltInEffects.GrainParameters.Response, 0.6, 0, 1),
+        ],
+        [Region]) { UsesTime = true },
+        new(BuiltInEffects.Glow, 16, EffectTarget.Video, EffectStage.Spatial,
+        [
+            new(BuiltInEffects.GlowParameters.Threshold, 0.65, 0, 1),
+            new(BuiltInEffects.GlowParameters.Radius, 40, 1, 400),
+            new(BuiltInEffects.GlowParameters.Intensity, 0.8, 0, 4),
+        ],
+        [Region]),
+        new(BuiltInEffects.ChromaticAberration, 17, EffectTarget.Video, EffectStage.Spatial,
+        [
+            new(BuiltInEffects.ChromaticAberrationParameters.Amount, 4, 0, 100),
+            new(BuiltInEffects.ChromaticAberrationParameters.Angle, 0, -360, 360),
+        ],
+        [OptionDefinition.Choice(BuiltInEffects.ChromaticAberrationOptions.Mode, "radial", [.. AberrationModes]), Region]),
+        new(BuiltInEffects.Denoise, 18, EffectTarget.Video, EffectStage.Spatial,
+        [
+            new(BuiltInEffects.DenoiseParameters.Strength, 0.5, 0, 1),
+            new(BuiltInEffects.DenoiseParameters.Temporal, 0.5, 0, 1),
+            new(BuiltInEffects.DenoiseParameters.Detail, 0.5, 0, 1),
+        ],
+        [Region]),
+        new(BuiltInEffects.Mirror, 19, EffectTarget.Video, EffectStage.Spatial,
+        [
+            new(BuiltInEffects.MirrorParameters.Axis, 0.5, 0, 1),
+            new(BuiltInEffects.MirrorParameters.Tiles, 2, 1, 6),
+        ],
+        [OptionDefinition.Choice(BuiltInEffects.MirrorOptions.Mode, "left", [.. MirrorModes])]),
+        new(BuiltInEffects.LensDistortion, 22, EffectTarget.Video, EffectStage.Spatial,
+        [
+            new(BuiltInEffects.LensDistortionParameters.Amount, 0.2, -1, 1),
+            new(BuiltInEffects.LensDistortionParameters.Zoom, 1, 0.5, 2),
+        ]),
+        new(BuiltInEffects.HslQualifier, 23, EffectTarget.Video, EffectStage.PerPixel,
+        [
+            new(Hq.HueCenter, 120, 0, 360),
+            new(Hq.HueWidth, 30, 0, 180),
+            new(Hq.HueSoftness, 15, 0, 90),
+            new(Hq.SaturationLow, 0.1, 0, 1),
+            new(Hq.SaturationHigh, 1, 0, 1),
+            new(Hq.LumaLow, 0, 0, 1),
+            new(Hq.LumaHigh, 1, 0, 1),
+            new(Hq.Softness, 0.1, 0, 0.5),
+            new(Hq.HueShift, 0, -180, 180),
+            new(Hq.Saturation, 0, -1, 1),
+            new(Hq.Exposure, 0, -2, 2),
+        ],
+        [OptionDefinition.Choice(BuiltInEffects.HslQualifierOptions.Invert, "off", "off", "on")]),
 
         new(BuiltInEffects.Equalizer, 20, EffectTarget.Audio, EffectStage.Audio,
         [

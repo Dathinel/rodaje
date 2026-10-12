@@ -210,9 +210,16 @@ Los tipos que el motor entiende están en `EffectRegistry` (`src/Rodaje.Core/Eff
 |---|---|---|
 | `rodaje.transform` | `x` (0), `y` (0) en píxeles de la secuencia, `scale` (1), `rotation` (0) en grados, `opacity` (1) | |
 | `rodaje.color` | `exposure` en pasos, `contrast`, `saturation`, `temperature`, `tint`, `highlights`, `shadows` (todos 0, de −1 a 1 salvo la exposición, de −4 a 4), `lutIntensity` (1) | `lut`: referencia `paquete@versión/elemento` de un `.cube`, o `file:` más la ruta de un `.cube` suelto (con `/`, relativa a la carpeta del `.rodaje` o absoluta); vacía o ausente sin LUT |
-| `rodaje.vignette` | `amount`, `size`, `softness` (0,5) | |
-| `rodaje.blur` | `radius` (10) en píxeles de la secuencia | |
-| `rodaje.sharpen` | `amount` (0,5), `radius` (1) | |
+| `rodaje.vignette` | `amount`, `size`, `softness` (0,5), `roundness` (0: elipse del cuadro; 1: círculo), `centerX`, `centerY` (0,5) | |
+| `rodaje.blur` | `radius` (10) en píxeles de la secuencia, `angle` (0, grados, direccional), `centerX`, `centerY` (0,5, radial) | `kind`: `gaussian` (por defecto), `lens`, `directional`, `radial`; `region` |
+| `rodaje.sharpen` | `amount` (0,5), `radius` (1), `threshold` (0, hasta 0,25) | `region` |
+| `rodaje.grain` | `amount` (0,25), `size` (1,5 px), `color` (0,15), `response` (0,6: más en los medios) | `region` |
+| `rodaje.glow` | `threshold` (0,65), `radius` (40 px), `intensity` (0,8, hasta 4) | `region` |
+| `rodaje.aberration` | `amount` (4 px), `angle` (0, lateral) | `mode`: `radial` o `lateral`; `region` |
+| `rodaje.denoise` | `strength` (0,5), `temporal` (0,5), `detail` (0,5) | `region` |
+| `rodaje.mirror` | `axis` (0,5), `tiles` (2, de 1 a 6) | `mode`: `left`, `right`, `top`, `bottom`, `quad`, `tiles` |
+| `rodaje.distortion` | `amount` (0,2, de −1 cojín a 1 barril), `zoom` (1) | |
+| `rodaje.qualifier` | Selección: `hueCenter` (120°), `hueWidth` (30°), `hueSoftness` (15°), `satLow` (0,1), `satHigh` (1), `lumaLow` (0), `lumaHigh` (1), `softness` (0,1). Corrección: `hueShift` (0°), `saturation` (0), `exposure` (0 EV) | `invert`: `off` u `on` |
 | `rodaje.blend` | | `blendMode`: `normal`, `add`, `multiply`, `screen`, `overlay`, `softLight`, `hardLight`, `darken`, `lighten`, `difference`, `exclusion`, `colorDodge` o `colorBurn` |
 | `rodaje.audio` | `gainDb` (0; −60 o menos es silencio), `fadeIn` y `fadeOut` en segundos (0, sin keyframes) | |
 | `rodaje.stabilize` | Reservado: se reconoce, pero todavía no se aplica | |
@@ -220,8 +227,10 @@ Los tipos que el motor entiende están en `EffectRegistry` (`src/Rodaje.Core/Eff
 | `rodaje.crop` | `left`, `top`, `right`, `bottom` (0: fracción de la imagen que se quita de cada borde, hasta 0,98; si dos opuestos suman más, se reducen a la par) | `aspect`: `free`, `16:9`, `9:16`, `1:1`, `4:5` o `4:3` (la impone la interfaz al ajustar; el motor solo lee los bordes). Lo que queda se ajusta al cuadro como la imagen entera |
 | `rodaje.chromakey` | `keyRed`, `keyGreen`, `keyBlue` (0; 0,7; 0,2: color clave en R'G'B', sin keyframes), `tolerance` (0,2), `softness` (0,1), `spill` (0,5), `cleanup` (0) | |
 | `rodaje.wheels` | `liftRed`, `liftGreen`, `liftBlue`, `lift` (0, de −0,5 a 0,5), `gammaRed`, `gammaGreen`, `gammaBlue`, `gamma`, `gainRed`, `gainGreen`, `gainBlue`, `gain` (0, de −1 a 1): tinte por canal y valor general de sombras, medios y luces | |
-| `rodaje.curves` | | `master`, `red`, `green`, `blue` (texto `x,y;x,y;…` de 0 a 1, hasta 16 puntos; vacía es la identidad). Cada canal pasa por su curva y luego por la general |
+| `rodaje.curves` | | `master`, `red`, `green`, `blue` (texto `x,y;x,y;…` de 0 a 1, hasta 16 puntos; vacía es la identidad). Cada canal pasa por su curva y luego por la general. `hueHue`, `hueSat` (periódicas en el tono) y `lumaSat`: curvas de ajuste con 0,5 sin cambio (giro de tono de ±media vuelta; ganancia de saturación 2·y) |
 | `rodaje.speed` | Reservado y oculto (código 8): la velocidad es `speed` del clip (formato 4) y un efecto de este tipo se rechaza | |
+
+`region` (en los efectos que van en el intermedio): `all` (por defecto), `inside` u `outside` de las máscaras con `use` = `effects`. `rodaje.mask` lleva además `use`: `cut` (recorta la capa, por defecto) o `effects` (no recorta: marca dónde van los efectos con `region`). `rodaje.color` lleva además `skinProtection` (0).
 
 Cualquier efecto puede llevar además la opción `source` con la referencia del filtro o efecto de paquete del que es copia. Los efectos de una pista (`effects` de la pista, por ejemplo su volumen) tienen la misma forma, pero sus keyframes están en tiempo de la secuencia, porque una pista no tiene origen, y solo admiten tipos de su clase: de audio en una pista de audio y de video en una de video. Aun así siguen al contenido: cuando un ripple (borrar, recortar, cerrar un hueco o insertar con ripple) corre la pista, sus keyframes desde ese punto se corren lo mismo y los de un tramo borrado se quitan; al reordenar la pista principal, los del tramo de cada clip viajan con él. En cada borde se añade un keyframe con el valor que había, para que la curva no cambie fuera del tramo, salvo que valga lo mismo que sus vecinos; un tramo con suavizado que queda cortado por un borde vuelve a empezar ahí y se aproxima.
 

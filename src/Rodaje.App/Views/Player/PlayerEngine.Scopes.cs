@@ -1,0 +1,81 @@
+using System.Diagnostics;
+using Rodaje.Render;
+using Rodaje.Render.Scopes;
+
+namespace Rodaje.App.Views.Player;
+
+/// <summary>
+/// Monitores de imagen del reproductor: tras componer, el hilo de render encola la medición del cuadro (como mucho 30 por
+/// segundo) y en cada vuelta recoge la imagen que la GPU ya terminó; la interfaz la toma con <see cref="TakeScope"/>.
+/// También la vista de la máscara del calificador, que es solo de la vista previa.
+/// </summary>
+internal sealed partial class PlayerEngine
+{
+    private static readonly TimeSpan ScopeInterval = TimeSpan.FromMilliseconds(33);
+
+    private ScopeRenderer? _scopes;
+    private int _scopeKind = -1;
+    private long _lastScopeSubmit;
+    private ScopeImage? _latestScope;
+    private int _showQualifierMask;
+
+    /// <summary>El monitor que se mide, o <c>null</c> para apagarlos. Desde cualquier hilo.</summary>
+    public void SetScope(ScopeKind? kind)
+    {
+        Volatile.Write(ref _scopeKind, kind is { } k ? (int)k : -1);
+        _dirty = true;
+        _wake.Set();
+    }
+
+    /// <summary>La imagen de monitor más nueva desde la última vez, o <c>null</c>. Desde cualquier hilo.</summary>
+    public ScopeImage? TakeScope() => Interlocked.Exchange(ref _latestScope, null);
+
+    /// <summary>Lo que costó en la CPU encolar la última medición (ms).</summary>
+    public double ScopeSubmitMilliseconds => _scopes?.LastSubmitMilliseconds ?? 0;
+
+    /// <summary>Solo vista previa: el calificador HSL se ve como su máscara. Desde cualquier hilo.</summary>
+    public void SetQualifierMaskView(bool show)
+    {
+        Volatile.Write(ref _showQualifierMask, show ? 1 : 0);
+        _dirty = true;
+        _wake.Set();
+    }
+
+    private void SubmitScope(Compositor compositor)
+    {
+        int kind = Volatile.Read(ref _scopeKind);
+        if (kind < 0 || _gpu is null)
+        {
+            return;
+        }
+
+        bool playing = _session is { IsPlaying: true };
+        if (playing && Stopwatch.GetElapsedTime(_lastScopeSubmit) < ScopeInterval)
+        {
+            return;
+        }
+
+        _scopes ??= new ScopeRenderer(_gpu);
+        if (_scopes.Submit(compositor, (ScopeKind)kind))
+        {
+            _lastScopeSubmit = Stopwatch.GetTimestamp();
+        }
+        else if (!_scopes.Ready.IsCompleted)
+        {
+            // Los shaders todavía compilan: se vuelve a componer en la próxima vuelta para medir el cuadro en pausa.
+            _ = _scopes.Ready.ContinueWith(_ =>
+            {
+                _dirty = true;
+                _wake.Set();
+            }, TaskScheduler.Default);
+        }
+    }
+
+    private void PumpScopes()
+    {
+        if (_scopes?.TryRead() is { } image)
+        {
+            Volatile.Write(ref _latestScope, image);
+        }
+    }
+}

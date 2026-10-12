@@ -132,12 +132,57 @@ public sealed class ToneCurve
         return Math.Clamp(value, 0, 1);
     }
 
-    /// <summary>Clave del efecto para el motor: las cuatro curvas, en el orden general, rojo, verde, azul, separadas por <c>|</c>.</summary>
+    /// <summary>
+    /// Clave del efecto para el motor: las siete curvas separadas por <c>|</c>, en el orden general, rojo, verde, azul, tono
+    /// contra tono, tono contra saturación y luminancia contra saturación.
+    /// </summary>
     public static string Key(IReadOnlyDictionary<string, string> options)
     {
         ArgumentNullException.ThrowIfNull(options);
         return string.Join('|', options.GetValueOrDefault(O.Master) ?? "", options.GetValueOrDefault(O.Red) ?? "",
-            options.GetValueOrDefault(O.Green) ?? "", options.GetValueOrDefault(O.Blue) ?? "");
+            options.GetValueOrDefault(O.Green) ?? "", options.GetValueOrDefault(O.Blue) ?? "",
+            options.GetValueOrDefault(O.HueHue) ?? "", options.GetValueOrDefault(O.HueSaturation) ?? "",
+            options.GetValueOrDefault(O.LumaSaturation) ?? "");
+    }
+
+    /// <summary>Las curvas de tono y saturación de una clave: tono contra tono, tono contra saturación y luma contra saturación.</summary>
+    public static (HueCurve HueHue, HueCurve HueSaturation, HueCurve LumaSaturation) HueCurves(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        string[] parts = key.Split('|');
+        string Part(int i) => i < parts.Length ? parts[i] : "";
+        return (HueCurve.Parse(Part(4), periodic: true), HueCurve.Parse(Part(5), periodic: true), HueCurve.Parse(Part(6), periodic: false));
+    }
+
+    /// <summary>
+    /// La segunda fila de la tabla (<see cref="TableSize"/> entradas, x = i / (N − 1)): tono contra tono, tono contra
+    /// saturación y luma contra saturación, con 0,5 donde no cambian.
+    /// </summary>
+    public static float[] HueTable(string key)
+    {
+        (HueCurve hueHue, HueCurve hueSat, HueCurve lumaSat) = HueCurves(key);
+        float[] table = new float[TableSize * 3];
+        for (int i = 0; i < TableSize; i++)
+        {
+            double x = (double)i / (TableSize - 1);
+            table[(i * 3) + 0] = (float)hueHue.Evaluate(x);
+            table[(i * 3) + 1] = (float)hueSat.Evaluate(x);
+            table[(i * 3) + 2] = (float)lumaSat.Evaluate(x);
+        }
+
+        return table;
+    }
+
+    /// <summary>Si la clave trae alguna curva de tono o saturación que cambie algo.</summary>
+    public static bool HasHueCurves(string? key)
+    {
+        if (key is null)
+        {
+            return false;
+        }
+
+        (HueCurve a, HueCurve b, HueCurve c) = HueCurves(key);
+        return !(a.IsNeutral && b.IsNeutral && c.IsNeutral);
     }
 
     /// <summary>
@@ -164,11 +209,11 @@ public sealed class ToneCurve
         return table;
     }
 
-    /// <summary>Si la clave no cambia nada (las cuatro curvas son la identidad).</summary>
+    /// <summary>Si la clave no cambia nada (las curvas de tono son la identidad y las de saturación, neutras).</summary>
     public static bool IsIdentityKey(string? key) =>
-        key is null || key.Split('|').All(part => Parse(part).IsIdentity);
+        key is null || (key.Split('|').Take(4).All(part => Parse(part).IsIdentity) && !HasHueCurves(key));
 
-    private static double[] Slopes(Vector2[] p)
+    internal static double[] Slopes(Vector2[] p)
     {
         int n = p.Length;
         double[] m = new double[n];

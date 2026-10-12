@@ -51,6 +51,9 @@ public enum PreviewBypass
 
     /// <summary>El recorte: se ve la imagen entera mientras se ajusta en el visor.</summary>
     Crop = 4,
+
+    /// <summary>El calificador HSL (su cuentagotas mira el color que él recibe).</summary>
+    Qualifier = 8,
 }
 
 /// <summary>Contadores de un cuadro para <see cref="CompositeResult"/>.</summary>
@@ -100,6 +103,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
     public void Dispose()
     {
+        ReleaseHistory();
         _maskTextures.Dispose();
         _curves.Dispose();
     }
@@ -211,6 +215,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         EffectConstants effects = default;
         LayerPlan plan = BuildPlan(layer, ref effects, ref stats);
         RenderTarget? mask = PrepareMasks(placement, destination, ref plan, ref effects, ref stats);
+        _regionMask = _spatial.Count > 0 ? PrepareRegionMask(placement, destination, ref stats) : null;
         try
         {
             return DrawPlanned(layer, payload, geometry, destination, blend, placement, plan, effects, mask, ref stats);
@@ -218,6 +223,8 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         finally
         {
             _pool.Return(mask);
+            _pool.Return(_regionMask);
+            _regionMask = null;
         }
     }
 
@@ -227,7 +234,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         int blendCount = blend == BlendMode.Normal ? 0 : 1;
         if (_spatial.Count > 0)
         {
-            if (DrawThroughIntermediate(payload, placement, geometry, Opacity(layer), plan, effects, mask, destination, blend, ref stats,
+            if (DrawThroughIntermediate(layer, payload, placement, geometry, Opacity(layer), plan, effects, mask, destination, blend, ref stats,
                 out bool blendDropped))
             {
                 stats.EffectsApplied += plan.PerPixelCount + (blendDropped ? 0 : blendCount);
@@ -285,7 +292,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         return true;
     }
 
-    private bool DrawThroughIntermediate(LayerSource payload, LayerPlacement placement, SourceGeometry geometry, float opacity,
+    private bool DrawThroughIntermediate(LayerFrame layer, LayerSource payload, LayerPlacement placement, SourceGeometry geometry, float opacity,
         in LayerPlan plan, EffectConstants effects, RenderTarget? mask, in Destination destination, BlendMode blend, ref FrameStats stats,
         out bool blendDropped)
     {
@@ -326,9 +333,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         var view = new ImageView(first, width, height);
         foreach (SpatialStep step in _spatial)
         {
-            ImageView? next = step.Kind == GpuEffectKind.Blur
-                ? Blur(view, step.Sigma * perSequencePixel)
-                : Sharpen(view, step.Amount, step.Sigma * perSequencePixel);
+            ImageView? next = ApplyStep(view, step, perSequencePixel, layer, payload.IsImage);
             if (next is not { } result)
             {
                 stats.EffectsSkipped++;

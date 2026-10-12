@@ -44,6 +44,27 @@ public enum GpuEffectKind
 
     /// <summary>Transición de paquete: el motor la entrega resuelta a su mezcla; si llega sin resolver, fundido cruzado.</summary>
     Preset,
+
+    /// <summary>En el intermedio, con <c>PsFx</c>: ruido de valor por cuadro.</summary>
+    Grain,
+
+    /// <summary>En el intermedio: luces en luz lineal, desenfocadas y sumadas.</summary>
+    Glow,
+
+    /// <summary>En el intermedio: rojo y azul muestreados con otra escala o desplazamiento.</summary>
+    ChromaticAberration,
+
+    /// <summary>En el intermedio: bilateral de 5 × 5 y mezcla con el cuadro anterior de la misma capa.</summary>
+    Denoise,
+
+    /// <summary>En el intermedio: otra lectura de uv (espejo o mosaico).</summary>
+    Mirror,
+
+    /// <summary>En el intermedio: lectura radial de barril o cojín.</summary>
+    LensDistortion,
+
+    /// <summary>En <c>PsGraded</c> con <c>ADVANCED</c>, después de las curvas y antes de la LUT.</summary>
+    HslQualifier,
 }
 
 /// <summary>Una fila de la tabla: código y tipo del registro del núcleo, etapa e implementación.</summary>
@@ -69,6 +90,13 @@ public static class GpuEffectRegistry
         new(12, BuiltInEffects.ChromaKey, EffectStage.PerPixel, GpuEffectKind.ChromaKey),
         new(13, BuiltInEffects.ColorWheels, EffectStage.PerPixel, GpuEffectKind.ColorWheels),
         new(14, BuiltInEffects.Curves, EffectStage.PerPixel, GpuEffectKind.Curves),
+        new(15, BuiltInEffects.Grain, EffectStage.Spatial, GpuEffectKind.Grain),
+        new(16, BuiltInEffects.Glow, EffectStage.Spatial, GpuEffectKind.Glow),
+        new(17, BuiltInEffects.ChromaticAberration, EffectStage.Spatial, GpuEffectKind.ChromaticAberration),
+        new(18, BuiltInEffects.Denoise, EffectStage.Spatial, GpuEffectKind.Denoise),
+        new(19, BuiltInEffects.Mirror, EffectStage.Spatial, GpuEffectKind.Mirror),
+        new(22, BuiltInEffects.LensDistortion, EffectStage.Spatial, GpuEffectKind.LensDistortion),
+        new(23, BuiltInEffects.HslQualifier, EffectStage.PerPixel, GpuEffectKind.HslQualifier),
         new(101, BuiltInTransitions.Crossfade, EffectStage.Transition, GpuEffectKind.Crossfade),
         new(102, BuiltInTransitions.Dip, EffectStage.Transition, GpuEffectKind.Dip),
         new(103, BuiltInTransitions.Wipe, EffectStage.Transition, GpuEffectKind.Wipe),

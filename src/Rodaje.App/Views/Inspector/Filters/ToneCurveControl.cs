@@ -15,9 +15,11 @@ using Path = Microsoft.UI.Xaml.Shapes.Path;
 namespace Rodaje.App.Views.Inspector.Filters;
 
 /// <summary>
-/// El editor de curvas: general (RGB) y por canal. Arrastrar un punto lo mueve entre sus vecinos; un clic fuera de los puntos
-/// añade uno y lo arrastra; doble clic o clic derecho sobre un punto lo quita (quedan al menos dos). Cada cambio sale en
-/// <see cref="CurveChanged"/> con la opción y el texto de la curva (<see cref="ToneCurve.Format"/>).
+/// El editor de curvas: general (RGB) y por canal, y las de ajuste (tono contra tono, tono contra saturación y luma contra
+/// saturación, con la línea neutra al medio y la escala de tonos o de luma debajo). Arrastrar un punto lo mueve entre sus
+/// vecinos; un clic fuera de los puntos añade uno y lo arrastra; doble clic o clic derecho sobre un punto lo quita (en las de
+/// tono quedan al menos dos; en las de ajuste, ninguno es la curva neutra). Cada cambio sale en <see cref="CurveChanged"/>
+/// con la opción y el texto de la curva.
 /// </summary>
 internal sealed partial class ToneCurveControl : StackPanel
 {
@@ -25,18 +27,27 @@ internal sealed partial class ToneCurveControl : StackPanel
     private const double HitRadius = 8;
     private const double MinGap = 0.01;
 
-    private static readonly (string Option, string Label, Windows.UI.Color Color)[] Channels =
+    private static readonly (string Option, string Label, Windows.UI.Color Color, string Tip)[] Channels =
     [
-        (O.Master, "RGB", Colors.White),
-        (O.Red, "R", ColorHelper.FromArgb(255, 240, 80, 80)),
-        (O.Green, "G", ColorHelper.FromArgb(255, 80, 210, 100)),
-        (O.Blue, "B", ColorHelper.FromArgb(255, 90, 140, 255)),
+        (O.Master, "RGB", Colors.White, "Curva general"),
+        (O.Red, "R", ColorHelper.FromArgb(255, 240, 80, 80), "Curva del rojo"),
+        (O.Green, "G", ColorHelper.FromArgb(255, 80, 210, 100), "Curva del verde"),
+        (O.Blue, "B", ColorHelper.FromArgb(255, 90, 140, 255), "Curva del azul"),
+        (O.HueHue, "Tono › tono", ColorHelper.FromArgb(255, 242, 209, 107), "Tono contra tono: gira el tono de cada color (arriba o abajo del medio)"),
+        (O.HueSaturation, "Tono › sat.", ColorHelper.FromArgb(255, 242, 209, 107), "Tono contra saturación: satura o apaga cada color"),
+        (O.LumaSaturation, "Luma › sat.", ColorHelper.FromArgb(255, 242, 209, 107), "Luma contra saturación: satura o apaga según el brillo (por ejemplo, las sombras)"),
     ];
+
+    /// <summary>Las curvas de ajuste empiezan en la cuarta pestaña.</summary>
+    private const int FirstAdjust = 4;
+
+    private readonly Rectangle _scale = new() { Width = Side, Height = 8 };
+    private readonly Line _guide = new();
 
     private readonly Canvas _canvas = new() { Width = Side, Height = Side };
     private readonly Polyline _curve = new() { StrokeThickness = 2 };
     private readonly Path _points = new() { StrokeThickness = 1.5 };
-    private readonly ToggleButton[] _tabs = new ToggleButton[4];
+    private readonly ToggleButton[] _tabs = new ToggleButton[7];
     private readonly Dictionary<string, List<Vector2>> _curves = [];
     private int _channel;
     private int? _dragging;
@@ -46,16 +57,19 @@ internal sealed partial class ToneCurveControl : StackPanel
         Spacing = 4;
         Padding = new Thickness(12, 4, 6, 6);
         var tabs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
+        var adjust = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
         for (int i = 0; i < Channels.Length; i++)
         {
             int index = i;
             _tabs[i] = new ToggleButton { Content = Channels[i].Label, MinWidth = 40, Height = 26, Padding = new Thickness(6, 0, 6, 0), IsChecked = i == 0 };
             _tabs[i].Click += (_, _) => SelectChannel(index);
-            AutomationProperties.SetName(_tabs[i], "Curva " + Channels[i].Label);
-            tabs.Children.Add(_tabs[i]);
+            AutomationProperties.SetName(_tabs[i], Channels[i].Tip);
+            ToolTipService.SetToolTip(_tabs[i], Channels[i].Tip);
+            (i < FirstAdjust ? tabs : adjust).Children.Add(_tabs[i]);
         }
 
         Children.Add(tabs);
+        Children.Add(adjust);
         var frame = new Border
         {
             Width = Side + 2,
@@ -68,6 +82,9 @@ internal sealed partial class ToneCurveControl : StackPanel
         };
         var grid = new Path { Stroke = (Brush)Application.Current.Resources["StrokeBrush"], StrokeThickness = 1, Data = GridGeometry() };
         _canvas.Children.Add(grid);
+        _guide.Stroke = (Brush)Application.Current.Resources["ControlBorderBrush"];
+        _guide.StrokeThickness = 1;
+        _canvas.Children.Add(_guide);
         _canvas.Children.Add(_curve);
         _canvas.Children.Add(_points);
         _points.Stroke = new SolidColorBrush(Colors.Black);
@@ -81,7 +98,14 @@ internal sealed partial class ToneCurveControl : StackPanel
         AutomationProperties.SetName(_canvas, "Curva");
         ToolTipService.SetToolTip(_canvas, "Arrastra un punto; clic en otro lugar añade uno; doble clic o clic derecho lo quita.");
         Children.Add(frame);
+        Children.Add(_scale);
     }
+
+    private bool IsAdjust => _channel >= FirstAdjust;
+
+    private bool IsPeriodic => Channels[_channel].Option is O.HueHue or O.HueSaturation;
+
+    private int MinPoints => IsAdjust ? 0 : 2;
 
     /// <summary>Cambió la curva de una opción: (opción, texto, si terminó el arrastre).</summary>
     public event EventHandler<(string Option, string Text, bool Final)>? CurveChanged;
@@ -94,8 +118,14 @@ internal sealed partial class ToneCurveControl : StackPanel
             return;
         }
 
-        foreach ((string option, _, _) in Channels)
+        foreach ((string option, _, _, _) in Channels)
         {
+            if (option is O.HueHue or O.HueSaturation or O.LumaSaturation)
+            {
+                _curves[option] = [.. HueCurve.Parse(options.GetValueOrDefault(option), option != O.LumaSaturation).Points];
+                continue;
+            }
+
             ToneCurve curve = ToneCurve.Parse(options.GetValueOrDefault(option));
             _curves[option] = curve.Points.Count >= 2 ? [.. curve.Points] : [new(0, 0), new(1, 1)];
         }
@@ -103,7 +133,8 @@ internal sealed partial class ToneCurveControl : StackPanel
         Draw();
     }
 
-    private List<Vector2> Current => _curves.TryGetValue(Channels[_channel].Option, out List<Vector2>? p) ? p : _curves[Channels[_channel].Option] = [new(0, 0), new(1, 1)];
+    private List<Vector2> Current => _curves.TryGetValue(Channels[_channel].Option, out List<Vector2>? p) ? p
+        : _curves[Channels[_channel].Option] = IsAdjust ? [] : [new(0, 0), new(1, 1)];
 
     private void SelectChannel(int index)
     {
@@ -142,7 +173,7 @@ internal sealed partial class ToneCurveControl : StackPanel
         int? hit = HitPoint(point.Position);
         if (point.Properties.IsRightButtonPressed)
         {
-            if (hit is { } remove && points.Count > 2)
+            if (hit is { } remove && points.Count > MinPoints)
             {
                 points.RemoveAt(remove);
                 Publish(final: true);
@@ -204,7 +235,7 @@ internal sealed partial class ToneCurveControl : StackPanel
     private void OnDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         List<Vector2> points = Current;
-        if (HitPoint(e.GetPosition(_canvas)) is { } i && points.Count > 2)
+        if (HitPoint(e.GetPosition(_canvas)) is { } i && points.Count > MinPoints)
         {
             points.RemoveAt(i);
             Publish(final: true);
@@ -215,7 +246,8 @@ internal sealed partial class ToneCurveControl : StackPanel
     {
         Draw();
         string option = Channels[_channel].Option;
-        CurveChanged?.Invoke(this, (option, ToneCurve.From(Current).Format(), final));
+        string text = IsAdjust ? HueCurve.From(Current, IsPeriodic).Format() : ToneCurve.From(Current).Format();
+        CurveChanged?.Invoke(this, (option, text, final));
     }
 
     private void Draw()
@@ -226,12 +258,34 @@ internal sealed partial class ToneCurveControl : StackPanel
         }
 
         List<Vector2> points = Current;
-        ToneCurve curve = ToneCurve.From(points);
+        Func<double, double> evaluate = IsAdjust ? HueCurve.From(points, IsPeriodic).Evaluate : ToneCurve.From(points).Evaluate;
         var line = new PointCollection();
         for (int s = 0; s <= 64; s++)
         {
             double x = s / 64.0;
-            line.Add(ToCanvas(x, curve.Evaluate(x)));
+            line.Add(ToCanvas(x, evaluate(x)));
+        }
+
+        _scale.Visibility = IsAdjust ? Visibility.Visible : Visibility.Collapsed;
+        // La guía es la curva que no cambia nada: la diagonal en las de tono, la línea del medio en las de ajuste.
+        (_guide.X1, _guide.Y1, _guide.X2, _guide.Y2) = IsAdjust ? (0, Side / 2, Side, Side / 2) : (0, Side, Side, 0);
+        if (IsAdjust)
+        {
+            var gradient = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 0) };
+            if (IsPeriodic)
+            {
+                for (int h = 0; h <= 6; h++)
+                {
+                    gradient.GradientStops.Add(new GradientStop { Offset = h / 6.0, Color = HueColor(h * 60) });
+                }
+            }
+            else
+            {
+                gradient.GradientStops.Add(new GradientStop { Offset = 0, Color = Colors.Black });
+                gradient.GradientStops.Add(new GradientStop { Offset = 1, Color = Colors.White });
+            }
+
+            _scale.Fill = gradient;
         }
 
         var brush = new SolidColorBrush(Channels[_channel].Color);
@@ -247,6 +301,21 @@ internal sealed partial class ToneCurveControl : StackPanel
         _points.Fill = brush;
     }
 
+    private static Windows.UI.Color HueColor(double degrees)
+    {
+        double h = degrees % 360 / 60;
+        byte x = (byte)Math.Round(255 * (1 - Math.Abs((h % 2) - 1)));
+        return (int)h switch
+        {
+            0 => ColorHelper.FromArgb(255, 255, x, 0),
+            1 => ColorHelper.FromArgb(255, x, 255, 0),
+            2 => ColorHelper.FromArgb(255, 0, 255, x),
+            3 => ColorHelper.FromArgb(255, 0, x, 255),
+            4 => ColorHelper.FromArgb(255, x, 0, 255),
+            _ => ColorHelper.FromArgb(255, 255, 0, x),
+        };
+    }
+
     private static GeometryGroup GridGeometry()
     {
         var group = new GeometryGroup();
@@ -257,7 +326,6 @@ internal sealed partial class ToneCurveControl : StackPanel
             group.Children.Add(new LineGeometry { StartPoint = new Point(0, at), EndPoint = new Point(Side, at) });
         }
 
-        group.Children.Add(new LineGeometry { StartPoint = new Point(0, Side), EndPoint = new Point(Side, 0) });
         return group;
     }
 }

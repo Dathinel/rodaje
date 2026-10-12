@@ -37,10 +37,12 @@ internal sealed class EffectPlan
     public int EffectCount => _effects.Length;
 
     /// <summary>Puede dejar ver lo de abajo aunque sea opaca: recorte, máscara o croma.</summary>
-    public bool MayRevealBelow => _crop is not null || Array.Exists(_effects, e => e.Code == MaskCode || e.Code == ChromaKeyCode);
+    public bool MayRevealBelow => _crop is not null
+        || Array.Exists(_effects, e => e.Code == MaskCode || e.Code == ChromaKeyCode || e.Code == DistortionCode);
 
     private static readonly int MaskCode = EffectRegistry.Find(BuiltInEffects.Mask)!.Code;
     private static readonly int ChromaKeyCode = EffectRegistry.Find(BuiltInEffects.ChromaKey)!.Code;
+    private static readonly int DistortionCode = EffectRegistry.Find(BuiltInEffects.LensDistortion)!.Code;
 
     /// <summary>Nulo si el clip no tiene transformación, efectos de imagen, mezcla ni estabilizar: el camino rápido.</summary>
     /// <param name="effects">La pila del clip.</param>
@@ -221,7 +223,10 @@ internal sealed class EffectPlan
                 return new ImageEffect(definition.Code, [], constants, ToneCurve.IsIdentityKey(key) ? null : new ResourceKey(key)) { KeepsResource = true };
             }
 
-            return new ImageEffect(definition.Code, Curves(definition, effect.Parameters), constants, resource);
+            return new ImageEffect(definition.Code, Curves(definition, effect.Parameters), constants, resource)
+            {
+                TimeSlot = definition.UsesTime ? definition.TimeSlot : -1,
+            };
         }
 
         public int Code => code;
@@ -231,6 +236,9 @@ internal sealed class EffectPlan
         private bool IsMask { get; init; }
 
         private long MatteStart { get; init; }
+
+        /// <summary>Hueco donde va el tiempo del origen en segundos, o −1 si el efecto no lo usa.</summary>
+        private int TimeSlot { get; init; } = -1;
 
         public LayerEffect Evaluate(long at, IEffectResources? resources)
         {
@@ -249,6 +257,11 @@ internal sealed class EffectPlan
             if (KeepsResource)
             {
                 return new LayerEffect(code, values, resource);
+            }
+
+            if (TimeSlot >= 0)
+            {
+                values[TimeSlot] = (float)((double)at / Time.TicksPerSecond);
             }
 
             ResourceKey? ready = resource is { } key && resources is not null && resources.TryGetLut(key, out _) ? key : null;

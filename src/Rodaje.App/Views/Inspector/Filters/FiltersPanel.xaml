@@ -37,18 +37,22 @@
                         <ComboBox x:Name="AddBox" PlaceholderText="Añadir filtro" HorizontalAlignment="Stretch" MinWidth="0" Height="28"
                                   FontSize="{StaticResource BodyFontSize}" AutomationProperties.Name="Añadir filtro" SelectionChanged="OnAddSelected"
                                   ToolTipService.ToolTip="Se aplican de arriba abajo" />
+                        <Button x:Name="SavePresetButton" Grid.Column="1" Style="{StaticResource ToolButtonStyle}" Height="28" Width="40"
+                                Content="&#xE74E;" FontFamily="{StaticResource IconFontFamily}" Click="OnSavePresetClick"
+                                AutomationProperties.Name="Guardar como preset"
+                                ToolTipService.ToolTip="Guardar los filtros de imagen del clip como preset propio (queda en «Mis filtros» y se puede publicar en un paquete)" />
                     </Grid>
                     <!-- En la pestaña Máscaras: una forma nueva centrada, o un trazo que se dibuja en el visor. -->
                     <StackPanel x:Name="MaskBar" Orientation="Horizontal" Spacing="4" Padding="12,4,8,8" Visibility="Collapsed">
-                        <Button Style="{StaticResource ToolButtonStyle}" Height="28" Padding="8,0" Click="OnAddRectangleClick"
+                        <Button Style="{StaticResource ToolButtonStyle}" Height="28" Width="Auto" Padding="8,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Click="OnAddRectangleClick"
                                 ToolTipService.ToolTip="Añadir una máscara rectangular en el centro" AutomationProperties.Name="Rectángulo">
                             <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE739;" FontSize="{StaticResource IconFontSize}" /><TextBlock Text="Rectángulo" /></StackPanel>
                         </Button>
-                        <Button Style="{StaticResource ToolButtonStyle}" Height="28" Padding="8,0" Click="OnAddEllipseClick"
+                        <Button Style="{StaticResource ToolButtonStyle}" Height="28" Width="Auto" Padding="8,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Click="OnAddEllipseClick"
                                 ToolTipService.ToolTip="Añadir una máscara elíptica en el centro" AutomationProperties.Name="Elipse">
                             <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xEA3A;" FontSize="{StaticResource IconFontSize}" /><TextBlock Text="Elipse" /></StackPanel>
                         </Button>
-                        <Button Style="{StaticResource ToolButtonStyle}" Height="28" Padding="8,0" Click="OnDrawPathClick"
+                        <Button Style="{StaticResource ToolButtonStyle}" Height="28" Width="Auto" Padding="8,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Click="OnDrawPathClick"
                                 ToolTipService.ToolTip="Dibujar el contorno con el ratón sobre el visor (Esc cancela)" AutomationProperties.Name="Trazo libre">
                             <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xEE56;" FontSize="{StaticResource IconFontSize}" /><TextBlock Text="Trazo libre" /></StackPanel>
                         </Button>
@@ -67,32 +71,55 @@
                         </ListView.ItemContainerStyle>
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="local:FilterItem">
-                                <Grid ColumnSpacing="2">
+                                <Grid ColumnSpacing="2" Background="Transparent">
+                                    <Grid.ContextFlyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Text="Subir" Tag="{x:Bind EffectId}" IsEnabled="{x:Bind CanMoveUp}" Click="OnMoveUpClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE70E;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="Bajar" Tag="{x:Bind EffectId}" IsEnabled="{x:Bind CanMoveDown}" Click="OnMoveDownClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE70D;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Text="Quitar" Tag="{x:Bind EffectId}" Click="OnRemoveClick">
+                                                <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE711;" /></MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyout>
+                                    </Grid.ContextFlyout>
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
+                                    <!-- Asa: la fila se arrastra para cambiar el orden de la pila. -->
+                                    <FontIcon Glyph="&#xE76F;" FontSize="{StaticResource IconSmallFontSize}" Foreground="{StaticResource TextDisabledBrush}"
+                                              Width="12" Visibility="{x:Bind HandleVisibility}" ToolTipService.ToolTip="Arrastra para cambiar el orden" />
                                     <!-- Como en las cabeceras de pista: ojo para ver u ocultar; marcado (naranja) = desactivado. -->
-                                    <ToggleButton Style="{StaticResource ToolToggleButtonStyle}" Width="24" Height="24" FontSize="{StaticResource BodyFontSize}"
+                                    <ToggleButton Grid.Column="1" Style="{StaticResource ToolToggleButtonStyle}" Width="24" Height="24" FontSize="{StaticResource BodyFontSize}"
                                                   Content="{x:Bind EnabledGlyph}" IsChecked="{x:Bind IsDisabled}" Tag="{x:Bind EffectId}"
                                                   Click="OnEnabledClick" ToolTipService.ToolTip="{x:Bind EnabledTip}"
                                                   AutomationProperties.Name="{x:Bind EnabledTip}" />
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0" Opacity="{x:Bind TextOpacity}"
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="4,0,0,0" Opacity="{x:Bind TextOpacity}"
                                                 ToolTipService.ToolTip="{x:Bind Name}">
                                         <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" />
                                         <TextBlock Text="{x:Bind Note}" Style="{StaticResource CaptionTextStyle}" Visibility="{x:Bind NoteVisibility}" />
                                     </StackPanel>
-                                    <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Width="24" Height="24" Content="&#xE70E;" FontSize="{StaticResource IconFontSize}"
-                                            Tag="{x:Bind EffectId}" IsEnabled="{x:Bind CanMoveUp}" Click="OnMoveUpClick" ToolTipService.ToolTip="Subir"
-                                            AutomationProperties.Name="Subir" />
-                                    <Button Grid.Column="3" Style="{StaticResource ToolButtonStyle}" Width="24" Height="24" Content="&#xE70D;" FontSize="{StaticResource IconFontSize}"
-                                            Tag="{x:Bind EffectId}" IsEnabled="{x:Bind CanMoveDown}" Click="OnMoveDownClick" ToolTipService.ToolTip="Bajar"
-                                            AutomationProperties.Name="Bajar" />
-                                    <Button Grid.Column="4" Style="{StaticResource ToolButtonStyle}" Width="24" Height="24" Content="&#xE711;" FontSize="{StaticResource IconFontSize}"
-                                            Tag="{x:Bind EffectId}" Click="OnRemoveClick" ToolTipService.ToolTip="Quitar" AutomationProperties.Name="Quitar" />
+                                    <!-- Costo en la GPU: uno, dos o tres puntos; la ayuda da los ms estimados en la resolución de la secuencia. -->
+                                    <TextBlock Grid.Column="3" Text="{x:Bind CostGlyph}" Foreground="{x:Bind CostBrush}" FontSize="{StaticResource MicroFontSize}"
+                                               VerticalAlignment="Center" Margin="2,0,4,0" Visibility="{x:Bind CostVisibility}"
+                                               ToolTipService.ToolTip="{x:Bind CostTip}" AutomationProperties.Name="{x:Bind CostTip}" />
+                                    <!-- A/B: solo en la vista previa, el clip se ve sin este efecto mientras está marcado. -->
+                                    <ToggleButton Grid.Column="4" Style="{StaticResource ToolToggleButtonStyle}" Width="30" Height="24"
+                                                  FontSize="{StaticResource CaptionFontSize}" FontFamily="{StaticResource UiFontFamily}" Content="A/B" IsChecked="{x:Bind IsPreviewOff}"
+                                                  Tag="{x:Bind EffectId}" Click="OnCompareClick" Visibility="{x:Bind CompareVisibility}"
+                                                  ToolTipService.ToolTip="Comparar: mientras está marcado, el visor muestra el clip sin este efecto (no cambia el proyecto ni la exportación)"
+                                                  AutomationProperties.Name="Comparar sin este efecto" />
+                                    <Button Grid.Column="5" Style="{StaticResource ToolButtonStyle}" Width="24" Height="24" Content="&#xE711;"
+                                            FontSize="{StaticResource IconSmallFontSize}" Tag="{x:Bind EffectId}" Click="OnRemoveClick"
+                                            ToolTipService.ToolTip="Quitar" AutomationProperties.Name="Quitar" />
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -100,6 +127,40 @@
                     <TextBlock x:Name="NoFiltersText" Style="{StaticResource CaptionTextStyle}" Margin="12,2,12,4" Visibility="Collapsed"
                                TextWrapping="Wrap" TextTrimming="None"
                                Text="Este clip no tiene filtros. Añade uno aquí arriba o desde la biblioteca." />
+                </StackPanel>
+            </inspector:InspectorSection>
+            <!-- Presets: los filtros de los paquetes y los propios, cada uno con su miniatura sobre el cuadro actual. -->
+            <inspector:InspectorSection x:Name="PresetsSection" Key="filtros-presets" Title="Presets">
+                <inspector:InspectorSection.Actions>
+                    <Button Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="{StaticResource IconSmallFontSize}"
+                            Content="&#xE72C;" Click="OnRefreshPresetsClick" AutomationProperties.Name="Actualizar las miniaturas"
+                            ToolTipService.ToolTip="Volver a hacer las miniaturas con el cuadro del cursor" />
+                </inspector:InspectorSection.Actions>
+                <StackPanel>
+                    <GridView x:Name="PresetGrid" ItemsSource="{x:Bind Presets}" SelectionMode="None" IsItemClickEnabled="True"
+                              ItemClick="OnPresetClick" MaxHeight="232" Padding="10,2,6,6">
+                        <GridView.ItemContainerStyle>
+                            <Style TargetType="GridViewItem">
+                                <Setter Property="Margin" Value="0,0,6,6" />
+                                <Setter Property="Padding" Value="0" />
+                            </Style>
+                        </GridView.ItemContainerStyle>
+                        <GridView.ItemTemplate>
+                            <DataTemplate x:DataType="local:PresetTile">
+                                <StackPanel Width="104" Spacing="3" ToolTipService.ToolTip="{x:Bind Tip}">
+                                    <Border Height="58" CornerRadius="{StaticResource ControlCornerRadius}" BorderThickness="1"
+                                            BorderBrush="{StaticResource StrokeBrush}" Background="{StaticResource BackgroundBrush}">
+                                        <Image Source="{x:Bind Thumbnail, Mode=OneWay}" Stretch="UniformToFill" />
+                                    </Border>
+                                    <TextBlock Text="{x:Bind Name}" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" />
+                                    <TextBlock Text="{x:Bind Source}" Style="{StaticResource MicroTextStyle}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
+                    <TextBlock x:Name="NoPresetsText" Style="{StaticResource CaptionTextStyle}" Margin="12,2,12,6" TextWrapping="Wrap"
+                               TextTrimming="None" Visibility="Collapsed"
+                               Text="No hay presets. Instala un paquete de filtros (Complementos) o guarda los filtros de un clip con el botón de guardar." />
                 </StackPanel>
             </inspector:InspectorSection>
         </StackPanel>
@@ -158,12 +219,58 @@
                         <TextBlock Text="Color clave" Style="{StaticResource LabelTextStyle}" />
                         <Border x:Name="KeySwatch" Grid.Column="1" Width="28" Height="22" CornerRadius="{StaticResource ControlCornerRadius}" BorderThickness="1"
                                 BorderBrush="{StaticResource ControlBorderBrush}" />
-                        <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Height="28" Padding="8,0" HorizontalAlignment="Left"
+                        <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Height="28" Width="Auto" Padding="8,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" HorizontalAlignment="Left"
                                 Click="OnPickKeyClick" AutomationProperties.Name="Cuentagotas"
                                 ToolTipService.ToolTip="Haz clic en el fondo, en el visor, para tomar su color">
-                            <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xEF3C;" FontSize="{StaticResource IconFontSize}" /><TextBlock Text="Cuentagotas" /></StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xEF3C;" FontSize="{StaticResource IconFontSize}" /><TextBlock Text="Cuentagotas" FontFamily="{StaticResource UiFontFamily}" /></StackPanel>
                         </Button>
                     </Grid>
+                    <!-- Color y LUT: balance de blancos con cuentagotas y exposición en tercios de paso. -->
+                    <Grid x:Name="ColorToolsRow" Padding="12,3,6,3" ColumnSpacing="4" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Balance" Style="{StaticResource LabelTextStyle}" />
+                        <Button Grid.Column="1" Style="{StaticResource ToolButtonStyle}" Height="28" Width="Auto" Padding="8,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Click="OnPickWhiteClick"
+                                AutomationProperties.Name="Cuentagotas de blanco"
+                                ToolTipService.ToolTip="Haz clic en el visor sobre algo que debería ser blanco o gris: fija temperatura y matiz">
+                            <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xEF3C;" FontSize="{StaticResource IconSmallFontSize}" /><TextBlock Text="Blanco" FontFamily="{StaticResource UiFontFamily}" /></StackPanel>
+                        </Button>
+                        <TextBlock Grid.Column="2" Text="Exposición" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        <Button Grid.Column="3" Style="{StaticResource ToolButtonStyle}" Height="28" Width="Auto" Padding="6,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Content="−1/3" Tag="-1"
+                                Click="OnExposureStepClick" AutomationProperties.Name="Bajar un tercio de paso"
+                                ToolTipService.ToolTip="Bajar la exposición un tercio de paso (EV)" />
+                        <Button Grid.Column="4" Style="{StaticResource ToolButtonStyle}" Height="28" Width="Auto" Padding="6,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Content="+1/3" Tag="1"
+                                Click="OnExposureStepClick" AutomationProperties.Name="Subir un tercio de paso"
+                                ToolTipService.ToolTip="Subir la exposición un tercio de paso (EV)" />
+                    </Grid>
+                    <!-- Corrección secundaria: cuentagotas del color y ver la máscara en el visor (solo vista previa). -->
+                    <Grid x:Name="QualifierRow" Padding="12,3,6,3" ColumnSpacing="6" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Selección" Style="{StaticResource LabelTextStyle}" />
+                        <Border x:Name="HueSwatch" Grid.Column="1" Width="28" Height="22" CornerRadius="3" BorderThickness="1"
+                                BorderBrush="{StaticResource ControlBorderBrush}" />
+                        <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Height="28" Width="Auto" Padding="8,0" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}" Click="OnPickQualifierClick"
+                                AutomationProperties.Name="Cuentagotas del color"
+                                ToolTipService.ToolTip="Haz clic en el visor sobre el color que quieres cambiar">
+                            <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xEF3C;" FontSize="{StaticResource IconSmallFontSize}" /><TextBlock Text="Cuentagotas" FontFamily="{StaticResource UiFontFamily}" /></StackPanel>
+                        </Button>
+                        <ToggleButton x:Name="MaskViewButton" Grid.Column="3" Style="{StaticResource ToolToggleButtonStyle}" Height="28" Padding="8,0"
+                                      HorizontalAlignment="Left" Click="OnMaskViewClick" Content="Ver máscara" Width="Auto" FontFamily="{StaticResource UiFontFamily}" FontSize="{StaticResource BodyFontSize}"
+                                      AutomationProperties.Name="Ver la máscara"
+                                      ToolTipService.ToolTip="El visor muestra lo elegido en blanco y el resto en negro, para afinar la selección (solo vista previa)" />
+                    </Grid>
+                    <!-- Opciones de elección de cualquier filtro: tipo de desenfoque, modo, zona respecto de las máscaras… -->
+                    <StackPanel x:Name="ChoiceRows" />
                     <local:ColorWheelsControl x:Name="Wheels" Visibility="Collapsed" />
                     <local:ToneCurveControl x:Name="CurveEditor" Visibility="Collapsed" />
                     <StackPanel x:Name="ParameterRows" />

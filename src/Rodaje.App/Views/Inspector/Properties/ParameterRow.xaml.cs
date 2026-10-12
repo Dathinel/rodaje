@@ -48,6 +48,7 @@ internal sealed partial class ParameterRow : UserControl
         ValueSlider.AddHandler(PointerReleasedEvent, new PointerEventHandler((_, _) => EndPointer()), true);
         ValueSlider.AddHandler(PointerCaptureLostEvent, new PointerEventHandler((_, _) => EndPointer()), true);
         ValueSlider.LostFocus += (_, _) => FinishChange();
+        AttachScrub();
         SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width);
         ApplyLayout(0);
     }
@@ -85,7 +86,7 @@ internal sealed partial class ParameterRow : UserControl
         LabelText.Text = label ?? spec.Label;
         AxisText.Text = axis ?? "";
         AxisText.Visibility = axis is null ? Visibility.Collapsed : Visibility.Visible;
-        ToolTipService.SetToolTip(LabelArea, spec.Label);
+        ToolTipService.SetToolTip(LabelArea, spec.Label + Environment.NewLine + "Arrastra a los lados para cambiar el valor (Mayús: fino; Ctrl: grueso). Doble clic: restablecer.");
         UnitText.Text = spec.Unit;
         ValueSlider.Minimum = spec.Minimum;
         ValueSlider.Maximum = spec.Maximum;
@@ -202,6 +203,80 @@ internal sealed partial class ParameterRow : UserControl
         Grid.SetRow(KeyframeStrip, oneLine ? 1 : 2);
         Grid.SetColumn(KeyframeStrip, oneLine ? 1 : 0);
         Grid.SetColumnSpan(KeyframeStrip, oneLine ? 5 : 6);
+    }
+
+    /// <summary>
+    /// Arrastrar la etiqueta a los lados cambia el valor (el rango del deslizador en unos 300 px; con Mayús, diez veces más
+    /// fino; con Ctrl, diez veces más grueso). Doble clic en la etiqueta restablece.
+    /// </summary>
+    private void AttachScrub()
+    {
+        double startX = 0;
+        double startValue = 0;
+        bool scrubbing = false;
+        LabelArea.PointerEntered += (_, _) => ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
+        LabelArea.PointerExited += (_, _) =>
+        {
+            if (!scrubbing)
+            {
+                ProtectedCursor = null;
+            }
+        };
+        LabelArea.PointerPressed += (_, e) =>
+        {
+            if (_spec is null || !ValueSlider.IsEnabled || !e.GetCurrentPoint(LabelArea).Properties.IsLeftButtonPressed)
+            {
+                return;
+            }
+
+            scrubbing = LabelArea.CapturePointer(e.Pointer);
+            _pointerDown = scrubbing;
+            startX = e.GetCurrentPoint(this).Position.X;
+            startValue = ValueSlider.Value;
+            e.Handled = true;
+        };
+        LabelArea.PointerMoved += (_, e) =>
+        {
+            if (!scrubbing || _spec is null)
+            {
+                return;
+            }
+
+            var modifiers = e.KeyModifiers;
+            double factor = modifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift) ? 0.1
+                : modifiers.HasFlag(Windows.System.VirtualKeyModifiers.Control) ? 10 : 1;
+            double perPixel = (_spec.Maximum - _spec.Minimum) / 300 * factor;
+            double value = startValue + ((e.GetCurrentPoint(this).Position.X - startX) * perPixel);
+            double step = _spec.Step * (factor < 1 ? 0.1 : 1);
+            value = Math.Round(value / step) * step;
+            ValueSlider.Value = Math.Clamp(value, _spec.Minimum, _spec.Maximum);
+            e.Handled = true;
+        };
+        void End()
+        {
+            if (scrubbing)
+            {
+                scrubbing = false;
+                ProtectedCursor = null;
+                EndPointer();
+            }
+        }
+
+        LabelArea.PointerReleased += (_, e) =>
+        {
+            LabelArea.ReleasePointerCapture(e.Pointer);
+            End();
+        };
+        LabelArea.PointerCaptureLost += (_, _) => End();
+        LabelArea.DoubleTapped += (_, e) =>
+        {
+            if (ResetButton.IsEnabled)
+            {
+                OnResetClick(this, new RoutedEventArgs());
+            }
+
+            e.Handled = true;
+        };
     }
 
     private void EndPointer()

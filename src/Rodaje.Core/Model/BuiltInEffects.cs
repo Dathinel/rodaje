@@ -186,6 +186,12 @@ public static class BuiltInEffects
 
         /// <summary>Cuánto se aplica la LUT, de 0 a 1. Por defecto 1.</summary>
         public const string LutIntensity = "lutIntensity";
+
+        /// <summary>
+        /// Protección de piel, de 0 a 1: en los tonos de piel (cerca de la línea de piel del vectorscopio) deja fuera la
+        /// saturación, la temperatura y el tinte en esa proporción. Por defecto 0.
+        /// </summary>
+        public const string SkinProtection = "skinProtection";
     }
 
     /// <summary>Opciones de <see cref="Color"/>.</summary>
@@ -207,6 +213,14 @@ public static class BuiltInEffects
 
         /// <summary>Suavidad del borde, de 0 a 1.</summary>
         public const string Softness = "softness";
+
+        /// <summary>0 sigue la forma del cuadro (elipse); 1 es un círculo en píxeles. Por defecto 0.</summary>
+        public const string Roundness = "roundness";
+
+        /// <summary>Centro de la viñeta en fracción del ancho de la imagen. Por defecto 0,5.</summary>
+        public const string CenterX = "centerX";
+
+        public const string CenterY = "centerY";
     }
 
     public const string Blur = "rodaje.blur";
@@ -215,6 +229,27 @@ public static class BuiltInEffects
     {
         /// <summary>Radio en píxeles de la secuencia (la vista previa a media resolución lo escala).</summary>
         public const string Radius = "radius";
+
+        /// <summary>Dirección del desenfoque direccional en grados; 0 es horizontal.</summary>
+        public const string Angle = "angle";
+
+        /// <summary>Centro del desenfoque radial, en fracción de la imagen. Por defecto 0,5.</summary>
+        public const string CenterX = "centerX";
+
+        public const string CenterY = "centerY";
+    }
+
+    public static class BlurOptions
+    {
+        /// <summary>Uno de <see cref="Effects.EffectRegistry.BlurKinds"/>: gaussiano (por defecto), de lente, direccional o radial.</summary>
+        public const string Kind = "kind";
+    }
+
+    /// <summary>Opción de los efectos de imagen que se pueden limitar con las máscaras que «limitan efectos».</summary>
+    public static class RegionOptions
+    {
+        /// <summary>Uno de <see cref="Effects.EffectRegistry.Regions"/>: en toda la imagen, dentro o fuera de esas máscaras.</summary>
+        public const string Region = "region";
     }
 
     public const string Sharpen = "rodaje.sharpen";
@@ -225,6 +260,149 @@ public static class BuiltInEffects
 
         /// <summary>Radio en píxeles de la secuencia.</summary>
         public const string Radius = "radius";
+
+        /// <summary>Umbral de la máscara de enfoque, de 0 a 0,25: las diferencias más chicas (ruido, piel) no se realzan.</summary>
+        public const string Threshold = "threshold";
+    }
+
+    /// <summary>Grano de película: ruido que cambia en cada cuadro, más en los medios tonos.</summary>
+    public const string Grain = "rodaje.grain";
+
+    public static class GrainParameters
+    {
+        /// <summary>Intensidad, de 0 a 1.</summary>
+        public const string Amount = "amount";
+
+        /// <summary>Tamaño del grano en píxeles de la secuencia.</summary>
+        public const string Size = "size";
+
+        /// <summary>De 0 (grano gris) a 1 (grano de color).</summary>
+        public const string Color = "color";
+
+        /// <summary>De 0 (igual en todos los tonos) a 1 (sobre todo en los medios, como la película).</summary>
+        public const string Response = "response";
+    }
+
+    /// <summary>Resplandor: las luces se desenfocan y se suman en luz lineal.</summary>
+    public const string Glow = "rodaje.glow";
+
+    public static class GlowParameters
+    {
+        /// <summary>Desde qué luminancia brilla, de 0 a 1.</summary>
+        public const string Threshold = "threshold";
+
+        /// <summary>Radio del halo en píxeles de la secuencia.</summary>
+        public const string Radius = "radius";
+
+        /// <summary>Cuánto se suma el halo, de 0 a 4.</summary>
+        public const string Intensity = "intensity";
+    }
+
+    /// <summary>Aberración cromática: el rojo y el azul se separan del verde.</summary>
+    public const string ChromaticAberration = "rodaje.aberration";
+
+    public static class ChromaticAberrationParameters
+    {
+        /// <summary>Separación en píxeles de la secuencia (en la esquina, si es radial).</summary>
+        public const string Amount = "amount";
+
+        /// <summary>Dirección de la separación lateral, en grados.</summary>
+        public const string Angle = "angle";
+    }
+
+    public static class ChromaticAberrationOptions
+    {
+        /// <summary><c>radial</c> (crece hacia los bordes, como una lente) o <c>lateral</c> (igual en todo el cuadro).</summary>
+        public const string Mode = "mode";
+    }
+
+    /// <summary>Reducción de ruido: un filtro que respeta los bordes y, al reproducir y exportar, una mezcla con el cuadro anterior.</summary>
+    public const string Denoise = "rodaje.denoise";
+
+    public static class DenoiseParameters
+    {
+        /// <summary>Fuerza del filtro espacial, de 0 a 1.</summary>
+        public const string Strength = "strength";
+
+        /// <summary>Cuánto se mezcla con el cuadro anterior donde no hay movimiento, de 0 a 1.</summary>
+        public const string Temporal = "temporal";
+
+        /// <summary>Cuánto detalle se conserva, de 0 a 1: más alto deja intactos más bordes.</summary>
+        public const string Detail = "detail";
+    }
+
+    /// <summary>Espejo y pantalla dividida: refleja una mitad o repite la imagen en mosaico.</summary>
+    public const string Mirror = "rodaje.mirror";
+
+    public static class MirrorParameters
+    {
+        /// <summary>Posición del eje del espejo, de 0 a 1 de la imagen. Por defecto 0,5.</summary>
+        public const string Axis = "axis";
+
+        /// <summary>Copias por lado en el mosaico, de 1 a 6.</summary>
+        public const string Tiles = "tiles";
+    }
+
+    public static class MirrorOptions
+    {
+        /// <summary>Uno de <see cref="Effects.EffectRegistry.MirrorModes"/>.</summary>
+        public const string Mode = "mode";
+    }
+
+    /// <summary>Distorsión de lente: barril (positivo) o cojín (negativo).</summary>
+    public const string LensDistortion = "rodaje.distortion";
+
+    public static class LensDistortionParameters
+    {
+        /// <summary>De −1 (cojín) a 1 (barril).</summary>
+        public const string Amount = "amount";
+
+        /// <summary>Acercamiento para tapar los bordes, de 0,5 a 2. Por defecto 1.</summary>
+        public const string Zoom = "zoom";
+    }
+
+    /// <summary>
+    /// Corrección secundaria con calificador HSL: elige los píxeles por tono, saturación y luminancia (con bordes suaves) y
+    /// solo a ellos les cambia tono, saturación y exposición.
+    /// </summary>
+    public const string HslQualifier = "rodaje.qualifier";
+
+    public static class HslQualifierParameters
+    {
+        /// <summary>Tono central en grados (0 rojo, 120 verde, 240 azul).</summary>
+        public const string HueCenter = "hueCenter";
+
+        /// <summary>Medio ancho del tono elegido, en grados.</summary>
+        public const string HueWidth = "hueWidth";
+
+        /// <summary>Suavidad del borde del tono, en grados.</summary>
+        public const string HueSoftness = "hueSoftness";
+
+        public const string SaturationLow = "satLow";
+
+        public const string SaturationHigh = "satHigh";
+
+        public const string LumaLow = "lumaLow";
+
+        public const string LumaHigh = "lumaHigh";
+
+        /// <summary>Suavidad de los bordes de saturación y luminancia, de 0 a 0,5.</summary>
+        public const string Softness = "softness";
+
+        /// <summary>Corrección: giro del tono en grados.</summary>
+        public const string HueShift = "hueShift";
+
+        /// <summary>Corrección: saturación, de −1 a 1.</summary>
+        public const string Saturation = "saturation";
+
+        /// <summary>Corrección: exposición en pasos (EV).</summary>
+        public const string Exposure = "exposure";
+    }
+
+    public static class HslQualifierOptions
+    {
+        /// <summary><c>off</c> u <c>on</c>: corrige lo que queda fuera de la selección.</summary>
+        public const string Invert = "invert";
     }
 
     /// <summary>Modo de mezcla de la capa con lo que tiene debajo.</summary>
@@ -310,6 +488,12 @@ public static class BuiltInEffects
 
         /// <summary>Instante del origen del clip (en segundos, cultura invariante) que corresponde al primer cuadro del video gris.</summary>
         public const string MatteStart = "matteStart";
+
+        /// <summary>
+        /// Uno de <see cref="Effects.EffectRegistry.MaskUses"/>: <c>cut</c> (por defecto) recorta la capa; <c>effects</c> no
+        /// recorta y marca dónde se aplican los efectos con la opción <see cref="RegionOptions.Region"/>.
+        /// </summary>
+        public const string Use = "use";
     }
 
     /// <summary>
@@ -404,6 +588,15 @@ public static class BuiltInEffects
         public const string Green = "green";
 
         public const string Blue = "blue";
+
+        /// <summary>Tono contra tono: puntos <c>x,y</c> con x el tono (0–1) e y el giro (0,5 sin cambio; 0 y 1, media vuelta). Periódica.</summary>
+        public const string HueHue = "hueHue";
+
+        /// <summary>Tono contra saturación: y es la mitad de la ganancia (0,5 sin cambio). Periódica.</summary>
+        public const string HueSaturation = "hueSat";
+
+        /// <summary>Luminancia contra saturación: x es la luma e y la mitad de la ganancia (0,5 sin cambio).</summary>
+        public const string LumaSaturation = "lumaSat";
     }
 
     /// <summary>Opciones que cualquier efecto puede llevar además de las suyas.</summary>

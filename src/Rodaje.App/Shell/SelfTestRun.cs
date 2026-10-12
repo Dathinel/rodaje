@@ -53,6 +53,7 @@ internal static partial class SelfTestRun
             await ToggleReverseAsync(window);
             await TitleAsync(window, engine);
             await ImageAsync(window, engine);
+            await ColorAsync(window, engine);
             await ShowExportAsync(window);
             await PluginsAsync(window);
             await ModuleAsync(window);

@@ -11,6 +11,15 @@ using Mk = Rodaje.Core.Model.BuiltInEffects.MaskParameters;
 using Wh = Rodaje.Core.Model.BuiltInEffects.ColorWheelsParameters;
 using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
 using Tr = Rodaje.Core.Model.BuiltInTransitions;
+using Gr = Rodaje.Core.Model.BuiltInEffects.GrainParameters;
+using Gl = Rodaje.Core.Model.BuiltInEffects.GlowParameters;
+using Ab = Rodaje.Core.Model.BuiltInEffects.ChromaticAberrationParameters;
+using Dn = Rodaje.Core.Model.BuiltInEffects.DenoiseParameters;
+using Mi = Rodaje.Core.Model.BuiltInEffects.MirrorParameters;
+using Ld = Rodaje.Core.Model.BuiltInEffects.LensDistortionParameters;
+using Hq = Rodaje.Core.Model.BuiltInEffects.HslQualifierParameters;
+using Vg = Rodaje.Core.Model.BuiltInEffects.VignetteParameters;
+using Bl = Rodaje.Core.Model.BuiltInEffects.BlurParameters;
 
 namespace Rodaje.App.Services.Inspector;
 
@@ -80,6 +89,13 @@ public static class EffectUi
         [BuiltInEffects.ChromaKey] = "Croma (fondo verde)",
         [BuiltInEffects.ColorWheels] = "Ruedas de color",
         [BuiltInEffects.Curves] = "Curvas",
+        [BuiltInEffects.Grain] = "Grano de película",
+        [BuiltInEffects.Glow] = "Resplandor",
+        [BuiltInEffects.ChromaticAberration] = "Aberración cromática",
+        [BuiltInEffects.Denoise] = "Reducción de ruido",
+        [BuiltInEffects.Mirror] = "Espejo y pantalla dividida",
+        [BuiltInEffects.LensDistortion] = "Distorsión de lente",
+        [BuiltInEffects.HslQualifier] = "Corrección secundaria (HSL)",
         [Tr.Crossfade] = "Fundido cruzado",
         [Tr.Dip] = "Fundido a color",
         [Tr.Wipe] = "Barrido",
@@ -94,8 +110,8 @@ public static class EffectUi
         [BuiltInEffects.Transform] = "Posición, escala, rotación y opacidad, con keyframes.",
         [BuiltInEffects.Color] = "Exposición, contraste, saturación, temperatura, luces, sombras y LUT .cube.",
         [BuiltInEffects.Vignette] = "Oscurece los bordes del cuadro.",
-        [BuiltInEffects.Blur] = "Desenfoque suave de toda la imagen.",
-        [BuiltInEffects.Sharpen] = "Realza los bordes.",
+        [BuiltInEffects.Blur] = "Gaussiano, de lente (con forma de disco), direccional o radial.",
+        [BuiltInEffects.Sharpen] = "Máscara de enfoque con umbral: realza los bordes sin el ruido.",
         [BuiltInEffects.Blend] = "Cómo se mezcla la capa con lo que tiene debajo.",
         [BuiltInEffects.Audio] = "Volumen con keyframes y fundidos de entrada y salida.",
         [BuiltInEffects.Equalizer] = "Corte de graves, graves, medios, presencia y agudos.",
@@ -106,7 +122,14 @@ public static class EffectUi
         [BuiltInEffects.Crop] = "Quita bordes de la imagen, libre o con proporción fija (16:9, 9:16, 1:1, 4:5, 4:3); se ajusta con asas en el visor.",
         [BuiltInEffects.ChromaKey] = "Vuelve transparente un color de fondo (pantalla verde o azul) con cuentagotas, suavidad y quitar derrame.",
         [BuiltInEffects.ColorWheels] = "Sombras, medios y luces: un tinte y un nivel para cada zona.",
-        [BuiltInEffects.Curves] = "Curva general y por canal con puntos que se arrastran.",
+        [BuiltInEffects.Curves] = "Curva general y por canal, y tono contra tono, tono contra saturación y luma contra saturación.",
+        [BuiltInEffects.Grain] = "Grano que cambia en cada cuadro, sobre todo en los medios tonos.",
+        [BuiltInEffects.Glow] = "Las luces se abren en un halo suave, sumado en luz lineal.",
+        [BuiltInEffects.ChromaticAberration] = "Separa el rojo y el azul hacia los bordes, como una lente.",
+        [BuiltInEffects.Denoise] = "Suaviza el ruido respetando los bordes y, al reproducir y exportar, con el cuadro anterior.",
+        [BuiltInEffects.Mirror] = "Refleja una mitad o repite la imagen en mosaico.",
+        [BuiltInEffects.LensDistortion] = "Curva la imagen hacia afuera (barril) o hacia adentro (cojín).",
+        [BuiltInEffects.HslQualifier] = "Elige un color por tono, saturación y luma y cambia solo ese: tono, saturación y exposición.",
         [Tr.Crossfade] = "Mezcla un clip con el siguiente.",
         [Tr.Dip] = "Baja a un color (negro por defecto) y sube desde él.",
         [Tr.Wipe] = "Un borde suave barre un clip y descubre el otro.",
@@ -133,18 +156,61 @@ public static class EffectUi
             [(BuiltInEffects.Color, C.Highlights)] = Percent with { Label = "Luces", Description = "Cambiar luces" },
             [(BuiltInEffects.Color, C.Shadows)] = Percent with { Label = "Sombras", Description = "Cambiar sombras" },
             [(BuiltInEffects.Color, C.LutIntensity)] = Percent with { Label = "Intensidad de la LUT", Description = "Cambiar intensidad de la LUT" },
+            [(BuiltInEffects.Color, C.SkinProtection)] = Percent with { Label = "Proteger la piel", Description = "Cambiar la protección de la piel" },
 
             [(BuiltInEffects.Vignette, BuiltInEffects.VignetteParameters.Amount)] = Percent with { Label = "Cantidad", Description = "Cambiar viñeta" },
             [(BuiltInEffects.Vignette, BuiltInEffects.VignetteParameters.Size)] = Percent with { Label = "Tamaño", Description = "Cambiar tamaño de la viñeta" },
             [(BuiltInEffects.Vignette, BuiltInEffects.VignetteParameters.Softness)] = Percent with { Label = "Suavidad", Description = "Cambiar suavidad de la viñeta" },
+            [(BuiltInEffects.Vignette, Vg.Roundness)] = Percent with { Label = "Redondez", Description = "Cambiar la forma de la viñeta" },
+            [(BuiltInEffects.Vignette, Vg.CenterX)] = new("Centro X", "Mover la viñeta", "%", 100, 0.5, 1, UiRange.Custom, -50, 150),
+            [(BuiltInEffects.Vignette, Vg.CenterY)] = new("Centro Y", "Mover la viñeta", "%", 100, 0.5, 1, UiRange.Custom, -50, 150),
 
             [(BuiltInEffects.Blur, BuiltInEffects.BlurParameters.Radius)] =
                 new("Radio", "Cambiar desenfoque", "px", 1, 0.5, 1, UiRange.Custom, 0, 100),
+            [(BuiltInEffects.Blur, Bl.Angle)] = new("Ángulo", "Cambiar el ángulo del desenfoque", "°", 1, 1, 0, UiRange.Custom, -180, 180),
+            [(BuiltInEffects.Blur, Bl.CenterX)] = new("Centro X", "Mover el centro del desenfoque", "%", 100, 0.5, 1, UiRange.Custom, 0, 100),
+            [(BuiltInEffects.Blur, Bl.CenterY)] = new("Centro Y", "Mover el centro del desenfoque", "%", 100, 0.5, 1, UiRange.Custom, 0, 100),
 
             [(BuiltInEffects.Sharpen, BuiltInEffects.SharpenParameters.Amount)] =
                 new("Cantidad", "Cambiar nitidez", "%", 100, 1, 0, UiRange.Custom, 0, 200),
             [(BuiltInEffects.Sharpen, BuiltInEffects.SharpenParameters.Radius)] =
                 new("Radio", "Cambiar radio de nitidez", "px", 1, 0.1, 1),
+            [(BuiltInEffects.Sharpen, BuiltInEffects.SharpenParameters.Threshold)] =
+                new("Umbral", "Cambiar el umbral de nitidez", "%", 100, 0.5, 1, UiRange.Custom, 0, 25),
+
+            [(BuiltInEffects.Grain, Gr.Amount)] = Percent with { Label = "Cantidad", Description = "Cambiar el grano" },
+            [(BuiltInEffects.Grain, Gr.Size)] = new("Tamaño", "Cambiar el tamaño del grano", "px", 1, 0.1, 1),
+            [(BuiltInEffects.Grain, Gr.Color)] = Percent with { Label = "Color", Description = "Cambiar el color del grano" },
+            [(BuiltInEffects.Grain, Gr.Response)] = Percent with { Label = "En los medios", Description = "Cambiar dónde se ve el grano" },
+
+            [(BuiltInEffects.Glow, Gl.Threshold)] = Percent with { Label = "Umbral", Description = "Cambiar el umbral del resplandor" },
+            [(BuiltInEffects.Glow, Gl.Radius)] = new("Radio", "Cambiar el radio del resplandor", "px", 1, 1, 0, UiRange.Custom, 1, 200),
+            [(BuiltInEffects.Glow, Gl.Intensity)] = new("Intensidad", "Cambiar la intensidad del resplandor", "%", 100, 1, 0, UiRange.Custom, 0, 400),
+
+            [(BuiltInEffects.ChromaticAberration, Ab.Amount)] = new("Separación", "Cambiar la aberración", "px", 1, 0.5, 1, UiRange.Custom, 0, 40),
+            [(BuiltInEffects.ChromaticAberration, Ab.Angle)] = new("Ángulo", "Cambiar el ángulo de la aberración", "°", 1, 1, 0, UiRange.Custom, -180, 180),
+
+            [(BuiltInEffects.Denoise, Dn.Strength)] = Percent with { Label = "Fuerza", Description = "Cambiar la reducción de ruido" },
+            [(BuiltInEffects.Denoise, Dn.Temporal)] = Percent with { Label = "Entre cuadros", Description = "Cambiar la reducción entre cuadros" },
+            [(BuiltInEffects.Denoise, Dn.Detail)] = Percent with { Label = "Detalle", Description = "Cambiar el detalle que se conserva" },
+
+            [(BuiltInEffects.Mirror, Mi.Axis)] = Percent with { Label = "Eje", Description = "Mover el eje del espejo", Step = 0.5, Decimals = 1 },
+            [(BuiltInEffects.Mirror, Mi.Tiles)] = new("Copias", "Cambiar las copias del mosaico", "", 1, 1, 0),
+
+            [(BuiltInEffects.LensDistortion, Ld.Amount)] = Percent with { Label = "Cantidad", Description = "Cambiar la distorsión" },
+            [(BuiltInEffects.LensDistortion, Ld.Zoom)] = new("Acercamiento", "Cambiar el acercamiento", "%", 100, 1, 0, UiRange.Custom, 50, 200),
+
+            [(BuiltInEffects.HslQualifier, Hq.HueCenter)] = new("Tono", "Cambiar el tono elegido", "°", 1, 1, 0),
+            [(BuiltInEffects.HslQualifier, Hq.HueWidth)] = new("Ancho del tono", "Cambiar el ancho del tono", "°", 1, 1, 0, UiRange.Custom, 0, 90),
+            [(BuiltInEffects.HslQualifier, Hq.HueSoftness)] = new("Suavidad del tono", "Cambiar la suavidad del tono", "°", 1, 1, 0, UiRange.Custom, 0, 60),
+            [(BuiltInEffects.HslQualifier, Hq.SaturationLow)] = Percent with { Label = "Saturación mín.", Description = "Cambiar la saturación mínima" },
+            [(BuiltInEffects.HslQualifier, Hq.SaturationHigh)] = Percent with { Label = "Saturación máx.", Description = "Cambiar la saturación máxima" },
+            [(BuiltInEffects.HslQualifier, Hq.LumaLow)] = Percent with { Label = "Luma mín.", Description = "Cambiar la luma mínima" },
+            [(BuiltInEffects.HslQualifier, Hq.LumaHigh)] = Percent with { Label = "Luma máx.", Description = "Cambiar la luma máxima" },
+            [(BuiltInEffects.HslQualifier, Hq.Softness)] = Percent with { Label = "Suavidad", Description = "Cambiar la suavidad de la selección" },
+            [(BuiltInEffects.HslQualifier, Hq.HueShift)] = new("Girar tono", "Girar el tono de la selección", "°", 1, 1, 0),
+            [(BuiltInEffects.HslQualifier, Hq.Saturation)] = Percent with { Label = "Saturación", Description = "Cambiar la saturación de la selección" },
+            [(BuiltInEffects.HslQualifier, Hq.Exposure)] = new("Exposición", "Cambiar la exposición de la selección", "EV", 1, 0.05, 2),
 
             [(BuiltInEffects.Audio, A.GainDb)] = new("Volumen", "Cambiar volumen", "dB", 1, 0.5, 1),
             [(BuiltInEffects.Audio, A.FadeIn)] = new("Fundido de entrada", "Fundido de entrada", "s", 1, 0.1, 1, UiRange.HalfClip),
@@ -292,6 +358,32 @@ public static class EffectUi
         BuiltInEffects.MaskOptions.Shape => MaskShapeName(value),
         BuiltInEffects.MaskOptions.Invert => value == "on" ? "Sí" : "No",
         BuiltInEffects.CropOptions.Aspect => value == "free" ? "Libre" : value,
+        BuiltInEffects.BlurOptions.Kind => value switch
+        {
+            "lens" => "De lente",
+            "directional" => "Direccional",
+            "radial" => "Radial (zoom)",
+            _ => "Gaussiano",
+        },
+        BuiltInEffects.RegionOptions.Region => value switch
+        {
+            "inside" => "Dentro de las máscaras de efectos",
+            "outside" => "Fuera de las máscaras de efectos",
+            _ => "Toda la imagen",
+        },
+        BuiltInEffects.MaskOptions.Use => value == "effects" ? "Limitar efectos" : "Recortar la capa",
+        BuiltInEffects.MirrorOptions.Mode => value switch
+        {
+            "left" => "Izquierda a la derecha",
+            "right" => "Derecha a la izquierda",
+            "top" => "Arriba hacia abajo",
+            "bottom" => "Abajo hacia arriba",
+            "quad" => "Cuatro cuadrantes",
+            "tiles" => "Mosaico",
+            "radial" => "Radial",
+            "lateral" => "Lateral",
+            _ => value,
+        },
         _ => value,
     };
 
@@ -305,6 +397,10 @@ public static class EffectUi
         BuiltInEffects.MaskOptions.Shape => "Forma",
         BuiltInEffects.MaskOptions.Invert => "Invertir",
         BuiltInEffects.CropOptions.Aspect => "Proporción",
+        BuiltInEffects.BlurOptions.Kind => "Tipo",
+        BuiltInEffects.RegionOptions.Region => "Dónde",
+        BuiltInEffects.MaskOptions.Use => "Uso",
+        BuiltInEffects.MirrorOptions.Mode => "Modo",
         _ => option,
     };
 

@@ -21,7 +21,41 @@ internal sealed unsafe partial class LayerRenderer
     private RenderTarget? PrepareMasks(in LayerPlacement placement, in Destination destination, ref LayerPlan plan,
         ref EffectConstants effects, ref FrameStats stats)
     {
-        if (_masks.Count == 0)
+        if (DrawMasks(_masks, placement, destination, ref stats, out int applied) is not { } target)
+        {
+            return null;
+        }
+
+        plan = new LayerPlan(plan.Flags | EffectShaders.Mask, plan.Lut, plan.PerPixelCount + applied, plan.Curves);
+        effects.MapB = new ImageView(target, MaskWidth, MaskHeight).Map;
+        return target;
+    }
+
+    /// <summary>
+    /// Las máscaras que limitan efectos, en una textura como la de las de recorte (en el espacio de la capa) para
+    /// <c>RegionMix</c>. <c>null</c> si no hay ninguna: los efectos con zona se aplican entonces en toda la imagen.
+    /// </summary>
+    private RenderTarget? PrepareRegionMask(in LayerPlacement placement, in Destination destination, ref FrameStats stats)
+    {
+        RenderTarget? target = DrawMasks(_regionMasks, placement, destination, ref stats, out int applied);
+        if (target is not null)
+        {
+            _regionMap = new ImageView(target, MaskWidth, MaskHeight).Map;
+            stats.EffectsApplied += applied;
+        }
+
+        return target;
+    }
+
+    private int MaskWidth { get; set; }
+
+    private int MaskHeight { get; set; }
+
+    private RenderTarget? DrawMasks(List<LayerEffect> masks, in LayerPlacement placement, in Destination destination, ref FrameStats stats,
+        out int applied)
+    {
+        applied = 0;
+        if (masks.Count == 0)
         {
             return null;
         }
@@ -37,16 +71,17 @@ internal sealed unsafe partial class LayerRenderer
         RenderTarget? target = shader == null ? null : _pool.Rent(width, height, IntermediateFormat);
         if (target is null)
         {
-            stats.EffectsSkipped += _masks.Count;
+            stats.EffectsSkipped += masks.Count;
             return null;
         }
 
         float* one = stackalloc float[4] { 1, 1, 1, 1 };
         _context->ClearRenderTargetView(target.Rtv, one);
         float pixel = imageWidth / width;
-        int applied = 0;
+        MaskWidth = width;
+        MaskHeight = height;
         ID3D11ShaderResourceView** inputs = stackalloc ID3D11ShaderResourceView*[2];
-        foreach (LayerEffect mask in _masks)
+        foreach (LayerEffect mask in masks)
         {
             EffectDefinition definition = EffectRegistry.Find(mask.Code)!;
             EffectValues values = mask.Values;
@@ -106,8 +141,6 @@ internal sealed unsafe partial class LayerRenderer
             return null;
         }
 
-        plan = new LayerPlan(plan.Flags | EffectShaders.Mask, plan.Lut, plan.PerPixelCount + applied);
-        effects.MapB = new ImageView(target, width, height).Map;
         return target;
     }
 }

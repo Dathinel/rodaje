@@ -27,6 +27,15 @@ internal struct EffectConstants
     public Float4 GammaExp;
     public Float4 Gain;
     public Float4 Extra;
+    public Float4 Skin;
+    public Float4 Vignette2;
+    public Float4 Qual0;
+    public Float4 Qual1;
+    public Float4 Qual2;
+    public Float4 Qual3;
+    public Float4 Fx0;
+    public Float4 Fx1;
+    public Float4 Fx2;
 }
 
 /// <summary>

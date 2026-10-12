@@ -1,4 +1,5 @@
 using Rodaje.Core.Effects;
+using Rodaje.Core.Model;
 using Rodaje.Media.Gpu;
 using Rodaje.Playback.Composition;
 using Rodaje.Render.Effects;
@@ -17,8 +18,11 @@ internal readonly record struct ImageView(RenderTarget Target, int Width, int He
         (Height - 0.5f) / Target.Height);
 }
 
-/// <summary>Desenfoque o nitidez pendiente, con sigma en píxeles de la secuencia.</summary>
-internal readonly record struct SpatialStep(GpuEffectKind Kind, float Sigma, float Amount);
+/// <summary>
+/// Un efecto que va en el intermedio, en el orden de la pila: sus valores evaluados (radios en píxeles de la secuencia), su
+/// lugar en la pila (para la historia de la reducción de ruido) y dónde se aplica respecto de las máscaras de efectos.
+/// </summary>
+internal readonly record struct SpatialStep(GpuEffectKind Kind, EffectValues Values, EffectDefinition Definition, int Index, int Region);
 
 /// <summary>Efectos por píxel de una capa: banderas de la variante, LUT y cuántos se aplican.</summary>
 internal readonly unsafe struct LayerPlan(int flags, ID3D11ShaderResourceView* lut, int perPixelCount, ID3D11ShaderResourceView* curves = null)
@@ -44,6 +48,7 @@ internal sealed unsafe partial class LayerRenderer
     {
         _spatial.Clear();
         _masks.Clear();
+        _regionMasks.Clear();
         int flags = 0;
         int perPixel = 0;
         ID3D11ShaderResourceView* lut = null;
@@ -101,9 +106,10 @@ internal sealed unsafe partial class LayerRenderer
                         Value(values, definition, 1),
                         Math.Max(Value(values, definition, 2), 1e-3f),
                         0);
+                    effects.Vignette2 = new(Value(values, definition, 3), Value(values, definition, 4), Value(values, definition, 5), 0);
                     break;
                 case GpuEffectKind.Mask:
-                    _masks.Add(effect);
+                    (values[MaskGeometry.UseSlot] >= 0.5f ? _regionMasks : _masks).Add(effect);
                     break;
                 case GpuEffectKind.ChromaKey when (advanced & 1) == 0:
                     advanced |= 1;
@@ -121,6 +127,7 @@ internal sealed unsafe partial class LayerRenderer
                     if (effect.Resource is { Reference: { } curveKey })
                     {
                         curves = _curves.Upload(curveKey);
+                        effects.Qual3.W = _curves.HasHueCurves(curveKey) ? 1 : 0;
                     }
                     else
                     {
@@ -128,11 +135,14 @@ internal sealed unsafe partial class LayerRenderer
                     }
 
                     break;
-                case GpuEffectKind.Blur:
-                    _spatial.Add(new SpatialStep(GpuEffectKind.Blur, BlurSigma(Value(values, definition, 0)), 0));
+                case GpuEffectKind.HslQualifier when (advanced & 8) == 0:
+                    advanced |= 8;
+                    perPixel++;
+                    SetQualifier(ref effects, values, definition);
                     break;
-                case GpuEffectKind.Sharpen:
-                    _spatial.Add(new SpatialStep(GpuEffectKind.Sharpen, Value(values, definition, 1), Value(values, definition, 0)));
+                case GpuEffectKind.Blur or GpuEffectKind.Sharpen or GpuEffectKind.Grain or GpuEffectKind.Glow
+                    or GpuEffectKind.ChromaticAberration or GpuEffectKind.Denoise or GpuEffectKind.Mirror or GpuEffectKind.LensDistortion:
+                    _spatial.Add(new SpatialStep(gpu.Kind, values, definition, i, Choice(values, definition, BuiltInEffects.RegionOptions.Region)));
                     break;
                 default:
                     // Un segundo color o viñeta (van fusionados una vez), una transición o algo que no es de imagen.
@@ -145,6 +155,8 @@ internal sealed unsafe partial class LayerRenderer
         {
             flags |= EffectShaders.Advanced;
             effects.Extra = new((advanced & 1) != 0 ? 1 : 0, (advanced & 2) != 0 ? 1 : 0, (advanced & 4) != 0 ? 1 : 0, 0);
+            effects.Qual3.Z = (advanced & 8) != 0 ? 1 : 0;
+            effects.Qual3.Y = (advanced & 8) != 0 && ShowQualifierMask ? 1 : 0;
         }
 
         return new LayerPlan(flags, lut, perPixel, curves);
@@ -154,6 +166,7 @@ internal sealed unsafe partial class LayerRenderer
     private bool Bypasses(GpuEffectKind kind) => kind switch
     {
         GpuEffectKind.Color or GpuEffectKind.Vignette or GpuEffectKind.ColorWheels or GpuEffectKind.Curves => (Bypass & PreviewBypass.Grading) != 0,
+        GpuEffectKind.HslQualifier => (Bypass & (PreviewBypass.Grading | PreviewBypass.Qualifier)) != 0,
         GpuEffectKind.ChromaKey => (Bypass & PreviewBypass.Key) != 0,
         _ => false,
     };
@@ -182,6 +195,43 @@ internal sealed unsafe partial class LayerRenderer
         effects.Gain = new(1 + Sum(8, 11), 1 + Sum(9, 11), 1 + Sum(10, 11), 0);
     }
 
+    /// <summary>
+    /// Calificador: tono en vueltas, bordes de saturación y luma, y la corrección (giro de tono en CbCr, ganancia de
+    /// saturación y exposición). Referencia en las pruebas.
+    /// </summary>
+    private static void SetQualifier(ref EffectConstants effects, in EffectValues values, EffectDefinition definition)
+    {
+        float shift = Value(values, definition, 8) * MathF.PI / 180;
+        effects.Qual0 = new(Value(values, definition, 0) / 360, Value(values, definition, 1) / 360, Value(values, definition, 2) / 360,
+            Choice(values, definition, BuiltInEffects.HslQualifierOptions.Invert));
+        effects.Qual1 = new(Value(values, definition, 3), Value(values, definition, 4), Value(values, definition, 5), Value(values, definition, 6));
+        effects.Qual2 = new(Value(values, definition, 7), MathF.Cos(shift), MathF.Sin(shift), 1 + Value(values, definition, 9));
+        effects.Qual3.X = MathF.Pow(2, Value(values, definition, 10));
+    }
+
+    /// <summary>Índice de la opción de elección <paramref name="option"/>, que el motor deja tras los parámetros; 0 si falta.</summary>
+    internal static int Choice(in EffectValues values, EffectDefinition definition, string option)
+    {
+        int slot = definition.Parameters.Length;
+        foreach (OptionDefinition candidate in definition.Options)
+        {
+            if (candidate.Kind != OptionKind.Choice)
+            {
+                continue;
+            }
+
+            if (candidate.Name == option)
+            {
+                float value = values[slot];
+                return float.IsNaN(value) ? 0 : Math.Clamp((int)value, 0, candidate.Choices.Length - 1);
+            }
+
+            slot++;
+        }
+
+        return 0;
+    }
+
     /// <summary>Valor del parámetro <paramref name="slot"/> dentro de los límites del registro (sin NaN).</summary>
     private static float Value(in EffectValues values, EffectDefinition definition, int slot) =>
         (float)definition.Parameters[slot].Clamp(values[slot]);
@@ -194,6 +244,7 @@ internal sealed unsafe partial class LayerRenderer
         effects.Grade = new(MathF.Pow(2, exposure), 1 + Value(values, definition, 1), 1 + Value(values, definition, 2), Value(values, definition, 7));
         effects.Balance = new(1 + (0.2f * temperature), 1 - (0.2f * tint), 1 - (0.2f * temperature), 0);
         effects.Tones = new(Value(values, definition, 5), Value(values, definition, 6), 1, 0);
+        effects.Skin = new(Value(values, definition, 8), 0, 0, 0);
     }
 
     /// <summary>
@@ -266,7 +317,7 @@ internal sealed unsafe partial class LayerRenderer
     }
 
     /// <summary>Máscara de enfoque. Devuelve una vista nueva, la misma si no cambia nada, o <c>null</c> si no se pudo.</summary>
-    private ImageView? Sharpen(ImageView source, float amount, float sigma)
+    private ImageView? Sharpen(ImageView source, float amount, float sigma, float threshold = 0)
     {
         ID3D11PixelShader* sharpen = _effects.TryGetShader(EffectShader.Sharpen, 0);
         if (sharpen == null)
@@ -300,7 +351,7 @@ internal sealed unsafe partial class LayerRenderer
         EffectConstants constants = default;
         constants.MapA = source.Map;
         constants.MapB = blurred.Map;
-        constants.Kernel = new(amount, 0, 0, 0);
+        constants.Kernel = new(amount, threshold, 0, 0);
         Pass(sharpen, result, constants, source.Target, blurred.Target);
         _pool.Return(blurred.Target);
         return result;

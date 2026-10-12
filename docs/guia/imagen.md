@@ -9,19 +9,30 @@ Efectos, color, máscaras, croma y recorte. Todo se calcula en la GPU, se ve al 
 - **Máscaras**: su pestaña propia.
 - Biblioteca › **Efectos** (transformar, viñeta, desenfoque, nitidez, recortar, croma, estabilizar…) y **Filtros** (Color y LUT, Ruedas de color, Curvas y los looks de los paquetes): doble clic o arrastrar al clip los aplica.
 
-Cada parámetro va en una fila: etiqueta, deslizador, valor con unidad, rombo de keyframe y restablecer. Por debajo de 340 px de ancho el deslizador baja a una segunda línea.
+Cada parámetro va en una fila: etiqueta, deslizador, valor con unidad, rombo de keyframe y restablecer. Por debajo de 340 px de ancho el deslizador baja a una segunda línea. **Arrastra la etiqueta** a los lados para cambiar el valor (Mayús: fino; Ctrl: grueso); doble clic en ella lo restablece.
+
+**La pila de filtros.** Arrastra una fila por su asa para cambiar el orden (se aplican de arriba abajo). El ojo apaga el filtro; **A/B** lo apaga solo en el visor para comparar, sin tocar el proyecto ni la exportación. Los puntos a la derecha dicen cuánto pesa en la GPU (la ayuda da los milisegundos por cuadro en tu resolución).
+
+**Presets.** Debajo de la pila, cada preset instalado o tuyo con una miniatura del cuadro actual; un clic lo aplica. El botón de guardar, junto a «Añadir filtro», guarda los filtros de imagen del clip como preset propio («Mis filtros»), listo para otros clips o para publicarlo en un paquete.
 
 ## Efectos de fábrica
 
 | Efecto | Qué hace | Parámetros |
 |---|---|---|
 | Transformar | Posición, escala, rotación y opacidad | X e Y en píxeles, escala 1–400 %, rotación ±360°, opacidad 0–100 % |
-| Color y LUT | Corrección básica y tabla de color | Exposición (±4 EV), contraste, saturación, temperatura, matiz, luces, sombras (±100 %), LUT e intensidad de la LUT |
+| Color y LUT | Corrección básica y tabla de color | Exposición (±4 EV, con botones de 1/3 de paso), contraste, saturación, temperatura, matiz, luces, sombras (±100 %), proteger la piel, LUT e intensidad de la LUT; cuentagotas de blanco |
+| Corrección secundaria (HSL) | Cambia solo un color | Tono, ancho y suavidad del tono, saturación y luma mínimas y máximas, suavidad; girar tono, saturación, exposición; cuentagotas, invertir y «Ver máscara» |
 | Ruedas de color | Un tinte y un nivel para sombras, medios y luces | Tres ruedas y tres niveles |
 | Curvas | Curva general y por canal | Pestañas RGB, R, G, B |
 | Viñeta | Oscurece los bordes | Cantidad, tamaño, suavidad |
-| Desenfoque | Suave, de toda la imagen | Radio 0–100 px |
-| Nitidez | Realza los bordes | Cantidad 0–200 %, radio 0,5–10 px |
+| Desenfoque | Gaussiano, de lente (con forma de disco, en luz lineal), direccional o radial | Tipo, radio 0–100 px; ángulo (direccional); centro (radial) |
+| Nitidez | Máscara de enfoque | Cantidad 0–200 %, radio 0,5–10 px, umbral (no realza lo más fino: ruido, piel) |
+| Grano de película | Grano que cambia en cada cuadro | Cantidad, tamaño, color, «En los medios» |
+| Resplandor | Las luces se abren en un halo | Umbral, radio, intensidad |
+| Aberración cromática | Separa rojo y azul | Radial o lateral, separación, ángulo |
+| Reducción de ruido | Suaviza el ruido respetando los bordes y, al reproducir y exportar, con el cuadro anterior | Fuerza, entre cuadros, detalle |
+| Espejo y pantalla dividida | Refleja una mitad o repite la imagen | Modo (izquierda, derecha, arriba, abajo, cuatro, mosaico), eje, copias |
+| Distorsión de lente | Barril o cojín | Cantidad, acercamiento |
 | Recortar | Quita bordes, libre o con proporción | Izquierda, arriba, derecha, abajo; proporción Libre, 16:9, 9:16, 1:1, 4:5, 4:3 |
 | Croma (fondo verde) | Vuelve transparente un color | Color clave con cuentagotas, tolerancia, suavidad, quitar derrame, limpiar borde |
 | Estabilizar | Quita el temblor | Intensidad; recorte automático o sin recorte. Se analiza desde Estabilizar… |
@@ -46,6 +57,15 @@ En los títulos solo se aplican desenfoque y nitidez.
 4. **Color automático** y **Balance de blancos automático** (Herramientas o menú del clip) fijan temperatura, matiz y exposición (y contraste, en Color automático) y avisan con lo que cambiaron y **Deshacer**.
 5. **LUT**: en la fila «LUT» de Color y LUT elige una de los paquetes instalados o «Cargar .cube…» (tablas 3D de 2 a 65 puntos). «Intensidad de la LUT» la mezcla con la imagen original.
 
+6. **Balance con cuentagotas:** en Color y LUT, «Blanco» y un clic en el visor sobre algo que debería ser gris o blanco: fija temperatura y matiz.
+7. **Proteger la piel:** en Color y LUT, deja los tonos de piel fuera de la saturación, la temperatura y el matiz.
+8. **Corrección secundaria (HSL):** «Cuentagotas» y un clic sobre el color a cambiar; ajusta ancho y suavidad mirando «Ver máscara» (blanco = elegido) y luego gira el tono, satura o cambia la exposición solo de ese color.
+9. **Curvas de ajuste:** en Curvas, «Tono › tono» cambia un color por otro, «Tono › sat.» satura o apaga cada color y «Luma › sat.» según el brillo (por ejemplo, quitar color a las sombras).
+
+**Monitores:** el botón de monitores de la cabecera del visor abre forma de onda (luma o RGB), desfile RGB, vectorscopio (los cuadros marcan los colores al 75 %; la línea, la piel) e histograma. Miden la imagen compuesta en tiempo real.
+
+![Monitores junto al visor](img/monitores-onda.png)
+
 **Antes y después:** el botón del visor divide la imagen con una cortina; a la izquierda se ve sin color, LUT, viñeta, ruedas ni curvas; a la derecha, con todo. Arrastra el asa. Solo es vista previa.
 
 ![Cortina de antes y después en el visor](img/antes-despues-visor.png)
@@ -57,6 +77,7 @@ Pestaña **Máscaras** (o menú del clip › Máscaras):
 - **Rectángulo** y **Elipse** ponen una forma centrada. **Trazo libre** dibuja el contorno con el ratón sobre el visor; al soltar se cierra; Esc cancela. **Sujeto (Quitar fondo)** la crea la IA (ver [IA local](ia-local.md)).
 - Parámetros, todos con keyframes: centro X e Y, ancho y alto, giro, borde suave e intensidad. Casilla **Invertir** para dejar ver lo de fuera.
 - En el visor, arrastrar dentro mueve la máscara y una esquina cambia el tamaño alrededor de su centro.
+- **Uso:** «Recortar la capa» (lo de siempre) o «Limitar efectos»: la máscara no recorta y marca dónde van los efectos que tienen «Dónde» (desenfoque, nitidez, grano, resplandor, aberración, reducción de ruido): toda la imagen, dentro o fuera de esas máscaras. Por ejemplo, desenfocar una cara.
 
 ## Croma
 

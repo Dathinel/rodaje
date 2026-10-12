@@ -26,6 +26,29 @@ internal enum EffectShader
 
     /// <summary>Una máscara (rectángulo, elipse, trazo o imagen) multiplicada sobre la textura de máscaras de la capa.</summary>
     Mask,
+
+    /// <summary>Una pasada de los efectos espaciales nuevos (<see cref="FxOp"/>): grano, resplandor, aberración, espejo…</summary>
+    Fx,
+}
+
+/// <summary>Qué hace <c>PsFx</c> (<c>fx0.x</c>).</summary>
+internal enum FxOp
+{
+    Grain = 1,
+    GlowBright = 2,
+    GlowCombine = 3,
+    Aberration = 4,
+    Mirror = 5,
+    Distortion = 6,
+    LineBlur = 7,
+    ZoomBlur = 8,
+    LensDisc = 9,
+    DenoiseSpatial = 10,
+    DenoiseTemporal = 11,
+    ToLinear = 12,
+    ToGamma = 13,
+    RegionMix = 14,
+    Copy = 15,
 }
 
 /// <summary>Fuente HLSL de los efectos y la lista de variantes que se compilan por adelantado.</summary>
@@ -56,6 +79,11 @@ internal static class EffectShaders
     // mix1 = centro y medio tamaño en píxeles de la imagen; kernel = coseno y seno del giro y puntos del trazo; canvas =
     // tamaño de la imagen. En PsGraded con MASK, mapB lleva a la textura de máscaras (t7).
     // extra.w = 1: el origen no son los planos Y'CbCr sino el intermedio RGBA premultiplicado de t5 (una capa compuesta).
+    // skin.x: protección de piel (0 apagada). vignette2: x = redondez, yz = centro.
+    // qual0: tono central y medio ancho (en vueltas), suavidad del tono, invertir. qual1: saturación baja y alta, luma baja
+    // y alta. qual2: suavidad de saturación y luma, coseno y seno del giro de tono, ganancia de saturación. qual3: x =
+    // 2^exposición, y = ver la máscara (solo vista previa), z = calificador encendido, w = curvas de tono y saturación.
+    // fx0, fx1, fx2: PsFx (FxOp en fx0.x); en RegionMix, fx2 es el mapa de la máscara de efectos (t7).
     // Con ADVANCED: extra = croma, ruedas y curvas encendidos (0 o 1). key0 = Cb y Cr de la clave, tolerancia, suavidad;
     // key1 = derrame, recorte del borde (0–0,45), dirección unitaria de la clave en CbCr. lift, gain: por canal (ya sumado
     // el general); gammaExp: exponente 2^−gamma por canal. Curvas: tabla de 1024 × 1 en t10 (canal y luego general).
@@ -79,6 +107,15 @@ internal static class EffectShaders
             float4 gammaExp;
             float4 gain;
             float4 extra;
+            float4 skin;
+            float4 vignette2;
+            float4 qual0;
+            float4 qual1;
+            float4 qual2;
+            float4 qual3;
+            float4 fx0;
+            float4 fx1;
+            float4 fx2;
         };
 
         Texture2D<float4> background : register(t3);
@@ -92,18 +129,90 @@ internal static class EffectShaders
 
         static const float3 LumaWeights = float3(0.2126, 0.7152, 0.0722);
 
-        float3 Grade(float3 rgb)
+        float2 ToCbCr(float3 rgb, float y)
+        {
+            return float2((rgb.b - y) / 1.8556, (rgb.r - y) / 1.5748);
+        }
+
+        float3 FromYcc(float y, float2 c)
+        {
+            float r = y + 1.5748 * c.y;
+            float b = y + 1.8556 * c.x;
+            return float3(r, (y - 0.2126 * r - 0.0722 * b) / 0.7152, b);
+        }
+
+        // Tono de HSV de 0 a 1 (0 rojo, 1/3 verde, 2/3 azul); 0 en los grises.
+        float Hue(float3 c)
+        {
+            float high = max(c.r, max(c.g, c.b));
+            float d = high - min(c.r, min(c.g, c.b));
+            if (d < 1e-5)
+            {
+                return 0.0;
+            }
+
+            float h = high == c.r ? (c.g - c.b) / d : (high == c.g ? 2.0 + (c.b - c.r) / d : 4.0 + (c.r - c.g) / d);
+            return frac(h / 6.0 + 1.0);
+        }
+
+        float3 GradeWith(float3 rgb, float saturation, float3 gains)
         {
             rgb *= grade.x;
             rgb = (rgb - 0.5) * grade.y + 0.5;
             float luma = dot(rgb, LumaWeights);
-            rgb = luma + (rgb - luma) * grade.z;
-            rgb *= balance.xyz;
+            rgb = luma + (rgb - luma) * saturation;
+            rgb *= gains;
             luma = dot(rgb, LumaWeights);
             float high = smoothstep(0.5, 1.0, luma);
             float low = 1.0 - smoothstep(0.0, 0.5, luma);
             rgb += 0.25 * (tones.x * high + tones.y * low);
             return saturate(rgb);
+        }
+
+        // Cerca de la línea de piel del vectorscopio (123° en CbCr), con algo de croma y sin llegar a lo muy saturado.
+        float SkinWeight(float3 rgb)
+        {
+            float y = dot(rgb, LumaWeights);
+            float2 c = ToCbCr(rgb, y);
+            float r = length(c);
+            float angle = degrees(atan2(c.y, c.x));
+            return (1.0 - smoothstep(12.0, 28.0, abs(angle - 123.0))) * smoothstep(0.015, 0.05, r) * (1.0 - smoothstep(0.3, 0.45, r));
+        }
+
+        float3 Grade(float3 rgb)
+        {
+            float3 graded = GradeWith(rgb, grade.z, balance.xyz);
+            [branch] if (skin.x > 0.0)
+            {
+                graded = lerp(graded, GradeWith(rgb, 1.0, float3(1.0, 1.0, 1.0)), skin.x * SkinWeight(rgb));
+            }
+
+            return graded;
+        }
+
+        // Calificador HSL: máscara por tono (HSV), saturación (HSL) y luma (BT.709) con bordes suaves; corrige en Y'CbCr.
+        float QualifierMask(float3 rgb)
+        {
+            float high = max(rgb.r, max(rgb.g, rgb.b));
+            float low = min(rgb.r, min(rgb.g, rgb.b));
+            float l = 0.5 * (high + low);
+            float s = saturate((high - low) / max(1.0 - abs(2.0 * l - 1.0), 1e-4));
+            float y = dot(rgb, LumaWeights);
+            float dh = abs(frac(Hue(rgb) - qual0.x + 0.5) - 0.5);
+            float hueTerm = 1.0 - smoothstep(qual0.y, qual0.y + max(qual0.z, 1e-4), dh);
+            float soft = max(qual2.x, 1e-4);
+            float satTerm = smoothstep(qual1.x - soft, qual1.x, s) * (1.0 - smoothstep(qual1.y, qual1.y + soft, s));
+            float lumaTerm = smoothstep(qual1.z - soft, qual1.z, y) * (1.0 - smoothstep(qual1.w, qual1.w + soft, y));
+            float m = hueTerm * satTerm * lumaTerm;
+            return qual0.w > 0.5 ? 1.0 - m : m;
+        }
+
+        float3 Qualify(float3 rgb, float m)
+        {
+            float y = dot(rgb, LumaWeights);
+            float2 c = ToCbCr(rgb, y);
+            c = float2(c.x * qual2.y - c.y * qual2.z, c.x * qual2.z + c.y * qual2.y) * qual2.w;
+            return lerp(rgb, saturate(FromYcc(y, c) * qual3.x), m);
         }
 
         float3 ApplyLut(float3 rgb)
@@ -139,18 +248,37 @@ internal static class EffectShaders
             return saturate(pow(max(rgb, 0.0), gammaExp.rgb));
         }
 
+        // Fila 0 (v = 0,25): curvas de tono por canal. Fila 1 (v = 0,75): tono contra tono (r), tono contra saturación (g)
+        // y luma contra saturación (b), con 0,5 sin cambio.
         float3 Curves(float3 rgb)
         {
             float3 u = saturate(rgb) * ((CurveSize - 1.0) / CurveSize) + 0.5 / CurveSize;
-            return float3(
-                curveTable.SampleLevel(linearClamp, float2(u.r, 0.5), 0).r,
-                curveTable.SampleLevel(linearClamp, float2(u.g, 0.5), 0).g,
-                curveTable.SampleLevel(linearClamp, float2(u.b, 0.5), 0).b);
+            rgb = float3(
+                curveTable.SampleLevel(linearClamp, float2(u.r, 0.25), 0).r,
+                curveTable.SampleLevel(linearClamp, float2(u.g, 0.25), 0).g,
+                curveTable.SampleLevel(linearClamp, float2(u.b, 0.25), 0).b);
+            [branch] if (qual3.w > 0.5)
+            {
+                float y = dot(rgb, LumaWeights);
+                float uh = Hue(rgb) * ((CurveSize - 1.0) / CurveSize) + 0.5 / CurveSize;
+                float uy = saturate(y) * ((CurveSize - 1.0) / CurveSize) + 0.5 / CurveSize;
+                float2 byHue = curveTable.SampleLevel(linearClamp, float2(uh, 0.75), 0).rg;
+                float byLuma = curveTable.SampleLevel(linearClamp, float2(uy, 0.75), 0).b;
+                float shift = (byHue.x - 0.5) * 6.28318531;
+                float2 c = ToCbCr(rgb, y);
+                c = float2(c.x * cos(shift) - c.y * sin(shift), c.x * sin(shift) + c.y * cos(shift)) * (4.0 * byHue.y * byLuma);
+                rgb = saturate(FromYcc(y, c));
+            }
+
+            return rgb;
         }
 
+        // Con redondez 0 y el centro en el medio es la elipse del cuadro (d = 1 en las esquinas); con 1, un círculo en píxeles.
         float VignetteGain(float2 uv)
         {
-            float d = length((uv - 0.5) * 2.0) * 0.70710678;
+            float sx = lerp(1.0, shape.z / shape.w, vignette2.x);
+            float2 p = (uv - vignette2.yz) * 2.0 * float2(sx, 1.0);
+            float d = length(p) / length(float2(sx, 1.0));
             float t = saturate((d - vignette.y) / vignette.z);
             return 1.0 - vignette.x * t * t * (3.0 - 2.0 * t);
         }
@@ -237,12 +365,25 @@ internal static class EffectShaders
             {
                 rgb = Curves(rgb);
             }
+
+            float qualified = 0.0;
+            [branch] if (qual3.z > 0.5)
+            {
+                qualified = QualifierMask(rgb);
+                rgb = Qualify(rgb, qualified);
+            }
         #endif
         #if LUT
             rgb = ApplyLut(rgb);
         #endif
         #if VIGNETTE
             rgb *= VignetteGain(i.local / shape.zw);
+        #endif
+        #if ADVANCED
+            [branch] if (qual3.y > 0.5)
+            {
+                rgb = qualified;
+            }
         #endif
             float alpha = shape.x * EdgeCoverage(i.local) * keyAlpha * sourceAlpha;
         #if MASK
@@ -346,11 +487,222 @@ internal static class EffectShaders
             return sum / total;
         }
 
+        // kernel.y: umbral; las diferencias de luma más chicas no se realzan (rampa suave hasta el doble del umbral).
         float4 PsSharpen(VsOut i) : SV_Target
         {
             float4 original = SampleA(i.uv);
             float4 blurred = SampleB(i.uv);
-            return saturate(original + kernel.x * (original - blurred));
+            float4 detail = original - blurred;
+            float k = kernel.y > 0.0 ? smoothstep(kernel.y, 2.0 * kernel.y, abs(dot(detail.rgb, LumaWeights))) : 1.0;
+            return saturate(original + kernel.x * k * detail);
+        }
+
+        float4 Unpremultiply(float4 c)
+        {
+            return float4(c.a > 0.0 ? c.rgb / c.a : 0.0, c.a);
+        }
+
+        // Luz lineal aproximada con gamma 2,2 (lo óptico: resplandor y desenfoque de lente).
+        float3 ToLinear(float3 c)
+        {
+            return pow(max(c, 0.0), 2.2);
+        }
+
+        float3 ToGamma(float3 c)
+        {
+            return pow(max(c, 0.0), 1.0 / 2.2);
+        }
+
+        uint Hash(uint x)
+        {
+            x ^= x >> 16;
+            x *= 0x7feb352du;
+            x ^= x >> 15;
+            x *= 0x846ca68bu;
+            x ^= x >> 16;
+            return x;
+        }
+
+        float Noise(int2 cell, uint seed, uint channel)
+        {
+            uint h = Hash((asuint(cell.x) * 0x9e3779b9u) ^ Hash(asuint(cell.y) + 0x85ebca6bu * (seed + channel * 0x632be5abu)));
+            return (h >> 8) * (1.0 / 16777216.0);
+        }
+
+        // Ruido de valor interpolado (media 0) en celdas del tamaño del grano.
+        float ValueNoise(float2 p, uint seed, uint channel)
+        {
+            float2 f = frac(p);
+            int2 c = int2(floor(p));
+            f = f * f * (3.0 - 2.0 * f);
+            float a = Noise(c, seed, channel);
+            float b = Noise(c + int2(1, 0), seed, channel);
+            float d = Noise(c + int2(0, 1), seed, channel);
+            float e = Noise(c + int2(1, 1), seed, channel);
+            return lerp(lerp(a, b, f.x), lerp(d, e, f.x), f.y) - 0.5;
+        }
+
+        // fx0: cantidad, tamaño en píxeles de la secuencia, color; fx1: respuesta, segundos del origen, píxeles del
+        // intermedio por píxel de la secuencia.
+        float4 Grain(float2 uv, float2 pixel)
+        {
+            float4 c = Unpremultiply(SampleA(uv));
+            float2 p = pixel / fx1.z / fx0.z;
+            uint seed = Hash(asuint(fx1.y));
+            float mono = ValueNoise(p, seed, 0u);
+            float3 colored = float3(ValueNoise(p, seed, 1u), ValueNoise(p, seed, 2u), ValueNoise(p, seed, 3u));
+            float y = dot(c.rgb, LumaWeights);
+            float weight = lerp(1.0, 4.0 * y * (1.0 - y), fx1.x);
+            float3 n = lerp(mono.xxx, colored, fx0.w);
+            return float4(saturate(c.rgb + fx0.y * 0.7 * weight * n) * c.a, c.a);
+        }
+
+        // Bilateral de 5 × 5: fx0.y = fuerza, fx0.zw = paso de un píxel en uv, fx1.x = 1/(2σ²) espacial, fx1.y = 1/(2σ²) de luma.
+        float4 Bilateral(float2 uv)
+        {
+            float4 center = SampleA(uv);
+            float yc = dot(Unpremultiply(center).rgb, LumaWeights);
+            float4 sum = 0;
+            float total = 0;
+            [unroll]
+            for (int dy = -2; dy <= 2; dy++)
+            {
+                [unroll]
+                for (int dx = -2; dx <= 2; dx++)
+                {
+                    float4 s = SampleA(uv + float2(dx, dy) * fx0.zw);
+                    float dl = dot(Unpremultiply(s).rgb, LumaWeights) - yc;
+                    float w = exp(-(dx * dx + dy * dy) * fx1.x - dl * dl * fx1.y);
+                    sum += w * s;
+                    total += w;
+                }
+            }
+
+            return lerp(center, sum / total, fx0.y);
+        }
+
+        // Pasadas de los efectos espaciales sobre intermedios premultiplicados: t5 = A, t6 = B, t7 = máscara de efectos.
+        float4 PsFx(VsOut i) : SV_Target
+        {
+            float2 uv = i.uv;
+            switch ((int)fx0.x)
+            {
+                case 1:
+                    return Grain(uv, i.position.xy);
+                case 2:
+                {
+                    // Lo que pasa del umbral, en luz lineal, con una rampa cuadrática hasta el blanco.
+                    float4 c = Unpremultiply(SampleA(uv));
+                    float bright = max(c.r, max(c.g, c.b));
+                    float k = saturate((bright - fx0.y) / max(1.0 - fx0.y, 1e-3));
+                    return float4(ToLinear(c.rgb) * k * k * c.a, c.a);
+                }
+                case 3:
+                {
+                    float4 c = Unpremultiply(SampleA(uv));
+                    float3 halo = SampleB(uv).rgb;
+                    return float4(saturate(ToGamma(ToLinear(c.rgb) + fx0.y * halo)) * c.a, c.a);
+                }
+                case 4:
+                {
+                    // fx0.y: 0 radial (fx0.z = separación en la esquina, relativa), 1 lateral (fx0.zw = desplazamiento en uv).
+                    float2 d = uv - 0.5;
+                    float2 red = fx0.y > 0.5 ? uv + fx0.zw : 0.5 + d * (1.0 + fx0.z);
+                    float2 blue = fx0.y > 0.5 ? uv - fx0.zw : 0.5 + d * (1.0 - fx0.z);
+                    float4 g = SampleA(uv);
+                    return float4(SampleA(red).r, g.g, SampleA(blue).b, g.a);
+                }
+                case 5:
+                {
+                    // fx0.y = modo (EffectRegistry.MirrorModes), fx0.z = eje, fx0.w = copias por lado.
+                    float2 m = uv;
+                    int mode = (int)fx0.y;
+                    float axis = fx0.z;
+                    if ((mode == 0 || mode == 4) && m.x > axis) m.x = 2.0 * axis - m.x;
+                    if (mode == 1 && m.x < axis) m.x = 2.0 * axis - m.x;
+                    if ((mode == 2 || mode == 4) && m.y > axis) m.y = 2.0 * axis - m.y;
+                    if (mode == 3 && m.y < axis) m.y = 2.0 * axis - m.y;
+                    if (mode == 5) m = frac(uv * fx0.w);
+                    return SampleA(saturate(m));
+                }
+                case 6:
+                {
+                    // fx0.y = k (barril positivo), fx0.z = acercamiento, fx0.w = ancho/alto. r² vale 1 en la esquina.
+                    float2 d = (uv - 0.5) * float2(fx0.w, 1.0);
+                    float r2 = dot(d, d) * 4.0 / (fx0.w * fx0.w + 1.0);
+                    float2 source = 0.5 + d * (1.0 + fx0.y * r2) / fx0.z / float2(fx0.w, 1.0);
+                    return any(source < 0.0) || any(source > 1.0) ? 0.0 : SampleA(source);
+                }
+                case 7:
+                {
+                    // Caja a lo largo de fx0.yz (paso por muestra), fx0.w muestras a cada lado.
+                    float4 sum = 0;
+                    int taps = (int)fx0.w;
+                    [loop]
+                    for (int t = -taps; t <= taps; t++)
+                    {
+                        sum += SampleA(uv + fx0.yz * t);
+                    }
+
+                    return sum / (2 * taps + 1);
+                }
+                case 8:
+                {
+                    // Zoom desde el centro fx0.yz: cada muestra escala la distancia en fx0.w; fx1.x muestras a cada lado.
+                    float4 sum = 0;
+                    int taps = (int)fx1.x;
+                    [loop]
+                    for (int t = -taps; t <= taps; t++)
+                    {
+                        sum += SampleA(fx0.yz + (uv - fx0.yz) * (1.0 + fx0.w * t));
+                    }
+
+                    return sum / (2 * taps + 1);
+                }
+                case 9:
+                {
+                    // Disco de radio fx0.yz (en uv) con la espiral de Vogel: fx1.x muestras repartidas por igual en el área.
+                    float4 sum = 0;
+                    int taps = (int)fx1.x;
+                    [loop]
+                    for (int t = 0; t < taps; t++)
+                    {
+                        float r = sqrt((t + 0.5) / taps);
+                        float a = t * 2.39996323;
+                        sum += SampleA(uv + float2(cos(a), sin(a)) * r * fx0.yz);
+                    }
+
+                    return sum / taps;
+                }
+                case 10:
+                    return Bilateral(uv);
+                case 11:
+                {
+                    // Con el cuadro anterior (B) donde la luma casi no cambió: fx0.y = mezcla, fx0.zw = rampa de la diferencia.
+                    float4 now = SampleA(uv);
+                    float4 before = SampleB(uv);
+                    float diff = abs(dot(Unpremultiply(now).rgb - Unpremultiply(before).rgb, LumaWeights));
+                    return lerp(now, before, fx0.y * (1.0 - smoothstep(fx0.z, fx0.w, diff)));
+                }
+                case 12:
+                {
+                    float4 c = Unpremultiply(SampleA(uv));
+                    return float4(ToLinear(c.rgb) * c.a, c.a);
+                }
+                case 13:
+                {
+                    float4 c = Unpremultiply(SampleA(uv));
+                    return float4(ToGamma(c.rgb) * c.a, c.a);
+                }
+                case 14:
+                {
+                    // Antes (A) y después (B) según la máscara de efectos; fx0.y = 1 aplica fuera de ella.
+                    float m = maskImage.SampleLevel(linearClamp, min(uv * fx2.xy, fx2.zw), 0).r;
+                    return lerp(SampleA(uv), SampleB(uv), fx0.y > 0.5 ? 1.0 - m : m);
+                }
+                default:
+                    return SampleA(uv);
+            }
         }
 
         float4 Side(bool b, float2 uv)
@@ -423,6 +775,7 @@ internal static class EffectShaders
         EffectShader.Blur => GradedVariants + 5,
         EffectShader.Sharpen => GradedVariants + 6,
         EffectShader.Mask => GradedVariants + 7,
+        EffectShader.Fx => GradedVariants + 8,
         _ => throw new ArgumentOutOfRangeException(nameof(shader)),
     };
 
@@ -442,6 +795,7 @@ internal static class EffectShaders
         all.Add(Variant("PsBlur", 0));
         all.Add(Variant("PsSharpen", 0));
         all.Add(Variant("PsMask", 0));
+        all.Add(Variant("PsFx", 0));
         return all.ToImmutable();
     }
 
