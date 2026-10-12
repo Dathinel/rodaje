@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #38, #37. Los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47) y #30, #32, #18, #36 (tareas 48–50) los revisó Sonnet el 12-oct.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #38, #37, #41. Los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47) y #30, #32, #18, #36 (tareas 48–50) los revisó Sonnet el 12-oct.
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -346,7 +346,7 @@ Quitar `TrimStartToPlayhead`/`TrimEndToPlayhead`/`TrimToPlayhead` (`EditorSessio
 
 ## 36. Pausas de la vista previa en cortes con velocidad y transiciones
 
-- **Estado:** pendiente
+- **Estado:** hecha en parte (PR #41 unido el 12-oct: ya no se abren decodificadores en los cortes del mismo medio, de 18 a 2 aperturas en la escena con dobles; falta medir en la RTX 3050 `TimelineCutPauseHardwareTests` y la aceptación sin exportar, y la primera apertura de cada PiP sigue siendo una pausa probable, que pide tocar `Rodaje.Media`)
 - **Rama:** `claude/vista-previa-pausas`
 - **Caminos:** `src/Rodaje.Engine/Timeline/`, `src/Rodaje.Playback/`, sus pruebas, `docs/arquitectura/motor.md`, `docs/tareas/`.
 - **Lee:** `docs/fase-6.md` («Cifras de la aceptación»: bloqueos de 59–370 ms sin exportar en cortes y transiciones), `tests/Rodaje.Export.Tests/Acceptance/AcceptanceScene.cs`.
