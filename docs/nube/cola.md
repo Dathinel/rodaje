@@ -613,7 +613,7 @@ Ninguna prueba usa `Rodaje.TestServer` (tarea 27, PR #26). El descargador tiene 
 
 ## 62. Limpieza pendiente del sink: dueño de las rutas y `Return` a prueba de excepciones
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #65 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/export-limpieza-pendiente`
 - **Caminos:** `src/Rodaje.Media/Export/FfmpegPipeSink.cs`, `src/Rodaje.Media/Export/ExportOutputGuard.cs` (solo lo mínimo), `tests/Rodaje.Media.Tests/Export/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 44 (`docs/tareas/2026-10-12-export-abort-carrera.md`), `FfmpegPipeSink.cs` (`Abort`, `DeferCleanup`, `ReleaseProcess`), `ExportOutputGuard.cs:15-16` y `:165-184`, revisión en bloque 6.
