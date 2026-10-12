@@ -3,9 +3,6 @@ using Rodaje.Render.Text;
 
 namespace Rodaje.App.Views.Player;
 
-/// <summary>Dónde se dibujó un título en el último cuadro: su tamaño nativo en píxeles de la secuencia y su transformación.</summary>
-internal readonly record struct TitleBox(string ClipId, LayerTransform Transform, double Width, double Height);
-
 /// <summary>
 /// Títulos del reproductor: un <see cref="TitleRasterizer"/> sobre el dispositivo del hilo de render, conectado a la
 /// sesión (precarga) y al compositor; las fuentes de los paquetes; las que faltan, para el aviso de la pestaña Texto; y
