@@ -84,7 +84,7 @@ public sealed class ExportScanTests : IDisposable
         Assert.Contains("entrelazada", decision.Explanation, StringComparison.Ordinal);
     }
 
-    [FfmpegFact]
+    [ProxyFact]
     public async Task The_weave_filters_give_an_interlaced_prores_with_half_the_frames()
     {
         string path = Path.Combine(Directory.CreateDirectory(_folder).FullName, "1080i.mov");
@@ -99,7 +99,7 @@ public sealed class ExportScanTests : IDisposable
         Assert.Contains("nb_read_frames=50", probe, StringComparison.Ordinal);
     }
 
-    [FfmpegFact]
+    [ProxyFact]
     public async Task Spherical_boxes_go_into_an_mp4_with_moov_at_the_start_and_it_still_decodes()
     {
         string path = await EncodeAsync("faststart.mp4", "+faststart");
@@ -115,7 +115,7 @@ public sealed class ExportScanTests : IDisposable
         Assert.Equal("48", frames.Trim().TrimEnd(','));
     }
 
-    [FfmpegFact]
+    [ProxyFact]
     public async Task Spherical_boxes_go_into_a_mov_with_moov_at_the_end_in_place()
     {
         string path = await EncodeAsync("final.mov", "");
