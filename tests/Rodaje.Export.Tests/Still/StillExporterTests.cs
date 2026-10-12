@@ -62,7 +62,7 @@ public sealed class StillExporterTests(ITestOutputHelper output) : IDisposable
         Assert.Contains("color_range=pc", StillEncoderTests.Probe(path), StringComparison.Ordinal);
     }
 
-    [StillGpuFact]
+    [StillTitleGpuFact]
     public async Task Con_alfa_el_fondo_sin_capas_es_transparente_y_el_titulo_opaco()
     {
         Project project = WithTitle(TitleOnly());
@@ -115,7 +115,7 @@ public sealed class StillExporterTests(ITestOutputHelper output) : IDisposable
         Assert.True(File.Exists(path));
     }
 
-    [StillGpuFact]
+    [StillTitleGpuFact]
     public async Task La_fuente_que_falta_detiene_salvo_que_se_acepte_el_respaldo()
     {
         Project project = WithTitle(TitleOnly(), "Rodaje Fuente Que No Existe");
@@ -131,7 +131,7 @@ public sealed class StillExporterTests(ITestOutputHelper output) : IDisposable
 
     private async Task<StillResult> ExportAsync(Project project, long frame, string path, StillSettings settings, bool continueWithout = false)
     {
-        var exporter = new StillExporter(new ExportRunnerOptions { Ffmpeg = Skip.ProxyExecutable! });
+        var exporter = new StillExporter(new ExportRunnerOptions { Ffmpeg = StillFfmpeg.Executable! });
         var watch = Stopwatch.StartNew();
         StillResult result = await exporter.ExportAsync(
             new StillRequest(project.Clone(), "sec", Time.FromFrames(frame, Rational.Fps30), path, settings) { ContinueWithoutMissing = continueWithout })
@@ -240,13 +240,20 @@ public sealed class StillExporterTests(ITestOutputHelper output) : IDisposable
 }
 
 /// <summary>
-/// Necesita el <c>ffmpeg.exe</c> LGPL, la GPU con texturas y la decodificación D3D11VA de los medios de prueba; no NVENC
-/// (la imagen no pasa por un codificador de video).
+/// Necesita el <c>ffmpeg.exe</c> LGPL, los medios de prueba (el FFmpeg que los genera), la GPU con texturas y la
+/// decodificación D3D11VA; no NVENC (la imagen no pasa por un codificador de video).
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public sealed class StillGpuFactAttribute : FactAttribute
 {
     // Sin ffmpeg.exe no se mira la GPU: en Linux no hay d3d11 y preguntar lanzaría al descubrir las pruebas.
-    public StillGpuFactAttribute() => Skip = Rodaje.TestMedia.Skip.Proxies
+    public StillGpuFactAttribute() => Skip = StillFfmpeg.Reason ?? Rodaje.TestMedia.Skip.Proxies
         ?? Rodaje.TestMedia.Skip.First(Rodaje.TestMedia.Skip.GpuTextures, Rodaje.TestMedia.Skip.HardwareDecoding);
+}
+
+/// <summary>Solo títulos, sin medios: el <c>ffmpeg.exe</c> LGPL y la GPU con texturas (vale WARP, como en la CI de Windows).</summary>
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+public sealed class StillTitleGpuFactAttribute : FactAttribute
+{
+    public StillTitleGpuFactAttribute() => Skip = StillFfmpeg.Reason ?? Rodaje.TestMedia.Skip.GpuTextures;
 }

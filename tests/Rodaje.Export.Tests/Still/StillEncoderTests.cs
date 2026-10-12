@@ -5,6 +5,7 @@ using Rodaje.Core.Timing;
 using Rodaje.Export.Still;
 using Rodaje.Export.Tests.Running;
 using Rodaje.Media.Export;
+using Rodaje.Media.Proxies;
 using Rodaje.TestMedia;
 
 namespace Rodaje.Export.Tests.Still;
@@ -89,7 +90,7 @@ public sealed class StillEncoderTests : IDisposable
         string path = Path.Combine(ExportEndToEndTests.Folder(), "medio.png");
         File.WriteAllText(path, "medio");
         StillPlan plan = Plan(new StillSettings(), path);
-        ExportException error = Assert.Throws<ExportException>(() => new StillEncoder(Skip.ProxyExecutable!, plan, path, [path]));
+        ExportException error = Assert.Throws<ExportException>(() => new StillEncoder(StillFfmpeg.Executable!, plan, path, [path]));
         Assert.Equal(ExportErrorCode.InvalidSettings, error.Code);
         Assert.Equal("medio", File.ReadAllText(path));
     }
@@ -107,7 +108,7 @@ public sealed class StillEncoderTests : IDisposable
     private static long Encode(StillSettings settings, string path, byte[] pixels, int channels)
     {
         StillPlan plan = Plan(settings, path);
-        using var encoder = new StillEncoder(Skip.ProxyExecutable!, plan, path);
+        using var encoder = new StillEncoder(StillFfmpeg.Executable!, plan, path);
         // Con relleno al final de cada fila, como la memoria de una textura Staging.
         int pitch = (Width * channels) + 64;
         byte[] padded = new byte[pitch * Height];
@@ -158,11 +159,11 @@ public sealed class StillEncoderTests : IDisposable
     }
 
     internal static byte[] Decode(string path, string pixelFormat) =>
-        Run(Skip.ProxyExecutable!.Path, ["-hide_banner", "-loglevel", "error", "-i", path, "-f", "rawvideo", "-pix_fmt", pixelFormat, "pipe:1"]);
+        Run(StillFfmpeg.Executable!.Path, ["-hide_banner", "-loglevel", "error", "-i", path, "-f", "rawvideo", "-pix_fmt", pixelFormat, "pipe:1"]);
 
     internal static string Probe(string path)
     {
-        string ffprobe = Path.Combine(Path.GetDirectoryName(Skip.ProxyExecutable!.Path)!, "ffprobe.exe");
+        string ffprobe = Path.Combine(Path.GetDirectoryName(StillFfmpeg.Executable!.Path)!, "ffprobe.exe");
         return System.Text.Encoding.UTF8.GetString(Run(ffprobe, ["-v", "error", "-show_streams", path]));
     }
 
@@ -184,9 +185,32 @@ public sealed class StillEncoderTests : IDisposable
     }
 }
 
+/// <summary>
+/// El <c>ffmpeg.exe</c> LGPL verificado, sin pedir además los codificadores H.264/HEVC de los proxies ni los medios de
+/// prueba (<see cref="Rodaje.TestMedia.Skip.Proxies"/>): una imagen solo necesita <c>png</c> y <c>mjpeg</c>, que van en la
+/// compilación LGPL. Así estas pruebas corren también en la CI de Windows.
+/// </summary>
+internal static class StillFfmpeg
+{
+    private static readonly Lazy<(FfmpegExecutable? Executable, string? Reason)> State = new(() =>
+    {
+        if (Rodaje.TestMedia.Skip.FfmpegLibraries is { } libraries)
+        {
+            return (null, libraries);
+        }
+
+        FfmpegExecutable? executable = FfmpegExecutable.TryLocate(out string? failure);
+        return executable is null ? (null, "Omitida: " + failure) : (executable, null);
+    });
+
+    public static FfmpegExecutable? Executable => State.Value.Executable;
+
+    public static string? Reason => State.Value.Reason;
+}
+
 /// <summary>Necesita el <c>ffmpeg.exe</c> LGPL verificado (y <c>ffprobe.exe</c>); no la GPU.</summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public sealed class StillEncoderFactAttribute : FactAttribute
 {
-    public StillEncoderFactAttribute() => Skip = Rodaje.TestMedia.Skip.Proxies;
+    public StillEncoderFactAttribute() => Skip = StillFfmpeg.Reason;
 }
