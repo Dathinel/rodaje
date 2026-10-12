@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Autosave;
 using Rodaje.App.Services.Media;
@@ -71,11 +72,14 @@ internal sealed partial class MainWindow : Window, IShellHost
         _options = options;
         _engine = engine;
         _settings = settings;
+        Program.Metrics.Milestone("ventana_inicio");
         InitializeComponent();
+        Program.Metrics.Milestone("ventana_xaml");
         _dispatcher = DispatcherQueue.GetForCurrentThread();
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         SetUpTitleBar();
         RestoreLayout();
+        StartupSplash.PlaceOver(AppWindow, _hwnd);
 
         // Las teclas de signos se muestran como están impresas en el teclado de la persona (español: «'» y no «[»).
         KeyNames.DisplayLayout = SystemKeyboardLayout.Instance;
@@ -85,6 +89,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _shortcutStore = new ShortcutStore(ShortcutStore.DefaultPath);
         string? shortcutsWarning = _shortcutStore.Load(registry);
         _router = new ShortcutRouter(registry);
+        Program.Metrics.Milestone("atajos");
 
         var dialogs = new ShellDialogs(this, _hwnd, settings);
         var session = new EditorSession(engine, prober, dialogs,
@@ -94,10 +99,10 @@ internal sealed partial class MainWindow : Window, IShellHost
         };
         _visuals = new ClipVisuals(id => session.Project.FindMedia(id)?.Path, new FfmpegVisualsSources(),
             new ClipVisualsOptions { CacheDirectory = ClipVisualsOptions.DefaultCacheDirectory }, SynchronizationContext.Current);
-        _ = _visuals.TrimDiskCacheAsync();
+        Program.Metrics.Milestone("sesion");
         var packages = new PackageService(PackageService.DefaultLocations(), PackageService.LoadBundledCatalog(), instances: _instance);
         IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
-        _ = Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale());
+        Program.Metrics.Milestone("paquetes");
         var preview = new PreviewYield(engine, engine.SetPreviewQuality, () => settings.Current);
         _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed)), SynchronizationContext.Current);
         _modules = new ModuleManager(new ModuleManagerOptions
@@ -108,7 +113,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }, new ModulePreviewYield(preview), SynchronizationContext.Current);
         _modules.Failed += (_, f) => session.Notify(NotificationSeverity.Error, f.Title, f.Message);
         packages.Changed += (_, _) => _ = Task.Run(_modules.Refresh);
-        _ = Task.Run(_modules.Refresh);
+        Program.Metrics.Milestone("modulos");
         _services = new EditorServices(session, _router, settings, engine, this)
         {
             Visuals = _visuals, Packages = packages, Content = content, Exports = _exports,
@@ -126,6 +131,7 @@ internal sealed partial class MainWindow : Window, IShellHost
                 engine.SetTitleFonts(now);
             }
         };
+        Program.Metrics.Milestone("fuentes");
         MissingContent.Attach(session, packages);
         _bindings.Add(EditorShortcuts.Bind(_router, session));
         _bindings.Add(_router.Bind(ActionIds.Export, () => ShowPage(ShellPage.Export)));
@@ -142,6 +148,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         Inspector.Attach(_services);
         Timeline.Attach(_services);
         Timeline.ClipVisuals = _visuals;
+        Program.Metrics.Milestone("vistas_unidas");
 
         session.Notified += (_, n) => ShowNotification(n);
         session.ProjectOpened += (_, _) => RememberProject();
@@ -180,7 +187,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _settingsTimer.Tick += (_, _) => SaveSettingsIfChanged();
 
         // Autoguardado (no en las mediciones ni en la autoprueba): el mismo temporizador decide si toca una copia.
-        if (options.MeasureSeconds is null && !options.SelfTest)
+        if (!options.IsAutomated)
         {
             var autosave = new AutosaveService(session, dialogs, AutosaveService.DefaultRoot);
             _autosave = autosave;
@@ -216,6 +223,41 @@ internal sealed partial class MainWindow : Window, IShellHost
         if (options.Files.Count > 0 || options.SelfTest)
         {
             _ = OpenStartupFilesAsync(options.Files);
+        }
+
+        StartupTrace.Watch(Program.Metrics, OnStartupUsable);
+        if (StartupSplash.IsShown)
+        {
+            // Por si WinUI no pintara mientras está oculta: a los 3 s se muestra igual.
+            DispatcherQueueTimer reveal = _dispatcher.CreateTimer();
+            reveal.Interval = TimeSpan.FromSeconds(3);
+            reveal.IsRepeating = false;
+            reveal.Tick += (_, _) => StartupSplash.Reveal(_hwnd);
+            reveal.Start();
+        }
+
+        Program.Metrics.Milestone("ventana_lista");
+    }
+
+    /// <summary>
+    /// Lo que no hace falta para ver la ventana empieza después de su primer cuadro: el motor (FFmpeg y la GPU, si no
+    /// arrancó antes para abrir archivos), los módulos de IA y la limpieza de cachés y exportaciones a medias.
+    /// </summary>
+    private void OnStartupUsable()
+    {
+        StartupSplash.Reveal(_hwnd);
+        if (_options.Files.Count == 0)
+        {
+            _engine.Start();
+            Program.Metrics.Milestone("motor_lanzado");
+        }
+
+        _ = Task.Run(_modules.Refresh);
+        _ = _visuals.TrimDiskCacheAsync();
+        _ = Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale());
+        if (_options.StartupProbe)
+        {
+            _ = StartupTrace.FinishProbeAsync(Program.Metrics, _options.LogPath, _options.Files.Count > 0, () => _engine.FailureMessage, Close);
         }
     }
 
@@ -628,13 +670,13 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     /// <summary>Avisa de un error que nadie esperaba; los detalles quedan en <c>rodaje-error.txt</c>.</summary>
     internal void ReportUnexpectedError(string message) =>
-        Session.Notify(NotificationSeverity.Error, "Algo falló", $"{message} Los detalles quedaron en rodaje-error.txt, junto al programa.");
+        Session.Notify(NotificationSeverity.Error, "Algo falló", $"{message} Los detalles quedaron en app\\rodaje-error.txt, dentro de la carpeta de Rodaje.");
 
     private void OnCloseModal(object sender, RoutedEventArgs e) => ClosePage();
 
     private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (_allowClose || _options.MeasureSeconds is not null || _options.SelfTest)
+        if (_allowClose || _options.IsAutomated)
         {
             return;
         }
@@ -675,6 +717,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _closed = true;
+        StartupSplash.Close();
         CompositionTarget.Rendering -= OnRendering;
         _transportTimer.Stop();
         _settingsTimer.Stop();
