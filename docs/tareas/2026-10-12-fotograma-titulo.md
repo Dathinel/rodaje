@@ -61,3 +61,8 @@ RTX 3050: las seis de `StillExporterTests` deben pasar, en especial
 decodificación por hardware.
 
 ## CI
+
+Commit 50c1e6d: Linux (Core, Paquetes, Playback) en verde y Windows (solución completa) en verde. No pude leer el log
+de Windows (el almacenamiento de los logs no es accesible desde aquí), pero por su atributo `[StillGpuFact]` la prueba
+de la tarea se omite en la CI de Windows (no hay decodificación D3D11VA); el verde de Windows confirma que el cambio
+compila y no rompe el resto, no que la prueba pase. Eso queda para el PC de Daniel.
