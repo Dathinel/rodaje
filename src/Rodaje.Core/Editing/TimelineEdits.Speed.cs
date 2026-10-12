@@ -476,6 +476,12 @@ public static partial class TimelineEdits
         List<Time> ends = [.. Enumerable.Range(-1, 4).Select(k => Time.FromFrames(frame + k, fps))
             .Where(end => end > map.Start && Int128.Abs(map.Offset.Ticks) + end.Ticks - map.Start.Ticks <= RetimeMath.MaxExtent)
             .OrderBy(end => Int128.Abs((Int128)end.Ticks - map.End.Ticks))];
+        if (speed is null && target == available)
+        {
+            // A 1× el borde del archivo también es de la rejilla: un clip que empieza fuera de un cuadro y llega al final del
+            // archivo lo conserva; si no, va al cuadro de antes, pierde material y su enlazado ya no comparte el suyo.
+            ends.Insert(0, map.Start + Time.FromTicks(target));
+        }
 
         ClipTimeMap? best = null;
         SpeedCurve? bestCurve = null;
