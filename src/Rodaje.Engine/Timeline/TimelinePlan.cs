@@ -64,9 +64,12 @@ internal sealed partial class TimelinePlan
         {
             for (int i = layer.FirstGeneratedEndingAfter(from); i < layer.Generated.Count && layer.Generated[i].Start < to; i++)
             {
-                if (seen.Add(layer.Generated[i].Content))
+                foreach (GeneratedContent content in layer.Generated[i].Contents)
                 {
-                    contents.Add(layer.Generated[i].Content);
+                    if (seen.Add(content))
+                    {
+                        contents.Add(content);
+                    }
                 }
             }
         }

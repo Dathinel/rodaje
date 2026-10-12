@@ -30,6 +30,17 @@
                     </StackPanel>
                 </inspector:InspectorSection>
 
+                <inspector:InspectorSection x:Name="WordsSection" Key="texto-palabras" Title="Palabras" Visibility="Collapsed">
+                    <StackPanel Padding="0,0,0,6" Spacing="4">
+                        <StackPanel x:Name="HighlightRows" />
+                        <StackPanel x:Name="WordList" Padding="12,0,6,0" Spacing="2" />
+                        <Button x:Name="JoinButton" Content="Unir con el siguiente" Margin="12,4,6,0" Click="OnJoinClick"
+                                ToolTipService.ToolTip="Junta este subtítulo con el que sigue en la pista, con todas sus palabras" />
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Margin="12,0,12,0"
+                                   Text="Corrige una palabra y pulsa Intro. La tijera parte el subtítulo donde empieza esa palabra; la hora lleva el cursor ahí." />
+                    </StackPanel>
+                </inspector:InspectorSection>
+
                 <inspector:InspectorSection x:Name="StyleSection" Key="texto-estilo" Title="Estilo">
                     <StackPanel x:Name="StyleRows" />
                 </inspector:InspectorSection>

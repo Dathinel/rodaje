@@ -267,6 +267,34 @@ public sealed class TimelineTitleTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Karaoke_highlights_the_word_that_sounds_and_prepares_every_variant()
+    {
+        var b = new TimelineBuilder(1, 0);
+        var style = new TextStyle { Size = 96, Highlight = new StyleHighlight { Color = "#FFD400" } };
+        Clip clip = b.AddTitle(0, S(10), S(3), "Hola a\ntodos", style);
+        clip.SourceIn = S(1);
+        clip.SourceOut = S(4);
+        clip.Generator!.Words =
+        [
+            new GeneratorWord { Start = S(1.2), End = S(1.6), Text = "Hola" },
+            new GeneratorWord { Start = S(1.6), End = S(1.8), Text = "a" },
+            new GeneratorWord { Start = S(2), End = S(2.5), Text = "todos" },
+        ];
+
+        GeneratedClipPlan title = Single(b);
+        Assert.Equal(4, title.Contents.Count);
+        Assert.Equal(-1, title.ContentAt(S(10.1)).HighlightStart);
+        Assert.Equal((0, 4), (title.ContentAt(S(10.2)).HighlightStart, title.ContentAt(S(10.2)).HighlightLength));
+        Assert.Equal(5, title.ContentAt(S(10.7)).HighlightStart);
+        Assert.Equal((7, 5), (title.ContentAt(S(12.9)).HighlightStart, title.ContentAt(S(12.9)).HighlightLength));
+        Assert.Same(title.ContentAt(S(11.5)), title.Layer(0, S(11.5), new EffectListRing(), null).Generated);
+
+        // Sin el estilo «palabra resaltada» no hay variantes.
+        clip.Generator.Style!.Highlight = null;
+        Assert.Single(Single(b).Contents);
+    }
+
+    [Fact]
     public void Style_units_scale_to_the_sequence_and_the_raster_scale_covers_the_largest_size()
     {
         var b = new TimelineBuilder(1, 0);

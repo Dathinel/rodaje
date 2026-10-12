@@ -293,7 +293,8 @@ internal static class AutoSubtitles
     /// <summary>«0:01,2–0:03,4», con coma decimal.</summary>
     public static string Range(Time start, Time end) => $"{Clock(start)}–{Clock(end)}";
 
-    private static string Clock(Time t)
+    /// <summary>«0:01,2», en décimas, con coma decimal.</summary>
+    public static string Clock(Time t)
     {
         // En décimas enteras para que 59,96 s no salga «0:60,0».
         long tenths = (long)Math.Round(Math.Max(0, t.ToSeconds()) * 10, MidpointRounding.AwayFromZero);

@@ -19,7 +19,9 @@ public sealed class GeneratedContent : IEquatable<GeneratedContent>
 {
     private readonly int _hash;
 
-    public GeneratedContent(string kind, string text, TextStyle style, double boxWidth, int sequenceWidth, int sequenceHeight, double rasterScale)
+    /// <summary>Con <c>highlightStart</c> ≥ 0 y un estilo con <see cref="TextStyle.Highlight"/>, esa palabra va resaltada (karaoke).</summary>
+    public GeneratedContent(string kind, string text, TextStyle style, double boxWidth, int sequenceWidth, int sequenceHeight, double rasterScale,
+        int highlightStart = -1, int highlightLength = 0)
     {
         ArgumentNullException.ThrowIfNull(kind);
         ArgumentNullException.ThrowIfNull(text);
@@ -34,6 +36,9 @@ public sealed class GeneratedContent : IEquatable<GeneratedContent>
         SequenceHeight = sequenceHeight;
         RasterScale = double.IsFinite(rasterScale) && rasterScale > 0 ? rasterScale : 1;
         UnitScale = UnitScaleFor(style.Reference, sequenceWidth, sequenceHeight);
+        bool highlighted = style.Highlight is not null && highlightStart >= 0 && highlightLength > 0 && highlightStart + highlightLength <= text.Length;
+        HighlightStart = highlighted ? highlightStart : -1;
+        HighlightLength = highlighted ? highlightLength : 0;
         Key = BuildKey();
         _hash = StringComparer.Ordinal.GetHashCode(Key);
 
@@ -61,6 +66,11 @@ public sealed class GeneratedContent : IEquatable<GeneratedContent>
 
     /// <summary>Mayor escala con que se ve (animación del estilo × transformación del clip): la de la textura.</summary>
     public double RasterScale { get; }
+
+    /// <summary>Primer carácter de la palabra que se pinta con <see cref="TextStyle.Highlight"/>; -1 si ninguna.</summary>
+    public int HighlightStart { get; }
+
+    public int HighlightLength { get; }
 
     /// <summary>Clip del que salió, para los avisos (por ejemplo, la fuente que falta); no forma parte de <see cref="Key"/>.</summary>
     public string ClipId { get; init; } = "";
@@ -131,6 +141,11 @@ public sealed class GeneratedContent : IEquatable<GeneratedContent>
             {
                 Number(b, padding);
             }
+        }
+
+        if (HighlightLength > 0)
+        {
+            Append(b, "H" + s.Highlight!.Color).Append(HighlightStart).Append('+').Append(HighlightLength).Append('|');
         }
 
         Number(Number(Number(b, BoxWidth), UnitScale), RasterScale).Append(SequenceWidth).Append('x').Append(SequenceHeight);

@@ -75,6 +75,16 @@ public static partial class Edits
     public static SequenceEditCommand ConvertTitleAnimation(string sequenceId, string clipId, IIdGenerator? ids = null) =>
         new("Convertir en keyframes", sequenceId, ctx => TitleEdits.ConvertAnimationToKeyframes(ctx, clipId), ids);
 
+    public static SequenceEditCommand CorrectSubtitleWord(string sequenceId, string clipId, int index, string text, IIdGenerator? ids = null) =>
+        new("Corregir palabra", sequenceId, ctx => SubtitleEdits.CorrectWord(ctx, clipId, index, text), ids);
+
+    /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: el trozo de la derecha.</remarks>
+    public static SequenceEditCommand SplitSubtitleAtWord(string sequenceId, string clipId, int index, IIdGenerator? ids = null) =>
+        new("Dividir subtítulo", sequenceId, ctx => (IReadOnlyList<string>)[SubtitleEdits.SplitAtWord(ctx, clipId, index)], ids);
+
+    public static SequenceEditCommand JoinSubtitleWithNext(string sequenceId, string clipId, IIdGenerator? ids = null) =>
+        new("Unir subtítulos", sequenceId, ctx => SubtitleEdits.JoinWithNext(ctx, clipId), ids);
+
     /// <summary>Agrega una pista de subtítulos encima de todas.</summary>
     /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: la pista nueva.</remarks>
     public static SequenceEditCommand AddSubtitleTrack(string sequenceId, string name = "Subtítulos", IIdGenerator? ids = null) =>

@@ -133,6 +133,11 @@ public static partial class ModelValidator
                 && InRange(background.Radius, 0, MaxOffset), "un fondo fuera de rango");
         }
 
+        if (style.Highlight is { } highlight)
+        {
+            Check(IsColor(highlight.Color), "un color de palabra resaltada no válido");
+        }
+
         ValidateAnimation(style.In, "entrada", Check);
         ValidateAnimation(style.Out, "salida", Check);
     }

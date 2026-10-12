@@ -365,7 +365,10 @@ public sealed class OfflineTimeline : IDisposable
             IReadOnlyList<GeneratedClipPlan> generated = lane.Layer.Generated;
             for (int i = lane.Layer.FirstGeneratedEndingAfter(time); i < generated.Count && generated[i].Start <= until; i++)
             {
-                titles.Prepare(generated[i].Content);
+                foreach (GeneratedContent content in generated[i].Contents)
+                {
+                    titles.Prepare(content);
+                }
             }
         }
     }
