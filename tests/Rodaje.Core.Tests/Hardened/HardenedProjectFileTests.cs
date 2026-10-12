@@ -10,7 +10,9 @@ namespace Rodaje.Core.Tests.Hardened;
 /// </summary>
 public sealed class HardenedProjectFileTests : IDisposable
 {
-    private readonly string _dir = Path.Combine(Path.GetTempPath(), "Rodaje pruebas", $"Endurecidas ñ {Guid.NewGuid():N}");
+    // Bajo la carpeta actual y no en %TEMP%: en la CI de Windows %TEMP% está en C: y la carpeta actual en D:, y entre
+    // unidades distintas no hay ruta relativa (GetRelativePath devuelve la absoluta y la prueba no probaría nada).
+    private readonly string _dir = Path.Combine(Environment.CurrentDirectory, "Rodaje pruebas", $"Endurecidas ñ {Guid.NewGuid():N}");
 
     public HardenedProjectFileTests() => Directory.CreateDirectory(_dir);
 
