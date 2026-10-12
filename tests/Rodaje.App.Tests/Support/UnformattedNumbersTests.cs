@@ -154,7 +154,7 @@ public class UnformattedNumbersTests
     /// ¿La línea <paramref name="index"/> formatea un número con decimales sin proveedor? Mira la sentencia entera (hasta
     /// <see cref="MaxStatementLines"/> líneas hacia atrás y hacia delante), porque el proveedor suele ir en otra línea.
     /// </summary>
-    private static bool IsOffending(string fileName, IReadOnlyList<string> lines, int index)
+    private static bool IsOffending(string fileName, string[] lines, int index)
     {
         string line = lines[index].Trim();
         if (line.StartsWith("//", StringComparison.Ordinal) || DiagnosticFiles.Contains(fileName))
@@ -180,7 +180,7 @@ public class UnformattedNumbersTests
 
     // La sentencia que contiene la línea: hacia atrás hasta una línea que cierre otra sentencia o abra un bloque, y hacia
     // delante hasta el «;».
-    private static string Statement(IReadOnlyList<string> lines, int index)
+    private static string Statement(string[] lines, int index)
     {
         int start = index;
         while (start > 0 && index - start < MaxStatementLines && !EndsStatement(lines[start - 1]))
@@ -189,7 +189,7 @@ public class UnformattedNumbersTests
         }
 
         int end = index;
-        while (end < lines.Count - 1 && end - index < MaxStatementLines && !EndsStatement(lines[end]))
+        while (end < lines.Length - 1 && end - index < MaxStatementLines && !EndsStatement(lines[end]))
         {
             end++;
         }
