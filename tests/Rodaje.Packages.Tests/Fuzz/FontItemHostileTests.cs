@@ -247,7 +247,7 @@ public sealed class FontItemHostileTests
     /// <c>License = null</c>, aunque formato-paquete.md dice que «license es obligatoria» porque «una fuente de terceros
     /// no tiene la licencia del paquete». Lo que debería pasar: el mismo error que sin <c>license</c>.
     /// </summary>
-    [Fact(Skip = "Defecto: una fuente con \"license\": \"\" (o solo espacios o marcas bidi) es válida y queda sin licencia.")]
+    [Fact]
     public void Una_fuente_con_licencia_vacia_no_es_valida()
     {
         foreach (string license in new[] { "\"\"", "\"   \"", "\"\\u202e\"", "\"\\u0000\"" })
@@ -264,7 +264,7 @@ public sealed class FontItemHostileTests
     /// formato-paquete.md, «Textos»: «las rutas que los traen se rechazan». Lo que debería pasar: rechazarla como hace
     /// <c>SafePaths.TryNormalizeRelative</c> con la ruta original.
     /// </summary>
-    [Fact(Skip = "Defecto: una ruta de files o file con marcas bidi o controles se limpia en vez de rechazarse (fuentes/x\\u202Efdp.ttf pasa como fuentes/xfdp.ttf).")]
+    [Fact]
     public void Una_ruta_con_marcas_de_direccion_o_controles_se_rechaza()
     {
         foreach (string path in new[] { "fuentes/x\u202Efdp.ttf", "a\u0001.ttf", "\tinter.ttf", "inter\u200F.otf", " inter.ttf", "inter.ttf " })
