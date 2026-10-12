@@ -48,6 +48,7 @@ public sealed class ManifestReaderTests
     [InlineData("template", ItemKind.Template)]
     [InlineData("sound", ItemKind.Sound)]
     [InlineData("font", ItemKind.Font)]
+    [InlineData("safe-zones", ItemKind.SafeZones)]
     public void Every_item_kind_round_trips(string text, ItemKind kind)
     {
         Assert.Equal(kind, ManifestReader.ParseItemKind(text));

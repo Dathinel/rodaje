@@ -1,0 +1,7 @@
+{ "format": "rodaje.safezones", "version": 1, "id": "youtube-shorts", "name": "YouTube Shorts",
+  "aspect": { "width": 9, "height": 16 },
+  "zones": [
+    { "label": "Búsqueda y menú", "rect": [0, 0, 1, 0.07] },
+    { "label": "Me gusta, comentarios, compartir y remix", "rect": [0.85, 0.4, 0.15, 0.48] },
+    { "label": "Título, canal y suscribirse", "rect": [0, 0.75, 0.83, 0.17] },
+    { "label": "Barra de la app", "rect": [0, 0.92, 1, 0.08] } ] }

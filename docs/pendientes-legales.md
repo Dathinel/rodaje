@@ -6,6 +6,7 @@ Lo que falta para publicar Rodaje bajo la GNU GPLv3 con términos adicionales de
 
 - [x] **Nombre «Rodaje» en la SIC** (11-oct: Daniel comprobó que no está registrado; el registro se decide antes de la versión pública). Buscarlo en la Superintendencia de Industria y Comercio (https://www.sic.gov.co), clase 9 de Niza (software descargable; mirar también la 42). Si sigue libre, decidir si se registra. Con la GPLv3 el nombre es lo que impide que otro venda «Rodaje» tal cual: `TRADEMARK.md` lo reserva, pero sin registro su fuerza es menor.
 - [ ] **Logotipo e icono propios.** `TRADEMARK.md` los reserva; hoy la app no tiene logotipo ni icono definitivos. Hacerlos antes de publicar.
+- [ ] **Nombres de redes en las zonas seguras del visor.** Los juegos de fábrica se llaman «TikTok», «Instagram Reels», «YouTube Shorts», «Facebook Reels»… solo para decir a qué interfaz se refieren (uso nominativo), con dibujo propio y sin logotipos ni capturas (`formato-paquete.md`, `safe-zones`). Confirmar con el abogado que basta y si conviene una nota de marcas ajenas en la app.
 - [ ] **Registro de derechos de autor (opcional).** Ante la Dirección Nacional de Derechos de Autor (https://www.derechodeautor.gov.co), como soporte lógico. No es obligatorio para tener los derechos, pero sirve de prueba de fecha y autoría.
 
 ## Consulta con un abogado de propiedad intelectual

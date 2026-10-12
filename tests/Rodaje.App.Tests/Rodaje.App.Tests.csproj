@@ -23,6 +23,7 @@
     <!-- Completa un método parcial de Shell (EditorServices.cs), que las pruebas no compilan. -->
     <Compile Remove="..\..\src\Rodaje.App\Services\Effects\EffectContentFactory.cs" />
     <EmbeddedResource Include="..\..\src\Rodaje.App\Services\Packages\catalogo.json" LogicalName="Rodaje.App.catalogo.json" Link="Services\Packages\catalogo.json" />
+    <EmbeddedResource Include="..\..\src\Rodaje.App\Services\SafeZones\Fabrica\*.json" LogicalName="Rodaje.App.zonas.%(Filename).json" Link="Services\SafeZones\Fabrica\%(Filename).json" />
     <Compile Include="..\..\src\Rodaje.App\Views\Timeline\Logic\**\*.cs" Link="Timeline\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Rodaje.App\Views\Export\Logic\**\*.cs" Link="ExportLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Rodaje.App\Views\Player\Logic\**\*.cs" Link="PlayerLogic\%(RecursiveDir)%(Filename)%(Extension)" />

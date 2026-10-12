@@ -307,6 +307,7 @@ internal static class SelfTestRun
             await CheckCanvasAsync(window, name);
             if (name == "formato-9x16")
             {
+                await SafeZonesAsync(window);
                 window.ShowPage(ShellPage.Export);
                 for (int i = 0; i < 50 && window.ExportPage?.Model is null; i++)
                 {
@@ -333,6 +334,54 @@ internal static class SelfTestRun
         {
             throw new InvalidOperationException("Deshacer no devolvió el formato del proyecto.");
         }
+
+        await Task.Delay(400);
+        await CheckCanvasAsync(window, "formato-16x9");
+    }
+
+    /// <summary>
+    /// Zonas seguras sobre el proyecto vertical: TikTok (con la imagen compuesta de verdad), los clásicos, YouTube 16:9
+    /// (avisa que son para otra forma) y el editor de zonas propias con una zona nueva, que se cierra sin guardar.
+    /// </summary>
+    private static async Task SafeZonesAsync(MainWindow window)
+    {
+        PlayerView player = window.PlayerPane;
+        Services.Settings.AppSettings settings = window.Settings;
+        (bool show, string? zones) = (settings.ShowSafeAreas, settings.SafeZones);
+        foreach ((string reference, string name) in new[]
+        {
+            ("fabrica/tiktok", "zonas-tiktok"), ("fabrica/instagram-reels", "zonas-reels"), ("fabrica/clasicos", "zonas-clasicos"), ("fabrica/youtube", "zonas-otra-forma"),
+        })
+        {
+            player.ChooseSafeZones(reference);
+            if (player.ShownSafeZones?.Reference != reference)
+            {
+                throw new InvalidOperationException($"El visor no muestra las zonas {reference}.");
+            }
+
+            await CaptureAsync(window, name);
+            if (name == "zonas-tiktok" && Environment.GetEnvironmentVariable(CapturesVariable) is { Length: > 0 } folder
+                && WindowCapture.Client(window.Hwnd) is { } shot)
+            {
+                await SavePngAsync(folder, name + "-pantalla", shot.Bgra, shot.Width, shot.Height);
+            }
+        }
+
+        player.ChooseSafeZones("fabrica/tiktok");
+        if (player.EditSafeZonesForSelfTest(true) != 5)
+        {
+            throw new InvalidOperationException("El editor de zonas propias no empezó de las de TikTok con una zona nueva.");
+        }
+
+        await CaptureAsync(window, "zonas-editor");
+        player.EditSafeZonesForSelfTest(false);
+        player.ChooseSafeZones(null);
+        if (player.ShownSafeZones is not null)
+        {
+            throw new InvalidOperationException("«Ninguno» no quitó las zonas del visor.");
+        }
+
+        (settings.ShowSafeAreas, settings.SafeZones) = (show, zones);
     }
 
     /// <summary>

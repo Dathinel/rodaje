@@ -383,6 +383,7 @@ public static class ManifestReader
         "template" => ItemKind.Template,
         "sound" => ItemKind.Sound,
         "font" => ItemKind.Font,
+        "safe-zones" => ItemKind.SafeZones,
         _ => null,
     };
 
@@ -396,6 +397,7 @@ public static class ManifestReader
         ItemKind.Template => "template",
         ItemKind.Sound => "sound",
         ItemKind.Font => "font",
+        ItemKind.SafeZones => "safe-zones",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 

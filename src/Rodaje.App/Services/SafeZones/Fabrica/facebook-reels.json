@@ -1,0 +1,7 @@
+{ "format": "rodaje.safezones", "version": 1, "id": "facebook-reels", "name": "Facebook Reels",
+  "aspect": { "width": 9, "height": 16 },
+  "zones": [
+    { "label": "Título y cámara", "rect": [0, 0, 1, 0.08] },
+    { "label": "Me gusta, comentarios y compartir", "rect": [0.85, 0.45, 0.15, 0.43] },
+    { "label": "Nombre, descripción y audio", "rect": [0, 0.76, 0.84, 0.18] },
+    { "label": "Barra de la app", "rect": [0, 0.94, 1, 0.06] } ] }

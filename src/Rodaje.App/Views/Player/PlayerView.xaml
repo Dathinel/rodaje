@@ -53,7 +53,13 @@
                         </MenuFlyout>
                     </DropDownButton.Flyout>
                 </DropDownButton>
-                <ToggleButton x:Name="SafeAreasButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE7A8;" Click="OnSafeAreasClick" />
+                <DropDownButton x:Name="SafeAreasButton" MinHeight="26" Padding="6,0" Background="Transparent" BorderThickness="0"
+                                FontFamily="{StaticResource IconFontFamily}" FontSize="{StaticResource IconFontSize}" Content="&#xE7A8;"
+                                AutomationProperties.Name="Zonas seguras">
+                    <DropDownButton.Flyout>
+                        <MenuFlyout x:Name="SafeZonesMenu" Placement="BottomEdgeAlignedRight" Opening="OnSafeZonesMenuOpening" />
+                    </DropDownButton.Flyout>
+                </DropDownButton>
                 <Button x:Name="FullScreenButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE740;" Click="OnFullScreenClick" />
             </StackPanel>
         </Grid>
@@ -79,12 +85,11 @@
                                    TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                 </Canvas>
-                <Canvas x:Name="SafeAreaCanvas" IsHitTestVisible="False" Visibility="Collapsed">
-                    <Rectangle x:Name="ActionSafe" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1" StrokeDashArray="4,3" Opacity="0.8" />
-                    <Rectangle x:Name="TitleSafe" Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1" StrokeDashArray="2,3" Opacity="0.8" />
-                    <Rectangle x:Name="CenterH" Fill="{StaticResource TextMutedBrush}" Opacity="0.8" />
-                    <Rectangle x:Name="CenterV" Fill="{StaticResource TextMutedBrush}" Opacity="0.8" />
-                </Canvas>
+                <!-- Zonas seguras (rodaje.safezones): las dibuja PlayerView.SafeZones con el rectángulo de la imagen. -->
+                <Canvas x:Name="SafeAreaCanvas" IsHitTestVisible="False" Visibility="Collapsed" />
+                <Canvas x:Name="SafeZoneEditCanvas" Visibility="Collapsed" Background="Transparent"
+                        PointerPressed="OnSafeZoneEditPressed" PointerMoved="OnSafeZoneEditMoved"
+                        PointerReleased="OnSafeZoneEditReleased" PointerCaptureLost="OnSafeZoneEditCaptureLost" />
                 <Canvas x:Name="TitleCanvas" IsHitTestVisible="False" Visibility="Collapsed">
                     <Polygon x:Name="TitleOutline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
                     <Rectangle x:Name="TitleGripTopLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
@@ -115,6 +120,21 @@
             </StackPanel>
             <TextBlock HorizontalAlignment="Right" Text="{x:Bind Session.DurationText, Mode=OneWay, FallbackValue='0:00.000'}"
                        Style="{StaticResource TimecodeTextStyle}" FontSize="{StaticResource TitleFontSize}" Foreground="{StaticResource TextMutedBrush}" />
+        </Grid>
+        <!-- Editor de zonas propias, en el lugar del transporte: arrastrar mueve, las esquinas estiran; se guarda en complementos\propios. -->
+        <Grid x:Name="SafeZoneEditBar" Grid.Row="2" Visibility="Collapsed" Padding="8,0" Background="{StaticResource BarBrush}"
+              BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
+            <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBox x:Name="SafeZoneSetName" Width="140" MinHeight="30" PlaceholderText="Nombre" AutomationProperties.Name="Nombre de las zonas" />
+                    <TextBox x:Name="SafeZoneLabel" Width="160" MinHeight="30" PlaceholderText="Etiqueta de la zona elegida" IsEnabled="False"
+                             AutomationProperties.Name="Etiqueta de la zona" TextChanged="OnSafeZoneLabelChanged" />
+                    <Button Content="Añadir zona" MinHeight="30" Click="OnSafeZoneAdd" />
+                    <Button x:Name="SafeZoneRemove" Content="Quitar zona" MinHeight="30" IsEnabled="False" Click="OnSafeZoneRemove" />
+                    <Button Content="Guardar" MinHeight="30" Style="{StaticResource AccentButtonStyle}" Click="OnSafeZoneSave" />
+                    <Button Content="Cancelar" MinHeight="30" Click="OnSafeZoneCancel" />
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </UserControl>

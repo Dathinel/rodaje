@@ -308,6 +308,8 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     internal PlayerView PlayerPane => Player;
 
+    internal Services.Settings.AppSettings Settings => _settings.Current;
+
     /// <summary>Para la autoprueba: lo que muestra la barra de avisos.</summary>
     internal (bool Open, string Title, bool Progress, string? Button) NotificationState =>
         (Notification.IsOpen, Notification.Title, NotificationProgress.Visibility == Visibility.Visible,
