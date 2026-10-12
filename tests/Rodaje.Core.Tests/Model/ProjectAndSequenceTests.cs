@@ -10,7 +10,7 @@ public class ProjectTests
     public void NewProject_HasCurrentSchemaAndEmptyCollections()
     {
         var p = new Project();
-        Assert.Equal(7, Project.CurrentSchemaVersion);
+        Assert.Equal(8, Project.CurrentSchemaVersion);
         Assert.Equal(Project.CurrentSchemaVersion, p.SchemaVersion);
         Assert.Equal("", p.Id);
         Assert.Equal("", p.Name);

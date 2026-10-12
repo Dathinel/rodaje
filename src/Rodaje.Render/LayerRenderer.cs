@@ -356,8 +356,16 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         // Píxeles del intermedio por píxel de la secuencia: los radios se escalan igual en la vista previa reducida.
         float perSequencePixel = scaleX / placement.Scale;
         var view = new ImageView(first, width, height);
+        // En la vista de las máscaras de la capa en gris, lo que viene después taparía la máscara.
+        bool steps = _maskView is not { Group: -1, Mode: MaskViewMode.Matte };
+        _maskPlacement = placement;
         foreach (SpatialStep step in _spatial)
         {
+            if (!steps)
+            {
+                break;
+            }
+
             ImageView? next = ApplyStep(view, step, perSequencePixel, layer, payload.IsImage);
             if (next is not { } result)
             {

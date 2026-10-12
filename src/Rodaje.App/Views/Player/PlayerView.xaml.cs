@@ -302,8 +302,8 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     private void OnVideoDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        // Sobre un título, doble clic es escribir; en el resto del visor, pantalla completa.
-        if (!TryEditTitleAt(e.GetPosition(VideoPanel)))
+        // Con las máscaras, doble clic es de ellas; sobre un título, escribir; en el resto del visor, pantalla completa.
+        if (!MaskDoubleTapped(e.GetPosition(VideoPanel)) && !TryEditTitleAt(e.GetPosition(VideoPanel)))
         {
             SetFullScreen(!IsFullScreen);
         }

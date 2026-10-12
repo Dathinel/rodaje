@@ -37,7 +37,10 @@ public static class EffectRegistry
     public static ImmutableArray<string> StabilizeCrops { get; } = ["auto", "off"];
 
     /// <summary>Formas de <see cref="BuiltInEffects.Mask"/>, en el orden de <see cref="MaskShape"/>.</summary>
-    public static ImmutableArray<string> MaskShapes { get; } = ["rectangle", "ellipse", "path", "image"];
+    public static ImmutableArray<string> MaskShapes { get; } = ["rectangle", "ellipse", "path", "image", "bezier", "stroke"];
+
+    /// <summary>Cómo se combina una máscara con las anteriores del mismo destino, en el orden de <see cref="MaskMode"/>.</summary>
+    public static ImmutableArray<string> MaskModes { get; } = ["add", "subtract", "intersect", "difference"];
 
     /// <summary>Proporciones de <see cref="BuiltInEffects.Crop"/>: libre o ancho:alto del recorte en pantalla.</summary>
     public static ImmutableArray<string> CropAspects { get; } = ["free", "16:9", "9:16", "1:1", "4:5", "4:3"];
@@ -151,13 +154,22 @@ public static class EffectRegistry
             new(M.Rotation, 0, -Inf, Inf),
             new(M.Feather, 0, 0, 1),
             new(M.Opacity, 1, 0, 1),
+            new(M.Expansion, 0, -0.5, 0.5),
+            new(M.Roundness, 0, 0, 1),
+            new(M.Thickness, 0.02, 0, 0.5),
         ],
         [
             OptionDefinition.Choice(BuiltInEffects.MaskOptions.Shape, "rectangle", [.. MaskShapes]),
             OptionDefinition.Choice(BuiltInEffects.MaskOptions.Invert, "off", "off", "on"),
+            OptionDefinition.Choice(BuiltInEffects.MaskOptions.Mode, "intersect", [.. MaskModes]),
             OptionDefinition.Text(BuiltInEffects.MaskOptions.Path),
             OptionDefinition.Text(BuiltInEffects.MaskOptions.Matte),
             OptionDefinition.Text(BuiltInEffects.MaskOptions.MatteStart),
+            OptionDefinition.Text(BuiltInEffects.MaskOptions.Points, MaskPath.MaxTextLength),
+            OptionDefinition.Text(BuiltInEffects.MaskOptions.ShapeKeys, MaskShapeTrack.MaxTextLength),
+            OptionDefinition.Text(BuiltInEffects.MaskOptions.Target),
+            OptionDefinition.Text(BuiltInEffects.MaskOptions.Name),
+            OptionDefinition.Text(BuiltInEffects.MaskOptions.Color),
             OptionDefinition.Choice(BuiltInEffects.MaskOptions.Use, "cut", [.. MaskUses]),
         ]),
         new(BuiltInEffects.Crop, 11, EffectTarget.Video, EffectStage.Transform,
@@ -168,6 +180,11 @@ public static class EffectRegistry
             new(BuiltInEffects.CropParameters.Bottom, 0, 0, CropGeometry.MaxCrop),
         ],
         [OptionDefinition.Choice(BuiltInEffects.CropOptions.Aspect, "free", [.. CropAspects])]),
+        new(BuiltInEffects.Pixelate, 24, EffectTarget.Video, EffectStage.Spatial,
+        [
+            new(BuiltInEffects.PixelateParameters.Size, 24, 2, 256),
+        ],
+        [Region]),
         new(BuiltInEffects.ChromaKey, 12, EffectTarget.Video, EffectStage.PerPixel,
         [
             new(CK.Red, 0, 0, 1, Animatable: false),

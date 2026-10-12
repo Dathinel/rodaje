@@ -74,7 +74,7 @@ internal sealed partial class FiltersPanel
     /// <summary>Con Filtros a la vista y un recorte elegido, el visor muestra la imagen entera con sus asas.</summary>
     private void PublishCropEditing()
     {
-        if (MasksOnly || _services is null)
+        if (_services is null)
         {
             return;
         }

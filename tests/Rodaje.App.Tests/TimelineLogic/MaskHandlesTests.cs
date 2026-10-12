@@ -82,4 +82,65 @@ public class MaskHandlesTests
         Assert.Equal(1920, box.ImageWidth);
         Assert.Null(MaskHandles.Find(project, sequence, clip, mask, Time.FromSeconds(9)));
     }
+
+    [Fact]
+    public void LosVerticesYSusManejadoresSeAciertanAntesQueLaCaja()
+    {
+        // Bézier cuadrada en el centro de una imagen 1920×1080 mostrada a escala 0,5 en el panel.
+        var mask = new MaskSpec(MaskShape.Bezier, 0.5, 0.5, 0.4, 0.4, 0, 0, 1, false);
+        MaskVertex[] square = [.. MaskPath.Rectangle().Select((v, i) => i == 1 ? MaskPath.Toggle(MaskPath.Rectangle(), 1, true) : v)];
+        LayerPlacement layer = LayerLayout.Place(1920, 1080, 1920, 1080, LayerTransform.Identity)!.Value;
+        var box = new MaskBox("c", "m", layer, mask, square);
+        var frame = new ImageFrame(0, 0, 0.5);
+
+        Vector2 corner = MaskHandles.ToPanel(box, frame, square[0].Point);
+        Assert.Equal(new Vector2(288, 162), corner);
+        Assert.Equal(new MaskHit(MaskGrip.Vertex, 0), MaskHandles.HitTest(box, frame, corner + new Vector2(2, -2), [], showBox: true));
+        Vector2 handle = MaskHandles.ToPanel(box, frame, square[1].Point + square[1].Out);
+        Assert.Equal(new MaskHit(MaskGrip.OutHandle, 1), MaskHandles.HitTest(box, frame, handle, [1], showBox: true));
+        // Sin elegir el vértice, su manejador no se ve: lo que hay ahí es el contorno o nada.
+        Assert.NotEqual(MaskGrip.OutHandle, MaskHandles.HitTest(box, frame, handle, [], showBox: true).Grip);
+        Assert.Equal(MaskGrip.Body, MaskHandles.HitTest(box, frame, new Vector2(480, 270), [], showBox: true).Grip);
+        Assert.Equal(MaskGrip.Rotate, MaskHandles.HitTest(box, frame, new Vector2(480, 162 - MaskHandles.RotateDistance), [], showBox: true).Grip);
+        MaskHit segment = MaskHandles.HitTest(box, frame, new Vector2(380, 378), [], showBox: true);
+        Assert.Equal(MaskGrip.Segment, segment.Grip);
+        Assert.Equal(2, segment.Index);
+    }
+
+    [Fact]
+    public void UnManejadorSuaveArrastraAlOtroAlineadoYConAltSeQuiebra()
+    {
+        MaskVertex[] vertices = [MaskPath.Toggle([new(0, 0), new(1, 0), new(0, 1)], 0, closed: true), new(1, 0), new(0, 1)];
+        float before = vertices[0].In.Length();
+        MaskVertex[] mirrored = MaskHandles.MoveHandle(vertices, 0, outHandle: true, new Vector2(0, 0.3f), independent: false);
+        Assert.Equal(new Vector2(0, 0.3f), mirrored[0].Out);
+        Assert.Equal(before, mirrored[0].In.Length(), 5);
+        Assert.True(Vector2.Dot(Vector2.Normalize(mirrored[0].In), Vector2.Normalize(mirrored[0].Out)) < -0.999f);
+
+        MaskVertex[] broken = MaskHandles.MoveHandle(vertices, 0, outHandle: true, new Vector2(0, 0.3f), independent: true);
+        Assert.Equal(vertices[0].In, broken[0].In);
+    }
+
+    [Fact]
+    public void BordesCambianUnLadoYElGiroSeRedondeaConMayus()
+    {
+        MaskBox box = Box(new MaskSpec(MaskShape.Rectangle, 0.5, 0.5, 0.2, 0.2, 0, 0, 1, false));
+        (double width, double height) = MaskHandles.Resized(box, MaskGrip.Right, new Vector2(960 + 300, 540 + 50), keepAspect: false);
+        Assert.Equal(600 / 1920.0, width, 6);
+        Assert.Equal(0.2, height, 6);
+        (width, height) = MaskHandles.Resized(box, MaskGrip.BottomRight, new Vector2(960 + 384, 540 + 50), keepAspect: true);
+        Assert.Equal(0.4, width, 6);
+        Assert.Equal(0.4, height, 6);
+        Assert.Equal(90, MaskHandles.Rotated(box, new Vector2(960, 400), new Vector2(1100, 545), snap: true), 6);
+    }
+
+    [Fact]
+    public void QuitarPuntosRespetaElMinimoDeLaForma()
+    {
+        MaskVertex[] square = MaskPath.Rectangle();
+        Assert.Equal(3, MaskHandles.Remove(square, [0], MaskShape.Bezier)!.Length);
+        Assert.Null(MaskHandles.Remove(square, [0, 1], MaskShape.Bezier));
+        Assert.Equal(2, MaskHandles.Remove(square, [0, 1], MaskShape.Stroke)!.Length);
+        Assert.Equal(new float[] { 2, 1, 2, 1 }, MaskHandles.Weighted(square, [0, 2], 2).Select(v => v.Weight));
+    }
 }

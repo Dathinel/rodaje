@@ -107,14 +107,13 @@
                     <Ellipse x:Name="TitleGripRotate" Width="10" Height="10" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
                 </Canvas>
                 <Canvas x:Name="TransformCanvas" IsHitTestVisible="False" Visibility="Collapsed" />
-                <Canvas x:Name="MaskCanvas" IsHitTestVisible="False" Visibility="Collapsed">
-                    <Polygon x:Name="MaskOutline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.5" StrokeDashArray="4,2" />
-                    <Polyline x:Name="MaskStroke" Stroke="{StaticResource AccentBrush}" StrokeThickness="2" />
-                    <Rectangle x:Name="MaskGripTopLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                    <Rectangle x:Name="MaskGripTopRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                    <Rectangle x:Name="MaskGripBottomRight" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                    <Rectangle x:Name="MaskGripBottomLeft" Width="8" Height="8" Fill="{StaticResource TextBrush}" Stroke="{StaticResource AccentBrush}" StrokeThickness="1" />
-                </Canvas>
+                <!-- Máscaras (PlayerView.Masks): contornos, cajas, vértices y lo que se dibuja; la ayuda de la herramienta arriba. -->
+                <Canvas x:Name="MaskCanvas" IsHitTestVisible="False" Visibility="Collapsed" />
+                <Border x:Name="MaskHint" IsHitTestVisible="False" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Margin="8" Padding="8,4" CornerRadius="4" Background="{StaticResource ScrimBrush}" MaxWidth="560">
+                    <TextBlock x:Name="MaskHintText" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}"
+                               TextWrapping="Wrap" TextTrimming="None" />
+                </Border>
                 <!-- Recorte que se ajusta (PlayerView.Image): la imagen entera, lo que se quita en sombra y ocho asas. -->
                 <Canvas x:Name="CropCanvas" IsHitTestVisible="False" Visibility="Collapsed">
                     <Path x:Name="CropShade" Fill="{StaticResource ShadeBrush}" />

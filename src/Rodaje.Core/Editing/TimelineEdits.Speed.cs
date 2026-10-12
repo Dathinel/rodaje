@@ -281,13 +281,9 @@ public static partial class TimelineEdits
             MediaId = primary.MediaId,
             Enabled = primary.Enabled,
             Speed = new ClipSpeed { Freeze = true, FrameSampling = primary.Speed?.FrameSampling ?? FrameSampling.Nearest },
-            Effects = primary.Effects.ConvertAll(effect =>
-            {
-                EffectInstance copy = effect.Clone();
-                copy.Id = ctx.Ids.NewId("fx");
-                return copy;
-            }),
+            Effects = primary.Effects.ConvertAll(effect => effect.Clone()),
         };
+        MaskEdits.RenewIds(ctx, frozen.Effects, "fx");
         ClipTimeMap.Create(at, length, source, frozen.Speed).ApplyTo(frozen);
         TrackOps.AddClipSorted(track, frozen);
         ctx.EnsureValid();
