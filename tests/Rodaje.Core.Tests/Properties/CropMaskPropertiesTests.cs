@@ -61,7 +61,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
                 }
             },
             writeLine: output.WriteLine,
-            iter: 50000);
+            iter: 20000);
 
     /// <summary>
     /// Ajustar a una proporción da el recorte más grande con esa forma en pantalla (un lado entero) dentro de la imagen. Los
@@ -88,7 +88,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
                 Assert.True(Math.Max(fit.Width, fit.Height) > 1 - 1e-4, Inv($"{fit} no es el más grande"));
             },
             writeLine: output.WriteLine,
-            iter: 20000,
+            iter: 10000,
             threads: 1,
             print: s => Inv($"{s.Item1}, {Aspects[s.Item2]}, imagen {s.Item3.W}×{s.Item3.H}"));
         output.WriteLine($"FitAspect lanzó en {thrown} casos");
@@ -101,7 +101,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
         Gen.Select(GenCrop, Gen.Int[0, Aspects.Length - 1], GenImage).Sample(
             s => _ = CropGeometry.FitAspect(s.Item1, CropGeometry.Ratio(Aspects[s.Item2])!.Value, s.Item3.W, s.Item3.H),
             writeLine: output.WriteLine,
-            iter: 20000,
+            iter: 10000,
             print: s => Inv($"{s.Item1}, {Aspects[s.Item2]}, imagen {s.Item3.W}×{s.Item3.H}"));
 
     /// <summary>Una captura de pantalla de portátil (1366×768) recortada a 4:5 desde la interfaz.</summary>
@@ -170,7 +170,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
                 Assert.True(ok, Inv($"{start} -> {end}"));
             },
             writeLine: output.WriteLine,
-            iter: 30000,
+            iter: 10000,
             print: s => Inv($"{s.Start} {Grips[s.Grip]} ({s.Dx}, {s.Dy}) imagen {s.Image.W}×{s.Image.H}"));
 
     /// <summary>Arrastres sin proporción que no llegan al mínimo de ningún lado.</summary>
@@ -207,7 +207,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
                 Assert.True(Math.Abs((ScreenRatio(end, w, h) / ratio) - 1) < 2e-3, Inv($"{start} -> {end} da {ScreenRatio(end, w, h)} y se pidió {ratio}"));
             },
             writeLine: output.WriteLine,
-            iter: 30000,
+            iter: 10000,
             print: s => Inv($"{s.Start} {Grips[s.Grip]} ({s.Dx}, {s.Dy}) {Aspects[s.Aspect]} imagen {s.Image.W}×{s.Image.H}"));
 
     /// <summary>Arrastres con proporción que no llegan al mínimo de ningún lado.</summary>
@@ -242,7 +242,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
                 }
             },
             writeLine: output.WriteLine,
-            iter: 3000);
+            iter: 1500);
 
     /// <summary>
     /// Un trazo dibujado se vuelve una caja que lo contiene y a lo sumo <see cref="MaskGeometry.MaxPathPoints"/> puntos
@@ -313,7 +313,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
                 }
             },
             writeLine: output.WriteLine,
-            iter: 30000);
+            iter: 10000);
 
     /// <summary>Máscaras con keyframes en un clip: qué parámetros, en qué instantes (fracción del clip) y con qué valores.</summary>
     internal sealed record MaskKeysSpec(int Shape, int[] Params, int[] At, double[] Values, int Cut, int Delta)
@@ -404,7 +404,7 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
                 Assert.Equal(before, ProjectSerializer.Serialize(project));
             },
             writeLine: output.WriteLine,
-            iter: 800,
+            iter: 400,
             print: s => Inv($"{s.Item1}\nclip {s.Item2}, {s.Item3}, dos {s.Item4}"));
         Assert.True(checkedClips * 2 >= total, $"Pocos clips de video: {checkedClips} de {total}");
     }

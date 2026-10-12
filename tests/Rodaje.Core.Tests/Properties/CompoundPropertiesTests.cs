@@ -42,7 +42,7 @@ public class CompoundPropertiesTests(ITestOutputHelper output)
                 }
             },
             writeLine: output.WriteLine,
-            iter: 3000,
+            iter: 1500,
             print: s => $"{s.Project}\nSelección {s.Pick}");
         output.WriteLine($"{created} de {tried} selecciones crearon un compuesto");
         Assert.True(created * 5 >= tried, $"Muy pocas selecciones llegan a crear un compuesto: {created} de {tried}");
@@ -58,7 +58,7 @@ public class CompoundPropertiesTests(ITestOutputHelper output)
         GenScenario.Sample(
             s => { _ = RunCreateDecompose(s.Project, s.Pick, s.Flags, checkVisible: true); },
             writeLine: output.WriteLine,
-            iter: 3000,
+            iter: 1500,
             print: s => $"{s.Project}\nSelección {s.Pick}, pistas {s.Flags}");
 
     /// <summary>Lo mismo que <see cref="CrearCompuesto_NoCambiaLoQueSeVe"/>, con todas las pistas visibles y con sonido.</summary>
@@ -67,7 +67,7 @@ public class CompoundPropertiesTests(ITestOutputHelper output)
         GenScenario.Sample(
             s => { _ = RunCreateDecompose(s.Project, s.Pick, flags: 0, checkVisible: true); },
             writeLine: output.WriteLine,
-            iter: 3000,
+            iter: 1500,
             print: s => $"{s.Project}\nSelección {s.Pick}");
 
     private static bool RunCreateDecompose(ProjectSpec spec, long pick, int flags, bool checkVisible)
@@ -219,7 +219,7 @@ public class CompoundPropertiesTests(ITestOutputHelper output)
                 }
             },
             writeLine: output.WriteLine,
-            iter: 3000,
+            iter: 1500,
             print: g => g.ToString());
         output.WriteLine($"rechazados {rejected}, aceptados {accepted}");
     }

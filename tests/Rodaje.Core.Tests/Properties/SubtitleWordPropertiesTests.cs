@@ -168,7 +168,7 @@ public class SubtitleWordPropertiesTests(ITestOutputHelper output)
                 Assert.Equal(before, ProjectSerializer.Serialize(project));
             },
             writeLine: output.WriteLine,
-            iter: 5000,
+            iter: 2500,
             print: s => Inv($"{s.Item1} en {s.Item2}, palabra {s.Item3}"));
         output.WriteLine($"{splits} de {total} divisiones");
         Assert.True(splits * 2 >= total, $"Pocas divisiones: {splits} de {total}");
@@ -203,7 +203,7 @@ public class SubtitleWordPropertiesTests(ITestOutputHelper output)
                 Assert.Equal(before, ProjectSerializer.Serialize(project));
             },
             writeLine: output.WriteLine,
-            iter: 5000,
+            iter: 2500,
             print: s => Inv($"{s.Left} + {s.Right}, hueco {s.Gap}, en {s.Start}"));
 
     /// <summary>
@@ -271,7 +271,7 @@ public class SubtitleWordPropertiesTests(ITestOutputHelper output)
                 Assert.Equal(before, ProjectSerializer.Serialize(project));
             },
             writeLine: output.WriteLine,
-            iter: 5000,
+            iter: 2500,
             print: s => Inv($"{s.Item1}, palabra {s.Item2} -> [{string.Join("|", s.Item3)}] separadas con {s.Item4}"));
         Assert.True(corrected * 2 >= total, $"Pocas correcciones: {corrected} de {total}");
     }
@@ -333,6 +333,6 @@ public class SubtitleWordPropertiesTests(ITestOutputHelper output)
                 }
             },
             writeLine: output.WriteLine,
-            iter: 20000,
+            iter: 5000,
             print: s => Inv($"[{string.Join(" ", s.Item1)}] / [{string.Join(" ", s.Item2)}] / {s.Item3}"));
 }

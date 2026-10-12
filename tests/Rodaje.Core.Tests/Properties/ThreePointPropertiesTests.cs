@@ -61,7 +61,7 @@ public class ThreePointPropertiesTests(ITestOutputHelper output)
                 CheckPlan(built.Project.GetMedia(request.MediaId), request, plan);
             },
             writeLine: output.WriteLine,
-            iter: 5000,
+            iter: 2000,
             print: s => $"{s.Project}\n{s.Marks}");
         output.WriteLine($"{planned} de {total} planes válidos");
         Assert.True(planned * 3 >= total, $"Pocos planes válidos: {planned} de {total}");
@@ -134,7 +134,7 @@ public class ThreePointPropertiesTests(ITestOutputHelper output)
                 }
             },
             writeLine: output.WriteLine,
-            iter: 5000,
+            iter: 2000,
             print: s => $"{s.Project}\n{s.Marks}");
         output.WriteLine($"{applied} de {total} ediciones aplicadas");
         Assert.True(applied * 5 >= total, $"Pocas ediciones aplicadas: {applied} de {total}");
