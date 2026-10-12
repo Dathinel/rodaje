@@ -6,7 +6,7 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 
 /// <summary>
 /// Defectos de <c>src/Rodaje.Modules.Protocol</c> que encontró el fuzz (tarea 25). Cada prueba reproduce uno y dice lo
-/// que debería pasar; están omitidas hasta que se corrijan (fuera de los caminos de la tarea). Todas tienen tope de
+/// que debería pasar; las de los defectos sin corregir están omitidas. La del defecto 6 ya es de regresión. Todas tienen tope de
 /// tiempo: al quitar el <c>Skip</c> con el defecto aún presente, fallan en vez de colgarse.
 /// </summary>
 public sealed class ProtocolDefectTests
@@ -182,16 +182,13 @@ public sealed class ProtocolDefectTests
     }
 
     /// <summary>
-    /// Cuando el cliente falla (<c>ModuleClient.Fail</c>), primero cancela <c>_stop</c> y enseguida desecha el canal, y
-    /// con él el <see cref="SemaphoreSlim"/> que ordena las escrituras. Una llamada o un ping que esperaba ese candado con
-    /// <c>_stop.Token</c> procesa su cancelación en otro hilo; si para entonces el semáforo ya está desechado,
-    /// <see cref="SemaphoreSlim"/> no la saca de la cola y su tarea no termina nunca, aunque la del llamador tenga su propia
-    /// cancelación. Es lo que hizo fallar el fuzz del cliente en la CI de Windows (PR #27, 11 de 300 casos: el cliente ya
-    /// había fallado, <c>ping[4]</c> seguía pendiente y el candado en 0). En Linux se reproduce aquí con una tubería cuyas
-    /// escrituras esperan (búfer lleno): se colgó en 45 y 46 de 50 rondas. El comportamiento del semáforo se comprobó
-    /// aparte (<c>WaitAsync(token)</c>, <c>Cancel()</c> y <c>Dispose()</c> seguidos: 48 de 50 esperas colgadas).
+    /// Regresión del defecto 6, corregido en <c>MessageChannel.Dispose</c>. Antes, al fallar el cliente, <c>Fail</c>
+    /// cancelaba <c>_stop</c> y enseguida desechaba el <see cref="SemaphoreSlim"/> de las escrituras; una llamada o un ping
+    /// que esperaba ese candado procesaba su cancelación en otro hilo, el semáforo ya desechado no la sacaba de la cola y
+    /// su tarea no terminaba nunca (CI de Windows del PR #27; en Linux, con esta tubería de escrituras detenidas, 45 y 46
+    /// de 50 rondas colgadas). Ahora toda operación termina con error tras el fallo.
     /// </summary>
-    [Fact(Skip = "Defecto: si ModuleClient falla mientras una llamada o un ping espera el candado de escritura, esa operación no termina nunca (SemaphoreSlim desechado tras cancelar).")]
+    [Fact]
     public async Task Operations_waiting_to_write_finish_when_the_client_fails()
     {
         for (int round = 0; round < 50; round++)
