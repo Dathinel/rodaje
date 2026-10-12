@@ -36,6 +36,9 @@ internal sealed partial class LibraryView
     /// <summary>Clave de <see cref="LibraryOrganizationStore"/> con la que se guarda la organización cargada.</summary>
     private string? _organizationKey;
 
+    /// <summary>La última escritura de la organización en curso; las siguientes van detrás, en orden.</summary>
+    private Task _organizationWrite = Task.CompletedTask;
+
     /// <summary>
     /// Lee las carpetas y favoritos del proyecto la primera vez que se ve (o si cambió de proyecto). No se poda: los
     /// medios que el proyecto ya no tiene se quedan en el archivo y la vista solo muestra los que existen (deshacer un
@@ -78,6 +81,10 @@ internal sealed partial class LibraryView
         SaveOrganization();
     }
 
+    /// <summary>
+    /// Toma una foto de la organización aquí (en el hilo de la interfaz, que es el que la cambia) y la escribe en segundo
+    /// plano, una escritura tras otra: vaciar al disco con <c>Flush(true)</c> podía trabar la interfaz.
+    /// </summary>
     private void SaveOrganization()
     {
         if (_organizationKey is null || _organization.Revision == _savedRevision)
@@ -85,15 +92,39 @@ internal sealed partial class LibraryView
             return;
         }
 
-        try
+        LibrarySaveRequest? request = _organizationStore.Prepare(_organizationKey, _organization);
+        _savedRevision = _organization.Revision;
+        if (request is null)
         {
-            _organizationStore.Save(_organizationKey, _organization);
-            _savedRevision = _organization.Revision;
+            return;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            _services?.Session.Notify(NotificationSeverity.Warning, "No se pudieron guardar las carpetas de la biblioteca", ex.Message);
-        }
+
+        LibraryOrganization organization = _organization;
+        DispatcherQueue? dispatcher = _dispatcher;
+        _organizationWrite = _organizationWrite.ContinueWith(
+            _ =>
+            {
+                try
+                {
+                    _organizationStore.Write(request);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    dispatcher?.TryEnqueue(() =>
+                    {
+                        if (ReferenceEquals(organization, _organization))
+                        {
+                            // Que el próximo cambio vuelva a intentarlo.
+                            _savedRevision = -1;
+                        }
+
+                        _services?.Session.Notify(NotificationSeverity.Warning, "No se pudieron guardar las carpetas de la biblioteca", ex.Message);
+                    });
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.None,
+            TaskScheduler.Default);
     }
 
     /// <summary>Muestra los medios y carpetas que corresponden a la carpeta abierta, la búsqueda, el tipo y los favoritos.</summary>

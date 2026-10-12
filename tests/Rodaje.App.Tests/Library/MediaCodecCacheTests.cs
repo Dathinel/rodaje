@@ -19,7 +19,7 @@ public sealed class MediaCodecCacheTests : IDisposable
     private string MakeFile(string name, string content)
     {
         string path = Path.Combine(_dir, name);
-        System.IO.File.WriteAllText(path, content);
+        File.WriteAllText(path, content);
         return path;
     }
 
@@ -62,15 +62,15 @@ public sealed class MediaCodecCacheTests : IDisposable
         (string?, string?) Probe(string p)
         {
             reads++;
-            return System.IO.File.ReadAllText(p) == "a medias" ? throw new IOException("incompleto") : ("h264", "aac");
+            return File.ReadAllText(p) == "a medias" ? throw new IOException("incompleto") : ("h264", "aac");
         }
 
         Assert.True(cache.Read(path, Probe).Failed);
         Assert.True(cache.Read(path, Probe).Failed);
         Assert.Equal(1, reads);
 
-        System.IO.File.WriteAllText(path, "ya terminado");
-        System.IO.File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
+        File.WriteAllText(path, "ya terminado");
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
 
         Assert.Equal(new MediaCodecs("h264", "aac", Failed: false), cache.Read(path, Probe));
         Assert.Equal(2, reads);
@@ -95,10 +95,10 @@ public sealed class MediaCodecCacheTests : IDisposable
     {
         string path = MakeFile("b.mp4", "uno");
         MediaFileStamp? before = MediaCodecCache.StampOf(path);
-        DateTime time = System.IO.File.GetLastWriteTimeUtc(path);
+        DateTime time = File.GetLastWriteTimeUtc(path);
 
-        System.IO.File.WriteAllText(path, "uno más largo");
-        System.IO.File.SetLastWriteTimeUtc(path, time);
+        File.WriteAllText(path, "uno más largo");
+        File.SetLastWriteTimeUtc(path, time);
 
         Assert.NotNull(before);
         Assert.NotEqual(before, MediaCodecCache.StampOf(path));

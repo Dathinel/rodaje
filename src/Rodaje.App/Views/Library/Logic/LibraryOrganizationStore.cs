@@ -18,7 +18,16 @@ public sealed class LibraryOrganizationStore
 
     public const int CurrentVersion = 1;
 
+    /// <summary>Nombres que Windows reserva para dispositivos, también con extensión («con.json» no es un archivo).</summary>
+    private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    };
+
     private readonly Dictionary<string, string> _lastWritten = new(StringComparer.Ordinal);
+    private readonly Lock _lock = new();
 
     public LibraryOrganizationStore(string directory)
     {
@@ -42,11 +51,14 @@ public sealed class LibraryOrganizationStore
             : projectId + "|" + projectFilePath.Replace('/', '\\').ToUpperInvariant();
     }
 
-    /// <summary>Archivo de la clave: la clave si es un nombre seguro, o un resumen de ella si no.</summary>
+    /// <summary>
+    /// Archivo de la clave: la clave si es un nombre seguro (letras, cifras, «-» y «_», y no un nombre reservado de
+    /// Windows como <c>CON</c> o <c>nul</c>), o un resumen de ella si no.
+    /// </summary>
     public string PathFor(string key)
     {
         ArgumentNullException.ThrowIfNull(key);
-        bool safe = key.Length is > 0 and <= 80 && key.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
+        bool safe = key.Length is > 0 and <= 80 && key.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_') && !ReservedNames.Contains(key);
         string name = safe
             ? key
             : "h-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(key)))[..32];
@@ -81,8 +93,9 @@ public sealed class LibraryOrganizationStore
     }
 
     /// <summary>
-    /// Lee la organización de la clave (ver <see cref="KeyFor"/>). Sin archivo, o si estaba dañado (que se aparta con «.dañado»), empieza vacía: en
-    /// el peor caso los medios se ven todos en la raíz, nunca se pierde un medio.
+    /// Lee la organización de la clave (ver <see cref="KeyFor"/>). Sin archivo, o si estaba dañado (que se aparta con
+    /// «.dañado») o es de una versión más nueva de Rodaje (que se aparta con «.vN», para que guardar no la pise), empieza
+    /// vacía: en el peor caso los medios se ven todos en la raíz, nunca se pierde un medio.
     /// </summary>
     public LibraryOrganization Load(string key)
     {
@@ -114,15 +127,15 @@ public sealed class LibraryOrganizationStore
 
         if (file is null || file.Version > CurrentVersion)
         {
-            if (file is null)
-            {
-                SetAside(path);
-            }
-
+            SetAside(path, file is null ? "dañado" : $"v{file.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
             return new LibraryOrganization();
         }
 
-        _lastWritten[path] = text;
+        lock (_lock)
+        {
+            _lastWritten[path] = text;
+        }
+
         return LibraryOrganization.From(
             file.Folders?.Select(f => new LibraryFolder { Id = f?.Id ?? "", Name = f?.Name ?? "", ParentId = f?.Parent }),
             file.Media,
@@ -132,6 +145,18 @@ public sealed class LibraryOrganizationStore
     /// <summary>Escribe solo si cambió algo; una organización vacía sin archivo previo no crea archivo.</summary>
     public void Save(string key, LibraryOrganization organization)
     {
+        if (Prepare(key, organization) is { } request)
+        {
+            Write(request);
+        }
+    }
+
+    /// <summary>
+    /// Lo que hay que escribir, o <c>null</c> si el archivo ya tiene esto. Toma una foto de la organización (va en el
+    /// hilo que la edita); <see cref="Write"/> hace la escritura, que puede ir en otro hilo.
+    /// </summary>
+    public LibrarySaveRequest? Prepare(string key, LibraryOrganization organization)
+    {
         ArgumentNullException.ThrowIfNull(organization);
         string path = PathFor(key);
         List<LibraryFolderEntry?> folders = [.. organization.Folders.Select(f => new LibraryFolderEntry { Id = f.Id, Name = f.Name, Parent = organization.FindFolder(f.ParentId)?.Id })];
@@ -140,30 +165,58 @@ public sealed class LibraryOrganizationStore
         List<string> favorites = [.. organization.Favorites.Order(StringComparer.Ordinal)];
         var file = new LibraryFile { Version = CurrentVersion, Folders = folders, Media = media, Favorites = favorites };
         string json = JsonSerializer.Serialize(file, LibraryJsonContext.Default.LibraryFile);
-        bool empty = folders.Count == 0 && favorites.Count == 0;
-        if ((_lastWritten.TryGetValue(path, out string? last) && last == json) || (empty && !File.Exists(path)))
+        lock (_lock)
+        {
+            if (_lastWritten.TryGetValue(path, out string? last) && last == json)
+            {
+                return null;
+            }
+        }
+
+        return new LibrarySaveRequest(path, json, Empty: folders.Count == 0 && favorites.Count == 0);
+    }
+
+    /// <summary>
+    /// Escribe a un temporal con <c>WriteThrough</c> y lo pone en su lugar. Va fuera del hilo de la interfaz: vaciar al
+    /// disco puede tardar. Las escrituras de una misma clave deben ir en orden (una tras otra).
+    /// </summary>
+    public void Write(LibrarySaveRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        lock (_lock)
+        {
+            if (_lastWritten.TryGetValue(request.Path, out string? last) && last == request.Json)
+            {
+                return;
+            }
+        }
+
+        if (request.Empty && !File.Exists(request.Path))
         {
             return;
         }
 
         System.IO.Directory.CreateDirectory(Directory);
-        string temp = path + ".tmp";
+        string temp = request.Path + ".tmp";
         using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
         {
-            byte[] bytes = new UTF8Encoding(false).GetBytes(json);
+            byte[] bytes = new UTF8Encoding(false).GetBytes(request.Json);
             stream.Write(bytes);
             stream.Flush(flushToDisk: true);
         }
 
-        File.Move(temp, path, overwrite: true);
-        _lastWritten[path] = json;
+        File.Move(temp, request.Path, overwrite: true);
+        lock (_lock)
+        {
+            _lastWritten[request.Path] = request.Json;
+        }
     }
 
-    private static void SetAside(string path)
+    private static void SetAside(string path, string suffix)
     {
         try
         {
-            File.Move(path, System.IO.Path.ChangeExtension(path, null) + ".dañado.json", overwrite: true);
+            File.Move(path, System.IO.Path.ChangeExtension(path, null) + "." + suffix + ".json", overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -171,6 +224,9 @@ public sealed class LibraryOrganizationStore
         }
     }
 }
+
+/// <summary>Una escritura pendiente de <see cref="LibraryOrganizationStore"/>: el archivo y su contenido.</summary>
+public sealed record LibrarySaveRequest(string Path, string Json, bool Empty);
 
 internal sealed class LibraryFile
 {
