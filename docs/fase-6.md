@@ -82,7 +82,7 @@ Paso 0 en serie: `docs/fase-6.md` → D-028, proyecto nuevo `src/Rodaje.Export` 
 
 ## Riesgos
 
-AMF, QSV y AV1 por GPU no se pueden probar en el equipo de Daniel; VRAM en gráficas de 2–4 GB; el modo exportación toca el programador (la vista previa debe quedar idéntica con él apagado); la reversa 4K es lenta hasta que se una el lector hacia atrás; la 5b (texto) debe entrar en `OfflineTimeline` sin decodificador; la tubería a 4K60 (~750 MB/s) ya no es riesgo (el prototipo mueve 2,8 GB/s o más); patentes de AAC (se prefiere `aac_mf`); Windows N no trae Media Foundation.
+AMF, QSV y AV1 por GPU no se pueden probar en el equipo de Daniel; VRAM en gráficas de 2–4 GB; el modo exportación toca el programador (la vista previa debe quedar idéntica con él apagado); la 5b (texto) debe entrar en `OfflineTimeline` sin decodificador; la tubería a 4K60 (~750 MB/s) ya no es riesgo (el prototipo mueve 2,8 GB/s o más); patentes de AAC (se prefiere `aac_mf`); Windows N no trae Media Foundation.
 
 ## Preguntas (decididas por Daniel el 11 de octubre; D-028)
 

@@ -84,8 +84,8 @@ public sealed record OfflineTimelineOptions
 /// que van por delante <see cref="OfflineTimelineOptions.LookaheadFrames"/> cuadros, dentro del presupuesto de VRAM.
 /// </para>
 /// <para>
-/// Reversa: un clip invertido se decodifica exacto, pero cada cuadro hacia atrás es un seek al keyframe anterior.
-/// TODO(5c.3): cuando el lector hacia atrás de la reversa esté en main, pedirle a él los tramos invertidos.
+/// Reversa: un clip invertido tiene su lector propio, que decodifica por tramos desde el keyframe con
+/// <see cref="ReverseFrameReader"/> y entrega de mayor a menor (un seek por tramo, no por cuadro).
 /// </para>
 /// </remarks>
 public sealed class OfflineTimeline : IDisposable
@@ -299,8 +299,8 @@ public sealed class OfflineTimeline : IDisposable
         foreach (Lane lane in _lanes)
         {
             lane.Pick(time);
-            lane.MainSlot = lane.Main is { } main ? _readers.Request(main.Source, main.FrameAt(time), time, mustHave: true) : null;
-            lane.IncomingSlot = lane.Incoming is { } incoming ? _readers.Request(incoming.Source, incoming.FrameAt(time), time, mustHave: true) : null;
+            lane.MainSlot = lane.Main is { } main ? _readers.Request(main.Source, main.FrameAt(time), time, mustHave: true, main) : null;
+            lane.IncomingSlot = lane.Incoming is { } incoming ? _readers.Request(incoming.Source, incoming.FrameAt(time), time, mustHave: true, incoming) : null;
         }
 
         if (step is { } known)
@@ -331,8 +331,8 @@ public sealed class OfflineTimeline : IDisposable
             foreach (Lane lane in _lanes)
             {
                 lane.PickAhead(ahead);
-                if ((lane.AheadMain is { } m && !_readers.HasRoom(m.Source, m.FrameAt(ahead)))
-                    || (lane.AheadIncoming is { } i && !_readers.HasRoom(i.Source, i.FrameAt(ahead))))
+                if ((lane.AheadMain is { } m && !_readers.HasRoom(m.Source, m.FrameAt(ahead), m))
+                    || (lane.AheadIncoming is { } i && !_readers.HasRoom(i.Source, i.FrameAt(ahead), i)))
                 {
                     return;
                 }
@@ -340,8 +340,8 @@ public sealed class OfflineTimeline : IDisposable
 
             foreach (Lane lane in _lanes)
             {
-                if ((lane.AheadMain is { } m && _readers.Request(m.Source, m.FrameAt(ahead), ahead, mustHave: false) is null)
-                    || (lane.AheadIncoming is { } i && _readers.Request(i.Source, i.FrameAt(ahead), ahead, mustHave: false) is null))
+                if ((lane.AheadMain is { } m && _readers.Request(m.Source, m.FrameAt(ahead), ahead, mustHave: false, m) is null)
+                    || (lane.AheadIncoming is { } i && _readers.Request(i.Source, i.FrameAt(ahead), ahead, mustHave: false, i) is null))
                 {
                     return;
                 }
