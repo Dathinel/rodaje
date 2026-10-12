@@ -878,6 +878,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         {
         }
 
+        Player.CloseExternal();
         _autosave?.Complete();
         _exports.Dispose();
         // Pide shutdown a los módulos abiertos; si alguno no sale, lo mata (y el Job Object cubre el resto).

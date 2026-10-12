@@ -113,6 +113,25 @@
                              TextChanged="OnTitleEditChanged" LostFocus="OnTitleEditLostFocus" KeyDown="OnTitleEditKeyDown" />
                 </Canvas>
             </Grid>
+            <!-- Pantalla completa: los controles aparecen al mover el ratón y se van a los 2,5 s (PlayerView.FullScreen). -->
+            <Grid x:Name="FullScreenControls" VerticalAlignment="Bottom" Visibility="Collapsed" Padding="16,10" ColumnSpacing="12"
+                  Background="{StaticResource ScrimBrush}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button x:Name="OverlayPlayButton" Style="{StaticResource AccentButtonStyle}" Width="40" Height="30" MinHeight="0" Padding="0"
+                        FontFamily="{StaticResource IconFontFamily}" FontSize="{StaticResource IconFontSize}" Click="OnPlay"
+                        AutomationProperties.Name="Reproducir o pausar" />
+                <TextBlock x:Name="OverlayPosition" Grid.Column="1" Style="{StaticResource TimecodeTextStyle}" VerticalAlignment="Center"
+                           Foreground="{StaticResource AccentBrush}" />
+                <Slider x:Name="OverlaySeek" Grid.Column="2" Minimum="0" Maximum="1" StepFrequency="0.0001" VerticalAlignment="Center"
+                        IsThumbToolTipEnabled="False" AutomationProperties.Name="Posición" ValueChanged="OnOverlaySeek" />
+                <TextBlock x:Name="OverlayDuration" Grid.Column="3" Style="{StaticResource TimecodeTextStyle}" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextMutedBrush}" />
+            </Grid>
             <meters:MetersView x:Name="Meters" x:FieldModifier="internal" Grid.Column="1" />
         </Grid>
 

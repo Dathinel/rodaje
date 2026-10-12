@@ -72,6 +72,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         }
 
         RegisterActions(services);
+        AttachFullScreenControls(services);
         AttachFormat(services);
         Shortcuts.MouseShortcutHost.Attach(ViewerArea, MouseContext.Viewer, services, wheel: true,
             axis: (action, _, steps) => action == MouseGestures.ViewerZoom && StepZoom(steps));
@@ -112,6 +113,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         TransportRow.Height = new GridLength(fullScreen ? 0 : 44);
         Stage.Margin = new Thickness(fullScreen ? 0 : 8);
         _services.Shell.SetPlayerFullScreen(fullScreen);
+        OnFullScreenChanged(fullScreen);
     }
 
     private void RegisterActions(EditorServices services)

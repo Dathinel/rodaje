@@ -86,7 +86,11 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
     }
 
     /// <summary>Pinta la composición ajustada con barras negras, o en <paramref name="placement"/> si se da (negro si no hay), y presenta con vsync.</summary>
-    public void Render(Presenter presenter, Compositor? composition, PixelRect? placement = null)
+    /// <param name="waitForVsync">
+    /// <c>false</c> para una segunda ventana (otra pantalla): presenta sin esperar y, si la cadena sigue ocupada, se salta el cuadro
+    /// en vez de frenar al reproductor.
+    /// </param>
+    public void Render(Presenter presenter, Compositor? composition, PixelRect? placement = null, bool waitForVsync = true)
     {
         if (composition is not null)
         {
@@ -106,8 +110,8 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
             }
         }
 
-        HRESULT hr = _swapChain->Present(1, 0);
-        if (hr != DXGI_STATUS_OCCLUDED)
+        HRESULT hr = waitForVsync ? _swapChain->Present(1, 0) : _swapChain->Present(0, DXGI_PRESENT_DO_NOT_WAIT);
+        if (hr != DXGI_STATUS_OCCLUDED && hr != DXGI_ERROR_WAS_STILL_DRAWING)
         {
             Check(hr, "Present");
         }
