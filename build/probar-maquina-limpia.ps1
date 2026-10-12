@@ -93,11 +93,11 @@ if ($Variante -eq 'hostil') {
     $antes = [Pantalla]::Dpi()
     $resolucion = 'sin cambiar'
     if (Get-Command Set-DisplayResolution -ErrorAction SilentlyContinue) {
-        try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop; $resolucion = '1920x1080' } catch { $resolucion = "no se pudo ($($_.Exception.Message))" }
+        try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop *> $null; $resolucion = '1920x1080' } catch { $resolucion = "no se pudo ($($_.Exception.Message))" }
     }
     $ok = $false
-    for ($paso = 1; $paso -le 4 -and -not $ok; $paso++) {
-        [void][Pantalla]::PonerPaso([Pantalla]::Paso() + 1)
+    for ($paso = 2; $paso -le 4 -and -not $ok; $paso++) {
+        [void][Pantalla]::PonerPaso($paso)
         Start-Sleep -Milliseconds 800
         $ok = [Pantalla]::Dpi() -ge 144
     }
@@ -120,7 +120,7 @@ $lineas = @(
     "Sistema: $($sistema.Caption) $($sistema.Version) ($($sistema.OSArchitecture))"
     "Cultura: $($cultura.Name) / interfaz $((Get-UICulture).Name); decimal «$($cultura.NumberFormat.NumberDecimalSeparator)», fecha $($cultura.DateTimeFormat.ShortDatePattern)"
     "Video: $video"
-    "Escala: $([math]::Round([Pantalla]::Dpi() / 0.96)) %"
+    "Pantalla: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width)x$([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height), escala $([math]::Round([Pantalla]::Dpi() / 0.96)) %"
     "Audio: $(if ($audio.Count) { $audio -join '; ' } else { 'ningún dispositivo' })"
     "Procesador: $((Get-CimInstance Win32_Processor | Select-Object -First 1).Name), $([math]::Round($sistema.TotalVisibleMemorySize / 1MB, 1)) GB"
     "LOCALAPPDATA: $env:LOCALAPPDATA"
@@ -162,7 +162,10 @@ if ($Variante -eq 'hostil') {
     # El ejemplo del formato 5 del repositorio (títulos y un clip de material/toma 01.mp4, 1080p a 30 fps, 14,1 s).
     $abrir = Join-Path $carpetaProyecto 'proyecto de prueba.rodaje'
     Generar (Join-Path $carpetaProyecto 'material\toma 01.mp4') 1920 1080 '30' 15
-    Copy-Item -LiteralPath (Join-Path $Raiz 'tests\Rodaje.Core.Tests\Serialization\ejemplos\proyecto-v5.rodaje') -Destination $abrir -Force
+    # Sus títulos usan Inter, que Windows no trae: sin la fuente la exportación pide elegir la de respaldo, y la
+    # autoprueba no elige; se cambia por Segoe UI.
+    $json = [System.IO.File]::ReadAllText((Join-Path $Raiz 'tests\Rodaje.Core.Tests\Serialization\ejemplos\proyecto-v5.rodaje'))
+    [System.IO.File]::WriteAllText($abrir, $json.Replace('"family": "Inter"', '"family": "Segoe UI"'), $Utf8)
 } else {
     $abrir = Join-Path $trabajo 'Material de prueba\h264-1080p-23976-aac-ci.mp4'
     Generar $abrir 1920 1080 '24000/1001' 30
@@ -198,7 +201,11 @@ $termino = $a.WaitForExit(180000)
 if (-not $termino) { Captura 'portable-autoprueba-colgada'; $a.Kill() }
 Remove-Item Env:RODAJE_AUTOPRUEBA_CAPTURAS
 Comprobar ($termino -and $a.ExitCode -eq 0 -and -not (Test-Path -LiteralPath $errorPortable)) ("Autoprueba del portable: código {0} en {1:0.0} s" -f $(if ($termino) { $a.ExitCode } else { 'sin terminar' }), $reloj.Elapsed.TotalSeconds)
-if (Test-Path -LiteralPath $errorPortable) { Copy-Item -LiteralPath $errorPortable -Destination (Join-Path $Salida 'rodaje-error-portable.txt'); Get-Content -LiteralPath $errorPortable -Encoding UTF8 | Select-Object -First 15 | ForEach-Object { Nota "  $_" } }
+if (Test-Path -LiteralPath $errorPortable) {
+    Copy-Item -LiteralPath $errorPortable -Destination (Join-Path $Salida 'rodaje-error-portable.txt')
+    Get-Content -LiteralPath $errorPortable -Encoding UTF8 | Select-Object -First 15 | ForEach-Object { Nota "  $_" }
+    Remove-Item -LiteralPath $errorPortable
+}
 
 # --- Captura de la ventana abierta a mano (sin argumentos, como un doble clic) ---
 $v = Start-Process -FilePath $lanzador -PassThru
@@ -211,10 +218,13 @@ if (Test-Path -LiteralPath $errorPortable) { Comprobar $false 'Abrir y cerrar a 
 
 # --- Arranque en caliente y en frío (por el lanzador, como el doble clic) ---
 foreach ($modo in 'caliente', 'frio') {
-    $extra = if ($modo -eq 'frio') { @('-Frio') } else { @() }
-    $texto = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'medir-arranque.ps1') -Exe $lanzador -Veces $Veces -Etiqueta "portable ($Variante)" @extra *>&1 | ForEach-Object { "$_" }
-    $codigo = $LASTEXITCODE
-    [System.IO.File]::WriteAllLines((Join-Path $Salida "arranque-$modo.txt"), [string[]]$texto, $Utf8)
+    $registroModo = Join-Path $Salida "arranque-$modo.txt"
+    $argumentos = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$(Join-Path $PSScriptRoot 'medir-arranque.ps1')`"", '-Exe', "`"$lanzador`"",
+        '-Veces', $Veces, '-Etiqueta', "`"portable $Variante`"")
+    if ($modo -eq 'frio') { $argumentos += '-Frio' }
+    $m = Start-Process -FilePath powershell -ArgumentList $argumentos -RedirectStandardOutput $registroModo -RedirectStandardError "$registroModo.err" -NoNewWindow -PassThru -Wait
+    $codigo = $m.ExitCode
+    $texto = @(Get-Content -LiteralPath $registroModo, "$registroModo.err" -Encoding UTF8 -ErrorAction SilentlyContinue)
     $texto | ForEach-Object { Nota $_ }
     $cifras = @($texto | Where-Object { $_ -match '^\s+(visible|interfaz_completa|interfaz_usable|primer_render)\s' } | ForEach-Object { $_.Trim() -replace '\s+', ' ' })
     Comprobar ($codigo -eq 0) "Arranque en $modo, $Veces vueltas (mediana mín máx, ms): $($cifras -join '; ')"
