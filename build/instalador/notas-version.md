@@ -4,13 +4,14 @@ Rodaje {{VERSION}} ({{FECHA}}): editor de video nativo para Windows, compilado d
 
 - **Edición por capas** al cuadro exacto: cortar, recortar, ripple, roll, slip, slide, insertar y sobrescribir, marcadores, audio y video enlazados, clips compuestos, edición de tres y cuatro puntos. Todo se deshace con Ctrl+Z, con autoguardado y recuperación tras un cierre inesperado.
 - **Velocidad y reversa:** constante o por curva, congelar cuadro y reversa exacta, con el tono del audio conservado.
-- **Imagen en la GPU:** corrección de color con curvas, LUT `.cube`, croma, recorte con proporción, desenfoque, nitidez, viñeta, modos de mezcla, transformación con keyframes y transiciones.
+- **Imagen en la GPU:** corrección de color con ruedas y curvas, comparación antes/después, LUT `.cube`, croma, máscaras, recorte con proporción, desenfoque, nitidez, viñeta, modos de mezcla, transformación con keyframes y transiciones.
 - **Audio:** volumen por clip y mezcla con LUFS, ecualizador, compresor, ducking y voz en off.
 - **Títulos y subtítulos** editables sobre el visor, con plantillas, escritos a mano o generados por la IA.
-- **Exportación:** MP4, MOV, MKV y WebM; H.264 y HEVC por GPU, AV1, VP9 y ProRes; AAC, Opus y PCM; normalización a LUFS, capítulos, formatos verticales y verificación del archivo final.
-- **IA local por módulos:** subtítulos (Whisper), traducción, texto a voz, reducción de ruido, silencios y ritmo, estabilización, color automático. Nada se envía a internet.
+- **Exportación:** MP4, MOV, MKV y WebM; H.264 y HEVC por GPU, AV1, VP9 y ProRes; AAC, Opus y PCM; normalización a LUFS, capítulos, formatos verticales y verificación del archivo final; varias versiones a la vez y cola que sobrevive a cerrar la app.
+- **IA local por módulos:** subtítulos (Whisper), traducción, texto a voz, reducción de ruido, silencios y ritmo, estabilización, color automático, quitar fondo y reencuadre automático, importar CinemaDNG. Nada se envía a internet.
 - **Complementos:** transiciones, filtros y módulos desde la app, con catálogo firmado y la huella de cada archivo verificada.
 - **Atajos configurables** de teclado y ratón, con tres estilos de partida.
+- **Flujo de trabajo:** proxies automáticos, espacios de trabajo, pantalla completa y segunda pantalla, carpetas vigiladas, zonas seguras de redes y recorrido inicial.
 
 ## Descargas
 
@@ -26,7 +27,7 @@ Comprueba la descarga con `SHA256SUMS.txt` (`Get-FileHash <archivo>` en PowerShe
 
 ## Requisitos
 
-- Windows 10 versión 1809 o posterior, u 11, de 64 bits (x64).
+- Windows 10 versión 2004 (19041) o posterior, u 11, de 64 bits (x64).
 - GPU con DirectX 11.
 - Recomendado: GPU NVIDIA, AMD o Intel con decodificación de video por hardware (H.264 y HEVC). Sin ella, la decodificación va por CPU.
 
