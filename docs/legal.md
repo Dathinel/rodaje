@@ -21,7 +21,7 @@ Los editores de código abierto estudiados (MLT, Kdenlive, Shotcut, OpenShot, Ol
 
 ## FFmpeg y la LGPL
 
-FFmpeg es la pieza con más obligaciones. Su licencia por defecto es la LGPL 2.1 o posterior; pasa a GPL con `--enable-gpl` y a no redistribuible con `--enable-nonfree` (https://ffmpeg.org/legal.html). Rodaje usa las compilaciones `lgpl-shared` de BtbN, que según su archivo de variantes (https://github.com/BtbN/FFmpeg-Builds/blob/master/variants/defaults-lgpl.sh) llevan `--enable-version3` y `COPYING.LGPLv3`: la licencia efectiva es la **LGPL v3**, sin libx264 ni libx265.
+FFmpeg es la pieza con más obligaciones. Su licencia por defecto es la LGPL 2.1 o posterior; pasa a GPL con `--enable-gpl` y a no redistribuible con `--enable-nonfree` (https://ffmpeg.org/legal.html). Rodaje usa una compilación propia de la variante `lgpl-shared` de BtbN («Compilación fijada»), que según su archivo de variantes (https://github.com/BtbN/FFmpeg-Builds/blob/master/variants/defaults-lgpl.sh) llevan `--enable-version3` y `COPYING.LGPLv3`: la licencia efectiva es la **LGPL v3**, sin libx264 ni libx265.
 
 La lista de comprobación de FFmpeg, aplicada a Rodaje:
 
@@ -36,14 +36,13 @@ La lista de comprobación de FFmpeg, aplicada a Rodaje:
 
 ### Compilación fijada
 
-`build\preparar-entorno.ps1` instala en `.entorno\ffmpeg` esta compilación exacta y verifica su huella:
+Las DLL, `ffmpeg.exe` y `ffprobe.exe` son una compilación propia: `build\compilar-ffmpeg-lgpl.ps1` corre en Docker la variante `win64-lgpl-shared` de BtbN/FFmpeg-Builds con los mismos scripts y el mismo FFmpeg que la release `autobuild-2026-09-30-13-08` de BtbN, pero **sin chromaprint** (BtbN la enlaza con fftw3, GPL-2.0-or-later), **sin libzvbi** (`src/packet-830.*` y `src/pdc.*` son GPL-2.0-only, incompatibles con la GPLv3) y **sin los plugins `fast_float` y `threaded` de Little CMS** (GPL-3.0-or-later; el núcleo de lcms2 es MIT). Un escaneo de cabeceras de cada etapa activa no encontró más código GPL compilado: lo que aparece está en herramientas, pruebas o ejemplos que no se compilan, en módulos de gnulib relicenciados a LGPL, o en etapas apagadas en la variante LGPL. `build\preparar-entorno.ps1` instala esa compilación en `.entorno\ffmpeg` y verifica su huella:
 
-- **Archivo:** `ffmpeg-n9.0.2-17-g2a571b6068-win64-lgpl-shared-9.0.zip`, release https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-30-13-08, SHA-256 `7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646`. Es una release de fin de mes porque BtbN borra las diarias a las dos semanas.
-- **Licencia efectiva:** LGPL-3.0-or-later. `ffmpeg -buildconf` muestra `--enable-version3`, ni `--enable-gpl` ni `--enable-nonfree`, y desactiva libx264, libx265, libxvid y libfdk-aac.
+- **Archivo:** `ffmpeg-n9.0.2-17-g2a571b6068-rodaje1-win64-lgpl-shared-9.0.zip`, SHA-256 `573d569b6221f97b0f3482b7c65c3b58b97c56ce66ca1100fb84086a79d00b88`. Se aloja en la release `ffmpeg-n9.0.2-17-g2a571b6068-rodaje1` de `Dathinel/rodaje` (pendiente de subir, con su `.sha256` y la fuente); mientras, `preparar-entorno.ps1` lo toma de `.entorno\ffmpeg-lgpl\`.
+- **Licencia efectiva:** LGPL-3.0-or-later. `ffmpeg -buildconf` muestra `--enable-version3`, ni `--enable-gpl` ni `--enable-nonfree`, ni chromaprint ni libzvbi; el script de compilación rechaza el resultado si aparece alguna de esas opciones o una biblioteca GPL.
 - **Código fuente de FFmpeg:** commit `2a571b606854520cf89804d8030c8b328e621689` de la rama `release/9.0` (https://github.com/FFmpeg/FFmpeg/commit/2a571b606854520cf89804d8030c8b328e621689).
-- **Scripts de compilación:** commit `6c9aec5fc9a72ec3abedd1fa84db141fa18cf52b` de BtbN/FFmpeg-Builds, que fija también la versión de cada biblioteca externa compilada dentro de las DLL.
-- **Antes de distribuir:** archivar en un lugar propio los tarballs de ese commit de FFmpeg, de los scripts de BtbN y de cada biblioteca externa que fijan, y ofrecerlos junto a la descarga o por oferta escrita.
-
+- **Scripts de compilación:** commit `6c9aec5fc9a72ec3abedd1fa84db141fa18cf52b` de BtbN/FFmpeg-Builds, con los cambios que aplica `build\compilar-ffmpeg-lgpl.sh` (etapas quitadas, imagen `base-win64` y FFmpeg fijados, `--extra-version=rodaje`, menos trabajos en paralelo).
+- **Fuente correspondiente:** `rodaje-ffmpeg-lgpl-fuente.tar` (2,1 GB, SHA-256 `81dd3e47394d3cacf597e7bdf8dbf4698b48bed07da3a444c704ca69354726ba`): el tarball de cada etapa tal como lo montó el Dockerfile generado, FFmpeg, los scripts de BtbN y los propios, con huellas. Se publica junto al zip.
 ### `ffmpeg.exe` para proxies y exportación
 
 La distribución lleva el `ffmpeg.exe` de la misma compilación en `ffmpeg\`, junto a las DLL, más `avfilter-12.dll` y `avdevice-63.dll`, que solo él importa (`ffprobe.exe` y `ffplay.exe` no se copian). Rodaje lo ejecuta como proceso aparte para los proxies y la exportación: argumentos con `ProcessStartInfo.ArgumentList`, cuadros por la entrada estándar y avance por `-progress`. Ejecutar un programa LGPL como proceso separado no lo enlaza con Rodaje; las obligaciones son las mismas que para las DLL: sin modificar ni renombrar, con su licencia, su fuente y su línea de configure.
@@ -58,10 +57,10 @@ El FFmpeg de gyan.dev que se usa en desarrollo es una compilación GPL: nunca se
 
 Van aparte del programa, cada uno en su propio proceso, y se instalan desde el gestor de complementos.
 
-**`rodaje-codificadores-gpl`** (lo arma `build\armar-codificadores-gpl.ps1`; no está publicado). Hoy empaqueta el `ffmpeg.exe` estático `win64-gpl-9.0` de BtbN (misma release, zip SHA-256 `a0e45723c72141975f51d8666302e614711745f3102b704ca3f82c897a58d278`), sin modificar, con `--enable-gpl --enable-version3`, x264 y x265, el texto de la GPLv3 y la línea de configure.
+**`rodaje-codificadores-gpl`** (lo arma `build\armar-codificadores-gpl.ps1`; no está publicado). Empaqueta un `ffmpeg.exe` estático propio (D-034), compilado por `build\compilar-ffmpeg-gpl.ps1` en Docker con los scripts de BtbN en el mismo commit que la compilación LGPL (`6c9aec5`) y la cadena de herramientas `base-win64` de BtbN fijada por huella: FFmpeg en el commit `2a571b6` con `--enable-gpl --enable-version3`, x264, x265, libopus y libmp3lame (los codificadores de audio de la exportación que no son nativos de FFmpeg) y libiconv, que pide LAME. Ninguna otra biblioteca externa: el script de armado rechaza el exe si `-buildconf` activa algo fuera de esa lista. Junto al paquete van el texto de la GPLv3 y la línea de configure.
 
 - **Copyright: compatible.** El exe es GPL-3.0-or-later y corre como proceso aparte por una tubería (la misma frontera que el `ffmpeg.exe` LGPL), así que editor y exe son obras separadas. `FfmpegExecutable.OpenGplAddOn` acepta GPL o LGPL v3 o posterior, rechaza `nonfree` y exige la serie de libavcodec de Rodaje; el editor nunca carga sus bibliotecas.
-- **Código fuente correspondiente (GPLv3, Sección 6): pendiente.** El paquete trae la fuente de FFmpeg en su commit, los scripts de BtbN y x264 y x265 en sus commits, pero el exe lleva compiladas unas 70 bibliotecas más. `-FuenteCompleta` baja cada repositorio que fijan los scripts (varios GB). Lo decidido (D-034) es compilar un `ffmpeg.exe` propio solo con lo necesario, para que la fuente sean pocos tarballs.
+- **Código fuente correspondiente (GPLv3, Sección 6): preparada, sin publicar.** `rodaje-codificadores-gpl-<versión>-fuente.tar` se adjunta a la misma release que el `.paquete`: un tarball por pieza (FFmpeg, scripts de BtbN, mingw-w64 con su CRT y winpthreads, mingw-std-threads, libiconv con gnulib, x264, x265, libopus con sus modelos y LAME), exactamente el árbol que se compiló, más los scripts de compilación, la línea de configure y las huellas. libgcc y libstdc++ entran estáticas bajo la excepción de bibliotecas de ejecución de GCC; el compilador no se redistribuye (es la imagen pública de BtbN, citada por huella).
 - **Patentes de H.264 y HEVC: pendiente.** x264 y x265 codifican en software formatos con pools de patentes (Via LA para AVC; Access Advance y Via LA para HEVC), sin la mitigación parcial de la GPU o de Windows. Por eso nunca son la opción por defecto (`InDefaults = false`): solo aparecen en «Avanzado» con la nota «Complemento GPL», y el complemento se instala aparte por decisión de quien lo usa.
 
 **`modulo-raw`:** LibRaw 0.22.2 bajo la LGPL-2.1 (a elegir con la CDDL-1.0), DLL oficial sin modificar, compatible con la GPLv3 (LGPL-2.1, sección 3). Se entregan su `LICENSE.LGPL`, `COPYRIGHT` y su código fuente. Los SDK de Blackmagic RAW, RED y ARRI tienen licencias propias y no entran en la v1; ProRes RAW solo existe en Windows con el decodificador propio de FFmpeg, con una cuestión de patentes de Apple sin revisar ([`modules/Rodaje.Module.Raw/LICENCIAS.md`](../modules/Rodaje.Module.Raw/LICENCIAS.md)).
@@ -228,5 +227,5 @@ Se recorre completa antes de entregar un ejecutable a terceros. Cada punto se ma
 
 ### Complementos
 
-- [ ] **`rodaje-codificadores-gpl`.** Fuente correspondiente completa publicada junto al paquete y riesgo de patentes de x264 y x265 revisado.
+- [ ] **`rodaje-codificadores-gpl`.** `rodaje-codificadores-gpl-<versión>-fuente.tar` adjunto a la misma release que el `.paquete` (con su `.sha256`), y riesgo de patentes de x264 y x265 revisado.
 - [ ] **Módulos.** Cada módulo publicado lleva su `LICENCIAS.md`, el aviso de cada modelo y biblioteca, y licencia elegida para su repositorio.

@@ -1,30 +1,21 @@
-﻿# Arma el complemento rodaje-codificadores-gpl: el ffmpeg.exe GPL de BtbN (fijado por SHA-256), el texto de la GPLv3 y
-# el código fuente correspondiente, como .paquete instalable (módulo con protocol 0). No publica nada.
-# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File build\armar-codificadores-gpl.ps1 [-FuenteCompleta] [-Salida <carpeta>]
+﻿# Arma el complemento rodaje-codificadores-gpl: el ffmpeg.exe GPL propio (build\compilar-ffmpeg-gpl.ps1, D-034), el texto
+# de la GPLv3 y su línea de configure, como .paquete instalable (módulo con protocol 0), y deja al lado la fuente
+# correspondiente para adjuntarla a la misma release. No publica nada.
+# Uso: powershell -NoProfile -ExecutionPolicy Bypass -File build\armar-codificadores-gpl.ps1 [-Salida <carpeta>]
 #
-# Fuente: FFmpeg en el commit exacto de la compilación, los scripts de BtbN de esa release (fijan el commit de cada
-# biblioteca) y x264 y x265 en sus commits. Con -FuenteCompleta baja además cada biblioteca que fijan esos scripts (un
-# superconjunto de lo que lleva el exe, varios GB) a una carpeta aparte, para publicarla junto al paquete (GPL-3 §6d).
-# Cada fuente se baja con git y se comprueba que el commit sea el fijado (el hash de git es la huella del contenido).
-# Resistente a apagones: descarga a .part con curl -C -, todo se arma en una carpeta temporal y el .paquete se renombra.
+# Antes de empaquetar comprueba que el exe es el compilado (SHA256SUMS), que -buildconf solo activa lo previsto y que
+# x264 y x265 codifican en 8 y 10 bits. Resistente a apagones: todo se arma en una carpeta temporal y se renombra.
 
-param(
-    [switch]$FuenteCompleta,
-    [string]$Salida
-)
+param([string]$Salida)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-$PaqueteVersion = '0.1.0'
-$FfmpegVersion  = 'n9.0.2-17-g2a571b6068'
-$FfmpegCommit   = '2a571b606854520cf89804d8030c8b328e621689'
-$BtbnRelease    = 'autobuild-2026-09-30-13-08'
-$BtbnCommit     = '6c9aec5fc9a72ec3abedd1fa84db141fa18cf52b'
-$ZipNombre      = "ffmpeg-$FfmpegVersion-win64-gpl-9.0.zip"
-$ZipUrl         = "https://github.com/BtbN/FFmpeg-Builds/releases/download/$BtbnRelease/$ZipNombre"
-$ZipSha256      = 'a0e45723c72141975f51d8666302e614711745f3102b704ca3f82c897a58d278'
-$ZipBytes       = 194034585
+$PaqueteVersion = '0.2.0'
+# Lo único que puede activar el configure (además de lo que FFmpeg detecta de Windows); si cambia, cambia la fuente.
+$Activados = @('--enable-gpl', '--enable-version3', '--enable-pthreads', '--enable-iconv',
+    '--enable-libx264', '--enable-libx265', '--enable-libopus', '--enable-libmp3lame')
+$Codificadores = @('libx264', 'libx265', 'libopus', 'libmp3lame', 'aac')
 
 function Paso([string]$texto) { Write-Host "[codificadores-gpl] $texto" }
 function Fallar([string]$texto) { Write-Host ""; Write-Host $texto; exit 1 }
@@ -32,121 +23,53 @@ function Huella([string]$ruta) { (Get-FileHash -LiteralPath $ruta -Algorithm SHA
 
 $Raiz    = Split-Path -Parent $PSScriptRoot
 $Entorno = if ($env:RODAJE_ENTORNO) { $env:RODAJE_ENTORNO } else { Join-Path $Raiz '.entorno' }
+$Gpl     = Join-Path $Entorno 'ffmpeg-gpl'
 $Trabajo = Join-Path $Entorno 'codificadores-gpl'
 if (-not $Salida) { $Salida = Join-Path $Raiz 'dist\complementos' }
 New-Item -ItemType Directory -Force -Path $Trabajo, $Salida | Out-Null
-if (-not (Get-Command git.exe -ErrorAction SilentlyContinue)) { Fallar 'Hace falta git para bajar el código fuente.' }
 
-# 1. El zip de BtbN, con su huella.
-$zip = Join-Path $Trabajo $ZipNombre
-if (-not ((Test-Path -LiteralPath $zip) -and (Get-Item -LiteralPath $zip).Length -eq $ZipBytes)) {
-    Paso "Descargando $ZipNombre (185 MB; si se corta, la próxima vez sigue donde quedó)..."
-    & curl.exe --location --fail --silent --show-error --retry 3 --continue-at - --output "$zip.part" $ZipUrl
-    if ($LASTEXITCODE -ne 0) { Fallar 'No se pudo descargar la compilación GPL de BtbN. Vuelve a ejecutar el script.' }
-    Move-Item -LiteralPath "$zip.part" -Destination $zip -Force
+# 1. El exe propio y su fuente; si faltan, se compilan.
+$exe = Join-Path $Gpl 'salida\ffmpeg.exe'
+$tarFuente = Join-Path $Gpl 'rodaje-ffmpeg-gpl-fuente.tar'
+if (-not ((Test-Path -LiteralPath $exe) -and (Test-Path -LiteralPath $tarFuente))) {
+    Paso 'No está compilado: ejecutando build\compilar-ffmpeg-gpl.ps1...'
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'compilar-ffmpeg-gpl.ps1')
+    if ($LASTEXITCODE -ne 0) { Fallar 'No se pudo compilar el ffmpeg.exe GPL.' }
 }
-Paso 'Comprobando la huella SHA-256...'
-if ((Huella $zip) -ne $ZipSha256) {
-    Remove-Item -LiteralPath $zip -Force
-    Fallar 'El zip no coincide con la huella fijada y se borró. Si se repite, BtbN cambió el archivo: no se usa.'
+$sumas = Get-Content -LiteralPath (Join-Path $Gpl 'salida\SHA256SUMS')
+if (-not ($sumas -contains "$(Huella $exe)  salida/ffmpeg.exe")) { Fallar 'ffmpeg.exe no coincide con el SHA256SUMS de su compilación.' }
+$huellaFuente = ((Get-Content -LiteralPath "$tarFuente.sha256" -Raw) -split '\s+')[0]
+if ((Huella $tarFuente) -ne $huellaFuente) { Fallar 'La fuente no coincide con su .sha256: vuelve a ejecutar build\compilar-ffmpeg-gpl.ps1.' }
+
+# 2. Solo lo previsto: GPL, sin nonfree, exactamente las bibliotecas externas de la lista.
+Paso 'Comprobando -buildconf y los codificadores...'
+$conf = (& $exe -hide_banner -buildconf) | ForEach-Object { $_.Trim() } | Where-Object { $_ -like '--*' }
+$sobran = @($conf | Where-Object { $_ -like '--enable-*' -and $Activados -notcontains $_ })
+$faltan = @($Activados | Where-Object { $conf -notcontains $_ })
+if ($sobran.Count -or $faltan.Count) { Fallar "El configure no es el previsto. Sobra: $($sobran -join ' '). Falta: $($faltan -join ' ')." }
+$lista = (& $exe -hide_banner -encoders) -join "`n"
+foreach ($c in $Codificadores) { if ($lista -notmatch "\s$([regex]::Escape($c))\s") { Fallar "El ffmpeg.exe no trae $c." } }
+foreach ($prueba in @(@('libx264', 'yuv420p'), @('libx264', 'yuv420p10le'), @('libx265', 'yuv420p'), @('libx265', 'yuv420p10le'))) {
+    & $exe -hide_banner -loglevel error -f lavfi -i 'testsrc2=size=320x180:rate=30:duration=0.5' -pix_fmt $prueba[1] -c:v $prueba[0] -f null NUL
+    if ($LASTEXITCODE -ne 0) { Fallar "$($prueba[0]) no codifica en $($prueba[1])." }
 }
 
-# 2. Carpeta temporal del paquete.
+# 3. Carpeta temporal del paquete.
+Get-ChildItem -LiteralPath $Trabajo -Directory | Where-Object Name -like 'armado.tmp-*' | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force }
 $tmp = Join-Path $Trabajo ('armado.tmp-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
-Get-ChildItem -LiteralPath $Trabajo -Directory | Where-Object { $_.Name -like 'armado.tmp-*' -or $_.Name -like 'git.tmp-*' } |
-    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force }
 $paquete = Join-Path $tmp 'paquete'
-New-Item -ItemType Directory -Force -Path (Join-Path $paquete 'bin'), (Join-Path $paquete 'fuente') | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $paquete 'bin') | Out-Null
+Copy-Item -LiteralPath $exe -Destination (Join-Path $paquete 'bin\ffmpeg.exe')
+Copy-Item -LiteralPath (Join-Path $Gpl 'salida\COPYING.GPLv3.txt') -Destination $paquete
+Copy-Item -LiteralPath (Join-Path $Gpl 'salida\configure.txt') -Destination $paquete
+$version = (& $exe -hide_banner -version | Select-Object -First 1)
+$nombreFuente = "rodaje-codificadores-gpl-$PaqueteVersion-fuente.tar"
 
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-$archivo = [System.IO.Compression.ZipFile]::OpenRead($zip)
-try {
-    $interior = "ffmpeg-$FfmpegVersion-win64-gpl-9.0/"
-    foreach ($par in @(@("${interior}bin/ffmpeg.exe", 'bin\ffmpeg.exe'), @("${interior}LICENSE.txt", 'COPYING.GPLv3.txt'))) {
-        $entrada = $archivo.GetEntry($par[0])
-        if (-not $entrada) { Fallar "El zip no trae $($par[0])." }
-        [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entrada, (Join-Path $paquete $par[1]), $true)
-    }
-} finally { $archivo.Dispose() }
-
-$ffmpeg = Join-Path $paquete 'bin\ffmpeg.exe'
-$conf = (& $ffmpeg -hide_banner -buildconf) -join ' '
-if ($conf -notmatch '--enable-gpl' -or $conf -match '--enable-nonfree') { Fallar 'El ffmpeg.exe no es la compilación GPL esperada (o es nonfree).' }
-if ((& $ffmpeg -hide_banner -encoders) -join "`n" -notmatch 'libx264' ) { Fallar 'El ffmpeg.exe no trae libx264.' }
-[System.IO.File]::WriteAllText((Join-Path $paquete 'configure.txt'), (((& $ffmpeg -hide_banner -buildconf) -join "`r`n") + "`r`n"))
-
-# 3. Código fuente con git, comprobando el commit.
-function Fuente([string]$nombre, [string]$repo, [string]$commit, [string]$destino) {
-    $salidaTar = Join-Path $destino "$nombre-$($commit.Substring(0, 12)).tar.gz"
-    if (Test-Path -LiteralPath $salidaTar) { return $salidaTar }
-    Paso "Fuente de $nombre ($repo @ $($commit.Substring(0, 12)))..."
-    $git = Join-Path $Trabajo ('git.tmp-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
-    try {
-        & git.exe init --quiet $git
-        & git.exe -C $git fetch --quiet --depth 1 $repo $commit
-        if ($LASTEXITCODE -ne 0) { Fallar "No se pudo bajar $nombre de $repo." }
-        $real = (& git.exe -C $git rev-parse FETCH_HEAD).Trim()
-        if ($real -ne $commit) { Fallar "${nombre}: se esperaba el commit $commit y llegó $real." }
-        & git.exe -C $git archive --format=tar.gz --prefix="$nombre/" -o "$salidaTar.part" FETCH_HEAD
-        if ($LASTEXITCODE -ne 0) { Fallar "No se pudo empaquetar la fuente de $nombre." }
-        Move-Item -LiteralPath "$salidaTar.part" -Destination $salidaTar -Force
-    } finally {
-        Remove-Item -LiteralPath $git -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    return $salidaTar
-}
-
-$cacheFuente = Join-Path $Trabajo 'fuente'
-New-Item -ItemType Directory -Force -Path $cacheFuente | Out-Null
-$btbn = Fuente 'FFmpeg-Builds' 'https://github.com/BtbN/FFmpeg-Builds.git' $BtbnCommit $cacheFuente
-$fuentes = @(
-    (Fuente 'FFmpeg' 'https://github.com/FFmpeg/FFmpeg.git' $FfmpegCommit $cacheFuente),
-    $btbn
-)
-
-# x264 y x265 en los commits que fijan los scripts de esa release.
-$scripts = Join-Path $Trabajo 'scripts-btbn'
-if (-not (Test-Path -LiteralPath (Join-Path $scripts 'scripts.d'))) {
-    New-Item -ItemType Directory -Force -Path $scripts | Out-Null
-    & tar.exe -xzf $btbn -C $scripts --strip-components=1
-}
-function Fijado([string]$archivo) {
-    $texto = Get-Content -LiteralPath $archivo -Raw
-    $pares = @()
-    foreach ($n in @('', '2', '3')) {
-        $r = [regex]::Match($texto, "(?m)^SCRIPT_REPO$n=`"([^`"]+)`"")
-        $c = [regex]::Match($texto, "(?m)^SCRIPT_COMMIT$n=`"([0-9a-f]{40})`"")
-        if ($r.Success -and $c.Success) { $pares += ,@($r.Groups[1].Value, $c.Groups[1].Value) }
-    }
-    return ,$pares
-}
-foreach ($lib in @('x264', 'x265')) {
-    $par = (Fijado (Join-Path $scripts "scripts.d\50-$lib.sh"))[0]
-    $fuentes += Fuente $lib $par[0] $par[1] $cacheFuente
-}
-foreach ($f in $fuentes) { Copy-Item -LiteralPath $f -Destination (Join-Path $paquete 'fuente') }
-
-if ($FuenteCompleta) {
-    $completa = Join-Path $Salida "rodaje-codificadores-gpl-$PaqueteVersion-fuente-completa"
-    New-Item -ItemType Directory -Force -Path $completa | Out-Null
-    foreach ($s in Get-ChildItem -LiteralPath (Join-Path $scripts 'scripts.d') -Recurse -Filter '*.sh') {
-        $i = 0
-        foreach ($par in (Fijado $s.FullName)) {
-            $nombre = $s.BaseName -replace '^\d+-', ''
-            if ($i -gt 0) { $nombre += "-$i" }
-            Fuente $nombre $par[0] $par[1] $completa | Out-Null
-            $i++
-        }
-    }
-    Paso "Fuente completa en $completa (se publica junto al paquete)."
-}
-
-# 4. Manifiesto, avisos y lista de huellas.
 $manifiesto = [ordered]@{
     formatVersion = 1; id = 'rodaje-codificadores-gpl'; version = $PaqueteVersion; kind = 'module'
     name = 'Codificadores GPL (x264 y x265)'
-    description = 'Añade x264 y x265 en Exportar → Avanzado con un ffmpeg.exe GPL aparte. Incluye su código fuente y la licencia GPLv3.'
-    author = 'Dathinel; FFmpeg de BtbN/FFmpeg-Builds'; license = 'GPL-3.0-or-later'; apps = @('rodaje')
+    description = 'Añade x264 y x265 en Exportar → Avanzado con un ffmpeg.exe GPL aparte. Incluye la licencia GPLv3; su código fuente se publica junto al paquete.'
+    author = 'Dathinel; FFmpeg compilado con los scripts de BtbN/FFmpeg-Builds'; license = 'GPL-3.0-or-later'; apps = @('rodaje')
     module = [ordered]@{ entry = 'bin/ffmpeg.exe'; protocol = 0; functions = @('libx264', 'libx265'); runtime = 'cpu'; vramMb = 0 }
 }
 [System.IO.File]::WriteAllText((Join-Path $paquete 'paquete.json'), ($manifiesto | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding $false))
@@ -154,18 +77,17 @@ $manifiesto = [ordered]@{
 $lineas = @(
     '# Codificadores GPL para Rodaje',
     '',
-    "ffmpeg.exe de la compilación win64-gpl-9.0 de BtbN/FFmpeg-Builds ($FfmpegVersion, release $BtbnRelease, zip SHA-256 $ZipSha256),",
-    'sin modificar. Licencia: GNU GPL versión 3 o posterior (COPYING.GPLv3.txt); su línea de configure está en configure.txt.',
-    'Lleva x264 y x265 (GPL-2.0-or-later) y otras bibliotecas libres compiladas dentro.',
+    "$version, compilado para Rodaje con build\compilar-ffmpeg-gpl.ps1: FFmpeg 9.0.2 con x264, x265 (GPL-2.0-or-later),",
+    'libopus, libmp3lame y libiconv, nada más. Licencia del conjunto: GNU GPL versión 3 o posterior (COPYING.GPLv3.txt);',
+    'su línea de configure está en configure.txt.',
     '',
     'Rodaje lo ejecuta como un proceso aparte por una tubería: no se enlaza con el editor.',
     '',
     '## Código fuente correspondiente',
     '',
-    "- FFmpeg, commit $FfmpegCommit",
-    "- BtbN/FFmpeg-Builds, commit $BtbnCommit (tag $BtbnRelease): los scripts fijan el commit de cada biblioteca",
-    '- x264 y x265 en los commits de esos scripts',
-    "- El resto de las bibliotecas: «rodaje-codificadores-gpl-$PaqueteVersion-fuente-completa», publicado junto a este paquete.",
+    "``$nombreFuente``, publicado en la misma release que este paquete (SHA-256 $huellaFuente):",
+    'FFmpeg, los scripts de BtbN/FFmpeg-Builds y cada biblioteca en el árbol exacto que se compiló, con los scripts',
+    'de compilación y las instrucciones para repetirla (LEEME.txt).',
     '',
     '## Huellas SHA-256',
     ''
@@ -175,10 +97,16 @@ foreach ($f in Get-ChildItem -LiteralPath $paquete -Recurse -File | Sort-Object 
 }
 [System.IO.File]::WriteAllLines((Join-Path $paquete 'LEEME.md'), $lineas, (New-Object System.Text.UTF8Encoding $false))
 
-# 5. El .paquete (zip), entero o nada.
+# 4. El .paquete (zip) y la fuente al lado, enteros o nada.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 $destino = Join-Path $Salida "rodaje-codificadores-gpl-$PaqueteVersion.paquete"
 Paso 'Comprimiendo el paquete...'
 [System.IO.Compression.ZipFile]::CreateFromDirectory($paquete, "$destino.part", [System.IO.Compression.CompressionLevel]::Optimal, $false)
 Move-Item -LiteralPath "$destino.part" -Destination $destino -Force
+$destinoFuente = Join-Path $Salida $nombreFuente
+Copy-Item -LiteralPath $tarFuente -Destination "$destinoFuente.part" -Force
+Move-Item -LiteralPath "$destinoFuente.part" -Destination $destinoFuente -Force
+"$huellaFuente  $nombreFuente" | Set-Content -LiteralPath "$destinoFuente.sha256" -Encoding ascii
 Remove-Item -LiteralPath $tmp -Recurse -Force
-Paso "Listo: $destino ($([math]::Round((Get-Item -LiteralPath $destino).Length / 1MB)) MB, SHA-256 $(Huella $destino))."
+Paso "Listo: $destino ($([math]::Round((Get-Item -LiteralPath $destino).Length / 1MB, 1)) MB, SHA-256 $(Huella $destino))."
+Paso "Fuente para la misma release: $destinoFuente ($([math]::Round((Get-Item -LiteralPath $destinoFuente).Length / 1MB, 1)) MB)."

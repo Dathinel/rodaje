@@ -20,14 +20,14 @@ $SdkVersion = '10.0.401'
 $SdkUrl     = "https://builds.dotnet.microsoft.com/dotnet/Sdk/$SdkVersion/dotnet-sdk-$SdkVersion-win-x64.zip"
 $SdkSha512  = '24b670ad3d923bfcf47df6c3b034152398b42f6dbc388e10d783aee1cfb5e5817d399fc0ae2a12cfa822a55e61d34830ccb15c50ef6efee437ab874bb7c79430'
 
-# Compilación lgpl-shared de BtbN de fin de mes: BtbN borra las diarias a las ~2 semanas y conserva las de fin de mes.
-# Hash de checksums.sha256 de esa release. La serie mayor debe coincidir con FFmpeg.AutoGen
-# (9.x: avcodec-63, avformat-63, avutil-61, swresample-7, swscale-10).
+# DLL LGPL propias (build\compilar-ffmpeg-lgpl.ps1): la variante lgpl-shared de BtbN (scripts 6c9aec5, FFmpeg 2a571b6)
+# sin chromaprint ni libzvbi, que meten código GPL. Si .entorno\ffmpeg-lgpl\ tiene el zip (lo deja ese script), se toma
+# de ahí; si no, de la release ffmpeg-<versión> de Dathinel/rodaje (pendiente de subir: zip, .sha256 y la fuente).
+# La serie mayor debe coincidir con FFmpeg.AutoGen (9.x: avcodec-63, avformat-63, avutil-61, swresample-7, swscale-10).
 # dotnet-local.cmd, Probar.bat y probar.ps1 leen la versión de la línea siguiente: debe empezar por "$FfmpegVersion = '".
-$FfmpegVersion = 'n9.0.2-17-g2a571b6068'
-$FfmpegRelease = 'autobuild-2026-09-30-13-08'
-$FfmpegUrl     = "https://github.com/BtbN/FFmpeg-Builds/releases/download/$FfmpegRelease/ffmpeg-$FfmpegVersion-win64-lgpl-shared-9.0.zip"
-$FfmpegSha256  = '7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646'
+$FfmpegVersion = 'n9.0.2-17-g2a571b6068-rodaje1'
+$FfmpegUrl     = "https://github.com/Dathinel/rodaje/releases/download/ffmpeg-$FfmpegVersion/ffmpeg-$FfmpegVersion-win64-lgpl-shared-9.0.zip"
+$FfmpegSha256  = '573d569b6221f97b0f3482b7c65c3b58b97c56ce66ca1100fb84086a79d00b88'
 
 # LibRaw para modulo-raw (CinemaDNG): binarios oficiales de libraw.org, LGPL-2.1 o CDDL-1.0 a elegir (se usa la LGPL,
 # como DLL dinámica). La DLL importa el runtime de Visual C++ 2015-2022 (msvcp140, vcruntime140, vcruntime140_1).
@@ -172,12 +172,13 @@ if (-not $SoloFFmpeg) {
 }
 
 $FfmpegCarpeta = "ffmpeg-$FfmpegVersion-win64-lgpl-shared-9.0"
+$FfmpegLocal = Join-Path $Entorno "ffmpeg-lgpl\$FfmpegCarpeta.zip"
 Instalar @{
     Nombre = "FFmpeg $FfmpegVersion (LGPL)"; Carpeta = 'ffmpeg'; Version = $FfmpegVersion
     Marca = ".ffmpeg-$FfmpegVersion"; Interior = $FfmpegCarpeta
     Archivos = @('bin\ffmpeg.exe', 'bin\ffprobe.exe', 'bin\avcodec-63.dll', 'bin\avformat-63.dll',
         'bin\avutil-61.dll', 'bin\swresample-7.dll', 'bin\swscale-10.dll')
-    Url = $FfmpegUrl; Hash = $FfmpegSha256; Algoritmo = 'SHA256'
+    Url = $(if (Test-Path -LiteralPath $FfmpegLocal) { $FfmpegLocal } else { $FfmpegUrl }); Hash = $FfmpegSha256; Algoritmo = 'SHA256'
     Zip = "$FfmpegCarpeta.zip"; Peso = 'unos 75 MB'
 }
 

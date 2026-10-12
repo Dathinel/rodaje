@@ -18,6 +18,7 @@ public sealed class GplAddOnExportTests(ITestOutputHelper output)
     [CpuExportTheory]
     [InlineData("libx264", ExportContainer.Mp4, ExportPixelFormat.Yuv420P)]
     [InlineData("libx264", ExportContainer.Mov, ExportPixelFormat.Yuv420P10)]
+    [InlineData("libx265", ExportContainer.Mp4, ExportPixelFormat.Yuv420P)]
     [InlineData("libx265", ExportContainer.Mp4, ExportPixelFormat.Yuv420P10)]
     public void The_gpl_ffmpeg_exports_through_the_same_pipe(string video, ExportContainer container, ExportPixelFormat pixels)
     {
