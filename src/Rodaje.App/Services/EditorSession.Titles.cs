@@ -43,7 +43,11 @@ public sealed partial class EditorSession
     public bool AddTitleAt(string? trackId, Time at, TextStyle? style = null)
     {
         VerifyAccess();
-        ClipGenerator title = TitleStyles.NewTitle(style);
+        // En una pista de subtítulos, el texto de fábrica nace con el estilo de subtítulos.
+        bool subtitles = trackId is not null && Sequence.FindTrack(trackId)?.Role == TrackRoles.Subtitles;
+        ClipGenerator title = subtitles && (style is null || style.ContentEquals(TitleStyles.Default()))
+            ? SubtitleStyles.NewSubtitle()
+            : TitleStyles.NewTitle(style);
         SequenceEditCommand command = trackId is null
             ? Edits.InsertTitle(SequenceId, at, TitleEdits.DefaultDuration, title, UniqueTrackName("Texto"), _ids)
             : Edits.InsertGenerator(SequenceId, trackId, at, TitleEdits.DefaultDuration, title, _ids);
