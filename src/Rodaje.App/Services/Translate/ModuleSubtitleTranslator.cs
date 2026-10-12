@@ -16,14 +16,19 @@ public sealed class ModuleSubtitleTranslator(ModuleManager modules)
 
     public bool IsInstalled => modules.Find(SubtitleTrackTranslation.ModuleId) is not null;
 
-    /// <exception cref="TranslationException">Sin el módulo, o el módulo devolvió algo inválido.</exception>
+    /// <exception cref="TranslationException">Sin el módulo o sin su modelo, o el módulo devolvió algo inválido.</exception>
     /// <exception cref="ModuleException">El módulo falló o se cerró (el mensaje ya viene explicado).</exception>
     public Task<TrackTranslation> TranslateAsync(IReadOnlyList<SubtitleText> texts, string? source, string target, string title, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(texts);
-        if (!IsInstalled)
+        if (modules.Find(SubtitleTrackTranslation.ModuleId) is not { } module)
         {
             throw new TranslationException(NotInstalled);
+        }
+
+        if (TranslatorModel.IsMissing(module))
+        {
+            throw new TranslationException(TranslatorModel.Missing);
         }
 
         IReadOnlyList<System.Text.Json.JsonElement> requests = SubtitleTrackTranslation.Requests(texts, source, target);

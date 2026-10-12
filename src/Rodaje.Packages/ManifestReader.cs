@@ -1,7 +1,40 @@
 using System.Text;
 using System.Text.Json;
+using Rodaje.Packages.Download;
 
 namespace Rodaje.Packages;
+
+/// <summary>
+/// Un modelo de <c>module.models</c>, ya validado: su id, la ruta relativa con que lo busca el módulo, el SHA-256 y el
+/// tamaño exactos, la licencia y una dirección fijada (que no cambia de contenido).
+/// </summary>
+public sealed record ModuleModel(string Id, string File, string Sha256, long Size, string License, Uri Url)
+{
+    /// <summary>Lo que necesita <see cref="ModelStore"/> para buscarlo o bajarlo.</summary>
+    public ModelSpec Spec => new(Id, Url, Sha256, Size);
+
+    /// <summary>
+    /// La ruta del modelo si ya está: por su hash en el almacén (<see cref="ModelStore.Find"/>: <c>complementos\modelos</c>
+    /// y las carpetas de la distribución completa) o por su <see cref="File"/> dentro de la carpeta del módulo, siempre
+    /// con el tamaño exacto. <c>null</c> si falta.
+    /// </summary>
+    public string? Find(ModelStore store, string? moduleDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        if (store.Find(Spec) is { } stored)
+        {
+            return stored;
+        }
+
+        if (moduleDirectory is null || !SafePaths.TryNormalizeRelative(File, out string? relative))
+        {
+            return null;
+        }
+
+        string path = Path.GetFullPath(Path.Combine(moduleDirectory, relative));
+        return SafePaths.IsInside(path, moduleDirectory) && System.IO.File.Exists(path) && new FileInfo(path).Length == Size ? path : null;
+    }
+}
 
 /// <summary>Resultado de leer un <c>paquete.json</c>: el manifiesto si es válido, y los errores y avisos en español.</summary>
 public sealed record ManifestResult(PackageManifest? Manifest, IReadOnlyList<string> Errors, IReadOnlyList<string> Warnings)
@@ -369,8 +402,166 @@ public static class ManifestReader
 
         int protocol = Integer(module, "protocol", errors) ?? 0;
         List<string> functions = Strings(module, "functions", errors, MaxShortText) ?? [];
+        Models(module, errors);
         return entry is null ? null : new ModuleInfo(entry, protocol, functions);
     }
+
+    /// <summary>
+    /// Los modelos de un manifiesto de módulo (<c>module.models</c>), validados como en <see cref="Read"/>; lista vacía
+    /// si no declara ninguno, o <c>null</c> si el manifiesto no se puede leer o algún modelo no es válido.
+    /// </summary>
+    public static IReadOnlyList<ModuleModel>? ReadModels(string manifestPath)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(manifestPath);
+        if (ReadFile(manifestPath, checkFiles: false).Manifest is not { Kind: PackageKind.Module })
+        {
+            return null;
+        }
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(SafeText.ReadAllTextStrict(manifestPath), DocumentOptions);
+            var errors = new List<string>();
+            List<ModuleModel> models = Models(document.RootElement.GetProperty("module"), errors);
+            return errors.Count == 0 ? models : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or DecoderFallbackException)
+        {
+            // Cambió entre las dos lecturas.
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// <c>module.models</c>: cada uno con <c>id</c>, <c>file</c> (relativa; el archivo no viaja en el paquete, no se
+    /// comprueba que exista), <c>sha256</c> en minúsculas, <c>size</c> en bytes mayor que 0, <c>license</c> y una
+    /// <c>url</c> fijada (ver <see cref="IsPinnedModelUrl"/>). Sin tamaño ni dirección fijada, el gestor de complementos
+    /// no puede bajarlo ni la distribución completa comprobarlo.
+    /// </summary>
+    private static List<ModuleModel> Models(JsonElement module, List<string> errors)
+    {
+        var models = new List<ModuleModel>();
+        if (!module.TryGetProperty("models", out JsonElement array) || array.ValueKind == JsonValueKind.Null)
+        {
+            return models;
+        }
+
+        if (array.ValueKind != JsonValueKind.Array)
+        {
+            errors.Add("module.models debe ser una lista.");
+            return models;
+        }
+
+        if (array.GetArrayLength() > MaxItems)
+        {
+            errors.Add($"module.models tiene más de {MaxItems} modelos.");
+            return models;
+        }
+
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        int index = 0;
+        foreach (JsonElement element in array.EnumerateArray())
+        {
+            index++;
+            if (element.ValueKind != JsonValueKind.Object)
+            {
+                errors.Add($"El modelo {index} de module.models no es un objeto.");
+                continue;
+            }
+
+            var local = new List<string>();
+            string? id = Text(element, "id", local);
+            string where = id is null ? $"El modelo {index}" : $"El modelo «{id}»";
+            if (id is not null && !Identifiers.IsValid(id))
+            {
+                local.Add($"el id «{id}» no es válido");
+            }
+
+            string? file = Text(element, "file", local);
+            if (file is not null && CheckRelativeFile(file, null) is { } problem)
+            {
+                local.Add(problem);
+            }
+
+            string? sha256 = Text(element, "sha256", local);
+            if (sha256 is not null && !SignedIndex.IsSha256(sha256))
+            {
+                local.Add("«sha256» debe tener 64 cifras hexadecimales en minúsculas");
+            }
+
+            long? size = null;
+            if (!element.TryGetProperty("size", out JsonElement sizeElement))
+            {
+                local.Add("falta «size» (el tamaño exacto en bytes)");
+            }
+            else if (sizeElement.ValueKind != JsonValueKind.Number || !sizeElement.TryGetInt64(out long bytes) || bytes <= 0)
+            {
+                local.Add("«size» debe ser el tamaño en bytes, un entero mayor que 0");
+            }
+            else
+            {
+                size = bytes;
+            }
+
+            string? license = Text(element, "license", local, SafeText.MaxLicense);
+            string? urlText = Text(element, "url", local, SafeText.MaxUri);
+            Uri? url = null;
+            if (urlText is not null && !IsPinnedModelUrl(urlText, out url))
+            {
+                local.Add($"la url «{urlText}» no está fijada: usa Hugging Face con …/resolve/<commit de 40 caracteres>/…, "
+                    + "GitHub con el commit en la ruta (…/raw/<commit>/… o raw.githubusercontent.com/…/<commit>/…) o un asset de una release de GitHub");
+            }
+
+            if (local.Count > 0)
+            {
+                errors.Add($"{where} de module.models: {string.Join("; ", local.Select(Uncapitalize))}.");
+                continue;
+            }
+
+            if (!ids.Add(id!))
+            {
+                errors.Add($"El id de modelo «{id}» está repetido.");
+                continue;
+            }
+
+            models.Add(new ModuleModel(id!, file!, sha256!, size!.Value, license!, url!));
+        }
+
+        return models;
+    }
+
+    /// <summary>
+    /// Si la dirección de un modelo apunta siempre al mismo contenido: https, sin consulta ni fragmento, y además
+    /// Hugging Face fijado por commit (lo mismo que acepta <see cref="DownloadUrlPolicy"/>), un asset de una release de
+    /// GitHub, o un archivo de GitHub con el commit de 40 caracteres en la ruta (<c>github.com/&lt;dueño&gt;/&lt;repo&gt;/raw/&lt;commit&gt;/…</c>
+    /// o <c>raw.githubusercontent.com/&lt;dueño&gt;/&lt;repo&gt;/&lt;commit&gt;/…</c>). <c>resolve/main</c> o una rama no valen.
+    /// </summary>
+    public static bool IsPinnedModelUrl(string text, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Uri? url)
+    {
+        url = null;
+        if (!SafeText.TryParseHttpsUri(text, out Uri? parsed) || parsed.Query.Length > 0 || parsed.Fragment.Length > 0)
+        {
+            return false;
+        }
+
+        string[] segments = parsed.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        bool pinned = parsed.Host.ToLowerInvariant() switch
+        {
+            "huggingface.co" or "github.com" when segments.Length > 0
+                && DownloadUrlPolicy.ForOwners(segments[0]).IsAllowed(parsed, out _) => true,
+            "github.com" => segments.Length >= 5 && segments[2] == "raw" && IsCommit(segments[3]),
+            "raw.githubusercontent.com" => segments.Length >= 4 && IsCommit(segments[2]),
+            _ => false,
+        };
+        if (pinned)
+        {
+            url = parsed;
+        }
+
+        return pinned;
+    }
+
+    private static bool IsCommit(string text) => text.Length == 40 && text.All(char.IsAsciiHexDigitLower);
 
     /// <summary>Tipo de elemento según su nombre en el manifiesto, o <c>null</c> si no se conoce.</summary>
     public static ItemKind? ParseItemKind(string text) => text switch

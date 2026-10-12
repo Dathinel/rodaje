@@ -18,9 +18,11 @@
       {
         "id": "qwen3-4b-instruct-2507-q4km",
         "file": "modelos/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+        "size": 2147483648,
         "sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
         "license": "Apache-2.0",
-        "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+        "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/0000000000000000000000000000000000000000/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+        "pendiente": "MARCADOR: size, el commit de la url y sha256 sin verificar. Bajar el archivo, comprobar su SHA-256 y poner aquí el tamaño exacto y el commit de unsloth/Qwen3-4B-Instruct-2507-GGUF; después borrar este campo."
       }
     ]
   }
