@@ -283,7 +283,7 @@ Al abrir un proyecto con medios que faltan: diálogo con la lista, «Buscar en c
 
 ## 29. Exportar el fotograma actual como imagen
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #32 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/qdv-fotograma`
 - **Caminos:** `src/Rodaje.Export/Still/` (nuevo), una entrada en el menú Archivo y un atajo (lo mínimo), pruebas, `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (función 34), `docs/arquitectura/exportacion.md`, D-028.
