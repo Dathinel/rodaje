@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50), #38, #37, #41, #39 (52–55) #43, #42, #45, #26, #27 (58–61) y #49, #52, #48, #54 (62–64).
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50), #38, #37, #41, #39 (52–55), #43, #42, #45, #26, #27 (58–61) y #49, #52, #48, #54 (62–64).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
