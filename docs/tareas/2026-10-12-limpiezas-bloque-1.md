@@ -42,6 +42,11 @@ Rama `claude/limpiezas-bloque-1`, PR #36. Sale de los hallazgos menores y del M1
 - **Pruebas omitidas:** ninguna nueva. En App.Tests en Linux se omitían 4 antes y se omiten 4 después.
 - Los `packages.lock.json` regenerados en Linux se deshicieron.
 
+## CI
+
+- **`8c32bc7d`:** Linux y Windows en verde (Windows compila la App y pasan todas sus pruebas).
+- **`79b16d5b`, una ejecución intermedia:** Windows falló en una sola prueba, `ModuleManagerTests.Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada` (`ModuleHungException`, el eco salió con -1). Es ajena a esta rama, que no toca módulos: es la vigilancia por `ping` con el runner cargado, y el PR #35 de main retocó esas pruebas.
+
 ## Choques posibles
 
 - `origin/main` avanzó durante la tarea (PR #35: `ModuleCall.cs`, `ModuleConnection.cs`, `MainWindow.xaml.cs`, `TitleEditor.cs`). Ninguno de esos archivos se toca aquí. La guía de módulos cita el `StartTimeout` de 30 s que trajo ese PR, así que esa fila es correcta en main aunque no en la base de esta rama.
