@@ -24,13 +24,16 @@ internal static class RelinkDialog
         relink.Attach(services.Session, missing => ShowAsync(services, hwnd, relink, missing));
     }
 
-    private sealed class Row(MediaRef media, TextBlock status, Button pick)
+    private sealed class Row(MediaRef media, TextBlock status, Button pick, Button confirm)
     {
         public MediaRef Media { get; } = media;
 
         public TextBlock Status { get; } = status;
 
         public Button Pick { get; } = pick;
+
+        /// <summary>«Confirmar», visible solo cuando hay un archivo con otro nombre propuesto para el medio.</summary>
+        public Button Confirm { get; } = confirm;
 
         /// <summary>Carpeta donde empieza «Elegir…» (la de un candidato dudoso, si lo hubo).</summary>
         public string? StartFolder { get; set; }
@@ -47,6 +50,9 @@ internal static class RelinkDialog
         }
 
         var pending = new Dictionary<string, MediaRelinkTarget>(StringComparer.Ordinal);
+
+        // Encontrados con otro nombre: no se comparó el contenido, así que esperan a que el usuario los confirme.
+        var proposed = new Dictionary<string, string>(StringComparer.Ordinal);
         var rows = new List<Row>();
         var panel = new StackPanel { Spacing = 8, MinWidth = 520 };
         panel.Children.Add(new TextBlock
@@ -70,11 +76,15 @@ internal static class RelinkDialog
             var status = new TextBlock { Text = clips == 1 ? "Falta · en 1 clip" : $"Falta · en {clips} clips", FontSize = 12, TextWrapping = TextWrapping.Wrap };
             text.Children.Add(status);
             var pick = new Button { Content = "Elegir…", VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetColumn(pick, 1);
+            var confirm = new Button { Content = "Confirmar", VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            buttons.Children.Add(confirm);
+            buttons.Children.Add(pick);
+            Grid.SetColumn(buttons, 1);
             grid.Children.Add(text);
-            grid.Children.Add(pick);
+            grid.Children.Add(buttons);
             list.Children.Add(grid);
-            rows.Add(new Row(media, status, pick));
+            rows.Add(new Row(media, status, pick, confirm));
         }
 
         panel.Children.Add(new ScrollViewer { Content = list, MaxHeight = 320 });
@@ -105,22 +115,25 @@ internal static class RelinkDialog
         void Refresh()
         {
             dialog.IsPrimaryButtonEnabled = pending.Count > 0 && !searching;
-            search.IsEnabled = !searching && pending.Count < missing.Count;
+            search.IsEnabled = !searching && pending.Count + proposed.Count < missing.Count;
             progress.IsActive = searching;
             foreach (Row row in rows)
             {
                 row.Pick.IsEnabled = !searching;
+                row.Confirm.IsEnabled = !searching;
+                row.Confirm.Visibility = proposed.ContainsKey(row.Media.Id) ? Visibility.Visible : Visibility.Collapsed;
             }
 
             if (!searching)
             {
-                summary.Text = pending.Count == 0 ? "" : $"{pending.Count} de {missing.Count} listos.";
+                summary.Text = (pending.Count == 0 ? "" : $"{pending.Count} de {missing.Count} listos.")
+                    + (proposed.Count == 0 ? "" : $" {proposed.Count} por confirmar.");
             }
         }
 
         async Task SearchAsync(string folder)
         {
-            List<MediaRef> wanted = [.. missing.Where(m => !pending.ContainsKey(m.Id))];
+            List<MediaRef> wanted = [.. missing.Where(m => !pending.ContainsKey(m.Id) && !proposed.ContainsKey(m.Id))];
             if (wanted.Count == 0)
             {
                 return;
@@ -133,14 +146,20 @@ internal static class RelinkDialog
             {
                 var scanned = new Progress<int>(n => summary.Text = $"Buscando… {n} archivos");
                 RelinkSearchResult result = await relink.SearchAsync(
-                    project, wanted, folder, scanned, [.. pending.Values.Select(t => t.Path)], cancel.Token);
+                    project, wanted, folder, scanned, [.. pending.Values.Select(t => t.Path), .. proposed.Values], cancel.Token);
                 foreach (RelinkMatch match in result.Found)
                 {
-                    pending[match.MediaId] = new MediaRelinkTarget(match.MediaId, match.Path);
                     Row row = rows.First(r => r.Media.Id == match.MediaId);
-                    row.Status.Text = match.Kind == RelinkMatchKind.Renamed
-                        ? $"Encontrado con otro nombre: {match.Path}"
-                        : $"Encontrado: {match.Path}";
+                    if (match.NeedsConfirmation)
+                    {
+                        proposed[match.MediaId] = match.Path;
+                        row.Status.Text = $"¿Es este? Tiene otro nombre: {match.Path}. Coinciden la duración, el tamaño y las pistas, "
+                            + "pero no se comparó el contenido: confírmalo o elige otro.";
+                        continue;
+                    }
+
+                    pending[match.MediaId] = new MediaRelinkTarget(match.MediaId, match.Path);
+                    row.Status.Text = $"Encontrado: {match.Path}";
                 }
 
                 foreach ((string id, IReadOnlyList<string> candidates) in result.Ambiguous)
@@ -152,8 +171,11 @@ internal static class RelinkDialog
 
                 searching = false;
                 Refresh();
-                int left = missing.Count - pending.Count;
-                summary.Text = (left == 0 ? "Se encontraron todos." : $"Se encontraron {result.Found.Count}; faltan {left}.")
+                int toConfirm = result.Found.Count(m => m.NeedsConfirmation);
+                int left = missing.Count - pending.Count - proposed.Count;
+                summary.Text = (left == 0 && proposed.Count == 0
+                        ? "Se encontraron todos."
+                        : $"Se encontraron {result.Found.Count}" + (toConfirm > 0 ? $" ({toConfirm} por confirmar)" : "") + (left > 0 ? $"; faltan {left}." : "."))
                     + (result.Truncated ? $" La carpeta tiene demasiados archivos: se miraron {result.FilesScanned}." : "");
             }
             catch (OperationCanceledException)
@@ -186,6 +208,15 @@ internal static class RelinkDialog
         foreach (Row row in rows)
         {
             row.Pick.Click += (_, _) => _ = PickAsync(row);
+            row.Confirm.Click += (_, _) =>
+            {
+                if (proposed.Remove(row.Media.Id, out string? path))
+                {
+                    pending[row.Media.Id] = new MediaRelinkTarget(row.Media.Id, path);
+                    row.Status.Text = $"Confirmado (con otro nombre): {path}";
+                    Refresh();
+                }
+            };
         }
 
         async Task PickAsync(Row row)
@@ -215,6 +246,16 @@ internal static class RelinkDialog
             }
 
             pending[row.Media.Id] = target;
+            proposed.Remove(row.Media.Id);
+
+            // Lo elegido a mano manda: si ese archivo estaba propuesto para otro medio, deja de estarlo.
+            foreach (Row other in rows.Where(r => r != row && proposed.TryGetValue(r.Media.Id, out string? p)
+                && string.Equals(p, target.Path, StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                proposed.Remove(other.Media.Id);
+                other.Status.Text = $"El archivo que se proponía se eligió para «{MediaRelinkSearch.FileName(row.Media.Path)}»: busca este de nuevo o elígelo.";
+            }
+
             row.Status.Text = target.Probe is null
                 ? $"Elegido: {target.Path}"
                 : $"Elegido (distinto del original; se actualizan sus datos): {target.Path}";

@@ -62,7 +62,14 @@ public enum RelinkMatchKind
 }
 
 /// <summary>El archivo que se encontró para un medio que faltaba.</summary>
-public sealed record RelinkMatch(string MediaId, string Path, RelinkMatchKind Kind);
+public sealed record RelinkMatch(string MediaId, string Path, RelinkMatchKind Kind)
+{
+    /// <summary>
+    /// Hay que confirmarlo antes de enlazar: con otro nombre solo se comparan la extensión, las pistas, el tamaño de imagen y
+    /// la duración, no el contenido (el proyecto no guarda una huella del original), así que puede ser otro archivo parecido.
+    /// </summary>
+    public bool NeedsConfirmation => Kind == RelinkMatchKind.Renamed;
+}
 
 /// <summary>Lo que dio la búsqueda en una carpeta.</summary>
 /// <param name="Found">Los medios con un solo archivo posible (o varios idénticos), en el orden de la lista pedida.</param>
@@ -77,7 +84,10 @@ public sealed record RelinkSearchResult(
     int FilesScanned,
     bool Truncated)
 {
-    /// <summary>Lo encontrado, listo para <see cref="Commands.RelinkMediaCommand"/>.</summary>
+    /// <summary>
+    /// Lo encontrado, listo para <see cref="Commands.RelinkMediaCommand"/>; incluye lo que pide confirmación
+    /// (<see cref="RelinkMatch.NeedsConfirmation"/>), que el diálogo no aplica sin que el usuario lo confirme.
+    /// </summary>
     public IReadOnlyList<MediaRelinkTarget> Targets => [.. Found.Select(f => new MediaRelinkTarget(f.MediaId, f.Path))];
 }
 

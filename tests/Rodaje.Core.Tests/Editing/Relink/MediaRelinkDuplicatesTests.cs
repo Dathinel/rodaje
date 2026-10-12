@@ -118,4 +118,21 @@ public class MediaRelinkDuplicatesTests
 
         Assert.Null(MediaRelinkEdits.CheckTaken(project, a, @"D:\Material\c.mp4", [new MediaRelinkTarget("c", @"E:\c.mp4")]));
     }
+
+    [Fact]
+    public void A_renamed_match_asks_for_confirmation_and_one_by_name_does_not()
+    {
+        // Un único candidato con otro nombre se enlaza sin comparar contenido: el diálogo lo pide confirmar.
+        MediaRef a = Media("a", @"C:\viejo\a.mp4");
+        MediaRef b = Media("b", @"C:\viejo\b.mp4");
+        Project project = ProjectWith(a, b);
+        var disk = new FakeRelinkFileSystem().Add("/nuevo/a.mp4", Probe()).Add("/nuevo/otra cosa.mp4", Probe());
+
+        RelinkSearchResult result = MediaRelinkSearch.Search(project, [a, b], "/nuevo", disk);
+
+        Assert.Equal(2, result.Found.Count);
+        Assert.False(result.Found[0].NeedsConfirmation);
+        Assert.Equal(RelinkMatchKind.Renamed, result.Found[1].Kind);
+        Assert.True(result.Found[1].NeedsConfirmation);
+    }
 }
