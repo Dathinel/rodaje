@@ -47,6 +47,46 @@ public class TitleHandlesTests
     }
 
     [Fact]
+    public void ElAsaDeGirarSobresaleArribaYGiraConLaCaja()
+    {
+        Vector2[] corners = TitleHandles.Corners(Box(), 1920, 1080, Half)!;
+        Vector2 grip = TitleHandles.RotateGrip(corners);
+        Assert.Equal((corners[0].X + corners[1].X) / 2, grip.X, 3);
+        Assert.Equal(corners[0].Y - (float)TitleHandles.RotateDistance, grip.Y, 3);
+        Assert.Equal(TitleGrip.Rotate, TitleHandles.Hit(corners, grip.X, grip.Y, withCorners: true));
+        Assert.NotEqual(TitleGrip.Rotate, TitleHandles.Hit(corners, grip.X, grip.Y, withCorners: false));
+
+        Vector2[] turned = TitleHandles.Corners(Box(rotation: 90), 1920, 1080, Half)!;
+        Vector2 side = TitleHandles.RotateGrip(turned);
+        Vector2 center = (turned[0] + turned[2]) / 2;
+        Assert.True(side.X > center.X + 20, "Girada 90°, el asa queda a la derecha.");
+    }
+
+    [Fact]
+    public void ElGiroSigueAlPunteroAlrededorDelCentroYConMayusVaDe15En15()
+    {
+        var center = new Vector2(960, 540);
+        Assert.Equal(90, TitleHandles.Rotation(0, center, new Vector2(1060, 540), new Vector2(960, 640), snap: false), 6);
+        Assert.Equal(10 - 90, TitleHandles.Rotation(10, center, new Vector2(1060, 540), new Vector2(960, 440), snap: false), 6);
+        Assert.Equal(15, TitleHandles.Rotation(0, center, new Vector2(1060, 540), new Vector2(1060, 560), snap: true), 6);
+        Assert.Equal(5, TitleHandles.Rotation(5, center, center, new Vector2(0, 0), snap: false));
+    }
+
+    [Fact]
+    public void ElCuadroDeTextoCubreLaCajaYDetectaLaDireccion()
+    {
+        (double left, double top, double width, double height) = TitleHandles.Bounds(TitleHandles.Corners(Box(rotation: 90), 1920, 1080, Half)!);
+        Assert.Equal(50, width, 3);
+        Assert.Equal(200, height, 3);
+        Assert.Equal(10 + 480 - 25, left, 3);
+        Assert.Equal(270 - 100, top, 3);
+        Assert.True(TitleHandles.IsRightToLeft("«مرحبا» world"));
+        Assert.True(TitleHandles.IsRightToLeft("שלום"));
+        Assert.False(TitleHandles.IsRightToLeft("123 Hola مرحبا"));
+        Assert.False(TitleHandles.IsRightToLeft(""));
+    }
+
+    [Fact]
     public void EscalarEsProporcionalALaDistanciaAlCentroYAcotado()
     {
         var center = new Vector2(960, 540);
@@ -68,7 +108,7 @@ public class TitleHandlesTests
         var editor = new ClipPropertyEditor(session);
         int steps = session.History.Count;
 
-        TitleTransformDrag move = TitleTransformDrag.Begin(session, editor, id, scale: false)!;
+        TitleTransformDrag move = TitleTransformDrag.Begin(session, editor, id, TitleGesture.Move)!;
         Assert.Equal((0.0, 0.0, 1.0), (move.StartX, move.StartY, move.StartScale));
         for (int i = 1; i <= 20; i++)
         {
@@ -80,7 +120,7 @@ public class TitleHandlesTests
         Clip clip = session.Sequence.GetClip(id).Clip;
         Assert.Equal((200.0, -100.0), (editor.Read(clip, BuiltInEffects.Transform, T.X, 0).Value, editor.Read(clip, BuiltInEffects.Transform, T.Y, 0).Value));
 
-        TitleTransformDrag grow = TitleTransformDrag.Begin(session, editor, id, scale: true)!;
+        TitleTransformDrag grow = TitleTransformDrag.Begin(session, editor, id, TitleGesture.Scale)!;
         Assert.True(grow.Scale(1.5));
         Assert.True(grow.Scale(1.75));
         grow.Cancel();
@@ -91,7 +131,7 @@ public class TitleHandlesTests
         clip = session.Sequence.GetClip(id).Clip;
         Assert.True(editor.ToggleKeyframe(clip, BuiltInEffects.Transform, T.X, 0));
         session.UpdateTransport(PlaybackSnapshot.Empty with { Position = Time.FromSeconds(4) });
-        move = TitleTransformDrag.Begin(session, editor, id, scale: false)!;
+        move = TitleTransformDrag.Begin(session, editor, id, TitleGesture.Move)!;
         Assert.True(move.Move(-300, -100));
         move.Complete();
         clip = session.Sequence.GetClip(id).Clip;
@@ -100,7 +140,7 @@ public class TitleHandlesTests
         Assert.Equal(200, editor.Read(clip, BuiltInEffects.Transform, T.X, 0).Value);
 
         session.UpdateTransport(PlaybackSnapshot.Empty with { Position = Time.FromSeconds(9) });
-        Assert.Null(TitleTransformDrag.Begin(session, editor, id, scale: false));
+        Assert.Null(TitleTransformDrag.Begin(session, editor, id, TitleGesture.Move));
         Assert.False(session.IsInGesture);
     });
 
@@ -136,7 +176,7 @@ public class TitleHandlesTests
 
         LayerTransform before = Shown();
         Assert.Equal(-10, before.X, 6);
-        TitleTransformDrag grow = TitleTransformDrag.Begin(session, editor, id, scale: true, before)!;
+        TitleTransformDrag grow = TitleTransformDrag.Begin(session, editor, id, TitleGesture.Scale, before)!;
         Assert.True(grow.Scale(3));
         grow.Complete();
         LayerTransform scaled = Shown();
@@ -144,11 +184,23 @@ public class TitleHandlesTests
         Assert.Equal(before.X, scaled.X, 1);
         Assert.Equal(before.Y, scaled.Y, 1);
 
-        TitleTransformDrag move = TitleTransformDrag.Begin(session, editor, id, scale: false, scaled)!;
+        TitleTransformDrag move = TitleTransformDrag.Begin(session, editor, id, TitleGesture.Move, scaled)!;
         Assert.True(move.Move(move.StartX + 120, move.StartY - 30));
         move.Complete();
         LayerTransform moved = Shown();
         Assert.Equal(scaled.X + 120, moved.X, 1);
         Assert.Equal(scaled.Y - 30, moved.Y, 1);
+
+        int steps = session.History.Count;
+        TitleTransformDrag turn = TitleTransformDrag.Begin(session, editor, id, TitleGesture.Rotate, moved)!;
+        Assert.Equal(90, turn.StartRotation);
+        Assert.True(turn.Rotate(150));
+        Assert.True(turn.Rotate(135));
+        turn.Complete();
+        Assert.Equal(steps + 1, session.History.Count);
+        LayerTransform turned = Shown();
+        Assert.Equal(135, turned.RotationDegrees, 6);
+        Assert.Equal(moved.X, turned.X, 1);
+        Assert.Equal(moved.Y, turned.Y, 1);
     });
 }

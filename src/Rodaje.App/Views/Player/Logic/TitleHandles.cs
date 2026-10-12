@@ -16,6 +16,9 @@ public enum TitleGrip
     TopRight,
     BottomRight,
     BottomLeft,
+
+    /// <summary>El asa de girar, encima del borde de arriba.</summary>
+    Rotate,
 }
 
 /// <summary>Dónde pone el render la imagen en el panel: esquina y unidades del panel por píxel de la secuencia.</summary>
@@ -39,6 +42,70 @@ public static class TitleHandles
 
     public const double MaxScale = 20;
 
+    /// <summary>Cuánto sobresale el asa de girar del borde de arriba, en unidades del panel.</summary>
+    public const double RotateDistance = 24;
+
+    /// <summary>Con Mayús, el giro va de este en este paso (grados).</summary>
+    public const double RotateSnap = 15;
+
+    /// <summary>El asa de girar: por encima del centro del borde de arriba, hacia fuera de la caja (gira con ella).</summary>
+    public static Vector2 RotateGrip(Vector2[] corners)
+    {
+        ArgumentNullException.ThrowIfNull(corners);
+        Vector2 top = (corners[0] + corners[1]) / 2;
+        Vector2 bottom = (corners[3] + corners[2]) / 2;
+        Vector2 up = top - bottom;
+        return up.LengthSquared() < 1e-6f ? top : top + (Vector2.Normalize(up) * (float)RotateDistance);
+    }
+
+    /// <summary>
+    /// El giro al arrastrar el asa: el de partida más lo que giró el puntero alrededor del centro (en el sentido de las
+    /// agujas del reloj, como <c>rotation</c>); con <paramref name="snap"/>, redondeado a <see cref="RotateSnap"/>.
+    /// </summary>
+    public static double Rotation(double startRotation, Vector2 center, Vector2 start, Vector2 now, bool snap)
+    {
+        Vector2 from = start - center;
+        Vector2 to = now - center;
+        if (from.LengthSquared() < 1e-6f || to.LengthSquared() < 1e-6f)
+        {
+            return startRotation;
+        }
+
+        double delta = (Math.Atan2(to.Y, to.X) - Math.Atan2(from.Y, from.X)) * 180 / Math.PI;
+        delta -= 360 * Math.Round(delta / 360);
+        double rotation = startRotation + delta;
+        return snap ? Math.Round(rotation / RotateSnap) * RotateSnap : Math.Round(rotation, 2);
+    }
+
+    /// <summary>El rectángulo recto que encierra la caja, en unidades del panel: dónde va el cuadro de texto al escribir.</summary>
+    public static (double Left, double Top, double Width, double Height) Bounds(Vector2[] corners)
+    {
+        ArgumentNullException.ThrowIfNull(corners);
+        float left = corners.Min(c => c.X);
+        float top = corners.Min(c => c.Y);
+        return (left, top, corners.Max(c => c.X) - left, corners.Max(c => c.Y) - top);
+    }
+
+    /// <summary>Si el texto empieza (en su primera letra con dirección) en una escritura de derecha a izquierda.</summary>
+    public static bool IsRightToLeft(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        foreach (char c in text)
+        {
+            if (c is (>= '\u0590' and <= '\u08FF') or (>= '\uFB1D' and <= '\uFDFF') or (>= '\uFE70' and <= '\uFEFC'))
+            {
+                return true;
+            }
+
+            if (char.IsLetter(c))
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Las cuatro esquinas en el panel (arriba izquierda, arriba derecha, abajo derecha, abajo izquierda); nulo si no se dibuja.</summary>
     public static Vector2[]? Corners(TitleBox box, int sequenceWidth, int sequenceHeight, ImageFrame frame)
     {
@@ -50,7 +117,10 @@ public static class TitleHandles
         return [frame.ToPanel(placement.TopLeft), frame.ToPanel(placement.TopRight), frame.ToPanel(placement.BottomRight), frame.ToPanel(placement.BottomLeft)];
     }
 
-    /// <summary>Una esquina si el puntero está a <see cref="GripRadius"/> de ella (solo con <paramref name="corners"/> a la vista); si no, el cuerpo o nada.</summary>
+    /// <summary>
+    /// Una esquina o el asa de girar si el puntero está a <see cref="GripRadius"/> de ella (solo con las asas a la vista);
+    /// si no, el cuerpo o nada.
+    /// </summary>
     public static TitleGrip Hit(Vector2[] corners, double x, double y, bool withCorners)
     {
         ArgumentNullException.ThrowIfNull(corners);
@@ -63,6 +133,11 @@ public static class TitleHandles
                 {
                     return TitleGrip.TopLeft + i;
                 }
+            }
+
+            if (Vector2.Distance(RotateGrip(corners), point) <= GripRadius)
+            {
+                return TitleGrip.Rotate;
             }
         }
 

@@ -108,6 +108,15 @@ internal sealed partial class PlayerView
             Canvas.SetLeft(grips[i], corners[i].X - (grips[i].Width / 2));
             Canvas.SetTop(grips[i], corners[i].Y - (grips[i].Height / 2));
         }
+
+        Vector2 rotate = TitleHandles.RotateGrip(corners);
+        Vector2 top = (corners[0] + corners[1]) / 2;
+        Canvas.SetLeft(TitleGripRotate, rotate.X - (TitleGripRotate.Width / 2));
+        Canvas.SetTop(TitleGripRotate, rotate.Y - (TitleGripRotate.Height / 2));
+        TitleRotateStem.X1 = top.X;
+        TitleRotateStem.Y1 = top.Y;
+        TitleRotateStem.X2 = rotate.X;
+        TitleRotateStem.Y2 = rotate.Y;
     }
 
     private void OnVideoPointerPressed(object sender, PointerRoutedEventArgs e)
@@ -142,7 +151,13 @@ internal sealed partial class PlayerView
             Session.Select([hit.Box.ClipId]);
         }
 
-        _titleDrag = TitleTransformDrag.Begin(Session, _properties, hit.Box.ClipId, scale: hit.Grip != TitleGrip.Body, hit.Box.Transform);
+        TitleGesture gesture = hit.Grip switch
+        {
+            TitleGrip.Body => TitleGesture.Move,
+            TitleGrip.Rotate => TitleGesture.Rotate,
+            _ => TitleGesture.Scale,
+        };
+        _titleDrag = TitleTransformDrag.Begin(Session, _properties, hit.Box.ClipId, gesture, hit.Box.Transform);
         if (_titleDrag is null)
         {
             return;
@@ -167,6 +182,11 @@ internal sealed partial class PlayerView
         if (_titleGrip == TitleGrip.Body)
         {
             drag.Move(drag.StartX + now.X - _dragStart.X, drag.StartY + now.Y - _dragStart.Y);
+        }
+        else if (_titleGrip == TitleGrip.Rotate)
+        {
+            bool snap = e.KeyModifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift);
+            drag.Rotate(TitleHandles.Rotation(drag.StartRotation, _dragCenter, _dragStart, now, snap));
         }
         else
         {

@@ -329,7 +329,11 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     private void OnVideoDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         e.Handled = true;
-        SetFullScreen(!IsFullScreen);
+        // Sobre un título, doble clic es escribir; en el resto del visor, pantalla completa.
+        if (!TryEditTitleAt(e.GetPosition(VideoPanel)))
+        {
+            SetFullScreen(!IsFullScreen);
+        }
     }
 
     private void OnPlay(object sender, RoutedEventArgs e) => _shortcuts?.Invoke(ActionIds.TogglePlay);

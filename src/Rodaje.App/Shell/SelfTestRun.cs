@@ -221,7 +221,7 @@ internal static class SelfTestRun
     {
         EditorSession session = window.Session;
         var properties = new ClipPropertyEditor(session);
-        TitleTransformDrag drag = TitleTransformDrag.Begin(session, properties, box.ClipId, scale: false)
+        TitleTransformDrag drag = TitleTransformDrag.Begin(session, properties, box.ClipId, TitleGesture.Move, box.Transform)
             ?? throw new InvalidOperationException("La autoprueba no pudo agarrar el título.");
         drag.Move(drag.StartX + 100, drag.StartY);
         drag.Move(drag.StartX + 200, drag.StartY);
@@ -230,6 +230,15 @@ internal static class SelfTestRun
         await CaptureAsync(window, "texto-movido");
         session.Undo();
         await WaitForTitleAsync(engine, box.ClipId, b => Math.Abs(b.Transform.X - box.Transform.X) < 1, "Deshacer no devolvió el título a su sitio.");
+
+        TitleTransformDrag turn = TitleTransformDrag.Begin(session, properties, box.ClipId, TitleGesture.Rotate, box.Transform)
+            ?? throw new InvalidOperationException("La autoprueba no pudo girar el título.");
+        turn.Rotate(turn.StartRotation + 30);
+        turn.Complete();
+        await WaitForTitleAsync(engine, box.ClipId, b => Math.Abs(b.Transform.RotationDegrees - box.Transform.RotationDegrees - 30) < 0.5, "El visor no siguió al título girado con el asa.");
+        await CaptureAsync(window, "texto-girado");
+        session.Undo();
+        await WaitForTitleAsync(engine, box.ClipId, b => Math.Abs(b.Transform.RotationDegrees - box.Transform.RotationDegrees) < 0.5, "Deshacer no devolvió el giro del título.");
     }
 
     /// <summary>Píxeles que cambian más de 40 niveles entre los dos cuadros dentro de la caja del título.</summary>

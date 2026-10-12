@@ -73,6 +73,13 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
         return Session.Execute(Edits.SetTitleText(Session.SequenceId, clip.Id, text));
     }
 
+    /// <summary>Windows escribe «\r» al pulsar Intro en un <c>TextBox</c>; el formato guarda «\n».</summary>
+    public static string FromTextBox(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+    }
+
     /// <summary>Se dejó de escribir (el campo perdió el foco): lo próximo es otro paso.</summary>
     public void EndTyping()
     {

@@ -118,8 +118,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
     {
         if (!_updating && _editor is { } editor)
         {
-            // Windows escribe «\r» al pulsar Intro en un TextBox; el formato guarda «\n».
-            editor.SetText(ContentBox.Text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n'));
+            editor.SetText(TitleEditor.FromTextBox(ContentBox.Text));
         }
     }
 
