@@ -43,4 +43,4 @@ Por ahora Rodaje se distribuye sin fines comerciales; la consulta es necesaria a
 - [ ] **Qwen3-4B:** comprobar la huella del archivo, fijar la URL a un commit de Hugging Face y anotar el tamaño antes de publicar el módulo de traducción.
 - [ ] **`modulo-raw`:** si el runtime de Visual C++ viaja con el módulo (redistribuible según Visual Studio; probablemente «System Library»), y si más adelante se aceptan los SDK de Blackmagic RAW, RED o ARRI, cada uno con su acuerdo. ProRes RAW, pendiente por patentes de Apple.
 - [x] **Licencia de los repositorios de módulos** (12 de octubre de 2026): la misma que Rodaje, GPL-3.0-only con sus términos (D-032), confirmada por el autor; coinciden los `LICENCIAS.md` y `paquete.json` de `modules/*`. Privados hasta publicarlos (D-034).
-- [ ] **Acuerdo de contribuidor** antes de aceptar contribuciones externas ([contribuciones.md](contribuciones.md)).
+- [x] **Acuerdo de contribuidor** (resuelto con el DCO 1.1, inbound = outbound; ver contribuciones.md) antes de aceptar contribuciones externas ([contribuciones.md](contribuciones.md)).

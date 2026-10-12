@@ -1,5 +1,9 @@
-# Contribuciones externas
+# Contribuciones
 
-Hoy Rodaje no acepta pull requests externos. Todo el código es de un solo titular (Dathinel), que por eso puede conceder los términos adicionales de atribución y el permiso para complementos de `LICENSE` (D-032). Los issues con errores, dudas y propuestas sí son bienvenidos ([`CONTRIBUTING.md`](../CONTRIBUTING.md)).
+Rodaje acepta contribuciones bajo el **Developer Certificate of Origin 1.1** ([`DCO.txt`](DCO.txt)), el mismo mecanismo que usan el kernel de Linux y muchos proyectos libres:
 
-Antes del primer pull request ajeno hará falta un acuerdo de contribuidor. Con la GPLv3, una aportación entra bajo la misma licencia, pero sin acuerdo el titular dejaría de poder, sobre ese código, cambiar de licencia, conceder licencias distintas de la GPLv3, ampliar el permiso para complementos o defender por sí solo los términos de atribución. La firma DCO de `CONTRIBUTING.md` no basta: certifica el origen del código, pero no concede esos derechos. El texto del acuerdo está pendiente de revisión legal ([pendientes-legales.md](pendientes-legales.md)).
+- Cada commit lleva la línea `Signed-off-by: Nombre <correo>` (`git commit -s`). Con ella quien contribuye certifica que tiene derecho a aportar ese código bajo la licencia del proyecto.
+- Lo aportado entra con la misma licencia que Rodaje: GNU GPLv3 con los términos adicionales de `LICENSE` («inbound = outbound»). No se ceden derechos ni se firma ningún acuerdo aparte.
+- El nombre «Rodaje» y su logotipo siguen la política de [`TRADEMARK.md`](../TRADEMARK.md).
+
+Detalles prácticos (compilar, pruebas, estilo) en [`CONTRIBUTING.md`](../CONTRIBUTING.md).
