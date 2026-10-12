@@ -48,6 +48,7 @@ Rama `claude/autoguardado-recuperado`, PR #69. Sigue a la tarea 34 (`2026-10-12-
 ## CI
 
 - En `d5dad3a9`, los dos trabajos («Linux (Core, Paquetes, Playback)» y «Windows (solución completa)») salieron en verde. El de Windows corre la solución completa, incluidas estas pruebas.
+- En `b4eecec9` (solo cambia esta entrega), el trabajo de Windows falló en el paso «Pruebas» y salió en verde al volver a correrlo, sin cambios. No pude ver qué prueba falló: el registro y el artefacto `pruebas-windows` se descargan de `blob.core.windows.net`, y el proxy de esta sesión lo bloquea (403). Como el código era el mismo que en `d5dad3a9`, que salió en verde, apunta a una prueba inestable en Windows. Conviene mirar el artefacto de ese primer intento (trabajo 114800236627).
 
 ## Qué comprobar en Windows
 
