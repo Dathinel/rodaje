@@ -2,7 +2,11 @@
 
 Lista corta y al día. Cada sesión de Claude te la recuerda hasta que esté hecha.
 
-## 1. Crear la firma de las descargas (5 min)
+## 1. Firma de las descargas: CREADA el 12-oct; falta el respaldo físico
+
+La clave ya existe en `C:\Users\danie\.rodaje-claves\catalogo-privada.pem` (el `!` corre en Git Bash y se comía las barras; Claude la creó con PowerShell). **Solo falta respaldarla (paso 2).**
+
+### Cómo se creó (por si hay que repetirla)
 
 Activa «Instalar/Actualizar» desde la app. Sin ella, la app sigue con «Instalar desde archivo».
 
