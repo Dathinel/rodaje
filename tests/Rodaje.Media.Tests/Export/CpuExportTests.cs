@@ -73,7 +73,7 @@ public sealed class CpuExportTests(ITestOutputHelper output)
                 ExportPixelFormat.Yuva444P10 => null,
                 _ => pixels.FfmpegName(),
             },
-            Color = format.Color,
+            Color = rangeOnlyInBitstream ? null : format.Color,
             // FFV1 figura como intra en el catálogo, pero sin -g FFmpeg reinicia sus contextos (cuadro clave) cada 12 cuadros:
             // ver la entrega docs/tareas/2026-10-11-export-ci.md. ProRes y DNxHR sí son un cuadro clave por cuadro.
             MaxGop = videoSpec.IntraOnly && video != "ffv1" ? 1 : null,
