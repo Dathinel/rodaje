@@ -114,6 +114,8 @@ public sealed class LibraryRobustnessTests : IDisposable
     [Fact]
     public void PrepararVacia_SinArchivo_NoCreaArchivo()
     {
+        // Vale para una clave que no se cargó por herencia; si se heredó, el vacío sí se escribe
+        // (LibraryOrganizationInheritanceTests).
         var store = new LibraryOrganizationStore(_dir);
 
         LibrarySaveRequest? request = store.Prepare("p", new LibraryOrganization());
