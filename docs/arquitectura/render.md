@@ -46,6 +46,8 @@ flowchart LR
 - **Mezcla**: con fuente premultiplicada y fondo opaco, `Cb·(1 − a) + a·B(Cb, Cs)` con las funciones B de W3C (*Compositing and Blending Level 1*). La suma es `Cb + a·Cs` y en RGBA16F no se recorta hasta la salida.
 - **Transiciones** (`p` de 0 a 1, exactas en los extremos): fundido `A·(1 − p) + B·p`; a color en dos mitades a través del color; barrido con borde lineal de ancho `suavidad` en la dirección del ángulo (0 = de izquierda a derecha); empujar, con el saliente corrido `p` cuadros; zoom y desenfoque con un peso `4p(1 − p)` que vale 0 en los extremos. Un `rodaje.preset` que llega sin resolver (falta el paquete) cae a fundido cruzado y cuenta como contenido que falta.
 
+**Estabilizar** (fase 7). No es una etapa propia: la corrección del cuadro llega en `LayerTransform.Stabilization` (similitud sobre el centro de la imagen ajustada, en altos de esa imagen) y `LayerLayout.Place` la compone antes de la transformación (`S·s`, `u + θ`, desplazamiento `S·R(u)·h·t`), así la capa sigue siendo un cuadrilátero por cualquiera de los caminos.
+
 **Unidades.** Los radios están en píxeles de la secuencia: el intermedio mide en píxeles de pantalla y los radios se multiplican por esa escala, así la vista previa a media resolución se ve como la exportación. Medida: 0,64/255 de diferencia media entre mitad y completa reducida.
 
 **Dirección del empuje.** `rodaje.push` no tiene parámetros numéricos y su dirección es una opción de texto: el motor manda su índice en `EffectRegistry.PushDirections` (0 izquierda, 1 derecha, 2 arriba, 3 abajo) en el primer valor de `LayerTransition.Values`.

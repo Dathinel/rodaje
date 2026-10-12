@@ -290,7 +290,7 @@ internal sealed partial class TimelineScheduler
         }
 
         LayerTransform t = EffectPlan.Transform(effects, clip.EffectTimeAt(time));
-        return effects.Blend == BlendMode.Normal && t.X == 0 && t.Y == 0 && t.Scale >= 1 && t.Opacity >= 1 && t.RotationDegrees % 360 == 0;
+        return effects.Blend == BlendMode.Normal && effects.Stabilization is null && t.X == 0 && t.Y == 0 && t.Scale >= 1 && t.Opacity >= 1 && t.RotationDegrees % 360 == 0;
     }
 
     /// <summary>Reparte los tramos del medio entre sus decodificadores, el más cercano primero; los que sobran piden uno nuevo.</summary>

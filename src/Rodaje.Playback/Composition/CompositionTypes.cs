@@ -8,6 +8,45 @@ namespace Rodaje.Playback.Composition;
 public readonly record struct LayerTransform(double X, double Y, double Scale, double RotationDegrees, double Opacity)
 {
     public static readonly LayerTransform Identity = new(0, 0, 1, 0, 1);
+
+    /// <summary>Corrección de «Estabilizar» del cuadro, que va antes de esta transformación; nula sin estabilizar.</summary>
+    public LayerStabilization? Stabilization { get; init; }
+}
+
+/// <summary>
+/// Corrección de «Estabilizar» de un cuadro: una similitud sobre el centro de la imagen ajustada al cuadro, medida en
+/// altos de esa imagen y con y hacia abajo: <c>x' = A·x − B·y + X</c>, <c>y' = B·x + A·y + Y</c> (B positivo gira en
+/// sentido horario). Lleva el recorte automático incluido.
+/// </summary>
+public readonly record struct LayerStabilization(double A, double B, double X, double Y)
+{
+    public double Scale => Math.Sqrt((A * A) + (B * B));
+
+    public double RotationDegrees => Math.Atan2(B, A) * 180 / Math.PI;
+}
+
+/// <summary>Las correcciones de «Estabilizar» de un tramo de un medio, una por cuadro desde <see cref="FirstFrame"/>.</summary>
+public sealed class StabilizationTrack
+{
+    private readonly LayerStabilization[] _frames;
+
+    public StabilizationTrack(long firstFrame, IEnumerable<LayerStabilization> frames)
+    {
+        ArgumentNullException.ThrowIfNull(frames);
+        FirstFrame = firstFrame;
+        _frames = [.. frames];
+        if (_frames.Length == 0)
+        {
+            throw new ArgumentException("Hace falta al menos un cuadro.", nameof(frames));
+        }
+    }
+
+    public long FirstFrame { get; }
+
+    public int Count => _frames.Length;
+
+    /// <summary>La corrección del cuadro <paramref name="frameIndex"/> del medio; fuera del tramo analizado, la del borde.</summary>
+    public LayerStabilization At(long frameIndex) => _frames[(int)Math.Clamp(frameIndex - FirstFrame, 0, _frames.Length - 1)];
 }
 
 /// <summary>
