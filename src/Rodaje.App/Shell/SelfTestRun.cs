@@ -52,6 +52,7 @@ internal static partial class SelfTestRun
             await TitleAsync(window, engine);
             await ImageAsync(window, engine);
             await ShowExportAsync(window);
+            await PluginsAsync(window);
             await ModuleAsync(window);
             await FormatAsync(window, engine);
             window.InspectorPane.Show(InspectorView.Tab.Properties);
@@ -668,6 +669,24 @@ internal static partial class SelfTestRun
         {
             CheckExported(output, entry.Request);
         }
+    }
+
+    /// <summary>
+    /// Abre Complementos y espera la consulta del catálogo publicado: sin conexión la página sigue y solo lo dice en la nota.
+    /// </summary>
+    private static async Task PluginsAsync(MainWindow window)
+    {
+        window.ShowPage(ShellPage.Plugins);
+        Task check = window.PluginsPage?.UpdatesChecked ?? Task.CompletedTask;
+        if (await Task.WhenAny(check, Task.Delay(TimeSpan.FromSeconds(60))) != check)
+        {
+            throw new InvalidOperationException("Complementos no terminó de consultar el catálogo en 60 s.");
+        }
+
+        await check;
+        await CaptureAsync(window, "complementos");
+        Program.Metrics.Note($"autoprueba: complementos, {window.PluginsPage?.DownloadNoteShown}");
+        window.ClosePage();
     }
 
     /// <summary>

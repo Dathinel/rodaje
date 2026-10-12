@@ -64,8 +64,14 @@ internal sealed partial class PluginsView : UserControl, IEditorView
 
         Refresh();
         _ = services.Packages.RefreshAsync();
-        _ = CheckUpdatesAsync();
+        UpdatesChecked = CheckUpdatesAsync();
     }
+
+    /// <summary>La consulta de versiones publicadas que lanzó <see cref="Attach"/> (para la autoprueba).</summary>
+    internal Task UpdatesChecked { get; private set; } = Task.CompletedTask;
+
+    /// <summary>La nota de descarga tal como se ve (para la autoprueba).</summary>
+    internal string DownloadNoteShown => DownloadNote.Text;
 
     private const string DownloadNoteText = "Los complementos se descargan de las releases de GitHub con un índice firmado por Dathinel; cada archivo se comprueba con su SHA-256 antes de instalarse.";
 
