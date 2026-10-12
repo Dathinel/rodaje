@@ -59,7 +59,8 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
     {
         EditorSession session = _services!.Session;
         bool noiseModule = _services.Modules?.FindByFunction(NoiseReduction.Function) is not null;
-        return QuickTools.State(actionId, session.Project, session.Sequence, [.. session.SelectedClipIds], noiseModule);
+        bool subtitleModule = _services.Modules?.FindByFunction(Subtitles.AutoSubtitles.Function) is not null;
+        return QuickTools.State(actionId, session.Project, session.Sequence, [.. session.SelectedClipIds], noiseModule, subtitleModule);
     }
 
     private void Refresh()

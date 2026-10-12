@@ -18,9 +18,6 @@ public static class QuickTools
     public const string TextToSpeech = "voice.textToSpeech";
     public const string AddText = "clip.addText";
 
-    /// <summary>Lo que no existe todavía: el botón se ve, explica y no hace nada.</summary>
-    public const string ComingSoon = "Próximamente.";
-
     public static IReadOnlyList<QuickTool> All { get; } =
     [
         new("analysis.silences", "Quitar silencios", "", "Corta las pausas del clip con sonido elegido."),
@@ -36,7 +33,9 @@ public static class QuickTools
     ];
 
     /// <param name="noiseModule">Si está instalado el módulo que limpia el ruido.</param>
-    public static QuickToolState State(string actionId, Project project, Sequence sequence, IReadOnlyList<string> selection, bool noiseModule)
+    /// <param name="subtitleModule">Si está instalado el módulo de subtítulos.</param>
+    public static QuickToolState State(string actionId, Project project, Sequence sequence, IReadOnlyList<string> selection, bool noiseModule,
+        bool subtitleModule)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(sequence);
@@ -58,7 +57,9 @@ public static class QuickTools
             "analysis.noise" when !noiseModule => No("Hace falta el módulo «Audio con IA»: instálalo desde Complementos."),
             "analysis.noise" => Yes,
             "analysis.stabilize" or "analysis.autocolor" or "analysis.whitebalance" => video ? Yes : No("Selecciona un clip de video."),
-            AutoSubtitles => No(ComingSoon),
+            AutoSubtitles when Subtitles.AutoSubtitles.TargetClip(sequence, selection, HasAudio) is null =>
+                No("Selecciona un clip con voz (un video con sonido o un clip de audio)."),
+            AutoSubtitles when !subtitleModule => No("Hace falta el módulo «Subtítulos automáticos»: instálalo desde Complementos."),
             _ => Yes,
         };
     }

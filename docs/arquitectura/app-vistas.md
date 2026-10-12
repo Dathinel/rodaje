@@ -104,7 +104,7 @@ Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas c
 
 ## Herramientas rápidas (`Views/Tools`)
 
-Barra encima de la línea de tiempo con ícono y texto: Quitar silencios, Detectar ritmo, Bajar música bajo la voz, Reducir ruido, Estabilizar, Color automático, Balance de blancos, Subtítulos automáticos y Texto a voz («Próximamente»), y Añadir texto. Cada botón lanza la acción de los menús por el router. Lo que no aplica a la selección se ve atenuado y explica por qué en la ayuda y al pulsarlo; las reglas son las de los diálogos y están en `Views/Analysis/Logic/QuickTools` (con pruebas). Se recalcula al cambiar la selección, el proyecto o los módulos.
+Barra encima de la línea de tiempo con ícono y texto: Quitar silencios, Detectar ritmo, Bajar música bajo la voz, Reducir ruido, Estabilizar, Color automático, Balance de blancos, Subtítulos automáticos, Texto a voz y Añadir texto. Cada botón lanza la acción de los menús por el router. Lo que no aplica a la selección se ve atenuado y explica por qué en la ayuda y al pulsarlo; las reglas son las de los diálogos y están en `Views/Analysis/Logic/QuickTools` (con pruebas). Se recalcula al cambiar la selección, el proyecto o los módulos.
 
 ## Atajos (`Views/Shortcuts`)
 

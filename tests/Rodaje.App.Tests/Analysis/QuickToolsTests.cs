@@ -29,7 +29,7 @@ public class QuickToolsTests
     private static QuickToolState State(string id, string[] selection, bool module = true)
     {
         Project p = Project();
-        return QuickTools.State(id, p, p.Sequences[0], selection, module);
+        return QuickTools.State(id, p, p.Sequences[0], selection, module, module);
     }
 
     [Fact]
@@ -67,9 +67,11 @@ public class QuickToolsTests
     }
 
     [Fact]
-    public void LoQueNoExisteTodavia_DiceProximamente()
+    public void SubtitulosAutomaticos_PidenUnClipConVozYElModulo()
     {
-        Assert.Equal(QuickTools.ComingSoon, State(QuickTools.AutoSubtitles, ["cam"]).Reason);
+        Assert.True(State(QuickTools.AutoSubtitles, ["cam"]).Available);
+        Assert.False(State(QuickTools.AutoSubtitles, []).Available);
+        Assert.Contains("módulo", State(QuickTools.AutoSubtitles, ["cam"], module: false).Reason, StringComparison.Ordinal);
         Assert.True(State(QuickTools.TextToSpeech, []).Available);
         Assert.Equal(10, QuickTools.All.Count);
     }
