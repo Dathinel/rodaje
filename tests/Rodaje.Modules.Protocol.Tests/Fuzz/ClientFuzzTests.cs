@@ -16,7 +16,10 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 /// <item>Un resultado aceptado no trae búferes (el cliente no creó regiones) y los avances están en 0–1.</item>
 /// </list>
 /// El módulo hostil siempre lee lo que le llega: el caso de un módulo que deja de leer está aparte, en
-/// <see cref="ProtocolDefectTests"/>. Cada caso tiene su semilla (<see cref="FuzzSupport.BaseSeed"/> + n).
+/// <see cref="ProtocolDefectTests"/>. Una operación que se queda colgada cuando el cliente ya falló y el candado de
+/// escritura quedó tomado es un defecto conocido
+/// (<see cref="ProtocolDefectTests.Operations_waiting_to_write_finish_when_the_client_fails"/>): se cuenta y se registra;
+/// cualquier otro cuelgue falla con el estado interno del cliente. Cada caso tiene su semilla (<see cref="FuzzSupport.BaseSeed"/> + n).
 /// </summary>
 public sealed class ClientFuzzTests(ITestOutputHelper output)
 {
@@ -120,13 +123,27 @@ public sealed class ClientFuzzTests(ITestOutputHelper output)
                     tokens.Add(new CancellationTokenSource(200));
                     operations.Add(ObservePingAsync(client.PingAsync(tokens[^1].Token)));
                 }
-                try
+                // Cada operación termina por su cancelación (≤ 300 ms) más la gracia (150 ms). Una que sigue esperando cuando
+                // el cliente ya falló y el candado de escritura quedó tomado es el defecto conocido
+                // ProtocolDefectTests.Operations_waiting_to_write_finish_when_the_client_fails: se cuenta y el caso sigue.
+                Task all = Task.WhenAll(operations);
+                Task settled = Task.WhenAny(all, client.Completion.ContinueWith(_ => Task.Delay(KnownHangGrace), TaskScheduler.Default).Unwrap());
+                await Task.WhenAny(settled, Task.Delay(FuzzSupport.CaseCap));
+                if (!all.IsCompleted && client.Completion.IsCompleted && WriteLockTaken(client))
                 {
-                    foreach (Task operation in operations) await FuzzSupport.Capped(operation, "una llamada");
+                    Interlocked.Increment(ref tally.KnownHang);
+                    foreach (Task operation in operations.Where(o => o.IsCompleted)) await operation;
                 }
-                catch (TimeoutException ex)
+                else
                 {
-                    throw new TimeoutException($"{ex.Message} {Describe(client, operations)} módulo={moduleSide.Status} final={ending}", ex);
+                    try
+                    {
+                        foreach (Task operation in operations) await FuzzSupport.Capped(operation, "una llamada");
+                    }
+                    catch (TimeoutException ex)
+                    {
+                        throw new TimeoutException($"{ex.Message} {Describe(client, operations)} módulo={moduleSide.Status} final={ending}", ex);
+                    }
                 }
             }
             finally
@@ -145,6 +162,24 @@ public sealed class ClientFuzzTests(ITestOutputHelper output)
             editor.Dispose();
             module.Dispose();
             await FuzzSupport.Capped(moduleSide, "el módulo hostil");
+        }
+    }
+
+    /// <summary>Lo que se espera a las operaciones una vez que el cliente terminó, antes de atribuir el cuelgue al defecto conocido.</summary>
+    private static readonly TimeSpan KnownHangGrace = TimeSpan.FromSeconds(3);
+
+    /// <summary>Si el candado de escritura del canal quedó tomado (o desechado tomado): la firma del defecto conocido.</summary>
+    private static bool WriteLockTaken(ModuleClient client)
+    {
+        object? channel = typeof(ModuleClient).GetField("_channel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(client);
+        object? writeLock = channel?.GetType().GetField("_writeLock", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(channel);
+        try
+        {
+            return writeLock is SemaphoreSlim { CurrentCount: 0 };
+        }
+        catch (ObjectDisposedException)
+        {
+            return true;
         }
     }
 
@@ -239,9 +274,10 @@ public sealed class ClientFuzzTests(ITestOutputHelper output)
         public int Cancelled;
         public int Failures;
         public int Logs;
+        public int KnownHang;
 #pragma warning restore CA1051
 
         public override string ToString() =>
-            $"saludos rechazados {RefusedHandshake}, resultados {Results}, canceladas {Cancelled}, fallos {Failures}, registros {Logs}";
+            $"saludos rechazados {RefusedHandshake}, resultados {Results}, canceladas {Cancelled}, fallos {Failures}, registros {Logs}, defecto conocido (operación colgada tras fallar el cliente) {KnownHang}";
     }
 }
