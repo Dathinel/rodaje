@@ -83,7 +83,7 @@ public sealed class ProjectTemplateStore
     /// Guarda una plantilla propia y escribe el archivo (si falla la escritura, lanza y no cambia nada). Si ya hay una propia con el mismo nombre (sin distinguir
     /// mayúsculas), la reemplaza en su lugar. Devuelve la plantilla tal como quedó guardada.
     /// </summary>
-    /// <exception cref="ArgumentException">La plantilla no tiene arreglo o usa un identificador de fábrica.</exception>
+    /// <exception cref="ArgumentException">La plantilla no tiene arreglo o usa un identificador o un nombre de fábrica.</exception>
     /// <exception cref="InvalidOperationException">Ya hay <see cref="MaxUserTemplates"/> plantillas propias.</exception>
     public ProjectTemplate Save(ProjectTemplate template)
     {
@@ -92,6 +92,12 @@ public sealed class ProjectTemplateStore
         if (valid.IsBuiltIn)
         {
             throw new ArgumentException("Las plantillas de fábrica no se pueden pisar.", nameof(template));
+        }
+
+        // Dos entradas iguales en el menú no se distinguirían: una propia no puede llamarse como una de fábrica.
+        if (BuiltInTemplates.All.Any(t => string.Equals(t.Name, valid.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new ArgumentException($"«{valid.Name}» es el nombre de una plantilla de fábrica; elige otro.");
         }
 
         List<ProjectTemplate> next = [.. _user];
