@@ -179,33 +179,55 @@ public sealed class TestHttpServer : IAsyncDisposable
     private static string NormalizePath(string path) => path.StartsWith('/') ? path : "/" + path;
 
     /// <summary>
-    /// Un puerto libre en IPv4 y en IPv6. En Windows el cliente va a <c>localhost</c>, que resuelve primero a
-    /// <c>::1</c>: un puerto libre solo en 127.0.0.1 podría estar tomado en IPv6 por otro proceso (por ejemplo otro
-    /// proyecto de pruebas que corre a la vez), que aceptaría la conexión sin contestar HTTP. Si el equipo no tiene
-    /// IPv6 se busca solo en IPv4.
+    /// Un puerto libre en 127.0.0.1 y, si hay IPv6, también en <c>::1</c>. En Windows el cliente va a
+    /// <c>localhost</c>, que resuelve primero a <c>::1</c>: un puerto libre solo en IPv4 podría estar tomado en IPv6
+    /// por otro proceso (por ejemplo otro proyecto de pruebas que corre a la vez), que aceptaría la conexión sin
+    /// contestar HTTP. Solo se escucha en el bucle local, para que el Firewall de Windows no pregunte.
     /// </summary>
     private static int FindFreePort()
     {
-        if (Socket.OSSupportsIPv6)
+        for (var attempt = 0; attempt < PortAttempts; attempt++)
         {
+            var probe = new TcpListener(IPAddress.Loopback, 0);
+            probe.Start();
             try
             {
-                return ProbePort(new TcpListener(IPAddress.IPv6Any, 0) { Server = { DualMode = true } });
+                var port = ((IPEndPoint)probe.LocalEndpoint).Port;
+                if (IsFreeOnIPv6Loopback(port))
+                {
+                    return port;
+                }
             }
-            catch (SocketException)
+            finally
             {
+                probe.Stop();
             }
         }
 
-        return ProbePort(new TcpListener(IPAddress.Loopback, 0));
+        throw new InvalidOperationException("No se encontró un puerto libre en IPv4 e IPv6 para el servidor de pruebas.");
     }
 
-    private static int ProbePort(TcpListener probe)
+    private static bool IsFreeOnIPv6Loopback(int port)
     {
+        if (!Socket.OSSupportsIPv6)
+        {
+            return true;
+        }
+
+        var probe = new TcpListener(IPAddress.IPv6Loopback, port);
         try
         {
             probe.Start();
-            return ((IPEndPoint)probe.LocalEndpoint).Port;
+            return true;
+        }
+        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
+        {
+            return false;
+        }
+        catch (SocketException)
+        {
+            // Sin ::1 utilizable (IPv6 desactivado en la interfaz de bucle): no hay nada que choque.
+            return true;
         }
         finally
         {
