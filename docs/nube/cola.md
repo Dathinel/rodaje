@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #49. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50), #38, #37, #41, #39 (52–55) y #43, #42, #45, #26, #27 (58–61).
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #49, #55. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50), #38, #37, #41, #39 (52–55) y #43, #42, #45, #26, #27 (58–61).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -430,7 +430,7 @@ La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que tod
 
 ## 45. `docs/legal.md` al día con `LICENSE` y el repo público
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #55 unido el 12-oct en modo autónomo; librist y libbluray sin verificar, y otras casillas nuevas en `docs/pendientes-legales.md`)
 - **Rama:** `claude/legal-al-dia`
 - **Caminos:** `docs/legal.md`, `LICENCIAS.md`, `docs/pendientes-legales.md`, `docs/tareas/`
 - **Lee:** `LICENSE`, `Directory.Build.props`, D-032, `docs/ffmpeg-configure.txt`, revisión en bloque 2 (hallazgos 2 y 3).
