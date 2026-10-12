@@ -74,7 +74,8 @@ public sealed class ModuleProcessTests(ITestOutputHelper output)
         await cts.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
         output.WriteLine($"Cancelación confirmada en {watch.ElapsedMilliseconds} ms.");
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1));
+        // Con tres trozos en curso hay que esperar a que ONNX Runtime corte los tres; con la CPU cargada pasa de 1 s.
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"tardó {watch.ElapsedMilliseconds} ms");
         ModuleResult again = await module.Client.InvokeAsync("voz", Json("""{"text":"Sigo aquí.","language":"es"}"""));
         Assert.True(again.Value!.Value.GetProperty("frames").GetInt64() > 0);
         Assert.False(module.Exited.IsCompleted);

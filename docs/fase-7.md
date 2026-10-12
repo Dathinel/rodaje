@@ -121,6 +121,23 @@ Hecho en `src/Rodaje.App/Services/Modules` (API en [app.md](arquitectura/app.md#
 
 **Decisiones provisionales.** RNNoise no se hizo: DeepFilterNet3 ya va a 37× en la CPU, así que un «modo rápido» no ahorra nada que se note y sería otro modelo que mantener. El zumbido de red es el ruido que peor quita (+8–10 dB); un corte de graves antes o después no lo mejoró en las pruebas.
 
+## Resultados del agente G (modulo-voz: texto a voz, 12-oct)
+
+`modules/Rodaje.Module.Voice` (funciones `voces`, `voz`, `entregar`; CPU, `vramMb` 0) y el diálogo «Texto a voz» de la app (Editar y menú del clip: escribir o tomar el texto de un título, idioma, voz, velocidad, tono, pausas y `[pausa N]`, escuchar, insertar en el cursor o regenerar en un paso; WAV y `.json` en «Voz generada» junto al `.rodaje`). Kokoro-82M v1.0 **uint8** (177 MB): el q8 previsto (92 MB) es 3× más lento en la CPU con ONNX Runtime 1.30 y DirectML falla en un `ConvTranspose` del modelo. Fonemizadores propios por reglas para es (con seseo y yeísmo en es-419) y pt-BR; inglés con el léxico misaki. Licencias y voces en `modules/Rodaje.Module.Voice/LICENCIAS.md`. Release, Ryzen 7 7435HS:
+
+| Criterio | Resultado |
+|---|---|
+| es, en y pt-BR con ≥2 voces | 3 es, 3 pt-BR, 20 en-US, 8 en-GB (Kokoro, Apache-2.0) |
+| ≥5× tiempo real en CPU | 5,6× en la prueba (tres trozos a la vez, 8 hilos), 6,9× con el equipo más libre; 1 trozo a la vez: 3,7× |
+| Inteligibilidad (audio → modulo-subtitulos) | WER 0 % en las 5 frases de prueba (es, es-419, pt-BR ×2, en-US) |
+| Fonemas frente a espeak-ng (solo para medir, en una carpeta temporal) | FLEURS dev: es 0,7 % de error por fonema, pt-BR 3,0 %; corpus de 110 palabras difíciles en las pruebas |
+| Cancelación | 15 ms en proceso; 0,56 s confirmada por el protocolo con tres trozos en curso |
+| VRAM / RAM | 0 / 292 MB de pico en el proceso del módulo |
+| Native AOT | 0 advertencias; exe de 4,6 MB más `onnxruntime.dll` (16 MB) |
+| Vuelve a generarse al cambiar texto o voz | «Regenerar» en el diálogo, un paso del historial (20 pruebas de la app) |
+
+Voces de Piper: todas las candidatas (davefx, faber, cadu, jeff, libritts_r, ald) son derivadas de `lessac` según sus fichas, y `es_MX-claude` no dice de cuál parte; ninguna entra en la v1 (pregunta 9).
+
 ## Funciones, modelos y licencias
 
 Velocidades estimadas a partir de cifras publicadas; las mide cada agente en el equipo de Daniel. ✅ viable con licencia limpia, ⚠️ viable con condiciones, ❌ sin opción limpia.
@@ -229,3 +246,4 @@ Unión 0 → A → B → C → D → E → F → G → H → I → J, suite comp
 6. **Voz en portugués de Portugal:** no hay voz con licencia limpia. **Recomendado: solo pt-BR** en la v1 y buscar una voz CC0/CC-BY después.
 7. **BiRefNet_lite (datos DIS5K):** su uso no comercial es libre; el comercial pide firmar términos. **Recomendado: incluirlo** como «Calidad alta» opcional, con MODNet por defecto, y anotarlo en `pendientes-legales.md`.
 8. **Clave de firma del índice:** **recomendado:** ECDSA P-256 generada en tu PC, guardada fuera del repo con una copia de respaldo; se firma en local con un script. Si se pierde, la próxima versión de Rodaje trae otra clave pública.
+9. **Voces extra de Piper:** las que el plan daba por limpias se afinaron desde `lessac` (licencia Blizzard). **Recomendado:** v1 solo con Kokoro (34 voces) y buscar voces CC0 entrenadas desde cero más adelante.

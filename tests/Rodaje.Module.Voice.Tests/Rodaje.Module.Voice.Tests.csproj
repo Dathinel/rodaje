@@ -14,6 +14,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <ProjectReference Include="..\..\modules\Rodaje.Module.Voice\Rodaje.Module.Voice.csproj" />
+    <!-- Solo para que Rodaje.Module.Subtitles.exe quede junto a las pruebas (inteligibilidad). -->
+    <ProjectReference Include="..\..\modules\Rodaje.Module.Subtitles\Rodaje.Module.Subtitles.csproj" />
   </ItemGroup>
 
   <ItemGroup>
