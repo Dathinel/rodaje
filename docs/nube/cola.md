@@ -541,7 +541,7 @@ Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.x
 
 ## 55. Autoguardado: «(recuperado N)» huérfanos al cancelar la apertura
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #69 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/autoguardado-recuperado`
 - **Caminos:** `src/Rodaje.App/Services/Autosave/AutosaveService.cs`, `tests/Rodaje.App.Tests/Autosave/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 34, revisión en bloque 4.
