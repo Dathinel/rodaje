@@ -145,7 +145,7 @@ public static partial class TimelineEdits
                 }
 
                 return speed;
-            }, (clip, fit) => ExactLength(ctx, primary, clip, fit, length), keepOffset: true);
+            }, (clip, fit, speed) => ExactLength(ctx, primary, clip, fit, length, speed), keepOffset: true);
             return;
         }
 
@@ -154,22 +154,49 @@ public static partial class TimelineEdits
         {
             speed.Rate = rate;
             return speed;
-        }, (clip, fit) => ExactLength(ctx, primary, clip, fit, duration));
+        }, (clip, fit, _) => ExactLength(ctx, primary, clip, fit, duration));
     }
 
-    /// <summary>El clip arrastrado llega justo a <paramref name="duration"/> si su archivo tiene material; los enlazados quedan con su largo.</summary>
-    private static ClipTimeMap ExactLength(EditContext ctx, Clip primary, Clip clip, ClipTimeMap fit, Time duration)
+    /// <summary>
+    /// El clip arrastrado llega justo a <paramref name="duration"/> si su archivo tiene material; los enlazados quedan con su largo.
+    /// Con curva (<paramref name="speed"/>) se ajusta su <see cref="SpeedCurve.Span"/> para que esa duración recorra el
+    /// mismo material que antes del estiramiento: las velocidades redondeadas a centésimas no comen ni piden material, y
+    /// un clip que usa el archivo entero no se queda corto porque la curva estirada pediría unos ticks de más.
+    /// </summary>
+    private static ClipTimeMap ExactLength(EditContext ctx, Clip primary, Clip clip, ClipTimeMap fit, Time duration, ClipSpeed? speed = null)
     {
         bool exact = ReferenceEquals(clip, primary);
         Time start = clip.Start;
         ClipTimeMap moved = fit.MoveTo(start);
-        if (!exact || moved.Duration == duration)
+        if (!exact)
+        {
+            return moved;
+        }
+
+        Time media = ctx.MediaOf(clip).Duration;
+        if (speed?.Curve is { } own)
+        {
+            bool reverse = speed.Reverse;
+            long available = reverse ? clip.SourceOut.Ticks : (media - clip.SourceIn).Ticks;
+            long material = Math.Min((clip.SourceOut - clip.SourceIn).Ticks, available);
+            SpeedCurve curve = CurveForMaterial(own, speed.Offset.Ticks, duration.Ticks, material, available, Time.FromFrames(1, ctx.Sequence.FrameRate).Ticks);
+            ClipSpeed trial = speed.Clone();
+            trial.Curve = curve;
+            ClipTimeMap kept = ClipTimeMap.Create(start, duration, reverse ? moved.SourceOut : moved.SourceIn, trial);
+            if (kept.SourceIn >= Time.Zero && kept.SourceOut <= media)
+            {
+                speed.Curve = curve;
+                return kept;
+            }
+        }
+
+        if (moved.Duration == duration)
         {
             return moved;
         }
 
         ClipTimeMap stretched = moved.TrimOut(start + duration);
-        return stretched.SourceIn >= Time.Zero && stretched.SourceOut <= ctx.MediaOf(clip).Duration ? stretched : moved;
+        return stretched.SourceIn >= Time.Zero && stretched.SourceOut <= media ? stretched : moved;
     }
 
     /// <summary>
@@ -308,14 +335,15 @@ public static partial class TimelineEdits
     /// <summary>
     /// Cambia la velocidad del grupo con <paramref name="change"/> (sobre una copia, con desplazamiento 0 salvo
     /// <paramref name="keepOffset"/>) y ajusta cada miembro a su
-    /// material; <paramref name="place"/> puede rehacer el mapeo ajustado. Comprueba, aplica y corre lo que haga falta.
+    /// material; <paramref name="place"/> puede rehacer el mapeo ajustado (y retocar la curva de la velocidad). Los
+    /// enlazados llevan la curva que quedó en el primero del grupo. Comprueba, aplica y corre lo que haga falta.
     /// </summary>
     private static void Retime(
         EditContext ctx,
         string clipId,
         RippleScope scope,
         Func<Clip, ClipSpeed, ClipSpeed> change,
-        Func<Clip, ClipTimeMap, ClipTimeMap>? place = null,
+        Func<Clip, ClipTimeMap, ClipSpeed?, ClipTimeMap>? place = null,
         bool keepOffset = false)
     {
         List<(Track Track, Clip Clip)> group = EditableSpeedGroup(ctx, clipId);
@@ -325,11 +353,19 @@ public static partial class TimelineEdits
         }
 
         var plans = new List<(TrimPlan Plan, ClipSpeed? Speed)>(group.Count);
+        // El primero del grupo ajusta la curva a su material; los enlazados toman la misma, porque deben tener igual velocidad.
+        SpeedCurve? shared = null;
         foreach ((Track track, Clip clip) in group)
         {
+            bool first = plans.Count == 0;
             ClipSpeed changed = change(clip, clip.Speed?.Clone() ?? new ClipSpeed());
             changed.Offset = keepOffset ? changed.Offset : Time.Zero;
             ClipSpeed? speed = Normalize(changed);
+            if (!first && shared is not null && speed?.Curve is not null)
+            {
+                speed.Curve = shared.Clone();
+            }
+
             ClipTimeMap map;
             try
             {
@@ -340,7 +376,10 @@ public static partial class TimelineEdits
                 throw new EditException($"El clip «{clip.Id}» es demasiado corto para esa velocidad.");
             }
 
-            map = place is null ? AlignEnd(ctx, clip, map, speed) : place(clip, map);
+            map = place is not null ? place(clip, map, speed)
+                : first ? AlignEnd(ctx, clip, map, speed)
+                : LinkedEnd(ctx, clip, map, speed, group[0].Clip, plans[0].Plan.Map!);
+            shared = first ? speed?.Curve : shared;
             plans.Add((new TrimPlan(track, clip, map), speed));
         }
 
@@ -414,9 +453,10 @@ public static partial class TimelineEdits
     /// suma al siguiente. Con curva se ajusta su <see cref="SpeedCurve.Span"/> para recorrer justo ese material con el
     /// final en un cuadro (en <paramref name="speed"/>); con velocidad constante, que no puede conservarlo exacto, se elige
     /// el cuadro vecino que deja el material más cercano, y al volver a 1× el final va al cuadro más cercano. Nunca pide
-    /// material que el archivo no tiene; si nada sirve, queda el mapeo ajustado tal cual.
+    /// material que el archivo no tiene; si nada sirve, queda el mapeo ajustado tal cual. Sin <paramref name="adjustCurve"/>
+    /// (un enlazado, que lleva la curva del primero del grupo) la curva no se toca y el final va al cuadro vecino.
     /// </summary>
-    private static ClipTimeMap AlignEnd(EditContext ctx, Clip clip, ClipTimeMap map, ClipSpeed? speed)
+    private static ClipTimeMap AlignEnd(EditContext ctx, Clip clip, ClipTimeMap map, ClipSpeed? speed, bool adjustCurve = true)
     {
         if (speed is null && clip.Speed is null)
         {
@@ -443,7 +483,7 @@ public static partial class TimelineEdits
         {
             ClipTimeMap aligned;
             SpeedCurve? curve = null;
-            if (speed?.Curve is { } own)
+            if (adjustCurve && speed?.Curve is { } own)
             {
                 curve = CurveForMaterial(own, speed.Offset.Ticks, (end - map.Start).Ticks, target, available, Time.FromFrames(1, fps).Ticks);
                 ClipSpeed trial = speed.Clone();
@@ -483,6 +523,25 @@ public static partial class TimelineEdits
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// El final de un enlazado, que lleva la velocidad del primero del grupo (<paramref name="first"/>, ya ajustado en
+    /// <paramref name="firstMap"/>). Si recorría el mismo material, queda con la misma duración, así video y audio siguen
+    /// juntos y conservan el mismo material; si no, o si su archivo no alcanza, su final va al cuadro vecino sin tocar la curva.
+    /// </summary>
+    private static ClipTimeMap LinkedEnd(EditContext ctx, Clip clip, ClipTimeMap map, ClipSpeed? speed, Clip first, ClipTimeMap firstMap)
+    {
+        if (speed is not null && clip.SourceDuration == first.SourceDuration)
+        {
+            ClipTimeMap same = ClipTimeMap.Create(clip.Start, firstMap.Duration, speed.Reverse ? map.SourceOut : map.SourceIn, speed);
+            if (same.SourceIn >= Time.Zero && same.SourceOut <= ctx.MediaOf(clip).Duration)
+            {
+                return same;
+            }
+        }
+
+        return AlignEnd(ctx, clip, map, speed, adjustCurve: false);
     }
 
     /// <summary>
