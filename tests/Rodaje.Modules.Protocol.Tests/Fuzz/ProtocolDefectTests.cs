@@ -6,8 +6,8 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 
 /// <summary>
 /// Defectos de <c>src/Rodaje.Modules.Protocol</c> que encontró el fuzz (tarea 25). Cada prueba reproduce uno y dice lo
-/// que debería pasar; las de los defectos sin corregir están omitidas. La del defecto 6 ya es de regresión. Todas tienen tope de
-/// tiempo: al quitar el <c>Skip</c> con el defecto aún presente, fallan en vez de colgarse.
+/// que debería pasar. Los seis están corregidos (el 6 en la tarea 25, del 1 al 5 en la tarea 59), así que todas son de
+/// regresión. Todas tienen tope de tiempo: si un defecto vuelve, fallan en vez de colgarse.
 /// </summary>
 [Collection(FuzzGroup.Name)]
 public sealed class ProtocolDefectTests
@@ -22,7 +22,7 @@ public sealed class ProtocolDefectTests
     /// curso. Le puede pasar a un <see cref="ModuleClient"/> normal que cancela una llamada que estaba por terminar.
     /// Se reprodujo en Linux en 3 a 12 de cada 200 rondas.
     /// </summary>
-    [Fact(Skip = "Defecto: ModuleHost cierra la conexión si un cancel llega mientras la llamada termina (CancelAsync sobre un CancellationTokenSource ya desechado).")]
+    [Fact]
     public async Task Cancel_racing_the_end_of_a_call_does_not_close_the_connection()
     {
         for (int round = 0; round < 200; round++)
@@ -59,7 +59,7 @@ public sealed class ProtocolDefectTests
     /// se salta la espera de las demás llamadas y la liberación de las regiones. Se reprodujo en Linux en unas 6 de cada
     /// 300 rondas.
     /// </summary>
-    [Fact(Skip = "Defecto: ModuleHost.RunAsync lanza ObjectDisposedException al cerrar si una llamada termina a la vez (CancelAsync en el finally).")]
+    [Fact]
     public async Task Shutdown_with_calls_finishing_ends_the_host_without_throwing()
     {
         for (int round = 0; round < 300; round++)
@@ -89,7 +89,7 @@ public sealed class ProtocolDefectTests
     /// ni <c>error</c>. La llamada del editor espera para siempre (o hasta que la cancele) aunque la conexión siga viva.
     /// Debería llegar un <c>error</c> (por ejemplo <c>internal</c>, «resultado demasiado grande») para esa llamada.
     /// </summary>
-    [Fact(Skip = "Defecto: ModuleHost pierde en silencio una respuesta de más de 1 MiB; la llamada del editor no termina nunca.")]
+    [Fact]
     public async Task A_result_over_the_frame_limit_is_answered_with_an_error()
     {
         ModuleHost host = new(new ModuleInfo("grande", "1.0.0", "Grande", [new FunctionInfo("grande", "Grande")]));
@@ -97,9 +97,10 @@ public sealed class ProtocolDefectTests
         (ModuleClient client, _) = await Support.ConnectInProcessAsync(host);
         await using (client)
         {
-            ModuleCallException ex = await Assert.ThrowsAsync<ModuleCallException>(() => client.InvokeAsync("grande").WaitAsync(TimeSpan.FromSeconds(5)));
+            ModuleCallException ex = await Assert.ThrowsAsync<ModuleCallException>(() => FuzzSupport.Capped(client.InvokeAsync("grande"), "la llamada grande"));
             Assert.Equal(ErrorCodes.Internal, ex.Code);
-            Assert.True((await client.PingAsync().WaitAsync(TimeSpan.FromSeconds(5))) < TimeSpan.FromSeconds(5));
+            // La conexión sigue sirviendo. Solo tope contra cuelgues: la latencia se mide en las pruebas TiempoReal.
+            await FuzzSupport.Capped(client.PingAsync(), "el ping");
         }
     }
 
@@ -114,7 +115,7 @@ public sealed class ProtocolDefectTests
     /// del editor, un módulo puede colar el mismo valor en <c>result.value</c> y la app lo recibe como válido. Lo que
     /// debería pasar: <c>Parse</c> lo rechaza como malformado.
     /// </summary>
-    [Fact(Skip = "Defecto: Parse acepta un sustituto UTF-16 suelto (\\ud800) en parameters/value; la respuesta de eco se pierde.")]
+    [Fact]
     public async Task A_lone_surrogate_in_parameters_is_rejected()
     {
         byte[] invoke = Encoding.UTF8.GetBytes("""{"type":"invoke","id":1,"function":"eco","parameters":"\ud800"}""");
@@ -147,7 +148,7 @@ public sealed class ProtocolDefectTests
     /// <c>Client.DisposeAsync</c> antes de matar el proceso, así que tampoco termina. Se reprodujo en Linux; en Windows el
     /// búfer de la tubería es de 64 KB (<c>ModuleProcess.PipeBufferBytes</c>), así que pasa antes.
     /// </summary>
-    [Fact(Skip = "Defecto: un módulo que deja de leer cuelga InvokeAsync (ignora la cancelación) y DisposeAsync del editor.")]
+    [Fact]
     public async Task A_module_that_stops_reading_does_not_hang_the_editor()
     {
         (NamedPipeServerStream editor, NamedPipeClientStream module) = await Support.PipePairAsync();

@@ -50,8 +50,8 @@ Cada mensaje es un **marco**: 4 bytes con el largo del JSON como entero de 32 bi
 - El largo va de 1 a `ProtocolVersion.MaxFrameBytes` = 1 048 576 bytes (1 MiB, `1 << 20`) sin contar la cabecera. Un largo de 0, negativo o mayor corta la conexión sin reservar memoria (`ReceiveAsync`; prueba `Frame_lengths_out_of_range_are_rejected_without_allocating`). Quien envía tampoco manda un mensaje más grande: `SendAsync` lanza `ModuleProtocolException`.
 - El JSON es un objeto con el campo **`type`**, que puede ir en cualquier posición (`AllowOutOfOrderMetadataProperties`; prueba `Type_can_come_after_other_properties`). Los nombres de campo van en camelCase.
 - Los campos opcionales con valor nulo no se escriben (`DefaultIgnoreCondition = WhenWritingNull`). Al leer, un campo obligatorio que falta o un `null` donde no se admite hacen inválido el mensaje (`RespectRequiredConstructorParameters`, `RespectNullableAnnotations`).
-- **UTF-8 estricto:** bytes que no son UTF-8 válido hacen inválido el mensaje (prueba `Invalid_utf8_is_rejected`). Anidamiento máximo: 32 niveles en todo el mensaje, `parameters` y `value` incluidos (`MaxDepth = 32`; prueba `Deep_nesting_is_rejected`).
-- Las escrituras de un lado se serializan (un marco no se mezcla con otro) y cada marco se escribe entero con un `Flush`.
+- **UTF-8 estricto:** bytes que no son UTF-8 válido hacen inválido el mensaje (prueba `Invalid_utf8_is_rejected`). También un escape de un sustituto UTF-16 suelto (`"\ud800"` sin su pareja), en cualquier texto o nombre de propiedad, incluidos los de `parameters` y `value` (`Limits.Json` en `Messages.cs`; prueba `A_lone_surrogate_in_parameters_is_rejected`). Un par bien formado (`"\ud83d\ude00"`) es válido. Anidamiento máximo: 32 niveles en todo el mensaje, `parameters` y `value` incluidos (`MaxDepth = 32`; prueba `Deep_nesting_is_rejected`).
+- Las escrituras de un lado se serializan (un marco no se mezcla con otro) y cada marco se escribe entero con un `Flush`. Si una escritura se interrumpe a mitad (cancelada o fuera de plazo), el marco pudo quedar cortado: ese lado cierra la tubería (`MessageChannel.Broken`).
 - Si la conexión se corta entre dos marcos, es un cierre normal; si se corta a mitad de uno (en la cabecera o en el JSON), es un error de protocolo (prueba `A_truncated_frame_is_an_error_but_a_clean_end_is_not`).
 
 **Compatibilidad hacia delante** (`MessageChannel.Parse`):
@@ -116,7 +116,7 @@ El editor lo convierte en `ModuleVersionException` con ese mensaje (`ModuleClien
 ### Plazos y errores del saludo
 
 - El editor espera el `welcome` hasta `HandshakeTimeout` (10 s; `ModuleClient.cs`). Si no llega: «El módulo no saludó en 10 s.» (`ModuleProtocolException`). Si el módulo cierra: `ModuleDisconnectedException`. Cualquier otra respuesta que no sea `welcome` ni `error` `version-incompatible` es un error de protocolo («El módulo no respondió al saludo con «welcome».»).
-- El anfitrión de C# espera el `hello` hasta su propio `HandshakeTimeout` (10 s; `ModuleHost.cs`). Si lo primero que llega no es `hello`, contesta un `error` `malformed` sin id y cierra. Marco real, tras recibir `{"type":"ping","id":1}` como primer mensaje:
+- El anfitrión de C# espera el `hello` hasta su propio `HandshakeTimeout` (30 s, lo mismo que el editor da para abrir y saludar con `StartTimeout`; `ModuleHost.cs`). Si lo primero que llega no es `hello`, contesta un `error` `malformed` sin id y cierra. Marco real, tras recibir `{"type":"ping","id":1}` como primer mensaje:
 
 ```json
 {"type":"error","code":"malformed","message":"Lo primero tiene que ser «hello»."}
@@ -288,7 +288,7 @@ Un `error` **con `id`** termina esa llamada y la conexión sigue sirviendo (prue
 | `out-of-memory` | El anfitrión de C#, si la función lanza `OutOfMemoryException` o `InsufficientExecutionStackException`. |
 | `buffer-out-of-range` | Un búfer que no se puede usar: región con nombre inválido o que no existe, búfer de otra región, o fuera de los límites de la región (`SharedMemoryRegion.cs`). |
 | `malformed` | El módulo, sin `id`, justo antes de cerrar porque el editor mandó algo inválido. |
-| `internal` | Cualquier otro fallo. El anfitrión de C# manda «`Tipo`: mensaje» de la excepción, o «Resultado inválido: …». |
+| `internal` | Cualquier otro fallo. El anfitrión de C# manda «`Tipo`: mensaje» de la excepción, «Resultado inválido: …», o «No se pudo enviar el resultado: …» si el `result` no cabe en un marco de 1 MiB o no se puede serializar (`ModuleHost.SendReplyAsync`; prueba `A_result_over_the_frame_limit_is_answered_with_an_error`). |
 
 `message` es un texto de hasta 4096 caracteres (el anfitrión de C# recorta los más largos con «…»). Escríbelo para una persona, en el idioma de `hello.culture` si puedes: la app mostrará los errores del módulo en lenguaje simple, sin trazas. Marcos reales:
 
@@ -317,6 +317,7 @@ El editor **desconfía del módulo** (D-031): ante cualquiera de estos casos cor
 - Un `error` **sin `id`** después del saludo («El módulo informó un error de conexión: …»).
 - Un `result` con búferes fuera de las regiones del editor.
 - No confirmar un `cancel` dentro del plazo de gracia.
+- Dejar de leer la tubería: un mensaje del editor que no sale en `ModuleClientOptions.WriteTimeout` (10 s desde que le toca escribir) corta la conexión («El módulo dejó de leer: …»), y así ninguna llamada ni `DisposeAsync` se queda esperando (prueba `A_module_that_stops_reading_does_not_hang_the_editor`, `WriteTimeoutTests`). Una llamada cancelada mientras espera su turno para escribir termina cancelada sin tocar la conexión; cancelada a mitad de la escritura, termina cancelada y la conexión se corta.
 - El proceso termina o cierra la tubería (`ModuleDisconnectedException`, o `ModuleExitedException` con `ExitCode`).
 
 Excepciones del editor (`ModuleExceptions.cs`), todas derivadas de `ModuleException`, con su `Code`:
@@ -410,13 +411,15 @@ Plazos y cantidades del lado del editor y del anfitrión de C#:
 |---|---|---|
 | Conectarse a la tubería (editor) | 10 s (`HandshakeTimeout`) | `ModuleProcess.cs`, `ModuleClient.cs` |
 | Contestar el saludo con `welcome` (editor) | 10 s (`HandshakeTimeout`) | `ModuleClient.cs` |
-| Conectarse a la tubería y recibir `hello` (anfitrión) | 10 s cada uno | `ModuleHost.cs` |
+| Conectarse a la tubería (anfitrión) | 10 s | `ModuleHost.cs` |
+| Recibir `hello` (anfitrión) | 30 s (`HandshakeTimeout`) | `ModuleHost.cs` |
 | Confirmar un `cancel` | 2 s (`CancelGrace`) | `ModuleClient.cs` |
+| Escribir un mensaje hacia el módulo, una vez que le toca (editor) | 10 s (`WriteTimeout`); después se corta la conexión | `ModuleClient.cs` |
 | Llamadas a la vez en el anfitrión de C# | 4 (`MaxConcurrentCalls`); después, `busy` | `ModuleHost.cs` |
 | Avance | uno cada 50 ms por llamada como mucho | `ModuleHost.cs` (`ModuleCall`) |
 | Salir tras `shutdown` antes de que lo maten | 2 s | `ModuleProcess.DisposeAsync` |
 | Funciones activas al cerrar la conexión (anfitrión) | 2 s para terminar | `ModuleHost.RunAsync` |
-| Enviar la respuesta final si el editor no lee (anfitrión) | 1 s; después se descarta | `ModuleHost.TrySendAsync` |
+| Enviar la respuesta final si el editor no lee (anfitrión) | 1 s; después se descarta, y si vence a mitad de la escritura el anfitrión cierra la conexión. Un `result` que no se puede escribir se contesta con `error` `internal` | `ModuleHost.TrySendAsync`, `ModuleHost.SendReplyAsync` |
 | Cola de la salida de errores en el mensaje de salida | 2048 caracteres | `ModuleProcess.cs` |
 | Búfer de la tubería, en cada sentido | 64 KB | `ModuleProcess.PipeBufferBytes` |
 
@@ -508,7 +511,7 @@ Notas:
 
 - Cada función recibe un `ModuleCall` (`Id`, `Function`, `Parameters`, `Buffers`, `Map` y `ReportProgressAsync`) y un `CancellationToken`, y devuelve un `ModuleOutput(Value, Buffers)`. `Register` falla si la función no está en `ModuleInfo.Functions`, y `new ModuleHost(info)` falla si `info` no cumple los [límites](#límites) (`ModuleHost.cs`).
 - Para un error con código, lanza `ModuleCallException(ErrorCodes.…, mensaje)`; para cancelar, deja que salga la `OperationCanceledException` del token.
-- `MaxConcurrentCalls` (4) y `HandshakeTimeout` (10 s) se cambian al crear el anfitrión (`new ModuleHost(info) { MaxConcurrentCalls = 1 }`). Si tu módulo habla varias versiones, pásalas como `minProtocol` y `maxProtocol` del constructor.
+- `MaxConcurrentCalls` (4) y `HandshakeTimeout` (30 s) se cambian al crear el anfitrión (`new ModuleHost(info) { MaxConcurrentCalls = 1 }`). Si tu módulo habla varias versiones, pásalas como `minProtocol` y `maxProtocol` del constructor.
 - **Comprobado:** compila sin advertencias con .NET 10 y, conectado a un `ModuleClient` por un socket en Linux, `contar-palabras` devuelve `{"palabras":2}` para `{"texto":"hola mundo"}`, y sin parámetros, o `invertir` sin búfer, dan `invalid-parameters`. `invertir` con un búfer real no se probó: la memoria compartida con nombre solo existe en Windows. Sin `--rodaje-pipe` sale con 64.
 - Hoy la biblioteca solo está en este repositorio. Cómo la recibirá un tercero (repositorio propio, paquete NuGet) **no está decidido**: D-031 dice que sale a su propio repositorio con el segundo programa de Dathinel.
 - El eco se publica con Native AOT (3,3 MB, arranque y saludo en 31–33 ms). Un módulo que no admita AOT puede salir autocontenido con JIT (D-034).

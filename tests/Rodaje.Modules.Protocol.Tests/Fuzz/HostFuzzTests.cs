@@ -13,12 +13,8 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 /// <item><c>RunAsync</c> termina antes de <see cref="FuzzSupport.CaseCap"/>, devuelve un <c>bool</c> y no lanza.</item>
 /// <item>Todo lo que el módulo escribe es un mensaje válido del protocolo para el editor.</item>
 /// </list>
-/// Dos excepciones de <c>RunAsync</c> son defectos conocidos y aquí se cuentan y registran en vez de fallar: una
-/// <see cref="ObjectDisposedException"/> de <c>CancellationTokenSource</c> al cerrar
-/// (<see cref="ProtocolDefectTests.Shutdown_with_calls_finishing_ends_the_host_without_throwing"/>) y una
-/// <see cref="System.Text.Json.JsonException"/> al no poder escribir la respuesta de <c>eco</c> a unos parámetros con un
-/// sustituto UTF-16 suelto, solo si el caso mandó uno (<see cref="ProtocolDefectTests.A_lone_surrogate_in_parameters_is_rejected"/>).
-/// Ninguna otra excepción se da por buena.
+/// No se tolera ninguna excepción de <c>RunAsync</c> (los defectos 2 y 4 de <see cref="ProtocolDefectTests"/>, que antes
+/// se contaban aquí, están corregidos).
 /// </summary>
 [Collection(FuzzGroup.Name)]
 public sealed class HostFuzzTests(ITestOutputHelper output)
@@ -89,21 +85,9 @@ public sealed class HostFuzzTests(ITestOutputHelper output)
             }
             if (ending != Ending.Shutdown) editor.Dispose();
 
-            try
-            {
-                bool clean = await FuzzSupport.Capped(run, "ModuleHost.RunAsync");
-                if (clean) Interlocked.Increment(ref tally.Clean);
-                else Interlocked.Increment(ref tally.Refused);
-            }
-            catch (ObjectDisposedException ex) when (ex.ObjectName?.Contains("CancellationTokenSource", StringComparison.Ordinal) == true
-                || ex.Message.Contains("CancellationTokenSource", StringComparison.Ordinal))
-            {
-                Interlocked.Increment(ref tally.KnownDefect);
-            }
-            catch (System.Text.Json.JsonException ex) when (ex.InnerException is InvalidOperationException && script.Any(FuzzSupport.HasSurrogateEscape))
-            {
-                Interlocked.Increment(ref tally.KnownSurrogate);
-            }
+            bool clean = await FuzzSupport.Capped(run, "ModuleHost.RunAsync");
+            if (clean) Interlocked.Increment(ref tally.Clean);
+            else Interlocked.Increment(ref tally.Refused);
         }
         finally
         {
@@ -166,11 +150,9 @@ public sealed class HostFuzzTests(ITestOutputHelper output)
         public int Clean;
         public int Refused;
         public int Replies;
-        public int KnownDefect;
-        public int KnownSurrogate;
 #pragma warning restore CA1051
 
         public override string ToString() =>
-            $"terminó bien {Clean}, cortó por protocolo o versión {Refused}, mensajes del módulo {Replies}, defectos conocidos: ObjectDisposedException al cerrar {KnownDefect}, JsonException por un sustituto suelto {KnownSurrogate}";
+            $"terminó bien {Clean}, cortó por protocolo o versión {Refused}, mensajes del módulo {Replies}";
     }
 }
