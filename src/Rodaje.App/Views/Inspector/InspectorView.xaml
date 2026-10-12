@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Panel derecho: pestañas Propiedades (o la transición seleccionada), Texto, Velocidad, Filtros, Historial y Trabajos. Cada pestaña
+    Panel derecho: pestañas Propiedades (o la transición seleccionada), Texto, Velocidad, Filtros, Máscaras, Historial y Trabajos. Cada pestaña
     es su propio control en su carpeta. Si los nombres no caben, las pestañas no elegidas muestran solo su ícono.
 -->
 <UserControl
@@ -60,6 +60,13 @@
                         <TextBlock x:Name="FiltersLabel" Text="Filtros" />
                     </StackPanel>
                 </RadioButton>
+                <RadioButton x:Name="MasksTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
+                             ToolTipService.ToolTip="Máscaras" AutomationProperties.Name="Máscaras">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE7A8;" FontSize="13" Visibility="Collapsed" />
+                        <TextBlock x:Name="MasksLabel" Text="Máscaras" />
+                    </StackPanel>
+                </RadioButton>
                 <RadioButton x:Name="HistoryTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
                              ToolTipService.ToolTip="Historial" AutomationProperties.Name="Historial">
                     <StackPanel Orientation="Horizontal" Spacing="6">
@@ -84,6 +91,7 @@
             <text:TextPanel x:Name="TextPanel" Visibility="Collapsed" />
             <speed:SpeedPanel x:Name="SpeedPanel" Visibility="Collapsed" />
             <filters:FiltersPanel x:Name="FiltersPanel" Visibility="Collapsed" />
+            <filters:FiltersPanel x:Name="MasksPanel" MasksOnly="True" Visibility="Collapsed" />
             <history:HistoryPanel x:Name="HistoryPanel" Visibility="Collapsed" />
             <jobs:JobsPanel x:Name="JobsPanel" Visibility="Collapsed" />
         </Grid>

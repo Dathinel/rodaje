@@ -121,6 +121,11 @@ internal sealed partial class PlayerView
 
     private void OnVideoPointerPressed(object sender, PointerRoutedEventArgs e)
     {
+        if (MaskPointerPressed(e))
+        {
+            return;
+        }
+
         PointerPoint point = e.GetCurrentPoint(VideoPanel);
         if (!point.Properties.IsLeftButtonPressed || Session is null || _engine is null || _properties is null || Image() is not { } frame)
         {
@@ -172,6 +177,11 @@ internal sealed partial class PlayerView
 
     private void OnVideoPointerMoved(object sender, PointerRoutedEventArgs e)
     {
+        if (MaskPointerMoved(e))
+        {
+            return;
+        }
+
         if (_titleDrag is not { } drag || Image() is not { } frame)
         {
             return;
@@ -196,9 +206,21 @@ internal sealed partial class PlayerView
         e.Handled = true;
     }
 
-    private void OnVideoPointerReleased(object sender, PointerRoutedEventArgs e) => EndTitleDrag();
+    private void OnVideoPointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!MaskPointerReleased())
+        {
+            EndTitleDrag();
+        }
+    }
 
-    private void OnVideoPointerCaptureLost(object sender, PointerRoutedEventArgs e) => EndTitleDrag();
+    private void OnVideoPointerCaptureLost(object sender, PointerRoutedEventArgs e)
+    {
+        if (!MaskPointerReleased())
+        {
+            EndTitleDrag();
+        }
+    }
 
     private void EndTitleDrag()
     {

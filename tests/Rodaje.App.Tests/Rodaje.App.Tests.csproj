@@ -36,6 +36,7 @@
     <Compile Include="..\..\src\Rodaje.App\Views\Library\Logic\**\*.cs" Link="LibraryLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Importar CinemaDNG con modulo-raw, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Raw\Logic\**\*.cs" Link="RawLogic\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Rodaje.App\Views\Vision\Logic\**\*.cs" Link="VisionLogic\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
