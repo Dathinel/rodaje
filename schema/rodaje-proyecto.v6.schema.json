@@ -423,6 +423,17 @@
                                   }
                                 }
                               },
+                              "highlight": {
+                                "type": [
+                                  "object",
+                                  "null"
+                                ],
+                                "properties": {
+                                  "color": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
                               "in": {
                                 "type": [
                                   "object",

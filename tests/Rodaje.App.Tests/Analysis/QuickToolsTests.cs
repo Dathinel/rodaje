@@ -29,7 +29,7 @@ public class QuickToolsTests
     private static QuickToolState State(string id, string[] selection, bool module = true)
     {
         Project p = Project();
-        return QuickTools.State(id, p, p.Sequences[0], selection, module, module);
+        return QuickTools.State(id, p, p.Sequences[0], selection, module, visionModule: module, subtitleModule: module);
     }
 
     [Fact]
