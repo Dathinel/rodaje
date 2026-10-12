@@ -46,6 +46,19 @@ RTX 3050 Laptop / Ryzen 7 7435HS, `ProcessTests.Latency_and_shared_memory_throug
 
 **Conclusiones.** El protocolo no limita a ninguna función: un cuadro 1080p por referencia cuesta 0,1 ms y copiado 1,4 ms, frente a los 15–250 ms por cuadro de los modelos. No hace falta otro transporte. Las tuberías se crean con 64 KB de búfer: con el valor por defecto (0) una escritura espera a que el otro lado lea, y un editor que no lee colgaba al módulo (lo encontró una prueba).
 
+## Resultados del agente C (silencios, ritmo y ducking)
+
+`src/Rodaje.Analysis` (sin modelos, AOT, solo depende del núcleo): analizadores por bloques que no guardan el audio (`LevelEnvelope`, `OnsetEnvelope`, `IVoiceActivityDetector`); las ediciones son `AnalysisEdits` con sus fábricas `Edits.RemoveSilences`, `AddBeatMarkers`, `CutToBeats` y `Duck`, cada una un paso del historial. Interfaz en `Views/Analysis` (diálogos con vista previa), menú del clip y Editar. Cifras en Release con señales sintéticas:
+
+| Criterio | Resultado |
+|---|---|
+| Silencios ±20 ms | error máximo de borde 4,5–4,9 ms (silencio digital y con ruido a −60 dBFS) |
+| 1 h en ≤10 s | 0,8 s (4500× tiempo real), sin contar la decodificación |
+| Ritmo F ≥0,9 y ±1 BPM | clics a 90–160 BPM: F 0,991–1,000, tempo ±0,01; batería a 100–128: F 0,976–1,000, ±0,14 BPM. A 174 BPM sale 87 (la mitad) salvo que se suba la preferencia |
+| Ritmo ≥100× | 291–348× tiempo real |
+| Ducking: anticipación ≥30 ms | música abajo ≥30 ms antes de cada frase (bordes de voz con 0 ms de error sobre música filtrada a −30 dB); keyframes deshacibles en un paso |
+| Voz ≥100× | 481–643× tiempo real |
+
 ## Funciones, modelos y licencias
 
 Velocidades estimadas a partir de cifras publicadas; las mide cada agente en el equipo de Daniel. ✅ viable con licencia limpia, ⚠️ viable con condiciones, ❌ sin opción limpia.

@@ -52,3 +52,11 @@ Mientras el motor no dibuje el texto, el título no se ve en el visor: se prueba
 - [ ] **Línea de tiempo:** mover, recortar y alargar sin tope (también por delante de su inicio), cortar con S; Alt + arrastrar el cuerpo o un borde no cambia nada y el globo explica por qué; Ctrl+R muestra en Velocidad que un título no tiene material.
 - [ ] **Entrada y salida:** con un estilo animado, desmarcar «Animar la entrada» y pulsar «Convertir en keyframes»: los rombos aparecen en Propiedades.
 - [ ] **Subtítulos:** clic derecho en una cabecera → «Añadir pista de subtítulos» (o «Usar para subtítulos» en una de video): la cabecera dice «Subtítulos» y T no pone títulos ahí.
+
+## Fase 7: silencios, ritmo y ducking
+
+Clic derecho en un clip con sonido, o Editar, con el clip seleccionado.
+
+- [ ] **Quitar silencios:** en una toma tuya hablando, «Quitar silencios...»: la barra muestra en rojo lo que se corta y cambia al mover umbral, silencio mínimo y margen. «Quitar» corta video y audio juntos y cierra los huecos si la casilla de ripple está marcada (empieza como el ripple automático de la línea de tiempo); Ctrl+Z lo deshace todo de una vez. ¿Los cortes suenan naturales con el margen de 100 ms? ¿Acierta el umbral de −35 dB?
+- [ ] **Detectar ritmo:** en una canción, «Detectar ritmo...» dice el tempo; «Aplicar» pone un marcador por pulso y, con «Cortar el clip al ritmo», corta cada 4 pulsos (u otro). ¿Los marcadores caen en el golpe? ¿El tempo es el que conoces (en temas muy rápidos puede salir la mitad)?
+- [ ] **Ducking:** selecciona la música y elige la pista de la voz: «Aplicar» pone keyframes de volumen que bajan la música antes de cada frase y la suben después. ¿−12 dB y 100 ms de anticipación suenan bien? ¿La subida de 0,5 s es lenta o rápida?
