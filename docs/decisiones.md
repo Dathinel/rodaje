@@ -375,7 +375,7 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
   - AGPL: el copyleft por red no aporta a una app de escritorio y complica más los complementos.
 - **Consecuencias.** Cualquiera puede vender Rodaje o un derivado con su código fuente, la atribución y otro nombre. Pendientes para el abogado en `docs/legal.md`, «Compatibilidad con la GPLv3»: Windows App SDK frente a la excepción de «System Libraries», si el término 2 cabe en la Sección 7, versión de la GPL sin fijar y activos reservados. El enlace del crédito solo funciona cuando el repositorio sea público. Los complementos de contenido (`rodaje-transiciones`, `rodaje-filtros` y los que vengan) siguen en CC0. No se copia código GPL ajeno: el permiso para complementos y los términos de atribución solo los puede dar el titular.
 
-## D-033. Formato del proyecto en la edición, exportar sigue al proyecto y herramientas rápidas (12 de octubre de 2026; provisional, Daniel ajusta al volver)
+## D-033. Formato del proyecto en la edición, exportar sigue al proyecto y herramientas rápidas (12 de octubre de 2026; confirmada por Daniel en D-034)
 
 **Contexto.** Daniel probó la app el 11-oct: «la plantilla en 9:16 está mal planteada» (el lienzo vertical, negro sobre el negro del visor, solo se veía por las guías punteadas de los márgenes seguros); no encontraba cómo cambiar el formato al exportar y prefiere cambiarlo «desde la edición del archivo»; en Exportar «no deja seleccionar otro» preajuste u opción; y quitar silencios y las demás herramientas «tienen que estar más a la vista». Sustituye la parte de D-028 sobre 9:16 (barras y botón en Exportar).
 
@@ -386,4 +386,25 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 - **Exportar sin controles fijos:** el diálogo redibuja después del evento que cambió el modelo y en el lugar (solo rehace una lista si cambiaron sus opciones).
 - **Herramientas rápidas encima de la línea de tiempo**, no como pestaña del panel derecho: siempre a la vista sin cambiar de pestaña, junto a los clips que se eligen, y sin sumar una séptima pestaña a un panel que ya pasa a íconos (D-027). Diez botones con ícono y texto: Quitar silencios, Detectar ritmo, Bajar música bajo la voz, Reducir ruido, Estabilizar, Color automático, Balance de blancos, Subtítulos automáticos y Texto a voz («Próximamente» hasta que tengan acción) y Añadir texto. Las que no aplican se ven atenuadas pero pulsables: la ayuda y el aviso dicen por qué (un botón desactivado no muestra ayuda). Las reglas están en `QuickTools` (sin WinUI, con pruebas) y son las de los diálogos; los menús siguen igual.
 
-**Consecuencias.** La línea de tiempo cede 36 px a la barra. Cambiar los fps con clips no los reajusta al cuadro nuevo (como CapCut). Preguntas para Daniel: ¿la barra aquí o como pestaña?, ¿el gris del visor?, ¿Encajar como ajuste por defecto?
+**Consecuencias.** La línea de tiempo cede 36 px a la barra. Cambiar los fps con clips no los reajusta al cuadro nuevo (como CapCut).
+
+## D-034. Respuestas de Daniel a las preguntas abiertas de la fase 7 y de D-033 (12 de octubre de 2026)
+
+**Contexto.** Las preguntas de D-033 y de la fase 7 se habían resuelto con la opción recomendada, de forma provisional. Daniel las respondió el 12-oct.
+
+**Decisión.**
+- **D-033 confirmada:** barra de herramientas rápidas encima de la línea de tiempo, gris alrededor del lienzo y «Encajar» como ajuste por defecto.
+- **Repositorios de los módulos:** privados hasta publicar.
+- **JIT en los módulos** cuya biblioteca no admita Native AOT: sí, autocontenidos y recortados, solo esos; la app sigue AOT.
+- **Traductor por defecto:** Qwen3-4B, local y descargado aparte.
+- **Voz en portugués:** solo pt-BR en la v1.
+- **BiRefNet_lite** como «Calidad alta» opcional (MODNet por defecto); de momento con su licencia de uso no comercial, anotado en `pendientes-legales.md`.
+- **Voces:** solo Kokoro en la v1.
+- **CinemaDNG:** se importa a ProRes 422 HQ.
+- **Complemento GPL:** se compila un `ffmpeg.exe` GPL propio, con la fuente correspondiente reducida a pocos tarballs.
+- **Subtítulos sin GPU:** un modelo de Whisper menor solo para CPU.
+- **Módulo de ruido:** se quita el paquete DirectML; corre en CPU.
+- **Medios generados** (audio limpio, voz, ProRes de CinemaDNG): por defecto en `<proyecto>.medios\` junto al proyecto, pero la persona puede elegir otra carpeta, en Configuración y al generar.
+- **Estabilización:** el análisis va en la caché de la app, no junto al proyecto.
+
+**Consecuencias.** Tres tareas nuevas: carpeta de medios generados elegible, modelo de Whisper para CPU y módulo de ruido sin DirectML. BiRefNet_lite no puede ir en una versión comercial sin firmar sus términos.

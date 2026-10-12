@@ -4,7 +4,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 
 **Proceso aparte.** Lo que no sirve a quien usa o compila la app vive en el repo privado `Dathinel/rodaje-proceso`, clonado en `.proceso\` (ignorado; si falta: `gh repo clone Dathinel/rodaje-proceso .proceso`): `PARA-DANIEL.md`, la cola y las reglas de la nube (`nube\`), los planes de fase (`fases\`), `pendientes.md`, `pruebas-a-mano.md` y lo archivado. Aquí no se escribe nada de proceso.
 
-**Pendiente de Daniel:** `.proceso\PARA-DANIEL.md` (respaldar la clave de descargas, pruebas a mano, preguntas abiertas). Recuérdaselo al empezar cada sesión hasta que esté hecho.
+**Pendiente de Daniel:** `.proceso\PARA-DANIEL.md` (pruebas a mano y activar el reporte privado de vulnerabilidades). Recuérdaselo al empezar cada sesión hasta que esté hecho.
 
 ## Cómo se trabaja aquí
 
@@ -24,7 +24,7 @@ Editor de video nativo para Windows con la experiencia de uso de CapCut y códig
 
 ## Estado
 
-Fases 1–6 y 5c construidas y verificadas; 5b (títulos) y 7 (IA local) en curso. Detalle y cifras en `.proceso\fases\`; decisiones en `docs/decisiones.md` (D-001 a D-033).
+Fases 1–6 y 5c construidas y verificadas; 5b (títulos) y 7 (IA local) en curso. Detalle y cifras en `.proceso\fases\`; decisiones en `docs/decisiones.md` (D-001 a D-034).
 
 - **Siguiente:** fase 7 restante (traducir, visión, RAW y GPL, edición por palabras) y su verificación (Sonnet).
 - **Reorganización del repo (11/12-oct):** hechos los pasos 1, 2 y 7; quedan los que tocan `.github/workflows/ci.yml` o la app (`.proceso\reorganizacion.md`).

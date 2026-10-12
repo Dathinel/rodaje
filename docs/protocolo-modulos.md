@@ -511,7 +511,7 @@ Notas:
 - `MaxConcurrentCalls` (4) y `HandshakeTimeout` (10 s) se cambian al crear el anfitrión (`new ModuleHost(info) { MaxConcurrentCalls = 1 }`). Si tu módulo habla varias versiones, pásalas como `minProtocol` y `maxProtocol` del constructor.
 - **Comprobado:** compila sin advertencias con .NET 10 y, conectado a un `ModuleClient` por un socket en Linux, `contar-palabras` devuelve `{"palabras":2}` para `{"texto":"hola mundo"}`, y sin parámetros, o `invertir` sin búfer, dan `invalid-parameters`. `invertir` con un búfer real no se probó: la memoria compartida con nombre solo existe en Windows. Sin `--rodaje-pipe` sale con 64.
 - Hoy la biblioteca solo está en este repositorio. Cómo la recibirá un tercero (repositorio propio, paquete NuGet) **no está decidido**: D-031 dice que sale a su propio repositorio con el segundo programa de Dathinel.
-- El eco se publica con Native AOT (3,3 MB, arranque y saludo en 31–33 ms). Un módulo que no admita AOT puede salir autocontenido con JIT (provisional, pregunta 3 de la fase 7).
+- El eco se publica con Native AOT (3,3 MB, arranque y saludo en 31–33 ms). Un módulo que no admita AOT puede salir autocontenido con JIT (D-034).
 
 ### En otro lenguaje
 
