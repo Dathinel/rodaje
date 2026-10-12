@@ -1,9 +1,9 @@
-using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.Analysis;
 using Rodaje.Analysis.Rhythm;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Shell;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
@@ -92,7 +92,7 @@ internal static class RhythmDialog
                 AnalysisUi.DrawRanges(preview, result.Duration, result.Beats.Select(b => new TimeRange(b, b + width)), AnalysisUi.Color(0xF2, 0xB1, 0x34));
                 status.Text = result.Beats.Count == 0
                     ? "No se encontró un pulso regular en este clip."
-                    : string.Create(CultureInfo.CurrentCulture, $"Tempo: {result.Bpm:0.0} BPM · {result.Beats.Count} pulsos.");
+                    : string.Create(SpanishNumbers.Format, $"Tempo: {result.Bpm:0.0} BPM · {result.Beats.Count} pulsos.");
                 dialog.IsPrimaryButtonEnabled = result.Beats.Count > 0;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

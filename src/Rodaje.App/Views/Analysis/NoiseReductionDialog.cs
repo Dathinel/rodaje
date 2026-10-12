@@ -1,8 +1,8 @@
-using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Shell;
 using Rodaje.Core.Model;
@@ -68,7 +68,7 @@ internal static class NoiseReductionDialog
         Slider? intensity = null;
         double reduction = NoiseReduction.MaxReductionDb;
         intensity = AnalysisUi.Slider(panel, "Cuánto ruido se quita", 6, NoiseReduction.MaxReductionDb, reduction, 1,
-            v => v >= NoiseReduction.MaxReductionDb ? "todo" : string.Create(CultureInfo.CurrentCulture, $"hasta {v:0} dB"), () =>
+            v => v >= NoiseReduction.MaxReductionDb ? "todo" : string.Create(SpanishNumbers.Format, $"hasta {v:0} dB"), () =>
             {
                 reduction = intensity!.Value;
                 preview?.ReductionDb = reduction;

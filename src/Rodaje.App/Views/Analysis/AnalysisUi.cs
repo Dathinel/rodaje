@@ -1,10 +1,10 @@
-using System.Globalization;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.Analysis;
+using Rodaje.App.Services.Format;
 
 namespace Rodaje.App.Views.Analysis;
 
@@ -40,11 +40,11 @@ internal static class AnalysisUi
         return slider;
     }
 
-    public static string Db(double v) => string.Create(CultureInfo.CurrentCulture, $"{v:0} dB");
+    public static string Db(double v) => string.Create(SpanishNumbers.Format, $"{v:0} dB");
 
-    public static string Ms(double seconds) => string.Create(CultureInfo.CurrentCulture, $"{seconds * 1000:0} ms");
+    public static string Ms(double seconds) => string.Create(SpanishNumbers.Format, $"{seconds * 1000:0} ms");
 
-    public static string Sec(double seconds) => string.Create(CultureInfo.CurrentCulture, $"{seconds:0.0#} s");
+    public static string Sec(double seconds) => string.Create(SpanishNumbers.Format, $"{seconds:0.0#} s");
 
     /// <summary>Barra del clip con los tramos marcados encima (los que se cortan, la voz, los pulsos).</summary>
     public static void DrawRanges(Canvas canvas, double duration, IEnumerable<TimeRange> ranges, Windows.UI.Color color)
