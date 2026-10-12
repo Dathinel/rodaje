@@ -56,6 +56,9 @@ internal enum FxOp
     RegionMix = 14,
     Copy = 15,
     Reframe360 = 16,
+
+    /// <summary>Una celda del atlas de un título por unidades: nivel de mip, opacidad, rectángulo de la celda y franja visible del karaoke.</summary>
+    TitleUnit = 17,
 }
 
 /// <summary>Fuente HLSL de los efectos y la lista de variantes que se compilan por adelantado.</summary>
@@ -828,6 +831,14 @@ internal static class EffectShaders
                     // Antes (A) y después (B) según la máscara de efectos; fx0.y = 1 aplica fuera de ella.
                     float m = maskImage.SampleLevel(linearClamp, min(uv * fx2.xy, fx2.zw), 0).r;
                     return lerp(SampleA(uv), SampleB(uv), fx0.y > 0.5 ? 1.0 - m : m);
+                }
+                case 17:
+                {
+                    // fx0.y = nivel de mip (desenfoque), fx0.z = opacidad; fx1 = la celda en el atlas; fx2.xy = franja visible en u,
+                    // con fx2.z = un píxel de destino en u para suavizar el corte del barrido.
+                    float4 c = imageA.SampleLevel(linearClamp, clamp(uv, fx1.xy, fx1.zw), fx0.y);
+                    float inside = saturate((uv.x - fx2.x) / fx2.z + 0.5) * saturate((fx2.y - uv.x) / fx2.z + 0.5);
+                    return c * fx0.z * inside;
                 }
                 default:
                     return SampleA(uv);

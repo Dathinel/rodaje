@@ -7,7 +7,7 @@ namespace Rodaje.Core.Serialization;
 
 /// <summary>
 /// Lee y escribe proyectos en el formato <c>.rodaje</c>: JSON en UTF-8 descrito en
-/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v8.schema.json</c>.
+/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v9.schema.json</c>.
 /// </summary>
 public static class ProjectSerializer
 {
@@ -279,6 +279,12 @@ public static class ProjectSerializer
                     if (clip.Generator?.Style is { } style)
                     {
                         Check(style.Font.Fallback, "fuentes de respaldo");
+                        Check(style.ExtraStrokes ?? [], "bordes");
+                        Check(style.ExtraShadows ?? [], "sombras");
+                        Check(style.Typography?.Features ?? [], "funciones OpenType");
+                        Check(style.Fill.Gradient?.Stops ?? [], "paradas del degradado");
+                        Check(clip.Generator.Spans ?? [], "tramos de formato");
+
                         foreach (StyleAnimation animation in new[] { style.In, style.Out }.OfType<StyleAnimation>())
                         {
                             Check(animation.Curves.Values, "curvas de la animación");

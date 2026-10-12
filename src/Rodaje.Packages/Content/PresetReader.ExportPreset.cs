@@ -198,7 +198,7 @@ internal static partial class PresetReader
             : throw Fail($"{where} «{Show(text)}» no es válido.");
     }
 
-    private static string Choice(JsonElement owner, string property, string where, string fallback, string[] allowed)
+    private static string Choice(JsonElement owner, string property, string where, string fallback, params string[] allowed)
     {
         string? text = String(owner, property);
         if (text is null)

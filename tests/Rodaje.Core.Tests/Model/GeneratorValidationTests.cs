@@ -174,7 +174,7 @@ public class GeneratorValidationTests
         { s => s.Background!.Radius = double.NaN, "fondo" },
         { s => s.In!.DurationSeconds = 61, "entrada con una duración" },
         { s => s.Out!.DurationSeconds = -0.1, "salida con una duración" },
-        { s => s.In!.Curves["blur"] = [new StyleKey(0, 1)], "anima «blur»" },
+        { s => s.In!.Curves["brillo"] = [new StyleKey(0, 1)], "anima «brillo»" },
         { s => s.In!.Curves["x"] = [], "curva «x» vacía" },
         { s => s.In!.Curves["x"] = [new StyleKey(0, 1), new StyleKey(0, 2)], "curva «x»" },
         { s => s.In!.Curves["x"] = [new StyleKey(0.5, 1)], "curva «x»" },

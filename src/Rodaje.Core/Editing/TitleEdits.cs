@@ -1,5 +1,6 @@
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
+using Rodaje.Core.Text;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Core.Editing;
@@ -62,7 +63,26 @@ public static class TitleEdits
     public static void SetText(EditContext ctx, string clipId, string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        Generator(ctx, clipId).Text = text;
+        ClipGenerator generator = Generator(ctx, clipId);
+        generator.Spans = TextSpans.Remap(generator.Text, text, generator.Spans);
+        generator.Text = text;
+        ctx.EnsureValid();
+    }
+
+    /// <summary>
+    /// Cambia el formato de un trozo del texto (negrita, color, tamaño de una palabra) con <paramref name="change"/>, que
+    /// recibe el formato que tenía cada parte; los tramos quedan ordenados y unidos.
+    /// </summary>
+    public static void FormatText(EditContext ctx, string clipId, int start, int length, Func<TextSpan, TextSpan> change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        ClipGenerator generator = Generator(ctx, clipId);
+        if (length <= 0 || start < 0 || start + length > generator.Text.Length)
+        {
+            throw new EditException("Elige un trozo del texto para darle formato.");
+        }
+
+        generator.Spans = TextSpans.Apply(generator.Spans, generator.Text.Length, start, length, change);
         ctx.EnsureValid();
     }
 
@@ -106,11 +126,12 @@ public static class TitleEdits
         }
 
         GeneratorEdges edges = clip.Generator.Edges;
-        StyleAnimation? entry = edges.In && TitleMotion.Ticks(style.In) > 0 ? style.In : null;
-        StyleAnimation? exit = edges.Out && TitleMotion.Ticks(style.Out) > 0 ? style.Out : null;
+        // Por línea, palabra o letra no hay una transformación del bloque que fijar: esas quedan en el estilo.
+        StyleAnimation? entry = edges.In && style.In is { PerUnit: false } && TitleMotion.Ticks(style.In) > 0 ? style.In : null;
+        StyleAnimation? exit = edges.Out && style.Out is { PerUnit: false } && TitleMotion.Ticks(style.Out) > 0 ? style.Out : null;
         if (entry is null && exit is null)
         {
-            throw new EditException("El título no tiene animación de entrada ni de salida activa.");
+            throw new EditException("El título no tiene animación de entrada ni de salida del bloque activa (las de línea, palabra o letra no se pasan a keyframes).");
         }
 
         // Si no caben las dos en el título entero, se encogen por igual, como al evaluarlas.

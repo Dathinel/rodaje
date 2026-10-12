@@ -37,6 +37,13 @@ public sealed class ClipGenerator
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<GeneratorWord>? Words { get; set; }
 
+    /// <summary>
+    /// Tramos del texto con otro formato (negrita, color, tamaño de una palabra), sin solaparse y en orden; lo que no dicen
+    /// lo pone el estilo. Se mueven con el texto al editarlo (<c>TextSpans.Remap</c>).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<TextSpan>? Spans { get; set; }
+
     public ClipGenerator Clone() => new()
     {
         Kind = Kind,
@@ -45,6 +52,7 @@ public sealed class ClipGenerator
         Box = Box?.Clone(),
         Edges = Edges.Clone(),
         Words = Words?.ConvertAll(w => w.Clone()),
+        Spans = Spans?.ConvertAll(s => s with { }),
     };
 
     public bool ContentEquals(ClipGenerator other)
@@ -60,7 +68,9 @@ public sealed class ClipGenerator
         return Kind == other.Kind
             && Text == other.Text
             && (Style is null ? other.Style is null : other.Style is not null && Style.ContentEquals(other.Style))
-            && (Box is null ? other.Box is null : other.Box is not null && Box.Width == other.Box.Width && Box.WidthFraction == other.Box.WidthFraction)
+            && (Box is null ? other.Box is null : other.Box is not null && Box.Width == other.Box.Width && Box.WidthFraction == other.Box.WidthFraction
+                && Box.HeightFraction == other.Box.HeightFraction)
+            && (Spans?.Count ?? 0) == (other.Spans?.Count ?? 0) && (Spans is null || other.Spans is null || Spans.SequenceEqual(other.Spans))
             && (Words is null ? other.Words is null : other.Words is not null && Words.Count == other.Words.Count
                 && Words.Zip(other.Words).All(p => p.First.ContentEquals(p.Second)));
     }
@@ -105,8 +115,50 @@ public sealed class TextFrame
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? WidthFraction { get; set; }
 
-    public TextFrame Clone() => new() { Width = Width, WidthFraction = WidthFraction };
+    /// <summary>Alto de la caja como fracción (0, 1] del alto de la secuencia, para el ajuste del tamaño (<see cref="TextFit"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? HeightFraction { get; set; }
+
+    public TextFrame Clone() => new() { Width = Width, WidthFraction = WidthFraction, HeightFraction = HeightFraction };
 }
+
+/// <summary>
+/// Un tramo del texto (<see cref="Start"/> y <see cref="Length"/> en caracteres UTF-16) con formato propio; lo que queda
+/// nulo es lo del estilo. <see cref="Scale"/> multiplica el tamaño del estilo (de 0,1 a 10).
+/// </summary>
+public sealed record TextSpan
+{
+    public int Start { get; init; }
+
+    public int Length { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Weight { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Italic { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Underline { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Color { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? Scale { get; init; }
+
+    [JsonIgnore]
+    public int End => Start + Length;
+
+    /// <summary>El mismo formato (sin mirar dónde está).</summary>
+    public bool SameFormat(TextSpan other) =>
+        Weight == other.Weight && Italic == other.Italic && Underline == other.Underline && Color == other.Color && Scale == other.Scale;
+
+    /// <summary>No cambia nada respecto del estilo.</summary>
+    [JsonIgnore]
+    public bool IsPlain => Weight is null && Italic is null && Underline is null && Color is null && Scale is null;
+}
+
 
 /// <summary>Roles de pista conocidos (<see cref="Track.Role"/>); el nombre de la pista es solo para mostrar.</summary>
 public static class TrackRoles

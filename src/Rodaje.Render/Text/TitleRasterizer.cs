@@ -46,7 +46,7 @@ public sealed record MissingFont(string Family, string? Source, string ClipId, s
 /// de Direct2D (sigma = desenfoque / 2). Antialias en escala de grises, sin ajuste a píxel.
 /// </para>
 /// </remarks>
-public sealed unsafe class TitleRasterizer : IGeneratedContentCache, IDisposable
+public sealed unsafe partial class TitleRasterizer : IGeneratedContentCache, IDisposable
 {
     /// <summary>Un título no pasa de esto por lado aunque quepa en bytes (el límite de Direct3D 11).</summary>
     public const int MaxTextureSide = 16384;
@@ -65,7 +65,7 @@ public sealed unsafe class TitleRasterizer : IGeneratedContentCache, IDisposable
     private ID2D1Factory1* _d2d;
     private ID2D1Device* _d2dDevice;
     private ID2D1DeviceContext* _dc;
-    private ID2D1Effect* _shadow;
+    private readonly nint[] _shadows = new nint[1 + Rodaje.Core.Model.ModelValidator.MaxExtraShadows];
     private IDWriteFactory5* _dwrite;
     private TitleFonts? _fonts;
     private long _frame;
@@ -346,7 +346,7 @@ public sealed unsafe class TitleRasterizer : IGeneratedContentCache, IDisposable
 
             _fonts?.Dispose();
             _fonts = null;
-            Com.Release(ref _shadow);
+            ReleaseShadows();
             Com.Release(ref _dc);
             Com.Release(ref _d2dDevice);
             Com.Release(ref _d2d);
@@ -515,397 +515,6 @@ public sealed unsafe class TitleRasterizer : IGeneratedContentCache, IDisposable
         _fonts = new TitleFonts(dwrite);
     }
 
-    /// <summary>Rasteriza con el candado <see cref="_raster"/> tomado. Nula si no hay nada que dibujar.</summary>
-    private TitleTexture? Draw(GeneratedContent content)
-    {
-        if (content.Kind != GeneratorKinds.Text || _fonts is null)
-        {
-            return null;
-        }
-
-        long started = Stopwatch.GetTimestamp();
-        TextStyle style = content.Style;
-        double unit = content.UnitScale;
-        float size = (float)(style.Size * unit);
-        if (!(size > 0) || !float.IsFinite(size))
-        {
-            return null;
-        }
-
-        ResolvedFont font = _fonts.Resolve(style.Font);
-        IDWriteTextLayout* layout = null;
-        RenderTarget? target = null;
-        try
-        {
-            layout = Layout(content, font, size, out float layoutWidth, out float layoutHeight, out DWRITE_TEXT_METRICS metrics);
-            Shape shape = Measure(content, layout, layoutWidth, layoutHeight, metrics);
-            double scale = content.RasterScale;
-            (int width, int height) = TextureSize(shape, scale);
-            bool downscaled = false;
-            long bytes = (long)width * height * 4;
-            if (bytes > MaxTitleBytes || width > MaxTextureSide || height > MaxTextureSide)
-            {
-                double fit = Math.Min(Math.Sqrt((double)MaxTitleBytes / bytes),
-                    Math.Min((double)MaxTextureSide / width, (double)MaxTextureSide / height));
-                scale *= fit * 0.98;
-                (width, height) = TextureSize(shape, scale);
-                downscaled = true;
-            }
-
-            target = CreateTarget(width, height);
-            Render(content, layout, shape, target, (float)scale);
-            var texture = new TitleTexture(target, width / scale, height / scale, scale, font.Missing, downscaled);
-            target = null;
-            Rasterized++;
-            LastRasterMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-            return texture;
-        }
-        finally
-        {
-            target?.Dispose();
-            if (layout != null)
-            {
-                layout->Release();
-            }
-        }
-    }
-
-    private IDWriteTextLayout* Layout(GeneratedContent content, ResolvedFont font, float size, out float layoutWidth, out float layoutHeight,
-        out DWRITE_TEXT_METRICS metrics)
-    {
-        TextStyle style = content.Style;
-        IDWriteTextFormat* format = null;
-        IDWriteTextLayout* layout = null;
-        IDWriteTextLayout1* spaced = null;
-        try
-        {
-            var weight = (DWRITE_FONT_WEIGHT)Math.Clamp(style.Font.Weight, 1, 999);
-            DWRITE_FONT_STYLE slant = style.Font.Italic ? DWRITE_FONT_STYLE.DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE.DWRITE_FONT_STYLE_NORMAL;
-            fixed (char* family = font.Family)
-            fixed (char* locale = "es-es")
-            {
-                Check(_dwrite->CreateTextFormat(family, font.Collection, weight, slant, DWRITE_FONT_STRETCH.DWRITE_FONT_STRETCH_NORMAL, size, locale,
-                    &format), "CreateTextFormat");
-            }
-
-            Check(format->SetTextAlignment(style.Align switch
-            {
-                TextAlign.Left => DWRITE_TEXT_ALIGNMENT.DWRITE_TEXT_ALIGNMENT_LEADING,
-                TextAlign.Right => DWRITE_TEXT_ALIGNMENT.DWRITE_TEXT_ALIGNMENT_TRAILING,
-                _ => DWRITE_TEXT_ALIGNMENT.DWRITE_TEXT_ALIGNMENT_CENTER,
-            }), "SetTextAlignment");
-            bool wrap = content.BoxWidth > 0;
-            Check(format->SetWordWrapping(wrap ? DWRITE_WORD_WRAPPING.DWRITE_WORD_WRAPPING_WRAP : DWRITE_WORD_WRAPPING.DWRITE_WORD_WRAPPING_NO_WRAP),
-                "SetWordWrapping");
-            double lineHeight = double.IsFinite(style.LineHeight) && style.LineHeight > 0 ? style.LineHeight : 1.2;
-            float spacing = (float)(lineHeight * size);
-            Check(format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD.DWRITE_LINE_SPACING_METHOD_UNIFORM, spacing, spacing * 0.8f), "SetLineSpacing");
-
-            const float Unbounded = 1_000_000;
-            string text = content.Text;
-            fixed (char* chars = text)
-            {
-                Check(_dwrite->CreateTextLayout(chars, (uint)text.Length, format, wrap ? (float)content.BoxWidth : Unbounded, Unbounded, &layout),
-                    "CreateTextLayout");
-            }
-
-            float letterSpacing = (float)(style.LetterSpacing * content.UnitScale);
-            if (letterSpacing != 0 && float.IsFinite(letterSpacing) && text.Length > 0
-                && layout->QueryInterface(__uuidof<IDWriteTextLayout1>(), (void**)&spaced).SUCCEEDED)
-            {
-                Check(spaced->SetCharacterSpacing(0, letterSpacing, 0, new DWRITE_TEXT_RANGE { startPosition = 0, length = (uint)text.Length }),
-                    "SetCharacterSpacing");
-            }
-
-            DWRITE_TEXT_METRICS measured;
-            Check(layout->GetMetrics(&measured), "GetMetrics");
-            layoutWidth = wrap ? (float)content.BoxWidth : Math.Max(1, measured.widthIncludingTrailingWhitespace);
-            layoutHeight = Math.Max(1, measured.height);
-            Check(layout->SetMaxWidth(layoutWidth), "SetMaxWidth");
-            Check(layout->SetMaxHeight(layoutHeight), "SetMaxHeight");
-            Check(layout->GetMetrics(&measured), "GetMetrics");
-            metrics = measured;
-            IDWriteTextLayout* result = layout;
-            layout = null;
-            return result;
-        }
-        finally
-        {
-            Com.Release(ref spaced);
-            Com.Release(ref layout);
-            Com.Release(ref format);
-        }
-    }
-
-    /// <summary>Rectángulos del título en píxeles de la secuencia, con el origen en la esquina de la caja del texto.</summary>
-    private static Shape Measure(GeneratedContent content, IDWriteTextLayout* layout, float layoutWidth, float layoutHeight, DWRITE_TEXT_METRICS metrics)
-    {
-        TextStyle style = content.Style;
-        double unit = content.UnitScale;
-        DWRITE_OVERHANG_METRICS overhang;
-        Check(layout->GetOverhangMetrics(&overhang), "GetOverhangMetrics");
-        var ink = new Rect(-overhang.left, -overhang.top, layoutWidth + overhang.right, layoutHeight + overhang.bottom);
-        var text = new Rect(metrics.left, metrics.top, metrics.left + metrics.width, metrics.top + metrics.height);
-        ink = ink.IsEmpty ? text : ink;
-        float stroke = style.Stroke is { Width: > 0 } s && double.IsFinite(s.Width) ? (float)(s.Width * unit) : 0;
-        Rect bounds = ink.Union(text);
-        Rect outlined = stroke > 0 ? ink.Inflate(stroke * (style.Stroke!.Join == StrokeJoin.Miter ? 2 : 1) + 1) : ink;
-        bounds = bounds.Union(outlined);
-
-        Rect? background = null;
-        if (style.Background is { } b)
-        {
-            float px = (float)((b.Padding.Count > 0 ? b.Padding[0] : 0) * unit);
-            float py = (float)((b.Padding.Count > 1 ? b.Padding[1] : 0) * unit);
-            background = text.Inflate(Math.Max(0, px), Math.Max(0, py));
-            bounds = bounds.Union(background.Value);
-        }
-
-        float sigma = 0;
-        if (style.Shadow is { } shadow)
-        {
-            sigma = (float)(Math.Clamp(double.IsFinite(shadow.Blur) ? shadow.Blur : 0, 0, 64) * unit / 2);
-            Rect cast = outlined.Offset((float)(shadow.Dx * unit), (float)(shadow.Dy * unit)).Inflate((3 * sigma) + 1);
-            bounds = bounds.Union(cast);
-        }
-
-        var center = new System.Numerics.Vector2(layoutWidth / 2, layoutHeight / 2);
-        float halfWidth = Math.Max(Math.Abs(bounds.Left - center.X), Math.Abs(bounds.Right - center.X));
-        float halfHeight = Math.Max(Math.Abs(bounds.Top - center.Y), Math.Abs(bounds.Bottom - center.Y));
-        return new Shape(center, halfWidth, halfHeight, background, stroke, sigma);
-    }
-
-    private static (int Width, int Height) TextureSize(Shape shape, double scale) =>
-        (Math.Max(1, (int)Math.Ceiling(2 * shape.HalfWidth * scale) + 2), Math.Max(1, (int)Math.Ceiling(2 * shape.HalfHeight * scale) + 2));
-
-    private RenderTarget CreateTarget(int width, int height)
-    {
-        var desc = new D3D11_TEXTURE2D_DESC
-        {
-            Width = (uint)width,
-            Height = (uint)height,
-            MipLevels = 1,
-            ArraySize = 1,
-            Format = DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM,
-            SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
-            Usage = D3D11_USAGE.D3D11_USAGE_DEFAULT,
-            BindFlags = (uint)(D3D11_BIND_FLAG.D3D11_BIND_RENDER_TARGET | D3D11_BIND_FLAG.D3D11_BIND_SHADER_RESOURCE),
-        };
-        ID3D11Texture2D* texture;
-        Check(_device->CreateTexture2D(&desc, null, &texture), "CreateTexture2D(título)");
-        ID3D11ShaderResourceView* srv = null;
-        HRESULT hr = _device->CreateShaderResourceView((ID3D11Resource*)texture, null, &srv);
-        if (hr.FAILED)
-        {
-            texture->Release();
-            Check(hr, "CreateShaderResourceView(título)");
-        }
-
-        return new RenderTarget(texture, null, srv, width, height, desc.Format, RenderTarget.BytesFor(width, height, desc.Format));
-    }
-
-    private void Render(GeneratedContent content, IDWriteTextLayout* layout, Shape shape, RenderTarget target, float scale)
-    {
-        TextStyle style = content.Style;
-        double unit = content.UnitScale;
-        IDXGISurface* surface = null;
-        ID2D1Bitmap1* bitmap = null;
-        ID2D1SolidColorBrush* fill = null;
-        ID2D1SolidColorBrush* stroke = null;
-        ID2D1SolidColorBrush* background = null;
-        ID2D1SolidColorBrush* highlight = null;
-        ID2D1StrokeStyle* strokeStyle = null;
-        ID2D1GeometryGroup* outline = null;
-        ID2D1Bitmap1* layer = null;
-        List<nint> glyphs = [];
-        try
-        {
-            Check(target.Texture->QueryInterface(__uuidof<IDXGISurface>(), (void**)&surface), "QueryInterface(IDXGISurface)");
-            var properties = new D2D1_BITMAP_PROPERTIES1
-            {
-                pixelFormat = new D2D1_PIXEL_FORMAT
-                {
-                    format = DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM,
-                    alphaMode = D2D1_ALPHA_MODE.D2D1_ALPHA_MODE_PREMULTIPLIED,
-                },
-                dpiX = 96,
-                dpiY = 96,
-                bitmapOptions = D2D1_BITMAP_OPTIONS.D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS.D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
-            };
-            Check(_dc->CreateBitmapFromDxgiSurface(surface, &properties, &bitmap), "CreateBitmapFromDxgiSurface");
-
-            System.Numerics.Matrix3x2 toTexture = System.Numerics.Matrix3x2.CreateScale(scale)
-                * System.Numerics.Matrix3x2.CreateTranslation((target.Width / 2f) - (shape.Center.X * scale), (target.Height / 2f) - (shape.Center.Y * scale));
-            D2D_MATRIX_3X2_F world = Matrix(toTexture);
-            D2D_MATRIX_3X2_F identity = Matrix(System.Numerics.Matrix3x2.Identity);
-            fill = Brush(style.Fill.Color);
-            if (style.Highlight is { } word && content.HighlightLength > 0)
-            {
-                // Karaoke: la palabra que suena con otro pincel; el borde y la sombra no cambian.
-                highlight = Brush(word.Color);
-                Check(layout->SetDrawingEffect((IUnknown*)highlight,
-                    new DWRITE_TEXT_RANGE { startPosition = (uint)content.HighlightStart, length = (uint)content.HighlightLength }), "SetDrawingEffect");
-            }
-
-            if (style.Stroke is { } s && shape.Stroke > 0)
-            {
-                stroke = Brush(s.Color);
-                var strokeProperties = new D2D1_STROKE_STYLE_PROPERTIES
-                {
-                    startCap = D2D1_CAP_STYLE.D2D1_CAP_STYLE_ROUND,
-                    endCap = D2D1_CAP_STYLE.D2D1_CAP_STYLE_ROUND,
-                    dashCap = D2D1_CAP_STYLE.D2D1_CAP_STYLE_ROUND,
-                    lineJoin = s.Join switch
-                    {
-                        StrokeJoin.Miter => D2D1_LINE_JOIN.D2D1_LINE_JOIN_MITER_OR_BEVEL,
-                        StrokeJoin.Bevel => D2D1_LINE_JOIN.D2D1_LINE_JOIN_BEVEL,
-                        _ => D2D1_LINE_JOIN.D2D1_LINE_JOIN_ROUND,
-                    },
-                    miterLimit = 2,
-                    dashStyle = D2D1_DASH_STYLE.D2D1_DASH_STYLE_SOLID,
-                };
-                Check(((ID2D1Factory*)_d2d)->CreateStrokeStyle(&strokeProperties, null, 0, &strokeStyle), "CreateStrokeStyle");
-                glyphs = GlyphOutlines.Collect(layout, (ID2D1Factory*)_d2d, toTexture);
-                if (glyphs.Count > 0)
-                {
-                    fixed (nint* items = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(glyphs))
-                    {
-                        Check(((ID2D1Factory*)_d2d)->CreateGeometryGroup(D2D1_FILL_MODE.D2D1_FILL_MODE_WINDING, (ID2D1Geometry**)items,
-                            (uint)glyphs.Count, &outline), "CreateGeometryGroup");
-                    }
-                }
-            }
-
-            bool shadow = style.Shadow is not null;
-
-            if (style.Background is { } bg && shape.Background is not null)
-            {
-                background = Brush(bg.Color);
-            }
-
-            float strokeWidth = 2 * shape.Stroke * scale;
-            var origin = new D2D_POINT_2F(0, 0);
-            _gpu.LockContext();
-            try
-            {
-                if (shadow)
-                {
-                    // Borde y relleno en una capa aparte: la sombra sale de su alfa sin dibujar dos veces el contorno.
-                    var layerProperties = properties with { bitmapOptions = D2D1_BITMAP_OPTIONS.D2D1_BITMAP_OPTIONS_TARGET };
-                    Check(_dc->CreateBitmap(new D2D_SIZE_U((uint)target.Width, (uint)target.Height), null, 0, &layerProperties, &layer),
-                        "CreateBitmap(capa del título)");
-                    _dc->SetTarget((ID2D1Image*)layer);
-                    _dc->BeginDraw();
-                    var none = default(DXGI_RGBA);
-                    _dc->Clear(&none);
-                    DrawText(layout, outline, stroke, fill, strokeStyle, strokeWidth, &world, &identity);
-                    Check(_dc->EndDraw(null, null), "EndDraw(capa del título)");
-                }
-
-                _dc->SetTarget((ID2D1Image*)bitmap);
-                _dc->BeginDraw();
-                var clear = default(DXGI_RGBA);
-                _dc->Clear(&clear);
-                if (background != null)
-                {
-                    Rect box = shape.Background!.Value;
-                    float radius = (float)(Math.Max(0, style.Background!.Radius) * unit);
-                    var rounded = new D2D1_ROUNDED_RECT
-                    {
-                        rect = new D2D_RECT_F(box.Left, box.Top, box.Right, box.Bottom),
-                        radiusX = radius,
-                        radiusY = radius,
-                    };
-                    _dc->SetTransform(&world);
-                    _dc->FillRoundedRectangle(&rounded, (ID2D1Brush*)background);
-                }
-
-                _dc->SetTransform(&identity);
-                if (layer != null)
-                {
-                    StyleShadow cast = style.Shadow!;
-                    var offset = new D2D_POINT_2F((float)(cast.Dx * unit * scale), (float)(cast.Dy * unit * scale));
-                    if (_shadow == null)
-                    {
-                        Guid clsid = ShadowEffect;
-                        ID2D1Effect* created;
-                        Check(_dc->CreateEffect(&clsid, &created), "CreateEffect(sombra)");
-                        _shadow = created;
-                    }
-
-                    float sigma = shape.ShadowSigma * scale;
-                    DXGI_RGBA color = TitleColor.Parse(cast.Color);
-                    _shadow->SetInput(0, (ID2D1Image*)layer, false);
-                    Check(_shadow->SetValue(0, D2D1_PROPERTY_TYPE.D2D1_PROPERTY_TYPE_FLOAT, (byte*)&sigma, sizeof(float)), "SetValue(desviación)");
-                    Check(_shadow->SetValue(1, D2D1_PROPERTY_TYPE.D2D1_PROPERTY_TYPE_VECTOR4, (byte*)&color, (uint)sizeof(DXGI_RGBA)), "SetValue(color)");
-                    ID2D1Image* blurred;
-                    _shadow->GetOutput(&blurred);
-                    _dc->DrawImage(blurred, &offset, null, D2D1_INTERPOLATION_MODE.D2D1_INTERPOLATION_MODE_LINEAR,
-                        D2D1_COMPOSITE_MODE.D2D1_COMPOSITE_MODE_SOURCE_OVER);
-                    blurred->Release();
-                    _dc->DrawImage((ID2D1Image*)layer, &origin, null, D2D1_INTERPOLATION_MODE.D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR,
-                        D2D1_COMPOSITE_MODE.D2D1_COMPOSITE_MODE_SOURCE_OVER);
-                }
-                else
-                {
-                    DrawText(layout, outline, stroke, fill, strokeStyle, strokeWidth, &world, &identity);
-                }
-
-                HRESULT hr = _dc->EndDraw(null, null);
-                if (_shadow != null)
-                {
-                    _shadow->SetInput(0, null, false);
-                }
-
-                _dc->SetTarget(null);
-
-                // Direct2D deja su estado en el contexto inmediato, que comparten el compositor y FFmpeg.
-                ((ID3D11DeviceContext*)_gpu.NativeContext)->ClearState();
-                Check(hr, "EndDraw(título)");
-            }
-            finally
-            {
-                _gpu.UnlockContext();
-            }
-        }
-        finally
-        {
-            GlyphOutlines.Release(glyphs);
-            Com.Release(ref layer);
-            Com.Release(ref outline);
-            Com.Release(ref strokeStyle);
-            Com.Release(ref background);
-            Com.Release(ref highlight);
-            Com.Release(ref stroke);
-            Com.Release(ref fill);
-            Com.Release(ref bitmap);
-            Com.Release(ref surface);
-        }
-    }
-
-    /// <summary>El borde (debajo, con el doble de ancho) y el relleno encima, con el destino ya enlazado.</summary>
-    private void DrawText(IDWriteTextLayout* layout, ID2D1GeometryGroup* outline, ID2D1SolidColorBrush* stroke, ID2D1SolidColorBrush* fill,
-        ID2D1StrokeStyle* strokeStyle, float strokeWidth, D2D_MATRIX_3X2_F* world, D2D_MATRIX_3X2_F* identity)
-    {
-        if (outline != null)
-        {
-            _dc->SetTransform(identity);
-            _dc->DrawGeometry((ID2D1Geometry*)outline, (ID2D1Brush*)stroke, strokeWidth, strokeStyle);
-        }
-
-        _dc->SetTransform(world);
-        _dc->DrawTextLayout(new D2D_POINT_2F(0, 0), layout, (ID2D1Brush*)fill,
-            D2D1_DRAW_TEXT_OPTIONS.D2D1_DRAW_TEXT_OPTIONS_NO_SNAP | D2D1_DRAW_TEXT_OPTIONS.D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT);
-    }
-
-    private ID2D1SolidColorBrush* Brush(string color)
-    {
-        DXGI_RGBA rgba = TitleColor.Parse(color);
-        ID2D1SolidColorBrush* brush;
-        Check(_dc->CreateSolidColorBrush(&rgba, null, &brush), "CreateSolidColorBrush");
-        return brush;
-    }
-
     private static D2D_MATRIX_3X2_F Matrix(System.Numerics.Matrix3x2 m)
     {
         D2D_MATRIX_3X2_F result = default;
@@ -925,11 +534,7 @@ public sealed unsafe class TitleRasterizer : IGeneratedContentCache, IDisposable
         public long LastUsed { get; set; }
     }
 
-    /// <summary>El bloque medido: su centro, la mitad del rectángulo que cubre todo, el fondo, el borde y la sigma de la sombra.</summary>
-    private readonly record struct Shape(System.Numerics.Vector2 Center, float HalfWidth, float HalfHeight, Rect? Background, float Stroke,
-        float ShadowSigma);
-
-    private readonly record struct Rect(float Left, float Top, float Right, float Bottom)
+    internal readonly record struct Rect(float Left, float Top, float Right, float Bottom)
     {
         public bool IsEmpty => !(Right > Left && Bottom > Top);
 
@@ -941,6 +546,12 @@ public sealed unsafe class TitleRasterizer : IGeneratedContentCache, IDisposable
         public Rect Inflate(float x, float y) => new(Left - x, Top - y, Right + x, Bottom + y);
 
         public Rect Offset(float x, float y) => new(Left + x, Top + y, Right + x, Bottom + y);
+
+        public float Width => Right - Left;
+
+        public float Height => Bottom - Top;
+
+        public System.Numerics.Vector2 Center => new((Left + Right) / 2, (Top + Bottom) / 2);
     }
 }
 

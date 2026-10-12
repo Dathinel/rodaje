@@ -21,6 +21,7 @@ internal sealed partial class PlayerView
 {
     private ClipPropertyEditor? _properties;
     private TitleTransformDrag? _titleDrag;
+    private Vector2 _dragHalfSize;
     private TitleGrip _titleGrip;
     private Vector2 _dragStart;
     private Vector2 _dragCenter;
@@ -179,6 +180,7 @@ internal sealed partial class PlayerView
         _titleGrip = hit.Grip;
         _dragStart = frame.ToSequence(point.Position.X, point.Position.Y);
         _dragCenter = TitleHandles.Center(hit.Box, Session.Sequence.Width, Session.Sequence.Height);
+        _dragHalfSize = TitleHandles.HalfSize(hit.Box);
         VideoPanel.CapturePointer(e.Pointer);
         e.Handled = true;
     }
@@ -199,7 +201,24 @@ internal sealed partial class PlayerView
         Vector2 now = frame.ToSequence(position.X, position.Y);
         if (_titleGrip == TitleGrip.Body)
         {
-            drag.Move(drag.StartX + now.X - _dragStart.X, drag.StartY + now.Y - _dragStart.Y);
+            double x = drag.StartX + now.X - _dragStart.X;
+            double y = drag.StartY + now.Y - _dragStart.Y;
+            HideSnapLines();
+            if (Session is { } session && !e.KeyModifiers.HasFlag(Windows.System.VirtualKeyModifiers.Menu))
+            {
+                // El título se pega al centro, los tercios, los bordes, el margen seguro de títulos y las zonas que se ven.
+                int width = session.Sequence.Width;
+                int height = session.Sequence.Height;
+                Vector2 center = _dragCenter + new Vector2((float)(x - drag.StartX), (float)(y - drag.StartY));
+                IEnumerable<(double, double, double, double)> zones = ShownSafeZones?.Preset.Zones.Select(z => (z.Left, z.Top, z.Width, z.Height)) ?? [];
+                (Vector2 correction, IReadOnlyList<SnapLine> hits) = SnapGuides.Snap(center, _dragHalfSize, width, height, frame.Scale,
+                    SnapGuides.SafeLines(width, height, zones));
+                x += correction.X;
+                y += correction.Y;
+                ShowSnapLines(hits, frame);
+            }
+
+            drag.Move(x, y);
         }
         else if (_titleGrip == TitleGrip.Rotate)
         {

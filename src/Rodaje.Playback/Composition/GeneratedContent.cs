@@ -21,7 +21,7 @@ public sealed class GeneratedContent : IEquatable<GeneratedContent>
 
     /// <summary>Con <c>highlightStart</c> ≥ 0 y un estilo con <see cref="TextStyle.Highlight"/>, esa palabra va resaltada (karaoke).</summary>
     public GeneratedContent(string kind, string text, TextStyle style, double boxWidth, int sequenceWidth, int sequenceHeight, double rasterScale,
-        int highlightStart = -1, int highlightLength = 0)
+        int highlightStart = -1, int highlightLength = 0, TextExtras? extras = null)
     {
         ArgumentNullException.ThrowIfNull(kind);
         ArgumentNullException.ThrowIfNull(text);
@@ -39,6 +39,11 @@ public sealed class GeneratedContent : IEquatable<GeneratedContent>
         bool highlighted = style.Highlight is not null && highlightStart >= 0 && highlightLength > 0 && highlightStart + highlightLength <= text.Length;
         HighlightStart = highlighted ? highlightStart : -1;
         HighlightLength = highlighted ? highlightLength : 0;
+        Spans = extras?.Spans ?? [];
+        BoxHeight = extras is { BoxHeight: > 0 } e && double.IsFinite(e.BoxHeight) ? e.BoxHeight : 0;
+        Words = style.Highlight is not null ? extras?.Words ?? [] : [];
+        UsesUnits = style.Path is not null || style.In?.PerUnit == true || style.Out?.PerUnit == true
+            || (style.Highlight is not null && Words.Count > 0 && (style.Highlight.Mode == HighlightMode.Sweep || style.In?.PerUnit == true || style.Out?.PerUnit == true));
         Key = BuildKey();
         _hash = StringComparer.Ordinal.GetHashCode(Key);
 
@@ -71,6 +76,21 @@ public sealed class GeneratedContent : IEquatable<GeneratedContent>
     public int HighlightStart { get; }
 
     public int HighlightLength { get; }
+
+    /// <summary>Tramos con formato propio (negrita, color, tamaño), en orden y sin solaparse.</summary>
+    public IReadOnlyList<TextSpan> Spans { get; }
+
+    /// <summary>Alto de la caja en píxeles de la secuencia, para el ajuste del tamaño; 0 si no hay.</summary>
+    public double BoxHeight { get; }
+
+    /// <summary>Las palabras dichas (karaoke por unidades), en caracteres del texto; <c>Start</c> −1 si no se encontró.</summary>
+    public IReadOnlyList<(int Start, int Length)> Words { get; }
+
+    /// <summary>
+    /// Se dibuja por unidades (líneas, palabras o letras de un atlas): animación por unidades, texto en arco o karaoke
+    /// cuadro a cuadro. Lo que cambia en cada cuadro llega en <see cref="LayerFrame.TextMotion"/>; la textura no cambia.
+    /// </summary>
+    public bool UsesUnits { get; }
 
     /// <summary>Clip del que salió, para los avisos (por ejemplo, la fuente que falta); no forma parte de <see cref="Key"/>.</summary>
     public string ClipId { get; init; } = "";
@@ -121,17 +141,69 @@ public sealed class GeneratedContent : IEquatable<GeneratedContent>
         Number(b, s.LineHeight);
         Number(b, s.LetterSpacing).Append((int)s.Align).Append('|');
         Append(b, s.Fill.Color);
-        if (s.Stroke is { } stroke)
+        if (s.Fill.Gradient is { } gradient)
+        {
+            b.Append('G').Append((int)gradient.Kind);
+            Number(b, gradient.Angle);
+            foreach (ColorStop stop in gradient.Stops)
+            {
+                Append(Number(b, stop.Position), stop.Color);
+            }
+        }
+
+        foreach (StyleStroke stroke in s.AllStrokes())
         {
             Append(b, "S" + stroke.Color);
             Number(b, stroke.Width).Append((int)stroke.Join).Append('|');
         }
 
-        if (s.Shadow is { } shadow)
+        foreach (StyleShadow shadow in s.AllShadows())
         {
             Append(b, "D" + shadow.Color);
             Number(Number(Number(b, shadow.Dx), shadow.Dy), shadow.Blur);
         }
+
+        if (s.Typography is { } typography)
+        {
+            b.Append('T').Append(typography.Kerning ? 'k' : 'n').Append((int)typography.Case).Append((int)typography.Fit).Append('|');
+            foreach (string feature in typography.Features)
+            {
+                Append(b, feature);
+            }
+        }
+
+        if (s.Path is { } path)
+        {
+            b.Append('P').Append((int)path.Kind);
+            Number(b, path.Bend);
+        }
+
+        foreach (TextSpan span in Spans)
+        {
+            b.Append('R').Append(span.Start).Append('+').Append(span.Length).Append(':').Append(span.Weight ?? 0).Append(span.Italic switch { true => 'i', false => 'n', _ => '-' })
+                .Append(span.Underline switch { true => 'u', false => 'n', _ => '-' });
+            Append(b, span.Color ?? "");
+            Number(b, span.Scale ?? 0);
+        }
+
+        if (UsesUnits)
+        {
+            // La animación por unidades se evalúa con la textura ya hecha: va en la clave para que la caché no la mezcle.
+            b.Append('U').Append((int)(s.Highlight?.Mode ?? HighlightMode.Word)).Append('|');
+            AppendAnimation(b, s.In);
+            AppendAnimation(b, s.Out);
+            foreach ((int start, int length) in Words)
+            {
+                b.Append(start).Append('+').Append(length).Append(',');
+            }
+
+            if (s.Highlight is { } spoken)
+            {
+                Append(b, spoken.Color);
+            }
+        }
+
+        Number(b, BoxHeight);
 
         if (s.Background is { } background)
         {
@@ -152,9 +224,50 @@ public sealed class GeneratedContent : IEquatable<GeneratedContent>
         return b.ToString();
     }
 
+    private static void AppendAnimation(StringBuilder b, StyleAnimation? animation)
+    {
+        if (animation is not { PerUnit: true })
+        {
+            b.Append("-|");
+            return;
+        }
+
+        b.Append((int)animation.Unit).Append((int)animation.Order);
+        Number(Number(b, animation.Stagger), animation.DurationSeconds);
+        foreach ((string name, List<StyleKey> keys) in animation.Curves.OrderBy(c => c.Key, StringComparer.Ordinal))
+        {
+            Append(b, name);
+            foreach (StyleKey key in keys)
+            {
+                Number(Number(b, key.T), key.Value).Append((int)key.Interp).Append(';');
+            }
+        }
+    }
+
     private static StringBuilder Append(StringBuilder b, string value) => b.Append(value.Length).Append(':').Append(value).Append('|');
 
     private static StringBuilder Number(StringBuilder b, double value) => b.Append(value.ToString("R", CultureInfo.InvariantCulture)).Append('|');
+}
+
+/// <summary>Lo del título que no es del estilo: tramos con formato, alto de la caja y las palabras dichas (karaoke).</summary>
+public sealed record TextExtras(IReadOnlyList<TextSpan>? Spans = null, double BoxHeight = 0, IReadOnlyList<(int Start, int Length)>? Words = null);
+
+/// <summary>En qué parte de su animación por unidades está un título en un cuadro.</summary>
+public enum TextPhase : byte
+{
+    /// <summary>En reposo (ninguna animación por unidades en curso).</summary>
+    None,
+    In,
+    Out,
+}
+
+/// <summary>
+/// Lo que un título dibujado por unidades (<see cref="GeneratedContent.UsesUnits"/>) necesita de cada cuadro: la fase y su
+/// avance (0 a 1) y, en karaoke, la palabra que suena y cuánto se dijo de ella. Va por valor: armar la capa no reserva.
+/// </summary>
+public readonly record struct TextMotion(TextPhase Phase, double Progress, int Word, double WordProgress)
+{
+    public static readonly TextMotion Rest = new(TextPhase.None, 0, -1, 0);
 }
 
 /// <summary>

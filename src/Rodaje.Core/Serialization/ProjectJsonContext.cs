@@ -26,6 +26,14 @@ namespace Rodaje.Core.Serialization;
         typeof(CamelCaseEnumConverter<FrameSampling>),
         typeof(CamelCaseEnumConverter<TextAlign>),
         typeof(CamelCaseEnumConverter<StrokeJoin>),
+        typeof(CamelCaseEnumConverter<TextCase>),
+        typeof(CamelCaseEnumConverter<TextFit>),
+        typeof(CamelCaseEnumConverter<GradientKind>),
+        typeof(CamelCaseEnumConverter<TextUnit>),
+        typeof(CamelCaseEnumConverter<UnitOrder>),
+        typeof(CamelCaseEnumConverter<HighlightMode>),
+        typeof(CamelCaseEnumConverter<TextPathKind>),
+
     ])]
 [JsonSerializable(typeof(Project))]
 public sealed partial class ProjectJsonContext : JsonSerializerContext

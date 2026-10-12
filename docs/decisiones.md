@@ -2,7 +2,7 @@
 
 Este registro guarda el porqué de cada elección importante de Rodaje. Una decisión no se borra cuando cambia: se marca como sustituida y otra explica el cambio.
 
-**Estado.** Vigentes: D-003 a D-014, D-016 a D-029 y D-031 a D-038 (D-017 la amplía D-019; D-028 la corrige D-033 en la parte de 9:16). Sustituidas: D-001 (por D-014), D-002 en la licencia y D-030 (por D-032), D-015 en el visor (por D-022) y en la caché (por D-017).
+**Estado.** Vigentes: D-003 a D-014, D-016 a D-029 y D-031 a D-039 (D-017 la amplía D-019; D-028 la corrige D-033 en la parte de 9:16; D-029.1 la amplía D-039). Sustituidas: D-001 (por D-014), D-002 en la licencia y D-030 (por D-032), D-015 en el visor (por D-022) y en la caché (por D-017).
 
 ---
 
@@ -360,3 +360,14 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
   - **`sound` es un WAV** (PCM de 16, 24 o 32 bits o float): al usarlo se copia a la carpeta de medios del proyecto (`<proyecto>.medios\sonidos`), así el proyecto no depende del paquete instalado.
   - **Video 360: el motor trae el código y el complemento lo activa.** `rodaje.reframe360` está en el registro con `Feature = "360"`: se aplica siempre que un proyecto lo traiga (nada se rompe al desinstalar), pero la interfaz solo lo ofrece con `rodaje-360` instalado. Los metadatos esféricos (Spherical Video V2) los escribe un editor de cajas MP4 propio después de FFmpeg, que no los escribe desde la línea de comandos.
 - **Consecuencia.** Un Rodaje anterior no entiende `export-preset`: `rodaje-preajustes-pro` le resulta un paquete sin elementos y no lo instala. Los efectos de `rodaje-360` en un Rodaje sin el reencuadre se conservan en el proyecto, pero no se aplican.
+
+## D-039. Títulos profesionales: unidades en un atlas, formato 9 y `rodaje.textstyle` v2 (12 de octubre de 2026)
+
+- **Contexto.** D-029 dejó para después la animación por letra o palabra. Los títulos tenían un solo borde y una sombra, color liso, sin formato dentro del texto, sin tipografía fina ni arco, y el karaoke cambiaba de textura en cada palabra.
+- **Decisión.**
+  - **Un atlas por título, no un rasterizado por cuadro.** Un título por unidades (animación por línea, palabra o letra, arco o karaoke cuadro a cuadro) se rasteriza una vez: cada unidad en su celda (sombra, borde, relleno y relleno resaltado) de un atlas con mipmaps. En cada cuadro el compositor las coloca con su pose en un intermedio y de ahí sigue el camino de siempre (transformación, efectos, mezcla). El desenfoque por unidad sale del nivel de mip; el barrido del karaoke, de recortar la celda resaltada y la normal. Así la vista previa y la exportación son el mismo cálculo y animar no cuesta rasterizar.
+  - **El motor solo manda la fase.** `TextMotion` (fase, avance y palabra dicha con su avance) va por valor en la capa; las poses salen de `TextAnimator` del núcleo, con las mismas interpolaciones de los keyframes (`KeyframeMath`, rebote y elástico incluidos). El desfase es una fracción de la duración, así el motor no necesita saber cuántas unidades hay.
+  - **Las sombras se juntan antes que los bordes y los bordes antes que los rellenos**, para todas las unidades: en reposo, un título por letras se ve como el bloque.
+  - **Tramos en el clip, no en el estilo:** el formato de una palabra es del texto, se mueve con él al escribir y un estilo nuevo no lo pisa.
+  - **Formato 9 y `rodaje.textstyle` v2**, todo opcional; «Guardar como estilo» escribe la versión 1 si el estilo no usa nada nuevo, así lo sigue leyendo un Rodaje anterior.
+- **Consecuencia.** Un emoji de color junto a una letra animada puede asomar en su celda (se dibuja con su paleta, no con el pincel que oculta al resto). Un atlas 4K de tres líneas por letra pesa unos 55 MB con mips y tarda unos 120 ms en el hilo de títulos; la composición por cuadro no reserva memoria.

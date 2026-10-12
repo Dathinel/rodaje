@@ -24,8 +24,27 @@ public sealed record TextStyleShadow(string Color, double Dx, double Dy, double 
 /// <summary>Fondo detrás del texto, con margen horizontal y vertical.</summary>
 public sealed record TextStyleBackground(string Color, double PaddingX, double PaddingY, double Radius);
 
-/// <summary>Entrada o salida del bloque: curvas de <c>rodaje.transform</c> en segundos desde su borde.</summary>
-public sealed record TextStyleAnimation(double DurationSeconds, IReadOnlyList<PresetCurve> Curves);
+/// <summary>
+/// Entrada o salida: curvas de <c>rodaje.transform</c> (más <c>blur</c>) en segundos desde su borde, por bloque o (v2) por
+/// <c>line</c>, <c>word</c> o <c>letter</c> con desfase y orden (<c>forward</c>, <c>backward</c>, <c>center</c>,
+/// <c>edges</c>, <c>random</c>).
+/// </summary>
+public sealed record TextStyleAnimation(double DurationSeconds, IReadOnlyList<PresetCurve> Curves)
+{
+    public string Unit { get; init; } = "block";
+
+    public double Stagger { get; init; }
+
+    public string Order { get; init; } = "forward";
+}
+
+/// <summary>Degradado del relleno (v2): <c>linear</c> con ángulo en grados o <c>radial</c>; de 2 a 8 paradas en orden.</summary>
+public sealed record TextStyleGradient(string Kind, double Angle, IReadOnlyList<TextStyleGradientStop> Stops);
+
+public sealed record TextStyleGradientStop(double Position, string Color);
+
+/// <summary>Tipografía (v2): kerning, mayúsculas (<c>none</c>, <c>upper</c>, <c>lower</c>, <c>smallCaps</c>), funciones OpenType y ajuste (<c>none</c>, <c>shrink</c>, <c>fill</c>).</summary>
+public sealed record TextStyleTypography(bool Kerning, string Case, IReadOnlyList<string> Features, string Fit);
 
 /// <summary>
 /// <c>rodaje.textstyle</c> v1: un estilo de título. Medidas en píxeles de <see cref="ReferenceWidth"/> ×
@@ -51,5 +70,22 @@ public sealed record TextStylePreset(
     string? HighlightColor = null)
 {
     public const string Format = "rodaje.textstyle";
-    public const int Version = 1;
+
+    /// <summary>La 2 suma degradado, bordes y sombras adicionales, tipografía, arco, barrido de karaoke y animación por unidades; la 1 se sigue leyendo.</summary>
+    public const int Version = 2;
+
+    public TextStyleGradient? Gradient { get; init; }
+
+    public IReadOnlyList<TextStyleStroke> ExtraStrokes { get; init; } = [];
+
+    public IReadOnlyList<TextStyleShadow> ExtraShadows { get; init; } = [];
+
+    public TextStyleTypography? Typography { get; init; }
+
+    /// <summary>Grados del arco del texto; nulo en línea recta.</summary>
+    public double? PathBend { get; init; }
+
+    /// <summary><c>word</c> (la palabra que suena) o <c>sweep</c> (barrido).</summary>
+    public string HighlightMode { get; init; } = "word";
 }
+

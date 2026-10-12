@@ -43,6 +43,58 @@ internal static unsafe class GlyphOutlines
         return geometries;
     }
 
+    /// <summary>
+    /// Una geometría por glifo, en el espacio del layout, con la posición en el texto del primer carácter de su grupo:
+    /// para el borde de cada unidad (letra, palabra o línea) de un título animado por unidades. Quien llama libera cada una.
+    /// </summary>
+    public static List<(int TextPosition, nint Geometry)> CollectGlyphs(IDWriteTextLayout* layout, ID2D1Factory* factory)
+    {
+        var geometries = new List<nint>();
+        var positions = new List<int>();
+        GCHandle handle = GCHandle.Alloc(geometries);
+        GCHandle positionsHandle = GCHandle.Alloc(positions);
+        try
+        {
+            var context = new Context
+            {
+                Factory = factory,
+                Geometries = GCHandle.ToIntPtr(handle),
+                Positions = GCHandle.ToIntPtr(positionsHandle),
+                Transform = Matrix3x2.Identity,
+            };
+            var renderer = new Renderer { Vtable = Vtable };
+            HRESULT hr = layout->Draw(&context, (IDWriteTextRenderer*)&renderer, 0, 0);
+            if (hr.FAILED || context.Error.FAILED)
+            {
+                Release(geometries);
+                RenderException.Check(hr.FAILED ? hr : context.Error, "IDWriteTextLayout::Draw(glifos)");
+            }
+        }
+        finally
+        {
+            handle.Free();
+            positionsHandle.Free();
+        }
+
+        var result = new List<(int, nint)>(geometries.Count);
+        for (int i = 0; i < geometries.Count; i++)
+        {
+            result.Add((positions[i], geometries[i]));
+        }
+
+        return result;
+    }
+
+    public static void Release(List<(int TextPosition, nint Geometry)> glyphs)
+    {
+        foreach ((_, nint geometry) in glyphs)
+        {
+            ((IUnknown*)geometry)->Release();
+        }
+
+        glyphs.Clear();
+    }
+
     public static void Release(List<nint> geometries)
     {
         foreach (nint geometry in geometries)
@@ -117,6 +169,11 @@ internal static unsafe class GlyphOutlines
     private static int DrawGlyphRun(Renderer* self, Context* context, float baselineX, float baselineY, DWRITE_MEASURING_MODE mode,
         DWRITE_GLYPH_RUN* run, DWRITE_GLYPH_RUN_DESCRIPTION* description, IUnknown* effect)
     {
+        if (context->Positions != 0)
+        {
+            return DrawEachGlyph(context, baselineX, baselineY, run, description);
+        }
+
         ID2D1PathGeometry* path = null;
         ID2D1GeometrySink* sink = null;
         ID2D1TransformedGeometry* placed = null;
@@ -181,6 +238,112 @@ internal static unsafe class GlyphOutlines
         }
     }
 
+    /// <summary>Cada glifo por separado, en su lugar de la línea y con la posición de su grupo en el texto.</summary>
+    private static int DrawEachGlyph(Context* context, float baselineX, float baselineY, DWRITE_GLYPH_RUN* run, DWRITE_GLYPH_RUN_DESCRIPTION* description)
+    {
+        try
+        {
+            var geometries = (List<nint>)GCHandle.FromIntPtr(context->Geometries).Target!;
+            var positions = (List<int>)GCHandle.FromIntPtr(context->Positions).Target!;
+            bool rightToLeft = (run->bidiLevel & 1) != 0;
+            float pen = 0;
+            for (uint g = 0; g < run->glyphCount; g++)
+            {
+                float advance = run->glyphAdvances != null ? run->glyphAdvances[g] : 0;
+                float x = rightToLeft ? baselineX - pen : baselineX + pen;
+                pen += advance;
+                ID2D1PathGeometry* path = null;
+                ID2D1GeometrySink* sink = null;
+                ID2D1TransformedGeometry* placed = null;
+                try
+                {
+                    HRESULT hr = context->Factory->CreatePathGeometry(&path);
+                    if (hr.SUCCEEDED)
+                    {
+                        hr = path->Open(&sink);
+                    }
+
+                    if (hr.SUCCEEDED)
+                    {
+                        hr = run->fontFace->GetGlyphRunOutline(run->fontEmSize, run->glyphIndices + g, null,
+                            run->glyphOffsets != null ? run->glyphOffsets + g : null, 1, run->isSideways, rightToLeft,
+                            (ID2D1SimplifiedGeometrySink*)sink);
+                    }
+
+                    if (sink != null)
+                    {
+                        HRESULT closed = sink->Close();
+                        hr = hr.SUCCEEDED ? closed : hr;
+                    }
+
+                    if (hr.SUCCEEDED)
+                    {
+                        var matrix = new D2D_MATRIX_3X2_F { m11 = 1, m22 = 1, dx = x, dy = baselineY };
+                        hr = context->Factory->CreateTransformedGeometry((ID2D1Geometry*)path, &matrix, &placed);
+                    }
+
+                    if (hr.FAILED)
+                    {
+                        context->Error = hr;
+                        return hr.Value;
+                    }
+
+                    geometries.Add((nint)placed);
+                    positions.Add((int)description->textPosition + ClusterStart(description, g));
+                    placed = null;
+                }
+                finally
+                {
+                    if (placed != null)
+                    {
+                        placed->Release();
+                    }
+
+                    if (sink != null)
+                    {
+                        sink->Release();
+                    }
+
+                    if (path != null)
+                    {
+                        path->Release();
+                    }
+                }
+            }
+
+            return S.S_OK;
+        }
+        catch (Exception error)
+        {
+            context->Error = error.HResult;
+            return E.E_FAIL;
+        }
+    }
+
+    /// <summary>El primer carácter (relativo al tramo) del grupo al que pertenece el glifo <paramref name="glyph"/>.</summary>
+    private static int ClusterStart(DWRITE_GLYPH_RUN_DESCRIPTION* description, uint glyph)
+    {
+        if (description == null || description->clusterMap == null)
+        {
+            return 0;
+        }
+
+        // El mapa crece con el texto: el último carácter cuyo grupo empieza en o antes del glifo, y luego el primero de su grupo.
+        int c = 0;
+        while (c + 1 < description->stringLength && description->clusterMap[c + 1] <= glyph)
+        {
+            c++;
+        }
+
+        while (c > 0 && description->clusterMap[c - 1] == description->clusterMap[c])
+        {
+            c--;
+        }
+
+        return c;
+
+    }
+
     [UnmanagedCallersOnly]
     private static int DrawUnderline(Renderer* self, void* context, float x, float y, DWRITE_UNDERLINE* underline, IUnknown* effect) => S.S_OK;
 
@@ -205,7 +368,11 @@ internal static unsafe class GlyphOutlines
     {
         public ID2D1Factory* Factory;
         public nint Geometries;
+
+        /// <summary>Si no es cero, se recoge un glifo por geometría y aquí la posición en el texto de cada uno.</summary>
+        public nint Positions;
         public Matrix3x2 Transform;
+
         public HRESULT Error;
     }
 }

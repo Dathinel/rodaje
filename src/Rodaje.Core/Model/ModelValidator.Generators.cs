@@ -1,4 +1,5 @@
 using Rodaje.Core.Effects;
+using Rodaje.Core.Text;
 
 namespace Rodaje.Core.Model;
 
@@ -15,6 +16,8 @@ public static partial class ModelValidator
     private const double MaxOffset = 1000;
     private const double MaxAnimationSeconds = 60;
     private const double MaxEdgeOffsetSeconds = 360_000;
+    public const int MaxExtraStrokes = 4;
+    public const int MaxExtraShadows = 4;
 
     private static readonly string[] AnimatedParameters =
     [
@@ -85,6 +88,16 @@ public static partial class ModelValidator
             errors.Add($"{where} tiene una caja de texto con un ancho fuera de rango.");
         }
 
+        if (generator.Box?.HeightFraction is { } heightFraction && !InRange(heightFraction, double.Epsilon, 1))
+        {
+            errors.Add($"{where} tiene una caja de texto con un alto fuera de rango.");
+        }
+
+        if (generator.Spans is { } spans)
+        {
+            ValidateSpans(spans, text.Length, where, errors);
+        }
+
         ValidateWords(generator, where, errors);
     }
 
@@ -114,17 +127,43 @@ public static partial class ModelValidator
         Check(InRange(style.LetterSpacing, -MaxOffset, MaxOffset), "un espaciado fuera de rango");
         Check(Enum.IsDefined(style.Align), "una alineación desconocida");
         Check(IsColor(style.Fill.Color), "un color de relleno no válido");
-
-        if (style.Stroke is { } stroke)
+        if (style.Fill.Gradient is { } gradient)
         {
-            Check(IsColor(stroke.Color) && Enum.IsDefined(stroke.Join), "un borde con color o unión no válidos");
-            Check(InRange(stroke.Width, 0, style.Size / 2), "un borde más ancho que la mitad del tamaño");
+            bool stops = gradient.Stops.Count is >= 2 and <= StyleGradient.MaxStops;
+            for (int i = 0; stops && i < gradient.Stops.Count; i++)
+            {
+                ColorStop stop = gradient.Stops[i];
+                stops = stop is not null && InRange(stop.Position, 0, 1) && IsColor(stop.Color) && (i == 0 || stop.Position >= gradient.Stops[i - 1].Position);
+            }
+
+            Check(stops && Enum.IsDefined(gradient.Kind) && InRange(gradient.Angle, -360, 360),
+                $"un degradado con menos de 2 o más de {StyleGradient.MaxStops} paradas, fuera de orden o de rango");
         }
 
-        if (style.Shadow is { } shadow)
+        Check(style.ExtraStrokes is not { Count: > MaxExtraStrokes } && style.ExtraShadows is not { Count: > MaxExtraShadows },
+            $"más de {MaxExtraStrokes} bordes o sombras adicionales");
+        foreach (StyleStroke stroke in style.AllStrokes())
         {
-            Check(IsColor(shadow.Color) && InRange(shadow.Dx, -MaxOffset, MaxOffset) && InRange(shadow.Dy, -MaxOffset, MaxOffset)
+            Check(stroke is not null && IsColor(stroke.Color) && Enum.IsDefined(stroke.Join), "un borde con color o unión no válidos");
+            Check(stroke is not null && InRange(stroke.Width, 0, style.Size / 2), "un borde más ancho que la mitad del tamaño");
+        }
+
+        foreach (StyleShadow shadow in style.AllShadows())
+        {
+            Check(shadow is not null && IsColor(shadow.Color) && InRange(shadow.Dx, -MaxOffset, MaxOffset) && InRange(shadow.Dy, -MaxOffset, MaxOffset)
                 && InRange(shadow.Blur, 0, 64), "una sombra fuera de rango");
+        }
+
+        if (style.Typography is { } typography)
+        {
+            Check(Enum.IsDefined(typography.Case) && Enum.IsDefined(typography.Fit), "unas mayúsculas o un ajuste desconocidos");
+            Check(typography.Features.Count <= StyleTypography.MaxFeatures && typography.Features.TrueForAll(StyleTypography.IsFeature),
+                $"funciones OpenType no válidas (etiquetas de 4 letras, hasta {StyleTypography.MaxFeatures})");
+        }
+
+        if (style.Path is { } path)
+        {
+            Check(Enum.IsDefined(path.Kind) && InRange(path.Bend, -360, 360), "una trayectoria fuera de rango (de −360 a 360 grados)");
         }
 
         if (style.Background is { } background)
@@ -135,7 +174,7 @@ public static partial class ModelValidator
 
         if (style.Highlight is { } highlight)
         {
-            Check(IsColor(highlight.Color), "un color de palabra resaltada no válido");
+            Check(IsColor(highlight.Color) && Enum.IsDefined(highlight.Mode), "un color o un modo de palabra resaltada no válidos");
         }
 
         ValidateAnimation(style.In, "entrada", Check);
@@ -151,29 +190,55 @@ public static partial class ModelValidator
 
         double duration = animation.DurationSeconds;
         check(InRange(duration, 0, MaxAnimationSeconds), $"una {name} con una duración fuera de 0 a {MaxAnimationSeconds} s");
+        check(Enum.IsDefined(animation.Unit) && Enum.IsDefined(animation.Order) && InRange(animation.Stagger, 0, 1),
+            $"una {name} con una unidad, un orden o un desfase (de 0 a 1) no válidos");
         ParameterDefinition[] limits = [.. AnimatedParameters.Select(p => EffectRegistry.Find(BuiltInEffects.Transform)!.FindParameter(p)!)];
         foreach ((string parameter, List<StyleKey> keys) in animation.Curves)
         {
             int index = Array.IndexOf(AnimatedParameters, parameter);
-            if (index < 0)
+            bool blur = parameter == StyleAnimation.Blur;
+            if (index < 0 && !blur)
             {
-                check(false, $"una {name} que anima «{parameter}», que no es x, y, scale, rotation ni opacity");
+                check(false, $"una {name} que anima «{parameter}», que no es x, y, scale, rotation, opacity ni blur");
                 continue;
             }
 
+            double min = blur ? 0 : limits[index].Minimum;
+            double max = blur ? TextAnimator.MaxBlur : limits[index].Maximum;
             bool ordered = keys.Count is > 0 and <= MaxStyleKeys;
             for (int i = 0; ordered && i < keys.Count; i++)
             {
                 StyleKey key = keys[i];
-                ordered = InRange(key.T, 0, duration) && (i == 0 || key.T > keys[i - 1].T)
-                    && InRange(key.Value, limits[index].Minimum, limits[index].Maximum) && Enum.IsDefined(key.Interp);
+                ordered = key is not null && InRange(key.T, 0, duration) && (i == 0 || key.T > keys[i - 1].T)
+                    && InRange(key.Value, min, max) && Enum.IsDefined(key.Interp);
             }
 
             check(ordered, $"una {name} con la curva «{parameter}» vacía, de más de {MaxStyleKeys} puntos, fuera de orden o de rango");
         }
     }
 
+    /// <summary>Tramos con formato: dentro del texto, en orden, sin solaparse, con algún formato y dentro de sus topes.</summary>
+    private static void ValidateSpans(List<TextSpan> spans, int textLength, string where, List<string> errors)
+    {
+        bool ok = spans.Count <= TextSpans.MaxSpans;
+        for (int i = 0; ok && i < spans.Count; i++)
+        {
+            TextSpan span = spans[i];
+            ok = span is not null && span.Start >= 0 && span.Length > 0 && span.End <= textLength && !span.IsPlain
+                && (i == 0 || span.Start >= spans[i - 1].End)
+                && span.Weight is null or (>= 100 and <= 900)
+                && (span.Color is null || IsColor(span.Color))
+                && (span.Scale is null || InRange(span.Scale.Value, TextSpans.MinScale, TextSpans.MaxScale));
+        }
+
+        if (!ok)
+        {
+            errors.Add($"{where} tiene tramos de formato fuera del texto, solapados, vacíos, de más de {TextSpans.MaxSpans} o con valores fuera de rango.");
+        }
+    }
+
     /// <summary>Rol de pista: minúsculas ASCII, dígitos y guiones; <c>subtitles</c> solo en pistas de video.</summary>
+
     private static void ValidateRole(Track track, List<string> errors)
     {
         if (track.Role is not { } role)

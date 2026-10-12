@@ -14,7 +14,8 @@ namespace Rodaje.App.Views.Player;
 /// <summary>
 /// Escribir sobre el visor: doble clic en un título abre un <c>TextBox</c> encima, con la fuente y el tamaño aproximados
 /// (el IME, la selección y el portapapeles son los de Windows); lo escrito va al título como desde la pestaña Texto, una
-/// tanda de tecleo por paso del historial. Esc, Ctrl+Intro o salir del cuadro lo cierran.
+/// tanda de tecleo por paso del historial. Ctrl+B, Ctrl+I y Ctrl+U dan formato a lo elegido (un tramo del título). Esc,
+/// Ctrl+Intro o salir del cuadro lo cierran.
 /// </summary>
 internal sealed partial class PlayerView
 {
@@ -99,6 +100,22 @@ internal sealed partial class PlayerView
         {
             e.Handled = true;
             EndInlineEdit();
+            return;
+        }
+
+        // Formato de lo elegido en el cuadro: negrita, cursiva y subrayado, como en un procesador de texto.
+        if (control && _inlineEditor is { } editor && TitleEditBox.SelectionLength > 0 && e.Key is VirtualKey.B or VirtualKey.I or VirtualKey.U)
+        {
+            int start = TitleEditBox.SelectionStart;
+            int length = TitleEditBox.SelectionLength;
+            editor.EndTyping();
+            _ = e.Key switch
+            {
+                VirtualKey.B => editor.Toggle(start, length, s => s.Weight >= 600, (s, on) => s with { Weight = on ? 700 : null }, "Negrita"),
+                VirtualKey.I => editor.Toggle(start, length, s => s.Italic == true, (s, on) => s with { Italic = on ? true : null }, "Cursiva"),
+                _ => editor.Toggle(start, length, s => s.Underline == true, (s, on) => s with { Underline = on ? true : null }, "Subrayado"),
+            };
+            e.Handled = true;
         }
     }
 

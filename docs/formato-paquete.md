@@ -147,7 +147,7 @@ Una lista no vacía de efectos con valores fijos; lo que falta toma el valor por
 
 Curvas de la transformación del clip que sale (`outgoing`) y del que entra (`incoming`), por parámetro (`x`, `y`, `scale`, `rotation`, `opacity`), más la **mezcla** de las dos imágenes: una transición propia del registro (`rodaje.crossfade` por defecto, `rodaje.wipe`, `rodaje.dip`…; nunca `rodaje.preset`) con sus `mixParameters` y `mixOptions` opcionales. `durationSeconds` (hasta 60 s) es la duración para la que se escribieron las curvas: al usarla se estiran a la de la transición de la pista (`t / durationSeconds` es el avance de 0 a 1). Las dos listas pueden faltar: un preajuste sin curvas es solo la mezcla. El v1 de «Guardar como transición» se lee como curvas del clip que entra con fundido cruzado.
 
-### `text-style`: `rodaje.textstyle` v1
+### `text-style`: `rodaje.textstyle` v1 y v2
 
 ```json
 { "format": "rodaje.textstyle", "version": 1, "id": "clasico", "name": "Clásico",
@@ -162,6 +162,17 @@ Curvas de la transformación del clip que sale (`outgoing`) y del que entra (`in
 ```
 
 Un estilo de título. Obligatorios `font.family` y `size` (mayor que 0 y hasta 1000); lo demás tiene valor por defecto (peso 400, interlineado 1,2, centrado, relleno blanco) o falta (sin borde, sombra, fondo ni animación). Medidas en píxeles de `reference`; colores `#RRGGBB` o `#RRGGBBAA`; peso entero de 100 a 900; hasta 8 fuentes de respaldo; `font.source` es la referencia de un elemento `font`; borde de hasta la mitad de `size`, `blur` de 0 a 64, desplazamientos y márgenes de hasta 1000; `highlight.color` es el color de la palabra que se está diciendo en los subtítulos con tiempos por palabra (karaoke); `in` y `out` (hasta 60 s) son curvas de `rodaje.transform` por parámetro, como en `rodaje.preset`, en segundos desde su borde del clip. Al aplicarlo el proyecto guarda una copia con `source` (D-029): actualizar el paquete no cambia los títulos ya puestos.
+
+**Versión 2** (D-039; la 1 se sigue leyendo y un estilo sin nada de esto se guarda como 1): `fill.gradient` (`kind` `linear` o `radial`, `angle` de −360 a 360, de 2 a 8 `stops` `{ "position", "color" }` en orden), `extraStrokes` y `extraShadows` (hasta 4 cada uno, con los campos de `stroke` y `shadow`), `typography` (`kerning`, `case`: `none`, `upper`, `lower` o `smallCaps`, `features`: hasta 16 etiquetas OpenType de 4 caracteres con `-` delante para apagarlas, `fit`: `none`, `shrink` o `fill`), `path` (`{ "kind": "arc", "bend" }` de −360 a 360), `highlight.mode` (`word` o `sweep`) y, en `in` y `out`, `unit` (`block`, `line`, `word` o `letter`), `stagger` (0 a 1), `order` (`forward`, `backward`, `center`, `edges` o `random`) y la curva `blur` (0 a 64), con las interpolaciones `bounce` y `elastic`. El significado de cada campo es el del proyecto ([formato-proyecto.md](formato-proyecto.md#títulos-profesionales-formato-9)).
+
+```json
+{ "format": "rodaje.textstyle", "version": 2, "name": "Neón por letra", "font": { "family": "Inter", "weight": 800 }, "size": 120,
+  "fill": { "color": "#FFFFFF", "gradient": { "kind": "linear", "angle": 90, "stops": [ { "position": 0, "color": "#FFD400" }, { "position": 1, "color": "#FF3D00" } ] } },
+  "stroke": { "color": "#000000", "width": 4 }, "extraStrokes": [ { "color": "#FFFFFF", "width": 12 } ],
+  "typography": { "case": "upper", "features": ["ss01"] }, "path": { "kind": "arc", "bend": 60 },
+  "in": { "durationSeconds": 1.2, "unit": "letter", "stagger": 0.6,
+          "curves": { "y": [ { "t": 0, "value": -120, "interp": "bounce" }, { "t": 1.2, "value": 0 } ], "blur": [ { "t": 0, "value": 12 }, { "t": 0.6, "value": 0 } ] } } }
+```
 
 ### `safe-zones`: `rodaje.safezones` v1
 

@@ -25,6 +25,9 @@
                                  FontSize="{StaticResource BodyFontSize}" ScrollViewer.VerticalScrollBarVisibility="Auto"
                                  AutomationProperties.Name="Contenido del texto" PlaceholderText="Escribe el título"
                                  TextChanged="OnContentChanged" LostFocus="OnContentLostFocus" />
+                        <StackPanel x:Name="FormatBar" Orientation="Horizontal" Spacing="4" />
+                        <TextBlock x:Name="FormatHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
+                                   Text="Elige una o varias palabras para darles negrita, color o tamaño propios. En el visor, doble clic y Ctrl+B, Ctrl+I o Ctrl+U." />
                         <TextBlock x:Name="FontWarning" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed" />
                         <TextBlock x:Name="LegibilityWarning" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed" />
                     </StackPanel>
@@ -45,6 +48,14 @@
                     <StackPanel x:Name="StyleRows" />
                 </inspector:InspectorSection>
 
+                <inspector:InspectorSection x:Name="TypographySection" Key="texto-tipografia" Title="Tipografía" CollapsedByDefault="True">
+                    <StackPanel x:Name="TypographyRows" />
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="FillSection" Key="texto-relleno" Title="Degradado" CollapsedByDefault="True">
+                    <StackPanel x:Name="FillRows" />
+                </inspector:InspectorSection>
+
                 <inspector:InspectorSection x:Name="StrokeSection" Key="texto-borde" Title="Borde" CollapsedByDefault="True">
                     <StackPanel x:Name="StrokeRows" />
                 </inspector:InspectorSection>
@@ -57,8 +68,13 @@
                     <StackPanel x:Name="BackgroundRows" />
                 </inspector:InspectorSection>
 
-                <inspector:InspectorSection x:Name="AnimationSection" Key="texto-animacion" Title="Entrada y salida">
+                <inspector:InspectorSection x:Name="PathSection" Key="texto-arco" Title="Arco" CollapsedByDefault="True">
+                    <StackPanel x:Name="PathRows" />
+                </inspector:InspectorSection>
+
+                <inspector:InspectorSection x:Name="AnimationSection" Key="texto-animacion" Title="Animación">
                     <StackPanel Padding="12,4,8,8" Spacing="8">
+                        <StackPanel x:Name="AnimationRows" Margin="-12,0,-8,0" Spacing="4" />
                         <CheckBox x:Name="InBox" Content="Animar la entrada" FontSize="{StaticResource BodyFontSize}" Click="OnEdgesClick" />
                         <TextBlock x:Name="InText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Margin="28,-6,0,0" />
                         <CheckBox x:Name="OutBox" Content="Animar la salida" FontSize="{StaticResource BodyFontSize}" Click="OnEdgesClick" />

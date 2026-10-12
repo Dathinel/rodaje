@@ -1,4 +1,5 @@
 using Rodaje.Core.Model;
+using Rodaje.Core.Text;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Core.Editing;
@@ -104,6 +105,7 @@ public static partial class SubtitleEdits
 
         words.RemoveAt(index);
         words.InsertRange(index, added);
+        string before = generator.Text;
         if (ranges[index] is { Found: true } range)
         {
             string text = generator.Text.Remove(range.Start, range.Length).Insert(range.Start, string.Join(' ', parts));
@@ -117,6 +119,7 @@ public static partial class SubtitleEdits
             generator.Text = Rewrap(words.Select(w => w.Text).ToList());
         }
 
+        generator.Spans = TextSpans.Remap(before, generator.Text, generator.Spans);
         ctx.EnsureValid();
     }
 
@@ -172,6 +175,9 @@ public static partial class SubtitleEdits
             : JoinWords(left.Words, [.. right.Words.Select(w => new GeneratorWord { Start = w.Start + shift, End = w.End + shift, Text = w.Text })],
                 clip.SourceOut, next.SourceIn + shift);
         left.Text = Rewrap(texts);
+
+        // Unir rearma las líneas: el formato por tramos no sobrevive al reflujo.
+        left.Spans = null;
         left.Edges.Out = right.Edges.Out;
         left.Edges.After = right.Edges.After;
         clip.SourceOut += next.End - clip.End;
@@ -235,6 +241,7 @@ public static partial class SubtitleEdits
     {
         generator.Words = [.. words.Select(w => w.Clone())];
         generator.Text = Rewrap([.. tokens]);
+        generator.Spans = null;
         generator.Edges = new GeneratorEdges();
     }
 

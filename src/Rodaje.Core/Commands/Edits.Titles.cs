@@ -44,6 +44,11 @@ public static partial class Edits
     public static SequenceEditCommand SetTitleText(string sequenceId, string clipId, string text, IIdGenerator? ids = null) =>
         new("Escribir texto", sequenceId, ctx => TitleEdits.SetText(ctx, clipId, text), ids, $"title-text:{clipId}");
 
+    /// <summary>Formato de un trozo del texto (negrita, cursiva, subrayado, color, tamaño): un paso del historial.</summary>
+    public static SequenceEditCommand FormatTitleText(string sequenceId, string clipId, int start, int length, Func<TextSpan, TextSpan> change,
+        string label = "Dar formato al texto", IIdGenerator? ids = null) =>
+        new(label, sequenceId, ctx => TitleEdits.FormatText(ctx, clipId, start, length, change), ids);
+
     /// <summary>Sustituye la copia del estilo. Con <paramref name="mergeKey"/> (un deslizador) los pasos seguidos se funden.</summary>
     public static SequenceEditCommand SetTitleStyle(
         string sequenceId,
