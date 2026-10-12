@@ -102,10 +102,8 @@ internal static class AutoSubtitlesDialog
         ContentDialog dialog = AnalysisUi.Dialog(root, Title, "Aplicar", panel);
         using var cancel = new CancellationTokenSource();
         ModuleJob? job = null;
-        IReadOnlyList<SpeechSegment>? segments = null;
-        IReadOnlyList<SubtitleCue> cues = [];
-        string transcribed = "";
-        bool running = false;
+        // La propuesta se descarta al empezar cada transcripción: si la nueva falla o se cancela, no queda la anterior.
+        var draft = new TranscriptionDraft();
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         timer.Tick += (_, _) =>
@@ -132,7 +130,8 @@ internal static class AutoSubtitlesDialog
 
         async Task Transcribe()
         {
-            running = true;
+            draft.Begin();
+            Show(draft.Cues);
             again.IsEnabled = false;
             dialog.IsPrimaryButtonEnabled = false;
             progress.Visibility = Visibility.Visible;
@@ -145,9 +144,9 @@ internal static class AutoSubtitlesDialog
             {
                 Transcript transcript = await AutoSubtitles.RunAsync(modules, module, media.Path, window, wanted,
                     $"Subtítulos de «{media.Name}»", cancel.Token, j => job = j);
-                segments = AutoSubtitles.ToSequence(clip, transcript);
-                cues = AutoSubtitles.Cues(segments, frameRate);
-                transcribed = wanted;
+                IReadOnlyList<SpeechSegment> segments = AutoSubtitles.ToSequence(clip, transcript);
+                IReadOnlyList<SubtitleCue> cues = AutoSubtitles.Cues(segments, frameRate);
+                draft.Complete(wanted, segments, cues);
                 _language = wanted;
                 Show(cues);
                 status.Text = cues.Count == 0
@@ -156,6 +155,7 @@ internal static class AutoSubtitlesDialog
             }
             catch (OperationCanceledException)
             {
+                draft.Fail();
                 status.Text = "Cancelado. El proyecto no cambió.";
             }
             // «Transcribir de nuevo» la llama desde un manejador async void: ningún fallo puede escapar y cerrar la app.
@@ -163,54 +163,60 @@ internal static class AutoSubtitlesDialog
             catch (Exception ex)
 #pragma warning restore CA1031
             {
+                draft.Fail();
                 status.Text = ex is ModuleException error ? ModuleManager.Friendly(module, error) : "No se pudo transcribir: " + ex.Message + " El proyecto no cambió.";
             }
             finally
             {
                 timer.Stop();
                 progress.Visibility = Visibility.Collapsed;
-                running = false;
-                again.IsEnabled = Selected() != transcribed;
-                dialog.IsPrimaryButtonEnabled = cues.Count > 0;
+                if (draft.Running)
+                {
+                    draft.Fail();
+                }
+
+                again.IsEnabled = draft.CanTranscribe(Selected());
+                dialog.IsPrimaryButtonEnabled = draft.CanApply;
             }
         }
 
-        language.SelectionChanged += (_, _) => again.IsEnabled = !running && Selected() != transcribed;
+        language.SelectionChanged += (_, _) => again.IsEnabled = draft.CanTranscribe(Selected());
         Task current = Task.CompletedTask;
         again.Click += async (_, _) => await (current = Transcribe());
         list.ItemClick += (_, e) =>
         {
             int index = e.ClickedItem is string label ? labels.IndexOf(label) : -1;
-            if (index >= 0 && index < cues.Count)
+            if (index >= 0 && index < draft.Cues.Count)
             {
-                session.Seek(cues[index].Start);
+                session.Seek(draft.Cues[index].Start);
             }
         };
 
         current = Transcribe();
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
-        if (answer != ContentDialogResult.Primary || running)
+        if (answer != ContentDialogResult.Primary || draft.Running)
         {
             await cancel.CancelAsync();
         }
 
         await current;
 
-        if (answer != ContentDialogResult.Primary || segments is not { Count: > 0 } chosen || cues.Count == 0)
+        if (answer != ContentDialogResult.Primary || !draft.CanApply || draft.Segments is not { } chosen)
         {
             return;
         }
 
+        IReadOnlyList<SubtitleCue> applied = draft.Cues;
         var proposal = new ModuleProposal(AutoSubtitles.Description, sequenceId,
-            [.. cues.Select(c => new PreviewMark(PreviewMarkKind.Clip, c.Start, c.End, c.Text))],
+            [.. applied.Select(c => new PreviewMark(PreviewMarkKind.Clip, c.Start, c.End, c.Text))],
             _ => [AutoSubtitles.Command(sequenceId, chosen, SubtitleStyles.NewSubtitle())]);
         if (services.Proposals is { } proposals)
         {
             proposals.Show(proposal);
             if (proposals.Apply())
             {
-                session.Notify(NotificationSeverity.Success, Title, string.Create(SpanishNumbers.Format, $"Se pusieron {cues.Count} subtítulos."));
+                session.Notify(NotificationSeverity.Success, Title, string.Create(SpanishNumbers.Format, $"Se pusieron {applied.Count} subtítulos."));
             }
         }
         else if (session.SequenceId == sequenceId)
