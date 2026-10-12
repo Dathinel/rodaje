@@ -45,13 +45,12 @@ No se omitió ni se desactivó ninguna prueba a propósito. Las cuatro pruebas n
 - **En la CI de Windows también se saltan.** El runner no tiene ffmpeg.exe, igual que pasa con el resto de las pruebas del sink. En `Rodaje.Media.Tests` las omitidas pasan de 64 a 68. Por eso **hay que correrlas en el PC de Daniel**.
 - **En Linux no se ejecutan.** `Rodaje.Media.Tests` compila con `-p:EnableWindowsTargeting=true`, sin advertencias.
 
-## Estado de la CI (run 38230961273, commit `25fae27`)
+## Estado de la CI (run 38232628705, commit `b5f193e`)
 
-- **Linux:** en verde.
-- **Windows:** en rojo, por dos pruebas de `Rodaje.App.Tests` que no tienen relación con esta tarea (esta rama no toca `src/Rodaje.App`):
-  - `CurrentCultureNumbersTests.LaApp_NoFormateaNumerosConLaCulturaDelHilo`: main también está en rojo por `Views/Translate/TranslateDialog.cs:141`, y lo arregla el PR #50.
-  - `AutosaveRecoveryServiceTests.Recuperar_DobleClicEnElBotonDelAviso_RecuperaUnaSolaVez` (19 s): parece depender de los tiempos del runner.
-- **El resto de Windows pasa:** Media 456, con 68 omitidas; Export 137, con 37 omitidas; Render, Playback y los módulos, todos en verde.
+- **Linux:** en verde (check-run 114767863453).
+- **Windows:** en verde en el segundo intento (check-run 114767861149). El primer intento (job 114755697386) salió en rojo por un único fallo ajeno a esta tarea: `CinemaDngImportTests.A_cinemadng_folder_becomes_a_prores_file_with_the_right_frames_and_gray`, con «Se cortó la conexión al saludar» (`Pipe is broken`) en `ModuleClient.HandshakeAsync`. Es el saludo con el proceso del módulo RAW, no pasa por `FfmpegPipeSink`, y también falla a veces en main; lo trata la tarea 57. Se relanzó solo el trabajo de Windows, sin cambiar código.
+- **Rojos anteriores (run 38230961273, `25fae27`):** `CurrentCultureNumbersTests`, arreglado en main con el PR #50 y ya unido a esta rama, y `AutosaveRecoveryServiceTests.Recuperar_DobleClicEnElBotonDelAviso_RecuperaUnaSolaVez`, que depende de los tiempos del runner. Ninguno de los dos volvió a fallar.
+- **En Linux, a mano:** `dotnet test tests/Rodaje.Media.Tests --filter FfmpegPipeSink` compila y da 8 pasadas y 18 omitidas (las de ffmpeg.exe son solo de Windows).
 
 ## Decisiones
 
