@@ -45,6 +45,10 @@ Rama `claude/autoguardado-recuperado`, PR #69. Sigue a la tarea 34 (`2026-10-12-
   - Fallan las mismas 28 en las dos: módulos (procesos y Job Object de Windows), voz, IA de audio, exportar, proxies, miniaturas, CinemaDNG y el título en el visor. Necesitan Windows o la FFmpeg de `.entorno`, y ninguna toca el autoguardado.
   - Se omiten 7, tanto antes como después, por hardware o medios de prueba. Esta tarea no añade ni quita omisiones.
 
+## CI
+
+- En `d5dad3a9`, los dos trabajos («Linux (Core, Paquetes, Playback)» y «Windows (solución completa)») salieron en verde. El de Windows corre la solución completa, incluidas estas pruebas.
+
 ## Qué comprobar en Windows
 
 - Abrir un proyecto con cambios sin guardar y forzar el cierre del editor (Administrador de tareas). Al volver a abrir, editar algo para que el proyecto quede sucio y pulsar «Recuperar». En el aviso de cambios sin guardar, pulsar «Cancelar» dos veces. Junto al original no debe aparecer ningún «(recuperado)». A la tercera, con «No guardar», se abre «(recuperado)».
