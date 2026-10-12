@@ -319,7 +319,7 @@ FFV1 con `-g 1` (hoy sale un cuadro clave cada 12); `h264_mf`/`hevc_mf` en MOV e
 
 ## 33. Cancelar la exportación en ≤1 s también con VP9
 
-- **Estado:** pendiente
+- **Estado:** pendiente (urgente: `CpuExportCancellationTests.Canceling_mid_export_leaves_no_process_and_no_file` es lo único que falta para que Windows quede en verde tras la tarea 40; Abort vuelve a ~930 ms con ffmpeg en BelowNormal)
 - **Rama:** `claude/export-abort`
 - **Caminos:** `src/Rodaje.Media/Export/FfmpegPipeSink.cs`, `tests/Rodaje.Media.Tests/Export/`, `docs/tareas/`.
 - **Lee:** revisión en bloque (M6), `docs/fase-6.md` (criterio de cancelación).
@@ -388,4 +388,22 @@ Quitar fondo como máscara (FFV1 gris en la caché del proyecto) aplicada por un
 - **Lee:** el log de la corrida de main en f89d896 (run 38194016251, job 114632689518), `testing/Rodaje.TestMedia/Skip.cs`.
 
 Desde f89d896 falla el trabajo de Windows: `ModuleManagerTests` (varias: «El módulo no se conectó en 10 s», `TimeoutException` en lugar de `ModuleHungException`, «No se cumplió a tiempo»), `TitleEditorTests.BordesYConvertirEnKeyframes` («0.5» frente a «0,5»: cultura del runner), `TitleRasterizerTests.Composing_a_ready_title_costs_little_gpu_time` (3,8 ms en WARP), `ExportEncoderAvailabilityTests.Probes_run_in_parallel_up_to_the_limit` (2 frente a 3 con el runner cargado); en otros PR además `TitleClipTests.ElTituloSeVeEnElVisor` y `EditPropertiesTests.OperacionesAleatorias_CumplenTodasLasReglas`. Causa de cada una; corrige el código si es un defecto (p. ej. formatear con la cultura de la app), haz robustas las que dependen de la carga, y omite solo con causa concreta (WARP sin GPU), con conteo de omitidas antes y después. Objetivo: Windows de main en verde para que el modo autónomo pueda volver a unir.
+
+## 41. Overwrite cambia el volumen con keyframes del efecto de pista
+
+- **Estado:** pendiente
+- **Rama:** `claude/overwrite-gain-keyframes`
+- **Caminos:** `src/Rodaje.Core/Editing/`, `tests/Rodaje.Core.Tests/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 40 (`docs/tareas/2026-10-12-ci-main-verde.md`), `docs/arquitectura/nucleo.md`.
+
+`EditPropertiesTests.OperacionesAleatorias_CumplenTodasLasReglas` falla con `CsCheck_Seed=5ZOfD5KG8C16`: Overwrite cambia el `gainDb` con keyframes del efecto de pista v1. Prueba de regresión con esa semilla y corrección en el núcleo.
+
+## 42. Números con coma decimal en los diálogos de análisis
+
+- **Estado:** pendiente
+- **Rama:** `claude/analisis-cultura`
+- **Caminos:** `src/Rodaje.App/Views/Analysis/`, `tests/Rodaje.App.Tests/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 40 (la app corre con InvariantGlobalization; `TitleEditor.DescribeAnimation` ya usa coma fija como `SpeedMath`).
+
+`AnalysisUi.Sec`, el BPM de `RhythmDialog` y `StabilizeDialog` formatean con CurrentCulture y salen con punto. Usar el mismo formato que `SpeedMath`, con pruebas.
 
