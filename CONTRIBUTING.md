@@ -2,15 +2,15 @@
 
 > **Hoy no se aceptan pull requests externos:** antes hace falta un acuerdo de contribuidor ([`docs/contribuciones.md`](docs/contribuciones.md)). Los issues con errores, dudas y propuestas sí son bienvenidos. Las reglas de abajo valdrán cuando se abran las contribuciones.
 
-Gracias por tu interés en Rodaje. Es un editor de video nativo para Windows que construye una sola persona, así que las contribuciones son bienvenidas, pero siguen algunas reglas que protegen la licencia del proyecto y la calidad del código.
+Gracias por tu interés en Rodaje. Es un editor de video nativo para Windows con un solo mantenedor; las contribuciones siguen unas reglas que protegen la licencia del proyecto y la calidad del código.
 
 ## Antes de empezar
 
-Para cambios grandes, como una función nueva o una reorganización del código, abre primero un issue y explica lo que quieres hacer. Así se puede discutir el enfoque antes de que inviertas tiempo en algo que choque con una decisión ya tomada. Las decisiones de arquitectura y su razonamiento están en `docs/decisiones.md`, y conviene leerlas antes de proponer cambios de fondo.
+Para cambios grandes, como una función nueva o una reorganización del código, abre primero un issue y explica lo que quieres hacer. Así se puede discutir el enfoque antes de que inviertas tiempo en algo que choque con una decisión ya tomada. Las decisiones de arquitectura y su razonamiento están en [`docs/decisiones.md`](docs/decisiones.md); conviene leerlas antes de proponer cambios de fondo. La arquitectura por capas está en [`docs/README.md`](docs/README.md).
 
 ## Preparar el entorno
 
-Rodaje no depende de nada instalado globalmente salvo Git. La primera vez, el script `build\preparar-entorno.ps1` descarga el SDK de .NET fijado en `global.json` dentro de la carpeta `.entorno\` del proyecto y verifica su huella SHA-512. Después, `build\dotnet-local.cmd` ejecuta ese SDK local; por ejemplo, `build\dotnet-local.cmd test` compila y corre todas las pruebas; `Probar.bat` hace lo mismo con un resumen en español y prepara el entorno si falta. La ruta del proyecto puede contener espacios y tildes, así que cualquier script que añadas debe manejarlas.
+Rodaje solo necesita Git y, para compilar con Native AOT, Visual Studio Build Tools con la carga de C++. La primera vez, `build\preparar-entorno.ps1` descarga el SDK de .NET fijado en `global.json` y FFmpeg LGPL dentro de la carpeta `.entorno\` del proyecto y verifica sus huellas. Después, `build\dotnet-local.cmd` ejecuta ese SDK local; por ejemplo, `build\dotnet-local.cmd test` compila y corre todas las pruebas. `Probar.bat` hace lo mismo con un resumen en español y prepara el entorno si falta. La ruta del proyecto puede contener espacios y tildes, así que cualquier script que añadas debe manejarlas.
 
 ## Reglas del código
 
@@ -24,7 +24,7 @@ Haz commits pequeños y con un propósito claro, con un mensaje en español que 
 
 ## Reglas legales
 
-Todo el código que aportes debe ser tuyo o tener una licencia permisiva (MIT, BSD, Apache-2.0 o similar) que permita incorporarlo a Rodaje. No copies, traduzcas ni adaptes código de proyectos con licencia GPL o similar, como Kdenlive, Shotcut, OpenShot u Olive: aunque Rodaje también es GPLv3, el permiso para complementos y los términos de atribución de `LICENSE` no se pueden aplicar a código GPL ajeno, y Daniel perdería la titularidad única. Se puede estudiar cómo funcionan, pero el código debe escribirse desde cero. Si tienes dudas sobre el origen de un fragmento, dilo en el pull request.
+Todo el código que aportes debe ser tuyo o tener una licencia permisiva (MIT, BSD, Apache-2.0 o similar) que permita incorporarlo a Rodaje. No copies, traduzcas ni adaptes código de proyectos con licencia GPL o similar, como Kdenlive, Shotcut, OpenShot u Olive: aunque Rodaje también es GPLv3, el permiso para complementos y los términos de atribución de `LICENSE` no se pueden aplicar a código GPL ajeno, y el proyecto perdería su titular único. Se puede estudiar cómo funcionan, pero el código debe escribirse desde cero. Si tienes dudas sobre el origen de un fragmento, dilo en el pull request.
 
 Nunca incluyas recursos extraídos de programas comerciales (efectos, plantillas, fuentes, música, íconos) ni uses sus marcas en el código o la interfaz. Si añades una dependencia, actualiza `LICENCIAS.md` con su licencia verificada y, si se redistribuye con el programa, `THIRD-PARTY-NOTICES.txt`. Nunca subas claves, tokens ni archivos `.env`.
 

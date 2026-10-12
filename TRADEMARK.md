@@ -1,6 +1,6 @@
-# POLÍTICA DE MARCA Y ACTIVOS VISUALES (BRANDING POLICY)
+# Política de marca y activos visuales (branding policy)
 
-Este documento complementa el archivo [LICENSE](LICENSE) y rige el uso de los identificadores visuales, nombres y logotipos asociados con este proyecto. El nombre oficial del editor es «Rodaje».
+Este documento complementa el archivo [LICENSE](LICENSE) y rige el uso de los identificadores visuales, nombres y logotipos asociados con este proyecto. El nombre oficial del editor es «Rodaje». Titular: Dathinel (https://github.com/Dathinel/rodaje).
 
 ## 1. Código vs. activos
 

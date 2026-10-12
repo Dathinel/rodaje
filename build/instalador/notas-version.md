@@ -6,7 +6,7 @@ Rodaje {{VERSION}} ({{FECHA}}): editor de video nativo para Windows, compilado d
 - **Velocidad y reversa:** constante o por curva, congelar cuadro y reversa exacta, con el tono del audio conservado.
 - **Imagen en la GPU:** corrección de color con ruedas y curvas, comparación antes/después, LUT `.cube`, croma, máscaras, recorte con proporción, desenfoque, nitidez, viñeta, modos de mezcla, transformación con keyframes y transiciones.
 - **Audio:** volumen por clip y mezcla con LUFS, ecualizador, compresor, ducking y voz en off.
-- **Títulos y subtítulos** editables sobre el visor, con plantillas, escritos a mano o generados por la IA.
+- **Títulos y subtítulos** editables sobre el visor, con plantillas; escritos a mano o generados por la IA, con el tiempo de cada palabra para corregirlos.
 - **Exportación:** MP4, MOV, MKV y WebM; H.264 y HEVC por GPU, AV1, VP9 y ProRes; AAC, Opus y PCM; normalización a LUFS, capítulos, formatos verticales y verificación del archivo final; varias versiones a la vez y cola que sobrevive a cerrar la app.
 - **IA local por módulos:** subtítulos (Whisper), traducción, texto a voz, reducción de ruido, silencios y ritmo, estabilización, color automático, quitar fondo y reencuadre automático, importar CinemaDNG. Nada se envía a internet.
 - **Complementos:** transiciones, filtros y módulos desde la app, con catálogo firmado y la huella de cada archivo verificada.
