@@ -29,6 +29,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     private double _audioRange = -1;
     private Time _shownPosition;
     private bool _updatingBlend;
+    private bool _updatingPreset;
 
     public PropertiesPanel()
     {
@@ -57,6 +58,16 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             }
         };
         NormalizeMenu.Items.Add(custom);
+
+        PresetBox.Items.Add("Sin ecualizador ni compresor");
+        foreach (AudioPreset preset in AudioPresets.All)
+        {
+            var item = new ComboBoxItem { Content = preset.Name, Tag = preset };
+            ToolTipService.SetToolTip(item, preset.Description);
+            PresetBox.Items.Add(item);
+        }
+
+        PresetBox.Items.Add(new ComboBoxItem { Content = "Personalizado (en Filtros)", IsEnabled = false });
     }
 
     /// <summary>Pide un objetivo en LUFS; nulo si se cancela o no es un número entre −60 y 0.</summary>
@@ -293,7 +304,11 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
 
         AudioSection.KeyframeSummary = KeyframeText(keyframes);
-        AudioSection.Summary = Number(gain) + " " + GainRow.Spec.Unit;
+        AudioPreset? preset = AudioPresetCommands.Match(clip.Effects, out bool hasEffects);
+        _updatingPreset = true;
+        PresetBox.SelectedIndex = !hasEffects ? 0 : preset is null ? PresetBox.Items.Count - 1 : 1 + AudioPresets.All.ToList().IndexOf(preset);
+        _updatingPreset = false;
+        AudioSection.Summary = Number(gain) + " " + GainRow.Spec.Unit + (hasEffects ? " · " + (preset?.Name ?? "personalizado") : "");
         AudioReset.IsEnabled = ClipPropertyEditor.CanReset(clip, BuiltInEffects.Audio, Defaults(_audioRows));
     }
 
@@ -414,6 +429,18 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         FinishChanges(rows);
         _dragRow = null;
         await editor.ResetAsync(clip, rows[0].Spec.EffectType, [.. Defaults(rows)], description, KeyframeDialog.ForResetAll(XamlRoot, what));
+    }
+
+    private void OnPresetSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingPreset || PresetBox.SelectedIndex < 0 || PresetBox.SelectedIndex == PresetBox.Items.Count - 1 || _services is not { } services
+            || _audioClipId is not { } clipId)
+        {
+            return;
+        }
+
+        AudioPreset? preset = (PresetBox.SelectedItem as ComboBoxItem)?.Tag as AudioPreset;
+        services.Session.Execute(AudioPresetCommands.Apply(services.Session.SequenceId, clipId, preset));
     }
 
     private void OnBlendSelected(object sender, SelectionChangedEventArgs e)

@@ -108,6 +108,13 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _headers.GainCommitted += OnTrackGainCommitted;
         _headers.SubtitleTrackRequested += () => Session?.AddSubtitleTrack();
         _headers.SubtitleRoleRequested += (trackId, subtitles) => Session?.SetSubtitleRole(trackId, subtitles);
+        _headers.AudioPresetRequested += (trackId, preset) =>
+        {
+            if (Session is { } session)
+            {
+                session.Execute(Rodaje.App.Services.Audio.AudioPresetCommands.Apply(session.SequenceId, trackId, preset));
+            }
+        };
 
         services.Settings.Current.Timeline.ApplyTo(State);
         Viewport.PixelsPerSecond = State.PixelsPerSecond;

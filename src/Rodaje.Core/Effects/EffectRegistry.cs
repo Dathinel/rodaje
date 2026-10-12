@@ -4,6 +4,8 @@ using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using A = Rodaje.Core.Model.BuiltInEffects.AudioParameters;
 using C = Rodaje.Core.Model.BuiltInEffects.ColorParameters;
+using K = Rodaje.Core.Model.BuiltInEffects.CompressorParameters;
+using Q = Rodaje.Core.Model.BuiltInEffects.EqualizerParameters;
 using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
 
 namespace Rodaje.Core.Effects;
@@ -87,6 +89,30 @@ public static class EffectRegistry
             new(BuiltInEffects.StabilizeParameters.Intensity, 0.5, 0, 1, Animatable: false),
         ],
         [OptionDefinition.Choice(BuiltInEffects.StabilizeOptions.Crop, "auto", [.. StabilizeCrops])]),
+
+        new(BuiltInEffects.Equalizer, 20, EffectTarget.Audio, EffectStage.Audio,
+        [
+            new(Q.LowCut, 0, 0, 500, Animatable: false),
+            new(Q.LowGain, 0, -18, 18, Animatable: false),
+            new(Q.LowFrequency, 120, 20, 1000, Animatable: false),
+            new(Q.MidGain, 0, -18, 18, Animatable: false),
+            new(Q.MidFrequency, 500, 100, 8000, Animatable: false),
+            new(Q.MidQ, 1, 0.1, 10, Animatable: false),
+            new(Q.PresenceGain, 0, -18, 18, Animatable: false),
+            new(Q.PresenceFrequency, 3000, 500, 16000, Animatable: false),
+            new(Q.PresenceQ, 1, 0.1, 10, Animatable: false),
+            new(Q.HighGain, 0, -18, 18, Animatable: false),
+            new(Q.HighFrequency, 8000, 1000, 20000, Animatable: false),
+        ]),
+        new(BuiltInEffects.Compressor, 21, EffectTarget.Audio, EffectStage.Audio,
+        [
+            new(K.Threshold, -18, -60, 0, Animatable: false),
+            new(K.Ratio, 3, 1, 20, Animatable: false),
+            new(K.Attack, 10, 0.1, 200, Animatable: false),
+            new(K.Release, 150, 10, 2000, Animatable: false),
+            new(K.Makeup, 0, 0, 24, Animatable: false),
+            new(K.Knee, 6, 0, 24, Animatable: false),
+        ]),
 
         new(BuiltInTransitions.Crossfade, 101, EffectTarget.Transition, EffectStage.Transition),
         new(BuiltInTransitions.Dip, 102, EffectTarget.Transition, EffectStage.Transition,

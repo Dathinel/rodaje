@@ -47,6 +47,60 @@ public static class BuiltInEffects
         public const string FadeOut = "fadeOut";
     }
 
+    /// <summary>Ecualizador paramétrico de cinco bandas de un clip o de una pista de audio (sin keyframes).</summary>
+    public const string Equalizer = "rodaje.equalizer";
+
+    /// <summary>Parámetros de <see cref="Equalizer"/>: ganancias en dB (0 = banda apagada), frecuencias en Hz.</summary>
+    public static class EqualizerParameters
+    {
+        /// <summary>Corte de graves (pasa altos de 12 dB por octava) en Hz; 0 lo apaga.</summary>
+        public const string LowCut = "lowCut";
+
+        public const string LowGain = "lowGain";
+
+        public const string LowFrequency = "lowFrequency";
+
+        public const string MidGain = "midGain";
+
+        public const string MidFrequency = "midFrequency";
+
+        public const string MidQ = "midQ";
+
+        public const string PresenceGain = "presenceGain";
+
+        public const string PresenceFrequency = "presenceFrequency";
+
+        public const string PresenceQ = "presenceQ";
+
+        public const string HighGain = "highGain";
+
+        public const string HighFrequency = "highFrequency";
+    }
+
+    /// <summary>Compresor de un clip o de una pista de audio, después del ecualizador (sin keyframes).</summary>
+    public const string Compressor = "rodaje.compressor";
+
+    public static class CompressorParameters
+    {
+        /// <summary>Umbral en dBFS.</summary>
+        public const string Threshold = "threshold";
+
+        /// <summary>Relación (4 = 4:1).</summary>
+        public const string Ratio = "ratio";
+
+        /// <summary>Ataque en milisegundos.</summary>
+        public const string Attack = "attack";
+
+        /// <summary>Relajación en milisegundos.</summary>
+        public const string Release = "release";
+
+        /// <summary>Ganancia de compensación en dB.</summary>
+        public const string Makeup = "makeup";
+
+        /// <summary>Ancho de la rodilla suave en dB.</summary>
+        public const string Knee = "knee";
+    }
+
     /// <summary>Corrección de color y LUT.</summary>
     public const string Color = "rodaje.color";
 

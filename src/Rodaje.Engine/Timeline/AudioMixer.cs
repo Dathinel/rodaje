@@ -1,5 +1,6 @@
 using Rodaje.Audio;
 using Rodaje.Audio.Metering;
+using Rodaje.Audio.Processing;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Timeline.Retime;
 
@@ -25,11 +26,13 @@ internal sealed class AudioMixer : IAudioSampleSource, IDisposable
 
     private readonly MixRenderer _renderer;
     private readonly BufferedAudioSource _buffer;
+    private bool _hadEffects;
 
     public AudioMixer(AudioPlan plan, Func<string, IPcmSource> openDecoder, TimeSpan readAhead, TimeSpan idleTimeout, TimeProvider time)
     {
         Levels = new AudioLevelRing();
         _renderer = new MixRenderer(plan, openDecoder, idleTimeout, time, new AudioLevelAnalyzer(Levels));
+        _hadEffects = plan.HasEffects;
         int capacity = (int)Math.Ceiling(readAhead.TotalSeconds * TimelinePlan.AudioSampleRate);
         try
         {
@@ -60,7 +63,11 @@ internal sealed class AudioMixer : IAudioSampleSource, IDisposable
     public void Reload(AudioPlan plan)
     {
         _renderer.SetPlan(plan);
-        _buffer.Rewind(KeepAfterReloadFrames);
+
+        // Con ecualizador o compresor la mezcla vuelve a un borde de lectura, donde guardó su estado: sigue sin saltos.
+        bool effects = plan.HasEffects || _hadEffects;
+        _hadEffects = plan.HasEffects;
+        _buffer.Rewind(KeepAfterReloadFrames, alignToChunk: effects);
     }
 
     public void Dispose() => _buffer.Dispose();
@@ -101,6 +108,8 @@ internal sealed class MixRenderer : IPcmSource
     private const int Channels = 2;
 
     private readonly Func<string, IPcmSource> _open;
+    private readonly Dictionary<string, Chain> _chains = new(StringComparer.Ordinal);
+    private float[] _trackMix = [];
     private readonly TimeSpan _idleTimeout;
     private readonly TimeProvider _time;
     private readonly List<Reader> _readers = [];
@@ -172,6 +181,11 @@ internal sealed class MixRenderer : IPcmSource
         interleaved.Clear();
         long from = _position;
         long to = from + frames;
+        foreach (Chain chain in _chains.Values)
+        {
+            chain.Save(from);
+        }
+
         foreach (Reader reader in _readers)
         {
             if (reader.Clip is { } clip && (clip.EndSample <= from || clip.StartSample >= to))
@@ -182,12 +196,34 @@ internal sealed class MixRenderer : IPcmSource
 
         foreach (AudioTrackPlan track in _plan.Tracks)
         {
+            Span<float> bus = interleaved;
+            if (track.Effects is not null)
+            {
+                if (_trackMix.Length < interleaved.Length)
+                {
+                    _trackMix = new float[interleaved.Length];
+                }
+
+                bus = _trackMix.AsSpan(0, interleaved.Length);
+                bus.Clear();
+            }
+
             for (int i = FirstEndingAfter(track.Clips, from); i < track.Clips.Count && track.Clips[i].StartSample < to; i++)
             {
                 AudioClipPlan clip = track.Clips[i];
                 long start = Math.Max(from, clip.StartSample);
                 long end = Math.Min(to, clip.EndSample);
-                MixClip(clip, start, end, interleaved.Slice((int)(start - from) * Channels, (int)(end - start) * Channels));
+                MixClip(clip, start, end, bus.Slice((int)(start - from) * Channels, (int)(end - start) * Channels));
+            }
+
+            if (track.Effects is { } effects)
+            {
+                // La pista suena también en sus huecos: la cola del ecualizador y la relajación del compresor siguen.
+                ApplyEffects(TrackKey(track.TrackId), effects, from, bus);
+                for (int i = 0; i < bus.Length; i++)
+                {
+                    interleaved[i] += bus[i];
+                }
             }
         }
 
@@ -229,6 +265,11 @@ internal sealed class MixRenderer : IPcmSource
         }
 
         _levels?.Restart(_position);
+        foreach (Chain chain in _chains.Values)
+        {
+            chain.Restore(_position);
+        }
+
         foreach (Reader reader in _readers)
         {
             Release(reader);
@@ -244,6 +285,34 @@ internal sealed class MixRenderer : IPcmSource
 
         _readers.Clear();
         Volatile.Write(ref _decodersOpen, 0);
+    }
+
+    // Los identificadores de clips y pistas no se repiten en el proyecto; el prefijo solo separa los dos usos.
+    private static string TrackKey(string trackId) => "pista:" + trackId;
+
+    /// <summary>
+    /// El ecualizador y el compresor de un clip o de una pista sobre <paramref name="samples"/>, que empiezan en la muestra
+    /// <paramref name="start"/> de la línea de tiempo. Si no siguen a lo último que procesó, empieza de cero.
+    /// </summary>
+    private void ApplyEffects(string key, AudioEffectsSettings settings, long start, Span<float> samples)
+    {
+        if (!_chains.TryGetValue(key, out Chain? chain))
+        {
+            chain = new Chain(new AudioEffectChain(settings, TimelinePlan.AudioSampleRate));
+            _chains[key] = chain;
+        }
+        else
+        {
+            chain.Effects.Configure(settings);
+        }
+
+        if (chain.Next != start)
+        {
+            chain.Effects.Reset();
+        }
+
+        chain.Effects.Process(samples);
+        chain.Next = start + (samples.Length / Channels);
     }
 
     /// <summary>
@@ -353,6 +422,11 @@ internal sealed class MixRenderer : IPcmSource
             }
 
             reader.Next += got;
+            if (clip.Effects is { } effects)
+            {
+                ApplyEffects(clip.ClipId, effects, start, scratch[..(got * Channels)]);
+            }
+
             AddScaled(clip, start, scratch[..(got * Channels)], destination);
         }
         catch (Exception)
@@ -408,6 +482,11 @@ internal sealed class MixRenderer : IPcmSource
 
             retimed.Read(start, scratch, reader.Next);
             reader.Next = retimed.DecoderNext;
+            if (clip.Effects is { } effects)
+            {
+                ApplyEffects(clip.ClipId, effects, start, scratch);
+            }
+
             AddScaled(clip, start, scratch, destination);
         }
         catch (Exception)
@@ -602,6 +681,27 @@ internal sealed class MixRenderer : IPcmSource
         _retiredSlews = _slews;
         _anchorPending = true;
         _plan = plan;
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        foreach (AudioTrackPlan track in plan.Tracks)
+        {
+            if (track.Effects is not null)
+            {
+                used.Add(TrackKey(track.TrackId));
+            }
+
+            foreach (AudioClipPlan clip in track.Clips)
+            {
+                if (clip.Effects is not null)
+                {
+                    used.Add(clip.ClipId);
+                }
+            }
+        }
+
+        foreach (string key in _chains.Keys.Where(k => !used.Contains(k)).ToList())
+        {
+            _chains.Remove(key);
+        }
         _failed.Clear();
         foreach (Reader reader in _readers)
         {
@@ -641,6 +741,61 @@ internal sealed class MixRenderer : IPcmSource
 
             double left = Math.Abs(Db) - (SlewDbPerBlock * Math.Max(0, sample - From) / GainBlock);
             return left <= 0 ? 0 : Math.CopySign(left, Db);
+        }
+    }
+
+    /// <summary>
+    /// La cadena de un clip o de una pista con la muestra que espera a continuación y su estado al empezar cada una de las
+    /// últimas lecturas: tras una edición la mezcla vuelve a uno de esos bordes y sigue como si no hubiera vuelto.
+    /// </summary>
+    private sealed class Chain(AudioEffectChain effects)
+    {
+        private const int History = 64;
+
+        private readonly long[] _at = new long[History];
+        private readonly long[] _next = new long[History];
+        private readonly double[] _states = new double[History * AudioEffectChain.StateSize];
+        private int _count;
+        private int _head;
+
+        public AudioEffectChain Effects { get; } = effects;
+
+        /// <summary>Muestra de la línea de tiempo que sigue a lo último procesado; -1 si no se sabe.</summary>
+        public long Next { get; set; } = -1;
+
+        public void Save(long position)
+        {
+            int slot = (_head + _count) % History;
+            if (_count == History)
+            {
+                _head = (_head + 1) % History;
+            }
+            else
+            {
+                _count++;
+            }
+
+            _at[slot] = position;
+            _next[slot] = Next;
+            Effects.State.CopyTo(_states, slot * AudioEffectChain.StateSize);
+        }
+
+        public void Restore(long position)
+        {
+            for (int i = _count - 1; i >= 0; i--)
+            {
+                int slot = (_head + i) % History;
+                if (_at[slot] == position)
+                {
+                    Array.Copy(_states, slot * AudioEffectChain.StateSize, Effects.State, 0, AudioEffectChain.StateSize);
+                    Next = _next[slot];
+                    _count = i;
+                    return;
+                }
+            }
+
+            Next = -1;
+            _count = 0;
         }
     }
 

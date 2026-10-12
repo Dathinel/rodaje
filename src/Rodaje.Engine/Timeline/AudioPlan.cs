@@ -1,3 +1,4 @@
+using Rodaje.Audio.Processing;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Engine.Timeline;
@@ -10,8 +11,9 @@ namespace Rodaje.Engine.Timeline;
 /// </summary>
 /// <param name="Gain">Volumen y fundidos; nulo si suena tal cual.</param>
 /// <param name="Retime">Velocidad del clip; nula, suena a 1× como siempre.</param>
+/// <param name="Effects">Ecualizador y compresor del clip, antes del volumen y los fundidos; nulo sin ellos.</param>
 internal sealed record AudioClipPlan(string ClipId, SourceKey Source, long StartSample, long EndSample, long SourceInSample, GainPlan? Gain = null,
-    AudioRetime? Retime = null)
+    AudioRetime? Retime = null, AudioEffectsSettings? Effects = null)
 {
     /// <summary>Muestra del origen que suena en la muestra <paramref name="sample"/> de la línea de tiempo.</summary>
     public long SourceSampleAt(long sample) => Retime is { } retime ? retime.SourceSample(sample) : SourceInSample + (sample - StartSample);
@@ -35,7 +37,8 @@ internal sealed record AudioRetime(ClipTimeMap Map, bool PreservePitch, ClipTime
         Map.ExtendedSource(Time.FromSamples(sample, TimelinePlan.AudioSampleRate)).ToSamples(TimelinePlan.AudioSampleRate);
 }
 
-internal sealed record AudioTrackPlan(string TrackId, IReadOnlyList<AudioClipPlan> Clips);
+/// <param name="Effects">Ecualizador y compresor de la pista, sobre la suma de sus clips; nulo sin ellos.</param>
+internal sealed record AudioTrackPlan(string TrackId, IReadOnlyList<AudioClipPlan> Clips, AudioEffectsSettings? Effects = null);
 
 /// <param name="MasterDb">Ganancia de toda la mezcla, antes del limitador (<c>Sequence.MasterGainDb</c>).</param>
 internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks, double MasterDb = 0)
@@ -43,6 +46,9 @@ internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks, double Ma
     public static AudioPlan Empty { get; } = new([]);
 
     /// <summary>Mismas pistas con los mismos clips, en el mismo orden, con el mismo volumen y la misma velocidad: lo que suena no cambia.</summary>
+    /// <summary>Algún clip o pista lleva ecualizador o compresor, que guardan estado entre lecturas.</summary>
+    public bool HasEffects => Tracks.Any(t => t.Effects is not null || t.Clips.Any(c => c.Effects is not null));
+
     public bool SoundsLike(AudioPlan other)
     {
         ArgumentNullException.ThrowIfNull(other);
@@ -55,7 +61,7 @@ internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks, double Ma
         {
             AudioTrackPlan a = Tracks[t];
             AudioTrackPlan b = other.Tracks[t];
-            if (a.TrackId != b.TrackId || !a.Clips.SequenceEqual(b.Clips))
+            if (a.TrackId != b.TrackId || !Equals(a.Effects, b.Effects) || !a.Clips.SequenceEqual(b.Clips))
             {
                 return false;
             }
