@@ -114,6 +114,13 @@ public sealed record TimelineStats(
     /// </summary>
     public long LateTitles { get; init; }
 
+    /// <summary>
+    /// Decodificadores que se abrieron con el reloj corriendo, desde la apertura o el último <c>ResetStats</c>. Con
+    /// D3D11VA cada apertura crea el decodificador de video con el candado del contexto inmediato tomado, y la composición
+    /// espera: es la causa probable de las pausas en los cortes (ver <c>docs/arquitectura/motor.md</c>).
+    /// </summary>
+    public long DecodersOpenedWhilePlaying { get; init; }
+
     /// <summary>Fracción de transiciones que empezaron a tiempo; 1 si no hubo.</summary>
     public double TransitionPreRollHitRate =>
         TransitionPreRollHits + TransitionPreRollMisses == 0 ? 1 : (double)TransitionPreRollHits / (TransitionPreRollHits + TransitionPreRollMisses);
