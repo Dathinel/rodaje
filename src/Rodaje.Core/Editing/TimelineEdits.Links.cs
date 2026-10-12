@@ -31,6 +31,11 @@ public static partial class TimelineEdits
             throw new EditException($"El clip «{video.Id}» es un título y no tiene sonido.");
         }
 
+        if (video.Speed is { Freeze: true })
+        {
+            throw new EditException($"El clip «{video.Id}» es un cuadro congelado y no tiene sonido.");
+        }
+
         MediaRef media = ctx.MediaOf(video);
         if (!media.HasAudio)
         {

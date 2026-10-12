@@ -99,6 +99,15 @@ public sealed class DetachAudioTests
     }
 
     [Fact]
+    public void A_frozen_frame_has_no_sound_to_detach()
+    {
+        var f = new TrimFixture().Add("v1", "v", "m1", 0, 50, 0);
+        string frozen = TimelineEdits.FreezeFrame(f.Ctx, "v", F(10));
+
+        AssertFails(() => TimelineEdits.DetachAudio(f.Ctx, frozen), "congelado");
+    }
+
+    [Fact]
     public void A_locked_video_track_is_not_touched()
     {
         var f = new TrimFixture().Add("v1", "v", "m1", 0, 50, 0).Lock("v1");
