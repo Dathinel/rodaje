@@ -21,19 +21,28 @@ public sealed class FfmpegExecutable
 
     private static readonly ConcurrentDictionary<string, Lazy<FfmpegExecutable>> Verified = new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly ConcurrentDictionary<string, Lazy<FfmpegExecutable>> VerifiedGpl = new(StringComparer.OrdinalIgnoreCase);
+
     private readonly ConcurrentDictionary<string, Lazy<string?>> _encoderProbes = new(StringComparer.Ordinal);
 
     private readonly string _stamp;
 
-    private FfmpegExecutable(string path, string version, string configuration, string stamp)
+    private FfmpegExecutable(string path, string version, string configuration, string stamp, bool gplAddOn = false)
     {
         Path = path;
         Version = version;
         Configuration = configuration;
         _stamp = stamp;
+        IsGplAddOn = gplAddOn;
     }
 
     public string Path { get; }
+
+    /// <summary>
+    /// Si es el <c>ffmpeg.exe</c> GPL del complemento <c>rodaje-codificadores-gpl</c>: estático, sin DLL, solo para
+    /// codificar x264 y x265 en su propio proceso (<see cref="OpenGplAddOn"/>). El editor nunca carga sus bibliotecas.
+    /// </summary>
+    public bool IsGplAddOn { get; }
 
     /// <summary>Primera línea de <c>ffmpeg -version</c>.</summary>
     public string Version { get; }
@@ -72,13 +81,23 @@ public sealed class FfmpegExecutable
     /// cambiaron de tamaño o de fecha desde la última verificación).
     /// </summary>
     /// <exception cref="FfmpegNotFoundException">El exe falta, no arranca o no es LGPL.</exception>
-    public static FfmpegExecutable Open(string path)
+    public static FfmpegExecutable Open(string path) => OpenVerified(path, Verified, Verify);
+
+    /// <summary>
+    /// Verifica el <c>ffmpeg.exe</c> del complemento <c>rodaje-codificadores-gpl</c>: compilación estática (sin DLL), GPL
+    /// o LGPL compatible con la GPLv3, nunca <c>nonfree</c>, con el libavcodec de la serie de Rodaje. Solo corre como
+    /// proceso aparte, la frontera que separa su licencia del editor.
+    /// </summary>
+    /// <exception cref="FfmpegNotFoundException">El exe falta, no arranca, es <c>nonfree</c> o es de otra serie.</exception>
+    public static FfmpegExecutable OpenGplAddOn(string path) => OpenVerified(path, VerifiedGpl, VerifyGplAddOn);
+
+    private static FfmpegExecutable OpenVerified(string path, ConcurrentDictionary<string, Lazy<FfmpegExecutable>> cache, Func<string, FfmpegExecutable> verify)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         string full = System.IO.Path.GetFullPath(path);
         while (true)
         {
-            Lazy<FfmpegExecutable> entry = Verified.GetOrAdd(full, p => new Lazy<FfmpegExecutable>(() => Verify(p)));
+            Lazy<FfmpegExecutable> entry = cache.GetOrAdd(full, p => new Lazy<FfmpegExecutable>(() => verify(p)));
             FfmpegExecutable executable;
             try
             {
@@ -87,7 +106,7 @@ public sealed class FfmpegExecutable
             catch (FfmpegNotFoundException)
             {
                 // Si el exe aparece después (preparar-entorno), un nuevo intento debe volver a verificar.
-                Verified.TryRemove(new KeyValuePair<string, Lazy<FfmpegExecutable>>(full, entry));
+                cache.TryRemove(new KeyValuePair<string, Lazy<FfmpegExecutable>>(full, entry));
                 throw;
             }
 
@@ -96,16 +115,16 @@ public sealed class FfmpegExecutable
                 return executable;
             }
 
-            Verified.TryRemove(new KeyValuePair<string, Lazy<FfmpegExecutable>>(full, entry));
+            cache.TryRemove(new KeyValuePair<string, Lazy<FfmpegExecutable>>(full, entry));
         }
     }
 
     /// <summary>Si el exe y sus DLL extra siguen siendo los que se verificaron (mismo tamaño y fecha).</summary>
-    public bool IsUnchanged => Stamp(Path) == _stamp;
+    public bool IsUnchanged => Stamp(Path, IsGplAddOn ? [] : ExtraLibraries) == _stamp;
 
     /// <summary>Este mismo exe si no cambió desde que se verificó; si cambió, lo vuelve a verificar.</summary>
     /// <exception cref="FfmpegNotFoundException">Cambió y ya no pasa la verificación.</exception>
-    public FfmpegExecutable EnsureUnchanged() => IsUnchanged ? this : Open(Path);
+    public FfmpegExecutable EnsureUnchanged() => IsUnchanged ? this : IsGplAddOn ? OpenGplAddOn(Path) : Open(Path);
 
     /// <summary>Motivo en español por el que la salida de <c>-buildconf</c>, <c>-L</c> y <c>-version</c> no es aceptable.</summary>
     internal static string? BuildProblem(string buildConfiguration, string licenseText, string versionText)
@@ -120,6 +139,32 @@ public sealed class FfmpegExecutable
             return problem;
         }
 
+        return AvcodecProblem(versionText);
+    }
+
+    /// <summary>
+    /// Como <see cref="BuildProblem"/> para el exe del complemento GPL: admite GPL o LGPL de la versión 3 o «cualquier
+    /// posterior» (compatibles con la GPLv3 de Rodaje) y rechaza <c>--enable-nonfree</c>, que no se puede redistribuir.
+    /// </summary>
+    internal static string? GplAddOnBuildProblem(string buildConfiguration, string licenseText, string versionText)
+    {
+        if (buildConfiguration.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Contains("--enable-nonfree", StringComparer.Ordinal)
+            || licenseText.Contains("nonfree", StringComparison.OrdinalIgnoreCase))
+        {
+            return "El ffmpeg.exe del complemento se compiló con --enable-nonfree y no se puede usar ni redistribuir.";
+        }
+
+        if (!licenseText.Contains("General Public License", StringComparison.Ordinal)
+            || (!licenseText.Contains("version 3", StringComparison.Ordinal) && !licenseText.Contains("any later version", StringComparison.Ordinal)))
+        {
+            return "El ffmpeg.exe del complemento no declara una licencia GPL o LGPL compatible con la GPLv3.";
+        }
+
+        return AvcodecProblem(versionText);
+    }
+
+    private static string? AvcodecProblem(string versionText)
+    {
         int expected = FfmpegLibrary.ExpectedMajors["avcodec"];
         foreach (string line in versionText.Split('\n'))
         {
@@ -165,7 +210,7 @@ public sealed class FfmpegExecutable
         }
 
         // Antes de ejecutar nada: si el exe cambia durante la verificación, la siguiente apertura lo vuelve a verificar.
-        string stamp = Stamp(path);
+        string stamp = Stamp(path, ExtraLibraries);
         foreach (string library in ExtraLibraries)
         {
             if (FfmpegLibrary.CompanionLibraryProblem(System.IO.Path.Combine(directory, library + ".dll")) is { } companion)
@@ -191,11 +236,35 @@ public sealed class FfmpegExecutable
         return new FfmpegExecutable(path, firstLine, configuration, stamp);
     }
 
+    private static FfmpegExecutable VerifyGplAddOn(string path)
+    {
+        if (!File.Exists(path))
+        {
+            throw new FfmpegNotFoundException($"No existe {path}. Reinstala el complemento de codificadores GPL.");
+        }
+
+        string stamp = Stamp(path, []);
+        TimeSpan timeout = TimeSpan.FromSeconds(20);
+        (string buildconf, string license, string version) = (
+            Capture(path, ["-hide_banner", "-buildconf"], timeout),
+            Capture(path, ["-hide_banner", "-L"], timeout),
+            Capture(path, ["-hide_banner", "-version"], timeout));
+        string configuration = string.Join(' ', buildconf
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(l => l.StartsWith("--", StringComparison.Ordinal)));
+        if (GplAddOnBuildProblem(configuration, license, version) is { } problem)
+        {
+            throw new FfmpegNotFoundException($"{problem} ({path})");
+        }
+
+        return new FfmpegExecutable(path, version.Split('\n', 2)[0].Trim(), configuration, stamp, gplAddOn: true);
+    }
+
     // Tamaño y fecha del exe y de las DLL extra; una cadena vacía en la parte de un archivo que falta.
-    private static string Stamp(string path)
+    private static string Stamp(string path, IReadOnlyList<string> libraries)
     {
         string directory = System.IO.Path.GetDirectoryName(path)!;
-        return string.Join('|', ExtraLibraries.Select(l => System.IO.Path.Combine(directory, l + ".dll")).Prepend(path).Select(file =>
+        return string.Join('|', libraries.Select(l => System.IO.Path.Combine(directory, l + ".dll")).Prepend(path).Select(file =>
         {
             var info = new FileInfo(file);
             return info.Exists ? $"{info.Length}:{info.LastWriteTimeUtc.Ticks}" : "";

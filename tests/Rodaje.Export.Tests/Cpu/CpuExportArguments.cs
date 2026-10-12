@@ -14,7 +14,7 @@ internal static class CpuExportArguments
     /// <summary>Preset de SVT-AV1: el del catálogo es 8; aquí 12 para que la prueba sea corta en un runner de dos núcleos.</summary>
     public const string SvtAv1Preset = "12";
 
-    public static EncoderSpec Spec(string id) => ExportEncoderCatalog.Find(id)
+    public static EncoderSpec Spec(string id) => ExportEncoderCatalog.Find(id) ?? Rodaje.Export.Encoders.GplEncoderCandidates.All.FirstOrDefault(e => e.Id == id)
         ?? throw new ArgumentException($"{id} no está en el catálogo.", nameof(id));
 
     /// <summary>Ajustes de una exportación con estos codificadores, como los dejaría el diálogo sin tocar «Avanzado».</summary>
@@ -79,8 +79,8 @@ internal static class CpuExportArguments
     /// <summary>Nombre del códec que da ffprobe.</summary>
     public static string ProbeCodec(string encoder) => encoder switch
     {
-        "h264_mf" => "h264",
-        "hevc_mf" => "hevc",
+        "h264_mf" or "libx264" => "h264",
+        "hevc_mf" or "libx265" => "hevc",
         "libsvtav1" => "av1",
         "libvpx-vp9" => "vp9",
         "prores_ks" => "prores",

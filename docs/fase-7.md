@@ -138,6 +138,27 @@ Hecho en `src/Rodaje.App/Services/Modules` (API en [app.md](arquitectura/app.md#
 
 Voces de Piper: todas las candidatas (davefx, faber, cadu, jeff, libritts_r, ald) son derivadas de `lessac` según sus fichas, y `es_MX-claude` no dice de cuál parte; ninguna entra en la v1 (pregunta 9).
 
+## Resultados del agente J (modulo-raw y codificadores GPL, 12-oct)
+
+**`modulo-raw`** (`modules/Rodaje.Module.Raw`, Native AOT 3,4 MB + `libraw.dll` 1,1 MB, 0 advertencias): LibRaw 0.22.2 (LGPL-2.1, DLL oficial con SHA-256 fijado en `preparar-entorno.ps1`). Funciones `info` (tamaño, cámara, balance de la toma, cadencia `FrameRate` de CinemaDNG) y `revelar` (pares archivo → cuadro, hasta 8 por llamada en paralelo; balance de la toma, luz de día o multiplicadores; exposición en EV en luz lineal; primarios rec709/rec2020/p3/aces/prophoto; curva rec709/srgb/lineal; AHD o lineal; salida rgba16f, bgra8 o rgba8). El editor lee cada DNG y lo deja en memoria compartida: el módulo no abre archivos del usuario. **App:** «Archivo → Importar CinemaDNG…» (se elige un cuadro de la carpeta) revela la secuencia y la guarda como ProRes 422 HQ de 10 bits, Rec.709, con el WAV de la toma si hay uno, en `<proyecto>.medios\`; entra como un video más. Para cambiar el revelado se vuelve a importar (pregunta 10). Pruebas con CinemaDNG sintéticos (carta de color conocida en Bayer RGGB de 12 bits, `SyntheticDng`). Release, Ryzen 7 7435HS (16 hilos):
+
+| Medida | Resultado |
+|---|---|
+| Color revelado frente a la escena (balance de la toma, lineal) | error máximo **0,0002** en los seis parches (AHD y lineal) |
+| Exposición ±EV | +1 EV = ×2,000, −2 EV = ×0,250 (±0,003) |
+| 4K DCI (4096×2160) un cuadro, por el protocolo con el exe AOT | calidad rápida 317 ms; **alta (AHD) 768 ms** |
+| 4K DCI en lotes de 8 cuadros | **17 cuadros/s** rápida, **5,7 cuadros/s** alta |
+| 640×360 por el protocolo | 13 ms por cuadro |
+| Cancelación confirmada (dentro de LibRaw) | 4–9 ms |
+| Arranque y saludo del módulo | 230–270 ms (primer arranque; LibRaw se carga con la primera llamada) |
+| Importar 12 cuadros a ProRes por la app | gris 18 % → 104/255 (esperado 104), 12 cuadros a 25 cuadros/s |
+
+LibRaw no revela 4K en tiempo real en la CPU: un minuto de 4K a 24 cuadros/s tarda unos 4 min en calidad alta y 1,5 min en rápida. Por eso se importa a un intermedio en vez de revelar en la vista previa.
+
+**Fuera de la v1** (detalle en `modules/Rodaje.Module.Raw/LICENCIAS.md`): Blackmagic RAW (SDK con registro y licencia propia), REDCODE (R3D SDK con cuenta y acuerdo), ARRIRAW (SDK solo por el programa de socios de ARRI) y ProRes RAW (sin SDK de Apple para Windows; el decodificador propio de FFmpeg queda para el abogado por patentes).
+
+**`rodaje-codificadores-gpl`**: `herramientas\armar-codificadores-gpl.ps1` arma el `.paquete` (81 MB) con el `ffmpeg.exe` estático `win64-gpl-9.0` de BtbN (SHA-256 fijado), la GPLv3, la línea de configure y la fuente de FFmpeg, de los scripts de BtbN, de x264 y de x265, cada una por su commit verificado con git (`-FuenteCompleta` baja el resto). Es un módulo con `protocol: 0`; `FfmpegExecutable.OpenGplAddOn` lo verifica (GPL o LGPL v3+, nunca nonfree, libavcodec 63). Si está instalado, Exportar → Avanzado ofrece «x264 (H.264, complemento GPL)» y «x265 (HEVC, complemento GPL)», nunca por defecto, y los codifica por la misma `FfmpegPipeSink`. Pruebas: x264 8 y 10 bits en MP4 y MOV y x265 10 bits en MP4, 45 cuadros 640×360 con AAC, verificados con el ffprobe LGPL (192–446 ms). Compatibilidad y patentes en `legal.md`, punto h.
+
 ## Funciones, modelos y licencias
 
 Velocidades estimadas a partir de cifras publicadas; las mide cada agente en el equipo de Daniel. ✅ viable con licencia limpia, ⚠️ viable con condiciones, ❌ sin opción limpia.
@@ -247,3 +268,5 @@ Unión 0 → A → B → C → D → E → F → G → H → I → J, suite comp
 7. **BiRefNet_lite (datos DIS5K):** su uso no comercial es libre; el comercial pide firmar términos. **Recomendado: incluirlo** como «Calidad alta» opcional, con MODNet por defecto, y anotarlo en `pendientes-legales.md`.
 8. **Clave de firma del índice:** **recomendado:** ECDSA P-256 generada en tu PC, guardada fuera del repo con una copia de respaldo; se firma en local con un script. Si se pierde, la próxima versión de Rodaje trae otra clave pública.
 9. **Voces extra de Piper:** las que el plan daba por limpias se afinaron desde `lessac` (licencia Blizzard). **Recomendado:** v1 solo con Kokoro (34 voces) y buscar voces CC0 entrenadas desde cero más adelante.
+10. **CinemaDNG: intermedio o revelado en vivo.** **Recomendado (hecho, provisional): importar a un ProRes 422 HQ** en la carpeta de medios del proyecto; funciona con todo el motor sin tocarlo, pero ocupa disco (~700 Mb/s en 4K) y cambiar el revelado es volver a importar. La alternativa, revelar en la vista previa, no alcanza tiempo real en 4K con LibRaw en la CPU (5,7 cuadros/s).
+11. **Fuente del complemento GPL.** **Recomendado: compilar un `ffmpeg.exe` propio** con los scripts de BtbN y solo FFmpeg, x264, x265 y lo de la compilación LGPL, para que la fuente correspondiente sean pocos tarballs; la alternativa es publicar con `-FuenteCompleta` (unos 125 repositorios, varios GB). Antes de publicar, además, las patentes de H.264/HEVC con el abogado.

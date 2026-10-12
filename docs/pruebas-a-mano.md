@@ -106,6 +106,13 @@ Editar → «Texto a voz...» o clic derecho en un clip. Necesita el módulo de 
 - [ ] **Regenerar:** selecciona un clip de voz generado y abre «Texto a voz...»: se abre con su texto y su voz. Cambia una palabra o la voz y pulsa «Regenerar»: el clip cambia su audio (un paso del historial); si quedó más largo y choca con el clip siguiente, avisa y no cambia nada. «Insertar nuevo» deja el original y agrega otro.
 - [ ] **Archivos:** el WAV y su `.json` quedan en «Voz generada» junto al `.rodaje` (o en `%LOCALAPPDATA%\Rodaje\voz` si el proyecto no está guardado). ¿Prefieres otro lugar o nombre?
 
+## Fase 7: CinemaDNG y codificadores GPL
+
+Antes, una vez: `herramientas\preparar-entorno.ps1` (baja LibRaw, 3,5 MB) y compilar `modules\Rodaje.Module.Raw`. Para x264/x265: `herramientas\armar-codificadores-gpl.ps1` (baja 185 MB y la fuente; deja el `.paquete` en `dist\complementos`) e instalarlo desde Complementos → «Instalar desde archivo».
+
+- [ ] **Importar CinemaDNG:** Archivo → «Importar CinemaDNG...», elegir un cuadro de una carpeta de una cámara tuya (o una muestra). El diálogo dice cuántos cuadros hay y si encontró el WAV de la toma. Con «El de la toma» y exposición 0, Trabajos → IA muestra el avance y se puede cancelar (no deja archivo). Al terminar, el video aparece en la biblioteca con su sonido. ¿Colores y exposición como en el monitor de la cámara o en Resolve? Probar «Luz de día» y ±1 EV. ¿Te sirve importar a ProRes (ocupa disco) o prefieres otra cosa (pregunta 10 de `fase-7.md`)?
+- [ ] **x264 y x265:** con el complemento instalado, Exportar → Avanzado: en H.264 aparece «x264 (H.264, complemento GPL)» después de los de la GPU, y en HEVC «x265». Ninguno se elige solo. Exportar un minuto con cada uno: ¿calidad y tiempo razonables frente a NVENC? Sin el complemento no aparecen.
+
 ## Rediseño tras la prueba del 11-oct: formato, exportar y herramientas (provisional)
 
 - [ ] **Proyecto vertical:** Archivo → Nuevo desde plantilla → «Vertical 9:16». El visor muestra un lienzo vertical negro con su contorno sobre el gris del reproductor, tan alto como cabe; sin guías punteadas (los márgenes seguros quedan apagados una vez; el botón de la cabecera los vuelve a mostrar). Importar un video horizontal: el proyecto sigue en 9:16 y el clip aparece encajado. Probar también «Cuadrado 1:1» y «Retrato 4:5». ¿Se entiende la forma de un vistazo? ¿El gris (#242424) separa bien el lienzo?
