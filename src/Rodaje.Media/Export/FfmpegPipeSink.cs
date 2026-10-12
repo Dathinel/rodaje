@@ -103,7 +103,7 @@ public sealed class FfmpegPipeSink : IExportSink
     /// <summary>
     /// Solo para las pruebas: lanza <paramref name="unverifiedExecutable"/> sin pasar por <see cref="FfmpegExecutable"/>,
     /// cuya verificación (LGPL, DLL, serie de libavcodec) un ejecutable falso no puede pasar. Así las carreras de
-    /// <see cref="Complete"/> y <see cref="Abort"/> se prueban donde no hay ffmpeg.exe (tarea 63).
+    /// <see cref="Complete"/> y <see cref="Abort"/> se prueban donde no hay ffmpeg.exe.
     /// </summary>
     internal FfmpegPipeSink(string unverifiedExecutable, FfmpegPipeSinkOptions? options = null)
         : this(null, unverifiedExecutable, options)

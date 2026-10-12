@@ -4,7 +4,7 @@ namespace Rodaje.Export.Encoders;
 
 /// <summary>
 /// Los codificadores que se prueban con la sonda, con sus capacidades, en orden de preferencia (hardware primero; en AAC,
-/// Media Foundation antes que el nativo). Provisional hasta que se una el catálogo de la tarea 13 de la nube.
+/// Media Foundation antes que el nativo).
 /// </summary>
 public static class ExportEncoderCandidates
 {

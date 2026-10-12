@@ -5,7 +5,7 @@ using Rodaje.Media.Proxies;
 namespace Rodaje.Export.Encoders;
 
 /// <summary>Los codificadores que funcionan en este equipo, en orden de preferencia (hardware primero).</summary>
-/// <remarks>Cuando se una el catálogo de la tarea 13 de la nube, su <c>ExportEncoderAvailability</c> entra por aquí.</remarks>
+/// <remarks>El catálogo (<c>ExportEncoderAvailability</c>) entra por aquí.</remarks>
 public interface IExportEncoderSource
 {
     Task<IReadOnlyList<EncoderSpec>> GetAsync(CancellationToken cancellationToken = default);

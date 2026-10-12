@@ -73,7 +73,7 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     /// <summary>
     /// Lo que se espera el <c>hello</c> del editor. 30 s, igual que el editor da para abrir y saludar
     /// (<c>ModuleManagerOptions.StartTimeout</c>): con 10 s, en un equipo cargado el módulo se rendía antes de recibir
-    /// el saludo y el editor veía «Se cortó la conexión al saludar» (tarea 57).
+    /// el saludo y el editor veía «Se cortó la conexión al saludar».
     /// </summary>
     public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(30);
 

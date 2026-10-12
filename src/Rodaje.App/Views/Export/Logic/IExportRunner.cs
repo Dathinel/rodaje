@@ -5,7 +5,7 @@ using Rodaje.Media.Video;
 namespace Rodaje.App.Views.Export;
 
 /// <summary>
-/// Lo que la interfaz necesita de la orquestación (<c>Rodaje.Export</c>, agente D de la fase 6): qué codificadores
+/// Lo que la interfaz necesita de la orquestación (<c>Rodaje.Export</c>): qué codificadores
 /// funcionan en este equipo y lanzar una exportación. Hasta que exista, la app usa <see cref="SimulatedExportRunner"/>.
 /// </summary>
 public interface IExportRunner
