@@ -54,7 +54,12 @@ jobs:
         run: |
           set -euo pipefail
           dotnet restore Rodaje.slnx --locked-mode -p:EnableWindowsTargeting=true
-          dotnet restore modules/Rodaje.Module.Echo/Rodaje.Module.Echo.csproj -r win-x64 --locked-mode -p:EnableWindowsTargeting=true
+          # Los módulos que se publican con AOT, también con -r win-x64: su lockfile y el de lo que referencian no
+          # pueden depender de que se pase el RID. La app, el lanzador y AotSmoke se publican sin -r (lo llevan en el
+          # .csproj), porque como propiedad global llegaría a Rodaje.Core y demás bibliotecas y cambiaría sus lockfiles.
+          for m in Echo Voice Subtitles AudioAi Vision Raw; do
+            dotnet restore "modules/Rodaje.Module.$m/Rodaje.Module.$m.csproj" -r win-x64 --locked-mode -p:EnableWindowsTargeting=true
+          done
 
       # SoloWindows: pruebas que dependen de códigos de error de Windows. TiempoReal y Rendimiento miden contra el
       # reloj de pared y en un runner compartido dan falsos fallos.

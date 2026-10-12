@@ -382,7 +382,8 @@ public sealed class TimelineSpeedTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Con 8 capas con velocidad (una congelada), el <c>Tick</c> en pausa reserva lo mismo que a 1×. Reproduciendo, lo que
+    /// Con 8 capas con velocidad (una congelada), el <c>Tick</c> en pausa reserva lo mismo que a 1× (la mediana por
+    /// <c>Tick</c>; en la CI de Windows la media llegó a diferir en 1 B por Tick). Reproduciendo, lo que
     /// reserva el reparto de la demanda depende de cuántos tramos y pedidos haya; la diferencia queda en ruido (≤2 %).
     /// </summary>
     [Fact]
@@ -450,7 +451,9 @@ public sealed class TimelineSpeedTests(ITestOutputHelper output)
         Assert.True(medianMs <= 0.3, $"Tick con 8 capas con velocidad: {medianMs:F3} ms de mediana.");
     }
 
-    /// <summary>Bytes por <c>Tick</c> en pausa y reproduciendo, y la mediana del tiempo de <c>Tick</c> reproduciendo.</summary>
+    /// <summary>
+    /// Bytes por <c>Tick</c> en pausa (mediana) y reproduciendo (media), y la mediana del tiempo de <c>Tick</c> reproduciendo.
+    /// </summary>
     private static (long Paused, long Playing, double MedianMs) MeasureTicks(bool speed)
     {
         const int Layers = 8;
@@ -481,14 +484,23 @@ public sealed class TimelineSpeedTests(ITestOutputHelper output)
             session.Tick().Dispose();
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        // Cada Tick en pausa deja en el ejecutor manual la liberación de los cuadros retenidos del anterior (Hold). Sin
+        // vaciarlo, su cola crecía y cada vez que doblaba su capacidad un Tick contaba el arreglo nuevo (1048, 2072… B):
+        // que la ventana se llevara uno dependía de cuántos Tick hubo antes. Se vacía fuera de la medida y se toma la
+        // mediana por Tick: una reserva del Tick sale en todos; una única del runtime en este hilo, como la que vio
+        // Speed_mapping_in_the_plan_reserves_nothing en la CI de Windows, no.
         const int Ticks = 200;
+        var pausedTicks = new long[Ticks];
         for (int i = 0; i < Ticks; i++)
         {
+            long before = GC.GetAllocatedBytesForCurrentThread();
             session.Tick().Dispose();
+            pausedTicks[i] = GC.GetAllocatedBytesForCurrentThread() - before;
+            backend.RunDecoders();
         }
 
-        long paused = (GC.GetAllocatedBytesForCurrentThread() - before) / Ticks;
+        Array.Sort(pausedTicks);
+        long paused = pausedTicks[Ticks / 2];
 
         session.Play();
         for (int i = 0; i < 60; i++)
