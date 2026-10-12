@@ -52,6 +52,24 @@ public class ExportDialogSwitchTests
     }
 
     [Fact]
+    public void ConUnProyectoVertical_YouTubeSaleVerticalSinAviso_YElCuadradoAvisa()
+    {
+        using var dir = new TempDirectory();
+        Project project = ExportTestData.Project(1080, 1920);
+        var model = new ExportDialogModel(new ExportPreferences { Folder = dir.Path }, project.Sequences[0], [], SimulatedEncoders.All, "Corto", null);
+
+        Assert.Equal((1080, 1920), model.OutputSize);
+        Assert.Null(model.PresetShapeNote);
+        model.SelectPreset(ExportPresets.YouTube4K.Id);
+        Assert.Equal((2160, 3840), model.OutputSize);
+        model.SelectPreset(ExportPresets.Vertical.Id);
+        Assert.Null(model.PresetShapeNote);
+        model.SelectPreset(ExportPresets.Square.Id);
+        Assert.Equal((1080, 1920), model.OutputSize);
+        Assert.NotNull(model.PresetShapeNote);
+    }
+
+    [Fact]
     public void LaVista_SoloRehaceLaListaSiCambio()
     {
         Assert.True(ChoiceList.Same(["MP4", "MOV"], ["MP4", "MOV"]));

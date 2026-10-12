@@ -80,12 +80,12 @@ public sealed class ExportDialogModel
     public (int Width, int Height) OutputSize => Settings.Video is { } v ? ExportGeometry.OutputSize(v, SequenceWidth, SequenceHeight) : (0, 0);
 
     /// <summary>
-    /// El preajuste elegido está pensado para otra forma que la del proyecto (Reels 9:16 con un proyecto 16:9): la salida
-    /// sigue al proyecto y la vista ofrece cambiar el formato del proyecto. Nulo si no.
+    /// El preajuste elegido es de redes con otra forma que la del proyecto (Reels 9:16 con un proyecto 16:9): la salida
+    /// sigue al proyecto y la vista ofrece cambiar el formato del proyecto. Los de 16:9 (YouTube, maestros) no avisan. Nulo si no.
     /// </summary>
     public string? PresetShapeNote =>
         ExportPresetLibrary.Find(_preferences, PresetId) is { Settings.Video: { Width: { } w, Height: { } h } } preset
-        && ExportGeometry.ShapeDiffers(w, h, SequenceWidth, SequenceHeight)
+        && ExportGeometry.ShapeDiffers(w, h, SequenceWidth, SequenceHeight) && ExportGeometry.ShapeDiffers(w, h, 16, 9)
             ? $"«{preset.Name}» es para {ExportGeometry.AspectName(w, h)} y el proyecto es {ExportGeometry.AspectName(SequenceWidth, SequenceHeight)}: "
               + "se exporta con la forma del proyecto."
             : null;
