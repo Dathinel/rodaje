@@ -9,7 +9,7 @@ namespace Rodaje.Export.Still;
 /// <param name="Project">Una copia del proyecto (<see cref="Project.Clone"/>): se lee en otro hilo.</param>
 /// <param name="SequenceId">La secuencia.</param>
 /// <param name="Position">Instante del cursor; sale el cuadro que se está mostrando ahí (redondeo hacia abajo, como el visor).</param>
-/// <param name="OutputPath">Archivo final (<c>.png</c> o <c>.jpg</c>); se escribe en un temporal y se renombra al terminar.</param>
+/// <param name="OutputPath">Archivo final, con la extensión del formato (<c>.png</c>, o <c>.jpg</c>/<c>.jpeg</c>; si no, <see cref="StillPlan.Create"/> lo rechaza); se escribe en un temporal y se renombra al terminar.</param>
 /// <param name="Settings">Formato, calidad, alfa y tamaño.</param>
 public sealed record StillRequest(Project Project, string SequenceId, Time Position, string OutputPath, StillSettings Settings)
 {
@@ -100,6 +100,10 @@ public sealed record StillPlan
         if (string.IsNullOrWhiteSpace(request.OutputPath))
         {
             problems.Add("Falta el archivo de destino.");
+        }
+        else if (StillSettings.ExtensionProblem(request.OutputPath, settings.Format) is { } extension)
+        {
+            problems.Add(extension);
         }
 
         if (settings.Crop is { } crop && (crop.X + crop.Width > sequence.Width || crop.Y + crop.Height > sequence.Height))
