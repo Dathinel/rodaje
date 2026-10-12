@@ -3,9 +3,10 @@ using Rodaje.Paquetes;
 namespace Rodaje.App.Services.Titles;
 
 /// <summary>
-/// Los archivos de fuente de los paquetes instalados (<c>rodaje-fuentes</c> primero), para la colección privada del
-/// rasterizador de la vista previa y de la exportación. Nunca fuentes sueltas de un proyecto (D-029); las del sistema las
-/// encuentra DirectWrite sin registrarlas.
+/// Los archivos de los elementos <c>font</c> de los paquetes instalados (<c>rodaje-fuentes</c> primero), para la
+/// colección privada del rasterizador de la vista previa y de la exportación. Solo los que el paquete declara como fuente,
+/// con su licencia y dentro de sus topes; nunca otros archivos del paquete ni fuentes sueltas de un proyecto (D-029). Las
+/// del sistema las encuentra DirectWrite sin registrarlas.
 /// </summary>
 public static class TitleFontFiles
 {
@@ -14,30 +15,32 @@ public static class TitleFontFiles
     /// <summary>Tope de archivos: la colección se arma de una vez y cada uno se analiza.</summary>
     public const int MaxFiles = 256;
 
-    private static readonly string[] Extensions = [".ttf", ".otf", ".ttc", ".otc"];
-
     public static IReadOnlyList<string> Find(PackageScan installed)
     {
         ArgumentNullException.ThrowIfNull(installed);
         var files = new List<string>();
         foreach (InstalledPackage package in installed.Packages.OrderBy(p => p.Id == FontsPackage ? 0 : 1).ThenBy(p => p.Id, StringComparer.Ordinal))
         {
-            try
+            string root = Path.GetFullPath(package.Directory);
+            foreach (PackageItem font in package.Manifest.Items.Where(i => i.Kind == ItemKind.Font))
             {
-                foreach (string file in Directory.EnumerateFiles(package.Directory, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+                foreach (string relative in font.Files ?? [])
                 {
-                    if (Extensions.Contains(Path.GetExtension(file), StringComparer.OrdinalIgnoreCase))
+                    if (!SafePaths.TryNormalizeRelative(relative, out string? normalized))
                     {
-                        files.Add(file);
+                        continue;
+                    }
+
+                    string full = Path.GetFullPath(Path.Combine(root, normalized));
+                    if (SafePaths.IsInside(full, root) && File.Exists(full) && !files.Contains(full, StringComparer.OrdinalIgnoreCase))
+                    {
+                        files.Add(full);
                         if (files.Count == MaxFiles)
                         {
                             return files;
                         }
                     }
                 }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
             }
         }
 

@@ -272,6 +272,7 @@ public static class ManifestReader
                 }
             }
 
+            List<string>? fonts = kind == ItemKind.Font ? FontFiles(element, file, directory, local) : null;
             if (local.Count > 0)
             {
                 errors.Add($"{where}: {string.Join("; ", local.Select(Uncapitalize))}.");
@@ -285,10 +286,71 @@ public static class ManifestReader
             }
 
             items.Add(new PackageItem(id!, kind!.Value, name!, file, OptionalText(element, "description", errors, SafeText.MaxDescription, multiline: true),
-                OptionalText(element, "license", errors, SafeText.MaxLicense), preview));
+                OptionalText(element, "license", errors, SafeText.MaxLicense), preview, fonts));
         }
 
         return items;
+    }
+
+    /// <summary>
+    /// Los archivos de una fuente: <c>files</c> (o <c>file</c> si es uno), de 1 a <see cref="PackageItem.MaxFontFiles"/>,
+    /// con extensión de fuente, cada uno de hasta 20 MB y la familia de hasta 100 MB; y su <c>license</c>, obligatoria
+    /// porque una fuente de terceros no tiene la licencia del paquete.
+    /// </summary>
+    private static List<string>? FontFiles(JsonElement element, string? file, string? directory, List<string> local)
+    {
+        if (!element.TryGetProperty("license", out JsonElement license) || license.ValueKind != JsonValueKind.String)
+        {
+            local.Add("una fuente necesita «license» con la licencia de la familia (por ejemplo OFL-1.1)");
+        }
+
+        List<string>? files = element.TryGetProperty("files", out _) ? Strings(element, "files", local, MaxShortText) : file is null ? null : [file];
+        if (files is null)
+        {
+            if (file is null && !element.TryGetProperty("files", out _))
+            {
+                local.Add("una fuente necesita «files» con sus archivos .ttf u .otf");
+            }
+
+            return null;
+        }
+
+        if (files.Count is 0 || files.Count > PackageItem.MaxFontFiles)
+        {
+            local.Add($"una fuente lleva de 1 a {PackageItem.MaxFontFiles} archivos");
+            return null;
+        }
+
+        long total = 0;
+        foreach (string relative in files)
+        {
+            if (!PackageItem.FontExtensions.Contains(Path.GetExtension(relative), StringComparer.OrdinalIgnoreCase))
+            {
+                local.Add($"«{relative}» no es un archivo de fuente (.ttf, .otf, .ttc u .otc)");
+            }
+            else if (CheckRelativeFile(relative, directory) is { } problem)
+            {
+                local.Add(problem);
+            }
+            else if (directory is not null)
+            {
+                SafePaths.TryNormalizeRelative(relative, out string? normalized);
+                long length = new FileInfo(Path.Combine(directory, normalized!)).Length;
+                if (length > PackageItem.MaxFontFileBytes)
+                {
+                    local.Add($"«{relative}» pasa de 20 MB");
+                }
+
+                total += length;
+            }
+        }
+
+        if (total > PackageItem.MaxFontFamilyBytes)
+        {
+            local.Add("la familia pasa de 100 MB");
+        }
+
+        return files;
     }
 
     private static ModuleInfo? Module(JsonElement root, string? directory, List<string> errors)
@@ -320,6 +382,7 @@ public static class ManifestReader
         "lut" => ItemKind.Lut,
         "template" => ItemKind.Template,
         "sound" => ItemKind.Sound,
+        "font" => ItemKind.Font,
         _ => null,
     };
 
@@ -332,6 +395,7 @@ public static class ManifestReader
         ItemKind.Lut => "lut",
         ItemKind.Template => "template",
         ItemKind.Sound => "sound",
+        ItemKind.Font => "font",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
