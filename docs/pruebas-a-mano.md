@@ -65,3 +65,12 @@ Clic derecho en un clip con sonido, o Editar, con el clip seleccionado.
 - [ ] **Quitar silencios:** en una toma tuya hablando, «Quitar silencios...»: la barra muestra en rojo lo que se corta y cambia al mover umbral, silencio mínimo y margen. «Quitar» corta video y audio juntos y cierra los huecos si la casilla de ripple está marcada (empieza como el ripple automático de la línea de tiempo); Ctrl+Z lo deshace todo de una vez. ¿Los cortes suenan naturales con el margen de 100 ms? ¿Acierta el umbral de −35 dB?
 - [ ] **Detectar ritmo:** en una canción, «Detectar ritmo...» dice el tempo; «Aplicar» pone un marcador por pulso y, con «Cortar el clip al ritmo», corta cada 4 pulsos (u otro). ¿Los marcadores caen en el golpe? ¿El tempo es el que conoces (en temas muy rápidos puede salir la mitad)?
 - [ ] **Ducking:** selecciona la música y elige la pista de la voz: «Aplicar» pone keyframes de volumen que bajan la música antes de cada frase y la suben después. ¿−12 dB y 100 ms de anticipación suenan bien? ¿La subida de 0,5 s es lenta o rápida?
+
+## Fase 7: texto a voz
+
+Editar → «Texto a voz...» o clic derecho en un clip. Necesita el módulo de voz instalado; sin él, el aviso dice que lo instales.
+
+- [ ] **Generar e insertar:** escribe o pega un párrafo (o selecciona un título o subtítulo y pulsa «Usar el texto del clip seleccionado»), elige idioma y voz, «Escuchar» y luego «Insertar en el cursor». El clip de voz cae en el cursor, en la primera pista de audio libre en ese tramo (o en una pista «Voz» nueva); Ctrl+Z lo quita junto con el medio de la biblioteca. ¿Suena natural en es, pt-BR y en? ¿«Escuchar» tarda poco en empezar?
+- [ ] **Velocidad, tono y pausas:** mueve velocidad (0,5–2×), tono (±6 semitonos) y las pausas entre frases y en comas; prueba «[pausa 1]» dentro del texto. ¿Los rangos son útiles o sobran extremos?
+- [ ] **Regenerar:** selecciona un clip de voz generado y abre «Texto a voz...»: se abre con su texto y su voz. Cambia una palabra o la voz y pulsa «Regenerar»: el clip cambia su audio (un paso del historial); si quedó más largo y choca con el clip siguiente, avisa y no cambia nada. «Insertar nuevo» deja el original y agrega otro.
+- [ ] **Archivos:** el WAV y su `.json` quedan en «Voz generada» junto al `.rodaje` (o en `%LOCALAPPDATA%\Rodaje\voz` si el proyecto no está guardado). ¿Prefieres otro lugar o nombre?

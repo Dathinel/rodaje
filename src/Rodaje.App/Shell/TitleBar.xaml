@@ -45,6 +45,7 @@
                 <MenuFlyoutItem Text="Quitar silencios..." Tag="analysis.silences" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Detectar ritmo..." Tag="analysis.beats" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Ducking automático..." Tag="analysis.ducking" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Texto a voz..." Tag="voice.textToSpeech" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Ver">
                 <MenuFlyoutItem Text="Propiedades" Tag="inspector:Properties" Click="OnInspectorClick" />

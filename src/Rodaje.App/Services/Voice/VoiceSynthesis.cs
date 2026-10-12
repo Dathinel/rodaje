@@ -15,7 +15,7 @@ public sealed record SynthesizedVoice(float[] Samples, int SampleRate, IReadOnly
 }
 
 /// <summary>El módulo devolvió algo que no se puede usar como audio.</summary>
-public sealed class VoiceException : Exception
+public sealed partial class VoiceException : Exception
 {
     public VoiceException() { }
 

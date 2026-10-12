@@ -7,7 +7,7 @@ namespace Rodaje.App.Services.Voice;
 /// «Escuchar»: reproduce la voz generada por la salida de audio predeterminada, sin tocar el proyecto. Abre su propio
 /// flujo WASAPI compartido (48 kHz estéreo) y lo cierra al terminar o al pedir otra.
 /// </summary>
-public sealed class VoicePreviewPlayer : IDisposable
+public sealed partial class VoicePreviewPlayer : IDisposable
 {
     public const int OutputRate = 48_000;
 
@@ -62,7 +62,7 @@ public sealed class VoicePreviewPlayer : IDisposable
         return stereo;
     }
 
-    private sealed class Source(float[] stereo) : IAudioSampleSource
+    private sealed partial class Source(float[] stereo) : IAudioSampleSource
     {
         private int _at;
 
