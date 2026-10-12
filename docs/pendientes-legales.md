@@ -8,7 +8,7 @@ Lo que queda por resolver para distribuir Rodaje bajo la GNU GPLv3 con términos
 - [ ] **Código fuente de Rodaje por versión.** Cada ejecutable señala el código de su versión exacta (etiqueta `v1.0.0` o equivalente).
 - [ ] **Código fuente de FFmpeg.** Archivar los tarballs del commit `2a571b6` de FFmpeg, de los scripts de BtbN y de cada biblioteca externa que fijan, y ofrecerlos junto a la descarga o por oferta escrita ([legal.md](legal.md), «Compilación fijada»). Añadir el enlace a esa fuente en «Acerca de».
 - [ ] **Bibliotecas de FFmpeg sin revisar.** Leer en el commit que fija BtbN la licencia de librist, libbluray y las que no tienen fila en `LICENCIAS.md` (Fontconfig, GLib, cairo y Pango de librsvg, Vulkan y shaderc de libplacebo, Little CMS, libvorbis, rav1e y el resto), buscar la nota «Incompatible With Secondary Licenses» en libzmq y SRT, y confirmar en gnu.org las marcadas «a confirmar» (HarfBuzz, libvmaf, `PATENTS` de libjxl).
-- [ ] **Logotipo e icono propios.** `TRADEMARK.md` los reserva, pero la app todavía no tiene logotipo ni icono definitivos.
+- [x] **Logotipo e icono propios.** Diseño original del titular (Dathinel) en `assets/marca/` (SVG maestro y monocromo; iconos con `build/generar-iconos.ps1`).
 - [ ] **Reporte privado de vulnerabilidades** activado en GitHub (`SECURITY.md`).
 - [ ] **Escaneo de secretos** del historial completo con gitleaks.
 

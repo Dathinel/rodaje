@@ -7,7 +7,7 @@ Este documento complementa el archivo [LICENSE](LICENSE) y rige el uso de los id
 Mientras que el código fuente de este editor de video está licenciado bajo GNU GPLv3 (con términos de atribución de la Sección 7), los siguientes elementos están sujetos a **COPYRIGHT PRIVATIVO CON TODOS LOS DERECHOS RESERVADOS**:
 
 - El nombre oficial del editor y nombres comerciales asociados.
-- El logotipo oficial, icono de la aplicación y favicon.
+- El logotipo oficial (la R con tira de película perforada de `assets/marca/`), icono de la aplicación y favicon, obra original del titular, Dathinel.
 - Las ilustraciones, splash screens predeterminadas y material gráfico de la interfaz.
 
 ## 2. Derivados y reventa
