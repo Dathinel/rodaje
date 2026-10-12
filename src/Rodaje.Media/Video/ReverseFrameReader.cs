@@ -29,7 +29,7 @@ public sealed record ReverseFrameReaderOptions
 /// </summary>
 /// <remarks>
 /// <para>
-/// Plan (<see cref="Plan"/>): se recorren los GOP de arriba abajo; los GOP enteros se juntan en un tramo mientras quepan
+/// Plan (<see cref="Plan(KeyframeIndex, long, long, int, Func{long, bool}?)"/>): se recorren los GOP de arriba abajo; los GOP enteros se juntan en un tramo mientras quepan
 /// en <c>C</c> cuadros (<c>M</c>/2 con <see cref="ReverseFrameReaderOptions.Lookahead"/>, <c>M</c> sin ella), porque
 /// juntarlos ahorra seeks sin decodificar nada de más. Un GOP con más cuadros que <c>C</c> se parte desde arriba: primero
 /// sus últimos <c>C</c> y, en otra pasada desde el mismo keyframe, los anteriores (dos pasadas, o más si hace falta).
@@ -41,7 +41,8 @@ public sealed record ReverseFrameReaderOptions
 /// </remarks>
 public sealed class ReverseFrameReader : IDisposable
 {
-    private readonly VideoDecoder _decoder;
+    private readonly IVideoFrameSource _decoder;
+    private readonly VideoDecoder? _statistics;
     private readonly IReadOnlyList<long[]> _chunks;
     private readonly bool _lookahead;
     private readonly CancellationTokenSource _cancel = new();
@@ -57,17 +58,30 @@ public sealed class ReverseFrameReader : IDisposable
     /// <param name="last">Cuadro más alto del tramo (el primero que se entrega).</param>
     /// <param name="options">Tope de cuadros retenidos, ventana y qué cuadros se entregan.</param>
     public ReverseFrameReader(VideoDecoder decoder, KeyframeIndex keyframes, long first, long last, ReverseFrameReaderOptions? options = null)
+        : this(decoder, Keyframes(keyframes), first, Math.Min(last, Math.Max(first, keyframes.FrameCount - 1)), options)
     {
-        ArgumentNullException.ThrowIfNull(decoder);
-        ArgumentNullException.ThrowIfNull(keyframes);
+    }
+
+    /// <summary>Sobre cualquier origen exacto: el motor fuera de línea lo usa con su propio decodificador.</summary>
+    /// <param name="source">Origen de cuadros exactos; mientras el lector vive no se usa para otra cosa.</param>
+    /// <param name="keyframeAtOrBefore">El último keyframe que no pasa del cuadro; <c>null</c> si no hay o no se conoce.</param>
+    /// <param name="first">Cuadro más bajo del tramo (el último que se entrega).</param>
+    /// <param name="last">Cuadro más alto del tramo (el primero que se entrega); debe existir en el medio.</param>
+    /// <param name="options">Tope de cuadros retenidos, ventana y qué cuadros se entregan.</param>
+    public ReverseFrameReader(IVideoFrameSource source, Func<long, long?> keyframeAtOrBefore, long first, long last,
+        ReverseFrameReaderOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(keyframeAtOrBefore);
         ArgumentOutOfRangeException.ThrowIfNegative(first);
         options ??= new ReverseFrameReaderOptions();
         ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxRetained, options.Lookahead ? 2 : 1);
-        _decoder = decoder;
+        _decoder = source;
+        _statistics = source as VideoDecoder;
         _lookahead = options.Lookahead;
         int chunk = options.Lookahead ? options.MaxRetained / 2 : options.MaxRetained;
-        _chunks = Plan(keyframes, first, Math.Min(last, Math.Max(first, keyframes.FrameCount - 1)), chunk, options.Wanted);
-        _decodedAtStart = decoder.Statistics.DecodedFrames;
+        _chunks = Plan(keyframeAtOrBefore, first, last, chunk, options.Wanted);
+        _decodedAtStart = _statistics?.Statistics.DecodedFrames ?? 0;
     }
 
     /// <summary>Tramos que se decodifican, del primero que se entrega al último; cada uno en orden ascendente.</summary>
@@ -76,8 +90,11 @@ public sealed class ReverseFrameReader : IDisposable
     /// <summary>Cuadros entregados hasta ahora.</summary>
     public long Delivered { get; private set; }
 
-    /// <summary>Cuadros que salieron del decodificador desde que se creó el lector, incluidos los que no se entregan.</summary>
-    public long DecodedFrames => _decoder.Statistics.DecodedFrames - _decodedAtStart;
+    /// <summary>
+    /// Cuadros que salieron del decodificador desde que se creó el lector, incluidos los que no se entregan; 0 si el
+    /// origen no es un <see cref="VideoDecoder"/>.
+    /// </summary>
+    public long DecodedFrames => _statistics is { } decoder ? decoder.Statistics.DecodedFrames - _decodedAtStart : 0;
 
     /// <summary>
     /// Tramos de decodificación de los cuadros <paramref name="wanted"/> de <c>[first, last]</c>, del primero que se
@@ -86,6 +103,14 @@ public sealed class ReverseFrameReader : IDisposable
     public static IReadOnlyList<long[]> Plan(KeyframeIndex keyframes, long first, long last, int chunkFrames, Func<long, bool>? wanted = null)
     {
         ArgumentNullException.ThrowIfNull(keyframes);
+        return Plan(Keyframes(keyframes), first, last, chunkFrames, wanted);
+    }
+
+    /// <summary>Como el plan con <see cref="KeyframeIndex"/>, con el último keyframe que no pasa de cada cuadro (<c>null</c> si no hay).</summary>
+    public static IReadOnlyList<long[]> Plan(Func<long, long?> keyframeAtOrBefore, long first, long last, int chunkFrames,
+        Func<long, bool>? wanted = null)
+    {
+        ArgumentNullException.ThrowIfNull(keyframeAtOrBefore);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(chunkFrames);
         var chunks = new List<long[]>();
         var current = new List<long>();
@@ -93,7 +118,7 @@ public sealed class ReverseFrameReader : IDisposable
         long top = last;
         while (top >= first)
         {
-            long low = Math.Max(first, keyframes.AtOrBefore(top) ?? first);
+            long low = Math.Max(first, keyframeAtOrBefore(top) ?? first);
             gop.Clear();
             for (long i = low; i <= top; i++)
             {
@@ -216,7 +241,8 @@ public sealed class ReverseFrameReader : IDisposable
         {
             foreach (long index in ascending)
             {
-                if (_decoder.GetFrame(index, cancellationToken) is { } frame)
+                ValueTask<DecodedFrame?> pending = _decoder.GetFrameAsync(index, cancellationToken);
+                if ((pending.IsCompletedSuccessfully ? pending.Result : pending.AsTask().GetAwaiter().GetResult()) is { } frame)
                 {
                     frames.Push(frame);
                 }
@@ -229,6 +255,12 @@ public sealed class ReverseFrameReader : IDisposable
             Release(frames);
             throw;
         }
+    }
+
+    private static Func<long, long?> Keyframes(KeyframeIndex keyframes)
+    {
+        ArgumentNullException.ThrowIfNull(keyframes);
+        return keyframes.AtOrBefore;
     }
 
     private static void Release(Stack<DecodedFrame> frames)
