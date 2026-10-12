@@ -4,7 +4,7 @@
 
 ## Proyecto
 
-Sin paquete MSIX, autocontenida y con Native AOT (el [sondeo](../archivo/sondeo-winui.md) lo confirmó). `herramientas\app.ps1` la publica en `dist\Rodaje\` con FFmpeg LGPL y la abre; la usan `Rodaje.bat` y `app.ps1 -Medir N`, que reproduce, mide y cierra. El Windows App SDK ocupa unos 57 MB junto al exe y sus términos están en [`LICENCIAS.md`](../../LICENCIAS.md).
+Sin paquete MSIX, autocontenida y con Native AOT (confirmado por un sondeo en la fase 4). `build\app.ps1` la publica en `dist\Rodaje\` con FFmpeg LGPL y la abre; la usan `Rodaje.bat` y `app.ps1 -Medir N`, que reproduce, mide y cierra. El Windows App SDK ocupa unos 57 MB junto al exe y sus términos están en [`LICENCIAS.md`](../../LICENCIAS.md).
 
 `Rodaje.exe` es `net10.0-windows10.0.26100.0` para win-x64, con `WindowsPackageType=None`, Windows App SDK autocontenido y `PublishAot`. `EnableMsixTooling` se deja activo (sin él no hay `resources.pri`), y se usan los paquetes sueltos `WinUI`, `Foundation` e `InteractiveExperiences` en vez del metapaquete.
 
@@ -72,22 +72,22 @@ BgraImage? GetNearestThumbnail(string mediaId, Time sourceTime, Time spacing, in
 
 ## Complementos (`Services/Packages`)
 
-`PackageService` junta el catálogo que viaja en el ejecutable (`catalogo.json`), lo instalado y el instalador de [`Rodaje.Paquetes`](../formato-paquete.md); lee el disco fuera del hilo de la interfaz y avisa con `Changed`. `MissingContent.Attach` avisa («Faltan paquetes») al abrir un proyecto que referencia paquetes no instalados y cuando al abierto le faltan por desinstalar. `LibraryElements` decide qué muestra cada categoría de la biblioteca: lo que trae el motor (sacado del registro de efectos; el texto llega con los títulos), lo de los paquetes y lo propio.
+`PackageService` junta el catálogo que viaja en el ejecutable (`catalogo.json`), lo instalado y el instalador de [`Rodaje.Packages`](../formato-paquete.md); lee el disco fuera del hilo de la interfaz y avisa con `Changed`. `MissingContent.Attach` avisa («Faltan paquetes») al abrir un proyecto que referencia paquetes no instalados y cuando al abierto le faltan por desinstalar. `LibraryElements` decide qué muestra cada categoría de la biblioteca: lo que trae el motor (sacado del registro de efectos; el texto llega con los títulos), lo de los paquetes y lo propio.
 
 - **Arrastrar una transición.** Lleva `rodaje/elemento` y además `rodaje/transicion` (`TransitionDrag.DragFormat`) con el mismo texto: el tipo de una transición propia (`rodaje.wipe`) o la referencia `paquete@versión/elemento` de una de paquete. Quien la suelta usa `TransitionDrag.TryParse(texto)` y `CreateCommand(secuencia, clipQueSale)`, que pone tipo y preajuste en un solo paso del historial.
 
 ## Efectos y contenido (`Services/Effects`)
 
 - **`EffectContent`** implementa `IEffectContent` para el motor: `EffectContentFactory` (en `Services/Effects`, fuera de las pruebas) lo arma con `AppEffectContent.Create` y la ventana lo pasa a `EditorServices.Content` y a `PlayerEngine.SetContent`; el inspector le une la sesión (`AppEffectContent.AttachSession`) para la carpeta del proyecto y los avisos. `TryGetLut` es una búsqueda en un diccionario; si falta, la lee en un hilo del pool y avisa con `Changed`. Lo que no se pudo leer no se reintenta hasta `Invalidate` (al cambiar los paquetes). Las curvas de una transición de paquete se leen al armar el plan y quedan en memoria. `ContentRefresh` pasa el `Changed` (hilo del pool) al hilo de render: `Redraw` si solo terminó una LUT, `Rebuild` si cambiaron los paquetes y hay que rearmar el plan.
-- **`IContentLoader`** lee el contenido por referencia; `InstalledContentLoader` lo hace sobre lo instalado y los lectores de `Rodaje.Paquetes`. Solo usa `PackageContentStore.ResolveLocalReferences` para las referencias locales de filtros y efectos; no hay otra tienda en medio. Al instalar o desinstalar, `AppEffectContent` engancha `packages.Changed` a `EffectContent.Invalidate()`.
+- **`IContentLoader`** lee el contenido por referencia; `InstalledContentLoader` lo hace sobre lo instalado y los lectores de `Rodaje.Packages`. Solo usa `PackageContentStore.ResolveLocalReferences` para las referencias locales de filtros y efectos; no hay otra tienda en medio. Al instalar o desinstalar, `AppEffectContent` engancha `packages.Changed` a `EffectContent.Invalidate()`.
 - **LUT sueltas.** «Cargar .cube…» guarda `file:` más la ruta con `/`, relativa a la carpeta del `.rodaje` si se puede (`LutReference`).
 - **`EffectCommands`** son ediciones de un solo paso que el núcleo no trae sueltas: modo de mezcla y LUT creando el efecto si falta, y aplicar filtros y efectos de paquete copiados con `options.source` (reaplicar el mismo los reemplaza; las curvas de un efecto se colocan al principio, al final o a lo largo del clip medidos en la línea de tiempo, se encogen si no caben y las posiciones se escalan a la secuencia; cada keyframe se guarda con el mapeo del clip, así que a 2× una entrada de 1 s sigue durando 1 s).
 - **`ElementApplier`** aplica un elemento de la biblioteca al clip seleccionado; una transición va al corte donde termina el clip o, si no hay, al de su inicio; un estilo de texto, al título seleccionado o a uno nuevo en el cursor.
-- **Estilos de texto.** `IContentLoader.LoadTextStyle` lee el `rodaje.textstyle` (lector en `Rodaje.Paquetes`, que no conoce el núcleo) y `TitleStyles.FromPreset` lo copia al modelo con `source` (D-029). El motor nunca lo busca.
+- **Estilos de texto.** `IContentLoader.LoadTextStyle` lee el `rodaje.textstyle` (lector en `Rodaje.Packages`, que no conoce el núcleo) y `TitleStyles.FromPreset` lo copia al modelo con `source` (D-029). El motor nunca lo busca.
 
 ## Módulos de IA (`Services/Modules`)
 
-`ModuleManager` (en `EditorServices.Modules`) corre los módulos del [protocolo](../fase-7.md) como procesos aparte y nunca deja que editen: devuelven datos y la app los convierte en una `ModuleProposal`.
+`ModuleManager` (en `EditorServices.Modules`) corre los módulos del [protocolo](../protocolo-modulos.md) como procesos aparte y nunca deja que editen: devuelven datos y la app los convierte en una `ModuleProposal`.
 
 - **Descubrimiento.** `ModuleCatalog.DefaultRoots()`: `%LOCALAPPDATA%\Rodaje\complementos\modulos`, `modulos\` junto al exe y, si Rodaje corre desde el repositorio, `modules\` (el exe más reciente bajo `bin\`). Lee `module.vramMb` y `module.runtime`; se refresca al cambiar los paquetes.
 - **Procesos.** Uno por módulo, abierto con la primera llamada y cerrado tras 2 min sin llamadas; todos en un Job Object «matar al cerrar»; tubería solo del usuario actual. Con una llamada en curso, `ping` cada 5 s; sin respuesta en 10 s se mata (`ModuleHungException`). Al cerrar la ventana se pide `shutdown` y se mata lo que no sale.

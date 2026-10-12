@@ -1,6 +1,6 @@
 # Licencias de modulo-audio-ia
 
-El código del módulo es propio (GPL-3.0-only con los términos de Rodaje, D-032). Los modelos y las bibliotecas que trae o descarga conservan su licencia; ninguno se versiona en el repositorio: los baja `herramientas\preparar-modelos.ps1` (o el gestor de complementos) con su SHA-256 fijado.
+El código del módulo es propio (GPL-3.0-only con los términos de Rodaje, D-032). Los modelos y las bibliotecas que trae o descarga conservan su licencia; ninguno se versiona en el repositorio: los baja `build\preparar-modelos.ps1` (o el gestor de complementos) con su SHA-256 fijado.
 
 ## Modelos
 

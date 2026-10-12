@@ -3,7 +3,7 @@ using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
-using Rodaje.Paquetes;
+using Rodaje.Packages;
 
 namespace Rodaje.App.Tests.Inspector;
 

@@ -10,7 +10,7 @@ public sealed class ModelFactAttribute : FactAttribute
     {
         if (ModelPath is null)
         {
-            Skip = $"Omitida: falta el modelo {ModelFiles.ModelFile} en .entorno\\modelos; ejecuta herramientas\\preparar-modelos.ps1 -Traductor.";
+            Skip = $"Omitida: falta el modelo {ModelFiles.ModelFile} en .entorno\\modelos; ejecuta build\\preparar-modelos.ps1 -Traductor.";
         }
     }
 }

@@ -1,4 +1,4 @@
-using Rodaje.Paquetes;
+using Rodaje.Packages;
 
 namespace Rodaje.Module.Subtitles.Tests;
 

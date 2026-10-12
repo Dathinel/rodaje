@@ -14,7 +14,7 @@ Este registro guarda el porqué de cada elección importante de Rodaje. Una deci
 
 - **Decisión.** Repositorio privado (creado como `Dathinel/fototoma`, hoy `Dathinel/rodaje` por D-014), código propio bajo MIT a nombre de Daniel (Dathinel), con el fondo legal completo (`LICENCIAS.md`, `THIRD-PARTY-NOTICES.txt`, `docs/legal.md`) desde el principio.
 - **Por qué.** Es la regla por defecto de la carpeta de programas. GPL-3 permitiría reutilizar código de Kdenlive, Shotcut u Olive pero obligaría a distribuir todo como GPL; Apache-2.0 aporta poco a un proyecto personal; sin licencia nadie podría usarlo.
-- **Consecuencia.** MIT es compatible con enlazar dinámicamente bibliotecas LGPL como FFmpeg. No se puede copiar código GPL de los editores estudiados, solo estudiar su diseño (ver [`archivo/investigacion.md`](archivo/investigacion.md)).
+- **Consecuencia.** MIT es compatible con enlazar dinámicamente bibliotecas LGPL como FFmpeg. No se puede copiar código GPL de los editores estudiados, solo estudiar su diseño (estudio en `docs/archivo/investigacion.md` de la etiqueta `archivo-proceso-2026-10`).
 
 ## D-003. Stack: .NET 10 LTS con WinUI 3
 
@@ -30,7 +30,7 @@ Este registro guarda el porqué de cada elección importante de Rodaje. Una deci
 
 ## D-005. Entorno propio en `.entorno\`
 
-- **Decisión.** El SDK de .NET 10.0.401 se descarga a `.entorno\dotnet` con `herramientas\preparar-entorno.ps1`, que verifica el SHA-512 publicado por Microsoft. La versión se fija en `global.json`; la caché de NuGet también vive en `.entorno\` y la restauración usa archivos de bloqueo. Solo `git` y `gh` son globales.
+- **Decisión.** El SDK de .NET 10.0.401 se descarga a `.entorno\dotnet` con `build\preparar-entorno.ps1`, que verifica el SHA-512 publicado por Microsoft. La versión se fija en `global.json`; la caché de NuGet también vive en `.entorno\` y la restauración usa archivos de bloqueo. Solo `git` y `gh` son globales.
 - **Por qué.** El equipo solo tiene los runtimes 6 y 8, y un SDK global mezclaría versiones entre programas. Un contenedor sería excesivo para una aplicación de escritorio.
 - **Consecuencia.** La primera ejecución descarga unos 280 MB. `.entorno\` no se versiona; se versiona el script que lo reconstruye.
 
@@ -88,7 +88,7 @@ Este registro guarda el porqué de cada elección importante de Rodaje. Una deci
 - XAudio2: su posición avanza en saltos de 10 ms, insuficiente para el reloj maestro.
 - NAudio: es compatible con AOT, pero no da marca de tiempo QPC.
 
-**Consecuencias.** La API de TerraFX trabaja con punteros crudos, así que el motor la envuelve en clases propias. Las evidencias están en [`archivo/sondeo-interop-aot.md`](archivo/sondeo-interop-aot.md), y el código del sondeo en la etiqueta de git `sondeo-interop-aot`.
+**Consecuencias.** La API de TerraFX trabaja con punteros crudos, así que el motor la envuelve en clases propias. Las evidencias están en `docs/archivo/sondeo-interop-aot.md` (etiqueta `archivo-proceso-2026-10`) y el código del sondeo en la etiqueta de git `sondeo-interop-aot`.
 
 ## D-014. Nuevo nombre: Rodaje (9 de octubre de 2026, reemplaza a D-001)
 
@@ -155,7 +155,7 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
   | 8 | 0,53 ms | 0,37 ms |
 
   Incluso con 8 capas, componer usa menos del 4 % de los 16,7 ms que dura un cuadro a 60 fps.
-- Con los efectos de la fase 5 el camino rápido no cambió (8 capas 1080p: 0,54 ms) y 3 capas 4K con color, LUT, desenfoque y superponer cuestan 2,7 ms; la tabla completa está en [fase-5.md](fase-5.md#medido-en-la-integración-10-de-octubre-rtx-3050-laptop).
+- Con los efectos de la fase 5 el camino rápido no cambió (8 capas 1080p: 0,54 ms) y 3 capas 4K con color, LUT, desenfoque y superponer cuestan 2,7 ms.
 - El visor sigue dibujando con su `VideoRenderer`; cuando muestre varias capas usará `Compositor` y `Presenter`.
 - Reducir una capa a menos de la mitad produce aliasing, hasta que existan proxies o un filtro de varias muestras.
 - Cuando el motor ponga el SAR y la rotación en `LayerFrame`, el parámetro `geometry` de `Compositor.Render` se puede retirar.
@@ -236,7 +236,7 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - **Rejilla de potencias de dos** para los instantes de una tira y **clases de alto** (32 a 256 px): al hacer zoom o desplazar se reutiliza casi todo.
 - **Caché en memoria y en disco** con la huella del original (la misma de los proxies) en la clave; un archivo que cambia no reutiliza nada viejo.
 - **`IClipVisuals` no bloquea nunca:** devuelve lo que hay, pide lo que falta y avisa con `Changed` en el hilo de la interfaz.
-- **`.paquete` v0** en una biblioteca sin dependencias (`Rodaje.Paquetes`), con manifiesto validado con `JsonDocument` (apto para AOT), instalación que nunca escribe fuera de su carpeta y referencias estables `paquete@versión/elemento` ([formato](formato-paquete.md)). Los módulos de IA se declaran pero no se ejecutan hasta la fase 7.
+- **`.paquete` v0** en una biblioteca sin dependencias (`Rodaje.Packages`), con manifiesto validado con `JsonDocument` (apto para AOT), instalación que nunca escribe fuera de su carpeta y referencias estables `paquete@versión/elemento` ([formato](formato-paquete.md)). Los módulos de IA se declaran pero no se ejecutan hasta la fase 7.
 
 **Resultado.** Biblioteca con 200 medios 1080p: 60 cuadros por segundo al desplazar despacio y de golpe, sin ningún intervalo de más de 33 ms; portadas de la primera pantalla en 169 ms en frío y 107 ms con la caché en disco.
 
@@ -244,13 +244,13 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 
 **Contexto.** El visor de las fases 2 y 3 (D-015) era una herramienta de prueba. La app WinUI 3 ya reproduce, edita y mide (`app.ps1 -Medir N`) con el mismo motor y el mismo compositor.
 
-**Decisión.** Se borran `src/Rodaje.Visor`, sus pruebas, `herramientas/visor.ps1`, la acción `ABRIR.bat visor` y `herramientas/sondeo-winui.ps1`. El código queda en la etiqueta de git `visor-fase3`; el informe del sondeo pasa a `docs/archivo/sondeo-winui.md`.
+**Decisión.** Se borran `src/Rodaje.Visor`, sus pruebas, `herramientas/visor.ps1`, la acción `ABRIR.bat visor` y `herramientas/sondeo-winui.ps1`. El código queda en la etiqueta de git `visor-fase3`; el informe del sondeo pasa a `docs/archivo/sondeo-winui.md` (hoy en la etiqueta `archivo-proceso-2026-10`).
 
 **Consecuencias.** Un solo ejecutable que mantener. D-015 y D-016 siguen valiendo para el motor y el render aunque nombren el visor.
 
 ## D-023. Estilos de atajos con nombres propios (10 de octubre de 2026)
 
-**Decisión.** Los estilos de D-018 se llaman «Rodaje», «Ágil» y «Clásico» (`ShortcutPreset.Rodaje`, `Agile` y `Classic`). Ni la interfaz ni el código nombran otros programas; las referencias de experiencia de uso quedan en estas decisiones y en `docs/archivo/`. `atajos.json` y `ajustes.json` guardados con los nombres anteriores se leen como Ágil y Clásico y se reescriben con los nuevos; un estilo desconocido vuelve a Rodaje sin dar por dañado el archivo.
+**Decisión.** Los estilos de D-018 se llaman «Rodaje», «Ágil» y «Clásico» (`ShortcutPreset.Rodaje`, `Agile` y `Classic`). Ni la interfaz ni el código nombran otros programas; las referencias de experiencia de uso quedan en estas decisiones. `atajos.json` y `ajustes.json` guardados con los nombres anteriores se leen como Ágil y Clásico y se reescriben con los nuevos; un estilo desconocido vuelve a Rodaje sin dar por dañado el archivo.
 
 ## D-024. Restablecer un parámetro y quitar keyframes, con aviso (10 de octubre de 2026)
 
@@ -265,7 +265,7 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 
 ## D-025. Contrato de la fase 5: registro de efectos, formato 3 y transiciones en el corte (10 de octubre de 2026)
 
-**Contexto.** El plan de la fase 5 ([fase-5.md](fase-5.md)) reparte el trabajo entre seis agentes en paralelo; antes hace falta un contrato que no cambie mientras trabajan.
+**Contexto.** El plan de la fase 5 reparte el trabajo entre seis agentes en paralelo; antes hace falta un contrato que no cambie mientras trabajan.
 
 **Decisión (aprobada por Daniel).**
 - **Transiciones centradas en el corte y sin solapar clips.** Viven en la pista (`Track.Transitions`: `from`, `to`, `duration`, `parameters`, `options`); cada lado usa el material sobrante y, si no hay, congela el cuadro del borde. Seis propias (fundido cruzado, a color, barrido, empujar, zoom y desenfoque) y `rodaje.preset` para las de paquete, que cae a fundido cruzado si falta el paquete. `TransitionOps.Reconcile` corre al final de cada edición, dentro del mismo paso del deshacer.
@@ -273,13 +273,13 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - **Paquetes solo con primitivas**, sin shaders propios: filtros y efectos se copian al proyecto (con `options.source`), LUT y transiciones se referencian.
 - **Registro estático** (`Rodaje.Core/Effects/EffectRegistry`) con códigos enteros estables, destino, etapa, parámetros (hasta 16, con valor por defecto y límites) y opciones, en `FrozenDictionary`, sin reflexión. Un tipo desconocido se conserva intacto.
 - **Formato 3:** `EffectInstance.Options`, `Track.Effects` (keyframes en tiempo de la secuencia) y `Track.Transitions`. La migración 2 → 3 convierte `rodaje.volume` lineal en `rodaje.audio` en dB; el volumen se guarda siempre en `gainDb`, con −60 dB como silencio.
-- **Hacia la GPU:** `LayerFrame` suma `Effects` (`LayerEffect` con `EffectValues` en `InlineArray`, por valor), `Blend` (13 modos) y `Transition`; sin nada de eso es el camino rápido de siempre. Los recursos (LUT) se piden con `IEffectResources`, que nunca bloquea; el motor recibe el contenido de paquetes por `IEffectContent` y no conoce `Rodaje.Paquetes`.
+- **Hacia la GPU:** `LayerFrame` suma `Effects` (`LayerEffect` con `EffectValues` en `InlineArray`, por valor), `Blend` (13 modos) y `Transition`; sin nada de eso es el camino rápido de siempre. Los recursos (LUT) se piden con `IEffectResources`, que nunca bloquea; el motor recibe el contenido de paquetes por `IEffectContent` y no conoce `Rodaje.Packages`.
 
 **Consecuencias.** Un proyecto guardado con la fase 5 no abre en versiones anteriores (la `.bak` conserva el formato 2). Cambiar un código del registro rompe la tabla de la GPU: una prueba los fija.
 
 ## D-026. Contrato de la fase 5c: velocidad como propiedad del clip y formato 4 (10 de octubre de 2026)
 
-**Contexto.** El plan de la fase 5c ([fase-5c.md](fase-5c.md)) reparte la velocidad entre siete agentes; el formato y la aritmética del tiempo no pueden cambiar mientras trabajan.
+**Contexto.** El plan de la fase 5c reparte la velocidad entre siete agentes; el formato y la aritmética del tiempo no pueden cambiar mientras trabajan.
 
 **Decisión.**
 - **`Clip.Speed`** (`ClipSpeed`: `Rate` racional de 1/10 a 100, `Curve` lineal a tramos en centésimas de 0,1× a 10× con puntos en diezmilésimas de `Span`, `Offset`, `Reverse`, `Freeze`, `PreservePitch`, `FrameSampling`) y `Clip.Duration` guardada cuando hay velocidad. `rodaje.speed` queda reservado (código 8) y oculto; la migración 3 → 4 quita sus instancias.
@@ -307,7 +307,7 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 
 ## D-028. Arquitectura de la exportación: tubería a `ffmpeg.exe` y LGPL en la v1 (11 de octubre de 2026)
 
-**Contexto.** El plan de la fase 6 ([fase-6.md](fase-6.md)) reparte la exportación entre seis agentes (A–F) y la nube; antes hace falta fijar el camino del cuadro, el color y la licencia.
+**Contexto.** El plan de la fase 6 reparte la exportación entre seis agentes (A–F) y la nube; antes hace falta fijar el camino del cuadro, el color y la licencia.
 
 **Decisión (las tres preguntas del plan, respondidas por Daniel el 11 de octubre).**
 - **Licencia:** LGPL en la v1, como recomendaba el plan (detalle abajo).
@@ -319,14 +319,14 @@ Los paquetes de contenido usan la extensión neutral `.paquete`, porque el forma
 - **Audio a un temporal:** `OfflineAudio` (el `MixRenderer` continuo, sin margen de recarga) escribe la mezcla del rango en un WAV temporal antes del video; así no hay dos tuberías que se bloqueen entre sí y el audio se prueba muestra a muestra.
 - **Salida v1 por tubería a `ffmpeg.exe`** (el mismo exe LGPL verificado de los proxies, dentro del `ChildProcessJob`): `rawvideo` por la entrada estándar, el WAV como segunda entrada, `-progress` para el avance, escritura atómica (`.rodaje-tmp` y renombrar), espacio en disco comprobado y limpieza tras un apagón. `NvencDirectSink` (textura directa a NVENC) solo en una ronda 6.2 si las cifras lo piden.
 - **Licencia LGPL en la v1:** H.264 y HEVC solo por GPU (NVENC, AMF, QSV) o por Media Foundation, cuyos fabricantes cubren las patentes; la CPU exporta AV1 (SVT-AV1) y VP9 (libvpx); maestros FFV1 y DNxHR; audio AAC preferido con `aac_mf`, además `aac`, Opus, MP3 (LAME), FLAC y PCM. **kvazaar y OpenH264 quedan fuera de los valores por defecto** (contradicen la mitigación de patentes de `legal.md`): solo se usan si el usuario los elige. x264 sería un complemento GPL aparte, con su propio `ffmpeg.exe` y el mismo protocolo, más adelante y tras consultar a alguien de licencias.
-- **Alcance profesional** (Daniel, 11 de octubre; `fase-6.md`): el contrato cubre ya todo lo que permite el FFmpeg LGPL aunque la v1 implemente primero lo común (MP4/MOV/MKV/WebM, H.264/HEVC por GPU, AV1, ProRes, AAC/Opus/PCM). Lo que necesite otra licencia (x264, x265) va como complemento en un repo de Dathinel, con su propio `ffmpeg.exe` y el mismo protocolo de tubería.
+- **Alcance profesional** (Daniel, 11 de octubre): el contrato cubre ya todo lo que permite el FFmpeg LGPL aunque la v1 implemente primero lo común (MP4/MOV/MKV/WebM, H.264/HEVC por GPU, AV1, ProRes, AAC/Opus/PCM). Lo que necesite otra licencia (x264, x265) va como complemento en un repo de Dathinel, con su propio `ffmpeg.exe` y el mismo protocolo de tubería.
 - **Contrato:**
   - `Rodaje.Media/Export`: `IExportSink` (con `ExportSinkRequest`: pasadas, metadatos y capítulos), `ExportVideoFrame` (hasta 4 planos con pitch), `ExportVideoFormat`, `ExportAudioFormat`, `ExportPixelFormat` (NV12, P010, YUV 4:2:0/4:2:2/4:4:4 de 8 y 10 bits, YUVA, RGB/RGBA de 8 y 16), `ExportColor` (BT.709/BT.601, rango, sRGB para imágenes), `ExportContainer` (16, de MP4 a secuencias de imágenes y solo audio), `ExportException` con `ExportErrorCode` estables, `EncoderSpec` con capacidades (perfiles con sus píxeles, niveles, modos de `RateControlMode`, escala de calidad, dos pasadas, cuadros B, presets, solo intra, alfa, frecuencias y canales; `InDefaults = false` en kvazaar y OpenH264) y `ExportCompatibility`, la matriz contenedor × códec × píxel × perfil × audio con el motivo de cada rechazo.
   - `Rodaje.Engine/Offline`: `OfflineTimeline.Render(long frame, CancellationToken)` y `RenderAt(Time, …)` para la conversión de tasa; `OfflineAudio` (lectura continua, `MeasureLoudness` EBU R128 y `WriteWave` con ganancia).
   - `Rodaje.Render/Export`: `ExportFrameConverter` (`Submit`, `SubmitBlend`, `TryRead` con un anillo de `Staging`).
   - `Rodaje.Export` (proyecto nuevo, sin interfaz): `ExportSettings` (contenedor; video con códec, `RateControl` —modo, CRF/CQ, tasas, búfer, pasadas, tamaño objetivo—, perfil, nivel, preset, tune, GOP, bits, croma, alfa, color, tasa con conversión, tamaño, forma, filtro y recorte; audio con códec, tasa, perfil, frecuencia, canales, PCM y sonoridad LUFS; metadatos, capítulos desde marcadores, `faststart` y `Performance`), `ExportRequest`, `ExportPreset` (de fábrica, del usuario o de un `.paquete`), `ExportProgress`, `ExportJobState` y `ExportSettingsValidator`.
 
-**Consecuencias.** La exportación necesita `ffmpeg.exe` junto a las DLL, igual que los proxies. La tubería cuesta una copia por cuadro a la CPU (a 4K60 unos 750 MB/s); el prototipo del paso 0 mueve 2,8–3,8 GB/s a 4K y da 250–290 fps sin codificar con 3 capas 1080p, así que la v1 no necesita `NvencDirectSink` (cifras en `fase-6.md`). Un equipo sin GPU ni Media Foundation (Windows N) no exporta H.264: se le ofrece AV1 o VP9.
+**Consecuencias.** La exportación necesita `ffmpeg.exe` junto a las DLL, igual que los proxies. La tubería cuesta una copia por cuadro a la CPU (a 4K60 unos 750 MB/s); el prototipo del paso 0 mueve 2,8–3,8 GB/s a 4K y da 250–290 fps sin codificar con 3 capas 1080p, así que la v1 no necesita `NvencDirectSink`. Un equipo sin GPU ni Media Foundation (Windows N) no exporta H.264: se le ofrece AV1 o VP9.
 
 ## D-029: Texto y títulos (5b), decisiones de producto (11-oct)
 
@@ -351,7 +351,7 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 
 ## D-031. Arquitectura de la fase 7: protocolo de módulos v1, análisis en la app y descarga firmada (11 de octubre de 2026)
 
-**Contexto.** La fase 7 ([fase-7.md](fase-7.md)) trae la IA local de la [propuesta de módulos](propuesta-modulos.md) y la descarga de complementos (`IPackageDownloader`). Antes de repartirla hace falta fijar el protocolo, el aislamiento y de dónde sale cada modelo.
+**Contexto.** La fase 7 trae la IA local de la propuesta de módulos ([arquitectura](arquitectura/README.md#núcleo-contenido-e-ia)) y la descarga de complementos (`IPackageDownloader`). Antes de repartirla hace falta fijar el protocolo, el aislamiento y de dónde sale cada modelo.
 
 **Decisión.**
 - **Protocolo v1** en `src/Rodaje.Modules.Protocol` (sin referencias a Rodaje, AOT, compartible): marco de 4 bytes + JSON UTF-8 de hasta 1 MiB con `type`, mensajes `hello`/`welcome`/`invoke`/`progress`/`result`/`error`/`cancel`/`ping`/`pong`/`log`/`shutdown` con `JsonSerializerContext`, negociación de versión por rango, capacidades en `welcome`, avance limitado a uno cada 50 ms, cancelación confirmada con 2 s de gracia y muerte del proceso si no llega, códigos de error estables. Campos y tipos de mensaje desconocidos se ignoran; un mensaje inválido cierra la conexión.
@@ -360,7 +360,7 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 - **Ciclo de vida:** un proceso por módulo, al primer uso y cerrado tras 2 min ocioso, Job Object con «matar al cerrar», `ping` de vigilancia, un modelo pesado a la vez según `vramMb`.
 - **La IA no edita:** devuelve datos que la app convierte en comandos con vista previa y un solo Ctrl+Z.
 - **Sin modelo, en la app** (provisional, pregunta 1 de la fase): silencios, ritmo, ducking, estabilizar y color automático.
-- **Runtimes:** ONNX Runtime con DirectML (provisional frente a Windows ML), Whisper.net con Vulkan y LLamaSharp para el traductor; CUDA no se redistribuye. Modelos y voces solo con licencias que permitan redistribuirlos (tabla en `fase-7.md`); espeak-ng (GPL) se sustituye por un fonemizador propio.
+- **Runtimes:** ONNX Runtime con DirectML (provisional frente a Windows ML), Whisper.net con Vulkan y LLamaSharp para el traductor; CUDA no se redistribuye. Modelos y voces solo con licencias que permitan redistribuirlos; espeak-ng (GPL) se sustituye por un fonemizador propio.
 - **Descarga:** `GitHubReleaseDownloader` con un índice firmado con ECDSA P-256 (clave pública en el exe), SHA-256 de cada archivo, reanudación e instalación atómica; releases de GitHub de Dathinel y Hugging Face fijado por commit para los modelos grandes. `paquete.json` suma a `module` los campos `runtime`, `vramMb` y `models` sin cambiar el `formatVersion`.
 
 **Consecuencias.** El paso 0 mide 0,1 ms por cuadro 1080p por referencia, 1,4 ms copiado (~700 cuadros/s), ping de ~0,1 ms, arranque de 31 ms con AOT y cancelación en <1 ms: el protocolo no es cuello para ningún modelo. Los repositorios de los módulos esperan la respuesta de Daniel; mientras, viven en `modules/`. Un módulo que no admita AOT sale autocontenido con JIT (provisional).
@@ -375,7 +375,7 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
   - AGPL: el copyleft por red no aporta a una app de escritorio y complica más los complementos.
 - **Consecuencias.** Cualquiera puede vender Rodaje o un derivado con su código fuente, la atribución y otro nombre. Pendientes para el abogado en `docs/legal.md`, «Compatibilidad con la GPLv3»: Windows App SDK frente a la excepción de «System Libraries», si el término 2 cabe en la Sección 7, versión de la GPL sin fijar y activos reservados. El enlace del crédito solo funciona cuando el repositorio sea público. Los complementos de contenido (`rodaje-transiciones`, `rodaje-filtros` y los que vengan) siguen en CC0. No se copia código GPL ajeno: el permiso para complementos y los términos de atribución solo los puede dar el titular.
 
-## D-033. Formato del proyecto en la edición, exportar sigue al proyecto y herramientas rápidas (12 de octubre de 2026; provisional, Daniel ajusta al volver)
+## D-033. Formato del proyecto en la edición, exportar sigue al proyecto y herramientas rápidas (12 de octubre de 2026; confirmada por Daniel en D-034)
 
 **Contexto.** Daniel probó la app el 11-oct: «la plantilla en 9:16 está mal planteada» (el lienzo vertical, negro sobre el negro del visor, solo se veía por las guías punteadas de los márgenes seguros); no encontraba cómo cambiar el formato al exportar y prefiere cambiarlo «desde la edición del archivo»; en Exportar «no deja seleccionar otro» preajuste u opción; y quitar silencios y las demás herramientas «tienen que estar más a la vista». Sustituye la parte de D-028 sobre 9:16 (barras y botón en Exportar).
 
@@ -386,4 +386,26 @@ Daniel aceptó las cuatro recomendaciones de la propuesta (PR #11):
 - **Exportar sin controles fijos:** el diálogo redibuja después del evento que cambió el modelo y en el lugar (solo rehace una lista si cambiaron sus opciones).
 - **Herramientas rápidas encima de la línea de tiempo**, no como pestaña del panel derecho: siempre a la vista sin cambiar de pestaña, junto a los clips que se eligen, y sin sumar una séptima pestaña a un panel que ya pasa a íconos (D-027). Diez botones con ícono y texto: Quitar silencios, Detectar ritmo, Bajar música bajo la voz, Reducir ruido, Estabilizar, Color automático, Balance de blancos, Subtítulos automáticos y Texto a voz («Próximamente» hasta que tengan acción) y Añadir texto. Las que no aplican se ven atenuadas pero pulsables: la ayuda y el aviso dicen por qué (un botón desactivado no muestra ayuda). Las reglas están en `QuickTools` (sin WinUI, con pruebas) y son las de los diálogos; los menús siguen igual.
 
-**Consecuencias.** La línea de tiempo cede 36 px a la barra. Cambiar los fps con clips no los reajusta al cuadro nuevo (como CapCut). Preguntas para Daniel: ¿la barra aquí o como pestaña?, ¿el gris del visor?, ¿Encajar como ajuste por defecto?
+**Consecuencias.** La línea de tiempo cede 36 px a la barra. Cambiar los fps con clips no los reajusta al cuadro nuevo (como CapCut).
+
+## D-034. Respuestas de Daniel a las preguntas abiertas de la fase 7 y de D-033, y fin de la fase 8 (12 de octubre de 2026)
+
+**Contexto.** Las preguntas de D-033 y de la fase 7 se habían resuelto con la opción recomendada, de forma provisional. Daniel las respondió el 12-oct.
+
+**Decisión.**
+- **D-033 confirmada:** barra de herramientas rápidas encima de la línea de tiempo, gris alrededor del lienzo y «Encajar» como ajuste por defecto.
+- **Repositorios de los módulos:** privados hasta publicar.
+- **JIT en los módulos** cuya biblioteca no admita Native AOT: sí, autocontenidos y recortados, solo esos; la app sigue AOT.
+- **Traductor por defecto:** Qwen3-4B, local y descargado aparte.
+- **Voz en portugués:** solo pt-BR en la v1.
+- **BiRefNet_lite** como «Calidad alta» opcional (MODNet por defecto); de momento con su licencia de uso no comercial, anotado en `pendientes-legales.md`.
+- **Voces:** solo Kokoro en la v1.
+- **CinemaDNG:** se importa a ProRes 422 HQ.
+- **Complemento GPL:** se compila un `ffmpeg.exe` GPL propio, con la fuente correspondiente reducida a pocos tarballs.
+- **Subtítulos sin GPU:** un modelo de Whisper menor solo para CPU.
+- **Módulo de ruido:** se quita el paquete DirectML; corre en CPU.
+- **Medios generados** (audio limpio, voz, ProRes de CinemaDNG): por defecto en `<proyecto>.medios\` junto al proyecto, pero la persona puede elegir otra carpeta, en Configuración y al generar.
+- **Estabilización:** el análisis va en la caché de la app, no junto al proyecto.
+- **Sin fase 8:** el control físico con ESP32 sale del plan y las órdenes en lenguaje natural quedan como idea para después de la v1. Las funciones de calidad de vida que se habían anotado para la fase 8 siguen aprobadas, para la v1.
+
+**Consecuencias.** Tres tareas nuevas: carpeta de medios generados elegible, modelo de Whisper para CPU y módulo de ruido sin DirectML. BiRefNet_lite no puede ir en una versión comercial sin firmar sus términos.

@@ -9,4 +9,4 @@
 | Modelo whisper large-v3-turbo, conversión ggml q5_0 | commit `5359861c` de `ggerganov/whisper.cpp` en Hugging Face | MIT (pesos de OpenAI) | https://github.com/openai/whisper/blob/main/LICENSE |
 | Vulkan | `vulkan-1.dll` del controlador de la GPU | no se redistribuye | — |
 
-**Corpus de prueba (no se distribuye ni se versiona):** FLEURS `es_419`, partición dev, de Google, CC-BY-4.0 (https://huggingface.co/datasets/google/fleurs, commit `70bb2e84`). Conneau et al., «FLEURS: Few-shot Learning Evaluation of Universal Representations of Speech», 2022. Se baja con `herramientas\preparar-modelos.ps1 -Corpus`.
+**Corpus de prueba (no se distribuye ni se versiona):** FLEURS `es_419`, partición dev, de Google, CC-BY-4.0 (https://huggingface.co/datasets/google/fleurs, commit `70bb2e84`). Conneau et al., «FLEURS: Few-shot Learning Evaluation of Universal Representations of Speech», 2022. Se baja con `build\preparar-modelos.ps1 -Corpus`.

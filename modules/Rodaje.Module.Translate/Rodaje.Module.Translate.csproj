@@ -3,7 +3,7 @@
   <!--
     modulo-traducir (fase 7 F): traduce los textos de una pista de subtítulos conservando sus ids, con
     Qwen3-4B-Instruct-2507 Q4_K_M (Apache-2.0) en llama.cpp vía LLamaSharp (MIT): Vulkan con las capas que quepan y la
-    CPU de respaldo. El modelo no va en el repo: herramientas\preparar-modelos.ps1 -Traductor. Licencias en LICENCIAS.md.
+    CPU de respaldo. El modelo no va en el repo: build\preparar-modelos.ps1 -Traductor. Licencias en LICENCIAS.md.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>

@@ -149,8 +149,8 @@ El contrato (`IExportSink`, `ExportVideoFrame`, formatos, `EncoderSpec`, `Export
   - todos los proxies (almacén, política, argumentos, generación que lee el número dibujado en cada cuadro);
   - la salida de la exportación (`Export/`): una exportación corta por codificador y contenedor, cancelación ×10, disco lleno antes y durante, codificador ausente o que rechaza, salida que pisa un medio, RF64, `exportando.json` y sonoridad.
   Cada prueba corre en tres modos: D3D11VA, software con subida a GPU y CPU.
-- **[`testing/Rodaje.TestMedia`](../../testing/Rodaje.TestMedia)** genera los medios deterministas de todas las suites:
-  - [`FrameCode`](../../testing/Rodaje.TestMedia/FrameCode.cs) dibuja el número de cuadro en la luma (20 bits con CRC-8) y resiste la compresión;
-  - [`AudioCode`](../../testing/Rodaje.TestMedia/AudioCode.cs) marca cada segundo de audio;
+- **[`tests/Rodaje.TestMedia`](../../tests/Rodaje.TestMedia)** genera los medios deterministas de todas las suites:
+  - [`FrameCode`](../../tests/Rodaje.TestMedia/FrameCode.cs) dibuja el número de cuadro en la luma (20 bits con CRC-8) y resiste la compresión;
+  - [`AudioCode`](../../tests/Rodaje.TestMedia/AudioCode.cs) marca cada segundo de audio;
   - `TestMediaGenerator` codifica con un `ffmpeg.exe` de desarrollo y guarda los archivos en `TestResults\media-cache`;
-  - [`Skip.cs`](../../testing/Rodaje.TestMedia/Skip.cs) reúne los atributos que omiten una prueba, con su motivo, cuando falta FFmpeg, D3D11VA, NVENC o un dispositivo de audio.
+  - [`Skip.cs`](../../tests/Rodaje.TestMedia/Skip.cs) reúne los atributos que omiten una prueba, con su motivo, cuando falta FFmpeg, D3D11VA, NVENC o un dispositivo de audio.

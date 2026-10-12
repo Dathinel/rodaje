@@ -12,7 +12,7 @@ namespace Rodaje.Module.Raw.Tests;
 /// </summary>
 public class DevelopTests(ITestOutputHelper output)
 {
-    internal const string Missing = "Sin libraw.dll: ejecuta herramientas\\preparar-entorno.ps1.";
+    internal const string Missing = "Sin libraw.dll: ejecuta build\\preparar-entorno.ps1.";
 
     internal static bool HasLibRaw => LibRawNative.Locate() is not null;
 

@@ -62,7 +62,7 @@ public sealed record RelinkProbe(
 /// </param>
 public sealed record MediaRelinkTarget(string MediaId, string Path, RelinkProbe? Probe = null);
 
-/// <summary>Volver a enlazar medios movidos o renombrados (función 32 de docs/pendientes.md).</summary>
+/// <summary>Volver a enlazar medios movidos o renombrados.</summary>
 public static class MediaRelinkEdits
 {
     /// <summary>Margen de duración con el que un archivo se da por el mismo medio.</summary>

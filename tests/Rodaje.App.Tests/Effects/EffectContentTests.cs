@@ -2,7 +2,7 @@ using Rodaje.App.Services.Effects;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Engine.Timeline;
-using Rodaje.Paquetes.Content;
+using Rodaje.Packages.Content;
 using Rodaje.Playback.Composition;
 
 namespace Rodaje.App.Tests.Effects;
@@ -149,8 +149,8 @@ public class EffectContentTests
         Assert.Equal(Path.GetFullPath(other), LutReference.ResolveFile(LutReference.ForFile(other, null), null));
         Assert.Null(LutReference.ResolveFile("file:rel/x.cube", null));
         Assert.Null(LutReference.ResolveFile("paquete@1.0.0/lut", @"C:\p"));
-        Assert.Equal("mi look", LutReference.DisplayName("file:luts/mi look.cube", Rodaje.Paquetes.PackageScan.Empty));
-        Assert.Equal("paquete@1.0.0/lut", LutReference.DisplayName("paquete@1.0.0/lut", Rodaje.Paquetes.PackageScan.Empty));
+        Assert.Equal("mi look", LutReference.DisplayName("file:luts/mi look.cube", Rodaje.Packages.PackageScan.Empty));
+        Assert.Equal("paquete@1.0.0/lut", LutReference.DisplayName("paquete@1.0.0/lut", Rodaje.Packages.PackageScan.Empty));
     }
 
     [Fact]

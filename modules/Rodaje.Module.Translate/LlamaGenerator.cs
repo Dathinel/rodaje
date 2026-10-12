@@ -12,7 +12,7 @@ namespace Rodaje.Module.Translate;
 /// Qwen3-4B en llama.cpp vía LLamaSharp. La biblioteca nativa se elige una vez por proceso, al cargar el primer modelo:
 /// la de Vulkan si el controlador trae <c>vulkan-1.dll</c>, si no la de CPU (AVX512, AVX2, AVX o sin AVX). Con Vulkan
 /// se suben a la GPU todas las capas que quepan: si no cabe entero (4 GB de VRAM con el editor abierto) se repite con
-/// la mitad y luego en la CPU, que es la «descarga parcial» de <c>docs/fase-7.md</c>.
+/// la mitad y luego en la CPU («descarga parcial»).
 /// </summary>
 internal sealed class LlamaGenerator : ITextGenerator, IDisposable
 {

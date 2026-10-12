@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 
 namespace Rodaje.Module.AudioAi;
 
-/// <summary>Un modelo con su huella fijada (la misma de <c>paquete.json</c> y de <c>herramientas\preparar-modelos.ps1</c>).</summary>
+/// <summary>Un modelo con su huella fijada (la misma de <c>paquete.json</c> y de <c>build\preparar-modelos.ps1</c>).</summary>
 internal sealed record ModelFile(string FileName, string Sha256, long Bytes);
 
 /// <summary>
@@ -60,7 +60,7 @@ internal sealed class ModelFiles
             }
 
             throw new ModelMissingException(mismatch is null
-                ? $"Falta el modelo {model.FileName}. Reinstala el módulo o ejecuta herramientas\\preparar-modelos.ps1."
+                ? $"Falta el modelo {model.FileName}. Reinstala el módulo o ejecuta build\\preparar-modelos.ps1."
                 : $"El modelo {mismatch} está dañado (su huella no coincide). Reinstala el módulo.");
         }
     }

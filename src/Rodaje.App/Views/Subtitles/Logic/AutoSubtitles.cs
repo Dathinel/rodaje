@@ -18,7 +18,7 @@ internal sealed record TranscriptWord(double Start, double End, string Text);
 /// <summary>Un segmento del resultado de <c>subtitulos</c>; <see cref="Words"/> puede venir vacío.</summary>
 internal sealed record TranscriptSegment(double Start, double End, string Text, IReadOnlyList<TranscriptWord> Words);
 
-/// <summary>Lo que devuelve modulo-subtitulos (<c>docs/fase-7.md</c>, «Resultados por función»).</summary>
+/// <summary>Lo que devuelve modulo-subtitulos (formato en <c>modules/Rodaje.Module.Subtitles/README.md</c>).</summary>
 internal sealed record Transcript(string? Language, IReadOnlyList<TranscriptSegment> Segments);
 
 /// <summary>Un idioma que se puede pedir al módulo (<c>auto</c> lo detecta).</summary>

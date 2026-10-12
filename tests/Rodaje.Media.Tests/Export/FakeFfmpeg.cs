@@ -3,7 +3,7 @@ using Rodaje.Media.Export;
 namespace Rodaje.Media.Tests.Export;
 
 /// <summary>
-/// El ffmpeg falso de <c>testing/Rodaje.FakeFfmpeg</c>, que queda junto a las pruebas por la referencia del proyecto.
+/// El ffmpeg falso de <c>tests/Rodaje.FakeFfmpeg</c>, que queda junto a las pruebas por la referencia del proyecto.
 /// Lee la entrada estándar hasta el final y sale con el código pedido, o se queda dormido hasta que lo maten.
 /// </summary>
 internal static class FakeFfmpeg

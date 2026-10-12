@@ -116,7 +116,7 @@ public sealed class ProcessTests(ITestOutputHelper output)
         Assert.Contains("módulo de Rodaje", stderr, StringComparison.Ordinal);
     }
 
-    /// <summary>Cifras del protocolo con el módulo en otro proceso (docs/fase-7.md).</summary>
+    /// <summary>Cifras del protocolo con el módulo en otro proceso.</summary>
     [Fact]
     [Trait("Categoria", "TiempoReal")]
     public async Task Latency_and_shared_memory_throughput()

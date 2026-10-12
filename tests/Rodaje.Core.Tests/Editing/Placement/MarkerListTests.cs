@@ -5,7 +5,7 @@ using static Rodaje.Core.Tests.Editing.Placement.PlacementBuilder;
 
 namespace Rodaje.Core.Tests.Editing.Placement;
 
-/// <summary>Lista de marcadores: renombrar y saltar al siguiente o al anterior (función 5 de docs/pendientes.md).</summary>
+/// <summary>Lista de marcadores: renombrar y saltar al siguiente o al anterior.</summary>
 public class MarkerListTests
 {
     [Fact]

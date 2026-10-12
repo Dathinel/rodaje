@@ -7,7 +7,7 @@ using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector.Properties;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
-using Rodaje.Paquetes;
+using Rodaje.Packages;
 
 namespace Rodaje.App.Views.Inspector.Transition;
 

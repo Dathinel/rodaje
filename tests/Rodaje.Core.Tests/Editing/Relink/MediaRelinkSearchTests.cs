@@ -4,7 +4,7 @@ using CoreTime = Rodaje.Core.Timing.Time;
 
 namespace Rodaje.Core.Tests.Editing.Relink;
 
-/// <summary>Buscar en una carpeta los archivos de los medios que faltan (función 32 de docs/pendientes.md).</summary>
+/// <summary>Buscar en una carpeta los archivos de los medios que faltan.</summary>
 public class MediaRelinkSearchTests
 {
     private static MediaRef Media(string id, string path, double seconds = 10, int width = 1920, bool audio = true) => new()

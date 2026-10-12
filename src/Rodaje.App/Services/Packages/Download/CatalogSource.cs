@@ -1,12 +1,12 @@
 using System.Net;
-using Rodaje.Paquetes;
-using Rodaje.Paquetes.Download;
+using Rodaje.Packages;
+using Rodaje.Packages.Download;
 
 namespace Rodaje.App.Services.Packages.Download;
 
 /// <summary>
 /// De dónde baja Rodaje sus complementos: el índice firmado de la última release de <c>Dathinel/rodaje-catalogo</c>,
-/// con la clave pública que viaja dentro del exe (<c>clave-catalogo.txt</c>, la escribe <c>herramientas\firmar-indice.ps1</c>).
+/// con la clave pública que viaja dentro del exe (<c>clave-catalogo.txt</c>, la escribe <c>build\firmar-indice.ps1</c>).
 /// Sin clave, la descarga queda desactivada y se instala desde archivo.
 /// </summary>
 public static class CatalogSource

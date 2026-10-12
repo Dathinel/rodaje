@@ -3,7 +3,7 @@ using Rodaje.Core.Editing;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
-using Rodaje.Paquetes.Content;
+using Rodaje.Packages.Content;
 
 namespace Rodaje.App.Services.Effects;
 

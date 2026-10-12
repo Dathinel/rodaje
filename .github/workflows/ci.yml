@@ -1,5 +1,5 @@
 # Integración continua de Rodaje.
-# - linux: Core, Paquetes y Playback, que compilan para net10.0 sin Windows.
+# - linux: Core, Packages y Playback, que compilan para net10.0 sin Windows.
 # - windows: la solución entera con el entorno propio (.entorno, D-005). Bloquea; sin exclusiones por nombre.
 # Las pruebas largas y de hardware solo corren con RODAJE_PRUEBAS_LARGAS=1, que aquí no se pone.
 
@@ -24,7 +24,7 @@ env:
 
 jobs:
   linux:
-    name: Linux (Core, Paquetes, Playback)
+    name: Linux (Core, Packages, Playback)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -48,7 +48,7 @@ jobs:
         run: dotnet --version
 
       # Los lockfiles no dependen del anfitrión ni de «-r win-x64» (tarea 43, NU1004): la solución entera se restaura en
-      # Linux con los mismos RID que en Windows, y el módulo de eco igual que lo publica herramientas\app.ps1.
+      # Linux con los mismos RID que en Windows, y el módulo de eco igual que lo publica build\app.ps1.
       - name: Lockfiles deterministas
         shell: bash
         run: |
@@ -62,10 +62,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for p in Core Paquetes Playback TestServer; do
+          for p in Core Packages Playback TestServer; do
             proyecto="tests/Rodaje.$p.Tests/Rodaje.$p.Tests.csproj"
-            # Las pruebas del servidor HTTP de pruebas viven junto a él, en testing/ (tarea 61).
-            if [ "$p" = TestServer ]; then proyecto="testing/Rodaje.TestServer/Tests/Rodaje.TestServer.Tests.csproj"; fi
             dotnet restore "$proyecto" --locked-mode
             dotnet test "$proyecto" --no-restore \
               --filter "Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento" \
@@ -100,7 +98,7 @@ jobs:
           path: |
             .entorno/dotnet
             .entorno/ffmpeg
-          key: entorno-windows-${{ hashFiles('herramientas/preparar-entorno.ps1', 'global.json') }}
+          key: entorno-windows-${{ hashFiles('build/preparar-entorno.ps1', 'global.json') }}
 
       - name: Caché de NuGet
         uses: actions/cache@v4
@@ -111,7 +109,7 @@ jobs:
 
       - name: Preparar el entorno
         shell: pwsh
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-entorno.ps1
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1
 
       - name: Versión del SDK
         shell: pwsh
@@ -125,7 +123,7 @@ jobs:
         shell: pwsh
         run: '& .entorno\dotnet\dotnet.exe build Rodaje.slnx --no-restore'
 
-      # Sin RODAJE_PRUEBAS_LARGAS las largas y las de hardware se omiten solas (testing/Rodaje.TestMedia/Skip.cs);
+      # Sin RODAJE_PRUEBAS_LARGAS las largas y las de hardware se omiten solas (tests/Rodaje.TestMedia/Skip.cs);
       # TiempoReal y Rendimiento se excluyen igual que en Linux.
       - name: Pruebas
         shell: pwsh

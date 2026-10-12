@@ -28,8 +28,8 @@ public sealed class ModelFactAttribute : FactAttribute
     }
 
     private static string? Reason(bool longRunning, bool corpus) =>
-        Tests.Corpus.ModelPath is null ? "Omitida: sin el modelo; ejecuta herramientas\\preparar-modelos.ps1."
-        : corpus && Tests.Corpus.FleursDirectory is null ? "Omitida: sin el corpus; ejecuta herramientas\\preparar-modelos.ps1 -Corpus."
+        Tests.Corpus.ModelPath is null ? "Omitida: sin el modelo; ejecuta build\\preparar-modelos.ps1."
+        : corpus && Tests.Corpus.FleursDirectory is null ? "Omitida: sin el corpus; ejecuta build\\preparar-modelos.ps1 -Corpus."
         : longRunning && Environment.GetEnvironmentVariable("RODAJE_PRUEBAS_LARGAS") != "1" ? "Omitida: prueba larga (RODAJE_PRUEBAS_LARGAS=1)."
         : null;
 }

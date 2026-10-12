@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Como el de Rodaje.Core.Tests: mide solo Rodaje.Export (fase 6, mínimo 90 % en herramientas\probar.ps1 -Cobertura). -->
+<!-- Como el de Rodaje.Core.Tests: mide solo Rodaje.Export (fase 6, mínimo 90 % en build\probar.ps1 -Cobertura). -->
 <RunSettings>
   <DataCollectionRunSettings>
     <DataCollectors>

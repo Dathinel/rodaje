@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Sondeo de la fase 4 (docs/archivo/sondeo-winui.md): WinUI 3 sin empaquetar, autocontenido y con Native AOT, con el
+    Sondeo de la fase 4: WinUI 3 sin empaquetar, autocontenido y con Native AOT, con el
     reproductor en un SwapChainPanel alimentado por GpuDevice, TimelineSession y Compositor.
   -->
   <PropertyGroup>
@@ -44,7 +44,7 @@
     <ProjectReference Include="..\Rodaje.Engine\Rodaje.Engine.csproj" />
     <ProjectReference Include="..\Rodaje.Export\Rodaje.Export.csproj" />
     <ProjectReference Include="..\Rodaje.Render\Rodaje.Render.csproj" />
-    <ProjectReference Include="..\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
+    <ProjectReference Include="..\Rodaje.Packages\Rodaje.Packages.csproj" />
     <ProjectReference Include="..\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
   </ItemGroup>
 

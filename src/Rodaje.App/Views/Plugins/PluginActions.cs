@@ -1,6 +1,6 @@
 using Rodaje.App.Services;
 using Rodaje.App.Shell;
-using Rodaje.Paquetes;
+using Rodaje.Packages;
 
 namespace Rodaje.App.Views.Plugins;
 

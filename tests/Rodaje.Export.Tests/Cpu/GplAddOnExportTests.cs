@@ -9,7 +9,7 @@ namespace Rodaje.Export.Tests.Cpu;
 /// <summary>
 /// x264 y x265 por la misma tubería (<see cref="FfmpegPipeSink"/>) con el <c>ffmpeg.exe</c> GPL del complemento, y el
 /// archivo comprobado con el ffprobe LGPL del editor. <c>RODAJE_CODIFICADORES_GPL</c> apunta al <c>.paquete</c> de
-/// <c>herramientas\armar-codificadores-gpl.ps1</c>; sin él no se comprueba nada.
+/// <c>build\armar-codificadores-gpl.ps1</c>; sin él no se comprueba nada.
 /// </summary>
 public sealed class GplAddOnExportTests(ITestOutputHelper output)
 {

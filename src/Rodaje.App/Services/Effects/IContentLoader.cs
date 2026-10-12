@@ -1,5 +1,5 @@
-using Rodaje.Paquetes;
-using Rodaje.Paquetes.Content;
+using Rodaje.Packages;
+using Rodaje.Packages.Content;
 
 namespace Rodaje.App.Services.Effects;
 
@@ -27,7 +27,7 @@ public interface IContentLoader
 }
 
 /// <summary>
-/// <see cref="IContentLoader"/> sobre lo instalado (<see cref="PackageScan"/>) y los lectores de <c>Rodaje.Paquetes</c>.
+/// <see cref="IContentLoader"/> sobre lo instalado (<see cref="PackageScan"/>) y los lectores de <c>Rodaje.Packages</c>.
 /// El paquete se busca por id y el elemento por id y tipo; una versión instalada distinta de la referida también sirve.
 /// </summary>
 public sealed class InstalledContentLoader(Func<PackageScan> installed) : IContentLoader

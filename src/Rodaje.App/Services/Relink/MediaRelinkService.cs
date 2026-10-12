@@ -5,7 +5,7 @@ using Rodaje.Core.Model;
 namespace Rodaje.App.Services.Relink;
 
 /// <summary>
-/// Volver a enlazar medios movidos o renombrados (función 32 de docs/pendientes.md): qué falta al abrir un proyecto, buscar
+/// Volver a enlazar medios movidos o renombrados: qué falta al abrir un proyecto, buscar
 /// en una carpeta, comprobar un archivo elegido a mano y aplicarlo todo en un paso del historial. Sin WinUI: el diálogo
 /// está en <c>Views/Relink</c>. El disco se lee fuera del hilo de la interfaz.
 /// </summary>

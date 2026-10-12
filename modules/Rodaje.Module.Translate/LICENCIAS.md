@@ -12,10 +12,10 @@
 | Vulkan | `vulkan-1.dll` del controlador de la GPU | no se redistribuye | — |
 
 **Modelo:** Apache-2.0 permite redistribuirlo y usarlo comercialmente; hay que conservar el aviso de licencia y el
-`NOTICE` si lo hubiera. No entra en el zip completo (pesa unos 2,5 GB, `docs/fase-7.md`, pregunta 5): se baja aparte.
+`NOTICE` si lo hubiera. No entra en el zip completo (pesa unos 2,5 GB): se baja aparte.
 
 **Huella sin verificar (12-oct):** la sesión en la nube no llega a Hugging Face (el proxy lo bloquea), así que la
-SHA-256 de `paquete.json` y de `herramientas\preparar-modelos.ps1` sale de un espejo de terceros que dice ser copia
+SHA-256 de `paquete.json` y de `build\preparar-modelos.ps1` sale de un espejo de terceros que dice ser copia
 exacta del archivo de unsloth, y la URL no está fijada a un commit. Antes de publicar el módulo hay que bajar el
 archivo, comprobar la huella, fijar la URL al commit y anotar el tamaño (`size`). Si la huella no coincide, el script
 borra la descarga y avisa: no se instala nada sin comprobar.

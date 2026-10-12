@@ -7,7 +7,7 @@ using Rodaje.Core.Serialization;
 
 namespace Rodaje.App.Tests.Relink;
 
-/// <summary>Volver a enlazar al abrir un proyecto con medios movidos (función 32 de docs/pendientes.md).</summary>
+/// <summary>Volver a enlazar al abrir un proyecto con medios movidos.</summary>
 public class MediaRelinkServiceTests
 {
     /// <summary>Un proyecto guardado con «toma.mp4» en la línea de tiempo; el archivo luego «se mueve» a otra carpeta.</summary>

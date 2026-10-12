@@ -82,7 +82,7 @@ Ediciones (en `TimelineEdits.Speed`, fábricas en `Edits.Speed`): `SetSpeed`, `S
 
 ## Deshacer y rehacer (`Commands/`)
 
-Nada fuera del núcleo cambia el modelo directamente. La interfaz pide un comando a [`Edits`](../../src/Rodaje.Core/Commands/Edits.cs) (unas 50 fábricas, repartidas en archivos parciales de la clase `Edits`: `Edits.Split`, `Edits.Move`, `Edits.SetSpeed`...) y lo pasa por [`UndoStack.Execute`](../../src/Rodaje.Core/Commands/UndoStack.cs). La IA y las órdenes en lenguaje natural harán lo mismo.
+Nada fuera del núcleo cambia el modelo directamente. La interfaz pide un comando a [`Edits`](../../src/Rodaje.Core/Commands/Edits.cs) (unas 50 fábricas, repartidas en archivos parciales de la clase `Edits`: `Edits.Split`, `Edits.Move`, `Edits.SetSpeed`...) y lo pasa por [`UndoStack.Execute`](../../src/Rodaje.Core/Commands/UndoStack.cs). La IA hace lo mismo.
 
 ```mermaid
 sequenceDiagram
@@ -129,8 +129,8 @@ JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`
   - que deshacer reproduce cada estado anterior;
   - que slip, roll, slide y cortar conservan lo que deben.
   Otros 5 000 escenarios comprueban que un arrastre se funde en un paso, y otros 10 000 tienen curvas o preajustes en casi todos los clips y cortan, recortan y estiran: dividir y recortar no cambian el origen de ningún instante.
-- [`tests/Rodaje.AotSmoke`](../../tests/Rodaje.AotSmoke/Program.cs) es un programa que se publica con Native AOT (`ABRIR.bat aot`): recorre todas las familias de edición, deshace y rehace 16 pasos comparando cada estado, y guarda y abre en una carpeta con espacios y una ñ. El ejecutable pesa unos 3,4 MB.
-- La cobertura de `Rodaje.Core` se mide con `ABRIR.bat cobertura` (criterio de la fase 1: al menos 90 %).
+- [`tests/Rodaje.AotSmoke`](../../tests/Rodaje.AotSmoke/Program.cs) es un programa que se publica con Native AOT (`Probar.bat aot`): recorre todas las familias de edición, deshace y rehace 16 pasos comparando cada estado, y guarda y abre en una carpeta con espacios y una ñ. El ejecutable pesa unos 3,4 MB.
+- La cobertura de `Rodaje.Core` se mide con `Probar.bat cobertura` (criterio de la fase 1: al menos 90 %).
 
 ## Pendiente
 

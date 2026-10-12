@@ -1,6 +1,6 @@
 # Descarga de complementos y distribución
 
-Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Arquitectura en D-031 y [fase-7.md](fase-7.md).
+Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Arquitectura en D-031 y el [protocolo de módulos](protocolo-modulos.md).
 
 ## Cómo funciona
 
@@ -13,20 +13,20 @@ Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Arquite
 
 ## Estado: activo (12-oct)
 
-- **Clave**: creada; la privada en `%USERPROFILE%\.rodaje-claves\catalogo-privada.pem` (nunca se versiona; `*.pem` está en `.gitignore`), la pública en `clave-catalogo.txt`. Falta su respaldo físico (`PARA-DANIEL.md`). Si se pierde, los Rodaje ya publicados no aceptarán índices nuevos; si alguien la copia, se genera otra con `-NuevaClave -Reemplazar` y se publica una versión nueva de Rodaje.
+- **Clave**: creada; la privada en `%USERPROFILE%\.rodaje-claves\catalogo-privada.pem` (nunca se versiona; `*.pem` está en `.gitignore`), la pública en `clave-catalogo.txt`. Debe tener al menos dos respaldos físicos fuera del equipo. Si se pierde, los Rodaje ya publicados no aceptarán índices nuevos; si alguien la copia, se genera otra con `-NuevaClave -Reemplazar` y se publica una versión nueva de Rodaje.
 - **Catálogo**: `Dathinel/rodaje-catalogo` (público, CC0, sin código), release `v1` con `rodaje-transiciones` 1.0.0 y `rodaje-filtros` 1.0.0, cada uno en la release `v1.0.0` de su repo.
 - **Prueba contra lo publicado**: `CatalogoRealTests` (`--filter Categoria=Red` con `RODAJE_PRUEBAS_RED=1`; la CI y `probar.ps1` la excluyen porque necesita red) baja el índice real, verifica la firma con la clave del repo e instala los dos paquetes en una carpeta temporal; una firma o un índice alterados se rechazan.
 
 ## Publicar una versión nueva
 
 1. **Paquete de contenido**: sube `version` en su `paquete.json`, `empaquetar.ps1` (deja `dist\<id>-<versión>.paquete`), commit y push, y `gh release create v<versión> dist\<id>-<versión>.paquete` en su repo.
-2. **Índice**: `herramientas\distribuir.ps1` (deja `Rodaje.exe` lanzador más `app\`, ver [arranque-y-distribucion.md](arranque-y-distribucion.md)) (con `-SinPublicar -SinCompleta` si solo cambia contenido y `dist\Rodaje` ya está publicado) deja `dist\distribucion\indice.json` con el último `.paquete` de cada `..\Complementos\<repo>\dist\`. La app solo lee el índice de la última release, así que **cada índice lista todo lo publicado**, no solo lo nuevo, y su `generated` es posterior al anterior.
-3. **Firma**: `herramientas\firmar-indice.ps1 -Indice dist\distribucion\indice.json` firma y comprueba que la clave pública del repo corresponde a la privada.
+2. **Índice**: `build\distribuir.ps1` (deja `Rodaje.exe` lanzador más `app\`, ver [arranque-y-distribucion.md](arranque-y-distribucion.md)) (con `-SinPublicar -SinCompleta` si solo cambia contenido y `dist\Rodaje` ya está publicado) deja `dist\distribucion\indice.json` con el último `.paquete` de cada `..\Complementos\<repo>\dist\`. La app solo lee el índice de la última release, así que **cada índice lista todo lo publicado**, no solo lo nuevo, y su `generated` es posterior al anterior.
+3. **Firma**: `build\firmar-indice.ps1 -Indice dist\distribucion\indice.json` firma y comprueba que la clave pública del repo corresponde a la privada.
 4. **Catálogo**: `gh release create v<n+1> indice.json indice.json.sig -R Dathinel/rodaje-catalogo`. Las releases viejas se pueden dejar: la app solo toma la última y rechaza índices más viejos que el último visto.
-5. **Comprobar**: `herramientas\dotnet-local.cmd test tests\Rodaje.Paquetes.Tests --filter Categoria=Red` con `RODAJE_PRUEBAS_RED=1`.
+5. **Comprobar**: `build\dotnet-local.cmd test tests\Rodaje.Packages.Tests --filter Categoria=Red` con `RODAJE_PRUEBAS_RED=1`.
 
 La distribución completa: `distribuir.ps1` sin opciones publica la app (Native AOT) y deja además `Rodaje-<versión>-base.zip`, `Rodaje-<versión>-completa.zip` y `SHA256SUMS.txt`; la completa trae cada `.paquete` extraído en `paquetes\<id>` o `modulos\<id>` y los modelos de cada módulo (de `.entorno\modelos` o bajados y verificados). Un modelo de más de 2 GiB queda fuera (límite de un asset de GitHub) y se baja desde el gestor. Los zip van a la release de `rodaje`.
 
 ## Pruebas
 
-`tests/Rodaje.Paquetes.Tests/Download`, con un servidor HTTP propio en 127.0.0.1 (sockets reales): 200 archivos con un byte cambiado y 100 índices con un hash cambiado rechazados y borrados; 1000 índices o firmas alterados rechazados; cortes de red con reanudación (`Range`, solo se piden los bytes que faltan); cancelar y seguir con otro proceso; parcial dañado; servidor sin `Range`; redirecciones; un apagón en cada etapa (descarga, extracción, entre apartar la versión vieja y poner la nueva) deja siempre una versión completa; firmas hechas por `firmar-indice.ps1` aceptadas por el programa.
+`tests/Rodaje.Packages.Tests/Download`, con un servidor HTTP propio en 127.0.0.1 (sockets reales): 200 archivos con un byte cambiado y 100 índices con un hash cambiado rechazados y borrados; 1000 índices o firmas alterados rechazados; cortes de red con reanudación (`Range`, solo se piden los bytes que faltan); cancelar y seguir con otro proceso; parcial dañado; servidor sin `Range`; redirecciones; un apagón en cada etapa (descarga, extracción, entre apartar la versión vieja y poner la nueva) deja siempre una versión completa; firmas hechas por `firmar-indice.ps1` aceptadas por el programa.

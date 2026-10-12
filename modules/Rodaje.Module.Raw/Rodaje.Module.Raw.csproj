@@ -2,7 +2,7 @@
 
   <!--
     modulo-raw (fase 7 J): revela CinemaDNG con LibRaw (LGPL-2.1, DLL dinámica sin modificar). La DLL no va en el repo:
-    la baja herramientas\preparar-entorno.ps1 a .entorno\libraw con su SHA-256 fijado y se copia junto al exe.
+    la baja build\preparar-entorno.ps1 a .entorno\libraw con su SHA-256 fijado y se copia junto al exe.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>

@@ -9,7 +9,7 @@ using static Rodaje.Engine.Tests.Support.Seconds;
 namespace Rodaje.Engine.Tests.Timeline;
 
 /// <summary>
-/// Pausas de la vista previa en cortes con velocidad y transiciones (tarea 36, <c>docs/fase-6.md</c>): abrir un
+/// Pausas de la vista previa en cortes con velocidad y transiciones: abrir un
 /// decodificador de D3D11VA mientras suena crea el decodificador de video con el candado del contexto inmediato tomado,
 /// y el hilo que compone espera ese candado. Estas pruebas exigen que reproduciendo solo se abra un decodificador cuando
 /// hace falta de verdad: no si el que ya sirve el medio llega solo al corte, ni si hay uno ocioso del mismo medio.

@@ -19,7 +19,7 @@ using Rodaje.Core.Editing;
 using Rodaje.Engine.Timeline;
 using Rodaje.Media.Proxies;
 using Rodaje.Media.Video;
-using Rodaje.Paquetes;
+using Rodaje.Packages;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Storage;

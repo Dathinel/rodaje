@@ -1,0 +1,319 @@
+namespace Rodaje.Packages.Tests;
+
+public sealed class ManifestReaderTests
+{
+    [Fact]
+    public void Reads_a_complete_manifest()
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(extra: ",\n\"description\": \"Para probar\""));
+
+        Assert.True(result.IsValid, string.Join(" ", result.Errors));
+        PackageManifest m = result.Manifest!;
+        Assert.Equal("rodaje-transiciones", m.Id);
+        Assert.Equal(PackageVersion.Parse("1.0.0"), m.Version);
+        Assert.Equal(PackageKind.Content, m.Kind);
+        Assert.Equal("Dathinel", m.Author);
+        Assert.Equal("MIT", m.License);
+        Assert.Equal("Para probar", m.Description);
+        Assert.Equal(new Uri("https://github.com/Dathinel/rodaje-transiciones"), m.Repository);
+        Assert.True(m.WorksIn("RODAJE"));
+        PackageItem item = Assert.Single(m.Items);
+        Assert.Equal(new PackageItem("deslizar", ItemKind.Transition, "Deslizar", "transiciones/deslizar.json"), item);
+        Assert.Equal("rodaje-transiciones@1.0.0/deslizar", m.ReferenceTo(item).ToString());
+    }
+
+    [Fact]
+    public void Kind_defaults_to_content_and_comments_and_trailing_commas_are_accepted()
+    {
+        string json = """
+            {
+              // comentario
+              "formatVersion": 1, "id": "a", "version": "0.1.0", "name": "A", "author": "x", "license": "MIT", "apps": ["rodaje"],
+              "items": [{ "id": "t", "kind": "text-style", "name": "T" },],
+            }
+            """;
+        ManifestResult result = ManifestReader.Read(json);
+
+        Assert.True(result.IsValid, string.Join(" ", result.Errors));
+        Assert.Equal(PackageKind.Content, result.Manifest!.Kind);
+        Assert.Equal(ItemKind.TextStyle, result.Manifest.Items[0].Kind);
+    }
+
+    [Theory]
+    [InlineData("transition", ItemKind.Transition)]
+    [InlineData("text-style", ItemKind.TextStyle)]
+    [InlineData("effect", ItemKind.Effect)]
+    [InlineData("filter", ItemKind.Filter)]
+    [InlineData("lut", ItemKind.Lut)]
+    [InlineData("template", ItemKind.Template)]
+    [InlineData("sound", ItemKind.Sound)]
+    [InlineData("font", ItemKind.Font)]
+    public void Every_item_kind_round_trips(string text, ItemKind kind)
+    {
+        Assert.Equal(kind, ManifestReader.ParseItemKind(text));
+        Assert.Equal(text, ManifestReader.FormatItemKind(kind));
+    }
+
+    [Theory]
+    [InlineData("""{ "formatVersion": 1 }""", "Falta «id»")]
+    [InlineData("[]", "debe ser un objeto")]
+    [InlineData("{ nope", "no es JSON válido")]
+    public void Broken_manifests_explain_why(string json, string expected)
+    {
+        ManifestResult result = ManifestReader.Read(json);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains(expected, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("Rodaje", "no es válido")]
+    [InlineData("a--b", "no es válido")]
+    [InlineData("-a", "no es válido")]
+    [InlineData("a b", "no es válido")]
+    public void Invalid_ids_are_rejected(string id, string expected)
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(id: id));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains(expected, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("1.0")]
+    [InlineData("01.0.0")]
+    [InlineData("v1.0.0")]
+    [InlineData("1.0.0-")]
+    public void Invalid_versions_are_rejected(string version) =>
+        Assert.False(ManifestReader.Read(Samples.Manifest(version: version)).IsValid);
+
+    [Fact]
+    public void A_newer_format_asks_to_update_the_program()
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest().Replace("\"formatVersion\": 1", "\"formatVersion\": 2", StringComparison.Ordinal));
+
+        Assert.False(result.IsValid);
+        Assert.Contains("actualiza el programa", Assert.Single(result.Errors), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Repository_must_be_https()
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest().Replace("https://github.com", "http://github.com", StringComparison.Ordinal));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("https", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("https://gíthub.com/Dathinel/x")]
+    [InlineData("https://xn--gthub-zsa.com/Dathinel/x")]
+    [InlineData("https://github.com@otro.sitio/Dathinel/x")]
+    [InlineData("https://usuario:clave@github.com/Dathinel/x")]
+    public void Repository_must_have_an_ascii_domain_and_no_user(string repository)
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest().Replace("https://github.com/Dathinel/rodaje-transiciones", repository, StringComparison.Ordinal));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("ASCII", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Control_and_bidi_characters_are_removed_from_the_texts()
+    {
+        string json = Samples.Manifest(extra: ",\n\"description\": \"Línea uno\\r\\nLínea\\u0007 dos\\u202E\"")
+            .Replace("\"Transiciones de prueba\"", "\"Tran\\u202Esiciones\\u0000 de\\tprueba\\u2066\"", StringComparison.Ordinal)
+            .Replace("\"Deslizar\"", "\"\\u200FDeslizar\\u001b\"", StringComparison.Ordinal);
+
+        ManifestResult result = ManifestReader.Read(json);
+
+        Assert.True(result.IsValid, string.Join(" ", result.Errors));
+        Assert.Equal("Transiciones de prueba", result.Manifest!.Name);
+        Assert.Equal("Línea uno\nLínea dos", result.Manifest.Description);
+        Assert.Equal("Deslizar", result.Manifest.Items[0].Name);
+    }
+
+    [Theory]
+    [InlineData("name", 80)]
+    [InlineData("author", 80)]
+    [InlineData("license", 64)]
+    [InlineData("description", 500)]
+    public void Texts_have_a_maximum_length(string property, int max)
+    {
+        string Build(int length) => Samples.Manifest(extra: $",\n\"{property}\": \"{new string('a', length)}\"")
+            .Replace($"\"{property}\": \"Transiciones de prueba\",", "", StringComparison.Ordinal)
+            .Replace($"\"{property}\": \"Dathinel\",", "", StringComparison.Ordinal)
+            .Replace($"\"{property}\": \"MIT\",", "", StringComparison.Ordinal);
+
+        Assert.True(ManifestReader.Read(Build(max)).IsValid);
+        ManifestResult tooLong = ManifestReader.Read(Build(max + 1));
+        Assert.False(tooLong.IsValid);
+        Assert.Contains(tooLong.Errors, e => e.Contains($"pasa de {max}", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Item_names_have_a_maximum_length_too()
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest().Replace("\"Deslizar\"", $"\"{new string('x', 81)}\"", StringComparison.Ordinal));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("pasa de 80", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Reserved_windows_names_are_not_package_ids()
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(id: "con"));
+
+        Assert.False(result.IsValid);
+        Assert.Equal("con-1", PackageLibrary.ToIdentifier("CON"));
+    }
+
+    [Fact]
+    public void Apps_cannot_be_empty()
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(apps: "[]"));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("al menos un programa", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Unknown_item_kinds_are_skipped_with_a_warning()
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(items: """
+            [{ "id": "a", "kind": "sticker-3d", "name": "A" }, { "id": "b", "kind": "sound", "name": "B", "file": "b.wav" }]
+            """));
+
+        Assert.True(result.IsValid);
+        Assert.Equal("b", Assert.Single(result.Manifest!.Items).Id);
+        Assert.Contains(result.Warnings, w => w.Contains("sticker-3d", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Repeated_item_ids_are_an_error()
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(items: """
+            [{ "id": "a", "kind": "sound", "name": "A" }, { "id": "a", "kind": "sound", "name": "B" }]
+            """));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("repetido", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("../fuera.json")]
+    [InlineData("/raiz.json")]
+    [InlineData("C:/Windows/win.ini")]
+    [InlineData("a/../../b.json")]
+    [InlineData("datos:flujo")]
+    public void Item_files_must_stay_inside_the_package(string file)
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(items: $$"""[{ "id": "a", "kind": "lut", "name": "A", "file": "{{file}}" }]"""));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("no es relativa", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void With_a_folder_the_item_files_must_exist()
+    {
+        using var folder = new TempFolder();
+        ManifestResult missing = ManifestReader.Read(Samples.Manifest(), folder.Path);
+        Directory.CreateDirectory(folder.Combine("transiciones"));
+        File.WriteAllText(folder.Combine("transiciones", "deslizar.json"), "{}");
+        ManifestResult present = ManifestReader.Read(Samples.Manifest(), folder.Path);
+
+        Assert.Contains(missing.Errors, e => e.Contains("falta el archivo", StringComparison.Ordinal));
+        Assert.True(present.IsValid);
+    }
+
+    private const string InterFont = """[{ "id": "inter", "kind": "font", "name": "Inter", "license": "OFL-1.1", "files": ["fuentes/Inter-Regular.ttf", "fuentes/Inter-Bold.otf"] }]""";
+
+    [Fact]
+    public void A_font_lists_its_files_with_its_own_license()
+    {
+        using var folder = new TempFolder();
+        Directory.CreateDirectory(folder.Combine("fuentes"));
+        File.WriteAllBytes(folder.Combine("fuentes", "Inter-Regular.ttf"), new byte[1000]);
+        File.WriteAllBytes(folder.Combine("fuentes", "Inter-Bold.otf"), new byte[1000]);
+
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(items: InterFont), folder.Path);
+
+        Assert.True(result.IsValid, string.Join(" ", result.Errors));
+        PackageItem font = Assert.Single(result.Manifest!.Items);
+        Assert.Equal(ItemKind.Font, font.Kind);
+        Assert.Equal("OFL-1.1", font.License);
+        Assert.Equal(["fuentes/Inter-Regular.ttf", "fuentes/Inter-Bold.otf"], font.Files);
+        Assert.True(ManifestReader.Read(Samples.Manifest(items: """[{ "id": "a", "kind": "font", "name": "A", "license": "OFL-1.1", "file": "a.ttf" }]""")).IsValid);
+    }
+
+    [Theory]
+    [InlineData("""{ "id": "f", "kind": "font", "name": "F", "files": ["f.ttf"] }""", "license")]
+    [InlineData("""{ "id": "f", "kind": "font", "name": "F", "license": "OFL-1.1" }""", "files")]
+    [InlineData("""{ "id": "f", "kind": "font", "name": "F", "license": "OFL-1.1", "files": [] }""", "de 1 a 32")]
+    [InlineData("""{ "id": "f", "kind": "font", "name": "F", "license": "OFL-1.1", "files": ["f.exe"] }""", "no es un archivo de fuente")]
+    [InlineData("""{ "id": "f", "kind": "font", "name": "F", "license": "OFL-1.1", "files": ["../f.ttf"] }""", "no es relativa")]
+    public void A_font_without_license_or_proper_files_is_invalid(string item, string expected)
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(items: $"[{item}]"));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains(expected, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_font_file_over_20_mb_or_a_family_over_100_mb_is_refused()
+    {
+        using var folder = new TempFolder();
+        Directory.CreateDirectory(folder.Combine("fuentes"));
+        string[] names = [.. Enumerable.Range(0, 6).Select(i => $"fuentes/f{i}.ttf")];
+        foreach (string name in names)
+        {
+            using var file = new FileStream(folder.Combine(name), FileMode.Create);
+            file.SetLength(PackageItem.MaxFontFileBytes);
+        }
+
+        string family = $"[{{ \"id\": \"f\", \"kind\": \"font\", \"name\": \"F\", \"license\": \"OFL-1.1\", \"files\": [{string.Join(", ", names.Select(n => $"\"{n}\""))}] }}]";
+        Assert.Contains(ManifestReader.Read(Samples.Manifest(items: family), folder.Path).Errors, e => e.Contains("100 MB", StringComparison.Ordinal));
+
+        using (var big = new FileStream(folder.Combine("fuentes", "f0.ttf"), FileMode.Open))
+        {
+            big.SetLength(PackageItem.MaxFontFileBytes + 1);
+        }
+
+        string one = """[{ "id": "f", "kind": "font", "name": "F", "license": "OFL-1.1", "files": ["fuentes/f0.ttf"] }]""";
+        Assert.Contains(ManifestReader.Read(Samples.Manifest(items: one), folder.Path).Errors, e => e.Contains("20 MB", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_module_declares_its_entry_and_runs_nothing()
+    {
+        string json = Samples.Manifest(id: "modulo-subtitulos", kind: "module", items: "[]",
+            extra: ",\n\"module\": { \"entry\": \"bin/modulo.exe\", \"protocol\": 1, \"functions\": [\"subtitulos\"] }");
+        ManifestResult result = ManifestReader.Read(json);
+
+        Assert.True(result.IsValid, string.Join(" ", result.Errors));
+        Assert.Equal(PackageKind.Module, result.Manifest!.Kind);
+        Assert.Equal(new ModuleInfo("bin/modulo.exe", 1, ["subtitulos"]).Entry, result.Manifest.Module!.Entry);
+        Assert.Equal(["subtitulos"], result.Manifest.Module.Functions);
+    }
+
+    [Fact]
+    public void A_module_without_entry_is_invalid_and_items_cannot_be_modules()
+    {
+        Assert.False(ManifestReader.Read(Samples.Manifest(kind: "module", items: "[]")).IsValid);
+        Assert.False(ManifestReader.Read(Samples.Manifest(items: """[{ "id": "m", "kind": "module", "name": "M" }]""")).IsValid);
+        Assert.False(ManifestReader.Read(Samples.Manifest(kind: "plugin")).IsValid);
+    }
+
+    [Fact]
+    public void Manifest_files_over_one_megabyte_are_refused()
+    {
+        using var folder = new TempFolder();
+        string path = folder.Combine("paquete.json");
+        File.WriteAllText(path, new string(' ', ManifestReader.MaxManifestBytes + 1));
+
+        Assert.Contains("1 MB", Assert.Single(ManifestReader.ReadFile(path).Errors), StringComparison.Ordinal);
+    }
+}

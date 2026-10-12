@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json.Serialization;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
-using Rodaje.Paquetes;
+using Rodaje.Packages;
 
 namespace Rodaje.App.Services.Templates;
 

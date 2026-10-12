@@ -131,7 +131,7 @@
       "rodaje.modules.protocol": {
         "type": "Project"
       },
-      "rodaje.paquetes": {
+      "rodaje.packages": {
         "type": "Project"
       },
       "rodaje.playback": {

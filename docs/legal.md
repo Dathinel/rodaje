@@ -17,7 +17,7 @@ Ser GPLv3 no cambia la regla con el código GPL ajeno: no se copia. El permiso p
 
 ## Sala limpia
 
-Los editores de código abierto estudiados (MLT, Kdenlive, Shotcut, OpenShot, Olive y LosslessCut, con sus licencias en `docs/archivo/investigacion.md`) se analizaron solo a nivel de arquitectura y comportamiento. No se copió, tradujo ni adaptó código de ninguno de ellos. De los programas comerciales que inspiran la experiencia de uso solo se toman ideas de producto: nunca se descompilan ni se analizan sus binarios, y nunca se extraen sus recursos (efectos, plantillas, fuentes, música, íconos). Todos los recursos que se incluyan en Rodaje deben ser propios o tener una licencia que permita redistribución y uso comercial, registrada en `LICENCIAS.md`.
+Los editores de código abierto estudiados (MLT, Kdenlive, Shotcut, OpenShot, Olive y LosslessCut, con sus licencias en `docs/archivo/investigacion.md` de la etiqueta `archivo-proceso-2026-10`) se analizaron solo a nivel de arquitectura y comportamiento. No se copió, tradujo ni adaptó código de ninguno de ellos. De los programas comerciales que inspiran la experiencia de uso solo se toman ideas de producto: nunca se descompilan ni se analizan sus binarios, y nunca se extraen sus recursos (efectos, plantillas, fuentes, música, íconos). Todos los recursos que se incluyan en Rodaje deben ser propios o tener una licencia que permita redistribución y uso comercial, registrada en `LICENCIAS.md`.
 
 ## Compatibilidad con la GPLv3
 
@@ -95,7 +95,7 @@ Frente a la GPLv3:
 
 ### h) Complementos de la fase 7 J: `rodaje-codificadores-gpl` y `modulo-raw`
 
-**`rodaje-codificadores-gpl`** (lo arma `herramientas\armar-codificadores-gpl.ps1`; no está publicado): el `ffmpeg.exe` estático `win64-gpl-9.0` de BtbN (release `autobuild-2026-09-30-13-08`, zip SHA-256 `a0e45723…d278`), sin modificar, con `--enable-gpl --enable-version3`, el texto de la GPLv3 y la línea de configure.
+**`rodaje-codificadores-gpl`** (lo arma `build\armar-codificadores-gpl.ps1`; no está publicado): el `ffmpeg.exe` estático `win64-gpl-9.0` de BtbN (release `autobuild-2026-09-30-13-08`, zip SHA-256 `a0e45723…d278`), sin modificar, con `--enable-gpl --enable-version3`, el texto de la GPLv3 y la línea de configure.
 
 - **Compatibilidad de copyright: sí.** El exe es GPL-3.0-or-later y Rodaje es GPLv3: aunque se enlazaran serían compatibles. Además corre como proceso aparte por una tubería con argumentos y cuadros crudos (la misma frontera que el `ffmpeg.exe` LGPL de los proxies y la exportación), así que el editor y el exe son obras separadas que se comunican, «mere aggregation» en la terminología de la FSF. `FfmpegExecutable.OpenGplAddOn` acepta GPL o LGPL v3 o «cualquier posterior», rechaza `nonfree` y exige la serie de libavcodec de Rodaje; el editor nunca carga sus bibliotecas.
 - **Código fuente correspondiente (GPL-3 §6): pendiente antes de publicar.** El paquete trae la fuente de FFmpeg en el commit exacto (`2a571b60…`), los scripts de BtbN de esa release (fijan el commit de cada biblioteca) y x264 y x265 en sus commits. Pero el exe lleva compiladas unas 70 bibliotecas más, y la fuente correspondiente es la de todas: `-FuenteCompleta` baja cada repositorio que fijan los scripts (un superconjunto, varios GB) para publicarlo junto al paquete. **Recomendado:** compilar un `ffmpeg.exe` propio con los scripts de BtbN y solo FFmpeg, x264, x265 y lo que ya trae la compilación LGPL, para que la fuente sean unos pocos tarballs. Decide Daniel.
@@ -120,7 +120,7 @@ La página legal de FFmpeg ofrece una lista de comprobación para cumplir la LGP
 
 ### Compilación fijada y su código fuente
 
-Desde la fase 2, `herramientas\preparar-entorno.ps1` instala en `.entorno\ffmpeg` esta compilación exacta, verificando su huella:
+Desde la fase 2, `build\preparar-entorno.ps1` instala en `.entorno\ffmpeg` esta compilación exacta, verificando su huella:
 
 - **Archivo:** `ffmpeg-n9.0.2-17-g2a571b6068-win64-lgpl-shared-9.0.zip`, de la release https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-30-13-08, con SHA-256 `7157177b8a6cb2174c1650ba8c71b363f2c78cba5330f88c4c02cf5b2b880646` (el de `checksums.sha256` de esa release, recalculado al descargar). Se eligió una release de fin de mes porque BtbN borra las diarias a las dos semanas y conserva las mensuales.
 - **Licencia efectiva:** LGPL-3.0-or-later. `ffmpeg -buildconf` muestra `--enable-version3` y ni `--enable-gpl` ni `--enable-nonfree`; además desactiva explícitamente libx264, libx265, libxvid y libfdk-aac. La línea completa está en [`docs/ffmpeg-configure.txt`](ffmpeg-configure.txt).
@@ -132,7 +132,7 @@ Desde la fase 2, `herramientas\preparar-entorno.ps1` instala en `.entorno\ffmpeg
 
 Desde la fase 3, `dist\` lleva también el `ffmpeg.exe` de esa misma compilación en `ffmpeg\`, junto a las DLL, más `avfilter-12.dll` y `avdevice-63.dll`, que solo él importa (`ffprobe.exe` y `ffplay.exe` no se copian). Rodaje lo ejecuta como un proceso aparte para generar los proxies de vista previa, igual que hace LosslessCut: le pasa los argumentos con `ProcessStartInfo.ArgumentList` y lee su avance de `-progress pipe:1`. Ejecutar un programa LGPL como proceso separado no lo enlaza con Rodaje, así que no cambia la licencia del programa; las obligaciones son las mismas que para las DLL: el exe va sin modificar ni renombrar, con su licencia, su código fuente correspondiente (es el mismo commit de FFmpeg y los mismos scripts de BtbN) y su línea de configure.
 
-La guarda LGPL cubre también el exe. `FfmpegExecutable` solo acepta el `ffmpeg.exe` de la carpeta de la que `FfmpegLibrary` cargó las DLL, nunca uno del `PATH`, y antes de usarlo comprueba que `-buildconf` no lleve `--enable-gpl` ni `--enable-nonfree`, que `-L` declare la GNU Lesser General Public License y que su libavcodec sea la 63; si algo falla, los proxies quedan desactivados con el motivo en español. `herramientas\app.ps1` repite la comprobación de `-buildconf` antes de copiarlo a `dist\`.
+La guarda LGPL cubre también el exe. `FfmpegExecutable` solo acepta el `ffmpeg.exe` de la carpeta de la que `FfmpegLibrary` cargó las DLL, nunca uno del `PATH`, y antes de usarlo comprueba que `-buildconf` no lleve `--enable-gpl` ni `--enable-nonfree`, que `-L` declare la GNU Lesser General Public License y que su libavcodec sea la 63; si algo falla, los proxies quedan desactivados con el motivo en español. `build\app.ps1` repite la comprobación de `-buildconf` antes de copiarlo a `dist\`.
 
 Los proxies se codifican en H.264 con NVENC, después con Media Foundation y solo como último recurso con la OpenH264 compilada dentro de las DLL. Son archivos intermedios que se quedan en `%LOCALAPPDATA%\Rodaje\proxies` y nunca se exportan ni se entregan; la exportación usa siempre el original.
 
@@ -183,7 +183,7 @@ La exportación de la v1 no añade binarios: usa el mismo `ffmpeg.exe` y las mis
 
 ### Quién cubre las patentes de H.264, HEVC y AAC
 
-Lo que dicen hoy `docs/legal.md` («Patentes de códecs»), D-028 y `docs/fase-6.md` es que, al codificar H.264 y HEVC con la GPU o con Media Foundation, «sus fabricantes gestionan sus propias licencias de patentes» o «las cubren». **Las fuentes primarias que se pudieron leer no lo confirman, y una lo contradice:**
+Lo que dicen hoy `docs/legal.md` («Patentes de códecs»), D-028 y el plan de la fase 6 es que, al codificar H.264 y HEVC con la GPU o con Media Foundation, «sus fabricantes gestionan sus propias licencias de patentes» o «las cubren». **Las fuentes primarias que se pudieron leer no lo confirman, y una lo contradice:**
 
 - **AMD (AMF):** el `LICENSE.txt` del SDK de AMF, en el mismo commit que compila BtbN, empieza con una «Notice Regarding Standards»: AMD no concede licencia ni sublicencia sobre derechos de propiedad intelectual de estándares, «including … AVC/H.264; HEVC/H.265; AAC decode/FFMPEG; AAC encode/FFMPEG; VC-1; and MP3», y «you will pay any royalties due for such third party technologies». Fuente: https://github.com/GPUOpen-LibrariesAndSDKs/AMF/blob/6277e353fd625121a8f627b1d0540323ef372a49/LICENSE.txt.
 - **Intel (QSV):** la documentación de `vpl-gpu-rt` dice que las implementaciones de códecs MPEG «may require licenses from various entities, including Intel Corporation». Fuente: https://github.com/intel/vpl-gpu-rt/blob/main/doc/HyperEncode_FeatureDeveloperGuide.md.
@@ -220,7 +220,7 @@ Rodaje no usa marcas ajenas en su código, su interfaz, sus íconos ni sus recur
 
 ## Privacidad y secretos
 
-Rodaje no envía telemetría ni datos de uso a ningún servidor. Las funciones que usen servicios externos, como un asistente de lenguaje natural, serán opcionales, explicarán qué se envía y leerán su clave desde un archivo `.env` local. El `.env` está en `.gitignore` y nunca se sube; en el repositorio solo existe `.env.example`, con los nombres de las variables y sin valores.
+Rodaje no envía telemetría ni datos de uso a ningún servidor. Si alguna función llega a usar servicios externos, será opcional, explicará qué se envía y leerá su clave desde un archivo `.env` local. El `.env` está en `.gitignore` y nunca se sube.
 
 ## Avisos de terceros
 
@@ -245,7 +245,7 @@ Esta lista se recorre completa, en orden, antes de cambiar la visibilidad del re
 - [ ] **Nombre.** Se consulta "Rodaje" en las bases de marcas de la USPTO (https://tmsearch.uspto.gov), la EUIPO (https://euipo.europa.eu/eSearch/) y la Superintendencia de Industria y Comercio de Colombia (https://www.sic.gov.co), en las clases 9 y 42 de Niza.
 - [ ] **Secretos.** Se escanea el historial completo del repositorio, no solo la última versión, con gitleaks (https://github.com/gitleaks/gitleaks), y se confirma que no aparece ningún `.env`, clave de API ni token. Si aparece alguno, se revoca la clave y se reescribe el historial antes de publicar.
 - [ ] **Privacidad.** Se confirma que no hay telemetría y que toda función que envíe datos a un servicio externo es opcional y está explicada.
-- [ ] **Políticas del repositorio.** Se quita la marca de "preparado para el futuro" de `SECURITY.md` y `CONTRIBUTING.md`, se activa el reporte privado de vulnerabilidades en GitHub y se revisa que el requisito de firma DCO esté vigente.
+- [ ] **Políticas del repositorio.** Hecho el 12-oct: `SECURITY.md` y `CONTRIBUTING.md` sin la marca de "preparado para el futuro". Falta: se activa el reporte privado de vulnerabilidades en GitHub y se revisa que el requisito de firma DCO esté vigente.
 
 ### Lista de comprobación de la exportación
 

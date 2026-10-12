@@ -7,7 +7,7 @@ using Xunit.Abstractions;
 namespace Rodaje.Module.Raw.Tests;
 
 /// <summary>
-/// Cifras de <c>docs/fase-7.md</c>: revelado de un CinemaDNG 4K DCI (4096×2160, 12 bits sin comprimir, 17,7 MB) por el
+/// Revelado de un CinemaDNG 4K DCI (4096×2160, 12 bits sin comprimir, 17,7 MB) por el
 /// protocolo, como lo pide la app (el archivo copiado a la región, salida rgba16f), con un hilo y con todos.
 /// </summary>
 public class SpeedTests(ITestOutputHelper output)

@@ -12,7 +12,7 @@ namespace Rodaje.Media;
 /// </remarks>
 public static class FfmpegLibrary
 {
-    private const string MissingMessage = "Faltan las bibliotecas de FFmpeg; ejecuta ABRIR.bat preparar-entorno.";
+    private const string MissingMessage = "Faltan las bibliotecas de FFmpeg; ejecuta Probar.bat preparar-entorno.";
 
     private static readonly Lock Gate = new();
     private static string? _directory;

@@ -9,13 +9,13 @@ using Xunit.Abstractions;
 
 namespace Rodaje.Module.Voice.Tests;
 
-/// <summary>Solo corre con los modelos de voz y de Whisper (<c>herramientas\preparar-modelos.ps1</c>).</summary>
+/// <summary>Solo corre con los modelos de voz y de Whisper (<c>build\preparar-modelos.ps1</c>).</summary>
 public sealed class WhisperFactAttribute : FactAttribute
 {
     public WhisperFactAttribute()
     {
         if (Models.Root is null || Intelligibility.WhisperModel is null)
-            Skip = "Omitida: faltan los modelos de voz o de Whisper; ejecuta herramientas\\preparar-modelos.ps1.";
+            Skip = "Omitida: faltan los modelos de voz o de Whisper; ejecuta build\\preparar-modelos.ps1.";
     }
 }
 

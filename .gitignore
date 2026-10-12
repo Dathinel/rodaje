@@ -1,4 +1,4 @@
-# --- Entorno propio (se reconstruye con herramientas/preparar-entorno.ps1) ---
+# --- Entorno propio (se reconstruye con build/preparar-entorno.ps1) ---
 .entorno/
 
 # --- Salidas de compilación y distribución ---
@@ -16,7 +16,6 @@ coverage/
 *.pem
 .env
 .env.*
-!.env.example
 
 # --- IDEs y SO ---
 .vs/
@@ -36,3 +35,6 @@ muestras/
 
 # --- Worktrees de agentes de Claude Code ---
 .claude/
+
+# --- Proceso (repo privado Dathinel/rodaje-proceso, clonado aquí) ---
+.proceso/

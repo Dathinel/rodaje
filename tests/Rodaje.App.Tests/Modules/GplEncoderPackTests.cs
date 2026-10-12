@@ -11,7 +11,7 @@ using Xunit.Abstractions;
 namespace Rodaje.App.Tests.Modules;
 
 /// <summary>
-/// El complemento que arma <c>herramientas\armar-codificadores-gpl.ps1</c>, instalado en una carpeta de módulos:
+/// El complemento que arma <c>build\armar-codificadores-gpl.ps1</c>, instalado en una carpeta de módulos:
 /// <c>RODAJE_CODIFICADORES_GPL</c> apunta al <c>.paquete</c> (si no, el de <c>dist\complementos</c>). Sin él, las
 /// pruebas que lo necesitan lo dicen y no comprueban nada.
 /// </summary>

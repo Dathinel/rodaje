@@ -37,7 +37,7 @@ public sealed record ExportPreset(string Id, string Name, string Description, Ex
 }
 
 /// <summary>
-/// Los preajustes de fábrica, calibrados con VMAF en la aceptación de la fase 6 (<c>docs/fase-6.md</c>).
+/// Los preajustes de fábrica, calibrados con VMAF en la aceptación de la fase 6.
 /// </summary>
 public static class ExportPresets
 {

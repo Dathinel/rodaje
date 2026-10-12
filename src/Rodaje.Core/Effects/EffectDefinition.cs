@@ -110,7 +110,7 @@ public sealed record OptionDefinition(string Name, OptionKind Kind, string Defau
 
     /// <summary>
     /// Forma <c>paquete@versión/elemento</c>: paquete y elemento en minúsculas ASCII, dígitos, guiones y puntos; la versión
-    /// empieza con un dígito. La comprobación completa (versión semántica, nombres reservados) es de <c>Rodaje.Paquetes</c>.
+    /// empieza con un dígito. La comprobación completa (versión semántica, nombres reservados) es de <c>Rodaje.Packages</c>.
     /// </summary>
     public static bool IsWellFormedReference(string? value)
     {

@@ -10,7 +10,7 @@
 
 ## Voces
 
-Todas son vectores de estilo de Kokoro-82M v1.0 (`voices/<id>.bin` de la misma exportación), Apache-2.0, con el SHA-256 de cada archivo en `paquete.json` y en `herramientas\preparar-modelos.ps1`.
+Todas son vectores de estilo de Kokoro-82M v1.0 (`voices/<id>.bin` de la misma exportación), Apache-2.0, con el SHA-256 de cada archivo en `paquete.json` y en `build\preparar-modelos.ps1`.
 
 | Idioma | Voces |
 |---|---|

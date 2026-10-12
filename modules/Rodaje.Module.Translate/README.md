@@ -6,7 +6,7 @@ habla el protocolo v1 (`src/Rodaje.Modules.Protocol`).
 
 - **Motor:** llama.cpp vía LLamaSharp 0.27.0 (MIT). La biblioteca nativa se elige al cargar el primer modelo: Vulkan
   si el controlador trae `vulkan-1.dll`, si no la de CPU (AVX512, AVX2, AVX o sin AVX).
-- **Modelo:** Qwen3-4B-Instruct-2507 Q4_K_M (Apache-2.0), unos 2,5 GB. `herramientas\preparar-modelos.ps1 -Traductor`
+- **Modelo:** Qwen3-4B-Instruct-2507 Q4_K_M (Apache-2.0), unos 2,5 GB. `build\preparar-modelos.ps1 -Traductor`
   lo baja a `.entorno\modelos` con SHA-256 fijado (ver la nota de `LICENCIAS.md`).
 - **Reparto de capas:** con `device: auto` se suben a la GPU todas las capas; si no caben (4 GB de VRAM con el editor
   abierto) se repite con 18 y luego en la CPU. `vramMb` 3000 en `paquete.json`.
@@ -30,7 +30,7 @@ Búferes opcionales, de bytes: si los subtítulos no caben en un mensaje (1 MiB)
 primero (sin `segments` en los parámetros); un segundo búfer (o el único, si los subtítulos van en los parámetros)
 recibe el resultado, y `value` es entonces `{ "bytes": n }`.
 
-Resultado (`docs/fase-7.md`):
+Resultado:
 
 ```json
 { "source": "es", "target": "en", "device": "vulkan", "untranslated": [],

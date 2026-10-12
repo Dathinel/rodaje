@@ -4,7 +4,7 @@ using Rodaje.App.Services.Packages;
 using Rodaje.App.Tests.Support;
 using Rodaje.Core.Model;
 using Rodaje.Core.Serialization;
-using Rodaje.Paquetes;
+using Rodaje.Packages;
 
 namespace Rodaje.App.Tests.Packages;
 

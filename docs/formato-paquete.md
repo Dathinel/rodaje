@@ -1,6 +1,6 @@
 # Formato `.paquete` (versión 0, `formatVersion` 1)
 
-Un paquete es la forma en que llega a Rodaje todo lo que no es código del motor: transiciones, estilos de texto, efectos armados con las primitivas, filtros, LUT, plantillas y sonidos. También describe los módulos de IA, que son programas aparte. La [propuesta de módulos](propuesta-modulos.md) aprobada fija las reglas de fondo: un paquete de contenido **nunca trae código**, cada paquete vive en su propio repositorio de GitHub (Dathinel) y el formato se comparte con los demás programas de Dathinel. Por eso la lógica está en `src/Rodaje.Paquetes`, una biblioteca sin dependencias ni WinUI que puede salir tal cual a su propio repositorio cuando llegue el segundo programa.
+Un paquete es la forma en que llega a Rodaje todo lo que no es código del motor: transiciones, estilos de texto, efectos armados con las primitivas, filtros, LUT, plantillas y sonidos. También describe los módulos de IA, que son programas aparte. La [arquitectura](arquitectura/README.md#núcleo-contenido-e-ia) fija las reglas de fondo: un paquete de contenido **nunca trae código**, cada paquete vive en su propio repositorio de GitHub (Dathinel) y el formato se comparte con los demás programas de Dathinel. Por eso la lógica está en `src/Rodaje.Packages`, una biblioteca sin dependencias ni WinUI que puede salir tal cual a su propio repositorio cuando llegue el segundo programa.
 
 ## El archivo
 
@@ -93,7 +93,7 @@ Los tiempos van relativos al primer keyframe y las posiciones en píxeles de la 
 
 Desde la fase 5 los paquetes traen solo **primitivas**: valores y curvas sobre los efectos que el motor ya sabe dibujar (`rodaje.color`, `rodaje.transform`…), nunca shaders ni código. Los filtros y efectos se **copian** al proyecto al aplicarlos (con `options.source` = su referencia); las LUT y las transiciones se **referencian**, y si falta el paquete el proyecto abre igual: la capa sale sin LUT y la transición se ve como fundido cruzado, con aviso.
 
-Los cuatro lectores están en `ContentReaders` (`src/Rodaje.Paquetes/Content`). Ninguno confía en el archivo: los JSON se leen con `JsonDocument` (apto para AOT) y cualquier problema lanza `PackageContentException` con el motivo en español, que nombra el campo (`curves[0].keys[1].t tiene que ser mayor que el de la clave anterior`). Cada regla tiene su prueba.
+Los cuatro lectores están en `ContentReaders` (`src/Rodaje.Packages/Content`). Ninguno confía en el archivo: los JSON se leen con `JsonDocument` (apto para AOT) y cualquier problema lanza `PackageContentException` con el motivo en español, que nombra el campo (`curves[0].keys[1].t tiene que ser mayor que el de la clave anterior`). Cada regla tiene su prueba.
 
 ### Reglas comunes de los JSON
 
@@ -163,7 +163,7 @@ Un estilo de título. Obligatorios `font.family` y `size` (mayor que 0 y hasta 1
 
 ### `PackageContentStore`
 
-Carga el contenido de lo instalado por referencia; vive en `Rodaje.Paquetes` y no conoce el motor.
+Carga el contenido de lo instalado por referencia; vive en `Rodaje.Packages` y no conoce el motor.
 
 - **LUT.** `TryGetLut(referencia, out LutTable)` nunca lee el disco ni espera: si la LUT está en memoria la da; si no, la pide al grupo de hilos y devuelve `false`, y al terminar dispara `Changed` (en un hilo cualquiera). Una LUT dañada o un paquete que falta no se reintentan y `LutProblem` dice por qué. Caché con tope de 128 MB (unas 40 LUT de 65³) que suelta la menos usada.
 - **Preajustes.** `FindTransition`, `FindFilter` y `FindEffect` leen el archivo la primera vez y lo guardan; devuelven `null` si falta o está dañado, y `PresetProblem` dice por qué. Se llaman al armar el plan o al aplicar, no por cuadro.
@@ -172,7 +172,7 @@ Carga el contenido de lo instalado por referencia; vive en `Rodaje.Paquetes` y n
 
 ### Uso desde Rodaje (`IEffectContent`)
 
-`IEffectContent` está en `Rodaje.Engine` (que depende de `Rodaje.Core` y `Rodaje.Playback`), así que la implementación (`EffectContent`) vive en la app. No envuelve el `PackageContentStore`: lee por un `IContentLoader` (`InstalledContentLoader` sobre lo instalado y los lectores de `Rodaje.Paquetes`), que usa solo `PackageContentStore.ResolveLocalReferences` para resolver las referencias locales de filtros y efectos:
+`IEffectContent` está en `Rodaje.Engine` (que depende de `Rodaje.Core` y `Rodaje.Playback`), así que la implementación (`EffectContent`) vive en la app. No envuelve el `PackageContentStore`: lee por un `IContentLoader` (`InstalledContentLoader` sobre lo instalado y los lectores de `Rodaje.Packages`), que usa solo `PackageContentStore.ResolveLocalReferences` para resolver las referencias locales de filtros y efectos:
 
 - **`TryGetLut(ResourceKey key, out LutData?)`** → busca en un `ConcurrentDictionary<string, LutEntry>`; si falta, la carga en el `ThreadPool` (`LoadLut`) y devuelve `false` hasta que termine. Así `TryGetLut` no reserva por cuadro.
 - **`Changed`** → evento propio de `EffectContent`: se dispara al terminar de cargar una LUT, en `Invalidate` y al cambiar la carpeta del proyecto (se descartan las LUT `file:`).

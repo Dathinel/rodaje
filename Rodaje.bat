@@ -5,8 +5,8 @@ chcp 65001 >nul
 setlocal
 set "RAIZ=%~dp0"
 if "%~1"=="" (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%RAIZ%herramientas\app.ps1"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%RAIZ%build\app.ps1"
 ) else (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%RAIZ%herramientas\app.ps1" %*
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%RAIZ%build\app.ps1" %*
 )
 if errorlevel 1 pause

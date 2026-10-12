@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Rodaje.Module.Subtitles;
 
-/// <summary>Resultado de <c>subtitulos</c>; tiempos en segundos del audio recibido (formato en <c>docs/fase-7.md</c>).</summary>
+/// <summary>Resultado de <c>subtitulos</c>; tiempos en segundos del audio recibido (formato en el README del módulo).</summary>
 public sealed record Transcript(string Language, string Device, IReadOnlyList<TranscriptSegment> Segments);
 
 public sealed record TranscriptSegment(double Start, double End, string Text, IReadOnlyList<TranscriptWord> Words);

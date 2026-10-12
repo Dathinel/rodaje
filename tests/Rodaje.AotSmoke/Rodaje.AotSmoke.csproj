@@ -4,7 +4,7 @@
     Prueba de humo de Native AOT: un programa de consola que recorre toda la API pública de
     Rodaje.Core compilado de antemano a código nativo. Si el núcleo usara reflexión o JSON sin
     generador de código, el análisis de recorte/AOT daría una advertencia y, con
-    TreatWarningsAsErrors, la publicación fallaría. Se publica con herramientas\publicar-aot-prueba.ps1.
+    TreatWarningsAsErrors, la publicación fallaría. Se publica con build\publicar-aot-prueba.ps1.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
