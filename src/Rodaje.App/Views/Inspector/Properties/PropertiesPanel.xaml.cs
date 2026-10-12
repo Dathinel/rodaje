@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Audio;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
@@ -28,6 +29,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     private double _audioRange = -1;
     private Time _shownPosition;
     private bool _updatingBlend;
+    private bool _updatingPreset;
 
     public PropertiesPanel()
     {
@@ -37,6 +39,77 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         foreach ((_, string name) in EffectUi.BlendModes)
         {
             BlendBox.Items.Add(name);
+        }
+
+        foreach ((double lufs, string name) in LoudnessNormalizer.Targets)
+        {
+            var item = new MenuFlyoutItem { Text = name };
+            item.Click += async (_, _) => await NormalizeAsync(lufs);
+            NormalizeMenu.Items.Add(item);
+        }
+
+        NormalizeMenu.Items.Add(new MenuFlyoutSeparator());
+        var custom = new MenuFlyoutItem { Text = "Otro objetivo…" };
+        custom.Click += async (_, _) =>
+        {
+            if (await AskTargetAsync(XamlRoot, "Normalizar el clip") is { } lufs)
+            {
+                await NormalizeAsync(lufs);
+            }
+        };
+        NormalizeMenu.Items.Add(custom);
+
+        PresetBox.Items.Add("Sin ecualizador ni compresor");
+        foreach (AudioPreset preset in AudioPresets.All)
+        {
+            var item = new ComboBoxItem { Content = preset.Name, Tag = preset };
+            ToolTipService.SetToolTip(item, preset.Description);
+            PresetBox.Items.Add(item);
+        }
+
+        PresetBox.Items.Add(new ComboBoxItem { Content = "Personalizado (en Filtros)", IsEnabled = false });
+    }
+
+    /// <summary>Pide un objetivo en LUFS; nulo si se cancela o no es un número entre −60 y 0.</summary>
+    internal static async Task<double?> AskTargetAsync(XamlRoot root, string title)
+    {
+        if (DialogGate.IsOpen)
+        {
+            return null;
+        }
+
+        var box = new TextBox { Text = "−18", Header = "Objetivo en LUFS (de −60 a 0)" };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = root,
+            Title = title,
+            Content = box,
+            PrimaryButtonText = "Normalizar",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Primary,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary ? LoudnessNormalizer.ParseTarget(box.Text) : null;
+    }
+
+    private async Task NormalizeAsync(double lufs)
+    {
+        if (_services is not { } services || _audioClipId is not { } current)
+        {
+            return;
+        }
+
+        IReadOnlyList<string> clips = LoudnessNormalizer.AudioClips(services.Session);
+        NormalizeButton.IsEnabled = false;
+        NormalizeButton.Content = "Midiendo…";
+        try
+        {
+            await LoudnessNormalizer.NormalizeClipsAsync(services.Session, clips.Count > 0 ? clips : [current], lufs);
+        }
+        finally
+        {
+            NormalizeButton.Content = "Normalizar";
+            NormalizeButton.IsEnabled = true;
         }
     }
 
@@ -231,7 +304,11 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
 
         AudioSection.KeyframeSummary = KeyframeText(keyframes);
-        AudioSection.Summary = Number(gain) + " " + GainRow.Spec.Unit;
+        AudioPreset? preset = AudioPresetCommands.Match(clip.Effects, out bool hasEffects);
+        _updatingPreset = true;
+        PresetBox.SelectedIndex = !hasEffects ? 0 : preset is null ? PresetBox.Items.Count - 1 : 1 + AudioPresets.All.ToList().IndexOf(preset);
+        _updatingPreset = false;
+        AudioSection.Summary = Number(gain) + " " + GainRow.Spec.Unit + (hasEffects ? " · " + (preset?.Name ?? "personalizado") : "");
         AudioReset.IsEnabled = ClipPropertyEditor.CanReset(clip, BuiltInEffects.Audio, Defaults(_audioRows));
     }
 
@@ -352,6 +429,18 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         FinishChanges(rows);
         _dragRow = null;
         await editor.ResetAsync(clip, rows[0].Spec.EffectType, [.. Defaults(rows)], description, KeyframeDialog.ForResetAll(XamlRoot, what));
+    }
+
+    private void OnPresetSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingPreset || PresetBox.SelectedIndex < 0 || PresetBox.SelectedIndex == PresetBox.Items.Count - 1 || _services is not { } services
+            || _audioClipId is not { } clipId)
+        {
+            return;
+        }
+
+        AudioPreset? preset = (PresetBox.SelectedItem as ComboBoxItem)?.Tag as AudioPreset;
+        services.Session.Execute(AudioPresetCommands.Apply(services.Session.SequenceId, clipId, preset));
     }
 
     private void OnBlendSelected(object sender, SelectionChangedEventArgs e)

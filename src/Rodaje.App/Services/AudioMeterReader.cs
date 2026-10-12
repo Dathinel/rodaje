@@ -19,6 +19,12 @@ public sealed class AudioMeterReader
     private Time _lastRead;
     private Time _rmsFloor;
 
+    /// <summary>Hasta dónde midió la última lectura que sonaba; nulo en pausa o sin audio.</summary>
+    public Time? LastRead => _source is null ? null : _lastRead;
+
+    /// <summary>Desde dónde vale medir: el último salto de posición.</summary>
+    public Time Floor => _rmsFloor;
+
     /// <param name="source">Lo que se mide (la sesión de reproducción), o <c>null</c> si no hay audio.</param>
     /// <param name="position">Posición publicada por el render.</param>
     /// <param name="playing">Si suena de verdad.</param>

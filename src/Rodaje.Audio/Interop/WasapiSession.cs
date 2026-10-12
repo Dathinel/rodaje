@@ -199,7 +199,7 @@ internal sealed unsafe class WasapiSession : IDisposable
         _ => 0,
     };
 
-    private static string? ReadId(IMMDevice device)
+    internal static string? ReadId(IMMDevice device)
     {
         if (device.GetId(out nint pointer) < 0 || pointer == 0)
         {
@@ -216,7 +216,7 @@ internal sealed unsafe class WasapiSession : IDisposable
         }
     }
 
-    private static string? ReadFriendlyName(ComWrappers wrappers, IMMDevice device)
+    internal static string? ReadFriendlyName(ComWrappers wrappers, IMMDevice device)
     {
         if (device.OpenPropertyStore(0, out nint pointer) < 0)
         {

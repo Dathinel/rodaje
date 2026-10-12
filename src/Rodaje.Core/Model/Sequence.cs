@@ -18,6 +18,14 @@ public sealed class Sequence
 
     public int SampleRate { get; set; } = 48000;
 
+    public const double MinMasterGainDb = -60;
+
+    public const double MaxMasterGainDb = 24;
+
+    /// <summary>Ganancia de toda la mezcla en dB, antes del limitador (la pone «Normalizar la mezcla»). Por defecto 0.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double MasterGainDb { get; set; }
+
     public List<Track> VideoTracks { get; set; } = [];
 
     public List<Track> AudioTracks { get; set; } = [];

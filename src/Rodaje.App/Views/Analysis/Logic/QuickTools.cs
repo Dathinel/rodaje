@@ -19,6 +19,7 @@ public static class QuickTools
     public const string AddText = "clip.addText";
     public const string RemoveBackground = "vision.removeBackground";
     public const string Reframe = "vision.reframe";
+    public const string VoiceOver = "audio.voiceOver";
 
     public static IReadOnlyList<QuickTool> All { get; } =
     [
@@ -34,6 +35,7 @@ public static class QuickTools
         new(AutoSubtitles, "Subtítulos automáticos", "", "Escribe los subtítulos a partir de la voz."),
         new(TextToSpeech, "Texto a voz", "", "Lee un texto en voz alta y lo pone en una pista de audio."),
         new(AddText, "Añadir texto", "", "Un título de 5 s en el cursor."),
+        new(VoiceOver, "Grabar voz", "", "Graba tu voz desde el cursor mientras suena el resto."),
     ];
 
     /// <param name="noiseModule">Si está instalado el módulo que limpia el ruido.</param>

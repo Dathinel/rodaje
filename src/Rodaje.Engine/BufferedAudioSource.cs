@@ -33,6 +33,9 @@ internal sealed class BufferedAudioSource : IAudioSampleSource, IDisposable
     private int _ringCount;
     private long _readFrame;
 
+    // Dónde empezó el tramo que se está produciendo: los bloques de la fuente empiezan en _chunkBase + k · ChunkFrames.
+    private long _chunkBase;
+
     private int _generation;
     private Time? _pendingSeek;
     private bool _ended;
@@ -113,6 +116,7 @@ internal sealed class BufferedAudioSource : IAudioSampleSource, IDisposable
             _ringHead = 0;
             _ringCount = 0;
             _readFrame = 0;
+            _chunkBase = 0;
             _ended = false;
             Monitor.Pulse(_gate);
         }
@@ -122,8 +126,12 @@ internal sealed class BufferedAudioSource : IAudioSampleSource, IDisposable
     /// Descarta lo decodificado más allá de <paramref name="keepFrames"/> cuadros por delante de la lectura y vuelve a
     /// pedirlo a la fuente desde ahí, sin mover el reloj. Sirve cuando cambia lo que la fuente produce (una edición).
     /// </summary>
-    /// <remarks>Se llama desde cualquier hilo; la fuente recibe el seek en el hilo de decodificación.</remarks>
-    public void Rewind(int keepFrames)
+    /// <remarks>
+    /// Se llama desde cualquier hilo; la fuente recibe el seek en el hilo de decodificación. Con
+    /// <paramref name="alignToChunk"/> conserva hasta el borde del bloque siguiente, para que la fuente vuelva a una posición
+    /// en la que ya empezó una lectura (la mezcla guarda ahí el estado de sus filtros).
+    /// </remarks>
+    public void Rewind(int keepFrames, bool alignToChunk = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(keepFrames);
         lock (_gate)
@@ -134,7 +142,16 @@ internal sealed class BufferedAudioSource : IAudioSampleSource, IDisposable
                 _ringStart = Math.Max(_ringStart, _readFrame);
             }
 
-            _ringCount = Math.Min(_ringCount, Math.Min(keepFrames, _capacityFrames));
+            int keep = Math.Min(keepFrames, _capacityFrames);
+            if (alignToChunk)
+            {
+                long target = _ringStart + keep;
+                long offset = (((target - _chunkBase) % ChunkFrames) + ChunkFrames) % ChunkFrames;
+                keep = (int)Math.Min(int.MaxValue, Math.Max(0, target + (offset == 0 ? 0 : ChunkFrames - offset) - _ringStart));
+            }
+
+            _ringCount = Math.Min(_ringCount, keep);
+            _chunkBase = _ringStart + _ringCount;
             _generation++;
             _pendingSeek = _origin + Time.FromSamples(_ringStart + _ringCount, AudioDecoder.OutputSampleRate);
             _ended = false;

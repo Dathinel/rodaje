@@ -255,6 +255,53 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         return _meterReader.Take(session is { HasAudioLevels: true } ? session : null, position, playing, Stopwatch.GetElapsedTime(stamp), MeasureMix);
     }
 
+    /// <summary>
+    /// Potencia ponderada K de lo que sonó en los últimos 400 ms (momentánea) y 3 s (corta), hasta la última lectura de
+    /// <see cref="TakeAudioLevels"/>; nulo en pausa. Desde el mismo hilo que esa lectura.
+    /// </summary>
+    public (double Momentary, double ShortTerm)? TakeLoudness()
+    {
+        TimelineSession? session;
+        lock (_meterLock)
+        {
+            session = _meterSession;
+        }
+
+        if (session is not { HasAudioLevels: true } || _meterReader.LastRead is not { } to)
+        {
+            return null;
+        }
+
+        Time floor = _meterReader.Floor;
+        return (session.MeasureLoudnessPower(to, TimeSpan.FromMilliseconds(400), floor), session.MeasureLoudnessPower(to, TimeSpan.FromSeconds(3), floor));
+    }
+
+    /// <summary>
+    /// Posición de la línea de tiempo que sonaba en el instante QPC <paramref name="qpc100ns"/> (unidades de 100 ns, como
+    /// las marcas de WASAPI), desde la última posición publicada por el reloj del dispositivo. Nula en pausa o mientras el
+    /// reloj no pasó de <paramref name="after"/> (la salida todavía no empezó a sonar). Desde cualquier hilo.
+    /// </summary>
+    public Time? HeardPositionAt(long qpc100ns, Time after)
+    {
+        Time position;
+        long stamp;
+        bool playing;
+        lock (_meterLock)
+        {
+            position = _meterPosition;
+            stamp = _meterStamp;
+            playing = _meterPlaying;
+        }
+
+        if (!playing || position <= after)
+        {
+            return null;
+        }
+
+        double seconds = (qpc100ns / 1e7) - (stamp / (double)Stopwatch.Frequency);
+        return position + Time.FromSeconds(seconds);
+    }
+
     public void Dispose()
     {
         if (_disposed)

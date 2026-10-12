@@ -20,6 +20,7 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <Grid.ContextFlyout>
             <MenuFlyout>
@@ -27,7 +28,10 @@
                 <RadioMenuFlyoutItem x:Name="NormalDecayItem" Text="Caída normal (20 dB/s)" GroupName="MeterDecay" Click="OnDecayClick" />
                 <RadioMenuFlyoutItem x:Name="FastDecayItem" Text="Caída rápida (40 dB/s)" GroupName="MeterDecay" Click="OnDecayClick" />
                 <MenuFlyoutSeparator />
-                <MenuFlyoutItem Text="Borrar picos y saturación" Click="OnResetClick" />
+                <MenuFlyoutItem Text="Borrar picos, saturación y sonoridad integrada" Click="OnResetClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutSubItem x:Name="NormalizeMixMenu" Text="Normalizar la mezcla" />
+                <MenuFlyoutItem x:Name="ClearMasterItem" Text="Quitar la ganancia maestra" Click="OnClearMasterClick" />
             </MenuFlyout>
         </Grid.ContextFlyout>
 
@@ -52,5 +56,13 @@
         <TextBlock x:Name="PeakText" Grid.Row="3" Grid.ColumnSpan="2" Text="−∞" HorizontalAlignment="Center"
                    Style="{StaticResource TimecodeTextStyle}" FontSize="{StaticResource CaptionFontSize}" Foreground="{StaticResource TextMutedBrush}"
                    Tapped="OnResetTapped" ToolTipService.ToolTip="Mayor pico desde el último clic, en dBFS (pico real estimado)" />
+
+        <StackPanel x:Name="LoudnessPanel" Grid.Row="4" Grid.ColumnSpan="2" HorizontalAlignment="Center" Background="{StaticResource TransparentBrush}"
+                    Tapped="OnResetTapped">
+            <TextBlock x:Name="ShortTermText" Text="−∞" HorizontalAlignment="Center" Style="{StaticResource TimecodeTextStyle}"
+                       FontSize="{StaticResource CaptionFontSize}" />
+            <TextBlock x:Name="IntegratedText" Text="I −∞" HorizontalAlignment="Center" Style="{StaticResource TimecodeTextStyle}"
+                       FontSize="{StaticResource CaptionFontSize}" Foreground="{StaticResource TextMutedBrush}" />
+        </StackPanel>
     </Grid>
 </UserControl>

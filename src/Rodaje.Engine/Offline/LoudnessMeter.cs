@@ -15,8 +15,8 @@ internal sealed class LoudnessMeter
     private const int BlockSteps = 4;
     private const int ShortTermSteps = 30;
 
-    private readonly Biquad[] _shelf = [Shelf(), Shelf()];
-    private readonly Biquad[] _highPass = [HighPass(), HighPass()];
+    private KWeightingFilter _left;
+    private KWeightingFilter _right;
     private readonly TruePeakDetector[] _peaks = [new(), new()];
     private readonly List<double> _steps = [];
     private double _stepEnergy;
@@ -34,8 +34,8 @@ internal sealed class LoudnessMeter
 
         for (int i = 0; i < frames; i++)
         {
-            double l = _highPass[0].Next(_shelf[0].Next(interleaved[2 * i]));
-            double r = _highPass[1].Next(_shelf[1].Next(interleaved[(2 * i) + 1]));
+            double l = _left.Next(interleaved[2 * i]);
+            double r = _right.Next(interleaved[(2 * i) + 1]);
             _stepEnergy += (l * l) + (r * r);
             if (++_stepFill == Step)
             {
@@ -49,9 +49,10 @@ internal sealed class LoudnessMeter
     public LoudnessMeasurement Result()
     {
         List<double> blocks = Windows(BlockSteps);
-        double integrated = Gated(blocks, -10, out _);
+        double integrated = Loudness.Gated(blocks, -10);
         List<double> shortTerm = Windows(ShortTermSteps);
-        _ = Gated(shortTerm, -20, out List<double> kept);
+        var kept = new List<double>();
+        _ = Loudness.Gated(shortTerm, -20, kept);
         double range = 0;
         if (kept.Count > 0)
         {
@@ -62,8 +63,6 @@ internal sealed class LoudnessMeter
         double peak = _peak > 0 ? 20 * Math.Log10(_peak) : double.NegativeInfinity;
         return new LoudnessMeasurement(integrated, peak, range);
     }
-
-    private static double Loudness(double energy) => -0.691 + (10 * Math.Log10(energy));
 
     /// <summary>Energía media de cada ventana de <paramref name="steps"/> pasos completos.</summary>
     private List<double> Windows(int steps)
@@ -87,67 +86,11 @@ internal sealed class LoudnessMeter
         return windows;
     }
 
-    /// <summary>Sonoridad de las ventanas que pasan la puerta absoluta y la relativa (<paramref name="relative"/> LU bajo su media).</summary>
-    private static double Gated(List<double> energies, double relative, out List<double> kept)
-    {
-        kept = [];
-        double absolute = Math.Pow(10, (-70 + 0.691) / 10);
-        double sum = 0;
-        int count = 0;
-        foreach (double e in energies)
-        {
-            if (e > absolute)
-            {
-                sum += e;
-                count++;
-            }
-        }
-
-        if (count == 0)
-        {
-            return double.NegativeInfinity;
-        }
-
-        double gate = Math.Max(absolute, sum / count * Math.Pow(10, relative / 10));
-        sum = 0;
-        count = 0;
-        foreach (double e in energies)
-        {
-            if (e > gate)
-            {
-                sum += e;
-                count++;
-                kept.Add(Loudness(e));
-            }
-        }
-
-        return count == 0 ? double.NegativeInfinity : Loudness(sum / count);
-    }
-
     private static double Percentile(List<double> sorted, double p)
     {
         double rank = p * (sorted.Count - 1);
         int low = (int)Math.Floor(rank);
         int high = Math.Min(sorted.Count - 1, low + 1);
         return sorted[low] + ((sorted[high] - sorted[low]) * (rank - low));
-    }
-
-    // Coeficientes de BS.1770-4 a 48 kHz.
-    private static Biquad Shelf() => new(1.53512485958697, -2.69169618940638, 1.19839281085285, -1.69065929318241, 0.73248077421585);
-
-    private static Biquad HighPass() => new(1.0, -2.0, 1.0, -1.99004745483398, 0.99007225036621);
-
-    private sealed class Biquad(double b0, double b1, double b2, double a1, double a2)
-    {
-        private double _z1;
-        private double _z2;
-
-        public double Next(double x)
-        {
-            double y = (b0 * x) + _z1;
-            _z1 = (b1 * x) - (a1 * y) + _z2;
-            _z2 = (b2 * x) - (a2 * y);
-            return y;
-        }
     }
 }

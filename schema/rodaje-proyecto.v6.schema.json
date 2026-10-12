@@ -117,6 +117,9 @@
           "sampleRate": {
             "type": "integer"
           },
+          "masterGainDb": {
+            "type": "number"
+          },
           "videoTracks": {
             "type": "array",
             "items": {

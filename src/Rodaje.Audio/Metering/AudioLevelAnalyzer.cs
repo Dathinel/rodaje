@@ -15,11 +15,13 @@ public sealed class AudioLevelAnalyzer
     private readonly TruePeakDetector _trueLeft = new();
     private readonly TruePeakDetector _trueRight = new();
     private readonly int _blockFrames;
+    private KWeightingFilter _kLeft;
+    private KWeightingFilter _kRight;
 
     private long _blockStart;
     private int _frames;
     private float _peakL, _peakR, _trueL, _trueR;
-    private double _squaresL, _squaresR;
+    private double _squaresL, _squaresR, _weighted;
     private bool _clipped;
 
     public AudioLevelAnalyzer(AudioLevelRing ring, int blockFrames = DefaultBlockFrames)
@@ -67,6 +69,9 @@ public sealed class AudioLevelAnalyzer
                 _peakR = MathF.Max(_peakR, MathF.Abs(r));
                 _squaresL += l * l;
                 _squaresR += r * r;
+                double kl = _kLeft.Next(l);
+                double kr = _kRight.Next(r);
+                _weighted += (kl * kl) + (kr * kr);
             }
 
             _trueL = MathF.Max(_trueL, _trueLeft.Process(piece, 0, Channels, n));
@@ -100,6 +105,8 @@ public sealed class AudioLevelAnalyzer
         Publish();
         _trueLeft.Reset();
         _trueRight.Reset();
+        _kLeft.Reset();
+        _kRight.Reset();
         _blockStart = position;
     }
 
@@ -107,13 +114,13 @@ public sealed class AudioLevelAnalyzer
     {
         if (_frames > 0)
         {
-            Ring.Write(new LevelBlock(_blockStart, _frames, _peakL, _peakR, _trueL, _trueR, _squaresL, _squaresR, _clipped));
+            Ring.Write(new LevelBlock(_blockStart, _frames, _peakL, _peakR, _trueL, _trueR, _squaresL, _squaresR, _clipped, _weighted));
         }
 
         _blockStart += _frames;
         _frames = 0;
         _peakL = _peakR = _trueL = _trueR = 0;
-        _squaresL = _squaresR = 0;
+        _squaresL = _squaresR = _weighted = 0;
         _clipped = false;
     }
 }

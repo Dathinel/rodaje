@@ -192,6 +192,69 @@ public static class EffectEdits
         }
     }
 
+    /// <summary>
+    /// Sube o baja el volumen (<c>rodaje.audio</c>) del clip o de la pista en <paramref name="deltaDb"/>: su valor y cada
+    /// keyframe, así la envolvente conserva su forma. Crea el efecto si falta. Lo que pase del rango queda en el borde.
+    /// </summary>
+    public static void ShiftGain(EditContext ctx, string clipId, double deltaDb)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        EnsureFinite(deltaDb, BuiltInEffects.AudioParameters.GainDb);
+        Host host = EditableHost(ctx, clipId);
+        if (host.Track.Kind != TrackKind.Audio && host.Clip is null)
+        {
+            throw new EditException("El volumen solo se cambia en clips o pistas de audio.");
+        }
+
+        EffectInstance effect = host.Effects.Find(e => e.Type == BuiltInEffects.Audio)
+            ?? FindEffect(host, AddEffect(ctx, clipId, BuiltInEffects.Audio));
+        effect.Enabled = true;
+        string name = BuiltInEffects.AudioParameters.GainDb;
+        if (!effect.Parameters.TryGetValue(name, out Parameter? gain))
+        {
+            gain = new Parameter { Value = EffectRegistry.DefaultValue(BuiltInEffects.Audio, name) };
+            effect.Parameters[name] = gain;
+        }
+
+        gain.Value = Limit(effect, name, gain.Value + deltaDb);
+        for (int i = 0; i < gain.Keyframes.Count; i++)
+        {
+            Keyframe key = gain.Keyframes[i];
+            gain.Keyframes[i] = key with { Value = Limit(effect, name, key.Value + deltaDb) };
+        }
+    }
+
+    /// <summary>
+    /// Deja el primer efecto de <paramref name="type"/> del clip o la pista con exactamente esos valores constantes (sin
+    /// keyframes) y activado, creándolo si falta; con <paramref name="values"/> nulo quita los de ese tipo. Para aplicar un
+    /// preajuste en un paso.
+    /// </summary>
+    public static void SetEffectValues(EditContext ctx, string clipId, string type, IReadOnlyDictionary<string, double>? values)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentException.ThrowIfNullOrWhiteSpace(type);
+        Host host = EditableHost(ctx, clipId);
+        if (values is null)
+        {
+            host.Effects.RemoveAll(e => e.Type == type);
+            return;
+        }
+
+        EffectInstance effect = host.Effects.Find(e => e.Type == type) ?? FindEffect(host, AddEffect(ctx, clipId, type));
+        effect.Enabled = true;
+        effect.Parameters.Clear();
+        foreach ((string name, double value) in values)
+        {
+            EnsureFinite(value, name);
+            if (EffectRegistry.Find(type)?.FindParameter(name) is null)
+            {
+                throw new EditException($"«{type}» no tiene el parámetro «{name}».");
+            }
+
+            effect.Parameters[name] = new Parameter { Value = Limit(effect, name, value) };
+        }
+    }
+
     /// <summary>Cambia la curva que va del keyframe de <paramref name="at"/> al siguiente.</summary>
     public static void SetKeyframeInterpolation(
         EditContext ctx,

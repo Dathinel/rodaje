@@ -1,3 +1,4 @@
+using Rodaje.Audio.Processing;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -26,11 +27,30 @@ internal sealed partial class TimelinePlan
             if (end > start)
             {
                 clips.Add(new AudioClipPlan(clip.Id, Key(media[clip.MediaId], projectDirectory), start, end, sourceIn,
-                    Gain(clip, trackDb, entering, leaving), Retime(clip)));
+                    Gain(clip, trackDb, entering, leaving), Retime(clip), AudioEffects(clip.Effects)));
             }
         }
 
-        return new AudioTrackPlan(track.Id, JoinSplitPieces(clips, included, cuts));
+        return new AudioTrackPlan(track.Id, JoinSplitPieces(clips, included, cuts), AudioEffects(track.Effects));
+    }
+
+    /// <summary>
+    /// El clip de audio solo, para medirlo: su tramo propio en la línea de tiempo, su volumen y su velocidad, sin la pista,
+    /// fundidos ni transiciones (aunque la pista esté silenciada). Nulo si no es un clip con sonido.
+    /// </summary>
+    internal static AudioClipPlan? Isolated(Project project, string sequenceId, string clipId, string projectDirectory)
+    {
+        if (project.GetSequence(sequenceId).FindClip(clipId) is not { } found || found.Track.Kind != TrackKind.Audio
+            || found.Clip is not { Generator: null } clip || clip.Duration <= Time.Zero
+            || project.Media.Find(m => m.Id == clip.MediaId) is not { HasAudio: true } media)
+        {
+            return null;
+        }
+
+        Curve? db = GainCurve(clip.Effects);
+        return new AudioClipPlan(clip.Id, Key(media, projectDirectory), clip.Start.ToSamples(AudioSampleRate), clip.End.ToSamples(AudioSampleRate),
+            clip.SourceIn.ToSamples(AudioSampleRate), db is null ? null : new GainPlan(db, null, default, default, default, default), Retime(clip),
+            AudioEffects(clip.Effects));
     }
 
     /// <summary>
@@ -62,6 +82,48 @@ internal sealed partial class TimelinePlan
         }
 
         return clips;
+    }
+
+    /// <summary>
+    /// El primer ecualizador y el primer compresor activos (en ese orden, sea cual sea el de la pila); nulo si no hay o si
+    /// el ecualizador no cambia nada y no hay compresor. Los parámetros no se animan: vale su valor fijo.
+    /// </summary>
+    internal static AudioEffectsSettings? AudioEffects(IReadOnlyList<EffectInstance> effects)
+    {
+        EffectInstance? eq = effects.FirstOrDefault(e => e.Enabled && e.Type == BuiltInEffects.Equalizer);
+        EffectInstance? compressor = effects.FirstOrDefault(e => e.Enabled && e.Type == BuiltInEffects.Compressor);
+        EqualizerSettings? equalizer = null;
+        if (eq is not null)
+        {
+            equalizer = new EqualizerSettings(
+                Value(eq, BuiltInEffects.EqualizerParameters.LowCut),
+                Value(eq, BuiltInEffects.EqualizerParameters.LowGain),
+                Value(eq, BuiltInEffects.EqualizerParameters.LowFrequency),
+                Value(eq, BuiltInEffects.EqualizerParameters.MidGain),
+                Value(eq, BuiltInEffects.EqualizerParameters.MidFrequency),
+                Value(eq, BuiltInEffects.EqualizerParameters.MidQ),
+                Value(eq, BuiltInEffects.EqualizerParameters.PresenceGain),
+                Value(eq, BuiltInEffects.EqualizerParameters.PresenceFrequency),
+                Value(eq, BuiltInEffects.EqualizerParameters.PresenceQ),
+                Value(eq, BuiltInEffects.EqualizerParameters.HighGain),
+                Value(eq, BuiltInEffects.EqualizerParameters.HighFrequency));
+            equalizer = equalizer.IsIdentity ? null : equalizer;
+        }
+
+        CompressorSettings? dynamics = compressor is null ? null : new CompressorSettings(
+            Value(compressor, BuiltInEffects.CompressorParameters.Threshold),
+            Value(compressor, BuiltInEffects.CompressorParameters.Ratio),
+            Value(compressor, BuiltInEffects.CompressorParameters.Attack),
+            Value(compressor, BuiltInEffects.CompressorParameters.Release),
+            Value(compressor, BuiltInEffects.CompressorParameters.Makeup),
+            Value(compressor, BuiltInEffects.CompressorParameters.Knee));
+        return equalizer is null && dynamics is null ? null : new AudioEffectsSettings(equalizer, dynamics);
+    }
+
+    private static double Value(EffectInstance effect, string name)
+    {
+        ParameterDefinition definition = EffectRegistry.Find(effect.Type)!.FindParameter(name)!;
+        return effect.Parameters.TryGetValue(name, out Parameter? p) ? definition.Clamp(p.Keyframes.Count > 0 ? p.Keyframes[0].Value : p.Value) : definition.DefaultValue;
     }
 
     /// <summary>Velocidad del clip; nula sin ella o si deja el origen tal cual (1× sin reversa ni congelado).</summary>

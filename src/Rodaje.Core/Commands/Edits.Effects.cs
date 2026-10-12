@@ -109,6 +109,42 @@ public static partial class Edits
             ctx => EffectEdits.SetKeyframeInterpolation(ctx, clipId, effectId, name, at, interpolation),
             ids);
 
+    /// <summary>Sube o baja el volumen de cada clip o pista (valor y keyframes) en los dB de <paramref name="deltaDbByOwner"/>, en un solo paso.</summary>
+    public static SequenceEditCommand ShiftGain(
+        string sequenceId,
+        IReadOnlyDictionary<string, double> deltaDbByOwner,
+        string description,
+        IIdGenerator? ids = null) =>
+        new(description, sequenceId, ctx =>
+        {
+            foreach ((string owner, double delta) in deltaDbByOwner)
+            {
+                EffectEdits.ShiftGain(ctx, owner, delta);
+            }
+        }, ids);
+
+    /// <summary>Aplica un preajuste: el efecto queda con esos valores; nulo lo quita (ver <see cref="EffectEdits.SetEffectValues"/>).</summary>
+    public static SequenceEditCommand SetEffectValues(
+        string sequenceId,
+        string clipId,
+        string type,
+        IReadOnlyDictionary<string, double>? values,
+        string description,
+        IIdGenerator? ids = null) =>
+        new(description, sequenceId, ctx => EffectEdits.SetEffectValues(ctx, clipId, type, values), ids);
+
+    /// <summary>Fija la ganancia de toda la mezcla (<see cref="Sequence.MasterGainDb"/>).</summary>
+    public static SequenceEditCommand SetMasterGain(string sequenceId, double gainDb, string description, IIdGenerator? ids = null) =>
+        new(description, sequenceId, ctx =>
+        {
+            if (!double.IsFinite(gainDb))
+            {
+                throw new EditException("La ganancia maestra necesita un número.");
+            }
+
+            ctx.Sequence.MasterGainDb = Math.Round(Math.Clamp(gainDb, Sequence.MinMasterGainDb, Sequence.MaxMasterGainDb), 2);
+        }, ids);
+
     private static string ParameterKey(string kind, string clipId, string effectId, string name, Time at) =>
         $"{kind}:{clipId}:{effectId}:{name}:{at.Ticks}";
 }

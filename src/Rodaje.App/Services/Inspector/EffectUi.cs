@@ -3,6 +3,8 @@ using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using A = Rodaje.Core.Model.BuiltInEffects.AudioParameters;
 using C = Rodaje.Core.Model.BuiltInEffects.ColorParameters;
+using K = Rodaje.Core.Model.BuiltInEffects.CompressorParameters;
+using Q = Rodaje.Core.Model.BuiltInEffects.EqualizerParameters;
 using Mk = Rodaje.Core.Model.BuiltInEffects.MaskParameters;
 using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
 using Tr = Rodaje.Core.Model.BuiltInTransitions;
@@ -66,6 +68,8 @@ public static class EffectUi
         [BuiltInEffects.Sharpen] = "Nitidez",
         [BuiltInEffects.Blend] = "Modo de mezcla",
         [BuiltInEffects.Audio] = "Volumen y fundidos",
+        [BuiltInEffects.Equalizer] = "Ecualizador",
+        [BuiltInEffects.Compressor] = "Compresor",
         [BuiltInEffects.Speed] = "Velocidad",
         [BuiltInEffects.Stabilize] = "Estabilizar",
         [BuiltInEffects.Mask] = "Máscara",
@@ -87,6 +91,8 @@ public static class EffectUi
         [BuiltInEffects.Sharpen] = "Realza los bordes.",
         [BuiltInEffects.Blend] = "Cómo se mezcla la capa con lo que tiene debajo.",
         [BuiltInEffects.Audio] = "Volumen con keyframes y fundidos de entrada y salida.",
+        [BuiltInEffects.Equalizer] = "Corte de graves, graves, medios, presencia y agudos.",
+        [BuiltInEffects.Compressor] = "Empareja el volumen: baja lo que pasa del umbral y compensa.",
         [BuiltInEffects.Speed] = "Reservado y oculto: la velocidad se cambia en la pestaña Velocidad.",
         [BuiltInEffects.Stabilize] = "Quita el temblor de la cámara. Se analiza desde el menú del clip (Estabilizar...).",
         [BuiltInEffects.Mask] = "Deja ver solo una parte de la capa: rectángulo, elipse, trazo libre o el sujeto de «Quitar fondo».",
@@ -132,6 +138,25 @@ public static class EffectUi
             [(BuiltInEffects.Audio, A.GainDb)] = new("Volumen", "Cambiar volumen", "dB", 1, 0.5, 1),
             [(BuiltInEffects.Audio, A.FadeIn)] = new("Fundido de entrada", "Fundido de entrada", "s", 1, 0.1, 1, UiRange.HalfClip),
             [(BuiltInEffects.Audio, A.FadeOut)] = new("Fundido de salida", "Fundido de salida", "s", 1, 0.1, 1, UiRange.HalfClip),
+
+            [(BuiltInEffects.Equalizer, Q.LowCut)] = new("Corte de graves", "Cambiar corte de graves", "Hz", 1, 5, 0),
+            [(BuiltInEffects.Equalizer, Q.LowGain)] = new("Graves", "Cambiar graves", "dB", 1, 0.5, 1),
+            [(BuiltInEffects.Equalizer, Q.LowFrequency)] = new("Frecuencia", "Cambiar frecuencia de graves", "Hz", 1, 5, 0),
+            [(BuiltInEffects.Equalizer, Q.MidGain)] = new("Medios", "Cambiar medios", "dB", 1, 0.5, 1),
+            [(BuiltInEffects.Equalizer, Q.MidFrequency)] = new("Frecuencia", "Cambiar frecuencia de medios", "Hz", 1, 10, 0),
+            [(BuiltInEffects.Equalizer, Q.MidQ)] = new("Ancho (Q)", "Cambiar ancho de medios", "", 1, 0.1, 1),
+            [(BuiltInEffects.Equalizer, Q.PresenceGain)] = new("Presencia", "Cambiar presencia", "dB", 1, 0.5, 1),
+            [(BuiltInEffects.Equalizer, Q.PresenceFrequency)] = new("Frecuencia", "Cambiar frecuencia de presencia", "Hz", 1, 50, 0),
+            [(BuiltInEffects.Equalizer, Q.PresenceQ)] = new("Ancho (Q)", "Cambiar ancho de presencia", "", 1, 0.1, 1),
+            [(BuiltInEffects.Equalizer, Q.HighGain)] = new("Agudos", "Cambiar agudos", "dB", 1, 0.5, 1),
+            [(BuiltInEffects.Equalizer, Q.HighFrequency)] = new("Frecuencia", "Cambiar frecuencia de agudos", "Hz", 1, 100, 0),
+
+            [(BuiltInEffects.Compressor, K.Threshold)] = new("Umbral", "Cambiar umbral", "dB", 1, 0.5, 1),
+            [(BuiltInEffects.Compressor, K.Ratio)] = new("Relación", "Cambiar relación", ":1", 1, 0.1, 1),
+            [(BuiltInEffects.Compressor, K.Attack)] = new("Ataque", "Cambiar ataque", "ms", 1, 0.5, 1, UiRange.Custom, 0.1, 100),
+            [(BuiltInEffects.Compressor, K.Release)] = new("Relajación", "Cambiar relajación", "ms", 1, 5, 0, UiRange.Custom, 10, 1000),
+            [(BuiltInEffects.Compressor, K.Makeup)] = new("Compensación", "Cambiar compensación", "dB", 1, 0.5, 1),
+            [(BuiltInEffects.Compressor, K.Knee)] = new("Rodilla", "Cambiar rodilla", "dB", 1, 0.5, 1),
 
             [(BuiltInEffects.Stabilize, BuiltInEffects.StabilizeParameters.Intensity)] =
                 Percent with { Label = "Intensidad", Description = "Cambiar intensidad de estabilizar" },

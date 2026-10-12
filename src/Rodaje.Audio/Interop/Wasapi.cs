@@ -27,6 +27,10 @@ internal static class AudioConstants
     public const uint ClsctxAll = 0x17;
     public const int ShareModeShared = 0;
     public const int FlowRender = 0;
+    public const int FlowCapture = 1;
+    public const int RoleConsole = 0;
+    public const uint CaptureFlagDiscontinuity = 0x1;
+    public const uint CaptureFlagSilent = 0x2;
     public const int RoleMultimedia = 1;
     public const uint StreamFlagsEventCallback = 0x00040000;
     public const uint StreamFlagsAutoConvertPcm = 0x80000000;
@@ -41,6 +45,7 @@ internal static class AudioConstants
     public static readonly Guid IidAudioClient = new("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
     public static readonly Guid IidAudioClient3 = new("7ED4EE07-8E67-4CD4-8C1A-2B7A5987AD42");
     public static readonly Guid IidRenderClient = new("F294ACFC-3146-4483-A7BF-ADDCA7C260E2");
+    public static readonly Guid IidCaptureClient = new("C8ADBD64-E71E-48A0-A4DE-185C395CD317");
     public static readonly Guid IidAudioClock = new("CD63314F-3FBA-4A1B-812C-EF96358728E7");
     public static readonly Guid IidNotificationClient = new("7991EEC9-7E89-4D85-8390-6C703CEC60C0");
     public static readonly Guid SubtypeIeeeFloat = new("00000003-0000-0010-8000-00AA00389B71");
@@ -111,6 +116,29 @@ internal partial interface IMMDeviceEnumerator
 
     [PreserveSig]
     int UnregisterEndpointNotificationCallback(nint client);
+}
+
+[GeneratedComInterface, Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E")]
+internal partial interface IMMDeviceCollection
+{
+    [PreserveSig]
+    int GetCount(out uint count);
+
+    [PreserveSig]
+    int Item(uint index, out nint device);
+}
+
+[GeneratedComInterface, Guid("C8ADBD64-E71E-48A0-A4DE-185C395CD317")]
+internal unsafe partial interface IAudioCaptureClient
+{
+    [PreserveSig]
+    int GetBuffer(byte** data, out uint frames, out uint flags, out ulong devicePosition, out ulong qpcPosition);
+
+    [PreserveSig]
+    int ReleaseBuffer(uint frames);
+
+    [PreserveSig]
+    int GetNextPacketSize(out uint frames);
 }
 
 [GeneratedComInterface, Guid("D666063F-1587-4E43-81F1-B948E807363F")]

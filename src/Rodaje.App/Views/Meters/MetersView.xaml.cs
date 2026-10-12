@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Rodaje.App.Services.Audio;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Player;
@@ -36,7 +37,10 @@ internal sealed partial class MetersView : UserControl, IEditorView
     private readonly MeterBallistics[] _ballistics = [new(), new()];
     private readonly Channel[] _channels = new Channel[2];
     private readonly List<TextBlock> _scaleLabels = [];
+    private readonly LoudnessIntegrator _integrated = new();
     private PlayerEngine? _engine;
+    private EditorServices? _services;
+    private (double Momentary, double ShortTerm, double Integrated) _loudnessShown = (double.NaN, double.NaN, double.NaN);
     private SettingsStore? _settings;
     private ContainerVisual? _root;
     private CompositionColorBrush? _lowBrush;
@@ -75,7 +79,12 @@ internal sealed partial class MetersView : UserControl, IEditorView
     {
         ArgumentNullException.ThrowIfNull(services);
         _engine = services.Player;
+        _services = services;
         _settings = services.Settings;
+        BuildNormalizeMenu();
+        services.Session.ProjectEdited += (_, _) => UpdateMasterItem();
+        services.Session.ProjectOpened += (_, _) => UpdateMasterItem();
+        UpdateMasterItem();
         DecayDecibelsPerSecond = services.Settings.Current.MeterDecayDbPerSecond;
         _clipOnBrush = (Brush)Application.Current.Resources["MeterHighBrush"];
         _clipOffBrush = (Brush)Application.Current.Resources["ControlBrush"];
@@ -104,7 +113,9 @@ internal sealed partial class MetersView : UserControl, IEditorView
         }
 
         _readoutIndex = -1;
+        _integrated.Reset();
         UpdateReadout(force: true);
+        UpdateLoudness(null);
         UpdateClip();
     }
 
@@ -261,6 +272,7 @@ internal sealed partial class MetersView : UserControl, IEditorView
         {
             _lastReadout = now;
             UpdateReadout(force: false);
+            UpdateLoudness(_engine.TakeLoudness());
         }
 
         if (!sounded && _ballistics[0].IsIdle && _ballistics[1].IsIdle && _engine.Snapshot is { IsPlaying: false, ShuttleRate: 0 })
@@ -329,6 +341,90 @@ internal sealed partial class MetersView : UserControl, IEditorView
         {
             _readoutIndex = index;
             PeakText.Text = Readouts[index];
+        }
+    }
+
+    /// <summary>
+    /// Sonoridad (EBU R128) a lo sumo diez veces por segundo: la corta (3 s) arriba y la integrada desde el último clic
+    /// abajo, que suma un bloque de 400 ms por cada lectura mientras suena.
+    /// </summary>
+    private void UpdateLoudness((double Momentary, double ShortTerm)? powers)
+    {
+        if (powers is { } p)
+        {
+            _integrated.Add(p.Momentary);
+        }
+
+        double momentary = powers is { } m ? Loudness.ToLufs(m.Momentary) : double.NegativeInfinity;
+        double shortTerm = powers is { } s ? Loudness.ToLufs(s.ShortTerm) : double.NegativeInfinity;
+        double integrated = _integrated.IntegratedLufs;
+        (double, double, double) shown = (Math.Round(momentary, 1), Math.Round(shortTerm, 1), Math.Round(integrated, 1));
+        if (shown.Equals(_loudnessShown))
+        {
+            return;
+        }
+
+        _loudnessShown = shown;
+        ShortTermText.Text = Readouts[ReadoutIndex(shortTerm)];
+        IntegratedText.Text = "I " + Readouts[ReadoutIndex(integrated)];
+        double master = _services?.Session.Sequence.MasterGainDb ?? 0;
+        ToolTipService.SetToolTip(LoudnessPanel,
+            $"Sonoridad (LUFS, EBU R128)\nMomentánea (400 ms): {Readouts[ReadoutIndex(momentary)]}\nCorta (3 s): {Readouts[ReadoutIndex(shortTerm)]}\n" +
+            $"Integrada desde el último clic: {Readouts[ReadoutIndex(integrated)]}\nGanancia maestra: {LoudnessNormalizer.Signed(master)} dB\n" +
+            "Clic para volver a empezar.");
+    }
+
+    private void BuildNormalizeMenu()
+    {
+        foreach ((double lufs, string name) in LoudnessNormalizer.Targets)
+        {
+            var item = new MenuFlyoutItem { Text = name };
+            item.Click += async (_, _) => await NormalizeMixAsync(lufs);
+            NormalizeMixMenu.Items.Add(item);
+        }
+
+        NormalizeMixMenu.Items.Add(new MenuFlyoutSeparator());
+        var custom = new MenuFlyoutItem { Text = "Otro objetivo…" };
+        custom.Click += async (_, _) =>
+        {
+            if (await Inspector.Properties.PropertiesPanel.AskTargetAsync(XamlRoot, "Normalizar la mezcla") is { } lufs)
+            {
+                await NormalizeMixAsync(lufs);
+            }
+        };
+        NormalizeMixMenu.Items.Add(custom);
+    }
+
+    private async Task NormalizeMixAsync(double lufs)
+    {
+        if (_services is not { } services)
+        {
+            return;
+        }
+
+        NormalizeMixMenu.IsEnabled = false;
+        try
+        {
+            await LoudnessNormalizer.NormalizeMixAsync(services.Session, lufs);
+        }
+        finally
+        {
+            NormalizeMixMenu.IsEnabled = true;
+        }
+    }
+
+    private void UpdateMasterItem()
+    {
+        double master = _services?.Session.Sequence.MasterGainDb ?? 0;
+        ClearMasterItem.IsEnabled = master != 0;
+        ClearMasterItem.Text = master == 0 ? "Sin ganancia maestra" : $"Quitar la ganancia maestra ({LoudnessNormalizer.Signed(master)} dB)";
+    }
+
+    private void OnClearMasterClick(object sender, RoutedEventArgs e)
+    {
+        if (_services is { } services && services.Session.Sequence.MasterGainDb != 0)
+        {
+            services.Session.Execute(Rodaje.Core.Commands.Edits.SetMasterGain(services.Session.SequenceId, 0, "Quitar la ganancia maestra"));
         }
     }
 

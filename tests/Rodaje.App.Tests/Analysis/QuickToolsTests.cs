@@ -73,6 +73,7 @@ public class QuickToolsTests
         Assert.False(State(QuickTools.AutoSubtitles, []).Available);
         Assert.Contains("módulo", State(QuickTools.AutoSubtitles, ["cam"], module: false).Reason, StringComparison.Ordinal);
         Assert.True(State(QuickTools.TextToSpeech, []).Available);
-        Assert.Equal(12, QuickTools.All.Count);
+        Assert.True(State(QuickTools.VoiceOver, []).Available);
+        Assert.Equal(13, QuickTools.All.Count);
     }
 }

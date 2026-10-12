@@ -122,7 +122,7 @@ internal sealed partial class TimelinePlan
             }
         }
 
-        return new TimelinePlan(sequence, layers, hidden, new AudioPlan(audioTracks), missing);
+        return new TimelinePlan(sequence, layers, hidden, new AudioPlan(audioTracks, sequence.MasterGainDb), missing);
     }
 
     /// <summary>

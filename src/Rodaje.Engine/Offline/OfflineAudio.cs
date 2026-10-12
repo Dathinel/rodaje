@@ -102,6 +102,46 @@ public sealed class OfflineAudio : IDisposable
     }
 
     /// <summary>
+    /// Sonoridad de un clip de audio solo (EBU R128): con su volumen propio y su velocidad, sin la pista, los fundidos, las
+    /// transiciones ni la ganancia maestra, y sin el limitador. Base de «Normalizar» por clip.
+    /// </summary>
+    /// <exception cref="ArgumentException">No es un clip de audio con sonido.</exception>
+    /// <exception cref="IOException">El medio no se pudo leer.</exception>
+    public static LoudnessMeasurement MeasureClip(Project project, string sequenceId, string clipId, string? projectDirectory,
+        CancellationToken cancellationToken) =>
+        MeasureClip(project, sequenceId, clipId, projectDirectory ?? Environment.CurrentDirectory, MediaClipBackend.Instance.OpenAudio, cancellationToken);
+
+    internal static LoudnessMeasurement MeasureClip(Project project, string sequenceId, string clipId, string projectDirectory,
+        Func<string, IPcmSource> openAudio, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(openAudio);
+        AudioClipPlan clip = TimelinePlan.Isolated(project, sequenceId, clipId, projectDirectory)
+            ?? throw new ArgumentException("El clip no es de audio o no tiene sonido.", nameof(clipId));
+        using var mixer = new MixRenderer(new AudioPlan([new AudioTrackPlan("solo", [clip])]), openAudio, TimeSpan.FromSeconds(5),
+            TimeProvider.System, limit: false);
+        mixer.Seek(Time.FromSamples(clip.StartSample, SampleRate));
+        var meter = new LoudnessMeter();
+        float[] block = new float[Block * Channels];
+        for (long at = clip.StartSample; at < clip.EndSample;)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int frames = (int)Math.Min(Block, clip.EndSample - at);
+            Span<float> mix = block.AsSpan(0, frames * Channels);
+            mixer.Read(mix);
+            if (mixer.Errors > 0)
+            {
+                throw new IOException($"No se pudo leer el audio de «{Path.GetFileName(clip.Source.Path)}».");
+            }
+
+            meter.Process(mix);
+            at += frames;
+        }
+
+        return meter.Result();
+    }
+
+    /// <summary>
     /// Escribe la mezcla de <c>[start, end)</c> en un WAV (RIFF, o RF64 si pasa de 4 GB) con el formato pedido, de
     /// forma atómica. Devuelve las muestras por canal escritas: <c>end.ToSamples − start.ToSamples</c> a la tasa de
     /// <paramref name="format"/>.

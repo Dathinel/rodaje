@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
+using Rodaje.App.Services.Audio;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Timeline;
@@ -59,6 +60,12 @@ internal sealed class TrackHeaders
 
     /// <summary>Del menú de una cabecera de video: usarla (o dejar de usarla) como pista de subtítulos.</summary>
     public event Action<string, bool>? SubtitleRoleRequested;
+
+    /// <summary>Del menú de una cabecera de audio: un preajuste de ecualizador y compresor para la pista (nulo: quitarlos).</summary>
+    public event Action<string, AudioPreset?>? AudioPresetRequested;
+
+    /// <summary>El botón del micrófono (o el menú) de una cabecera de audio: grabar voz en off en esa pista.</summary>
+    public event Action<string>? VoiceOverRequested;
 
     public double ScrollY
     {
@@ -153,6 +160,21 @@ internal sealed class TrackHeaders
         }
         else
         {
+            var record = new ToggleButton
+            {
+                Content = new FontIcon { Glyph = "\uE720", FontSize = 12 },
+                Style = _toggleStyle,
+                IsEnabled = !track.Locked,
+            };
+            ToolTipService.SetToolTip(record, "Grabar voz en off en esta pista");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(record, "Grabar voz en off en esta pista");
+            string recordTrack = track.Id;
+            record.Click += (_, _) =>
+            {
+                record.IsChecked = false;
+                VoiceOverRequested?.Invoke(recordTrack);
+            };
+            toggles.Children.Add(record);
             toggles.Children.Add(Toggle(track, TrackToggle.Muted, track.Muted, track.Muted ? "" : "", track.Muted ? "Activar sonido" : "Silenciar pista"));
         }
 
@@ -177,7 +199,49 @@ internal sealed class TrackHeaders
             menu.Items.Add(role);
         }
 
+        if (row.Kind == TrackKind.Audio)
+        {
+            var effects = new MenuFlyoutSubItem { Text = "Ecualizador y compresor", Icon = new FontIcon { Glyph = "\uE9E9" } };
+            var voice = new MenuFlyoutItem { Text = "Grabar voz en off aquí…", Icon = new FontIcon { Glyph = "\uE720" }, IsEnabled = !row.Track.Locked };
+            string voiceTrack = row.TrackId;
+            voice.Click += (_, _) => VoiceOverRequested?.Invoke(voiceTrack);
+            menu.Items.Add(new MenuFlyoutSeparator());
+            menu.Items.Add(voice);
+            menu.Items.Add(effects);
+            Track track = row.Track;
+
+            // Se arma al abrir: la cabecera no se rehace cuando cambian los efectos de la pista.
+            menu.Opening += (_, _) =>
+            {
+                effects.Items.Clear();
+                effects.IsEnabled = !track.Locked;
+                AudioPreset? current = AudioPresetCommands.Match(track.Effects, out bool has);
+                effects.Items.Add(PresetItem(track.Id, null, "Sin ecualizador ni compresor", !has));
+                foreach (AudioPreset preset in AudioPresets.All)
+                {
+                    effects.Items.Add(PresetItem(track.Id, preset, preset.Name, ReferenceEquals(preset, current)));
+                }
+
+                if (has && current is null)
+                {
+                    effects.Items.Add(new RadioMenuFlyoutItem { Text = "Personalizado", IsChecked = true, IsEnabled = false, GroupName = "preajuste" });
+                }
+            };
+        }
+
         return menu;
+    }
+
+    private RadioMenuFlyoutItem PresetItem(string trackId, AudioPreset? preset, string text, bool isChecked)
+    {
+        var item = new RadioMenuFlyoutItem { Text = text, IsChecked = isChecked, GroupName = "preajuste" };
+        if (preset is not null)
+        {
+            ToolTipService.SetToolTip(item, preset.Description);
+        }
+
+        item.Click += (_, _) => AudioPresetRequested?.Invoke(trackId, preset);
+        return item;
     }
 
     private TextBlock GainControl(Track track)
