@@ -30,6 +30,8 @@
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\StabilizationStore.cs" Link="Analysis\StabilizationStore.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\VideoAnalysisEdits.cs" Link="Analysis\VideoAnalysisEdits.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\Logic\**\*.cs" Link="AnalysisLogic\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Subtítulos automáticos: leer el resultado del módulo, llevarlo a la secuencia y armar el paso, sin WinUI. -->
+    <Compile Include="..\..\src\Rodaje.App\Views\Subtitles\Logic\**\*.cs" Link="SubtitlesLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Biblioteca: carpetas, favoritos, búsqueda y datos de los medios, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Library\Logic\**\*.cs" Link="LibraryLogic\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
