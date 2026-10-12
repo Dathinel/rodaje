@@ -641,7 +641,7 @@ Las cuatro pruebas de la tarea 44 son `ProxyFact` y la CI de Windows no tiene ff
 
 ## 65. Biblioteca: organización vacía y herencia de la copia
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #66 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/biblioteca-herencia`
 - **Caminos:** `src/Rodaje.App/Views/Library/`, `tests/Rodaje.App.Tests/Library/`, `docs/tareas/`
 - **Lee:** entrega de la tarea 54 (`docs/tareas/2026-10-12-biblioteca-robusta.md`), `LibraryOrganizationStore.cs` (`Load(key, fallbackKey)` y `Write`), `LibraryView.Folders.cs:56-81`, revisión en bloque 7.
