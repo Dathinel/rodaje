@@ -71,6 +71,9 @@ internal sealed class TrackHeaders
     /// <summary>El botón del micrófono (o el menú) de una cabecera de audio: grabar voz en off en esa pista.</summary>
     public event Action<string>? VoiceOverRequested;
 
+    /// <summary>«Compresor de la pista…»: abre la pestaña Dinámica con el compresor de esa pista.</summary>
+    public event Action<string>? DynamicsRequested;
+
     public double ScrollY
     {
         get => -_shift.Y;
@@ -215,13 +218,17 @@ internal sealed class TrackHeaders
 
         if (row.Kind == TrackKind.Audio)
         {
-            var effects = new MenuFlyoutSubItem { Text = "Ecualizador y compresor", Icon = new FontIcon { Glyph = "\uE9E9" } };
+            var effects = new MenuFlyoutSubItem { Text = "Preajuste de audio", Icon = new FontIcon { Glyph = "\uE9E9" } };
+            var dynamics = new MenuFlyoutItem { Text = "Compresor de la pista\u2026" };
+            string dynamicsTrack = row.TrackId;
+            dynamics.Click += (_, _) => DynamicsRequested?.Invoke(dynamicsTrack);
             var voice = new MenuFlyoutItem { Text = "Grabar voz en off aquí…", Icon = new FontIcon { Glyph = "\uE720" }, IsEnabled = !row.Track.Locked };
             string voiceTrack = row.TrackId;
             voice.Click += (_, _) => VoiceOverRequested?.Invoke(voiceTrack);
             menu.Items.Add(new MenuFlyoutSeparator());
             menu.Items.Add(voice);
             menu.Items.Add(effects);
+            menu.Items.Add(dynamics);
             Track track = row.Track;
 
             // Se arma al abrir: la cabecera no se rehace cuando cambian los efectos de la pista.
@@ -231,6 +238,7 @@ internal sealed class TrackHeaders
                 effects.IsEnabled = !track.Locked;
                 AudioPreset? current = AudioPresetCommands.Match(track.Effects, out bool has);
                 effects.Items.Add(PresetItem(track.Id, null, "Sin ecualizador ni compresor", !has));
+                effects.Items.Add(new MenuFlyoutSeparator());
                 foreach (AudioPreset preset in AudioPresets.All)
                 {
                     effects.Items.Add(PresetItem(track.Id, preset, preset.Name, ReferenceEquals(preset, current)));

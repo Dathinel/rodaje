@@ -53,6 +53,29 @@ public readonly record struct Biquad(double B0, double B1, double B2, double A1,
         return Normalize((1 + cos) / 2, -(1 + cos), (1 + cos) / 2, 1 + alpha, -2 * cos, 1 - alpha);
     }
 
+    /// <summary>Pasa bajos de Butterworth (Q = 1/√2): dos en cascada son la mitad grave de un cruce Linkwitz-Riley de 4.º orden.</summary>
+    public static Biquad LowPass(double sampleRate, double hz)
+    {
+        (double cos, double alpha) = Angle(sampleRate, hz, Math.Sqrt(0.5));
+        return Normalize((1 - cos) / 2, 1 - cos, (1 - cos) / 2, 1 + alpha, -2 * cos, 1 - alpha);
+    }
+
+    /// <summary>Pasa todo de segundo orden; con Q = 1/√2 es la suma de las dos mitades de un cruce Linkwitz-Riley de 4.º orden.</summary>
+    public static Biquad AllPass(double sampleRate, double hz)
+    {
+        (double cos, double alpha) = Angle(sampleRate, hz, Math.Sqrt(0.5));
+        return Normalize(1 - alpha, -2 * cos, 1 + alpha, 1 + alpha, -2 * cos, 1 - alpha);
+    }
+
+    /// <summary>Filtra una muestra; <paramref name="z1"/> y <paramref name="z2"/> son los retardos.</summary>
+    public double Tick(double x, ref double z1, ref double z2)
+    {
+        double y = (B0 * x) + z1;
+        z1 = (B1 * x) - (A1 * y) + z2;
+        z2 = (B2 * x) - (A2 * y);
+        return y;
+    }
+
     /// <summary>Ganancia del filtro en <paramref name="hz"/>, en dB, de su función de transferencia.</summary>
     public double MagnitudeDb(double sampleRate, double hz)
     {

@@ -5,7 +5,7 @@ Volumen, sonoridad, ecualizador, compresor, ducking, voz en off y las herramient
 ## Volumen
 
 - **Por clip:** Propiedades › sección **Audio**: «Volumen» de −60 (silencio) a +24 dB, con keyframes; «Fundidos»: «Entrada» y «Salida» en segundos (hasta la mitad del clip). El botón de la cabecera restablece volumen y fundidos.
-- **Por pista:** en la cabecera de la pista de audio, arrastra el texto «Volumen 0,0 dB» a los lados (0,25 dB por píxel; con Mayús, 0,05); doble clic vuelve a 0 dB. Clic derecho en la cabecera: **Ecualizador y compresor** de la pista (Sin ecualizador ni compresor, Voz clara, Podcast, Música suave) y **Grabar voz en off aquí…**.
+- **Por pista:** en la cabecera de la pista de audio, arrastra el texto «Volumen 0,0 dB» a los lados (0,25 dB por píxel; con Mayús, 0,05); doble clic vuelve a 0 dB. Clic derecho en la cabecera: **Preajuste de audio**, **Compresor de la pista…** y **Grabar voz en off aquí…**.
 - **Envolvente:** con la herramienta de envolvente (**E**) sobre un clip de audio, un clic pone un punto y lo arrastra, agarrar un punto lo mueve sin pasar a sus vecinos y clic derecho lo quita. La altura es lineal en amplitud: 0 dB a media altura, +6 dB arriba y silencio abajo. El interruptor **bloquear envolventes** de la barra evita tocarlas sin querer.
 - Silenciar una pista: el altavoz de su cabecera.
 
@@ -23,10 +23,28 @@ Rodaje mide con EBU R128, el estándar que usan las plataformas y la televisión
 
 ## Ecualizador y compresor
 
-- **Preajuste rápido:** Propiedades › Audio › fila «Voz y música»: **Voz clara** (quita el retumbe, da presencia y empareja la voz), **Podcast** (voz cálida con compresión firme) o **Música suave** (más cuerpo y aire, compresión lenta). Pone un ecualizador y un compresor en un paso; «Sin ecualizador ni compresor» los quita.
-- **A mano:** Filtros › Añadir filtro › **Ecualizador** (corte de graves hasta 500 Hz; estantes de graves y agudos; campanas de medios y presencia con frecuencia y ancho Q; ±18 dB) y **Compresor** (umbral, relación 1:1 a 20:1, ataque, relajación, compensación y rodilla). Solo se aplica el primero de cada tipo que esté activo. También en las pistas.
+- **Preajuste rápido:** Propiedades › Audio › fila «Voz y música», el menú de la cabecera de una pista (**Preajuste de audio**) o la pestaña **Dinámica**. Los de voz traen también ecualizador; los demás dejan el que haya.
+  - **Voz para redes:** quita el retumbe, da presencia, compresión firme y no pasa de −1 dBTP.
+  - **Podcast:** voz cálida con compresión suave y constante.
+  - **Locución cálida:** cuerpo en los graves y compresión lenta en paralelo (85 %).
+  - **Música: pegamento:** 1 o 2 dB de reducción lenta para unir una mezcla.
+  - **Batería con pegada:** compresión en paralelo (45 %) que deja pasar el golpe.
+  - **Limitador de mezcla:** ∞:1 con 5 ms de anticipación y techo de −1 dBTP.
+  - **Multibanda voz:** tres bandas; frena el retumbe y las eses sin apagar la voz.
+- **Ecualizador a mano:** Filtros › Añadir filtro › **Ecualizador** (corte de graves hasta 500 Hz; estantes de graves y agudos; campanas de medios y presencia con frecuencia y ancho Q; ±18 dB).
 
 ## Bajar música bajo la voz (ducking)
+## Compresor (pestaña Dinámica)
+
+Abre la pestaña **Dinámica** del inspector: muestra el compresor del clip de audio seleccionado; arriba eliges otro: cualquier **pista** o la **mezcla**. También se abre con clic derecho en la cabecera de una pista (**Compresor de la pista…**), en los medidores (**Compresor de la mezcla…**) o con **Abrir en Dinámica** en Filtros.
+
+- **Curva y medidores:** la curva de transferencia (entrada contra salida, con la rodilla y la compensación), un punto con lo que suena y tres barras: **Entrada**, **Reducción** (compresor y limitador) y **Salida**, con el pico retenido.
+- **A/B: sin compresor** compara con la señal sin comprimir y **Escuchar sidechain** deja oír lo que oye el detector. Solo cambian lo que suena en la vista previa (no el proyecto ni la exportación) y se apagan al salir de la pestaña.
+- **Compresión:** umbral, relación (de 1:1 a ∞:1: 100 es limitador), ataque, relajación, rodilla, compensación y **mezcla** en paralelo. Umbral, relación y mezcla admiten **keyframes**: en un clip van con su material; en una pista o la mezcla, en el tiempo de la secuencia. **Relajación automática** suelta rápido tras un golpe y despacio tras una compresión larga; **Compensación automática** sube la mitad de lo que la curva quita a 0 dBFS.
+- **Detector y sidechain:** pico o RMS (con su ventana), estéreo enlazado o por canal, **pasa altos del detector** (los graves no disparan la compresión), **anticipación** de 0 a 10 ms (el compresor ve el golpe antes de que suene; Rodaje compensa el retraso, todo sigue sincronizado) y **Sidechain**: otra pista dispara la compresión. Para que la música baje cuando habla la voz: compresor en la pista de música, sidechain «Pista Voz», umbral −30 dB, relación 10:1; con anticipación, la música ya bajó cuando empieza la palabra.
+- **Multibanda:** tres bandas con dos cruces; cada una con su umbral (respecto del general) y su ganancia. Sin compresión suman plano.
+- **Limitador:** limitador de pico verdadero al final, con techo (−1 dBTP de fábrica).
+## Ducking: bajar la música bajo la voz
 
 Selecciona el clip de **música** y pulsa **Bajar música bajo la voz** en Herramientas (Editar › Bajar música bajo la voz..., o el menú del clip). El diálogo «Bajar música bajo la voz»:
 

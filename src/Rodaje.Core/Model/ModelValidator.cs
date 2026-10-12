@@ -110,6 +110,7 @@ public static partial class ModelValidator
 
         CheckTrackKinds(sequence.VideoTracks, TrackKind.Video, sequence, errors);
         CheckTrackKinds(sequence.AudioTracks, TrackKind.Audio, sequence, errors);
+        ValidateEffects(sequence.MasterEffects, new Track { Kind = TrackKind.Audio, Name = "mezcla" }, errors, checkId);
 
         var linkTracks = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         var linkSpeeds = new Dictionary<string, ClipSpeed?>(StringComparer.Ordinal);

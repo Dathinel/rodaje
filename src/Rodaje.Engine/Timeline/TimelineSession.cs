@@ -184,6 +184,19 @@ public sealed class TimelineSession : IDisposable
         return mixer.Levels.WeightedPower(Math.Max(end - (long)(window.TotalSeconds * rate), floor.ToSamples(rate)), end);
     }
 
+    /// <summary>
+    /// El compresor cuyo medidor se publica (<see cref="MeasureDynamics"/>) y, solo en la escucha, si suena su sidechain o
+    /// sin comprimir. Nulo, ninguno. Seguro desde cualquier hilo; no cambia el proyecto.
+    /// </summary>
+    public void MonitorDynamics(DynamicsMonitor? monitor) => _mixer?.Monitor(monitor);
+
+    /// <summary>
+    /// Entrada, salida y reducción del compresor que se mira en lo que suena en <c>(<paramref name="from"/>, <paramref name="to"/>]</c>;
+    /// nulo si no hay datos. Mismas reglas de hilos que <see cref="MeasureAudio"/>.
+    /// </summary>
+    public Rodaje.Audio.Processing.DynamicsReading? MeasureDynamics(Time from, Time to) =>
+        _mixer?.Dynamics.Measure(from.ToSamples(TimelinePlan.AudioSampleRate), to.ToSamples(TimelinePlan.AudioSampleRate));
+
     /// <summary>Abre la secuencia con FFmpeg, el dispositivo de audio predeterminado y un hilo de decodificación por medio.</summary>
     /// <param name="device">Dispositivo del compositor; los cuadros llegan como texturas suyas. Sin él se decodifica en la CPU.</param>
     /// <exception cref="KeyNotFoundException">La secuencia no existe en el proyecto.</exception>

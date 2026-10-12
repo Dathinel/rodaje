@@ -34,7 +34,7 @@ public class EffectRegistryTests
     {
         foreach (EffectDefinition definition in EffectRegistry.All)
         {
-            Assert.InRange(definition.Parameters.Length, 0, EffectDefinition.MaxParameters);
+            Assert.InRange(definition.Parameters.Length, 0, definition.Stage == EffectStage.Audio ? EffectDefinition.MaxAudioParameters : EffectDefinition.MaxParameters);
             Assert.Equal(definition.Parameters.Length, definition.Parameters.Select(p => p.Name).Distinct(StringComparer.Ordinal).Count());
             Assert.Equal(definition.Options.Length, definition.Options.Select(o => o.Name).Distinct(StringComparer.Ordinal).Count());
             Assert.DoesNotContain(definition.Options, o => o.Name == BuiltInEffects.CommonOptions.Source);

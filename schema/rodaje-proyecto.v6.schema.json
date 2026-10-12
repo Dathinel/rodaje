@@ -120,6 +120,72 @@
           "masterGainDb": {
             "type": "number"
           },
+          "masterEffects": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "parameters": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "number"
+                      },
+                      "keyframes": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "time": {
+                              "type": "integer",
+                              "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                            },
+                            "value": {
+                              "type": "number"
+                            },
+                            "interpolation": {
+                              "enum": [
+                                "hold",
+                                "linear",
+                                "easeIn",
+                                "easeOut",
+                                "easeInOut"
+                              ],
+                              "default": "linear"
+                            }
+                          },
+                          "required": [
+                            "time",
+                            "value"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "options": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
           "videoTracks": {
             "type": "array",
             "items": {
@@ -567,64 +633,7 @@
                       "effects": {
                         "type": "array",
                         "items": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "type": {
-                              "type": "string"
-                            },
-                            "enabled": {
-                              "type": "boolean"
-                            },
-                            "parameters": {
-                              "type": "object",
-                              "additionalProperties": {
-                                "type": "object",
-                                "properties": {
-                                  "value": {
-                                    "type": "number"
-                                  },
-                                  "keyframes": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "object",
-                                      "properties": {
-                                        "time": {
-                                          "type": "integer",
-                                          "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
-                                        },
-                                        "value": {
-                                          "type": "number"
-                                        },
-                                        "interpolation": {
-                                          "enum": [
-                                            "hold",
-                                            "linear",
-                                            "easeIn",
-                                            "easeOut",
-                                            "easeInOut"
-                                          ],
-                                          "default": "linear"
-                                        }
-                                      },
-                                      "required": [
-                                        "time",
-                                        "value"
-                                      ]
-                                    }
-                                  }
-                                }
-                              }
-                            },
-                            "options": {
-                              "type": "object",
-                              "additionalProperties": {
-                                "type": "string"
-                              }
-                            }
-                          }
+                          "$ref": "#/properties/sequences/items/properties/masterEffects/items"
                         }
                       }
                     }
@@ -633,7 +642,7 @@
                 "effects": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/effects/items"
+                    "$ref": "#/properties/sequences/items/properties/masterEffects/items"
                   }
                 },
                 "transitions": {

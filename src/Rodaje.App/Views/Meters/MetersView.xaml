@@ -32,6 +32,7 @@
                 <MenuFlyoutSeparator />
                 <MenuFlyoutSubItem x:Name="NormalizeMixMenu" Text="Normalizar la mezcla" />
                 <MenuFlyoutItem x:Name="ClearMasterItem" Text="Quitar la ganancia maestra" Click="OnClearMasterClick" />
+                    <MenuFlyoutItem Text="Compresor de la mezcla…" Click="OnMixCompressorClick" />
             </MenuFlyout>
         </Grid.ContextFlyout>
 

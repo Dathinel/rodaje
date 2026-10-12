@@ -123,6 +123,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
                 Subtitles.SubtitleFileCommands.ExportTrack(services, trackId);
             }
         };
+        _headers.DynamicsRequested += trackId => services.Session.ShowDynamics(new Rodaje.App.Services.Audio.DynamicsOwner(Rodaje.App.Services.Audio.DynamicsOwnerKind.Track, trackId));
         _headers.AudioPresetRequested += (trackId, preset) =>
         {
             if (Session is { } session)

@@ -70,6 +70,28 @@ internal sealed class AudioMixer : IAudioSampleSource, IDisposable
         _buffer.Rewind(KeepAfterReloadFrames, alignToChunk: effects);
     }
 
+    /// <summary>Lo que hace el compresor que se mira, por bloques en la posición en que suena. Se lee desde cualquier hilo.</summary>
+    public DynamicsMeterRing Dynamics => _renderer.Dynamics;
+
+    /// <summary>
+    /// Cambia el compresor que se mira. Si cambia lo que se escucha (sidechain o A/B), la mezcla vuelve a un borde de
+    /// lectura cercano para que se oiga en unos 30 ms y no tras todo lo mezclado por delante.
+    /// </summary>
+    public void Monitor(DynamicsMonitor? monitor)
+    {
+        DynamicsMonitor? previous = _renderer.Monitor;
+        if (Equals(previous, monitor))
+        {
+            return;
+        }
+
+        _renderer.Monitor = monitor;
+        if (previous is { Listen: true } or { Bypass: true } || monitor is { Listen: true } or { Bypass: true })
+        {
+            _buffer.Rewind(KeepAfterReloadFrames, alignToChunk: true);
+        }
+    }
+
     public void Dispose() => _buffer.Dispose();
 }
 
@@ -105,10 +127,17 @@ internal sealed class MixRenderer : IPcmSource
     /// </summary>
     public const double SlewDbPerBlock = 4;
 
+    /// <summary>Clave de la cadena de efectos de la mezcla (<see cref="DynamicsMonitor"/>).</summary>
+    public const string MasterKey = "mezcla:";
+
+    /// <summary>Cuadros por bloque del medidor del compresor que se mira.</summary>
+    private const int MeterBlock = 256;
+
     private const int Channels = 2;
 
     private readonly Func<string, IPcmSource> _open;
     private readonly Dictionary<string, Chain> _chains = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, KeyTrack> _keys = new(StringComparer.Ordinal);
     private readonly List<float[]> _trackMix = [];
     private readonly List<float[]> _busMix = [];
     private readonly TimeSpan _idleTimeout;
@@ -120,6 +149,7 @@ internal sealed class MixRenderer : IPcmSource
     private AudioPlan _plan;
     private double _masterDb;
     private AudioPlan? _pendingPlan;
+    private DynamicsMonitor? _monitor;
     private float[] _scratch = new float[4096 * Channels];
     private float[] _beforeLimiter = [];
     private long _position;
@@ -156,6 +186,16 @@ internal sealed class MixRenderer : IPcmSource
 
     public long Errors => Interlocked.Read(ref _errors);
 
+    /// <summary>Lo que hace el compresor que se mira (<see cref="Monitor"/>), por bloques y en la posición en que suena.</summary>
+    public DynamicsMeterRing Dynamics { get; } = new();
+
+    /// <summary>El compresor que se mira y, solo en la escucha, si se oye su sidechain o se compara sin él. Seguro desde cualquier hilo.</summary>
+    public DynamicsMonitor? Monitor
+    {
+        get => Volatile.Read(ref _monitor);
+        set => Volatile.Write(ref _monitor, value);
+    }
+
     /// <summary>Lo adopta la mezcla en su próxima lectura o seek. Seguro desde cualquier hilo.</summary>
     public void SetPlan(AudioPlan plan)
     {
@@ -187,6 +227,11 @@ internal sealed class MixRenderer : IPcmSource
             chain.Save(from);
         }
 
+        foreach (KeyTrack key in _keys.Values)
+        {
+            key.Save(from);
+        }
+
         foreach (Reader reader in _readers)
         {
             if (reader.Clip is { } clip && (clip.EndSample <= from || clip.StartSample >= to))
@@ -195,8 +240,16 @@ internal sealed class MixRenderer : IPcmSource
             }
         }
 
-        MixTracks(_plan.Tracks, from, to, interleaved, 0);
-        ApplyMaster(interleaved);
+        if (_plan.MasterEffects is { } master)
+        {
+            RunChain(MasterKey, master, _plan.MasterAutomation, null, new ChainInput(InputKind.Master, null, null, 0), from, interleaved);
+        }
+        else
+        {
+            MixTracks(_plan.Tracks, from, to, interleaved, 0);
+            ApplyMaster(interleaved);
+        }
+
         Span<float> beforeLimiter = default;
         if (_levels is not null)
         {
@@ -239,6 +292,11 @@ internal sealed class MixRenderer : IPcmSource
             chain.Restore(_position);
         }
 
+        foreach (KeyTrack key in _keys.Values)
+        {
+            key.Restore(_position);
+        }
+
         foreach (Reader reader in _readers)
         {
             Release(reader);
@@ -256,42 +314,79 @@ internal sealed class MixRenderer : IPcmSource
         Volatile.Write(ref _decodersOpen, 0);
     }
 
-    /// <summary>Suma las pistas en <paramref name="output"/> (<c>[from, to)</c>), cada una con sus efectos sobre su suma.</summary>
+    /// <summary>
+    /// Suma las pistas en <paramref name="output"/> (<c>[from, to)</c>), cada una con sus efectos sobre su suma. Las que
+    /// son sidechain de otra van primero y por delante (<see cref="AudioTrackPlan.KeyAhead"/>), para que quien las escucha
+    /// tenga la llave de lo que todavía no sale.
+    /// </summary>
     /// <param name="depth">Nivel de compuestos: cada uno usa sus propios intermedios.</param>
     private void MixTracks(IReadOnlyList<AudioTrackPlan> tracks, long from, long to, Span<float> output, int depth)
     {
         foreach (AudioTrackPlan track in tracks)
         {
-            Span<float> bus = output;
-            if (track.Effects is not null)
+            if (track.KeyAhead >= 0)
             {
-                bus = Buffer(_trackMix, depth, output.Length);
-            }
-
-            for (int i = FirstEndingAfter(track.Clips, from); i < track.Clips.Count && track.Clips[i].StartSample < to; i++)
-            {
-                AudioClipPlan clip = track.Clips[i];
-                long start = Math.Max(from, clip.StartSample);
-                long end = Math.Min(to, clip.EndSample);
-                Span<float> slice = bus.Slice((int)(start - from) * Channels, (int)(end - start) * Channels);
-                if (clip.Bus is { } nested)
+                ReadOnlySpan<float> mixed = Key(track).Render(this, track, from, to, depth);
+                for (int i = 0; i < output.Length; i++)
                 {
-                    MixBus(clip, nested, start, end, slice, depth);
-                }
-                else
-                {
-                    MixClip(clip, start, end, slice);
+                    output[i] += mixed[i];
                 }
             }
+        }
 
-            if (track.Effects is { } effects)
+        foreach (AudioTrackPlan track in tracks)
+        {
+            if (track.KeyAhead >= 0)
             {
-                // La pista suena también en sus huecos: la cola del ecualizador y la relajación del compresor siguen.
-                ApplyEffects(TrackKey(track.TrackId), effects, from, bus);
-                for (int i = 0; i < bus.Length; i++)
-                {
-                    output[i] += bus[i];
-                }
+                continue;
+            }
+
+            if (track.Effects is not { } effects)
+            {
+                MixTrackClips(track, from, to, output, depth);
+                continue;
+            }
+
+            // La pista suena también en sus huecos: la cola del ecualizador y la relajación del compresor siguen.
+            Span<float> bus = Buffer(_trackMix, depth, output.Length);
+            RunChain(TrackKey(track.TrackId), effects, track.Automation, null, new ChainInput(InputKind.Track, null, track, depth), from, bus);
+            for (int i = 0; i < bus.Length; i++)
+            {
+                output[i] += bus[i];
+            }
+        }
+    }
+
+    /// <summary>Lo que suena de la pista en <c>[from, to)</c>, con sus efectos, en <paramref name="output"/> (que se limpia).</summary>
+    private void TrackOutput(AudioTrackPlan track, long from, long to, Span<float> output, int depth)
+    {
+        output.Clear();
+        if (track.Effects is { } effects)
+        {
+            RunChain(TrackKey(track.TrackId), effects, track.Automation, null, new ChainInput(InputKind.Track, null, track, depth), from, output);
+        }
+        else
+        {
+            MixTrackClips(track, from, to, output, depth);
+        }
+    }
+
+    /// <summary>Suma los clips de la pista que suenan en <c>[from, to)</c>, sin los efectos de la pista.</summary>
+    private void MixTrackClips(AudioTrackPlan track, long from, long to, Span<float> output, int depth)
+    {
+        for (int i = FirstEndingAfter(track.Clips, from); i < track.Clips.Count && track.Clips[i].StartSample < to; i++)
+        {
+            AudioClipPlan clip = track.Clips[i];
+            long start = Math.Max(from, clip.StartSample);
+            long end = Math.Min(to, clip.EndSample);
+            Span<float> slice = output.Slice((int)(start - from) * Channels, (int)(end - start) * Channels);
+            if (clip.Bus is { } nested)
+            {
+                MixBus(clip, nested, start, end, slice, depth);
+            }
+            else
+            {
+                MixClip(clip, start, end, slice);
             }
         }
     }
@@ -300,10 +395,13 @@ internal sealed class MixRenderer : IPcmSource
     private void MixBus(AudioClipPlan clip, AudioBusPlan bus, long start, long end, Span<float> destination, int depth)
     {
         Span<float> mix = Buffer(_busMix, depth, destination.Length);
-        MixTracks(bus.Tracks, start, end, mix, depth + 1);
         if (clip.Effects is { } effects)
         {
-            ApplyEffects(clip.ClipId, effects, start, mix);
+            RunChain(clip.ClipId, effects, clip.Automation, clip, new ChainInput(InputKind.Bus, clip, null, depth), start, mix);
+        }
+        else
+        {
+            MixTracks(bus.Tracks, start, end, mix, depth + 1);
         }
 
         AddScaled(clip, start, mix, destination);
@@ -327,14 +425,28 @@ internal sealed class MixRenderer : IPcmSource
         return buffer;
     }
 
-    // Los identificadores de clips y pistas no se repiten en el proyecto; el prefijo solo separa los dos usos.
-    private static string TrackKey(string trackId) => "pista:" + trackId;
+    // Los identificadores de clips y pistas no se repiten en el proyecto; el prefijo solo separa los usos.
+    internal static string TrackKey(string trackId) => "pista:" + trackId;
+
+    private KeyTrack Key(AudioTrackPlan track)
+    {
+        if (!_keys.TryGetValue(track.TrackId, out KeyTrack? key))
+        {
+            key = new KeyTrack();
+            _keys[track.TrackId] = key;
+        }
+
+        return key;
+    }
 
     /// <summary>
-    /// El ecualizador y el compresor de un clip o de una pista sobre <paramref name="samples"/>, que empiezan en la muestra
-    /// <paramref name="start"/> de la línea de tiempo. Si no siguen a lo último que procesó, empieza de cero.
+    /// Llena <paramref name="output"/> (<c>[start, start + n)</c> de la línea de tiempo) con la salida de la cadena de
+    /// <paramref name="key"/>. Con anticipación o limitador la entrada se pide adelantada su retraso, así la salida cae en
+    /// su sitio; si no sigue a lo último que procesó, la cadena empieza de cero y se ceba con ese tramo.
     /// </summary>
-    private void ApplyEffects(string key, AudioEffectsSettings settings, long start, Span<float> samples)
+    /// <param name="curveClip">El clip cuyos keyframes van en tiempo del origen; nulo en una pista o la mezcla.</param>
+    private void RunChain(string key, AudioEffectsSettings settings, DynamicsAutomation? automation, AudioClipPlan? curveClip, ChainInput input,
+        long start, Span<float> output)
     {
         if (!_chains.TryGetValue(key, out Chain? chain))
         {
@@ -346,18 +458,107 @@ internal sealed class MixRenderer : IPcmSource
             chain.Effects.Configure(settings);
         }
 
-        if (chain.Next != start)
+        AudioEffectChain effects = chain.Effects;
+        DynamicsMonitor? monitor = Monitor;
+        bool watched = monitor is not null && monitor.Key == key;
+        effects.Bypass = watched && monitor!.Bypass;
+        effects.ListenSidechain = watched && monitor!.Listen;
+        int latency = effects.Latency;
+        int frames = output.Length / Channels;
+        long inputStart = start + latency;
+        if (chain.Next != inputStart)
         {
-            chain.Effects.Reset();
+            effects.Reset();
+            if (latency > 0)
+            {
+                Span<float> prime = chain.Prime(latency * Channels);
+                Fill(input, start, inputStart, prime);
+                Process(effects, prime, settings, automation, curveClip, start, meter: false);
+            }
         }
 
-        chain.Effects.Process(samples);
-        chain.Next = start + (samples.Length / Channels);
+        Fill(input, inputStart, inputStart + frames, output);
+        Process(effects, output, settings, automation, curveClip, inputStart, watched);
+        chain.Next = inputStart + frames;
+    }
+
+    /// <summary>La entrada de una cadena en <c>[from, to)</c>, sin sus efectos.</summary>
+    private void Fill(ChainInput input, long from, long to, Span<float> into)
+    {
+        into.Clear();
+        switch (input.Kind)
+        {
+            case InputKind.Clip:
+                ReadClip(input.Clip!, from, to, into);
+                break;
+            case InputKind.Track:
+                MixTrackClips(input.Track!, from, to, into, input.Depth);
+                break;
+            case InputKind.Bus:
+                MixTracks(input.Clip!.Bus!.Tracks, from, to, into, input.Depth + 1);
+                break;
+            default:
+                MixTracks(_plan.Tracks, from, to, into, 0);
+                ApplyMaster(into);
+                break;
+        }
     }
 
     /// <summary>
-    /// La ganancia maestra; tras un cambio llega a la nueva a <see cref="SlewDbPerBlock"/> por bloque, como el volumen de
-    /// los clips. Tras un seek ya está en la del plan.
+    /// Pasa <paramref name="samples"/> (la entrada desde <paramref name="inputStart"/>) por la cadena. Con keyframes va por
+    /// bloques de <see cref="GainBlock"/> alineados a la línea de tiempo: umbral y relación fijos en cada uno y la mezcla en
+    /// línea recta, así el resultado no depende de cómo se parta la lectura. El compresor que se mira se mide por bloques.
+    /// </summary>
+    private void Process(AudioEffectChain effects, Span<float> samples, AudioEffectsSettings settings, DynamicsAutomation? automation,
+        AudioClipPlan? curveClip, long inputStart, bool meter)
+    {
+        int frames = samples.Length / Channels;
+        int latency = effects.Latency;
+        if (automation is null)
+        {
+            effects.ClearAutomation();
+        }
+
+        int done = 0;
+        while (done < frames)
+        {
+            long s = inputStart + done;
+            int n = frames - done;
+            if (automation is not null)
+            {
+                long block = s - (((s % GainBlock) + GainBlock) % GainBlock);
+                n = (int)Math.Min(n, block + GainBlock - s);
+                double mix0 = automation.Mix.Evaluate(CurvePosition(curveClip, block - latency)) / 100;
+                double mix1 = automation.Mix.Evaluate(CurvePosition(curveClip, block + GainBlock - latency)) / 100;
+                long at = CurvePosition(curveClip, block);
+                effects.Automate(automation.Threshold.Evaluate(at), automation.Ratio.Evaluate(at),
+                    mix0 + ((mix1 - mix0) * (s - block) / GainBlock), (mix1 - mix0) / GainBlock);
+            }
+
+            if (meter)
+            {
+                n = Math.Min(n, MeterBlock);
+            }
+
+            effects.Process(samples.Slice(done * Channels, n * Channels), KeySignal(settings, s, n));
+            if (meter)
+            {
+                Dynamics.Write(s - latency, n, effects.Reading);
+            }
+
+            done += n;
+        }
+    }
+
+    private static long CurvePosition(AudioClipPlan? clip, long sample) => clip is null ? sample : clip.SourceSampleAt(sample);
+
+    /// <summary>La mezcla de la pista sidechain en <c>[from, from + frames)</c>; vacío si no hay llave o no cubre ese tramo.</summary>
+    private ReadOnlySpan<float> KeySignal(AudioEffectsSettings settings, long from, int frames) =>
+        settings.SidechainTrackId is { } id && _keys.TryGetValue(id, out KeyTrack? key) ? key.Slice(from, frames) : default;
+
+    /// <summary>
+    /// El ecualizador y el compresor de la mezcla y la ganancia maestra; tras un cambio llega a la nueva a
+    /// <see cref="SlewDbPerBlock"/> por bloque, como el volumen de los clips. Tras un seek ya está en la del plan.
     /// </summary>
     private void ApplyMaster(Span<float> mix)
     {
@@ -402,6 +603,38 @@ internal sealed class MixRenderer : IPcmSource
 
     private void MixClip(AudioClipPlan clip, long start, long end, Span<float> destination)
     {
+        int frames = (int)(end - start);
+        if (clip.Effects is { } effects)
+        {
+            if (!_chains.TryGetValue(clip.ClipId, out Chain? chain))
+            {
+                chain = new Chain(new AudioEffectChain(effects, TimelinePlan.AudioSampleRate));
+                _chains[clip.ClipId] = chain;
+            }
+
+            Span<float> processed = chain.Output(frames * Channels);
+            RunChain(clip.ClipId, effects, clip.Automation, clip, new ChainInput(InputKind.Clip, clip, null, 0), start, processed);
+            AddScaled(clip, start, processed, destination);
+            return;
+        }
+
+        if (_scratch.Length < frames * Channels)
+        {
+            _scratch = new float[frames * Channels];
+        }
+
+        Span<float> scratch = _scratch.AsSpan(0, frames * Channels);
+        scratch.Clear();
+        ReadClip(clip, start, end, scratch);
+        AddScaled(clip, start, scratch, destination);
+    }
+
+    /// <summary>
+    /// El origen del clip en <c>[start, end)</c> de la línea de tiempo, sin volumen ni efectos, en <paramref name="into"/>
+    /// (limpio). Puede pasar del final del clip (la anticipación de un compresor): sigue el medio, y donde no hay, silencio.
+    /// </summary>
+    private void ReadClip(AudioClipPlan clip, long start, long end, Span<float> into)
+    {
         if (_failed.Contains(clip.Source))
         {
             return;
@@ -409,7 +642,7 @@ internal sealed class MixRenderer : IPcmSource
 
         if (clip.Retime is { } retime)
         {
-            MixRetimed(clip, retime, start, end, destination);
+            ReadRetimed(clip, retime, start, end, into);
             return;
         }
 
@@ -420,7 +653,7 @@ internal sealed class MixRenderer : IPcmSource
             long silent = Math.Min(end - start, -sourceSample);
             start += silent;
             sourceSample += silent;
-            destination = destination[(int)(silent * Channels)..];
+            into = into[(int)(silent * Channels)..];
             if (start >= end)
             {
                 return;
@@ -434,12 +667,6 @@ internal sealed class MixRenderer : IPcmSource
         }
 
         int frames = (int)(end - start);
-        if (_scratch.Length < frames * Channels)
-        {
-            _scratch = new float[frames * Channels];
-        }
-
-        Span<float> scratch = _scratch.AsSpan(0, frames * Channels);
 #pragma warning disable CA1031 // Un medio dañado no puede callar la mezcla: queda en silencio y se cuenta.
         try
         {
@@ -452,7 +679,7 @@ internal sealed class MixRenderer : IPcmSource
             int got = 0;
             while (got < frames)
             {
-                int read = reader.Pcm.Read(scratch[(got * Channels)..]);
+                int read = reader.Pcm.Read(into[(got * Channels)..(frames * Channels)]);
                 if (read <= 0)
                 {
                     break;
@@ -462,18 +689,13 @@ internal sealed class MixRenderer : IPcmSource
             }
 
             reader.Next += got;
-            if (clip.Effects is { } effects)
-            {
-                ApplyEffects(clip.ClipId, effects, start, scratch[..(got * Channels)]);
-            }
-
-            AddScaled(clip, start, scratch[..(got * Channels)], destination);
         }
         catch (Exception)
         {
             Interlocked.Increment(ref _errors);
             _failed.Add(clip.Source);
             Close(reader);
+            into.Clear();
         }
 #pragma warning restore CA1031
 
@@ -487,7 +709,7 @@ internal sealed class MixRenderer : IPcmSource
     /// Un clip con velocidad: el decodificador lo lee <see cref="RetimedReader"/>, que se queda con el lector mientras
     /// muestre el mismo origen en cada instante (<see cref="RetimedReader.Serves"/>). Un congelado es silencio.
     /// </summary>
-    private void MixRetimed(AudioClipPlan clip, AudioRetime retime, long start, long end, Span<float> destination)
+    private void ReadRetimed(AudioClipPlan clip, AudioRetime retime, long start, long end, Span<float> into)
     {
         if (retime.Map.Freeze)
         {
@@ -501,12 +723,6 @@ internal sealed class MixRenderer : IPcmSource
         }
 
         int frames = (int)(end - start);
-        if (_scratch.Length < frames * Channels)
-        {
-            _scratch = new float[frames * Channels];
-        }
-
-        Span<float> scratch = _scratch.AsSpan(0, frames * Channels);
 #pragma warning disable CA1031 // Un medio dañado no puede callar la mezcla: queda en silencio y se cuenta.
         try
         {
@@ -520,20 +736,15 @@ internal sealed class MixRenderer : IPcmSource
                 retimed.Adopt(retime);
             }
 
-            retimed.Read(start, scratch, reader.Next);
+            retimed.Read(start, into[..(frames * Channels)], reader.Next);
             reader.Next = retimed.DecoderNext;
-            if (clip.Effects is { } effects)
-            {
-                ApplyEffects(clip.ClipId, effects, start, scratch);
-            }
-
-            AddScaled(clip, start, scratch, destination);
         }
         catch (Exception)
         {
             Interlocked.Increment(ref _errors);
             _failed.Add(clip.Source);
             Close(reader);
+            into.Clear();
         }
 #pragma warning restore CA1031
 
@@ -722,11 +933,22 @@ internal sealed class MixRenderer : IPcmSource
         _anchorPending = true;
         _plan = plan;
         var used = new HashSet<string>(StringComparer.Ordinal);
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        if (plan.MasterEffects is not null)
+        {
+            used.Add(MasterKey);
+        }
+
         foreach (AudioTrackPlan track in AudioPlan.AllTracks(plan.Tracks))
         {
             if (track.Effects is not null)
             {
                 used.Add(TrackKey(track.TrackId));
+            }
+
+            if (track.KeyAhead >= 0)
+            {
+                keys.Add(track.TrackId);
             }
 
             foreach (AudioClipPlan clip in track.Clips)
@@ -742,6 +964,12 @@ internal sealed class MixRenderer : IPcmSource
         {
             _chains.Remove(key);
         }
+
+        foreach (string key in _keys.Keys.Where(k => !keys.Contains(k)).ToList())
+        {
+            _keys.Remove(key);
+        }
+
         _failed.Clear();
         foreach (Reader reader in _readers)
         {
@@ -784,9 +1012,21 @@ internal sealed class MixRenderer : IPcmSource
         }
     }
 
+    private enum InputKind
+    {
+        Clip,
+        Track,
+        Bus,
+        Master,
+    }
+
+    /// <summary>De dónde sale la entrada de una cadena: el origen de un clip, los clips de una pista, un compuesto o toda la mezcla.</summary>
+    private readonly record struct ChainInput(InputKind Kind, AudioClipPlan? Clip, AudioTrackPlan? Track, int Depth);
+
     /// <summary>
-    /// La cadena de un clip o de una pista con la muestra que espera a continuación y su estado al empezar cada una de las
-    /// últimas lecturas: tras una edición la mezcla vuelve a uno de esos bordes y sigue como si no hubiera vuelto.
+    /// La cadena de un clip, una pista o la mezcla con la muestra de entrada que espera a continuación y su estado al
+    /// empezar cada una de las últimas lecturas: tras una edición la mezcla vuelve a uno de esos bordes y sigue como si no
+    /// hubiera vuelto. Lleva sus propios intermedios, así las cadenas anidadas no se pisan.
     /// </summary>
     private sealed class Chain(AudioEffectChain effects)
     {
@@ -794,14 +1034,20 @@ internal sealed class MixRenderer : IPcmSource
 
         private readonly long[] _at = new long[History];
         private readonly long[] _next = new long[History];
-        private readonly double[] _states = new double[History * AudioEffectChain.StateSize];
+        private readonly double[][] _states = new double[History][];
+        private float[] _output = [];
+        private float[] _prime = [];
         private int _count;
         private int _head;
 
         public AudioEffectChain Effects { get; } = effects;
 
-        /// <summary>Muestra de la línea de tiempo que sigue a lo último procesado; -1 si no se sabe.</summary>
+        /// <summary>Muestra de la línea de tiempo (de entrada) que sigue a lo último procesado; -1 si no se sabe.</summary>
         public long Next { get; set; } = -1;
+
+        public Span<float> Output(int length) => Grow(ref _output, length);
+
+        public Span<float> Prime(int length) => Grow(ref _prime, length);
 
         public void Save(long position)
         {
@@ -817,7 +1063,13 @@ internal sealed class MixRenderer : IPcmSource
 
             _at[slot] = position;
             _next[slot] = Next;
-            Effects.State.CopyTo(_states, slot * AudioEffectChain.StateSize);
+            double[] state = Effects.State;
+            if (_states[slot]?.Length != state.Length)
+            {
+                _states[slot] = new double[state.Length];
+            }
+
+            state.CopyTo(_states[slot], 0);
         }
 
         public void Restore(long position)
@@ -825,9 +1077,9 @@ internal sealed class MixRenderer : IPcmSource
             for (int i = _count - 1; i >= 0; i--)
             {
                 int slot = (_head + i) % History;
-                if (_at[slot] == position)
+                if (_at[slot] == position && _states[slot].Length == Effects.State.Length)
                 {
-                    Array.Copy(_states, slot * AudioEffectChain.StateSize, Effects.State, 0, AudioEffectChain.StateSize);
+                    _states[slot].CopyTo(Effects.State, 0);
                     Next = _next[slot];
                     _count = i;
                     return;
@@ -835,6 +1087,126 @@ internal sealed class MixRenderer : IPcmSource
             }
 
             Next = -1;
+            _count = 0;
+        }
+
+        private static Span<float> Grow(ref float[] buffer, int length)
+        {
+            if (buffer.Length < length)
+            {
+                buffer = new float[length];
+            }
+
+            return buffer.AsSpan(0, length);
+        }
+    }
+
+    /// <summary>
+    /// Una pista que hace de sidechain: su salida de <c>[from, to + KeyAhead)</c>, que suena en <c>[from, to)</c> y que
+    /// los compresores que la escuchan leen adelantada su anticipación. Guarda lo que llevaba adelantado al empezar cada
+    /// lectura, como las cadenas.
+    /// </summary>
+    private sealed class KeyTrack
+    {
+        private const int History = 64;
+
+        private readonly long[] _at = new long[History];
+        private readonly long[] _savedBase = new long[History];
+        private readonly float[][] _saved = new float[History][];
+        private float[] _data = [];
+        private long _base;
+        private int _frames = -1;
+        private int _count;
+        private int _head;
+
+        /// <summary>Asegura <c>[from, to + ahead)</c> y devuelve lo de <c>[from, to)</c>.</summary>
+        public ReadOnlySpan<float> Render(MixRenderer mixer, AudioTrackPlan track, long from, long to, int depth)
+        {
+            long need = to + track.KeyAhead;
+            if (_frames >= 0 && _base <= from && _base + _frames == from + track.KeyAhead)
+            {
+                int drop = (int)(from - _base);
+                Array.Copy(_data, drop * Channels, _data, 0, (_frames - drop) * Channels);
+                _frames -= drop;
+            }
+            else
+            {
+                _frames = 0;
+            }
+
+            _base = from;
+            int total = (int)(need - from);
+            if (_data.Length < total * Channels)
+            {
+                Array.Resize(ref _data, total * Channels);
+            }
+
+            if (need > from + _frames)
+            {
+                mixer.TrackOutput(track, from + _frames, need, _data.AsSpan(_frames * Channels, (total - _frames) * Channels), depth);
+            }
+
+            _frames = total;
+            return _data.AsSpan(0, (int)(to - from) * Channels);
+        }
+
+        public ReadOnlySpan<float> Slice(long from, int frames) =>
+            _frames >= 0 && from >= _base && from + frames <= _base + _frames
+                ? _data.AsSpan((int)(from - _base) * Channels, frames * Channels)
+                : default;
+
+        public void Save(long position)
+        {
+            int slot = (_head + _count) % History;
+            if (_count == History)
+            {
+                _head = (_head + 1) % History;
+            }
+            else
+            {
+                _count++;
+            }
+
+            _at[slot] = position;
+            _savedBase[slot] = _base;
+            int length = Math.Max(0, _frames) * Channels;
+            if (_frames < 0)
+            {
+                _saved[slot] = [];
+                _savedBase[slot] = long.MinValue;
+                return;
+            }
+
+            if (_saved[slot]?.Length != length)
+            {
+                _saved[slot] = new float[length];
+            }
+
+            _data.AsSpan(0, length).CopyTo(_saved[slot]);
+        }
+
+        public void Restore(long position)
+        {
+            for (int i = _count - 1; i >= 0; i--)
+            {
+                int slot = (_head + i) % History;
+                if (_at[slot] == position && _savedBase[slot] != long.MinValue)
+                {
+                    float[] saved = _saved[slot];
+                    if (_data.Length < saved.Length)
+                    {
+                        Array.Resize(ref _data, saved.Length);
+                    }
+
+                    saved.CopyTo(_data, 0);
+                    _base = _savedBase[slot];
+                    _frames = saved.Length / Channels;
+                    _count = i;
+                    return;
+                }
+            }
+
+            _frames = -1;
             _count = 0;
         }
     }
@@ -858,4 +1230,17 @@ internal sealed class MixRenderer : IPcmSource
 
         public bool Closed { get; set; }
     }
+}
+
+/// <summary>
+/// El compresor que el panel mira: su clave (<see cref="ForClip"/>, <see cref="ForTrack"/> o <see cref="ForMix"/>) y, solo
+/// para escuchar, si suena su sidechain o la señal sin comprimir (A/B). No cambia el proyecto ni la exportación.
+/// </summary>
+public sealed record DynamicsMonitor(string Key, bool Listen = false, bool Bypass = false)
+{
+    public static string ForClip(string clipId) => clipId;
+
+    public static string ForTrack(string trackId) => MixRenderer.TrackKey(trackId);
+
+    public static string ForMix() => MixRenderer.MasterKey;
 }

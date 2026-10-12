@@ -26,6 +26,20 @@ public sealed class Sequence
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public double MasterGainDb { get; set; }
 
+    /// <summary>Efectos de audio de toda la mezcla (ecualizador y compresor), después de la ganancia maestra; keyframes en tiempo de la secuencia.</summary>
+    [JsonIgnore]
+    public List<EffectInstance> MasterEffects { get; set; } = [];
+
+    /// <summary><see cref="MasterEffects"/> en el archivo: no se escribe si está vacía.</summary>
+    [JsonPropertyName("masterEffects")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public List<EffectInstance>? MasterEffectsInFile
+    {
+        get => MasterEffects.Count > 0 ? MasterEffects : null;
+        set => MasterEffects = value ?? [];
+    }
+
     public List<Track> VideoTracks { get; set; } = [];
 
     public List<Track> AudioTracks { get; set; } = [];
@@ -48,6 +62,7 @@ public sealed class Sequence
         Sequence copy = (Sequence)MemberwiseClone();
         copy.VideoTracks = VideoTracks.ConvertAll(t => t.Clone());
         copy.AudioTracks = AudioTracks.ConvertAll(t => t.Clone());
+        copy.MasterEffects = MasterEffects.ConvertAll(e => e.Clone());
         copy.Markers = Markers.ConvertAll(m => m.Clone());
         copy.Regions = Regions.ConvertAll(r => r.Clone());
         return copy;

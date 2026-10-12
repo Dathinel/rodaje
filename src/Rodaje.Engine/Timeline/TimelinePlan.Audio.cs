@@ -4,6 +4,7 @@ using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Playback.Composition;
+using K = Rodaje.Core.Model.BuiltInEffects.CompressorParameters;
 
 namespace Rodaje.Engine.Timeline;
 
@@ -60,15 +61,22 @@ internal sealed partial class TimelinePlan
                 if (clip.IsCompound)
                 {
                     clips.Add(new AudioClipPlan(clip.Id, default, start, end, sourceIn, Gain(clip, trackDb, entering, leaving), null,
-                        AudioEffects(clip.Effects)) { Bus = Bus(clip, clip.Start - before, clip.End + after, depth) });
+                        AudioEffects(clip.Effects))
+                    {
+                        Bus = Bus(clip, clip.Start - before, clip.End + after, depth),
+                        Automation = Automation(clip.Effects, Time.Zero),
+                    });
                     continue;
                 }
 
                 clips.Add(new AudioClipPlan(clip.Id, Key(media[clip.MediaId], projectDirectory), start, end, sourceIn,
-                    Gain(clip, trackDb, entering, leaving), Retime(clip), AudioEffects(clip.Effects)));
+                    Gain(clip, trackDb, entering, leaving), Retime(clip), AudioEffects(clip.Effects)) { Automation = Automation(clip.Effects, Time.Zero) });
             }
 
-            return new AudioTrackPlan(track.Id, JoinSplitPieces(clips, included, cuts), AudioEffects(track.Effects));
+            return new AudioTrackPlan(track.Id, JoinSplitPieces(clips, included, cuts), AudioEffects(track.Effects))
+            {
+                Automation = Automation(track.Effects, offset),
+            };
         }
 
         /// <summary>Las pistas de audio de la secuencia del compuesto que suenan en <c>[from, to)</c>, llevadas a la línea de tiempo.</summary>
@@ -98,7 +106,7 @@ internal sealed partial class TimelinePlan
                 tracks.Add(Track(windowed, offset, depth + 1));
             }
 
-            return new AudioBusPlan(tracks);
+            return new AudioBusPlan(AssignKeys(tracks));
         }
     }
 
@@ -178,16 +186,108 @@ internal sealed partial class TimelinePlan
             equalizer = equalizer.IsIdentity ? null : equalizer;
         }
 
-        CompressorSettings? dynamics = compressor is null ? null : new CompressorSettings(
-            Value(compressor, BuiltInEffects.CompressorParameters.Threshold),
-            Value(compressor, BuiltInEffects.CompressorParameters.Ratio),
-            Value(compressor, BuiltInEffects.CompressorParameters.Attack),
-            Value(compressor, BuiltInEffects.CompressorParameters.Release),
-            Value(compressor, BuiltInEffects.CompressorParameters.Makeup),
-            Value(compressor, BuiltInEffects.CompressorParameters.Knee));
-        return equalizer is null && dynamics is null ? null : new AudioEffectsSettings(equalizer, dynamics);
+        CompressorSettings? dynamics = compressor is null ? null : Dynamics(compressor);
+        string? sidechain = compressor?.Options.GetValueOrDefault(BuiltInEffects.CompressorOptions.Sidechain);
+        return equalizer is null && dynamics is null
+            ? null
+            : new AudioEffectsSettings(equalizer, dynamics) { SidechainTrackId = string.IsNullOrEmpty(sidechain) ? null : sidechain };
     }
 
+    private static CompressorSettings Dynamics(EffectInstance effect)
+    {
+        double V(string name) => Value(effect, name);
+        bool On(string name) => Value(effect, name) >= 0.5;
+        MultibandSettings? bands = V(K.Bands) >= 2
+            ? new MultibandSettings(V(K.LowCrossover), V(K.HighCrossover), V(K.LowThreshold), V(K.MidThreshold), V(K.HighThreshold),
+                V(K.LowGain), V(K.MidGain), V(K.HighGain))
+            : null;
+        return new CompressorSettings(V(K.Threshold), V(K.Ratio), V(K.Attack), V(K.Release), V(K.Makeup), V(K.Knee))
+        {
+            Detector = On(K.Detector) ? LevelDetector.Rms : LevelDetector.Peak,
+            RmsWindowMs = V(K.RmsWindow),
+            AutoRelease = On(K.AutoRelease),
+            AutoMakeup = On(K.AutoMakeup),
+            LookaheadMs = V(K.Lookahead),
+            Linked = On(K.StereoLink),
+            Mix = V(K.Mix) / 100,
+            SidechainHighPassHz = V(K.SidechainHighPass),
+            Multiband = bands,
+            CeilingDb = On(K.Limiter) ? V(K.Ceiling) : null,
+        };
+    }
+
+    /// <summary>
+    /// Umbral, relación y mezcla animados del primer compresor activo; nulo si ninguno tiene keyframes. En un clip las
+    /// posiciones son muestras del origen; en una pista o la mezcla, de la línea de tiempo desde <paramref name="offset"/>.
+    /// </summary>
+    internal static DynamicsAutomation? Automation(IReadOnlyList<EffectInstance> effects, Time offset)
+    {
+        EffectInstance? compressor = effects.FirstOrDefault(e => e.Enabled && e.Type == BuiltInEffects.Compressor);
+        if (compressor is null || !compressor.Parameters.Any(p => p.Key is K.Threshold or K.Ratio or K.Mix && p.Value.Keyframes.Count > 0))
+        {
+            return null;
+        }
+
+        EffectDefinition definition = EffectRegistry.Find(BuiltInEffects.Compressor)!;
+        Curve Of(string name)
+        {
+            ParameterDefinition p = definition.FindParameter(name)!;
+            return Curve.From(compressor.Parameters.GetValueOrDefault(name), p.DefaultValue, p.Clamp,
+                ticks => Time.FromTicks(ticks + offset.Ticks).ToSamples(AudioSampleRate));
+        }
+
+        return new DynamicsAutomation(Of(K.Threshold), Of(K.Ratio), Of(K.Mix));
+    }
+
+    /// <summary>
+    /// Marca las pistas que son sidechain de otro compresor del mismo nivel con lo que deben ir por delante, y quita las
+    /// llaves que no valen: a sí misma, a una pista que no está (silenciada o de otro nivel) o desde una pista que ya es llave.
+    /// </summary>
+    internal static List<AudioTrackPlan> AssignKeys(List<AudioTrackPlan> tracks)
+    {
+        var ids = new HashSet<string>(tracks.Select(t => t.TrackId), StringComparer.Ordinal);
+        var ahead = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (AudioTrackPlan track in tracks)
+        {
+            int latency = track.Effects?.LatencyFrames(AudioSampleRate) ?? 0;
+            Note(track.Effects, track.TrackId, latency);
+            foreach (AudioClipPlan clip in track.Clips)
+            {
+                Note(clip.Effects, track.TrackId, latency + (clip.Effects?.LatencyFrames(AudioSampleRate) ?? 0));
+            }
+        }
+
+        if (ahead.Count == 0 && !tracks.Exists(t => t.Effects?.SidechainTrackId is not null || t.Clips.Any(c => c.Effects?.SidechainTrackId is not null)))
+        {
+            return tracks;
+        }
+
+        return tracks.ConvertAll(track =>
+        {
+            bool isKey = ahead.TryGetValue(track.TrackId, out int frames);
+            return track with
+            {
+                KeyAhead = isKey ? frames : -1,
+                Effects = Valid(track.Effects, track.TrackId, isKey),
+                Clips = track.Clips.Any(c => c.Effects?.SidechainTrackId is not null)
+                    ? [.. track.Clips.Select(c => c with { Effects = Valid(c.Effects, track.TrackId, isKey) })]
+                    : track.Clips,
+            };
+        });
+
+        void Note(AudioEffectsSettings? effects, string owner, int frames)
+        {
+            if (effects?.SidechainTrackId is { } key && key != owner && ids.Contains(key) && effects.Compressor is not null)
+            {
+                ahead[key] = Math.Max(frames, ahead.GetValueOrDefault(key));
+            }
+        }
+
+        AudioEffectsSettings? Valid(AudioEffectsSettings? effects, string owner, bool ownerIsKey) =>
+            effects?.SidechainTrackId is { } key && (ownerIsKey || key == owner || !ahead.ContainsKey(key))
+                ? effects with { SidechainTrackId = null }
+                : effects;
+    }
     private static double Value(EffectInstance effect, string name)
     {
         ParameterDefinition definition = EffectRegistry.Find(effect.Type)!.FindParameter(name)!;

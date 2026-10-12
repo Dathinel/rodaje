@@ -160,7 +160,11 @@ public sealed record OptionDefinition(string Name, OptionKind Kind, string Defau
 /// <summary>Definición estática de un tipo de efecto o de transición.</summary>
 public sealed class EffectDefinition
 {
+    /// <summary>Parámetros de un efecto que llega a la composición (los valores van por valor a la GPU).</summary>
     public const int MaxParameters = 16;
+
+    /// <summary>Un efecto de audio no pasa por la composición: admite más.</summary>
+    public const int MaxAudioParameters = 32;
 
     public EffectDefinition(string type, int code, EffectTarget target, EffectStage stage,
         ImmutableArray<ParameterDefinition> parameters = default, ImmutableArray<OptionDefinition> options = default)
@@ -168,9 +172,10 @@ public sealed class EffectDefinition
         ArgumentException.ThrowIfNullOrWhiteSpace(type);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(code);
         parameters = parameters.IsDefault ? [] : parameters;
-        if (parameters.Length > MaxParameters)
+        int limit = stage == EffectStage.Audio ? MaxAudioParameters : MaxParameters;
+        if (parameters.Length > limit)
         {
-            throw new ArgumentOutOfRangeException(nameof(parameters), $"Un efecto admite hasta {MaxParameters} parámetros.");
+            throw new ArgumentOutOfRangeException(nameof(parameters), $"Un efecto admite hasta {limit} parámetros.");
         }
 
         Type = type;

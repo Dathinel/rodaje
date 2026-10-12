@@ -150,7 +150,13 @@ internal sealed partial class TimelinePlan
             VideoTracks = video.Tracks,
             AudioTracks = sequence.AudioTracks,
         };
-        return new TimelinePlan(sequence, video.Layers, hidden, new AudioPlan(audioTracks, sequence.MasterGainDb), video.Missing, expanded);
+        // La mezcla no admite sidechain externo: su llave tendría que ir por delante de todo lo que la forma.
+        var audioPlan = new AudioPlan(AssignKeys(audioTracks), sequence.MasterGainDb)
+        {
+            MasterEffects = AudioEffects(sequence.MasterEffects) is { } master ? master with { SidechainTrackId = null } : null,
+            MasterAutomation = Automation(sequence.MasterEffects, Time.Zero),
+        };
+        return new TimelinePlan(sequence, video.Layers, hidden, audioPlan, video.Missing, expanded);
     }
 
     /// <summary>

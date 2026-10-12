@@ -66,6 +66,8 @@ public static class CompoundOps
         Width = sequence.Width,
         Height = sequence.Height,
         SampleRate = sequence.SampleRate,
+        MasterGainDb = sequence.MasterGainDb,
+        MasterEffects = sequence.MasterEffects,
         Markers = sequence.Markers,
         Regions = sequence.Regions,
         VideoTracks = Expand(project, sequence.VideoTracks, TrackKind.Video, path, keep),

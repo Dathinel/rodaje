@@ -8,22 +8,32 @@ namespace Rodaje.App.Services.Audio;
 /// <summary>Los preajustes de ecualizador y compresor (<see cref="AudioPresets"/>) sobre un clip o una pista, en un paso.</summary>
 internal static class AudioPresetCommands
 {
-    /// <summary>Deja el ecualizador y el compresor del clip o la pista como el preajuste; nulo quita los dos.</summary>
+    /// <summary>
+    /// Deja el compresor (y el ecualizador, si el preajuste trae uno) del clip, la pista o la mezcla como el preajuste; nulo
+    /// quita los dos. El dueño es el identificador del clip, de la pista o de la secuencia (la mezcla).
+    /// </summary>
     public static SequenceEditCommand Apply(string sequenceId, string ownerId, AudioPreset? preset) =>
         new(preset is null ? "Quitar ecualizador y compresor" : $"Preajuste de audio «{preset.Name}»", sequenceId, ctx =>
         {
-            EffectEdits.SetEffectValues(ctx, ownerId, BuiltInEffects.Equalizer, preset?.Equalizer);
+            if (preset is null || preset.Equalizer is not null)
+            {
+                EffectEdits.SetEffectValues(ctx, ownerId, BuiltInEffects.Equalizer, preset?.Equalizer);
+            }
+
             EffectEdits.SetEffectValues(ctx, ownerId, BuiltInEffects.Compressor, preset?.Compressor);
         });
 
-    /// <summary>El preajuste con el que coinciden los efectos; nulo si no hay ecualizador ni compresor activos o si se tocaron a mano.</summary>
+    /// <summary>
+    /// El preajuste con el que coinciden los efectos (el ecualizador solo cuenta si el preajuste trae uno); nulo si no hay
+    /// ecualizador ni compresor activos o si se tocaron a mano.
+    /// </summary>
     public static AudioPreset? Match(IReadOnlyList<EffectInstance> effects, out bool hasEffects)
     {
         ArgumentNullException.ThrowIfNull(effects);
         EffectInstance? eq = effects.FirstOrDefault(e => e.Enabled && e.Type == BuiltInEffects.Equalizer);
         EffectInstance? compressor = effects.FirstOrDefault(e => e.Enabled && e.Type == BuiltInEffects.Compressor);
         hasEffects = eq is not null || compressor is not null;
-        return hasEffects ? AudioPresets.All.FirstOrDefault(p => Same(eq, p.Equalizer) && Same(compressor, p.Compressor)) : null;
+        return hasEffects ? AudioPresets.All.FirstOrDefault(p => (p.Equalizer is null || Same(eq, p.Equalizer)) && Same(compressor, p.Compressor)) : null;
     }
 
     private static bool Same(EffectInstance? effect, IReadOnlyDictionary<string, double>? values)

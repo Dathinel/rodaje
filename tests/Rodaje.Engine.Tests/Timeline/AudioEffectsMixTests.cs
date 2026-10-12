@@ -84,9 +84,9 @@ public sealed class AudioEffectsMixTests(ITestOutputHelper output) : IDisposable
         b.AddMedia("musica", Rational.Fps30, 900, video: false);
         Clip voice = b.AddAudio(0, "voz", S(0.25), S(1), S(3));
         b.AddAudio(0, "musica", S(3.25), Time.Zero, S(2.5));
-        voice.Effects.Add(Effect("eq", BuiltInEffects.Equalizer, AudioPresets.ClearVoice.Equalizer!));
-        voice.Effects.Add(Effect("comp", BuiltInEffects.Compressor, AudioPresets.ClearVoice.Compressor!));
-        b.Sequence.AudioTracks[0].Effects.Add(Effect("pista", BuiltInEffects.Compressor, AudioPresets.SoftMusic.Compressor!));
+        voice.Effects.Add(Effect("eq", BuiltInEffects.Equalizer, AudioPresets.SocialVoice.Equalizer!));
+        voice.Effects.Add(Effect("comp", BuiltInEffects.Compressor, AudioPresets.SocialVoice.Compressor!));
+        b.Sequence.AudioTracks[0].Effects.Add(Effect("pista", BuiltInEffects.Compressor, AudioPresets.MusicGlue.Compressor!));
         Func<long, float> speech = AudioSignals.Syllables(7);
         Func<long, float> music = i => (float)((0.3 * Math.Sin(2 * Math.PI * 220 * i / Rate)) + (0.1 * Math.Sin(2 * Math.PI * 3300 * i / Rate)));
         open = path => new FunctionPcm(path.Contains("voz", StringComparison.Ordinal) ? speech : music, 30L * Rate);

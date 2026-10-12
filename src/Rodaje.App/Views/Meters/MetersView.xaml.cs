@@ -516,4 +516,12 @@ internal sealed partial class MetersView : UserControl, IEditorView
 
         public float LastHold { get; set; } = float.NaN;
     }
+
+    private void OnMixCompressorClick(object sender, RoutedEventArgs e)
+    {
+        if (_services is { } services)
+        {
+            services.Session.ShowDynamics(Services.Audio.DynamicsOwner.Mix(services.Session.Sequence));
+        }
+    }
 }

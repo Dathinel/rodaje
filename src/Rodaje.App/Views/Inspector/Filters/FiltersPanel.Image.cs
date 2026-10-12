@@ -25,6 +25,7 @@ internal sealed partial class FiltersPanel
     {
         BuiltInEffects.ChromaKey => name is K.Red or K.Green or K.Blue,
         BuiltInEffects.ColorWheels => WheelMath.Wheels.Any(w => name == w.Red || name == w.Green || name == w.Blue),
+        BuiltInEffects.Compressor => true,
         _ => false,
     };
 
