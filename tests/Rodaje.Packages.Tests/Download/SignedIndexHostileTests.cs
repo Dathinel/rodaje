@@ -446,7 +446,7 @@ public sealed class SignedIndexHostileTests(ITestOutputHelper output) : IDisposa
     /// Lo que debería pasar: <see cref="FormatException"/> para el <c>formatVersion</c> y los textos rotos, y la entrada
     /// omitida con su problema para el <c>size</c>.
     /// </summary>
-    [Fact(Skip = "Defecto: SignedIndex.Load lanza InvalidOperationException con \"formatVersion\": \"1\", \"size\": \"100\" o \"\\ud800\" en un índice firmado.")]
+    [Fact]
     public void Un_indice_firmado_con_un_tipo_inesperado_da_FormatException_y_no_otra_excepcion()
     {
         Assert.Throws<FormatException>(() => Load(Index(format: "\"1\"")));
@@ -473,7 +473,7 @@ public sealed class SignedIndexHostileTests(ITestOutputHelper output) : IDisposa
     /// <c>huggingface.co:444</c>). Necesita un índice firmado y lo descargado se sigue comprobando por hash, así que el
     /// riesgo es bajo. Lo que debería pasar: solo el puerto 443 (o sin puerto).
     /// </summary>
-    [Fact(Skip = "Defecto: DownloadUrlPolicy acepta https://github.com:8443/Dathinel/... (no comprueba el puerto).")]
+    [Fact]
     public void Un_puerto_distinto_de_443_no_es_un_origen_permitido()
     {
         Assert.False(DownloadUrlPolicy.Default.IsAllowed(new Uri("https://github.com:8443/Dathinel/r/releases/download/v1/a.paquete"), out _));
