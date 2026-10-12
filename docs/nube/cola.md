@@ -271,3 +271,30 @@ Guía para escribir un módulo de terceros: transporte, saludo y versión, mensa
 - **Lee:** `docs/fase-7.md` (sección Descarga).
 
 Servidor de pruebas en proceso (Kestrel o `HttpListener`) que sirve archivos con `Range`, cortes a mitad, redirecciones, hashes y firmas malas, lentitud y 404/500, configurable por prueba, para el agente local que hace `GitHubReleaseDownloader`. Con sus propias pruebas.
+
+## 28. Volver a enlazar medios movidos o renombrados
+
+- **Estado:** pendiente
+- **Rama:** `claude/qdv-reenlazar`
+- **Caminos:** `src/Rodaje.Core/Editing/` y `src/Rodaje.Core/Commands/` (archivos nuevos), `src/Rodaje.App/Services/Relink/` (nuevo), un diálogo nuevo en `src/Rodaje.App/Views/Relink/`, pruebas, `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` (función 32), `docs/formato-proyecto.md`, `docs/arquitectura/app.md`.
+
+Al abrir un proyecto con medios que faltan: diálogo con la lista, «Buscar en carpeta» que encuentra todos por nombre, tamaño y duración (y huella rápida de los primeros MB si hay dudas), y reenlazar uno a mano. Un paso del historial; los clips, efectos y keyframes no cambian. Pruebas de la búsqueda y de la edición.
+
+## 29. Exportar el fotograma actual como imagen
+
+- **Estado:** pendiente
+- **Rama:** `claude/qdv-fotograma`
+- **Caminos:** `src/Rodaje.Export/Still/` (nuevo), una entrada en el menú Archivo y un atajo (lo mínimo), pruebas, `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` (función 34), `docs/arquitectura/exportacion.md`, D-028.
+
+Exportar el cuadro del cursor a PNG (con alfa si la secuencia lo tiene) o JPEG con calidad, a la resolución de la secuencia o la del preajuste, usando el mismo motor fuera de línea y el compositor estricto que la exportación (títulos incluidos). Pruebas contra la vista previa.
+
+## 30. Biblioteca con carpetas, búsqueda y favoritos
+
+- **Estado:** pendiente
+- **Rama:** `claude/qdv-biblioteca`
+- **Caminos:** `src/Rodaje.App/Views/Library/`, `src/Rodaje.Core/Model/` (solo si hace falta guardar carpetas en el proyecto, con migración de formato documentada), pruebas, `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` (función 38), `docs/formato-proyecto.md`, D-027 (estilo).
+
+Carpetas en la biblioteca del proyecto (crear, renombrar, arrastrar medios), búsqueda por nombre, filtro por tipo, favoritos, y columna de datos (resolución, duración, códec, fps). Sin tocar los paneles de títulos ni análisis.
