@@ -10,7 +10,7 @@ Sin paquete MSIX, autocontenida y con Native AOT (el [sondeo](../archivo/sondeo-
 
 | Carpeta | Qué hay | Depende de WinUI |
 |---|---|---|
-| `Services/` | `EditorSession`, `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), inspector y velocidad (`Inspector/`: `SpeedEditor`, `SpeedMath`, `SpeedCommands`, `TitleEditor`; los atajos de velocidad están en `EditorSession.Speed` y los de títulos en `EditorSession.Titles`), títulos (`Titles/`: `ClipLabels`, `TitleStyles`, `TitleDrag`, `StyleColors`), efectos y contenido (`Effects/`), miniaturas y formas de onda (`Media/`), complementos (`Packages/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs`, `EditorNotification` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
+| `Services/` | `EditorSession`, módulos de IA (`Modules/`: `ModuleManager`, `ModuleCatalog`, `VramBudget`, `ModuleProposal`), `TimelineState`, atajos (`Shortcuts/`), ajustes (`Settings/`), inspector y velocidad (`Inspector/`: `SpeedEditor`, `SpeedMath`, `SpeedCommands`, `TitleEditor`; los atajos de velocidad están en `EditorSession.Speed` y los de títulos en `EditorSession.Titles`), títulos (`Titles/`: `ClipLabels`, `TitleStyles`, `TitleDrag`, `StyleColors`), efectos y contenido (`Effects/`), miniaturas y formas de onda (`Media/`), complementos (`Packages/`), `IPlaybackEngine`, `IMediaProber`, `IEditorDialogs`, `EditorNotification` | **No**: `tests/Rodaje.App.Tests` compila estos archivos tal cual, así que usar WinUI aquí rompe las pruebas |
 | `Views/Timeline/Logic/` | La lógica de la línea de tiempo (ventana, regla, filas, clic, ajuste, arrastres, soltar medios) | **No**: también la compilan las pruebas |
 | `Views/Export/Logic/` | La lógica del diálogo de exportar y de su cola (`ExportDialogModel`, `ExportSettingsEditor`, `ExportJobList`, `IExportRunner`) | **No**: también la compilan las pruebas |
 | `Shell/` | `MainWindow` (distribución, páginas modales y barra de avisos), `TitleBar`, `KeyboardShortcutHost`, `PaneSplitter`, `DialogGate` (un solo `ContentDialog` a la vez), `ShellDialogs` y `FileDialogs`, `EditorServices` e `IEditorView`, `MeasurementRun`, `MeasurementScenarios` | Sí |
@@ -84,6 +84,38 @@ BgraImage? GetNearestThumbnail(string mediaId, Time sourceTime, Time spacing, in
 - **`EffectCommands`** son ediciones de un solo paso que el núcleo no trae sueltas: modo de mezcla y LUT creando el efecto si falta, y aplicar filtros y efectos de paquete copiados con `options.source` (reaplicar el mismo los reemplaza; las curvas de un efecto se colocan al principio, al final o a lo largo del clip medidos en la línea de tiempo, se encogen si no caben y las posiciones se escalan a la secuencia; cada keyframe se guarda con el mapeo del clip, así que a 2× una entrada de 1 s sigue durando 1 s).
 - **`ElementApplier`** aplica un elemento de la biblioteca al clip seleccionado; una transición va al corte donde termina el clip o, si no hay, al de su inicio; un estilo de texto, al título seleccionado o a uno nuevo en el cursor.
 - **Estilos de texto.** `IContentLoader.LoadTextStyle` lee el `rodaje.textstyle` (lector en `Rodaje.Paquetes`, que no conoce el núcleo) y `TitleStyles.FromPreset` lo copia al modelo con `source` (D-029). El motor nunca lo busca.
+
+## Módulos de IA (`Services/Modules`)
+
+`ModuleManager` (en `EditorServices.Modules`) corre los módulos del [protocolo](../fase-7.md) como procesos aparte y nunca deja que editen: devuelven datos y la app los convierte en una `ModuleProposal`.
+
+- **Descubrimiento.** `ModuleCatalog.DefaultRoots()`: `%LOCALAPPDATA%\Rodaje\complementos\modulos`, `modulos\` junto al exe y, si Rodaje corre desde el repositorio, `modules\` (el exe más reciente bajo `bin\`). Lee `module.vramMb` y `module.runtime`; se refresca al cambiar los paquetes.
+- **Procesos.** Uno por módulo, abierto con la primera llamada y cerrado tras 2 min sin llamadas; todos en un Job Object «matar al cerrar»; tubería solo del usuario actual. Con una llamada en curso, `ping` cada 5 s; sin respuesta en 10 s se mata (`ModuleHungException`). Al cerrar la ventana se pide `shutdown` y se mata lo que no sale.
+- **VRAM.** `VramBudget`: los módulos usan hasta 5/8 de la VRAM (la vista previa tiene 3/8), un pesado (≥1 GB) a la vez; para abrir uno que no entra se cierran los ociosos que estorban, o se espera. Mientras corre uno de GPU la vista previa baja a proxies y Mitad con el mismo `PreviewYield` de exportar.
+- **Trabajos.** Cada `RunAsync` es una fila de `ModuleJobList` (Trabajos → IA) con etapa, avance, tiempo restante y cancelar. Un fallo se avisa con un texto sin trazas que termina en «El proyecto no cambió».
+
+```csharp
+// Una llamada simple:
+ModuleResult r = await services.Modules!.InvokeAsync("modulo-subtitulos", "subtitulos", parametros, "Subtítulos de «Entrevista»");
+
+// Varias llamadas como un trabajo, con audio o cuadros que decodifica el editor:
+Segmentos s = await services.Modules!.RunAsync("modulo-subtitulos", "Subtítulos de «Entrevista»", async call =>
+{
+    SharedBufferRef audio = await ModuleMedia.WriteAudioAsync(call, media.Path, clip.SourceIn, clip.SourceOut, 16_000, 1, 0, 0.1);
+    ModuleResult res = await call.InvokeAsync("subtitulos", parametros, [audio], progressFrom: 0.1, progressTo: 1);
+    return Leer(res.Value);                       // call.Map(búfer) para leer lo que el módulo escribió
+}, cancellationToken);
+
+// Cuadros: una región por lote; ModuleMedia.WriteFrame(decodificador, región, desplazamiento, tiempo, ladoMayor).
+
+// El resultado nunca edita solo: se muestra y se aplica en un paso del historial.
+services.Proposals!.Show(new ModuleProposal("Subtítulos automáticos", sesion.SequenceId,
+    [.. s.Select(x => new PreviewMark(PreviewMarkKind.Clip, x.Start, x.End, x.Text))],
+    project => [.. ComandosDeTitulos(project, s)]));   // se construye contra el proyecto al aplicar
+services.Proposals.Apply();                            // un solo Ctrl+Z lo deshace
+```
+
+Los tiempos del módulo (segundos del búfer entregado) se llevan a la secuencia con `ModuleTime.ToSequence(clip, inicioDelBúfer, segundos, fps)`, que respeta velocidad y reversa y ajusta al cuadro.
 
 ## Cómo se suma una vista
 

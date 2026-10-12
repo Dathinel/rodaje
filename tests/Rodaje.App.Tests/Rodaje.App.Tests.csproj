@@ -9,6 +9,8 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <IsPackable>false</IsPackable>
     <RootNamespace>Rodaje.App.Tests</RootNamespace>
+    <!-- Services/Modules usa P/Invoke de TerraFX (Job Object). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>$(NoWarn);CA1707;CA1515;CA1861</NoWarn>
   </PropertyGroup>
 
@@ -33,6 +35,9 @@
     <!-- La prueba de punta a punta con los paquetes de contenido compone con el render real. -->
     <ProjectReference Include="..\..\src\Rodaje.Render\Rodaje.Render.csproj" />
     <ProjectReference Include="..\..\testing\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <!-- Solo para que Rodaje.Module.Echo.exe quede junto a las pruebas de Modules/. -->
+    <ProjectReference Include="..\..\modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -53,6 +53,7 @@ internal sealed partial class JobsPanel : UserControl, IEditorView
         _lookup.Tick += (_, _) => Connect(services);
         _lookup.Start();
         Connect(services);
+        Modules.Attach(services);
         Exports.Attach(services);
         Show();
         Bindings.Update();

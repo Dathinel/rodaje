@@ -5,6 +5,7 @@ using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
+using Rodaje.App.Services.Modules;
 using Rodaje.App.Views.Export;
 using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Player;
@@ -45,6 +46,7 @@ internal static class SelfTestRun
             await ToggleReverseAsync(window);
             await TitleAsync(window, engine);
             await ShowExportAsync(window);
+            await ModuleAsync(window);
             window.InspectorPane.Show(InspectorView.Tab.Properties);
             if (window.Session.Sequence.Duration.Ticks > 0)
             {
@@ -326,6 +328,52 @@ internal static class SelfTestRun
         if (!window.Exports.Runner.IsSimulation)
         {
             CheckExported(output, entry.Request);
+        }
+    }
+
+    /// <summary>
+    /// Con el módulo eco a mano (Rodaje corriendo desde el repositorio, compilado por <c>app.ps1 -Autoprueba</c>): corre
+    /// «contar» como trabajo con la pestaña Trabajos a la vista y aplica una propuesta de marcas en un paso, que se deshace.
+    /// Sin el módulo no hace nada.
+    /// </summary>
+    private static async Task ModuleAsync(MainWindow window)
+    {
+        ModuleManager modules = window.Modules;
+        for (int i = 0; i < 50 && modules.Modules.Count == 0; i++)
+        {
+            await Task.Delay(100);
+        }
+
+        if (modules.Find("rodaje-eco") is null)
+        {
+            return;
+        }
+
+        window.InspectorPane.Show(InspectorView.Tab.Jobs);
+        using System.Text.Json.JsonDocument parameters = System.Text.Json.JsonDocument.Parse("""{"pasos":20,"msPorPaso":20}""");
+        Rodaje.Modules.Protocol.ModuleResult result = await modules.InvokeAsync("rodaje-eco", "contar", parameters.RootElement, "Autoprueba: contar");
+        if (result.Value is not { } value || value.GetProperty("pasos").GetInt32() != 20 || modules.ProcessIds.Count != 1)
+        {
+            throw new InvalidOperationException("El módulo eco no respondió como se esperaba.");
+        }
+
+        await CaptureAsync(window, "trabajos-ia");
+        EditorSession session = window.Session;
+        int steps = session.History.Count;
+        int markers = session.Sequence.Markers.Count;
+        Time at = Time.Min(session.Sequence.Duration, Time.FromSeconds(1));
+        var proposals = new ModuleProposals(session);
+        proposals.Show(new ModuleProposal("Marcas del módulo", session.SequenceId, [new PreviewMark(PreviewMarkKind.Marker, at, at, "eco")],
+            _ => [Edits.AddMarker(session.SequenceId, at, "eco"), Edits.AddMarker(session.SequenceId, at + Time.FromSeconds(0.5), "eco")]));
+        if (!proposals.Apply() || session.History.Count != steps + 1 || session.Sequence.Markers.Count != markers + 2)
+        {
+            throw new InvalidOperationException("La propuesta del módulo no quedó en un solo paso.");
+        }
+
+        session.Undo();
+        if (session.Sequence.Markers.Count != markers)
+        {
+            throw new InvalidOperationException("Deshacer no quitó la propuesta del módulo.");
         }
     }
 

@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Media;
+using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
@@ -54,6 +55,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     private PluginsView? _pluginsView;
     private ExportView? _exportView;
     private readonly ExportJobList _exports;
+    private readonly ModuleManager _modules;
     private IDisposable? _pageShortcuts;
     private bool _activatedOnce;
     private bool _allowClose;
@@ -95,9 +97,19 @@ internal sealed partial class MainWindow : Window, IShellHost
         _ = Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale());
         var preview = new PreviewYield(engine, engine.SetPreviewQuality, () => settings.Current);
         _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed)), SynchronizationContext.Current);
+        _modules = new ModuleManager(new ModuleManagerOptions
+        {
+            Roots = ModuleCatalog.DefaultRoots(),
+            DedicatedVideoMemory = () => engine.DedicatedVideoMemory,
+            ClientOptions = new() { AppVersion = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "0.0.0" },
+        }, new ModulePreviewYield(preview), SynchronizationContext.Current);
+        _modules.Failed += (_, f) => session.Notify(NotificationSeverity.Error, f.Title, f.Message);
+        packages.Changed += (_, _) => _ = Task.Run(_modules.Refresh);
+        _ = Task.Run(_modules.Refresh);
         _services = new EditorServices(session, _router, settings, engine, this)
         {
             Visuals = _visuals, Packages = packages, Content = content, Exports = _exports,
+            Modules = _modules, Proposals = new ModuleProposals(session),
         };
         engine.SetContent(content);
         IReadOnlyList<string> fonts = TitleFontFiles.Find(packages.Installed);
@@ -207,6 +219,8 @@ internal sealed partial class MainWindow : Window, IShellHost
     internal ExportView? ExportPage => _exportView;
 
     internal ExportJobList Exports => _exports;
+
+    internal ModuleManager Modules => _modules;
 
     public void ShowPage(ShellPage page)
     {
@@ -675,9 +689,20 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _exports.Dispose();
+        // Pide shutdown a los módulos abiertos; si alguno no sale, lo mata (y el Job Object cubre el resto).
+        _modules.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(3));
         _engine.Dispose();
         _visuals.Dispose();
         _instance.Dispose();
         MeasurementRun.WriteReportIfMeasuring(_options, _engine, Program.Metrics, VideoPanel.CompositionScaleX);
+    }
+
+    /// <summary>Un módulo de GPU baja la vista previa como una exportación con poca VRAM (proxies y Mitad), con el mismo contador.</summary>
+    private sealed class ModulePreviewYield(PreviewYield preview) : IModulePreview
+    {
+        private static readonly Rodaje.Export.Running.ExportPerformanceProfile LowerOnly = new(
+            ThreadPriority.Normal, System.Diagnostics.ProcessPriorityClass.Normal, 0, 0, PausePreview: false, PreviewProxies: true);
+
+        public IDisposable Lower() => preview.Yield(LowerOnly);
     }
 }

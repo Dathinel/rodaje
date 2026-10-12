@@ -46,6 +46,19 @@ RTX 3050 Laptop / Ryzen 7 7435HS, `ProcessTests.Latency_and_shared_memory_throug
 
 **Conclusiones.** El protocolo no limita a ninguna función: un cuadro 1080p por referencia cuesta 0,1 ms y copiado 1,4 ms, frente a los 15–250 ms por cuadro de los modelos. No hace falta otro transporte. Las tuberías se crean con 64 KB de búfer: con el valor por defecto (0) una escritura espera a que el otro lado lea, y un editor que no lee colgaba al módulo (lo encontró una prueba).
 
+## Ronda A: `ModuleManager` en la app (11-oct)
+
+Hecho en `src/Rodaje.App/Services/Modules` (API en [app.md](arquitectura/app.md#módulos-de-ia-servicesmodules)). Pruebas en `tests/Rodaje.App.Tests/Modules` con el módulo eco como proceso real (22, estables en 5 corridas seguidas):
+
+| Medida | Resultado |
+|---|---|
+| Módulo matado a mitad de «contar» | solo falla su trabajo; historial y proyecto (serializado) idénticos; la próxima llamada abre otro proceso |
+| Módulo que muere solo (`morir`) | falla en <1 s con su código de salida |
+| Módulo congelado (proceso suspendido, sin pong) | detectado y muerto en <2 s con plazos de prueba (en la app: ping 5 s, 10 s sin respuesta) |
+| Cerrar el `ModuleManager` con una llamada en curso | 0 procesos de módulo vivos; cerrar el Job Object mata los que queden |
+| Dos módulos pesados (1500 y 1200 MB, VRAM de 4 GB) | el segundo espera o cierra al ocioso; vista previa baja solo durante la llamada de GPU |
+| Autoprueba del exe AOT | eco publicado con AOT, «contar» en Trabajos, propuesta aplicada en un paso y deshecha; 0 procesos al cerrar |
+
 ## Funciones, modelos y licencias
 
 Velocidades estimadas a partir de cifras publicadas; las mide cada agente en el equipo de Daniel. ✅ viable con licencia limpia, ⚠️ viable con condiciones, ❌ sin opción limpia.

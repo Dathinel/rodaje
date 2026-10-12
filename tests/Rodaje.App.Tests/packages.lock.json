@@ -145,6 +145,15 @@
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
       },
+      "rodaje.module.echo": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Modules.Protocol": "[1.0.0, )"
+        }
+      },
+      "rodaje.modules.protocol": {
+        "type": "Project"
+      },
       "rodaje.paquetes": {
         "type": "Project"
       },
