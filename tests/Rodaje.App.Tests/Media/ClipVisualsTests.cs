@@ -423,4 +423,62 @@ public sealed class ClipVisualsTests : IDisposable
         Assert.True(returned, "Dispose no volvió.");
         Assert.InRange(elapsed, 0, 1000);
     }
+
+    /// <summary>
+    /// La prueba de arriba no retiene <c>_gate</c>: con el <c>lock</c> de antes también pasaba. Esta retiene el candado desde
+    /// otro hilo, como un hilo de trabajo de prioridad baja que se queda sin turno con él tomado, y comprueba que
+    /// <c>Dispose</c> no lo espera y que el hilo de ondas, dormido en <c>Monitor.Wait</c> sin tope, sale con el
+    /// <c>PulseAll</c> diferido al pool. El candado y el hilo se alcanzan con ganchos internos (este proyecto compila los fuentes
+    /// de Services).
+    /// </summary>
+    [Fact]
+    public void Dispose_does_not_wait_for_a_held_gate_and_the_waveform_thread_leaves_afterwards()
+    {
+        var visuals = new ClipVisuals(id => _media.GetValueOrDefault(id), _sources);
+        object gate = visuals.GateForTests;
+        Thread waveformThread = visuals.WaveformThreadForTests;
+
+        // Sin ondas pedidas, el hilo de ondas acaba en Monitor.Wait(_gate) sin tope: solo un PulseAll lo despierta. Se
+        // espera a que esté ahí (y siga ahí un momento) antes de tomar el candado, para no confundirlo con un hilo que
+        // todavía intenta entrar y que, al entrar, vería _disposed sin necesitar el aviso.
+        WaitFor(() => IsWaiting(waveformThread) ? "" : null);
+        Thread.Sleep(100);
+        Assert.True(IsWaiting(waveformThread), "El hilo de ondas no quedó esperando.");
+
+        using var held = new ManualResetEventSlim(false);
+        using var release = new ManualResetEventSlim(false);
+        var holder = new Thread(() =>
+        {
+            lock (gate)
+            {
+                held.Set();
+                release.Wait();
+            }
+        })
+        { IsBackground = true, Name = "Prueba: retiene el candado de ClipVisuals" };
+        holder.Start();
+        Assert.True(held.Wait(Patience), "No se tomó el candado.");
+
+        long elapsed = -1;
+        var disposer = new Thread(() =>
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            visuals.Dispose();
+            elapsed = clock.ElapsedMilliseconds;
+        })
+        { IsBackground = true, Name = "Prueba: Dispose de ClipVisuals", Priority = ThreadPriority.Highest };
+        disposer.Start();
+
+        // Con el lock de antes, Dispose se queda esperando el candado: se suelta a los 5 s para que la prueba falle en vez
+        // de colgarse.
+        bool returned = disposer.Join(TimeSpan.FromSeconds(5));
+        release.Set();
+        Assert.True(holder.Join(Patience), "El hilo que retenía el candado no lo soltó.");
+
+        Assert.True(returned, "Dispose esperó el candado retenido.");
+        Assert.InRange(elapsed, 0, 499);
+        Assert.True(waveformThread.Join(Patience), "El hilo de ondas no salió tras soltar el candado.");
+    }
+
+    private static bool IsWaiting(Thread thread) => (thread.ThreadState & ThreadState.WaitSleepJoin) != 0;
 }

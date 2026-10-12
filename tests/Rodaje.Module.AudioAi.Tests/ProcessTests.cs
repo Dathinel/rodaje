@@ -70,14 +70,16 @@ public class ProcessTests(ITestOutputHelper output)
         Assert.True(p.Count(x => x > 0.5) > p.Length / 2, "La lectura de LibriVox es casi toda voz.");
     }
 
-    [Fact]
+    /// <summary>
+    /// Mide reloj de pared (la cancelación y el ping en menos de 1 s): va en <c>TiempoReal</c>, que la CI excluye y
+    /// <c>probar.ps1</c> corre aparte, sola. Sin modelos o sin la voz de LibriVox se omite con la causa.
+    /// </summary>
+    [ModelsAndVoiceFact]
+    [Trait("Categoria", "TiempoReal")]
     public async Task Cancel_is_confirmed_quickly_and_the_module_keeps_working()
     {
-        if (!Corpus.HasModels || NoiseReductionTests.Voice(180) is not { } clean)
-        {
-            output.WriteLine(Corpus.Missing);
-            return;
-        }
+        float[]? clean = NoiseReductionTests.Voice(180);
+        Assert.NotNull(clean);
 
         await using ModuleProcess module = await StartAsync();
         SharedBufferRef input = Audio(module, clean, 48_000, 1, out _, out SharedBufferRef target);
@@ -117,8 +119,22 @@ public class ProcessTests(ITestOutputHelper output)
         await Assert.ThrowsAsync<ModuleCallException>(() => module.Client.InvokeAsync("detectar-voz", parameters.RootElement, [input]));
 
         // Que siga abierto: contesta el ping (el tope es contra cuelgues). Lo que tarda en contestar no se mide aquí: en
-        // la CI, con el runner cargado, pasó de 1 s; la latencia la mide Cancel_is_confirmed_quickly_and_the_module_keeps_working.
+        // la CI, con el runner cargado, pasó de 1 s; la latencia la mide Cancel_is_confirmed_quickly_and_the_module_keeps_working,
+        // en la pasada TiempoReal de probar.ps1 (no en la CI).
         await module.Client.PingAsync().WaitAsync(TimeSpan.FromSeconds(60));
         Assert.False(module.Exited.IsCompleted);
+    }
+}
+
+/// <summary>Necesita los modelos y la voz de LibriVox en <c>.entorno</c>; si faltan, se omite y lo dice.</summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class ModelsAndVoiceFactAttribute : FactAttribute
+{
+    public ModelsAndVoiceFactAttribute()
+    {
+        if (!Corpus.HasModels || Corpus.Voice48k is null)
+        {
+            Skip = "Omitida: " + Corpus.Missing;
+        }
     }
 }

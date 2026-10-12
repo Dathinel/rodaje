@@ -171,6 +171,12 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
         return nearest is { } ticks && _thumbnails.TryGet(new ThumbnailKey(path, ticks, heightClass), out BgraImage? image) ? image : null;
     }
 
+    /// <summary>El candado de los hilos de trabajo, para que las pruebas lo retengan (Rodaje.App.Tests compila este archivo).</summary>
+    internal object GateForTests => _gate;
+
+    /// <summary>El hilo de las formas de onda, para que las pruebas vean cuándo sale.</summary>
+    internal Thread WaveformThreadForTests => _waveformThread;
+
     /// <summary>Por qué un archivo no da miniaturas, o <c>null</c>.</summary>
     public string? ThumbnailProblem(string path) => _failedThumbnails.TryGetValue(path, out string? reason) ? reason : null;
 
