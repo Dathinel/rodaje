@@ -8,6 +8,7 @@ public static class BuiltInTemplates
     public const string Landscape1080Id = ProjectTemplate.BuiltInPrefix + "16x9-1080p";
     public const string Vertical1080Id = ProjectTemplate.BuiltInPrefix + "9x16-1080p";
     public const string Square1080Id = ProjectTemplate.BuiltInPrefix + "1x1-1080";
+    public const string Portrait1080Id = ProjectTemplate.BuiltInPrefix + "4x5-1080";
     public const string Landscape4KId = ProjectTemplate.BuiltInPrefix + "16x9-4k";
 
     /// <summary>En el orden del menú.</summary>
@@ -16,6 +17,7 @@ public static class BuiltInTemplates
         Create(Landscape1080Id, "Horizontal 16:9 (1080p)", 1920, 1080),
         Create(Vertical1080Id, "Vertical 9:16 (TikTok, Reels, Shorts)", 1080, 1920),
         Create(Square1080Id, "Cuadrado 1:1", 1080, 1080),
+        Create(Portrait1080Id, "Retrato 4:5 (Instagram)", 1080, 1350),
         Create(Landscape4KId, "Horizontal 16:9 (4K)", 3840, 2160),
     ];
 
