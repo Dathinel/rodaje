@@ -662,7 +662,7 @@ Las cuatro pruebas de la tarea 44 son `ProxyFact` y la CI de Windows no tiene ff
 
 ## 67. Contrato de los enlazados al volver a 1×
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #70 unido el 12-oct en modo autónomo; una velocidad rápida constante aún puede perder un cuadro al volver a 1×: tarea 75)
 - **Rama:** `claude/enlazados-1x`
 - **Caminos:** `src/Rodaje.Core/Editing/TimelineEdits.Speed.cs`, `tests/Rodaje.Core.Tests/Properties/`, `tests/Rodaje.Core.Tests/Editing/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 57, `TimelineEdits.Speed.cs:479-484` (`AlignEnd`), `SpeedMaterialPropertiesTests.cs` y `SpeedMaterialRegressionTests.cs`, revisión en bloque 7.
