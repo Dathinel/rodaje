@@ -1,4 +1,4 @@
-Copyright (C) 2026 Daniel (Dathinel)
+Copyright (C) 2026 Dathinel
 https://github.com/Dathinel/rodaje
 
 This program is licensed under the GNU General Public License version 3 only
@@ -689,7 +689,7 @@ En virtud de la Sección 7, incisos (b) y (c) de la GNU General Public License v
 
 1. ATRIBUCIÓN OBLIGATORIA EN TIEMPO DE EJECUCIÓN (RUNTIME ATTRIBUTION):
    Cualquier versión interactiva de este programa (sea modificada o no) debe conservar de forma visible, accesible y sin obstrucciones en su Interfaz Gráfica de Usuario (en la ventana o diálogo de "Acerca de / About", barra de estado o pantalla de inicio interactiva) el aviso de autoría original que declare:
-   "Basado en el editor de video de código abierto de Daniel (Dathinel) / Rodaje (https://github.com/Dathinel/rodaje)".
+   "Basado en el editor de video de código abierto de Dathinel / Rodaje (https://github.com/Dathinel/rodaje)".
    Dicho aviso debe contener un enlace interactivo directo y funcional a dicho repositorio oficial upstream.
 
 2. AVISO EN CANALES DE DISTRIBUCIÓN Y VENTA:

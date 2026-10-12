@@ -5,7 +5,7 @@
   "kind": "module",
   "name": "Eco (prueba)",
   "description": "Módulo de ejemplo del protocolo: responde, informa avance, se cancela, copia búferes y sabe morir o colgarse.",
-  "author": "Daniel (Dathinel)",
+  "author": "Dathinel",
   "license": "GPL-3.0-only",
   "apps": ["rodaje"],
   "module": { "entry": "Rodaje.Module.Echo.exe", "protocol": 1, "functions": ["eco", "contar", "copiar", "morir", "colgar", "fallar"], "runtime": "cpu", "vramMb": 0 }

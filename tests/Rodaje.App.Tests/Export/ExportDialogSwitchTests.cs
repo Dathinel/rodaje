@@ -6,7 +6,7 @@ using Rodaje.Export;
 
 namespace Rodaje.App.Tests.Export;
 
-/// <summary>Daniel: «cuando se selecciona un archivo o modo en exportar no deja seleccionar otro». Todo se puede cambiar siempre.</summary>
+/// <summary>Error reportado: «cuando se selecciona un archivo o modo en exportar no deja seleccionar otro». Todo se puede cambiar siempre.</summary>
 public class ExportDialogSwitchTests
 {
     [Fact]

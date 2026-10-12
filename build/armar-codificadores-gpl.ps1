@@ -146,7 +146,7 @@ $manifiesto = [ordered]@{
     formatVersion = 1; id = 'rodaje-codificadores-gpl'; version = $PaqueteVersion; kind = 'module'
     name = 'Codificadores GPL (x264 y x265)'
     description = 'Añade x264 y x265 en Exportar → Avanzado con un ffmpeg.exe GPL aparte. Incluye su código fuente y la licencia GPLv3.'
-    author = 'Daniel (Dathinel); FFmpeg de BtbN/FFmpeg-Builds'; license = 'GPL-3.0-or-later'; apps = @('rodaje')
+    author = 'Dathinel; FFmpeg de BtbN/FFmpeg-Builds'; license = 'GPL-3.0-or-later'; apps = @('rodaje')
     module = [ordered]@{ entry = 'bin/ffmpeg.exe'; protocol = 0; functions = @('libx264', 'libx265'); runtime = 'cpu'; vramMb = 0 }
 }
 [System.IO.File]::WriteAllText((Join-Path $paquete 'paquete.json'), ($manifiesto | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding $false))

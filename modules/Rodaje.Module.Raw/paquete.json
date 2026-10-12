@@ -5,7 +5,7 @@
   "kind": "module",
   "name": "RAW de cine",
   "description": "Abre secuencias CinemaDNG y las revela (balance, exposición, espacio de color) con LibRaw. Corre en la CPU, sin conexión.",
-  "author": "Daniel (Dathinel)",
+  "author": "Dathinel",
   "license": "GPL-3.0-only",
   "apps": ["rodaje"],
   "module": { "entry": "Rodaje.Module.Raw.exe", "protocol": 1, "functions": ["info", "revelar"], "runtime": "cpu", "vramMb": 0 }

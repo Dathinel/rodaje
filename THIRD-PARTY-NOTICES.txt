@@ -5,8 +5,8 @@ Rodaje es software libre bajo la GNU General Public License v3 con términos
 adicionales de la Sección 7 (atribución obligatoria) y un permiso adicional
 para complementos (ver LICENSE). El nombre y los logotipos de Rodaje no se
 licencian con el código (ver TRADEMARK.md).
-Copyright (C) 2026 Daniel (Dathinel) - https://github.com/Dathinel/rodaje
-Basado en el editor de video de código abierto de Daniel (Dathinel) / Rodaje
+Copyright (C) 2026 Dathinel - https://github.com/Dathinel/rodaje
+Basado en el editor de video de código abierto de Dathinel / Rodaje
 (https://github.com/Dathinel/rodaje).
 
 Esa licencia cubre solo el código propio de Rodaje. Cada componente de

@@ -9,7 +9,7 @@ public sealed partial class AppSettings
 {
     /// <summary>
     /// 2: el panel derecho pasa a 380 px por defecto para que sus pestañas quepan con nombre. 3: los márgenes seguros se
-    /// apagan una vez (Daniel los confundió con guías de recorte de la secuencia vertical).
+    /// apagan una vez (se confundían con guías de recorte de la secuencia vertical).
     /// </summary>
     public const int CurrentVersion = 3;
 

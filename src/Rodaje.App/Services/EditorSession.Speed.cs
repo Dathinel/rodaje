@@ -153,7 +153,7 @@ public sealed partial class EditorSession
     }
 
     /// <summary>
-    /// Qué se corre al cambiar la velocidad: siempre hay magnetismo, en cualquier pista (decisión de Daniel); el ámbito es
+    /// Qué se corre al cambiar la velocidad: siempre hay magnetismo, en cualquier pista (decisión de diseño); el ámbito es
     /// el modo de ripple de la sesión.
     /// </summary>
     public RippleScope SpeedScope => Timeline.RippleScope;

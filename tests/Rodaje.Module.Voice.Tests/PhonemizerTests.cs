@@ -142,9 +142,9 @@ public sealed class PhonemizerTests
     public void Portuguese_links_words(string text, string expected) => Assert.Equal(Phones.Decompose(expected), Say(text, Language.PortugueseBrazil));
 
     [Theory]
-    [InlineData("es", "El veloz murciélago hindú comía feliz cardillo y kiwi. ¿Qué tal, Daniel? Tengo 1.234,5 euros, el 20 % y 3 km.")]
+    [InlineData("es", "El veloz murciélago hindú comía feliz cardillo y kiwi. ¿Qué tal, Javier? Tengo 1.234,5 euros, el 20 % y 3 km.")]
     [InlineData("es-419", "Llegó ayer a la Ciudad de México con 2 maletas y un guitarrón; ¡qué lluvia!")]
-    [InlineData("pt-BR", "Olá, tudo bem? Eu me chamo Daniel e moro no Brasil desde 2020. A cidade de São Paulo é muito grande, não é?")]
+    [InlineData("pt-BR", "Olá, tudo bem? Eu me chamo Joana e moro no Brasil desde 2020. A cidade de São Paulo é muito grande, não é?")]
     public void Every_symbol_is_in_the_kokoro_vocabulary(string languageId, string text)
     {
         Assert.True(Languages.TryParse(languageId, out Language language));

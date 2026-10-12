@@ -5,7 +5,7 @@
   "kind": "module",
   "name": "Audio con IA",
   "description": "Reduce el ruido de la voz (DeepFilterNet3) y detecta dónde se habla (Silero VAD) para quitar silencios y el ducking. Corre en la CPU, sin conexión.",
-  "author": "Daniel (Dathinel)",
+  "author": "Dathinel",
   "license": "GPL-3.0-only",
   "apps": ["rodaje"],
   "module": {

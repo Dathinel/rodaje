@@ -14,7 +14,7 @@ public static class SpeedTabValues
     /// <summary>Lo que dura el cuadro congelado que mete «Congelar».</summary>
     public static Time FreezeDuration { get; } = Time.FromSeconds(3);
 
-    /// <summary>Por encima el sonido, con o sin «Mantener tono», se oye granuloso; sigue sonando (decisión de Daniel).</summary>
+    /// <summary>Por encima el sonido, con o sin «Mantener tono», se oye granuloso; sigue sonando (decisión de diseño).</summary>
     public const double GrainyAbove = 8;
 
     /// <summary>Por debajo el sonido se oye metálico y con eco; también sigue sonando.</summary>

@@ -112,7 +112,7 @@ public sealed class FfmpegPipeSinkTests(ITestOutputHelper output)
             Metadata = new ExportMetadata
             {
                 Title = "Viaje; con = signos",
-                Author = "Daniel",
+                Author = "Autora de prueba",
                 Comment = "Exportado por Rodaje",
                 Chapters = [new(Time.Zero, Time.FromSeconds(1), "Inicio"), new(Time.FromSeconds(1), Time.FromSeconds(2), "Final #2")],
                 ThumbnailPath = cover,
@@ -125,7 +125,7 @@ public sealed class FfmpegPipeSinkTests(ITestOutputHelper output)
         ExportReport report = ExportVerifier.For(SinkRuns.Ffmpeg).Inspect(outputPath);
         Assert.Equal(2, report.Chapters);
         Assert.Equal("Viaje; con = signos", report.Tags["title"]);
-        Assert.Equal("Daniel", report.Tags["artist"]);
+        Assert.Equal("Autora de prueba", report.Tags["artist"]);
         Assert.Equal(60, report.Video!.FrameCount);
     }
 

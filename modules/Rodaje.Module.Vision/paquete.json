@@ -5,7 +5,7 @@
   "kind": "module",
   "name": "Visión",
   "description": "Quita el fondo de las personas (MODNet; calidad alta con BiRefNet_lite), detecta rostros (YuNet) y personas (RT-DETRv2) y calcula un reencuadre que sigue al sujeto. DirectML si hay GPU, CPU si no; sin conexión. La calidad alta pide unos 2,8 GB de VRAM y es lenta (unos 2 s por cuadro en una RTX 3050 de 4 GB).",
-  "author": "Daniel (Dathinel)",
+  "author": "Dathinel",
   "license": "GPL-3.0-only",
   "apps": ["rodaje"],
   "module": {

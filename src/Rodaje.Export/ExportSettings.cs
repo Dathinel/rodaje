@@ -3,7 +3,7 @@ using Rodaje.Media.Export;
 
 namespace Rodaje.Export;
 
-/// <summary>Cómo se reparte el equipo mientras exporta. Se elige en el diálogo cada vez (Daniel, 11-oct; D-028).</summary>
+/// <summary>Cómo se reparte el equipo mientras exporta. Se elige en el diálogo cada vez (D-028).</summary>
 public enum ExportPerformance
 {
     /// <summary>«Bajo rendimiento (app más fluida)»: prioridad baja, se puede seguir editando.</summary>

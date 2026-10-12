@@ -60,7 +60,7 @@ $licencia = Join-Path $trabajo 'licencia.txt'
 $marca = (Get-Content -LiteralPath (Join-Path $Raiz 'TRADEMARK.md') -Raw -Encoding UTF8) -replace '\[LICENSE\]\(LICENSE\)', 'LICENSE'
 $texto = @"
 Rodaje $Version
-Copyright (C) 2026 Daniel (Dathinel) - https://github.com/Dathinel/rodaje
+Copyright (C) 2026 Dathinel - https://github.com/Dathinel/rodaje
 
 Rodaje es software libre: GNU GPL versión 3 con los términos adicionales de la Sección 7 que están al final de la
 licencia (atribución y permiso para complementos). El nombre y los logotipos de Rodaje no se licencian con el

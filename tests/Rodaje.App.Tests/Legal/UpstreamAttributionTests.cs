@@ -11,7 +11,7 @@ public class UpstreamAttributionTests
         Assert.Equal("https://github.com/Dathinel/rodaje", UpstreamAttribution.RepositoryUrl);
         Assert.Equal("Código abierto upstream: Rodaje", UpstreamAttribution.ShortCredit);
         Assert.Equal(
-            "Basado en el editor de video de código abierto de Daniel (Dathinel) / Rodaje (https://github.com/Dathinel/rodaje)",
+            "Basado en el editor de video de código abierto de Dathinel / Rodaje (https://github.com/Dathinel/rodaje)",
             UpstreamAttribution.Notice);
         Assert.Equal(new Uri("https://github.com/Dathinel/rodaje"), UpstreamAttribution.RepositoryUri);
         Assert.Equal(Uri.UriSchemeHttps, UpstreamAttribution.RepositoryUri.Scheme);

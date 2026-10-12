@@ -5,7 +5,7 @@ namespace Rodaje.Core.Editing;
 
 /// <remarks>
 /// Velocidad (fase 5c). El grupo enlazado cambia junto y cada miembro conserva su material, así que su duración cambia.
-/// Decisión de Daniel, en cualquier pista: si el clip se acorta, el siguiente se une por magnetismo y la transición del
+/// Decisión de diseño, en cualquier pista: si el clip se acorta, el siguiente se une por magnetismo y la transición del
 /// corte se queda; si crece, respeta los huecos y solo empuja lo que pisa, lo justo. Con
 /// <see cref="RippleScope.Track"/> cada pista del grupo se corre con su propio Δ, y las de los enlazados de lo que se
 /// corre con el de la pista que los arrastra; con <see cref="RippleScope.AllTracks"/> o
