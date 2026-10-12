@@ -22,6 +22,7 @@
     <Project Path="src/Rodaje.Render/Rodaje.Render.csproj" />
   </Folder>
   <Folder Name="/testing/">
+    <Project Path="testing/Rodaje.FakeFfmpeg/Rodaje.FakeFfmpeg.csproj" />
     <Project Path="testing/Rodaje.TestMedia/Rodaje.TestMedia.csproj" />
     <Project Path="testing/Rodaje.TestServer/Rodaje.TestServer.csproj" />
     <Project Path="testing/Rodaje.TestServer/Tests/Rodaje.TestServer.Tests.csproj" />
