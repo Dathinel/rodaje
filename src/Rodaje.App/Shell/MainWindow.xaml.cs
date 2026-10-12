@@ -128,6 +128,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(_router.Bind(ActionIds.Export, () => ShowPage(ShellPage.Export)));
         _bindings.Add(_router.Bind(ActionIds.ShowShortcuts, () => ShowPage(ShellPage.Shortcuts)));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
+        _bindings.Add(Views.Analysis.AnalysisCommands.Bind(_router, _services));
         _keyboard = new KeyboardShortcutHost(Root, _router, InterceptKey);
 
         TitleBar.Attach(_services);

@@ -58,6 +58,18 @@ Hecho en `src/Rodaje.App/Services/Modules` (API en [app.md](arquitectura/app.md#
 | Cerrar el `ModuleManager` con una llamada en curso | 0 procesos de módulo vivos; cerrar el Job Object mata los que queden |
 | Dos módulos pesados (1500 y 1200 MB, VRAM de 4 GB) | el segundo espera o cierra al ocioso; vista previa baja solo durante la llamada de GPU |
 | Autoprueba del exe AOT | eco publicado con AOT, «contar» en Trabajos, propuesta aplicada en un paso y deshecha; 0 procesos al cerrar |
+## Resultados del agente C (silencios, ritmo y ducking)
+
+`src/Rodaje.Analysis` (sin modelos, AOT, solo depende del núcleo): analizadores por bloques que no guardan el audio (`LevelEnvelope`, `OnsetEnvelope`, `IVoiceActivityDetector`); las ediciones son `AnalysisEdits` con sus fábricas `Edits.RemoveSilences`, `AddBeatMarkers`, `CutToBeats` y `Duck`, cada una un paso del historial. Interfaz en `Views/Analysis` (diálogos con vista previa), menú del clip y Editar. Cifras en Release con señales sintéticas:
+
+| Criterio | Resultado |
+|---|---|
+| Silencios ±20 ms | error máximo de borde 4,5–4,9 ms (silencio digital y con ruido a −60 dBFS) |
+| 1 h en ≤10 s | 0,8 s (4500× tiempo real), sin contar la decodificación |
+| Ritmo F ≥0,9 y ±1 BPM | clics a 90–160 BPM: F 0,991–1,000, tempo ±0,01; batería a 100–128: F 0,976–1,000, ±0,14 BPM. A 174 BPM sale 87 (la mitad) salvo que se suba la preferencia |
+| Ritmo ≥100× | 291–348× tiempo real |
+| Ducking: anticipación ≥30 ms | música abajo ≥30 ms antes de cada frase (bordes de voz con 0 ms de error sobre música filtrada a −30 dB); keyframes deshacibles en un paso |
+| Voz ≥100× | 481–643× tiempo real |
 
 ## Funciones, modelos y licencias
 

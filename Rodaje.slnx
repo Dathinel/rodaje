@@ -3,6 +3,7 @@
     <Project Path="modules/Rodaje.Module.Echo/Rodaje.Module.Echo.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Rodaje.Analysis/Rodaje.Analysis.csproj" />
     <Project Path="src/Rodaje.App/Rodaje.App.csproj" />
     <Project Path="src/Rodaje.Audio/Rodaje.Audio.csproj" />
     <Project Path="src/Rodaje.Core/Rodaje.Core.csproj" />
@@ -19,6 +20,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Rodaje.Acceptance.Tests/Rodaje.Acceptance.Tests.csproj" />
+    <Project Path="tests/Rodaje.Analysis.Tests/Rodaje.Analysis.Tests.csproj" />
     <Project Path="tests/Rodaje.App.Tests/Rodaje.App.Tests.csproj" />
     <Project Path="tests/Rodaje.AotSmoke/Rodaje.AotSmoke.csproj" />
     <Project Path="tests/Rodaje.Audio.Tests/Rodaje.Audio.Tests.csproj" />

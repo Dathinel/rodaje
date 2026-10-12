@@ -41,6 +41,10 @@
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Añadir texto" Tag="clip.addText" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Añadir pista de subtítulos" Tag="timeline.subtitleTrack" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Quitar silencios..." Tag="analysis.silences" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Detectar ritmo..." Tag="analysis.beats" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Ducking automático..." Tag="analysis.ducking" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Ver">
                 <MenuFlyoutItem Text="Propiedades" Tag="inspector:Properties" Click="OnInspectorClick" />

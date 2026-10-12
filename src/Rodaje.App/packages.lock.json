@@ -88,6 +88,12 @@
           "Microsoft.Windows.SDK.BuildTools.MSIX": "1.7.251221100"
         }
       },
+      "rodaje.analysis": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Core": "[1.0.0, )"
+        }
+      },
       "rodaje.audio": {
         "type": "Project",
         "dependencies": {
