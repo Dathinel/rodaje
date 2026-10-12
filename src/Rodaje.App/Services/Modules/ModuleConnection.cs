@@ -65,7 +65,8 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
             if (_process is null)
             {
                 _hung = false;
-                ModuleProcess process = await ModuleProcess.StartAsync(Descriptor.EntryPath, null, options.ClientOptions,
+                ModuleProcess process = await ModuleProcess.StartAsync(Descriptor.EntryPath, null,
+                    options.ClientOptions with { HandshakeTimeout = options.StartTimeout },
                     p => job?.TryAssign(p), cancellationToken).ConfigureAwait(false);
                 Volatile.Write(ref _process, process);
                 _ = process.Exited.ContinueWith(_ => OnExited(process), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);

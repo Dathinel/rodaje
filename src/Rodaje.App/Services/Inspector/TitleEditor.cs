@@ -27,6 +27,10 @@ public enum ReapplyResult
 /// </summary>
 public sealed class TitleEditor(EditorSession session, TimeProvider? clock = null)
 {
+    // La app corre con InvariantGlobalization (no hay «es-ES»), así que CurrentCulture daría «0.5»: coma decimal fija,
+    // igual que SpeedMath.
+    private static readonly NumberFormatInfo Spanish = new() { NumberDecimalSeparator = ",", NumberGroupSeparator = "." };
+
     /// <summary>Una pausa más larga que esto al escribir empieza otro paso del historial.</summary>
     public static readonly TimeSpan TypingPause = TimeSpan.FromSeconds(1);
 
@@ -193,7 +197,7 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
             return null;
         }
 
-        string seconds = animation.DurationSeconds.ToString("0.##", CultureInfo.CurrentCulture);
+        string seconds = animation.DurationSeconds.ToString("0.##", Spanish);
         var parts = new List<string>();
         foreach (string name in animation.Curves.Keys)
         {

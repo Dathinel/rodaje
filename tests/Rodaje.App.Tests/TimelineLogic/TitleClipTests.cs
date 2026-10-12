@@ -157,7 +157,9 @@ public class TitleClipTests
         CompositeResult result;
         do
         {
-            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), "El título no llegó en 10 s.");
+            // Tope contra cuelgues, no medida: el costo de rasterizar lo exige TitleRasterizerTests. En la CI el título se
+            // rasteriza en otro hilo y se compone con WARP en la CPU, compartida con las demás pruebas, y 10 s no alcanzaban.
+            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(60), "El título no llegó en 60 s.");
             ready.Wait(TimeSpan.FromMilliseconds(20));
             using CompositionFrame frame = session.Tick();
             result = compositor.Render(frame);
