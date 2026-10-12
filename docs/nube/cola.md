@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #46, #47. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50), #38, #37, #41, #39 (52–55), #43, #42, #45, #26, #27 (58–61) #49, #52, #48, #54 (62–64) y #55, #56, #57, #44 (65–68).
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #61, #64, #65. El 12-oct, Sonnet revisó los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47), #30, #32, #18, #36 (48–50), #38, #37, #41, #39 (52–55), #43, #42, #45, #26, #27 (58–61) #49, #52, #48, #54 (62–64) #55, #56, #57, #44 (65–68) y #53, #46, #47, #59, #60 (69–72).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -463,7 +463,7 @@ La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que tod
 
 ## 48. Reenlazar: un archivo asignado a dos medios
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #47 unido el 12-oct en modo autónomo; revisado en el bloque 8, ver la tarea 71)
 - **Rama:** `claude/reenlazar-duplicados`
 - **Caminos:** `src/Rodaje.Core/Editing/MediaRelinkSearch.cs`, `src/Rodaje.Core/Editing/MediaRelink.cs`, `src/Rodaje.App/Services/Relink/`, `src/Rodaje.App/Views/Relink/`, `tests/Rodaje.Core.Tests/Editing/Relink/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 28 (`docs/tareas/2026-10-12-qdv-reenlazar.md`), revisión en bloque 3.
@@ -475,7 +475,7 @@ La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que tod
 
 ## 49. Exportar fotograma: extensión, cancelación y reentrada
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #46 unido el 12-oct en modo autónomo; revisado en el bloque 8, ver la tarea 70)
 - **Rama:** `claude/fotograma-robusto`
 - **Caminos:** `src/Rodaje.Export/Still/`, `src/Rodaje.App/Views/Export/StillExportCommand.cs`, `tests/Rodaje.Export.Tests/Still/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 29 (`docs/tareas/2026-10-12-qdv-fotograma.md`), revisión en bloque 3.
@@ -485,7 +485,7 @@ La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que tod
 
 ## 50. Confirmar al borrar una plantilla propia
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #59 unido el 12-oct en modo autónomo; revisado en el bloque 8, sin hallazgos)
 - **Rama:** `claude/plantillas-confirmar`
 - **Caminos:** `src/Rodaje.App/Shell/TitleBar.xaml.cs` (solo el borrado de plantillas), `src/Rodaje.App/Services/` (la confirmación en `IEditorDialogs`, si hace falta), `tests/Rodaje.App.Tests/Templates/` (archivos nuevos), `docs/tareas/`
 - **Lee:** entrega de la tarea 35 (`docs/tareas/2026-10-12-limpiezas-bloque-1.md`).
@@ -604,7 +604,7 @@ La vigilancia de la tarea 42 solo busca el texto `CultureInfo.CurrentCulture`. C
 
 ## 61. Un solo servidor de pruebas para el descargador
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #53 unido el 12-oct en modo autónomo; revisado en el bloque 8, ver la tarea 69)
 - **Rama:** `claude/descarga-servidor-unico`
 - **Caminos:** `tests/Rodaje.Paquetes.Tests/Download/`, `tests/Rodaje.Paquetes.Tests/Rodaje.Paquetes.Tests.csproj`, `testing/Rodaje.TestServer/`, `.github/workflows/ci.yml` (solo el bucle de pruebas de Linux), `docs/tareas/`
 - **Lee:** entrega de la tarea 27 (`docs/tareas/2026-10-11-descarga-lab.md`), `tests/Rodaje.Paquetes.Tests/Download/LocalHttpServer.cs`, `src/Rodaje.Paquetes/Download/IndexSignature.cs`.
@@ -622,7 +622,7 @@ Cuando `Abort` no consigue matar a ffmpeg.exe, `DeferCleanup` borra los temporal
 
 ## 63. Pruebas de las carreras del sink sin ffmpeg.exe
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #60 unido el 12-oct en modo autónomo; revisado en el bloque 8, ver la tarea 72)
 - **Rama:** `claude/export-sink-falso`
 - **Caminos:** `tests/Rodaje.Media.Tests/Export/` (archivos nuevos), `testing/` (un ejecutable falso nuevo, más su entrada en `Rodaje.slnx`), `src/Rodaje.Media/Export/FfmpegPipeSink.cs` (solo un punto de inyección si hace falta, sin cambiar el comportamiento), `docs/tareas/`
 - **Lee:** entrega de la tarea 44, `FfmpegPipeSinkAbortRaceTests.cs`, `FfmpegPipeSinkStuckKillTests.cs`, `FfmpegExecutable.cs` (`EnsureUnchanged`).
@@ -679,3 +679,48 @@ La 57 hizo que `AlignEnd` a 1× ofrezca `map.Start + target` como primer final y
 1. «Matar el árbol de procesos tardó 4,6 s» se tomó por carga del runner, pero `Kill(entireProcessTree: true)` corre dentro de la continuación síncrona de `Fail`. Mídelo y, si es latencia real, sácalo de esa ruta (`Task.Run`) para que la llamada falle enseguida.
 2. Con las cotas pasadas a `TiempoReal`, la CI ya no comprueba que un módulo colgado se mate pronto ni que morir a mitad de llamada falle rápido. Deja en las pruebas de la CI una cota holgada (unos 10 s, no 60) y renombra `Cancelling_is_confirmed_quickly_and_the_connection_keeps_working`, que ya no mide rapidez.
 3. El saludo de 30 s solo se subió en el módulo RAW; la causa vale para todos (eco, subtítulos, voz, traducir, audio IA). Sube el valor por defecto de `ModuleHost.HandshakeTimeout` a 30 s, como `StartTimeout`, y actualiza `docs/protocolo-modulos.md`.
+
+## 69. Servidor de pruebas: corte tras fallo en Windows, contador de fallos y 416 de rango
+
+- **Estado:** pendiente
+- **Rama:** `claude/servidor-pruebas-corte`
+- **Caminos:** `testing/Rodaje.TestServer/`, `docs/tareas/`
+- **Lee:** entrega de la tarea 61 (`docs/tareas/2026-10-12-descarga-servidor-unico.md`, sección «Qué comprobar en Windows»), entrega de la tarea 50 (`docs/tareas/2026-10-12-plantillas-confirmar.md`, sección «CI»), `testing/Rodaje.TestServer/Tests/HandlerFaultTests.cs`, revisión en bloque 8.
+
+1. **`AbortAfterFault` no corta en HTTP.sys.** `TestHttpServer.cs:330-344` fija `StatusCode = 500` y `ContentLength64 = 1` y llama a `response.Abort()` sin haber enviado cabeceras. La CI de Windows del PR #59 (commit `9a1d5c1`) falló en `HandlerFaultTests.An_unexpected_exception_aborts_the_connection_and_is_recorded`: esperaba `HttpRequestException` y llegó `TaskCanceledException` a los 12 s (venció el plazo del cliente). En Windows, enviar las cabeceras antes de `Abort()` (por ejemplo `OutputStream.Flush()` con `ContentLength64 = 1`) u otro cierre que HTTP.sys sí reinicie. La prueba sigue exigiendo un fallo inmediato, sin aceptar el plazo. Informa de 20 corridas seguidas en `windows-latest` con `--filter HandlerFaultTests`.
+2. **El tope de fallos de recepción es acumulado.** `TestHttpServer.cs:240` y `:252` usan `++failures > MaxReceiveFailures` y `failures` nunca vuelve a 0: un servidor sano de larga vida deja de escuchar en silencio tras 101 fallos aislados. Reinícialo tras cada `GetContextAsync` correcto (tope de fallos consecutivos) y anota en `Faults` cuando el bucle se rinde. Prueba con un listener que falle N veces seguidas.
+3. **`TestHttpServerTests` no exige `Faults` vacío** (la entrega lo deja pendiente). Añade una comprobación común al cerrar cada servidor, para que el próximo fallo en Windows deje diagnóstico.
+
+## 70. Exportar fotograma: lógica del comando sin pruebas y dos casos borde
+
+- **Estado:** pendiente (después de la 56, que toca `src/Rodaje.Export/Still/`)
+- **Rama:** `claude/fotograma-comando-pruebas`
+- **Caminos:** `src/Rodaje.App/Views/Export/StillExportCommand.cs`, `src/Rodaje.Export/Still/StillSettings.cs`, `tests/Rodaje.Export.Tests/Still/` (archivos nuevos), `tests/Rodaje.App.Tests/Export/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 49 (`docs/tareas/2026-10-12-fotograma-robusto.md`), revisión en bloque 8.
+
+1. **Cancelación y reentrada sin pruebas.** `Runner.Start` (`StillExportCommand.cs:63-103`) es una máquina de estados pura (`_running`, `Dispose`, aviso de «exportando», reintento «Exportar sin él»); solo `Ask()` y `FileDialogs.Save` son de interfaz. Extrae la lógica a una clase interna sin WinUI que reciba `Func<StillRequest?>` para el diálogo y `Func<StillRequest, CancellationToken, Task<StillResult>>` para exportar. Pruebas con un exportador falso que espera: un segundo `Start` no lanza otra exportación; «Cancelar» cancela el token y no se guarda nada; `Dispose` cancela sin avisar; tras terminar o fallar, `_running` vuelve a `null` y el atajo funciona; el reintento «Exportar sin él» funciona y, si hay otra en marcha, no se traga sin avisar.
+2. **Un error real se disfraza de cancelación.** `StillExportCommand.cs:146` captura todo `ExportException` si `cancel.IsCancellationRequested`: si falla el disco justo al cancelar, se ve «Fotograma cancelado». Filtra con `OperationCanceledException` o `ExportException { Code: ExportErrorCode.Canceled }`, con prueba.
+3. **Ruta terminada en punto.** `StillSettings.WithExtension` (`StillSettings.cs:95-99`) convierte `foto.` en `foto..png`. Quita el punto final con extensión vacía o `"."`; caso nuevo en `StillExtensionTests.cs`.
+
+## 71. Reenlazar: pegamento de la app sin pruebas y el comando acepta rutas duplicadas
+
+- **Estado:** pendiente
+- **Rama:** `claude/reenlazar-pegamento`
+- **Caminos:** `src/Rodaje.Core/Editing/MediaRelink.cs`, `src/Rodaje.App/Services/Relink/`, `src/Rodaje.App/Views/Relink/`, `tests/Rodaje.Core.Tests/Editing/Relink/` (archivos nuevos), `tests/Rodaje.App.Tests/Relink/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 48 (`docs/tareas/2026-10-12-reenlazar-duplicados.md`, «Decisiones» y «Pendiente»), revisión en bloque 8.
+
+1. **`MediaRelinkEdits.Relink` (`MediaRelink.cs:185`) no valida rutas repetidas** (solo `TargetFor`, el servicio y la búsqueda). Rechaza antes de mutar, con `EditException` y sin cambios, un destino igual (sin distinguir mayúsculas) a otro medio que no se reenlaza en el lote o a otro destino del lote. Pruebas: dos destinos iguales en el lote, destino igual a un medio existente, y lote que intercambia rutas (válido).
+2. **Pegamento sin prueba:** `MediaRelinkService.SearchAsync` (`[.. SearchOptions.TakenPaths, .. taken ?? []]`), `CheckFileAsync(..., pending)` y la construcción de rutas ocupadas en `RelinkDialog.cs:150` y `:239-240`. Pruebas con un `IRelinkFileSystem` falso: la búsqueda respeta `taken` y `CheckFileAsync` rechaza un archivo de `pending`.
+3. **Comparación de rutas ingenua:** `CheckTaken` y `TakenPaths` comparan texto, así que `D:\a\b.mp4`, `D:\a\.\b.mp4` y `D:/a/b.mp4` pasan por distintos. Normaliza con `Path.GetFullPath` (con try/catch) en `CheckTaken` y al construir `taken` en `MediaRelinkSearch.cs`; prueba con barras y `..`.
+
+## 72. Pruebas del sink con ffmpeg falso: sin procesos huérfanos ni reloj
+
+- **Estado:** pendiente
+- **Rama:** `claude/sink-falso-robusto`
+- **Caminos:** `tests/Rodaje.Media.Tests/Export/FfmpegPipeSinkFakeRaceTests.cs`, `tests/Rodaje.Media.Tests/Export/FakeFfmpeg.cs`, `testing/Rodaje.FakeFfmpeg/Program.cs`, `docs/tareas/`
+- **Lee:** entrega de la tarea 63 (`docs/tareas/2026-10-12-export-sink-falso.md`), entrega de la tarea 62, revisión en bloque 8.
+
+1. **Proceso huérfano si falla una aserción.** En `Abort_leaves_cleanup_pending_while_ffmpeg_lives_and_finishes_it_when_it_exits` (`FfmpegPipeSinkFakeRaceTests.cs:115-157`), `release.Set()` (`:153`) va después de varias aserciones; si una falla, `KillOverride` queda en `release.Wait()` y el falso en `-falso-colgar` sigue vivo (en Linux no hay `ChildProcessJob`). `release.Set()` en `finally`, y matar el proceso por su id si sigue vivo.
+2. **El falso nunca muere solo:** `testing/Rodaje.FakeFfmpeg/Program.cs:28-31` duerme con `Timeout.Infinite`. Ponle un tope (unos 2 min) o que salga si desaparece el padre.
+3. **Aserción de reloj frágil:** `:145` exige `Abort` en menos de 1000 ms. Compruébalo sin reloj: `Abort` vuelve mientras `release` sigue sin soltarse y `cleanup.IsCompleted` es falso.
+4. **Opcional de la 63:** `BeforeCompleteWaits` y `KillOverride` (`FfmpegPipeSink.cs`) siguen siendo propiedades mutables; pásalas a parámetros del constructor interno solo si cabe sin tocar más que lo mínimo (esta tarea no tiene `FfmpegPipeSink.cs` en sus caminos: si hace falta, anótalo en la entrega).
