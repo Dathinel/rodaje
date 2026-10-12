@@ -42,6 +42,9 @@ Rama `claude/export-sink-falso`, PR #60.
   Las 5 fallidas son las mismas antes y después y son propias de Windows: `ProxyStoreTests` (×3), `ExportTemporariesTests.A_temporary_still_open…` y `VideoColorTests.Conversion_through_swscale…`. Se deben a rutas que no distinguen mayúsculas, a archivos abiertos que no se pueden borrar y a las DLL de FFmpeg. Este proyecto no corre en la CI de Linux.
 - **Por qué las omitidas no bajan:** las cuatro `ProxyFact` de la tarea 44 siguen ahí, y sin ffmpeg.exe se omiten por plataforma o codificador, igual que antes. Lo que cambia es que esos mismos casos ahora también corren, en Linux y en la CI de Windows, con el falso. Para que bajaran habría que borrar o convertir esas cuatro, y eso queda fuera de los caminos de la tarea.
 - **`dotnet restore Rodaje.slnx --locked-mode -p:EnableWindowsTargeting=true`** pasa.
+- **CI** (run 38238700850, commit `28c3226`): Linux y Windows en verde.
+  - En Windows, `Rodaje.Media.Tests` dio 463 pasadas y 68 omitidas. Las omitidas son las mismas 68 que dejó la tarea 44, todas por falta de ffmpeg.exe, GPU o NVENC, más las de pruebas largas.
+  - Las cinco nuevas corrieron y pasaron: no aparecen como omitidas.
 
 ## Posibles choques
 
