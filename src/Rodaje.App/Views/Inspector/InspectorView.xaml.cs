@@ -52,6 +52,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
             UpdateTabLabels();
         };
         JobsPanel.Attach(services);
+        ApplyTabs(services.Settings.Current.HiddenInspectorTabs, null);
     }
 
     /// <summary>Muestra una pestaña (por ejemplo, desde el menú Ver).</summary>

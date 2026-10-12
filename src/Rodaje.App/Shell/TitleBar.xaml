@@ -61,6 +61,10 @@
                 <MenuFlyoutItem Text="Historial" Tag="inspector:History" Click="OnInspectorClick" />
                 <MenuFlyoutItem Text="Trabajos" Tag="inspector:Jobs" Click="OnInspectorClick" />
                 <MenuFlyoutSeparator />
+                <MenuFlyoutSubItem x:Name="WorkspaceMenu" Text="Espacio de trabajo" />
+                <MenuFlyoutItem Text="Pantalla completa" Tag="view.playerFullScreen" Click="OnActionClick" />
+                <MenuFlyoutItem x:Name="SecondScreenItem" Text="Visor en otra pantalla" Tag="view.secondScreen" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
                 <MenuFlyoutSubItem Text="Proxies en la vista previa">
                     <RadioMenuFlyoutItem x:Name="ProxyAuto" Text="Automático" GroupName="Proxies" Tag="Auto" Click="OnProxyClick" />
                     <RadioMenuFlyoutItem x:Name="ProxyAlways" Text="Siempre que haya" GroupName="Proxies" Tag="Always" Click="OnProxyClick" />

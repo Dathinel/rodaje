@@ -170,6 +170,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         Timeline.Attach(_services);
         Timeline.ClipVisuals = _visuals;
         Tools.Attach(_services);
+        AttachWorkflow();
         Program.Metrics.Milestone("vistas_unidas");
 
         session.Notified += (_, n) => ShowNotification(n);

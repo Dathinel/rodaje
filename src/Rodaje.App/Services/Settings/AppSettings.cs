@@ -139,6 +139,7 @@ public sealed partial class AppSettings
         Export.Normalize();
         Timeline ??= new TimelinePreferences();
         Timeline.Normalize();
+        NormalizeWorkflow();
         if (!Enum.IsDefined(ProxyUsage))
         {
             ProxyUsage = ProxyUsage.Auto;

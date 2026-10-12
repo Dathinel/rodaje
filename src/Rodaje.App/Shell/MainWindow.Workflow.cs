@@ -2,6 +2,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Media;
+using Rodaje.App.Services.Settings;
+using Rodaje.App.Services.Shortcuts;
 using Rodaje.Engine.Timeline;
 
 namespace Rodaje.App.Shell;
@@ -32,6 +34,81 @@ internal sealed partial class MainWindow
     }
 
     private void OnWorkflowTick() => _services.AutoProxies?.Tick();
+
+    private void AttachWorkflow()
+    {
+        TitleBar.WorkspaceChosen += (_, id) => ApplyWorkspace(id);
+        TitleBar.SaveWorkspaceRequested += (_, _) => _ = SaveWorkspaceAsync();
+        ShortcutRegistry registry = _router.Registry;
+        foreach (WorkspaceProfile profile in WorkspaceProfiles.Factory)
+        {
+            string id = "view.workspace." + profile.Id["fabrica.".Length..];
+            registry.Register(new ShortcutAction(id, $"Espacio de trabajo «{profile.Name}»", ShortcutGroups.Windows, []));
+            _bindings.Add(_router.Bind(id, () => ApplyWorkspace(profile.Id)));
+        }
+    }
+
+    /// <summary>Lleva los paneles a la distribución elegida: anchos, alto de la línea de tiempo y pestañas del panel derecho.</summary>
+    internal void ApplyWorkspace(string id)
+    {
+        if (WorkspaceProfiles.Find(_settings.Current, id) is not { } profile)
+        {
+            return;
+        }
+
+        if (_playerFullScreen)
+        {
+            Player.SetFullScreen(false);
+        }
+
+        WorkspaceProfiles.Apply(_settings.Current, profile);
+        AppSettings s = _settings.Current;
+        TimelineRow.Height = new GridLength(s.TimelineHeight);
+        LibraryColumn.Width = new GridLength(s.LibraryWidth);
+        InspectorColumn.Width = new GridLength(s.InspectorWidth);
+        FitSidePanels();
+        Inspector.ApplyTabs(s.HiddenInspectorTabs, profile.InspectorTab);
+        TitleBar.RefreshWorkspaces();
+    }
+
+    private async Task SaveWorkspaceAsync()
+    {
+        if (Root.XamlRoot is not { } xamlRoot)
+        {
+            return;
+        }
+
+        var name = new TextBox { PlaceholderText = "Por ejemplo, «Subtítulos»", MaxLength = 40 };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = xamlRoot, Title = "Guardar espacio de trabajo",
+            Content = new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock { Text = "Guarda los anchos de los paneles, el alto de la línea de tiempo y las pestañas visibles.", TextWrapping = TextWrapping.Wrap },
+                    name,
+                },
+            },
+            PrimaryButtonText = "Guardar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Primary, RequestedTheme = ElementTheme.Dark,
+        };
+        if (await DialogGate.ShowAsync(dialog).ConfigureAwait(true) != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(name.Text))
+        {
+            return;
+        }
+
+        SaveLayout();
+        AppSettings s = _settings.Current;
+        var current = new WorkspaceProfile
+        {
+            LibraryWidth = s.LibraryWidth, InspectorWidth = s.InspectorWidth, TimelineHeight = TimelineRow.ActualHeight,
+            InspectorTab = Inspector.CurrentTabName, HiddenInspectorTabs = [.. s.HiddenInspectorTabs],
+        };
+        WorkspaceProfile saved = WorkspaceProfiles.SaveCurrent(s, name.Text, current);
+        TitleBar.RefreshWorkspaces();
+        Session.Notify(NotificationSeverity.Success, "Espacio de trabajo guardado", $"«{saved.Name}» está en Ver › Espacio de trabajo.");
+    }
 
     /// <summary>Si al cerrar (o en un apagón) quedaron exportaciones en la cola, pregunta si se reanudan.</summary>
     private async Task OfferExportQueueAsync(Task cleanup)

@@ -1,10 +1,21 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Rodaje.App.Services.Settings;
 
 namespace Rodaje.App.Shell;
 
-/// <summary>Los menús del flujo de trabajo: proxies al importar.</summary>
+/// <summary>Los menús del flujo de trabajo: proxies al importar y espacios de trabajo.</summary>
 internal sealed partial class TitleBar
 {
+    /// <summary>Se eligió un espacio de trabajo (su id).</summary>
+    public event EventHandler<string>? WorkspaceChosen;
+
+    /// <summary>«Guardar el actual como…».</summary>
+    public event EventHandler? SaveWorkspaceRequested;
+
+    /// <summary>Rehace el submenú de espacios de trabajo (tras guardar o quitar uno).</summary>
+    public void RefreshWorkspaces() => UpdateWorkflowChecks();
+
     private void UpdateWorkflowChecks()
     {
         if (_services is null)
@@ -12,7 +23,36 @@ internal sealed partial class TitleBar
             return;
         }
 
-        AutoProxiesItem.IsChecked = _services.Settings.Current.AutoProxies;
+        AppSettings settings = _services.Settings.Current;
+        AutoProxiesItem.IsChecked = settings.AutoProxies;
+        WorkspaceMenu.Items.Clear();
+        foreach (WorkspaceProfile profile in WorkspaceProfiles.All(settings))
+        {
+            var item = new RadioMenuFlyoutItem { Text = profile.Name, GroupName = "Workspace", Tag = profile.Id, IsChecked = profile.Id == settings.Workspace };
+            item.Click += (_, _) => WorkspaceChosen?.Invoke(this, profile.Id);
+            WorkspaceMenu.Items.Add(item);
+        }
+
+        WorkspaceMenu.Items.Add(new MenuFlyoutSeparator());
+        var save = new MenuFlyoutItem { Text = "Guardar la distribución actual como..." };
+        save.Click += (_, _) => SaveWorkspaceRequested?.Invoke(this, EventArgs.Empty);
+        WorkspaceMenu.Items.Add(save);
+        if (settings.Workspaces.Count > 0)
+        {
+            var remove = new MenuFlyoutSubItem { Text = "Quitar un espacio propio" };
+            foreach (WorkspaceProfile own in settings.Workspaces)
+            {
+                var item = new MenuFlyoutItem { Text = own.Name };
+                item.Click += (_, _) =>
+                {
+                    WorkspaceProfiles.Remove(settings, own.Id);
+                    UpdateWorkflowChecks();
+                };
+                remove.Items.Add(item);
+            }
+
+            WorkspaceMenu.Items.Add(remove);
+        }
     }
 
     private void OnAutoProxiesClick(object sender, RoutedEventArgs e)
