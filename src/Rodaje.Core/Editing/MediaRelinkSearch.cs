@@ -5,7 +5,12 @@ using Rodaje.Core.Timing;
 namespace Rodaje.Core.Editing;
 
 /// <summary>Un archivo de la carpeta donde se busca.</summary>
-public sealed record RelinkFile(string Path, long Length);
+/// <param name="Path">La ruta completa.</param>
+/// <param name="Length">El largo en bytes.</param>
+/// <param name="CloudOnly">
+/// Solo está en la nube (OneDrive y parecidos): abrirlo lo descarga entero. La pasada de renombrados no lo abre.
+/// </param>
+public sealed record RelinkFile(string Path, long Length, bool CloudOnly = false);
 
 /// <summary>Lo que la búsqueda necesita del disco; las pruebas lo sustituyen por uno en memoria.</summary>
 public interface IRelinkFileSystem
@@ -23,13 +28,20 @@ public interface IRelinkFileSystem
 /// <summary>El disco de verdad; leer un archivo como medio se delega (en la app lo hace FFmpeg).</summary>
 public sealed class DiskRelinkFileSystem(Func<string, RelinkProbe?> probe) : IRelinkFileSystem
 {
+    /// <summary>
+    /// Atributos de un archivo que no está en el disco: <c>Offline</c> y los de Windows que .NET no nombra,
+    /// <c>FILE_ATTRIBUTE_RECALL_ON_OPEN</c> (0x40000) y <c>FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS</c> (0x400000), que pone
+    /// OneDrive a lo que solo está en la nube.
+    /// </summary>
+    public const FileAttributes CloudOnlyAttributes = FileAttributes.Offline | (FileAttributes)0x40000 | (FileAttributes)0x400000;
+
     public IEnumerable<RelinkFile> EnumerateFiles(string folder, CancellationToken cancellationToken)
     {
         var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.System };
         foreach (FileInfo file in new DirectoryInfo(folder).EnumerateFiles("*", options))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            yield return new RelinkFile(file.FullName, file.Length);
+            yield return new RelinkFile(file.FullName, file.Length, (file.Attributes & CloudOnlyAttributes) != 0);
         }
     }
 
@@ -218,8 +230,12 @@ public static class MediaRelinkSearch
             {
                 string name = FileName(m.Path);
                 string extension = Extension(name);
+                // Esta pasada abre cada archivo con la misma extensión: los que solo están en la nube no se abren, porque
+                // abrirlos los descargaría. Uno con el mismo nombre sí se abre en la pasada anterior: es uno solo y casi
+                // seguro el que se busca.
                 return files.Where(f =>
-                    !string.Equals(FileName(f.Path), name, StringComparison.OrdinalIgnoreCase)
+                    !f.CloudOnly
+                    && !string.Equals(FileName(f.Path), name, StringComparison.OrdinalIgnoreCase)
                     && string.Equals(Extension(FileName(f.Path)), extension, StringComparison.OrdinalIgnoreCase));
             });
         }
