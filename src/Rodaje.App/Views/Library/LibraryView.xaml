@@ -2,7 +2,8 @@
 <!--
     Riel de categorías y biblioteca. Medios y Audio: los medios del proyecto con portada real (IClipVisuals), importar,
     soltar archivos, doble clic para añadir a la pista principal, arrastrar a la línea de tiempo (rodaje/media-id) y menú
-    contextual. Texto, Efectos, Transiciones y Filtros: lo del motor, lo de los paquetes instalados y lo propio
+    contextual. Medios además tiene carpetas (soltar medios en una ficha los mueve), búsqueda, filtro por tipo, favoritos
+    y una lista con la columna de datos (resolución, duración, fps y códec); la lógica está en Logic/. Texto, Efectos, Transiciones y Filtros: lo del motor, lo de los paquetes instalados y lo propio
     (rodaje/elemento; las transiciones también rodaje/transicion); doble clic o el menú los aplican al clip
     seleccionado. IA: los módulos y si están instalados. Marcadores: la lista de marcadores de la secuencia (MarkersPanel).
 -->
@@ -15,7 +16,7 @@
 
     <UserControl.Resources>
         <DataTemplate x:Key="MediaTileTemplate" x:DataType="local:MediaItem">
-            <Grid Width="118" Height="98" ToolTipService.ToolTip="{x:Bind Tooltip}">
+            <Grid Width="118" Height="98" ToolTipService.ToolTip="{x:Bind Tooltip, Mode=OneWay}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="66" />
                     <RowDefinition Height="*" />
@@ -32,11 +33,60 @@
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom">
                             <TextBlock Text="{x:Bind DurationText}" Style="{StaticResource TimecodeTextStyle}" FontSize="10" />
                         </Border>
+                        <Border Background="{StaticResource ScrimBrush}" CornerRadius="2" Padding="3" Margin="4"
+                                HorizontalAlignment="Right" VerticalAlignment="Top" Visibility="{x:Bind FavoriteVisibility, Mode=OneWay}">
+                            <FontIcon Glyph="&#xE735;" FontSize="10" Foreground="{StaticResource AccentBrush}" />
+                        </Border>
                     </Grid>
                 </Border>
                 <StackPanel Grid.Row="1" Padding="2,3,2,0">
                     <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="11" />
                     <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Fila de la lista: nombre y, debajo, la columna de datos con los mismos anchos que la cabecera. -->
+        <DataTemplate x:Key="MediaRowTemplate" x:DataType="local:MediaItem">
+            <Grid Padding="0,4" RowSpacing="2" ColumnSpacing="6" ToolTipService.ToolTip="{x:Bind Tooltip, Mode=OneWay}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon Glyph="{x:Bind Glyph}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" />
+                <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="11" />
+                <FontIcon Grid.Column="2" Glyph="&#xE735;" FontSize="10" Foreground="{StaticResource AccentBrush}" Visibility="{x:Bind FavoriteVisibility, Mode=OneWay}" />
+                <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnSpacing="4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{x:Bind ResolutionText}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                    <TextBlock Grid.Column="1" Text="{x:Bind DurationText}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                    <TextBlock Grid.Column="2" Text="{x:Bind FrameRateText}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                    <TextBlock Grid.Column="3" Text="{x:Bind Codecs, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="FolderTileTemplate" x:DataType="local:FolderItem">
+            <Grid Width="118" Height="40" Padding="8,4" ColumnSpacing="6" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
+                  BorderThickness="1" CornerRadius="2" ToolTipService.ToolTip="{x:Bind Tooltip}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <FontIcon Glyph="&#xE8B7;" FontSize="14" Foreground="{StaticResource TextMutedBrush}" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="11" />
+                    <TextBlock Text="{x:Bind Summary}" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
                 </StackPanel>
             </Grid>
         </DataTemplate>
@@ -85,17 +135,83 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="CategoryTitle" Text="Medios" Style="{StaticResource PanelTitleTextStyle}" />
                 <Button x:Name="ImportButton" Grid.Column="1" Content="Importar" Click="OnImportClick" ToolTipService.ToolTip="Importar videos o audios a la biblioteca" />
-                <Button x:Name="PluginsButton" Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Content="&#xEA86;" Click="OnPluginsClick" AutomationProperties.Name="Abrir complementos"
+                <Button x:Name="NewFolderButton" Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Content="&#xE8F4;" Click="OnNewFolderClick" AutomationProperties.Name="Nueva carpeta"
+                        ToolTipService.ToolTip="Nueva carpeta en la biblioteca (no mueve archivos en el disco)" />
+                <Button x:Name="PluginsButton" Grid.Column="3" Style="{StaticResource ToolButtonStyle}" Content="&#xEA86;" Click="OnPluginsClick" AutomationProperties.Name="Abrir complementos"
                         ToolTipService.ToolTip="Complementos: paquetes y módulos de IA" />
             </Grid>
 
-            <GridView x:Name="MediaGrid" Grid.Row="1" Padding="8" SelectionMode="Single" IsDoubleTapEnabled="True"
-                      CanDragItems="True" DragItemsStarting="OnMediaDragStarting" DoubleTapped="OnMediaDoubleTapped"
-                      ContextRequested="OnMediaContextRequested" ContainerContentChanging="OnMediaContainerChanging" Loaded="OnMediaGridLoaded"
-                      ItemsSource="{x:Bind Media}" ItemTemplate="{StaticResource MediaTileTemplate}" />
+            <Grid x:Name="MediaPanel" Grid.Row="1" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Buscar (en toda la biblioteca), tipo, solo favoritos y cuadrícula o lista con datos. -->
+                <Grid Padding="8,8,8,0" ColumnSpacing="4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="SearchBox" MinWidth="0" Height="28" MinHeight="28" FontSize="{StaticResource BodyFontSize}" PlaceholderText="Buscar"
+                             TextChanged="OnSearchChanged" AutomationProperties.Name="Buscar en la biblioteca"
+                             ToolTipService.ToolTip="Busca por nombre en todas las carpetas (sin mirar mayúsculas ni tildes)" />
+                    <Button x:Name="KindButton" Grid.Column="1" Style="{StaticResource ToolButtonStyle}" Content="&#xE71C;" AutomationProperties.Name="Filtrar por tipo"
+                            ToolTipService.ToolTip="Tipo: todo" />
+                    <ToggleButton x:Name="FavoritesToggle" Grid.Column="2" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE734;" Click="OnFavoritesToggleClick"
+                                  AutomationProperties.Name="Solo favoritos" ToolTipService.ToolTip="Solo favoritos (de todas las carpetas)" />
+                    <ToggleButton x:Name="DetailsToggle" Grid.Column="3" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE8FD;" Click="OnDetailsToggleClick"
+                                  AutomationProperties.Name="Lista con datos" ToolTipService.ToolTip="Lista con resolución, duración, fps y códec" />
+                </Grid>
+
+                <!-- Dónde se está; el botón sube a la carpeta de arriba y también recibe medios soltados. -->
+                <Grid x:Name="FolderBar" Grid.Row="1" Padding="4,6,8,0" ColumnSpacing="2" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="UpButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE74A;" Click="OnUpClick" AllowDrop="True"
+                            DragOver="OnUpDragOver" Drop="OnUpDrop" AutomationProperties.Name="Subir a la carpeta de arriba"
+                            ToolTipService.ToolTip="Subir (suelta medios aquí para sacarlos de esta carpeta)" />
+                    <TextBlock x:Name="FolderPathText" Grid.Column="1" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                </Grid>
+
+                <GridView x:Name="FolderGrid" Grid.Row="2" Padding="8,8,8,0" MaxHeight="148" SelectionMode="None" IsItemClickEnabled="True"
+                          ItemClick="OnFolderClick" ContextRequested="OnFolderContextRequested" AllowDrop="True" DragOver="OnFolderDragOver" Drop="OnFolderDrop"
+                          ItemsSource="{x:Bind Folders}" ItemTemplate="{StaticResource FolderTileTemplate}" Visibility="Collapsed" />
+
+                <Grid x:Name="DetailsHeader" Grid.Row="3" Padding="20,8,20,2" ColumnSpacing="4" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Resolución" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                    <TextBlock Grid.Column="1" Text="Duración" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                    <TextBlock Grid.Column="2" Text="Fps" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                    <TextBlock Grid.Column="3" Text="Códec" Style="{StaticResource CaptionTextStyle}" FontSize="10" />
+                </Grid>
+
+                <GridView x:Name="MediaGrid" Grid.Row="4" Padding="8" SelectionMode="Single" IsDoubleTapEnabled="True"
+                          CanDragItems="True" DragItemsStarting="OnMediaDragStarting" DoubleTapped="OnMediaDoubleTapped"
+                          ContextRequested="OnMediaContextRequested" ContainerContentChanging="OnMediaContainerChanging" Loaded="OnMediaGridLoaded"
+                          ItemsSource="{x:Bind Media}" ItemTemplate="{StaticResource MediaTileTemplate}" />
+
+                <ListView x:Name="MediaList" Grid.Row="4" Padding="0,0,0,8" SelectionMode="Single" IsDoubleTapEnabled="True" Visibility="Collapsed"
+                          CanDragItems="True" DragItemsStarting="OnMediaDragStarting" DoubleTapped="OnMediaDoubleTapped"
+                          ContextRequested="OnMediaContextRequested"
+                          ItemsSource="{x:Bind Media}" ItemTemplate="{StaticResource MediaRowTemplate}" />
+            </Grid>
 
             <Grid x:Name="AudioPanel" Grid.Row="1" Visibility="Collapsed">
                 <Grid.RowDefinitions>

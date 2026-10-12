@@ -274,7 +274,7 @@ Servidor de pruebas en proceso (Kestrel o `HttpListener`) que sirve archivos con
 
 ## 28. Volver a enlazar medios movidos o renombrados
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #30 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/qdv-reenlazar`
 - **Caminos:** `src/Rodaje.Core/Editing/` y `src/Rodaje.Core/Commands/` (archivos nuevos), `src/Rodaje.App/Services/Relink/` (nuevo), un diálogo nuevo en `src/Rodaje.App/Views/Relink/`, pruebas, `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (función 32), `docs/formato-proyecto.md`, `docs/arquitectura/app.md`.
@@ -283,7 +283,7 @@ Al abrir un proyecto con medios que faltan: diálogo con la lista, «Buscar en c
 
 ## 29. Exportar el fotograma actual como imagen
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #32 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/qdv-fotograma`
 - **Caminos:** `src/Rodaje.Export/Still/` (nuevo), una entrada en el menú Archivo y un atajo (lo mínimo), pruebas, `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (función 34), `docs/arquitectura/exportacion.md`, D-028.

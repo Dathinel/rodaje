@@ -119,6 +119,7 @@ internal sealed partial class TimelineScheduler : IDisposable
     private double _startupSeconds;
     private long _poolWaits;
     private double _poolWaitMs;
+    private long _openedWhilePlaying;
 
     public TimelineScheduler(TimelinePlan plan, IAudioClock clock, IClipBackend backend, VideoDecoderOptions decoderOptions,
         TimelineSessionOptions options, long vramBudget)
@@ -425,6 +426,7 @@ internal sealed partial class TimelineScheduler : IDisposable
                 TransitionLateRefreshes = all.Where(l => l.IsCompanion).Sum(l => l.Late),
                 Approximated = all.Sum(l => l.Approximated),
                 LateTitles = _lateTitles,
+                DecodersOpenedWhilePlaying = _openedWhilePlaying,
             };
         }
     }
@@ -455,6 +457,7 @@ internal sealed partial class TimelineScheduler : IDisposable
             _heldRefreshes = 0;
             _partialPresentations = 0;
             _lateTitles = 0;
+            _openedWhilePlaying = 0;
         }
     }
 

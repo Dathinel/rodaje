@@ -1,7 +1,7 @@
-using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Voice;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
@@ -271,7 +271,7 @@ internal static class VoiceDialog
         }
     }
 
-    private static string Fmt(FormattableString s) => s.ToString(CultureInfo.CurrentCulture);
+    private static string Fmt(FormattableString s) => s.ToString(SpanishNumbers.Format);
 
     private sealed record VoiceChoice(VoiceInfo Voice)
     {

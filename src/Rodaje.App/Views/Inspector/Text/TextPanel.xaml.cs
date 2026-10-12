@@ -1,8 +1,8 @@
-using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Effects;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Titles;
@@ -103,7 +103,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
             ShowFontWarning(clip.Id, style);
             ShowLegibility(clip.Id, style);
             ShowAnimation(generator, style);
-            StyleSection.Summary = string.Create(CultureInfo.CurrentCulture, $"{style.Font.Family} · {style.Size:0}");
+            StyleSection.Summary = string.Create(SpanishNumbers.Format, $"{style.Font.Family} · {style.Size:0}");
             StrokeSection.Summary = style.Stroke is null ? "Sin borde" : style.Stroke.Color;
             ShadowSection.Summary = style.Shadow is null ? "Sin sombra" : style.Shadow.Color;
             BackgroundSection.Summary = style.Background is null ? "Sin fondo" : style.Background.Color;

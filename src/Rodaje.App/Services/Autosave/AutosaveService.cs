@@ -29,6 +29,7 @@ public sealed partial class AutosaveService : IDisposable
     private readonly AutosaveSchedule _schedule;
     private readonly TimeProvider _clock;
     private readonly List<RecoverableSession> _offered = [];
+    private readonly HashSet<RecoverableSession> _recovering = [];
     private AutosaveSession? _store;
     private Task _queue = Task.CompletedTask;
     private bool _writing;
@@ -146,13 +147,36 @@ public sealed partial class AutosaveService : IDisposable
 
     /// <summary>
     /// Escribe la copia más nueva de <paramref name="recoverable"/> como un proyecto aparte y lo abre. Si sale bien, la
-    /// sesión ya no se vuelve a ofrecer.
+    /// sesión ya no se vuelve a ofrecer. Un segundo clic en «Recuperar» mientras va el primero, o después de recuperar,
+    /// no hace nada y devuelve <c>false</c>.
     /// </summary>
     public async Task<bool> RecoverAsync(RecoverableSession recoverable)
     {
         ArgumentNullException.ThrowIfNull(recoverable);
         _session.VerifyAccess();
+        if (!_recovering.Add(recoverable))
+        {
+            return false;
+        }
 
+        bool recovered = false;
+        try
+        {
+            recovered = await RecoverOnceAsync(recoverable);
+            return recovered;
+        }
+        finally
+        {
+            if (!recovered)
+            {
+                // Si no salió (se canceló o falló), se puede volver a intentar.
+                _recovering.Remove(recoverable);
+            }
+        }
+    }
+
+    private async Task<bool> RecoverOnceAsync(RecoverableSession recoverable)
+    {
         Project project;
         AutosaveSnapshot snapshot;
         try
@@ -192,6 +216,18 @@ public sealed partial class AutosaveService : IDisposable
         if (!await _session.OpenProjectAsync(target))
         {
             return false;
+        }
+
+        try
+        {
+            string directory = recoverable.Directory;
+            string name = recoverable.ProjectName;
+            string? path = recoverable.ProjectPath;
+            await Task.Run(() => AutosaveSession.MarkRecovered(directory, name, path));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Queda Discard, que quita el bloqueo; solo si fallan los dos se vuelve a ofrecer en el próximo arranque.
         }
 
         recoverable.Discard();
@@ -266,6 +302,10 @@ public sealed partial class AutosaveService : IDisposable
         _store = null;
         ReleaseOffered();
     }
+
+    /// <summary>Termina cuando terminan las escrituras pedidas hasta ahora, hayan fallado o no (para las pruebas).</summary>
+    internal Task WhenWritesDone() =>
+        _queue.ContinueWith(_ => { }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
 
     private DateTimeOffset Now => _clock.GetUtcNow();
 

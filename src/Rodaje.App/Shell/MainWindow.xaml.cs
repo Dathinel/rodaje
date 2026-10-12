@@ -133,8 +133,10 @@ internal sealed partial class MainWindow : Window, IShellHost
         };
         Program.Metrics.Milestone("fuentes");
         MissingContent.Attach(session, packages);
+        Views.Relink.RelinkDialog.Attach(_services, _hwnd);
         _bindings.Add(EditorShortcuts.Bind(_router, session));
         _bindings.Add(_router.Bind(ActionIds.Export, () => ShowPage(ShellPage.Export)));
+        _bindings.Add(Views.Export.StillExportCommand.Bind(_router, _services, _hwnd));
         _bindings.Add(_router.Bind(ActionIds.ShowShortcuts, () => ShowPage(ShellPage.Shortcuts)));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _bindings.Add(Views.Analysis.AnalysisCommands.Bind(_router, _services));

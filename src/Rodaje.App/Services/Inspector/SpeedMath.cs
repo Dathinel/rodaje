@@ -1,4 +1,5 @@
 using System.Globalization;
+using Rodaje.App.Services.Format;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Services.Inspector;
@@ -12,8 +13,8 @@ public static class SpeedMath
     // Cerca de un imán (unos ±4 %) el deslizador se queda en él.
     private const double DetentReach = 6;
 
-    // Con InvariantGlobalization no hay culturas: pedir «es-ES» lanza al abrir la app.
-    private static readonly NumberFormatInfo Spanish = new() { NumberDecimalSeparator = ",", NumberGroupSeparator = "." };
+    // Con InvariantGlobalization no hay culturas: pedir «es-ES» lanza al abrir la app; el formato común lo resuelve.
+    private static readonly NumberFormatInfo Spanish = SpanishNumbers.Format;
 
     public static double ToSlider(double rate) =>
         Math.Clamp((Math.Log10(Math.Clamp(rate, 0.1, 100)) + 1) / 3 * SliderMax, 0, SliderMax);
