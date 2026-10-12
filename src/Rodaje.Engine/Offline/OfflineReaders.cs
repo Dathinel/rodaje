@@ -17,6 +17,12 @@ namespace Rodaje.Engine.Offline;
 /// pool de D3D11VA: así la lectura por adelantado nunca agota las superficies del decodificador.
 /// </para>
 /// <para>
+/// Un clip invertido tiene su propio lector, que no comparten los demás: decodifica por tramos desde el keyframe con
+/// <see cref="ReverseFrameReader"/> y entrega de mayor a menor índice. Su <c>M</c> (cuadros retenidos) sale de las
+/// superficies de sobra del pool (<see cref="IClipVideo.SpareSurfaces"/>) menos lo que retienen el decodificador, el margen
+/// y los cuadros pedidos.
+/// </para>
+/// <para>
 /// Hilos: <see cref="Request"/>, <see cref="Wait"/>, <see cref="ReleaseBefore"/> y <see cref="Reset"/> vienen del hilo
 /// de la exportación; cada lector abre y decodifica en el suyo. Un solo candado protege el estado y nunca se retiene
 /// mientras se abre, decodifica o cierra un archivo.
@@ -32,6 +38,15 @@ internal sealed class OfflineReaders : IDisposable
 
     /// <summary>Hasta cuántos cuadros por delante de un lector se pide sin preferir otro (el decodificador avanza sin seek).</summary>
     internal const int ForwardReach = 64;
+
+    /// <summary>El cuadro que el lector en reversa sacó de más y guarda para la próxima petición.</summary>
+    internal const int ReverseHeldSurfaces = 1;
+
+    /// <summary>Menor <c>M</c> que admite <see cref="ReverseFrameReader"/> con su ventana de dos tramos.</summary>
+    internal const int MinReverseRetained = 2;
+
+    /// <summary><c>M</c> sin pool de D3D11VA (cuadros en la memoria del sistema).</summary>
+    internal const int SoftwareReverseRetained = 32;
 
     private readonly object _gate = new();
     private readonly IClipBackend _backend;
@@ -81,7 +96,7 @@ internal sealed class OfflineReaders : IDisposable
         {
             lock (_gate)
             {
-                return _sources.Values.Sum(s => s.Readers.Count);
+                return _sources.Values.Sum(s => s.Readers.Count + s.Reversed.Count);
             }
         }
     }
@@ -108,8 +123,9 @@ internal sealed class OfflineReaders : IDisposable
     /// Pide el cuadro <paramref name="index"/> de <paramref name="key"/>, que se usará hasta <paramref name="lastUse"/>.
     /// Con <paramref name="mustHave"/> falso (lectura por adelantado) no se pide si el lector elegido está lleno.
     /// </summary>
+    /// <param name="clip">El clip que lo muestra; si va en reversa, lo decodifica su lector hacia atrás.</param>
     /// <returns>El hueco del cuadro; nulo si no había lugar.</returns>
-    public Slot? Request(SourceKey key, long index, Time lastUse, bool mustHave)
+    public Slot? Request(SourceKey key, long index, Time lastUse, bool mustHave, VideoClipPlan? clip = null)
     {
         Reader? post = null;
         Slot? slot;
@@ -128,7 +144,7 @@ internal sealed class OfflineReaders : IDisposable
                 return slot;
             }
 
-            Reader reader = Choose(source, index);
+            Reader reader = clip is { Forward: false } reversed ? ChooseReverse(source, reversed) : Choose(source, index);
             if (!mustHave && reader.Assigned >= reader.Capacity)
             {
                 return null;
@@ -154,7 +170,7 @@ internal sealed class OfflineReaders : IDisposable
     }
 
     /// <summary>Hay lugar para pedir <paramref name="index"/> por delante sin pasar la capacidad del lector que lo tomaría.</summary>
-    public bool HasRoom(SourceKey key, long index)
+    public bool HasRoom(SourceKey key, long index, VideoClipPlan? clip = null)
     {
         lock (_gate)
         {
@@ -163,7 +179,7 @@ internal sealed class OfflineReaders : IDisposable
                 return true;
             }
 
-            Reader? reader = Peek(source, index);
+            Reader? reader = clip is { Forward: false } ? source.Reversed.GetValueOrDefault(clip.ClipId) : Peek(source, index);
             return reader is null || reader.Assigned < reader.Capacity;
         }
     }
@@ -250,6 +266,22 @@ internal sealed class OfflineReaders : IDisposable
                         source.Readers.RemoveAt(i);
                     }
                 }
+
+                foreach (Reader reader in source.Reversed.Values)
+                {
+                    if (reader.Assigned == 0 && reader.LastUse + idle < time)
+                    {
+                        close.Add(reader);
+                    }
+                }
+
+                foreach (Reader reader in close)
+                {
+                    if (reader.Reverse is { } clip && reader.Source == source)
+                    {
+                        source.Reversed.Remove(clip.ClipId);
+                    }
+                }
             }
         }
 
@@ -281,7 +313,7 @@ internal sealed class OfflineReaders : IDisposable
                 }
 
                 source.Slots.Clear();
-                foreach (Reader reader in source.Readers)
+                foreach (Reader reader in source.Readers.Concat(source.Reversed.Values))
                 {
                     reader.Queue.Clear();
                     reader.LastUse = Time.Zero;
@@ -313,7 +345,9 @@ internal sealed class OfflineReaders : IDisposable
 
                 source.Slots.Clear();
                 readers.AddRange(source.Readers);
+                readers.AddRange(source.Reversed.Values);
                 source.Readers.Clear();
+                source.Reversed.Clear();
             }
 
             Monitor.PulseAll(_gate);
@@ -371,6 +405,19 @@ internal sealed class OfflineReaders : IDisposable
         return reader;
     }
 
+    /// <summary>El lector propio del clip invertido; no lo comparte con lo que va hacia adelante ni con otro clip.</summary>
+    private Reader ChooseReverse(Source source, VideoClipPlan clip)
+    {
+        if (!source.Reversed.TryGetValue(clip.ClipId, out Reader? reader))
+        {
+            reader = new Reader(this, source, _backend.CreateExecutor(), _lookahead) { Reverse = clip };
+            source.Reversed.Add(clip.ClipId, reader);
+            ReadersCreated++;
+        }
+
+        return reader;
+    }
+
     private Reader? Peek(Source source, long index)
     {
         Reader? forward = null;
@@ -420,6 +467,7 @@ internal sealed class OfflineReaders : IDisposable
                     reader.Video = null;
                 }
 
+                StopBackward(reader);
                 video?.Dispose();
             });
             (reader.Executor as IDisposable)?.Dispose();
@@ -507,8 +555,7 @@ internal sealed class OfflineReaders : IDisposable
             {
                 try
                 {
-                    ValueTask<DecodedFrame?> pending = video.GetFrameAsync(slot.Index, DecodeAccuracy.Exact, _cancel.Token);
-                    frame = pending.IsCompletedSuccessfully ? pending.Result : pending.AsTask().GetAwaiter().GetResult();
+                    frame = reader.Reverse is { } clip ? Backward(reader, video, clip, slot.Index) : Exact(video, slot.Index);
                     if (frame is null)
                     {
                         error = new InvalidOperationException("El medio no tiene ese cuadro.");
@@ -553,14 +600,143 @@ internal sealed class OfflineReaders : IDisposable
         }
     }
 
+    private DecodedFrame? Exact(IClipVideo video, long index)
+    {
+        ValueTask<DecodedFrame?> pending = video.GetFrameAsync(index, DecodeAccuracy.Exact, _cancel.Token);
+        return pending.IsCompletedSuccessfully ? pending.Result : pending.AsTask().GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// En el hilo del lector en reversa: el cuadro <paramref name="index"/> desde su <see cref="ReverseFrameReader"/>, que
+    /// se rehace desde <paramref name="index"/> si se pide algo por encima de lo que todavía puede entregar (la primera
+    /// vez o tras un salto). Lo que no llega por ahí (un instante fuera de la rejilla de la secuencia) sale exacto.
+    /// </summary>
+    private DecodedFrame? Backward(Reader reader, IClipVideo video, VideoClipPlan clip, long index)
+    {
+        if (reader.Backward is null || index > reader.Top)
+        {
+            StopBackward(reader);
+            DecodedFrame? first = null;
+            if (!reader.Primed)
+            {
+                // El pool de D3D11VA nace con el primer cuadro: este, exacto, y con él se sabe cuántas superficies sobran.
+                reader.Primed = true;
+                first = Exact(video, index);
+                if (first is null)
+                {
+                    return null;
+                }
+            }
+
+            long top = first is null ? index : index - 1;
+            reader.Top = top;
+            if (top >= clip.LowestFrame)
+            {
+                IKeyframeIndex? keyframes = KeyframesOf(reader.Source, video);
+                reader.Backward = new ReverseFrameReader(video, k => keyframes?.AtOrBefore(k) is >= 0 and var at ? at : null,
+                    clip.LowestFrame, top, new ReverseFrameReaderOptions
+                    {
+                        MaxRetained = ReverseRetained(reader, video),
+                        Wanted = reader.EveryFrame ? null : clip.IsShown,
+                    });
+            }
+
+            if (first is not null)
+            {
+                return first;
+            }
+        }
+
+        while ((reader.Held ?? reader.Backward?.Next(_cancel.Token)) is { } frame)
+        {
+            reader.Held = null;
+            if (frame.Index > index)
+            {
+                frame.Dispose();
+                reader.Top = frame.Index - 1;
+                continue;
+            }
+
+            if (frame.Index == index)
+            {
+                reader.Top = index - 1;
+                return frame;
+            }
+
+            reader.Held = frame;
+            reader.Top = frame.Index;
+            break;
+        }
+
+        // El plan no lo traía: exacto, y desde ahora el lector hacia atrás entrega todos los cuadros.
+        StopBackward(reader);
+        reader.EveryFrame = true;
+        return Exact(video, index);
+    }
+
+    /// <summary><c>M</c>: las superficies de sobra del pool menos lo que retienen el decodificador, el margen y los cuadros pedidos.</summary>
+    private int ReverseRetained(Reader reader, IClipVideo video)
+    {
+        if (video.SpareSurfaces is not { } spare)
+        {
+            return SoftwareReverseRetained;
+        }
+
+        int capacity;
+        lock (_gate)
+        {
+            capacity = reader.Capacity;
+        }
+
+        return Math.Max(MinReverseRetained, spare - DecoderHeldSurfaces - SurfaceMargin - ReverseHeldSurfaces - capacity);
+    }
+
+    /// <summary>Keyframes del archivo, leídos una vez por origen; nulo si no se conocen (cada tramo busca su keyframe solo).</summary>
+    private IKeyframeIndex? KeyframesOf(Source source, IClipVideo video)
+    {
+        lock (_gate)
+        {
+            if (source.KeyframesRead)
+            {
+                return source.Keyframes;
+            }
+        }
+
+        IKeyframeIndex? read = (video as IKeyframeSource)?.Keyframes ?? _backend.ReadKeyframes(source.Key.Path);
+        lock (_gate)
+        {
+            if (!source.KeyframesRead)
+            {
+                (source.Keyframes, source.KeyframesRead) = (read, true);
+            }
+
+            return source.Keyframes;
+        }
+    }
+
+    /// <summary>En el hilo del lector (o al cerrarlo, también en él): suelta el lector hacia atrás y el cuadro que guardaba.</summary>
+    private static void StopBackward(Reader reader)
+    {
+        reader.Backward?.Dispose();
+        reader.Backward = null;
+        reader.Held?.Dispose();
+        reader.Held = null;
+    }
+
     /// <summary>
     /// En el hilo del lector, al crear el pool de D3D11VA: reserva las referencias, lo que retiene el decodificador, el
-    /// margen y la lectura por adelantado que quepa en el presupuesto (como mínimo 2 cuadros).
+    /// margen y la lectura por adelantado que quepa en el presupuesto (como mínimo 2 cuadros). Un lector en reversa
+    /// reserva además su <c>M</c>, hasta llenar las 64 superficies del pool.
     /// </summary>
     private int SizePool(Reader reader, HardwarePoolRequest request)
     {
         long surface = Math.Max(1, request.SurfaceBytes);
         int fixedSurfaces = request.ReferenceSurfaces + DecoderHeldSurfaces + SurfaceMargin;
+        if (reader.Reverse is not null)
+        {
+            return SizeReversePool(reader, request.ReferenceSurfaces, surface, fixedSurfaces + ReverseHeldSurfaces);
+        }
+
         lock (_gate)
         {
             long free = _vramBudget - _reserved;
@@ -583,6 +759,35 @@ internal sealed class OfflineReaders : IDisposable
         }
     }
 
+    /// <summary>
+    /// Como <see cref="SizePool"/> para un lector en reversa: lo que quepa en el presupuesto, hasta las 64 superficies del
+    /// pool, se reparte entre los cuadros pedidos (hasta la lectura por adelantado) y el <c>M</c> del lector hacia atrás.
+    /// </summary>
+    private int SizeReversePool(Reader reader, int references, long surface, int fixedSurfaces)
+    {
+        lock (_gate)
+        {
+            long free = _vramBudget - _reserved;
+            int fits = (int)Math.Clamp((free / surface) - fixedSurfaces, int.MinValue / 2, int.MaxValue / 2);
+            int minimum = 2 + MinReverseRetained;
+            if (fits < minimum)
+            {
+                VramOverruns++;
+            }
+
+            int room = Math.Max(minimum, Math.Min(fits, VideoDecoder.MaxHardwarePoolSurfaces - fixedSurfaces));
+            reader.Capacity = Math.Clamp(room - (4 * MinReverseRetained), 2, _lookahead);
+            reader.Reserved = (fixedSurfaces + room) * surface;
+            if (!reader.Closed)
+            {
+                _reserved += reader.Reserved;
+                PeakReservedBytes = Math.Max(PeakReservedBytes, _reserved);
+            }
+
+            return fixedSurfaces - references + room;
+        }
+    }
+
     internal sealed class Source(SourceKey key)
     {
         public SourceKey Key { get; } = key;
@@ -596,6 +801,14 @@ internal sealed class OfflineReaders : IDisposable
 
         /// <summary>El archivo no abrió: todo cuadro suyo falla con esto.</summary>
         public Exception? Failure { get; set; }
+
+        /// <summary>Lectores de los clips invertidos, por clip.</summary>
+        public Dictionary<string, Reader> Reversed { get; } = [];
+
+        /// <summary>Keyframes del archivo, leídos por el primer lector en reversa; nulo si no se conocen.</summary>
+        public IKeyframeIndex? Keyframes { get; set; }
+
+        public bool KeyframesRead { get; set; }
     }
 
     internal sealed class Reader
@@ -637,6 +850,23 @@ internal sealed class OfflineReaders : IDisposable
         public int Capacity { get; set; }
 
         public long Reserved { get; set; }
+
+        /// <summary>El clip invertido al que sirve este lector; nulo hacia adelante.</summary>
+        public VideoClipPlan? Reverse { get; init; }
+
+        // Lo que sigue es del lector en reversa y solo se toca en su hilo (también al cerrarlo).
+        public ReverseFrameReader? Backward { get; set; }
+
+        /// <summary>El mayor cuadro que <see cref="Backward"/> todavía puede entregar.</summary>
+        public long Top { get; set; } = -1;
+
+        /// <summary>Un cuadro que salió por debajo del pedido y se guarda para la próxima petición.</summary>
+        public DecodedFrame? Held { get; set; }
+
+        public bool Primed { get; set; }
+
+        /// <summary>Se pidió un cuadro que el plan no esperaba: el lector hacia atrás entrega todos.</summary>
+        public bool EveryFrame { get; set; }
     }
 
     /// <summary>Un cuadro pedido; se reutiliza cuando se suelta y su decodificador ya no lo tiene en la cola.</summary>

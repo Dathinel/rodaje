@@ -89,16 +89,18 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     /// <param name="fit">Cómo cabe la composición si la forma no coincide.</param>
     /// <param name="filter">Filtro de escala.</param>
     /// <param name="ringSize">Búferes <c>Staging</c> en vuelo (2 a 8).</param>
+    /// <param name="region">Recorte de la composición antes de escalar; <c>null</c> la exporta entera.</param>
     public ExportFrameConverter(GpuDevice gpu, int sourceWidth, int sourceHeight, ExportVideoFormat output,
-        ExportFit fit = ExportFit.Bars, ExportScaleFilter filter = ExportScaleFilter.Auto, int ringSize = DefaultRingSize)
+        ExportFit fit = ExportFit.Bars, ExportScaleFilter filter = ExportScaleFilter.Auto, int ringSize = DefaultRingSize,
+        ExportSourceRegion? region = null)
         : this(gpu ?? throw new ArgumentNullException(nameof(gpu)), gpu.NativeDevice, gpu.NativeContext, sourceWidth, sourceHeight,
-            output, fit, filter, ringSize, ShaderCache.Default, TimeProvider.System)
+            output, fit, filter, ringSize, ShaderCache.Default, TimeProvider.System, region)
     {
     }
 
     /// <summary>Con un dispositivo propio (WARP en las pruebas): sin <paramref name="gpu"/> no se toma ningún candado.</summary>
     internal ExportFrameConverter(GpuDevice? gpu, nint device, nint context, int sourceWidth, int sourceHeight, ExportVideoFormat output,
-        ExportFit fit, ExportScaleFilter filter, int ringSize, ShaderCache shaders, TimeProvider time)
+        ExportFit fit, ExportScaleFilter filter, int ringSize, ShaderCache shaders, TimeProvider time, ExportSourceRegion? region = null)
     {
         ArgumentNullException.ThrowIfNull(output);
         ArgumentOutOfRangeException.ThrowIfZero(device);
@@ -109,6 +111,13 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         ArgumentOutOfRangeException.ThrowIfGreaterThan(sourceHeight, D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION);
         ArgumentOutOfRangeException.ThrowIfLessThan(ringSize, 2);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(ringSize, 8);
+        ExportSourceRegion window = region ?? new ExportSourceRegion(0, 0, sourceWidth, sourceHeight);
+        if (window.X < 0 || window.Y < 0 || window.Width <= 0 || window.Height <= 0
+            || window.X + window.Width > sourceWidth || window.Y + window.Height > sourceHeight)
+        {
+            throw new ArgumentOutOfRangeException(nameof(region), window, $"El recorte se sale de la composición de {sourceWidth}×{sourceHeight}.");
+        }
+
         _gpu = gpu;
         _device = (ID3D11Device*)device;
         _context = (ID3D11DeviceContext*)context;
@@ -120,12 +129,14 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         Fit = fit;
         Filter = filter;
         Capacity = ringSize;
+        Region = window;
         ExportPixelFormat pixels = output.PixelFormat;
-        Rect = ExportGeometry.Place(sourceWidth, sourceHeight, output.Width, output.Height, fit,
+        Rect = ExportGeometry.Place(window.Width, window.Height, output.Width, output.Height, fit,
             evenX: pixels.NeedsEvenWidth(), evenY: pixels.HalfHeightChroma());
-        int maxLevel = (int)Math.Log2(Math.Max(sourceWidth, sourceHeight));
-        _plan = ExportGeometry.Plan(sourceWidth, sourceHeight, output.Width, output.Height, Rect, filter, maxLevel);
-        _flatPlan = ExportGeometry.Plan(sourceWidth, sourceHeight, output.Width, output.Height, Rect, filter, 0);
+        int maxLevel = ExportGeometry.MaxLevel(sourceWidth, sourceHeight, window);
+        bool whole = window.Width == sourceWidth && window.Height == sourceHeight;
+        _plan = ExportGeometry.Plan(window.Width, window.Height, output.Width, output.Height, Rect, filter, maxLevel, whole);
+        _flatPlan = ExportGeometry.Plan(window.Width, window.Height, output.Width, output.Height, Rect, filter, 0, whole);
         _layout = new ExportLayout(output);
         _cpu = GC.AllocateUninitializedArray<byte>(_layout.TotalBytes);
         _slots = new Slot[ringSize];
@@ -149,6 +160,9 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     public int SourceWidth { get; }
 
     public int SourceHeight { get; }
+
+    /// <summary>La parte de la composición que se exporta (entera si no hay recorte).</summary>
+    public ExportSourceRegion Region { get; }
 
     public ExportVideoFormat Output { get; }
 
@@ -405,6 +419,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         EnsureScaled();
         int levelWidth = SourceWidth >> plan.Level;
         int levelHeight = SourceHeight >> plan.Level;
+        float unit = 1f / (1 << plan.Level);
         bool alpha = Output.PixelFormat.HasAlpha();
         var constants = new ScaleConstants
         {
@@ -416,6 +431,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
             Width = (uint)Output.Width,
             Height = (uint)Output.Height,
             Weight = new(weight, 0, 0, 0),
+            Window = new(Region.X * unit, Region.Y * unit, Region.Width * unit, Region.Height * unit),
         };
         Upload(_scaleConstants, constants);
         ID3D11ShaderResourceView** inputs = stackalloc ID3D11ShaderResourceView*[2] { first, second != null ? second : first };
@@ -789,6 +805,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         public uint Width;
         public uint Height;
         public Float4 Weight;
+        public Float4 Window;
     }
 
     [StructLayout(LayoutKind.Sequential)]

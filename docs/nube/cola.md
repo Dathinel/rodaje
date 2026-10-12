@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #16, #14.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): ninguno (el bloque #14, #16, #17, #19–#25, #28 lo revisa Sonnet desde el 11-oct).
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -148,7 +148,7 @@ Solo el modelo y la detección, sin exportar todavía: un catálogo de codificad
 
 ## 14. `VideoDecoder` con GOP abierto (HEVC con CRA)
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #17 unido el 11-oct en la integración local; CI sin minutos, verificado en la RTX 3050)
 - **Rama:** `claude/media-gop-abierto`
 - **Caminos:** `src/Rodaje.Media/Video/`, `src/Rodaje.Media/Probe/`, `testing/Rodaje.TestMedia/` (preset nuevo), `tests/Rodaje.Media.Tests/`, `docs/arquitectura/medios.md`, `docs/tareas/`
 - **Lee:** la revisión del PR #9, `docs/arquitectura/medios.md` (seek exacto y GOP abierto), `VideoDecoder.cs`, `KeyframeIndex.cs`.
@@ -166,7 +166,7 @@ Segunda mitad de lo pedido por Daniel: en Ajustes, elegir de qué pistas de vide
 
 ## 16. Material perdido al encadenar curvas de velocidad
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #18: rompe `SpeedDragTests.EstirarUnaCurva_SaleDelInicioDelGesto_YNoDependeDelCamino`; ver el PR)
 - **Rama:** `claude/curvas-material`
 - **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Timing/` (solo si hace falta), `tests/Rodaje.Core.Tests/` (archivos nuevos), `docs/tareas/`
 - **Lee:** `docs/fase-5c.md`, `docs/arquitectura/nucleo.md` (sección Velocidad), `src/Rodaje.Core/Editing/TimelineEdits.Speed.cs` (`AlignEnd`), `src/Rodaje.Core/Model/SpeedPresets.cs`.
@@ -175,7 +175,7 @@ Aplicar «Bala», luego «Héroe» y luego «Ninguna» a un clip de 10 s lo deja
 
 ## 17. Cortar en todas las pistas y borrar a un lado del cursor
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #21 unido el 11-oct en la integración local)
 - **Rama:** `claude/qdv-cortes`
 - **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Commands/`, `tests/Rodaje.Core.Tests/` (archivos nuevos), `src/Rodaje.App/Services/Shortcuts/`, `src/Rodaje.App/Services/EditorSession*.cs` (parcial nuevo), `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (funciones de calidad de vida, aprobadas por Daniel el 11-oct: 2), `docs/arquitectura/nucleo.md`, D-026 (magnetismo).
@@ -184,7 +184,7 @@ Cortar en el cursor en todas las pistas desbloqueadas a la vez (un paso del hist
 
 ## 18. Enlazar y desenlazar, separar audio, y copiar/pegar atributos
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #28 unido el 11-oct en la integración local)
 - **Rama:** `claude/qdv-enlaces-atributos`
 - **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Commands/`, `tests/Rodaje.Core.Tests/` (archivos nuevos), `src/Rodaje.App/Services/` (parciales nuevos), menús contextuales de clip en `src/Rodaje.App/Views/Timeline/` (lo mínimo), `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (funciones 3 y 7), `docs/arquitectura/nucleo.md`, `app-vistas.md`.
@@ -193,7 +193,7 @@ Enlazar/desenlazar clips con un clic y «separar el audio» a su propia pista (c
 
 ## 19. Reemplazar medio y lista de marcadores
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #23 unido el 11-oct en la integración local; el color de los marcadores queda pendiente, pide cambiar el modelo)
 - **Rama:** `claude/qdv-reemplazar-marcadores`
 - **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Commands/`, `tests/Rodaje.Core.Tests/` (archivos nuevos), `src/Rodaje.App/Views/Library/` y un panel nuevo de marcadores en `src/Rodaje.App/Views/Markers/`, `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (funciones 5 y 8), D-020 (marcadores y regiones).
@@ -202,7 +202,7 @@ Reemplazar el medio de un clip por otro conservando duración, efectos y keyfram
 
 ## 20. Exportación en la CI de Windows (sin GPU)
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #22 unido el 11-oct; al unir se corrigió la excepción del rango de h264_mf en MOV, que no llegaba al verificador)
 - **Rama:** `claude/export-ci`
 - **Caminos:** `tests/Rodaje.Media.Tests/Export/` (archivos nuevos), `.github/workflows/ci.yml` (solo si hace falta `ffmpeg.exe` en el runner), `docs/tareas/`.
 - **Lee:** `docs/fase-6.md`, `docs/arquitectura/medios.md` (sección «Salida de la exportación»), `src/Rodaje.Media/Export/FfmpegPipeSink.cs`, `src/Rodaje.Export/FfmpegArguments.cs`.
@@ -211,7 +211,7 @@ Exportaciones cortas reales con fuentes `lavfi` por `FfmpegPipeSink` y `FfmpegAr
 
 ## 21. Licencias de la exportación
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #15: falta evaluar las filas contra la GPLv3 de D-032; ver el PR)
 - **Rama:** `claude/export-licencias`
 - **Caminos:** `LICENCIAS.md`, `docs/legal.md`, `docs/tareas/`.
 - **Lee:** `docs/fase-6.md` (LGPL en la v1), `docs/ffmpeg-configure.txt`, `src/Rodaje.Media/Export/` (catálogo y codificadores).
@@ -220,7 +220,7 @@ Por cada codificador y biblioteca que usa la exportación (SVT-AV1, libaom, libv
 
 ## 22. Autoguardado y recuperación
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #20 unido el 11-oct en la integración local)
 - **Rama:** `claude/qdv-autoguardado`
 - **Caminos:** `src/Rodaje.App/Services/Autosave/` (nuevo), `src/Rodaje.Core/Serialization/` (archivos nuevos si hace falta), `tests/Rodaje.Core.Tests/` (archivos nuevos), el arranque de la App donde se ofrece recuperar (lo mínimo), `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (función 30), `docs/formato-proyecto.md`, `docs/arquitectura/app.md`.
@@ -229,7 +229,7 @@ Guardar una copia del proyecto cada N minutos y tras cambios (en segundo plano, 
 
 ## 23. Zoom a la selección y ajustar a la ventana
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #24 unido el 11-oct en la integración local)
 - **Rama:** `claude/qdv-zoom`
 - **Caminos:** `src/Rodaje.App/Views/Timeline/Logic/` (archivos nuevos), `src/Rodaje.App/Services/Shortcuts/`, la barra de la línea de tiempo (lo mínimo), `tests/` de la lógica, `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (función 9), `docs/arquitectura/app-vistas.md`.
@@ -238,7 +238,7 @@ Guardar una copia del proyecto cada N minutos y tras cambios (en segundo plano, 
 
 ## 24. Plantillas de proyecto
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #19 unido el 11-oct en la integración local)
 - **Rama:** `claude/qdv-plantillas`
 - **Caminos:** `src/Rodaje.App/Services/Templates/` (nuevo), el diálogo de proyecto nuevo (lo mínimo), `tests/` de la lógica, `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (función 33), PR #10 (pistas por defecto), `docs/formato-proyecto.md`.
@@ -247,7 +247,7 @@ Al crear un proyecto: plantillas 16:9 1080p, 9:16 1080×1920 (TikTok/Reels/Short
 
 ## 25. Fuzz del protocolo de módulos
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #27: `ClientFuzzTests` se cuelga en Windows; ver el PR)
 - **Rama:** `claude/modulos-fuzz`
 - **Caminos:** `tests/Rodaje.Modules.Protocol.Tests/` (archivos nuevos), `docs/tareas/`.
 - **Lee:** `docs/fase-7.md`, D-031, `src/Rodaje.Modules.Protocol/`.
@@ -256,7 +256,7 @@ Mensajes y marcos al azar en los dos sentidos (largos, JSON hostil, ids repetido
 
 ## 26. Documentación del protocolo para terceros
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #25 unido el 11-oct en la integración local)
 - **Rama:** `claude/modulos-doc`
 - **Caminos:** `docs/protocolo-modulos.md` (nuevo), `docs/tareas/`.
 - **Lee:** `docs/fase-7.md`, D-031, D-032 (excepción para complementos de `LICENSE`), `src/Rodaje.Modules.Protocol/`, `modules/Rodaje.Module.Echo/`.
@@ -265,9 +265,117 @@ Guía para escribir un módulo de terceros: transporte, saludo y versión, mensa
 
 ## 27. Servidor HTTP local para probar descargas
 
-- **Estado:** pendiente
+- **Estado:** cambios (PR #26: un corte con `Abort` en Windows pierde los bytes ya enviados; ver el PR)
 - **Rama:** `claude/descarga-lab`
 - **Caminos:** `testing/Rodaje.TestServer/` (nuevo), `docs/tareas/`.
 - **Lee:** `docs/fase-7.md` (sección Descarga).
 
 Servidor de pruebas en proceso (Kestrel o `HttpListener`) que sirve archivos con `Range`, cortes a mitad, redirecciones, hashes y firmas malas, lentitud y 404/500, configurable por prueba, para el agente local que hace `GitHubReleaseDownloader`. Con sus propias pruebas.
+
+## 28. Volver a enlazar medios movidos o renombrados
+
+- **Estado:** pendiente
+- **Rama:** `claude/qdv-reenlazar`
+- **Caminos:** `src/Rodaje.Core/Editing/` y `src/Rodaje.Core/Commands/` (archivos nuevos), `src/Rodaje.App/Services/Relink/` (nuevo), un diálogo nuevo en `src/Rodaje.App/Views/Relink/`, pruebas, `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` (función 32), `docs/formato-proyecto.md`, `docs/arquitectura/app.md`.
+
+Al abrir un proyecto con medios que faltan: diálogo con la lista, «Buscar en carpeta» que encuentra todos por nombre, tamaño y duración (y huella rápida de los primeros MB si hay dudas), y reenlazar uno a mano. Un paso del historial; los clips, efectos y keyframes no cambian. Pruebas de la búsqueda y de la edición.
+
+## 29. Exportar el fotograma actual como imagen
+
+- **Estado:** pendiente
+- **Rama:** `claude/qdv-fotograma`
+- **Caminos:** `src/Rodaje.Export/Still/` (nuevo), una entrada en el menú Archivo y un atajo (lo mínimo), pruebas, `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` (función 34), `docs/arquitectura/exportacion.md`, D-028.
+
+Exportar el cuadro del cursor a PNG (con alfa si la secuencia lo tiene) o JPEG con calidad, a la resolución de la secuencia o la del preajuste, usando el mismo motor fuera de línea y el compositor estricto que la exportación (títulos incluidos). Pruebas contra la vista previa.
+
+## 30. Biblioteca con carpetas, búsqueda y favoritos
+
+- **Estado:** pendiente
+- **Rama:** `claude/qdv-biblioteca`
+- **Caminos:** `src/Rodaje.App/Views/Library/`, `src/Rodaje.Core/Model/` (solo si hace falta guardar carpetas en el proyecto, con migración de formato documentada), pruebas, `docs/tareas/`.
+- **Lee:** `docs/pendientes.md` (función 38), `docs/formato-proyecto.md`, D-027 (estilo).
+
+Carpetas en la biblioteca del proyecto (crear, renombrar, arrastrar medios), búsqueda por nombre, filtro por tipo, favoritos, y columna de datos (resolución, duración, códec, fps). Sin tocar los paneles de títulos ni análisis.
+
+## 31. Un solo catálogo de codificadores
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-catalogo-unico`
+- **Caminos:** `src/Rodaje.Media/Export/`, `src/Rodaje.Export/Encoders/`, `src/Rodaje.Media/Proxies/ProxyEncoders.cs`, sus pruebas, `docs/arquitectura/exportacion.md`, `docs/tareas/`.
+- **Lee:** revisión en bloque del 11-oct (M3): hay tres listas (`ExportEncoderCatalog` de #14 sin usar, `ExportEncoderCandidates`/`ProbedEncoderSource` en la app, `ProxyEncoders`).
+
+Conecta `ExportEncoderAvailability` a `IExportEncoderSource` (punto previsto en `ExportEncoderSource.cs:9`), borra `ExportEncoderCandidates` y `ProbedEncoderSource`, y que `ProxyEncoders` use el mismo catálogo. Un codificador de hardware sin dispositivo no debe reintentarse cada 2 min. Pruebas sin dobles duplicados.
+
+## 32. FFV1 solo intra, rango de color en MOV y pruebas sobre el código real
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-ffv1-rango`
+- **Caminos:** `src/Rodaje.Media/Export/ExportEncoderCatalog.cs`, `src/Rodaje.Export/FfmpegArguments.cs`, `tests/Rodaje.Media.Tests/Export/CpuExport*` (moverlas a `tests/Rodaje.Export.Tests/`), `docs/tareas/`.
+- **Lee:** revisión en bloque (M4, M5, M7).
+
+FFV1 con `-g 1` (hoy sale un cuadro clave cada 12); `h264_mf`/`hevc_mf` en MOV escriben el rango con `h264_metadata`/`hevc_metadata` según `ExportColor` (y la prueba deja de aceptar «vacío»); las pruebas de exportación por CPU usan `FfmpegArguments.Build` real en vez de una copia.
+
+## 33. Cancelar la exportación en ≤1 s también con VP9
+
+- **Estado:** pendiente
+- **Rama:** `claude/export-abort`
+- **Caminos:** `src/Rodaje.Media/Export/FfmpegPipeSink.cs`, `tests/Rodaje.Media.Tests/Export/`, `docs/tareas/`.
+- **Lee:** revisión en bloque (M6), `docs/fase-6.md` (criterio de cancelación).
+
+`Abort` espera 900 ms y el escritor queda bloqueado en `WriteFile` (1,6–6,3 s en la CI con VP9). Esperar sin el cerrojo o terminar el Job Object al vencer; bajar el límite de `CpuExportCancellationTests` a 1 s y que sea estable.
+
+## 34. Autoguardado: pruebas del servicio y orden de escritura
+
+- **Estado:** pendiente
+- **Rama:** `claude/autoguardado-pruebas`
+- **Caminos:** `src/Rodaje.App/Services/Autosave/`, `src/Rodaje.Core/` (solo `AutosaveSession`), `tests/`, `docs/tareas/`.
+- **Lee:** revisión en bloque (M8, M9).
+
+Pruebas de `AutosaveService` con reloj falso y un doble de `IEditorDialogs`: `Tick`, cola de escrituras, `MarkSaved` al guardar o deshacer hasta lo guardado, `Clear` al abrir, `RecoverAsync` con copia dañada y con `sesion.json` corrupto, `Discard` que falla al borrar el bloqueo (`AutosaveRecovery.cs:69`), doble clic en «Recuperar». Escribe `sesion.json` (`unsavedChanges: true`) antes de la copia en `AutosaveSession.Write` (`:125`).
+
+## 35. Limpiezas de la revisión en bloque
+
+- **Estado:** pendiente
+- **Rama:** `claude/limpiezas-bloque-1`
+- **Caminos:** `src/Rodaje.App/Services/EditorSession*.cs`, `src/Rodaje.Core/Editing/ClipAttributes.cs`, `src/Rodaje.App/Views/Timeline/` (zoom), `src/Rodaje.App/Services/Templates/`, `docs/protocolo-modulos.md`, sus pruebas, `docs/tareas/`.
+- **Lee:** revisión en bloque (menores y M10).
+
+Quitar `TrimStartToPlayhead`/`TrimEndToPlayhead`/`TrimToPlayhead` (`EditorSession.Editing.cs:36,39`) y migrar `EditingAtPlayheadTests` a `DeleteLeft/RightOfPlayhead`; pegar velocidad 1× restablece tono y muestreo (`ClipAttributes.cs:257`) y los keyframes se recortan a la duración del destino; el zoom desengancha `CompositionTarget.Rendering` al descargar la vista y usa `TimelineViewport.FitTo`; plantillas: quitar bidi en `Clean`, confirmar al borrar, no permitir el nombre de una de fábrica; `docs/protocolo-modulos.md` al día con el `ModuleManager` ya en main.
+
+## 36. Pausas de la vista previa en cortes con velocidad y transiciones
+
+- **Estado:** pendiente
+- **Rama:** `claude/vista-previa-pausas`
+- **Caminos:** `src/Rodaje.Engine/Timeline/`, `src/Rodaje.Playback/`, sus pruebas, `docs/arquitectura/motor.md`, `docs/tareas/`.
+- **Lee:** `docs/fase-6.md` («Cifras de la aceptación»: bloqueos de 59–370 ms sin exportar en cortes y transiciones), `tests/Rodaje.Export.Tests/Acceptance/AcceptanceScene.cs`.
+
+Reproduce con la escena de aceptación sin exportar, mide qué bloquea (pre-roll, apertura de decodificadores, compilación de shaders) y corrígelo para que ningún refresco tarde >50 ms en una máquina normal. Prueba que lo exija (con `Categoria=TiempoReal` si mide tiempo).
+
+## 37. Subtítulos automáticos en la app
+
+- **Estado:** pendiente
+- **Rama:** `claude/subtitulos-ui`
+- **Caminos:** archivos nuevos en `src/Rodaje.App/Views/Analysis/` o `Views/Subtitles/`, `src/Rodaje.Core/Model/` (campo `generator.words` con migración documentada si hace falta), pruebas, `docs/tareas/`.
+- **Lee:** `docs/fase-7.md` (sección del agente E: lo que queda para la UI), `docs/arquitectura/app.md` («Módulos de IA»), `src/Rodaje.Core/Editing/SubtitleEdits.cs`.
+
+«Subtítulos automáticos» en el menú del clip: baja el audio a f32 16 kHz con `ModuleMedia`, llama a `modulo-subtitulos` por el `ModuleManager`, pasa los tiempos con `ModuleTime`/`ClipTimeMap` y muestra una propuesta con vista previa que aplica `Edits.AddSubtitles` en un paso. Guarda los tiempos por palabra (`generator.words`) para editar por palabra después.
+
+## 38. Traducir subtítulos (módulo)
+
+- **Estado:** pendiente
+- **Rama:** `claude/modulo-traducir`
+- **Caminos:** `modules/Rodaje.Module.Translate/` (nuevo), `tests/Rodaje.Module.Translate.Tests/` (nuevo), `herramientas/preparar-modelos.ps1` (añadir entradas), archivos nuevos en la App para la acción, `docs/tareas/`.
+- **Lee:** `docs/fase-7.md` (agente F: Qwen3-4B-Instruct-2507 Q4 Apache-2.0 con LLamaSharp; Opus-MT como opción ligera; NLLB descartado por no comercial), D-031, D-032, `modules/Rodaje.Module.Subtitles/` como patrón.
+
+Traduce los clips de una pista de subtítulos a otro idioma creando una pista nueva, conservando tiempos. Licencias en `LICENCIAS.md` del módulo; modelos con SHA-256 fijado. Pruebas con frases conocidas y medida de velocidad.
+
+## 39. Quitar fondo y reencuadre automático (módulo de visión)
+
+- **Estado:** pendiente
+- **Rama:** `claude/modulo-vision`
+- **Caminos:** `modules/Rodaje.Module.Vision/` (nuevo), sus pruebas, `herramientas/preparar-modelos.ps1`, la primitiva de máscara en Render y archivos nuevos en la App, `docs/tareas/`.
+- **Lee:** `docs/fase-7.md` (agente H: MODNet Apache-2.0 por defecto, BiRefNet_lite MIT como calidad alta; YuNet MIT y RT-DETRv2 Apache-2.0 para reencuadre; RMBG y RVM y YOLO descartados), D-031, D-032.
+
+Quitar fondo como máscara (FFV1 gris en la caché del proyecto) aplicada por una primitiva de máscara del render; reencuadre a 9:16/1:1 siguiendo rostros o personas con keyframes de transformación suavizados. Pruebas con imágenes sintéticas y medidas de velocidad/VRAM.

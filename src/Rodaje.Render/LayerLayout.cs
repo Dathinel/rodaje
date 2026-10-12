@@ -40,7 +40,35 @@ public static class LayerLayout
         }
 
         PixelRect fit = VideoLayout.Fit(sequenceWidth, sequenceHeight, displayWidth, displayHeight);
-        return fit.IsEmpty ? null : Transformed(fit.X + (fit.Width / 2.0), fit.Y + (fit.Height / 2.0), fit.Width, fit.Height, transform);
+        return fit.IsEmpty ? null : Transformed(fit.X + (fit.Width / 2.0), fit.Y + (fit.Height / 2.0), fit.Width, fit.Height,
+            Stabilize(transform, fit.Height));
+    }
+
+    /// <summary>
+    /// Compone la corrección de estabilizar (en altos de la imagen ajustada, sobre su centro) antes de la transformación:
+    /// <c>S·R(u)·(s·R(θ)·q + h·t) = S·s·R(u + θ)·q + S·R(u)·h·t</c>, así sigue siendo una sola escala, giro y desplazamiento.
+    /// </summary>
+    internal static LayerTransform Stabilize(LayerTransform transform, double fittedHeight)
+    {
+        if (transform.Stabilization is not { } c || !double.IsFinite(c.A) || !double.IsFinite(c.B) || !double.IsFinite(c.X)
+            || !double.IsFinite(c.Y) || !(c.Scale > 0))
+        {
+            return transform;
+        }
+
+        double radians = transform.RotationDegrees % 360 * Math.PI / 180;
+        double cos = Math.Cos(radians);
+        double sin = Math.Sin(radians);
+        double tx = c.X * fittedHeight * transform.Scale;
+        double ty = c.Y * fittedHeight * transform.Scale;
+        return transform with
+        {
+            X = transform.X + (tx * cos) - (ty * sin),
+            Y = transform.Y + (tx * sin) + (ty * cos),
+            Scale = transform.Scale * c.Scale,
+            RotationDegrees = transform.RotationDegrees + c.RotationDegrees,
+            Stabilization = null,
+        };
     }
 
     /// <summary>

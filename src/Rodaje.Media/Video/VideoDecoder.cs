@@ -75,6 +75,10 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private long _errorsAtLastReset;
     private bool _damagedFrame;
 
+    // Modo Keyframe en HEVC: cada keyframe se decodifica aparte (ver FeedDecoder).
+    private bool _keyframeFed;
+    private bool _keyframeDraining;
+
     // Lo más que se descartó desde el último seek; una petición más exacta obliga a buscar de nuevo.
     private DecodeAccuracy _fedAccuracy;
     private bool _approximate;
@@ -599,6 +603,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         else
         {
             ffmpeg.avcodec_flush_buffers(_codec);
+            DiscardStaleOutput();
         }
 
         ffmpeg.av_packet_unref(_packet);
@@ -607,6 +612,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         ffmpeg.av_frame_unref(_pending);
         _hasHeld = _hasPending = _packetWaiting = false;
         _inputEnded = _drained = false;
+        _keyframeFed = _keyframeDraining = false;
         _positionValid = false;
         _consecutiveErrors = 0;
         _lastIndex = -1;
@@ -642,6 +648,18 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
             }
 
             break;
+        }
+    }
+
+    // El decodificador HEVC de FFmpeg (sin hilos por cuadro, como en D3D11VA) pasa a su cola de salida varios cuadros de
+    // una vez (todos al llegar al final del flujo o a un IRAP) y avcodec_flush_buffers no vacía esa cola: tras el seek
+    // salían primero cuadros del sitio anterior, el objetivo parecía pasado y, tras los reintentos, no se entregaba nada.
+    // Sin paquetes nuevos, lo que todavía devuelva el decodificador es de antes del flush.
+    private void DiscardStaleOutput()
+    {
+        for (int i = 0; i < MaxDrainFrames && ffmpeg.avcodec_receive_frame(_codec, _frame) == 0; i++)
+        {
+            ffmpeg.av_frame_unref(_frame);
         }
     }
 
@@ -764,6 +782,15 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
                 return true;
             }
 
+            if (_keyframeDraining && (r == ffmpeg.AVERROR_EOF || r == Av.ErrorAgain))
+            {
+                // Salió todo lo del keyframe anterior: el siguiente empieza como tras un seek.
+                ffmpeg.avcodec_flush_buffers(_codec);
+                DiscardStaleOutput();
+                _keyframeDraining = _keyframeFed = false;
+                continue;
+            }
+
             if (r == ffmpeg.AVERROR_EOF)
             {
                 _drained = true;
@@ -821,6 +848,17 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
                 }
             }
 
+            if (IsolatesKeyframes && _keyframeFed)
+            {
+                // Con solo keyframes, un CRA de HEVC (GOP abierto) calcula su POC desde cuadros que se descartaron y
+                // choca con el keyframe anterior («Duplicate POC»): FFmpeg lo tira y no sale ningún keyframe más. Se
+                // vacía el decodificador y se empieza de nuevo en cada keyframe, como tras un seek.
+                _packetWaiting = true;
+                ffmpeg.avcodec_send_packet(_codec, null);
+                _keyframeDraining = true;
+                return;
+            }
+
             int sent = ffmpeg.avcodec_send_packet(_codec, _packet);
             if (sent == Av.ErrorAgain)
             {
@@ -837,9 +875,13 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
                 continue;
             }
 
+            _keyframeFed = IsolatesKeyframes;
             return;
         }
     }
+
+    private bool IsolatesKeyframes =>
+        _fedAccuracy == DecodeAccuracy.Keyframe && _codec->codec_id == AVCodecID.AV_CODEC_ID_HEVC;
 
     private void EndInput()
     {

@@ -73,6 +73,12 @@ public sealed class EffectContent : IAwaitableEffectContent
         }
     }
 
+    /// <summary>De dónde salen las correcciones de «Estabilizar» (la caché de análisis de la app); sin él, no se estabiliza.</summary>
+    public Func<string, double, bool, StabilizationTrack?>? StabilizationSource { get; set; }
+
+    public StabilizationTrack? FindStabilization(string analysis, double intensity, bool autoCrop) =>
+        StabilizationSource?.Invoke(analysis, intensity, autoCrop);
+
     public bool TryGetLut(ResourceKey key, out LutData? lut)
     {
         lut = null;

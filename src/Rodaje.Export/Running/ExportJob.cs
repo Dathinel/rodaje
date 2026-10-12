@@ -124,6 +124,10 @@ public sealed class ExportJob : IDisposable
             {
                 Profile = ExportPerformanceProfile.For(Request.Settings.Performance, gpu?.DedicatedVideoMemory ?? 0);
                 Thread.CurrentThread.Priority = Profile.ThreadPriority;
+                if (gpu is not null && Profile.GpuPriority != 0)
+                {
+                    ExportGpuPriority.TrySet(gpu, Profile.GpuPriority);
+                }
                 token.ThrowIfCancellationRequested();
                 Directory.CreateDirectory(work);
                 _options.Journal?.Register(journalId, Request.OutputPath, [work]);
@@ -244,7 +248,8 @@ public sealed class ExportJob : IDisposable
         bool alpha = format.PixelFormat.HasAlpha();
         bool blend = plan.ConvertsRate && settings.FrameRateConversion == FrameRateConversion.Blend;
         using var frames = new FrameSource(this, plan, timeline, gpu, titles, alpha, blend);
-        using var converter = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter);
+        ExportSourceRegion? region = settings.Crop is { } crop ? new ExportSourceRegion(crop.X, crop.Y, crop.Width, crop.Height) : null;
+        using var converter = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter, region: region);
         _converter = converter;
         void Write(in ExportVideoFrame frame)
         {

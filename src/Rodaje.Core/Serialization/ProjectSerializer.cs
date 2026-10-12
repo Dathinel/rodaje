@@ -57,6 +57,14 @@ public static class ProjectSerializer
                 "Es posible que se haya editado a mano o que esté dañado.",
                 ex);
         }
+        catch (InvalidOperationException ex)
+        {
+            // Un texto con un sustituto UTF-16 suelto (la mitad de un par) no se puede leer como cadena.
+            throw new ProjectFormatException(
+                "El archivo tiene un texto que no es UTF-16 válido (un carácter incompleto) y no se puede abrir. " +
+                "Es posible que se haya editado a mano o que esté dañado.",
+                ex);
+        }
 
         // La raíz ya se comprobó como objeto, así que el resultado nunca es null.
         IReadOnlyList<string> problems;

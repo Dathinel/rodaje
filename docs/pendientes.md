@@ -1,11 +1,10 @@
 # Pendientes pedidos por Daniel
 
-Ideas aprobadas que todavía no tienen fase. Cuando una se implementa, se quita de aquí y se anota en `decisiones.md`.
+Ideas aprobadas que todavía no tienen fase. Las funciones numeradas se tachan al implementarse (se conserva el número porque Daniel las cita así); lo demás se quita y se anota en `decisiones.md`.
 
 ## Personalización
 
 - **Pistas por defecto en un proyecto nuevo** (pedido el 10-oct): en Configuración se elige cuántas pistas de video y de audio aparecen al crear un proyecto.
-- **Audio enlazado por pista de video:** elegir de qué pistas de video sale el audio a su propia pista al importar o arrastrar: de todas, o solo de algunas (por ejemplo de Video 1 y 2, pero no de Video 3). **Hecho** (tarea 15 de la nube, rama `claude/audio-por-pista`): menú Ver → «Pistas de video que traen su audio»; en una pista sin audio el medio entra sin clip de audio. Entrega en `docs/tareas/2026-10-11-audio-por-pista.md`.
 
 ## Complementos profesionales (pedido el 11-oct)
 
@@ -31,15 +30,15 @@ Daniel prefiere que lo profesional vaya como complemento aparte en su GitHub. Re
 Lista de funciones habituales en los editores populares (sin copiar diseño ni marcas: solo la idea). **Daniel las aprobó todas el 11-oct** y se reparten en la fase indicada, a agentes locales (L) o a la nube (N). Las que necesitan IA van como módulos de la fase 7.
 
 ### Edición en la línea de tiempo
-1. **Edición por ondas de silencio:** quitar silencios de un clip con un umbral y margen (con vista previa de lo que se corta). — 7 · L
-2. **Cortar en el cursor en todas las pistas** de una vez y «borrar a la izquierda/derecha del cursor» (Q/W). — 5c · N
-3. **Enlazar y desenlazar audio y video** con un clic; separar el audio a su pista. — 5c · N
+1. ✓ ~~**Edición por ondas de silencio:** quitar silencios de un clip con un umbral y margen (con vista previa de lo que se corta). — 7 · L~~ — hecho (11-oct)
+2. ✓ ~~**Cortar en el cursor en todas las pistas** de una vez y «borrar a la izquierda/derecha del cursor» (Q/W). — 5c · N~~ — hecho (11-oct)
+3. ✓ ~~**Enlazar y desenlazar audio y video** con un clic; separar el audio a su pista. — 5c · N~~ — hecho (11-oct)
 4. **Grupos y clips compuestos** (anidar varios clips en uno que se edita aparte). — 8 · L
-5. **Marcadores con nombre y color, y lista de marcadores** para saltar entre ellos. — 5c · N
-6. **Ajuste al ritmo:** detectar golpes de la música y poner marcadores para cortar a tiempo. — 7 · L
-7. **Copiar y pegar atributos** (efectos, transformación, velocidad) de un clip a otros. — 5c · N
-8. **Reemplazar medio** manteniendo duración, efectos y keyframes. — 5c · N
-9. **Zoom a la selección y «ajustar a la ventana»** en la línea de tiempo. — 5c · N
+5. ✓ ~~**Marcadores con nombre y color, y lista de marcadores** para saltar entre ellos. — 5c · N~~ — hecho (11-oct)
+6. ✓ ~~**Ajuste al ritmo:** detectar golpes de la música y poner marcadores para cortar a tiempo. — 7 · L~~ — hecho (11-oct)
+7. ✓ ~~**Copiar y pegar atributos** (efectos, transformación, velocidad) de un clip a otros. — 5c · N~~ — hecho (11-oct)
+8. ✓ ~~**Reemplazar medio** manteniendo duración, efectos y keyframes. — 5c · N~~ — hecho (11-oct)
+9. ✓ ~~**Zoom a la selección y «ajustar a la ventana»** en la línea de tiempo. — 5c · N~~ — hecho (11-oct)
 10. **Edición de tres puntos y de cuatro puntos** (entrada/salida en origen y en secuencia). — 8 · L
 
 ### Imagen
@@ -56,7 +55,7 @@ Lista de funciones habituales en los editores populares (sin copiar diseño ni m
 ### Audio
 20. **Reducción de ruido** de voz. — 7 · L
 21. **Normalizar sonoridad del clip** (LUFS) y de toda la mezcla. — 6 · N
-22. **Ducking automático:** bajar la música cuando hay voz. — 7 · L
+22. ✓ ~~**Ducking automático:** bajar la música cuando hay voz. — 7 · L~~ — hecho (11-oct)
 23. **Ecualizador y compresor sencillos** por clip y por pista. — 8 · L
 24. **Grabar voz en off** desde el micrófono directo a una pista. — 8 · L
 25. **Biblioteca de efectos de sonido** (complemento `.paquete`). — complemento · N
@@ -68,10 +67,10 @@ Lista de funciones habituales en los editores populares (sin copiar diseño ni m
 29. **Texto a voz** (ver arriba). — 7 · L
 
 ### Proyecto y flujo de trabajo
-30. **Autoguardado y recuperación** tras un cierre inesperado (con historial de versiones). — 5c · N
+30. ✓ ~~**Autoguardado y recuperación** tras un cierre inesperado (con historial de versiones). — 5c · N~~ — hecho (11-oct)
 31. **Proxies automáticos al importar** con indicador de progreso (ya existe en parte). — 6 · N
 32. **Relink de medios** movidos o renombrados (buscar en una carpeta). — 6 · N
-33. **Plantillas de proyecto** (formatos 16:9, 9:16, 1:1 con pistas y estilos). — 5c · N
+33. ✓ ~~**Plantillas de proyecto** (formatos 16:9, 9:16, 1:1 con pistas y estilos). — 5c · N~~ — hecho (11-oct)
 34. **Exportar un fotograma** como PNG/JPEG. — 6 · N
 35. **Cola de exportaciones múltiples** y exportar varias versiones a la vez. — 6 · L
 36. **Atajos personalizables** (ya existe) y **perfiles de espacio de trabajo** (distribución de paneles). — 8 · N

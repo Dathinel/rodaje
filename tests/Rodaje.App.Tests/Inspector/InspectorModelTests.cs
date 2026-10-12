@@ -167,7 +167,8 @@ public class EffectCatalogTests
         }
 
         Assert.Null(EffectCatalog.Find(BuiltInEffects.Speed));
-        Assert.False(EffectCatalog.Find(BuiltInEffects.Stabilize)!.IsRendered);
+        Assert.True(EffectCatalog.Find(BuiltInEffects.Stabilize)!.IsRendered);
+        Assert.DoesNotContain(EffectCatalog.For(TrackKind.Video), e => e.Type == BuiltInEffects.Stabilize);
         Assert.True(EffectCatalog.Find(BuiltInEffects.Blur)!.IsRendered);
     }
 

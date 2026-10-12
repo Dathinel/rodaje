@@ -9,6 +9,7 @@ internal static class ExportShaders
 
     // rect: origen y tamaño de la composición en píxeles de salida. source: tamaño del nivel que se lee y cuánto se
     // ensancha el núcleo en cada eje. options: núcleo (ScaleKernel), mezcla de dos composiciones, tamaño de salida.
+    // window: origen y tamaño de la región que se exporta (recorte), en texels del nivel leído.
     // Las coordenadas s están en texels del nivel leído, con el centro del texel en el entero.
     private const string Scale = """
         cbuffer Scale : register(b0)
@@ -18,6 +19,7 @@ internal static class ExportShaders
             float4 bars;
             uint4 options;
             float4 blend;
+            float4 window;
         };
 
         Texture2D<float4> first : register(t0);
@@ -84,7 +86,7 @@ internal static class ExportShaders
             float4 c = bars;
             if (all(p >= 0) && all(p < rect.zw))
             {
-                float2 s = p / rect.zw * source.xy - 0.5;
+                float2 s = window.xy + p / rect.zw * window.zw - 0.5;
                 c = Filtered(first, s);
                 if (options.y != 0) c = lerp(c, Filtered(second, s), blend.x);
             }

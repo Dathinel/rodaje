@@ -23,7 +23,7 @@ internal sealed partial class TimelinePlan
             MediaRef m = media[clip.MediaId];
             Rational rate = m.FrameRate!.Value;
             SourceKey key = Key(m, projectDirectory);
-            EffectPlan? effects = EffectPlan.From(clip.Effects);
+            EffectPlan? effects = EffectPlan.From(clip.Effects, content);
             ClipTimeMap map = clip.TimeMap;
             Cut? entering = cuts.Find(x => x.To == c);
             Cut? leaving = cuts.Find(x => x.From == c);

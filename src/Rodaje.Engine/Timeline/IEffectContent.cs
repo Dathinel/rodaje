@@ -14,6 +14,12 @@ public interface IEffectContent : IEffectResources
     /// <c>null</c> si falta: entonces la transición se ve como fundido cruzado. Se llama al armar el plan, no por cuadro.
     /// </summary>
     TransitionCurves? FindTransition(string reference);
+
+    /// <summary>
+    /// Correcciones de <see cref="BuiltInEffects.Stabilize"/> para el análisis <paramref name="analysis"/> con esos ajustes,
+    /// o <c>null</c> si el análisis no está en la caché (el clip se ve sin estabilizar). Se llama al armar el plan.
+    /// </summary>
+    StabilizationTrack? FindStabilization(string analysis, double intensity, bool autoCrop) => null;
 }
 
 /// <summary>

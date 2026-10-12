@@ -166,11 +166,72 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
         Assert.Equal(Enumerable.Range(300, 60).Reverse().Select(i => (long)i), shown);
     }
 
-    [Fact(Skip = "TODO(5c.3): la reversa decodifica exacta pero con un seek al keyframe anterior por cuadro; el lector hacia atrás " +
-        "de la reversa (src/Rodaje.Media/Video) todavía no está en main. Al unirlo, OfflineTimeline le pide los tramos invertidos " +
-        "y esta prueba exige 4K invertido a ≥30 fps en la RTX 3050.")]
-    public void A_reversed_4k_clip_exports_at_real_time_with_the_backward_reader()
+    [Fact]
+    public void A_reversed_clip_decodes_each_gop_once_from_its_keyframe_within_the_pool()
     {
+        const long Surface = 16L * 1024 * 1024;
+        var backend = new FakeTimelineBackend { KeyframeInterval = 15, PoolSurfaceBytes = Surface, PoolReferences = 10 };
+        var b = new TimelineBuilder(1, 0);
+        b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
+        OfflineProjects.Reversed(b.AddVideo(0, "m", Time.Zero, S(10), S(10)), S(10), S(20));
+        using OfflineTimeline offline = OfflineProjects.Open(b, backend);
+
+        for (long f = 0; f < offline.FrameCount; f++)
+        {
+            using CompositionFrame frame = offline.Render(f, CancellationToken.None);
+            Assert.Equal(599 - f, Assert.Single(frame.Layers).Frame.Index);
+        }
+
+        // Un pool de 64: 10 referencias, 5 del decodificador, 3 de margen, 1 guardado, 8 pedidos y M = 37 (tramos de 18).
+        FakeMediaVideo video = Assert.Single(backend.Videos);
+        Assert.Equal(54, video.SpareSurfaces);
+        Assert.Equal(54, video.ExtraSurfaces);
+        output.WriteLine($"300 cuadros hacia atrás con GOP 15: {video.Seeks} seeks, {video.DecodedFrames} cuadros decodificados.");
+        Assert.True(video.Seeks <= (300 / 15) + 1, $"{video.Seeks} seeks");
+        Assert.True(video.DecodedFrames <= 300 + 15, $"{video.DecodedFrames} decodificados");
+        Assert.Equal(0, offline.VramOverruns);
+    }
+
+    [Theory]
+    [InlineData(2, 1)]
+    [InlineData(1, 2)]
+    [InlineData(3, 2)]
+    public void A_reversed_clip_stays_exact_at_any_rate_and_on_another_output_grid(long num, long den)
+    {
+        var backend = new FakeTimelineBackend { KeyframeInterval = 24 };
+        var b = new TimelineBuilder(1, 0);
+        b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
+        Clip clip = SpeedClips.Reversed(b.AddVideo(0, "m", S(1), S(10), S(4)), new Rational(num, den), S(10), S(10) + Time.FromSeconds(4.0 * num / den));
+        using (OfflineTimeline offline = OfflineProjects.Open(b, backend))
+        {
+            for (long f = 0; f < offline.FrameCount; f++)
+            {
+                using CompositionFrame frame = offline.Render(f, CancellationToken.None);
+                if (frame.TimelineTime >= clip.Start && frame.TimelineTime < clip.End)
+                {
+                    Assert.Equal(SpeedClips.Expected(clip, Rational.Fps30, frame.TimelineTime), Assert.Single(frame.Layers).Frame.Index);
+                }
+            }
+        }
+
+        using OfflineTimeline other = OfflineProjects.Open(b, backend);
+        for (long n = 0; ; n++)
+        {
+            Time at = F(n, Rational.Fps60);
+            if (at >= other.Duration)
+            {
+                break;
+            }
+
+            using CompositionFrame frame = other.RenderAt(at, CancellationToken.None);
+            if (at >= clip.Start && at < clip.End)
+            {
+                Assert.Equal(SpeedClips.Expected(clip, Rational.Fps30, at), Assert.Single(frame.Layers).Frame.Index);
+            }
+        }
+
+        other.Dispose();
+        Assert.Equal(0, backend.Live.Value);
     }
 
     [Fact]

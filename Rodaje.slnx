@@ -1,7 +1,9 @@
 <Solution>
   <Folder Name="/modules/">
+    <Project Path="modules/Rodaje.Module.AudioAi/Rodaje.Module.AudioAi.csproj" />
     <Project Path="modules/Rodaje.Module.Echo/Rodaje.Module.Echo.csproj" />
     <Project Path="modules/Rodaje.Module.Voice/Rodaje.Module.Voice.csproj" />
+    <Project Path="modules/Rodaje.Module.Subtitles/Rodaje.Module.Subtitles.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Rodaje.Analysis/Rodaje.Analysis.csproj" />
@@ -30,6 +32,8 @@
     <Project Path="tests/Rodaje.Export.Tests/Rodaje.Export.Tests.csproj" />
     <Project Path="tests/Rodaje.Media.Tests/Rodaje.Media.Tests.csproj" />
     <Project Path="tests/Rodaje.Module.Voice.Tests/Rodaje.Module.Voice.Tests.csproj" />
+    <Project Path="tests/Rodaje.Module.Subtitles.Tests/Rodaje.Module.Subtitles.Tests.csproj" />
+    <Project Path="tests/Rodaje.Module.AudioAi.Tests/Rodaje.Module.AudioAi.Tests.csproj" />
     <Project Path="tests/Rodaje.Modules.Protocol.Tests/Rodaje.Modules.Protocol.Tests.csproj" />
     <Project Path="tests/Rodaje.Paquetes.Tests/Rodaje.Paquetes.Tests.csproj" />
     <Project Path="tests/Rodaje.Playback.Tests/Rodaje.Playback.Tests.csproj" />

@@ -1,27 +1,24 @@
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Views.Analysis;
 
 namespace Rodaje.App.Views.Timeline;
 
-/// <summary>Menú contextual del clip con las acciones de análisis de audio.</summary>
+/// <summary>Acciones de análisis de audio dentro del menú contextual del clip.</summary>
 internal sealed partial class TimelineView
 {
-    private void ShowClipMenu(Windows.Foundation.Point at)
+    private void AddAnalysisItems(MenuFlyout menu)
     {
         if (_services is not { } services)
         {
             return;
         }
 
-        var menu = new MenuFlyout();
+        menu.Items.Add(new MenuFlyoutSeparator());
         foreach ((string id, string label, string glyph) in AnalysisCommands.Menu)
         {
             var item = new MenuFlyoutItem { Text = label, Icon = new FontIcon { Glyph = glyph } };
             item.Click += (_, _) => services.Shortcuts.Invoke(id);
             menu.Items.Add(item);
         }
-
-        menu.ShowAt(LanesHost, new FlyoutShowOptions { Position = at });
     }
 }

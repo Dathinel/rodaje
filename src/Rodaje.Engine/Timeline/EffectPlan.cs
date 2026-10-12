@@ -20,29 +20,48 @@ internal sealed class EffectPlan
     private readonly Curve[]? _transform;
     private readonly ImageEffect[] _effects;
 
-    private EffectPlan(Curve[]? transform, ImageEffect[] effects, BlendMode blend)
+    private EffectPlan(Curve[]? transform, ImageEffect[] effects, BlendMode blend, StabilizationTrack? stabilization)
     {
         _transform = transform;
         _effects = effects;
         Blend = blend;
+        Stabilization = stabilization;
     }
 
     public BlendMode Blend { get; }
 
+    /// <summary>Las correcciones del primer «Estabilizar» activo cuyo análisis está en la caché.</summary>
+    public StabilizationTrack? Stabilization { get; }
+
     public int EffectCount => _effects.Length;
 
-    /// <summary>Nulo si el clip no tiene transformación, efectos de imagen ni mezcla: el camino rápido.</summary>
-    public static EffectPlan? From(IReadOnlyList<EffectInstance> effects)
+    /// <summary>Nulo si el clip no tiene transformación, efectos de imagen, mezcla ni estabilizar: el camino rápido.</summary>
+    /// <param name="effects">La pila del clip.</param>
+    /// <param name="content">De dónde salen las correcciones de estabilizar; sin él, no se estabiliza.</param>
+    public static EffectPlan? From(IReadOnlyList<EffectInstance> effects, IEffectContent? content = null)
     {
         ArgumentNullException.ThrowIfNull(effects);
         Curve[]? transform = null;
         var images = new List<ImageEffect>();
         BlendMode blend = BlendMode.Normal;
         bool blended = false;
+        StabilizationTrack? stabilization = null;
+        bool stabilized = false;
         foreach (EffectInstance effect in effects)
         {
             if (!effect.Enabled || EffectRegistry.Find(effect.Type) is not { } definition)
             {
+                continue;
+            }
+
+            if (effect.Type == BuiltInEffects.Stabilize)
+            {
+                if (!stabilized)
+                {
+                    stabilized = true;
+                    stabilization = FindStabilization(definition, effect, content);
+                }
+
                 continue;
             }
 
@@ -62,8 +81,28 @@ internal sealed class EffectPlan
             }
         }
 
-        return transform is null && images.Count == 0 && blend == BlendMode.Normal ? null : new EffectPlan(transform, [.. images], blend);
+        return transform is null && images.Count == 0 && blend == BlendMode.Normal && stabilization is null
+            ? null
+            : new EffectPlan(transform, [.. images], blend, stabilization);
     }
+
+    private static StabilizationTrack? FindStabilization(EffectDefinition definition, EffectInstance effect, IEffectContent? content)
+    {
+        if (content is null || effect.Options.GetValueOrDefault(BuiltInEffects.StabilizeOptions.Analysis) is not { Length: > 0 } analysis)
+        {
+            return null;
+        }
+
+        ParameterDefinition intensity = definition.FindParameter(BuiltInEffects.StabilizeParameters.Intensity)!;
+        double value = intensity.Clamp(effect.Parameters.GetValueOrDefault(BuiltInEffects.StabilizeParameters.Intensity)?.Value
+            ?? intensity.DefaultValue);
+        bool crop = (effect.Options.GetValueOrDefault(BuiltInEffects.StabilizeOptions.Crop) ?? "auto") != "off";
+        return value > 0 ? content.FindStabilization(analysis, value, crop) : null;
+    }
+
+    /// <summary>La transformación con la corrección de estabilizar del cuadro <paramref name="frameIndex"/> del medio, si hay.</summary>
+    public static LayerTransform Stabilized(EffectPlan? plan, LayerTransform transform, long frameIndex) =>
+        plan?.Stabilization is { } track ? transform with { Stabilization = track.At(frameIndex) } : transform;
 
     public static LayerTransform Transform(EffectPlan? plan, Time sourceTime)
     {
@@ -268,12 +307,14 @@ internal sealed class TransitionPlan
         }
 
         long at = (long)Math.Round(progress * CurveScale);
-        return new LayerTransform(
-            transform.X + (curves[0] is { } x ? x.Evaluate(at) * _scaleX : 0),
-            transform.Y + (curves[1] is { } y ? y.Evaluate(at) * _scaleY : 0),
-            transform.Scale * (curves[2]?.Evaluate(at) ?? 1),
-            transform.RotationDegrees + (curves[3]?.Evaluate(at) ?? 0),
-            Math.Clamp(transform.Opacity * (curves[4]?.Evaluate(at) ?? 1), 0, 1));
+        return transform with
+        {
+            X = transform.X + (curves[0] is { } x ? x.Evaluate(at) * _scaleX : 0),
+            Y = transform.Y + (curves[1] is { } y ? y.Evaluate(at) * _scaleY : 0),
+            Scale = transform.Scale * (curves[2]?.Evaluate(at) ?? 1),
+            RotationDegrees = transform.RotationDegrees + (curves[3]?.Evaluate(at) ?? 0),
+            Opacity = Math.Clamp(transform.Opacity * (curves[4]?.Evaluate(at) ?? 1), 0, 1),
+        };
     }
 
     private static Curve?[]? Resolve(IReadOnlyList<TransitionCurve> curves)
