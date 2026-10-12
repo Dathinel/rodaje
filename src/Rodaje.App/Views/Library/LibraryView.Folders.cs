@@ -22,8 +22,11 @@ internal sealed partial class LibraryView
 {
     private const string RootName = "Todos los medios";
 
-    /// <summary>Códecs ya leídos por ruta, para no volver a abrir el archivo al cambiar de carpeta o de proyecto.</summary>
-    private static readonly Dictionary<string, (string? Video, string? Audio)> CodecCache = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// Códecs ya leídos por ruta (y fecha y tamaño del archivo), para no volver a abrirlo al cambiar de carpeta o de
+    /// proyecto; un archivo que cambió se vuelve a leer, también si antes había fallado.
+    /// </summary>
+    private static readonly MediaCodecCache CodecCache = new();
 
     private LibraryQuery Query() => new(_folderId, SearchBox.Text ?? "", _kind, FavoritesToggle.IsChecked == true);
 
@@ -385,7 +388,8 @@ internal sealed partial class LibraryView
 
     /// <summary>
     /// Con la lista abierta, lee en segundo plano el códec de los medios que se ven y aún no lo tienen (el proyecto no
-    /// lo guarda). Uno a la vez para no competir con la vista previa; un filtro nuevo corta la lectura anterior.
+    /// lo guarda), o que fallaron: esos solo se vuelven a abrir si el archivo cambió. Uno a la vez para no competir con
+    /// la vista previa; un filtro nuevo corta la lectura anterior. Un error con un medio solo afecta a ese medio.
     /// </summary>
     private void StartCodecScan()
     {
@@ -394,19 +398,7 @@ internal sealed partial class LibraryView
             return;
         }
 
-        var pending = new List<MediaItem>();
-        foreach (MediaItem item in Media.Where(i => !i.CodecsKnown))
-        {
-            if (CodecCache.TryGetValue(item.Path, out (string? Video, string? Audio) cached))
-            {
-                item.SetCodecs(cached.Video, cached.Audio);
-            }
-            else
-            {
-                pending.Add(item);
-            }
-        }
-
+        List<MediaItem> pending = [.. Media.Where(i => !i.CodecsKnown || i.CodecsFailed)];
         int scan = Interlocked.Increment(ref _codecScan);
         if (pending.Count == 0)
         {
@@ -422,26 +414,21 @@ internal sealed partial class LibraryView
                     return;
                 }
 
-                (string? Video, string? Audio) codecs = ReadCodecs(item.Path);
-                dispatcher.TryEnqueue(DispatcherQueuePriority.Low, () =>
+                bool failedBefore = item.CodecsKnown && item.CodecsFailed;
+                MediaCodecs codecs = CodecCache.Read(item.Path, ReadCodecs);
+                if (failedBefore && codecs.Failed)
                 {
-                    CodecCache[item.Path] = codecs;
-                    item.SetCodecs(codecs.Video, codecs.Audio);
-                });
+                    continue;
+                }
+
+                dispatcher.TryEnqueue(DispatcherQueuePriority.Low, () => item.SetCodecs(codecs));
             }
         });
     }
 
     private static (string? Video, string? Audio) ReadCodecs(string path)
     {
-        try
-        {
-            MediaProbeResult result = new FfmpegMediaProber().Probe(path);
-            return (result.Info?.Video?.Codec, result.Info?.Audio?.Codec);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
-        {
-            return (null, null);
-        }
+        MediaProbeResult result = new FfmpegMediaProber().Probe(path);
+        return (result.Info?.Video?.Codec, result.Info?.Audio?.Codec);
     }
 }
