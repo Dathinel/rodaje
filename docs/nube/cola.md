@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #30, #32, #18, #36 (el bloque #15, #31, #33, #34 lo revisó Sonnet el 12-oct: tareas 42 ampliada y 44–47).
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #38. Los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47) y #30, #32, #18, #36 (tareas 48–50) los revisó Sonnet el 12-oct.
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -292,7 +292,7 @@ Exportar el cuadro del cursor a PNG (con alfa si la secuencia lo tiene) o JPEG c
 
 ## 30. Biblioteca con carpetas, búsqueda y favoritos
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #38 unido el 12-oct en modo autónomo; carpetas y favoritos en `%LOCALAPPDATA%`, fuera del `.rodaje`)
 - **Rama:** `claude/qdv-biblioteca`
 - **Caminos:** `src/Rodaje.App/Views/Library/`, `src/Rodaje.Core/Model/` (solo si hace falta guardar carpetas en el proyecto, con migración de formato documentada), pruebas, `docs/tareas/`.
 - **Lee:** `docs/pendientes.md` (función 38), `docs/formato-proyecto.md`, D-027 (estilo).
@@ -458,3 +458,35 @@ La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que tod
 - **Lee:** el job 114679035551 (PR #32), el comentario del 12-oct en el PR #33 y `testing/Rodaje.TestMedia/Skip.cs`.
 
 `ClipVisualsTests.Dispose_does_not_wait_for_a_reader_that_ignores_cancellation` exige que `Dispose` vuelva en menos de 1 s y en la CI tardó 8082 ms (`ClipVisualsTests.cs:402`), en un PR que no toca esa parte. En el job 114683663348 (PR #40) falló `ClipVisualsTests.A_second_session_reads_thumbnails_and_peaks_from_disk` con «No llegó a tiempo» (`:150`, `:272`). En la corrida de #33 fallaron además `PackageServiceTests`, `ModuleMediaTests` y `VideoAnalysisTests`. En el job 114681867969 (PR #40, que solo cambia la cola) falló `ExportEncoderAvailabilityTests.Invalidate_during_a_run_starts_the_next_one_only_after_it_ends` (esperaba 1 corrida y hubo 2): puede ser una carrera real en `Invalidate`. Averigua la causa de cada una. Si `Dispose` de verdad espera al lector (un `Wait` o un `Join` en el camino), es un defecto: corrígelo. Si no, haz que la medición no dependa del planificador del runner (cronometrar solo `Dispose`, hilos dedicados) sin subir el tope que mide. Si alguna prueba mide tiempo real, va con `Categoria=TiempoReal`.
+
+## 48. Reenlazar: un archivo asignado a dos medios
+
+- **Estado:** pendiente
+- **Rama:** `claude/reenlazar-duplicados`
+- **Caminos:** `src/Rodaje.Core/Editing/MediaRelinkSearch.cs`, `src/Rodaje.Core/Editing/MediaRelink.cs`, `src/Rodaje.App/Services/Relink/`, `src/Rodaje.App/Views/Relink/`, `tests/Rodaje.Core.Tests/Editing/Relink/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 28 (`docs/tareas/2026-10-12-qdv-reenlazar.md`), revisión en bloque 3.
+
+1. `MediaRelinkSearch.cs:142` (`taken`) solo cuenta las rutas de los medios que no faltan. Lo ya resuelto en el diálogo (`pending`) no cuenta. Si faltan A y B, ambos 1080p de 10 s, y el usuario elige a mano `\nuevo\b.mp4` para B, la búsqueda que lanza `PickAsync` (`RelinkDialog.cs:225`) asigna ese mismo archivo a A por la pasada «Renamed». Arreglo: pasar las rutas ya resueltas como ocupadas y rechazar en `TargetFor` o en el servicio un archivo que ya use otro medio del proyecto o de `pending`, sin distinguir mayúsculas. Prueba de la búsqueda por tandas, como la hace el diálogo.
+2. La pasada «Renamed» (`:253`) enlaza un único candidato con la misma extensión, pistas, tamaño y duración (±50 ms) sin comparar contenido: que en el diálogo salga como «confirmar».
+3. `AttributesToSkip` (`:28`) no excluye `Offline` ni `RecallOnDataAccess`, así que abrir con FFmpeg puede descargar medios de OneDrive que solo están en la nube. Excluirlos en esa pasada.
+4. `RelinkDialog.cs:262`: «Volver a enlazar» en el aviso no hace nada si ya no falta ningún medio. Avisar «Ya están todos los medios» y, si el motor guarda el medio como fallido, pedir un refresco.
+
+## 49. Exportar fotograma: extensión, cancelación y reentrada
+
+- **Estado:** pendiente
+- **Rama:** `claude/fotograma-robusto`
+- **Caminos:** `src/Rodaje.Export/Still/`, `src/Rodaje.App/Views/Export/StillExportCommand.cs`, `tests/Rodaje.Export.Tests/Still/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 29 (`docs/tareas/2026-10-12-qdv-fotograma.md`), revisión en bloque 3.
+
+1. `StillSettings.FormatFor` saca PNG para cualquier extensión que no sea `.jpg` o `.jpeg`, y `StillEncoder` escribe en la ruta tal cual: `foto.bmp` termina siendo un PNG con nombre BMP. Aceptar solo `.png`, `.jpg` y `.jpeg`, y con otra extensión añadir la del formato o rechazarla con `InvalidSettings`. Prueba en `StillPlanTests`.
+2. `StillExportCommand.cs:76` llama a `ExportAsync` sin `CancellationToken` y sin bloquear la reentrada. Si se repite Ctrl+Mayús+E con el mismo destino, dos exportaciones comparten la carpeta temporal. Añadir cancelación, un indicador de «exportando» y que el atajo se ignore mientras haya una en marcha.
+
+## 50. Confirmar al borrar una plantilla propia
+
+- **Estado:** pendiente
+- **Rama:** `claude/plantillas-confirmar`
+- **Caminos:** `src/Rodaje.App/Shell/TitleBar.xaml.cs` (solo el borrado de plantillas), `src/Rodaje.App/Services/` (la confirmación en `IEditorDialogs`, si hace falta), `tests/Rodaje.App.Tests/Templates/` (archivos nuevos), `docs/tareas/`
+- **Lee:** entrega de la tarea 35 (`docs/tareas/2026-10-12-limpiezas-bloque-1.md`).
+
+Lo que quedó pendiente de la tarea 35: borrar una plantilla propia (`TitleBar.xaml.cs:330`) pide confirmación con el estilo de la app (D-027). Si `IEditorDialogs` no tiene una confirmación genérica, añadirla con su doble de pruebas.
+
