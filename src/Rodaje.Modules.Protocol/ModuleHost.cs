@@ -145,7 +145,9 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         }
         finally
         {
-            foreach (var call in active.Values) await call.Cts.CancelAsync().ConfigureAwait(false);
+            // Con la misma protección que «cancel»: una llamada que termina ahora ya desechó su CancellationTokenSource
+            // (defecto 2 de ProtocolDefectTests). Cerrar nunca lanza; siempre se espera a las llamadas y se liberan las regiones.
+            foreach (var call in active.Values) await TryCancelAsync(call.Cts).ConfigureAwait(false);
             bool finished = true;
             try
             {
@@ -155,6 +157,12 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
             {
                 // Una función que no atiende la cancelación: sus regiones quedan mapeadas y el proceso sale igual.
                 finished = false;
+            }
+#pragma warning disable CA1031 // Al cerrar, el fallo de una llamada ya no tiene a quién llegar; todas terminaron.
+            catch (Exception)
+#pragma warning restore CA1031
+            {
+                // Task.WhenAll solo lanza otra cosa cuando todas las tareas terminaron.
             }
             if (finished)
             {

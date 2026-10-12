@@ -59,7 +59,7 @@ public sealed class ProtocolDefectTests
     /// se salta la espera de las demás llamadas y la liberación de las regiones. Se reprodujo en Linux en unas 6 de cada
     /// 300 rondas.
     /// </summary>
-    [Fact(Skip = "Defecto: ModuleHost.RunAsync lanza ObjectDisposedException al cerrar si una llamada termina a la vez (CancelAsync en el finally).")]
+    [Fact]
     public async Task Shutdown_with_calls_finishing_ends_the_host_without_throwing()
     {
         for (int round = 0; round < 300; round++)
