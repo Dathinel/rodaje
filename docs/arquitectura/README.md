@@ -62,7 +62,7 @@ flowchart TB
 
 - **Módulo común.** Los scripts comparten [`herramientas/comun.psm1`](../../herramientas/comun.psm1): localizan el entorno y sus marcas de instalación completa, fijan las variables del SDK local, añaden vswhere al PATH, llaman a dotnet con registro, crean la carpeta de cada corrida y leen los `.trx`.
 - **Entorno.** El SDK y FFmpeg viven en `.entorno\`, con versiones y huellas fijadas en [`preparar-entorno.ps1`](../../herramientas/preparar-entorno.ps1). Las variables `RODAJE_*` están en [`variables-entorno.md`](../variables-entorno.md).
-- **Proyectos.** Las pruebas viven en `tests/`, un proyecto por capa más `Rodaje.Acceptance.Tests` y `Rodaje.AotSmoke`. La biblioteca de apoyo [`testing/Rodaje.TestMedia`](../../testing/Rodaje.TestMedia) genera medios con el número de cuadro dibujado y reúne en `Skip.cs` los atributos que omiten una prueba, con su motivo, cuando falta hardware o la variable de las pruebas largas.
+- **Proyectos.** Las pruebas viven en `tests/`, un proyecto por capa más `Rodaje.Acceptance.Tests` y `Rodaje.AotSmoke`. La biblioteca de apoyo [`tests/Rodaje.TestMedia`](../../tests/Rodaje.TestMedia) genera medios con el número de cuadro dibujado y reúne en `Skip.cs` los atributos que omiten una prueba, con su motivo, cuando falta hardware o la variable de las pruebas largas.
 
 ## Problemas de compatibilidad conocidos
 

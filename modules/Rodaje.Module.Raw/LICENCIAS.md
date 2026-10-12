@@ -25,4 +25,4 @@ Las cuatro quedan como complementos posibles más adelante, cada una en su propi
 
 ## Pruebas
 
-Los cuadros de prueba son CinemaDNG **sintéticos** (`testing/Rodaje.TestMedia/SyntheticDng.cs`, código propio): una carta de color de valores conocidos en un mosaico Bayer RGGB de 12 bits. No se usa ni se versiona material de cámara.
+Los cuadros de prueba son CinemaDNG **sintéticos** (`tests/Rodaje.TestMedia/SyntheticDng.cs`, código propio): una carta de color de valores conocidos en un mosaico Bayer RGGB de 12 bits. No se usa ni se versiona material de cámara.

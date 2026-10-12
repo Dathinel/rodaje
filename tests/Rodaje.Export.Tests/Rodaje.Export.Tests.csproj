@@ -15,7 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Export\Rodaje.Export.csproj" />
-    <ProjectReference Include="..\..\testing\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
+    <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
   </ItemGroup>
 
   <ItemGroup>

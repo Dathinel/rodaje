@@ -11,7 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Rodaje.TestServer.csproj" />
+    <ProjectReference Include="..\Rodaje.TestServer\Rodaje.TestServer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

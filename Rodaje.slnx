@@ -21,12 +21,6 @@
     <Project Path="src/Rodaje.Playback/Rodaje.Playback.csproj" />
     <Project Path="src/Rodaje.Render/Rodaje.Render.csproj" />
   </Folder>
-  <Folder Name="/testing/">
-    <Project Path="testing/Rodaje.FakeFfmpeg/Rodaje.FakeFfmpeg.csproj" />
-    <Project Path="testing/Rodaje.TestMedia/Rodaje.TestMedia.csproj" />
-    <Project Path="testing/Rodaje.TestServer/Rodaje.TestServer.csproj" />
-    <Project Path="testing/Rodaje.TestServer/Tests/Rodaje.TestServer.Tests.csproj" />
-  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Rodaje.Acceptance.Tests/Rodaje.Acceptance.Tests.csproj" />
     <Project Path="tests/Rodaje.Analysis.Tests/Rodaje.Analysis.Tests.csproj" />
@@ -36,6 +30,7 @@
     <Project Path="tests/Rodaje.Core.Tests/Rodaje.Core.Tests.csproj" />
     <Project Path="tests/Rodaje.Engine.Tests/Rodaje.Engine.Tests.csproj" />
     <Project Path="tests/Rodaje.Export.Tests/Rodaje.Export.Tests.csproj" />
+    <Project Path="tests/Rodaje.FakeFfmpeg/Rodaje.FakeFfmpeg.csproj" />
     <Project Path="tests/Rodaje.Media.Tests/Rodaje.Media.Tests.csproj" />
     <Project Path="tests/Rodaje.Module.Voice.Tests/Rodaje.Module.Voice.Tests.csproj" />
     <Project Path="tests/Rodaje.Module.Subtitles.Tests/Rodaje.Module.Subtitles.Tests.csproj" />
@@ -46,6 +41,9 @@
     <Project Path="tests/Rodaje.Paquetes.Tests/Rodaje.Paquetes.Tests.csproj" />
     <Project Path="tests/Rodaje.Playback.Tests/Rodaje.Playback.Tests.csproj" />
     <Project Path="tests/Rodaje.Render.Tests/Rodaje.Render.Tests.csproj" />
+    <Project Path="tests/Rodaje.TestMedia/Rodaje.TestMedia.csproj" />
     <Project Path="tests/Rodaje.TestMedia.Tests/Rodaje.TestMedia.Tests.csproj" />
+    <Project Path="tests/Rodaje.TestServer/Rodaje.TestServer.csproj" />
+    <Project Path="tests/Rodaje.TestServer.Tests/Rodaje.TestServer.Tests.csproj" />
   </Folder>
 </Solution>

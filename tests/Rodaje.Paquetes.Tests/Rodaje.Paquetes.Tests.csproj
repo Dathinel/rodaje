@@ -12,7 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Paquetes\Rodaje.Paquetes.csproj" />
     <!-- Servidor HTTP de pruebas para el descargador (cortes, rangos, redirecciones, firmas malas) -->
-    <ProjectReference Include="..\..\testing\Rodaje.TestServer\Rodaje.TestServer.csproj" />
+    <ProjectReference Include="..\Rodaje.TestServer\Rodaje.TestServer.csproj" />
   </ItemGroup>
 
   <ItemGroup>
