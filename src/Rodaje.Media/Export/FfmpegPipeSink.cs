@@ -400,6 +400,9 @@ public sealed class FfmpegPipeSink : IExportSink
     /// Mata a ffmpeg.exe sin tener <c>_gate</c> tomado. Si no sale a tiempo, no se libera el proceso ni se borran los
     /// temporales que tiene abiertos: lo hace <see cref="PendingCleanup"/> cuando salga, y queda en
     /// <see cref="Diagnostics"/>. Quien llame mientras otro hilo aborta espera a que ese termine.
+    /// Los temporales quedan a nombre de este Abort desde que marca la cancelación (dentro de <c>_gate</c>) hasta que
+    /// los borra, él o su limpieza pendiente: mientras mata, un Start a la misma salida espera o falla en lugar de
+    /// arrancar y perder sus temporales cuando el Abort viejo los borre.
     /// </remarks>
     public void Abort()
     {
@@ -410,6 +413,7 @@ public sealed class FfmpegPipeSink : IExportSink
         string[] temporaries = [];
         string? journalId = null;
         int? processId = null;
+        PendingOwner? owner = null;
         lock (_gate)
         {
             if (_completed || _committing)
@@ -434,6 +438,8 @@ public sealed class FfmpegPipeSink : IExportSink
                 pipe = _pipe;
                 processId = ProcessId;
                 temporaries = [.. _temporaries];
+                owner = new PendingOwner(processId);
+                PendingTemporaries.Claim(owner, temporaries);
                 journalId = _journalId;
                 _journalId = null;
                 // Nadie más lo toma prestado; Complete y Failure, si ya lo tenían, lo siguen usando hasta devolverlo.
@@ -447,7 +453,8 @@ public sealed class FfmpegPipeSink : IExportSink
             return;
         }
 
-        // Si la limpieza queda pendiente, el proceso prestado lo devuelve ella; si no, se devuelve aquí pase lo que pase.
+        // Si la limpieza queda pendiente, el proceso prestado lo devuelve ella y suelta las rutas; si no, se hace aquí
+        // pase lo que pase.
         bool handedOff = false;
         try
         {
@@ -455,13 +462,13 @@ public sealed class FfmpegPipeSink : IExportSink
             if (running is null || TryStop(running.Process, processId, quiet: false))
             {
                 ClosePipe(pipe);
-                DeleteFiles(temporaries, journalId, processId);
+                DeleteFiles(temporaries, journalId, processId, owner!);
             }
             else
             {
                 Note($"ffmpeg.exe ({processId}) no salió {Stopwatch.GetElapsedTime(start).TotalMilliseconds:0} ms después de matarlo; " +
                     "los temporales se borran cuando salga.");
-                DeferCleanup(running, pipe, temporaries, journalId, processId, start);
+                DeferCleanup(running, pipe, temporaries, journalId, processId, start, owner!);
                 handedOff = true;
             }
         }
@@ -475,6 +482,7 @@ public sealed class FfmpegPipeSink : IExportSink
         {
             if (!handedOff)
             {
+                PendingTemporaries.Release(owner!);
                 Return(running);
             }
 
@@ -1010,28 +1018,23 @@ public sealed class FfmpegPipeSink : IExportSink
 
     // Borra los temporales de un Abort. El registro solo se suelta si no quedó nada: si no, al reabrir Rodaje
     // ExportJournal.CleanupStale vuelve a intentarlo.
-    // Con owner (limpieza pendiente), solo borra las rutas que siguen siendo suyas; las demás no las toca y tampoco se
-    // reintentan al reabrir.
-    private bool DeleteFiles(IEnumerable<string> paths, string? journalId, int? processId, PendingOwner? owner = null)
+    // Solo borra las rutas que siguen siendo de owner (el Abort o su limpieza pendiente); las demás no las toca y tampoco
+    // se reintentan al reabrir. Se borra fuera del cerrojo global: las rutas siguen a nombre de owner hasta Release.
+    private bool DeleteFiles(IEnumerable<string> paths, string? journalId, int? processId, PendingOwner owner)
     {
         var left = new List<string>();
-        if (owner is null)
+        List<string> owned = PendingTemporaries.Owned(owner, paths, out List<string> foreign);
+        foreach (string path in owned)
         {
-            foreach (string path in paths)
+            if (ExportOutputGuard.DeleteTemporary(path))
             {
-                if (ExportOutputGuard.DeleteTemporary(path))
-                {
-                    left.Add(path);
-                }
+                left.Add(path);
             }
         }
-        else
+
+        if (foreign.Count > 0)
         {
-            List<string> foreign = PendingTemporaries.DeleteOwned(owner, paths, left);
-            if (foreign.Count > 0)
-            {
-                Note($"La limpieza pendiente de ffmpeg.exe ({processId}) ya no es dueña de {string.Join(", ", foreign)}; no los borra.");
-            }
+            Note($"La cancelación de ffmpeg.exe ({processId}) ya no es dueña de {string.Join(", ", foreign)}; no los borra.");
         }
 
         if (left.Count > 0)
@@ -1051,56 +1054,47 @@ public sealed class FfmpegPipeSink : IExportSink
 
     // ffmpeg.exe no salió dentro de Abort: un hilo aparte reintenta matarlo y, cuando sale, cierra la tubería, borra los
     // temporales y devuelve el proceso prestado (que entonces se libera).
-    // Mientras tanto, sus rutas quedan a nombre de esta limpieza en PendingTemporaries: Start no reusa la salida y la
-    // limpieza solo borra lo que sigue siendo suyo.
-    private void DeferCleanup(RunningProcess running, Stream? pipe, string[] temporaries, string? journalId, int? processId, long start)
+    // Mientras tanto, sus rutas siguen a nombre de owner (las reclamó Abort) en PendingTemporaries: Start no reusa la
+    // salida y la limpieza solo borra lo que sigue siendo suyo. Desde aquí, soltarlas es cosa de la limpieza.
+    private void DeferCleanup(RunningProcess running, Stream? pipe, string[] temporaries, string? journalId, int? processId, long start,
+        PendingOwner owner)
     {
-        var owner = new PendingOwner(processId);
-        PendingTemporaries.Claim(owner, temporaries);
-        Task cleanup;
-        try
+        // Si StartNew lanza, no hay hilo de limpieza: Abort sigue siendo el responsable de soltar las rutas y el proceso.
+        Task cleanup = Task.Factory.StartNew(() =>
         {
-            cleanup = Task.Factory.StartNew(() =>
+            try
             {
-                try
+                Process process = running.Process;
+                bool quiet = false;
+                while (!TryStop(process, processId, quiet))
                 {
-                    Process process = running.Process;
-                    bool quiet = false;
-                    while (!TryStop(process, processId, quiet))
+                    // Un fallo al matar se anota una vez; los reintentos cada 2 s no llenan el diagnóstico.
+                    quiet = true;
+                    if (WaitQuietly(process, CleanupRetry))
                     {
-                        // Un fallo al matar se anota una vez; los reintentos cada 2 s no llenan el diagnóstico.
-                        quiet = true;
-                        if (WaitQuietly(process, CleanupRetry))
-                        {
-                            break;
-                        }
+                        break;
                     }
+                }
 
-                    ClosePipe(pipe);
-                    if (DeleteFiles(temporaries, journalId, processId, owner))
-                    {
-                        Note($"ffmpeg.exe ({processId}) salió a los {Stopwatch.GetElapsedTime(start).TotalMilliseconds:0} ms de cancelar; " +
-                            "temporales borrados.");
-                    }
+                ClosePipe(pipe);
+                if (DeleteFiles(temporaries, journalId, processId, owner))
+                {
+                    Note($"ffmpeg.exe ({processId}) salió a los {Stopwatch.GetElapsedTime(start).TotalMilliseconds:0} ms de cancelar; " +
+                        "temporales borrados.");
                 }
+            }
 #pragma warning disable CA1031 // Hilo de fondo: una excepción sin capturar se perdería; se anota.
-                catch (Exception ex)
+            catch (Exception ex)
 #pragma warning restore CA1031
-                {
-                    Note($"La limpieza pendiente de ffmpeg.exe ({processId}) falló: {ex.GetType().Name}: {ex.Message}");
-                }
-                finally
-                {
-                    PendingTemporaries.Release(owner);
-                    Return(running);
-                }
-            }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-        }
-        catch
-        {
-            PendingTemporaries.Release(owner);
-            throw;
-        }
+            {
+                Note($"La limpieza pendiente de ffmpeg.exe ({processId}) falló: {ex.GetType().Name}: {ex.Message}");
+            }
+            finally
+            {
+                PendingTemporaries.Release(owner);
+                Return(running);
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         lock (_gate)
         {
@@ -1118,7 +1112,10 @@ public sealed class FfmpegPipeSink : IExportSink
         Trace.WriteLine($"Rodaje: {message}");
     }
 
-    /// <summary>Una limpieza pendiente, dueña de sus temporales en <see cref="PendingTemporaries"/> hasta que termina.</summary>
+    /// <summary>
+    /// Un Abort (y, si ffmpeg.exe no sale a tiempo, su limpieza pendiente), dueño de sus temporales en
+    /// <see cref="PendingTemporaries"/> hasta que los borra.
+    /// </summary>
     private sealed class PendingOwner(int? processId)
     {
         public int? ProcessId { get; } = processId;
@@ -1128,8 +1125,9 @@ public sealed class FfmpegPipeSink : IExportSink
     }
 
     /// <summary>
-    /// Registro de todo el proceso con las rutas de las limpiezas pendientes (de cualquier sink) y su dueña. Se borra con el
-    /// cerrojo tomado, así que un Start que pregunte mientras tanto espera y ya no encuentra nada que choque.
+    /// Registro de todo el proceso con las rutas de los Abort en curso y las limpiezas pendientes (de cualquier sink) y su
+    /// dueño. Bajo el cerrojo solo se consulta y se anota; los archivos se borran fuera, mientras siguen a nombre del
+    /// dueño, así que un Start que pregunte entonces encuentra al dueño y espera a <see cref="PendingOwner.Finished"/>.
     /// </summary>
     private static class PendingTemporaries
     {
@@ -1163,26 +1161,27 @@ public sealed class FfmpegPipeSink : IExportSink
             }
         }
 
-        // Borra las rutas que siguen siendo de owner y añade a left las que no se pudieron borrar; devuelve las ajenas.
-        public static List<string> DeleteOwned(PendingOwner owner, IEnumerable<string> paths, List<string> left)
+        // Las rutas que siguen siendo de owner; en foreign, las que no. No borra nada: eso va fuera del cerrojo.
+        public static List<string> Owned(PendingOwner owner, IEnumerable<string> paths, out List<string> foreign)
         {
-            var foreign = new List<string>();
+            var owned = new List<string>();
+            foreign = [];
             lock (Gate)
             {
                 foreach (string path in paths)
                 {
-                    if (!Owners.TryGetValue(Path.GetFullPath(path), out PendingOwner? current) || current != owner)
+                    if (Owners.TryGetValue(Path.GetFullPath(path), out PendingOwner? current) && current == owner)
+                    {
+                        owned.Add(path);
+                    }
+                    else
                     {
                         foreign.Add(path);
-                    }
-                    else if (ExportOutputGuard.DeleteTemporary(path))
-                    {
-                        left.Add(path);
                     }
                 }
             }
 
-            return foreign;
+            return owned;
         }
 
         public static void Release(PendingOwner owner)
