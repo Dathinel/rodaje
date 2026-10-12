@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
-using Rodaje.Export.Encoders;
 using Rodaje.Export.Running;
 using Rodaje.Media;
 using Rodaje.Media.Export;
@@ -13,7 +12,9 @@ namespace Rodaje.Export.Tests.Running;
 /// <summary>Lo que se decide antes de exportar, sin GPU ni procesos.</summary>
 public sealed class ExportPlanTests
 {
-    private static readonly IReadOnlyList<EncoderSpec> Encoders = ExportEncoderCandidates.All;
+    // El catálogo como lo deja la sonda en una RTX 3050: sin AMD, sin Intel y sin el AV1 de NVENC (solo RTX 40).
+    private static readonly IReadOnlyList<EncoderSpec> Encoders =
+        [.. ExportEncoderCatalog.All.Where(e => e.Vendor is not (EncoderVendor.Amd or EncoderVendor.Intel) && e.Id != "av1_nvenc")];
 
     private static ExportSettings H264 { get; } = new()
     {
@@ -66,7 +67,8 @@ public sealed class ExportPlanTests
     {
         ExportSettings settings = H264 with
         {
-            Video = H264.Video! with { Codec = ExportCodec.Av1, RateControl = RateControl.TargetSize(10_000_000) },
+            // libaom: SVT-AV1 no hace dos pasadas por FFmpeg (el catálogo no le da tamaño objetivo).
+            Video = H264.Video! with { Codec = ExportCodec.Av1, EncoderId = "libaom-av1", RateControl = RateControl.TargetSize(10_000_000) },
             Audio = new AudioExportSettings { Codec = ExportCodec.Opus, RateControl = new RateControl { Mode = RateControlMode.Vbr, BitrateKbps = 96 } },
             Container = ExportContainer.WebM,
         };
@@ -165,7 +167,7 @@ public sealed class ExportPlanTests
         Code(ExportErrorCode.InvalidSettings, () => ExportPlan.Create(Request(project, H264, new ExportRange(Time.FromTicks(1), Time.FromTicks(2))), Encoders));
         Code(ExportErrorCode.InvalidSettings, () => ExportPlan.Create(new ExportRequest(project, "otra", "x.mp4", H264), Encoders));
         Code(ExportErrorCode.InvalidSettings, () => ExportPlan.Create(Request(project, H264 with { Container = ExportContainer.WebM }), Encoders));
-        Code(ExportErrorCode.EncoderMissing, () => ExportPlan.Create(Request(project, H264), [ExportEncoderCandidates.AacMf]));
+        Code(ExportErrorCode.EncoderMissing, () => ExportPlan.Create(Request(project, H264), [ExportEncoderCatalog.Find("aac_mf")!]));
         ExportException missing = Code(ExportErrorCode.EncoderMissing,
             () => ExportPlan.Create(Request(project, H264 with { Video = H264.Video! with { EncoderId = "h264_amf" } }), Encoders));
         Assert.Equal("h264_amf", missing.Culprit);
@@ -174,8 +176,8 @@ public sealed class ExportPlanTests
     [Fact]
     public void Kvazaar_and_other_encoders_out_of_the_defaults_are_used_only_when_asked()
     {
-        EncoderSpec kvazaar = ExportEncoderCandidates.H264Nvenc with { Id = "libkvazaar", Codec = ExportCodec.Hevc, InDefaults = false };
-        EncoderSpec[] available = [kvazaar, ExportEncoderCandidates.HevcNvenc];
+        EncoderSpec kvazaar = ExportEncoderCatalog.Find("libkvazaar")!;
+        EncoderSpec[] available = [kvazaar, ExportEncoderCatalog.Find("hevc_nvenc")!];
 
         Assert.Equal("hevc_nvenc", ExportPlan.Choose(ExportCodec.Hevc, null, available).Id);
         Assert.Equal("libkvazaar", ExportPlan.Choose(ExportCodec.Hevc, "libkvazaar", available).Id);
@@ -219,18 +221,6 @@ public sealed class ExportPlanTests
         Assert.True(ExportPerformanceProfile.For(ExportPerformance.Background, (4L << 30) - 1).PreviewProxies);
         Assert.False(ExportPerformanceProfile.For(ExportPerformance.Background, 4L << 30).PreviewProxies);
         Assert.False(ExportPerformanceProfile.For(ExportPerformance.Fastest, 0).PreviewProxies);
-    }
-
-    [Fact]
-    public void The_probe_encodes_with_the_first_pixel_format_and_profile_of_each_candidate()
-    {
-        string prores = string.Join(' ', ProbedEncoderSource.ProbeArguments(ExportEncoderCandidates.ProRes));
-        Assert.Contains("-c:v prores_ks -pix_fmt yuv422p10le -profile:v proxy", prores, StringComparison.Ordinal);
-        Assert.EndsWith("-f null -", prores, StringComparison.Ordinal);
-        string aac = string.Join(' ', ProbedEncoderSource.ProbeArguments(ExportEncoderCandidates.AacMf));
-        Assert.Contains("sample_rate=48000", aac, StringComparison.Ordinal);
-        Assert.Contains("-c:a aac_mf", aac, StringComparison.Ordinal);
-        Assert.Contains("sample_rate=44100", string.Join(' ', ProbedEncoderSource.ProbeArguments(ExportEncoderCandidates.Mp3 with { SampleRates = [44_100] })), StringComparison.Ordinal);
     }
 
     internal static Project Project(Time duration)

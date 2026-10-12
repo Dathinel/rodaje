@@ -1,5 +1,6 @@
 using System.Globalization;
 using Rodaje.Core.Timing;
+using Rodaje.Media.Export;
 
 namespace Rodaje.Media.Proxies;
 
@@ -13,16 +14,31 @@ public sealed record ProxyEncodeInput(string SourcePath, int StreamIndex, int Di
 
 /// <summary>Codificadores de H.264 para proxies y la línea de comandos de cada uno.</summary>
 /// <remarks>
-/// Orden de preferencia: NVENC (GPU NVIDIA), Media Foundation (el codificador de Windows, normalmente por
-/// hardware) y OpenH264 (software, incluido en la compilación LGPL). Ninguno es GPL.
+/// Salen del catálogo de la exportación (<see cref="ExportEncoderCatalog"/>): los de H.264 en su orden de preferencia
+/// y con su formato de píxel, de los que aquí se sabe armar la tasa de un proxy. Hoy son NVENC (GPU NVIDIA), Media
+/// Foundation (el codificador de Windows, que sin <c>-hw_encoding</c> usa el de la GPU si lo hay) y OpenH264 (software,
+/// incluido en la compilación LGPL). Ninguno es GPL. Los argumentos fijos del catálogo no se copian: los de un proxy
+/// (tasa, GOP corto, sin cuadros B) son otros, y el <c>-hw_encoding 0</c> de Media Foundation lo haría más lento.
 /// </remarks>
 public static class ProxyEncoders
 {
-    public static IReadOnlyList<string> Preference { get; } = ["h264_nvenc", "h264_mf", "libopenh264"];
+    // Los que tienen tasa de proxy en BuildArguments; los demás de H.264 del catálogo (AMF, Quick Sync) no se usan aquí.
+    private static readonly string[] WithProxyRate = ["h264_nvenc", "h264_mf", "libopenh264"];
 
-    /// <summary>Formato de píxel que acepta cada codificador (Media Foundation solo negocia NV12).</summary>
-    public static IReadOnlyList<string> PixelFormatArguments(string encoder) =>
-        encoder == "h264_mf" ? ["-pix_fmt", "nv12"] : ["-pix_fmt", "yuv420p"];
+    public static IReadOnlyList<string> Preference { get; } =
+        [.. ExportEncoderCatalog.Video.Where(e => e.Codec == ExportCodec.H264 && WithProxyRate.Contains(e.Id)).Select(e => e.Id)];
+
+    /// <summary>
+    /// Formato de píxel del proxy con cada codificador: el primero de 8 bits 4:2:0 que el catálogo le da (NV12 en NVENC y
+    /// en Media Foundation, que solo negocia NV12; <c>yuv420p</c> en OpenH264).
+    /// </summary>
+    public static IReadOnlyList<string> PixelFormatArguments(string encoder)
+    {
+        ExportPixelFormat pixels = ExportEncoderCatalog.Find(encoder)?.PixelFormats
+            .FirstOrDefault(f => f.BitDepth() == 8 && f.Chroma() == ChromaSubsampling.Chroma420 && !f.HasAlpha(), ExportPixelFormat.Yuv420P)
+            ?? ExportPixelFormat.Yuv420P;
+        return ["-pix_fmt", pixels.FfmpegName()];
+    }
 
     /// <summary>
     /// Argumentos completos de <c>ffmpeg.exe</c> para un proxy: mismos cuadros y mismas marcas que el original.

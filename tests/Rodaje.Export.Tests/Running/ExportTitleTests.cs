@@ -28,7 +28,7 @@ public sealed class ExportTitleTests(ITestOutputHelper output) : IDisposable
     private const string MissingFamily = "Rodaje Fuente Que No Existe";
 
     private static readonly Lazy<Task<IReadOnlyList<EncoderSpec>>> Encoders = new(() =>
-        new ProbedEncoderSource(Skip.ProxyExecutable!, ExportEncoderCandidates.All).GetAsync());
+        new CatalogEncoderSource(Skip.ProxyExecutable!).GetAsync());
 
     public void Dispose() => ExportEndToEndTests.DeleteFolders();
 

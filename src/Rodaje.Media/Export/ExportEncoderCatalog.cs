@@ -363,7 +363,9 @@ public static class ExportEncoderCatalog
     {
         Id = "aac", Codec = ExportCodec.Aac, IsHardware = false, Vendor = EncoderVendor.Software, License = EncoderLicense.FfmpegLgpl,
         Profiles = [new("aac_low", "AAC-LC")],
-        RateControls = [RateControlMode.Abr, RateControlMode.ConstantQuality],
+        // Con -b:a el AAC de FFmpeg va a tasa constante: es el respaldo del AAC de Windows con el mismo ajuste (CBR por
+        // defecto, como piden los preajustes) cuando este no está (ediciones N).
+        RateControls = [RateControlMode.Cbr, RateControlMode.Abr, RateControlMode.ConstantQuality],
         Quality = new("q", "-q:a", 0.1, 2, 1, LowerIsBetter: false),
         SampleRates = AacRates, MaxChannels = 8,
     };

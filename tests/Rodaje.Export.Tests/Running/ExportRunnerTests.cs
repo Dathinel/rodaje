@@ -16,19 +16,20 @@ public sealed class ExportRunnerTests(ITestOutputHelper output) : IDisposable
 {
     public void Dispose() => ExportEndToEndTests.DeleteFolders();
 
-    private static readonly Lazy<ProbedEncoderSource> Source = new(() => new ProbedEncoderSource(Skip.ProxyExecutable!, ExportEncoderCandidates.All));
+    private static readonly Lazy<CatalogEncoderSource> Source = new(() => new CatalogEncoderSource(Skip.ProxyExecutable!));
 
     [ProxyFact]
     public async Task The_probe_keeps_what_encodes_here_and_says_why_the_rest_does_not()
     {
-        var source = new ProbedEncoderSource(Skip.ProxyExecutable!, [ExportEncoderCandidates.Opus, ExportEncoderCandidates.Pcm,
-            ExportEncoderCandidates.Pcm with { Id = "no_existe" }]);
+        EncoderSpec pcm = ExportEncoderCatalog.Find("pcm_s24le")!;
+        var source = new CatalogEncoderSource(new ExportEncoderAvailability(new FfmpegExportEncoderProbe(Skip.ProxyExecutable!),
+            catalog: [ExportEncoderCatalog.Find("libopus")!, pcm, pcm with { Id = "no_existe" }]));
 
         IReadOnlyList<EncoderSpec> works = await source.GetAsync();
 
         Assert.Equal(["libopus", "pcm_s24le"], works.Select(e => e.Id));
         Assert.Same(works, await source.GetAsync());
-        Assert.Contains("no_existe", source.Rejected["no_existe"], StringComparison.Ordinal);
+        Assert.Contains("no_existe", (await source.Availability.GetAsync()).Find("no_existe")!.Reason, StringComparison.Ordinal);
     }
 
     [ProxyFact]
