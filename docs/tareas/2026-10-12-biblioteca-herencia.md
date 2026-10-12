@@ -44,3 +44,7 @@ No hay otro PR abierto que toque `Views/Library` ni `tests/Rodaje.App.Tests/Libr
 1. Proyecto guardado y organizado en carpetas. Copiar el `.rodaje` y abrir la copia: tiene las carpetas. Borrar en la copia todas las carpetas y favoritos, cerrar y volver a abrirla: siguen vacías.
 2. Con el original ya guardado, agregar una carpeta nueva y mover un medio a ella. Después copiar el `.rodaje` y abrir la copia: aparece la carpeta nueva con su medio.
 3. Ordenar algo en la copia y abrir el original: está como se dejó.
+
+## Integración continua
+
+En el commit `8ce050c` (código y entrega) pasaron los dos trabajos: «Linux (Core, Paquetes, Playback)» y «Windows (solución completa)». El commit que añade esta sección solo cambia este archivo.
