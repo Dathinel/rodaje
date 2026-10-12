@@ -21,4 +21,10 @@ public interface IEditorDialogs
 
     /// <summary>Videos o audios para importar; vacío si se canceló.</summary>
     Task<IReadOnlyList<string>> PickMediaFilesAsync();
+
+    /// <summary>
+    /// Pide confirmar algo que no se puede deshacer (por ejemplo, borrar una plantilla propia): <c>true</c> solo si la persona
+    /// pulsó <paramref name="confirmText"/>. Cancelar, cerrar el diálogo o no poder mostrarlo cuentan como <c>false</c>.
+    /// </summary>
+    Task<bool> ConfirmAsync(string title, string message, string confirmText);
 }
