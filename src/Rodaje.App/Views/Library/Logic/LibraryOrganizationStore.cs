@@ -75,7 +75,8 @@ public sealed class LibraryOrganizationStore
     /// Lee la organización de <paramref name="key"/>; si aún no tiene archivo, parte de la de
     /// <paramref name="fallbackKey"/> (la clave por id de antes, o la del proyecto antes de guardarlo por primera vez), sin
     /// tocar ese archivo. Así nadie pierde sus carpetas al actualizar, y una copia empieza con las del original pero
-    /// desde ahí guarda las suyas aparte.
+    /// desde ahí guarda las suyas aparte. Para que la copia parta del estado actual y no de uno viejo, la vista guarda con
+    /// <see cref="PrepareWithTemplate"/>, que mantiene al día el archivo por id.
     /// </summary>
     public LibraryOrganization Load(string key, string? fallbackKey)
     {
@@ -173,6 +174,38 @@ public sealed class LibraryOrganizationStore
         {
             Write(request);
         }
+    }
+
+    /// <summary>Como <see cref="Save(string, LibraryOrganization)"/>, y además actualiza la plantilla (ver <see cref="PrepareWithTemplate"/>).</summary>
+    public void Save(string key, string? templateKey, LibraryOrganization organization)
+    {
+        foreach (LibrarySaveRequest request in PrepareWithTemplate(key, templateKey, organization))
+        {
+            Write(request);
+        }
+    }
+
+    /// <summary>
+    /// Lo que hay que escribir para <paramref name="key"/> y, si es otra, también para <paramref name="templateKey"/> (la
+    /// clave por id). El archivo por id es la plantilla de la que parte una copia del <c>.rodaje</c> que aún no tiene
+    /// archivo propio; si solo se escribiera la clave con ruta, quedaría congelado en un estado viejo y la copia no
+    /// heredaría el estado actual del proyecto. Se escriben en este orden.
+    /// </summary>
+    public IReadOnlyList<LibrarySaveRequest> PrepareWithTemplate(string key, string? templateKey, LibraryOrganization organization)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        List<LibrarySaveRequest> requests = [];
+        if (Prepare(key, organization) is { } own)
+        {
+            requests.Add(own);
+        }
+
+        if (templateKey is not null && templateKey != key && Prepare(templateKey, organization) is { } template)
+        {
+            requests.Add(template);
+        }
+
+        return requests;
     }
 
     /// <summary>

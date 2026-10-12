@@ -9,6 +9,7 @@ namespace Rodaje.App.Tests.Library;
 public sealed class LibraryOrganizationInheritanceTests : IDisposable
 {
     private const string Id = "project-1";
+    private const string Original = @"C:\Proyectos\viaje.rodaje";
     private const string Copy = @"D:\Respaldo\viaje copia.rodaje";
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "rodaje-biblioteca-herencia-" + Guid.NewGuid().ToString("N"));
@@ -62,5 +63,57 @@ public sealed class LibraryOrganizationInheritanceTests : IDisposable
         }
 
         Assert.False(File.Exists(store.PathFor(key)));
+    }
+
+    [Fact]
+    public void CopiaHechaDespues_HeredaElEstadoActualDelOriginal()
+    {
+        // El original ya tiene archivo propio (id|ruta); lo que ordena después tiene que llegar a una copia nueva.
+        string originalKey = LibraryOrganizationStore.KeyFor(Id, Original);
+        var store = new LibraryOrganizationStore(_dir);
+        LibraryOrganization original = store.Load(originalKey, Id);
+        LibraryFolder viaje = original.CreateFolder(null, "Viaje");
+        original.MoveMedia(["m1"], viaje.Id);
+        store.Save(originalKey, Id, original);
+
+        LibraryFolder playa = original.CreateFolder(null, "Playa");
+        original.MoveMedia(["m1"], playa.Id);
+        original.SetFavorite("m2", true);
+        store.Save(originalKey, Id, original);
+
+        LibraryOrganization copy = new LibraryOrganizationStore(_dir).Load(LibraryOrganizationStore.KeyFor(Id, Copy), Id);
+        Assert.Equal(["Playa", "Viaje"], copy.Folders.Select(f => f.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(playa.Id, copy.FolderOf("m1"));
+        Assert.True(copy.IsFavorite("m2"));
+    }
+
+    [Fact]
+    public void GuardarConPlantilla_ElOriginalSigueConSuArchivo()
+    {
+        // La plantilla solo sirve de punto de partida: lo que guarda la copia no cambia el archivo propio del original.
+        string originalKey = LibraryOrganizationStore.KeyFor(Id, Original);
+        string copyKey = LibraryOrganizationStore.KeyFor(Id, Copy);
+        var store = new LibraryOrganizationStore(_dir);
+        LibraryOrganization original = store.Load(originalKey, Id);
+        original.CreateFolder(null, "Viaje");
+        store.Save(originalKey, Id, original);
+
+        var copyStore = new LibraryOrganizationStore(_dir);
+        LibraryOrganization copy = copyStore.Load(copyKey, Id);
+        copy.CreateFolder(null, "Solo en la copia");
+        copyStore.Save(copyKey, Id, copy);
+
+        Assert.Equal(["Viaje"], new LibraryOrganizationStore(_dir).Load(originalKey, Id).Folders.Select(f => f.Name));
+        Assert.Equal(2, new LibraryOrganizationStore(_dir).Load(Id).Folders.Count);
+    }
+
+    [Fact]
+    public void ProyectoSinGuardar_LaPlantillaEsSuPropioArchivo()
+    {
+        var store = new LibraryOrganizationStore(_dir);
+        var org = new LibraryOrganization();
+        org.CreateFolder(null, "Viaje");
+
+        Assert.Single(store.PrepareWithTemplate(Id, Id, org));
     }
 }

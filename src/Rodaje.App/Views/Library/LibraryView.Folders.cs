@@ -92,9 +92,10 @@ internal sealed partial class LibraryView
             return;
         }
 
-        LibrarySaveRequest? request = _organizationStore.Prepare(_organizationKey, _organization);
+        // También el archivo por id: es la plantilla de la que parte una copia del .rodaje hecha más tarde.
+        IReadOnlyList<LibrarySaveRequest> requests = _organizationStore.PrepareWithTemplate(_organizationKey, _organizationProject?.Id, _organization);
         _savedRevision = _organization.Revision;
-        if (request is null)
+        if (requests.Count == 0)
         {
             return;
         }
@@ -106,7 +107,10 @@ internal sealed partial class LibraryView
             {
                 try
                 {
-                    _organizationStore.Write(request);
+                    foreach (LibrarySaveRequest request in requests)
+                    {
+                        _organizationStore.Write(request);
+                    }
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
