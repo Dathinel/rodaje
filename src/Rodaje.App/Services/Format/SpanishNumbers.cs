@@ -13,7 +13,21 @@ namespace Rodaje.App.Services.Format;
 /// </remarks>
 public static class SpanishNumbers
 {
-    /// <summary>Coma decimal y punto de miles; el resto, como la invariante. Es de solo lectura.</summary>
-    public static NumberFormatInfo Format { get; } =
-        NumberFormatInfo.ReadOnly(new NumberFormatInfo { NumberDecimalSeparator = ",", NumberGroupSeparator = "." });
+    /// <summary>
+    /// Coma decimal y punto de miles, también en los porcentajes (<c>P</c>), que van con espacio: «35 %», «-35 %»,
+    /// «12,5 %». El resto, como la invariante. Es de solo lectura.
+    /// </summary>
+    /// <remarks>
+    /// Los patrones de porcentaje se fijan aunque coincidan con los de la invariante (0: «n %», 0: «-n %»), para que el
+    /// espacio antes del signo no dependa de ella.
+    /// </remarks>
+    public static NumberFormatInfo Format { get; } = NumberFormatInfo.ReadOnly(new NumberFormatInfo
+    {
+        NumberDecimalSeparator = ",",
+        NumberGroupSeparator = ".",
+        PercentDecimalSeparator = ",",
+        PercentGroupSeparator = ".",
+        PercentPositivePattern = 0,
+        PercentNegativePattern = 0,
+    });
 }
