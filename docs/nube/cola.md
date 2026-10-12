@@ -3,7 +3,7 @@
 La mantiene la sesión local. Reglas en [README.md](README.md). Estados: `pendiente`, `cambios`, `en pausa`, `hecha`.
 
 
-**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #38. Los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47) y #30, #32, #18, #36 (tareas 48–50) los revisó Sonnet el 12-oct.
+**PR sin revisar** (unidos en verde; revisión por bloques al llegar a 4): #38, #37. Los bloques #15, #31, #33, #34 (tareas 42 ampliada y 44–47) y #30, #32, #18, #36 (tareas 48–50) los revisó Sonnet el 12-oct.
 
 ## 0. URGENTE: main en rojo en la CI de Windows (pruebas de velocidad de Medios)
 
@@ -328,7 +328,7 @@ FFV1 con `-g 1` (hoy sale un cuadro clave cada 12); `h264_mf`/`hevc_mf` en MOV e
 
 ## 34. Autoguardado: pruebas del servicio y orden de escritura
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #37 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/autoguardado-pruebas`
 - **Caminos:** `src/Rodaje.App/Services/Autosave/`, `src/Rodaje.Core/` (solo `AutosaveSession`), `tests/`, `docs/tareas/`.
 - **Lee:** revisión en bloque (M8, M9).
@@ -454,10 +454,10 @@ La app corre con `InvariantGlobalization` (`Rodaje.App.csproj:38`), así que tod
 
 - **Estado:** pendiente
 - **Rama:** `claude/app-pruebas-carga`
-- **Caminos:** `tests/Rodaje.App.Tests/Media/ClipVisualsTests.cs`, `tests/Rodaje.App.Tests/` (las otras pruebas citadas), `tests/Rodaje.Media.Tests/Export/ExportEncoderAvailabilityTests.cs`, `src/Rodaje.App/Services/` y `src/Rodaje.Media/Export/ExportEncoderAvailability*.cs` (solo si el defecto es del código), `docs/tareas/`
+- **Caminos:** `tests/Rodaje.App.Tests/Media/ClipVisualsTests.cs`, `tests/Rodaje.App.Tests/` (las otras pruebas citadas), `tests/Rodaje.Media.Tests/Export/ExportEncoderAvailabilityTests.cs`, `tests/Rodaje.Engine.Tests/Timeline/` y `tests/Rodaje.Module.AudioAi.Tests/` (las pruebas citadas), `src/Rodaje.App/Services/` y `src/Rodaje.Media/Export/ExportEncoderAvailability*.cs` (solo si el defecto es del código), `docs/tareas/`
 - **Lee:** el job 114679035551 (PR #32), el comentario del 12-oct en el PR #33 y `testing/Rodaje.TestMedia/Skip.cs`.
 
-`ClipVisualsTests.Dispose_does_not_wait_for_a_reader_that_ignores_cancellation` exige que `Dispose` vuelva en menos de 1 s y en la CI tardó 8082 ms (`ClipVisualsTests.cs:402`), en un PR que no toca esa parte. En el job 114683663348 (PR #40) falló `ClipVisualsTests.A_second_session_reads_thumbnails_and_peaks_from_disk` con «No llegó a tiempo» (`:150`, `:272`). En la corrida de #33 fallaron además `PackageServiceTests`, `ModuleMediaTests` y `VideoAnalysisTests`. En el job 114681867969 (PR #40, que solo cambia la cola) falló `ExportEncoderAvailabilityTests.Invalidate_during_a_run_starts_the_next_one_only_after_it_ends` (esperaba 1 corrida y hubo 2): puede ser una carrera real en `Invalidate`. Averigua la causa de cada una. Si `Dispose` de verdad espera al lector (un `Wait` o un `Join` en el camino), es un defecto: corrígelo. Si no, haz que la medición no dependa del planificador del runner (cronometrar solo `Dispose`, hilos dedicados) sin subir el tope que mide. Si alguna prueba mide tiempo real, va con `Categoria=TiempoReal`.
+`ClipVisualsTests.Dispose_does_not_wait_for_a_reader_that_ignores_cancellation` exige que `Dispose` vuelva en menos de 1 s y en la CI tardó 8082 ms (`ClipVisualsTests.cs:402`), en un PR que no toca esa parte. En el job 114683663348 (PR #40) falló `ClipVisualsTests.A_second_session_reads_thumbnails_and_peaks_from_disk` con «No llegó a tiempo» (`:150`, `:272`). En la corrida de #33 fallaron además `PackageServiceTests`, `ModuleMediaTests` y `VideoAnalysisTests`. En el job 114681867969 (PR #40, que solo cambia la cola) falló `ExportEncoderAvailabilityTests.Invalidate_during_a_run_starts_the_next_one_only_after_it_ends` (esperaba 1 corrida y hubo 2): puede ser una carrera real en `Invalidate`. También fallaron una vez, en PR que no las tocan: `ModuleManagerTests.Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada` (#36, #37, #41), `AudioAi ProcessTests.Bad_buffers_fail_the_call_without_closing_the_module` (#41), `TimelineReverseTests.A_paused_tick_reserves_the_same_in_reverse_as_forward` (#37) y `TimelineSpeedTests.Speed_mapping_in_the_plan_reserves_nothing` (#38). Que la CI de Windows de main salga en verde varias veces seguidas. Averigua la causa de cada una. Si `Dispose` de verdad espera al lector (un `Wait` o un `Join` en el camino), es un defecto: corrígelo. Si no, haz que la medición no dependa del planificador del runner (cronometrar solo `Dispose`, hilos dedicados) sin subir el tope que mide. Si alguna prueba mide tiempo real, va con `Categoria=TiempoReal`.
 
 ## 48. Reenlazar: un archivo asignado a dos medios
 
