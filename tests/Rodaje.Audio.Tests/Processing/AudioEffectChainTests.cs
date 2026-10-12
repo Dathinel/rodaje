@@ -107,26 +107,82 @@ public sealed class AudioEffectChainTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Block_by_block_processing_matches_one_continuous_pass_without_hanging()
+    {
+        // Pasada normal: la corrección del resultado y solo una guarda holgada contra cuelgues (1 s por bloque, unas
+        // 30 veces lo peor visto en un runner de Windows cargado, 36,5 ms). La cota fina de 1 ms vive en la prueba
+        // TiempoReal de abajo, que la CI excluye porque mide reloj de pared.
+        (double ms, float[] blockwise) = RunBlocks(out float[] source);
+        output.WriteLine($"Bloque de 1024 cuadros estéreo con 5 bandas y compresor: {ms:0.000} ms");
+
+        // Partir en bloques no cambia nada: el estado de los filtros y la envolvente pasan de un bloque al siguiente.
+        float[] continuous = (float[])source.Clone();
+        new AudioEffectChain(ChainSettings, Rate).Process(continuous);
+        int firstMismatch = -1;
+        for (int i = 0; i < continuous.Length && firstMismatch < 0; i++)
+        {
+            if (BitConverter.SingleToInt32Bits(continuous[i]) != BitConverter.SingleToInt32Bits(blockwise[i]))
+            {
+                firstMismatch = i;
+            }
+        }
+
+        Assert.True(firstMismatch < 0, firstMismatch < 0 ? "" :
+            $"Muestra {firstMismatch}: en bloques {blockwise[firstMismatch]}, de una vez {continuous[firstMismatch]}");
+
+        // Y el resultado es audio: finito, no silencio, y el compresor (umbral −24, 4:1, +6 de compensación) lo deja
+        // dentro de ±1 aunque las bandas suban la senoide de 0,5.
+        float peak = 0;
+        foreach (float v in blockwise)
+        {
+            Assert.True(float.IsFinite(v));
+            peak = Math.Max(peak, Math.Abs(v));
+        }
+
+        Assert.InRange(peak, 0.05f, 1f);
+        Assert.True(ms < 1000, $"{ms} ms por bloque: más que un cuelgue que una máquina cargada");
+    }
+
+    [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public void A_block_with_five_bands_and_the_compressor_costs_well_under_a_millisecond()
     {
-        var chain = new AudioEffectChain(new AudioEffectsSettings(new EqualizerSettings(80, 2, 120, -3, 400, 1.2, 4, 3500, 1.5, 2.5, 10000),
-            new CompressorSettings(-24, 4, 5, 150, 6, 6)), Rate);
-        float[] block = Sine(440, 0.5, 0, 1024);
-        for (int i = 0; i < 50; i++)
+        (double ms, _) = RunBlocks(out _);
+        output.WriteLine($"Bloque de 1024 cuadros estéreo con 5 bandas y compresor: {ms:0.000} ms ({1024.0 / Rate * 1000 / ms:0}× tiempo real)");
+        Assert.True(ms < 1, $"{ms} ms");
+    }
+
+    private static readonly AudioEffectsSettings ChainSettings = new(new EqualizerSettings(80, 2, 120, -3, 400, 1.2, 4, 3500, 1.5, 2.5, 10000),
+        new CompressorSettings(-24, 4, 5, 150, 6, 6));
+
+    /// <summary>
+    /// Pasa por una cadena 50 bloques de calentamiento y 470 medidos de 1024 cuadros (una senoide de 440 Hz repetida) y
+    /// devuelve los milisegundos por bloque medido y la señal procesada; <paramref name="source"/> es la de entrada.
+    /// </summary>
+    private static (double MsPerBlock, float[] Processed) RunBlocks(out float[] source)
+    {
+        const int frames = 1024, warmup = 50, blocks = 470;
+        float[] block = Sine(440, 0.5, 0, frames);
+        source = new float[block.Length * (warmup + blocks)];
+        for (int i = 0; i < warmup + blocks; i++)
         {
-            chain.Process(block);
+            block.CopyTo(source, i * block.Length);
+        }
+
+        float[] signal = (float[])source.Clone();
+        var chain = new AudioEffectChain(ChainSettings, Rate);
+        for (int i = 0; i < warmup; i++)
+        {
+            chain.Process(signal.AsSpan(i * block.Length, block.Length));
         }
 
         var watch = System.Diagnostics.Stopwatch.StartNew();
-        const int blocks = 470;
-        for (int i = 0; i < blocks; i++)
+        for (int i = warmup; i < warmup + blocks; i++)
         {
-            chain.Process(block);
+            chain.Process(signal.AsSpan(i * block.Length, block.Length));
         }
 
-        double ms = watch.Elapsed.TotalMilliseconds / blocks;
-        output.WriteLine($"Bloque de 1024 cuadros estéreo con 5 bandas y compresor: {ms:0.000} ms ({1024.0 / Rate * 1000 / ms:0}× tiempo real)");
-        Assert.True(ms < 1, $"{ms} ms");
+        return (watch.Elapsed.TotalMilliseconds / blocks, signal);
     }
 
     private static double Reference(double x, double threshold, double ratio, double knee)
