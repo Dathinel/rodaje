@@ -134,7 +134,8 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         foreach (PluginEntry entry in packages.Entries())
         {
             (entry.Kind == PackageKind.Module ? Modules : ContentPackages).Add(
-                new PluginRow(entry, packages.Downloader, othersOpen, packages.HasUpdate(entry), DownloadFor(entry.Id)));
+                new PluginRow(entry, packages.Downloader, othersOpen, packages.HasUpdate(entry), DownloadFor(entry.Id),
+                    packages.MissingModelsOf(entry.Id).Sum(m => m.Size)));
         }
 
         Problems.Clear();
@@ -168,14 +169,25 @@ internal sealed partial class PluginsView : UserControl, IEditorView
 
     private async void OnInstallClick(object sender, RoutedEventArgs e)
     {
-        if (_services is null || (sender as FrameworkElement)?.DataContext is not PluginRow { Entry.Catalog: { } entry } row || row.Download.IsActive)
+        if (_services is null || (sender as FrameworkElement)?.DataContext is not PluginRow row || row.Download.IsActive)
+        {
+            return;
+        }
+
+        if (row.NeedsModels)
+        {
+            await DownloadModelsAsync(row);
+            return;
+        }
+
+        if (row.Entry.Catalog is not { } entry)
         {
             return;
         }
 
         DownloadState state = row.Download;
         CancellationToken cancellation = state.Start();
-        var progress = new Progress<double>(state.Report);
+        var progress = new Progress<InstallProgress>(state.Report);
         try
         {
             InstallResult result = await _services.Packages.InstallFromCatalogAsync(entry, progress, cancellation);
@@ -194,6 +206,30 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         catch (Exception ex)
         {
             _services.Session.Notify(NotificationSeverity.Error, $"No se instaló «{entry.Name}»", ex.Message);
+        }
+        finally
+        {
+            state.Finish();
+            Refresh();
+        }
+    }
+
+    private async Task DownloadModelsAsync(PluginRow row)
+    {
+        DownloadState state = row.Download;
+        CancellationToken cancellation = state.Start();
+        try
+        {
+            await _services!.Packages.EnsureModelsAsync(row.Entry.Id, new Progress<InstallProgress>(state.Report), cancellation);
+            _services.Session.Notify(NotificationSeverity.Success, $"Modelos de «{row.Name}» listos", "");
+        }
+        catch (OperationCanceledException)
+        {
+            _services!.Session.Notify(NotificationSeverity.Informational, $"Descarga de los modelos de «{row.Name}» en pausa", "Lo descargado se guardó; «Bajar modelos» sigue desde ahí.");
+        }
+        catch (Exception ex)
+        {
+            _services!.Session.Notify(NotificationSeverity.Error, $"No se bajaron los modelos de «{row.Name}»", ex.Message);
         }
         finally
         {

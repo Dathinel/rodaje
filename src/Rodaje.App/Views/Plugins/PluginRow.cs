@@ -8,8 +8,13 @@ namespace Rodaje.App.Views.Plugins;
 /// <param name="othersOpen">Hay otras instancias de Rodaje abiertas: no se puede desinstalar ni actualizar.</param>
 /// <param name="hasUpdate">Hay una versión publicada más nueva que la instalada.</param>
 /// <param name="download">La descarga de este complemento (en curso o no).</param>
-internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader downloader, bool othersOpen, bool hasUpdate, DownloadState download)
+/// <param name="missingModelBytes">Lo que ocupan los modelos que le faltan a este módulo instalado (0 si ninguno).</param>
+internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader downloader, bool othersOpen, bool hasUpdate, DownloadState download,
+    long missingModelBytes = 0)
 {
+    /// <summary>El módulo está instalado pero le faltan modelos: el botón los baja en vez de reinstalar.</summary>
+    public bool NeedsModels { get; } = missingModelBytes > 0 && !hasUpdate;
+
     public DownloadState Download { get; } = download;
 
     public PluginEntry Entry { get; } = entry;
@@ -24,6 +29,7 @@ internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader do
     {
         null => "No instalado",
         { Origin: PackageOrigin.Bundled } installed => $"Incluido · {installed.Manifest.Version}",
+        { } installed when missingModelBytes > 0 => $"Instalado · {installed.Manifest.Version} · faltan modelos ({PackageService.FormatSize(missingModelBytes)})",
         { } installed => $"Instalado · {installed.Manifest.Version}",
     };
 
@@ -37,13 +43,15 @@ internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader do
 
     public Visibility RepositoryVisibility { get; } = entry.Repository is null ? Visibility.Collapsed : Visibility.Visible;
 
-    public Visibility InstallVisibility { get; } = entry.Catalog is not null && (!entry.IsInstalled || hasUpdate) ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility InstallVisibility { get; } =
+        (entry.Catalog is not null && (!entry.IsInstalled || hasUpdate)) || missingModelBytes > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-    public string InstallText { get; } = hasUpdate ? "Actualizar" : "Instalar";
+    public string InstallText { get; } = hasUpdate ? "Actualizar" : missingModelBytes > 0 ? "Bajar modelos" : "Instalar";
 
-    public bool CanDownload { get; } = downloader.IsAvailable && !(hasUpdate && othersOpen);
+    public bool CanDownload { get; } = missingModelBytes > 0 && !hasUpdate || downloader.IsAvailable && !(hasUpdate && othersOpen);
 
-    public string InstallTooltip { get; } = !downloader.IsAvailable ? downloader.UnavailableReason ?? ""
+    public string InstallTooltip { get; } = missingModelBytes > 0 && !hasUpdate ? "Descargar sus modelos (Hugging Face o las releases de Dathinel), comprobar su hash y dejarlos en la carpeta del módulo"
+        : !downloader.IsAvailable ? downloader.UnavailableReason ?? ""
         : hasUpdate ? "Descargar la versión nueva desde GitHub, comprobar su firma y su hash, y reemplazar la instalada"
         : "Descargar desde GitHub, comprobar su firma y su hash, e instalar";
 

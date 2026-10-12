@@ -1,15 +1,16 @@
 {
   "formatVersion": 1,
   "id": "modulo-subtitulos",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "kind": "module",
   "name": "Subtítulos automáticos",
   "description": "Transcribe la voz con tiempos por palabra (Whisper large-v3-turbo) en la GPU por Vulkan o en la CPU.",
   "author": "Dathinel",
   "license": "GPL-3.0-only",
+  "repository": "https://github.com/Dathinel/modulo-subtitulos",
   "apps": ["rodaje"],
   "module": {
-    "entry": "bin/Rodaje.Module.Subtitles.exe",
+    "entry": "Rodaje.Module.Subtitles.exe",
     "protocol": 1,
     "functions": ["subtitulos"],
     "runtime": "vulkan",

@@ -111,6 +111,7 @@ public class TitleEditorTests
         full.Stroke = new StyleStroke { Color = "#102030", Width = 6, Join = StrokeJoin.Bevel };
         full.Background = new StyleBackground { Color = "#00000080", Padding = [24, 12], Radius = 12 };
         full.Align = TextAlign.Left;
+        full.Highlight = new StyleHighlight { Color = "#FFD400" };
         full.Font.Italic = true;
         full.In = new StyleAnimation
         {

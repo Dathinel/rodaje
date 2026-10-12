@@ -1,12 +1,13 @@
 {
   "formatVersion": 1,
-  "id": "rodaje-vision",
-  "version": "0.1.0",
+  "id": "modulo-vision",
+  "version": "1.0.0",
   "kind": "module",
   "name": "Visión",
   "description": "Quita el fondo de las personas (MODNet; calidad alta con BiRefNet_lite), detecta rostros (YuNet) y personas (RT-DETRv2) y calcula un reencuadre que sigue al sujeto. DirectML si hay GPU, CPU si no; sin conexión. La calidad alta pide unos 2,8 GB de VRAM y es lenta (unos 2 s por cuadro en una RTX 3050 de 4 GB).",
   "author": "Dathinel",
   "license": "GPL-3.0-only",
+  "repository": "https://github.com/Dathinel/modulo-vision",
   "apps": ["rodaje"],
   "module": {
     "entry": "Rodaje.Module.Vision.exe",

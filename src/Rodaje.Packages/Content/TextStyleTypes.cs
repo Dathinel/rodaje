@@ -29,7 +29,8 @@ public sealed record TextStyleAnimation(double DurationSeconds, IReadOnlyList<Pr
 
 /// <summary>
 /// <c>rodaje.textstyle</c> v1: un estilo de título. Medidas en píxeles de <see cref="ReferenceWidth"/> ×
-/// <see cref="ReferenceHeight"/>; colores <c>#RRGGBB[AA]</c>. Al aplicarlo, el proyecto guarda una copia (D-029).
+/// <see cref="ReferenceHeight"/>; colores <c>#RRGGBB[AA]</c>. <see cref="HighlightColor"/> es el color de la palabra que se
+/// está diciendo en los subtítulos con tiempos por palabra (karaoke). Al aplicarlo, el proyecto guarda una copia (D-029).
 /// </summary>
 public sealed record TextStylePreset(
     string Id,
@@ -46,7 +47,8 @@ public sealed record TextStylePreset(
     TextStyleShadow? Shadow,
     TextStyleBackground? Background,
     TextStyleAnimation? In,
-    TextStyleAnimation? Out)
+    TextStyleAnimation? Out,
+    string? HighlightColor = null)
 {
     public const string Format = "rodaje.textstyle";
     public const int Version = 1;

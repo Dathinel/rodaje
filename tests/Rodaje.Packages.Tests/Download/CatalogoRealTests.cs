@@ -45,8 +45,8 @@ public sealed class CatalogoRealTests : IDisposable
     }, _http);
 
     [RedTheory]
-    [InlineData("rodaje-transiciones", "Transiciones", 8)]
-    [InlineData("rodaje-filtros", "Filtros", 16)]
+    [InlineData("rodaje-transiciones", "Transiciones", 22)]
+    [InlineData("rodaje-filtros", "Filtros", 26)]
     public async Task Baja_verifica_e_instala_desde_el_catalogo_publicado(string id, string name, int items)
     {
         using GitHubReleaseDownloader downloader = Downloader(IndexUrl);

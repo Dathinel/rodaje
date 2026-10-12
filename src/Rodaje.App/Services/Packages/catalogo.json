@@ -28,46 +28,82 @@
       "id": "rodaje-titulos",
       "kind": "content",
       "name": "Títulos",
-      "description": "Estilos de texto con fuente, colores, borde y sombra, y animaciones de entrada y salida.",
+      "description": "Estilos de texto con fuente, colores, borde y sombra, y animaciones de entrada y salida; también subtítulos y karaoke.",
       "repository": "https://github.com/Dathinel/rodaje-titulos",
       "apps": ["rodaje"],
       "provides": ["text-style"]
     },
     {
+      "id": "rodaje-fuentes",
+      "kind": "content",
+      "name": "Fuentes",
+      "description": "Diez familias libres (OFL) para títulos y subtítulos, sin modificar: Inter, Montserrat, Oswald, Nunito y más.",
+      "repository": "https://github.com/Dathinel/rodaje-fuentes",
+      "apps": ["rodaje"],
+      "provides": ["font"]
+    },
+    {
+      "id": "rodaje-zonas",
+      "kind": "content",
+      "name": "Zonas de encuadre",
+      "description": "Guías para el visor: encuadres de cine, recortes 4:3, 1:1 y 4:5, tercios, centro y franja de subtítulos.",
+      "repository": "https://github.com/Dathinel/rodaje-zonas",
+      "apps": ["rodaje"],
+      "provides": ["safe-zones"]
+    },
+    {
       "id": "modulo-subtitulos",
       "kind": "module",
       "name": "Subtítulos automáticos",
-      "description": "Transcribe la voz con Whisper en local y propone clips de texto con sus tiempos.",
+      "description": "Transcribe la voz con Whisper en local, con tiempos por palabra, y propone clips de texto.",
       "repository": "https://github.com/Dathinel/modulo-subtitulos",
       "apps": ["rodaje", "editor-audio"],
       "provides": ["subtitulos"]
     },
     {
-      "id": "modulo-quitar-fondo",
+      "id": "modulo-traducir",
       "kind": "module",
-      "name": "Quitar fondo",
-      "description": "Separa a la persona del fondo con un modelo de segmentación en la GPU y devuelve una máscara.",
-      "repository": "https://github.com/Dathinel/modulo-quitar-fondo",
+      "name": "Traducir subtítulos",
+      "description": "Traduce una pista de subtítulos a otro idioma conservando los tiempos, con Qwen3-4B en local.",
+      "repository": "https://github.com/Dathinel/modulo-traducir",
+      "apps": ["rodaje"],
+      "provides": ["traducir"]
+    },
+    {
+      "id": "modulo-voz",
+      "kind": "module",
+      "name": "Texto a voz",
+      "description": "Convierte texto en voz con Kokoro-82M en la CPU: español, portugués de Brasil e inglés, con 34 voces.",
+      "repository": "https://github.com/Dathinel/modulo-voz",
+      "apps": ["rodaje"],
+      "provides": ["voces", "voz", "entregar"]
+    },
+    {
+      "id": "modulo-audio-ia",
+      "kind": "module",
+      "name": "Audio con IA",
+      "description": "Reduce el ruido de la voz (DeepFilterNet3) y detecta dónde se habla (Silero VAD) para quitar silencios y el ducking.",
+      "repository": "https://github.com/Dathinel/modulo-audio-ia",
+      "apps": ["rodaje", "editor-audio"],
+      "provides": ["ruido", "detectar-voz"]
+    },
+    {
+      "id": "modulo-vision",
+      "kind": "module",
+      "name": "Visión",
+      "description": "Quita el fondo de las personas, detecta rostros y personas y calcula un reencuadre que sigue al sujeto.",
+      "repository": "https://github.com/Dathinel/modulo-vision",
       "apps": ["rodaje", "editor-fotos"],
-      "provides": ["quitar-fondo"]
+      "provides": ["quitar-fondo", "detectar", "reencuadre"]
     },
     {
-      "id": "modulo-ritmo",
+      "id": "modulo-raw",
       "kind": "module",
-      "name": "Cortes al ritmo",
-      "description": "Detecta los golpes de la música y pone marcadores para cortar al ritmo.",
-      "repository": "https://github.com/Dathinel/modulo-ritmo",
-      "apps": ["rodaje", "editor-audio"],
-      "provides": ["ritmo"]
-    },
-    {
-      "id": "modulo-silencios",
-      "kind": "module",
-      "name": "Quitar silencios",
-      "description": "Encuentra los silencios y los propone como borrado con ripple, para revisar antes de aplicar.",
-      "repository": "https://github.com/Dathinel/modulo-silencios",
-      "apps": ["rodaje", "editor-audio"],
-      "provides": ["silencios"]
+      "name": "RAW de cine",
+      "description": "Abre secuencias CinemaDNG y las revela (balance, exposición, espacio de color) con LibRaw.",
+      "repository": "https://github.com/Dathinel/modulo-raw",
+      "apps": ["rodaje"],
+      "provides": ["info", "revelar"]
     }
   ]
 }

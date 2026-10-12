@@ -124,15 +124,19 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     /// <param name="allowDowngrade">Permite reemplazar una versión instalada más nueva.</param>
     /// <param name="allowReplace">Si es falso, un paquete ya instalado no se toca (<see cref="PackageReplaceBlockedException"/>).</param>
     /// <param name="cancellationToken">Cancela la extracción.</param>
+    /// <param name="beforeCommit">
+    /// Se llama con el manifiesto ya validado justo antes de poner la versión nueva en su sitio (por ejemplo, para cerrar
+    /// un módulo abierto cuyos archivos se van a reemplazar).
+    /// </param>
     /// <exception cref="PackageInstallException">No se pudo instalar; nada cambió.</exception>
     public InstallResult Install(string archivePath, string? expectedSha256 = null, bool allowDowngrade = false, bool allowReplace = true,
-        CancellationToken cancellationToken = default)
+        Action<PackageManifest>? beforeCommit = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(archivePath);
         try
         {
             using FileStream operation = AcquireOperationLock();
-            return InstallCore(Path.GetFullPath(archivePath), expectedSha256, allowDowngrade, allowReplace, cancellationToken);
+            return InstallCore(Path.GetFullPath(archivePath), expectedSha256, allowDowngrade, allowReplace, beforeCommit, cancellationToken);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or NotSupportedException or System.Security.SecurityException)
         {
@@ -140,7 +144,8 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         }
     }
 
-    private InstallResult InstallCore(string archive, string? expectedSha256, bool allowDowngrade, bool allowReplace, CancellationToken cancellationToken)
+    private InstallResult InstallCore(string archive, string? expectedSha256, bool allowDowngrade, bool allowReplace, Action<PackageManifest>? beforeCommit,
+        CancellationToken cancellationToken)
     {
         if (!File.Exists(archive))
         {
@@ -198,6 +203,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
                 throw new PackageInstallException($"Ya hay instalado otro complemento con el id «{manifest.Id}» de distinto tipo; desinstálalo primero.");
             }
 
+            beforeCommit?.Invoke(manifest);
             if (Directory.Exists(target))
             {
                 previous = ManifestReader.ReadFile(Path.Combine(target, PackageManifest.FileName), checkFiles: false).Manifest?.Version;
@@ -214,7 +220,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
 
                 outcome = order > 0 ? InstallOutcome.Updated : order == 0 ? InstallOutcome.Reinstalled : InstallOutcome.Downgraded;
                 movedAside = Path.Combine(root, PreviousPrefix + NewTag() + "-" + manifest.Id);
-                Directory.Move(target, movedAside);
+                MoveDirectory(target, movedAside);
             }
 
             try
@@ -247,6 +253,30 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         }
     }
 
+    /// <summary>
+    /// Mueve una carpeta reintentando unos instantes: un proceso recién cerrado (un módulo) o un antivirus pueden tener
+    /// todavía abierto algún archivo.
+    /// </summary>
+    private static void MoveDirectory(string from, string to)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                Directory.Move(from, to);
+                return;
+            }
+            catch (Exception ex) when (attempt < MoveAttempts && ex is IOException or UnauthorizedAccessException)
+            {
+                Thread.Sleep(MoveRetryDelay);
+            }
+        }
+    }
+
+    private const int MoveAttempts = 20;
+
+    private static readonly TimeSpan MoveRetryDelay = TimeSpan.FromMilliseconds(100);
+
     /// <summary>Borra un paquete instalado por la persona. Los incluidos con el programa y los propios no se tocan.</summary>
     /// <exception cref="PackageInstallException">No está instalado o no se pudo borrar.</exception>
     public void Uninstall(string packageId)
@@ -269,7 +299,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             string aside = Path.Combine(root, RemovingPrefix + NewTag());
             try
             {
-                Directory.Move(target, aside);
+                MoveDirectory(target, aside);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

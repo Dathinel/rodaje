@@ -6,7 +6,7 @@ using Microsoft.ML.OnnxRuntime;
 using Rodaje.Module.Vision;
 using Rodaje.Modules.Protocol;
 
-ModuleInfo info = new("rodaje-vision", "0.1.0", "Visión",
+ModuleInfo info = new("modulo-vision", "1.0.0", "Visión",
 [
     new FunctionInfo("quitar-fondo", "Quitar el fondo (MODNet; «alta»: BiRefNet_lite)", Inputs: ["video"], Outputs: ["video"]),
     new FunctionInfo("detectar", "Detectar rostros (YuNet) o personas (RT-DETRv2)", Inputs: ["video"]),

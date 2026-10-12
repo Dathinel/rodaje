@@ -182,12 +182,12 @@ No van en la distribución base: llegan con la distribución completa (`app\modu
 
 | Módulo | Bibliotecas | Modelos | Detalle |
 |---|---|---|---|
-| `rodaje-audio-ia` (ruido y detección de voz) | ONNX Runtime 1.30.0 (MIT) | DeepFilterNet3 (MIT o Apache-2.0), Silero VAD (MIT) | [LICENCIAS.md](modules/Rodaje.Module.AudioAi/LICENCIAS.md) |
+| `modulo-audio-ia` (ruido y detección de voz) | ONNX Runtime 1.30.0 (MIT) | DeepFilterNet3 (MIT o Apache-2.0), Silero VAD (MIT) | [LICENCIAS.md](modules/Rodaje.Module.AudioAi/LICENCIAS.md) |
 | `modulo-subtitulos` (Whisper) | Whisper.net 1.9.1 y whisper.cpp (MIT) | whisper large-v3-turbo y small (MIT, pesos de OpenAI) | [LICENCIAS.md](modules/Rodaje.Module.Subtitles/LICENCIAS.md) |
 | `modulo-traducir` | LLamaSharp 0.27.0 y llama.cpp (MIT) | Qwen3-4B-Instruct-2507 (Apache-2.0) | [LICENCIAS.md](modules/Rodaje.Module.Translate/LICENCIAS.md) |
 | `modulo-voz` (Kokoro) | ONNX Runtime 1.30.0 (MIT) | Kokoro-82M v1.0 y sus voces, léxico de misaki (Apache-2.0) | [LICENCIAS.md](modules/Rodaje.Module.Voice/LICENCIAS.md) |
-| `rodaje-vision` (quitar fondo, reencuadre, detección) | ONNX Runtime con DirectML 1.24.4 (MIT), DirectML 1.15.4 (licencia de Microsoft) | MODNet y RT-DETRv2 (Apache-2.0), BiRefNet_lite y YuNet (MIT) | [LICENCIAS.md](modules/Rodaje.Module.Vision/LICENCIAS.md) |
-| `rodaje-raw` (CinemaDNG) | LibRaw 0.22.2 (LGPL-2.1) | — | [LICENCIAS.md](modules/Rodaje.Module.Raw/LICENCIAS.md) y abajo |
+| `modulo-vision` (quitar fondo, reencuadre, detección) | ONNX Runtime con DirectML 1.24.4 (MIT), DirectML 1.15.4 (licencia de Microsoft) | MODNet y RT-DETRv2 (Apache-2.0), BiRefNet_lite y YuNet (MIT) | [LICENCIAS.md](modules/Rodaje.Module.Vision/LICENCIAS.md) |
+| `modulo-raw` (CinemaDNG) | LibRaw 0.22.2 (LGPL-2.1) | — | [LICENCIAS.md](modules/Rodaje.Module.Raw/LICENCIAS.md) y abajo |
 
 Para quitar el fondo quedan excluidos RMBG-1.4 y RMBG-2.0, de uso no comercial con términos propios de BRIA: la GPLv3 permite el uso comercial y no admite esa restricción.
 
@@ -195,7 +195,7 @@ Para quitar el fondo quedan excluidos RMBG-1.4 y RMBG-2.0, de uso no comercial c
 
 | Componente | Versión | Licencia | ¿Se redistribuye? | Fuente | Qué implica |
 |---|---|---|---|---|---|
-| LibRaw (`rodaje-raw`, `.entorno\libraw`) | 0.22.2, `libraw.dll` oficial Win64, SHA-256 del zip `ac64fa12bb00a7581332d4c6ab918c0533fb3f119d6b668d47a6875410dca948` | LGPL-2.1 o CDDL-1.0 a elección; se usa la LGPL-2.1. Dentro: partes de dcraw, DCB y FBDD (BSD-3), X3F (BSD) y el Adobe DNG SDK 1.4 (MIT) | Sí, dentro del paquete de `rodaje-raw` | https://www.libraw.org/download y `COPYRIGHT` del zip | DLL dinámica sin modificar, reemplazable; se entregan `LICENSE.LGPL`, `COPYRIGHT` y el código fuente correspondiente (lo trae el mismo zip). LGPL-2.1 es compatible con la GPLv3 (sección 3). Importa el runtime de Visual C++ 2015-2022 (redistribuible de Microsoft; pendiente decidir si viaja con el módulo, `docs/legal.md`). |
+| LibRaw (`modulo-raw`, `.entorno\libraw`) | 0.22.2, `libraw.dll` oficial Win64, SHA-256 del zip `ac64fa12bb00a7581332d4c6ab918c0533fb3f119d6b668d47a6875410dca948` | LGPL-2.1 o CDDL-1.0 a elección; se usa la LGPL-2.1. Dentro: partes de dcraw, DCB y FBDD (BSD-3), X3F (BSD) y el Adobe DNG SDK 1.4 (MIT) | Sí, dentro del paquete de `modulo-raw` | https://www.libraw.org/download y `COPYRIGHT` del zip | DLL dinámica sin modificar, reemplazable; se entregan `LICENSE.LGPL`, `COPYRIGHT` y el código fuente correspondiente (lo trae el mismo zip). LGPL-2.1 es compatible con la GPLv3 (sección 3). Importa el runtime de Visual C++ 2015-2022 (redistribuible de Microsoft; pendiente decidir si viaja con el módulo, `docs/legal.md`). |
 | FFmpeg `win64-gpl-9.0` de BtbN (`rodaje-codificadores-gpl`, solo `ffmpeg.exe`) | `n9.0.2-17-g2a571b6068`, release `autobuild-2026-09-30-13-08`, zip SHA-256 `a0e45723c72141975f51d8666302e614711745f3102b704ca3f82c897a58d278` | GPL-3.0-or-later (`--enable-gpl --enable-version3`), con x264 y x265 (GPL-2.0-or-later) y otras bibliotecas libres dentro | Solo dentro del complemento, que se instala aparte; nunca en `dist\` del editor | https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-30-13-08 | Proceso aparte por tubería. Se entrega con la GPLv3, la línea de configure y la fuente (FFmpeg, scripts de BtbN, x264, x265; la del resto con `-FuenteCompleta`). Patentes de H.264/HEVC en software: pendiente del abogado (`docs/legal.md`, punto h). |
 
 ## Herramientas de desarrollo y pruebas

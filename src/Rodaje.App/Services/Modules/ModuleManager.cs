@@ -147,6 +147,27 @@ public sealed partial class ModuleManager : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Cierra el proceso de un módulo aunque esté trabajando (sus trabajos se cancelan), para desinstalarlo o reemplazar
+    /// sus archivos. La próxima llamada lo vuelve a abrir desde donde esté entonces.
+    /// </summary>
+    public async Task CloseModuleAsync(string moduleId)
+    {
+        ArgumentNullException.ThrowIfNull(moduleId);
+        if (!_connections.TryRemove(moduleId, out ModuleConnection? connection))
+        {
+            return;
+        }
+
+        foreach (ModuleJob job in Jobs.Jobs.Where(j => !j.IsFinished && j.ModuleName == connection.Descriptor.Name))
+        {
+            job.Cancel();
+        }
+
+        await connection.CloseAsync().ConfigureAwait(false);
+        Budget.Release(moduleId);
+    }
+
     /// <summary>Cierra todos los módulos (pidiendo <c>shutdown</c>, y matando si no salen) y el Job Object.</summary>
     public async ValueTask DisposeAsync()
     {

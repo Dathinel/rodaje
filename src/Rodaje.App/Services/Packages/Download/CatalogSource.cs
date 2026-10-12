@@ -61,6 +61,18 @@ public static class CatalogSource
         return http;
     }
 
+    /// <summary>
+    /// El almacén de modelos de la app. Su cliente no tiene plazo total (un modelo puede tardar una hora): una conexión
+    /// que se queda sin datos la corta <see cref="FileDownloader.StallTimeout"/> y se reanuda.
+    /// </summary>
+    public static ModelStore CreateModelStore(PackageLocations locations)
+    {
+        ArgumentNullException.ThrowIfNull(locations);
+        HttpClient http = CreateHttpClient();
+        http.Timeout = Timeout.InfiniteTimeSpan;
+        return new ModelStore(ModelFolder(locations), new FileDownloader(http) { MaxAttempts = 20, RetryDelay = TimeSpan.FromSeconds(2) });
+    }
+
     /// <summary>El descargador de la app, o uno no disponible si falta la clave.</summary>
     public static IPackageDownloader CreateDownloader(PackageLocations locations, string? publicKey = null)
     {

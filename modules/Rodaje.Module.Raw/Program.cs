@@ -3,7 +3,7 @@ using System.Text.Json;
 using Rodaje.Module.Raw;
 using Rodaje.Modules.Protocol;
 
-ModuleInfo info = new("rodaje-raw", "0.1.0", "RAW de cine",
+ModuleInfo info = new("modulo-raw", "1.0.0", "RAW de cine",
 [
     new FunctionInfo("info", "Tamaño, cámara, balance y cadencia de un cuadro RAW", ReportsProgress: false, Inputs: ["bytes"]),
     new FunctionInfo("revelar", "Revelar cuadros RAW (CinemaDNG) con LibRaw", Inputs: ["bytes"], Outputs: ["video"]),

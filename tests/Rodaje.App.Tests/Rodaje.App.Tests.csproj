@@ -49,6 +49,8 @@
     <!-- La prueba de punta a punta con los paquetes de contenido compone con el render real. -->
     <ProjectReference Include="..\..\src\Rodaje.Render\Rodaje.Render.csproj" />
     <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
+    <!-- Servidor HTTP local para bajar los modelos de un módulo instalado (Packages/ModuleInstallTests). -->
+    <ProjectReference Include="..\Rodaje.TestServer\Rodaje.TestServer.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <!-- Solo para que Rodaje.Module.Echo.exe quede junto a las pruebas de Modules/. -->
     <ProjectReference Include="..\..\modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj" />

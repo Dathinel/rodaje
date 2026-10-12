@@ -1,17 +1,21 @@
 ﻿# Arma la distribución de Rodaje en dist\distribucion\ (la versión sale de Directory.Build.props):
 #   Rodaje-<v>-instalador.exe  build\instalador.ps1 (Inno Setup, por usuario, sin administrador).
 #   Rodaje-<v>-portable.zip    dist\Rodaje tal cual: Rodaje.exe (el lanzador) y app\ con el programa y FFmpeg LGPL.
-#   Rodaje-<v>-completo.zip    portable + en app\: paquetes en paquetes\<id>, módulos en modulos\<id> y sus modelos
-#             en modelos\<sha256> (menos los de más de 2 GiB); los módulos de modules\ se publican aquí. Al descomprimir se ve solo Rodaje.exe y la carpeta
-#             app, que el lanzador oculta la primera vez.
+#   Rodaje-<v>-completo.zip    portable + en app\: paquetes en paquetes\<id> y módulos en modulos\<id> con sus modelos
+#             en modulos\<id>\<file>, donde el módulo los busca (menos los de más de 2 GiB). Los módulos salen de su
+#             .paquete (dist\modulos, de build\empaquetar-modulo.ps1, o ..\Complementos\<repo>\dist); los de modules\
+#             que no tienen .paquete se publican aquí. Al descomprimir se ve solo Rodaje.exe y la carpeta app, que el
+#             lanzador oculta la primera vez.
 #   SHA256SUMS.txt y Rodaje-<v>-notas.md (de build\instalador\notas-version.md), lo que sube build\publicar-release.ps1.
 #   indice.json  lo que el gestor de complementos puede descargar (paquetes, módulos y modelos) con URL, SHA-256 y
-#             tamaño; se firma después con build\firmar-indice.ps1. El gestor y este script usan los mismos
-#             .paquete, así que lo que trae la completa es exactamente lo que el gestor bajaría.
+#             tamaño; se firma después con build\firmar-indice.ps1. Lista todas las versiones de cada dist\ (cada
+#             índice nuevo reemplaza al anterior, así que nombra todo lo publicado). El gestor y este script usan los
+#             mismos .paquete, así que lo que trae la completa es exactamente lo que el gestor bajaría.
+#   Con -SoloIndice solo escribe indice.json (no publica, no comprime, no arma el instalador).
 # Con RODAJE_CERTIFICADO se firman los dos Rodaje.exe y el instalador (Comando-Firma en comun.psm1).
 # Al final prueba el instalador (build\probar-instalador.ps1). No sube nada.
 # Uso:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File build\distribuir.ps1 [-SinPublicar] [-SinCompleta]
+#   powershell -NoProfile -ExecutionPolicy Bypass -File build\distribuir.ps1 [-SoloIndice] [-SinPublicar] [-SinCompleta]
 #       [-SinModulos] [-SinInstalador] [-SinComprobar]
 #       [-Complementos <carpeta con <repo>\dist\*.paquete>] [-Paquetes a.paquete,b.paquete] [-Modelos <caché de modelos>]
 #       [-Excluir modelo-x,...] [-Version 1.0.0] [-Salida dist\distribucion]
@@ -23,6 +27,7 @@ param(
     [string]$Modelos = '',
     [string[]]$Excluir = @(),
     [string]$Salida = '',
+    [switch]$SoloIndice,
     [switch]$SinPublicar,
     [switch]$SinCompleta,
     [switch]$SinModulos,
@@ -48,26 +53,26 @@ if (-not $Version) { $Version = Version-Rodaje }
 
 Titulo "Distribución de Rodaje $Version"
 
+if ($SoloIndice) { $SinPublicar = $true }
 if (-not $SinPublicar) {
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'app.ps1') -SoloPublicar
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo publicar Rodaje.' }
 }
-foreach ($exe in 'Rodaje.exe', 'app\Rodaje.exe') {
-    if (-not (Test-Path -LiteralPath (Join-Path $App $exe))) { throw "No está publicado $App\$exe (quita -SinPublicar)." }
+if (-not $SoloIndice) {
+    foreach ($exe in 'Rodaje.exe', 'app\Rodaje.exe') {
+        if (-not (Test-Path -LiteralPath (Join-Path $App $exe))) { throw "No está publicado $App\$exe (quita -SinPublicar)." }
+    }
+    if (Firmar-Codigo @((Join-Path $App 'Rodaje.exe'), (Join-Path $App 'app\Rodaje.exe'))) { Bien 'Rodaje.exe y app\Rodaje.exe firmados.' }
+    else { Aviso 'Sin RODAJE_CERTIFICADO: los exe van sin firmar.' }
 }
-if (Firmar-Codigo @((Join-Path $App 'Rodaje.exe'), (Join-Path $App 'app\Rodaje.exe'))) { Bien 'Rodaje.exe y app\Rodaje.exe firmados.' }
-else { Aviso 'Sin RODAJE_CERTIFICADO: los exe van sin firmar.' }
 
+# Todas las versiones de cada dist\: el índice nombra todo lo publicado; la completa toma la más nueva de cada id.
 if ($Paquetes.Count -eq 0) {
     if (-not $Complementos) { $Complementos = Join-Path (Split-Path -Parent $Raiz) 'Complementos' }
-    if (Test-Path -LiteralPath $Complementos) {
-        $Paquetes = @(Get-ChildItem -LiteralPath $Complementos -Directory | ForEach-Object {
-            $dist = Join-Path $_.FullName 'dist'
-            if (Test-Path -LiteralPath $dist) { Get-ChildItem -LiteralPath $dist -Filter '*.paquete' | Sort-Object LastWriteTime | Select-Object -Last 1 | ForEach-Object { $_.FullName } }
-        })
-    } else {
-        Aviso "No encuentro ${Complementos}: la completa irá sin paquetes."
-    }
+    $carpetas = @(Join-Path $Raiz 'dist\modulos')
+    if (Test-Path -LiteralPath $Complementos) { $carpetas += @(Get-ChildItem -LiteralPath $Complementos -Directory | ForEach-Object { Join-Path $_.FullName 'dist' }) }
+    else { Aviso "No encuentro ${Complementos}: solo van los módulos de dist\modulos." }
+    $Paquetes = @($carpetas | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Get-ChildItem -LiteralPath $_ -Filter '*.paquete' | ForEach-Object { $_.FullName } })
 }
 
 function Sha256([string]$ruta) { (Get-FileHash -LiteralPath $ruta -Algorithm SHA256).Hash.ToLowerInvariant() }
@@ -122,12 +127,25 @@ function Obtener-Modelo($modelo) {
     return $cache
 }
 
+function Comparar-Version([string]$a, [string]$b) {
+    $va = [version](($a -split '[-+]')[0]); $vb = [version](($b -split '[-+]')[0])
+    return $va.CompareTo($vb)
+}
+
 New-Item -ItemType Directory -Force -Path $Salida | Out-Null
 $entradas = New-Object System.Collections.Generic.List[object]
-$modelosCompleta = @{}
-$leidos = @()
+# Modelos de la completa: cada uno en app\modulos\<id del módulo>\<file>.
+$modelosCompleta = New-Object System.Collections.Generic.List[object]
+$vistos = @{}
+$masNuevo = @{}
 foreach ($p in $Paquetes) {
     $m = Leer-Manifiesto $p
+    $clave = "$($m.id)@$($m.version)"
+    if ($vistos.ContainsKey($clave)) {
+        if ((Sha256 $p) -ne (Sha256 $vistos[$clave])) { throw "Hay dos $clave distintos: $p y $($vistos[$clave])." }
+        continue
+    }
+    $vistos[$clave] = $p
     $nombre = Split-Path -Leaf $p
     $tipo = if ($m.kind -eq 'module') { 'module' } else { 'content' }
     $sha = Sha256 $p
@@ -138,12 +156,20 @@ foreach ($p in $Paquetes) {
     if ($tipo -eq 'module' -and $m.module.models) {
         foreach ($mod in $m.module.models) {
             $entradas.Add([ordered]@{ id = $mod.id; version = $m.version; kind = 'model'; url = $mod.url; sha256 = $mod.sha256.ToLowerInvariant(); size = [long]$mod.size })
-            if ($Excluir -notcontains $mod.id -and $mod.size -and [long]$mod.size -lt $LimiteAsset) { $modelosCompleta[$mod.sha256.ToLowerInvariant()] = $mod }
-            elseif (-not $mod.size -or [long]$mod.size -ge $LimiteAsset) { Aviso "El modelo $($mod.id) pasa de 2 GiB (o no declara tamaño): queda fuera de la completa y se baja desde el gestor." }
         }
     }
-    $leidos += [pscustomobject]@{ Ruta = $p; Manifiesto = $m; Tipo = $tipo }
+    $leido = [pscustomobject]@{ Ruta = $p; Manifiesto = $m; Tipo = $tipo }
+    if (-not $masNuevo.ContainsKey($m.id) -or (Comparar-Version $m.version $masNuevo[$m.id].Manifiesto.version) -gt 0) { $masNuevo[$m.id] = $leido }
     Bien "$($m.id) $($m.version) ($tipo)"
+}
+$leidos = @($masNuevo.Values)
+
+function Sumar-Modelos($manifiesto) {
+    foreach ($mod in @($manifiesto.module.models)) {
+        if (-not $mod) { continue }
+        if ($Excluir -notcontains $mod.id -and $mod.size -and [long]$mod.size -lt $LimiteAsset) { $modelosCompleta.Add([pscustomobject]@{ Modulo = $manifiesto.id; Modelo = $mod }) }
+        elseif (-not $mod.size -or [long]$mod.size -ge $LimiteAsset) { Aviso "El modelo $($mod.id) pasa de 2 GiB (o no declara tamaño): queda fuera de la completa y se baja desde el gestor." }
+    }
 }
 
 $indice = [ordered]@{ formatVersion = 1; generated = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'); entries = $entradas.ToArray() }
@@ -151,6 +177,11 @@ $rutaIndice = Join-Path $Salida 'indice.json'
 [System.IO.File]::WriteAllText($rutaIndice, ($indice | ConvertTo-Json -Depth 6), $Utf8)
 Remove-Item -LiteralPath "$rutaIndice.sig" -Force -ErrorAction SilentlyContinue
 Bien "Índice con $($entradas.Count) entradas: $rutaIndice (sin firmar)"
+if ($SoloIndice) {
+    Titulo 'Listo. Siguiente paso:'
+    Nota "Firmar el índice: build\firmar-indice.ps1 -Indice `"$rutaIndice`""
+    return
+}
 
 function Comprimir([string]$carpeta, [string]$zip) {
     if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
@@ -168,8 +199,9 @@ function Comprimir([string]$carpeta, [string]$zip) {
     Bien "$(Split-Path -Leaf $zip): $([math]::Round($tam / 1MB, 1)) MB"
 }
 
-# Los módulos de IA de modules\ (menos el eco de pruebas) aún no tienen repo ni .paquete propio: se publican aquí
-# para la completa, en modulos\<id> con su paquete.json, y sus modelos se suman a los de la completa.
+# Los módulos de IA de modules\ (menos el eco de pruebas) que no llegaron como .paquete se publican aquí para la
+# completa, en modulos\<id> con su paquete.json, y sus modelos se suman a los de la completa. Los que ya vinieron en su
+# .paquete no se repiten.
 function Publicar-Modulos([string]$destino) {
     Usar-DotnetLocal $E
     Agregar-Vswhere | Out-Null
@@ -179,7 +211,7 @@ function Publicar-Modulos([string]$destino) {
             $csproj = Get-ChildItem -LiteralPath $dir.FullName -Filter '*.csproj' | Select-Object -First 1
             if (-not (Test-Path -LiteralPath $json) -or -not $csproj) { continue }
             $m = Get-Content -LiteralPath $json -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ($m.id -eq 'rodaje-eco' -or $Excluir -contains $m.id) { continue }
+            if ($m.id -eq 'rodaje-eco' -or $Excluir -contains $m.id -or $masNuevo.ContainsKey($m.id)) { continue }
             $carpeta = Join-Path $destino $m.id
             $entrada = Join-Path $carpeta ($m.module.entry -replace '/', '\')
             Nota "Publicando el módulo $($m.id)..."
@@ -193,11 +225,7 @@ function Publicar-Modulos([string]$destino) {
                 if (Test-Path -LiteralPath $origen) { Copy-Item -LiteralPath $origen -Destination $carpeta -Force }
             }
             Firmar-Codigo @($entrada) | Out-Null
-            foreach ($mod in @($m.module.models)) {
-                if (-not $mod) { continue }
-                if ($Excluir -notcontains $mod.id -and $mod.size -and [long]$mod.size -lt $LimiteAsset) { $modelosCompleta[$mod.sha256.ToLowerInvariant()] = $mod }
-                elseif (-not $mod.size -or [long]$mod.size -ge $LimiteAsset) { Aviso "El modelo $($mod.id) pasa de 2 GiB (o no declara tamaño): queda fuera de la completa y se baja desde el gestor." }
-            }
+            Sumar-Modelos $m
             Bien ("{0} {1}: {2:0.0} MB" -f $m.id, $m.version, ((Get-ChildItem -LiteralPath $carpeta -Recurse -File | Measure-Object Length -Sum).Sum / 1MB))
         }
     } finally {
@@ -223,12 +251,15 @@ try {
         foreach ($l in $leidos) {
             $raizTipo = if ($l.Tipo -eq 'module') { 'modulos' } else { 'paquetes' }
             Extraer $l.Ruta (Join-Path $completa "app\$raizTipo\$($l.Manifiesto.id)") $l.Manifiesto.Envoltorio
+            if ($l.Tipo -eq 'module') { Sumar-Modelos $l.Manifiesto }
         }
         if (-not $SinModulos) { Publicar-Modulos (Join-Path $completa 'app\modulos') }
-        foreach ($sha in $modelosCompleta.Keys) {
-            $origen = Obtener-Modelo $modelosCompleta[$sha]
-            New-Item -ItemType Directory -Force -Path (Join-Path $completa 'app\modelos') | Out-Null
-            Copy-Item -LiteralPath $origen -Destination (Join-Path $completa "app\modelos\$sha")
+        foreach ($x in $modelosCompleta) {
+            $origen = Obtener-Modelo $x.Modelo
+            $destino = Join-Path $completa ("app\modulos\$($x.Modulo)\" + ($x.Modelo.file -replace '/', '\'))
+            if ($x.Modelo.file -match '(^|/)\.\.(/|$)' -or $x.Modelo.file -match '^[/\\]|:') { throw "Ruta de modelo no permitida en $($x.Modulo): $($x.Modelo.file)" }
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destino) | Out-Null
+            Copy-Item -LiteralPath $origen -Destination $destino -Force
         }
         Comprimir $completa (Join-Path $Salida "Rodaje-$Version-completo.zip")
     }

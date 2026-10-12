@@ -1,17 +1,18 @@
 {
   "formatVersion": 1,
   "id": "modulo-voz",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "kind": "module",
   "name": "Texto a voz",
   "description": "Convierte texto en voz con Kokoro-82M en la CPU: español, portugués de Brasil e inglés, con 34 voces.",
   "author": "Dathinel",
   "license": "GPL-3.0-only",
+  "repository": "https://github.com/Dathinel/modulo-voz",
   "apps": [
     "rodaje"
   ],
   "module": {
-    "entry": "bin/Rodaje.Module.Voice.exe",
+    "entry": "Rodaje.Module.Voice.exe",
     "protocol": 1,
     "functions": [
       "voces",
@@ -35,7 +36,7 @@
         "size": 3000469,
         "sha256": "dc414872a49a28ae6c141463d502fd945f3b2fde040484fdc47d00cc4612686f",
         "license": "Apache-2.0",
-        "url": "https://raw.githubusercontent.com/hexgrad/misaki/fba1236595f2d2bf21d414ba6e57d25256afada3/misaki/data/us_gold.json"
+        "url": "https://github.com/Dathinel/modulo-voz/releases/download/v1.0.0/us_gold.json"
       },
       {
         "id": "misaki-us-silver",
@@ -43,7 +44,7 @@
         "size": 3099517,
         "sha256": "de8f67be911bb6c659187b4a65fd966b6a30e56350e0f790d763210b053ac475",
         "license": "Apache-2.0",
-        "url": "https://raw.githubusercontent.com/hexgrad/misaki/fba1236595f2d2bf21d414ba6e57d25256afada3/misaki/data/us_silver.json"
+        "url": "https://github.com/Dathinel/modulo-voz/releases/download/v1.0.0/us_silver.json"
       },
       {
         "id": "misaki-gb-gold",
@@ -51,7 +52,7 @@
         "size": 2838552,
         "sha256": "29e62f4b60261c88f7f3c2c7811ca3825978948090b72d2b27d565b729282f71",
         "license": "Apache-2.0",
-        "url": "https://raw.githubusercontent.com/hexgrad/misaki/fba1236595f2d2bf21d414ba6e57d25256afada3/misaki/data/gb_gold.json"
+        "url": "https://github.com/Dathinel/modulo-voz/releases/download/v1.0.0/gb_gold.json"
       },
       {
         "id": "misaki-gb-silver",
@@ -59,7 +60,7 @@
         "size": 3663898,
         "sha256": "48131e2d92ccc41655f4543e87e0f938e71463eb5a54be7f0693bb712ebb6bce",
         "license": "Apache-2.0",
-        "url": "https://raw.githubusercontent.com/hexgrad/misaki/fba1236595f2d2bf21d414ba6e57d25256afada3/misaki/data/gb_silver.json"
+        "url": "https://github.com/Dathinel/modulo-voz/releases/download/v1.0.0/gb_silver.json"
       },
       {
         "id": "kokoro-voz-ef-dora",

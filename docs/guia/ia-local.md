@@ -9,9 +9,9 @@ Toda la IA de Rodaje corre en tu equipo: nada se envía a internet. Cada funció
 | **Subtítulos automáticos** (`modulo-subtitulos`) | Subtítulos automáticos, con el tiempo de cada palabra | Whisper large-v3-turbo (550 MB) en GPU; Whisper small (180 MB) en CPU | GPU por Vulkan (unos 1,5 GB de VRAM) o CPU |
 | **Traducir subtítulos** (`modulo-traducir`) | Traducir pista…, a 20 idiomas conservando los tiempos | Qwen3-4B-Instruct (unos 2,5 GB; se baja desde Complementos, no cabe en la distribución completa) | GPU por Vulkan (unos 3 GB de VRAM) o CPU; si no cabe entero en la GPU, reparte capas y si no, va a la CPU |
 | **Texto a voz** (`modulo-voz`) | Texto a voz… | Kokoro-82M (170 MB) y 34 voces | CPU |
-| **Audio con IA** (`rodaje-audio-ia`) | Reducir ruido; detección de voz para el ducking | DeepFilterNet3 (9 MB) y Silero VAD (2 MB) | CPU |
-| **Visión** (`rodaje-vision`; en los diálogos, «Visión con IA») | Quitar fondo, Reencuadre automático | MODNet (26 MB), BiRefNet-lite (115 MB), YuNet (rostros) y RT-DETRv2 (personas, 81 MB) | GPU por DirectML (cualquier GPU con DirectX 12; unos 1,3 GB de VRAM, 2,8 GB en calidad alta) o CPU |
-| **RAW de cine** (`rodaje-raw`) | Importar CinemaDNG… | Sin modelos (LibRaw) | CPU |
+| **Audio con IA** (`modulo-audio-ia`) | Reducir ruido; detección de voz para el ducking | DeepFilterNet3 (9 MB) y Silero VAD (2 MB) | CPU |
+| **Visión** (`modulo-vision`; en los diálogos, «Visión con IA») | Quitar fondo, Reencuadre automático | MODNet (26 MB), BiRefNet-lite (115 MB), YuNet (rostros) y RT-DETRv2 (personas, 81 MB) | GPU por DirectML (cualquier GPU con DirectX 12; unos 1,3 GB de VRAM, 2,8 GB en calidad alta) o CPU |
+| **RAW de cine** (`modulo-raw`) | Importar CinemaDNG… | Sin modelos (LibRaw) | CPU |
 
 No usan módulos, aunque están en la misma barra: Quitar silencios, Detectar ritmo, Estabilizar, Color automático, Balance de blancos y Grabar voz. Funcionan siempre.
 

@@ -18,7 +18,7 @@ internal sealed class VoiceFunctions(string? root) : IDisposable
     private readonly Lock _gate = new();
     private readonly SemaphoreSlim _busy = new(1, 1);
 
-    public static readonly ModuleInfo Info = new("modulo-voz", "0.1.0", "Texto a voz",
+    public static readonly ModuleInfo Info = new("modulo-voz", "1.0.0", "Texto a voz",
     [
         new FunctionInfo("voces", "Idiomas y voces instaladas", Cancellable: false, ReportsProgress: false),
         new FunctionInfo("voz", "Convertir texto en voz", Outputs: ["audio"]),

@@ -3,7 +3,7 @@ using System.Text.Json;
 using Rodaje.Module.AudioAi;
 using Rodaje.Modules.Protocol;
 
-ModuleInfo info = new("rodaje-audio-ia", "0.1.0", "Audio con IA",
+ModuleInfo info = new("modulo-audio-ia", "1.0.0", "Audio con IA",
 [
     new FunctionInfo("ruido", "Reducir el ruido de la voz (DeepFilterNet3)", Inputs: ["audio"], Outputs: ["audio"]),
     new FunctionInfo("detectar-voz", "Probabilidad de voz cada 32 ms (Silero VAD)", Inputs: ["audio"], Outputs: ["bytes"]),

@@ -123,6 +123,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             ClientOptions = new() { AppVersion = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "0.0.0" },
         }, new ModulePreviewYield(preview), SynchronizationContext.Current);
         _modules.Failed += (_, f) => session.Notify(NotificationSeverity.Error, f.Title, f.Message);
+        packages.CloseModule = _modules.CloseModuleAsync;
         packages.Changed += (_, _) => _ = Task.Run(_modules.Refresh);
         Program.Metrics.Milestone("modulos");
         _longActions = new LongActionService(session);

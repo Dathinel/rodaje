@@ -77,6 +77,7 @@ public static class TitleStyles
             Background = preset.Background is { } b
                 ? new StyleBackground { Color = b.Color, Padding = [b.PaddingX, b.PaddingY], Radius = b.Radius }
                 : null,
+            Highlight = preset.HighlightColor is { } highlight ? new StyleHighlight { Color = highlight } : null,
             In = Animation(preset.In),
             Out = Animation(preset.Out),
         };
