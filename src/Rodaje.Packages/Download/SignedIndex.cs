@@ -64,7 +64,8 @@ public sealed record SignedIndex(DateTimeOffset Generated, IReadOnlyList<IndexEn
         {
             using JsonDocument document = JsonDocument.Parse(SafeText.DecodeStrict(json));
             JsonElement root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("formatVersion", out JsonElement format) || !format.TryGetInt32(out int version))
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("formatVersion", out JsonElement format)
+                || format.ValueKind != JsonValueKind.Number || !format.TryGetInt32(out int version))
             {
                 throw new FormatException("El índice debe ser un objeto con formatVersion.");
             }
@@ -109,6 +110,12 @@ public sealed record SignedIndex(DateTimeOffset Generated, IReadOnlyList<IndexEn
         {
             throw new FormatException("El índice no es UTF-8 válido.", ex);
         }
+        catch (InvalidOperationException ex)
+        {
+            // System.Text.Json la lanza al leer un texto o un nombre con un sustituto suelto escrito como escape (\ud800):
+            // como el UTF-8 roto, hace inválido el índice entero.
+            throw new FormatException("El índice trae un texto que no es Unicode válido.", ex);
+        }
     }
 
     private static IndexEntry? ParseEntry(JsonElement e, DownloadUrlPolicy policy, out string? problem)
@@ -127,7 +134,7 @@ public sealed record SignedIndex(DateTimeOffset Generated, IReadOnlyList<IndexEn
         if (id is null || !Identifiers.IsValid(id) || kind is null
             || !PackageVersion.TryParse(Str(e, "version"), out PackageVersion? version)
             || sha is null || !IsSha256(sha)
-            || !e.TryGetProperty("size", out JsonElement sizeElement) || !sizeElement.TryGetInt64(out long size) || size <= 0 || size > MaxEntrySize
+            || !e.TryGetProperty("size", out JsonElement sizeElement) || sizeElement.ValueKind != JsonValueKind.Number || !sizeElement.TryGetInt64(out long size) || size <= 0 || size > MaxEntrySize
             || Str(e, "url") is not { } urlText || !Uri.TryCreate(urlText, UriKind.Absolute, out Uri? url))
         {
             problem = $"La entrada «{label}» del índice está incompleta o mal escrita.";
@@ -140,8 +147,10 @@ public sealed record SignedIndex(DateTimeOffset Generated, IReadOnlyList<IndexEn
             return null;
         }
 
+        // Un minApp que no es texto (2) no es «sin mínimo»: está mal escrito, como uno de texto ilegible.
         PackageVersion? minApp = null;
-        if (Str(e, "minApp") is { } min && !PackageVersion.TryParse(min, out minApp))
+        if ((e.TryGetProperty("minApp", out JsonElement minElement) && minElement.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
+            || (Str(e, "minApp") is { } min && !PackageVersion.TryParse(min, out minApp)))
         {
             problem = $"La entrada «{label}» del índice tiene un minApp mal escrito.";
             return null;
