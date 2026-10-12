@@ -27,7 +27,10 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
         var backend = new FakeTimelineBackend();
         var content = new FakeEffectContent();
         TimelineBuilder b = OfflineProjects.Full(rate, backend, content);
-        using TimelineSession preview = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { Content = content });
+        // Reloj quieto: con el reloj del sistema y el runner cargado, entre dos refrescos pasaba más que el tope de la
+        // composición a medias o el cierre de decodificadores ociosos (1,25 s con muchos abiertos), y la vista previa no
+        // llegaba a asentarse en 20 refrescos. Aquí se compara qué compone, no cuánto tarda.
+        using TimelineSession preview = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { Content = content, TimeProvider = new ManualTimeProvider() });
         using OfflineTimeline offline = OfflineProjects.Open(b, backend, new OfflineTimelineOptions { Content = content });
 
         Assert.Equal(preview.FrameCount, offline.FrameCount);
@@ -254,13 +257,21 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
 
         (await first).Dispose();
         using var cancel = new CancellationTokenSource();
-        var watch = Stopwatch.StartNew();
-        Task<CompositionFrame> stuck = Task.Run(() => offline.Render(200, cancel.Token));
+        // Hilo propio y no del pool: con el runner cargado, Task.Run tardaba más de 1 s en empezar y la prueba medía la
+        // espera del pool, no la cancelación. El tiempo se cuenta desde que se cancela.
+        using var started = new ManualResetEventSlim();
+        Task<CompositionFrame> stuck = Task.Factory.StartNew(() =>
+        {
+            started.Set();
+            return offline.Render(200, cancel.Token);
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        Assert.True(started.Wait(TimeSpan.FromSeconds(30)), "El hilo del render no arrancó.");
         Thread.Sleep(100);
         Assert.False(stuck.IsCompleted);
+        var watch = Stopwatch.StartNew();
         cancel.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stuck.WaitAsync(TimeSpan.FromSeconds(1)));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1.2), $"Tardó {watch.Elapsed.TotalMilliseconds:0} ms.");
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stuck.WaitAsync(TimeSpan.FromSeconds(30)));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"Tardó {watch.Elapsed.TotalMilliseconds:0} ms desde cancelar.");
 
         offline.Dispose();
         Assert.Equal(0, backend.Live.Value);
