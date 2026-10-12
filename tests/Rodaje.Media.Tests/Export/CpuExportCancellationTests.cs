@@ -38,18 +38,34 @@ public sealed class CpuExportCancellationTests(ITestOutputHelper output)
             int? processId = sink.ProcessId;
             Assert.True(SinkRuns.IsAlive(processId));
             Assert.Single(journal.Entries());
-            // Para saber dónde se va el tiempo: cuándo muere ffmpeg.exe (ExitTime de Windows) y cuándo vuelve Cancel, que
-            // ejecuta Abort del sink en este mismo hilo (matar el árbol, esperar la salida y borrar temporales).
+            // Para saber dónde se va el tiempo: cuándo muere ffmpeg.exe (un hilo esperando su salida), con qué código (-1 si lo
+            // mató TerminateProcess, 0 si terminó por su cuenta al cerrarse la entrada) y cuándo vuelve Cancel, que ejecuta
+            // Abort del sink en este mismo hilo (matar el árbol, esperar la salida 900 ms como mucho y borrar temporales).
             using Process watched = Process.GetProcessById(processId!.Value);
+            _ = watched.Handle;
+            long exitedAt = 0;
+            var exitWatcher = new Thread(() =>
+            {
+                watched.WaitForExit();
+                exitedAt = Stopwatch.GetTimestamp();
+            }) { IsBackground = true };
+            exitWatcher.Start();
             long canceledAt = 0;
             long cancelReturnedAt = 0;
-            DateTime canceledWall = default;
+            Exception? cancelFailure = null;
             var canceler = new Thread(() =>
             {
                 Thread.Sleep(delay);
-                canceledWall = DateTime.Now;
                 canceledAt = Stopwatch.GetTimestamp();
-                cancellation.Cancel();
+                try
+                {
+                    cancellation.Cancel();
+                }
+                catch (AggregateException ex)
+                {
+                    cancelFailure = ex;
+                }
+
                 cancelReturnedAt = Stopwatch.GetTimestamp();
             });
             canceler.Start();
@@ -70,9 +86,12 @@ public sealed class CpuExportCancellationTests(ITestOutputHelper output)
             TimeSpan latency = Stopwatch.GetElapsedTime(canceledAt, Math.Max(stoppedAt, canceledAt));
 
             double abortMs = Stopwatch.GetElapsedTime(canceledAt, Math.Max(cancelReturnedAt, canceledAt)).TotalMilliseconds;
-            double exitMs = ExitDelay(watched, canceledWall);
+            bool exited = exitWatcher.Join(TimeSpan.FromSeconds(30));
+            double exitMs = exited ? Stopwatch.GetElapsedTime(canceledAt, Math.Max(exitedAt, canceledAt)).TotalMilliseconds : double.NaN;
             output.WriteLine($"{video} → {container}, cancelada a los {delay} ms tras {written} cuadros: {latency.TotalMilliseconds:0} ms hasta parar " +
-                $"(ffmpeg.exe muerto a los {exitMs:0} ms, Abort volvió a los {abortMs:0} ms).");
+                $"(ffmpeg.exe muerto a los {exitMs:0} ms con código {ExitCode(watched)}, Abort volvió a los {abortMs:0} ms; " +
+                $"error de Cancel: {cancelFailure?.InnerException?.Message ?? "ninguno"}; el bucle paró con {caught?.GetType().Name}: {caught?.Message}).");
+            Assert.Null(cancelFailure);
             Assert.IsAssignableFrom<OperationCanceledException>(caught);
             Assert.True(written < request.FrameCount, "La exportación terminó antes de cancelarla; la prueba no midió nada.");
             Assert.True(latency <= Limit, $"La cancelación tardó {latency.TotalMilliseconds:0} ms.");
@@ -83,16 +102,15 @@ public sealed class CpuExportCancellationTests(ITestOutputHelper output)
         }
     }
 
-    // Milisegundos entre la cancelación y la muerte de ffmpeg.exe según Windows; NaN si el sistema no da ExitTime.
-    private static double ExitDelay(Process process, DateTime canceled)
+    private static string ExitCode(Process process)
     {
         try
         {
-            return process.WaitForExit(TimeSpan.FromSeconds(10)) ? (process.ExitTime - canceled).TotalMilliseconds : double.NaN;
+            return process.HasExited ? process.ExitCode.ToString(System.Globalization.CultureInfo.InvariantCulture) : "(vivo)";
         }
-        catch (Exception ex) when (ex is InvalidOperationException or PlatformNotSupportedException or System.ComponentModel.Win32Exception)
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-            return double.NaN;
+            return $"(no se pudo leer: {ex.Message})";
         }
     }
 }
