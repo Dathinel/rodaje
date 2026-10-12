@@ -1,4 +1,4 @@
-﻿using Rodaje.Core.Commands;
+using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Tests.Editing.Trimming;

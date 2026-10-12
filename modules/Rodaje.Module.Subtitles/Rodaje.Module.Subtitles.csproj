@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <!--
     modulo-subtitulos (fase 7): transcribe audio f32 de 16 kHz con Whisper (whisper.cpp vía Whisper.net, MIT) en la GPU
