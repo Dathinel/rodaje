@@ -107,6 +107,12 @@ public sealed class ExportJob : IDisposable
         thread.Start();
     }
 
+    // x264 y x265 corren en el ffmpeg.exe GPL del complemento, otro proceso por la misma tubería; lo demás, en el LGPL.
+    private Rodaje.Media.Proxies.FfmpegExecutable EncoderExecutable(ExportPlan plan) =>
+        plan.VideoEncoder?.License != EncoderLicense.GplAddOn ? _options.Ffmpeg
+        : _options.GplFfmpeg ?? throw new ExportException(ExportErrorCode.EncoderMissing,
+            $"{plan.VideoEncoder.Id} necesita el complemento de codificadores GPL.") { Culprit = plan.VideoEncoder.Id };
+
     private void Run()
     {
         _clock.Start();
@@ -133,7 +139,7 @@ public sealed class ExportJob : IDisposable
                 _options.Journal?.Register(journalId, Request.OutputPath, [work]);
                 using IDisposable? yielded = plan.Video is null ? null : _options.Preview?.Yield(Profile);
                 string? wave = plan.Audio is null ? null : MixAudio(plan, work, token);
-                using var sink = new FfmpegPipeSink(_options.Ffmpeg, new FfmpegPipeSinkOptions
+                using var sink = new FfmpegPipeSink(EncoderExecutable(plan), new FfmpegPipeSinkOptions
                 {
                     Priority = Profile.EncoderPriority,
                     Journal = _options.Journal,

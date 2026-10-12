@@ -136,6 +136,12 @@ public static class ModuleCatalog
             return null;
         }
 
+        // protocol 0: una herramienta de línea de comandos (el ffmpeg.exe GPL), no un módulo; la usa GplEncoderPack.
+        if (module.Protocol == 0)
+        {
+            return null;
+        }
+
         if (module.Protocol != 1)
         {
             problems?.Add($"{directory}: protocolo {module.Protocol} no admitido.");

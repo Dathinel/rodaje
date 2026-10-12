@@ -70,6 +70,16 @@ Estas dependencias todavía no están en el proyecto. Se listan para que la deci
 | Microsoft.ML.OnnxRuntime.DirectML | 1.24.4 | MIT, © Microsoft Corporation | Sí | https://www.nuget.org/packages/Microsoft.ML.OnnxRuntime.DirectML/1.24.4/License | El paquete es MIT, pero depende de Microsoft.AI.DirectML (1.15.4), que se rige por los términos de licencia de software de Microsoft para DirectML (https://www.nuget.org/packages/Microsoft.AI.DirectML/1.15.4/License). Esos términos permiten distribuir DirectML dentro de aplicaciones que usan aprendizaje automático en Windows, pero no como producto independiente, y prohíben quitar los avisos de Microsoft. Con la GPLv3 es el mismo caso que el Windows App SDK; como irá en módulos de IA (procesos aparte), puede bastar el permiso para complementos de `LICENSE`: se confirma con el abogado. |
 | Modelo de quitar fondo (BiRefNet, MODNet o U²-Net) | por elegir | MIT (BiRefNet) o Apache-2.0 (MODNet, U²-Net) según el repositorio | Sí, como archivo de modelo | Ver `docs/legal.md` | Antes de incluirlo se verifica la licencia del archivo de pesos concreto y de sus datos de entrenamiento. RMBG-1.4 y RMBG-2.0 quedan excluidos por ser de uso no comercial con términos propios de BRIA: la GPLv3 permite el uso comercial y no admite esa restricción. |
 
+## RAW y codificadores GPL (fase 7, agente J)
+
+Van en complementos aparte, cada uno en su propio proceso; el detalle está en el `LICENCIAS.md` de cada uno.
+
+| Componente | Versión | Licencia | ¿Se redistribuye? | Fuente | Qué implica |
+|---|---|---|---|---|---|
+| LibRaw (`modulo-raw`, `.entorno\libraw`) | 0.22.2, `libraw.dll` oficial Win64, SHA-256 del zip `ac64fa12bb00a7581332d4c6ab918c0533fb3f119d6b668d47a6875410dca948` | LGPL-2.1 o CDDL-1.0 a elección; se usa la LGPL-2.1. Dentro: partes de dcraw, DCB y FBDD (BSD-3), X3F (BSD) y el Adobe DNG SDK 1.4 (MIT) | Sí, dentro del paquete de `modulo-raw` | https://www.libraw.org/download y `COPYRIGHT` del zip | DLL dinámica sin modificar, reemplazable; se entregan `LICENSE.LGPL`, `COPYRIGHT` y el código fuente correspondiente (lo trae el mismo zip). LGPL-2.1 es compatible con la GPLv3 (sección 3). Importa el runtime de Visual C++ 2015-2022 (redistribuible de Microsoft; pendiente decidir si viaja con el módulo, `docs/legal.md`). |
+
+| FFmpeg `win64-gpl-9.0` de BtbN (`rodaje-codificadores-gpl`, solo `ffmpeg.exe`) | `n9.0.2-17-g2a571b6068`, release `autobuild-2026-09-30-13-08`, zip SHA-256 `a0e45723c72141975f51d8666302e614711745f3102b704ca3f82c897a58d278` | GPL-3.0-or-later (`--enable-gpl --enable-version3`), con x264 y x265 (GPL-2.0-or-later) y otras bibliotecas libres dentro | Solo dentro del complemento, que se instala aparte; nunca en `dist\` del editor | https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-30-13-08 | Proceso aparte por tubería. Se entrega con la GPLv3, la línea de configure y la fuente (FFmpeg, scripts de BtbN, x264, x265; la del resto con `-FuenteCompleta`). Patentes de H.264/HEVC en software: pendiente del abogado (`docs/legal.md`, punto h). |
+
 ## Herramientas de desarrollo que nunca se redistribuyen
 
 | Herramienta | Licencia | Nota |

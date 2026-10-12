@@ -32,6 +32,8 @@
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\Logic\**\*.cs" Link="AnalysisLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Biblioteca: carpetas, favoritos, búsqueda y datos de los medios, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Library\Logic\**\*.cs" Link="LibraryLogic\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Importar CinemaDNG con modulo-raw, sin WinUI. -->
+    <Compile Include="..\..\src\Rodaje.App\Views\Raw\Logic\**\*.cs" Link="RawLogic\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -46,6 +48,8 @@
     <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <!-- Solo para que Rodaje.Module.Echo.exe quede junto a las pruebas de Modules/. -->
     <ProjectReference Include="..\..\modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj" />
+    <!-- Solo para que modulo-raw esté compilado en modules\ (las pruebas de Raw/ lo buscan ahí, como la app en desarrollo). -->
+    <ProjectReference Include="..\..\modules\Rodaje.Module.Raw\Rodaje.Module.Raw.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

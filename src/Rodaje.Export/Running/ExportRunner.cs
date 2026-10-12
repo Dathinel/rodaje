@@ -13,6 +13,12 @@ public sealed record ExportRunnerOptions
 {
     public required FfmpegExecutable Ffmpeg { get; init; }
 
+    /// <summary>
+    /// El <c>ffmpeg.exe</c> GPL del complemento <c>rodaje-codificadores-gpl</c>, si está instalado: codifica cuando el
+    /// codificador de video elegido es <see cref="EncoderLicense.GplAddOn"/> (x264, x265). El resto sigue con <see cref="Ffmpeg"/>.
+    /// </summary>
+    public FfmpegExecutable? GplFfmpeg { get; init; }
+
     /// <summary>LUT y transiciones de paquetes (el mismo contenido que la vista previa).</summary>
     public IEffectContent? Content { get; init; }
 
