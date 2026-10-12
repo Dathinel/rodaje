@@ -379,7 +379,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.True(full[15] < (Strict ? 2 : 20), $"Rasterizar un título 1080p con borde y sombra tomó {full[15]:0.00} ms.");
     }
 
-    [GpuFact]
+    [MeasuredGpuFact]
     public void Composing_a_ready_title_costs_little_gpu_time()
     {
         using GpuDevice gpu = GpuDevice.Create();

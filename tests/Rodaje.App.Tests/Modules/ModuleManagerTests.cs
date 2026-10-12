@@ -9,6 +9,12 @@ using Rodaje.Modules.Protocol;
 namespace Rodaje.App.Tests.Modules;
 
 /// <summary>El ModuleManager con el módulo eco como proceso de verdad.</summary>
+/// <remarks>
+/// Corren solas (<see cref="ModuleProcessGroup"/>): miden el ping en décimas de segundo y arrancan procesos, y en la CI
+/// de Windows, con las demás clases del proyecto en paralelo, el pool tardaba en atender la respuesta y un módulo sano se
+/// daba por colgado, o el arranque pasaba de 10 s.
+/// </remarks>
+[Collection(ModuleProcessGroup.Name)]
 public sealed class ModuleManagerTests : IDisposable
 {
     private const string LongCount = """{"pasos":100000,"msPorPaso":10}""";
@@ -112,7 +118,8 @@ public sealed class ModuleManagerTests : IDisposable
         Stopwatch watch = Stopwatch.StartNew();
         EchoModules.Suspend(pid);
 
-        ModuleHungException error = await Assert.ThrowsAsync<ModuleHungException>(() => call.WaitAsync(TimeSpan.FromSeconds(5)));
+        // El tope de la espera es contra cuelgues; lo que se exige es la cota de abajo.
+        ModuleHungException error = await Assert.ThrowsAsync<ModuleHungException>(() => call.WaitAsync(TimeSpan.FromSeconds(30)));
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"{watch.ElapsedMilliseconds} ms");
         Assert.True(EchoModules.HasExited(pid));
         Assert.Contains("dejó de responder", manager.Jobs.Jobs[0].Error, StringComparison.Ordinal);
@@ -124,13 +131,15 @@ public sealed class ModuleManagerTests : IDisposable
     [Fact]
     public async Task Una_llamada_larga_que_contesta_el_ping_no_se_toma_por_colgada()
     {
+        // La llamada (unos 3 s) dura más que el tope del ping (1,5 s): solo sigue viva si el módulo contesta cada ping.
+        // Con 500 ms de tope, una respuesta que el pool del runner cargado atendía tarde mataba a un módulo sano.
         await using ModuleManager manager = _modules.Manager(new ModuleManagerOptions
         {
             PingInterval = TimeSpan.FromMilliseconds(50),
-            PingTimeout = TimeSpan.FromMilliseconds(500),
+            PingTimeout = TimeSpan.FromMilliseconds(1500),
         });
-        ModuleResult result = await manager.InvokeAsync("eco-a", "contar", EchoModules.Json("""{"pasos":60,"msPorPaso":10}"""), "Contar");
-        Assert.Equal(60, result.Value!.Value.GetProperty("pasos").GetInt32());
+        ModuleResult result = await manager.InvokeAsync("eco-a", "contar", EchoModules.Json("""{"pasos":300,"msPorPaso":10}"""), "Contar");
+        Assert.Equal(300, result.Value!.Value.GetProperty("pasos").GetInt32());
     }
 
     [Fact]
@@ -241,12 +250,14 @@ public sealed class ModuleManagerTests : IDisposable
         Assert.True(kept!.IsDisposed);
     }
 
-    private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 5000)
+    // Tope contra cuelgues: casi siempre se espera a que un proceso arranque, y el arranque puede tardar hasta
+    // ModuleManagerOptions.StartTimeout (30 s).
+    private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 45_000)
     {
         Stopwatch watch = Stopwatch.StartNew();
         while (!condition())
         {
-            Assert.True(watch.ElapsedMilliseconds < timeoutMs, "No se cumplió a tiempo.");
+            Assert.True(watch.ElapsedMilliseconds < timeoutMs, $"No se cumplió en {timeoutMs / 1000} s. {UiThread.PoolState()}");
             await Task.Delay(10);
         }
     }

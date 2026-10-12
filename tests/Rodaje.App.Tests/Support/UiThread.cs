@@ -9,7 +9,13 @@ namespace Rodaje.App.Tests.Support;
 /// </summary>
 internal static class UiThread
 {
-    public static void Run(Func<Task> body) => Run(body, TimeSpan.FromSeconds(30));
+    /// <summary>
+    /// Tope contra cuelgues, no medida de tiempo. Con 30 s fallaban en la CI pruebas de milisegundos: el runner de Windows
+    /// corre a la vez todos los proyectos de prueba en 4 núcleos y las continuaciones esperan al pool.
+    /// </summary>
+    public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(120);
+
+    public static void Run(Func<Task> body) => Run(body, DefaultTimeout);
 
     public static void Run(Func<Task> body, TimeSpan timeout)
     {
@@ -40,10 +46,17 @@ internal static class UiThread
         thread.Start();
         if (!thread.Join(timeout))
         {
-            throw new TimeoutException($"La prueba no terminó en {timeout.TotalSeconds:0} s.");
+            throw new TimeoutException($"La prueba no terminó en {timeout.TotalSeconds:0} s. {PoolState()}");
         }
 
         failure?.Throw();
+    }
+
+    /// <summary>Estado del pool de hilos, para saber si una espera agotada fue por falta de hilos.</summary>
+    public static string PoolState()
+    {
+        ThreadPool.GetMinThreads(out int min, out _);
+        return $"Pool: {ThreadPool.ThreadCount} hilos (mínimo {min}), {ThreadPool.PendingWorkItemCount} trabajos en cola; {Environment.ProcessorCount} núcleos.";
     }
 
     public static void Run(Action body) => Run(() =>
