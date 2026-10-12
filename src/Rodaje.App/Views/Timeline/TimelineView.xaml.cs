@@ -22,6 +22,9 @@ internal static class TimelineActionIds
     public const string AutoCrossfade = "timeline.autoCrossfade";
     public const string LockEnvelopes = "timeline.lockEnvelopes";
     public const string IgnoreGroups = "timeline.ignoreGroups";
+    public const string CreateCompound = "edit.compound";
+    public const string DecomposeCompound = "edit.decompose";
+    public const string LeaveCompound = "timeline.leaveCompound";
 }
 
 /// <summary>
@@ -257,16 +260,24 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _renderer!.ScrollY = 0;
         _headers!.ScrollY = 0;
         RebuildLayout();
+        RefreshContextBar();
     }
 
     private void OnProjectEdited(object? sender, ProjectEditedEventArgs e)
     {
+        if (e.Kind == EditKind.SequenceChanged)
+        {
+            OnProjectOpened();
+            return;
+        }
+
         if (e.Kind == EditKind.GestureCancelled)
         {
             AbortPointerGesture();
         }
 
         RebuildLayout();
+        RefreshContextBar();
     }
 
     private void OnSelectionChanged() => Invalidate(content: true);
@@ -470,6 +481,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         router.Bind(ActionIds.AddRegion, AddRegion);
         router.Bind(ActionIds.ZoomToFit, ZoomToFit);
         router.Bind(ActionIds.ZoomToSelection, ZoomToSelection, () => Session is not null && SelectionSpan() is not null);
+        RegisterCompoundActions(services);
     }
 
     private void AddMarker()

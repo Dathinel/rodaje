@@ -19,6 +19,11 @@ public static class ClipLabels
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(clip);
+        if (clip.SequenceId is { } nested)
+        {
+            return "▣ " + (project.FindSequence(nested)?.Name ?? "Compuesto");
+        }
+
         return clip.Generator is { } generator ? TitleName(generator) : project.FindMedia(clip.MediaId)?.Name ?? fallback;
     }
 

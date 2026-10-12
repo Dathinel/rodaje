@@ -33,6 +33,7 @@ Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas c
   - Interruptores: pista principal magnética, ajuste (N), ripple automático con su modo, fundido cruzado automático, bloquear envolventes e ignorar grupos. Se guardan en `ajustes.json`.
   - «Fundido auto» viene apagado. Encendido, cada corte sin transición de la pista principal muestra su símbolo y **un clic** en él crea un `rodaje.crossfade` de 0,5 s. No se crean solos al editar: llenarían el historial y cambiarían cortes que no se tocaron.
   - Acciones: cortar (S), recortar inicio y final, borrar, marcador (M), región (R), deshacer, rehacer y zoom.
+- **Clips compuestos** (`TimelineView.Compounds`, `EditorSession.Compounds`). «Crear clip compuesto» (Alt+G; Ctrl+G en el estilo ágil) y «Descomponer» (Alt+Mayús+G) en el teclado y el menú del clip, un paso del historial cada uno. Doble clic en un compuesto entra a editar su secuencia; la barra de contexto bajo las herramientas muestra las migas de pan para volver (entrar no es una edición). Si se deshace la creación estando dentro, se vuelve a la secuencia que queda.
 - **Lienzo.**
   - Regla con marcas que se adaptan al zoom, marcadores y regiones.
   - Cabeceras con nombre y los interruptores de ocultar, silenciar y bloquear.

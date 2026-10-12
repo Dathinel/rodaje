@@ -102,7 +102,7 @@ public static class TransitionOps
     /// </summary>
     private static bool Continues(Clip left, Clip right)
     {
-        if (!Touch(left, right) || left.MediaId != right.MediaId)
+        if (!Touch(left, right) || left.MediaId != right.MediaId || left.SequenceId != right.SequenceId)
         {
             return false;
         }

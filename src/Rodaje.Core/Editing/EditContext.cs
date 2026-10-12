@@ -27,6 +27,11 @@ public sealed class EditContext
     public MediaRef MediaOf(Clip clip)
     {
         ArgumentNullException.ThrowIfNull(clip);
+        if (clip.IsCompound)
+        {
+            throw new EditException("Un clip compuesto no admite esta edición: entra en él con doble clic para editar lo de dentro.");
+        }
+
         return Project.FindMedia(clip.MediaId)
             ?? throw new EditException($"El clip «{clip.Id}» usa un medio que ya no está en el proyecto.");
     }

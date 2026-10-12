@@ -19,6 +19,7 @@ flowchart LR
    - Por capa: los clips con su correspondencia de cuadros (`VideoClipPlan`) y su [`EffectPlan`](../../src/Rodaje.Engine/Timeline/EffectPlan.cs).
    - Para el audio: los clips en muestras de 48 kHz con su `GainPlan` (`AudioPlan`).
    - Deja fuera las pistas mudas, los clips desactivados y los medios sin el flujo. Las pistas ocultas no se ven, pero siguen calientes.
+   - Antes de nada despliega los clips compuestos con `CompoundOps.Flatten`: el resto del plan, la vista previa y `OfflineTimeline` solo ven clips sueltos. Probado cuadro a cuadro (y el audio muestra a muestra) contra los mismos clips sin componer, también recortado y movido.
 2. **El reloj.** Es el de la salida de audio, que reproduce la mezcla o silencio; sin dispositivo, `SystemClock`.
 3. **Cada `Tick`** calcula la demanda de cada capa, presenta lo más nuevo disponible sin esperar a nadie y devuelve un `CompositionFrame`, que desecha quien lo recibe.
 4. **`Reload(Project)`** aplica ediciones sin parar ni mover la posición; la mezcla solo se rehace si el audio cambió (`AudioPlan.SoundsLike`). `Invalidate()` sirve cuando el proyecto cambió en el sitio por el `UndoStack`.

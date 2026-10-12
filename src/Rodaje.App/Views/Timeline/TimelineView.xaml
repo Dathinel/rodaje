@@ -13,6 +13,7 @@
     <Grid Background="{StaticResource PanelBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="36" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -63,7 +64,16 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1">
+        <!-- Migas de pan dentro de un clip compuesto y estado del visor de origen; ocultas si no hay nada que decir. -->
+        <Border x:Name="ContextBar" Grid.Row="1" Visibility="Collapsed" Background="{StaticResource BarBrush}"
+                BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1" Padding="6,2">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <StackPanel x:Name="BreadcrumbPanel" Orientation="Horizontal" VerticalAlignment="Center" Spacing="2" />
+                <StackPanel x:Name="SourcePanel" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8" Visibility="Collapsed" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="172" />
                 <ColumnDefinition Width="*" />

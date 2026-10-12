@@ -29,7 +29,7 @@ flowchart TB
 
 | Tipo | Qué guarda |
 |---|---|
-| [`Project`](../../src/Rodaje.Core/Model/Project.cs) | `SchemaVersion` (hoy 4), la biblioteca de medios y las secuencias |
+| [`Project`](../../src/Rodaje.Core/Model/Project.cs) | `SchemaVersion` (hoy 6), la biblioteca de medios y las secuencias |
 | [`MediaRef`](../../src/Rodaje.Core/Model/MediaRef.cs) | Ruta (relativa al proyecto si se puede), duración, si tiene video o audio, fps, tamaño y Hz; `ResolvePath` también resuelve casos raros de Windows como `\Videos\a.mp4` |
 | [`Sequence`](../../src/Rodaje.Core/Model/Sequence.cs) | fps, tamaño, Hz, `VideoTracks` (el índice 0 es el fondo), `AudioTracks`, `Markers` (`Time`, `Name`) y `Regions` (`[Start, End)`, `Name`); `FindClip` y `GetLinkGroup` |
 | [`Track`](../../src/Rodaje.Core/Model/Track.cs) | `Muted`, `Hidden`, `Locked`, los clips ordenados por `Start` y sin solaparse (los huecos no son objetos), `Effects` de la pista (por ejemplo su volumen) y `Transitions` |
@@ -40,6 +40,8 @@ flowchart TB
 | [`TransitionInstance`](../../src/Rodaje.Core/Model/TransitionInstance.cs) | Transición (`From`, `To`, `Duration`) en `Track.Transitions`, en el corte entre dos clips contiguos y centrada en él; [`TransitionOps.Reconcile`](../../src/Rodaje.Core/Editing/TransitionOps.cs) la mantiene pegada al corte tras cada edición |
 
 Los clips con el mismo `LinkId` (por ejemplo, el video y el audio de una toma) se editan juntos y con el mismo desplazamiento; un grupo no puede tener dos clips en la misma pista. [`ModelValidator`](../../src/Rodaje.Core/Model/ModelValidator.cs) reúne todas las reglas (ids únicos en todo el archivo, clips dentro de su medio, sin solapes, keyframes en orden, un clip por pista en cada enlace) con mensajes en español; también rechaza los parámetros (y sus keyframes) fuera de su rango, los ids con caracteres de control y revisa la velocidad, los generadores (texto, estilo y sus topes) y los roles de pista. [`IdGenerator`](../../src/Rodaje.Core/Model/IdGenerator.cs) da ids GUID al programa e ids secuenciales (`clip-1`) a las pruebas.
+
+**Clips compuestos (formato 6).** Un clip con `SequenceId` muestra el tramo `[SourceIn, SourceOut)` de otra secuencia del proyecto. `TimelineEdits.CreateCompound` lleva los clips elegidos (con sus enlazados, transiciones entre ellos y pistas relativas) a una secuencia nueva y deja un compuesto en la pista de video más baja y otro, enlazado, en la de audio; `DecomposeCompound` lo deshace (si la secuencia ya no la usa nadie, se borra y los clips recuperan sus ids: crear y descomponer es la identidad, probado con 400 proyectos al azar). [`CompoundOps.Flatten`](../../src/Rodaje.Core/Editing/CompoundOps.cs) despliega los compuestos en clips sueltos (recursivo, ids `compuesto/interno`, pistas extra `pista/k`); el validador rechaza los ciclos y más de 16 niveles. `SequenceEditCommand` guarda además la lista de secuencias si la operación agrega o quita alguna, así crear y descomponer son un paso del historial. Un compuesto no admite velocidad ni reemplazar medio, y recortarlo está acotado por la duración de su secuencia.
 
 ## Operaciones de edición (`Editing/`)
 
@@ -107,7 +109,7 @@ sequenceDiagram
 
 ## Formato `.rodaje` (`Serialization/`)
 
-JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`; la especificación está en [`docs/formato-proyecto.md`](../formato-proyecto.md) y el esquema en [`schema/`](../../schema/rodaje-proyecto.v5.schema.json).
+JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`; la especificación está en [`docs/formato-proyecto.md`](../formato-proyecto.md) y el esquema en [`schema/`](../../schema/rodaje-proyecto.v6.schema.json).
 
 - **Abrir** ([`ProjectSerializer.Load`](../../src/Rodaje.Core/Serialization/ProjectSerializer.cs)) sigue cinco pasos:
   1. Lee UTF-8 estricto.

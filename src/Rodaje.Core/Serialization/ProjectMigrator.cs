@@ -21,6 +21,7 @@ public sealed class ProjectMigrator
         [2] = AddEffectsAndTransitions,
         [3] = RemoveSpeedEffects,
         [4] = AllowGenerators,
+        [5] = AllowCompounds,
     };
 
     private readonly IReadOnlyDictionary<int, Action<JsonObject>> _chain;
@@ -144,6 +145,12 @@ public sealed class ProjectMigrator
     /// formato 4 no tiene ninguno de los dos, así que solo cambia la versión.
     /// </summary>
     internal static void AllowGenerators(JsonObject root) => root[VersionProperty] = 5;
+
+    /// <summary>
+    /// 5 → 6: un clip puede llevar <c>sequenceId</c> (clip compuesto) en lugar de <c>mediaId</c>. Un archivo del formato 5
+    /// no tiene ninguno, así que solo cambia la versión.
+    /// </summary>
+    internal static void AllowCompounds(JsonObject root) => root[VersionProperty] = 6;
 
     private static void RemoveSpeed(JsonNode? effects)
     {

@@ -14,6 +14,9 @@ public enum EditKind
     Redo,
     Jump,
     GestureCancelled,
+
+    /// <summary>Se pasó a ver otra secuencia (entrar o salir de un clip compuesto); el proyecto no cambió.</summary>
+    SequenceChanged,
 }
 
 public sealed class ProjectEditedEventArgs(EditKind kind, ICommand? command) : EventArgs
@@ -410,6 +413,9 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>Pistas de los proyectos nuevos; la ventana lo actualiza desde los ajustes.</summary>
     public NewProjectTracks NewProjectTracks { get; set; } = NewProjectTracks.Default;
 
+    /// <summary>La copia del proyecto que recibe el reproductor.</summary>
+    private Project PlaybackProject() => Project.Clone();
+
     private Project CreateEmptyProject() => NewProjectTracks.CreateProject(UntitledName, _ids);
 
     /// <summary>Cambia de proyecto: historial nuevo, selección vacía y el reproductor desde el principio.</summary>
@@ -418,6 +424,7 @@ public sealed partial class EditorSession : ObservableObject
         History.Changed -= OnHistoryChanged;
         Project = project;
         SequenceId = sequenceId;
+        _sequencePath.Clear();
         History = new UndoStack(project);
         History.Changed += OnHistoryChanged;
         _originDescription = originDescription;
@@ -437,8 +444,16 @@ public sealed partial class EditorSession : ObservableObject
     private void AfterEdit(EditKind kind, ICommand? command)
     {
         _editVersion++;
+        if (LeaveRemovedSequences())
+        {
+            _playback.Load(PlaybackProject(), SequenceId);
+        }
+        else
+        {
+            _playback.Reload(PlaybackProject());
+        }
+
         PruneSelection();
-        _playback.Reload(Project.Clone());
         OnPropertyChanged(nameof(ProjectName));
         ProjectEdited?.Invoke(this, new ProjectEditedEventArgs(kind, command));
     }

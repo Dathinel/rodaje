@@ -178,6 +178,12 @@ internal sealed partial class TimelineView
             return;
         }
 
+        if (IsCompoundDoubleClick(hit.Clip))
+        {
+            Session.EnterCompound(hit.Clip!.Id);
+            return;
+        }
+
         _pressPoint = p;
         _pressTime = hit.Time;
         _pressHit = hit;

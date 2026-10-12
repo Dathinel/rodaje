@@ -70,6 +70,11 @@ public static partial class TimelineEdits
             throw new EditException($"El clip «{clip.Id}» es un título: no tiene un medio que reemplazar.");
         }
 
+        if (clip.IsCompound)
+        {
+            throw new EditException($"El clip «{clip.Id}» es un clip compuesto: no tiene un medio que reemplazar.");
+        }
+
         MediaRef media = project.FindMedia(mediaId)
             ?? throw new EditException($"No existe el medio «{mediaId}» en el proyecto.");
         if (clip.MediaId == mediaId)
