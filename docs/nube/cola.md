@@ -166,7 +166,7 @@ Segunda mitad de lo pedido por Daniel: en Ajustes, elegir de qué pistas de vide
 
 ## 16. Material perdido al encadenar curvas de velocidad
 
-- **Estado:** pendiente
+- **Estado:** hecha (PR #18 unido el 12-oct en modo autónomo)
 - **Rama:** `claude/curvas-material`
 - **Caminos:** `src/Rodaje.Core/Editing/`, `src/Rodaje.Core/Timing/` (solo si hace falta), `tests/Rodaje.Core.Tests/` (archivos nuevos), `docs/tareas/`
 - **Lee:** `docs/fase-5c.md`, `docs/arquitectura/nucleo.md` (sección Velocidad), `src/Rodaje.Core/Editing/TimelineEdits.Speed.cs` (`AlignEnd`), `src/Rodaje.Core/Model/SpeedPresets.cs`.
