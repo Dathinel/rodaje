@@ -95,6 +95,12 @@
       },
       "rodaje.paquetes": {
         "type": "Project"
+      },
+      "rodaje.testserver": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Paquetes": "[1.0.0, )"
+        }
       }
     }
   }

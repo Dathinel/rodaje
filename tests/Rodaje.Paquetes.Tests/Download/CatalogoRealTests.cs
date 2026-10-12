@@ -1,4 +1,5 @@
 using Rodaje.Paquetes.Download;
+using Rodaje.TestServer;
 
 namespace Rodaje.Paquetes.Tests.Download;
 
@@ -82,10 +83,10 @@ public sealed class CatalogoRealTests : IDisposable
         Assert.Throws<DownloadVerificationException>(() => SignedIndex.Load(json, badSignature, key, DownloadUrlPolicy.Default));
         Assert.Throws<DownloadVerificationException>(() => SignedIndex.Load(badJson, signature, key, DownloadUrlPolicy.Default));
 
-        using var server = new LocalHttpServer();
-        Uri local = server.Put("indice.json", json);
-        server.Put("indice.json.sig", badSignature);
-        using GitHubReleaseDownloader downloader = Downloader(local);
+        await using var server = TestHttpServer.Start();
+        server.Map("indice.json", TestResponse.File(json));
+        server.Map("indice.json.sig", TestResponse.File(badSignature));
+        using GitHubReleaseDownloader downloader = Downloader(server.UrlFor("indice.json"));
         await Assert.ThrowsAsync<DownloadVerificationException>(() => downloader.GetIndexAsync());
     }
 }
