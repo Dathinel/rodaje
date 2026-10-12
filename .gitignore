@@ -16,7 +16,6 @@ coverage/
 *.pem
 .env
 .env.*
-!.env.example
 
 # --- IDEs y SO ---
 .vs/

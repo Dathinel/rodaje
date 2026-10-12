@@ -14,7 +14,7 @@ Este registro guarda el porqué de cada elección importante de Rodaje. Una deci
 
 - **Decisión.** Repositorio privado (creado como `Dathinel/fototoma`, hoy `Dathinel/rodaje` por D-014), código propio bajo MIT a nombre de Daniel (Dathinel), con el fondo legal completo (`LICENCIAS.md`, `THIRD-PARTY-NOTICES.txt`, `docs/legal.md`) desde el principio.
 - **Por qué.** Es la regla por defecto de la carpeta de programas. GPL-3 permitiría reutilizar código de Kdenlive, Shotcut u Olive pero obligaría a distribuir todo como GPL; Apache-2.0 aporta poco a un proyecto personal; sin licencia nadie podría usarlo.
-- **Consecuencia.** MIT es compatible con enlazar dinámicamente bibliotecas LGPL como FFmpeg. No se puede copiar código GPL de los editores estudiados, solo estudiar su diseño (ver [`archivo/investigacion.md`](archivo/investigacion.md)).
+- **Consecuencia.** MIT es compatible con enlazar dinámicamente bibliotecas LGPL como FFmpeg. No se puede copiar código GPL de los editores estudiados, solo estudiar su diseño (estudio en `docs/archivo/investigacion.md` de la etiqueta `archivo-proceso-2026-10`).
 
 ## D-003. Stack: .NET 10 LTS con WinUI 3
 
@@ -88,7 +88,7 @@ Este registro guarda el porqué de cada elección importante de Rodaje. Una deci
 - XAudio2: su posición avanza en saltos de 10 ms, insuficiente para el reloj maestro.
 - NAudio: es compatible con AOT, pero no da marca de tiempo QPC.
 
-**Consecuencias.** La API de TerraFX trabaja con punteros crudos, así que el motor la envuelve en clases propias. Las evidencias están en [`archivo/sondeo-interop-aot.md`](archivo/sondeo-interop-aot.md), y el código del sondeo en la etiqueta de git `sondeo-interop-aot`.
+**Consecuencias.** La API de TerraFX trabaja con punteros crudos, así que el motor la envuelve en clases propias. Las evidencias están en `docs/archivo/sondeo-interop-aot.md` (etiqueta `archivo-proceso-2026-10`) y el código del sondeo en la etiqueta de git `sondeo-interop-aot`.
 
 ## D-014. Nuevo nombre: Rodaje (9 de octubre de 2026, reemplaza a D-001)
 

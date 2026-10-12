@@ -15,7 +15,7 @@ namespace Rodaje.Acceptance.Tests;
 /// </summary>
 public sealed class FrameExactSeekTests(ITestOutputHelper output)
 {
-    // En la suite normal, una muestra; con RODAJE_PRUEBAS_LARGAS=1 (ABRIR.bat aceptacion), la medida completa.
+    // En la suite normal, una muestra; con RODAJE_PRUEBAS_LARGAS=1 (Probar.bat aceptacion), la medida completa.
     private static readonly int RandomRequests = AcceptanceEnvironment.LongRuns ? 500 : 100;
     private static readonly int SchedulerRandomRequests = AcceptanceEnvironment.LongRuns ? 150 : 30;
     private static readonly TimeSpan SeekTimeout = TimeSpan.FromSeconds(20);

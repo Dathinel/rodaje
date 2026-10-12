@@ -23,7 +23,7 @@ $SdkSha512  = '24b670ad3d923bfcf47df6c3b034152398b42f6dbc388e10d783aee1cfb5e5817
 # Compilación lgpl-shared de BtbN de fin de mes: BtbN borra las diarias a las ~2 semanas y conserva las de fin de mes.
 # Hash de checksums.sha256 de esa release. La serie mayor debe coincidir con FFmpeg.AutoGen
 # (9.x: avcodec-63, avformat-63, avutil-61, swresample-7, swscale-10).
-# dotnet-local.cmd, ABRIR.bat y probar.ps1 leen la versión de la línea siguiente: debe empezar por "$FfmpegVersion = '".
+# dotnet-local.cmd, Probar.bat y probar.ps1 leen la versión de la línea siguiente: debe empezar por "$FfmpegVersion = '".
 $FfmpegVersion = 'n9.0.2-17-g2a571b6068'
 $FfmpegRelease = 'autobuild-2026-09-30-13-08'
 $FfmpegUrl     = "https://github.com/BtbN/FFmpeg-Builds/releases/download/$FfmpegRelease/ffmpeg-$FfmpegVersion-win64-lgpl-shared-9.0.zip"

@@ -200,7 +200,7 @@ public sealed class FfmpegExecutable
         if (!File.Exists(path))
         {
             throw new FfmpegNotFoundException(
-                $"No existe {path}. Los proxies necesitan el ffmpeg.exe LGPL junto a las DLL; ejecuta ABRIR.bat preparar-entorno.");
+                $"No existe {path}. Los proxies necesitan el ffmpeg.exe LGPL junto a las DLL; ejecuta Probar.bat preparar-entorno.");
         }
 
         string? missing = ExtraLibraries.FirstOrDefault(l => !File.Exists(System.IO.Path.Combine(directory, l + ".dll")));

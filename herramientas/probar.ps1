@@ -47,7 +47,7 @@ if (-not (Test-Path -LiteralPath $Dotnet) -or -not (Test-Path -LiteralPath $Marc
     }
     Nota ''
     Nota 'Cómo arreglarlo (una sola vez, descarga unos 280 MB):'
-    Nota '  - Haz doble clic en ABRIR.bat, que lo prepara solo, o'
+    Nota '  - Haz doble clic en Probar.bat, que lo prepara solo, o'
     Nota '  - corre: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-entorno.ps1'
     Terminar 1
 }
@@ -57,7 +57,7 @@ if (-not $FfmpegVersion -or -not (Test-Path -LiteralPath $MarcaFfmpeg)) {
     Nota "Falta: $MarcaFfmpeg"
     Nota ''
     Nota 'Cómo arreglarlo (una sola vez, descarga unos 75 MB):'
-    Nota '  - Haz doble clic en ABRIR.bat, que lo prepara solo, o'
+    Nota '  - Haz doble clic en Probar.bat, que lo prepara solo, o'
     Nota '  - corre: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-entorno.ps1'
     Terminar 1
 }

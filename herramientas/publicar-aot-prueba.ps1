@@ -39,7 +39,7 @@ if (-not (Test-Path -LiteralPath $Dotnet) -or -not (Test-Path -LiteralPath $Marc
     }
     Nota ''
     Nota 'Cómo arreglarlo (una sola vez, descarga unos 280 MB):'
-    Nota '  - Haz doble clic en ABRIR.bat, que lo prepara solo, o'
+    Nota '  - Haz doble clic en Probar.bat, que lo prepara solo, o'
     Nota '  - corre: powershell -NoProfile -ExecutionPolicy Bypass -File herramientas\preparar-entorno.ps1'
     Terminar 1
 }
@@ -152,7 +152,7 @@ if ($interno -and $interno -match '\((\d+) ms\)') { Nota "  De eso, la prueba en
 Write-Host ''
 if ($codigoExe -ne 0) {
     Mal "RESULTADO: el programa nativo terminó con error (código $codigoExe). Arriba está el paso que falló y por qué."
-    Nota 'Si las pruebas normales (ABRIR.bat) pasan pero esto falla, el núcleo usa algo que Native AOT recorta.'
+    Nota 'Si las pruebas normales (Probar.bat) pasan pero esto falla, el núcleo usa algo que Native AOT recorta.'
     Terminar 1
 }
 if ($salidaExe -match 'Modo: JIT') {

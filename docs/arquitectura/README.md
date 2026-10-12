@@ -53,10 +53,10 @@ flowchart TB
 
 | Comando | Qué hace |
 |---|---|
-| `ABRIR.bat` | Restaura, compila y corre todas las pruebas ([`herramientas/probar.ps1`](../../herramientas/probar.ps1)); `-Filtro texto` corre solo las que coinciden. Las de la categoría `TiempoReal` corren en una segunda pasada, solas, para que la carga de las demás no las falsee |
-| `ABRIR.bat cobertura` | Lo mismo, más la cobertura de `Rodaje.Core` |
-| `ABRIR.bat aot` | Publica y ejecuta la prueba de humo del núcleo con Native AOT ([`publicar-aot-prueba.ps1`](../../herramientas/publicar-aot-prueba.ps1)) |
-| `ABRIR.bat aceptacion` | Criterios de la fase 2 con video y audio reales, en serie ([`aceptacion.ps1`](../../herramientas/aceptacion.ps1)) |
+| `Probar.bat` | Restaura, compila y corre todas las pruebas ([`herramientas/probar.ps1`](../../herramientas/probar.ps1)); `-Filtro texto` corre solo las que coinciden. Las de la categoría `TiempoReal` corren en una segunda pasada, solas, para que la carga de las demás no las falsee |
+| `Probar.bat cobertura` | Lo mismo, más la cobertura de `Rodaje.Core` |
+| `Probar.bat aot` | Publica y ejecuta la prueba de humo del núcleo con Native AOT ([`publicar-aot-prueba.ps1`](../../herramientas/publicar-aot-prueba.ps1)) |
+| `Probar.bat aceptacion` | Criterios de la fase 2 con video y audio reales, en serie ([`aceptacion.ps1`](../../herramientas/aceptacion.ps1)) |
 | `Rodaje.bat` | Publica y abre el editor ([`app.ps1`](../../herramientas/app.ps1)); `app.ps1 -Medir N` mide arranque y reproducción |
 | `herramientas\dotnet-local.cmd <args>` | El SDK de `.entorno\` con cualquier argumento de `dotnet` |
 
@@ -66,7 +66,7 @@ flowchart TB
 
 ## Problemas de compatibilidad conocidos
 
-- **Windows PowerShell deshabilitado** (pasa en versiones recortadas como AtlasOS). `ABRIR.bat` lo detecta. Los scripts usan `-ExecutionPolicy Bypass` solo para su proceso.
+- **Windows PowerShell deshabilitado** (pasa en versiones recortadas como AtlasOS). `Probar.bat` lo detecta. Los scripts usan `-ExecutionPolicy Bypass` solo para su proceso.
 - **Descargas cortadas.** Se escriben como `.part` y solo se aceptan completas y con la huella correcta: basta repetir.
 - **Native AOT** necesita `link.exe` de Visual Studio Build Tools 2022 con la carga de C++.
 - **Paquetes NuGet** fijados en `packages.lock.json`: un cambio sin actualizarlos hace fallar la restauración a propósito.
@@ -80,5 +80,3 @@ flowchart TB
 - [Decisiones](../decisiones.md)
 - [Fondo legal](../legal.md)
 - [Propuesta de módulos](../propuesta-modulos.md)
-- [Sondeo de WinUI 3](../archivo/sondeo-winui.md)
-- [Investigación de editores abiertos](../archivo/investigacion.md)

@@ -117,14 +117,14 @@ if (-not (Test-Path -LiteralPath $Dotnet) -or -not (Test-Path -LiteralPath $Marc
     Write-Host ''
     Mal 'No encuentro el SDK de .NET del proyecto completo, y sin él no se pueden compilar ni correr las pruebas.'
     Nota "Lo busqué en: $Dotnet"
-    Nota 'Haz doble clic en ABRIR.bat (lo prepara solo) o corre herramientas\preparar-entorno.ps1.'
+    Nota 'Haz doble clic en Probar.bat (lo prepara solo) o corre herramientas\preparar-entorno.ps1.'
     Terminar 1
 }
 if (-not $FfmpegVersion -or -not (Test-Path -LiteralPath $MarcaFfmpeg)) {
     Write-Host ''
     Mal 'Faltan las bibliotecas de FFmpeg del proyecto, o quedaron a medias; la aceptación decodifica video de verdad.'
     Nota "Falta: $MarcaFfmpeg"
-    Nota 'Haz doble clic en ABRIR.bat (lo prepara solo) o corre herramientas\preparar-entorno.ps1.'
+    Nota 'Haz doble clic en Probar.bat (lo prepara solo) o corre herramientas\preparar-entorno.ps1.'
     Terminar 1
 }
 

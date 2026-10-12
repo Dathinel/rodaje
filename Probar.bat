@@ -1,11 +1,11 @@
 @echo off
 rem Prepara .entorno\ la primera vez y corre las pruebas del nucleo.
-rem   ABRIR.bat                    todas las pruebas
-rem   ABRIR.bat cobertura          pruebas + cobertura de Rodaje.Core
-rem   ABRIR.bat aot                publica con Native AOT y ejecuta el .exe
-rem   ABRIR.bat aceptacion         criterios de la fase 2 con video y audio reales (varios minutos)
-rem   ABRIR.bat preparar-entorno   vuelve a descargar el SDK y FFmpeg
-rem   ABRIR.bat -Filtro Recorte    otros argumentos pasan tal cual a probar.ps1
+rem   Probar.bat                    todas las pruebas
+rem   Probar.bat cobertura          pruebas + cobertura de Rodaje.Core
+rem   Probar.bat aot                publica con Native AOT y ejecuta el .exe
+rem   Probar.bat aceptacion         criterios de la fase 2 con video y audio reales (varios minutos)
+rem   Probar.bat preparar-entorno   vuelve a descargar el SDK y FFmpeg
+rem   Probar.bat -Filtro Recorte    otros argumentos pasan tal cual a probar.ps1
 rem Variables: RODAJE_ENTORNO (otro entorno), RODAJE_SIN_PAUSA=1 (sin pausa final).
 setlocal EnableExtensions
 chcp 65001 >nul
@@ -113,7 +113,7 @@ echo.
 "%PS%" -NoProfile -ExecutionPolicy Bypass -File "%PREPARAR%" -Forzar
 if errorlevel 1 goto fallo_entorno
 echo.
-echo   Entorno listo. Haz doble clic en ABRIR.bat para correr las pruebas.
+echo   Entorno listo. Haz doble clic en Probar.bat para correr las pruebas.
 goto fin_bien
 
 :sin_powershell
@@ -130,7 +130,7 @@ goto fin_mal
 echo.
 echo   No se pudo preparar el entorno (el SDK de .NET o FFmpeg del proyecto).
 echo   Arriba está el motivo. Lo más común es no tener internet en la primera vez;
-echo   cuando haya conexión, vuelve a hacer doble clic en ABRIR.bat.
+echo   cuando haya conexión, vuelve a hacer doble clic en Probar.bat.
 goto fin_mal
 
 :fallo_pruebas

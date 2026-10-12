@@ -15,7 +15,7 @@ namespace Rodaje.TestMedia;
 /// </summary>
 public static class Skip
 {
-    /// <summary>Pruebas largas y medidas en tiempo real: <c>ABRIR.bat aceptacion</c> la pone en 1.</summary>
+    /// <summary>Pruebas largas y medidas en tiempo real: <c>Probar.bat aceptacion</c> la pone en 1.</summary>
     public const string LongVariable = "RODAJE_PRUEBAS_LARGAS";
 
     /// <summary>Los 10 minutos en tiempo real con el dispositivo de audio: <c>herramientas\aceptacion.ps1 -Completa</c>.</summary>
@@ -34,7 +34,7 @@ public static class Skip
         string directory = FfmpegLibrary.Directory ?? string.Empty;
         return File.Exists(Path.Combine(directory, "ffmpeg.exe")) && File.Exists(Path.Combine(directory, "ffprobe.exe"))
             ? null
-            : $"Omitida: sin FFmpeg: faltan ffmpeg.exe o ffprobe.exe en {directory}; ejecuta ABRIR.bat preparar-entorno.";
+            : $"Omitida: sin FFmpeg: faltan ffmpeg.exe o ffprobe.exe en {directory}; ejecuta Probar.bat preparar-entorno.";
     });
 
     private static readonly Lazy<string?> HardwareDecodingReason = new(() =>
@@ -103,7 +103,7 @@ public static class Skip
 
     public static string? LongRun => LongRuns
         ? null
-        : $"Omitida: prueba larga; se activa con {LongVariable}=1 (ABRIR.bat aceptacion).";
+        : $"Omitida: prueba larga; se activa con {LongVariable}=1 (Probar.bat aceptacion).";
 
     public static string? CompleteRun => CompleteRuns
         ? null
@@ -131,7 +131,7 @@ public static class Skip
     /// <summary>Medidas con el dispositivo de audio real (reproduce silencio); van en la corrida de aceptación.</summary>
     public static string? AudioDevice => LongRuns
         ? MissingAudioDevice.Value
-        : $"Medición de audio en tiempo real; se activa con {LongVariable}=1 (ABRIR.bat aceptacion).";
+        : $"Medición de audio en tiempo real; se activa con {LongVariable}=1 (Probar.bat aceptacion).";
 
     /// <summary>La prueba que suena: solo con <c>RODAJE_PRUEBAS_AUDIO=1</c> y un dispositivo real.</summary>
     public static string? AudioTone => IsOn(AudioVariable)
@@ -290,7 +290,7 @@ public sealed class FfmpegFactAttribute : FactAttribute
         Skip = Reason();
     }
 
-    /// <summary>Prueba larga: solo corre con <c>RODAJE_PRUEBAS_LARGAS=1</c> (ABRIR.bat aceptacion).</summary>
+    /// <summary>Prueba larga: solo corre con <c>RODAJE_PRUEBAS_LARGAS=1</c> (Probar.bat aceptacion).</summary>
     public bool LongRunning
     {
         get => _longRunning;

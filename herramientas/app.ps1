@@ -52,7 +52,7 @@ function Publicar {
     if (-not (Test-Path -LiteralPath $E.Dotnet) -or -not (Test-Path -LiteralPath $E.MarcaSdk)) {
         Mal 'No encuentro el SDK de .NET del proyecto (o quedó a medias).'
         Nota "Lo busqué en: $($E.Dotnet)"
-        Nota 'Haz doble clic en ABRIR.bat, que lo prepara solo, o corre herramientas\preparar-entorno.ps1.'
+        Nota 'Haz doble clic en Probar.bat, que lo prepara solo, o corre herramientas\preparar-entorno.ps1.'
         return $false
     }
 
@@ -94,7 +94,7 @@ function Publicar {
     # con el ffmpeg.exe de la misma compilación y las dos DLL que solo él usa, para generar proxies.
     $ffmpegExe = Join-Path $FfmpegBin 'ffmpeg.exe'
     if (-not (Test-Path -LiteralPath $ffmpegExe)) {
-        Mal "Falta $ffmpegExe. Corre ABRIR.bat preparar-entorno para descargar FFmpeg."
+        Mal "Falta $ffmpegExe. Corre Probar.bat preparar-entorno para descargar FFmpeg."
         return $false
     }
     $configuracion = (& $ffmpegExe -hide_banner -buildconf 2>$null) -join ' '
@@ -108,7 +108,7 @@ function Publicar {
     foreach ($b in $Bibliotecas + $BibliotecasDelExe) {
         $dll = Join-Path $FfmpegBin "$b.dll"
         if (-not (Test-Path -LiteralPath $dll)) {
-            Mal "Falta $dll. Corre ABRIR.bat preparar-entorno para descargar FFmpeg."
+            Mal "Falta $dll. Corre Probar.bat preparar-entorno para descargar FFmpeg."
             return $false
         }
         Copy-Item -LiteralPath $dll -Destination $destino -Force
