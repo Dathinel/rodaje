@@ -73,19 +73,24 @@ public sealed class UndoStack
     {
         ArgumentNullException.ThrowIfNull(command);
         command.Apply(Project);
-        ClearRedo();
 
         if (IsInGroup)
         {
+            // Lo que se puede rehacer se pierde al cerrar el grupo, no antes: si se cancela (Esc mientras se arrastra), todo
+            // queda como estaba, también el historial.
             // Un arrastre dentro de un gesto ejecuta un paso por movimiento: los que se funden no se acumulan.
             if (_mergeBarrier || _groupCommands.Count == 0 || !_groupCommands[^1].TryMerge(command))
             {
                 _groupCommands.Add(command);
             }
         }
-        else if (_mergeBarrier || _undo.Count == 0 || _cleanIndex == _undo.Count || !_undo[^1].TryMerge(command))
+        else
         {
-            Push(command);
+            ClearRedo();
+            if (_mergeBarrier || _undo.Count == 0 || _cleanIndex == _undo.Count || !_undo[^1].TryMerge(command))
+            {
+                Push(command);
+            }
         }
 
         _mergeBarrier = false;
@@ -156,6 +161,7 @@ public sealed class UndoStack
         {
             CompositeCommand group = CompositeCommand.FromApplied(_groupDescription, _groupCommands);
             _groupCommands.Clear();
+            ClearRedo();
             Push(group);
         }
 

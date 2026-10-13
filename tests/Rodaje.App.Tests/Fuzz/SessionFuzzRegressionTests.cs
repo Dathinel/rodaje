@@ -84,6 +84,58 @@ public class SessionFuzzRegressionTests
         });
     }
 
+    /// <summary>
+    /// Semilla 6: un gesto cancelado después de deshacer borraba lo que se podía rehacer (el primer comando del gesto
+    /// vaciaba la pila de rehacer), aunque Esc deja el proyecto como estaba.
+    /// </summary>
+    [Fact]
+    public void CancelarUnGesto_ConservaLoQueSePodiaRehacer()
+    {
+        using var directory = new TempDirectory();
+        UiThread.Run(async () =>
+        {
+            EditorSession session = await OpenAsync(directory.Path, audioFrom: 0);
+            session.Select(["v"]);
+            Assert.True(session.SetSelectionColor("#00FF00"));
+            Assert.True(session.Undo());
+
+            session.BeginGesture("Arrastrar");
+            Assert.True(session.TryExecute(Edits.SetTrackHeight(session.SequenceId, "v1", 80)));
+            session.CancelGesture();
+
+            Assert.True(session.CanRedo);
+            Assert.True(session.Redo());
+            Assert.Equal("#00FF00", session.Sequence.GetClip("v").Clip.Color);
+        });
+    }
+
+    /// <summary>
+    /// Semilla 1007: borrar a la izquierda con ripple por pista un video y su audio enlazados que empiezan en instantes
+    /// distintos: cada pista cerraba un tramo de distinto largo y los dejaba desfasados. Ahora se rechaza, como el borrado
+    /// con ripple por pista (con todas las pistas sí se puede).
+    /// </summary>
+    [Fact]
+    public void BorrarALaIzquierda_EnlazadosQueEmpiezanDistinto_NoLosDesfasa()
+    {
+        using var directory = new TempDirectory();
+        UiThread.Run(async () =>
+        {
+            EditorSession session = await OpenAsync(directory.Path, audioFrom: 1);
+            session.Timeline.MagneticMainTrack = true;
+            session.Timeline.RippleMode = RippleMode.AffectedTracks;
+            session.UpdateTransport(PlaybackSnapshot.Empty with { Position = Time.FromSeconds(1.5), Duration = Time.FromSeconds(2) });
+            session.Select(["v", "a"]);
+            string before = ProjectSerializer.Serialize(session.Project);
+
+            Assert.False(session.DeleteLeftOfPlayhead());
+            Assert.Equal(before, ProjectSerializer.Serialize(session.Project));
+
+            session.Timeline.RippleMode = RippleMode.AllTracks;
+            Assert.True(session.DeleteLeftOfPlayhead());
+            Assert.Empty(LinkSync.Find(session.Sequence));
+        });
+    }
+
     /// <summary>Un video de 0 a 2 s en v1 y su audio enlazado y sincronizado en a1, desde <paramref name="audioFrom"/> s.</summary>
     private static async Task<EditorSession> OpenAsync(string directory, int audioFrom)
     {

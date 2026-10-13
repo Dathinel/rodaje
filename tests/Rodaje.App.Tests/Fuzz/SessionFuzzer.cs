@@ -98,10 +98,14 @@ internal sealed class SessionFuzzer
         "LinkClips", "SetTrackState", "SetSpeed", "RateStretch", "FreezeFrame", "SetCurve", "SetReverse", "ApplySpeedPreset",
     };
 
-    /// <summary>Acciones que pueden desfasar enlazados a propósito: enlazar, velocidad, pegar atributos (velocidad), deshacer y saltos.</summary>
+    /// <summary>
+    /// Acciones que pueden desfasar enlazados a propósito: enlazar, velocidad, pegar atributos (velocidad), deshacer y saltos.
+    /// La multicámara también: sus desfases son inventados, no los del sonido, así que cambiar al medio del audio enlazado
+    /// mide un desfase que en una multicámara de verdad no habría.
+    /// </summary>
     private static readonly HashSet<Act> SyncChangingActs =
     [
-        Act.Link, Act.Attributes, Act.Speed, Act.Freeze, Act.Reverse, Act.Undo, Act.Redo, Act.Jump, Act.Reopen, Act.Gesture,
+        Act.Multicam, Act.Link, Act.Attributes, Act.Speed, Act.Freeze, Act.Reverse, Act.Undo, Act.Redo, Act.Jump, Act.Reopen, Act.Gesture,
         Act.TimelineMode, Act.EnterCompound, Act.LeaveCompound, Act.Decompose,
     ];
 
@@ -287,7 +291,7 @@ internal sealed class SessionFuzzer
         {
             // Mismo número de pasos y el proyecto cambió: o no pasó por el historial o se fundió con el paso anterior. Aquí
             // fundirse nunca es correcto: tras cada paso el fuzz deshace y rehace, y eso pone la barrera de fusión.
-            Fail($"«{act}» cambió el proyecto sin agregar un paso al historial (¿se fundió con un paso viejo?).");
+            Fail($"«{act}» cambió el proyecto sin agregar un paso al historial (¿se fundió con un paso viejo?).\n{FirstDifference(before, now)}");
         }
         else if (count != countBefore + 1)
         {
@@ -355,8 +359,8 @@ internal sealed class SessionFuzzer
             i++;
         }
 
-        int from = Math.Max(0, i - 200);
-        return $"Primera diferencia en el carácter {i}:\nEsperado: …{Slice(expected, from)}…\nObtenido: …{Slice(actual, from)}…";
+        int from = Math.Max(0, i - 60);
+        return $"Primera diferencia en el carácter {i} (largos {expected.Length} y {actual.Length}):\nEsperado: …{Slice(expected, from)}…\nObtenido: …{Slice(actual, from)}…";
 
         static string Slice(string text, int from) => text.Substring(from, Math.Min(400, text.Length - from));
     }

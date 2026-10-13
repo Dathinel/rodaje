@@ -85,6 +85,7 @@ public static partial class TimelineEdits
         }
 
         TrimmingSupport.CheckBounds(ctx, plans);
+        HashSet<Time> sync = LinkSync.Snapshot(ctx.Sequence);
         TrimmingSupport.Apply(plans);
         if (ripple)
         {
@@ -96,6 +97,10 @@ public static partial class TimelineEdits
             else
             {
                 CloseSpansPerTrack(ctx, spans, trimmed);
+
+                // Como en RippleDelete por pista: enlazados que empiezan (Q) o terminan (W) en instantes distintos cierran
+                // tramos de distinto largo y quedarían desfasados; mejor no hacerlo.
+                LinkSync.EnsureNoNewDesync(ctx.Sequence, sync, side == TrimEdge.In ? "Borrar a la izquierda con ripple" : "Borrar a la derecha con ripple");
             }
         }
 
