@@ -41,7 +41,7 @@ public sealed class ModuleRetireTests : IDisposable
         MarkDeadWithoutNotice(connection);
 
         Task<ModuleResult> call = manager.InvokeAsync("vision", "contar", EchoModules.Json(LongCount), "Contar");
-        ModuleJob job = manager.Jobs.Jobs[^1];
+        ModuleJob job = manager.Jobs.Jobs[0]; // La más nueva va primero.
         await WaitUntil(() => job.Progress > 0);
 
         Assert.Equal(["vision"], manager.Budget.Resident);
@@ -130,7 +130,7 @@ public sealed class ModuleRetireTests : IDisposable
         await WaitUntil(() => manager.ProcessIds.Count == 0);
 
         Task<ModuleResult> call = manager.InvokeAsync("eco-a", "contar", EchoModules.Json(LongCount), "Contar");
-        ModuleJob job = manager.Jobs.Jobs[^1];
+        ModuleJob job = manager.Jobs.Jobs[0]; // La más nueva va primero.
         await WaitUntil(() => manager.ProcessIds.Count == 1 && job.Progress > 0);
         int second = manager.ProcessIds[0];
         Assert.NotEqual(first, second);
