@@ -11,36 +11,87 @@ namespace Rodaje.Module.Raw;
 internal static class FrameBatch
 {
     /// <summary>
+    /// Se llama en el hilo que arranca cada hilo de revelado, justo antes de <see cref="Thread.Start()"/>. Costura para
+    /// las pruebas: por hilo (<see cref="ThreadStaticAttribute"/>), así cada prueba ve solo los arranques que hace su
+    /// propio hilo, y uno hecho desde el pool no la llamaría.
+    /// </summary>
+    [ThreadStatic]
+    internal static Action? BeforeWorkerStartsForTests;
+
+    /// <summary>
     /// Revela los cuadros 0 a <paramref name="frames"/> − 1 con <paramref name="develop"/>, hasta <paramref name="threads"/>
     /// a la vez, y llama a <paramref name="progress"/> con el número de cuadros hechos cada vez que termina uno. Relanza el
     /// primer fallo real (no la cancelación que este mismo fallo provoca en los demás).
     /// </summary>
+    /// <remarks>
+    /// Los hilos de revelado se arrancan aquí, en el hilo que llama y antes de la primera espera: en «revelar» es el hilo
+    /// propio de la llamada (<c>ModuleHost</c>), nunca el pool. <see cref="Thread.Start()"/> espera a que el hilo nuevo
+    /// arranque, y en la CI de Windows esa espera pasó de 10 s (tareas 235 y 260). Antes cada cuadro arrancaba su hilo
+    /// desde un trabajo del pool: con <c>hilos = ProcessorCount</c>, tantos hilos del pool como su mínimo quedaban
+    /// esperando arranques, el bucle de <c>ModuleHost</c> (continuaciones del pool) no leía el «ping» ni salían los
+    /// avances, y el vigilante del editor mataba un módulo sano (CinemaDNG en la CI de Windows de #126 y de #246).
+    /// </remarks>
     public static async Task RunAsync(int frames, int threads, Action<int, CancellationToken> develop,
         Func<int, CancellationToken, ValueTask> progress, CancellationToken cancellationToken)
     {
         using var failed = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         CancellationToken ct = failed.Token;
-        using var gate = new SemaphoreSlim(Math.Min(threads, frames));
-        List<Task> pending = [.. Enumerable.Range(0, frames).Select(i => Task.Run(async () =>
+        TaskCompletionSource[] results = [.. Enumerable.Range(0, frames).Select(_ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously))];
+        int next = -1;
+
+        // Cada hilo toma el siguiente cuadro sin revelar hasta que no quedan. Con la cancelación pedida, los que quedan se
+        // dan por cancelados sin revelarlos.
+        void Work()
         {
-            await gate.WaitAsync(ct).ConfigureAwait(false);
+            for (int i = Interlocked.Increment(ref next); i < frames; i = Interlocked.Increment(ref next))
+            {
+                if (ct.IsCancellationRequested)
+                {
+                    results[i].TrySetCanceled(ct);
+                    continue;
+                }
+
+                try
+                {
+                    develop(i, ct);
+                    results[i].TrySetResult();
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    results[i].TrySetCanceled(ct);
+                }
+#pragma warning disable CA1031 // El fallo de un cuadro se devuelve por su tarea y lo relanza RunAsync.
+                catch (Exception ex)
+#pragma warning restore CA1031
+                {
+                    results[i].TrySetException(ex);
+                }
+            }
+        }
+
+        ExceptionDispatchInfo? first = null;
+        int workers = Math.Min(threads, frames);
+        for (int w = 0; w < workers; w++)
+        {
             try
             {
-                // LibRaw bloquea el hilo segundos por cuadro: en un hilo propio y no en el pool. Con hasta ProcessorCount
-                // cuadros a la vez ocupaban todos los hilos mínimos del pool y, con la CPU llena, el pool no sumaba otros:
-                // el bucle de ModuleHost no leía el «ping» del editor (ni salían los avances) hasta que terminaba un cuadro,
-                // y el vigilante mataba un módulo sano a mitad de trabajo (CinemaDNG en la CI de Windows).
-                await Task.Factory.StartNew(() => develop(i, ct), ct, TaskCreationOptions.LongRunning, TaskScheduler.Default).ConfigureAwait(false);
+                Thread thread = new(Work) { IsBackground = true, Name = "Rodaje: revelado" };
+                BeforeWorkerStartsForTests?.Invoke();
+                thread.Start();
             }
-            finally
+            catch (Exception ex) when (w > 0)
             {
-                gate.Release();
+                // Sin otro hilo no se puede seguir, pero los que ya arrancaron revelan (o cancelan) todos los cuadros:
+                // se espera a que terminen, como tras el fallo de un cuadro.
+                first = ExceptionDispatchInfo.Capture(ex);
+                await failed.CancelAsync().ConfigureAwait(false);
+                break;
             }
-        }, ct))];
+        }
 
-        // Se espera a todas las tareas, también después de un fallo: así se observan sus excepciones y ninguna suelta el
-        // semáforo después de desecharlo.
-        ExceptionDispatchInfo? first = null;
+        // Se espera a todos los cuadros, también después de un fallo: así se observan sus excepciones y ningún hilo sigue
+        // escribiendo en los búferes de una llamada ya respondida.
+        List<Task> pending = [.. results.Select(r => r.Task)];
         int done = 0;
         while (pending.Count > 0)
         {
