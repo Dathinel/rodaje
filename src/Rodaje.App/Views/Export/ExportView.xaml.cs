@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Inspector;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Timing;
@@ -189,7 +190,7 @@ internal sealed partial class ExportView : UserControl
             .Select(p => (Id: p.Id, Name: p.Name, Description: p.Origin == ExportPresetOrigin.User ? "Propio · " + p.Description : p.Description))
             .Append((Id: ExportPresetLibrary.CustomId, Name: "Personalizado", Description: "Lo que elijas en Avanzado."))
             .ToList();
-        if (!ChoiceList.Same(PresetCards.Children.Select(c => (c as Button)?.Tag as string ?? ""), cards.Select(c => c.Id)))
+        if (ComboChoices.NeedsRebuild(PresetCards.Children.Select(c => (c as Button)?.Tag as string ?? ""), cards.Select(c => c.Id)))
         {
             PresetCards.Children.Clear();
             foreach ((string id, string name, string description) in cards)
@@ -452,30 +453,14 @@ internal sealed partial class ExportView : UserControl
     /// <summary>Pone las opciones y la elegida; si las opciones no cambiaron, solo mueve la elección (ver <see cref="QueueRefresh"/>).</summary>
     /// <remarks>
     /// Con la lista abierta no se toca nada: cambiar los elementos o la elección de un desplegable abierto de WinUI puede
-    /// cerrar la app sin rastro (tarea 91); el próximo refresco lo pone al día.
+    /// cerrar la app sin rastro (tarea 91); el próximo refresco lo pone al día (<see cref="OnDropDownClosed"/>). La decisión es
+    /// la de los demás desplegables (<see cref="ComboBoxChoices"/>): al rehacer, quita la elección antes de vaciar.
     /// </remarks>
     private static void Fill(ComboBox box, IEnumerable<string> labels, int selected)
     {
-        if (box.IsDropDownOpen)
-        {
-            return;
-        }
-
-        List<string> list = [.. labels];
-        if (!ChoiceList.Same(box.Items.Select(i => (i as ComboBoxItem)?.Content as string ?? ""), list))
-        {
-            box.Items.Clear();
-            foreach (string label in list)
-            {
-                box.Items.Add(new ComboBoxItem { Content = label });
-            }
-        }
-
-        int index = selected < box.Items.Count ? selected : -1;
-        if (box.SelectedIndex != index)
-        {
-            box.SelectedIndex = index;
-        }
+        var shown = ComboChoices.FromLabels(box.Items.Select(i => (i as ComboBoxItem)?.Content as string ?? ""));
+        var next = ComboChoices.FromLabels(labels);
+        _ = ComboBoxChoices.Show(box, shown, next, selected, i => new ComboBoxItem { Content = next.Labels[i] });
     }
 
     private static int IndexOf<T>(IReadOnlyList<T> items, Func<T, bool> match)
