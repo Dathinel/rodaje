@@ -463,6 +463,7 @@ internal sealed partial class TimelineScheduler : IDisposable
     public void Dispose()
     {
         var released = new List<DecodedFrame>();
+        var epochs = new List<CancellationTokenSource>();
         List<DecoderState> decoders;
         lock (_gate)
         {
@@ -483,6 +484,7 @@ internal sealed partial class TimelineScheduler : IDisposable
             foreach (DecoderState decoder in decoders)
             {
                 decoder.Closed = true;
+                epochs.Add(decoder.Epoch);
             }
 
             _media.Clear();
@@ -495,6 +497,8 @@ internal sealed partial class TimelineScheduler : IDisposable
             _resolver.StatusChanged -= OnProxyStatusChanged;
         }
 
+        // El cuadro que cada uno decodifica ya no le sirve a nadie: sin cancelarlo, cerrar esperaba a que terminara cada uno.
+        epochs.ForEach(e => e.Cancel());
         released.ForEach(f => f.Dispose());
         foreach (DecoderState decoder in decoders)
         {
