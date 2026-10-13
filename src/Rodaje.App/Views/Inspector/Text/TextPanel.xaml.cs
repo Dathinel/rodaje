@@ -45,7 +45,8 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         _services = services;
         _editor = new TitleEditor(services.Session);
         BuildRows();
-        _styleBox?.RetryWhenClosed(_stylesRetry, Refresh);
+        // BuildRows crea _styleBox: si dejara de hacerlo, RetryWhenClosed lanza en vez de omitirse sin aviso.
+        _styleBox!.RetryWhenClosed(_stylesRetry, Refresh);
         BuildWordRows();
         BuildProRows();
         foreach (InspectorSection section in (InspectorSection[])[ContentSection, WordsSection, StyleSection, TypographySection, FillSection, StrokeSection,
