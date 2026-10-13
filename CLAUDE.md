@@ -17,5 +17,5 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 
 ## Para retomar (12-oct)
 
-- **v1.0.0 publicada** (release `v1.0.0`, commit 4936b0c). Lo siguiente es la 1.0.1: propuesta en `.proceso/propuestas/v1.0.1-personalizacion.md` y detalles visuales pendientes (miniaturas animadas de estilos que salen vacías, buscador de atajos, tres `Skip = "Defecto…"`).
+- **v1.0.0 publicada** (release `v1.0.0`, commit 4936b0c). Lo siguiente es la 1.0.1: propuesta en `.proceso/propuestas/v1.0.1-personalizacion.md` y detalles visuales pendientes (miniaturas animadas de estilos que salen vacías, buscador de atajos, tres `Skip = "Defecto…"`) y revisión completa del tutorial y del recorrido inicial.
 - La nube une sus PR al pasar la CI (sin `--auto`: no hay protección de rama).
