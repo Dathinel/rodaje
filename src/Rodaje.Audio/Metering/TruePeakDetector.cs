@@ -1,3 +1,5 @@
+using Rodaje.Audio.Processing;
+
 namespace Rodaje.Audio.Metering;
 
 /// <summary>Estima el pico entre muestras de un canal reconstruyendo la señal con sobremuestreo ×4.</summary>
@@ -36,7 +38,7 @@ public sealed class TruePeakDetector
         float max = 0;
         for (int f = 0; f < frames; f++)
         {
-            float sample = interleaved[(f * channels) + channel];
+            float sample = AudioSamples.ForMeter(interleaved[(f * channels) + channel]);
             max = MathF.Max(max, MathF.Abs(sample));
             _history[_head] = sample;
             _history[_head + Taps] = sample;

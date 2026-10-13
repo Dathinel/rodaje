@@ -1,3 +1,5 @@
+using Rodaje.Audio.Processing;
+
 namespace Rodaje.Audio.Metering;
 
 /// <summary>Mide la mezcla estéreo en bloques fijos y los publica en un <see cref="AudioLevelRing"/> con su posición.</summary>
@@ -63,8 +65,8 @@ public sealed class AudioLevelAnalyzer
             ReadOnlySpan<float> piece = mix.Slice(done * Channels, n * Channels);
             for (int f = 0; f < n; f++)
             {
-                float l = piece[f * Channels];
-                float r = piece[(f * Channels) + 1];
+                float l = AudioSamples.ForMeter(piece[f * Channels]);
+                float r = AudioSamples.ForMeter(piece[(f * Channels) + 1]);
                 _peakL = MathF.Max(_peakL, MathF.Abs(l));
                 _peakR = MathF.Max(_peakR, MathF.Abs(r));
                 _squaresL += l * l;
@@ -82,7 +84,8 @@ public sealed class AudioLevelAnalyzer
                 float limit = beforeLimiter.IsEmpty ? 1f : 1f + 1e-6f;
                 foreach (float sample in raw)
                 {
-                    if (MathF.Abs(sample) >= limit)
+                    // Lo que no es un número también: algo se rompió antes del medidor.
+                    if (!(MathF.Abs(sample) < limit))
                     {
                         _clipped = true;
                         break;
