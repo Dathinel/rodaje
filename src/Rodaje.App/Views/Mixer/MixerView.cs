@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -96,8 +96,9 @@ internal sealed partial class MixerView : UserControl, IEditorView, IStripHost
             Content = _strips,
             HorizontalScrollMode = ScrollMode.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollMode = ScrollMode.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            // En ventanas bajas la tira con envíos e inserciones no cabe: se desplaza en vez de cortar el fader.
+            VerticalScrollMode = ScrollMode.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
         body.Children.Add(scroller);
         var masterColumn = new Grid { RowSpacing = 4 };
