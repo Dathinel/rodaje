@@ -126,7 +126,11 @@ internal sealed partial class TimelineScheduler
 
         if (discard)
         {
-            video?.Dispose();
+            if (video is not null)
+            {
+                DisposeVideo(decoder, video);
+            }
+
             return;
         }
 
@@ -594,16 +598,66 @@ internal sealed partial class TimelineScheduler
 
     /// <summary>
     /// En el ejecutor de servicio: libera el decodificador en su propio hilo, después de lo que ya tenía en cola, espera a
-    /// que ese hilo termine y recién entonces deja de contar su VRAM. El hilo de la ventana nunca espera esto.
+    /// que ese hilo termine (con plazo, ver <see cref="StopExecutor"/>) y sigue con lo demás. El hilo de la ventana nunca
+    /// espera esto.
     /// </summary>
     private void Reap(DecoderState decoder)
     {
+        PostRetire(decoder);
+        StopExecutor(decoder, Stopwatch.GetTimestamp() + (long)(DecodeThread.DefaultJoinTimeout.TotalSeconds * Stopwatch.Frequency));
+    }
+
+    /// <summary>
+    /// Encola en el hilo del decodificador su liberación y, detrás, dejar de contar su VRAM y sacarlo de la lista: si ese
+    /// hilo se cuelga (al abrir el archivo o al liberarlo), el decodificador sigue contado mientras de verdad siga vivo, y
+    /// lo que se encoló corre igual cuando el hilo vuelva. Sin ejecutor (nunca llegó a abrir) se hace en el acto.
+    /// </summary>
+    private void PostRetire(DecoderState decoder)
+    {
         if (decoder.Executor is { } executor)
         {
-            executor.Post(() => DisposeDecoder(decoder));
-            (executor as IDisposable)?.Dispose();
+            // Si el ejecutor ya se detuvo (lo cerró otro: el cierre por falta de uso y el de la sesión pueden coincidir),
+            // esto se descarta y lo hace lo que encargó quien lo detuvo.
+            executor.Post(() =>
+            {
+                DisposeDecoder(decoder);
+                Forget(decoder);
+            });
         }
+        else
+        {
+            DisposeDecoder(decoder);
+            Forget(decoder);
+        }
+    }
 
+    /// <summary>
+    /// Detiene el ejecutor del decodificador esperándolo como mucho hasta <paramref name="deadline"/>. Antes se esperaba sin
+    /// tope: un archivo que no terminaba de abrir o un decodificador que no se liberaba dejaba colgado a quien cerraba (el
+    /// hilo de la ventana, al cerrar la vista previa). Si no termina a tiempo se registra cuál fue y se sigue: su hilo es de
+    /// fondo y termina solo lo que tiene en cola (ver <see cref="PostRetire"/>).
+    /// </summary>
+    private static void StopExecutor(DecoderState decoder, long deadline)
+    {
+        switch (decoder.Executor)
+        {
+            case DecodeThread thread:
+                TimeSpan left = TimeSpan.FromSeconds(Math.Max(0, deadline - Stopwatch.GetTimestamp()) / (double)Stopwatch.Frequency);
+                if (!thread.Stop(left < thread.JoinTimeout ? left : thread.JoinTimeout))
+                {
+                    Trace.WriteLine($"Rodaje: el decodificador {decoder.Id} de «{decoder.Media.Key.Path}» no terminó de cerrarse a tiempo; su hilo lo libera cuando vuelva.");
+                }
+
+                break;
+            case IDisposable disposable:
+                disposable.Dispose();
+                break;
+        }
+    }
+
+    /// <summary>Deja de contar la VRAM del decodificador ya liberado y lo saca de la lista.</summary>
+    private void Forget(DecoderState decoder)
+    {
         lock (_gate)
         {
             decoder.Reserved = 0;
@@ -621,6 +675,27 @@ internal sealed partial class TimelineScheduler
             decoder.Decoder = null;
         }
 
-        video?.Dispose();
+        if (video is not null)
+        {
+            DisposeVideo(decoder, video);
+        }
+    }
+
+    /// <summary>
+    /// Libera el decodificador sin dejar escapar su excepción: en el hilo de decodificación nadie la atrapa y tiraba el
+    /// proceso. Se registra y se sigue; el archivo ya no se usa.
+    /// </summary>
+    private static void DisposeVideo(DecoderState decoder, IClipVideo video)
+    {
+#pragma warning disable CA1031 // Cualquier fallo al soltar un decodificador que ya no se usa se registra y no corta el cierre.
+        try
+        {
+            video.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Rodaje: al liberar el decodificador {decoder.Id} de «{decoder.Media.Key.Path}»: {ex}");
+        }
+#pragma warning restore CA1031
     }
 }
