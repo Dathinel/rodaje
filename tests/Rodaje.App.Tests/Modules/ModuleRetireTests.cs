@@ -274,6 +274,88 @@ public sealed class ModuleRetireTests : IDisposable
         Assert.False(manager.Budget.TryReserve("voz-gpu", 1200), "El aviso del proceso retirado soltó la VRAM del que lo reemplazó.");
     }
 
+    /// <summary>
+    /// <c>CloseIfIdleAsync</c> da <c>true</c> solo si cerró un proceso. Con un muerto que todavía se retira (la costura
+    /// <c>KillProcess</c> bloqueada) no hay proceso que cerrar: daba <c>true</c> y ReserveVramAsync reintentaba en vacío en
+    /// vez de esperar a que el retiro soltara la VRAM.
+    /// </summary>
+    [Fact]
+    public async Task CloseIfIdle_da_false_mientras_el_proceso_muerto_se_retira()
+    {
+        // Sin cierre por ocio: el temporizador no debe adelantarse a la prueba.
+        await using ModuleManager manager = _modules.Manager(new ModuleManagerOptions { IdleTimeout = Timeout.InfiniteTimeSpan });
+        await manager.InvokeAsync("eco-a", "eco", null, "Abrir");
+        object connection = Connection(manager, "eco-a");
+        int callerThread = Environment.CurrentManagedThreadId;
+        using var release = new ManualResetEventSlim();
+        SetProperty(connection, "KillProcess", (Action<ModuleProcess>)(p =>
+        {
+            // Un árbol lento de matar. En el hilo del llamador no se espera: la prueba se colgaría en vez de fallar.
+            if (Environment.CurrentManagedThreadId != callerThread)
+            {
+                release.Wait();
+            }
+
+            p.Kill();
+        }));
+
+        try
+        {
+            Invoke(connection, "OnExited", GetField(connection, "_process") ?? throw new InvalidOperationException("Sin proceso."));
+            Task retiring = (Task)GetField(connection, "_retiring")!;
+            Assert.False(retiring.IsCompleted, "El retiro terminó con la costura KillProcess bloqueada.");
+
+            Assert.False(await CloseIfIdle(connection), "CloseIfIdleAsync dijo que cerró un proceso que no había.");
+            Assert.False(retiring.IsCompleted, "El retiro terminó con la costura KillProcess bloqueada.");
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        await Retired(connection);
+    }
+
+    /// <summary>Con un proceso abierto y sin llamadas, la primera vez lo cierra (<c>true</c>) y la segunda ya no hay nada (<c>false</c>).</summary>
+    [Fact]
+    public async Task CloseIfIdle_da_true_al_cerrar_el_proceso_ocioso_y_false_despues()
+    {
+        await using ModuleManager manager = _modules.Manager(new ModuleManagerOptions { IdleTimeout = Timeout.InfiniteTimeSpan });
+        await manager.InvokeAsync("eco-a", "eco", null, "Abrir");
+        object connection = Connection(manager, "eco-a");
+        Assert.Single(manager.ProcessIds);
+
+        Assert.True(await CloseIfIdle(connection), "CloseIfIdleAsync no cerró el proceso ocioso.");
+        Assert.Empty(manager.ProcessIds);
+        Assert.False(await CloseIfIdle(connection), "CloseIfIdleAsync dijo que cerró un proceso que no había.");
+    }
+
+    /// <summary>Con una llamada en curso no cierra nada (<c>false</c>) y el proceso sigue abierto.</summary>
+    [Fact]
+    public async Task CloseIfIdle_da_false_con_una_llamada_en_curso()
+    {
+        using EchoModules gpu = new EchoModules().Add("vision", vramMb: 1500);
+        await using ModuleManager manager = gpu.Manager(new ModuleManagerOptions
+        {
+            IdleTimeout = Timeout.InfiniteTimeSpan,
+            DedicatedVideoMemory = () => 4L << 30,
+        });
+        var (started, finish, call) = HeldCall(manager);
+        await started;
+        object connection = Connection(manager, "vision");
+        int process = Assert.Single(manager.ProcessIds);
+
+        Assert.False(await CloseIfIdle(connection), "CloseIfIdleAsync cerró el proceso de una llamada en curso.");
+        Assert.Equal(process, Assert.Single(manager.ProcessIds));
+
+        finish.SetResult(0);
+        await call;
+    }
+
+    private static Task<bool> CloseIfIdle(object connection) =>
+        (Task<bool>)(connection.GetType().GetMethod("CloseIfIdleAsync", BindingFlags.Instance | BindingFlags.Public, Type.EmptyTypes)
+            ?? throw new MissingMethodException(connection.GetType().Name, "CloseIfIdleAsync")).Invoke(connection, null)!;
+
     /// <summary>Una llamada a «vision» que trabaja hasta que la prueba la deja terminar (sin usar el proceso).</summary>
     private static (Task Started, TaskCompletionSource<int> Finish, Task<int> Call) HeldCall(ModuleManager manager)
     {
