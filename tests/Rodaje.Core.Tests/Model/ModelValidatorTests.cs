@@ -404,17 +404,24 @@ public class ModelValidatorTests
     }
 
     [Fact]
-    public void EndExactlyLongMax_IsNotOutOfRange()
+    public void EndExactlyAtTheEndOfTheTimeline_IsValid_AndEndAtLongMax_IsAfterIt()
     {
-        // Límite exacto: inicio 0 y duración long.MaxValue terminan justo en long.MaxValue, que cabe.
+        // Límite exacto: inicio 0 y duración Sequence.MaxTime terminan justo en el final de la línea de tiempo.
         Project p = ValidProject();
-        Seq(p).VideoTracks[1].Clips[0].Start = Time.Zero;
-        Seq(p).VideoTracks[1].Clips[0].SourceIn = Time.Zero;
-        Seq(p).VideoTracks[1].Clips[0].SourceOut = Time.FromTicks(long.MaxValue);
+        Clip clip = Seq(p).VideoTracks[1].Clips[0];
+        clip.Start = Time.Zero;
+        clip.SourceIn = Time.Zero;
+        clip.SourceOut = Sequence.MaxTime;
         p.Media[0].Duration = Time.FromTicks(long.MaxValue);
 
         Assert.Empty(ModelValidator.Validate(p));
-        Assert.Equal(long.MaxValue, Seq(p).VideoTracks[1].Clips[0].End.Ticks);
+        Assert.Equal(Sequence.MaxTime, clip.End);
+
+        // Terminar en long.MaxValue cabe en 64 bits, pero pasa del final (tarea 220): empujarlo un cuadro desbordaba.
+        clip.SourceOut = Time.FromTicks(long.MaxValue);
+        Assert.Equal(
+            [$"El clip «{clip.Id}» de la pista «{Seq(p).VideoTracks[1].Name}» termina después del final de la línea de tiempo ({Sequence.MaxTime.Ticks} ticks)."],
+            ModelValidator.Validate(p));
     }
 
     [Fact]

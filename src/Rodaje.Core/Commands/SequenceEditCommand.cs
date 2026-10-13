@@ -82,10 +82,17 @@ public sealed class SequenceEditCommand : ICommand
             created = _operation(new EditContext(project, sequence, _ids));
             EnsureLockedTracksUntouched(before, sequence);
         }
-        catch
+        catch (Exception ex)
         {
             before.Restore(sequence);
             SetSequences(project, sequencesBefore);
+            if (ex is OverflowException)
+            {
+                // Un cálculo de tiempos que no cabe en un long (clips cerca del final del rango, un desplazamiento enorme):
+                // la edición no se puede hacer, como cualquier otra imposible, en vez de cerrar la app.
+                throw new EditException("La edición se saldría del rango de tiempos que admite el proyecto.", ex);
+            }
+
             throw;
         }
 

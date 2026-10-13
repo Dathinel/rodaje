@@ -23,8 +23,11 @@ public static class SequenceFormatEdit
             throw new ArgumentException($"{width}×{height} no es un tamaño válido: pares, de {ProjectFormats.MinSide} a {ProjectFormats.MaxSide} píxeles.");
         }
 
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frameRate.Num);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frameRate.Den);
+        if (!Sequence.IsValidFrameRate(frameRate))
+        {
+            throw new ArgumentException($"{frameRate} no es una tasa válida: de 1 a {Sequence.MaxFrameRate} cuadros por segundo.");
+        }
+
         return new SequenceEditCommand($"Formato del proyecto: {ProjectFormats.AspectName(width, height)} · {width}×{height}", sequenceId,
             ctx => Apply(ctx, width, height, frameRate, fit), ids);
     }

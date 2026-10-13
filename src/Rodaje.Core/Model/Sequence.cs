@@ -12,6 +12,20 @@ public sealed class Sequence
 
     public Rational FrameRate { get; set; } = Rational.Fps30;
 
+    /// <summary>
+    /// Último instante de la línea de tiempo: ningún clip, marcador ni región termina después (2^62 ticks, unos 207 años).
+    /// Deja la mitad del rango de un <c>long</c> de margen, así sumar dos instantes válidos o llevar uno al cuadro
+    /// siguiente nunca desborda.
+    /// </summary>
+    public static Time MaxTime { get; } = Time.FromTicks(1L << 62);
+
+    /// <summary>Tasas de cuadros que admite una secuencia: de 1 a 1000 fps, las mismas que acepta la sonda de medios.</summary>
+    public static bool IsValidFrameRate(Rational rate) =>
+        rate.Num > 0 && rate.Den > 0 && rate.Num >= rate.Den && rate.Num <= (Int128)MaxFrameRate * rate.Den;
+
+    /// <summary>Cuadros por segundo más altos de una secuencia (<see cref="IsValidFrameRate"/>).</summary>
+    public const int MaxFrameRate = 1000;
+
     public int Width { get; set; } = 1920;
 
     public int Height { get; set; } = 1080;

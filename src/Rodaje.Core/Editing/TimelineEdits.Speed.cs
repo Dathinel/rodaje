@@ -85,7 +85,17 @@ public static partial class TimelineEdits
             ClipSpeed speed = clip.Speed?.Clone() ?? new ClipSpeed();
             speed.Reverse = reverse;
             ClipSpeed? next = Normalize(speed);
-            ClipTimeMap reversed = ClipTimeMap.Create(map.Start, map.Duration, reverse ? map.SourceOut : map.SourceIn, next);
+            ClipTimeMap reversed;
+            try
+            {
+                reversed = ClipTimeMap.Create(map.Start, map.Duration, reverse ? map.SourceOut : map.SourceIn, next);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // Invertir le da velocidad, y un clip con velocidad no pasa de RetimeMath.MaxExtent (unas 6,9 horas).
+                throw new EditException($"El clip «{clip.Id}» es demasiado largo para invertirlo: con velocidad, un clip dura como mucho unas 6,9 horas.");
+            }
+
             clip.Speed = next;
             reversed.ApplyTo(clip);
             ReflectKeyframes(clip);
@@ -190,7 +200,9 @@ public static partial class TimelineEdits
             }
         }
 
-        if (moved.Duration == duration)
+        // Más allá del largo máximo de un clip con velocidad (estirar mucho un clip corto, donde la velocidad ya quedó en
+        // 0,1×) se queda en lo que da la velocidad: TrimOut lanzaba ArgumentOutOfRangeException y cerraba la app.
+        if (moved.Duration == duration || Int128.Abs(moved.Offset.Ticks) + duration.Ticks > RetimeMath.MaxExtent)
         {
             return moved;
         }
