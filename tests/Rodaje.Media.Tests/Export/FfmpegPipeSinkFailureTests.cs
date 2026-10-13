@@ -8,8 +8,21 @@ namespace Rodaje.Media.Tests.Export;
 /// <summary>Cancelar, disco lleno, codificadores que fallan y salidas imposibles: sin procesos vivos ni archivos.</summary>
 public sealed class FfmpegPipeSinkFailureTests(ITestOutputHelper output)
 {
+    /// <summary>
+    /// Cota de la CI para cada cancelación: la misma parada de ffmpeg.exe tardó 1 771 ms en CpuExportCancellationTests con
+    /// todos los proyectos de prueba a la vez (CI de Windows de la tarea 107). Lo que se exige aquí es que pare y no deje
+    /// nada; el segundo del criterio de la fase 6 queda en la gemela TiempoReal.
+    /// </summary>
+    private static readonly TimeSpan CiLimit = TimeSpan.FromSeconds(5);
+
     [ProxyFact]
-    public void Ten_cancellations_leave_no_process_and_no_file()
+    public void Ten_cancellations_leave_no_process_and_no_file() => TenCancellations(CiLimit);
+
+    [ProxyFact]
+    [Trait("Categoria", "TiempoReal")]
+    public void Ten_cancellations_each_stop_within_a_second() => TenCancellations(TimeSpan.FromSeconds(1));
+
+    private void TenCancellations(TimeSpan limit)
     {
         var random = new Random(6);
         ExportVideoFormat format = SinkRuns.Format(1280, 720, ExportPixelFormat.Yuv420P);
@@ -51,7 +64,7 @@ public sealed class FfmpegPipeSinkFailureTests(ITestOutputHelper output)
             latencies.Add(latency);
 
             Assert.IsAssignableFrom<OperationCanceledException>(caught);
-            Assert.True(latency <= 1000, $"La cancelación {round} tardó {latency:0} ms.");
+            Assert.True(latency <= limit.TotalMilliseconds, $"La cancelación {round} tardó {latency:0} ms (cota {limit.TotalMilliseconds:0} ms).");
             Assert.False(SinkRuns.IsAlive(processId), $"ffmpeg.exe ({processId}) sigue vivo tras cancelar.");
             Assert.Equal([wav, journal.Directory], scratch.Leftovers());
             Assert.Empty(journal.Entries());
