@@ -1,13 +1,27 @@
 # Complementos
 
-Rodaje viene completo como editor y exportador. Lo demás (transiciones, filtros con LUT, estilos de texto, zonas seguras, fuentes y los módulos de IA) llega como **complementos**: archivos `.paquete` que se instalan desde la app. Cada uno vive en su propio repositorio de GitHub con su licencia.
+Rodaje viene completo como editor y exportador. Lo demás (transiciones, filtros con LUT, looks de cámara, estilos de texto, zonas seguras, fuentes, sonidos, preajustes de exportación, video 360, los codificadores x264/x265 y los módulos de IA) llega como **complementos**: archivos `.paquete` que se instalan desde la app. Cada uno vive en su propio repositorio de GitHub con su licencia.
 
 ## El gestor
 
 **Complementos › Gestor de complementos...** abre la página. Esc la cierra.
 
 - Arriba: «Abrir carpeta» (la carpeta donde se instalan), «Actualizar» (refresca la lista) e «Instalar desde archivo…».
-- Sección **Contenido**: los paquetes de contenido conocidos. De fábrica, «Transiciones» (`rodaje-transiciones`: deslizar en cuatro direcciones, empujar, acercar, alejar y girar) y «Filtros» (`rodaje-filtros`: ocho looks con su LUT: cálido, frío, verde azulado y naranja, blanco y negro, desvaído, vivo, noche y cine). Los dos son CC0.
+- Sección **Contenido**: los paquetes de contenido del catálogo, todos CC0 salvo las fuentes (OFL):
+
+  | Complemento | Qué trae |
+  |---|---|
+  | Transiciones (`rodaje-transiciones`) | 45 transiciones: deslizar, empujar, zoom con desenfoque, giro, barrido con luz, glitch, quemado de película, destello, luma y más |
+  | Filtros (`rodaje-filtros`) | 13 looks con su LUT |
+  | Cámaras (`rodaje-camaras`) | 9 LUT de log a Rec.709: S-Log3, V-Log, C-Log2, C-Log3, LogC3, BMD Film Gen5, F-Log, N-Log y HLG |
+  | Títulos (`rodaje-titulos`) | 15 estilos de texto, con subtítulos y karaoke |
+  | Fuentes (`rodaje-fuentes`) | 10 familias tipográficas libres |
+  | Zonas (`rodaje-zonas`) | 12 guías de zonas seguras por formato |
+  | Sonidos (`rodaje-sonidos`) | 50 efectos de sonido sintetizados |
+  | Preajustes pro (`rodaje-preajustes-pro`) | 15 preajustes de exportación: maestros ProRes y DNxHR, emisión, cine, archivo y web |
+  | Video 360 (`rodaje-360`) | activa el reencuadre de video 360 y sus preajustes |
+  | Codificadores GPL (`rodaje-codificadores-gpl`, GPLv3) | x264 y x265 para exportar H.264/HEVC por CPU con la máxima calidad |
+
 - Sección **Módulos de IA**: «Cada módulo es un programa aparte con sus modelos, que corre en tu equipo. Lo que propone se revisa antes de aplicarse y se deshace con Ctrl+Z.» Qué hace cada uno, en [IA local](ia-local.md).
 - Cada fila muestra el nombre, el estado («No instalado», «Instalado · 1.0.0» o «Incluido · 1.0.0» si viene en la distribución completa), cuántos elementos trae, «Funciona en: …» y el enlace a su repositorio.
 
@@ -36,10 +50,13 @@ Sin conexión, la página lo dice («Ahora no se pudo consultar el catálogo: �
 
 ## Cómo se usa lo instalado
 
-- **Transiciones y filtros**: en la biblioteca, categorías Transiciones y Filtros (riel izquierdo). Se arrastran a la línea de tiempo o al clip, o doble clic para aplicarlos al clip seleccionado.
+- **Transiciones, filtros y looks de cámara**: en la biblioteca, categorías Transiciones y Filtros (riel izquierdo). Se arrastran a la línea de tiempo o al clip, o doble clic para aplicarlos al clip seleccionado.
 - **LUT**: en Filtros del inspector, el filtro Color y LUT ofrece las LUT de los paquetes y «Cargar .cube…».
 - **Estilos de texto**: en la categoría Texto de la biblioteca; doble clic cambia el estilo del título seleccionado.
 - **Zonas seguras**: en el menú de zonas del reproductor, debajo de las de fábrica.
+- **Sonidos**: en la categoría Sonidos de la biblioteca; se escuchan al pasar, se añaden con doble clic o arrastrándolos.
+- **Preajustes de exportación y codificadores**: aparecen en el diálogo de exportar.
+- **Video 360**: el efecto de reencuadre aparece en Filtros con el complemento instalado.
 - **Fuentes**: quedan disponibles en la pestaña Texto. Si abres un proyecto que usa una fuente de un paquete que no tienes, el panel Texto lo avisa.
 
 ## Crear los tuyos
@@ -62,7 +79,7 @@ Un `.paquete` es un zip con `paquete.json` en la raíz y los archivos que nombra
 }
 ```
 
-Tipos de elemento: `transition` (una transición hecha con keyframes y mezcla), `filter` (un look: ajustes de color más una LUT), `effect`, `lut` (`.cube` 3D), `text-style`, `safe-zones`, `font` (ttf/otf con su licencia), `template` y `sound`. La forma de cada JSON está en [formato-paquete.md](../formato-paquete.md).
+Tipos de elemento: `transition` (una transición hecha con keyframes y mezcla), `filter` (un look: ajustes de color más una LUT), `effect`, `lut` (`.cube` 3D), `text-style`, `safe-zones`, `font` (ttf/otf con su licencia), `template`, `sound` y `export-preset`. La forma de cada JSON está en [formato-paquete.md](../formato-paquete.md).
 
 La forma más rápida de empezar es copiar uno de los repositorios de ejemplo, [`Dathinel/rodaje-transiciones`](https://github.com/Dathinel/rodaje-transiciones) o [`Dathinel/rodaje-filtros`](https://github.com/Dathinel/rodaje-filtros): cada uno trae el manifiesto, las fuentes y un `empaquetar.ps1` que deja `dist\<id>-<versión>.paquete`. Pruébalo con «Instalar desde archivo…».
 
