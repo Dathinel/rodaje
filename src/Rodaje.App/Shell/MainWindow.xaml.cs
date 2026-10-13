@@ -829,9 +829,9 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
-    /// <summary>Avisa de un error que nadie esperaba; los detalles quedan en <c>rodaje-error.txt</c>.</summary>
+    /// <summary>Avisa de un error que nadie esperaba; el informe queda en <c>%LOCALAPPDATA%\Rodaje\fallos\</c>.</summary>
     internal void ReportUnexpectedError(string message) =>
-        Session.Notify(NotificationSeverity.Error, "Algo falló", $"{message} Los detalles quedaron en app\\rodaje-error.txt, dentro de la carpeta de Rodaje.");
+        Session.Notify(NotificationSeverity.Error, "Algo falló", $"{message} El informe quedó en %LOCALAPPDATA%\\Rodaje\\fallos.");
 
     private void OnCloseModal(object sender, RoutedEventArgs e) => ClosePage();
 
