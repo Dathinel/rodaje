@@ -34,10 +34,6 @@ public sealed record LibraryElement(string Name, string Description, string Sour
 
     /// <summary>La referencia con el id antiguo de un elemento propio de la v1.0.0 (<see cref="PackageItem.LegacyId"/>).</summary>
     public string? LegacyReference { get; init; }
-
-    /// <summary>Es el elemento de <paramref name="reference"/>, por su id actual o por el antiguo.</summary>
-    public bool IsReferredBy(string? reference) =>
-        reference is not null && (Reference == reference || LegacyReference == reference);
 }
 
 /// <summary>Qué muestra cada categoría: lo que trae el motor y lo que aportan los paquetes.</summary>
