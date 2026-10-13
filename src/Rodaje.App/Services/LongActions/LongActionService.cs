@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
 
 namespace Rodaje.App.Services.LongActions;
@@ -21,11 +22,17 @@ public sealed partial class LongActionService
     private readonly EditorSession _session;
     private readonly Lock _lock = new();
     private readonly List<LongActionScope> _running = [];
+    private readonly Action<Exception> _reportFailure;
 
-    public LongActionService(EditorSession session)
+    /// <param name="reportFailure">
+    /// Quién lleva al informe la excepción de una acción que falla; por omisión, <see cref="UiTask.Report"/> sin aviso
+    /// propio (el aviso lo da <see cref="RunAsync"/>). Las pruebas pasan el suyo.
+    /// </param>
+    public LongActionService(EditorSession session, Action<Exception>? reportFailure = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
+        _reportFailure = reportFailure ?? (static ex => UiTask.Report(ex, notify: false));
     }
 
     /// <summary>Cambió algo de lo que está en marcha. Puede llegar desde cualquier hilo.</summary>
@@ -98,7 +105,9 @@ public sealed partial class LongActionService
 
     /// <summary>
     /// Corre <paramref name="work"/> marcada en marcha. Devuelve <c>false</c> sin hacer nada si ya estaba en marcha. Un fallo
-    /// queda como aviso de error y una cancelación como «Cancelado»; nada se escapa.
+    /// queda como aviso de error con el texto fijo de <see cref="UnexpectedErrorNotice"/> (el mensaje de la excepción, técnico
+    /// y a menudo en inglés, va solo al informe) y una cancelación como «Cancelado»; nada se
+    /// escapa.
     /// </summary>
     public async Task<bool> RunAsync(string actionId, string title, Func<LongActionScope, Task> work, bool canCancel = false, string message = "")
     {
@@ -125,7 +134,8 @@ public sealed partial class LongActionService
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            _session.Notify(NotificationSeverity.Error, title, ex.Message);
+            _reportFailure(ex);
+            _session.Notify(NotificationSeverity.Error, title, UnexpectedErrorNotice.Describe(null));
         }
         finally
         {
