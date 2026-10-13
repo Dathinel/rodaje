@@ -110,8 +110,19 @@ public sealed class FfmpegPipeSinkAbortOwnerTests
 
     // Solo el proceso, no sus tuberías: WaitForExit con tope espera además el fin de la salida redirigida, y en Windows
     // otro falso colgado de una prueba en paralelo puede haber heredado esas tuberías y retrasarlo hasta agotar el tope.
+    // En Windows tampoco vale HasExited: mira el código de salida (GetExitCodeProcess), que TerminateProcess fija antes de
+    // que el sistema cierre los handles del proceso, así que daba «salió» con el temporal todavía abierto sin compartir el
+    // borrado; los cinco reintentos de DeleteTemporary (300 ms) no alcanzaban con el runner cargado y el temporal quedaba
+    // (CI de Windows, 13-oct, tres veces: «Expected: [registro]; Actual: [temporal, registro]»). El handle del proceso se
+    // señala recién cuando ya no tiene nada abierto, que es lo que espera Kill en el sink de verdad.
     private static bool HasExitedWithin(Process process, TimeSpan limit)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            using var exited = new ProcessExitWait(process);
+            return exited.WaitOne(limit);
+        }
+
         long start = Stopwatch.GetTimestamp();
         while (!process.HasExited)
         {
@@ -124,6 +135,13 @@ public sealed class FfmpegPipeSinkAbortOwnerTests
         }
 
         return true;
+    }
+
+    /// <summary>El handle del proceso como <see cref="WaitHandle"/>, sin adueñarse de él (lo cierra el <see cref="Process"/>).</summary>
+    private sealed class ProcessExitWait : WaitHandle
+    {
+        public ProcessExitWait(Process process) =>
+            SafeWaitHandle = new Microsoft.Win32.SafeHandles.SafeWaitHandle(process.SafeHandle.DangerousGetHandle(), ownsHandle: false);
     }
 
     // Se abre el proceso al arrancar, por si su id se reusa antes de que haga falta matarlo.
