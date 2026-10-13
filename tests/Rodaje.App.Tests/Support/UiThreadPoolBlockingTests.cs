@@ -93,14 +93,43 @@ public sealed class UiThreadPoolBlockingTests(ITestOutputHelper output)
     /// </summary>
     private static Func<int> BlockedThreadsReader()
     {
+        string? notPortable = NonPortablePoolReason();
+        Assert.True(notPortable is null,
+            $"La cuenta de hilos bloqueados no sirve aquí: {notPortable}. Con ese interruptor nadie suma a "
+            + "PortableThreadPool._numBlockedThreads y la prueba culparía a Thread.Join en falso; quítalo para correrla.");
         const BindingFlags Static = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
         const BindingFlags Instance = BindingFlags.NonPublic | BindingFlags.Instance;
         Type? pool = typeof(ThreadPool).Assembly.GetType("System.Threading.PortableThreadPool");
         object? instance = pool?.GetField("ThreadPoolInstance", Static)?.GetValue(null);
         FieldInfo? blocked = pool?.GetField("_numBlockedThreads", Instance);
         Assert.True(instance is not null && blocked is not null,
-            "El runtime ya no tiene PortableThreadPool.ThreadPoolInstance._numBlockedThreads: hay que buscar otra forma de "
-            + $"ver si el pool cuenta los hilos bloqueados (runtime {Environment.Version}).");
+            "El runtime ya no tiene PortableThreadPool.ThreadPoolInstance._numBlockedThreads (tipo: "
+            + $"{(pool is null ? "no está" : "está")}; instancia: {(instance is null ? "no está" : "está")}; campo: "
+            + $"{(blocked is null ? "no está" : "está")}): hay que buscar otra forma de ver si el pool cuenta los hilos "
+            + $"bloqueados (runtime {Environment.Version}).");
         return () => Convert.ToInt32(blocked!.GetValue(instance), System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Por qué el pool no llevaría la cuenta de bloqueados, o <see langword="null"/> si la lleva. Con el pool de Windows
+    /// (<c>System.Threading.ThreadPool.UseWindowsThreadPool</c> o <c>DOTNET_ThreadPool_UseWindowsThreadPool</c>) el pool
+    /// portátil existe pero no trabaja; con <c>System.Threading.ThreadPool.Blocking.CooperativeBlocking</c> en falso,
+    /// <c>NotifyThreadBlocked</c> sale sin sumar. En los dos casos la cuenta se queda quieta aunque se use Task.Wait.
+    /// </summary>
+    private static string? NonPortablePoolReason()
+    {
+        const string WindowsPool = "System.Threading.ThreadPool.UseWindowsThreadPool";
+        const string WindowsPoolVariable = "DOTNET_ThreadPool_UseWindowsThreadPool";
+        const string Cooperative = "System.Threading.ThreadPool.Blocking.CooperativeBlocking";
+        string? variable = Environment.GetEnvironmentVariable(WindowsPoolVariable);
+        if ((AppContext.TryGetSwitch(WindowsPool, out bool windows) && windows)
+            || variable == "1" || string.Equals(variable, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"usa el pool de hilos de Windows ({WindowsPool} o {WindowsPoolVariable})";
+        }
+
+        return AppContext.TryGetSwitch(Cooperative, out bool cooperative) && !cooperative
+            ? $"el bloqueo cooperativo está apagado ({Cooperative} = false)"
+            : null;
     }
 }
