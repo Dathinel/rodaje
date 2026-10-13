@@ -99,14 +99,14 @@ public sealed class SequenceSnapshot
     {
         ArgumentNullException.ThrowIfNull(a);
         ArgumentNullException.ThrowIfNull(b);
-        return a.Id == b.Id && a.Time == b.Time && a.Name == b.Name;
+        return a.Id == b.Id && a.Time == b.Time && a.Name == b.Name && a.Color == b.Color && a.Note == b.Note;
     }
 
     public static bool RegionEquals(Region a, Region b)
     {
         ArgumentNullException.ThrowIfNull(a);
         ArgumentNullException.ThrowIfNull(b);
-        return a.Id == b.Id && a.Start == b.Start && a.End == b.End && a.Name == b.Name;
+        return a.Id == b.Id && a.Start == b.Start && a.End == b.End && a.Name == b.Name && a.Color == b.Color && a.Note == b.Note;
     }
 
     /// <summary>Compara contenido y marcas de bloqueo, silencio y visibilidad.</summary>
@@ -148,6 +148,9 @@ public sealed class SequenceSnapshot
             && a.From == b.From
             && a.To == b.To
             && a.Duration == b.Duration
+            && a.Alignment == b.Alignment
+            && a.Curve == b.Curve
+            && a.Ease == b.Ease
             && DictionaryEqual(a.Parameters, b.Parameters, (x, y) => x.Equals(y))
             && DictionaryEqual(a.Options, b.Options, string.Equals);
     }
