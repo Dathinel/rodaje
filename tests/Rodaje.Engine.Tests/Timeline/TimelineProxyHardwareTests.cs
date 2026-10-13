@@ -19,6 +19,7 @@ namespace Rodaje.Engine.Tests.Timeline;
 /// De punta a punta con FFmpeg, D3D11VA y NVENC: la vista previa de un 4K arranca en el original, el proxy se genera
 /// solo en segundo plano y la reproducción pasa a él sin perder el cuadro exacto. Prueba larga.
 /// </summary>
+[Collection(GpuHardwareGroup.Name)]
 public sealed class TimelineProxyHardwareTests(ITestOutputHelper output) : IDisposable
 {
     private static readonly MediaSpec Uhd = new("proxy-vista-hevc-2160p-30", 3840, 2160, Rational.Fps30, TimeSpan.FromSeconds(6))

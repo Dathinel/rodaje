@@ -19,6 +19,7 @@ namespace Rodaje.Engine.Tests.Timeline;
 /// Reversa con FFmpeg y D3D11VA reales sobre archivos con el número de cuadro dibujado: seeks exactos, 1080p a 1× y 2×
 /// hacia atrás sin proxy, y 4K hacia atrás con su proxy, sin pérdidas y dentro del presupuesto de VRAM.
 /// </summary>
+[Collection(GpuHardwareGroup.Name)]
 public sealed class TimelineReverseHardwareTests(ITestOutputHelper output) : IDisposable
 {
     private static readonly MediaSpec Hd = new("velocidad-h264-1080p-45s", 1920, 1080, Rational.Fps30, TimeSpan.FromSeconds(45))

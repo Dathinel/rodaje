@@ -22,6 +22,7 @@ namespace Rodaje.Engine.Tests.Timeline;
 /// y un mismo archivo en las cuatro pistas con 2 s de desfase. Mide la VRAM del proceso, el pre-roll, los refrescos
 /// tarde y la peor espera de una capa; deja un <c>.rodaje</c> de cada escenario en la caché de medios para abrirlo en la app.
 /// </summary>
+[Collection(GpuHardwareGroup.Name)]
 public sealed class TimelineLoadTests(ITestOutputHelper output)
 {
     private const int Tracks = 4;

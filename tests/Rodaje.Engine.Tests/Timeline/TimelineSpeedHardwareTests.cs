@@ -18,6 +18,7 @@ namespace Rodaje.Engine.Tests.Timeline;
 /// Velocidad con FFmpeg y D3D11VA reales sobre archivos con el número de cuadro dibujado: seek exacto en cada caso de la
 /// fase 5c y reproducción de 1080p a 2× y 4× sin pérdidas. Con <c>RODAJE_PRUEBAS_LARGAS=1</c> son 2000 seeks por caso.
 /// </summary>
+[Collection(GpuHardwareGroup.Name)]
 public sealed class TimelineSpeedHardwareTests(ITestOutputHelper output)
 {
     private static readonly Rational SequenceRate = Rational.Fps30;

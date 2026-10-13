@@ -24,6 +24,7 @@ namespace Rodaje.Engine.Tests.Offline;
 /// El motor fuera de línea con FFmpeg, D3D11VA y el compositor de verdad: igual a la vista previa píxel a píxel, cada
 /// capa con el número de cuadro que dibuja el medio, y cuántos cuadros por segundo da sin codificar.
 /// </summary>
+[Collection(GpuHardwareGroup.Name)]
 public sealed class OfflineHardwareTests(ITestOutputHelper output)
 {
     private static readonly MediaSpec[] Layers =
