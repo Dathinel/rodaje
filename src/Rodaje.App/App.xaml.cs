@@ -49,23 +49,11 @@ public partial class App : Application
     }
 
     /// <summary>Lo llama el contexto del hilo de la interfaz: informe «recuperado» y aviso, y la app sigue abierta.</summary>
-    internal bool HandleDispatcherException(Exception exception)
-    {
-        if (_window is null)
-        {
-            Program.ReportException(CrashKind.DispatcherCallback, exception, fatal: true);
-            return false;
-        }
+    // Una ráfaga (el mismo error en cada tick) avisa una vez por intervalo, como el informe.
+    internal bool HandleDispatcherException(Exception exception) =>
+        CrashRouting.OnDispatcherException(exception, ShowUnexpectedError(), Program.ReportException);
 
-        // Una ráfaga (el mismo error en cada tick) avisa una vez por intervalo, como el informe.
-        Program.ReportException(CrashKind.DispatcherCallback, exception, fatal: false, out bool repeated);
-        if (!repeated)
-        {
-            _window.ReportUnexpectedError(exception.Message);
-        }
-
-        return true;
-    }
+    private Action<string>? ShowUnexpectedError() => _window is { } window ? window.ReportUnexpectedError : null;
 
     // Rastro para el informe de un fallo: los pasos del historial y los avisos, en el registro de la sesión.
     private static void LogSessionTrail(EditorSession session)
@@ -99,14 +87,17 @@ public partial class App : Application
 
     private void CopyReport(string path)
     {
-        try
+        bool copied = CrashRouting.TryCopyReport(path, text =>
         {
             var package = new global::Windows.ApplicationModel.DataTransfer.DataPackage();
-            package.SetText(File.ReadAllText(path));
+            package.SetText(text);
             global::Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        }, Program.Log);
+        if (copied)
+        {
             _window?.Session.Notify(NotificationSeverity.Success, "Informe copiado", "Pégalo en un correo o en un reporte de GitHub.");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
+        else
         {
             _window?.Session.Notify(NotificationSeverity.Warning, "No se pudo copiar el informe", $"Está en {path}.");
         }
@@ -117,27 +108,13 @@ public partial class App : Application
     // Sin ventana no se atiende: WinUI cierra la app (error «stowed»), pero el informe ya quedó escrito.
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
-        bool fatal = _window is null;
-        bool repeated;
-        if (e.Exception is { } exception)
+        if (CrashRouting.OnXamlUnhandled(e.Exception, e.Message, ShowUnexpectedError(), Program.ReportException, Program.Crashes.Write))
         {
-            Program.ReportException(CrashKind.XamlUnhandled, exception, fatal, out repeated);
+            e.Handled = true;
         }
         else
         {
-            Program.Crashes.Write(CrashKind.XamlUnhandled, e.Message, fatal, out repeated);
-        }
-
-        if (_window is null)
-        {
             StartupSplash.Close();
-            return;
-        }
-
-        e.Handled = true;
-        if (!repeated)
-        {
-            _window.ReportUnexpectedError(e.Exception?.Message ?? e.Message);
         }
     }
 }
