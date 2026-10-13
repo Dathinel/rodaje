@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Rodaje.App.Views.Library;
 
 namespace Rodaje.App.Tests.Library;
@@ -16,34 +15,37 @@ public sealed class LibraryOrganizationLooseIdsTests
         List<LibraryFolder> folders = [.. Enumerable.Range(0, count).Select(i => new LibraryFolder { Id = $"f{i}", Name = $"Carpeta {i}", ParentId = $"falta{i}" })];
         Dictionary<string, string> media = Enumerable.Range(0, count).ToDictionary(i => $"m{i}", i => $"nada{i}");
 
-        var watch = Stopwatch.StartNew();
+        // Se cuentan las lecturas del id (una búsqueda lineal lee el de cada carpeta) en vez de medir segundos, que dependen
+        // de la máquina y de la carga de la CI.
+        LibraryFolder.IdReads = 0;
         LibraryOrganization org = LibraryOrganization.From(folders, media, null);
-        watch.Stop();
+        long reads = LibraryFolder.IdReads;
 
         Assert.Equal(count, org.Folders.Count);
         Assert.All(org.Folders, f => Assert.Null(f.ParentId));
         Assert.Empty(org.MediaFolders);
-        // Con la búsqueda lineal tardaba unos 8 s en Release; ahora, menos de medio segundo.
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(4), $"Tardó {watch.Elapsed.TotalSeconds:F1} s");
+        // Con la búsqueda lineal eran del orden de count² (4·10⁸); ahora, unas pocas por carpeta.
+        Assert.True(reads <= 20L * count, $"Leyó el id {reads} veces para {count} carpetas.");
     }
 
     [Fact]
-    public void UnIdCambiadoAMano_SeEncuentraPorElNuevoYNoPorElViejo()
+    public void ElIdSoloSeDaAlCrear_YElIndiceSigueALaLista()
     {
+        // Un id cambiado a mano dejaba el índice atrasado (de ahí el contador global que lo rehacía): ahora es de solo inicio.
+        System.Reflection.MethodInfo setter = typeof(LibraryFolder).GetProperty(nameof(LibraryFolder.Id))!.SetMethod!;
+        Assert.Contains(typeof(System.Runtime.CompilerServices.IsExternalInit), setter.ReturnParameter.GetRequiredCustomModifiers());
+
         LibraryOrganization org = LibraryOrganization.From(
-            [new LibraryFolder { Id = "a", Name = "A" }, new LibraryFolder { Id = "b", Name = "B" }, new LibraryFolder { Id = "c", Name = "C" }], null, null);
-        LibraryFolder a = org.FindFolder("a")!;
-        LibraryFolder b = org.FindFolder("b")!;
-        LibraryFolder c = org.FindFolder("c")!;
+            [new LibraryFolder { Id = "a", Name = "A" }, new LibraryFolder { Id = "b", Name = "B" }, new LibraryFolder { Id = "a", Name = "Otra A" }], null, null);
+        Assert.Equal(["a", "b"], org.Folders.Select(f => f.Id));
+        Assert.Equal("A", org.FindFolder("a")!.Name);
 
-        a.Id = "nuevo";
-        Assert.Same(a, org.FindFolder("nuevo"));
+        LibraryFolder created = org.CreateFolder("b", "Dentro");
+        Assert.Same(created, org.FindFolder(created.Id));
+        Assert.True(org.DeleteFolder("a"));
         Assert.Null(org.FindFolder("a"));
-
-        // Con ids repetidos gana la primera de la lista; al borrarla, la siguiente con ese id.
-        b.Id = "c";
-        Assert.Same(b, org.FindFolder("c"));
-        Assert.True(org.DeleteFolder("c"));
-        Assert.Same(c, org.FindFolder("c"));
+        Assert.True(org.DeleteFolder(created.Id));
+        Assert.Null(org.FindFolder(created.Id));
+        Assert.All(org.Folders, f => Assert.Same(f, org.FindFolder(f.Id)));
     }
 }
