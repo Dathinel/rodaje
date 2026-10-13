@@ -80,8 +80,14 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
                     options.ClientOptions with { HandshakeTimeout = options.StartTimeout },
                     p => job?.TryAssign(p), cancellationToken).ConfigureAwait(false);
                 Volatile.Write(ref _process, process);
-                _ = process.Exited.ContinueWith(_ => OnExited(process), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-                _ = process.Client.Completion.ContinueWith(_ => OnExited(process), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                // El corte del cliente puede llegar como fallo de Completion: es el cierre esperado (se lee para darlo por
+                // visto) y OnExited no lanza; UiTask.Run observa además la continuación.
+                UiTask.Run(process.Exited.ContinueWith(_ => OnExited(process), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
+                UiTask.Run(process.Client.Completion.ContinueWith(t =>
+                {
+                    _ = t.Exception;
+                    OnExited(process);
+                }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
             }
 
             ModuleProcess current = _process;
@@ -175,11 +181,34 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
 
     private void OnExited(ModuleProcess process)
     {
-        if (Interlocked.CompareExchange(ref _process, null, process) == process)
+        if (Interlocked.CompareExchange(ref _process, null, process) != process)
+        {
+            return;
+        }
+
+        // Corre en una continuación que nadie espera o dentro de EnsureStartedAsync: un fallo de Kill o del aviso de
+        // cierre se informa aquí y no se pierde ni salta lo demás (ni hace fallar la llamada que abre otro proceso).
+        try
         {
             process.Kill();
-            UiTask.Run(process.DisposeAsync().AsTask());
+        }
+#pragma warning disable CA1031 // Ver arriba.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            UiTask.Report(ex, notify: false);
+        }
+
+        UiTask.Run(() => process.DisposeAsync().AsTask());
+        try
+        {
             closed(this);
+        }
+#pragma warning disable CA1031 // Ver arriba.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            UiTask.Report(ex, notify: false);
         }
     }
 
