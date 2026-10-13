@@ -167,23 +167,35 @@ public sealed class VoiceOverRecorder : IDisposable
 
     public void Dispose()
     {
-        bool stop;
-        lock (_gate)
+        try
         {
-            stop = !_finished;
-        }
-
-        if (stop)
-        {
-            _capture.StopCapture();
+            bool stop;
             lock (_gate)
             {
-                _finished = true;
+                stop = !_finished;
+            }
+
+            if (stop)
+            {
+                _capture.StopCapture();
+                lock (_gate)
+                {
+                    _finished = true;
+                }
             }
         }
-
-        _writer.Dispose();
-        _capture.Dispose();
+        finally
+        {
+            // Si algo lanza al cerrar, el WAV y la captura se sueltan igual.
+            try
+            {
+                _writer.Dispose();
+            }
+            finally
+            {
+                _capture.Dispose();
+            }
+        }
     }
 
     private void OnPacket(ReadOnlySpan<float> mono, long qpc, bool discontinuity)

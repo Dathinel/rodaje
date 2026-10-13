@@ -149,15 +149,26 @@ public sealed class WaveFileWriter : IDisposable
         }
 
         _disposed = true;
-        _stream.Dispose();
-        if (!_completed)
+        try
         {
-            try
+            _stream.Dispose();
+        }
+        catch (Exception ex) when (!_completed && ex is IOException or UnauthorizedAccessException)
+        {
+            // Cerrar vuelca lo que quede en el búfer; con el disco lleno vuelve a fallar. El archivo se suelta igual
+            // y, sin Complete, se borra: lo que no se pudo volcar ya no importa.
+        }
+        finally
+        {
+            if (!_completed)
             {
-                File.Delete(Path);
-            }
-            catch (IOException)
-            {
+                try
+                {
+                    File.Delete(Path);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                }
             }
         }
     }
