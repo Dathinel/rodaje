@@ -138,7 +138,7 @@ public sealed class ModuleRetireTests : IDisposable
 
         // Tope contra cuelgues, no cota de tiempo: sin vigilante, la llamada no termina nunca.
         await Assert.ThrowsAsync<ModuleHungException>(() => call.WaitAsync(TimeSpan.FromSeconds(60)));
-        Assert.True(EchoModules.HasExited(second));
+        Assert.True(await EchoModules.HasExitedAsync(second));
         stillWatching.SetResult();
     }
 
