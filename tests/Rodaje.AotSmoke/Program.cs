@@ -241,6 +241,125 @@ try
     Exigir(rejected, "un JSON que no es proyecto se rechaza con ProjectFormatException");
     Avance("Un archivo inválido se rechaza con ProjectFormatException.");
 
+    // Los controles del guardado (NaN, sustituto suelto) y de la apertura (número que desborda) son convertidores en
+    // options.Converters sobre el contexto generado: si el código generado fijara el de double o string y se saltara el
+    // de las opciones, aquí se guardaría sin error (o con la ArgumentException del escritor) o se abriría como infinito.
+    {
+        string high = "a" + (char)0xD83C + "b";
+        string low = "a" + (char)0xDFAC;
+        Project Base()
+        {
+            Project p = ProjectFactory.CreateDefault("Controles del guardado", new SequentialIdGenerator(), Rational.Fps30);
+            p.Sequences[0].MasterEffects.Add(new EffectInstance
+            {
+                Id = "fx-control",
+                Type = "complemento.desconocido",
+                Parameters = { ["extra"] = new Parameter { Value = 7.25, Keyframes = [new Keyframe(S(1), 1) { SpatialOut = 2 }] } },
+                Options = { ["nota"] = "bien" },
+            });
+            p.Sequences[0].VideoTracks[0].Transitions.Add(new TransitionInstance
+            {
+                Id = "tr-control",
+                Type = "rodaje.disolver",
+                From = "x",
+                To = "y",
+                Parameters = { ["borde"] = 0.5 },
+                Options = { ["dir"] = "izq" },
+            });
+            return p;
+        }
+
+        int fx = Base().Sequences[0].MasterEffects.Count - 1;
+        string efecto = $"$.sequences[0].masterEffects[{fx}]";
+        const string transicion = "$.sequences[0].videoTracks[0].transitions[0]";
+        const string noFinito = "no es un número finito";
+        const string suelto = "sustituto UTF-16 suelto";
+        var casos = new (string Ruta, string Problema, Action<Project> Romper)[]
+        {
+            ("$.sequences[0].masterGainDb", noFinito, p => p.Sequences[0].MasterGainDb = double.NaN),
+            ($"{efecto}.parameters.extra.value", noFinito, p => p.Sequences[0].MasterEffects[fx].Parameters["extra"].Value = double.NaN),
+            ($"{efecto}.parameters.extra.keyframes[0].spatialOut", noFinito,
+                p => p.Sequences[0].MasterEffects[fx].Parameters["extra"].Keyframes[0] = new Keyframe(S(1), 1) { SpatialOut = double.PositiveInfinity }),
+            ($"{transicion}.parameters.borde", noFinito, p => p.Sequences[0].VideoTracks[0].Transitions[0].Parameters["borde"] = double.NaN),
+            ("$.name", suelto, p => p.Name = high),
+            ($"{efecto}.options.nota", suelto, p => p.Sequences[0].MasterEffects[fx].Options["nota"] = low),
+            ($"{efecto}.options (el nombre de una clave)", suelto, p => p.Sequences[0].MasterEffects[fx].Options[low] = "x"),
+            ($"{efecto}.parameters (el nombre de una clave)", suelto,
+                p => p.Sequences[0].MasterEffects[fx].Parameters[high] = new Parameter { Value = 1 }),
+            ($"{transicion}.parameters (el nombre de una clave)", suelto, p => p.Sequences[0].VideoTracks[0].Transitions[0].Parameters[low] = 1),
+        };
+
+        string carpeta = Path.Combine(Path.GetTempPath(), "Rodaje prueba AOT controles " + Environment.ProcessId);
+        Directory.CreateDirectory(carpeta);
+        try
+        {
+            string archivo = Path.Combine(carpeta, "roto.rodaje");
+            foreach ((string ruta, string problema, Action<Project> romper) in casos)
+            {
+                Project roto = Base();
+                romper(roto);
+                File.WriteAllText(archivo, "anterior");
+                string mensaje;
+                try
+                {
+                    ProjectSerializer.Save(roto, archivo);
+                    mensaje = "(se guardó sin error)";
+                }
+                catch (ProjectFormatException ex)
+                {
+                    mensaje = ex.Message;
+                }
+
+                Exigir(mensaje.Contains($"«{ruta}»", StringComparison.Ordinal) && mensaje.Contains(problema, StringComparison.Ordinal),
+                    $"guardar con «{ruta}» roto se rechaza con su ruta y «{problema}» (dio: {mensaje})");
+                Exigir(File.ReadAllText(archivo) == "anterior", $"el guardado rechazado de «{ruta}» no toca el archivo anterior");
+            }
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(carpeta, recursive: true);
+            }
+            catch (IOException)
+            {
+                // Se queda en la carpeta temporal.
+            }
+        }
+
+        // La transición de control no une clips y no pasaría el validador, pero el desborde se rechaza antes, al leer el JSON:
+        // si no se rechazara, el mensaje sería el del validador y la comprobación fallaría igual.
+        string bueno = ProjectSerializer.Serialize(Base());
+        foreach ((string ruta, string viejo) in new[]
+        {
+            ($"{efecto}.parameters.extra.value", "\"value\": 7.25"),
+            ($"{efecto}.parameters.extra.keyframes[0].spatialOut", "\"spatialOut\": 2"),
+            ($"{transicion}.parameters.borde", "\"borde\": 0.5"),
+        })
+        {
+            foreach (string desborde in new[] { "1e400", "-1e400" })
+            {
+                string texto = bueno.Replace(viejo, viejo[..(viejo.IndexOf(':', StringComparison.Ordinal) + 2)] + desborde, StringComparison.Ordinal);
+                Exigir(texto != bueno, $"el texto de control tiene {viejo}");
+                string mensaje;
+                try
+                {
+                    ProjectSerializer.Deserialize(texto);
+                    mensaje = "(se abrió sin error)";
+                }
+                catch (ProjectFormatException ex)
+                {
+                    mensaje = ex.Message;
+                }
+
+                Exigir(mensaje.Contains($"«{ruta}»", StringComparison.Ordinal) && mensaje.Contains("desborda", StringComparison.Ordinal),
+                    $"abrir con {desborde} en «{ruta}» se rechaza con su ruta (dio: {mensaje})");
+            }
+        }
+
+        Avance($"Controles del guardado y la apertura: {casos.Length} valores sin guardar y 6 desbordes rechazados con su ruta.");
+    }
+
     string schema = ProjectSchema.Export();
     Exigir(!string.IsNullOrWhiteSpace(schema), "el esquema exportado no está vacío");
     using (JsonDocument doc = JsonDocument.Parse(schema))
