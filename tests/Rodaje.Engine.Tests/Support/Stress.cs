@@ -81,9 +81,11 @@ internal static class Stress
         long[] seen = new long[threads.Count];
         TimeSpan[] moved = new TimeSpan[threads.Count];
         string? hung = null;
-        while (threads.Any(t => t.Thread.IsAlive))
+        // Un hilo puede terminar entre la condición y la espera: se toma el primero vivo una sola vez, y si ya no queda
+        // ninguno se sale (con First, la corrida lanzaba «Sequence contains no matching element»).
+        while (threads.FirstOrDefault(t => t.Thread.IsAlive).Thread is { } alive)
         {
-            threads.First(t => t.Thread.IsAlive).Thread.Join(TimeSpan.FromMilliseconds(100));
+            alive.Join(TimeSpan.FromMilliseconds(100));
             TimeSpan now = watch.Elapsed;
             var stalled = new List<string>();
             for (int i = 0; i < threads.Count; i++)

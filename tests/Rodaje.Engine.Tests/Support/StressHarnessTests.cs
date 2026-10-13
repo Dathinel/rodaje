@@ -77,4 +77,22 @@ public sealed class StressHarnessTests
                 }
             }));
     }
+
+    /// <summary>
+    /// Regresión: entre «queda algún hilo vivo» y «tomar el primero vivo» podían terminar todos, y <c>First</c> lanzaba
+    /// «Sequence contains no matching element» (BufferedAudioSourceStressTests, semilla 11, en Linux). Muchas corridas
+    /// cortas, cuyos hilos terminan justo cuando el arnés los mira.
+    /// </summary>
+    [Fact]
+    public void Hilos_que_terminan_mientras_el_arnes_los_mira_no_lo_rompen()
+    {
+        for (int run = 0; run < 300; run++)
+        {
+            Stress.Run(
+                run,
+                ("uno", (random, _) => random.Next()),
+                ("otro", (random, _) => random.Next()),
+                ("tercero", (random, _) => random.Next()));
+        }
+    }
 }
