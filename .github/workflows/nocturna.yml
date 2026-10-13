@@ -10,6 +10,12 @@ on:
   schedule:
     - cron: '30 3 * * *'
   workflow_dispatch:
+  # Un PR que cambia la pasada nocturna la prueba antes de unirse (workflow_dispatch solo existe desde main).
+  pull_request:
+    paths:
+      - .github/workflows/nocturna.yml
+      - .github/actions/**
+      - build/pruebas-linux.sh
 
 permissions:
   contents: read
