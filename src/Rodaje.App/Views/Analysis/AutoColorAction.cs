@@ -2,19 +2,22 @@ using Rodaje.Analysis.Video;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.LongActions;
-using Rodaje.App.Shell;
+using Rodaje.Media;
 
 namespace Rodaje.App.Views.Analysis;
 
 /// <summary>
 /// «Color automático» y «Balance de blancos automático»: miden el color de unos cuadros del clip y ajustan su efecto de
-/// color en un paso del historial; el resultado se ve en el visor y el aviso trae «Deshacer».
+/// color en un paso del historial; el resultado se ve en el visor y el aviso trae «Deshacer». Si no se puede medir (el
+/// archivo del medio falta o no se lee), avisa con el texto del error, ya escrito para el usuario, como «Seguir»: el aviso
+/// genérico de <see cref="LongActionService"/> queda para los fallos inesperados.
 /// </summary>
 internal static class AutoColorAction
 {
-    public static async Task RunAsync(EditorServices services, bool levels, LongActionScope scope)
+    public static async Task RunAsync(EditorSession session, bool levels, LongActionScope scope)
     {
-        EditorSession session = services.Session;
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(scope);
         string title = levels ? "Color automático" : "Balance de blancos automático";
         if (ClipVideoSource.SelectedVideoClip(session) is not { } clip)
         {
@@ -23,7 +26,17 @@ internal static class AutoColorAction
         }
 
         scope.Report(0, "Midiendo el color…");
-        ColorEstimate estimate = await ClipVideoSource.AnalyzeColorAsync(session, clip, scope.Progress, scope.Token);
+        ColorEstimate estimate;
+        try
+        {
+            estimate = await ClipVideoSource.AnalyzeColorAsync(session, clip, scope.Progress, scope.Token);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or MediaException)
+        {
+            session.Notify(NotificationSeverity.Warning, title, ex.Message);
+            return;
+        }
+
         if (session.Sequence.FindClip(clip.Id) is null)
         {
             return;
