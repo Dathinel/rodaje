@@ -144,7 +144,7 @@ public sealed class ModuleInstallTests : IAsyncLifetime, IDisposable
         InstallResult updated = await service.InstallFromFileAsync(v2);
         Assert.Equal(InstallOutcome.Updated, updated.Outcome);
         await Assert.ThrowsAnyAsync<Exception>(() => running);
-        Assert.True(EchoModules.HasExited(first));
+        Assert.True(await EchoModules.HasExitedAsync(first));
         Assert.Single(service.MissingModelsOf("modulo-voz"));
 
         // Desinstalar con el módulo abierto (ocioso): se cierra, la carpeta se va y el modelo deja el almacén.
@@ -156,7 +156,7 @@ public sealed class ModuleInstallTests : IAsyncLifetime, IDisposable
 
         await service.UninstallAsync("modulo-voz");
 
-        Assert.True(EchoModules.HasExited(second));
+        Assert.True(await EchoModules.HasExitedAsync(second));
         Assert.False(Directory.Exists(Path.Combine(Locations.Modules, "modulo-voz")));
         Assert.Empty(Directory.EnumerateFiles(StoreFolder));
     });

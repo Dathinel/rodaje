@@ -170,7 +170,7 @@ public sealed partial class CatalogoRealExtremoAExtremoTests(ITestOutputHelper o
         // Desinstalar el módulo con su proceso abierto: se cierra antes, la carpeta se va y sus modelos dejan el almacén.
         int pid = Assert.Single(modules.ProcessIds);
         await service.UninstallAsync("modulo-audio-ia");
-        Assert.True(EchoModules.HasExited(pid));
+        Assert.True(await EchoModules.HasExitedAsync(pid));
         Assert.False(Directory.Exists(audio.Package.Directory));
         Assert.All(models, m => Assert.False(File.Exists(Path.Combine(service.Models.Folder, m.Sha256)), m.Id));
 
