@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Rodaje.Media.Export;
+using Rodaje.Media.Tests.Export;
 using Xunit.Abstractions;
 
 namespace Rodaje.Export.Tests.Cpu;
@@ -9,6 +10,11 @@ namespace Rodaje.Export.Tests.Cpu;
 /// ni temporales, ni entradas en <c>exportando.json</c>, y para en 1 s como pide el criterio de la fase 6, también en el
 /// runner compartido de la CI con la CPU saturada (el sink sube ffmpeg.exe a prioridad alta antes de matarlo).
 /// </summary>
+/// <remarks>
+/// Si ffmpeg.exe tarda más de lo que Abort espera (h264_mf murió a los 1 005 ms con Abort de vuelta a los 950 ms en la
+/// CI de la tarea 263), sus temporales y su entrada del registro los quita la limpieza pendiente cuando sale: la prueba
+/// la espera (<see cref="CanceledSinkCleanup"/>) antes de comprobar que no quedó nada.
+/// </remarks>
 public sealed class CpuExportCancellationTests(ITestOutputHelper output)
 {
     /// <summary>
@@ -106,9 +112,11 @@ public sealed class CpuExportCancellationTests(ITestOutputHelper output)
             double abortMs = Stopwatch.GetElapsedTime(canceledAt, Math.Max(cancelReturnedAt, canceledAt)).TotalMilliseconds;
             bool exited = exitWatcher.Join(TimeSpan.FromSeconds(30));
             double exitMs = exited ? Stopwatch.GetElapsedTime(canceledAt, Math.Max(exitedAt, canceledAt)).TotalMilliseconds : double.NaN;
+            bool deferred = CanceledSinkCleanup.Wait(sink);
             output.WriteLine($"{video} → {container}, cancelada a los {delay} ms tras {written} cuadros: {latency.TotalMilliseconds:0} ms hasta parar " +
                 $"(ffmpeg.exe muerto a los {exitMs:0} ms con código {ExitCode(watched)}, Abort volvió a los {abortMs:0} ms; " +
-                $"error de Cancel: {cancelFailure?.InnerException?.Message ?? "ninguno"}; el bucle paró con {caught?.GetType().Name}: {caught?.Message}).");
+                $"error de Cancel: {cancelFailure?.InnerException?.Message ?? "ninguno"}; el bucle paró con {caught?.GetType().Name}: {caught?.Message}; " +
+                $"limpieza pendiente: {(deferred ? "sí" : "no")}; diagnóstico: {string.Join(" | ", sink.Diagnostics)}).");
             Assert.Null(cancelFailure);
             Assert.IsAssignableFrom<OperationCanceledException>(caught);
             Assert.True(written < request.FrameCount, "La exportación terminó antes de cancelarla; la prueba no midió nada.");

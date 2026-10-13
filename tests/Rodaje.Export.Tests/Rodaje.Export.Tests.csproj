@@ -14,6 +14,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- La espera de la limpieza pendiente tras cancelar, la misma que prueba Rodaje.Media.Tests con el ffmpeg falso -->
+    <Compile Include="..\Rodaje.Media.Tests\Export\CanceledSinkCleanup.cs" Link="Cpu\CanceledSinkCleanup.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Export\Rodaje.Export.csproj" />
     <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
   </ItemGroup>
