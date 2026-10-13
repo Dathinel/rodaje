@@ -8,8 +8,8 @@ namespace Rodaje.Modules.Protocol.Tests.Fuzz;
 /// a <c>ModuleHost.RunAsync</c> esperando una lectura de la tubería que no se completaba nunca, con el asa del editor ya
 /// cerrada y la escritura del módulo fallando con «Pipe is broken». Pasa cuando el editor cierra el lado servidor con
 /// una lectura propia pendiente (el bucle de lectura de <see cref="ModuleClient"/>) y datos que el módulo aún no leyó.
-/// <c>MessageChannel.Close</c> desconecta antes de cerrar. Sin eso, en la CI de Windows y con la CPU llena colgaba 2 de
-/// cada 9 rondas; con eso, ninguna. En Linux la tubería es un socket y no se cuelga: allí la prueba pasa siempre.
+/// <c>MessageChannel.Abort</c> (el corte por fallo de <see cref="ModuleClient"/>) desconecta antes de cerrar. Sin eso,
+/// en la CI de Windows y con la CPU llena colgaba 2 de cada 9 rondas; con eso, ninguna. En Linux la tubería es un socket y no se cuelga: allí la prueba pasa siempre.
 /// </summary>
 [Collection(FuzzGroup.Name)]
 public sealed class EditorCloseTests
@@ -80,7 +80,7 @@ public sealed class EditorCloseTests
             await editor.WriteAsync(burst.ToArray());
             await Task.Delay(new Random(seed).Next(0, 20));
 
-            channel.Dispose();
+            channel.Abort();
             await FuzzSupport.Capped(host, $"RunAsync tras cerrar el editor (semilla {seed})");
             await FuzzSupport.Capped(readLoop, $"el bucle de lectura del editor (semilla {seed})");
         }
