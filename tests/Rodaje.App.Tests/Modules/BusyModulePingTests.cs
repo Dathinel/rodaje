@@ -25,6 +25,15 @@ public sealed class BusyModulePingTests : IDisposable
     private const string LongCount = """{"pasos":100000,"msPorPaso":10}""";
     private static readonly TimeSpan Guard = TimeSpan.FromSeconds(30);
 
+    /// <summary>Tope anticuelgue de las esperas del vigilante de verdad: no mide nada, solo corta si algo se cuelga.</summary>
+    private static readonly TimeSpan AntiHang = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// La separación mínima entre dos avisos de avance de la misma etapa que manda <see cref="ModuleHost"/>
+    /// (<c>ReportProgressAsync</c>; si cambia allí, cambia aquí).
+    /// </summary>
+    private static readonly TimeSpan ProgressSpacing = TimeSpan.FromMilliseconds(50);
+
     private readonly EchoModules _modules = new EchoModules().Add("eco-a");
 
     private static readonly Func<Func<Task>, Func<long>, Func<Task>, Task<bool>> PingRound =
@@ -151,25 +160,38 @@ public sealed class BusyModulePingTests : IDisposable
     /// <summary>
     /// El cableado de verdad (<c>WatchAsync</c>): el vigilante cuenta como señal de vida los mensajes que llegan al cliente
     /// (<see cref="ModuleClient.ReceivedMessages"/>) y espera por ventanas de <c>PingTimeout</c>. El módulo eco avisa su
-    /// avance cada 10 ms y la prueba retiene su <c>pong</c> hasta que vencieron al menos dos ventanas: si la actividad
-    /// fuera una constante, la primera ventana vencida (antes que el <c>pong</c>, así que <c>WhenAny</c> la elige a ella sea
-    /// cual sea el orden en que despierte el vigilante) lo daría por colgado.
+    /// avance y la prueba retiene su <c>pong</c> hasta haber recibido, después de mandar el <c>ping</c>, avisos que cubren al
+    /// menos dos ventanas y media: <see cref="ModuleHost"/> no manda dos avisos de la misma etapa a menos de
+    /// <see cref="ProgressSpacing"/> (lo mide con <c>Stopwatch</c> en el proceso del módulo), así que entre el primero y el
+    /// último de <c>n</c> avisos recibidos después del <c>ping</c> pasan al menos (<c>n</c> − 1) × 50 ms de reloj (los pocos
+    /// que el editor tuviera sin leer al mandarlo los cubre la media ventana de margen). No hay espera fija: con la máquina
+    /// cargada los avisos llegan más despacio y la prueba espera más, nunca menos.
     /// </summary>
+    /// <remarks>
+    /// Sigue cayendo si el vigilante ignorara la actividad (<c>() =&gt; 0</c>): la primera ventana empieza justo después del
+    /// <c>ping</c> y vence (diez segundos de reloj) mucho antes de que lleguen los avisos que sueltan el <c>pong</c>; al vencer
+    /// sin <c>pong</c> y con la actividad igual, <c>PingRoundAsync</c> lo da por colgado, la llamada termina con
+    /// <see cref="ModuleHungException"/> y el segundo <c>ping</c> no llega. Con la actividad de verdad, cada ventana de 10 s
+    /// recibe unos doscientos avisos (antes eran 2 s: con la CPU llena, el proceso eco podía pasar 2 s sin escribir y se
+    /// daba por colgado un módulo sano). Solo un pool tan saturado que retrasara el temporizador de la ventana más de quince
+    /// segundos la haría pasar sin probar nada, nunca caer en falso.
+    /// </remarks>
     [Fact]
     public async Task El_vigilante_no_mata_a_un_modulo_que_avisa_avance_aunque_su_pong_se_atrase_varias_ventanas()
     {
-        TimeSpan pingTimeout = TimeSpan.FromSeconds(2);
+        TimeSpan pingTimeout = TimeSpan.FromSeconds(10);
+        long heldMessages = (long)Math.Ceiling(pingTimeout * 2.5 / ProgressSpacing) + 1;
         await using ModuleManager manager = _modules.Manager(new ModuleManagerOptions
         {
             PingInterval = TimeSpan.FromMilliseconds(50),
-            // Holgado: con avances cada 10 ms, ninguna ventana debería quedarse sin mensajes ni con el runner cargado.
             PingTimeout = pingTimeout,
         });
         await manager.InvokeAsync("eco-a", "eco", null, "Abrir");
         int pid = Assert.Single(manager.ProcessIds);
         object connection = Connection(manager, "eco-a");
 
-        TaskCompletionSource firstPing = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        // El cliente y los mensajes que llevaba recibidos al mandar el ping retenido (antes de abrir la primera ventana).
+        TaskCompletionSource<(ModuleClient Client, long Received)> firstPing = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource secondPing = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource pong = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int pings = 0;
@@ -178,7 +200,7 @@ public sealed class BusyModulePingTests : IDisposable
             switch (Interlocked.Increment(ref pings))
             {
                 case 1:
-                    firstPing.SetResult();
+                    firstPing.SetResult((client, client.ReceivedMessages));
                     return HeldPingAsync(client, pong.Task);
                 case 2:
                     secondPing.SetResult();
@@ -190,15 +212,20 @@ public sealed class BusyModulePingTests : IDisposable
 
         Task<ModuleResult> call = manager.InvokeAsync("eco-a", "contar", EchoModules.Json(LongCount), "Contar");
         ModuleJob job = manager.Jobs.Jobs[0]; // La más nueva va primero.
-        await firstPing.Task.WaitAsync(Guard);
+        (ModuleClient client, long received) = await firstPing.Task.WaitAsync(AntiHang);
 
-        // Espera mínima, no cota: empieza después de mandar el ping, así que al menos dos ventanas vencen sin pong.
-        await Task.Delay(pingTimeout * 2.5);
+        // Se cuentan avisos, no tiempo: la pausa del sondeo no marca nada. Si la llamada termina (lo dio por colgado), se
+        // deja de esperar y la puerta de abajo lo muestra.
+        while (client.ReceivedMessages - received < heldMessages && !call.IsCompleted)
+        {
+            await Task.Delay(ProgressSpacing);
+        }
+
         pong.SetResult();
 
         // Puerta: el vigilante solo manda el segundo ping si la primera vuelta terminó bien. Si lo dio por colgado, la
         // llamada termina antes (con ModuleHungException) y el segundo ping no llega nunca.
-        Task first = await Task.WhenAny(secondPing.Task, call).WaitAsync(TimeSpan.FromSeconds(60));
+        Task first = await Task.WhenAny(secondPing.Task, call).WaitAsync(AntiHang);
         if (first == call)
         {
             await call; // Muestra el fallo.

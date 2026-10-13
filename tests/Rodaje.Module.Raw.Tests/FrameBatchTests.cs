@@ -8,7 +8,14 @@ namespace Rodaje.Module.Raw.Tests;
 /// </summary>
 public class FrameBatchTests
 {
-    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// Tope anticuelgue de todas las esperas: no mide nada, solo corta si algo se cuelga. Todas dependen del pool de hilos
+    /// (los cuadros salen de <c>Task.Run</c> y de la continuación de <c>gate.WaitAsync</c>, la cancelación la pide el bucle
+    /// de <c>RunAsync</c> en una continuación y los plazos de <c>WaitAsync</c> son temporizadores del pool). En la CI de
+    /// Windows, con 14 testhost en 4 núcleos, el pool tardó más de 10 s en atender: con un tope de 10 s, el primer cuadro
+    /// fallaba antes de que empezara el segundo y la prueba caía sin que <c>FrameBatch</c> hiciera nada mal.
+    /// </summary>
+    private static readonly TimeSpan AntiHang = TimeSpan.FromMinutes(5);
 
     [Theory]
     [InlineData(1)]
@@ -21,7 +28,7 @@ public class FrameBatchTests
         {
             progress.Add(done);
             return ValueTask.CompletedTask;
-        }, CancellationToken.None).WaitAsync(Limit);
+        }, CancellationToken.None).WaitAsync(AntiHang);
 
         Assert.Equal([0, 1, 2, 3], developed.Order());
         Assert.Equal([1, 2, 3, 4], progress);
@@ -47,7 +54,7 @@ public class FrameBatchTests
                 if (call == 1)
                 {
                     // Con dos hilos, el primero falla cuando el segundo ya está revelando.
-                    if (threads > 1 && !secondStarted.Task.Wait(Limit, CancellationToken.None))
+                    if (threads > 1 && !secondStarted.Task.Wait(AntiHang, CancellationToken.None))
                     {
                         Interlocked.Increment(ref notCancelled);
                     }
@@ -61,7 +68,7 @@ public class FrameBatchTests
                 }
 
                 // Los demás cuadros siguen hasta que los cancelan; el segundo, además, hasta que la prueba lo suelta.
-                if (!token.WaitHandle.WaitOne(Limit))
+                if (!token.WaitHandle.WaitOne(AntiHang))
                 {
                     Interlocked.Increment(ref notCancelled);
                 }
@@ -69,7 +76,7 @@ public class FrameBatchTests
                 if (call == 2)
                 {
                     cancelSeen.TrySetResult();
-                    release.Wait(Limit, CancellationToken.None);
+                    release.Wait(AntiHang, CancellationToken.None);
                 }
 
                 token.ThrowIfCancellationRequested();
@@ -89,12 +96,12 @@ public class FrameBatchTests
         if (threads > 1)
         {
             // El segundo cuadro ve la cancelación y sigue en curso: la llamada no puede haber respondido.
-            await cancelSeen.Task.WaitAsync(Limit);
+            await cancelSeen.Task.WaitAsync(AntiHang);
             Assert.False(run.IsCompleted);
         }
 
         release.Set();
-        InvalidOperationException thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => run.WaitAsync(Limit));
+        InvalidOperationException thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => run.WaitAsync(AntiHang));
 
         Assert.Same(original, thrown);
         Assert.Equal(0, Volatile.Read(ref inFlight));
