@@ -4,6 +4,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Player;
 
 namespace Rodaje.App;
@@ -40,7 +41,7 @@ public partial class App : Application
         if (!_options.IsAutomated)
         {
             // Después de los avisos del arranque, para que no lo tapen.
-            _ = DispatcherQueue.GetForCurrentThread().TryEnqueue(DispatcherQueuePriority.Low, OfferPendingCrashReports);
+            _ = DispatcherQueue.GetForCurrentThread().RunLater(DispatcherQueuePriority.Low, OfferPendingCrashReports);
         }
     }
 

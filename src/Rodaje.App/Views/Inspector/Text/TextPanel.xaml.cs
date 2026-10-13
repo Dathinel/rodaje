@@ -55,7 +55,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         services.Session.ProjectEdited += (_, _) => Refresh();
         services.Session.ProjectOpened += (_, _) => Refresh();
         services.Packages.Changed += (_, _) => Refresh();
-        services.Player.MissingFontsChanged += () => DispatcherQueue.TryEnqueue(Refresh);
+        services.Player.MissingFontsChanged += () => DispatcherQueue.RunLater(Refresh);
         Refresh();
     }
 
