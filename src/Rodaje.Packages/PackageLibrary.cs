@@ -47,6 +47,9 @@ public sealed record PackageItemEntry(InstalledPackage Package, PackageItem Item
 {
     public PackageReference Reference => Package.Manifest.ReferenceTo(Item);
 
+    /// <summary>La referencia con el id antiguo del elemento (<see cref="PackageItem.LegacyId"/>), si lo tiene.</summary>
+    public PackageReference? LegacyReference => Item.LegacyId is { } legacy ? Reference with { ItemId = legacy } : null;
+
     public string? FilePath => Item.File is null ? null : Path.GetFullPath(Path.Combine(Package.Directory, Item.File));
 }
 
@@ -63,6 +66,21 @@ public sealed record PackageScan(IReadOnlyList<InstalledPackage> Packages, IRead
     public IEnumerable<PackageItemEntry> Items(ItemKind kind) =>
         Packages.Where(p => p.Manifest.Kind == PackageKind.Content)
             .SelectMany(p => p.Manifest.Items.Where(i => i.Kind == kind).Select(i => new PackageItemEntry(p, i)));
+
+    /// <summary>
+    /// <paramref name="reference"/> con el id actual de su elemento si lo nombra por el id antiguo
+    /// (<see cref="PackageManifest.FindItem"/>), para compararla con <see cref="PackageItemEntry.Reference"/>; tal cual si no
+    /// es de un paquete o no está instalado.
+    /// </summary>
+    public string Canonical(string reference, ItemKind? kind = null)
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+        return PackageReference.TryParse(reference, out PackageReference? parsed)
+            && Find(parsed.PackageId)?.Manifest.FindItem(parsed.ItemId, kind) is { } item
+            && !string.Equals(item.Id, parsed.ItemId, StringComparison.Ordinal)
+                ? (parsed with { ItemId = item.Id }).ToString()
+                : reference;
+    }
 }
 
 /// <summary>

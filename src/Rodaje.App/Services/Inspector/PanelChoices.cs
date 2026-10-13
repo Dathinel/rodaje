@@ -132,7 +132,8 @@ public static class TransitionChoices
             }
         }
 
-        int index = types.IndexOf((type, preset));
+        // Una transición propia guardada con su id de la v1.0.0 se elige por el actual.
+        int index = types.IndexOf((type, preset.Length > 0 ? installed.Canonical(preset, ItemKind.Transition) : preset));
         if (index < 0)
         {
             types.Add(preset.Length > 0 ? preset + " (falta el paquete)" : EffectUi.Name(type), (type, preset));
@@ -157,6 +158,8 @@ public static class LutChoices
     {
         ArgumentNullException.ThrowIfNull(installed);
         ArgumentNullException.ThrowIfNull(current);
+        // Una LUT propia guardada con su id de la v1.0.0 se elige por el actual.
+        current = installed.Canonical(current, ItemKind.Lut);
         var luts = new ChoiceList<string?>();
         luts.Add("Sin LUT", "");
         foreach (PackageItemEntry entry in installed.Items(ItemKind.Lut))
@@ -276,7 +279,7 @@ public static class TextStyleChoices
         for (int i = 0; i < styles.Count; i++)
         {
             LibraryElement e = styles.Values[i];
-            if (style.Source is { } source ? e.Reference == source : e.IsBuiltIn && style.ContentEquals(TitleStyles.Default()))
+            if (style.Source is { } source ? e.IsReferredBy(source) : e.IsBuiltIn && style.ContentEquals(TitleStyles.Default()))
             {
                 return i;
             }
