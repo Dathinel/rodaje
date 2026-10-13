@@ -373,26 +373,35 @@ public sealed partial class LibraryOrganization
             }
         }
 
+        // Los ids ya vistos van en conjuntos: buscar en la lista por cada entrada era cuadrático con un archivo enorme.
+        var subclipIds = new HashSet<string>(_subclips.Select(s => s.Id), StringComparer.Ordinal);
         foreach (Subclip? subclip in marks.Subclips ?? [])
         {
-            if (subclip is { Id.Length: > 0, MediaId.Length: > 0 } && subclip.Out > subclip.In && subclip.In >= Time.Zero && !_subclips.Exists(s => s.Id == subclip.Id))
+            if (subclip is { Id.Length: > 0, MediaId.Length: > 0 } && subclip.Out > subclip.In && subclip.In >= Time.Zero && subclipIds.Add(subclip.Id))
             {
                 _subclips.Add(subclip with { Name = Clean(subclip.Name) is { Length: > 0 } n ? n : "Subclip" });
             }
         }
 
+        var collectionIds = new HashSet<string>(_collections.Select(c => c.Id), StringComparer.Ordinal);
         foreach (SmartBin? collection in marks.Collections ?? [])
         {
-            if (collection is { Id.Length: > 0 } && !_collections.Exists(c => c.Id == collection.Id))
+            if (collection is { Id.Length: > 0 } && collectionIds.Add(collection.Id))
             {
-                _collections.Add(collection with { Name = Clean(collection.Name) is { Length: > 0 } n ? n : "Colección", Rules = [.. (collection.Rules ?? []).Where(r => r is not null)] });
+                // Una regla con "value": null rompía al describirla o al filtrar con ella.
+                _collections.Add(collection with
+                {
+                    Name = Clean(collection.Name) is { Length: > 0 } n ? n : "Colección",
+                    Rules = [.. (collection.Rules ?? []).Where(r => r is { Value: not null })],
+                });
             }
         }
 
+        var multicamIds = new HashSet<string>(_multicams.Select(m => m.Id), StringComparer.Ordinal);
         foreach (MulticamGroup? group in marks.Multicams ?? [])
         {
             List<MulticamAngleEntry> angles = [.. (group?.Angles ?? []).Where(a => a is { MediaId.Length: > 0 })];
-            if (group is { Id.Length: > 0 } && angles.Count >= 2 && !_multicams.Exists(m => m.Id == group.Id))
+            if (group is { Id.Length: > 0 } && angles.Count >= 2 && multicamIds.Add(group.Id))
             {
                 _multicams.Add(group with { Name = Clean(group.Name) is { Length: > 0 } n ? n : "Multicámara", Angles = angles });
             }

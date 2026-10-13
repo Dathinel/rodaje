@@ -10,6 +10,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Corredor de fuzz con semillas reproducibles y tope de tiempo, compartido con las pruebas del núcleo -->
+    <Compile Include="..\Rodaje.Core.Tests\Fuzz\FuzzRunner.cs" Link="Fuzz\FuzzRunner.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Packages\Rodaje.Packages.csproj" />
     <!-- Servidor HTTP de pruebas para el descargador (cortes, rangos, redirecciones, firmas malas) -->
     <ProjectReference Include="..\Rodaje.TestServer\Rodaje.TestServer.csproj" />

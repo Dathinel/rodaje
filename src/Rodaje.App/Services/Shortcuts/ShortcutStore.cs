@@ -45,8 +45,9 @@ public sealed class ShortcutStore
             file = Parse(text);
             _lastWritten = text;
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // Sin permiso de lectura (UnauthorizedAccessException) la ventana principal no llegaba a abrirse.
             return $"No se pudieron leer los atajos personalizados ({ex.Message}); se usan los de fábrica.";
         }
 

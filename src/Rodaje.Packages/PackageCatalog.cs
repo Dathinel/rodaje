@@ -75,7 +75,8 @@ public sealed record PackageCatalog(IReadOnlyList<CatalogApp> Apps, IReadOnlyLis
                 throw new FormatException(UnreadableText);
             }
 
-            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("formatVersion", out JsonElement format) || !format.TryGetInt32(out int version))
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("formatVersion", out JsonElement format)
+                || format.ValueKind != JsonValueKind.Number || !format.TryGetInt32(out int version))
             {
                 throw new FormatException("El catálogo debe ser un objeto con formatVersion.");
             }

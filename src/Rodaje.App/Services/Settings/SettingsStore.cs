@@ -49,8 +49,9 @@ public sealed class SettingsStore
         catch (JsonException)
         {
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // Sin permiso de lectura (UnauthorizedAccessException) la app se cerraba antes de abrir la ventana.
             return $"No se pudieron leer los ajustes ({ex.Message}); se usan los de fábrica.";
         }
 
