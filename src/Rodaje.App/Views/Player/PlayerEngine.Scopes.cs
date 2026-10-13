@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Rodaje.App.Services.Crashes;
 using Rodaje.Render;
 using Rodaje.Render.Scopes;
 
@@ -63,11 +64,36 @@ internal sealed partial class PlayerEngine
         else if (!_scopes.Ready.IsCompleted)
         {
             // Los shaders todavía compilan: se vuelve a componer en la próxima vuelta para medir el cuadro en pausa.
-            _ = _scopes.Ready.ContinueWith(_ =>
+            // Si los shaders no compilan, los monitores quedan vacíos: el error solo está en Ready y se informa aquí (sin aviso).
+            // La compilación puede terminar después de Dispose, con el evento ya liberado: entonces no hay a quién despertar.
+            UiTask.Run(_scopes.Ready.ContinueWith(t =>
             {
+                if (t.Exception is { } failure)
+                {
+                    UiTask.Report(failure.InnerExceptions.Count == 1 ? failure.InnerExceptions[0] : failure, notify: false);
+                    return;
+                }
+
                 _dirty = true;
-                _wake.Set();
-            }, TaskScheduler.Default);
+                WakeUnlessDisposed();
+            }, TaskScheduler.Default));
+        }
+    }
+
+    private void WakeUnlessDisposed()
+    {
+        if (Volatile.Read(ref _disposed))
+        {
+            return;
+        }
+
+        try
+        {
+            _wake.Set();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Dispose ganó la carrera entre la comprobación y Set: el hilo de render ya terminó.
         }
     }
 
