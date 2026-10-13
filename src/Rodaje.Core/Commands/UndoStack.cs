@@ -199,6 +199,17 @@ public sealed class UndoStack
         OnChanged();
     }
 
+    /// <summary>
+    /// Marca el proyecto como distinto de lo guardado sin un paso en el historial: al abrir un archivo que se corrigió al
+    /// leerlo. Ningún deshacer vuelve a «guardado»; solo otro <see cref="MarkClean"/>. No se permite con un grupo abierto.
+    /// </summary>
+    public void MarkDirty()
+    {
+        EnsureNoGroup();
+        _cleanIndex = null;
+        OnChanged();
+    }
+
     private void Push(ICommand command)
     {
         _undo.Add(command);

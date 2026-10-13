@@ -50,12 +50,23 @@ public static class ProjectSerializer
     /// y comprueba sus reglas con <see cref="ModelValidator"/>.
     /// </summary>
     /// <exception cref="ProjectFormatException">Si el texto no es un proyecto válido; el mensaje lo explica.</exception>
-    public static Project Deserialize(string json) => Deserialize(json, ModelValidator.Validate);
+    public static Project Deserialize(string json) => Deserialize(json, ModelValidator.Validate, out _);
+
+    /// <summary>
+    /// Igual que <see cref="Deserialize(string)"/>; además dice cuántos valores de la v1.0.0 fuera de rango se acotaron
+    /// al leer (<see cref="Rodaje.Core.Effects.ParameterLimits.Normalize(Project)"/>). Si es más de cero, el proyecto en
+    /// memoria ya no es igual al archivo: quien lo abre debe avisarlo y tratarlo como modificado.
+    /// </summary>
+    /// <exception cref="ProjectFormatException">Si el texto no es un proyecto válido; el mensaje lo explica.</exception>
+    public static Project Deserialize(string json, out int clampedValues) => Deserialize(json, ModelValidator.Validate, out clampedValues);
 
     /// <summary>Igual que <see cref="Deserialize(string)"/> con el validador inyectable, para las pruebas.</summary>
-    internal static Project Deserialize(string json, Func<Project, IReadOnlyList<string>> validate)
+    internal static Project Deserialize(string json, Func<Project, IReadOnlyList<string>> validate) => Deserialize(json, validate, out _);
+
+    private static Project Deserialize(string json, Func<Project, IReadOnlyList<string>> validate, out int clampedValues)
     {
         ArgumentNullException.ThrowIfNull(json);
+        clampedValues = 0;
 
         JsonObject root = ParseRoot(json);
         ProjectMigrator.Default.Migrate(root);
@@ -98,7 +109,7 @@ public static class ProjectSerializer
             if (problems.Count == 0)
             {
                 // Lo que la v1.0.0 guardaba sin límite (posición, ancla, giro) se acota al abrir en vez de rechazarse.
-                Rodaje.Core.Effects.ParameterLimits.Normalize(project!);
+                clampedValues = Rodaje.Core.Effects.ParameterLimits.Normalize(project!);
                 problems = validate(project!);
             }
         }
@@ -198,9 +209,18 @@ public static class ProjectSerializer
     /// <summary>Abre un proyecto desde disco.</summary>
     /// <exception cref="ProjectFormatException">Si el archivo no es un proyecto válido.</exception>
     /// <exception cref="IOException">Si el archivo no existe o no se puede leer.</exception>
-    public static Project Load(string path)
+    public static Project Load(string path) => Load(path, out _);
+
+    /// <summary>
+    /// Abre un proyecto desde disco y dice cuántos valores fuera de rango se acotaron al leerlo (ver
+    /// <see cref="Deserialize(string, out int)"/>).
+    /// </summary>
+    /// <exception cref="ProjectFormatException">Si el archivo no es un proyecto válido.</exception>
+    /// <exception cref="IOException">Si el archivo no existe o no se puede leer.</exception>
+    public static Project Load(string path, out int clampedValues)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        clampedValues = 0;
 
         string json;
         try
@@ -216,7 +236,7 @@ public static class ProjectSerializer
 
         try
         {
-            return Deserialize(json);
+            return Deserialize(json, out clampedValues);
         }
         catch (ProjectFormatException ex)
         {

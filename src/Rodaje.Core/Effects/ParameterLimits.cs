@@ -21,23 +21,42 @@ public static class ParameterLimits
     ];
 
     /// <summary>Acota en el sitio los valores finitos fuera de rango de esos parámetros; devuelve cuántos cambió.</summary>
+    /// <remarks>
+    /// No da por hecho que <c>FindNullItems</c> ya rechazó las listas o los elementos nulos: una lista, un efecto, un
+    /// parámetro o sus keyframes nulos se saltan, y lo que no se puede recorrer lo rechaza después el validador.
+    /// </remarks>
     public static int Normalize(Project project)
     {
         ArgumentNullException.ThrowIfNull(project);
         int changed = 0;
-        foreach (Sequence sequence in project.Sequences)
+        foreach (Sequence? sequence in project.Sequences ?? [])
         {
-            changed += Normalize(sequence.MasterEffects);
-            foreach (AudioBus bus in sequence.AudioBuses)
+            if (sequence is null)
             {
-                changed += Normalize(bus.Effects);
+                continue;
             }
 
-            foreach (Track track in sequence.VideoTracks.Concat(sequence.AudioTracks))
+            changed += Normalize(sequence.MasterEffects);
+            foreach (AudioBus? bus in sequence.AudioBuses ?? [])
             {
-                changed += Normalize(track.Effects);
-                foreach (Clip clip in track.Clips)
+                changed += Normalize(bus?.Effects);
+            }
+
+            foreach (Track? track in (sequence.VideoTracks ?? []).Concat(sequence.AudioTracks ?? []))
+            {
+                if (track is null)
                 {
+                    continue;
+                }
+
+                changed += Normalize(track.Effects);
+                foreach (Clip? clip in track.Clips ?? [])
+                {
+                    if (clip is null)
+                    {
+                        continue;
+                    }
+
                     changed += Normalize(clip.Effects);
                     if (clip.Generator?.Style is { } style)
                     {
@@ -50,11 +69,16 @@ public static class ParameterLimits
         return changed;
     }
 
-    private static int Normalize(List<EffectInstance> effects)
+    private static int Normalize(List<EffectInstance>? effects)
     {
         int changed = 0;
-        foreach (EffectInstance effect in effects)
+        foreach (EffectInstance? effect in effects ?? [])
         {
+            if (effect?.Parameters is not { } parameters)
+            {
+                continue;
+            }
+
             foreach ((string type, string[] names) in FormerlyUnbounded)
             {
                 if (effect.Type != type || EffectRegistry.Find(type) is not { } definition)
@@ -64,7 +88,7 @@ public static class ParameterLimits
 
                 foreach (string name in names)
                 {
-                    if (effect.Parameters.GetValueOrDefault(name) is { } parameter)
+                    if (parameters.GetValueOrDefault(name) is { } parameter)
                     {
                         changed += Normalize(parameter, definition.FindParameter(name)!);
                     }
@@ -84,11 +108,16 @@ public static class ParameterLimits
             changed++;
         }
 
-        for (int i = 0; i < parameter.Keyframes.Count; i++)
+        if (parameter.Keyframes is not { } keyframes)
         {
-            if (parameter.Keyframes[i] is { } key && Outside(key.Value, limits))
+            return changed;
+        }
+
+        for (int i = 0; i < keyframes.Count; i++)
+        {
+            if (keyframes[i] is { } key && Outside(key.Value, limits))
             {
-                parameter.Keyframes[i] = key with { Value = Math.Clamp(key.Value, limits.Minimum, limits.Maximum) };
+                keyframes[i] = key with { Value = Math.Clamp(key.Value, limits.Minimum, limits.Maximum) };
                 changed++;
             }
         }
@@ -99,14 +128,14 @@ public static class ParameterLimits
     /// <summary>Las curvas x, y y rotación de una animación de texto usan los límites de la transformación.</summary>
     private static int Normalize(StyleAnimation? animation)
     {
-        if (animation is null)
+        if (animation?.Curves is null)
         {
             return 0;
         }
 
         EffectDefinition transform = EffectRegistry.Find(BuiltInEffects.Transform)!;
         int changed = 0;
-        foreach ((string name, List<StyleKey> keys) in animation.Curves)
+        foreach ((string name, List<StyleKey>? keys) in animation.Curves)
         {
             if (name is not (T.X or T.Y or T.Rotation) || keys is null || transform.FindParameter(name) is not { } limits)
             {
