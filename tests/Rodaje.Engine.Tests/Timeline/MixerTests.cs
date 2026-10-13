@@ -292,7 +292,9 @@ public sealed class MixerTests(ITestOutputHelper output) : IDisposable
         bool optimized = typeof(MixRenderer).Assembly.GetCustomAttributes(typeof(System.Diagnostics.DebuggableAttribute), false)
             .Cast<System.Diagnostics.DebuggableAttribute>().All(a => !a.IsJITOptimizerDisabled);
         double best = double.PositiveInfinity;
-        long allocated = 0;
+        // La tanda que menos reserva: una reserva fija sale en todas, y con otras pruebas en paralelo una tanda suelta llegó a
+        // contar 8160 B que no se repiten (no salen en 20 000 lecturas seguidas).
+        long allocated = long.MaxValue;
         for (int run = 0; run < 5; run++)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
@@ -302,7 +304,7 @@ public sealed class MixerTests(ITestOutputHelper output) : IDisposable
                 mixer.Read(block);
             }
 
-            allocated += GC.GetAllocatedBytesForCurrentThread() - before;
+            allocated = Math.Min(allocated, GC.GetAllocatedBytesForCurrentThread() - before);
             best = Math.Min(best, watch.Elapsed.TotalMilliseconds / 40);
         }
 

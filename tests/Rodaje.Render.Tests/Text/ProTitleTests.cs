@@ -302,9 +302,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         // Las cotas de tiempo valen con código optimizado y una GPU de verdad. En Debug o con WARP (la CI de Windows,
         // 4 núcleos compartidos con otros ensamblados) componer 4K tardó de 440 a 810 ms: ahí solo se informa y se
         // componen menos cuadros.
-        bool optimized = typeof(Compositor).Assembly.GetCustomAttributes(typeof(DebuggableAttribute), false)
-            .Cast<DebuggableAttribute>().All(a => !a.IsJITOptimizerDisabled);
-        bool timed = optimized && !gpu.IsSoftware;
+        bool timed = MeasuredGpuFactAttribute.CanTime(gpu);
         int frames = timed ? 150 : 40;
         int warmUp = timed ? 30 : 10;
         foreach ((int width, int height) in ((int, int)[])[(1920, 1080), (3840, 2160)])
@@ -355,7 +353,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
             double cpuMedian = cpu[cpu.Count / 2];
             double gpuMedian = gpuMs.Count > 0 ? gpuMs[gpuMs.Count / 2] : 0;
             output.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"{width}×{height}, {texture.Units!.UnitCount} letras, {texture.Units.CellCount} celdas, atlas {texture.Width}×{texture.Height}: rasterizar {raster:0.0} ms una vez; componer {cpuMedian:0.00} ms de CPU y {gpuMedian:0.00} ms de GPU por cuadro (mediana); reserva {allocated / cpu.Count} B por cuadro{(timed ? "" : " (tiempos solo informativos: " + (optimized ? "WARP" : "Debug") + ")")}"));
+                $"{width}×{height}, {texture.Units!.UnitCount} letras, {texture.Units.CellCount} celdas, atlas {texture.Width}×{texture.Height}: rasterizar {raster:0.0} ms una vez; componer {cpuMedian:0.00} ms de CPU y {gpuMedian:0.00} ms de GPU por cuadro (mediana); reserva {allocated / cpu.Count} B por cuadro{(timed ? "" : " (tiempos solo informativos: Debug o WARP)")}"));
             Assert.Equal(content.Text.Count(c => !char.IsWhiteSpace(c)), texture.Units.UnitCount);
             if (timed)
             {
