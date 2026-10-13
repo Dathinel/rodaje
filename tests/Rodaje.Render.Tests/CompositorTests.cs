@@ -392,7 +392,9 @@ public sealed class CompositorTests
         }
 
         Assert.NotNull(ms);
-        Assert.InRange(ms.Value, 0.0001, 100);
+        // Milisegundos y no tics: un 1080p con WARP en la CI cargada llegó a 206 ms (con la cota de 100 fallaba); en tics
+        // del reloj de la GPU daría millones.
+        Assert.InRange(ms.Value, 0.0001, 5000);
     }
 
     private static RgbaImage Compose(GpuDevice gpu, int width, int height, CompositeFormat format, params LayerFrame[] layers) =>
