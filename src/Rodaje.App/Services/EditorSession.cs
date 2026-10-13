@@ -61,6 +61,9 @@ public sealed partial class EditorSession : ObservableObject
     private Task _saving = Task.CompletedTask;
     private long _editVersion;
 
+    // Cuántas veces cambió el historial: dice si una excepción llegó antes o después de aplicar la edición.
+    private long _historyChanges;
+
     public EditorSession(IPlaybackEngine playback, IMediaProber prober, IEditorDialogs dialogs, IIdGenerator? ids = null, NewProjectTracks? newProjectTracks = null)
     {
         ArgumentNullException.ThrowIfNull(playback);
@@ -189,17 +192,17 @@ public sealed partial class EditorSession : ObservableObject
     {
         VerifyAccess();
         ArgumentNullException.ThrowIfNull(command);
+        long changes = _historyChanges;
         try
         {
-            History.Execute(command);
+            ChangeHistory(EditKind.Execute, command, () => History.Execute(command));
         }
-        catch (EditException ex)
+        catch (EditException ex) when (_historyChanges == changes)
         {
             Notify(NotificationSeverity.Warning, "No se pudo hacer", ex.Message);
             return false;
         }
 
-        AfterEdit(EditKind.Execute, command);
         return true;
     }
 
@@ -211,16 +214,16 @@ public sealed partial class EditorSession : ObservableObject
     {
         VerifyAccess();
         ArgumentNullException.ThrowIfNull(command);
+        long changes = _historyChanges;
         try
         {
-            History.Execute(command);
+            ChangeHistory(EditKind.Execute, command, () => History.Execute(command));
         }
-        catch (Exception ex) when (ex is EditException or KeyNotFoundException)
+        catch (Exception ex) when (ex is EditException or KeyNotFoundException && _historyChanges == changes)
         {
             return false;
         }
 
-        AfterEdit(EditKind.Execute, command);
         return true;
     }
 
@@ -233,8 +236,7 @@ public sealed partial class EditorSession : ObservableObject
         }
 
         ICommand command = History.UndoCommands[^1];
-        History.Undo();
-        AfterEdit(EditKind.Undo, command);
+        ChangeHistory(EditKind.Undo, command, () => History.Undo());
         return true;
     }
 
@@ -247,8 +249,7 @@ public sealed partial class EditorSession : ObservableObject
         }
 
         ICommand command = History.RedoCommands[^1];
-        History.Redo();
-        AfterEdit(EditKind.Redo, command);
+        ChangeHistory(EditKind.Redo, command, () => History.Redo());
         return true;
     }
 
@@ -267,17 +268,18 @@ public sealed partial class EditorSession : ObservableObject
             return false;
         }
 
-        while (History.Count > position)
+        ChangeHistory(EditKind.Jump, null, () =>
         {
-            History.Undo();
-        }
+            while (History.Count > position)
+            {
+                History.Undo();
+            }
 
-        while (History.Count < position)
-        {
-            History.Redo();
-        }
-
-        AfterEdit(EditKind.Jump, null);
+            while (History.Count < position)
+            {
+                History.Redo();
+            }
+        });
         return true;
     }
 
@@ -316,8 +318,7 @@ public sealed partial class EditorSession : ObservableObject
             return;
         }
 
-        History.CancelGroup();
-        AfterEdit(EditKind.GestureCancelled, null);
+        ChangeHistory(EditKind.GestureCancelled, null, History.CancelGroup);
     }
 
     public void Select(IEnumerable<string> clipIds)
@@ -443,6 +444,28 @@ public sealed partial class EditorSession : ObservableObject
         HistoryChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Cambia el historial y pone la sesión al día (<see cref="AfterEdit"/>). Si algo lanza con el cambio ya hecho (un
+    /// suscriptor de <see cref="HistoryChanged"/>, por ejemplo), la sesión igual se pone al día antes de que la excepción
+    /// siga: si la red de la interfaz la atiende, el reproductor, la selección y las vistas no quedan con el proyecto de
+    /// antes mientras el modelo y el historial ya tienen la edición (se puede deshacer).
+    /// </summary>
+    private void ChangeHistory(EditKind kind, ICommand? command, Action change)
+    {
+        long changes = _historyChanges;
+        try
+        {
+            change();
+        }
+        catch when (_historyChanges != changes)
+        {
+            AfterEdit(kind, command);
+            throw;
+        }
+
+        AfterEdit(kind, command);
+    }
+
     private void AfterEdit(EditKind kind, ICommand? command)
     {
         _editVersion++;
@@ -461,9 +484,42 @@ public sealed partial class EditorSession : ObservableObject
             _playback.Reload(PlaybackProject());
         }
 
-        PruneSelection();
-        OnPropertyChanged(nameof(ProjectName));
-        ProjectEdited?.Invoke(this, new ProjectEditedEventArgs(kind, command));
+        try
+        {
+            PruneSelection();
+            OnPropertyChanged(nameof(ProjectName));
+        }
+        finally
+        {
+            var args = new ProjectEditedEventArgs(kind, command);
+            RaiseEach(ProjectEdited, handler => ((EventHandler<ProjectEditedEventArgs>)handler)(this, args));
+        }
+    }
+
+    // Un suscriptor que lanza no deja sin aviso a los que siguen; la primera excepción sigue su camino al final.
+    private static void RaiseEach(Delegate? handlers, Action<Delegate> invoke)
+    {
+        if (handlers is null)
+        {
+            return;
+        }
+
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? first = null;
+        foreach (Delegate handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                invoke(handler);
+            }
+#pragma warning disable CA1031 // Se vuelve a lanzar después de avisar a los demás.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                first ??= System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex);
+            }
+        }
+
+        first?.Throw();
     }
 
     private void PruneSelection()
@@ -501,8 +557,15 @@ public sealed partial class EditorSession : ObservableObject
 
     private void OnHistoryChanged(object? sender, EventArgs e)
     {
-        RaiseHistoryProperties();
-        HistoryChanged?.Invoke(this, EventArgs.Empty);
+        _historyChanges++;
+        try
+        {
+            RaiseHistoryProperties();
+        }
+        finally
+        {
+            RaiseEach(HistoryChanged, handler => ((EventHandler)handler)(this, EventArgs.Empty));
+        }
     }
 
     private void RaiseHistoryProperties()
