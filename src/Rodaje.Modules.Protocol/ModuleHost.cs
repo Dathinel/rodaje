@@ -77,6 +77,12 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     /// </summary>
     public TimeSpan HandshakeTimeout { get; init; } = ModuleClientOptions.DefaultHandshakeTimeout;
 
+    /// <summary>
+    /// Costura de pruebas: corre cuando una llamada ya dejó libre su id y antes de que salga su respuesta final (el
+    /// hueco de la tarea 211).
+    /// </summary>
+    internal Func<long, Task>? BeforeReplyForTests { get; init; }
+
     /// <summary>Registra la función <paramref name="id"/>; tiene que estar en <see cref="ModuleInfo.Functions"/>.</summary>
     public void Register(string id, ModuleFunction function)
     {
@@ -113,7 +119,11 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     {
         using MessageChannel channel = new(stream);
         using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        ConcurrentDictionary<long, (CancellationTokenSource Cts, Task Task)> active = new();
+        // «active»: las llamadas en curso por id, para «cancel», el id repetido y «busy»; una llamada sale de aquí al
+        // terminar su función, así que su id queda libre antes de que salga la respuesta. «unanswered»: las que aún no
+        // escribieron su respuesta final, que es lo que el cierre tiene que esperar (tarea 211).
+        ConcurrentDictionary<long, CancellationTokenSource> active = new();
+        ConcurrentDictionary<object, Task> unanswered = new();
         try
         {
             if (!await HandshakeAsync(channel, stop.Token).ConfigureAwait(false)) return false;
@@ -126,10 +136,10 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
                     case ShutdownMessage:
                         return true;
                     case InvokeMessage invoke:
-                        await StartAsync(channel, invoke, active, stop.Token).ConfigureAwait(false);
+                        await StartAsync(channel, invoke, active, unanswered, stop.Token).ConfigureAwait(false);
                         break;
                     case CancelMessage cancel:
-                        if (active.TryGetValue(cancel.Id, out var call)) await TryCancelAsync(call.Cts).ConfigureAwait(false);
+                        if (active.TryGetValue(cancel.Id, out CancellationTokenSource? cts)) await TryCancelAsync(cts).ConfigureAwait(false);
                         break;
                     case PingMessage ping:
                         await channel.SendAsync(new PongMessage(ping.Id), stop.Token).ConfigureAwait(false);
@@ -152,11 +162,14 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         {
             // Con la misma protección que «cancel»: una llamada que termina ahora ya desechó su CancellationTokenSource
             // (defecto 2 de ProtocolDefectTests). Cerrar nunca lanza; siempre se espera a las llamadas y se liberan las regiones.
-            foreach (var call in active.Values) await TryCancelAsync(call.Cts).ConfigureAwait(false);
+            foreach (CancellationTokenSource cts in active.Values) await TryCancelAsync(cts).ConfigureAwait(false);
             bool finished = true;
             try
             {
-                await Task.WhenAll(active.Values.Select(c => c.Task)).WaitAsync(TimeSpan.FromSeconds(2), CancellationToken.None).ConfigureAwait(false);
+                // Se espera a «unanswered» y no a «active»: una llamada cuya función ya terminó salió de «active» pero
+                // puede no haber escrito aún su respuesta. Sin esperarla, el canal se cerraba debajo y la respuesta se
+                // perdía en silencio (tarea 211: «La llamada 2 tuvo 0 respuestas finales», con «shutdown» detrás).
+                await Task.WhenAll(unanswered.Values).WaitAsync(TimeSpan.FromSeconds(2), CancellationToken.None).ConfigureAwait(false);
             }
             catch (TimeoutException)
             {
@@ -197,7 +210,7 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     }
 
     private async ValueTask StartAsync(MessageChannel channel, InvokeMessage invoke,
-        ConcurrentDictionary<long, (CancellationTokenSource Cts, Task Task)> active, CancellationToken stop)
+        ConcurrentDictionary<long, CancellationTokenSource> active, ConcurrentDictionary<object, Task> unanswered, CancellationToken stop)
     {
         if (active.ContainsKey(invoke.Id)) throw new ModuleProtocolException($"La llamada {invoke.Id} ya está en curso.");
         if (!_functions.TryGetValue(invoke.Function, out ModuleFunction? function))
@@ -215,7 +228,8 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         // sintetizar) ocupaba un hilo del pool por llamada, y con varias a la vez y la CPU llena el pool no sumaba otros.
         // Entonces este bucle, que lee y contesta con E/S asíncrona (sus continuaciones corren en el pool), no contestaba
         // el «ping» ni salían los avances, y el vigilante del editor mataba un módulo sano. La tarea se crea sin arrancar
-        // para que esté en «active» antes de que pueda terminar y sacarse de ahí.
+        // para que esté en «active» y en «unanswered» antes de que pueda terminar y sacarse de ahí.
+        object key = new();
         Task<Task> start = new(async () =>
         {
             ModuleMessage reply;
@@ -243,11 +257,22 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
             {
                 reply = new ErrorMessage(ErrorCodes.Internal, Trim($"{ex.GetType().Name}: {ex.Message}"), invoke.Id);
             }
+            // El id queda libre ya (el editor puede reusarlo en cuanto lea la respuesta), pero la llamada sigue en
+            // «unanswered» hasta que su respuesta está escrita: el cierre la espera.
             active.TryRemove(invoke.Id, out _);
             cts.Dispose();
-            await SendReplyAsync(channel, reply).ConfigureAwait(false);
+            try
+            {
+                if (BeforeReplyForTests is { } hook) await hook(invoke.Id).ConfigureAwait(false);
+                await SendReplyAsync(channel, reply).ConfigureAwait(false);
+            }
+            finally
+            {
+                unanswered.TryRemove(key, out _);
+            }
         }, CancellationToken.None, TaskCreationOptions.LongRunning);
-        active[invoke.Id] = (cts, start.Unwrap());
+        active[invoke.Id] = cts;
+        unanswered[key] = start.Unwrap();
         start.Start(TaskScheduler.Default);
     }
 
