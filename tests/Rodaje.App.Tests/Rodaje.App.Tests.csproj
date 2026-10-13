@@ -44,6 +44,8 @@
     <!-- La matriz de formatos corre los análisis con la misma decodificación que la app. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\ClipVideoSource.cs" Link="Analysis\ClipVideoSource.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\ClipAudioSource.cs" Link="Analysis\ClipAudioSource.cs" />
+    <!-- Lo que «Reducir ruido» carga y suelta al cerrar, sin WinUI. -->
+    <Compile Include="..\..\src\Rodaje.App\Views\Analysis\NoiseReductionDialog.Preview.cs" Link="Analysis\NoiseReductionDialog.Preview.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\Logic\**\*.cs" Link="AnalysisLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Subtítulos automáticos: leer el resultado del módulo, llevarlo a la secuencia y armar el paso, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Subtitles\Logic\**\*.cs" Link="SubtitlesLogic\%(RecursiveDir)%(Filename)%(Extension)" />
