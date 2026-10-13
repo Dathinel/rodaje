@@ -61,12 +61,21 @@ public sealed class ReplyRaceTests
     /// quedaron sin respuesta final» en <see cref="Una_llamada_y_shutdown_seguidos_siempre_tienen_respuesta"/>). Ahora el
     /// cierre la contesta con <c>cancelled</c> antes de cerrar, y la llamada, cuando por fin arranca, no contesta otra vez.
     /// El orden lo fija la costura, no el reloj: el hilo se suelta solo cuando <c>RunAsync</c> ya terminó.
+    /// <para>
+    /// Tarea 302: lo que hace la llamada al arrancar tarde se comprueba después de soltarla y de que su tarea termine
+    /// (<c>AfterCallForTests</c>). El módulo escribe a través de <see cref="KeepOpenStream"/>, que no cierra la tubería al
+    /// desechar el canal: una respuesta escrita tarde llegaría al editor. Ni la función corre (<c>ran</c>) ni sale otra
+    /// trama. Antes de la tarea 302, con la comprobación previa a la función quitada o con la respuesta enviada sin
+    /// reclamarla, la prueba seguía en verde porque solo miraba lo que había llegado antes de soltar el hilo.
+    /// </para>
     /// </summary>
     [Fact]
     public async Task Una_llamada_cuyo_hilo_no_arranca_antes_de_cerrar_recibe_cancelled()
     {
         using ManualResetEventSlim reached = new();
         StartGate gate = new();
+        TaskCompletionSource ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int ran = 0;
         ModuleHost host = new(Support.EchoInfo)
         {
             BeforeCallThreadStartsForTests = _ =>
@@ -74,8 +83,13 @@ public sealed class ReplyRaceTests
                 reached.Set();
                 gate.Wait();
             },
+            AfterCallForTests = _ => ended.TrySetResult(),
         };
-        host.Register("eco", (call, _) => ValueTask.FromResult(new ModuleOutput(call.Parameters)));
+        host.Register("eco", (call, _) =>
+        {
+            Interlocked.Increment(ref ran);
+            return ValueTask.FromResult(new ModuleOutput(call.Parameters));
+        });
 
         (NamedPipeServerStream editor, NamedPipeClientStream module) = await Support.PipePairAsync();
         using (editor)
@@ -83,7 +97,7 @@ public sealed class ReplyRaceTests
         {
             try
             {
-                Task<bool> run = host.RunAsync(module);
+                Task<bool> run = host.RunAsync(new KeepOpenStream(module));
                 await editor.WriteAsync(Support.Frame(Hello));
                 await FuzzSupport.Capped(FuzzSupport.ReadFrameAsync(editor), "el welcome");
                 Task<List<byte[]>> drain = FuzzSupport.DrainAsync(editor);
@@ -91,9 +105,14 @@ public sealed class ReplyRaceTests
                 Assert.True(reached.Wait(FuzzSupport.CaseCap), "La llamada no llegó a arrancar su hilo.");
 
                 Assert.True(await FuzzSupport.Capped(run, "RunAsync con un hilo de llamada sin arrancar"));
-                module.Dispose();
-                List<byte[]> replies = await FuzzSupport.Capped(drain, "la lectura");
 
+                // Se suelta el hilo y se espera a que la tarea de la llamada termine, con la tubería del módulo aún abierta.
+                gate.Open();
+                await FuzzSupport.Capped(ended.Task, "la tarea de la llamada");
+                module.Dispose();
+                List<byte[]> replies = await FuzzSupport.Capped(drain, "la lectura hasta el fin de flujo");
+
+                Assert.Equal(0, Volatile.Read(ref ran));
                 ErrorMessage error = Assert.IsType<ErrorMessage>(MessageChannel.Parse(Assert.Single(replies)));
                 Assert.Equal(2, error.Id);
                 Assert.Equal(ErrorCodes.Cancelled, error.Code);
@@ -103,6 +122,28 @@ public sealed class ReplyRaceTests
                 gate.Open();
             }
         }
+    }
+
+    /// <summary>
+    /// El flujo del módulo sin su cierre: <c>MessageChannel.Dispose</c> no cierra la tubería, así que lo que el módulo
+    /// escriba después de que <c>RunAsync</c> vuelva todavía llega al editor (tarea 302).
+    /// </summary>
+    private sealed class KeepOpenStream(Stream inner) : Stream
+    {
+        public override bool CanRead => inner.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => inner.CanWrite;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override void Flush() => inner.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => inner.FlushAsync(cancellationToken);
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => inner.ReadAsync(buffer, cancellationToken);
+        public override void Write(byte[] buffer, int offset, int count) => inner.Write(buffer, offset, count);
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) => inner.WriteAsync(buffer, cancellationToken);
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
     }
 
     /// <summary>Sin costura: una llamada que termina al instante y <c>shutdown</c> detrás, en la misma escritura.</summary>
