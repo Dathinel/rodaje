@@ -163,7 +163,7 @@ public sealed class PlaybackStressTests
     }
 
     /// <summary>
-    /// Decodificador falso en hilos de verdad: unos cuadros salen en el acto, otros terminan en el grupo de hilos tras
+    /// Decodificador falso en hilos de verdad: unos cuadros salen en el acto, otros terminan en un hilo propio tras
     /// una espera que respeta la cancelación, y algunos fallan siempre (<see cref="Fails"/>) o no existen.
     /// </summary>
     private sealed class ThreadedSource(int seed, Rational rate, PayloadTracker payloads) : IVideoFrameSource
@@ -200,7 +200,9 @@ public sealed class PlaybackStressTests
                 return ValueTask.FromResult<DecodedFrame?>(Make(frameIndex));
             }
 
-            Task<DecodedFrame?> task = Task.Run<DecodedFrame?>(
+            // En un hilo propio y no en el grupo de hilos: con la CI cargada el grupo puede tardar más de 10 s en darle un
+            // hilo, y Drain lo tomaría por un cuadro colgado.
+            Task<DecodedFrame?> task = Task.Factory.StartNew<DecodedFrame?>(
                 () =>
                 {
                     try
@@ -214,13 +216,15 @@ public sealed class PlaybackStressTests
                         Volatile.Write(ref _busy, 0);
                     }
                 },
-                CancellationToken.None);
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
             _pending.TryAdd(task, true);
             return new ValueTask<DecodedFrame?>(task);
         }
 
         /// <summary>
-        /// Espera a que terminen las decodificaciones que corrían en el grupo de hilos; falla si alguna no termina (cada
+        /// Espera a que terminen las decodificaciones que corrían en sus hilos; falla si alguna no termina (cada
         /// espera dura como mucho 30 ms o hasta que la cancelan, así que una que no vuelve es un cuadro colgado).
         /// </summary>
         public void Drain()
