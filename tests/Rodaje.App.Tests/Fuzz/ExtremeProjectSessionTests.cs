@@ -30,17 +30,46 @@ public class ExtremeProjectSessionTests
         new(1, 1), new(1000, 1), new(24000, 1001), new(Big, Big - 1), new((1000L << 40) - 1, 1L << 40), new(30000, 1001), new(25, 1), new(120, 1),
     ];
 
+    /// <summary>En qué parte del caso va el fuzz y desde cuándo, para el mensaje de un cuelgue.</summary>
+    private static string _phase = "";
+
+    private static long _phaseStarted;
+
+    /// <summary>
+    /// En la CI de Windows, dos veces un caso «tardó más de 15 s» (semillas 20261013 y 20261015) que en Linux tarda de 17 a
+    /// 460 ms (800 semillas, la más lenta 0,6 s): ningún paso recorre los números extremos. Si vuelve a pasar, el mensaje
+    /// dice en qué tramo estaba (las esperas al pool al abrir y guardar, o un paso síncrono) y el estado del pool.
+    /// </summary>
     [Fact]
     public Task ProyectosExtremos_SeEditanSinExcepciones() => OwnThread.Run(() =>
-        FuzzRunner.Run("proyecto con números extremos", 20261013, cases: 40, budget: TimeSpan.FromSeconds(10), minimumCases: 40, (seed, random) =>
+    {
+        try
         {
-            using var directory = new TempDirectory();
-            Project project = BuildProject(random, directory.Path);
-            Assert.Empty(ModelValidator.Validate(project));
-            string path = Path.Combine(directory.Path, "p" + ProjectSerializer.FileExtension);
-            ProjectSerializer.Save(project, path);
-            UiThread.Run(() => EditAsync(random, directory.Path, path));
-        }));
+            FuzzRunner.Run("proyecto con números extremos", 20261013, cases: 40, budget: TimeSpan.FromSeconds(10), minimumCases: 40, (seed, random) =>
+            {
+                Mark("preparar");
+                using var directory = new TempDirectory();
+                Project project = BuildProject(random, directory.Path);
+                Assert.Empty(ModelValidator.Validate(project));
+                string path = Path.Combine(directory.Path, "p" + ProjectSerializer.FileExtension);
+                Mark("guardar el proyecto");
+                ProjectSerializer.Save(project, path);
+                UiThread.Run(() => EditAsync(random, directory.Path, path));
+                Mark("borrar la carpeta");
+            });
+        }
+        catch (XunitException ex) when (ex.Message.Contains("tardó más de", StringComparison.Ordinal))
+        {
+            double seconds = System.Diagnostics.Stopwatch.GetElapsedTime(Interlocked.Read(ref _phaseStarted)).TotalSeconds;
+            throw new XunitException(Invariant($"{ex.Message} Iba por «{Volatile.Read(ref _phase)}» desde hace {seconds:F1} s. {UiThread.PoolState()}"));
+        }
+    });
+
+    private static void Mark(string phase)
+    {
+        Interlocked.Exchange(ref _phaseStarted, System.Diagnostics.Stopwatch.GetTimestamp());
+        Volatile.Write(ref _phase, phase);
+    }
 
     /// <summary>Una tasa de 1/2^62 (un cuadro de más de 400 años): empujar o recortar un cuadro lanzaba OverflowException.</summary>
     [Theory]
@@ -298,6 +327,7 @@ public class ExtremeProjectSessionTests
     private static async Task EditAsync(Random random, string directory, string path)
     {
         (EditorSession session, _) = NewSession();
+        Mark("abrir");
         Assert.True(await session.OpenProjectAsync(path));
         string seq = session.SequenceId;
         for (int step = 0; step < 100; step++)
@@ -312,6 +342,7 @@ public class ExtremeProjectSessionTests
             int frames = new[] { 1, -1, 1000, -1000, int.MaxValue, int.MinValue }[random.Next(6)];
             int action = random.Next(26);
             string what = Invariant($"paso {step}: acción {action} sobre «{id}», en {at.Ticks}, Δ {delta.Ticks}, {frames} cuadros");
+            Mark(what);
             try
             {
                 Act(session, seq, action, id, at, delta, edge, frames, random);
@@ -326,7 +357,9 @@ public class ExtremeProjectSessionTests
         }
 
         string saved = Path.Combine(directory, "guardado" + ProjectSerializer.FileExtension);
+        Mark("guardar como");
         Assert.True(await session.SaveAsAsync(saved));
+        Mark("volver a leer");
         Assert.Empty(ModelValidator.Validate(ProjectSerializer.Load(saved)));
     }
 
