@@ -84,8 +84,8 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     internal Func<long, Task>? BeforeReplyForTests { get; init; }
 
     /// <summary>
-    /// Costura de pruebas: corre justo antes de arrancar el hilo propio de una llamada, donde <see cref="Thread.Start()"/>
-    /// espera a que el hilo nuevo arranque (tarea 235).
+    /// Costura de pruebas: corre en el hilo de arranque justo antes de arrancar el hilo propio de una llamada, donde
+    /// <see cref="Thread.Start()"/> espera a que el hilo nuevo arranque (tareas 235 y 260).
     /// </summary>
     internal Action<long>? BeforeCallThreadStartsForTests { get; init; }
 
@@ -130,6 +130,7 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         // escribieron su respuesta final, que es lo que el cierre tiene que esperar (tarea 211).
         ConcurrentDictionary<long, CancellationTokenSource> active = new();
         ConcurrentDictionary<object, Task> unanswered = new();
+        CallStarter starter = new(this);
         try
         {
             if (!await HandshakeAsync(channel, stop.Token).ConfigureAwait(false)) return false;
@@ -142,7 +143,7 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
                     case ShutdownMessage:
                         return true;
                     case InvokeMessage invoke:
-                        await StartAsync(channel, invoke, active, unanswered, stop.Token).ConfigureAwait(false);
+                        await StartAsync(channel, invoke, active, unanswered, starter, stop.Token).ConfigureAwait(false);
                         break;
                     case CancelMessage cancel:
                         if (active.TryGetValue(cancel.Id, out CancellationTokenSource? cts)) await TryCancelAsync(cts).ConfigureAwait(false);
@@ -166,6 +167,7 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         }
         finally
         {
+            starter.Complete();
             // Con la misma protección que «cancel»: una llamada que termina ahora ya desechó su CancellationTokenSource
             // (defecto 2 de ProtocolDefectTests). Cerrar nunca lanza; siempre se espera a las llamadas y se liberan las regiones.
             foreach (CancellationTokenSource cts in active.Values) await TryCancelAsync(cts).ConfigureAwait(false);
@@ -216,7 +218,8 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     }
 
     private async ValueTask StartAsync(MessageChannel channel, InvokeMessage invoke,
-        ConcurrentDictionary<long, CancellationTokenSource> active, ConcurrentDictionary<object, Task> unanswered, CancellationToken stop)
+        ConcurrentDictionary<long, CancellationTokenSource> active, ConcurrentDictionary<object, Task> unanswered, CallStarter starter,
+        CancellationToken stop)
     {
         if (active.ContainsKey(invoke.Id)) throw new ModuleProtocolException($"La llamada {invoke.Id} ya está en curso.");
         if (!_functions.TryGetValue(invoke.Function, out ModuleFunction? function))
@@ -279,17 +282,78 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         }, CancellationToken.None, TaskCreationOptions.LongRunning);
         active[invoke.Id] = cts;
         unanswered[key] = start.Unwrap();
-        // El hilo se arranca desde el pool y no desde este bucle (tarea 235). Arrancar un hilo es síncrono: el runtime
-        // crea el hilo del sistema y espera, cediendo el procesador, a que el hilo nuevo se dé por arrancado. Si eso se
-        // demora (la CI de Windows lo vio pasar de 10 s, con el proceso sin usar CPU), el bucle se quedaba detenido ahí
-        // con la llamada ya en «active» y en «unanswered»: no leía el «shutdown» que venía detrás ni el cierre del editor,
-        // y RunAsync no terminaba. Así, el bucle sigue atendiendo y el cierre espera a la llamada con su plazo de 2 s.
-        // Si el hilo no se puede crear, la excepción sale en el pool y termina el proceso del módulo (antes salía de RunAsync).
-        ThreadPool.UnsafeQueueUserWorkItem(_ =>
+        // El hilo no se arranca en este bucle (tarea 235) ni en el pool (tarea 260), sino en el hilo de arranque del anfitrión.
+        starter.Start(start, invoke.Id);
+    }
+
+    /// <summary>
+    /// Arranca los hilos propios de las llamadas de una conexión, de uno en uno, en un hilo suyo. <see cref="Thread.Start()"/>
+    /// es síncrono: el runtime crea el hilo del sistema y espera, cediendo el procesador, a que el hilo nuevo se dé por
+    /// arrancado, y en la CI de Windows esa espera llegó a pasar de 10 s.
+    /// <list type="bullet">
+    /// <item>En el bucle de <see cref="RunAsync(Stream, CancellationToken)"/> (tarea 235), el bucle se quedaba ahí con la
+    /// llamada ya en «active» y en «unanswered» y no leía el «shutdown» que venía detrás ni el cierre del editor.</item>
+    /// <item>En un trabajo del pool por llamada (#233, tarea 260), cada arranque lento ocupaba un hilo del pool: con 64
+    /// llamadas y la CPU llena, el pool se llenaba de arranques en espera y la continuación de la lectura de la tubería
+    /// (el fin de flujo al cerrar el editor) o el plazo del cierre esperaban detrás, en la cola.</item>
+    /// </list>
+    /// Aquí ni el bucle ni el cierre dependen del arranque: un hilo lento solo retrasa las llamadas que vienen detrás, y el
+    /// cierre las espera con su plazo de 2 s. El hilo de arranque se crea con la primera llamada y lo arranca un único
+    /// trabajo del pool (el único arranque que espera ahí); termina cuando la conexión se cierra y ya arrancó lo pendiente.
+    /// Si un hilo no se puede crear, la excepción termina el proceso del módulo, como antes salía de RunAsync.
+    /// </summary>
+    private sealed class CallStarter(ModuleHost host)
+    {
+        private readonly Queue<(Task<Task> Call, long Id)> _pending = new();
+        private bool _completed;
+        private bool _created;
+
+        /// <summary>Encola la llamada para arrancarla. Solo desde el bucle, antes de <see cref="Complete"/>.</summary>
+        public void Start(Task<Task> call, long id)
         {
-            BeforeCallThreadStartsForTests?.Invoke(invoke.Id);
-            start.Start(TaskScheduler.Default);
-        }, null);
+            bool create;
+            lock (_pending)
+            {
+                _pending.Enqueue((call, id));
+                Monitor.Pulse(_pending);
+                create = !_created;
+                _created = true;
+            }
+            if (create)
+            {
+                Thread thread = new(Run) { IsBackground = true, Name = "Rodaje: arranque de llamadas" };
+                ThreadPool.UnsafeQueueUserWorkItem(static t => t.Start(), thread, preferLocal: false);
+            }
+        }
+
+        /// <summary>No llegan más llamadas: el hilo arranca lo que quede y termina.</summary>
+        public void Complete()
+        {
+            lock (_pending)
+            {
+                _completed = true;
+                Monitor.Pulse(_pending);
+            }
+        }
+
+        private void Run()
+        {
+            while (true)
+            {
+                (Task<Task> Call, long Id) next;
+                lock (_pending)
+                {
+                    while (_pending.Count == 0)
+                    {
+                        if (_completed) return;
+                        Monitor.Wait(_pending);
+                    }
+                    next = _pending.Dequeue();
+                }
+                host.BeforeCallThreadStartsForTests?.Invoke(next.Id);
+                next.Call.Start(TaskScheduler.Default);
+            }
+        }
     }
 
     /// <summary>
