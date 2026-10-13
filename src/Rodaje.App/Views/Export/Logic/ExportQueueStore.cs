@@ -259,6 +259,9 @@ public sealed class ExportQueueStore(string path)
         }
     }
 
+    // Antes se leía, se comparaba y después se borraba por nombre: si otra instancia reemplazaba la cola entre medias, se
+    // borraba la cola buena. Ahora se compara desde el mismo manejador que borra (DeleteOnClose) y, mientras está abierto,
+    // FileShare.Read no deja escribir ni reemplazar el archivo (en Windows; en Linux el bloqueo es solo orientativo).
     private void RemoveOriginalIfUnchanged(byte[] content, bool removeOriginal)
     {
         if (!removeOriginal)
@@ -266,17 +269,49 @@ public sealed class ExportQueueStore(string path)
             return;
         }
 
+        byte[]? current = null;
         try
         {
-            if (File.ReadAllBytes(Path).AsSpan().SequenceEqual(content))
+            using (var stream = new FileStream(Path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.DeleteOnClose))
             {
-                BeforeRemove?.Invoke();
-                File.Delete(Path);
+                current = ReadAll(stream);
+                if (current.AsSpan().SequenceEqual(content))
+                {
+                    BeforeRemove?.Invoke();
+                    return; // Al cerrarse se borra.
+                }
             }
+
+            // Otra instancia la reemplazó antes de abrirla: el manejador ya la borró al cerrarse, así que se devuelve tal
+            // como estaba (sin pisar una todavía más nueva que haya escrito alguien entretanto).
+            Restore(current);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Ya no está o no se puede tocar: la copia ya está escrita y el archivo se vuelve a mirar al abrir de nuevo.
+            // Ya no está o no se puede tocar (otra instancia la tiene abierta): la copia ya está escrita y el archivo se
+            // vuelve a mirar al abrir de nuevo.
+        }
+    }
+
+    private static byte[] ReadAll(FileStream stream)
+    {
+        using var memory = new MemoryStream();
+        stream.CopyTo(memory);
+        return memory.ToArray();
+    }
+
+    private void Restore(byte[] content)
+    {
+        string temporary = Path + ".restaurar.tmp";
+        File.WriteAllBytes(temporary, content);
+        try
+        {
+            File.Move(temporary, Path, overwrite: false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Ya hay otra más nueva en su sitio.
+            File.Delete(temporary);
         }
     }
 
