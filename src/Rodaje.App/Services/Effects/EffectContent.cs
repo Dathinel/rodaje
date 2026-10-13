@@ -31,13 +31,20 @@ public sealed class EffectContent : IAwaitableEffectContent
     private readonly ConcurrentDictionary<string, LutEntry> _luts = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, TransitionCurves?> _transitions = new(StringComparer.Ordinal);
     private volatile string? _projectFolder;
-    private readonly MatteReader _mattes = new();
+    private readonly MatteReader _mattes;
     private int _generation;
 
     public EffectContent(IContentLoader loader)
+        : this(loader, new MatteReader())
+    {
+    }
+
+    internal EffectContent(IContentLoader loader, MatteReader mattes)
     {
         ArgumentNullException.ThrowIfNull(loader);
+        ArgumentNullException.ThrowIfNull(mattes);
         _loader = loader;
+        _mattes = mattes;
     }
 
     /// <summary>Terminó de cargar algo o se descartó la caché: en pausa hay que volver a componer.</summary>
@@ -58,6 +65,7 @@ public sealed class EffectContent : IAwaitableEffectContent
             }
 
             _projectFolder = value;
+            _mattes.Clear();
             bool removed = false;
             foreach (string key in _luts.Keys)
             {
@@ -114,6 +122,9 @@ public sealed class EffectContent : IAwaitableEffectContent
 
     /// <summary>Olvida lo leído de un video de máscara que se acaba de escribir de nuevo.</summary>
     public void ForgetMatte(string path) => _mattes.Forget(path);
+
+    /// <summary>Cierra los videos de máscara abiertos: se abrió otro proyecto (o el mismo de nuevo).</summary>
+    public void CloseMattes() => _mattes.Clear();
 
     public TransitionCurves? FindTransition(string reference)
     {

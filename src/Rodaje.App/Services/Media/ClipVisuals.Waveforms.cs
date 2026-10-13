@@ -120,14 +120,46 @@ public sealed partial class ClipVisuals
 
     private void Publish(string path, WaveformPeaks peaks)
     {
+        int max = Math.Max(1, _options.MaxWaveformsInMemory);
         _waveforms[path] = peaks;
         _waveformOrder.Enqueue(path);
-        while (_waveforms.Count > Math.Max(1, _options.MaxWaveformsInMemory) && _waveformOrder.TryDequeue(out string? old))
+        while (_waveforms.Count > max && _waveformOrder.TryDequeue(out string? old))
         {
             if (!string.Equals(old, path, StringComparison.OrdinalIgnoreCase))
             {
                 _waveforms.TryRemove(old, out _);
             }
         }
+
+        // Un archivo que se olvida (Forget, al cerrar un proyecto) y se vuelve a calcular entra otra vez en la cola, y la
+        // cola solo se vaciaba al pasar del tope de ondas: al ir y venir entre proyectos crecía sin límite. Se compacta
+        // dejando la última aparición de cada archivo que sigue en memoria. Solo este hilo escribe en la cola.
+        if (_waveformOrder.Count > 2 * max)
+        {
+            CompactWaveformOrder();
+        }
     }
+
+    private void CompactWaveformOrder()
+    {
+        var kept = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string[] all = [.. _waveformOrder];
+        for (int i = all.Length - 1; i >= 0; i--)
+        {
+            if (_waveforms.ContainsKey(all[i]) && seen.Add(all[i]))
+            {
+                kept.Add(all[i]);
+            }
+        }
+
+        _waveformOrder.Clear();
+        for (int i = kept.Count - 1; i >= 0; i--)
+        {
+            _waveformOrder.Enqueue(kept[i]);
+        }
+    }
+
+    /// <summary>Entradas de la cola de expulsión de las ondas, para las pruebas de fugas.</summary>
+    internal int WaveformOrderCountForTests => _waveformOrder.Count;
 }

@@ -31,7 +31,13 @@ public static class AppEffectContent
                 content.ProjectFolder = Folder(session.FilePath);
             }
         };
-        session.ProjectOpened += (_, _) => content.ProjectFolder = Folder(session.FilePath);
+        session.ProjectOpened += (_, _) =>
+        {
+            content.ProjectFolder = Folder(session.FilePath);
+
+            // Los decodificadores de las máscaras de imagen del proyecto anterior quedaban abiertos hasta cerrar la app.
+            content.CloseMattes();
+        };
         content.Problem += (_, e) =>
         {
             void Show() => session.Notify(NotificationSeverity.Warning, "No se pudo leer el contenido", $"«{e.Reference}»: {e.Message}");
