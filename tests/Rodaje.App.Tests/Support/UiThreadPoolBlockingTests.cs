@@ -1,5 +1,4 @@
-using System.Collections.Concurrent;
-using System.Diagnostics.Tracing;
+using System.Reflection;
 using Xunit.Abstractions;
 
 namespace Rodaje.App.Tests.Support;
@@ -13,45 +12,67 @@ public sealed class UiThreadPoolBlockingGroup
 /// <summary>
 /// Gemela sin reloj de <see cref="UiThreadPoolTests"/>, para la CI: no mide cuánto tardan en empezar, sino si el pool
 /// se entera de que <see cref="UiThread.Run(Func{Task})"/> bloquea su hilo. Esperando una Task desde un hilo del pool,
-/// el pool lo cuenta como bloqueado y sube su meta de hilos hacia «mínimo + bloqueados», con un ajuste de motivo
-/// «bloqueo cooperativo» que publica el evento <c>ThreadPoolWorkerThreadAdjustmentAdjustment</c> del runtime. Con
-/// <c>Thread.Join</c> el pool no sabe nada y ese ajuste no llega nunca: lo único que suma hilos entonces es la inanición,
-/// que tiene otro motivo.
+/// <c>Task.Wait</c> avisa al pool (<c>ThreadPool.NotifyThreadBlocked</c>), que suma uno a su cuenta de hilos bloqueados
+/// y pone otro en su lugar; con <c>Thread.Join</c> el pool no sabe nada y esa cuenta no se mueve.
 /// </summary>
 /// <remarks>
-/// Corre sin otras pruebas a la vez (las de su colección van al final, solas): una prueba ajena que espere una Task
-/// también pide ajustes por bloqueo y taparía la vuelta a <c>Thread.Join</c>.
+/// <para>
+/// Lee esa cuenta (<c>PortableThreadPool._numBlockedThreads</c>, privada del runtime) por reflexión. Antes (#135)
+/// esperaba el evento <c>ThreadPoolWorkerThreadAdjustmentAdjustment</c> con motivo «bloqueo cooperativo» (8), y eso
+/// fallaba en Windows aunque el pool sí contara los bloqueados: el pool solo publica ese ajuste si su meta de hilos está
+/// por debajo de «mínimo + bloqueados», y la meta es interna (<c>ThreadPool.ThreadCount</c> son los hilos que existen,
+/// no la meta). Si la subida de colina o la inanición la habían dejado más alta, no hay nada que subir y el evento no
+/// llega («Ajustes: ninguno» con 12 hilos y mínimo 32); y si un hilo ocioso caduca, la meta baja justo a «mínimo +
+/// bloqueados» con el motivo 7, «hilo caducado» («Ajustes: 40 (motivo 7)» con mínimo 32 y 8 bloqueados: el pool sí los
+/// contaba). Además <c>HillClimbing.ForceChange</c> no publica nada si su último valor ya coincide con la meta nueva.
+/// </para>
+/// <para>
+/// Si un cambio del runtime quita o renombra el campo, la prueba falla diciéndolo (no pasa en falso). Corre sin otras
+/// pruebas a la vez (las de su colección van al final, solas): una prueba ajena que espere una Task también sumaría
+/// bloqueados y taparía la vuelta a <c>Thread.Join</c>.
+/// </para>
 /// </remarks>
 [Collection(UiThreadPoolBlockingGroup.Name)]
 public sealed class UiThreadPoolBlockingTests(ITestOutputHelper output)
 {
+    private const int Tests = 8;
+
     [Fact]
     public async Task El_pool_cuenta_como_bloqueado_el_hilo_que_espera_a_la_prueba_de_interfaz()
     {
-        ThreadPool.GetMinThreads(out int min, out _);
-        // La meta del pool por bloqueos es «mínimo + bloqueados» y solo sube si estaba por debajo; si otras pruebas la
-        // dejaron alta, se bloquean más para pasarla (la meta no queda por encima de los hilos que existen).
-        int tests = Math.Clamp(ThreadPool.ThreadCount - min + 8, 8, 64);
-        int target = min + tests;
-        using var listener = new PoolAdjustmentListener { Target = target };
+        Func<int> blockedThreads = BlockedThreadsReader();
+        int before = blockedThreads();
         int started = 0;
         TaskCompletionSource allStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        Task[] runs = [.. Enumerable.Range(0, tests).Select(_ => Task.Run(() => UiThread.Run(async () =>
+        Task[] runs = [.. Enumerable.Range(0, Tests).Select(_ => Task.Run(() => UiThread.Run(async () =>
         {
-            if (Interlocked.Increment(ref started) == tests)
+            if (Interlocked.Increment(ref started) == Tests)
             {
                 allStarted.TrySetResult();
             }
 
             await release.Task;
         })))];
-        bool reached;
+        int most = before;
+        bool counted;
         try
         {
-            // Topes contra cuelgues, no medidas: en verde vuelve en cuanto el pool sube su meta por los bloqueados.
+            // Topes contra cuelgues, no medidas: en verde sale en cuanto los hilos que esperan pasan de girar a bloquearse
+            // (Task.Wait gira un poco antes de avisar al pool). Con Thread.Join la cuenta no sube y agota el tope.
             await allStarted.Task.WaitAsync(TimeSpan.FromSeconds(120));
-            reached = await Task.WhenAny(listener.ReachedByBlocking, Task.Delay(TimeSpan.FromSeconds(60))) == listener.ReachedByBlocking;
+            using var cap = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            while (true)
+            {
+                most = Math.Max(most, blockedThreads());
+                counted = most >= before + Tests;
+                if (counted || cap.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                await Task.Delay(1);
+            }
         }
         finally
         {
@@ -59,53 +80,27 @@ public sealed class UiThreadPoolBlockingTests(ITestOutputHelper output)
         }
 
         await Task.WhenAll(runs).WaitAsync(TimeSpan.FromSeconds(120));
-        output.WriteLine($"{tests} pruebas de interfaz bloqueadas; ajustes del pool: {listener.Describe()}. {UiThread.PoolState()}");
-        Assert.True(reached,
-            $"Con {tests} pruebas de interfaz bloqueadas el pool no subió su meta por bloqueo a {target} hilos (mínimo {min} + {tests}): "
-            + $"UiThread.Run bloquea sin que el pool lo sepa (¿volvió Thread.Join?). Ajustes: {listener.Describe()}. {UiThread.PoolState()}");
+        output.WriteLine($"{Tests} pruebas de interfaz bloqueadas; el pool contaba {most} hilos bloqueados (antes, {before}). {UiThread.PoolState()}");
+        Assert.True(counted,
+            $"Con {Tests} pruebas de interfaz bloqueadas el pool contaba {most} hilos bloqueados (antes, {before}): "
+            + $"UiThread.Run bloquea sin que el pool lo sepa (¿volvió Thread.Join?). {UiThread.PoolState()}");
     }
 
-    /// <summary>Escucha los ajustes de la meta de hilos del pool (eventos del runtime, palabra clave de hilos).</summary>
-    private sealed class PoolAdjustmentListener : EventListener
+    /// <summary>
+    /// Lector de la cuenta de hilos bloqueados del pool portátil de .NET (el de Windows y Linux mientras no se active
+    /// <c>System.Threading.ThreadPool.UseWindowsThreadPool</c>), que suben <c>NotifyThreadBlocked</c> y bajan
+    /// <c>NotifyThreadUnblocked</c>.
+    /// </summary>
+    private static Func<int> BlockedThreadsReader()
     {
-        // ThreadingKeyword del proveedor Microsoft-Windows-DotNETRuntime y el motivo «CooperativeBlocking» del ajuste (HillClimbing.StateOrTransition: Starvation es 6).
-        private const EventKeywords Threading = (EventKeywords)0x10000;
-        private const uint CooperativeBlocking = 8;
-
-        private readonly ConcurrentQueue<(uint Goal, uint Reason)> _adjustments = new();
-
-        private readonly TaskCompletionSource _reached = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        /// <summary>Se completa con el primer ajuste por bloqueo que lleva la meta a <see cref="Target"/> o más.</summary>
-        public Task ReachedByBlocking => _reached.Task;
-
-        public int Target { get; set; } = int.MaxValue;
-
-        public string Describe() => _adjustments.IsEmpty ? "ninguno"
-            : string.Join(", ", _adjustments.Take(40).Select(a => $"{a.Goal} ({(a.Reason == CooperativeBlocking ? "bloqueo" : "motivo " + a.Reason)})"));
-
-        protected override void OnEventSourceCreated(EventSource eventSource)
-        {
-            if (eventSource.Name == "Microsoft-Windows-DotNETRuntime")
-            {
-                EnableEvents(eventSource, EventLevel.Informational, Threading);
-            }
-        }
-
-        protected override void OnEventWritten(EventWrittenEventArgs eventData)
-        {
-            if (eventData.EventName != "ThreadPoolWorkerThreadAdjustmentAdjustment" || eventData.Payload is not { Count: >= 3 } payload)
-            {
-                return;
-            }
-
-            uint goal = Convert.ToUInt32(payload[1], System.Globalization.CultureInfo.InvariantCulture);
-            uint reason = Convert.ToUInt32(payload[2], System.Globalization.CultureInfo.InvariantCulture);
-            _adjustments.Enqueue((goal, reason));
-            if (reason == CooperativeBlocking && goal >= Target)
-            {
-                _reached.TrySetResult();
-            }
-        }
+        const BindingFlags Static = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static;
+        const BindingFlags Instance = BindingFlags.NonPublic | BindingFlags.Instance;
+        Type? pool = typeof(ThreadPool).Assembly.GetType("System.Threading.PortableThreadPool");
+        object? instance = pool?.GetField("ThreadPoolInstance", Static)?.GetValue(null);
+        FieldInfo? blocked = pool?.GetField("_numBlockedThreads", Instance);
+        Assert.True(instance is not null && blocked is not null,
+            "El runtime ya no tiene PortableThreadPool.ThreadPoolInstance._numBlockedThreads: hay que buscar otra forma de "
+            + $"ver si el pool cuenta los hilos bloqueados (runtime {Environment.Version}).");
+        return () => Convert.ToInt32(blocked!.GetValue(instance), System.Globalization.CultureInfo.InvariantCulture);
     }
 }
