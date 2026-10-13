@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Rodaje.App.Services.Crashes;
 using Rodaje.Modules.Protocol;
 
 namespace Rodaje.App.Services.Modules;
@@ -59,7 +60,7 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
 
             int generation = ++_idleGeneration;
             _idleTimer?.Dispose();
-            _idleTimer = new Timer(_ => _ = CloseIfIdleAsync(generation), null, options.IdleTimeout, Timeout.InfiniteTimeSpan);
+            _idleTimer = new Timer(_ => UiTask.Run(CloseIfIdleAsync(generation)), null, options.IdleTimeout, Timeout.InfiniteTimeSpan);
         }
     }
 
@@ -184,13 +185,14 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
         if (Interlocked.CompareExchange(ref _process, null, process) == process)
         {
             // Matar el árbol de procesos puede tardar segundos con la CPU llena: nunca en línea. Desde EnsureStartedAsync
-            // esto corre con _gate tomado y quizá en el hilo de la interfaz. En un hilo propio, como KillWhenFaulted.
+            // esto corre con _gate tomado y quizá en el hilo de la interfaz. En un hilo propio, como KillWhenFaulted, y
+            // observado con UiTask para que una excepción del cierre no se pierda.
             Action<ModuleProcess> kill = KillProcess;
-            _ = Task.Factory.StartNew(() =>
+            UiTask.Run(Task.Factory.StartNew(() =>
             {
                 kill(process);
                 return process.DisposeAsync().AsTask();
-            }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
+            }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap());
             closed(this);
         }
     }

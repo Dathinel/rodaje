@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Model;
@@ -193,7 +194,9 @@ internal sealed partial class LibraryView
 
     private void OnUpClick(object sender, RoutedEventArgs e) => OpenFolder(_organization.FindFolder(_folderId)?.ParentId);
 
-    private async void OnNewFolderClick(object sender, RoutedEventArgs e)
+    private void OnNewFolderClick(object sender, RoutedEventArgs e) => UiTask.Run(OnNewFolderClickAsync(sender, e));
+
+    private async Task OnNewFolderClickAsync(object sender, RoutedEventArgs e)
     {
         LibraryFolder folder = _organization.CreateFolder(_folderId);
         SaveOrganization();
@@ -211,7 +214,7 @@ internal sealed partial class LibraryView
         args.Handled = true;
         var menu = new MenuFlyout();
         menu.Items.Add(MenuItem("Abrir", "", (_, _) => OpenFolder(item.Id)));
-        menu.Items.Add(MenuItem("Renombrar…", "", (_, _) => _ = RenameFolderAsync(item.Id)));
+        menu.Items.Add(MenuItem("Renombrar…", "", (_, _) => UiTask.Run(RenameFolderAsync(item.Id))));
         menu.Items.Add(new MenuFlyoutSeparator());
         MenuFlyoutItem delete = MenuItem("Eliminar carpeta", "", (_, _) => DeleteFolder(item.Id));
         ToolTipService.SetToolTip(delete, "Sus medios y carpetas pasan a la carpeta de arriba; ningún medio sale del proyecto.");
@@ -356,7 +359,7 @@ internal sealed partial class LibraryView
         }
 
         _moveItem.Items.Add(new MenuFlyoutSeparator());
-        _moveItem.Items.Add(MenuItem("Carpeta nueva…", "", (_, _) => _ = MoveTargetToNewFolderAsync()));
+        _moveItem.Items.Add(MenuItem("Carpeta nueva…", "", (_, _) => UiTask.Run(MoveTargetToNewFolderAsync())));
     }
 
     private void MoveTarget(string? folderId)
@@ -422,7 +425,19 @@ internal sealed partial class LibraryView
             return;
         }
 
-        _ = Task.Run(() =>
+        // Con la caché llena, los códecs salen de a miles por segundo: se juntan y la interfaz los aplica por tandas, con
+        // un solo aviso pendiente a la vez en vez de uno por medio.
+        var read = new System.Collections.Concurrent.ConcurrentQueue<(MediaItem Item, MediaCodecs Codecs)>();
+        var apply = new CoalescedDispatch(dispatcher, () =>
+        {
+            while (read.TryDequeue(out (MediaItem Item, MediaCodecs Codecs) next))
+            {
+                next.Item.SetCodecs(next.Codecs);
+            }
+
+            ScheduleRefilter();
+        }, DispatcherQueuePriority.Low);
+        UiTask.Run(Task.Run(() =>
         {
             foreach (MediaItem item in pending)
             {
@@ -438,13 +453,10 @@ internal sealed partial class LibraryView
                     continue;
                 }
 
-                dispatcher.RunLater(DispatcherQueuePriority.Low, () =>
-                {
-                    item.SetCodecs(codecs);
-                    ScheduleRefilter();
-                });
+                read.Enqueue((item, codecs));
+                apply.Request();
             }
-        });
+        }));
     }
 
     private static MediaCodecs ReadCodecs(string path)

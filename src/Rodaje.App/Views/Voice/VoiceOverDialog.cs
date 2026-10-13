@@ -163,6 +163,15 @@ internal static class VoiceOverDialog
                 note.Text = $"Micrófono: {deviceName}. «Detener» o Esc termina la toma.";
             }
 
+            if (recording && recorder.Failure is not null)
+            {
+                // El disco se llenó (u otro error de escritura) a mitad de la toma: se para aquí y se avisa al cerrar,
+                // en vez de dejar correr el contador hasta que se pulse «Detener».
+                timer.Stop();
+                dialog.Hide();
+                return;
+            }
+
             status.Text = "● " + Timecode(recorder.Recorded);
             level.Value = Math.Min(1, Math.Sqrt(recorder.TakePeak()));
         };
@@ -176,31 +185,40 @@ internal static class VoiceOverDialog
             services.Player.Reload(session.Project.Clone());
         }
 
-        VoiceOverTake take;
+        VoiceOverTake? take = null;
+        IOException? failure = null;
         try
         {
             take = recorder.Finish();
         }
         catch (IOException ex)
         {
-            recorder.Dispose();
-            session.Notify(NotificationSeverity.Error, "No se pudo guardar la voz en off", ex.Message);
-            return;
+            failure = ex;
         }
 
         recorder.Dispose();
-        if (cancelled || take.Frames == 0)
+        switch (VoiceOverRecorder.Decide(cancelled, failure is not null, take?.Frames ?? 0))
         {
-            TryDelete(take.Path);
-            if (!cancelled)
-            {
-                session.Notify(NotificationSeverity.Informational, "Voz en off", "No llegó a grabarse nada.");
-            }
+            case VoiceOverOutcome.Discard:
+                // Cancelada en la cuenta atrás: no se avisa de nada, ni siquiera de un error al cerrar el WAV.
+                if (take is not null)
+                {
+                    TryDelete(take.Path);
+                }
 
-            return;
+                return;
+            case VoiceOverOutcome.ReportFailure:
+                session.Notify(NotificationSeverity.Error, "No se pudo guardar la voz en off", failure!.Message);
+                return;
+            case VoiceOverOutcome.Empty:
+                TryDelete(take!.Path);
+                session.Notify(NotificationSeverity.Informational, "Voz en off", "No llegó a grabarse nada.");
+                return;
+            case VoiceOverOutcome.Insert:
+                break;
         }
 
-        if (!session.InsertVoiceOver(take.Path, take.Frames, take.SampleRate, take.Start, trackId))
+        if (!session.InsertVoiceOver(take!.Path, take.Frames, take.SampleRate, take.Start, trackId))
         {
             session.Notify(NotificationSeverity.Warning, "Voz en off", $"La toma quedó guardada en {take.Path}, pero no se pudo poner en la línea de tiempo.");
         }

@@ -84,34 +84,109 @@ public sealed class BufferedAudioSourceStressTests
     /// Regresión: con el anillo lleno, un <see cref="BufferedAudioSource.Rewind"/> que conservaba casi todo dejaba pasar al
     /// hilo de decodificación sin mirar si había lugar y el bloque nuevo pisaba lo que aún no había sonado.
     /// </summary>
+    /// <remarks>
+    /// El decodificador falso anota cuánto había en el anillo al empezar cada lectura: ninguna puede empezar sin lugar para
+    /// un bloque. Esa anotación se toma fuera del candado y lo único que puede hacer el hilo de la prueba mientras tanto es
+    /// vaciar el anillo, así que un valor alto siempre es una lectura sin lugar. Sin espera fija: el defecto se ve cuando el
+    /// hilo de decodificación toma el candado antes que la lectura de la prueba (el <c>Thread.Yield</c> le cede el turno), y
+    /// eso no se puede forzar desde fuera, así que se repite muchas vueltas; sin el arreglo, falla en las primeras cientos.
+    /// Con el arreglo no hay carrera que pueda hacerla fallar.
+    /// </remarks>
     [Fact]
     public void A_rewind_with_a_full_ring_waits_for_room_instead_of_overwriting()
     {
         const int capacity = 2 * Chunk;
-        var pcm = new FakePcm { Gate = new SemaphoreSlim(2) };
-        using var source = new BufferedAudioSource(pcm, capacity);
-        Stress.WaitUntil(0, "llenar el anillo", () => source.BufferedFrames == capacity);
-
-        // Conserva todo: el bloque que se vuelva a pedir no cabe hasta que suene algo.
-        source.Rewind(capacity);
-        pcm.Gate.Release();
-        Thread.Sleep(200);
-        Assert.InRange(source.BufferedFrames, 0, capacity);
-
+        int rounds = Stress.Iterations(1000);
         float[] buffer = new float[capacity * 2];
-        Assert.Equal(capacity, source.Read(buffer));
-        for (int f = 0; f < capacity; f++)
+        for (int round = 0; round < rounds; round++)
         {
-            Assert.Equal(f, buffer[f * 2]);
+            var pcm = new ProbingPcm();
+            using var source = new BufferedAudioSource(pcm, capacity);
+            pcm.Probe = () => source.BufferedFrames;
+            Stress.WaitUntil(0, $"llenar el anillo (vuelta {round})", () => source.BufferedFrames == capacity);
+            Assert.Equal(2, pcm.Reads);
+
+            // Conserva todo: el bloque que se vuelva a pedir no cabe hasta que suene algo.
+            source.Rewind(capacity);
+            Thread.Yield();
+            Assert.Equal(capacity, source.Read(buffer));
+            for (int f = 0; f < capacity; f++)
+            {
+                Assert.True(buffer[f * 2] == f, $"Vuelta {round}: el cuadro {f} sonó {buffer[f * 2]} (lo pisó un bloque leído sin lugar).");
+            }
+
+            // Con lugar, sigue desde donde quedó lo conservado.
+            Stress.WaitUntil(0, $"el bloque siguiente (vuelta {round})", () => source.BufferedFrames >= Chunk);
+            Assert.Equal(Chunk, source.Read(buffer.AsSpan(0, Chunk * 2)));
+            Assert.Equal(capacity, buffer[0]);
+            Assert.Equal(capacity + Chunk - 1, buffer[(Chunk - 1) * 2]);
+
+            int[] seen = pcm.BufferedAtRead;
+            Assert.True(seen.Length >= 3, $"Vuelta {round}: el decodificador se leyó {seen.Length} veces.");
+            for (int read = 0; read < seen.Length; read++)
+            {
+                Assert.True(seen[read] + Chunk <= capacity,
+                    $"Vuelta {round}: la lectura {read + 1} del decodificador empezó con {seen[read]} cuadros en un anillo de {capacity}.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Como <see cref="FakePcm"/> (la muestra <c>n</c> vale <c>n</c>), pero anota lo que devuelve <see cref="Probe"/> al empezar
+    /// cada lectura, en el hilo de decodificación.
+    /// </summary>
+    private sealed class ProbingPcm : IPcmSource
+    {
+        private readonly List<int> _bufferedAtRead = [];
+        private long _position;
+
+        public Func<int>? Probe { get; set; }
+
+        public int Reads
+        {
+            get
+            {
+                lock (_bufferedAtRead)
+                {
+                    return _bufferedAtRead.Count;
+                }
+            }
         }
 
-        // Con lugar, sigue desde donde quedó lo conservado.
-        Stress.WaitUntil(0, "el bloque siguiente", () => source.BufferedFrames >= Chunk);
-        Assert.Equal(Chunk, source.Read(buffer.AsSpan(0, Chunk * 2)));
-        Assert.Equal(capacity, buffer[0]);
-        Assert.Equal(capacity + Chunk - 1, buffer[(Chunk - 1) * 2]);
+        public int[] BufferedAtRead
+        {
+            get
+            {
+                lock (_bufferedAtRead)
+                {
+                    return [.. _bufferedAtRead];
+                }
+            }
+        }
 
-        // Que el hilo no quede esperando al decodificador falso al desecharse.
-        pcm.Gate.Release(1000);
+        public int Read(Span<float> interleaved)
+        {
+            int buffered = Probe?.Invoke() ?? 0;
+            lock (_bufferedAtRead)
+            {
+                _bufferedAtRead.Add(buffered);
+            }
+
+            int frames = interleaved.Length / 2;
+            for (int i = 0; i < frames; i++)
+            {
+                interleaved[i * 2] = _position + i;
+                interleaved[(i * 2) + 1] = -(_position + i);
+            }
+
+            _position += frames;
+            return frames;
+        }
+
+        public void Seek(Time position) => _position = position.ToSamples(48_000);
+
+        public void Dispose()
+        {
+        }
     }
 }

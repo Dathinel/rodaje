@@ -31,7 +31,9 @@ internal sealed partial class PlayerView
     {
         _properties = new ClipPropertyEditor(Session!);
         Microsoft.UI.Dispatching.DispatcherQueue dispatcher = DispatcherQueue;
-        _engine!.TitleBoxesChanged += () => dispatcher.RunLater(UpdateTitleHandles);
+        // Llega en cada cuadro mientras un título se anima: un solo aviso pendiente a la vez.
+        var titleBoxes = new CoalescedDispatch(dispatcher, UpdateTitleHandles);
+        _engine!.TitleBoxesChanged += titleBoxes.Request;
         Session!.SelectionChanged += (_, _) => UpdateTitleHandles();
         Session.ProjectEdited += (_, e) =>
         {

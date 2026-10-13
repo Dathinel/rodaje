@@ -1,4 +1,5 @@
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 
@@ -16,7 +17,9 @@ internal static class RawCommands
         return router.Bind(ImportCinemaDng, () => Run(services));
     }
 
-    private static async void Run(EditorServices services)
+    private static void Run(EditorServices services) => UiTask.Run(RunAsync(services));
+
+    private static async Task RunAsync(EditorServices services)
     {
         try
         {
@@ -26,6 +29,7 @@ internal static class RawCommands
         catch (Exception ex)
 #pragma warning restore CA1031
         {
+            UiTask.Report(ex, notify: false);
             services.Session.Notify(NotificationSeverity.Error, "Importar CinemaDNG", ex.Message);
         }
     }

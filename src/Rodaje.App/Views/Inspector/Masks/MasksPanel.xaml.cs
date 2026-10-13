@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
@@ -773,7 +774,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
     {
         if (sender is FrameworkElement { Tag: string tag })
         {
-            _ = TrackAsync(forward: tag.StartsWith("forward", StringComparison.Ordinal), single: tag.EndsWith('1'));
+            UiTask.Run(TrackAsync(forward: tag.StartsWith("forward", StringComparison.Ordinal), single: tag.EndsWith('1')));
         }
     }
 

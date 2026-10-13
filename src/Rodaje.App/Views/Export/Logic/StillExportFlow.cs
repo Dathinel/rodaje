@@ -1,4 +1,5 @@
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
 using Rodaje.Export.Still;
 using Rodaje.Media.Export;
@@ -125,7 +126,7 @@ internal sealed partial class StillExportFlow : IDisposable
         {
             ExportErrorView view = ExportErrorText.For(error);
             NotificationAction? action = view.Action == ExportErrorAction.ContinueWithout && !request.ContinueWithoutMissing
-                ? new NotificationAction(view.ActionText ?? "Exportar sin él", () => _ = StartAsync(request with { ContinueWithoutMissing = true }))
+                ? new NotificationAction(view.ActionText ?? "Exportar sin él", () => UiTask.Run(StartAsync(request with { ContinueWithoutMissing = true })))
                 : null;
             _notify(new EditorNotification(NotificationSeverity.Error, view.Title, view.Message, action));
         }

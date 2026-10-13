@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Translate;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
@@ -96,7 +97,7 @@ internal static class TranslateDialog
         Refresh();
 
         (string TrackId, TranslationLanguage Target, TrackTranslation Result)? done = null;
-        dialog.PrimaryButtonClick += async (_, args) =>
+        dialog.PrimaryButtonClick += (_, args) => UiTask.Run(async () =>
         {
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
             running = true;
@@ -122,6 +123,11 @@ internal static class TranslateDialog
 #pragma warning restore CA1031
             {
                 status.Text = ex is TranslationException or ModuleException ? ex.Message : "No se pudo traducir. El proyecto no cambió.";
+                if (ex is not (TranslationException or ModuleException))
+                {
+                    UiTask.Report(ex, notify: false);
+                }
+
                 args.Cancel = true;
             }
             finally
@@ -131,7 +137,7 @@ internal static class TranslateDialog
                 Refresh();
                 deferral.Complete();
             }
-        };
+        });
 
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         await cancel.CancelAsync();

@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Views.Inspector.Properties;
 using Rodaje.Core.Model;
@@ -143,7 +144,9 @@ internal sealed class EffectRowGroup(Panel host, ClipPropertyEditor editor, Func
         }
     }
 
-    private async void OnReset(object? sender, EventArgs e)
+    private void OnReset(object? sender, EventArgs e) => UiTask.Run(OnResetAsync(sender, e));
+
+    private async Task OnResetAsync(object? sender, EventArgs e)
     {
         if (sender is ParameterRow row && target() is { } t)
         {
@@ -153,7 +156,9 @@ internal sealed class EffectRowGroup(Panel host, ClipPropertyEditor editor, Func
         }
     }
 
-    private async void OnClearKeyframes(object? sender, EventArgs e)
+    private void OnClearKeyframes(object? sender, EventArgs e) => UiTask.Run(OnClearKeyframesAsync(sender, e));
+
+    private async Task OnClearKeyframesAsync(object? sender, EventArgs e)
     {
         if (sender is ParameterRow row && target() is { } t)
         {
