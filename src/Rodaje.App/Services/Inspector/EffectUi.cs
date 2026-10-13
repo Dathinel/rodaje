@@ -261,7 +261,7 @@ public static class EffectUi
             [(BuiltInEffects.Reframe360, R360.Pitch)] = new("Mirar arriba o abajo", "Inclinar la cámara 360", "°", 1, 1, 0),
             [(BuiltInEffects.Reframe360, R360.Roll)] = new("Girar el horizonte", "Girar la imagen de la cámara 360", "°", 1, 1, 0),
             [(BuiltInEffects.Reframe360, R360.Fov)] = new("Campo de visión", "Abrir o cerrar el campo de visión", "°", 1, 1, 0),
-            [(BuiltInEffects.LensDistortion, Ld.Zoom)] = new("Acercamiento", "Cambiar el acercamiento", "%", 100, 1, 0, UiRange.Custom, 50, 200),
+            [(BuiltInEffects.LensDistortion, Ld.Zoom)] = new("Zoom", "Cambiar el acercamiento", "%", 100, 1, 0, UiRange.Custom, 50, 200),
 
             [(BuiltInEffects.HslQualifier, Hq.HueCenter)] = new("Tono", "Cambiar el tono elegido", "°", 1, 1, 0),
             [(BuiltInEffects.HslQualifier, Hq.HueWidth)] = new("Ancho del tono", "Cambiar el ancho del tono", "°", 1, 1, 0, UiRange.Custom, 0, 90),
@@ -427,7 +427,7 @@ public static class EffectUi
             [(Tr.Wipe, Tr.WipeParameters.Angle)] = new("Ángulo", "Cambiar ángulo del barrido", "°", 1, 1, 0),
             [(Tr.Wipe, Tr.WipeParameters.Softness)] = Percent with { Label = "Borde suave", Description = "Cambiar borde del barrido" },
             [(Tr.ZoomDissolve, Tr.ZoomDissolveParameters.Zoom)] =
-                new("Acercamiento", "Cambiar acercamiento", "%", 100, 1, 0, UiRange.Custom, 0, 200),
+                new("Zoom", "Cambiar acercamiento", "%", 100, 1, 0, UiRange.Custom, 0, 200),
             [(Tr.BlurDissolve, Tr.BlurDissolveParameters.Radius)] =
                 new("Radio", "Cambiar desenfoque de la transición", "px", 1, 1, 0, UiRange.Custom, 0, 200),
             [(Tr.Wipe, Tp.BorderWidth)] = Percent with { Label = "Borde de color", Description = "Cambiar el borde de color", Step = 0.25, Decimals = 1 },
@@ -447,7 +447,7 @@ public static class EffectUi
             [(Tr.ZoomBlur, Tr.ZoomBlurParameters.CenterX)] = Percent with { Label = "Centro X", Description = "Mover el centro del zoom" },
             [(Tr.ZoomBlur, Tr.ZoomBlurParameters.CenterY)] = Percent with { Label = "Centro Y", Description = "Mover el centro del zoom" },
             [(Tr.Spin, Tr.SpinParameters.Angle)] = new("Vueltas", "Cambiar el giro", "°", 1, 15, 0, UiRange.Custom, -1080, 1080),
-            [(Tr.Spin, Tr.SpinParameters.Zoom)] = new("Acercamiento", "Cambiar el acercamiento del giro", "%", 100, 1, 0, UiRange.Custom, 0, 200),
+            [(Tr.Spin, Tr.SpinParameters.Zoom)] = new("Zoom", "Cambiar el acercamiento del giro", "%", 100, 1, 0, UiRange.Custom, 0, 200),
             [(Tr.Glitch, Tr.GlitchParameters.Amount)] = Percent with { Label = "Intensidad", Description = "Cambiar la intensidad del fallo" },
             [(Tr.Glitch, Tr.GlitchParameters.Bands)] = new("Franjas", "Cambiar las franjas", "", 1, 1, 0),
             [(Tr.Glitch, Tr.GlitchParameters.Split)] = new("Separación de color", "Cambiar la separación de los canales", "%", 100, 0.1, 1),

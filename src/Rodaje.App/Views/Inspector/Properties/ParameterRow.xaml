@@ -42,7 +42,7 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock x:Name="LabelText" Style="{StaticResource LabelTextStyle}" />
+            <TextBlock x:Name="LabelText" Style="{StaticResource LabelTextStyle}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
             <TextBlock x:Name="AxisText" Grid.Column="1" Style="{StaticResource LabelTextStyle}" Foreground="{StaticResource TextBrush}"
                        FontWeight="SemiBold" TextTrimming="None" Margin="0,0,4,0" />
         </Grid>

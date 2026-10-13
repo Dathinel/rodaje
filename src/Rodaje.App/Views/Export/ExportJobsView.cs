@@ -28,7 +28,15 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
     };
 
     private readonly Button _clear = new() { Content = "Limpiar terminadas", IsEnabled = false };
-    private readonly ToggleButton _pause = new() { Content = "Pausar la cola" };
+    private readonly ToggleButton _pause = new()
+    {
+        Content = "Pausar la cola",
+        BorderThickness = new Thickness(1),
+        BorderBrush = Resource<Brush>("ControlBorderBrush"),
+        Padding = new Thickness(12, 0, 12, 0),
+        MinHeight = 26,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
     private readonly Dictionary<ExportEntry, Card> _cards = [];
     private EditorServices? _services;
     private ExportJobList? _jobs;

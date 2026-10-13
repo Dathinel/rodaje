@@ -73,7 +73,7 @@ internal sealed partial class PluginsView : UserControl, IEditorView
     /// <summary>La nota de descarga tal como se ve (para la autoprueba).</summary>
     internal string DownloadNoteShown => DownloadNote.Text;
 
-    private const string DownloadNoteText = "Los complementos se descargan de las releases de GitHub con un índice firmado por Dathinel; cada archivo se comprueba con su SHA-256 antes de instalarse.";
+    private const string DownloadNoteText = "Los complementos se descargan de las releases de GitHub con un índice firmado por el proyecto; cada archivo se comprueba con su SHA-256 antes de instalarse.";
 
     /// <summary>Consulta las versiones publicadas para ofrecer «Actualizar»; sin conexión solo lo avisa en la nota.</summary>
     private async Task CheckUpdatesAsync()

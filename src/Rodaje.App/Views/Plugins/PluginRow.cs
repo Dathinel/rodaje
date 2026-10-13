@@ -50,7 +50,7 @@ internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader do
 
     public bool CanDownload { get; } = missingModelBytes > 0 && !hasUpdate || downloader.IsAvailable && !(hasUpdate && othersOpen);
 
-    public string InstallTooltip { get; } = missingModelBytes > 0 && !hasUpdate ? "Descargar sus modelos (Hugging Face o las releases de Dathinel), comprobar su hash y dejarlos en la carpeta del módulo"
+    public string InstallTooltip { get; } = missingModelBytes > 0 && !hasUpdate ? "Descargar sus modelos (Hugging Face o las releases del proyecto), comprobar su hash y dejarlos en la carpeta del módulo"
         : !downloader.IsAvailable ? downloader.UnavailableReason ?? ""
         : hasUpdate ? "Descargar la versión nueva desde GitHub, comprobar su firma y su hash, y reemplazar la instalada"
         : "Descargar desde GitHub, comprobar su firma y su hash, e instalar";
