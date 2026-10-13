@@ -44,7 +44,9 @@ public sealed class ProtocolDefectTests
                 await editor.WriteAsync(burst.ToArray());
                 await Task.Delay(20);
                 Assert.False(host.IsCompleted, $"Ronda {round}: el módulo cortó la conexión sin que el editor cerrara.");
-                editor.Dispose();
+                // Como cierra el editor de verdad (MessageChannel.Close): solo con Dispose, en Windows la lectura del módulo
+                // podía quedar pendiente para siempre (tarea 137, EditorCloseTests).
+                MessageChannel.Close(editor);
                 await FuzzSupport.Capped(host, $"RunAsync (ronda {round})");
                 await FuzzSupport.Capped(drain, $"la lectura (ronda {round})");
             }
@@ -135,7 +137,7 @@ public sealed class ProtocolDefectTests
             byte[]? reply = await FuzzSupport.Capped(FuzzSupport.ReadFrameAsync(editor), "la respuesta a la llamada 1");
             Assert.NotNull(reply);
             Assert.Contains("\"error\"", Encoding.UTF8.GetString(reply), StringComparison.Ordinal);
-            editor.Dispose();
+            MessageChannel.Close(editor);
             await FuzzSupport.Capped(host, "RunAsync");
         }
     }
@@ -211,8 +213,11 @@ public sealed class ProtocolDefectTests
                 List<Task> operations = [client.InvokeAsync("eco", cancellationToken: callCts.Token)];
                 for (int i = 0; i < 8; i++) operations.Add(client.PingAsync(pingCts.Token));
                 await Task.Delay(50);
-                // El módulo manda basura: el cliente falla con las operaciones esperando el candado.
-                await module.WriteAsync(Support.Frame("[basura"));
+                // El módulo manda basura: el cliente falla con las operaciones esperando el candado. Si para entonces ya
+                // venció el plazo de 300 ms con la primera escritura a medias (con el pool sin hilos libres, Task.Delay(50)
+                // llegó a pasar de 300 ms), el cliente ya falló y cerró la tubería: la basura no llega («Broken pipe»),
+                // pero lo que se comprueba es lo mismo, que nada se quede esperando el candado tras el fallo.
+                await FuzzSupport.TryWriteAsync(module, Support.Frame("[basura"));
                 Task all = Task.WhenAll(operations);
                 await Task.WhenAny(all, Task.Delay(TimeSpan.FromSeconds(3)));
                 Assert.True(all.IsCompleted, $"Ronda {round}: {operations.Count(o => !o.IsCompleted)} operaciones colgadas tras fallar el cliente.");

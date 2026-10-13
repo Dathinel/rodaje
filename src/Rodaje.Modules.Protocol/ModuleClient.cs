@@ -206,7 +206,10 @@ public sealed class ModuleClient : IAsyncDisposable
         Exception error = reason ?? new ModuleDisconnectedException("Conexión cerrada por el editor.");
         if (Interlocked.CompareExchange(ref _failure, error, null) is not null) return;
         _stop.Cancel();
-        _channel.Dispose();
+        // Un fallo corta sin cierre ordenado: desconectar para que el módulo vea el fin aunque tenga datos sin leer
+        // (MessageChannel.Abort, tarea 137). El cierre de DisposeAsync, tras «shutdown», solo cierra.
+        if (reason is null) _channel.Dispose();
+        else _channel.Abort();
         // Completion antes que las llamadas. Si Fail corre en un hilo del pool (el bucle de lectura, la salida del proceso
         // en ModuleProcess), cada continuación que suelta va a la cola local de ese hilo, que al terminar toma primero la
         // última (LIFO); otro hilo libre solo puede robar la primera. Con Completion al final, el hilo tomaba antes lo que
