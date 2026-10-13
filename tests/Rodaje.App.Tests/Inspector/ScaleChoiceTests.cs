@@ -48,8 +48,9 @@ public class ScaleChoiceTests
     [InlineData(int.MinValue)]
     public void Grafica_IndicesFueraDeLaLista_NoEligenNada(int index)
     {
-        Assert.Null(ComboChoices.Picked(Animated, index));
-        Assert.Null(ComboChoices.Picked(Array.Empty<string>(), index));
+        (ChoiceList<string> list, _) = GraphParameterChoice.Build(AnimatedRows(), null);
+        Assert.False(list.TryGet(index, out _));
+        Assert.False(new ChoiceList<string>().TryGet(index, out _));
     }
 
     [Fact]
