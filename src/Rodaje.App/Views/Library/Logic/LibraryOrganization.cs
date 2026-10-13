@@ -3,7 +3,29 @@ namespace Rodaje.App.Views.Library;
 /// <summary>Una carpeta de la biblioteca: solo organiza la vista, nunca mueve archivos en el disco.</summary>
 public sealed class LibraryFolder
 {
-    public string Id { get; set; } = "";
+    /// <summary>
+    /// Sube cada vez que cambia el id de una carpeta ya creada (no al darle el primero): las organizaciones rehacen su
+    /// índice solo entonces, en vez de buscar en la lista cada id que no encuentran.
+    /// </summary>
+    internal static int IdChanges;
+
+    private string _id = "";
+    private bool _idAssigned;
+
+    public string Id
+    {
+        get => _id;
+        set
+        {
+            if (_idAssigned && !string.Equals(_id, value, StringComparison.Ordinal))
+            {
+                Interlocked.Increment(ref IdChanges);
+            }
+
+            _id = value;
+            _idAssigned = true;
+        }
+    }
 
     public string Name { get; set; } = "";
 
@@ -27,6 +49,9 @@ public sealed partial class LibraryOrganization
 
     /// <summary>Índice de <see cref="_folders"/> por id: buscar en la lista hacía cúbica la carga de un archivo con miles de carpetas.</summary>
     private readonly Dictionary<string, LibraryFolder> _byId = new(StringComparer.Ordinal);
+
+    /// <summary>El <see cref="LibraryFolder.IdChanges"/> con el que <see cref="_byId"/> quedó al día.</summary>
+    private int _indexedIdChanges = Volatile.Read(ref LibraryFolder.IdChanges);
     private readonly Dictionary<string, string> _mediaFolders = new(StringComparer.Ordinal);
     private readonly HashSet<string> _favorites = new(StringComparer.Ordinal);
 
@@ -47,8 +72,28 @@ public sealed partial class LibraryOrganization
             return null;
         }
 
-        // El id de una carpeta tiene setter: si alguien lo cambió, el índice ya no lo encuentra y se busca en la lista.
-        return _byId.TryGetValue(folderId, out LibraryFolder? folder) && folder.Id == folderId ? folder : _folders.Find(f => f.Id == folderId);
+        // El id de una carpeta tiene setter: si alguien lo cambió, se rehace el índice. Buscar en la lista cada id que faltaba
+        // (un padre o una carpeta de medio sueltos) hacía cuadrática la carga de un archivo con miles de ellos.
+        SyncIndex();
+        return _byId.GetValueOrDefault(folderId);
+    }
+
+    /// <summary>Rehace <see cref="_byId"/> si cambió el id de alguna carpeta; con ids repetidos gana la primera, como en la lista.</summary>
+    private void SyncIndex()
+    {
+        int changes = Volatile.Read(ref LibraryFolder.IdChanges);
+        if (changes == _indexedIdChanges)
+        {
+            return;
+        }
+
+        _byId.Clear();
+        foreach (LibraryFolder folder in _folders)
+        {
+            _byId.TryAdd(folder.Id, folder);
+        }
+
+        _indexedIdChanges = changes;
     }
 
     /// <summary>Las carpetas que cuelgan directamente de <paramref name="parentId"/>, por nombre.</summary>
@@ -204,7 +249,15 @@ public sealed partial class LibraryOrganization
         }
 
         _folders.Remove(folder);
-        _byId.Remove(folder.Id);
+        // Con ids repetidos (cambiados a mano) el índice apunta a la primera: si era esta, pasa a la siguiente con ese id.
+        if (_byId.TryGetValue(folder.Id, out LibraryFolder? indexed) && ReferenceEquals(indexed, folder))
+        {
+            _byId.Remove(folder.Id);
+            if (_folders.Find(f => f.Id == folder.Id) is { } same)
+            {
+                _byId[folder.Id] = same;
+            }
+        }
         Revision++;
         return true;
     }
