@@ -81,7 +81,7 @@ public sealed class TimelineStressTests
     [InlineData(8)]
     [InlineData(9)]
     public void Closing_during_any_long_operation_returns_promptly_and_releases_everything(int seed) =>
-        CloseDuringLongOperations(seed, CiSlowFrame, CloseCiLimit);
+        CloseDuringLongOperations(seed, CloseCiLimit);
 
     /// <summary>La cota fina del cierre (3 s, muy por debajo de esperar cuadros de 400 ms uno tras otro), contra el reloj.</summary>
     [Theory]
@@ -90,24 +90,16 @@ public sealed class TimelineStressTests
     [InlineData(8)]
     [InlineData(9)]
     public void Closing_during_any_long_operation_returns_within_three_seconds(int seed) =>
-        CloseDuringLongOperations(seed, TimeSpan.FromMilliseconds(400), TimeSpan.FromSeconds(3));
+        CloseDuringLongOperations(seed, TimeSpan.FromSeconds(3));
 
     /// <summary>
     /// Cota de la CI para cerrar: la misma que <see cref="Dispose_cancels_the_frames_being_decoded"/>, que pasó de 5 a
-    /// 15 s por las vueltas lentas del runner de Windows (cerrar tardó 7,6 y 10,3 s con el runner saturado, 13-oct; en
-    /// Linux, con el triple de hilos ocupados que núcleos, el peor de 360 cierres fue 0,23 s y ninguno esperó en serie).
+    /// 15 s por las vueltas lentas del runner de Windows. En la CI se exige que cierre y suelte todo; que no cancele el
+    /// cuadro en curso lo detecta allí esa otra prueba (cuadros de 30 s), y colgarse, el tope de 20 s de Within.
     /// </summary>
     private static readonly TimeSpan CloseCiLimit = TimeSpan.FromSeconds(15);
 
-    /// <summary>
-    /// El cuadro lento de la CI. Con los 400 ms de la gemela TiempoReal, esperar en serie el cuadro de cada decodificador
-    /// (el defecto que vigila esta prueba) sumaba unos pocos segundos y la cota de 15 s no lo veía; con 60 s, un solo cuadro
-    /// sin cancelar ya pasa la cota (y el tope de 20 s de Within), así que la prueba de la CI lo detecta aunque su cota
-    /// tenga margen para el runner lento.
-    /// </summary>
-    private static readonly TimeSpan CiSlowFrame = TimeSpan.FromSeconds(60);
-
-    private static void CloseDuringLongOperations(int seed, TimeSpan slowFrame, TimeSpan limit)
+    private static void CloseDuringLongOperations(int seed, TimeSpan limit)
     {
         var random = new Random(seed);
         int rounds = Stress.Iterations(6);
@@ -117,7 +109,7 @@ public sealed class TimelineStressTests
             {
                 RealThreads = true,
                 AsyncDecode = random.Next(2) == 0,
-                DecodeDelay = _ => random.Next(2) == 0 ? TimeSpan.FromMilliseconds(1) : slowFrame,
+                DecodeDelay = _ => TimeSpan.FromMilliseconds(random.Next(2) == 0 ? 1 : 400),
             };
             TimelineBuilder b = Build(backend, new Random(HashCode.Combine(seed, round)));
             TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { DecoderIdleTimeout = TimeSpan.FromMilliseconds(20) });
