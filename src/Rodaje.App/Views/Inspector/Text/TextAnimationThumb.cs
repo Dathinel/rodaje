@@ -45,8 +45,11 @@ internal sealed partial class TextAnimationThumb : Grid
         double size = Math.Clamp(Height * 0.42, 10, 40);
         _scale = size / Math.Max(1, style.Size);
         Color fill = StyleColors.TryParse(style.Fill.Gradient?.Stops.FirstOrDefault()?.Color ?? style.Fill.Color, out (byte A, byte R, byte G, byte B) c)
-            ? Color.FromArgb(Math.Max(c.A, (byte)90), c.R, c.G, c.B)
+            ? Color.FromArgb(Math.Max(c.A, (byte)210), c.R, c.G, c.B)
             : Color.FromArgb(255, 255, 255, 255);
+        // El fondo de la muestra contrasta con el color del estilo: los oscuros se ven sobre claro y los claros sobre oscuro.
+        double luminance = ((0.2126 * fill.R) + (0.7152 * fill.G) + (0.0722 * fill.B)) / 255;
+        Background = new SolidColorBrush(luminance < 0.5 ? Color.FromArgb(255, 0xE4, 0xE4, 0xE4) : Color.FromArgb(255, 0x10, 0x10, 0x10));
         var family = new FontFamily(style.Font.Family);
         var brush = new SolidColorBrush(fill);
         string shown = TextCasing.Apply(text, style.Typography?.Case ?? TextCase.None);
@@ -107,7 +110,8 @@ internal sealed partial class TextAnimationThumb : Grid
             TextAnimator.Delays(_animator.Order, _delays);
         }
 
-        _time = 0;
+        // Empieza con el texto ya entrado: la muestra se lee aunque el reloj no haya corrido.
+        _time = Hold + (_animator?.Duration ?? 0);
         Advance(0);
     }
 

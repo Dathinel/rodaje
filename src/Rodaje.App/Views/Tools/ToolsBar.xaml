@@ -25,7 +25,7 @@
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
         <TextBlock Text="Herramientas" Style="{StaticResource PanelTitleTextStyle}" VerticalAlignment="Center" Margin="4,0,8,0" />
-        <ScrollViewer Grid.Column="1" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled"
+        <ScrollViewer x:Name="Scroller" Grid.Column="1" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled"
                       VerticalScrollBarVisibility="Disabled">
             <StackPanel x:Name="Buttons" Orientation="Horizontal" Spacing="2" />
         </ScrollViewer>

@@ -196,19 +196,26 @@
                        Style="{StaticResource TimecodeTextStyle}" FontSize="{StaticResource TitleFontSize}" Foreground="{StaticResource TextMutedBrush}" />
         </Grid>
         <!-- Editor de zonas propias, en el lugar del transporte: arrastrar mueve, las esquinas estiran; se guarda en complementos\propios. -->
-        <Grid x:Name="SafeZoneEditBar" Grid.Row="2" Visibility="Collapsed" Padding="8,0" Background="{StaticResource BarBrush}"
+        <Grid x:Name="SafeZoneEditBar" Grid.Row="2" Visibility="Collapsed" Padding="12,0" Background="{StaticResource BarBrush}"
               BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
-            <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
-                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <TextBox x:Name="SafeZoneSetName" Width="140" MinHeight="30" PlaceholderText="Nombre" AutomationProperties.Name="Nombre de las zonas" />
-                    <TextBox x:Name="SafeZoneLabel" Width="160" MinHeight="30" PlaceholderText="Etiqueta de la zona elegida" IsEnabled="False"
-                             AutomationProperties.Name="Etiqueta de la zona" TextChanged="OnSafeZoneLabelChanged" />
-                    <Button Content="Añadir zona" MinHeight="30" Click="OnSafeZoneAdd" />
-                    <Button x:Name="SafeZoneRemove" Content="Quitar zona" MinHeight="30" IsEnabled="False" Click="OnSafeZoneRemove" />
-                    <Button Content="Guardar" MinHeight="30" Style="{StaticResource AccentButtonStyle}" Click="OnSafeZoneSave" />
-                    <Button Content="Cancelar" MinHeight="30" Click="OnSafeZoneCancel" />
-                </StackPanel>
-            </ScrollViewer>
+            <!-- Los nombres ceden ancho y los botones nunca se cortan ni tocan el borde. -->
+            <Grid ColumnSpacing="6" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MaxWidth="140" />
+                    <ColumnDefinition Width="*" MaxWidth="170" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="SafeZoneSetName" MinWidth="72" MinHeight="30" PlaceholderText="Nombre" AutomationProperties.Name="Nombre de las zonas" />
+                <TextBox x:Name="SafeZoneLabel" Grid.Column="1" MinWidth="72" MinHeight="30" PlaceholderText="Etiqueta de la zona elegida" IsEnabled="False"
+                         AutomationProperties.Name="Etiqueta de la zona" TextChanged="OnSafeZoneLabelChanged" />
+                <Button Grid.Column="2" Content="Añadir zona" MinHeight="30" Padding="10,0" Click="OnSafeZoneAdd" />
+                <Button x:Name="SafeZoneRemove" Grid.Column="3" Content="Quitar zona" MinHeight="30" Padding="10,0" IsEnabled="False" Click="OnSafeZoneRemove" />
+                <Button Grid.Column="4" Content="Guardar" MinHeight="30" Padding="10,0" Style="{StaticResource AccentButtonStyle}" Click="OnSafeZoneSave" />
+                <Button Grid.Column="5" Content="Cancelar" MinHeight="30" Padding="10,0" Click="OnSafeZoneCancel" />
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>
