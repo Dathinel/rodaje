@@ -9,7 +9,7 @@ namespace Rodaje.App.Tests.Leaks;
 /// hilos por su cuenta: en la CI llegó a sumar 108 en 40 aperturas y luego nada en 50 (806 837 867 897 913 913 914…),
 /// y en otra corrida osciló 746 747 746 747…; ninguna de las dos es una fuga de la sesión. Aquí se cuentan aparte los
 /// tipos que nacen con los hilos (<see cref="ThreadTypes"/>) y los hilos que no son del grupo, que es donde se vería un
-/// hilo propio sin cerrar.
+/// hilo propio sin cerrar. Los eventos que no son de un hilo se vigilan aparte (<see cref="HandleLeakCriterion.UnthreadedEvents"/>).
 /// </summary>
 internal static partial class ProcessHandles
 {
@@ -17,7 +17,18 @@ internal static partial class ProcessHandles
     /// Tipos de objeto que el runtime crea con cada hilo en Windows: el hilo mismo y sus eventos de espera y suspensión.
     /// En Linux un hilo no abre descriptores, así que no hay nada que apartar.
     /// </summary>
-    public static readonly IReadOnlySet<string> ThreadTypes = new HashSet<string>(StringComparer.Ordinal) { "Thread", "Event" };
+    public static readonly IReadOnlySet<string> ThreadTypes = new HashSet<string>(StringComparer.Ordinal) { ThreadType, EventType };
+
+    /// <summary>El tipo de objeto de un hilo en Windows.</summary>
+    public const string ThreadType = "Thread";
+
+    /// <summary>
+    /// El tipo de objeto de un evento en Windows: los del runtime para cada hilo, pero también un <c>ManualResetEvent</c>,
+    /// el <c>AvailableWaitHandle</c> de un <c>SemaphoreSlim</c> o el <c>WaitHandle</c> de un <c>CancellationTokenSource</c>.
+    /// <see cref="Snapshot.Owned"/> no los cuenta; se vigilan aparte sin los de los hilos
+    /// (<see cref="HandleLeakCriterion.UnthreadedEvents"/>, con <see cref="MeasureEventsPerThread"/>).
+    /// </summary>
+    public const string EventType = "Event";
 
     private const int SystemExtendedHandleInformation = 64;
     private const int ObjectTypeInformation = 2;
@@ -51,6 +62,38 @@ internal static partial class ProcessHandles
             : OperatingSystem.IsLinux() ? LinuxByType()
             : null;
         return new Snapshot(total, byType, threads, pool);
+    }
+
+    /// <summary>
+    /// Cuántos identificadores <see cref="EventType"/> trae cada hilo del runtime en este proceso: arranca
+    /// <paramref name="count"/> hilos que esperan y divide lo que crecieron los eventos por lo que crecieron los
+    /// identificadores <see cref="ThreadType"/>. Cero donde no hay reparto por tipo o los hilos no son identificadores.
+    /// </summary>
+    public static double MeasureEventsPerThread(int count = 24)
+    {
+        Snapshot before = Take();
+        using var release = new ManualResetEventSlim();
+        Thread[] threads = [.. Enumerable.Range(0, count).Select(_ => new Thread(() => release.Wait()) { IsBackground = true })];
+        foreach (Thread thread in threads)
+        {
+            thread.Start();
+        }
+
+        Snapshot with;
+        try
+        {
+            with = Take();
+        }
+        finally
+        {
+            release.Set();
+            foreach (Thread thread in threads)
+            {
+                thread.Join();
+            }
+        }
+
+        return HandleLeakCriterion.EventsPerThread(before.Of(EventType), before.Of(ThreadType), with.Of(EventType), with.Of(ThreadType));
     }
 
     /// <summary>Una muestra: el total, el reparto por tipo si se pudo leer, y los hilos del proceso y del grupo.</summary>

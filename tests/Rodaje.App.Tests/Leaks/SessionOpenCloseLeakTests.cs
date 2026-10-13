@@ -39,8 +39,7 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
 {
     private static readonly int Scale = Rodaje.TestMedia.Skip.LongRuns ? 10 : 1;
 
-    /// <summary>Cada cuántas aperturas se cuentan los identificadores del proceso.</summary>
-    private const int HandleSampleCycles = 10;
+    private const int HandleSampleCycles = HandleLeakCriterion.SampleCycles;
 
     private readonly TempDirectory _folder = new();
 
@@ -91,17 +90,27 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
         int[] owned = [.. handles.Select(h => h.Owned)];
         int[] ownThreads = [.. handles.Select(h => h.OwnThreads)];
         string changes = ProcessHandles.Changes(handles[0], handles[^1]);
+
+        // Los Event que no vienen con un hilo (tarea 308): Event − k·Thread, con k medido aquí mismo después de las
+        // aperturas, para no mover las muestras. Así el grupo de hilos que crece y para no cuenta, y un evento retenido
+        // por apertura sí.
+        double eventsPerThread = ProcessHandles.MeasureEventsPerThread();
+        int[] events = HandleLeakCriterion.UnthreadedEvents(
+            [.. handles.Select(h => h.Of(ProcessHandles.EventType))], [.. handles.Select(h => h.Of(ProcessHandles.ThreadType))], eventsPerThread);
         output.WriteLine($"{cycles} aperturas: {alive} proyectos vivos de {opened.Count}, {subscriptionsBefore} suscripciones, memoria {grown / 1024.0:F0} KB.");
         output.WriteLine($"Cada {HandleSampleCycles}: identificadores {string.Join(" ", owned)} (sin los de los hilos; total {string.Join(" ", handles.Select(h => h.Total))}); hilos propios {string.Join(" ", ownThreads)} (del grupo {string.Join(" ", handles.Select(h => h.PoolThreads))}). Por tipo: {changes}.");
+        output.WriteLine($"Eventos sin los de los hilos ({eventsPerThread:F2} por hilo): {string.Join(" ", events)}.");
 
         // El proyecto abierto y, como mucho, el anterior (lo que la ventana retiene hasta el próximo cuadro).
         Assert.InRange(alive, 0, 2);
         Assert.Equal(subscriptionsBefore, Subscriptions(session));
         Assert.True(grown < 8L << 20, $"La memoria administrada creció {grown / 1024.0:F0} KB en {cycles} aperturas.");
 
-        string? leak = HandleLeak(owned);
+        string? leak = HandleLeakCriterion.Find(owned);
         Assert.True(leak is null, $"{leak} Por tipo: {changes}.");
-        string? threadLeak = HandleLeak(ownThreads, "Los hilos que no son del grupo de hilos");
+        string? eventLeak = HandleLeakCriterion.Find(events, $"Los identificadores Event que no son de un hilo ({eventsPerThread:F2} por hilo)");
+        Assert.True(eventLeak is null, $"{eventLeak} Por tipo: {changes}.");
+        string? threadLeak = HandleLeakCriterion.Find(ownThreads, "Los hilos que no son del grupo de hilos");
         Assert.True(threadLeak is null, threadLeak);
     });
 
@@ -115,27 +124,27 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
     {
         // Uno cada cuatro aperturas (2 o 3 por tramo de 10), con el ruido de algún hilo que entra y sale.
         int[] slowLeak = [400, 402, 405, 406, 410, 412, 415, 417, 420, 422];
-        Assert.NotNull(HandleLeak(slowLeak));
+        Assert.NotNull(HandleLeakCriterion.Find(slowLeak));
         Assert.True(slowLeak[^1] - slowLeak[0] < (slowLeak.Length - 1) * HandleSampleCycles / 2, "El criterio anterior la dejaba pasar.");
 
         // Uno cada diez aperturas, aunque un tramo suelte hilos del grupo.
-        Assert.NotNull(HandleLeak([400, 401, 402, 403, 401, 402, 403, 404, 405, 406]));
+        Assert.NotNull(HandleLeakCriterion.Find([400, 401, 402, 403, 401, 402, 403, 404, 405, 406]));
 
         // Una ráfaga suelta (el grupo de hilos crece una vez) es grande pero no sostenida: en la mayoría de los tramos no
         // crece nada.
-        Assert.Null(HandleLeak([400, 400, 406, 406, 405, 405, 406, 405, 405, 405]));
+        Assert.Null(HandleLeakCriterion.Find([400, 400, 406, 406, 405, 405, 406, 405, 405, 405]));
 
         // Una ráfaga que no para tampoco pasa, aunque no sea constante.
-        Assert.NotNull(HandleLeak([400, 400, 400, 400, 400, 440, 480, 480, 480, 480]));
+        Assert.NotNull(HandleLeakCriterion.Find([400, 400, 400, 400, 400, 440, 480, 480, 480, 480]));
 
         // Lo que falló dos veces en la CI de Windows (tarea 299): un identificador que unas muestras están abiertos y otras
         // no (una escritura del autoguardado o un hilo del grupo en vuelo al contar). Sube 5 tramos de 9 y baja 3, así que
         // la mediana de lo que crece cada tramo era 1, pero en 90 aperturas solo sumó 2: no hay nada que no se cierre.
-        Assert.Null(HandleLeak([746, 747, 746, 747, 746, 747, 747, 748, 747, 748]));
+        Assert.Null(HandleLeakCriterion.Find([746, 747, 746, 747, 746, 747, 747, 748, 747, 748]));
 
         // La misma oscilación encima de una fuga de uno cada diez aperturas sí se ve: lo que no se cierra nunca vuelve a bajar.
-        Assert.NotNull(HandleLeak([400, 402, 402, 404, 404, 406, 406, 408, 408, 410]));
-        Assert.NotNull(HandleLeak([400, 402, 401, 403, 402, 404, 403, 405, 404, 406]));
+        Assert.NotNull(HandleLeakCriterion.Find([400, 402, 402, 404, 404, 406, 406, 408, 408, 410]));
+        Assert.NotNull(HandleLeakCriterion.Find([400, 402, 401, 403, 402, 404, 403, 405, 404, 406]));
     }
 
     /// <summary>
@@ -194,42 +203,6 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
             Assert.NotNull(before.ByType);
             Assert.True(withThreads.Total - before.Total >= Count, $"En Windows cada hilo es al menos un identificador: total {before.Total} → {withThreads.Total}.");
         }
-    }
-
-    /// <summary>
-    /// Por qué fallar con estas muestras (una cada <see cref="HandleSampleCycles"/> aperturas), o nulo. Lo que no se cierra
-    /// no vuelve a bajar: se mira el piso de cada muestra (el mínimo de ella y las que siguen), que no sube por un
-    /// identificador que solo estaba abierto al contar, pero sí con cada uno que queda para siempre. Una fuga crece en
-    /// todos los tramos, aunque sea una cada diez aperturas: la mediana de lo que sube el piso cada tramo llega a uno; si
-    /// no hay fuga, no. El total sigue con su tope, contra una fuga a ráfagas.
-    /// </summary>
-    private static string? HandleLeak(int[] samples, string what = "Los identificadores del proceso")
-    {
-        int[] floor = new int[samples.Length];
-        int lowest = int.MaxValue;
-        for (int i = samples.Length - 1; i >= 0; i--)
-        {
-            lowest = Math.Min(lowest, samples[i]);
-            floor[i] = lowest;
-        }
-
-        int[] steps = [.. floor.Zip(floor.Skip(1), (a, b) => b - a).Order()];
-        if (steps.Length == 0)
-        {
-            return "No hubo muestras de identificadores.";
-        }
-
-        int median = steps[steps.Length / 2];
-        int total = floor[^1] - floor[0];
-        int measured = steps.Length * HandleSampleCycles;
-        if (median >= 1)
-        {
-            return $"{what} crecen en casi cada tramo de {HandleSampleCycles} aperturas (mediana {median}; {string.Join(" ", samples)}).";
-        }
-
-        return total >= measured / 2
-            ? $"{what} crecieron {total} en {measured} aperturas ({string.Join(" ", samples)})."
-            : null;
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
