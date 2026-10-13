@@ -282,7 +282,8 @@ public sealed class ModuleProcess : IAsyncDisposable
     }
 
     /// <summary>
-    /// La línea del registro para un módulo al que se mandó <c>shutdown</c>: <c>null</c> si salió solo con 0.
+    /// La línea del registro para un módulo al que se mandó <c>shutdown</c>: <c>null</c> si salió solo con 0. No lee
+    /// <see cref="Task{TResult}.Result"/> de una tarea que falló o se canceló (tarea 242).
     /// </summary>
     internal static string? DescribeClose(string module, bool killed, Task<int> exited, TimeSpan grace)
     {
@@ -292,6 +293,9 @@ public sealed class ModuleProcess : IAsyncDisposable
             string end = exited.IsCompletedSuccessfully ? $"(código {exited.Result})" : "y no se lo vio salir";
             return $"Rodaje: el módulo {module} no salió en {seconds} s tras «shutdown»; se mató {end}.";
         }
+        // Sin matarlo, la espera solo termina si la tarea terminó; si falló o se canceló no hay código que leer.
+        if (!exited.IsCompletedSuccessfully)
+            return $"Rodaje: el módulo {module} se cerró tras «shutdown» sin que se supiera con qué código.";
         int code = exited.Result;
         return code == 0 ? null : $"Rodaje: el módulo {module} salió con el código {code} tras «shutdown».";
     }
