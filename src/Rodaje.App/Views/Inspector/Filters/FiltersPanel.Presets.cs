@@ -64,7 +64,7 @@ internal sealed partial class FiltersPanel
         }
 
         _presetRefreshQueued = true;
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        DispatcherQueue.RunLater(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
         {
             _presetRefreshQueued = false;
             _ = RefreshPresetsAsync();

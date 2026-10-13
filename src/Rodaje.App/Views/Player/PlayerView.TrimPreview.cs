@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Shared;
 
 namespace Rodaje.App.Views.Player;
@@ -23,7 +24,7 @@ internal sealed partial class PlayerView
             if (e.Kind == ClipVisualKind.Thumbnails && Session?.CurrentTrimPreview is { } preview
                 && (preview.Left.MediaId == e.MediaId || preview.Right.MediaId == e.MediaId))
             {
-                DispatcherQueue.TryEnqueue(ShowTrimPreview);
+                DispatcherQueue.RunLater(ShowTrimPreview);
             }
         };
     }

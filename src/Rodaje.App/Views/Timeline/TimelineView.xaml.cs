@@ -9,6 +9,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -306,7 +307,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     private void OnSelectionChanged() => Invalidate(content: true);
 
     private void OnVisualsChanged(object? sender, ClipVisualsChangedEventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => Invalidate(content: true));
+        DispatcherQueue.RunLater(() => Invalidate(content: true));
 
     private void OnTransportChanged()
     {

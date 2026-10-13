@@ -72,14 +72,15 @@ internal static class NoiseReductionDialog
         listen.Children.Add(cleaned);
         panel.Children.Add(listen);
 
-        NoisePreview? preview = null;
+        // La escucha A/B se carga después de limpiar; si llega con el diálogo ya cerrado, se suelta al llegar.
+        var preview = new DialogOwned<NoisePreview>();
         Slider? intensity = null;
         double reduction = NoiseReduction.MaxReductionDb;
         intensity = AnalysisUi.Slider(panel, "Cuánto ruido se quita", 6, NoiseReduction.MaxReductionDb, reduction, 1,
             v => v >= NoiseReduction.MaxReductionDb ? "todo" : string.Create(SpanishNumbers.Format, $"hasta {v:0} dB"), () =>
             {
                 reduction = intensity!.Value;
-                preview?.ReductionDb = reduction;
+                preview.Value?.ReductionDb = reduction;
             });
         intensity.IsEnabled = false;
         panel.Children.Add(new TextBlock
@@ -95,24 +96,24 @@ internal static class NoiseReductionDialog
         {
             original.IsChecked = listenOriginal;
             cleaned.IsChecked = !listenOriginal;
-            preview?.ListenOriginal = listenOriginal;
+            preview.Value?.ListenOriginal = listenOriginal;
         }
 
         original.Click += (_, _) => Choose(true);
         cleaned.Click += (_, _) => Choose(false);
         play.Click += (_, _) =>
         {
-            if (preview is null)
+            if (preview.Value is not { } listening)
             {
                 return;
             }
 
-            if (preview.IsPlaying)
+            if (listening.IsPlaying)
             {
-                preview.Stop();
+                listening.Stop();
                 play.Content = "Escuchar";
             }
-            else if (preview.Play(out string? problem))
+            else if (listening.Play(out string? problem))
             {
                 play.Content = "Detener";
             }
@@ -143,7 +144,7 @@ internal static class NoiseReductionDialog
         Task ready = Prepare();
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
-        preview?.Dispose();
+        preview.Close();
         if (answer != ContentDialogResult.Primary)
         {
             await cancel.CancelAsync();
@@ -202,8 +203,18 @@ internal static class NoiseReductionDialog
                 Time at = session.Sequence.FindClip(clip.Id) is { } found && session.Position >= found.Clip.Start && session.Position < found.Clip.End
                     ? found.Clip.ToSourceTime(session.Position)
                     : clip.SourceIn;
-                preview = await Task.Run(() => NoisePreview.Load(clean, at));
-                preview.ReductionDb = reduction;
+                if (preview.IsClosed)
+                {
+                    return;
+                }
+
+                NoisePreview loaded = await Task.Run(() => NoisePreview.Load(clean, at));
+                if (!preview.TrySet(loaded))
+                {
+                    return;
+                }
+
+                loaded.ReductionDb = reduction;
                 progress.Visibility = Visibility.Collapsed;
                 status.Text = "Listo. Escucha A (original) y B (limpio) y elige cuánto ruido quitar.";
                 listen.Visibility = Visibility.Visible;

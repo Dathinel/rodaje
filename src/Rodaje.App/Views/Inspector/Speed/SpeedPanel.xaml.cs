@@ -518,7 +518,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
             return;
         }
 
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.RunLater(() =>
         {
             if (_editor?.Target() is { } clip)
             {
