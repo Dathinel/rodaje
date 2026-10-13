@@ -64,8 +64,18 @@ public sealed class StressHarnessTests
             Assert.DoesNotContain("sano no avanzó", error.Message, StringComparison.Ordinal);
 
             // Las pilas dicen dónde estaba: el trabado, por su nombre, en su espera.
-            string stacks = error.Message[error.Message.IndexOf("Pilas de los hilos", StringComparison.Ordinal)..];
-            string stuck = stacks[stacks.IndexOf("--- [trabado]", StringComparison.Ordinal)..];
+            // Si la instantánea no se pudo tomar (en Linux sin privilegios createdump puede no adjuntarse, o venció su
+            // plazo), la prueba falla diciendo por qué, con el texto de ThreadDump.Capture, y no con un índice fuera de rango.
+            int at = error.Message.IndexOf("Pilas de los hilos", StringComparison.Ordinal);
+            Assert.True(at >= 0, $"El mensaje del arnés no trae las pilas de los hilos:{Environment.NewLine}{error.Message}");
+            string stacks = error.Message[at..];
+            int stuckAt = stacks.IndexOf("--- [trabado]", StringComparison.Ordinal);
+            if (stuckAt < 0)
+            {
+                Assert.Fail($"La instantánea de pilas no trae el hilo trabado; ThreadDump.Capture devolvió:{Environment.NewLine}{stacks}");
+            }
+
+            string stuck = stacks[stuckAt..];
             stuck = stuck[..(stuck.IndexOf("\n---", StringComparison.Ordinal) is int next and > 0 ? next : stuck.Length)];
             Assert.Contains(nameof(StuckWorker), stuck, StringComparison.Ordinal);
         }
