@@ -26,17 +26,29 @@ public sealed class FailPathTests
     /// <see cref="ModuleClient"/>: la llamada terminaba en otro hilo. Ahora el editor escribe de forma síncrona
     /// (<see cref="SyncWrites"/>), así que <c>InvokeAsync</c> vuelve ya esperando la respuesta. Una vuelta en la que otro
     /// hilo roba la lenta no dice nada y se repite; con el orden de Fail invertido, la lenta queda la última en la cola y
-    /// falla en las primeras vueltas.
+    /// falla en las primeras vueltas. Si en las <see cref="Rounds"/> vueltas ninguna comprobó nada, la prueba sigue hasta
+    /// <see cref="MaxRounds"/> y, si tampoco, falla: no puede pasar sin haber mirado una sola vuelta (tarea 310).
     /// </remarks>
     [Fact]
     public async Task Fail_does_not_wait_for_a_slow_continuation_on_completion()
     {
-        for (int round = 0; round < 20; round++)
+        int round = 0;
+        int checkedRounds = 0;
+        for (; round < MaxRounds && (round < Rounds || checkedRounds == 0); round++)
         {
             bool? callDone = await FailFromAPoolThreadAsync();
             Assert.True(callDone != false, $"Vuelta {round}: la continuación lenta corrió en el hilo de Fail antes que la llamada.");
+            if (callDone.HasValue) checkedRounds++;
         }
+        Assert.True(checkedRounds > 0,
+            $"La prueba no comprobó nada en {round} vueltas: la continuación lenta nunca empezó en el hilo de Fail.");
     }
+
+    /// <summary>Vueltas de la prueba si alguna comprueba algo.</summary>
+    private const int Rounds = 20;
+
+    /// <summary>Vueltas como mucho mientras ninguna compruebe nada.</summary>
+    private const int MaxRounds = 200;
 
     /// <returns>Si la continuación lenta corrió en el hilo de Fail, si la llamada ya había terminado; si no, null.</returns>
     private static async Task<bool?> FailFromAPoolThreadAsync()
