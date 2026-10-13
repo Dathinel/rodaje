@@ -12,6 +12,7 @@
     <AssemblyName>Rodaje.Module.Raw</AssemblyName>
     <IsPackable>false</IsPackable>
     <PublishAot>true</PublishAot>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <IsAotCompatible>true</IsAotCompatible>
     <InvariantGlobalization>true</InvariantGlobalization>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

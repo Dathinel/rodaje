@@ -13,6 +13,7 @@
     <AssemblyName>Rodaje.Module.Echo</AssemblyName>
     <IsPackable>false</IsPackable>
     <PublishAot>true</PublishAot>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <IsAotCompatible>true</IsAotCompatible>
     <InvariantGlobalization>true</InvariantGlobalization>
     <NoWarn>$(NoWarn);CA1303;CA1515</NoWarn>
