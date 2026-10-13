@@ -62,18 +62,22 @@ host.Register("quitar-fondo", async (call, ct) =>
     // DirectML serializa la sesión: varios cuadros a la vez solo en la CPU.
     int parallel = device == ComputeDevice.Cpu ? Math.Clamp(Int(call.Parameters, "paralelo") ?? 1, 1, 4) : 1;
     // En cadena: la CPU prepara los cuadros por adelantado y estabiliza/escribe el anterior mientras la GPU corre el actual.
+    // Todo el trabajo que bloquea (preparar, inferir con ONNX Runtime, escribir) va en hilos propios y no en el pool: eran
+    // hasta 8 preparaciones y 4 inferencias por llamada, y 4 llamadas a la vez; con la CPU llena el pool no sumaba hilos y
+    // el bucle de ModuleHost no contestaba el «ping» ni mandaba los avances: el editor mataba un módulo sano (tarea 195).
     var watch = Stopwatch.StartNew();
     Task<MatteInput>[] prepared = [.. Enumerable.Range(0, outputs.Length).Select(i =>
-        Task.Run(() => Guard(() => Matting.Prepare(Copy(call, call.Buffers[i * 2]), high, side)), ct))];
+        ModuleHost.RunBlockingAsync(() => Guard(() => Matting.Prepare(Copy(call, call.Buffers[i * 2]), high, side)), ct))];
     Task written = Task.CompletedTask;
     MatteResult? last = null;
     for (int i = 0; i < outputs.Length; i += parallel)
     {
         ct.ThrowIfCancellationRequested();
         int first = i, wave = Math.Min(parallel, outputs.Length - i);
-        MatteResult[] mattes = await Task.WhenAll(Enumerable.Range(first, wave).Select(k => Task.Run(async () =>
+        MatteResult[] mattes = await Task.WhenAll(Enumerable.Range(first, wave).Select(k => ModuleHost.RunBlockingAsync(() =>
         {
-            MatteInput input = await prepared[k].ConfigureAwait(false);
+            // En un hilo propio se puede esperar la preparación (también en un hilo propio) sin quitarle uno al pool.
+            MatteInput input = prepared[k].GetAwaiter().GetResult();
             return Guard(() => matting.Infer(input, device));
         }, ct))).ConfigureAwait(false);
         for (int k = 0; k < wave; k++)
@@ -90,7 +94,7 @@ host.Register("quitar-fondo", async (call, ct) =>
     async Task Write(Task previous, int pair, MatteResult matte)
     {
         await previous.ConfigureAwait(false);
-        await Task.Run(() =>
+        await ModuleHost.RunBlockingAsync(() =>
         {
             float[] alpha = temporal.Apply(session, reset && pair == 0, matte);
             VideoLayout size = outputs[pair].Video!;
@@ -130,7 +134,7 @@ host.Register("detectar", async (call, ct) =>
     {
         ct.ThrowIfCancellationRequested();
         int first = start, size = target == "personas" ? Math.Min(Batch, found.Length - start) : 1;
-        used = await Task.Run(() => Guard(() =>
+        used = await ModuleHost.RunBlockingAsync(() => Guard(() =>
         {
             var frames = Enumerable.Range(first, size).Select(i => Copy(call, call.Buffers[i])).ToList();
             if (target == "rostros")
@@ -201,7 +205,7 @@ host.Register("reencuadre", async (call, ct) =>
         frames.Add(new ReframeFrame(t, boxes));
     }
 
-    ReframeResult result = await Task.Run(() => Reframer.Run(aspect, width, height, frames, smoothing), ct).ConfigureAwait(false);
+    ReframeResult result = await ModuleHost.RunBlockingAsync(() => Reframer.Run(aspect, width, height, frames, smoothing), ct).ConfigureAwait(false);
     var json = new StringBuilder("{\"keyframes\":[");
     for (int k = 0; k < result.Keyframes.Count; k++)
     {
