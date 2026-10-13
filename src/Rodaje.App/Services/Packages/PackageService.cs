@@ -55,6 +55,7 @@ public sealed class PackageService
     private readonly InstanceRegistry? _instances;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _leftoversResolved;
+    private Task<PackageScan>? _firstScan;
 
     /// <param name="instances">Para saber si hay otras instancias abiertas; sin él, esta se cree sola.</param>
     /// <param name="models">Dónde se guardan y de dónde se bajan los modelos de los módulos; por defecto, <c>complementos\modelos</c>.</param>
@@ -149,6 +150,26 @@ public sealed class PackageService
         }
 
         return [.. entries.OrderBy(e => e.Kind).ThenByDescending(e => e.IsInstalled).ThenBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase)];
+    }
+
+    /// <summary>
+    /// Lo instalado, leyéndolo antes si todavía no se leyó nunca. Las llamadas que llegan mientras dura esa primera lectura
+    /// la comparten: antes, cada proyecto abierto en ese rato encolaba una lectura completa del disco detrás de las otras
+    /// (y lo que esperaba a la suya seguía reteniendo su proyecto).
+    /// </summary>
+    public Task<PackageScan> ScannedAsync()
+    {
+        if (HasScanned)
+        {
+            return Task.FromResult(Installed);
+        }
+
+        if (_firstScan is null || _firstScan.IsFaulted || _firstScan.IsCanceled)
+        {
+            _firstScan = RefreshAsync();
+        }
+
+        return _firstScan;
     }
 
     /// <summary>Vuelve a leer lo instalado.</summary>

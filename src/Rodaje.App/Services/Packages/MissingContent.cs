@@ -94,9 +94,12 @@ public static class MissingContent
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(packages);
-        Project project = session.Project;
-        PackageScan installed = packages.HasScanned ? packages.Installed : await packages.RefreshAsync();
-        if (!ReferenceEquals(project, session.Project))
+        // Mientras se espera la primera lectura de lo instalado, el proyecto se recuerda con una referencia débil: si
+        // entretanto se abre otro, este ya no se comprueba, y la espera no debe mantenerlo vivo. Antes, cada proyecto
+        // abierto antes de que terminara esa lectura seguía en memoria hasta que terminaba la suya.
+        var opened = new WeakReference<Project>(session.Project);
+        PackageScan installed = await packages.ScannedAsync();
+        if (!opened.TryGetTarget(out Project? project) || !ReferenceEquals(project, session.Project))
         {
             return [];
         }
