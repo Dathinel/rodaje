@@ -1,3 +1,4 @@
+using Rodaje.Audio.Processing;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Audio;
@@ -21,6 +22,8 @@ internal sealed class FrameRenderer
     private long _replayCursor = -1;
     private float _gain;
     private float _targetGain;
+    private float _rampTarget = float.NaN;
+    private float _rampStep;
     private long _underruns;
     private long _underrunFrames;
     private long _sourceErrors;
@@ -152,6 +155,9 @@ internal sealed class FrameRenderer
             read = 0;
         }
 
+        // Lo que no es un número entra como silencio, como en la cadena de inserciones: ni el dispositivo ni el historial
+        // que se repite al cambiar de dispositivo lo reciben, y en mono la suma de dos muestras enormes no se desborda.
+        AudioSamples.Sanitize(chunk[..(read * 2)]);
         if (read < frames)
         {
             chunk[(read * 2)..].Clear();
@@ -196,7 +202,15 @@ internal sealed class FrameRenderer
             return;
         }
 
-        float step = (target - gain) / _rampFrames;
+        // El paso se fija al cambiar el destino, no en cada llamada: la rampa dura lo mismo y tiene la misma forma sea
+        // cual sea el tamaño de los bloques que pide el dispositivo.
+        if (target != _rampTarget)
+        {
+            _rampTarget = target;
+            _rampStep = (target - gain) / _rampFrames;
+        }
+
+        float step = _rampStep;
         for (int f = 0; f < frames; f++)
         {
             gain = MathF.Abs(target - gain) <= MathF.Abs(step) ? target : gain + step;
