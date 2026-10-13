@@ -84,42 +84,17 @@ host.Register("revelar", async (call, ct) =>
 
     var table = new ToneTable(buffers[1].Video!.PixelFormat, settings.Exposure, settings.Curve);
     int frames = buffers.Count / 2;
-    using var gate = new SemaphoreSlim(Math.Min(threads, frames));
     var milliseconds = new double[frames];
-    List<Task> pending = [.. Enumerable.Range(0, frames).Select(i => Task.Run(async () =>
+    await FrameBatch.RunAsync(frames, threads, (i, token) =>
     {
-        await gate.WaitAsync(ct).ConfigureAwait(false);
-        try
+        long start = Stopwatch.GetTimestamp();
+        Guard(() =>
         {
-            // LibRaw bloquea el hilo segundos por cuadro: en un hilo propio y no en el pool. Con hasta ProcessorCount
-            // cuadros a la vez ocupaban todos los hilos mínimos del pool y, con la CPU llena, el pool no sumaba otros:
-            // el bucle de ModuleHost no leía el «ping» del editor (ni salían los avances) hasta que terminaba un cuadro,
-            // y el vigilante mataba un módulo sano a mitad de trabajo (CinemaDNG en la CI de Windows).
-            await Task.Factory.StartNew(() =>
-            {
-                long start = Stopwatch.GetTimestamp();
-                Guard(() =>
-                {
-                    RawDeveloper.Develop(call.Map(buffers[i * 2]), settings, table, call.Map(buffers[(i * 2) + 1]), buffers[(i * 2) + 1].Video!, ct);
-                    return 0;
-                }, frames > 1 ? $"Cuadro {i + 1}: " : "");
-                milliseconds[i] = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
-            }, ct, TaskCreationOptions.LongRunning, TaskScheduler.Default).ConfigureAwait(false);
-        }
-        finally
-        {
-            gate.Release();
-        }
-    }, ct))];
-
-    int done = 0;
-    while (pending.Count > 0)
-    {
-        Task finished = await Task.WhenAny(pending).ConfigureAwait(false);
-        pending.Remove(finished);
-        await finished.ConfigureAwait(false);
-        await call.ReportProgressAsync((double)++done / frames, "Revelando", ct).ConfigureAwait(false);
-    }
+            RawDeveloper.Develop(call.Map(buffers[i * 2]), settings, table, call.Map(buffers[(i * 2) + 1]), buffers[(i * 2) + 1].Video!, token);
+            return 0;
+        }, frames > 1 ? $"Cuadro {i + 1}: " : "");
+        milliseconds[i] = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+    }, (done, token) => call.ReportProgressAsync((double)done / frames, "Revelando", token), ct).ConfigureAwait(false);
 
     return new ModuleOutput(Json(w =>
     {

@@ -159,6 +159,8 @@ public sealed class LinkSyncTimeMapPropertyTests(ITestOutputHelper output)
     /// </summary>
     private static long KnotOffset(SpeedCurve curve, ClipTimeMap r, ClipTimeMap c)
     {
+        // Sin puntos no hay instantes y Min() lanzaría; una curva válida tiene al menos dos (las de la prueba, tres).
+        Assert.True(curve.Points.Count >= 2, "el oráculo necesita una curva válida, con al menos dos puntos");
         var instants = new List<long>();
         foreach (SpeedPoint point in curve.Points)
         {

@@ -171,7 +171,9 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         });
     }
 
-    private async void OnInstallClick(object sender, RoutedEventArgs e)
+    private void OnInstallClick(object sender, RoutedEventArgs e) => UiTask.Run(OnInstallClickAsync(sender, e));
+
+    private async Task OnInstallClickAsync(object sender, RoutedEventArgs e)
     {
         if (_services is null || (sender as FrameworkElement)?.DataContext is not PluginRow row || row.Download.IsActive)
         {

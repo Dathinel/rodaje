@@ -20,6 +20,11 @@ public sealed partial class LibraryCountersOutOfProductionTests
         Assert.DoesNotMatch(CounterField(), source);
         Assert.Contains("static partial void CountIdRead();", source, StringComparison.Ordinal);
         Assert.Contains("static partial void CountNameFold();", source, StringComparison.Ordinal);
+
+        string marks = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Rodaje.App", "Views", "Library", "Logic", "LibraryOrganization.Marks.cs"));
+        Assert.DoesNotContain("ThreadStatic", marks, StringComparison.Ordinal);
+        Assert.DoesNotContain("KeyReads", marks, StringComparison.Ordinal);
+        Assert.Contains("static partial void CountKeyRead();", marks, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -32,6 +37,12 @@ public sealed partial class LibraryCountersOutOfProductionTests
         long before = LibraryOrganization.NameFolds;
         LibraryOrganization.From([new LibraryFolder { Id = "a", Name = "X" }, new LibraryFolder { Id = "b", Name = "x" }], null, null);
         Assert.True(LibraryOrganization.NameFolds > before);
+
+        var subclip = new Subclip("s", "m", "x", Rodaje.Core.Timing.Time.Zero, Rodaje.Core.Timing.Time.FromSeconds(1));
+        Subclip.KeyReads = 0;
+        _ = subclip.Id;
+        _ = subclip.MediaId;
+        Assert.Equal(2, Subclip.KeyReads);
     }
 
     [GeneratedRegex(@"static\s+long\s+(IdReads|NameFolds)")]

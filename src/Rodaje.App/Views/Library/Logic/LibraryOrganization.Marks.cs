@@ -11,9 +11,38 @@ public enum MediaMark
 }
 
 /// <summary>Un tramo con nombre de un medio, <c>[In, Out)</c>, que se usa como un medio más (solo organiza la vista).</summary>
-public sealed record Subclip(string Id, string MediaId, string Name, Time In, Time Out)
+public sealed partial record Subclip(string Id, string MediaId, string Name, Time In, Time Out)
 {
+    public string Id
+    {
+        get
+        {
+            CountKeyRead();
+            return field;
+        }
+
+        init;
+    } = Id;
+
+    public string MediaId
+    {
+        get
+        {
+            CountKeyRead();
+            return field;
+        }
+
+        init;
+    } = MediaId;
+
     public Time Duration => Out - In;
+
+    /// <summary>
+    /// Costura de prueba: cada lectura de <see cref="Id"/> o de <see cref="MediaId"/>. Buscar un subclip o los de un medio
+    /// recorriendo la lista lee la clave de cada uno, así que las pruebas de rendimiento cuentan esto en vez de medir
+    /// segundos. Sin cuerpo en la app, el compilador quita la llamada; el cuerpo está en las pruebas.
+    /// </summary>
+    static partial void CountKeyRead();
 }
 
 /// <summary>Un ángulo de una multicámara: su medio y dónde cae su instante 0 en el reloj común.</summary>

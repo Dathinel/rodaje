@@ -1,6 +1,8 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Win32.SafeHandles;
 using Rodaje.App.Services;
 using Rodaje.Core.Serialization;
 using Rodaje.Export;
@@ -37,7 +39,7 @@ public sealed class SavedExportFile
 /// Guarda la cola de exportaciones en <c>cola-exportaciones.json</c> cada vez que cambia, así sobrevive a cerrar la app
 /// (o a un apagón); al abrir se pregunta si se reanuda. Una que estaba a medias vuelve a empezar.
 /// </summary>
-public sealed class ExportQueueStore(string path)
+public sealed partial class ExportQueueStore(string path)
 {
     public const string FileName = "cola-exportaciones.json";
 
@@ -260,8 +262,10 @@ public sealed class ExportQueueStore(string path)
     }
 
     // Antes se leía, se comparaba y después se borraba por nombre: si otra instancia reemplazaba la cola entre medias, se
-    // borraba la cola buena. Ahora se compara desde el mismo manejador que borra (DeleteOnClose) y, mientras está abierto,
-    // FileShare.Read no deja escribir ni reemplazar el archivo (en Windows; en Linux el bloqueo es solo orientativo).
+    // borraba la cola buena. Después se abrió con DeleteOnClose, que borraba también la cola distinta que otra instancia
+    // hubiera escrito antes de abrirla y la reescribía después: si esa reescritura fallaba (disco lleno, antivirus) la cola
+    // buena se perdía, y entre medias faltaba el archivo. Ahora nunca se borra una cola distinta: se abre sin borrar y,
+    // solo si sigue teniendo los bytes leídos, se marca para borrar desde ese mismo manejador.
     private void RemoveOriginalIfUnchanged(byte[] content, bool removeOriginal)
     {
         if (!removeOriginal)
@@ -269,28 +273,63 @@ public sealed class ExportQueueStore(string path)
             return;
         }
 
-        byte[]? current = null;
         try
         {
-            using (var stream = new FileStream(Path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.DeleteOnClose))
+            if (OperatingSystem.IsWindows())
             {
-                current = ReadAll(stream);
-                if (current.AsSpan().SequenceEqual(content))
-                {
-                    BeforeRemove?.Invoke();
-                    return; // Al cerrarse se borra.
-                }
+                RemoveIfUnchangedWindows(content);
             }
-
-            // Otra instancia la reemplazó antes de abrirla: el manejador ya la borró al cerrarse, así que se devuelve tal
-            // como estaba (sin pisar una todavía más nueva que haya escrito alguien entretanto).
-            Restore(current);
+            else
+            {
+                RemoveIfUnchangedElsewhere(content);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Ya no está o no se puede tocar (otra instancia la tiene abierta): la copia ya está escrita y el archivo se
             // vuelve a mirar al abrir de nuevo.
         }
+    }
+
+    // Con permiso de borrado (DELETE) pero compartido solo para lectura: mientras está abierto nadie puede escribirlo,
+    // reemplazarlo (mover otro encima pide DELETE sobre él) ni borrarlo. Si coincide, se marca para borrar
+    // (FileDispositionInfo) y se borra al cerrarlo; si no, se cierra sin tocar nada.
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private void RemoveIfUnchangedWindows(byte[] content)
+    {
+        using SafeFileHandle handle = CreateFileW(Path, GenericRead | Delete, FileShareRead, 0, OpenExisting, FileAttributeNormal, 0);
+        if (handle.IsInvalid)
+        {
+            throw new IOException($"No se pudo abrir «{Path}».", Marshal.GetHRForLastWin32Error());
+        }
+
+        using var stream = new FileStream(handle, FileAccess.Read, 1);
+        if (!ReadAll(stream).AsSpan().SequenceEqual(content))
+        {
+            return;
+        }
+
+        BeforeRemove?.Invoke();
+        byte deleteFile = 1;
+        if (!SetFileInformationByHandle(handle, FileDispositionInfo, ref deleteFile, sizeof(byte)))
+        {
+            throw new IOException($"No se pudo borrar «{Path}».", Marshal.GetHRForLastWin32Error());
+        }
+    }
+
+    // Fuera de Windows FileShare solo pone un bloqueo orientativo y no hay forma de borrar desde el manejador: se borra
+    // por nombre tras comparar (queda una ventana mínima, pero Rodaje solo corre en Windows). Una cola distinta tampoco se
+    // toca aquí.
+    private void RemoveIfUnchangedElsewhere(byte[] content)
+    {
+        using var stream = new FileStream(Path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if (!ReadAll(stream).AsSpan().SequenceEqual(content))
+        {
+            return;
+        }
+
+        BeforeRemove?.Invoke();
+        File.Delete(Path);
     }
 
     private static byte[] ReadAll(FileStream stream)
@@ -300,20 +339,22 @@ public sealed class ExportQueueStore(string path)
         return memory.ToArray();
     }
 
-    private void Restore(byte[] content)
-    {
-        string temporary = Path + ".restaurar.tmp";
-        File.WriteAllBytes(temporary, content);
-        try
-        {
-            File.Move(temporary, Path, overwrite: false);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // Ya hay otra más nueva en su sitio.
-            File.Delete(temporary);
-        }
-    }
+    private const uint GenericRead = 0x80000000;
+    private const uint Delete = 0x00010000;
+    private const uint FileShareRead = 0x1;
+    private const uint OpenExisting = 3;
+    private const uint FileAttributeNormal = 0x80;
+    private const int FileDispositionInfo = 4;
+
+    [LibraryImport("kernel32.dll", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static partial SafeFileHandle CreateFileW(string fileName, uint desiredAccess, uint shareMode, nint securityAttributes,
+        uint creationDisposition, uint flagsAndAttributes, nint templateFile);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetFileInformationByHandle(SafeFileHandle file, int fileInformationClass, ref byte fileInformation, uint bufferSize);
 
     public void Clear()
     {

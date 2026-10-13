@@ -232,7 +232,9 @@ internal sealed partial class FiltersPanel
         _services.Session.Execute(EffectCommands.ApplyFilter(_services.Session.SequenceId, _clipId, tile.Preset, tile.Reference));
     }
 
-    private async void OnSavePresetClick(object sender, RoutedEventArgs e)
+    private void OnSavePresetClick(object sender, RoutedEventArgs e) => UiTask.Run(OnSavePresetClickAsync(sender, e));
+
+    private async Task OnSavePresetClickAsync(object sender, RoutedEventArgs e)
     {
         if (DialogGate.IsOpen || _services is not { } services || CurrentClip() is not { } clip)
         {
