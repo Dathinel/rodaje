@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
@@ -665,7 +666,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
     }
 
-    private async void OnRowReset(object? sender, EventArgs e)
+    private void OnRowReset(object? sender, EventArgs e) => UiTask.Run(OnRowResetAsync(sender, e));
+
+    private async Task OnRowResetAsync(object? sender, EventArgs e)
     {
         if (sender is ParameterRow row && _editor is { } editor && Editing() is { } target)
         {
@@ -675,7 +678,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
     }
 
-    private async void OnRowClearKeyframes(object? sender, EventArgs e)
+    private void OnRowClearKeyframes(object? sender, EventArgs e) => UiTask.Run(OnRowClearKeyframesAsync(sender, e));
+
+    private async Task OnRowClearKeyframesAsync(object? sender, EventArgs e)
     {
         if (sender is ParameterRow row && _editor is { } editor && Editing() is { } target)
         {
@@ -686,7 +691,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
     }
 
-    private async void OnResetAllClick(object sender, RoutedEventArgs e)
+    private void OnResetAllClick(object sender, RoutedEventArgs e) => UiTask.Run(OnResetAllClickAsync(sender, e));
+
+    private async Task OnResetAllClickAsync(object sender, RoutedEventArgs e)
     {
         if (_editor is not { } editor || Editing() is not { } target)
         {

@@ -58,13 +58,13 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         _shortcuts = services.Shortcuts;
         _engine = services.Player;
         DispatcherQueue dispatcher = DispatcherQueue;
-        _engine.SwapChainCreated += swapChain => dispatcher.TryEnqueue(() =>
+        _engine.SwapChainCreated += swapChain => dispatcher.TryEnqueueGuarded(() =>
         {
             SwapChainPanelNative.SetSwapChain(VideoPanel, swapChain);
             Program.Metrics.Milestone("cadena_en_panel");
         });
-        _engine.Failed += message => dispatcher.TryEnqueue(() => ShowError(message));
-        _engine.Warning += message => dispatcher.TryEnqueue(() =>
+        _engine.Failed += message => dispatcher.TryEnqueueGuarded(() => ShowError(message));
+        _engine.Warning += message => dispatcher.TryEnqueueGuarded(() =>
             Session.Notify(NotificationSeverity.Warning, "Reproductor", message));
         if (_engine.FailureMessage is { } early)
         {

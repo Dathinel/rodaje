@@ -17,7 +17,7 @@ internal static class StartupTrace
         {
             CompositionTarget.Rendering -= handler;
             metrics.Milestone("primer_render");
-            _ = dispatcher.TryEnqueue(DispatcherQueuePriority.Low, () =>
+            _ = dispatcher.TryEnqueueGuarded(DispatcherQueuePriority.Low, () =>
             {
                 metrics.Milestone("interfaz_usable");
                 whenUsable();

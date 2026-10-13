@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
@@ -341,7 +342,9 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
             : "Velocidad constante. La misma curva mueve la imagen y, en audio, el cruce de volumen.";
     }
 
-    private async void RequestPreview(TransitionInstance transition)
+    private void RequestPreview(TransitionInstance transition) => UiTask.Run(RequestPreviewAsync(transition));
+
+    private async Task RequestPreviewAsync(TransitionInstance transition)
     {
         if (_previews is null)
         {

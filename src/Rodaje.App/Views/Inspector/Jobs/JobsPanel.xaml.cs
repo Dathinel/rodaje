@@ -85,7 +85,7 @@ internal sealed partial class JobsPanel : UserControl, IEditorView
     private void OnStatusChanged(object? sender, ProxyStatusChangedEventArgs e)
     {
         ProxyStatus status = e.Status;
-        _dispatcher.TryEnqueue(() =>
+        _dispatcher.TryEnqueueGuarded(() =>
         {
             if (_jobs.Apply(status))
             {

@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
@@ -98,7 +99,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
                 DrawGraph();
             }
         };
-        services.LongActions.Changed += (_, _) => DispatcherQueue.TryEnqueue(ShowRunning);
+        services.LongActions.Changed += (_, _) => DispatcherQueue.TryEnqueueGuarded(ShowRunning);
         Refresh();
         Bindings.Update();
     }
@@ -349,7 +350,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
     {
         if (sender is FrameworkElement { Tag: string tag })
         {
-            _ = RunAsync(forward: tag.StartsWith("forward", StringComparison.Ordinal), single: tag.EndsWith('1'));
+            UiTask.Run(RunAsync(forward: tag.StartsWith("forward", StringComparison.Ordinal), single: tag.EndsWith('1')));
         }
     }
 
@@ -436,7 +437,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
             });
             try
             {
-                await PointTracking.RunAsync(request, f => DispatcherQueue.TryEnqueue(() => Tracked(f)), both, scope.Token);
+                await PointTracking.RunAsync(request, f => DispatcherQueue.TryEnqueueGuarded(() => Tracked(f)), both, scope.Token);
             }
             catch (OperationCanceledException)
             {

@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Shell;
 using Rodaje.Core.Timing;
 using Rodaje.Export;
@@ -147,7 +148,7 @@ internal sealed partial class ExportView : UserControl
         }
 
         _refreshQueued = true;
-        if (!DispatcherQueue.TryEnqueue(() =>
+        if (!DispatcherQueue.TryEnqueueGuarded(() =>
         {
             _refreshQueued = false;
             Refresh();
@@ -561,7 +562,7 @@ internal sealed partial class ExportView : UserControl
     private void OnChangeProjectFormatClick(object sender, RoutedEventArgs e)
     {
         CloseRequested?.Invoke(this, EventArgs.Empty);
-        DispatcherQueue.TryEnqueue(() => _services.Shortcuts.Invoke(Views.Player.PlayerActionIds.ProjectFormat));
+        DispatcherQueue.TryEnqueueGuarded(() => _services.Shortcuts.Invoke(Views.Player.PlayerActionIds.ProjectFormat));
     }
 
     private void OnAdvancedClick(object sender, RoutedEventArgs e)
@@ -893,7 +894,9 @@ internal sealed partial class ExportView : UserControl
 
     private void OnCancelClick(object sender, RoutedEventArgs e) => CloseRequested?.Invoke(this, EventArgs.Empty);
 
-    private async void OnExportClick(object sender, RoutedEventArgs e)
+    private void OnExportClick(object sender, RoutedEventArgs e) => UiTask.Run(OnExportClickAsync(sender, e));
+
+    private async Task OnExportClickAsync(object sender, RoutedEventArgs e)
     {
         if (_model is not { } model)
         {

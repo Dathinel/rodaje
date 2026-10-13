@@ -53,10 +53,10 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
         services.ShortcutRegistry.Changed += (_, _) => Refresh();
         if (services.Modules is { } modules)
         {
-            modules.ModulesChanged += (_, _) => DispatcherQueue.TryEnqueue(Refresh);
+            modules.ModulesChanged += (_, _) => DispatcherQueue.TryEnqueueGuarded(Refresh);
         }
 
-        services.LongActions.Changed += (_, _) => DispatcherQueue.TryEnqueue(UpdateBusy);
+        services.LongActions.Changed += (_, _) => DispatcherQueue.TryEnqueueGuarded(UpdateBusy);
         Scroller.SizeChanged += (_, _) => FitLabels();
         Refresh();
     }

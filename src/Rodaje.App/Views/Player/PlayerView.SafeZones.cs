@@ -61,7 +61,7 @@ internal sealed partial class PlayerView
         }
 
         RefreshSafeZoneChoices();
-        services.Packages.Changed += (_, _) => DispatcherQueue.TryEnqueue(() =>
+        services.Packages.Changed += (_, _) => DispatcherQueue.TryEnqueueGuarded(() =>
         {
             RefreshSafeZoneChoices();
             UpdateSafeAreas();

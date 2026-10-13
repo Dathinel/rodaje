@@ -5,6 +5,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Shell;
 using Rodaje.Packages;
@@ -63,7 +64,7 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         }
 
         Refresh();
-        _ = services.Packages.RefreshAsync();
+        UiTask.Run(services.Packages.RefreshAsync());
         UpdatesChecked = CheckUpdatesAsync();
     }
 
@@ -150,7 +151,9 @@ internal sealed partial class PluginsView : UserControl, IEditorView
     private nint OwnerWindow() =>
         XamlRoot?.ContentIslandEnvironment is { } environment ? Win32Interop.GetWindowFromWindowId(environment.AppWindowId) : 0;
 
-    private async void OnInstallFileClick(object sender, RoutedEventArgs e)
+    private void OnInstallFileClick(object sender, RoutedEventArgs e) => UiTask.Run(OnInstallFileClickAsync(sender, e));
+
+    private async Task OnInstallFileClickAsync(object sender, RoutedEventArgs e)
     {
         if (_services is null || _busy > 0)
         {
@@ -245,7 +248,9 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         }
     }
 
-    private async void OnUninstallClick(object sender, RoutedEventArgs e)
+    private void OnUninstallClick(object sender, RoutedEventArgs e) => UiTask.Run(OnUninstallClickAsync(sender, e));
+
+    private async Task OnUninstallClickAsync(object sender, RoutedEventArgs e)
     {
         if (_services is null || XamlRoot is null || (sender as FrameworkElement)?.DataContext is not PluginRow row)
         {
@@ -277,7 +282,9 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
     }
 
-    private async void OnRefreshClick(object sender, RoutedEventArgs e)
+    private void OnRefreshClick(object sender, RoutedEventArgs e) => UiTask.Run(OnRefreshClickAsync(sender, e));
+
+    private async Task OnRefreshClickAsync(object sender, RoutedEventArgs e)
     {
         if (_services is not null)
         {

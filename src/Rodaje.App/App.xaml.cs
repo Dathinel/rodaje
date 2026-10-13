@@ -40,7 +40,7 @@ public partial class App : Application
         if (!_options.IsAutomated)
         {
             // Después de los avisos del arranque, para que no lo tapen.
-            _ = DispatcherQueue.GetForCurrentThread().TryEnqueue(DispatcherQueuePriority.Low, OfferPendingCrashReports);
+            _ = DispatcherQueue.GetForCurrentThread().TryEnqueueGuarded(DispatcherQueuePriority.Low, OfferPendingCrashReports);
         }
     }
 
@@ -56,6 +56,28 @@ public partial class App : Application
         Program.ReportException(CrashKind.DispatcherCallback, exception, fatal: false);
         _window.ReportUnexpectedError(exception.Message);
         return true;
+    }
+
+    /// <summary>Avisa en la ventana de un error ya informado; desde cualquier hilo (pasa por la cola de la interfaz).</summary>
+    internal void NotifyUnexpectedError(string message)
+    {
+        if (_window is not { } window)
+        {
+            return;
+        }
+
+        // Sin la red de GuardedDispatch: si avisar fallara, informarlo volvería a avisar sin fin.
+        _ = window.DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                window.ReportUnexpectedError(message);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
+            {
+                Program.Log.Append("No se pudo avisar de un error: " + ex.Message);
+            }
+        });
     }
 
     // Rastro para el informe de un fallo: los pasos del historial y los avisos, en el registro de la sesión.

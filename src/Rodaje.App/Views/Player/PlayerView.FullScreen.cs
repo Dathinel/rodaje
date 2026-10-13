@@ -46,7 +46,7 @@ internal sealed partial class PlayerView
         };
         services.ShortcutRegistry.Register(new ShortcutAction(SecondScreenActionId, "Visor en otra pantalla (abrir o cerrar)", ShortcutGroups.Windows, []));
         _bindings.Add(services.Shortcuts.Bind(SecondScreenActionId, ToggleExternal));
-        _engine!.ExternalSwapChainCreated += swapChain => DispatcherQueue.TryEnqueue(() =>
+        _engine!.ExternalSwapChainCreated += swapChain => DispatcherQueue.TryEnqueueGuarded(() =>
         {
             if (_externalWindow?.Content is Grid { Children: [SwapChainPanel panel, ..] })
             {

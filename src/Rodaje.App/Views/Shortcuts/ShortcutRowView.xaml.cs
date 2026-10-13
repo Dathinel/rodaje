@@ -41,7 +41,7 @@ internal sealed partial class ShortcutRowView : UserControl
         {
             if (Row.IsCapturing)
             {
-                DispatcherQueue.TryEnqueue(() => CaptureBox.Focus(FocusState.Keyboard));
+                DispatcherQueue.TryEnqueueGuarded(() => CaptureBox.Focus(FocusState.Keyboard));
             }
             else if (!_focusLeft)
             {

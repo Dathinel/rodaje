@@ -101,6 +101,8 @@ internal static class Program
             Crashes.OnAppDomainUnhandled(AppDomain.CurrentDomain, e);
         };
         TaskScheduler.UnobservedTaskException += Crashes.OnUnobservedTask;
+        // Las tareas sueltas de los manejadores y los callbacks de DispatcherQueue (UiTask, GuardedDispatch).
+        UiTask.Reporter = ReportHandlerException;
         NativeCrashHandler.Install(Crashes);
         System.Diagnostics.Trace.Listeners.Add(new SessionLogTraceListener(Log));
         Log.Append($"Rodaje {Crashes.Version} arranca: {Environment.CommandLine}");
@@ -109,11 +111,24 @@ internal static class Program
         _ = Crashes.RecoverUncleanSessions();
         Crashes.StartSession();
         // La GPU se lee ahora, fuera de cualquier fallo: un fallo nativo no debe tocar DXGI.
-        _ = Task.Run(async () =>
+        UiTask.Run(Task.Run(async () =>
         {
             await Task.Delay(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
             Crashes.WarmUp();
-        });
+        }));
+    }
+
+    /// <summary>
+    /// Excepción de una tarea suelta de un manejador o de un callback de DispatcherQueue (<see cref="UiTask"/>): informe
+    /// «recuperado» y, si <paramref name="notify"/>, aviso en la ventana; la app sigue. Desde cualquier hilo.
+    /// </summary>
+    private static void ReportHandlerException(Exception exception, bool notify)
+    {
+        ReportException(CrashKind.DispatcherCallback, exception, fatal: false);
+        if (notify)
+        {
+            Instance?.NotifyUnexpectedError(exception.Message);
+        }
     }
 
     internal static bool OnDispatcherException(Exception exception)

@@ -1,3 +1,5 @@
+using Rodaje.App.Services.Crashes;
+
 namespace Rodaje.App.Services.Packages;
 
 /// <summary>
@@ -49,7 +51,7 @@ public sealed class ThrottledProgress<T> : IProgress<T>
         }
         else
         {
-            _ = PostLaterAsync(wait);
+            UiTask.Run(PostLaterAsync(wait));
         }
     }
 

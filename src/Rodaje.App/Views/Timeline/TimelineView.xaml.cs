@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
@@ -167,7 +168,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
 
         if (TimelineBenchmark.RequestedReportPath is { } report)
         {
-            _ = TimelineBenchmark.RunAsync(this, report);
+            UiTask.Run(TimelineBenchmark.RunAsync(this, report));
         }
     }
 
@@ -306,7 +307,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     private void OnSelectionChanged() => Invalidate(content: true);
 
     private void OnVisualsChanged(object? sender, ClipVisualsChangedEventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => Invalidate(content: true));
+        DispatcherQueue.TryEnqueueGuarded(() => Invalidate(content: true));
 
     private void OnTransportChanged()
     {

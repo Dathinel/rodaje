@@ -266,7 +266,7 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
         while (_pinging)
         {
             long sent = Stopwatch.GetTimestamp();
-            _dispatcher.TryEnqueue(DispatcherQueuePriority.Normal, () => metrics.UiQueueLatency(Stopwatch.GetElapsedTime(sent).TotalMilliseconds));
+            _dispatcher.TryEnqueueGuarded(DispatcherQueuePriority.Normal, () => metrics.UiQueueLatency(Stopwatch.GetElapsedTime(sent).TotalMilliseconds));
             Thread.Sleep(50);
         }
     }

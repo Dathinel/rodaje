@@ -1,4 +1,5 @@
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
@@ -52,7 +53,7 @@ internal static partial class AnalysisCommands
 
     /// <summary>Cada análisis corre como acción larga: su botón queda ocupado y la barra de avisos muestra el avance.</summary>
     private static void Run(EditorServices services, string id, string title, Func<LongActionScope, Task> work, bool canCancel = false) =>
-        _ = services.LongActions.RunAsync(id, title, work, canCancel);
+        UiTask.Run(services.LongActions.RunAsync(id, title, work, canCancel));
 
     private sealed partial class Bindings(IDisposable[] items) : IDisposable
     {

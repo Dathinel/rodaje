@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Crashes;
 using Rodaje.Core.Model;
 using Rodaje.Export;
 using Rodaje.Media.Export;
@@ -232,7 +233,7 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
             IExportJob started = Runner.Start(next.Request, next.ContinueWithoutMissing);
             next.Job = started;
             started.Changed += (_, _) => OnJobChanged();
-            _ = WatchAsync(next, started);
+            UiTask.Run(WatchAsync(next, started));
         }
     }
 

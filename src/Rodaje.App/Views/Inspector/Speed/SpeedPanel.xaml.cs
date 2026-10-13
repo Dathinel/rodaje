@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Microsoft.UI.Xaml.Automation;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
@@ -418,7 +419,9 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         }
     }
 
-    private async void OnResetClick(object sender, RoutedEventArgs e)
+    private void OnResetClick(object sender, RoutedEventArgs e) => UiTask.Run(OnResetClickAsync(sender, e));
+
+    private async Task OnResetClickAsync(object sender, RoutedEventArgs e)
     {
         if (_editor is { } editor)
         {
@@ -518,7 +521,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
             return;
         }
 
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.TryEnqueueGuarded(() =>
         {
             if (_editor?.Target() is { } clip)
             {
