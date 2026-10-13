@@ -1,5 +1,6 @@
 using Microsoft.UI;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using Rodaje.Core.Editing;
@@ -35,14 +36,14 @@ internal static partial class SubtitleFileCommands
         {
             Description = "Guarda la pista de subtítulos como archivo .srt o .vtt.",
         });
-        IDisposable import = router.Bind(ImportId, () => _ = Guard(services, "Importar subtítulos", () => ImportAsync(services)));
-        IDisposable export = router.Bind(ExportId, () => _ = Guard(services, "Exportar subtítulos", () => ExportAsync(services, null)));
+        IDisposable import = router.Bind(ImportId, () => UiTask.Run(Guard(services, "Importar subtítulos", () => ImportAsync(services))));
+        IDisposable export = router.Bind(ExportId, () => UiTask.Run(Guard(services, "Exportar subtítulos", () => ExportAsync(services, null))));
         return new Bindings(import, export);
     }
 
     /// <summary>Exportar una pista concreta (menú de su cabecera).</summary>
     public static void ExportTrack(EditorServices services, string trackId) =>
-        _ = Guard(services, "Exportar subtítulos", () => ExportAsync(services, trackId));
+        UiTask.Run(Guard(services, "Exportar subtítulos", () => ExportAsync(services, trackId)));
 
     private static async Task Guard(EditorServices services, string title, Func<Task> run)
     {

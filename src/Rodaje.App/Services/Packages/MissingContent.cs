@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Crashes;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Packages;
@@ -53,7 +54,7 @@ public static class MissingContent
         ArgumentNullException.ThrowIfNull(packages);
         HashSet<string> warned = new(StringComparer.Ordinal);
         bool opening = false;
-        session.ProjectOpened += (_, _) => _ = OpenedAsync();
+        session.ProjectOpened += (_, _) => UiTask.Run(OpenedAsync());
         packages.Changed += (_, _) =>
         {
             if (opening)

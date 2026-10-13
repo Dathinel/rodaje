@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Shell;
@@ -67,7 +68,7 @@ internal sealed partial class FiltersPanel
         DispatcherQueue.RunLater(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
         {
             _presetRefreshQueued = false;
-            _ = RefreshPresetsAsync();
+            UiTask.Run(RefreshPresetsAsync());
         });
     }
 

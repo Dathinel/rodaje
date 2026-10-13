@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using Rodaje.Core.Editing;
@@ -42,8 +43,8 @@ internal sealed partial class TimelineView
         router.Bind(MarkOutId, () => Session!.MarkOut());
         router.Bind(ClearMarksId, () => Session!.ClearMarks());
         // Con un borde elegido, «,» y «.» lo recortan un cuadro; si no, insertan y sobrescriben desde el origen.
-        router.Bind(InsertId, () => { if (!Session!.TrimSelectedEdge(-1)) { _ = ThreePointAsync(PlacementMode.Insert); } }, () => Session?.SourceMediaId is not null || Session?.SelectedEdge is not null);
-        router.Bind(OverwriteId, () => { if (!Session!.TrimSelectedEdge(1)) { _ = ThreePointAsync(PlacementMode.Overwrite); } }, () => Session?.SourceMediaId is not null || Session?.SelectedEdge is not null);
+        router.Bind(InsertId, () => { if (!Session!.TrimSelectedEdge(-1)) { UiTask.Run(ThreePointAsync(PlacementMode.Insert)); } }, () => Session?.SourceMediaId is not null || Session?.SelectedEdge is not null);
+        router.Bind(OverwriteId, () => { if (!Session!.TrimSelectedEdge(1)) { UiTask.Run(ThreePointAsync(PlacementMode.Overwrite)); } }, () => Session?.SourceMediaId is not null || Session?.SelectedEdge is not null);
         router.Bind(ToggleSourceId, () => Session!.ToggleSourceProgram(), () => Session?.SourceMediaId is not null);
         Session!.SourceChanged += (_, _) =>
         {
@@ -138,8 +139,8 @@ internal sealed partial class TimelineView
                 session.TargetVideoTrackId ?? session.MainTrack?.Id, isVideo: true);
             AddTrackSelector("A", session.SourceAudioEnabled && source.HasAudio, source.HasAudio, session.Sequence.AudioTracks,
                 session.TargetAudioTrackId ?? session.Sequence.AudioTracks.FirstOrDefault()?.Id, isVideo: false);
-            SourcePanel.Children.Add(ActionButton("Insertar (,)", () => _ = ThreePointAsync(PlacementMode.Insert)));
-            SourcePanel.Children.Add(ActionButton("Sobrescribir (.)", () => _ = ThreePointAsync(PlacementMode.Overwrite)));
+            SourcePanel.Children.Add(ActionButton("Insertar (,)", () => UiTask.Run(ThreePointAsync(PlacementMode.Insert))));
+            SourcePanel.Children.Add(ActionButton("Sobrescribir (.)", () => UiTask.Run(ThreePointAsync(PlacementMode.Overwrite))));
             SourcePanel.Children.Add(ActionButton("Reemplazar", () => Session?.SourceAction(ThreePointAction.Replace)));
             SourcePanel.Children.Add(ActionButton("Ajustar a rellenar", () => Session?.SourceAction(ThreePointAction.FitToFill)));
             SourcePanel.Children.Add(ActionButton("Superponer", () => Session?.SourceAction(ThreePointAction.Superimpose)));

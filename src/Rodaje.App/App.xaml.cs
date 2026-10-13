@@ -55,6 +55,29 @@ public partial class App : Application
 
     private Action<string>? ShowUnexpectedError() => _window is { } window ? window.ReportUnexpectedError : null;
 
+    /// <summary>Avisa en la ventana de un error ya informado; desde cualquier hilo (pasa por la cola de la interfaz).</summary>
+    internal void NotifyUnexpectedError(string message)
+    {
+        if (_window is not { } window)
+        {
+            return;
+        }
+
+        // Los errores esperables al avisar solo van al registro. Otro error pasa por la red de RunLater (informe y un aviso
+        // directo); si ese aviso también falla, sigue su camino: no se vuelve a encolar otro aviso.
+        _ = window.DispatcherQueue.RunLater(() =>
+        {
+            try
+            {
+                window.ReportUnexpectedError(message);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
+            {
+                Program.Log.Append("No se pudo avisar de un error: " + ex.Message);
+            }
+        });
+    }
+
     // Rastro para el informe de un fallo: los pasos del historial y los avisos, en el registro de la sesión.
     private static void LogSessionTrail(EditorSession session)
     {

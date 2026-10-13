@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services.Audio;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
@@ -380,19 +381,19 @@ internal sealed partial class MetersView : UserControl, IEditorView
         foreach ((double lufs, string name) in LoudnessNormalizer.Targets)
         {
             var item = new MenuFlyoutItem { Text = name };
-            item.Click += async (_, _) => await NormalizeMixAsync(lufs);
+            item.Click += (_, _) => UiTask.Run(NormalizeMixAsync(lufs));
             NormalizeMixMenu.Items.Add(item);
         }
 
         NormalizeMixMenu.Items.Add(new MenuFlyoutSeparator());
         var custom = new MenuFlyoutItem { Text = "Otro objetivo…" };
-        custom.Click += async (_, _) =>
+        custom.Click += (_, _) => UiTask.Run(async () =>
         {
             if (await Inspector.Properties.PropertiesPanel.AskTargetAsync(XamlRoot, "Normalizar la mezcla") is { } lufs)
             {
                 await NormalizeMixAsync(lufs);
             }
-        };
+        });
         NormalizeMixMenu.Items.Add(custom);
     }
 
