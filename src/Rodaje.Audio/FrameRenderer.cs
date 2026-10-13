@@ -210,10 +210,13 @@ internal sealed class FrameRenderer
             _rampStep = (target - gain) / _rampFrames;
         }
 
+        // Si el destino está a menos de lo que el float puede sumar, `gain + step` redondea a `gain` y la rampa no
+        // terminaría nunca: cuando el paso ya no acerca, se salta al destino.
         float step = _rampStep;
         for (int f = 0; f < frames; f++)
         {
-            gain = MathF.Abs(target - gain) <= MathF.Abs(step) ? target : gain + step;
+            float next = gain + step;
+            gain = MathF.Abs(target - gain) <= MathF.Abs(step) || MathF.Abs(target - next) >= MathF.Abs(target - gain) ? target : next;
             stereo[f * 2] *= gain;
             stereo[(f * 2) + 1] *= gain;
         }
