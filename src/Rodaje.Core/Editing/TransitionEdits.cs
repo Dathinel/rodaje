@@ -8,7 +8,7 @@ namespace Rodaje.Core.Editing;
 public static class TransitionEdits
 {
     /// <summary>Pone una transición en el corte donde termina <paramref name="fromClipId"/>; el clip siguiente tiene que empezar justo ahí.</summary>
-    /// <remarks>La duración se acota a <see cref="TransitionOps.MaxDuration"/>, como la que se da con <see cref="SetDuration"/>.</remarks>
+    /// <remarks>La duración se acota a <see cref="TransitionOps.MaxDuration(Track, TransitionInstance, TransitionAlignment?)"/>, como la que se da con <see cref="SetDuration"/>.</remarks>
     /// <returns>Identificador de la transición nueva.</returns>
     public static string AddTransition(EditContext ctx, string fromClipId, string type, Time? duration = null)
     {
@@ -22,6 +22,7 @@ public static class TransitionEdits
 
         Track track = found.Track;
         EditContext.EnsureUnlocked(track);
+        EnsureFitsTrack(track, type);
         int index = track.Clips.IndexOf(found.Clip);
         Clip? next = index + 1 < track.Clips.Count ? track.Clips[index + 1] : null;
         if (next is null || next.Start != found.Clip.End)
@@ -56,7 +57,7 @@ public static class TransitionEdits
         track.Transitions.Remove(transition);
     }
 
-    /// <summary>Cambia la duración; se acota a <see cref="TransitionOps.MaxDuration"/>.</summary>
+    /// <summary>Cambia la duración; se acota a <see cref="TransitionOps.MaxDuration(Track, TransitionInstance, TransitionAlignment?)"/>.</summary>
     public static void SetDuration(EditContext ctx, string transitionId, Time duration)
     {
         EnsurePositive(duration);
@@ -64,15 +65,79 @@ public static class TransitionEdits
         ctx.EnsureValid();
     }
 
+    /// <summary>
+    /// Pone la misma duración a varias transiciones, cada una acotada a lo que permiten sus clips
+    /// (<see cref="TransitionOps.MaxDuration(Track, TransitionInstance, TransitionAlignment?)"/>), de izquierda a derecha.
+    /// </summary>
+    public static void SetDurations(EditContext ctx, IReadOnlyCollection<string> transitionIds, Time duration)
+    {
+        ArgumentNullException.ThrowIfNull(transitionIds);
+        EnsurePositive(duration);
+        var chosen = transitionIds.Select(id => Editable(ctx, id)).ToList();
+        foreach (Track track in chosen.Select(c => c.Track).Distinct())
+        {
+            // Primero se achican todas, así cada una ve a sus vecinas ya con la duración nueva si es menor.
+            foreach (TransitionInstance transition in track.Transitions.Where(t => chosen.Exists(c => c.Transition == t)))
+            {
+                transition.Duration = Time.Min(transition.Duration, duration);
+            }
+
+            foreach (TransitionInstance transition in track.Transitions.Where(t => chosen.Exists(c => c.Transition == t)))
+            {
+                transition.Duration = Time.Max(Time.FromTicks(1), Time.Min(duration, TransitionOps.MaxDuration(track, transition)));
+            }
+        }
+
+        ctx.EnsureValid();
+    }
+
+    /// <summary>Centrada, al final del clip que sale o al inicio del que entra; si ya no cabe, se acorta lo justo.</summary>
+    public static void SetAlignment(EditContext ctx, string transitionId, TransitionAlignment alignment)
+    {
+        if (!Enum.IsDefined(alignment))
+        {
+            throw new EditException("Alineación desconocida.");
+        }
+
+        (Track track, TransitionInstance transition) = Editable(ctx, transitionId);
+        Time max = TransitionOps.MaxDuration(track, transition, alignment);
+        if (max <= Time.Zero)
+        {
+            throw new EditException("Con esa alineación la transición no cabe: la otra transición del clip ocupa todo.");
+        }
+
+        transition.Alignment = alignment;
+        transition.Duration = Time.Min(transition.Duration, max);
+        ctx.EnsureValid();
+    }
+
+    /// <summary>
+    /// Curva del avance (nula o <see cref="Interpolation.Linear"/>, lineal); <paramref name="ease"/> solo cuenta con
+    /// <see cref="Interpolation.Bezier"/> y se acota a sus límites.
+    /// </summary>
+    public static void SetCurve(EditContext ctx, string transitionId, Interpolation? curve, BezierEase? ease = null)
+    {
+        if (curve is { } c && !Enum.IsDefined(c))
+        {
+            throw new EditException("Curva desconocida.");
+        }
+
+        TransitionInstance transition = Editable(ctx, transitionId).Transition;
+        transition.Curve = curve == Interpolation.Linear ? null : curve;
+        transition.Ease = curve == Interpolation.Bezier ? (ease ?? BezierEase.Smooth).Clamped() : null;
+    }
+
     /// <summary>Cambia el tipo; los parámetros y opciones del anterior se descartan.</summary>
     public static void SetType(EditContext ctx, string transitionId, string type)
     {
         EnsureTransitionType(type);
-        TransitionInstance transition = Editable(ctx, transitionId).Transition;
+        (Track track, TransitionInstance transition) = Editable(ctx, transitionId);
         if (transition.Type == type)
         {
             return;
         }
+
+        EnsureFitsTrack(track, type);
 
         transition.Type = type;
         transition.Parameters.Clear();
@@ -135,6 +200,14 @@ public static class TransitionEdits
         if (EffectRegistry.Find(type) is not { IsTransition: true })
         {
             throw new EditException($"«{type}» no es una transición.");
+        }
+    }
+
+    private static void EnsureFitsTrack(Track track, string type)
+    {
+        if (BuiltInTransitions.IsAudio(type) && track.Kind != TrackKind.Audio)
+        {
+            throw new EditException("Las transiciones de audio van en una pista de audio.");
         }
     }
 

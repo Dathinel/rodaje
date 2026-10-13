@@ -195,10 +195,11 @@ public sealed class TransitionTests
         return compositor.ReadbackRgba();
     }
 
+    /// <summary>La dirección va después de los parámetros del empuje (su desenfoque de movimiento).</summary>
     private static EffectValues PushValues(int direction)
     {
         EffectValues values = default;
-        values[0] = direction;
+        values[EffectRegistry.Find(T.Push)!.Parameters.Length] = direction;
         return values;
     }
 

@@ -118,6 +118,15 @@ public sealed partial class EffectPerformanceTests(ITestOutputHelper output)
     [InlineData(BuiltInTransitions.Push)]
     [InlineData(BuiltInTransitions.ZoomDissolve)]
     [InlineData(BuiltInTransitions.BlurDissolve)]
+    [InlineData(BuiltInTransitions.Slide)]
+    [InlineData(BuiltInTransitions.ZoomBlur)]
+    [InlineData(BuiltInTransitions.Spin)]
+    [InlineData(BuiltInTransitions.LightWipe)]
+    [InlineData(BuiltInTransitions.Glitch)]
+    [InlineData(BuiltInTransitions.FilmBurn)]
+    [InlineData(BuiltInTransitions.Flash)]
+    [InlineData(BuiltInTransitions.Luma)]
+    [InlineData(BuiltInTransitions.Bounce)]
     public void A_4k_transition_with_effects(string type)
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -130,6 +139,36 @@ public sealed partial class EffectPerformanceTests(ITestOutputHelper output)
                 new LayerLook([Graded()], Transition: transition));
             (double median, _) = Measure(gpu, $"Transición 4K {type} con color y LUT", 3840, 2160, 3840, 2160, outgoing);
             Require(median <= 5, $"Transición 4K {type}: {median:0.00} ms (objetivo ≤5).");
+        }
+        finally
+        {
+            Layers.Release(texture);
+        }
+    }
+
+    /// <summary>Con desenfoque de movimiento la mezcla se evalúa 16 veces a lo largo del obturador.</summary>
+    [GpuArrayTheory]
+    [InlineData(BuiltInTransitions.Spin)]
+    [InlineData(BuiltInTransitions.Slide)]
+    [InlineData(BuiltInTransitions.Bounce)]
+    public void A_transition_with_motion_blur_at_1080p_and_4k(string type)
+    {
+        using GpuDevice gpu = GpuDevice.Create();
+        nint texture = Texture(gpu, 3840, 2160, 2);
+        try
+        {
+            LayerFrame Layer(int size)
+            {
+                int width = size == 4 ? 3840 : 1920;
+                int height = size == 4 ? 2160 : 1080;
+                LayerFrame incoming = Layers.FromTexture(gpu, texture, 1, width, height, Bt709, LayerTransform.Identity, 1);
+                var transition = new LayerTransition(EffectRegistry.Find(type)!.Code, 0.5f, Fx.Transition(type), incoming) { Shutter = (0.45f, 0.55f) };
+                return Layers.FromTexture(gpu, texture, 0, width, height, Bt709, LayerTransform.Identity, 0, new LayerLook(Transition: transition));
+            }
+
+            (double hd, _) = Measure(gpu, $"Transición 1080p {type} con desenfoque de movimiento (16 muestras)", 1920, 1080, 1920, 1080, Layer(2));
+            (double uhd, _) = Measure(gpu, $"Transición 4K {type} con desenfoque de movimiento (16 muestras)", 3840, 2160, 3840, 2160, Layer(4));
+            Require(hd <= 3.5 && uhd <= 12, $"{type} con desenfoque: 1080p {hd:0.00} ms, 4K {uhd:0.00} ms (objetivo ≤3,5 y ≤12).");
         }
         finally
         {

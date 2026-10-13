@@ -477,10 +477,100 @@ internal sealed class TransitionPlan
     /// <summary>Era de paquete y el contenido faltaba: se ve como fundido cruzado.</summary>
     public bool FellBack { get; }
 
+    /// <summary>Curva del avance (nula, lineal) y sus puntos Bézier.</summary>
+    public Interpolation? ProgressCurve { get; init; }
+
+    public BezierEase? Ease { get; init; }
+
+    /// <summary>Fracción del cuadro con el obturador abierto (0, sin desenfoque de movimiento).</summary>
+    public double MotionBlur { get; init; }
+
+    /// <summary>Un cuadro de la secuencia, para el obturador.</summary>
+    public Time FrameDuration { get; init; }
+
+    /// <summary>La imagen de la mezcla (degradado de una disolución por luma), o nula.</summary>
+    public ResourceKey? Resource { get; init; }
+
     public bool Covers(Time timeline) => timeline >= Start && timeline < End;
 
-    public float Progress(Time timeline) =>
-        End <= Start ? 1f : (float)Math.Clamp((double)(timeline - Start).Ticks / (End - Start).Ticks, 0, 1);
+    /// <summary>Avance del tiempo en la transición, de 0 a 1, sin curva.</summary>
+    public double Linear(Time timeline) =>
+        End <= Start ? 1 : Math.Clamp((double)(timeline - Start).Ticks / (End - Start).Ticks, 0, 1);
+
+    /// <summary>Avance con la curva: lo que reciben la mezcla y las curvas de un paquete.</summary>
+    public float Progress(Time timeline) => (float)TransitionInstance.EaseProgress(ProgressCurve, Ease, Linear(timeline));
+
+    /// <summary>
+    /// La mezcla en <paramref name="timeline"/> con el clip que entra. Con desenfoque de movimiento lleva el avance al abrir y
+    /// al cerrar el obturador, centrado en el instante y acotado a la transición (en los extremos no hay desenfoque, así el
+    /// primer y el último cuadro son exactamente los clips).
+    /// </summary>
+    public LayerTransition Layer(Time timeline, float progress, LayerFrame incoming)
+    {
+        var mix = new LayerTransition(Code, progress, Values, incoming) { Resource = Resource };
+        if (MotionBlur <= 0 || End <= Start || FrameDuration <= Time.Zero)
+        {
+            return mix;
+        }
+
+        double t = Linear(timeline);
+        double half = Math.Min(MotionBlur * FrameDuration.Ticks / (End - Start).Ticks / 2, Math.Min(t, 1 - t));
+        if (half <= 0)
+        {
+            return mix;
+        }
+
+        float from = (float)TransitionInstance.EaseProgress(ProgressCurve, Ease, t - half);
+        float to = (float)TransitionInstance.EaseProgress(ProgressCurve, Ease, t + half);
+        return to > from ? mix with { Shutter = (from, to) } : mix;
+    }
+
+    /// <summary>
+    /// Resuelve la transición <paramref name="t"/> en <c>[start, end)</c>: la mezcla del registro con sus valores, la curva,
+    /// el desenfoque de movimiento y, si es de paquete, sus curvas (o fundido cruzado si falta el paquete).
+    /// </summary>
+    public static TransitionPlan From(TransitionInstance t, Time start, Time end, int width, int height, Rational frameRate, IEffectContent? content)
+    {
+        ArgumentNullException.ThrowIfNull(t);
+        EffectDefinition crossfade = EffectRegistry.Find(BuiltInTransitions.Crossfade)!;
+        EffectDefinition definition = EffectRegistry.Find(t.Type) is { IsTransition: true, Stage: EffectStage.Transition } known ? known : crossfade;
+        TransitionCurves? curves = null;
+        bool fellBack = false;
+        if (definition.Type == BuiltInTransitions.Preset)
+        {
+            string reference = t.Options.GetValueOrDefault(BuiltInTransitions.PresetOptions.Preset) ?? "";
+            curves = reference.Length > 0 ? content?.FindTransition(reference) : null;
+            fellBack = curves is null;
+            definition = curves is not null && EffectRegistry.Find(curves.MixCode) is { IsTransition: true, Stage: EffectStage.Transition } mix
+                && mix.Type != BuiltInTransitions.Preset
+                ? mix
+                : crossfade;
+        }
+
+        // Una de paquete lleva los parámetros y opciones de su mezcla en el preajuste; los de la transición son los suyos.
+        IReadOnlyDictionary<string, double> parameters = curves?.MixParameters ?? t.Parameters;
+        IReadOnlyDictionary<string, string> options = curves?.MixOptions ?? t.Options;
+        EffectValues values = default;
+        foreach (ParameterDefinition p in definition.Parameters)
+        {
+            double value = parameters.TryGetValue(p.Name, out double v) && double.IsFinite(v) ? v : p.DefaultValue;
+            values[p.Slot] = (float)p.Clamp(value);
+        }
+
+        EffectPlan.WriteChoices(definition, options, ref values);
+        double blur = definition.FindParameter(BuiltInTransitions.CommonParameters.MotionBlur) is { } b ? values[b.Slot] : 0;
+        string? image = definition.FindOption(BuiltInTransitions.LumaOptions.Image) is not null
+            ? options.GetValueOrDefault(BuiltInTransitions.LumaOptions.Image)
+            : null;
+        return new TransitionPlan(t.Id, t.From, t.To, start, end, definition.Code, values, curves, width, height, fellBack)
+        {
+            ProgressCurve = t.Curve,
+            Ease = t.Ease,
+            MotionBlur = blur,
+            FrameDuration = frameRate.Num > 0 && frameRate.Den > 0 ? Time.FromFrames(1, frameRate) : Time.Zero,
+            Resource = image is { Length: > 0 } ? new ResourceKey(image) : null,
+        };
+    }
 
     /// <summary>Suma a <paramref name="transform"/> las curvas del lado pedido: posiciones y giro se suman, escala y opacidad se multiplican.</summary>
     public LayerTransform Apply(LayerTransform transform, bool incoming, float progress)

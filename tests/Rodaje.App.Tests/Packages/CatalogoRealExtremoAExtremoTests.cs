@@ -79,14 +79,14 @@ public sealed partial class CatalogoRealExtremoAExtremoTests(ITestOutputHelper o
         Assert.Empty(downloader.IndexProblems);
         IReadOnlyDictionary<string, PackageVersion> available = await service.AvailableVersionsAsync();
         Assert.Null(service.UpdatesProblem);
-        Assert.Equal("1.1.0", available["rodaje-transiciones"].ToString());
+        Assert.Equal("1.2.0", available["rodaje-transiciones"].ToString());
         Assert.Equal("1.1.0", available["rodaje-filtros"].ToString());
         Assert.All(Contenido.Concat(Modulos), id => Assert.Equal(id == "modulo-traducir" ? "1.0.1" : "1.0.0", available[id].ToString()));
         Assert.All(service.Catalog.Entries, e => Assert.True(available.ContainsKey(e.Id), $"{e.Id} no está publicado."));
         Note($"Índice {index.Generated:O}: {index.Entries.Count} entradas.");
 
-        // Transiciones y filtros 1.0.0 (bajadas con el hash del índice) y actualización a 1.1.0 desde el catálogo.
-        foreach ((string id, int items) in new[] { ("rodaje-transiciones", 22), ("rodaje-filtros", 26) })
+        // Transiciones y filtros 1.0.0 (bajadas con el hash del índice) y actualización a la más nueva desde el catálogo.
+        foreach ((string id, int items, string latest) in new[] { ("rodaje-transiciones", 45, "1.2.0"), ("rodaje-filtros", 26, "1.1.0") })
         {
             IndexEntry old = index.Entries.Single(e => e.Id == id && e.Version.ToString() == "1.0.0");
             string path = Path.Combine(_folder.Path, $"{id}-1.0.0.paquete");
@@ -96,10 +96,10 @@ public sealed partial class CatalogoRealExtremoAExtremoTests(ITestOutputHelper o
 
             var watch = Stopwatch.StartNew();
             InstallResult updated = await service.InstallFromCatalogAsync(service.Catalog.Find(id)!);
-            Assert.Equal((InstallOutcome.Updated, "1.0.0", "1.1.0"), (updated.Outcome, updated.PreviousVersion?.ToString(), updated.Package.Manifest.Version.ToString()));
+            Assert.Equal((InstallOutcome.Updated, "1.0.0", latest), (updated.Outcome, updated.PreviousVersion?.ToString(), updated.Package.Manifest.Version.ToString()));
             Assert.Equal(items, updated.Package.Manifest.Items.Count);
             Assert.False(service.HasUpdate(service.Entries().Single(e => e.Id == id)));
-            Note($"{id}: 1.0.0 → 1.1.0 ({Size(Latest(index, id).Size)}) en {watch.Elapsed.TotalSeconds:0.0} s, {items} elementos.");
+            Note($"{id}: 1.0.0 → {latest} ({Size(Latest(index, id).Size)}) en {watch.Elapsed.TotalSeconds:0.0} s, {items} elementos.");
         }
 
         foreach (string id in Contenido)

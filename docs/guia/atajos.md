@@ -33,6 +33,7 @@ En las tablas, «=» significa «igual que Rodaje».
 | Deshacer | Ctrl+Z | = | = |
 | Rehacer | Ctrl+Mayús+Z, Ctrl+Y | Ctrl+Mayús+Z | Ctrl+Y, Ctrl+Mayús+Z |
 | Añadir texto | T | = | = |
+| Transición por defecto en el corte | Ctrl+T | = | = |
 | Velocidad del clip… | Ctrl+R | = | = |
 | Congelar cuadro | Mayús+R | = | = |
 | Más rápido / Más lento | Ctrl+Alt+. / Ctrl+Alt+, | = | = |

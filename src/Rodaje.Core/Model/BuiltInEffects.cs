@@ -810,6 +810,151 @@ public static class BuiltInTransitions
     /// <summary>Transición de paquete: curvas de transformación de salida y de entrada más una mezcla (<c>rodaje.preset</c>).</summary>
     public const string Preset = "rodaje.preset";
 
+    /// <summary>El clip que entra se desliza sobre el que sale, con desenfoque de movimiento.</summary>
+    public const string Slide = "rodaje.slide";
+
+    /// <summary>Acercamiento con desenfoque radial hacia un punto y fundido en el medio.</summary>
+    public const string ZoomBlur = "rodaje.zoom-blur";
+
+    /// <summary>Giro sobre el centro con acercamiento y desenfoque de movimiento.</summary>
+    public const string Spin = "rodaje.spin";
+
+    /// <summary>Barrido con una franja de luz en el borde.</summary>
+    public const string LightWipe = "rodaje.light-wipe";
+
+    /// <summary>Fallo digital: franjas corridas, canales separados y cambio por bloques.</summary>
+    public const string Glitch = "rodaje.glitch";
+
+    /// <summary>Quemado de película: manchas de luz cálida que crecen y dejan ver el clip que entra.</summary>
+    public const string FilmBurn = "rodaje.film-burn";
+
+    /// <summary>Destello de luz que tapa el corte.</summary>
+    public const string Flash = "rodaje.flash";
+
+    /// <summary>Disolución por luma: un degradado (de fábrica o una imagen gris) decide qué parte cambia primero.</summary>
+    public const string Luma = "rodaje.luma";
+
+    /// <summary>Empuje que se pasa y vuelve, como un rebote.</summary>
+    public const string Bounce = "rodaje.bounce";
+
+    /// <summary>Fundido de audio de potencia constante (seno y coseno): la suma de potencias vale 1.</summary>
+    public const string AudioPower = "rodaje.audio-power";
+
+    /// <summary>Fundido de audio de ganancia constante (lineal): la suma de ganancias vale 1.</summary>
+    public const string AudioGain = "rodaje.audio-gain";
+
+    /// <summary>Fundido de audio exponencial: lineal en decibelios, de −60 dB a 0.</summary>
+    public const string AudioExponential = "rodaje.audio-exponential";
+
+    /// <summary>Si <paramref name="type"/> es una de las transiciones de audio.</summary>
+    public static bool IsAudio(string? type) => type is AudioPower or AudioGain or AudioExponential;
+
+    /// <summary>Parámetros que comparten varias transiciones.</summary>
+    public static class CommonParameters
+    {
+        /// <summary>Dirección en grados; 0 avanza de izquierda a derecha y 90 de arriba abajo.</summary>
+        public const string Angle = "angle";
+
+        /// <summary>Ancho del borde suave, de 0 a 1 del cuadro.</summary>
+        public const string Softness = "softness";
+
+        /// <summary>Ancho del borde de color, de 0 a 0,2 del cuadro (0 sin borde).</summary>
+        public const string BorderWidth = "borderWidth";
+
+        public const string BorderRed = "borderRed";
+
+        public const string BorderGreen = "borderGreen";
+
+        public const string BorderBlue = "borderBlue";
+
+        /// <summary>Desenfoque de movimiento: fracción del cuadro que el obturador está abierto (0 apagado, 0,5 es 180°).</summary>
+        public const string MotionBlur = "motionBlur";
+
+        /// <summary>Color de la luz (destello, barrido con luz, quemado).</summary>
+        public const string Red = "red";
+
+        public const string Green = "green";
+
+        public const string Blue = "blue";
+
+        public const string Intensity = "intensity";
+
+        /// <summary>Semilla del ruido: otra semilla da otras manchas o franjas.</summary>
+        public const string Seed = "seed";
+    }
+
+    public static class SlideParameters
+    {
+        /// <summary>Cuánto acompaña el clip que sale al que entra (0 quieto, 1 lo empuja).</summary>
+        public const string Parallax = "parallax";
+    }
+
+    public static class ZoomBlurParameters
+    {
+        /// <summary>Fuerza del acercamiento y del desenfoque radial.</summary>
+        public const string Strength = "strength";
+
+        public const string CenterX = "centerX";
+
+        public const string CenterY = "centerY";
+    }
+
+    public static class SpinParameters
+    {
+        /// <summary>Grados que gira en toda la transición (negativo, al revés).</summary>
+        public const string Angle = "angle";
+
+        /// <summary>Acercamiento a mitad del giro.</summary>
+        public const string Zoom = "zoom";
+    }
+
+    public static class LightWipeParameters
+    {
+        /// <summary>Ancho de la franja de luz, de 0 a 0,5 del cuadro.</summary>
+        public const string Width = "width";
+    }
+
+    public static class GlitchParameters
+    {
+        public const string Amount = "amount";
+
+        /// <summary>Cantidad de franjas horizontales.</summary>
+        public const string Bands = "bands";
+
+        /// <summary>Separación de los canales, en fracción del ancho.</summary>
+        public const string Split = "split";
+    }
+
+    public static class FilmBurnParameters
+    {
+        /// <summary>Tamaño de las manchas, en fracción del alto.</summary>
+        public const string Scale = "scale";
+    }
+
+    public static class FlashParameters
+    {
+        /// <summary>Cuánto dura el destello, en fracción de la transición.</summary>
+        public const string Width = "width";
+    }
+
+    public static class LumaOptions
+    {
+        /// <summary>Degradado de fábrica: <see cref="Effects.EffectRegistry.LumaGradients"/>.</summary>
+        public const string Gradient = "gradient";
+
+        /// <summary><c>file:</c> y la ruta de una imagen gris (PNG, JPEG…): manda sobre el degradado de fábrica.</summary>
+        public const string Image = "image";
+
+        /// <summary><c>off</c> u <c>on</c>: cambia primero lo claro en lugar de lo oscuro.</summary>
+        public const string Invert = "invert";
+    }
+
+    public static class BounceParameters
+    {
+        /// <summary>Cuánto se pasa antes de volver, de 0 (empuje normal) a 1.</summary>
+        public const string Bounce = "bounce";
+    }
+
     public static class DipParameters
     {
         public const string Red = "red";

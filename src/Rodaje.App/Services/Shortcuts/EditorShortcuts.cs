@@ -21,6 +21,9 @@ public static class ActionIds
     public const string SelectAll = "edit.selectAll";
 
     public const string ClipSpeed = "clip.speed";
+
+    /// <summary>La transición por defecto en el corte (Ctrl+T); la une <c>TransitionCommands</c>, que tiene los ajustes.</summary>
+    public const string AddTransition = "edit.transition";
     public const string FreezeFrame = "clip.freeze";
     public const string SpeedUp = "clip.faster";
     public const string SlowDown = "clip.slower";
@@ -104,6 +107,7 @@ public static partial class EditorShortcuts
         new(ActionIds.TrimStart, "Borrar a la izquierda del cursor", ShortcutGroups.Edit, ["Q"], classic: ["Alt+["]) { ShortLabel = "Borrar izquierda", Description = "Quita del clip lo que hay antes del cursor; en la principal no deja hueco." },
         new(ActionIds.TrimEnd, "Borrar a la derecha del cursor", ShortcutGroups.Edit, ["W"], classic: ["Alt+]"]) { ShortLabel = "Borrar derecha", Description = "Quita del clip lo que hay después del cursor; en la principal no deja hueco." },
         new(ActionIds.SelectAll, "Seleccionar todo", ShortcutGroups.Edit, ["Ctrl+A"]) { ShortLabel = "Todo", Description = "Selecciona todos los clips de la secuencia." },
+        new(ActionIds.AddTransition, "Transición por defecto", ShortcutGroups.Edit, ["Ctrl+T"]) { ShortLabel = "Transición", Description = "Pone la transición por defecto en el corte más cercano o en el del clip elegido." },
         new(ActionIds.ClipSpeed, "Velocidad del clip…", ShortcutGroups.Edit, ["Ctrl+R"]) { ShortLabel = "Velocidad", Description = "Abre la pestaña Velocidad del clip seleccionado o del que está bajo el cursor." },
         new(ActionIds.FreezeFrame, "Congelar cuadro", ShortcutGroups.Edit, ["Mayús+R"]) { ShortLabel = "Congelar", Description = "Detiene la imagen del cursor 3 segundos y corre lo que sigue." },
         new(ActionIds.SpeedUp, "Más rápido", ShortcutGroups.Edit, ["Ctrl+Alt+."]) { Repeats = true, Description = "Sube un escalón la velocidad del clip (1,25×, 1,5×, 2×…)." },

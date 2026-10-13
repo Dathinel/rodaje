@@ -122,13 +122,25 @@
 
         <DataTemplate x:Key="ElementTileTemplate" x:DataType="local:ElementItem">
             <Grid Width="118" Height="64" Padding="8,8" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
-                  BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Opacity="{x:Bind Opacity}" ToolTipService.ToolTip="{x:Bind Tooltip}" RowSpacing="2">
+                  BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Opacity="{x:Bind Opacity}" ToolTipService.ToolTip="{x:Bind Tooltip}" RowSpacing="2"
+                  PointerEntered="OnElementPointerEntered" PointerExited="OnElementPointerExited">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconFontSize}" HorizontalAlignment="Left" Foreground="{StaticResource TextMutedBrush}" />
+                <!-- Transiciones: miniatura compuesta en la GPU, animada al pasar el puntero; el nombre va sobre una sombra. -->
+                <Image Grid.RowSpan="3" Margin="-8" Source="{x:Bind Preview, Mode=OneWay}" Stretch="UniformToFill" />
+                <Rectangle Grid.Row="1" Grid.RowSpan="2" Margin="-8,-4,-8,-8" Visibility="{x:Bind PreviewShadeVisibility, Mode=OneWay}">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#00000000" Offset="0" />
+                            <GradientStop Color="#C0000000" Offset="0.6" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconFontSize}" HorizontalAlignment="Left" Foreground="{StaticResource TextMutedBrush}"
+                          Visibility="{x:Bind GlyphVisibility, Mode=OneWay}" />
                 <TextBlock Grid.Row="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
                 <TextBlock Grid.Row="2" Text="{x:Bind Source}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
             </Grid>

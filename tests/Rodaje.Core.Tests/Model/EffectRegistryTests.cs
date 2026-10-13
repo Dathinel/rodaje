@@ -31,6 +31,10 @@ public class EffectRegistryTests
                 (BuiltInTransitions.Crossfade, 101), (BuiltInTransitions.Dip, 102),
                 (BuiltInTransitions.Wipe, 103), (BuiltInTransitions.Push, 104), (BuiltInTransitions.ZoomDissolve, 105),
                 (BuiltInTransitions.BlurDissolve, 106), (BuiltInTransitions.Preset, 107),
+                (BuiltInTransitions.Slide, 108), (BuiltInTransitions.ZoomBlur, 109), (BuiltInTransitions.Spin, 110),
+                (BuiltInTransitions.LightWipe, 111), (BuiltInTransitions.Glitch, 112), (BuiltInTransitions.FilmBurn, 113),
+                (BuiltInTransitions.Flash, 114), (BuiltInTransitions.Luma, 115), (BuiltInTransitions.Bounce, 116),
+                (BuiltInTransitions.AudioPower, 120), (BuiltInTransitions.AudioGain, 121), (BuiltInTransitions.AudioExponential, 122),
             ],
             EffectRegistry.All.Select(d => (d.Type, d.Code)));
     }
@@ -44,7 +48,7 @@ public class EffectRegistryTests
             Assert.Equal(definition.Parameters.Length, definition.Parameters.Select(p => p.Name).Distinct(StringComparer.Ordinal).Count());
             Assert.Equal(definition.Options.Length, definition.Options.Select(o => o.Name).Distinct(StringComparer.Ordinal).Count());
             Assert.DoesNotContain(definition.Options, o => o.Name == BuiltInEffects.CommonOptions.Source);
-            Assert.Equal(definition.IsTransition, definition.Stage == EffectStage.Transition);
+            Assert.Equal(definition.IsTransition, definition.Stage == EffectStage.Transition || BuiltInTransitions.IsAudio(definition.Type));
             for (int i = 0; i < definition.Parameters.Length; i++)
             {
                 ParameterDefinition p = definition.Parameters[i];
@@ -62,12 +66,15 @@ public class EffectRegistryTests
     }
 
     [Fact]
-    public void Transitions_AreTheSixOwnPlusPresets()
+    public void Transitions_AreTheOwnPlusPresetsAndAudio()
     {
         Assert.Equal(
             [
                 BuiltInTransitions.Crossfade, BuiltInTransitions.Dip, BuiltInTransitions.Wipe, BuiltInTransitions.Push,
                 BuiltInTransitions.ZoomDissolve, BuiltInTransitions.BlurDissolve, BuiltInTransitions.Preset,
+                BuiltInTransitions.Slide, BuiltInTransitions.ZoomBlur, BuiltInTransitions.Spin, BuiltInTransitions.LightWipe,
+                BuiltInTransitions.Glitch, BuiltInTransitions.FilmBurn, BuiltInTransitions.Flash, BuiltInTransitions.Luma,
+                BuiltInTransitions.Bounce, BuiltInTransitions.AudioPower, BuiltInTransitions.AudioGain, BuiltInTransitions.AudioExponential,
             ],
             EffectRegistry.Transitions.Select(d => d.Type));
         Assert.All(EffectRegistry.Transitions, d => Assert.Equal(EffectTarget.Transition, d.Target));

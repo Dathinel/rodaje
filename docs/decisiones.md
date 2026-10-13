@@ -2,7 +2,7 @@
 
 Este registro guarda el porqué de cada elección importante de Rodaje. Una decisión no se borra cuando cambia: se marca como sustituida y otra explica el cambio.
 
-**Estado.** Vigentes: D-003 a D-014, D-016 a D-029 y D-031 a D-040 (D-017 la amplía D-019; D-028 la corrige D-033 en la parte de 9:16; D-029.1 la amplía D-039). Sustituidas: D-001 (por D-014), D-002 en la licencia y D-030 (por D-032), D-015 en el visor (por D-022) y en la caché (por D-017).
+**Estado.** Vigentes: D-003 a D-014, D-016 a D-029 y D-031 a D-043 (D-017 la amplía D-019; D-028 la corrige D-033 en la parte de 9:16; D-029.1 la amplía D-039). Sustituidas: D-001 (por D-014), D-002 en la licencia y D-030 (por D-032), D-015 en el visor (por D-022) y en la caché (por D-017).
 
 ---
 
@@ -392,6 +392,20 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
   - **Multicámara básica sin modelo nuevo:** los ángulos y sus desfases viven en la biblioteca; cortar a un ángulo (1 a 9, también reproduciendo) parte el clip de la principal y le cambia el medio en el mismo instante del reloj común. El sonido no cambia.
   - **La biblioteca sigue fuera del `.rodaje`** (como sus carpetas): valoración, rechazados, etiquetas, subclips, colecciones inteligentes (reglas, no listas) y multicámaras van en el archivo de organización, versión 2. Fecha de grabación y cámara se leen del archivo (`MediaTags`) y se cachean con los códecs.
 - **Consecuencia.** Un proyecto copiado a otro equipo llega sin etiquetas, subclips ni multicámaras (los cortes ya hechos sí). Un Rodaje anterior aparta el archivo de organización v2 y empieza con la biblioteca en la raíz. La semilla `0pZ2Mq9N8IE2` de regresión de velocidad sale de la lista: insertar arma otro proyecto con ella.
+
+## D-042. Transiciones profesionales: alineación, curva, mezclas nuevas en la GPU, desenfoque de movimiento y audio (12 de octubre de 2026)
+
+- **Contexto.** Las transiciones iban siempre centradas en el corte, con avance lineal, seis mezclas y un cruce de audio único. Faltaba lo de un editor profesional: alinearlas a un lado del corte, darles curva, más mezclas de calidad, desenfoque de movimiento, bordes de color, disolución por luma con imagen, varias formas de cruce de audio y una vista previa fiel.
+- **Decisión.**
+  - **Alineación en el modelo** (`alignment`: centrada, antes o después del corte). La regla de que no se pisen pasa de «la mitad cabe en cada clip» a «las dos partes que caen en un clip suman a lo sumo su duración»; al acortar un clip, `TransitionOps.Reconcile` reparte el clip entre las dos (la de la izquierda le guarda a la siguiente lo que usa, hasta la mitad), así ninguna desaparece.
+  - **Curva del avance con las fórmulas de los keyframes** (`KeyframeMath`), recortada a 0–1 y exacta en los extremos. La misma curva mueve la mezcla, las curvas de un paquete y el cruce de audio: lo que se ve y lo que se oye van juntos. El rebote que se pasa del final es una mezcla propia («Empujar con rebote»), no una curva.
+  - **Nueve mezclas nuevas de fábrica en `PsTransition`** (deslizar, zoom con desenfoque, giro, barrido con luz, fallo digital, quemado, destello, luma y empuje con rebote): necesitan shader y los paquetes solo traen primitivas (D-025). Las nuevas son exactas en 0 y 1 por construcción; el ruido es un hash de enteros, igual en la GPU, en WARP y en la referencia de la CPU.
+  - **Desenfoque de movimiento de la transición como promedio de la mezcla en el obturador** (16 avances entre la apertura y el cierre, centrados en el cuadro y cerrados en los extremos de la transición), calculado por el motor (`LayerTransition.Shutter`): igual en vista previa y exportación. Va en una variante aparte del shader (`MOTION`) para que las demás no carguen con el bucle.
+  - **Disolución por luma con imagen gris** por el mismo camino que las máscaras de imagen (`IEffectResources.TryGetMatte` con `file:`), sin un tipo de recurso nuevo.
+  - **Cruces de audio como tipos de transición** (potencia constante, ganancia constante y exponencial), solo en pistas de audio; una transición de imagen en una pista de audio sigue sonando con potencia constante.
+  - **Miniaturas con el compositor de verdad** (`Compositor.RenderTransitionStill` y `TransitionPreview.Frames`, la misma resolución que el plan) entre dos imágenes de muestra: la galería y el inspector muestran lo que se exporta.
+  - **Formato 12**: solo cambia el número; un Rodaje anterior rechaza el archivo en vez de ver centrada una transición alineada.
+- **Consecuencias.** Con desenfoque de movimiento una transición 4K cuesta 7,5–10,5 ms en una RTX 3050 Laptop (sin él, 1,4–4,5 ms según la mezcla). Ctrl+T queda para la transición por defecto (ajuste de la app, no del proyecto).
 
 ## D-043. Seguimiento de puntos, anclaje de esquinas y formato 13 (12 de octubre de 2026)
 

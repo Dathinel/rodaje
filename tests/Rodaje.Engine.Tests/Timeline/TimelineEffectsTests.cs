@@ -179,7 +179,8 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
         LayerTransition first = frame.Layers[0].Transition!.Value;
         LayerTransition second = frame.Layers[1].Transition!.Value;
         Assert.Equal((102, 0f, 0.5f, 1f), (first.Code, first.Values[0], first.Values[1], first.Values[2]));
-        Assert.Equal((104, 2f), (second.Code, second.Values[0]));
+        // El empuje tiene el desenfoque de movimiento en 0; la dirección va después de los parámetros.
+        Assert.Equal((104, 0f, 2f), (second.Code, second.Values[0], second.Values[1]));
         Assert.Equal(BlendMode.Multiply, frame.Layers[0].Blend);
     }
 

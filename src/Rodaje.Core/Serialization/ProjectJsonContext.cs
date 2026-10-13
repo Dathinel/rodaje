@@ -33,6 +33,7 @@ namespace Rodaje.Core.Serialization;
         typeof(CamelCaseEnumConverter<UnitOrder>),
         typeof(CamelCaseEnumConverter<HighlightMode>),
         typeof(CamelCaseEnumConverter<TextPathKind>),
+        typeof(CamelCaseEnumConverter<TransitionAlignment>),
 
     ])]
 [JsonSerializable(typeof(Project))]

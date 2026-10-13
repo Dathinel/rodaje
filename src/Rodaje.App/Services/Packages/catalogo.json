@@ -19,7 +19,7 @@
       "id": "rodaje-transiciones",
       "kind": "content",
       "name": "Transiciones",
-      "description": "Fundidos, deslizamientos, zooms y barridos hechos con curvas de keyframes sobre las primitivas del motor.",
+      "description": "45 transiciones: fundidos, deslizamientos, zooms, barridos y, con las mezclas de calidad del motor, giros, latigazos, barridos de luz, fallos digitales, quemados, destellos, iris y rebotes.",
       "repository": "https://github.com/Dathinel/rodaje-transiciones",
       "apps": ["rodaje"],
       "provides": ["transition"]

@@ -148,6 +148,8 @@ public sealed partial class AppSettings
         Export.Normalize();
         Timeline ??= new TimelinePreferences();
         Timeline.Normalize();
+        Transitions ??= new TransitionPreferences();
+        Transitions.Normalize();
         NormalizeWorkflow();
         if (!Enum.IsDefined(ProxyUsage))
         {

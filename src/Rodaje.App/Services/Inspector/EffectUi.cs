@@ -10,6 +10,7 @@ using Cr = Rodaje.Core.Model.BuiltInEffects.CropParameters;
 using Mk = Rodaje.Core.Model.BuiltInEffects.MaskParameters;
 using Wh = Rodaje.Core.Model.BuiltInEffects.ColorWheelsParameters;
 using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
+using Tp = Rodaje.Core.Model.BuiltInTransitions.CommonParameters;
 using Tr = Rodaje.Core.Model.BuiltInTransitions;
 using Gr = Rodaje.Core.Model.BuiltInEffects.GrainParameters;
 using Gl = Rodaje.Core.Model.BuiltInEffects.GlowParameters;
@@ -115,6 +116,18 @@ public static class EffectUi
         [Tr.Push] = "Empujar",
         [Tr.ZoomDissolve] = "Fundido con zoom",
         [Tr.BlurDissolve] = "Fundido con desenfoque",
+        [Tr.Slide] = "Deslizar",
+        [Tr.ZoomBlur] = "Zoom con desenfoque",
+        [Tr.Spin] = "Giro",
+        [Tr.LightWipe] = "Barrido con luz",
+        [Tr.Glitch] = "Fallo digital",
+        [Tr.FilmBurn] = "Quemado de película",
+        [Tr.Flash] = "Destello",
+        [Tr.Luma] = "Disolución por luma",
+        [Tr.Bounce] = "Empujar con rebote",
+        [Tr.AudioPower] = "Fundido de potencia constante",
+        [Tr.AudioGain] = "Fundido de ganancia constante",
+        [Tr.AudioExponential] = "Fundido exponencial",
         [Tr.Preset] = "Transición de paquete",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
@@ -161,6 +174,18 @@ public static class EffectUi
         [Tr.Push] = "El clip que entra empuja al que sale.",
         [Tr.ZoomDissolve] = "Fundido con un acercamiento.",
         [Tr.BlurDissolve] = "Fundido a través de un desenfoque.",
+        [Tr.Slide] = "El clip que entra se desliza sobre el que sale, con desenfoque de movimiento.",
+        [Tr.ZoomBlur] = "Acercamiento rápido con desenfoque radial hacia un punto.",
+        [Tr.Spin] = "Gira la imagen sobre el centro y la cambia en el medio del giro.",
+        [Tr.LightWipe] = "Un barrido con una franja de luz en el borde.",
+        [Tr.Glitch] = "Franjas corridas y canales separados, como una señal que falla.",
+        [Tr.FilmBurn] = "Manchas de luz cálida que queman la película y dejan ver el clip que entra.",
+        [Tr.Flash] = "Un destello de luz tapa el corte.",
+        [Tr.Luma] = "Un degradado o una imagen gris decide qué parte cambia primero.",
+        [Tr.Bounce] = "El clip que entra empuja al que sale, se pasa y vuelve.",
+        [Tr.AudioPower] = "Cruce de audio sin bajón de volumen: la potencia se mantiene (seno y coseno). El más usado.",
+        [Tr.AudioGain] = "Cruce lineal: las ganancias suman 1. Puede sonar con un pequeño bajón en el medio.",
+        [Tr.AudioExponential] = "Cruce lineal en decibelios: el que sale baja rápido y el que entra sube tarde.",
         [Tr.Preset] = "Curvas de un paquete; si falta, se ve como fundido cruzado.",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
@@ -405,6 +430,49 @@ public static class EffectUi
                 new("Acercamiento", "Cambiar acercamiento", "%", 100, 1, 0, UiRange.Custom, 0, 200),
             [(Tr.BlurDissolve, Tr.BlurDissolveParameters.Radius)] =
                 new("Radio", "Cambiar desenfoque de la transición", "px", 1, 1, 0, UiRange.Custom, 0, 200),
+            [(Tr.Wipe, Tp.BorderWidth)] = Percent with { Label = "Borde de color", Description = "Cambiar el borde de color", Step = 0.25, Decimals = 1 },
+            [(Tr.Luma, Tp.BorderWidth)] = Percent with { Label = "Borde de color", Description = "Cambiar el borde de color", Step = 0.25, Decimals = 1 },
+            [(Tr.Luma, Tp.Softness)] = Percent with { Label = "Borde suave", Description = "Cambiar el borde de la disolución" },
+            [(Tr.LightWipe, Tp.Softness)] = Percent with { Label = "Borde suave", Description = "Cambiar el borde del barrido" },
+            [(Tr.LightWipe, Tr.LightWipeParameters.Width)] = Percent with { Label = "Ancho de la luz", Description = "Cambiar el ancho de la luz" },
+            [(Tr.LightWipe, Tp.Intensity)] = new("Intensidad", "Cambiar la intensidad de la luz", "%", 100, 5, 0, UiRange.Custom, 0, 400),
+            [(Tr.Flash, Tp.Intensity)] = new("Intensidad", "Cambiar la intensidad del destello", "%", 100, 5, 0, UiRange.Custom, 0, 400),
+            [(Tr.Flash, Tr.FlashParameters.Width)] = Percent with { Label = "Duración del destello", Description = "Cambiar la duración del destello" },
+            [(Tr.Push, Tp.MotionBlur)] = Percent with { Label = "Desenfoque de movimiento", Description = "Cambiar el desenfoque de movimiento" },
+            [(Tr.Slide, Tp.MotionBlur)] = Percent with { Label = "Desenfoque de movimiento", Description = "Cambiar el desenfoque de movimiento" },
+            [(Tr.Spin, Tp.MotionBlur)] = Percent with { Label = "Desenfoque de movimiento", Description = "Cambiar el desenfoque de movimiento" },
+            [(Tr.Bounce, Tp.MotionBlur)] = Percent with { Label = "Desenfoque de movimiento", Description = "Cambiar el desenfoque de movimiento" },
+            [(Tr.Slide, Tr.SlideParameters.Parallax)] = Percent with { Label = "Arrastre del que sale", Description = "Cambiar cuánto acompaña el clip que sale" },
+            [(Tr.ZoomBlur, Tr.ZoomBlurParameters.Strength)] = new("Fuerza", "Cambiar la fuerza del zoom", "%", 100, 1, 0, UiRange.Custom, 0, 200),
+            [(Tr.ZoomBlur, Tr.ZoomBlurParameters.CenterX)] = Percent with { Label = "Centro X", Description = "Mover el centro del zoom" },
+            [(Tr.ZoomBlur, Tr.ZoomBlurParameters.CenterY)] = Percent with { Label = "Centro Y", Description = "Mover el centro del zoom" },
+            [(Tr.Spin, Tr.SpinParameters.Angle)] = new("Vueltas", "Cambiar el giro", "°", 1, 15, 0, UiRange.Custom, -1080, 1080),
+            [(Tr.Spin, Tr.SpinParameters.Zoom)] = new("Acercamiento", "Cambiar el acercamiento del giro", "%", 100, 1, 0, UiRange.Custom, 0, 200),
+            [(Tr.Glitch, Tr.GlitchParameters.Amount)] = Percent with { Label = "Intensidad", Description = "Cambiar la intensidad del fallo" },
+            [(Tr.Glitch, Tr.GlitchParameters.Bands)] = new("Franjas", "Cambiar las franjas", "", 1, 1, 0),
+            [(Tr.Glitch, Tr.GlitchParameters.Split)] = new("Separación de color", "Cambiar la separación de los canales", "%", 100, 0.1, 1),
+            [(Tr.Glitch, Tp.Seed)] = new("Variante", "Cambiar la variante", "", 1, 1, 0, UiRange.Custom, 0, 100),
+            [(Tr.FilmBurn, Tr.FilmBurnParameters.Scale)] = new("Tamaño de las manchas", "Cambiar el tamaño de las manchas", "%", 100, 1, 0),
+            [(Tr.FilmBurn, Tp.Seed)] = new("Variante", "Cambiar la variante", "", 1, 1, 0, UiRange.Custom, 0, 100),
+            [(Tr.Bounce, Tr.BounceParameters.Bounce)] = Percent with { Label = "Rebote", Description = "Cambiar el rebote" },
+            [(Tr.Slide, Tp.Angle)] = new("Ángulo", "Cambiar la dirección", "°", 1, 1, 0),
+            [(Tr.LightWipe, Tp.Angle)] = new("Ángulo", "Cambiar la dirección", "°", 1, 1, 0),
+            [(Tr.Luma, Tp.Angle)] = new("Ángulo", "Cambiar la dirección", "°", 1, 1, 0),
+            [(Tr.Wipe, Tp.BorderRed)] = Percent with { Label = "Borde rojo", Description = "Cambiar el color del borde" },
+            [(Tr.Wipe, Tp.BorderGreen)] = Percent with { Label = "Borde verde", Description = "Cambiar el color del borde" },
+            [(Tr.Wipe, Tp.BorderBlue)] = Percent with { Label = "Borde azul", Description = "Cambiar el color del borde" },
+            [(Tr.Luma, Tp.BorderRed)] = Percent with { Label = "Borde rojo", Description = "Cambiar el color del borde" },
+            [(Tr.Luma, Tp.BorderGreen)] = Percent with { Label = "Borde verde", Description = "Cambiar el color del borde" },
+            [(Tr.Luma, Tp.BorderBlue)] = Percent with { Label = "Borde azul", Description = "Cambiar el color del borde" },
+            [(Tr.LightWipe, Tp.Red)] = Percent with { Label = "Rojo", Description = "Cambiar el color de la luz" },
+            [(Tr.LightWipe, Tp.Green)] = Percent with { Label = "Verde", Description = "Cambiar el color de la luz" },
+            [(Tr.LightWipe, Tp.Blue)] = Percent with { Label = "Azul", Description = "Cambiar el color de la luz" },
+            [(Tr.FilmBurn, Tp.Red)] = Percent with { Label = "Rojo", Description = "Cambiar el color de la luz" },
+            [(Tr.FilmBurn, Tp.Green)] = Percent with { Label = "Verde", Description = "Cambiar el color de la luz" },
+            [(Tr.FilmBurn, Tp.Blue)] = Percent with { Label = "Azul", Description = "Cambiar el color de la luz" },
+            [(Tr.Flash, Tp.Red)] = Percent with { Label = "Rojo", Description = "Cambiar el color de la luz" },
+            [(Tr.Flash, Tp.Green)] = Percent with { Label = "Verde", Description = "Cambiar el color de la luz" },
+            [(Tr.Flash, Tp.Blue)] = Percent with { Label = "Azul", Description = "Cambiar el color de la luz" },
         }.ToFrozenDictionary();
 
     /// <summary>Los 13 modos de mezcla en el orden del registro, con su nombre.</summary>
@@ -423,6 +491,17 @@ public static class EffectUi
         ("exclusion", "Exclusión"),
         ("colorDodge", "Sobreexponer color"),
         ("colorBurn", "Subexponer color"),
+    ];
+
+    /// <summary>Degradados de fábrica de <see cref="Tr.Luma"/>, en el orden del registro.</summary>
+    public static IReadOnlyList<(string Value, string Name)> LumaGradients { get; } =
+    [
+        ("linear", "Lineal"),
+        ("radial", "Radial"),
+        ("angular", "Reloj"),
+        ("diamond", "Rombo"),
+        ("noise", "Nubes"),
+        ("bars", "Persianas"),
     ];
 
     /// <summary>Hacia dónde sale el clip en <see cref="Tr.Push"/>, en el orden del registro.</summary>
@@ -459,6 +538,7 @@ public static class EffectUi
     {
         BuiltInEffects.BlendOptions.Mode => BlendModeName(value),
         Tr.PushOptions.Direction => PushDirections.FirstOrDefault(d => d.Value == value).Name ?? value,
+        Tr.LumaOptions.Gradient => LumaGradients.FirstOrDefault(d => d.Value == value).Name ?? value,
         BuiltInEffects.StabilizeOptions.Crop => value == "auto" ? "Automático" : "Sin recorte",
         BuiltInEffects.MaskOptions.Shape => MaskShapeName(value),
         BuiltInEffects.MaskOptions.Invert => value == "on" ? "Sí" : "No",
@@ -500,6 +580,8 @@ public static class EffectUi
         BuiltInEffects.BlendOptions.Mode => "Modo de mezcla",
         BuiltInEffects.ColorOptions.Lut => "LUT",
         Tr.PushOptions.Direction => "Dirección",
+        Tr.LumaOptions.Gradient => "Degradado",
+        Tr.LumaOptions.Image => "Imagen",
         Tr.PresetOptions.Preset => "Transición",
         BuiltInEffects.StabilizeOptions.Crop => "Recorte",
         BuiltInEffects.MaskOptions.Shape => "Forma",

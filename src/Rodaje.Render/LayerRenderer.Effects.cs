@@ -539,8 +539,7 @@ internal sealed unsafe partial class LayerRenderer
         }
 
         GpuEffectKind kind = GpuEffectRegistry.Find(transition.Code)?.Kind ?? GpuEffectKind.Preset;
-        if (kind is not (GpuEffectKind.Crossfade or GpuEffectKind.Dip or GpuEffectKind.Wipe or GpuEffectKind.Push
-            or GpuEffectKind.ZoomDissolve or GpuEffectKind.BlurDissolve))
+        if (MixCode(kind) == 0)
         {
             // Un preajuste sin resolver (falta el paquete) o un código desconocido: fundido cruzado.
             if (kind == GpuEffectKind.Preset)
@@ -556,7 +555,8 @@ internal sealed unsafe partial class LayerRenderer
         }
 
         bool shaderBlend = EffectPipeline.IsShaderBlend(outgoing.Blend);
-        ID3D11PixelShader* shader = _effects.TryGetShader(EffectShader.Transition, shaderBlend ? EffectShaders.Blend : 0);
+        int motion = transition.Shutter is { } shutterRange && shutterRange.To > shutterRange.From ? EffectShaders.Motion : 0;
+        ID3D11PixelShader* shader = _effects.TryGetShader(EffectShader.Transition, (shaderBlend ? EffectShaders.Blend : 0) | motion);
         RenderTarget? canvasA = shader == null ? null : _pool.Rent(destination.Width, destination.Height, IntermediateFormat, exact: true);
         RenderTarget? canvasB = canvasA is null ? null : _pool.Rent(destination.Width, destination.Height, IntermediateFormat, exact: true);
         if (canvasA is null || canvasB is null)
@@ -585,31 +585,33 @@ internal sealed unsafe partial class LayerRenderer
         var viewB = new ImageView(canvasB, destination.Width, destination.Height);
         float middle = 4 * progress * (1 - progress);
         EffectValues values = transition.Values;
-        EffectDefinition? definition = EffectRegistry.Find(transition.Code);
+        EffectDefinition definition = EffectRegistry.Find(transition.Code) is { IsTransition: true } known ? known : EffectRegistry.Find(BuiltInTransitions.Crossfade)!;
         EffectConstants effects = default;
-        effects.Mix0 = new(MixCode(kind), progress, middle, 0);
+        int samples = motion != 0 ? ShutterSamples : 1;
+        effects.Mix0 = new(MixCode(kind), progress, middle, samples);
+        effects.Fx0 = transition.Shutter is { } open ? new(Math.Clamp(open.From, 0, 1), Math.Clamp(open.To, 0, 1), 0, 0) : default;
         effects.Canvas = new(destination.Width, destination.Height, 0, 0);
-        switch (kind)
+        ID3D11ShaderResourceView* gradient = null;
+        if (kind == GpuEffectKind.BlurDissolve)
         {
-            case GpuEffectKind.Dip:
-                effects.Mix1 = new(Value(values, definition!, 0), Value(values, definition!, 1), Value(values, definition!, 2), 1);
-                break;
-            case GpuEffectKind.Wipe:
-                float radians = Value(values, definition!, 0) * MathF.PI / 180;
-                effects.Mix1 = new(MathF.Cos(radians), MathF.Sin(radians), Math.Max(Value(values, definition!, 1), 1e-4f), 0);
-                break;
-            case GpuEffectKind.Push:
-                effects.Mix1 = PushDirection(values[0]);
-                break;
-            case GpuEffectKind.ZoomDissolve:
-                effects.Mix1 = new(Value(values, definition!, 0), 0, 0, 0);
-                break;
-            case GpuEffectKind.BlurDissolve:
-                float sigma = BlurSigma(Value(values, definition!, 0) * middle) * destination.PixelScale;
-                viewA = Blur(viewA, sigma) ?? viewA;
-                viewB = Blur(viewB, sigma) ?? viewB;
-                break;
+            float sigma = BlurSigma(Value(values, definition, 0) * middle) * destination.PixelScale;
+            viewA = Blur(viewA, sigma) ?? viewA;
+            viewB = Blur(viewB, sigma) ?? viewB;
         }
+        else if (kind == GpuEffectKind.Luma && transition.Resource is { } image)
+        {
+            if (Resources is { } resources && resources.TryGetMatte(image, 0, out MatteFrame? frame) && frame is not null
+                && frame.Width is >= 1 and <= 8192 && frame.Height is >= 1 and <= 8192 && frame.Gray.Length >= (long)frame.Width * frame.Height)
+            {
+                gradient = _maskTextures.UploadMatte(frame);
+            }
+            else
+            {
+                stats.MissingContent++;
+            }
+        }
+
+        SetTransition(ref effects, kind, values, definition, gradient != null);
 
         RenderTarget? background = null;
         BlendMode blend = outgoing.Blend;
@@ -618,7 +620,7 @@ internal sealed unsafe partial class LayerRenderer
             background = CopyBackground(destination, new PixelRect(0, 0, destination.Width, destination.Height), ref effects);
             if (background is null)
             {
-                shader = _effects.TryGetShader(EffectShader.Transition, 0);
+                shader = _effects.TryGetShader(EffectShader.Transition, motion);
                 blend = BlendMode.Normal;
                 stats.EffectsSkipped++;
             }
@@ -631,8 +633,11 @@ internal sealed unsafe partial class LayerRenderer
             effects.MapB = viewB.Map;
             _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, shader, _effects.BlendState(blend));
             BindInputs(background, null, viewA.Target, viewB.Target);
+            _context->PSSetShaderResources(9, 1, &gradient);
             _effects.Set(effects);
             _quad.Draw(QuadConstants.FullTarget());
+            ID3D11ShaderResourceView* none = null;
+            _context->PSSetShaderResources(9, 1, &none);
             UnbindInputs();
             stats.EffectsApplied += 1 + (blend == BlendMode.Normal ? 0 : 1);
         }
@@ -660,15 +665,112 @@ internal sealed unsafe partial class LayerRenderer
         DrawSingle(side, payload, sourceGeometry, canvas, BlendMode.Normal, ref stats);
     }
 
-    /// <summary>Número de la mezcla en <c>PsTransition</c>; el desenfoque llega ya aplicado y mezcla como el fundido.</summary>
+    /// <summary>Muestras de la mezcla a lo largo del obturador abierto (desenfoque de movimiento de la transición).</summary>
+    internal const int ShutterSamples = 16;
+
+    /// <summary>
+    /// Número de la mezcla en <c>PsTransition</c>, o 0 si la GPU no la conoce; el desenfoque llega ya aplicado y mezcla como
+    /// el fundido.
+    /// </summary>
     private static float MixCode(GpuEffectKind kind) => kind switch
     {
+        GpuEffectKind.Crossfade or GpuEffectKind.BlurDissolve => 1,
         GpuEffectKind.Dip => 2,
         GpuEffectKind.Wipe => 3,
         GpuEffectKind.Push => 4,
         GpuEffectKind.ZoomDissolve => 5,
-        _ => 1,
+        GpuEffectKind.Slide => 6,
+        GpuEffectKind.ZoomBlur => 7,
+        GpuEffectKind.Spin => 8,
+        GpuEffectKind.LightWipe => 9,
+        GpuEffectKind.Glitch => 10,
+        GpuEffectKind.FilmBurn => 11,
+        GpuEffectKind.Flash => 12,
+        GpuEffectKind.Luma => 13,
+        GpuEffectKind.Bounce => 14,
+        _ => 0,
     };
+
+    /// <summary>Los parámetros de cada mezcla en <c>mix1</c>, <c>key0</c> y <c>key1</c> (ver <c>MixAt</c> en el HLSL).</summary>
+    private static void SetTransition(ref EffectConstants effects, GpuEffectKind kind, in EffectValues values, EffectDefinition d, bool image)
+    {
+        EffectValues v = values;
+        float V(int slot) => Value(v, d, slot);
+        Float4 Direction(int slot)
+        {
+            float radians = V(slot) * MathF.PI / 180;
+            return new(MathF.Cos(radians), MathF.Sin(radians), 0, 0);
+        }
+
+        switch (kind)
+        {
+            case GpuEffectKind.Dip:
+                effects.Mix1 = new(V(0), V(1), V(2), 1);
+                break;
+            case GpuEffectKind.Wipe:
+            case GpuEffectKind.Luma:
+            {
+                Float4 direction = Direction(0);
+                effects.Mix1 = new(direction.X, direction.Y, Math.Max(V(1), 1e-4f), V(2));
+                effects.Key0 = new(V(3), V(4), V(5), 0);
+                if (kind == GpuEffectKind.Luma)
+                {
+                    int choices = d.Parameters.Length;
+                    effects.Key1 = new(v[choices], v[choices + 1] >= 0.5f ? 1 : 0, image ? 1 : 0, V(0) / 360);
+                }
+
+                break;
+            }
+
+            case GpuEffectKind.Push:
+                effects.Mix1 = PushDirection(v[d.Parameters.Length]);
+                break;
+            case GpuEffectKind.Bounce:
+            {
+                Float4 direction = PushDirection(v[d.Parameters.Length]);
+                effects.Mix1 = new(direction.X, direction.Y, V(0), 0);
+                break;
+            }
+
+            case GpuEffectKind.ZoomDissolve:
+                effects.Mix1 = new(V(0), 0, 0, 0);
+                break;
+            case GpuEffectKind.Slide:
+            {
+                // Corrido para salir del todo también en diagonal: el lado mayor de la dirección vale 1.
+                Float4 direction = Direction(0);
+                float scale = Math.Max(Math.Abs(direction.X), Math.Abs(direction.Y));
+                effects.Mix1 = new(direction.X / scale, direction.Y / scale, V(1), 0);
+                break;
+            }
+
+            case GpuEffectKind.ZoomBlur:
+                effects.Mix1 = new(V(0), V(1), V(2), 0);
+                break;
+            case GpuEffectKind.Spin:
+                effects.Mix1 = new(V(0), V(1), 0, 0);
+                break;
+            case GpuEffectKind.LightWipe:
+            {
+                Float4 direction = Direction(0);
+                effects.Mix1 = new(direction.X, direction.Y, Math.Max(V(1), 1e-4f), V(2));
+                effects.Key0 = new(V(3), V(4), V(5), V(6));
+                break;
+            }
+
+            case GpuEffectKind.Glitch:
+                effects.Mix1 = new(V(0), MathF.Round(V(1)), V(2), MathF.Round(V(3)));
+                break;
+            case GpuEffectKind.FilmBurn:
+                effects.Mix1 = new(V(0), MathF.Round(V(4)), 0, 0);
+                effects.Key0 = new(V(1), V(2), V(3), 0);
+                break;
+            case GpuEffectKind.Flash:
+                effects.Mix1 = new(V(0), V(1), 0, 0);
+                effects.Key0 = new(V(2), V(3), V(4), 0);
+                break;
+        }
+    }
 
     /// <summary>
     /// Hacia dónde sale el clip en un empuje. La dirección es una opción, no un parámetro: el motor manda su índice en

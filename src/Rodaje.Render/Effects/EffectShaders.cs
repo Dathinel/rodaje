@@ -78,6 +78,9 @@ internal static class EffectShaders
     public const int Advanced = 32;
     public const int GradedVariants = 64;
 
+    /// <summary>Transición con desenfoque de movimiento: la mezcla se promedia en el obturador (va aparte, sin el bucle es más liviana).</summary>
+    public const int Motion = 128;
+
     // grade: x = 2^exposición, y = 1 + contraste, z = 1 + saturación, w = intensidad de la LUT.
     // balance: ganancia por canal de temperatura y tinte. tones: x = altas, y = sombras, zw = escala y desplazamiento
     // de la LUT de N³ (centros de los texeles). vignette: x = cantidad, y = tamaño, z = suavidad.
@@ -855,14 +858,132 @@ internal static class EffectShaders
             return b ? SampleB(uv) : SampleA(uv);
         }
 
-        float4 PsTransition(VsOut i) : SV_Target
+        // Fuera del cuadro, la imagen reflejada: un giro o un rebote no dejan esquinas vacías.
+        float4 SideMirror(bool b, float2 uv)
         {
-            i = Exact(i);
-            float2 uv = i.local;
-            float p = mix0.y;
-            float4 m;
-            switch ((int)mix0.x)
+            float2 m = abs(uv);
+            m = m - 2.0 * floor(m * 0.5);
+            m = m > 1.0 ? 2.0 - m : m;
+            return b ? SampleB(m) : SampleA(m);
+        }
+
+        float Smooth(float a, float b, float x)
+        {
+            float t = saturate((x - a) / (b - a));
+            return t * t * (3.0 - 2.0 * t);
+        }
+
+        uint Hash3(uint x, uint y, uint z)
+        {
+            uint h = (x * 0x8da6b343u) ^ (y * 0xd8163841u) ^ (z * 0xcb1ab31fu);
+            h ^= h >> 15;
+            h *= 0x2c1b3c6du;
+            h ^= h >> 12;
+            h *= 0x297a2d39u;
+            h ^= h >> 15;
+            return h;
+        }
+
+        float Rand(uint x, uint y, uint z)
+        {
+            return (float)(Hash3(x, y, z) & 0xFFFFFFu) / 16777216.0;
+        }
+
+        // Ruido de valor con interpolación suave; las celdas se corren 4096 para que los índices sean positivos.
+        float ValueNoise(float2 q, uint seed)
+        {
+            float2 i = floor(q);
+            float2 f = q - i;
+            float2 u = f * f * (3.0 - 2.0 * f);
+            uint x = (uint)(i.x + 4096.0);
+            uint y = (uint)(i.y + 4096.0);
+            float a = Rand(x, y, seed);
+            float b = Rand(x + 1u, y, seed);
+            float c = Rand(x, y + 1u, seed);
+            float d = Rand(x + 1u, y + 1u, seed);
+            return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
+        }
+
+        float Fbm(float2 q, uint seed)
+        {
+            return (ValueNoise(q, seed) + 0.5 * ValueNoise(q * 2.0, seed + 1u) + 0.25 * ValueNoise(q * 4.0, seed + 2u)) / 1.75;
+        }
+
+        // Posición de 0 a 1 a lo largo de la dirección (como el barrido).
+        float Along(float2 uv, float2 direction)
+        {
+            float2 position = (uv - 0.5) * canvas.xy;
+            float extent = 0.5 * (abs(direction.x) * canvas.x + abs(direction.y) * canvas.y);
+            return (dot(position, direction) + extent) / (2.0 * extent);
+        }
+
+        // Cambio por umbral sobre g (de 0 a 1) con borde suave s y borde de color de ancho bw delante del cambio.
+        float4 Threshold(float2 uv, float g, float p, float s, float bw, float3 borderColor)
+        {
+            float d = -bw + p * (1.0 + s + bw) - g;
+            float t = saturate(d / s);
+            float4 m = Side(false, uv) * (1.0 - t) + Side(true, uv) * t;
+            if (bw > 0.0)
             {
+                float border = saturate((d + bw) / 0.002) * (1.0 - t);
+                m = lerp(m, float4(borderColor, 1.0), border);
+            }
+
+            return m;
+        }
+
+        float Gradient(float2 uv, int kind)
+        {
+            float2 v = (uv - 0.5) * canvas.xy;
+            switch (kind)
+            {
+                case 1:
+                    return length(v) / length(0.5 * canvas.xy);
+                case 2:
+                    return frac(atan2(v.x, -v.y) / 6.28318531 + 1.0 + key1.w);
+                case 3:
+                    return (abs(v.x) + abs(v.y)) / (0.5 * (canvas.x + canvas.y));
+                case 4:
+                    return Fbm(uv * canvas.xy / (canvas.y * 0.18), 7u);
+                case 5:
+                    return frac(Along(uv, mix1.xy) * 8.0);
+                default:
+                    return Along(uv, mix1.xy);
+            }
+        }
+
+        float4 Zoomed(bool b, float2 uv, float2 center, float scale, float length)
+        {
+            float4 sum = 0;
+            [loop]
+            for (int k = 0; k < 16; k++)
+            {
+                sum += Side(b, center + (uv - center) / scale * (1.0 - length * k / 15.0));
+            }
+
+            return sum / 16.0;
+        }
+
+        float2 Spun(float2 uv, float degrees, float scale)
+        {
+            float r = radians(degrees);
+            float c = cos(r);
+            float s = sin(r);
+            float2 v = (uv - 0.5) * canvas.xy;
+            float2 q = float2(c * v.x + s * v.y, -s * v.x + c * v.y) / scale;
+            return q / canvas.xy + 0.5;
+        }
+
+        float4 MixAt(int kind, float2 uv, float p)
+        {
+            // Las nuevas son exactas en los extremos sin depender del redondeo de su fórmula.
+            float4 m = 0;
+            int mix = kind >= 6 && (p <= 0.0 || p >= 1.0) ? (p >= 1.0 ? 1 : 0) : kind;
+            switch (mix)
+            {
+                case 0:
+                    m = Side(false, uv);
+                    break;
                 case 2:
                 {
                     float4 dip = float4(mix1.rgb, 1.0);
@@ -872,14 +993,8 @@ internal static class EffectShaders
                     break;
                 }
                 case 3:
-                {
-                    float2 position = (uv - 0.5) * canvas.xy;
-                    float extent = 0.5 * (abs(mix1.x) * canvas.x + abs(mix1.y) * canvas.y);
-                    float f = (dot(position, mix1.xy) + extent) / (2.0 * extent);
-                    float t = saturate((p * (1.0 + mix1.z) - f) / mix1.z);
-                    m = Side(false, uv) * (1.0 - t) + Side(true, uv) * t;
+                    m = Threshold(uv, Along(uv, mix1.xy), p, mix1.z, mix1.w, key0.rgb);
                     break;
-                }
                 case 4:
                 {
                     float4 a = Side(false, uv + mix1.xy * p);
@@ -889,8 +1004,106 @@ internal static class EffectShaders
                 }
                 case 5:
                 {
-                    float2 zoomed = mix0.z > 0.0 ? 0.5 + (uv - 0.5) / (1.0 + mix1.x * mix0.z) : uv;
+                    float middle = 4.0 * p * (1.0 - p);
+                    float2 zoomed = middle > 0.0 ? 0.5 + (uv - 0.5) / (1.0 + mix1.x * middle) : uv;
                     m = Side(false, zoomed) * (1.0 - p) + Side(true, zoomed) * p;
+                    break;
+                }
+                case 6:
+                {
+                    float4 b = Side(true, uv + mix1.xy * (1.0 - p));
+                    float4 a = Side(false, uv - mix1.xy * (p * mix1.z));
+                    m = b + a * (1.0 - b.a);
+                    break;
+                }
+                case 7:
+                {
+                    float2 center = mix1.yz;
+                    float length = mix1.x * p * (1.0 - p);
+                    float t = Smooth(0.35, 0.65, p);
+                    float4 a = t < 1.0 ? Zoomed(false, uv, center, 1.0 + mix1.x * p, length) : 0;
+                    float4 b = t > 0.0 ? Zoomed(true, uv, center, 1.0 + mix1.x * (1.0 - p), length) : 0;
+                    m = a * (1.0 - t) + b * t;
+                    break;
+                }
+                case 8:
+                {
+                    float scale = 1.0 + mix1.y * 4.0 * p * (1.0 - p);
+                    float t = Smooth(0.4, 0.6, p);
+                    float4 a = t < 1.0 ? SideMirror(false, Spun(uv, mix1.x * p, scale)) : 0;
+                    float4 b = t > 0.0 ? SideMirror(true, Spun(uv, -mix1.x * (1.0 - p), scale)) : 0;
+                    m = a * (1.0 - t) + b * t;
+                    break;
+                }
+                case 9:
+                {
+                    float s = mix1.z;
+                    float w = mix1.w;
+                    float d = -w + p * (1.0 + s + 2.0 * w) - Along(uv, mix1.xy);
+                    float t = saturate(d / s);
+                    float glow = key0.x * pow(1.0 - saturate(abs(d - 0.5 * s) / w), 2.0);
+                    m = Side(false, uv) * (1.0 - t) + Side(true, uv) * t;
+                    m.rgb += key0.yzw * glow * m.a;
+                    break;
+                }
+                case 10:
+                {
+                    float2 px = floor(uv * canvas.xy);
+                    uint band = (uint)floor(px.y * mix1.y / canvas.y);
+                    uint step = (uint)floor(p * 12.0);
+                    uint seed = (uint)mix1.w * 4u;
+                    float w = mix1.x * 4.0 * p * (1.0 - p);
+                    bool b = Rand(band, step, seed + 1u) < p;
+                    float offset = Rand(band, step, seed + 2u) < 0.6 ? (Rand(band, step, seed + 3u) - 0.5) * 0.25 * w : 0.0;
+                    float split = mix1.z * w;
+                    // Con los canales separados, el borde deja ver solo el rojo o el azul: el alfa es el del que más cubre.
+                    float4 r = Side(b, uv + float2(offset + split, 0.0));
+                    float4 g = Side(b, uv + float2(offset, 0.0));
+                    float4 bl = Side(b, uv + float2(offset - split, 0.0));
+                    m = float4(r.r, g.g, bl.b, max(r.a, max(g.a, bl.a)));
+                    break;
+                }
+                case 11:
+                {
+                    float n = Fbm(uv * canvas.xy / (canvas.y * mix1.x), (uint)mix1.y * 4u);
+                    float x = (p * 1.75 - 0.25 - n) / 0.25;
+                    float t = saturate(x - 1.0);
+                    float heat = saturate(1.0 - abs(x - 1.0));
+                    m = Side(false, uv) * (1.0 - t) + Side(true, uv) * t;
+                    m.rgb = m.rgb * (1.0 + 2.0 * heat) + key0.rgb * (1.5 * heat + 1.4 * p * (1.0 - p)) * m.a;
+                    break;
+                }
+                case 12:
+                {
+                    float width = mix1.y;
+                    float t = saturate((p - 0.5) / (width * 0.25) + 0.5);
+                    float f = saturate(1.0 - abs(p - 0.5) / (width * 0.5));
+                    f = mix1.x * f * f;
+                    m = Side(false, uv) * (1.0 - t) + Side(true, uv) * t;
+                    m.rgb = m.rgb * (1.0 + f) + key0.rgb * f * m.a;
+                    break;
+                }
+                case 13:
+                {
+                    float g = key1.z > 0.5 ? matteImage.SampleLevel(linearClamp, uv, 0) : Gradient(uv, (int)key1.x);
+                    g = key1.y > 0.5 ? 1.0 - g : g;
+                    m = Threshold(uv, g, p, mix1.z, mix1.w, key0.rgb);
+                    break;
+                }
+                case 14:
+                {
+                    float u = p - 1.0;
+                    float c1 = 4.0 * mix1.z;
+                    float q = 1.0 + (c1 + 1.0) * u * u * u + c1 * u * u;
+                    float2 at = uv - mix1.xy * (1.0 - q);
+                    float4 a = Side(false, uv + mix1.xy * q);
+                    float4 b = Side(true, at);
+                    if (b.a <= 0.0 && a.a <= 0.0 && q > 1.0)
+                    {
+                        b = SideMirror(true, at);
+                    }
+
+                    m = b + a * (1.0 - b.a);
                     break;
                 }
                 default:
@@ -898,6 +1111,26 @@ internal static class EffectShaders
                     break;
             }
 
+            return m;
+        }
+
+        float4 PsTransition(VsOut i) : SV_Target
+        {
+            i = Exact(i);
+            int kind = (int)mix0.x;
+        #if MOTION
+            int samples = max((int)mix0.w, 1);
+            float4 m = 0;
+            [loop]
+            for (int k = 0; k < samples; k++)
+            {
+                m += MixAt(kind, i.local, lerp(fx0.x, fx0.y, (k + 0.5) / samples));
+            }
+
+            m /= samples;
+        #else
+            float4 m = MixAt(kind, i.local, mix0.y);
+        #endif
             return Composite(i.position, m.a > 0 ? m.rgb / m.a : 0, m.a);
         }
         """;
@@ -911,7 +1144,7 @@ internal static class EffectShaders
     {
         EffectShader.Graded => flags,
         EffectShader.Image => GradedVariants + (flags & Blend) / Blend,
-        EffectShader.Transition => GradedVariants + 2 + (flags & Blend) / Blend,
+        EffectShader.Transition when (flags & Motion) == 0 => GradedVariants + 2 + (flags & Blend) / Blend,
         EffectShader.Downsample => GradedVariants + 4,
         EffectShader.Blur => GradedVariants + 5,
         EffectShader.Sharpen => GradedVariants + 6,
@@ -919,6 +1152,7 @@ internal static class EffectShaders
         EffectShader.MaskMix => GradedVariants + 8,
         EffectShader.Pixelate => GradedVariants + 9,
         EffectShader.Fx => GradedVariants + 10,
+        EffectShader.Transition when (flags & Motion) != 0 => GradedVariants + 11 + (flags & Blend) / Blend,
         _ => throw new ArgumentOutOfRangeException(nameof(shader)),
     };
 
@@ -941,6 +1175,8 @@ internal static class EffectShaders
         all.Add(Variant("PsMaskMix", 0));
         all.Add(Variant("PsPixelate", 0));
         all.Add(Variant("PsFx", 0));
+        all.Add(Variant("PsTransition", Motion));
+        all.Add(Variant("PsTransition", Motion | Blend));
         return all.ToImmutable();
     }
 
@@ -975,6 +1211,11 @@ internal static class EffectShaders
         if ((flags & Advanced) != 0)
         {
             defines.Add("ADVANCED");
+        }
+
+        if ((flags & Motion) != 0)
+        {
+            defines.Add("MOTION");
         }
 
         return new ShaderVariant(Source, entryPoint, "ps_5_0", SourceName, [.. defines]);

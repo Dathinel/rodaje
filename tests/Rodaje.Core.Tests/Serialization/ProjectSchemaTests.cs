@@ -42,6 +42,8 @@ public class ProjectSchemaTests
     [InlineData(8)]
     [InlineData(9)]
     [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(12)]
     public void PublishedOldSchemas_AreKept(int version)
     {
         string path = Path.Combine(FindRepoRoot(), "schema", $"rodaje-proyecto.v{version}.schema.json");

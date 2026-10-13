@@ -252,7 +252,7 @@ Rodaje viene completo como editor y exportador; el contenido es opcional y vive 
 
 | Repositorio | Id | Trae |
 |---|---|---|
-| `Dathinel/rodaje-transiciones` | `rodaje-transiciones` | 1.1.0: 22 transiciones `rodaje.preset` v2 (la 1.0.0 traía las 8 de abajo) |
+| `Dathinel/rodaje-transiciones` | `rodaje-transiciones` | 1.2.0: 45 transiciones `rodaje.preset` v2; las 23 nuevas usan las mezclas de calidad (giro, zoom con desenfoque, deslizar, barrido con luz, fallo, quemado, destello, luma y rebote, D-042), que en un Rodaje anterior se ven como fundido cruzado (la 1.1.0 traía 22 y la 1.0.0 las 8 de abajo) |
 | `Dathinel/rodaje-filtros` | `rodaje-filtros` | 1.1.0: 13 looks, cada uno un filtro con su LUT 33³ generada por fórmulas propias (`generar.ps1`); la 1.0.0 traía 8 |
 | `Dathinel/rodaje-fuentes` | `rodaje-fuentes` | 10 familias OFL sin modificar (elementos `font`) |
 | `Dathinel/rodaje-titulos` | `rodaje-titulos` | 15 estilos `rodaje.textstyle`, con subtítulos y karaoke (`highlight`) |

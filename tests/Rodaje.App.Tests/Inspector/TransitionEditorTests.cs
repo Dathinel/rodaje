@@ -35,7 +35,9 @@ public class TransitionEditorTests
     public void TipoDuracionParametrosYOpciones() => UiThread.Run(async () =>
     {
         (EditorSession session, TransitionEditor editor, string id) = await WithTransition();
-        Assert.Equal(6, TransitionEditor.BuiltInTypes.Count);
+        Assert.Equal(18, TransitionEditor.BuiltInTypes.Count);
+        Assert.Equal(15, TransitionEditor.TypesFor(TrackKind.Video).Count);
+        Assert.Equal(3, TransitionEditor.TypesFor(TrackKind.Audio).Count);
 
         Assert.True(editor.SetType(id, BuiltInTransitions.Wipe));
         Assert.False(editor.SetType(id, BuiltInTransitions.Wipe));

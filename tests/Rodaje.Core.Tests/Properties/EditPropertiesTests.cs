@@ -474,7 +474,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Toda transición une dos clips contiguos y no dura más que el más corto. Cortar, slip, roll y slide no quitan
+    /// Toda transición une dos clips contiguos y cabe en ellos con su alineación, sin pisar a sus vecinas. Cortar, slip, roll y slide no quitan
     /// ninguna, porque no hacen desaparecer cortes.
     /// </summary>
     private static string? CheckTransitions(ResolvedOp op, Dictionary<string, Track> before, Sequence after)
@@ -490,7 +490,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
                     return $"la transición «{transition.Id}» quedó sin sus clips contiguos.";
                 }
 
-                if (transition.Duration <= Time.Zero || transition.Duration > TransitionOps.MaxDuration(track.Clips[from], track.Clips[from + 1]))
+                if (transition.Duration <= Time.Zero || transition.Duration > TransitionOps.MaxDuration(track, transition))
                 {
                     return $"la transición «{transition.Id}» dura {transition.Duration.Ticks} ticks, fuera de lo que permiten sus clips.";
                 }

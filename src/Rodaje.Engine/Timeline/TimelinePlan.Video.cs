@@ -203,34 +203,9 @@ internal sealed partial class TimelinePlan
 
     private static TransitionPlan Transition(Cut cut, Sequence sequence, IEffectContent? content, ref int missing)
     {
-        TransitionInstance t = cut.Transition;
-        EffectDefinition crossfade = EffectRegistry.Find(BuiltInTransitions.Crossfade)!;
-        EffectDefinition definition = EffectRegistry.Find(t.Type) is { IsTransition: true } known ? known : crossfade;
-        TransitionCurves? curves = null;
-        bool fellBack = false;
-        if (definition.Type == BuiltInTransitions.Preset)
-        {
-            string reference = t.Options.GetValueOrDefault(BuiltInTransitions.PresetOptions.Preset) ?? "";
-            curves = reference.Length > 0 ? content?.FindTransition(reference) : null;
-            fellBack = curves is null;
-            missing += fellBack ? 1 : 0;
-            definition = curves is not null && EffectRegistry.Find(curves.MixCode) is { IsTransition: true } mix
-                && mix.Type != BuiltInTransitions.Preset
-                ? mix
-                : crossfade;
-        }
-
-        // Una de paquete lleva los parámetros y opciones de su mezcla en el preajuste; los de la transición son los suyos.
-        IReadOnlyDictionary<string, double> parameters = curves?.MixParameters ?? t.Parameters;
-        EffectValues values = default;
-        foreach (ParameterDefinition p in definition.Parameters)
-        {
-            double value = parameters.TryGetValue(p.Name, out double v) && double.IsFinite(v) ? v : p.DefaultValue;
-            values[p.Slot] = (float)p.Clamp(value);
-        }
-
-        EffectPlan.WriteChoices(definition, curves?.MixOptions ?? t.Options, ref values);
-        return new TransitionPlan(t.Id, t.From, t.To, cut.At - cut.Before, cut.At + cut.After, definition.Code, values, curves,
-            sequence.Width, sequence.Height, fellBack);
+        TransitionPlan plan = TransitionPlan.From(cut.Transition, cut.At - cut.Before, cut.At + cut.After, sequence.Width, sequence.Height,
+            sequence.FrameRate, content);
+        missing += plan.FellBack ? 1 : 0;
+        return plan;
     }
 }
