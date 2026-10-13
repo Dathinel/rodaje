@@ -46,6 +46,55 @@ public class DialogWorkTests
         Assert.Empty(service.Running);
     });
 
+    /// <summary>
+    /// Tarea 292: la prueba de arriba miraba <c>closing</c> antes de que volviera <c>CancelAsync</c>, así que un
+    /// <c>CloseAsync</c> que pidiera la cancelación y dejara de esperar al trabajo también la pasaba. Aquí el trabajo no se
+    /// registra en el token (lo mira por su cuenta, como un módulo que sondea): sin registros, <c>CancelAsync</c> vuelve
+    /// ya completada y todo lo que <c>CloseAsync</c> hace después de pedirla ocurre antes de devolver el control. Además se
+    /// cede el hilo varias veces, por si algo más quedara en la cola del contexto. Sin reloj: lo que termina la espera es
+    /// la confirmación.
+    /// </summary>
+    [Fact]
+    public void AlCerrarSigueEsperandoLaConfirmacionAunqueSeCedaElHilo() => UiThread.Run(async () =>
+    {
+        // La premisa: sin registros, CancelAsync no deja nada para otra vuelta del hilo. Si .NET la cambia, esta prueba
+        // perdería su fuerza sin avisar.
+        using (var probe = new CancellationTokenSource())
+        {
+            Assert.True(probe.CancelAsync().IsCompleted);
+        }
+
+        var service = new LongActionService(NewSession());
+        var confirmed = new TaskCompletionSource();
+        Task closing = Task.CompletedTask;
+        CancellationToken token = default;
+        Task<bool> run = service.RunAsync("tools.translateTrack", "Traducir pista", scope =>
+        {
+            var work = new DialogWork();
+            token = work.Token;
+            _ = work.Track(confirmed.Task);
+            scope.Report(0.3, "Traduciendo…");
+            closing = work.CloseAsync(service, "Traducir pista", scope);
+            return closing;
+        });
+
+        Assert.True(token.IsCancellationRequested);
+        for (int turn = 0; turn < 10; turn++)
+        {
+            await Task.Yield();
+            Assert.False(closing.IsCompleted, $"CloseAsync terminó sin la confirmación (vuelta {turn}).");
+            Assert.False(run.IsCompleted);
+            LongActionStatus status = Assert.Single(service.Running);
+            Assert.Equal(("Traducir pista", ModuleActivity.Cancelling), (status.Title, status.Message));
+            Assert.False(status.CanCancel);
+        }
+
+        confirmed.SetResult();
+        await closing;
+        Assert.True(await run);
+        Assert.Empty(service.Running);
+    });
+
     [Fact]
     public void SinAccionAbreSuPropiaFilaYUnFalloDelTrabajoNoSeEscapa() => UiThread.Run(async () =>
     {
