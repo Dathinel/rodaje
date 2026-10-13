@@ -195,7 +195,7 @@ public class FormatV4Tests
         Project p = ValidProject();
         ClipOf(p, "c1").Effects[0].Parameters["otro"] = new Parameter { Value = 1e308 };
         ClipOf(p, "c2").Effects.Add(new EffectInstance { Id = "u", Type = "otro.efecto", Parameters = { ["opacity"] = new Parameter { Value = 9 } } });
-        ClipOf(p, "c2").Effects.Add(new EffectInstance { Id = "x", Type = BuiltInEffects.Transform, Parameters = { ["x"] = new Parameter { Value = 1e300 } } });
+        ClipOf(p, "c2").Effects.Add(new EffectInstance { Id = "x", Type = BuiltInEffects.Transform, Parameters = { ["x"] = new Parameter { Value = EffectRegistry.MaxOffset } } });
         Assert.Empty(ModelValidator.Validate(p));
     }
 
