@@ -26,8 +26,13 @@ public class AutosaveRecoveryServiceTests
         Assert.Contains("Mi corto", offer.Message, StringComparison.Ordinal);
         Assert.Equal("Recuperar", offer.Action!.Text);
 
+        // El botón no devuelve su tarea: se espera el aviso con que termina, salga bien o mal. Antes se miraba la lista cada
+        // 10 ms con un tope de 10 s, que en la CI de Windows se agotó dos veces (con el runner cargado, recuperar pasa por
+        // cuatro saltos al pool y tres escrituras); colgarse lo corta el tope de UiThread, y un fallo dice cuál fue.
+        Task<EditorNotification> outcome = h.NotificationAsync(n => n.Severity != NotificationSeverity.Warning);
         offer.Action.Run();
-        await WaitFor(() => h.Notifications.Any(n => n.Severity == NotificationSeverity.Success));
+        EditorNotification done = await outcome;
+        Assert.True(done.Severity == NotificationSeverity.Success, $"Recuperar terminó con «{done.Title}»: {done.Message}");
 
         string recovered = h.Temp.File("Mi corto (recuperado).rodaje");
         Assert.Equal(recovered, h.Session.FilePath);
@@ -210,16 +215,6 @@ public class AutosaveRecoveryServiceTests
 
     private static string CopyPath(string sessionDirectory, int number) =>
         AutosaveRecovery.ListSnapshots(sessionDirectory).Single(s => s.Number == number).Path;
-
-    private static async Task WaitFor(Func<bool> condition)
-    {
-        DateTime limit = DateTime.UtcNow.AddSeconds(10);
-        while (!condition())
-        {
-            Assert.True(DateTime.UtcNow < limit, "No pasó en 10 s.");
-            await Task.Delay(10);
-        }
-    }
 
     /// <summary>
     /// Hace que <see cref="File.Delete"/> no pueda borrar el bloqueo mientras dura, sin abrirlo (la sesión recuperable

@@ -188,14 +188,23 @@ public class LevelMathTests
         // Cada bloque lleva valores que dependen de su posición: un bloque leído a medias no cuadraría.
         // El lector va en un hilo propio, no en el pool: con pocos núcleos y otras pruebas en paralelo, una tarea del
         // pool podía no arrancar antes de que acabara el escritor. Se escribe al menos 400 ms y hasta tener 100 lecturas.
+        // El escritor no se adelanta más de MaxLead bloques a la última vuelta del lector. Suelto, con el runner de Windows
+        // saturado (13-oct, dos veces: «solo 0 lecturas en 31020 ms» y «solo 1 lecturas en 45102 ms», sin ningún bloque
+        // mezclado), el escritor giraba 30 s sin pausa mientras el lector casi no corría, y lo poco que corría lo perdía: si
+        // lo desalojan entre tomar Count y medir, el escritor da la vuelta al anillo y el lector descarta (bien) lo pisado.
+        // Con el tope, el escritor espera al lector (y le deja el núcleo) en vez de dejarlo atrás. MaxLead pasa la capacidad
+        // del anillo, así que a veces el escritor sigue pisando lo que se lee y el descarte se sigue ejercitando. Las 100
+        // lecturas no tienen plazo; los 120 s son solo contra cuelgues.
         const int MinimumReads = 100;
+        const int MaxLead = 96;
         var ring = new AudioLevelRing(64);
         var analyzer = new AudioLevelAnalyzer(ring, 16);
         var minimum = System.Diagnostics.Stopwatch.StartNew();
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         bool stop = false;
         long torn = 0;
         long reads = 0;
+        long attempts = 0;
         var reader = new Thread(() =>
         {
             while (!Volatile.Read(ref stop))
@@ -213,6 +222,8 @@ public class LevelMathTests
 
                     Interlocked.Increment(ref reads);
                 }
+
+                Interlocked.Increment(ref attempts);
             }
         })
         { IsBackground = true, Name = "Lector de niveles" };
@@ -222,6 +233,8 @@ public class LevelMathTests
         {
             float[] block = new float[16 * 2];
             long position = 0;
+            long lead = 0;
+            long seen = 0;
             while ((minimum.ElapsedMilliseconds < 400 || Interlocked.Read(ref reads) < MinimumReads) && !deadline.IsCancellationRequested)
             {
                 float value = Value(position);
@@ -233,6 +246,18 @@ public class LevelMathTests
 
                 analyzer.Process(block, position);
                 position += 16;
+                if (++lead >= MaxLead)
+                {
+                    // Espera a que el lector termine otra vuelta; SpinWait acaba cediendo el núcleo con Sleep(1).
+                    var spin = default(SpinWait);
+                    while (Interlocked.Read(ref attempts) == seen && !deadline.IsCancellationRequested)
+                    {
+                        spin.SpinOnce();
+                    }
+
+                    seen = Interlocked.Read(ref attempts);
+                    lead = 0;
+                }
             }
         }
         finally
@@ -242,7 +267,7 @@ public class LevelMathTests
         }
 
         Assert.Equal(0, torn);
-        Assert.True(reads >= MinimumReads, $"solo {reads} lecturas en {minimum.ElapsedMilliseconds} ms");
+        Assert.True(reads >= MinimumReads, $"solo {reads} lecturas de {attempts} vueltas en {minimum.ElapsedMilliseconds} ms");
 
         static float Value(long start) => ((start / 16) % 997 + 1) / 1000f;
     }
