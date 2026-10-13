@@ -5,6 +5,8 @@
     <windowsSettings>
       <!-- LLamaSharp pasa la ruta del modelo como texto ANSI: con UTF-8 una carpeta con «ñ» o tildes llega entera a llama.cpp. -->
       <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+      <!-- Rutas de más de 260 caracteres (con LongPathsEnabled en Windows): medios, proyectos, proxies y modelos. -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
     </windowsSettings>
   </application>
 </assembly>
