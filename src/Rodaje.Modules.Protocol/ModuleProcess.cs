@@ -16,6 +16,33 @@ public sealed class ModuleProcess : IAsyncDisposable
     private const int StderrTail = 2048;
     internal const int PipeBufferBytes = 64 * 1024;
 
+    /// <summary>
+    /// Lo que <see cref="DisposeAsync"/> espera la salida del proceso tras cerrar el cliente y, si hubo que matarlo, otra
+    /// vez tras matarlo.
+    /// </summary>
+    public static readonly TimeSpan ExitWait = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Holgura sobre <see cref="DisposeBudget"/> para quien espera el cierre con un tope (la ventana al salir, a través de
+    /// <c>ModuleManager.CloseTimeout</c>): cubre matar el árbol de procesos, que con la CPU llena tarda, y el reparto de
+    /// continuaciones.
+    /// </summary>
+    public static readonly TimeSpan DisposeMargin = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Lo más que tarda <see cref="DisposeAsync"/> con un módulo que no cierra tras <c>shutdown</c>, sin contar lo que
+    /// tarde matarlo: <see cref="ModuleClientOptions.ShutdownGrace"/> + <see cref="ExitWait"/> + (matar) +
+    /// <see cref="ExitWait"/>. Quien espere el cierre con un tope debe esperar al menos esto más
+    /// <see cref="DisposeMargin"/>, o seguiría antes de que el módulo colgado muera (tarea 197). No cubre un
+    /// <c>shutdown</c> que no llega a salir porque el módulo dejó de leer con la tubería llena
+    /// (<see cref="ModuleClientOptions.WriteTimeout"/>): ahí queda el Job Object.
+    /// </summary>
+    public static TimeSpan DisposeBudget(ModuleClientOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return options.ShutdownGrace + ExitWait + ExitWait;
+    }
+
     private readonly Process _process;
     private readonly StringBuilder _stderr = new();
     private readonly TaskCompletionSource<int> _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -155,9 +182,6 @@ public sealed class ModuleProcess : IAsyncDisposable
     internal static Task KillOffPool(Action kill, TaskScheduler scheduler) =>
         Task.Factory.StartNew(kill, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, scheduler);
 
-    /// <summary>Lo que se espera a que el módulo salga tras el cierre del cliente, y otra vez tras matarlo.</summary>
-    internal static readonly TimeSpan ExitGrace = TimeSpan.FromSeconds(2);
-
     /// <summary>
     /// Dónde va la línea de un cierre que salió mal (tarea 200). Por omisión <see cref="Trace"/>, como el resto de avisos
     /// de módulos (la app lo lleva al registro de la sesión con <c>SessionLogTraceListener</c>); las pruebas la capturan.
@@ -166,24 +190,25 @@ public sealed class ModuleProcess : IAsyncDisposable
 
     /// <summary>
     /// Cierre ordenado: <see cref="ModuleClient.DisposeAsync"/> manda <c>shutdown</c> y espera a que el módulo cierre su
-    /// lado de la tubería (o salga) antes de cerrar el del editor; luego se espera la salida y, si no llega en 2 s, se mata
-    /// el árbol de procesos. Si tras el <c>shutdown</c> el módulo sale con un código distinto de 0 o hay que matarlo, se
-    /// deja una línea en el registro: <see cref="ModuleClient.Completion"/> termina limpio igual (tarea 191) y el código
-    /// solo queda en <see cref="Exited"/>, que nadie mira al cerrar.
+    /// lado de la tubería (o salga) antes de cerrar el del editor; luego se espera la salida y, si no llega en
+    /// <see cref="ExitWait"/>, se mata el árbol de procesos. En total, a lo sumo <see cref="DisposeBudget"/> más lo que
+    /// tarde matarlo. Si tras el <c>shutdown</c> el módulo sale con un código distinto de 0 o hay que matarlo, se deja una
+    /// línea en el registro: <see cref="ModuleClient.Completion"/> termina limpio igual (tarea 191) y el código solo queda
+    /// en <see cref="Exited"/>, que nadie mira al cerrar (tarea 200).
     /// </summary>
     public async ValueTask DisposeAsync()
     {
         ModuleClient client = Client;
         Process process = _process;
         await CloseAsync(client.DisposeAsync, () => client.ShutdownDelivered, _exited.Task,
-            () => KillOffPool(() => Kill(process), TaskScheduler.Default), ExitGrace, client.Module.Id, Report).ConfigureAwait(false);
+            () => KillOffPool(() => Kill(process), TaskScheduler.Default), ExitWait, client.Module.Id, Report).ConfigureAwait(false);
         _process.Dispose();
     }
 
     /// <summary>
     /// El cierre de <see cref="DisposeAsync"/> sin el proceso, para probarlo sin lanzar el módulo: cierra el cliente,
-    /// espera la salida <paramref name="grace"/>, mata si no llega y vuelve a esperar, y da a <paramref name="report"/> la
-    /// línea de <see cref="DescribeClose"/> si la hay.
+    /// espera la salida <paramref name="grace"/> (<see cref="ExitWait"/>), mata si no llega y vuelve a esperar, y da a
+    /// <paramref name="report"/> la línea de <see cref="DescribeClose"/> si la hay.
     /// </summary>
     internal static async Task CloseAsync(Func<ValueTask> disposeClient, Func<bool> shutdownDelivered, Task<int> exited,
         Func<Task> kill, TimeSpan grace, string module, Action<string> report)
