@@ -14,7 +14,8 @@ namespace Rodaje.Engine.Tests.Support;
 /// proyectos de prueba a la vez y esperas de 1 ms que allí duran 15,6 (la resolución del reloj), una corrida que en Linux
 /// tarda medio segundo pasaba de 60 s y se daba por interbloqueo. Interbloqueo es ahora un hilo vivo que no avanza
 /// (no saca ningún número de su <see cref="Random"/>) en <see cref="Stall"/>, o la corrida entera pasada de
-/// <see cref="Deadline"/>.
+/// <see cref="Deadline"/>. Cortar por presupuesto no puede dejar la prueba vacía: una corrida en la que ningún hilo sacó
+/// un número (cero vueltas) falla, en vez de pasar en verde sin haber probado nada.
 /// </remarks>
 internal static class Stress
 {
@@ -40,7 +41,14 @@ internal static class Stress
     /// recibe su propio <see cref="Random"/> derivado de la semilla (que cuenta cuántos números saca: su avance) y una
     /// señal de parada que se enciende si otro falla o al vencer <see cref="Budget"/>.
     /// </summary>
-    public static void Run(int seed, params (string Name, Action<Random, CancellationToken> Body)[] workers)
+    public static void Run(int seed, params (string Name, Action<Random, CancellationToken> Body)[] workers) =>
+        Run(seed, Stall, workers);
+
+    /// <summary>
+    /// Como <see cref="Run(int, ValueTuple{string, Action{Random, CancellationToken}}[])"/>, con otro tope de «sin avance»:
+    /// las pruebas del propio arnés lo bajan para ver fallar el detector en poco tiempo.
+    /// </summary>
+    public static void Run(int seed, TimeSpan stall, params (string Name, Action<Random, CancellationToken> Body)[] workers)
     {
         var errors = new ConcurrentQueue<string>();
         using var stop = new CancellationTokenSource();
@@ -86,7 +94,7 @@ internal static class Stress
                     seen[i] = progress;
                     moved[i] = now;
                 }
-                else if (threads[i].Thread.IsAlive && now - moved[i] > Stall)
+                else if (threads[i].Thread.IsAlive && now - moved[i] > stall)
                 {
                     stalled.Add(threads[i].Name);
                 }
@@ -94,7 +102,7 @@ internal static class Stress
 
             if (stalled.Count > 0)
             {
-                hung = $"Posible interbloqueo: {string.Join(", ", stalled)} no avanzó en {Stall.TotalSeconds:0} s.";
+                hung = $"Posible interbloqueo: {string.Join(", ", stalled)} no avanzó en {stall.TotalSeconds:0.#} s.";
                 break;
             }
 
@@ -109,6 +117,11 @@ internal static class Stress
         {
             stop.Cancel();
             errors.Enqueue(hung);
+        }
+        else if (errors.IsEmpty && threads.All(t => t.Random.Draws == 0))
+        {
+            // Ningún hilo dio una vuelta (por ejemplo, el presupuesto venció antes de empezar): no se probó nada.
+            errors.Enqueue($"La corrida no avanzó: ninguno de {string.Join(", ", threads.Select(t => t.Name))} sacó un número de su Random.");
         }
 
         Assert.True(errors.IsEmpty, $"Semilla {seed}: {string.Join(Environment.NewLine, errors)}");
