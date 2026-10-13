@@ -92,20 +92,21 @@ internal sealed class SessionFuzzer
 
     private static readonly Act[] Table = [.. Weights.SelectMany(w => Enumerable.Repeat(w.Act, w.Weight))];
 
-    /// <summary>Las de <see cref="RandomTimeline"/> que pueden desfasar enlazados a propósito (las mismas que excluye la propiedad 11).</summary>
+    /// <summary>Las de <see cref="RandomTimeline"/> que pueden desfasar enlazados a propósito: las que excluye la propiedad 11 de Core y volver a sincronizar (ver <see cref="SyncChangingActs"/>).</summary>
     private static readonly HashSet<string> SyncChangingOps = new(StringComparer.Ordinal)
     {
-        "LinkClips", "SetTrackState", "SetSpeed", "RateStretch", "FreezeFrame", "SetCurve", "SetReverse", "ApplySpeedPreset",
+        "LinkClips", "SetTrackState", "SetSpeed", "RateStretch", "FreezeFrame", "SetCurve", "SetReverse", "ApplySpeedPreset", "Resync",
     };
 
     /// <summary>
     /// Acciones que pueden desfasar enlazados a propósito: enlazar, velocidad, pegar atributos (velocidad), deshacer y saltos.
     /// La multicámara también: sus desfases son inventados, no los del sonido, así que cambiar al medio del audio enlazado
-    /// mide un desfase que en una multicámara de verdad no habría.
+    /// mide un desfase que en una multicámara de verdad no habría. Y volver a sincronizar: alinea el clip con su referencia,
+    /// y en un enlace de tres clips ya desfasados puede alejarlo del tercero.
     /// </summary>
     private static readonly HashSet<Act> SyncChangingActs =
     [
-        Act.Multicam, Act.Link, Act.Attributes, Act.Speed, Act.Freeze, Act.Reverse, Act.Undo, Act.Redo, Act.Jump, Act.Reopen, Act.Gesture,
+        Act.Multicam, Act.Resync, Act.Link, Act.Attributes, Act.Speed, Act.Freeze, Act.Reverse, Act.Undo, Act.Redo, Act.Jump, Act.Reopen, Act.Gesture,
         Act.TimelineMode, Act.EnterCompound, Act.LeaveCompound, Act.Decompose,
     ];
 
@@ -373,7 +374,7 @@ internal sealed class SessionFuzzer
     }
 
     /// <summary>
-    /// Una pareja que ya estaba y cambió de desfase, o una nueva (las piezas de un corte, un clip recién puesto) con un
+    /// Una pareja que ya estaba y cambió a otro desfase que no es 0, o una nueva (las piezas de un corte, un clip recién puesto) con un
     /// desfase que no tenía ninguna pareja antes.
     /// </summary>
     private (string A, string B, long Before, long After)? SyncBreak(Dictionary<(string, string), long> before)
@@ -381,7 +382,8 @@ internal sealed class SessionFuzzer
         var known = new HashSet<long>(before.Values.Select(Math.Abs)) { 0 };
         foreach (((string a, string b), long offset) in PairOffsets() ?? [])
         {
-            if (before.TryGetValue((a, b), out long old) ? old != offset : !known.Contains(Math.Abs(offset)))
+            // Quedar en sincronía (desfase 0, como «Volver a sincronizar») siempre vale.
+            if (offset != 0 && (before.TryGetValue((a, b), out long old) ? old != offset : !known.Contains(Math.Abs(offset))))
             {
                 return (a, b, before.GetValueOrDefault((a, b)), offset);
             }
