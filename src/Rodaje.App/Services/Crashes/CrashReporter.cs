@@ -535,7 +535,8 @@ public sealed class CrashReporter
     }
 
     // Deja como mucho KeepUnreportedSessions copias que siguen esperando (las más nuevas): sin informe y sin tope, un disco
-    // que no lo permite durante muchos arranques las acumulaba sin fin.
+    // que no lo permite durante muchos arranques las acumulaba sin fin. Las ya marcadas como informadas se descartan antes
+    // que cualquiera sin informe, aunque sean más nuevas: su informe ya está escrito y la copia sin él es la única evidencia.
     private void PruneUnreportedSessions(List<string> kept)
     {
         if (kept.Count <= KeepUnreportedSessions)
@@ -543,7 +544,8 @@ public sealed class CrashReporter
             return;
         }
 
-        foreach (string old in kept.OrderByDescending(SafeLastWrite).ThenByDescending(f => f, StringComparer.Ordinal).Skip(KeepUnreportedSessions))
+        foreach (string old in kept.OrderBy(f => File.Exists(Path.ChangeExtension(f, ReportedSuffix)))
+                     .ThenByDescending(SafeLastWrite).ThenByDescending(f => f, StringComparer.Ordinal).Skip(KeepUnreportedSessions))
         {
             try
             {

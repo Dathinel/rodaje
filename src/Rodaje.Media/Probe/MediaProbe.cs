@@ -163,10 +163,16 @@ public static unsafe class MediaProbe
             return Av.ToTime(stream->duration, stream->time_base);
         }
 
-        // Un flujo que dice empezar después del final del contenedor (archivo dañado) daba una duración negativa, y con
-        // ella la del medio entero: se toma como desconocida.
-        return containerDuration is { } d && d - (start - containerStart) is { Ticks: > 0 } rest ? rest : null;
+        return RemainingContainerDuration(containerDuration, start, containerStart);
     }
+
+    /// <summary>
+    /// Lo que queda del contenedor desde que empieza el flujo, para un flujo que no declara su duración. Un flujo que dice
+    /// empezar en el final del contenedor o después (archivo dañado) daba una duración nula o negativa, y con ella la del
+    /// medio entero: se toma como desconocida (<see langword="null"/>).
+    /// </summary>
+    internal static Time? RemainingContainerDuration(Time? containerDuration, Time start, Time containerStart) =>
+        containerDuration is { } d && d - (start - containerStart) is { Ticks: > 0 } rest ? rest : null;
 
     private static VideoStreamInfo ReadVideo(AVFormatContext* format, int index, Time containerStart, Time? containerDuration, bool scan)
     {
