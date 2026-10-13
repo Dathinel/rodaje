@@ -9,7 +9,7 @@ namespace Rodaje.App.Services.Crashes;
 /// en disco línea a línea (<see cref="MirrorTo"/>) para que un cierre que no avisa (fallo nativo, «stowed» de WinRT,
 /// cierre forzado) deje rastro al siguiente arranque.
 /// </summary>
-public sealed class SessionLog : IDisposable
+public sealed partial class SessionLog : IDisposable
 {
     /// <summary>Líneas que guarda el registro y que lleva el informe.</summary>
     public const int DefaultCapacity = 200;
@@ -172,7 +172,7 @@ public sealed class SessionLog : IDisposable
 }
 
 /// <summary>Lleva al <see cref="SessionLog"/> lo que el código escribe con <see cref="Trace"/> (módulos, exportación).</summary>
-public sealed class SessionLogTraceListener : TraceListener
+public sealed partial class SessionLogTraceListener : TraceListener
 {
     private readonly SessionLog _log;
     private readonly StringBuilder _pending = new();
