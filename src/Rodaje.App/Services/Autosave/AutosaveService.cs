@@ -297,14 +297,28 @@ public sealed partial class AutosaveService : IDisposable
 
         if (baseName.Length == 0)
         {
-            baseName = projectName;
+            // El nombre del proyecto no viene de un archivo: puede traer caracteres que Windows no admite (o una barra,
+            // que haría salir el destino de la carpeta) y puntos o espacios finales, que Windows quita.
+            var safe = new System.Text.StringBuilder(projectName.Length);
+            foreach (char c in projectName)
+            {
+                safe.Append(c < ' ' || "<>:\"/\\|?*".Contains(c, StringComparison.Ordinal) ? '_' : c);
+            }
+
+            baseName = safe.ToString().Trim().TrimEnd('.', ' ');
+            if (baseName.Length == 0)
+            {
+                baseName = "Proyecto";
+            }
         }
 
         for (int i = 1; i < 1000; i++)
         {
             string suffix = i == 1 ? " (recuperado)" : $" (recuperado {i})";
-            string candidate = Path.Combine(folder, baseName + suffix + ProjectSerializer.FileExtension);
-            if (!File.Exists(candidate))
+            string candidate = Path.Combine(folder, WindowsFileNames.AvoidReserved(baseName + suffix + ProjectSerializer.FileExtension));
+            // Path.Exists y no File.Exists: una carpeta con ese nombre también impide guardar ahí, y elegirla hacía que
+            // «Recuperar» fallara siempre.
+            if (!Path.Exists(candidate))
             {
                 return candidate;
             }
