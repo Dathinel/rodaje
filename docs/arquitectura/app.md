@@ -38,6 +38,24 @@ flowchart LR
 - **Avisos.** `Session.Notify(gravedad, título, mensaje, acción?)` emite un `EditorNotification`. La ventana lo muestra en una sola barra, por encima de las páginas modales, y lo anuncia al lector de pantalla. La `NotificationAction` opcional («Deshacer», «Abrir») pone un botón que cierra el aviso y la ejecuta. Los informativos se cierran solos a los 6 s, o a los 10 s si tienen botón.
 - **Cerrar.** Con cambios sin guardar se pregunta (Guardar, No guardar, Cancelar).
 
+## Fallos (`Services/Crashes`)
+
+Ningún cierre sin rastro. `CrashReporter` (sin WinUI, lo prueban `tests/Rodaje.App.Tests/Crashes`) escribe cada informe en `%LOCALAPPDATA%\Rodaje\fallos\<fecha>.txt` antes de salir: la vía, la pila, la versión (`1.0.0+commit`), Windows, la GPU y las últimas 200 líneas de `SessionLog`. Los errores que la app sobrevive van a `<fecha>-recuperado.txt`; se guardan los 30 informes y los 3 minivolcados más recientes. `rodaje-error.txt` junto al exe se sigue escribiendo (lo miran la autoprueba y los scripts de `build\`).
+
+| Vía | Dónde se engancha | ¿Se cierra? |
+|---|---|---|
+| `Application.UnhandledException` | `App.OnUnhandledException` | No con ventana (aviso «Algo falló»); sí antes de ella |
+| `AppDomain.UnhandledException` | `Program.InstallCrashReporting` | Sí |
+| `TaskScheduler.UnobservedTaskException` | ídem; se da por observada | No |
+| Callbacks del hilo de la interfaz (continuaciones de `await`, `async void`) | `GuardedSynchronizationContext` envuelve el `DispatcherQueueSynchronizationContext`; con ventana, informe y aviso en vez del error «stowed» | No con ventana |
+| Fallo nativo (violación de acceso…) | `NativeCrashHandler`: `SetUnhandledExceptionFilter` con `LibraryImport` y puntero a función (AOT); minivolcado `MiniDumpWriteDump` junto al informe | Sí |
+| Lo que no pasa por ningún filtro (`RaiseFailFastException` de un error «stowed» 0xC000027B, desbordamiento de pila, cierre forzado) | `SessionLog` se copia línea a línea en `fallos\sesiones\<pid>-<inicio>.log`; el siguiente arranque convierte en informe la copia de un proceso que ya no existe | Sí |
+
+- **Registro de la sesión.** `SessionLog` guarda lo que se escribe con `Trace` (módulos, exportación), los errores, los pasos del historial y los avisos de la ventana. El cierre limpio y un informe fatal borran su copia en disco.
+- **Una excepción, un informe.** La misma excepción por dos vías deja un solo archivo. `Program.WriteCrash` (errores atrapados) también deja uno «recuperado».
+- **Siguiente arranque.** Si hay informes fatales nuevos, un aviso «Rodaje se cerró por un error» con el botón «Copiar informe» (el texto entero al portapapeles); no sale en las corridas automáticas.
+- **GPU.** Se lee a los 10 s del arranque, fuera de cualquier fallo: el filtro nativo no toca DXGI.
+
 ## Atajos (`Services/Shortcuts`)
 
 - **Catálogo.** `ShortcutRegistry` guarda las acciones (`EditorShortcuts.Catalog` más lo que registre cada vista), cada una con sus teclas de fábrica en tres estilos: Rodaje, Ágil y Clásico (`ShortcutPreset`). Si un estilo no da teclas, usa las de Rodaje.

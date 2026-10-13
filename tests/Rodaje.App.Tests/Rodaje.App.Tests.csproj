@@ -18,6 +18,17 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!--
+    Pool de hilos con un mínimo de 32. Las pruebas de este proyecto corren cuatro clases a la vez y muchas dejan hilos del
+    pool bloqueados (esperas de procesos, módulos, ffmpeg) o encadenando trabajo en su cola local; en la CI de Windows, con
+    el mínimo de 4, el pool se quedó en 9 o 10 hilos y un trabajo de la cola global esperó más de 2 minutos
+    («Pool: 9 hilos (mínimo 4), 1 trabajos en cola»): el ping de un módulo sano no llegaba a tiempo y se daba por colgado,
+    y las pruebas del hilo de interfaz agotaban su tope. Con el mínimo alto, un trabajo nuevo despierta un hilo enseguida.
+  -->
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.Threading.ThreadPool.MinThreads" Value="32" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Corredor y mutaciones del fuzz de archivos, compartidos con las pruebas del núcleo y de paquetes -->
     <Compile Include="..\Rodaje.Core.Tests\Fuzz\FuzzRunner.cs" Link="Fuzz\FuzzRunner.cs" />

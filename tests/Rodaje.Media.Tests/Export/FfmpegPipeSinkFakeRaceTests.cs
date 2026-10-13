@@ -25,16 +25,18 @@ public sealed class FfmpegPipeSinkFakeRaceTests
         sink.Start(request, cancellation.Token);
         int? processId = sink.ProcessId;
         WriteAll(sink, request, cancellation.Token);
+        bool reached = false;
         bool aliveBeforeCancel = false;
         sink.BeforeCompleteWaits = () =>
         {
+            reached = true;
             aliveBeforeCancel = SinkRuns.IsAlive(processId);
             OnAnotherThread(cancellation.Cancel);
         };
 
         Exception? caught = Record.Exception(() => sink.Complete(cancellation.Token));
 
-        OperationCanceledException canceled = Assert.IsAssignableFrom<OperationCanceledException>(caught);
+        OperationCanceledException canceled = AssertCanceled(caught, sink, reached);
         Assert.Equal(cancellation.Token, canceled.CancellationToken);
         Assert.True(aliveBeforeCancel, "La prueba necesita al ffmpeg falso vivo cuando se cancela.");
         Assert.False(SinkRuns.IsAlive(processId), $"El ffmpeg falso ({processId}) sigue vivo tras cancelar.");
@@ -52,16 +54,18 @@ public sealed class FfmpegPipeSinkFakeRaceTests
         sink.Start(request, CancellationToken.None);
         int? processId = sink.ProcessId;
         WriteAll(sink, request, CancellationToken.None);
+        bool reached = false;
         bool aliveBeforeAbort = false;
         sink.BeforeCompleteWaits = () =>
         {
+            reached = true;
             aliveBeforeAbort = SinkRuns.IsAlive(processId);
             OnAnotherThread(sink.Abort);
         };
 
         Exception? caught = Record.Exception(() => sink.Complete(CancellationToken.None));
 
-        Assert.IsAssignableFrom<OperationCanceledException>(caught);
+        AssertCanceled(caught, sink, reached);
         Assert.True(aliveBeforeAbort, "La prueba necesita al ffmpeg falso vivo cuando se aborta.");
         Assert.False(SinkRuns.IsAlive(processId), $"El ffmpeg falso ({processId}) sigue vivo tras abortar.");
         Assert.Null(sink.ProcessId);
@@ -209,6 +213,23 @@ public sealed class FfmpegPipeSinkFakeRaceTests
         {
             KillIfAlive(hanging);
         }
+    }
+
+    // En la CI de Windows (fa87f112) Complete salió una vez con ExportException en vez de cancelación, y el registro solo
+    // decía el tipo. Una ExportException ahí solo puede salir antes de BeforeCompleteWaits (de Flush o del cierre de la
+    // tubería, si el falso ya no lee), así que el mensaje dice si se llegó a abortar, la excepción entera (con el código
+    // de salida y la última línea del falso) y el diagnóstico del sink.
+    private static OperationCanceledException AssertCanceled(Exception? caught, FfmpegPipeSink sink, bool reachedTheWait)
+    {
+        if (caught is OperationCanceledException canceled)
+        {
+            return canceled;
+        }
+
+        throw new Xunit.Sdk.XunitException(
+            $"Se esperaba una cancelación. ¿Llegó a la espera donde se aborta? {(reachedTheWait ? "sí" : "no")}.{Environment.NewLine}" +
+            $"Excepción: {caught?.ToString() ?? "ninguna"}{Environment.NewLine}" +
+            $"Diagnóstico del sink: {string.Join(" | ", sink.Diagnostics)}");
     }
 
     private static Process StartFake(string path, int? parent, params string[] options)

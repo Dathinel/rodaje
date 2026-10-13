@@ -278,25 +278,10 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         if (!ReferenceEquals(scan, _stylesScan) && !_styleBox.IsDropDownOpen)
         {
             _stylesScan = scan;
-            styles = new ChoiceList<LibraryElement>();
-            foreach (LibraryElement element in LibraryElements.For(LibraryCategory.Text, scan))
-            {
-                styles.Add(element.IsBuiltIn ? element.Name : $"{element.Name} · {element.Source}", element);
-            }
+            styles = TextStyleChoices.Build(scan);
         }
 
-        int index = -1;
-        for (int i = 0; i < styles.Count; i++)
-        {
-            LibraryElement e = styles.Values[i];
-            if (style.Source is { } source ? e.Reference == source : e.IsBuiltIn && style.ContentEquals(TitleStyles.Default()))
-            {
-                index = i;
-                break;
-            }
-        }
-
-        _styles = ComboBoxChoices.Show(_styleBox, _styles, styles, index);
+        _styles = ComboBoxChoices.Show(_styleBox, _styles, styles, TextStyleChoices.IndexOf(styles, style));
         _styleBox.PlaceholderText = style.Name is { Length: > 0 } name ? $"{name} (cambiado)" : "Personalizado";
         if (_sourceText is not null)
         {
@@ -318,11 +303,17 @@ internal sealed partial class TextPanel : UserControl, IEditorView
             return;
         }
 
-        // Aplicar el estilo refresca el panel: va después del evento, no dentro del SelectionChanged del desplegable.
-        string? clipId = _clipId;
+        // Aplicar el estilo refresca el panel: va después del evento, no dentro del SelectionChanged del desplegable. Solo
+        // se aplica si el panel sigue con el mismo editor y el mismo título, y el editor sigue apuntando a él.
+        var picked = new DeferredChoice<TitleEditor>(editor, _clipId);
         await Task.Yield();
+        if (!DeferredChoices.TitleStillApplies(picked, _editor, _clipId))
+        {
+            return;
+        }
+
         var applier = new ElementApplier(services.Session, new InstalledContentLoader(() => services.Packages.Installed));
-        if (await applier.LoadTextStyleAsync(element) is { } style && clipId == _clipId)
+        if (await applier.LoadTextStyleAsync(element) is { } style && DeferredChoices.TitleStillApplies(picked, _editor, _clipId))
         {
             editor.ApplyStyle(style);
         }
