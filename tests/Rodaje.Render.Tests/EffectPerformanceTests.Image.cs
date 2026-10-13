@@ -36,6 +36,28 @@ public sealed partial class EffectPerformanceTests
         { BuiltInEffects.LensDistortion, "" },
     };
 
+    /// <summary>El anclaje de esquinas no agrega pasadas: la capa sigue por el camino rápido con una w por esquina.</summary>
+    [GpuFact]
+    public void A_corner_pinned_1080p_layer_costs_the_same_as_a_plain_one()
+    {
+        using GpuDevice gpu = GpuDevice.Create();
+        nint texture = Texture(gpu, 1920, 1088, 1);
+        try
+        {
+            (double plain, _) = Measure(gpu, "1 capa 1080p", 1920, 1080, 1920, 1080,
+                Layers.FromTexture(gpu, texture, 0, 1920, 1080, Bt709, LayerTransform.Identity with { Scale = 0.8 }, 0));
+            var pin = new LayerCornerPin(120, 60, -300, 140, -260, -90, 80, -40);
+            (double pinned, _) = Measure(gpu, "la misma con anclaje de esquinas", 1920, 1080, 1920, 1080,
+                Layers.FromTexture(gpu, texture, 0, 1920, 1080, Bt709, LayerTransform.Identity with { Scale = 0.8, Pin = pin }, 0));
+            output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Anclaje de esquinas 1080p: {pinned:0.000} ms frente a {plain:0.000} ms."));
+            Require(pinned - plain <= 0.1, $"Anclaje de esquinas: {pinned - plain:0.000} ms más (objetivo ≤0,1).");
+        }
+        finally
+        {
+            Layers.Release(texture);
+        }
+    }
+
     /// <summary>El costo medido frente al estimado de <see cref="EffectCost"/>: dentro de ×3 (o 0,1 ms).</summary>
     [GpuFact]
     public void Each_new_effect_costs_about_what_the_stack_shows()

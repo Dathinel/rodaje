@@ -9,7 +9,8 @@ internal static class RenderShaders
     // present.y, si no es 0, la misma escala hacia los lados horizontales (capas estiradas o inclinadas). La cobertura del borde se
     // calcula con la distancia al lado más cercano en píxeles de destino, así un borde girado sale suavizado y uno
     // alineado con la rejilla queda nítido (los centros de sus píxeles están a 0,5 px o más del lado).
-    // present: x > 0 pide muestreo con mipmaps (destino más pequeño que la fuente).
+    // present: x > 0 pide muestreo con mipmaps (destino más pequeño que la fuente); z > 0, capa con perspectiva (anclaje de
+    // esquinas): local[i].z es el w de cada esquina, que VsQuad pone en el vértice para que uv y local se interpolen con perspectiva.
     /// <summary>Constantes, planos, vértices y conversión de color comunes a todos los shaders.</summary>
     public const string Prelude = """
         cbuffer Quad : register(b0)
@@ -68,7 +69,14 @@ internal static class RenderShaders
 
         float EdgeCoverage(float2 p)
         {
-            float2 inside = min(p, shape.zw - p) * float2(shape.y, present.y > 0 ? present.y : shape.y);
+            float2 scale = float2(shape.y, present.y > 0 ? present.y : shape.y);
+            if (present.z > 0)
+            {
+                // Con perspectiva la escala cambia en cada píxel: la da la derivada de la coordenada local en pantalla.
+                scale = 1 / max(float2(length(float2(ddx(p.x), ddy(p.x))), length(float2(ddx(p.y), ddy(p.y)))), 1e-6);
+            }
+
+            float2 inside = min(p, shape.zw - p) * scale;
             return saturate(min(inside.x, inside.y) + 0.5);
         }
 
@@ -80,7 +88,8 @@ internal static class RenderShaders
         VsOut VsQuad(uint id : SV_VertexID)
         {
             VsOut o;
-            o.position = float4(corners[id].xy, 0, 1);
+            float q = local[id].z > 0 ? local[id].z : 1;
+            o.position = float4(corners[id].xy * q, 0, q);
             o.uv = corners[id].zw;
             o.local = local[id].xy;
             return o;

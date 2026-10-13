@@ -644,6 +644,62 @@ public static partial class BuiltInEffects
     }
 
     /// <summary>
+    /// Anclaje de esquinas (formato 13): lleva cada esquina de la imagen de la capa a otro lugar con perspectiva (una
+    /// homografía), antes de la transformación. Los parámetros son desplazamientos de cada esquina en píxeles de la
+    /// secuencia sobre la imagen ajustada al cuadro; todos en 0 no cambian nada.
+    /// </summary>
+    public const string CornerPin = "rodaje.cornerpin";
+
+    public static class CornerPinParameters
+    {
+        public const string TopLeftX = "topLeftX";
+        public const string TopLeftY = "topLeftY";
+        public const string TopRightX = "topRightX";
+        public const string TopRightY = "topRightY";
+        public const string BottomRightX = "bottomRightX";
+        public const string BottomRightY = "bottomRightY";
+        public const string BottomLeftX = "bottomLeftX";
+        public const string BottomLeftY = "bottomLeftY";
+
+        /// <summary>En el orden de las esquinas: arriba izquierda, arriba derecha, abajo derecha, abajo izquierda; x e y de cada una.</summary>
+        public static readonly string[] All = [TopLeftX, TopLeftY, TopRightX, TopRightY, BottomRightX, BottomRightY, BottomLeftX, BottomLeftY];
+    }
+
+    /// <summary>
+    /// Un seguimiento guardado en el clip (formato 13): no dibuja nada. Guarda los puntos que se siguieron en la imagen de la
+    /// capa, cuadro a cuadro y con su confianza (<see cref="Effects.PointTrack"/>), para aplicarlos a otro clip, una máscara,
+    /// un anclaje de esquinas o una estabilización.
+    /// </summary>
+    public const string Track = "rodaje.track";
+
+    public static class TrackParameters
+    {
+        /// <summary>Confianza (0–1) por debajo de la cual un cuadro es dudoso. Por defecto 0,7.</summary>
+        public const string Threshold = "threshold";
+    }
+
+    public static class TrackOptions
+    {
+        /// <summary>Uno de <see cref="Effects.EffectRegistry.TrackKinds"/>: un punto, dos, cuatro esquinas o una región.</summary>
+        public const string Kind = "kind";
+
+        /// <summary>Nombre que se ve en la lista.</summary>
+        public const string Name = "name";
+
+        /// <summary>
+        /// Los puntos al empezar: <c>x,y,anchoPatrón,altoPatrón,anchoBúsqueda,altoBúsqueda</c> por punto, separados por
+        /// <c>;</c>, todo en fracciones de la imagen de la capa.
+        /// </summary>
+        public const string Points = "points";
+
+        /// <summary>Los cuadros seguidos (<see cref="Effects.PointTrack"/>): <c>ticks@x,y,c;x,y,c|…</c> en tiempo del origen.</summary>
+        public const string Samples = "samples";
+
+        /// <summary>Color de los puntos en el visor (<c>#RRGGBB</c>).</summary>
+        public const string Color = "color";
+    }
+
+    /// <summary>
     /// Croma (pantalla verde o azul): vuelve transparente lo que se parece al color clave, en Y'CbCr BT.709. Va antes del
     /// color y de la LUT, sobre la imagen original, y se multiplica con las máscaras.
     /// </summary>

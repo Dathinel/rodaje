@@ -41,7 +41,7 @@ public class FormatV4Tests
         Project project = ProjectSerializer.Deserialize(Example);
 
         // Al guardar se escribe la versión actual; el resto del archivo no cambia.
-        string saved = Example.Replace("\"schemaVersion\": 4", "\"schemaVersion\": 10", StringComparison.Ordinal);
+        string saved = Example.Replace("\"schemaVersion\": 4", "\"schemaVersion\": 13", StringComparison.Ordinal);
         Assert.Equal(saved, ProjectSerializer.Serialize(project) + "\n");
         Assert.Equal(saved, ProjectSerializer.Serialize(project.Clone()) + "\n");
 

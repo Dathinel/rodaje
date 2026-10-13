@@ -109,6 +109,8 @@
                 <Canvas x:Name="TransformCanvas" IsHitTestVisible="False" Visibility="Collapsed" />
                 <!-- Máscaras (PlayerView.Masks): contornos, cajas, vértices y lo que se dibuja; la ayuda de la herramienta arriba. -->
                 <Canvas x:Name="MaskCanvas" IsHitTestVisible="False" Visibility="Collapsed" />
+                <!-- Seguimiento (PlayerView.Tracking): puntos con su patrón y su zona de búsqueda. -->
+                <Canvas x:Name="TrackCanvas" IsHitTestVisible="False" Visibility="Collapsed" />
                 <Border x:Name="MaskHint" IsHitTestVisible="False" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Top"
                         Margin="8" Padding="8,4" CornerRadius="4" Background="{StaticResource ScrimBrush}" MaxWidth="560">
                     <TextBlock x:Name="MaskHintText" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}"

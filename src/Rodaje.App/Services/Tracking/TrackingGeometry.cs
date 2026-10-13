@@ -87,26 +87,51 @@ public static class MaskTracking
     public static MaskTrackKey Key(in MaskSpec start, IReadOnlyList<MaskVertex> vertices, TrackedFrame frame, float imageWidth, float imageHeight,
         double previousRotation)
     {
+        ArgumentNullException.ThrowIfNull(frame);
+        return Key(start, vertices, frame.Time, frame.Map, frame.Anchors, imageWidth, imageHeight, previousRotation);
+    }
+
+    /// <summary>
+    /// El keyframe de la máscara cuando cada punto de la imagen de partida (0–1) va adonde dice <paramref name="map"/>; los
+    /// vértices van a <paramref name="anchors"/> si los hay (uno por vértice) o, si no y la máscara los tiene, por <paramref name="map"/>.
+    /// </summary>
+    public static MaskTrackKey Key(in MaskSpec start, IReadOnlyList<MaskVertex> vertices, Time time, Func<Vector2, Vector2> map,
+        Vector2[]? anchors, float imageWidth, float imageHeight, double previousRotation)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        ArgumentNullException.ThrowIfNull(vertices);
         var size = new Vector2(imageWidth, imageHeight);
         var center = new Vector2((float)start.X, (float)start.Y);
         double radians = start.Rotation * Math.PI / 180;
         var axisX = new Vector2((float)(Math.Cos(radians) * start.Width * imageWidth / 2), (float)(Math.Sin(radians) * start.Width * imageWidth / 2));
         var axisY = new Vector2((float)(-Math.Sin(radians) * start.Height * imageHeight / 2), (float)(Math.Cos(radians) * start.Height * imageHeight / 2));
-        Vector2 c = frame.Map(center);
-        Vector2 ax = (frame.Map(center + (axisX / size)) - c) * size;
-        Vector2 ay = (frame.Map(center + (axisY / size)) - c) * size;
+        Vector2 c = map(center);
+        Vector2 ax = (map(center + (axisX / size)) - c) * size;
+        Vector2 ay = (map(center + (axisY / size)) - c) * size;
         double rotation = Math.Atan2(ax.Y, ax.X) * 180 / Math.PI;
         rotation += 360 * Math.Round((previousRotation - rotation) / 360);
         double width = start.Width > 0 ? 2 * ax.Length() / imageWidth : start.Width;
         double height = start.Height > 0 ? 2 * ay.Length() / imageHeight : start.Height;
         IReadOnlyList<MaskVertex>? moved = null;
-        if (frame.Anchors.Length == vertices.Count && vertices.Count > 0)
+        var spec = start with { X = c.X, Y = c.Y, Width = width, Height = height, Rotation = rotation };
+        if (anchors is { Length: > 0 } && anchors.Length == vertices.Count)
         {
-            var spec = start with { X = c.X, Y = c.Y, Width = width, Height = height, Rotation = rotation };
-            moved = [.. vertices.Select((v, i) => v with { Point = ImageToBox(spec, frame.Anchors[i], size) })];
+            moved = [.. vertices.Select((v, i) => v with { Point = ImageToBox(spec, anchors[i], size) })];
+        }
+        else if (anchors is null && vertices.Count > 0)
+        {
+            // Cada vértice y sus manejadores por la misma deformación (con perspectiva, la forma cambia).
+            MaskSpec from = start;
+            Vector2 Moved(Vector2 box) => ImageToBox(spec, map(BoxToImage(from, box, size)), size);
+            moved = [.. vertices.Select(v =>
+            {
+                Vector2 point = Moved(v.Point);
+                return v with { Point = point, In = v.In == Vector2.Zero ? v.In : Moved(v.Point + v.In) - point,
+                    Out = v.Out == Vector2.Zero ? v.Out : Moved(v.Point + v.Out) - point };
+            })];
         }
 
-        return new MaskTrackKey(frame.Time, c.X, c.Y, width, height, rotation, moved);
+        return new MaskTrackKey(time, c.X, c.Y, width, height, rotation, moved);
     }
 
     /// <summary>Un punto de la caja (−0,5 a 0,5) en la imagen (0–1), con el giro de la máscara.</summary>

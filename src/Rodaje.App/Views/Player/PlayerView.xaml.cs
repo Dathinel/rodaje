@@ -90,6 +90,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         UpdateSafeAreas();
         AttachTitleHandles();
         AttachMaskHandles();
+        AttachTrackHandles();
         AttachImageTools();
         Meters.Attach(services);
         AttachScopes(services);

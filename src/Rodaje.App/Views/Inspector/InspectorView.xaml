@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Panel derecho: pestañas Propiedades (o la transición seleccionada), Texto, Velocidad, Filtros, Máscaras, Dinámica, Historial y Trabajos. Cada pestaña
+    Panel derecho: pestañas Propiedades (o la transición seleccionada), Texto, Velocidad, Filtros, Máscaras, Seguimiento, Dinámica, Historial y Trabajos. Cada pestaña
     es su propio control en su carpeta. Si los nombres no caben, las pestañas no elegidas muestran solo su ícono.
 -->
 <UserControl
@@ -10,6 +10,7 @@
     xmlns:properties="using:Rodaje.App.Views.Inspector.Properties"
     xmlns:filters="using:Rodaje.App.Views.Inspector.Filters"
     xmlns:masks="using:Rodaje.App.Views.Inspector.Masks"
+    xmlns:tracking="using:Rodaje.App.Views.Inspector.Tracking"
     xmlns:speed="using:Rodaje.App.Views.Inspector.Speed"
     xmlns:text="using:Rodaje.App.Views.Inspector.Text"
     xmlns:history="using:Rodaje.App.Views.Inspector.History"
@@ -69,6 +70,13 @@
                         <TextBlock x:Name="MasksLabel" Text="Máscaras" />
                     </StackPanel>
                 </RadioButton>
+                <RadioButton x:Name="TrackingTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
+                             ToolTipService.ToolTip="Seguimiento" AutomationProperties.Name="Seguimiento">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE707;" FontSize="{StaticResource IconFontSize}" Visibility="Collapsed" />
+                        <TextBlock x:Name="TrackingLabel" Text="Seguimiento" />
+                    </StackPanel>
+                </RadioButton>
                 <RadioButton x:Name="DynamicsTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
                              ToolTipService.ToolTip="Dinámica" AutomationProperties.Name="Dinámica">
                     <StackPanel Orientation="Horizontal" Spacing="6">
@@ -101,6 +109,7 @@
             <speed:SpeedPanel x:Name="SpeedPanel" Visibility="Collapsed" />
             <filters:FiltersPanel x:Name="FiltersPanel" Visibility="Collapsed" />
             <masks:MasksPanel x:Name="MasksPanel" Visibility="Collapsed" />
+            <tracking:TrackingPanel x:Name="TrackingPanel" Visibility="Collapsed" />
             <dynamics:DynamicsPanel x:Name="DynamicsPanel" Visibility="Collapsed" />
             <history:HistoryPanel x:Name="HistoryPanel" Visibility="Collapsed" />
             <jobs:JobsPanel x:Name="JobsPanel" Visibility="Collapsed" />

@@ -8,6 +8,7 @@ Para quien descarga Rodaje y quiere editar. Cada página es corta y va con los m
 | [Tu primer proyecto](primer-proyecto.md) | Importar, cortar, música, un título y exportar a vertical, paso a paso |
 | [Edición](edicion.md) | Cortes, magnetismo, slip, velocidad y reversa, compuestos, tres y cuatro puntos, transiciones, marcadores, proyecto y recuperación |
 | [Imagen](imagen.md) | Efectos, color (ruedas, curvas, LUT), antes y después, máscaras, croma, recorte, estabilizar, zonas seguras |
+| [Seguimiento](seguimiento.md) | Seguir un punto, dos, cuatro esquinas o una región; corregir, suavizar y aplicar a otro clip, un anclaje de esquinas, una máscara, una zona o la estabilización |
 | [Audio](audio.md) | Volumen, sonoridad LUFS, ecualizador y compresor, ducking, voz en off, silencios, ritmo, ruido |
 | [Títulos y subtítulos](titulos-y-subtitulos.md) | Títulos sobre el visor, subtítulos automáticos, por palabra, karaoke, traducción |
 | [IA local](ia-local.md) | Qué módulo hace qué, cómo se instala, GPU y VRAM |

@@ -231,7 +231,9 @@ internal struct QuadConstants
         double ax = x1 - x0, ay = y1 - y0, bx = x2 - x0, by = y2 - y0;
         double det = (ax * by) - (ay * bx);
         PixelOrigin = default;
-        if (Math.Abs(det) < 1e-6 || Math.Abs(x3 - x1 - x2 + x0) > 1e-2 || Math.Abs(y3 - y1 - y2 + y0) > 1e-2)
+
+        // Con perspectiva (anclaje de esquinas) uv y local no son lineales en pantalla: se interpolan con la w de cada esquina.
+        if (Present.Z > 0 || Math.Abs(det) < 1e-6 || Math.Abs(x3 - x1 - x2 + x0) > 1e-2 || Math.Abs(y3 - y1 - y2 + y0) > 1e-2)
         {
             return;
         }

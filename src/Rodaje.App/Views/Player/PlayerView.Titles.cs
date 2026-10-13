@@ -129,7 +129,7 @@ internal sealed partial class PlayerView
 
     private void OnVideoPointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        if (ImagePointerPressed(e) || MaskPointerPressed(e))
+        if (TrackPointerPressed(e) || ImagePointerPressed(e) || MaskPointerPressed(e))
         {
             return;
         }
@@ -187,7 +187,7 @@ internal sealed partial class PlayerView
 
     private void OnVideoPointerMoved(object sender, PointerRoutedEventArgs e)
     {
-        if (ImagePointerMoved(e) || MaskPointerMoved(e))
+        if (TrackPointerMoved(e) || ImagePointerMoved(e) || MaskPointerMoved(e))
         {
             return;
         }
@@ -235,7 +235,7 @@ internal sealed partial class PlayerView
 
     private void OnVideoPointerReleased(object sender, PointerRoutedEventArgs e)
     {
-        if (!ImagePointerReleased() && !MaskPointerReleased())
+        if (!TrackPointerReleased() && !ImagePointerReleased() && !MaskPointerReleased())
         {
             EndTitleDrag();
         }
@@ -243,7 +243,7 @@ internal sealed partial class PlayerView
 
     private void OnVideoPointerCaptureLost(object sender, PointerRoutedEventArgs e)
     {
-        if (!ImagePointerReleased() && !MaskPointerReleased())
+        if (!TrackPointerReleased() && !ImagePointerReleased() && !MaskPointerReleased())
         {
             EndTitleDrag();
         }

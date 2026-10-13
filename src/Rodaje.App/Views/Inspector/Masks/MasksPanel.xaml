@@ -220,7 +220,7 @@
                                       ToolTipService.ToolTip="Cada vértice sigue también el movimiento de su zona (deforma la Bézier)" />
                         </StackPanel>
                         <StackPanel x:Name="TrackButtons" Orientation="Horizontal" Spacing="4">
-                            <Button Style="{StaticResource ToolButtonStyle}" Height="30" Padding="8,0" Tag="back" Click="OnTrackClick"
+                            <Button Height="30" Padding="8,0" Tag="back" Click="OnTrackClick"
                                     AutomationProperties.Name="Seguir hacia atrás" ToolTipService.ToolTip="Seguir hacia atrás hasta el inicio del clip">
                                 <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE892;" FontSize="12" /><TextBlock Text="Atrás" /></StackPanel>
                             </Button>

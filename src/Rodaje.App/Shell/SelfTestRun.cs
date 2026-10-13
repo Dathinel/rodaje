@@ -54,6 +54,7 @@ internal static partial class SelfTestRun
             await TitleAsync(window, engine);
             await ImageAsync(window, engine);
             await MasksAsync(window, engine);
+            await TrackingAsync(window, engine);
             await TransformAsync(window, engine);
             await ColorAsync(window, engine);
             await MixerAsync(window);

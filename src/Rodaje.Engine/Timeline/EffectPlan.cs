@@ -21,6 +21,7 @@ internal sealed class EffectPlan
     private readonly Curve[]? _transform;
     private readonly ImageEffect[] _effects;
     private Curve[]? _crop;
+    private Curve[]? _pin;
 
     private EffectPlan(Curve[]? transform, ImageEffect[] effects, BlendMode blend, StabilizationTrack? stabilization)
     {
@@ -38,7 +39,7 @@ internal sealed class EffectPlan
     public int EffectCount => _effects.Length;
 
     /// <summary>Puede dejar ver lo de abajo aunque sea opaca: recorte, máscara que recorta la capa, croma o distorsión.</summary>
-    public bool MayRevealBelow => _crop is not null
+    public bool MayRevealBelow => _crop is not null || _pin is not null
         || Array.Exists(_effects, e => e.CutsLayer || e.Code == ChromaKeyCode || e.Code == DistortionCode);
 
     private static readonly int MaskCode = EffectRegistry.Find(BuiltInEffects.Mask)!.Code;
@@ -58,6 +59,7 @@ internal sealed class EffectPlan
         StabilizationTrack? stabilization = null;
         bool stabilized = false;
         Curve[]? crop = null;
+        Curve[]? pin = null;
         var ids = new List<string>();
         bool flipX = false;
         bool flipY = false;
@@ -85,6 +87,12 @@ internal sealed class EffectPlan
                 continue;
             }
 
+            if (effect.Type == BuiltInEffects.CornerPin)
+            {
+                pin ??= Curves(definition, effect.Parameters);
+                continue;
+            }
+
             switch (definition.Stage)
             {
                 case EffectStage.Transform when transform is null:
@@ -105,11 +113,12 @@ internal sealed class EffectPlan
         }
 
         ResolveTargets(images, ids);
-        return transform is null && images.Count == 0 && blend == BlendMode.Normal && stabilization is null && crop is null
+        return transform is null && images.Count == 0 && blend == BlendMode.Normal && stabilization is null && crop is null && pin is null
             ? null
             : new EffectPlan(transform, [.. images], blend, stabilization)
             {
                 _crop = crop,
+                _pin = pin,
                 _flipX = flipX,
                 _flipY = flipY,
                 _shaped = transform is not null && (flipX || flipY || IsShaped(transform)),
@@ -205,6 +214,13 @@ internal sealed class EffectPlan
         {
             CropRect rect = CropGeometry.Sanitize(new CropRect(crop[0].Evaluate(at), crop[1].Evaluate(at), crop[2].Evaluate(at), crop[3].Evaluate(at)));
             transform = rect.IsNone ? transform : transform with { Crop = rect };
+        }
+
+        if (plan?._pin is { } p)
+        {
+            var pin = new LayerCornerPin(p[0].Evaluate(at), p[1].Evaluate(at), p[2].Evaluate(at), p[3].Evaluate(at), p[4].Evaluate(at),
+                p[5].Evaluate(at), p[6].Evaluate(at), p[7].Evaluate(at));
+            transform = pin.IsNone ? transform : transform with { Pin = pin };
         }
 
         return transform;

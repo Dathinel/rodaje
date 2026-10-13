@@ -7,6 +7,7 @@ Efectos, color, máscaras, croma y recorte. Todo se calcula en la GPU, se ve al 
 - **Propiedades** (panel derecho): la transformación del clip en secciones plegables: «Posición y tamaño» (X, Y, escala, ancho, alto, rotación y voltear), «Ancla e inclinación», «Opacidad y mezcla» (opacidad y modo de mezcla), «Desenfoque de movimiento», «Animaciones», «Gráfica» y «Audio». Ver [Transformar y animar](#transformar-y-animar).
 - **Filtros**: la pila de filtros del clip («Añadir filtro», el ojo para activar o desactivar, subir, bajar, quitar) y, debajo, los parámetros del filtro elegido.
 - **Máscaras**: su pestaña propia (recortar el clip o limitar un efecto a una zona).
+- **Seguimiento**: su pestaña propia; ver [Seguimiento](seguimiento.md).
 - Biblioteca › **Efectos** (transformar, viñeta, desenfoque, nitidez, recortar, croma, estabilizar…) y **Filtros** (Color y LUT, Ruedas de color, Curvas y los looks de los paquetes): doble clic o arrastrar al clip los aplica.
 
 Cada parámetro va en una fila: etiqueta, deslizador, valor con unidad, rombo de keyframe y restablecer. Por debajo de 340 px de ancho el deslizador baja a una segunda línea. **Arrastra la etiqueta** a los lados para cambiar el valor (Mayús: fino; Ctrl: grueso); doble clic en ella lo restablece.
@@ -38,6 +39,7 @@ Cada parámetro va en una fila: etiqueta, deslizador, valor con unidad, rombo de
 | Estabilizar | Quita el temblor | Intensidad; recorte automático o sin recorte. Se analiza desde Estabilizar… |
 | Máscara | Deja ver solo una parte o limita un efecto | Ver [Máscaras](#máscaras) |
 | Pixelar | Bloques del color promedio de su zona | Tamaño del bloque; con una máscara, tapa caras o matrículas |
+| Anclaje de esquinas | Lleva cada esquina a otro lugar con perspectiva (pantallas, carteles) | Cuánto se corre cada esquina en X e Y, en píxeles; se llena solo desde [Seguimiento](seguimiento.md) |
 
 En los títulos solo se aplican desenfoque, nitidez y pixelar.
 

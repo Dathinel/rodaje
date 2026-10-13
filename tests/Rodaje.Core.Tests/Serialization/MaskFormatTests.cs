@@ -30,7 +30,7 @@ public sealed class MaskFormatTests
         Assert.Equal(Project.CurrentSchemaVersion, project.SchemaVersion);
         EffectInstance mask = project.Sequences[0].GetClip("v").Clip.Effects[0];
         Assert.Equal(MaskMode.Intersect, MaskGeometry.Evaluate(mask, F(0)).Mode);
-        Assert.Contains("\"schemaVersion\": 10", ProjectSerializer.Serialize(project), StringComparison.Ordinal);
+        Assert.Contains("\"schemaVersion\": 13", ProjectSerializer.Serialize(project), StringComparison.Ordinal);
     }
 
     [Fact]

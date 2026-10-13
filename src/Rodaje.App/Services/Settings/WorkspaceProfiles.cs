@@ -41,12 +41,12 @@ public static class WorkspaceProfiles
         new()
         {
             Id = "fabrica.color", Name = "Color", LibraryWidth = 230, InspectorWidth = 480, TimelineHeight = 220, InspectorTab = "Filtros",
-            HiddenInspectorTabs = ["Texto", "Velocidad", "Dinámica"],
+            HiddenInspectorTabs = ["Texto", "Velocidad", "Seguimiento", "Dinámica"],
         },
         new()
         {
             Id = "fabrica.audio", Name = "Audio", LibraryWidth = 260, InspectorWidth = 400, TimelineHeight = 440, InspectorTab = "Dinámica",
-            HiddenInspectorTabs = ["Texto", "Velocidad", "Máscaras"],
+            HiddenInspectorTabs = ["Texto", "Velocidad", "Máscaras", "Seguimiento"],
         },
     ];
 

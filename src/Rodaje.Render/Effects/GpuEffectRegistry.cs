@@ -68,6 +68,8 @@ public enum GpuEffectKind
     /// <summary>En <c>PsGraded</c> con <c>ADVANCED</c>, después de las curvas y antes de la LUT.</summary>
     HslQualifier,
 
+    /// <summary>Llega en <c>LayerTransform.Pin</c>: la capa se coloca con perspectiva (w por esquina en <c>VsQuad</c>).</summary>
+    CornerPin,
     /// <summary>Antes que los demás del intermedio: del equirectangular entero a la vista plana de la cámara 360.</summary>
     Reframe360,
 }
@@ -93,6 +95,7 @@ public static class GpuEffectRegistry
         new(10, BuiltInEffects.Mask, EffectStage.PerPixel, GpuEffectKind.Mask),
         new(11, BuiltInEffects.Crop, EffectStage.Transform, GpuEffectKind.Crop),
         new(24, BuiltInEffects.Pixelate, EffectStage.Spatial, GpuEffectKind.Pixelate),
+        new(60, BuiltInEffects.CornerPin, EffectStage.Transform, GpuEffectKind.CornerPin),
         new(12, BuiltInEffects.ChromaKey, EffectStage.PerPixel, GpuEffectKind.ChromaKey),
         new(13, BuiltInEffects.ColorWheels, EffectStage.PerPixel, GpuEffectKind.ColorWheels),
         new(14, BuiltInEffects.Curves, EffectStage.PerPixel, GpuEffectKind.Curves),

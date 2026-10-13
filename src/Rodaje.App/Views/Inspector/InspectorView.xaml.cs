@@ -23,6 +23,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         Speed,
         Filters,
         Masks,
+        Tracking,
         Dynamics,
         History,
         Jobs,
@@ -45,6 +46,8 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         FiltersPanel.Attach(services);
         MasksPanel.Attach(services);
         services.Session.MaskPanelRequested += (_, _) => Show(Tab.Masks);
+        TrackingPanel.Attach(services);
+        services.Session.TrackPanelRequested += (_, _) => Show(Tab.Tracking);
         DynamicsPanel.Attach(services);
         services.Session.DynamicsPanelRequested += (_, _) => Show(Tab.Dynamics);
         HistoryPanel.Attach(services);
@@ -70,6 +73,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
             Tab.Speed => SpeedTab,
             Tab.Filters => FiltersTab,
             Tab.Masks => MasksTab,
+            Tab.Tracking => TrackingTab,
             Tab.Dynamics => DynamicsTab,
             Tab.History => HistoryTab,
             Tab.Jobs => JobsTab,
@@ -86,7 +90,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     }
 
     private (RadioButton Tab, TextBlock Label)[] Tabs =>
-        [(PropertiesTab, PropertiesLabel), (TextTab, TextLabel), (SpeedTab, SpeedLabel), (FiltersTab, FiltersLabel), (MasksTab, MasksLabel), (DynamicsTab, DynamicsLabel), (HistoryTab, HistoryLabel), (JobsTab, JobsLabel)];
+        [(PropertiesTab, PropertiesLabel), (TextTab, TextLabel), (SpeedTab, SpeedLabel), (FiltersTab, FiltersLabel), (MasksTab, MasksLabel), (TrackingTab, TrackingLabel), (DynamicsTab, DynamicsLabel), (HistoryTab, HistoryLabel), (JobsTab, JobsLabel)];
 
     // Se mide con todos los nombres; si no caben, las pestañas pasan a ícono y solo la elegida conserva su nombre.
     private void UpdateTabLabels()
@@ -116,7 +120,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     // Con una transición seleccionada, Propiedades muestra la transición.
     private void UpdateVisibility()
     {
-        if (PropertiesPanel is null || TransitionPanel is null || TextPanel is null || SpeedPanel is null || FiltersPanel is null || MasksPanel is null || DynamicsPanel is null || HistoryPanel is null || JobsPanel is null)
+        if (PropertiesPanel is null || TransitionPanel is null || TextPanel is null || SpeedPanel is null || FiltersPanel is null || MasksPanel is null || TrackingPanel is null || DynamicsPanel is null || HistoryPanel is null || JobsPanel is null)
         {
             return;
         }
@@ -128,6 +132,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         SpeedPanel.Visibility = Visible(SpeedTab.IsChecked == true);
         FiltersPanel.Visibility = Visible(FiltersTab.IsChecked == true);
         MasksPanel.Visibility = Visible(MasksTab.IsChecked == true);
+        TrackingPanel.Visibility = Visible(TrackingTab.IsChecked == true);
         DynamicsPanel.Visibility = Visible(DynamicsTab.IsChecked == true);
         HistoryPanel.Visibility = Visible(HistoryTab.IsChecked == true);
         JobsPanel.Visibility = Visible(JobsTab.IsChecked == true);

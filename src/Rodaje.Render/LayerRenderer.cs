@@ -632,7 +632,11 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         float marginY = 1f / screenY;
         float w = placement.LocalWidth;
         float h = placement.LocalHeight;
-        var constants = new QuadConstants { Shape = new(opacity, screenX, w, h), Present = new(0, uniform ? 0 : screenY, 0, 0) };
+        var constants = new QuadConstants
+        {
+            Shape = new(opacity, screenX, w, h),
+            Present = new(0, uniform ? 0 : screenY, placement.Projective is null ? 0 : 1, 0),
+        };
         constants.TopLeft = Corner(placement, uv, -marginX, -marginY, sequenceWidth, sequenceHeight, out constants.LocalTopLeft);
         constants.TopRight = Corner(placement, uv, w + marginX, -marginY, sequenceWidth, sequenceHeight, out constants.LocalTopRight);
         constants.BottomLeft = Corner(placement, uv, -marginX, h + marginY, sequenceWidth, sequenceHeight, out constants.LocalBottomLeft);
@@ -643,9 +647,10 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     private static Float4 Corner(in LayerPlacement placement, in QuadTexCoords uv, float x, float y, float sequenceWidth, float sequenceHeight,
         out Float4 local)
     {
-        Vector2 ndc = LayerLayout.ToNdc(placement.Map(x, y), sequenceWidth, sequenceHeight);
+        // Con perspectiva, w va a la cuarta coordenada del vértice y la GPU interpola uv y local corregidos (VsQuad).
+        Vector2 ndc = LayerLayout.ToNdc(placement.Map(x, y, out float w), sequenceWidth, sequenceHeight);
         TexCoord t = LayerLayout.TexCoordAt(uv, x, y, placement.LocalWidth, placement.LocalHeight);
-        local = new Float4(x, y, 0, 0);
+        local = new Float4(x, y, placement.Projective is null ? 0 : Math.Max(w, 1e-6f), 0);
         return new Float4(ndc.X, ndc.Y, t.U, t.V);
     }
 }

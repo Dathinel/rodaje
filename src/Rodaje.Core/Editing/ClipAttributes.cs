@@ -178,7 +178,7 @@ public static class ClipAttributeEdits
     {
         BuiltInEffects.Transform or BuiltInEffects.Blend => ClipAttributeKinds.Transform,
         BuiltInEffects.Audio => ClipAttributeKinds.Volume,
-        BuiltInEffects.Speed => ClipAttributeKinds.None,
+        BuiltInEffects.Speed or BuiltInEffects.Track => ClipAttributeKinds.None,
         _ => ClipAttributeKinds.Effects,
     };
 

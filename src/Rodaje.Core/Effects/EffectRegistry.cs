@@ -57,6 +57,11 @@ public static class EffectRegistry
     /// <summary>Modos de <see cref="BuiltInEffects.Mirror"/>: qué mitad se refleja, las cuatro, o un mosaico.</summary>
     public static ImmutableArray<string> MirrorModes { get; } = ["left", "right", "top", "bottom", "quad", "tiles"];
 
+    /// <summary>Qué sigue un <see cref="BuiltInEffects.Track"/>: un punto, dos (escala y giro), cuatro esquinas (perspectiva) o una región.</summary>
+    public static ImmutableArray<string> TrackKinds { get; } = ["point", "two", "corners", "region"];
+
+    /// <summary>Lo más que se corre una esquina de <see cref="BuiltInEffects.CornerPin"/>, en píxeles de la secuencia.</summary>
+    public const double MaxCornerOffset = 100_000;
     /// <summary>Proyecciones de <see cref="BuiltInEffects.Reframe360"/>: una cámara normal o el pequeño planeta.</summary>
     public static ImmutableArray<string> Reframe360Projections { get; } = ["rectilinear", "stereographic"];
 
@@ -190,6 +195,19 @@ public static class EffectRegistry
             new(BuiltInEffects.PixelateParameters.Size, 24, 2, 256),
         ],
         [Region]),
+        new(BuiltInEffects.CornerPin, 60, EffectTarget.Video, EffectStage.Transform,
+            [.. BuiltInEffects.CornerPinParameters.All.Select(name => new ParameterDefinition(name, 0, -MaxCornerOffset, MaxCornerOffset))]),
+        new(BuiltInEffects.Track, 61, EffectTarget.Video, EffectStage.Deferred,
+        [
+            new(BuiltInEffects.TrackParameters.Threshold, 0.7, 0.05, 0.99, Animatable: false),
+        ],
+        [
+            OptionDefinition.Choice(BuiltInEffects.TrackOptions.Kind, "point", [.. TrackKinds]),
+            OptionDefinition.Text(BuiltInEffects.TrackOptions.Name),
+            OptionDefinition.Text(BuiltInEffects.TrackOptions.Points),
+            OptionDefinition.Text(BuiltInEffects.TrackOptions.Samples, PointTrack.MaxTextLength),
+            OptionDefinition.Text(BuiltInEffects.TrackOptions.Color),
+        ]),
         new(BuiltInEffects.ChromaKey, 12, EffectTarget.Video, EffectStage.PerPixel,
         [
             new(CK.Red, 0, 0, 1, Animatable: false),

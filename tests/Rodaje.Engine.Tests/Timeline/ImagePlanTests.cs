@@ -27,6 +27,25 @@ public sealed class ImagePlanTests
     }
 
     [Fact]
+    public void Corner_pin_travels_in_the_transform_and_a_track_is_not_drawn()
+    {
+        var pin = new EffectInstance { Id = "p", Type = BuiltInEffects.CornerPin };
+        pin.Parameters[BuiltInEffects.CornerPinParameters.TopLeftX] = new Parameter { Keyframes = [new(Time.Zero, 0), new(Time.FromSeconds(2), 40)] };
+        pin.Parameters[BuiltInEffects.CornerPinParameters.BottomRightY] = new Parameter { Value = -12 };
+        var track = new EffectInstance { Id = "t", Type = BuiltInEffects.Track };
+        EffectPlan plan = EffectPlan.From([track, pin])!;
+
+        LayerTransform t = EffectPlan.Transform(plan, Time.FromSeconds(1));
+
+        Assert.Equal(20, t.Pin!.Value.TopLeftX, 9);
+        Assert.Equal(-12, t.Pin!.Value.BottomRightY, 9);
+        Assert.Equal(1, t.Scale);
+        Assert.True(plan.MayRevealBelow);
+        Assert.Equal(0, plan.EffectCount);
+        Assert.Null(EffectPlan.From([track]));
+    }
+
+    [Fact]
     public void Curves_travel_as_a_resource_key_without_asking_for_a_lut()
     {
         var curves = new EffectInstance { Id = "k", Type = BuiltInEffects.Curves };

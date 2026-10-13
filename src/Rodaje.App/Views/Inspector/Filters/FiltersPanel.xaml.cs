@@ -371,7 +371,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     }
 
     /// <summary>Las máscaras tienen su pestaña: aquí no se listan.</summary>
-    private static bool Shows(EffectInstance effect) => effect.Type != BuiltInEffects.Mask;
+    private static bool Shows(EffectInstance effect) => effect.Type is not (BuiltInEffects.Mask or BuiltInEffects.Track);
 
     private void BuildRows(string type, ParameterSpec.Context context)
     {

@@ -11,6 +11,40 @@ namespace Rodaje.Render;
 /// <param name="Scale">Píxeles de la secuencia por píxel local: la escala de la transformación.</param>
 public readonly record struct LayerPlacement(Matrix3x2 LocalToSequence, float LocalWidth, float LocalHeight, float Scale)
 {
+    /// <summary>Anclaje de esquinas: homografía local → local que va antes de <see cref="LocalToSequence"/>; nula sin perspectiva.</summary>
+    public Homography? Projective { get; init; }
+
+    /// <summary>Un punto local en la secuencia y el denominador <paramref name="w"/> de la perspectiva (1 sin ella).</summary>
+    public Vector2 Map(float x, float y, out float w)
+    {
+        if (Projective is { } h)
+        {
+            Vector2 warped = h.Apply(new Vector2(x, y), out double denominator);
+            w = (float)denominator;
+            return Vector2.Transform(warped, LocalToSequence);
+        }
+
+        w = 1;
+        return Vector2.Transform(new Vector2(x, y), LocalToSequence);
+    }
+
+    /// <summary>Un punto de la secuencia en el espacio local (deshace la perspectiva si la hay); nulo si no se puede.</summary>
+    public Vector2? Unmap(Vector2 sequence)
+    {
+        if (!Matrix3x2.Invert(LocalToSequence, out Matrix3x2 inverse))
+        {
+            return null;
+        }
+
+        Vector2 local = Vector2.Transform(sequence, inverse);
+        if (Projective is not { } h)
+        {
+            return local;
+        }
+
+        return h.Inverse() is { } back ? back.Apply(local) : null;
+    }
+
     public Vector2 TopLeft => Map(0, 0);
 
     public Vector2 TopRight => Map(LocalWidth, 0);
@@ -21,7 +55,7 @@ public readonly record struct LayerPlacement(Matrix3x2 LocalToSequence, float Lo
 
     public Vector2 Center => Map(LocalWidth / 2, LocalHeight / 2);
 
-    public Vector2 Map(float x, float y) => Vector2.Transform(new Vector2(x, y), LocalToSequence);
+    public Vector2 Map(float x, float y) => Map(x, y, out _);
 
     /// <summary>Píxeles de la secuencia por píxel local a lo largo de cada eje local (con escala por eje e inclinación).</summary>
     public float AxisScaleX => new Vector2(LocalToSequence.M11, LocalToSequence.M12).Length();
@@ -66,8 +100,8 @@ public static class LayerLayout
 
         (displayWidth, displayHeight) = CroppedSize(displayWidth, displayHeight, transform.Crop);
         PixelRect fit = VideoLayout.Fit(sequenceWidth, sequenceHeight, displayWidth, displayHeight);
-        return fit.IsEmpty ? null : Transformed(fit.X + (fit.Width / 2.0), fit.Y + (fit.Height / 2.0), fit.Width, fit.Height,
-            Stabilize(transform, fit.Height));
+        return fit.IsEmpty ? null : Pinned(Transformed(fit.X + (fit.Width / 2.0), fit.Y + (fit.Height / 2.0), fit.Width, fit.Height,
+            Stabilize(transform, fit.Height)), transform.Pin);
     }
 
     /// <summary>Lo que queda de una imagen de <paramref name="width"/>×<paramref name="height"/> tras el recorte, al menos 1×1.</summary>
@@ -116,8 +150,12 @@ public static class LayerLayout
             return null;
         }
 
-        return Transformed(sequenceWidth / 2.0, sequenceHeight / 2.0, width, height, transform);
+        return Pinned(Transformed(sequenceWidth / 2.0, sequenceHeight / 2.0, width, height, transform), transform.Pin);
     }
+
+    /// <summary>Con anclaje de esquinas, la homografía del rectángulo local a sus esquinas corridas; un cuadrilátero imposible lo ignora.</summary>
+    private static LayerPlacement? Pinned(LayerPlacement? placement, LayerCornerPin? pin) =>
+        placement is { } p && pin?.Warp(p.LocalWidth, p.LocalHeight) is { } warp ? p with { Projective = warp } : placement;
 
     private static LayerPlacement? Transformed(double rectCenterX, double rectCenterY, double width, double height, LayerTransform transform)
     {

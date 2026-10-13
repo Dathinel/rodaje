@@ -26,6 +26,9 @@ public sealed class ProjectMigrator
         [7] = AllowMaskModes,
         [8] = AllowProTitles,
         [9] = OrderAudioInserts,
+        [10] = ReservedEleven,
+        [11] = ReservedTwelve,
+        [12] = AllowTracking,
     };
 
     private readonly IReadOnlyDictionary<int, Action<JsonObject>> _chain;
@@ -247,6 +250,18 @@ public sealed class ProjectMigrator
 
     private static bool IsEnabled(JsonObject effect) =>
         effect["enabled"] is not JsonValue value || value.GetValueKind() != JsonValueKind.False;
+
+    // Los formatos 11 y 12 están reservados (línea de tiempo y biblioteca, transiciones): hasta que lleguen sus migraciones
+    // de verdad, solo cambian el número, así la cadena llega al 13.
+    internal static void ReservedEleven(JsonObject root) => root[VersionProperty] = 11;
+
+    internal static void ReservedTwelve(JsonObject root) => root[VersionProperty] = 12;
+
+    /// <summary>
+    /// 12 → 13: solo el número. Un archivo anterior no tiene seguimientos (<c>rodaje.track</c>) ni anclajes de esquinas
+    /// (<c>rodaje.cornerpin</c>); un Rodaje anterior rechaza el 13 en vez de dibujar la capa sin su perspectiva.
+    /// </summary>
+    internal static void AllowTracking(JsonObject root) => root[VersionProperty] = 13;
 
     private static void RemoveSpeed(JsonNode? effects)
     {

@@ -4,12 +4,13 @@ using Rodaje.App.Shell;
 
 namespace Rodaje.App.Views.Vision;
 
-/// <summary>«Quitar fondo», «Reencuadre automático» y la pestaña de máscaras: barra de herramientas y menú del clip. Sin atajo por omisión.</summary>
+/// <summary>«Quitar fondo», «Reencuadre automático» y las pestañas de máscaras y seguimiento: barra de herramientas y menú del clip. Sin atajo por omisión.</summary>
 internal static partial class VisionCommands
 {
     public const string RemoveBackground = "vision.removeBackground";
     public const string Reframe = "vision.reframe";
     public const string Masks = "vision.masks";
+    public const string Tracking = "vision.tracking";
 
     public static IReadOnlyList<(string Id, string Label, string Glyph)> Menu { get; } =
     [
@@ -27,6 +28,7 @@ internal static partial class VisionCommands
             router.Bind(RemoveBackground, () => Run(services.Session, VisionDialogs.RemoveBackgroundTitle, () => VisionDialogs.RemoveBackgroundAsync(services))),
             router.Bind(Reframe, () => Run(services.Session, VisionDialogs.ReframeTitle, () => VisionDialogs.ReframeAsync(services))),
             router.Bind(Masks, services.Session.ShowMaskPanel),
+            router.Bind(Tracking, services.Session.ShowTrackPanel),
         ];
         return new Bindings(bindings);
     }

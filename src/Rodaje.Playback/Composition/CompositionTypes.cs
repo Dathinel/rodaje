@@ -17,6 +17,48 @@ public readonly record struct LayerTransform(double X, double Y, double Scale, d
 
     /// <summary>Anclaje, escala por eje, inclinación y volteo; nulo si todos están en su valor de fábrica.</summary>
     public LayerShape? Shape { get; init; }
+
+    /// <summary>Anclaje de esquinas (<c>rodaje.cornerpin</c>), que va antes de todo lo demás; nulo sin él.</summary>
+    public LayerCornerPin? Pin { get; init; }
+}
+
+/// <summary>
+/// Cuánto se corre cada esquina de la imagen ajustada al cuadro, en píxeles locales (los de la secuencia a escala 1):
+/// arriba izquierda, arriba derecha, abajo derecha y abajo izquierda. La imagen va al cuadrilátero que queda con
+/// perspectiva (<see cref="Homography.FromQuads"/>) y después se aplica la transformación.
+/// </summary>
+public readonly record struct LayerCornerPin(double TopLeftX, double TopLeftY, double TopRightX, double TopRightY, double BottomRightX,
+    double BottomRightY, double BottomLeftX, double BottomLeftY)
+{
+    public bool IsNone => this == default;
+
+    /// <summary>
+    /// La homografía local → local del rectángulo de <paramref name="width"/>×<paramref name="height"/> a sus esquinas
+    /// corridas; nula si no hay anclaje o el cuadrilátero queda cruzado, aplastado o con valores no finitos.
+    /// </summary>
+    public Homography? Warp(double width, double height)
+    {
+        if (IsNone)
+        {
+            return null;
+        }
+
+        System.Numerics.Vector2[] from = [new(0, 0), new((float)width, 0), new((float)width, (float)height), new(0, (float)height)];
+        System.Numerics.Vector2[] to =
+        [
+            new((float)TopLeftX, (float)TopLeftY), new((float)(width + TopRightX), (float)TopRightY),
+            new((float)(width + BottomRightX), (float)(height + BottomRightY)), new((float)BottomLeftX, (float)(height + BottomLeftY)),
+        ];
+        foreach (System.Numerics.Vector2 p in to)
+        {
+            if (!float.IsFinite(p.X) || !float.IsFinite(p.Y))
+            {
+                return null;
+            }
+        }
+
+        return Homography.IsConvex(to) ? Homography.FromQuads(from, to) : null;
+    }
 }
 
 /// <summary>

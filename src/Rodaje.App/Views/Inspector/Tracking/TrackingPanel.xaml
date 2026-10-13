@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Pestaña Seguimiento: los seguimientos guardados en el clip, seguir hacia adelante o atrás (de a un cuadro o hasta el
+    borde, en vivo, con Parar), la confianza de cada cuadro en una gráfica, refinar (rellenar dudosos y suavizar) y
+    «Aplicar a…» otro clip, un anclaje de esquinas, una máscara, una zona o la estabilización del propio clip.
+-->
+<UserControl
+    x:Class="Rodaje.App.Views.Inspector.Tracking.TrackingPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:inspector="using:Rodaje.App.Views.Inspector"
+    xmlns:local="using:Rodaje.App.Views.Inspector.Tracking">
+
+    <Grid Background="{StaticResource PanelBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="EmptyText" Grid.RowSpan="2" Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center" Margin="24,0"
+                   TextWrapping="Wrap" Text="Selecciona un clip de video y lleva el cursor sobre él para seguir un punto, dos, cuatro esquinas o una región." />
+
+        <Grid x:Name="Header" Height="36" Padding="12,0,6,0" Visibility="Collapsed" ColumnSpacing="6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="ClipTitle" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <DropDownButton Grid.Column="1" Height="30" Padding="8,0" AutomationProperties.Name="Nuevo seguimiento"
+                            ToolTipService.ToolTip="Un seguimiento nuevo con sus puntos en el centro del visor, para llevarlos sobre lo que se quiere seguir">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE710;" FontSize="12" />
+                    <TextBlock Text="Nuevo" />
+                </StackPanel>
+                <DropDownButton.Flyout>
+                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                        <MenuFlyoutItem Text="Un punto (posición)" Tag="point" Click="OnNewClick" />
+                        <MenuFlyoutItem Text="Dos puntos (posición, escala y giro)" Tag="two" Click="OnNewClick" />
+                        <MenuFlyoutItem Text="Cuatro esquinas (perspectiva)" Tag="corners" Click="OnNewClick" />
+                        <MenuFlyoutItem Text="Región (una caja que se mueve entera)" Tag="region" Click="OnNewClick" />
+                    </MenuFlyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
+        </Grid>
+
+        <ScrollViewer x:Name="Details" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <inspector:InspectorSection x:Name="ListSection" Key="seguimiento-lista" Title="Seguimientos del clip">
+                    <StackPanel>
+                        <ListView x:Name="List" ItemsSource="{x:Bind Items}" SelectionMode="Single" MaxHeight="200" SelectionChanged="OnListSelectionChanged">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="Padding" Value="8,0,4,0" />
+                                    <Setter Property="MinHeight" Value="38" />
+                                    <Setter Property="CornerRadius" Value="0" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="local:TrackItem">
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="12" Height="12" CornerRadius="6" Background="{x:Bind Swatch}" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{x:Bind Note}" Style="{StaticResource CaptionTextStyle}" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Width="26" Height="26" FontSize="12" Content="&#xE712;"
+                                                Tag="{x:Bind EffectId}" Click="OnItemMenuClick" AutomationProperties.Name="Más acciones"
+                                                ToolTipService.ToolTip="Renombrar, borrar lo seguido o quitar" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                        <TextBlock x:Name="NoTracksText" Style="{StaticResource CaptionTextStyle}" Margin="12,4,8,8" TextWrapping="Wrap"
+                                   Text="Sin seguimientos. «Nuevo» pone los puntos en el centro: llévalos en el visor sobre algo con textura (una esquina, un logo) y pulsa «Adelante»." />
+                    </StackPanel>
+                </inspector:InspectorSection>
+
+                <StackPanel x:Name="Selected">
+                    <inspector:InspectorSection x:Name="RunSection" Key="seguimiento-seguir" Title="Seguir">
+                        <StackPanel Padding="12,3,8,6" Spacing="6">
+                            <StackPanel x:Name="RunButtons" Orientation="Horizontal" Spacing="4">
+                                <Button Height="30" Padding="8,0" Tag="back" Click="OnRunClick"
+                                        AutomationProperties.Name="Seguir hacia atrás" ToolTipService.ToolTip="Seguir hacia atrás hasta el inicio del clip">
+                                    <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE892;" FontSize="12" /><TextBlock Text="Atrás" /></StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource ToolButtonStyle}" Width="32" Height="30" Tag="back1" Click="OnRunClick" Content="&#xE76B;" FontSize="12"
+                                        AutomationProperties.Name="Seguir un cuadro hacia atrás" ToolTipService.ToolTip="Seguir un cuadro hacia atrás" />
+                                <Button Style="{StaticResource ToolButtonStyle}" Width="32" Height="30" Tag="forward1" Click="OnRunClick" Content="&#xE76C;" FontSize="12"
+                                        AutomationProperties.Name="Seguir un cuadro hacia adelante" ToolTipService.ToolTip="Seguir un cuadro hacia adelante" />
+                                <Button Style="{StaticResource AccentButtonStyle}" Height="30" Padding="10,0" Tag="forward" Click="OnRunClick"
+                                        AutomationProperties.Name="Seguir hacia adelante" ToolTipService.ToolTip="Seguir hacia adelante hasta el final del clip">
+                                    <StackPanel Orientation="Horizontal" Spacing="6"><TextBlock Text="Adelante" /><FontIcon Glyph="&#xE893;" FontSize="12" /></StackPanel>
+                                </Button>
+                            </StackPanel>
+                            <Grid x:Name="ProgressRow" ColumnSpacing="8" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ProgressBar x:Name="Progress" Minimum="0" Maximum="1" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Height="28" Click="OnStopClick" AutomationProperties.Name="Parar"
+                                        ToolTipService.ToolTip="Parar: lo seguido hasta aquí queda">
+                                    <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE71A;" FontSize="12" /><TextBlock Text="Parar" /></StackPanel>
+                                </Button>
+                            </Grid>
+                            <TextBlock x:Name="RunText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
+                                       Text="Sigue desde el cuadro del cursor. Para corregir un cuadro, arrastra el punto en el visor y vuelve a seguir desde ahí." />
+                        </StackPanel>
+                    </inspector:InspectorSection>
+
+                    <inspector:InspectorSection x:Name="ConfidenceSection" Key="seguimiento-confianza" Title="Confianza por cuadro">
+                        <StackPanel Padding="12,3,8,6" Spacing="6">
+                            <Border BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" Background="{StaticResource BarBrush}" Height="64">
+                                <Canvas x:Name="Graph" Background="Transparent" PointerPressed="OnGraphPressed" SizeChanged="OnGraphSizeChanged"
+                                        AutomationProperties.Name="Confianza de cada cuadro seguido; clic para ir a ese cuadro" />
+                            </Border>
+                            <TextBlock x:Name="GraphText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Umbral" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center"
+                                           ToolTipService.ToolTip="Por debajo de esta confianza el cuadro es dudoso (naranja); muy por debajo, perdido (rojo)" />
+                                <Slider x:Name="ThresholdSlider" Grid.Column="1" Minimum="0.3" Maximum="0.95" StepFrequency="0.01" VerticalAlignment="Center"
+                                        ValueChanged="OnThresholdChanged" AutomationProperties.Name="Umbral de confianza" />
+                                <TextBlock x:Name="ThresholdText" Grid.Column="2" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" MinWidth="34" />
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <Button x:Name="PreviousDoubtButton" Height="28" Padding="8,0" Tag="-1" Click="OnDoubtClick"
+                                        Content="Dudoso anterior" ToolTipService.ToolTip="Ir al cuadro dudoso o perdido anterior" />
+                                <Button x:Name="NextDoubtButton" Height="28" Padding="8,0" Tag="1" Click="OnDoubtClick"
+                                        Content="Dudoso siguiente" ToolTipService.ToolTip="Ir al cuadro dudoso o perdido siguiente" />
+                            </StackPanel>
+                        </StackPanel>
+                    </inspector:InspectorSection>
+
+                    <inspector:InspectorSection x:Name="RefineSection" Key="seguimiento-refinar" Title="Refinar" CollapsedByDefault="True">
+                        <StackPanel Padding="12,3,8,6" Spacing="6">
+                            <Button Height="30" Click="OnFillClick" ToolTipService.ToolTip="Los cuadros dudosos y perdidos toman la recta entre los buenos de los lados">
+                                <TextBlock Text="Rellenar los dudosos" />
+                            </Button>
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Button Height="30" Click="OnSmoothClick" ToolTipService.ToolTip="Quita el temblor de la trayectoria sin achatar el movimiento parejo; los cuadros corregidos a mano no se mueven">
+                                    <TextBlock Text="Suavizar" />
+                                </Button>
+                                <Slider x:Name="SmoothSlider" Grid.Column="1" Minimum="1" Maximum="15" StepFrequency="1" Value="3" VerticalAlignment="Center"
+                                        ValueChanged="OnSmoothValueChanged" AutomationProperties.Name="Cuadros a cada lado" />
+                                <TextBlock x:Name="SmoothText" Grid.Column="2" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" Text="±3" MinWidth="28" />
+                            </Grid>
+                            <Button Height="30" Click="OnClearFromHereClick" ToolTipService.ToolTip="Borra los cuadros seguidos después del cursor, para volver a seguir desde aquí">
+                                <TextBlock Text="Borrar lo seguido después del cursor" />
+                            </Button>
+                        </StackPanel>
+                    </inspector:InspectorSection>
+
+                    <inspector:InspectorSection x:Name="ApplySection" Key="seguimiento-aplicar" Title="Aplicar a…">
+                        <StackPanel Padding="12,3,8,6" Spacing="6">
+                            <ComboBox x:Name="UseBox" HorizontalAlignment="Stretch" SelectionChanged="OnUseSelected" AutomationProperties.Name="Qué hacer con el seguimiento" />
+                            <ComboBox x:Name="TargetBox" HorizontalAlignment="Stretch" AutomationProperties.Name="A qué" />
+                            <CheckBox x:Name="AutoCropBox" Content="Recorte automático" IsChecked="True" MinWidth="0"
+                                      ToolTipService.ToolTip="Acerca lo justo para que no se vean los bordes al mover la imagen" />
+                            <Button Style="{StaticResource AccentButtonStyle}" Height="30" Click="OnApplyClick" HorizontalAlignment="Left"
+                                    ToolTipService.ToolTip="Escribe keyframes normales (editables) en un paso del historial; el cuadro del cursor queda como está">
+                                <TextBlock Text="Aplicar" />
+                            </Button>
+                            <TextBlock x:Name="ApplyText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+                        </StackPanel>
+                    </inspector:InspectorSection>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
