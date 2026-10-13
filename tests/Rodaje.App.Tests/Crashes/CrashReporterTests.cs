@@ -119,7 +119,7 @@ public class CrashReporterTests
         Assert.Contains("0xC000027B", text, StringComparison.Ordinal);
         Assert.Contains("stowed", text, StringComparison.Ordinal);
         string dump = Assert.Single(Directory.GetFiles(dir.Path, "*.dmp"));
-        Assert.Contains("Minivolcado: " + dump, text, StringComparison.Ordinal);
+        Assert.Contains("Minivolcado: " + CrashReportScrubber.Default.Scrub(dump), text, StringComparison.Ordinal);
         AssertMinidump(dump);
     }
 

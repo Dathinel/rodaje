@@ -36,7 +36,8 @@ public enum CrashKind
 /// <summary>
 /// Escribe los informes de fallo en <c>%LOCALAPPDATA%\Rodaje\fallos\</c>: la vía, la pila, la versión (<c>1.0.0+commit</c>),
 /// la GPU y las últimas líneas del <see cref="SessionLog"/>. Sin WinUI, para poder probar cada vía. Los fatales se llaman
-/// <c>&lt;fecha&gt;.txt</c> y los que la app sobrevivió <c>&lt;fecha&gt;-recuperado.txt</c>; al siguiente arranque se
+/// <c>&lt;fecha&gt;.txt</c> y los que la app sobrevivió <c>&lt;fecha&gt;-recuperado.txt</c> (uno por firma cada
+/// <see cref="BurstWindow"/>); al siguiente arranque se
 /// avisa de los fatales nuevos (<see cref="PendingReports"/>). Nunca lanza: si no puede escribir, devuelve <c>null</c>.
 /// </summary>
 public sealed class CrashReporter
@@ -47,10 +48,19 @@ public sealed class CrashReporter
     /// <summary>Código de excepción de un error «stowed» de WinRT (STATUS_STOWED_EXCEPTION).</summary>
     public const uint StowedExceptionCode = 0xC000027B;
 
-    /// <summary>Informes de texto y minivolcados que se conservan; los más viejos se borran.</summary>
+    /// <summary>Informes de texto que se conservan de cada clase (fatales y recuperados); los más viejos se borran.</summary>
     public const int KeepReports = 30;
 
     public const int KeepDumps = 3;
+
+    /// <summary>
+    /// Un error recuperado que se repite (la misma firma: tipo y primera línea de la pila) deja un solo informe en este
+    /// intervalo; las repeticiones se cuentan y se anotan en ese informe («repetido N veces»).
+    /// </summary>
+    public static readonly TimeSpan BurstWindow = TimeSpan.FromSeconds(10);
+
+    // Firmas recordadas como mucho; pasado el tope se olvidan las que ya salieron del intervalo.
+    private const int MaxBursts = 64;
 
     private const string RecoveredSuffix = "-recuperado";
     private const string SessionsFolder = "sesiones";
@@ -61,6 +71,7 @@ public sealed class CrashReporter
     private readonly Func<DateTime> _clock;
     private readonly Lock _gate = new();
     private readonly ConditionalWeakTable<Exception, Reported> _reported = [];
+    private readonly Dictionary<string, Burst> _bursts = new(StringComparer.Ordinal);
     private string? _gpuCache;
     private string? _fatalReport;
 
@@ -118,17 +129,25 @@ public sealed class CrashReporter
     }
 
     /// <summary>Informa una excepción. La misma excepción por dos vías deja un solo informe (salvo que la segunda sea fatal).</summary>
-    public string? Write(CrashKind kind, Exception exception, bool fatal)
+    public string? Write(CrashKind kind, Exception exception, bool fatal) => Write(kind, exception, fatal, out _);
+
+    /// <summary>
+    /// Como <see cref="Write(CrashKind, Exception, bool)"/>; <paramref name="repeated"/> dice que no se escribió nada
+    /// nuevo (la misma excepción ya informada, o un recuperado con la misma firma dentro de <see cref="BurstWindow"/>):
+    /// quien llama no vuelve a avisar.
+    /// </summary>
+    public string? Write(CrashKind kind, Exception exception, bool fatal, out bool repeated)
     {
         ArgumentNullException.ThrowIfNull(exception);
         lock (_gate)
         {
             if (_reported.TryGetValue(exception, out Reported? before) && (before.Fatal || !fatal))
             {
+                repeated = true;
                 return before.Path;
             }
 
-            string? path = Write(kind, exception.ToString(), fatal);
+            string? path = WriteCore(kind, exception.ToString(), fatal, null, out repeated);
             _reported.AddOrUpdate(exception, new Reported(path, fatal));
             return path;
         }
@@ -139,29 +158,35 @@ public sealed class CrashReporter
     {
         lock (_gate)
         {
-            DateTime now = _clock();
-            string? path = NewPath(now, fatal ? ".txt" : RecoveredSuffix + ".txt");
-            if (path is null)
-            {
-                return null;
-            }
-
-            var report = new CrashReport(kind, now, fatal, Version, DescribeGpu(probe: kind != CrashKind.NativeFatal), details ?? "(sin detalles)",
-                dumpPath, _log.Tail());
-            if (!TryWrite(path, report.Format()))
-            {
-                return null;
-            }
-
-            if (fatal)
-            {
-                _fatalReport = path;
-                _log.CloseMirror(delete: true);
-            }
-
-            Prune();
-            return path;
+            return WriteCore(kind, details, fatal, dumpPath, out _);
         }
+    }
+
+    /// <summary>Como <see cref="Write(CrashKind, string, bool, string)"/>, y dice si era una repetición sin informe propio.</summary>
+    public string? Write(CrashKind kind, string? details, bool fatal, out bool repeated)
+    {
+        lock (_gate)
+        {
+            return WriteCore(kind, details, fatal, null, out repeated);
+        }
+    }
+
+    /// <summary>
+    /// Firma de un error para agrupar las repeticiones: el tipo (lo que va antes de «: » en la primera línea) y la primera
+    /// línea de la pila («at …»). Sin pila, la primera línea entera.
+    /// </summary>
+    public static string Signature(string? details)
+    {
+        string[] lines = (details ?? string.Empty).ReplaceLineEndings("\n").Split('\n');
+        string first = lines[0].Trim();
+        string? frame = lines.Skip(1).Select(l => l.Trim()).FirstOrDefault(l => l.StartsWith("at ", StringComparison.Ordinal));
+        if (frame is null)
+        {
+            return first;
+        }
+
+        int colon = first.IndexOf(": ", StringComparison.Ordinal);
+        return (colon > 0 ? first[..colon] : first) + "\n" + frame;
     }
 
     /// <summary>
@@ -179,25 +204,25 @@ public sealed class CrashReporter
 
         try
         {
-            DateTime now = _clock();
-            string? existing = _fatalReport;
-            string? dump = existing is not null ? Path.ChangeExtension(existing, ".dmp") : NewPath(now, ".dmp");
-            if (dump is not null && !MinidumpWriter(dump, (nint)exceptionPointers))
+            // Primero el informe de texto, que es rápido y casi nunca falla; después el minivolcado, que puede trabarse
+            // (lo corta el vigilante de NativeCrashHandler) y entonces el texto ya está en disco.
+            string? report = _fatalReport ?? WriteCore(CrashKind.NativeFatal, DescribeNativeCode(exceptionCode), fatal: true, null, out _);
+            string? dump = report is not null ? Path.ChangeExtension(report, ".dmp") : NewPath(_clock(), ".dmp");
+            if (dump is not null && MinidumpWriter(dump, (nint)exceptionPointers))
+            {
+                if (report is not null)
+                {
+                    TryAppend(report, $"{Environment.NewLine}Minivolcado: {CrashReportScrubber.Default.Scrub(dump)}{Environment.NewLine}");
+                }
+
+                Prune();
+            }
+            else
             {
                 dump = null;
             }
 
-            if (existing is not null)
-            {
-                if (dump is not null)
-                {
-                    TryAppend(existing, $"{Environment.NewLine}Minivolcado: {dump}{Environment.NewLine}");
-                }
-
-                return existing;
-            }
-
-            return Write(CrashKind.NativeFatal, DescribeNativeCode(exceptionCode), fatal: true, dump);
+            return report ?? dump;
         }
         finally
         {
@@ -237,8 +262,38 @@ public sealed class CrashReporter
         StartSession(process.Id, process.StartTime.ToUniversalTime().Ticks);
     }
 
-    /// <summary>Cierre limpio: borra la copia del registro.</summary>
-    public void EndSession() => _log.CloseMirror(delete: true);
+    /// <summary>
+    /// Empieza la sesión: convierte en informe las anteriores que terminaron sin cerrarse y abre la copia en disco de
+    /// esta. Una corrida automática (medida, autoprueba, arranque; <c>AppOptions.IsAutomated</c>) no hace ni lo uno ni
+    /// lo otro: las herramientas la matan cuando les conviene y eso no es un fallo, ni deben gastar el informe de una
+    /// sesión del usuario que sí terminó mal. Devuelve los informes escritos.
+    /// </summary>
+    public IReadOnlyList<string> BeginSession(bool automated)
+    {
+        if (automated)
+        {
+            _log.Append("Corrida automática: sin copia en disco del registro ni recuperación de sesiones.");
+            return [];
+        }
+
+        IReadOnlyList<string> recovered = RecoverUncleanSessions();
+        StartSession();
+        return recovered;
+    }
+
+    /// <summary>
+    /// Cierre limpio: anota las repeticiones pendientes y borra la copia del registro. Se puede llamar más de una vez
+    /// (al volver de <c>Application.Start</c>, con <c>WM_ENDSESSION</c> y al salir el proceso).
+    /// </summary>
+    public void EndSession()
+    {
+        lock (_gate)
+        {
+            FlushBursts();
+        }
+
+        _log.CloseMirror(delete: true);
+    }
 
     /// <summary>
     /// Convierte en informe cada sesión anterior que terminó sin cerrarse (su copia del registro quedó y su proceso ya no
@@ -313,7 +368,7 @@ public sealed class CrashReporter
             string seen = Path.Combine(Folder, SeenMarker);
             DateTime since = File.Exists(seen) ? File.GetLastWriteTimeUtc(seen) : DateTime.MinValue;
             return [.. Directory.GetFiles(Folder, "*.txt")
-                .Where(f => !Path.GetFileNameWithoutExtension(f).EndsWith(RecoveredSuffix, StringComparison.Ordinal))
+                .Where(f => !IsRecovered(f))
                 .Where(f => File.GetLastWriteTimeUtc(f) > since)
                 .Order(StringComparer.Ordinal)];
         }
@@ -422,16 +477,121 @@ public sealed class CrashReporter
         }
     }
 
+    private string? WriteCore(CrashKind kind, string? details, bool fatal, string? dumpPath, out bool repeated)
+    {
+        DateTime now = _clock();
+        repeated = false;
+        string? signature = null;
+        if (!fatal)
+        {
+            signature = Signature(details);
+            if (_bursts.TryGetValue(signature, out Burst? burst))
+            {
+                if (now >= burst.Written && now - burst.Written < BurstWindow)
+                {
+                    burst.Repeated++;
+                    burst.LastRepeat = now;
+                    repeated = true;
+                    return burst.Path;
+                }
+
+                FlushBurst(burst);
+                _ = _bursts.Remove(signature);
+            }
+        }
+
+        string? path = NewPath(now, fatal ? ".txt" : RecoveredSuffix + ".txt");
+        if (path is not null)
+        {
+            var report = new CrashReport(kind, now, fatal, Version, DescribeGpu(probe: kind != CrashKind.NativeFatal), details ?? "(sin detalles)",
+                dumpPath, _log.Tail());
+            if (!TryWrite(path, report.Format()))
+            {
+                path = null;
+            }
+        }
+
+        if (signature is not null)
+        {
+            // También si no se pudo escribir: con el disco lleno, una ráfaga no reintenta en cada repetición.
+            RememberBurst(signature, new Burst(path, now));
+        }
+
+        if (path is null)
+        {
+            return null;
+        }
+
+        if (fatal)
+        {
+            _fatalReport = path;
+            FlushBursts();
+            _log.CloseMirror(delete: true);
+        }
+
+        Prune();
+        return path;
+    }
+
+    private void RememberBurst(string signature, Burst burst)
+    {
+        if (_bursts.Count >= MaxBursts)
+        {
+            DateTime now = burst.Written;
+            foreach ((string key, Burst old) in _bursts.Where(p => now - p.Value.Written >= BurstWindow || now < p.Value.Written).ToList())
+            {
+                FlushBurst(old);
+                _ = _bursts.Remove(key);
+            }
+
+            if (_bursts.Count >= MaxBursts)
+            {
+                // Todas siguen dentro del intervalo (muchas firmas distintas a la vez): se olvida la más vieja.
+                KeyValuePair<string, Burst> oldest = _bursts.MinBy(p => p.Value.Written);
+                FlushBurst(oldest.Value);
+                _ = _bursts.Remove(oldest.Key);
+            }
+        }
+
+        _bursts[signature] = burst;
+    }
+
+    // Anota en su informe cuántas veces se repitió el error sin informe propio.
+    private static void FlushBurst(Burst burst)
+    {
+        if (burst.Repeated == 0 || burst.Path is null)
+        {
+            return;
+        }
+
+        TryAppend(burst.Path, string.Create(CultureInfo.InvariantCulture,
+            $"{Environment.NewLine}Repetido {burst.Repeated} veces más hasta las {burst.LastRepeat:HH:mm:ss.fff} (un informe por error cada {BurstWindow.TotalSeconds:0} s).{Environment.NewLine}"));
+        burst.Repeated = 0;
+    }
+
+    private void FlushBursts()
+    {
+        foreach (Burst burst in _bursts.Values)
+        {
+            FlushBurst(burst);
+        }
+    }
+
+    // Fatales y recuperados se guardan por separado: una ráfaga de recuperados no borra el fatal que espera su aviso.
     private void Prune()
     {
         try
         {
-            foreach ((string pattern, int keep) in new[] { ("*.txt", KeepReports), ("*.dmp", KeepDumps) })
+            string[] reports = Directory.GetFiles(Folder, "*.txt");
+            IEnumerable<string>[] groups =
+            [
+                reports.Where(IsRecovered).Order(StringComparer.Ordinal).SkipLast(KeepReports),
+                reports.Where(f => !IsRecovered(f)).Order(StringComparer.Ordinal).SkipLast(KeepReports),
+                Directory.GetFiles(Folder, "*.dmp").Order(StringComparer.Ordinal).SkipLast(KeepDumps),
+            ];
+            foreach (string old in groups.SelectMany(g => g).ToList())
             {
-                foreach (string old in Directory.GetFiles(Folder, pattern).Order(StringComparer.Ordinal).SkipLast(keep))
-                {
-                    File.Delete(old);
-                }
+                File.Delete(old);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -462,7 +622,21 @@ public sealed class CrashReporter
         }
     }
 
+    private static bool IsRecovered(string path) =>
+        Path.GetFileNameWithoutExtension(path).EndsWith(RecoveredSuffix, StringComparison.Ordinal);
+
     private sealed record Reported(string? Path, bool Fatal);
+
+    private sealed class Burst(string? path, DateTime written)
+    {
+        public string? Path { get; } = path;
+
+        public DateTime Written { get; } = written;
+
+        public int Repeated { get; set; }
+
+        public DateTime LastRepeat { get; set; }
+    }
 }
 
 /// <summary>Un informe de fallo y su texto.</summary>
@@ -508,6 +682,7 @@ public sealed record CrashReport(CrashKind Kind, DateTime Time, bool Fatal, stri
             text.AppendLine(line);
         }
 
-        return text.ToString();
+        // Se invita a pegarlo en GitHub, que es público: sin rutas de medios ni carpetas del usuario.
+        return CrashReportScrubber.Default.Scrub(text.ToString());
     }
 }

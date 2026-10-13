@@ -6,6 +6,7 @@ using Rodaje.App.Services.LongActions;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
 using Rodaje.App.Views.Analysis;
+using Rodaje.App.Views.Inspector;
 
 namespace Rodaje.App.Views.Tools;
 
@@ -53,10 +54,10 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
         services.ShortcutRegistry.Changed += (_, _) => Refresh();
         if (services.Modules is { } modules)
         {
-            modules.ModulesChanged += (_, _) => DispatcherQueue.TryEnqueue(Refresh);
+            modules.ModulesChanged += (_, _) => DispatcherQueue.RunLater(Refresh);
         }
 
-        services.LongActions.Changed += (_, _) => DispatcherQueue.TryEnqueue(UpdateBusy);
+        services.LongActions.Changed += (_, _) => DispatcherQueue.RunLater(UpdateBusy);
         Scroller.SizeChanged += (_, _) => FitLabels();
         Refresh();
     }

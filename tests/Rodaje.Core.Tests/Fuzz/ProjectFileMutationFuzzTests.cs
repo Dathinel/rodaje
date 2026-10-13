@@ -179,11 +179,21 @@ public class ProjectFileMutationFuzzTests(ITestOutputHelper output)
         }
     }
 
-    /// <summary>Cadenas de 10 MB en cada clase de campo de texto (ids, nombres, rutas, tipos, colores, texto de títulos).</summary>
+    /// <summary>
+    /// Cadenas de 10 MB en cada clase de campo de texto (ids, nombres, rutas, tipos, colores, texto de títulos). Tarda de
+    /// 13 a 50 s: solo con pruebas largas; en el modo normal corren los mismos casos con 1 MB.
+    /// </summary>
+    [LongFuzzFact]
+    public void TenMegabyteStrings_GiveControlledOutcome() => HugeStrings(10 * 1024 * 1024);
+
+    /// <summary>Los casos de <see cref="TenMegabyteStrings_GiveControlledOutcome"/> con cadenas de 1 MB.</summary>
     [Fact]
-    public void TenMegabyteStrings_GiveControlledOutcome()
+    public void OneMegabyteStrings_GiveControlledOutcome() => HugeStrings(1024 * 1024);
+
+    private static void HugeStrings(int length)
     {
-        string huge = new('ñ', 10 * 1024 * 1024);
+        string huge = new('ñ', length);
+        string mb = string.Create(CultureInfo.InvariantCulture, $"{length / (1024 * 1024)} MB");
         string json = SeedFiles.Value[^1].Json;
         string[] keys = ["id", "name", "path", "type", "color", "text", "mediaId", "sequenceId", "groupId", "linkId", "role", "from"];
         var stats = new Stats();
@@ -197,14 +207,14 @@ public class ProjectFileMutationFuzzTests(ITestOutputHelper output)
                 owner[key] = huge;
             }
 
-            Classify($"10 MB en «{key}»", root.ToJsonString(), stats);
+            Classify($"{mb} en «{key}»", root.ToJsonString(), stats);
         }
 
         JsonObject top = JsonNode.Parse(json)!.AsObject();
         top["desconocido"] = huge;
-        Classify("10 MB en un campo desconocido", top.ToJsonString(), stats);
-        Classify("10 MB de espacios", new string(' ', 10 * 1024 * 1024) + json, stats);
-        Classify("10 MB sin cerrar", "{\"schemaVersion\":13,\"name\":\"" + huge, stats);
+        Classify($"{mb} en un campo desconocido", top.ToJsonString(), stats);
+        Classify($"{mb} de espacios", new string(' ', length) + json, stats);
+        Classify($"{mb} sin cerrar", "{\"schemaVersion\":13,\"name\":\"" + huge, stats);
     }
 
     /// <summary>Compuestos circulares de largo 1 a 12, y uno que se contiene a sí mismo desde varias pistas.</summary>
@@ -271,7 +281,6 @@ public class ProjectFileMutationFuzzTests(ITestOutputHelper output)
     [Theory]
     [InlineData(30_001)]
     [InlineData(33_000)]
-    [InlineData(10 * 1024 * 1024)]
     public void OverlongMediaPath_IsRejected(int length)
     {
         JsonObject root = JsonNode.Parse(SeedFiles.Value[^1].Json)!.AsObject();
@@ -280,6 +289,10 @@ public class ProjectFileMutationFuzzTests(ITestOutputHelper output)
         var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize(root.ToJsonString()));
         Assert.Contains(ex.Problems, p => p.Contains("más larga de lo que admite Windows", StringComparison.Ordinal));
     }
+
+    /// <summary>El caso de 10 MB de <see cref="OverlongMediaPath_IsRejected"/>: solo con pruebas largas.</summary>
+    [LongFuzzFact]
+    public void OverlongMediaPath_TenMegabytes_IsRejected() => OverlongMediaPath_IsRejected(10 * 1024 * 1024);
 
     internal static readonly string[] OddPaths =
     [

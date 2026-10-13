@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Render;
 using Windows.Foundation;
 
@@ -30,7 +31,7 @@ internal sealed partial class PlayerView
     {
         _properties = new ClipPropertyEditor(Session!);
         Microsoft.UI.Dispatching.DispatcherQueue dispatcher = DispatcherQueue;
-        _engine!.TitleBoxesChanged += () => dispatcher.TryEnqueue(UpdateTitleHandles);
+        _engine!.TitleBoxesChanged += () => dispatcher.RunLater(UpdateTitleHandles);
         Session!.SelectionChanged += (_, _) => UpdateTitleHandles();
         Session.ProjectEdited += (_, e) =>
         {
