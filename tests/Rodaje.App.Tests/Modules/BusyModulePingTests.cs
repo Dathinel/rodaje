@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Reflection;
 using System.Threading.Channels;
@@ -30,7 +31,9 @@ public sealed class BusyModulePingTests : IDisposable
 
     /// <summary>
     /// La separación mínima entre dos avisos de avance de la misma etapa que manda <see cref="ModuleHost"/>
-    /// (<c>ReportProgressAsync</c>; si cambia allí, cambia aquí).
+    /// (<c>ReportProgressAsync</c>, un literal de 50 ms que no se expone; si cambia allí, cambia aquí). Solo fija cuántos
+    /// avisos se cuentan: si bajara allí y no aquí, la cota de reloj de la prueba del vigilante sigue exigiendo que venza la
+    /// ventana.
     /// </summary>
     private static readonly TimeSpan ProgressSpacing = TimeSpan.FromMilliseconds(50);
 
@@ -165,7 +168,12 @@ public sealed class BusyModulePingTests : IDisposable
     /// <see cref="ProgressSpacing"/> (lo mide con <c>Stopwatch</c> en el proceso del módulo), así que entre el primero y el
     /// último de <c>n</c> avisos recibidos después del <c>ping</c> pasan al menos (<c>n</c> − 1) × 50 ms de reloj (los pocos
     /// que el editor tuviera sin leer al mandarlo los cubre la media ventana de margen). No hay espera fija: con la máquina
-    /// cargada los avisos llegan más despacio y la prueba espera más, nunca menos.
+    /// cargada los avisos llegan más despacio y la prueba espera más, nunca menos. Además del conteo, la prueba no suelta el
+    /// <c>pong</c> hasta que pasan al menos una ventana y media de reloj (<c>Stopwatch</c>) desde que se manda el <c>ping</c>
+    /// retenido, justo antes de que se abra la primera ventana: si el espaciado de <see cref="ModuleHost"/> bajara sin que
+    /// cambie <see cref="ProgressSpacing"/>, los 151 avisos llegarían antes de que venza la ventana y la prueba pasaría sin
+    /// probar nada; con la cota, la ventana vence igual. Es solo una cota inferior: con la máquina cargada se espera más,
+    /// nunca falla en falso.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -200,8 +208,9 @@ public sealed class BusyModulePingTests : IDisposable
         int pid = Assert.Single(manager.ProcessIds);
         object connection = Connection(manager, "eco-a");
 
-        // El cliente y los mensajes que llevaba recibidos al mandar el ping retenido (antes de abrir la primera ventana).
-        TaskCompletionSource<(ModuleClient Client, long Received)> firstPing = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        // El cliente, los mensajes que llevaba recibidos y el instante en que se mandó el ping retenido (antes de abrir la
+        // primera ventana: PingRoundAsync llama al ping y después abre la ventana).
+        TaskCompletionSource<(ModuleClient Client, long Received, long SentAt)> firstPing = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource secondPing = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource pong = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int pings = 0;
@@ -210,7 +219,7 @@ public sealed class BusyModulePingTests : IDisposable
             switch (Interlocked.Increment(ref pings))
             {
                 case 1:
-                    firstPing.SetResult((client, client.ReceivedMessages));
+                    firstPing.SetResult((client, client.ReceivedMessages, Stopwatch.GetTimestamp()));
                     return HeldPingAsync(client, pong.Task);
                 case 2:
                     secondPing.SetResult();
@@ -222,11 +231,14 @@ public sealed class BusyModulePingTests : IDisposable
 
         Task<ModuleResult> call = manager.InvokeAsync("eco-a", "contar", EchoModules.Json(LongCount), "Contar");
         ModuleJob job = manager.Jobs.Jobs[0]; // La más nueva va primero.
-        (ModuleClient client, long received) = await firstPing.Task.WaitAsync(AntiHang);
+        (ModuleClient client, long received, long sentAt) = await firstPing.Task.WaitAsync(AntiHang);
+        TimeSpan heldAtLeast = pingTimeout * 1.5;
 
-        // Se cuentan avisos, no tiempo: la pausa del sondeo no marca nada. Si la llamada termina (lo dio por colgado), se
-        // deja de esperar y la puerta de abajo lo muestra.
-        while (client.ReceivedMessages - received < heldMessages && !call.IsCompleted)
+        // Se cuentan avisos y, además, se exige una ventana y media de reloj desde el ping: el conteo prueba que hubo
+        // actividad durante la ventana y la cota, que la ventana venció de verdad aunque el espaciado de ModuleHost bajara.
+        // La pausa del sondeo no marca nada. Si la llamada termina (lo dio por colgado), se deja de esperar y la puerta de
+        // abajo lo muestra.
+        while ((client.ReceivedMessages - received < heldMessages || Stopwatch.GetElapsedTime(sentAt) < heldAtLeast) && !call.IsCompleted)
         {
             await Task.Delay(ProgressSpacing);
         }
