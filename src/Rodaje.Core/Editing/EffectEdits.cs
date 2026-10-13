@@ -448,6 +448,12 @@ public static class EffectEdits
             throw new EditException($"«{type}» es una transición: va en un corte, no en la pila de efectos.");
         }
 
+        // Reservado (la velocidad vive en el clip, no en la pila): el validador lo rechaza en un proyecto.
+        if (definition is { Hidden: true })
+        {
+            throw new EditException($"«{type}» está reservado: no se agrega a la pila de efectos.");
+        }
+
         EffectTarget target = host.Kind == TrackKind.Video ? EffectTarget.Video : EffectTarget.Audio;
         if (host.Clip is null && (definition is null || (definition.Target & target) == 0))
         {

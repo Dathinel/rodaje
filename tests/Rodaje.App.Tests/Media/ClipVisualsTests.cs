@@ -278,6 +278,12 @@ public sealed class ClipVisualsTests : IDisposable
             visuals.GetWaveform("a1", Time.Zero, Time.FromSeconds(3), 10);
             WaitFor(() => visuals.GetFilmstrip("m1", Time.Zero, Time.FromSeconds(4), 4, 32) is { IsComplete: true } f ? f : null);
             WaitFor(() => visuals.GetWaveform("a1", Time.Zero, Time.FromSeconds(3), 10) is { IsComplete: true } w ? w : null);
+
+            // La onda se da por completa antes de guardarse (ComputeWaveform escribe el archivo después de Complete) y Dispose
+            // espera al hilo de ondas 200 ms como mucho: con el runner cargado, la segunda sesión no encontraba el archivo,
+            // calculaba la onda desde la fuente (ya en silencio) y leía picos en 0 (CI de Windows de #107).
+            string waves = Path.Combine(cache, "ondas");
+            WaitFor(() => Directory.Exists(waves) ? Directory.EnumerateFiles(waves, "*.picos").FirstOrDefault() : null);
         }
 
         int decoded = _sources.Decoded.Count;

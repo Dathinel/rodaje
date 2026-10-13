@@ -229,18 +229,21 @@ internal static class CinemaDngImport
         return region.Describe(offset, bytes.Length);
     }
 
-    private static (int Width, int Height, int Num, int Den, string Camera) ReadInfo(JsonElement? value)
+    /// <summary>La respuesta de <c>info</c>: tamaño, cadencia (24 si falta o no vale) y cámara.</summary>
+    /// <exception cref="ModuleProtocolException">No trae un tamaño válido.</exception>
+    internal static (int Width, int Height, int Num, int Den, string Camera) ReadInfo(JsonElement? value)
     {
+        // TryGetInt32 lanza InvalidOperationException si el valor no es un número: se mira el tipo antes.
         if (value is not { ValueKind: JsonValueKind.Object } v
-            || !v.TryGetProperty("ancho", out JsonElement w) || !w.TryGetInt32(out int width) || width is < 16 or > 16_384
-            || !v.TryGetProperty("alto", out JsonElement h) || !h.TryGetInt32(out int height) || height is < 16 or > 16_384)
+            || !v.TryGetProperty("ancho", out JsonElement w) || w.ValueKind != JsonValueKind.Number || !w.TryGetInt32(out int width) || width is < 16 or > 16_384
+            || !v.TryGetProperty("alto", out JsonElement h) || h.ValueKind != JsonValueKind.Number || !h.TryGetInt32(out int height) || height is < 16 or > 16_384)
         {
             throw new ModuleProtocolException("«info» no devolvió un tamaño válido.");
         }
 
         (int num, int den) = v.TryGetProperty("cadencia", out JsonElement rate) && rate.ValueKind == JsonValueKind.Object
-            && rate.TryGetProperty("num", out JsonElement n) && n.TryGetInt32(out int rn) && rate.TryGetProperty("den", out JsonElement d)
-            && d.TryGetInt32(out int rd) && rn > 0 && rd > 0 && rn / (double)rd is >= 1 and <= 240
+            && rate.TryGetProperty("num", out JsonElement n) && n.ValueKind == JsonValueKind.Number && n.TryGetInt32(out int rn)
+            && rate.TryGetProperty("den", out JsonElement d) && d.ValueKind == JsonValueKind.Number && d.TryGetInt32(out int rd) && rn > 0 && rd > 0 && rn / (double)rd is >= 1 and <= 240
             ? (rn, rd)
             : (24, 1);
         string camera = $"{Text(v, "marca")} {Text(v, "modelo")}".Trim();
