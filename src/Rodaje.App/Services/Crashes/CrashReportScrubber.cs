@@ -18,8 +18,9 @@ namespace Rodaje.App.Services.Crashes;
 /// </list>
 /// <c>%SystemDrive%</c>, <c>%HOMEDRIVE%</c> y <c>\Device\HarddiskVolumeN</c> cuentan como una unidad.
 /// <para>
-/// Una ruta usa como separador el primero que sigue a su raíz. La otra barra solo separa si el segmento que la precede no
-/// parece texto: así la «/» de «y/o» o de «12/10/2026» no se come la frase que sigue a <c>D:\…\a.mp4</c>. El último
+/// Una ruta usa como separador el primero que sigue a su raíz. La otra barra, y también la «/» cuando es el separador,
+/// solo separa si el segmento que la precede no parece texto: así la «/» de «y/o» o de «12/10/2026» no se come la frase
+/// que sigue a <c>D:\…\a.mp4</c> ni a <c>file:///D:/…/a.mp4</c>. El último
 /// segmento de una ruta se conserva tal cual (también si no tiene extensión: puede ser un archivo como <c>notas</c>) y
 /// termina en su extensión seguida de un espacio, ante « (» o ante dos espacios.
 /// </para>
@@ -215,7 +216,7 @@ public sealed class CrashReportScrubber
         int folders = path.HasTail ? components.Count - 1 : components.Count;
         if (token is not null && matched < folders
             && (token.Equals("%TEMP%", StringComparison.OrdinalIgnoreCase) || token.Equals("%TMP%", StringComparison.OrdinalIgnoreCase))
-            && !line.AsSpan(components[matched].Start, components[matched].End - components[matched].Start).StartsWith("rodaje", StringComparison.OrdinalIgnoreCase))
+            && !line.AsSpan(components[matched].Start, components[matched].End - components[matched].Start).StartsWith("rodaje-", StringComparison.OrdinalIgnoreCase))
         {
             return (token + line[components[matched - 1].End..components[matched].Start] + "…"
                 + line[components[folders - 1].End..path.TailStart], path.TailStart);
@@ -402,9 +403,12 @@ public sealed class CrashReportScrubber
                 p++;
             }
 
-            if (p > segment && p < s.Length && IsSeparator(s[p]) && (s[p] == separator || textStart < 0))
+            if (p > segment && p < s.Length && IsSeparator(s[p]) && (textStart < 0 || (s[p] == separator && separator == '\\')))
             {
-                // Con la barra de la ruta, el segmento es una carpeta aunque parezca texto: ante la duda, se tapa.
+                // Con «\» como barra de la ruta, el segmento es una carpeta aunque parezca texto: ante la duda, se tapa.
+                // Con «/» no: es también la barra de la frase («a.mp4 y/o», «(error 12/34)» tras una URL «file:///»), así
+                // que un segmento que ya parece texto termina la ruta. El coste: una carpeta con extensión aparente y un
+                // espacio («D:/Boda.v2 final/a.mp4») corta ahí la ruta y deja a la vista lo que la sigue («final/a.mp4»).
                 components.Add(new Span(segment, p, null));
                 hasSegments = true;
                 p = SkipSeparators(s, p);
