@@ -25,23 +25,11 @@ public sealed partial class AsyncSafetyTests
 
     // Manejadores async void con algún await fuera de un try/catch (Exception) («archivo#Método» → motivo). Lo que se
     // escapa de ellos lo atrapa todavía GuardedSynchronizationContext (informe y aviso), pero sin el mensaje propio del
-    // manejador: cada uno se arregla metiendo el await en el try y saliendo de la lista.
-    private static readonly Dictionary<string, string> UncaughtAwaitAllowed = new(StringComparer.Ordinal)
-    {
-        ["Rodaje.App/Shell/TitleBar.xaml.cs#OnSaveTemplateClick"] = "DialogGate.ShowAsync antes del try (por arreglar).",
-        ["Rodaje.App/Views/Plugins/PluginsView.xaml.cs#OnInstallClick"] = "DownloadModelsAsync antes del try (por arreglar).",
-        ["Rodaje.App/Views/Export/ExportView.xaml.cs#OnSavePresetClick"] = "DialogGate.ShowAsync antes del try (por arreglar).",
-        ["Rodaje.App/Views/Export/ExportView.Versions.cs#OnVersionsClick"] = "DialogGate.ShowAsync antes del try (por arreglar).",
-        ["Rodaje.App/Views/Inspector/Properties/PropertiesPanel.xaml.cs#OnSavePresetClick"] = "DialogGate.ShowAsync antes del try (por arreglar).",
-        ["Rodaje.App/Views/Inspector/Filters/FiltersPanel.Presets.cs#OnSavePresetClick"] = "DialogGate.ShowAsync antes del try (por arreglar).",
-        ["Rodaje.App/Views/Inspector/Text/TextPanel.xaml.cs#OnSaveStyleClick"] = "DialogGate.ShowAsync antes del try (por arreglar).",
-    };
+    // manejador: cada uno se arregla metiendo el await en el try y saliendo de la lista. Hoy ninguno.
+    private static readonly Dictionary<string, string> UncaughtAwaitAllowed = new(StringComparer.Ordinal);
 
-    // Tareas descartadas con «_ =» en Rodaje.App: archivo → apariciones y motivo.
-    private static readonly Dictionary<string, (int Count, string Reason)> DiscardAllowed = new(StringComparer.Ordinal)
-    {
-        ["Rodaje.App/Services/Autosave/AutosaveService.cs"] = (1, "EnqueueQuiet: los fallos de disco se atrapan dentro; uno inesperado queda en la fila sin observar (por arreglar)."),
-    };
+    // Tareas descartadas con «_ =» en Rodaje.App: archivo → apariciones y motivo. Hoy ninguna.
+    private static readonly Dictionary<string, (int Count, string Reason)> DiscardAllowed = new(StringComparer.Ordinal);
 
     // Esperas bloqueantes en el código de la interfaz (Views/, Shell/, App.xaml.cs): (archivo, texto) → apariciones y motivo.
     private static readonly Dictionary<(string File, string Pattern), (int Count, string Reason)> BlockingWaitAllowed = new()

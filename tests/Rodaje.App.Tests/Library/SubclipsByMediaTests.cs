@@ -57,8 +57,8 @@ public sealed class SubclipsByMediaTests
     }
 
     /// <summary>
-    /// Lo mismo con <see cref="WorkGrowth"/> (bytes reservados y tiempo sin pausas del recolector): con medios y subclips
-    /// creciendo a la vez, filtrar por cada medio era cuadrático.
+    /// Lo mismo con <see cref="WorkGrowth"/> (lecturas del id y del medio de los subclips, y bytes reservados): con medios y
+    /// subclips creciendo a la vez, filtrar por cada medio era cuadrático.
     /// </summary>
     [Fact]
     public void BuildingTheList_GrowsLinearly() =>
@@ -71,7 +71,7 @@ public sealed class SubclipsByMediaTests
                 Assert.Empty(items);
                 List<string> all = SubclipsByMedia.Interleave(input.Media, m => m.Id, input.Subclips, m => m.Id, (s, _) => s.Id);
                 Assert.Equal(3 * input.Media.Length, all.Count);
-            }, 1_000, 8_000, "Armar la lista de la biblioteca");
+            }, static () => Subclip.KeyReads, 1_000, 8_000, "Armar la lista de la biblioteca");
 
     /// <summary>Una lista de subclips que cuenta cuántos se leyeron al recorrerla.</summary>
     private sealed class CountingSubclips(IEnumerable<Subclip> subclips) : IReadOnlyList<Subclip>

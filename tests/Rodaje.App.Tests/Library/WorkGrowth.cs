@@ -1,86 +1,81 @@
-using System.Diagnostics;
 using System.Globalization;
 
 namespace Rodaje.App.Tests.Library;
 
 /// <summary>
-/// Como <see cref="Support.Growth"/>, pero sin contar las pausas del recolector, y contando además los bytes que reserva el
-/// hilo. «Subclips repetidos» dio ×174 y ×230 en la CI de Windows (2,7 ms y 473,5 ms) con una carga lineal: la corrida de
-/// 4 000 cabe en la reserva joven del recolector y casi nunca lo despierta, y la de 32 000 reserva unos 12 MB y lo despierta
-/// siempre. Lo que cuesta esa recolección depende del proceso entero (el montón de las 1 700 pruebas de
-/// <c>Rodaje.App.Tests</c>, los hilos que hay que detener con el runner cargado), no del tamaño de la entrada: en Linux, la
-/// misma corrida de 4 000 pasa de 11 ms a 130 ms cuando le toca recolectar. Medido así, cualquier carga que reserve memoria
-/// parecía cuadrática en cuanto la grande pasaba del umbral.
+/// Cuánto crece el trabajo de una operación al multiplicar su tamaño, sin reloj: se cuentan las operaciones que la
+/// costura de prueba suma (por ejemplo <c>Subclip.KeyReads</c>: una búsqueda lineal lee la clave de cada elemento) y los
+/// bytes que reserva el hilo (<see cref="GC.GetAllocatedBytesForCurrentThread"/>). Las dos son cuentas exactas que no
+/// dependen de la máquina.
 /// <para>
-/// Por eso se miden dos cosas que no dependen del recolector: los bytes que reserva el hilo
-/// (<see cref="GC.GetAllocatedBytesForCurrentThread"/>, una cuenta exacta) y el reloj menos las pausas del recolector
-/// (<see cref="GC.GetTotalPauseDuration"/>), con el mejor de cinco.
+/// Antes también se medía el tiempo sin las pausas del recolector, y «Subclips repetidos» siguió fallando en la CI de
+/// Windows: ×143 de 4 000 a 32 000 (4,0 ms y 571,1 ms) con los bytes en ×7,6, es decir, con una carga lineal. Restar las
+/// pausas no basta: no cuentan las esperas del hilo que reserva mientras corre una recolección en segundo plano (la
+/// corrida grande reserva en el montón de objetos grandes, la pequeña no) ni el tiempo que el hilo pasa sin CPU con el
+/// runner lleno (la corrida pequeña cabe en un turno del planificador; la grande espera a los demás hilos en cada turno).
+/// En Linux, con cuatro hilos reservando bloques de 100 kB a la vez, la misma carga dio ×8 a ×13 con 0 ms de pausas; con
+/// 32 hilos girando, hasta ×16.
 /// </para>
 /// </summary>
 internal static class WorkGrowth
 {
     /// <summary>
-    /// Falla si multiplicar el tamaño por <c>large / small</c> multiplica los bytes reservados o el tiempo sin pausas de
-    /// <paramref name="run"/> por más del cuádruple de eso: lineal da el factor; cuadrático, el factor al cuadrado.
-    /// <paramref name="prepare"/> arma la entrada fuera de la medida.
+    /// Falla si multiplicar el tamaño por <c>large / small</c> multiplica las operaciones de <paramref name="run"/> (lo que
+    /// avanza <paramref name="operations"/>, un contador del hilo) por más del doble de eso, o sus bytes reservados por más
+    /// del cuádruple: lineal da el factor; cuadrático, el factor al cuadrado. <paramref name="prepare"/> arma la entrada
+    /// fuera de la medida. También falla si la corrida pequeña no cuenta ninguna operación (la costura no está conectada).
     /// </summary>
-    public static void AssertLinear<T>(Func<int, T> prepare, Action<T> run, int small, int large, string what)
+    public static void AssertLinear<T>(Func<int, T> prepare, Action<T> run, Func<long> operations, int small, int large, string what)
     {
         ArgumentNullException.ThrowIfNull(prepare);
         ArgumentNullException.ThrowIfNull(run);
+        ArgumentNullException.ThrowIfNull(operations);
         T smallInput = prepare(small);
         T largeInput = prepare(large);
 
-        // Una vuelta de cada tamaño antes de medir: la primera corre con el código sin optimizar (compilación por niveles).
+        // Una vuelta de cada tamaño antes de medir: la primera reserva lo que el entorno prepara una sola vez.
         run(smallInput);
         run(largeInput);
         Work bestSmall = Work.Worst, bestLarge = Work.Worst;
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 3; i++)
         {
-            bestSmall = Work.Best(bestSmall, Measure(run, smallInput));
-            bestLarge = Work.Best(bestLarge, Measure(run, largeInput));
+            bestSmall = Work.Best(bestSmall, MeasureWork(run, smallInput, operations));
+            bestLarge = Work.Best(bestLarge, MeasureWork(run, largeInput, operations));
         }
 
+        Assert.True(bestSmall.Operations > 0, $"{what}: la corrida de {small} no contó ninguna operación; la costura de prueba no está conectada.");
         double factor = large / (double)small;
+        double ops = bestLarge.Operations / (double)bestSmall.Operations;
         double bytes = bestLarge.Bytes / (double)Math.Max(1, bestSmall.Bytes);
-        double time = bestLarge.Ticks / (double)Math.Max(1, bestSmall.Ticks);
-        Assert.True(bytes < 4 * factor && time < 4 * factor, string.Create(CultureInfo.InvariantCulture,
-            $"{what}: de {small} a {large} (lineal: {factor:0.#}) los bytes reservados se multiplicaron por {bytes:0.0} " +
-            $"({bestSmall.Bytes} y {bestLarge.Bytes}) y el tiempo sin pausas del recolector por {time:0.0} " +
-            $"({Milliseconds(bestSmall.Ticks):0.0} ms y {Milliseconds(bestLarge.Ticks):0.0} ms)."));
+        Assert.True(ops < 2 * factor && bytes < 4 * factor, string.Create(CultureInfo.InvariantCulture,
+            $"{what}: de {small} a {large} (lineal: {factor:0.#}) las operaciones se multiplicaron por {ops:0.0} " +
+            $"({bestSmall.Operations} y {bestLarge.Operations}) y los bytes reservados por {bytes:0.0} " +
+            $"({bestSmall.Bytes} y {bestLarge.Bytes})."));
     }
 
-    /// <summary>Bytes que reservó el hilo y tiempo, sin las pausas del recolector, de una corrida de <paramref name="run"/>.</summary>
-    public static (long Bytes, TimeSpan Time) Measure<T>(Action<T> run, T input, out TimeSpan pauses)
+    /// <summary>Operaciones contadas y bytes que reservó el hilo en una corrida de <paramref name="run"/>.</summary>
+    public static (long Operations, long Bytes) Measure<T>(Action<T> run, T input, Func<long> operations)
     {
         ArgumentNullException.ThrowIfNull(run);
-        Work work = MeasureWork(run, input, out long pauseTicks);
-        pauses = Stopwatch.GetElapsedTime(0, pauseTicks);
-        return (work.Bytes, Stopwatch.GetElapsedTime(0, work.Ticks));
+        ArgumentNullException.ThrowIfNull(operations);
+        Work work = MeasureWork(run, input, operations);
+        return (work.Operations, work.Bytes);
     }
 
-    private static Work Measure<T>(Action<T> run, T input) => MeasureWork(run, input, out _);
-
-    private static Work MeasureWork<T>(Action<T> run, T input, out long pauseTicks)
+    private static Work MeasureWork<T>(Action<T> run, T input, Func<long> operations)
     {
-        // Sin recolecciones forzadas antes de medir: detendrían a las demás pruebas del proceso, y las pausas ya se restan.
-        TimeSpan pausedBefore = GC.GetTotalPauseDuration();
+        long operationsBefore = operations();
         long bytesBefore = GC.GetAllocatedBytesForCurrentThread();
-        long start = Stopwatch.GetTimestamp();
         run(input);
-        long elapsed = Stopwatch.GetTimestamp() - start;
         long bytes = GC.GetAllocatedBytesForCurrentThread() - bytesBefore;
-        pauseTicks = (long)((GC.GetTotalPauseDuration() - pausedBefore).TotalSeconds * Stopwatch.Frequency);
-        return new Work(bytes, Math.Max(0, elapsed - pauseTicks));
+        return new Work(operations() - operationsBefore, bytes);
     }
 
-    private static double Milliseconds(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
-
-    private readonly record struct Work(long Bytes, long Ticks)
+    private readonly record struct Work(long Operations, long Bytes)
     {
         public static Work Worst => new(long.MaxValue, long.MaxValue);
 
-        // Los bytes son una cuenta exacta (salvo lo que reserve el entorno de vez en cuando): también el mínimo.
-        public static Work Best(Work a, Work b) => new(Math.Min(a.Bytes, b.Bytes), Math.Min(a.Ticks, b.Ticks));
+        // Las dos son cuentas exactas (salvo lo que reserve el entorno de vez en cuando): el mínimo de cada una.
+        public static Work Best(Work a, Work b) => new(Math.Min(a.Operations, b.Operations), Math.Min(a.Bytes, b.Bytes));
     }
 }

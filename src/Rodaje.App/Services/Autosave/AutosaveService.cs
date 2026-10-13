@@ -368,7 +368,10 @@ public sealed partial class AutosaveService : IDisposable
         return next;
     }
 
-    /// <summary>Cambios de datos de la sesión que no deben interrumpir: si fallan, la próxima copia lo vuelve a intentar.</summary>
+    /// <summary>
+    /// Cambios de datos de la sesión que no deben interrumpir: si fallan, la próxima copia lo vuelve a intentar. Un fallo
+    /// que no sea de disco se informa (UiTask.Run) en vez de quedar en la fila sin observar.
+    /// </summary>
     private void EnqueueQuiet(Action<AutosaveSession> work)
     {
         if (_store is not { } store)
@@ -376,7 +379,7 @@ public sealed partial class AutosaveService : IDisposable
             return;
         }
 
-        _ = Enqueue(() =>
+        UiTask.Run(Enqueue(() =>
         {
             try
             {
@@ -386,7 +389,7 @@ public sealed partial class AutosaveService : IDisposable
             {
                 // Quedan los datos anteriores; como mucho se ofrecerá recuperar algo que ya estaba guardado.
             }
-        });
+        }));
     }
 
     private void OnProjectEdited(object? sender, ProjectEditedEventArgs e) => _schedule.NoteEdit(Now);
