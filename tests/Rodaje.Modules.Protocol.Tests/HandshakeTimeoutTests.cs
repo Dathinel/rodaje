@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO.Pipes;
 using Rodaje.Modules.Protocol;
 
@@ -8,10 +7,11 @@ namespace Rodaje.Modules.Protocol.Tests;
 /// Los plazos del saludo (tarea 205): el editor daba 10 s a que el módulo saludara y el módulo 30 s a recibir el
 /// <c>hello</c>, así que un arranque en frío de más de 10 s fallaba con «El módulo no saludó en 10 s» (CI de Windows,
 /// <c>Rodaje.Module.Translate.Tests</c>). Los dos lados salen ahora de <see cref="ModuleClientOptions.DefaultHandshakeTimeout"/>.
+/// El plazo se comprueba con un reloj manual (<see cref="ManualTime"/>), sin esperarlo (tarea 244).
 /// </summary>
 public sealed class HandshakeTimeoutTests
 {
-    /// <summary>Lo que tardó de más el arranque en frío que destapó el defecto: el plazo viejo del editor.</summary>
+    /// <summary>El plazo viejo del editor.</summary>
     private static readonly TimeSpan OldClientTimeout = TimeSpan.FromSeconds(10);
 
     [Fact]
@@ -24,17 +24,16 @@ public sealed class HandshakeTimeoutTests
         Assert.Equal(ModuleClientOptions.DefaultHandshakeTimeout, host.HandshakeTimeout);
         Assert.True(client.HandshakeTimeout >= host.HandshakeTimeout,
             $"El editor da {client.HandshakeTimeout.TotalSeconds} s al saludo y el módulo {host.HandshakeTimeout.TotalSeconds} s.");
-        Assert.True(client.HandshakeTimeout > OldClientTimeout, "El plazo del saludo no cabe un arranque en frío de más de 10 s.");
     }
 
     /// <summary>
-    /// Un módulo que tarda más de 10 s en saludar (la puerta del anfitrión se abre a los 11 s) conecta con los plazos de
-    /// fábrica y atiende una llamada. Tarda 11 s de reloj: solo con <c>RODAJE_PRUEBAS_LARGAS=1</c>.
+    /// Un módulo que no saluda hasta pasados 11 s de reloj (su anfitrión espera una puerta) conecta con las opciones de
+    /// fábrica y atiende una llamada. Con 10 s, el plazo vencía al avanzar el reloj y la conexión fallaba.
     /// </summary>
-    [LongFact]
+    [Fact]
     public async Task A_module_that_greets_after_more_than_ten_seconds_connects_with_the_default_options()
     {
-        TimeSpan late = OldClientTimeout + TimeSpan.FromSeconds(1);
+        ManualTime time = new();
         (NamedPipeServerStream editor, NamedPipeClientStream module) = await Support.PipePairAsync();
         TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         Task<bool> run = Task.Run(async () =>
@@ -42,26 +41,40 @@ public sealed class HandshakeTimeoutTests
             await gate.Task;
             return await Support.EchoHost().RunAsync(module);
         });
-        Stopwatch watch = Stopwatch.StartNew();
-        _ = Task.Delay(late).ContinueWith(_ => gate.TrySetResult(), TaskScheduler.Default);
 
-        await using (ModuleClient client = await ModuleClient.ConnectAsync(editor).WaitAsync(TimeSpan.FromSeconds(60)))
+        Task<ModuleClient> connect = ModuleClient.ConnectAsync(editor, new ModuleClientOptions { Time = time });
+        ManualTime.ManualTimer limit = await time.NextTimerAsync();
+        time.Advance(OldClientTimeout + TimeSpan.FromSeconds(1));
+
+        Assert.True(limit.Pending, $"El plazo del saludo ({limit.Due.TotalSeconds} s) venció antes de que el módulo saludara.");
+        Assert.False(connect.IsCompleted, "La conexión terminó sin que el módulo saludara.");
+        gate.TrySetResult();
+        await using (ModuleClient client = await connect.WaitAsync(Support.CiBound))
         {
-            Assert.True(watch.Elapsed >= late - TimeSpan.FromMilliseconds(50), $"Saludó antes de abrir la puerta: {watch.ElapsedMilliseconds} ms.");
             ModuleResult result = await client.InvokeAsync("eco", Support.Json("""{"a":1}"""));
             Assert.Equal(1, result.Value!.Value.GetProperty("a").GetInt32());
         }
-        Assert.True(await run.WaitAsync(TimeSpan.FromSeconds(30)));
+        Assert.True(await run.WaitAsync(Support.CiBound));
     }
-}
 
-/// <summary>Solo con <c>RODAJE_PRUEBAS_LARGAS=1</c>, como las demás pruebas largas del repositorio.</summary>
-[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-internal sealed class LongFactAttribute : FactAttribute
-{
-    public LongFactAttribute()
+    /// <summary>Un módulo que nunca saluda falla justo al vencer el plazo de fábrica, ni antes ni sin fin.</summary>
+    [Fact]
+    public async Task A_module_that_never_greets_fails_when_the_default_timeout_runs_out()
     {
-        if (Environment.GetEnvironmentVariable("RODAJE_PRUEBAS_LARGAS") != "1")
-            Skip = "Omitida: prueba larga; se activa con RODAJE_PRUEBAS_LARGAS=1 (Probar.bat aceptacion).";
+        ManualTime time = new();
+        (NamedPipeServerStream editor, NamedPipeClientStream module) = await Support.PipePairAsync();
+        using (module)
+        {
+            Task<ModuleClient> connect = ModuleClient.ConnectAsync(editor, new ModuleClientOptions { Time = time });
+            ManualTime.ManualTimer limit = await time.NextTimerAsync();
+
+            time.Advance(ModuleClientOptions.DefaultHandshakeTimeout - TimeSpan.FromTicks(1));
+            Assert.True(limit.Pending);
+            Assert.False(connect.IsCompleted);
+
+            time.Advance(TimeSpan.FromTicks(1));
+            ModuleProtocolException error = await Assert.ThrowsAsync<ModuleProtocolException>(() => connect.WaitAsync(Support.CiBound));
+            Assert.Contains($"no saludó en {ModuleClientOptions.DefaultHandshakeTimeout.TotalSeconds:0} s", error.Message, StringComparison.Ordinal);
+        }
     }
 }

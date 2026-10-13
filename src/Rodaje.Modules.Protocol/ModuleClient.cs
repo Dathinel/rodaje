@@ -64,6 +64,12 @@ public sealed record ModuleClientOptions
     /// (<c>ModuleHost.RunAsync</c>), que cierra la tubería después.
     /// </summary>
     public TimeSpan ShutdownGrace { get; init; } = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// El reloj de <see cref="HandshakeTimeout"/> y <see cref="CancelGrace"/>. Las pruebas ponen uno manual para comprobar
+    /// esos plazos de fábrica sin esperarlos (tarea 244).
+    /// </summary>
+    internal TimeProvider Time { get; init; } = TimeProvider.System;
 }
 
 public readonly record struct ModuleProgress(double Fraction, string? Stage);
@@ -180,7 +186,7 @@ public sealed class ModuleClient : IAsyncDisposable
 
             // El token del llamador ya está cancelado: el aviso sale con el de la conexión y el plazo de escritura.
             await SendAsync(new CancelMessage(id), CancellationToken.None).ConfigureAwait(false);
-            if (await Task.WhenAny(pending.Completion.Task, Task.Delay(_options.CancelGrace, CancellationToken.None)).ConfigureAwait(false) != pending.Completion.Task)
+            if (await Task.WhenAny(pending.Completion.Task, Task.Delay(_options.CancelGrace, _options.Time, CancellationToken.None)).ConfigureAwait(false) != pending.Completion.Task)
                 Fail(new ModuleDisconnectedException($"El módulo no confirmó la cancelación en {_options.CancelGrace.TotalSeconds:0.#} s."));
             try
             {
@@ -306,8 +312,8 @@ public sealed class ModuleClient : IAsyncDisposable
 
     private async Task HandshakeAsync(CancellationToken cancellationToken)
     {
-        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(_options.HandshakeTimeout);
+        using CancellationTokenSource limit = new(_options.HandshakeTimeout, _options.Time);
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, limit.Token);
         try
         {
             await _channel.SendAsync(new HelloMessage(_options.MinProtocol, _options.MaxProtocol, _options.App, _options.AppVersion, _options.Culture), timeout.Token).ConfigureAwait(false);
