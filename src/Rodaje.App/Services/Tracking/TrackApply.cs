@@ -84,6 +84,13 @@ public static class TrackApply
         }
 
         PointTrackKind kind = PointTrack.ParseKind(effect.Options.GetValueOrDefault(O.Kind));
+        if (track.PointCount != PointTrack.PointsOf(kind))
+        {
+            // El tipo se cambió después de seguir (o el archivo trae otro): la deformación leería puntos que no hay.
+            problem = "Los cuadros seguidos no son de este tipo de seguimiento: vuelve a seguir.";
+            return null;
+        }
+
         if (!Supports(kind, use))
         {
             problem = use == TrackUse.CornerPin ? "El anclaje de esquinas necesita un seguimiento de 4 esquinas o de región." : "Hace falta un seguimiento de dos puntos o más para seguir la escala y el giro.";
