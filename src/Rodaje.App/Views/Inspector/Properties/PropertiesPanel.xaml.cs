@@ -710,7 +710,9 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
     }
 
-    private async void OnSavePresetClick(object sender, RoutedEventArgs e)
+    private void OnSavePresetClick(object sender, RoutedEventArgs e) => UiTask.Run(OnSavePresetClickAsync(sender, e));
+
+    private async Task OnSavePresetClickAsync(object sender, RoutedEventArgs e)
     {
         if (DialogGate.IsOpen || _services is not { } services || _videoClipId is null
             || services.Session.Sequence.FindClip(_videoClipId) is not { } found

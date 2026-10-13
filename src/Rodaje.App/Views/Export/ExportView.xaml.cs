@@ -792,7 +792,9 @@ internal sealed partial class ExportView : UserControl
         }
     }
 
-    private async void OnSavePresetClick(object sender, RoutedEventArgs e)
+    private void OnSavePresetClick(object sender, RoutedEventArgs e) => UiTask.Run(OnSavePresetClickAsync(sender, e));
+
+    private async Task OnSavePresetClickAsync(object sender, RoutedEventArgs e)
     {
         if (_model is not { } model || XamlRoot is null)
         {

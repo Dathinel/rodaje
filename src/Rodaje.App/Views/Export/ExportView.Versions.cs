@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Shell;
 using Rodaje.Export;
 
@@ -9,7 +10,9 @@ namespace Rodaje.App.Views.Export;
 /// <summary>«Varias versiones…»: se marcan varios preajustes y entran todos a la cola con los mismos rango y carpeta.</summary>
 internal sealed partial class ExportView
 {
-    private async void OnVersionsClick(object sender, RoutedEventArgs e)
+    private void OnVersionsClick(object sender, RoutedEventArgs e) => UiTask.Run(OnVersionsClickAsync(sender, e));
+
+    private async Task OnVersionsClickAsync(object sender, RoutedEventArgs e)
     {
         if (_model is not { } model || XamlRoot is null)
         {
