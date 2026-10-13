@@ -273,17 +273,17 @@ public sealed partial class ModuleManager : IAsyncDisposable
     {
         if (ex is not ModuleDisconnectedException || ex is ModuleExitedException)
         {
-            return connection.WasHung && ex is ModuleDisconnectedException ? new ModuleHungException($"«{module.Name}» dejó de responder y se cerró.", ex) : ex;
+            return connection.WasHung(process) && ex is ModuleDisconnectedException ? new ModuleHungException($"«{module.Name}» dejó de responder y se cerró.", ex) : ex;
         }
 
         if (process is not null && await Task.WhenAny(process.Exited, Task.Delay(ExitCodeWait)).ConfigureAwait(false) == process.Exited)
         {
-            return connection.WasHung
+            return connection.WasHung(process)
                 ? new ModuleHungException($"«{module.Name}» dejó de responder y se cerró.", ex)
                 : new ModuleExitedException(process.Exited.Result, null);
         }
 
-        return connection.WasHung ? new ModuleHungException($"«{module.Name}» dejó de responder y se cerró.", ex) : ex;
+        return connection.WasHung(process) ? new ModuleHungException($"«{module.Name}» dejó de responder y se cerró.", ex) : ex;
     }
 
     private async Task ReserveVramAsync(ModuleDescriptor module, int vramMb, ModuleJob job)

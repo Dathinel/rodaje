@@ -117,17 +117,21 @@ public sealed class ModuleProcess : IAsyncDisposable
             module._exited.TrySetResult(t.Result);
             client.Fail(new ModuleExitedException(t.Result, Tail(stderr)));
         }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-        // Matar el árbol de procesos puede tardar segundos con la CPU llena: nunca en línea con Fail, para que las llamadas
-        // fallen enseguida y el proceso muera después. Sin ExecuteSynchronously no depende de cómo complete el cliente su
-        // Completion. En un hilo propio y no en el pool: si Fail corre en un hilo del pool, las continuaciones de las
-        // llamadas y esta van a la cola local de ese hilo, que toma primero la última (LIFO) y se quedaba matando
-        // mientras las llamadas esperaban a que otro hilo libre las robara.
-        _ = client.Completion.ContinueWith(t =>
-        {
-            if (t.IsFaulted) Kill(process);
-        }, CancellationToken.None, TaskContinuationOptions.LongRunning, TaskScheduler.Default);
+        _ = KillWhenFaulted(client.Completion, () => Kill(process), TaskScheduler.Default);
         return module;
     }
+
+    /// <summary>
+    /// Mata el proceso cuando <paramref name="completion"/> falla. Matar el árbol de procesos puede tardar segundos con la
+    /// CPU llena: nunca en línea con <c>Fail</c>, para que las llamadas fallen enseguida y el proceso muera después. Sin
+    /// ExecuteSynchronously no depende de cómo complete el cliente su Completion. En un hilo propio y no en el pool: si
+    /// Fail corre en un hilo del pool, las continuaciones de las llamadas y esta iban a la cola local de ese hilo, que
+    /// toma primero la última (LIFO) y se quedaba matando mientras las llamadas esperaban a que otro hilo libre las
+    /// robara. Con OnlyOnFaulted, un cierre limpio cancela la continuación sin programarla: no crea ese hilo.
+    /// </summary>
+    internal static Task KillWhenFaulted(Task completion, Action kill, TaskScheduler scheduler) =>
+        completion.ContinueWith(_ => kill(), CancellationToken.None,
+            TaskContinuationOptions.LongRunning | TaskContinuationOptions.OnlyOnFaulted, scheduler);
 
     public void Kill() => Kill(_process);
 

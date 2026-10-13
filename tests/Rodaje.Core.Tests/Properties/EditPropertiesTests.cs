@@ -189,7 +189,9 @@ public class EditPropertiesTests(ITestOutputHelper output)
         Assert.True(projectsWithSpeed > 400, $"solo {projectsWithSpeed} proyectos con velocidad");
         foreach (OpKind kind in (OpKind[])[OpKind.SetSpeed, OpKind.RateStretch, OpKind.FreezeFrame, OpKind.SetCurve, OpKind.SetReverse, OpKind.SetPreservePitch, OpKind.ApplySpeedPreset])
         {
-            Assert.True(applied[(int)kind] > 100, $"{kind} solo se aplicó {applied[(int)kind]} veces");
+            // El sorteo no tiene semilla fija: FreezeFrame queda entre 100 y 135 de 2 000 (100 justos en una corrida de la CI
+            // de #109). Lo que se comprueba es que cada operación se aplica de verdad, no una frecuencia: 40 deja margen.
+            Assert.True(applied[(int)kind] > 40, $"{kind} solo se aplicó {applied[(int)kind]} veces");
         }
     }
 

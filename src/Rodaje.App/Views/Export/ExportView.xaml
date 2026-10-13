@@ -68,7 +68,7 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <TextBlock Text="Rango" Style="{StaticResource FieldLabelStyle}" />
-                        <ComboBox x:Name="RangeBox" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnRangeChanged" />
+                        <ComboBox x:Name="RangeBox" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnRangeChanged" DropDownClosed="OnDropDownClosed" />
                         <TextBlock Grid.Row="1" Text="Formato" Style="{StaticResource FieldLabelStyle}" VerticalAlignment="Top" />
                         <TextBlock x:Name="SummaryText" Grid.Row="1" Grid.Column="1" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
                     </Grid>
@@ -98,13 +98,13 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock Text="Formato del archivo" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="ContainerBox" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnContainerChanged" />
+                            <ComboBox x:Name="ContainerBox" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnContainerChanged" DropDownClosed="OnDropDownClosed" />
                             <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="16">
                                 <CheckBox x:Name="FastStartBox" Content="Reproducir mientras se descarga (faststart)" Click="OnFastStartClick" />
                                 <CheckBox x:Name="ChaptersBox" Content="Capítulos desde los marcadores" Click="OnChaptersClick" />
                             </StackPanel>
                             <TextBlock x:Name="SubtitlesLabel" Grid.Row="2" Text="Subtítulos" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="SubtitlesBox" Grid.Row="2" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSubtitlesChanged"
+                            <ComboBox x:Name="SubtitlesBox" Grid.Row="2" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSubtitlesChanged" DropDownClosed="OnDropDownClosed"
                                       ToolTipService.ToolTip="Quemados se ven siempre; como pista aparte se activan o desactivan en el reproductor (MP4, MOV, MKV y WebM)." />
                         </Grid>
 
@@ -139,28 +139,28 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock Text="Códec" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="VideoCodecBox" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnVideoCodecChanged" />
+                            <ComboBox x:Name="VideoCodecBox" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnVideoCodecChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="1" Text="Codificador" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="EncoderBox" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnEncoderChanged" />
+                            <ComboBox x:Name="EncoderBox" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnEncoderChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="2" Text="Control de tasa" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="RateBox" Grid.Row="2" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnRateChanged" />
+                            <ComboBox x:Name="RateBox" Grid.Row="2" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnRateChanged" DropDownClosed="OnDropDownClosed" />
                             <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Spacing="8">
                                 <NumberBox x:Name="RateValueBox" Width="96" SpinButtonPlacementMode="Hidden" ValueChanged="OnRateValueChanged" />
                                 <NumberBox x:Name="RateMaxBox" Width="96" SpinButtonPlacementMode="Hidden" ValueChanged="OnRateMaxChanged" />
                                 <TextBlock x:Name="RateUnit" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
                             </StackPanel>
                             <TextBlock Grid.Row="3" Text="Resolución" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="SizeBox" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSizeChanged" />
+                            <ComboBox x:Name="SizeBox" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSizeChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="4" Text="Forma" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="FitBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnFitChanged" />
+                            <ComboBox x:Name="FitBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnFitChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="5" Text="Cuadros por segundo" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="FrameRateBox" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnFrameRateChanged" />
+                            <ComboBox x:Name="FrameRateBox" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnFrameRateChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="6" Text="Bits por canal" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="BitDepthBox" Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnBitDepthChanged" />
+                            <ComboBox x:Name="BitDepthBox" Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnBitDepthChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="7" Text="Perfil" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="ProfileBox" Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnProfileChanged" />
+                            <ComboBox x:Name="ProfileBox" Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnProfileChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="8" Text="Velocidad del codificador" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="SpeedPresetBox" Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSpeedPresetChanged" />
+                            <ComboBox x:Name="SpeedPresetBox" Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSpeedPresetChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="9" Text="Cuadro clave cada" Style="{StaticResource FieldLabelStyle}" />
                             <StackPanel Grid.Row="9" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
                                 <NumberBox x:Name="KeyframeBox" Width="96" SpinButtonPlacementMode="Hidden" Minimum="0.1" Maximum="60" ValueChanged="OnKeyframeChanged" />
@@ -204,18 +204,18 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock Text="Códec" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="AudioCodecBox" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnAudioCodecChanged" />
+                            <ComboBox x:Name="AudioCodecBox" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnAudioCodecChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="1" Text="Tasa" Style="{StaticResource FieldLabelStyle}" />
                             <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
                                 <NumberBox x:Name="AudioRateBox" Width="96" SpinButtonPlacementMode="Hidden" Minimum="32" Maximum="512" ValueChanged="OnAudioRateChanged" />
                                 <TextBlock x:Name="AudioRateUnit" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
                             </StackPanel>
                             <TextBlock Grid.Row="2" Text="Frecuencia" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="SampleRateBox" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSampleRateChanged" />
+                            <ComboBox x:Name="SampleRateBox" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSampleRateChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="3" Text="Canales" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="ChannelsBox" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnChannelsChanged" />
+                            <ComboBox x:Name="ChannelsBox" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnChannelsChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="4" Text="Normalizar sonoridad" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="LoudnessBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnLoudnessChanged" />
+                            <ComboBox x:Name="LoudnessBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnLoudnessChanged" DropDownClosed="OnDropDownClosed" />
                         </Grid>
 
                         <TextBlock Text="Preajustes propios" Style="{StaticResource SectionTitleStyle}" />

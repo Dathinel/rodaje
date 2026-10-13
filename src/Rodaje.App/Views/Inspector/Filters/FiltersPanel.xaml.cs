@@ -471,9 +471,21 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
 
         string type = _addable[AddBox.SelectedIndex].Type;
+        // Volver a «Añadir» y refrescar el panel (que puede rehacer este desplegable) van después del evento: tocar el
+        // desplegable dentro de su propio SelectionChanged lo rompe (tarea 91).
+        DispatcherQueue.RunAfterEvent(() => AddEffect(type));
+    }
+
+    private void AddEffect(string type)
+    {
         _updating = true;
         AddBox.SelectedIndex = -1;
         _updating = false;
+        if (_services is null || _clipId is null)
+        {
+            return;
+        }
+
         var command = Edits.AddEffect(_services.Session.SequenceId, _clipId, type);
         if (_services.Session.Execute(command))
         {

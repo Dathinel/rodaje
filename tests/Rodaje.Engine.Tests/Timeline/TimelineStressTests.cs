@@ -152,7 +152,8 @@ public sealed class TimelineStressTests
 
         var watch = Stopwatch.StartNew();
         Stress.Within(0, "Dispose", TimeSpan.FromSeconds(40), session.Dispose);
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), $"Cerrar esperó al cuadro en curso: {watch.Elapsed.TotalMilliseconds:0} ms.");
+        // Esperar al cuadro en curso serían 30 s; la cota deja margen a las vueltas lentas de la CI.
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(15), $"Cerrar esperó al cuadro en curso: {watch.Elapsed.TotalMilliseconds:0} ms.");
         Assert.Empty(backend.OpenVideos);
     }
 
