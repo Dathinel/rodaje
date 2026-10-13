@@ -43,6 +43,13 @@ public static class ModuleModels
 
     public static IReadOnlyList<ModuleModel> Parse(JsonElement root, List<string>? problems = null)
     {
+        // Un texto con un sustituto suelto escapado (\ud800) haría lanzar a GetString más abajo.
+        if (SafeText.HasUnreadableString(root))
+        {
+            problems?.Add("La lista de modelos tiene un texto que no es Unicode válido; se omite.");
+            return [];
+        }
+
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("module", out JsonElement module) || module.ValueKind != JsonValueKind.Object
             || !module.TryGetProperty("models", out JsonElement list) || list.ValueKind != JsonValueKind.Array)
         {
@@ -63,7 +70,7 @@ public static class ModuleModels
             if (id is null || !Identifiers.IsValid(id)
                 || !SafePaths.TryNormalizeRelative(Str(e, "file"), out string? file)
                 || sha is null || !SignedIndex.IsSha256(sha)
-                || !e.TryGetProperty("size", out JsonElement size) || !size.TryGetInt64(out long bytes) || bytes <= 0 || bytes > SignedIndex.MaxEntrySize
+                || !e.TryGetProperty("size", out JsonElement size) || size.ValueKind != JsonValueKind.Number || !size.TryGetInt64(out long bytes) || bytes <= 0 || bytes > SignedIndex.MaxEntrySize
                 || Str(e, "url") is not { } url || !Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
             {
                 problems?.Add($"El modelo «{id ?? "?"}» está incompleto o mal escrito; se omite.");

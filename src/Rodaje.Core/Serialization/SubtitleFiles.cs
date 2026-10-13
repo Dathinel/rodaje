@@ -255,10 +255,11 @@ public static partial class SubtitleFiles
     private static string EscapeVtt(string line) =>
         line.Replace("&", "&amp;", StringComparison.Ordinal).Replace("<", "&lt;", StringComparison.Ordinal).Replace(">", "&gt;", StringComparison.Ordinal);
 
-    [GeneratedRegex(@"^(?:(\d{1,4}):)?(\d{1,2}):(\d{1,2})(?:[,.](\d{1,3}))?$", RegexOptions.CultureInvariant)]
+    // Cifras ASCII y no \d: en .NET \d también casa con cifras de otras escrituras («٠١», «０１») y long.Parse las rechaza.
+    [GeneratedRegex(@"^(?:([0-9]{1,4}):)?([0-9]{1,2}):([0-9]{1,2})(?:[,.]([0-9]{1,3}))?$", RegexOptions.CultureInvariant)]
     private static partial Regex StampPattern();
 
-    [GeneratedRegex(@"</?[A-Za-z][^<>]*>|<\d[\d:.,]*>", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"</?[A-Za-z][^<>]*>|<[0-9][0-9:.,]*>", RegexOptions.CultureInvariant)]
     private static partial Regex TagPattern();
 
     [GeneratedRegex(@"\{\\[^{}]*\}", RegexOptions.CultureInvariant)]
