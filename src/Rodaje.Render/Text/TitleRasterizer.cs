@@ -24,11 +24,15 @@ public sealed record TitleRasterizerOptions
     public bool BackgroundThread { get; init; } = true;
 
     /// <summary>
-    /// Prioridad del hilo propio. Por omisión debajo de lo normal, para no quitarle CPU a la reproducción. Las pruebas que
-    /// esperan a cada título la suben: con el runner de Windows saturado de hilos normales, uno de prioridad baja solo
-    /// corre cuando el sistema lo rescata tras unos segundos sin turno, y un título tardaba más de un minuto en llegar.
+    /// Prioridad del hilo propio; por omisión normal. Antes iba debajo de lo normal, pero el hilo solo corre cuando alguien
+    /// espera un título (en reposo duerme en <see cref="Monitor.Wait(object)"/> y no gasta CPU): la vista previa no da por
+    /// completa la composición tras un seek hasta que llega, y reproduciendo lo cuenta como tarde. Además rasteriza con el
+    /// candado del contexto de la GPU, el mismo que necesita el hilo de render (por encima de lo normal). Con la CPU llena
+    /// de hilos normales, uno de prioridad baja solo corre cuando Windows lo rescata tras unos segundos sin turno, así que
+    /// un título nuevo tardaba segundos en verse y, si lo desalojaban con el candado tomado, frenaba también al render
+    /// (en el runner de Windows saturado, un título tardó más de un minuto). Cada título son unos milisegundos de CPU.
     /// </summary>
-    public ThreadPriority WorkerPriority { get; init; } = ThreadPriority.BelowNormal;
+    public ThreadPriority WorkerPriority { get; init; } = ThreadPriority.Normal;
 }
 
 /// <summary>Una fuente pedida por un título que no está en el equipo: se dibuja con <see cref="UsedFamily"/>.</summary>
@@ -209,6 +213,9 @@ public sealed unsafe partial class TitleRasterizer : IGeneratedContentCache, IDi
 
     /// <summary>Para las pruebas: el candado que toma el rasterizado.</summary>
     internal Lock RasterLock => _raster;
+
+    /// <summary>Para las pruebas: la prioridad con que corre el hilo propio; nula si no hay.</summary>
+    internal ThreadPriority? WorkerThreadPriority => _worker?.Priority;
 
     /// <summary>Verdadero si ya está rasterizado (o no se puede: no hay nada que esperar); si no, lo encola.</summary>
     public bool Prepare(GeneratedContent content)
