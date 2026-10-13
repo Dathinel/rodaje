@@ -54,7 +54,8 @@ public static class ProjectSerializer
 
     /// <summary>
     /// Igual que <see cref="Deserialize(string)"/>; además dice cuántos valores de la v1.0.0 fuera de rango se acotaron
-    /// al leer (<see cref="Rodaje.Core.Effects.ParameterLimits.Normalize(Project)"/>). Si es más de cero, el proyecto en
+    /// al leer (<see cref="Rodaje.Core.Effects.ParameterLimits.Normalize(Project)"/> y
+    /// <see cref="TimelineLimits.Normalize(Project)"/>). Si es más de cero, el proyecto en
     /// memoria ya no es igual al archivo: quien lo abre debe avisarlo y tratarlo como modificado.
     /// </summary>
     /// <exception cref="ProjectFormatException">Si el texto no es un proyecto válido; el mensaje lo explica.</exception>
@@ -108,8 +109,9 @@ public static class ProjectSerializer
             problems = FindNullItems(project!);
             if (problems.Count == 0)
             {
-                // Lo que la v1.0.0 guardaba sin límite (posición, ancla, giro) se acota al abrir en vez de rechazarse.
-                clampedValues = Rodaje.Core.Effects.ParameterLimits.Normalize(project!);
+                // Lo que la v1.0.0 guardaba sin límite (posición, ancla, giro, tasa de la secuencia, clips más allá del
+                // final) se acota al abrir en vez de rechazarse.
+                clampedValues = Rodaje.Core.Effects.ParameterLimits.Normalize(project!) + TimelineLimits.Normalize(project!);
                 problems = validate(project!);
             }
         }

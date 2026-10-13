@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using Rodaje.App.Tests.Support;
 using Xunit.Abstractions;
@@ -19,7 +21,45 @@ public class SessionFuzzTests(ITestOutputHelper output)
     private const int CiSteps = 120;
 
     /// <summary>Acciones por semilla en la corrida larga (cada una con 5 000 acciones sería un día de máquina).</summary>
-    private const int LongSteps = 400;
+    internal const int LongSteps = 400;
+
+    /// <summary>Acciones de las secuencias hondas.</summary>
+    internal const int DeepSteps = 5_000;
+
+    internal const int LongFirstSeed = 1_000_000;
+
+    internal const int LongSeeds = 20_000;
+
+    /// <summary>Semillas por caso largo: unos 80 s en un solo hilo en Debug en un PC de escritorio.</summary>
+    internal const int LongBatchSeeds = 200;
+
+    public static TheoryData<int> LongBatches
+    {
+        get
+        {
+            var data = new TheoryData<int>();
+            for (int first = LongFirstSeed; first < LongFirstSeed + LongSeeds; first += LongBatchSeeds)
+            {
+                data.Add(first);
+            }
+
+            return data;
+        }
+    }
+
+    public static TheoryData<int> DeepSeeds
+    {
+        get
+        {
+            var data = new TheoryData<int>();
+            for (int seed = 2_000_000; seed < 2_000_010; seed++)
+            {
+                data.Add(seed);
+            }
+
+            return data;
+        }
+    }
 
     /// <summary>
     /// Corren siempre las 200, sin tope de tiempo: con un tope, un runner lento pasaba la prueba con menos semillas sin que
@@ -29,12 +69,19 @@ public class SessionFuzzTests(ITestOutputHelper output)
     [Fact]
     public Task DoscientasSemillas_SinFallos() => OwnThread.Run(() => RunSeeds(0, 200, CiSteps));
 
-    [LongFuzzFact]
-    public Task VeinteMilSemillas_SinFallos() => OwnThread.Run(() => RunSeeds(1_000_000, 20_000, LongSteps));
+    /// <summary>
+    /// Las 20 000 semillas largas, en lotes de <see cref="LongBatchSeeds"/> y varias a la vez. Un solo caso de 20 000 tardaba
+    /// más de dos horas y el <c>--blame-hang-timeout</c> de la CI (10 min en ci.yml, 15 en la nocturna), que cuenta por
+    /// prueba y no por avance, mataba el proceso a los 15 min: vstest lo informaba como «Test host process crashed».
+    /// </summary>
+    [LongFuzzTheory]
+    [MemberData(nameof(LongBatches))]
+    public Task VeinteMilSemillas_SinFallos(int first) => OwnThread.Run(() => RunSeedsInParallel(first, LongBatchSeeds, LongSteps));
 
-    /// <summary>Unas pocas secuencias de 5 000 acciones, con el historial y los compuestos bien hondos.</summary>
-    [LongFuzzFact]
-    public Task SecuenciasDeCincoMilAcciones_SinFallos() => OwnThread.Run(() => RunSeeds(2_000_000, 10, 5_000));
+    /// <summary>Unas pocas secuencias de 5 000 acciones, con el historial y los compuestos bien hondos; una por caso.</summary>
+    [LongFuzzTheory]
+    [MemberData(nameof(DeepSeeds))]
+    public Task SecuenciasDeCincoMilAcciones_SinFallos(int seed) => OwnThread.Run(() => RunSeeds(seed, 1, DeepSteps));
 
     /// <summary>Para reproducir una semilla del mensaje de un fallo: cámbiala aquí y quita el Skip.</summary>
     [Theory(Skip = "Solo para reproducir a mano una semilla que falló.")]
@@ -75,6 +122,9 @@ public class SessionFuzzTests(ITestOutputHelper output)
         // Aplicar un seguimiento cuyo tipo no coincidía con sus cuadros lanzaba. (En una vuelta de la CI de Windows agotó el
         // tope de 120 s «por el paso 240 de 300: Select», que no espera nada; ver SessionFuzzWatchTests.)
         { 9335, 300, @"^\d+\. Tracking aplicar .*no son de este tipo de seguimiento" },
+        // Deshacer el compuesto de fuera desde uno anidado dejaba en la ruta una secuencia borrada; volver a ella lanzaba.
+        { 1006161, LongSteps, @"^\d+\. LeaveCompound" },
+        { 1016412, LongSteps, @"^\d+\. LeaveCompound" },
     };
 
     private void RunSeeds(int first, int count, int steps)
@@ -87,13 +137,38 @@ public class SessionFuzzTests(ITestOutputHelper output)
 
         output.WriteLine($"{count} semillas de {steps} acciones en {clock.Elapsed.TotalSeconds:0.0} s.");
     }
+
+    /// <summary>Cada semilla es independiente (su hilo de interfaz y su carpeta); si fallan varias, sale la menor.</summary>
+    private void RunSeedsInParallel(int first, int count, int steps)
+    {
+        var clock = Stopwatch.StartNew();
+        var failures = new ConcurrentDictionary<int, ExceptionDispatchInfo>();
+        Parallel.For(first, first + count, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, seed =>
+        {
+            try
+            {
+                SessionFuzzer.Run(seed, steps);
+            }
+            catch (Exception ex)
+            {
+                failures[seed] = ExceptionDispatchInfo.Capture(ex);
+            }
+        });
+
+        if (!failures.IsEmpty)
+        {
+            failures[failures.Keys.Min()].Throw();
+        }
+
+        output.WriteLine($"{count} semillas de {steps} acciones en {clock.Elapsed.TotalSeconds:0.0} s.");
+    }
 }
 
 /// <summary>Solo con <c>RODAJE_PRUEBAS_LARGAS=1</c>.</summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-public sealed class LongFuzzFactAttribute : FactAttribute
+public sealed class LongFuzzTheoryAttribute : TheoryAttribute
 {
-    public LongFuzzFactAttribute() => Skip = Rodaje.TestMedia.Skip.LongRun;
+    public LongFuzzTheoryAttribute() => Skip = Rodaje.TestMedia.Skip.LongRun;
 }
 
 /// <summary>

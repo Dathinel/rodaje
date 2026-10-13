@@ -1,0 +1,36 @@
+name: Preparar Windows
+description: Entorno propio (.entorno, D-005) restaurado y la solución compilada. El trabajo define DOTNET_ROOT, NUGET_PACKAGES y demás.
+runs:
+  using: composite
+  steps:
+    # El SDK y FFmpeg se guardan por la huella de preparar-entorno.ps1, que fija versiones y hashes.
+    - name: Caché del SDK y FFmpeg
+      uses: actions/cache@v4
+      with:
+        path: |
+          .entorno/dotnet
+          .entorno/ffmpeg
+        key: entorno-windows-${{ hashFiles('build/preparar-entorno.ps1', 'global.json') }}
+
+    - name: Caché de NuGet
+      uses: actions/cache@v4
+      with:
+        path: .entorno/nuget
+        key: nuget-windows-${{ hashFiles('**/packages.lock.json') }}
+        restore-keys: nuget-windows-
+
+    - name: Preparar el entorno
+      shell: pwsh
+      run: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1
+
+    - name: Versión del SDK
+      shell: pwsh
+      run: '& .entorno\dotnet\dotnet.exe --version'
+
+    - name: Restaurar
+      shell: pwsh
+      run: '& .entorno\dotnet\dotnet.exe restore Rodaje.slnx --locked-mode'
+
+    - name: Compilar
+      shell: pwsh
+      run: '& .entorno\dotnet\dotnet.exe build Rodaje.slnx --no-restore'

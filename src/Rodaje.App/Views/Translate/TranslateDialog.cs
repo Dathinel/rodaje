@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Translate;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
@@ -14,7 +15,8 @@ namespace Rodaje.App.Views.Translate;
 /// <summary>
 /// «Traducir pista»: elige la pista de subtítulos (la del clip seleccionado por defecto), el idioma de origen (o
 /// detectarlo) y el de destino; traduce con <c>modulo-traducir</c> como un trabajo cancelable y crea una pista nueva
-/// encima con los mismos tiempos y estilo, en un paso del historial. Si algo falla, el proyecto no cambia.
+/// encima con los mismos tiempos y estilo, en un paso del historial. Si algo falla, el proyecto no cambia. Al cerrarlo con
+/// la traducción en marcha, la barra de avisos dice «Cancelando…» hasta que el módulo lo confirma (<see cref="DialogWork"/>).
 /// </summary>
 internal static class TranslateDialog
 {
@@ -22,7 +24,7 @@ internal static class TranslateDialog
 
     private static string _lastTarget = "en";
 
-    public static async Task ShowAsync(EditorServices services)
+    public static async Task ShowAsync(EditorServices services, LongActionScope? scope = null)
     {
         EditorSession session = services.Session;
         if (services.Shell.XamlRoot is not { } root)
@@ -82,7 +84,7 @@ internal static class TranslateDialog
         panel.Children.Add(row);
 
         ContentDialog dialog = AnalysisUi.Dialog(root, "Traducir pista", "Traducir", panel);
-        using var cancel = new CancellationTokenSource();
+        using var work = new DialogWork();
         bool running = false;
 
         void Refresh() => dialog.IsPrimaryButtonEnabled = !running && Chosen(track, trackChoices) is not null && Chosen(target, targets) is { } to
@@ -102,7 +104,9 @@ internal static class TranslateDialog
         Refresh();
 
         (string TrackId, TranslationLanguage Target, TrackTranslation Result)? done = null;
-        dialog.PrimaryButtonClick += (_, args) => UiTask.Run(async () =>
+        // La espera (GetDeferral) se pide dentro del evento, antes del primer await.
+        dialog.PrimaryButtonClick += (_, args) => UiTask.Run(work.Track(TranslateAsync(args)));
+        async Task TranslateAsync(ContentDialogButtonClickEventArgs args)
         {
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
             running = true;
@@ -115,7 +119,7 @@ internal static class TranslateDialog
                 string? from = Chosen(source, sources) is { Code: not "auto" } s ? s.Code : null;
                 IReadOnlyList<SubtitleText> texts = session.Sequence.FindTrack(chosenTrack.TrackId) is { } t ? SubtitleTrackTranslation.Collect(t) : [];
                 status.Text = Fmt($"Traduciendo {texts.Count} textos al {to.Name.ToLower(CultureInfo.CurrentCulture)}… (sigue en Trabajos si cierras)");
-                TrackTranslation result = await translator.TranslateAsync(texts, from, to.Code, "Traducir subtítulos", cancel.Token);
+                TrackTranslation result = await translator.TranslateAsync(texts, from, to.Code, "Traducir subtítulos", work.Token);
                 done = (chosenTrack.TrackId, to, result);
             }
             catch (OperationCanceledException)
@@ -142,10 +146,10 @@ internal static class TranslateDialog
                 Refresh();
                 deferral.Complete();
             }
-        });
+        }
 
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
-        await cancel.CancelAsync();
+        await work.CloseAsync(services.LongActions, "Traducir pista", scope);
         if (answer != ContentDialogResult.Primary || done is not { } d)
         {
             return;

@@ -275,24 +275,23 @@ public class ProjectFileMutationFuzzTests(ITestOutputHelper output)
 
     /// <summary>
     /// Una ruta de más de 32 767 caracteres abría y luego, en Windows, resolverla contra la carpeta del proyecto lanzaba
-    /// <see cref="PathTooLongException"/> en inglés (defecto hallado por este fuzz en la CI de Windows). Ahora la rechaza
-    /// el validador con un mensaje claro.
+    /// <see cref="PathTooLongException"/> en inglés (defecto hallado por este fuzz en la CI de Windows). La v1.0.0 la
+    /// guardaba, así que ahora abre (tarea 237): la ruta se deja como está y el medio queda sin archivo.
     /// </summary>
     [Theory]
     [InlineData(30_001)]
     [InlineData(33_000)]
-    public void OverlongMediaPath_IsRejected(int length)
+    public void OverlongMediaPath_Opens(int length)
     {
         JsonObject root = JsonNode.Parse(SeedFiles.Value[^1].Json)!.AsObject();
         Objects(root["media"]).First()["path"] = new string('a', length);
 
-        var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize(root.ToJsonString()));
-        Assert.Contains(ex.Problems, p => p.Contains("más larga de lo que admite Windows", StringComparison.Ordinal));
+        Assert.Equal(Outcome.Opened, Classify($"ruta de {length}", root.ToJsonString(), new Stats()));
     }
 
-    /// <summary>El caso de 10 MB de <see cref="OverlongMediaPath_IsRejected"/>: solo con pruebas largas.</summary>
+    /// <summary>El caso de 10 MB de <see cref="OverlongMediaPath_Opens"/>: solo con pruebas largas.</summary>
     [LongFuzzFact]
-    public void OverlongMediaPath_TenMegabytes_IsRejected() => OverlongMediaPath_IsRejected(10 * 1024 * 1024);
+    public void OverlongMediaPath_TenMegabytes_Opens() => OverlongMediaPath_Opens(10 * 1024 * 1024);
 
     internal static readonly string[] OddPaths =
     [

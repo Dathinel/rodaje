@@ -55,8 +55,11 @@ public partial class App : Application
 
     private Action<string>? ShowUnexpectedError() => _window is { } window ? window.ReportUnexpectedError : null;
 
-    /// <summary>Avisa en la ventana de un error ya informado; desde cualquier hilo (pasa por la cola de la interfaz).</summary>
-    internal void NotifyUnexpectedError(string message)
+    /// <summary>
+    /// Avisa en la ventana de un error ya informado en <paramref name="reportPath"/>, con el texto fijo de
+    /// <see cref="UnexpectedErrorNotice"/>; desde cualquier hilo (pasa por la cola de la interfaz).
+    /// </summary>
+    internal void NotifyUnexpectedError(string? reportPath)
     {
         if (_window is not { } window)
         {
@@ -69,7 +72,7 @@ public partial class App : Application
         {
             try
             {
-                window.ReportUnexpectedError(message);
+                window.ReportUnexpectedError(UnexpectedErrorNotice.Describe(reportPath));
             }
             catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
             {

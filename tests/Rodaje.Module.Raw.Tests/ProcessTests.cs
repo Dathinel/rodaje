@@ -128,6 +128,21 @@ public class ProcessTests(ITestOutputHelper output)
     [Trait("Categoria", "TiempoReal")]
     public Task Cancel_is_confirmed_within_a_second() => CancelIsConfirmed(TimeSpan.FromSeconds(1));
 
+    /// <summary>
+    /// Cuántas veces se intenta cancelar antes de dar la cancelación por rota. Si el módulo terminó los ocho cuadros antes
+    /// de leer el «cancel», contesta <c>result</c>, que el protocolo admite: ese intento no prueba nada y se repite.
+    /// </summary>
+    private const int CancelAttempts = 3;
+
+    /// <summary>
+    /// Cancela un revelado de ocho 1080p con un hilo al primer aviso de avance. La cancelación se pide dentro del propio
+    /// aviso, que el cliente da en su bucle de lectura (<see cref="CancelOnFirstReport"/>), y no con un
+    /// <see cref="Progress{T}"/>, que lo publica en el pool: con el runner de Windows cargado, el salto al pool y la vuelta
+    /// del <c>await</c> llegaron a tardar lo que los siete cuadros restantes y el módulo ya había contestado
+    /// <c>result</c> (#249). Aun así, un <c>result</c> que se cruza con el «cancel» es correcto según el protocolo: se
+    /// comprueba que trae los ocho cuadros y que el módulo sigue sano, y se intenta otra vez; un módulo que no atiende la
+    /// cancelación contesta <c>result</c> en todos los intentos y la prueba cae.
+    /// </summary>
     private async Task CancelIsConfirmed(TimeSpan limit)
     {
         if (!Ready)
@@ -140,16 +155,56 @@ public class ProcessTests(ITestOutputHelper output)
         byte[] dng = SyntheticDng.Chart(1920, 1080).Write();
         List<SharedBufferRef> pairs = Pairs(module.Client, [.. Enumerable.Repeat(dng, 8)], 1920, 1080, PixelFormats.Rgba16F, out _);
         using JsonDocument one = JsonDocument.Parse("""{"hilos":1}""");
-        using var cancel = new CancellationTokenSource();
-        var started = new TaskCompletionSource();
-        Task<ModuleResult> call = module.Client.InvokeAsync("revelar", one.RootElement, pairs, new Progress<ModuleProgress>(_ => started.TrySetResult()), cancel.Token);
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        var watch = Stopwatch.StartNew();
-        await cancel.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
-        output.WriteLine($"Cancelación confirmada en {watch.Elapsed.TotalMilliseconds:0} ms");
-        Assert.True(watch.Elapsed < limit, $"La cancelación tardó {watch.Elapsed.TotalMilliseconds:0} ms (cota {limit.TotalSeconds:0} s).");
-        TimeSpan ping = await module.Client.PingAsync();
-        Assert.True(ping < limit, $"El ping tras cancelar tardó {ping.TotalMilliseconds:0} ms (cota {limit.TotalSeconds:0} s).");
+        for (int attempt = 1; attempt <= CancelAttempts; attempt++)
+        {
+            using var cancel = new CancellationTokenSource();
+            var progress = new CancelOnFirstReport(cancel);
+            Task<ModuleResult> call = module.Client.InvokeAsync("revelar", one.RootElement, pairs, progress, cancel.Token);
+            ModuleResult result;
+            try
+            {
+                result = await call;
+            }
+            catch (OperationCanceledException)
+            {
+                // El reloj empezó justo antes de pedir la cancelación, dentro del aviso.
+                TimeSpan confirmed = progress.Watch.Elapsed;
+                output.WriteLine($"Intento {attempt}: cancelación confirmada en {confirmed.TotalMilliseconds:0} ms");
+                Assert.True(progress.Cancelled, "La llamada se canceló sin que se pidiera.");
+                Assert.True(confirmed < limit, $"La cancelación tardó {confirmed.TotalMilliseconds:0} ms (cota {limit.TotalSeconds:0} s).");
+                TimeSpan ping = await module.Client.PingAsync();
+                Assert.True(ping < limit, $"El ping tras cancelar tardó {ping.TotalMilliseconds:0} ms (cota {limit.TotalSeconds:0} s).");
+                return;
+            }
+
+            // El módulo acabó antes de leer el «cancel»: contestó bien y debe seguir atendiendo.
+            output.WriteLine($"Intento {attempt}: el módulo contestó «result» antes de leer el «cancel» ({result.Value}).");
+            Assert.True(progress.Cancelled, "El revelado terminó sin dar ningún aviso de avance.");
+            Assert.Equal(8, result.Buffers.Count);
+            TimeSpan healthy = await module.Client.PingAsync();
+            Assert.True(healthy < limit, $"El ping tras el «result» tardó {healthy.TotalMilliseconds:0} ms (cota {limit.TotalSeconds:0} s).");
+        }
+
+        Assert.Fail($"El módulo contestó «result» en los {CancelAttempts} intentos: no atiende la cancelación.");
+    }
+
+    /// <summary>
+    /// Pide la cancelación en el mismo aviso de avance, en el hilo que lo da (el bucle de lectura del cliente), sin pasar
+    /// por el pool. Solo el primero cuenta.
+    /// </summary>
+    private sealed class CancelOnFirstReport(CancellationTokenSource cancel) : IProgress<ModuleProgress>
+    {
+        private int _reported;
+
+        public Stopwatch Watch { get; } = new();
+
+        public bool Cancelled => Volatile.Read(ref _reported) != 0;
+
+        public void Report(ModuleProgress value)
+        {
+            if (Interlocked.Exchange(ref _reported, 1) != 0) return;
+            Watch.Start();
+            cancel.Cancel();
+        }
     }
 }

@@ -21,13 +21,16 @@ public sealed class ExtremeProjectValuesTests
         { 1, long.MaxValue },
         { Big, 1 },
         { long.MaxValue, 1 },
-        { 1, 2 },
-        { Big - 1, Big },
+        { 1, 6 },
+        { 1, 60 },
         { 1001, 1 },
     };
 
     public static TheoryData<long, long> AcceptedRates => new()
     {
+        { 1, 5 },
+        { 1, 2 },
+        { Big - 1, Big },
         { 1, 1 },
         { 1000, 1 },
         { 24000, 1001 },
@@ -37,18 +40,18 @@ public sealed class ExtremeProjectValuesTests
 
     [Theory]
     [MemberData(nameof(RejectedRates))]
-    public void ASequenceRateOutsideOneToAThousandFps_IsRejected(long num, long den)
+    public void ASequenceRateOutsideTheSupportedRange_IsRejected(long num, long den)
     {
         Project project = OneClip(new Rational(num, den), start: 0, length: Time.TicksPerSecond);
 
         string error = Assert.Single(ModelValidator.Validate(project));
-        Assert.Contains("va de 1 a 1000", error, StringComparison.Ordinal);
+        Assert.Contains("va de 1/5 a 1000", error, StringComparison.Ordinal);
     }
 
     /// <summary>Con la tasa en rango, empujar un cuadro y llevar el final al cuadro más cercano caben en un <c>long</c>.</summary>
     [Theory]
     [MemberData(nameof(AcceptedRates))]
-    public void ASequenceRateFromOneToAThousandFps_IsAcceptedAndItsFrameMathFits(long num, long den)
+    public void ASequenceRateInTheSupportedRange_IsAcceptedAndItsFrameMathFits(long num, long den)
     {
         var rate = new Rational(num, den);
         Project project = OneClip(rate, start: Sequence.MaxTime.Ticks - Time.TicksPerSecond, length: Time.TicksPerSecond);

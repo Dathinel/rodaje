@@ -85,7 +85,8 @@ public sealed partial class EditorSession
             return false;
         }
 
-        // Un proyecto de la v1.0.0 con posición, ancla o giro más allá del límite de hoy se acota al leerlo. Antes era en
+        // Un proyecto de la v1.0.0 con valores más allá del límite de hoy (posición, ancla, giro, tasa, clips tras el final)
+        // se acota al leerlo. Antes era en
         // silencio y el proyecto quedaba «Guardado» aunque ya no era igual al archivo: ahora se avisa y queda con cambios.
         ReplaceProject(loaded, first.Id, full, "Proyecto abierto", unsaved: clamped > 0);
         if (clamped > 0)
@@ -99,8 +100,8 @@ public sealed partial class EditorSession
     /// <summary>El aviso de una línea al abrir un proyecto con valores acotados.</summary>
     internal static string ClampedNotice(int count) =>
         (count == 1
-            ? "Un valor de posición, ancla o giro estaba fuera del rango y se acotó al límite"
-            : $"{count} valores de posición, ancla o giro estaban fuera del rango y se acotaron al límite") +
+            ? "Un valor (posición, ancla, giro, tasa de cuadros o un clip más allá del final) estaba fuera del rango y se acotó al límite"
+            : $"{count} valores (posición, ancla, giro, tasa de cuadros o clips más allá del final) estaban fuera del rango y se acotaron al límite") +
         "; guarda el proyecto para conservar el cambio.";
 
     /// <summary>Guarda en el archivo del proyecto; si nunca se guardó, pregunta dónde.</summary>

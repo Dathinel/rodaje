@@ -30,15 +30,16 @@ public class ExtremeProjectSessionTests
         new(1, 1), new(1000, 1), new(24000, 1001), new(Big, Big - 1), new((1000L << 40) - 1, 1L << 40), new(30000, 1001), new(25, 1), new(120, 1),
     ];
 
-    /// <summary>En qué parte del caso va el fuzz y desde cuándo, para el mensaje de un cuelgue.</summary>
-    private static string _phase = "";
-
-    private static long _phaseStarted;
+    /// <summary>En qué parte del caso va el fuzz, desde cuándo y cómo fueron los tramos anteriores, para el mensaje de un cuelgue.</summary>
+    private static readonly PhaseLog Phases = new();
 
     /// <summary>
     /// En la CI de Windows, dos veces un caso «tardó más de 15 s» (semillas 20261013 y 20261015) que en Linux tarda de 17 a
     /// 460 ms (800 semillas, la más lenta 0,6 s): ningún paso recorre los números extremos. Si vuelve a pasar, el mensaje
-    /// dice en qué tramo estaba (las esperas al pool al abrir y guardar, o un paso síncrono) y el estado del pool.
+    /// dice en qué tramo estaba (las esperas al pool al abrir y guardar, o un paso síncrono) y el estado del pool. Otra vez
+    /// (semilla 20261022, tarea 290) llevaba 5,4 s en «volver a leer», que tarda 2 ms, con el pool libre, y otra (semilla
+    /// 20261014) 0,7 s en «guardar como»: los otros 10 y 14 s se fueron en tramos anteriores que no se veían. El mensaje
+    /// dice además cuánto duró cada tramo, la pausa y las colecciones del GC, la CPU del proceso y el estado del hilo.
     /// </summary>
     [Fact]
     public Task ProyectosExtremos_SeEditanSinExcepciones() => OwnThread.Run(() =>
@@ -47,7 +48,7 @@ public class ExtremeProjectSessionTests
         {
             FuzzRunner.Run("proyecto con números extremos", 20261013, cases: 40, budget: TimeSpan.FromSeconds(10), minimumCases: 40, (seed, random) =>
             {
-                Mark("preparar");
+                Phases.StartCase("preparar");
                 using var directory = new TempDirectory();
                 Project project = BuildProject(random, directory.Path);
                 Assert.Empty(ModelValidator.Validate(project));
@@ -60,22 +61,20 @@ public class ExtremeProjectSessionTests
         }
         catch (XunitException ex) when (ex.Message.Contains("tardó más de", StringComparison.Ordinal))
         {
-            double seconds = System.Diagnostics.Stopwatch.GetElapsedTime(Interlocked.Read(ref _phaseStarted)).TotalSeconds;
-            throw new XunitException(Invariant($"{ex.Message} Iba por «{Volatile.Read(ref _phase)}» desde hace {seconds:F1} s. {UiThread.PoolState()}"));
+            throw new XunitException($"{ex.Message} {Phases.Describe()} {UiThread.PoolState()}");
         }
     });
 
-    private static void Mark(string phase)
-    {
-        Interlocked.Exchange(ref _phaseStarted, System.Diagnostics.Stopwatch.GetTimestamp());
-        Volatile.Write(ref _phase, phase);
-    }
+    private static void Mark(string phase) => Phases.Mark(phase);
 
-    /// <summary>Una tasa de 1/2^62 (un cuadro de más de 400 años): empujar o recortar un cuadro lanzaba OverflowException.</summary>
+    /// <summary>
+    /// Una tasa de 1/2^62 (un cuadro de más de 400 años): empujar o recortar un cuadro lanzaba OverflowException. La v1.0.0
+    /// la guardaba, así que se abre acotada al rango, con aviso (tarea 237).
+    /// </summary>
     [Theory]
-    [InlineData(1, Big)]
-    [InlineData(Big, 1)]
-    public void UnaTasaDeSecuenciaExtrema_NoSeAbre(long num, long den)
+    [InlineData(1, Big, 1, 5)]
+    [InlineData(Big, 1, 1000, 1)]
+    public void UnaTasaDeSecuenciaExtrema_SeAbreAcotadaConAviso(long num, long den, long openedNum, long openedDen)
     {
         using var directory = new TempDirectory();
         string path = SaveOneClip(directory.Path, new Rational(num, den), start: 0);
@@ -83,15 +82,22 @@ public class ExtremeProjectSessionTests
         {
             (EditorSession session, List<EditorNotification> notes) = NewSession();
 
-            Assert.False(await session.OpenProjectAsync(path));
+            Assert.True(await session.OpenProjectAsync(path));
 
-            Assert.Contains(notes, n => n.Severity == NotificationSeverity.Error && n.Message.Contains("va de 1 a 1000", StringComparison.Ordinal));
+            Assert.Equal(new Rational(openedNum, openedDen), session.Sequence.FrameRate);
+            Assert.Contains(notes, n => n.Severity == NotificationSeverity.Warning && n.Message == EditorSession.ClampedNotice(1));
+            Assert.True(session.IsDirty);
+            session.Select(["c"]);
+            Assert.True(session.NudgeSelection(1));
         });
     }
 
-    /// <summary>Un clip que acaba un segundo antes de <see cref="long.MaxValue"/>: empujarlo un cuadro lanzaba OverflowException.</summary>
+    /// <summary>
+    /// Un clip que acaba un segundo antes de <see cref="long.MaxValue"/>: empujarlo un cuadro lanzaba OverflowException.
+    /// Empieza después del final de la línea de tiempo, así que al abrir se quita, con aviso (tarea 237).
+    /// </summary>
     [Fact]
-    public void UnClipQueAcabaCercaDelFinalDelRango_NoSeAbre()
+    public void UnClipQueAcabaCercaDelFinalDelRango_SeQuitaAlAbrirConAviso()
     {
         using var directory = new TempDirectory();
         string path = SaveOneClip(directory.Path, Rational.Fps25, start: long.MaxValue - (2 * Time.TicksPerSecond));
@@ -99,10 +105,11 @@ public class ExtremeProjectSessionTests
         {
             (EditorSession session, List<EditorNotification> notes) = NewSession();
 
-            Assert.False(await session.OpenProjectAsync(path));
+            Assert.True(await session.OpenProjectAsync(path));
 
-            Assert.Contains(notes, n => n.Severity == NotificationSeverity.Error
-                && n.Message.Contains("termina después del final de la línea de tiempo", StringComparison.Ordinal));
+            Assert.Empty(session.Sequence.VideoTracks[0].Clips);
+            Assert.Contains(notes, n => n.Severity == NotificationSeverity.Warning && n.Message == EditorSession.ClampedNotice(1));
+            Assert.True(session.IsDirty);
         });
     }
 

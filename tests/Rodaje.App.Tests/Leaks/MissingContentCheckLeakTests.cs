@@ -12,8 +12,8 @@ namespace Rodaje.App.Tests.Leaks;
 /// de lo instalado. Mientras esa lectura no terminaba, cada proyecto abierto quedaba retenido por su comprobación
 /// pendiente y encolaba otra lectura completa del disco detrás de las demás. Con el disco o el pool lentos es la causa
 /// más probable de los 90 proyectos vivos de 200 que vio <see cref="SessionOpenCloseLeakTests"/> en la CI de Windows
-/// (tarea 250). Aquí la lectura no puede terminar mientras se mide, porque su continuación vuelve al hilo de la interfaz
-/// y la prueba no lo suelta: no depende del reloj.
+/// (tarea 250). Aquí la lectura no puede terminar mientras se mide: espera detrás de otra operación con los paquetes que
+/// la prueba retiene. No depende del reloj.
 /// </summary>
 [Collection(AppLeakGroup.Name)]
 public sealed class MissingContentCheckLeakTests : IDisposable
@@ -31,6 +31,20 @@ public sealed class MissingContentCheckLeakTests : IDisposable
         var playback = new FakePlayback();
         var session = new EditorSession(playback, new FakeProber(), new FakeDialogs { Choice = UnsavedChangesChoice.Discard }, new SequentialIdGenerator());
         MissingContent.Attach(session, packages);
+
+        // Una desinstalación que no termina hasta que la prueba la suelta ocupa los paquetes: la primera lectura queda
+        // esperando su turno. Antes la prueba confiaba en que la continuación de esa lectura volviera al hilo de la
+        // interfaz, pero si el pool la terminaba antes de que el await mirara la tarea (el hilo de la interfaz desalojado
+        // en un runner cargado), seguía en el acto y HasScanned ya era verdadero (CI de Windows de #246).
+        var occupied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        packages.CloseModule = _ =>
+        {
+            entered.TrySetResult();
+            return occupied.Task;
+        };
+        Task uninstalling = packages.UninstallAsync("paquete-que-no-esta");
+        await entered.Task;
 
         // Todo en el mismo tramo del hilo de la interfaz: ninguna comprobación puede terminar entretanto.
         var opened = new List<WeakReference<Project>>();
@@ -51,7 +65,12 @@ public sealed class MissingContentCheckLeakTests : IDisposable
         // El proyecto abierto y, como mucho, el anterior. Antes, los cincuenta.
         Assert.True(alive <= 2, $"Siguen vivos {alive} de {Openings} proyectos abiertos antes de la primera lectura de paquetes.");
 
-        await packages.ScannedAsync();
+        // La lectura que esperan las comprobaciones, y no la que hace la desinstalación al terminar.
+        Task<PackageScan> firstScan = packages.ScannedAsync();
+        occupied.SetResult();
+        // No hay tal paquete: la desinstalación falla después de soltar los paquetes, sin tocar el disco.
+        await Assert.ThrowsAsync<PackageInstallException>(() => uninstalling);
+        await firstScan;
         Assert.True(packages.HasScanned);
     });
 

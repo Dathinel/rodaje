@@ -22,6 +22,7 @@ public sealed class ModuleJob
     private readonly ModuleJobList _owner;
     private readonly long _started = Stopwatch.GetTimestamp();
     private long _runningSince;
+    private volatile bool _cancelling;
 
     internal ModuleJob(ModuleJobList owner, string title, string moduleName, CancellationToken external)
     {
@@ -30,6 +31,8 @@ public sealed class ModuleJob
         ModuleName = moduleName;
         _cancel = CancellationTokenSource.CreateLinkedTokenSource(external);
         Token = _cancel.Token;
+        // Desde la fila o desde quien lanzó el trabajo: el módulo puede tardar en confirmar (hasta CancelGrace, 10 s).
+        _ = Token.Register(OnCancelRequested);
     }
 
     public string Title { get; }
@@ -46,6 +49,15 @@ public sealed class ModuleJob
     public string? Error { get; private set; }
 
     public bool IsFinished => State is ModuleJobState.Completed or ModuleJobState.Failed or ModuleJobState.Cancelled;
+
+    /// <summary>Se pidió cancelar y el módulo todavía no lo confirmó.</summary>
+    public bool IsCancelling => _cancelling && !IsFinished;
+
+    /// <summary>
+    /// Barra sin porcentaje (en movimiento) mientras no hay avance que mostrar: esperando, iniciando el módulo (hasta 30 s
+    /// en frío) o cancelando.
+    /// </summary>
+    public bool IsIndeterminate => !IsFinished && (State == ModuleJobState.Waiting || _cancelling);
 
     public TimeSpan Elapsed => Stopwatch.GetElapsedTime(_started);
 
@@ -68,7 +80,7 @@ public sealed class ModuleJob
     public CancellationToken Token { get; }
 
     /// <summary>Texto corto de estado para la fila.</summary>
-    public string StatusText => State switch
+    public string StatusText => IsCancelling ? ModuleActivity.Cancelling : State switch
     {
         ModuleJobState.Waiting => Stage ?? "En espera",
         ModuleJobState.Running => $"{Stage ?? "Procesando"} · {Progress * 100:0} %" + (Remaining is { } r ? $" · quedan {FormatRemaining(r)}" : ""),
@@ -88,6 +100,15 @@ public sealed class ModuleJob
             catch (ObjectDisposedException)
             {
             }
+        }
+    }
+
+    private void OnCancelRequested()
+    {
+        if (!IsFinished)
+        {
+            _cancelling = true;
+            _owner.Notify();
         }
     }
 

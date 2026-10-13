@@ -27,6 +27,19 @@ public sealed class Sequence
     /// <summary>Cuadros por segundo más altos de una secuencia (<see cref="IsValidFrameRate"/>).</summary>
     public const int MaxFrameRate = 1000;
 
+    /// <summary>
+    /// Cuadros por segundo más bajos que admite el modelo: uno cada 5 segundos. La v1.0.0 guardaba tasas por debajo de 1
+    /// (fotos fijas); con un cuadro de hasta 5 s, cualquier número de cuadro de 32 bits cabe en un <see cref="Time"/>.
+    /// </summary>
+    public static Rational MinFrameRate { get; } = new(1, 5);
+
+    /// <summary>
+    /// Tasas que acepta el modelo al abrir y al editar: de <see cref="MinFrameRate"/> a <see cref="MaxFrameRate"/>. El
+    /// selector de formato y la exportación siguen pidiendo <see cref="IsValidFrameRate"/>.
+    /// </summary>
+    public static bool IsSupportedFrameRate(Rational rate) =>
+        rate.Num > 0 && rate.Den > 0 && (Int128)rate.Num * MinFrameRate.Den >= rate.Den && rate.Num <= (Int128)MaxFrameRate * rate.Den;
+
     public int Width { get; set; } = 1920;
 
     public int Height { get; set; } = 1080;

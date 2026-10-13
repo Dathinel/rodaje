@@ -132,7 +132,8 @@ public static class TransitionChoices
             }
         }
 
-        int index = types.IndexOf((type, preset));
+        // Una transición propia guardada con su id de la v1.0.0 se elige por el actual.
+        int index = types.IndexOf((type, preset.Length > 0 ? installed.Canonical(preset, ItemKind.Transition) : preset));
         if (index < 0)
         {
             types.Add(preset.Length > 0 ? preset + " (falta el paquete)" : EffectUi.Name(type), (type, preset));
@@ -157,6 +158,8 @@ public static class LutChoices
     {
         ArgumentNullException.ThrowIfNull(installed);
         ArgumentNullException.ThrowIfNull(current);
+        // Una LUT propia guardada con su id de la v1.0.0 se elige por el actual.
+        current = installed.Canonical(current, ItemKind.Lut);
         var luts = new ChoiceList<string?>();
         luts.Add("Sin LUT", "");
         foreach (PackageItemEntry entry in installed.Items(ItemKind.Lut))
@@ -266,17 +269,28 @@ public static class TextStyleChoices
     }
 
     /// <summary>
-    /// El estilo de <paramref name="styles"/> que tiene el título: el de su origen o, sin origen, el de fábrica si no se
-    /// cambió; −1 si ninguno.
+    /// El estilo de <paramref name="styles"/> que tiene el título: el de su origen (primero por el id actual y, si ninguno lo
+    /// tiene, por el antiguo) o, sin origen, el de fábrica si no se cambió; −1 si ninguno.
     /// </summary>
     public static int IndexOf(ChoiceList<LibraryElement> styles, TextStyle style)
     {
         ArgumentNullException.ThrowIfNull(styles);
         ArgumentNullException.ThrowIfNull(style);
+        if (style.Source is { } source)
+        {
+            // El id exacto gana: un estilo anterior en la lista puede tener como id antiguo el id actual de otro.
+            int exact = Find(styles, e => e.Reference == source);
+            return exact >= 0 ? exact : Find(styles, e => e.LegacyReference == source);
+        }
+
+        return Find(styles, e => e.IsBuiltIn && style.ContentEquals(TitleStyles.Default()));
+    }
+
+    private static int Find(ChoiceList<LibraryElement> styles, Func<LibraryElement, bool> match)
+    {
         for (int i = 0; i < styles.Count; i++)
         {
-            LibraryElement e = styles.Values[i];
-            if (style.Source is { } source ? e.Reference == source : e.IsBuiltIn && style.ContentEquals(TitleStyles.Default()))
+            if (match(styles.Values[i]))
             {
                 return i;
             }
