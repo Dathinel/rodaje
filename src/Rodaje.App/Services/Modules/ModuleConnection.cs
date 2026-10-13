@@ -266,7 +266,7 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
                 ModuleClient client = process.Client;
                 Func<ModuleClient, Task> sendPing = SendPing;
                 Func<TimeSpan, Task> pingWindow = PingWindow;
-                if (await PingRoundAsync(() => sendPing(client), () => client.ReceivedMessages,
+                if (await PingRoundAsync(() => sendPing(client), () => 0,
                     () => Task.WhenAny(process.Exited, pingWindow(options.PingTimeout))).ConfigureAwait(false))
                 {
                     continue;

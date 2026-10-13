@@ -45,7 +45,7 @@ public sealed class ModuleCall
     {
         fraction = double.IsFinite(fraction) ? Math.Clamp(fraction, 0, 1) : 0;
         long now = Stopwatch.GetTimestamp();
-        if (fraction < 1 && stage == _lastStage && _lastProgressTicks != 0 && Stopwatch.GetElapsedTime(_lastProgressTicks, now).TotalMilliseconds < 50)
+        if (fraction < 1 && stage == _lastStage && _lastProgressTicks != 0 && Stopwatch.GetElapsedTime(_lastProgressTicks, now).TotalMilliseconds < 20)
             return;
         _lastProgressTicks = now;
         _lastStage = stage;
