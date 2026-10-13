@@ -111,6 +111,12 @@ public static partial class ModelValidator
         {
             errors.Add($"La secuencia «{sequence.Id}» tiene una tasa de cuadros no válida.");
         }
+        else if (!Sequence.IsValidFrameRate(sequence.FrameRate))
+        {
+            // Una tasa extrema (1/2^62 o 2^62 fps) es una fracción válida, pero un cuadro de más de 400 años o de menos de
+            // un tick hacía desbordar empujar, recortar o cortar en el cursor.
+            errors.Add($"La secuencia «{sequence.Id}» tiene una tasa de {sequence.FrameRate} cuadros por segundo; va de 1 a {Sequence.MaxFrameRate}.");
+        }
 
         CheckTrackKinds(sequence.VideoTracks, TrackKind.Video, sequence, errors);
         CheckTrackKinds(sequence.AudioTracks, TrackKind.Audio, sequence, errors);
@@ -192,6 +198,10 @@ public static partial class ModelValidator
                 if (!FitsInLong((Int128)clip.SourceOut.Ticks - clip.SourceIn.Ticks) || !FitsInLong(end))
                 {
                     errors.Add($"{where} tiene tiempos fuera de rango.");
+                }
+                else if (end > Sequence.MaxTime.Ticks)
+                {
+                    errors.Add($"{where} termina después del final de la línea de tiempo ({Sequence.MaxTime.Ticks} ticks).");
                 }
 
                 if (previous is not null && clip.Start.Ticks < previousEnd)

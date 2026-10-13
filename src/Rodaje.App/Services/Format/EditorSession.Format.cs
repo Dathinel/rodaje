@@ -1,4 +1,5 @@
 using Rodaje.App.Services.Format;
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Services;
@@ -18,10 +19,17 @@ public sealed partial class EditorSession
         }
 
         // Lo imposible no llega al comando, que lanza ArgumentException (no EditException) y cerraría la app desde un clic.
-        if (!ProjectFormats.IsValidSize(width, height) || frameRate.Num <= 0 || frameRate.Den <= 0)
+        if (!ProjectFormats.IsValidSize(width, height))
         {
             Notify(NotificationSeverity.Warning, "Formato del proyecto",
                 $"{width}×{height} no es un tamaño válido: pares, de {ProjectFormats.MinSide} a {ProjectFormats.MaxSide} píxeles.");
+            return false;
+        }
+
+        if (!Sequence.IsValidFrameRate(frameRate))
+        {
+            Notify(NotificationSeverity.Warning, "Formato del proyecto",
+                $"{frameRate} no es una tasa válida: de 1 a {Sequence.MaxFrameRate} cuadros por segundo.");
             return false;
         }
 
