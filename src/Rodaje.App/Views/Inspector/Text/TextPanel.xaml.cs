@@ -22,6 +22,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
     private readonly List<Action<TextStyle>> _refreshers = [];
     /// <summary>Lo que muestra ahora el desplegable de estilos (ver <see cref="ComboBoxChoices"/>).</summary>
     private ChoiceList<LibraryElement> _styles = new();
+    private readonly ClosedListRetry _stylesRetry = new();
     private EditorServices? _services;
     private TitleEditor? _editor;
     private string? _clipId;
@@ -43,6 +44,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         _services = services;
         _editor = new TitleEditor(services.Session);
         BuildRows();
+        _styleBox?.RetryWhenClosed(_stylesRetry, Refresh);
         BuildWordRows();
         BuildProRows();
         foreach (InspectorSection section in (InspectorSection[])[ContentSection, WordsSection, StyleSection, TypographySection, FillSection, StrokeSection,
@@ -273,7 +275,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         }
 
         PackageScan scan = _services.Packages.Installed;
-        // Con la lista abierta (los paquetes cambian en cualquier momento) no se toca: el próximo refresco la pone al día.
+        // Con la lista abierta (los paquetes cambian en cualquier momento) no se toca: se repite al cerrarla (_stylesRetry).
         ChoiceList<LibraryElement> styles = _styles;
         if (!ReferenceEquals(scan, _stylesScan) && !_styleBox.IsDropDownOpen)
         {
@@ -281,7 +283,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
             styles = TextStyleChoices.Build(scan);
         }
 
-        _styles = ComboBoxChoices.Show(_styleBox, _styles, styles, TextStyleChoices.IndexOf(styles, style));
+        _styles = ComboBoxChoices.Show(_styleBox, _styles, styles, TextStyleChoices.IndexOf(styles, style), retry: _stylesRetry);
         _styleBox.PlaceholderText = style.Name is { Length: > 0 } name ? $"{name} (cambiado)" : "Personalizado";
         if (_sourceText is not null)
         {
