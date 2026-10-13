@@ -15,7 +15,9 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 - **Complementos:** contenido en `Dathinel/rodaje-transiciones`, `-filtros`, `-fuentes`, `-titulos`, `-zonas`, `-camaras`, `-sonidos`, `-preajustes-pro` y `-360` (CC0/OFL); módulos en `Dathinel/modulo-*` (GPLv3, `build\empaquetar-modulo.ps1`); x264/x265 en `Dathinel/rodaje-codificadores-gpl` (GPL, `build\armar-codificadores-gpl.ps1`, D-034); descarga firmada desde `Dathinel/rodaje-catalogo` (release `v7`; `docs/descarga.md`).
 - **Decisiones:** `docs/decisiones.md` (D-001 a D-043). Un cambio de fondo que contradiga una decisión vigente se registra como decisión nueva.
 
-## Para retomar (13-oct, 19:40)
+## Para retomar (13-oct, 23:15)
+
+- **Todo en pausa por el autor (13-oct 23:10 UTC):** rutina de la nube desactivada (`RemoteTrigger update enabled:false`), pasada nocturna desactivada (`gh workflow enable nocturna.yml` para volver) y ningún agente local. Quedan 6 PR de la nube abiertos sin unir (#285 a #290) y la 291 a medias en `claude/dep-preroll-4k`. No reactivar nada sin que lo pida.
 
 - **v1.0.0 publicada** (release `v1.0.0`, commit 8b1e4c1; la completa trae los 16 complementos). No se publica nada nuevo hasta que el autor lo pida.
 - **Ronda de depuración de la nube** hasta el 14-oct 05:00 UTC (rutina `trig_015zPXdY6meRLBGvkb5XEXMF`, cada hora). Al corte de las 19:30: 131 PR unidos y unos 85 defectos arreglados, entre ellos el cierre al elegir «escala» (#99; falta confirmarlo en Windows). La auditoría de los PR (cinco revisores con otro modelo) no encontró trampas, solo plazos subidos y pruebas `TiempoReal` que no corre ninguna CI: reglas nuevas en `.proceso/nube/README.md` y tareas 237 a 246.
