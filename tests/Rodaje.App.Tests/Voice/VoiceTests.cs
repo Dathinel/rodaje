@@ -147,10 +147,29 @@ public class VoiceTests
     [InlineData("""{"sampleRate":24000,"frames":10,"written":false}""")]
     [InlineData("""{"sampleRate":24000,"frames":999999999,"written":true}""")]
     [InlineData("""[]""")]
+    // Tipos cambiados: TryGetInt32/TryGetInt64 lanzaban InvalidOperationException en vez de VoiceException.
+    [InlineData("""{"sampleRate":"24000","frames":10,"written":true}""")]
+    [InlineData("""{"sampleRate":24000,"frames":null,"written":true}""")]
+    [InlineData("""{"sampleRate":{},"frames":[10],"written":true}""")]
     public async Task UnaRespuestaInvalidaFallaConVoiceException(string json)
     {
         using var call = new FakeVoiceCall { Handler = (_, _, _) => Result(json) };
         await Assert.ThrowsAsync<VoiceException>(() => VoiceSynthesis.SynthesizeAsync(call, new VoiceSettings("Hola.")));
+    }
+
+    /// <summary>Un tramo con tiempos que no son números se salta: TryGetDouble lanzaba InvalidOperationException.</summary>
+    [Fact]
+    public async Task LosTramosConTiemposQueNoSonNumerosSeSaltan()
+    {
+        using var call = new FakeVoiceCall
+        {
+            Handler = (_, _, _) => Result("""{"sampleRate":24000,"frames":10,"written":true,"segments":[{"start":"0","end":1,"text":"a"},{"start":0,"end":1,"text":"b"}],"words":[{"start":0,"end":null,"text":"c"},{"start":{},"end":1,"text":"d"}]}"""),
+        };
+
+        SynthesizedVoice v = await VoiceSynthesis.SynthesizeAsync(call, new VoiceSettings("Hola."));
+
+        Assert.Equal(["b"], v.Segments.Select(s => s.Text));
+        Assert.Empty(v.Words);
     }
 
     [Fact]
