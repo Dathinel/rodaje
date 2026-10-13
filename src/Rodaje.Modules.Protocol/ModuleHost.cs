@@ -370,16 +370,32 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     public static Task<T> RunBlockingAsync<T>(Func<T> work, CancellationToken cancellationToken = default)
     {
         Task<T> task = new(work, cancellationToken, TaskCreationOptions.LongRunning);
-        BlockingStarter.Start(task);
-        return task;
+        if (BlockingStarter.TryStartHere(task)) return task;
+
+        // Desde el pool la devuelta es un reflejo del trabajo: si su arranque falla de forma imprevista, falla ella
+        // (una tarea creada sin arrancar no se puede fallar desde fuera) y el hilo de arranque sigue (tarea 300).
+        TaskCompletionSource<Task<T>> started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        BlockingStarter.Enqueue(task, error =>
+        {
+            if (error is null) started.TrySetResult(task);
+            else started.TrySetException(error);
+        });
+        return started.Task.Unwrap();
     }
 
     /// <inheritdoc cref="RunBlockingAsync{T}(Func{T}, CancellationToken)"/>
     public static Task RunBlockingAsync(Action work, CancellationToken cancellationToken = default)
     {
         Task task = new(work, cancellationToken, TaskCreationOptions.LongRunning);
-        BlockingStarter.Start(task);
-        return task;
+        if (BlockingStarter.TryStartHere(task)) return task;
+
+        TaskCompletionSource<Task> started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        BlockingStarter.Enqueue(task, error =>
+        {
+            if (error is null) started.TrySetResult(task);
+            else started.TrySetException(error);
+        });
+        return started.Task.Unwrap();
     }
 
     /// <summary>
@@ -400,29 +416,48 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     /// módulo (tarea 289). Desde un hilo que no es del pool (el hilo propio de una llamada, antes de su primer
     /// <c>await</c>) el hilo se arranca allí mismo, como antes: no le quita nada al pool. Un arranque lento solo retrasa a
     /// los trabajos que vienen detrás. El hilo de arranque se crea con el primer trabajo pedido desde el pool y lo arranca
-    /// un único trabajo del pool (el único arranque que espera ahí); no termina nunca.
+    /// un único trabajo del pool (el único arranque que espera ahí); no termina nunca: una excepción imprevista al arrancar
+    /// un trabajo falla solo la tarea de ese trabajo y el hilo sigue con los demás (tarea 300).
     /// </summary>
     private static class BlockingStarter
     {
-        private static readonly Queue<(Task Work, Action? BeforeStart)> s_pending = new();
+        private static readonly Queue<(Task Work, Action? BeforeStart, Action<Exception?> Settle)> s_pending = new();
         private static bool s_created;
 
-        public static void Start(Task work)
+        /// <summary>
+        /// Arranca el trabajo en el hilo que llama si no es del pool, o no hace nada si ya terminó (el token estaba
+        /// cancelado). Devuelve <see langword="false"/> si hay que pedirlo al hilo de arranque con <see cref="Enqueue"/>.
+        /// </summary>
+        public static bool TryStartHere(Task work)
         {
             // Con el token ya cancelado, la tarea nace cancelada: no hay hilo que arrancar.
-            if (work.IsCompleted) return;
-            Action? beforeStart = BeforeBlockingThreadStartsForTests;
-            if (!Thread.CurrentThread.IsThreadPoolThread)
+            if (work.IsCompleted) return true;
+            if (Thread.CurrentThread.IsThreadPoolThread) return false;
+
+            BeforeBlockingThreadStartsForTests?.Invoke();
+            try
             {
-                beforeStart?.Invoke();
                 work.Start(TaskScheduler.Default);
-                return;
+            }
+            catch (InvalidOperationException) when (work.IsCompleted)
+            {
+                // El token se canceló justo antes de arrancar: se devuelve la tarea cancelada, como hacía StartNew (tarea 300).
             }
 
+            return true;
+        }
+
+        /// <summary>
+        /// Pide el arranque al hilo de arranque. <paramref name="settle"/> recibe <see langword="null"/> cuando el trabajo
+        /// arrancó o ya había terminado, o la excepción que impidió arrancarlo.
+        /// </summary>
+        public static void Enqueue(Task work, Action<Exception?> settle)
+        {
+            Action? beforeStart = BeforeBlockingThreadStartsForTests;
             bool create;
             lock (s_pending)
             {
-                s_pending.Enqueue((work, beforeStart));
+                s_pending.Enqueue((work, beforeStart, settle));
                 Monitor.Pulse(s_pending);
                 create = !s_created;
                 s_created = true;
@@ -439,26 +474,31 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         {
             while (true)
             {
-                (Task Work, Action? BeforeStart) next;
+                (Task Work, Action? BeforeStart, Action<Exception?> Settle) next;
                 lock (s_pending)
                 {
                     while (s_pending.Count == 0) Monitor.Wait(s_pending);
                     next = s_pending.Dequeue();
                 }
 
-                next.BeforeStart?.Invoke();
+                Exception? error = null;
                 try
                 {
+                    next.BeforeStart?.Invoke();
                     next.Work.Start(TaskScheduler.Default);
                 }
-                catch (InvalidOperationException) when (next.Work.IsCompleted)
+                catch (Exception) when (next.Work.IsCompleted)
                 {
-                    // Se canceló mientras esperaba en la cola: la tarea ya está cancelada y no hay nada que arrancar.
+                    // Se canceló mientras esperaba en la cola (InvalidOperationException), o el hilo no se pudo crear
+                    // (TaskSchedulerException, con la tarea ya fallada): la tarea ya dice cómo terminó.
                 }
-                catch (TaskSchedulerException)
+                catch (Exception e)
                 {
-                    // El hilo no se pudo crear: la tarea ya quedó con el fallo, que ve quien la espera.
+                    // Cualquier otra cosa falla solo este trabajo; el hilo sigue con los demás (tarea 300).
+                    error = e;
                 }
+
+                next.Settle(error);
             }
         }
     }
