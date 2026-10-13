@@ -322,8 +322,10 @@ public sealed class FfmpegFactAttribute : FactAttribute
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public sealed class FfmpegTheoryAttribute : TheoryAttribute
 {
+    // Como en FfmpegFactAttribute: sin códecs pedidos, Options no mira ffmpeg.exe y la teoría correría sin él.
     public FfmpegTheoryAttribute(params VideoCodec[] video) =>
-        Skip = Rodaje.TestMedia.Skip.Options(null, video, AudioCodec.None, longRunning: false, complete: false);
+        Skip = (FfmpegTool.Default is null ? "Omitida: " + FfmpegTool.UnavailableReason : null)
+            ?? Rodaje.TestMedia.Skip.Options(null, video, AudioCodec.None, longRunning: false, complete: false);
 }
 
 /// <summary>
