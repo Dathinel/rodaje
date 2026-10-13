@@ -417,3 +417,11 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
   - **Anclaje de esquinas `rodaje.cornerpin`** como desplazamiento de cada esquina en píxeles de la secuencia (todo en 0 no cambia nada; restablecer y keyframes como cualquier parámetro), aplicado antes de la transformación como una homografía. En el render, una w por esquina en el vértice: la capa sigue siendo un cuadrilátero por todos los caminos, sin pasadas nuevas.
   - **Formato 13** (los 10 a 12 quedan para el mezclador, la línea de tiempo y las transiciones): solo cambia el número (los tipos son nuevos y opcionales), para que un Rodaje anterior rechace el archivo en vez de dibujar una pantalla sin su perspectiva.
 - **Consecuencia.** Un seguimiento largo pesa en el `.rodaje` (unos 33 caracteres por punto y cuadro; tope de 4 MiB por seguimiento, unos 25 minutos de un punto a 30 cuadros por segundo). El anclaje de esquinas solo se aplica a clips de medio (no a títulos: su tamaño lo conoce el rasterizador).
+
+## D-044. Borrar a un lado del cursor (Q/W) con ripple por pista no desfasa enlazados (13 de octubre de 2026; amplía D-041)
+
+- **Contexto.** D-041 rechaza el borrado ripple por pista que desincronizaría enlazados, pero no decía nada de Q/W. El fuzz de la sesión del editor (#105) encontró dos casos: Q dejaba atrás a la pareja que empieza justo en el cursor (no pasa por él, así que no se recortaba ni cerraba su tramo) y desfasaba enlazados que empiezan en instantes distintos (cada pista cerraba un tramo de distinto largo).
+- **Decisión.**
+  - **Q/W con ripple por pista sigue la regla de `RippleDelete` por pista:** si al cerrar los tramos algún grupo enlazado quedaría desfasado (`LinkSync.EnsureNoNewDesync`), la edición se rechaza entera. Con todas las pistas no hace falta: se quita el mismo tramo de todas.
+  - **Un recortado arrastra a sus parejas solo si alguna no se recortó** (con Q, la que empieza en el cursor): así se corre con él. Si se recortaron todas, cada una ya cierra su propio tramo.
+- **Consecuencia.** Q sobre un video y su audio enlazados que empiezan en instantes distintos no hace nada con ripple por pista (la app lo dice); con «todas las pistas» sí se puede.
