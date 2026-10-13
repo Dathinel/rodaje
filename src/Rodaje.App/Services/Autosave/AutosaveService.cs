@@ -1,4 +1,5 @@
 using System.Globalization;
+using Rodaje.App.Services.Crashes;
 using Rodaje.Core.Model;
 using Rodaje.Core.Serialization;
 
@@ -108,7 +109,7 @@ public sealed partial class AutosaveService : IDisposable
         }
 
         _schedule.NoteAttempt(now);
-        _ = WriteAsync(store, _session.Project.Clone(), _session.FilePath, now);
+        UiTask.Run(WriteAsync(store, _session.Project.Clone(), _session.FilePath, now));
     }
 
     /// <summary>
@@ -142,7 +143,7 @@ public sealed partial class AutosaveService : IDisposable
         string more = found.Count > 1 ? $" Hay {found.Count - 1} copia(s) más antiguas; se ofrecerán la próxima vez." : "";
         _session.Notify(NotificationSeverity.Warning, "Rodaje se cerró de forma inesperada",
             $"Hay una copia de «{newest.ProjectName}» del {when} con cambios sin guardar.{more}",
-            new NotificationAction("Recuperar", () => _ = RecoverAsync(newest)));
+            new NotificationAction("Recuperar", () => UiTask.Run(RecoverAsync(newest))));
     }
 
     /// <summary>

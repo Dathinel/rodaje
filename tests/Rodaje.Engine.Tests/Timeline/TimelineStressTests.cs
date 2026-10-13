@@ -83,7 +83,7 @@ public sealed class TimelineStressTests
     public void Closing_during_any_long_operation_returns_promptly_and_releases_everything(int seed) =>
         CloseDuringLongOperations(seed, CloseCiLimit);
 
-    /// <summary>La cota fina del cierre (3 s, muy por debajo de esperar cuadros de 400 ms uno tras otro), contra el reloj.</summary>
+    /// <summary>La cota fina del cierre (3 s), contra el reloj.</summary>
     [Theory]
     [Trait("Categoria", "TiempoReal")]
     [InlineData(7)]
@@ -94,8 +94,8 @@ public sealed class TimelineStressTests
 
     /// <summary>
     /// Cota de la CI para cerrar: la misma que <see cref="Dispose_cancels_the_frames_being_decoded"/>, que pasó de 5 a
-    /// 15 s por las vueltas lentas del runner de Windows. En la CI se exige que cierre y suelte todo; que no cancele el
-    /// cuadro en curso lo detecta allí esa otra prueba (cuadros de 30 s), y colgarse, el tope de 20 s de Within.
+    /// 15 s por las vueltas lentas del runner de Windows. Que el cierre cancele los cuadros en curso no depende de esta
+    /// cota: los lentos tardan 2 minutos y cada vuelta espera, como condición, a que ninguno siga en su espera.
     /// </summary>
     private static readonly TimeSpan CloseCiLimit = TimeSpan.FromSeconds(15);
 
@@ -105,11 +105,13 @@ public sealed class TimelineStressTests
         int rounds = Stress.Iterations(6);
         for (int round = 0; round < rounds; round++)
         {
+            // Los cuadros lentos no terminan solos antes del tope de Dispose: si el cierre no los cancela, la vuelta falla
+            // por eso y no por lo cargada que esté la máquina.
             var backend = new FakeTimelineBackend
             {
                 RealThreads = true,
                 AsyncDecode = random.Next(2) == 0,
-                DecodeDelay = _ => TimeSpan.FromMilliseconds(random.Next(2) == 0 ? 1 : 400),
+                DecodeDelay = _ => Random.Shared.Next(2) == 0 ? TimeSpan.FromMilliseconds(1) : TimeSpan.FromMinutes(2),
             };
             TimelineBuilder b = Build(backend, new Random(HashCode.Combine(seed, round)));
             TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { DecoderIdleTimeout = TimeSpan.FromMilliseconds(20) });
@@ -141,6 +143,11 @@ public sealed class TimelineStressTests
             Stress.Within(seed, $"Dispose tras la operación {operation} (vuelta {round})", TimeSpan.FromSeconds(20), session.Dispose);
             Assert.True(watch.Elapsed < limit,
                 $"Semilla {seed}, vuelta {round}: cerrar tras la operación {operation} tardó {watch.Elapsed.TotalMilliseconds:0} ms (cota {limit.TotalSeconds:0} s).");
+
+            // Ningún cuadro sigue decodificando: los lentos solo terminan si los cancelan (el cierre, o antes un seek o el
+            // cierre de un decodificador ocioso).
+            Stress.WaitUntil(seed, $"cancelar los cuadros en curso tras la operación {operation} (vuelta {round})",
+                () => Volatile.Read(ref backend.DelaysInProgress) == 0);
             AssertReleased(seed, backend);
         }
     }

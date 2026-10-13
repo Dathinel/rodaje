@@ -42,16 +42,21 @@ public sealed class VoiceOverRecorderStressTests : IDisposable
     /// Regresión: si la captura no se detenía a tiempo, el paquete que ya estaba dentro del grabador escribía después de
     /// que <see cref="VoiceOverRecorder.Finish"/> cerrara el WAV, y la excepción tumbaba el hilo de captura (y la app).
     /// </summary>
+    /// <remarks>
+    /// Sin temporizador: <see cref="VoiceOverRecorder.Finish"/> corre en su propio hilo y el paquete se suelta recién cuando
+    /// ese hilo terminó (sin el candado, cerraba el WAV con el paquete dentro) o quedó bloqueado esperándolo (con el arreglo).
+    /// </remarks>
     [Fact]
     public void A_packet_in_progress_finishes_before_the_take_is_closed()
     {
         using var inside = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
+        bool released = false;
         var capture = new ManualCapture();
         using var recorder = new VoiceOverRecorder(capture, Path.Combine(_folder, "toma.wav"), Time.Zero, _ =>
         {
             inside.Set();
-            release.Wait(TimeSpan.FromSeconds(10));
+            Volatile.Write(ref released, release.Wait(TimeSpan.FromSeconds(30)));
             return Time.Zero;
         });
         recorder.Begin();
@@ -73,12 +78,33 @@ public sealed class VoiceOverRecorderStressTests : IDisposable
         Assert.True(inside.Wait(TimeSpan.FromSeconds(10)));
 
         // El paquete sigue dentro: el cierre no debe adelantarse a él.
-        using var timer = new Timer(_ => release.Set(), null, 200, Timeout.Infinite);
-        VoiceOverTake take = recorder.Finish();
-        Assert.True(packet.Join(TimeSpan.FromSeconds(10)));
+        VoiceOverTake? take = null;
+        Exception? finishError = null;
+        var finish = new Thread(() =>
+        {
+            try
+            {
+                take = recorder.Finish();
+            }
+#pragma warning disable CA1031 // Se comprueba abajo.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                finishError = ex;
+            }
+        });
+        finish.Start();
+        Stress.WaitUntil(0, "que Finish termine o quede esperando al paquete",
+            () => !finish.IsAlive || (finish.ThreadState & ThreadState.WaitSleepJoin) != 0);
+        release.Set();
+        Assert.True(packet.Join(TimeSpan.FromSeconds(10)), "El paquete no terminó.");
+        Assert.True(finish.Join(TimeSpan.FromSeconds(10)), "Finish no terminó.");
 
+        Assert.True(Volatile.Read(ref released), "El paquete no esperó a que la prueba lo soltara: la prueba no ejerció la carrera.");
         Assert.Null(error);
-        Assert.Equal(480, take.Frames);
+        Assert.Null(finishError);
+        Assert.Equal(480, take!.Frames);
+        Assert.Equal(480 * 4, DataBytes(take.Path));
     }
 
     /// <summary>Tamaño del bloque <c>data</c> del WAV.</summary>

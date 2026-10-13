@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Voice;
@@ -155,6 +156,11 @@ internal static class VoiceDialog
 #pragma warning restore CA1031
             {
                 status.Text = ex is VoiceException ? ex.Message : "No se pudo generar la voz. El proyecto no cambió.";
+                if (ex is not VoiceException)
+                {
+                    UiTask.Report(ex, notify: false);
+                }
+
                 return null;
             }
             finally
@@ -173,7 +179,7 @@ internal static class VoiceDialog
             s.ValueChanged += (_, _) => Refresh();
         }
 
-        listen.Click += async (_, _) =>
+        listen.Click += (_, _) => UiTask.Run(async () =>
         {
             if (player.IsPlaying)
             {
@@ -203,7 +209,7 @@ internal static class VoiceDialog
                     Refresh();
                 }
             }
-        };
+        });
 
         // Insertar o regenerar espera a la voz dentro del diálogo; si falla, el diálogo queda abierto con el motivo.
         SynthesizedVoice? chosen = null;
@@ -215,6 +221,12 @@ internal static class VoiceDialog
                 chosen = await Generate();
                 args.Cancel = chosen is null;
             }
+#pragma warning disable CA1031 // Un manejador async void: lo inesperado se informa y el diálogo sigue abierto.
+            catch (Exception ex) when (UiTask.Report(ex))
+#pragma warning restore CA1031
+            {
+                args.Cancel = true;
+            }
             finally
             {
                 deferral.Complete();
@@ -223,7 +235,7 @@ internal static class VoiceDialog
 
         dialog.PrimaryButtonClick += Accept;
         dialog.SecondaryButtonClick += Accept;
-        _ = LoadVoices();
+        UiTask.Run(LoadVoices());
 
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         await cancel.CancelAsync();

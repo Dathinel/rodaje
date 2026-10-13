@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Audio;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector.Properties;
@@ -204,8 +205,8 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
             row.KeyframeToggled += (s, _) => Run(e => e.ToggleKeyframe(((ParameterRow)s!).Spec.Name));
             row.NavigateRequested += (s, d) => Run(e => e.GoToKeyframe(((ParameterRow)s!).Spec.Name, d));
             row.InterpolationChosen += (s, i) => Run(e => e.SetInterpolation(((ParameterRow)s!).Spec.Name, i));
-            row.ResetRequested += async (s, _) => await ResetAsync((ParameterRow)s!);
-            row.KeyframesClearRequested += async (s, _) => await ClearKeyframesAsync((ParameterRow)s!);
+            row.ResetRequested += (s, _) => UiTask.Run(ResetAsync((ParameterRow)s!));
+            row.KeyframesClearRequested += (s, _) => UiTask.Run(ClearKeyframesAsync((ParameterRow)s!));
             _rows.Add(row);
             panel.Children.Add(row);
         }

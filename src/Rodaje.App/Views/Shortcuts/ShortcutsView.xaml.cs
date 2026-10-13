@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
@@ -833,7 +834,7 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
                 KeyChord? replacing = _captureReplacing;
                 string actionId = _captureAction!;
                 EndCapture();
-                _ = AssignKeyAsync(actionId, result.Chord, replacing, toSlot: false);
+                UiTask.Run(AssignKeyAsync(actionId, result.Chord, replacing, toSlot: false));
                 break;
             default:
                 SetCaptureText(result.Message);

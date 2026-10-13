@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
@@ -38,7 +39,7 @@ internal sealed partial class MainWindow
     private void AttachWorkflow()
     {
         TitleBar.WorkspaceChosen += (_, id) => ApplyWorkspace(id);
-        TitleBar.SaveWorkspaceRequested += (_, _) => _ = SaveWorkspaceAsync();
+        TitleBar.SaveWorkspaceRequested += (_, _) => UiTask.Run(SaveWorkspaceAsync());
         ShortcutRegistry registry = _router.Registry;
         foreach (WorkspaceProfile profile in WorkspaceProfiles.Factory)
         {
@@ -48,7 +49,7 @@ internal sealed partial class MainWindow
         }
 
         registry.Register(new ShortcutAction(WatchedFoldersActionId, "Carpetas vigiladas...", ShortcutGroups.File, []));
-        _bindings.Add(_router.Bind(WatchedFoldersActionId, () => _ = EditWatchedFoldersAsync()));
+        _bindings.Add(_router.Bind(WatchedFoldersActionId, () => UiTask.Run(EditWatchedFoldersAsync())));
         StartWatchingFolders();
         AttachOnboarding();
     }
@@ -67,10 +68,10 @@ internal sealed partial class MainWindow
         }
 
         inbox.Arrived += (_, files) => Session.Notify(NotificationSeverity.Informational, "Medios nuevos", WatchedFolderInbox.Describe(files) + ".",
-            new NotificationAction("Importar", () => _ = inbox.ImportAsync()));
+            new NotificationAction("Importar", () => UiTask.Run(inbox.ImportAsync())));
         Microsoft.UI.Dispatching.DispatcherQueueTimer timer = _dispatcher.CreateTimer();
         timer.Interval = TimeSpan.FromSeconds(4);
-        timer.Tick += (_, _) => _ = ScanWatchedFoldersAsync(inbox);
+        timer.Tick += (_, _) => UiTask.Run(ScanWatchedFoldersAsync(inbox));
         timer.Start();
     }
 
