@@ -53,8 +53,12 @@ internal static class VoiceDialog
         fromClip.Click += (_, _) => text.Text = session.SelectedClipText() ?? text.Text;
         panel.Children.Add(fromClip);
 
-        var language = new ComboBox { Header = "Idioma", Width = AnalysisUi.PreviewWidth, DisplayMemberPath = nameof(VoiceLanguage.Name) };
-        var voice = new ComboBox { Header = "Voz", Width = AnalysisUi.PreviewWidth, DisplayMemberPath = nameof(VoiceChoice.Label) };
+        // Los desplegables llevan textos y se elige por posición: mostrar una propiedad del elemento enlaza por reflexión, que con Native AOT
+        // no encuentra la propiedad de un record de C# y deja los elementos en blanco.
+        var language = new ComboBox { Header = "Idioma", Width = AnalysisUi.PreviewWidth };
+        var voice = new ComboBox { Header = "Voz", Width = AnalysisUi.PreviewWidth };
+        VoiceLanguage[] langs = [];
+        VoiceChoice[] choices = [];
         panel.Children.Add(language);
         panel.Children.Add(voice);
 
@@ -101,13 +105,13 @@ internal static class VoiceDialog
 
         VoiceSettings Current() => new(
             text.Text,
-            (language.SelectedItem as VoiceLanguage)?.Id ?? start.Language,
-            (voice.SelectedItem as VoiceChoice)?.Voice.Id ?? start.Voice,
+            Chosen(language, langs)?.Id ?? start.Language,
+            Chosen(voice, choices)?.Voice.Id ?? start.Voice,
             speed.Value, pitch.Value, sentencePause.Value, commaPause.Value);
 
         void Refresh()
         {
-            bool ready = !generating && catalog.Voices.Count > 0 && voice.SelectedItem is not null && !string.IsNullOrWhiteSpace(text.Text);
+            bool ready = !generating && catalog.Voices.Count > 0 && Chosen(voice, choices) is not null && !string.IsNullOrWhiteSpace(text.Text);
             listen.IsEnabled = ready || player.IsPlaying;
             dialog.IsPrimaryButtonEnabled = ready && (existing is null || existing.Value.Settings.SoundsDifferent(Current()));
             dialog.IsSecondaryButtonEnabled = ready;
@@ -115,15 +119,15 @@ internal static class VoiceDialog
 
         void FillVoices()
         {
-            if (language.SelectedItem is not VoiceLanguage lang)
+            if (Chosen(language, langs) is not { } lang)
             {
                 return;
             }
 
-            string wanted = (voice.SelectedItem as VoiceChoice)?.Voice.Id ?? start.Voice;
-            VoiceChoice[] choices = [.. catalog.VoicesFor(lang.Id).Select(v => new VoiceChoice(v))];
-            voice.ItemsSource = choices;
-            voice.SelectedItem = choices.FirstOrDefault(c => c.Voice.Id == wanted) ?? choices.FirstOrDefault();
+            string wanted = Chosen(voice, choices)?.Voice.Id ?? start.Voice;
+            choices = [.. catalog.VoicesFor(lang.Id).Select(v => new VoiceChoice(v))];
+            voice.ItemsSource = choices.Select(c => c.Label).ToArray();
+            voice.SelectedIndex = choices.Length == 0 ? -1 : Math.Max(0, Array.FindIndex(choices, c => c.Voice.Id == wanted));
         }
 
         async Task<SynthesizedVoice?> Generate()
@@ -293,9 +297,9 @@ internal static class VoiceDialog
                 return;
             }
 
-            VoiceLanguage[] langs = [.. catalog.Languages.Where(l => catalog.VoicesFor(l.Id).Count > 0)];
-            language.ItemsSource = langs;
-            language.SelectedItem = langs.FirstOrDefault(l => l.Id == start.Language) ?? langs.FirstOrDefault();
+            langs = [.. catalog.Languages.Where(l => catalog.VoicesFor(l.Id).Count > 0)];
+            language.ItemsSource = langs.Select(l => l.Name).ToArray();
+            language.SelectedIndex = langs.Length == 0 ? -1 : Math.Max(0, Array.FindIndex(langs, l => l.Id == start.Language));
             FillVoices();
             status.Text = existing is null ? "" : "Cambia el texto o la voz y pulsa «Regenerar».";
             Refresh();
@@ -308,6 +312,11 @@ internal static class VoiceDialog
     {
         public string Label => Voice.Name + (Voice.Gender switch { "f" => " (mujer)", "m" => " (hombre)", _ => "" });
     }
+
+    /// <summary>El elemento elegido en un desplegable de textos hecho con <paramref name="items"/>, o null si no hay.</summary>
+    private static T? Chosen<T>(ComboBox box, T[] items)
+        where T : class =>
+        box.SelectedIndex >= 0 && box.SelectedIndex < items.Length ? items[box.SelectedIndex] : null;
 
     private sealed class MissingSynthesizer : IVoiceSynthesizer
     {

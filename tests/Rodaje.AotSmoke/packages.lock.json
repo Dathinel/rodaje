@@ -16,6 +16,9 @@
       },
       "rodaje.core": {
         "type": "Project"
+      },
+      "rodaje.packages": {
+        "type": "Project"
       }
     },
     "net10.0/win-x64": {

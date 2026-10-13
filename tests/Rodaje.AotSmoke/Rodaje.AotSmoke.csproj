@@ -31,6 +31,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Core\Rodaje.Core.csproj" />
+    <!-- Tildes y orden alfabético de los paquetes, que sin ICU no pueden depender de Normalize ni de la cultura -->
+    <ProjectReference Include="..\..\src\Rodaje.Packages\Rodaje.Packages.csproj" />
   </ItemGroup>
 
 </Project>

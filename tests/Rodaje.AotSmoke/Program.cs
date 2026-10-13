@@ -363,6 +363,14 @@ try
     Exigir(Rodaje.Core.Text.TextCasing.Apply("Ñandú en istmo", TextCase.Upper) == "ÑANDÚ EN ISTMO", "las mayúsculas de un título se calculan sin culturas");
     Avance("Mayúsculas de títulos sin culturas (InvariantGlobalization).");
 
+    // Sin ICU, Normalize no separa las tildes y la cultura actual ordena por código (tarea 231).
+    Exigir(Rodaje.Packages.PackageLibrary.ToIdentifier("Música épica Ñandú") == "musica-epica-nandu",
+        "un nombre con tildes da un identificador sin ellas (y no «m-sica-pica-and»)");
+    List<string> desordenados = ["Zeta", "ñu", "Árbol", "nube", "Ola"];
+    Exigir(string.Join(",", desordenados.Order(Rodaje.Packages.SpanishText.Comparer)) == "Árbol,nube,ñu,Ola,Zeta",
+        "las listas se ordenan como un diccionario español");
+    Avance("Identificadores sin tildes y orden alfabético español sin ICU.");
+
     reloj.Stop();
     Console.WriteLine();
     Console.WriteLine($"RESULTADO: todo bien. El núcleo funciona compilado con Native AOT ({reloj.Elapsed.TotalMilliseconds:0} ms).");

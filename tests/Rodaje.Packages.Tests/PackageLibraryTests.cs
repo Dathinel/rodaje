@@ -98,6 +98,39 @@ public sealed class PackageLibraryTests : IDisposable
         Assert.True(Identifiers.IsValid(id));
     }
 
+    /// <summary>
+    /// La v1.0.0 publicada (sin ICU) derivaba «m-sica-pica-and» de «Música épica Ñandú.json»; ahora da «musica-epica-nandu».
+    /// Las referencias que guardaron los proyectos con el id antiguo tienen que seguir encontrando el elemento.
+    /// </summary>
+    [Fact]
+    public void Own_items_keep_the_legacy_id_of_v1_0_0_as_an_alias()
+    {
+        var locations = PackageLocations.Under(_folder.Combine("datos"));
+        Directory.CreateDirectory(Path.Combine(locations.Own, "transiciones"));
+        File.WriteAllText(Path.Combine(locations.Own, "transiciones", "Música épica Ñandú.json"), """{ "kind": "transition" }""");
+        File.WriteAllText(Path.Combine(locations.Own, "transiciones", "Plana.json"), """{ "kind": "transition" }""");
+
+        PackageManifest own = PackageLibrary.Scan(locations, "rodaje").Find(PackageLibrary.OwnPackageId)!.Manifest;
+
+        Assert.Equal("m-sica-pica-and", PackageLibrary.LegacyIdentifier("Música épica Ñandú"));
+        PackageItem item = own.FindItem("musica-epica-nandu", ItemKind.Transition)!;
+        Assert.Equal("Música épica Ñandú", item.Name);
+        Assert.Same(item, own.FindItem("m-sica-pica-and", ItemKind.Transition));
+        Assert.Null(own.FindItem("m-sica-pica-and", ItemKind.Sound));
+        Assert.Null(own.FindItem("plana")!.LegacyId);
+        Assert.Equal("propios@0.0.0/musica-epica-nandu", own.ReferenceTo(item).ToString());
+
+        using var store = new Rodaje.Packages.Content.PackageContentStore(PackageLibrary.Scan(locations, "rodaje"));
+        foreach (string reference in new[] { "propios@0.0.0/m-sica-pica-and", "propios@0.0.0/otra-cosa" })
+        {
+            store.FindTransition(reference);
+        }
+
+        // El archivo no es una transición completa: el problema es de lectura, no de que falte el elemento.
+        Assert.DoesNotContain("no trae", store.PresetProblem("propios@0.0.0/m-sica-pica-and") ?? "", StringComparison.Ordinal);
+        Assert.Contains("no trae", store.PresetProblem("propios@0.0.0/otra-cosa") ?? "", StringComparison.Ordinal);
+    }
+
     private static void WritePackage(string directory, string id, string version, string apps = "[\"rodaje\"]", string? items = null)
     {
         Directory.CreateDirectory(Path.Combine(directory, "transiciones"));

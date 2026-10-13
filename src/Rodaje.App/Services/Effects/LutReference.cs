@@ -67,7 +67,7 @@ public static class LutReference
         }
 
         if (PackageReference.TryParse(reference, out PackageReference? parsed)
-            && installed.Find(parsed.PackageId)?.Manifest.Items.FirstOrDefault(i => i.Id == parsed.ItemId) is { } item)
+            && installed.Find(parsed.PackageId)?.Manifest.FindItem(parsed.ItemId) is { } item)
         {
             return item.Name;
         }

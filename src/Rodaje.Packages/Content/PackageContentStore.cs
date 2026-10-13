@@ -207,7 +207,7 @@ public sealed class PackageContentStore : IDisposable
             return null;
         }
 
-        PackageItem? item = package.Manifest.Items.FirstOrDefault(i => string.Equals(i.Id, parsed.ItemId, StringComparison.Ordinal));
+        PackageItem? item = package.Manifest.FindItem(parsed.ItemId);
         if (item is null)
         {
             problem = $"El paquete «{parsed.PackageId}» no trae «{parsed.ItemId}».";

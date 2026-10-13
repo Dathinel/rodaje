@@ -50,7 +50,7 @@ public static class SafeZoneCatalog
         ArgumentNullException.ThrowIfNull(installed);
         var all = new List<SafeZoneChoice>(BuiltIn);
         foreach (PackageItemEntry entry in installed.Items(ItemKind.SafeZones)
-            .OrderBy(e => e.Package.Origin == PackageOrigin.Own).ThenBy(e => e.Item.Name, StringComparer.CurrentCultureIgnoreCase))
+            .OrderBy(e => e.Package.Origin == PackageOrigin.Own).ThenBy(e => e.Item.Name, SpanishText.Comparer))
         {
             try
             {

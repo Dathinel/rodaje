@@ -45,19 +45,24 @@ internal static class TranslateDialog
 
         var translator = new ModuleSubtitleTranslator(modules);
         var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
-        var track = new ComboBox { Header = "Pista", Width = AnalysisUi.PreviewWidth, DisplayMemberPath = nameof(TrackChoice.Label) };
+        // Los desplegables llevan textos y se elige por posición: mostrar una propiedad del elemento enlaza por reflexión, que con Native AOT
+        // no encuentra la propiedad de un record de C# y deja los elementos en blanco.
+        var track = new ComboBox { Header = "Pista", Width = AnalysisUi.PreviewWidth };
         TrackChoice[] trackChoices = [.. tracks.Select(t => new TrackChoice(t.Id, Fmt($"{(t.Name.Length > 0 ? t.Name : "Pista")} ({SubtitleTrackTranslation.Collect(t).Count} textos)")))];
-        track.ItemsSource = trackChoices;
+        track.ItemsSource = trackChoices.Select(c => c.Label).ToArray();
         string? preferred = session.TranslatableTrack()?.Id;
-        track.SelectedItem = trackChoices.FirstOrDefault(c => c.TrackId == preferred) ?? trackChoices[0];
+        track.SelectedIndex = Math.Max(0, Array.FindIndex(trackChoices, c => c.TrackId == preferred));
 
         TranslationLanguage detect = new("auto", "Detectar");
-        var source = new ComboBox { Header = "Idioma del original", Width = AnalysisUi.PreviewWidth, DisplayMemberPath = nameof(TranslationLanguage.Name) };
-        source.ItemsSource = new[] { detect }.Concat(SubtitleTrackTranslation.Languages).ToArray();
+        TranslationLanguage[] sources = [detect, .. SubtitleTrackTranslation.Languages];
+        IReadOnlyList<TranslationLanguage> targets = SubtitleTrackTranslation.Languages;
+        var source = new ComboBox { Header = "Idioma del original", Width = AnalysisUi.PreviewWidth };
+        source.ItemsSource = sources.Select(l => l.Name).ToArray();
         source.SelectedIndex = 0;
-        var target = new ComboBox { Header = "Traducir a", Width = AnalysisUi.PreviewWidth, DisplayMemberPath = nameof(TranslationLanguage.Name) };
-        target.ItemsSource = SubtitleTrackTranslation.Languages;
-        target.SelectedItem = SubtitleTrackTranslation.Languages.FirstOrDefault(l => l.Code == _lastTarget) ?? SubtitleTrackTranslation.Languages[1];
+        var target = new ComboBox { Header = "Traducir a", Width = AnalysisUi.PreviewWidth };
+        target.ItemsSource = targets.Select(l => l.Name).ToArray();
+        int last = targets.ToList().FindIndex(l => l.Code == _lastTarget);
+        target.SelectedIndex = last >= 0 ? last : 1;
 
         var busy = new ProgressRing { IsActive = false, Width = 20, Height = 20 };
         var status = new TextBlock
@@ -80,10 +85,10 @@ internal static class TranslateDialog
         using var cancel = new CancellationTokenSource();
         bool running = false;
 
-        void Refresh() => dialog.IsPrimaryButtonEnabled = !running && track.SelectedItem is TrackChoice && target.SelectedItem is TranslationLanguage to
-            && (source.SelectedItem as TranslationLanguage)?.Code != to.Code;
+        void Refresh() => dialog.IsPrimaryButtonEnabled = !running && Chosen(track, trackChoices) is not null && Chosen(target, targets) is { } to
+            && Chosen(source, sources)?.Code != to.Code;
 
-        void Estimate() => advice.Show(track.SelectedItem is TrackChoice c && session.Sequence.FindTrack(c.TrackId) is { } chosen
+        void Estimate() => advice.Show(Chosen(track, trackChoices) is { } c && session.Sequence.FindTrack(c.TrackId) is { } chosen
             ? translator.Estimate(SubtitleTrackTranslation.Collect(chosen))
             : null);
         Estimate();
@@ -105,9 +110,9 @@ internal static class TranslateDialog
             Refresh();
             try
             {
-                var chosenTrack = (TrackChoice)track.SelectedItem;
-                var to = (TranslationLanguage)target.SelectedItem;
-                string? from = source.SelectedItem is TranslationLanguage { Code: not "auto" } s ? s.Code : null;
+                TrackChoice chosenTrack = Chosen(track, trackChoices)!;
+                TranslationLanguage to = Chosen(target, targets)!;
+                string? from = Chosen(source, sources) is { Code: not "auto" } s ? s.Code : null;
                 IReadOnlyList<SubtitleText> texts = session.Sequence.FindTrack(chosenTrack.TrackId) is { } t ? SubtitleTrackTranslation.Collect(t) : [];
                 status.Text = Fmt($"Traduciendo {texts.Count} textos al {to.Name.ToLower(CultureInfo.CurrentCulture)}… (sigue en Trabajos si cierras)");
                 TrackTranslation result = await translator.TranslateAsync(texts, from, to.Code, "Traducir subtítulos", cancel.Token);
@@ -157,4 +162,9 @@ internal static class TranslateDialog
     private static string Fmt(FormattableString s) => s.ToString(CultureInfo.InvariantCulture);
 
     private sealed record TrackChoice(string TrackId, string Label);
+
+    /// <summary>El elemento elegido en un desplegable de textos hecho con <paramref name="items"/>, o null si no hay.</summary>
+    private static T? Chosen<T>(ComboBox box, IReadOnlyList<T> items)
+        where T : class =>
+        box.SelectedIndex >= 0 && box.SelectedIndex < items.Count ? items[box.SelectedIndex] : null;
 }

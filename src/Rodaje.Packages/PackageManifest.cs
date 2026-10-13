@@ -33,7 +33,9 @@ public enum ItemKind
 /// una fuente. <see cref="Id"/> es único dentro del paquete y forma parte de la referencia estable
 /// <c>paquete@versión/elemento</c>; <see cref="File"/> es relativa a la carpeta del paquete, con <c>/</c>;
 /// <see cref="License"/> se da cuando no es la del paquete (por ejemplo, un sonido CC BY) y es obligatoria en una fuente.
-/// <see cref="Files"/> son los archivos de una fuente (uno por peso y cursiva, o uno variable).
+/// <see cref="Files"/> son los archivos de una fuente (uno por peso y cursiva, o uno variable). <see cref="LegacyId"/> es el
+/// id con el que la v1.0.0 conocía un elemento propio sin <c>id</c> explícito (ver <see cref="PackageLibrary.LegacyIdentifier"/>);
+/// las referencias ya guardadas con él siguen encontrándolo.
 /// </summary>
 public sealed record PackageItem(
     string Id,
@@ -43,7 +45,8 @@ public sealed record PackageItem(
     string? Description = null,
     string? License = null,
     string? Preview = null,
-    IReadOnlyList<string>? Files = null)
+    IReadOnlyList<string>? Files = null,
+    string? LegacyId = null)
 {
     /// <summary>Tope de un archivo de fuente (D-029).</summary>
     public const long MaxFontFileBytes = 20L * 1024 * 1024;
@@ -108,5 +111,16 @@ public sealed record PackageManifest
     {
         ArgumentNullException.ThrowIfNull(item);
         return new PackageReference(Id, Version, item.Id);
+    }
+
+    /// <summary>
+    /// El elemento con ese id; si no hay ninguno, el que lo tenía como id antiguo (<see cref="PackageItem.LegacyId"/>), para
+    /// que los proyectos guardados con la v1.0.0 sigan encontrando sus elementos propios.
+    /// </summary>
+    public PackageItem? FindItem(string itemId, ItemKind? kind = null)
+    {
+        ArgumentNullException.ThrowIfNull(itemId);
+        return Items.FirstOrDefault(i => string.Equals(i.Id, itemId, StringComparison.Ordinal) && (kind is null || i.Kind == kind))
+            ?? Items.FirstOrDefault(i => string.Equals(i.LegacyId, itemId, StringComparison.Ordinal) && (kind is null || i.Kind == kind));
     }
 }
