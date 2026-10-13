@@ -21,14 +21,14 @@ public sealed class CallThreadStartTests
     public async Task A_call_thread_slow_to_start_does_not_stop_the_loop_nor_the_shutdown()
     {
         using ManualResetEventSlim reached = new();
-        using ManualResetEventSlim gate = new();
+        StartGate gate = new();
         ModuleHost host = new(Support.EchoInfo)
         {
             // Como Thread.Start esperando a un hilo que no arranca: bloquea el hilo que lo pide.
             BeforeCallThreadStartsForTests = _ =>
             {
                 reached.Set();
-                gate.Wait(TimeSpan.FromSeconds(30));
+                gate.Wait();
             },
         };
         host.Register("eco", (call, _) => ValueTask.FromResult(new ModuleOutput(call.Parameters)));
@@ -56,7 +56,7 @@ public sealed class CallThreadStartTests
             }
             finally
             {
-                gate.Set();
+                gate.Open();
             }
         }
     }
@@ -65,8 +65,8 @@ public sealed class CallThreadStartTests
     [Fact]
     public async Task A_call_whose_thread_starts_late_is_still_answered()
     {
-        using ManualResetEventSlim gate = new();
-        ModuleHost host = new(Support.EchoInfo) { BeforeCallThreadStartsForTests = _ => gate.Wait(TimeSpan.FromSeconds(30)) };
+        StartGate gate = new();
+        ModuleHost host = new(Support.EchoInfo) { BeforeCallThreadStartsForTests = _ => gate.Wait() };
         host.Register("eco", (call, _) => ValueTask.FromResult(new ModuleOutput(call.Parameters)));
 
         (NamedPipeServerStream editor, NamedPipeClientStream module) = await Support.PipePairAsync();
@@ -81,7 +81,7 @@ public sealed class CallThreadStartTests
                 await editor.WriteAsync((byte[])[.. Support.Frame("""{"type":"invoke","id":3,"function":"eco","parameters":"hola"}"""), .. Support.Frame("""{"type":"ping","id":8}""")]);
                 byte[]? pong = await FuzzSupport.Capped(FuzzSupport.ReadFrameAsync(editor), "el pong");
                 Assert.IsType<PongMessage>(MessageChannel.Parse(pong!));
-                gate.Set();
+                gate.Open();
                 byte[]? reply = await FuzzSupport.Capped(FuzzSupport.ReadFrameAsync(editor), "la respuesta de la llamada");
                 ResultMessage result = Assert.IsType<ResultMessage>(MessageChannel.Parse(reply!));
                 Assert.Equal(3, result.Id);
@@ -91,7 +91,7 @@ public sealed class CallThreadStartTests
             }
             finally
             {
-                gate.Set();
+                gate.Open();
             }
         }
     }
