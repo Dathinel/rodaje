@@ -115,6 +115,9 @@ public sealed class CrashReporter
     private string? _gpuCache;
     private string? _fatalReport;
 
+    // 1 tras el primer EndSession de la sesión: las siguientes llamadas no hacen nada (tarea 242).
+    private int _sessionEnded;
+
     public CrashReporter(string folder, string version, SessionLog log, Func<string?>? gpu = null, Func<DateTime>? clock = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(folder);
@@ -424,8 +427,11 @@ public sealed class CrashReporter
     /// Empieza la copia en disco del registro de esta sesión. Si el proceso termina sin <see cref="EndSession"/> ni un
     /// informe fatal, el siguiente arranque la encuentra (<see cref="RecoverUncleanSessions"/>).
     /// </summary>
-    public void StartSession(int processId, long processStartTicks) =>
+    public void StartSession(int processId, long processStartTicks)
+    {
+        Volatile.Write(ref _sessionEnded, 0);
         _log.MirrorTo(Path.Combine(Folder, SessionsFolder, string.Create(CultureInfo.InvariantCulture, $"{processId}-{processStartTicks}.log")));
+    }
 
     /// <summary>La de este proceso.</summary>
     public void StartSession()
@@ -455,10 +461,16 @@ public sealed class CrashReporter
 
     /// <summary>
     /// Cierre limpio: anota las repeticiones pendientes y borra la copia del registro. Se puede llamar más de una vez
-    /// (al volver de <c>Application.Start</c>, con <c>WM_ENDSESSION</c> y al salir el proceso).
+    /// (al volver de <c>Application.Start</c>, con <c>WM_ENDSESSION</c> y al salir el proceso): solo la primera hace algo;
+    /// las demás vuelven enseguida, sin esperar el cerrojo ni anotar nada (tarea 242).
     /// </summary>
     public void EndSession()
     {
+        if (Interlocked.Exchange(ref _sessionEnded, 1) != 0)
+        {
+            return;
+        }
+
         // Con WM_ENDSESSION llega en el hilo de la interfaz y Windows termina el proceso poco después: si otro hilo quedó a
         // mitad de un informe, se cierra la copia del registro sin anotar las repeticiones en vez de esperar sin fin.
         if (_gate.TryEnter(GateTimeout))
