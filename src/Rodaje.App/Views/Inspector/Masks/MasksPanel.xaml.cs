@@ -85,9 +85,6 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
 {
     private const string TrackActionId = "mascaras.seguir";
 
-    /// <summary>Elección de «Aplicar a» que es el uso «limitar efectos» de color y filtros (no un efecto).</summary>
-    private const string EffectsZone = MaskTargetChoices.EffectsZone;
-
     private static readonly string[] BoxNames = [M.X, M.Y, M.Width, M.Height, M.Rotation];
 
     private static readonly (string Name, string Value)[] ColorNames =
@@ -656,7 +653,8 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
 
     private void ChooseTarget(DeferredChoice<string> picked, string choice)
     {
-        if (!DeferredChoices.MaskStillApplies(picked, _maskId, _clipId, CurrentClip()))
+        // La decisión (aplicar o solo refrescar, y qué se guarda) es DeferredChoices.MaskTarget, que las pruebas ejercen.
+        if (DeferredChoices.MaskTarget(picked, choice, _maskId, _clipId, CurrentClip()) is not { } edit)
         {
             Refresh();
             return;
@@ -666,8 +664,8 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         string id = picked.Owner;
         Run(new SequenceEditCommand("Cambiar a qué se aplica la máscara", SequenceId, ctx =>
         {
-            MaskEdits.SetTarget(ctx, clipId, id, choice == EffectsZone ? "" : choice);
-            EffectEdits.SetOption(ctx, clipId, id, O.Use, choice == EffectsZone ? "effects" : "");
+            MaskEdits.SetTarget(ctx, clipId, id, edit.Target);
+            EffectEdits.SetOption(ctx, clipId, id, O.Use, edit.Use);
         }));
     }
 

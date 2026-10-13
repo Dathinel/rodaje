@@ -9,12 +9,31 @@ namespace Rodaje.App.Services.Inspector;
 /// </remarks>
 public static class ComboChoices
 {
-    /// <summary>Si hay que rehacer los elementos: solo cuando la lista cambió.</summary>
-    public static bool NeedsRebuild(IReadOnlyList<string> shown, IReadOnlyList<string> next)
+    /// <summary>
+    /// Si hay que rehacer los elementos: solo cuando la lista cambió (algún texto, en orden). Es la única comparación de
+    /// «lista igual» de las vistas: la usan <see cref="ChoiceList{T}.Differs"/> y Exportar (desplegables y tarjetas).
+    /// </summary>
+    public static bool NeedsRebuild(IEnumerable<string> shown, IEnumerable<string> next)
     {
         ArgumentNullException.ThrowIfNull(shown);
         ArgumentNullException.ThrowIfNull(next);
         return !shown.SequenceEqual(next, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Una lista de solo textos (cada elemento representa su propio texto), para los desplegables que eligen por posición,
+    /// como los de Exportar.
+    /// </summary>
+    public static ChoiceList<string> FromLabels(IEnumerable<string> labels)
+    {
+        ArgumentNullException.ThrowIfNull(labels);
+        var list = new ChoiceList<string>();
+        foreach (string label in labels)
+        {
+            list.Add(label, label);
+        }
+
+        return list;
     }
 
     /// <summary>
