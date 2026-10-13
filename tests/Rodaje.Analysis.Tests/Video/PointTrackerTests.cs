@@ -188,78 +188,50 @@ public sealed class PointTrackerTests(ITestOutputHelper output)
         Assert.InRange(Vector2.Distance(step[0].Position, truth), 0, 0.25);
     }
 
-    /// <summary>
-    /// La medida estricta: cuadros por segundo de reloj contra un umbral fijo. Un runner de la CI cargado dio 13 cuadros/s
-    /// en 4K (umbral 15), así que corre fuera de la CI (TiempoReal); en la CI queda
-    /// <see cref="The_cost_per_frame_does_not_depend_on_the_frame_size"/>, que compara los dos tamaños en la misma corrida.
-    /// </summary>
     [Theory]
-    [Trait("Categoria", "TiempoReal")]
     [InlineData(1920, 1080)]
     [InlineData(3840, 2160)]
     public void Throughput_does_not_depend_on_the_frame_size(int width, int height)
     {
+        // Una textura grande, desplazada un poco cada cuadro: el costo del seguidor solo depende de sus ventanas.
         const int frames = 60;
-        var clip = new ShiftingClip(width, height, frames);
-        var tracker = clip.Start(out PointTarget[] targets);
+        var scene = new PlanarScene(5);
+        float[] plane = scene.Render(width + 400, height + 200, Homography.Identity);
+        var lumas = new byte[frames][];
+        for (int k = 0; k < frames; k++)
+        {
+            int dx = 2 * k, dy = k;
+            byte[] luma = new byte[width * height];
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    luma[(y * width) + x] = (byte)Math.Clamp(plane[((y + dy) * (width + 400)) + x + dx], 0, 255);
+                }
+            }
+
+            lumas[k] = luma;
+        }
+
+        Vector2 c = new(width / 2f, height / 2f);
+        PointTarget[] targets = [.. new[] { c + new Vector2(-300, -200), c + new Vector2(300, -200), c + new Vector2(300, 200), c + new Vector2(-300, 200) }
+            .Select(p => new PointTarget(p, new Vector2(41), new Vector2(121)))];
+        var tracker = new PointTracker(width, height);
+        tracker.Start(new LumaFrame(lumas[0], width, height, width, LumaFormat.Gray8), targets);
         var watch = Stopwatch.StartNew();
         PointResult[] last = [];
         for (int k = 1; k < frames; k++)
         {
-            last = clip.Step(tracker, k);
+            last = tracker.Step(new LumaFrame(lumas[k], width, height, width, LumaFormat.Gray8));
         }
 
         watch.Stop();
         double fps = (frames - 1) / watch.Elapsed.TotalSeconds;
         output.WriteLine($"{width}×{height}, 4 puntos (patrón 41, búsqueda 121): {fps:0} cuadros/s solo el seguidor.");
-        ShiftingClip.AssertFollowed(last, targets, frames - 1);
+        Assert.All(last, r => Assert.Equal(PointState.Good, r.State));
+        Assert.InRange(Vector2.Distance(last[0].Position, targets[0].Position - new Vector2(2 * (frames - 1), frames - 1)), 0, 0.3);
         // En Debug (sin optimizar) va unas cuatro veces más lento; el umbral vale para los dos.
         Assert.True(fps > 15, $"{fps:0} cuadros/s");
-    }
-
-    /// <summary>
-    /// El costo del seguidor solo depende de sus ventanas, no del cuadro: 1080p y 4K se siguen intercalados, cuadro a
-    /// cuadro, y se compara el paso más rápido de cada uno. La carga del runner afecta a los dos por igual y el mínimo es
-    /// la medida que menos depende de ella; si el seguidor recorriera el cuadro entero, el 4K (cuatro veces el área) se
-    /// iría bien por encima de la cota.
-    /// </summary>
-    [Fact]
-    public void The_cost_per_frame_does_not_depend_on_the_frame_size()
-    {
-        const int frames = 40;
-        var small = new ShiftingClip(1920, 1080, frames);
-        var large = new ShiftingClip(3840, 2160, frames);
-        PointTracker smallTracker = small.Start(out PointTarget[] smallTargets);
-        PointTracker largeTracker = large.Start(out PointTarget[] largeTargets);
-        double smallBest = double.MaxValue, largeBest = double.MaxValue;
-        PointResult[] smallLast = [], largeLast = [];
-        for (int k = 1; k < frames; k++)
-        {
-            // Se alterna cuál va primero para que ninguno herede siempre la caché caliente del otro.
-            if (k % 2 == 0)
-            {
-                smallLast = Timed(small, smallTracker, k, ref smallBest);
-                largeLast = Timed(large, largeTracker, k, ref largeBest);
-            }
-            else
-            {
-                largeLast = Timed(large, largeTracker, k, ref largeBest);
-                smallLast = Timed(small, smallTracker, k, ref smallBest);
-            }
-        }
-
-        output.WriteLine($"Paso más rápido: 1920×1080 {smallBest:0.00} ms, 3840×2160 {largeBest:0.00} ms ({largeBest / smallBest:0.00}×).");
-        ShiftingClip.AssertFollowed(smallLast, smallTargets, frames - 1);
-        ShiftingClip.AssertFollowed(largeLast, largeTargets, frames - 1);
-        Assert.True(largeBest < 2 * smallBest, $"4K {largeBest:0.00} ms contra 1080p {smallBest:0.00} ms por cuadro.");
-
-        static PointResult[] Timed(ShiftingClip clip, PointTracker tracker, int k, ref double best)
-        {
-            long start = Stopwatch.GetTimestamp();
-            PointResult[] result = clip.Step(tracker, k);
-            best = Math.Min(best, Stopwatch.GetElapsedTime(start).TotalMilliseconds);
-            return result;
-        }
     }
 
     private static PointTarget Target(Vector2 p) => new(p, Pattern, Search);
@@ -288,57 +260,5 @@ public sealed class PointTrackerTests(ITestOutputHelper output)
 
         mean = sum / count;
         return worst;
-    }
-
-    /// <summary>
-    /// Una textura grande que se desplaza (2, 1) píxeles por cuadro: cada cuadro es una vista del mismo plano con otro
-    /// comienzo y el paso de fila del plano, así que armar los 60 cuadros de un 4K no cuesta nada.
-    /// </summary>
-    private sealed class ShiftingClip
-    {
-        private const int MarginX = 400;
-        private const int MarginY = 200;
-        private readonly byte[] _plane;
-        private readonly int _width;
-        private readonly int _height;
-
-        public ShiftingClip(int width, int height, int frames)
-        {
-            Assert.True(2 * frames <= MarginX && frames <= MarginY);
-            _width = width;
-            _height = height;
-            float[] plane = new PlanarScene(5).Render(width + MarginX, height + MarginY, Homography.Identity);
-            _plane = new byte[plane.Length];
-            for (int i = 0; i < plane.Length; i++)
-            {
-                _plane[i] = (byte)Math.Clamp(plane[i], 0, 255);
-            }
-        }
-
-        private int Stride => _width + MarginX;
-
-        public PointTracker Start(out PointTarget[] targets)
-        {
-            Vector2 c = new(_width / 2f, _height / 2f);
-            targets = [.. new[] { c + new Vector2(-300, -200), c + new Vector2(300, -200), c + new Vector2(300, 200), c + new Vector2(-300, 200) }
-                .Select(p => new PointTarget(p, new Vector2(41), new Vector2(121)))];
-            var tracker = new PointTracker(_width, _height);
-            tracker.Start(Frame(0), targets);
-            return tracker;
-        }
-
-        public PointResult[] Step(PointTracker tracker, int k) => tracker.Step(Frame(k));
-
-        public static void AssertFollowed(PointResult[] last, PointTarget[] targets, int k)
-        {
-            Assert.All(last, r => Assert.Equal(PointState.Good, r.State));
-            Assert.InRange(Vector2.Distance(last[0].Position, targets[0].Position - new Vector2(2 * k, k)), 0, 0.3);
-        }
-
-        private LumaFrame Frame(int k)
-        {
-            int offset = (k * Stride) + (2 * k);
-            return new LumaFrame(_plane.AsSpan(offset), _width, _height, Stride, LumaFormat.Gray8);
-        }
     }
 }

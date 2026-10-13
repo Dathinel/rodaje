@@ -62,14 +62,6 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            // Un proceso que ya murió o cuyo cliente ya falló (lo mató el ping) se retira aquí mismo: OnExited llega por
-            // continuaciones del pool, y con el runner cargado la llamada siguiente encontraba todavía el proceso muerto y
-            // fallaba otra vez con «dejó de responder» (ModuleManagerTests en la CI de Windows, 3 de 4 corridas).
-            if (_process is { } stale && (stale.Exited.IsCompleted || stale.Client.Completion.IsCompleted))
-            {
-                OnExited(stale);
-            }
-
             if (_process is null)
             {
                 _hung = false;
