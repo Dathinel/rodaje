@@ -86,7 +86,8 @@ public sealed class LinkSyncTimeMapPropertyTests(ITestOutputHelper output)
     /// <summary>
     /// Con la misma curva: si el clip sale de la referencia recortando, dividiendo o deslizando (misma fase), la diferencia
     /// es la misma en todo instante y el desfase medido es exactamente esa; si además se corre en la línea de tiempo (otra
-    /// fase), se mide igual (no «no comparable») y al invertir el par solo cambia el signo.
+    /// fase), se mide igual (no «no comparable»), es el que da el oráculo <see cref="KnotOffset"/> y al invertir el par solo
+    /// cambia el signo.
     /// </summary>
     [Fact]
     public void Con_la_misma_curva_el_desfase_es_el_que_muestra_el_mapeo()
@@ -133,10 +134,13 @@ public sealed class LinkSyncTimeMapPropertyTests(ITestOutputHelper output)
                 seen.Add((ClipTimeMap.Of(c).Source(Time.FromTicks(t)) - ClipTimeMap.Of(r).ExtendedSource(Time.FromTicks(t))).Ticks);
             }
 
-            bool ok = offset is { } value && back == -value && (moved || (seen.Count == 1 && seen.Min == value.Ticks));
+            long expected = KnotOffset(curve, ClipTimeMap.Of(r), ClipTimeMap.Of(c));
+            bool ok = offset is { } value && back == -value && value.Ticks == expected
+                && (moved || (seen.Count == 1 && seen.Min == value.Ticks));
             if (!ok)
             {
-                failures.Add($"{(reverse ? "reversa" : "adelante")} movido={moved}: ref {reference} clip {clip}; visto [{string.Join(", ", seen)}], medido {(offset is { } o ? $"{o.Ticks}" : "null")}");
+                failures.Add($"{(reverse ? "reversa" : "adelante")} movido={moved}: ref {reference} clip {clip}; visto [{string.Join(", ", seen)}], "
+                    + $"esperado {expected}, medido {(offset is { } o ? $"{o.Ticks}" : "null")}, al revés {(back is { } b ? $"{b.Ticks}" : "null")}");
             }
 
             samePhase += moved ? 0 : 1;
@@ -145,6 +149,45 @@ public sealed class LinkSyncTimeMapPropertyTests(ITestOutputHelper output)
 
         output.WriteLine($"misma fase: {samePhase}; otra fase: {otherPhase}");
         Assert.True(failures.Count == 0, $"{failures.Count} discrepancias:\n{string.Join("\n", failures)}");
+    }
+
+    /// <summary>
+    /// Oráculo del desfase con la misma curva, solo con <see cref="ClipTimeMap"/>: la diferencia de origen
+    /// <c>c.Source(t) − r.Source(t)</c> en cada instante en que la referencia o el clip pasan por un nudo de la curva, con
+    /// los dos mapeos alargados (TrimIn y TrimOut siguen el mismo recorrido) para cubrir esos instantes; gana la de mayor
+    /// tamaño y, si empatan, la del instante más temprano (la regla que documenta <see cref="LinkSync"/>).
+    /// </summary>
+    private static long KnotOffset(SpeedCurve curve, ClipTimeMap r, ClipTimeMap c)
+    {
+        var instants = new List<long>();
+        foreach (SpeedPoint point in curve.Points)
+        {
+            long knot = (long)((Int128)point.At * curve.Span.Ticks / SpeedCurve.AtScale);
+            instants.Add(r.Start.Ticks + knot - r.Offset.Ticks);
+            instants.Add(c.Start.Ticks + knot - c.Offset.Ticks);
+        }
+
+        Time from = Time.FromTicks(instants.Min()), to = Time.FromTicks(instants.Max() + 1);
+        ClipTimeMap Cover(ClipTimeMap map)
+        {
+            ClipTimeMap wide = from < map.Start ? map.TrimIn(from) : map;
+            return to > wide.End ? wide.TrimOut(to) : wide;
+        }
+
+        ClipTimeMap wideR = Cover(r), wideC = Cover(c);
+        long best = 0;
+        long bestAt = long.MaxValue;
+        foreach (long at in instants)
+        {
+            long value = (wideC.Source(Time.FromTicks(at)) - wideR.Source(Time.FromTicks(at))).Ticks;
+            if (Math.Abs(value) > Math.Abs(best) || (Math.Abs(value) == Math.Abs(best) && at < bestAt))
+            {
+                best = value;
+                bestAt = at;
+            }
+        }
+
+        return best;
     }
 
     /// <summary>
