@@ -34,9 +34,9 @@ public sealed partial class AsyncSafetyTests
     // Esperas bloqueantes en el código de la interfaz (Views/, Shell/, App.xaml.cs): (archivo, texto) → apariciones y motivo.
     private static readonly Dictionary<(string File, string Pattern), (int Count, string Reason)> BlockingWaitAllowed = new()
     {
-        [("Rodaje.App/Views/Player/PlayerEngine.Transitions.cs", ".Wait(TimeSpan")] = (1, "corre en el hilo del motor, no en el de la interfaz."),
-        [("Rodaje.App/Views/Player/PlayerEngine.Looks.cs", ".Wait(TimeSpan")] = (1, "corre en el hilo del motor, no en el de la interfaz."),
-        [("Rodaje.App/Shell/MainWindow.xaml.cs", ".Wait(TimeSpan")] = (1, "al cerrar: como mucho 3 s, y el cierre de los módulos no vuelve al hilo de la interfaz (ConfigureAwait(false))."),
+        [("Rodaje.App/Views/Player/PlayerEngine.Transitions.cs", ".Wait(")] = (1, "corre en el hilo del motor, no en el de la interfaz."),
+        [("Rodaje.App/Views/Player/PlayerEngine.Looks.cs", ".Wait(")] = (1, "corre en el hilo del motor, no en el de la interfaz."),
+        [("Rodaje.App/Shell/MainWindow.xaml.cs", ".Wait(")] = (1, "al cerrar: como mucho ModuleManager.CloseTimeout (lo que tarda en morir un módulo colgado, unos 8 s), y el cierre de los módulos no vuelve al hilo de la interfaz (ConfigureAwait(false))."),
     };
 
     // I/O o hash de archivos en el código de la interfaz: (archivo, texto) → apariciones y motivo.
@@ -60,11 +60,12 @@ public sealed partial class AsyncSafetyTests
         ["Rodaje.App/Services/Modules/ModuleConnection.cs"] = (1, "Exited solo termina con TrySetResult (el código de salida): nunca falla."),
     };
 
+    // «.Wait(» cubre Wait() y Wait con cualquier plazo, también uno que no se escribe como «TimeSpan…» (tarea 197).
     private static readonly string[] BlockingPatterns =
-        [".GetAwaiter().GetResult()", ".Wait()", ".Wait(TimeSpan", "Task.WaitAll(", "Task.WaitAny(", ".AsTask().Result"];
+        [".GetAwaiter().GetResult()", ".Wait(", "Task.WaitAll(", "Task.WaitAny(", ".AsTask().Result"];
 
     // Esperas que relanzan el fallo de la tarea: aun permitidas, van dentro de un try/catch (Exception).
-    private static readonly string[] RethrowingWaits = [".GetAwaiter().GetResult()", ".Wait()", ".Wait(TimeSpan", "Task.WaitAll("];
+    private static readonly string[] RethrowingWaits = [".GetAwaiter().GetResult()", ".Wait(", "Task.WaitAll("];
 
     // Etiqueta de las lecturas de «.Result» de una tarea (en BlockingWaitAllowed).
     private const string ResultPattern = ".Result";

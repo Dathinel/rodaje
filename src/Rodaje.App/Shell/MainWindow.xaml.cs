@@ -923,7 +923,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         // Un fallo al cerrarlos (Wait lo relanza como AggregateException) se informa y no salta el resto del cierre.
         try
         {
-            _modules.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(3));
+            _modules.DisposeAsync().AsTask().Wait(_modules.CloseTimeout);
         }
 #pragma warning disable CA1031 // Ver arriba.
         catch (Exception ex)
