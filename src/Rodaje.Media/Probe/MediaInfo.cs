@@ -22,6 +22,9 @@ public sealed record MediaInfo
 
     public AudioStreamInfo? Audio { get; init; }
 
+    /// <summary>Fecha de grabación y cámara, si el archivo las trae.</summary>
+    public MediaTags Tags { get; init; } = MediaTags.None;
+
     public bool HasVideo => Video is not null;
 
     public bool HasAudio => Audio is not null;

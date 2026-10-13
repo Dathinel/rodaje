@@ -109,6 +109,9 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _headers.Toggled += OnTrackToggled;
         _headers.GainChanging += OnTrackGainChanging;
         _headers.GainCommitted += OnTrackGainCommitted;
+        _headers.HeightChanging += OnTrackHeightChanging;
+        _headers.HeightCommitted += _ => OnTrackGainCommitted("");
+        _headers.CloseGapsRequested += trackId => Session?.CloseAllGaps([trackId]);
         _headers.SubtitleTrackRequested += () => Session?.AddSubtitleTrack();
         _headers.SubtitleRoleRequested += (trackId, subtitles) => Session?.SetSubtitleRole(trackId, subtitles);
         _headers.VoiceOverRequested += trackId => Voice.VoiceCommands.RecordVoiceOver(services, trackId);
@@ -502,6 +505,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         router.Bind(ActionIds.ZoomToFit, ZoomToFit);
         router.Bind(ActionIds.ZoomToSelection, ZoomToSelection, () => Session is not null && SelectionSpan() is not null);
         RegisterCompoundActions(services);
+        RegisterProActions(services);
         RegisterThreePointActions(services);
     }
 
@@ -653,6 +657,10 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         (ZoomToolButton, ActionIds.ZoomTool),
         (RollToolButton, ActionIds.RollTool),
         (SlideToolButton, ActionIds.SlideTool),
+        (BladeToolButton, ActionIds.BladeTool),
+        (RippleToolButton, ActionIds.RippleTool),
+        (SlipToolButton, ActionIds.SlipTool),
+        (RangeToolButton, ActionIds.RangeTool),
     ];
 
     private (ToggleButton Button, string ActionId)[] ToggleButtons() =>
@@ -725,6 +733,10 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         ZoomToolButton.IsChecked = state.Tool == TimelineTool.Zoom;
         RollToolButton.IsChecked = state.Tool == TimelineTool.Roll;
         SlideToolButton.IsChecked = state.Tool == TimelineTool.Slide;
+        BladeToolButton.IsChecked = state.Tool == TimelineTool.Blade;
+        RippleToolButton.IsChecked = state.Tool == TimelineTool.Ripple;
+        SlipToolButton.IsChecked = state.Tool == TimelineTool.Slip;
+        RangeToolButton.IsChecked = state.Tool == TimelineTool.Range;
         MagneticButton.IsChecked = state.MagneticMainTrack;
         SnappingButton.IsChecked = state.Snapping;
         AutoRippleButton.IsChecked = state.AutoRipple;

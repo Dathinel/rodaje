@@ -55,6 +55,10 @@ public static class ActionIds
     public const string ZoomTool = "tool.zoom";
     public const string RollTool = "tool.roll";
     public const string SlideTool = "tool.slide";
+    public const string BladeTool = "tool.blade";
+    public const string RippleTool = "tool.ripple";
+    public const string SlipTool = "tool.slip";
+    public const string RangeTool = "tool.range";
 
     public const string ShowShortcuts = "view.shortcuts";
     public const string ShowPlugins = "view.plugins";
@@ -125,6 +129,10 @@ public static partial class EditorShortcuts
         new(ActionIds.RollTool, "Herramienta de roll", ShortcutGroups.Tools, ["Y"], agile: ["Mayús+Y"], classic: ["N"]) { ShortLabel = "Roll", Description = "Arrastra un corte: un clip crece lo que el otro pierde (o Ctrl+Alt en un borde)." },
         new(ActionIds.SlideTool, "Herramienta de slide", ShortcutGroups.Tools, ["U"], agile: ["Mayús+U"], classic: ["U"]) { ShortLabel = "Slide", Description = "Corre un clip entre sus vecinos, que se recortan (o Ctrl+Alt en el cuerpo)." },
         new(ActionIds.SelectionTool, "Herramienta de selección", ShortcutGroups.Tools, []) { ShortLabel = "Selección", Description = "Arrastra un recuadro para seleccionar varios clips." },
+        new(ActionIds.BladeTool, "Herramienta cuchilla", ShortcutGroups.Tools, ["C"], agile: ["B"], classic: ["C"]) { ShortLabel = "Cuchilla", Description = "Un clic corta el clip en ese punto; con Mayús, todas las pistas." },
+        new(ActionIds.RippleTool, "Herramienta de ripple", ShortcutGroups.Tools, ["B"], agile: [], classic: ["B"]) { ShortLabel = "Ripple", Description = "Arrastra un borde: recorta y corre lo que sigue, sin dejar hueco." },
+        new(ActionIds.SlipTool, "Herramienta de slip", ShortcutGroups.Tools, ["D"], agile: [], classic: ["Y"]) { ShortLabel = "Slip", Description = "Arrastra un clip para ver otra parte de su material sin moverlo." },
+        new(ActionIds.RangeTool, "Herramienta de rango", ShortcutGroups.Tools, ["G"], agile: [], classic: ["G"]) { ShortLabel = "Rango", Description = "Arrastra para marcar la entrada y la salida, aunque pases sobre clips." },
         new(ActionIds.ZoomTool, "Herramienta de zoom", ShortcutGroups.Tools, ["Z"], agile: []) { ShortLabel = "Zoom", Description = "Haz clic o arrastra en la línea de tiempo para acercar ese tramo." },
 
         new(ActionIds.ZoomIn, "Acercar", ShortcutGroups.View, ["Ctrl++", "Ctrl+Num +"], classic: ["↑"]) { Repeats = true, Description = "Agranda la línea de tiempo para ver más detalle." },
@@ -187,6 +195,10 @@ public static partial class EditorShortcuts
             router.Bind(ActionIds.ZoomTool, () => timeline.Tool = TimelineTool.Zoom),
             router.Bind(ActionIds.RollTool, () => timeline.Tool = TimelineTool.Roll),
             router.Bind(ActionIds.SlideTool, () => timeline.Tool = TimelineTool.Slide),
+            router.Bind(ActionIds.BladeTool, () => timeline.Tool = TimelineTool.Blade),
+            router.Bind(ActionIds.RippleTool, () => timeline.Tool = TimelineTool.Ripple),
+            router.Bind(ActionIds.SlipTool, () => timeline.Tool = TimelineTool.Slip),
+            router.Bind(ActionIds.RangeTool, () => timeline.Tool = TimelineTool.Range),
         ];
         return new BindingSet(bindings);
     }

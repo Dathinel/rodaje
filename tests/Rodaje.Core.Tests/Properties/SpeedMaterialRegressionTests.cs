@@ -15,10 +15,10 @@ public class SpeedMaterialRegressionTests
     /// en la rejilla de uno. En las cuatro se edita el que empieza fuera de un cuadro. En
     /// <c>7LMaTUJGUpm6</c>, <c>ePnp7RIsF_41</c> y <c>7UwXLCK11vo3</c> el otro, que empieza en un cuadro y tenía el final en
     /// la rejilla, vuelve a 1× con un cuadro de diferencia: es lo que admite la propiedad para el miembro fuera de fase
-    /// con el editado.
+    /// con el editado. <c>0pZ2Mq9N8IE2</c> salió de la lista con D-041: insertar ya no desincroniza enlazados, así que esa
+    /// semilla arma otro proyecto y ya no da una cadena; el caso lo sigue cubriendo la propiedad de 10 000 cadenas.
     /// </summary>
     [Theory]
-    [InlineData("0pZ2Mq9N8IE2")]
     [InlineData("7LMaTUJGUpm6")]
     [InlineData("61Idl4YbLW02")]
     [InlineData("ePnp7RIsF_41")]

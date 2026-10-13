@@ -101,6 +101,9 @@ public sealed class ClipDrag
     private readonly SnapPoints _snaps;
     private readonly HashSet<string> _group;
 
+    /// <summary>El clip está en un grupo (y no se ignoran): se mueve con todo el grupo, en su pista.</summary>
+    private readonly bool _grouped;
+
     // Estirar una curva se calcula desde el estado del inicio del gesto: encadenar pasos de un cuadro redondearía los
     // puntos a centésimas una y otra vez.
     private readonly SequenceSnapshot? _stretchStart;
@@ -126,7 +129,10 @@ public sealed class ClipDrag
         _originIn = clip.SourceIn;
         _slipRate = SlipRate(clip);
         _frameRate = sequence.FrameRate;
-        List<(Track Track, Clip Clip)> members = options.IgnoreGroups ? [(track, clip)] : sequence.GetLinkGroup(clipId);
+        List<(Track Track, Clip Clip)> members = options.IgnoreGroups ? [(track, clip)]
+            : operation == DragOperation.Move && clip.GroupId is not null ? [.. TimelineEdits.ExpandWithGroups(sequence, [clipId])]
+            : sequence.GetLinkGroup(clipId);
+        _grouped = !options.IgnoreGroups && clip.GroupId is not null;
         _group = [.. members.Select(m => m.Clip.Id)];
         _minStart = clip.Start - members.Min(m => m.Clip.Start);
         _snaps = options.Snapping ? SnapPoints.Collect(sequence, _group, playhead) : SnapPoints.Empty;
@@ -230,8 +236,15 @@ public sealed class ClipDrag
             desired = Time.Max(desired + correction, _minStart);
         }
 
-        Track target = row is { } r && r.Kind == _kind ? r.Track : track;
+        Track target = row is { } r && r.Kind == _kind && !_grouped ? r.Track : track;
         string? magnetic = _options.MagneticTrackId;
+        if (_grouped && (magnetic is null || track.Id != magnetic))
+        {
+            Time groupDelta = desired - clip.Start;
+            Func<ICommand>? moveGroup = groupDelta == Time.Zero ? null : () => Edits.MoveClips(_sequenceId, [_clipId], groupDelta, _ids);
+            return new DragPlan(moveGroup, true, desired, desired + duration, track.Id, guide, null);
+        }
+
         bool fromMain = magnetic is not null && _originTrackId == magnetic;
         bool toMain = magnetic is not null && target.Id == magnetic;
 

@@ -326,6 +326,12 @@
                     }
                   }
                 },
+                "height": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
                 "clips": {
                   "type": "array",
                   "items": {
@@ -367,6 +373,18 @@
                       },
                       "enabled": {
                         "type": "boolean"
+                      },
+                      "color": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "groupId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "speed": {
                         "type": [

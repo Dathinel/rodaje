@@ -14,7 +14,7 @@ public sealed record TrackRow(Track Track, int Row, double Top, double Height, b
 
 /// <summary>
 /// Orden y altura de las filas: arriba las pistas de video de la más alta a la más baja (la principal, la de más abajo,
-/// es más alta y queda pegada al audio) y debajo las de audio.
+/// es más alta y queda pegada al audio) y debajo las de audio. Una pista con su propio alto (<see cref="Track.Height"/>) lo usa.
 /// </summary>
 public sealed class TrackLayout
 {
@@ -46,7 +46,7 @@ public sealed class TrackLayout
         {
             Track track = sequence.VideoTracks[i];
             bool main = ReferenceEquals(track, mainTrack);
-            double height = main ? MainRowHeight : VideoRowHeight;
+            double height = track.Height ?? (main ? MainRowHeight : VideoRowHeight);
             rows.Add(new TrackRow(track, rows.Count, y, height, main));
             y += height + RowGap;
         }
@@ -58,8 +58,9 @@ public sealed class TrackLayout
 
         foreach (Track track in sequence.AudioTracks)
         {
-            rows.Add(new TrackRow(track, rows.Count, y, AudioRowHeight, false));
-            y += AudioRowHeight + RowGap;
+            double height = track.Height ?? AudioRowHeight;
+            rows.Add(new TrackRow(track, rows.Count, y, height, false));
+            y += height + RowGap;
         }
 
         return new TrackLayout(rows, y + TopPadding);

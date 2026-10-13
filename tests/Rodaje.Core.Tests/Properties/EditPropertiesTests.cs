@@ -203,7 +203,32 @@ public class EditPropertiesTests(ITestOutputHelper output)
                 iter: 5000,
                 print: s => $"{s.Item1}\nArrastre {s.Item2} del clip {s.Item3}: [{string.Join(", ", s.Item4)}] ripple-todas={s.Item5}");
 
-    internal static void RunScenario(ProjectSpec spec, OpSpec[] ops)
+    private static readonly HashSet<OpKind> SyncKeepingOps =
+    [
+        OpKind.Split, OpKind.Move, OpKind.InsertMedia, OpKind.Insert, OpKind.Overwrite, OpKind.AppendMedia, OpKind.Lift,
+        OpKind.MoveClips, OpKind.GroupClips, OpKind.UngroupClips, OpKind.SetClipColor, OpKind.SetTrackHeight, OpKind.CloseAllGaps,
+        OpKind.Resync, OpKind.SourceEdit,
+    ];
+
+    /// <summary>Los desfases entre enlazados del mismo medio en pistas sin bloquear.</summary>
+    private static HashSet<Time> SyncOffsets(Sequence sequence) =>
+        [.. Unlocked(sequence).Select(o => o.Offset)];
+
+    private static SyncOffset SyncBreaks(Sequence sequence, HashSet<Time> before) =>
+        Unlocked(sequence).FirstOrDefault(o => !before.Contains(o.Offset));
+
+    private static IEnumerable<SyncOffset> Unlocked(Sequence sequence) =>
+        LinkSync.Find(sequence).Where(o => sequence.FindClip(o.ClipId) is { Track.Locked: false } && sequence.FindClip(o.PartnerId) is { Track.Locked: false });
+
+    /// <summary>
+    /// La propiedad 11 sobre todas las ediciones (salvo enlazar a mano y las de velocidad, que recalculan cada clip desde
+    /// su inicio). La nueva propiedad encontró desfases que las ediciones de antes ya hacían; se arreglan aparte.
+    /// </summary>
+    [Fact(Skip = "Defecto: el recorte ripple con el alcance de la pista corre las pistas de los enlazados desde el borde del clip editado, no desde su pareja, y desincroniza los enlazados con otro largo (semilla 2hcHFAoqg5U8); con AllTracks deja atrás una pareja que empieza antes (8fBHh0xmkjni); recortar la entrada de un clip con curva redondea su pareja al cuadro (2_rZhAfEy9if, 1 876 520 ticks).")]
+    public void TodasLasEdiciones_ConservanLaSincronia() =>
+        GenScenario.Sample(s => RunScenario(s.Project, s.Ops, allOpsKeepSync: true), writeLine: output.WriteLine, iter: 10000);
+
+    internal static void RunScenario(ProjectSpec spec, OpSpec[] ops, bool allOpsKeepSync = false)
     {
         BuiltProject built = RandomTimeline.Build(spec);
         Project project = built.Project;
@@ -242,6 +267,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
             string before = ProjectDump.Of(project);
             var trackBefore = built.Sequence.AllTracks.ToDictionary(t => t.Id, t => t.Clone(), StringComparer.Ordinal);
             List<GroupMember> group = GroupMember.Capture(built.Sequence, op.ClipId);
+            var syncBefore = SyncOffsets(built.Sequence);
 
             try
             {
@@ -316,6 +342,16 @@ public class EditPropertiesTests(ITestOutputHelper output)
             if (titles is not null)
             {
                 Fail($"«{op.Text}»: {titles}");
+            }
+
+            // Propiedad 11: estas ediciones nunca desincronizan clips enlazados del mismo medio en pistas sin bloquear (una
+            // pista bloqueada no se corre aunque tenga enlazados: para eso está el aviso de desfase). Las demás se miden
+            // aparte (TodasLasEdiciones_ConservanLaSincronia, con los defectos que encontró).
+            if ((allOpsKeepSync ? op.Kind is not (OpKind.LinkClips or OpKind.SetSpeed or OpKind.RateStretch or OpKind.FreezeFrame
+                    or OpKind.SetCurve or OpKind.SetReverse or OpKind.ApplySpeedPreset) : SyncKeepingOps.Contains(op.Kind))
+                && SyncBreaks(built.Sequence, syncBefore) is { ClipId: not null } broken)
+            {
+                Fail($"«{op.Text}» desincronizó «{broken.ClipId}» de «{broken.PartnerId}» en {broken.Offset.Ticks} ticks.\nAntes:\n{before}");
             }
 
             // Propiedad 4: el historial guarda el estado de cada paso.
@@ -522,7 +558,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
                     foreach (Clip clip in now.Clips)
                     {
                         Clip? was = old.Clips.Find(c => c.Id == clip.Id);
-                        if (was is null || moved.Contains(clip.Id) || was.SourceIn != clip.SourceIn || was.SourceOut != clip.SourceOut
+                        if (was is null || moved.Contains(clip.Id) || (op.Kind == OpKind.MoveClips && was.Start != clip.Start)
+                            || was.SourceIn != clip.SourceIn || was.SourceOut != clip.SourceOut
                             || was.Duration != clip.Duration)
                         {
                             continue;
@@ -613,7 +650,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
 
         Dictionary<string, ClipGenerator> old = before.Values.SelectMany(t => t.Clips).Where(c => c.Generator is not null)
             .ToDictionary(c => c.Id, c => c.Generator!, StringComparer.Ordinal);
-        bool splits = op.Kind is OpKind.Split or OpKind.Insert or OpKind.Overwrite or OpKind.InsertMedia or OpKind.Move;
+        bool splits = op.Kind is OpKind.Split or OpKind.Insert or OpKind.Overwrite or OpKind.InsertMedia or OpKind.Move or OpKind.SourceEdit;
         foreach (Track track in after.AllTracks)
         {
             foreach (Clip clip in track.Clips)

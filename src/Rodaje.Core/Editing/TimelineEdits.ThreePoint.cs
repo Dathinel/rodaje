@@ -31,7 +31,30 @@ public sealed record ThreePointRequest(
     string? AudioTrackId,
     PlacementMode Mode,
     FourPointFit Fit = FourPointFit.Ask,
-    RippleScope Scope = RippleScope.Track);
+    RippleScope Scope = RippleScope.Track,
+    Time? SourcePlayhead = null);
+
+/// <summary>Las cinco ediciones desde el origen.</summary>
+public enum ThreePointAction
+{
+    /// <summary>Inserta y corre lo que sigue.</summary>
+    Insert,
+
+    /// <summary>Tapa lo que haya, sin correr nada.</summary>
+    Overwrite,
+
+    /// <summary>
+    /// Reemplaza el clip bajo el cursor (o el tramo marcado) conservando su lugar y su duración; el cuadro del cursor del
+    /// origen (o su entrada) queda alineado con el cursor de la secuencia (o con el inicio del clip).
+    /// </summary>
+    Replace,
+
+    /// <summary>El tramo del origen llena el de la secuencia (o el del clip bajo el cursor) cambiando la velocidad.</summary>
+    FitToFill,
+
+    /// <summary>La imagen va encima, en la primera pista de video libre sobre la destino (o en una nueva).</summary>
+    Superimpose,
+}
 
 /// <summary>Lo que hará la edición.</summary>
 /// <param name="SourceIn">Entrada del tramo del origen.</param>
@@ -166,11 +189,7 @@ public static partial class TimelineEdits
         ClipTimeMap map = Fitted(plan, speed, media.Duration);
         if (request.Mode == PlacementMode.Insert)
         {
-            IEnumerable<Track> shifted = request.Scope.IncludesAllTracks() ? ctx.Sequence.AllTracks.Where(t => !t.Locked) : targets;
-            foreach (Track track in shifted)
-            {
-                TrackOps.InsertSpace(ctx, track, map.Start, map.Duration);
-            }
+            TrackOps.InsertSpaceLinked(ctx, request.Scope.IncludesAllTracks() ? [.. ctx.Sequence.AllTracks.Where(t => !t.Locked)] : targets, map.Start, map.Duration);
 
             if (request.Scope == RippleScope.AllTracksAndMarkers)
             {
@@ -212,5 +231,105 @@ public static partial class TimelineEdits
 
         ClipTimeMap exact = ClipTimeMap.Create(plan.At, plan.Duration, plan.SourceIn, speed);
         return exact.SourceIn >= Time.Zero && exact.SourceOut <= material ? exact : fit;
+    }
+
+    /// <summary>
+    /// Una de las cinco ediciones desde el origen (<see cref="ThreePointAction"/>). Insertar y sobrescribir son
+    /// <see cref="ThreePointEdit(EditContext, ThreePointRequest)"/>; las demás calculan sus marcas y sobrescriben.
+    /// </summary>
+    /// <returns>Los clips creados, el de video primero.</returns>
+    public static IReadOnlyList<string> ThreePointEdit(EditContext ctx, ThreePointRequest request, ThreePointAction action)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(request);
+        MediaRef media = ctx.Project.FindMedia(request.MediaId)
+            ?? throw new EditException($"No existe el medio «{request.MediaId}» en el proyecto.");
+        switch (action)
+        {
+            case ThreePointAction.Insert:
+                return ThreePointEdit(ctx, request with { Mode = PlacementMode.Insert });
+            case ThreePointAction.Overwrite:
+                return ThreePointEdit(ctx, request with { Mode = PlacementMode.Overwrite });
+            case ThreePointAction.FitToFill:
+            {
+                (Time start, Time end) = TargetSpan(ctx, request, media)
+                    ?? throw new EditException("Ajustar a rellenar necesita la entrada y la salida de la secuencia, o un clip bajo el cursor en la pista destino.");
+                return ThreePointEdit(ctx, request with
+                {
+                    SourceIn = request.SourceIn ?? Time.Zero,
+                    SourceOut = request.SourceOut ?? media.Duration,
+                    SequenceIn = start,
+                    SequenceOut = end,
+                    Mode = PlacementMode.Overwrite,
+                    Fit = FourPointFit.FitToFill,
+                });
+            }
+
+            case ThreePointAction.Replace:
+            {
+                (Time start, Time end) = TargetSpan(ctx, request, media)
+                    ?? throw new EditException("No hay un clip bajo el cursor en la pista destino para reemplazar, ni un tramo marcado en la secuencia.");
+                Time playhead = Time.Min(Time.Max(request.Playhead, start), end);
+                Time sourceIn = request.SourceIn is { } marked
+                    ? marked
+                    : (request.SourcePlayhead ?? Time.Zero) - (playhead - start);
+                return ThreePointEdit(ctx, request with
+                {
+                    SourceIn = sourceIn,
+                    SourceOut = sourceIn + (end - start),
+                    SequenceIn = start,
+                    SequenceOut = end,
+                    Mode = PlacementMode.Overwrite,
+                    Fit = FourPointFit.Trim,
+                });
+            }
+
+            case ThreePointAction.Superimpose:
+            {
+                if (!media.HasVideo)
+                {
+                    throw new EditException($"«{media.Name}» no tiene imagen: superponer pone la imagen encima de lo que hay.");
+                }
+
+                ThreePointPlan plan = PlanThreePoint(ctx.Project, request with { Mode = PlacementMode.Overwrite });
+                if (plan.NeedsDecision)
+                {
+                    throw new EditException("El tramo del origen y el de la secuencia no duran lo mismo: elige ajustar la velocidad o recortar.");
+                }
+
+                Track baseTrack = request.VideoTrackId is { } id
+                    ? ctx.Sequence.FindTrack(id) ?? throw new EditException($"No existe la pista «{id}» en la secuencia.")
+                    : ctx.Sequence.VideoTracks.Count > 0 ? ctx.Sequence.VideoTracks[0] : throw new EditException("La secuencia no tiene pistas de video.");
+                int from = ctx.Sequence.VideoTracks.IndexOf(baseTrack) + 1;
+                Track? free = ctx.Sequence.VideoTracks.Skip(from)
+                    .FirstOrDefault(t => !t.Locked && t.Role is null && TrackOps.FindOverlap(t, plan.At, plan.At + plan.Duration) is null);
+                string target = free?.Id
+                    ?? AddTrack(ctx, TrackKind.Video, ctx.Sequence.VideoTracks.Count, $"Video {ctx.Sequence.VideoTracks.Count + 1}");
+                return ThreePointEdit(ctx, request with { VideoTrackId = target, AudioTrackId = null, Mode = PlacementMode.Overwrite });
+            }
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(action), action, null);
+        }
+    }
+
+    /// <summary>El tramo marcado de la secuencia, o el del clip bajo el cursor en la pista destino (la de video primero).</summary>
+    private static (Time Start, Time End)? TargetSpan(EditContext ctx, ThreePointRequest request, MediaRef media)
+    {
+        if (request.SequenceIn is { } i && request.SequenceOut is { } o && o > i)
+        {
+            return (i, o);
+        }
+
+        Time at = request.SequenceIn ?? request.Playhead;
+        foreach ((string? id, bool has) in new[] { (request.VideoTrackId, media.HasVideo), (request.AudioTrackId, media.HasAudio) })
+        {
+            if (id is not null && has && ctx.Sequence.FindTrack(id)?.ClipAt(at) is { } clip)
+            {
+                return (clip.Start, clip.End);
+            }
+        }
+
+        return null;
     }
 }

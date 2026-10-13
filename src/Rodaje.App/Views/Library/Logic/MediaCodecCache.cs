@@ -1,7 +1,10 @@
 namespace Rodaje.App.Views.Library;
 
-/// <summary>Los códecs leídos de un archivo; <see cref="Failed"/> si no se pudo leer.</summary>
-public readonly record struct MediaCodecs(string? Video, string? Audio, bool Failed)
+/// <summary>
+/// Los códecs leídos de un archivo, con la fecha de grabación y la cámara si las trae; <see cref="Failed"/> si no se pudo
+/// leer.
+/// </summary>
+public readonly record struct MediaCodecs(string? Video, string? Audio, bool Failed, DateTimeOffset? Created = null, string? Camera = null)
 {
     public static MediaCodecs Unreadable { get; } = new(null, null, Failed: true);
 }
@@ -64,6 +67,17 @@ public sealed class MediaCodecCache
     /// </summary>
     public MediaCodecs Read(string path, Func<string, (string? Video, string? Audio)> probe)
     {
+        ArgumentNullException.ThrowIfNull(probe);
+        return ReadAll(path, p =>
+        {
+            (string? video, string? audio) = probe(p);
+            return new MediaCodecs(video, audio, Failed: false);
+        });
+    }
+
+    /// <summary>Como la otra, con todo lo que se lee del archivo (fecha y cámara incluidas).</summary>
+    public MediaCodecs ReadAll(string path, Func<string, MediaCodecs> probe)
+    {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(probe);
         MediaFileStamp? stamp = StampOf(path);
@@ -75,8 +89,7 @@ public sealed class MediaCodecCache
         MediaCodecs codecs;
         try
         {
-            (string? video, string? audio) = probe(path);
-            codecs = new MediaCodecs(video, audio, Failed: false);
+            codecs = probe(path);
         }
 #pragma warning disable CA1031 // Un fallo inesperado al leer un medio no debe cortar la lectura de los demás.
         catch (Exception)

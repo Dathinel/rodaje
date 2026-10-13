@@ -148,10 +148,10 @@ internal static class ProjectDump
 
     private static void DumpTrack(StringBuilder sb, string list, Track t)
     {
-        Line(sb, 2, $"{list} pista {t.Id} {t.Kind} «{t.Name}» m={t.Muted} l={t.Locked} h={t.Hidden}{(t.Role is null ? "" : $" rol={t.Role}")}");
+        Line(sb, 2, $"{list} pista {t.Id} {t.Kind} «{t.Name}» m={t.Muted} l={t.Locked} h={t.Hidden}{(t.Role is null ? "" : $" rol={t.Role}")}{(t.Height is { } height ? $" alto={height}" : "")}");
         foreach (Clip c in t.Clips)
         {
-            Line(sb, 3, $"clip {c.Id} {c.MediaId} in={c.SourceIn.Ticks} out={c.SourceOut.Ticks} start={c.Start.Ticks} link={c.LinkId ?? "-"} e={c.Enabled}");
+            Line(sb, 3, $"clip {c.Id} {c.MediaId} in={c.SourceIn.Ticks} out={c.SourceOut.Ticks} start={c.Start.Ticks} link={c.LinkId ?? "-"} e={c.Enabled}{(c.Color is null ? "" : $" color={c.Color}")}{(c.GroupId is null ? "" : $" grupo={c.GroupId}")}");
             if (c.Generator is { } g)
             {
                 TextStyle? st = g.Style;

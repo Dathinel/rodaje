@@ -74,6 +74,14 @@ internal enum OpKind
     SetReverse,
     SetPreservePitch,
     ApplySpeedPreset,
+    MoveClips,
+    GroupClips,
+    UngroupClips,
+    SetClipColor,
+    SetTrackHeight,
+    CloseAllGaps,
+    Resync,
+    SourceEdit,
     Undo,
     Redo,
 }
@@ -113,7 +121,9 @@ internal static class RandomTimeline
         (OpKind.AddTransition, 7), (OpKind.RemoveTransition, 2), (OpKind.SetTransitionDuration, 3), (OpKind.SetTransitionType, 2),
         (OpKind.SetTransitionOption, 2), (OpKind.AddEffect, 3), (OpKind.SetEffectOption, 2), (OpKind.SetKeyframe, 3),
         (OpKind.SetSpeed, 6), (OpKind.RateStretch, 5), (OpKind.FreezeFrame, 3), (OpKind.SetCurve, 3), (OpKind.SetReverse, 3),
-        (OpKind.SetPreservePitch, 1), (OpKind.ApplySpeedPreset, 2), (OpKind.Undo, 4), (OpKind.Redo, 3),
+        (OpKind.SetPreservePitch, 1), (OpKind.ApplySpeedPreset, 2),
+        (OpKind.MoveClips, 5), (OpKind.GroupClips, 3), (OpKind.UngroupClips, 2), (OpKind.SetClipColor, 2), (OpKind.SetTrackHeight, 1),
+        (OpKind.CloseAllGaps, 3), (OpKind.Resync, 2), (OpKind.SourceEdit, 5), (OpKind.Undo, 4), (OpKind.Redo, 3),
     ];
 
     private static readonly OpKind[] KindTable = [.. Weights.SelectMany(w => Enumerable.Repeat(w.Kind, w.Weight))];
@@ -713,6 +723,76 @@ internal static class RandomTimeline
                 string clip = r.ClipId(op.A);
                 bool preserve = op.B % 2 == 0;
                 return new(kind, Edits.SetPreservePitch(seq, clip, preserve, ids), $"SetPreservePitch({clip}, {preserve})", clip);
+            }
+
+            case OpKind.MoveClips:
+            {
+                string[] clips = op.C % 3 == 0 ? [r.ClipId(op.A), r.ClipId(op.B)] : [r.ClipId(op.A)];
+                Time delta = r.Delta(op.E, op.D);
+                return new(kind, Edits.MoveClips(seq, clips, delta, ids), $"MoveClips([{string.Join(",", clips)}], {delta.Ticks})", clips[0], delta);
+            }
+
+            case OpKind.GroupClips:
+            case OpKind.UngroupClips:
+            {
+                string[] clips = op.C % 2 == 0 ? [r.ClipId(op.A), r.ClipId(op.B), r.ClipId(op.D)] : [r.ClipId(op.A), r.ClipId(op.B)];
+                SequenceEditCommand command = kind == OpKind.GroupClips ? Edits.GroupClips(seq, clips, ids) : Edits.UngroupClips(seq, clips, ids);
+                return new(kind, command, $"{kind}([{string.Join(",", clips)}])");
+            }
+
+            case OpKind.SetClipColor:
+            {
+                string clip = r.ClipId(op.A);
+                string? color = (op.B % 4) switch { 0 => null, 1 => "#e5484d", 2 => "#3E9BFF", _ => "rojo" };
+                return new(kind, Edits.SetClipColor(seq, [clip], color, ids), $"SetClipColor({clip}, {color ?? "-"})", clip);
+            }
+
+            case OpKind.SetTrackHeight:
+            {
+                string track = r.TrackId(op.A);
+                int? height = op.B % 5 == 0 ? null : op.B;
+                return new(kind, Edits.SetTrackHeight(seq, track, height, ids), $"SetTrackHeight({track}, {height?.ToString(CultureInfo.InvariantCulture) ?? "-"})");
+            }
+
+            case OpKind.CloseAllGaps:
+            {
+                string[] tracks = op.C % 3 == 0 ? [.. built.Sequence.AllTracks.Select(t => t.Id)] : [r.TrackId(op.A)];
+                RippleScope scope = (RippleScope)(op.D % 3);
+                return new(kind, Edits.CloseAllGaps(seq, tracks, scope, ids), $"CloseAllGaps([{string.Join(",", tracks)}], {scope})");
+            }
+
+            case OpKind.Resync:
+            {
+                string clip = r.ClipId(op.A);
+                ResyncMode mode = op.B % 2 == 0 ? ResyncMode.Move : ResyncMode.Slip;
+                return new(kind, Edits.Resync(seq, clip, mode, ids), $"Resync({clip}, {mode})", clip);
+            }
+
+            case OpKind.SourceEdit:
+            {
+                (string media, Time sourceIn, Time sourceOut) = r.MediaRange(op.B, op.C, op.D);
+                var action = (ThreePointAction)(((op.E % 5) + 5) % 5);
+                List<Track> video = built.Sequence.VideoTracks;
+                List<Track> audio = built.Sequence.AudioTracks;
+                string? v = video.Count == 0 || op.A % 7 == 6 ? null : video[op.A % video.Count].Id;
+                string? a = audio.Count == 0 || op.A % 5 == 4 ? null : audio[op.A % audio.Count].Id;
+                Time playhead = r.Instant(op.A, op.C, op.E, op.B);
+                Time? seqIn = op.D % 3 == 0 ? playhead : null;
+                Time? seqOut = op.D % 6 == 0 ? playhead + Time.FromFrames(1 + (op.B % 90), built.Rate) : null;
+                var request = new ThreePointRequest(
+                    media,
+                    op.C % 4 == 0 ? null : sourceIn,
+                    op.C % 4 == 1 ? null : sourceOut,
+                    seqIn,
+                    seqOut,
+                    playhead,
+                    v,
+                    a,
+                    PlacementMode.Overwrite,
+                    op.B % 2 == 0 ? FourPointFit.Trim : FourPointFit.FitToFill,
+                    (RippleScope)(op.D % 3),
+                    sourceIn + Time.FromFrames(Math.Abs(op.E % 30), built.Rate));
+                return new(kind, Edits.ThreePointEdit(seq, request, action, ids), $"SourceEdit({action}, {media}, {sourceIn.Ticks}-{sourceOut.Ticks}, {v ?? "-"}/{a ?? "-"}, {playhead.Ticks}, {seqIn?.Ticks.ToString(CultureInfo.InvariantCulture) ?? "-"}-{seqOut?.Ticks.ToString(CultureInfo.InvariantCulture) ?? "-"})");
             }
 
             default:

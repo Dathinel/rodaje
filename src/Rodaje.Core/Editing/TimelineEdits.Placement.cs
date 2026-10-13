@@ -67,10 +67,23 @@ public static partial class TimelineEdits
             from.Clips.Remove(clip);
         }
 
+        // Al insertar, el grupo abre un solo espacio (del inicio del primero al final del último) en todas sus pistas, con
+        // los enlazados de lo que se corre: así nada se desincroniza, aunque el video y el audio no empiecen juntos.
+        if (mode == PlacementMode.Insert)
+        {
+            Time from = moves.Min(m => m.Clip.Start) + delta;
+            Time to = moves.Max(m => m.Clip.End) + delta;
+            TrackOps.InsertSpaceLinked(ctx, [.. moves.Select(m => m.To).Distinct()], from, to - from);
+        }
+
         foreach ((_, Track to, Clip clip) in moves)
         {
             clip.Start += delta;
-            PlacementMakeRoom(ctx, to, clip.Start, clip.Duration, mode);
+            if (mode != PlacementMode.Insert)
+            {
+                PlacementMakeRoom(ctx, to, clip.Start, clip.Duration, mode);
+            }
+
             TrackOps.AddClipSorted(to, clip);
         }
 
@@ -87,7 +100,8 @@ public static partial class TimelineEdits
         string trackId,
         Time at,
         PlacementMode mode,
-        string? linkedTrackId = null)
+        string? linkedTrackId = null,
+        bool followLinks = true)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         (MediaRef media, Track track, Track? linkedTrack) =
@@ -123,9 +137,18 @@ public static partial class TimelineEdits
             }
         }
 
+        if (mode == PlacementMode.Insert && followLinks)
+        {
+            TrackOps.InsertSpaceLinked(ctx, [.. created.Select(c => c.Track)], at, duration);
+        }
+
         foreach ((Track target, Clip clip) in created)
         {
-            PlacementMakeRoom(ctx, target, at, duration, mode);
+            if (mode != PlacementMode.Insert || !followLinks)
+            {
+                PlacementMakeRoom(ctx, target, at, duration, mode);
+            }
+
             TrackOps.AddClipSorted(target, clip);
         }
 

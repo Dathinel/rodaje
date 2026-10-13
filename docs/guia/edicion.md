@@ -4,8 +4,8 @@ Todo lo que pasa en la línea de tiempo. Los atajos son los del estilo Rodaje; l
 
 ## La línea de tiempo
 
-- **Barra de herramientas** (de izquierda a derecha): herramienta normal (V), envolvente (E), selección, zoom (Z), roll (Y) y slide (U); los interruptores **pista principal magnética**, **ajuste** (N), **ripple automático** (Ctrl+L) con su ámbito («Ripple: pistas afectadas», «todas las pistas» o «pistas, marcadores y regiones»), **fundido cruzado automático**, **bloquear envolventes** e **ignorar grupos**; las acciones cortar (S), recortar inicio (Q) y final (W), borrar (Supr), marcador (M), región (R), deshacer y rehacer; y el zoom.
-- **Pistas.** Cada cabecera tiene el nombre, ocultar o silenciar y bloquear. La primera pista de video es la **principal**; las de audio muestran su volumen («Volumen 0,0 dB»). Clic derecho en una cabecera: añadir pista de subtítulos, usar una pista de video para subtítulos, grabar voz en off, ecualizador y compresor de la pista.
+- **Barra de herramientas** (de izquierda a derecha): herramienta normal (V), envolvente (E), selección, zoom (Z), roll (Y), slide (U), cuchilla (C), ripple (B), slip (D) y rango (G), cada una con su marca junto al puntero; los interruptores **pista principal magnética**, **ajuste** (N), **ripple automático** (Ctrl+L) con su ámbito («Ripple: pistas afectadas», «todas las pistas» o «pistas, marcadores y regiones»), **fundido cruzado automático**, **bloquear envolventes** e **ignorar grupos**; las acciones cortar (S), recortar inicio (Q) y final (W), borrar (Supr), marcador (M), región (R), deshacer y rehacer; y el zoom.
+- **Pistas.** Cada cabecera tiene el nombre, ocultar o silenciar y bloquear. **Alto:** arrastra el borde de abajo de la cabecera (doble clic vuelve al de siempre) o elige Compacta, Normal, Alta o Muy alta en su menú; se guarda con el proyecto. La primera pista de video es la **principal**; las de audio muestran su volumen («Volumen 0,0 dB»). Clic derecho en una cabecera: añadir pista de subtítulos, usar una pista de video para subtítulos, grabar voz en off, ecualizador y compresor de la pista.
 - **Clips.** Color por tipo, nombre, tira de película o forma de onda, rombos de keyframes, envolvente de volumen. Delante del nombre, un indicador de velocidad cuando no es 1× («2,0×», «◀ 0,5×», «❚❚ Congelado» o la mini curva).
 - **Zoom y desplazamiento.** Rueda desplaza en el tiempo, Mayús+rueda cambia de pistas, Ctrl+rueda hace zoom alrededor del puntero. Ctrl++ y Ctrl+- acercan y alejan; Mayús+Z ajusta todo a la ventana; Ctrl+Alt+Z hace zoom a la selección. El botón central arrastra la vista.
 
@@ -22,6 +22,21 @@ Clic selecciona; Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro 
 | Recortar hasta el cursor | Q borra lo que queda a la izquierda del cursor; W, lo de la derecha |
 | Borrar | Supr o Retroceso. En la pista principal magnética o con ripple automático, lo de después se corre para cerrar el hueco; en las demás pistas, queda el hueco |
 
+## Herramientas
+
+| Herramienta | Qué hace |
+|---|---|
+| Cuchilla (C) | Un clic corta el clip y sus enlazados en ese cuadro (se pega al cursor y a los marcadores con el ajuste). Con Mayús, corta todas las pistas. |
+| Ripple (B) | Arrastrar un borde recorta y corre lo que sigue, aunque el ripple automático esté apagado. |
+| Slip (D) | Arrastrar un clip muestra otra parte de su material sin moverlo ni cambiar su duración (como Alt + arrastrar). |
+| Rango (G) | Arrastrar marca la entrada y la salida de la secuencia, aunque pases sobre clips; un clic las quita. Sirve para las ediciones de tres puntos y para R (región). |
+
+## Edición con el teclado
+
+- **J, K, L**: lanzadera hacia atrás, detener y hacia adelante; cada pulsación dobla la velocidad hasta ×8.
+- **Elegir un borde:** un clic (sin arrastrar) en el borde de un clip lo marca con una línea. **,** y **.** lo recortan un cuadro a la izquierda o a la derecha (con la herramienta de ripple, o en la principal magnética, corre lo que sigue). Sin borde elegido, **,** y **.** insertan y sobrescriben desde el origen.
+- **Alt+← / Alt+→** corre la selección un cuadro (con sus enlazados y su grupo), sin pisar nada; mantenla para seguir. Los empujones seguidos son un paso del historial.
+
 ## Mover, recortar, slip, roll y slide
 
 - **Mover:** arrastra el cuerpo. No pisa nada en pistas libres; con **ajuste** (N) se pega a bordes, cursor, marcadores y regiones. Alt al arrastrar ignora el ajuste. En la principal magnética lo **reordena**: sacarlo cierra el hueco y meterlo lo abre, también en las pistas de sus enlazados.
@@ -33,19 +48,32 @@ Clic selecciona; Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro 
 - En los dos, el puntero lleva su marca («]|[» roll, «[↔]» slide), un globo dice cuántos cuadros se corrió y el **visor muestra lado a lado los dos cuadros del corte**: en el roll, el último del clip que sale y el primero del que entra; en el slide, el último del vecino de la izquierda y el primero del de la derecha. Van con los enlazados, se pegan al cuadro y a los puntos de ajuste y no pasan del material que haya.
 - **Esc** cancela cualquier arrastre en curso.
 
+## Grupos, colores y huecos
+
+- **Agrupar (Ctrl+G)** junta los clips elegidos: un clic en uno elige el grupo entero y arrastrarlo mueve a todos, también si están en la misma pista. **Desagrupar (Ctrl+Mayús+G)** los suelta; los enlaces de audio y video siguen. Con **ignorar grupos** se mueve solo el clip agarrado.
+- **Color** (menú del clip): rojo, naranja, amarillo, verde, turquesa, azul, violeta, rosa o el de siempre. Tiñe el clip y su borde superior.
+- **Huecos:** «Cerrar todos los huecos de la pista» (menú del clip o de la cabecera) junta los clips de la pista; los huecos que desincronizarían clips enlazados de otras pistas se dejan y un aviso dice cuántos. «Ir al hueco siguiente / anterior» lleva el cursor al próximo tramo vacío (sin tecla de fábrica).
+
 ## Pista principal magnética
 
 El interruptor del imán (de fábrica, encendido) mantiene los clips de la pista principal pegados unos a otros: cortar, borrar y mover nunca dejan huecos. La cabecera dice «Principal · magnética» o «Principal · libre». Al soltar un medio en ella se **inserta** en el corte más cercano; en las demás pistas **sobrescribe** lo que haya (con Ctrl, inserta).
 
 ## Audio y video enlazados
 
-Un video con sonido entra como dos clips enlazados que se mueven, cortan y recortan juntos. En el menú del clip: **Desenlazar** / **Enlazar**, **Separar audio**, **Copiar atributos** y **Pegar atributos** (todo, efectos, transformación, velocidad o volumen). El interruptor **ignorar grupos** edita solo el clip agarrado sin romper el enlace. En Ver › «Pistas de video que traen su audio» eliges qué pistas de video reciben su audio al soltar un medio.
+Un video con sonido entra como dos clips enlazados que se mueven, cortan y recortan juntos. En el menú del clip: **Desenlazar** / **Enlazar**, **Separar audio**, **Copiar atributos** y **Pegar atributos** (todo, efectos, transformación, velocidad o volumen). El interruptor **ignorar grupos** edita solo el clip agarrado sin romper el enlace.
+
+**Aviso de desfase.** Si un clip enlazado queda corrido respecto de su pareja del mismo medio (por moverlo con ignorar grupos, o porque su pista estaba bloqueada al correr las demás), muestra a la derecha un aviso rojo con los cuadros: «+3», «−12». En su menú, **Volver a sincronizar** › «Mover a su lugar» o «Deslizar su contenido». Insertar, mover, cortar y cerrar huecos nunca desincronizan.
+
+**Multicámara.** Elige en la biblioteca dos o más tomas del mismo momento (Ctrl+clic) y, en su menú, **Crear multicámara con la selección**: Rodaje las sincroniza por el sonido (unos segundos por minuto de grabación) y pone la primera al final de la pista principal. Con el cursor sobre esa toma, **1** a **9** cortan al ángulo de ese número desde el cursor hasta el siguiente corte, también mientras se reproduce; el sonido sigue siendo el de la primera. En Ver › «Pistas de video que traen su audio» eliges qué pistas de video reciben su audio al soltar un medio.
 
 ## Edición de tres y cuatro puntos
 
 1. En la biblioteca, clic derecho en el medio › **Abrir en el visor de origen**. El reproductor pasa a mostrar solo ese medio; **Mayús+2** alterna entre origen y programa.
 2. **I** marca la entrada y **O** la salida (en el visor que se ve). **Alt+X** las quita. La barra de contexto bajo las herramientas muestra las marcas, los selectores V/A con su pista de destino y las marcas de la secuencia.
-3. **,** inserta y **.** sobrescribe el tramo en el cursor (o entre las marcas de la secuencia).
+3. **,** inserta y **.** sobrescribe el tramo en el cursor (o entre las marcas de la secuencia). La barra de contexto trae además:
+   - **Reemplazar (Mayús+.)**: cambia el clip bajo el cursor por el origen, en su lugar y con su duración; el cuadro del cursor del origen (o su entrada, si está marcada) queda en el cursor de la secuencia.
+   - **Ajustar a rellenar (Ctrl+Mayús+.)**: el tramo del origen llena el clip bajo el cursor (o las marcas de la secuencia) cambiando la velocidad.
+   - **Superponer (Mayús+,)**: la imagen va encima, en la primera pista de video libre (o en una nueva).
 4. Con cuatro puntos de distinta duración pregunta **Ajustar velocidad** o **Recortar**.
 
 ## Clips compuestos
@@ -85,7 +113,17 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
 - **Reemplazar el clip seleccionado** (menú del medio en la biblioteca) cambia el medio de un clip conservando cortes, efectos y keyframes. Si el nuevo es más corto, avisa y pregunta «Reemplazar y acortar».
 - Si al abrir un proyecto faltan archivos, el diálogo **Falta un medio** ofrece «Buscar en carpeta…» (reconoce el archivo aunque haya cambiado de nombre: «¿Es este?») o «Elegir…». «Más tarde» deja el proyecto abierto con esas capas vacías y un aviso con «Volver a enlazar».
 - **Archivo › Carpetas vigiladas...**: lo nuevo que llegue a esas carpetas (hasta tres niveles) aparece al pie de la biblioteca y en la barra de avisos con «Importar».
-- Clic derecho en un medio: añadir, **Generar proxy**, mostrar en el Explorador, quitar si no se usa. Medios tiene además carpetas, búsqueda, filtro por tipo, favoritos y vista de lista con resolución, duración, fps y códec.
+- Clic derecho en un medio: añadir, **Generar proxy**, mostrar en el Explorador, quitar si no se usa. Medios tiene además carpetas, búsqueda, filtros, favoritos y vista de lista (ver abajo).
+
+## Biblioteca: organizar y encontrar
+
+- **Vista:** cuadrícula con portada o **lista** (botón de la derecha) con resolución, duración, fps, códec, fecha de grabación y cámara, leídos del archivo en segundo plano. **Pasar el ratón** por una portada recorre el medio cuadro a cuadro.
+- **Valoración y marcas** (menú del medio, también para varios elegidos con Ctrl o Mayús): de una a cinco estrellas, **favorito** o **rechazado** (se ve atenuado y con una X). **Etiquetas…** pone etiquetas separadas por comas («boda, exteriores»).
+- **Buscar** mira nombre, archivo, etiquetas, códec, resolución, fps, fecha («2026-10») y cámara en todas las carpetas.
+- **Filtros** (botón del embudo): tipo, valoración mínima, marca, etiqueta y «Esconder rechazados». **Colecciones inteligentes:** «Guardar estos filtros como colección…» las guarda con nombre; son reglas, no listas, así que lo que se importe o se marque después entra solo.
+- **Subclips:** abre el medio en el visor de origen, marca I y O y en su menú elige **Crear subclip con las marcas del origen**. Aparece tras su medio con la etiqueta «Subclip»; se arrastra o se añade con doble clic como un medio, con solo su tramo.
+- **Avisos:** «Sin conexión» si el archivo ya no está donde dice el proyecto (menú › **Volver a enlazar…**) y «Repetido» si el mismo archivo o el mismo contenido está dos veces (la ayuda dice con cuál).
+- Todo esto organiza la vista y se guarda con la biblioteca de este proyecto en este equipo, no en el `.rodaje`.
 
 ## Proyecto, guardado y recuperación
 

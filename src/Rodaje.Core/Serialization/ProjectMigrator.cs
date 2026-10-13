@@ -26,7 +26,7 @@ public sealed class ProjectMigrator
         [7] = AllowMaskModes,
         [8] = AllowProTitles,
         [9] = OrderAudioInserts,
-        [10] = ReservedEleven,
+        [10] = AllowTimelineOrganization,
         [11] = ReservedTwelve,
         [12] = AllowTracking,
     };
@@ -251,10 +251,14 @@ public sealed class ProjectMigrator
     private static bool IsEnabled(JsonObject effect) =>
         effect["enabled"] is not JsonValue value || value.GetValueKind() != JsonValueKind.False;
 
-    // Los formatos 11 y 12 están reservados (línea de tiempo y biblioteca, transiciones): hasta que lleguen sus migraciones
-    // de verdad, solo cambian el número, así la cadena llega al 13.
-    internal static void ReservedEleven(JsonObject root) => root[VersionProperty] = 11;
+    /// <summary>
+    /// 10 → 11: los clips pueden llevar <c>color</c> y <c>groupId</c> y las pistas <c>height</c>. Son opcionales, así
+    /// que solo cambia el número; un Rodaje anterior perdería los grupos al guardar.
+    /// </summary>
+    internal static void AllowTimelineOrganization(JsonObject root) => root[VersionProperty] = 11;
 
+    // El formato 12 está reservado (transiciones): hasta que llegue su migración de verdad, solo cambia el número, así la
+    // cadena llega al 13.
     internal static void ReservedTwelve(JsonObject root) => root[VersionProperty] = 12;
 
     /// <summary>

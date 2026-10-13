@@ -75,6 +75,94 @@ internal static class TrackOps
         EditContext.ShiftClips(track, at, duration);
     }
 
+    /// <summary>
+    /// Abre un espacio en <paramref name="at"/> en las pistas pedidas sin desincronizar nada: se parte lo que pasa por
+    /// ahí (con sus enlazados que también pasen), y se corre todo lo que sigue más los enlazados de lo que se corre, en la
+    /// pista que estén, y lo que venga después de ellos en esas pistas. Una pista bloqueada que haría falta correr hace
+    /// fallar la edición.
+    /// </summary>
+    public static void InsertSpaceLinked(EditContext ctx, IReadOnlyCollection<Track> tracks, Time at, Time duration)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(tracks);
+        ArgumentOutOfRangeException.ThrowIfLessThan(duration.Ticks, 0L, nameof(duration));
+        if (duration == Time.Zero)
+        {
+            return;
+        }
+
+        foreach (Track track in tracks)
+        {
+            EditContext.EnsureUnlocked(track);
+            if (track.Clips.Find(c => c.Start < at && at < c.End) is { } straddling)
+            {
+                foreach ((Track partnerTrack, Clip partner) in ctx.Sequence.GetLinkGroup(straddling.Id))
+                {
+                    if (partner.Start < at && at < partner.End)
+                    {
+                        EditContext.EnsureUnlocked(partnerTrack);
+                        AddClipSorted(partnerTrack, SplitOff(ctx, partner, at));
+                    }
+                    else if (partner.Start >= at && !ReferenceEquals(partner, straddling))
+                    {
+                        // Lo que queda entero después del corte va con la mitad derecha, que se corre con él.
+                        partner.LinkId = ctx.DerivedLinkId(partner.LinkId);
+                    }
+                }
+            }
+        }
+
+        // Desde dónde se corre cada pista: lo de las pistas pedidas desde «at», y lo enlazado con algo que se corre
+        // desde ese clip, hasta que no se sume nada.
+        var from = new Dictionary<Track, Time>();
+        foreach (Track track in tracks)
+        {
+            from[track] = at;
+        }
+
+        Dictionary<Clip, Track> owner = ctx.Sequence.AllTracks.SelectMany(t => t.Clips.Select(c => (t, c))).ToDictionary(p => p.c, p => p.t);
+        Dictionary<string, List<Clip>> links = owner.Keys.Where(c => c.LinkId is not null).GroupBy(c => c.LinkId!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
+        bool grew = true;
+        while (grew)
+        {
+            grew = false;
+            foreach ((Track track, Time start) in from.ToList())
+            {
+                foreach (Clip clip in track.Clips)
+                {
+                    if (clip.Start < start || clip.LinkId is null)
+                    {
+                        continue;
+                    }
+
+                    foreach (Clip partner in links[clip.LinkId])
+                    {
+                        Track partnerTrack = owner[partner];
+                        if (!from.TryGetValue(partnerTrack, out Time current) || partner.Start < current)
+                        {
+                            from[partnerTrack] = partner.Start;
+                            grew = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach ((Track track, Time start) in from)
+        {
+            if (!tracks.Contains(track) && track.Clips.Exists(c => c.Start >= start))
+            {
+                EditContext.EnsureUnlocked(track);
+            }
+        }
+
+        foreach ((Track track, Time start) in from)
+        {
+            EditContext.ShiftClips(track, start, duration);
+        }
+    }
+
     public static void AddClipSorted(Track track, Clip clip)
     {
         ArgumentNullException.ThrowIfNull(track);

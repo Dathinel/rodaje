@@ -38,12 +38,18 @@ En las tablas, «=» significa «igual que Rodaje».
 | Más rápido / Más lento | Ctrl+Alt+. / Ctrl+Alt+, | = | = |
 | Marcar entrada / salida | I / O | = | = |
 | Quitar entrada y salida | Alt+X | = | Ctrl+Mayús+X |
-| Insertar desde el origen | , | = | = |
-| Sobrescribir desde el origen | . | = | = |
+| Insertar desde el origen (con un borde elegido: recortarlo un cuadro a la izquierda) | , | = | = |
+| Sobrescribir desde el origen (con un borde elegido: recortarlo un cuadro a la derecha) | . | = | = |
+| Reemplazar desde el origen | Mayús+. | = | = |
+| Ajustar a rellenar desde el origen | Ctrl+Mayús+. | = | = |
+| Superponer desde el origen | Mayús+, | = | = |
+| Agrupar / Desagrupar | Ctrl+G / Ctrl+Mayús+G | (sin tecla) | = |
+| Mover clip un cuadro a la izquierda / derecha | Alt+← / Alt+→ | = | Ctrl+Alt+← / Ctrl+Alt+→ |
+| Ángulo 1 a 9 de la multicámara | 1 … 9 | = | = |
 | Crear clip compuesto | Alt+G | Ctrl+G | Alt+G |
 | Descomponer clip compuesto | Alt+Mayús+G | Ctrl+Mayús+G | Alt+Mayús+G |
 
-Sin tecla de fábrica (se asignan en el panel): Invertir, Añadir pista de subtítulos, Pista principal magnética, Fundido cruzado automático, Bloquear envolventes, Ignorar grupos, Salir del clip compuesto.
+Sin tecla de fábrica (se asignan en el panel): Cerrar todos los huecos, Ir al hueco siguiente o anterior, Invertir, Añadir pista de subtítulos, Pista principal magnética, Fundido cruzado automático, Bloquear envolventes, Ignorar grupos, Salir del clip compuesto.
 
 ## Línea de tiempo y herramientas
 
@@ -58,6 +64,10 @@ Sin tecla de fábrica (se asignan en el panel): Invertir, Añadir pista de subt�
 | Herramienta de zoom | Z | (sin tecla) | Z |
 | Herramienta de roll | Y | Mayús+Y | N |
 | Herramienta de slide | U | Mayús+U | U |
+| Herramienta cuchilla | C | B | C |
+| Herramienta de ripple | B | (sin tecla) | B |
+| Herramienta de slip | D | (sin tecla) | Y |
+| Herramienta de rango | G | (sin tecla) | G |
 | Acercar | Ctrl++ (también en el numérico) | = | ↑ |
 | Alejar | Ctrl+- | = | ↓ |
 | Ajustar a la ventana | Mayús+Z | = | = |

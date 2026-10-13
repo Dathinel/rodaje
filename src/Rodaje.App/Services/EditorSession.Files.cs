@@ -259,13 +259,19 @@ public sealed partial class EditorSession
     /// <see cref="LinkedAudioTracks"/> lo permite para esa pista (si no, entra sin clip de audio); un medio sin video va
     /// al final de la última pista de audio (música).
     /// </summary>
-    public bool AppendToTimeline(string mediaId)
+    public bool AppendToTimeline(string mediaId) => AppendToTimeline(mediaId, null, null);
+
+    /// <summary>Como <see cref="AppendToTimeline(string)"/>, con solo el tramo <c>[sourceIn, sourceOut)</c> del medio (un subclip).</summary>
+    public bool AppendToTimeline(string mediaId, Time? sourceIn, Time? sourceOut)
     {
         VerifyAccess();
         if (Project.FindMedia(mediaId) is not { } media)
         {
             return false;
         }
+
+        Time from = sourceIn is { } a && a >= Time.Zero && a < media.Duration ? a : Time.Zero;
+        Time to = sourceOut is { } b && b > from && b <= media.Duration ? b : media.Duration;
 
         Sequence sequence = Sequence;
         string? videoTrack = media.HasVideo ? sequence.VideoTracks.FirstOrDefault()?.Id : null;
@@ -284,18 +290,17 @@ public sealed partial class EditorSession
             // Va pegado al final de la principal aunque el audio llegue más lejos; su sonido, en la primera pista de
             // audio libre en ese tramo.
             Time at = sequence.GetTrack(videoTrack).End;
-            Time end = at + media.Duration;
+            Time end = at + (to - from);
             if (sequence.AudioTracks.Find(t => !t.Locked && !t.Clips.Exists(c => c.Start < end && c.End > at)) is { } free)
             {
                 string id = media.Id;
-                Time duration = media.Duration;
                 string linked = free.Id;
                 return Execute(new SequenceEditCommand("Añadir al final", SequenceId,
-                    ctx => TimelineEdits.InsertMedia(ctx, id, Time.Zero, duration, videoTrack, at, PlacementMode.Strict, linked), _ids));
+                    ctx => TimelineEdits.InsertMedia(ctx, id, from, to, videoTrack, at, PlacementMode.Strict, linked), _ids));
             }
         }
 
-        return Execute(Edits.AppendMedia(SequenceId, media.Id, Time.Zero, media.Duration, videoTrack ?? audioTrack!,
+        return Execute(Edits.AppendMedia(SequenceId, media.Id, from, to, videoTrack ?? audioTrack!,
             videoTrack is null ? null : audioTrack, _ids));
     }
 

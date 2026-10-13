@@ -17,15 +17,30 @@
 
     <UserControl.Resources>
         <DataTemplate x:Key="MediaTileTemplate" x:DataType="local:MediaItem">
-            <Grid Width="118" Height="98" ToolTipService.ToolTip="{x:Bind Tooltip, Mode=OneWay}">
+            <Grid Width="118" Height="112" ToolTipService.ToolTip="{x:Bind Tooltip, Mode=OneWay}" Opacity="{x:Bind TileOpacity, Mode=OneWay}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="66" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <Border Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}">
+                <!-- Pasar el ratón recorre el medio (skimming); al salir vuelve la portada. -->
+                <Border Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}"
+                        PointerMoved="OnTilePointerMoved" PointerExited="OnTilePointerExited">
                     <Grid>
                         <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconHeroFontSize}" Foreground="{StaticResource TextMutedBrush}" Visibility="{x:Bind GlyphVisibility, Mode=OneWay}" />
-                        <Image Source="{x:Bind Thumbnail, Mode=OneWay}" Stretch="UniformToFill" />
+                        <Image Source="{x:Bind Displayed, Mode=OneWay}" Stretch="UniformToFill" />
+                        <Border Background="{StaticResource ScrimBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
+                                HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="{x:Bind SubclipVisibility}">
+                            <TextBlock Text="Subclip" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
+                        </Border>
+                        <Border Background="{StaticResource MeterHighBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
+                                HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="{x:Bind OfflineVisibility, Mode=OneWay}">
+                            <TextBlock Text="Sin conexión" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
+                        </Border>
+                        <Border Background="{StaticResource ScrimBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4,4,4,22"
+                                HorizontalAlignment="Right" VerticalAlignment="Bottom" Visibility="{x:Bind DuplicateVisibility, Mode=OneWay}">
+                            <TextBlock Text="Repetido" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
+                        </Border>
+                        <FontIcon Glyph="&#xE711;" FontSize="{StaticResource IconHeroFontSize}" Foreground="{StaticResource MeterHighBrush}" Visibility="{x:Bind RejectedVisibility, Mode=OneWay}" />
                         <Border Background="{StaticResource ScrimBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
                                 HorizontalAlignment="Left" VerticalAlignment="Top" Visibility="{x:Bind BadgeVisibility, Mode=OneWay}">
                             <TextBlock Text="{x:Bind Badge, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
@@ -43,6 +58,7 @@
                 <StackPanel Grid.Row="1" Padding="2,4,2,0">
                     <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
                     <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Text="{x:Bind RatingText, Mode=OneWay}" Foreground="{StaticResource AccentBrush}" FontSize="{StaticResource MicroFontSize}" Visibility="{x:Bind RatingVisibility, Mode=OneWay}" />
                 </StackPanel>
             </Grid>
         </DataTemplate>
@@ -53,6 +69,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -61,9 +78,16 @@
                 </Grid.ColumnDefinitions>
                 <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconFontSize}" Foreground="{StaticResource TextMutedBrush}" />
                 <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
-                <FontIcon Grid.Column="2" Glyph="&#xE735;" FontSize="{StaticResource IconSmallFontSize}" Foreground="{StaticResource AccentBrush}" Visibility="{x:Bind FavoriteVisibility, Mode=OneWay}" />
-                <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnSpacing="4">
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="{x:Bind RatingText, Mode=OneWay}" Foreground="{StaticResource AccentBrush}" FontSize="{StaticResource MicroFontSize}" VerticalAlignment="Center" Visibility="{x:Bind RatingVisibility, Mode=OneWay}" />
+                    <TextBlock Text="Sin conexión" Foreground="{StaticResource MeterHighBrush}" FontSize="{StaticResource MicroFontSize}" VerticalAlignment="Center" Visibility="{x:Bind OfflineVisibility, Mode=OneWay}" />
+                    <FontIcon Glyph="&#xE711;" FontSize="{StaticResource IconSmallFontSize}" Foreground="{StaticResource MeterHighBrush}" Visibility="{x:Bind RejectedVisibility, Mode=OneWay}" />
+                    <FontIcon Glyph="&#xE735;" FontSize="{StaticResource IconSmallFontSize}" Foreground="{StaticResource AccentBrush}" Visibility="{x:Bind FavoriteVisibility, Mode=OneWay}" />
+                </StackPanel>
+                <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnSpacing="4" Opacity="{x:Bind TileOpacity, Mode=OneWay}">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
@@ -73,7 +97,11 @@
                     <TextBlock Grid.Column="1" Text="{x:Bind DurationText}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
                     <TextBlock Grid.Column="2" Text="{x:Bind FrameRateText}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
                     <TextBlock Grid.Column="3" Text="{x:Bind Codecs, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Grid.Column="4" Text="{x:Bind DateText, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Grid.Column="5" Text="{x:Bind CameraText, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
                 </Grid>
+                <TextBlock Grid.Row="2" Grid.ColumnSpan="3" Text="{x:Bind TagsText, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                           Foreground="{StaticResource AccentBrush}" Visibility="{x:Bind TagsVisibility, Mode=OneWay}" />
             </Grid>
         </DataTemplate>
 
@@ -165,13 +193,13 @@
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="SearchBox" MinWidth="0" Height="28" MinHeight="28" FontSize="{StaticResource BodyFontSize}" PlaceholderText="Buscar"
                              TextChanged="OnSearchChanged" AutomationProperties.Name="Buscar en la biblioteca"
-                             ToolTipService.ToolTip="Busca por nombre en todas las carpetas (sin mirar mayúsculas ni tildes)" />
-                    <Button x:Name="KindButton" Grid.Column="1" Style="{StaticResource ToolButtonStyle}" Content="&#xE71C;" AutomationProperties.Name="Filtrar por tipo"
-                            ToolTipService.ToolTip="Tipo: todo" />
+                             ToolTipService.ToolTip="Busca por nombre, etiqueta, códec, resolución, fecha o cámara en todas las carpetas (sin mirar mayúsculas ni tildes)" />
+                    <Button x:Name="KindButton" Grid.Column="1" Style="{StaticResource ToolButtonStyle}" Content="&#xE71C;" AutomationProperties.Name="Filtros y colecciones inteligentes"
+                            ToolTipService.ToolTip="Filtros y colecciones inteligentes" />
                     <ToggleButton x:Name="FavoritesToggle" Grid.Column="2" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE734;" Click="OnFavoritesToggleClick"
                                   AutomationProperties.Name="Solo favoritos" ToolTipService.ToolTip="Solo favoritos (de todas las carpetas)" />
                     <ToggleButton x:Name="DetailsToggle" Grid.Column="3" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE8FD;" Click="OnDetailsToggleClick"
-                                  AutomationProperties.Name="Lista con datos" ToolTipService.ToolTip="Lista con resolución, duración, fps y códec" />
+                                  AutomationProperties.Name="Lista con datos" ToolTipService.ToolTip="Lista con resolución, duración, fps, códec, fecha y cámara" />
                 </Grid>
 
                 <!-- Dónde se está; el botón sube a la carpeta de arriba y también recibe medios soltados. -->
@@ -196,19 +224,23 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="Resolución" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
                     <TextBlock Grid.Column="1" Text="Duración" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
                     <TextBlock Grid.Column="2" Text="Fps" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
                     <TextBlock Grid.Column="3" Text="Códec" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Grid.Column="4" Text="Fecha" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Grid.Column="5" Text="Cámara" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
                 </Grid>
 
-                <GridView x:Name="MediaGrid" Grid.Row="4" Padding="8" SelectionMode="Single" IsDoubleTapEnabled="True"
+                <GridView x:Name="MediaGrid" Grid.Row="4" Padding="8" SelectionMode="Extended" IsDoubleTapEnabled="True"
                           CanDragItems="True" DragItemsStarting="OnMediaDragStarting" DoubleTapped="OnMediaDoubleTapped"
                           ContextRequested="OnMediaContextRequested" ContainerContentChanging="OnMediaContainerChanging" Loaded="OnMediaGridLoaded"
                           ItemsSource="{x:Bind Media}" ItemTemplate="{StaticResource MediaTileTemplate}" />
 
-                <ListView x:Name="MediaList" Grid.Row="4" Padding="0,0,0,8" SelectionMode="Single" IsDoubleTapEnabled="True" Visibility="Collapsed"
+                <ListView x:Name="MediaList" Grid.Row="4" Padding="0,0,0,8" SelectionMode="Extended" IsDoubleTapEnabled="True" Visibility="Collapsed"
                           CanDragItems="True" DragItemsStarting="OnMediaDragStarting" DoubleTapped="OnMediaDoubleTapped"
                           ContextRequested="OnMediaContextRequested"
                           ItemsSource="{x:Bind Media}" ItemTemplate="{StaticResource MediaRowTemplate}" />

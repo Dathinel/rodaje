@@ -18,13 +18,36 @@ namespace Rodaje.App.Views.Relink;
 /// </summary>
 internal static class RelinkDialog
 {
+    private static Func<Task>? s_reopen;
+
     /// <summary>Muestra el diálogo cada vez que se abre un proyecto con medios que faltan.</summary>
     public static void Attach(EditorServices services, nint hwnd)
     {
         ArgumentNullException.ThrowIfNull(services);
         var relink = new MediaRelinkService(new FfmpegMediaProber());
         relink.Attach(services.Session, missing => ShowAsync(services, hwnd, relink, missing));
+        s_reopen = async () =>
+        {
+            Project project = services.Session.Project;
+            IReadOnlyList<MediaRef> missing = await relink.FindMissingAsync(project);
+            if (!ReferenceEquals(project, services.Session.Project))
+            {
+                return;
+            }
+
+            if (missing.Count > 0)
+            {
+                await ShowAsync(services, hwnd, relink, missing);
+            }
+            else
+            {
+                services.Session.Notify(NotificationSeverity.Success, "Ya están todos los medios", "Ningún medio del proyecto falta en el disco.");
+            }
+        };
     }
+
+    /// <summary>«Volver a enlazar…» de la biblioteca: mira qué falta ahora y abre el diálogo.</summary>
+    public static Task ReopenAsync() => s_reopen?.Invoke() ?? Task.CompletedTask;
 
     private sealed class Row(MediaRef media, TextBlock status, Button pick, Button confirm)
     {

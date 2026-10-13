@@ -74,6 +74,15 @@ internal sealed class TrackHeaders
     /// <summary>«Compresor de la pista…»: abre la pestaña Dinámica con el compresor de esa pista.</summary>
     public event Action<string>? DynamicsRequested;
 
+    /// <summary>Se arrastra el borde de abajo de una cabecera (o se elige en su menú): el alto nuevo, o nulo para el de siempre.</summary>
+    public event Action<string, int?>? HeightChanging;
+
+    /// <summary>Se soltó el borde: termina el paso del historial.</summary>
+    public event Action<string>? HeightCommitted;
+
+    /// <summary>Del menú de una cabecera: cerrar todos los huecos de la pista.</summary>
+    public event Action<string>? CloseGapsRequested;
+
     public double ScrollY
     {
         get => -_shift.Y;
@@ -187,13 +196,93 @@ internal sealed class TrackHeaders
 
         toggles.Children.Add(Toggle(track, TrackToggle.Locked, track.Locked, track.Locked ? "" : "", track.Locked ? "Desbloquear pista" : "Bloquear pista"));
         grid.Children.Add(toggles);
+        grid.Children.Add(HeightGrip(row));
         grid.ContextFlyout = Menu(row);
         return grid;
     }
 
+    /// <summary>Franja del borde de abajo: arrastrarla cambia el alto de la pista (doble clic: el de siempre).</summary>
+    private Border HeightGrip(TrackRow row)
+    {
+        var grip = new Border
+        {
+            Height = 5,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(-10, 0, -4, -2),
+            Background = _brushes.Transparent,
+        };
+        Grid.SetColumnSpan(grip, 2);
+        ToolTipService.SetToolTip(grip, "Arrastra para cambiar el alto de la pista; doble clic, el de siempre");
+        string trackId = row.TrackId;
+        double startY = 0;
+        double startHeight = row.Height;
+        bool dragging = false;
+        grip.PointerEntered += (_, _) => grip.Background = _brushes.Accent;
+        grip.PointerExited += (_, _) =>
+        {
+            if (!dragging)
+            {
+                grip.Background = _brushes.Transparent;
+            }
+        };
+        grip.PointerPressed += (_, e) =>
+        {
+            dragging = grip.CapturePointer(e.Pointer);
+            startY = e.GetCurrentPoint(_canvas).Position.Y;
+            startHeight = row.Height;
+            e.Handled = true;
+        };
+        grip.PointerMoved += (_, e) =>
+        {
+            if (dragging)
+            {
+                double height = startHeight + e.GetCurrentPoint(_canvas).Position.Y - startY;
+                HeightChanging?.Invoke(trackId, (int)Math.Round(Math.Clamp(height, Track.MinHeight, Track.MaxHeight)));
+                e.Handled = true;
+            }
+        };
+        grip.PointerReleased += (_, e) =>
+        {
+            if (dragging)
+            {
+                dragging = false;
+                grip.ReleasePointerCapture(e.Pointer);
+                grip.Background = _brushes.Transparent;
+                HeightCommitted?.Invoke(trackId);
+                e.Handled = true;
+            }
+        };
+        grip.DoubleTapped += (_, e) =>
+        {
+            HeightChanging?.Invoke(trackId, null);
+            HeightCommitted?.Invoke(trackId);
+            e.Handled = true;
+        };
+        return grip;
+    }
+
+    private static readonly (string Text, int? Height)[] Heights = [("Compacta", 32), ("Normal", null), ("Alta", 96), ("Muy alta", 160)];
+
     private MenuFlyout Menu(TrackRow row)
     {
         var menu = new MenuFlyout();
+        var height = new MenuFlyoutSubItem { Text = "Alto de la pista", Icon = new FontIcon { Glyph = "" } };
+        foreach ((string text, int? value) in Heights)
+        {
+            var item = new RadioMenuFlyoutItem { Text = text, GroupName = "alto-" + row.TrackId, IsChecked = row.Track.Height == value };
+            item.Click += (_, _) =>
+            {
+                HeightChanging?.Invoke(row.TrackId, value);
+                HeightCommitted?.Invoke(row.TrackId);
+            };
+            height.Items.Add(item);
+        }
+
+        menu.Items.Add(height);
+        var gaps = new MenuFlyoutItem { Text = "Cerrar todos los huecos de la pista", Icon = new FontIcon { Glyph = "" }, IsEnabled = !row.Track.Locked };
+        gaps.Click += (_, _) => CloseGapsRequested?.Invoke(row.TrackId);
+        menu.Items.Add(gaps);
+        menu.Items.Add(new MenuFlyoutSeparator());
         var add = new MenuFlyoutItem { Text = "Añadir pista de subtítulos", Icon = new FontIcon { Glyph = "" } };
         add.Click += (_, _) => SubtitleTrackRequested?.Invoke();
         menu.Items.Add(add);

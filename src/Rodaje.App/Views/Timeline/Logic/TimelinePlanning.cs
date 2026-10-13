@@ -34,7 +34,8 @@ public static class TimelinePlanning
         bool insert,
         DragOptions options,
         Time? playhead,
-        IIdGenerator? ids = null)
+        IIdGenerator? ids = null,
+        (Time In, Time Out)? range = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(sequence);
@@ -60,7 +61,9 @@ public static class TimelinePlanning
             return null;
         }
 
-        Time duration = media.Duration;
+        // Un subclip trae su tramo; un medio entra entero.
+        (Time sourceIn, Time sourceOut) = range is { } r && r.Out > r.In && r.In >= Time.Zero && r.Out <= media.Duration ? r : (Time.Zero, media.Duration);
+        Time duration = sourceOut - sourceIn;
         Time at = position.SnapToFrame(sequence.FrameRate);
         if (options.Snapping)
         {
@@ -94,8 +97,8 @@ public static class TimelinePlanning
         RippleScope scope = options.RippleScope;
         return new DropPlan(
             magnetic
-                ? () => MagneticEdits.InsertMedia(sequenceId, mediaId, duration, trackId, place, linked, scope, ids)
-                : () => Edits.InsertMedia(sequenceId, mediaId, Time.Zero, duration, trackId, place, mode, linked, ids),
+                ? () => MagneticEdits.InsertMedia(sequenceId, mediaId, duration, trackId, place, linked, scope, ids, sourceIn)
+                : () => Edits.InsertMedia(sequenceId, mediaId, sourceIn, sourceOut, trackId, place, mode, linked, ids),
             trackId,
             linked,
             at,

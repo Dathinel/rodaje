@@ -197,6 +197,17 @@ public class ThreePointPropertiesTests(ITestOutputHelper output)
             Assert.NotNull(previous);
             bool target = targets.Contains(track.Id);
             bool shifted = insert && (target || (request.Scope.IncludesAllTracks() && !previous.Locked));
+
+            // Con el alcance de la pista, las otras pistas solo corren lo enlazado con lo que se corre (y lo que le sigue):
+            // desde el primer clip que cambió de lugar o que sale de partir uno.
+            Time shiftFrom = at;
+            if (insert && track.Clips.Where(c => !command.CreatedIds.Contains(c.Id) && (previous.Clips.Find(p => p.Id == c.Id) is not { } p || p.Start != c.Start))
+                .Select(c => c.Start - duration).DefaultIfEmpty(Time.FromTicks(-1)).Min() is { Ticks: >= 0 } linkedFrom)
+            {
+                shiftFrom = shifted ? Time.Min(at, linkedFrom) : linkedFrom;
+                shifted = true;
+            }
+
             for (Time t = Time.Zero; t < horizon; t += Time.FromTicks(step.Ticks * 7))
             {
                 var now = Probe(track, t);
@@ -212,8 +223,8 @@ public class ThreePointPropertiesTests(ITestOutputHelper output)
                     continue;
                 }
 
-                Time from = shifted && t >= at ? t - duration : t;
-                if (shifted && t >= at && t < at + duration)
+                Time from = shifted && t >= shiftFrom ? t - duration : t;
+                if (shifted && t >= shiftFrom && t < shiftFrom + duration)
                 {
                     // Hueco que abrió la inserción en una pista que no recibe clip.
                     Assert.Null(now);
@@ -223,6 +234,10 @@ public class ThreePointPropertiesTests(ITestOutputHelper output)
                 Assert.True(Probe(previous, from) == now, Inv($"Pista {track.Id} en {t.Ticks}: antes {Probe(previous, from)}, ahora {now}"));
             }
         }
+
+        var offsetsBefore = LinkSync.Find(old).Select(b => b.Offset).ToHashSet();
+        Assert.DoesNotContain(LinkSync.Find(sequence), o => !offsetsBefore.Contains(o.Offset)
+            && sequence.FindClip(o.ClipId) is { Track.Locked: false } && sequence.FindClip(o.PartnerId) is { Track.Locked: false });
 
         if (request.Scope == RippleScope.AllTracksAndMarkers && insert)
         {

@@ -7,7 +7,7 @@ flowchart TB
     Launcher["Lanzador: Rodaje.Launcher<br/>Rodaje.exe → app\Rodaje.exe"]
     App["App: Rodaje.App<br/>interfaz WinUI 3"]
     Export["Exportación: Rodaje.Export<br/>plan, trabajos, ffmpeg.exe"]
-    Analysis["Análisis: Rodaje.Analysis<br/>silencios, ritmo, voz, movimiento, color"]
+    Analysis["Análisis: Rodaje.Analysis<br/>silencios, ritmo, voz, sincronía, movimiento, color"]
     Engine["Motor: Rodaje.Engine<br/>ClipPlayer, TimelineSession, AudioMixer"]
     Render["Render: Rodaje.Render<br/>compositor Direct3D 11"]
     Audio["Audio: Rodaje.Audio<br/>WASAPI, reloj maestro"]
@@ -47,7 +47,7 @@ flowchart TB
 | Motor | [motor.md](motor.md) | Varias capas con pre-roll, varios decodificadores por medio, presupuesto de VRAM, velocidad y reversa, títulos, mezcla, proxies y el motor fuera de línea |
 | Render | [render.md](render.md) | Composición en Direct3D 11 sin copias: color, efectos, máscaras, croma, ruedas y curvas, transiciones, títulos y conversión para exportar |
 | Exportación | [exportacion.md](exportacion.md) | La orquestación: plan, audio con LUFS, motor fuera de línea → compositor → conversor → `ffmpeg.exe`, verificación, modos de rendimiento y cancelación |
-| Análisis | Sin documento propio | `src/Rodaje.Analysis`: DSP y visión propios sobre el núcleo para quitar silencios, detectar ritmo, bajar la música bajo la voz, estabilizar, seguir regiones (máscaras) y puntos (`PointTracker`: ZNCC gruesa y Lucas y Kanade afín contra el patrón original, con subpíxel, predicción, confianza y reencuentro tras una oclusión; ver [App: las vistas](app-vistas.md)) y color automático; la app le pasa el audio y los cuadros |
+| Análisis | Sin documento propio | `src/Rodaje.Analysis`: DSP y visión propios sobre el núcleo para quitar silencios, detectar ritmo, bajar la música bajo la voz, sincronizar grabaciones por su sonido (`WaveformSync`: huella de 1 ms correlacionada por FFT y refinado muestra a muestra; error de 0 muestras a 48 kHz en las pruebas), estabilizar, seguir regiones (máscaras) y puntos (`PointTracker`: ZNCC gruesa y Lucas y Kanade afín contra el patrón original, con subpíxel, predicción, confianza y reencuentro tras una oclusión; ver [App: las vistas](app-vistas.md)) y color automático; la app le pasa el audio y los cuadros |
 | Paquetes | [formato-paquete.md](../formato-paquete.md) | Manifiesto, instalación segura, catálogo y descarga firmada de los complementos, para compartir con otros programas |
 | Módulos | [protocolo-modulos.md](../protocolo-modulos.md) | El protocolo de los módulos de IA (tubería con JSON y memoria compartida), con el cliente y el anfitrión en C# |
 | App | [app.md](app.md) | El contrato de la interfaz WinUI 3: `EditorSession`, comandos y eventos, atajos, ajustes, avisos, miniaturas, complementos y módulos de IA |

@@ -11,11 +11,21 @@ using Rodaje.Packages;
 
 namespace Rodaje.App.Views.Library;
 
-/// <summary>Un medio de la biblioteca tal como se muestra: portada, duración y estado del proxy.</summary>
-internal sealed partial class MediaItem(MediaRef media, bool isUsed) : ObservableObject
+/// <summary>
+/// Un medio de la biblioteca tal como se muestra: portada (y la imagen del recorrido al pasar el ratón), duración,
+/// estado del proxy, valoración, marca, etiquetas, metadatos y avisos (sin conexión, repetido). Un subclip es una ficha
+/// más del mismo medio con su tramo.
+/// </summary>
+internal sealed partial class MediaItem(MediaRef media, bool isUsed, Subclip? subclip = null) : ObservableObject
 {
     private readonly MediaRef _source = media.Clone();
     private ImageSource? _thumbnail;
+    private ImageSource? _skim;
+    private int _rating;
+    private MediaMark _mark;
+    private string _tagsText = "";
+    private bool _offline;
+    private string _duplicateOf = "";
     private string _badge = "";
     private bool _isFavorite;
     private string _codecs = MediaDetails.Pending;
@@ -23,7 +33,21 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed) : Observabl
 
     public string Id { get; } = media.Id;
 
-    public string Name { get; } = media.Name;
+    /// <summary>El subclip que muestra la ficha, o <c>null</c> si es el medio entero.</summary>
+    public Subclip? Subclip { get; } = subclip;
+
+    public bool IsSubclip => Subclip is not null;
+
+    /// <summary>Lo que se arrastra a la línea de tiempo: el id, y el tramo si es un subclip (<see cref="Timeline.MediaDrop"/>).</summary>
+    public string DragText => Timeline.MediaDrop.Format(Id, Subclip is { } s ? (s.In, s.Out) : null);
+
+    public string Name { get; } = subclip?.Name ?? media.Name;
+
+    /// <summary>Duración del medio (o del subclip), para el recorrido con el ratón.</summary>
+    public Time Duration { get; } = subclip?.Duration ?? media.Duration;
+
+    /// <summary>Dónde empieza lo que muestra la ficha en el medio (0, o la entrada del subclip).</summary>
+    public Time Offset { get; } = subclip?.In ?? Time.Zero;
 
     /// <summary>Ruta absoluta del archivo (en memoria las rutas del proyecto son absolutas).</summary>
     public string Path { get; } = media.Path;
@@ -33,13 +57,111 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed) : Observabl
     /// <summary>Algún clip lo usa (no se puede quitar del proyecto).</summary>
     public bool IsUsed { get; set; } = isUsed;
 
-    public string DurationText { get; } = Timecode.Format(media.Duration);
+    public string DurationText { get; } = Timecode.Format(subclip?.Duration ?? media.Duration);
 
     public string Detail { get; } = media.HasVideo
         ? string.Create(CultureInfo.InvariantCulture, $"{media.Width}×{media.Height}")
         : media.AudioChannels switch { 1 => "mono", 2 => "estéreo", > 2 => $"{media.AudioChannels} canales", _ => "audio" };
 
-    public string Tooltip => $"{Name}\n{Path}\n{MediaDetails.Summary(_source, DurationText, _codecs)}";
+    public string Tooltip
+    {
+        get
+        {
+            var lines = new List<string> { Name, Path, MediaDetails.Summary(_source, DurationText, _codecs) };
+            if (Camera is { Length: > 0 } || Created is not null)
+            {
+                lines.Add(string.Join(" · ", new[] { DateText, Camera ?? "" }.Where(t => t.Length > 0 && t != "—")));
+            }
+
+            if (_tagsText.Length > 0)
+            {
+                lines.Add("Etiquetas: " + _tagsText);
+            }
+
+            if (_offline)
+            {
+                lines.Add("Sin conexión: el archivo no está donde dice el proyecto. Menú › Volver a enlazar…");
+            }
+
+            if (_duplicateOf.Length > 0)
+            {
+                lines.Add("Repetido: " + _duplicateOf);
+            }
+
+            if (IsSubclip)
+            {
+                lines.Add($"Subclip de «{_source.Name}» desde {Timecode.Format(Offset)}");
+            }
+
+            return string.Join("\n", lines);
+        }
+    }
+
+    /// <summary>Fecha de grabación (o nula mientras no se lea, o si el archivo no la trae).</summary>
+    public DateTimeOffset? Created { get; private set; }
+
+    public string? Camera { get; private set; }
+
+    /// <summary>Columna de datos: «2026-10-03» o «—».</summary>
+    public string DateText => Created is { } d ? d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "—";
+
+    public string CameraText => Camera ?? "—";
+
+    /// <summary>Estrellas de la valoración («★★★☆☆»); vacío sin valorar.</summary>
+    public string RatingText => _rating == 0 ? "" : new string('★', _rating) + new string('☆', LibraryOrganization.MaxRating - _rating);
+
+    public Visibility RatingVisibility => _rating == 0 ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>Un rechazado se ve atenuado.</summary>
+    public double TileOpacity => _mark == MediaMark.Rejected ? 0.4 : 1;
+
+    public Visibility RejectedVisibility => _mark == MediaMark.Rejected ? Visibility.Visible : Visibility.Collapsed;
+
+    public string TagsText => _tagsText;
+
+    public Visibility TagsVisibility => _tagsText.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+
+    public bool IsOffline => _offline;
+
+    public Visibility OfflineVisibility => _offline ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility DuplicateVisibility => _duplicateOf.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+
+    public Visibility SubclipVisibility => IsSubclip ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Lo que se ve en la portada: la imagen del recorrido mientras el ratón pasa, si no la portada.</summary>
+    public ImageSource? Displayed => _skim ?? _thumbnail;
+
+    /// <summary>Pone (o quita, con <c>null</c>) la imagen del recorrido con el ratón.</summary>
+    public void Skim(ImageSource? image)
+    {
+        if (!ReferenceEquals(_skim, image))
+        {
+            _skim = image;
+            OnPropertyChanged(nameof(Displayed));
+        }
+    }
+
+    /// <summary>Lo que dice la organización y el disco del medio: valoración, marca, etiquetas, sin conexión y repetido.</summary>
+    public void SetMarks(int rating, MediaMark mark, IReadOnlyList<string> tags, bool offline, string duplicateOf)
+    {
+        string tagsText = string.Join(", ", tags);
+        if (_rating == rating && _mark == mark && _tagsText == tagsText && _offline == offline && _duplicateOf == duplicateOf)
+        {
+            return;
+        }
+
+        (_rating, _mark, _tagsText, _offline, _duplicateOf) = (rating, mark, tagsText, offline, duplicateOf);
+        OnPropertyChanged(nameof(RatingText));
+        OnPropertyChanged(nameof(RatingVisibility));
+        OnPropertyChanged(nameof(TileOpacity));
+        OnPropertyChanged(nameof(RejectedVisibility));
+        OnPropertyChanged(nameof(TagsText));
+        OnPropertyChanged(nameof(TagsVisibility));
+        OnPropertyChanged(nameof(OfflineVisibility));
+        OnPropertyChanged(nameof(DuplicateVisibility));
+        OnPropertyChanged(nameof(Tooltip));
+    }
 
     /// <summary>Columna de datos: «1920×1080» o «—» si es solo audio.</summary>
     public string ResolutionText { get; } = MediaDetails.Resolution(media);
@@ -70,7 +192,7 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed) : Observabl
     public Visibility FavoriteVisibility => _isFavorite ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Instante de la portada: un poco después del inicio, donde casi nunca hay negro.</summary>
-    public Time CoverTime { get; } = Time.FromSeconds(Math.Min(1.0, media.Duration.ToSeconds() * 0.2));
+    public Time CoverTime { get; } = (subclip?.In ?? Time.Zero) + Time.FromSeconds(Math.Min(1.0, (subclip?.Duration ?? media.Duration).ToSeconds() * 0.2));
 
     /// <summary>Glifo de Segoe Fluent Icons: video o nota musical.</summary>
     public string Glyph { get; } = media.HasVideo ? "\uE714" : "\uE8D6";
@@ -83,6 +205,7 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed) : Observabl
             if (SetProperty(ref _thumbnail, value))
             {
                 OnPropertyChanged(nameof(GlyphVisibility));
+                OnPropertyChanged(nameof(Displayed));
             }
         }
     }
@@ -114,6 +237,10 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed) : Observabl
         CodecsFailed = codecs.Failed;
         _codecsKnown = true;
         _codecs = MediaDetails.Codecs(video, audio, known: true);
+        Created = codecs.Created;
+        Camera = codecs.Camera;
+        OnPropertyChanged(nameof(DateText));
+        OnPropertyChanged(nameof(CameraText));
         OnPropertyChanged(nameof(Codecs));
         OnPropertyChanged(nameof(Tooltip));
     }
@@ -129,6 +256,8 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed) : Observabl
             _codecsKnown = true;
             _codecs = previous._codecs;
             CodecsFailed = previous.CodecsFailed;
+            Created = previous.Created;
+            Camera = previous.Camera;
         }
     }
 
@@ -136,7 +265,7 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed) : Observabl
     public bool Shows(MediaRef media)
     {
         ArgumentNullException.ThrowIfNull(media);
-        return media.Id == _source.Id && media.Name == _source.Name && media.Path == _source.Path && media.Duration == _source.Duration
+        return Subclip is null && media.Id == _source.Id && media.Name == _source.Name && media.Path == _source.Path && media.Duration == _source.Duration
             && media.HasVideo == _source.HasVideo && media.HasAudio == _source.HasAudio && media.FrameRate == _source.FrameRate
             && media.Width == _source.Width && media.Height == _source.Height && media.SampleRate == _source.SampleRate
             && media.AudioChannels == _source.AudioChannels;

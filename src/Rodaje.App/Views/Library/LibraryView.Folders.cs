@@ -28,7 +28,6 @@ internal sealed partial class LibraryView
     /// </summary>
     private static readonly MediaCodecCache CodecCache = new();
 
-    private LibraryQuery Query() => new(_folderId, SearchBox.Text ?? "", _kind, FavoritesToggle.IsChecked == true);
 
     /// <summary>Proyecto (la instancia) cuya organización está cargada; cambia solo al abrir o crear otro.</summary>
     private Project? _organizationProject;
@@ -146,8 +145,7 @@ internal sealed partial class LibraryView
         }
 
         LibraryQuery query = Query();
-        Sync(Media, LibraryFilter.Apply(project.Media, _organization, query)
-            .Where(m => _itemsById.ContainsKey(m.Id)).Select(m => _itemsById[m.Id]).ToList());
+        Sync(Media, VisibleItems(project, query));
 
         List<FolderItem> folders = [.. LibraryFilter.Folders(_organization, query).Select(f => new FolderItem(
             f, LibraryFilter.FolderSummary(LibraryFilter.CountIn(project.Media, _organization, f.Id), _organization.Children(f.Id).Count)))];
@@ -171,24 +169,6 @@ internal sealed partial class LibraryView
     /// <summary>Si la carpeta abierta tiene algún medio sin mirar el tipo (para explicar por qué no se ve nada).</summary>
     private bool FolderHasMedia() =>
         _services is not null && LibraryFilter.Apply(_services.Session.Project.Media, _organization, Query() with { Kind = LibraryKind.All }).Count > 0;
-
-    private MenuFlyout KindMenu()
-    {
-        var menu = new MenuFlyout();
-        foreach ((LibraryKind kind, string label) in LibraryFilter.Kinds)
-        {
-            var item = new RadioMenuFlyoutItem { Text = label, GroupName = "LibraryKind", IsChecked = kind == _kind };
-            item.Click += (_, _) =>
-            {
-                _kind = kind;
-                ToolTipService.SetToolTip(KindButton, $"Tipo: {label}");
-                ApplyFilter();
-            };
-            menu.Items.Add(item);
-        }
-
-        return menu;
-    }
 
     private void OnSearchChanged(object sender, TextChangedEventArgs e) => ApplyFilter();
 
@@ -428,12 +408,13 @@ internal sealed partial class LibraryView
     /// </summary>
     private void StartCodecScan()
     {
-        if (DetailsToggle.IsChecked != true || _dispatcher is not { } dispatcher)
+        if (_dispatcher is not { } dispatcher)
         {
             return;
         }
 
-        List<MediaItem> pending = [.. Media.Where(i => !i.CodecsKnown || i.CodecsFailed)];
+        // Los que se ven primero; después el resto, para que la fecha, la cámara y el códec se puedan buscar.
+        List<MediaItem> pending = [.. Media.Concat(_allMedia).Where(i => !i.IsSubclip && (!i.CodecsKnown || i.CodecsFailed)).Distinct()];
         int scan = Interlocked.Increment(ref _codecScan);
         if (pending.Count == 0)
         {
@@ -450,20 +431,24 @@ internal sealed partial class LibraryView
                 }
 
                 bool failedBefore = item.CodecsKnown && item.CodecsFailed;
-                MediaCodecs codecs = CodecCache.Read(item.Path, ReadCodecs);
+                MediaCodecs codecs = CodecCache.ReadAll(item.Path, ReadCodecs);
                 if (failedBefore && codecs.Failed)
                 {
                     continue;
                 }
 
-                dispatcher.TryEnqueue(DispatcherQueuePriority.Low, () => item.SetCodecs(codecs));
+                dispatcher.TryEnqueue(DispatcherQueuePriority.Low, () =>
+                {
+                    item.SetCodecs(codecs);
+                    ScheduleRefilter();
+                });
             }
         });
     }
 
-    private static (string? Video, string? Audio) ReadCodecs(string path)
+    private static MediaCodecs ReadCodecs(string path)
     {
         MediaProbeResult result = new FfmpegMediaProber().Probe(path);
-        return (result.Info?.Video?.Codec, result.Info?.Audio?.Codec);
+        return new MediaCodecs(result.Info?.Video?.Codec, result.Info?.Audio?.Codec, Failed: false, result.Info?.Tags.Created, result.Info?.Tags.Camera);
     }
 }

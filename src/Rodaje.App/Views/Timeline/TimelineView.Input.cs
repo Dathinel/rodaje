@@ -28,6 +28,11 @@ internal sealed partial class TimelineView
 
     private const string RollBadge = "]|[";
     private const string SlideBadge = "[↔]";
+    private const string BladeBadge = "✂";
+    private const string RippleBadge = "]»";
+    private const string SlipBadge = "«»";
+    private const string RangeBadge = "[ ]";
+    private static readonly InputCursor IBeamCursor = InputSystemCursor.Create(InputSystemCursorShape.IBeam);
 
     private PointerMode _mode;
     private Point _pressPoint;
@@ -51,6 +56,9 @@ internal sealed partial class TimelineView
         Pan,
         DraggingTransition,
         DraggingEnvelope,
+
+        /// <summary>La herramienta de rango marca la entrada y la salida de la secuencia.</summary>
+        Range,
     }
 
     /// <summary>Esc o un proyecto nuevo cortan lo que el puntero estaba haciendo (la sesión ya revirtió el gesto).</summary>
@@ -111,7 +119,7 @@ internal sealed partial class TimelineView
     {
         Snapping = State.Snapping,
         MagneticTrackId = State.MagneticMainTrack ? Session!.MainTrack?.Id : null,
-        AutoRipple = State.AutoRipple,
+        AutoRipple = State.AutoRipple || State.Tool == TimelineTool.Ripple,
         RippleScope = State.RippleScope,
         IgnoreGroups = State.IgnoreGroups,
         PixelsPerSecond = Viewport.PixelsPerSecond,
@@ -187,6 +195,23 @@ internal sealed partial class TimelineView
             return;
         }
 
+        Session.SelectedEdge = null;
+        if (State.Tool == TimelineTool.Blade)
+        {
+            BladeAt(hit, e.KeyModifiers.HasFlag(VirtualKeyModifiers.Shift));
+            return;
+        }
+
+        if (State.Tool == TimelineTool.Range)
+        {
+            _pressPoint = p;
+            _pressTime = hit.Time;
+            _pressHit = hit;
+            _mode = PointerMode.Range;
+            Capture(LanesHost, e);
+            return;
+        }
+
         if (IsCompoundDoubleClick(hit.Clip))
         {
             Session.EnterCompound(hit.Clip!.Id);
@@ -206,7 +231,10 @@ internal sealed partial class TimelineView
             }
             else if (!Session.SelectedClipIds.Contains(clip.Id))
             {
-                Session.Select([clip.Id]);
+                // Un clip agrupado se elige con todo su grupo.
+                Session.Select(State.IgnoreGroups || clip.GroupId is null
+                    ? [clip.Id]
+                    : TimelineEdits.ExpandWithGroups(Session.Sequence, [clip.Id]).Select(m => m.Clip.Id));
             }
 
             _mode = State.Tool == TimelineTool.Selection ? PointerMode.Marquee : PointerMode.PendingClip;
@@ -269,6 +297,11 @@ internal sealed partial class TimelineView
             case PointerMode.DraggingEnvelope:
                 ContinueEnvelopeDrag(p, layout);
                 return;
+            case PointerMode.Range:
+                EdgeScroll(p.X);
+                _overlay.TimeRange = RangeSpan(p);
+                Invalidate();
+                return;
             case PointerMode.Marquee:
                 if (Distance(p, _pressPoint) >= DragThreshold)
                 {
@@ -301,6 +334,12 @@ internal sealed partial class TimelineView
                 break;
             case PointerMode.Marquee:
                 FinishMarquee(p, layout);
+                break;
+            case PointerMode.Range:
+                FinishRange(p);
+                break;
+            case PointerMode.PendingClip:
+                SelectEdge(_pressHit);
                 break;
             case PointerMode.DraggingTransition:
                 FinishTransitionDrag();
@@ -357,8 +396,8 @@ internal sealed partial class TimelineView
             return;
         }
 
-        bool alt = modifiers.HasFlag(VirtualKeyModifiers.Menu);
-        (DragOperation operation, string clipId) = TrimGesture(_pressHit, modifiers) switch
+        bool alt = modifiers.HasFlag(VirtualKeyModifiers.Menu) || State.Tool == TimelineTool.Slip;
+        (DragOperation operation, string clipId) = State.Tool == TimelineTool.Slip ? (DragOperation.Slip, clip.Id) : TrimGesture(_pressHit, modifiers) switch
         {
             DragOperation.Roll => RollTarget(_pressHit, _pressTime),
             DragOperation.Slide => (DragOperation.Slide, clip.Id),
@@ -392,12 +431,64 @@ internal sealed partial class TimelineView
             : null;
     }
 
-    private string? Badge(TimelineHit hit, VirtualKeyModifiers modifiers) => TrimGesture(hit, modifiers) switch
+    private string? Badge(TimelineHit hit, VirtualKeyModifiers modifiers) => State.Tool switch
     {
-        DragOperation.Roll => RollBadge,
-        DragOperation.Slide => SlideBadge,
-        _ => null,
+        TimelineTool.Blade => BladeBadge,
+        TimelineTool.Range => RangeBadge,
+        TimelineTool.Slip when hit.Clip is not null => SlipBadge,
+        TimelineTool.Ripple when hit.Kind is HitKind.ClipStart or HitKind.ClipEnd => RippleBadge,
+        _ => TrimGesture(hit, modifiers) switch
+        {
+            DragOperation.Roll => RollBadge,
+            DragOperation.Slide => SlideBadge,
+            _ => null,
+        },
     };
+
+    /// <summary>
+    /// Un clic sin arrastrar en un borde lo elige para recortarlo con «,» y «.» (con la herramienta de ripple, recorte
+    /// ripple); en cualquier otro lugar, la elección se quita.
+    /// </summary>
+    private void SelectEdge(TimelineHit hit)
+    {
+        EditorSession session = Session!;
+        bool edgeTool = State.Tool is TimelineTool.Normal or TimelineTool.Ripple or TimelineTool.Roll;
+        session.SelectedEdge = edgeTool && hit.Clip is { } clip && hit.Kind is HitKind.ClipStart or HitKind.ClipEnd
+            ? new SelectedEdge(clip.Id, hit.Kind == HitKind.ClipStart ? TrimEdge.In : TrimEdge.Out, State.Tool == TimelineTool.Ripple)
+            : null;
+    }
+
+    private (Time Start, Time End)? RangeSpan(Point p)
+    {
+        Rational rate = Session!.Sequence.FrameRate;
+        Time a = _pressTime.SnapToFrame(rate);
+        Time b = Viewport.XToTime(p.X).SnapToFrame(rate);
+        if (a > b)
+        {
+            (a, b) = (b, a);
+        }
+
+        return b > a ? (Time.Max(Time.Zero, a), b) : null;
+    }
+
+    /// <summary>Herramienta de rango: el tramo arrastrado pasa a ser la entrada y la salida de la secuencia; un clic las quita.</summary>
+    private void FinishRange(Point p)
+    {
+        EditorSession session = Session!;
+        if (RangeSpan(p) is { } span && Distance(p, _pressPoint) >= DragThreshold)
+        {
+            session.SetSequenceRange(span.Start, span.End);
+            _overlay.TimeRange = span;
+        }
+        else
+        {
+            session.SetSequenceRange(Time.Zero, Time.Zero);
+            _overlay.TimeRange = null;
+            SeekProgram(_pressTime.SnapToFrame(session.Sequence.FrameRate));
+        }
+
+        Invalidate();
+    }
 
     /// <summary>
     /// El corte que mueve un roll: el de salida del clip, o el de entrada si se agarró el borde de entrada o la mitad
@@ -489,7 +580,9 @@ internal sealed partial class TimelineView
 
     private void UpdateCursor(TimelineHit? hit, TransitionHitKind transition = TransitionHitKind.None)
     {
-        InputCursor cursor = State.Tool == TimelineTool.Zoom ? CrossCursor
+        InputCursor cursor = State.Tool is TimelineTool.Zoom or TimelineTool.Blade ? CrossCursor
+            : State.Tool == TimelineTool.Range ? IBeamCursor
+            : hit?.Clip is not null && State.Tool == TimelineTool.Slip ? ResizeCursor
             : hit is { } h && EditsEnvelope(h) ? CrossCursor
             : transition is TransitionHitKind.StartHandle or TransitionHitKind.EndHandle ? ResizeCursor
             : transition is TransitionHitKind.Body or TransitionHitKind.AutoCrossfade ? ArrowCursor
@@ -799,13 +892,13 @@ internal sealed partial class TimelineView
 
     private DropPlan? PlanDrop(DragEventArgs e)
     {
-        if (_dropMediaId is not { } id || Session!.Project.FindMedia(id) is not { } media || _renderer?.Layout is not { } layout)
+        if (MediaDrop.Parse(_dropMediaId) is not { } drop || Session!.Project.FindMedia(drop.MediaId) is not { } media || _renderer?.Layout is not { } layout)
         {
             return null;
         }
 
         Point p = e.GetPosition(LanesHost);
         bool insert = e.Modifiers.HasFlag(DragDropModifiers.Control);
-        return TimelinePlanning.PlanDrop(Session.Project, Session.Sequence, media, layout.RowAt(ContentY(p.Y)), Viewport.XToTime(p.X), insert, Options(), Session.ProgramPosition);
+        return TimelinePlanning.PlanDrop(Session.Project, Session.Sequence, media, layout.RowAt(ContentY(p.Y)), Viewport.XToTime(p.X), insert, Options(), Session.ProgramPosition, range: drop.Range);
     }
 }

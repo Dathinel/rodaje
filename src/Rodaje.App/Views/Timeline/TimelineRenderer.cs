@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Theme;
+using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Windows.Foundation;
@@ -249,6 +250,18 @@ internal sealed class TimelineRenderer
         return geometry;
     }
 
+    /// <summary>«+3», «−0,5»: el desfase en cuadros de cada clip desincronizado de su enlazado.</summary>
+    private static Dictionary<string, string> SyncBadges(Sequence sequence)
+    {
+        var badges = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (SyncOffset offset in LinkSync.Find(sequence))
+        {
+            badges[offset.ClipId] = ClipLabels.SyncFrames(offset.Frames(sequence.FrameRate));
+        }
+
+        return badges;
+    }
+
     private void Realize(TimelineScene scene)
     {
         TimelineViewport vp = Viewport;
@@ -268,6 +281,7 @@ internal sealed class TimelineRenderer
 
         RealizeRows(scene, layout, vp.Width);
 
+        Dictionary<string, string> sync = SyncBadges(scene.Sequence);
         int used = 0;
         foreach (TrackRow row in layout.Rows)
         {
@@ -294,7 +308,8 @@ internal sealed class TimelineRenderer
                     visibleLeft,
                     scene.Selection.Contains(clip.Id),
                     ClipDecorations.Veil(clip, row.Track),
-                    scene.ShowEnvelopes);
+                    scene.ShowEnvelopes,
+                    sync.GetValueOrDefault(clip.Id));
                 ClipAt(used++).Update(draw, scene.Visuals);
             }
         }

@@ -22,6 +22,17 @@ public static class ClipLabels
         return FormattableString.Invariant($"{sign}{Math.Abs(frames)} {(Math.Abs(frames) == 1 ? "cuadro" : "cuadros")}");
     }
 
+    /// <summary>
+    /// El aviso de desfase de un clip con su enlazado: «+3», «−12»; con menos de un cuadro, una cifra decimal («+0,5»).
+    /// </summary>
+    public static string SyncFrames(double frames)
+    {
+        double rounded = Math.Abs(frames) >= 1 ? Math.Round(frames) : Math.Round(frames, 1);
+        string sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "±";
+        string number = Math.Abs(rounded).ToString(Math.Abs(rounded) >= 1 ? "0" : "0.0", System.Globalization.CultureInfo.InvariantCulture).Replace('.', ',');
+        return sign + number;
+    }
+
     /// <summary>Nombre del clip; <paramref name="fallback"/> si es un medio que ya no está.</summary>
     public static string Name(Project project, Clip clip, string fallback = "")
     {

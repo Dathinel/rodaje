@@ -15,6 +15,18 @@ public enum TimelineTool
 
     /// <summary>Arrastrar un clip lo corre entre sus vecinos, que se recortan (slide).</summary>
     Slide,
+
+    /// <summary>Cuchilla: un clic corta el clip (y sus enlazados) en ese punto; con Mayús, todas las pistas.</summary>
+    Blade,
+
+    /// <summary>Ripple: arrastrar un borde recorta y corre lo que sigue, con el ripple automático apagado o no.</summary>
+    Ripple,
+
+    /// <summary>Slip: arrastrar un clip muestra otra parte de su material sin moverlo.</summary>
+    Slip,
+
+    /// <summary>Rango: arrastrar marca un tramo de la secuencia (entrada y salida) sin tocar los clips.</summary>
+    Range,
 }
 
 /// <summary>Qué se corre con el ripple automático.</summary>

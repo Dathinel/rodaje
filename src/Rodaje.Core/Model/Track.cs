@@ -55,6 +55,14 @@ public sealed class Track
         set => Sends = value ?? [];
     }
 
+    /// <summary>Alto de la pista en la línea de tiempo, en píxeles (formato 11); nulo: el de siempre.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Height { get; set; }
+
+    public const int MinHeight = 24;
+
+    public const int MaxHeight = 320;
+
     public List<Clip> Clips { get; set; } = [];
 
     /// <summary>Efectos de toda la pista (por ejemplo el volumen); sus keyframes están en tiempo de la secuencia.</summary>
@@ -95,6 +103,7 @@ public sealed class Track
         Armed = other.Armed;
         Output = other.Output;
         Sends = other.Sends.ConvertAll(t => t.Clone());
+        Height = other.Height;
         Clips = other.Clips.ConvertAll(c => c.Clone());
         Effects = other.Effects.ConvertAll(e => e.Clone());
         Transitions = other.Transitions.ConvertAll(t => t.Clone());

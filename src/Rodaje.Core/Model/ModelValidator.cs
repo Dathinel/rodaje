@@ -120,6 +120,11 @@ public static partial class ModelValidator
         {
             checkId(track.Id, "una pista");
             ValidateRole(track, errors);
+            if (track.Height is { } height && (height < Track.MinHeight || height > Track.MaxHeight))
+            {
+                errors.Add($"La pista «{track.Name}» tiene un alto de {height} px; va de {Track.MinHeight} a {Track.MaxHeight}.");
+            }
+
             Clip? previous = null;
             Int128 previousEnd = 0;
             foreach (Clip clip in track.Clips)
@@ -201,6 +206,16 @@ public static partial class ModelValidator
                 }
 
                 ValidateEffects(clip.Effects, null, errors, checkId);
+
+                if (clip.Color is not null && !MarkerStyle.IsColor(clip.Color))
+                {
+                    errors.Add($"{where} tiene un color que no es #RRGGBB: «{clip.Color}».");
+                }
+
+                if (clip.GroupId is { } groupId && (groupId.Length == 0 || groupId.Any(char.IsControl)))
+                {
+                    errors.Add($"{where} tiene un grupo vacío o con caracteres de control.");
+                }
 
                 if (clip.LinkId is not null)
                 {

@@ -117,6 +117,7 @@ public sealed class SequenceSnapshot
         return a.Locked == b.Locked
             && a.Muted == b.Muted
             && a.Hidden == b.Hidden
+            && a.Height == b.Height
             && a.Solo == b.Solo
             && a.Armed == b.Armed
             && TrackContentEquals(a, b);
@@ -165,6 +166,8 @@ public sealed class SequenceSnapshot
             && (a.Speed is null ? b.Speed is null : b.Speed is not null && a.Speed.ContentEquals(b.Speed))
             && a.LinkId == b.LinkId
             && a.Enabled == b.Enabled
+            && a.Color == b.Color
+            && a.GroupId == b.GroupId
             && (a.Generator is null ? b.Generator is null : b.Generator is not null && a.Generator.ContentEquals(b.Generator))
             && SequenceEqual(a.Effects, b.Effects, EffectStateEquals);
     }

@@ -12,14 +12,90 @@ public enum LibraryKind
     Audio,
 }
 
-/// <summary>Lo que se ve en la biblioteca de medios: la carpeta abierta, el texto buscado, el tipo y si solo favoritos.</summary>
-public sealed record LibraryQuery(string? FolderId = null, string Text = "", LibraryKind Kind = LibraryKind.All, bool FavoritesOnly = false)
+/// <summary>
+/// Lo que se ve en la biblioteca de medios: la carpeta abierta, el texto buscado, el tipo, si solo favoritos, la
+/// valoración mínima, la marca, una etiqueta, si se esconden los rechazados y la colección inteligente abierta.
+/// </summary>
+public sealed record LibraryQuery(
+    string? FolderId = null,
+    string Text = "",
+    LibraryKind Kind = LibraryKind.All,
+    bool FavoritesOnly = false,
+    int MinRating = 0,
+    MediaMark? Mark = null,
+    string? Tag = null,
+    bool HideRejected = false,
+    string? CollectionId = null)
 {
     /// <summary>
-    /// Buscar o pedir solo favoritos mira toda la biblioteca, no solo la carpeta abierta (como CapCut): lo que se
-    /// busca aparece aunque esté en otra carpeta.
+    /// Buscar, filtrar por marca, valoración o etiqueta, o abrir una colección mira toda la biblioteca, no solo la carpeta
+    /// abierta (como CapCut): lo que se busca aparece aunque esté en otra carpeta.
     /// </summary>
-    public bool IsGlobal => !string.IsNullOrWhiteSpace(Text) || FavoritesOnly;
+    public bool IsGlobal => !string.IsNullOrWhiteSpace(Text) || FavoritesOnly || MinRating > 0 || Mark is not null || !string.IsNullOrEmpty(Tag) || CollectionId is not null;
+
+    /// <summary>Hay algún filtro además de la carpeta y el texto (para el punto del botón de filtros).</summary>
+    public bool HasFilters => Kind != LibraryKind.All || MinRating > 0 || Mark is not null || !string.IsNullOrEmpty(Tag) || HideRejected;
+}
+
+/// <summary>
+/// Todo lo que se sabe de un medio para filtrarlo y mostrarlo: el medio, su tipo, los códecs, la cámara y la fecha
+/// (leídos del archivo, nulos mientras no se sepan), si falta el archivo, si se usa y el texto plegado donde se busca.
+/// </summary>
+public sealed class MediaFacts
+{
+    public MediaFacts(MediaRef media, LibraryOrganization organization, string? codecs = null, string? camera = null, DateTimeOffset? date = null, bool offline = false, bool used = false)
+    {
+        ArgumentNullException.ThrowIfNull(media);
+        ArgumentNullException.ThrowIfNull(organization);
+        Media = media;
+        Kind = LibraryFilter.KindOf(media);
+        Codecs = codecs;
+        Camera = camera;
+        Date = date;
+        Offline = offline;
+        Used = used;
+        var parts = new List<string> { media.Name, System.IO.Path.GetFileName(media.Path) };
+        parts.AddRange(organization.TagsOf(media.Id));
+        if (codecs is { Length: > 0 })
+        {
+            parts.Add(codecs);
+        }
+
+        if (camera is { Length: > 0 })
+        {
+            parts.Add(camera);
+        }
+
+        if (media.HasVideo)
+        {
+            parts.Add(MediaDetails.Resolution(media));
+            parts.Add(MediaDetails.FrameRate(media));
+        }
+
+        if (date is { } d)
+        {
+            parts.Add(d.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        Haystack = SearchText.Fold(string.Join("\n", parts));
+    }
+
+    public MediaRef Media { get; }
+
+    public LibraryKind Kind { get; }
+
+    public string? Codecs { get; }
+
+    public string? Camera { get; }
+
+    public DateTimeOffset? Date { get; }
+
+    public bool Offline { get; }
+
+    public bool Used { get; }
+
+    /// <summary>Nombre, archivo, etiquetas y metadatos ya plegados (sin mayúsculas ni tildes).</summary>
+    public string Haystack { get; }
 }
 
 /// <summary>Filtro y búsqueda de la biblioteca, sin WinUI.</summary>
@@ -68,14 +144,41 @@ public static class LibraryFilter
     {
         ArgumentNullException.ThrowIfNull(media);
         ArgumentNullException.ThrowIfNull(organization);
+        return [.. Apply([.. media.Select(m => new MediaFacts(m, organization))], organization, query, DateTimeOffset.Now).Select(f => f.Media)];
+    }
+
+    /// <summary>
+    /// Los medios que se ven con <paramref name="query"/>, en el orden dado. El texto de cada medio ya está plegado en
+    /// <see cref="MediaFacts.Haystack"/>, así que 2000 medios se filtran en milisegundos.
+    /// </summary>
+    public static IReadOnlyList<MediaFacts> Apply(IReadOnlyList<MediaFacts> facts, LibraryOrganization organization, LibraryQuery query, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(facts);
+        ArgumentNullException.ThrowIfNull(organization);
         ArgumentNullException.ThrowIfNull(query);
         string? folder = organization.FindFolder(query.FolderId)?.Id;
         string[] words = SearchText.Words(query.Text);
-        return [.. media.Where(m =>
-            (query.IsGlobal || organization.FolderOf(m.Id) == folder)
-            && (query.Kind == LibraryKind.All || KindOf(m) == query.Kind)
-            && (!query.FavoritesOnly || organization.IsFavorite(m.Id))
-            && Matches(m, words))];
+        SmartBin? collection = organization.FindCollection(query.CollectionId);
+        string? tag = string.IsNullOrWhiteSpace(query.Tag) ? null : SearchText.Fold(query.Tag.Trim());
+        var result = new List<MediaFacts>();
+        foreach (MediaFacts f in facts)
+        {
+            string id = f.Media.Id;
+            if ((query.IsGlobal || organization.FolderOf(id) == folder)
+                && (query.Kind == LibraryKind.All || f.Kind == query.Kind)
+                && (!query.FavoritesOnly || organization.IsFavorite(id))
+                && (query.MinRating <= 0 || organization.RatingOf(id) >= query.MinRating)
+                && (query.Mark is not { } flag || organization.MarkOf(id) == flag)
+                && (!query.HideRejected || query.Mark == MediaMark.Rejected || !organization.IsRejected(id))
+                && (tag is null || organization.TagsOf(id).Any(t => SearchText.Fold(t) == tag))
+                && Matches(f, words)
+                && (collection is null || collection.Matches(f, organization, now)))
+            {
+                result.Add(f);
+            }
+        }
+
+        return result;
     }
 
     /// <summary>Las carpetas que se ven arriba de los medios: las de la carpeta abierta, o ninguna al buscar.</summary>
@@ -125,6 +228,22 @@ public static class LibraryFilter
         return words.All(w => haystack.Contains(w, StringComparison.Ordinal));
     }
 
+    /// <summary>Cada palabra buscada aparece en el nombre, el archivo, las etiquetas o los metadatos del medio.</summary>
+    public static bool Matches(MediaFacts facts, IReadOnlyList<string> words)
+    {
+        ArgumentNullException.ThrowIfNull(facts);
+        ArgumentNullException.ThrowIfNull(words);
+        foreach (string word in words)
+        {
+            if (!facts.Haystack.Contains(word, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>Texto vacío para la cabecera, o por qué no se ve nada con el filtro puesto.</summary>
     public static string EmptyMessage(LibraryQuery query, bool folderHasContent)
     {
@@ -134,9 +253,24 @@ public static class LibraryFilter
             return $"Nada coincide con «{query.Text.Trim()}».";
         }
 
-        if (query.FavoritesOnly)
+        if (query.CollectionId is not null)
+        {
+            return "Ningún medio cumple las reglas de esta colección.";
+        }
+
+        if (query.FavoritesOnly || query.Mark == MediaMark.Favorite)
         {
             return "Aún no hay favoritos: marca un medio con la estrella de su menú.";
+        }
+
+        if (query.Mark == MediaMark.Rejected)
+        {
+            return "No hay medios rechazados.";
+        }
+
+        if (query.MinRating > 0 || query.Tag is { Length: > 0 } || query.Mark is not null)
+        {
+            return "Ningún medio cumple el filtro.";
         }
 
         if (query.Kind != LibraryKind.All && folderHasContent)

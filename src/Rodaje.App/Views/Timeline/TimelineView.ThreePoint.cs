@@ -33,16 +33,17 @@ internal sealed partial class TimelineView
         registry.Register(new ShortcutAction(MarkInId, "Marcar entrada", ShortcutGroups.Edit, ["I"]) { ShortLabel = "Entrada", Description = "Marca la entrada en el cuadro que se ve, en el origen o en la secuencia." });
         registry.Register(new ShortcutAction(MarkOutId, "Marcar salida", ShortcutGroups.Edit, ["O"]) { ShortLabel = "Salida", Description = "Marca la salida: el cuadro que se ve es el último que entra." });
         registry.Register(new ShortcutAction(ClearMarksId, "Quitar entrada y salida", ShortcutGroups.Edit, ["Alt+X"], classic: ["Ctrl+Mayús+X"]) { ShortLabel = "Quitar marcas", Description = "Borra las marcas del visor que se ve." });
-        registry.Register(new ShortcutAction(InsertId, "Insertar desde el origen", ShortcutGroups.Edit, [","]) { ShortLabel = "Insertar", Description = "Pone el tramo marcado del origen en la secuencia y corre lo que sigue (tres o cuatro puntos)." });
-        registry.Register(new ShortcutAction(OverwriteId, "Sobrescribir desde el origen", ShortcutGroups.Edit, ["."]) { ShortLabel = "Sobrescribir", Description = "Pone el tramo marcado del origen encima de lo que haya, sin correr nada." });
+        registry.Register(new ShortcutAction(InsertId, "Insertar desde el origen", ShortcutGroups.Edit, [","]) { ShortLabel = "Insertar", Description = "Pone el tramo marcado del origen en la secuencia y corre lo que sigue; con un borde elegido, lo recorta un cuadro a la izquierda." });
+        registry.Register(new ShortcutAction(OverwriteId, "Sobrescribir desde el origen", ShortcutGroups.Edit, ["."]) { ShortLabel = "Sobrescribir", Description = "Pone el tramo marcado del origen encima de lo que haya; con un borde elegido, lo recorta un cuadro a la derecha." });
         registry.Register(new ShortcutAction(ToggleSourceId, "Visor de origen o de programa", ShortcutGroups.View, ["Mayús+2"]) { ShortLabel = "Origen", Description = "Cambia el reproductor entre el medio del origen y la secuencia." });
 
         ShortcutRouter router = services.Shortcuts;
         router.Bind(MarkInId, () => Session!.MarkIn());
         router.Bind(MarkOutId, () => Session!.MarkOut());
         router.Bind(ClearMarksId, () => Session!.ClearMarks());
-        router.Bind(InsertId, () => _ = ThreePointAsync(PlacementMode.Insert), () => Session?.SourceMediaId is not null);
-        router.Bind(OverwriteId, () => _ = ThreePointAsync(PlacementMode.Overwrite), () => Session?.SourceMediaId is not null);
+        // Con un borde elegido, «,» y «.» lo recortan un cuadro; si no, insertan y sobrescriben desde el origen.
+        router.Bind(InsertId, () => { if (!Session!.TrimSelectedEdge(-1)) { _ = ThreePointAsync(PlacementMode.Insert); } }, () => Session?.SourceMediaId is not null || Session?.SelectedEdge is not null);
+        router.Bind(OverwriteId, () => { if (!Session!.TrimSelectedEdge(1)) { _ = ThreePointAsync(PlacementMode.Overwrite); } }, () => Session?.SourceMediaId is not null || Session?.SelectedEdge is not null);
         router.Bind(ToggleSourceId, () => Session!.ToggleSourceProgram(), () => Session?.SourceMediaId is not null);
         Session!.SourceChanged += (_, _) =>
         {
@@ -139,6 +140,9 @@ internal sealed partial class TimelineView
                 session.TargetAudioTrackId ?? session.Sequence.AudioTracks.FirstOrDefault()?.Id, isVideo: false);
             SourcePanel.Children.Add(ActionButton("Insertar (,)", () => _ = ThreePointAsync(PlacementMode.Insert)));
             SourcePanel.Children.Add(ActionButton("Sobrescribir (.)", () => _ = ThreePointAsync(PlacementMode.Overwrite)));
+            SourcePanel.Children.Add(ActionButton("Reemplazar", () => Session?.SourceAction(ThreePointAction.Replace)));
+            SourcePanel.Children.Add(ActionButton("Ajustar a rellenar", () => Session?.SourceAction(ThreePointAction.FitToFill)));
+            SourcePanel.Children.Add(ActionButton("Superponer", () => Session?.SourceAction(ThreePointAction.Superimpose)));
         }
 
         if (marks)

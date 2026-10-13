@@ -111,8 +111,15 @@ public static unsafe class MediaProbe
             duration = Time.Max(duration, audio.StartTime + audio.Duration - origin);
         }
 
+        Dictionary<string, string> tags = MediaTags.Read(format->metadata);
+        if (videoIndex >= 0)
+        {
+            MediaTags.Read(format->streams[videoIndex]->metadata, tags);
+        }
+
         return new MediaInfo
         {
+            Tags = MediaTags.Parse(tags),
             Path = path,
             ContainerFormat = Marshal.PtrToStringUTF8((nint)format->iformat->name) ?? "",
             Duration = duration,

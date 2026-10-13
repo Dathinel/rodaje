@@ -87,7 +87,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         _mediaMenu.Items.Add(_moveItem);
         _mediaMenu.Items.Add(new MenuFlyoutSeparator());
         _mediaMenu.Items.Add(_removeItem);
-        KindButton.Flyout = KindMenu();
+        AddProMenuItems();
+        KindButton.Flyout = FilterFlyout();
     }
 
     public ObservableCollection<MediaItem> Media { get; } = [];
@@ -161,6 +162,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         _allMedia = BuildItems(session.Project.Media, used);
         _itemsById = _allMedia.GroupBy(i => i.Id, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         Sync(AudioMedia, session.Project.Media.Where(m => m.HasAudio && !m.HasVideo).Select(m => _itemsById[m.Id]).ToList());
+        RefreshMarks();
+        StartHealthScan(session.Project);
         ApplyFilter();
     }
 
@@ -315,7 +318,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             return;
         }
 
-        foreach (MediaItem item in _allMedia)
+        OnSkimThumbnailReady(e.MediaId);
+        foreach (MediaItem item in _allMedia.Concat(_subclipItems.Values))
         {
             if (item.Id == e.MediaId && item.Thumbnail is null && item.HasVideo
                 && _services.Visuals.GetThumbnail(item.Id, item.CoverTime, CoverHeight) is { } image)
@@ -431,7 +435,14 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     {
         if (_services is not null && (e.OriginalSource as FrameworkElement)?.DataContext is MediaItem item)
         {
-            _services.Session.AppendToTimeline(item.Id);
+            if (item.Subclip is { } subclip)
+            {
+                _services.Session.AppendToTimeline(item.Id, subclip.In, subclip.Out);
+            }
+            else
+            {
+                _services.Session.AppendToTimeline(item.Id);
+            }
         }
     }
 
@@ -444,7 +455,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
 
         _dragMediaIds = [.. e.Items.OfType<MediaItem>().Select(i => i.Id)];
-        e.Data.SetData(MediaDragFormat, item.Id);
+        e.Data.SetData(MediaDragFormat, item.DragText);
         e.Data.SetText(item.Id);
         e.Data.RequestedOperation = DataPackageOperation.Copy;
     }
@@ -572,6 +583,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         _favoriteItem.Text = favorite ? "Quitar de favoritos" : "Añadir a favoritos";
         _favoriteItem.Icon = new FontIcon { Glyph = favorite ? "\uE735" : "\uE734" };
         FillMoveMenu(item);
+        UpdateProMenu(item);
         if (args.TryGetPosition(element, out Point point))
         {
             _mediaMenu.ShowAt(element, new FlyoutShowOptions { Position = point });

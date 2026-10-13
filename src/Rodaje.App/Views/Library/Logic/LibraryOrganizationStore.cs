@@ -16,7 +16,8 @@ public sealed class LibraryOrganizationStore
     /// <summary>Subcarpeta de <c>%LOCALAPPDATA%\Rodaje</c> donde quedan los archivos.</summary>
     public const string FolderName = "biblioteca";
 
-    public const int CurrentVersion = 1;
+    /// <summary>2: valoración, rechazados, etiquetas, subclips, colecciones inteligentes y multicámaras (opcionales).</summary>
+    public const int CurrentVersion = 2;
 
     /// <summary>Nombres que Windows reserva para dispositivos, también con extensión («con.json» no es un archivo).</summary>
     private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
@@ -158,10 +159,12 @@ public sealed class LibraryOrganizationStore
             _lastWritten[path] = text;
         }
 
-        return LibraryOrganization.From(
+        LibraryOrganization organization = LibraryOrganization.From(
             file.Folders?.Select(f => new LibraryFolder { Id = f?.Id ?? "", Name = f?.Name ?? "", ParentId = f?.Parent }),
             file.Media,
             file.Favorites);
+        organization.ImportMarks(file.Marks);
+        return organization;
     }
 
     /// <summary>
@@ -220,7 +223,8 @@ public sealed class LibraryOrganizationStore
         Dictionary<string, string> media = organization.MediaFolders.Where(p => organization.FindFolder(p.Value) is not null)
             .OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
         List<string> favorites = [.. organization.Favorites.Order(StringComparer.Ordinal)];
-        var file = new LibraryFile { Version = CurrentVersion, Folders = folders, Media = media, Favorites = favorites };
+        LibraryMarks? marks = organization.ExportMarks();
+        var file = new LibraryFile { Version = CurrentVersion, Folders = folders, Media = media, Favorites = favorites, Marks = marks };
         string json = JsonSerializer.Serialize(file, LibraryJsonContext.Default.LibraryFile);
         bool inherited;
         lock (_lock)
@@ -234,7 +238,7 @@ public sealed class LibraryOrganizationStore
         }
 
         // Vacía y heredada sí se escribe: si no, al abrir otra vez se heredaría de nuevo lo que se borró.
-        return new LibrarySaveRequest(path, json, Empty: folders.Count == 0 && favorites.Count == 0 && !inherited);
+        return new LibrarySaveRequest(path, json, Empty: folders.Count == 0 && favorites.Count == 0 && marks is null && !inherited);
     }
 
     /// <summary>
@@ -299,6 +303,10 @@ internal sealed class LibraryFile
     public Dictionary<string, string>? Media { get; set; } = new(StringComparer.Ordinal);
 
     public List<string>? Favorites { get; set; } = [];
+
+    /// <summary>Desde la versión 2; no se escribe si no hay nada.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public LibraryMarks? Marks { get; set; }
 }
 
 internal sealed class LibraryFolderEntry
@@ -310,6 +318,10 @@ internal sealed class LibraryFolderEntry
     public string? Parent { get; set; }
 }
 
-[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.Never)]
+[JsonSourceGenerationOptions(
+    WriteIndented = true,
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+    Converters = [typeof(Rodaje.Core.Serialization.TimeJsonConverter), typeof(JsonStringEnumConverter<SmartField>)])]
 [JsonSerializable(typeof(LibraryFile))]
 internal sealed partial class LibraryJsonContext : JsonSerializerContext;

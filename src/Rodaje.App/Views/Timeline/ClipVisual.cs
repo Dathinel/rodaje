@@ -27,7 +27,8 @@ internal readonly record struct ClipDraw(
     double VisibleLeft,
     bool Selected,
     double Veil,
-    bool ShowEnvelope);
+    bool ShowEnvelope,
+    string? SyncText = null);
 
 /// <summary>
 /// Un clip dibujado, reciclable: bloque con su color, nombre, tira de película o forma de onda, keyframes y envolvente.
@@ -85,6 +86,10 @@ internal sealed class ClipVisual
     private double _badgeLeft;
     private readonly RectangleGeometry _bounds = new();
 
+    // Aviso de desfase con su enlazado («+3», en cuadros), a la derecha de la fila del nombre.
+    private readonly Border _sync = new() { Padding = new Thickness(4, 0, 4, 1), Height = NameHeight - 1, Visibility = Visibility.Collapsed };
+    private readonly TextBlock _syncText = new() { FontSize = ThemeResources.Size("MicroFontSize"), TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
+
     public ClipVisual(TimelineBrushes brushes)
     {
         _brushes = brushes;
@@ -130,6 +135,10 @@ internal sealed class ClipVisual
         Root.Children.Add(_envelopePoints);
         Root.Children.Add(_name);
         Root.Children.Add(_badge);
+        _sync.Child = _syncText;
+        _sync.Background = brushes.Marked(SyncWarningColor)!.Value.Solid;
+        _syncText.Foreground = brushes.Text;
+        Root.Children.Add(_sync);
         Root.Children.Add(_veil);
         Root.Children.Add(_outline);
         // Encima del velo y del contorno: los rombos se ven igual en cualquier estado del clip o de la pista.
@@ -141,6 +150,9 @@ internal sealed class ClipVisual
         _name.Clip = _bounds;
         Canvas.SetZIndex(Root, 1);
     }
+
+    /// <summary>Color del aviso de desfase (el rojo de los marcadores).</summary>
+    public const string SyncWarningColor = "#E5484D";
 
     public Canvas Root { get; } = new();
 
@@ -167,9 +179,11 @@ internal sealed class ClipVisual
         _body.Height = d.Height;
         bool title = d.Clip.Generator is not null;
         bool noMedia = title || d.Clip.IsCompound;
-        _body.Background = title ? _brushes.TextClip : _brushes.ClipFill(d.Kind);
+        var label = _brushes.Marked(d.Clip.Color);
+        _body.Background = label is { } tint ? tint.Line : title ? _brushes.TextClip : _brushes.ClipFill(d.Kind);
         _edge.Width = d.Width;
-        _edge.Background = title ? _brushes.TextClipEdge : _brushes.ClipEdge(d.Kind);
+        _edge.Background = label is { } mark ? mark.Solid : title ? _brushes.TextClipEdge : _brushes.ClipEdge(d.Kind);
+        UpdateSync(d);
         _outline.Visibility = d.Selected ? Visibility.Visible : Visibility.Collapsed;
         if (d.Selected)
         {
@@ -242,6 +256,25 @@ internal sealed class ClipVisual
         }
 
         PlaceName(left, d.Width);
+    }
+
+    private void UpdateSync(in ClipDraw d)
+    {
+        if (d.SyncText is not { } text || d.Width < 48)
+        {
+            _sync.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        if (!string.Equals(_syncText.Text, text, StringComparison.Ordinal))
+        {
+            _syncText.Text = text;
+        }
+
+        _sync.Visibility = Visibility.Visible;
+        _sync.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        Canvas.SetLeft(_sync, Math.Max(2, d.Width - _sync.DesiredSize.Width - 3));
+        Canvas.SetTop(_sync, 1);
     }
 
     private void PlaceName(double left, double width)

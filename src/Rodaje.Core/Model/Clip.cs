@@ -50,6 +50,17 @@ public sealed class Clip
 
     public bool Enabled { get; set; } = true;
 
+    /// <summary>Color de la etiqueta del clip, <c>#RRGGBB</c> (formato 11); nulo: el de su tipo.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Color { get; set; }
+
+    /// <summary>
+    /// Grupo de clips (formato 11): los del mismo grupo se seleccionan y se mueven juntos, también en la misma pista. A
+    /// diferencia de <see cref="LinkId"/>, no se recortan ni se cortan juntos; nulo si el clip no está agrupado.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GroupId { get; set; }
+
     /// <summary>Velocidad, reversa o congelado; nula a 1×, como en el formato 3.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ClipSpeed? Speed { get; set; }

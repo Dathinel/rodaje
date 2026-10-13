@@ -15,7 +15,7 @@ public sealed class LibraryFolder
 /// Carpetas y favoritos de la biblioteca de un proyecto, sin WinUI. Un medio sin carpeta (o con una que ya no existe)
 /// está en la raíz. Los ids de medio que ya no están en el proyecto se toleran: la vista solo muestra los que existen.
 /// </summary>
-public sealed class LibraryOrganization
+public sealed partial class LibraryOrganization
 {
     /// <summary>Nombre que recibe una carpeta recién creada (con un número si ya hay otra igual al lado).</summary>
     public const string DefaultFolderName = "Carpeta nueva";
@@ -211,6 +211,7 @@ public sealed class LibraryOrganization
     {
         if (favorite ? _favorites.Add(mediaId) : _favorites.Remove(mediaId))
         {
+            _rejected.Remove(mediaId);
             Revision++;
         }
     }
@@ -228,7 +229,7 @@ public sealed class LibraryOrganization
     {
         ArgumentNullException.ThrowIfNull(existingMediaIds);
         var existing = new HashSet<string>(existingMediaIds, StringComparer.Ordinal);
-        int removed = _favorites.RemoveWhere(id => !existing.Contains(id));
+        int removed = _favorites.RemoveWhere(id => !existing.Contains(id)) + PruneMarks(existing);
         foreach (string mediaId in _mediaFolders.Keys.ToList())
         {
             if (!existing.Contains(mediaId) || FindFolder(_mediaFolders[mediaId]) is null)

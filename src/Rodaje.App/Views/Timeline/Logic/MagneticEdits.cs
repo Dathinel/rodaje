@@ -88,7 +88,7 @@ public static class MagneticEdits
 
     /// <summary>Coloca un medio entero en la pista principal en el corte <paramref name="at"/>, con su sonido en <paramref name="linkedTrackId"/>.</summary>
     /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: los clips creados, el de la pista principal primero.</remarks>
-    public static SequenceEditCommand InsertMedia(string sequenceId, string mediaId, Time duration, string mainTrackId, Time at, string? linkedTrackId, RippleScope scope, IIdGenerator? ids) =>
+    public static SequenceEditCommand InsertMedia(string sequenceId, string mediaId, Time duration, string mainTrackId, Time at, string? linkedTrackId, RippleScope scope, IIdGenerator? ids, Time sourceIn = default) =>
         new("Insertar", sequenceId, ctx =>
         {
             Track main = ctx.Sequence.GetTrack(mainTrackId);
@@ -98,8 +98,14 @@ public static class MagneticEdits
                 skip.Add(ctx.Sequence.GetTrack(linkedTrackId));
             }
 
-            // La principal y la del sonido las corre la inserción misma; aquí, las demás que deben seguirlas.
-            OpenSpace(ctx, main, at, duration, scope, skip: skip);
-            return TimelineEdits.InsertMedia(ctx, mediaId, Time.Zero, duration, mainTrackId, at, PlacementMode.Insert, linkedTrackId);
+            // Con el alcance de la pista, la inserción misma corre la principal, la del sonido y las de los enlazados de lo
+            // que se corre. Con todas las pistas, aquí se corren las demás y la inserción solo las suyas.
+            bool allTracks = scope.IncludesAllTracks();
+            if (allTracks)
+            {
+                OpenSpace(ctx, main, at, duration, scope, skip: skip);
+            }
+
+            return TimelineEdits.InsertMedia(ctx, mediaId, sourceIn, sourceIn + duration, mainTrackId, at, PlacementMode.Insert, linkedTrackId, followLinks: !allTracks);
         }, ids);
 }
