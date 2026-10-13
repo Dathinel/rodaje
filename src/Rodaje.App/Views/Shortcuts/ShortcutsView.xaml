@@ -85,7 +85,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBox x:Name="SearchBox" MinWidth="160" PlaceholderText="Busca una acción («cortar») o una tecla («Ctrl+S»)"
+                <TextBox x:Name="SearchBox" MinWidth="160" Padding="12,6,8,6" PlaceholderText="Busca una acción («cortar») o una tecla («Ctrl+S»)"
                          TextChanged="OnSearchChanged" AutomationProperties.Name="Buscar atajos por acción o por tecla" />
                 <Button x:Name="KeyFilterChip" Grid.Column="1" Visibility="Collapsed" Click="OnKeyFilterClick" BorderBrush="{StaticResource AccentBrush}">
                     <StackPanel Orientation="Horizontal" Spacing="8">

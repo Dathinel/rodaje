@@ -57,7 +57,24 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
         }
 
         services.LongActions.Changed += (_, _) => DispatcherQueue.TryEnqueue(UpdateBusy);
+        Scroller.SizeChanged += (_, _) => FitLabels();
         Refresh();
+    }
+
+    /// <summary>Si los nombres no caben, la barra queda solo con íconos (el nombre sigue en la ayuda) en vez de cortarse.</summary>
+    private void FitLabels()
+    {
+        foreach ((_, _, TextBlock label) in _parts.Values)
+        {
+            label.Visibility = Visibility.Visible;
+        }
+
+        Buttons.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+        bool compact = Buttons.DesiredSize.Width > Scroller.ActualWidth + 0.5;
+        foreach ((_, _, TextBlock label) in _parts.Values)
+        {
+            label.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        }
     }
 
     /// <summary>Para la autoprueba: si el botón está ocupado y qué dice.</summary>

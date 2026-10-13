@@ -354,7 +354,7 @@ internal sealed partial class StripView : UserControl
 
     private Grid InsertItem(EffectInstance effect)
     {
-        var item = new Grid { Tag = effect, ColumnSpacing = 2, Padding = new Thickness(0, 1, 0, 1) };
+        var item = new Grid { Tag = effect, ColumnSpacing = 3, Padding = new Thickness(0, 1, 0, 1) };
         item.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         item.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         item.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -374,17 +374,20 @@ internal sealed partial class StripView : UserControl
         {
             Text = EffectUi.Name(effect.Type),
             TextTrimming = TextTrimming.CharacterEllipsis,
+            TextWrapping = TextWrapping.Wrap,
+            MaxLines = 2,
             VerticalAlignment = VerticalAlignment.Center,
             Style = ThemeResources.Style("CaptionTextStyle"),
             Foreground = ThemeResources.Brush(effect.Enabled ? "TextBrush" : "TextDisabledBrush"),
         };
-        ToolTipService.SetToolTip(name, EffectUi.Name(effect.Type) + (InsertPresets.Match(effect) is { } current ? " · " + current.Name : ""));
+        // El nombre completo va en la ayuda de toda la fila: en una tira estrecha se acorta.
+        ToolTipService.SetToolTip(item, EffectUi.Name(effect.Type) + (InsertPresets.Match(effect) is { } current ? " · " + current.Name : ""));
         var ab = new ToggleButton
         {
             Content = "A/B",
             IsChecked = _host.IsBypassed(effect.Id),
             MinWidth = 0,
-            Padding = new Thickness(3, 0, 3, 0),
+            Padding = new Thickness(2, 0, 2, 0),
             FontSize = ThemeResources.Size("MicroFontSize"),
         };
         ToolTipService.SetToolTip(ab, "Escuchar sin este efecto (solo la vista previa).");
@@ -544,6 +547,8 @@ internal sealed partial class StripView : UserControl
         var style = new Style(typeof(ListViewItem));
         style.Setters.Add(new Setter(MinHeightProperty, 24.0));
         style.Setters.Add(new Setter(PaddingProperty, new Thickness(2, 0, 2, 0)));
+        style.Setters.Add(new Setter(MinWidthProperty, 0.0));
+        style.Setters.Add(new Setter(HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
         return style;
     }
 

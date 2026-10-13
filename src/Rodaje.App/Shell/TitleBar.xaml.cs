@@ -27,6 +27,8 @@ internal sealed partial class TitleBar : UserControl
         UpstreamCredit.Content = UpstreamAttribution.ShortCredit;
         ToolTipService.SetToolTip(UpstreamCredit, UpstreamAttribution.Notice);
         AutomationProperties.SetName(UpstreamCredit, UpstreamAttribution.Notice);
+        // Con poco ancho, las cifras de GPU ceden su sitio al nombre del proyecto; el crédito upstream se queda siempre.
+        SizeChanged += (_, e) => StatsText.Visibility = e.NewSize.Width < 1500 ? Visibility.Collapsed : Visibility.Visible;
     }
 
     /// <summary>Se pidió una pestaña del panel derecho desde el menú Ver.</summary>

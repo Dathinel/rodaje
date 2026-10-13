@@ -80,7 +80,7 @@
                 <RadioButton x:Name="DynamicsTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
                              ToolTipService.ToolTip="Dinámica" AutomationProperties.Name="Dinámica">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE9E9;" FontSize="13" Visibility="Collapsed" />
+                        <FontIcon Glyph="&#xE8D6;" FontSize="13" Visibility="Collapsed" />
                         <TextBlock x:Name="DynamicsLabel" Text="Dinámica" />
                     </StackPanel>
                 </RadioButton>

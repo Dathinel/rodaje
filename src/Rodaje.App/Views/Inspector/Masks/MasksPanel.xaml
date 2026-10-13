@@ -49,7 +49,7 @@
                     <ToggleButton x:Name="EllipseTool" Style="{StaticResource MaskToolStyle}" Tag="Ellipse" Click="OnToolClick" Content="&#xEA3A;"
                                   FontFamily="{StaticResource IconFontFamily}" AutomationProperties.Name="Elipse"
                                   ToolTipService.ToolTip="Elipse (E): arrastra en el visor; con Mayús, círculo" />
-                    <ToggleButton x:Name="PenTool" Style="{StaticResource MaskToolStyle}" Tag="Pen" Click="OnToolClick" Content="&#xEDFB;"
+                    <ToggleButton x:Name="PenTool" Style="{StaticResource MaskToolStyle}" Tag="Pen" Click="OnToolClick" Content="&#xE70F;"
                                   FontFamily="{StaticResource IconFontFamily}" AutomationProperties.Name="Pluma Bézier"
                                   ToolTipService.ToolTip="Pluma Bézier (P): clic pone esquinas, arrastrar saca curvas, clic en el primer punto cierra" />
                     <ToggleButton x:Name="StrokeTool" Style="{StaticResource MaskToolStyle}" Tag="StrokePen" Click="OnToolClick" Content="&#xE76D;"
