@@ -418,8 +418,11 @@ public sealed partial class EditorSession : ObservableObject
 
     private Project CreateEmptyProject() => NewProjectTracks.CreateProject(UntitledName, _ids);
 
-    /// <summary>Cambia de proyecto: historial nuevo, selección vacía y el reproductor desde el principio.</summary>
-    private void ReplaceProject(Project project, string sequenceId, string? filePath, string originDescription)
+    /// <summary>
+    /// Cambia de proyecto: historial nuevo, selección vacía y el reproductor desde el principio. Con
+    /// <paramref name="unsaved"/>, el proyecto ya no es igual a su archivo (se corrigió al abrirlo) y empieza con cambios.
+    /// </summary>
+    private void ReplaceProject(Project project, string sequenceId, string? filePath, string originDescription, bool unsaved = false)
     {
         History.Changed -= OnHistoryChanged;
         Project = project;
@@ -427,6 +430,12 @@ public sealed partial class EditorSession : ObservableObject
         _sequencePath.Clear();
         ResetSource(forget: true);
         History = new UndoStack(project);
+        if (unsaved)
+        {
+            // Antes de suscribirse: los avisos de abajo (y el autoguardado, en ProjectOpened) ya lo ven con cambios.
+            History.MarkDirty();
+        }
+
         History.Changed += OnHistoryChanged;
         _originDescription = originDescription;
         _selection = [];

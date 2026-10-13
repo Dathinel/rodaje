@@ -58,13 +58,14 @@ public sealed partial class EditorSession
 
         BeginBusy();
         Project loaded;
+        int clamped;
         try
         {
-            loaded = await Task.Run(() =>
+            (loaded, clamped) = await Task.Run(() =>
             {
-                Project project = ProjectSerializer.Load(full);
+                Project project = ProjectSerializer.Load(full, out int count);
                 ProjectPaths.MakeAbsolute(project, Path.GetDirectoryName(full)!);
-                return project;
+                return (project, count);
             });
         }
         catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException or ArgumentException)
@@ -84,9 +85,23 @@ public sealed partial class EditorSession
             return false;
         }
 
-        ReplaceProject(loaded, first.Id, full, "Proyecto abierto");
+        // Un proyecto de la v1.0.0 con posición, ancla o giro más allá del límite de hoy se acota al leerlo. Antes era en
+        // silencio y el proyecto quedaba «Guardado» aunque ya no era igual al archivo: ahora se avisa y queda con cambios.
+        ReplaceProject(loaded, first.Id, full, "Proyecto abierto", unsaved: clamped > 0);
+        if (clamped > 0)
+        {
+            Notify(NotificationSeverity.Warning, "Se ajustaron valores fuera de rango", ClampedNotice(clamped));
+        }
+
         return true;
     }
+
+    /// <summary>El aviso de una línea al abrir un proyecto con valores acotados.</summary>
+    internal static string ClampedNotice(int count) =>
+        (count == 1
+            ? "Un valor de posición, ancla o giro estaba fuera del rango y se acotó al límite"
+            : $"{count} valores de posición, ancla o giro estaban fuera del rango y se acotaron al límite") +
+        "; guarda el proyecto para conservar el cambio.";
 
     /// <summary>Guarda en el archivo del proyecto; si nunca se guardó, pregunta dónde.</summary>
     public Task<bool> SaveAsync() => FilePath is { } path ? SaveToAsync(path) : SaveAsAsync();
