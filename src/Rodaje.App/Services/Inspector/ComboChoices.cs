@@ -29,6 +29,58 @@ public static class ComboChoices
     }
 }
 
+/// <summary>
+/// Lo que ofrece un desplegable de la vista: el texto de cada elemento y lo que representa, en el mismo orden. La vista
+/// arma la lista nueva en cada refresco y solo rehace los elementos si <see cref="Differs"/> (ver <see cref="ComboChoices"/>).
+/// </summary>
+/// <typeparam name="T">Lo que representa cada elemento (puede ser nulo, por ejemplo «ninguno»).</typeparam>
+public sealed class ChoiceList<T>
+{
+    private readonly List<string> _labels = [];
+    private readonly List<T> _values = [];
+
+    public IReadOnlyList<string> Labels => _labels;
+
+    public IReadOnlyList<T> Values => _values;
+
+    public int Count => _values.Count;
+
+    public void Add(string label, T value)
+    {
+        ArgumentNullException.ThrowIfNull(label);
+        _labels.Add(label);
+        _values.Add(value);
+    }
+
+    /// <summary>La posición del primer elemento que representa <paramref name="value"/>; −1 si no está.</summary>
+    public int IndexOf(T value) => _values.IndexOf(value);
+
+    public bool Contains(T value) => _values.Contains(value);
+
+    /// <summary>
+    /// Lo que representa el elemento elegido en <paramref name="selectedIndex"/>; falso si el índice no es de la lista (−1 al
+    /// vaciarse, o uno viejo tras rehacerla).
+    /// </summary>
+    public bool TryGet(int selectedIndex, out T value)
+    {
+        if (selectedIndex >= 0 && selectedIndex < _values.Count)
+        {
+            value = _values[selectedIndex];
+            return true;
+        }
+
+        value = default!;
+        return false;
+    }
+
+    /// <summary>Si hay que rehacer los elementos para pasar de <paramref name="shown"/> a esta lista: cambió un texto o lo que representa.</summary>
+    public bool Differs(ChoiceList<T> shown)
+    {
+        ArgumentNullException.ThrowIfNull(shown);
+        return ComboChoices.NeedsRebuild(shown._labels, _labels) || !shown._values.SequenceEqual(_values, EqualityComparer<T>.Default);
+    }
+}
+
 /// <summary>El desplegable de la gráfica de keyframes (Propiedades): qué parámetros animados ofrece y cuál se muestra.</summary>
 /// <remarks>
 /// La vista rehacía sus elementos en cada refresco: al elegir «Escala» (el refresco iba dentro del SelectionChanged) y en
