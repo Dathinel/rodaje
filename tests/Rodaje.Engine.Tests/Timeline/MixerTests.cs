@@ -282,8 +282,9 @@ public sealed class MixerTests(ITestOutputHelper output) : IDisposable
         using var mixer = new MixRenderer(b.Plan().Audio, path => new FunctionPcm(i => (float)(0.3 * Math.Sin(i * 0.05)), 60L * Rate), TimeSpan.FromSeconds(5),
             TimeProvider.System, stripMeters: true);
         float[] block = new float[2048];
+        // Calentamiento por lecturas y no solo por reloj: en la CI cargada 1 s daba para pocas lecturas.
         var warmUp = System.Diagnostics.Stopwatch.StartNew();
-        while (warmUp.ElapsedMilliseconds < 1000)
+        for (int i = 0; i < 20 || warmUp.ElapsedMilliseconds < 1000; i++)
         {
             mixer.Read(block);
         }

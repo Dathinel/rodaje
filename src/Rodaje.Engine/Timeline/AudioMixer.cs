@@ -1450,7 +1450,14 @@ internal sealed class MixRenderer : IPcmSource
             int length = Effects.StateLength;
             if (_states[slot]?.Length != length)
             {
-                _states[slot] = new double[length];
+                // Todas las ranuras de una vez: reservar una por lectura reservaba durante las primeras 64 del audio.
+                for (int i = 0; i < History; i++)
+                {
+                    if (_states[i]?.Length != length)
+                    {
+                        _states[i] = new double[length];
+                    }
+                }
             }
 
             Effects.SaveState(_states[slot]);
@@ -1496,6 +1503,8 @@ internal sealed class MixRenderer : IPcmSource
 
         private readonly long[] _at = new long[History];
         private readonly long[] _savedBase = new long[History];
+        private readonly int[] _savedLength = new int[History];
+        private readonly bool[] _savedHasPre = new bool[History];
         private readonly float[][] _savedPost = new float[History][];
         private readonly float[][] _savedPre = new float[History][];
         private float[] _post = [];
@@ -1600,14 +1609,12 @@ internal sealed class MixRenderer : IPcmSource
             _savedBase[slot] = position;
             int offset = (int)(position - _base) * Channels;
             int length = (_frames * Channels) - offset;
-            Copy(_post, offset, length, ref _savedPost[slot]);
+            _savedLength[slot] = length;
+            _savedHasPre[slot] = _hasPre;
+            Copy(_post, offset, length, _savedPost, slot);
             if (_hasPre)
             {
-                Copy(_pre, offset, length, ref _savedPre[slot]);
-            }
-            else
-            {
-                _savedPre[slot] = [];
+                Copy(_pre, offset, length, _savedPre, slot);
             }
         }
 
@@ -1618,26 +1625,26 @@ internal sealed class MixRenderer : IPcmSource
                 int slot = (_head + i) % History;
                 if (_at[slot] == position && _savedBase[slot] != long.MinValue)
                 {
-                    float[] post = _savedPost[slot];
-                    if (_post.Length < post.Length)
+                    int length = _savedLength[slot];
+                    if (_post.Length < length)
                     {
-                        Array.Resize(ref _post, post.Length);
+                        Array.Resize(ref _post, length);
                     }
 
-                    post.CopyTo(_post, 0);
-                    _hasPre = _savedPre[slot].Length > 0;
+                    _savedPost[slot].AsSpan(0, length).CopyTo(_post);
+                    _hasPre = _savedHasPre[slot];
                     if (_hasPre)
                     {
-                        if (_pre.Length < post.Length)
+                        if (_pre.Length < length)
                         {
-                            Array.Resize(ref _pre, post.Length);
+                            Array.Resize(ref _pre, length);
                         }
 
-                        _savedPre[slot].CopyTo(_pre, 0);
+                        _savedPre[slot].AsSpan(0, length).CopyTo(_pre);
                     }
 
                     _base = _savedBase[slot];
-                    _frames = post.Length / Channels;
+                    _frames = length / Channels;
                     _count = i;
                     return;
                 }
@@ -1647,14 +1654,24 @@ internal sealed class MixRenderer : IPcmSource
             _count = 0;
         }
 
-        private static void Copy(float[] from, int offset, int length, ref float[] into)
+        /// <summary>
+        /// Copia a la ranura; si no le cabe, agranda todas las ranuras a la vez, así el audio solo reserva cuando crece lo
+        /// adelantado y no en cada una de las 64 primeras lecturas.
+        /// </summary>
+        private static void Copy(float[] from, int offset, int length, float[][] slots, int slot)
         {
-            if (into is null || into.Length != length)
+            if (slots[slot] is null || slots[slot].Length < length)
             {
-                into = new float[length];
+                for (int i = 0; i < History; i++)
+                {
+                    if (slots[i] is null || slots[i].Length < length)
+                    {
+                        slots[i] = new float[length];
+                    }
+                }
             }
 
-            from.AsSpan(offset, length).CopyTo(into);
+            from.AsSpan(offset, length).CopyTo(slots[slot]);
         }
     }
 

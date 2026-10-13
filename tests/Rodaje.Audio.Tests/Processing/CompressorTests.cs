@@ -246,7 +246,7 @@ public sealed class CompressorTests(ITestOutputHelper output)
 
             // Hasta que el JIT por niveles deje el código optimizado, como lo deja Native AOT desde el principio.
             var warmUp = System.Diagnostics.Stopwatch.StartNew();
-            while (warmUp.ElapsedMilliseconds < 800)
+            for (int warm = 0; warm < 20 || warmUp.ElapsedMilliseconds < 800; warm++)
             {
                 chain.Process(block, key);
             }

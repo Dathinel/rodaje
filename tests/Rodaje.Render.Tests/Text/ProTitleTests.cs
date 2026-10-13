@@ -299,6 +299,14 @@ public sealed class ProTitleTests(ITestOutputHelper output)
     public void Three_animated_lines_per_letter_compose_fast_at_1080p_and_4k()
     {
         using GpuDevice gpu = GpuDevice.Create();
+        // Las cotas de tiempo valen con código optimizado y una GPU de verdad. En Debug o con WARP (la CI de Windows,
+        // 4 núcleos compartidos con otros ensamblados) componer 4K tardó de 440 a 810 ms: ahí solo se informa y se
+        // componen menos cuadros.
+        bool optimized = typeof(Compositor).Assembly.GetCustomAttributes(typeof(DebuggableAttribute), false)
+            .Cast<DebuggableAttribute>().All(a => !a.IsJITOptimizerDisabled);
+        bool timed = optimized && !gpu.IsSoftware;
+        int frames = timed ? 150 : 40;
+        int warmUp = timed ? 30 : 10;
         foreach ((int width, int height) in ((int, int)[])[(1920, 1080), (3840, 2160)])
         {
             TextStyle style = Style();
@@ -316,7 +324,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
             var cpu = new List<double>();
             var gpuMs = new List<double>();
             long allocated = 0;
-            for (int n = 0; n < 150; n++)
+            for (int n = 0; n < frames; n++)
             {
                 using var frame = new CompositionFrame(Time.Zero, width, height,
                     [new LayerFrame(0, "t", content, LayerTransform.Identity) { TextMotion = new TextMotion(TextPhase.In, (n % 60) / 60.0, -1, 0) }]);
@@ -327,7 +335,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
                 timer.End();
                 double elapsed = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
                 long after = GC.GetAllocatedBytesForCurrentThread();
-                if (n >= 30)
+                if (n >= warmUp)
                 {
                     cpu.Add(elapsed);
                     allocated += after - before;
@@ -347,11 +355,14 @@ public sealed class ProTitleTests(ITestOutputHelper output)
             double cpuMedian = cpu[cpu.Count / 2];
             double gpuMedian = gpuMs.Count > 0 ? gpuMs[gpuMs.Count / 2] : 0;
             output.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"{width}×{height}, {texture.Units!.UnitCount} letras, {texture.Units.CellCount} celdas, atlas {texture.Width}×{texture.Height}: rasterizar {raster:0.0} ms una vez; componer {cpuMedian:0.00} ms de CPU y {gpuMedian:0.00} ms de GPU por cuadro (mediana); reserva {allocated / cpu.Count} B por cuadro"));
+                $"{width}×{height}, {texture.Units!.UnitCount} letras, {texture.Units.CellCount} celdas, atlas {texture.Width}×{texture.Height}: rasterizar {raster:0.0} ms una vez; componer {cpuMedian:0.00} ms de CPU y {gpuMedian:0.00} ms de GPU por cuadro (mediana); reserva {allocated / cpu.Count} B por cuadro{(timed ? "" : " (tiempos solo informativos: " + (optimized ? "WARP" : "Debug") + ")")}"));
             Assert.Equal(content.Text.Count(c => !char.IsWhiteSpace(c)), texture.Units.UnitCount);
-            Assert.True(cpuMedian < (Strict ? 3 : 20), $"Componer tomó {cpuMedian:0.00} ms de CPU.");
-            Assert.True(gpuMedian < (Strict ? 2 : 20), $"Componer tomó {gpuMedian:0.00} ms de GPU.");
-            Assert.True(raster < (Strict ? 250 : 800), $"Rasterizar tomó {raster:0.0} ms.");
+            if (timed)
+            {
+                Assert.True(cpuMedian < (Strict ? 3 : 20), $"Componer tomó {cpuMedian:0.00} ms de CPU.");
+                Assert.True(gpuMedian < (Strict ? 2 : 20), $"Componer tomó {gpuMedian:0.00} ms de GPU.");
+                Assert.True(raster < (Strict ? 250 : 800), $"Rasterizar tomó {raster:0.0} ms.");
+            }
         }
     }
 

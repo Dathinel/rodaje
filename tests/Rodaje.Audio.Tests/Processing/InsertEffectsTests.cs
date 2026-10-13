@@ -338,7 +338,7 @@ public sealed class InsertEffectsTests(ITestOutputHelper output)
         ]), Rate);
         float[] block = Noise(1024, 4);
         var warmUp = System.Diagnostics.Stopwatch.StartNew();
-        while (warmUp.ElapsedMilliseconds < 800)
+        for (int warm = 0; warm < 20 || warmUp.ElapsedMilliseconds < 800; warm++)
         {
             chain.Process(block);
         }

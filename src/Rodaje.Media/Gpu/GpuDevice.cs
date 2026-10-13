@@ -59,6 +59,9 @@ public sealed unsafe class GpuDevice : IDisposable
 
     public GpuVendor Vendor => GpuVendors.FromPciId(VendorId);
 
+    /// <summary>Es WARP (Microsoft Basic Render Driver, 1414:008C): Direct3D en la CPU, como en una máquina sin GPU.</summary>
+    public bool IsSoftware => VendorId == 0x1414 && DeviceId == 0x8C;
+
     /// <summary>Perfiles de D3D11VA que declara el controlador de este dispositivo (formato de salida comprobado).</summary>
     public HardwareDecodeProfiles DecodeProfiles { get; }
 
@@ -95,6 +98,9 @@ public sealed unsafe class GpuDevice : IDisposable
             return _device;
         }
     }
+
+    /// <summary>Con valor <c>1</c>, <see cref="TryCreate"/> y <see cref="Create"/> dan WARP en vez del adaptador por defecto.</summary>
+    public const string ForceWarpVariable = "RODAJE_FORZAR_WARP";
 
     /// <summary>Crea el dispositivo sobre el adaptador de hardware por defecto.</summary>
     /// <exception cref="MediaException">No hay Direct3D 11 por hardware.</exception>
@@ -133,6 +139,13 @@ public sealed unsafe class GpuDevice : IDisposable
     /// <summary>Devuelve <c>null</c> y el motivo cuando no hay hardware D3D11; entonces se decodifica en la CPU.</summary>
     public static GpuDevice? TryCreate(out string? failureReason)
     {
+        // Para reproducir en un equipo con GPU lo que ve una máquina sin ella (la CI de Windows).
+        if (Environment.GetEnvironmentVariable(ForceWarpVariable) == "1")
+        {
+            failureReason = null;
+            return CreateWarp();
+        }
+
         uint baseFlags = (uint)D3D11_CREATE_DEVICE_FLAG.D3D11_CREATE_DEVICE_BGRA_SUPPORT;
         uint videoFlag = (uint)D3D11_CREATE_DEVICE_FLAG.D3D11_CREATE_DEVICE_VIDEO_SUPPORT;
         HRESULT hr = CreateHardwareDevice(baseFlags | videoFlag, out ID3D11Device* device, out ID3D11DeviceContext* context);
