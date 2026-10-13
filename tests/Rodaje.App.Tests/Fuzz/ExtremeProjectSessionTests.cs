@@ -85,7 +85,7 @@ public class ExtremeProjectSessionTests
             Assert.True(await session.OpenProjectAsync(path));
 
             Assert.Equal(new Rational(openedNum, openedDen), session.Sequence.FrameRate);
-            Assert.Contains(notes, n => n.Severity == NotificationSeverity.Warning && n.Message == EditorSession.ClampedNotice(1));
+            Assert.Contains(notes, n => n.Severity == NotificationSeverity.Warning && n.Message == EditorSession.ClampedNotice(session.Project, new ClampSummary(1, 0, [], 0)));
             Assert.True(session.IsDirty);
             session.Select(["c"]);
             Assert.True(session.NudgeSelection(1));
@@ -108,7 +108,7 @@ public class ExtremeProjectSessionTests
             Assert.True(await session.OpenProjectAsync(path));
 
             Assert.Empty(session.Sequence.VideoTracks[0].Clips);
-            Assert.Contains(notes, n => n.Severity == NotificationSeverity.Warning && n.Message == EditorSession.ClampedNotice(1));
+            Assert.Contains(notes, n => n.Severity == NotificationSeverity.Warning && n.Message.Contains("el clip «m», que pasaba del final de la línea de tiempo, se quitó", StringComparison.Ordinal));
             Assert.True(session.IsDirty);
         });
     }

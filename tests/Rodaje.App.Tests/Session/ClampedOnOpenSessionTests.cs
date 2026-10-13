@@ -33,8 +33,8 @@ public class ClampedOnOpenSessionTests
         Assert.Equal("Sin guardar", session.SaveStateText);
         EditorNotification notice = Assert.Single(notices);
         Assert.Equal(NotificationSeverity.Warning, notice.Severity);
-        Assert.Equal(EditorSession.ClampedNotice(1), notice.Message);
-        Assert.StartsWith("Un valor", notice.Message, StringComparison.Ordinal);
+        Assert.Equal(EditorSession.ClampedNotice(session.Project, new ClampSummary(0, 0, [], 1)), notice.Message);
+        Assert.Contains("1 valor de efecto", notice.Message, StringComparison.Ordinal);
         Assert.DoesNotContain('\n', notice.Message);
         Assert.False(session.CanUndo);
 
@@ -71,8 +71,9 @@ public class ClampedOnOpenSessionTests
     [Fact]
     public void El_aviso_cuenta_en_plural()
     {
-        Assert.StartsWith("3 valores", EditorSession.ClampedNotice(3), StringComparison.Ordinal);
-        Assert.Contains("se acotaron", EditorSession.ClampedNotice(3), StringComparison.Ordinal);
+        string notice = EditorSession.ClampedNotice(new Project(), new ClampSummary(0, 0, [], 3));
+        Assert.Contains("3 valores", notice, StringComparison.Ordinal);
+        Assert.Contains("se acotaron", notice, StringComparison.Ordinal);
     }
 
     private static Project WithRotationKeyframe(double value)
