@@ -339,10 +339,15 @@ internal sealed partial class StripView : UserControl
 
     private void ChooseOutput(string? busId)
     {
-        // Entre el evento y ahora pudo quitarse el bus elegido.
-        if (StripOutputChoices.StillThere(_host.Buses, busId))
+        // Entre el evento y ahora pudo quitarse el bus elegido: entonces no se aplica y se refresca la tira, para que el
+        // desplegable no siga mostrando la salida que no se aplicó (como hace Máscaras con su destino).
+        if (DeferredChoices.StripOutput(_host.Buses, busId) == DeferredOutcome.Apply)
         {
             _host.SetOutput(Strip, busId);
+        }
+        else
+        {
+            Update(Strip);
         }
     }
 

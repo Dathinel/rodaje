@@ -432,7 +432,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         var picked = new DeferredChoice<DynamicsOwner>(owner, _lastClip);
         DispatcherQueue.RunAfterEvent(() =>
         {
-            if (picked.StillApplies(_chosen, _lastClip) && _editor2?.Owner == picked.Owner)
+            if (DeferredChoices.DynamicsStillApplies(picked, _chosen, _lastClip, _editor2?.Owner))
             {
                 Run(action);
             }

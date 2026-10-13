@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Audio;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Services.Inspector;
@@ -35,4 +36,53 @@ public static class DeferredChoices
     /// </summary>
     public static bool TitleStillApplies(DeferredChoice<TitleEditor> picked, TitleEditor? editor, string? clipId) =>
         picked.ClipId is not null && picked.StillApplies(editor, clipId) && picked.Owner.Target()?.Id == picked.ClipId;
+
+    /// <summary>
+    /// Máscaras, al despachar la elección <paramref name="choice"/> del desplegable de destino: la edición que se aplica (el
+    /// destino y el uso que se guardan en la máscara) o nulo si la elección ya no vale (ver <see cref="MaskStillApplies"/>) y
+    /// el panel solo se refresca para volver a mostrar el destino que tiene.
+    /// </summary>
+    public static MaskTargetEdit? MaskTarget(DeferredChoice<string> picked, string choice, string? maskId, string? clipId, Clip? clip)
+    {
+        ArgumentNullException.ThrowIfNull(choice);
+        if (!MaskStillApplies(picked, maskId, clipId, clip))
+        {
+            return null;
+        }
+
+        bool zone = choice == MaskTargetChoices.EffectsZone;
+        return new MaskTargetEdit(zone ? "" : choice, zone ? "effects" : "");
+    }
+
+    /// <summary>
+    /// Dinámica: la elección (un preajuste del compresor) vale si el panel sigue con el mismo dueño y el mismo clip, y el
+    /// editor del compresor sigue apuntando a ese dueño (<paramref name="editorOwner"/>; nulo si no hay editor). Si no, el
+    /// panel se refresca en vez de aplicarla a otro.
+    /// </summary>
+    public static bool DynamicsStillApplies(DeferredChoice<DynamicsOwner> picked, DynamicsOwner? chosen, string? clipId, DynamicsOwner? editorOwner) =>
+        picked.StillApplies(chosen, clipId) && editorOwner is not null && editorOwner == picked.Owner;
+
+    /// <summary>
+    /// Mezclador, al despachar la salida elegida (<paramref name="busId"/>; nulo, la mezcla): se aplica si es la mezcla o un
+    /// bus que sigue estando; si el bus se quitó entre el evento y el despacho, se refresca la tira para que el desplegable
+    /// no siga mostrando la elección que no se aplicó.
+    /// </summary>
+    public static DeferredOutcome StripOutput(IReadOnlyList<AudioBus> buses, string? busId) =>
+        StripOutputChoices.StillThere(buses, busId) ? DeferredOutcome.Apply : DeferredOutcome.Refresh;
 }
+
+/// <summary>Lo que hace una vista al despachar la elección de un desplegable (ver <see cref="DeferredChoice{TOwner}"/>).</summary>
+public enum DeferredOutcome
+{
+    /// <summary>La elección sigue valiendo: se aplica (y la edición refresca el panel).</summary>
+    Apply,
+
+    /// <summary>
+    /// La elección ya no vale: no se aplica, pero se refresca para que el desplegable vuelva a mostrar lo que hay en vez de lo
+    /// elegido.
+    /// </summary>
+    Refresh,
+}
+
+/// <summary>La edición de destino de una máscara: el efecto al que se limita (vacío, ninguno) y su uso («effects» para la zona).</summary>
+public readonly record struct MaskTargetEdit(string Target, string Use);
