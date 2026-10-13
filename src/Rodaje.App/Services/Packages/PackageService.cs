@@ -202,7 +202,8 @@ public sealed class PackageService
 
         string stage = entry.Kind == PackageKind.Module ? "Módulo" : "Paquete";
         IProgress<double>? package = progress is null ? null : new DirectProgress<double>(f => progress.Report(new InstallProgress(f, stage)));
-        DownloadedPackage downloaded = await Downloader.DownloadAsync(entry, package, cancellationToken);
+        // En el pool: leer la red, calcular el hash y escribir cada bloque no puede pasar por el hilo de la interfaz.
+        DownloadedPackage downloaded = await Task.Run(() => Downloader.DownloadAsync(entry, package, cancellationToken), cancellationToken);
         InstallResult result;
         try
         {

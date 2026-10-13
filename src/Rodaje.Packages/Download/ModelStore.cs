@@ -60,7 +60,7 @@ public sealed partial class ModelStore(string folder, FileDownloader downloader,
         }
 
         string path = Path.Combine(Folder, model.Sha256);
-        await downloader.DownloadAsync(new DownloadTarget(model.Url, model.Sha256, model.Size), path, progress, cancellationToken);
+        await downloader.DownloadAsync(new DownloadTarget(model.Url, model.Sha256, model.Size), path, progress, cancellationToken).ConfigureAwait(false);
         return path;
     }
 
@@ -83,7 +83,7 @@ public sealed partial class ModelStore(string folder, FileDownloader downloader,
             return target;
         }
 
-        string stored = await EnsureAsync(model.Spec, progress, cancellationToken);
+        string stored = await EnsureAsync(model.Spec, progress, cancellationToken).ConfigureAwait(false);
         LinkOrCopy(stored, target);
         return target;
     }

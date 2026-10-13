@@ -187,10 +187,9 @@ internal sealed partial class PluginsView : UserControl, IEditorView
 
         DownloadState state = row.Download;
         CancellationToken cancellation = state.Start();
-        var progress = new Progress<InstallProgress>(state.Report);
         try
         {
-            InstallResult result = await _services.Packages.InstallFromCatalogAsync(entry, progress, cancellation);
+            InstallResult result = await _services.Packages.InstallFromCatalogAsync(entry, state.Progress, cancellation);
             PackageManifest manifest = result.Package.Manifest;
             string what = result.Outcome == InstallOutcome.Updated ? $"Se actualizó de la {result.PreviousVersion} a la {manifest.Version}." : $"Versión {manifest.Version}.";
             _services.Session.Notify(NotificationSeverity.Success, $"«{manifest.Name}» instalado", what);
@@ -220,7 +219,7 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         CancellationToken cancellation = state.Start();
         try
         {
-            await _services!.Packages.EnsureModelsAsync(row.Entry.Id, new Progress<InstallProgress>(state.Report), cancellation);
+            await _services!.Packages.EnsureModelsAsync(row.Entry.Id, state.Progress, cancellation);
             _services.Session.Notify(NotificationSeverity.Success, $"Modelos de «{row.Name}» listos", "");
         }
         catch (OperationCanceledException)
