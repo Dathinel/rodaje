@@ -123,4 +123,23 @@ public sealed class StressHarnessTests
                 ("tercero", (random, _) => random.Next()));
         }
     }
+
+    /// <summary>
+    /// La «Semilla N» de un fallo repite la corrida en otro proceso: el <see cref="Random"/> de cada hilo depende solo de
+    /// la semilla y del índice. Regresión: salía de <see cref="HashCode.Combine{T1, T2}"/>, cuya semilla es aleatoria por
+    /// proceso, y estos valores fijados cambiaban en cada ejecución.
+    /// </summary>
+    [Fact]
+    public void La_semilla_de_cada_hilo_es_la_misma_en_cualquier_proceso()
+    {
+        Assert.Equal(1_545_029_486, Stress.WorkerSeed(5, 0));
+        Assert.Equal(1_325_234_912, Stress.WorkerSeed(5, 1));
+
+        int[] first = new int[2];
+        Stress.Run(
+            5,
+            ("primero", (random, _) => first[0] = random.Next()),
+            ("segundo", (random, _) => first[1] = random.Next()));
+        Assert.Equal([new Random(1_545_029_486).Next(), new Random(1_325_234_912).Next()], first);
+    }
 }

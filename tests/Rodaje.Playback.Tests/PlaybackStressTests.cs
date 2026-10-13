@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Rodaje.Core.Timing;
+using Rodaje.Engine.Tests.Timeline;
 using Rodaje.Playback.Tests.Support;
 
 namespace Rodaje.Playback.Tests;
@@ -127,7 +128,7 @@ public sealed class PlaybackStressTests
         for (int round = 0; round < rounds; round++)
         {
             var payloads = new PayloadTracker();
-            var source = new ThreadedSource(HashCode.Combine(seed, round), Clip.FrameRate, payloads);
+            var source = new ThreadedSource(StressSeeds.Seed(seed, round), Clip.FrameRate, payloads);
             var clock = new ManualClock(Clip.Start + Time.FromSeconds(random.NextDouble() * 19));
             var cache = new FrameCache(16);
             var executor = new DecodeThread("Estrés cierre");
@@ -187,7 +188,7 @@ public sealed class PlaybackStressTests
             }
 
             int call = Interlocked.Increment(ref _calls);
-            int kind = Math.Abs(HashCode.Combine(seed, frameIndex, call)) % 10;
+            int kind = (int)(StressSeeds.Mix(seed, frameIndex, call) % 10);
             if (Fails(frameIndex))
             {
                 Volatile.Write(ref _busy, 0);

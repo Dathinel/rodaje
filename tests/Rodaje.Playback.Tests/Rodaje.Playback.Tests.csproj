@@ -10,6 +10,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Las semillas de estrés que reproducen entre procesos: una sola copia, la de Rodaje.Engine.Tests. -->
+    <Compile Include="..\Rodaje.Engine.Tests\Timeline\StressSeeds.cs" Link="Support\StressSeeds.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Playback\Rodaje.Playback.csproj" />
   </ItemGroup>
 
