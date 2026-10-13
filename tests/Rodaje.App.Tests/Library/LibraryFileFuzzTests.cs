@@ -51,17 +51,35 @@ public sealed class LibraryFileFuzzTests : IDisposable
     /// Mil carpetas con el mismo nombre, o encadenadas una dentro de otra, tardaban decenas de segundos en abrir (buscar la
     /// carpeta y el nombre libre recorría la lista entera por cada una: cúbico) y una cadena de miles desbordaba la pila al
     /// armar el menú «Mover a». Defecto hallado por el fuzz de la tarea 94. En la CI se mira que la carga crezca como lo
-    /// lineal (<see cref="Growth"/>), en memoria: lo mismo que <see cref="LibraryOrganizationStore.Load(string)"/> sin
-    /// el archivo. El tope de 10 s de reloj con 20 000 carpetas desde el disco (33,7 s en Windows con el runner cargado,
-    /// 0,3 s en Linux) queda en la gemela TiempoReal.
+    /// lineal, en memoria: lo mismo que <see cref="LibraryOrganizationStore.Load(string)"/> sin el archivo. Se cuentan
+    /// operaciones (lecturas del id, que hace cada paso por una carpeta, y nombres plegados), no milisegundos: con una base
+    /// de 5 a 8 ms el reloj de Windows dio ×46, ×59 y ×208 con el código lineal. El tope de 10 s de reloj con 20 000
+    /// carpetas desde el disco queda en la gemela TiempoReal.
     /// </summary>
     [Theory]
     [InlineData("iguales")]
     [InlineData("cadena")]
     [InlineData("ciclo")]
-    public void ThousandsOfFolders_LoadInLinearTime(string shape) =>
-        Growth.AssertLinear(count => (Json: FoldersJson(shape, count), Count: count),
-            input => CheckFolders(Parse(input.Json), shape, input.Count), 1_000, 8_000, $"Carpetas «{shape}»");
+    public void ThousandsOfFolders_LoadInLinearTime(string shape)
+    {
+        const int small = 1_000, large = 8_000;
+        long smallOps = CountLoad(shape, small);
+        long largeOps = CountLoad(shape, large);
+
+        // Lineal: ×8 (o algo más); cuadrático: ×64. El umbral queda en medio, y además un tope por carpeta.
+        double ratio = largeOps / (double)smallOps;
+        Assert.True(ratio < 2.0 * large / small, $"Carpetas «{shape}»: de {small} a {large} las operaciones se multiplicaron por {ratio:0.0} ({smallOps} y {largeOps}).");
+        Assert.True(largeOps <= 100L * large, $"Carpetas «{shape}»: {largeOps} operaciones para {large} carpetas.");
+    }
+
+    /// <summary>Operaciones (lecturas del id y nombres plegados) de cargar y recorrer <paramref name="count"/> carpetas.</summary>
+    private static long CountLoad(string shape, int count)
+    {
+        string json = FoldersJson(shape, count);
+        long before = LibraryFolder.IdReads + LibraryOrganization.NameFolds;
+        CheckFolders(Parse(json), shape, count);
+        return LibraryFolder.IdReads + LibraryOrganization.NameFolds - before;
+    }
 
     /// <summary>Lo mismo desde el archivo, sin medir el tiempo.</summary>
     [Theory]

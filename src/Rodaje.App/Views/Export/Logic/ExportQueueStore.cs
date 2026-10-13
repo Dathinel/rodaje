@@ -129,9 +129,11 @@ public sealed class ExportQueueStore(string path)
 
             // El siguiente Save reescribe el archivo sin las entradas saltadas: sin esta copia se perdían sin rastro (y, si
             // estaban todas rotas, sin aviso, porque solo se preguntaba con alguna pendiente).
+            // Si no quedó ninguna buena no hay nada que ofrecer y nadie más limpiaba el archivo: el aviso y la copia se
+            // repetían en cada arranque. Entonces se aparta entero (sigue a salvo en la copia) en vez de copiarlo.
             if (Skipped > 0)
             {
-                DamagedPath = CopyDamaged();
+                DamagedPath = KeepDamaged(move: loaded.Count == 0);
                 DamagedNotice = (Skipped == 1 ? "Una exportación de la última vez no se pudo leer" : $"{Skipped} exportaciones de la última vez no se pudieron leer")
                     + (DamagedPath is null ? "." : $"; el archivo original quedó en «{DamagedPath}».");
             }
@@ -140,19 +142,48 @@ public sealed class ExportQueueStore(string path)
         }
         catch (Exception ex) when (ex is JsonException or ProjectFormatException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            DamagedPath = AppDataPaths.SetAside(Path, ".dañado");
+            DamagedPath = KeepDamaged(move: true);
             DamagedNotice = "La cola de exportaciones de la última vez no se pudo leer"
                 + (DamagedPath is null ? "." : $"; el archivo quedó en «{DamagedPath}».");
             return [];
         }
     }
 
-    private string? CopyDamaged()
+    /// <summary>
+    /// Copia (o mueve) el archivo a <see cref="DamagedCopyPath"/> sin pisar una copia anterior con otro contenido (antes se
+    /// copiaba con <c>overwrite: true</c>): si ya hay una igual se reusa y, si es distinta, se usa «.dañado-2», «-3»…
+    /// </summary>
+    private string? KeepDamaged(bool move)
     {
         try
         {
-            File.Copy(Path, DamagedCopyPath, overwrite: true);
-            return DamagedCopyPath;
+            byte[] content = File.ReadAllBytes(Path);
+            string target = DamagedCopyPath;
+            for (int n = 2; File.Exists(target); n++)
+            {
+                if (File.ReadAllBytes(target).AsSpan().SequenceEqual(content))
+                {
+                    if (move)
+                    {
+                        File.Delete(Path);
+                    }
+
+                    return target;
+                }
+
+                target = System.IO.Path.ChangeExtension(Path, null) + $".dañado-{n}" + System.IO.Path.GetExtension(Path);
+            }
+
+            if (move)
+            {
+                File.Move(Path, target);
+            }
+            else
+            {
+                File.Copy(Path, target);
+            }
+
+            return target;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
