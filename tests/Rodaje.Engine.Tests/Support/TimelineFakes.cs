@@ -341,6 +341,12 @@ internal sealed class FakeTimelineBackend : IClipBackend
     /// </summary>
     public Func<string, long, bool>? HangFrame { get; init; }
 
+    /// <summary>
+    /// Si se da, un cuadro de <see cref="HangFrame"/> termina con esta excepción cuando se cancela su petición, en vez de
+    /// terminar cancelado: como un decodificador colgado que vuelve con un error después del cierre.
+    /// </summary>
+    public Func<Exception>? HangFailure { get; init; }
+
     /// <summary>Peticiones de <see cref="HangFrame"/> todavía en vuelo (no canceladas).</summary>
     public int HungFrames => Volatile.Read(ref _hungFrames);
 
@@ -352,6 +358,12 @@ internal sealed class FakeTimelineBackend : IClipBackend
 
     /// <summary>Corre en el hilo que cierra cada decodificador, antes de darlo por cerrado: puede bloquearlo.</summary>
     public Action<FakeMediaVideo>? OnVideoDispose { get; set; }
+
+    /// <summary>
+    /// Si se da, la lectura de keyframes del archivo (corre en el ejecutor de servicio, así que puede bloquearlo, como una
+    /// lectura lenta del disco). Sin darlo devuelve nulo, como hasta ahora.
+    /// </summary>
+    public Func<string, IKeyframeIndex?>? OnReadKeyframes { get; set; }
 
     /// <summary>Si se da, cada decodificador simula un pool de D3D11VA con superficies de este tamaño y pide su tamaño al programador.</summary>
     public long? PoolSurfaceBytes { get; init; }
@@ -445,7 +457,12 @@ internal sealed class FakeTimelineBackend : IClipBackend
         return executor;
     }
 
-    /// <summary>Un cuadro que solo termina (cancelado) cuando se cancela su petición; mientras, cuenta en <see cref="HungFrames"/>.</summary>
+    public IKeyframeIndex? ReadKeyframes(string path) => OnReadKeyframes?.Invoke(path);
+
+    /// <summary>
+    /// Un cuadro que solo termina (cancelado, o con <see cref="HangFailure"/>) cuando se cancela su petición; mientras,
+    /// cuenta en <see cref="HungFrames"/>.
+    /// </summary>
     public Task<DecodedFrame?> Hang(CancellationToken cancellationToken)
     {
         var pending = new TaskCompletionSource<DecodedFrame?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -453,7 +470,14 @@ internal sealed class FakeTimelineBackend : IClipBackend
         cancellationToken.Register(() =>
         {
             Interlocked.Decrement(ref _hungFrames);
-            pending.TrySetCanceled(cancellationToken);
+            if (HangFailure is { } failure)
+            {
+                pending.TrySetException(failure());
+            }
+            else
+            {
+                pending.TrySetCanceled(cancellationToken);
+            }
         });
         return pending.Task;
     }

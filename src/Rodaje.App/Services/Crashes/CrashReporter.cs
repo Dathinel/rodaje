@@ -329,12 +329,30 @@ public sealed class CrashReporter
             // (lo corta el vigilante de NativeCrashHandler) y entonces el texto ya está en disco.
             string? report = _fatalReport ?? WriteCore(CrashKind.NativeFatal, DescribeNativeCode(exceptionCode), fatal: true, null, out _);
             string? dump = report is not null ? Path.ChangeExtension(report, ".dmp") : NewPath(_clock(), ".dmp");
-            int error = dump is not null ? WriteDump(dump, exceptionPointers) : -1;
+            if (dump is null)
+            {
+                // Sin informe ni carpeta no hay dónde anotarlo; no se inventa un código de error.
+                return null;
+            }
+
+            if (File.Exists(dump))
+            {
+                // Otro fallo con el mismo informe (dos llamadas con el mismo _fatalReport): se queda el primer
+                // minivolcado, el del fallo que se anotó; otro no se podría renombrar sobre él.
+                if (report is not null)
+                {
+                    TryAppend(report, $"{Environment.NewLine}Minivolcado: ya había un minivolcado de este fallo; no se escribió otro.{Environment.NewLine}");
+                }
+
+                return report ?? dump;
+            }
+
+            int error = WriteDump(dump, exceptionPointers);
             if (error == 0)
             {
                 if (report is not null)
                 {
-                    TryAppend(report, $"{Environment.NewLine}Minivolcado: {CrashReportScrubber.Default.Scrub(dump!)}{Environment.NewLine}");
+                    TryAppend(report, $"{Environment.NewLine}Minivolcado: {CrashReportScrubber.Default.Scrub(dump)}{Environment.NewLine}");
                 }
 
                 Prune();
@@ -343,8 +361,7 @@ public sealed class CrashReporter
             {
                 if (report is not null)
                 {
-                    TryAppend(report, string.Create(CultureInfo.InvariantCulture,
-                        $"{Environment.NewLine}Minivolcado: no se pudo escribir (código {error}, 0x{error:X8}).{Environment.NewLine}"));
+                    TryAppend(report, DescribeDumpError(error));
                 }
 
                 dump = null;
@@ -357,6 +374,12 @@ public sealed class CrashReporter
             _gate.Exit();
         }
     }
+
+    // -1 no es un código de Win32: es lo que dejan NativeCrashHandler y WriteDump cuando el fallo no trae ninguno.
+    private static string DescribeDumpError(int error) => error == -1
+        ? $"{Environment.NewLine}Minivolcado: no se pudo escribir (sin código de error).{Environment.NewLine}"
+        : string.Create(CultureInfo.InvariantCulture,
+            $"{Environment.NewLine}Minivolcado: no se pudo escribir (código {error}, 0x{error:X8}).{Environment.NewLine}");
 
     /// <summary>Texto del código de una excepción nativa, con nombre para los conocidos.</summary>
     public static string DescribeNativeCode(uint code)

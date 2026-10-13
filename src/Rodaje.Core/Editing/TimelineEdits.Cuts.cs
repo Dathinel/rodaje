@@ -85,7 +85,7 @@ public static partial class TimelineEdits
         }
 
         TrimmingSupport.CheckBounds(ctx, plans);
-        HashSet<Time> sync = LinkSync.Snapshot(ctx.Sequence);
+        LinkSync.SyncSnapshot sync = LinkSync.Snapshot(ctx.Sequence);
         TrimmingSupport.Apply(plans);
         if (ripple)
         {

@@ -130,6 +130,9 @@ internal sealed class SessionFuzzer
     private bool _historyMoved;
     private int _step;
 
+    /// <summary>Lo que muestra <see cref="Current"/>.</summary>
+    private string? _current;
+
     private SessionFuzzer(int seed, string directory)
     {
         _seed = seed;
@@ -147,14 +150,30 @@ internal sealed class SessionFuzzer
     {
         using var directory = new TempDirectory();
         string trace = "";
-        UiThread.Run(async () =>
+        SessionFuzzer? running = null;
+        try
         {
-            var fuzzer = new SessionFuzzer(seed, directory.Path);
-            await fuzzer.RunAsync(steps);
-            trace = fuzzer._dropped.ToString() + fuzzer._log;
-        });
+            UiThread.Run(async () =>
+            {
+                var fuzzer = new SessionFuzzer(seed, directory.Path);
+                Volatile.Write(ref running, fuzzer);
+                await fuzzer.RunAsync(steps);
+                trace = fuzzer._dropped.ToString() + fuzzer._log;
+            });
+        }
+        catch (TimeoutException ex)
+        {
+            // El tope de UiThread no decía en qué acción se quedó (semilla 920 en la CI de Windows de #133: 120 s para algo
+            // que en Linux tarda medio segundo). Se lee desde fuera del hilo de la prueba, así que solo lo publicado aparte.
+            string where = Volatile.Read(ref running)?.Current ?? "antes de abrir el proyecto inicial";
+            throw new TimeoutException($"Semilla {seed}: {ex.Message} Iba por {where}.", ex);
+        }
+
         return trace;
     }
+
+    /// <summary>Paso y acción en curso («paso 12 de 300: Save»), publicado para leerlo desde otro hilo si la prueba se cuelga.</summary>
+    private string Current => Volatile.Read(ref _current) ?? "el proyecto inicial";
 
     private async Task RunAsync(int steps)
     {
@@ -168,6 +187,7 @@ internal sealed class SessionFuzzer
             int countBefore = _session.History.Count;
             int redoBefore = _session.History.RedoCount;
             bool changesSync = SyncChangingActs.Contains(act);
+            Volatile.Write(ref _current, FormattableString.Invariant($"el paso {_step} de {steps}: {act}"));
             _log.Append(CultureInfo.InvariantCulture, $"{_step}. {act}");
             try
             {

@@ -45,6 +45,9 @@ public sealed class VoiceOverRecorderStressTests : IDisposable
     /// <remarks>
     /// Sin temporizador: <see cref="VoiceOverRecorder.Finish"/> corre en su propio hilo y el paquete se suelta recién cuando
     /// ese hilo terminó (sin el candado, cerraba el WAV con el paquete dentro) o quedó bloqueado esperándolo (con el arreglo).
+    /// El estado del hilo se mira solo después de que <see cref="VoiceOverRecorder.BeforeFinishGate"/> avisa que llegó al
+    /// candado: antes, un hilo que todavía arrancaba (o esperaba otra cosa) también salía como «esperando», el paquete se
+    /// soltaba antes de tiempo y la prueba pasaba sin ejercer la carrera.
     /// </remarks>
     [Fact]
     public void A_packet_in_progress_finishes_before_the_take_is_closed()
@@ -77,7 +80,10 @@ public sealed class VoiceOverRecorderStressTests : IDisposable
         packet.Start();
         Assert.True(inside.Wait(TimeSpan.FromSeconds(10)));
 
-        // El paquete sigue dentro: el cierre no debe adelantarse a él.
+        // El paquete sigue dentro: el cierre no debe adelantarse a él. El aviso no espera a nadie (solo una bandera), para
+        // que el hilo de Finish no pase por ningún otro estado de espera entre el aviso y el candado.
+        bool atGate = false;
+        recorder.BeforeFinishGate = () => Volatile.Write(ref atGate, true);
         VoiceOverTake? take = null;
         Exception? finishError = null;
         var finish = new Thread(() =>
@@ -94,6 +100,7 @@ public sealed class VoiceOverRecorderStressTests : IDisposable
             }
         });
         finish.Start();
+        Stress.WaitUntil(0, "que Finish llegue al candado", () => Volatile.Read(ref atGate));
         Stress.WaitUntil(0, "que Finish termine o quede esperando al paquete",
             () => !finish.IsAlive || (finish.ThreadState & ThreadState.WaitSleepJoin) != 0);
         release.Set();

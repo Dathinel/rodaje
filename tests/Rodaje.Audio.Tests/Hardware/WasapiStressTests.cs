@@ -1,4 +1,5 @@
 using Rodaje.Core.Timing;
+using Rodaje.Engine.Tests.Timeline;
 using Rodaje.Playback;
 using Rodaje.TestMedia;
 
@@ -35,7 +36,7 @@ public sealed class WasapiStressTests
             var threads = new List<Thread>();
             for (int t = 0; t < 3; t++)
             {
-                var local = new Random(HashCode.Combine(seed, round, t));
+                var local = new Random(StressSeeds.Seed(seed, round, t));
                 threads.Add(new Thread(() =>
                 {
                     for (int i = 0; i < 2000 && Volatile.Read(ref closed) < 2; i++)
