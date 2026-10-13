@@ -12,17 +12,17 @@
   </ItemGroup>
 
   <!--
-    Pool de hilos con un mínimo de 32, como Rodaje.App.Tests. En todo testhost dos hilos del pool quedan bloqueados toda
-    la corrida: el bucle de mensajes de vstest (Socket.Poll en TcpClientExtensions.MessageLoopAsync) y el adaptador de
-    xUnit (WaitOne en VsTestRunner.RunTestsInAssembly). Con el mínimo por omisión (un hilo por procesador, 4 en la CI)
-    las pruebas del protocolo, que encadenan cientos de continuaciones por ronda, dependen de que el pool inyecte hilos,
-    y con la CPU llena eso tarda: Cancel_racing_the_end_of_a_call_does_not_close_the_connection se dio por colgada
-    (RunAsync no terminó en 10 s) en la CI de Windows. En Linux, con DOTNET_PROCESSOR_COUNT=1, una ronda de esa prueba
-    tardaba hasta 0,9 s en cerrar (el resto, menos de 25 ms) y con el mínimo de 32 ninguna pasó de 100 ms.
+    Sin mínimo de hilos en el pool (tarea 137; #125 lo había subido a 32, como Rodaje.App.Tests). En todo testhost dos
+    hilos del pool quedan bloqueados toda la corrida: el bucle de mensajes de vstest (Socket.Poll) y el adaptador de xUnit
+    (WaitOne); con DOTNET_ThreadPool_ForceMaxWorkerThreads=2 no llega a correr ninguna prueba. Las pruebas y el código del
+    protocolo ya no bloquean hilos del pool (la espera de FailPathTests y matar el árbol de procesos en ModuleProcess eran
+    los únicos), así que les basta un hilo libre: en Linux, con DOTNET_PROCESSOR_COUNT=1, la CPU llena (8 bucles sobre 4
+    núcleos) y ForceMaxWorkerThreads=3, todo pasa y la ronda más lenta de
+    Cancel_racing_the_end_of_a_call_does_not_close_the_connection tarda menos de 1 s (la acotan los plazos de 1 y 2 s de
+    ModuleHost; el tope es 10 s). Sin ese tope y sin mínimo, en 3 corridas, la ronda más lenta no pasó de 72 ms, igual
+    que con el mínimo de 32 (65 a 81 ms). Si vuelve a hacer falta, buscar primero el bloqueo con ForceMaxWorkerThreads=3
+    y blame-hang antes de subir el mínimo.
   -->
-  <ItemGroup>
-    <RuntimeHostConfigurationOption Include="System.Threading.ThreadPool.MinThreads" Value="32" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />

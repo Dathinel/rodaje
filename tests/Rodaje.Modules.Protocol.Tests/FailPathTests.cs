@@ -15,7 +15,10 @@ public sealed class FailPathTests
     /// llamada todavía en su cola: en la CI de Windows, sin hilos libres, la llamada no terminó en 10 s. Fail suelta ahora
     /// la de Completion antes que las de las llamadas, así que, si la lenta acaba en el mismo hilo que Fail, la llamada ya
     /// tiene que haber terminado. Con hilos libres otro suele robar la llamada a tiempo y el defecto solo se ve en algunas
-    /// vueltas: por eso se repite.
+    /// vueltas: por eso se repite. La continuación no se bloquea (tarea 137): basta con anotar, al empezar, si corre en el
+    /// hilo de Fail y si la llamada ya terminó. Antes esperaba una puerta para imitar la muerte lenta, y con un solo hilo
+    /// libre en el pool (DOTNET_ThreadPool_ForceMaxWorkerThreads=3, dos los ocupan vstest y xUnit) la llamada no tenía
+    /// hilo donde fallar y la prueba se colgaba aunque el orden fuera el correcto.
     /// </summary>
     [Fact]
     public async Task Fail_does_not_wait_for_a_slow_continuation_on_completion()
@@ -31,23 +34,18 @@ public sealed class FailPathTests
     private static async Task<bool?> FailFromAPoolThreadAsync()
     {
         (ModuleClient client, Task<bool> host) = await Support.ConnectInProcessAsync();
-        using ManualResetEventSlim gate = new(false);
         try
         {
             Task<ModuleResult>? call = null;
             int failThread = 0;
             bool? callDoneWhenSlowStartedOnFailThread = null;
             TaskCompletionSource slowStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            // Como el OnExited de ModuleConnection (mata el árbol de procesos), pero que no termina hasta que la prueba lo
-            // suelte. Es la única espera síncrona sobre el pool del proyecto y es a propósito (tarea 137): la prueba
-            // necesita una continuación que ocupe el hilo del pool que la toma, para ver si ese hilo es el de Fail. Ocupa
-            // un solo hilo y lo suelta el finally de cada vuelta, en cuanto la llamada falló.
-            Task slow = client.Completion.ContinueWith(_ =>
+            // En el lugar del OnExited de ModuleConnection (que mata el árbol de procesos): solo anota dónde y cuándo corre.
+            _ = client.Completion.ContinueWith(_ =>
             {
                 if (Environment.CurrentManagedThreadId == Volatile.Read(ref failThread))
                     callDoneWhenSlowStartedOnFailThread = call!.IsCompleted;
                 slowStarted.TrySetResult();
-                gate.Wait(TimeSpan.FromSeconds(60));
             }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
             call = client.InvokeAsync("contar", Support.Json("""{"pasos":10000,"msPorPaso":10}"""));
             await Task.Delay(50);
@@ -59,13 +57,11 @@ public sealed class FailPathTests
             });
             await fail.WaitAsync(Support.CiBound);
             await Assert.ThrowsAsync<ModuleDisconnectedException>(() => call.WaitAsync(Support.CiBound));
-            Assert.False(slow.IsCompleted);
             await slowStarted.Task.WaitAsync(Support.CiBound);
             return callDoneWhenSlowStartedOnFailThread;
         }
         finally
         {
-            gate.Set();
             await client.DisposeAsync();
             await host.WaitAsync(TimeSpan.FromSeconds(60));
         }
