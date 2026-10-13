@@ -57,14 +57,39 @@ public class CrashReportScrubberSlashTests
         Assert.Equal(expected, Ana.Scrub(line));
 
     [Fact]
-    public void UnaCarpetaConExtensionAparenteYEspacio_CortaLaRuta()
+    public void UnaCarpetaConExtensionAparenteYEspacio_SeTapa()
     {
-        // El coste de la regla, fijado: «Boda.v2 final» parece «archivo + texto», así que la ruta termina en «Boda.v2» y
-        // lo que sigue a la carpeta queda como texto. Lo de antes de ella sí se tapa.
+        // Tarea 183: «Boda.v2 final» parece «archivo + texto», pero lo que sigue a su barra («a.mp4») continúa la ruta, así
+        // que es una carpeta y se tapa entera (con #166 la ruta se cortaba ahí y quedaba «Boda.v2 final/a.mp4»).
         string text = Ana.Scrub("Copia D:/Clientes/Boda.v2 final/a.mp4");
 
-        Assert.Equal("Copia Boda.v2 final/a.mp4", text);
-        Assert.DoesNotContain("Clientes", text, StringComparison.Ordinal);
+        Assert.Equal("Copia a.mp4", text);
+    }
+
+    [Theory]
+    [InlineData("Leyendo C:/Users/Maria.Lopez Garcia/Videos/a.mp4", "Leyendo a.mp4")]
+    [InlineData("Leyendo D:/Clientes/Ana.Perez Boda/a.mp4", "Leyendo a.mp4")]
+    [InlineData("Leyendo D:/Proyectos/Juan.Gomez Cliente/Secreto/a.mp4 y/o x", "Leyendo a.mp4 y/o x")]
+    [InlineData("Leyendo C:/Users/ana/OneDrive - Acme S.A. Clientes/Boda/a.mp4", "Leyendo a.mp4")]
+    [InlineData("Leyendo D:/Clientes/Ana.Perez Boda/Fotos de la boda.jpg y siguió", "Leyendo Fotos de la boda.jpg y siguió")]
+    [InlineData("Leyendo D:/Clientes/Ana.Perez Boda/a.mp4 y/o respaldo", "Leyendo a.mp4 y/o respaldo")]
+    [InlineData("Leyendo D:/Clientes/Ana Perez (2024)/a.mp4", "Leyendo a.mp4")]
+    [InlineData(@"Leyendo D:\Clientes\Ana.Perez Boda/a.mp4", "Leyendo a.mp4")]
+    public void ConBarraNormal_UnaCarpetaQueParezcaTextoSeTapa(string line, string expected)
+    {
+        // Tarea 183: con «/», un segmento como «Nombre.Apellido Otro» parecía «archivo + texto» y cortaba la ruta, así que
+        // el perfil, la carpeta del cliente o la empresa quedaban a la vista. Ahora solo se corta si lo que sigue a la barra
+        // no continúa la ruta.
+        var scrubber = new CrashReportScrubber(
+            new Dictionary<string, string?> { ["%USERPROFILE%"] = @"C:\Users\ana" }, userName: "ana");
+
+        string text = scrubber.Scrub(line);
+
+        Assert.Equal(expected, text);
+        foreach (string word in new[] { "Maria", "Lopez", "Garcia", "Perez", "Juan", "Gomez", "Cliente", "Secreto", "Acme", "Videos" })
+        {
+            Assert.DoesNotContain(word, text, StringComparison.Ordinal);
+        }
     }
 
     [Theory]

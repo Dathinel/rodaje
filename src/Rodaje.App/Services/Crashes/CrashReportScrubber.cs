@@ -19,8 +19,9 @@ namespace Rodaje.App.Services.Crashes;
 /// <c>%SystemDrive%</c>, <c>%HOMEDRIVE%</c> y <c>\Device\HarddiskVolumeN</c> cuentan como una unidad.
 /// <para>
 /// Una ruta usa como separador el primero que sigue a su raíz. La otra barra, y también la «/» cuando es el separador,
-/// solo separa si el segmento que la precede no parece texto: así la «/» de «y/o» o de «12/10/2026» no se come la frase
-/// que sigue a <c>D:\…\a.mp4</c> ni a <c>file:///D:/…/a.mp4</c>. El último
+/// solo separa si el segmento que la precede no parece texto o si lo que la sigue continúa la ruta (otra carpeta, un
+/// archivo con extensión o un nombre sin espacios): así la «/» de «y/o respaldo» o de «12/34)» no se come la frase que
+/// sigue a <c>D:\…\a.mp4</c> ni a <c>file:///D:/…/a.mp4</c>, y una carpeta como «Ana.Perez Boda» se tapa. El último
 /// segmento de una ruta se conserva tal cual (también si no tiene extensión: puede ser un archivo como <c>notas</c>) y
 /// termina en su extensión seguida de un espacio, ante « (» o ante dos espacios.
 /// </para>
@@ -394,8 +395,9 @@ public sealed class CrashReportScrubber
         return ParseSegments(s, i, p, kind, components, separator, out path, ref work) && (kind != RootKind.Unc || path.HasSegments);
     }
 
-    // «separator» es la barra de la ruta (la primera tras la raíz). La otra también separa, salvo tras un segmento que ya
-    // parece texto («a.mp4 (no válido / corrupto)», «a.mp4 y/o»): con ella la ruta termina y el segmento es el último.
+    // «separator» es la barra de la ruta (la primera tras la raíz). Tras un segmento que ya parece texto («a.mp4 y/o»,
+    // «a.mp4 (no válido / corrupto)»), una «/» (y la «\» cuando no es la barra de la ruta) solo separa si lo que la sigue
+    // continúa la ruta (ContinuesPath); si no, la ruta termina y el segmento es el último.
     private static bool ParseSegments(string s, int start, int p, RootKind kind, List<Span> components, char separator, out ParsedPath path, ref long work)
     {
         bool hasSegments = false;
@@ -415,12 +417,14 @@ public sealed class CrashReportScrubber
                 p++;
             }
 
-            if (p > segment && p < s.Length && IsSeparator(s[p]) && (textStart < 0 || (s[p] == separator && separator == '\\')))
+            if (p > segment && p < s.Length && IsSeparator(s[p])
+                && (textStart < 0 || (s[p] == separator && separator == '\\') || ContinuesPath(s, p, ref work)))
             {
                 // Con «\» como barra de la ruta, el segmento es una carpeta aunque parezca texto: ante la duda, se tapa.
-                // Con «/» no: es también la barra de la frase («a.mp4 y/o», «(error 12/34)» tras una URL «file:///»), así
-                // que un segmento que ya parece texto termina la ruta. El coste: una carpeta con extensión aparente y un
-                // espacio («D:/Boda.v2 final/a.mp4») corta ahí la ruta y deja a la vista lo que la sigue («final/a.mp4»).
+                // Con «/» depende de lo que sigue: es también la barra de la frase («a.mp4 y/o respaldo», «(error 12/34)»
+                // tras una URL «file:///»), pero una carpeta puede parecer texto («Maria.Lopez Garcia», «Boda.v2 final»,
+                // «OneDrive - Acme S.A. Clientes»). Solo se corta cuando lo que sigue a la barra no puede ser el resto de
+                // la ruta (tarea 183).
                 components.Add(new Span(segment, p, null));
                 hasSegments = true;
                 p = SkipSeparators(s, p);
@@ -454,7 +458,13 @@ public sealed class CrashReportScrubber
             return true;
         }
 
-        int end = space;
+        return HasExtension(s, segment, space);
+    }
+
+    // Si el nombre que empieza en «segment» acaba en una extensión justo antes de «end» («a.mp4», «a.mp4'», «ana.lopez»).
+    // Mira como mucho 7 caracteres hacia atrás.
+    private static bool HasExtension(string s, int segment, int end)
+    {
         if (end - 1 > segment && s[end - 1] is '\'' or ')' or ']' or ',' or '.')
         {
             end--;
@@ -469,6 +479,58 @@ public sealed class CrashReportScrubber
         }
 
         return letter && end - k is >= 1 and <= 5 && k - 1 > segment && s[k - 1] == '.';
+    }
+
+    // Si lo que sigue a la barra en «slash», tras un segmento que parece texto, puede ser el resto de la ruta. Ante la duda,
+    // sí: así la carpeta se tapa. Lee el tramo hasta la siguiente barra (o hasta lo que no cabe en un nombre) una vez; a lo
+    // sumo se vuelve a leer como el segmento siguiente. Es frase, y la ruta termina antes de la barra:
+    // - si el tramo empieza por un espacio («a.mp4 (formato / corrupto)»), lleva un «)» sin su «(» («(error 12/34)»,
+    //   «(copia \ original) y») o son cifras tras cifras («12/10/2026», «12/300»): ninguna carpeta es así;
+    // - si no va seguido de otra barra, no parece un archivo («a.mp4», «Fotos de la boda.jpg», «a.mp4 y siguió») y lleva
+    //   espacios («y/o respaldo»).
+    private static bool ContinuesPath(string s, int slash, ref long work)
+    {
+        int p = SkipSeparators(s, slash);
+        int q = p;
+        bool space = false;
+        bool fileName = false;
+        bool digits = true;
+        int open = 0;
+        bool unbalanced = false;
+        while (q < s.Length && IsSegmentChar(s[q]))
+        {
+            char c = s[q];
+            if (char.IsWhiteSpace(c))
+            {
+                space = true;
+                fileName |= HasExtension(s, p, q);
+            }
+            else if (c == '(')
+            {
+                open++;
+            }
+            else if (c == ')')
+            {
+                unbalanced |= open == 0;
+                open = Math.Max(0, open - 1);
+            }
+
+            digits &= char.IsAsciiDigit(c);
+            q++;
+        }
+
+        work += q - p;
+        if (q == p)
+        {
+            return true;
+        }
+
+        if (char.IsWhiteSpace(s[p]) || unbalanced || (digits && char.IsAsciiDigit(s[slash - 1])))
+        {
+            return false;
+        }
+
+        return (q < s.Length && IsSeparator(s[q])) || fileName || HasExtension(s, p, q) || !space;
     }
 
     // «\Device\HarddiskVolumeN» seguido de «\»; «end» queda en esa barra.
