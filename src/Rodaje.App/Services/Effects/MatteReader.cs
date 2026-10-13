@@ -14,7 +14,7 @@ namespace Rodaje.App.Services.Effects;
 /// Cada archivo deja su decodificador abierto (memoria nativa y el archivo tomado) y su último cuadro: al abrir otro
 /// proyecto <see cref="Clear"/> los cierra todos, o se quedaban abiertos hasta cerrar la app.
 /// </remarks>
-internal sealed class MatteReader
+internal sealed partial class MatteReader
 {
     private static readonly TimeSpan RetryAfter = TimeSpan.FromSeconds(5);
     private readonly ConcurrentDictionary<string, Source> _sources = new(StringComparer.OrdinalIgnoreCase);
@@ -158,7 +158,7 @@ internal interface IMatteDecoder : IDisposable
     BgraImage? Decode(Time sourceTime, int height);
 }
 
-internal sealed class ThumbnailMatteDecoder(ThumbnailDecoder decoder) : IMatteDecoder
+internal sealed partial class ThumbnailMatteDecoder(ThumbnailDecoder decoder) : IMatteDecoder
 {
     public Rational FrameRate => decoder.Stream.FrameRate;
 
