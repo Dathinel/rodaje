@@ -21,10 +21,11 @@ namespace Rodaje.App.Services.Crashes;
 /// <para>
 /// Una ruta usa como separador el primero que sigue a su raíz. La otra barra, y también la «/» cuando es el separador,
 /// solo deja de separar tras un archivo con una extensión conocida seguido de texto («a.mp4 y/o respaldo») y cuando lo que
-/// la sigue no puede ser el resto de la ruta: así la «/» de «y/o respaldo» o de «12/34)» no se come la frase que sigue a
-/// <c>D:\…\a.mp4</c> ni a <c>file:///D:/…/a.mp4</c>, y una carpeta como «Ana.Perez Boda» o «Acme S.A. Boda» se tapa
-/// (ante la duda, se tapa). El último
-/// segmento de una ruta se conserva tal cual (también si no tiene extensión: puede ser un archivo como <c>notas</c>) y
+/// la sigue es claramente frase (un conector como el de «y/o», una cuenta, un paréntesis): así la «/» de «y/o respaldo» o
+/// de «12/34)» no se come la frase que sigue a <c>D:\…\a.mp4</c> ni a <c>file:///D:/…/a.mp4</c>, y una carpeta como
+/// «Ana.Perez Boda», «Acme S.A. Boda» o «Informe.log final» se tapa (ante la duda, se tapa). El último
+/// segmento de una ruta se conserva tal cual (también si no tiene extensión: puede ser un archivo como <c>notas</c>, salvo
+/// tras una carpeta «archivo.ext texto», donde tampoco se sabe si es frase o nombre) y
 /// termina en su extensión seguida de un espacio, ante « (» o ante dos espacios.
 /// </para>
 /// Antes, las carpetas del usuario (<c>%LOCALAPPDATA%</c>, <c>%APPDATA%</c>, <c>%TEMP%</c>, <c>%USERPROFILE%</c>) pasan a
@@ -244,8 +245,10 @@ public sealed class CrashReportScrubber
             && (token.Equals("%TEMP%", StringComparison.OrdinalIgnoreCase) || token.Equals("%TMP%", StringComparison.OrdinalIgnoreCase))
             && !line.AsSpan(components[matched].Start, components[matched].End - components[matched].Start).StartsWith("rodaje-", StringComparison.OrdinalIgnoreCase))
         {
-            return (token + line[components[matched - 1].End..components[matched].Start] + "…"
-                + line[components[folders - 1].End..path.TailStart], path.TailStart);
+            return path.HideTail
+                ? (token + line[components[matched - 1].End..components[matched].Start] + "…", path.TailEnd)
+                : (token + line[components[matched - 1].End..components[matched].Start] + "…"
+                    + line[components[folders - 1].End..path.TailStart], path.TailStart);
         }
 
         bool keep;
@@ -276,7 +279,13 @@ public sealed class CrashReportScrubber
 
         // Se reduce al último segmento. Si la ruta termina en barra (una carpeta), queda «…\».
         // En «file://servidor/…» quedan las barras de la URL.
+        // Tras una carpeta «archivo.ext texto» (HideTail), el último tramo tampoco queda: puede ser frase o nombre.
         string url = path.Kind == RootKind.Unc && path.Start > 0 && line[path.Start - 1] == ':' ? line[components[0].Start..components[0].End] : string.Empty;
+        if (path.HideTail)
+        {
+            return (url + "…", path.TailEnd);
+        }
+
         return (url + (path.HasTail ? string.Empty : "…" + line[path.TailStart - 1]), path.TailStart);
     }
 
@@ -414,10 +423,13 @@ public sealed class CrashReportScrubber
     // «separator» es la barra de la ruta (la primera tras la raíz). Tras un archivo con extensión conocida seguido de texto
     // («a.mp4 y/o», «a.mp4 (no válido / corrupto)»), una «/» (y la «\» cuando no es la barra de la ruta) solo separa si lo
     // que la sigue continúa la ruta (ContinuesPath); si no, la ruta termina y el segmento es el último. Tras cualquier otro
-    // segmento, también si parece texto («Acme S.A. Boda»), la barra separa: ante la duda, se tapa.
+    // segmento, también si parece texto («Acme S.A. Boda»), la barra separa: ante la duda, se tapa. Si la carpeta que
+    // precede al último segmento es una de esas («Informe.log final») y el último no parece un archivo («Secreto
+    // confidencial»), no se sabe si es frase o nombre, así que también se tapa (HideTail; tarea 196).
     private static bool ParseSegments(string s, int start, int p, RootKind kind, List<Span> components, char separator, out ParsedPath path, ref long work)
     {
         bool hasSegments = false;
+        bool afterFileWithText = false;
         int tailStart;
         int tailEnd;
         while (true)
@@ -442,7 +454,9 @@ public sealed class CrashReportScrubber
                 // Con «/» es también la barra de la frase («a.mp4 y/o respaldo», «(error 12/34)» tras una URL «file:///»),
                 // pero una carpeta puede parecer texto («Maria.Lopez Garcia», «Boda.v2 final», «OneDrive - Acme S.A.
                 // Clientes»). Solo se corta tras un archivo de extensión conocida y cuando lo que sigue a la barra no
-                // puede ser el resto de la ruta (tareas 183 y 191): sin ese contexto, el segmento se tapa.
+                // puede ser el resto de la ruta (tareas 183 y 191): sin ese contexto, el segmento se tapa. Solo cuenta
+                // la carpeta inmediatamente anterior al último segmento (HideTail).
+                afterFileWithText = textStart >= 0 && !(s[p] == separator && separator == '\\') && HasKnownExtension(s, segment, textStart);
                 components.Add(new Span(segment, p, null));
                 hasSegments = true;
                 p = SkipSeparators(s, p);
@@ -463,7 +477,8 @@ public sealed class CrashReportScrubber
 
         // Todo el análisis avanza un solo cursor desde «start» hasta «p» (más un vistazo acotado hacia atrás en EndsName).
         work += p - start;
-        path = new ParsedPath(start, kind, components, hasSegments, tailStart, tailEnd, hasTail);
+        bool hideTail = hasTail && afterFileWithText && !HasExtension(s, tailStart, tailEnd);
+        path = new ParsedPath(start, kind, components, hasSegments, tailStart, tailEnd, hasTail, hideTail);
         return true;
     }
 
@@ -514,14 +529,14 @@ public sealed class CrashReportScrubber
     //   «(copia \ original) y»): ninguna carpeta es así;
     // - si son cifras tras cifras y la cadena de barras y cifras termina ahí («12/300», «12/10/2026»); si sigue un nombre
     //   («2024/10/12/a.mp4»), son carpetas;
-    // - si no va seguido de otra barra, no parece un archivo («a.mp4», «Fotos de la boda.jpg», «a.mp4 y siguió») y lleva
-    //   espacios («y/o respaldo»).
+    // - si empieza por un conector corto («y/o respaldo», «y/o», «and/or») o es una cuenta («3/4 hechos») y no va seguido
+    //   de otra barra. Cualquier otro tramo, aunque lleve espacios («Informe.log final/Secreto confidencial»), puede ser
+    //   una carpeta o el último nombre (tarea 196).
     private static bool ContinuesPath(string s, int slash, ref long work)
     {
         int p = SkipSeparators(s, slash);
         int q = p;
-        bool space = false;
-        bool fileName = false;
+        int firstWordEnd = -1;
         bool digits = true;
         int open = 0;
         bool unbalanced = false;
@@ -530,8 +545,7 @@ public sealed class CrashReportScrubber
             char c = s[q];
             if (char.IsWhiteSpace(c))
             {
-                space = true;
-                fileName |= HasExtension(s, p, q);
+                firstWordEnd = firstWordEnd < 0 ? q : firstWordEnd;
             }
             else if (c == '(')
             {
@@ -563,8 +577,16 @@ public sealed class CrashReportScrubber
             return q < s.Length && IsSeparator(s[q]) && !OnlyDigitsFollow(s, q, ref work);
         }
 
-        return (q < s.Length && IsSeparator(s[q])) || fileName || HasExtension(s, p, q) || !space;
+        ReadOnlySpan<char> firstWord = s.AsSpan(p, (firstWordEnd < 0 ? q : firstWordEnd) - p);
+        bool count = char.IsAsciiDigit(s[slash - 1]) && !firstWord.ContainsAnyExceptInRange('0', '9');
+        return (q < s.Length && IsSeparator(s[q])) || !(IsConnector(firstWord) || count);
     }
+
+    // Las palabras que siguen a una «/» en una frase («y/o», «y/u», «and/or»), no al separar carpetas.
+    private static bool IsConnector(ReadOnlySpan<char> word) =>
+        word.Equals("o", StringComparison.OrdinalIgnoreCase) || word.Equals("u", StringComparison.OrdinalIgnoreCase)
+        || word.Equals("y", StringComparison.OrdinalIgnoreCase) || word.Equals("e", StringComparison.OrdinalIgnoreCase)
+        || word.Equals("or", StringComparison.OrdinalIgnoreCase) || word.Equals("and", StringComparison.OrdinalIgnoreCase);
 
     // Si tras la barra en «slash» solo quedan cifras separadas por barras hasta el final del nombre («/10/2026 y»). Lee la
     // cadena una vez: solo la consulta el segmento con texto que la precede, y lo que va dentro no la vuelve a consultar.
@@ -721,6 +743,7 @@ public sealed class CrashReportScrubber
     private readonly record struct Span(int Start, int End, string? Normalized);
 
     // Components: la raíz, los segmentos seguidos de barra y, si lo hay, el último segmento (TailStart..TailEnd).
+    // HideTail: el último segmento también se tapa cuando la ruta no se conserva.
     private readonly record struct ParsedPath(
-        int Start, RootKind Kind, List<Span> Components, bool HasSegments, int TailStart, int TailEnd, bool HasTail);
+        int Start, RootKind Kind, List<Span> Components, bool HasSegments, int TailStart, int TailEnd, bool HasTail, bool HideTail);
 }
