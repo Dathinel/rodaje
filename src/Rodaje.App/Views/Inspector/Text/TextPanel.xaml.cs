@@ -192,7 +192,9 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         LegibilityWarning.Visibility = warning is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private async void OnSaveStyleClick(object sender, RoutedEventArgs e)
+    private void OnSaveStyleClick(object sender, RoutedEventArgs e) => UiTask.Run(OnSaveStyleClickAsync(sender, e));
+
+    private async Task OnSaveStyleClickAsync(object sender, RoutedEventArgs e)
     {
         if (DialogGate.IsOpen || _services is not { } services || _editor is not { } editor || editor.Target() is not { Generator.Style: { } style })
         {

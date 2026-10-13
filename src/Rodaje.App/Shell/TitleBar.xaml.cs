@@ -359,7 +359,9 @@ internal sealed partial class TitleBar : UserControl
     }
 
     /// <summary>Pide un nombre y guarda el formato y las pistas de la secuencia abierta como plantilla propia.</summary>
-    private async void OnSaveTemplateClick(object sender, RoutedEventArgs e)
+    private void OnSaveTemplateClick(object sender, RoutedEventArgs e) => UiTask.Run(OnSaveTemplateClickAsync(sender, e));
+
+    private async Task OnSaveTemplateClickAsync(object sender, RoutedEventArgs e)
     {
         if (DialogGate.IsOpen || _services is not { } services || _templates is not { } templates || XamlRoot is null)
         {
