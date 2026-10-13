@@ -61,6 +61,14 @@ public sealed record GraphicEqualizerSettings(
     }
 
     internal override IAudioStage CreateStage(double sampleRate) => new GraphicEqualizerStage(this, sampleRate);
+
+    /// <summary>Lo más que sube o baja una banda o la salida, en dB.</summary>
+    public const double MaxGainDb = 12;
+
+    internal override GraphicEqualizerSettings Limited() =>
+        new(G(Band31), G(Band63), G(Band125), G(Band250), G(Band500), G(Band1k), G(Band2k), G(Band4k), G(Band8k), G(Band16k)) { OutputDb = G(OutputDb) };
+
+    private static double G(double db) => Limit(db, -MaxGainDb, MaxGainDb, 0);
 }
 
 internal sealed class GraphicEqualizerStage : IAudioStage

@@ -24,6 +24,22 @@ public sealed record EqualizerSettings(
 
     internal override IAudioStage CreateStage(double sampleRate) => new EqualizerCompressorStage(this, null, sampleRate);
 
+    internal override EqualizerSettings Limited() => new(
+        Limit(LowCutHz, 0, 500, 0),
+        Limit(LowGainDb, -MaxGainDb, MaxGainDb, 0),
+        Limit(LowHz, 20, 1000, 120),
+        Limit(MidGainDb, -MaxGainDb, MaxGainDb, 0),
+        Limit(MidHz, 100, 8000, 500),
+        Limit(MidQ, 0.1, 10, 1),
+        Limit(PresenceGainDb, -MaxGainDb, MaxGainDb, 0),
+        Limit(PresenceHz, 500, 16000, 3000),
+        Limit(PresenceQ, 0.1, 10, 1),
+        Limit(HighGainDb, -MaxGainDb, MaxGainDb, 0),
+        Limit(HighHz, 1000, 20000, 8000));
+
+    /// <summary>Lo más que sube o baja una banda, en dB.</summary>
+    public const double MaxGainDb = 18;
+
     /// <summary>La banda <paramref name="index"/> (corte, graves, medios, presencia, agudos); nula si está apagada.</summary>
     public Biquad? Band(int index, double sampleRate) => index switch
     {

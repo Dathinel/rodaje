@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Rodaje.Packages.Content;
+using Rodaje.Tests.Fuzz;
 using Xunit.Abstractions;
 
 namespace Rodaje.Packages.Tests.Fuzz;
@@ -25,10 +26,11 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
     // de sustituto suelto: JsonNode no puede escribir un sustituto suelto, así que se inserta ya como texto.
     private const string EscapeMarker = "@@S@@";
 
-    // En Windows cada instalación vuelca a disco con antivirus de por medio: los 5200 casos tardaron 146 s en el runner
-    // de la CI (13 s en Linux). Allí corre un subconjunto determinista (todos los nombres peligrosos y 1 de cada 10 del
-    // resto); los 5200 casos corren en Linux. El tiempo se registra, no se exige.
-    private static readonly bool Subset = OperatingSystem.IsWindows();
+    // Cada instalación vuelca a disco: los 5200 casos tardaron 146 s en el runner de Windows de la CI (antivirus de por
+    // medio) y de 13 a 26 s en Linux. Sin RODAJE_PRUEBAS_LARGAS corre un subconjunto determinista (todos los nombres
+    // peligrosos y 1 de cada 10 del resto); con ella, los 5200 casos en cualquier sistema. El tiempo se registra, no se
+    // exige.
+    private static readonly bool Subset = !FuzzRunner.Long;
 
     private static readonly string Cube = "TITLE \"t\"\nLUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n";
 
@@ -194,9 +196,9 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
         int Stage(string name) => stages.GetValueOrDefault(name);
         int executed = selected.Length;
         int pastZip = executed - Stage("zip");
-        output.WriteLine($"{executed} de {Cases} casos en {stopwatch.Elapsed.TotalSeconds:0.0} s (límite de referencia 30 s en Linux; no se exige): " +
+        output.WriteLine($"{executed} de {Cases} casos en {stopwatch.Elapsed.TotalSeconds:0.0} s (no se exige tiempo): " +
                          string.Join(", ", stages.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key} {kv.Value}")) + ".");
-        Assert.True(Subset || executed >= 5000, "En Linux corren al menos 5000 casos.");
+        Assert.True(Subset || executed >= 5000, "Con pruebas largas corren al menos 5000 casos.");
         Assert.True(pastZip >= executed * MinimumPastZipShare, $"Solo {pastZip} de {executed} casos pasan del zip.");
         foreach (string needed in new[] { "manifiesto", "ruta", "duplicado", "instalado, contenido válido", "instalado, contenido rechazado" })
         {
@@ -204,7 +206,7 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
         }
     }
 
-    /// <summary>En Windows, todos los nombres peligrosos (el primer caso de cada uno) y 1 de cada 10 del resto; en Linux, todos.</summary>
+    /// <summary>Sin pruebas largas, todos los nombres peligrosos (el primer caso de cada uno) y 1 de cada 10 del resto; con ellas, todos.</summary>
     private static int[] SelectCases(FuzzCase[] all)
     {
         if (!Subset)
@@ -227,7 +229,7 @@ public class PackageInstallerFuzzTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Cada nombre peligroso tiene que aparecer en los casos generados y estar entre los que corren (en Windows corre un
+    /// Cada nombre peligroso tiene que aparecer en los casos generados y estar entre los que corren (sin pruebas largas corre un
     /// subconjunto), o la prueba no vigilaría ese nombre.
     /// </summary>
     private static void AssertEveryDangerousNameSelected(FuzzCase[] all, int[] selected, string[] dangerous)

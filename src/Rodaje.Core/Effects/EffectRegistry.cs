@@ -89,6 +89,19 @@ public static class EffectRegistry
     /// <summary>Inclinación máxima de <see cref="T.SkewX"/> y <see cref="T.SkewY"/>, en grados (a 90° la capa se aplasta).</summary>
     public const double MaxSkew = 85;
 
+    /// <summary>
+    /// Lo más que se corre una capa o su ancla (<see cref="T.X"/>, <see cref="T.Y"/>, <see cref="T.AnchorX"/>,
+    /// <see cref="T.AnchorY"/>), en píxeles de la secuencia: cientos de cuadros fuera de la vista. Más allá la GPU, que
+    /// trabaja en float, recibía infinitos (y un keyframe de −1e308 a 1e308 se desbordaba al interpolar).
+    /// </summary>
+    public const double MaxOffset = 1_000_000;
+
+    /// <summary>Lo más que gira una capa o una máscara, en grados (unas 2.800 vueltas).</summary>
+    public const double MaxRotation = 1_000_000;
+
+    /// <summary>Lo más lejos que va el centro de una máscara (<see cref="M.X"/>, <see cref="M.Y"/>), en fracciones de la imagen.</summary>
+    public const double MaxMaskOffset = 10_000;
+
     /// <summary>Ganancia que se trata como silencio: el mínimo de <see cref="A.GainDb"/>.</summary>
     public const double SilenceDb = -60;
 
@@ -96,13 +109,13 @@ public static class EffectRegistry
     [
         new(BuiltInEffects.Transform, 1, EffectTarget.Video, EffectStage.Transform,
         [
-            new(T.X, 0, -Inf, Inf),
-            new(T.Y, 0, -Inf, Inf),
+            new(T.X, 0, -MaxOffset, MaxOffset),
+            new(T.Y, 0, -MaxOffset, MaxOffset),
             new(T.Scale, 1, 0, 100),
-            new(T.Rotation, 0, -Inf, Inf),
+            new(T.Rotation, 0, -MaxRotation, MaxRotation),
             new(T.Opacity, 1, 0, 1),
-            new(T.AnchorX, 0, -Inf, Inf),
-            new(T.AnchorY, 0, -Inf, Inf),
+            new(T.AnchorX, 0, -MaxOffset, MaxOffset),
+            new(T.AnchorY, 0, -MaxOffset, MaxOffset),
             new(T.ScaleX, 1, 0, 100),
             new(T.ScaleY, 1, 0, 100),
             new(T.SkewX, 0, -MaxSkew, MaxSkew),
@@ -170,11 +183,11 @@ public static class EffectRegistry
         [OptionDefinition.Choice(BuiltInEffects.StabilizeOptions.Crop, "auto", [.. StabilizeCrops])]),
         new(BuiltInEffects.Mask, 10, EffectTarget.Video, EffectStage.PerPixel,
         [
-            new(M.X, 0.5, -Inf, Inf),
-            new(M.Y, 0.5, -Inf, Inf),
+            new(M.X, 0.5, -MaxMaskOffset, MaxMaskOffset),
+            new(M.Y, 0.5, -MaxMaskOffset, MaxMaskOffset),
             new(M.Width, 0.5, 0, 100),
             new(M.Height, 0.5, 0, 100),
-            new(M.Rotation, 0, -Inf, Inf),
+            new(M.Rotation, 0, -MaxRotation, MaxRotation),
             new(M.Feather, 0, 0, 1),
             new(M.Opacity, 1, 0, 1),
             new(M.Expansion, 0, -0.5, 0.5),

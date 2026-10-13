@@ -131,8 +131,14 @@ jobs:
       # Sin RODAJE_PRUEBAS_LARGAS las largas y las de hardware se omiten solas (tests/Rodaje.TestMedia/Skip.cs);
       # TiempoReal y Rendimiento se excluyen igual que en Linux. Una prueba colgada se corta a los 10 minutos con su nombre
       # en el registro (--blame-hang), en vez de agotar los 45 del trabajo sin decir cuál era.
+      # VSTEST_CONNECTION_TIMEOUT (segundos): dotnet test arranca a la vez un testhost por procesador, y el de
+      # Rodaje.App.Tests (el más grande, win-x64) no llegó a conectarse con vstest.console en los 90 s por omisión con los
+      # otros tres ya corriendo (13-oct): «Test Run Aborted» sin ejecutar ni una prueba de ese proyecto. No es el
+      # --blame-hang (10 min, mide pruebas ya en marcha); con 300 s un arranque lento espera en lugar de abortar.
       - name: Pruebas
         shell: pwsh
+        env:
+          VSTEST_CONNECTION_TIMEOUT: '300'
         run: |
           $filtro = 'Categoria!=TiempoReal&Categoria!=Rendimiento'
           & .entorno\dotnet\dotnet.exe test Rodaje.slnx --no-build --filter $filtro --logger trx --results-directory TestResults `
