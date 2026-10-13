@@ -68,16 +68,34 @@ internal sealed class EchoModules : IDisposable
         return doc.RootElement.Clone();
     }
 
-    public static bool HasExited(int pid)
+    /// <summary>
+    /// El proceso terminó o termina antes de <paramref name="timeout"/> (3 s si no se dice). Espera con
+    /// <see cref="Process.WaitForExitAsync"/>: con <c>WaitForExit</c> dejaba bloqueado el hilo del pool de la prueba.
+    /// </summary>
+    public static async Task<bool> HasExitedAsync(int pid, TimeSpan? timeout = null)
     {
+        Process p;
         try
         {
-            using Process p = Process.GetProcessById(pid);
-            return p.WaitForExit(3000);
+            p = Process.GetProcessById(pid);
         }
         catch (ArgumentException)
         {
             return true;
+        }
+
+        using (p)
+        {
+            using var cancel = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(3));
+            try
+            {
+                await p.WaitForExitAsync(cancel.Token);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
         }
     }
 

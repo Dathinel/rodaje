@@ -600,17 +600,7 @@ internal sealed partial class TimelineScheduler
     {
         if (decoder.Executor is { } executor)
         {
-            executor.Post(() =>
-            {
-                IClipVideo? video;
-                lock (_gate)
-                {
-                    video = decoder.Decoder;
-                    decoder.Decoder = null;
-                }
-
-                video?.Dispose();
-            });
+            executor.Post(() => DisposeDecoder(decoder));
             (executor as IDisposable)?.Dispose();
         }
 
@@ -619,5 +609,18 @@ internal sealed partial class TimelineScheduler
             decoder.Reserved = 0;
             _decoders.Remove(decoder.Id);
         }
+    }
+
+    /// <summary>En el hilo del decodificador: lo libera si todavía no se liberó (lo pueden pedir el cierre y la liberación).</summary>
+    private void DisposeDecoder(DecoderState decoder)
+    {
+        IClipVideo? video;
+        lock (_gate)
+        {
+            video = decoder.Decoder;
+            decoder.Decoder = null;
+        }
+
+        video?.Dispose();
     }
 }

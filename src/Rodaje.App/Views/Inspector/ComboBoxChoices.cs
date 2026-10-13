@@ -17,10 +17,12 @@ internal static class ComboBoxChoices
     /// <paramref name="shown"/> si estaba abierto (no se toca nada) o no hacía falta rehacerlo.
     /// </summary>
     /// <param name="item">El elemento de cada posición; por omisión, su texto.</param>
-    public static ChoiceList<T> Show<T>(ComboBox box, ChoiceList<T> shown, ChoiceList<T> next, int selected, Func<int, object>? item = null)
+    /// <param name="retry">Si se da, lo que no se tocó por tener la lista abierta se repite al cerrarla (ver <see cref="DispatcherQueueLater.RetryWhenClosed"/>).</param>
+    public static ChoiceList<T> Show<T>(ComboBox box, ChoiceList<T> shown, ChoiceList<T> next, int selected, Func<int, object>? item = null,
+        ClosedListRetry? retry = null)
     {
         ArgumentNullException.ThrowIfNull(box);
-        return ComboChoices.Show(new Box(box), shown, next, selected, item);
+        return ComboChoices.Show(new Box(box), shown, next, selected, item, retry);
     }
 
     /// <summary>Un <c>ComboBox</c> de WinUI como <see cref="IChoiceBox"/>.</summary>

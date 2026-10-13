@@ -17,6 +17,10 @@ public sealed record ReverbSettings(double PreDelayMs, double Size, double Decay
     public const double MaxPreDelayMs = 200;
 
     internal override IAudioStage CreateStage(double sampleRate) => new ReverbStage(this, sampleRate);
+
+    internal override ReverbSettings Limited() =>
+        new(Limit(PreDelayMs, 0, MaxPreDelayMs, 20), Limit(Size, 0, 1, 0.5), Limit(DecaySeconds, 0.1, 20, 1.6), Limit(DampingHz, 500, 20000, 7000),
+            Limit(Width, 0, 1, 1), Limit(LowCutHz, 20, 1000, 120), Limit(Mix, 0, 1, 0.25));
 }
 
 /// <summary>

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Rodaje.App.Services.Titles;
+using Rodaje.App.Tests.Support;
 using Rodaje.App.Tests.TimelineLogic;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -23,8 +24,11 @@ public sealed class TitleTextureLeakTests
     private const int Height = 180;
     private static readonly int Cycles = Rodaje.TestMedia.Skip.LongRuns ? 100 : 20;
 
+    // Espera a los shaders y a cada título en bloque: en un hilo propio, no en el del pool en que xUnit corre la prueba.
     [GpuFact]
-    public void Opening_project_after_project_keeps_only_the_titles_of_the_last_two()
+    public Task Opening_project_after_project_keeps_only_the_titles_of_the_last_two() => OwnThread.Run(OpenProjectAfterProject);
+
+    private static void OpenProjectAfterProject()
     {
         using GpuDevice gpu = GpuDevice.Create();
         using var titles = new TitleRasterizer(gpu);

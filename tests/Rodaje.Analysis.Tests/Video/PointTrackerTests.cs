@@ -188,50 +188,128 @@ public sealed class PointTrackerTests(ITestOutputHelper output)
         Assert.InRange(Vector2.Distance(step[0].Position, truth), 0, 0.25);
     }
 
+    /// <summary>
+    /// Para la CI: el costo de un paso no crece con el cuadro, medido sin depender de la carga del runner. Se alternan los
+    /// pasos de 1080p y de 4K en la misma corrida y se compara la mediana de cada uno: un seguidor que recorriera el cuadro
+    /// entero (cuatro veces más píxeles en 4K) daría una proporción cercana a 4. La cota absoluta de cuadros por segundo es
+    /// TiempoReal (abajo): en la CI de Windows, con todos los proyectos de prueba a la vez, 4K dio 13 cuadros/s.
+    /// </summary>
+    [Fact]
+    public void Step_cost_does_not_grow_with_the_frame_size()
+    {
+        const int frames = 30;
+        Sequence small = Sequence.Create(1920, 1080, frames);
+        Sequence large = Sequence.Create(3840, 2160, frames);
+        var smallTicks = new long[frames - 1];
+        var largeTicks = new long[frames - 1];
+        for (int k = 1; k < frames; k++)
+        {
+            smallTicks[k - 1] = small.TimedStep(k);
+            largeTicks[k - 1] = large.TimedStep(k);
+        }
+
+        double ratio = Median(largeTicks) / Math.Max(1, Median(smallTicks));
+        output.WriteLine($"Mediana de un paso: 1080p {Median(smallTicks) * 1000 / Stopwatch.Frequency:0.00} ms, 4K {Median(largeTicks) * 1000 / Stopwatch.Frequency:0.00} ms; proporción {ratio:0.00}.");
+        small.AssertTracked();
+        large.AssertTracked();
+        Assert.True(ratio < 2.0, $"Un paso en 4K cuesta {ratio:0.00} veces lo de 1080p.");
+    }
+
     [Theory]
+    [Trait("Categoria", "TiempoReal")]
     [InlineData(1920, 1080)]
     [InlineData(3840, 2160)]
     public void Throughput_does_not_depend_on_the_frame_size(int width, int height)
     {
         // Una textura grande, desplazada un poco cada cuadro: el costo del seguidor solo depende de sus ventanas.
         const int frames = 60;
-        var scene = new PlanarScene(5);
-        float[] plane = scene.Render(width + 400, height + 200, Homography.Identity);
-        var lumas = new byte[frames][];
-        for (int k = 0; k < frames; k++)
-        {
-            int dx = 2 * k, dy = k;
-            byte[] luma = new byte[width * height];
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    luma[(y * width) + x] = (byte)Math.Clamp(plane[((y + dy) * (width + 400)) + x + dx], 0, 255);
-                }
-            }
-
-            lumas[k] = luma;
-        }
-
-        Vector2 c = new(width / 2f, height / 2f);
-        PointTarget[] targets = [.. new[] { c + new Vector2(-300, -200), c + new Vector2(300, -200), c + new Vector2(300, 200), c + new Vector2(-300, 200) }
-            .Select(p => new PointTarget(p, new Vector2(41), new Vector2(121)))];
-        var tracker = new PointTracker(width, height);
-        tracker.Start(new LumaFrame(lumas[0], width, height, width, LumaFormat.Gray8), targets);
+        Sequence sequence = Sequence.Create(width, height, frames);
         var watch = Stopwatch.StartNew();
-        PointResult[] last = [];
         for (int k = 1; k < frames; k++)
         {
-            last = tracker.Step(new LumaFrame(lumas[k], width, height, width, LumaFormat.Gray8));
+            sequence.Step(k);
         }
 
         watch.Stop();
         double fps = (frames - 1) / watch.Elapsed.TotalSeconds;
         output.WriteLine($"{width}×{height}, 4 puntos (patrón 41, búsqueda 121): {fps:0} cuadros/s solo el seguidor.");
-        Assert.All(last, r => Assert.Equal(PointState.Good, r.State));
-        Assert.InRange(Vector2.Distance(last[0].Position, targets[0].Position - new Vector2(2 * (frames - 1), frames - 1)), 0, 0.3);
+        sequence.AssertTracked();
         // En Debug (sin optimizar) va unas cuatro veces más lento; el umbral vale para los dos.
         Assert.True(fps > 15, $"{fps:0} cuadros/s");
+    }
+
+    private static double Median(long[] values)
+    {
+        long[] sorted = [.. values.Order()];
+        return sorted.Length % 2 == 1 ? sorted[sorted.Length / 2] : (sorted[(sorted.Length / 2) - 1] + sorted[sorted.Length / 2]) / 2.0;
+    }
+
+    /// <summary>Una textura grande desplazada (2, 1) píxeles por cuadro, con cuatro puntos alrededor del centro.</summary>
+    private sealed class Sequence
+    {
+        private readonly byte[][] _lumas;
+        private readonly int _width;
+        private readonly int _height;
+        private readonly PointTarget[] _targets;
+        private readonly PointTracker _tracker;
+        private PointResult[] _last = [];
+        private int _lastFrame;
+
+        private Sequence(byte[][] lumas, int width, int height)
+        {
+            _lumas = lumas;
+            _width = width;
+            _height = height;
+            Vector2 c = new(width / 2f, height / 2f);
+            _targets = [.. new[] { c + new Vector2(-300, -200), c + new Vector2(300, -200), c + new Vector2(300, 200), c + new Vector2(-300, 200) }
+                .Select(p => new PointTarget(p, new Vector2(41), new Vector2(121)))];
+            _tracker = new PointTracker(width, height);
+            _tracker.Start(Frame(0), _targets);
+        }
+
+        public static Sequence Create(int width, int height, int frames)
+        {
+            var scene = new PlanarScene(5);
+            float[] plane = scene.Render(width + 400, height + 200, Homography.Identity);
+            var lumas = new byte[frames][];
+            for (int k = 0; k < frames; k++)
+            {
+                int dx = 2 * k, dy = k;
+                byte[] luma = new byte[width * height];
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        luma[(y * width) + x] = (byte)Math.Clamp(plane[((y + dy) * (width + 400)) + x + dx], 0, 255);
+                    }
+                }
+
+                lumas[k] = luma;
+            }
+
+            return new Sequence(lumas, width, height);
+        }
+
+        public void Step(int k)
+        {
+            _last = _tracker.Step(Frame(k));
+            _lastFrame = k;
+        }
+
+        public long TimedStep(int k)
+        {
+            long start = Stopwatch.GetTimestamp();
+            Step(k);
+            return Stopwatch.GetTimestamp() - start;
+        }
+
+        public void AssertTracked()
+        {
+            Assert.All(_last, r => Assert.Equal(PointState.Good, r.State));
+            Assert.InRange(Vector2.Distance(_last[0].Position, _targets[0].Position - new Vector2(2 * _lastFrame, _lastFrame)), 0, 0.3);
+        }
+
+        private LumaFrame Frame(int k) => new(_lumas[k], _width, _height, _width, LumaFormat.Gray8);
     }
 
     private static PointTarget Target(Vector2 p) => new(p, Pattern, Search);

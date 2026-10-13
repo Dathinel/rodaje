@@ -110,11 +110,25 @@ public class ProcessTests(ITestOutputHelper output)
 
         ModuleResult result = await module.Client.InvokeAsync("revelar", null, ok);
         Assert.Single(result.Buffers);
-        Assert.True((await module.Client.PingAsync()) < TimeSpan.FromSeconds(1));
+        Assert.True((await module.Client.PingAsync()) < CiLimit);
     }
 
+    /// <summary>
+    /// Cotas de la CI para cancelar y para el ping: lejos de lo que tarda el revelado que no se cancela (ocho 1080p con un
+    /// hilo) y del reloj fino, que el runner de Windows con todos los proyectos de prueba a la vez no cumple (en
+    /// ModuleManagerTests, una espera de ping de 400 ms llegó a 2 063 ms de reloj). El segundo de cada una va en la gemela
+    /// TiempoReal; el ping del final de Bad_input_fails_the_call_without_closing_the_module usa la misma cota de la CI.
+    /// </summary>
+    private static readonly TimeSpan CiLimit = TimeSpan.FromSeconds(10);
+
     [Fact]
-    public async Task Cancel_is_confirmed_quickly()
+    public Task Cancel_is_confirmed_quickly() => CancelIsConfirmed(CiLimit);
+
+    [Fact]
+    [Trait("Categoria", "TiempoReal")]
+    public Task Cancel_is_confirmed_within_a_second() => CancelIsConfirmed(TimeSpan.FromSeconds(1));
+
+    private async Task CancelIsConfirmed(TimeSpan limit)
     {
         if (!Ready)
         {
@@ -134,7 +148,8 @@ public class ProcessTests(ITestOutputHelper output)
         await cancel.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
         output.WriteLine($"Cancelación confirmada en {watch.Elapsed.TotalMilliseconds:0} ms");
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1));
-        Assert.True((await module.Client.PingAsync()) < TimeSpan.FromSeconds(1));
+        Assert.True(watch.Elapsed < limit, $"La cancelación tardó {watch.Elapsed.TotalMilliseconds:0} ms (cota {limit.TotalSeconds:0} s).");
+        TimeSpan ping = await module.Client.PingAsync();
+        Assert.True(ping < limit, $"El ping tras cancelar tardó {ping.TotalMilliseconds:0} ms (cota {limit.TotalSeconds:0} s).");
     }
 }

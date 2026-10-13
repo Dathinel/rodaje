@@ -7,6 +7,17 @@ public abstract record AudioProcessorSettings
     public virtual int LatencyFrames(double sampleRate) => 0;
 
     internal abstract IAudioStage CreateStage(double sampleRate);
+
+    /// <summary>
+    /// Los mismos ajustes dentro de los rangos del modelo (los de <c>EffectRegistry</c>, en las unidades de aquí): un NaN
+    /// vale lo de por defecto y lo demás se acota. La cadena configura sus etapas con esto, así ningún ajuste imposible
+    /// (0 ms, ±∞, una ganancia de un millón de dB) llega a los filtros; lo que ya está en el rango sale igual.
+    /// </summary>
+    internal abstract AudioProcessorSettings Limited();
+
+    /// <summary><paramref name="value"/> acotado a <c>[min, max]</c>; NaN, <paramref name="fallback"/>.</summary>
+    private protected static double Limit(double value, double min, double max, double fallback) =>
+        double.IsNaN(value) ? fallback : Math.Clamp(value, min, max);
 }
 
 /// <summary>Un efecto de la cadena con el identificador de su instancia en el proyecto (para el A/B y para conservar su estado al reordenar).</summary>

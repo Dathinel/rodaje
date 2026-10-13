@@ -13,6 +13,7 @@ using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Plugins;
 using Rodaje.App.Views.Shared;
 using Rodaje.Core.Editing;
@@ -338,7 +339,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     {
         if (!_coverScanScheduled && _dispatcher is not null)
         {
-            _coverScanScheduled = _dispatcher.TryEnqueue(DispatcherQueuePriority.Low, ScanVisibleCovers);
+            _coverScanScheduled = _dispatcher.RunLater(DispatcherQueuePriority.Low, ScanVisibleCovers);
         }
     }
 
@@ -728,7 +729,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
         if (_watchedResolvers.Add(resolver))
         {
-            resolver.StatusChanged += (_, e) => _dispatcher?.TryEnqueue(() => ShowProxyStatus(e.Status));
+            resolver.StatusChanged += (_, e) => _dispatcher?.RunLater(() => ShowProxyStatus(e.Status));
         }
 
         try
@@ -772,11 +773,11 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             _ownRefresh.IsRepeating = false;
             _ownRefresh.Tick += (_, _) => _ = _services?.Packages.RefreshAsync();
             _ownWatcher = new FileSystemWatcher(folder) { IncludeSubdirectories = true, EnableRaisingEvents = true };
-            FileSystemEventHandler changed = (_, _) => _dispatcher?.TryEnqueue(() => _ownRefresh?.Start());
+            FileSystemEventHandler changed = (_, _) => _dispatcher?.RunLater(() => _ownRefresh?.Start());
             _ownWatcher.Created += changed;
             _ownWatcher.Changed += changed;
             _ownWatcher.Deleted += changed;
-            _ownWatcher.Renamed += (_, _) => _dispatcher?.TryEnqueue(() => _ownRefresh?.Start());
+            _ownWatcher.Renamed += (_, _) => _dispatcher?.RunLater(() => _ownRefresh?.Start());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {

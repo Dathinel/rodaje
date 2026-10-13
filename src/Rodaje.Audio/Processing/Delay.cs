@@ -62,6 +62,17 @@ public sealed record DelaySettings(double TimeMs, double Feedback, double Mix) :
     public int DelayFrames(double sampleRate) => Math.Max(1, (int)Math.Round(EffectiveMs * sampleRate / 1000));
 
     internal override IAudioStage CreateStage(double sampleRate) => new DelayStage(this, sampleRate);
+
+    internal override DelaySettings Limited() =>
+        new(Limit(TimeMs, 1, MaxTimeMs, 350), Limit(Feedback, 0, 0.98, 0.35), Limit(Mix, 0, 1, 0.25))
+        {
+            Sync = Sync,
+            Tempo = Limit(Tempo, 20, 300, 120),
+            Division = Enum.IsDefined(Division) ? Division : DelayDivision.Eighth,
+            PingPong = PingPong,
+            LowCutHz = Limit(LowCutHz, 20, 2000, 20),
+            HighCutHz = Limit(HighCutHz, 1000, 20000, 20000),
+        };
 }
 
 /// <summary>

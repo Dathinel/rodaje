@@ -178,8 +178,16 @@ public static class LayerLayout
             (float)(-s * sin), (float)(s * cos),
             (float)(centerX - (s * ((halfWidth * cos) - (halfHeight * sin)))),
             (float)(centerY - (s * ((halfWidth * sin) + (halfHeight * cos)))));
-        return new LayerPlacement(matrix, (float)width, (float)height, (float)s);
+        return IsFinite(matrix) ? new LayerPlacement(matrix, (float)width, (float)height, (float)s) : null;
     }
+
+    /// <summary>
+    /// La GPU coloca en float: un desplazamiento o una escala finitos en double pero enormes (1e300) darían ±∞ en los
+    /// vértices. Lo que no cabe no se dibuja.
+    /// </summary>
+    private static bool IsFinite(in Matrix3x2 m) =>
+        float.IsFinite(m.M11) && float.IsFinite(m.M12) && float.IsFinite(m.M21) && float.IsFinite(m.M22) && float.IsFinite(m.M31)
+        && float.IsFinite(m.M32);
 
     /// <summary>
     /// Con ancla, escala por eje, inclinación o volteo: <c>q' = C + t + a + R·K·S·(F(q) − c − a)</c> (ver
@@ -240,7 +248,7 @@ public static class LayerLayout
         double tx = originX + (ax * dx) + (bx * dy);
         double ty = originY + (ay * dx) + (by * dy);
         var matrix = new Matrix3x2((float)m11, (float)m12, (float)m21, (float)m22, (float)tx, (float)ty);
-        return new LayerPlacement(matrix, (float)width, (float)height, (float)Math.Sqrt(Math.Abs(det)));
+        return IsFinite(matrix) ? new LayerPlacement(matrix, (float)width, (float)height, (float)Math.Sqrt(Math.Abs(det))) : null;
     }
 
     /// <summary>Coordenada de textura en un punto local, extendiendo linealmente la de las esquinas (también fuera del rectángulo).</summary>

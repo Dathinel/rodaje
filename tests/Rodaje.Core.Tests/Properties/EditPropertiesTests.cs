@@ -149,46 +149,62 @@ public class EditPropertiesTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// Semilla del sorteo de <see cref="ElSorteo_EjercitaLasVelocidades"/> (cualquier semilla válida de CsCheck sirve; esta es
+    /// la de la propiedad 11). Con ella los conteos son siempre los mismos: si se cambia, hay que volver a medir los umbrales.
+    /// </summary>
+    private const string SpeedDrawSeed = "4mihSLRcQtT6";
+
     /// <summary>Los proyectos y las operaciones de velocidad del sorteo de verdad llegan a aplicarse, no solo a rechazarse.</summary>
     [Fact]
     public void ElSorteo_EjercitaLasVelocidades()
     {
         int projectsWithSpeed = 0;
         var applied = new int[Enum.GetValues<OpKind>().Length];
-        GenScenario.Sample(
-            s =>
+        // CsCheck solo usa la semilla en la primera iteración: para que los 2 000 escenarios sean siempre los mismos se
+        // sortean todos juntos como un único arreglo con semilla fija.
+        GenScenario.Array[2000].Sample(
+            scenarios =>
             {
-                BuiltProject built = RandomTimeline.Build(s.Project);
-                if (built.Sequence.AllTracks.SelectMany(t => t.Clips).Any(c => c.Speed is not null))
+                foreach ((ProjectSpec project, OpSpec[] ops) in scenarios)
                 {
-                    Interlocked.Increment(ref projectsWithSpeed);
-                }
-
-                foreach (OpSpec spec in s.Ops)
-                {
-                    ResolvedOp op = RandomTimeline.Resolve(built, spec);
-                    if (op.Command is null)
+                    BuiltProject built = RandomTimeline.Build(project);
+                    if (built.Sequence.AllTracks.SelectMany(t => t.Clips).Any(c => c.Speed is not null))
                     {
-                        continue;
+                        projectsWithSpeed++;
                     }
 
-                    try
+                    foreach (OpSpec spec in ops)
                     {
-                        op.Command.Apply(built.Project);
-                        Interlocked.Increment(ref applied[(int)op.Kind]);
-                    }
-                    catch (EditException)
-                    {
+                        ResolvedOp op = RandomTimeline.Resolve(built, spec);
+                        if (op.Command is null)
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            op.Command.Apply(built.Project);
+                            applied[(int)op.Kind]++;
+                        }
+                        catch (EditException)
+                        {
+                        }
                     }
                 }
             },
-            iter: 2000,
+            seed: SpeedDrawSeed,
+            iter: 1,
             threads: 1);
 
         output.WriteLine($"proyectos con velocidad: {projectsWithSpeed}; aplicadas: {string.Join(", ", Enum.GetValues<OpKind>().Select(k => $"{k} {applied[(int)k]}"))}");
         Assert.True(projectsWithSpeed > 400, $"solo {projectsWithSpeed} proyectos con velocidad");
         foreach (OpKind kind in (OpKind[])[OpKind.SetSpeed, OpKind.RateStretch, OpKind.FreezeFrame, OpKind.SetCurve, OpKind.SetReverse, OpKind.SetPreservePitch, OpKind.ApplySpeedPreset])
         {
+            // Con la semilla fija los conteos son deterministas: 1 875 proyectos con velocidad y, de estas operaciones, la que
+            // menos se aplica es FreezeFrame con 124 (SetPreservePitch 169, ApplySpeedPreset 223, SetCurve 271, SetReverse 369,
+            // RateStretch 513, SetSpeed 648). El umbral de 100, el original, deja un 20 % de margen bajo el mínimo para que un
+            // retoque menor del generador no lo rompa, y salta si una operación de velocidad deja de aplicarse casi siempre.
             Assert.True(applied[(int)kind] > 100, $"{kind} solo se aplicó {applied[(int)kind]} veces");
         }
     }
@@ -215,9 +231,19 @@ public class EditPropertiesTests(ITestOutputHelper output)
     /// cortar un enlace (un Insert que parte un clip y lleva lo de después con la mitad derecha) cambia cuál es la
     /// referencia de cada mitad, y un par que ya estaba desfasado pasa a medirse sin que nada se haya corrido.
     /// </summary>
-    private static HashSet<Time> SyncOffsets(Sequence sequence)
+    private static HashSet<Time> SyncOffsets(Sequence sequence) => [.. SyncPairs(sequence).Select(o => Abs(o.Offset))];
+
+    /// <summary>
+    /// El primer par desfasado después de la edición cuyo desfase no estaba antes. Se mide con los mismos pares que
+    /// <see cref="SyncOffsets"/>: contra la referencia de <see cref="LinkSync.Find"/> un clip que se corre hasta un
+    /// desfase que ya tenía otro par (B y C a +5 de A; C pasa a −5) quedaba oculto, aunque B y C pasan de 0 a 10.
+    /// </summary>
+    private static SyncOffset SyncBreaks(Sequence sequence, HashSet<Time> before) =>
+        SyncPairs(sequence).FirstOrDefault(o => !before.Contains(Abs(o.Offset)));
+
+    // Cada par desfasado una sola vez; el signo depende de cuál va primero en el orden de las pistas.
+    private static IEnumerable<SyncOffset> SyncPairs(Sequence sequence)
     {
-        var offsets = new HashSet<Time>();
         foreach (IGrouping<(string, string), Clip> same in sequence.AllTracks.Where(t => !t.Locked)
             .SelectMany(t => t.Clips)
             .Where(c => c.LinkId is not null && c.Generator is null && !c.IsCompound)
@@ -230,23 +256,14 @@ public class EditPropertiesTests(ITestOutputHelper output)
                 {
                     if (LinkSync.OffsetBetween(members[i], members[j]) is { } offset && offset != Time.Zero)
                     {
-                        offsets.Add(Abs(offset));
+                        yield return new SyncOffset(members[j].Id, members[i].Id, offset);
                     }
                 }
             }
         }
-
-        return offsets;
     }
 
-    private static SyncOffset SyncBreaks(Sequence sequence, HashSet<Time> before) =>
-        Unlocked(sequence).FirstOrDefault(o => !before.Contains(Abs(o.Offset)));
-
-    // La pareja de referencia es la primera en el orden de las pistas: llevar un clip a otra pista puede cambiar cuál mide a cuál (el signo).
     private static Time Abs(Time t) => t < Time.Zero ? -t : t;
-
-    private static IEnumerable<SyncOffset> Unlocked(Sequence sequence) =>
-        LinkSync.Find(sequence).Where(o => sequence.FindClip(o.ClipId) is { Track.Locked: false } && sequence.FindClip(o.PartnerId) is { Track.Locked: false });
 
     /// <summary>
     /// La propiedad 11 sobre todas las ediciones (salvo enlazar a mano y las de velocidad, que recalculan cada clip desde
@@ -268,6 +285,35 @@ public class EditPropertiesTests(ITestOutputHelper output)
     public void LasSemillasDeDesfase_ConservanLaSincronia(string seed, int generator) =>
         (generator switch { 1 => GenCurveScenario, 2 => GenTitleScenario, _ => GenScenario })
             .Sample(s => RunScenario(s.Project, s.Ops, allOpsKeepSync: true), seed: seed, iter: 1, threads: 1);
+
+    /// <summary>
+    /// Regresión (CI de e86c6b09): un recorte ripple y quitar la reversa dejaron dos enlazados con velocidad 1× y distinto
+    /// Offset; <see cref="LinkSync.OffsetBetween"/> los comparaba por contenido y no medía su desfase, y al dividirlos las dos
+    /// mitades quedaban con el mismo Offset y el desfase de siempre aparecía como nuevo.
+    /// </summary>
+    [Fact]
+    public void LaSemillaDeVelocidadNeutra_ConservaLaSincronia() =>
+        GenScenario.Sample(s => RunScenario(s.Project, s.Ops), seed: "4mihSLRcQtT6", iter: 1, threads: 1);
+
+    /// <summary>Una velocidad a 1× sin curva, reversa ni congelado se mide como un clip sin velocidad, sea cual sea su Offset.</summary>
+    [Fact]
+    public void LaVelocidadNeutra_SeMideComoSinVelocidad()
+    {
+        var video = new Clip
+        {
+            Id = "v", MediaId = "m", SourceIn = Time.FromTicks(6_556_200_000), SourceOut = Time.FromTicks(8_212_362_965),
+            Start = Time.FromTicks(9_016_037_035), Speed = new ClipSpeed { Offset = Time.FromTicks(49_037_035) },
+        };
+        var audio = new Clip
+        {
+            Id = "a", MediaId = "m", SourceIn = Time.FromTicks(6_556_200_000), SourceOut = Time.FromTicks(9_172_800_000),
+            Start = Time.FromTicks(8_055_600_000), Speed = new ClipSpeed { Offset = Time.FromTicks(-911_400_000) },
+        };
+        var plain = new Clip { Id = "p", MediaId = "m", SourceIn = audio.SourceIn, SourceOut = audio.SourceOut, Start = audio.Start };
+
+        Assert.Equal(Time.FromTicks(960_437_035), LinkSync.OffsetBetween(video, audio));
+        Assert.Equal(Time.FromTicks(960_437_035), LinkSync.OffsetBetween(video, plain));
+    }
 
     internal static void RunScenario(ProjectSpec spec, OpSpec[] ops, bool allOpsKeepSync = false)
     {

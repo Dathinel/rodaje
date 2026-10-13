@@ -37,11 +37,13 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     /// <summary>Los parámetros que muestra ahora el desplegable de la gráfica, en su orden (ver <see cref="ComboBoxChoices"/>).</summary>
     private ChoiceList<string> _graphChoices = new();
+    private readonly ClosedListRetry _graphRetry = new();
     private readonly List<(Button Button, string Id)> _presetTiles = [];
 
     public PropertiesPanel()
     {
         InitializeComponent();
+        GraphParameterBox.RetryWhenClosed(_graphRetry, Refresh);
         _videoRows = [XRow, YRow, ScaleRow, ScaleXRow, ScaleYRow, RotationRow, OpacityRow, AnchorXRow, AnchorYRow, SkewXRow, SkewYRow, ShutterRow, PhaseRow,
             SamplesRow];
         BuildPresetTiles();
@@ -437,7 +439,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     {
         (ChoiceList<string> offered, int selected) = GraphParameterChoice.Build([.. animated.Select(r => (r.Spec.Name, r.Spec.Label))], _graphName);
         ParameterRow? shown = selected >= 0 ? animated[selected] : null;
-        if (!GraphParameterBox.IsDropDownOpen)
+        if (!_graphRetry.Defer(GraphParameterBox.IsDropDownOpen))
         {
             _updatingTransform = true;
             try
@@ -458,14 +460,17 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private void OnGraphParameterSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (_updatingTransform || !_graphChoices.TryGet(GraphParameterBox.SelectedIndex, out string name) || name == _graphName)
-        {
-            return;
-        }
-
-        _graphName = name;
         // El refresco va después del evento: tocar el desplegable dentro de su propio SelectionChanged lo rompe.
-        DispatcherQueue.RunAfterEvent(Refresh);
+        DispatcherQueue.Choose(_graphChoices, GraphParameterBox.SelectedIndex, _updatingTransform, name =>
+        {
+            if (name == _graphName)
+            {
+                return null;
+            }
+
+            _graphName = name;
+            return Refresh;
+        });
     }
 
     private void OnGraphModeClick(object sender, RoutedEventArgs e)
@@ -682,7 +687,8 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
 
         AudioPreset? preset = (PresetBox.SelectedItem as ComboBoxItem)?.Tag as AudioPreset;
-        services.Session.Execute(AudioPresetCommands.Apply(services.Session.SequenceId, clipId, preset));
+        // La edición refresca el panel, que vuelve a elegir en este desplegable: va después del evento (tarea 91).
+        DispatcherQueue.RunAfterEvent(() => services.Session.Execute(AudioPresetCommands.Apply(services.Session.SequenceId, clipId, preset)));
     }
 
     private void OnBlendSelected(object sender, SelectionChangedEventArgs e)

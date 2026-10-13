@@ -35,8 +35,12 @@ public sealed class PackageContentEndToEndTests(ITestOutputHelper output) : IDis
 
     public void Dispose() => _folder.Dispose();
 
+    // Arma los paquetes con PowerShell (WaitForExit) y espera al hilo de interfaz de prueba: en un hilo propio, no en el del
+    // pool en que xUnit corre la prueba.
     [ContentFact]
-    public void Un_look_y_una_transicion_de_paquete_se_ven_y_al_desinstalar_el_proyecto_abre_con_aviso()
+    public Task Un_look_y_una_transicion_de_paquete_se_ven_y_al_desinstalar_el_proyecto_abre_con_aviso() => OwnThread.Run(LookAndTransition);
+
+    private void LookAndTransition()
     {
         string media = TestMediaGenerator.CreateDefault()!.GetOrCreate(Spec).Path;
         string[] archives = [Pack(Filters), Pack(Transitions)];

@@ -80,7 +80,26 @@ public sealed class TimelineStressTests
     [InlineData(7)]
     [InlineData(8)]
     [InlineData(9)]
-    public void Closing_during_any_long_operation_returns_promptly_and_releases_everything(int seed)
+    public void Closing_during_any_long_operation_returns_promptly_and_releases_everything(int seed) =>
+        CloseDuringLongOperations(seed, CloseCiLimit);
+
+    /// <summary>La cota fina del cierre (3 s, muy por debajo de esperar cuadros de 400 ms uno tras otro), contra el reloj.</summary>
+    [Theory]
+    [Trait("Categoria", "TiempoReal")]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    public void Closing_during_any_long_operation_returns_within_three_seconds(int seed) =>
+        CloseDuringLongOperations(seed, TimeSpan.FromSeconds(3));
+
+    /// <summary>
+    /// Cota de la CI para cerrar: la misma que <see cref="Dispose_cancels_the_frames_being_decoded"/>, que pasó de 5 a
+    /// 15 s por las vueltas lentas del runner de Windows. En la CI se exige que cierre y suelte todo; que no cancele el
+    /// cuadro en curso lo detecta allí esa otra prueba (cuadros de 30 s), y colgarse, el tope de 20 s de Within.
+    /// </summary>
+    private static readonly TimeSpan CloseCiLimit = TimeSpan.FromSeconds(15);
+
+    private static void CloseDuringLongOperations(int seed, TimeSpan limit)
     {
         var random = new Random(seed);
         int rounds = Stress.Iterations(6);
@@ -120,8 +139,8 @@ public sealed class TimelineStressTests
             Thread.Sleep(random.Next(0, 30));
             var watch = Stopwatch.StartNew();
             Stress.Within(seed, $"Dispose tras la operación {operation} (vuelta {round})", TimeSpan.FromSeconds(20), session.Dispose);
-            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(3),
-                $"Semilla {seed}, vuelta {round}: cerrar tras la operación {operation} tardó {watch.Elapsed.TotalMilliseconds:0} ms.");
+            Assert.True(watch.Elapsed < limit,
+                $"Semilla {seed}, vuelta {round}: cerrar tras la operación {operation} tardó {watch.Elapsed.TotalMilliseconds:0} ms (cota {limit.TotalSeconds:0} s).");
             AssertReleased(seed, backend);
         }
     }
@@ -152,7 +171,8 @@ public sealed class TimelineStressTests
 
         var watch = Stopwatch.StartNew();
         Stress.Within(0, "Dispose", TimeSpan.FromSeconds(40), session.Dispose);
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), $"Cerrar esperó al cuadro en curso: {watch.Elapsed.TotalMilliseconds:0} ms.");
+        // Esperar al cuadro en curso serían 30 s; la cota deja margen a las vueltas lentas de la CI.
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(15), $"Cerrar esperó al cuadro en curso: {watch.Elapsed.TotalMilliseconds:0} ms.");
         Assert.Empty(backend.OpenVideos);
     }
 

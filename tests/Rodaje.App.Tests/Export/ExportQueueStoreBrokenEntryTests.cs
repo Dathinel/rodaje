@@ -40,7 +40,8 @@ public sealed class ExportQueueStoreBrokenEntryTests
         Assert.True(loaded[1].ContinueWithoutMissing);
         Assert.Equal(1, store.Skipped);
         Assert.True(File.Exists(store.Path));
-        Assert.Empty(Directory.GetFiles(dir.Path, "*.dañado*"));
+        // Las buenas siguen en la cola; el original, con la rota, queda copiado aparte (ExportQueueStoreDamagedCopyTests).
+        Assert.Equal([store.DamagedCopyPath], Directory.GetFiles(dir.Path, "*.dañado*"));
 
         // Otra carga sin entradas rotas pone la cuenta a cero.
         store.Save([.. loaded]);
