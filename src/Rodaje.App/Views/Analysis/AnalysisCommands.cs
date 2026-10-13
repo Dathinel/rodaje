@@ -37,9 +37,9 @@ internal static partial class AnalysisCommands
             router.Bind(DetectBeats, () => Run(services, DetectBeats, "Detectar ritmo", scope => RhythmDialog.ShowAsync(services, scope))),
             router.Bind(Ducking, () => Run(services, Ducking, DuckingDialog.Title, scope => DuckingDialog.ShowAsync(services, scope))),
             router.Bind(Stabilize, () => Run(services, Stabilize, "Estabilizar", scope => StabilizeDialog.ShowAsync(services, scope))),
-            router.Bind(AutoColor, () => Run(services, AutoColor, "Color automático", scope => AutoColorAction.RunAsync(services, levels: true, scope), canCancel: true)),
+            router.Bind(AutoColor, () => Run(services, AutoColor, "Color automático", scope => AutoColorAction.RunAsync(services.Session, levels: true, scope), canCancel: true)),
             router.Bind(WhiteBalance, () => Run(services, WhiteBalance, "Balance de blancos automático",
-                scope => AutoColorAction.RunAsync(services, levels: false, scope), canCancel: true)),
+                scope => AutoColorAction.RunAsync(services.Session, levels: false, scope), canCancel: true)),
             router.Bind(ReduceNoise, () => Run(services, ReduceNoise, "Reducir ruido", scope => NoiseReductionDialog.ShowAsync(services, scope))),
         ];
         if (services.Modules is { } modules)

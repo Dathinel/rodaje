@@ -56,6 +56,7 @@
     <!-- Estabilizar y color automático: la caché de análisis y las ediciones, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\StabilizationStore.cs" Link="Analysis\StabilizationStore.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\VideoAnalysisEdits.cs" Link="Analysis\VideoAnalysisEdits.cs" />
+    <Compile Include="..\..\src\Rodaje.App\Views\Analysis\AutoColorAction.cs" Link="Analysis\AutoColorAction.cs" />
     <!-- La matriz de formatos corre los análisis con la misma decodificación que la app. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\ClipVideoSource.cs" Link="Analysis\ClipVideoSource.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\ClipAudioSource.cs" Link="Analysis\ClipAudioSource.cs" />
