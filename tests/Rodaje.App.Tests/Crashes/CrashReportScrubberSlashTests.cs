@@ -132,6 +132,32 @@ public class CrashReportScrubberSlashTests
     }
 
     [Theory]
+    [InlineData("D:/Clientes/Boda.mp4 final/Ana Perez", "…")]
+    [InlineData("D:/Clientes/Acme/Informe.pdf Rojas/Maria Lopez Perez", "…")]
+    [InlineData("D:/Clientes/Acme/Fotos.zip 2024/Maria Lopez Perez", "…")]
+    [InlineData("D:/Clientes/Acme/Lopez.exe Rojas/Maria Lopez Perez", "…")]
+    [InlineData("Leyendo D:/Clientes/Boda.mp4 final/2024 Rojas Final", "Leyendo …")]
+    [InlineData("Leyendo D:/Clientes/Acme/Video.mov Rojas/Ácido Rojas Final", "Leyendo …")]
+    [InlineData("Leyendo D:/Clientes/Acme/Notas.txt Rojas/-Copia de Rojas", "Leyendo …")]
+    [InlineData("Leyendo 'D:/Clientes/Acme/Informe.pdf Rojas/Maria Lopez Perez' y siguió", "Leyendo '…")]
+    public void TrasUnaCarpetaConExtensionConocidaYTexto_UnTramoQueNoEsConectorSeTapa(string line, string expected)
+    {
+        // Tarea 199 (cubierta por el arreglo de la tarea 196): tras «Boda.mp4 final», un último tramo con espacios que
+        // empieza por mayúscula, cifra u otro signo («Ana Perez», «2024 Rojas», «-Copia») se tomaba por la frase de «a.mp4
+        // y/o respaldo» (tarea 166), y la carpeta quedaba a la vista. Se tapan la carpeta y el tramo.
+        var scrubber = new CrashReportScrubber(
+            new Dictionary<string, string?> { ["%USERPROFILE%"] = @"C:\Users\ana" }, userName: "ana");
+
+        string text = scrubber.Scrub(line);
+
+        Assert.Equal(expected, text);
+        foreach (string word in new[] { "Clientes", "Acme", "Boda", "Informe", "Fotos", "Lopez", "Video", "Notas", "Rojas", "Perez", "2024" })
+        {
+            Assert.DoesNotContain(word, text, StringComparison.Ordinal);
+        }
+    }
+
+    [Theory]
     [InlineData("Leyendo D:/Clientes/Boda/a.mp4 el 12/10/2026", "Leyendo a.mp4 el 12/10/2026")]
     [InlineData("Leyendo D:/Clientes/Boda/a.mp4 el 12/10/2026 y siguió", "Leyendo a.mp4 el 12/10/2026 y siguió")]
     [InlineData("Leyendo D:/Clientes/Boda/ajustes.json y/o respaldo", "Leyendo ajustes.json y/o respaldo")]
