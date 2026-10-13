@@ -32,15 +32,15 @@ public sealed class ModuleStartTimeoutTests : IDisposable
     }
 
     /// <summary>
-    /// 30 s, más que los 10 s del saludo del protocolo: en Windows el primer arranque de un exe recién copiado pasa por el
-    /// antivirus y por el arranque de .NET, y con el equipo cargado 10 s no alcanzaban.
+    /// 30 s, no menos que el saludo del protocolo (también 30 s desde la tarea 205): en Windows el primer arranque de un exe
+    /// recién copiado pasa por el antivirus y por el arranque de .NET, y con el equipo cargado 10 s no alcanzaban.
     /// </summary>
     [Fact]
     public void El_tope_de_arranque_de_fabrica_es_de_30_s_y_supera_el_saludo_del_protocolo()
     {
         var options = new ModuleManagerOptions();
         Assert.Equal(TimeSpan.FromSeconds(30), options.StartTimeout);
-        Assert.True(options.StartTimeout > options.ClientOptions.HandshakeTimeout);
+        Assert.True(options.StartTimeout >= options.ClientOptions.HandshakeTimeout);
     }
 
     /// <summary>

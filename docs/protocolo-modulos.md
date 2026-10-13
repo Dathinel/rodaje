@@ -36,7 +36,7 @@ Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla c
 
 - Es una **tubería con nombre de Windows** que crea el editor (`NamedPipeServerStream`, `ModuleProcess.cs`): nombre `Rodaje.Mod.pipe.<guid>` (el guid en 32 cifras hexadecimales), en modo bytes, de una sola instancia, asíncrona, con **`CurrentUserOnly`** (solo el usuario actual la abre) y búferes de entrada y salida de 64 KB (`PipeBufferBytes = 64 * 1024`).
 - El módulo se conecta como cliente a `\\.\pipe\<nombre>`. El anfitrión de C# lo hace con `NamedPipeClientStream(".", nombre, InOut, Asynchronous | CurrentUserOnly)` y espera hasta 10 s; antes comprueba que el nombre tenga de 1 a 128 caracteres entre letras y dígitos ASCII, `.`, `-` y `_` (`SharedMemoryRegion.IsValidName`, `Limits.RegionName` en `Messages.cs`).
-- El editor espera la conexión hasta `ModuleClientOptions.HandshakeTimeout`, 10 s por defecto (`ModuleClient.cs`); si no llega, falla con «El módulo no se conectó en 10 s.» y mata el proceso.
+- El editor espera la conexión hasta `ModuleClientOptions.HandshakeTimeout`, 30 s por defecto (`DefaultHandshakeTimeout`, `ModuleClient.cs`); si no llega, falla con «El módulo no se conectó en 30 s.» y mata el proceso.
 - El protocolo y la memoria compartida son **solo de Windows** en esta versión: las clases llevan `[SupportedOSPlatform("windows")]`. El código de los mensajes y el marco no depende del sistema (con él se generaron los ejemplos de esta guía sobre otro transporte), pero el editor solo abre módulos por tubería de Windows.
 
 ### El marco
@@ -116,8 +116,8 @@ El editor lo convierte en `ModuleVersionException` con ese mensaje (`ModuleClien
 
 ### Plazos y errores del saludo
 
-- El editor espera el `welcome` hasta `HandshakeTimeout` (10 s; `ModuleClient.cs`). Si no llega: «El módulo no saludó en 10 s.» (`ModuleProtocolException`). Si el módulo cierra: `ModuleDisconnectedException`. Cualquier otra respuesta que no sea `welcome` ni `error` `version-incompatible` es un error de protocolo («El módulo no respondió al saludo con «welcome».»).
-- El anfitrión de C# espera el `hello` hasta su propio `HandshakeTimeout` (30 s, lo mismo que el editor da para abrir y saludar con `StartTimeout`; `ModuleHost.cs`). Si lo primero que llega no es `hello`, contesta un `error` `malformed` sin id y cierra. Marco real, tras recibir `{"type":"ping","id":1}` como primer mensaje:
+- El editor espera el `welcome` hasta `HandshakeTimeout` (30 s; `ModuleClient.cs`). Si no llega: «El módulo no saludó en 30 s.» (`ModuleProtocolException`). Si el módulo cierra: `ModuleDisconnectedException`. Cualquier otra respuesta que no sea `welcome` ni `error` `version-incompatible` es un error de protocolo («El módulo no respondió al saludo con «welcome».»).
+- El anfitrión de C# espera el `hello` hasta su propio `HandshakeTimeout` (30 s; `ModuleHost.cs`). Los dos lados salen de la misma constante, `ModuleClientOptions.DefaultHandshakeTimeout`, y el editor nunca espera menos que el módulo: con 10 s en el editor, un arranque en frío de más de 10 s (antivirus, CI cargada) daba por roto un módulo sano (tarea 205; prueba `HandshakeTimeoutTests`). Si lo primero que llega no es `hello`, contesta un `error` `malformed` sin id y cierra. Marco real, tras recibir `{"type":"ping","id":1}` como primer mensaje:
 
 ```json
 {"type":"error","code":"malformed","message":"Lo primero tiene que ser «hello»."}
@@ -410,8 +410,8 @@ Plazos y cantidades del lado del editor y del anfitrión de C#:
 
 | Qué | Valor | Dónde |
 |---|---|---|
-| Conectarse a la tubería (editor) | 10 s (`HandshakeTimeout`) | `ModuleProcess.cs`, `ModuleClient.cs` |
-| Contestar el saludo con `welcome` (editor) | 10 s (`HandshakeTimeout`) | `ModuleClient.cs` |
+| Conectarse a la tubería (editor) | 30 s (`HandshakeTimeout`) | `ModuleProcess.cs`, `ModuleClient.cs` |
+| Contestar el saludo con `welcome` (editor) | 30 s (`HandshakeTimeout`) | `ModuleClient.cs` |
 | Conectarse a la tubería (anfitrión) | 10 s | `ModuleHost.cs` |
 | Recibir `hello` (anfitrión) | 30 s (`HandshakeTimeout`) | `ModuleHost.cs` |
 | Confirmar un `cancel` | 2 s (`CancelGrace`) | `ModuleClient.cs` |
@@ -429,7 +429,7 @@ Lo que añade el `ModuleManager` de la app (`src/Rodaje.App/Services/Modules/`):
 | Qué | Valor | Dónde |
 |---|---|---|
 | Procesos | uno por módulo, abierto con la primera llamada; si muere, la siguiente lo vuelve a abrir | `ModuleConnection.cs` |
-| Abrir y saludar | 30 s (`StartTimeout`, en lugar de los 10 s de `HandshakeTimeout`: el primer arranque de un exe recién instalado pasa por el antivirus) | `ModuleManagerOptions` en `ModuleCall.cs` |
+| Abrir y saludar | 30 s (`StartTimeout`, en lugar de `HandshakeTimeout`, también de 30 s: el primer arranque de un exe recién instalado pasa por el antivirus) | `ModuleManagerOptions` en `ModuleCall.cs` |
 | Cerrar un módulo ocioso | tras 2 min sin llamadas (`IdleTimeout`) | `ModuleConnection.EndCall` |
 | Vigilancia | `ping` cada 5 s con una llamada en curso (`PingInterval`); colgado si no contesta en 10 s (`PingTimeout`) | `ModuleConnection.WatchAsync` |
 | Que ninguno sobreviva al editor | Job Object con «matar al cerrar»; al salir, `shutdown` y después matar | `ModuleJobObject.cs`, `ModuleManager.DisposeAsync` |
@@ -644,7 +644,7 @@ if __name__ == "__main__":
 Lo mínimo que tiene que hacer cualquier módulo:
 
 1. Leer el nombre de la tubería después de `--rodaje-pipe` y conectarse en menos de 10 s.
-2. Esperar `hello`, elegir versión y contestar `welcome` (o `error` `version-incompatible`) en menos de 10 s.
+2. Esperar `hello`, elegir versión y contestar `welcome` (o `error` `version-incompatible`) en menos de 30 s.
 3. Contestar cada `invoke` con un `result` o un `error` con su `id`, y cada `ping` con su `pong`.
 4. Confirmar cada `cancel` con `error` `cancelled` en menos de 2 s (o declarar la función `cancellable: false` y terminar rápido).
 5. Salir al recibir `shutdown` o cuando se cierra la tubería, en menos de 2 s.

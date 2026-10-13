@@ -17,7 +17,20 @@ public sealed record ModuleClientOptions
 
     public int MaxProtocol { get; init; } = ProtocolVersion.Current;
 
-    public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// El plazo de fábrica del saludo, compartido por los dos lados: lo que el editor espera a que el módulo se conecte y,
+    /// después, a que conteste <c>welcome</c> (<see cref="HandshakeTimeout"/>), y lo que el módulo espera el <c>hello</c>
+    /// (<c>ModuleHost.HandshakeTimeout</c>). 30 s porque el arranque en frío de un módulo (antivirus con un exe recién
+    /// copiado, arranque de .NET, CI cargada) pasa de 10 s; con 10 s en el editor y 30 s en el módulo, un módulo sano se
+    /// daba por roto con «El módulo no saludó en 10 s» (tarea 205).
+    /// </summary>
+    public static readonly TimeSpan DefaultHandshakeTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Lo que se espera a que el módulo se conecte (<see cref="ModuleProcess"/>) y, aparte, a que conteste el saludo. Por
+    /// omisión <see cref="DefaultHandshakeTimeout"/>, nunca menos que lo que el módulo espera el <c>hello</c>.
+    /// </summary>
+    public TimeSpan HandshakeTimeout { get; init; } = DefaultHandshakeTimeout;
 
     /// <summary>Lo que se espera a que el módulo confirme una cancelación antes de darlo por colgado y cortar.</summary>
     public TimeSpan CancelGrace { get; init; } = TimeSpan.FromSeconds(2);
