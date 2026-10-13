@@ -102,7 +102,8 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
     private EffectRowGroup? _edgeRows;
     private string? _clipId;
     private string? _maskId;
-    private readonly List<string> _targets = [];
+    // Lo que muestra ahora el desplegable de destino (ver ComboBoxChoices).
+    private ChoiceList<string> _targets = new();
     private Time _shownPosition;
     private bool _updating;
     private bool _weightGesture;
@@ -342,19 +343,20 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
     }
 
     /// <remarks>
-    /// Elegir un destino edita y refresca el panel dentro del SelectionChanged del desplegable: los elementos solo se
-    /// rehacen si cambió la lista, porque cambiarlos ahí (o con la lista abierta) falla dentro de WinUI y cierra la app.
+    /// Elegir un destino edita y refresca el panel; la edición va después del evento (<see cref="OnTargetSelected"/>) y los
+    /// elementos solo se rehacen si cambió la lista y nunca con ella abierta, porque cambiarlos dentro del SelectionChanged
+    /// (o con la lista abierta) falla dentro de WinUI y cierra la app.
     /// </remarks>
     private void ShowTargets(Clip clip, EffectInstance mask)
     {
-        var labels = new List<string> { "La capa (recorta el clip)", "Zona de los efectos con «Dónde» (no recorta)" };
-        var targets = new List<string> { "", EffectsZone };
+        var targets = new ChoiceList<string>();
+        targets.Add("La capa (recorta el clip)", "");
+        targets.Add("Zona de los efectos con «Dónde» (no recorta)", EffectsZone);
         foreach (EffectInstance effect in clip.Effects)
         {
             if (MaskEdits.CanBeMasked(effect.Type))
             {
-                labels.Add("Solo «" + EffectUi.Name(effect.Type) + "»" + (effect.Enabled ? "" : " (desactivado)"));
-                targets.Add(effect.Id);
+                targets.Add("Solo «" + EffectUi.Name(effect.Type) + "»" + (effect.Enabled ? "" : " (desactivado)"), effect.Id);
             }
         }
 
@@ -362,38 +364,11 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
             : mask.Options.GetValueOrDefault(O.Use) == "effects" ? EffectsZone : "";
         if (!targets.Contains(current))
         {
-            labels.Add("Un efecto que ya no está");
-            targets.Add(current);
+            targets.Add("Un efecto que ya no está", current);
         }
 
-        if (TargetBox.IsDropDownOpen)
-        {
-            return;
-        }
-
-        if (ComboChoices.NeedsRebuild(_targetLabels, labels) || ComboChoices.NeedsRebuild(_targets, targets))
-        {
-            TargetBox.SelectedIndex = -1;
-            TargetBox.Items.Clear();
-            foreach (string label in labels)
-            {
-                TargetBox.Items.Add(label);
-            }
-
-            _targetLabels = labels;
-            _targets.Clear();
-            _targets.AddRange(targets);
-        }
-
-        int index = _targets.IndexOf(current);
-        if (TargetBox.SelectedIndex != index)
-        {
-            TargetBox.SelectedIndex = index;
-        }
+        _targets = ComboBoxChoices.Show(TargetBox, _targets, targets, targets.IndexOf(current));
     }
-
-    /// <summary>Lo que muestra ahora el desplegable de destino, en su orden (va con <see cref="_targets"/>).</summary>
-    private List<string> _targetLabels = [];
 
     private void ShowWeight(MaskShape shape, MaskVertex[] points, IReadOnlyList<int> selected)
     {
@@ -685,15 +660,35 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
 
     private void OnTargetSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (!_updating && TargetBox.SelectedIndex >= 0 && TargetBox.SelectedIndex < _targets.Count && _clipId is { } clipId && _maskId is { } id)
+        if (_updating || !_targets.TryGet(TargetBox.SelectedIndex, out string choice) || _clipId is not { } clipId || _maskId is not { } id)
         {
-            string choice = _targets[TargetBox.SelectedIndex];
-            Run(new SequenceEditCommand("Cambiar a qué se aplica la máscara", SequenceId, ctx =>
-            {
-                MaskEdits.SetTarget(ctx, clipId, id, choice == EffectsZone ? "" : choice);
-                EffectEdits.SetOption(ctx, clipId, id, O.Use, choice == EffectsZone ? "effects" : "");
-            }));
+            return;
         }
+
+        // Elegir otro destino puede quitar «Un efecto que ya no está» y rehacer este desplegable al refrescar: la edición va
+        // después del evento, y solo si el panel sigue en la misma máscara del mismo clip.
+        var picked = new DeferredChoice<string>(id, clipId);
+        if (!DispatcherQueue.TryEnqueue(() => ChooseTarget(picked, choice)))
+        {
+            ChooseTarget(picked, choice);
+        }
+    }
+
+    private void ChooseTarget(DeferredChoice<string> picked, string choice)
+    {
+        if (!DeferredChoices.MaskStillApplies(picked, _maskId, _clipId, CurrentClip()))
+        {
+            Refresh();
+            return;
+        }
+
+        string clipId = picked.ClipId!;
+        string id = picked.Owner;
+        Run(new SequenceEditCommand("Cambiar a qué se aplica la máscara", SequenceId, ctx =>
+        {
+            MaskEdits.SetTarget(ctx, clipId, id, choice == EffectsZone ? "" : choice);
+            EffectEdits.SetOption(ctx, clipId, id, O.Use, choice == EffectsZone ? "effects" : "");
+        }));
     }
 
     private void OnWeightChanged(object sender, RangeBaseValueChangedEventArgs e)
