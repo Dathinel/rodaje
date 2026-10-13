@@ -91,13 +91,20 @@ host.Register("revelar", async (call, ct) =>
         await gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            long start = Stopwatch.GetTimestamp();
-            Guard(() =>
+            // LibRaw bloquea el hilo segundos por cuadro: en un hilo propio y no en el pool. Con hasta ProcessorCount
+            // cuadros a la vez ocupaban todos los hilos mínimos del pool y, con la CPU llena, el pool no sumaba otros:
+            // el bucle de ModuleHost no leía el «ping» del editor (ni salían los avances) hasta que terminaba un cuadro,
+            // y el vigilante mataba un módulo sano a mitad de trabajo (CinemaDNG en la CI de Windows).
+            await Task.Factory.StartNew(() =>
             {
-                RawDeveloper.Develop(call.Map(buffers[i * 2]), settings, table, call.Map(buffers[(i * 2) + 1]), buffers[(i * 2) + 1].Video!, ct);
-                return 0;
-            }, frames > 1 ? $"Cuadro {i + 1}: " : "");
-            milliseconds[i] = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+                long start = Stopwatch.GetTimestamp();
+                Guard(() =>
+                {
+                    RawDeveloper.Develop(call.Map(buffers[i * 2]), settings, table, call.Map(buffers[(i * 2) + 1]), buffers[(i * 2) + 1].Video!, ct);
+                    return 0;
+                }, frames > 1 ? $"Cuadro {i + 1}: " : "");
+                milliseconds[i] = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+            }, ct, TaskCreationOptions.LongRunning, TaskScheduler.Default).ConfigureAwait(false);
         }
         finally
         {

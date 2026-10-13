@@ -510,10 +510,15 @@ internal sealed partial class TimelineScheduler
         MediaState media = decoder.Media;
         DecodedFrame? discard = null;
         bool post;
+        bool report;
         lock (_gate)
         {
             decoder.InFlight = null;
             bool current = job.Epoch == decoder.Epoch;
+
+            // Un cuadro que vuelve después de cerrar (la sesión o el decodificador) no le importa a nadie: un decodificador
+            // colgado puede volver con un error después de Dispose, con la vista cerrada u otro proyecto abierto.
+            report = !_disposed && !decoder.Closed;
             if (_disposed || decoder.Closed)
             {
                 discard = frame;
@@ -559,18 +564,25 @@ internal sealed partial class TimelineScheduler
                 media.Unavailable.Add(job.Index);
             }
 
-            if (!_disposed && error is not null)
+            if (report && error is not null)
             {
                 _decodeErrors++;
             }
 
-            post = !_disposed && !decoder.Closed && RequestPump(decoder);
+            post = report && RequestPump(decoder);
         }
 
         discard?.Dispose();
         if (error is not null)
         {
-            DecodeFailed?.Invoke(this, new TimelineDecodeFailedEventArgs(media.Key.MediaId, media.Key.Path, job.Index, error));
+            if (report)
+            {
+                DecodeFailed?.Invoke(this, new TimelineDecodeFailedEventArgs(media.Key.MediaId, media.Key.Path, job.Index, error));
+            }
+            else
+            {
+                Trace.WriteLine($"Rodaje: el cuadro {job.Index} de «{media.Key.Path}» falló después de cerrar su decodificador {decoder.Id}; no se avisa: {error.Message}");
+            }
         }
 
         return post;
@@ -597,14 +609,25 @@ internal sealed partial class TimelineScheduler
     }
 
     /// <summary>
-    /// En el ejecutor de servicio: libera el decodificador en su propio hilo, después de lo que ya tenía en cola, espera a
-    /// que ese hilo termine (con plazo, ver <see cref="StopExecutor"/>) y sigue con lo demás. El hilo de la ventana nunca
+    /// En el ejecutor de servicio: encarga la liberación del decodificador a su propio hilo, después de lo que ya tenía en
+    /// cola, y le pide que termine sin esperarlo. Antes se lo esperaba hasta 5 s aquí: con varios decodificadores colgados
+    /// al liberarse, el servicio quedaba N × 5 s sin atender keyframes, liberaciones de cuadros ni otros cierres. Ese hilo
+    /// es de fondo y deja de contar el decodificador cuando de verdad lo liberó (ver <see cref="PostRetire"/>); si sigue
+    /// vivo al cerrar la sesión, <see cref="Dispose"/> lo espera con su plazo y lo registra. El hilo de la ventana nunca
     /// espera esto.
     /// </summary>
     private void Reap(DecoderState decoder)
     {
         PostRetire(decoder);
-        StopExecutor(decoder, Stopwatch.GetTimestamp() + (long)(DecodeThread.DefaultJoinTimeout.TotalSeconds * Stopwatch.Frequency));
+        switch (decoder.Executor)
+        {
+            case DecodeThread thread:
+                thread.RequestStop();
+                break;
+            case IDisposable disposable:
+                disposable.Dispose();
+                break;
+        }
     }
 
     /// <summary>
@@ -642,8 +665,7 @@ internal sealed partial class TimelineScheduler
         switch (decoder.Executor)
         {
             case DecodeThread thread:
-                TimeSpan left = TimeSpan.FromSeconds(Math.Max(0, deadline - Stopwatch.GetTimestamp()) / (double)Stopwatch.Frequency);
-                if (!thread.Stop(left < thread.JoinTimeout ? left : thread.JoinTimeout))
+                if (!thread.Stop(Remaining(deadline, Stopwatch.GetTimestamp(), Stopwatch.Frequency, thread.JoinTimeout)))
                 {
                     Trace.WriteLine($"Rodaje: el decodificador {decoder.Id} de «{decoder.Media.Key.Path}» no terminó de cerrarse a tiempo; su hilo lo libera cuando vuelva.");
                 }
@@ -653,6 +675,16 @@ internal sealed partial class TimelineScheduler
                 disposable.Dispose();
                 break;
         }
+    }
+
+    /// <summary>
+    /// Lo que queda hasta <paramref name="deadline"/> (en marcas de <see cref="Stopwatch"/>, con su frecuencia) sin pasar de
+    /// <paramref name="cap"/> ni bajar de cero: cuánto esperar a un hilo más cuando todos comparten un plazo.
+    /// </summary>
+    internal static TimeSpan Remaining(long deadline, long now, long frequency, TimeSpan cap)
+    {
+        TimeSpan left = TimeSpan.FromSeconds(Math.Max(0, deadline - now) / (double)frequency);
+        return left < cap ? left : cap;
     }
 
     /// <summary>Deja de contar la VRAM del decodificador ya liberado y lo saca de la lista.</summary>

@@ -2,6 +2,7 @@ using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Offline;
 using Rodaje.Engine.Tests.Support;
+using Rodaje.Engine.Tests.Timeline;
 using Rodaje.Media.Export;
 using static Rodaje.Engine.Tests.Support.Seconds;
 
@@ -27,7 +28,7 @@ public sealed class OfflineStressTests(Xunit.Abstractions.ITestOutputHelper outp
         var backend = new FakeTimelineBackend
         {
             RealThreads = true,
-            DecodeDelay = index => TimeSpan.FromMilliseconds(Math.Abs(HashCode.Combine(seed, index)) % 7 == 0 ? 4 : 0),
+            DecodeDelay = index => SlowDecode(seed, index),
         };
         var b = new TimelineBuilder(3, 2);
         foreach (string id in MediaIds)
@@ -110,6 +111,33 @@ public sealed class OfflineStressTests(Xunit.Abstractions.ITestOutputHelper outp
 
         output.WriteLine($"Semilla {seed}: {exports} exportaciones, {canceled} canceladas.");
     }
+
+    /// <summary>
+    /// La «Semilla N» que imprime esta prueba repite la corrida en otro proceso: los cuadros lentos del decodificador y el
+    /// <see cref="Random"/> de cada hilo de <see cref="Stress.Run(int, ValueTuple{string, Action{Random, CancellationToken}}[])"/>
+    /// dependen solo de la semilla. Regresión: los dos salían de <see cref="HashCode.Combine{T1, T2}"/>, cuya semilla es
+    /// aleatoria por proceso, y estos valores fijados cambiaban en cada ejecución.
+    /// </summary>
+    [Fact]
+    public void The_printed_seed_reproduces_the_run_in_another_process()
+    {
+        string slow = string.Concat(Enumerable.Range(0, 24).Select(i => SlowDecode(5, i) > TimeSpan.Zero ? 'L' : 'r'));
+        Assert.Equal("rrrrLrrrrrrLrrrrrrLrrrLr", slow);
+
+        Assert.Equal(1_545_029_486, Stress.WorkerSeed(5, 0));
+        Assert.Equal(1_325_234_912, Stress.WorkerSeed(5, 1));
+
+        // Cada hilo de la corrida recibe el Random de su semilla fijada, no otro.
+        int[] first = new int[2];
+        Stress.Run(
+            5,
+            ("primero", (random, _) => first[0] = random.Next()),
+            ("segundo", (random, _) => first[1] = random.Next()));
+        Assert.Equal([new Random(1_545_029_486).Next(), new Random(1_325_234_912).Next()], first);
+    }
+
+    /// <summary>Uno de cada siete cuadros, más o menos, tarda 4 ms en decodificarse; cuáles, según la semilla.</summary>
+    private static TimeSpan SlowDecode(int seed, long index) => TimeSpan.FromMilliseconds(StressSeeds.Mix(seed, index) % 7 == 0 ? 4 : 0);
 
     /// <summary>Como una exportación: cuadro tras cuadro con alguna vuelta atrás, y a veces la sonoridad antes.</summary>
     private static void Export(Project project, FakeTimelineBackend backend, Random random, CancellationToken token)

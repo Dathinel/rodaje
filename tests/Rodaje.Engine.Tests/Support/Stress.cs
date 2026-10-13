@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Rodaje.TestMedia;
+using Rodaje.Engine.Tests.Timeline;
 
 namespace Rodaje.Engine.Tests.Support;
 
@@ -50,13 +51,26 @@ internal static class Stress
     /// </summary>
     public static void Run(int seed, TimeSpan stall, params (string Name, Action<Random, CancellationToken> Body)[] workers)
     {
+        var watch = Stopwatch.StartNew();
+        Run(seed, stall, () => watch.Elapsed, workers);
+    }
+
+    /// <summary>
+    /// Como <see cref="Run(int, TimeSpan, ValueTuple{string, Action{Random, CancellationToken}}[])"/>, con el reloj que
+    /// deciden los topes de «sin avance» y de <see cref="Deadline"/>: se lee una vez por vuelta de vigilancia (tras esperar
+    /// hasta 100 ms al primer hilo vivo). Las pruebas del propio arnés lo avanzan a mano para no depender de cuánto CPU
+    /// les dé la máquina; <see cref="Budget"/> sigue siendo de tiempo real.
+    /// </summary>
+    public static void Run(int seed, TimeSpan stall, Func<TimeSpan> clock, params (string Name, Action<Random, CancellationToken> Body)[] workers)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
         var errors = new ConcurrentQueue<string>();
         using var stop = new CancellationTokenSource();
         var threads = new List<(string Name, Thread Thread, ProgressRandom Random)>();
         for (int i = 0; i < workers.Length; i++)
         {
             (string name, Action<Random, CancellationToken> body) = workers[i];
-            var random = new ProgressRandom(HashCode.Combine(seed, i));
+            var random = new ProgressRandom(WorkerSeed(seed, i));
             var thread = new Thread(() =>
             {
                 try
@@ -77,7 +91,6 @@ internal static class Stress
 
         threads.ForEach(t => t.Thread.Start());
         stop.CancelAfter(Budget);
-        var watch = Stopwatch.StartNew();
         long[] seen = new long[threads.Count];
         TimeSpan[] moved = new TimeSpan[threads.Count];
         string? hung = null;
@@ -86,7 +99,7 @@ internal static class Stress
         while (threads.FirstOrDefault(t => t.Thread.IsAlive).Thread is { } alive)
         {
             alive.Join(TimeSpan.FromMilliseconds(100));
-            TimeSpan now = watch.Elapsed;
+            TimeSpan now = clock();
             var stalled = new List<string>();
             for (int i = 0; i < threads.Count; i++)
             {
@@ -128,6 +141,13 @@ internal static class Stress
 
         Assert.True(errors.IsEmpty, $"Semilla {seed}: {string.Join(Environment.NewLine, errors)}");
     }
+
+    /// <summary>
+    /// Semilla del <see cref="Random"/> del hilo <paramref name="worker"/> de <see cref="Run(int, ValueTuple{string, Action{Random, CancellationToken}}[])"/>:
+    /// depende solo de la semilla y del índice (SplitMix64), así que la «Semilla N» de un fallo repite la corrida en otro
+    /// proceso. Con <see cref="HashCode.Combine{T1, T2}"/>, que cambia de un proceso a otro, no la repetía.
+    /// </summary>
+    public static int WorkerSeed(int seed, int worker) => StressSeeds.Seed(seed, worker);
 
     /// <summary>Corre <paramref name="action"/> en otro hilo y falla con la semilla si no vuelve antes de <paramref name="limit"/>.</summary>
     public static void Within(int seed, string what, TimeSpan limit, Action action)

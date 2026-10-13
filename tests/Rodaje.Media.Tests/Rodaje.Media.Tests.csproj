@@ -13,6 +13,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Corredor de fuzz con semillas reproducibles y tope de tiempo, compartido con las pruebas del núcleo -->
+    <Compile Include="..\Rodaje.Core.Tests\Fuzz\FuzzRunner.cs" Link="Fuzz\FuzzRunner.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Media\Rodaje.Media.csproj" />
     <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
     <!-- Solo para que el ffmpeg falso quede junto a las pruebas de Export/ (FfmpegPipeSinkFakeRaceTests). -->

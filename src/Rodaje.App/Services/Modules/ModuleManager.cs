@@ -196,8 +196,10 @@ public sealed partial class ModuleManager : IAsyncDisposable
             }
 
             call?.ReleaseRegions();
+            // La reserva es de las llamadas en curso y, después, del proceso abierto: la suelta la última llamada si no
+            // quedó proceso, o OnClosed al cerrarse sin llamadas.
             connection.EndCall();
-            if (!connection.IsAlive)
+            if (connection.ActiveCalls == 0 && !connection.IsAlive)
             {
                 Budget.Release(module.Id);
             }
@@ -310,7 +312,17 @@ public sealed partial class ModuleManager : IAsyncDisposable
         }
     }
 
-    private void OnClosed(ModuleConnection connection) => Budget.Release(connection.Descriptor.Id);
+    /// <summary>
+    /// Se cerró o se retiró el proceso. Con llamadas en curso la reserva no se toca: es de ellas (la llamada que retira un
+    /// proceso muerto en EnsureStartedAsync ya reservó para el que abre), y la suelta la última al terminar si no quedó proceso.
+    /// </summary>
+    private void OnClosed(ModuleConnection connection)
+    {
+        if (connection.ActiveCalls == 0)
+        {
+            Budget.Release(connection.Descriptor.Id);
+        }
+    }
 
     private void Post(Action action)
     {

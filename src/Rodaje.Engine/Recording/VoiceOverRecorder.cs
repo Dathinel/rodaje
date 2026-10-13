@@ -119,10 +119,18 @@ public sealed class VoiceOverRecorder : IDisposable
 
     public void Begin() => _capture.StartCapture(OnPacket);
 
+    /// <summary>
+    /// Para las pruebas: se llama al entrar en <see cref="Finish"/>, antes de su primer candado. Con un paquete dentro del
+    /// candado, lo siguiente que hace <see cref="Finish"/> es quedarse esperándolo; sin este aviso, la prueba no puede saber
+    /// si su hilo ya llegó ahí o sigue arrancando.
+    /// </summary>
+    internal Action? BeforeFinishGate { get; set; }
+
     /// <summary>Detiene la captura y cierra el WAV.</summary>
     /// <exception cref="IOException">No se pudo escribir la toma (por ejemplo, el disco se llenó mientras se grababa).</exception>
     public VoiceOverTake Finish()
     {
+        BeforeFinishGate?.Invoke();
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_finished, this);

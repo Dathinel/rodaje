@@ -39,6 +39,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Corredor y mutaciones del fuzz de archivos, compartidos con las pruebas del núcleo y de paquetes -->
+    <Compile Include="..\Rodaje.Core.Tests\Fuzz\FuzzRunner.cs" Link="Fuzz\FuzzRunner.cs" />
+    <Compile Include="..\Rodaje.Packages.Tests\Fuzz\ContentReaderFuzz.cs" Link="Fuzz\ContentReaderFuzz.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="..\..\src\Rodaje.App\Services\**\*.cs" Link="Services\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Completa un método parcial de Shell (EditorServices.cs), que las pruebas no compilan. -->
     <Compile Remove="..\..\src\Rodaje.App\Services\Effects\EffectContentFactory.cs" />
@@ -65,6 +71,8 @@
     <Compile Include="..\..\src\Rodaje.App\Views\Vision\Logic\**\*.cs" Link="VisionLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Complementos: la suscripción de cada fila a su descarga, que la página suelta al rehacer la lista, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Plugins\Logic\**\*.cs" Link="PluginsLogic\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Voz en off: el temporizador del diálogo y lo que se borra al cerrar la toma, sin WinUI. -->
+    <Compile Include="..\..\src\Rodaje.App\Views\Voice\Logic\**\*.cs" Link="VoiceLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- El fuzz de la sesión (Fuzz/) arma sus proyectos y sus ediciones con los mismos ayudantes que las propiedades de Core. -->
     <Compile Include="..\Rodaje.Core.Tests\Properties\RandomTimeline.cs" Link="Fuzz\Shared\RandomTimeline.cs" />
     <Compile Include="..\Rodaje.Core.Tests\Model\ModelSamples.cs" Link="Fuzz\Shared\ModelSamples.cs" />

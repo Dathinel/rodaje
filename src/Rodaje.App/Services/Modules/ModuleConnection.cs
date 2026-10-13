@@ -6,8 +6,8 @@ namespace Rodaje.App.Services.Modules;
 
 /// <summary>
 /// El proceso de un módulo: se abre con la primera llamada, se cierra tras <see cref="ModuleManagerOptions.IdleTimeout"/>
-/// sin llamadas y se vigila con <c>ping</c> mientras hay alguna (sin respuesta en <see cref="ModuleManagerOptions.PingTimeout"/>
-/// se da por colgado y se mata). Si muere, la próxima llamada lo vuelve a abrir.
+/// sin llamadas y se vigila con <c>ping</c> mientras hay alguna (sin respuesta ni ningún otro mensaje en
+/// <see cref="ModuleManagerOptions.PingTimeout"/> se da por colgado y se mata). Si muere, la próxima llamada lo vuelve a abrir.
 /// </summary>
 internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, ModuleManagerOptions options, ModuleJobObject? job, Action<ModuleConnection> closed) : IDisposable
 {
@@ -18,6 +18,7 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
     private int _idleGeneration;
     private Timer? _idleTimer;
     private Task _watchdog = Task.CompletedTask;
+    private ModuleProcess? _watched;
     private ModuleProcess? _hungProcess;
 
     public ModuleDescriptor Descriptor { get; } = descriptor;
@@ -27,6 +28,9 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
     public int ActiveCalls => Volatile.Read(ref _active);
 
     public int? ProcessId => Volatile.Read(ref _process)?.ProcessId;
+
+    /// <summary>Mata el árbol de procesos de un módulo retirado. Costura para las pruebas (por reflexión).</summary>
+    internal Action<ModuleProcess> KillProcess { get; set; } = static p => p.Kill();
 
     /// <summary>
     /// <paramref name="process"/> se mató por no responder al <c>ping</c>. Va por proceso y no por conexión: si la llamada
@@ -80,15 +84,24 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
                     options.ClientOptions with { HandshakeTimeout = options.StartTimeout },
                     p => job?.TryAssign(p), cancellationToken).ConfigureAwait(false);
                 Volatile.Write(ref _process, process);
-                _ = process.Exited.ContinueWith(_ => OnExited(process), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-                _ = process.Client.Completion.ContinueWith(_ => OnExited(process), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                // El corte del cliente puede llegar como fallo de Completion: es el cierre esperado (se lee para darlo por
+                // visto) y OnExited no lanza; UiTask.Run observa además la continuación.
+                UiTask.Run(process.Exited.ContinueWith(_ => OnExited(process), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
+                UiTask.Run(process.Client.Completion.ContinueWith(t =>
+                {
+                    _ = t.Exception;
+                    OnExited(process);
+                }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default));
             }
 
             ModuleProcess current = _process;
             lock (_lock)
             {
-                if (_watchdog.IsCompleted)
+                // Uno por proceso: el del anterior sale solo al ver que su proceso ya no es el actual, pero con el pool
+                // cargado puede no haber despertado todavía, y esperar a que termine dejaba al nuevo sin ping.
+                if (_watchdog.IsCompleted || !ReferenceEquals(_watched, current))
                 {
+                    _watched = current;
                     _watchdog = Task.Run(() => WatchAsync(current), CancellationToken.None);
                 }
             }
@@ -175,11 +188,32 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
 
     private void OnExited(ModuleProcess process)
     {
-        if (Interlocked.CompareExchange(ref _process, null, process) == process)
+        if (Interlocked.CompareExchange(ref _process, null, process) != process)
         {
-            process.Kill();
-            UiTask.Run(process.DisposeAsync().AsTask());
+            return;
+        }
+
+        // Matar el árbol de procesos puede tardar segundos con la CPU llena: nunca en línea. Desde EnsureStartedAsync
+        // esto corre con _gate tomado y quizá en el hilo de la interfaz. En un hilo propio, como KillWhenFaulted, y
+        // observado con UiTask para que una excepción del cierre no se pierda.
+        Action<ModuleProcess> kill = KillProcess;
+        UiTask.Run(Task.Factory.StartNew(() =>
+        {
+            kill(process);
+            return process.DisposeAsync().AsTask();
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap());
+
+        // Corre en una continuación que nadie espera o dentro de EnsureStartedAsync: un fallo del aviso de cierre se
+        // informa aquí y no se pierde (ni hace fallar la llamada que abre otro proceso).
+        try
+        {
             closed(this);
+        }
+#pragma warning disable CA1031 // Ver arriba.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            UiTask.Report(ex, notify: false);
         }
     }
 
@@ -195,12 +229,20 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
                     return;
                 }
 
-                await process.Client.PingAsync().WaitAsync(options.PingTimeout).ConfigureAwait(false);
-            }
-            catch (TimeoutException)
-            {
+                ModuleClient client = process.Client;
+                if (await PingRoundAsync(() => client.PingAsync(), () => client.ReceivedMessages,
+                    () => Task.WhenAny(process.Exited, Task.Delay(options.PingTimeout))).ConfigureAwait(false))
+                {
+                    continue;
+                }
+
+                if (process.Exited.IsCompleted)
+                {
+                    return;
+                }
+
                 Volatile.Write(ref _hungProcess, process);
-                Trace.WriteLine($"Rodaje: el módulo {Descriptor.Id} no respondió al ping en {options.PingTimeout.TotalSeconds:0.#} s; se cierra.");
+                Trace.WriteLine($"Rodaje: el módulo {Descriptor.Id} no respondió al ping ni mandó nada en {options.PingTimeout.TotalSeconds:0.#} s; se cierra.");
                 process.Kill();
                 return;
             }
@@ -208,6 +250,41 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
             {
                 return;
             }
+        }
+    }
+
+    /// <summary>
+    /// Una vuelta del vigilante: manda un <c>ping</c> y espera el <c>pong</c> por ventanas (<paramref name="window"/>, de
+    /// <see cref="ModuleManagerOptions.PingTimeout"/>). Si una ventana vence sin <c>pong</c> pero el módulo mandó algo en
+    /// ella (<paramref name="activity"/>: avances, registros, resultados), está ocupado y no colgado: se sigue esperando el
+    /// mismo <c>ping</c>. Solo una ventana entera sin ningún mensaje lo da por colgado. Con la CPU llena (CinemaDNG en la
+    /// CI de Windows), el <c>pong</c> de un módulo sano que revelaba y avisaba su avance se atrasaba más que el tope y se
+    /// mataba a mitad de trabajo. Las ventanas se inyectan para que las pruebas no dependan del reloj.
+    /// </summary>
+    /// <returns><c>false</c> si el módulo quedó colgado (o una ventana terminó porque el proceso salió sin contestar).</returns>
+    /// <exception cref="ModuleException">El <c>ping</c> falló porque la conexión se cortó.</exception>
+    internal static async Task<bool> PingRoundAsync(Func<Task> ping, Func<long> activity, Func<Task> window)
+    {
+        long seen = activity();
+        Task pong = ping();
+        while (true)
+        {
+            if (await Task.WhenAny(pong, window()).ConfigureAwait(false) == pong)
+            {
+                await pong.ConfigureAwait(false);
+                return true;
+            }
+
+            long now = activity();
+            if (now == seen)
+            {
+                // El ping queda pendiente hasta que la conexión se corte al matar el proceso: su fallo no se pierde.
+                _ = pong.ContinueWith(static t => _ = t.Exception, CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                return false;
+            }
+
+            seen = now;
         }
     }
 }

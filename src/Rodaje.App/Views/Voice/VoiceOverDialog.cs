@@ -123,53 +123,46 @@ internal static class VoiceOverDialog
 
         bool recording = false;
         bool cancelled = false;
-        int remaining = CountdownSeconds;
-        status.Text = remaining.ToString(CultureInfo.InvariantCulture);
+        VoiceOverTickState state = VoiceOverTickState.Countdown(CountdownSeconds);
+        status.Text = state.Remaining.ToString(CultureInfo.InvariantCulture);
         note.Text = "Prepárate: empieza a sonar al llegar a cero.";
         DispatcherQueueTimer timer = root.Content.DispatcherQueue.CreateTimer();
-        timer.Interval = TimeSpan.FromMilliseconds(100);
-        long ticks = 0;
+        timer.Interval = TimeSpan.FromMilliseconds(1000 / VoiceOverTickState.TicksPerSecond);
         timer.Tick += (_, _) =>
         {
-            ticks++;
-            if (!recording)
+            (state, VoiceOverTickAction action) = VoiceOverSteps.Tick(state, recorder.Failure is not null);
+            switch (action)
             {
-                if (ticks % 10 != 0)
-                {
+                case VoiceOverTickAction.Wait:
                     return;
-                }
-
-                remaining--;
-                if (remaining > 0)
-                {
-                    status.Text = remaining.ToString(CultureInfo.InvariantCulture);
+                case VoiceOverTickAction.Countdown:
+                    status.Text = state.Remaining.ToString(CultureInfo.InvariantCulture);
                     return;
-                }
-
-                recording = true;
-                if (muteTarget && trackId is not null)
-                {
-                    Project muted = session.Project.Clone();
-                    if (muted.Sequences.Find(s => s.Id == session.SequenceId)?.FindTrack(trackId) is { } t)
+                case VoiceOverTickAction.Stop:
+                    // El disco se llenó (u otro error de escritura) a mitad de la toma: se para aquí y se avisa al cerrar,
+                    // en vez de dejar correr el contador hasta que se pulse «Detener».
+                    timer.Stop();
+                    dialog.Hide();
+                    return;
+                case VoiceOverTickAction.StartRecording:
+                    recording = true;
+                    if (muteTarget && trackId is not null)
                     {
-                        t.Muted = true;
+                        Project muted = session.Project.Clone();
+                        if (muted.Sequences.Find(s => s.Id == session.SequenceId)?.FindTrack(trackId) is { } t)
+                        {
+                            t.Muted = true;
+                        }
+
+                        services.Player.Reload(muted);
                     }
 
-                    services.Player.Reload(muted);
-                }
-
-                recorder.Begin();
-                session.Play();
-                note.Text = $"Micrófono: {deviceName}. «Detener» o Esc termina la toma.";
-            }
-
-            if (recording && recorder.Failure is not null)
-            {
-                // El disco se llenó (u otro error de escritura) a mitad de la toma: se para aquí y se avisa al cerrar,
-                // en vez de dejar correr el contador hasta que se pulse «Detener».
-                timer.Stop();
-                dialog.Hide();
-                return;
+                    recorder.Begin();
+                    session.Play();
+                    note.Text = $"Micrófono: {deviceName}. «Detener» o Esc termina la toma.";
+                    break;
+                case VoiceOverTickAction.Update:
+                    break;
             }
 
             status.Text = "● " + Timecode(recorder.Recorded);
@@ -185,33 +178,19 @@ internal static class VoiceOverDialog
             services.Player.Reload(session.Project.Clone());
         }
 
-        VoiceOverTake? take = null;
-        IOException? failure = null;
-        try
-        {
-            take = recorder.Finish();
-        }
-        catch (IOException ex)
-        {
-            failure = ex;
-        }
-
-        recorder.Dispose();
-        switch (VoiceOverRecorder.Decide(cancelled, failure is not null, take?.Frames ?? 0))
+        // Lo que no va a la línea de tiempo se borra tras soltar el WAV, también si Finish falló (disco lleno) y no hay
+        // toma: el grabador ya había creado el archivo a medias en la carpeta de medios generados.
+        VoiceOverClosed closed = VoiceOverSteps.Close(cancelled, recorder.Path, recorder.Finish, recorder.Dispose, TryDelete);
+        VoiceOverTake? take = closed.Take;
+        switch (closed.Outcome)
         {
             case VoiceOverOutcome.Discard:
                 // Cancelada en la cuenta atrás: no se avisa de nada, ni siquiera de un error al cerrar el WAV.
-                if (take is not null)
-                {
-                    TryDelete(take.Path);
-                }
-
                 return;
             case VoiceOverOutcome.ReportFailure:
-                session.Notify(NotificationSeverity.Error, "No se pudo guardar la voz en off", failure!.Message);
+                session.Notify(NotificationSeverity.Error, "No se pudo guardar la voz en off", closed.Failure!.Message);
                 return;
             case VoiceOverOutcome.Empty:
-                TryDelete(take!.Path);
                 session.Notify(NotificationSeverity.Informational, "Voz en off", "No llegó a grabarse nada.");
                 return;
             case VoiceOverOutcome.Insert:

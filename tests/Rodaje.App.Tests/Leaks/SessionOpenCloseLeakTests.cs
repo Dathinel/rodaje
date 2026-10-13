@@ -40,6 +40,9 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
 {
     private static readonly int Scale = Rodaje.TestMedia.Skip.LongRuns ? 10 : 1;
 
+    /// <summary>Cada cuántas aperturas se cuentan los identificadores del proceso.</summary>
+    private const int HandleSampleCycles = 10;
+
     private readonly TempDirectory _folder = new();
 
     public void Dispose() => _folder.Dispose();
@@ -55,7 +58,7 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
 
         var opened = new List<WeakReference<Project>>();
         long memoryBefore = 0;
-        int handlesBefore = 0;
+        var handles = new List<int>();
         int subscriptionsBefore = 0;
         int cycles = 100 * Scale;
         for (int cycle = 0; cycle < cycles; cycle++)
@@ -75,26 +78,78 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
             if (cycle == 9)
             {
                 memoryBefore = ManagedMemory();
-                handlesBefore = Handles();
                 subscriptionsBefore = Subscriptions(session);
+            }
+
+            if (cycle >= 9 && (cycle + 1) % HandleSampleCycles == 0)
+            {
+                handles.Add(Handles());
             }
         }
 
         long grown = ManagedMemory() - memoryBefore;
-        int handlesGrown = Handles() - handlesBefore;
         int alive = opened.Count(w => w.TryGetTarget(out _));
-        output.WriteLine($"{cycles} aperturas: {alive} proyectos vivos de {opened.Count}, {subscriptionsBefore} suscripciones, memoria {grown / 1024.0:F0} KB, identificadores {handlesGrown:+0;-0;0} (de {handlesBefore}).");
+        output.WriteLine($"{cycles} aperturas: {alive} proyectos vivos de {opened.Count}, {subscriptionsBefore} suscripciones, memoria {grown / 1024.0:F0} KB, identificadores cada {HandleSampleCycles}: {string.Join(" ", handles)}.");
 
         // El proyecto abierto y, como mucho, el anterior (lo que la ventana retiene hasta el próximo cuadro).
         Assert.InRange(alive, 0, 2);
         Assert.Equal(subscriptionsBefore, Subscriptions(session));
         Assert.True(grown < 8L << 20, $"La memoria administrada creció {grown / 1024.0:F0} KB en {cycles} aperturas.");
 
-        // Un archivo, evento o hilo sin cerrar por apertura sumaría uno por vuelta (90 desde la medición); el margen es
-        // para los hilos que el grupo de hilos crea o suelta por su cuenta.
-        int measured = cycles - 10;
-        Assert.True(handlesGrown < measured / 2, $"Los identificadores del proceso crecieron {handlesGrown} en {measured} aperturas (de {handlesBefore}).");
+        string? leak = HandleLeak(handles);
+        Assert.True(leak is null, leak);
     });
+
+    /// <summary>
+    /// El criterio de fuga de identificadores sobre muestras de fabricación. Regresión: el anterior solo miraba el total y
+    /// toleraba la mitad de las aperturas medidas (45 de 90), así que un identificador sin cerrar cada tres o cuatro
+    /// aperturas pasaba en verde.
+    /// </summary>
+    [Fact]
+    public void A_small_steady_handle_leak_is_detected_and_pool_noise_is_not()
+    {
+        // Uno cada cuatro aperturas (2 o 3 por tramo de 10), con el ruido de algún hilo que entra y sale.
+        int[] slowLeak = [400, 402, 405, 406, 410, 412, 415, 417, 420, 422];
+        Assert.NotNull(HandleLeak(slowLeak));
+        Assert.True(slowLeak[^1] - slowLeak[0] < (slowLeak.Length - 1) * HandleSampleCycles / 2, "El criterio anterior la dejaba pasar.");
+
+        // Uno cada diez aperturas, aunque un tramo suelte hilos del grupo.
+        Assert.NotNull(HandleLeak([400, 401, 402, 403, 401, 402, 403, 404, 405, 406]));
+
+        // Una ráfaga suelta (el grupo de hilos crece una vez) es grande pero no sostenida: en la mayoría de los tramos no
+        // crece nada.
+        Assert.Null(HandleLeak([400, 400, 406, 406, 405, 405, 406, 405, 405, 405]));
+
+        // Una ráfaga que no para tampoco pasa, aunque no sea constante.
+        Assert.NotNull(HandleLeak([400, 400, 400, 400, 400, 440, 480, 480, 480, 480]));
+    }
+
+    /// <summary>
+    /// Por qué fallar con estas muestras de identificadores (una cada <see cref="HandleSampleCycles"/> aperturas), o nulo.
+    /// Un archivo, evento o hilo sin cerrar crece en todos los tramos, aunque sea uno cada diez aperturas: la mediana de
+    /// lo que crece cada tramo no llega a uno si no hay fuga, porque los hilos que el grupo de hilos crea o suelta por su
+    /// cuenta lo hacen de vez en cuando. El total sigue con su tope, contra una fuga a ráfagas.
+    /// </summary>
+    private static string? HandleLeak(IReadOnlyList<int> samples)
+    {
+        int[] steps = [.. samples.Zip(samples.Skip(1), (a, b) => b - a).Order()];
+        if (steps.Length == 0)
+        {
+            return "No hubo muestras de identificadores.";
+        }
+
+        int median = steps[steps.Length / 2];
+        int total = samples[^1] - samples[0];
+        int measured = steps.Length * HandleSampleCycles;
+        if (median >= 1)
+        {
+            return $"Los identificadores del proceso crecen en casi cada tramo de {HandleSampleCycles} aperturas (mediana {median}; {string.Join(" ", samples)}).";
+        }
+
+        return total >= measured / 2
+            ? $"Los identificadores del proceso crecieron {total} en {measured} aperturas ({string.Join(" ", samples)})."
+            : null;
+    }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void Remember(List<WeakReference<Project>> opened, Project project) => opened.Add(new WeakReference<Project>(project));
@@ -157,6 +212,8 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
     /// <summary>Identificadores del proceso (archivos, eventos, hilos…), después de juntar la basura y correr los finalizadores.</summary>
     private static int Handles()
     {
+        // Lo que solo espera a su finalizador (un SafeHandle abandonado) no es una fuga: se cierra antes de contar.
+        _ = ManagedMemory();
         using var process = Process.GetCurrentProcess();
         return process.HandleCount;
     }

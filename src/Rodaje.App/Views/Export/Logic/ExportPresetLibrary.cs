@@ -124,7 +124,44 @@ public static class ExportPresetLibrary
             throw new InvalidDataException("El archivo no es un preajuste de exportación de Rodaje.");
         }
 
+        if (Damage(read.Settings) is { } damage)
+        {
+            throw new InvalidDataException($"El preajuste está dañado: {damage}");
+        }
+
         return SaveUserPreset(preferences, read.Name, read.Settings);
+    }
+
+    /// <summary>
+    /// Lo que un archivo editado a mano o dañado puede traer y el JSON no impide: <c>null</c> en un objeto que no lo admite
+    /// (el diálogo lanzaba <see cref="NullReferenceException"/> al elegirlo) o un número que no es de ninguna opción.
+    /// <c>null</c> si se puede usar; los valores fuera de rango los ajusta o los avisa el diálogo como en cualquier preajuste.
+    /// </summary>
+    private static string? Damage(ExportSettings settings)
+    {
+        if (!Enum.IsDefined(settings.Container))
+        {
+            return "el contenedor no existe.";
+        }
+
+        if (settings.Video is { } video
+            && (!Enum.IsDefined(video.Codec) || video.RateControl is not { } videoRate || !Enum.IsDefined(videoRate.Mode) || video.Gop is null
+                || !Enum.IsDefined(video.Chroma) || !Enum.IsDefined(video.FrameRateConversion) || !Enum.IsDefined(video.FieldOrder)
+                || !Enum.IsDefined(video.Projection) || !Enum.IsDefined(video.Fit) || !Enum.IsDefined(video.ScaleFilter)
+                || (video.Color is { } color && (!Enum.IsDefined(color.Matrix) || !Enum.IsDefined(color.Transfer)))))
+        {
+            return "faltan ajustes de video o alguno no existe.";
+        }
+
+        if (settings.Audio is { } audio
+            && (!Enum.IsDefined(audio.Codec) || audio.RateControl is not { } audioRate || !Enum.IsDefined(audioRate.Mode)
+                || !Enum.IsDefined(audio.PcmFormat)
+                || (audio.Loudness is { } loudness && !(double.IsFinite(loudness.Lufs) && double.IsFinite(loudness.MaxTruePeakDbtp)))))
+        {
+            return "faltan ajustes de audio o alguno no existe.";
+        }
+
+        return null;
     }
 
     /// <summary>Una línea que resume los ajustes: «MP4 · H.264 · 1920×1080 · AAC».</summary>
