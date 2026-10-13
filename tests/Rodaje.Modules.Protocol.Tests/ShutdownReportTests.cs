@@ -77,6 +77,26 @@ public sealed class ShutdownReportTests
     }
 
     [Fact]
+    public async Task A_failed_exit_task_is_reported_without_throwing()
+    {
+        // Tarea 242: sin matarlo, DescribeClose leía exited.Result y relanzaba la falla de la tarea en el cierre.
+        List<string> lines = [];
+        await ModuleProcess.CloseAsync(() => ValueTask.CompletedTask, () => true,
+            Task.FromException<int>(new InvalidOperationException("Sin código.")),
+            () => throw new InvalidOperationException("No hay que matarlo."), Long, "modulo-x", lines.Add);
+
+        Assert.Equal("Rodaje: el módulo modulo-x se cerró tras «shutdown» sin que se supiera con qué código.", Assert.Single(lines));
+    }
+
+    [Fact]
+    public void A_canceled_exit_task_is_described_without_throwing()
+    {
+        string? line = ModuleProcess.DescribeClose("modulo-x", killed: false, Task.FromCanceled<int>(new CancellationToken(true)), TimeSpan.FromSeconds(2));
+
+        Assert.Equal("Rodaje: el módulo modulo-x se cerró tras «shutdown» sin que se supiera con qué código.", line);
+    }
+
+    [Fact]
     public async Task Echo_module_exiting_with_3_after_shutdown_is_reported()
     {
         string line = Assert.Single(await CloseEchoAsync("""{"codigo":3}""", expectedExit: 3));
