@@ -166,8 +166,8 @@ public class CrashRoutingTests
             context.Post(_ => throw new InvalidOperationException("falla en cada tick"), null);
         }
 
-        Assert.Equal(["falla en cada tick"], shown);
         string report = Assert.Single(Directory.GetFiles(dir.Path, "*.txt"));
+        Assert.Equal([UnexpectedErrorNotice.Describe(report)], shown);
         Assert.EndsWith("-recuperado.txt", report, StringComparison.Ordinal);
         Assert.Contains("DispatcherQueue", File.ReadAllText(report), StringComparison.Ordinal);
         Assert.Empty(reporter.PendingReports());
@@ -188,7 +188,7 @@ public class CrashRoutingTests
     }
 
     [Fact]
-    public void Xaml_SinExcepcion_UsaElMensaje()
+    public void Xaml_SinExcepcion_ElMensajeVaAlInformeYElAvisoEsElFijo()
     {
         using var dir = new TempDirectory();
         var reporter = new CrashReporter(dir.Path, Version, new SessionLog());
@@ -197,8 +197,9 @@ public class CrashRoutingTests
         bool handled = CrashRouting.OnXamlUnhandled(null, "error de XAML sin excepción", shown.Add, reporter.Write, reporter.Write);
 
         Assert.True(handled);
-        Assert.Equal(["error de XAML sin excepción"], shown);
-        Assert.Contains("error de XAML sin excepción", File.ReadAllText(Assert.Single(Directory.GetFiles(dir.Path, "*.txt"))), StringComparison.Ordinal);
+        string report = Assert.Single(Directory.GetFiles(dir.Path, "*.txt"));
+        Assert.Equal([UnexpectedErrorNotice.Describe(report)], shown);
+        Assert.Contains("error de XAML sin excepción", File.ReadAllText(report), StringComparison.Ordinal);
     }
 
     // Una sesión de un proceso que terminó sin cerrarse: su copia del registro queda en sesiones\.

@@ -462,9 +462,9 @@ internal sealed partial class MainWindow : Window, IShellHost
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            Program.WriteCrash(ex.ToString());
+            string? report = Program.WriteCrash(ex.ToString());
             ClosePage();
-            ReportUnexpectedError(ex.Message);
+            ReportUnexpectedError(UnexpectedErrorNotice.Describe(report));
         }
     }
 
@@ -829,14 +829,12 @@ internal sealed partial class MainWindow : Window, IShellHost
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            Program.WriteCrash(ex.ToString());
-            ReportUnexpectedError(ex.Message);
+            ReportUnexpectedError(UnexpectedErrorNotice.Describe(Program.WriteCrash(ex.ToString())));
         }
     }
 
-    /// <summary>Avisa de un error que nadie esperaba; el informe queda en <c>%LOCALAPPDATA%\Rodaje\fallos\</c>.</summary>
-    internal void ReportUnexpectedError(string message) =>
-        Session.Notify(NotificationSeverity.Error, "Algo falló", $"{message} El informe quedó en %LOCALAPPDATA%\\Rodaje\\fallos.");
+    /// <summary>Avisa de un error que nadie esperaba, con el texto de <see cref="UnexpectedErrorNotice.Describe"/>.</summary>
+    internal void ReportUnexpectedError(string notice) => Session.Notify(NotificationSeverity.Error, UnexpectedErrorNotice.Title, notice);
 
     private void OnCloseModal(object sender, RoutedEventArgs e) => ClosePage();
 
@@ -869,8 +867,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            Program.WriteCrash(ex.ToString());
-            ReportUnexpectedError(ex.Message);
+            ReportUnexpectedError(UnexpectedErrorNotice.Describe(Program.WriteCrash(ex.ToString())));
         }
         finally
         {

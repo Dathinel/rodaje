@@ -24,8 +24,8 @@ public class CrashXamlBurstTests
 
         Assert.True(first);
         Assert.True(second);
-        Assert.Equal(["falla al medir"], shown);
         string report = Assert.Single(Directory.GetFiles(dir.Path, "*.txt"));
+        Assert.Equal([UnexpectedErrorNotice.Describe(report)], shown);
         Assert.EndsWith("-recuperado.txt", report, StringComparison.Ordinal);
     }
 
@@ -41,8 +41,7 @@ public class CrashXamlBurstTests
 
         Assert.True(first);
         Assert.True(second);
-        Assert.Equal(["error de XAML sin excepción"], shown);
-        Assert.Single(Directory.GetFiles(dir.Path, "*.txt"));
+        Assert.Equal([UnexpectedErrorNotice.Describe(Assert.Single(Directory.GetFiles(dir.Path, "*.txt")))], shown);
     }
 
     [Fact]
@@ -67,7 +66,7 @@ public class CrashXamlBurstTests
         Assert.True(CrashRouting.OnXamlUnhandled(null, "b", shown.Add, Report, ReportText));
         Assert.True(CrashRouting.OnXamlUnhandled(new InvalidOperationException("c"), null, shown.Add, Report, ReportText));
 
-        Assert.Equal(["a"], shown);
+        Assert.Equal([UnexpectedErrorNotice.Describe(null)], shown);
         Assert.Equal(3, calls);
     }
 }
