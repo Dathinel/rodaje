@@ -266,6 +266,21 @@ public class CropMaskPropertiesTests(ITestOutputHelper output)
             iter: 500);
 
     /// <summary>
+    /// El caso que falló en la CI de Windows (#110): un trazo casi horizontal, de unos 0,001 de alto, dejaba un punto a
+    /// 0,50016 del centro por el redondeo en float.
+    /// </summary>
+    [Fact]
+    public void Trazo_DesdeUnDibujo_SemillaDeLaCi() =>
+        GenStroke.Sample(
+            stroke =>
+            {
+                (_, _, _, _, Vector2[] points) = MaskGeometry.FromStroke(stroke);
+                Assert.All(points, p => Assert.True(Math.Abs(p.X) <= 0.5f && Math.Abs(p.Y) <= 0.5f, p.ToString()));
+            },
+            seed: "1ziwKZyYQFw3",
+            iter: 1);
+
+    /// <summary>
     /// Un trazo como el del ratón: un paseo desde un punto al azar con pasos cortos (a veces un salto), de 3 a 600 puntos, que
     /// puede salirse de la imagen.
     /// </summary>

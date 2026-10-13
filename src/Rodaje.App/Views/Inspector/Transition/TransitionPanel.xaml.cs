@@ -60,6 +60,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
     private readonly List<ParameterRow> _rows = [];
     /// <summary>Lo que muestra ahora el desplegable de tipo (ver <see cref="ComboBoxChoices"/>).</summary>
     private ChoiceList<(string Type, string Preset)> _types = new();
+    private readonly ClosedListRetry _typesRetry = new();
     private readonly List<ToggleButton> _alignmentButtons = [];
     private readonly List<ToggleButton> _curveButtons = [];
     private readonly List<ToggleButton> _directionButtons = [];
@@ -80,6 +81,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
     public TransitionPanel()
     {
         InitializeComponent();
+        TypeBox.RetryWhenClosed(_typesRetry, Refresh);
         foreach ((TransitionAlignment value, string name, string help) in Alignments)
         {
             var button = new ToggleButton
@@ -409,35 +411,14 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
         }
 
         // Con la lista abierta no se toca: el próximo refresco la pone al día.
-        if (TypeBox.IsDropDownOpen)
+        if (_typesRetry.Defer(TypeBox.IsDropDownOpen))
         {
             return;
         }
 
         _typesShown = (installed, type, preset, kind);
-        var types = new ChoiceList<(string Type, string Preset)>();
-        foreach (EffectDefinition definition in TransitionEditor.TypesFor(kind))
-        {
-            types.Add(EffectUi.Name(definition.Type), (definition.Type, ""));
-        }
-
-        if (kind != TrackKind.Audio)
-        {
-            foreach (PackageItemEntry entry in installed.Items(ItemKind.Transition))
-            {
-                string source = entry.Package.Origin == PackageOrigin.Own ? "Mía" : entry.Package.Manifest.Name;
-                types.Add($"{entry.Item.Name} · {source}", (Tr.Preset, entry.Reference.ToString()));
-            }
-        }
-
-        int index = types.IndexOf((type, preset));
-        if (index < 0)
-        {
-            // Un tipo de imagen en una pista de audio (de antes del formato 12) o un paquete que falta: se muestra igual.
-            types.Add(preset.Length > 0 ? preset + " (falta el paquete)" : EffectUi.Name(type), (type, preset));
-            index = types.Count - 1;
-        }
-
+        // Un tipo de imagen en una pista de audio (de antes del formato 12) o un paquete que falta se muestra igual.
+        (ChoiceList<(string Type, string Preset)> types, int index) = TransitionChoices.Types(kind, installed, type, preset);
         _updating = true;
         _types = ComboBoxChoices.Show(TypeBox, _types, types, index);
         _updating = false;
@@ -631,16 +612,9 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
 
     private void OnTypeSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (_updating || !_types.TryGet(TypeBox.SelectedIndex, out (string Type, string Preset) choice) || _editor is null || _transitionId is not { } id)
-        {
-            return;
-        }
-
         // Cambiar el tipo edita y refresca el panel, que puede rehacer este desplegable: va después del evento.
-        if (!DispatcherQueue.TryEnqueue(() => ChooseType(id, choice.Type, choice.Preset)))
-        {
-            ChooseType(id, choice.Type, choice.Preset);
-        }
+        DispatcherQueue.Choose(_types, TypeBox.SelectedIndex, _updating, choice =>
+            _editor is null || _transitionId is not { } id ? null : () => ChooseType(id, choice.Type, choice.Preset));
     }
 
     private void ChooseType(string id, string type, string preset)

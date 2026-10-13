@@ -48,17 +48,6 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
 {
     private const string RunActionId = "seguimiento.seguir";
 
-    private static readonly (TrackUse Use, string Label)[] Uses =
-    [
-        (TrackUse.FollowPosition, "Otro clip sigue la posición"),
-        (TrackUse.FollowAll, "Otro clip sigue posición, escala y giro"),
-        (TrackUse.CornerPin, "Anclaje de esquinas en otro clip (pantalla, cartel)"),
-        (TrackUse.Mask, "Una máscara de este clip sigue la forma"),
-        (TrackUse.BlurZone, "Desenfocar la zona seguida (caras, matrículas)"),
-        (TrackUse.PixelateZone, "Pixelar la zona seguida"),
-        (TrackUse.Stabilize, "Estabilizar este clip en lo seguido"),
-    ];
-
     private EditorServices? _services;
     private ClipPropertyEditor? _editor;
     private string? _clipId;
@@ -109,7 +98,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
                 DrawGraph();
             }
         };
-        services.LongActions.Changed += (_, _) => DispatcherQueue.TryEnqueue(ShowRunning);
+        services.LongActions.Changed += (_, _) => DispatcherQueue.RunLater(ShowRunning);
         Refresh();
         Bindings.Update();
     }
@@ -235,16 +224,8 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
     private void ShowUses(Clip clip, PointTrackKind kind)
     {
         TrackUse? chosen = _uses.TryGet(UseBox.SelectedIndex, out TrackUse shown) ? shown : null;
-        var uses = new ChoiceList<TrackUse>();
-        foreach ((TrackUse use, string label) in Uses)
-        {
-            if (TrackApply.Supports(kind, use))
-            {
-                uses.Add(label, use);
-            }
-        }
-
-        _uses = ComboBoxChoices.Show(UseBox, _uses, uses, chosen is { } c && uses.IndexOf(c) is >= 0 and var index ? index : 0);
+        (ChoiceList<TrackUse> uses, int selected) = TrackingChoices.ForKind(kind, chosen);
+        _uses = ComboBoxChoices.Show(UseBox, _uses, uses, selected);
         ShowTargets(clip);
     }
 
@@ -252,38 +233,8 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
     {
         TrackUse use = _uses.TryGet(UseBox.SelectedIndex, out TrackUse picked) ? picked : TrackUse.FollowPosition;
         string? chosen = _targets.TryGet(TargetBox.SelectedIndex, out string? shown) ? shown : null;
-        var targets = new ChoiceList<string?>();
-        if (use is TrackUse.FollowPosition or TrackUse.FollowAll or TrackUse.CornerPin)
-        {
-            foreach (Track track in Session.Sequence.VideoTracks)
-            {
-                foreach (Clip other in track.Clips)
-                {
-                    if (other.Id != clip.Id && other.Start < clip.End && other.End > clip.Start
-                        && (use != TrackUse.CornerPin || (other.Generator is null && !other.IsCompound)))
-                    {
-                        targets.Add($"{ClipLabels.Name(Session.Project, other, "Clip")} ({track.Name})", other.Id);
-                    }
-                }
-            }
-
-            if (targets.Count == 0)
-            {
-                targets.Add(use == TrackUse.CornerPin ? "Pon un video o una imagen encima de este clip" : "Pon un título, pegatina o imagen encima de este clip", null);
-            }
-        }
-        else if (use == TrackUse.Mask)
-        {
-            targets.Add("Una máscara nueva (elipse)", null);
-            int number = 0;
-            foreach (EffectInstance mask in clip.Effects.Where(e => e.Type == BuiltInEffects.Mask))
-            {
-                number++;
-                targets.Add(mask.Options.GetValueOrDefault(BuiltInEffects.MaskOptions.Name) is { Length: > 0 } name ? name : $"Máscara {number}", mask.Id);
-            }
-        }
-
-        _targets = ComboBoxChoices.Show(TargetBox, _targets, targets, targets.Count == 0 ? -1 : Math.Max(0, targets.IndexOf(chosen)));
+        (ChoiceList<string?> targets, int selected) = TrackingChoices.Targets(Session.Project, Session.Sequence, clip, use, chosen);
+        _targets = ComboBoxChoices.Show(TargetBox, _targets, targets, selected);
         TargetBox.Visibility = _targets.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         AutoCropBox.Visibility = use == TrackUse.Stabilize ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -485,7 +436,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
             });
             try
             {
-                await PointTracking.RunAsync(request, f => DispatcherQueue.TryEnqueue(() => Tracked(f)), both, scope.Token);
+                await PointTracking.RunAsync(request, f => DispatcherQueue.RunLater(() => Tracked(f)), both, scope.Token);
             }
             catch (OperationCanceledException)
             {

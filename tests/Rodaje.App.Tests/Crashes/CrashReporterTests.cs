@@ -17,10 +17,14 @@ public class CrashReporterTests
         using var dir = new TempDirectory();
         CrashReporter reporter = NewReporter(dir, out SessionLog log);
         log.Append("abrió el proyecto");
+        var shown = new List<string>();
 
-        string? path = reporter.Write(CrashKind.XamlUnhandled, Thrown(), fatal: false);
+        // El camino de App.OnUnhandledException con ventana.
+        bool handled = CrashRouting.OnXamlUnhandled(Thrown(), "mensaje de WinUI", shown.Add, reporter.Write, reporter.Write);
 
-        Assert.NotNull(path);
+        Assert.True(handled);
+        Assert.Equal(["falló el manejador de prueba"], shown);
+        string path = Assert.Single(Reports(dir));
         Assert.EndsWith("-recuperado.txt", path, StringComparison.Ordinal);
         string text = File.ReadAllText(path);
         Assert.Contains("Application.UnhandledException", text, StringComparison.Ordinal);
@@ -38,12 +42,14 @@ public class CrashReporterTests
         using var dir = new TempDirectory();
         CrashReporter reporter = NewReporter(dir, out _);
 
-        string? path = reporter.Write(CrashKind.XamlUnhandled, Thrown(), fatal: true);
+        // El camino de App.OnUnhandledException antes de que haya ventana: no se atiende (WinUI cierra la app).
+        bool handled = CrashRouting.OnXamlUnhandled(Thrown(), "mensaje de WinUI", null, reporter.Write, reporter.Write);
 
-        Assert.NotNull(path);
+        Assert.False(handled);
+        string path = Assert.Single(Reports(dir));
         Assert.False(Path.GetFileNameWithoutExtension(path).EndsWith("-recuperado", StringComparison.Ordinal));
         Assert.Contains("La app se cerró: sí", File.ReadAllText(path), StringComparison.Ordinal);
-        Assert.Equal(new[] { path! }, reporter.PendingReports());
+        Assert.Equal(new[] { path }, reporter.PendingReports());
     }
 
     [Fact]
@@ -119,7 +125,7 @@ public class CrashReporterTests
         Assert.Contains("0xC000027B", text, StringComparison.Ordinal);
         Assert.Contains("stowed", text, StringComparison.Ordinal);
         string dump = Assert.Single(Directory.GetFiles(dir.Path, "*.dmp"));
-        Assert.Contains("Minivolcado: " + dump, text, StringComparison.Ordinal);
+        Assert.Contains("Minivolcado: " + CrashReportScrubber.Default.Scrub(dump), text, StringComparison.Ordinal);
         AssertMinidump(dump);
     }
 
@@ -143,14 +149,27 @@ public class CrashReporterTests
         // De otro proceso: volcar el de las pruebas desde dentro puede trabarse con los demás hilos.
         using var dir = new TempDirectory();
         string path = dir.File("prueba.dmp");
-        using var child = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c ping -n 30 127.0.0.1 >nul")
+        // El hijo avisa por su salida cuando ya corre: volcar un proceso recién creado, con el cargador a medias, falla
+        // (ERROR_PARTIAL_COPY) y hacía caer la prueba de vez en cuando a los pocos milisegundos.
+        using var child = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c echo listo& ping -n 30 127.0.0.1 >nul")
         {
             CreateNoWindow = true,
             UseShellExecute = false,
+            RedirectStandardOutput = true,
         })!;
         try
         {
-            Assert.True(NativeCrashHandler.WriteMinidump(path, child));
+            Assert.Equal("listo", child.StandardOutput.ReadLine()?.Trim());
+            // Aun así, si el sistema está cargado, unos reintentos breves antes de darlo por fallido.
+            bool written = false;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            while (!(written = NativeCrashHandler.WriteMinidump(path, child)) && clock.Elapsed < TimeSpan.FromSeconds(10))
+            {
+                Thread.Sleep(200);
+            }
+
+            Assert.True(written, string.Create(CultureInfo.InvariantCulture,
+                $"MiniDumpWriteDump falló durante {clock.Elapsed.TotalSeconds:0.0} s (último error de Win32: {NativeCrashHandler.LastMinidumpError})."));
             AssertMinidump(path);
         }
         finally

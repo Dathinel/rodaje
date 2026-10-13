@@ -6,6 +6,8 @@ public sealed record LimiterSettings(double CeilingDb, double InputGainDb, doubl
     public override int LatencyFrames(double sampleRate) => TruePeakLimiter.Latency;
 
     internal override IAudioStage CreateStage(double sampleRate) => new LimiterStage(this, sampleRate);
+
+    internal override LimiterSettings Limited() => new(Limit(CeilingDb, -24, 0, -1), Limit(InputGainDb, 0, 24, 0), Limit(ReleaseMs, 5, 1000, 60));
 }
 
 /// <summary>El <see cref="TruePeakLimiter"/> de la mezcla como inserción, con ganancia de entrada y relajación propias.</summary>

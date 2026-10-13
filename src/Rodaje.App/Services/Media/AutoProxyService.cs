@@ -17,6 +17,7 @@ public sealed class AutoProxyService(Func<MediaSourceResolver?> resolver, Func<l
 {
     private readonly List<string> _pending = [];
     private MediaSourceResolver? _attached;
+    private EventHandler<ProxyStatusChangedEventArgs>? _onStatus;
 
     /// <summary>El estado del proxy de un medio cambió (en cola, porcentaje, listo, fallo), en el hilo de la interfaz.</summary>
     public event EventHandler<ProxyStatus>? StatusChanged;
@@ -64,8 +65,11 @@ public sealed class AutoProxyService(Func<MediaSourceResolver?> resolver, Func<l
 
         if (!ReferenceEquals(current, _attached))
         {
+            // El resolvedor anterior se suelta: si no, seguiría avisando estados viejos y retendría este servicio.
+            _onStatus ??= (_, e) => Post(e.Status);
+            _attached?.StatusChanged -= _onStatus;
             _attached = current;
-            current.StatusChanged += (_, e) => Post(e.Status);
+            current.StatusChanged += _onStatus;
         }
 
         if (_pending.Count == 0)

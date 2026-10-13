@@ -7,7 +7,8 @@ namespace Rodaje.App.Views.Inspector;
 /// <remarks>
 /// Cambiar los elementos de un desplegable de WinUI dentro de su propio <c>SelectionChanged</c> o con la lista abierta falla
 /// en código nativo y cierra la app sin rastro (tarea 91). Aquí los elementos solo se rehacen si cambió la lista, nunca con
-/// la lista abierta, y la selección solo se toca si es otra.
+/// la lista abierta, y la selección solo se toca si es otra. La decisión es <see cref="ComboChoices.Show{T, TBox}"/>, que las
+/// pruebas ejercen sin WinUI.
 /// </remarks>
 internal static class ComboBoxChoices
 {
@@ -16,33 +17,27 @@ internal static class ComboBoxChoices
     /// <paramref name="shown"/> si estaba abierto (no se toca nada) o no hacía falta rehacerlo.
     /// </summary>
     /// <param name="item">El elemento de cada posición; por omisión, su texto.</param>
-    public static ChoiceList<T> Show<T>(ComboBox box, ChoiceList<T> shown, ChoiceList<T> next, int selected, Func<int, object>? item = null)
+    /// <param name="retry">Si se da, lo que no se tocó por tener la lista abierta se repite al cerrarla (ver <see cref="DispatcherQueueLater.RetryWhenClosed"/>).</param>
+    public static ChoiceList<T> Show<T>(ComboBox box, ChoiceList<T> shown, ChoiceList<T> next, int selected, Func<int, object>? item = null,
+        ClosedListRetry? retry = null)
     {
         ArgumentNullException.ThrowIfNull(box);
-        ComboUpdate update = ComboChoices.Update(shown, next, box.IsDropDownOpen);
-        if (update == ComboUpdate.Keep)
+        return ComboChoices.Show(new Box(box), shown, next, selected, item, retry);
+    }
+
+    /// <summary>Un <c>ComboBox</c> de WinUI como <see cref="IChoiceBox"/>.</summary>
+    private sealed class Box(ComboBox box) : IChoiceBox
+    {
+        public bool IsDropDownOpen => box.IsDropDownOpen;
+
+        public int SelectedIndex
         {
-            return shown;
+            get => box.SelectedIndex;
+            set => box.SelectedIndex = value;
         }
 
-        if (update == ComboUpdate.Rebuild)
-        {
-            box.SelectedIndex = -1;
-            box.Items.Clear();
-            for (int i = 0; i < next.Count; i++)
-            {
-                box.Items.Add(item?.Invoke(i) ?? next.Labels[i]);
-            }
+        public void ClearItems() => box.Items.Clear();
 
-            shown = next;
-        }
-
-        selected = selected >= 0 && selected < shown.Count ? selected : -1;
-        if (box.SelectedIndex != selected)
-        {
-            box.SelectedIndex = selected;
-        }
-
-        return shown;
+        public void AddItem(object item) => box.Items.Add(item);
     }
 }

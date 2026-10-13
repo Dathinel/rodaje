@@ -55,7 +55,7 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         services.Session.ProjectEdited += (_, _) => Refresh();
         services.Session.ProjectOpened += (_, _) => Refresh();
         services.Packages.Changed += (_, _) => Refresh();
-        services.Player.MissingFontsChanged += () => DispatcherQueue.TryEnqueue(Refresh);
+        services.Player.MissingFontsChanged += () => DispatcherQueue.RunLater(Refresh);
         Refresh();
     }
 
@@ -278,25 +278,10 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         if (!ReferenceEquals(scan, _stylesScan) && !_styleBox.IsDropDownOpen)
         {
             _stylesScan = scan;
-            styles = new ChoiceList<LibraryElement>();
-            foreach (LibraryElement element in LibraryElements.For(LibraryCategory.Text, scan))
-            {
-                styles.Add(element.IsBuiltIn ? element.Name : $"{element.Name} · {element.Source}", element);
-            }
+            styles = TextStyleChoices.Build(scan);
         }
 
-        int index = -1;
-        for (int i = 0; i < styles.Count; i++)
-        {
-            LibraryElement e = styles.Values[i];
-            if (style.Source is { } source ? e.Reference == source : e.IsBuiltIn && style.ContentEquals(TitleStyles.Default()))
-            {
-                index = i;
-                break;
-            }
-        }
-
-        _styles = ComboBoxChoices.Show(_styleBox, _styles, styles, index);
+        _styles = ComboBoxChoices.Show(_styleBox, _styles, styles, TextStyleChoices.IndexOf(styles, style));
         _styleBox.PlaceholderText = style.Name is { Length: > 0 } name ? $"{name} (cambiado)" : "Personalizado";
         if (_sourceText is not null)
         {

@@ -158,6 +158,7 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
             Thread.Sleep(owner.DisposeDelay);
         }
 
+        owner.OnVideoDispose?.Invoke(this);
         _disposed = true;
     }
 
@@ -323,6 +324,9 @@ internal sealed class FakeTimelineBackend : IClipBackend
 
     /// <summary>Lo que tarda en cerrarse cada decodificador, como uno real que libera su pool.</summary>
     public TimeSpan DisposeDelay { get; init; }
+
+    /// <summary>Corre en el hilo que cierra cada decodificador, antes de darlo por cerrado: puede bloquearlo.</summary>
+    public Action<FakeMediaVideo>? OnVideoDispose { get; set; }
 
     /// <summary>Si se da, cada decodificador simula un pool de D3D11VA con superficies de este tamaño y pide su tamaño al programador.</summary>
     public long? PoolSurfaceBytes { get; init; }

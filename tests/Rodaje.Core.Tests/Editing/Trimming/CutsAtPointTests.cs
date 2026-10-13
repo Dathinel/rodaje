@@ -177,16 +177,76 @@ public sealed class CutsAtPointTests
     {
         TrimFixture f = new TrimFixture()
             .Add("v1", "c1", "m1", 0, 50, 0, link: "L1")
-            .Add("a1", "s1", "m1", 0, 30, 10, link: "L1")
+            .Add("a1", "s1", "m1", 0, 30, 0, link: "L1")
             .Add("v1", "c2", "m2", 0, 10, 50)
             .Add("a1", "s2", "m3", 0, 10, 40);
+
+        TimelineEdits.DeleteToPoint(f.Ctx, ["c1"], F(20), TrimEdge.Out, ripple: true, RippleScope.Track);
+
+        f.AssertClip("c1", 0, 20, 0);
+        f.AssertClip("s1", 0, 20, 0);
+        f.AssertClip("c2", 0, 10, 20);
+        f.AssertClip("s2", 0, 10, 30);
+        f.AssertValid();
+    }
+
+    /// <summary>
+    /// Enlazados que empiezan en instantes distintos cierran con Q tramos de distinto largo: se desfasarían, así que se
+    /// rechaza como el borrado ripple por pista (D-041). Lo encontró el fuzz de la sesión (semilla 1007).
+    /// </summary>
+    [Fact]
+    public void Con_ripple_de_pista_lo_que_desincronizaria_se_rechaza()
+    {
+        TrimFixture f = new TrimFixture()
+            .Add("v1", "c1", "m1", 0, 50, 0, link: "L1")
+            .Add("a1", "s1", "m1", 10, 30, 10, link: "L1")
+            .Add("v1", "c2", "m2", 0, 10, 50);
+
+        Assert.Throws<EditException>(() => TimelineEdits.DeleteToPoint(f.Ctx, ["c1"], F(20), TrimEdge.In, ripple: true, RippleScope.Track));
+    }
+
+    /// <summary>
+    /// Q con ripple por pista: la pareja que empieza justo en el cursor no pasa por él, así que no se recorta ni cierra su
+    /// tramo; el recortado la arrastra al correrse (semilla 651 del fuzz de la sesión). Sin eso quedaba atrás y se rechazaba
+    /// por desfase.
+    /// </summary>
+    [Fact]
+    public void Q_con_ripple_de_pista_arrastra_al_enlazado_que_empieza_en_el_cursor()
+    {
+        TrimFixture f = new TrimFixture()
+            .Add("v1", "c1", "m1", 0, 50, 0, link: "L1")
+            .Add("a1", "s1", "m1", 20, 50, 20, link: "L1")
+            .Add("v1", "c2", "m2", 0, 10, 50)
+            .Add("a1", "s2", "m3", 0, 10, 60);
 
         TimelineEdits.DeleteToPoint(f.Ctx, ["c1"], F(20), TrimEdge.In, ripple: true, RippleScope.Track);
 
         f.AssertClip("c1", 20, 50, 0);
-        f.AssertClip("s1", 10, 30, 10);
+        f.AssertClip("s1", 20, 50, 0);
         f.AssertClip("c2", 0, 10, 30);
-        f.AssertClip("s2", 0, 10, 30);
+        f.AssertClip("s2", 0, 10, 40);
+        f.AssertValid();
+    }
+
+    /// <summary>
+    /// W con ripple por pista: la pareja que termina justo en el cursor tampoco pasa por él; el tramo cerrado empieza
+    /// donde ella termina, así que ninguno de los dos se mueve y lo que sigue se corre en las dos pistas.
+    /// </summary>
+    [Fact]
+    public void W_con_ripple_de_pista_deja_en_su_sitio_al_enlazado_que_termina_en_el_cursor()
+    {
+        TrimFixture f = new TrimFixture()
+            .Add("v1", "c1", "m1", 0, 50, 0, link: "L1")
+            .Add("a1", "s1", "m1", 0, 20, 0, link: "L1")
+            .Add("v1", "c2", "m2", 0, 10, 50, link: "L2")
+            .Add("a1", "s2", "m2", 0, 10, 50, link: "L2");
+
+        TimelineEdits.DeleteToPoint(f.Ctx, ["c1"], F(20), TrimEdge.Out, ripple: true, RippleScope.Track);
+
+        f.AssertClip("c1", 0, 20, 0);
+        f.AssertClip("s1", 0, 20, 0);
+        f.AssertClip("c2", 0, 10, 20);
+        f.AssertClip("s2", 0, 10, 20);
         f.AssertValid();
     }
 

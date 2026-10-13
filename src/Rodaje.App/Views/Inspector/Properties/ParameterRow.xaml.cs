@@ -347,6 +347,8 @@ internal sealed partial class ParameterRow : UserControl
             return;
         }
 
-        InterpolationChosen?.Invoke(this, KeyframeEase.Options[EaseBox.SelectedIndex].Value);
+        // Quien escucha edita y refresca, lo que puede rehacer esta fila y su desplegable: va después del evento (tarea 91).
+        Interpolation ease = KeyframeEase.Options[EaseBox.SelectedIndex].Value;
+        DispatcherQueue.RunAfterEvent(() => InterpolationChosen?.Invoke(this, ease));
     }
 }

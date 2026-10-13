@@ -480,7 +480,9 @@ internal sealed partial class TimelineScheduler : IDisposable
 
             ReleaseHeld(released);
 
-            decoders = [.. _decoders.Values.Where(d => !d.Closed)];
+            // También los ya cerrados cuya liberación sigue en la cola del ejecutor de servicio: se los espera aquí, así
+            // que su cuadro en curso se cancela aquí y no cuando el servicio llegue a la cancelación que dejó el cierre.
+            decoders = [.. _decoders.Values];
             foreach (DecoderState decoder in decoders)
             {
                 decoder.Closed = true;
@@ -500,9 +502,29 @@ internal sealed partial class TimelineScheduler : IDisposable
         // El cuadro que cada uno decodifica ya no le sirve a nadie: sin cancelarlo, cerrar esperaba a que terminara cada uno.
         epochs.ForEach(e => e.Cancel());
         released.ForEach(f => f.Dispose());
+
+        // Cada decodificador se libera en su propio hilo y todos a la vez: primero se les encarga a todos y después se
+        // espera a cada uno, así cerrar tarda lo del más lento y no la suma. Antes se liberaban de a uno en el ejecutor
+        // de servicio, detrás de los cierres pendientes que tuviera en cola: con muchos decodificadores cerrados por
+        // falta de uso (o liberaciones lentas) la cola tardaba más que el tope y parecía un interbloqueo. Las liberaciones
+        // que sigan en la cola de servicio encuentran luego el ejecutor detenido y el decodificador ya liberado.
         foreach (DecoderState decoder in decoders)
         {
-            _service.Post(() => Reap(decoder));
+            decoder.Executor?.Post(() => DisposeDecoder(decoder));
+        }
+
+        foreach (DecoderState decoder in decoders)
+        {
+            (decoder.Executor as IDisposable)?.Dispose();
+        }
+
+        lock (_gate)
+        {
+            foreach (DecoderState decoder in decoders)
+            {
+                decoder.Reserved = 0;
+                _decoders.Remove(decoder.Id);
+            }
         }
 
         (_service as IDisposable)?.Dispose();

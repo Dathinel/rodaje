@@ -157,7 +157,8 @@ internal static class AutoSubtitles
 
         if (v.TryGetProperty("bytes", out JsonElement size))
         {
-            if (!size.TryGetInt64(out long n) || n < 0 || n > buffer.Length)
+            // TryGetInt64 lanza InvalidOperationException si «bytes» no es un número: se mira el tipo antes.
+            if (size.ValueKind != JsonValueKind.Number || !size.TryGetInt64(out long n) || n < 0 || n > buffer.Length)
             {
                 throw new ModuleProtocolException("«subtitulos» devolvió un tamaño de resultado inesperado.");
             }

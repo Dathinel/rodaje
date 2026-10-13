@@ -20,36 +20,59 @@ internal static class UiThread
     public static void Run(Func<Task> body, TimeSpan timeout)
     {
         ExceptionDispatchInfo? failure = null;
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
-            using var context = new LoopContext();
-            SynchronizationContext.SetSynchronizationContext(context);
-            Task task;
             try
             {
-                task = body();
+                RunLoop(body, ref failure);
             }
-            catch (Exception ex)
+            finally
             {
-                failure = ExceptionDispatchInfo.Capture(ex);
-                return;
-            }
-
-            task.ContinueWith(_ => context.Complete(), TaskScheduler.Default);
-            context.RunUntilComplete();
-            if (task.Exception is { } error)
-            {
-                failure = ExceptionDispatchInfo.Capture(error.InnerExceptions.Count == 1 ? error.InnerExceptions[0] : error);
+                finished.TrySetResult();
             }
         })
         { IsBackground = true, Name = "Hilo de interfaz de prueba" };
         thread.Start();
-        if (!thread.Join(timeout))
+
+        // xUnit 2.9 (algoritmo «conservative») corre el cuerpo de las pruebas en hilos del pool, así que esta espera ocupa
+        // uno mientras dura la prueba. Con Thread.Join el pool no se enteraba: cuatro pruebas así a la vez dejaban el pool
+        // en su mínimo y lo demás esperaba a que la inyección lenta de hilos sumara uno. Esperar una Task desde un hilo
+        // del pool hace que el pool lo cuente como bloqueado y ponga otro en su lugar enseguida.
+        if (!finished.Task.Wait(timeout))
         {
             throw new TimeoutException($"La prueba no terminó en {timeout.TotalSeconds:0} s. {PoolState()}");
         }
 
         failure?.Throw();
+    }
+
+    private static void RunLoop(Func<Task> body, ref ExceptionDispatchInfo? failure)
+    {
+        using var context = new LoopContext();
+        SynchronizationContext.SetSynchronizationContext(context);
+        Task task;
+        try
+        {
+            task = body();
+        }
+        catch (Exception ex)
+        {
+            failure = ExceptionDispatchInfo.Capture(ex);
+            return;
+        }
+
+        // Se cierra el bucle en el hilo que termina la tarea (casi siempre este mismo), sin pasar por el pool: con
+        // TaskScheduler.Default a secas el cierre era un trabajo más en la cola del pool, y en la CI, con el pool
+        // ocupado por otras pruebas («Pool: 9 hilos, 1 trabajos en cola»), pruebas que no esperan nada
+        // (TemplateDeleteConfirmTests, ClipPropertyEditorTests, AutosaveRecoveryCancelTests) agotaban los 120 s.
+        task.ContinueWith(static (_, state) => ((LoopContext)state!).Complete(), context, CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        context.RunUntilComplete();
+        if (task.Exception is { } error)
+        {
+            failure = ExceptionDispatchInfo.Capture(error.InnerExceptions.Count == 1 ? error.InnerExceptions[0] : error);
+        }
     }
 
     /// <summary>Estado del pool de hilos, para saber si una espera agotada fue por falta de hilos.</summary>
