@@ -54,6 +54,57 @@ public sealed class ReplyRaceTests
         }
     }
 
+    /// <summary>
+    /// Tarea 295. Determinista: el hilo de la llamada no arranca hasta que <c>RunAsync</c> ha vuelto (en la CI de Windows,
+    /// <see cref="Thread.Start()"/> llegó a tardar más de 10 s), así que el cierre agota su espera de 2 s con la llamada sin
+    /// contestar. Antes se cerraba el canal sin más y la llamada se quedaba sin respuesta final («6 de 300 llamadas
+    /// quedaron sin respuesta final» en <see cref="Una_llamada_y_shutdown_seguidos_siempre_tienen_respuesta"/>). Ahora el
+    /// cierre la contesta con <c>cancelled</c> antes de cerrar, y la llamada, cuando por fin arranca, no contesta otra vez.
+    /// El orden lo fija la costura, no el reloj: el hilo se suelta solo cuando <c>RunAsync</c> ya terminó.
+    /// </summary>
+    [Fact]
+    public async Task Una_llamada_cuyo_hilo_no_arranca_antes_de_cerrar_recibe_cancelled()
+    {
+        using ManualResetEventSlim reached = new();
+        StartGate gate = new();
+        ModuleHost host = new(Support.EchoInfo)
+        {
+            BeforeCallThreadStartsForTests = _ =>
+            {
+                reached.Set();
+                gate.Wait();
+            },
+        };
+        host.Register("eco", (call, _) => ValueTask.FromResult(new ModuleOutput(call.Parameters)));
+
+        (NamedPipeServerStream editor, NamedPipeClientStream module) = await Support.PipePairAsync();
+        using (editor)
+        using (module)
+        {
+            try
+            {
+                Task<bool> run = host.RunAsync(module);
+                await editor.WriteAsync(Support.Frame(Hello));
+                await FuzzSupport.Capped(FuzzSupport.ReadFrameAsync(editor), "el welcome");
+                Task<List<byte[]>> drain = FuzzSupport.DrainAsync(editor);
+                await editor.WriteAsync((byte[])[.. Support.Frame("""{"type":"invoke","id":2,"function":"eco"}"""), .. Support.Frame("""{"type":"shutdown"}""")]);
+                Assert.True(reached.Wait(FuzzSupport.CaseCap), "La llamada no llegó a arrancar su hilo.");
+
+                Assert.True(await FuzzSupport.Capped(run, "RunAsync con un hilo de llamada sin arrancar"));
+                module.Dispose();
+                List<byte[]> replies = await FuzzSupport.Capped(drain, "la lectura");
+
+                ErrorMessage error = Assert.IsType<ErrorMessage>(MessageChannel.Parse(Assert.Single(replies)));
+                Assert.Equal(2, error.Id);
+                Assert.Equal(ErrorCodes.Cancelled, error.Code);
+            }
+            finally
+            {
+                gate.Open();
+            }
+        }
+    }
+
     /// <summary>Sin costura: una llamada que termina al instante y <c>shutdown</c> detrás, en la misma escritura.</summary>
     [Fact]
     public async Task Una_llamada_y_shutdown_seguidos_siempre_tienen_respuesta()

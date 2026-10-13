@@ -129,7 +129,7 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         // terminar su función, así que su id queda libre antes de que salga la respuesta. «unanswered»: las que aún no
         // escribieron su respuesta final, que es lo que el cierre tiene que esperar (tarea 211).
         ConcurrentDictionary<long, CancellationTokenSource> active = new();
-        ConcurrentDictionary<object, Task> unanswered = new();
+        ConcurrentDictionary<PendingReply, Task> unanswered = new();
         CallStarter starter = new(this);
         try
         {
@@ -181,8 +181,10 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
             }
             catch (TimeoutException)
             {
-                // Una función que no atiende la cancelación: sus regiones quedan mapeadas y el proceso sale igual.
+                // Una función que no atiende la cancelación, o un hilo de llamada que aún no arrancó (en la CI de Windows,
+                // Thread.Start pasó de 10 s): sus regiones quedan mapeadas y el proceso sale igual.
                 finished = false;
+                await AnswerUnansweredAsync(channel, unanswered).ConfigureAwait(false);
             }
 #pragma warning disable CA1031 // Al cerrar, el fallo de una llamada ya no tiene a quién llegar; todas terminaron.
             catch (Exception)
@@ -217,8 +219,51 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         return true;
     }
 
+    /// <summary>
+    /// Lo que queda en <c>unanswered</c> cuando el cierre agota su espera se contesta antes de cerrar el canal (tarea 295).
+    /// Antes se cerraba sin más y una llamada cuyo hilo aún no había arrancado, o cuya función no atendía la cancelación, se
+    /// quedaba sin respuesta final: «6 de 300 llamadas quedaron sin respuesta final» en la CI de Windows. La que aún no
+    /// reclamó su respuesta recibe <c>cancelled</c> y ya no contesta (ni corre su función, si no había empezado). La que ya
+    /// la reclamó solo está escribiéndola, con el plazo propio de <see cref="TrySendAsync"/>: se espera a que acabe.
+    /// </summary>
+    private static async ValueTask AnswerUnansweredAsync(MessageChannel channel, ConcurrentDictionary<PendingReply, Task> unanswered)
+    {
+        List<Task> replying = [];
+        foreach ((PendingReply pending, Task call) in unanswered)
+        {
+            if (pending.TryClaim())
+                await TrySendAsync(channel, new ErrorMessage(ErrorCodes.Cancelled, "El módulo se cerró antes de terminar la llamada.", pending.Id)).ConfigureAwait(false);
+            else
+                replying.Add(call);
+        }
+        try
+        {
+            await Task.WhenAll(replying).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // Al cerrar, el fallo de una llamada ya no tiene a quién llegar.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+        }
+    }
+
+    /// <summary>
+    /// La respuesta final de una llamada, que sale una sola vez: la reclama la llamada al terminar o, si el cierre agotó su
+    /// espera antes, el cierre (tarea 295).
+    /// </summary>
+    private sealed class PendingReply(long id)
+    {
+        private int _claimed;
+
+        public long Id { get; } = id;
+
+        public bool IsClaimed => Volatile.Read(ref _claimed) != 0;
+
+        public bool TryClaim() => Interlocked.Exchange(ref _claimed, 1) == 0;
+    }
+
     private async ValueTask StartAsync(MessageChannel channel, InvokeMessage invoke,
-        ConcurrentDictionary<long, CancellationTokenSource> active, ConcurrentDictionary<object, Task> unanswered, CallStarter starter,
+        ConcurrentDictionary<long, CancellationTokenSource> active, ConcurrentDictionary<PendingReply, Task> unanswered, CallStarter starter,
         CancellationToken stop)
     {
         if (active.ContainsKey(invoke.Id)) throw new ModuleProtocolException($"La llamada {invoke.Id} ya está en curso.");
@@ -238,12 +283,14 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         // Entonces este bucle, que lee y contesta con E/S asíncrona (sus continuaciones corren en el pool), no contestaba
         // el «ping» ni salían los avances, y el vigilante del editor mataba un módulo sano. La tarea se crea sin arrancar
         // para que esté en «active» y en «unanswered» antes de que pueda terminar y sacarse de ahí.
-        object key = new();
+        PendingReply key = new(invoke.Id);
         Task<Task> start = new(async () =>
         {
             ModuleMessage reply;
             try
             {
+                // El cierre ya la contestó con «cancelled» (el hilo arrancó tarde): la conexión se cerró, no hay nada que hacer.
+                if (key.IsClaimed) throw new OperationCanceledException();
                 ModuleOutput output = await function(new ModuleCall(this, channel, invoke), cts.Token).ConfigureAwait(false);
                 reply = new ResultMessage(invoke.Id, output.Value, output.Buffers);
                 if (reply.Validate() is { } reason) reply = new ErrorMessage(ErrorCodes.Internal, "Resultado inválido: " + reason, invoke.Id);
@@ -273,7 +320,7 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
             try
             {
                 if (BeforeReplyForTests is { } hook) await hook(invoke.Id).ConfigureAwait(false);
-                await SendReplyAsync(channel, reply).ConfigureAwait(false);
+                if (key.TryClaim()) await SendReplyAsync(channel, reply).ConfigureAwait(false);
             }
             finally
             {
@@ -298,8 +345,9 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     /// (el fin de flujo al cerrar el editor) o el plazo del cierre esperaban detrás, en la cola.</item>
     /// </list>
     /// Aquí ni el bucle ni el cierre dependen del arranque: un hilo lento solo retrasa las llamadas que vienen detrás, y el
-    /// cierre las espera con su plazo de 2 s. El hilo de arranque se crea con la primera llamada y lo arranca un único
-    /// trabajo del pool (el único arranque que espera ahí); termina cuando la conexión se cierra y ya arrancó lo pendiente.
+    /// cierre las espera con su plazo de 2 s y contesta con <c>cancelled</c> las que no llegaron a arrancar (tarea 295). El
+    /// hilo de arranque se crea con la primera llamada y lo arranca un único trabajo del pool (el único arranque que espera
+    /// ahí); termina cuando la conexión se cierra y ya arrancó lo pendiente.
     /// Si un hilo no se puede crear, la excepción termina el proceso del módulo, como antes salía de RunAsync.
     /// </summary>
     private sealed class CallStarter(ModuleHost host)
