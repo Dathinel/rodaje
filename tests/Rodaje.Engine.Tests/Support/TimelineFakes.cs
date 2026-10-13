@@ -130,16 +130,25 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
             return ValueTask.FromException<DecodedFrame?>(new MediaException($"Cuadro {frameIndex} dañado."));
         }
 
-        if (frameIndex >= Stream.FrameCount)
+        if (owner.AsyncDecode)
         {
-            return ValueTask.FromResult<DecodedFrame?>(null);
+            // Como uno que termina en otro hilo: la continuación del programador corre allí.
+            return new ValueTask<DecodedFrame?>(Task.Run(() => Decode(frameIndex, cancellationToken), CancellationToken.None));
         }
 
-        owner.Live.Increment();
-        Time pts = Time.FromFrames(frameIndex, Stream.FrameRate);
-        var frame = new DecodedFrame(frameIndex, pts, Time.FromFrames(frameIndex + 1, Stream.FrameRate) - pts,
-            new FakeFramePayload(Path, frameIndex, owner.Live), owner.FrameBytes);
-        return ValueTask.FromResult<DecodedFrame?>(frame);
+        if (owner.DecodeDelay is null)
+        {
+            return ValueTask.FromResult(Produce(frameIndex));
+        }
+
+        try
+        {
+            return ValueTask.FromResult(Decode(frameIndex, cancellationToken));
+        }
+        catch (OperationCanceledException ex)
+        {
+            return ValueTask.FromException<DecodedFrame?>(ex);
+        }
     }
 
     public void Dispose()
@@ -150,6 +159,32 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
         }
 
         _disposed = true;
+    }
+
+    /// <summary>Tarda lo que diga <see cref="FakeTimelineBackend.DecodeDelay"/>; se corta si cancelan la petición.</summary>
+    private DecodedFrame? Decode(long frameIndex, CancellationToken cancellationToken)
+    {
+        if (owner.DecodeDelay?.Invoke(frameIndex) is { } delay && delay > TimeSpan.Zero)
+        {
+            cancellationToken.WaitHandle.WaitOne(delay);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return Produce(frameIndex);
+    }
+
+    private DecodedFrame? Produce(long frameIndex)
+    {
+        if (frameIndex >= Stream.FrameCount)
+        {
+            return null;
+        }
+
+        owner.Live.Increment();
+        Time pts = Time.FromFrames(frameIndex, Stream.FrameRate);
+        var frame = new DecodedFrame(frameIndex, pts, Time.FromFrames(frameIndex + 1, Stream.FrameRate) - pts,
+            new FakeFramePayload(Path, frameIndex, owner.Live), owner.FrameBytes);
+        return frame;
     }
 }
 
@@ -268,6 +303,12 @@ internal sealed class FakeTimelineBackend : IClipBackend
 
     /// <summary>Hilos reales (<see cref="DecodeThread"/>) en lugar de ejecutar en el acto.</summary>
     public bool RealThreads { get; init; }
+
+    /// <summary>Lo que tarda cada cuadro (por su índice), como un decodificador lento; respeta la cancelación.</summary>
+    public Func<long, TimeSpan>? DecodeDelay { get; init; }
+
+    /// <summary>Cada cuadro termina en otro hilo (del grupo), no en el del decodificador.</summary>
+    public bool AsyncDecode { get; init; }
 
     /// <summary>Lo que tarda en cerrarse cada decodificador, como uno real que libera su pool.</summary>
     public TimeSpan DisposeDelay { get; init; }
@@ -400,7 +441,8 @@ internal sealed class TimelineBuilder
 
     public Sequence Sequence { get; }
 
-    public static string PathOf(string mediaId) => $@"C:\medios\{mediaId}.mp4";
+    /// <remarks>Fuera de Windows «C:\» no es una ruta absoluta: allí los medios van en <c>/medios</c>, para correr las pruebas en Linux.</remarks>
+    public static string PathOf(string mediaId) => OperatingSystem.IsWindows() ? $@"C:\medios\{mediaId}.mp4" : $"/medios/{mediaId}.mp4";
 
     public MediaRef AddMedia(string id, Rational rate, long frames, bool video = true, bool audio = true, FakeTimelineBackend? backend = null)
     {

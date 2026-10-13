@@ -751,6 +751,9 @@ internal sealed partial class TimelineScheduler
         decoder.Media.Decoders.Remove(decoder);
         _cache.RemoveSource(decoder.Id);
         _decodersClosed++;
+
+        // Fuera del candado, antes de esperarlo: lo que esté decodificando se descarta igual.
+        posts.Add((_service, decoder.Epoch.Cancel));
         posts.Add((_service, () => Reap(decoder)));
     }
 }
