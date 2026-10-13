@@ -94,6 +94,12 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     /// </summary>
     internal Action<long>? AfterCallForTests { get; init; }
 
+    /// <summary>
+    /// Costura de pruebas: corre en el cierre, ya agotada su espera, cuando <see cref="AnswerUnansweredAsync"/> reclamó las
+    /// llamadas sin empezar y antes de enviar sus <c>cancelled</c> y esperar a las empezadas (tarea 303).
+    /// </summary>
+    internal Action? AfterUnansweredClaimedForTests { get; init; }
+
     /// <summary>Registra la función <paramref name="id"/>; tiene que estar en <see cref="ModuleInfo.Functions"/>.</summary>
     public void Register(string id, ModuleFunction function)
     {
@@ -163,7 +169,7 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         }
         catch (ModuleProtocolException ex)
         {
-            await TrySendAsync(channel, new ErrorMessage(ErrorCodes.Malformed, ex.Message)).ConfigureAwait(false);
+            await TrySendAsync(channel, new ErrorMessage(ErrorCodes.Malformed, ex.Message), CancellationToken.None).ConfigureAwait(false);
             return false;
         }
         catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
@@ -233,27 +239,47 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     /// <see cref="TrySendAsync"/>): se espera a que acabe. Lo decide un solo cambio atómico de <see cref="PendingReply"/>
     /// (tarea 302): antes la llamada miraba si el cierre ya había contestado una vez, antes de la función, y si el cierre
     /// contestaba justo después la función corría igual con el canal cerrado.
+    /// <para>
+    /// Todo esto tiene un tope total, <see cref="UnansweredReplyBudget"/> (tarea 303). Antes cada <c>cancelled</c> salía en
+    /// serie con su propio plazo de 1 s y luego se esperaba sin plazo a las que ya habían empezado: con el editor sin leer y
+    /// muchas llamadas sin arrancar, el cierre pasaba de 2 s a 1 s por llamada más, y una función que no atiende la
+    /// cancelación lo dejaba colgado. Primero se reclaman todas las que no empezaron (un cambio atómico cada una, sin
+    /// esperar), así ninguna corre su función aunque el tope corte los envíos; después se envía y se espera dentro del tope.
+    /// </para>
     /// </summary>
-    private static async ValueTask AnswerUnansweredAsync(MessageChannel channel, ConcurrentDictionary<PendingReply, Task> unanswered)
+    private async ValueTask AnswerUnansweredAsync(MessageChannel channel, ConcurrentDictionary<PendingReply, Task> unanswered)
     {
+        List<long> cancelled = [];
         List<Task> replying = [];
         foreach ((PendingReply pending, Task call) in unanswered)
         {
             if (pending.TryCancel())
-                await TrySendAsync(channel, new ErrorMessage(ErrorCodes.Cancelled, "El módulo se cerró antes de terminar la llamada.", pending.Id)).ConfigureAwait(false);
+                cancelled.Add(pending.Id);
             else
                 replying.Add(call);
         }
+        AfterUnansweredClaimedForTests?.Invoke();
+        using CancellationTokenSource budget = new(UnansweredReplyBudget);
+        foreach (long id in cancelled)
+            await TrySendAsync(channel, new ErrorMessage(ErrorCodes.Cancelled, "El módulo se cerró antes de terminar la llamada.", id), budget.Token).ConfigureAwait(false);
         try
         {
-            await Task.WhenAll(replying).ConfigureAwait(false);
+            await Task.WhenAll(replying).WaitAsync(budget.Token).ConfigureAwait(false);
         }
-#pragma warning disable CA1031 // Al cerrar, el fallo de una llamada ya no tiene a quién llegar.
+#pragma warning disable CA1031 // Al cerrar, el fallo de una llamada ya no tiene a quién llegar; agotado el tope, se cierra igual.
         catch (Exception)
 #pragma warning restore CA1031
         {
         }
     }
+
+    /// <summary>
+    /// Tope total de <see cref="AnswerUnansweredAsync"/> (tarea 303): 2 s, lo mismo que el cierre ya espera a las llamadas
+    /// antes de contestarlas, así el cierre entero queda acotado en unos 4 s como mucho. Con el editor leyendo, cada
+    /// <c>cancelled</c> se escribe en microsegundos y el tope no corta nada; solo actúa cuando el editor no lee o una
+    /// función no atiende la cancelación, y entonces la respuesta ya no llegaría de todos modos.
+    /// </summary>
+    private static readonly TimeSpan UnansweredReplyBudget = TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// La respuesta final de una llamada, que sale una sola vez (tareas 295 y 302). Tres estados, con cambios atómicos:
@@ -605,11 +631,13 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
             await TrySendAsync(channel, new ErrorMessage(ErrorCodes.Internal, Trim("No se pudo enviar el resultado: " + reason), result.Id)).ConfigureAwait(false);
     }
 
+    /// <param name="limit">Un tope de fuera que puede cortar antes del plazo propio de 1 s (el del cierre, tarea 303).</param>
     /// <returns>El motivo si el mensaje no se puede escribir (nada llegó al cable); <c>null</c> si se envió o si el editor ya no escucha.</returns>
-    private static async ValueTask<string?> TrySendAsync(MessageChannel channel, ModuleMessage message)
+    private static async ValueTask<string?> TrySendAsync(MessageChannel channel, ModuleMessage message, CancellationToken limit = default)
     {
         // Con tiempo límite: si el editor no lee, el módulo no se queda esperando para siempre.
-        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(1));
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(limit);
+        timeout.CancelAfter(TimeSpan.FromSeconds(1));
         try
         {
             await channel.SendAsync(message, timeout.Token).ConfigureAwait(false);
