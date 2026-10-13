@@ -106,12 +106,12 @@ public class LongActionServiceTests
         EditorSession session = NewSession();
         EditorNotification? notice = null;
         session.Notified += (_, n) => notice = n;
-        var service = new LongActionService(session);
+        var service = new LongActionService(session, _ => { });
 
         Assert.True(await service.RunAsync("x", "Estabilizar", _ => throw new InvalidOperationException("No se pudo leer el video.")));
 
         Assert.Equal(NotificationSeverity.Error, notice!.Severity);
-        Assert.Equal("No se pudo leer el video.", notice.Message);
+        Assert.Equal("Estabilizar", notice.Title);
         Assert.False(service.IsRunning("x"));
     });
 
