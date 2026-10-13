@@ -229,11 +229,16 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         GeneratedContent content = TitleImage.Content("Respaldo", style);
 
         // Con el candado del rasterizado tomado (como mientras el hilo de fondo dibuja 1500 emoji), la pasada responde.
+        // Si esperara al candado no terminaría nunca (se suelta al salir del using), así que el tope es contra cuelgues y
+        // no una medida: con 5 s fallaba en la CI de Windows, donde la primera pasada arma la colección de fuentes del
+        // sistema con todos los proyectos de prueba a la vez en 4 núcleos. Va en un hilo propio para no esperar además
+        // a que el pool, ocupado por las otras pruebas, la atienda.
         Task<IReadOnlyList<MissingFont>> pass;
         using (titles.RasterLock.EnterScope())
         {
-            pass = Task.Run(() => titles.FindMissingFonts([content]));
-            Assert.True(pass.Wait(TimeSpan.FromSeconds(5)), "la pasada de fuentes esperó al rasterizado");
+            pass = Task.Factory.StartNew(() => titles.FindMissingFonts([content]), CancellationToken.None,
+                TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            Assert.True(pass.Wait(TimeSpan.FromSeconds(60)), "la pasada de fuentes esperó al rasterizado");
         }
 
         Assert.Equal("Fuente Que No Existe", Assert.Single(pass.Result).Family);
