@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Timeline;
@@ -124,7 +125,7 @@ internal sealed partial class MarkersPanel : UserControl, IEditorView
     {
         InitializeComponent();
         _menu.Items.Add(MenuItem("Ir ahí", "", (_, _) => GoTo(_menuTarget)));
-        _menu.Items.Add(MenuItem("Editar…", "", (_, _) => _ = EditAsync(_menuTarget?.Key)));
+        _menu.Items.Add(MenuItem("Editar…", "", (_, _) => UiTask.Run(EditAsync(_menuTarget?.Key))));
         _menu.Items.Add(new MenuFlyoutSeparator());
         _menu.Items.Add(MenuItem("Quitar", "", (_, _) => Remove(_menuTarget?.Key)));
         RegisterPropertyChangedCallback(VisibilityProperty, (_, _) =>
@@ -333,7 +334,7 @@ internal sealed partial class MarkersPanel : UserControl, IEditorView
                 e.Handled = true;
                 break;
             case VirtualKey.F2:
-                _ = EditAsync(item.Key);
+                UiTask.Run(EditAsync(item.Key));
                 e.Handled = true;
                 break;
             case VirtualKey.Delete:
@@ -370,7 +371,7 @@ internal sealed partial class MarkersPanel : UserControl, IEditorView
         args.Handled = true;
     }
 
-    private void OnEditClick(object sender, RoutedEventArgs e) => _ = EditAsync((sender as FrameworkElement)?.Tag as string);
+    private void OnEditClick(object sender, RoutedEventArgs e) => UiTask.Run(EditAsync((sender as FrameworkElement)?.Tag as string));
 
     private void OnRemoveClick(object sender, RoutedEventArgs e) => Remove((sender as FrameworkElement)?.Tag as string);
 

@@ -36,6 +36,12 @@ public sealed partial class LibraryOrganization
     private readonly HashSet<string> _rejected = new(StringComparer.Ordinal);
     private readonly Dictionary<string, List<string>> _tags = new(StringComparer.Ordinal);
     private readonly List<Subclip> _subclips = [];
+
+    /// <summary>
+    /// Los mismos subclips por id. La vista los busca uno por uno al rehacer la lista (los que ya no están) y recorrer
+    /// la lista entera por cada uno era cuadrático con miles de subclips.
+    /// </summary>
+    private readonly Dictionary<string, Subclip> _subclipsById = new(StringComparer.Ordinal);
     private readonly List<SmartBin> _collections = [];
     private readonly List<MulticamGroup> _multicams = [];
 
@@ -195,18 +201,21 @@ public sealed partial class LibraryOrganization
         }
 
         string clean = Clean(name);
-        var subclip = new Subclip(NewEntryId("subclip", id => _subclips.Exists(s => s.Id == id)), mediaId, clean.Length == 0 ? "Subclip" : clean, @in, @out);
+        var subclip = new Subclip(NewEntryId("subclip", _subclipsById.ContainsKey), mediaId, clean.Length == 0 ? "Subclip" : clean, @in, @out);
         _subclips.Add(subclip);
+        _subclipsById.Add(subclip.Id, subclip);
         Revision++;
         return subclip;
     }
 
     public bool RemoveSubclip(string subclipId)
     {
-        if (_subclips.RemoveAll(s => s.Id == subclipId) == 0)
+        if (subclipId is null || !_subclipsById.Remove(subclipId))
         {
             return false;
         }
+
+        _subclips.RemoveAll(s => s.Id == subclipId);
 
         Revision++;
         return true;
@@ -214,19 +223,20 @@ public sealed partial class LibraryOrganization
 
     public bool RenameSubclip(string subclipId, string? name)
     {
-        int index = _subclips.FindIndex(s => s.Id == subclipId);
         string clean = Clean(name);
-        if (index < 0 || clean.Length == 0 || _subclips[index].Name == clean)
+        if (FindSubclip(subclipId) is not { } current || clean.Length == 0 || current.Name == clean)
         {
             return false;
         }
 
-        _subclips[index] = _subclips[index] with { Name = clean };
+        Subclip renamed = current with { Name = clean };
+        _subclips[_subclips.IndexOf(current)] = renamed;
+        _subclipsById[renamed.Id] = renamed;
         Revision++;
         return true;
     }
 
-    public Subclip? FindSubclip(string? subclipId) => subclipId is null ? null : _subclips.Find(s => s.Id == subclipId);
+    public Subclip? FindSubclip(string? subclipId) => subclipId is not null && _subclipsById.TryGetValue(subclipId, out Subclip? subclip) ? subclip : null;
 
     /// <summary>Guarda una colección inteligente (nueva o reemplazando la del mismo id).</summary>
     public SmartBin SaveCollection(SmartBin collection)
@@ -316,7 +326,17 @@ public sealed partial class LibraryOrganization
             removed++;
         }
 
-        removed += _subclips.RemoveAll(s => !existing.Contains(s.MediaId));
+        int before = _subclips.Count;
+        _subclips.RemoveAll(s => !existing.Contains(s.MediaId));
+        if (_subclips.Count != before)
+        {
+            removed += before - _subclips.Count;
+            _subclipsById.Clear();
+            foreach (Subclip subclip in _subclips)
+            {
+                _subclipsById.Add(subclip.Id, subclip);
+            }
+        }
         for (int i = _multicams.Count - 1; i >= 0; i--)
         {
             MulticamGroup group = _multicams[i];
@@ -374,12 +394,13 @@ public sealed partial class LibraryOrganization
         }
 
         // Los ids ya vistos van en conjuntos: buscar en la lista por cada entrada era cuadrático con un archivo enorme.
-        var subclipIds = new HashSet<string>(_subclips.Select(s => s.Id), StringComparer.Ordinal);
         foreach (Subclip? subclip in marks.Subclips ?? [])
         {
-            if (subclip is { Id.Length: > 0, MediaId.Length: > 0 } && subclip.Out > subclip.In && subclip.In >= Time.Zero && subclipIds.Add(subclip.Id))
+            if (subclip is { Id.Length: > 0, MediaId.Length: > 0 } && subclip.Out > subclip.In && subclip.In >= Time.Zero && !_subclipsById.ContainsKey(subclip.Id))
             {
-                _subclips.Add(subclip with { Name = Clean(subclip.Name) is { Length: > 0 } n ? n : "Subclip" });
+                Subclip clean = subclip with { Name = Clean(subclip.Name) is { Length: > 0 } n ? n : "Subclip" };
+                _subclips.Add(clean);
+                _subclipsById.Add(clean.Id, clean);
             }
         }
 

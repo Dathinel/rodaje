@@ -1,4 +1,5 @@
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Services.Titles;
@@ -48,7 +49,7 @@ internal static partial class StillExportCommand
             _owner = owner;
             _flow = new StillExportFlow(Ask, ExportAsync,
                 n => _services.Session.Notify(n.Severity, n.Title, n.Message, n.Action));
-            _binding = router.Bind(ActionIds.ExportFrame, () => _ = _flow.StartAsync(request: null));
+            _binding = router.Bind(ActionIds.ExportFrame, () => UiTask.Run(_flow.StartAsync(request: null)));
         }
 
         public void Dispose()

@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Shapes;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Theme;
 
@@ -305,7 +306,7 @@ internal sealed partial class BindingEditor : UserControl
             Fill();
         };
         flyout.Opened += (_, _) => search.Focus(FocusState.Programmatic);
-        list.ItemClick += async (_, e) =>
+        list.ItemClick += (_, e) => UiTask.Run(async () =>
         {
             if (e.ClickedItem is not FrameworkElement { Tag: string id } || _host is null)
             {
@@ -323,7 +324,7 @@ internal sealed partial class BindingEditor : UserControl
             }
 
             owner.Focus(FocusState.Programmatic);
-        };
+        });
         return flyout;
     }
 
@@ -353,7 +354,9 @@ internal sealed partial class BindingEditor : UserControl
         CapturePad.Focus(FocusState.Programmatic);
     }
 
-    private async void OnPadPointerPressed(object sender, PointerRoutedEventArgs e)
+    private void OnPadPointerPressed(object sender, PointerRoutedEventArgs e) => UiTask.Run(OnPadPointerPressedAsync(sender, e));
+
+    private async Task OnPadPointerPressedAsync(object sender, PointerRoutedEventArgs e)
     {
         if (_mouseCapture is not { } capture)
         {
@@ -371,7 +374,9 @@ internal sealed partial class BindingEditor : UserControl
         await Recorded(capture, new MouseChord(input, MouseShortcutHost.Modifiers(e.KeyModifiers)));
     }
 
-    private async void OnPadWheel(object sender, PointerRoutedEventArgs e)
+    private void OnPadWheel(object sender, PointerRoutedEventArgs e) => UiTask.Run(OnPadWheelAsync(sender, e));
+
+    private async Task OnPadWheelAsync(object sender, PointerRoutedEventArgs e)
     {
         if (_mouseCapture is not { } capture)
         {

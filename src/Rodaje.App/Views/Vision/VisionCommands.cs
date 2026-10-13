@@ -1,4 +1,5 @@
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 
@@ -33,7 +34,9 @@ internal static partial class VisionCommands
         return new Bindings(bindings);
     }
 
-    private static async void Run(EditorSession session, string title, Func<Task> show)
+    private static void Run(EditorSession session, string title, Func<Task> show) => UiTask.Run(RunAsync(session, title, show));
+
+    private static async Task RunAsync(EditorSession session, string title, Func<Task> show)
     {
         try
         {
@@ -43,6 +46,8 @@ internal static partial class VisionCommands
         catch (Exception ex)
 #pragma warning restore CA1031
         {
+            // Ya se avisa aquí: el informe queda en fallos\ sin un segundo aviso.
+            UiTask.Report(ex, notify: false);
             session.Notify(NotificationSeverity.Error, title, ex.Message);
         }
     }

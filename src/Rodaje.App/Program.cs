@@ -119,8 +119,25 @@ internal static class Program
 
     // Las vías de excepción y el filtro nativo, antes que nada; la recuperación de sesiones y la copia en disco del
     // registro esperan a las opciones (Crashes.BeginSession en Main).
-    private static void InstallCrashReporting() =>
+    private static void InstallCrashReporting()
+    {
         CrashRouting.Install(Crashes, new CrashHooks(), AppendErrorFile, Environment.CommandLine);
+        // Las tareas sueltas de los manejadores y las excepciones que atrapan (UiTask).
+        UiTask.Reporter = ReportHandlerException;
+    }
+
+    /// <summary>
+    /// Excepción de una tarea suelta de un manejador o atrapada en él (<see cref="UiTask"/>): informe «recuperado» y, si
+    /// <paramref name="notify"/> y no es una repetición de la ráfaga, aviso en la ventana; la app sigue. Desde cualquier hilo.
+    /// </summary>
+    private static void ReportHandlerException(Exception exception, bool notify)
+    {
+        _ = ReportException(CrashKind.DispatcherCallback, exception, fatal: false, out bool repeated);
+        if (notify && !repeated)
+        {
+            Instance?.NotifyUnexpectedError(exception.Message);
+        }
+    }
 
     internal static bool OnDispatcherException(Exception exception) =>
         Instance is { } app

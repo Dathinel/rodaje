@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Diagnostics;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Autosave;
 using Rodaje.App.Services.Media;
@@ -129,7 +130,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }, new ModulePreviewYield(preview), SynchronizationContext.Current);
         _modules.Failed += (_, f) => session.Notify(NotificationSeverity.Error, f.Title, f.Message);
         packages.CloseModule = _modules.CloseModuleAsync;
-        packages.Changed += (_, _) => _ = Task.Run(_modules.Refresh);
+        packages.Changed += (_, _) => UiTask.Run(Task.Run(_modules.Refresh));
         Program.Metrics.Milestone("modulos");
         _longActions = new LongActionService(session);
         _longActions.Changed += (_, _) => _dispatcher.RunLater(ShowLongActions);
@@ -274,12 +275,12 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         if (_autosave is { IsActive: true })
         {
-            _ = _autosave.OfferRecoveryAsync();
+            UiTask.Run(_autosave.OfferRecoveryAsync());
         }
 
         if (options.Files.Count > 0 || options.SelfTest)
         {
-            _ = OpenStartupFilesAsync(options.Files);
+            UiTask.Run(OpenStartupFilesAsync(options.Files));
         }
 
         StartupTrace.Watch(Program.Metrics, OnStartupUsable);
@@ -309,13 +310,13 @@ internal sealed partial class MainWindow : Window, IShellHost
             Program.Metrics.Milestone("motor_lanzado");
         }
 
-        _ = Task.Run(_modules.Refresh);
-        _ = _visuals.TrimDiskCacheAsync();
-        _ = OfferExportQueueAsync(Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale()));
-        _ = OfferTourAsync();
+        UiTask.Run(Task.Run(_modules.Refresh));
+        UiTask.Run(_visuals.TrimDiskCacheAsync());
+        UiTask.Run(OfferExportQueueAsync(Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale())));
+        UiTask.Run(OfferTourAsync());
         if (_options.StartupProbe)
         {
-            _ = StartupTrace.FinishProbeAsync(Program.Metrics, _options.LogPath, _options.Files.Count > 0, () => _engine.FailureMessage, Close);
+            UiTask.Run(StartupTrace.FinishProbeAsync(Program.Metrics, _options.LogPath, _options.Files.Count > 0, () => _engine.FailureMessage, Close));
         }
     }
 
@@ -386,7 +387,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
             view = _exportView;
             ModalTitle.Text = "Exportar";
-            _ = OpenExportAsync(_exportView);
+            UiTask.Run(OpenExportAsync(_exportView));
         }
         else
         {
