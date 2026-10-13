@@ -45,6 +45,43 @@ public sealed class KillContinuationTests
         Assert.False(onPoolThread);
     }
 
+    /// <summary>
+    /// Regresión de la tarea 137: <see cref="ModuleProcess.DisposeAsync"/>, <see cref="ModuleProcess.Kill()"/> y el fallo
+    /// del arranque mataban el árbol de procesos en línea, en un hilo del pool, durante los segundos que tarda con la CPU
+    /// llena. Ahora lo hace <see cref="ModuleProcess.KillOffPool"/>: vuelve sin esperar y mata en un hilo propio. La
+    /// muerte lenta se simula con una puerta que la prueba suelta, sin relojes.
+    /// </summary>
+    [Fact]
+    public async Task Killing_returns_at_once_and_kills_on_its_own_thread()
+    {
+        CountingScheduler scheduler = new();
+        TaskCompletionSource killStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using ManualResetEventSlim release = new(false);
+        bool? onPoolThread = null;
+
+        Task kill = ModuleProcess.KillOffPool(() =>
+        {
+            onPoolThread = Thread.CurrentThread.IsThreadPoolThread;
+            killStarted.TrySetResult();
+            // Bloquea a propósito, como Process.Kill(entireProcessTree): solo su hilo propio, nunca uno del pool.
+            release.Wait();
+        }, scheduler);
+
+        try
+        {
+            await killStarted.Task.WaitAsync(Support.CiBound);
+            Assert.False(kill.IsCompleted);
+            Assert.Equal(1, scheduler.LongRunning);
+            Assert.False(onPoolThread);
+        }
+        finally
+        {
+            release.Set();
+        }
+        await kill.WaitAsync(Support.CiBound);
+        Assert.Equal(1, scheduler.Queued);
+    }
+
     /// <summary>Cuenta lo que se le programa y lo corre en un hilo propio, como el planificador por defecto con LongRunning.</summary>
     private sealed class CountingScheduler : TaskScheduler
     {

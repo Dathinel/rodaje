@@ -105,7 +105,7 @@ public sealed class ModuleProcess : IAsyncDisposable
         catch
         {
             await pipe.DisposeAsync().ConfigureAwait(false);
-            Kill(process);
+            await KillOffPool(() => Kill(process), TaskScheduler.Default).ConfigureAwait(false);
             process.Dispose();
             throw;
         }
@@ -133,14 +133,34 @@ public sealed class ModuleProcess : IAsyncDisposable
         completion.ContinueWith(_ => kill(), CancellationToken.None,
             TaskContinuationOptions.LongRunning | TaskContinuationOptions.OnlyOnFaulted, scheduler);
 
-    public void Kill() => Kill(_process);
+    /// <summary>
+    /// Mata el árbol de procesos del módulo sin esperar: lo mata un hilo propio (<see cref="KillOffPool"/>) y vuelve
+    /// enseguida. La muerte se ve en <see cref="Exited"/>. Quien llama suele ser una continuación en el pool (la salida
+    /// del proceso o el vigilante de ping de la app), que antes se quedaba bloqueada los segundos que tarda matar el árbol
+    /// con la CPU llena.
+    /// </summary>
+    public void Kill()
+    {
+        Process process = _process;
+        _ = KillOffPool(() => Kill(process), TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// Corre <paramref name="kill"/> en un hilo propio (<see cref="TaskCreationOptions.LongRunning"/>) y no en el pool:
+    /// <see cref="Process.Kill(bool)"/> recorre y mata el árbol de procesos en línea, y con la CPU llena tarda segundos,
+    /// que un hilo del pool pasaba bloqueado (en <see cref="DisposeAsync"/>, en el fallo del arranque y en
+    /// <see cref="Kill()"/>). Quien necesite esperar la muerte espera la tarea, que nunca falla (<c>Kill</c> traga lo
+    /// que lanza un proceso que ya terminó).
+    /// </summary>
+    internal static Task KillOffPool(Action kill, TaskScheduler scheduler) =>
+        Task.Factory.StartNew(kill, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, scheduler);
 
     public async ValueTask DisposeAsync()
     {
         await Client.DisposeAsync().ConfigureAwait(false);
         if (await Task.WhenAny(_exited.Task, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false) != _exited.Task)
         {
-            Kill(_process);
+            await KillOffPool(() => Kill(_process), TaskScheduler.Default).ConfigureAwait(false);
             await Task.WhenAny(_exited.Task, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
         }
         _process.Dispose();
