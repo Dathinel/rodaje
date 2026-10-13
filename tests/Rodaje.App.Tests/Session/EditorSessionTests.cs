@@ -388,10 +388,13 @@ public class EditorSessionTests
         session.Notified += (_, n) => notices.Add(n);
 
         Task<ImportResult> importing = session.ImportMediaAsync([Path.GetFullPath("a.mp4")]);
+        // La importación ya espera la lectura y el fin de su espera vuelve a este hilo, que no se suelta hasta el próximo
+        // await: se puede soltar la lectura ya y no dejar un hilo del pool bloqueado mientras se intenta abrir o crear.
+        prober.Release();
         Assert.True(session.IsBusy);
         Assert.False(await session.OpenProjectAsync("otro.rodaje"));
         Assert.False(await session.NewProjectAsync());
-        prober.Release();
+        Assert.True(session.IsBusy);
         Assert.Single((await importing).MediaIds);
 
         Assert.Equal(2, notices.Count);
@@ -446,6 +449,10 @@ public class EditorSessionTests
         Assert.Equal("Añadir al final", h.Session.UndoDescription);
     });
 
+    /// <summary>
+    /// Retiene la lectura hasta <see cref="Release"/>, para que la importación no termine antes de su primer await. Lo
+    /// llama la sesión en un hilo del pool: la prueba lo suelta enseguida, sin esperar a lo que comprueba.
+    /// </summary>
     private sealed class GatedProber(IMediaProber inner) : IMediaProber
     {
         private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);

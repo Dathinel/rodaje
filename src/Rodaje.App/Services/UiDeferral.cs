@@ -12,27 +12,25 @@ namespace Rodaje.App.Services;
 public static class UiDeferral
 {
     /// <summary>
-    /// Pone <paramref name="action"/> en la cola con <paramref name="tryEnqueue"/> o, si la cola no la acepta, la hace ya.
-    /// Si lanza, la excepción va a <paramref name="onException"/>: si devuelve <c>true</c> (informe y aviso) queda atendida;
-    /// si no (o si el manejador falla), sigue su camino como antes.
+    /// Pone <paramref name="action"/> en la cola con <paramref name="tryEnqueue"/>; si la cola no la acepta (la ventana se
+    /// está cerrando), la descarta: hacerla ya sería hacerla dentro del evento, justo lo que se quiere evitar. Si lanza, la
+    /// excepción va a <paramref name="onException"/>: si devuelve <c>true</c> (informe y aviso) queda atendida; si no (o si
+    /// el manejador falla), sigue su camino como antes.
     /// </summary>
-    public static void RunAfterEvent(Func<Action, bool> tryEnqueue, Action action, Func<Exception, bool> onException)
+    /// <returns>Si la cola aceptó la acción.</returns>
+    public static bool RunAfterEvent(Func<Action, bool> tryEnqueue, Action action, Func<Exception, bool> onException)
     {
         ArgumentNullException.ThrowIfNull(tryEnqueue);
         ArgumentNullException.ThrowIfNull(action);
         ArgumentNullException.ThrowIfNull(onException);
         void Guarded() => Run(action, onException);
-        if (!tryEnqueue(Guarded))
-        {
-            Guarded();
-        }
+        return tryEnqueue(Guarded);
     }
 
     /// <summary>
     /// Pone <paramref name="action"/> en la cola con <paramref name="tryEnqueue"/>, envuelta como en <see cref="RunAfterEvent"/>,
     /// y devuelve lo que devolvió la cola. Si la cola no la acepta (la ventana se cierra), no la hace: es para lo que llega de
-    /// otro hilo (motor, módulos, vigilantes de archivos) o que no debe hacerse en el acto, donde <c>RunAfterEvent</c> la
-    /// haría en un hilo que no es el de la interfaz.
+    /// otro hilo (motor, módulos, vigilantes de archivos) y para quien necesita saber si la cola la aceptó.
     /// </summary>
     public static bool TryRunLater(Func<Action, bool> tryEnqueue, Action action, Func<Exception, bool> onException)
     {

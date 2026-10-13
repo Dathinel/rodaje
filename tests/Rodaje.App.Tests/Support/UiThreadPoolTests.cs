@@ -6,7 +6,8 @@ namespace Rodaje.App.Tests.Support;
 /// <summary>
 /// <see cref="UiThread.Run(Func{Task})"/> bloquea el hilo del pool en que xUnit corre la prueba mientras dura. Con
 /// <c>Thread.Join</c> el pool no lo sabía y, con muchas a la vez, el resto del trabajo esperaba a la inyección lenta de
-/// hilos; esperando una Task, el pool pone otro hilo en lugar de cada uno bloqueado.
+/// hilos; esperando una Task, el pool pone otro hilo en lugar de cada uno bloqueado. Su gemela sin reloj, que corre en
+/// la CI, es <see cref="UiThreadPoolBlockingTests"/>.
 /// </summary>
 public sealed class UiThreadPoolTests(ITestOutputHelper output)
 {

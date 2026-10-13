@@ -101,6 +101,12 @@ public sealed class CrashReporter
     /// </summary>
     public Func<string, nint, bool> MinidumpWriter { get; init; } = WriteOwnMinidump;
 
+    /// <summary>
+    /// Quién escribe un informe de texto (ruta, texto); devuelve si quedó en disco. Las pruebas lo cambian para simular
+    /// un disco lleno o una carpeta sin permiso (como administrador, una carpeta de solo lectura no impide escribir).
+    /// </summary>
+    public Func<string, string, bool> ReportWriter { get; init; } = TryWrite;
+
     /// <summary>Lee la GPU ahora (fuera de un fallo), para que un fallo nativo no tenga que tocar DXGI.</summary>
     public void WarmUp() => _ = DescribeGpu(probe: true);
 
@@ -212,7 +218,7 @@ public sealed class CrashReporter
             {
                 if (report is not null)
                 {
-                    TryAppend(report, $"{Environment.NewLine}Minivolcado: {dump}{Environment.NewLine}");
+                    TryAppend(report, $"{Environment.NewLine}Minivolcado: {CrashReportScrubber.Default.Scrub(dump)}{Environment.NewLine}");
                 }
 
                 Prune();
@@ -311,6 +317,7 @@ public sealed class CrashReporter
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            _log.Append($"No se pudieron leer las sesiones anteriores en {folder}: {ex.Message}");
             return written;
         }
 
@@ -323,6 +330,7 @@ public sealed class CrashReporter
 
             try
             {
+                bool reported = false;
                 IReadOnlyList<string> tail = SessionLog.ReadTail(file, _log.Capacity);
                 DateTime ended = File.GetLastWriteTime(file);
                 lock (_gate)
@@ -332,16 +340,27 @@ public sealed class CrashReporter
                         string.Create(CultureInfo.InvariantCulture,
                             $"La sesión del proceso {pid} terminó sin cerrarse y sin dejar informe: un fallo nativo que no pasa por los filtros (error «stowed» de WinRT 0xC000027B, __fastfail, desbordamiento de pila), un cierre desde el Administrador de tareas o un apagón. Última escritura del registro: {ended:yyyy-MM-dd HH:mm:ss}."),
                         null, tail);
-                    if (path is not null && TryWrite(path, report.Format()))
+                    if (path is not null && ReportWriter(path, report.Format()))
                     {
                         written.Add(path);
+                        reported = true;
                     }
                 }
 
-                File.Delete(file);
+                // La copia del registro es la única evidencia: si el informe no quedó en disco (lleno, sin permiso), se
+                // conserva para el siguiente arranque.
+                if (reported)
+                {
+                    File.Delete(file);
+                }
+                else
+                {
+                    _log.Append($"No se pudo escribir el informe de la sesión anterior {Path.GetFileName(file)}; se conserva su registro para el próximo arranque.");
+                }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                _log.Append($"No se pudo recuperar la sesión anterior {Path.GetFileName(file)}: {ex.Message}");
             }
         }
 
@@ -390,6 +409,8 @@ public sealed class CrashReporter
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // Sin la marca, el mismo aviso vuelve a salir en el próximo arranque.
+            _log.Append($"No se pudieron marcar como vistos los informes de fallo: {ex.Message}");
         }
     }
 
@@ -505,7 +526,7 @@ public sealed class CrashReporter
         {
             var report = new CrashReport(kind, now, fatal, Version, DescribeGpu(probe: kind != CrashKind.NativeFatal), details ?? "(sin detalles)",
                 dumpPath, _log.Tail());
-            if (!TryWrite(path, report.Format()))
+            if (!ReportWriter(path, report.Format()))
             {
                 path = null;
             }
@@ -682,6 +703,7 @@ public sealed record CrashReport(CrashKind Kind, DateTime Time, bool Fatal, stri
             text.AppendLine(line);
         }
 
-        return text.ToString();
+        // Se invita a pegarlo en GitHub, que es público: sin rutas de medios ni carpetas del usuario.
+        return CrashReportScrubber.Default.Scrub(text.ToString());
     }
 }

@@ -4,17 +4,37 @@ namespace Rodaje.App.Services.Inspector;
 /// <remarks>
 /// Cambiar los elementos de un <c>ComboBox</c> de WinUI dentro de su propio <c>SelectionChanged</c> (elegir algo edita
 /// y la edición refresca el panel) o con la lista abierta falla en código nativo y cierra la app sin excepción
-/// administrada ni rastro. Por eso las vistas solo rehacen los elementos si cambió la lista (<see cref="NeedsRebuild"/>)
-/// y traducen el índice elegido con <see cref="Picked"/>, que nunca sale de la lista.
+/// administrada ni rastro. Por eso las vistas solo rehacen los elementos si cambió la lista (<see cref="NeedsRebuild"/>),
+/// traducen el índice elegido con <see cref="ChoiceList{T}.TryGet"/>, que nunca sale de la lista, y aplican la elección
+/// después del evento (<see cref="Choose{T}"/>).
 /// </remarks>
 public static class ComboChoices
 {
-    /// <summary>Si hay que rehacer los elementos: solo cuando la lista cambió.</summary>
-    public static bool NeedsRebuild(IReadOnlyList<string> shown, IReadOnlyList<string> next)
+    /// <summary>
+    /// Si hay que rehacer los elementos: solo cuando la lista cambió (algún texto, en orden). Es la única comparación de
+    /// «lista igual» de las vistas: la usan <see cref="ChoiceList{T}.Differs"/> y Exportar (desplegables y tarjetas).
+    /// </summary>
+    public static bool NeedsRebuild(IEnumerable<string> shown, IEnumerable<string> next)
     {
         ArgumentNullException.ThrowIfNull(shown);
         ArgumentNullException.ThrowIfNull(next);
         return !shown.SequenceEqual(next, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Una lista de solo textos (cada elemento representa su propio texto), para los desplegables que eligen por posición,
+    /// como los de Exportar.
+    /// </summary>
+    public static ChoiceList<string> FromLabels(IEnumerable<string> labels)
+    {
+        ArgumentNullException.ThrowIfNull(labels);
+        var list = new ChoiceList<string>();
+        foreach (string label in labels)
+        {
+            list.Add(label, label);
+        }
+
+        return list;
     }
 
     /// <summary>
@@ -34,7 +54,9 @@ public static class ComboChoices
     /// <c>ComboBoxChoices.Show</c> con un <c>ComboBox</c> de WinUI; aquí, sin WinUI, para probarlo con un desplegable falso.
     /// </summary>
     /// <param name="item">El elemento de cada posición; por omisión, su texto.</param>
-    public static ChoiceList<T> Show<T, TBox>(TBox box, ChoiceList<T> shown, ChoiceList<T> next, int selected, Func<int, object>? item = null)
+    /// <param name="retry">Si se da, un refresco que no toca nada por tener la lista abierta queda pendiente para cuando se cierre.</param>
+    public static ChoiceList<T> Show<T, TBox>(TBox box, ChoiceList<T> shown, ChoiceList<T> next, int selected, Func<int, object>? item = null,
+        ClosedListRetry? retry = null)
         where TBox : IChoiceBox
     {
         if (box is null)
@@ -45,6 +67,7 @@ public static class ComboChoices
         ComboUpdate update = Update(shown, next, box.IsDropDownOpen);
         if (update == ComboUpdate.Keep)
         {
+            _ = retry?.Defer(isDropDownOpen: true);
             return shown;
         }
 
@@ -70,14 +93,70 @@ public static class ComboChoices
     }
 
     /// <summary>
-    /// El elemento elegido en <paramref name="selectedIndex"/>; nulo si el índice no es de la lista (−1 al vaciarse, o uno
-    /// viejo tras rehacerla).
+    /// Lo que hace la vista en el <c>SelectionChanged</c> de un desplegable que edita y refresca el panel: anota la elección
+    /// (<paramref name="note"/>, dentro del evento) y deja para después del evento, con <see cref="UiDeferral.RunAfterEvent"/>,
+    /// la acción que devuelve (aplicar y refrescar). Refrescar dentro del propio evento puede rehacer el desplegable y cerrar
+    /// la app desde WinUI (tarea 91, «Escala»).
     /// </summary>
-    public static T? Picked<T>(IReadOnlyList<T> items, int selectedIndex)
-        where T : class
+    /// <param name="shown">Lo que muestra el desplegable.</param>
+    /// <param name="selectedIndex">El índice elegido; uno que no es de la lista (−1 al vaciarse) no hace nada.</param>
+    /// <param name="updating">Si el cambio lo hizo el propio refresco del panel: no hace nada.</param>
+    /// <param name="note">
+    /// Anota la elección y devuelve lo que se hace después del evento; nulo si no hay nada que hacer (la misma de antes o el
+    /// panel ya no tiene a qué aplicarla). No debe refrescar el panel ni tocar el desplegable.
+    /// </param>
+    /// <param name="tryEnqueue">La cola del hilo de la interfaz (en la app, <c>DispatcherQueue.TryEnqueue</c>).</param>
+    /// <param name="onException">El registro de fallos (ver <see cref="UiDeferral.RunAfterEvent"/>).</param>
+    /// <returns>Si quedó una acción en la cola.</returns>
+    public static bool Choose<T>(ChoiceList<T> shown, int selectedIndex, bool updating, Func<T, Action?> note, Func<Action, bool> tryEnqueue,
+        Func<Exception, bool> onException)
     {
-        ArgumentNullException.ThrowIfNull(items);
-        return selectedIndex >= 0 && selectedIndex < items.Count ? items[selectedIndex] : null;
+        ArgumentNullException.ThrowIfNull(shown);
+        ArgumentNullException.ThrowIfNull(note);
+        ArgumentNullException.ThrowIfNull(tryEnqueue);
+        ArgumentNullException.ThrowIfNull(onException);
+        if (updating || !shown.TryGet(selectedIndex, out T value) || note(value) is not { } apply)
+        {
+            return false;
+        }
+
+        return UiDeferral.RunAfterEvent(tryEnqueue, apply, onException);
+    }
+}
+
+/// <summary>
+/// El refresco de un desplegable que no se hizo porque la lista estaba abierta (<see cref="ComboUpdate.Keep"/>) y que se
+/// repite al cerrarla. Si WinUI manda el <c>SelectionChanged</c> con la lista todavía abierta y la acción diferida llega
+/// antes de que se cierre, el refresco no toca el desplegable y, sin esto, quedaría desfasado hasta el próximo cambio.
+/// </summary>
+public sealed class ClosedListRetry
+{
+    /// <summary>Si hay un refresco pendiente para cuando se cierre la lista.</summary>
+    public bool Pending { get; private set; }
+
+    /// <summary>
+    /// Si la lista está abierta, anota el refresco pendiente y devuelve <c>true</c>: el refresco no debe tocar el desplegable.
+    /// </summary>
+    public bool Defer(bool isDropDownOpen)
+    {
+        Pending |= isDropDownOpen;
+        return isDropDownOpen;
+    }
+
+    /// <summary>
+    /// Lo que hace la vista en el <c>DropDownClosed</c>: si quedó un refresco pendiente, lo deja (una vez) para después del
+    /// evento con <see cref="UiDeferral.RunAfterEvent"/>.
+    /// </summary>
+    public void Closed(Func<Action, bool> tryEnqueue, Action refresh, Func<Exception, bool> onException)
+    {
+        ArgumentNullException.ThrowIfNull(refresh);
+        if (!Pending)
+        {
+            return;
+        }
+
+        Pending = false;
+        _ = UiDeferral.RunAfterEvent(tryEnqueue, refresh, onException);
     }
 }
 

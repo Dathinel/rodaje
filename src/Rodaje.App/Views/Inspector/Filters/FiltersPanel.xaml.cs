@@ -138,10 +138,12 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     private ParameterRow? _dragRow;
     private Time _shownPosition;
     private bool _updating;
+    private readonly ClosedListRetry _lutRetry = new();
 
     public FiltersPanel()
     {
         InitializeComponent();
+        LutBox.RetryWhenClosed(_lutRetry, Refresh);
         RegisterPropertyChangedCallback(VisibilityProperty, (_, _) =>
         {
             PublishCropEditing();
@@ -431,7 +433,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
 
         // Con la lista abierta no se toca: el próximo refresco la pone al día.
-        if (LutBox.IsDropDownOpen)
+        if (_lutRetry.Defer(LutBox.IsDropDownOpen))
         {
             return;
         }
@@ -496,14 +498,10 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
     private void OnLutSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (_updating || !_lutValues.TryGet(LutBox.SelectedIndex, out string? value) || _effectId is not { } effectId || _services is null)
-        {
-            return;
-        }
-
         // Elegir edita y refresca el panel, que puede rehacer este desplegable (y «Cargar .cube…» abre un diálogo): va después
         // del evento.
-        DispatcherQueue.RunAfterEvent(() => ChooseLut(effectId, value));
+        DispatcherQueue.Choose(_lutValues, LutBox.SelectedIndex, _updating, value =>
+            _effectId is not { } effectId || _services is null ? null : () => ChooseLut(effectId, value));
     }
 
     private void ChooseLut(string effectId, string? value)

@@ -60,6 +60,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
     private readonly List<ParameterRow> _rows = [];
     /// <summary>Lo que muestra ahora el desplegable de tipo (ver <see cref="ComboBoxChoices"/>).</summary>
     private ChoiceList<(string Type, string Preset)> _types = new();
+    private readonly ClosedListRetry _typesRetry = new();
     private readonly List<ToggleButton> _alignmentButtons = [];
     private readonly List<ToggleButton> _curveButtons = [];
     private readonly List<ToggleButton> _directionButtons = [];
@@ -80,6 +81,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
     public TransitionPanel()
     {
         InitializeComponent();
+        TypeBox.RetryWhenClosed(_typesRetry, Refresh);
         foreach ((TransitionAlignment value, string name, string help) in Alignments)
         {
             var button = new ToggleButton
@@ -409,7 +411,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
         }
 
         // Con la lista abierta no se toca: el próximo refresco la pone al día.
-        if (TypeBox.IsDropDownOpen)
+        if (_typesRetry.Defer(TypeBox.IsDropDownOpen))
         {
             return;
         }
@@ -610,13 +612,9 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
 
     private void OnTypeSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (_updating || !_types.TryGet(TypeBox.SelectedIndex, out (string Type, string Preset) choice) || _editor is null || _transitionId is not { } id)
-        {
-            return;
-        }
-
         // Cambiar el tipo edita y refresca el panel, que puede rehacer este desplegable: va después del evento.
-        DispatcherQueue.RunAfterEvent(() => ChooseType(id, choice.Type, choice.Preset));
+        DispatcherQueue.Choose(_types, TypeBox.SelectedIndex, _updating, choice =>
+            _editor is null || _transitionId is not { } id ? null : () => ChooseType(id, choice.Type, choice.Preset));
     }
 
     private void ChooseType(string id, string type, string preset)

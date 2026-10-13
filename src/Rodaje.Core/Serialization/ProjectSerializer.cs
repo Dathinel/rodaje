@@ -73,6 +73,8 @@ public static class ProjectSerializer
             problems = FindNullItems(project!);
             if (problems.Count == 0)
             {
+                // Lo que la v1.0.0 guardaba sin límite (posición, ancla, giro) se acota al abrir en vez de rechazarse.
+                Rodaje.Core.Effects.ParameterLimits.Normalize(project!);
                 problems = validate(project!);
             }
         }

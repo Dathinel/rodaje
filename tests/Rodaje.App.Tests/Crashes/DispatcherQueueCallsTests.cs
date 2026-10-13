@@ -80,16 +80,112 @@ public partial class DispatcherQueueCallsTests
         }
     }
 
+    // Lo que edita o refresca, o toca el desplegable: fuera de la lambda diferida no puede estar.
+    [GeneratedRegex(@"\.Execute\s*\(|\bRefresh\w*\s*\(|\bSetValue\s*\(|\?\.Invoke\s*\(|\.Selected(Index|Item|Value)\s*=(?!=)|\.Items\.(Add|Clear|Insert|Remove)")]
+    private static partial Regex EditOrRefresh();
+
+    // Las llamadas a métodos de un trozo de código (el nombre antes de «(»), sin las palabras clave.
+    [GeneratedRegex(@"\b(?!(?:if|while|for|foreach|switch|return|using|lock|catch|nameof|typeof|when)\b)([A-Za-z_]\w*)\s*\(")]
+    private static partial Regex CalledName();
+
     [Fact]
     public void LosDesplegablesQueEditan_LoHacenDespuesDeSuEvento()
     {
         string source = AppSource();
+        var found = new List<string>();
         foreach ((string file, string handler) in DeferredHandlers)
         {
             string body = Body(File.ReadAllText(Path.Combine(source, file)), handler);
-            Assert.True(body.Contains(".RunAfterEvent(", StringComparison.Ordinal), $"{file}: «{handler}» debe dejar la edición para después del evento.");
+            if (DeferralProblem(body) is { } problem)
+            {
+                found.Add($"{file}: «{handler}» {problem}");
+            }
         }
+
+        Assert.Empty(found);
     }
+
+    [Fact]
+    public void LaVigilanciaDeLosDesplegables_DetectaEdicionesFueraDeLaLambda()
+    {
+        Assert.Null(DeferralProblem("""
+            void OnAddSelected(object sender, SelectionChangedEventArgs e)
+            {
+                if (_updating || AddBox.SelectedIndex < 0 || AddBox.SelectedIndex == AddBox.Items.Count - 1) { return; }
+                // Refresh() y la edición van después del evento.
+                string type = _addable[AddBox.SelectedIndex].Type;
+                DispatcherQueue.RunAfterEvent(() => AddEffect(type));
+            }
+            """));
+
+        // Sin diferir nada.
+        Assert.NotNull(DeferralProblem("void On(object s, object e) { services.Session.Execute(command); }"));
+        // Difiere la edición pero refresca en línea, antes o después.
+        Assert.NotNull(DeferralProblem("void On(object s, object e) { DispatcherQueue.RunAfterEvent(() => AddEffect(type)); Refresh(); }"));
+        Assert.NotNull(DeferralProblem("void On(object s, object e) { RefreshList(); DispatcherQueue.RunAfterEvent(() => AddEffect(type)); }"));
+        // Edita en línea y además difiere otra cosa.
+        Assert.NotNull(DeferralProblem("void On(object s, object e) { session.Execute(edit); DispatcherQueue.RunAfterEvent(() => Refresh()); }"));
+        Assert.NotNull(DeferralProblem("void On(object s, object e) { SetValue(\"x\", 1, \"y\"); DispatcherQueue.RunAfterEvent(() => SetValue(\"x\", 1, \"y\")); }"));
+        // Llama en línea a lo mismo que difiere, aunque no esté en la lista.
+        Assert.NotNull(DeferralProblem("void On(object s, object e) { AddEffect(type); DispatcherQueue.RunAfterEvent(() => AddEffect(type)); }"));
+        // Toca el desplegable o avisa a quien escucha en línea.
+        Assert.NotNull(DeferralProblem("void On(object s, object e) { AddBox.SelectedIndex = -1; DispatcherQueue.RunAfterEvent(() => AddEffect(type)); }"));
+        Assert.NotNull(DeferralProblem("void On(object s, object e) { Chosen?.Invoke(this, ease); DispatcherQueue.RunAfterEvent(() => Chosen?.Invoke(this, ease)); }"));
+        // La lambda diferida no hace nada.
+        Assert.NotNull(DeferralProblem("void On(object s, object e) { AddEffect(type); DispatcherQueue.RunAfterEvent(() => { }); }"));
+    }
+
+    /// <summary>
+    /// Qué falla en el manejador <paramref name="body"/>, o nulo: deja su edición en una lambda de <c>RunAfterEvent</c> y,
+    /// fuera de ella, no edita, no refresca, no toca el desplegable ni llama a nada de lo que la lambda hace.
+    /// </summary>
+    private static string? DeferralProblem(string body)
+    {
+        string code = WithoutComments(body);
+        const string Deferral = ".RunAfterEvent(";
+        int call = code.IndexOf(Deferral, StringComparison.Ordinal);
+        if (call < 0)
+        {
+            return "debe dejar la edición para después del evento.";
+        }
+
+        int open = call + Deferral.Length - 1;
+        int close = Closing(code, open);
+        string deferred = code[(open + 1)..close];
+        string outside = code[..call] + code[(close + 1)..];
+        string[] deferredCalls = [.. CalledName().Matches(deferred).Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal)];
+        if (deferredCalls.Length == 0)
+        {
+            return "difiere una lambda que no llama a nada.";
+        }
+
+        if (EditOrRefresh().Match(outside) is { Success: true } inline)
+        {
+            return $"edita o refresca fuera de la lambda diferida («{inline.Value}»).";
+        }
+
+        string? repeated = CalledName().Matches(outside).Select(m => m.Groups[1].Value).FirstOrDefault(n => deferredCalls.Contains(n, StringComparer.Ordinal));
+        return repeated is null ? null : $"llama a «{repeated}» también fuera de la lambda diferida.";
+    }
+
+    /// <summary>El índice del paréntesis que cierra el que abre en <paramref name="open"/>.</summary>
+    private static int Closing(string text, int open)
+    {
+        int depth = 0;
+        for (int i = open; i < text.Length; i++)
+        {
+            depth += text[i] switch { '(' => 1, ')' => -1, _ => 0 };
+            if (depth == 0)
+            {
+                return i;
+            }
+        }
+
+        throw new InvalidOperationException("Paréntesis sin cerrar.");
+    }
+
+    private static string WithoutComments(string code) =>
+        string.Join('\n', code.Split('\n').Select(line => line.IndexOf("//", StringComparison.Ordinal) is int at and >= 0 ? line[..at] : line));
 
     [Fact]
     public void ExportarPoneAlDiaCadaDesplegableAlCerrarse()

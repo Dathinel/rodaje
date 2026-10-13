@@ -12,7 +12,10 @@ internal static class FuzzSupport
 {
     public const int BaseSeed = 20261011;
 
-    /// <summary>Tope de tiempo de cada paso de un caso; pasarlo cuenta como cuelgue.</summary>
+    /// <summary>
+    /// Tope de tiempo de cada paso de un caso; pasarlo cuenta como cuelgue. Si salta, el mensaje dice cuánta CPU e hilos
+    /// tuvo el proceso mientras esperaba, para distinguir un cuelgue de un pool sin hilos (véase el .csproj).
+    /// </summary>
     public static readonly TimeSpan CaseCap = TimeSpan.FromSeconds(10);
 
     /// <summary>Corre <paramref name="count"/> casos con las semillas <c>BaseSeed + first … </c> y falla con la lista de semillas malas.</summary>
@@ -56,26 +59,42 @@ internal static class FuzzSupport
     /// <summary>Espera <paramref name="task"/> hasta <see cref="CaseCap"/>; si no termina, es un cuelgue.</summary>
     public static async Task<T> Capped<T>(Task<T> task, string what)
     {
+        Snapshot before = Snapshot.Take();
         try
         {
             return await task.WaitAsync(CaseCap);
         }
         catch (TimeoutException) when (!task.IsCompleted)
         {
-            throw new TimeoutException($"Colgado: {what} no terminó en {CaseCap.TotalSeconds:0} s.");
+            throw new TimeoutException($"Colgado: {what} no terminó en {CaseCap.TotalSeconds:0} s. {Snapshot.Take().Since(before)}");
         }
     }
 
     public static async Task Capped(Task task, string what)
     {
+        Snapshot before = Snapshot.Take();
         try
         {
             await task.WaitAsync(CaseCap);
         }
         catch (TimeoutException) when (!task.IsCompleted)
         {
-            throw new TimeoutException($"Colgado: {what} no terminó en {CaseCap.TotalSeconds:0} s.");
+            throw new TimeoutException($"Colgado: {what} no terminó en {CaseCap.TotalSeconds:0} s. {Snapshot.Take().Since(before)}");
         }
+    }
+
+    /// <summary>
+    /// Lo que hizo el proceso mientras se esperaba un tope: con él, un cuelgue de verdad (el proceso tuvo CPU e hilos y
+    /// nadie avanzó) se distingue de un runner que no le dio turno (poca CPU en el tiempo de reloj) o de un pool sin
+    /// hilos (trabajos en cola sin hilos que los tomen).
+    /// </summary>
+    private readonly record struct Snapshot(long Ticks, TimeSpan Cpu, TimeSpan GcPause, long Completed)
+    {
+        public static Snapshot Take() =>
+            new(System.Diagnostics.Stopwatch.GetTimestamp(), Environment.CpuUsage.TotalTime, GC.GetTotalPauseDuration(), ThreadPool.CompletedWorkItemCount);
+
+        public string Since(Snapshot before) => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"En {System.Diagnostics.Stopwatch.GetElapsedTime(before.Ticks, Ticks).TotalSeconds:0.0} s de reloj el proceso usó {(Cpu - before.Cpu).TotalSeconds:0.0} s de CPU ({Environment.ProcessorCount} procesadores), {(GcPause - before.GcPause).TotalMilliseconds:0} ms de pausa del GC y el pool terminó {Completed - before.Completed} trabajos; ahora tiene {ThreadPool.ThreadCount} hilos y {ThreadPool.PendingWorkItemCount} trabajos en cola.");
     }
 
     /// <summary>Un marco con el largo correcto.</summary>

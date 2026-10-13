@@ -72,6 +72,35 @@ public sealed record CompressorSettings(double ThresholdDb, double Ratio, double
 
     internal override IAudioStage CreateStage(double sampleRate) => new EqualizerCompressorStage(null, this, sampleRate);
 
+    internal override CompressorSettings Limited() =>
+        new CompressorSettings(LimitThreshold(ThresholdDb), LimitRatio(Ratio), Limit(AttackMs, 0.05, 200, 10), Limit(ReleaseMs, 10, 2000, 150),
+            Limit(MakeupDb, 0, 24, 0), Limit(KneeDb, 0, 24, 6))
+        {
+            Detector = Enum.IsDefined(Detector) ? Detector : LevelDetector.Peak,
+            RmsWindowMs = Limit(RmsWindowMs, 1, 300, 10),
+            AutoRelease = AutoRelease,
+            AutoMakeup = AutoMakeup,
+            LookaheadMs = Limit(LookaheadMs, 0, MaxLookaheadMs, 0),
+            Linked = Linked,
+            Mix = LimitMix(Mix),
+            SidechainHighPassHz = Limit(SidechainHighPassHz, 0, 500, 0),
+            Multiband = Multiband is { } bands
+                ? new MultibandSettings(Limit(bands.LowHz, 40, 1000, 200), Limit(bands.HighHz, 1000, 12000, 3000),
+                    Limit(bands.LowThresholdDb, -24, 24, 0), Limit(bands.MidThresholdDb, -24, 24, 0), Limit(bands.HighThresholdDb, -24, 24, 0),
+                    Limit(bands.LowGainDb, -12, 12, 0), Limit(bands.MidGainDb, -12, 12, 0), Limit(bands.HighGainDb, -12, 12, 0))
+                : null,
+            CeilingDb = CeilingDb is { } ceiling ? Limit(ceiling, -12, 0, -1) : null,
+        };
+
+    /// <summary>El umbral dentro del rango del modelo (−60 a 0 dB); también el de los keyframes.</summary>
+    internal static double LimitThreshold(double thresholdDb) => Limit(thresholdDb, -60, 0, -18);
+
+    /// <summary>La relación dentro del rango del modelo (1:1 a ∞:1).</summary>
+    internal static double LimitRatio(double ratio) => Limit(ratio, 1, InfiniteRatio, 3);
+
+    /// <summary>La mezcla en paralelo, de 0 a 1.</summary>
+    internal static double LimitMix(double mix) => Limit(mix, 0, 1, 1);
+
     /// <summary>Nivel de salida en dB para una entrada estable de <paramref name="inputDb"/>, sin la compensación.</summary>
     public double StaticCurve(double inputDb) => Curve(inputDb, ThresholdDb, Ratio, KneeDb);
 

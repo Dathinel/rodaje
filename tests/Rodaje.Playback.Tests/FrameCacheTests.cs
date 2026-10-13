@@ -112,9 +112,11 @@ public class FrameCacheTests
     }
 
     [Fact]
-    public void RemoveRange_SacaSoloLoDelRangoYNoRecorreElRangoEntero()
+    public async Task RemoveRange_SacaSoloLoDelRangoYNoRecorreElRangoEntero()
     {
-        using var cache = new FrameCache(1_000);
+        // Sin «using»: si el defecto vuelve, el hilo que recorre el rango sigue con el candado tomado y Dispose se colgaría
+        // esperándolo; la caché se libera a mano al final, solo cuando todo salió bien.
+        var cache = new FrameCache(1_000);
         foreach (long i in new long[] { 3, 4, 7, 10, 2_000_000_000 })
         {
             cache.Add(Make(i));
@@ -128,15 +130,22 @@ public class FrameCacheTests
         Assert.Equal(0, cache.RemoveRange(10, 10));
         Assert.Equal(0, cache.RemoveRange(11, 5));
 
-        var watch = System.Diagnostics.Stopwatch.StartNew();
-        Assert.Equal(2, cache.RemoveRange(5, long.MaxValue));
-        // Recorrer el rango hasta long.MaxValue no terminaría nunca; la cota es holgada porque en las vueltas lentas de la CI
-        // un hilo llegó a quedarse más de 2 s sin CPU.
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(30), $"Sacar un rango enorme tardó {watch.Elapsed}.");
+        // Recorrer el rango hasta long.MaxValue no terminaría nunca: la llamada va en su propio hilo y la prueba falla a los
+        // 10 s en vez de colgarse hasta el límite del trabajo de la CI. La cota es holgada porque en las vueltas lentas de la
+        // CI un hilo llegó a quedarse más de 2 s sin CPU. Si salta, el hilo queda girando hasta que termina el proceso.
+        Task<int> removing = Task.Factory.StartNew(
+            () => cache.RemoveRange(5, long.MaxValue),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
+        Task finished = await Task.WhenAny(removing, Task.Delay(TimeSpan.FromSeconds(10)));
+        Assert.True(finished == removing, "Sacar un rango enorme no terminó en 10 s: RemoveRange recorre el rango entero.");
+        Assert.Equal(2, await removing);
         Assert.Equal(1, cache.Count);
         Assert.True(cache.Contains(3));
         Assert.Equal(1, _tracker.Live);
         Assert.Equal(10, cache.CostBytes);
+        cache.Dispose();
     }
 
     [Fact]
