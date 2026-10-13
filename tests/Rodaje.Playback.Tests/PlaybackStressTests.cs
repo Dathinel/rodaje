@@ -219,19 +219,29 @@ public sealed class PlaybackStressTests
             return new ValueTask<DecodedFrame?>(task);
         }
 
-        /// <summary>Espera a que terminen las decodificaciones que corrían en el grupo de hilos.</summary>
+        /// <summary>
+        /// Espera a que terminen las decodificaciones que corrían en el grupo de hilos; falla si alguna no termina (cada
+        /// espera dura como mucho 30 ms o hasta que la cancelan, así que una que no vuelve es un cuadro colgado).
+        /// </summary>
         public void Drain()
         {
+            int hung = 0;
             foreach (Task task in _pending.Keys)
             {
                 try
                 {
-                    task.Wait(TimeSpan.FromSeconds(10));
+                    if (!task.Wait(TimeSpan.FromSeconds(10)))
+                    {
+                        hung++;
+                    }
                 }
                 catch (AggregateException)
                 {
+                    // Cancelada o fallida: terminó igual.
                 }
             }
+
+            Assert.True(hung == 0, $"Semilla {seed}: {hung} decodificaciones no terminaron en 10 s.");
         }
 
         private DecodedFrame Make(long index)
