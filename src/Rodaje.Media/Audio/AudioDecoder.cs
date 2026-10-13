@@ -273,21 +273,28 @@ public sealed unsafe class AudioDecoder : IDisposable
         }
     }
 
-    /// <summary>Muestra de entrada (contada desde el origen) en la que empieza un cuadro con esa marca.</summary>
+    /// <summary>
+    /// Muestra de entrada (contada desde el origen) en la que empieza un cuadro con esa marca; <see langword="false"/> si
+    /// la marca no tiene índice (ver <see cref="TrySampleIndex"/>).
+    /// </summary>
     /// <remarks>
     /// Si la base de tiempo es más gruesa que una muestra (Matroska usa milisegundos), la marca solo ubica el
     /// cuadro con ±media unidad; entonces se ajusta a la rejilla de cuadros del códec, que en audio es de
     /// tamaño fijo desde el inicio del flujo. Con códecs de tamaño de cuadro variable ese ajuste no aplica.
     /// </remarks>
-    private long InputSampleIndex(long timestamp, int inputRate, int frameSamples)
+    private bool TryInputSampleIndex(long timestamp, int inputRate, int frameSamples, out long index)
     {
-        long index = (long)Av.RoundDiv((Int128)(timestamp - _originTs) * _timeBase.num * inputRate, _timeBase.den);
+        if (!TrySampleIndex(timestamp, _originTs, _timeBase, inputRate, out index))
+        {
+            return false;
+        }
+
         int grid = _codec->frame_size > 0 ? _codec->frame_size : frameSamples;
-        if ((long)_timeBase.num * inputRate > _timeBase.den && grid > 0)
+        if ((long)_timeBase.num * inputRate > _timeBase.den && grid > 0
+            && TrySampleIndex(_streamStartTs, _originTs, _timeBase, inputRate, out long start))
         {
             // Tras un hueco la rejilla ya no parte del inicio del flujo: solo se ajusta si el ajuste cabe en el
             // redondeo de la marca.
-            long start = (long)Av.RoundDiv((Int128)(_streamStartTs - _originTs) * _timeBase.num * inputRate, _timeBase.den);
             long snapped = start + ((long)Av.RoundDiv(index - start, grid) * grid);
             if (Math.Abs(snapped - index) <= ((long)_timeBase.num * inputRate / _timeBase.den / 2) + 1)
             {
@@ -295,8 +302,22 @@ public sealed unsafe class AudioDecoder : IDisposable
             }
         }
 
-        return index;
+        return true;
     }
+
+    /// <summary>
+    /// Muestra de entrada de una marca, contada desde <paramref name="originTs"/>. Devuelve <see langword="false"/> si la
+    /// marca es extrema (cabecera dañada) y el índice no cabe, o si pasa de <see cref="MaxSampleIndex"/>: el índice se
+    /// multiplica después por las tasas de entrada y salida, y truncado ubicaba el audio en un instante inventado.
+    /// </summary>
+    internal static bool TrySampleIndex(long timestamp, long originTs, AVRational timeBase, int sampleRate, out long index) =>
+        Av.TrySampleIndex(timestamp, originTs, timeBase, sampleRate, out index) && index is >= -MaxSampleIndex and <= MaxSampleIndex;
+
+    /// <summary>
+    /// Índice de muestra más alto que se ubica (unos 63 años a 48 kHz): con margen, su producto por
+    /// <see cref="OutputSampleRate"/> cabe en <see langword="long"/>.
+    /// </summary>
+    internal const long MaxSampleIndex = long.MaxValue / OutputSampleRate / 2;
 
     /// <summary>La marca del cuadro se aparta de donde termina el anterior, o cambió la tasa.</summary>
     /// <remarks>
@@ -315,7 +336,13 @@ public sealed unsafe class AudioDecoder : IDisposable
             return true;
         }
 
-        long drift = InputSampleIndex(timestamp, _expectedRate, _frame->nb_samples) - _expectedInput;
+        // Una marca sin índice cuenta como salto: al resincronizar, el cuadro se descarta.
+        if (!TryInputSampleIndex(timestamp, _expectedRate, _frame->nb_samples, out long index))
+        {
+            return true;
+        }
+
+        long drift = index - _expectedInput;
         long rounding = ((long)_timeBase.num * _expectedRate / _timeBase.den) + 1;
         return Math.Abs(drift) > Math.Max(2 * rounding, _expectedRate / 200);
     }
@@ -389,7 +416,13 @@ public sealed unsafe class AudioDecoder : IDisposable
                 if (_syncPending && timed)
                 {
                     int inputRate = _frame->sample_rate;
-                    long inputIndex = InputSampleIndex(ts, inputRate, _frame->nb_samples);
+                    if (!TryInputSampleIndex(ts, inputRate, _frame->nb_samples, out long inputIndex))
+                    {
+                        // Marca extrema (cabecera dañada): ubicar el cuadro en ella inventaría su instante.
+                        ffmpeg.av_frame_unref(_frame);
+                        continue;
+                    }
+
                     // El índice del contenedor dejó el seek después del objetivo: se busca más atrás.
                     if (_seekVerify && inputIndex * OutputSampleRate > _seekTarget * inputRate && _seekTs > _streamStartTs && _seekRetries < MaxSeekRetries)
                     {

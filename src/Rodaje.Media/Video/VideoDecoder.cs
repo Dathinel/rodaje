@@ -528,13 +528,16 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
     // ---- Correspondencia entre índices y marcas de tiempo ----
 
-    private long Slot(long timestamp) =>
-        (long)Av.RoundDiv((Int128)(timestamp - _originTs) * _timeBase.num * FrameRate.Num, (Int128)_timeBase.den * FrameRate.Den);
+    // Una marca extrema (cabecera o paquete dañados) no tiene índice: antes se truncaba a uno inventado.
+    private bool TrySlot(long timestamp, out long slot) => Av.TryFrameSlot(timestamp, _originTs, _timeBase, FrameRate, out slot);
 
     private long TimestampOf(long frameIndex) =>
-        _originTs + (long)Av.RoundDiv((Int128)frameIndex * FrameRate.Den * _timeBase.den, (Int128)FrameRate.Num * _timeBase.num);
+        Av.TryFrameTimestamp(frameIndex, _originTs, _timeBase, FrameRate, out long timestamp)
+            ? timestamp
+            : throw new MediaException($"El cuadro {frameIndex} no tiene marca en la base {_timeBase.num}/{_timeBase.den}; el archivo puede estar dañado.");
 
-    private long SlotOf(AVFrame* frame)
+    /// <summary>Índice del cuadro decodificado; <c>null</c> si su marca no tiene índice (el cuadro se descarta).</summary>
+    private long? SlotOf(AVFrame* frame)
     {
         long ts = frame->pts != ffmpeg.AV_NOPTS_VALUE ? frame->pts : frame->best_effort_timestamp;
         if (ts == ffmpeg.AV_NOPTS_VALUE)
@@ -542,7 +545,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
             return _hasHeld ? _heldSlot + 1 : Math.Max(0, _minValidSlot);
         }
 
-        return Slot(ts);
+        return TrySlot(ts, out long slot) ? slot : null;
     }
 
     // ---- Seek ----
@@ -581,7 +584,19 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
                 continue;
             }
 
-            long keySlot = Slot(keyTs);
+            // Un keyframe con marca sin índice no sirve de punto de partida: se busca más atrás, como si pasara del objetivo.
+            if (!TrySlot(keyTs, out long keySlot))
+            {
+                if (ts <= floor)
+                {
+                    return false;
+                }
+
+                target = ts - step;
+                step *= 2;
+                continue;
+            }
+
             if (keySlot > frameIndex)
             {
                 if (ts <= floor)
@@ -774,8 +789,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
                 return true;
             }
 
-            long slot = SlotOf(_frame);
-            if (slot < _minValidSlot)
+            if (SlotOf(_frame) is not { } slot || slot < _minValidSlot)
             {
                 ffmpeg.av_frame_unref(_frame);
                 continue;

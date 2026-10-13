@@ -175,7 +175,10 @@ public sealed unsafe class KeyframeIndex
                 return null;
             }
 
-            frames.Add(clock.Slot(pts));
+            if (clock.TrySlot(pts, out long slot))
+            {
+                frames.Add(slot);
+            }
         }
 
         return frames;
@@ -246,9 +249,9 @@ public sealed unsafe class KeyframeIndex
             {
                 packets++;
                 long ts = packet->pts != ffmpeg.AV_NOPTS_VALUE ? packet->pts : packet->dts;
-                if ((packet->flags & ffmpeg.AV_PKT_FLAG_KEY) != 0 && ts != ffmpeg.AV_NOPTS_VALUE)
+                if ((packet->flags & ffmpeg.AV_PKT_FLAG_KEY) != 0 && clock.TrySlot(ts, out long slot))
                 {
-                    frames.Add(clock.Slot(ts));
+                    frames.Add(slot);
                 }
             }
 
@@ -258,10 +261,12 @@ public sealed unsafe class KeyframeIndex
         return (frames, packets);
     }
 
-    /// <summary>Marca de tiempo → índice de cuadro, con el mismo redondeo que el decodificador.</summary>
+    /// <summary>
+    /// Marca de tiempo → índice de cuadro, con el mismo redondeo que el decodificador. Un keyframe cuya marca no tiene
+    /// índice (cabecera dañada) se omite: truncado, inventaba un keyframe desde el que se decodificaría.
+    /// </summary>
     private readonly record struct SlotClock(long OriginTs, AVRational TimeBase, Rational Rate)
     {
-        public long Slot(long timestamp) =>
-            (long)Av.RoundDiv((Int128)(timestamp - OriginTs) * TimeBase.num * Rate.Num, (Int128)TimeBase.den * Rate.Den);
+        public bool TrySlot(long timestamp, out long slot) => Av.TryFrameSlot(timestamp, OriginTs, TimeBase, Rate, out slot);
     }
 }
