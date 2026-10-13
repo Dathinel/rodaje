@@ -56,27 +56,22 @@ internal sealed partial class PlayerEngine
             return;
         }
 
-        _scopes ??= new ScopeRenderer(_gpu);
+        if (_scopes is null)
+        {
+            // Una sola continuación, al crearlo, con los shaders compilados o no: si no compilan, los monitores quedan vacíos
+            // y el error (solo en Ready) se informa una vez, sin aviso; si compilan, se vuelve a componer para medir el cuadro
+            // en pausa. La compilación puede terminar después de Dispose, con el evento ya liberado: no hay a quién despertar.
+            _scopes = new ScopeRenderer(_gpu);
+            UiTask.Run(ScopeReadiness.Watch(_scopes.Ready, failure => UiTask.Report(failure, notify: false), () =>
+            {
+                _dirty = true;
+                WakeUnlessDisposed();
+            }));
+        }
+
         if (_scopes.Submit(compositor, (ScopeKind)kind))
         {
             _lastScopeSubmit = Stopwatch.GetTimestamp();
-        }
-        else if (!_scopes.Ready.IsCompleted)
-        {
-            // Los shaders todavía compilan: se vuelve a componer en la próxima vuelta para medir el cuadro en pausa.
-            // Si los shaders no compilan, los monitores quedan vacíos: el error solo está en Ready y se informa aquí (sin aviso).
-            // La compilación puede terminar después de Dispose, con el evento ya liberado: entonces no hay a quién despertar.
-            UiTask.Run(_scopes.Ready.ContinueWith(t =>
-            {
-                if (t.Exception is { } failure)
-                {
-                    UiTask.Report(failure.InnerExceptions.Count == 1 ? failure.InnerExceptions[0] : failure, notify: false);
-                    return;
-                }
-
-                _dirty = true;
-                WakeUnlessDisposed();
-            }, TaskScheduler.Default));
         }
     }
 
