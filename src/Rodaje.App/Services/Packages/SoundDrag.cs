@@ -35,7 +35,10 @@ public static class SoundDrag
             return null;
         }
 
-        PackageItemEntry? entry = installed.Items(ItemKind.Sound).FirstOrDefault(e => e.Package.Id == parsed.PackageId && e.Item.Id == parsed.ItemId);
+        PackageItemEntry? entry = installed.Find(parsed.PackageId) is { Manifest.Kind: PackageKind.Content } package
+            && package.Manifest.FindItem(parsed.ItemId, ItemKind.Sound) is { } item
+            ? new PackageItemEntry(package, item)
+            : null;
         if (entry?.FilePath is not { } path)
         {
             problem = $"Falta el paquete {parsed.PackageId}.";

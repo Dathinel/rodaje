@@ -71,7 +71,7 @@ public sealed class InstalledContentLoader(Func<PackageScan> installed) : IConte
     {
         if (!PackageReference.TryParse(reference, out PackageReference? parsed)
             || _installed().Find(parsed.PackageId) is not { } package
-            || package.Manifest.Items.FirstOrDefault(i => i.Id == parsed.ItemId && i.Kind == kind) is not { } item)
+            || package.Manifest.FindItem(parsed.ItemId, kind) is not { } item)
         {
             return null;
         }

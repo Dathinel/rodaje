@@ -403,7 +403,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
 
     private bool PresetInstalled(string reference) =>
         PackageReference.TryParse(reference, out PackageReference? parsed)
-        && _services!.Packages.Installed.Find(parsed.PackageId)?.Manifest.Items.Any(i => i.Id == parsed.ItemId && i.Kind == ItemKind.Transition) == true;
+        && _services!.Packages.Installed.Find(parsed.PackageId)?.Manifest.FindItem(parsed.ItemId, ItemKind.Transition) is not null;
 
     private void ShowTypes(string type, string preset, TrackKind kind)
     {

@@ -232,11 +232,13 @@ public static class PackageLibrary
             string? explicitId = StringOf(e, "id") is { } given && given.StartsWith(OwnPackageId + ".", StringComparison.Ordinal)
                 ? given[(OwnPackageId.Length + 1)..]
                 : StringOf(e, "id");
-            string id = explicitId is not null && Identifiers.IsValid(explicitId) ? explicitId : ToIdentifier(stem);
+            bool derived = explicitId is null || !Identifiers.IsValid(explicitId);
+            string id = derived ? ToIdentifier(stem) : explicitId!;
+            string? legacy = derived && LegacyIdentifier(stem) is var old && old != id ? old : null;
             string name = SafeText.Truncate(SafeText.Clean(StringOf(e, "name") ?? stem), SafeText.MaxName);
             string? description = StringOf(e, "description") is { } text ? SafeText.Truncate(SafeText.Clean(text, multiline: true), SafeText.MaxDescription) : null;
             string relative = Path.GetRelativePath(root, file).Replace('\\', '/');
-            return new PackageItem(id, kind, name.Length > 0 ? name : ToIdentifier(stem), relative, description);
+            return new PackageItem(id, kind, name.Length > 0 ? name : ToIdentifier(stem), relative, description, LegacyId: legacy);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or DecoderFallbackException)
         {
@@ -253,8 +255,24 @@ public static class PackageLibrary
     public static string ToIdentifier(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
+        return Identify(SpanishText.Fold(text));
+    }
+
+    /// <summary>
+    /// El identificador que daba la v1.0.0 publicada (Native AOT con <c>InvariantGlobalization</c>): ahí <c>Normalize</c> no
+    /// separaba las tildes y las letras no ASCII se volvían guiones («Música épica Ñandú» → <c>m-sica-pica-and</c>). Los
+    /// proyectos guardados con esa versión lo llevan en sus referencias, así que se conserva como alias.
+    /// </summary>
+    public static string LegacyIdentifier(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return Identify(text);
+    }
+
+    private static string Identify(string text)
+    {
         var builder = new System.Text.StringBuilder(text.Length);
-        foreach (char c in SpanishText.Fold(text))
+        foreach (char c in text)
         {
             if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.NonSpacingMark)
             {

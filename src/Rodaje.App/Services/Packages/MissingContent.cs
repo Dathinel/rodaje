@@ -130,5 +130,5 @@ public static class MissingContent
     }
 
     private static bool IsInstalled(PackageReference reference, PackageScan installed) =>
-        installed.Find(reference.PackageId) is { } package && package.Manifest.Items.Any(i => i.Id == reference.ItemId);
+        installed.Find(reference.PackageId) is { } package && package.Manifest.FindItem(reference.ItemId) is not null;
 }
