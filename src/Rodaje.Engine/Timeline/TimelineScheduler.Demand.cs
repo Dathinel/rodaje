@@ -395,7 +395,13 @@ internal sealed partial class TimelineScheduler
         {
             // Compartir un decodificador que tendría que ir y volver con seeks solo vale para lo que se ve ya, o cuando
             // lo que le queda por mostrar de su clip ya cabe en su caché: si no, el pre-roll le quitaría a la capa visible
-            // más de lo que le ahorra al corte.
+            // más de lo que le ahorra al corte. Lo que le queda se pide entero antes que el pre-roll: si no, el
+            // decodificador iba al pre-roll en cuanto tenía lo adelantado y volvía con otro seek.
+            if (!cluster.Visible && Cost(nearest, cluster) >= SeekCost)
+            {
+                AddRest(media, nearest);
+            }
+
             nearest.Assigned.AddRange(cluster.Windows);
             nearest.IdleSince = null;
             return;
@@ -467,7 +473,7 @@ internal sealed partial class TimelineScheduler
             if (decoder.Position >= cluster.Start)
             {
                 // Ya se adelantó a este tramo por el clip que sale: lo que falte está a un paso, aunque sea hacia atrás.
-                share = decoder.Position <= cluster.End + ForwardReach && decoder.Assigned.Exists(w => CatchesUp(w, cluster));
+                share = decoder.Position <= cluster.End + ForwardReach && decoder.Assigned.Exists(w => CatchesUp(w, cluster) && PassedLately(w.Clip, cluster));
                 if (share)
                 {
                     return decoder;
@@ -557,6 +563,13 @@ internal sealed partial class TimelineScheduler
         return cluster.Windows.TrueForAll(w => w.Clip.MaxRate <= rate);
     }
 
+    /// <summary>
+    /// El clip pasó por el comienzo del tramo durante el pre-roll: se adelantó a él hace poco. Si lo pasó mucho antes (un
+    /// corte a un punto anterior del mismo material), volver obliga a decodificar otra vez todo lo que el clip ya mostró y
+    /// lo que le queda se queda sin decodificador hasta el corte: con 4 pistas 4K eran esperas de 300 a 480 ms.
+    /// </summary>
+    private bool PassedLately(VideoClipPlan clip, Cluster cluster) => clip.ShownAt(cluster.Start) >= _demandTime - PreRollLead;
+
     /// <summary>Cuánto falta, en ticks desde el cuadro de la demanda, para que el clip muestre ese cuadro o uno posterior.</summary>
     private long ShownDelay(VideoClipPlan clip, long index) => Math.Max(0, (clip.ShownAt(index) - _demandTime).Ticks);
 
@@ -592,6 +605,27 @@ internal sealed partial class TimelineScheduler
         }
 
         return true;
+    }
+
+    /// <summary>Añade al decodificador (y a la demanda del medio) lo que falta hasta el final de cada clip visible que sirve hacia adelante.</summary>
+    private static void AddRest(MediaState media, DecoderState decoder)
+    {
+        foreach (Window window in decoder.Assigned.ToArray())
+        {
+            VideoClipPlan clip = window.Clip;
+            if (!window.Due || window.Warm || !clip.Forward)
+            {
+                continue;
+            }
+
+            long start = decoder.Assigned.Where(w => w.Clip.ClipId == clip.ClipId).Max(w => w.End);
+            if (start <= clip.HighestFrame)
+            {
+                var rest = new Window(start, clip.HighestFrame + 1, Due: false, clip, Priority: window.Priority);
+                decoder.Assigned.Add(rest);
+                media.Windows.Add(rest);
+            }
+        }
     }
 
     /// <summary>Lo que le queda a cada clip que sirve el decodificador entra en su caché: puede irse a otro punto sin volver.</summary>
