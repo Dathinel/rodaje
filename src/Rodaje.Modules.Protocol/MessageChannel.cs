@@ -231,7 +231,8 @@ internal sealed class MessageChannel(Stream stream, int maxFrameBytes = Protocol
     /// Corta la conexión por un fallo, sin cierre ordenado: como <see cref="Dispose"/>, pero desconectando antes el lado
     /// servidor de la tubería (<see cref="Close(Stream)"/>). El cierre normal (tras <c>shutdown</c>) sigue siendo
     /// <see cref="Dispose"/>: desconectar descarta lo que el módulo no leyó, y el módulo de eco salía con 2 en vez de 0
-    /// porque perdía el <c>shutdown</c> a medio leer.
+    /// porque perdía el <c>shutdown</c> a medio leer. Y ese <see cref="Dispose"/> llega solo cuando el módulo ya cerró su
+    /// lado (o se agotó <see cref="ModuleClientOptions.ShutdownGrace"/>): cerrar antes también lo perdía (tarea 189).
     /// </summary>
     public void Abort()
     {

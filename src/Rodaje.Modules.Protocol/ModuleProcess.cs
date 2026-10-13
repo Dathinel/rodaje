@@ -155,6 +155,11 @@ public sealed class ModuleProcess : IAsyncDisposable
     internal static Task KillOffPool(Action kill, TaskScheduler scheduler) =>
         Task.Factory.StartNew(kill, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, scheduler);
 
+    /// <summary>
+    /// Cierre ordenado: <see cref="ModuleClient.DisposeAsync"/> manda <c>shutdown</c> y espera a que el módulo cierre su
+    /// lado de la tubería (o salga) antes de cerrar el del editor; luego se espera la salida y, si no llega en 2 s, se mata
+    /// el árbol de procesos.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         await Client.DisposeAsync().ConfigureAwait(false);

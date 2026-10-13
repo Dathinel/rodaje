@@ -28,6 +28,13 @@ public sealed record ModuleClientOptions
     /// se quede esperando.
     /// </summary>
     public TimeSpan WriteTimeout { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Lo que <see cref="ModuleClient.DisposeAsync"/> espera, tras mandar <c>shutdown</c>, a que el módulo cierre su lado
+    /// de la conexión antes de cerrar el del editor. Más que los 2 s que el módulo da a sus llamadas al cerrar
+    /// (<c>ModuleHost.RunAsync</c>), que cierra la tubería después.
+    /// </summary>
+    public TimeSpan ShutdownGrace { get; init; } = TimeSpan.FromSeconds(3);
 }
 
 public readonly record struct ModuleProgress(double Fraction, string? Stage);
@@ -52,6 +59,7 @@ public sealed class ModuleClient : IAsyncDisposable
     private Exception? _failure;
     private long _nextId;
     private long _received;
+    private volatile bool _shutdownSent;
     private Task _readLoop = Task.CompletedTask;
 
     private ModuleClient(MessageChannel channel, ModuleClientOptions options)
@@ -179,18 +187,56 @@ public sealed class ModuleClient : IAsyncDisposable
         }
     }
 
-    /// <summary>Pide al módulo que termine y cierra la conexión.</summary>
+    /// <summary>
+    /// Costura de pruebas: se llama cuando <see cref="DisposeAsync"/> ya mandó <c>shutdown</c> y empieza a esperar que el
+    /// módulo cierre su lado (<c>ShutdownCloseTests</c>).
+    /// </summary>
+    internal Action? AwaitingModuleClose { get; set; }
+
+    /// <summary>
+    /// Pide al módulo que termine (<c>shutdown</c>), espera hasta <see cref="ModuleClientOptions.ShutdownGrace"/> a que
+    /// cierre su lado y solo entonces cierra el del editor.
+    /// </summary>
+    /// <remarks>
+    /// Cerrar enseguida tras mandar <c>shutdown</c> (como hasta la tarea 189) perdía a veces el mensaje en Windows: con
+    /// una lectura propia pendiente (el bucle de lectura) y el <c>shutdown</c> aún sin leer por el módulo, cerrar el asa
+    /// del lado servidor deja la lectura del módulo sin completar nunca (lo que mostró la tarea 137), y
+    /// <see cref="ModuleProcess"/> lo mataba a los 2 s en vez de verlo salir con 0. Desconectar antes tampoco sirve:
+    /// descarta lo que el módulo no leyó, también el <c>shutdown</c>. Esperar al fin de flujo del módulo (lo da el bucle
+    /// de lectura, o la salida del proceso en <see cref="ModuleProcess"/>, que corta el cliente) garantiza que lo leyó.
+    /// Ese fin de flujo, tras <c>shutdown</c>, es un cierre limpio: <see cref="Completion"/> termina sin excepción.
+    /// </remarks>
     public async ValueTask DisposeAsync()
     {
         if (_failure is null)
         {
+            bool sent = false;
+            // Antes de mandar: el módulo puede leerlo y cerrar antes de que SendAsync vuelva.
+            _shutdownSent = true;
             try
             {
                 await SendAsync(new ShutdownMessage()).ConfigureAwait(false);
+                sent = true;
             }
             catch (ModuleException)
             {
                 // Ya se había cortado.
+            }
+            if (sent)
+            {
+                // Las llamadas en curso fallan ya, como al cerrar sin esperar: no dependen de lo que el módulo conteste.
+                ModuleDisconnectedException closing = new("Conexión cerrada por el editor.");
+                foreach (Pending p in _pending.Values) p.Completion.TrySetException(closing);
+                foreach (TaskCompletionSource p in _pings.Values) p.TrySetException(closing);
+                AwaitingModuleClose?.Invoke();
+                try
+                {
+                    await _readLoop.WaitAsync(_options.ShutdownGrace).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    // El módulo no cerró a tiempo: se cierra igual y ModuleProcess lo mata si no sale.
+                }
             }
         }
         Fail(null);
@@ -263,7 +309,8 @@ public sealed class ModuleClient : IAsyncDisposable
                 ModuleMessage? message = await _channel.ReceiveAsync(_stop.Token).ConfigureAwait(false);
                 if (message is null)
                 {
-                    Fail(new ModuleDisconnectedException("El módulo cerró la conexión."));
+                    // Tras «shutdown», que el módulo cierre es lo esperado (DisposeAsync).
+                    Fail(_shutdownSent ? null : new ModuleDisconnectedException("El módulo cerró la conexión."));
                     return;
                 }
                 Interlocked.Increment(ref _received);
@@ -273,6 +320,11 @@ public sealed class ModuleClient : IAsyncDisposable
         catch (ModuleException ex)
         {
             Fail(ex);
+        }
+        catch (IOException) when (_shutdownSent)
+        {
+            // El módulo cerró tras «shutdown» y la tubería lo dio como corte en vez de fin de flujo: sigue siendo limpio.
+            Fail(null);
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
         {
