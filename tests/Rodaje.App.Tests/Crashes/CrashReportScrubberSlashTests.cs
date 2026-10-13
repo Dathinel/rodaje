@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Rodaje.App.Services.Crashes;
 
 namespace Rodaje.App.Tests.Crashes;
@@ -10,6 +9,8 @@ namespace Rodaje.App.Tests.Crashes;
 /// </summary>
 public class CrashReportScrubberSlashTests
 {
+    private static readonly Dictionary<string, string?> Temp = new() { ["%TEMP%"] = @"C:\Users\ana\AppData\Local\Temp\" };
+
     private static readonly CrashReportScrubber Ana = new(new Dictionary<string, string?>
     {
         ["%USERPROFILE%"] = @"C:\Users\ana",
@@ -76,23 +77,38 @@ public class CrashReportScrubberSlashTests
         Assert.Equal(expected, Ana.Scrub(line));
 
     [Fact]
-    public void LineasPatologicasConBarraNormal_SeLimpianEnPocoTiempo()
+    public void LineasPatologicasConBarraNormal_SeLimpianSinTaparse()
     {
-        string line = string.Concat(Enumerable.Repeat("D:/a.b c/", 2_000))
-            + string.Concat(Enumerable.Repeat("file:///D:/x y.mp4 y/o %TEMP%/a.b c/", 1_000));
-        // Pocas líneas y un presupuesto propio: en la CI de Windows (con cobertura) corre a la vez que la prueba
-        // patológica de CrashReportScrubberTextTests, y las dos comparten el presupuesto de 2 s por llamada.
+        // Sin tope de tiempo (tarea 178): aquí se comprueba el resultado; el coste, sin reloj, en la prueba siguiente.
+        string line = PathologicalLine();
         string many = string.Join('\n', Enumerable.Repeat(line[..CrashReportScrubber.MaxLineLength], 20));
-        var scrubber = new CrashReportScrubber(new Dictionary<string, string?> { ["%TEMP%"] = @"C:\Users\ana\AppData\Local\Temp\" })
-        {
-            Budget = TimeSpan.FromSeconds(30),
-        };
-        var watch = Stopwatch.StartNew();
+        var scrubber = new CrashReportScrubber(Temp) { Budget = TimeSpan.MaxValue };
 
         string text = scrubber.Scrub(line + "\n" + many);
 
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"tardó {watch.Elapsed}");
         Assert.DoesNotContain(CrashReportScrubber.HiddenLine, text, StringComparison.Ordinal);
         Assert.DoesNotContain(CrashReportScrubber.OutOfTimeLine, text, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("D:/a.b c/")]
+    [InlineData("file:///D:/x y.mp4 y/o %TEMP%/a.b c/")]
+    [InlineData("file://s/a.mp4 y\\b.mp4 z/")]
+    [InlineData("")]
+    public void ConBarraNormal_ElCosteCreceEnProporcionAlTexto(string unit)
+    {
+        // Como en CrashReportScrubberTextTests: el trabajo del analizador, no el reloj, al pasar de 1 KB a 8 KB por línea.
+        string Repeat(int length) => unit.Length == 0 ? PathologicalLine()[..length] : string.Concat(Enumerable.Repeat(unit, (length / unit.Length) + 1))[..length];
+        var scrubber = new CrashReportScrubber(Temp) { Budget = TimeSpan.MaxValue };
+
+        scrubber.Scrub(Repeat(1024), out long small);
+        scrubber.Scrub(Repeat(CrashReportScrubber.MaxLineLength), out long large);
+
+        Assert.InRange(large, 1, 4L * CrashReportScrubber.MaxLineLength);
+        Assert.InRange((double)large / small, 1, 8 * 1.25);
+    }
+
+    private static string PathologicalLine() =>
+        string.Concat(Enumerable.Repeat("D:/a.b c/", 2_000))
+        + string.Concat(Enumerable.Repeat("file:///D:/x y.mp4 y/o %TEMP%/a.b c/", 1_000));
 }

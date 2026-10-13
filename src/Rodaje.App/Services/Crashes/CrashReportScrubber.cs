@@ -95,8 +95,16 @@ public sealed class CrashReportScrubber
     }
 
     /// <summary>El texto sin rutas personales ni nombres del usuario o del equipo.</summary>
-    public string Scrub(string? text)
+    public string Scrub(string? text) => Scrub(text, out _);
+
+    /// <summary>
+    /// Como <see cref="Scrub(string?)"/>, y además <paramref name="work"/>: cuántos caracteres recorrió el analizador de
+    /// rutas (cada posición de la línea y lo que lee cada intento de ruta desde ella). Mide el coste sin depender del
+    /// reloj: las pruebas comprueban que crece en proporción al texto.
+    /// </summary>
+    internal string Scrub(string? text, out long work)
     {
+        work = 0;
         if (string.IsNullOrEmpty(text))
         {
             return text ?? string.Empty;
@@ -111,7 +119,7 @@ public sealed class CrashReportScrubber
             int end = newline < 0 ? text.Length : newline;
             if (end > start || newline >= 0)
             {
-                result.Append(watch.Elapsed >= Budget ? OutOfTimeLine : SafeScrubLine(text[start..end]));
+                result.Append(watch.Elapsed >= Budget ? OutOfTimeLine : SafeScrubLine(text[start..end], ref work));
             }
 
             if (newline < 0)
@@ -126,7 +134,7 @@ public sealed class CrashReportScrubber
         return result.ToString();
     }
 
-    private string SafeScrubLine(string line)
+    private string SafeScrubLine(string line, ref long work)
     {
         try
         {
@@ -139,7 +147,7 @@ public sealed class CrashReportScrubber
                 body = body[..MaxLineLength];
             }
 
-            return ReplaceNames(ScrubPaths(body)) + suffix + carriageReturn;
+            return ReplaceNames(ScrubPaths(body, ref work)) + suffix + carriageReturn;
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IndexOutOfRangeException or OutOfMemoryException)
         {
@@ -147,14 +155,15 @@ public sealed class CrashReportScrubber
         }
     }
 
-    private string ScrubPaths(string line)
+    private string ScrubPaths(string line, ref long work)
     {
         var output = new StringBuilder(line.Length);
         int copied = 0;
         int i = 0;
         while (i < line.Length)
         {
-            if (!TryParsePath(line, i, out ParsedPath path))
+            work++;
+            if (!TryParsePath(line, i, out ParsedPath path, ref work))
             {
                 i++;
                 continue;
@@ -279,12 +288,14 @@ public sealed class CrashReportScrubber
 
     private static string Text(string line, Span span) => span.Normalized ?? line[span.Start..span.End];
 
-    // Una ruta absoluta que empieza en «i»: su raíz y sus segmentos. Recorre cada carácter una vez.
-    private static bool TryParsePath(string s, int i, out ParsedPath path)
+    // Una ruta absoluta que empieza en «i»: su raíz y sus segmentos. Recorre cada carácter una vez y suma a «work» lo que
+    // lee hacia delante.
+    private static bool TryParsePath(string s, int i, out ParsedPath path, ref long work)
     {
         path = default;
-        if (i > 0 && IsWordChar(s[i - 1]))
+        if ((i > 0 && IsWordChar(s[i - 1])) || (s[i] != '%' && !IsSeparator(s[i]) && !IsDrive(s, i)))
         {
+            // La mayoría de las posiciones no empiezan ninguna raíz: se descartan sin reservar nada.
             return false;
         }
 
@@ -299,7 +310,7 @@ public sealed class CrashReportScrubber
             separator = s[i + 2];
             p = SkipSeparators(s, i + 2);
         }
-        else if (IsDeviceVolume(s, i, out int volumeEnd))
+        else if (IsDeviceVolume(s, i, out int volumeEnd, ref work))
         {
             // «\Device\HarddiskVolume3\…»: la ruta de un volumen, como una unidad.
             kind = RootKind.Drive;
@@ -315,6 +326,7 @@ public sealed class CrashReportScrubber
                 j++;
             }
 
+            work += j - i;
             if (j == i + 1 || j + 1 >= s.Length || s[j] != '%' || !IsSeparator(s[j + 1]))
             {
                 return false;
@@ -361,7 +373,7 @@ public sealed class CrashReportScrubber
                     components.Add(new Span(p, p + 2, char.ToUpperInvariant(s[p]) + ":"));
                     separator = s[p + 2];
                     p = SkipSeparators(s, p + 2);
-                    return ParseSegments(s, i, p, kind, components, separator, out path);
+                    return ParseSegments(s, i, p, kind, components, separator, out path, ref work);
                 }
 
                 if (p + 3 < s.Length && s.AsSpan(p, 3).Equals("UNC", StringComparison.OrdinalIgnoreCase) && IsSeparator(s[p + 3]))
@@ -379,12 +391,12 @@ public sealed class CrashReportScrubber
             return false;
         }
 
-        return ParseSegments(s, i, p, kind, components, separator, out path) && (kind != RootKind.Unc || path.HasSegments);
+        return ParseSegments(s, i, p, kind, components, separator, out path, ref work) && (kind != RootKind.Unc || path.HasSegments);
     }
 
     // «separator» es la barra de la ruta (la primera tras la raíz). La otra también separa, salvo tras un segmento que ya
     // parece texto («a.mp4 (no válido / corrupto)», «a.mp4 y/o»): con ella la ruta termina y el segmento es el último.
-    private static bool ParseSegments(string s, int start, int p, RootKind kind, List<Span> components, char separator, out ParsedPath path)
+    private static bool ParseSegments(string s, int start, int p, RootKind kind, List<Span> components, char separator, out ParsedPath path, ref long work)
     {
         bool hasSegments = false;
         int tailStart;
@@ -427,6 +439,8 @@ public sealed class CrashReportScrubber
             components.Add(new Span(tailStart, tailEnd, null));
         }
 
+        // Todo el análisis avanza un solo cursor desde «start» hasta «p» (más un vistazo acotado hacia atrás en EndsName).
+        work += p - start;
         path = new ParsedPath(start, kind, components, hasSegments, tailStart, tailEnd, hasTail);
         return true;
     }
@@ -458,7 +472,7 @@ public sealed class CrashReportScrubber
     }
 
     // «\Device\HarddiskVolumeN» seguido de «\»; «end» queda en esa barra.
-    private static bool IsDeviceVolume(string s, int i, out int end)
+    private static bool IsDeviceVolume(string s, int i, out int end, ref long work)
     {
         const string prefix = @"\Device\HarddiskVolume";
         end = i + prefix.Length;
@@ -470,6 +484,7 @@ public sealed class CrashReportScrubber
         while (end < s.Length && char.IsAsciiDigit(s[end]))
         {
             end++;
+            work++;
         }
 
         return end > i + prefix.Length && end < s.Length && s[end] == '\\';
@@ -539,7 +554,8 @@ public sealed class CrashReportScrubber
     private static string[]? FolderComponents(string? folder)
     {
         string text = (folder ?? string.Empty).Trim();
-        if (text.Length < 3 || !TryParsePath(text, 0, out ParsedPath path) || path.Kind == RootKind.Variable
+        long work = 0;
+        if (text.Length < 3 || !TryParsePath(text, 0, out ParsedPath path, ref work) || path.Kind == RootKind.Variable
             || path.TailEnd != text.Length || path.Components.Count < 2)
         {
             return null;

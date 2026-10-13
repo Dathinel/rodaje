@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Rodaje.App.Services.Crashes;
 
 namespace Rodaje.App.Tests.Crashes;
@@ -10,13 +9,15 @@ namespace Rodaje.App.Tests.Crashes;
 /// </summary>
 public class CrashReportScrubberTextTests
 {
-    private static readonly CrashReportScrubber Ana = new(new Dictionary<string, string?>
+    private static readonly Dictionary<string, string?> Folders = new()
     {
         ["%USERPROFILE%"] = @"C:\Users\ana",
         ["%LOCALAPPDATA%"] = @"C:\Users\ana\AppData\Local",
         ["%APPDATA%"] = @"C:\Users\ana\AppData\Roaming",
         ["%TEMP%"] = @"C:\Users\ana\AppData\Local\Temp\",
-    });
+    };
+
+    private static readonly CrashReportScrubber Ana = new(Folders);
 
     [Theory]
     [InlineData(@"Error al leer D:\Clientes\Boda\a.mp4 (formato no válido / corrupto) y se omitió",
@@ -73,19 +74,46 @@ public class CrashReportScrubberTextTests
     }
 
     [Fact]
-    public void LineasPatologicasConBarrasYEspacios_SeLimpianEnPocoTiempo()
+    public void LineasPatologicasConBarrasYEspacios_SeLimpianSinTaparse()
     {
-        // Muchas rutas cuyo último segmento lleva espacios, extensiones y barras de la otra clase.
-        string line = string.Concat(Enumerable.Repeat(@"D:\a b.mp4 (x / y.z  w\ ", 1_000))
-            + string.Concat(Enumerable.Repeat(@"%SystemDrive%\x y/", 1_000))
-            + string.Concat(Enumerable.Repeat(@"\Device\HarddiskVolume1\a.b c/", 1_000));
+        // Muchas rutas cuyo último segmento lleva espacios, extensiones y barras de la otra clase. Sin tope de tiempo: lo
+        // que se comprueba aquí es el resultado; el coste lo mide la prueba siguiente, sin reloj (tarea 178: en la CI de
+        // Windows, con cobertura y las pruebas en paralelo, esta entrada agotó el presupuesto de 2 s por llamada).
+        string line = PathologicalLine();
         string many = string.Join('\n', Enumerable.Repeat(line[..CrashReportScrubber.MaxLineLength], 200));
-        var watch = Stopwatch.StartNew();
+        var scrubber = new CrashReportScrubber(Folders) { Budget = TimeSpan.MaxValue };
 
-        string text = Ana.Scrub(line + "\n" + many);
+        string text = scrubber.Scrub(line + "\n" + many);
 
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"tardó {watch.Elapsed}");
         Assert.DoesNotContain(CrashReportScrubber.HiddenLine, text, StringComparison.Ordinal);
         Assert.DoesNotContain(CrashReportScrubber.OutOfTimeLine, text, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData(@"D:\a b.mp4 (x / y.z  w\ ")]
+    [InlineData(@"%SystemDrive%\x y/")]
+    [InlineData(@"\Device\HarddiskVolume1\a.b c/")]
+    [InlineData(@"\\?\")]
+    [InlineData(@"%x%\a.mp4 %b%/")]
+    [InlineData(@"C:\Users\ana\AppData\Local\Temp\x y.z/")]
+    [InlineData("")]
+    public void ElCosteCreceEnProporcionAlTexto(string unit)
+    {
+        // Sin reloj, así que no depende de la carga de la máquina ni de la cobertura: «work» cuenta los caracteres que
+        // recorre el analizador de rutas. Con coste lineal son unos pocos por carácter (hoy, menos de 3) y crecen ×8 al
+        // pasar de 1 KB a 8 KB por línea; con uno cuadrático crecerían ×64.
+        string Repeat(int length) => unit.Length == 0 ? PathologicalLine()[..length] : string.Concat(Enumerable.Repeat(unit, (length / unit.Length) + 1))[..length];
+        var scrubber = new CrashReportScrubber(Folders) { Budget = TimeSpan.MaxValue };
+
+        scrubber.Scrub(Repeat(1024), out long small);
+        scrubber.Scrub(Repeat(CrashReportScrubber.MaxLineLength), out long large);
+
+        Assert.InRange(large, 1, 4L * CrashReportScrubber.MaxLineLength);
+        Assert.InRange((double)large / small, 1, 8 * 1.25);
+    }
+
+    private static string PathologicalLine() =>
+        string.Concat(Enumerable.Repeat(@"D:\a b.mp4 (x / y.z  w\ ", 1_000))
+        + string.Concat(Enumerable.Repeat(@"%SystemDrive%\x y/", 1_000))
+        + string.Concat(Enumerable.Repeat(@"\Device\HarddiskVolume1\a.b c/", 1_000));
 }
