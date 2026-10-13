@@ -142,6 +142,33 @@ public sealed partial class LongActionService
         return true;
     }
 
+    /// <summary>
+    /// Espera <paramref name="work"/>, a la que ya se le pidió cancelar (por ejemplo, al cerrar su diálogo): un módulo puede
+    /// tardar hasta 10 s en confirmarlo, y mientras tanto la barra de avisos dice «Cancelando…» con la barra en movimiento.
+    /// Usa <paramref name="scope"/> si la acción ya tiene uno; si no, abre uno propio con <paramref name="title"/>.
+    /// </summary>
+    public async Task ShowCancellingAsync(string title, Task work, LongActionScope? scope = null)
+    {
+        ArgumentNullException.ThrowIfNull(title);
+        ArgumentNullException.ThrowIfNull(work);
+        if (work.IsCompleted)
+        {
+            await work.ConfigureAwait(true);
+            return;
+        }
+
+        LongActionScope? own = scope is null ? TryBegin("cancelar:" + title, title) : null;
+        (scope ?? own)?.MarkCancelling();
+        try
+        {
+            await work.ConfigureAwait(true);
+        }
+        finally
+        {
+            own?.Dispose();
+        }
+    }
+
     internal void End(LongActionScope scope)
     {
         bool removed;
@@ -170,6 +197,7 @@ public sealed partial class LongActionScope : IDisposable
     private readonly Lock _lock = new();
     private LongActionStatus _status;
     private bool _disposed;
+    private bool _cancelling;
 
     internal LongActionScope(LongActionService owner, string actionId, string title, string message, bool canCancel)
     {
@@ -208,6 +236,11 @@ public sealed partial class LongActionScope : IDisposable
                 return;
             }
 
+            if (_cancelling)
+            {
+                return;
+            }
+
             LongActionStatus old = _status;
             bool sameMessage = message is null || message == old.Message;
             bool sameProgress = (value, old.Progress) switch
@@ -232,7 +265,7 @@ public sealed partial class LongActionScope : IDisposable
     {
         lock (_lock)
         {
-            if (_disposed || _status.CanCancel == canCancel)
+            if (_disposed || _cancelling || _status.CanCancel == canCancel)
             {
                 return;
             }
@@ -254,7 +287,28 @@ public sealed partial class LongActionScope : IDisposable
         }
 
         _cancel.Cancel();
+        MarkCancelling();
         return true;
+    }
+
+    /// <summary>
+    /// Desde ahora muestra «Cancelando…» con la barra en movimiento y sin botón, hasta que termine: lo que corre puede
+    /// tardar en confirmar la cancelación (un módulo de IA, hasta 10 s). Los avances que lleguen después no lo tapan.
+    /// </summary>
+    public void MarkCancelling()
+    {
+        lock (_lock)
+        {
+            if (_disposed || _cancelling)
+            {
+                return;
+            }
+
+            _cancelling = true;
+            _status = _status with { Message = Modules.ModuleActivity.Cancelling, Progress = null, CanCancel = false };
+        }
+
+        _owner.RaiseChanged();
     }
 
     public void Dispose()

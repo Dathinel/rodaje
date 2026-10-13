@@ -127,15 +127,17 @@ internal static class NoiseReductionDialog
         using var cancel = new CancellationTokenSource();
         ModuleJob? job = null;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-        timer.Tick += (_, _) =>
+        void ShowActivity()
         {
-            if (job is not null)
-            {
-                progress.Value = job.Progress;
-                scope?.Report(job.Progress, "Limpiando la voz…");
-                status.Text = (job.Stage ?? "Limpiando la voz") + "…";
-            }
-        };
+            ModuleActivityView view = ModuleActivity.Describe(job, cancel.IsCancellationRequested, "Limpiando la voz");
+            progress.IsIndeterminate = view.IsIndeterminate;
+            progress.Value = view.Progress;
+            scope?.Report(view.IsIndeterminate ? null : view.Progress, view.IsIndeterminate ? view.Text : "Limpiando la voz…");
+            status.Text = view.Text;
+        }
+
+        timer.Tick += (_, _) => ShowActivity();
+        ShowActivity();
         timer.Start();
 
         Task<CleanAudio> work = NoiseReduction.RunAsync(services.Modules, module, media.Path, window, saveIn.Folder,
@@ -152,7 +154,7 @@ internal static class NoiseReductionDialog
 
         try
         {
-            await ready;
+            await (cancel.IsCancellationRequested ? services.LongActions.ShowCancellingAsync(Title, ready, scope) : ready);
         }
         catch (OperationCanceledException)
         {

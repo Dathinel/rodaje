@@ -93,7 +93,7 @@ internal static class DuckingDialog
         await cancel.CancelAsync();
         try
         {
-            await analysis;
+            await services.LongActions.ShowCancellingAsync(Title, analysis, scope);
         }
         catch (OperationCanceledException)
         {
@@ -126,7 +126,11 @@ internal static class DuckingDialog
                     IVoiceActivitySession detection = Detector.Begin(ClipAudioSource.SampleRate, ClipAudioSource.Channels);
                     int index = i;
                     await ClipAudioSource.AnalyzeAsync(session, clip, detection, new Progress<double>(p => scope?.Report(progress.Value = (index + p) / clips.Count, "Buscando la voz…")), token);
-                    foreach (TimeRange r in await detection.FinishAsync(token))
+                    // Con el módulo de IA, aquí puede arrancar (hasta 30 s en frío): la barra se mueve sin porcentaje.
+                    progress.IsIndeterminate = true;
+                    IReadOnlyList<TimeRange> ranges = await detection.FinishAsync(token);
+                    progress.IsIndeterminate = false;
+                    foreach (TimeRange r in ranges)
                     {
                         (Time start, Time end) = ClipAudioMap.ToTimeline(clip, r);
                         found.Add(new(start.ToSeconds(), end.ToSeconds()));

@@ -269,7 +269,21 @@ internal static class VoiceDialog
             session.InsertGeneratedVoice(wav, done.Settings, chosen.Samples.Length, chosen.SampleRate);
         }
 
+        // Leer las voces arranca el módulo (hasta 30 s en frío): el círculo se mueve mientras tanto.
         async Task LoadVoices()
+        {
+            busy.IsActive = true;
+            try
+            {
+                await ReadVoices();
+            }
+            finally
+            {
+                busy.IsActive = generating;
+            }
+        }
+
+        async Task ReadVoices()
         {
             try
             {

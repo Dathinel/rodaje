@@ -100,14 +100,15 @@ internal static class VisionDialogs
         MatteVideo? matte = null;
         Task work = Task.CompletedTask;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-        timer.Tick += (_, _) =>
+        void ShowActivity()
         {
-            if (job is not null)
-            {
-                progress.Value = job.Progress;
-                status.Text = (job.Stage ?? "Recortando el sujeto") + "…";
-            }
-        };
+            ModuleActivityView view = ModuleActivity.Describe(job, cancel.IsCancellationRequested, "Recortando el sujeto");
+            progress.IsIndeterminate = view.IsIndeterminate;
+            progress.Value = view.Progress;
+            status.Text = view.Text;
+        }
+
+        timer.Tick += (_, _) => ShowActivity();
         start.Click += (_, _) => work = Run();
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
@@ -116,7 +117,7 @@ internal static class VisionDialogs
             await cancel.CancelAsync();
         }
 
-        await work;
+        await (cancel.IsCancellationRequested ? services.LongActions.ShowCancellingAsync(RemoveBackgroundTitle, work) : work);
         if (answer != ContentDialogResult.Primary || matte is null)
         {
             Delete(matte?.Path);
@@ -142,6 +143,7 @@ internal static class VisionDialogs
             start.IsEnabled = false;
             quality.IsEnabled = false;
             progress.Visibility = Visibility.Visible;
+            ShowActivity();
             timer.Start();
             try
             {
@@ -222,14 +224,15 @@ internal static class VisionDialogs
         ReframePlan? plan = null;
         Task work = Task.CompletedTask;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-        timer.Tick += (_, _) =>
+        void ShowActivity()
         {
-            if (job is not null)
-            {
-                progress.Value = job.Progress;
-                status.Text = (job.Stage ?? "Buscando al sujeto") + "…";
-            }
-        };
+            ModuleActivityView view = ModuleActivity.Describe(job, cancel.IsCancellationRequested, "Buscando al sujeto");
+            progress.IsIndeterminate = view.IsIndeterminate;
+            progress.Value = view.Progress;
+            status.Text = view.Text;
+        }
+
+        timer.Tick += (_, _) => ShowActivity();
         start.Click += (_, _) => work = Run();
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
@@ -238,7 +241,7 @@ internal static class VisionDialogs
             await cancel.CancelAsync();
         }
 
-        await work;
+        await (cancel.IsCancellationRequested ? services.LongActions.ShowCancellingAsync(ReframeTitle, work) : work);
         if (answer != ContentDialogResult.Primary || plan is null)
         {
             return;
@@ -268,6 +271,7 @@ internal static class VisionDialogs
             aspect.IsEnabled = false;
             subject.IsEnabled = false;
             progress.Visibility = Visibility.Visible;
+            ShowActivity();
             timer.Start();
             (_, int aw, int ah) = ReframeAspects[Math.Max(0, aspect.SelectedIndex)];
             try
