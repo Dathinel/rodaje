@@ -22,3 +22,12 @@ public sealed partial class LibraryOrganization
 
     static partial void CountNameFold() => NameFolds++;
 }
+
+public sealed partial record Subclip
+{
+    /// <summary>Lecturas de <see cref="Id"/> y <see cref="MediaId"/> en este hilo (una búsqueda lineal lee la de cada subclip).</summary>
+    [ThreadStatic]
+    internal static long KeyReads;
+
+    static partial void CountKeyRead() => KeyReads++;
+}

@@ -189,14 +189,17 @@ public sealed class LibraryFileFuzzTests : IDisposable
     }
 
     /// <summary>
-    /// Subclips con ids repetidos: se queda uno por id, en memoria. Se cuentan los bytes reservados y el tiempo sin las
-    /// pausas del recolector (<see cref="WorkGrowth"/>): por reloj, en la CI de Windows dio ×174 y ×230 de 4 000 a 32 000 con
-    /// una carga lineal, porque solo la corrida grande despierta al recolector.
+    /// Subclips con ids repetidos: se queda uno por id, en memoria. Se cuentan las lecturas del id y del medio de los
+    /// subclips (buscar el id en la lista, como hacía antes la carga, lee el de cada uno) y los bytes reservados
+    /// (<see cref="WorkGrowth"/>), no el tiempo: por reloj, en la CI de Windows dio ×174 y ×230 de 4 000 a 32 000, y aun sin
+    /// las pausas del recolector ×143, con los bytes en ×7,6 (una carga lineal). Ninguna comparación de la carga depende de
+    /// la cultura: los diccionarios y conjuntos van con <see cref="StringComparer.Ordinal"/>.
     /// </summary>
     [Fact]
     public void ManyRepeatedEntries_LoadInLinearTime() =>
         WorkGrowth.AssertLinear(count => (Json: SubclipsJson(count), Count: count),
-            input => Assert.Equal(input.Count / 2, Parse(input.Json).Subclips.Count), 4_000, 32_000, "Subclips repetidos");
+            input => Assert.Equal(input.Count / 2, Parse(input.Json).Subclips.Count), static () => Subclip.KeyReads,
+            4_000, 32_000, "Subclips repetidos");
 
     // 75,9 s desde el disco en la CI de Windows con el runner cargado, contra 1 s en Linux: el tope de reloj es TiempoReal.
     [Fact]
