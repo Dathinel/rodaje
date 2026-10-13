@@ -404,16 +404,46 @@ public sealed class ClipVisualsTests : IDisposable
         Assert.Equal(2, _sources.Decoded.Count);
     }
 
+    /// <summary>
+    /// No mide reloj: el lector atascado solo se suelta después de ver que <c>Dispose</c> volvió, así que un <c>Dispose</c>
+    /// que lo esperase no volvería nunca y la prueba caería al agotar el tope anticuelgue. La cota de 1 s que tenía podía
+    /// fallar sin defecto en un runner de Windows cargado; ahora va en la prueba <c>TiempoReal</c> de abajo.
+    /// </summary>
     [Fact]
     public void Dispose_does_not_wait_for_a_reader_that_ignores_cancellation()
+    {
+        (bool returned, _) = DisposeWithAStuckReader();
+
+        Assert.True(returned, "Dispose no volvió con el lector atascado.");
+    }
+
+    /// <summary>
+    /// La cota de la prueba de arriba. Mide reloj de pared, así que es <c>TiempoReal</c> (la CI la excluye; corre sola con
+    /// <c>Probar.bat</c>).
+    /// </summary>
+    [Fact]
+    [Trait("Categoria", "TiempoReal")]
+    public void Dispose_with_a_stuck_reader_returns_within_a_second()
+    {
+        (bool returned, long elapsed) = DisposeWithAStuckReader();
+
+        Assert.True(returned, "Dispose no volvió con el lector atascado.");
+        Assert.InRange(elapsed, 0, 1000);
+    }
+
+    /// <summary>
+    /// Deja un lector atascado sin mirar la cancelación y cronometra <c>Dispose</c> en un hilo propio de prioridad alta.
+    /// Devuelve si <c>Dispose</c> volvió con el lector aún atascado (antes del tope anticuelgue) y cuánto tardó.
+    /// </summary>
+    private (bool Returned, long Elapsed) DisposeWithAStuckReader()
     {
         var visuals = new ClipVisuals(id => _media.GetValueOrDefault(id), _sources);
         _sources.Stuck.Reset();
         visuals.GetThumbnail("m1", Time.Zero, 32);
         WaitFor(() => _sources.Attempts > 0 ? "" : null);
 
-        // Se cronometra solo Dispose, en un hilo propio de prioridad alta: así la medida no depende de que el pool o el
-        // hilo de la prueba tengan turno en un runner cargado. Los hilos de trabajo siguen en prioridad baja, como en la app.
+        // Se cronometra solo Dispose, en un hilo propio de prioridad alta. Los hilos de trabajo siguen en prioridad baja,
+        // como en la app.
         long elapsed = -1;
         var disposer = new Thread(() =>
         {
@@ -423,11 +453,12 @@ public sealed class ClipVisualsTests : IDisposable
         })
         { IsBackground = true, Name = "Prueba: Dispose de ClipVisuals", Priority = ThreadPriority.Highest };
         disposer.Start();
+
+        // El lector sigue atascado hasta ver que Dispose volvió; si Dispose lo esperase, el tope anticuelgue lo suelta para
+        // que la prueba falle en vez de colgarse.
         bool returned = disposer.Join(Patience);
         _sources.Stuck.Set();
-
-        Assert.True(returned, "Dispose no volvió.");
-        Assert.InRange(elapsed, 0, 1000);
+        return (returned, Volatile.Read(ref elapsed));
     }
 
     /// <summary>
