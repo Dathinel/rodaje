@@ -27,6 +27,9 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
 
     public int? ProcessId => Volatile.Read(ref _process)?.ProcessId;
 
+    /// <summary>Mata el árbol de procesos de un módulo retirado. Costura para las pruebas (por reflexión).</summary>
+    internal Action<ModuleProcess> KillProcess { get; set; } = static p => p.Kill();
+
     /// <summary>
     /// <paramref name="process"/> se mató por no responder al <c>ping</c>. Va por proceso y no por conexión: si la llamada
     /// siguiente ya abrió otro, la que falló con el colgado sigue sabiendo por qué.
@@ -176,7 +179,7 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
     {
         if (Interlocked.CompareExchange(ref _process, null, process) == process)
         {
-            process.Kill();
+            KillProcess(process);
             _ = process.DisposeAsync().AsTask();
             closed(this);
         }
