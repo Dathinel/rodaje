@@ -50,12 +50,29 @@ internal static class ProjectJson
     public static JsonTypeInfo<Project> ProjectInfo { get; } =
         (JsonTypeInfo<Project>)FileOptions.GetTypeInfo(typeof(Project));
 
-    private static JsonSerializerOptions CreateFileOptions()
+    /// <summary>
+    /// Las mismas opciones para escribir, más los controles que rechazan lo que no se puede guardar sin perderlo
+    /// (números no finitos y sustitutos UTF-16 sueltos). Aparte de <see cref="ProjectInfo"/>, que también describe el esquema.
+    /// </summary>
+    public static JsonTypeInfo<Project> WriteInfo { get; } =
+        (JsonTypeInfo<Project>)CreateFileOptions(checkedWrites: true).GetTypeInfo(typeof(Project));
+
+    /// <summary>Como <see cref="WriteInfo"/>, pero marca lo que no se puede guardar en vez de fallar (ver <see cref="SaveCheck"/>).</summary>
+    public static JsonTypeInfo<Project> LocateInfo { get; } =
+        (JsonTypeInfo<Project>)CreateFileOptions(checkedWrites: true, locate: true).GetTypeInfo(typeof(Project));
+
+    private static JsonSerializerOptions CreateFileOptions(bool checkedWrites = false, bool locate = false)
     {
         var options = new JsonSerializerOptions(ProjectJsonContext.Default.Options)
         {
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
+        if (checkedWrites)
+        {
+            options.Converters.Add(new FiniteDoubleConverter(locate));
+            options.Converters.Add(new WellFormedStringConverter(locate));
+        }
+
         options.MakeReadOnly();
         return options;
     }
