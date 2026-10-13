@@ -166,7 +166,15 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
     {
         if (owner.DecodeDelay?.Invoke(frameIndex) is { } delay && delay > TimeSpan.Zero)
         {
-            cancellationToken.WaitHandle.WaitOne(delay);
+            Interlocked.Increment(ref owner.DelaysInProgress);
+            try
+            {
+                cancellationToken.WaitHandle.WaitOne(delay);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref owner.DelaysInProgress);
+            }
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -309,6 +317,9 @@ internal sealed class FakeTimelineBackend : IClipBackend
 
     /// <summary>Cada cuadro termina en otro hilo (del grupo), no en el del decodificador.</summary>
     public bool AsyncDecode { get; init; }
+
+    /// <summary>Cuadros que están dentro de la espera de <see cref="DecodeDelay"/> (se lee con <see cref="Volatile"/>).</summary>
+    internal int DelaysInProgress;
 
     /// <summary>Lo que tarda en cerrarse cada decodificador, como uno real que libera su pool.</summary>
     public TimeSpan DisposeDelay { get; init; }

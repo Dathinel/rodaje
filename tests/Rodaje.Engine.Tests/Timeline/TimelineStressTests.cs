@@ -86,11 +86,13 @@ public sealed class TimelineStressTests
         int rounds = Stress.Iterations(6);
         for (int round = 0; round < rounds; round++)
         {
+            // Los cuadros lentos no terminan solos antes del tope de Dispose: si el cierre no los cancela, la vuelta falla
+            // por eso y no por lo cargada que esté la máquina.
             var backend = new FakeTimelineBackend
             {
                 RealThreads = true,
                 AsyncDecode = random.Next(2) == 0,
-                DecodeDelay = _ => TimeSpan.FromMilliseconds(random.Next(2) == 0 ? 1 : 400),
+                DecodeDelay = _ => Random.Shared.Next(2) == 0 ? TimeSpan.FromMilliseconds(1) : TimeSpan.FromMinutes(2),
             };
             TimelineBuilder b = Build(backend, new Random(HashCode.Combine(seed, round)));
             TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { DecoderIdleTimeout = TimeSpan.FromMilliseconds(20) });
@@ -118,10 +120,12 @@ public sealed class TimelineStressTests
             }
 
             Thread.Sleep(random.Next(0, 30));
-            var watch = Stopwatch.StartNew();
             Stress.Within(seed, $"Dispose tras la operación {operation} (vuelta {round})", TimeSpan.FromSeconds(20), session.Dispose);
-            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(3),
-                $"Semilla {seed}, vuelta {round}: cerrar tras la operación {operation} tardó {watch.Elapsed.TotalMilliseconds:0} ms.");
+
+            // Ningún cuadro sigue decodificando: los lentos solo terminan si los cancelan (el cierre, o antes un seek o el
+            // cierre de un decodificador ocioso).
+            Stress.WaitUntil(seed, $"cancelar los cuadros en curso tras la operación {operation} (vuelta {round})",
+                () => Volatile.Read(ref backend.DelaysInProgress) == 0);
             AssertReleased(seed, backend);
         }
     }
