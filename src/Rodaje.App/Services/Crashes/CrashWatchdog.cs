@@ -5,7 +5,7 @@ namespace Rodaje.App.Services.Crashes;
 /// a sí mismo se traba si otro hilo tiene el cargador o el montón), termina el proceso. Su hilo se crea al instalar el
 /// filtro y espera dormido: en medio de un fallo no se crea nada.
 /// </summary>
-public sealed class CrashWatchdog : IDisposable
+public sealed partial class CrashWatchdog : IDisposable
 {
     /// <summary>Lo que se le da al filtro antes de terminar el proceso.</summary>
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(10);
