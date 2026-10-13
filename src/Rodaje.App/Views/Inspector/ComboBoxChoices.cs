@@ -19,14 +19,13 @@ internal static class ComboBoxChoices
     public static ChoiceList<T> Show<T>(ComboBox box, ChoiceList<T> shown, ChoiceList<T> next, int selected, Func<int, object>? item = null)
     {
         ArgumentNullException.ThrowIfNull(box);
-        ArgumentNullException.ThrowIfNull(shown);
-        ArgumentNullException.ThrowIfNull(next);
-        if (box.IsDropDownOpen)
+        ComboUpdate update = ComboChoices.Update(shown, next, box.IsDropDownOpen);
+        if (update == ComboUpdate.Keep)
         {
             return shown;
         }
 
-        if (next.Differs(shown))
+        if (update == ComboUpdate.Rebuild)
         {
             box.SelectedIndex = -1;
             box.Items.Clear();

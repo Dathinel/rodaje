@@ -125,7 +125,8 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     private const string LoadCubeLabel = "Cargar .cube…";
 
     private readonly List<ParameterRow> _rows = [];
-    private readonly List<string?> _lutValues = [];
+    /// <summary>Lo que muestra ahora el desplegable de LUT (nulo: «Cargar .cube…»; ver <see cref="ComboBoxChoices"/>).</summary>
+    private ChoiceList<string?> _lutValues = new();
     private EditorServices? _services;
     private ClipPropertyEditor? _editor;
     private string? _clipId;
@@ -430,31 +431,32 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             return;
         }
 
+        // Con la lista abierta no se toca: el próximo refresco la pone al día.
+        if (LutBox.IsDropDownOpen)
+        {
+            return;
+        }
+
         _lutShown = (installed, current);
-        _updating = true;
-        LutBox.Items.Clear();
-        _lutValues.Clear();
+        var luts = new ChoiceList<string?>();
         Add("Sin LUT", "");
         foreach (PackageItemEntry entry in installed.Items(ItemKind.Lut))
         {
             Add($"{entry.Item.Name} · {entry.Package.Manifest.Name}", entry.Reference.ToString());
         }
 
-        if (current.Length > 0 && !_lutValues.Contains(current))
+        if (current.Length > 0 && !luts.Contains(current))
         {
             string name = LutReference.DisplayName(current, installed);
             Add(LutReference.IsFile(current) ? name + " (archivo)" : name + " (falta el paquete)", current);
         }
 
         Add(LoadCubeLabel, null);
-        LutBox.SelectedIndex = _lutValues.IndexOf(current);
+        _updating = true;
+        _lutValues = ComboBoxChoices.Show(LutBox, _lutValues, luts, luts.IndexOf(current));
         _updating = false;
 
-        void Add(string label, string? value)
-        {
-            LutBox.Items.Add(label);
-            _lutValues.Add(value);
-        }
+        void Add(string label, string? value) => luts.Add(label, value);
     }
 
     private IEnumerable<(string Name, double DefaultValue)> Defaults() => _rows.Select(r => (r.Spec.Name, r.Spec.DefaultValue));
@@ -498,12 +500,26 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
     private void OnLutSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (_updating || LutBox.SelectedIndex < 0 || _effectId is not { } effectId || _services is null)
+        if (_updating || !_lutValues.TryGet(LutBox.SelectedIndex, out string? value) || _effectId is not { } effectId || _services is null)
         {
             return;
         }
 
-        string? value = _lutValues[LutBox.SelectedIndex];
+        // Elegir edita y refresca el panel, que puede rehacer este desplegable (y «Cargar .cube…» abre un diálogo): va después
+        // del evento.
+        if (!DispatcherQueue.TryEnqueue(() => ChooseLut(effectId, value)))
+        {
+            ChooseLut(effectId, value);
+        }
+    }
+
+    private void ChooseLut(string effectId, string? value)
+    {
+        if (_effectId != effectId || _clipId is null || _services is null)
+        {
+            return;
+        }
+
         if (value is null)
         {
             _lutShown = null;

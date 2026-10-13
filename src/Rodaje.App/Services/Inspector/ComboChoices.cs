@@ -18,6 +18,17 @@ public static class ComboChoices
     }
 
     /// <summary>
+    /// Qué hace la vista con un desplegable que muestra <paramref name="shown"/> para que muestre <paramref name="next"/>:
+    /// nada con la lista abierta, rehacer los elementos solo si cambiaron y, si no, solo elegir.
+    /// </summary>
+    public static ComboUpdate Update<T>(ChoiceList<T> shown, ChoiceList<T> next, bool isDropDownOpen)
+    {
+        ArgumentNullException.ThrowIfNull(shown);
+        ArgumentNullException.ThrowIfNull(next);
+        return isDropDownOpen ? ComboUpdate.Keep : next.Differs(shown) ? ComboUpdate.Rebuild : ComboUpdate.Select;
+    }
+
+    /// <summary>
     /// El elemento elegido en <paramref name="selectedIndex"/>; nulo si el índice no es de la lista (−1 al vaciarse, o uno
     /// viejo tras rehacerla).
     /// </summary>
@@ -27,6 +38,19 @@ public static class ComboChoices
         ArgumentNullException.ThrowIfNull(items);
         return selectedIndex >= 0 && selectedIndex < items.Count ? items[selectedIndex] : null;
     }
+}
+
+/// <summary>Lo que hace la vista con un desplegable al refrescar (<see cref="ComboChoices.Update{T}"/>).</summary>
+public enum ComboUpdate
+{
+    /// <summary>La lista está abierta: no se toca nada (el próximo refresco la pone al día).</summary>
+    Keep,
+
+    /// <summary>Los elementos no cambiaron: solo se elige, si es otro.</summary>
+    Select,
+
+    /// <summary>Cambiaron los elementos: se rehacen.</summary>
+    Rebuild,
 }
 
 /// <summary>
