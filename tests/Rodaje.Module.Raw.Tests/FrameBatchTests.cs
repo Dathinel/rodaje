@@ -13,9 +13,11 @@ public class FrameBatchTests
     /// (los cuadros salen de <c>Task.Run</c> y de la continuación de <c>gate.WaitAsync</c>, la cancelación la pide el bucle
     /// de <c>RunAsync</c> en una continuación y los plazos de <c>WaitAsync</c> son temporizadores del pool). En la CI de
     /// Windows, con 14 testhost en 4 núcleos, el pool tardó más de 10 s en atender: con un tope de 10 s, el primer cuadro
-    /// fallaba antes de que empezara el segundo y la prueba caía sin que <c>FrameBatch</c> hiciera nada mal.
+    /// fallaba antes de que empezara el segundo y la prueba caía sin que <c>FrameBatch</c> hiciera nada mal. Un minuto es
+    /// seis veces ese atasco y cuatro veces el que se reprodujo en Linux (4 hilos del pool ocupados 15 s, #189), y una
+    /// cancelación rota cae en un minuto por espera, no en cinco.
     /// </summary>
-    private static readonly TimeSpan AntiHang = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan AntiHang = TimeSpan.FromSeconds(60);
 
     [Theory]
     [InlineData(1)]
