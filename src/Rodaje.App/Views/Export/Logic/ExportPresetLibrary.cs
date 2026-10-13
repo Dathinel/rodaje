@@ -139,6 +139,12 @@ public static class ExportPresetLibrary
     /// </summary>
     private static string? Damage(ExportSettings settings)
     {
+        // 1e400 se lee como infinito: el preajuste entraba en ajustes.json y el guardado siguiente fallaba (tarea 267).
+        if (ExportSettingsNumbers.NonFinite(settings) is { } number)
+        {
+            return $"«{number}» es un número demasiado grande.";
+        }
+
         if (!Enum.IsDefined(settings.Container))
         {
             return "el contenedor no existe.";
@@ -155,8 +161,7 @@ public static class ExportPresetLibrary
 
         if (settings.Audio is { } audio
             && (!Enum.IsDefined(audio.Codec) || audio.RateControl is not { } audioRate || !Enum.IsDefined(audioRate.Mode)
-                || !Enum.IsDefined(audio.PcmFormat)
-                || (audio.Loudness is { } loudness && !(double.IsFinite(loudness.Lufs) && double.IsFinite(loudness.MaxTruePeakDbtp)))))
+                || !Enum.IsDefined(audio.PcmFormat)))
         {
             return "faltan ajustes de audio o alguno no existe.";
         }
