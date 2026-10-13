@@ -480,9 +480,10 @@ internal sealed partial class TimelineScheduler : IDisposable
 
             ReleaseHeld(released);
 
-            // También los ya cerrados cuya liberación sigue en la cola del ejecutor de servicio.
+            // También los ya cerrados cuya liberación sigue en la cola del ejecutor de servicio: se los espera aquí, así
+            // que su cuadro en curso se cancela aquí y no cuando el servicio llegue a la cancelación que dejó el cierre.
             decoders = [.. _decoders.Values];
-            foreach (DecoderState decoder in decoders.Where(d => !d.Closed))
+            foreach (DecoderState decoder in decoders)
             {
                 decoder.Closed = true;
                 epochs.Add(decoder.Epoch);
