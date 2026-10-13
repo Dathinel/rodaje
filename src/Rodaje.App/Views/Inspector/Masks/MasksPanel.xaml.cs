@@ -86,7 +86,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
     private const string TrackActionId = "mascaras.seguir";
 
     /// <summary>Elección de «Aplicar a» que es el uso «limitar efectos» de color y filtros (no un efecto).</summary>
-    private const string EffectsZone = "zona";
+    private const string EffectsZone = MaskTargetChoices.EffectsZone;
 
     private static readonly string[] BoxNames = [M.X, M.Y, M.Width, M.Height, M.Rotation];
 
@@ -349,25 +349,8 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
     /// </remarks>
     private void ShowTargets(Clip clip, EffectInstance mask)
     {
-        var targets = new ChoiceList<string>();
-        targets.Add("La capa (recorta el clip)", "");
-        targets.Add("Zona de los efectos con «Dónde» (no recorta)", EffectsZone);
-        foreach (EffectInstance effect in clip.Effects)
-        {
-            if (MaskEdits.CanBeMasked(effect.Type))
-            {
-                targets.Add("Solo «" + EffectUi.Name(effect.Type) + "»" + (effect.Enabled ? "" : " (desactivado)"), effect.Id);
-            }
-        }
-
-        string current = mask.Options.GetValueOrDefault(O.Target) is { Length: > 0 } target ? target
-            : mask.Options.GetValueOrDefault(O.Use) == "effects" ? EffectsZone : "";
-        if (!targets.Contains(current))
-        {
-            targets.Add("Un efecto que ya no está", current);
-        }
-
-        _targets = ComboBoxChoices.Show(TargetBox, _targets, targets, targets.IndexOf(current));
+        (ChoiceList<string> targets, int selected) = MaskTargetChoices.Build(clip, mask);
+        _targets = ComboBoxChoices.Show(TargetBox, _targets, targets, selected);
     }
 
     private void ShowWeight(MaskShape shape, MaskVertex[] points, IReadOnlyList<int> selected)
@@ -668,10 +651,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         // Elegir otro destino puede quitar «Un efecto que ya no está» y rehacer este desplegable al refrescar: la edición va
         // después del evento, y solo si el panel sigue en la misma máscara del mismo clip.
         var picked = new DeferredChoice<string>(id, clipId);
-        if (!DispatcherQueue.TryEnqueue(() => ChooseTarget(picked, choice)))
-        {
-            ChooseTarget(picked, choice);
-        }
+        DispatcherQueue.Later(() => ChooseTarget(picked, choice));
     }
 
     private void ChooseTarget(DeferredChoice<string> picked, string choice)

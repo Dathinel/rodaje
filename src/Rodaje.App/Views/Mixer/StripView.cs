@@ -321,15 +321,9 @@ internal sealed partial class StripView : UserControl
 
         // Antes se vaciaba y se volvía a llenar en cada refresco, también dentro de su propio SelectionChanged y con la lista
         // abierta, lo que puede cerrar la app desde WinUI sin rastro (tarea 91). Ahora solo se rehace si cambiaron los buses.
-        var next = new ChoiceList<string?>();
-        next.Add("Mezcla", null);
-        foreach (AudioBus bus in _host.Buses)
-        {
-            next.Add(bus.Name, bus.Id);
-        }
-
         // Una salida a un bus que ya no está se muestra como la mezcla, como antes.
-        _outputs = ComboBoxChoices.Show(_output, _outputs, next, Math.Max(0, next.IndexOf(Strip.Output)));
+        (ChoiceList<string?> next, int selected) = StripOutputChoices.Build(_host.Buses, Strip.Output);
+        _outputs = ComboBoxChoices.Show(_output, _outputs, next, selected);
     }
 
     private void OnOutputSelected()
@@ -340,16 +334,13 @@ internal sealed partial class StripView : UserControl
         }
 
         // Elegir una salida edita y el mezclador refresca esta tira, que puede rehacer este desplegable: va después del evento.
-        if (!DispatcherQueue.TryEnqueue(() => ChooseOutput(busId)))
-        {
-            ChooseOutput(busId);
-        }
+        DispatcherQueue.Later(() => ChooseOutput(busId));
     }
 
     private void ChooseOutput(string? busId)
     {
         // Entre el evento y ahora pudo quitarse el bus elegido.
-        if (busId is null || _host.Buses.Any(b => b.Id == busId))
+        if (StripOutputChoices.StillThere(_host.Buses, busId))
         {
             _host.SetOutput(Strip, busId);
         }
