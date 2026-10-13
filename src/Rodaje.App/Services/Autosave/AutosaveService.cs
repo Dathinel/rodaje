@@ -338,7 +338,7 @@ public sealed partial class AutosaveService : IDisposable
         _writing = true;
         try
         {
-            await Enqueue(() => WriteSnapshot(store, copy, filePath));
+            await Enqueue(() => store.Write(copy, filePath));
             _schedule.NoteCaughtUp(since);
             _failureNotified = false;
             _formatFailureNotified = false;
@@ -349,9 +349,10 @@ public sealed partial class AutosaveService : IDisposable
         }
         catch (ProjectFormatException ex)
         {
-            // El proyecto tiene un valor que no se puede escribir (un NaN, por ejemplo). Se avisa una vez, no en cada
-            // ciclo; el aviso queda en el registro de la sesión. Se reintenta con el calendario de siempre: si la
-            // persona corrige el valor, la próxima copia sale y el aviso se rearma.
+            // El proyecto tiene un valor que no se puede escribir (un NaN, por ejemplo): el serializador lo rechaza antes
+            // de crear el temporal, así que no queda ningún .tmp. Se avisa una vez, no en cada ciclo; el aviso queda en
+            // el registro de la sesión. Se reintenta con el calendario de siempre: si la persona corrige el valor, la
+            // próxima copia sale y el aviso se rearma.
             if (!_formatFailureNotified)
             {
                 _formatFailureNotified = true;
@@ -371,44 +372,6 @@ public sealed partial class AutosaveService : IDisposable
         finally
         {
             _writing = false;
-        }
-    }
-
-    /// <summary>
-    /// Escribe la copia. Si la serialización rechaza el proyecto con <see cref="ArgumentException"/> (un NaN o un infinito
-    /// en <c>System.Text.Json</c>), la convierte en <see cref="ProjectFormatException"/>; con el serializador que ya lanza
-    /// <see cref="ProjectFormatException"/>, esa pasa tal cual. Otra <see cref="ArgumentException"/> (un error de
-    /// programación, no del proyecto) sigue su camino: solo se convierte si serializar la misma copia vuelve a fallar.
-    /// No queda ningún <c>.tmp</c>: el serializador arma el texto antes de crear el temporal.
-    /// </summary>
-    private static void WriteSnapshot(AutosaveSession store, Project copy, string? filePath)
-    {
-        try
-        {
-            store.Write(copy, filePath);
-        }
-        catch (ArgumentException ex) when (ex is not ArgumentNullException)
-        {
-            if (SerializationError(copy) is not { } serialization)
-            {
-                throw;
-            }
-
-            throw new ProjectFormatException(serialization.Message, serialization);
-        }
-    }
-
-    /// <summary>La <see cref="ArgumentException"/> con que el serializador rechaza <paramref name="project"/>, o <c>null</c> si lo acepta.</summary>
-    private static ArgumentException? SerializationError(Project project)
-    {
-        try
-        {
-            ProjectSerializer.Serialize(project);
-            return null;
-        }
-        catch (ArgumentException ex)
-        {
-            return ex;
         }
     }
 
