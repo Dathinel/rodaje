@@ -210,9 +210,34 @@ public class EditPropertiesTests(ITestOutputHelper output)
         OpKind.Resync, OpKind.SourceEdit,
     ];
 
-    /// <summary>Los desfases entre enlazados del mismo medio en pistas sin bloquear.</summary>
-    private static HashSet<Time> SyncOffsets(Sequence sequence) =>
-        [.. Unlocked(sequence).Select(o => Abs(o.Offset))];
+    /// <summary>
+    /// Los desfases entre cada par de enlazados del mismo medio en pistas sin bloquear, no solo contra la referencia:
+    /// cortar un enlace (un Insert que parte un clip y lleva lo de después con la mitad derecha) cambia cuál es la
+    /// referencia de cada mitad, y un par que ya estaba desfasado pasa a medirse sin que nada se haya corrido.
+    /// </summary>
+    private static HashSet<Time> SyncOffsets(Sequence sequence)
+    {
+        var offsets = new HashSet<Time>();
+        foreach (IGrouping<(string, string), Clip> same in sequence.AllTracks.Where(t => !t.Locked)
+            .SelectMany(t => t.Clips)
+            .Where(c => c.LinkId is not null && c.Generator is null && !c.IsCompound)
+            .GroupBy(c => (c.LinkId!, c.MediaId)))
+        {
+            Clip[] members = [.. same];
+            for (int i = 0; i < members.Length; i++)
+            {
+                for (int j = i + 1; j < members.Length; j++)
+                {
+                    if (LinkSync.OffsetBetween(members[i], members[j]) is { } offset && offset != Time.Zero)
+                    {
+                        offsets.Add(Abs(offset));
+                    }
+                }
+            }
+        }
+
+        return offsets;
+    }
 
     private static SyncOffset SyncBreaks(Sequence sequence, HashSet<Time> before) =>
         Unlocked(sequence).FirstOrDefault(o => !before.Contains(Abs(o.Offset)));
@@ -239,6 +264,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
     [InlineData("2hcHFAoqg5U8", 2)]
     [InlineData("8fBHh0xmkjni", 0)]
     [InlineData("2_rZhAfEy9if", 1)]
+    [InlineData("7Ph8XxheITw1", 0)]
     public void LasSemillasDeDesfase_ConservanLaSincronia(string seed, int generator) =>
         (generator switch { 1 => GenCurveScenario, 2 => GenTitleScenario, _ => GenScenario })
             .Sample(s => RunScenario(s.Project, s.Ops, allOpsKeepSync: true), seed: seed, iter: 1, threads: 1);

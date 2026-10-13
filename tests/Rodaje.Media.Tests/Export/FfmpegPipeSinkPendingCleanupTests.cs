@@ -84,8 +84,23 @@ public sealed class FfmpegPipeSinkPendingCleanupTests
         sink.KillOverride = process =>
         {
             killed = process;
+            // Como el Kill de verdad: en BelowNormal y con la CI saturada, el falso tardó más de 10 s en salir y la prueba
+            // pasaba por la limpieza pendiente en lugar de por la que tiene que comprobar.
+            try
+            {
+                process.PriorityClass = ProcessPriorityClass.High;
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                // Linux sin permiso para subir la prioridad.
+            }
+
             process.Kill();
-            process.WaitForExit(TimeSpan.FromSeconds(10));
+            if (!process.WaitForExit(TimeSpan.FromMinutes(1)))
+            {
+                throw new TimeoutException("El ffmpeg falso no salió en un minuto después de matarlo.");
+            }
+
             throw new NotSupportedException("fallo simulado al matar");
         };
         sink.Start(request, cancellation.Token);
