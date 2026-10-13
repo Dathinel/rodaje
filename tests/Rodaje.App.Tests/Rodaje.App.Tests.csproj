@@ -28,10 +28,11 @@
     pool, y UiThread.Run lo dejaba en Thread.Join mientras duraba la prueba sin que el pool lo supiera; ahora espera una
     Task y el pool pone otro hilo en su lugar (UiThreadPoolTests: 64 a la vez, 34 s con Join y 3,4 s así). Tampoco pasan
     ya por el pool el cierre del hilo medido de ConcurrentDownloadTests ni, en ModuleClient.Fail, lo que cuelga de
-    Completion delante de las llamadas. Quedan, conocidos: GatedProber (EditorSessionTests) bloquea un hilo del pool hasta
-    que la prueba lo suelta, ModuleConnection.OnExited mata el árbol de procesos en un hilo del pool, y las pruebas
-    síncronas que esperan con .Wait, Thread.Sleep o WaitForExit (sombreadores, títulos, EchoModules.HasExited) lo hacen en
-    el hilo del pool de xUnit.
+    Completion delante de las llamadas. Tampoco ya: GatedProber (EditorSessionTests) se suelta en cuanto la importación
+    espera, las pruebas de sombreadores y títulos en la GPU (TitleClipTests, TitleTextureLeakTests,
+    PackageContentEndToEndTests) corren en un hilo propio (Support/OwnThread) y EchoModules.HasExitedAsync espera con
+    WaitForExitAsync. Quedan, conocidos: ModuleConnection.OnExited mata el árbol de procesos en un hilo del pool, y alguna
+    espera corta en bloque fuera de esa lista (CrashSessionTests, por ejemplo).
   -->
   <ItemGroup>
     <RuntimeHostConfigurationOption Include="System.Threading.ThreadPool.MinThreads" Value="32" />
