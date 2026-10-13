@@ -304,6 +304,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         }
 
         _targets.AddRange(sequence.AudioTracks.Select(t => new DynamicsOwner(DynamicsOwnerKind.Track, t.Id)));
+        _targets.AddRange(sequence.AudioBuses.Select(b => new DynamicsOwner(DynamicsOwnerKind.Bus, b.Id)));
         _targets.Add(DynamicsOwner.Mix(sequence));
         if (_chosen is null || !_targets.Contains(_chosen))
         {
@@ -335,6 +336,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
     {
         DynamicsOwnerKind.Clip => "Clip «" + ClipLabels.Name(_services!.Session.Project, sequence.GetClip(owner.Id).Clip, "audio") + "»",
         DynamicsOwnerKind.Track => "Pista «" + sequence.GetTrack(owner.Id).Name + "»",
+        DynamicsOwnerKind.Bus => "Bus «" + (sequence.FindBus(owner.Id)?.Name ?? "") + "»",
         _ => "Mezcla",
     };
 
@@ -405,7 +407,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         }
 
         _sidechain.SelectedIndex = Math.Max(0, _sidechains.IndexOf(string.IsNullOrEmpty(key) ? null : key));
-        _sidechain.IsEnabled = editor.Owner?.Kind != DynamicsOwnerKind.Mix;
+        _sidechain.IsEnabled = editor.Owner?.Kind is DynamicsOwnerKind.Clip or DynamicsOwnerKind.Track;
         _listen.IsEnabled = true;
 
         (double threshold, double ratio, double knee, double makeup) = editor.Curve();

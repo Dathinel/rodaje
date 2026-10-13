@@ -15,12 +15,14 @@ public sealed record EqualizerSettings(
     double PresenceHz,
     double PresenceQ,
     double HighGainDb,
-    double HighHz)
+    double HighHz) : AudioProcessorSettings
 {
     /// <summary>No cambia nada: sin corte y con todas las ganancias en 0 dB.</summary>
     public bool IsIdentity => LowCutHz <= 0 && LowGainDb == 0 && MidGainDb == 0 && PresenceGainDb == 0 && HighGainDb == 0;
 
     public const int BandCount = 5;
+
+    internal override IAudioStage CreateStage(double sampleRate) => new EqualizerCompressorStage(this, null, sampleRate);
 
     /// <summary>La banda <paramref name="index"/> (corte, graves, medios, presencia, agudos); nula si está apagada.</summary>
     public Biquad? Band(int index, double sampleRate) => index switch

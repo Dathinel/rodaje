@@ -4,7 +4,7 @@ namespace Rodaje.Core.Model;
 /// Nombres de los efectos que el motor entiende sin paquetes y de sus parámetros y opciones. Los parámetros se evalúan
 /// en tiempo del origen; los valores por defecto, rangos y códigos están en <see cref="Effects.EffectRegistry"/>.
 /// </summary>
-public static class BuiltInEffects
+public static partial class BuiltInEffects
 {
     /// <summary>Posición, escala, rotación y opacidad de la capa. Sin este efecto la capa llena el cuadro.</summary>
     public const string Transform = "rodaje.transform";
@@ -92,6 +92,12 @@ public static class BuiltInEffects
 
         /// <summary>Duración del fundido de salida, en segundos. Por defecto 0.</summary>
         public const string FadeOut = "fadeOut";
+
+        /// <summary>Paneo con ley de −3 dB, de −100 (izquierda) a 100 (derecha), animable. Por defecto 0.</summary>
+        public const string Pan = "pan";
+
+        /// <summary>Balance estéreo, de −100 (solo la izquierda) a 100 (solo la derecha), animable. Por defecto 0.</summary>
+        public const string Balance = "balance";
     }
 
     /// <summary>Ecualizador paramétrico de cinco bandas de un clip o de una pista de audio (sin keyframes).</summary>

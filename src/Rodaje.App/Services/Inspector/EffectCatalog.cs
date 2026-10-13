@@ -75,8 +75,8 @@ public static class EffectCatalog
             return EffectSupport.Pending;
         }
 
-        // El motor usa la primera transformación, el primer modo de mezcla, el primer ecualizador y el primer compresor activos.
-        bool shadowed = effect.Type is BuiltInEffects.Transform or BuiltInEffects.Blend or BuiltInEffects.Equalizer or BuiltInEffects.Compressor
+        // El motor usa la primera transformación y el primer modo de mezcla activos; los efectos de audio suenan todos, en orden.
+        bool shadowed = effect.Type is BuiltInEffects.Transform or BuiltInEffects.Blend
             && effect.Enabled
             && !ReferenceEquals(clip.Effects.Find(e => e.Enabled && e.Type == effect.Type), effect);
         return shadowed ? EffectSupport.Shadowed : EffectSupport.Applied;

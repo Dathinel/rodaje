@@ -1,6 +1,6 @@
 # Audio
 
-Volumen, sonoridad, ecualizador, compresor, ducking, voz en off y las herramientas que limpian o cortan el sonido. El video sigue siempre al reloj del audio: si el equipo no llega, se pierde un cuadro, nunca una muestra.
+Volumen, mezclador, sonoridad, efectos (ecualizador, compresor, puerta, de-esser, reverb, delay, saturación, tono, limitador), ducking, voz en off y las herramientas que limpian o cortan el sonido. El video sigue siempre al reloj del audio: si el equipo no llega, se pierde un cuadro, nunca una muestra.
 
 ## Volumen
 
@@ -8,6 +8,37 @@ Volumen, sonoridad, ecualizador, compresor, ducking, voz en off y las herramient
 - **Por pista:** en la cabecera de la pista de audio, arrastra el texto «Volumen 0,0 dB» a los lados (0,25 dB por píxel; con Mayús, 0,05); doble clic vuelve a 0 dB. Clic derecho en la cabecera: **Preajuste de audio**, **Compresor de la pista…** y **Grabar voz en off aquí…**.
 - **Envolvente:** con la herramienta de envolvente (**E**) sobre un clip de audio, un clic pone un punto y lo arrastra, agarrar un punto lo mueve sin pasar a sus vecinos y clic derecho lo quita. La altura es lineal en amplitud: 0 dB a media altura, +6 dB arriba y silencio abajo. El interruptor **bloquear envolventes** de la barra evita tocarlas sin querer.
 - Silenciar una pista: el altavoz de su cabecera.
+
+## Mezclador
+
+**Ver › Mezclador** (Alt+M) cambia la línea de tiempo por el mezclador; otra vez Alt+M vuelve. Hay una tira por pista de audio, una por bus y, a la derecha, la de la mezcla.
+
+- **Fader:** volumen de −∞ a +12 dB con la escala de una mesa (más recorrido cerca de 0 dB). Arrastra (Mayús: fino), usa la rueda o las flechas (0,5 dB) y doble clic vuelve a 0 dB. Va **después** de las inserciones: bajar la voz no cambia lo que hace su compresor. Es el mismo volumen que el de la cabecera de la pista.
+- **Paneo y balance:** la barra de arriba es el paneo (ley de −3 dB: una voz mono al centro suena igual que antes y movida a un lado no sube ni baja de volumen); la de abajo, el balance (solo baja el lado contrario). Doble clic: al centro.
+- **M, S, R y T:** silenciar, **solo** (Ctrl+clic: solo exclusivo), armar para grabar (**Grabar voz** propone esa pista) y automatización **tocar**.
+- **Medidor:** pico y RMS de lo que sale del fader, con el pico retenido y el aviso de saturación (clic para apagarlo). La tira de la mezcla mide el pico verdadero y muestra la sonoridad corta e integrada (LUFS) y el mayor pico (dBTP); clic sobre la lectura para volver a empezar.
+- **Inserciones:** los efectos de la pista, de arriba abajo. el **+** de «Inserciones» añade uno y abre su editor; clic en uno lo abre; arrastra para cambiar el orden; la casilla lo activa o desactiva; **A/B** lo escucha sin él (solo la vista previa: no cambia el proyecto ni la exportación). Clic derecho: **Preajuste**, **Abrir en Dinámica** (el compresor), activar o quitar.
+- **Salida y envíos:** arriba eliges adónde sale la pista (la mezcla o un bus). El **+** de «Envíos» manda además una copia a un bus (por ejemplo una reverb), con su nivel y **Pre** (antes del fader: lo que se manda no depende del volumen de la pista). Clic derecho en un envío para quitarlo.
+- **Buses:** **Añadir bus › Voces, Música y Efectos** crea las tres submezclas de una vez. Un bus suma lo que le llega, pasa por sus inserciones y su fader y va a la mezcla. Clic derecho en su nombre: renombrar o quitar (las pistas que salían a él vuelven a la mezcla).
+- **Solo:** con algún solo puesto suenan solo las pistas con solo, las que salen a un bus con solo y los buses que reciben de ellas. Una pista que hace de sidechain sigue disparando su compresor aunque un solo la calle.
+
+### Automatización
+
+El volumen y el paneo de una pista o un bus admiten keyframes (en el tiempo de la secuencia). Al reproducir, los faders los siguen («· A» junto al valor). Para escribirlos en vivo, enciende **T** en la tira y, mientras suena, mueve el fader o el paneo: lo que hagas queda en keyframes (solo los puntos que hacen falta) y al soltar la curva vuelve a la de antes en 0,1 s. Todo el pase es un paso del historial.
+
+## Efectos del mezclador
+
+Se añaden desde la tira (el **+** de «Inserciones») o, en un clip, en **Filtros**. Todos suenan igual en la vista previa y en la exportación y traen preajustes.
+
+- **Ecualizador** (paramétrico de 5 bandas) y **Ecualizador gráfico** (10 bandas de una octava, de 31 Hz a 16 kHz, ±12 dB), con su curva.
+- **Compresor:** ver la pestaña Dinámica.
+- **Puerta de ruido:** calla lo que queda por debajo del umbral (relación 20: puerta; menos, expansor suave), con rango, ataque, retención, relajación, histéresis y pasa altos del detector. Su curva muestra el punto de lo que suena.
+- **De-esser:** baja las eses por encima de una frecuencia (solo esa banda o toda la señal).
+- **Saturación:** de cinta (simétrica) a válvula (armónicos pares), con tono, salida y mezcla en paralelo; sin aspereza (antialiasing).
+- **Delay:** tiempo en ms o al tempo (figura de negra, corchea con puntillo, tresillos…), realimentación filtrada, ping-pong y mezcla (50 % deja el seco y el eco a tope; 100 %, solo el eco para un bus de envío).
+- **Reverb:** sala, estudio, hall, catedral o «Envío de voz»: predelay, tamaño, duración (RT60), brillo, ancho, corte de graves y mezcla.
+- **Tono:** sube o baja hasta una octava (y cents) sin cambiar la duración.
+- **Limitador:** techo de pico verdadero (−1 dBTP de fábrica), ganancia de entrada y recuperación.
 
 ## Medidores
 

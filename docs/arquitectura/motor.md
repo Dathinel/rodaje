@@ -119,6 +119,7 @@ La prueba de aceptación de la exportación midió refrescos de 59–370 ms tamb
   - Suma los clips exactos a la muestra en float estéreo; los huecos son silencio.
   - Reutiliza un decodificador por medio si quedó justo donde empieza el clip y cierra los ociosos.
   - Aplica el volumen de cada clip antes del recorte suave y de los medidores (ver [Audio](audio.md#volumen-y-fundidos)).
+  - Cada pista pasa por sus inserciones en orden y su fader (volumen, paneo, balance) y sale a la mezcla o a un bus; los envíos y los buses, con la compensación de su retraso, están en [Audio](audio.md#mezclador-e-inserciones).
   - Aplica un recorte suave (rodilla 0,9).
   - Al recargar conserva 30 ms ya mezclados. Un medio que falla suena como silencio.
   - Un clip con velocidad (`AudioClipPlan.Retime`) pasa por `RetimedReader`: WSOLA al mantener el tono, cinta si no (ver [Audio](audio.md#velocidad-timelineretime)).

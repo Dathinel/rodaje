@@ -131,13 +131,17 @@ internal sealed partial class TimelinePlan
 
         var audio = new AudioBuilder(project, media, projectDirectory, keep);
         var audioTracks = new List<AudioTrackPlan>();
+        var audioSources = new List<Track>();
         foreach (Track track in sequence.AudioTracks)
         {
             if (!track.Muted)
             {
                 audioTracks.Add(audio.Track(track, Time.Zero, depth: 0));
+                audioSources.Add(track);
             }
         }
+
+        (List<AudioTrackPlan> routed, List<MixBusPlan> buses) = Route(sequence, audioSources, audioTracks);
 
         var expanded = new Sequence
         {
@@ -151,8 +155,9 @@ internal sealed partial class TimelinePlan
             AudioTracks = sequence.AudioTracks,
         };
         // La mezcla no admite sidechain externo: su llave tendría que ir por delante de todo lo que la forma.
-        var audioPlan = new AudioPlan(AssignKeys(audioTracks), sequence.MasterGainDb)
+        var audioPlan = new AudioPlan(AssignKeys(routed), sequence.MasterGainDb)
         {
+            Buses = buses,
             MasterEffects = AudioEffects(sequence.MasterEffects) is { } master ? master with { SidechainTrackId = null } : null,
             MasterAutomation = Automation(sequence.MasterEffects, Time.Zero),
         };

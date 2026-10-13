@@ -17,7 +17,7 @@ public class FormatV3Tests
     private static string Example => File.ReadAllText(ExamplePath).ReplaceLineEndings("\n");
 
     // Al abrirlo se migra y se guarda en la versión actual; lo demás queda igual.
-    private static string ExampleSaved => Example.Replace("\"schemaVersion\": 3", "\"schemaVersion\": 9", StringComparison.Ordinal);
+    private static string ExampleSaved => Example.Replace("\"schemaVersion\": 3", "\"schemaVersion\": 10", StringComparison.Ordinal);
 
     [Fact]
     public void Example_LoadsAndIsCanonical()

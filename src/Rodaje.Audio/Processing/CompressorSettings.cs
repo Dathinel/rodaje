@@ -35,6 +35,7 @@ public sealed record MultibandSettings(
 /// <see cref="InfiniteRatio"/> es ∞:1 (limitador).
 /// </summary>
 public sealed record CompressorSettings(double ThresholdDb, double Ratio, double AttackMs, double ReleaseMs, double MakeupDb, double KneeDb)
+    : AudioProcessorSettings
 {
     public const double InfiniteRatio = 100;
 
@@ -69,6 +70,8 @@ public sealed record CompressorSettings(double ThresholdDb, double Ratio, double
 
     public int Bands => Multiband is null ? 1 : 3;
 
+    internal override IAudioStage CreateStage(double sampleRate) => new EqualizerCompressorStage(null, this, sampleRate);
+
     /// <summary>Nivel de salida en dB para una entrada estable de <paramref name="inputDb"/>, sin la compensación.</summary>
     public double StaticCurve(double inputDb) => Curve(inputDb, ThresholdDb, Ratio, KneeDb);
 
@@ -99,5 +102,5 @@ public sealed record CompressorSettings(double ThresholdDb, double Ratio, double
     public int LookaheadFrames(double sampleRate) => (int)Math.Round(Math.Clamp(LookaheadMs, 0, MaxLookaheadMs) * sampleRate / 1000);
 
     /// <summary>Muestras que el compresor retrasa el audio: la anticipación más la del limitador.</summary>
-    public int LatencyFrames(double sampleRate) => LookaheadFrames(sampleRate) + (CeilingDb is null ? 0 : TruePeakLimiter.Latency);
+    public override int LatencyFrames(double sampleRate) => LookaheadFrames(sampleRate) + (CeilingDb is null ? 0 : TruePeakLimiter.Latency);
 }

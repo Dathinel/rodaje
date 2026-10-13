@@ -14,6 +14,7 @@
     xmlns:inspector="using:Rodaje.App.Views.Inspector"
     xmlns:timeline="using:Rodaje.App.Views.Timeline"
     xmlns:tools="using:Rodaje.App.Views.Tools"
+    xmlns:mixer="using:Rodaje.App.Views.Mixer"
     Title="Rodaje">
 
     <Grid x:Name="Root" Background="{StaticResource BackgroundBrush}" AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop">
@@ -66,6 +67,7 @@
             </Grid.RowDefinitions>
             <tools:ToolsBar x:Name="Tools" />
             <timeline:TimelineView x:Name="Timeline" Grid.Row="1" />
+            <mixer:MixerView x:Name="Mixer" Grid.Row="1" Visibility="Collapsed" />
         </Grid>
 
         <Grid x:Name="ModalLayer" Grid.RowSpan="5" Visibility="Collapsed" Background="{StaticResource ScrimBrush}">

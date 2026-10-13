@@ -70,6 +70,7 @@
                 <MenuFlyoutItem Text="Trabajos" Tag="inspector:Jobs" Click="OnInspectorClick" />
                 <MenuFlyoutSeparator />
                 <MenuFlyoutSubItem x:Name="WorkspaceMenu" Text="Espacio de trabajo" />
+                <MenuFlyoutItem Text="Mezclador" Tag="view.mixer" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Pantalla completa" Tag="view.playerFullScreen" Click="OnActionClick" />
                 <MenuFlyoutItem x:Name="SecondScreenItem" Text="Visor en otra pantalla" Tag="view.secondScreen" Click="OnActionClick" />
                 <MenuFlyoutSeparator />

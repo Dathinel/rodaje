@@ -190,6 +190,25 @@ public sealed class TimelineSession : IDisposable
     /// </summary>
     public void MonitorDynamics(DynamicsMonitor? monitor) => _mixer?.Monitor(monitor);
 
+    /// <summary>Inserciones que se escuchan sin efecto (A/B por efecto de la vista previa, por su id); no cambia el proyecto ni la exportación.</summary>
+    public void BypassInserts(IReadOnlySet<string>? inserts) => _mixer?.BypassInserts(inserts);
+
+    /// <summary>
+    /// Picos de <c>(from, to]</c> y RMS de la ventana de una tira del mezclador (<see cref="DynamicsMonitor.ForTrack"/> o
+    /// <see cref="DynamicsMonitor.ForBus"/>), después de su fader; silencio si no hay datos. Desde cualquier hilo.
+    /// </summary>
+    public AudioLevels MeasureStrip(string key, Time from, Time to, TimeSpan rmsWindow)
+    {
+        if (_mixer?.StripLevels.GetValueOrDefault(key) is not { } ring)
+        {
+            return AudioLevels.Silence;
+        }
+
+        const int rate = TimelinePlan.AudioSampleRate;
+        long end = to.ToSamples(rate);
+        return ring.Measure(from.ToSamples(rate), end, end - (long)(rmsWindow.TotalSeconds * rate));
+    }
+
     /// <summary>
     /// Entrada, salida y reducción del compresor que se mira en lo que suena en <c>(<paramref name="from"/>, <paramref name="to"/>]</c>;
     /// nulo si no hay datos. Mismas reglas de hilos que <see cref="MeasureAudio"/>.

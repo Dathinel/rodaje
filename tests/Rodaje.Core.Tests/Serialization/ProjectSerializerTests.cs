@@ -51,7 +51,7 @@ public class ProjectSerializerTests
         JsonObject root = JsonNode.Parse(json)!.AsObject();
 
         Assert.Equal(["schemaVersion", "id", "name", "media", "sequences"], root.Select(p => p.Key));
-        Assert.Equal(9, (int)root["schemaVersion"]!);
+        Assert.Equal(10, (int)root["schemaVersion"]!);
 
         JsonObject sequence = root["sequences"]![0]!.AsObject();
         Assert.Equal(["id", "name", "frameRate", "width", "height", "sampleRate", "videoTracks", "audioTracks", "markers", "regions"], sequence.Select(p => p.Key));
@@ -91,7 +91,7 @@ public class ProjectSerializerTests
         Assert.Contains("música/canción ñ.wav", json, StringComparison.Ordinal);
         Assert.Contains("Vacaciones en Cartagena — edición ñ", json, StringComparison.Ordinal);
         Assert.DoesNotContain("\r", json, StringComparison.Ordinal);
-        Assert.StartsWith("{\n  \"schemaVersion\": 9,", json, StringComparison.Ordinal);
+        Assert.StartsWith("{\n  \"schemaVersion\": 10,", json, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -2,7 +2,7 @@
 
 Este registro guarda el porqué de cada elección importante de Rodaje. Una decisión no se borra cuando cambia: se marca como sustituida y otra explica el cambio.
 
-**Estado.** Vigentes: D-003 a D-014, D-016 a D-029 y D-031 a D-039 (D-017 la amplía D-019; D-028 la corrige D-033 en la parte de 9:16; D-029.1 la amplía D-039). Sustituidas: D-001 (por D-014), D-002 en la licencia y D-030 (por D-032), D-015 en el visor (por D-022) y en la caché (por D-017).
+**Estado.** Vigentes: D-003 a D-014, D-016 a D-029 y D-031 a D-040 (D-017 la amplía D-019; D-028 la corrige D-033 en la parte de 9:16; D-029.1 la amplía D-039). Sustituidas: D-001 (por D-014), D-002 en la licencia y D-030 (por D-032), D-015 en el visor (por D-022) y en la caché (por D-017).
 
 ---
 
@@ -371,3 +371,11 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
   - **Tramos en el clip, no en el estilo:** el formato de una palabra es del texto, se mueve con él al escribir y un estilo nuevo no lo pisa.
   - **Formato 9 y `rodaje.textstyle` v2**, todo opcional; «Guardar como estilo» escribe la versión 1 si el estilo no usa nada nuevo, así lo sigue leyendo un Rodaje anterior.
 - **Consecuencia.** Un emoji de color junto a una letra animada puede asomar en su celda (se dibuja con su paleta, no con el pincel que oculta al resto). Un atlas 4K de tres líneas por letra pesa unos 55 MB con mips y tarda unos 120 ms en el hilo de títulos; la composición por cuadro no reserva memoria.
+
+## D-040. Mezclador: inserciones en orden, fader después de ellas, buses y formato 10 (12 de octubre de 2026)
+
+- **Las inserciones de audio suenan todas, en el orden de la pila.** Antes sonaban solo el primer ecualizador y el primer compresor, siempre el ecualizador antes. La migración 9 → 10 deja igual lo que sonaba (ese ecualizador pasa delante y los que no sonaban se desactivan).
+- **El volumen de la pista es un fader después de sus inserciones**, como en una mesa: bajar la voz no cambia lo que hace su compresor. Cambia el sonido de un proyecto con compresor de pista y volumen de pista a la vez; los dos llegaron en la misma versión sin publicar.
+- **Buses solo en la secuencia principal y sin buses que salgan a buses:** no hay ciclos que comprobar. Las pistas se mezclan por delante lo que retrasan los buses a los que llegan (compensación del retraso), con el mismo mecanismo que las llaves de sidechain.
+- **Automatización «tocar» con comandos:** cada pase se escribe en keyframes dentro de un gesto (un paso del historial) y lo que se oye es lo que queda escrito, sin un camino aparte para la vista previa.
+- **A/B por inserción solo en la vista previa**, como el de Dinámica: la etapa sigue procesando y sale la entrada con su retraso.

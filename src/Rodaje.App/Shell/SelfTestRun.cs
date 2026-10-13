@@ -56,6 +56,7 @@ internal static partial class SelfTestRun
             await MasksAsync(window, engine);
             await TransformAsync(window, engine);
             await ColorAsync(window, engine);
+            await MixerAsync(window);
             await ShowExportAsync(window);
             await PluginsAsync(window);
             await ModuleAsync(window);
@@ -100,6 +101,39 @@ internal static partial class SelfTestRun
     private static bool IsUpstreamCreditShown(MainWindow window) =>
         window.UpstreamCredit is { Visibility: Visibility.Visible, ActualWidth: > 0, ActualHeight: > 0 } credit
         && credit.Content as string == UpstreamAttribution.ShortCredit;
+
+    /// <summary>
+    /// Abre el mezclador, crea dos buses, manda la primera pista a uno y le envía a otro con una reverb, le pone una puerta,
+    /// captura y lo deshace todo: las tiras, los medidores y los efectos nuevos corren con el exe de AOT.
+    /// </summary>
+    private static async Task MixerAsync(MainWindow window)
+    {
+        EditorSession session = window.Session;
+        window.ToggleMixer();
+        await Task.Delay(300);
+        if (session.Sequence.AudioTracks.Count > 0)
+        {
+            var buses = Rodaje.Core.Commands.Edits.AddBuses(session.SequenceId, ["Voces", "Efectos"]);
+            if (session.Execute(buses))
+            {
+                string track = session.Sequence.AudioTracks[0].Id;
+                int steps = 1;
+                steps += session.Execute(Rodaje.Core.Commands.Edits.SetTrackOutput(session.SequenceId, track, buses.CreatedIds[0])) ? 1 : 0;
+                steps += session.Execute(Rodaje.Core.Commands.Edits.AddEffect(session.SequenceId, buses.CreatedIds[1], Rodaje.Core.Model.BuiltInEffects.Reverb)) ? 1 : 0;
+                steps += session.Execute(Rodaje.Core.Commands.Edits.SetSend(session.SequenceId, track, buses.CreatedIds[1], gainDb: -10)) ? 1 : 0;
+                steps += session.Execute(Rodaje.Core.Commands.Edits.AddEffect(session.SequenceId, track, Rodaje.Core.Model.BuiltInEffects.Gate)) ? 1 : 0;
+                await Task.Delay(400);
+                await CaptureAsync(window, "mezclador");
+                for (int i = 0; i < steps; i++)
+                {
+                    session.Undo();
+                }
+            }
+        }
+
+        window.ToggleMixer();
+        await Task.Delay(200);
+    }
 
     /// <summary>Pone «Bala» al clip para dibujar el editor de curvas y la mini curva con el exe de AOT, y lo deshace.</summary>
     private static async Task ShowCurveAsync(MainWindow window)

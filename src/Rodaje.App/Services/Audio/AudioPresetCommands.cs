@@ -21,6 +21,16 @@ internal static class AudioPresetCommands
             }
 
             EffectEdits.SetEffectValues(ctx, ownerId, BuiltInEffects.Compressor, preset?.Compressor);
+
+            // Los efectos suenan en el orden de la pila: el ecualizador del preajuste va antes que su compresor.
+            List<EffectInstance> effects = ctx.Sequence.FindClip(ownerId)?.Clip.Effects ?? ctx.Sequence.FindTrack(ownerId)?.Effects
+                ?? ctx.Sequence.FindBus(ownerId)?.Effects ?? ctx.Sequence.MasterEffects;
+            int eq = effects.FindIndex(e => e.Type == BuiltInEffects.Equalizer);
+            int compressor = effects.FindIndex(e => e.Type == BuiltInEffects.Compressor);
+            if (eq > compressor && compressor >= 0)
+            {
+                EffectEdits.MoveEffect(ctx, ownerId, effects[eq].Id, compressor);
+            }
         });
 
     /// <summary>

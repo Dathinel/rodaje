@@ -18,6 +18,7 @@ public sealed class SequenceSnapshot
     private readonly int _sampleRate;
     private readonly double _masterGainDb;
     private readonly EffectInstance[] _masterEffects;
+    private readonly AudioBus[] _audioBuses;
     private readonly TrackEntry[] _videoTracks;
     private readonly TrackEntry[] _audioTracks;
     private readonly Marker[] _markers;
@@ -33,6 +34,7 @@ public sealed class SequenceSnapshot
         _sampleRate = sequence.SampleRate;
         _masterGainDb = sequence.MasterGainDb;
         _masterEffects = [.. sequence.MasterEffects.Select(e => e.Clone())];
+        _audioBuses = [.. sequence.AudioBuses.Select(b => b.Clone())];
         _videoTracks = [.. sequence.VideoTracks.Select(t => new TrackEntry(t, t.Clone()))];
         _audioTracks = [.. sequence.AudioTracks.Select(t => new TrackEntry(t, t.Clone()))];
         _markers = [.. sequence.Markers.Select(m => m.Clone())];
@@ -63,6 +65,7 @@ public sealed class SequenceSnapshot
         sequence.SampleRate = _sampleRate;
         sequence.MasterGainDb = _masterGainDb;
         sequence.MasterEffects = [.. _masterEffects.Select(e => e.Clone())];
+        sequence.AudioBuses = [.. _audioBuses.Select(b => b.Clone())];
         RestoreTracks(sequence.VideoTracks, _videoTracks);
         RestoreTracks(sequence.AudioTracks, _audioTracks);
         sequence.Markers.Clear();
@@ -83,6 +86,7 @@ public sealed class SequenceSnapshot
             && sequence.SampleRate == _sampleRate
             && sequence.MasterGainDb.Equals(_masterGainDb)
             && SequenceEqual(sequence.MasterEffects, [.. _masterEffects], EffectStateEquals)
+            && SequenceEqual(sequence.AudioBuses, [.. _audioBuses], (a, b) => a.ContentEquals(b))
             && TracksMatch(sequence.VideoTracks, _videoTracks)
             && TracksMatch(sequence.AudioTracks, _audioTracks)
             && sequence.Markers.Count == _markers.Length
@@ -113,6 +117,8 @@ public sealed class SequenceSnapshot
         return a.Locked == b.Locked
             && a.Muted == b.Muted
             && a.Hidden == b.Hidden
+            && a.Solo == b.Solo
+            && a.Armed == b.Armed
             && TrackContentEquals(a, b);
     }
 
@@ -125,6 +131,8 @@ public sealed class SequenceSnapshot
             && a.Kind == b.Kind
             && a.Name == b.Name
             && a.Role == b.Role
+            && a.Output == b.Output
+            && SequenceEqual(a.Sends, b.Sends, (x, y) => x.ContentEquals(y))
             && SequenceEqual(a.Clips, b.Clips, ClipStateEquals)
             && SequenceEqual(a.Effects, b.Effects, EffectStateEquals)
             && SequenceEqual(a.Transitions, b.Transitions, TransitionStateEquals);

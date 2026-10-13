@@ -29,6 +29,32 @@ public sealed class Track
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Role { get; set; }
 
+    /// <summary>Solo de una pista de audio: con alguno puesto, solo suenan las pistas y buses con solo (formato 7).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Solo { get; set; }
+
+    /// <summary>Armada para grabar: «Grabar voz» propone esta pista (formato 7).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Armed { get; set; }
+
+    /// <summary>Bus al que sale una pista de audio (<see cref="AudioBus.Id"/>); nulo, a la mezcla (formato 7).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Output { get; set; }
+
+    /// <summary>Envíos de una pista de audio a buses, como mucho uno por bus (formato 7).</summary>
+    [JsonIgnore]
+    public List<AudioSend> Sends { get; set; } = [];
+
+    /// <summary><see cref="Sends"/> en el archivo: no se escribe si está vacía.</summary>
+    [JsonPropertyName("sends")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public List<AudioSend>? SendsInFile
+    {
+        get => Sends.Count > 0 ? Sends : null;
+        set => Sends = value ?? [];
+    }
+
     public List<Clip> Clips { get; set; } = [];
 
     /// <summary>Efectos de toda la pista (por ejemplo el volumen); sus keyframes están en tiempo de la secuencia.</summary>
@@ -51,6 +77,7 @@ public sealed class Track
         copy.Clips = Clips.ConvertAll(c => c.Clone());
         copy.Effects = Effects.ConvertAll(e => e.Clone());
         copy.Transitions = Transitions.ConvertAll(t => t.Clone());
+        copy.Sends = Sends.ConvertAll(t => t.Clone());
         return copy;
     }
 
@@ -64,6 +91,10 @@ public sealed class Track
         Locked = other.Locked;
         Hidden = other.Hidden;
         Role = other.Role;
+        Solo = other.Solo;
+        Armed = other.Armed;
+        Output = other.Output;
+        Sends = other.Sends.ConvertAll(t => t.Clone());
         Clips = other.Clips.ConvertAll(c => c.Clone());
         Effects = other.Effects.ConvertAll(e => e.Clone());
         Transitions = other.Transitions.ConvertAll(t => t.Clone());

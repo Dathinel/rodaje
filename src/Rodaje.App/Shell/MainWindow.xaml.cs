@@ -166,6 +166,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(Views.Export.StillExportCommand.Bind(_router, _services, _hwnd));
         _bindings.Add(_router.Bind(ActionIds.ShowShortcuts, () => ShowPage(ShellPage.Shortcuts)));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
+        _bindings.Add(_router.Bind(ActionIds.ShowMixer, ToggleMixer));
         _bindings.Add(Views.Analysis.AnalysisCommands.Bind(_router, _services));
         _bindings.Add(Views.Voice.VoiceCommands.Bind(_router, _services));
         _bindings.Add(Views.Subtitles.SubtitleCommands.Bind(_router, _services));
@@ -182,6 +183,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         Player.Attach(_services);
         Inspector.Attach(_services);
         Timeline.Attach(_services);
+        Mixer.Attach(_services);
         Timeline.ClipVisuals = _visuals;
         Tools.Attach(_services);
         AttachWorkflow();
@@ -612,7 +614,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         // Los anchos de los paneles laterales se guardan al soltar su separador: aquí se verían los recortados por FitSidePanels.
-        s.TimelineHeight = TimelineRow.ActualHeight;
+        s.TimelineHeight = _timelineBeforeMixer ?? TimelineRow.ActualHeight;
         s.ShortcutPreset = _router.Registry.Preset;
     }
 
@@ -929,4 +931,28 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         public IDisposable Lower() => preview.Yield(LowerOnly);
     }
+
+    /// <summary>
+    /// El mezclador ocupa el lugar de la línea de tiempo, con alto para sus faders (al menos 520 px si la ventana deja 240
+    /// al visor); otra vez vuelve a la línea de tiempo con el alto que tenía.
+    /// </summary>
+    internal void ToggleMixer()
+    {
+        bool show = Mixer.Visibility != Visibility.Visible;
+        Mixer.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        Timeline.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+        if (show)
+        {
+            _timelineBeforeMixer = TimelineRow.ActualHeight;
+            double room = Root.ActualHeight - 240 - 80;
+            TimelineRow.Height = new GridLength(Math.Max(TimelineRow.ActualHeight, Math.Min(520, room)));
+        }
+        else if (_timelineBeforeMixer is { } height)
+        {
+            TimelineRow.Height = new GridLength(height);
+            _timelineBeforeMixer = null;
+        }
+    }
+
+    private double? _timelineBeforeMixer;
 }

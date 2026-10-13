@@ -58,6 +58,7 @@ public static class ActionIds
 
     public const string ShowShortcuts = "view.shortcuts";
     public const string ShowPlugins = "view.plugins";
+    public const string ShowMixer = "view.mixer";
 }
 
 /// <summary>Grupos de la página de atajos, en el orden en que se muestran.</summary>
@@ -132,6 +133,7 @@ public static partial class EditorShortcuts
         new(ActionIds.ZoomToSelection, "Zoom a la selección", ShortcutGroups.View, ["Ctrl+Alt+Z"]) { ShortLabel = "Ver selección", Description = "Acerca hasta que los clips seleccionados o el tramo marcado llenen la vista." },
         new(ActionIds.ShowShortcuts, "Atajos de teclado", ShortcutGroups.View, ["Ctrl+Alt+K"]) { ShortLabel = "Atajos", Description = "Abre esta página para ver y cambiar las teclas." },
         new(ActionIds.ShowPlugins, "Complementos", ShortcutGroups.View, []) { Description = "Abre el gestor de paquetes y módulos de IA." },
+        new(ActionIds.ShowMixer, "Mezclador", ShortcutGroups.View, ["Alt+M"]) { Description = "Cambia la línea de tiempo por el mezclador de pistas y buses; otra vez vuelve." },
     ];
 
     /// <summary>

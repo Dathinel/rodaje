@@ -40,6 +40,20 @@ public sealed class Sequence
         set => MasterEffects = value ?? [];
     }
 
+    /// <summary>Buses de audio (submezclas), en el orden del mezclador (formato 7).</summary>
+    [JsonIgnore]
+    public List<AudioBus> AudioBuses { get; set; } = [];
+
+    /// <summary><see cref="AudioBuses"/> en el archivo: no se escribe si está vacía.</summary>
+    [JsonPropertyName("audioBuses")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public List<AudioBus>? AudioBusesInFile
+    {
+        get => AudioBuses.Count > 0 ? AudioBuses : null;
+        set => AudioBuses = value ?? [];
+    }
+
     public List<Track> VideoTracks { get; set; } = [];
 
     public List<Track> AudioTracks { get; set; } = [];
@@ -63,12 +77,15 @@ public sealed class Sequence
         copy.VideoTracks = VideoTracks.ConvertAll(t => t.Clone());
         copy.AudioTracks = AudioTracks.ConvertAll(t => t.Clone());
         copy.MasterEffects = MasterEffects.ConvertAll(e => e.Clone());
+        copy.AudioBuses = AudioBuses.ConvertAll(b => b.Clone());
         copy.Markers = Markers.ConvertAll(m => m.Clone());
         copy.Regions = Regions.ConvertAll(r => r.Clone());
         return copy;
     }
 
     public Track? FindTrack(string trackId) => AllTracks.FirstOrDefault(t => t.Id == trackId);
+
+    public AudioBus? FindBus(string busId) => AudioBuses.Find(b => b.Id == busId);
 
     public Track GetTrack(string trackId) =>
         FindTrack(trackId) ?? throw new KeyNotFoundException($"No existe la pista «{trackId}» en la secuencia.");

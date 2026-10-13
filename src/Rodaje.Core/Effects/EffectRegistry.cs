@@ -141,6 +141,8 @@ public static class EffectRegistry
             new(A.GainDb, 0, SilenceDb, 24),
             new(A.FadeIn, 0, 0, Inf, Animatable: false),
             new(A.FadeOut, 0, 0, Inf, Animatable: false),
+            new(A.Pan, 0, -100, 100),
+            new(A.Balance, 0, -100, 100),
         ]),
         new(BuiltInEffects.Speed, 8, EffectTarget.Video | EffectTarget.Audio, EffectStage.Deferred) { Hidden = true },
         new(BuiltInEffects.Stabilize, 9, EffectTarget.Video, EffectStage.Transform,
@@ -332,6 +334,7 @@ public static class EffectRegistry
             new(K.Ceiling, -1, -12, 0, Animatable: false),
         ],
         [OptionDefinition.Text(BuiltInEffects.CompressorOptions.Sidechain)]),
+        .. AudioEffectDefinitions.Inserts,
 
         new(BuiltInTransitions.Crossfade, 101, EffectTarget.Transition, EffectStage.Transition),
         new(BuiltInTransitions.Dip, 102, EffectTarget.Transition, EffectStage.Transition,

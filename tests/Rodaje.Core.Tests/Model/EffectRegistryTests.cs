@@ -25,6 +25,8 @@ public class EffectRegistryTests
                 (BuiltInEffects.Grain, 15), (BuiltInEffects.Glow, 16), (BuiltInEffects.ChromaticAberration, 17), (BuiltInEffects.Denoise, 18),
                 (BuiltInEffects.Mirror, 19), (BuiltInEffects.Reframe360, 30), (BuiltInEffects.LensDistortion, 22), (BuiltInEffects.HslQualifier, 23),
                 (BuiltInEffects.Equalizer, 20), (BuiltInEffects.Compressor, 21),
+                (BuiltInEffects.Gate, 40), (BuiltInEffects.DeEsser, 41), (BuiltInEffects.Reverb, 42), (BuiltInEffects.Delay, 43),
+                (BuiltInEffects.Saturation, 44), (BuiltInEffects.GraphicEqualizer, 45), (BuiltInEffects.PitchShift, 46), (BuiltInEffects.Limiter, 47),
                 (BuiltInTransitions.Crossfade, 101), (BuiltInTransitions.Dip, 102),
                 (BuiltInTransitions.Wipe, 103), (BuiltInTransitions.Push, 104), (BuiltInTransitions.ZoomDissolve, 105),
                 (BuiltInTransitions.BlurDissolve, 106), (BuiltInTransitions.Preset, 107),

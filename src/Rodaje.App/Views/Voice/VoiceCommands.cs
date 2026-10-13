@@ -27,6 +27,7 @@ internal static partial class VoiceCommands
     public static async void RecordVoiceOver(EditorServices services, string? trackId)
     {
         ArgumentNullException.ThrowIfNull(services);
+        trackId ??= services.Session.Sequence.AudioTracks.Find(t => t.Armed)?.Id;
         try
         {
             await VoiceOverDialog.ShowAsync(services, trackId);

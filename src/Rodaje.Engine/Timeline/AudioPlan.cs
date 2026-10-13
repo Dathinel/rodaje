@@ -58,7 +58,7 @@ internal sealed class AudioBusPlan(IReadOnlyList<AudioTrackPlan> tracks) : IEqua
     public override int GetHashCode() => Tracks.Count;
 }
 
-/// <param name="Effects">Ecualizador y compresor de la pista, sobre la suma de sus clips; nulo sin ellos.</param>
+/// <param name="Effects">Inserciones de la pista, sobre la suma de sus clips; nulo sin ellas.</param>
 internal sealed record AudioTrackPlan(string TrackId, IReadOnlyList<AudioClipPlan> Clips, AudioEffectsSettings? Effects = null)
 {
     /// <summary>Keyframes del compresor de la pista, en muestras de la línea de tiempo; nulo si no tiene.</summary>
@@ -66,9 +66,56 @@ internal sealed record AudioTrackPlan(string TrackId, IReadOnlyList<AudioClipPla
 
     /// <summary>
     /// Si otro compresor de su nivel la usa como sidechain, cuántas muestras por delante se mezcla (la mayor anticipación
-    /// de quien la escucha); −1 si no es llave de nadie.
+    /// de quien la escucha); −1 si no es llave de nadie. La llave es lo que sale de su fader.
     /// </summary>
     public int KeyAhead { get; init; } = -1;
+
+    /// <summary>Volumen, paneo y balance después de las inserciones; nulo si la deja tal cual.</summary>
+    public FaderPlan? Fader { get; init; }
+
+    /// <summary>Bus al que sale (solo en la secuencia principal); nulo, a la mezcla.</summary>
+    public string? Output { get; init; }
+
+    /// <summary>Envíos a buses que suenan (solo en la secuencia principal).</summary>
+    public IReadOnlyList<AudioSendPlan> Sends { get; init; } = [];
+
+    /// <summary>Su salida suena; falso si un solo de otra la calla (sigue sonando en sus envíos o como llave).</summary>
+    public bool Direct { get; init; } = true;
+
+    /// <summary>Muestras por delante que se mezcla para los buses con retraso a los que llega (su anticipación).</summary>
+    public int BusAhead { get; init; }
+
+    /// <summary>Cuánto por delante se mezcla: lo que piden su llave y sus buses; 0, al momento.</summary>
+    public int Ahead => Math.Max(Math.Max(0, KeyAhead), BusAhead);
+
+    public bool SameMix(AudioTrackPlan other) =>
+        Equals(Fader, other.Fader) && Output == other.Output && Sends.SequenceEqual(other.Sends) && Direct == other.Direct && BusAhead == other.BusAhead;
+}
+
+/// <summary>
+/// El fader de una pista o un bus: volumen en dB, paneo y balance (−100 a 100) en muestras de la línea de tiempo. Compara
+/// por valor: un cambio rehace la mezcla.
+/// </summary>
+internal sealed record FaderPlan(Curve? Db, Curve? Pan, Curve? Balance)
+{
+    /// <summary>Ganancia en dB en <paramref name="sample"/> (0 sin curva).</summary>
+    public double GainDb(long sample) => Db?.Evaluate(sample) ?? 0;
+
+    /// <summary>Paneo de −1 a 1.</summary>
+    public double PanAt(long sample) => (Pan?.Evaluate(sample) ?? 0) / 100;
+
+    /// <summary>Balance de −1 a 1.</summary>
+    public double BalanceAt(long sample) => (Balance?.Evaluate(sample) ?? 0) / 100;
+}
+
+/// <summary>Un envío a un bus: su nivel y si sale antes del fader y el paneo de la pista.</summary>
+internal sealed record AudioSendPlan(string BusId, double GainDb, bool PreFader);
+
+/// <summary>Un bus del mezclador que suena: sus inserciones y su fader. Lo que recibe se arma en la mezcla.</summary>
+internal sealed record MixBusPlan(string BusId, AudioEffectsSettings? Effects, FaderPlan? Fader)
+{
+    /// <summary>Lo que retrasa su cadena: las pistas que llegan a él se mezclan por delante eso.</summary>
+    public int Latency => Effects?.LatencyFrames(TimelinePlan.AudioSampleRate) ?? 0;
 }
 
 /// <summary>Umbral, relación y mezcla (en %) animados de un compresor; las posiciones las fija quien lo arma.</summary>
@@ -79,14 +126,17 @@ internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks, double Ma
 {
     public static AudioPlan Empty { get; } = new([]);
 
-    /// <summary>Ecualizador y compresor de toda la mezcla, después de la ganancia maestra y antes del limitador suave.</summary>
+    /// <summary>Inserciones de toda la mezcla, después de la ganancia maestra y antes del limitador suave.</summary>
     public AudioEffectsSettings? MasterEffects { get; init; }
+
+    /// <summary>Los buses que suenan, en el orden del mezclador; suman sus pistas y van a la mezcla.</summary>
+    public IReadOnlyList<MixBusPlan> Buses { get; init; } = [];
 
     public DynamicsAutomation? MasterAutomation { get; init; }
 
-    /// <summary>La mezcla, algún clip o alguna pista lleva ecualizador o compresor, o hay sidechain: guardan estado entre lecturas.</summary>
-    public bool HasEffects => MasterEffects is not null
-        || AllTracks(Tracks).Any(t => t.Effects is not null || t.KeyAhead >= 0 || t.Clips.Any(c => c.Effects is not null));
+    /// <summary>La mezcla, algún bus, clip o pista lleva inserciones, o hay sidechain o mezcla adelantada: guardan estado entre lecturas.</summary>
+    public bool HasEffects => MasterEffects is not null || Buses.Any(b => b.Effects is not null)
+        || AllTracks(Tracks).Any(t => t.Effects is not null || t.Ahead > 0 || t.KeyAhead >= 0 || t.Clips.Any(c => c.Effects is not null));
 
     /// <summary>Mismas pistas con los mismos clips, en el mismo orden, con el mismo volumen y la misma velocidad: lo que suena no cambia.</summary>
 
@@ -94,7 +144,7 @@ internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks, double Ma
     {
         ArgumentNullException.ThrowIfNull(other);
         return MasterDb.Equals(other.MasterDb) && Equals(MasterEffects, other.MasterEffects) && Equals(MasterAutomation, other.MasterAutomation)
-            && SameTracks(Tracks, other.Tracks);
+            && Buses.SequenceEqual(other.Buses) && SameTracks(Tracks, other.Tracks);
     }
 
     internal static bool SameTracks(IReadOnlyList<AudioTrackPlan> a, IReadOnlyList<AudioTrackPlan> b)
@@ -107,7 +157,7 @@ internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks, double Ma
         for (int t = 0; t < a.Count; t++)
         {
             if (a[t].TrackId != b[t].TrackId || !Equals(a[t].Effects, b[t].Effects) || !Equals(a[t].Automation, b[t].Automation)
-                || a[t].KeyAhead != b[t].KeyAhead || !a[t].Clips.SequenceEqual(b[t].Clips))
+                || a[t].KeyAhead != b[t].KeyAhead || !a[t].SameMix(b[t]) || !a[t].Clips.SequenceEqual(b[t].Clips))
             {
                 return false;
             }
@@ -158,13 +208,26 @@ internal readonly record struct Fade(long Start, long Length, bool Out)
 }
 
 /// <summary>
-/// Volumen de un clip: su ganancia en dB (keyframes en muestras del origen), la de su pista (en muestras de la
-/// secuencia), sus fundidos propios y los de las transiciones. Compara por valor, así un cambio de volumen rehace la mezcla.
+/// Volumen de un clip: su ganancia en dB (keyframes en muestras del origen), sus fundidos propios y los de las
+/// transiciones, y su paneo y balance. Compara por valor, así un cambio de volumen rehace la mezcla. El volumen de la pista
+/// va en su fader, después de sus inserciones.
 /// </summary>
 /// <param name="ClipDb">Ganancia del clip, en muestras del origen; nula si es 0 dB.</param>
-/// <param name="TrackDb">Ganancia de la pista, en muestras de la secuencia; nula si es 0 dB.</param>
+/// <param name="TrackDb">Ganancia que se suma a la del clip, en muestras de la secuencia; nula si es 0 dB.</param>
 internal sealed record GainPlan(Curve? ClipDb, Curve? TrackDb, Fade FadeIn, Fade FadeOut, Fade CrossIn, Fade CrossOut)
 {
+    /// <summary>Paneo del clip (−100 a 100, en muestras del origen); nulo en el centro.</summary>
+    public Curve? Pan { get; init; }
+
+    /// <summary>Balance del clip (−100 a 100, en muestras del origen); nulo en el centro.</summary>
+    public Curve? Balance { get; init; }
+
+    public bool HasPan => Pan is not null || Balance is not null;
+
+    /// <summary>La matriz de paneo en la muestra del origen <paramref name="sourceSample"/>.</summary>
+    public PanMatrix PanAt(long sourceSample) =>
+        PanLaw.Matrix((Pan?.Evaluate(sourceSample) ?? 0) / 100, (Balance?.Evaluate(sourceSample) ?? 0) / 100);
+
     /// <summary>−60 dB o menos es silencio.</summary>
     public const double SilenceDb = Rodaje.Core.Effects.EffectRegistry.SilenceDb;
 

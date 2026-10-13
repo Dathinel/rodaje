@@ -25,6 +25,7 @@ public sealed class ProjectMigrator
         [6] = AllowBezierKeyframes,
         [7] = AllowMaskModes,
         [8] = AllowProTitles,
+        [9] = OrderAudioInserts,
     };
 
     private readonly IReadOnlyDictionary<int, Action<JsonObject>> _chain;
@@ -174,6 +175,78 @@ public sealed class ProjectMigrator
     /// línea, palabra o letra con desfase. Todo es opcional: no hay que convertir nada.
     /// </summary>
     internal static void AllowProTitles(JsonObject root) => root[VersionProperty] = 9;
+
+    /// <summary>
+    /// 9 → 10: los efectos de audio se aplican en el orden de la pila y llegan el mezclador (buses, envíos, solo, paneo).
+    /// Antes sonaban solo el primer ecualizador y el primer compresor activos, el ecualizador siempre antes: para que suene
+    /// igual, ese ecualizador pasa delante de ese compresor y los demás ecualizadores y compresores activos (que no sonaban)
+    /// quedan desactivados.
+    /// </summary>
+    internal static void OrderAudioInserts(JsonObject root)
+    {
+        foreach (JsonObject sequence in Objects(root["sequences"]))
+        {
+            OrderInserts(sequence["masterEffects"]);
+            foreach (JsonObject track in Objects(sequence["videoTracks"]).Concat(Objects(sequence["audioTracks"])))
+            {
+                OrderInserts(track["effects"]);
+                foreach (JsonObject clip in Objects(track["clips"]))
+                {
+                    OrderInserts(clip["effects"]);
+                }
+            }
+        }
+
+        root[VersionProperty] = 10;
+    }
+
+    private static void OrderInserts(JsonNode? effects)
+    {
+        if (effects is not JsonArray items)
+        {
+            return;
+        }
+
+        int equalizer = -1, compressor = -1;
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (items[i] is not JsonObject effect || !IsEnabled(effect) || effect["type"] is not JsonValue type || !type.TryGetValue(out string? name))
+            {
+                continue;
+            }
+
+            if (name == BuiltInEffects.Equalizer)
+            {
+                equalizer = First(equalizer, i, effect);
+            }
+            else if (name == BuiltInEffects.Compressor)
+            {
+                compressor = First(compressor, i, effect);
+            }
+        }
+
+        if (equalizer > compressor && compressor >= 0)
+        {
+            JsonNode? moved = items[equalizer];
+            items.RemoveAt(equalizer);
+            items.Insert(compressor, moved);
+        }
+    }
+
+    /// <summary>El primero activo de su tipo; los siguientes, que antes no sonaban, quedan desactivados.</summary>
+    private static int First(int first, int index, JsonObject effect)
+    {
+        if (first < 0)
+        {
+            return index;
+        }
+
+        effect["enabled"] = false;
+        return first;
+    }
+
+    private static bool IsEnabled(JsonObject effect) =>
+        effect["enabled"] is not JsonValue value || value.GetValueKind() != JsonValueKind.False;
 
     private static void RemoveSpeed(JsonNode? effects)
     {

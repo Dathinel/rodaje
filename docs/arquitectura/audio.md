@@ -57,7 +57,7 @@ Un `IMMNotificationClient` marca el aviso y despierta el hilo, y cualquier HRESU
 
 El volumen lo aplica `MixRenderer` del motor, antes del limitador y de los medidores, con el `GainPlan` de cada clip:
 
-- **Ganancia en dB:** la del `rodaje.audio` del clip (keyframes en tiempo del origen) más la de la pista (en tiempo de la secuencia). −60 dB o menos es silencio.
+- **Ganancia en dB:** la del `rodaje.audio` del clip (keyframes en tiempo del origen). La de la pista va en su fader, después de sus inserciones (ver [Mezclador](#mezclador-e-inserciones)). −60 dB o menos es silencio.
 - **Bloques de 64 muestras** alineados a la línea de tiempo: la ganancia se evalúa en los bordes y se interpola en línea recta; los fundidos de potencia constante (sin(πt/2) al entrar, cos(πt/2) al salir) van exactos por muestra.
 - **Transiciones de audio:** los dos clips suenan a la vez, el que sale alargado media duración y el que entra adelantado otra media, con fundidos complementarios; una transición reemplaza el fundido propio de ese lado. Lo que no existe antes del principio del medio es silencio.
 - **Cambios sin saltos.** Tras una edición la mezcla se rehace desde 30 ms por delante de lo que ya se leyó; cada clip que sonaba parte de la ganancia que tenía y llega a la nueva a 4 dB por bloque (60 dB en 20 ms).
@@ -152,6 +152,37 @@ Con un dispositivo simulado (búfer de 20 ms) y los chirps de `AudioCode`, el pi
 | A/B y escucha del sidechain | alineados | error 3·10⁻⁸ y 0 |
 | Vista previa (mezcla adelantada, lecturas de 17 a 2048 cuadros, dos recargas) frente al WAV exportado, 3 s con sidechain, anticipación, multibanda, limitador y keyframes en clip, pista y mezcla | igual muestra a muestra | 0 muestras distintas de 288 000 |
 | Bloque de 1024 cuadros (Release, el mejor de 5 tandas) | sin reservas | una banda 0,054 ms; con anticipación de 10 ms y limitador 0,097; multibanda completo (RMS, automáticos, llave filtrada, mezcla) 0,41 y con limitador 0,47; más el ecualizador de 5 bandas 0,51 ms; 0 bytes reservados |
+## Mezclador e inserciones
+
+- **Cadena de inserciones** ([`AudioEffectChain`](../../src/Rodaje.Audio/Processing/AudioEffectChain.cs)): las inserciones de un clip, pista, bus o la mezcla en el **orden de la pila**, cada una una etapa (`IAudioStage`) con su estado guardable. El ecualizador y el compresor son dos etapas más ([`EqualizerCompressorStage`](../../src/Rodaje.Audio/Processing/EqualizerCompressorStage.cs), el código de antes). La latencia de la cadena es la suma de las etapas; el sidechain lo escucha el primer compresor, retrasado lo que retrasan las etapas de antes. Al reordenar, cada etapa que sigue conserva su estado (la cola de una reverb no se corta). `BypassedInserts` es el A/B por inserción: la etapa sigue procesando una copia y sale la entrada con su retraso. Las líneas largas (reverb, delay, tono) no se copian en cada lectura: se indexan por la cuenta de muestras ([`SampleRing`](../../src/Rodaje.Audio/Processing/SampleRing.cs)) y guardan 1,37 s más que su retardo, lo que la mezcla puede volver atrás.
+- **Efectos** (todo propio): puerta/expansor ([`Gate`](../../src/Rodaje.Audio/Processing/Gate.cs): detector de picos con caída de 10 ms, histéresis, retención, ganancia en dB suavizada); de-esser ([`DeEsser`](../../src/Rodaje.Audio/Processing/DeEsser.cs): detector con pasa altos de 4.º orden, 6:1, banda alta `x − pasa bajos(x)` que suma exacta); reverb ([`Reverb`](../../src/Rodaje.Audio/Processing/Reverb.cs): predelay, 4 pasa todo de difusión y FDN de 8 líneas con Householder, `g = 10^(−3L/(RT60·fs))`, amortiguación en el lazo, ancho M/S); delay ([`Delay`](../../src/Rodaje.Audio/Processing/Delay.cs): ms o figura al tempo, filtros en el lazo, ping-pong); saturación ([`Saturation`](../../src/Rodaje.Audio/Processing/Saturation.cs): tanh con sesgo, ADAA de primer orden y un FIR de 3 coeficientes que compensa su caída de agudos); gráfico de 10 bandas ([`GraphicEqualizer`](../../src/Rodaje.Audio/Processing/GraphicEqualizer.cs), campanas de Q √2); tono ([`PitchShift`](../../src/Rodaje.Audio/Processing/PitchShift.cs): el esquema WSOLA de «Mantener tono» sobre la entrada en vivo, trozos de 1024 con Hann, búsqueda de ±256 gruesa ×4 y afinada con la fracción del pico, lectura con sinc Kaiser de 32 coeficientes cuyo corte baja al subir el tono; 1824 muestras de retraso); limitador ([`Limiter`](../../src/Rodaje.Audio/Processing/Limiter.cs), el `TruePeakLimiter` como inserción).
+- **Fader** (`MixRenderer.ApplyFader`): volumen, paneo y balance de `rodaje.audio` después de las inserciones, por bloques de 64 muestras alineados a la línea de tiempo (la matriz de paneo de [`PanLaw`](../../src/Rodaje.Audio/Processing/PanLaw.cs) también se interpola). Tras una edición parte de lo que sonaba: el volumen a 4 dB por bloque y el paneo y el balance a 1/16 del recorrido. El paneo de un clip va con su volumen.
+- **Buses y envíos** (`AudioPlan.Buses`, `AudioTrackPlan.Output`/`Sends`/`Direct`, armados en `TimelinePlan.Route` con los silencios y los solos). Las pistas de la secuencia principal se mezclan **por delante** en un búfer propio (`AheadTrack`, el mismo mecanismo que las llaves de sidechain) con lo que sale de su fader y, si tienen envíos pre-fader, lo de antes. Cada bus lee de ahí su tramo adelantado su retraso (`FillBus`), así un bus con limitador o tono queda en la misma muestra que lo que va directo. Después del bus, su fader y a la mezcla. Los buses de un compuesto no se usan.
+- **Medidores por tira** (`MixRenderer.StripLevels`, solo en la vista previa): un `AudioLevelRing` por pista y bus con bloques de 256 cuadros de lo que sale de su fader; `TimelineSession.MeasureStrip` y `PlayerEngine.MeasureStrip` leen el tramo que suena según el reloj.
+- **Sin reservas por lectura:** la mezcla entera (decodificadores, cadenas, buses, envíos, medidores) no reserva memoria en una lectura normal; solo al adoptar un plan nuevo.
+- **Medido** (`InsertEffectsTests`, `MixerTests`, 12-oct; tiempos en Release):
+
+| Criterio | Pedido | Medido |
+|---|---|---|
+| Ley de paneo (mono), 21 posiciones | √2·cos θ, √2·sin θ | error 6·10⁻⁸; centro 0,000 dB, a fondo +3,010 dB; en la mezcla, paneo −50: 0,326641 (teoría 0,326641) |
+| Puerta: curva estática del expansor 1:2, de −80 a −10 dBFS | contra la teoría | error 0,0009 dB |
+| Puerta: ataque 5 ms y cierre (retención 50 ms, relajación 100 ms) | 63 %; 77,74 ms hasta −1 dB | −29,31 dB (teoría −29,43); 77,71 ms |
+| De-esser 6 kHz, −30 dB, 10 dB: voz de 300 Hz y eses de 7 kHz | la voz igual, las eses abajo | 300 Hz −0,004 dB; 7 kHz −7,09 dB; sin eses sale la entrada bit a bit |
+| Limitador −1 dBTP con +12 dB sobre un seno de −6 dBFS | no pasar del techo | pico −1,050 dBFS; por debajo sale igual con su retraso exacto |
+| Gráfico de 10 bandas: +6 dB en 1 kHz; curva de 10 bandas en 30 frecuencias | contra la función de transferencia | 6,000 dB; error 0,0000 dB |
+| Saturación (+24 dB) | transparente a poco nivel, poco plegado | −0,007 dB a −60 dBFS; plegado bajo 7 kHz de un seno de 7919 Hz −43,1 dB (tanh directa −22,1) |
+| Delay 250 ms al 50 %; 120 BPM | repeticiones exactas | 1; 0,5; 0,25 en las muestras 12 000, 24 000 y 36 000; negra 24 000, corchea con puntillo 18 000; ping-pong L, R, L |
+| Reverb: RT60 1 s y 2,5 s (Schroeder, T30) | ±8 % | 0,993 s y 2,501 s; correlación L/R de la cola 0,026 y 0,010; mezcla 0 = entrada exacta |
+| Tono ±semitonos sobre 440 Hz | ±0,05 Hz, THD+N ≤ −35 dB | +7: 659,256 Hz (659,255); −12: 220,001; +12: 880,001; −5: 329,626 (329,628); THD+N −42,9 a −46,7 dB; envolvente desplazada 0,0 ms; a 0 semitonos, la entrada exacta |
+| Restaurar el estado de las 8 etapas nuevas | repetir lo mismo | bit a bit |
+| Buses y envíos (3 pistas, 2 buses, pre y post fader, uno silenciado) | suma exacta | error 2,9·10⁻⁸ |
+| Compensación de los buses (limitador, 56 muestras; tono, 1824) | todos los caminos en la misma muestra | clics en las muestras 24 000 y 72 000 exactas |
+| Solo de pista, de bus y de una pista con envío | solo lo que corresponde | error 0 y 7·10⁻⁹ |
+| Automatización: volumen −40 → 0 dB y paneo de lado a lado en 1 s | según los keyframes | error 4,3·10⁻⁷ |
+| Vista previa (lecturas de 17 a 2048 cuadros, dos recargas) frente al WAV exportado, 3 s con buses, envíos, puerta, de-esser, saturación, gráfico, tono, delay, limitador, reverb, paneo automatizado y compresor en la mezcla | igual muestra a muestra | 0 muestras distintas de 288 000 |
+| Bloque de 1024 cuadros con las 8 inserciones nuevas en cadena | sin reservas | 0,93 ms, 0 bytes |
+| Bloque de 1024 cuadros de una mezcla típica: 8 pistas con ecualizador, compresor y fader, 3 buses (compresor, delay, reverb), envíos, medidores y limitador | sin reservas | 2,37 ms (9× tiempo real), 0 bytes |
+
 ## Voz en off (`Capture/`, `Engine/Recording/`)
 
 - **Captura** ([`AudioCapture`](../../src/Rodaje.Audio/Capture/AudioCapture.cs)): `ListDevices` (entradas activas, la predeterminada primero) y `Open` dan una captura WASAPI compartida por eventos, convertida por Windows a float a 48 kHz y bajada a mono, en un hilo propio con MMCSS y búfer de 200 ms. Cada paquete llega con el instante QPC en que el dispositivo capturó su primera muestra.

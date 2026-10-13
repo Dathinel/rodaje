@@ -37,6 +37,14 @@ Qué hace cada vista de `Rodaje.App` y cómo está hecha. Las reglas que todas c
   - Se dibujan con `SpriteVisual` en `CompositionTarget.Rendering`, sin reservas por cuadro.
   - La caída (12, 20 o 40 dB/s) se elige con clic derecho. Ver [Audio](audio.md#medidores-de-nivel-metering).
 
+## Mezclador (`Views/Mixer`)
+
+- **Lugar.** Ver › Mezclador (`view.mixer`, Alt+M) cambia la línea de tiempo por `MixerView` en la misma celda; otra vez vuelve. La lógica sin interfaz está en `Services/Audio/MixerModel` (tiras, curva del fader, orden de las inserciones, `TouchRecorder`) y `MixerCurves`.
+- **Tiras** (`StripView`): una por pista de audio, una por bus y la de la mezcla fija a la derecha. Se rehacen si cambian las pistas, los buses o sus inserciones; si no, solo se actualizan los valores (y al reproducir, cada 100 ms, para seguir la automatización). `FaderControl` y `PanControl` (`MixerControls.cs`) son controles propios que avisan al empezar y al terminar el arrastre: el arrastre es un gesto, un paso del historial.
+- **Medidores** (`LevelMeter`): `SpriteVisual` en `CompositionTarget.Rendering` con `MeterBallistics`, de `PlayerEngine.MeasureStrip` (y `MeasureMixNow` con el pico verdadero en la mezcla); se desuscribe cuando no hay nada que animar.
+- **Inserciones.** `ListView` con `CanReorderItems`: al soltar, `MixerModel.MoveIndex` da el índice en la pila completa para `Edits.MoveEffect`. `InsertEditor` (en un `Flyout`) muestra activar, A/B, preajustes (`InsertPresets`), la curva (`InsertGraph`: respuesta de los ecualizadores o transferencia de la puerta con el punto en vivo, vía `DynamicsMonitor.Insert`) y un `ParameterRow` por parámetro. El A/B se pasa con `PlayerEngine.BypassInserts` y se borra al ocultar el mezclador.
+- **Automatización «tocar»** (T): con la tira en ese modo y reproduciendo, el arrastre abre un gesto y `TouchRecorder` anota el valor cada 50 ms; cada vez se ejecuta `Edits.WriteAutomation` del pase entero (reducido con Ramer-Douglas-Peucker a 0,1 dB), así lo que suena es lo escrito.
+
 ## Línea de tiempo (`Views/Timeline`)
 
 - **Barra de herramientas.**

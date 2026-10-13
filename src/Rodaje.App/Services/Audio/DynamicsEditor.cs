@@ -13,6 +13,7 @@ public enum DynamicsOwnerKind
 {
     Clip,
     Track,
+    Bus,
     Mix,
 }
 
@@ -30,6 +31,7 @@ public sealed record DynamicsOwner(DynamicsOwnerKind Kind, string Id)
     {
         DynamicsOwnerKind.Clip => DynamicsMonitor.ForClip(Id),
         DynamicsOwnerKind.Track => DynamicsMonitor.ForTrack(Id),
+        DynamicsOwnerKind.Bus => DynamicsMonitor.ForBus(Id),
         _ => DynamicsMonitor.ForMix(),
     };
 
@@ -41,6 +43,7 @@ public sealed record DynamicsOwner(DynamicsOwnerKind Kind, string Id)
         {
             DynamicsOwnerKind.Clip => sequence.FindClip(Id)?.Clip.Effects,
             DynamicsOwnerKind.Track => sequence.FindTrack(Id) is { Kind: TrackKind.Audio } track ? track.Effects : null,
+            DynamicsOwnerKind.Bus => sequence.FindBus(Id)?.Effects,
             _ => sequence.Id == Id ? sequence.MasterEffects : null,
         };
     }
@@ -272,7 +275,7 @@ public sealed class DynamicsEditor(EditorSession session)
 
     public bool SetSidechain(string? trackId)
     {
-        if (Owner is not { Kind: not DynamicsOwnerKind.Mix } owner || (trackId ?? "") == (Sidechain ?? "")
+        if (Owner is not { Kind: DynamicsOwnerKind.Clip or DynamicsOwnerKind.Track } owner || (trackId ?? "") == (Sidechain ?? "")
             || (trackId is not null && !SidechainCandidates().Any(t => t.Id == trackId)))
         {
             return false;
@@ -293,7 +296,7 @@ public sealed class DynamicsEditor(EditorSession session)
     /// <summary>Las pistas de audio que pueden hacer de sidechain: las demás de la secuencia (no la del propio dueño).</summary>
     public IReadOnlyList<Track> SidechainCandidates()
     {
-        if (Owner is not { Kind: not DynamicsOwnerKind.Mix } owner)
+        if (Owner is not { Kind: DynamicsOwnerKind.Clip or DynamicsOwnerKind.Track } owner)
         {
             return [];
         }

@@ -111,6 +111,7 @@ public static partial class ModelValidator
         CheckTrackKinds(sequence.VideoTracks, TrackKind.Video, sequence, errors);
         CheckTrackKinds(sequence.AudioTracks, TrackKind.Audio, sequence, errors);
         ValidateEffects(sequence.MasterEffects, new Track { Kind = TrackKind.Audio, Name = "mezcla" }, errors, checkId);
+        ValidateMixer(sequence, errors, checkId);
 
         var linkTracks = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         var linkSpeeds = new Dictionary<string, ClipSpeed?>(StringComparer.Ordinal);
@@ -252,6 +253,54 @@ public static partial class ModelValidator
             }
 
             ValidateMarkerStyle("La región", region.Id, region.Color, region.Note, errors);
+        }
+    }
+
+    /// <summary>Buses con nombre y solo efectos de audio; salidas y envíos de pistas de audio a buses que existen, uno por bus.</summary>
+    private static void ValidateMixer(Sequence sequence, List<string> errors, Action<string, string> checkId)
+    {
+        var buses = new HashSet<string>(StringComparer.Ordinal);
+        foreach (AudioBus bus in sequence.AudioBuses)
+        {
+            checkId(bus.Id, "un bus");
+            buses.Add(bus.Id);
+            if (string.IsNullOrWhiteSpace(bus.Name))
+            {
+                errors.Add($"El bus «{bus.Id}» no tiene nombre.");
+            }
+
+            ValidateEffects(bus.Effects, new Track { Kind = TrackKind.Audio, Name = bus.Name }, errors, checkId);
+        }
+
+        foreach (Track track in sequence.AllTracks)
+        {
+            if (track.Kind != TrackKind.Audio && (track.Output is not null || track.Sends.Count > 0 || track.Solo || track.Armed))
+            {
+                errors.Add($"La pista de video «{track.Name}» tiene salida, envíos, solo o grabación, que son de las de audio.");
+                continue;
+            }
+
+            if (track.Output is { } output && !buses.Contains(output))
+            {
+                errors.Add($"La pista «{track.Name}» sale a un bus que no existe («{output}»).");
+            }
+
+            var sent = new HashSet<string>(StringComparer.Ordinal);
+            foreach (AudioSend send in track.Sends)
+            {
+                if (send is null || !buses.Contains(send.BusId))
+                {
+                    errors.Add($"La pista «{track.Name}» tiene un envío a un bus que no existe.");
+                }
+                else if (!sent.Add(send.BusId))
+                {
+                    errors.Add($"La pista «{track.Name}» tiene dos envíos al bus «{send.BusId}».");
+                }
+                else if (!double.IsFinite(send.GainDb) || send.GainDb < AudioSend.MinGainDb || send.GainDb > AudioSend.MaxGainDb)
+                {
+                    errors.Add($"El envío de la pista «{track.Name}» al bus «{send.BusId}» está fuera de rango ({AudioSend.MinGainDb} a +{AudioSend.MaxGainDb} dB).");
+                }
+            }
         }
     }
 

@@ -6,8 +6,8 @@ namespace Rodaje.Core.Editing;
 
 /// <summary>Ediciones de la pila de efectos de un clip o de una pista y de sus parámetros animables.</summary>
 /// <remarks>
-/// <c>clipId</c> puede ser también el de una pista (los identificadores son únicos en el proyecto) o el de la secuencia, para
-/// los efectos de toda la mezcla (<see cref="Sequence.MasterEffects"/>). Los keyframes de un clip van en tiempo del origen y
+/// <c>clipId</c> puede ser también el de una pista o un bus (los identificadores son únicos en el proyecto) o el de la
+/// secuencia, para los efectos de toda la mezcla (<see cref="Sequence.MasterEffects"/>). Los keyframes de un clip van en tiempo del origen y
 /// deben caer dentro de él; los de una pista o la mezcla, en tiempo de la secuencia y desde cero.
 /// </remarks>
 public static class EffectEdits
@@ -256,6 +256,29 @@ public static class EffectEdits
         }
     }
 
+    /// <summary>
+    /// Deja el efecto con exactamente esos valores fijos (sin keyframes; lo que no está vale lo de fábrica) y activado:
+    /// un preajuste de una inserción concreta.
+    /// </summary>
+    public static void ReplaceParameters(EditContext ctx, string clipId, string effectId, IReadOnlyDictionary<string, double> values)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(values);
+        EffectInstance effect = FindEffect(EditableHost(ctx, clipId), effectId);
+        effect.Enabled = true;
+        effect.Parameters.Clear();
+        foreach ((string name, double value) in values)
+        {
+            EnsureFinite(value, name);
+            if (EffectRegistry.Find(effect.Type)?.FindParameter(name) is null)
+            {
+                throw new EditException($"«{effect.Type}» no tiene el parámetro «{name}».");
+            }
+
+            effect.Parameters[name] = new Parameter { Value = Limit(effect, name, value) };
+        }
+    }
+
     /// <summary>Cambia la curva que va del keyframe de <paramref name="at"/> al siguiente.</summary>
     public static void SetKeyframeInterpolation(
         EditContext ctx,
@@ -405,6 +428,8 @@ public static class EffectEdits
             ? new Host(found.Track, found.Clip)
             : ctx.Sequence.FindTrack(clipId) is { } track
                 ? new Host(track, null)
+                : ctx.Sequence.FindBus(clipId) is { } bus
+                ? new Host(null, null, bus.Effects)
                 : clipId == ctx.Sequence.Id
                     ? new Host(null, null, ctx.Sequence.MasterEffects)
                     : throw new EditException($"El clip «{clipId}» ya no está en la secuencia.");

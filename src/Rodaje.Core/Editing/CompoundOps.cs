@@ -68,6 +68,7 @@ public static class CompoundOps
         SampleRate = sequence.SampleRate,
         MasterGainDb = sequence.MasterGainDb,
         MasterEffects = sequence.MasterEffects,
+        AudioBuses = sequence.AudioBuses,
         Markers = sequence.Markers,
         Regions = sequence.Regions,
         VideoTracks = Expand(project, sequence.VideoTracks, TrackKind.Video, path, keep),
@@ -114,6 +115,9 @@ public static class CompoundOps
                             Muted = track.Muted,
                             Hidden = track.Hidden,
                             Role = track.Role,
+                            Solo = track.Solo,
+                            Output = track.Output,
+                            Sends = track.Sends.ConvertAll(s => s.Clone()),
                             Effects = track.Effects.ConvertAll(e => e.Clone()),
                         });
                     }

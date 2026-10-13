@@ -155,7 +155,9 @@ public class EffectCatalogTests
                 "Ruedas de color", "Curvas", "Grano de película", "Resplandor", "Aberración cromática", "Reducción de ruido",
                 "Espejo y pantalla dividida", "Distorsión de lente", "Corrección secundaria (HSL)"],
             EffectCatalog.For(TrackKind.Video).Select(e => e.Name));
-        Assert.Equal([BuiltInEffects.Audio, BuiltInEffects.Equalizer, BuiltInEffects.Compressor], EffectCatalog.For(TrackKind.Audio).Select(e => e.Type));
+        Assert.Equal([BuiltInEffects.Audio, BuiltInEffects.Equalizer, BuiltInEffects.Compressor, BuiltInEffects.Gate, BuiltInEffects.DeEsser, BuiltInEffects.Reverb,
+            BuiltInEffects.Delay, BuiltInEffects.Saturation, BuiltInEffects.GraphicEqualizer, BuiltInEffects.PitchShift, BuiltInEffects.Limiter],
+            EffectCatalog.For(TrackKind.Audio).Select(e => e.Type));
         Assert.Equal("paquete.raro", EffectCatalog.DisplayName("paquete.raro"));
     }
 

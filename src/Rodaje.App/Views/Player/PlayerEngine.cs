@@ -105,6 +105,9 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private DynamicsMonitor? _dynamicsMonitor;
     private DynamicsMonitor? _dynamicsApplied;
     private TimelineSession? _dynamicsSession;
+    private IReadOnlySet<string>? _bypassedInserts;
+    private IReadOnlySet<string>? _bypassApplied;
+    private TimelineSession? _bypassSession;
     private Time _meterPosition;
     private long _meterStamp;
     private bool _meterPlaying;
@@ -266,6 +269,63 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     {
         Volatile.Write(ref _dynamicsMonitor, monitor);
         _wake.Set();
+    }
+
+    /// <summary>
+    /// Inserciones que se escuchan sin efecto (A/B del mezclador, por su id); nula, ninguna. Solo cambia la vista previa.
+    /// Desde el hilo de la interfaz: el de render lo pasa a la sesión en su próxima vuelta.
+    /// </summary>
+    public void BypassInserts(IReadOnlySet<string>? inserts)
+    {
+        Volatile.Write(ref _bypassedInserts, inserts);
+        _wake.Set();
+    }
+
+    /// <summary>
+    /// Picos de los últimos 60 ms y RMS de los últimos 300 ms de una tira del mezclador (<see cref="DynamicsMonitor.ForTrack"/>,
+    /// <see cref="DynamicsMonitor.ForBus"/>) en la posición que suena; nulo en pausa. Desde el hilo de la interfaz, sin reservas.
+    /// </summary>
+    public AudioLevels? MeasureStrip(string key)
+    {
+        if (CurrentHeard() is not { } heard)
+        {
+            return null;
+        }
+
+        return heard.Session.MeasureStrip(key, heard.Now - Time.FromSeconds(0.06), heard.Now, RmsWindow);
+    }
+
+    /// <summary>Picos (con el pico verdadero) de los últimos 60 ms de la mezcla que suena; nulo en pausa. No toca la lectura de los medidores.</summary>
+    public AudioLevels? MeasureMixNow()
+    {
+        if (CurrentHeard() is not { } heard)
+        {
+            return null;
+        }
+
+        return heard.Session.MeasureAudio(heard.Now - Time.FromSeconds(0.06), heard.Now, RmsWindow);
+    }
+
+    private (TimelineSession Session, Time Now)? CurrentHeard()
+    {
+        TimelineSession? session;
+        Time position;
+        long stamp;
+        bool playing;
+        lock (_meterLock)
+        {
+            session = _meterSession;
+            position = _meterPosition;
+            stamp = _meterStamp;
+            playing = _meterPlaying;
+        }
+
+        if (session is not { HasAudioLevels: true } || !playing)
+        {
+            return null;
+        }
+
+        return (session, position + Time.FromSeconds(Math.Min(0.1, Stopwatch.GetElapsedTime(stamp).TotalSeconds)));
     }
 
     /// <summary>
@@ -925,6 +985,14 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
 
         DynamicsMonitor? monitor = Volatile.Read(ref _dynamicsMonitor);
+        IReadOnlySet<string>? bypassed = Volatile.Read(ref _bypassedInserts);
+        if (!ReferenceEquals(s, _bypassSession) || !ReferenceEquals(bypassed, _bypassApplied))
+        {
+            s.BypassInserts(bypassed);
+            _bypassSession = s;
+            _bypassApplied = bypassed;
+        }
+
         if (!ReferenceEquals(s, _dynamicsSession) || !Equals(monitor, _dynamicsApplied))
         {
             s.MonitorDynamics(monitor);
