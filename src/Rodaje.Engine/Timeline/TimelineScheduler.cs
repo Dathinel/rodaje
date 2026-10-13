@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Proxies;
 using Rodaje.Media.Video;
@@ -482,6 +483,8 @@ internal sealed partial class TimelineScheduler : IDisposable
 
             // También los ya cerrados cuya liberación sigue en la cola del ejecutor de servicio: se los espera aquí, así
             // que su cuadro en curso se cancela aquí y no cuando el servicio llegue a la cancelación que dejó el cierre.
+            // Hoy un decodificador no se cierra con un cuadro en vuelo (CollectIdle y MakeRoom exigen InFlight nulo; lo
+            // comprueba TimelineDisposeHangTests), así que para los cerrados esto es una defensa por si eso cambia.
             decoders = [.. _decoders.Values];
             foreach (DecoderState decoder in decoders)
             {
@@ -510,21 +513,14 @@ internal sealed partial class TimelineScheduler : IDisposable
         // que sigan en la cola de servicio encuentran luego el ejecutor detenido y el decodificador ya liberado.
         foreach (DecoderState decoder in decoders)
         {
-            decoder.Executor?.Post(() => DisposeDecoder(decoder));
+            PostRetire(decoder);
         }
 
+        // Un plazo para todos (y no uno por decodificador): con varios colgados, cerrar tarda como mucho eso.
+        long deadline = Stopwatch.GetTimestamp() + (long)(DecodeThread.DefaultJoinTimeout.TotalSeconds * Stopwatch.Frequency);
         foreach (DecoderState decoder in decoders)
         {
-            (decoder.Executor as IDisposable)?.Dispose();
-        }
-
-        lock (_gate)
-        {
-            foreach (DecoderState decoder in decoders)
-            {
-                decoder.Reserved = 0;
-                _decoders.Remove(decoder.Id);
-            }
+            StopExecutor(decoder, deadline);
         }
 
         (_service as IDisposable)?.Dispose();
