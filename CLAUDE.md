@@ -15,7 +15,10 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 - **Complementos:** contenido en `Dathinel/rodaje-transiciones`, `-filtros`, `-fuentes`, `-titulos`, `-zonas`, `-camaras`, `-sonidos`, `-preajustes-pro` y `-360` (CC0/OFL); módulos en `Dathinel/modulo-*` (GPLv3, `build\empaquetar-modulo.ps1`); x264/x265 en `Dathinel/rodaje-codificadores-gpl` (GPL, `build\armar-codificadores-gpl.ps1`, D-034); descarga firmada desde `Dathinel/rodaje-catalogo` (release `v7`; `docs/descarga.md`).
 - **Decisiones:** `docs/decisiones.md` (D-001 a D-043). Un cambio de fondo que contradiga una decisión vigente se registra como decisión nueva.
 
-## Para retomar (12-oct)
+## Para retomar (13-oct)
 
-- **v1.0.0 publicada** (release `v1.0.0`, commit 8b1e4c1, con el arreglo del congelamiento al descargar y los 10 complementos en la completa). Lo siguiente es la 1.0.1: propuesta en `.proceso/propuestas/v1.0.1-personalizacion.md` y detalles visuales pendientes (miniaturas animadas de estilos que salen vacías, buscador de atajos, tres `Skip = "Defecto…"`) y revisión completa del tutorial y del recorrido inicial.
+- **v1.0.0 publicada** (release `v1.0.0`, commit 8b1e4c1; la completa trae los 16 complementos). No se publica nada nuevo hasta que el autor lo pida.
+- **Primero, al abrir:** revisar la ronda de depuración de 24 h de la nube (13-oct 04:24 → 14-oct 05:00 UTC): rutina «Rodaje: ronda de depuración (13–14 oct)» (`trig_015zPXdY6meRLBGvkb5XEXMF`, cada hora; `RemoteTrigger list_runs`), tareas 90–99 en `.proceso/nube/cola.md`, informe en `.proceso/nube/informe-depuracion.md`, PR unidos (`gh pr list --state merged`) y la CI de main. Después, cambiar la rutina a otro cometido o desactivarla.
+- **Bug grave reportado:** la app se cierra al elegir «escala» sin dejar registro (tareas 90 y 91).
+- **Después, la 1.0.1:** `.proceso/propuestas/v1.0.1-personalizacion.md` (personalización, tutorial, correcciones visuales como la pestaña Audio).
 - La nube une sus PR al pasar la CI (sin `--auto`: no hay protección de rama).
