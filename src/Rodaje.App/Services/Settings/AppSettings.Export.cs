@@ -38,10 +38,12 @@ public sealed class ExportPreferences
             Performance = ExportPerformance.Background;
         }
 
+        // Un 1e400 del archivo se lee como infinito y el escritor lo rechazaba: la app no volvía a arrancar (tarea 267).
+        Settings = Settings is null ? null : ExportSettingsNumbers.Finite(Settings);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         UserPresets = [.. (UserPresets ?? [])
             .Where(p => p is { Settings: not null } && !string.IsNullOrWhiteSpace(p.Id) && !string.IsNullOrWhiteSpace(p.Name) && seen.Add(p.Id))
-            .Select(p => p with { Origin = ExportPresetOrigin.User })
+            .Select(p => p with { Origin = ExportPresetOrigin.User, Settings = ExportSettingsNumbers.Finite(p.Settings) })
             .Take(MaxUserPresets)];
     }
 }
