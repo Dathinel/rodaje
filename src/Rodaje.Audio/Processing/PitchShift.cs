@@ -11,6 +11,8 @@ public sealed record PitchShiftSettings(double Semitones, double Cents, double M
     public override int LatencyFrames(double sampleRate) => PitchShiftStage.Latency48k;
 
     internal override IAudioStage CreateStage(double sampleRate) => new PitchShiftStage(this);
+
+    internal override PitchShiftSettings Limited() => new(Limit(Semitones, -MaxSemitones, MaxSemitones, 0), Limit(Cents, -100, 100, 0), Limit(Mix, 0, 1, 1));
 }
 
 /// <summary>

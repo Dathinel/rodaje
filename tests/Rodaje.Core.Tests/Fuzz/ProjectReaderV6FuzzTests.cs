@@ -7,6 +7,7 @@ using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Serialization;
 using Rodaje.Core.Timing;
+using Rodaje.Tests.Fuzz;
 using Xunit.Abstractions;
 using static Rodaje.Core.Tests.Properties.V1Support;
 
@@ -21,7 +22,8 @@ namespace Rodaje.Core.Tests.Fuzz;
 public class ProjectReaderV6FuzzTests(ITestOutputHelper output)
 {
     private const int Seed = 20261012;
-    private const int Cases = 4000;
+    /// <summary>Sin pruebas largas, los primeros 1000 de los 4000 casos (los 4000 tardaban de 6 a 30 s).</summary>
+    private static int Cases => FuzzRunner.Long ? 4000 : 1000;
     private static readonly TimeSpan Budget = TimeSpan.FromSeconds(30);
 
     /// <summary>
