@@ -17,10 +17,14 @@ public class CrashReporterTests
         using var dir = new TempDirectory();
         CrashReporter reporter = NewReporter(dir, out SessionLog log);
         log.Append("abrió el proyecto");
+        var shown = new List<string>();
 
-        string? path = reporter.Write(CrashKind.XamlUnhandled, Thrown(), fatal: false);
+        // El camino de App.OnUnhandledException con ventana.
+        bool handled = CrashRouting.OnXamlUnhandled(Thrown(), "mensaje de WinUI", shown.Add, reporter.Write, reporter.Write);
 
-        Assert.NotNull(path);
+        Assert.True(handled);
+        Assert.Equal(["falló el manejador de prueba"], shown);
+        string path = Assert.Single(Reports(dir));
         Assert.EndsWith("-recuperado.txt", path, StringComparison.Ordinal);
         string text = File.ReadAllText(path);
         Assert.Contains("Application.UnhandledException", text, StringComparison.Ordinal);
@@ -38,12 +42,14 @@ public class CrashReporterTests
         using var dir = new TempDirectory();
         CrashReporter reporter = NewReporter(dir, out _);
 
-        string? path = reporter.Write(CrashKind.XamlUnhandled, Thrown(), fatal: true);
+        // El camino de App.OnUnhandledException antes de que haya ventana: no se atiende (WinUI cierra la app).
+        bool handled = CrashRouting.OnXamlUnhandled(Thrown(), "mensaje de WinUI", null, reporter.Write, reporter.Write);
 
-        Assert.NotNull(path);
+        Assert.False(handled);
+        string path = Assert.Single(Reports(dir));
         Assert.False(Path.GetFileNameWithoutExtension(path).EndsWith("-recuperado", StringComparison.Ordinal));
         Assert.Contains("La app se cerró: sí", File.ReadAllText(path), StringComparison.Ordinal);
-        Assert.Equal(new[] { path! }, reporter.PendingReports());
+        Assert.Equal(new[] { path }, reporter.PendingReports());
     }
 
     [Fact]

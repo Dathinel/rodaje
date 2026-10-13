@@ -117,40 +117,16 @@ internal static class Program
         return path;
     }
 
-    private static void InstallCrashReporting()
-    {
-        // Las vías de excepción y el filtro nativo, antes que nada: un fallo al leer los ajustes también deja rastro.
-        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-        {
-            AppendErrorFile(e.ExceptionObject?.ToString());
-            Crashes.OnAppDomainUnhandled(AppDomain.CurrentDomain, e);
-        };
-        TaskScheduler.UnobservedTaskException += Crashes.OnUnobservedTask;
-        NativeCrashHandler.Install(Crashes);
-        System.Diagnostics.Trace.Listeners.Add(new SessionLogTraceListener(Log));
-        Log.Append($"Rodaje {Crashes.Version} arranca: {Environment.CommandLine}");
-        // La recuperación de sesiones y la copia en disco del registro esperan a las opciones (Crashes.BeginSession en
-        // Main). Un proceso que sale normalmente (Environment.Exit incluido) también cierra la sesión.
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => Crashes.EndSession();
-        // La GPU se lee ahora, fuera de cualquier fallo: un fallo nativo no debe tocar DXGI.
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-            Crashes.WarmUp();
-        });
-    }
+    // Las vías de excepción y el filtro nativo, antes que nada; la recuperación de sesiones y la copia en disco del
+    // registro esperan a las opciones (Crashes.BeginSession en Main).
+    private static void InstallCrashReporting() =>
+        CrashRouting.Install(Crashes, new CrashHooks(), AppendErrorFile, Environment.CommandLine);
 
-    internal static bool OnDispatcherException(Exception exception)
-    {
-        if (Instance is { } app)
-        {
-            return app.HandleDispatcherException(exception);
-        }
-
-        // Sin ventana todavía, sigue su camino (y la app se cierra), pero con informe.
-        ReportException(CrashKind.DispatcherCallback, exception, fatal: true);
-        return false;
-    }
+    internal static bool OnDispatcherException(Exception exception) =>
+        Instance is { } app
+            ? app.HandleDispatcherException(exception)
+            // Sin ventana todavía, sigue su camino (y la app se cierra), pero con informe.
+            : CrashRouting.OnDispatcherException(exception, null, ReportException);
 
     private static void AppendErrorFile(string? text)
     {
