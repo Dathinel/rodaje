@@ -100,9 +100,11 @@ public sealed class KeyframeMathTests
     {
         Gen.Select(Gen.Double[-1000, 1000], Gen.Double[-1000, 1000], Gen.Double[0, 1]).Sample((a, b, u) =>
         {
+            // Con tolerancia y no con decimales: redondear los dos a 9 decimales falla cuando caen a cada lado de un
+            // redondeo aunque difieran en 1e-13 (semilla aFldh-YC9ikf).
             double straight = a + ((b - a) * u);
-            Assert.Equal(straight, KeyframeMath.Segment(a, null, null, b, u), 9);
-            Assert.Equal(straight, KeyframeMath.Segment(a, (b - a) / 3, -(b - a) / 3, b, u), 9);
+            Assert.Equal(straight, KeyframeMath.Segment(a, null, null, b, u), 1e-9);
+            Assert.Equal(straight, KeyframeMath.Segment(a, (b - a) / 3, -(b - a) / 3, b, u), 1e-9);
         });
     }
 
