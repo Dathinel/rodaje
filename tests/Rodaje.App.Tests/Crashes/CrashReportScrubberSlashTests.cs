@@ -93,6 +93,53 @@ public class CrashReportScrubberSlashTests
     }
 
     [Theory]
+    [InlineData("No existe la carpeta D:/Clientes/Acme S.A. Boda/Boda 2024 final", "No existe la carpeta Boda 2024 final")]
+    [InlineData("D:/Clientes/Ana.Perez Boda/Boda de Sofia", "Boda de Sofia")]
+    [InlineData("D:/Clientes/Acme S.A. 2024/10/12/a.mp4", "a.mp4")]
+    [InlineData("D:/Clientes/Boda.v2 12/34/x", "x")]
+    [InlineData("D:/Clientes/Boda.v2 12/34", "34")]
+    [InlineData("Leyendo D:/Clientes/Ana Perez (2024)/notas finales", "Leyendo notas finales")]
+    [InlineData("Leyendo D:/Clientes/Ana Perez  Boda/notas finales", "Leyendo notas finales")]
+    [InlineData("Leyendo D:/Clientes/Acme S.A. Boda/ (12 s)", "Leyendo …/ (12 s)")]
+    [InlineData("Leyendo C:/Users/ana/OneDrive - Acme S.A. Clientes/Boda final", "Leyendo Boda final")]
+    [InlineData("Leyendo %USERPROFILE%/Documents/Ana.Perez Boda/Boda final", "Leyendo Boda final")]
+    [InlineData(@"Leyendo D:\Clientes\Ana.Perez Boda/Boda de Sofia", "Leyendo Boda de Sofia")]
+    [InlineData(@"Leyendo \\servidor\Clientes/Acme S.A. Boda/Boda final", "Leyendo Boda final")]
+    [InlineData("Leyendo file:///D:/Clientes/Acme S.A. Boda/Boda final", "Leyendo file:///Boda final")]
+    [InlineData("Leyendo file://servidor/Clientes/Acme S.A. Boda/Boda final", "Leyendo file://Boda final")]
+    [InlineData("Leyendo D:/Clientes/Acme Corp. Boda/2024/x", "Leyendo x")]
+    [InlineData("Leyendo D:/Clientes/Ana.Perez 2024/10/12", "Leyendo 12")]
+    [InlineData("Leyendo D:/Clientes/Ana.Perez Boda/12/10/2026 y siguió", "Leyendo 2026 y siguió")]
+    [InlineData("Leyendo D:/Clientes/Sofia.Lopez (copia)/notas varias", "Leyendo notas varias")]
+    [InlineData(@"Leyendo \\?\D:/Clientes/Acme S.A. Boda/Boda final", "Leyendo Boda final")]
+    [InlineData("Leyendo %ONEDRIVE%/Clientes/Acme S.A. Boda/Boda final", "Leyendo Boda final")]
+    [InlineData("Leyendo C:/Users/ana/OneDrive/Documentos/Acme S.A. de C.V./Boda final", "Leyendo Boda final")]
+    public void ConBarraNormal_UnTramoQueNoEsClaramenteFraseSeTapa(string line, string expected)
+    {
+        // Tarea 191: tras un segmento que parece texto («Acme S.A. Boda», «Ana.Perez Boda», «Boda.v2 12»), la ruta se
+        // cortaba si lo que seguía a la «/» parecía frase o eran cifras, y ese segmento quedaba a la vista. Ahora solo se
+        // corta tras un archivo con una extensión conocida («a.mp4 y/o respaldo»); si no, ante la duda, se tapa.
+        var scrubber = new CrashReportScrubber(
+            new Dictionary<string, string?> { ["%USERPROFILE%"] = @"C:\Users\ana" }, userName: "ana");
+
+        string text = scrubber.Scrub(line);
+
+        Assert.Equal(expected, text);
+        foreach (string word in new[] { "Clientes", "Acme", "Perez", "Documents", "OneDrive", "servidor", "v2", "S.A.", "Lopez" })
+        {
+            Assert.DoesNotContain(word, text, StringComparison.Ordinal);
+        }
+    }
+
+    [Theory]
+    [InlineData("Leyendo D:/Clientes/Boda/a.mp4 el 12/10/2026", "Leyendo a.mp4 el 12/10/2026")]
+    [InlineData("Leyendo D:/Clientes/Boda/a.mp4 el 12/10/2026 y siguió", "Leyendo a.mp4 el 12/10/2026 y siguió")]
+    [InlineData("Leyendo D:/Clientes/Boda/ajustes.json y/o respaldo", "Leyendo ajustes.json y/o respaldo")]
+    [InlineData("Leyendo D:/Clientes/Boda/Foto.JPG y/o respaldo", "Leyendo Foto.JPG y/o respaldo")]
+    public void ConBarraNormal_TrasUnArchivoConocidoLaFraseSeConserva(string line, string expected) =>
+        Assert.Equal(expected, Ana.Scrub(line));
+
+    [Theory]
     [InlineData(@"Temporal C:\Users\ana\AppData\Local\Temp\rodajeAna\x.bin", @"Temporal %TEMP%\…\x.bin")]
     [InlineData(@"Temporal C:\Users\ana\AppData\Local\Temp\Rodaje Boda\x.bin", @"Temporal %TEMP%\…\x.bin")]
     [InlineData(@"Temporal C:\Users\ana\AppData\Local\Temp\rodaje\x.bin", @"Temporal %TEMP%\…\x.bin")]

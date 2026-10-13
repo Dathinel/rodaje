@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using Rodaje.App.Services.Media;
 
 namespace Rodaje.App.Services.Crashes;
 
@@ -19,9 +20,10 @@ namespace Rodaje.App.Services.Crashes;
 /// <c>%SystemDrive%</c>, <c>%HOMEDRIVE%</c> y <c>\Device\HarddiskVolumeN</c> cuentan como una unidad.
 /// <para>
 /// Una ruta usa como separador el primero que sigue a su raíz. La otra barra, y también la «/» cuando es el separador,
-/// solo separa si el segmento que la precede no parece texto o si lo que la sigue continúa la ruta (otra carpeta, un
-/// archivo con extensión o un nombre sin espacios): así la «/» de «y/o respaldo» o de «12/34)» no se come la frase que
-/// sigue a <c>D:\…\a.mp4</c> ni a <c>file:///D:/…/a.mp4</c>, y una carpeta como «Ana.Perez Boda» se tapa. El último
+/// solo deja de separar tras un archivo con una extensión conocida seguido de texto («a.mp4 y/o respaldo») y cuando lo que
+/// la sigue no puede ser el resto de la ruta: así la «/» de «y/o respaldo» o de «12/34)» no se come la frase que sigue a
+/// <c>D:\…\a.mp4</c> ni a <c>file:///D:/…/a.mp4</c>, y una carpeta como «Ana.Perez Boda» o «Acme S.A. Boda» se tapa
+/// (ante la duda, se tapa). El último
 /// segmento de una ruta se conserva tal cual (también si no tiene extensión: puede ser un archivo como <c>notas</c>) y
 /// termina en su extensión seguida de un espacio, ante « (» o ante dos espacios.
 /// </para>
@@ -54,6 +56,20 @@ public sealed class CrashReportScrubber
     // Variables cuyo contenido es del usuario (documentos, escritorio, OneDrive): solo queda lo de «AppData».
     private static readonly string[] PersonalVariables =
         ["%USERPROFILE%", "%HOMEPATH%", "%ONEDRIVE%", "%ONEDRIVECOMMERCIAL%", "%ONEDRIVECONSUMER%"];
+
+    // Extensiones de archivo tras las que una «/» puede ser de la frase («a.mp4 y/o respaldo»): los medios que importa la
+    // app y lo que suele aparecer en un informe. Tras cualquier otro nombre que parezca texto («Acme S.A. Boda»,
+    // «Ana.Perez Boda», «Boda.v2 12»), la «/» separa carpetas (tarea 191).
+    private static readonly HashSet<string>.AlternateLookup<ReadOnlySpan<char>> KnownExtensions =
+        new HashSet<string>(
+            WatchedFolderScanner.MediaExtensions.Concat(
+            [
+                ".mpg", ".mpeg", ".mxf", ".vob", ".ogv", ".3g2", ".aif", ".aiff", ".wma", ".ac3",
+                ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tif", ".tiff", ".heic", ".heif", ".avif", ".jxl", ".tga",
+                ".dpx", ".exr", ".srt", ".vtt", ".ass", ".cube", ".lut", ".ttf", ".otf", ".json", ".xml", ".txt", ".log",
+                ".dll", ".exe", ".cs", ".zip", ".pdf", ".tmp", ".bin",
+            ]),
+            StringComparer.OrdinalIgnoreCase).GetAlternateLookup<ReadOnlySpan<char>>();
 
     private readonly IReadOnlyList<(string[] Components, string Token)> _folders;
     private readonly string? _userName;
@@ -395,9 +411,10 @@ public sealed class CrashReportScrubber
         return ParseSegments(s, i, p, kind, components, separator, out path, ref work) && (kind != RootKind.Unc || path.HasSegments);
     }
 
-    // «separator» es la barra de la ruta (la primera tras la raíz). Tras un segmento que ya parece texto («a.mp4 y/o»,
-    // «a.mp4 (no válido / corrupto)»), una «/» (y la «\» cuando no es la barra de la ruta) solo separa si lo que la sigue
-    // continúa la ruta (ContinuesPath); si no, la ruta termina y el segmento es el último.
+    // «separator» es la barra de la ruta (la primera tras la raíz). Tras un archivo con extensión conocida seguido de texto
+    // («a.mp4 y/o», «a.mp4 (no válido / corrupto)»), una «/» (y la «\» cuando no es la barra de la ruta) solo separa si lo
+    // que la sigue continúa la ruta (ContinuesPath); si no, la ruta termina y el segmento es el último. Tras cualquier otro
+    // segmento, también si parece texto («Acme S.A. Boda»), la barra separa: ante la duda, se tapa.
     private static bool ParseSegments(string s, int start, int p, RootKind kind, List<Span> components, char separator, out ParsedPath path, ref long work)
     {
         bool hasSegments = false;
@@ -418,13 +435,14 @@ public sealed class CrashReportScrubber
             }
 
             if (p > segment && p < s.Length && IsSeparator(s[p])
-                && (textStart < 0 || (s[p] == separator && separator == '\\') || ContinuesPath(s, p, ref work)))
+                && (textStart < 0 || (s[p] == separator && separator == '\\')
+                    || !HasKnownExtension(s, segment, textStart) || ContinuesPath(s, p, ref work)))
             {
                 // Con «\» como barra de la ruta, el segmento es una carpeta aunque parezca texto: ante la duda, se tapa.
-                // Con «/» depende de lo que sigue: es también la barra de la frase («a.mp4 y/o respaldo», «(error 12/34)»
-                // tras una URL «file:///»), pero una carpeta puede parecer texto («Maria.Lopez Garcia», «Boda.v2 final»,
-                // «OneDrive - Acme S.A. Clientes»). Solo se corta cuando lo que sigue a la barra no puede ser el resto de
-                // la ruta (tarea 183).
+                // Con «/» es también la barra de la frase («a.mp4 y/o respaldo», «(error 12/34)» tras una URL «file:///»),
+                // pero una carpeta puede parecer texto («Maria.Lopez Garcia», «Boda.v2 final», «OneDrive - Acme S.A.
+                // Clientes»). Solo se corta tras un archivo de extensión conocida y cuando lo que sigue a la barra no
+                // puede ser el resto de la ruta (tareas 183 y 191): sin ese contexto, el segmento se tapa.
                 components.Add(new Span(segment, p, null));
                 hasSegments = true;
                 p = SkipSeparators(s, p);
@@ -463,7 +481,14 @@ public sealed class CrashReportScrubber
 
     // Si el nombre que empieza en «segment» acaba en una extensión justo antes de «end» («a.mp4», «a.mp4'», «ana.lopez»).
     // Mira como mucho 7 caracteres hacia atrás.
-    private static bool HasExtension(string s, int segment, int end)
+    private static bool HasExtension(string s, int segment, int end) => !Extension(s, segment, end).IsEmpty;
+
+    // Como HasExtension, y además la extensión es de una lista conocida («a.mp4», no «ana.lopez» ni «Boda.v2»).
+    private static bool HasKnownExtension(string s, int segment, int end) => KnownExtensions.Contains(Extension(s, segment, end));
+
+    // La extensión con su punto («.mp4») si el nombre que empieza en «segment» acaba en una justo antes de «end»; si no,
+    // vacía. Mira como mucho 7 caracteres hacia atrás.
+    private static ReadOnlySpan<char> Extension(string s, int segment, int end)
     {
         if (end - 1 > segment && s[end - 1] is '\'' or ')' or ']' or ',' or '.')
         {
@@ -478,14 +503,17 @@ public sealed class CrashReportScrubber
             k--;
         }
 
-        return letter && end - k is >= 1 and <= 5 && k - 1 > segment && s[k - 1] == '.';
+        return letter && end - k is >= 1 and <= 5 && k - 1 > segment && s[k - 1] == '.' ? s.AsSpan(k - 1, end - k + 1) : default;
     }
 
-    // Si lo que sigue a la barra en «slash», tras un segmento que parece texto, puede ser el resto de la ruta. Ante la duda,
-    // sí: así la carpeta se tapa. Lee el tramo hasta la siguiente barra (o hasta lo que no cabe en un nombre) una vez; a lo
-    // sumo se vuelve a leer como el segmento siguiente. Es frase, y la ruta termina antes de la barra:
-    // - si el tramo empieza por un espacio («a.mp4 (formato / corrupto)»), lleva un «)» sin su «(» («(error 12/34)»,
-    //   «(copia \ original) y») o son cifras tras cifras («12/10/2026», «12/300»): ninguna carpeta es así;
+    // Si lo que sigue a la barra en «slash», tras un archivo con extensión conocida seguido de texto, puede ser el resto de
+    // la ruta. Ante la duda, sí: así la carpeta se tapa. Lee el tramo hasta la siguiente barra (o hasta lo que no cabe en
+    // un nombre) una vez; a lo sumo se vuelve a leer como el segmento siguiente. Es frase, y la ruta termina antes de la
+    // barra:
+    // - si el tramo empieza por un espacio («a.mp4 (formato / corrupto)») o lleva un «)» sin su «(» («(error 12/34)»,
+    //   «(copia \ original) y»): ninguna carpeta es así;
+    // - si son cifras tras cifras y la cadena de barras y cifras termina ahí («12/300», «12/10/2026»); si sigue un nombre
+    //   («2024/10/12/a.mp4»), son carpetas;
     // - si no va seguido de otra barra, no parece un archivo («a.mp4», «Fotos de la boda.jpg», «a.mp4 y siguió») y lleva
     //   espacios («y/o respaldo»).
     private static bool ContinuesPath(string s, int slash, ref long work)
@@ -525,12 +553,46 @@ public sealed class CrashReportScrubber
             return true;
         }
 
-        if (char.IsWhiteSpace(s[p]) || unbalanced || (digits && char.IsAsciiDigit(s[slash - 1])))
+        if (char.IsWhiteSpace(s[p]) || unbalanced)
         {
             return false;
         }
 
+        if (digits && char.IsAsciiDigit(s[slash - 1]))
+        {
+            return q < s.Length && IsSeparator(s[q]) && !OnlyDigitsFollow(s, q, ref work);
+        }
+
         return (q < s.Length && IsSeparator(s[q])) || fileName || HasExtension(s, p, q) || !space;
+    }
+
+    // Si tras la barra en «slash» solo quedan cifras separadas por barras hasta el final del nombre («/10/2026 y»). Lee la
+    // cadena una vez: solo la consulta el segmento con texto que la precede, y lo que va dentro no la vuelve a consultar.
+    private static bool OnlyDigitsFollow(string s, int slash, ref long work)
+    {
+        while (true)
+        {
+            int p = SkipSeparators(s, slash);
+            int q = p;
+            while (q < s.Length && char.IsAsciiDigit(s[q]))
+            {
+                q++;
+            }
+
+            work += q - p;
+            if (q == p)
+            {
+                return false;
+            }
+
+            if (q < s.Length && IsSeparator(s[q]))
+            {
+                slash = q;
+                continue;
+            }
+
+            return q == s.Length || !IsSegmentChar(s[q]) || char.IsWhiteSpace(s[q]);
+        }
     }
 
     // «\Device\HarddiskVolumeN» seguido de «\»; «end» queda en esa barra.
