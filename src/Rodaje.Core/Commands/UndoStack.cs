@@ -159,6 +159,12 @@ public sealed class UndoStack
             Push(group);
         }
 
+        if (_groupDepth == 0)
+        {
+            // Lo que venga después del gesto es otro paso: no se funde con lo que había antes de él.
+            _mergeBarrier = true;
+        }
+
         OnChanged();
     }
 
@@ -173,6 +179,9 @@ public sealed class UndoStack
 
         _groupCommands.Clear();
         _groupDepth = 0;
+        // Los comandos del grupo cancelado quitaron la barrera: sin esto, el siguiente se fundiría con el último paso de
+        // antes del gesto (empujar, cancelar un arrastre y volver a empujar dejaba un solo paso con los dos empujones).
+        _mergeBarrier = true;
         OnChanged();
     }
 

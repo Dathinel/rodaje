@@ -41,6 +41,9 @@
     <!-- Importar CinemaDNG con modulo-raw, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Raw\Logic\**\*.cs" Link="RawLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Rodaje.App\Views\Vision\Logic\**\*.cs" Link="VisionLogic\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- El fuzz de la sesión (Fuzz/) arma sus proyectos y sus ediciones con los mismos ayudantes que las propiedades de Core. -->
+    <Compile Include="..\Rodaje.Core.Tests\Properties\RandomTimeline.cs" Link="Fuzz\Shared\RandomTimeline.cs" />
+    <Compile Include="..\Rodaje.Core.Tests\Model\ModelSamples.cs" Link="Fuzz\Shared\ModelSamples.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -66,6 +69,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="CsCheck" Version="4.9.1" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1">

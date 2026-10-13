@@ -126,9 +126,14 @@ public static partial class TimelineEdits
     {
         var spansByTrack = new Dictionary<Track, List<(Time Start, Time End)>>();
         var addedTracks = new HashSet<Track>();
+
+        // Un recortado arrastra a sus parejas si alguna no se recortó: la que empieza (Q) o termina (W) justo en el punto no
+        // pasa por él, así que no cierra su propio tramo y, sin esto, quedaba desfasada del recortado.
+        var closeOwn = new HashSet<Clip>(trimmed.Where(c => c.LinkId is not { } link
+            || ctx.Sequence.AllTracks.SelectMany(t => t.Clips).Where(o => o.LinkId == link).All(trimmed.Contains)));
         foreach ((Track track, Time start, Time end) in spans)
         {
-            foreach (Track t in ctx.LinkedRippleTracks([track], end, trimmed))
+            foreach (Track t in ctx.LinkedRippleTracks([track], end, closeOwn))
             {
                 if (!spansByTrack.TryGetValue(t, out List<(Time Start, Time End)>? list))
                 {
