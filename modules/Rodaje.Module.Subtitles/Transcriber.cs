@@ -279,6 +279,8 @@ internal sealed class Transcriber : IDisposable
         }
 
         ResetFactory();
+        // La ruta llega a whisper.cpp como texto estrecho: una carpeta con «ñ» o tildes depende de que app.manifest
+        // declare activeCodePage UTF-8 (NarrowPathManifestTests lo exige).
         _factory = WhisperFactory.FromPath(model, new WhisperFactoryOptions
         {
             UseGpu = gpu,
