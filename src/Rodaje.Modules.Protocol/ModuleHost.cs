@@ -83,6 +83,12 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     /// </summary>
     internal Func<long, Task>? BeforeReplyForTests { get; init; }
 
+    /// <summary>
+    /// Costura de pruebas: corre justo antes de arrancar el hilo propio de una llamada, donde <see cref="Thread.Start()"/>
+    /// espera a que el hilo nuevo arranque (tarea 235).
+    /// </summary>
+    internal Action<long>? BeforeCallThreadStartsForTests { get; init; }
+
     /// <summary>Registra la función <paramref name="id"/>; tiene que estar en <see cref="ModuleInfo.Functions"/>.</summary>
     public void Register(string id, ModuleFunction function)
     {
@@ -273,7 +279,17 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         }, CancellationToken.None, TaskCreationOptions.LongRunning);
         active[invoke.Id] = cts;
         unanswered[key] = start.Unwrap();
-        start.Start(TaskScheduler.Default);
+        // El hilo se arranca desde el pool y no desde este bucle (tarea 235). Arrancar un hilo es síncrono: el runtime
+        // crea el hilo del sistema y espera, cediendo el procesador, a que el hilo nuevo se dé por arrancado. Si eso se
+        // demora (la CI de Windows lo vio pasar de 10 s, con el proceso sin usar CPU), el bucle se quedaba detenido ahí
+        // con la llamada ya en «active» y en «unanswered»: no leía el «shutdown» que venía detrás ni el cierre del editor,
+        // y RunAsync no terminaba. Así, el bucle sigue atendiendo y el cierre espera a la llamada con su plazo de 2 s.
+        // Si el hilo no se puede crear, la excepción sale en el pool y termina el proceso del módulo (antes salía de RunAsync).
+        ThreadPool.UnsafeQueueUserWorkItem(_ =>
+        {
+            BeforeCallThreadStartsForTests?.Invoke(invoke.Id);
+            start.Start(TaskScheduler.Default);
+        }, null);
     }
 
     /// <summary>
