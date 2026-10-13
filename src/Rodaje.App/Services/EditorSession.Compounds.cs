@@ -112,17 +112,21 @@ public sealed partial class EditorSession
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Tras deshacer la creación de un compuesto desde dentro, la secuencia que se veía ya no existe: se sube.</summary>
+    /// <summary>
+    /// Tras deshacer la creación de un compuesto desde dentro, la secuencia que se veía, o una de la ruta, ya no existe: se
+    /// sube a la última que queda antes del hueco. Si solo faltara una de la ruta, volver a ella lanzaría.
+    /// </summary>
     private bool LeaveRemovedSequences()
     {
-        if (Project.FindSequence(SequenceId) is not null)
+        int removed = _sequencePath.FindIndex(id => Project.FindSequence(id) is null);
+        if (removed < 0 && Project.FindSequence(SequenceId) is not null)
         {
             return false;
         }
 
-        while (_sequencePath.Count > 0 && Project.FindSequence(_sequencePath[^1]) is null)
+        if (removed >= 0)
         {
-            _sequencePath.RemoveAt(_sequencePath.Count - 1);
+            _sequencePath.RemoveRange(removed, _sequencePath.Count - removed);
         }
 
         string target = _sequencePath.Count > 0 ? _sequencePath[^1] : Project.Sequences[0].Id;
