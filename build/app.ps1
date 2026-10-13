@@ -180,7 +180,8 @@ if ($Autoprueba) {
         exit 1
     }
     if ($codigo -ne 0) { Mal "La autoprueba terminó con código $codigo."; exit 1 }
-    Bien ("El exe de Native AOT arrancó, abrió todas las pestañas del inspector, reprodujo y cerró en {0:0.0} s." -f $reloj.Elapsed.TotalSeconds)
+    # La versión de los informes de fallo: si sale «?», la app lo deja en rodaje-error.txt y falla arriba.
+    Bien ("El exe de Native AOT arrancó, abrió todas las pestañas del inspector, reprodujo y cerró en {0:0.0} s (con la versión en los informes de fallo)." -f $reloj.Elapsed.TotalSeconds)
     exit 0
 }
 

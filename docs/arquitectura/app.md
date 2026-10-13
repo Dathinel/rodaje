@@ -40,7 +40,7 @@ flowchart LR
 
 ## Fallos (`Services/Crashes`)
 
-Ningún cierre sin rastro. `CrashReporter` (sin WinUI, lo prueban `tests/Rodaje.App.Tests/Crashes`) escribe cada informe en `%LOCALAPPDATA%\Rodaje\fallos\<fecha>.txt` antes de salir: la vía, la pila, la versión (`1.0.0+commit`), Windows, la GPU y las últimas 200 líneas de `SessionLog`. Los errores que la app sobrevive van a `<fecha>-recuperado.txt`; se guardan los 30 informes y los 3 minivolcados más recientes. `rodaje-error.txt` junto al exe se sigue escribiendo (lo miran la autoprueba y los scripts de `build\`).
+Ningún cierre sin rastro. `CrashReporter` (sin WinUI, lo prueban `tests/Rodaje.App.Tests/Crashes`) escribe cada informe en `%LOCALAPPDATA%\Rodaje\fallos\<fecha>.txt` antes de salir: la vía, la pila, la versión (`1.0.0+commit`), Windows, la GPU y las últimas 200 líneas de `SessionLog`. Los errores que la app sobrevive van a `<fecha>-recuperado.txt`; se guardan por separado los 30 fatales y los 30 recuperados más recientes (una ráfaga de recuperados no borra el fatal que espera su aviso) y los 3 minivolcados. `rodaje-error.txt` junto al exe se sigue escribiendo (lo miran la autoprueba y los scripts de `build\`).
 
 | Vía | Dónde se engancha | ¿Se cierra? |
 |---|---|---|
@@ -48,11 +48,14 @@ Ningún cierre sin rastro. `CrashReporter` (sin WinUI, lo prueban `tests/Rodaje.
 | `AppDomain.UnhandledException` | `Program.InstallCrashReporting` | Sí |
 | `TaskScheduler.UnobservedTaskException` | ídem; se da por observada | No |
 | Callbacks del hilo de la interfaz (continuaciones de `await`, `async void`) | `GuardedSynchronizationContext` envuelve el `DispatcherQueueSynchronizationContext`; con ventana, informe y aviso en vez del error «stowed» | No con ventana |
-| Fallo nativo (violación de acceso…) | `NativeCrashHandler`: `SetUnhandledExceptionFilter` con `LibraryImport` y puntero a función (AOT); minivolcado `MiniDumpWriteDump` junto al informe | Sí |
+| Fallo nativo (violación de acceso…) | `NativeCrashHandler`: `SetUnhandledExceptionFilter` con `LibraryImport` y puntero a función (AOT); primero el informe de texto y después el minivolcado `MiniDumpWriteDump` a su lado. `CrashWatchdog` (un hilo creado al instalar el filtro) termina el proceso si el filtro tarda más de 10 s | Sí |
 | Lo que no pasa por ningún filtro (`RaiseFailFastException` de un error «stowed» 0xC000027B, desbordamiento de pila, cierre forzado) | `SessionLog` se copia línea a línea en `fallos\sesiones\<pid>-<inicio>.log`; el siguiente arranque convierte en informe la copia de un proceso que ya no existe | Sí |
 
 - **Registro de la sesión.** `SessionLog` guarda lo que se escribe con `Trace` (módulos, exportación), los errores, los pasos del historial y los avisos de la ventana. El cierre limpio y un informe fatal borran su copia en disco.
 - **Una excepción, un informe.** La misma excepción por dos vías deja un solo archivo. `Program.WriteCrash` (errores atrapados) también deja uno «recuperado».
+- **Ráfagas.** Un recuperado con la misma firma (tipo y primera línea de la pila) deja un solo informe, una línea en `rodaje-error.txt` y un aviso cada 10 s; las repeticiones se anotan en ese informe («Repetido N veces más…») al escribir el siguiente o al cerrar la sesión.
+- **Sesión.** `CrashReporter.BeginSession` recupera las sesiones anteriores y abre la copia del registro, salvo en las corridas automáticas (`AppOptions.IsAutomated`: medida, autoprueba, arranque), que las herramientas matan sin que eso sea un fallo. `EndSession` se llama al volver de `Application.Start` (también tras `Application.Exit`), con `WM_ENDSESSION` (`SessionEndWatcher`, al apagar o cerrar la sesión de Windows) y en `ProcessExit`.
+- **Versión.** La autoprueba deja `rodaje-error.txt` si la versión del informe sale «?» (el atributo `AssemblyInformationalVersion` no llegó al exe de Native AOT).
 - **Siguiente arranque.** Si hay informes fatales nuevos, un aviso «Rodaje se cerró por un error» con el botón «Copiar informe» (el texto entero al portapapeles); no sale en las corridas automáticas.
 - **GPU.** Se lee a los 10 s del arranque, fuera de cualquier fallo: el filtro nativo no toca DXGI.
 
