@@ -143,10 +143,7 @@ public class MediaRelinkBatchPathsTests
         Assert.Equal("a\0b", MediaRelinkEdits.NormalizePath("a\0b"));
     }
 
-    [Fact(Skip = "Defecto: MediaRelinkSearch.Search compara TakenPaths y las rutas de los medios que no faltan como texto "
-        + "(HashSet con OrdinalIgnoreCase, MediaRelinkSearch.cs:170), así que una ruta con «..» o «.» no cuenta como "
-        + "ocupada. MediaRelinkSearch.cs queda fuera de los caminos de la tarea 71; en la app lo cubre "
-        + "MediaRelinkService.SearchAsync, que pasa las rutas ya normalizadas.")]
+    [Fact]
     public void Search_sees_a_taken_path_written_with_dots()
     {
         // B ya tiene su archivo, pero escrito con un rodeo; A falta y en la carpeta solo está ese archivo con su nombre.

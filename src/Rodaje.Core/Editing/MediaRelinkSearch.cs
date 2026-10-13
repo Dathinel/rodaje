@@ -167,8 +167,12 @@ public static class MediaRelinkSearch
         ILookup<string, RelinkFile> byName = files.ToLookup(f => FileName(f.Path), StringComparer.OrdinalIgnoreCase);
 
         var missingIds = missing.Select(m => m.Id).ToHashSet(StringComparer.Ordinal);
+        // Las rutas ocupadas se guardan normalizadas: una escrita con «.» o «..» es el mismo archivo.
         var taken = new HashSet<string>(
-            project.Media.Where(m => !missingIds.Contains(m.Id)).Select(m => m.Path).Concat(options.TakenPaths), StringComparer.OrdinalIgnoreCase);
+            project.Media.Where(m => !missingIds.Contains(m.Id)).Select(m => m.Path).Concat(options.TakenPaths)
+                .Select(MediaRelinkEdits.NormalizePath),
+            StringComparer.OrdinalIgnoreCase);
+        bool IsTaken(string path) => taken.Contains(MediaRelinkEdits.NormalizePath(path));
         var probes = new Dictionary<string, RelinkProbe?>(StringComparer.Ordinal);
         var fingerprints = new Dictionary<string, string?>(StringComparer.Ordinal);
         var found = new Dictionary<string, RelinkMatch>(StringComparer.Ordinal);
@@ -210,11 +214,11 @@ public static class MediaRelinkSearch
                 RelinkProbe expected = RelinkProbe.Of(media);
                 List<string> fitting = [.. candidatesOf(media)
                     .Select(f => f.Path)
-                    .Where(p => !taken.Contains(p) && ProbeOf(p) is { } probe && probe.Matches(expected, options.DurationTolerance))];
+                    .Where(p => !IsTaken(p) && ProbeOf(p) is { } probe && probe.Matches(expected, options.DurationTolerance))];
                 if (Choose(media.Path, fitting, FingerprintOf, out List<string> tied) is { } chosen)
                 {
                     found[media.Id] = new RelinkMatch(media.Id, chosen, kind);
-                    taken.Add(chosen);
+                    taken.Add(MediaRelinkEdits.NormalizePath(chosen));
                 }
                 else if (tied.Count > 1)
                 {
@@ -243,7 +247,7 @@ public static class MediaRelinkSearch
         // Un archivo que quedó dudoso para un medio pudo dárselo después a otro: se quita de sus opciones.
         foreach (string id in ambiguous.Keys.ToList())
         {
-            List<string> left = [.. ambiguous[id].Where(p => !taken.Contains(p))];
+            List<string> left = [.. ambiguous[id].Where(p => !IsTaken(p))];
             if (left.Count == 0)
             {
                 ambiguous.Remove(id);
