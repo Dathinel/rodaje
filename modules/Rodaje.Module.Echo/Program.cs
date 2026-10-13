@@ -9,6 +9,7 @@ ModuleInfo info = new("rodaje-eco", "0.1.0", "Eco",
     new FunctionInfo("morir", "Terminar el proceso a mitad de una llamada", Cancellable: false, ReportsProgress: false),
     new FunctionInfo("colgar", "Ignorar la cancelación", Cancellable: false, ReportsProgress: false),
     new FunctionInfo("fallar", "Lanzar una excepción", ReportsProgress: false),
+    new FunctionInfo("al-cerrar", "Al recibir «shutdown», salir con un código o no salir", Cancellable: false, ReportsProgress: false),
 ], Device: "cpu");
 
 ModuleHost host = new(info);
@@ -50,7 +51,22 @@ host.Register("colgar", async (_, _) =>
 
 host.Register("fallar", (_, _) => throw new InvalidOperationException("Fallo a propósito."));
 
-return await host.RunAsync(args).ConfigureAwait(false);
+// Lo que hace el proceso cuando el editor pide «shutdown»: {"codigo":N} sale con N; {"colgar":true} no sale nunca. El
+// editor espera la respuesta antes de mandar «shutdown», así que la función ya corrió cuando vuelve RunAsync.
+int? exitCode = null;
+bool hangOnExit = false;
+host.Register("al-cerrar", (call, _) =>
+{
+    if (call.Parameters is { ValueKind: JsonValueKind.Object } p && p.TryGetProperty("colgar", out JsonElement hang) && hang.ValueKind == JsonValueKind.True)
+        hangOnExit = true;
+    else
+        exitCode = Int(call.Parameters, "codigo", 0);
+    return ValueTask.FromResult(new ModuleOutput());
+});
+
+int code = await host.RunAsync(args).ConfigureAwait(false);
+if (hangOnExit) Thread.Sleep(Timeout.Infinite);
+return exitCode ?? code;
 
 static int Int(JsonElement? parameters, string name, int fallback) =>
     parameters is { ValueKind: JsonValueKind.Object } p && p.TryGetProperty(name, out JsonElement v) && v.TryGetInt32(out int n) ? n : fallback;

@@ -194,6 +194,12 @@ public sealed class ModuleClient : IAsyncDisposable
     internal Action? AwaitingModuleClose { get; set; }
 
     /// <summary>
+    /// Si <see cref="DisposeAsync"/> llegó a mandar <c>shutdown</c>. <see cref="ModuleProcess"/> lo mira para dejar en el
+    /// registro un módulo que, tras pedírselo, salió mal o hubo que matar (tarea 200).
+    /// </summary>
+    internal bool ShutdownDelivered { get; private set; }
+
+    /// <summary>
     /// Pide al módulo que termine (<c>shutdown</c>), espera hasta <see cref="ModuleClientOptions.ShutdownGrace"/> a que
     /// cierre su lado y solo entonces cierra el del editor.
     /// </summary>
@@ -217,6 +223,7 @@ public sealed class ModuleClient : IAsyncDisposable
             {
                 await SendAsync(new ShutdownMessage()).ConfigureAwait(false);
                 sent = true;
+                ShutdownDelivered = true;
             }
             catch (ModuleException)
             {
