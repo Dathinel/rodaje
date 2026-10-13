@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.Export;
 using Rodaje.Export.Running;
 using Rodaje.Media.Export;
@@ -43,7 +44,7 @@ internal sealed partial class ExportView
         string? folder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
         var request = new ExportRequest(session.Project.Clone(), session.SequenceId, model.OutputPath, settings, range) { ProjectDirectory = folder };
         IReadOnlyList<EncoderSpec> encoders = model.Encoders;
-        _ = Task.Run(() =>
+        UiTask.Run(Task.Run(() =>
         {
             try
             {
@@ -60,7 +61,7 @@ internal sealed partial class ExportView
                 _streamCopyNote = task.Result;
                 ShowAdjustments(current);
             }
-        }, TaskScheduler.FromCurrentSynchronizationContext());
+        }, TaskScheduler.FromCurrentSynchronizationContext()));
     }
 
     private void ShowAdjustments(ExportDialogModel model)

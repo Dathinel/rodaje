@@ -1,3 +1,5 @@
+using Rodaje.App.Services.Crashes;
+
 namespace Rodaje.App.Services.Shortcuts;
 
 /// <summary>Identificadores estables de las acciones del armazón; se guardan en <c>atajos.json</c>, no se renombran.</summary>
@@ -208,7 +210,9 @@ public static partial class EditorShortcuts
     }
 
     /// <summary>Lanza una operación asíncrona desde un atajo; un error inesperado se avisa en vez de perderse.</summary>
-    private static async void Run(EditorSession session, Func<Task> operation)
+    private static void Run(EditorSession session, Func<Task> operation) => UiTask.Run(RunAsync(session, operation));
+
+    private static async Task RunAsync(EditorSession session, Func<Task> operation)
     {
         try
         {
@@ -218,6 +222,7 @@ public static partial class EditorShortcuts
         catch (Exception ex)
 #pragma warning restore CA1031
         {
+            UiTask.Report(ex, notify: false);
             session.Notify(NotificationSeverity.Error, "Algo falló", ex.Message);
         }
     }

@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
@@ -349,7 +350,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
     {
         if (sender is FrameworkElement { Tag: string tag })
         {
-            _ = RunAsync(forward: tag.StartsWith("forward", StringComparison.Ordinal), single: tag.EndsWith('1'));
+            UiTask.Run(RunAsync(forward: tag.StartsWith("forward", StringComparison.Ordinal), single: tag.EndsWith('1')));
         }
     }
 

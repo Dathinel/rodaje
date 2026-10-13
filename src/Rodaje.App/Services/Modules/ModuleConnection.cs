@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Rodaje.App.Services.Crashes;
 using Rodaje.Modules.Protocol;
 
 namespace Rodaje.App.Services.Modules;
@@ -55,7 +56,7 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
 
             int generation = ++_idleGeneration;
             _idleTimer?.Dispose();
-            _idleTimer = new Timer(_ => _ = CloseIfIdleAsync(generation), null, options.IdleTimeout, Timeout.InfiniteTimeSpan);
+            _idleTimer = new Timer(_ => UiTask.Run(CloseIfIdleAsync(generation)), null, options.IdleTimeout, Timeout.InfiniteTimeSpan);
         }
     }
 
@@ -177,7 +178,7 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
         if (Interlocked.CompareExchange(ref _process, null, process) == process)
         {
             process.Kill();
-            _ = process.DisposeAsync().AsTask();
+            UiTask.Run(process.DisposeAsync().AsTask());
             closed(this);
         }
     }

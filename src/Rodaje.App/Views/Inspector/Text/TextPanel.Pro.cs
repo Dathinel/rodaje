@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
@@ -573,19 +574,20 @@ internal sealed partial class TextPanel
     {
         _styleGallery = new GridView { SelectionMode = ListViewSelectionMode.None, IsItemClickEnabled = true, Padding = new Thickness(8, 0, 4, 4), MaxHeight = 240 };
         AutomationProperties.SetName(_styleGallery, "Galería de estilos");
-        _styleGallery.ItemClick += async (_, e) =>
+        _styleGallery.ItemClick += (_, e) =>
         {
             if (e.ClickedItem is FrameworkElement { Tag: TextStyle style } && _editor is { } editor)
             {
                 editor.ApplyStyle(style);
-                await Task.CompletedTask;
             }
         };
         StyleRows.Children.Insert(Math.Min(3, StyleRows.Children.Count), _styleGallery);
     }
 
     /// <summary>Lee los estilos instalados (son JSON chicos) y arma una miniatura animada por cada uno, solo si cambió lo instalado.</summary>
-    private async void RefreshGallery()
+    private void RefreshGallery() => UiTask.Run(RefreshGalleryAsync());
+
+    private async Task RefreshGalleryAsync()
     {
         if (_styleGallery is null || _services is not { } services || ReferenceEquals(services.Packages.Installed, _galleryScan))
         {

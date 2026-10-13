@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Shared;
@@ -62,8 +63,8 @@ internal sealed partial class LibraryView
             bool reject = _menuTarget is { } target && _organization.MarkOf(target.Id) != MediaMark.Rejected;
             ForTargets(id => _organization.SetMark(id, reject ? MediaMark.Rejected : MediaMark.None));
         };
-        _tagsItem.Click += (_, _) => _ = EditTagsAsync();
-        _subclipItem.Click += (_, _) => _ = CreateSubclipAsync();
+        _tagsItem.Click += (_, _) => UiTask.Run(EditTagsAsync());
+        _subclipItem.Click += (_, _) => UiTask.Run(CreateSubclipAsync());
         _removeSubclipItem.Click += (_, _) =>
         {
             if (_menuTarget?.Subclip is { } subclip && _organization.RemoveSubclip(subclip.Id))
@@ -71,8 +72,8 @@ internal sealed partial class LibraryView
                 OrganizationChanged();
             }
         };
-        _relinkItem.Click += (_, _) => _ = RelinkTargetAsync();
-        _multicamItem.Click += (_, _) => _ = CreateMulticamAsync();
+        _relinkItem.Click += (_, _) => UiTask.Run(RelinkTargetAsync());
+        _multicamItem.Click += (_, _) => UiTask.Run(CreateMulticamAsync());
         _mediaMenu.Items.Insert(_mediaMenu.Items.IndexOf(_moveItem), _ratingItem);
         _mediaMenu.Items.Insert(_mediaMenu.Items.IndexOf(_moveItem), _rejectItem);
         _mediaMenu.Items.Insert(_mediaMenu.Items.IndexOf(_moveItem), _tagsItem);
@@ -261,7 +262,7 @@ internal sealed partial class LibraryView
 
         collections.Items.Add(new MenuFlyoutSeparator());
         var save = new MenuFlyoutItem { Text = "Guardar estos filtros como colección…", IsEnabled = Query().HasFilters || !string.IsNullOrWhiteSpace(SearchBox.Text) };
-        save.Click += (_, _) => _ = SaveCollectionAsync();
+        save.Click += (_, _) => UiTask.Run(SaveCollectionAsync());
         collections.Items.Add(save);
         if (_organization.FindCollection(_collectionId) is { } open)
         {
@@ -450,7 +451,7 @@ internal sealed partial class LibraryView
         _healthSignature = signature;
         int scan = Interlocked.Increment(ref _healthScan);
         var names = project.Media.ToDictionary(m => m.Id, m => m.Name, StringComparer.Ordinal);
-        _ = Task.Run(() =>
+        UiTask.Run(Task.Run(() =>
         {
             HashSet<string> offline = [.. MediaDuplicates.Offline(files)];
             IReadOnlyList<IReadOnlyList<string>> groups = MediaDuplicates.Find(files.Where(f => !offline.Contains(f.MediaId)));
@@ -474,7 +475,7 @@ internal sealed partial class LibraryView
                 _duplicates = duplicates;
                 RefreshMarks();
             });
-        });
+        }));
     }
 
     /// <summary>Después de leer metadatos nuevos, se vuelve a filtrar si la búsqueda o una colección los usan.</summary>

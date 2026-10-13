@@ -2,6 +2,7 @@ using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Relink;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
@@ -226,13 +227,13 @@ internal static class RelinkDialog
             if (folder is not null)
             {
                 services.Settings.Current.LastMediaFolder = folder;
-                _ = SearchAsync(folder);
+                UiTask.Run(SearchAsync(folder));
             }
         };
 
         foreach (Row row in rows)
         {
-            row.Pick.Click += (_, _) => _ = PickAsync(row);
+            row.Pick.Click += (_, _) => UiTask.Run(PickAsync(row));
             row.Confirm.Click += (_, _) =>
             {
                 if (proposed.Remove(row.Media.Id, out string? path))
@@ -322,7 +323,7 @@ internal static class RelinkDialog
     {
         EditorSession session = services.Session;
         session.Notify(NotificationSeverity.Warning, missing.Count == 1 ? "Falta un medio" : "Faltan medios", MediaRelinkService.Describe(missing),
-            new NotificationAction("Volver a enlazar", () => _ = ReopenAsync()));
+            new NotificationAction("Volver a enlazar", () => UiTask.Run(ReopenAsync())));
 
         async Task ReopenAsync()
         {
