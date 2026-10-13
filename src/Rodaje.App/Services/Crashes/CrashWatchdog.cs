@@ -16,6 +16,7 @@ public sealed partial class CrashWatchdog : IDisposable
     private readonly Thread _thread;
     private uint _code;
     private volatile bool _disposed;
+    private volatile bool _isArmed;
 
     /// <param name="timeout">Tiempo que se espera al filtro.</param>
     /// <param name="terminate">Termina el proceso con ese código de salida (en la app, <c>TerminateProcess</c>).</param>
@@ -31,16 +32,27 @@ public sealed partial class CrashWatchdog : IDisposable
 
     public TimeSpan Timeout { get; }
 
+    /// <summary>
+    /// Si está contando (entre <see cref="Arm"/> y <see cref="Disarm"/>). Deja comprobar el desarme sin esperar a que
+    /// venza el plazo.
+    /// </summary>
+    internal bool IsArmed => _isArmed;
+
     /// <summary>Empieza a contar: si no llega <see cref="Disarm"/> a tiempo, termina el proceso con <paramref name="exitCode"/>.</summary>
     public void Arm(uint exitCode)
     {
         _code = exitCode;
         _done.Reset();
+        _isArmed = true;
         _armed.Set();
     }
 
     /// <summary>El filtro terminó a tiempo.</summary>
-    public void Disarm() => _done.Set();
+    public void Disarm()
+    {
+        _isArmed = false;
+        _done.Set();
+    }
 
     public void Dispose()
     {

@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Effects;
@@ -157,7 +158,7 @@ internal sealed partial class PlayerView
         {
             Vector2 sequence = frame.ToSequence(point.Position.X, point.Position.Y);
             EndKeyPick();
-            _ = PickKeyAsync(pick, sequence);
+            UiTask.Run(PickKeyAsync(pick, sequence));
             e.Handled = true;
             return true;
         }

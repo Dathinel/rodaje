@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.Analysis;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Modules;
@@ -34,7 +35,7 @@ internal static class AutoSubtitlesDialog
     public static void Run(EditorServices services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        _ = services.LongActions.RunAsync(SubtitleCommands.AutoSubtitles, Title, scope => ShowAsync(services, scope));
+        UiTask.Run(services.LongActions.RunAsync(SubtitleCommands.AutoSubtitles, Title, scope => ShowAsync(services, scope)));
     }
 
     public static async Task ShowAsync(EditorServices services, LongActionScope? scope = null)
@@ -169,6 +170,11 @@ internal static class AutoSubtitlesDialog
             {
                 draft.Fail();
                 status.Text = ex is ModuleException error ? ModuleManager.Friendly(module, error) : "No se pudo transcribir: " + ex.Message + " El proyecto no cambió.";
+                if (ex is not ModuleException)
+                {
+                    UiTask.Report(ex, notify: false);
+                }
+
             }
             finally
             {
@@ -186,7 +192,7 @@ internal static class AutoSubtitlesDialog
 
         language.SelectionChanged += (_, _) => again.IsEnabled = draft.CanTranscribe(Selected());
         Task current = Task.CompletedTask;
-        again.Click += async (_, _) => await (current = Transcribe());
+        again.Click += (_, _) => UiTask.Run(current = Transcribe());
         list.ItemClick += (_, e) =>
         {
             int index = e.ClickedItem is string label ? labels.IndexOf(label) : -1;

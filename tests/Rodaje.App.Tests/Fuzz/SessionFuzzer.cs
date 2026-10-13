@@ -119,6 +119,9 @@ internal sealed class SessionFuzzer
     private readonly FakeDialogs _dialogs = new() { Choice = UnsavedChangesChoice.Discard };
     private readonly FuzzIds _ids = new();
     private readonly StringBuilder _log = new();
+
+    /// <summary>Lo que se quitó del principio de <see cref="_log"/>: con los dos, el recorrido entero.</summary>
+    private readonly StringBuilder _dropped = new();
     private readonly EditorSession _session;
 
     /// <summary>El proyecto serializado en cada posición del historial: <c>_states[i]</c> es el de <c>i</c> pasos aplicados.</summary>
@@ -126,6 +129,9 @@ internal sealed class SessionFuzzer
     private int _imported;
     private bool _historyMoved;
     private int _step;
+
+    /// <summary>Lo que muestra <see cref="Current"/>.</summary>
+    private string? _current;
 
     private SessionFuzzer(int seed, string directory)
     {
@@ -136,16 +142,38 @@ internal sealed class SessionFuzzer
         _session = new EditorSession(_playback, _prober, _dialogs, _ids);
     }
 
-    /// <summary>Corre <paramref name="steps"/> acciones con la semilla; falla con la semilla, el paso y las últimas acciones.</summary>
-    public static void Run(int seed, int steps)
+    /// <summary>
+    /// Corre <paramref name="steps"/> acciones con la semilla; falla con la semilla, el paso y las últimas acciones. Devuelve
+    /// el recorrido entero (una línea por acción), para comprobar que una semilla fija sigue llegando a lo que probaba.
+    /// </summary>
+    public static string Run(int seed, int steps)
     {
         using var directory = new TempDirectory();
-        UiThread.Run(async () =>
+        string trace = "";
+        SessionFuzzer? running = null;
+        try
         {
-            var fuzzer = new SessionFuzzer(seed, directory.Path);
-            await fuzzer.RunAsync(steps);
-        });
+            UiThread.Run(async () =>
+            {
+                var fuzzer = new SessionFuzzer(seed, directory.Path);
+                Volatile.Write(ref running, fuzzer);
+                await fuzzer.RunAsync(steps);
+                trace = fuzzer._dropped.ToString() + fuzzer._log;
+            });
+        }
+        catch (TimeoutException ex)
+        {
+            // El tope de UiThread no decía en qué acción se quedó (semilla 920 en la CI de Windows de #133: 120 s para algo
+            // que en Linux tarda medio segundo). Se lee desde fuera del hilo de la prueba, así que solo lo publicado aparte.
+            string where = Volatile.Read(ref running)?.Current ?? "antes de abrir el proyecto inicial";
+            throw new TimeoutException($"Semilla {seed}: {ex.Message} Iba por {where}.", ex);
+        }
+
+        return trace;
     }
+
+    /// <summary>Paso y acción en curso («paso 12 de 300: Save»), publicado para leerlo desde otro hilo si la prueba se cuelga.</summary>
+    private string Current => Volatile.Read(ref _current) ?? "el proyecto inicial";
 
     private async Task RunAsync(int steps)
     {
@@ -159,6 +187,7 @@ internal sealed class SessionFuzzer
             int countBefore = _session.History.Count;
             int redoBefore = _session.History.RedoCount;
             bool changesSync = SyncChangingActs.Contains(act);
+            Volatile.Write(ref _current, FormattableString.Invariant($"el paso {_step} de {steps}: {act}"));
             _log.Append(CultureInfo.InvariantCulture, $"{_step}. {act}");
             try
             {
@@ -184,6 +213,7 @@ internal sealed class SessionFuzzer
             // Solo las últimas acciones interesan para reproducir: el registro no crece sin límite.
             if (_log.Length > 60_000)
             {
+                _dropped.Append(_log, 0, _log.Length - 30_000);
                 _log.Remove(0, _log.Length - 30_000);
             }
         }
@@ -517,8 +547,13 @@ internal sealed class SessionFuzzer
                 return false;
 
             case Act.DeleteSide:
-                _ = _random.Next(2) == 0 ? s.DeleteLeftOfPlayhead() : s.DeleteRightOfPlayhead();
+            {
+                bool left = _random.Next(2) == 0;
+                TimelineState t = s.Timeline;
+                Note($" {(left ? "izquierda" : "derecha")} {t.RippleScope} magnética={t.MagneticMainTrack} auto={t.AutoRipple}");
+                Note((left ? s.DeleteLeftOfPlayhead() : s.DeleteRightOfPlayhead()) ? " → ok" : " → nada");
                 return false;
+            }
 
             case Act.DeleteSelection:
                 s.DeleteSelection();

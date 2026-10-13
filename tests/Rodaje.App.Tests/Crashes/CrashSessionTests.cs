@@ -97,7 +97,7 @@ public class CrashSessionTests
             {
                 textWhenDumping = File.ReadAllText(Assert.Single(Directory.GetFiles(dir.Path, "*.txt")));
                 File.WriteAllBytes(path, "MDMP"u8.ToArray());
-                return true;
+                return 0;
             },
         };
 
@@ -107,20 +107,21 @@ public class CrashSessionTests
         Assert.Contains("0xC0000005", textWhenDumping, StringComparison.Ordinal);
         string dump = Assert.Single(Directory.GetFiles(dir.Path, "*.dmp"));
         Assert.Equal(Path.ChangeExtension(report, ".dmp"), dump);
-        Assert.Contains("Minivolcado: " + CrashReportScrubber.Default.Scrub(dump), File.ReadAllText(report!), StringComparison.Ordinal);
+        Assert.Contains("Minivolcado: " + ExpectedDumpPath.Of(dump) + Environment.NewLine, File.ReadAllText(report!), StringComparison.Ordinal);
     }
 
     [Fact]
-    public unsafe void FalloNativo_SiElMinivolcadoFalla_QuedaElTextoSinMencionarlo()
+    public unsafe void FalloNativo_SiElMinivolcadoFalla_QuedaElTextoConElError()
     {
+        // Antes el error de MiniDumpWriteDump quedaba en un estático que nadie leía; ahora va en el informe.
         using var dir = new TempDirectory();
-        var reporter = new CrashReporter(dir.Path, "1.0.0+prueba", new SessionLog()) { MinidumpWriter = (_, _) => false };
+        var reporter = new CrashReporter(dir.Path, "1.0.0+prueba", new SessionLog()) { MinidumpWriter = (_, _) => 299 };
 
         string? report = reporter.WriteNativeFatal(CrashReporter.StowedExceptionCode, null);
 
         Assert.NotNull(report);
-        Assert.DoesNotContain("Minivolcado", File.ReadAllText(report), StringComparison.Ordinal);
-        Assert.Empty(Directory.GetFiles(dir.Path, "*.dmp"));
+        Assert.Contains("Minivolcado: no se pudo escribir (código 299, 0x0000012B)", File.ReadAllText(report), StringComparison.Ordinal);
+        Assert.Empty(Directory.GetFiles(dir.Path, "*.dmp*"));
     }
 
     [Fact]
@@ -136,7 +137,11 @@ public class CrashSessionTests
         });
         var reporter = new CrashReporter(dir.Path, "1.0.0+prueba", new SessionLog())
         {
-            MinidumpWriter = (_, _) => stuck.Wait(TimeSpan.FromSeconds(30)) && false,
+            MinidumpWriter = (_, _) =>
+            {
+                _ = stuck.Wait(TimeSpan.FromSeconds(30));
+                return 5;
+            },
         };
 
         string? report = NativeCrashHandler.WriteGuarded(reporter, watchdog, 0xC0000005, null);
@@ -149,21 +154,41 @@ public class CrashSessionTests
     [Fact]
     public unsafe void FalloNativo_ATiempo_ElVigilanteNoHaceNada()
     {
+        // Plazo largo y sin dormir: con un plazo corto y una espera fija, un runner cargado dejaba vencer al vigilante
+        // antes del desarme y la prueba fallaba de vez en cuando. Se comprueba el estado, no el reloj.
         using var dir = new TempDirectory();
         int terminated = 0;
-        using var watchdog = new CrashWatchdog(TimeSpan.FromMilliseconds(300), _ => Interlocked.Increment(ref terminated));
+        bool armedWhileWriting = false;
+        using var watchdog = new CrashWatchdog(TimeSpan.FromSeconds(30), _ => Interlocked.Increment(ref terminated));
         var reporter = new CrashReporter(dir.Path, "1.0.0+prueba", new SessionLog())
         {
             MinidumpWriter = (path, _) =>
             {
+                armedWhileWriting = watchdog.IsArmed;
                 File.WriteAllBytes(path, "MDMP"u8.ToArray());
-                return true;
+                return 0;
             },
         };
 
         Assert.NotNull(NativeCrashHandler.WriteGuarded(reporter, watchdog, 0xC0000005, null));
-        Thread.Sleep(600);
 
+        Assert.True(armedWhileWriting);
+        Assert.False(watchdog.IsArmed);
+        Assert.Equal(0, Volatile.Read(ref terminated));
+    }
+
+    [Fact]
+    public void Vigilante_Desarmado_NoTermina()
+    {
+        int terminated = 0;
+        using var watchdog = new CrashWatchdog(TimeSpan.FromSeconds(30), _ => Interlocked.Increment(ref terminated));
+        Assert.False(watchdog.IsArmed);
+
+        watchdog.Arm(0xC0000005);
+        Assert.True(watchdog.IsArmed);
+        watchdog.Disarm();
+
+        Assert.False(watchdog.IsArmed);
         Assert.Equal(0, Volatile.Read(ref terminated));
     }
 

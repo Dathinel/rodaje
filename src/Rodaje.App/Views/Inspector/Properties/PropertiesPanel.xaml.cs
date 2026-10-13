@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Theme;
 using Rodaje.App.Services.Audio;
 using Rodaje.App.Services.Effects;
@@ -37,11 +38,13 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     /// <summary>Los parámetros que muestra ahora el desplegable de la gráfica, en su orden (ver <see cref="ComboBoxChoices"/>).</summary>
     private ChoiceList<string> _graphChoices = new();
+    private readonly ClosedListRetry _graphRetry = new();
     private readonly List<(Button Button, string Id)> _presetTiles = [];
 
     public PropertiesPanel()
     {
         InitializeComponent();
+        GraphParameterBox.RetryWhenClosed(_graphRetry, Refresh);
         _videoRows = [XRow, YRow, ScaleRow, ScaleXRow, ScaleYRow, RotationRow, OpacityRow, AnchorXRow, AnchorYRow, SkewXRow, SkewYRow, ShutterRow, PhaseRow,
             SamplesRow];
         BuildPresetTiles();
@@ -54,19 +57,19 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         foreach ((double lufs, string name) in LoudnessNormalizer.Targets)
         {
             var item = new MenuFlyoutItem { Text = name };
-            item.Click += async (_, _) => await NormalizeAsync(lufs);
+            item.Click += (_, _) => UiTask.Run(NormalizeAsync(lufs));
             NormalizeMenu.Items.Add(item);
         }
 
         NormalizeMenu.Items.Add(new MenuFlyoutSeparator());
         var custom = new MenuFlyoutItem { Text = "Otro objetivo…" };
-        custom.Click += async (_, _) =>
+        custom.Click += (_, _) => UiTask.Run(async () =>
         {
             if (await AskTargetAsync(XamlRoot, "Normalizar el clip") is { } lufs)
             {
                 await NormalizeAsync(lufs);
             }
-        };
+        });
         NormalizeMenu.Items.Add(custom);
 
         PresetBox.Items.Add("Sin ecualizador ni compresor");
@@ -437,7 +440,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     {
         (ChoiceList<string> offered, int selected) = GraphParameterChoice.Build([.. animated.Select(r => (r.Spec.Name, r.Spec.Label))], _graphName);
         ParameterRow? shown = selected >= 0 ? animated[selected] : null;
-        if (!GraphParameterBox.IsDropDownOpen)
+        if (!_graphRetry.Defer(GraphParameterBox.IsDropDownOpen))
         {
             _updatingTransform = true;
             try
@@ -458,14 +461,17 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private void OnGraphParameterSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (_updatingTransform || !_graphChoices.TryGet(GraphParameterBox.SelectedIndex, out string name) || name == _graphName)
-        {
-            return;
-        }
-
-        _graphName = name;
         // El refresco va después del evento: tocar el desplegable dentro de su propio SelectionChanged lo rompe.
-        DispatcherQueue.RunAfterEvent(Refresh);
+        DispatcherQueue.Choose(_graphChoices, GraphParameterBox.SelectedIndex, _updatingTransform, name =>
+        {
+            if (name == _graphName)
+            {
+                return null;
+            }
+
+            _graphName = name;
+            return Refresh;
+        });
     }
 
     private void OnGraphModeClick(object sender, RoutedEventArgs e)
@@ -628,7 +634,9 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
     }
 
-    private async void OnRowReset(object? sender, EventArgs e)
+    private void OnRowReset(object? sender, EventArgs e) => UiTask.Run(OnRowResetAsync(sender, e));
+
+    private async Task OnRowResetAsync(object? sender, EventArgs e)
     {
         if (sender is ParameterRow row && _editor is { } editor && ClipFor(row) is { } clip)
         {
@@ -638,7 +646,9 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
     }
 
-    private async void OnRowClearKeyframes(object? sender, EventArgs e)
+    private void OnRowClearKeyframes(object? sender, EventArgs e) => UiTask.Run(OnRowClearKeyframesAsync(sender, e));
+
+    private async Task OnRowClearKeyframesAsync(object? sender, EventArgs e)
     {
         if (sender is ParameterRow row && _editor is { } editor && ClipFor(row) is { } clip)
         {
@@ -649,17 +659,17 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
     }
 
-    private async void OnResetAllClick(object sender, RoutedEventArgs e) =>
-        await ResetRowsAsync(_videoRows, "Restablecer transformación", "la transformación");
+    private void OnResetAllClick(object sender, RoutedEventArgs e) =>
+        UiTask.Run(ResetRowsAsync(_videoRows, "Restablecer transformación", "la transformación"));
 
-    private async void OnPlacementResetClick(object sender, RoutedEventArgs e) =>
-        await ResetRowsAsync([.. PlacementRows], "Restablecer posición y tamaño", "la posición y el tamaño");
+    private void OnPlacementResetClick(object sender, RoutedEventArgs e) =>
+        UiTask.Run(ResetRowsAsync([.. PlacementRows], "Restablecer posición y tamaño", "la posición y el tamaño"));
 
-    private async void OnShapeResetClick(object sender, RoutedEventArgs e) =>
-        await ResetRowsAsync([.. ShapeRows], "Restablecer ancla e inclinación", "el ancla y la inclinación");
+    private void OnShapeResetClick(object sender, RoutedEventArgs e) =>
+        UiTask.Run(ResetRowsAsync([.. ShapeRows], "Restablecer ancla e inclinación", "el ancla y la inclinación"));
 
-    private async void OnAudioResetClick(object sender, RoutedEventArgs e) =>
-        await ResetRowsAsync(_audioRows, "Restablecer audio", "el volumen y los fundidos");
+    private void OnAudioResetClick(object sender, RoutedEventArgs e) =>
+        UiTask.Run(ResetRowsAsync(_audioRows, "Restablecer audio", "el volumen y los fundidos"));
 
     private async Task ResetRowsAsync(ParameterRow[] rows, string description, string what)
     {

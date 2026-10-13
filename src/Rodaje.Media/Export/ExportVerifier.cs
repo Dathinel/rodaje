@@ -133,9 +133,12 @@ public sealed class ExportVerifier
     /// <exception cref="ExportException"><see cref="ExportErrorCode.EncoderFailed"/> si el JSON no tiene la forma del de ffprobe.</exception>
     internal static ExportReport Read(string json, string full, Func<int, (int MaxGop, int Keyframes)> gop)
     {
+        ArgumentNullException.ThrowIfNull(gop);
+        ExportReport report;
+        int videoIndex;
         try
         {
-            return ReadReport(json, full, gop);
+            (report, videoIndex) = ReadReport(json, full);
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException)
         {
@@ -143,10 +146,22 @@ public sealed class ExportVerifier
             // vez del error de exportación.
             throw new ExportException(ExportErrorCode.EncoderFailed, $"ffprobe devolvió algo que no se entiende al leer {full}.", ex);
         }
+
+        // Fuera del try: la medida de cuadros clave ejecuta ffprobe otra vez, y un fallo suyo salía como un JSON que no se
+        // entiende.
+        if (report.Video is not { } video)
+        {
+            return report;
+        }
+
+        (int maxGop, int keyframes) = gop(videoIndex);
+        return report with { Video = video with { MaxGop = maxGop, KeyframeCount = keyframes } };
     }
 
-    private static ExportReport ReadReport(string json, string full, Func<int, (int MaxGop, int Keyframes)> gop)
+    /// <summary>El informe sin la medida de cuadros clave (que queda en 0) y el índice del flujo de video que hay que medir.</summary>
+    private static (ExportReport Report, int VideoIndex) ReadReport(string json, string full)
     {
+        int videoIndex = -1;
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement root = document.RootElement;
         JsonElement format = root.GetProperty("format");
@@ -176,7 +191,7 @@ public sealed class ExportVerifier
                     throw new ExportException(ExportErrorCode.EncoderFailed, $"ffprobe no dio el índice del flujo de video de {full}.");
                 }
 
-                (int maxGop, int keyframes) = gop(index);
+                videoIndex = index;
                 video = new ExportVideoReport(
                     String(stream, "codec_name") ?? "",
                     String(stream, "profile"),
@@ -192,8 +207,8 @@ public sealed class ExportVerifier
                     Long(stream, "nb_read_packets"),
                     Double(stream, "start_time"),
                     Double(stream, "duration") is var d && d > 0 ? d : Double(format, "duration"),
-                    maxGop,
-                    keyframes,
+                    0,
+                    0,
                     Int(stream, "has_b_frames") > 0);
             }
             else if (type == "subtitle")
@@ -214,10 +229,10 @@ public sealed class ExportVerifier
 
         string formatName = String(format, "format_name") ?? "";
         int chapters = root.TryGetProperty("chapters", out JsonElement list) ? list.GetArrayLength() : 0;
-        return new ExportReport(formatName, Double(format, "duration"), new FileInfo(full).Length, MoovBeforeMdat(full), video, audio, chapters, tags)
+        return (new ExportReport(formatName, Double(format, "duration"), new FileInfo(full).Length, MoovBeforeMdat(full), video, audio, chapters, tags)
         {
             SubtitleCodecs = subtitles,
-        };
+        }, videoIndex);
     }
 
     /// <summary>Lo que no cumple, en español; vacía si el archivo es lo esperado.</summary>

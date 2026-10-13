@@ -29,10 +29,17 @@ internal sealed partial class MatteReader
     /// <summary>Archivos con su lector en memoria (para las pruebas de fugas).</summary>
     internal int OpenSources => _sources.Count;
 
+    /// <summary>Para las pruebas: corre entre encontrar el lector de un archivo y tomar su candado.</summary>
+    internal Action<string>? AfterLookup { get; set; }
+
+    /// <summary>Para las pruebas: corre al sacar un archivo de la lista, justo antes de tomar su candado para cerrarlo.</summary>
+    internal Action<string>? BeforeClose { get; set; }
+
     public bool TryGet(string path, double seconds, out MatteFrame? frame)
     {
         frame = null;
         Source source = _sources.GetOrAdd(path, p => new Source(p, _open));
+        AfterLookup?.Invoke(path);
         return source.TryRead(seconds, out frame);
     }
 
@@ -41,6 +48,7 @@ internal sealed partial class MatteReader
     {
         if (_sources.TryRemove(path, out Source? source))
         {
+            BeforeClose?.Invoke(path);
             source.Close();
         }
     }

@@ -77,7 +77,8 @@ public static class LinkSync
 
     /// <summary>
     /// Material de <paramref name="clip"/> menos material de <paramref name="reference"/> en un mismo instante de la
-    /// línea de tiempo, o <c>null</c> si no se pueden comparar (velocidades distintas o cuadro congelado).
+    /// línea de tiempo, o <c>null</c> si no se pueden comparar (velocidades que mueven distinto el origen, cuadro congelado, o
+    /// curva o reversa en otro lugar).
     /// </summary>
     public static Time? OffsetBetween(Clip reference, Clip clip)
     {
@@ -88,7 +89,9 @@ public static class LinkSync
         ClipSpeed? referenceSpeed = reference.Speed is { IsIdentity: false } rs ? rs : null;
         ClipSpeed? clipSpeed = clip.Speed is { IsIdentity: false } cs ? cs : null;
         bool plain = referenceSpeed is null && clipSpeed is null;
-        if (!plain && (referenceSpeed is null || clipSpeed is null || !referenceSpeed.ContentEquals(clipSpeed) || referenceSpeed.Freeze))
+        // Solo cuenta lo que mueve el origen (velocidad, curva, reversa, congelado): con ContentEquals un distinto Offset o
+        // PreservePitch dejaba sin medir dos enlazados a la misma velocidad constante.
+        if (!plain && (referenceSpeed is null || clipSpeed is null || !referenceSpeed.SameTiming(clipSpeed) || referenceSpeed.Freeze))
         {
             return null;
         }
@@ -98,16 +101,23 @@ public static class LinkSync
             return (clip.SourceIn - clip.Start) - (reference.SourceIn - reference.Start);
         }
 
-        // Con la misma velocidad constante el desfase es exacto: la diferencia de entradas menos lo que recorre el origen
-        // entre los dos inicios (medir un instante con el mapeo arrastra el redondeo de cada clip).
+        // Con curva el Offset es la posición en la curva, y en reversa el origen se ancla en SourceOut: solo se reconoce el
+        // par idéntico en lo que mueve el origen.
         if (referenceSpeed!.Curve is not null || referenceSpeed.Reverse)
         {
-            return clip.Start == reference.Start && clip.SourceIn == reference.SourceIn ? Time.Zero : null;
+            bool sameAnchor = referenceSpeed.Reverse ? clip.SourceOut == reference.SourceOut : clip.SourceIn == reference.SourceIn;
+            return clip.Start == reference.Start && sameAnchor && clipSpeed!.Offset == referenceSpeed.Offset ? Time.Zero : null;
         }
 
+        // Con la misma velocidad constante el desfase es exacto: el clip muestra SourceIn + ⌊I(Offset + τ)⌋ − ⌊I(Offset)⌋,
+        // así que se restan las entradas sin la base de cada una y lo que recorre el origen entre los dos inicios, medido en
+        // el mapeo (medir un instante con el mapeo arrastra el redondeo de cada clip). Con el mismo Offset, la base se anula.
         Rational rate = referenceSpeed.Rate;
-        Int128 travelled = (Int128)(clip.Start - reference.Start).Ticks * rate.Num / rate.Den;
-        return Time.FromTicks((long)((Int128)(clip.SourceIn - reference.SourceIn).Ticks - travelled));
+        RetimeMath math = RetimeMath.Constant(rate);
+        long bases = math.Floor(clipSpeed!.Offset.Ticks) - math.Floor(referenceSpeed.Offset.Ticks);
+        Int128 mapped = (Int128)(clip.Start - reference.Start).Ticks - (clipSpeed.Offset - referenceSpeed.Offset).Ticks;
+        Int128 travelled = mapped * rate.Num / rate.Den;
+        return Time.FromTicks((long)((Int128)(clip.SourceIn - reference.SourceIn).Ticks - bases - travelled));
     }
 
     /// <summary>Los desfases de ahora, sin signo (cuál mide a cuál depende del orden de las pistas).</summary>

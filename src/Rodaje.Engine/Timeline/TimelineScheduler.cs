@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Proxies;
 using Rodaje.Media.Video;
@@ -482,6 +483,8 @@ internal sealed partial class TimelineScheduler : IDisposable
 
             // También los ya cerrados cuya liberación sigue en la cola del ejecutor de servicio: se los espera aquí, así
             // que su cuadro en curso se cancela aquí y no cuando el servicio llegue a la cancelación que dejó el cierre.
+            // Hoy un decodificador no se cierra con un cuadro en vuelo (CollectIdle y MakeRoom exigen InFlight nulo; lo
+            // comprueba TimelineDisposeHangTests), así que para los cerrados esto es una defensa por si eso cambia.
             decoders = [.. _decoders.Values];
             foreach (DecoderState decoder in decoders)
             {
@@ -510,25 +513,33 @@ internal sealed partial class TimelineScheduler : IDisposable
         // que sigan en la cola de servicio encuentran luego el ejecutor detenido y el decodificador ya liberado.
         foreach (DecoderState decoder in decoders)
         {
-            decoder.Executor?.Post(() => DisposeDecoder(decoder));
+            PostRetire(decoder);
         }
 
+        // Un plazo para todos (y no uno por decodificador ni otro aparte para el servicio): con varios colgados, cerrar
+        // tarda como mucho eso. Antes el servicio tenía sus propios 5 s detrás de los de los decodificadores.
+        long deadline = Stopwatch.GetTimestamp() + (long)(CloseTimeout.TotalSeconds * Stopwatch.Frequency);
         foreach (DecoderState decoder in decoders)
         {
-            (decoder.Executor as IDisposable)?.Dispose();
+            StopExecutor(decoder, deadline);
         }
 
-        lock (_gate)
+        switch (_service)
         {
-            foreach (DecoderState decoder in decoders)
-            {
-                decoder.Reserved = 0;
-                _decoders.Remove(decoder.Id);
-            }
+            case DecodeThread service:
+                service.Stop(Remaining(deadline, Stopwatch.GetTimestamp(), Stopwatch.Frequency, service.JoinTimeout));
+                break;
+            case IDisposable disposable:
+                disposable.Dispose();
+                break;
         }
-
-        (_service as IDisposable)?.Dispose();
     }
+
+    /// <summary>
+    /// Lo que espera <see cref="Dispose"/>, en total, a los hilos de los decodificadores y al de servicio. Interno para que
+    /// las pruebas lo acorten; ningún hilo se espera más que su propio <see cref="DecodeThread.JoinTimeout"/>.
+    /// </summary>
+    internal TimeSpan CloseTimeout { get; init; } = DecodeThread.DefaultJoinTimeout;
 
     /// <summary>
     /// Los carriles cuyo clip bajo el cursor es otro (o el mismo con otros tiempos) por la edición: lo que muestren después

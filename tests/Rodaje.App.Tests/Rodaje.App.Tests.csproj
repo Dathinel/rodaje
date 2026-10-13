@@ -28,10 +28,11 @@
     pool, y UiThread.Run lo dejaba en Thread.Join mientras duraba la prueba sin que el pool lo supiera; ahora espera una
     Task y el pool pone otro hilo en su lugar (UiThreadPoolTests: 64 a la vez, 34 s con Join y 3,4 s así). Tampoco pasan
     ya por el pool el cierre del hilo medido de ConcurrentDownloadTests ni, en ModuleClient.Fail, lo que cuelga de
-    Completion delante de las llamadas. Quedan, conocidos: GatedProber (EditorSessionTests) bloquea un hilo del pool hasta
-    que la prueba lo suelta, ModuleConnection.OnExited mata el árbol de procesos en un hilo del pool, y las pruebas
-    síncronas que esperan con .Wait, Thread.Sleep o WaitForExit (sombreadores, títulos, EchoModules.HasExited) lo hacen en
-    el hilo del pool de xUnit.
+    Completion delante de las llamadas. Tampoco ya: GatedProber (EditorSessionTests) se suelta en cuanto la importación
+    espera, las pruebas de sombreadores y títulos en la GPU (TitleClipTests, TitleTextureLeakTests,
+    PackageContentEndToEndTests) corren en un hilo propio (Support/OwnThread) y EchoModules.HasExitedAsync espera con
+    WaitForExitAsync. Quedan, conocidos: ModuleConnection.OnExited mata el árbol de procesos en un hilo del pool, y alguna
+    espera corta en bloque fuera de esa lista (CrashSessionTests, por ejemplo).
   -->
   <ItemGroup>
     <RuntimeHostConfigurationOption Include="System.Threading.ThreadPool.MinThreads" Value="32" />
@@ -68,6 +69,10 @@
     <!-- Importar CinemaDNG con modulo-raw, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Raw\Logic\**\*.cs" Link="RawLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Rodaje.App\Views\Vision\Logic\**\*.cs" Link="VisionLogic\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Complementos: la suscripción de cada fila a su descarga, que la página suelta al rehacer la lista, sin WinUI. -->
+    <Compile Include="..\..\src\Rodaje.App\Views\Plugins\Logic\**\*.cs" Link="PluginsLogic\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Voz en off: el temporizador del diálogo y lo que se borra al cerrar la toma, sin WinUI. -->
+    <Compile Include="..\..\src\Rodaje.App\Views\Voice\Logic\**\*.cs" Link="VoiceLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- El fuzz de la sesión (Fuzz/) arma sus proyectos y sus ediciones con los mismos ayudantes que las propiedades de Core. -->
     <Compile Include="..\Rodaje.Core.Tests\Properties\RandomTimeline.cs" Link="Fuzz\Shared\RandomTimeline.cs" />
     <Compile Include="..\Rodaje.Core.Tests\Model\ModelSamples.cs" Link="Fuzz\Shared\ModelSamples.cs" />

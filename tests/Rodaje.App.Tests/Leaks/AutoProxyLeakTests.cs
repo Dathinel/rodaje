@@ -60,7 +60,9 @@ public sealed class AutoProxyLeakTests : IDisposable
     [Fact]
     public void Leaving_the_resolver_for_null_keeps_it_attached_once()
     {
-        // ProxyUsage.Never devuelve null un rato: no es otro resolvedor, así que no se vuelve a unir.
+        // Nulo no es otro resolvedor: MainWindow lo da con «Proxies: nunca», pero el del reproductor sigue siendo el mismo
+        // (PlayerEngine lo crea una vez y lo suelta al cerrar). No es una fuga: los proxies ya en marcha siguen avisando
+        // su avance a Trabajos, y al volver no se une dos veces.
         using var resolver = new MediaSourceResolver(new ProxyStore(Path.Combine(_folder, "nulo")), generator: null);
         MediaSourceResolver? current = resolver;
         var service = new AutoProxyService(() => current, () => 8L << 30, () => true, null);
@@ -70,6 +72,7 @@ public sealed class AutoProxyLeakTests : IDisposable
         service.Tick();
         current = null;
         service.Tick();
+        Assert.Equal(Raised(resolver, "en-marcha.mp4"), Delta(ref seen));
         current = resolver;
         service.Tick();
 

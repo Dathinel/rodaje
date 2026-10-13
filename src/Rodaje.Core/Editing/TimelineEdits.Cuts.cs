@@ -124,8 +124,10 @@ public static partial class TimelineEdits
 
     /// <summary>
     /// Cada pista cierra sus tramos, y las pistas de los enlazados de lo que se corre cierran los mismos (como
-    /// <see cref="RippleDelete"/> con <see cref="RippleScope.Track"/>). Los clips recortados no arrastran a sus parejas,
-    /// que ya cierran su propio tramo; con Q el recortado empieza justo al final de su tramo y se corre con lo que sigue.
+    /// <see cref="RippleDelete"/> con <see cref="RippleScope.Track"/>). Un recortado cuyas parejas también se recortaron no
+    /// las arrastra, porque ya cierran su propio tramo; si alguna no se recortó (con Q, la que empieza justo en el cursor),
+    /// sí la arrastra. Con Q el recortado empieza justo al final de su tramo y se corre con lo que sigue; con W su tramo
+    /// termina donde él termina, así que nunca cuenta como algo que se corre.
     /// </summary>
     private static void CloseSpansPerTrack(EditContext ctx, List<(Track Track, Time Start, Time End)> spans, HashSet<Clip> trimmed)
     {
@@ -133,9 +135,20 @@ public static partial class TimelineEdits
         var addedTracks = new HashSet<Track>();
 
         // Un recortado arrastra a sus parejas si alguna no se recortó: la que empieza (Q) o termina (W) justo en el punto no
-        // pasa por él, así que no cierra su propio tramo y, sin esto, quedaba desfasada del recortado.
-        var closeOwn = new HashSet<Clip>(trimmed.Where(c => c.LinkId is not { } link
-            || ctx.Sequence.AllTracks.SelectMany(t => t.Clips).Where(o => o.LinkId == link).All(trimmed.Contains)));
+        // pasa por él, así que no cierra su propio tramo y, sin esto, quedaba desfasada del recortado. Se cuentan los clips
+        // de cada enlace en una sola pasada (los recortados están en la secuencia: si los números coinciden, son todos).
+        var linkSizes = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (Clip clip in ctx.Sequence.AllTracks.SelectMany(t => t.Clips))
+        {
+            if (clip.LinkId is { } link)
+            {
+                linkSizes[link] = linkSizes.GetValueOrDefault(link) + 1;
+            }
+        }
+
+        var trimmedPerLink = trimmed.Where(c => c.LinkId is not null).CountBy(c => c.LinkId!, StringComparer.Ordinal)
+            .ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
+        var closeOwn = new HashSet<Clip>(trimmed.Where(c => c.LinkId is not { } link || trimmedPerLink[link] == linkSizes[link]));
         foreach ((Track track, Time start, Time end) in spans)
         {
             foreach (Track t in ctx.LinkedRippleTracks([track], end, closeOwn))

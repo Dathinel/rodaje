@@ -1,21 +1,14 @@
 namespace Rodaje.App.Views.Library;
 
 /// <summary>Una carpeta de la biblioteca: solo organiza la vista, nunca mueve archivos en el disco.</summary>
-public sealed class LibraryFolder
+public sealed partial class LibraryFolder
 {
-    /// <summary>
-    /// Lecturas de <see cref="Id"/> en este hilo: las pruebas de rendimiento cuentan con esto las operaciones de una carga en
-    /// vez de medir segundos (una búsqueda lineal por id lee el de cada carpeta).
-    /// </summary>
-    [ThreadStatic]
-    internal static long IdReads;
-
     /// <summary>Solo se da al crearla: la organización la indexa por id y no vuelve a mirar la lista.</summary>
     public string Id
     {
         get
         {
-            IdReads++;
+            CountIdRead();
             return field;
         }
 
@@ -26,6 +19,12 @@ public sealed class LibraryFolder
 
     /// <summary>Carpeta que la contiene; <c>null</c> en la raíz («Todos los medios»).</summary>
     public string? ParentId { get; set; }
+
+    /// <summary>
+    /// Costura de prueba: las pruebas de rendimiento cuentan con esto las lecturas del id (una búsqueda lineal lee el de cada
+    /// carpeta). Sin cuerpo en la app, el compilador quita la llamada; el cuerpo está en las pruebas.
+    /// </summary>
+    static partial void CountIdRead();
 }
 
 /// <summary>
@@ -41,11 +40,11 @@ public sealed partial class LibraryOrganization
     public const int MaxNameLength = 80;
 
     /// <summary>
-    /// Nombres de carpeta plegados en este hilo (<see cref="FoldName"/>): las pruebas de rendimiento cuentan con esto las
-    /// operaciones de buscar un nombre libre en vez de medir segundos.
+    /// Costura de prueba: cada nombre plegado (<see cref="FoldName"/>), para que las pruebas de rendimiento cuenten las
+    /// operaciones de buscar un nombre libre en vez de medir segundos. Sin cuerpo en la app, el compilador quita la llamada;
+    /// el cuerpo está en las pruebas.
     /// </summary>
-    [ThreadStatic]
-    internal static long NameFolds;
+    static partial void CountNameFold();
 
     private readonly List<LibraryFolder> _folders = [];
 
@@ -486,7 +485,7 @@ public sealed partial class LibraryOrganization
 
     private static string FoldName(string name)
     {
-        NameFolds++;
+        CountNameFold();
         return SearchText.Fold(name);
     }
 

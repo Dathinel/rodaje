@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Crashes;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -149,7 +150,7 @@ public sealed class MediaRelinkService
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(show);
-        session.ProjectOpened += (_, _) => _ = CheckOpenedAsync(session, show);
+        session.ProjectOpened += (_, _) => UiTask.Run(CheckOpenedAsync(session, show));
     }
 
     /// <summary>Lo que se hace al abrir: si faltan medios y el proyecto sigue siendo el mismo, se muestran.</summary>

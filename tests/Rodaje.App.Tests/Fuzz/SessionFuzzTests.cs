@@ -7,7 +7,7 @@ using Xunit.Sdk;
 namespace Rodaje.App.Tests.Fuzz;
 
 /// <summary>
-/// El fuzz de la sesión del editor (<see cref="SessionFuzzer"/>): 200 semillas en la CI, con tope de tiempo, y 20 000 con
+/// El fuzz de la sesión del editor (<see cref="SessionFuzzer"/>): 200 semillas en la CI, siempre todas, y 20 000 con
 /// <c>RODAJE_PRUEBAS_LARGAS=1</c>. Un fallo dice su semilla; se reproduce con <see cref="Semilla_Reproduce"/> y, una vez
 /// corregido, la semilla queda en <see cref="SemillasQueFallaron_YaNoFallan"/>.
 /// </summary>
@@ -21,59 +21,68 @@ public class SessionFuzzTests(ITestOutputHelper output)
     private const int LongSteps = 400;
 
     /// <summary>
-    /// Tope de la corrida de la CI: si el runner va lento, se corta antes de las 200 semillas en vez de alargar la CI más
-    /// de un par de minutos (las semillas que no corrieron se dicen en la salida).
+    /// Corren siempre las 200, sin tope de tiempo: con un tope, un runner lento pasaba la prueba con menos semillas sin que
+    /// nadie lo notara. En Linux tardan unos 18 s; si un día tardan demasiado, se bajan aquí, no en silencio.
     /// </summary>
-    private static readonly TimeSpan CiBudget = TimeSpan.FromSeconds(90);
-
     [Fact]
-    public void DoscientasSemillas_SinFallos() => RunSeeds(0, 200, CiSteps, CiBudget);
+    public void DoscientasSemillas_SinFallos() => RunSeeds(0, 200, CiSteps);
 
     [LongFuzzFact]
-    public void VeinteMilSemillas_SinFallos() => RunSeeds(1_000_000, 20_000, LongSteps, TimeSpan.MaxValue);
+    public void VeinteMilSemillas_SinFallos() => RunSeeds(1_000_000, 20_000, LongSteps);
 
     /// <summary>Unas pocas secuencias de 5 000 acciones, con el historial y los compuestos bien hondos.</summary>
     [LongFuzzFact]
-    public void SecuenciasDeCincoMilAcciones_SinFallos() => RunSeeds(2_000_000, 10, 5_000, TimeSpan.MaxValue);
+    public void SecuenciasDeCincoMilAcciones_SinFallos() => RunSeeds(2_000_000, 10, 5_000);
 
     /// <summary>Para reproducir una semilla del mensaje de un fallo: cámbiala aquí y quita el Skip.</summary>
     [Theory(Skip = "Solo para reproducir a mano una semilla que falló.")]
     [InlineData(0, CiSteps)]
     public void Semilla_Reproduce(int seed, int steps) => SessionFuzzer.Run(seed, steps);
 
-    /// <summary>Las semillas que encontraron defectos, con las acciones que hacían falta para llegar a ellos.</summary>
+    /// <summary>
+    /// Las semillas que encontraron defectos, con las acciones que hacían falta para llegar a ellos. Si el generador
+    /// cambia, una semilla puede dejar de llegar a la acción que probaba y pasar en vacío: por eso se comprueba que esa
+    /// acción sigue en el recorrido. Si falla esto (y no el fuzz), la semilla ya no sirve: búscale otra con
+    /// <see cref="SessionFuzzExplore"/> o quítala (el defecto sigue cubierto en <see cref="SessionFuzzRegressionTests"/>).
+    /// </summary>
     [Theory]
     [MemberData(nameof(FailedSeeds))]
-    public void SemillasQueFallaron_YaNoFallan(int seed, int steps) => SessionFuzzer.Run(seed, steps);
-
-    /// <summary>Semilla y acciones; el defecto de cada una, en <see cref="SessionFuzzRegressionTests"/>.</summary>
-    public static TheoryData<int, int> FailedSeeds => new()
+    public void SemillasQueFallaron_YaNoFallan(int seed, int steps, string action)
     {
-        { 35, CiSteps },  // «Añadir efecto» aceptaba el tipo reservado rodaje.speed.
-        { 920, 300 },     // Un gesto cancelado quitaba la barrera de fusión: el recorte siguiente se fundía con uno viejo.
-        { 6, 300 },       // Un gesto cancelado vaciaba lo que se podía rehacer.
-        { 651, 300 },     // Q con ripple por pista dejaba atrás al audio enlazado que empezaba en el cursor.
-        { 1007, 300 },    // Q con ripple por pista desfasaba enlazados que empezaban en instantes distintos.
-        { 9335, 300 },    // Aplicar un seguimiento cuyo tipo no coincidía con sus cuadros lanzaba.
+        string trace = SessionFuzzer.Run(seed, steps);
+        Assert.True(Regex.IsMatch(trace, action, RegexOptions.Multiline),
+            $"La semilla {seed} ya no hace «{action}»: el generador cambió y la semilla prueba otra cosa.");
+    }
+
+    /// <summary>
+    /// Semilla, acciones y la acción defectuosa como expresión regular sobre el recorrido (una línea por acción, ver
+    /// <see cref="SessionFuzzer.Run"/>); el defecto de cada una, en <see cref="SessionFuzzRegressionTests"/>.
+    /// </summary>
+    public static TheoryData<int, int, string> FailedSeeds => new()
+    {
+        // «Añadir efecto» aceptaba el tipo reservado rodaje.speed.
+        { 35, CiSteps, @"^\d+\. Effect añadir rodaje\.speed " },
+        // Un gesto cancelado quitaba la barrera de fusión: el recorte siguiente se fundía con uno viejo.
+        { 920, 300, @"^\d+\. Gesture .* cancelado$" },
+        // Un gesto cancelado vaciaba lo que se podía rehacer.
+        { 6, 300, @"^\d+\. Gesture .* cancelado$" },
+        // Q con ripple por pista dejaba atrás al audio enlazado que empezaba en el cursor.
+        { 651, 300, @"^\d+\. DeleteSide izquierda Track (magnética=True|.*auto=True)" },
+        // Q con ripple por pista desfasaba enlazados que empezaban en instantes distintos.
+        { 1007, 300, @"^\d+\. DeleteSide izquierda Track (magnética=True|.*auto=True)" },
+        // Aplicar un seguimiento cuyo tipo no coincidía con sus cuadros lanzaba.
+        { 9335, 300, @"^\d+\. Tracking aplicar .*no son de este tipo de seguimiento" },
     };
 
-    private void RunSeeds(int first, int count, int steps, TimeSpan budget)
+    private void RunSeeds(int first, int count, int steps)
     {
         var clock = Stopwatch.StartNew();
-        int ran = 0;
         for (int seed = first; seed < first + count; seed++)
         {
-            if (clock.Elapsed > budget)
-            {
-                output.WriteLine($"Tope de tiempo: corrieron {ran} de {count} semillas en {clock.Elapsed.TotalSeconds:0} s.");
-                return;
-            }
-
             SessionFuzzer.Run(seed, steps);
-            ran++;
         }
 
-        output.WriteLine($"{ran} semillas de {steps} acciones en {clock.Elapsed.TotalSeconds:0.0} s.");
+        output.WriteLine($"{count} semillas de {steps} acciones en {clock.Elapsed.TotalSeconds:0.0} s.");
     }
 }
 

@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
@@ -56,14 +57,18 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
     private string? _runMerge;
     private int _runs;
     // Lo que muestran ahora los desplegables (ver ComboBoxChoices): el panel se refresca con cada edición, también con la
-    // lista abierta; rehacerlos entonces cerraba la app desde WinUI.
+    // lista abierta; rehacerlos entonces cerraba la app desde WinUI. Lo que no se tocó por eso se repite al cerrarla.
     private ChoiceList<TrackUse> _uses = new();
+    private readonly ClosedListRetry _usesRetry = new();
     private ChoiceList<string?> _targets = new();
+    private readonly ClosedListRetry _targetsRetry = new();
     private Time _shownPosition;
 
     public TrackingPanel()
     {
         InitializeComponent();
+        UseBox.RetryWhenClosed(_usesRetry, Refresh);
+        TargetBox.RetryWhenClosed(_targetsRetry, Refresh);
         RegisterPropertyChangedCallback(VisibilityProperty, (_, _) =>
         {
             Publish();
@@ -225,7 +230,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
     {
         TrackUse? chosen = _uses.TryGet(UseBox.SelectedIndex, out TrackUse shown) ? shown : null;
         (ChoiceList<TrackUse> uses, int selected) = TrackingChoices.ForKind(kind, chosen);
-        _uses = ComboBoxChoices.Show(UseBox, _uses, uses, selected);
+        _uses = ComboBoxChoices.Show(UseBox, _uses, uses, selected, retry: _usesRetry);
         ShowTargets(clip);
     }
 
@@ -234,7 +239,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         TrackUse use = _uses.TryGet(UseBox.SelectedIndex, out TrackUse picked) ? picked : TrackUse.FollowPosition;
         string? chosen = _targets.TryGet(TargetBox.SelectedIndex, out string? shown) ? shown : null;
         (ChoiceList<string?> targets, int selected) = TrackingChoices.Targets(Session.Project, Session.Sequence, clip, use, chosen);
-        _targets = ComboBoxChoices.Show(TargetBox, _targets, targets, selected);
+        _targets = ComboBoxChoices.Show(TargetBox, _targets, targets, selected, retry: _targetsRetry);
         TargetBox.Visibility = _targets.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         AutoCropBox.Visibility = use == TrackUse.Stabilize ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -349,7 +354,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
     {
         if (sender is FrameworkElement { Tag: string tag })
         {
-            _ = RunAsync(forward: tag.StartsWith("forward", StringComparison.Ordinal), single: tag.EndsWith('1'));
+            UiTask.Run(RunAsync(forward: tag.StartsWith("forward", StringComparison.Ordinal), single: tag.EndsWith('1')));
         }
     }
 

@@ -117,40 +117,33 @@ internal static class Program
         return path;
     }
 
+    // Las vías de excepción y el filtro nativo, antes que nada; la recuperación de sesiones y la copia en disco del
+    // registro esperan a las opciones (Crashes.BeginSession en Main).
     private static void InstallCrashReporting()
     {
-        // Las vías de excepción y el filtro nativo, antes que nada: un fallo al leer los ajustes también deja rastro.
-        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-        {
-            AppendErrorFile(e.ExceptionObject?.ToString());
-            Crashes.OnAppDomainUnhandled(AppDomain.CurrentDomain, e);
-        };
-        TaskScheduler.UnobservedTaskException += Crashes.OnUnobservedTask;
-        NativeCrashHandler.Install(Crashes);
-        System.Diagnostics.Trace.Listeners.Add(new SessionLogTraceListener(Log));
-        Log.Append($"Rodaje {Crashes.Version} arranca: {Environment.CommandLine}");
-        // La recuperación de sesiones y la copia en disco del registro esperan a las opciones (Crashes.BeginSession en
-        // Main). Un proceso que sale normalmente (Environment.Exit incluido) también cierra la sesión.
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => Crashes.EndSession();
-        // La GPU se lee ahora, fuera de cualquier fallo: un fallo nativo no debe tocar DXGI.
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-            Crashes.WarmUp();
-        });
+        CrashRouting.Install(Crashes, new CrashHooks(), AppendErrorFile, Environment.CommandLine);
+        // Las tareas sueltas de los manejadores y las excepciones que atrapan (UiTask).
+        UiTask.Reporter = ReportHandlerException;
     }
 
-    internal static bool OnDispatcherException(Exception exception)
+    /// <summary>
+    /// Excepción de una tarea suelta de un manejador o atrapada en él (<see cref="UiTask"/>): informe «recuperado» y, si
+    /// <paramref name="notify"/> y no es una repetición de la ráfaga, aviso en la ventana; la app sigue. Desde cualquier hilo.
+    /// </summary>
+    private static void ReportHandlerException(Exception exception, bool notify)
     {
-        if (Instance is { } app)
+        _ = ReportException(CrashKind.DispatcherCallback, exception, fatal: false, out bool repeated);
+        if (notify && !repeated)
         {
-            return app.HandleDispatcherException(exception);
+            Instance?.NotifyUnexpectedError(exception.Message);
         }
-
-        // Sin ventana todavía, sigue su camino (y la app se cierra), pero con informe.
-        ReportException(CrashKind.DispatcherCallback, exception, fatal: true);
-        return false;
     }
+
+    internal static bool OnDispatcherException(Exception exception) =>
+        Instance is { } app
+            ? app.HandleDispatcherException(exception)
+            // Sin ventana todavía, sigue su camino (y la app se cierra), pero con informe.
+            : CrashRouting.OnDispatcherException(exception, null, ReportException);
 
     private static void AppendErrorFile(string? text)
     {

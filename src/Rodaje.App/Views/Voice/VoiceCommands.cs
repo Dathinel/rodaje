@@ -1,4 +1,5 @@
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 
@@ -24,7 +25,9 @@ internal static partial class VoiceCommands
     }
 
     /// <summary>Abre «Grabar voz en off» con la pista elegida (nula: pista nueva).</summary>
-    public static async void RecordVoiceOver(EditorServices services, string? trackId)
+    public static void RecordVoiceOver(EditorServices services, string? trackId) => UiTask.Run(RecordVoiceOverAsync(services, trackId));
+
+    private static async Task RecordVoiceOverAsync(EditorServices services, string? trackId)
     {
         ArgumentNullException.ThrowIfNull(services);
         trackId ??= services.Session.Sequence.AudioTracks.Find(t => t.Armed)?.Id;
@@ -36,6 +39,7 @@ internal static partial class VoiceCommands
         catch (Exception ex)
 #pragma warning restore CA1031
         {
+            UiTask.Report(ex, notify: false);
             services.Session.Notify(NotificationSeverity.Error, "Grabar voz en off", ex.Message);
         }
     }
@@ -50,5 +54,5 @@ internal static partial class VoiceCommands
     }
 
     private static void Run(EditorServices services) =>
-        _ = services.LongActions.RunAsync(TextToSpeech, "Texto a voz", scope => VoiceDialog.ShowAsync(services, scope));
+        UiTask.Run(services.LongActions.RunAsync(TextToSpeech, "Texto a voz", scope => VoiceDialog.ShowAsync(services, scope)));
 }

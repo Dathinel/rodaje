@@ -32,7 +32,7 @@ public sealed class MatteLeakTests : IDisposable
     }
 
     [Fact]
-    public void Clear_closes_every_decoder_and_a_reader_closed_meanwhile_does_not_reopen()
+    public void Clear_closes_every_decoder()
     {
         var reader = new MatteReader(_mattes.Open);
         string[] files = [.. Enumerable.Range(0, 20).Select(i => Touch($"mascara {i}.mkv"))];
@@ -51,6 +51,69 @@ public sealed class MatteLeakTests : IDisposable
         // Después de cerrar, pedirlo de nuevo abre uno nuevo (y solo uno).
         Assert.True(reader.TryGet(files[0], 0.5, out _));
         Assert.Equal(1, _mattes.Live);
+    }
+
+    /// <summary>
+    /// <see cref="MatteReader.Clear"/> desde otro hilo mientras un lector abre el decodificador: el cierre espera a que
+    /// termine de abrir y lo cierra, en vez de pasar de largo y dejarlo abierto.
+    /// </summary>
+    [Fact]
+    public void Clear_from_another_thread_waits_for_an_open_in_progress_and_closes_it()
+    {
+        var reader = new MatteReader(_mattes.Open);
+        string file = Touch("mascara.mkv");
+        FakeMattes.OpenGate gate = _mattes.BlockNextOpen();
+        var opener = Start(() => reader.TryGet(file, 0.5, out _));
+        Assert.True(gate.WaitOpening(TimeSpan.FromSeconds(10)), "El lector no empezó a abrir.");
+
+        using var closing = new ManualResetEventSlim();
+        reader.BeforeClose = _ => closing.Set();
+        var clear = Start(reader.Clear);
+        Assert.True(closing.Wait(TimeSpan.FromSeconds(10)), "Clear no llegó a cerrar el archivo.");
+        WaitUntilDoneOrBlocked(clear, "Clear");
+        gate.Release();
+        Join(opener, clear);
+        Assert.False(gate.TimedOut);
+
+        Assert.Equal(1, _mattes.Opened);
+        Assert.Equal(0, _mattes.Live);
+        Assert.Equal(0, reader.OpenSources);
+    }
+
+    /// <summary>
+    /// Un lector que encontró el archivo antes de <see cref="MatteReader.Clear"/> y toma su candado después del cierre no
+    /// lo vuelve a abrir: ese decodificador ya no está en la lista y nadie lo cerraría.
+    /// </summary>
+    [Fact]
+    public void A_reader_that_found_the_file_before_Clear_does_not_reopen_it()
+    {
+        var reader = new MatteReader(_mattes.Open);
+        string file = Touch("mascara.mkv");
+        Assert.True(reader.TryGet(file, 0.5, out _));
+
+        using var found = new ManualResetEventSlim();
+        using var cleared = new ManualResetEventSlim();
+        bool waited = false;
+        reader.AfterLookup = _ =>
+        {
+            found.Set();
+            waited = cleared.Wait(TimeSpan.FromSeconds(30));
+        };
+        bool read = true;
+        var late = Start(() => read = reader.TryGet(file, 1.5, out _));
+        Assert.True(found.Wait(TimeSpan.FromSeconds(10)), "El lector no llegó a buscar el archivo.");
+        reader.AfterLookup = null;
+
+        // Desde este hilo, con el lector ya en camino hacia el candado.
+        reader.Clear();
+        cleared.Set();
+        Join(late);
+
+        Assert.True(waited, "El lector no esperó al cierre: la prueba no ejerció la carrera.");
+        Assert.False(read);
+        Assert.Equal(1, _mattes.Opened);
+        Assert.Equal(0, _mattes.Live);
+        Assert.Equal(0, reader.OpenSources);
     }
 
     [Fact]
@@ -91,6 +154,60 @@ public sealed class MatteLeakTests : IDisposable
         Assert.Equal(3 * 100, _mattes.Opened);
     });
 
+    /// <summary>Corre en un hilo propio; lo que lance se relanza en <see cref="Join"/> (en el hilo, mataría el proceso).</summary>
+    private static Worker Start(Action action)
+    {
+        var worker = new Worker();
+        worker.Thread = new Thread(() =>
+        {
+            try
+            {
+                action();
+            }
+#pragma warning disable CA1031 // Se relanza en Join.
+            catch (Exception ex)
+#pragma warning restore CA1031
+            {
+                worker.Error = ex;
+            }
+        })
+        { IsBackground = true };
+        worker.Thread.Start();
+        return worker;
+    }
+
+    /// <summary>
+    /// Espera a que el hilo termine o quede bloqueado. Se llama después de la señal del código
+    /// (<see cref="MatteReader.BeforeClose"/>): desde ahí la única espera posible es el candado del lector, y no cualquier
+    /// otra (como la de arrancar el hilo), que era lo que podía confundir mirar solo el estado del hilo.
+    /// </summary>
+    private static void WaitUntilDoneOrBlocked(Worker worker, string what)
+    {
+        Thread thread = worker.Thread!;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (thread.IsAlive && (thread.ThreadState & ThreadState.WaitSleepJoin) == 0)
+        {
+            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"{what} no terminó ni quedó esperando.");
+            Thread.Yield();
+        }
+    }
+
+    private static void Join(params Worker[] workers)
+    {
+        foreach (Worker worker in workers)
+        {
+            Assert.True(worker.Thread!.Join(TimeSpan.FromSeconds(10)), "Un hilo de la prueba no terminó (posible interbloqueo).");
+            Assert.Null(worker.Error);
+        }
+    }
+
+    private sealed class Worker
+    {
+        public Thread? Thread { get; set; }
+
+        public Exception? Error { get; set; }
+    }
+
     private string Touch(string relative)
     {
         string path = Path.Combine(_folder.Path, relative);
@@ -109,11 +226,40 @@ public sealed class MatteLeakTests : IDisposable
 
         public int Opened => Volatile.Read(ref _opened);
 
+        private OpenGate? _gate;
+
+        /// <summary>La próxima apertura avisa a <see cref="OpenGate.WaitOpening"/> y espera a <see cref="OpenGate.Release"/>.</summary>
+        public OpenGate BlockNextOpen() => _gate = new OpenGate();
+
         public IMatteDecoder Open(string path)
         {
+            if (Interlocked.Exchange(ref _gate, null) is { } gate)
+            {
+                gate.Enter();
+            }
+
             Interlocked.Increment(ref _live);
             Interlocked.Increment(ref _opened);
             return new Decoder(this);
+        }
+
+        public sealed class OpenGate
+        {
+            private readonly TaskCompletionSource _opening = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            private readonly TaskCompletionSource _released = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public bool WaitOpening(TimeSpan limit) => _opening.Task.Wait(limit);
+
+            public bool TimedOut { get; private set; }
+
+            public void Release() => _released.TrySetResult();
+
+            /// <summary>En el hilo del lector: no lanza (mataría el proceso); si nadie la suelta, lo anota en <see cref="TimedOut"/>.</summary>
+            internal void Enter()
+            {
+                _opening.TrySetResult();
+                TimedOut = !_released.Task.Wait(TimeSpan.FromSeconds(30));
+            }
         }
 
         private sealed class Decoder(FakeMattes owner) : IMatteDecoder

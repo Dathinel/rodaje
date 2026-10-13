@@ -597,11 +597,9 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         {
             _project = next.Project;
             _sequenceId = next.SequenceId;
-            OpenSession();
 
-            // Otro proyecto (o secuencia): las texturas de los títulos del anterior quedaban en la VRAM hasta que el tope
-            // de la caché las expulsara. Solo se sueltan las que no se usaron en los dos últimos cuadros.
-            _titles?.Trim();
+            // Otro proyecto (o secuencia): abre su sesión y suelta las texturas de los títulos del anterior.
+            ProjectSwitch.Load(OpenSession, _titles);
         }
 
         if (reload is not null && _session is not null)

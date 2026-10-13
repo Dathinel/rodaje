@@ -54,10 +54,31 @@ public sealed class CrashReporter
     public const int KeepDumps = 3;
 
     /// <summary>
-    /// Un error recuperado que se repite (la misma firma: tipo y primera línea de la pila) deja un solo informe en este
-    /// intervalo; las repeticiones se cuentan y se anotan en ese informe («repetido N veces»).
+    /// Copias del registro de sesiones sin cerrar que se conservan cuando su informe no se pudo escribir: sin tope, con el
+    /// disco aún sin permitirlo, se acumulaba una por arranque fallido.
+    /// </summary>
+    public const int KeepUnreportedSessions = 10;
+
+    // Marca junto a la copia del registro de una sesión cuyo informe ya se escribió pero que no se pudo borrar: el siguiente
+    // arranque la borra sin escribir otro informe igual.
+    private const string ReportedSuffix = ".informada";
+
+    /// <summary>
+    /// Un error recuperado que se repite (la misma <see cref="Signature"/>: tipo, mensaje sin números y primera línea de
+    /// la pila) deja un solo informe en este intervalo; las repeticiones se cuentan y se anotan en ese informe
+    /// («repetido N veces»).
     /// </summary>
     public static readonly TimeSpan BurstWindow = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Informes seguidos de una misma firma como mucho: si el error no deja de repetirse (pausas menores que
+    /// <see cref="BurstWindow"/>), a partir de este se cuenta en el último en vez de abrir uno cada 10 s, para que un
+    /// error por tick no gaste los <see cref="KeepReports"/> recuperados y borre los de otros errores.
+    /// </summary>
+    public const int MaxReportsPerBurst = 3;
+
+    /// <summary>Lo que se espera el cerrojo de los informes en un fallo nativo o al cerrar la sesión.</summary>
+    public static readonly TimeSpan DefaultGateTimeout = TimeSpan.FromSeconds(2);
 
     // Firmas recordadas como mucho; pasado el tope se olvidan las que ya salieron del intervalo.
     private const int MaxBursts = 64;
@@ -65,6 +86,7 @@ public sealed class CrashReporter
     private const string RecoveredSuffix = "-recuperado";
     private const string SessionsFolder = "sesiones";
     private const string SeenMarker = ".visto";
+    private const string TemporarySuffix = ".tmp";
 
     private readonly SessionLog _log;
     private readonly Func<string?>? _gpu;
@@ -97,9 +119,25 @@ public sealed class CrashReporter
 
     /// <summary>
     /// Quién escribe el minivolcado de un fallo nativo (ruta, <c>EXCEPTION_POINTERS*</c>); las pruebas lo cambian porque
-    /// volcar un proceso sano desde dentro puede trabarse.
+    /// volcar un proceso sano desde dentro puede trabarse. Escribe en la ruta que recibe (una <c>.dmp.tmp</c> que después
+    /// se renombra) y devuelve 0 si lo logró, o el código del error, que se anota en el informe.
     /// </summary>
-    public Func<string, nint, bool> MinidumpWriter { get; init; } = WriteOwnMinidump;
+    internal Func<string, nint, int> MinidumpWriter { get; init; } = WriteOwnMinidump;
+
+    /// <summary>
+    /// Cuánto se espera el cerrojo de los informes si otro hilo quedó a mitad de uno (el fallo lo detuvo, o se traba el
+    /// disco): en un fallo nativo y al cerrar la sesión (<c>WM_ENDSESSION</c> llega en el hilo de la interfaz).
+    /// </summary>
+    public TimeSpan GateTimeout { get; init; } = DefaultGateTimeout;
+
+    /// <summary>
+    /// Quién escribe un informe de texto (ruta, texto); devuelve si quedó en disco. Las pruebas lo cambian para simular
+    /// un disco lleno o una carpeta sin permiso (como administrador, una carpeta de solo lectura no impide escribir).
+    /// </summary>
+    internal Func<string, string, bool> ReportWriter { get; init; } = TryWrite;
+
+    /// <summary>Borra la copia del registro de una sesión ya informada; las pruebas lo cambian para simular que falla.</summary>
+    internal Action<string> SessionDeleter { get; init; } = File.Delete;
 
     /// <summary>Lee la GPU ahora (fuera de un fallo), para que un fallo nativo no tenga que tocar DXGI.</summary>
     public void WarmUp() => _ = DescribeGpu(probe: true);
@@ -172,21 +210,53 @@ public sealed class CrashReporter
     }
 
     /// <summary>
-    /// Firma de un error para agrupar las repeticiones: el tipo (lo que va antes de «: » en la primera línea) y la primera
-    /// línea de la pila («at …»). Sin pila, la primera línea entera.
+    /// Firma de un error para agrupar las repeticiones: la primera línea (tipo y mensaje) con cada palabra que lleva una
+    /// cifra cambiada por «#» (números de cuadro, tiempos, identificadores) y la primera línea de la pila («at …»), si la
+    /// hay. Dos errores con la misma pila y mensajes distintos no son repeticiones: cada uno deja su informe y su aviso.
     /// </summary>
     public static string Signature(string? details)
     {
         string[] lines = (details ?? string.Empty).ReplaceLineEndings("\n").Split('\n');
-        string first = lines[0].Trim();
+        string first = NormalizeMessage(lines[0].Trim());
         string? frame = lines.Skip(1).Select(l => l.Trim()).FirstOrDefault(l => l.StartsWith("at ", StringComparison.Ordinal));
-        if (frame is null)
+        return frame is null ? first : first + "\n" + frame;
+    }
+
+    // Cambia por «#» cada palabra (letras, cifras, «_» y «-») que lleva alguna cifra, y acorta el texto: un mensaje que
+    // cambia solo en un número o un identificador sigue siendo el mismo error.
+    private static string NormalizeMessage(string line)
+    {
+        const int MaxLength = 400;
+        var text = new StringBuilder(Math.Min(line.Length, MaxLength));
+        int i = 0;
+        while (i < line.Length && text.Length < MaxLength)
         {
-            return first;
+            if (!IsWordChar(line[i]))
+            {
+                text.Append(line[i++]);
+                continue;
+            }
+
+            int start = i;
+            bool digit = false;
+            for (; i < line.Length && IsWordChar(line[i]); i++)
+            {
+                digit |= char.IsAsciiDigit(line[i]);
+            }
+
+            if (digit)
+            {
+                text.Append('#');
+            }
+            else
+            {
+                text.Append(line, start, i - start);
+            }
         }
 
-        int colon = first.IndexOf(": ", StringComparison.Ordinal);
-        return (colon > 0 ? first[..colon] : first) + "\n" + frame;
+        return text.ToString();
+
+        static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c is '_' or '-';
     }
 
     /// <summary>
@@ -196,10 +266,10 @@ public sealed class CrashReporter
     public unsafe string? WriteNativeFatal(uint exceptionCode, void* exceptionPointers)
     {
         // Si otro hilo quedó a mitad de un informe (el fallo lo detuvo), no se espera para siempre: solo el minivolcado.
-        if (!_gate.TryEnter(TimeSpan.FromSeconds(2)))
+        if (!_gate.TryEnter(GateTimeout))
         {
             string? alone = NewPath(_clock(), ".dmp");
-            return alone is not null && MinidumpWriter(alone, (nint)exceptionPointers) ? alone : null;
+            return alone is not null && WriteDump(alone, exceptionPointers) == 0 ? alone : null;
         }
 
         try
@@ -208,7 +278,26 @@ public sealed class CrashReporter
             // (lo corta el vigilante de NativeCrashHandler) y entonces el texto ya está en disco.
             string? report = _fatalReport ?? WriteCore(CrashKind.NativeFatal, DescribeNativeCode(exceptionCode), fatal: true, null, out _);
             string? dump = report is not null ? Path.ChangeExtension(report, ".dmp") : NewPath(_clock(), ".dmp");
-            if (dump is not null && MinidumpWriter(dump, (nint)exceptionPointers))
+            if (dump is null)
+            {
+                // Sin informe ni carpeta no hay dónde anotarlo; no se inventa un código de error.
+                return null;
+            }
+
+            if (File.Exists(dump))
+            {
+                // Otro fallo con el mismo informe (dos llamadas con el mismo _fatalReport): se queda el primer
+                // minivolcado, el del fallo que se anotó; otro no se podría renombrar sobre él.
+                if (report is not null)
+                {
+                    TryAppend(report, $"{Environment.NewLine}Minivolcado: ya había un minivolcado de este fallo; no se escribió otro.{Environment.NewLine}");
+                }
+
+                return report ?? dump;
+            }
+
+            int error = WriteDump(dump, exceptionPointers);
+            if (error == 0)
             {
                 if (report is not null)
                 {
@@ -219,6 +308,11 @@ public sealed class CrashReporter
             }
             else
             {
+                if (report is not null)
+                {
+                    TryAppend(report, DescribeDumpError(error));
+                }
+
                 dump = null;
             }
 
@@ -229,6 +323,12 @@ public sealed class CrashReporter
             _gate.Exit();
         }
     }
+
+    // -1 no es un código de Win32: es lo que dejan NativeCrashHandler y WriteDump cuando el fallo no trae ninguno.
+    private static string DescribeDumpError(int error) => error == -1
+        ? $"{Environment.NewLine}Minivolcado: no se pudo escribir (sin código de error).{Environment.NewLine}"
+        : string.Create(CultureInfo.InvariantCulture,
+            $"{Environment.NewLine}Minivolcado: no se pudo escribir (código {error}, 0x{error:X8}).{Environment.NewLine}");
 
     /// <summary>Texto del código de una excepción nativa, con nombre para los conocidos.</summary>
     public static string DescribeNativeCode(uint code)
@@ -287,9 +387,22 @@ public sealed class CrashReporter
     /// </summary>
     public void EndSession()
     {
-        lock (_gate)
+        // Con WM_ENDSESSION llega en el hilo de la interfaz y Windows termina el proceso poco después: si otro hilo quedó a
+        // mitad de un informe, se cierra la copia del registro sin anotar las repeticiones en vez de esperar sin fin.
+        if (_gate.TryEnter(GateTimeout))
         {
-            FlushBursts();
+            try
+            {
+                FlushBursts();
+            }
+            finally
+            {
+                _gate.Exit();
+            }
+        }
+        else
+        {
+            _log.Append("Cierre de la sesión sin esperar a un informe de fallo a medias: no se anotaron sus repeticiones.");
         }
 
         _log.CloseMirror(delete: true);
@@ -311,9 +424,11 @@ public sealed class CrashReporter
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            _log.Append($"No se pudieron leer las sesiones anteriores en {folder}: {ex.Message}");
             return written;
         }
 
+        var kept = new List<string>();
         foreach (string file in files)
         {
             if (file == _log.MirrorPath || !TryParseSession(Path.GetFileNameWithoutExtension(file), out int pid, out long ticks) || isAlive(pid, ticks))
@@ -321,8 +436,22 @@ public sealed class CrashReporter
                 continue;
             }
 
+            string marker = Path.ChangeExtension(file, ReportedSuffix);
+            if (File.Exists(marker))
+            {
+                // Su informe ya se escribió en un arranque anterior: solo falta borrarla.
+                if (TryDeleteReported(file, marker))
+                {
+                    continue;
+                }
+
+                kept.Add(file);
+                continue;
+            }
+
             try
             {
+                bool reported = false;
                 IReadOnlyList<string> tail = SessionLog.ReadTail(file, _log.Capacity);
                 DateTime ended = File.GetLastWriteTime(file);
                 lock (_gate)
@@ -332,18 +461,39 @@ public sealed class CrashReporter
                         string.Create(CultureInfo.InvariantCulture,
                             $"La sesión del proceso {pid} terminó sin cerrarse y sin dejar informe: un fallo nativo que no pasa por los filtros (error «stowed» de WinRT 0xC000027B, __fastfail, desbordamiento de pila), un cierre desde el Administrador de tareas o un apagón. Última escritura del registro: {ended:yyyy-MM-dd HH:mm:ss}."),
                         null, tail);
-                    if (path is not null && TryWrite(path, report.Format()))
+                    if (path is not null && ReportWriter(path, report.Format()))
                     {
                         written.Add(path);
+                        reported = true;
                     }
                 }
 
-                File.Delete(file);
+                // La copia del registro es la única evidencia: si el informe no quedó en disco (lleno, sin permiso), se
+                // conserva para el siguiente arranque.
+                if (reported)
+                {
+                    // Si no se puede borrar, se marca como informada: antes el siguiente arranque escribía otro informe igual.
+                    if (!TryDeleteReported(file, marker: null))
+                    {
+                        MarkReported(file, marker);
+                        kept.Add(file);
+                    }
+                }
+                else
+                {
+                    _log.Append($"No se pudo escribir el informe de la sesión anterior {Path.GetFileName(file)}; se conserva su registro para el próximo arranque.");
+                    kept.Add(file);
+                }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                _log.Append($"No se pudo recuperar la sesión anterior {Path.GetFileName(file)}: {ex.Message}");
+                kept.Add(file);
             }
         }
+
+        PruneUnreportedSessions(kept);
+        RemoveOrphanMarkers(folder);
 
         if (written.Count > 0)
         {
@@ -351,6 +501,96 @@ public sealed class CrashReporter
         }
 
         return written;
+    }
+
+    private bool TryDeleteReported(string file, string? marker)
+    {
+        try
+        {
+            SessionDeleter(file);
+            if (marker is not null)
+            {
+                File.Delete(marker);
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.Append($"No se pudo borrar el registro de la sesión anterior {Path.GetFileName(file)}, ya informada: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void MarkReported(string file, string marker)
+    {
+        try
+        {
+            File.WriteAllText(marker, "");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.Append($"No se pudo marcar como informada la sesión anterior {Path.GetFileName(file)}: {ex.Message}");
+        }
+    }
+
+    // Deja como mucho KeepUnreportedSessions copias que siguen esperando (las más nuevas): sin informe y sin tope, un disco
+    // que no lo permite durante muchos arranques las acumulaba sin fin.
+    private void PruneUnreportedSessions(List<string> kept)
+    {
+        if (kept.Count <= KeepUnreportedSessions)
+        {
+            return;
+        }
+
+        foreach (string old in kept.OrderByDescending(SafeLastWrite).ThenByDescending(f => f, StringComparer.Ordinal).Skip(KeepUnreportedSessions))
+        {
+            try
+            {
+                File.Delete(old);
+                File.Delete(Path.ChangeExtension(old, ReportedSuffix));
+                _log.Append($"Se descartó el registro de la sesión anterior {Path.GetFileName(old)}: ya había {KeepUnreportedSessions} esperando informe.");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _log.Append($"No se pudo descartar el registro de la sesión anterior {Path.GetFileName(old)}: {ex.Message}");
+            }
+        }
+
+        static DateTime SafeLastWrite(string file)
+        {
+            try
+            {
+                return File.GetLastWriteTimeUtc(file);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return DateTime.MinValue;
+            }
+        }
+    }
+
+    // Una marca cuya copia ya no está (se borró a mano o en un arranque en que borrar la marca falló) no sirve de nada.
+    private static void RemoveOrphanMarkers(string folder)
+    {
+        try
+        {
+            if (!Directory.Exists(folder))
+            {
+                return;
+            }
+
+            foreach (string marker in Directory.GetFiles(folder, "*" + ReportedSuffix))
+            {
+                if (!File.Exists(Path.ChangeExtension(marker, ".log")))
+                {
+                    File.Delete(marker);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     // ---- Aviso al siguiente arranque ----
@@ -390,6 +630,8 @@ public sealed class CrashReporter
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // Sin la marca, el mismo aviso vuelve a salir en el próximo arranque.
+            _log.Append($"No se pudieron marcar como vistos los informes de fallo: {ex.Message}");
         }
     }
 
@@ -406,8 +648,43 @@ public sealed class CrashReporter
 
     // ---- Interno ----
 
-    private static unsafe bool WriteOwnMinidump(string path, nint exceptionPointers) =>
-        NativeCrashHandler.WriteMinidump(path, (void*)exceptionPointers);
+    private static unsafe int WriteOwnMinidump(string path, nint exceptionPointers) =>
+        NativeCrashHandler.WriteMinidump(path, (void*)exceptionPointers, out int error) ? 0 : error;
+
+    // El minivolcado se escribe en «.dmp.tmp» y se renombra al terminar: si el vigilante termina el proceso a mitad de
+    // MiniDumpWriteDump, no queda un «.dmp» truncado que pase por bueno (Prune borra los «.tmp» que queden). Devuelve 0
+    // si quedó en dump, o el código del error.
+    private unsafe int WriteDump(string dump, void* exceptionPointers)
+    {
+        string temporary = dump + TemporarySuffix;
+        int error = MinidumpWriter(temporary, (nint)exceptionPointers);
+        try
+        {
+            if (error == 0)
+            {
+                File.Move(temporary, dump);
+                return 0;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            error = ex.HResult;
+        }
+
+        TryDelete(temporary);
+        return error == 0 ? -1 : error;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
 
     private string? DescribeGpu(bool probe)
     {
@@ -477,17 +754,35 @@ public sealed class CrashReporter
         }
     }
 
+    // Como TryAppend, pero solo a un archivo que ya existe: si Prune borró el informe, no se crea uno nuevo con la
+    // última línea sola.
+    private static void TryAppendExisting(string path, string text)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.Read);
+            _ = stream.Seek(0, SeekOrigin.End);
+            stream.Write(new UTF8Encoding(false).GetBytes(text));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     private string? WriteCore(CrashKind kind, string? details, bool fatal, string? dumpPath, out bool repeated)
     {
         DateTime now = _clock();
         repeated = false;
         string? signature = null;
+        int chained = 0;
         if (!fatal)
         {
             signature = Signature(details);
             if (_bursts.TryGetValue(signature, out Burst? burst))
             {
-                if (now >= burst.Written && now - burst.Written < BurstWindow)
+                // Dentro del intervalo del último informe, o en una ráfaga que no para y ya dejó MaxReportsPerBurst.
+                bool continuous = now >= burst.LastSeen && now - burst.LastSeen < BurstWindow;
+                if ((now >= burst.Written && now - burst.Written < BurstWindow) || (continuous && burst.Reports >= MaxReportsPerBurst))
                 {
                     burst.Repeated++;
                     burst.LastRepeat = now;
@@ -495,6 +790,7 @@ public sealed class CrashReporter
                     return burst.Path;
                 }
 
+                chained = continuous ? burst.Reports : 0;
                 FlushBurst(burst);
                 _ = _bursts.Remove(signature);
             }
@@ -505,7 +801,7 @@ public sealed class CrashReporter
         {
             var report = new CrashReport(kind, now, fatal, Version, DescribeGpu(probe: kind != CrashKind.NativeFatal), details ?? "(sin detalles)",
                 dumpPath, _log.Tail());
-            if (!TryWrite(path, report.Format()))
+            if (!ReportWriter(path, report.Format()))
             {
                 path = null;
             }
@@ -514,7 +810,7 @@ public sealed class CrashReporter
         if (signature is not null)
         {
             // También si no se pudo escribir: con el disco lleno, una ráfaga no reintenta en cada repetición.
-            RememberBurst(signature, new Burst(path, now));
+            RememberBurst(signature, new Burst(path, now) { Reports = chained + 1 });
         }
 
         if (path is null)
@@ -538,7 +834,7 @@ public sealed class CrashReporter
         if (_bursts.Count >= MaxBursts)
         {
             DateTime now = burst.Written;
-            foreach ((string key, Burst old) in _bursts.Where(p => now - p.Value.Written >= BurstWindow || now < p.Value.Written).ToList())
+            foreach ((string key, Burst old) in _bursts.Where(p => now - p.Value.LastSeen >= BurstWindow || now < p.Value.Written).ToList())
             {
                 FlushBurst(old);
                 _ = _bursts.Remove(key);
@@ -547,7 +843,7 @@ public sealed class CrashReporter
             if (_bursts.Count >= MaxBursts)
             {
                 // Todas siguen dentro del intervalo (muchas firmas distintas a la vez): se olvida la más vieja.
-                KeyValuePair<string, Burst> oldest = _bursts.MinBy(p => p.Value.Written);
+                KeyValuePair<string, Burst> oldest = _bursts.MinBy(p => p.Value.LastSeen);
                 FlushBurst(oldest.Value);
                 _ = _bursts.Remove(oldest.Key);
             }
@@ -564,8 +860,8 @@ public sealed class CrashReporter
             return;
         }
 
-        TryAppend(burst.Path, string.Create(CultureInfo.InvariantCulture,
-            $"{Environment.NewLine}Repetido {burst.Repeated} veces más hasta las {burst.LastRepeat:HH:mm:ss.fff} (un informe por error cada {BurstWindow.TotalSeconds:0} s).{Environment.NewLine}"));
+        TryAppendExisting(burst.Path, string.Create(CultureInfo.InvariantCulture,
+            $"{Environment.NewLine}Repetido {burst.Repeated} veces más hasta las {burst.LastRepeat:HH:mm:ss.fff} (un informe por error cada {BurstWindow.TotalSeconds:0} s, como mucho {MaxReportsPerBurst} seguidos).{Environment.NewLine}"));
         burst.Repeated = 0;
     }
 
@@ -585,6 +881,8 @@ public sealed class CrashReporter
             string[] reports = Directory.GetFiles(Folder, "*.txt");
             IEnumerable<string>[] groups =
             [
+                // Minivolcados a medias de un proceso que terminó mientras volcaba.
+                Directory.GetFiles(Folder, "*.dmp" + TemporarySuffix),
                 reports.Where(IsRecovered).Order(StringComparer.Ordinal).SkipLast(KeepReports),
                 reports.Where(f => !IsRecovered(f)).Order(StringComparer.Ordinal).SkipLast(KeepReports),
                 Directory.GetFiles(Folder, "*.dmp").Order(StringComparer.Ordinal).SkipLast(KeepDumps),
@@ -636,6 +934,12 @@ public sealed class CrashReporter
         public int Repeated { get; set; }
 
         public DateTime LastRepeat { get; set; }
+
+        /// <summary>Informes seguidos de esta firma, contando este (ver <see cref="MaxReportsPerBurst"/>).</summary>
+        public int Reports { get; init; } = 1;
+
+        /// <summary>La última vez que apareció el error: al escribir el informe o en su última repetición.</summary>
+        public DateTime LastSeen => LastRepeat > Written ? LastRepeat : Written;
     }
 }
 

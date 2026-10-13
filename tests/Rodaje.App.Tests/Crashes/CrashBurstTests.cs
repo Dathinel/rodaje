@@ -13,6 +13,9 @@ public class CrashBurstTests
 {
     private static readonly DateTime Start = new(2026, 10, 13, 10, 0, 0, DateTimeKind.Local);
 
+    // El número del tick cambia en cada llamada, como el de un cuadro: la firma no lo tiene en cuenta.
+    private static int s_tick;
+
     [Fact]
     public void Rafaga_LaMismaFirma_DejaUnInformeCada10s_YCuentaLasRepeticiones()
     {
@@ -95,14 +98,15 @@ public class CrashBurstTests
     }
 
     [Fact]
-    public void Firma_EsElTipoYLaPrimeraLineaDeLaPila()
+    public void Firma_EsElMensajeSinNumerosYLaPrimeraLineaDeLaPila()
     {
         string a = CrashReporter.Signature(ThrownEachTick().ToString());
         string b = CrashReporter.Signature(new InvalidOperationException("otro mensaje distinto").ToString() + Environment.NewLine + ThrownEachTick().StackTrace);
 
-        Assert.StartsWith("System.InvalidOperationException\nat ", a, StringComparison.Ordinal);
+        Assert.StartsWith("System.InvalidOperationException: falló el tick #\nat ", a, StringComparison.Ordinal);
         Assert.Contains(nameof(Throw), a, StringComparison.Ordinal);
-        Assert.Equal(a, b);
+        Assert.Equal(a, CrashReporter.Signature(ThrownEachTick().ToString()));
+        Assert.NotEqual(a, b);
         Assert.Equal("autoprueba: algo", CrashReporter.Signature("autoprueba: algo"));
         Assert.NotEqual(CrashReporter.Signature("autoprueba: algo"), CrashReporter.Signature("autoprueba: otra cosa"));
     }
@@ -117,7 +121,7 @@ public class CrashBurstTests
 
         for (int i = 0; i < 100; i++)
         {
-            reporter.Write(CrashKind.Caught, "error " + i.ToString(CultureInfo.InvariantCulture), fatal: false);
+            reporter.Write(CrashKind.Caught, "error " + (char)('a' + (i / 26)) + (char)('a' + (i % 26)), fatal: false); // Distintos: la firma no mira los números.
         }
 
         Assert.True(File.Exists(fatal));
@@ -149,7 +153,7 @@ public class CrashBurstTests
     {
         try
         {
-            Throw("falló el tick " + Guid.NewGuid().ToString("N"));
+            Throw("falló el tick " + Interlocked.Increment(ref s_tick).ToString(CultureInfo.InvariantCulture));
             return new InvalidOperationException("no llegó");
         }
         catch (InvalidOperationException ex)

@@ -38,13 +38,13 @@ public class UiDeferralTests
     }
 
     [Fact]
-    public void SiLaColaNoLaAcepta_SeHaceYa_YTambienQuedaRegistrada()
+    public void SiLaColaNoLaAcepta_SeDescarta()
     {
-        using var dir = new TempDirectory();
-        var reporter = new CrashReporter(dir.Path, "1.0.0+prueba", new SessionLog());
-        var reports = new List<string?>();
-        UiDeferral.RunAfterEvent(_ => false, () => throw new ArgumentException("ya"), Report(reporter, reports));
-        Assert.NotNull(Assert.Single(reports));
+        // Tarea 121: hacerla ya sería hacerla dentro del evento (la cola la rechaza al cerrar la ventana).
+        int runs = 0;
+        Assert.False(UiDeferral.RunAfterEvent(_ => false, () => runs++, _ => true));
+        Assert.False(UiDeferral.RunAfterEvent(_ => false, () => throw new ArgumentException("ya"), _ => throw new InvalidOperationException()));
+        Assert.Equal(0, runs);
     }
 
     [Fact]
@@ -63,11 +63,13 @@ public class UiDeferralTests
     {
         // Como GuardedSynchronizationContext: sin ventana todavía (el manejador devuelve false) o si el manejador falla.
         var seen = new List<Exception>();
-        Assert.Throws<InvalidOperationException>(() => UiDeferral.RunAfterEvent(_ => false, () => throw new InvalidOperationException(), ex =>
+        var queue = new Queue<Action>();
+        Assert.True(UiDeferral.RunAfterEvent(a => { queue.Enqueue(a); return true; }, () => throw new InvalidOperationException(), ex =>
         {
             seen.Add(ex);
             return false;
         }));
+        Assert.Throws<InvalidOperationException>(queue.Dequeue());
         Assert.Single(seen);
         Assert.Throws<InvalidOperationException>(() => UiDeferral.Run(() => throw new InvalidOperationException(), _ => throw new FormatException()));
     }

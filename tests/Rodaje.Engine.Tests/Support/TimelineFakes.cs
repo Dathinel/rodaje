@@ -130,6 +130,11 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
             return ValueTask.FromException<DecodedFrame?>(new MediaException($"Cuadro {frameIndex} dañado."));
         }
 
+        if (owner.HangFrame?.Invoke(Path, frameIndex) == true)
+        {
+            return new ValueTask<DecodedFrame?>(owner.Hang(cancellationToken));
+        }
+
         if (owner.AsyncDecode)
         {
             // Como uno que termina en otro hilo: la continuación del programador corre allí.
@@ -160,6 +165,10 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
 
         owner.OnVideoDispose?.Invoke(this);
         _disposed = true;
+        if (owner.DisposeFailure?.Invoke(this) is { } failure)
+        {
+            throw failure;
+        }
     }
 
     /// <summary>Tarda lo que diga <see cref="FakeTimelineBackend.DecodeDelay"/>; se corta si cancelan la petición.</summary>
@@ -167,7 +176,15 @@ internal sealed class FakeMediaVideo(string path, MediaInfo info, FakeTimelineBa
     {
         if (owner.DecodeDelay?.Invoke(frameIndex) is { } delay && delay > TimeSpan.Zero)
         {
-            cancellationToken.WaitHandle.WaitOne(delay);
+            Interlocked.Increment(ref owner.DelaysInProgress);
+            try
+            {
+                cancellationToken.WaitHandle.WaitOne(delay);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref owner.DelaysInProgress);
+            }
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -294,6 +311,7 @@ internal sealed class ManualTimeProvider : TimeProvider
 internal sealed class FakeTimelineBackend : IClipBackend
 {
     private readonly Dictionary<string, MediaInfo> _media = new(StringComparer.OrdinalIgnoreCase);
+    private int _hungFrames;
 
     public LiveCounter Live { get; } = new();
 
@@ -311,11 +329,35 @@ internal sealed class FakeTimelineBackend : IClipBackend
     /// <summary>Cada cuadro termina en otro hilo (del grupo), no en el del decodificador.</summary>
     public bool AsyncDecode { get; init; }
 
+    /// <summary>Cuadros que están dentro de la espera de <see cref="DecodeDelay"/> (se lee con <see cref="Volatile"/>).</summary>
+    internal int DelaysInProgress;
+
     /// <summary>Lo que tarda en cerrarse cada decodificador, como uno real que libera su pool.</summary>
     public TimeSpan DisposeDelay { get; init; }
 
+    /// <summary>
+    /// Los cuadros (por ruta e índice) que no terminan nunca salvo que se cancele su petición, como un decodificador que
+    /// espera un paquete que no llega.
+    /// </summary>
+    public Func<string, long, bool>? HangFrame { get; init; }
+
+    /// <summary>Peticiones de <see cref="HangFrame"/> todavía en vuelo (no canceladas).</summary>
+    public int HungFrames => Volatile.Read(ref _hungFrames);
+
+    /// <summary>Si se da, lo que lanza el cierre de cada decodificador, después de darlo por cerrado.</summary>
+    public Func<FakeMediaVideo, Exception?>? DisposeFailure { get; set; }
+
+    /// <summary>Si se da, lo que tarda en terminar cada <see cref="DecodeThread"/> antes de darlo por colgado.</summary>
+    public TimeSpan? JoinTimeout { get; init; }
+
     /// <summary>Corre en el hilo que cierra cada decodificador, antes de darlo por cerrado: puede bloquearlo.</summary>
     public Action<FakeMediaVideo>? OnVideoDispose { get; set; }
+
+    /// <summary>
+    /// Si se da, la lectura de keyframes del archivo (corre en el ejecutor de servicio, así que puede bloquearlo, como una
+    /// lectura lenta del disco). Sin darlo devuelve nulo, como hasta ahora.
+    /// </summary>
+    public Func<string, IKeyframeIndex?>? OnReadKeyframes { get; set; }
 
     /// <summary>Si se da, cada decodificador simula un pool de D3D11VA con superficies de este tamaño y pide su tamaño al programador.</summary>
     public long? PoolSurfaceBytes { get; init; }
@@ -396,7 +438,7 @@ internal sealed class FakeTimelineBackend : IClipBackend
     {
         if (RealThreads)
         {
-            return new DecodeThread();
+            return JoinTimeout is { } timeout ? new DecodeThread("Rodaje decodificación (prueba)", timeout) : new DecodeThread();
         }
 
         if (!ManualDecoding)
@@ -407,6 +449,21 @@ internal sealed class FakeTimelineBackend : IClipBackend
         var executor = new ManualExecutor();
         Executors.Add(executor);
         return executor;
+    }
+
+    public IKeyframeIndex? ReadKeyframes(string path) => OnReadKeyframes?.Invoke(path);
+
+    /// <summary>Un cuadro que solo termina (cancelado) cuando se cancela su petición; mientras, cuenta en <see cref="HungFrames"/>.</summary>
+    public Task<DecodedFrame?> Hang(CancellationToken cancellationToken)
+    {
+        var pending = new TaskCompletionSource<DecodedFrame?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Interlocked.Increment(ref _hungFrames);
+        cancellationToken.Register(() =>
+        {
+            Interlocked.Decrement(ref _hungFrames);
+            pending.TrySetCanceled(cancellationToken);
+        });
+        return pending.Task;
     }
 
     /// <summary>Corre todo el trabajo pendiente de todos los orígenes hasta que no quede nada.</summary>

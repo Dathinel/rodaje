@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
@@ -60,6 +61,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
     private readonly List<ParameterRow> _rows = [];
     /// <summary>Lo que muestra ahora el desplegable de tipo (ver <see cref="ComboBoxChoices"/>).</summary>
     private ChoiceList<(string Type, string Preset)> _types = new();
+    private readonly ClosedListRetry _typesRetry = new();
     private readonly List<ToggleButton> _alignmentButtons = [];
     private readonly List<ToggleButton> _curveButtons = [];
     private readonly List<ToggleButton> _directionButtons = [];
@@ -80,6 +82,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
     public TransitionPanel()
     {
         InitializeComponent();
+        TypeBox.RetryWhenClosed(_typesRetry, Refresh);
         foreach ((TransitionAlignment value, string name, string help) in Alignments)
         {
             var button = new ToggleButton
@@ -341,7 +344,9 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
             : "Velocidad constante. La misma curva mueve la imagen y, en audio, el cruce de volumen.";
     }
 
-    private async void RequestPreview(TransitionInstance transition)
+    private void RequestPreview(TransitionInstance transition) => UiTask.Run(RequestPreviewAsync(transition));
+
+    private async Task RequestPreviewAsync(TransitionInstance transition)
     {
         if (_previews is null)
         {
@@ -409,7 +414,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
         }
 
         // Con la lista abierta no se toca: el próximo refresco la pone al día.
-        if (TypeBox.IsDropDownOpen)
+        if (_typesRetry.Defer(TypeBox.IsDropDownOpen))
         {
             return;
         }
@@ -610,13 +615,9 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
 
     private void OnTypeSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (_updating || !_types.TryGet(TypeBox.SelectedIndex, out (string Type, string Preset) choice) || _editor is null || _transitionId is not { } id)
-        {
-            return;
-        }
-
         // Cambiar el tipo edita y refresca el panel, que puede rehacer este desplegable: va después del evento.
-        DispatcherQueue.RunAfterEvent(() => ChooseType(id, choice.Type, choice.Preset));
+        DispatcherQueue.Choose(_types, TypeBox.SelectedIndex, _updating, choice =>
+            _editor is null || _transitionId is not { } id ? null : () => ChooseType(id, choice.Type, choice.Preset));
     }
 
     private void ChooseType(string id, string type, string preset)

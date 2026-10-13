@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Rodaje.App.Services;
@@ -31,7 +32,8 @@ public sealed class AppLeakGroup
 
 /// <summary>
 /// Abrir y cerrar 100 veces un proyecto con video, título, máscara y mezclador, con los servicios que la ventana une a
-/// la sesión: ningún proyecto anterior queda vivo, las suscripciones a la sesión no crecen y la memoria tampoco.
+/// la sesión: ningún proyecto anterior queda vivo, las suscripciones a la sesión no crecen y la memoria y los
+/// identificadores del proceso tampoco.
 /// </summary>
 [Collection(AppLeakGroup.Name)]
 public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDisposable
@@ -53,6 +55,7 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
 
         var opened = new List<WeakReference<Project>>();
         long memoryBefore = 0;
+        int handlesBefore = 0;
         int subscriptionsBefore = 0;
         int cycles = 100 * Scale;
         for (int cycle = 0; cycle < cycles; cycle++)
@@ -72,18 +75,25 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
             if (cycle == 9)
             {
                 memoryBefore = ManagedMemory();
+                handlesBefore = Handles();
                 subscriptionsBefore = Subscriptions(session);
             }
         }
 
         long grown = ManagedMemory() - memoryBefore;
+        int handlesGrown = Handles() - handlesBefore;
         int alive = opened.Count(w => w.TryGetTarget(out _));
-        output.WriteLine($"{cycles} aperturas: {alive} proyectos vivos de {opened.Count}, {subscriptionsBefore} suscripciones, memoria {grown / 1024.0:F0} KB.");
+        output.WriteLine($"{cycles} aperturas: {alive} proyectos vivos de {opened.Count}, {subscriptionsBefore} suscripciones, memoria {grown / 1024.0:F0} KB, identificadores {handlesGrown:+0;-0;0} (de {handlesBefore}).");
 
         // El proyecto abierto y, como mucho, el anterior (lo que la ventana retiene hasta el próximo cuadro).
         Assert.InRange(alive, 0, 2);
         Assert.Equal(subscriptionsBefore, Subscriptions(session));
         Assert.True(grown < 8L << 20, $"La memoria administrada creció {grown / 1024.0:F0} KB en {cycles} aperturas.");
+
+        // Un archivo, evento o hilo sin cerrar por apertura sumaría uno por vuelta (90 desde la medición); el margen es
+        // para los hilos que el grupo de hilos crea o suelta por su cuenta.
+        int measured = cycles - 10;
+        Assert.True(handlesGrown < measured / 2, $"Los identificadores del proceso crecieron {handlesGrown} en {measured} aperturas (de {handlesBefore}).");
     });
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -142,6 +152,13 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
         }
 
         return count;
+    }
+
+    /// <summary>Identificadores del proceso (archivos, eventos, hilos…), después de juntar la basura y correr los finalizadores.</summary>
+    private static int Handles()
+    {
+        using var process = Process.GetCurrentProcess();
+        return process.HandleCount;
     }
 
     private static long ManagedMemory()
