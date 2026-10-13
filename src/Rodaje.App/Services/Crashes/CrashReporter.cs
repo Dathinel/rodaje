@@ -77,11 +77,28 @@ public sealed class CrashReporter
     /// </summary>
     public const int MaxReportsPerBurst = 3;
 
+    /// <summary>
+    /// Informes de una misma firma como mucho en <see cref="SignatureWindow"/>, con pausas largas o cortas: un error cada
+    /// 11 s esquivaba <see cref="MaxReportsPerBurst"/> (cada pausa cerraba la ráfaga) y dejaba un informe y un aviso por
+    /// repetición, hasta borrar con el recorte de <see cref="KeepReports"/> los de otros errores. Pasado el tope, las
+    /// repeticiones se cuentan en el último informe y no avisan en la ventana.
+    /// </summary>
+    public const int MaxReportsPerSignature = 10;
+
+    /// <summary>Intervalo de <see cref="MaxReportsPerSignature"/>.</summary>
+    public static readonly TimeSpan SignatureWindow = TimeSpan.FromHours(1);
+
+    /// <summary>Primeras líneas distintas de las repeticiones que se anotan en el informe al volcar las repeticiones.</summary>
+    public const int MaxRepeatVariants = 5;
+
     /// <summary>Lo que se espera el cerrojo de los informes en un fallo nativo o al cerrar la sesión.</summary>
     public static readonly TimeSpan DefaultGateTimeout = TimeSpan.FromSeconds(2);
 
     // Firmas recordadas como mucho; pasado el tope se olvidan las que ya salieron del intervalo.
     private const int MaxBursts = 64;
+
+    // Firmas cuyo historial de informes (para MaxReportsPerSignature) se recuerda como mucho.
+    private const int MaxSignatures = 256;
 
     private const string RecoveredSuffix = "-recuperado";
     private const string SessionsFolder = "sesiones";
@@ -94,6 +111,7 @@ public sealed class CrashReporter
     private readonly Lock _gate = new();
     private readonly ConditionalWeakTable<Exception, Reported> _reported = [];
     private readonly Dictionary<string, Burst> _bursts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, SignatureHistory> _signatures = new(StringComparer.Ordinal);
     private string? _gpuCache;
     private string? _fatalReport;
 
@@ -138,6 +156,12 @@ public sealed class CrashReporter
 
     /// <summary>Borra la copia del registro de una sesión ya informada; las pruebas lo cambian para simular que falla.</summary>
     internal Action<string> SessionDeleter { get; init; } = File.Delete;
+
+    /// <summary>
+    /// Borra un informe o un minivolcado viejo en el recorte (<c>Prune</c>); las pruebas lo cambian para simular un archivo
+    /// bloqueado (abierto en un editor, o por el antivirus).
+    /// </summary>
+    internal Action<string> PruneDeleter { get; init; } = File.Delete;
 
     /// <summary>Lee la GPU ahora (fuera de un fallo), para que un fallo nativo no tenga que tocar DXGI.</summary>
     public void WarmUp() => _ = DescribeGpu(probe: true);
@@ -213,6 +237,8 @@ public sealed class CrashReporter
     /// Firma de un error para agrupar las repeticiones: la primera línea (tipo y mensaje) con cada palabra que lleva una
     /// cifra cambiada por «#» (números de cuadro, tiempos, identificadores) y la primera línea de la pila («at …»), si la
     /// hay. Dos errores con la misma pila y mensajes distintos no son repeticiones: cada uno deja su informe y su aviso.
+    /// Los códigos de error no se cambian: ni los «0x…» (un HRESULT) ni la palabra que sigue a «código», «code» (también
+    /// «exit code») o «HRESULT»; <c>COMException (0x887A0005)</c> y <c>(0x80070057)</c> son errores distintos.
     /// </summary>
     public static string Signature(string? details)
     {
@@ -222,13 +248,14 @@ public sealed class CrashReporter
         return frame is null ? first : first + "\n" + frame;
     }
 
-    // Cambia por «#» cada palabra (letras, cifras, «_» y «-») que lleva alguna cifra, y acorta el texto: un mensaje que
-    // cambia solo en un número o un identificador sigue siendo el mismo error.
+    // Cambia por «#» cada palabra (letras, cifras, «_» y «-») que lleva alguna cifra, salvo los códigos de error, y acorta
+    // el texto: un mensaje que cambia solo en un número o un identificador sigue siendo el mismo error.
     private static string NormalizeMessage(string line)
     {
         const int MaxLength = 400;
         var text = new StringBuilder(Math.Min(line.Length, MaxLength));
         int i = 0;
+        bool afterCodeLabel = false;
         while (i < line.Length && text.Length < MaxLength)
         {
             if (!IsWordChar(line[i]))
@@ -244,19 +271,43 @@ public sealed class CrashReporter
                 digit |= char.IsAsciiDigit(line[i]);
             }
 
-            if (digit)
+            ReadOnlySpan<char> word = line.AsSpan(start, i - start);
+            if (digit && !afterCodeLabel && !IsHexCode(word))
             {
                 text.Append('#');
             }
             else
             {
-                text.Append(line, start, i - start);
+                text.Append(word);
             }
+
+            afterCodeLabel = IsCodeLabel(word);
         }
 
         return text.ToString();
 
         static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c is '_' or '-';
+
+        // «0x887A0005», «-0x7FF8FFA9».
+        static bool IsHexCode(ReadOnlySpan<char> word)
+        {
+            word = word.TrimStart('-');
+            return word.Length > 2 && word[0] == '0' && word[1] is 'x' or 'X';
+        }
+
+        static bool IsCodeLabel(ReadOnlySpan<char> word) =>
+            word.Equals("código", StringComparison.OrdinalIgnoreCase)
+            || word.Equals("codigo", StringComparison.OrdinalIgnoreCase)
+            || word.Equals("code", StringComparison.OrdinalIgnoreCase)
+            || word.Equals("hresult", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // La primera línea del error (tipo y mensaje), sin normalizar y acortada, para listar las de las repeticiones.
+    private static string FirstLine(string? details)
+    {
+        const int MaxLength = 400;
+        string first = (details ?? string.Empty).ReplaceLineEndings("\n").Split('\n')[0].Trim();
+        return first.Length > MaxLength ? first[..MaxLength] : first;
     }
 
     /// <summary>
@@ -776,25 +827,35 @@ public sealed class CrashReporter
         DateTime now = _clock();
         repeated = false;
         string? signature = null;
+        string firstLine = FirstLine(details);
         int chained = 0;
         if (!fatal)
         {
             signature = Signature(details);
+            SignatureHistory? history = ReportsWithin(signature, now);
+            bool capped = history is not null && history.Reports.Count >= MaxReportsPerSignature;
             if (_bursts.TryGetValue(signature, out Burst? burst))
             {
-                // Dentro del intervalo del último informe, o en una ráfaga que no para y ya dejó MaxReportsPerBurst.
+                // Dentro del intervalo del último informe, en una ráfaga que no para y ya dejó MaxReportsPerBurst, o con la
+                // firma ya en su tope de la hora (aunque las pausas sean largas).
                 bool continuous = now >= burst.LastSeen && now - burst.LastSeen < BurstWindow;
-                if ((now >= burst.Written && now - burst.Written < BurstWindow) || (continuous && burst.Reports >= MaxReportsPerBurst))
+                if ((now >= burst.Written && now - burst.Written < BurstWindow) || (continuous && burst.Reports >= MaxReportsPerBurst) || capped)
                 {
-                    burst.Repeated++;
-                    burst.LastRepeat = now;
                     repeated = true;
-                    return burst.Path;
+                    return burst.Count(now, firstLine);
                 }
 
                 chained = continuous ? burst.Reports : 0;
                 FlushBurst(burst);
                 _ = _bursts.Remove(signature);
+            }
+            else if (capped)
+            {
+                // Su ráfaga ya se olvidó (MaxBursts firmas a la vez): se vuelve a abrir sobre su último informe.
+                var resumed = new Burst(history!.LastPath, history.LastWritten, history.LastFirstLine) { Reports = MaxReportsPerBurst };
+                RememberBurst(signature, resumed);
+                repeated = true;
+                return resumed.Count(now, firstLine);
             }
         }
 
@@ -812,7 +873,8 @@ public sealed class CrashReporter
         if (signature is not null)
         {
             // También si no se pudo escribir: con el disco lleno, una ráfaga no reintenta en cada repetición.
-            RememberBurst(signature, new Burst(path, now) { Reports = chained + 1 });
+            RememberBurst(signature, new Burst(path, now, firstLine) { Reports = chained + 1 });
+            RememberReport(signature, now, path, firstLine);
         }
 
         if (path is null)
@@ -854,7 +916,53 @@ public sealed class CrashReporter
         _bursts[signature] = burst;
     }
 
-    // Anota en su informe cuántas veces se repitió el error sin informe propio.
+    // Los informes de la firma dentro de SignatureWindow (olvida los de antes, y los «futuros» si el reloj retrocedió), o
+    // null si no tiene ninguno.
+    private SignatureHistory? ReportsWithin(string signature, DateTime now)
+    {
+        if (!_signatures.TryGetValue(signature, out SignatureHistory? history))
+        {
+            return null;
+        }
+
+        history.Forget(now);
+        return history;
+    }
+
+    private void RememberReport(string signature, DateTime now, string? path, string firstLine)
+    {
+        if (!_signatures.TryGetValue(signature, out SignatureHistory? history))
+        {
+            if (_signatures.Count >= MaxSignatures)
+            {
+                foreach (KeyValuePair<string, SignatureHistory> old in _signatures.ToList())
+                {
+                    old.Value.Forget(now);
+                    if (old.Value.Reports.Count == 0)
+                    {
+                        _ = _signatures.Remove(old.Key);
+                    }
+                }
+
+                if (_signatures.Count >= MaxSignatures)
+                {
+                    _ = _signatures.Remove(_signatures.MinBy(p => p.Value.LastWritten).Key);
+                }
+            }
+
+            history = new SignatureHistory();
+            _signatures[signature] = history;
+        }
+
+        // También si no se pudo escribir: el aviso en la ventana sí salió.
+        history.Reports.Enqueue(now);
+        history.LastPath = path;
+        history.LastWritten = now;
+        history.LastFirstLine = firstLine;
+    }
+
+    // Anota en su informe cuántas veces se repitió el error sin informe propio y las primeras líneas distintas de esas
+    // repeticiones (otro HRESULT, otro mensaje con la misma forma).
     private static void FlushBurst(Burst burst)
     {
         if (burst.Repeated == 0 || burst.Path is null)
@@ -862,9 +970,23 @@ public sealed class CrashReporter
             return;
         }
 
-        TryAppendExisting(burst.Path, string.Create(CultureInfo.InvariantCulture,
-            $"{Environment.NewLine}Repetido {burst.Repeated} veces más hasta las {burst.LastRepeat:HH:mm:ss.fff} (un informe por error cada {BurstWindow.TotalSeconds:0} s, como mucho {MaxReportsPerBurst} seguidos).{Environment.NewLine}"));
+        var text = new StringBuilder();
+        text.AppendLine();
+        text.AppendLine(CultureInfo.InvariantCulture,
+            $"Repetido {burst.Repeated} veces más hasta las {burst.LastRepeat:HH:mm:ss.fff} (un informe por error cada {BurstWindow.TotalSeconds:0} s, como mucho {MaxReportsPerBurst} seguidos y {MaxReportsPerSignature} por hora).");
+        if (burst.Variants.Count > 0)
+        {
+            text.AppendLine(CultureInfo.InvariantCulture, $"Primeras líneas distintas de las repeticiones (hasta {MaxRepeatVariants}):");
+            foreach (string variant in burst.Variants)
+            {
+                text.AppendLine("  " + variant);
+            }
+        }
+
+        // Como el informe, sin rutas de medios ni carpetas del usuario.
+        TryAppendExisting(burst.Path, CrashReportScrubber.Default.Scrub(text.ToString()));
         burst.Repeated = 0;
+        burst.Variants.Clear();
     }
 
     private void FlushBursts()
@@ -891,7 +1013,14 @@ public sealed class CrashReporter
             ];
             foreach (string old in groups.SelectMany(g => g).ToList())
             {
-                File.Delete(old);
+                // Uno por uno: un archivo bloqueado (abierto en un editor, el antivirus) no deja sin borrar a los demás.
+                try
+                {
+                    PruneDeleter(old);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -927,11 +1056,14 @@ public sealed class CrashReporter
 
     private sealed record Reported(string? Path, bool Fatal);
 
-    private sealed class Burst(string? path, DateTime written)
+    private sealed class Burst(string? path, DateTime written, string firstLine)
     {
         public string? Path { get; } = path;
 
         public DateTime Written { get; } = written;
+
+        /// <summary>Primeras líneas de las repeticiones distintas de la del informe (como mucho <see cref="MaxRepeatVariants"/>).</summary>
+        public List<string> Variants { get; } = [];
 
         public int Repeated { get; set; }
 
@@ -942,6 +1074,46 @@ public sealed class CrashReporter
 
         /// <summary>La última vez que apareció el error: al escribir el informe o en su última repetición.</summary>
         public DateTime LastSeen => LastRepeat > Written ? LastRepeat : Written;
+
+        /// <summary>Cuenta una repetición sin informe propio y devuelve el informe donde se anota.</summary>
+        public string? Count(DateTime now, string line)
+        {
+            Repeated++;
+            LastRepeat = now;
+            if (Variants.Count < MaxRepeatVariants && !string.Equals(line, firstLine, StringComparison.Ordinal) && !Variants.Contains(line, StringComparer.Ordinal))
+            {
+                Variants.Add(line);
+            }
+
+            return Path;
+        }
+    }
+
+    // Los informes de una firma en la última SignatureWindow, y el último (donde se cuentan las repeticiones pasado el tope).
+    private sealed class SignatureHistory
+    {
+        public Queue<DateTime> Reports { get; } = new();
+
+        public string? LastPath { get; set; }
+
+        public DateTime LastWritten { get; set; }
+
+        public string LastFirstLine { get; set; } = string.Empty;
+
+        public void Forget(DateTime now)
+        {
+            // Si el reloj retrocedió (cambio de hora), lo anotado «después» de ahora tampoco cuenta.
+            if (Reports.Count > 0 && Reports.Last() > now)
+            {
+                Reports.Clear();
+                return;
+            }
+
+            while (Reports.Count > 0 && now - Reports.Peek() >= SignatureWindow)
+            {
+                _ = Reports.Dequeue();
+            }
+        }
     }
 }
 
