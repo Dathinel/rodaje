@@ -71,11 +71,14 @@ public class ExtremeProjectSessionTests
         Volatile.Write(ref _phase, phase);
     }
 
-    /// <summary>Una tasa de 1/2^62 (un cuadro de más de 400 años): empujar o recortar un cuadro lanzaba OverflowException.</summary>
+    /// <summary>
+    /// Una tasa de 1/2^62 (un cuadro de más de 400 años): empujar o recortar un cuadro lanzaba OverflowException. La v1.0.0
+    /// la guardaba, así que se abre acotada al rango, con aviso (tarea 237).
+    /// </summary>
     [Theory]
-    [InlineData(1, Big)]
-    [InlineData(Big, 1)]
-    public void UnaTasaDeSecuenciaExtrema_NoSeAbre(long num, long den)
+    [InlineData(1, Big, 1, 5)]
+    [InlineData(Big, 1, 1000, 1)]
+    public void UnaTasaDeSecuenciaExtrema_SeAbreAcotadaConAviso(long num, long den, long openedNum, long openedDen)
     {
         using var directory = new TempDirectory();
         string path = SaveOneClip(directory.Path, new Rational(num, den), start: 0);
@@ -83,15 +86,22 @@ public class ExtremeProjectSessionTests
         {
             (EditorSession session, List<EditorNotification> notes) = NewSession();
 
-            Assert.False(await session.OpenProjectAsync(path));
+            Assert.True(await session.OpenProjectAsync(path));
 
-            Assert.Contains(notes, n => n.Severity == NotificationSeverity.Error && n.Message.Contains("va de 1 a 1000", StringComparison.Ordinal));
+            Assert.Equal(new Rational(openedNum, openedDen), session.Sequence.FrameRate);
+            Assert.Contains(notes, n => n.Severity == NotificationSeverity.Warning && n.Message == EditorSession.ClampedNotice(1));
+            Assert.True(session.IsDirty);
+            session.Select(["c"]);
+            Assert.True(session.NudgeSelection(1));
         });
     }
 
-    /// <summary>Un clip que acaba un segundo antes de <see cref="long.MaxValue"/>: empujarlo un cuadro lanzaba OverflowException.</summary>
+    /// <summary>
+    /// Un clip que acaba un segundo antes de <see cref="long.MaxValue"/>: empujarlo un cuadro lanzaba OverflowException.
+    /// Empieza después del final de la línea de tiempo, así que al abrir se quita, con aviso (tarea 237).
+    /// </summary>
     [Fact]
-    public void UnClipQueAcabaCercaDelFinalDelRango_NoSeAbre()
+    public void UnClipQueAcabaCercaDelFinalDelRango_SeQuitaAlAbrirConAviso()
     {
         using var directory = new TempDirectory();
         string path = SaveOneClip(directory.Path, Rational.Fps25, start: long.MaxValue - (2 * Time.TicksPerSecond));
@@ -99,10 +109,11 @@ public class ExtremeProjectSessionTests
         {
             (EditorSession session, List<EditorNotification> notes) = NewSession();
 
-            Assert.False(await session.OpenProjectAsync(path));
+            Assert.True(await session.OpenProjectAsync(path));
 
-            Assert.Contains(notes, n => n.Severity == NotificationSeverity.Error
-                && n.Message.Contains("termina después del final de la línea de tiempo", StringComparison.Ordinal));
+            Assert.Empty(session.Sequence.VideoTracks[0].Clips);
+            Assert.Contains(notes, n => n.Severity == NotificationSeverity.Warning && n.Message == EditorSession.ClampedNotice(1));
+            Assert.True(session.IsDirty);
         });
     }
 

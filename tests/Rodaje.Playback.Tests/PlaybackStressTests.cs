@@ -49,7 +49,7 @@ public sealed class PlaybackStressTests
                 {
                     try
                     {
-                        for (int i = 0; i < refreshes && !stop.IsCancellationRequested; i++)
+                        foreach (int i in Stress.Steps(refreshes, stop))
                         {
                             clock.Advance(Time.FromTicks(Time.TicksPerSecond * random.Next(0, 40) / 1000));
                             FramePresentation shown = scheduler.Tick();

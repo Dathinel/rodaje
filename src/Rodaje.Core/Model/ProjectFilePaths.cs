@@ -53,8 +53,15 @@ public static class ProjectFilePaths
         {
             if (Path.IsPathFullyQualified(media.Path))
             {
-                // En otra unidad, GetRelativePath devuelve la ruta absoluta tal cual.
-                media.Path = Path.GetRelativePath(projectDirectory, media.Path);
+                // En otra unidad, GetRelativePath devuelve la ruta absoluta tal cual; una más larga de lo que admite
+                // Windows (de un proyecto de la v1.0.0) también se guarda tal cual.
+                try
+                {
+                    media.Path = Path.GetRelativePath(projectDirectory, media.Path);
+                }
+                catch (PathTooLongException)
+                {
+                }
             }
         }
 

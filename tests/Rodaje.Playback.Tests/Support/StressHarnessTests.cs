@@ -142,4 +142,109 @@ public sealed class StressHarnessTests
             ("segundo", (random, _) => first[1] = random.Next()));
         Assert.Equal([new Random(1_545_029_486).Next(), new Random(1_325_234_912).Next()], first);
     }
+
+    /// <summary>
+    /// Con el presupuesto vencido (cero), el arnés no enciende la parada mientras el hilo que recorre sus vueltas con
+    /// <see cref="Stress.Steps"/> no hizo su mínimo: los demás hilos siguen pisándolo. Antes la parada llegaba en la primera
+    /// vuelta de vigilancia (100 ms) y la prueba podía pasar en verde casi sin haber corrido. Sin reloj que medir: lo que
+    /// se comprueba es que la parada no llegó, y la espera de 300 ms solo le da tiempo al arnés de equivocarse.
+    /// </summary>
+    [Fact]
+    public void Con_el_presupuesto_vencido_la_parada_espera_al_minimo()
+    {
+        const int Count = 400;
+        int done = 0;
+        bool stoppedBeforeMinimum = false;
+        int helper = 0;
+        Stress.Run(
+            8,
+            Stress.Stall,
+            () => TimeSpan.Zero,
+            TimeSpan.Zero,
+            ("conductor", (random, stop) =>
+            {
+                foreach (int i in Stress.Steps(Count, stop))
+                {
+                    _ = random.Next(10);
+                    if (i == 0)
+                    {
+                        stoppedBeforeMinimum = stop.WaitHandle.WaitOne(TimeSpan.FromMilliseconds(300));
+                    }
+
+                    done = i + 1;
+                }
+            }),
+            ("ayudante", (random, stop) =>
+            {
+                while (!stop.IsCancellationRequested)
+                {
+                    _ = random.Next(10);
+                    Interlocked.Increment(ref helper);
+                    Thread.Yield();
+                }
+            }));
+
+        Assert.False(stoppedBeforeMinimum, "El presupuesto encendió la parada antes de que el conductor hiciera su mínimo.");
+        Assert.InRange(done, Stress.MinimumSteps(Count), Count);
+        Assert.True(Volatile.Read(ref helper) > 0);
+    }
+
+    /// <summary>
+    /// Un hilo que llega a sus vueltas con la parada del presupuesto ya encendida (empezó tarde) hace igual su mínimo, y
+    /// ni una más. Determinista: espera a la parada antes de pedir las vueltas.
+    /// </summary>
+    [Fact]
+    public void Un_hilo_que_empieza_con_el_presupuesto_vencido_hace_su_minimo()
+    {
+        const int Count = 400;
+        int done = 0;
+        Stress.Run(
+            10,
+            Stress.Stall,
+            () => TimeSpan.Zero,
+            TimeSpan.Zero,
+            ("tardío", (random, stop) =>
+            {
+                _ = random.Next(10);
+                stop.WaitHandle.WaitOne();
+                foreach (int i in Stress.Steps(Count, stop))
+                {
+                    _ = random.Next(10);
+                    done = i + 1;
+                }
+            }));
+
+        Assert.Equal(Stress.MinimumSteps(Count), done);
+    }
+
+    /// <summary>Un hilo que sale de sus vueltas antes del mínimo sin que nadie fallara hace fallar la corrida.</summary>
+    [Fact]
+    public void Un_hilo_que_sale_antes_del_minimo_falla()
+    {
+        var error = Assert.ThrowsAny<Exception>(() => Stress.Run(
+            9,
+            ("conductor", (random, stop) =>
+            {
+                foreach (int i in Stress.Steps(400, stop))
+                {
+                    _ = random.Next(10);
+                    if (i == 9)
+                    {
+                        break;
+                    }
+                }
+            })));
+
+        Assert.Contains("Semilla 9", error.Message, StringComparison.Ordinal);
+        Assert.Contains($"conductor hizo 9 de 400 vueltas; el mínimo es {Stress.MinimumSteps(400)}.", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void El_minimo_es_la_cuarta_parte_de_las_vueltas_de_la_ci()
+    {
+        Assert.Equal(1, Stress.MinimumSteps(1));
+        Assert.Equal(3, Stress.MinimumSteps(Stress.Iterations(12)));
+        Assert.Equal(1000, Stress.MinimumSteps(Stress.Iterations(4000)));
+        Assert.Throws<InvalidOperationException>(() => Stress.Steps(10, CancellationToken.None).GetEnumerator().MoveNext());
+    }
 }

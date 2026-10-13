@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+using System.Reflection;
 using Rodaje.App.Views.Library;
 
 namespace Rodaje.App.Tests.Library;
@@ -9,22 +9,29 @@ namespace Rodaje.App.Tests.Library;
 /// declara métodos parciales sin cuerpo (el compilador quita sus llamadas) y los contadores viven en las pruebas
 /// (<c>LibraryOperationCounters.cs</c>).
 /// </summary>
-public sealed partial class LibraryCountersOutOfProductionTests
+public sealed class LibraryCountersOutOfProductionTests
 {
+    /// <summary>
+    /// Los únicos campos <c>[ThreadStatic]</c> o contadores estáticos (<c>int</c> o <c>long</c> que se pueden escribir) de la
+    /// biblioteca son los tres de <c>LibraryOperationCounters.cs</c>.
+    /// Este proyecto compila los mismos fuentes que la app, así que un contador que volviera a la app aparece aquí como un
+    /// campo más, esté en el archivo que esté (antes se leía el texto de dos archivos). Que la app declare los métodos
+    /// parciales (y no los campos con estos nombres) lo garantiza el compilador: sin la declaración, el cuerpo de
+    /// <c>LibraryOperationCounters.cs</c> no compila (CS0759), y un campo de la app con el mismo nombre choca con el de aquí.
+    /// </summary>
     [Fact]
-    public void ElFuenteDeLaApp_NoTieneContadoresDePrueba()
+    public void LosUnicosContadoresDeLaBiblioteca_SonLosDeLasPruebas()
     {
-        string source = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Rodaje.App", "Views", "Library", "Logic", "LibraryOrganization.cs"));
+        string[] fields = [.. typeof(LibraryFolder).Assembly.GetTypes()
+            .Where(t => t.Namespace == typeof(LibraryFolder).Namespace)
+            .SelectMany(t => t.GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+            .Where(f => !f.Name.StartsWith('<'))
+            .Where(f => f.IsDefined(typeof(ThreadStaticAttribute), inherit: false)
+                || (!f.IsInitOnly && !f.IsLiteral && (f.FieldType == typeof(long) || f.FieldType == typeof(int))))
+            .Select(f => $"{f.DeclaringType!.Name}.{f.Name}")
+            .Order(StringComparer.Ordinal)];
 
-        Assert.DoesNotContain("ThreadStatic", source, StringComparison.Ordinal);
-        Assert.DoesNotMatch(CounterField(), source);
-        Assert.Contains("static partial void CountIdRead();", source, StringComparison.Ordinal);
-        Assert.Contains("static partial void CountNameFold();", source, StringComparison.Ordinal);
-
-        string marks = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Rodaje.App", "Views", "Library", "Logic", "LibraryOrganization.Marks.cs"));
-        Assert.DoesNotContain("ThreadStatic", marks, StringComparison.Ordinal);
-        Assert.DoesNotContain("KeyReads", marks, StringComparison.Ordinal);
-        Assert.Contains("static partial void CountKeyRead();", marks, StringComparison.Ordinal);
+        Assert.Equal(["LibraryFolder.IdReads", "LibraryOrganization.NameFolds", "Subclip.KeyReads"], fields);
     }
 
     [Fact]
@@ -43,21 +50,5 @@ public sealed partial class LibraryCountersOutOfProductionTests
         _ = subclip.Id;
         _ = subclip.MediaId;
         Assert.Equal(2, Subclip.KeyReads);
-    }
-
-    [GeneratedRegex(@"static\s+long\s+(IdReads|NameFolds)")]
-    private static partial Regex CounterField();
-
-    private static string RepoRoot()
-    {
-        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "Rodaje.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-
-        throw new InvalidOperationException("No encuentro Rodaje.slnx subiendo desde las pruebas.");
     }
 }

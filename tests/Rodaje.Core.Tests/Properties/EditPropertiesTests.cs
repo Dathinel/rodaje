@@ -150,12 +150,38 @@ public class EditPropertiesTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Semilla del sorteo de <see cref="ElSorteo_EjercitaLasVelocidades"/> (cualquier semilla válida de CsCheck sirve). Con ella
-    /// los conteos son siempre los mismos: si se cambia, hay que volver a medir los umbrales. Elegida entre 24 semillas por
-    /// dar el mínimo más alto en las operaciones de velocidad (136; los mínimos iban de 95 a 136); la de antes, la de la
-    /// propiedad 11 (<c>4mihSLRcQtT6</c>), daba 124.
+    /// Semilla del sorteo de <see cref="ElSorteo_EjercitaLasVelocidades"/>: la de la propiedad 11. Con ella los conteos son
+    /// siempre los mismos, pero los umbrales no dependen de ella: valen para cualquier semilla (ver
+    /// <see cref="SpeedDrawMinimums"/>), así que no hace falta buscar una que «pase».
     /// </summary>
-    private const string SpeedDrawSeed = "0000000032v4";
+    private const string SpeedDrawSeed = "4mihSLRcQtT6";
+
+    /// <summary>
+    /// Proyectos con velocidad, de 2 000, que el sorteo debe dar como mínimo. Medido el 13-oct con 80 semillas al azar:
+    /// media 1 893,3 y desviación 8,6 (la binomial con p = 0,947 da 10,0). El umbral es la media menos 5 desviaciones
+    /// (1 850,3, redondeado abajo): con cualquier semilla cae por azar unas 3 veces en 10⁷, y salta si la proporción de
+    /// proyectos con velocidad baja de 92,5 %.
+    /// </summary>
+    private const int SpeedDrawProjectsMinimum = 1850;
+
+    /// <summary>
+    /// Veces, como mínimo, que cada operación de velocidad debe aplicarse en el sorteo. Igual que
+    /// <see cref="SpeedDrawProjectsMinimum"/>: media menos 5 desviaciones de las mismas 80 semillas (media y desviación entre
+    /// paréntesis), redondeada abajo; las siete juntas caen por azar menos de 3 veces en 10⁶ con cualquier semilla. El umbral
+    /// único de 100 quedaba a 1,9 desviaciones de la media de FreezeFrame (121,2): una semilla de cada 30, más o menos, lo
+    /// rompía, y #144 eligió entre 24 semillas la de mínimo más alto. Ahora la semilla da igual, y cada operación tiene un
+    /// umbral a su medida en vez del de la más rara (para SetSpeed, 545 en vez de 100).
+    /// </summary>
+    private static readonly Dictionary<OpKind, int> SpeedDrawMinimums = new()
+    {
+        [OpKind.SetSpeed] = 545, // 676,7 ± 26,2
+        [OpKind.RateStretch] = 440, // 569,1 ± 25,3
+        [OpKind.FreezeFrame] = 64, // 121,2 ± 11,4
+        [OpKind.SetCurve] = 215, // 301,8 ± 17,3
+        [OpKind.SetReverse] = 275, // 380,9 ± 20,5
+        [OpKind.SetPreservePitch] = 75, // 143,3 ± 13,5
+        [OpKind.ApplySpeedPreset] = 150, // 242,5 ± 17,8
+    };
 
     /// <summary>Los proyectos y las operaciones de velocidad del sorteo de verdad llegan a aplicarse, no solo a rechazarse.</summary>
     [Fact]
@@ -200,17 +226,14 @@ public class EditPropertiesTests(ITestOutputHelper output)
             threads: 1);
 
         output.WriteLine($"proyectos con velocidad: {projectsWithSpeed}; aplicadas: {string.Join(", ", Enum.GetValues<OpKind>().Select(k => $"{k} {applied[(int)k]}"))}");
-        // Con la semilla fija los conteos son deterministas (medidos el 13-oct): 1 894 proyectos con velocidad de 2 000 y, de
-        // las operaciones de velocidad, la que menos se aplica es SetPreservePitch con 136 (FreezeFrame 147, ApplySpeedPreset
-        // 267, SetCurve 298, SetReverse 406, RateStretch 579, SetSpeed 727). Los umbrales dejan margen para un retoque menor
-        // del generador y saltan si los proyectos dejan de llevar velocidad o una operación deja de aplicarse casi siempre.
-        // Cualquier cambio de GenScenario o de RandomTimeline mueve estos conteos: si uno salta, se vuelve a medir.
-        const string remeasure = "Con semilla fija este conteo solo cambia si cambió el generador (GenScenario o RandomTimeline): " +
-            "vuelve a medir con SpeedDrawSeed (la salida de la prueba los lista) y ajusta el umbral si la caída no es un defecto.";
-        Assert.True(projectsWithSpeed > 1700, $"solo {projectsWithSpeed} proyectos con velocidad (medido: 1 894). {remeasure}");
-        foreach (OpKind kind in (OpKind[])[OpKind.SetSpeed, OpKind.RateStretch, OpKind.FreezeFrame, OpKind.SetCurve, OpKind.SetReverse, OpKind.SetPreservePitch, OpKind.ApplySpeedPreset])
+        // Un cambio del generador (GenScenario o RandomTimeline) que mueva estos conteos obliga a volver a medir media y
+        // desviación con varias semillas (la salida de la prueba los lista) y a recalcular los umbrales de arriba.
+        const string remeasure = "Los umbrales valen para cualquier semilla (media menos 5 desviaciones): una caída así es un defecto o un " +
+            "cambio del generador; en ese caso, volver a medir con varias semillas y recalcularlos.";
+        Assert.True(projectsWithSpeed >= SpeedDrawProjectsMinimum, $"solo {projectsWithSpeed} proyectos con velocidad (mínimo {SpeedDrawProjectsMinimum}). {remeasure}");
+        foreach ((OpKind kind, int minimum) in SpeedDrawMinimums)
         {
-            Assert.True(applied[(int)kind] > 100, $"{kind} solo se aplicó {applied[(int)kind]} veces (mínimo medido: 136). {remeasure}");
+            Assert.True(applied[(int)kind] >= minimum, $"{kind} solo se aplicó {applied[(int)kind]} veces (mínimo {minimum}). {remeasure}");
         }
     }
 

@@ -38,9 +38,10 @@ static Time S(double segundos) => Time.FromSeconds(segundos);
 try
 {
     Console.WriteLine("Rodaje - prueba de humo del núcleo compilado con Native AOT");
-    // Con JIT el proceso carga coreclr.dll; el ejecutable de Native AOT lleva su propio runtime dentro.
-    bool jit = Process.GetCurrentProcess().Modules.Cast<ProcessModule>()
-        .Any(m => string.Equals(m.ModuleName, "coreclr.dll", StringComparison.OrdinalIgnoreCase));
+    // Con JIT, al llegar aquí ya se compiló al menos este método; Native AOT no tiene JIT y la cuenta es 0.
+    // Vale en Windows y en Linux (buscar coreclr.dll fallaba en Linux, donde es libcoreclr.so). No sirve
+    // RuntimeFeature.IsDynamicCodeSupported: PublishAot lo deja en false también al correr con JIT.
+    bool jit = System.Runtime.JitInfo.GetCompiledMethodCount() > 0;
     Console.WriteLine($"  Modo: {(jit ? "JIT (sin compilar de antemano; esto no prueba Native AOT)" : "Native AOT")}");
 
     var ids = new SequentialIdGenerator();

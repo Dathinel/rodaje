@@ -172,7 +172,7 @@ public sealed partial class ModuleManager : IAsyncDisposable
             }
 
             cpuTaken = cpu is not null;
-            job.SetWaiting("Abriendo el módulo");
+            job.SetWaiting(ModuleActivity.Starting);
             process = await connection.EnsureStartedAsync(job.Token).ConfigureAwait(false);
             using IDisposable? lowered = need.VramMb > 0 ? _preview?.Lower() : null;
             call = new ModuleCall(module, process, job);

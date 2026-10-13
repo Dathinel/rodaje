@@ -23,8 +23,8 @@ public class CrashReporterTests
         bool handled = CrashRouting.OnXamlUnhandled(Thrown(), "mensaje de WinUI", shown.Add, reporter.Write, reporter.Write);
 
         Assert.True(handled);
-        Assert.Equal(["falló el manejador de prueba"], shown);
         string path = Assert.Single(Reports(dir));
+        Assert.Equal([UnexpectedErrorNotice.Describe(path)], shown);
         Assert.EndsWith("-recuperado.txt", path, StringComparison.Ordinal);
         string text = File.ReadAllText(path);
         Assert.Contains("Application.UnhandledException", text, StringComparison.Ordinal);

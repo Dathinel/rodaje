@@ -113,8 +113,9 @@ internal sealed partial class ModuleJobsView : UserControl, IEditorView
             _status.Text = _job.StatusText;
             _status.Foreground = _job.State == ModuleJobState.Failed ? Resource<Brush>("MeterHighBrush") : Resource<Brush>("TextMutedBrush");
             _bar.Value = _job.Progress;
-            _bar.IsIndeterminate = _job.State == ModuleJobState.Waiting;
+            _bar.IsIndeterminate = _job.IsIndeterminate;
             _bar.Visibility = _cancel.Visibility = _job.IsFinished ? Visibility.Collapsed : Visibility.Visible;
+            _cancel.IsEnabled = !_job.IsCancelling;
         }
     }
 }

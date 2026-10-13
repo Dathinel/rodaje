@@ -165,6 +165,87 @@ public sealed class FfmpegPipeSinkPendingCleanupTests
         Assert.Empty(journal.Entries());
     }
 
+    // Tarea 263: CpuExportCancellationTests (h264_mf) vio en la CI ffmpeg.exe muerto, la cancelación de vuelta y aun así una
+    // entrada en exportando.json, porque comprobaba antes de que la limpieza pendiente la quitara. Aquí ese estado se
+    // reproduce sin reloj: el falso muere en el segundo intento, pero la limpieza no sigue hasta que la prueba lo diga.
+    [Fact]
+    public void A_cancel_whose_ffmpeg_dies_after_abort_returns_is_clean_once_its_pending_cleanup_ends()
+    {
+        using var scratch = new ExportScratch();
+        var journal = new ExportJournal(scratch.Combine("registro"));
+        ExportSinkRequest request = Request(scratch, "muere tarde.mkv", FakeFfmpeg.Hang);
+        using var cancellation = new CancellationTokenSource();
+        using var died = new ManualResetEventSlim();
+        using var proceed = new ManualResetEventSlim();
+        int attempts = 0;
+        using FfmpegPipeSink sink = FakeFfmpeg.Sink(new FfmpegPipeSinkOptions { Journal = journal });
+        sink.KillOverride = process =>
+        {
+            // Dentro de Abort: «no salió a tiempo», como h264_mf a los 950 ms.
+            if (Interlocked.Increment(ref attempts) == 1)
+            {
+                return false;
+            }
+
+            // La limpieza pendiente: el falso muere aquí y la limpieza espera a la prueba antes de borrar.
+            process.Kill();
+            bool exited = process.WaitForExit(TimeSpan.FromMinutes(1));
+            died.Set();
+            proceed.Wait();
+            return exited;
+        };
+        sink.Start(request, cancellation.Token);
+        int? processId = sink.ProcessId;
+        var source = new SyntheticFrames(request.Video!);
+        for (long i = 0; i < 6; i++)
+        {
+            sink.WriteVideo(source.Frame(i), cancellation.Token);
+        }
+
+        Assert.Null(Record.Exception(cancellation.Cancel));
+        Assert.IsAssignableFrom<OperationCanceledException>(
+            Record.Exception(() => sink.WriteVideo(source.Frame(6), cancellation.Token)));
+        Assert.True(died.Wait(TimeSpan.FromMinutes(1)), "La limpieza pendiente no llegó a matar al falso.");
+
+        // Lo que vio la CI: ffmpeg muerto, la cancelación de vuelta y la entrada todavía en el registro.
+        Task? cleanup = sink.PendingCleanup;
+        Assert.NotNull(cleanup);
+        Assert.False(SinkRuns.IsAlive(processId), $"El ffmpeg falso ({processId}) sigue vivo.");
+        Assert.Null(sink.ProcessId);
+        Assert.False(cleanup.IsCompleted);
+        Assert.Single(journal.Entries());
+
+        proceed.Set();
+        Assert.True(CanceledSinkCleanup.Wait(sink));
+        Assert.True(cleanup.IsCompletedSuccessfully);
+        Assert.Equal([journal.Directory], scratch.Leftovers());
+        Assert.Empty(journal.Entries());
+        Assert.Contains(sink.Diagnostics, d => d.Contains("temporales borrados", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Waiting_for_the_cleanup_of_a_cancel_that_left_none_returns_at_once()
+    {
+        using var scratch = new ExportScratch();
+        var journal = new ExportJournal(scratch.Combine("registro"));
+        ExportSinkRequest request = Request(scratch, "muere a tiempo.mkv", FakeFfmpeg.Hang);
+        using FfmpegPipeSink sink = FakeFfmpeg.Sink(new FfmpegPipeSinkOptions { Journal = journal });
+        // Sale dentro de Abort, sin depender de lo que tarde el falso en morir en un runner cargado.
+        sink.KillOverride = process =>
+        {
+            process.Kill();
+            return process.WaitForExit(TimeSpan.FromMinutes(1));
+        };
+        sink.Start(request, CancellationToken.None);
+        WriteSome(sink, request, 6);
+        sink.Abort();
+
+        Assert.Null(sink.PendingCleanup);
+        Assert.False(CanceledSinkCleanup.Wait(sink));
+        Assert.Equal([journal.Directory], scratch.Leftovers());
+        Assert.Empty(journal.Entries());
+    }
+
     // El primer intento hace lo que diga firstAttempt; los siguientes (la limpieza pendiente) esperan a la prueba y matan.
     private static Func<Process, bool> KillOnlyAfter(ManualResetEventSlim release, Func<Process, bool> firstAttempt)
     {

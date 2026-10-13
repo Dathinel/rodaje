@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Rodaje.TestMedia;
 using Rodaje.Engine.Tests.Timeline;
 
@@ -16,8 +17,10 @@ namespace Rodaje.Engine.Tests.Support;
 /// tarda medio segundo pasaba de 60 s y se daba por interbloqueo. Interbloqueo es ahora un hilo vivo que no avanza
 /// (no saca ningún número de su <see cref="Random"/>) en <see cref="Stall"/>, o la corrida entera pasada de
 /// <see cref="Deadline"/>. Cortar por presupuesto no puede dejar la prueba vacía: una corrida en la que ningún hilo sacó
-/// un número (cero vueltas) falla, en vez de pasar en verde sin haber probado nada. Al dar con un interbloqueo, el mensaje
-/// trae las pilas de todos los hilos (<see cref="ThreadDump"/>), con los trabajadores por su nombre.
+/// un número (cero vueltas) falla, en vez de pasar en verde sin haber probado nada. Y el hilo que recorre sus vueltas con
+/// <see cref="Steps"/> hace siempre al menos <see cref="MinimumSteps"/>: el presupuesto no corta antes, y si el hilo sale
+/// antes por su cuenta la corrida falla. Al dar con un interbloqueo, el mensaje trae las pilas de todos los hilos
+/// (<see cref="ThreadDump"/>), con los trabajadores por su nombre.
 /// </remarks>
 internal static class Stress
 {
@@ -37,6 +40,34 @@ internal static class Stress
 
     /// <summary>Las iteraciones de la CI, multiplicadas por <see cref="LongFactor"/> con las pruebas largas.</summary>
     public static int Iterations(int ci) => Long ? ci * LongFactor : ci;
+
+    /// <summary>
+    /// Las vueltas que <see cref="Steps"/> hace siempre de las <paramref name="count"/> pedidas: la cuarta parte de las de la
+    /// CI (también con las pruebas largas), y al menos una. El presupuesto solo corta las que pasan de ahí; antes podía
+    /// cortar en la primera y la prueba pasaba en verde casi sin haber corrido.
+    /// </summary>
+    public static int MinimumSteps(int count) => Math.Max(1, (Long ? count / LongFactor : count) / 4);
+
+    /// <summary>
+    /// Las vueltas <c>0 … count - 1</c> de un hilo de <see cref="Run(int, ValueTuple{string, Action{Random, CancellationToken}}[])"/>,
+    /// en lugar de <c>for (i = 0; i &lt; count &amp;&amp; !stop.IsCancellationRequested; i++)</c>. Se cortan en cuanto otro hilo
+    /// falla, pero el presupuesto no corta la corrida hasta que el hilo hizo <see cref="MinimumSteps"/>; la corrida falla si
+    /// el hilo sale antes (por su cuenta, sin que nadie fallara).
+    /// </summary>
+    public static IEnumerable<int> Steps(int count, CancellationToken stop)
+    {
+        RunState run = t_run ?? throw new InvalidOperationException("Stress.Steps solo vale dentro de un hilo de Stress.Run.");
+        RunSteps steps = run.Register(count);
+        // Una parada antes del mínimo solo puede venir de un fallo; si es del presupuesto (este hilo empezó tarde), se sigue.
+        for (int i = 0; i < count && !(stop.IsCancellationRequested && (run.Failed || i >= steps.Minimum)); i++)
+        {
+            yield return i;
+            steps.Done();
+        }
+    }
+
+    [ThreadStatic]
+    private static RunState? t_run;
 
     /// <summary>
     /// Corre <paramref name="workers"/> en hilos propios hasta que todos vuelven, juntando sus excepciones. Cada uno
@@ -62,9 +93,17 @@ internal static class Stress
     /// hasta 100 ms al primer hilo vivo). Las pruebas del propio arnés lo avanzan a mano para no depender de cuánto CPU
     /// les dé la máquina; <see cref="Budget"/> sigue siendo de tiempo real.
     /// </summary>
-    public static void Run(int seed, TimeSpan stall, Func<TimeSpan> clock, params (string Name, Action<Random, CancellationToken> Body)[] workers)
+    public static void Run(int seed, TimeSpan stall, Func<TimeSpan> clock, params (string Name, Action<Random, CancellationToken> Body)[] workers) =>
+        Run(seed, stall, clock, Budget, workers);
+
+    /// <summary>
+    /// Como <see cref="Run(int, TimeSpan, Func{TimeSpan}, ValueTuple{string, Action{Random, CancellationToken}}[])"/>, con otro
+    /// presupuesto: las pruebas del propio arnés lo dejan en cero para ver que no corta antes de <see cref="MinimumSteps"/>.
+    /// </summary>
+    public static void Run(int seed, TimeSpan stall, Func<TimeSpan> clock, TimeSpan budget, params (string Name, Action<Random, CancellationToken> Body)[] workers)
     {
         ArgumentNullException.ThrowIfNull(clock);
+        var run = new RunState();
         var errors = new ConcurrentQueue<string>();
         using var stop = new CancellationTokenSource();
         var threads = new List<(string Name, Thread Thread, ProgressRandom Random)>();
@@ -74,6 +113,7 @@ internal static class Stress
             var random = new ProgressRandom(WorkerSeed(seed, i));
             var thread = new Thread(() =>
             {
+                t_run = run.For(name);
                 try
                 {
                     body(random, stop.Token);
@@ -83,6 +123,7 @@ internal static class Stress
 #pragma warning restore CA1031
                 {
                     errors.Enqueue($"[{name}] {ex}");
+                    run.Fail();
                     stop.Cancel();
                 }
             })
@@ -91,7 +132,7 @@ internal static class Stress
         }
 
         threads.ForEach(t => t.Thread.Start());
-        stop.CancelAfter(Budget);
+        var budgetWatch = Stopwatch.StartNew();
         long[] seen = new long[threads.Count];
         TimeSpan[] moved = new TimeSpan[threads.Count];
         string? hung = null;
@@ -102,6 +143,12 @@ internal static class Stress
         while (threads.FirstOrDefault(t => t.Thread.IsAlive).Thread is { } alive)
         {
             alive.Join(TimeSpan.FromMilliseconds(100));
+            // El presupuesto (tiempo real) enciende la parada solo cuando cada hilo con Steps ya hizo su mínimo.
+            if (!stop.IsCancellationRequested && budgetWatch.Elapsed >= budget && run.MinimumsReached)
+            {
+                stop.Cancel();
+            }
+
             TimeSpan now = clock();
             widestGap = now - looked > widestGap ? now - looked : widestGap;
             looked = now;
@@ -142,9 +189,10 @@ internal static class Stress
             string stacks = ThreadDump.Capture(names);
             string state = string.Join("; ", threads.Select((t, i) =>
                 $"{t.Name}: {(t.Thread.IsAlive ? "vivo" : "terminado")}, {seen[i]} números, el último hace {(looked - moved[i]).TotalSeconds:0.#} s"));
-            string budget = stop.IsCancellationRequested ? "ya pedida" : "sin pedir";
+            string requested = stop.IsCancellationRequested ? "ya pedida" : "sin pedir";
+            run.Fail();
             stop.Cancel();
-            errors.Enqueue($"{hung}{Environment.NewLine}Estado: {state}. A los {looked.TotalSeconds:0.#} s; la parada estaba {budget}; "
+            errors.Enqueue($"{hung}{Environment.NewLine}Estado: {state}. A los {looked.TotalSeconds:0.#} s; la parada estaba {requested}; "
                 + $"el vigilante tardó como mucho {widestGap.TotalSeconds:0.##} s entre dos miradas.{Environment.NewLine}"
                 + $"Pilas de los hilos al saltar el detector:{Environment.NewLine}{stacks}");
         }
@@ -152,6 +200,14 @@ internal static class Stress
         {
             // Ningún hilo dio una vuelta (por ejemplo, el presupuesto venció antes de empezar): no se probó nada.
             errors.Enqueue($"La corrida no avanzó: ninguno de {string.Join(", ", threads.Select(t => t.Name))} sacó un número de su Random.");
+        }
+        else if (errors.IsEmpty)
+        {
+            // Nadie falló, así que nada cortó las vueltas antes del mínimo: un hilo que se quedó corto salió por su cuenta.
+            foreach (string shortRun in run.Short())
+            {
+                errors.Enqueue(shortRun);
+            }
         }
 
         Assert.True(errors.IsEmpty, $"Semilla {seed}: {string.Join(Environment.NewLine, errors)}");
@@ -203,6 +259,64 @@ internal static class Stress
             Thread.Sleep(1);
         }
     }
+}
+
+/// <summary>Las vueltas de <see cref="Stress.Steps"/> de cada hilo de una corrida, para no cortar antes de su mínimo.</summary>
+internal sealed class RunState
+{
+    private readonly ConcurrentQueue<RunSteps> _steps = new();
+    private readonly StrongBox<bool> _failed = new();
+    private readonly string _name = "";
+
+    /// <summary>Todos los hilos que recorren vueltas con <see cref="Stress.Steps"/> hicieron ya su mínimo.</summary>
+    public bool MinimumsReached => _steps.All(s => s.Count >= s.Minimum);
+
+    /// <summary>Algún hilo falló o la corrida se dio por trabada: las vueltas paren ya, sin mínimo.</summary>
+    public bool Failed => Volatile.Read(ref _failed.Value);
+
+    public void Fail() => Volatile.Write(ref _failed.Value, true);
+
+    /// <summary>El estado que ve el hilo <paramref name="name"/>.</summary>
+    public RunState For(string name) => new(this, name);
+
+    private RunState(RunState shared, string name)
+    {
+        _steps = shared._steps;
+        _failed = shared._failed;
+        _name = name;
+    }
+
+    public RunState()
+    {
+    }
+
+    public RunSteps Register(int count)
+    {
+        var steps = new RunSteps(_name, count, Stress.MinimumSteps(count));
+        _steps.Enqueue(steps);
+        return steps;
+    }
+
+    /// <summary>Los hilos que salieron de sus vueltas antes del mínimo.</summary>
+    public IEnumerable<string> Short() => _steps
+        .Where(s => s.Count < Math.Min(s.Minimum, s.Total))
+        .Select(s => $"{s.Name} hizo {s.Count} de {s.Total} vueltas; el mínimo es {s.Minimum}.");
+}
+
+/// <summary>Cuántas vueltas de <see cref="Stress.Steps"/> lleva un hilo.</summary>
+internal sealed class RunSteps(string name, int total, int minimum)
+{
+    private int _count;
+
+    public string Name => name;
+
+    public int Total => total;
+
+    public int Minimum => Math.Min(minimum, total);
+
+    public int Count => Volatile.Read(ref _count);
+
+    public void Done() => Interlocked.Increment(ref _count);
 }
 
 /// <summary>Un <see cref="Random"/> que cuenta los números que saca: el avance de un hilo de <see cref="Stress.Run"/>.</summary>
