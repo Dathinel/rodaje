@@ -14,7 +14,8 @@ namespace Rodaje.App.Views.Voice;
 /// <summary>
 /// «Texto a voz»: texto escrito, pegado o tomado del clip de texto o subtítulo seleccionado; idioma, voz, velocidad, tono
 /// y pausas; «Escuchar» sin tocar el proyecto e «Insertar en el cursor» en un paso del historial. Con un clip de voz
-/// generada seleccionado se abre con sus ajustes y ofrece «Regenerar» (solo si cambió algo que se oye).
+/// generada seleccionado se abre con sus ajustes y ofrece «Regenerar» (solo si cambió algo que se oye). Al cerrarlo mientras
+/// lee las voces o genera, la barra de avisos dice «Cancelando…» hasta que el módulo lo confirma (<see cref="DialogWork"/>).
 /// </summary>
 internal static class VoiceDialog
 {
@@ -99,7 +100,7 @@ internal static class VoiceDialog
         VoiceCatalog catalog = VoiceCatalog.Empty;
         (VoiceSettings Settings, SynthesizedVoice Voice)? made = null;
         using var player = new VoicePreviewPlayer();
-        using var cancel = new CancellationTokenSource();
+        using var work = new DialogWork();
         bool generating = false;
         int plays = 0;
 
@@ -130,7 +131,9 @@ internal static class VoiceDialog
             voice.SelectedIndex = choices.Length == 0 ? -1 : Math.Max(0, Array.FindIndex(choices, c => c.Voice.Id == wanted));
         }
 
-        async Task<SynthesizedVoice?> Generate()
+        Task<SynthesizedVoice?> Generate() => work.Track(GenerateAsync());
+
+        async Task<SynthesizedVoice?> GenerateAsync()
         {
             VoiceSettings wanted = Current().Clamped();
             if (made is { } m && !m.Settings.SoundsDifferent(wanted))
@@ -145,7 +148,7 @@ internal static class VoiceDialog
             Refresh();
             try
             {
-                SynthesizedVoice v = await synth.SynthesizeAsync(wanted, "Texto a voz", cancel.Token);
+                SynthesizedVoice v = await synth.SynthesizeAsync(wanted, "Texto a voz", work.Token);
                 made = (wanted, v);
                 status.Text = Fmt($"Listo: {v.Seconds:0.0} s de audio.");
                 return v;
@@ -240,11 +243,11 @@ internal static class VoiceDialog
         // La espera (GetDeferral) se pide dentro del evento, antes del primer await.
         dialog.PrimaryButtonClick += (_, args) => UiTask.Run(AcceptAsync(args));
         dialog.SecondaryButtonClick += (_, args) => UiTask.Run(AcceptAsync(args));
-        UiTask.Run(LoadVoices());
+        UiTask.Run(work.Track(LoadVoices()));
 
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
-        await cancel.CancelAsync();
         player.Stop();
+        await work.CloseAsync(services.LongActions, "Texto a voz", scope);
         if (answer is not (ContentDialogResult.Primary or ContentDialogResult.Secondary) || chosen is null || made is not { } done)
         {
             return;
@@ -291,7 +294,7 @@ internal static class VoiceDialog
         {
             try
             {
-                catalog = await synth.GetVoicesAsync(cancel.Token);
+                catalog = await synth.GetVoicesAsync(work.Token);
             }
             catch (OperationCanceledException)
             {

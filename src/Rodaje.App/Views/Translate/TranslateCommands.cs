@@ -22,5 +22,5 @@ internal static class TranslateCommands
     }
 
     private static void Run(EditorServices services) =>
-        UiTask.Run(services.LongActions.RunAsync(TranslateTrack, "Traducir pista", _ => TranslateDialog.ShowAsync(services)));
+        UiTask.Run(services.LongActions.RunAsync(TranslateTrack, "Traducir pista", scope => TranslateDialog.ShowAsync(services, scope)));
 }
