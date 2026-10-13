@@ -138,13 +138,25 @@ public class CrashReporterTests
     }
 
     [Fact]
-    public unsafe void Minivolcado_EsUnArchivoMdmp()
+    public void Minivolcado_EsUnArchivoMdmp()
     {
+        // De otro proceso: volcar el de las pruebas desde dentro puede trabarse con los demás hilos.
         using var dir = new TempDirectory();
         string path = dir.File("prueba.dmp");
-
-        Assert.True(NativeCrashHandler.WriteMinidump(path, null));
-        AssertMinidump(path);
+        using var child = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c ping -n 30 127.0.0.1 >nul")
+        {
+            CreateNoWindow = true,
+            UseShellExecute = false,
+        })!;
+        try
+        {
+            Assert.True(NativeCrashHandler.WriteMinidump(path, child));
+            AssertMinidump(path);
+        }
+        finally
+        {
+            child.Kill(entireProcessTree: true);
+        }
     }
 
     [Fact]
@@ -274,7 +286,14 @@ public class CrashReporterTests
     private static CrashReporter NewReporter(TempDirectory dir, out SessionLog log)
     {
         log = new SessionLog();
-        return new CrashReporter(dir.Path, Version, log, () => Gpu);
+        return new CrashReporter(dir.Path, Version, log, () => Gpu) { MinidumpWriter = FakeMinidump };
+    }
+
+    // El minivolcado de verdad se prueba con otro proceso (Minivolcado_EsUnArchivoMdmp).
+    private static bool FakeMinidump(string path, nint exceptionPointers)
+    {
+        File.WriteAllBytes(path, "MDMP"u8.ToArray());
+        return true;
     }
 
     private static string[] Reports(TempDirectory dir) => Directory.GetFiles(dir.Path, "*.txt");

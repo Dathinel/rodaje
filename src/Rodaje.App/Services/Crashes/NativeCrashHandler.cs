@@ -37,7 +37,8 @@ public static unsafe partial class NativeCrashHandler
 
     /// <summary>
     /// Escribe un minivolcado de este proceso en <paramref name="path"/>; con <paramref name="exceptionPointers"/>
-    /// (un <c>EXCEPTION_POINTERS*</c>) lleva la excepción y el hilo que falló. Nunca lanza.
+    /// (un <c>EXCEPTION_POINTERS*</c>) lleva la excepción y el hilo que falló. Nunca lanza. Volcarse a sí mismo puede
+    /// trabarse si otro hilo tiene el cargador o el montón: vale en un proceso que ya se cae, no en uno sano.
     /// </summary>
     public static bool WriteMinidump(string path, void* exceptionPointers)
     {
@@ -46,17 +47,40 @@ public static unsafe partial class NativeCrashHandler
             return false;
         }
 
+        var info = new MinidumpExceptionInformation
+        {
+            ThreadId = GetCurrentThreadId(),
+            ExceptionPointers = exceptionPointers,
+            ClientPointers = 0,
+        };
+        return WriteMinidump(path, GetCurrentProcess(), (uint)Environment.ProcessId, exceptionPointers is null ? null : &info);
+    }
+
+    /// <summary>Escribe un minivolcado de otro proceso (sin excepción). Nunca lanza.</summary>
+    public static bool WriteMinidump(string path, System.Diagnostics.Process process)
+    {
+        ArgumentNullException.ThrowIfNull(process);
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        try
+        {
+            return WriteMinidump(path, process.Handle, (uint)process.Id, null);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static bool WriteMinidump(string path, nint process, uint processId, MinidumpExceptionInformation* info)
+    {
         try
         {
             using var file = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-            var info = new MinidumpExceptionInformation
-            {
-                ThreadId = GetCurrentThreadId(),
-                ExceptionPointers = exceptionPointers,
-                ClientPointers = 0,
-            };
-            bool ok = MiniDumpWriteDump(GetCurrentProcess(), (uint)Environment.ProcessId, file.SafeFileHandle, DumpType,
-                exceptionPointers is null ? null : &info, 0, 0);
+            bool ok = MiniDumpWriteDump(process, processId, file.SafeFileHandle, DumpType, info, 0, 0);
             if (!ok)
             {
                 file.Close();

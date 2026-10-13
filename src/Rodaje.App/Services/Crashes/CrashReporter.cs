@@ -84,6 +84,12 @@ public sealed class CrashReporter
 
     public SessionLog Log => _log;
 
+    /// <summary>
+    /// Quién escribe el minivolcado de un fallo nativo (ruta, <c>EXCEPTION_POINTERS*</c>); las pruebas lo cambian porque
+    /// volcar un proceso sano desde dentro puede trabarse.
+    /// </summary>
+    public Func<string, nint, bool> MinidumpWriter { get; init; } = WriteOwnMinidump;
+
     /// <summary>Lee la GPU ahora (fuera de un fallo), para que un fallo nativo no tenga que tocar DXGI.</summary>
     public void WarmUp() => _ = DescribeGpu(probe: true);
 
@@ -168,7 +174,7 @@ public sealed class CrashReporter
         if (!_gate.TryEnter(TimeSpan.FromSeconds(2)))
         {
             string? alone = NewPath(_clock(), ".dmp");
-            return alone is not null && NativeCrashHandler.WriteMinidump(alone, exceptionPointers) ? alone : null;
+            return alone is not null && MinidumpWriter(alone, (nint)exceptionPointers) ? alone : null;
         }
 
         try
@@ -176,7 +182,7 @@ public sealed class CrashReporter
             DateTime now = _clock();
             string? existing = _fatalReport;
             string? dump = existing is not null ? Path.ChangeExtension(existing, ".dmp") : NewPath(now, ".dmp");
-            if (dump is not null && !NativeCrashHandler.WriteMinidump(dump, exceptionPointers))
+            if (dump is not null && !MinidumpWriter(dump, (nint)exceptionPointers))
             {
                 dump = null;
             }
@@ -344,6 +350,9 @@ public sealed class CrashReporter
     }
 
     // ---- Interno ----
+
+    private static unsafe bool WriteOwnMinidump(string path, nint exceptionPointers) =>
+        NativeCrashHandler.WriteMinidump(path, (void*)exceptionPointers);
 
     private string? DescribeGpu(bool probe)
     {
