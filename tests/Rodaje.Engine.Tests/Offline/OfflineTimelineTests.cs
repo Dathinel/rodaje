@@ -281,7 +281,9 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
         cancel.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stuck.WaitAsync(TimeSpan.FromSeconds(30)));
         TimeSpan latency = Stopwatch.GetElapsedTime(cancelledAt, Volatile.Read(ref returnedAt));
-        Assert.True(latency < TimeSpan.FromSeconds(1), $"Tardó {latency.TotalMilliseconds:0} ms desde cancelar.");
+        // Sin cancelación el render no vuelve nunca (nadie corre los decodificadores); la cota es holgada porque en las
+        // vueltas lentas de la CI de Windows un hilo llegó a quedarse más de 2 s sin CPU.
+        Assert.True(latency < TimeSpan.FromSeconds(10), $"Tardó {latency.TotalMilliseconds:0} ms desde cancelar.");
 
         offline.Dispose();
         Assert.Equal(0, backend.Live.Value);
