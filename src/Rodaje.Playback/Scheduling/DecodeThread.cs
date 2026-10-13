@@ -22,6 +22,8 @@ public sealed class DecodeThread : IDecodeExecutor, IDisposable
     private readonly Queue<Action> _work = new();
     private readonly Thread _thread;
     private bool _stopping;
+    private bool _exited;
+    private Action? _onExit;
     private int _hangReported;
 
     public DecodeThread(string name = "Rodaje decodificación")
@@ -92,6 +94,35 @@ public sealed class DecodeThread : IDecodeExecutor, IDisposable
     }
 
     /// <summary>
+    /// Como <see cref="Stop(TimeSpan)"/>, y además corre <paramref name="release"/> cuando el hilo ya no puede usar lo que
+    /// libera: en el propio hilo, detrás de todo lo encolado, o aquí mismo si el hilo ya había terminado.
+    /// </summary>
+    /// <remarks>
+    /// Para liberar lo que usan los trabajos (el decodificador y sus contextos de FFmpeg): si el hilo sigue colgado en una
+    /// llamada nativa cuando vence el plazo, liberarlo desde quien cierra sería una violación de acceso.
+    /// </remarks>
+    public bool Stop(TimeSpan timeout, Action release)
+    {
+        ArgumentNullException.ThrowIfNull(release);
+        bool exited;
+        lock (_gate)
+        {
+            exited = _exited;
+            if (!exited)
+            {
+                _onExit += release;
+            }
+        }
+
+        if (exited)
+        {
+            release();
+        }
+
+        return Stop(timeout);
+    }
+
+    /// <summary>
     /// Pide que el hilo termine en cuanto acabe lo ya encolado, sin esperarlo: lo nuevo que llegue se descarta. Para quien
     /// no puede quedarse esperando (el ejecutor de servicio, que atiende otros cierres y lecturas).
     /// </summary>
@@ -106,6 +137,7 @@ public sealed class DecodeThread : IDecodeExecutor, IDisposable
 
     private void Run()
     {
+        Action? onExit;
         while (true)
         {
             Action work;
@@ -118,7 +150,10 @@ public sealed class DecodeThread : IDecodeExecutor, IDisposable
 
                 if (_work.Count == 0)
                 {
-                    return;
+                    _exited = true;
+                    onExit = _onExit;
+                    _onExit = null;
+                    break;
                 }
 
                 work = _work.Dequeue();
@@ -126,5 +161,7 @@ public sealed class DecodeThread : IDecodeExecutor, IDisposable
 
             work();
         }
+
+        onExit?.Invoke();
     }
 }

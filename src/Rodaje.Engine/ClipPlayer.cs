@@ -274,11 +274,26 @@ public sealed class ClipPlayer : IDisposable
 
         _disposed = true;
         _scheduler.Dispose();
-        (_executor as IDisposable)?.Dispose();
+        bool releasedByThread = false;
+        switch (_executor)
+        {
+            case DecodeThread thread:
+                // Si un cuadro sigue colgado en FFmpeg al vencer el plazo, el decodificador lo libera su hilo al volver.
+                thread.Stop(thread.JoinTimeout, _video.Dispose);
+                releasedByThread = true;
+                break;
+            case IDisposable disposable:
+                disposable.Dispose();
+                break;
+        }
+
         _cache.Dispose();
         _output?.Dispose();
         _audioSource?.Dispose();
-        _video.Dispose();
+        if (!releasedByThread)
+        {
+            _video.Dispose();
+        }
     }
 
     private static (BufferedAudioSource? Source, IAudioOutput? Output, string Status) OpenAudio(
