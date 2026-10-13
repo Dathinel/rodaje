@@ -89,6 +89,11 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     /// </summary>
     internal Action<long>? BeforeCallThreadStartsForTests { get; init; }
 
+    /// <summary>
+    /// Costura de pruebas: corre al final de la tarea de una llamada, cuando ya contestó o decidió no contestar (tarea 302).
+    /// </summary>
+    internal Action<long>? AfterCallForTests { get; init; }
+
     /// <summary>Registra la función <paramref name="id"/>; tiene que estar en <see cref="ModuleInfo.Functions"/>.</summary>
     public void Register(string id, ModuleFunction function)
     {
@@ -223,15 +228,18 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     /// Lo que queda en <c>unanswered</c> cuando el cierre agota su espera se contesta antes de cerrar el canal (tarea 295).
     /// Antes se cerraba sin más y una llamada cuyo hilo aún no había arrancado, o cuya función no atendía la cancelación, se
     /// quedaba sin respuesta final: «6 de 300 llamadas quedaron sin respuesta final» en la CI de Windows. La que aún no
-    /// reclamó su respuesta recibe <c>cancelled</c> y ya no contesta (ni corre su función, si no había empezado). La que ya
-    /// la reclamó solo está escribiéndola, con el plazo propio de <see cref="TrySendAsync"/>: se espera a que acabe.
+    /// empezó recibe <c>cancelled</c> y, cuando su hilo arranca, ya no corre su función ni contesta. La que ya empezó
+    /// contesta ella (su función recibió la cancelación, y la respuesta sale con el plazo propio de
+    /// <see cref="TrySendAsync"/>): se espera a que acabe. Lo decide un solo cambio atómico de <see cref="PendingReply"/>
+    /// (tarea 302): antes la llamada miraba si el cierre ya había contestado una vez, antes de la función, y si el cierre
+    /// contestaba justo después la función corría igual con el canal cerrado.
     /// </summary>
     private static async ValueTask AnswerUnansweredAsync(MessageChannel channel, ConcurrentDictionary<PendingReply, Task> unanswered)
     {
         List<Task> replying = [];
         foreach ((PendingReply pending, Task call) in unanswered)
         {
-            if (pending.TryClaim())
+            if (pending.TryCancel())
                 await TrySendAsync(channel, new ErrorMessage(ErrorCodes.Cancelled, "El módulo se cerró antes de terminar la llamada.", pending.Id)).ConfigureAwait(false);
             else
                 replying.Add(call);
@@ -248,18 +256,31 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     }
 
     /// <summary>
-    /// La respuesta final de una llamada, que sale una sola vez: la reclama la llamada al terminar o, si el cierre agotó su
-    /// espera antes, el cierre (tarea 295).
+    /// La respuesta final de una llamada, que sale una sola vez (tareas 295 y 302). Tres estados, con cambios atómicos:
+    /// <list type="bullet">
+    /// <item><c>Pending</c> → <c>Started</c> (<see cref="TryStart"/>): la llamada, justo antes de su función. Si falla, el
+    /// cierre ya la contestó: ni corre la función ni contesta.</item>
+    /// <item><c>Pending</c> → <c>Replied</c> (<see cref="TryCancel"/>): el cierre, que entonces contesta <c>cancelled</c>.
+    /// Si la llamada ya empezó, falla y el cierre la espera.</item>
+    /// <item><c>Started</c> → <c>Replied</c> (<see cref="TryFinish"/>): la llamada que empezó, antes de escribir su
+    /// respuesta.</item>
+    /// </list>
     /// </summary>
     private sealed class PendingReply(long id)
     {
-        private int _claimed;
+        private const int Pending = 0;
+        private const int Started = 1;
+        private const int Replied = 2;
+
+        private int _state = Pending;
 
         public long Id { get; } = id;
 
-        public bool IsClaimed => Volatile.Read(ref _claimed) != 0;
+        public bool TryStart() => Interlocked.CompareExchange(ref _state, Started, Pending) == Pending;
 
-        public bool TryClaim() => Interlocked.Exchange(ref _claimed, 1) == 0;
+        public bool TryCancel() => Interlocked.CompareExchange(ref _state, Replied, Pending) == Pending;
+
+        public bool TryFinish() => Interlocked.CompareExchange(ref _state, Replied, Started) == Started;
     }
 
     private async ValueTask StartAsync(MessageChannel channel, InvokeMessage invoke,
@@ -289,8 +310,9 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
             ModuleMessage reply;
             try
             {
-                // El cierre ya la contestó con «cancelled» (el hilo arrancó tarde): la conexión se cerró, no hay nada que hacer.
-                if (key.IsClaimed) throw new OperationCanceledException();
+                // El cierre ya la contestó con «cancelled» (el hilo arrancó tarde): la conexión se cerró, no hay nada que
+                // hacer. Si no, desde aquí el cierre ya no la contesta: la espera (tarea 302).
+                if (!key.TryStart()) throw new OperationCanceledException();
                 ModuleOutput output = await function(new ModuleCall(this, channel, invoke), cts.Token).ConfigureAwait(false);
                 reply = new ResultMessage(invoke.Id, output.Value, output.Buffers);
                 if (reply.Validate() is { } reason) reply = new ErrorMessage(ErrorCodes.Internal, "Resultado inválido: " + reason, invoke.Id);
@@ -320,11 +342,12 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
             try
             {
                 if (BeforeReplyForTests is { } hook) await hook(invoke.Id).ConfigureAwait(false);
-                if (key.TryClaim()) await SendReplyAsync(channel, reply).ConfigureAwait(false);
+                if (key.TryFinish()) await SendReplyAsync(channel, reply).ConfigureAwait(false);
             }
             finally
             {
                 unanswered.TryRemove(key, out _);
+                AfterCallForTests?.Invoke(invoke.Id);
             }
         }, CancellationToken.None, TaskCreationOptions.LongRunning);
         active[invoke.Id] = cts;
