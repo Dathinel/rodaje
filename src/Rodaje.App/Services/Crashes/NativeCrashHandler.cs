@@ -6,7 +6,7 @@ namespace Rodaje.App.Services.Crashes;
 /// <summary>
 /// Último filtro de excepciones nativas (<c>SetUnhandledExceptionFilter</c>): ante un fallo nativo fatal escribe un
 /// minivolcado (<c>MiniDumpWriteDump</c> de dbghelp) y el informe, y deja seguir al filtro anterior (el del runtime o
-/// el de Windows). P/Invoke con <c>LibraryImport</c> y puntero a función: compatible con Native AOT.
+/// el de Windows). Un <see cref="CrashWatchdog"/> termina el proceso si eso tarda más de 10 s. P/Invoke con <c>LibraryImport</c> y puntero a función: compatible con Native AOT.
 /// No ve lo que no pasa por los filtros (<c>RaiseFailFastException</c>, que usan los errores «stowed» de WinRT,
 /// o un desbordamiento de pila): eso lo cubre la copia en disco del registro (<see cref="CrashReporter.RecoverUncleanSessions"/>).
 /// </summary>
@@ -20,6 +20,7 @@ public static unsafe partial class NativeCrashHandler
 
     private static CrashReporter? s_reporter;
     private static nint s_previous;
+    private static CrashWatchdog? s_watchdog;
     private static int s_entered;
 
     /// <summary>Instala el filtro (una vez por proceso; en otro sistema que no sea Windows no hace nada).</summary>
@@ -32,6 +33,7 @@ public static unsafe partial class NativeCrashHandler
         }
 
         s_reporter = reporter;
+        s_watchdog = new CrashWatchdog(CrashWatchdog.DefaultTimeout, static code => TerminateProcess(GetCurrentProcess(), code));
         s_previous = SetUnhandledExceptionFilter((nint)(delegate* unmanaged<ExceptionPointers*, int>)&OnUnhandledException);
     }
 
@@ -75,6 +77,30 @@ public static unsafe partial class NativeCrashHandler
         }
     }
 
+    /// <summary>
+    /// Lo que hace el filtro ante un fallo: informe de texto y minivolcado (<see cref="CrashReporter.WriteNativeFatal"/>)
+    /// con el vigilante armado, que termina el proceso si tardan más de su tiempo. Nunca lanza.
+    /// </summary>
+    public static string? WriteGuarded(CrashReporter reporter, CrashWatchdog? watchdog, uint exceptionCode, void* exceptionPointers)
+    {
+        ArgumentNullException.ThrowIfNull(reporter);
+        watchdog?.Arm(exceptionCode == 0 ? 1u : exceptionCode);
+        try
+        {
+            return reporter.WriteNativeFatal(exceptionCode, exceptionPointers);
+        }
+#pragma warning disable CA1031 // Un filtro de excepciones nunca deja escapar otra.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return null;
+        }
+        finally
+        {
+            watchdog?.Disarm();
+        }
+    }
+
     private static bool WriteMinidump(string path, nint process, uint processId, MinidumpExceptionInformation* info)
     {
         try
@@ -100,18 +126,10 @@ public static unsafe partial class NativeCrashHandler
     [UnmanagedCallersOnly]
     private static int OnUnhandledException(ExceptionPointers* pointers)
     {
-        if (Interlocked.Exchange(ref s_entered, 1) == 0)
+        if (Interlocked.Exchange(ref s_entered, 1) == 0 && s_reporter is { } reporter)
         {
-            try
-            {
-                uint code = pointers is not null && pointers->ExceptionRecord is not null ? pointers->ExceptionRecord->ExceptionCode : 0;
-                s_reporter?.WriteNativeFatal(code, pointers);
-            }
-#pragma warning disable CA1031 // Un filtro de excepciones nunca deja escapar otra.
-            catch (Exception)
-#pragma warning restore CA1031
-            {
-            }
+            uint code = pointers is not null && pointers->ExceptionRecord is not null ? pointers->ExceptionRecord->ExceptionCode : 0;
+            _ = WriteGuarded(reporter, s_watchdog, code, pointers);
         }
 
         return s_previous != 0 ? ((delegate* unmanaged<ExceptionPointers*, int>)s_previous)(pointers) : ExceptionContinueSearch;
@@ -128,6 +146,11 @@ public static unsafe partial class NativeCrashHandler
     [LibraryImport("kernel32.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static partial uint GetCurrentThreadId();
+
+    [LibraryImport("kernel32.dll")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool TerminateProcess(nint process, uint exitCode);
 
     [LibraryImport("dbghelp.dll", SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
