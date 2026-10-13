@@ -6,7 +6,7 @@ using Rodaje.Media.Video;
 namespace Rodaje.App.Views.Export;
 
 /// <summary>Una exportación de la cola tal como la ve la interfaz (hilo de la interfaz).</summary>
-public sealed class ExportEntry
+public sealed partial class ExportEntry
 {
     internal ExportEntry(ExportRequest request, bool continueWithoutMissing)
     {
