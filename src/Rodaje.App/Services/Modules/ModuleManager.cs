@@ -315,10 +315,12 @@ public sealed partial class ModuleManager : IAsyncDisposable
     /// <summary>
     /// Se cerró o se retiró el proceso. Con llamadas en curso la reserva no se toca: es de ellas (la llamada que retira un
     /// proceso muerto en EnsureStartedAsync ya reservó para el que abre), y la suelta la última al terminar si no quedó proceso.
+    /// Tampoco si ya vive otro: el aviso de un proceso retirado llega cuando terminó de morir, y para entonces la llamada que
+    /// lo reemplazó pudo terminar dejando abierto el nuevo, que es dueño de la reserva.
     /// </summary>
     private void OnClosed(ModuleConnection connection)
     {
-        if (connection.ActiveCalls == 0)
+        if (connection.ActiveCalls == 0 && !connection.IsAlive)
         {
             Budget.Release(connection.Descriptor.Id);
         }

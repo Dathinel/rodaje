@@ -21,6 +21,9 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
     private ModuleProcess? _watched;
     private ModuleProcess? _hungProcess;
 
+    // El retiro del último proceso muerto (matarlo, soltarlo y avisar del cierre). Solo lo leen las pruebas (por reflexión).
+    private Task? _retiring;
+
     public ModuleDescriptor Descriptor { get; } = descriptor;
 
     public bool IsAlive => Volatile.Read(ref _process) is not null;
@@ -114,7 +117,10 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
         }
     }
 
-    /// <summary>Cierra el proceso si no hay llamadas (para liberar VRAM o al ocioso). <c>true</c> si quedó cerrado.</summary>
+    /// <summary>
+    /// Cierra el proceso si no hay llamadas (para liberar VRAM o al ocioso). <c>true</c> si cerró uno: sin proceso no libera
+    /// nada (uno muerto que todavía se retira suelta su VRAM al terminar), y quien espera memoria no debe reintentar en vacío.
+    /// </summary>
     public async Task<bool> CloseIfIdleAsync() => await CloseIfIdleAsync(null).ConfigureAwait(false);
 
     /// <summary>Cierra el proceso aunque haya llamadas (al salir de Rodaje).</summary>
@@ -162,8 +168,7 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
                 }
             }
 
-            await DisposeProcessAsync().ConfigureAwait(false);
-            return true;
+            return await DisposeProcessAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -171,16 +176,17 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
         }
     }
 
-    private async Task DisposeProcessAsync()
+    private async Task<bool> DisposeProcessAsync()
     {
         ModuleProcess? process = Interlocked.Exchange(ref _process, null);
         if (process is null)
         {
-            return;
+            return false;
         }
 
         await process.DisposeAsync().ConfigureAwait(false);
         closed(this);
+        return true;
     }
 
     private bool IsDead(ModuleProcess process) =>
@@ -195,16 +201,32 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
 
         // Matar el árbol de procesos puede tardar segundos con la CPU llena: nunca en línea. Desde EnsureStartedAsync
         // esto corre con _gate tomado y quizá en el hilo de la interfaz. En un hilo propio, como KillWhenFaulted, y
-        // observado con UiTask para que una excepción del cierre no se pierda.
+        // observado con UiTask para que una excepción del cierre no se pierda. El aviso de cierre va al final de ese hilo:
+        // antes salía enseguida y soltaba la VRAM mientras el proceso muerto seguía con la GPU, y otro módulo pesado
+        // cargaba encima.
         Action<ModuleProcess> kill = KillProcess;
-        UiTask.Run(Task.Factory.StartNew(() =>
+        Task retiring = Task.Factory.StartNew(async () =>
         {
-            kill(process);
-            return process.DisposeAsync().AsTask();
-        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap());
+            try
+            {
+                kill(process);
+                await process.DisposeAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                NotifyClosed();
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
+        Volatile.Write(ref _retiring, retiring);
+        UiTask.Run(retiring);
+    }
 
-        // Corre en una continuación que nadie espera o dentro de EnsureStartedAsync: un fallo del aviso de cierre se
-        // informa aquí y no se pierde (ni hace fallar la llamada que abre otro proceso).
+    /// <summary>
+    /// Corre al final del hilo que retira el proceso, que nadie espera: un fallo del aviso de cierre se informa aquí y no
+    /// se pierde.
+    /// </summary>
+    private void NotifyClosed()
+    {
         try
         {
             closed(this);

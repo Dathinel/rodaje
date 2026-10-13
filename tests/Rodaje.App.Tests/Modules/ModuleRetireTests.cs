@@ -113,7 +113,9 @@ public sealed class ModuleRetireTests : IDisposable
         await using ModuleManager manager = _modules.Manager(new ModuleManagerOptions
         {
             PingInterval = TimeSpan.FromMilliseconds(100),
-            PingTimeout = TimeSpan.FromMilliseconds(400),
+            // Un eco sano que tarda en contestar no debe darse por colgado (en la CI cargada un ping tardó 2 s): la prueba
+            // no mide tiempo, solo necesita que el vigilante mate al suspendido.
+            PingTimeout = TimeSpan.FromSeconds(3),
         });
         await manager.InvokeAsync("eco-a", "eco", null, "Abrir");
         int first = Assert.Single(manager.ProcessIds);
@@ -141,6 +143,166 @@ public sealed class ModuleRetireTests : IDisposable
         Assert.True(await EchoModules.HasExitedAsync(second));
         stillWatching.SetResult();
     }
+
+    /// <summary>
+    /// Una llamada de un módulo de GPU sigue en curso cuando su proceso muere: el aviso de cierre (OnClosed) no suelta la
+    /// reserva, que es de la llamada, y la suelta ella al terminar porque no quedó proceso.
+    /// </summary>
+    [Fact]
+    public async Task Con_una_llamada_en_curso_la_VRAM_del_proceso_muerto_se_suelta_al_terminar_la_llamada()
+    {
+        using EchoModules gpu = new EchoModules().Add("vision", vramMb: 1500).Add("voz-gpu", vramMb: 1200);
+        await using ModuleManager manager = gpu.Manager(new ModuleManagerOptions { DedicatedVideoMemory = () => 4L << 30 });
+        var (started, finish, call) = HeldCall(manager);
+        await started;
+        object connection = Connection(manager, "vision");
+
+        KillCurrentProcess(manager);
+        await Retired(connection);
+        Assert.Equal(["vision"], manager.Budget.Resident);
+        Assert.False(manager.Budget.TryReserve("voz-gpu", 1200), "El aviso de cierre soltó la VRAM de una llamada en curso.");
+
+        finish.SetResult(0);
+        await call;
+        Assert.Empty(manager.Budget.Resident);
+    }
+
+    /// <summary>
+    /// Dos llamadas en curso cuando el proceso muere: la primera que termina no suelta la reserva (la otra sigue), la
+    /// segunda sí.
+    /// </summary>
+    [Fact]
+    public async Task Con_dos_llamadas_en_curso_la_VRAM_del_proceso_muerto_la_suelta_la_ultima()
+    {
+        using EchoModules gpu = new EchoModules().Add("vision", vramMb: 1500).Add("voz-gpu", vramMb: 1200);
+        await using ModuleManager manager = gpu.Manager(new ModuleManagerOptions { DedicatedVideoMemory = () => 4L << 30 });
+        var (firstStarted, finishFirst, first) = HeldCall(manager);
+        var (secondStarted, finishSecond, second) = HeldCall(manager);
+        await Task.WhenAll(firstStarted, secondStarted);
+        object connection = Connection(manager, "vision");
+
+        KillCurrentProcess(manager);
+        await Retired(connection);
+
+        finishFirst.SetResult(0);
+        await first;
+        Assert.Equal(["vision"], manager.Budget.Resident);
+        Assert.False(manager.Budget.TryReserve("voz-gpu", 1200), "La primera llamada soltó la VRAM con la otra todavía en curso.");
+
+        finishSecond.SetResult(0);
+        await second;
+        Assert.Empty(manager.Budget.Resident);
+    }
+
+    /// <summary>
+    /// El aviso de cierre de un proceso muerto salía enseguida, antes de que el hilo propio lo matara y lo soltara: sin
+    /// llamadas, la VRAM quedaba libre con el proceso todavía en la GPU y otro módulo pesado cargaba encima.
+    /// </summary>
+    [Fact]
+    public async Task La_VRAM_del_proceso_muerto_no_se_suelta_hasta_que_termina_de_morir()
+    {
+        using EchoModules gpu = new EchoModules().Add("vision", vramMb: 1500).Add("voz-gpu", vramMb: 1200);
+        await using ModuleManager manager = gpu.Manager(new ModuleManagerOptions { DedicatedVideoMemory = () => 4L << 30 });
+        await manager.InvokeAsync("vision", "eco", null, "Abrir");
+        object connection = Connection(manager, "vision");
+        int callerThread = Environment.CurrentManagedThreadId;
+        using var release = new ManualResetEventSlim();
+        SetProperty(connection, "KillProcess", (Action<ModuleProcess>)(p =>
+        {
+            // Un árbol lento de matar. En el hilo del llamador no se espera: la prueba se colgaría en vez de fallar.
+            if (Environment.CurrentManagedThreadId != callerThread)
+            {
+                release.Wait();
+            }
+
+            p.Kill();
+        }));
+
+        try
+        {
+            // El aviso de salida del proceso, en este hilo para saber cuándo volvió.
+            Invoke(connection, "OnExited", GetField(connection, "_process") ?? throw new InvalidOperationException("Sin proceso."));
+            Assert.Equal(["vision"], manager.Budget.Resident);
+            Assert.False(manager.Budget.TryReserve("voz-gpu", 1200), "Otro módulo pesado reservó mientras el muerto seguía muriendo.");
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        await Retired(connection);
+        Assert.Empty(manager.Budget.Resident);
+    }
+
+    /// <summary>
+    /// El aviso de cierre del proceso retirado en EnsureStartedAsync llega cuando terminó de morir: para entonces la
+    /// llamada que lo reemplazó pudo terminar y dejar abierto el nuevo, que es dueño de la reserva.
+    /// </summary>
+    [Fact]
+    public async Task El_aviso_tardio_del_proceso_retirado_no_suelta_la_VRAM_del_que_lo_reemplazo()
+    {
+        using EchoModules gpu = new EchoModules().Add("vision", vramMb: 1500).Add("voz-gpu", vramMb: 1200);
+        await using ModuleManager manager = gpu.Manager(new ModuleManagerOptions { DedicatedVideoMemory = () => 4L << 30 });
+        await manager.InvokeAsync("vision", "eco", null, "Abrir");
+        object connection = Connection(manager, "vision");
+        MarkDeadWithoutNotice(connection);
+        int callerThread = Environment.CurrentManagedThreadId;
+        using var release = new ManualResetEventSlim();
+        SetProperty(connection, "KillProcess", (Action<ModuleProcess>)(p =>
+        {
+            // El retiro corre en este hilo hasta abrir el nuevo: si matara aquí, la prueba se colgaría en vez de fallar.
+            if (Environment.CurrentManagedThreadId != callerThread)
+            {
+                release.Wait();
+            }
+
+            p.Kill();
+        }));
+
+        try
+        {
+            await manager.InvokeAsync("vision", "eco", null, "Eco");
+            Assert.Single(manager.ProcessIds);
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        await Retired(connection);
+        Assert.Equal(["vision"], manager.Budget.Resident);
+        Assert.False(manager.Budget.TryReserve("voz-gpu", 1200), "El aviso del proceso retirado soltó la VRAM del que lo reemplazó.");
+    }
+
+    /// <summary>Una llamada a «vision» que trabaja hasta que la prueba la deja terminar (sin usar el proceso).</summary>
+    private static (Task Started, TaskCompletionSource<int> Finish, Task<int> Call) HeldCall(ModuleManager manager)
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task<int> call = manager.RunAsync("vision", "Largo", async _ =>
+        {
+            started.SetResult();
+            return await finish.Task;
+        });
+        return (started.Task, finish, call);
+    }
+
+    private static void KillCurrentProcess(ModuleManager manager)
+    {
+        using Process process = Process.GetProcessById(Assert.Single(manager.ProcessIds));
+        process.Kill();
+    }
+
+    /// <summary>Espera a que el proceso muerto termine de retirarse (matado, soltado y avisado el cierre).</summary>
+    private static async Task Retired(object connection)
+    {
+        await WaitUntil(() => GetField(connection, "_retiring") is not null);
+        await (Task)GetField(connection, "_retiring")!;
+    }
+
+    private static void Invoke(object target, string name, object argument) =>
+        (target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic) ?? throw new MissingMethodException(target.GetType().Name, name))
+            .Invoke(target, [argument]);
 
     private static object Connection(ModuleManager manager, string moduleId)
     {
