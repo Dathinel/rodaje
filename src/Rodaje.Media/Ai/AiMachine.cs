@@ -99,8 +99,11 @@ public sealed record AiMachine(bool HasGpu, bool Integrated, GpuVendor Vendor, s
         return string.Create(CultureInfo.InvariantCulture, $"{gpu}, {Gb(RamTotalMb)} de RAM ({Gb(RamFreeMb)} libres), {LogicalCores} hilos");
     }
 
+    // Coma decimal sin pedir «es» por nombre: la app publica con InvariantGlobalization y eso lanzaría.
+    private static readonly NumberFormatInfo DecimalComma = NumberFormatInfo.ReadOnly(new NumberFormatInfo { NumberDecimalSeparator = ",", NumberGroupSeparator = "." });
+
     internal static string Gb(int mb) => mb >= 1024
-        ? (mb / 1024.0).ToString(mb % 1024 == 0 ? "0" : "0.#", CultureInfo.GetCultureInfo("es")) + " GB"
+        ? (mb / 1024.0).ToString(mb % 1024 == 0 ? "0" : "0.#", DecimalComma) + " GB"
         : mb.ToString(CultureInfo.InvariantCulture) + " MB";
 
     private static int ToMb(long bytes) => (int)Math.Clamp(bytes / (1024 * 1024), 0, int.MaxValue);
