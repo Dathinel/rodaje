@@ -514,8 +514,10 @@ public sealed class CrashReportScrubber
     //   «(copia \ original) y»): ninguna carpeta es así;
     // - si son cifras tras cifras y la cadena de barras y cifras termina ahí («12/300», «12/10/2026»); si sigue un nombre
     //   («2024/10/12/a.mp4»), son carpetas;
-    // - si no va seguido de otra barra, no parece un archivo («a.mp4», «Fotos de la boda.jpg», «a.mp4 y siguió») y lleva
-    //   espacios («y/o respaldo»).
+    // - si no va seguido de otra barra, no parece un archivo («a.mp4», «Fotos de la boda.jpg», «a.mp4 y siguió»), lleva
+    //   espacios y empieza como una frase (StartsPhrase: «y/o respaldo», «3/4 hechos»). Si empieza por mayúscula, cifra
+    //   u otro signo («Boda.mp4 final/Ana Perez», «Fotos.zip 2024/Maria Lopez»), puede ser el último nombre de la ruta y
+    //   la carpeta se tapa (tarea 199).
     private static bool ContinuesPath(string s, int slash, ref long work)
     {
         int p = SkipSeparators(s, slash);
@@ -563,7 +565,31 @@ public sealed class CrashReportScrubber
             return q < s.Length && IsSeparator(s[q]) && !OnlyDigitsFollow(s, q, ref work);
         }
 
-        return (q < s.Length && IsSeparator(s[q])) || fileName || HasExtension(s, p, q) || !space;
+        return (q < s.Length && IsSeparator(s[q])) || fileName || HasExtension(s, p, q) || !space || !StartsPhrase(s, slash, p);
+    }
+
+    // Si el tramo que empieza en «p», tras la barra en «slash», empieza como una frase: por minúscula («y/o respaldo»,
+    // «o/u otro»), o con cifras seguidas de un espacio tras cifras («3/4 hechos»). Una mayúscula, otra cifra u otro signo
+    // pueden empezar un nombre («Ana Perez», «2024 Rojas»): ante la duda, no. Mira solo las cifras del principio.
+    private static bool StartsPhrase(string s, int slash, int p)
+    {
+        if (char.IsLower(s[p]))
+        {
+            return true;
+        }
+
+        if (!char.IsAsciiDigit(s[slash - 1]))
+        {
+            return false;
+        }
+
+        int q = p;
+        while (q < s.Length && char.IsAsciiDigit(s[q]))
+        {
+            q++;
+        }
+
+        return q > p && q < s.Length && char.IsWhiteSpace(s[q]);
     }
 
     // Si tras la barra en «slash» solo quedan cifras separadas por barras hasta el final del nombre («/10/2026 y»). Lee la
