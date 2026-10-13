@@ -4,12 +4,21 @@ using System.Diagnostics;
 namespace Rodaje.Playback.Tests.Support;
 
 /// <summary>
-/// Arnés de las pruebas de estrés (<c>Categoria=Estres</c>): varios hilos que se pisan con una semilla fija, un tope de
-/// tiempo para la CI y la semilla en cada mensaje de fallo, para repetir la corrida exacta.
+/// Arnés de las pruebas de estrés (<c>Categoria=Estres</c>): varios hilos que se pisan con una semilla fija, un
+/// presupuesto de tiempo que corta las iteraciones y la semilla en cada mensaje de fallo, para repetir la corrida exacta.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Sin <c>RODAJE_PRUEBAS_LARGAS</c> cada prueba hace pocas iteraciones (la CI); con ella, <see cref="LongFactor"/> veces
-/// más. Un hilo que no termina antes del tope cuenta como interbloqueo y la prueba falla con la semilla y el hilo.
+/// más. Al cumplirse <see cref="Budget"/> se enciende la señal de parada y los hilos dejan de iterar: un runner cargado
+/// hace menos vueltas, no falla (en la CI de Windows, con todos los proyectos a la vez, 1 500 pasos de la línea de tiempo
+/// llegaron a pasar de 60 s; en Linux tardan menos de uno).
+/// </para>
+/// <para>
+/// Lo que falla es la falta de progreso: cada hilo avanza cada vez que saca un número de su <see cref="Random"/>, y uno
+/// que pasa <see cref="Stall"/> sin sacar ninguno cuenta como interbloqueo (o hilo colgado) y la prueba falla con la
+/// semilla y el hilo. Por eso cada vuelta de un hilo saca al menos un número.
+/// </para>
 /// </remarks>
 internal static class Stress
 {
@@ -18,25 +27,32 @@ internal static class Stress
 
     public static bool Long => Environment.GetEnvironmentVariable("RODAJE_PRUEBAS_LARGAS") == "1";
 
-    /// <summary>Tope de cada corrida: lo que tarde de más es un interbloqueo (o un hilo colgado).</summary>
-    public static TimeSpan Deadline => TimeSpan.FromSeconds(Long ? 600 : 60);
+    /// <summary>Tiempo de cada corrida: al cumplirse se pide parar y las iteraciones que falten no se hacen (no es un fallo).</summary>
+    public static TimeSpan Budget => TimeSpan.FromSeconds(Long ? 600 : 15);
+
+    /// <summary>
+    /// Lo que puede pasar un hilo sin avanzar antes de darlo por colgado. Queda por encima de los topes de
+    /// <see cref="Within"/> de las pruebas (20 s), para que un cierre colgado falle con su propio mensaje.
+    /// </summary>
+    public static TimeSpan Stall => TimeSpan.FromSeconds(Long ? 300 : 60);
 
     /// <summary>Las iteraciones de la CI, multiplicadas por <see cref="LongFactor"/> con las pruebas largas.</summary>
     public static int Iterations(int ci) => Long ? ci * LongFactor : ci;
 
     /// <summary>
     /// Corre <paramref name="workers"/> en hilos propios hasta que todos vuelven, juntando sus excepciones. Cada uno
-    /// recibe su propio <see cref="Random"/> derivado de la semilla y una señal de parada que se enciende si otro falla.
+    /// recibe su propio <see cref="Random"/> derivado de la semilla y una señal de parada que se enciende si otro falla o
+    /// si se acaba <see cref="Budget"/>.
     /// </summary>
     public static void Run(int seed, params (string Name, Action<Random, CancellationToken> Body)[] workers)
     {
         var errors = new ConcurrentQueue<string>();
         using var stop = new CancellationTokenSource();
-        var threads = new List<(string Name, Thread Thread)>();
+        var threads = new List<(string Name, Thread Thread, BeatingRandom Random)>();
         for (int i = 0; i < workers.Length; i++)
         {
             (string name, Action<Random, CancellationToken> body) = workers[i];
-            var random = new Random(HashCode.Combine(seed, i));
+            var random = new BeatingRandom(HashCode.Combine(seed, i));
             var thread = new Thread(() =>
             {
                 try
@@ -52,25 +68,51 @@ internal static class Stress
                 }
             })
             { IsBackground = true, Name = "Estrés " + name };
-            threads.Add((name, thread));
+            threads.Add((name, thread, random));
         }
 
         threads.ForEach(t => t.Thread.Start());
         var watch = Stopwatch.StartNew();
+        long[] beats = new long[threads.Count];
+        var lastBeat = new TimeSpan[threads.Count];
+        bool cut = false;
         var hung = new List<string>();
-        foreach ((string name, Thread thread) in threads)
+        while (true)
         {
-            TimeSpan left = Deadline - watch.Elapsed;
-            if (!thread.Join(left > TimeSpan.Zero ? left : TimeSpan.Zero))
+            int alive = threads.FindIndex(t => t.Thread.IsAlive);
+            if (alive < 0)
             {
-                hung.Add(name);
+                break;
             }
-        }
 
-        if (hung.Count > 0)
-        {
-            stop.Cancel();
-            errors.Enqueue($"Posible interbloqueo: {string.Join(", ", hung)} no terminó en {Deadline.TotalSeconds:0} s.");
+            threads[alive].Thread.Join(TimeSpan.FromMilliseconds(100));
+            TimeSpan now = watch.Elapsed;
+            if (!cut && now >= Budget)
+            {
+                cut = true;
+                stop.Cancel();
+            }
+
+            for (int i = 0; i < threads.Count; i++)
+            {
+                long beat = threads[i].Random.Beats;
+                if (beat != beats[i] || !threads[i].Thread.IsAlive)
+                {
+                    beats[i] = beat;
+                    lastBeat[i] = now;
+                }
+                else if (now - lastBeat[i] > Stall)
+                {
+                    hung.Add($"{threads[i].Name} (sin avanzar desde los {lastBeat[i].TotalSeconds:0} s, tras {beat} números)");
+                }
+            }
+
+            if (hung.Count > 0)
+            {
+                stop.Cancel();
+                errors.Enqueue($"Posible interbloqueo: {string.Join(", ", hung)}; {Stall.TotalSeconds:0} s sin progreso.");
+                break;
+            }
         }
 
         Assert.True(errors.IsEmpty, $"Semilla {seed}: {string.Join(Environment.NewLine, errors)}");
@@ -109,5 +151,75 @@ internal static class Stress
             Assert.True(watch.Elapsed < max, $"Semilla {seed}: {what} no ocurrió en {max.TotalSeconds:0.#} s.");
             Thread.Sleep(1);
         }
+    }
+
+    /// <summary>Un <see cref="Random"/> que cuenta los números que saca: el pulso con el que <see cref="Run"/> ve que un hilo avanza.</summary>
+    private sealed class BeatingRandom(int seed) : Random(seed)
+    {
+        private long _beats;
+
+        public long Beats => Volatile.Read(ref _beats);
+
+        public override int Next()
+        {
+            Beat();
+            return base.Next();
+        }
+
+        public override int Next(int maxValue)
+        {
+            Beat();
+            return base.Next(maxValue);
+        }
+
+        public override int Next(int minValue, int maxValue)
+        {
+            Beat();
+            return base.Next(minValue, maxValue);
+        }
+
+        public override long NextInt64()
+        {
+            Beat();
+            return base.NextInt64();
+        }
+
+        public override long NextInt64(long maxValue)
+        {
+            Beat();
+            return base.NextInt64(maxValue);
+        }
+
+        public override long NextInt64(long minValue, long maxValue)
+        {
+            Beat();
+            return base.NextInt64(minValue, maxValue);
+        }
+
+        public override double NextDouble()
+        {
+            Beat();
+            return base.NextDouble();
+        }
+
+        public override float NextSingle()
+        {
+            Beat();
+            return base.NextSingle();
+        }
+
+        public override void NextBytes(byte[] buffer)
+        {
+            Beat();
+            base.NextBytes(buffer);
+        }
+
+        public override void NextBytes(Span<byte> buffer)
+        {
+            Beat();
+            base.NextBytes(buffer);
+        }
+
+        private void Beat() => Volatile.Write(ref _beats, _beats + 1);
     }
 }
