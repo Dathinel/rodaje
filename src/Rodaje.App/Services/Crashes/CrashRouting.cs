@@ -23,7 +23,7 @@ public static class CrashRouting
     /// después el registro de <see cref="Trace"/> y el cierre del proceso. No abre la copia del registro ni recupera
     /// sesiones: eso es <see cref="CrashReporter.BeginSession"/>, que espera a las opciones (<c>AppOptions.Parse</c>).
     /// </summary>
-    internal static void Install(CrashReporter crashes, CrashHooks hooks, Action<string?> appendErrorFile, string commandLine)
+    public static void Install(CrashReporter crashes, CrashHooks hooks, Action<string?> appendErrorFile, string commandLine)
     {
         ArgumentNullException.ThrowIfNull(crashes);
         ArgumentNullException.ThrowIfNull(hooks);
@@ -124,9 +124,10 @@ public static class CrashRouting
 
 /// <summary>
 /// Dónde se enganchan las vías de excepción del proceso (<see cref="CrashRouting.Install"/>). Las pruebas lo cambian
-/// por uno que anota el orden sin tocar el proceso de pruebas.
+/// por uno que anota el orden sin tocar el proceso de pruebas. Es pública y no sellada a propósito: si fuera interna, el
+/// analizador de Rodaje.App (CA1852) pediría sellarla, porque las subclases de las pruebas están en otro ensamblado.
 /// </summary>
-internal class CrashHooks
+public class CrashHooks
 {
     public virtual void OnUnhandled(UnhandledExceptionEventHandler handler) => AppDomain.CurrentDomain.UnhandledException += handler;
 
