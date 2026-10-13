@@ -217,9 +217,19 @@ public class EditPropertiesTests(ITestOutputHelper output)
     /// cortar un enlace (un Insert que parte un clip y lleva lo de después con la mitad derecha) cambia cuál es la
     /// referencia de cada mitad, y un par que ya estaba desfasado pasa a medirse sin que nada se haya corrido.
     /// </summary>
-    private static HashSet<Time> SyncOffsets(Sequence sequence)
+    private static HashSet<Time> SyncOffsets(Sequence sequence) => [.. SyncPairs(sequence).Select(o => Abs(o.Offset))];
+
+    /// <summary>
+    /// El primer par desfasado después de la edición cuyo desfase no estaba antes. Se mide con los mismos pares que
+    /// <see cref="SyncOffsets"/>: contra la referencia de <see cref="LinkSync.Find"/> un clip que se corre hasta un
+    /// desfase que ya tenía otro par (B y C a +5 de A; C pasa a −5) quedaba oculto, aunque B y C pasan de 0 a 10.
+    /// </summary>
+    private static SyncOffset SyncBreaks(Sequence sequence, HashSet<Time> before) =>
+        SyncPairs(sequence).FirstOrDefault(o => !before.Contains(Abs(o.Offset)));
+
+    // Cada par desfasado una sola vez; el signo depende de cuál va primero en el orden de las pistas.
+    private static IEnumerable<SyncOffset> SyncPairs(Sequence sequence)
     {
-        var offsets = new HashSet<Time>();
         foreach (IGrouping<(string, string), Clip> same in sequence.AllTracks.Where(t => !t.Locked)
             .SelectMany(t => t.Clips)
             .Where(c => c.LinkId is not null && c.Generator is null && !c.IsCompound)
@@ -232,23 +242,14 @@ public class EditPropertiesTests(ITestOutputHelper output)
                 {
                     if (LinkSync.OffsetBetween(members[i], members[j]) is { } offset && offset != Time.Zero)
                     {
-                        offsets.Add(Abs(offset));
+                        yield return new SyncOffset(members[j].Id, members[i].Id, offset);
                     }
                 }
             }
         }
-
-        return offsets;
     }
 
-    private static SyncOffset SyncBreaks(Sequence sequence, HashSet<Time> before) =>
-        Unlocked(sequence).FirstOrDefault(o => !before.Contains(Abs(o.Offset)));
-
-    // La pareja de referencia es la primera en el orden de las pistas: llevar un clip a otra pista puede cambiar cuál mide a cuál (el signo).
     private static Time Abs(Time t) => t < Time.Zero ? -t : t;
-
-    private static IEnumerable<SyncOffset> Unlocked(Sequence sequence) =>
-        LinkSync.Find(sequence).Where(o => sequence.FindClip(o.ClipId) is { Track.Locked: false } && sequence.FindClip(o.PartnerId) is { Track.Locked: false });
 
     /// <summary>
     /// La propiedad 11 sobre todas las ediciones (salvo enlazar a mano y las de velocidad, que recalculan cada clip desde
@@ -270,6 +271,35 @@ public class EditPropertiesTests(ITestOutputHelper output)
     public void LasSemillasDeDesfase_ConservanLaSincronia(string seed, int generator) =>
         (generator switch { 1 => GenCurveScenario, 2 => GenTitleScenario, _ => GenScenario })
             .Sample(s => RunScenario(s.Project, s.Ops, allOpsKeepSync: true), seed: seed, iter: 1, threads: 1);
+
+    /// <summary>
+    /// Regresión (CI de e86c6b09): un recorte ripple y quitar la reversa dejaron dos enlazados con velocidad 1× y distinto
+    /// Offset; <see cref="LinkSync.OffsetBetween"/> los comparaba por contenido y no medía su desfase, y al dividirlos las dos
+    /// mitades quedaban con el mismo Offset y el desfase de siempre aparecía como nuevo.
+    /// </summary>
+    [Fact]
+    public void LaSemillaDeVelocidadNeutra_ConservaLaSincronia() =>
+        GenScenario.Sample(s => RunScenario(s.Project, s.Ops), seed: "4mihSLRcQtT6", iter: 1, threads: 1);
+
+    /// <summary>Una velocidad a 1× sin curva, reversa ni congelado se mide como un clip sin velocidad, sea cual sea su Offset.</summary>
+    [Fact]
+    public void LaVelocidadNeutra_SeMideComoSinVelocidad()
+    {
+        var video = new Clip
+        {
+            Id = "v", MediaId = "m", SourceIn = Time.FromTicks(6_556_200_000), SourceOut = Time.FromTicks(8_212_362_965),
+            Start = Time.FromTicks(9_016_037_035), Speed = new ClipSpeed { Offset = Time.FromTicks(49_037_035) },
+        };
+        var audio = new Clip
+        {
+            Id = "a", MediaId = "m", SourceIn = Time.FromTicks(6_556_200_000), SourceOut = Time.FromTicks(9_172_800_000),
+            Start = Time.FromTicks(8_055_600_000), Speed = new ClipSpeed { Offset = Time.FromTicks(-911_400_000) },
+        };
+        var plain = new Clip { Id = "p", MediaId = "m", SourceIn = audio.SourceIn, SourceOut = audio.SourceOut, Start = audio.Start };
+
+        Assert.Equal(Time.FromTicks(960_437_035), LinkSync.OffsetBetween(video, audio));
+        Assert.Equal(Time.FromTicks(960_437_035), LinkSync.OffsetBetween(video, plain));
+    }
 
     internal static void RunScenario(ProjectSpec spec, OpSpec[] ops, bool allOpsKeepSync = false)
     {

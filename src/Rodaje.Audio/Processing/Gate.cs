@@ -24,11 +24,26 @@ public sealed record GateSettings(double ThresholdDb, double RangeDb, double Rat
             return 0;
         }
 
-        double range = Math.Max(0, RangeDb);
-        return Ratio >= GateRatio ? -range : Math.Max(-range, (inputDb - ThresholdDb) * (Math.Max(1, Ratio) - 1));
+        // Con 1:1 no expande (y −∞ · 0 sería NaN al arrancar cerrada); un rango o una relación NaN tampoco bajan nada.
+        double range = RangeDb > 0 ? RangeDb : 0;
+        if (Ratio >= GateRatio)
+        {
+            return -range;
+        }
+
+        double slope = Ratio - 1;
+        return slope > 0 ? Math.Max(-range, (inputDb - ThresholdDb) * slope) : 0;
     }
 
     internal override IAudioStage CreateStage(double sampleRate) => new GateStage(this, sampleRate);
+
+    internal override GateSettings Limited() =>
+        new(Limit(ThresholdDb, -90, 0, -45), Limit(RangeDb, 0, 90, 40), Limit(Ratio, 1, GateRatio, GateRatio), Limit(AttackMs, 0.05, 100, 1),
+            Limit(HoldMs, 0, 1000, 40), Limit(ReleaseMs, 5, 3000, 120))
+        {
+            HysteresisDb = Limit(HysteresisDb, 0, 20, 3),
+            SidechainHighPassHz = Limit(SidechainHighPassHz, 0, 1000, 0),
+        };
 }
 
 /// <summary>

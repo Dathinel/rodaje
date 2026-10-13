@@ -11,7 +11,7 @@ public readonly record struct Biquad(double B0, double B1, double B2, double A1,
     /// <summary>Campana: <paramref name="gainDb"/> en <paramref name="hz"/>, con ancho <paramref name="q"/>.</summary>
     public static Biquad Peaking(double sampleRate, double hz, double q, double gainDb)
     {
-        double a = Math.Pow(10, gainDb / 40);
+        double a = Amplitude(gainDb);
         (double cos, double alpha) = Angle(sampleRate, hz, q);
         return Normalize(1 + (alpha * a), -2 * cos, 1 - (alpha * a), 1 + (alpha / a), -2 * cos, 1 - (alpha / a));
     }
@@ -19,7 +19,7 @@ public readonly record struct Biquad(double B0, double B1, double B2, double A1,
     /// <summary>Estante de graves con pendiente 1 (Q = 1/√2): <paramref name="gainDb"/> por debajo de <paramref name="hz"/>.</summary>
     public static Biquad LowShelf(double sampleRate, double hz, double gainDb)
     {
-        double a = Math.Pow(10, gainDb / 40);
+        double a = Amplitude(gainDb);
         (double cos, double alpha) = Angle(sampleRate, hz, Math.Sqrt(0.5));
         double k = 2 * Math.Sqrt(a) * alpha;
         return Normalize(
@@ -34,7 +34,7 @@ public readonly record struct Biquad(double B0, double B1, double B2, double A1,
     /// <summary>Estante de agudos con pendiente 1: <paramref name="gainDb"/> por encima de <paramref name="hz"/>.</summary>
     public static Biquad HighShelf(double sampleRate, double hz, double gainDb)
     {
-        double a = Math.Pow(10, gainDb / 40);
+        double a = Amplitude(gainDb);
         (double cos, double alpha) = Angle(sampleRate, hz, Math.Sqrt(0.5));
         double k = 2 * Math.Sqrt(a) * alpha;
         return Normalize(
@@ -104,10 +104,18 @@ public readonly record struct Biquad(double B0, double B1, double B2, double A1,
         state[1] = Math.Abs(z2) < 1e-30 ? 0 : z2;
     }
 
+    /// <summary>Lo más que sube o baja una campana o un estante, en dB: más allá los coeficientes se desbordan.</summary>
+    public const double MaxGainDb = 60;
+
+    /// <summary>La raíz de la ganancia lineal de las fórmulas; NaN vale 0 dB y lo demás se acota a ±<see cref="MaxGainDb"/>.</summary>
+    private static double Amplitude(double gainDb) =>
+        Math.Pow(10, (double.IsNaN(gainDb) ? 0 : Math.Clamp(gainDb, -MaxGainDb, MaxGainDb)) / 40);
+
+    /// <summary>La frecuencia va de 1 Hz a casi Nyquist (NaN, la mitad) y la Q no baja de 0,05 (NaN, la de Butterworth).</summary>
     private static (double Cos, double Alpha) Angle(double sampleRate, double hz, double q)
     {
-        double w = 2 * Math.PI * Math.Clamp(hz, 1, (sampleRate / 2) - 1) / sampleRate;
-        return (Math.Cos(w), Math.Sin(w) / (2 * Math.Max(q, 0.05)));
+        double w = 2 * Math.PI * (double.IsNaN(hz) ? sampleRate / 4 : Math.Clamp(hz, 1, (sampleRate / 2) - 1)) / sampleRate;
+        return (Math.Cos(w), Math.Sin(w) / (2 * (double.IsNaN(q) ? Math.Sqrt(0.5) : Math.Max(q, 0.05))));
     }
 
     private static Biquad Normalize(double b0, double b1, double b2, double a0, double a1, double a2) =>

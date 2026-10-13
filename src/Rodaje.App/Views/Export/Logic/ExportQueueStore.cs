@@ -47,6 +47,18 @@ public sealed class ExportQueueStore(string path)
     /// <summary>Cuántas entradas saltó el último <see cref="Load"/> por estar dañadas, para avisar de que no se recuperan.</summary>
     public int Skipped { get; private set; }
 
+    /// <summary>
+    /// Copia del archivo original que dejó el último <see cref="Load"/> al saltar entradas (o el archivo apartado, si no se
+    /// pudo leer entero); <c>null</c> si no hubo nada dañado o no se pudo copiar.
+    /// </summary>
+    public string? DamagedPath { get; private set; }
+
+    /// <summary>El aviso para quien usa la app tras el último <see cref="Load"/>; <c>null</c> si no se perdió nada.</summary>
+    public string? DamagedNotice { get; private set; }
+
+    /// <summary>Nombre de la copia del archivo con lo que no se pudo leer, junto a él.</summary>
+    public string DamagedCopyPath => System.IO.Path.ChangeExtension(Path, null) + ".dañado" + System.IO.Path.GetExtension(Path);
+
     /// <summary>Escribe las peticiones (o borra el archivo si no queda ninguna).</summary>
     public void Save(IEnumerable<(ExportRequest Request, bool ContinueWithoutMissing)> pending)
     {
@@ -82,6 +94,8 @@ public sealed class ExportQueueStore(string path)
     public IReadOnlyList<(ExportRequest Request, bool ContinueWithoutMissing)> Load()
     {
         Skipped = 0;
+        DamagedPath = null;
+        DamagedNotice = null;
         if (!File.Exists(Path))
         {
             return [];
@@ -113,12 +127,36 @@ public sealed class ExportQueueStore(string path)
                 }
             }
 
+            // El siguiente Save reescribe el archivo sin las entradas saltadas: sin esta copia se perdían sin rastro (y, si
+            // estaban todas rotas, sin aviso, porque solo se preguntaba con alguna pendiente).
+            if (Skipped > 0)
+            {
+                DamagedPath = CopyDamaged();
+                DamagedNotice = (Skipped == 1 ? "Una exportación de la última vez no se pudo leer" : $"{Skipped} exportaciones de la última vez no se pudieron leer")
+                    + (DamagedPath is null ? "." : $"; el archivo original quedó en «{DamagedPath}».");
+            }
+
             return loaded;
         }
         catch (Exception ex) when (ex is JsonException or ProjectFormatException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            AppDataPaths.SetAside(Path, ".dañado");
+            DamagedPath = AppDataPaths.SetAside(Path, ".dañado");
+            DamagedNotice = "La cola de exportaciones de la última vez no se pudo leer"
+                + (DamagedPath is null ? "." : $"; el archivo quedó en «{DamagedPath}».");
             return [];
+        }
+    }
+
+    private string? CopyDamaged()
+    {
+        try
+        {
+            File.Copy(Path, DamagedCopyPath, overwrite: true);
+            return DamagedCopyPath;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 

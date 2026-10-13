@@ -34,6 +34,14 @@ internal static class Program
         try
         {
             AppOptions options = AppOptions.Parse(args);
+            // Con las opciones ya leídas: una corrida automática no abre la copia del registro ni recupera sesiones.
+            _ = Crashes.BeginSession(options.IsAutomated);
+            if (options.SelfTest && Crashes.Version == "?")
+            {
+                // Sin la versión, los informes de fallo no sirven para saber qué compilación falló (AOT recorta atributos).
+                AppendErrorFile("autoprueba: la versión del informe de fallos es «?» (falta AssemblyInformationalVersionAttribute en el exe).");
+            }
+
             var settings = new SettingsStore(SettingsStore.DefaultPath);
             string? settingsWarning = settings.Load();
             Metrics.Milestone("ajustes");
@@ -60,6 +68,9 @@ internal static class Program
                     new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread()), OnDispatcherException));
                 Instance = new App(options, engine, prober, settings, settingsWarning);
             });
+            // Application.Exit (o la última ventana cerrada) vuelve aquí: cierre limpio antes de soltar el motor, que
+            // puede tardar o quedar a medias si alguien mata el proceso mientras tanto.
+            Crashes.EndSession();
         }
 #pragma warning disable CA1031 // Último recurso: deja el motivo en un archivo junto al exe.
         catch (Exception ex)
@@ -81,15 +92,29 @@ internal static class Program
     /// </summary>
     public static void WriteCrash(string? text)
     {
-        AppendErrorFile(text);
-        Crashes.Write(CrashKind.Caught, text, fatal: false);
+        _ = Crashes.Write(CrashKind.Caught, text, fatal: false, out bool repeated);
+        if (!repeated)
+        {
+            AppendErrorFile(text);
+        }
     }
 
     /// <summary>Informa una excepción que llegó por una de las vías sin atrapar (también en <c>rodaje-error.txt</c>).</summary>
-    public static string? ReportException(CrashKind kind, Exception exception, bool fatal)
+    public static string? ReportException(CrashKind kind, Exception exception, bool fatal) => ReportException(kind, exception, fatal, out _);
+
+    /// <summary>
+    /// Como <see cref="ReportException(CrashKind, Exception, bool)"/>; <paramref name="repeated"/> dice que era una
+    /// repetición sin informe propio (ráfaga): ni <c>rodaje-error.txt</c> ni aviso otra vez.
+    /// </summary>
+    public static string? ReportException(CrashKind kind, Exception exception, bool fatal, out bool repeated)
     {
-        AppendErrorFile(exception.ToString());
-        return Crashes.Write(kind, exception, fatal);
+        string? path = Crashes.Write(kind, exception, fatal, out repeated);
+        if (!repeated)
+        {
+            AppendErrorFile(exception.ToString());
+        }
+
+        return path;
     }
 
     private static void InstallCrashReporting()
@@ -104,10 +129,9 @@ internal static class Program
         NativeCrashHandler.Install(Crashes);
         System.Diagnostics.Trace.Listeners.Add(new SessionLogTraceListener(Log));
         Log.Append($"Rodaje {Crashes.Version} arranca: {Environment.CommandLine}");
-        // Las sesiones anteriores que terminaron sin cerrarse ni dejar informe se vuelven informe; después, la copia en
-        // disco del registro de esta sesión.
-        _ = Crashes.RecoverUncleanSessions();
-        Crashes.StartSession();
+        // La recuperación de sesiones y la copia en disco del registro esperan a las opciones (Crashes.BeginSession en
+        // Main). Un proceso que sale normalmente (Environment.Exit incluido) también cierra la sesión.
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => Crashes.EndSession();
         // La GPU se lee ahora, fuera de cualquier fallo: un fallo nativo no debe tocar DXGI.
         _ = Task.Run(async () =>
         {

@@ -10,6 +10,9 @@ public sealed record SaturationSettings(double DriveDb, double Character, double
     public override int LatencyFrames(double sampleRate) => 1;
 
     internal override IAudioStage CreateStage(double sampleRate) => new SaturationStage(this, sampleRate);
+
+    internal override SaturationSettings Limited() =>
+        new(Limit(DriveDb, 0, 36, 6), Limit(Character, 0, 1, 0), Limit(ToneHz, 1000, 20000, 20000), Limit(OutputDb, -24, 12, 0), Limit(Mix, 0, 1, 1));
 }
 
 /// <summary>
