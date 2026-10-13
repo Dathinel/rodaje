@@ -17,6 +17,16 @@ public sealed partial class EditorSession
             return false;
         }
 
+        // Lo imposible no llega al comando, que lanza ArgumentException (no EditException) y cerraría la app desde un clic.
+        if (!ProjectFormats.IsValidSize(width, height) || frameRate.Num <= 0 || frameRate.Den <= 0)
+        {
+            Notify(NotificationSeverity.Warning, "Formato del proyecto",
+                $"{width}×{height} no es un tamaño válido: pares, de {ProjectFormats.MinSide} a {ProjectFormats.MaxSide} píxeles.");
+            return false;
+        }
+
+        fit = ProjectFormats.Normalize(fit);
+
         if (!Execute(SequenceFormatEdit.Command(SequenceId, width, height, frameRate, fit, _ids)))
         {
             return false;

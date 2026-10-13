@@ -34,6 +34,9 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     private bool _updatingPreset;
     private bool _updatingTransform;
     private string? _graphName;
+
+    /// <summary>Los parámetros que muestra ahora el desplegable de la gráfica, en su orden.</summary>
+    private List<string> _graphNames = [];
     private readonly List<(Button Button, string Id)> _presetTiles = [];
 
     public PropertiesPanel()
@@ -426,28 +429,60 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     }
 
     /// <summary>La gráfica: el parámetro elegido (o el último que se tocó, o el primero animado) y su curva.</summary>
+    /// <remarks>
+    /// Los elementos del desplegable solo se rehacen si cambió la lista y nunca con él abierto: rehacerlos en cada refresco
+    /// (al elegir «Escala» o mientras se reproduce con la lista abierta) cerraba la app desde dentro de WinUI.
+    /// </remarks>
     private void ShowGraph(Clip clip, List<ParameterRow> animated)
     {
-        _updatingTransform = true;
-        GraphParameterBox.Items.Clear();
-        foreach (ParameterRow row in animated)
+        List<string> names = [.. animated.Select(r => r.Spec.Name)];
+        (IReadOnlyList<string> offered, int selected) = GraphParameterChoice.Choose(names, _graphName);
+        ParameterRow? shown = selected >= 0 ? animated[selected] : null;
+        if (!GraphParameterBox.IsDropDownOpen)
         {
-            GraphParameterBox.Items.Add(new ComboBoxItem { Content = row.Spec.Label, Tag = row.Spec.Name });
+            _updatingTransform = true;
+            try
+            {
+                if (ComboChoices.NeedsRebuild(_graphNames, offered))
+                {
+                    GraphParameterBox.SelectedIndex = -1;
+                    GraphParameterBox.Items.Clear();
+                    foreach (ParameterRow row in animated)
+                    {
+                        GraphParameterBox.Items.Add(new ComboBoxItem { Content = row.Spec.Label, Tag = row.Spec.Name });
+                    }
+
+                    _graphNames = [.. offered];
+                }
+
+                if (GraphParameterBox.SelectedIndex != selected)
+                {
+                    GraphParameterBox.SelectedIndex = selected;
+                }
+
+                GraphParameterBox.IsEnabled = animated.Count > 0;
+            }
+            finally
+            {
+                _updatingTransform = false;
+            }
         }
 
-        ParameterRow? shown = animated.Find(r => r.Spec.Name == _graphName) ?? (animated.Count > 0 ? animated[0] : null);
-        GraphParameterBox.SelectedIndex = shown is null ? -1 : animated.IndexOf(shown);
-        GraphParameterBox.IsEnabled = animated.Count > 0;
-        _updatingTransform = false;
         GraphSection.Summary = shown is null ? "Sin animación" : shown.Spec.Label;
         Graph.Show(clip, ClipPropertyEditor.FindEffect(clip, BuiltInEffects.Transform), shown?.Spec);
     }
 
     private void OnGraphParameterSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (!_updatingTransform && GraphParameterBox.SelectedItem is ComboBoxItem { Tag: string name })
+        if (_updatingTransform || ComboChoices.Picked(_graphNames, GraphParameterBox.SelectedIndex) is not { } name || name == _graphName)
         {
-            _graphName = name;
+            return;
+        }
+
+        _graphName = name;
+        // El refresco va después del evento: tocar el desplegable dentro de su propio SelectionChanged lo rompe.
+        if (!DispatcherQueue.TryEnqueue(Refresh))
+        {
             Refresh();
         }
     }

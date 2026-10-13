@@ -44,8 +44,43 @@ public sealed record ParameterSpec(
 
     public double ToDisplay(double modelValue) => modelValue * DisplayFactor;
 
-    /// <summary>Valor del modelo para lo que se ve; lo que se escribe a mano puede salir del rango del deslizador.</summary>
-    public double ToModel(double displayValue) => Math.Clamp(Math.Round(displayValue, Decimals) / DisplayFactor, ModelMinimum, ModelMaximum);
+    /// <summary>
+    /// Valor del modelo para lo que se ve; lo que se escribe a mano puede salir del rango del deslizador, pero nunca del
+    /// modelo. Lo que no es un número (NaN, infinito, un número tan grande que al redondear se desborda) da el valor por
+    /// defecto: ningún valor imposible llega al motor.
+    /// </summary>
+    public double ToModel(double displayValue)
+    {
+        if (!double.IsFinite(displayValue))
+        {
+            return double.IsNaN(displayValue) ? SafeDefault : (displayValue > 0 ? ModelLimit(ModelMaximum, Maximum) : ModelLimit(ModelMinimum, Minimum));
+        }
+
+        double model = Math.Round(displayValue, Decimals) / DisplayFactor;
+        return double.IsFinite(model) ? Math.Clamp(model, ModelMinimum, ModelMaximum) : SafeDefault;
+    }
+
+    /// <summary>
+    /// Lo que puede mostrar el deslizador para un valor del modelo: dentro de su rango y siempre un número (WinUI no
+    /// acepta NaN en <c>RangeBase.Value</c>).
+    /// </summary>
+    public double ToSlider(double modelValue)
+    {
+        double display = ToDisplay(modelValue);
+        return double.IsFinite(display) ? Math.Clamp(display, Minimum, Maximum) : Math.Clamp(ToDisplay(SafeDefault), Minimum, Maximum);
+    }
+
+    /// <summary>Lo que muestra el número para un valor del modelo: redondeado y siempre un número.</summary>
+    public double ToBox(double modelValue)
+    {
+        double display = ToDisplay(modelValue);
+        return Math.Round(double.IsFinite(display) ? display : ToDisplay(SafeDefault), Decimals);
+    }
+
+    private double SafeDefault => double.IsFinite(DefaultValue) ? Math.Clamp(DefaultValue, ModelMinimum, ModelMaximum) : 0;
+
+    // Un infinito escrito a mano va al límite del modelo, o al del deslizador si el modelo no tiene.
+    private double ModelLimit(double model, double display) => double.IsFinite(model) ? model : display / DisplayFactor;
 
     public string Format(double modelValue) =>
         ToDisplay(modelValue).ToString(Decimals == 0 ? "0" : "0." + new string('0', Decimals), CultureInfo.InvariantCulture);
