@@ -166,7 +166,9 @@ public sealed class ModuleManagerTests : IDisposable
         Assert.Contains("dejó de responder", manager.Jobs.Jobs[0].Error, StringComparison.Ordinal);
         Assert.Contains("dejó de responder", ModuleManager.Friendly(manager.Find("eco-a")!, error), StringComparison.Ordinal);
 
+        // La llamada siguiente, en seguida, abre otro proceso: tomaba el muerto si su aviso de salida no había llegado aún.
         await manager.InvokeAsync("eco-a", "eco", null, "Eco");
+        Assert.NotEqual(pid, Assert.Single(manager.ProcessIds));
     }
 
     [Fact]

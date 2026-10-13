@@ -136,8 +136,8 @@ public static class VoiceSynthesis
         foreach (JsonElement e in array.EnumerateArray())
         {
             if (e.ValueKind == JsonValueKind.Object
-                && e.TryGetProperty("start", out JsonElement a) && a.TryGetDouble(out double start)
-                && e.TryGetProperty("end", out JsonElement b) && b.TryGetDouble(out double end)
+                && e.TryGetProperty("start", out JsonElement a) && a.ValueKind == JsonValueKind.Number && a.TryGetDouble(out double start)
+                && e.TryGetProperty("end", out JsonElement b) && b.ValueKind == JsonValueKind.Number && b.TryGetDouble(out double end)
                 && e.TryGetProperty("text", out JsonElement t) && t.ValueKind == JsonValueKind.String
                 && double.IsFinite(start) && double.IsFinite(end) && start >= 0 && end >= start)
             {
@@ -148,9 +148,12 @@ public static class VoiceSynthesis
         return list;
     }
 
-    private static int? Int(JsonElement e, string name) => e.TryGetProperty(name, out JsonElement v) && v.TryGetInt32(out int n) ? n : null;
+    // TryGetInt32/TryGetInt64 lanzan InvalidOperationException si el valor no es un número: se mira el tipo antes.
+    private static int? Int(JsonElement e, string name) =>
+        e.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out int n) ? n : null;
 
-    private static long? Long(JsonElement e, string name) => e.TryGetProperty(name, out JsonElement v) && v.TryGetInt64(out long n) ? n : null;
+    private static long? Long(JsonElement e, string name) =>
+        e.TryGetProperty(name, out JsonElement v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt64(out long n) ? n : null;
 }
 
 /// <summary>Quien genera la voz: el módulo de verdad o uno falso en las pruebas.</summary>
