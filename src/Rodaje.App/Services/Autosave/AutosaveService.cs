@@ -210,7 +210,11 @@ public sealed partial class AutosaveService : IDisposable
         try
         {
             string folder = Path.GetDirectoryName(target)!;
-            await Task.Run(() => ProjectSerializer.Save(ProjectPaths.ForSaving(project, folder), target));
+
+            // Las referencias «file:» relativas de la copia lo son a la carpeta del proyecto que se cayó: sin ella, al
+            // recuperar en otra carpeta se escribían tal cual y apuntaban a nada.
+            string? previous = recoverable.ProjectPath is { } original ? Path.GetDirectoryName(Path.GetFullPath(original)) : null;
+            await Task.Run(() => ProjectSerializer.Save(ProjectPaths.ForSaving(project, folder, previous), target));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or ProjectFormatException)
         {
