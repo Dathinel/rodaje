@@ -15,7 +15,7 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 - **Complementos:** contenido en `Dathinel/rodaje-transiciones`, `-filtros`, `-fuentes`, `-titulos`, `-zonas`, `-camaras`, `-sonidos`, `-preajustes-pro` y `-360` (CC0/OFL); módulos en `Dathinel/modulo-*` (GPLv3, `build\empaquetar-modulo.ps1`); x264/x265 en `Dathinel/rodaje-codificadores-gpl` (GPL, `build\armar-codificadores-gpl.ps1`, D-034); descarga firmada desde `Dathinel/rodaje-catalogo` (release `v7`; `docs/descarga.md`).
 - **Decisiones:** `docs/decisiones.md` (D-001 a D-043). Un cambio de fondo que contradiga una decisión vigente se registra como decisión nueva.
 
-## Para retomar (12-oct, créditos semanales agotados)
+## Para retomar (12-oct)
 
-- v1.0.0 lista y verificada (Sonnet: lista para publicar). Falta: recompilar con `build\distribuir.ps1` sobre el último commit y publicar con `build\publicar-release.ps1` **solo con el sí del autor**.
-- La nube y la revisión cada 30 min están apagadas.
+- **v1.0.0 publicada** (release `v1.0.0`, commit 4936b0c). Lo siguiente es la 1.0.1: propuesta en `.proceso/propuestas/v1.0.1-personalizacion.md` y detalles visuales pendientes (miniaturas animadas de estilos que salen vacías, buscador de atajos, tres `Skip = "Defecto…"`).
+- La nube une sus PR al pasar la CI (sin `--auto`: no hay protección de rama).

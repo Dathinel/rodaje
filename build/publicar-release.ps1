@@ -39,7 +39,8 @@ foreach ($linea in Get-Content -LiteralPath $sumas -Encoding UTF8) {
 if (-not ($archivos | Where-Object { $_ -like '*-instalador.exe' })) { throw 'SHA256SUMS.txt no incluye el instalador.' }
 $archivos.Add($sumas)
 
-& gh release view $Etiqueta -R $Repo *> $null
+# Por cmd: en PowerShell 5 la salida de error de gh con ErrorActionPreference=Stop corta el script.
+& cmd /c "gh release view $Etiqueta -R $Repo >nul 2>nul"
 if ($LASTEXITCODE -eq 0) { throw "La release $Etiqueta ya existe en $Repo." }
 # La etiqueta va sobre el commit con el que se compiló (InformationalVersion del exe), que debe estar en origin/main.
 $producto = (Get-Item -LiteralPath (Join-Path $Raiz 'dist\Rodaje\app\Rodaje.exe')).VersionInfo.ProductVersion
