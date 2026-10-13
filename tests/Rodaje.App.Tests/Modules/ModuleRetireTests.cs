@@ -23,6 +23,13 @@ public sealed class ModuleRetireTests : IDisposable
     private const string LongCount = """{"pasos":100000,"msPorPaso":10}""";
     private readonly EchoModules _modules = new EchoModules().Add("eco-a");
 
+    /// <summary>
+    /// Tope anticuelgue de las esperas sobre el pool en <c>ReserveVram_espera_en_vez_de_girar…</c>: no mide nada, solo
+    /// corta si algo se cuelga. Con el pool topado y ocupado, el trabajo de esas esperas puede tardar más de un minuto en
+    /// tener hilo sin que el código falle.
+    /// </summary>
+    private static readonly TimeSpan AntiHang = TimeSpan.FromMinutes(5);
+
     public void Dispose() => _modules.Dispose();
 
     /// <summary>
@@ -399,7 +406,7 @@ public sealed class ModuleRetireTests : IDisposable
             Stopwatch watch = Stopwatch.StartNew();
             // En otro hilo: con el contrato de antes las vueltas son síncronas y la llamada no devolvería el control.
             call = Task.Run(() => manager.InvokeAsync("voz-gpu", "eco", null, "Eco"));
-            await WaitUntil(() => manager.Jobs.Jobs.Any(j => j.Title == "Eco" && j.Stage == "Esperando memoria de video"));
+            await WaitUntil(() => manager.Jobs.Jobs.Any(j => j.Title == "Eco" && j.Stage == "Esperando memoria de video"), AntiHang);
             await Task.Delay(500);
             int seen = Volatile.Read(ref notices);
             long elapsed = watch.ElapsedMilliseconds;
@@ -414,8 +421,8 @@ public sealed class ModuleRetireTests : IDisposable
         }
 
         // Al terminar de morir, el aviso de cierre suelta la VRAM de «vision» y la llamada que esperaba entra.
-        await Retired(connection);
-        await call.WaitAsync(TimeSpan.FromSeconds(60));
+        await Retired(connection, AntiHang);
+        await call.WaitAsync(AntiHang);
         Assert.Equal(["voz-gpu"], manager.Budget.Resident);
     }
 
@@ -443,9 +450,12 @@ public sealed class ModuleRetireTests : IDisposable
     }
 
     /// <summary>Espera a que el proceso muerto termine de retirarse (matado, soltado y avisado el cierre).</summary>
-    private static async Task Retired(object connection)
+    private static Task Retired(object connection) => Retired(connection, DefaultTimeout);
+
+    /// <summary>Igual, con otro tope para esperar a que empiece el retiro.</summary>
+    private static async Task Retired(object connection, TimeSpan timeout)
     {
-        await WaitUntil(() => GetField(connection, "_retiring") is not null);
+        await WaitUntil(() => GetField(connection, "_retiring") is not null, timeout);
         await (Task)GetField(connection, "_retiring")!;
     }
 
@@ -475,12 +485,16 @@ public sealed class ModuleRetireTests : IDisposable
             .SetValue(target, value);
 
     // Tope contra cuelgues: casi siempre se espera a que un proceso arranque (hasta StartTimeout, 30 s).
-    private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 45_000)
+    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(45);
+
+    private static Task WaitUntil(Func<bool> condition) => WaitUntil(condition, DefaultTimeout);
+
+    private static async Task WaitUntil(Func<bool> condition, TimeSpan timeout)
     {
         Stopwatch watch = Stopwatch.StartNew();
         while (!condition())
         {
-            Assert.True(watch.ElapsedMilliseconds < timeoutMs, $"No se cumplió en {timeoutMs / 1000} s. {UiThread.PoolState()}");
+            Assert.True(watch.Elapsed < timeout, $"No se cumplió en {timeout.TotalSeconds:0} s. {UiThread.PoolState()}");
             await Task.Delay(10);
         }
     }
