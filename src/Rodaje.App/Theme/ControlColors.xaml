@@ -18,6 +18,9 @@
 
     <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#101010" />
 
+    <!-- Peligro: avisos que piden atención (sin conexión, rechazado, desfase). El mismo rojo en claro y oscuro: va sobre la paleta grafito. -->
+    <SolidColorBrush x:Key="DangerBrush" Color="#E5484D" />
+
     <SolidColorBrush x:Key="ButtonBackground" Color="#2C2C2C" />
     <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#3A3A3A" />
     <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#4A4A4A" />

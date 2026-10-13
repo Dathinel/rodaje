@@ -34,6 +34,7 @@ internal sealed class TimelineBrushes
         AudioClipEdge = Get("AudioClipEdgeBrush");
         Scrim = Get("ScrimBrush");
         Transparent = Get("TransparentBrush");
+        Danger = Get("DangerBrush");
 
         Color edge = Color(VideoClipEdge);
         Color body = Color(VideoClip);
@@ -88,6 +89,9 @@ internal sealed class TimelineBrushes
     public Brush Scrim { get; }
 
     public Brush Transparent { get; }
+
+    /// <summary>Rojo de los avisos (desfase de un enlazado).</summary>
+    public Brush Danger { get; }
 
     /// <summary>
     /// Cuadros de la tira de película mientras no hay miniaturas: un degradado horizontal que se repite (un cuadro y su

@@ -207,6 +207,7 @@ public static partial class TimelineEdits
 
         if (scope == RippleScope.Track)
         {
+            HashSet<Time> sync = LinkSync.Snapshot(ctx.Sequence);
             var removed = new HashSet<Clip>(targets.Select(t => t.Clip));
 
             // Cada hueco se cierra en su pista y en las de los enlazados de lo que se corre; un mismo tramo que llega a
@@ -254,6 +255,9 @@ public static partial class TimelineEdits
                     EditContext.ShiftClips(track, end, start - end);
                 }
             }
+
+            // Un enlazado que empieza antes del tramo que se cierra no se corre con su pareja: mejor no hacerlo.
+            LinkSync.EnsureNoNewDesync(ctx.Sequence, sync, "Borrar con ripple");
         }
         else
         {

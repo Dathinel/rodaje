@@ -51,6 +51,7 @@ internal static class ThemeResources
         Set(Get(UIElementType.GrayText, 0xA6A6A6), "TextDisabledBrush");
         Set(Get(UIElementType.Highlight, 0x1AEBFF), "AccentBrush", "AccentHoverBrush", "AccentPressedBrush", "KeyframeBrush");
         Set(Get(UIElementType.HighlightText, 0x000000), "AccentForegroundBrush");
+        Set(Get(UIElementType.Hotlight, 0xFFFF00), "DangerBrush");
     }
 
     private static void Set(Color color, params string[] keys)

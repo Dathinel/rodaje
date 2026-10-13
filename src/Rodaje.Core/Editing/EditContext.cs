@@ -71,26 +71,9 @@ public sealed class EditContext
     public IReadOnlyList<Track> RippleShift(IEnumerable<Track> editedTracks, Time from, Time delta, RippleScope scope, IReadOnlySet<Clip>? exclude = null)
     {
         ArgumentNullException.ThrowIfNull(editedTracks);
-        List<Track> tracks;
-        if (scope.IncludesAllTracks())
-        {
-            tracks = [.. Sequence.AllTracks.Where(t => !t.Locked)];
-        }
-        else
-        {
-            List<Track> edited = [.. editedTracks.Distinct()];
-            tracks = LinkedRippleTracks(edited, from, exclude);
-            foreach (Track added in tracks.Skip(edited.Count))
-            {
-                EnsureCanClose(added, from, delta, exclude);
-            }
-        }
-
-        foreach (Track track in tracks)
-        {
-            ShiftClips(track, from, delta, exclude);
-        }
-
+        bool all = scope.IncludesAllTracks();
+        IEnumerable<Track> seeds = all ? Sequence.AllTracks.Where(t => !t.Locked) : editedTracks.Distinct();
+        IReadOnlyList<Track> tracks = RippleEach(seeds.Select(t => (t, from, delta)), exclude ?? new HashSet<Clip>(), skipLocked: all);
         if (scope == RippleScope.AllTracksAndMarkers)
         {
             ShiftMarkers(Sequence, from, delta);
@@ -105,7 +88,7 @@ public sealed class EditContext
     /// llega por dos caminos se queda con el primero. Así un clip enlazado con otro de distinto largo corre lo suyo.
     /// </summary>
     /// <returns>Las pistas corridas.</returns>
-    internal IReadOnlyList<Track> RippleEach(IEnumerable<(Track Track, Time From, Time Delta)> seeds, IReadOnlySet<Clip> exclude)
+    internal IReadOnlyList<Track> RippleEach(IEnumerable<(Track Track, Time From, Time Delta)> seeds, IReadOnlySet<Clip> exclude, bool skipLocked = false)
     {
         ArgumentNullException.ThrowIfNull(seeds);
         var shifts = new List<(Track Track, Time From, Time Delta)>();
@@ -119,7 +102,11 @@ public sealed class EditContext
         }
 
         int seeded = shifts.Count;
-        Dictionary<string, List<Track>>? linkTracks = null;
+        List<Time> seedFrom = [.. shifts.Select(s => s.From)];
+
+        // Un enlazado de lo que se corre se corre con él aunque empiece antes del punto (una pareja más larga, un corte en
+        // J): su pista se corre desde el inicio de ese enlazado.
+        Dictionary<string, List<(Track Track, Clip Clip)>>? links = null;
         var pending = new Queue<int>(Enumerable.Range(0, shifts.Count));
         while (pending.TryDequeue(out int i))
         {
@@ -131,18 +118,24 @@ public sealed class EditContext
                     continue;
                 }
 
-                linkTracks ??= IndexLinkTracks();
-                foreach (Track partner in linkTracks[clip.LinkId])
+                links ??= IndexLinks();
+                foreach ((Track partner, Clip mate) in links[clip.LinkId])
                 {
+                    if (exclude.Contains(mate) || (skipLocked && partner.Locked))
+                    {
+                        continue;
+                    }
+
+                    Time start = Time.Min(from, mate.Start);
                     if (!index.TryGetValue(partner, out int j))
                     {
                         index[partner] = shifts.Count;
                         pending.Enqueue(shifts.Count);
-                        shifts.Add((partner, from, delta));
+                        shifts.Add((partner, start, delta));
                     }
-                    else if (j >= seeded && shifts[j].Delta == delta && from < shifts[j].From)
+                    else if (shifts[j].Delta == delta && start < shifts[j].From)
                     {
-                        shifts[j] = (partner, from, delta);
+                        shifts[j] = (partner, start, delta);
                         pending.Enqueue(j);
                     }
                 }
@@ -151,7 +144,17 @@ public sealed class EditContext
 
         foreach ((Track track, Time from, Time delta) in shifts)
         {
-            EnsureCanClose(track, from, delta, exclude);
+            // Con todas las pistas, las semillas no se miran (lo hacen quien llama y el control de solapes); una pista que se
+            // corre desde antes por un enlazado, sí.
+            int k = index[track];
+            if (skipLocked && k < seeded && from == seedFrom[k])
+            {
+                EnsureUnlocked(track);
+            }
+            else
+            {
+                EnsureCanClose(track, from, delta, exclude);
+            }
         }
 
         foreach ((Track track, Time from, Time delta) in shifts)
@@ -213,6 +216,30 @@ public sealed class EditContext
             throw new EditException(
                 $"No se puede correr la pista «{track.Name}», que tiene clips enlazados con lo que se corre, porque el clip «{straddling.Id}» atraviesa el tramo que se cierra.");
         }
+    }
+
+    private Dictionary<string, List<(Track Track, Clip Clip)>> IndexLinks()
+    {
+        var index = new Dictionary<string, List<(Track, Clip)>>(StringComparer.Ordinal);
+        foreach (Track track in Sequence.AllTracks)
+        {
+            foreach (Clip clip in track.Clips)
+            {
+                if (clip.LinkId is null)
+                {
+                    continue;
+                }
+
+                if (!index.TryGetValue(clip.LinkId, out List<(Track, Clip)>? list))
+                {
+                    index[clip.LinkId] = list = [];
+                }
+
+                list.Add((track, clip));
+            }
+        }
+
+        return index;
     }
 
     private Dictionary<string, List<Track>> IndexLinkTracks()

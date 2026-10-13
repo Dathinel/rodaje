@@ -32,7 +32,7 @@
                                 HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="{x:Bind SubclipVisibility}">
                             <TextBlock Text="Subclip" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
                         </Border>
-                        <Border Background="{StaticResource MeterHighBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
+                        <Border Background="{StaticResource DangerBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
                                 HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="{x:Bind OfflineVisibility, Mode=OneWay}">
                             <TextBlock Text="Sin conexión" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
                         </Border>
@@ -40,7 +40,7 @@
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Visibility="{x:Bind DuplicateVisibility, Mode=OneWay}">
                             <TextBlock Text="Repetido" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
                         </Border>
-                        <FontIcon Glyph="&#xE711;" FontSize="{StaticResource IconHeroFontSize}" Foreground="{StaticResource MeterHighBrush}" Visibility="{x:Bind RejectedVisibility, Mode=OneWay}" />
+                        <FontIcon Glyph="&#xE711;" FontSize="{StaticResource IconHeroFontSize}" Foreground="{StaticResource DangerBrush}" Visibility="{x:Bind RejectedVisibility, Mode=OneWay}" />
                         <Border Background="{StaticResource ScrimBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
                                 HorizontalAlignment="Left" VerticalAlignment="Top" Visibility="{x:Bind BadgeVisibility, Mode=OneWay}">
                             <TextBlock Text="{x:Bind Badge, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
@@ -80,8 +80,8 @@
                 <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
                     <TextBlock Text="{x:Bind RatingText, Mode=OneWay}" Foreground="{StaticResource AccentBrush}" FontSize="{StaticResource MicroFontSize}" VerticalAlignment="Center" Visibility="{x:Bind RatingVisibility, Mode=OneWay}" />
-                    <TextBlock Text="Sin conexión" Foreground="{StaticResource MeterHighBrush}" FontSize="{StaticResource MicroFontSize}" VerticalAlignment="Center" Visibility="{x:Bind OfflineVisibility, Mode=OneWay}" />
-                    <FontIcon Glyph="&#xE711;" FontSize="{StaticResource IconSmallFontSize}" Foreground="{StaticResource MeterHighBrush}" Visibility="{x:Bind RejectedVisibility, Mode=OneWay}" />
+                    <TextBlock Text="Sin conexión" Foreground="{StaticResource DangerBrush}" FontSize="{StaticResource MicroFontSize}" VerticalAlignment="Center" Visibility="{x:Bind OfflineVisibility, Mode=OneWay}" />
+                    <FontIcon Glyph="&#xE711;" FontSize="{StaticResource IconSmallFontSize}" Foreground="{StaticResource DangerBrush}" Visibility="{x:Bind RejectedVisibility, Mode=OneWay}" />
                     <FontIcon Glyph="&#xE735;" FontSize="{StaticResource IconSmallFontSize}" Foreground="{StaticResource AccentBrush}" Visibility="{x:Bind FavoriteVisibility, Mode=OneWay}" />
                 </StackPanel>
                 <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnSpacing="4" Opacity="{x:Bind TileOpacity, Mode=OneWay}">
