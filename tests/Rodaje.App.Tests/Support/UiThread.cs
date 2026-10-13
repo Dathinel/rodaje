@@ -35,7 +35,12 @@ internal static class UiThread
                 return;
             }
 
-            task.ContinueWith(_ => context.Complete(), TaskScheduler.Default);
+            // Se cierra el bucle en el hilo que termina la tarea (casi siempre este mismo), sin pasar por el pool: con
+            // TaskScheduler.Default a secas el cierre era un trabajo más en la cola del pool, y en la CI, con el pool
+            // ocupado por otras pruebas («Pool: 9 hilos, 1 trabajos en cola»), pruebas que no esperan nada
+            // (TemplateDeleteConfirmTests, ClipPropertyEditorTests, AutosaveRecoveryCancelTests) agotaban los 120 s.
+            task.ContinueWith(static (_, state) => ((LoopContext)state!).Complete(), context, CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
             context.RunUntilComplete();
             if (task.Exception is { } error)
             {
