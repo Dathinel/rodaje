@@ -502,7 +502,7 @@ public sealed partial class AsyncSafetyTests
         return list;
     }
 
-    private static string RepoRoot()
+    internal static string RepoRoot()
     {
         for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {

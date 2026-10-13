@@ -9,9 +9,12 @@ namespace Rodaje.App.Tests.Modules;
 /// todo lo que tarda <see cref="ModuleProcess.DisposeAsync"/> con un módulo que no cierra tras <c>shutdown</c> (la gracia,
 /// la espera de la salida, matarlo y la segunda espera). Antes la ventana esperaba 3 s fijos, lo mismo que solo la gracia,
 /// y seguía con el módulo colgado vivo. Que el módulo congelado muere dentro de ese presupuesto lo prueba
-/// <c>ShutdownBudgetTests</c> en Rodaje.Modules.Protocol.Tests. Tarea 206: la espera de la ventana es
-/// <see cref="ModuleManager.CloseOnExitAsync"/>, y aquí se ejerce con un módulo congelado de verdad; que además cubre matar
-/// el árbol aunque pase del margen lo prueba <c>CloseWaitTests</c> (sin reloj).
+/// <c>ShutdownBudgetTests</c> en Rodaje.Modules.Protocol.Tests. Desde la tarea 206 (#207) la espera de la ventana es
+/// <see cref="ModuleManager.CloseOnExitAsync"/>, y aquí se ejerce con un módulo congelado de verdad; pero estas pruebas solo
+/// distinguen la espera fija de 3 s anterior a la tarea 197, no el cableado anterior a la 206
+/// (<c>DisposeAsync().AsTask().Wait(CloseTimeout)</c>), que con un módulo congelado también cierra a tiempo. Que la ventana
+/// llama a <see cref="ModuleManager.CloseOnExitAsync"/> lo guarda <c>ModuleCloseWiringTests</c> en Rodaje.Core.Tests
+/// (tarea 216), y que esa espera cubre matar el árbol aunque pase del margen, <c>CloseWaitTests</c> (sin reloj).
 /// </summary>
 [Collection(ModuleProcessGroup.Name)]
 public sealed class ModuleCloseTimeoutTests
@@ -41,7 +44,8 @@ public sealed class ModuleCloseTimeoutTests
     /// <summary>
     /// La espera del cierre de la ventana con un módulo congelado (no lee el <c>shutdown</c> ni sale): da <c>true</c> y el
     /// proceso está muerto al volver. Con una gracia de 2 s el cierre tarda al menos 4 s (gracia + espera de la salida), así
-    /// que la espera fija de 3 s de antes de la tarea 197 da <c>false</c> y esta prueba cae.
+    /// que la espera fija de 3 s de antes de la tarea 197 da <c>false</c> y esta prueba cae. No distingue la espera de antes
+    /// de la tarea 206 (<c>Wait(CloseTimeout)</c>): esos ~4 s caben en <see cref="ModuleManager.CloseTimeout"/>.
     /// </summary>
     [Fact]
     public async Task The_window_close_waits_until_a_frozen_module_is_dead()
