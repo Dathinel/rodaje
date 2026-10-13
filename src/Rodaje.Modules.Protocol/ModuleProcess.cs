@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Runtime.Versioning;
@@ -24,10 +25,55 @@ public sealed class ModuleProcess : IAsyncDisposable
 
     /// <summary>
     /// Holgura sobre <see cref="DisposeBudget"/> para quien espera el cierre con un tope (la ventana al salir, a través de
-    /// <c>ModuleManager.CloseTimeout</c>): cubre matar el árbol de procesos, que con la CPU llena tarda, y el reparto de
-    /// continuaciones.
+    /// <c>ModuleManager.CloseTimeout</c>): cubre el reparto de continuaciones. Matar el árbol de procesos no cabe aquí
+    /// (con la CPU llena tarda segundos): lo cubre <see cref="WaitForCloseAsync(Task, TimeSpan)"/>, que al vencer el tope
+    /// sigue esperando las muertes en curso hasta <see cref="KillWait"/> (tarea 206).
     /// </summary>
     public static readonly TimeSpan DisposeMargin = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Lo más que <see cref="WaitForCloseAsync(Task, TimeSpan)"/> espera, tras el tope, a que terminen de matarse los
+    /// árboles de procesos de los módulos que no salieron. <see cref="Process.Kill(bool)"/> recorre el árbol en línea y
+    /// con la CPU llena tarda segundos; si tarda más que esto, sigue el Job Object de la app.
+    /// </summary>
+    public static readonly TimeSpan KillWait = TimeSpan.FromSeconds(10);
+
+    // Las muertes que el cierre (CloseAsync) tiene en curso: WaitForCloseAsync las espera aunque pasen del tope.
+    private static readonly ConcurrentDictionary<Task, byte> s_closeKills = new();
+
+    /// <summary>Una tarea que termina cuando terminan las muertes del cierre en curso ahora (ya terminada si no hay).</summary>
+    internal static Task PendingCloseKills() => s_closeKills.IsEmpty ? Task.CompletedTask : Task.WhenAll(s_closeKills.Keys);
+
+    /// <summary>Si <paramref name="kill"/> es una muerte del cierre todavía en curso (para las pruebas).</summary>
+    internal static bool IsCloseKillPending(Task kill) => s_closeKills.ContainsKey(kill);
+
+    /// <summary>
+    /// Espera el cierre de los módulos (<paramref name="close"/>) con un tope, como la ventana al salir: <c>true</c> si
+    /// terminó (y relanza su fallo, si lo hubo). Si el tope vence mientras el cierre mata el árbol de algún módulo que no
+    /// salió, espera además esa muerte (hasta <see cref="KillWait"/>) y lo que queda del cierre (<see cref="ExitWait"/> más
+    /// <see cref="DisposeMargin"/>): matar con la CPU llena tarda más que <see cref="DisposeMargin"/>, y antes la ventana
+    /// seguía con el módulo vivo (tarea 206). Sin muertes en curso, al vencer el tope da <c>false</c>.
+    /// </summary>
+    public static Task<bool> WaitForCloseAsync(Task close, TimeSpan timeout) =>
+        WaitForCloseAsync(close, timeout, PendingCloseKills, KillWait);
+
+    internal static async Task<bool> WaitForCloseAsync(Task close, TimeSpan timeout, Func<Task> pendingKills, TimeSpan killWait)
+    {
+        ArgumentNullException.ThrowIfNull(close);
+        ArgumentNullException.ThrowIfNull(pendingKills);
+        if (await Task.WhenAny(close, Task.Delay(timeout)).ConfigureAwait(false) != close)
+        {
+            Task kills = pendingKills();
+            if (kills.IsCompleted || await Task.WhenAny(kills, Task.Delay(killWait)).ConfigureAwait(false) != kills
+                || await Task.WhenAny(close, Task.Delay(ExitWait + DisposeMargin)).ConfigureAwait(false) != close)
+            {
+                return false;
+            }
+        }
+
+        await close.ConfigureAwait(false);
+        return true;
+    }
 
     /// <summary>
     /// Lo más que tarda <see cref="DisposeAsync"/> con un módulo que no cierra tras <c>shutdown</c>, sin contar lo que
@@ -208,7 +254,8 @@ public sealed class ModuleProcess : IAsyncDisposable
     /// <summary>
     /// El cierre de <see cref="DisposeAsync"/> sin el proceso, para probarlo sin lanzar el módulo: cierra el cliente,
     /// espera la salida <paramref name="grace"/> (<see cref="ExitWait"/>), mata si no llega y vuelve a esperar, y da a
-    /// <paramref name="report"/> la línea de <see cref="DescribeClose"/> si la hay.
+    /// <paramref name="report"/> la línea de <see cref="DescribeClose"/> si la hay. Mientras mata, la muerte queda en
+    /// <see cref="PendingCloseKills"/> para que <see cref="WaitForCloseAsync(Task, TimeSpan)"/> la espere (tarea 206).
     /// </summary>
     internal static async Task CloseAsync(Func<ValueTask> disposeClient, Func<bool> shutdownDelivered, Task<int> exited,
         Func<Task> kill, TimeSpan grace, string module, Action<string> report)
@@ -218,7 +265,17 @@ public sealed class ModuleProcess : IAsyncDisposable
         if (await Task.WhenAny(exited, Task.Delay(grace)).ConfigureAwait(false) != exited)
         {
             killed = true;
-            await kill().ConfigureAwait(false);
+            Task killing = kill();
+            s_closeKills.TryAdd(killing, 0);
+            try
+            {
+                await killing.ConfigureAwait(false);
+            }
+            finally
+            {
+                s_closeKills.TryRemove(killing, out _);
+            }
+
             await Task.WhenAny(exited, Task.Delay(grace)).ConfigureAwait(false);
         }
         if (shutdownDelivered() && DescribeClose(module, killed, exited, grace) is { } line) report(line);

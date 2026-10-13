@@ -36,7 +36,7 @@ public sealed partial class AsyncSafetyTests
     {
         [("Rodaje.App/Views/Player/PlayerEngine.Transitions.cs", ".Wait(")] = (1, "corre en el hilo del motor, no en el de la interfaz."),
         [("Rodaje.App/Views/Player/PlayerEngine.Looks.cs", ".Wait(")] = (1, "corre en el hilo del motor, no en el de la interfaz."),
-        [("Rodaje.App/Shell/MainWindow.xaml.cs", ".Wait(")] = (1, "al cerrar: como mucho ModuleManager.CloseTimeout (lo que tarda en morir un módulo colgado, unos 8 s), y el cierre de los módulos no vuelve al hilo de la interfaz (ConfigureAwait(false))."),
+        [("Rodaje.App/Shell/MainWindow.xaml.cs", ".Wait(")] = (1, "al cerrar, ModuleManager.CloseOnExitAsync: vuelve a ModuleManager.CloseTimeout (lo que tarda en morir un módulo colgado, unos 8 s) o, si sigue matando un árbol, como mucho ModuleProcess.KillWait más tarde, y no vuelve al hilo de la interfaz (ConfigureAwait(false))."),
     };
 
     // I/O o hash de archivos en el código de la interfaz: (archivo, texto) → apariciones y motivo.
