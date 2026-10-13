@@ -465,7 +465,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
         _graphName = name;
         // El refresco va después del evento: tocar el desplegable dentro de su propio SelectionChanged lo rompe.
-        DispatcherQueue.Later(Refresh);
+        DispatcherQueue.RunAfterEvent(Refresh);
     }
 
     private void OnGraphModeClick(object sender, RoutedEventArgs e)

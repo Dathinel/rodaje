@@ -491,7 +491,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
         // Elegir edita y refresca el panel, que puede rehacer este desplegable (y «Cargar .cube…» abre un diálogo): va después
         // del evento.
-        DispatcherQueue.Later(() => ChooseLut(effectId, value));
+        DispatcherQueue.RunAfterEvent(() => ChooseLut(effectId, value));
     }
 
     private void ChooseLut(string effectId, string? value)

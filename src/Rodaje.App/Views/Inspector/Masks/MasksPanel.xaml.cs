@@ -651,7 +651,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         // Elegir otro destino puede quitar «Un efecto que ya no está» y rehacer este desplegable al refrescar: la edición va
         // después del evento, y solo si el panel sigue en la misma máscara del mismo clip.
         var picked = new DeferredChoice<string>(id, clipId);
-        DispatcherQueue.Later(() => ChooseTarget(picked, choice));
+        DispatcherQueue.RunAfterEvent(() => ChooseTarget(picked, choice));
     }
 
     private void ChooseTarget(DeferredChoice<string> picked, string choice)

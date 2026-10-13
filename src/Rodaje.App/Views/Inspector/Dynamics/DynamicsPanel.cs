@@ -415,7 +415,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         _bypass.IsChecked = false;
         _listen.IsChecked = false;
         // El refresco va después del evento: tocar el desplegable dentro de su propio SelectionChanged lo rompe.
-        DispatcherQueue.Later(Refresh);
+        DispatcherQueue.RunAfterEvent(Refresh);
     }
 
     /// <summary>
@@ -430,7 +430,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         }
 
         var picked = new DeferredChoice<DynamicsOwner>(owner, _lastClip);
-        DispatcherQueue.Later(() =>
+        DispatcherQueue.RunAfterEvent(() =>
         {
             if (picked.StillApplies(_chosen, _lastClip) && _editor2?.Owner == picked.Owner)
             {

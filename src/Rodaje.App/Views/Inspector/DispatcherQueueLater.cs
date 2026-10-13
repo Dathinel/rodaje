@@ -1,22 +1,18 @@
 using Microsoft.UI.Dispatching;
+using Rodaje.App.Services;
 
 namespace Rodaje.App.Views.Inspector;
 
-/// <summary>Hacer algo después del evento en curso, con respaldo si la cola no lo acepta.</summary>
-/// <remarks>
-/// Lo usan los desplegables cuya elección edita y refresca el panel: rehacer un <c>ComboBox</c> dentro de su propio
-/// <c>SelectionChanged</c> cierra la app desde WinUI (tarea 91), así que la edición va después del evento.
-/// </remarks>
+/// <summary>La cola de la vista para <see cref="UiDeferral.RunAfterEvent"/>, con el registro de fallos de la app.</summary>
 internal static class DispatcherQueueLater
 {
-    /// <summary>Hace <paramref name="action"/> después del evento en curso (o ya, si la cola de la vista no la acepta).</summary>
-    public static void Later(this DispatcherQueue queue, DispatcherQueueHandler action)
+    /// <summary>
+    /// Hace <paramref name="action"/> después del evento en curso (o ya, si la cola no la acepta). Si lanza, deja informe
+    /// (<c>CrashKind.DispatcherCallback</c>) y aviso en la ventana en vez de cerrar la app sin rastro.
+    /// </summary>
+    public static void RunAfterEvent(this DispatcherQueue queue, Action action)
     {
         ArgumentNullException.ThrowIfNull(queue);
-        ArgumentNullException.ThrowIfNull(action);
-        if (!queue.TryEnqueue(action))
-        {
-            action();
-        }
+        UiDeferral.RunAfterEvent(guarded => queue.TryEnqueue(() => guarded()), action, Program.OnDispatcherException);
     }
 }

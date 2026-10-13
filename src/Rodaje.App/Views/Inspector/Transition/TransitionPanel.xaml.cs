@@ -616,7 +616,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
         }
 
         // Cambiar el tipo edita y refresca el panel, que puede rehacer este desplegable: va después del evento.
-        DispatcherQueue.Later(() => ChooseType(id, choice.Type, choice.Preset));
+        DispatcherQueue.RunAfterEvent(() => ChooseType(id, choice.Type, choice.Preset));
     }
 
     private void ChooseType(string id, string type, string preset)

@@ -334,7 +334,7 @@ internal sealed partial class StripView : UserControl
         }
 
         // Elegir una salida edita y el mezclador refresca esta tira, que puede rehacer este desplegable: va después del evento.
-        DispatcherQueue.Later(() => ChooseOutput(busId));
+        DispatcherQueue.RunAfterEvent(() => ChooseOutput(busId));
     }
 
     private void ChooseOutput(string? busId)

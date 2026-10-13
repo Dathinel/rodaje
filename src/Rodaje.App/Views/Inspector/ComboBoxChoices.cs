@@ -24,7 +24,7 @@ internal static class ComboBoxChoices
     }
 
     /// <summary>Un <c>ComboBox</c> de WinUI como <see cref="IChoiceBox"/>.</summary>
-    private readonly struct Box(ComboBox box) : IChoiceBox
+    private sealed class Box(ComboBox box) : IChoiceBox
     {
         public bool IsDropDownOpen => box.IsDropDownOpen;
 
