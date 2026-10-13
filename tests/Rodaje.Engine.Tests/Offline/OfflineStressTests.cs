@@ -71,7 +71,7 @@ public sealed class OfflineStressTests(Xunit.Abstractions.ITestOutputHelper outp
             {
                 try
                 {
-                    for (int e = 0; e < exports && !stop.IsCancellationRequested; e++)
+                    foreach (int e in Stress.Steps(exports, stop))
                     {
                         CancellationToken token = Volatile.Read(ref cancel).Token;
                         Project project = Volatile.Read(ref snapshot);

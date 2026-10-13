@@ -32,7 +32,7 @@ public sealed class BufferedAudioSourceStressTests
                     long origin = 0;
                     long readFrame = 0;
                     float[] buffer = new float[3000 * 2];
-                    for (int i = 0; i < reads && !stop.IsCancellationRequested; i++)
+                    foreach (int i in Stress.Steps(reads, stop))
                     {
                         if (random.Next(40) == 0)
                         {
