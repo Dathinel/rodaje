@@ -99,6 +99,94 @@ internal static unsafe class Av
             : throw new MediaException(
                 $"El instante {time} no cabe en la base de tiempo {timeBase.num}/{timeBase.den}; el archivo puede estar dañado.");
 
+    /// <summary>
+    /// Índice de cuadro de una marca: <c>(marca − origen) · base · tasa</c>, redondeado al más cercano, con la numeración de
+    /// <see cref="Video.VideoDecoder"/>. Devuelve <see langword="false"/> si no hay marca, si la base no es válida o si el
+    /// índice no cabe en <see langword="long"/> (una marca o un origen extremos de una cabecera dañada): antes se truncaba a
+    /// un índice inventado que decidía qué cuadro se mostraba.
+    /// </summary>
+    public static bool TryFrameSlot(long timestamp, long originTs, AVRational timeBase, Rational rate, out long slot) =>
+        TryScale(timestamp, originTs, timeBase, rate.Num, rate.Den, out slot);
+
+    /// <summary>
+    /// Muestra de entrada de una marca: <c>(marca − origen) · base · tasa</c>, redondeada a la más cercana. Devuelve
+    /// <see langword="false"/> si no hay marca, si la base o la tasa no son válidas o si el índice no cabe en
+    /// <see langword="long"/>.
+    /// </summary>
+    public static bool TrySampleIndex(long timestamp, long originTs, AVRational timeBase, long sampleRate, out long index)
+    {
+        index = 0;
+        return sampleRate > 0 && TryScale(timestamp, originTs, timeBase, sampleRate, 1, out index);
+    }
+
+    /// <summary>
+    /// Marca del cuadro <paramref name="frameIndex"/>: <c>origen + índice / (tasa · base)</c>, redondeada. Devuelve
+    /// <see langword="false"/> si la base no es válida o si la marca no cabe en <see langword="long"/> o cae en
+    /// <see cref="NoTimestamp"/>.
+    /// </summary>
+    public static bool TryFrameTimestamp(long frameIndex, long originTs, AVRational timeBase, Rational rate, out long timestamp)
+    {
+        timestamp = 0;
+        if (!IsValid(timeBase))
+        {
+            return false;
+        }
+
+        try
+        {
+            Int128 value = originTs + SafeRoundDiv(checked((Int128)frameIndex * rate.Den * timeBase.den), checked((Int128)rate.Num * timeBase.num));
+            if (value <= NoTimestamp || value > long.MaxValue)
+            {
+                return false;
+            }
+
+            timestamp = (long)value;
+            return true;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
+    }
+
+    // (marca − origen) · base · num / den, sin desbordes: la resta se hace en Int128 (en long se envolvía) y los productos,
+    // comprobados (con una tasa de numerador y denominador enormes no caben ni en Int128).
+    private static bool TryScale(long timestamp, long originTs, AVRational timeBase, long num, long den, out long result)
+    {
+        result = 0;
+        if (timestamp == NoTimestamp || !IsValid(timeBase) || num <= 0 || den <= 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            Int128 value = SafeRoundDiv(
+                checked(((Int128)timestamp - originTs) * timeBase.num * num),
+                checked((Int128)timeBase.den * den));
+            if (value < long.MinValue || value > long.MaxValue)
+            {
+                return false;
+            }
+
+            result = (long)value;
+            return true;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
+    }
+
+    // RoundDiv duplica el numerador y el denominador: cerca de los límites de Int128 se envolvería sin avisar.
+    private static Int128 SafeRoundDiv(Int128 numerator, Int128 denominator)
+    {
+        Int128 limit = Int128.MaxValue / 4;
+        return numerator > limit || numerator < -limit || denominator > limit || denominator < -limit
+            ? throw new OverflowException()
+            : RoundDiv(numerator, denominator);
+    }
+
     /// <summary>Redondeo al más cercano, con las mitades hacia +∞, válido para signos cualesquiera.</summary>
     public static Int128 RoundDiv(Int128 numerator, Int128 denominator)
     {

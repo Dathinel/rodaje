@@ -1,3 +1,5 @@
+using Rodaje.Audio.Processing;
+
 namespace Rodaje.Audio.Metering;
 
 /// <summary>
@@ -50,7 +52,7 @@ public sealed class AudioLevelRing
         long index = _count;
         ref Entry entry = ref _entries[index % _entries.Length];
         Interlocked.Exchange(ref entry.Sequence, -1);
-        entry.Block = block;
+        entry.Block = Finite(block);
         Volatile.Write(ref entry.Sequence, index);
         Volatile.Write(ref _count, index + 1);
     }
@@ -192,6 +194,35 @@ public sealed class AudioLevelRing
 
         return frames > 0 ? sum / frames : 0;
     }
+
+    /// <summary>
+    /// El bloque tal cual si todo es finito; si no, NaN como cero, ±∞ o lo enorme acotado (<see cref="AudioSamples.MaxMagnitude"/>)
+    /// y la saturación encendida: la lectura nunca da NaN ni ∞ aunque lo escriba otro medidor (las tiras del mezclador).
+    /// </summary>
+    private static LevelBlock Finite(in LevelBlock block)
+    {
+        if (float.IsFinite(block.PeakLeft) && float.IsFinite(block.PeakRight) && float.IsFinite(block.TruePeakLeft)
+            && float.IsFinite(block.TruePeakRight) && double.IsFinite(block.SquaresLeft) && double.IsFinite(block.SquaresRight)
+            && double.IsFinite(block.Weighted))
+        {
+            return block;
+        }
+
+        double maxSquares = (double)AudioSamples.MaxMagnitude * AudioSamples.MaxMagnitude * Math.Max(1, block.Frames);
+        return block with
+        {
+            PeakLeft = Math.Abs(AudioSamples.ForMeter(block.PeakLeft)),
+            PeakRight = Math.Abs(AudioSamples.ForMeter(block.PeakRight)),
+            TruePeakLeft = Math.Abs(AudioSamples.ForMeter(block.TruePeakLeft)),
+            TruePeakRight = Math.Abs(AudioSamples.ForMeter(block.TruePeakRight)),
+            SquaresLeft = Squares(block.SquaresLeft, maxSquares),
+            SquaresRight = Squares(block.SquaresRight, maxSquares),
+            Weighted = Squares(block.Weighted, 2 * maxSquares),
+            Clipped = true,
+        };
+    }
+
+    private static double Squares(double value, double max) => double.IsNaN(value) ? 0 : Math.Clamp(value, 0, max);
 
     private struct Entry
     {

@@ -23,10 +23,26 @@ public static class ProjectSerializer
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     /// <summary>Convierte el proyecto en texto JSON indentado con saltos de línea LF.</summary>
+    /// <exception cref="ProjectFormatException">
+    /// Si el proyecto tiene un valor que el archivo no puede guardar tal cual (un número NaN o infinito, o un texto con
+    /// un sustituto UTF-16 suelto); el mensaje dice dónde está. Antes, el número daba una <see cref="ArgumentException"/>
+    /// sin ruta y el texto se cambiaba en silencio por U+FFFD.
+    /// </exception>
     public static string Serialize(Project project)
     {
         ArgumentNullException.ThrowIfNull(project);
-        return JsonSerializer.Serialize(project, ProjectJson.ProjectInfo);
+        try
+        {
+            return JsonSerializer.Serialize(project, ProjectJson.WriteInfo);
+        }
+        catch (JsonException ex)
+        {
+            string where = SaveCheck.Locate(project) ?? ex.Path ?? "$";
+            throw new ProjectFormatException(
+                $"No se puede guardar el proyecto: el valor de «{where}» {ex.Message}. " +
+                "El archivo anterior, si lo había, queda como estaba.",
+                ex);
+        }
     }
 
     /// <summary>

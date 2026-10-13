@@ -78,7 +78,7 @@ host.Register("quitar-fondo", async (call, ct) =>
         {
             // En un hilo propio se puede esperar la preparación (también en un hilo propio) sin quitarle uno al pool.
             MatteInput input = prepared[k].GetAwaiter().GetResult();
-            return Guard(() => matting.Infer(input, device));
+            return Guard(() => matting.Infer(input, device, ct));
         }, ct))).ConfigureAwait(false);
         for (int k = 0; k < wave; k++)
         {
@@ -139,11 +139,11 @@ host.Register("detectar", async (call, ct) =>
             var frames = Enumerable.Range(first, size).Select(i => Copy(call, call.Buffers[i])).ToList();
             if (target == "rostros")
             {
-                (found[first], string d) = faces.Detect(frames[0], device);
+                (found[first], string d) = faces.Detect(frames[0], device, ct);
                 return d;
             }
 
-            (List<Box>[] boxes, string device2) = people.Detect(frames, device);
+            (List<Box>[] boxes, string device2) = people.Detect(frames, device, ct);
             boxes.CopyTo(found, first);
             return device2;
         }), ct).ConfigureAwait(false);

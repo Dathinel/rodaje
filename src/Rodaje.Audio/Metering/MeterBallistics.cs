@@ -12,6 +12,12 @@ public sealed class MeterBallistics
     /// <summary>Lo más bajo que se dibuja; por debajo es −∞ (barra vacía).</summary>
     public const double FloorDecibels = -70;
 
+    /// <summary>Lo más alto que se registra: +60 dBFS, lo que vale <see cref="Processing.AudioSamples.MaxMagnitude"/>.</summary>
+    public const double CeilingDecibels = 60;
+
+    // Más que cualquier hueco real entre dos cuadros; basta para que todo caiga al suelo.
+    private const double MaxElapsedSeconds = 3600;
+
     private double _decay = 20;
     private double _hold = 1.5;
     private double _holdAge;
@@ -45,8 +51,11 @@ public sealed class MeterBallistics
     /// <summary>Avanza <paramref name="elapsedSeconds"/> con el pico medido en ese tiempo (−∞ si no sonó nada).</summary>
     public void Update(double peakDecibels, double elapsedSeconds, bool clipped = false)
     {
-        double dt = Math.Max(0, elapsedSeconds);
-        double input = double.IsNaN(peakDecibels) ? double.NegativeInfinity : peakDecibels;
+        // Un tiempo NaN no avanza y uno infinito se acota (si no, la barra quedaba en NaN o el pico retenido sin caer); un
+        // pico NaN es silencio y uno por encima de lo que puede valer una muestra (+∞) se acota: ∞ menos la caída seguía
+        // siendo ∞ y la barra quedaba llena para siempre.
+        double dt = double.IsNaN(elapsedSeconds) ? 0 : Math.Clamp(elapsedSeconds, 0, MaxElapsedSeconds);
+        double input = double.IsNaN(peakDecibels) ? double.NegativeInfinity : Math.Min(peakDecibels, CeilingDecibels);
         double fallen = Fall(Level, _decay * dt);
         Level = Math.Max(input, fallen);
 

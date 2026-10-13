@@ -164,9 +164,24 @@ public sealed class RemoveSequenceCommand : ICommand
             throw new EditException($"No existe la secuencia «{_sequenceId}» en el proyecto.");
         }
 
-        _removed = project.Sequences[index];
+        // Un clip compuesto que la muestre quedaría apuntando a nada, y Load rechazaría el archivo guardado.
+        Sequence removed = project.Sequences[index];
+        foreach (Sequence sequence in project.Sequences)
+        {
+            if (sequence != removed && sequence.AllTracks.Any(t => t.Clips.Exists(c => c.SequenceId == _sequenceId)))
+            {
+                throw new EditException(
+                    $"La secuencia «{removed.Name}» se usa como clip compuesto en «{sequence.Name}». Quita primero esos clips.");
+            }
+        }
+
+        ProjectGuard.ApplyValidated(
+            project,
+            "No se puede eliminar la secuencia",
+            () => project.Sequences.RemoveAt(index),
+            () => project.Sequences.Insert(index, removed));
+        _removed = removed;
         _index = index;
-        project.Sequences.RemoveAt(index);
     }
 
     public void Revert(Project project)
