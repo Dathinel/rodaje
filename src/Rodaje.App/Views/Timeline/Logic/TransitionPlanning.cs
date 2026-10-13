@@ -127,9 +127,10 @@ public static class TransitionPlanning
                     continue;
                 }
 
+                // Alineada a un lado, la manija del corte no se arrastra: la duración se cambia desde la otra.
                 double grab = Math.Min(HandleGrab, (right - left) / 3);
-                TransitionHitKind kind = x - left <= grab ? TransitionHitKind.StartHandle
-                    : right - x <= grab ? TransitionHitKind.EndHandle
+                TransitionHitKind kind = x - left <= grab && transition.Alignment != TransitionAlignment.After ? TransitionHitKind.StartHandle
+                    : right - x <= grab && transition.Alignment != TransitionAlignment.Before ? TransitionHitKind.EndHandle
                     : TransitionHitKind.Body;
                 return new TransitionHit(kind, row, track.Clips.Find(c => c.Id == transition.From), transition, cut);
             }
@@ -152,8 +153,9 @@ public static class TransitionPlanning
     }
 
     /// <summary>
-    /// Duración al arrastrar una manija hasta <paramref name="handleTime"/>: el doble de la distancia al corte, en cuadros
-    /// enteros por lado, de un cuadro como mínimo y sin pasar <see cref="TransitionOps.MaxDuration"/> (el clip más corto).
+    /// Duración al arrastrar una manija hasta <paramref name="handleTime"/>: centrada, el doble de la distancia al corte (alineada
+    /// a un lado, la distancia), en cuadros
+    /// enteros por lado, de un cuadro como mínimo y sin pasar <see cref="TransitionOps.MaxDuration(Track, TransitionInstance, TransitionAlignment?)"/>.
     /// </summary>
     public static Time DurationForHandle(Track track, TransitionInstance transition, Time handleTime, Rational frameRate)
     {
@@ -167,16 +169,22 @@ public static class TransitionPlanning
         }
 
         Time cut = from.End;
-        Time half = handleTime >= cut ? handleTime - cut : cut - handleTime;
+        Time distance = handleTime >= cut ? handleTime - cut : cut - handleTime;
         Time frame = Time.FromFrames(1, frameRate);
-        half = Time.Max(frame, half.SnapToFrame(frameRate));
-        Time limit = Time.FromTicks(TransitionOps.MaxDuration(from, to).Ticks / 2);
-        if (half > limit)
+        distance = Time.Max(frame, distance.SnapToFrame(frameRate));
+        Time max = TransitionOps.MaxDuration(track, transition);
+        if (transition.Alignment != TransitionAlignment.Center)
         {
-            half = Time.Max(frame, limit);
+            return Time.Max(frame, Time.Min(distance, max));
         }
 
-        return half + half;
+        Time limit = Time.FromTicks(max.Ticks / 2);
+        if (distance > limit)
+        {
+            distance = Time.Max(frame, limit);
+        }
+
+        return distance + distance;
     }
 
     /// <summary>El corte entre clips pegados más cercano a <paramref name="at"/>, si está a menos de <paramref name="reach"/>.</summary>

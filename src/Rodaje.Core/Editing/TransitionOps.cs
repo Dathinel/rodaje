@@ -21,7 +21,44 @@ public static class TransitionOps
     }
 
     /// <summary>
-    /// Para cada transición busca su corte y la acota a <see cref="MaxDuration"/>, así se acorta si un clip se acortó (al
+    /// Lo más que puede durar <paramref name="transition"/> con la alineación <paramref name="alignment"/> (la suya si es
+    /// nula) sin pisar las otras transiciones de sus dos clips: la parte de antes del corte cabe en lo que deja del clip que
+    /// sale la transición que entra en él, y la de después en lo que deja del que entra la que sale de él. Centrada no
+    /// pasa además del clip más corto, como siempre.
+    /// </summary>
+    public static Time MaxDuration(Track track, TransitionInstance transition, TransitionAlignment? alignment = null)
+    {
+        ArgumentNullException.ThrowIfNull(track);
+        ArgumentNullException.ThrowIfNull(transition);
+        Clip? from = track.Clips.Find(c => c.Id == transition.From);
+        Clip? to = track.Clips.Find(c => c.Id == transition.To);
+        if (from is null || to is null)
+        {
+            return transition.Duration;
+        }
+
+        Time roomBefore = from.Duration - (track.TransitionTo(from.Id) is { } entering && entering != transition ? entering.After : Time.Zero);
+        Time roomAfter = to.Duration - (track.TransitionFrom(to.Id) is { } leaving && leaving != transition ? leaving.Before : Time.Zero);
+        return Limit(alignment ?? transition.Alignment, from, to, roomBefore, roomAfter);
+    }
+
+    /// <summary>El tope con lo que queda libre antes y después del corte.</summary>
+    private static Time Limit(TransitionAlignment alignment, Clip from, Clip to, Time roomBefore, Time roomAfter)
+    {
+        roomBefore = Time.Max(Time.Zero, roomBefore);
+        roomAfter = Time.Max(Time.Zero, roomAfter);
+        return alignment switch
+        {
+            TransitionAlignment.Before => roomBefore,
+            TransitionAlignment.After => roomAfter,
+
+            // ⌊d/2⌋ ≤ antes y ⌈d/2⌉ ≤ después.
+            _ => Time.Min(MaxDuration(from, to), Time.Min(Time.FromTicks((roomBefore.Ticks * 2) + 1), Time.FromTicks(roomAfter.Ticks * 2))),
+        };
+    }
+
+    /// <summary>
+    /// Para cada transición busca su corte y la acota a <see cref="MaxDuration(Clip, Clip)"/>, así se acorta si un clip se acortó (al
     /// recortarlo o al acelerarlo). Si el corte dejó de existir (se abrió un hueco, se borró o se movió uno de los clips)
     /// la transición se quita; si quedan dos en el mismo corte, se queda la primera.
     /// </summary>
@@ -59,19 +96,33 @@ public static class TransitionOps
                 return true;
             }
 
-            Clip from = track.Clips[cut];
-            Clip to = track.Clips[cut + 1];
-            transition.From = from.Id;
-            transition.To = to.Id;
-            Time max = MaxDuration(from, to);
+            transition.From = track.Clips[cut].Id;
+            transition.To = track.Clips[cut + 1].Id;
+            return false;
+        });
+        track.Transitions.Sort((a, b) => index[a.From].CompareTo(index[b.From]));
+
+        // De izquierda a derecha: cada una cabe en lo que dejó la anterior en su clip y le guarda a la siguiente lo que usa,
+        // hasta la mitad del clip, así ninguna de las dos se queda en cero.
+        TransitionInstance? previous = null;
+        for (int i = 0; i < track.Transitions.Count; i++)
+        {
+            TransitionInstance transition = track.Transitions[i];
+            Clip from = track.Clips[index[transition.From]];
+            Clip to = track.Clips[index[transition.To]];
+            Time roomBefore = from.Duration - (previous is not null && previous.To == from.Id ? previous.After : Time.Zero);
+            TransitionInstance? next = i + 1 < track.Transitions.Count && track.Transitions[i + 1].From == to.Id ? track.Transitions[i + 1] : null;
+            Time roomAfter = to.Duration - Time.Min(next?.Before ?? Time.Zero, Time.FromTicks(to.Duration.Ticks / 2));
+            Time max = Limit(transition.Alignment, from, to, roomBefore, roomAfter);
             if (transition.Duration > max)
             {
                 transition.Duration = max;
             }
 
-            return false;
-        });
-        track.Transitions.Sort((a, b) => index[a.From].CompareTo(index[b.From]));
+            previous = transition;
+        }
+
+        track.Transitions.RemoveAll(t => t.Duration <= Time.Zero);
     }
 
     /// <summary>Índice del clip que sale en el corte de la transición, o −1 si el corte ya no existe.</summary>

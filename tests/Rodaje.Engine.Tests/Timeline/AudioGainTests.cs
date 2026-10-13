@@ -221,6 +221,8 @@ public sealed class AudioGainTests(ITestOutputHelper output)
             return new SignalPcm(_ => value, length);
         };
 
+    internal static float[] MixOf(TimelineBuilder b, long from, int frames, Func<string, float>? level = null) => Mix(b, from, frames, level);
+
     private static float[] Mix(TimelineBuilder b, long from, int frames, Func<string, float>? level = null, Func<string, float[]>? sources = null)
     {
         using var mixer = new MixRenderer(b.Plan().Audio, Backend(b, level, sources), TimeSpan.FromSeconds(5), TimeProvider.System);

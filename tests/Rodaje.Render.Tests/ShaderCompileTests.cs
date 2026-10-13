@@ -50,6 +50,8 @@ public sealed class ShaderCompileTests : IDisposable
         indices.Add(EffectShaders.IndexOf(EffectShader.MaskMix, 0));
         indices.Add(EffectShaders.IndexOf(EffectShader.Pixelate, 0));
         indices.Add(EffectShaders.IndexOf(EffectShader.Fx, 0));
+        indices.Add(EffectShaders.IndexOf(EffectShader.Transition, EffectShaders.Motion));
+        indices.Add(EffectShaders.IndexOf(EffectShader.Transition, EffectShaders.Motion | EffectShaders.Blend));
         Assert.Equal(Enumerable.Range(0, EffectShaders.All.Length), indices.Order());
     }
 

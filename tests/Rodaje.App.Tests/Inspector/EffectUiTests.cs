@@ -100,6 +100,6 @@ public class EffectUiTests
             LibraryElements.BuiltIn(LibraryCategory.Effects).Select(e => e.Reference));
         Assert.Equal([BuiltInEffects.Color, BuiltInEffects.ColorWheels, BuiltInEffects.Curves, BuiltInEffects.HslQualifier],
             LibraryElements.BuiltIn(LibraryCategory.Filters).Select(e => e.Reference));
-        Assert.Equal(6, LibraryElements.BuiltIn(LibraryCategory.Transitions).Count);
+        Assert.Equal(18, LibraryElements.BuiltIn(LibraryCategory.Transitions).Count);
     }
 }

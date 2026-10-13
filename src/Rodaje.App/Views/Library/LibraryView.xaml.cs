@@ -235,6 +235,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
 
         OwnTitle.Text = LibraryElements.OwnTitle(_category);
+        LoadTransitionPreviews();
 
         Sounds.Clear();
         foreach (LibraryElement element in LibraryElements.For(LibraryCategory.Audio, packages.Installed))

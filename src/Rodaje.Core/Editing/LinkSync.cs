@@ -94,14 +94,33 @@ public static class LinkSync
             return (clip.SourceIn - clip.Start) - (reference.SourceIn - reference.Start);
         }
 
-        // Con la misma velocidad constante, el desfase en el origen se pasa a la línea de tiempo.
+        // Con la misma velocidad constante el desfase es exacto: la diferencia de entradas menos lo que recorre el origen
+        // entre los dos inicios (medir un instante con el mapeo arrastra el redondeo de cada clip).
         if (reference.Speed!.Curve is not null || reference.Speed.Reverse)
         {
             return clip.Start == reference.Start && clip.SourceIn == reference.SourceIn ? Time.Zero : null;
         }
 
-        Time at = Time.Max(clip.Start, reference.Start);
-        return clip.ToSourceTime(at) - reference.ToSourceTime(at);
+        Rational rate = reference.Speed.Rate;
+        Int128 travelled = (Int128)(clip.Start - reference.Start).Ticks * rate.Num / rate.Den;
+        return Time.FromTicks((long)((Int128)(clip.SourceIn - reference.SourceIn).Ticks - travelled));
+    }
+
+    /// <summary>Los desfases de ahora, sin signo (cuál mide a cuál depende del orden de las pistas).</summary>
+    internal static HashSet<Time> Snapshot(Sequence sequence) =>
+        [.. Find(sequence).Select(o => o.Offset < Time.Zero ? -o.Offset : o.Offset)];
+
+    /// <summary>Falla si la edición dejó un desfase que no estaba (la edición se deshace entera).</summary>
+    internal static void EnsureNoNewDesync(Sequence sequence, HashSet<Time> before, string action)
+    {
+        foreach (SyncOffset offset in Find(sequence))
+        {
+            Time size = offset.Offset < Time.Zero ? -offset.Offset : offset.Offset;
+            if (!before.Contains(size))
+            {
+                throw new EditException($"{action} desincronizaría «{offset.ClipId}» de su enlazado «{offset.PartnerId}»: hazlo sin ripple o con todas las pistas.");
+            }
+        }
     }
 
     /// <summary>

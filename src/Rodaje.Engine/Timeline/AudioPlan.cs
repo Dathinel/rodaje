@@ -1,4 +1,5 @@
 using Rodaje.Audio.Processing;
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Engine.Timeline;
@@ -186,15 +187,39 @@ internal sealed record AudioPlan(IReadOnlyList<AudioTrackPlan> Tracks, double Ma
     }
 }
 
-/// <summary>Un fundido de potencia constante en <c>[Start, Start + Length)</c> de la línea de tiempo, en muestras.</summary>
-/// <param name="Out">De salida (cos) en lugar de entrada (sin).</param>
+/// <summary>Forma de un fundido de audio.</summary>
+internal enum FadeShape
+{
+    /// <summary>Potencia constante: seno y coseno, la suma de los cuadrados vale 1.</summary>
+    Power,
+
+    /// <summary>Ganancia constante: lineal, la suma vale 1.</summary>
+    Gain,
+
+    /// <summary>Exponencial: lineal en decibelios, de −60 dB a 0.</summary>
+    Exponential,
+}
+
+/// <summary>Un fundido en <c>[Start, Start + Length)</c> de la línea de tiempo, en muestras; de potencia constante si no se dice otra cosa.</summary>
+/// <param name="Out">De salida en lugar de entrada.</param>
 internal readonly record struct Fade(long Start, long Length, bool Out)
 {
+    /// <summary>La forma; la de una transición la da su tipo.</summary>
+    public FadeShape Shape { get; init; }
+
+    /// <summary>La curva del avance de la transición (nula, lineal).</summary>
+    public Interpolation? Curve { get; init; }
+
+    public BezierEase? Ease { get; init; }
+
     public bool IsNone => Length <= 0;
 
     public long End => Start + Length;
 
-    /// <summary>Entrada: 0 antes, sin(πt/2) durante y 1 después. Salida: 1 antes, cos(πt/2) durante y 0 después.</summary>
+    /// <summary>
+    /// Entrada: 0 antes, la forma del avance e durante y 1 después. Salida: 1 antes, la de 1 − e durante y 0 después. Con
+    /// potencia constante es sin(πe/2) y cos(πe/2).
+    /// </summary>
     public double Factor(long sample)
     {
         if (Length <= 0)
@@ -203,8 +228,24 @@ internal readonly record struct Fade(long Start, long Length, bool Out)
         }
 
         double t = Math.Clamp((double)(sample - Start) / Length, 0, 1);
-        return Out ? Math.Cos(t * Math.PI / 2) : Math.Sin(t * Math.PI / 2);
+        double e = Curve is null ? t : TransitionInstance.EaseProgress(Curve, Ease, t);
+        return Shape switch
+        {
+            FadeShape.Gain => Out ? 1 - e : e,
+            FadeShape.Exponential => Exponential(Out ? 1 - e : e),
+            _ => Out ? Math.Cos(e * Math.PI / 2) : Math.Sin(e * Math.PI / 2),
+        };
     }
+
+    /// <summary>De 0 a 1 lineal en decibelios a lo largo de 60 dB, corrida para valer exactamente 0 y 1 en los extremos.</summary>
+    public static double Exponential(double x) => x <= 0 ? 0 : x >= 1 ? 1 : (Math.Pow(1000, x) - 1) / 999;
+
+    public static FadeShape ShapeOf(string type) => type switch
+    {
+        BuiltInTransitions.AudioGain => FadeShape.Gain,
+        BuiltInTransitions.AudioExponential => FadeShape.Exponential,
+        _ => FadeShape.Power,
+    };
 }
 
 /// <summary>

@@ -108,7 +108,7 @@ internal sealed partial class TimelineScheduler
                     : null;
             if (inFrame is not null)
             {
-                var mix = new LayerTransition(transition.Code, progress, transition.Values, inFrame);
+                LayerTransition mix = transition.Layer(time, progress, inFrame);
                 LayerFrame? outFrame = group is not null
                     ? BuildGroup(plan, group, time, transition, false, progress, mix)
                     : Build(trackIndex, main, time, transition, false, progress, mix);
@@ -327,9 +327,8 @@ internal sealed partial class TimelineScheduler
         private bool _isProxy;
         private BlendMode _blend;
         private bool _hasTransition;
-        private int _transitionCode;
-        private float _progress;
-        private EffectValues _transitionValues;
+        // La mezcla retenida sin su clip que entra (lo guarda _incoming).
+        private LayerTransition _transition;
         private HeldLayer? _incoming;
         private GeneratedContent? _generated;
         private readonly List<HeldLayer> _nested = [];
@@ -392,9 +391,7 @@ internal sealed partial class TimelineScheduler
                 if (_incoming.Capture(transition.Incoming))
                 {
                     _hasTransition = true;
-                    _transitionCode = transition.Code;
-                    _progress = transition.Progress;
-                    _transitionValues = transition.Values;
+                    _transition = transition with { Incoming = null! };
                 }
             }
 
@@ -420,7 +417,7 @@ internal sealed partial class TimelineScheduler
                     MotionSamples = _hasMotion ? _effects.Motion : null,
                     Blend = _blend,
                     Transition = _hasTransition && _incoming!.Present() is { } entering
-                        ? new LayerTransition(_transitionCode, _progress, _transitionValues, entering)
+                        ? _transition with { Incoming = entering }
                         : null,
                 };
             }
@@ -443,7 +440,7 @@ internal sealed partial class TimelineScheduler
             LayerTransition? transition = null;
             if (_hasTransition && _incoming!.Present() is { } incoming)
             {
-                transition = new LayerTransition(_transitionCode, _progress, _transitionValues, incoming);
+                transition = _transition with { Incoming = incoming };
             }
 
             return new LayerFrame(_trackIndex, _clipId, _frame, _transform, _sampleAspectRatio, _rotation)

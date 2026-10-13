@@ -522,6 +522,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _compositor?.Dispose();
         _scopes?.Dispose();
         _looks?.Dispose();
+        _transitionStills?.Dispose();
         _titles?.Dispose();
         _gpuTimer?.Dispose();
         _presenter?.Dispose();

@@ -100,6 +100,7 @@
         <!-- Contraste alto real de Windows: sin acento propio; WinUI da sus controles en los colores del sistema. -->
         <ResourceDictionary x:Key="HighContrast">
             <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="DangerBrush" Color="{ThemeResource SystemColorHotlightColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

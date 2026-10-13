@@ -147,12 +147,14 @@ public sealed class PackageServiceTests : IDisposable
         IReadOnlyList<LibraryElement> effects = LibraryElements.For(LibraryCategory.Effects, service.Installed);
 
         Assert.Equal(
-            ["Fundido cruzado", "Fundido a color", "Barrido", "Empujar", "Fundido con zoom", "Fundido con desenfoque", "Elemento", "Mi barrido"],
+            ["Fundido cruzado", "Fundido a color", "Barrido", "Empujar", "Fundido con zoom", "Fundido con desenfoque", "Deslizar",
+                "Zoom con desenfoque", "Giro", "Barrido con luz", "Fallo digital", "Quemado de película", "Destello", "Disolución por luma",
+                "Empujar con rebote", "Fundido de potencia constante", "Fundido de ganancia constante", "Fundido exponencial", "Elemento", "Mi barrido"],
             transitions.Select(t => t.Name));
-        Assert.Equal("rodaje-transiciones@1.0.0/elemento", transitions[6].Reference);
-        Assert.Equal("Mío", transitions[7].Source);
-        Assert.Equal(PackageOrigin.Own, transitions[7].Origin);
-        Assert.Equal("propios@0.0.0/mi-barrido", transitions[7].Reference);
+        Assert.Equal("rodaje-transiciones@1.0.0/elemento", transitions[^2].Reference);
+        Assert.Equal("Mío", transitions[^1].Source);
+        Assert.Equal(PackageOrigin.Own, transitions[^1].Origin);
+        Assert.Equal("propios@0.0.0/mi-barrido", transitions[^1].Reference);
         Assert.All(transitions, t => Assert.Equal(ItemKind.Transition, t.Kind));
         Assert.Equal(BuiltInEffects.Transform, effects[0].Reference);
         Assert.All(effects, e => Assert.True(e.IsAvailable));

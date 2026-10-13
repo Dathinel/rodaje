@@ -524,10 +524,17 @@ internal sealed partial class TimelinePlan
         return gain.ClipDb is null && !gain.HasFades && !gain.HasPan ? null : gain;
     }
 
+    /// <summary>El fundido de un lado de la transición: la forma de su tipo (potencia constante si no es de audio) y su curva.</summary>
     private static Fade Cross(Cut cut, bool fadeOut)
     {
         long start = (cut.At - cut.Before).ToSamples(AudioSampleRate);
-        return new Fade(start, (cut.At + cut.After).ToSamples(AudioSampleRate) - start, fadeOut);
+        TransitionInstance transition = cut.Transition;
+        return new Fade(start, (cut.At + cut.After).ToSamples(AudioSampleRate) - start, fadeOut)
+        {
+            Shape = Fade.ShapeOf(transition.Type),
+            Curve = transition.Curve,
+            Ease = transition.Ease,
+        };
     }
 
     private static long Samples(EffectInstance? audio, string parameter)

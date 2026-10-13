@@ -165,24 +165,32 @@ internal sealed partial class TimelinePlan
     }
 
     /// <summary>
-    /// Las transiciones de la pista entre clips incluidos y contiguos, con cada mitad acotada a la mitad de su clip (el
-    /// núcleo ya las acota; esto protege de un proyecto escrito a mano).
+    /// Las transiciones de la pista entre clips incluidos y contiguos, cada parte acotada a lo que deja de su clip la
+    /// transición vecina (el núcleo ya las acota; esto protege de un proyecto escrito a mano).
     /// </summary>
     private static List<Cut> Cuts(Track track, List<Clip> included)
     {
-        var cuts = new List<Cut>();
+        var found = new List<(TransitionInstance Transition, int From)>();
         foreach (TransitionInstance transition in track.Transitions)
         {
             int from = included.FindIndex(c => c.Id == transition.From);
             if (from < 0 || from + 1 >= included.Count || included[from + 1].Id != transition.To
                 || included[from].End != included[from + 1].Start || transition.Duration <= Time.Zero
-                || cuts.Exists(c => c.From == from))
+                || found.Exists(c => c.From == from))
             {
                 continue;
             }
 
-            Time before = Time.Min(transition.Before, Time.FromTicks(included[from].Duration.Ticks / 2));
-            Time after = Time.Min(transition.After, Time.FromTicks(included[from + 1].Duration.Ticks / 2));
+            found.Add((transition, from));
+        }
+
+        found.Sort((a, b) => a.From.CompareTo(b.From));
+        var cuts = new List<Cut>();
+        foreach ((TransitionInstance transition, int from) in found)
+        {
+            Time used = cuts.Count > 0 && cuts[^1].To == from ? cuts[^1].After : Time.Zero;
+            Time before = Time.Max(Time.Zero, Time.Min(transition.Before, included[from].Duration - used));
+            Time after = Time.Min(transition.After, included[from + 1].Duration);
             if (before + after > Time.Zero)
             {
                 cuts.Add(new Cut(transition, from, from + 1, included[from].End, before, after));

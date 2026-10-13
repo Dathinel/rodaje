@@ -27,7 +27,7 @@ public sealed class ProjectMigrator
         [8] = AllowProTitles,
         [9] = OrderAudioInserts,
         [10] = AllowTimelineOrganization,
-        [11] = ReservedTwelve,
+        [11] = AllowTransitionTiming,
         [12] = AllowTracking,
     };
 
@@ -257,9 +257,12 @@ public sealed class ProjectMigrator
     /// </summary>
     internal static void AllowTimelineOrganization(JsonObject root) => root[VersionProperty] = 11;
 
-    // El formato 12 está reservado (transiciones): hasta que llegue su migración de verdad, solo cambia el número, así la
-    // cadena llega al 13.
-    internal static void ReservedTwelve(JsonObject root) => root[VersionProperty] = 12;
+    /// <summary>
+    /// 11 → 12: las transiciones ganan alineación (<c>alignment</c>), curva del avance (<c>curve</c> y <c>ease</c>), los
+    /// tipos nuevos y los de audio, y parámetros nuevos en el barrido y el empuje. Todo es opcional: solo cambia el número,
+    /// pero un Rodaje del formato 11 no los entendería.
+    /// </summary>
+    internal static void AllowTransitionTiming(JsonObject root) => root[VersionProperty] = 12;
 
     /// <summary>
     /// 12 → 13: solo el número. Un archivo anterior no tiene seguimientos (<c>rodaje.track</c>) ni anclajes de esquinas

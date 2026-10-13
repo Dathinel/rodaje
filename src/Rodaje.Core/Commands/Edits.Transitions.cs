@@ -20,6 +20,19 @@ public static partial class Edits
         new("Cambiar duración de la transición", sequenceId, ctx => TransitionEdits.SetDuration(ctx, transitionId, duration), ids,
             $"transition-duration:{transitionId}");
 
+    /// <summary>La misma duración en varias transiciones a la vez, cada una acotada a sus clips.</summary>
+    public static SequenceEditCommand SetTransitionDurations(string sequenceId, IReadOnlyCollection<string> transitionIds, Time duration, IIdGenerator? ids = null) =>
+        new("Cambiar duración de las transiciones", sequenceId, ctx => TransitionEdits.SetDurations(ctx, transitionIds, duration), ids,
+            $"transition-durations:{string.Join(',', transitionIds)}");
+
+    public static SequenceEditCommand SetTransitionAlignment(string sequenceId, string transitionId, TransitionAlignment alignment, IIdGenerator? ids = null) =>
+        new("Cambiar alineación de la transición", sequenceId, ctx => TransitionEdits.SetAlignment(ctx, transitionId, alignment), ids);
+
+    /// <summary>Se funde con el cambio anterior de la curva de la misma transición: arrastrar un manejador deja un paso.</summary>
+    public static SequenceEditCommand SetTransitionCurve(string sequenceId, string transitionId, Interpolation? curve, BezierEase? ease = null, IIdGenerator? ids = null) =>
+        new("Cambiar curva de la transición", sequenceId, ctx => TransitionEdits.SetCurve(ctx, transitionId, curve, ease), ids,
+            $"transition-curve:{transitionId}");
+
     public static SequenceEditCommand SetTransitionType(string sequenceId, string transitionId, string type, IIdGenerator? ids = null) =>
         new("Cambiar transición", sequenceId, ctx => TransitionEdits.SetType(ctx, transitionId, type), ids);
 

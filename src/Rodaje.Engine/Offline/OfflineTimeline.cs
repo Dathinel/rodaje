@@ -424,7 +424,7 @@ public sealed class OfflineTimeline : IDisposable
                         : null;
                 if (incoming is not null)
                 {
-                    var mix = new LayerTransition(transition.Code, progress, transition.Values, incoming);
+                    LayerTransition mix = transition.Layer(time, progress, incoming);
                     return group is not null
                         ? Group(lane, group, time, frame, transition, entering: false, progress, mix, cancellationToken)
                         : Layer(lane, lane.Main!, _readers.Wait(lane.MainSlot!, _options.FrameTimeout, frame, cancellationToken), lane.MainEffects,

@@ -32,7 +32,7 @@
                                 HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="{x:Bind SubclipVisibility}">
                             <TextBlock Text="Subclip" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
                         </Border>
-                        <Border Background="{StaticResource MeterHighBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
+                        <Border Background="{StaticResource DangerBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
                                 HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="{x:Bind OfflineVisibility, Mode=OneWay}">
                             <TextBlock Text="Sin conexión" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
                         </Border>
@@ -40,7 +40,7 @@
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Visibility="{x:Bind DuplicateVisibility, Mode=OneWay}">
                             <TextBlock Text="Repetido" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
                         </Border>
-                        <FontIcon Glyph="&#xE711;" FontSize="{StaticResource IconHeroFontSize}" Foreground="{StaticResource MeterHighBrush}" Visibility="{x:Bind RejectedVisibility, Mode=OneWay}" />
+                        <FontIcon Glyph="&#xE711;" FontSize="{StaticResource IconHeroFontSize}" Foreground="{StaticResource DangerBrush}" Visibility="{x:Bind RejectedVisibility, Mode=OneWay}" />
                         <Border Background="{StaticResource ScrimBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
                                 HorizontalAlignment="Left" VerticalAlignment="Top" Visibility="{x:Bind BadgeVisibility, Mode=OneWay}">
                             <TextBlock Text="{x:Bind Badge, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" FontSize="{StaticResource MicroFontSize}" />
@@ -80,8 +80,8 @@
                 <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
                     <TextBlock Text="{x:Bind RatingText, Mode=OneWay}" Foreground="{StaticResource AccentBrush}" FontSize="{StaticResource MicroFontSize}" VerticalAlignment="Center" Visibility="{x:Bind RatingVisibility, Mode=OneWay}" />
-                    <TextBlock Text="Sin conexión" Foreground="{StaticResource MeterHighBrush}" FontSize="{StaticResource MicroFontSize}" VerticalAlignment="Center" Visibility="{x:Bind OfflineVisibility, Mode=OneWay}" />
-                    <FontIcon Glyph="&#xE711;" FontSize="{StaticResource IconSmallFontSize}" Foreground="{StaticResource MeterHighBrush}" Visibility="{x:Bind RejectedVisibility, Mode=OneWay}" />
+                    <TextBlock Text="Sin conexión" Foreground="{StaticResource DangerBrush}" FontSize="{StaticResource MicroFontSize}" VerticalAlignment="Center" Visibility="{x:Bind OfflineVisibility, Mode=OneWay}" />
+                    <FontIcon Glyph="&#xE711;" FontSize="{StaticResource IconSmallFontSize}" Foreground="{StaticResource DangerBrush}" Visibility="{x:Bind RejectedVisibility, Mode=OneWay}" />
                     <FontIcon Glyph="&#xE735;" FontSize="{StaticResource IconSmallFontSize}" Foreground="{StaticResource AccentBrush}" Visibility="{x:Bind FavoriteVisibility, Mode=OneWay}" />
                 </StackPanel>
                 <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnSpacing="4" Opacity="{x:Bind TileOpacity, Mode=OneWay}">
@@ -122,13 +122,25 @@
 
         <DataTemplate x:Key="ElementTileTemplate" x:DataType="local:ElementItem">
             <Grid Width="118" Height="64" Padding="8,8" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
-                  BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Opacity="{x:Bind Opacity}" ToolTipService.ToolTip="{x:Bind Tooltip}" RowSpacing="2">
+                  BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Opacity="{x:Bind Opacity}" ToolTipService.ToolTip="{x:Bind Tooltip}" RowSpacing="2"
+                  PointerEntered="OnElementPointerEntered" PointerExited="OnElementPointerExited">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconFontSize}" HorizontalAlignment="Left" Foreground="{StaticResource TextMutedBrush}" />
+                <!-- Transiciones: miniatura compuesta en la GPU, animada al pasar el puntero; el nombre va sobre una sombra. -->
+                <Image Grid.RowSpan="3" Margin="-8" Source="{x:Bind Preview, Mode=OneWay}" Stretch="UniformToFill" />
+                <Rectangle Grid.Row="1" Grid.RowSpan="2" Margin="-8,-4,-8,-8" Visibility="{x:Bind PreviewShadeVisibility, Mode=OneWay}">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#00000000" Offset="0" />
+                            <GradientStop Color="#C0000000" Offset="0.6" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconFontSize}" HorizontalAlignment="Left" Foreground="{StaticResource TextMutedBrush}"
+                          Visibility="{x:Bind GlyphVisibility, Mode=OneWay}" />
                 <TextBlock Grid.Row="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
                 <TextBlock Grid.Row="2" Text="{x:Bind Source}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
             </Grid>

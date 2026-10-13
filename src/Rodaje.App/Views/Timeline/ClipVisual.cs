@@ -136,7 +136,7 @@ internal sealed class ClipVisual
         Root.Children.Add(_name);
         Root.Children.Add(_badge);
         _sync.Child = _syncText;
-        _sync.Background = brushes.Marked(SyncWarningColor)!.Value.Solid;
+        _sync.Background = brushes.Danger;
         _syncText.Foreground = brushes.Text;
         Root.Children.Add(_sync);
         Root.Children.Add(_veil);
@@ -150,9 +150,6 @@ internal sealed class ClipVisual
         _name.Clip = _bounds;
         Canvas.SetZIndex(Root, 1);
     }
-
-    /// <summary>Color del aviso de desfase (el rojo de los marcadores).</summary>
-    public const string SyncWarningColor = "#E5484D";
 
     public Canvas Root { get; } = new();
 

@@ -285,9 +285,29 @@ internal sealed partial class FolderItem(LibraryFolder folder, string summary)
 }
 
 /// <summary>Un elemento de texto, efecto, transición, filtro o sonido.</summary>
-internal sealed partial class ElementItem(LibraryElement element)
+internal sealed partial class ElementItem(LibraryElement element) : ObservableObject
 {
+    private ImageSource? _preview;
+
     public LibraryElement Element { get; } = element;
+
+    /// <summary>Miniatura (animada al pasar el puntero) de una transición; nula en lo demás.</summary>
+    public ImageSource? Preview
+    {
+        get => _preview;
+        set
+        {
+            if (SetProperty(ref _preview, value))
+            {
+                OnPropertyChanged(nameof(GlyphVisibility));
+                OnPropertyChanged(nameof(PreviewShadeVisibility));
+            }
+        }
+    }
+
+    public Visibility GlyphVisibility => _preview is null ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility PreviewShadeVisibility => _preview is null ? Visibility.Collapsed : Visibility.Visible;
 
     public string Name { get; } = element.Name;
 

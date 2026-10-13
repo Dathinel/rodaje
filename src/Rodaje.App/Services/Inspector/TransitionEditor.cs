@@ -24,6 +24,17 @@ public sealed class TransitionEditor(EditorSession session)
     public static IReadOnlyList<EffectDefinition> BuiltInTypes { get; } =
         [.. EffectRegistry.Transitions.Where(t => t.Type != BuiltInTransitions.Preset)];
 
+    /// <summary>Los tipos que van en una pista de esa clase: las de audio en audio y las de imagen en video.</summary>
+    public static IReadOnlyList<EffectDefinition> TypesFor(TrackKind kind) =>
+        [.. BuiltInTypes.Where(t => BuiltInTransitions.IsAudio(t.Type) == (kind == TrackKind.Audio))];
+
+    /// <summary>A qué transiciones se copia la duración con «Aplicar a…».</summary>
+    public enum DurationScope
+    {
+        Track,
+        Sequence,
+    }
+
     /// <summary>La transición seleccionada, si sigue en la secuencia.</summary>
     public TransitionTarget? Selected() => Session.SelectedTransitionId is { } id ? Find(id) : null;
 
@@ -61,7 +72,7 @@ public sealed class TransitionEditor(EditorSession session)
     {
         ArgumentNullException.ThrowIfNull(target);
         double frame = Time.FromFrames(1, Session.Sequence.FrameRate).ToSeconds();
-        double longest = TransitionOps.MaxDuration(target.From, target.To).ToSeconds();
+        double longest = TransitionOps.MaxDuration(target.Track, target.Transition).ToSeconds();
         return (frame, Math.Max(frame, Math.Min(MaxSeconds, longest)));
     }
 
@@ -107,6 +118,64 @@ public sealed class TransitionEditor(EditorSession session)
     public bool SetOption(string transitionId, string name, string value) =>
         Find(transitionId) is { } target && ReadOption(target.Transition, name) != value
         && Session.Execute(Edits.SetTransitionOption(Session.SequenceId, transitionId, name, value));
+
+    /// <summary>Un color (tres parámetros de 0 a 1) en un solo paso; se funde con el cambio anterior del mismo color.</summary>
+    public bool SetColor(string transitionId, string red, string green, string blue, double r, double g, double b)
+    {
+        if (Find(transitionId) is not { } target
+            || (Math.Abs(Read(target.Transition, red) - r) < 1e-9 && Math.Abs(Read(target.Transition, green) - g) < 1e-9
+                && Math.Abs(Read(target.Transition, blue) - b) < 1e-9))
+        {
+            return false;
+        }
+
+        return Session.Execute(new SequenceEditCommand("Cambiar color de la transición", Session.SequenceId, ctx =>
+        {
+            TransitionEdits.SetParameter(ctx, transitionId, red, r);
+            TransitionEdits.SetParameter(ctx, transitionId, green, g);
+            TransitionEdits.SetParameter(ctx, transitionId, blue, b);
+        }, mergeKey: $"transition-color:{transitionId}:{red}"));
+    }
+
+    public bool SetAlignment(string transitionId, TransitionAlignment alignment) =>
+        Find(transitionId) is { } target && target.Transition.Alignment != alignment
+        && Session.Execute(Edits.SetTransitionAlignment(Session.SequenceId, transitionId, alignment));
+
+    /// <summary>Se funde con el cambio anterior de la curva de la misma transición: arrastrar un manejador deja un paso.</summary>
+    public bool SetCurve(string transitionId, Interpolation? curve, BezierEase? ease = null)
+    {
+        if (Find(transitionId) is not { } target)
+        {
+            return false;
+        }
+
+        Interpolation? normalized = curve == Interpolation.Linear ? null : curve;
+        BezierEase? wanted = normalized == Interpolation.Bezier ? (ease ?? target.Transition.Ease ?? BezierEase.Smooth).Clamped() : null;
+        return (target.Transition.Curve != normalized || target.Transition.Ease != wanted)
+            && Session.Execute(Edits.SetTransitionCurve(Session.SequenceId, transitionId, normalized, wanted));
+    }
+
+    /// <summary>
+    /// La duración de <paramref name="transitionId"/> en las demás de su pista o de la secuencia, cada una acotada a sus
+    /// clips, en un paso; devuelve cuántas cambió.
+    /// </summary>
+    public int ApplyDuration(string transitionId, DurationScope scope)
+    {
+        if (Find(transitionId) is not { } target)
+        {
+            return 0;
+        }
+
+        IEnumerable<Track> tracks = scope == DurationScope.Track ? [target.Track] : Session.Sequence.AllTracks;
+        List<string> ids = [.. tracks.Where(t => !t.Locked).SelectMany(t => t.Transitions)
+            .Where(t => t.Duration != target.Transition.Duration).Select(t => t.Id)];
+        if (ids.Count == 0)
+        {
+            return 0;
+        }
+
+        return Session.Execute(Edits.SetTransitionDurations(Session.SequenceId, ids, target.Transition.Duration)) ? ids.Count : 0;
+    }
 
     public bool Remove(string transitionId) =>
         Find(transitionId) is not null && Session.Execute(Edits.RemoveTransition(Session.SequenceId, transitionId));

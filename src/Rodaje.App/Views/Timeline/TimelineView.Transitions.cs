@@ -120,7 +120,8 @@ internal sealed partial class TimelineView
         }
 
         Point p = e.GetPosition(LanesHost);
-        if (layout.RowStrictlyAt(ContentY(p.Y)) is not { } row || row.Track.Locked)
+        if (layout.RowStrictlyAt(ContentY(p.Y)) is not { } row || row.Track.Locked
+            || (BuiltInTransitions.IsAudio(_dropTransition) && row.Track.Kind != TrackKind.Audio))
         {
             return null;
         }
@@ -137,10 +138,9 @@ internal sealed partial class TimelineView
         if (target is { } t)
         {
             TransitionInstance? existing = t.Track.TransitionFrom(t.From.Id);
-            Time length = existing?.Duration ?? EffectRegistry.DefaultTransitionDuration;
-            Time half = Time.FromTicks(length.Ticks / 2);
+            var ghost = existing?.Clone() ?? new TransitionInstance { Duration = EffectRegistry.DefaultTransitionDuration };
             e.DragUIOverride.Caption = existing is null ? "Transición" : "Cambiar transición";
-            _overlay.Ghost = (t.Track.Id, t.Cut - half, t.Cut + (length - half));
+            _overlay.Ghost = (t.Track.Id, t.Cut - ghost.Before, t.Cut + ghost.After);
             _overlay.InsertLine = (t.Track.Id, t.Cut);
         }
         else

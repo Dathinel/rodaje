@@ -315,9 +315,22 @@ internal static class RandomTimeline
                     continue;
                 }
 
-                EffectDefinition type = EffectRegistry.Transitions[(extras + i) % EffectRegistry.Transitions.Length];
+                EffectDefinition[] types = [.. EffectRegistry.Transitions.Where(t => track.Kind == TrackKind.Audio || !BuiltInTransitions.IsAudio(t.Type))];
+                EffectDefinition type = types[(extras + i) % types.Length];
                 Time duration = Time.FromFrames(1 + ((extras >> i) % 40), built.Rate);
-                Edits.AddTransition(seq, clips[i].Id, type.Type, duration, built.Ids).Apply(built.Project);
+                SequenceEditCommand transition = Edits.AddTransition(seq, clips[i].Id, type.Type, duration, built.Ids);
+                transition.Apply(built.Project);
+                if (Next())
+                {
+                    try
+                    {
+                        Edits.SetTransitionAlignment(seq, transition.CreatedIds[0], (TransitionAlignment)((extras + i) % 3), built.Ids).Apply(built.Project);
+                    }
+                    catch (EditException)
+                    {
+                        // La otra transición del clip ocupa todo: se queda centrada.
+                    }
+                }
             }
 
             foreach (Clip clip in clips.Where(_ => Next()))

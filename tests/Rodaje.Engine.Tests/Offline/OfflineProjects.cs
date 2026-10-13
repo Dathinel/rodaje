@@ -39,7 +39,9 @@ internal static class OfflineProjects
         Clip slow = SpeedClips.WithRate(b.AddVideo(0, "b", fast.End, S(10), S(1), "lento"), new Rational(1, 2), S(10), S(11));
         Clip frozen = SpeedClips.Frozen(b.AddVideo(0, "a", slow.End, S(20), S(1), "congelado"), S(20), S(1.5));
         TimelineEffectsTests.AddTransition(b, BuiltInTransitions.Crossfade, "rapido", "lento", S(0.5));
-        TimelineEffectsTests.AddTransition(b, BuiltInTransitions.Wipe, "lento", "congelado", S(0.4));
+        TransitionInstance wipe = TimelineEffectsTests.AddTransition(b, BuiltInTransitions.Wipe, "lento", "congelado", S(0.4));
+        wipe.Alignment = TransitionAlignment.Before;
+        wipe.Curve = Interpolation.EaseInOut;
 
         Clip ntsc = SpeedClips.WithRate(b.AddVideo(1, "c", S(0.5), S(1), S(2), "ntsc"), new Rational(1001, 1000), S(1), S(3));
         Clip bullet = SpeedClips.WithCurve(b.AddVideo(1, "b", ntsc.End, S(30), S(3), "bala"), SpeedPreset.Bullet, S(2.5), S(30), S(33));
@@ -51,7 +53,10 @@ internal static class OfflineProjects
         color.Options[BuiltInEffects.ColorOptions.Lut] = Lut;
         ntsc.Effects.Add(color);
         bullet.Effects.Add(TimelineEffectsTests.Effect(BuiltInEffects.Vignette, (BuiltInEffects.VignetteParameters.Amount, 0.6)));
-        TimelineEffectsTests.AddTransition(b, BuiltInTransitions.Push, "ntsc", "bala", S(0.6), track: 1).Options["direction"] = "up";
+        TransitionInstance slide = TimelineEffectsTests.AddTransition(b, BuiltInTransitions.Slide, "ntsc", "bala", S(0.6), track: 1);
+        slide.Alignment = TransitionAlignment.After;
+        slide.Curve = Interpolation.Bezier;
+        slide.Ease = new BezierEase(0.2, 0.8, 0.4, 1);
 
         Clip moving = b.AddVideo(2, "c", S(1), S(40), S(1.5), "mueve");
         EffectInstance transform = TimelineEffectsTests.Effect(BuiltInEffects.Transform, (BuiltInEffects.TransformParameters.Scale, 0.5));
@@ -115,7 +120,13 @@ internal static class OfflineProjects
             Describe(layer, text);
             if (layer.Transition is { } transition)
             {
-                text.Append(CultureInfo.InvariantCulture, $" ~{transition.Code}@{transition.Progress:R}[{Values(transition.Values)}] <- ");
+                text.Append(CultureInfo.InvariantCulture, $" ~{transition.Code}@{transition.Progress:R}[{Values(transition.Values)}]");
+                if (transition.Shutter is { } shutter)
+                {
+                    text.Append(CultureInfo.InvariantCulture, $"({shutter.From:R}..{shutter.To:R})");
+                }
+
+                text.Append(" <- ");
                 Describe(transition.Incoming, text);
             }
         }

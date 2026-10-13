@@ -26,6 +26,15 @@ public enum GpuEffectKind
     Push,
     ZoomDissolve,
     BlurDissolve,
+    Slide,
+    ZoomBlur,
+    Spin,
+    LightWipe,
+    Glitch,
+    FilmBurn,
+    Flash,
+    Luma,
+    Bounce,
 
     /// <summary>Se dibuja en la textura de máscaras de la capa y multiplica su alfa (<c>PsMask</c>).</summary>
     Mask,
@@ -114,6 +123,15 @@ public static class GpuEffectRegistry
         new(105, BuiltInTransitions.ZoomDissolve, EffectStage.Transition, GpuEffectKind.ZoomDissolve),
         new(106, BuiltInTransitions.BlurDissolve, EffectStage.Transition, GpuEffectKind.BlurDissolve),
         new(107, BuiltInTransitions.Preset, EffectStage.Transition, GpuEffectKind.Preset),
+        new(108, BuiltInTransitions.Slide, EffectStage.Transition, GpuEffectKind.Slide),
+        new(109, BuiltInTransitions.ZoomBlur, EffectStage.Transition, GpuEffectKind.ZoomBlur),
+        new(110, BuiltInTransitions.Spin, EffectStage.Transition, GpuEffectKind.Spin),
+        new(111, BuiltInTransitions.LightWipe, EffectStage.Transition, GpuEffectKind.LightWipe),
+        new(112, BuiltInTransitions.Glitch, EffectStage.Transition, GpuEffectKind.Glitch),
+        new(113, BuiltInTransitions.FilmBurn, EffectStage.Transition, GpuEffectKind.FilmBurn),
+        new(114, BuiltInTransitions.Flash, EffectStage.Transition, GpuEffectKind.Flash),
+        new(115, BuiltInTransitions.Luma, EffectStage.Transition, GpuEffectKind.Luma),
+        new(116, BuiltInTransitions.Bounce, EffectStage.Transition, GpuEffectKind.Bounce),
     ];
 
     private static readonly FrozenDictionary<int, GpuEffect> ByCode = All.ToFrozenDictionary(e => e.Code);

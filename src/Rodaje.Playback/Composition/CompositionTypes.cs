@@ -286,7 +286,17 @@ public enum BlendMode
 /// <param name="Progress">De 0 (solo el clip que sale) a 1 (solo el que entra).</param>
 /// <param name="Values">Parámetros de la transición en el orden del registro.</param>
 /// <param name="Incoming">El clip que entra, con su transformación y sus efectos; la capa de afuera lo libera.</param>
-public readonly record struct LayerTransition(int Code, float Progress, EffectValues Values, LayerFrame Incoming);
+public readonly record struct LayerTransition(int Code, float Progress, EffectValues Values, LayerFrame Incoming)
+{
+    /// <summary>
+    /// Desenfoque de movimiento: el avance cuando el obturador abre y cuando cierra (ya con la curva). El render promedia la
+    /// mezcla en ese tramo; nulo, sin desenfoque.
+    /// </summary>
+    public (float From, float To)? Shutter { get; init; }
+
+    /// <summary>Imagen que necesita la mezcla (el degradado de una disolución por luma), o nula.</summary>
+    public ResourceKey? Resource { get; init; }
+}
 
 /// <summary>Todo lo que se ve en un instante de la secuencia, de abajo hacia arriba.</summary>
 public sealed class CompositionFrame : IDisposable

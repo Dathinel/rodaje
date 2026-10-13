@@ -212,21 +212,36 @@ public class EditPropertiesTests(ITestOutputHelper output)
 
     /// <summary>Los desfases entre enlazados del mismo medio en pistas sin bloquear.</summary>
     private static HashSet<Time> SyncOffsets(Sequence sequence) =>
-        [.. Unlocked(sequence).Select(o => o.Offset)];
+        [.. Unlocked(sequence).Select(o => Abs(o.Offset))];
 
     private static SyncOffset SyncBreaks(Sequence sequence, HashSet<Time> before) =>
-        Unlocked(sequence).FirstOrDefault(o => !before.Contains(o.Offset));
+        Unlocked(sequence).FirstOrDefault(o => !before.Contains(Abs(o.Offset)));
+
+    // La pareja de referencia es la primera en el orden de las pistas: llevar un clip a otra pista puede cambiar cuál mide a cuál (el signo).
+    private static Time Abs(Time t) => t < Time.Zero ? -t : t;
 
     private static IEnumerable<SyncOffset> Unlocked(Sequence sequence) =>
         LinkSync.Find(sequence).Where(o => sequence.FindClip(o.ClipId) is { Track.Locked: false } && sequence.FindClip(o.PartnerId) is { Track.Locked: false });
 
     /// <summary>
     /// La propiedad 11 sobre todas las ediciones (salvo enlazar a mano y las de velocidad, que recalculan cada clip desde
-    /// su inicio). La nueva propiedad encontró desfases que las ediciones de antes ya hacían; se arreglan aparte.
+    /// su inicio): 10 000 escenarios al azar.
     /// </summary>
-    [Fact(Skip = "Defecto: el recorte ripple con el alcance de la pista corre las pistas de los enlazados desde el borde del clip editado, no desde su pareja, y desincroniza los enlazados con otro largo (semilla 2hcHFAoqg5U8); con AllTracks deja atrás una pareja que empieza antes (8fBHh0xmkjni); recortar la entrada de un clip con curva redondea su pareja al cuadro (2_rZhAfEy9if, 1 876 520 ticks).")]
+    [Fact]
     public void TodasLasEdiciones_ConservanLaSincronia() =>
         GenScenario.Sample(s => RunScenario(s.Project, s.Ops, allOpsKeepSync: true), writeLine: output.WriteLine, iter: 10000);
+
+    /// <summary>
+    /// Las semillas con las que la propiedad 11 encontró desfases: el recorte ripple con enlazados de distinto largo (pista
+    /// y todas las pistas) y recortar la entrada de un clip con curva.
+    /// </summary>
+    [Theory]
+    [InlineData("2hcHFAoqg5U8", 2)]
+    [InlineData("8fBHh0xmkjni", 0)]
+    [InlineData("2_rZhAfEy9if", 1)]
+    public void LasSemillasDeDesfase_ConservanLaSincronia(string seed, int generator) =>
+        (generator switch { 1 => GenCurveScenario, 2 => GenTitleScenario, _ => GenScenario })
+            .Sample(s => RunScenario(s.Project, s.Ops, allOpsKeepSync: true), seed: seed, iter: 1, threads: 1);
 
     internal static void RunScenario(ProjectSpec spec, OpSpec[] ops, bool allOpsKeepSync = false)
     {
@@ -347,7 +362,8 @@ public class EditPropertiesTests(ITestOutputHelper output)
             // Propiedad 11: estas ediciones nunca desincronizan clips enlazados del mismo medio en pistas sin bloquear (una
             // pista bloqueada no se corre aunque tenga enlazados: para eso está el aviso de desfase). Las demás se miden
             // aparte (TodasLasEdiciones_ConservanLaSincronia, con los defectos que encontró).
-            if ((allOpsKeepSync ? op.Kind is not (OpKind.LinkClips or OpKind.SetSpeed or OpKind.RateStretch or OpKind.FreezeFrame
+            // Desbloquear una pista (SetTrackState) no mueve nada: solo deja ver un desfase que su bloqueo ya había dejado.
+            if ((allOpsKeepSync ? op.Kind is not (OpKind.LinkClips or OpKind.SetTrackState or OpKind.SetSpeed or OpKind.RateStretch or OpKind.FreezeFrame
                     or OpKind.SetCurve or OpKind.SetReverse or OpKind.ApplySpeedPreset) : SyncKeepingOps.Contains(op.Kind))
                 && SyncBreaks(built.Sequence, syncBefore) is { ClipId: not null } broken)
             {
@@ -474,7 +490,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Toda transición une dos clips contiguos y no dura más que el más corto. Cortar, slip, roll y slide no quitan
+    /// Toda transición une dos clips contiguos y cabe en ellos con su alineación, sin pisar a sus vecinas. Cortar, slip, roll y slide no quitan
     /// ninguna, porque no hacen desaparecer cortes.
     /// </summary>
     private static string? CheckTransitions(ResolvedOp op, Dictionary<string, Track> before, Sequence after)
@@ -490,7 +506,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
                     return $"la transición «{transition.Id}» quedó sin sus clips contiguos.";
                 }
 
-                if (transition.Duration <= Time.Zero || transition.Duration > TransitionOps.MaxDuration(track.Clips[from], track.Clips[from + 1]))
+                if (transition.Duration <= Time.Zero || transition.Duration > TransitionOps.MaxDuration(track, transition))
                 {
                     return $"la transición «{transition.Id}» dura {transition.Duration.Ticks} ticks, fuera de lo que permiten sus clips.";
                 }
@@ -558,7 +574,7 @@ public class EditPropertiesTests(ITestOutputHelper output)
                     foreach (Clip clip in now.Clips)
                     {
                         Clip? was = old.Clips.Find(c => c.Id == clip.Id);
-                        if (was is null || moved.Contains(clip.Id) || (op.Kind == OpKind.MoveClips && was.Start != clip.Start)
+                        if (was is null || moved.Contains(clip.Id) || (op.Kind is OpKind.MoveClips or OpKind.Resync && was.Start != clip.Start)
                             || was.SourceIn != clip.SourceIn || was.SourceOut != clip.SourceOut
                             || was.Duration != clip.Duration)
                         {

@@ -1,21 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- La transición seleccionada, en una sección como las de Propiedades: tipo (propia o de paquete), duración, parámetros y opciones. Ocupa la pestaña Propiedades. -->
+<!-- La transición seleccionada: miniatura animada compuesta en la GPU, tipo, duración, alineación, dirección, colores, parámetros y la curva del avance. Ocupa la pestaña Propiedades. -->
 <UserControl
     x:Class="Rodaje.App.Views.Inspector.Transition.TransitionPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:inspector="using:Rodaje.App.Views.Inspector"
+    xmlns:local="using:Rodaje.App.Views.Inspector.Transition"
     xmlns:properties="using:Rodaje.App.Views.Inspector.Properties">
 
     <ScrollViewer Background="{StaticResource PanelBrush}" VerticalScrollBarVisibility="Auto">
         <StackPanel Padding="0,0,0,12">
             <Grid Height="36" Padding="12,0,8,0">
-                <TextBlock x:Name="CutText" Style="{StaticResource BodyTextStyle}" />
+                <TextBlock x:Name="CutText" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" />
             </Grid>
+
+            <!-- Miniatura: los mismos shaders que la línea de tiempo, entre dos imágenes de muestra; un clic la pausa. -->
+            <Grid x:Name="PreviewFrame" Margin="12,0,12,8" Height="170" CornerRadius="{StaticResource ControlCornerRadius}"
+                  BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" Background="{StaticResource BackgroundBrush}"
+                  Tapped="OnPreviewTapped" AutomationProperties.Name="Vista previa de la transición"
+                  ToolTipService.ToolTip="Vista previa con dos imágenes de muestra. Clic: pausa o sigue.">
+                <local:TransitionThumb x:Name="Thumb" />
+                <TextBlock x:Name="PreviewNote" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Text="Preparando la vista previa…" />
+                <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6" Padding="6,1" CornerRadius="2"
+                        Background="#99000000">
+                    <TextBlock x:Name="PreviewLabel" FontSize="{StaticResource MicroFontSize}" Foreground="White" />
+                </Border>
+                <FontIcon x:Name="PausedIcon" Glyph="&#xE768;" FontSize="{StaticResource IconHeroFontSize}" Foreground="White"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" Opacity="0.85" />
+            </Grid>
+
             <inspector:InspectorSection x:Name="TransitionSection" Title="Transición">
                 <inspector:InspectorSection.Actions>
-                    <Button Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="{StaticResource IconFontSize}" Content="&#xE74D;" Click="OnRemoveClick"
-                            AutomationProperties.Name="Quitar transición" ToolTipService.ToolTip="Quitar: deja el corte seco" />
+                    <StackPanel Orientation="Horizontal">
+                        <Button Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="{StaticResource IconFontSize}" Content="&#xE712;"
+                                AutomationProperties.Name="Más opciones de la transición" ToolTipService.ToolTip="Más">
+                            <Button.Flyout>
+                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                    <MenuFlyoutItem Text="Usar como transición por defecto (Ctrl+T)" Click="OnUseAsDefaultClick">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE734;" />
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutSeparator />
+                                    <MenuFlyoutItem Text="Esta duración en toda la pista" Click="OnDurationToTrackClick">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE916;" />
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="Esta duración en todas las transiciones" Click="OnDurationToSequenceClick" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                        <Button Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="{StaticResource IconFontSize}" Content="&#xE74D;" Click="OnRemoveClick"
+                                AutomationProperties.Name="Quitar transición" ToolTipService.ToolTip="Quitar: deja el corte seco" />
+                    </StackPanel>
                 </inspector:InspectorSection.Actions>
                 <StackPanel>
                     <Grid Padding="12,4,8,4" ColumnSpacing="4">
@@ -32,18 +71,77 @@
 
                     <properties:ParameterRow x:Name="DurationRow" />
 
+                    <Grid Padding="12,4,8,4" ColumnSpacing="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Alineación" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
+                        <StackPanel x:Name="AlignmentButtons" Grid.Column="1" Orientation="Horizontal" Spacing="2" />
+                    </Grid>
+
+                    <Grid x:Name="AngleRow" Padding="12,4,8,4" ColumnSpacing="8" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="72" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Dirección" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
+                        <local:AngleDial x:Name="Dial" Grid.Column="1" />
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="4">
+                            <TextBlock x:Name="AngleText" Style="{StaticResource BodyTextStyle}" />
+                            <StackPanel Orientation="Horizontal" Spacing="2" x:Name="AngleQuick" />
+                        </StackPanel>
+                    </Grid>
+
                     <Grid x:Name="DirectionRow" Padding="12,4,8,4" ColumnSpacing="4" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="76" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="48" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Dirección" Style="{StaticResource LabelTextStyle}" />
-                        <ComboBox x:Name="DirectionBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
-                                  AutomationProperties.Name="Dirección" SelectionChanged="OnDirectionSelected" />
+                        <TextBlock Text="Dirección" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
+                        <StackPanel x:Name="DirectionButtons" Grid.Column="1" Orientation="Horizontal" Spacing="2" />
                     </Grid>
 
+                    <StackPanel x:Name="ColorRows" />
+                    <StackPanel x:Name="LumaRows" Visibility="Collapsed">
+                        <Grid Padding="12,4,8,4" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="76" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Degradado" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
+                            <ComboBox x:Name="GradientBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28" FontSize="{StaticResource BodyFontSize}"
+                                      AutomationProperties.Name="Degradado" SelectionChanged="OnGradientSelected" />
+                            <ToggleButton x:Name="InvertToggle" Grid.Column="2" Style="{StaticResource ToolToggleButtonStyle}" Height="28" Padding="8,0"
+                                          Content="Invertir" Click="OnInvertClick" ToolTipService.ToolTip="Cambia primero lo claro en lugar de lo oscuro" />
+                        </Grid>
+                        <Grid Padding="12,4,8,4" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="76" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Imagen" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center" />
+                            <Button x:Name="ImageButton" Grid.Column="1" HorizontalAlignment="Stretch" Height="28" Style="{StaticResource RodajeButtonStyle}"
+                                    Click="OnImageClick" ToolTipService.ToolTip="Una imagen gris: lo oscuro cambia primero">
+                                <TextBlock x:Name="ImageText" Text="Elegir imagen…" TextTrimming="CharacterEllipsis" />
+                            </Button>
+                            <Button x:Name="ClearImageButton" Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" Content="&#xE711;"
+                                    Click="OnClearImageClick" AutomationProperties.Name="Quitar imagen" ToolTipService.ToolTip="Volver al degradado de fábrica" />
+                        </Grid>
+                    </StackPanel>
+
                     <StackPanel x:Name="ParameterRows" />
+                </StackPanel>
+            </inspector:InspectorSection>
+
+            <inspector:InspectorSection x:Name="CurveSection" Title="Curva del avance">
+                <StackPanel Padding="12,4,12,4" Spacing="8">
+                    <VariableSizedWrapGrid x:Name="CurveButtons" Orientation="Horizontal" ItemWidth="58" ItemHeight="30" />
+                    <local:TransitionCurveControl x:Name="Curve" />
+                    <TextBlock x:Name="CurveHelp" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
                 </StackPanel>
             </inspector:InspectorSection>
         </StackPanel>

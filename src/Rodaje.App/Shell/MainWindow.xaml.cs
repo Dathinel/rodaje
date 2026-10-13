@@ -168,6 +168,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _bindings.Add(_router.Bind(ActionIds.ShowMixer, ToggleMixer));
         _bindings.Add(Views.Analysis.AnalysisCommands.Bind(_router, _services));
+        _bindings.Add(Views.Timeline.TransitionCommands.Bind(_router, _services));
         _bindings.Add(Views.Voice.VoiceCommands.Bind(_router, _services));
         _bindings.Add(Views.Subtitles.SubtitleCommands.Bind(_router, _services));
         _bindings.Add(Views.Subtitles.SubtitleFileCommands.Bind(_router, _services));

@@ -11,6 +11,7 @@ using Hq = Rodaje.Core.Model.BuiltInEffects.HslQualifierParameters;
 using W = Rodaje.Core.Model.BuiltInEffects.ColorWheelsParameters;
 using M = Rodaje.Core.Model.BuiltInEffects.MaskParameters;
 using T = Rodaje.Core.Model.BuiltInEffects.TransformParameters;
+using TP = Rodaje.Core.Model.BuiltInTransitions.CommonParameters;
 
 namespace Rodaje.Core.Effects;
 
@@ -30,8 +31,20 @@ public static class EffectRegistry
         "darken", "lighten", "difference", "exclusion", "colorDodge", "colorBurn",
     ];
 
-    /// <summary>Hacia dónde sale el clip en <see cref="BuiltInTransitions.Push"/>.</summary>
+    /// <summary>Hacia dónde sale el clip en <see cref="BuiltInTransitions.Push"/> y <see cref="BuiltInTransitions.Bounce"/>.</summary>
     public static ImmutableArray<string> PushDirections { get; } = ["left", "right", "up", "down"];
+
+    /// <summary>Degradados de fábrica de <see cref="BuiltInTransitions.Luma"/>, en el orden de su índice en el render.</summary>
+    public static ImmutableArray<string> LumaGradients { get; } = ["linear", "radial", "angular", "diamond", "noise", "bars"];
+
+    /// <summary>Borde de color de un barrido: ancho (0 sin borde) y color, blanco por defecto.</summary>
+    private static ParameterDefinition[] Border() =>
+    [
+        new(TP.BorderWidth, 0, 0, 0.2, Animatable: false),
+        new(TP.BorderRed, 1, 0, 1, Animatable: false),
+        new(TP.BorderGreen, 1, 0, 1, Animatable: false),
+        new(TP.BorderBlue, 1, 0, 1, Animatable: false),
+    ];
 
     /// <summary>Recorte de <see cref="BuiltInEffects.Stabilize"/>: automático o ninguno.</summary>
     public static ImmutableArray<string> StabilizeCrops { get; } = ["auto", "off"];
@@ -365,8 +378,12 @@ public static class EffectRegistry
         [
             new(BuiltInTransitions.WipeParameters.Angle, 0, -360, 360, Animatable: false),
             new(BuiltInTransitions.WipeParameters.Softness, 0.05, 0, 1, Animatable: false),
+            .. Border(),
         ]),
-        new(BuiltInTransitions.Push, 104, EffectTarget.Transition, EffectStage.Transition, [],
+        new(BuiltInTransitions.Push, 104, EffectTarget.Transition, EffectStage.Transition,
+        [
+            new(TP.MotionBlur, 0, 0, 1, Animatable: false),
+        ],
         [OptionDefinition.Choice(BuiltInTransitions.PushOptions.Direction, "left", [.. PushDirections])]),
         new(BuiltInTransitions.ZoomDissolve, 105, EffectTarget.Transition, EffectStage.Transition,
         [
@@ -378,6 +395,79 @@ public static class EffectRegistry
         ]),
         new(BuiltInTransitions.Preset, 107, EffectTarget.Transition, EffectStage.Transition, [],
         [OptionDefinition.Reference(BuiltInTransitions.PresetOptions.Preset)]),
+        new(BuiltInTransitions.Slide, 108, EffectTarget.Transition, EffectStage.Transition,
+        [
+            new(TP.Angle, 180, -360, 360, Animatable: false),
+            new(BuiltInTransitions.SlideParameters.Parallax, 0.3, 0, 1, Animatable: false),
+            new(TP.MotionBlur, 0.5, 0, 1, Animatable: false),
+        ]),
+        new(BuiltInTransitions.ZoomBlur, 109, EffectTarget.Transition, EffectStage.Transition,
+        [
+            new(BuiltInTransitions.ZoomBlurParameters.Strength, 0.6, 0, 2, Animatable: false),
+            new(BuiltInTransitions.ZoomBlurParameters.CenterX, 0.5, 0, 1, Animatable: false),
+            new(BuiltInTransitions.ZoomBlurParameters.CenterY, 0.5, 0, 1, Animatable: false),
+        ]),
+        new(BuiltInTransitions.Spin, 110, EffectTarget.Transition, EffectStage.Transition,
+        [
+            new(BuiltInTransitions.SpinParameters.Angle, 360, -1440, 1440, Animatable: false),
+            new(BuiltInTransitions.SpinParameters.Zoom, 0.3, 0, 2, Animatable: false),
+            new(TP.MotionBlur, 0.6, 0, 1, Animatable: false),
+        ]),
+        new(BuiltInTransitions.LightWipe, 111, EffectTarget.Transition, EffectStage.Transition,
+        [
+            new(TP.Angle, 0, -360, 360, Animatable: false),
+            new(TP.Softness, 0.08, 0, 1, Animatable: false),
+            new(BuiltInTransitions.LightWipeParameters.Width, 0.12, 0.005, 0.5, Animatable: false),
+            new(TP.Intensity, 1.5, 0, 4, Animatable: false),
+            new(TP.Red, 1, 0, 1, Animatable: false),
+            new(TP.Green, 0.82, 0, 1, Animatable: false),
+            new(TP.Blue, 0.55, 0, 1, Animatable: false),
+        ]),
+        new(BuiltInTransitions.Glitch, 112, EffectTarget.Transition, EffectStage.Transition,
+        [
+            new(BuiltInTransitions.GlitchParameters.Amount, 0.7, 0, 1, Animatable: false),
+            new(BuiltInTransitions.GlitchParameters.Bands, 18, 2, 64, Animatable: false),
+            new(BuiltInTransitions.GlitchParameters.Split, 0.02, 0, 0.1, Animatable: false),
+            new(TP.Seed, 0, 0, 1000, Animatable: false),
+        ]),
+        new(BuiltInTransitions.FilmBurn, 113, EffectTarget.Transition, EffectStage.Transition,
+        [
+            new(BuiltInTransitions.FilmBurnParameters.Scale, 0.35, 0.05, 2, Animatable: false),
+            new(TP.Red, 1, 0, 1, Animatable: false),
+            new(TP.Green, 0.45, 0, 1, Animatable: false),
+            new(TP.Blue, 0.12, 0, 1, Animatable: false),
+            new(TP.Seed, 0, 0, 1000, Animatable: false),
+        ]),
+        new(BuiltInTransitions.Flash, 114, EffectTarget.Transition, EffectStage.Transition,
+        [
+            new(TP.Intensity, 1, 0, 4, Animatable: false),
+            new(BuiltInTransitions.FlashParameters.Width, 0.4, 0.05, 1, Animatable: false),
+            new(TP.Red, 1, 0, 1, Animatable: false),
+            new(TP.Green, 1, 0, 1, Animatable: false),
+            new(TP.Blue, 1, 0, 1, Animatable: false),
+        ]),
+        new(BuiltInTransitions.Luma, 115, EffectTarget.Transition, EffectStage.Transition,
+        [
+            new(TP.Angle, 0, -360, 360, Animatable: false),
+            new(TP.Softness, 0.1, 0, 1, Animatable: false),
+            .. Border(),
+        ],
+        [
+            OptionDefinition.Choice(BuiltInTransitions.LumaOptions.Gradient, "linear", [.. LumaGradients]),
+            OptionDefinition.Choice(BuiltInTransitions.LumaOptions.Invert, "off", "off", "on"),
+            OptionDefinition.Reference(BuiltInTransitions.LumaOptions.Image, allowsFile: true),
+        ]),
+        new(BuiltInTransitions.Bounce, 116, EffectTarget.Transition, EffectStage.Transition,
+        [
+            new(BuiltInTransitions.BounceParameters.Bounce, 0.5, 0, 1, Animatable: false),
+            new(TP.MotionBlur, 0.4, 0, 1, Animatable: false),
+        ],
+        [OptionDefinition.Choice(BuiltInTransitions.PushOptions.Direction, "left", [.. PushDirections])]),
+
+        // Las de audio las aplica el mezclador: en una pista de video no van.
+        new(BuiltInTransitions.AudioPower, 120, EffectTarget.Transition, EffectStage.Audio),
+        new(BuiltInTransitions.AudioGain, 121, EffectTarget.Transition, EffectStage.Audio),
+        new(BuiltInTransitions.AudioExponential, 122, EffectTarget.Transition, EffectStage.Audio),
     ];
 
     private static readonly FrozenDictionary<string, EffectDefinition> ByType =

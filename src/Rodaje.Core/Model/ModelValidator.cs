@@ -419,9 +419,16 @@ public static partial class ModelValidator
             {
                 errors.Add($"{where} está en un corte que ya tiene otra transición.");
             }
-            else if (transition.Duration.Ticks > Int128.Min(TimelineDuration(track.Clips[from]), TimelineDuration(track.Clips[from + 1])))
+            else if (transition.Alignment == TransitionAlignment.Center
+                ? transition.Duration.Ticks > Int128.Min(TimelineDuration(track.Clips[from]), TimelineDuration(track.Clips[from + 1]))
+                : transition.Duration.Ticks > TimelineDuration(track.Clips[transition.Alignment == TransitionAlignment.Before ? from : from + 1]))
             {
                 errors.Add($"{where} dura más que uno de sus clips.");
+            }
+            else if (track.TransitionTo(transition.From) is { } entering && entering != transition
+                && (Int128)entering.After.Ticks + transition.Before.Ticks > TimelineDuration(track.Clips[from]))
+            {
+                errors.Add($"{where} se pisa con «{entering.Id}» en el clip «{transition.From}».");
             }
 
             if (transition.Duration <= Time.Zero)
@@ -429,11 +436,30 @@ public static partial class ModelValidator
                 errors.Add($"{where} tiene duración cero o negativa.");
             }
 
+            if (!Enum.IsDefined(transition.Alignment))
+            {
+                errors.Add($"{where} tiene una alineación desconocida.");
+            }
+
+            if (transition.Curve is { } curve && !Enum.IsDefined(curve))
+            {
+                errors.Add($"{where} tiene una curva desconocida.");
+            }
+
+            if (transition.Ease is { IsValid: false })
+            {
+                errors.Add($"{where} tiene puntos de la curva Bézier fuera de sus límites.");
+            }
+
             if (EffectRegistry.Find(transition.Type) is { } definition)
             {
                 if (!definition.IsTransition)
                 {
                     errors.Add($"{where} es de tipo «{transition.Type}», que no es una transición.");
+                }
+                else if (BuiltInTransitions.IsAudio(transition.Type) && track.Kind != TrackKind.Audio)
+                {
+                    errors.Add($"{where} es de audio y la pista no.");
                 }
 
                 ValidateOptions(definition, transition.Options, where, errors);
