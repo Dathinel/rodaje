@@ -21,20 +21,23 @@ public class ScaleChoiceTests
         double.NaN, double.PositiveInfinity, double.NegativeInfinity, 400, 10_000,
     ];
 
+    /// <summary>Lo que arma <c>PropertiesPanel.ShowGraph</c>: el nombre y el texto de cada parámetro animado, en su orden.</summary>
+    private static (string Name, string Label)[] AnimatedRows() =>
+        [.. Animated.Select(name => ParameterSpec.Transform(1920, 1080).Single(s => s.Name == name)).Select(s => (s.Name, s.Label))];
+
     [Fact]
     public void Grafica_ElegirCadaParametro_NoRehaceLaLista_YLoMuestra()
     {
-        (IReadOnlyList<string> shown, int first) = GraphParameterChoice.Choose(Animated, null);
+        // La misma función y la misma decisión que la vista, en un desplegable que falla como WinUI si se rehace dentro de
+        // su SelectionChanged o abierto.
+        int chosen = ComboScenario.ChooseEach(name => GraphParameterChoice.Build(AnimatedRows(), name), Animated[0]);
+        Assert.Equal(Animated.Length, chosen);
+
+        (ChoiceList<string> list, int first) = GraphParameterChoice.Build(AnimatedRows(), null);
         Assert.Equal(0, first);
-        for (int index = 0; index < shown.Count; index++)
-        {
-            // Lo que hace la vista al cambiar la selección: traducir el índice, recordar y refrescar.
-            string? picked = ComboChoices.Picked(shown, index);
-            Assert.Equal(Animated[index], picked);
-            (IReadOnlyList<string> next, int selected) = GraphParameterChoice.Choose(Animated, picked);
-            Assert.Equal(index, selected);
-            Assert.False(ComboChoices.NeedsRebuild(shown, next), $"Elegir «{picked}» no debe rehacer los elementos del desplegable.");
-        }
+        Assert.Equal(Animated, list.Values);
+        Assert.Contains(list.Labels, label => label.Length > 0);
+        Assert.Equal(2, GraphParameterChoice.Build(AnimatedRows(), T.Scale).Selected);
     }
 
     [Theory]
@@ -53,6 +56,8 @@ public class ScaleChoiceTests
     public void Grafica_SinAnimar_OConElRecordadoQuitado()
     {
         Assert.Equal(-1, GraphParameterChoice.Choose([], T.Scale).Selected);
+        Assert.Equal(-1, GraphParameterChoice.Build([], T.Scale).Selected);
+        Assert.Equal(0, GraphParameterChoice.Build([(T.ScaleX, "Ancho"), (T.ScaleY, "Alto")], T.Scale).Selected);
         Assert.Equal(0, GraphParameterChoice.Choose([T.ScaleX, T.ScaleY], T.Scale).Selected);
         Assert.Equal(1, GraphParameterChoice.Choose([T.ScaleX, T.Scale], T.Scale).Selected);
         Assert.True(ComboChoices.NeedsRebuild([T.Scale], [T.Scale, T.ScaleX]));

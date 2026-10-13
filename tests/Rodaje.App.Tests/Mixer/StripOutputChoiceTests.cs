@@ -1,4 +1,6 @@
+using Rodaje.App.Services.Audio;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Tests.Inspector;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Tests.Mixer;
@@ -11,21 +13,11 @@ namespace Rodaje.App.Tests.Mixer;
 /// </summary>
 public class StripOutputChoiceTests
 {
-    /// <summary>La lista que arma <c>StripView.UpdateOutput</c>: «Mezcla» (nulo) y cada bus, en orden, por su id.</summary>
-    private static ChoiceList<string?> Outputs(params AudioBus[] buses)
-    {
-        var list = new ChoiceList<string?>();
-        list.Add("Mezcla", null);
-        foreach (AudioBus bus in buses)
-        {
-            list.Add(bus.Name, bus.Id);
-        }
+    /// <summary>La lista que arma <c>StripView.UpdateOutput</c>, con la misma función.</summary>
+    private static ChoiceList<string?> Outputs(params AudioBus[] buses) => StripOutputChoices.Build(buses, null).List;
 
-        return list;
-    }
-
-    /// <summary>La salida que muestra la vista: la del bus, o la mezcla si no tiene o el bus ya no está.</summary>
-    private static int Selected(ChoiceList<string?> list, string? output) => Math.Max(0, list.IndexOf(output));
+    /// <summary>La salida que muestra la vista para <paramref name="output"/>.</summary>
+    private static int Selected(AudioBus[] buses, string? output) => StripOutputChoices.Build(buses, output).Selected;
 
     private static AudioBus Bus(string id, string name) => new() { Id = id, Name = name };
 
@@ -105,7 +97,7 @@ public class StripOutputChoiceTests
     [InlineData("quitado", 0)]
     public void SalidaMostrada_LaDelBusOLaMezcla(string? output, int expected)
     {
-        Assert.Equal(expected, Selected(Outputs(Bus("b1", "Voces"), Bus("b2", "Música")), output));
+        Assert.Equal(expected, Selected([Bus("b1", "Voces"), Bus("b2", "Música")], output));
     }
 
     [Fact]
@@ -118,6 +110,26 @@ public class StripOutputChoiceTests
 
         ChoiceList<string?> afterEdit = Outputs(Bus("b1", "Voces"), Bus("b2", "Música"));
         Assert.Equal(ComboUpdate.Select, ComboChoices.Update(shown, afterEdit, isDropDownOpen: false));
-        Assert.Equal(2, Selected(afterEdit, chosen));
+        Assert.Equal(2, afterEdit.IndexOf(chosen));
+        Assert.Equal(2, Selected([Bus("b1", "Voces"), Bus("b2", "Música")], chosen));
+    }
+
+    [Fact]
+    public void ElegirCadaSalida_NoRehaceLaLista()
+    {
+        // La misma función y la misma decisión que la tira, en un desplegable que falla como WinUI si se rehace dentro de su
+        // SelectionChanged o abierto.
+        AudioBus[] buses = [Bus("b1", "Voces"), Bus("b2", "Música"), Bus("b3", "Voces")];
+        Assert.Equal(4, ComboScenario.ChooseEach(output => StripOutputChoices.Build([.. buses.Select(b => Bus(b.Id, b.Name))], output), (string?)null));
+    }
+
+    [Fact]
+    public void LaSalidaElegida_SoloSeAplicaSiElBusSigue()
+    {
+        AudioBus[] buses = [Bus("b1", "Voces")];
+        Assert.True(StripOutputChoices.StillThere(buses, null));
+        Assert.True(StripOutputChoices.StillThere(buses, "b1"));
+        Assert.False(StripOutputChoices.StillThere(buses, "b2"));
+        Assert.False(StripOutputChoices.StillThere([], "b1"));
     }
 }

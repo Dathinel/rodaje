@@ -116,7 +116,7 @@ internal static class Program
         });
     }
 
-    private static bool OnDispatcherException(Exception exception)
+    internal static bool OnDispatcherException(Exception exception)
     {
         if (Instance is { } app)
         {
