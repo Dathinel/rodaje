@@ -14,7 +14,8 @@ internal static class FuzzSupport
 
     /// <summary>
     /// Tope de tiempo de cada paso de un caso; pasarlo cuenta como cuelgue. Si salta, el mensaje dice cuánta CPU e hilos
-    /// tuvo el proceso mientras esperaba, para distinguir un cuelgue de un pool sin hilos (véase el .csproj).
+    /// tuvo el proceso mientras esperaba, para distinguir un cuelgue de un pool sin hilos (véase el .csproj), y la cadena de
+    /// <c>await</c> que quedó pendiente (<see cref="PendingAwaits"/>), para saber qué espera no se completó.
     /// </summary>
     public static readonly TimeSpan CaseCap = TimeSpan.FromSeconds(10);
 
@@ -66,7 +67,7 @@ internal static class FuzzSupport
         }
         catch (TimeoutException) when (!task.IsCompleted)
         {
-            throw new TimeoutException($"Colgado: {what} no terminó en {CaseCap.TotalSeconds:0} s. {Snapshot.Take().Since(before)}");
+            throw new TimeoutException($"Colgado: {what} no terminó en {CaseCap.TotalSeconds:0} s. {Snapshot.Take().Since(before)} Espera pendiente:{PendingAwaits.Describe(task)}");
         }
     }
 
@@ -79,7 +80,7 @@ internal static class FuzzSupport
         }
         catch (TimeoutException) when (!task.IsCompleted)
         {
-            throw new TimeoutException($"Colgado: {what} no terminó en {CaseCap.TotalSeconds:0} s. {Snapshot.Take().Since(before)}");
+            throw new TimeoutException($"Colgado: {what} no terminó en {CaseCap.TotalSeconds:0} s. {Snapshot.Take().Since(before)} Espera pendiente:{PendingAwaits.Describe(task)}");
         }
     }
 
