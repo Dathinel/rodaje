@@ -19,7 +19,8 @@ internal sealed class Matting(VisionModels models)
     private static readonly PlanarFormat ModnetFormat = PlanarFormat.Normalized(true, [0.5f, 0.5f, 0.5f], [0.5f, 0.5f, 0.5f]);
     private static readonly PlanarFormat ImageNetFormat = PlanarFormat.Normalized(true, [0.485f, 0.456f, 0.406f], [0.229f, 0.224f, 0.225f]);
 
-    public MatteResult Run(BgraFrame frame, bool high, ComputeDevice device, int side = DefaultSide) => Infer(Prepare(frame, high, side), device);
+    public MatteResult Run(BgraFrame frame, bool high, ComputeDevice device, int side = DefaultSide, CancellationToken cancellationToken = default) =>
+        Infer(Prepare(frame, high, side), device, cancellationToken);
 
     /// <summary>La parte de CPU (remuestreo y normalización): se adelanta mientras la GPU corre el cuadro anterior.</summary>
     public static MatteInput Prepare(BgraFrame frame, bool high, int side = DefaultSide)
@@ -31,12 +32,12 @@ internal sealed class Matting(VisionModels models)
         return new MatteInput(tensor, gray, w, h, high);
     }
 
-    public MatteResult Infer(MatteInput input, ComputeDevice device)
+    public MatteResult Infer(MatteInput input, ComputeDevice device, CancellationToken cancellationToken = default)
     {
         (float[] tensor, float[] gray, int w, int h, bool high) = input;
         ModelOutput result = high
-            ? models.Run(ModelFiles.BiRefNetLite, device, "input_image", tensor, [1, 3, h, w], ["output_image"])
-            : models.Run(ModelFiles.Modnet, device, "input", tensor, [1, 3, h, w], ["output"]);
+            ? models.Run(ModelFiles.BiRefNetLite, device, "input_image", tensor, [1, 3, h, w], ["output_image"], cancellationToken)
+            : models.Run(ModelFiles.Modnet, device, "input", tensor, [1, 3, h, w], ["output"], cancellationToken);
         float[] alpha = result.Values[0];
         if (high)
         {
