@@ -9,7 +9,7 @@ namespace Rodaje.App.Views.Plugins;
 /// suelta en <see cref="Dispose"/>. Así la fila no depende de que <c>x:Bind</c> suelte la suya al descartar la plantilla:
 /// sin soltarla, cada vuelta de la lista dejaba otro manejador en la descarga, que retenía la fila y su árbol.
 /// </summary>
-internal sealed class PropertyChangedRelay : IDisposable
+internal sealed partial class PropertyChangedRelay : IDisposable
 {
     private readonly PropertyChangedEventHandler _handler;
     private INotifyPropertyChanged? _source;
