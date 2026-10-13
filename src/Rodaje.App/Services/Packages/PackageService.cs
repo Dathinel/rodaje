@@ -148,7 +148,7 @@ public sealed class PackageService
                 [.. p.Manifest.Apps.Select(Catalog.AppName)], p, null));
         }
 
-        return [.. entries.OrderBy(e => e.Kind).ThenByDescending(e => e.IsInstalled).ThenBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase)];
+        return [.. entries.OrderBy(e => e.Kind).ThenByDescending(e => e.IsInstalled).ThenBy(e => e.Name, SpanishText.Comparer)];
     }
 
     /// <summary>Vuelve a leer lo instalado.</summary>

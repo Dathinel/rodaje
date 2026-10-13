@@ -91,7 +91,7 @@ public static class PackageLibrary
             found[own.Id] = own;
         }
 
-        List<InstalledPackage> packages = [.. found.Values.OrderBy(p => p.Origin == PackageOrigin.Own).ThenBy(p => p.Manifest.Name, StringComparer.CurrentCultureIgnoreCase)];
+        List<InstalledPackage> packages = [.. found.Values.OrderBy(p => p.Origin == PackageOrigin.Own).ThenBy(p => p.Manifest.Name, SpanishText.Comparer)];
         return new PackageScan(packages, problems);
     }
 
@@ -254,7 +254,7 @@ public static class PackageLibrary
     {
         ArgumentNullException.ThrowIfNull(text);
         var builder = new System.Text.StringBuilder(text.Length);
-        foreach (char c in Decompose(text))
+        foreach (char c in SpanishText.Fold(text))
         {
             if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.NonSpacingMark)
             {
@@ -279,28 +279,5 @@ public static class PackageLibrary
         }
 
         return id.Length == 0 ? "elemento" : SafePaths.IsReservedName(id) ? id + "-1" : id;
-    }
-
-    /// <summary>
-    /// Separa las tildes de sus letras (FormD). Un nombre de archivo de Windows puede traer un sustituto UTF-16 suelto, con el
-    /// que <see cref="string.Normalize(System.Text.NormalizationForm)"/> lanza <see cref="ArgumentException"/>: el sustituto
-    /// no es letra ni cifra y acabaría como guion, así que se cambia por U+FFFD antes de descomponer.
-    /// </summary>
-    private static string Decompose(string text)
-    {
-        var chars = text.ToCharArray();
-        for (int i = 0; i < chars.Length; i++)
-        {
-            if (char.IsHighSurrogate(chars[i]) && i + 1 < chars.Length && char.IsLowSurrogate(chars[i + 1]))
-            {
-                i++;
-            }
-            else if (char.IsSurrogate(chars[i]))
-            {
-                chars[i] = '\uFFFD';
-            }
-        }
-
-        return new string(chars).Normalize(System.Text.NormalizationForm.FormD);
     }
 }

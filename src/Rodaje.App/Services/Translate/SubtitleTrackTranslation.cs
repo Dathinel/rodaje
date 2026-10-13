@@ -275,7 +275,7 @@ public static class SubtitleTrackTranslation
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(target);
         string baseName = $"{(source.Name.Length > 0 ? source.Name : "Subtítulos")} ({target.Name})";
-        var used = new HashSet<string>(sequence.AllTracks.Select(t => t.Name), StringComparer.CurrentCultureIgnoreCase);
+        var used = new HashSet<string>(sequence.AllTracks.Select(t => t.Name), StringComparer.OrdinalIgnoreCase);
         string name = baseName;
         for (int n = 2; used.Contains(name); n++)
         {

@@ -128,7 +128,7 @@ public sealed partial class EditorSession
     /// <summary>«Texto», o «Texto 2», «Texto 3»… si ya hay una pista con ese nombre.</summary>
     private string UniqueTrackName(string name)
     {
-        var used = new HashSet<string>(Sequence.AllTracks.Select(t => t.Name), StringComparer.CurrentCultureIgnoreCase);
+        var used = new HashSet<string>(Sequence.AllTracks.Select(t => t.Name), StringComparer.OrdinalIgnoreCase);
         if (!used.Contains(name))
         {
             return name;

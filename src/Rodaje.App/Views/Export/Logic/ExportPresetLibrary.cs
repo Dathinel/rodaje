@@ -192,7 +192,7 @@ public static class ExportPresetLibrary
 
     private static string UniqueId(ExportPreferences preferences, string name)
     {
-        string slug = new([.. name.ToLowerInvariant().Normalize(NormalizationForm.FormD)
+        string slug = new([.. Rodaje.Packages.SpanishText.Fold(name.ToLowerInvariant())
             .Where(c => char.IsAsciiLetterOrDigit(c) || c is ' ' or '-')
             .Select(c => c == ' ' ? '-' : c)]);
         slug = slug.Trim('-');

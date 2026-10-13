@@ -19,7 +19,7 @@ public static class PackageExportPresets
         ArgumentNullException.ThrowIfNull(installed);
         var presets = new List<ExportPreset>();
         foreach (PackageItemEntry entry in installed.Items(ItemKind.ExportPreset)
-            .OrderBy(e => e.Package.Manifest.Name, StringComparer.CurrentCultureIgnoreCase))
+            .OrderBy(e => e.Package.Manifest.Name, SpanishText.Comparer))
         {
             try
             {

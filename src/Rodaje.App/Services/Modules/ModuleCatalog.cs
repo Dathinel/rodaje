@@ -99,7 +99,7 @@ public static class ModuleCatalog
             }
         }
 
-        return [.. found.Values.Select(v => v.Module).OrderBy(m => m.Name, StringComparer.CurrentCultureIgnoreCase)];
+        return [.. found.Values.Select(v => v.Module).OrderBy(m => m.Name, SpanishText.Comparer)];
     }
 
     private static string[] Subdirectories(string root, List<string>? problems)
