@@ -88,7 +88,8 @@ public sealed record ExportPlan
 
         Sequence sequence = request.Project.FindSequence(request.SequenceId)
             ?? throw Invalid($"La secuencia {request.SequenceId} no existe.");
-        if (settings.Video?.Crop is { } crop && (crop.X + crop.Width > sequence.Width || crop.Y + crop.Height > sequence.Height))
+        // En long: con un origen cerca de int.MaxValue la suma se envolvía en negativo y el recorte pasaba.
+        if (settings.Video?.Crop is { } crop && ((long)crop.X + crop.Width > sequence.Width || (long)crop.Y + crop.Height > sequence.Height))
         {
             throw Invalid($"El recorte se sale de la secuencia de {sequence.Width}×{sequence.Height}.");
         }
@@ -99,6 +100,15 @@ public sealed record ExportPlan
         if (range.Start < Time.Zero || end <= range.Start)
         {
             throw Invalid("El rango que se exporta está vacío.");
+        }
+
+        // Antes de contar cuadros: la tasa de la salida tiene que estar validada (1 a 1000 fps) para que la cuenta no desborde.
+        EncoderSpec? video = settings.Video is { } v ? Choose(v.Codec, v.EncoderId, available) : null;
+        EncoderSpec? audio = settings.Audio is { } a ? Choose(a.Codec, a.EncoderId ?? PcmEncoderId(a), available) : null;
+        IReadOnlyList<ExportProblem> problems = ExportSettingsValidator.Validate(settings, video, audio);
+        if (problems.Count > 0)
+        {
+            throw Invalid(string.Join(" ", problems.Select(p => p.Message)));
         }
 
         Rational encoded = settings.Video?.FrameRate ?? sequence.FrameRate;
@@ -113,20 +123,13 @@ public sealed record ExportPlan
             throw Invalid("El rango es más corto que un cuadro.");
         }
 
-        EncoderSpec? video = settings.Video is { } v ? Choose(v.Codec, v.EncoderId, available) : null;
-        EncoderSpec? audio = settings.Audio is { } a ? Choose(a.Codec, a.EncoderId ?? PcmEncoderId(a), available) : null;
-        IReadOnlyList<ExportProblem> problems = ExportSettingsValidator.Validate(settings, video, audio);
-        if (problems.Count > 0)
-        {
-            throw Invalid(string.Join(" ", problems.Select(p => p.Message)));
-        }
-
         ExportVideoFormat? format = null;
         IReadOnlyList<string> filters = [];
         if (settings.Video is { } vs && video is not null)
         {
             ExportPixelFormat pixels = video.PixelFormatFor(vs.BitDepth, vs.Chroma, vs.Alpha)!.Value;
             (int width, int height) = vs.OutputSize(sequence.Width, sequence.Height);
+            CheckOutputSize(vs, width, height);
             format = new ExportVideoFormat(width, height, output, pixels, vs.Color ?? ExportColor.For(width, height, pixels));
             if (video.Codec == ExportCodec.Gif)
             {
@@ -300,6 +303,33 @@ public sealed record ExportPlan
             Chapters = Metadata.Chapters.Count > 0 ? Metadata.Chapters.Count : null,
             SubtitleStreams = video && FfmpegPipeSinkOptions.AllowsSoftSubtitles(container) ? Metadata.Subtitles.Count : null,
         };
+    }
+
+    /// <summary>
+    /// Lo que el validador solo ve si el tamaño se pide entero: aquí ya está el de la secuencia (o el que sigue su forma).
+    /// Sin esto una secuencia de más de 16384 px, o un solo lado pedido sobre una secuencia muy alargada, lanzaba
+    /// <see cref="ArgumentOutOfRangeException"/> desde <see cref="ExportVideoFormat"/>, y el entrelazado y el 360 salían
+    /// con un alto o una forma que no admiten.
+    /// </summary>
+    private static void CheckOutputSize(VideoExportSettings video, int width, int height)
+    {
+        if (width > ExportVideoFormat.MaxDimension || height > ExportVideoFormat.MaxDimension)
+        {
+            throw Invalid(string.Create(CultureInfo.InvariantCulture,
+                $"El video saldría de {width}×{height}; el máximo es {ExportVideoFormat.MaxDimension} por lado. Elige un tamaño de salida menor."));
+        }
+
+        if (video.FieldOrder != ExportFieldOrder.Progressive && height % 4 != 0)
+        {
+            throw Invalid(string.Create(CultureInfo.InvariantCulture,
+                $"Entrelazado, el alto tiene que ser múltiplo de 4 y saldría de {height}. Elige un tamaño de salida."));
+        }
+
+        if (video.Projection == ExportProjection.Equirectangular && width != 2 * height)
+        {
+            throw Invalid(string.Create(CultureInfo.InvariantCulture,
+                $"Un video 360 equirectangular es 2:1 (por ejemplo 3840×1920) y saldría de {width}×{height}."));
+        }
     }
 
     // El primer cuadro que empieza en o después de time.

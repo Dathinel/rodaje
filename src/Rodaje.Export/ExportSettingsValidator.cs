@@ -1,4 +1,5 @@
 using System.Globalization;
+using Rodaje.Core.Model;
 using Rodaje.Media.Export;
 
 namespace Rodaje.Export;
@@ -105,6 +106,14 @@ public static class ExportSettingsValidator
             || v.Crop is { Width: <= 0 } or { Height: <= 0 } or { X: < 0 } or { Y: < 0 } || v.Gop.KeyframeSeconds <= 0 || v.Gop.Length <= 0)
         {
             problems.Add(new(ExportProblemCode.InvalidValue, "El tamaño, el recorte o el GOP tienen un valor imposible."));
+        }
+
+        // Las mismas tasas que una secuencia: una de un preajuste importado a mano (por ejemplo {"num": 9223372036854775807})
+        // desbordaba la cuenta de cuadros con una OverflowException en vez de decir por qué.
+        if (v.FrameRate is { } rate && !Sequence.IsValidFrameRate(rate))
+        {
+            problems.Add(new(ExportProblemCode.InvalidValue, string.Create(CultureInfo.InvariantCulture,
+                $"La tasa de la salida ({rate}) tiene que estar entre 1 y {Sequence.MaxFrameRate} cuadros por segundo.")));
         }
     }
 
