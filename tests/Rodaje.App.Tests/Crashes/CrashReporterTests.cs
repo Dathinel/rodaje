@@ -143,43 +143,21 @@ public class CrashReporterTests
         Assert.Contains("Minivolcado:", File.ReadAllText(managed!), StringComparison.Ordinal);
     }
 
-    [WindowsOnlyFact("MiniDumpWriteDump de dbghelp y un proceso hijo con cmd.exe.")]
-    public async Task Minivolcado_EsUnArchivoMdmp()
+    [WindowsOnlyFact("MiniDumpWriteDump de dbghelp y un proceso hijo (ping.exe de System32).")]
+    public Task Minivolcado_EsUnArchivoMdmp() => OwnThread.Run(() =>
     {
-        // De otro proceso: volcar el de las pruebas desde dentro puede trabarse con los demás hilos.
+        // De otro proceso: volcar el de las pruebas desde dentro puede trabarse con los demás hilos. Por pasos y fuera del
+        // pool (MinidumpProbe): si falla, el mensaje dice si se quedó en el arranque, la señal, el volcado o la lectura.
         using var dir = new TempDirectory();
         string path = dir.File("prueba.dmp");
-        // El hijo avisa por su salida cuando ya corre: volcar un proceso recién creado, con el cargador a medias, falla
-        // (ERROR_PARTIAL_COPY) y hacía caer la prueba de vez en cuando a los pocos milisegundos.
-        using var child = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c echo listo& ping -n 30 127.0.0.1 >nul")
-        {
-            CreateNoWindow = true,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-        })!;
-        try
-        {
-            // Con plazo: si el hijo no llega a escribir, la prueba falla (TimeoutException) en vez de colgar la CI.
-            string? ready = await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(30));
-            Assert.Equal("listo", ready?.Trim());
-            // Aun así, si el sistema está cargado, unos reintentos breves antes de darlo por fallido.
-            bool written = false;
-            int error = 0;
-            var clock = System.Diagnostics.Stopwatch.StartNew();
-            while (!(written = NativeCrashHandler.WriteMinidump(path, child, out error)) && clock.Elapsed < TimeSpan.FromSeconds(10))
-            {
-                await Task.Delay(200);
-            }
-
-            Assert.True(written, string.Create(CultureInfo.InvariantCulture,
-                $"MiniDumpWriteDump falló durante {clock.Elapsed.TotalSeconds:0.0} s (último error: {error}, 0x{error:X8})."));
-            AssertMinidump(path);
-        }
-        finally
-        {
-            child.Kill(entireProcessTree: true);
-        }
-    }
+        using var probe = new MinidumpProbe();
+        probe.StartChild();
+        // El hijo avisa con su primera salida cuando ya corre: volcar un proceso recién creado, con el cargador a medias,
+        // falla (ERROR_PARTIAL_COPY).
+        probe.WaitUntilReady();
+        probe.WriteDump(path);
+        Assert.Equal("MDMP"u8.ToArray(), probe.ReadHead(path));
+    });
 
     [Fact]
     public void SesionQueTerminoSinCerrarse_SeVuelveInformeAlSiguienteArranque()

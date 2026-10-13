@@ -1,7 +1,7 @@
 namespace Rodaje.App.Tests.Crashes;
 
 /// <summary>
-/// Prueba que solo tiene sentido en Windows (un proceso hijo con <c>cmd.exe</c>, <c>MiniDumpWriteDump</c>). Fuera de
+/// Prueba que solo tiene sentido en Windows (un proceso hijo, <c>MiniDumpWriteDump</c>). Fuera de
 /// Windows se informa como omitida, con la causa, en lugar de fallar o salir en verde sin comprobar nada.
 /// </summary>
 internal sealed class WindowsOnlyFactAttribute : FactAttribute
