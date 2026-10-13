@@ -14,6 +14,9 @@ namespace Rodaje.Engine.Tests.Offline;
 
 public sealed class OfflineTimelineTests(ITestOutputHelper output)
 {
+    /// <summary>Tope anticuelgue de las esperas con puertas: no mide nada, solo corta si algo se cuelga.</summary>
+    private static readonly TimeSpan AntiHang = TimeSpan.FromMinutes(5);
+
     public static TheoryData<long, long> Rates => new()
     {
         { 24, 1 }, { 25, 1 }, { 30000, 1001 }, { 30, 1 }, { 50, 1 }, { 60000, 1001 }, { 60, 1 },
@@ -415,6 +418,12 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
         Assert.Null(graded.Effects[0].Resource);
     }
 
+    /// <summary>
+    /// La carga termina en otro hilo cuando <see cref="OfflineTimeline.Prepare"/> ya preguntó y está esperando. Antes la
+    /// «cargaba» un <see cref="Timer"/> a los 100 ms: su devolución corre en el pool, y en la CI de Windows (catorce
+    /// testhost en cuatro núcleos) el pool no la atendió en los 10 s de <see cref="OfflineTimelineOptions.ContentTimeout"/>.
+    /// Ahora la secuencia la fija una puerta y el hilo es propio; el tope de 5 min solo evita colgarse.
+    /// </summary>
     [Fact]
     public void A_lut_that_is_still_loading_is_awaited_before_the_first_frame()
     {
@@ -422,17 +431,72 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
         var content = new FakeEffectContent();
         TimelineBuilder b = OfflineProjects.Full(Rational.Fps30, backend, content);
         content.ReadyLuts.Clear();
-        using var loader = new Timer(_ =>
+        using OfflineTimeline offline = OfflineProjects.Open(b, backend, new OfflineTimelineOptions { Content = content, ContentTimeout = AntiHang });
+        using var asked = new ManualResetEventSlim();
+        content.LutNotReady = _ => asked.Set();
+        var loader = new Thread(() =>
         {
-            content.ReadyLuts.Add(OfflineProjects.Lut);
-            content.RaiseChanged();
-        }, null, 100, Timeout.Infinite);
-        using OfflineTimeline offline = OfflineProjects.Open(b, backend, new OfflineTimelineOptions { Content = content });
+            if (asked.Wait(AntiHang))
+            {
+                content.FinishLoading(OfflineProjects.Lut);
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "Carga de la LUT",
+        };
+        loader.Start();
 
         using CompositionFrame frame = offline.Render(Time.FromSeconds(1).ToFrames(Rational.Fps30), CancellationToken.None);
 
+        Assert.True(loader.Join(AntiHang));
         Assert.Equal(0, offline.MissingContent);
         Assert.Equal(new ResourceKey(OfflineProjects.Lut), frame.Layers.Single(l => l.ClipId == "ntsc").Effects[0].Resource);
+    }
+
+    /// <summary>El aviso de carga llega entre la primera pregunta y la suscripción a <c>Changed</c>: nadie lo oye, y aun así no se pierde.</summary>
+    [Fact]
+    public void A_load_notice_that_arrives_before_the_wait_subscribes_is_not_lost()
+    {
+        var backend = new FakeTimelineBackend();
+        var content = new FakeEffectContent();
+        TimelineBuilder b = OfflineProjects.Full(Rational.Fps30, backend, content);
+        content.ReadyLuts.Clear();
+        using OfflineTimeline offline = OfflineProjects.Open(b, backend, new OfflineTimelineOptions { Content = content, ContentTimeout = AntiHang });
+        content.LutNotReady = key =>
+        {
+            content.LutNotReady = null;
+            content.FinishLoading(key.Reference!);
+        };
+
+        Assert.Empty(offline.Prepare(Time.Zero, offline.Duration, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Un aviso que ya tomó la lista de manejadores puede llegar cuando la espera terminó y se desuscribió: no puede
+    /// tirar al hilo que carga (en un hilo del pool o de un <see cref="Timer"/>, la excepción cierra el proceso).
+    /// </summary>
+    [Fact]
+    public void A_late_load_notice_after_the_wait_ended_does_not_throw_on_the_loading_thread()
+    {
+        var backend = new FakeTimelineBackend();
+        var content = new FakeEffectContent();
+        TimelineBuilder b = OfflineProjects.Full(Rational.Fps30, backend, content);
+        content.ReadyLuts.Clear();
+        using OfflineTimeline offline = OfflineProjects.Open(b, backend, new OfflineTimelineOptions { Content = content, ContentTimeout = AntiHang });
+        int asked = 0;
+        content.LutNotReady = key =>
+        {
+            if (++asked == 2)
+            {
+                content.FinishLoading(key.Reference!);
+            }
+        };
+
+        Assert.Empty(offline.Prepare(Time.Zero, offline.Duration, CancellationToken.None));
+        EventHandler late = Assert.Single(content.ChangedSubscribers);
+
+        late(content, EventArgs.Empty);
     }
 
     [Fact]
