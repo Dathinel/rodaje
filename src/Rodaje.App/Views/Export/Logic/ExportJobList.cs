@@ -6,7 +6,7 @@ using Rodaje.Media.Video;
 namespace Rodaje.App.Views.Export;
 
 /// <summary>Una exportación de la cola tal como la ve la interfaz (hilo de la interfaz).</summary>
-public sealed class ExportEntry
+public sealed partial class ExportEntry
 {
     internal ExportEntry(ExportRequest request, bool continueWithoutMissing)
     {
@@ -14,11 +14,18 @@ public sealed class ExportEntry
         ContinueWithoutMissing = continueWithoutMissing;
     }
 
-    public ExportRequest Request { get; }
+    /// <summary>
+    /// Lo pedido. Al completarse, la copia del proyecto se suelta (<see cref="IsReleased"/>): queda un proyecto vacío con
+    /// su identificador y nombre, y siguen los ajustes, el rango y la salida.
+    /// </summary>
+    public ExportRequest Request { get; private set; }
 
     public bool ContinueWithoutMissing { get; }
 
     public IExportJob? Job { get; internal set; }
+
+    /// <summary>Completada y sin la copia del proyecto: solo queda el resumen (avance, miniatura y salida).</summary>
+    public bool IsReleased { get; private set; }
 
     public string OutputPath => Request.OutputPath;
 
@@ -31,11 +38,57 @@ public sealed class ExportEntry
     public BgraImage? Thumbnail => Job?.Thumbnail;
 
     public bool IsFinished => Progress.State.IsFinished();
+
+    /// <summary>
+    /// Una exportación completada ya no necesita el proyecto: se cambia el trabajo por su resumen y se suelta la copia. Las
+    /// fallidas y las canceladas la conservan, porque se pueden repetir aunque luego se abra otro proyecto.
+    /// </summary>
+    internal void Release()
+    {
+        if (IsReleased || Job is not { } job || job.Progress.State != ExportJobState.Completed)
+        {
+            return;
+        }
+
+        Project project = Request.Project;
+        Request = Request with { Project = new Project { Id = project.Id, Name = project.Name } };
+        Job = new FinishedJob(Request, job.Progress, job.Failure, job.Thumbnail);
+        job.Dispose();
+        IsReleased = true;
+    }
+
+    /// <summary>Lo que queda de un trabajo completado: no se mueve más.</summary>
+    private sealed partial class FinishedJob(ExportRequest request, ExportProgress progress, ExportException? failure, BgraImage? thumbnail) : IExportJob
+    {
+        public event EventHandler? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public ExportRequest Request { get; } = request;
+
+        public ExportProgress Progress { get; } = progress;
+
+        public ExportException? Failure { get; } = failure;
+
+        public BgraImage? Thumbnail { get; } = thumbnail;
+
+        public Task Completion => Task.CompletedTask;
+
+        public void Cancel()
+        {
+        }
+
+        public void Dispose()
+        {
+        }
+    }
 }
 
 /// <summary>
 /// La cola de exportaciones: una a la vez, o dos si sobra equipo (<see cref="ExportConcurrency"/>), cada una con su copia
-/// del proyecto; las demás esperan en un orden que se puede cambiar, y la cola se puede pausar. Con <see cref="Store"/> se
+/// del proyecto (que se suelta al completarse, ver <see cref="ExportEntry.Release"/>); las demás esperan en un orden que se puede cambiar, y la cola se puede pausar. Con <see cref="Store"/> se
 /// guarda en disco cada vez que cambia. Los avisos de los trabajos llegan desde sus hilos y se pasan al de la interfaz;
 /// <see cref="Changed"/> salta siempre ahí.
 /// </summary>
@@ -155,6 +208,7 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
     /// Con <paramref name="current"/> (el proyecto abierto) y si es el mismo proyecto con la misma secuencia, exporta su estado
     /// de ahora: lo que se arregló después del fallo (un clip o medio quitado) ya no está en la copia que se repite.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Una completada (<see cref="ExportEntry.IsReleased"/>) sin ese proyecto abierto.</exception>
     public ExportEntry Retry(ExportEntry entry, bool continueWithoutMissing = false, Project? current = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -162,6 +216,10 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
         if (current is { Id.Length: > 0 } && current.Id == request.Project.Id && current.Sequences.Exists(s => s.Id == request.SequenceId))
         {
             request = request with { Project = current.Clone() };
+        }
+        else if (entry.IsReleased)
+        {
+            throw new InvalidOperationException("La exportación ya se completó y soltó la copia del proyecto; solo se repite con ese proyecto abierto.");
         }
 
         Remove(entry);
@@ -241,6 +299,7 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
         await job.Completion.ConfigureAwait(false);
         Post(() =>
         {
+            entry.Release();
             Finished?.Invoke(this, entry);
             StartNext();
             Persist();

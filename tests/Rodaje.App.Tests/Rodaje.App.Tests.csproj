@@ -24,6 +24,14 @@
     el mínimo de 4, el pool se quedó en 9 o 10 hilos y un trabajo de la cola global esperó más de 2 minutos
     («Pool: 9 hilos (mínimo 4), 1 trabajos en cola»): el ping de un módulo sano no llegaba a tiempo y se daba por colgado,
     y las pruebas del hilo de interfaz agotaban su tope. Con el mínimo alto, un trabajo nuevo despierta un hilo enseguida.
+    Es una mitigación, no el arreglo. xUnit 2.9 (algoritmo «conservative») corre el cuerpo de cada prueba en un hilo del
+    pool, y UiThread.Run lo dejaba en Thread.Join mientras duraba la prueba sin que el pool lo supiera; ahora espera una
+    Task y el pool pone otro hilo en su lugar (UiThreadPoolTests: 64 a la vez, 34 s con Join y 3,4 s así). Tampoco pasan
+    ya por el pool el cierre del hilo medido de ConcurrentDownloadTests ni, en ModuleClient.Fail, lo que cuelga de
+    Completion delante de las llamadas. Quedan, conocidos: GatedProber (EditorSessionTests) bloquea un hilo del pool hasta
+    que la prueba lo suelta, ModuleConnection.OnExited mata el árbol de procesos en un hilo del pool, y las pruebas
+    síncronas que esperan con .Wait, Thread.Sleep o WaitForExit (sombreadores, títulos, EchoModules.HasExited) lo hacen en
+    el hilo del pool de xUnit.
   -->
   <ItemGroup>
     <RuntimeHostConfigurationOption Include="System.Threading.ThreadPool.MinThreads" Value="32" />
@@ -50,6 +58,8 @@
     <!-- La matriz de formatos corre los análisis con la misma decodificación que la app. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\ClipVideoSource.cs" Link="Analysis\ClipVideoSource.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\ClipAudioSource.cs" Link="Analysis\ClipAudioSource.cs" />
+    <!-- Lo que «Reducir ruido» carga y suelta al cerrar, sin WinUI. -->
+    <Compile Include="..\..\src\Rodaje.App\Views\Analysis\NoiseReductionDialog.Preview.cs" Link="Analysis\NoiseReductionDialog.Preview.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\Logic\**\*.cs" Link="AnalysisLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Subtítulos automáticos: leer el resultado del módulo, llevarlo a la secuencia y armar el paso, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Subtitles\Logic\**\*.cs" Link="SubtitlesLogic\%(RecursiveDir)%(Filename)%(Extension)" />

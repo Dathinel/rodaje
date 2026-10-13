@@ -28,6 +28,20 @@ public static class UiDeferral
         }
     }
 
+    /// <summary>
+    /// Pone <paramref name="action"/> en la cola con <paramref name="tryEnqueue"/>, envuelta como en <see cref="RunAfterEvent"/>,
+    /// y devuelve lo que devolvió la cola. Si la cola no la acepta (la ventana se cierra), no la hace: es para lo que llega de
+    /// otro hilo (motor, módulos, vigilantes de archivos) o que no debe hacerse en el acto, donde <c>RunAfterEvent</c> la
+    /// haría en un hilo que no es el de la interfaz.
+    /// </summary>
+    public static bool TryRunLater(Func<Action, bool> tryEnqueue, Action action, Func<Exception, bool> onException)
+    {
+        ArgumentNullException.ThrowIfNull(tryEnqueue);
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(onException);
+        return tryEnqueue(() => Run(action, onException));
+    }
+
     /// <summary>Hace <paramref name="action"/>; si lanza, la excepción pasa por <paramref name="onException"/> (ver <see cref="RunAfterEvent"/>).</summary>
     public static void Run(Action action, Func<Exception, bool> onException)
     {

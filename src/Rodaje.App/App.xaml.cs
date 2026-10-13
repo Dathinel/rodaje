@@ -4,6 +4,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Player;
 
 namespace Rodaje.App;
@@ -36,11 +37,14 @@ public partial class App : Application
         Theme.ThemeResources.ApplyHighContrast(_options.SelfTest);
         _window = new MainWindow(_options, _engine, _prober, _settings, _settingsWarning);
         _window.Activate();
+        // Apagar o cerrar la sesión de Windows no es un fallo: se cierra la sesión del registro antes de que Windows
+        // termine el proceso.
+        _ = SessionEndWatcher.Install(WinRT.Interop.WindowNative.GetWindowHandle(_window), Program.Crashes.EndSession);
         LogSessionTrail(_window.Session);
         if (!_options.IsAutomated)
         {
             // Después de los avisos del arranque, para que no lo tapen.
-            _ = DispatcherQueue.GetForCurrentThread().TryEnqueue(DispatcherQueuePriority.Low, OfferPendingCrashReports);
+            _ = DispatcherQueue.GetForCurrentThread().RunLater(DispatcherQueuePriority.Low, OfferPendingCrashReports);
         }
     }
 
@@ -53,8 +57,13 @@ public partial class App : Application
             return false;
         }
 
-        Program.ReportException(CrashKind.DispatcherCallback, exception, fatal: false);
-        _window.ReportUnexpectedError(exception.Message);
+        // Una ráfaga (el mismo error en cada tick) avisa una vez por intervalo, como el informe.
+        Program.ReportException(CrashKind.DispatcherCallback, exception, fatal: false, out bool repeated);
+        if (!repeated)
+        {
+            _window.ReportUnexpectedError(exception.Message);
+        }
+
         return true;
     }
 
@@ -109,13 +118,14 @@ public partial class App : Application
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
         bool fatal = _window is null;
+        bool repeated;
         if (e.Exception is { } exception)
         {
-            Program.ReportException(CrashKind.XamlUnhandled, exception, fatal);
+            Program.ReportException(CrashKind.XamlUnhandled, exception, fatal, out repeated);
         }
         else
         {
-            Program.Crashes.Write(CrashKind.XamlUnhandled, e.Message, fatal);
+            Program.Crashes.Write(CrashKind.XamlUnhandled, e.Message, fatal, out repeated);
         }
 
         if (_window is null)
@@ -125,6 +135,9 @@ public partial class App : Application
         }
 
         e.Handled = true;
-        _window.ReportUnexpectedError(e.Exception?.Message ?? e.Message);
+        if (!repeated)
+        {
+            _window.ReportUnexpectedError(e.Exception?.Message ?? e.Message);
+        }
     }
 }

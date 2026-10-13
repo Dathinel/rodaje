@@ -200,10 +200,15 @@ public sealed class ModuleClient : IAsyncDisposable
         if (Interlocked.CompareExchange(ref _failure, error, null) is not null) return;
         _stop.Cancel();
         _channel.Dispose();
-        foreach (Pending p in _pending.Values) p.Completion.TrySetException(error);
-        foreach (TaskCompletionSource p in _pings.Values) p.TrySetException(error);
+        // Completion antes que las llamadas. Si Fail corre en un hilo del pool (el bucle de lectura, la salida del proceso
+        // en ModuleProcess), cada continuación que suelta va a la cola local de ese hilo, que al terminar toma primero la
+        // última (LIFO); otro hilo libre solo puede robar la primera. Con Completion al final, el hilo tomaba antes lo que
+        // cuelga de ella (en ModuleConnection, matar el árbol de procesos, que tarda segundos) y las llamadas esperaban a
+        // que alguien las robara: sin hilos libres, no fallaban. Así el propio hilo termina antes las llamadas.
         if (reason is null) _completion.TrySetResult();
         else _completion.TrySetException(error);
+        foreach (Pending p in _pending.Values) p.Completion.TrySetException(error);
+        foreach (TaskCompletionSource p in _pings.Values) p.TrySetException(error);
     }
 
     private async Task HandshakeAsync(CancellationToken cancellationToken)

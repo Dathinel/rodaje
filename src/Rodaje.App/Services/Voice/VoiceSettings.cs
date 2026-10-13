@@ -51,8 +51,10 @@ public sealed record VoiceSettings(
         {
             using JsonDocument doc = JsonDocument.Parse(json);
             JsonElement root = doc.RootElement;
+            // «generator» con otro tipo (número, null, objeto) lanzaba InvalidOperationException en GetString, que no se
+            // atrapaba: Str comprueba el tipo.
             if (root.ValueKind != JsonValueKind.Object
-                || !root.TryGetProperty("generator", out JsonElement g) || g.GetString() != Generator
+                || Str(root, "generator") != Generator
                 || !root.TryGetProperty("text", out JsonElement text) || text.ValueKind != JsonValueKind.String)
             {
                 return null;

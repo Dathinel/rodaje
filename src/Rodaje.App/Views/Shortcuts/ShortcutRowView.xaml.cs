@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Views.Inspector;
 
 namespace Rodaje.App.Views.Shortcuts;
 
@@ -41,7 +42,7 @@ internal sealed partial class ShortcutRowView : UserControl
         {
             if (Row.IsCapturing)
             {
-                DispatcherQueue.TryEnqueue(() => CaptureBox.Focus(FocusState.Keyboard));
+                DispatcherQueue.RunLater(() => CaptureBox.Focus(FocusState.Keyboard));
             }
             else if (!_focusLeft)
             {

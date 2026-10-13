@@ -130,7 +130,9 @@ public class FrameCacheTests
 
         var watch = System.Diagnostics.Stopwatch.StartNew();
         Assert.Equal(2, cache.RemoveRange(5, long.MaxValue));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"Sacar un rango enorme tardó {watch.Elapsed}.");
+        // Recorrer el rango hasta long.MaxValue no terminaría nunca; la cota es holgada porque en las vueltas lentas de la CI
+        // un hilo llegó a quedarse más de 2 s sin CPU.
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(30), $"Sacar un rango enorme tardó {watch.Elapsed}.");
         Assert.Equal(1, cache.Count);
         Assert.True(cache.Contains(3));
         Assert.Equal(1, _tracker.Live);

@@ -126,6 +126,27 @@ public sealed class ExportVerifier
 
         string json = Run(["-v", "error", "-count_packets", "-show_format", "-show_streams", "-show_chapters", "-of", "json", full],
             cancellationToken);
+        return Read(json, full, index => Gop(full, index, cancellationToken));
+    }
+
+    /// <summary>El informe a partir de la salida JSON de ffprobe; <paramref name="gop"/> mide los cuadros clave de un flujo.</summary>
+    /// <exception cref="ExportException"><see cref="ExportErrorCode.EncoderFailed"/> si el JSON no tiene la forma del de ffprobe.</exception>
+    internal static ExportReport Read(string json, string full, Func<int, (int MaxGop, int Keyframes)> gop)
+    {
+        try
+        {
+            return ReadReport(json, full, gop);
+        }
+        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            // Un JSON que no es el de ffprobe (sin «format» o «streams», o con otra forma) salía como excepción suelta en
+            // vez del error de exportación.
+            throw new ExportException(ExportErrorCode.EncoderFailed, $"ffprobe devolvió algo que no se entiende al leer {full}.", ex);
+        }
+    }
+
+    private static ExportReport ReadReport(string json, string full, Func<int, (int MaxGop, int Keyframes)> gop)
+    {
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement root = document.RootElement;
         JsonElement format = root.GetProperty("format");
@@ -134,7 +155,7 @@ public sealed class ExportVerifier
         {
             foreach (JsonProperty tag in formatTags.EnumerateObject())
             {
-                tags[tag.Name] = tag.Value.GetString() ?? "";
+                tags[tag.Name] = tag.Value.ValueKind == JsonValueKind.String ? tag.Value.GetString() ?? "" : tag.Value.GetRawText();
             }
         }
 
@@ -144,12 +165,18 @@ public sealed class ExportVerifier
         foreach (JsonElement stream in root.GetProperty("streams").EnumerateArray())
         {
             string type = String(stream, "codec_type") ?? "";
+            // GetInt32 sin mirar el tipo lanzaba InvalidOperationException con un valor que no era número.
             bool attached = stream.TryGetProperty("disposition", out JsonElement disposition)
-                && disposition.TryGetProperty("attached_pic", out JsonElement pic) && pic.GetInt32() == 1;
+                && disposition.ValueKind == JsonValueKind.Object && Int(disposition, "attached_pic") == 1;
             if (type == "video" && video is null && !attached)
             {
-                int index = stream.GetProperty("index").GetInt32();
-                (int maxGop, int keyframes) = Gop(full, index, cancellationToken);
+                if (!stream.TryGetProperty("index", out JsonElement indexValue) || indexValue.ValueKind != JsonValueKind.Number
+                    || !indexValue.TryGetInt32(out int index) || index < 0)
+                {
+                    throw new ExportException(ExportErrorCode.EncoderFailed, $"ffprobe no dio el índice del flujo de video de {full}.");
+                }
+
+                (int maxGop, int keyframes) = gop(index);
                 video = new ExportVideoReport(
                     String(stream, "codec_name") ?? "",
                     String(stream, "profile"),
@@ -420,13 +447,15 @@ public sealed class ExportVerifier
     private static string? String(JsonElement element, string name) =>
         element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
+    // Con TryGet: GetInt32/GetInt64 lanzan FormatException con un número con decimales o fuera de rango, y GetString,
+    // InvalidOperationException con algo que no es texto.
     private static int Int(JsonElement element, string name) =>
-        element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number ? value.GetInt32() : 0;
+        element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int number) ? number : 0;
 
     private static long Long(JsonElement element, string name) =>
-        element.TryGetProperty(name, out JsonElement value)
-            ? value.ValueKind == JsonValueKind.Number ? value.GetInt64()
-            : long.TryParse(value.GetString(), CultureInfo.InvariantCulture, out long parsed) ? parsed : 0
+        !element.TryGetProperty(name, out JsonElement value) ? 0
+            : value.ValueKind == JsonValueKind.Number ? value.TryGetInt64(out long number) ? number : 0
+            : value.ValueKind == JsonValueKind.String && long.TryParse(value.GetString(), CultureInfo.InvariantCulture, out long parsed) ? parsed
             : 0;
 
     private static double Double(JsonElement element, string name) =>

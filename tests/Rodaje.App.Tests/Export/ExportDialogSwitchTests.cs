@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Tests.Support;
 using Rodaje.App.Views.Export;
@@ -72,8 +73,8 @@ public class ExportDialogSwitchTests
     [Fact]
     public void LaVista_SoloRehaceLaListaSiCambio()
     {
-        Assert.True(ChoiceList.Same(["MP4", "MOV"], ["MP4", "MOV"]));
-        Assert.False(ChoiceList.Same(["MP4", "MOV"], ["MP4"]));
-        Assert.False(ChoiceList.Same(["Toda la secuencia (0:10)"], ["Toda la secuencia (0:09)"]));
+        Assert.False(ComboChoices.NeedsRebuild(["MP4", "MOV"], ["MP4", "MOV"]));
+        Assert.True(ComboChoices.NeedsRebuild(["MP4", "MOV"], ["MP4"]));
+        Assert.True(ComboChoices.NeedsRebuild(["Toda la secuencia (0:10)"], ["Toda la secuencia (0:09)"]));
     }
 }
