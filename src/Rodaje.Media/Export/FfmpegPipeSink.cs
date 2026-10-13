@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using Rodaje.Core.Serialization;
 using Rodaje.Media.Proxies;
@@ -84,6 +85,8 @@ public sealed class FfmpegPipeSink : IExportSink
     private ExportSinkRequest? _request;
     private string? _temporaryOutput;
     private string? _journalId;
+    // Registro de pasadas que dejó la pasada de análisis y que ninguna pasada siguiente tomó todavía: lo borra Dispose.
+    private string? _keptPassLog;
     private long _framesWritten;
     private long _framesEncoded;
     private bool _progressEnded;
@@ -373,6 +376,10 @@ public sealed class FfmpegPipeSink : IExportSink
             }
 
             DeleteTemporaries(keepPassLog: request.IsAnalysisPass);
+            if (request.IsAnalysisPass && request.PassCount > 1)
+            {
+                _keptPassLog = FfmpegPipeArguments.PassLogFile(request.PassLogPath!);
+            }
         }
         catch
         {
@@ -497,6 +504,7 @@ public sealed class FfmpegPipeSink : IExportSink
             Abort();
         }
 
+        DeleteKeptPassLog();
         _registration.Dispose();
         _buffer = null;
         _disposed = true;
@@ -527,6 +535,12 @@ public sealed class FfmpegPipeSink : IExportSink
         if (request.PassCount > 1 && string.IsNullOrWhiteSpace(request.PassLogPath))
         {
             throw new ExportException(ExportErrorCode.InvalidSettings, "Dos pasadas necesitan la ruta del registro de pasadas.");
+        }
+
+        if (request.PassCount > 1 && FfmpegPipeArguments.PassLogFile(request.PassLogPath!) is { Length: > FfmpegPipeArguments.PassLogPathLimit } tooLong)
+        {
+            throw new ExportException(ExportErrorCode.InvalidSettings,
+                $"La carpeta temporal es demasiado larga para el registro de las dos pasadas ({tooLong.Length} caracteres): {tooLong}.");
         }
 
         if (request.IsAnalysisPass && !request.HasVideo)
@@ -806,7 +820,13 @@ public sealed class FfmpegPipeSink : IExportSink
 
         if (_request!.PassCount > 1 && _request.PassLogPath is { } passLog)
         {
-            _temporaries.Add(passLog);
+            string passLogFile = FfmpegPipeArguments.PassLogFile(passLog);
+            _temporaries.Add(passLogFile);
+            // Desde aquí lo borra esta pasada (al terminar, al fallar o al cancelar), no Dispose.
+            if (_keptPassLog == passLogFile)
+            {
+                _keptPassLog = null;
+            }
         }
 
         if (_options.Journal is { } journal)
@@ -816,9 +836,39 @@ public sealed class FfmpegPipeSink : IExportSink
         }
     }
 
+    // El registro que dejó la pasada de análisis si la segunda no llegó a arrancar (cancelada o fallida antes de lanzar
+    // ffmpeg.exe). Hace falta porque puede vivir fuera de la carpeta de trabajo de la exportación (PassLogFile).
+    private void DeleteKeptPassLog()
+    {
+        if (_keptPassLog is not { } kept)
+        {
+            return;
+        }
+
+        _keptPassLog = null;
+        if (ExportOutputGuard.DeleteTemporary(kept))
+        {
+            Note($"No se pudo borrar el registro de pasadas {kept}.");
+        }
+
+        // Corre en Dispose: si el registro de exportaciones no se puede escribir, la entrada queda para el próximo arranque.
+        if (_options.Journal is { } journal && _journalId is not null)
+        {
+            try
+            {
+                journal.Remove(_journalId);
+                _journalId = null;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Note($"No se pudo quitar el registro de pasadas del diario de exportaciones: {ex.Message}");
+            }
+        }
+    }
+
     private void DeleteTemporaries(bool keepPassLog)
     {
-        string? passLog = _request?.PassLogPath;
+        string? passLog = _request is { PassCount: > 1, PassLogPath: { } requested } ? FfmpegPipeArguments.PassLogFile(requested) : null;
         foreach (string path in _temporaries)
         {
             if (keepPassLog && path == passLog)
@@ -961,7 +1011,7 @@ public sealed class FfmpegPipeSink : IExportSink
 
         if (request.PassCount > 1 && !string.IsNullOrWhiteSpace(request.PassLogPath))
         {
-            paths.Add(Path.GetFullPath(request.PassLogPath));
+            paths.Add(FfmpegPipeArguments.PassLogFile(request.PassLogPath));
         }
 
         return paths;
@@ -1219,6 +1269,36 @@ public sealed class FfmpegPipeSink : IExportSink
 /// <summary>La línea de comandos de <see cref="FfmpegPipeSink"/>; los ajustes del codificador ya vienen armados en la petición.</summary>
 internal static class FfmpegPipeArguments
 {
+    /// <summary>
+    /// Largo máximo del prefijo que se pasa en <c>-passlogfile</c>. ffmpeg.exe y sus codificadores abren el registro con
+    /// <c>fopen</c>, sin <c>\\?\</c> ni <c>longPathAware</c>, y le añaden hasta <see cref="PassLogSuffixReserve"/>
+    /// caracteres («-0.log.mbtree.temp», «-0.log.cutree.temp»): el total debe quedar por debajo de MAX_PATH (260).
+    /// </summary>
+    public const int PassLogPathLimit = 200;
+
+    /// <summary>Lo más largo que ffmpeg.exe o un codificador añade al prefijo del registro de pasadas.</summary>
+    public const int PassLogSuffixReserve = 32;
+
+    /// <summary>
+    /// Prefijo del registro de pasadas que recibe ffmpeg.exe. Si la ruta pedida cabe en <see cref="PassLogPathLimit"/>,
+    /// es ella; si no, un nombre corto en <paramref name="temporaryDirectory"/> (por defecto, la carpeta temporal del
+    /// usuario) que depende solo de la ruta pedida, para que las dos pasadas y la limpieza lleguen al mismo archivo.
+    /// Lleva <see cref="ExportOutputGuard.TemporaryMarker"/> para que <see cref="ExportOutputGuard.DeleteTemporary"/> lo
+    /// borre con sus hermanos «-*».
+    /// </summary>
+    public static string PassLogFile(string passLogPath, string? temporaryDirectory = null)
+    {
+        string full = Path.GetFullPath(passLogPath);
+        if (full.Length <= PassLogPathLimit)
+        {
+            return full;
+        }
+
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(full.ToUpperInvariant()));
+        string name = $"rodaje-pasadas-{Convert.ToHexStringLower(hash, 0, 8)}{ExportOutputGuard.TemporaryMarker}";
+        return Path.Combine(Path.GetFullPath(temporaryDirectory ?? Path.GetTempPath()), name);
+    }
+
     public static IReadOnlyList<string> Build(ExportSinkRequest request, string? temporaryOutput, string? metadataFile,
         IReadOnlyList<string>? subtitleFiles = null)
     {
@@ -1374,7 +1454,7 @@ internal static class FfmpegPipeArguments
 
         if (request.PassCount > 1)
         {
-            args.AddRange(["-pass", request.Pass.ToString(CultureInfo.InvariantCulture), "-passlogfile", request.PassLogPath!]);
+            args.AddRange(["-pass", request.Pass.ToString(CultureInfo.InvariantCulture), "-passlogfile", PassLogFile(request.PassLogPath!)]);
         }
 
         if (request.IsAnalysisPass)
