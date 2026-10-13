@@ -86,7 +86,7 @@ internal sealed partial class TimelineView
     private static bool CarriesElement(DataPackageView view) =>
         view.Contains(TransitionPlanning.DragFormat) || view.Contains(LibraryElement.DragFormat);
 
-    private async void ReadDroppedTransition(DragEventArgs e)
+    private async Task ReadDroppedTransitionAsync(DragEventArgs e)
     {
         _dropTransition = null;
         _dropIsTransition = null;

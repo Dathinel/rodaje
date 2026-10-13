@@ -19,9 +19,23 @@ public sealed partial class AsyncSafetyTests
         ["Rodaje.App/Views/Inspector/DispatcherQueueLater.cs"] = (2, "es la red: encola la acción ya envuelta por UiDeferral.Run (informe y aviso)."),
     };
 
-    // async void que no son manejadores de eventos.
-    // («archivo#Método» → motivo). Hoy ninguno: UiTask.Run observa con una continuación.
+    // async void permitidos, también los manejadores de eventos («archivo#Método» → motivo). Un manejador es síncrono y
+    // pasa la tarea a UiTask.Run («void OnX(object s, RoutedEventArgs e) => UiTask.Run(OnXAsync(e));»): lo que no atrapan
+    // sus catch llega al informe y al aviso sin depender del contexto del hilo, y lo que corre hasta el primer await
+    // (GetDeferral, args.Cancel, e.Handled) sigue dentro del evento. Hoy ninguno (tarea 208).
     private static readonly Dictionary<string, string> AsyncVoidAllowed = new(StringComparer.Ordinal);
+
+    // Lambdas async que no van a UiTask.Run, Task.Run, StartNew, Select ni a un método «…Async» (los que reciben un
+    // Func<…Task>): archivo → apariciones y motivo. Una lambda async pasada a un Action (RunLater, Bind, Item,
+    // NotificationAction…) es un async void sin red.
+    private static readonly Dictionary<string, (int Count, string Reason)> AsyncLambdaAllowed = new(StringComparer.Ordinal)
+    {
+        ["Rodaje.App/Views/Relink/RelinkDialog.cs"] = (1, "s_reopen es un Func<Task>: ReopenAsync devuelve la tarea a quien la espera."),
+        ["Rodaje.Modules.Protocol/ModuleHost.cs"] = (1, "new Task<Task>(async …): se arranca después y se espera con Unwrap."),
+    };
+
+    // Llamadas que reciben una lambda async como Func<…Task> (la tarea no se pierde).
+    private static readonly string[] AsyncLambdaTargets = ["UiTask.Run", "Task.Run", "StartNew", "Select"];
 
     // Manejadores async void con algún await fuera de un try/catch (Exception) («archivo#Método» → motivo). Lo que se
     // escapa de ellos lo atrapa todavía GuardedSynchronizationContext (informe y aviso), pero sin el mensaje propio del
@@ -84,16 +98,13 @@ public sealed partial class AsyncSafetyTests
                 string name = m.Groups[1].Value;
                 int open = m.Index + m.Length - 1;
                 int close = MatchingClose(code, open);
-                string parameters = code[(open + 1)..close];
                 string body = BodyAfter(code, close + 1);
                 string where = $"{file}#{name}";
-                bool allowed = AsyncVoidAllowed.ContainsKey(where);
-                if (!allowed && !IsHandlerSignature(parameters))
+                if (!AsyncVoidAllowed.ContainsKey(where))
                 {
-                    problems.Add($"{where}: async void fuera de un manejador de eventos (usa async Task y UiTask.Run).");
+                    problems.Add($"{where}: async void (usa un manejador síncrono «=> UiTask.Run({name}Async(…))» y async Task).");
                 }
-
-                if (!AwaitsAreCaught(body) && !UncaughtAwaitAllowed.ContainsKey(where))
+                else if (!AwaitsAreCaught(body) && !UncaughtAwaitAllowed.ContainsKey(where))
                 {
                     problems.Add($"{where}: async void con un await fuera de un try/catch (Exception) (usa async Task y UiTask.Run, o atrapa y UiTask.Report).");
                 }
@@ -102,6 +113,12 @@ public sealed partial class AsyncSafetyTests
             foreach (Match m in AsyncEventLambdaRegex().Matches(code))
             {
                 problems.Add($"{file}:{Line(code, m.Index)}: lambda async en un evento (async void sin red): «+= (s, e) => UiTask.Run(…)».");
+            }
+
+            int lambdasAllowed = AsyncLambdaAllowed.TryGetValue(file, out var lambdas) ? lambdas.Count : 0;
+            foreach (int index in LooseAsyncLambdas(code).Skip(lambdasAllowed))
+            {
+                problems.Add($"{file}:{Line(code, index)}: lambda async que no va a UiTask.Run ni a un método «…Async» (si el destino es un Action, es un async void sin red).");
             }
         }
 
@@ -271,6 +288,11 @@ public sealed partial class AsyncSafetyTests
             Expect(file, count, RawTryEnqueueRegex().Count(Code(file)));
         }
 
+        foreach ((string file, (int count, _)) in AsyncLambdaAllowed)
+        {
+            Expect(file, count, LooseAsyncLambdas(Code(file)).Count);
+        }
+
         foreach (string where in AsyncVoidAllowed.Keys)
         {
             string[] parts = where.Split('#');
@@ -328,6 +350,7 @@ public sealed partial class AsyncSafetyTests
             .Concat(UiFileWorkAllowed.Select(e => (e.Key.File, e.Value.Reason)))
             .Concat(EnqueueInLoopAllowed.Select(e => (e.Key, e.Value.Reason)))
             .Concat(UnobservedContinuationAllowed.Select(e => (e.Key, e.Value.Reason)))
+            .Concat(AsyncLambdaAllowed.Select(e => (e.Key, e.Value.Reason)))
             .Concat(DiscardAllowed.Select(e => (e.Key, e.Value.Reason)))
             .Concat(UncaughtAwaitAllowed.Select(e => (e.Key.Split('#')[0], e.Value)))
             .Concat(AsyncVoidAllowed.Select(e => (e.Key.Split('#')[0], e.Value)));
@@ -338,7 +361,8 @@ public sealed partial class AsyncSafetyTests
         }
 
         Assert.All(RawTryEnqueueAllowed.Values.Concat(BlockingWaitAllowed.Values).Concat(UiFileWorkAllowed.Values)
-            .Concat(EnqueueInLoopAllowed.Values).Concat(UnobservedContinuationAllowed.Values).Concat(DiscardAllowed.Values), e => Assert.True(e.Count > 0));
+            .Concat(EnqueueInLoopAllowed.Values).Concat(UnobservedContinuationAllowed.Values).Concat(DiscardAllowed.Values)
+            .Concat(AsyncLambdaAllowed.Values), e => Assert.True(e.Count > 0));
     }
 
     [Fact]
@@ -424,6 +448,23 @@ public sealed partial class AsyncSafetyTests
     }
 
     [Fact]
+    public void AsyncLambdaCheckSeesActionTargets()
+    {
+        Assert.Empty(LooseAsyncLambdas("UiTask.Run(async () => { await A(); });"));
+        Assert.Empty(LooseAsyncLambdas("x.Click += (_, _) => UiTask.Run(async () => await A());"));
+        Assert.Empty(LooseAsyncLambdas("await modules.RunAsync(id, title, async call => await call.SendAsync(m));"));
+        Assert.Empty(LooseAsyncLambdas("Task t = Task.Run(async () => await A(), token);"));
+        Assert.Empty(LooseAsyncLambdas("var all = items.Select(async item => await Load(item));"));
+        Assert.Empty(LooseAsyncLambdas("await RunBusyAsync(a == b ? \"x\" : \"y\", async () => await A());"));
+        // Una lambda async pasada a un Action o guardada en un campo: async void, o una tarea que nadie mira.
+        Assert.Single(LooseAsyncLambdas("queue.RunLater(async () => await A());"));
+        Assert.Single(LooseAsyncLambdas("menu.Items.Add(Item(\"Otro…\", async () => await A()));"));
+        Assert.Single(LooseAsyncLambdas("items.ForEach(async x => await Save(x));"));
+        Assert.Single(LooseAsyncLambdas("s_reopen = async () => await A();"));
+        Assert.Single(LooseAsyncLambdas("router.Bind(Id, async delegate { await A(); });"));
+    }
+
+    [Fact]
     public void TryCatchCheckNeedsEveryAwaitCaught()
     {
         Assert.True(AwaitsAreCaught("{ if (x) { return; } try { await A(); } catch (Exception ex) when (UiTask.Report(ex)) { } }"));
@@ -433,6 +474,8 @@ public sealed partial class AsyncSafetyTests
         Assert.False(AwaitsAreCaught("{ try { await A(); } finally { B(); } try { C(); } catch (Exception) { } }"));
         Assert.False(AwaitsAreCaught("{ try { await A(); } catch (Exception) { } await B(); }"));
         Assert.False(AwaitsAreCaught("{ try { await A(); } catch (IOException) { } }"));
+        // Un filtro que elige tipos no atrapa cualquier excepción (la forma de los manejadores de soltar, tarea 208).
+        Assert.False(AwaitsAreCaught("{ try { await A(); } catch (Exception ex) when (ex is IOException or COMException) { } }"));
         Assert.False(AwaitsAreCaught("{ Work(); }"));
         Assert.True(AwaitsAreCaught("{ try { Work(); } catch (Exception) { } }"));
     }
@@ -477,13 +520,73 @@ public sealed partial class AsyncSafetyTests
             || file == "Rodaje.App/App.xaml.cs")
         && !file.Contains("/Logic/", StringComparison.Ordinal);
 
-    // Manejador: el último parámetro es de un tipo «…Args» (EventArgs, DragEventArgs, ContentDialogButtonClickEventArgs…).
-    private static bool IsHandlerSignature(string parameters)
+    // Lambdas async cuyo destino no es seguro una función que devuelve la tarea: la que no es argumento de una llamada
+    // (una asignación) o lo es de una que no está en AsyncLambdaTargets ni termina en «Async».
+    private static List<int> LooseAsyncLambdas(string code)
     {
-        string last = parameters.Split(',').Last().Trim();
-        int space = last.LastIndexOf(' ');
-        string type = space > 0 ? last[..space].Trim() : last;
-        return type.TrimEnd('?').EndsWith("Args", StringComparison.Ordinal);
+        var found = new List<int>();
+        foreach (Match m in AsyncLambdaRegex().Matches(code))
+        {
+            if (AsyncLambdaTarget(code, m.Index) is not { } target
+                || !(target.EndsWith("Async", StringComparison.Ordinal) || AsyncLambdaTargets.Any(t => target == t || target.EndsWith("." + t, StringComparison.Ordinal))))
+            {
+                found.Add(m.Index);
+            }
+        }
+
+        return found;
+    }
+
+    // Un «=» de asignación (también «+=», «??=»…), no de «=>», «==», «!=», «<=» ni «>=».
+    private static bool IsAssignment(string code, int i) =>
+        code[i] == '=' && (i + 1 >= code.Length || code[i + 1] is not ('>' or '='))
+        && (i == 0 || code[i - 1] is not ('=' or '!' or '<' or '>'));
+
+    // El nombre (con su prefijo «A.B.») de la llamada de la que la lambda en index es argumento; null si no es argumento.
+    private static string? AsyncLambdaTarget(string code, int index)
+    {
+        int depth = 0;
+        for (int i = index - 1; i >= 0; i--)
+        {
+            char c = code[i];
+            if (c is ')' or ']' or '}')
+            {
+                depth++;
+            }
+            else if (c is '[' or '{' || (depth == 0 && (c == ';' || IsAssignment(code, i))))
+            {
+                if (depth == 0)
+                {
+                    return null;
+                }
+
+                depth--;
+            }
+            else if (c == '(')
+            {
+                if (depth > 0)
+                {
+                    depth--;
+                    continue;
+                }
+
+                int end = i;
+                while (end > 0 && char.IsWhiteSpace(code[end - 1]))
+                {
+                    end--;
+                }
+
+                int start = end;
+                while (start > 0 && (char.IsLetterOrDigit(code[start - 1]) || code[start - 1] is '_' or '.'))
+                {
+                    start--;
+                }
+
+                return start < end ? code[start..end] : null;
+            }
+        }
+
+        return null;
     }
 
     // El cuerpo de un método desde después de sus parámetros: un bloque { … } o una expresión «=> …;».
@@ -892,13 +995,19 @@ public sealed partial class AsyncSafetyTests
             {
                 int close = MatchingClose(code, index - 1);
                 string type = code[index..close].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-                broad |= type is "Exception" or "System.Exception";
                 index = close + 1;
                 Match filter = WhenRegex().Match(code, index);
+                bool narrowed = false;
                 if (filter.Success)
                 {
-                    index = MatchingClose(code, index + filter.Length - 1) + 1;
+                    // Solo un filtro que informa (UiTask.Report) cuenta como atrapar todo; uno que elige tipos
+                    // («when (ex is IOException …)») deja pasar lo demás.
+                    int filterClose = MatchingClose(code, index + filter.Length - 1);
+                    narrowed = !code[(index + filter.Length)..filterClose].Contains("UiTask.Report(", StringComparison.Ordinal);
+                    index = filterClose + 1;
                 }
+
+                broad |= type is "Exception" or "System.Exception" && !narrowed;
             }
             else
             {
@@ -1047,6 +1156,9 @@ public sealed partial class AsyncSafetyTests
 
     [GeneratedRegex(@"\+=\s*async\b")]
     private static partial Regex AsyncEventLambdaRegex();
+
+    [GeneratedRegex(@"\basync\s*(?:\([^()]*\)|\w+)\s*=>|\basync\s+delegate\b")]
+    private static partial Regex AsyncLambdaRegex();
 
     [GeneratedRegex(@"(?<![\w.])_\s*=(?![=>])\s*")]
     private static partial Regex DiscardRegex();

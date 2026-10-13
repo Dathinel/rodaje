@@ -415,7 +415,9 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         return null;
     }
 
-    private async void OnImportClick(object sender, RoutedEventArgs e)
+    private void OnImportClick(object sender, RoutedEventArgs e) => UiTask.Run(ImportAsync());
+
+    private async Task ImportAsync()
     {
         if (_services is null)
         {
@@ -800,7 +802,9 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
     }
 
-    private async void OnFilesDrop(object sender, DragEventArgs e)
+    private void OnFilesDrop(object sender, DragEventArgs e) => UiTask.Run(OnFilesDropAsync(e));
+
+    private async Task OnFilesDropAsync(DragEventArgs e)
     {
         if (_services is null || !e.DataView.Contains(StandardDataFormats.StorageItems))
         {

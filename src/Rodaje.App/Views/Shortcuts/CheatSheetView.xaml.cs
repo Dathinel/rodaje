@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Theme;
 using Windows.Graphics.Imaging;
@@ -92,7 +93,9 @@ internal sealed partial class CheatSheetView : UserControl
         return System.IO.Path.Combine(folder, FileStem + extension);
     }
 
-    private async void OnSaveHtmlClick(object sender, RoutedEventArgs e)
+    private void OnSaveHtmlClick(object sender, RoutedEventArgs e) => UiTask.Run(SaveHtmlAsync());
+
+    private async Task SaveHtmlAsync()
     {
         string path = DocumentsPath(".html");
         try
@@ -107,7 +110,9 @@ internal sealed partial class CheatSheetView : UserControl
         }
     }
 
-    private async void OnSavePngClick(object sender, RoutedEventArgs e)
+    private void OnSavePngClick(object sender, RoutedEventArgs e) => UiTask.Run(SavePngAsync());
+
+    private async Task SavePngAsync()
     {
         string path = DocumentsPath(".png");
         try

@@ -19,7 +19,7 @@ internal sealed partial class TimelineView
 
     private static bool CarriesTitle(DataPackageView view) => view.Contains(TitleDrag.DragFormat);
 
-    private async void ReadDroppedTitle(DragEventArgs e)
+    private async Task ReadDroppedTitleAsync(DragEventArgs e)
     {
         _dropTitle = null;
         DragOperationDeferral deferral = e.GetDeferral();
@@ -67,7 +67,7 @@ internal sealed partial class TimelineView
         Invalidate();
     }
 
-    private async void DropTitle(DragEventArgs e)
+    private async Task DropTitleAsync(DragEventArgs e)
     {
         EditorSession session = Session!;
         e.Handled = true;
