@@ -131,7 +131,10 @@ internal static class OfflineContent
             return content.TryGetLut(key, out _);
         }
 
-        using var changed = new SemaphoreSlim(0);
+        // Sin Dispose: un aviso que ya tomó la lista de manejadores puede llegar después de desuscribirse, y Release sobre un
+        // semáforo desechado tiraría en el hilo que carga (en el pool, cierra el proceso). Sin AvailableWaitHandle no guarda
+        // nada que liberar.
+        var changed = new SemaphoreSlim(0);
         void OnChanged(object? sender, EventArgs e) => changed.Release();
         content.Changed += OnChanged;
         try
