@@ -8,6 +8,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Audio;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Inspector.Properties;
 using Rodaje.Audio.Processing;
 using Rodaje.Core.Commands;
@@ -94,7 +95,9 @@ internal sealed partial class InsertEditor : StackPanel
             {
                 if (!_updating && _presets.SelectedIndex >= 0 && _presets.SelectedIndex < presets.Count)
                 {
-                    session.Execute(Edits.ApplyInsertPreset(session.SequenceId, _ownerId, _effectId, presets[_presets.SelectedIndex]));
+                    // La edición refresca el editor, que vuelve a elegir en este desplegable: va después del evento (tarea 91).
+                    InsertPreset chosen = presets[_presets.SelectedIndex];
+                    DispatcherQueue.RunAfterEvent(() => session.Execute(Edits.ApplyInsertPreset(session.SequenceId, _ownerId, _effectId, chosen)));
                 }
             };
             Children.Add(_presets);
@@ -132,7 +135,9 @@ internal sealed partial class InsertEditor : StackPanel
                 {
                     if (!_updating && _division.SelectedIndex >= 0)
                     {
-                        SetValue(BuiltInEffects.DelayParameters.Division, _division.SelectedIndex, "Cambiar figura del delay");
+                        // Igual que el preajuste: la edición vuelve a elegir en este desplegable.
+                        int division = _division.SelectedIndex;
+                        DispatcherQueue.RunAfterEvent(() => SetValue(BuiltInEffects.DelayParameters.Division, division, "Cambiar figura del delay"));
                     }
                 };
                 rows.Children.Add(_division);

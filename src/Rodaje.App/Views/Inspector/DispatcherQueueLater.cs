@@ -5,7 +5,11 @@ using Rodaje.App.Services.Inspector;
 
 namespace Rodaje.App.Views.Inspector;
 
-/// <summary>La cola de la vista para <see cref="UiDeferral.RunAfterEvent"/>, con el registro de fallos de la app.</summary>
+/// <summary>
+/// La cola de la vista para <see cref="UiDeferral"/>, con el registro de fallos de la app. Es el único sitio de la app que
+/// llama a <c>DispatcherQueue.TryEnqueue</c> (lo vigila <c>DispatcherQueueCallsTests</c>): un delegado puesto en la cola sin
+/// envolver que lanza cierra la app con 0xC000027B y sin pila.
+/// </summary>
 internal static class DispatcherQueueLater
 {
     /// <summary>
@@ -40,4 +44,17 @@ internal static class DispatcherQueueLater
     }
 
     private static Func<Action, bool> TryEnqueue(DispatcherQueue queue) => guarded => queue.TryEnqueue(() => guarded());
+
+    /// <summary>
+    /// <c>TryEnqueue</c> con el registro de fallos: pone <paramref name="action"/> en la cola y devuelve si la aceptó; si no, no
+    /// la hace (ver <see cref="UiDeferral.TryRunLater"/>). Para lo que llega de otro hilo.
+    /// </summary>
+    public static bool RunLater(this DispatcherQueue queue, Action action) => RunLater(queue, DispatcherQueuePriority.Normal, action);
+
+    /// <inheritdoc cref="RunLater(DispatcherQueue, Action)"/>
+    public static bool RunLater(this DispatcherQueue queue, DispatcherQueuePriority priority, Action action)
+    {
+        ArgumentNullException.ThrowIfNull(queue);
+        return UiDeferral.TryRunLater(guarded => queue.TryEnqueue(priority, () => guarded()), action, Program.OnDispatcherException);
+    }
 }

@@ -62,10 +62,40 @@ public sealed class ConcurrentDownloadTests(ITestOutputHelper output) : IAsyncLi
 
     private PackageLocations Locations => PackageLocations.Under(Path.Combine(_folder.Path, "complementos"));
 
+    /// <summary>
+    /// Para la CI, sin reloj: el hilo de interfaz solo recibe los avisos de progreso (limitados) y unas pocas
+    /// continuaciones del cuerpo de la prueba. Con el defecto de la v1.0.0 recibía un aviso por bloque de 64 KB y las
+    /// continuaciones de leer, calcular el hash y escribir cada bloque: cientos de mensajes por descarga. Las cotas de
+    /// 100 ms de racha y de espera son TiempoReal (abajo): en la CI de Windows, con todos los proyectos de prueba a la vez,
+    /// la racha más larga llegó a 2 343 ms con solo 146 mensajes, de los que 138 eran avisos.
+    /// </summary>
     [Theory]
     [InlineData(0)]
     [InlineData(10)]
+    public void Two_installs_at_once_send_only_throttled_progress_to_the_interface_thread(int chunkDelayMs)
+    {
+        (MeasuredUiThread ui, int subtitles, int audio, _) = TwoInstalls(chunkDelayMs);
+        Assert.InRange(ui.Callbacks, subtitles + audio, subtitles + audio + OwnCallbacks);
+    }
+
+    [Theory]
+    [Trait("Categoria", "TiempoReal")]
+    [InlineData(0)]
+    [InlineData(10)]
     public void Two_installs_at_once_never_hold_the_interface_thread(int chunkDelayMs)
+    {
+        (MeasuredUiThread ui, _, _, _) = TwoInstalls(chunkDelayMs);
+        Assert.InRange(ui.LongestStretch, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+        Assert.InRange(ui.LongestWait, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+    }
+
+    /// <summary>
+    /// Mensajes del hilo de interfaz que no son avisos: las continuaciones de los <c>await</c> del cuerpo de
+    /// <see cref="TwoInstalls"/> y las del servicio que vuelven a la interfaz al terminar (un puñado; el defecto daba cientos).
+    /// </summary>
+    private const int OwnCallbacks = 30;
+
+    private (MeasuredUiThread Ui, int Subtitles, int Audio, double Seconds) TwoInstalls(int chunkDelayMs)
     {
         var delay = TimeSpan.FromMilliseconds(chunkDelayMs);
         byte[] model = TestPayloads.Deterministic(24 << 20, seed: 11);
@@ -95,8 +125,7 @@ public sealed class ConcurrentDownloadTests(ITestOutputHelper output) : IAsyncLi
         int bound = (int)Math.Ceiling(seconds * 10) + 3;
         Assert.InRange(subtitles.Count, 1, bound);
         Assert.InRange(audio.Count, 1, bound);
-        Assert.InRange(ui.LongestStretch, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
-        Assert.InRange(ui.LongestWait, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+        return (ui, subtitles.Count, audio.Count, seconds);
     }
 
     [Fact]
@@ -218,32 +247,51 @@ public sealed class ConcurrentDownloadTests(ITestOutputHelper output) : IAsyncLi
         {
             var context = new MeasuredUiThread();
             ExceptionDispatchInfo? failure = null;
+            var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var thread = new Thread(() =>
             {
-                SynchronizationContext.SetSynchronizationContext(context);
-                Task task;
                 try
                 {
-                    task = body();
+                    context.RunBody(body, ref failure);
                 }
-                catch (Exception ex)
+                finally
                 {
-                    failure = ExceptionDispatchInfo.Capture(ex);
-                    return;
-                }
-
-                task.ContinueWith(_ => context.Complete(), TaskScheduler.Default);
-                context.Loop();
-                if (task.Exception is { } error)
-                {
-                    failure = ExceptionDispatchInfo.Capture(error.InnerExceptions[0]);
+                    finished.TrySetResult();
                 }
             })
             { IsBackground = true, Name = "Hilo de interfaz medido" };
             thread.Start();
-            Assert.True(thread.Join(UiThread.DefaultTimeout), "Las descargas no terminaron a tiempo. " + UiThread.PoolState());
+
+            // Como en UiThread: la prueba corre en un hilo del pool y esperar una Task (no Thread.Join) le dice al pool que
+            // ese hilo está bloqueado, para que ponga otro en su lugar.
+            Assert.True(finished.Task.Wait(UiThread.DefaultTimeout), "Las descargas no terminaron a tiempo. " + UiThread.PoolState());
             failure?.Throw();
             return context;
+        }
+
+        private void RunBody(Func<Task> body, ref ExceptionDispatchInfo? failure)
+        {
+            SynchronizationContext.SetSynchronizationContext(this);
+            Task task;
+            try
+            {
+                task = body();
+            }
+            catch (Exception ex)
+            {
+                failure = ExceptionDispatchInfo.Capture(ex);
+                return;
+            }
+
+            // Se cierra en el hilo que termina la tarea (casi siempre este mismo), sin pasar por el pool, como en
+            // UiThread: con TaskScheduler.Default a secas el cierre era un trabajo más en la cola del pool y, con el pool
+            // ocupado por otras pruebas, el hilo medido seguía vivo hasta agotar el tope de 120 s.
+            task.ContinueWith(_ => Complete(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            Loop();
+            if (task.Exception is { } error)
+            {
+                failure = ExceptionDispatchInfo.Capture(error.InnerExceptions[0]);
+            }
         }
 
         public override void Post(SendOrPostCallback d, object? state)

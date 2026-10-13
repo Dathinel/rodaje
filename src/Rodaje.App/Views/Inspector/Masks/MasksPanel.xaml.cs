@@ -159,7 +159,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
             }
         };
         // Llega también desde los hilos de fondo que informan avance.
-        services.LongActions.Changed += (_, _) => DispatcherQueue.TryEnqueue(ShowTracking);
+        services.LongActions.Changed += (_, _) => DispatcherQueue.RunLater(ShowTracking);
         Refresh();
         Bindings.Update();
     }
@@ -859,7 +859,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
             });
             try
             {
-                await RegionTracking.RunAsync(request, f => DispatcherQueue.TryEnqueue(() => Tracked(f)), both, scope.Token);
+                await RegionTracking.RunAsync(request, f => DispatcherQueue.RunLater(() => Tracked(f)), both, scope.Token);
             }
             catch (OperationCanceledException)
             {

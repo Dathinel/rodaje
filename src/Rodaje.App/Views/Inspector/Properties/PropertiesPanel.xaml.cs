@@ -687,7 +687,8 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
 
         AudioPreset? preset = (PresetBox.SelectedItem as ComboBoxItem)?.Tag as AudioPreset;
-        services.Session.Execute(AudioPresetCommands.Apply(services.Session.SequenceId, clipId, preset));
+        // La edición refresca el panel, que vuelve a elegir en este desplegable: va después del evento (tarea 91).
+        DispatcherQueue.RunAfterEvent(() => services.Session.Execute(AudioPresetCommands.Apply(services.Session.SequenceId, clipId, preset)));
     }
 
     private void OnBlendSelected(object sender, SelectionChangedEventArgs e)
