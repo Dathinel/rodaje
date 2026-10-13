@@ -114,20 +114,39 @@ public sealed class ModuleManagerTests : IDisposable
         Assert.NotEqual(pid, Assert.Single(manager.ProcessIds));
     });
 
+    // «Rápido» quiere decir sin esperar al ping: con los valores por omisión (ping cada 5 s, 10 s de tope) un módulo muerto
+    // que no se notara al salir tardaría de 10 a 15 s en darse por perdido. Las cotas de la CI quedan bien por debajo de
+    // eso pero lejos del reloj fino: con todos los proyectos de prueba a la vez en 4 núcleos, el ping colgado de 400 ms
+    // llegó a tardar 2 063 ms de reloj (CI de #100). Las cotas finas van en las gemelas TiempoReal.
+    private static readonly TimeSpan DeathBound = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan HangBound = TimeSpan.FromSeconds(8);
+
     [Fact]
-    public async Task Un_modulo_que_muere_solo_falla_rapido_con_su_codigo()
+    public Task Un_modulo_que_muere_solo_falla_rapido_con_su_codigo() => DiesFast(DeathBound);
+
+    [Fact]
+    [Trait("Categoria", "TiempoReal")]
+    public Task Un_modulo_que_muere_solo_falla_en_menos_de_un_segundo() => DiesFast(TimeSpan.FromSeconds(1));
+
+    private async Task DiesFast(TimeSpan bound)
     {
         await using ModuleManager manager = _modules.Manager();
         await manager.InvokeAsync("eco-a", "eco", null, "Abrir");
         Stopwatch watch = Stopwatch.StartNew();
         ModuleExitedException error = await Assert.ThrowsAsync<ModuleExitedException>(() => manager.InvokeAsync("eco-a", "morir", EchoModules.Json("""{"codigo":7}"""), "Morir"));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"{watch.ElapsedMilliseconds} ms");
+        Assert.True(watch.Elapsed < bound, $"{watch.ElapsedMilliseconds} ms");
         Assert.Equal(7, error.ExitCode);
         Assert.Contains("código 7", manager.Jobs.Jobs[0].Error, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Un_modulo_colgado_que_no_contesta_el_ping_se_mata_y_se_avisa()
+    public Task Un_modulo_colgado_que_no_contesta_el_ping_se_mata_y_se_avisa() => HungIsKilled(HangBound);
+
+    [Fact]
+    [Trait("Categoria", "TiempoReal")]
+    public Task Un_modulo_colgado_se_mata_en_menos_de_dos_segundos() => HungIsKilled(TimeSpan.FromSeconds(2));
+
+    private async Task HungIsKilled(TimeSpan bound)
     {
         await using ModuleManager manager = _modules.Manager(new ModuleManagerOptions
         {
@@ -142,7 +161,7 @@ public sealed class ModuleManagerTests : IDisposable
 
         // El tope de la espera es contra cuelgues; lo que se exige es la cota de abajo.
         ModuleHungException error = await Assert.ThrowsAsync<ModuleHungException>(() => call.WaitAsync(TimeSpan.FromSeconds(30)));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"{watch.ElapsedMilliseconds} ms");
+        Assert.True(watch.Elapsed < bound, $"{watch.ElapsedMilliseconds} ms");
         Assert.True(EchoModules.HasExited(pid));
         Assert.Contains("dejó de responder", manager.Jobs.Jobs[0].Error, StringComparison.Ordinal);
         Assert.Contains("dejó de responder", ModuleManager.Friendly(manager.Find("eco-a")!, error), StringComparison.Ordinal);
