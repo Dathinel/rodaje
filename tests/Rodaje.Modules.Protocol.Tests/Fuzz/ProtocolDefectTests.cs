@@ -45,8 +45,8 @@ public sealed class ProtocolDefectTests
                 await Task.Delay(20);
                 Assert.False(host.IsCompleted, $"Ronda {round}: el módulo cortó la conexión sin que el editor cerrara.");
                 editor.Dispose();
-                await FuzzSupport.Capped(host, "RunAsync");
-                await FuzzSupport.Capped(drain, "la lectura");
+                await FuzzSupport.Capped(host, $"RunAsync (ronda {round})");
+                await FuzzSupport.Capped(drain, $"la lectura (ronda {round})");
             }
         }
     }
