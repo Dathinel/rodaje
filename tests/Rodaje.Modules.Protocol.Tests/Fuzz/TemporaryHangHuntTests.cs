@@ -41,11 +41,15 @@ public sealed class TemporaryHangHuntTests
         {
             await burn.CancelAsync();
         }
-        Assert.Fail($"TEMPORAL: {rounds} rondas en {clock.Elapsed.TotalSeconds:0} s sin cuelgue.");
+        Assert.Fail($"TEMPORAL: rondas Dispose {s_roundsDispose} colgadas {s_hangsDispose}, rondas Disconnect {s_roundsDisconnect} colgadas {s_hangsDisconnect}; {rounds} rondas en {clock.Elapsed.TotalSeconds:0} s sin cuelgue.");
     }
+
+    private static int s_hangsDispose, s_hangsDisconnect, s_roundsDispose, s_roundsDisconnect;
 
     private static async Task RoundAsync(int round)
     {
+        bool disconnect = round % 2 == 0;
+        Interlocked.Increment(ref disconnect ? ref s_roundsDisconnect : ref s_roundsDispose);
         (NamedPipeServerStream editor, NamedPipeClientStream module) = await Support.PipePairAsync();
         using (editor)
         using (module)
@@ -63,16 +67,41 @@ public sealed class TemporaryHangHuntTests
             await editor.WriteAsync(burst.ToArray());
             await Task.Delay(20);
             Assert.False(host.IsCompleted, $"Ronda {round}: el módulo cortó la conexión sin que el editor cerrara.");
+            Microsoft.Win32.SafeHandles.SafePipeHandle handle = editor.SafePipeHandle;
+            if (disconnect)
+            {
+                try
+                {
+                    editor.Disconnect();
+                }
+#pragma warning disable CA1031
+                catch (Exception)
+#pragma warning restore CA1031
+                {
+                }
+            }
             editor.Dispose();
+            if (await Task.WhenAny(host, Task.Delay(TimeSpan.FromSeconds(10))) == host) return;
+            int hangs = Interlocked.Increment(ref disconnect ? ref s_hangsDisconnect : ref s_hangsDispose);
+            string chain = PendingAwaits.Describe(host);
+            string drainChain = PendingAwaits.Describe(drain);
+            string write;
             try
             {
-                await FuzzSupport.Capped(host, $"RunAsync (ronda {round})");
+                using CancellationTokenSource limit = new(TimeSpan.FromSeconds(1));
+                await module.WriteAsync(new byte[] { 1 }, limit.Token);
+                write = "la escritura del módulo pasó";
             }
-            catch (TimeoutException ex)
+#pragma warning disable CA1031
+            catch (Exception ex)
+#pragma warning restore CA1031
             {
-                throw new TimeoutException($"{ex.Message}\nLectura del editor:{PendingAwaits.Describe(drain)}", ex);
+                write = $"la escritura del módulo falló: {ex.GetType().Name} 0x{ex.HResult:X8} {ex.Message}";
             }
-            await FuzzSupport.Capped(drain, $"la lectura (ronda {round})");
+            bool after = await Task.WhenAny(host, Task.Delay(TimeSpan.FromSeconds(2))) == host;
+            throw new TimeoutException(
+                $"Colgado ({(disconnect ? "Disconnect+Dispose" : "solo Dispose")}, colgadas {hangs}; rondas Dispose {s_roundsDispose} colgadas {s_hangsDispose}, rondas Disconnect {s_roundsDisconnect} colgadas {s_hangsDisconnect}). " +
+                $"Asa del editor cerrada: {handle.IsClosed}, inválida: {handle.IsInvalid}. {write}. RunAsync terminó tras escribir: {after}.\nRunAsync:{chain}\nLectura del editor:{drainChain}");
         }
     }
 }
