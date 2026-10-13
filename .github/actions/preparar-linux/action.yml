@@ -1,0 +1,20 @@
+name: Preparar Linux
+description: .NET de global.json y caché de NuGet en NUGET_PACKAGES (lo define el trabajo).
+runs:
+  using: composite
+  steps:
+    - name: .NET 10.0.401
+      uses: actions/setup-dotnet@v4
+      with:
+        global-json-file: global.json
+
+    - name: Caché de NuGet
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.NUGET_PACKAGES }}
+        key: nuget-linux-${{ hashFiles('**/packages.lock.json') }}
+        restore-keys: nuget-linux-
+
+    - name: Versión del SDK
+      shell: bash
+      run: dotnet --version

@@ -1,0 +1,123 @@
+# Pasada nocturna de Rodaje: lo que ci.yml deja fuera para no dar falsos rojos en los PR.
+# - TiempoReal y Rendimiento, que miden contra el reloj de pared.
+# - Las largas y de hardware (RODAJE_PRUEBAS_LARGAS=1); las de hardware que el runner no tiene se omiten solas.
+# - En Linux, las de disco lleno de Rodaje.Engine.Tests, que escriben en /dev/full y en Windows se omiten.
+# No bloquea los PR. Un rojo de la corrida programada abre (o comenta) un issue con la etiqueta «nocturna».
+
+name: Nocturna
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nocturna-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+  RODAJE_PRUEBAS_LARGAS: '1'
+
+jobs:
+  linux:
+    name: Linux (largas, TiempoReal, Rendimiento, disco lleno)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/preparar-linux
+
+      - name: Pruebas
+        shell: bash
+        run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows'
+
+      # Rodaje.Engine.Tests es net10.0-windows, pero VoiceOverRecorder y WaveFileWriter son código administrado puro:
+      # compila con EnableWindowsTargeting y corre en Linux. Si las dos pruebas salen omitidas, el paso falla.
+      - name: Disco lleno (/dev/full)
+        shell: bash
+        run: |
+          set -euo pipefail
+          proyecto=tests/Rodaje.Engine.Tests/Rodaje.Engine.Tests.csproj
+          dotnet restore "$proyecto" --locked-mode -p:EnableWindowsTargeting=true
+          dotnet test "$proyecto" --no-restore -p:EnableWindowsTargeting=true \
+            --filter 'FullyQualifiedName~VoiceOverRecorderDiskFullTests' \
+            --logger 'trx;LogFileName=DiscoLleno.trx' --results-directory TestResults
+          trx=$(find TestResults -name DiscoLleno.trx | head -n 1)
+          if ! grep -q 'executed="2"' "$trx" || grep -q 'outcome="NotExecuted"' "$trx"; then
+            echo '::error::Las pruebas de disco lleno no se ejecutaron (omitidas o no encontradas).'
+            exit 1
+          fi
+
+      - name: Resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nocturna-linux
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
+
+  windows:
+    name: Windows (solución completa con largas)
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}\.entorno\nuget
+      DOTNET_ROOT: ${{ github.workspace }}\.entorno\dotnet
+      DOTNET_CLI_HOME: ${{ github.workspace }}\.entorno
+      DOTNET_MULTILEVEL_LOOKUP: '0'
+      DOTNET_CLI_FORCE_UTF8_ENCODING: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/preparar-windows
+
+      # Sin filtro: entran TiempoReal y Rendimiento. VSTEST_CONNECTION_TIMEOUT y --blame-hang, igual que en ci.yml.
+      - name: Pruebas
+        shell: pwsh
+        env:
+          VSTEST_CONNECTION_TIMEOUT: '300'
+        run: |
+          & .entorno\dotnet\dotnet.exe test Rodaje.slnx --no-build --logger trx --results-directory TestResults `
+            --blame-hang-timeout 15m --blame-hang-dump-type none
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nocturna-windows
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
+
+  aviso:
+    name: Aviso de rojo
+    needs: [linux, windows]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Abrir o comentar el issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CORRIDA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh label create nocturna --color B60205 --description 'Rojo de la pasada nocturna' 2>/dev/null || true
+          abierto=$(gh issue list --label nocturna --state open --json number --jq '.[0].number // empty')
+          cuerpo="La pasada nocturna falló: $CORRIDA"
+          if [ -n "$abierto" ]; then
+            gh issue comment "$abierto" --body "$cuerpo"
+          else
+            gh issue create --title 'Pasada nocturna en rojo' --label nocturna --body "$cuerpo"
+          fi

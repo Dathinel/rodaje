@@ -1,7 +1,8 @@
 # Integración continua de Rodaje.
 # - linux: Core, Packages y Playback, que compilan para net10.0 sin Windows.
 # - windows: la solución entera con el entorno propio (.entorno, D-005). Bloquea; sin exclusiones por nombre.
-# Las pruebas largas y de hardware solo corren con RODAJE_PRUEBAS_LARGAS=1, que aquí no se pone.
+# Las pruebas largas y de hardware solo corren con RODAJE_PRUEBAS_LARGAS=1, que aquí no se pone: esas,
+# TiempoReal y Rendimiento las corre nocturna.yml.
 
 name: CI
 
@@ -32,20 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: .NET 10.0.401
-        uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-
-      - name: Caché de NuGet
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.NUGET_PACKAGES }}
-          key: nuget-linux-${{ hashFiles('**/packages.lock.json') }}
-          restore-keys: nuget-linux-
-
-      - name: Versión del SDK
-        run: dotnet --version
+      - uses: ./.github/actions/preparar-linux
 
       # Los lockfiles no dependen del anfitrión ni de «-r win-x64» (NU1004): la solución entera se restaura en
       # Linux con los mismos RID que en Windows, y el módulo de eco igual que lo publica build\app.ps1.
@@ -65,15 +53,7 @@ jobs:
       # reloj de pared y en un runner compartido dan falsos fallos.
       - name: Pruebas
         shell: bash
-        run: |
-          set -euo pipefail
-          for p in Core Packages Playback TestServer; do
-            proyecto="tests/Rodaje.$p.Tests/Rodaje.$p.Tests.csproj"
-            dotnet restore "$proyecto" --locked-mode
-            dotnet test "$proyecto" --no-restore \
-              --filter "Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento" \
-              --logger "trx;LogFilePrefix=$p" --results-directory TestResults
-          done
+        run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento'
 
       - name: Resultados
         if: always()
@@ -96,37 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # El SDK y FFmpeg se guardan por la huella de preparar-entorno.ps1, que fija versiones y hashes.
-      - name: Caché del SDK y FFmpeg
-        uses: actions/cache@v4
-        with:
-          path: |
-            .entorno/dotnet
-            .entorno/ffmpeg
-          key: entorno-windows-${{ hashFiles('build/preparar-entorno.ps1', 'global.json') }}
-
-      - name: Caché de NuGet
-        uses: actions/cache@v4
-        with:
-          path: .entorno/nuget
-          key: nuget-windows-${{ hashFiles('**/packages.lock.json') }}
-          restore-keys: nuget-windows-
-
-      - name: Preparar el entorno
-        shell: pwsh
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1
-
-      - name: Versión del SDK
-        shell: pwsh
-        run: '& .entorno\dotnet\dotnet.exe --version'
-
-      - name: Restaurar
-        shell: pwsh
-        run: '& .entorno\dotnet\dotnet.exe restore Rodaje.slnx --locked-mode'
-
-      - name: Compilar
-        shell: pwsh
-        run: '& .entorno\dotnet\dotnet.exe build Rodaje.slnx --no-restore'
+      - uses: ./.github/actions/preparar-windows
 
       # Sin RODAJE_PRUEBAS_LARGAS las largas y las de hardware se omiten solas (tests/Rodaje.TestMedia/Skip.cs);
       # TiempoReal y Rendimiento se excluyen igual que en Linux. Una prueba colgada se corta a los 10 minutos con su nombre
