@@ -11,14 +11,14 @@ namespace Rodaje.Module.Raw;
 internal static class FrameBatch
 {
     /// <summary>
-    /// Costura para las pruebas: recibe la acción que arranca un hilo de revelado (<see cref="Thread.Start()"/>) y devuelve
-    /// la que se ejecuta en su lugar, en el mismo sitio. Así la prueba ve en qué hilo corre de verdad el arranque (si se
-    /// moviera al pool, su envoltorio correría allí) y puede hacerlo fallar. Es por hilo
-    /// (<see cref="ThreadStaticAttribute"/>): cada prueba ve solo los arranques que hace su propio hilo, y un bucle de
-    /// arranques llevado al pool no la encontraría.
+    /// Costura para las pruebas: si está puesta, recibe cada hilo de revelado sin arrancar y lo arranca ella
+    /// (<see cref="Thread.Start()"/>) en lugar de <c>RunAsync</c>, en el mismo sitio. Así la prueba hace el arranque real y
+    /// ve en qué hilo corre (si se moviera al pool, correría allí), y puede hacerlo fallar. Es por hilo
+    /// (<see cref="ThreadStaticAttribute"/>): cada prueba ve solo los arranques que hace su propio hilo; un arranque llevado
+    /// al pool no la encontraría y la prueba no lo contaría. Fuera de las pruebas es nula y no cambia nada.
     /// </summary>
     [ThreadStatic]
-    internal static Func<Action, Action>? WrapWorkerStartForTests;
+    internal static Action<Thread>? StartWorkerForTests;
 
     /// <summary>
     /// Revela los cuadros 0 a <paramref name="frames"/> − 1 con <paramref name="develop"/>, hasta <paramref name="threads"/>
@@ -78,9 +78,14 @@ internal static class FrameBatch
             try
             {
                 Thread thread = new(Work) { IsBackground = true, Name = "Rodaje: revelado" };
-                Action start = thread.Start;
-                start = WrapWorkerStartForTests?.Invoke(start) ?? start;
-                start();
+                if (StartWorkerForTests is { } startForTests)
+                {
+                    startForTests(thread);
+                }
+                else
+                {
+                    thread.Start();
+                }
             }
             catch (Exception ex) when (w > 0)
             {
