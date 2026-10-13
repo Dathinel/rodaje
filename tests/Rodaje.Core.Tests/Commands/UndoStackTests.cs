@@ -280,6 +280,70 @@ public class UndoStackTests
         Assert.Equal(["apply x", "apply a", "apply b", "revert b", "revert a"], log.Entries);
     }
 
+    /// <summary>
+    /// Los comandos del grupo cancelado quitan la barrera de fusión; cancelar la vuelve a poner, así que el siguiente
+    /// comando es otro paso aunque comparta clave con el último de antes del gesto (semillas 625 y 920 del fuzz).
+    /// </summary>
+    [Fact]
+    public void CancelGroup_PoneLaBarreraDeFusion()
+    {
+        (UndoStack stack, Project project) = NewStack();
+        var log = new CommandLog();
+        stack.Execute(new FakeCommand("a1", log) { MergeKey = "k" });
+        stack.BreakMerge();
+        string afterFirst = ProjectDump.Of(project);
+
+        stack.BeginGroup("Arrastrar");
+        stack.Execute(new FakeCommand("g", log));
+        stack.CancelGroup();
+        stack.Execute(new FakeCommand("a2", log) { MergeKey = "k" });
+
+        Assert.Equal(2, stack.Count);
+        Assert.True(stack.Undo());
+        Assert.Equal(afterFirst, ProjectDump.Of(project));
+        Assert.Equal("a1", stack.UndoDescription);
+    }
+
+    /// <summary>
+    /// Cancelar un gesto deja todo como estaba, también lo que se podía rehacer: la pila de rehacer se vacía al cerrar el
+    /// grupo, no con su primer comando (semilla 6 del fuzz).
+    /// </summary>
+    [Fact]
+    public void CancelGroup_ConservaLoQueSePodiaRehacer()
+    {
+        (UndoStack stack, Project project) = NewStack();
+        var log = new CommandLog();
+        stack.Execute(new FakeCommand("a", log));
+        string afterA = ProjectDump.Of(project);
+        stack.Undo();
+
+        stack.BeginGroup("Arrastrar");
+        stack.Execute(new FakeCommand("b", log));
+        stack.CancelGroup();
+
+        Assert.True(stack.CanRedo);
+        Assert.Equal("a", stack.RedoDescription);
+        Assert.True(stack.Redo());
+        Assert.Equal(afterA, ProjectDump.Of(project));
+    }
+
+    /// <summary>Cerrar un gesto con comandos sí descarta lo que se podía rehacer, como cualquier paso nuevo.</summary>
+    [Fact]
+    public void EndGroup_DescartaLoQueSePodiaRehacer()
+    {
+        (UndoStack stack, _) = NewStack();
+        stack.Execute(new FakeCommand("a"));
+        stack.Undo();
+
+        stack.BeginGroup("Arrastrar");
+        stack.Execute(new FakeCommand("b"));
+        Assert.Equal(1, stack.RedoCount);
+        stack.EndGroup();
+
+        Assert.False(stack.CanRedo);
+        Assert.Equal(1, stack.Count);
+    }
+
     [Fact]
     public void Group_OperacionesNoPermitidas()
     {
