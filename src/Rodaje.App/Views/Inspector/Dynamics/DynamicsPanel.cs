@@ -114,8 +114,9 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         {
             if (!_updating && _sidechains.TryGet(_sidechain.SelectedIndex, out string? key))
             {
-                // Puede quitar «Una pista que ya no está» y rehacer este desplegable: va después del evento.
-                Later(() => Run(e => e.SetSidechain(key)));
+                // Puede quitar «Una pista que ya no está» y rehacer este desplegable: va después del evento, y solo al
+                // compresor que se mostraba al elegir.
+                LaterForChosen(e => e.SetSidechain(key));
             }
         };
         IsVisibleChanged();
@@ -474,6 +475,31 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         }
     }
 
+    /// <summary>
+    /// Hace <paramref name="action"/> después del evento en curso, solo si el panel sigue con el mismo dueño y el mismo clip
+    /// que al elegir: si antes del despacho cambió la selección o el compresor elegido, la elección no se aplica a otro.
+    /// </summary>
+    private void LaterForChosen(Func<DynamicsEditor, bool> action)
+    {
+        if (_chosen is not { } owner)
+        {
+            return;
+        }
+
+        var picked = new DeferredChoice<DynamicsOwner>(owner, _lastClip);
+        Later(() =>
+        {
+            if (picked.StillApplies(_chosen, _lastClip) && _editor2?.Owner == picked.Owner)
+            {
+                Run(action);
+            }
+            else
+            {
+                Refresh();
+            }
+        });
+    }
+
     private void OnPresetChosen()
     {
         if (_updating || !_presets.TryGet(_presetBox.SelectedIndex, out int index) || index == -2)
@@ -482,7 +508,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         }
 
         AudioPreset? preset = index < 0 ? null : AudioPresets.All[index];
-        Later(() => Run(e => preset is null ? e.Remove() : e.ApplyPreset(preset)));
+        LaterForChosen(e => preset is null ? e.Remove() : e.ApplyPreset(preset));
     }
 
     /// <summary>Con la pestaña a la vista, la mezcla publica el medidor del compresor elegido; la escucha solo dura mientras se ve.</summary>
