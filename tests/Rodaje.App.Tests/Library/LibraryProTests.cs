@@ -206,7 +206,9 @@ public sealed class LibraryProTests(ITestOutputHelper output)
         }
     }
 
+    // Mide contra el reloj de pared: en la CI una pausa de la máquina (5,8 s en una vuelta) la tumbaba.
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public void Filtrar_2000_medios_tarda_menos_de_50_ms()
     {
         var org = new LibraryOrganization();
