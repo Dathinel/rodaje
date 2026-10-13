@@ -120,7 +120,8 @@ internal static class FuzzSupport
             await stream.ReadExactlyAsync(payload);
             return payload;
         }
-        catch (Exception ex) when (ex is IOException or EndOfStreamException or ObjectDisposedException or OperationCanceledException)
+        // InvalidOperationException: el editor de la prueba se desconectó (MessageChannel.Close) mientras se leía.
+        catch (Exception ex) when (ex is IOException or EndOfStreamException or ObjectDisposedException or OperationCanceledException or InvalidOperationException)
         {
             return null;
         }

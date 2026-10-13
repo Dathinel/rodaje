@@ -44,7 +44,9 @@ public sealed class ProtocolDefectTests
                 await editor.WriteAsync(burst.ToArray());
                 await Task.Delay(20);
                 Assert.False(host.IsCompleted, $"Ronda {round}: el módulo cortó la conexión sin que el editor cerrara.");
-                editor.Dispose();
+                // Como cierra el editor de verdad (MessageChannel.Close): solo con Dispose, en Windows la lectura del módulo
+                // podía quedar pendiente para siempre (tarea 137, EditorCloseTests).
+                MessageChannel.Close(editor);
                 await FuzzSupport.Capped(host, $"RunAsync (ronda {round})");
                 await FuzzSupport.Capped(drain, $"la lectura (ronda {round})");
             }
@@ -135,7 +137,7 @@ public sealed class ProtocolDefectTests
             byte[]? reply = await FuzzSupport.Capped(FuzzSupport.ReadFrameAsync(editor), "la respuesta a la llamada 1");
             Assert.NotNull(reply);
             Assert.Contains("\"error\"", Encoding.UTF8.GetString(reply), StringComparison.Ordinal);
-            editor.Dispose();
+            MessageChannel.Close(editor);
             await FuzzSupport.Capped(host, "RunAsync");
         }
     }

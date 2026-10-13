@@ -83,7 +83,7 @@ public sealed class HostFuzzTests(ITestOutputHelper output)
                     await Task.Delay(random.Next(1, 60));
                     break;
             }
-            if (ending != Ending.Shutdown) editor.Dispose();
+            if (ending != Ending.Shutdown) MessageChannel.Close(editor); // Como el editor de verdad (tarea 137).
 
             bool clean = await FuzzSupport.Capped(run, "ModuleHost.RunAsync");
             if (clean) Interlocked.Increment(ref tally.Clean);

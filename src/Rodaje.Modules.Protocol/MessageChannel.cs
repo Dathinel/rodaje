@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.IO.Pipes;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -42,6 +43,9 @@ internal sealed class MessageChannel(Stream stream, int maxFrameBytes = Protocol
     /// </summary>
     public bool Broken { get; private set; }
 
+    /// <summary>Se cerró el flujo (<see cref="Dispose"/> o una escritura cortada).</summary>
+    private volatile bool _closed;
+
     /// <summary>Escribe un marco sin plazo de escritura.</summary>
     /// <exception cref="ModuleProtocolException">El mensaje pasa del máximo; no se escribió nada.</exception>
     public ValueTask SendAsync(ModuleMessage message, CancellationToken cancellationToken = default) => SendAsync(message, null, cancellationToken);
@@ -76,11 +80,16 @@ internal sealed class MessageChannel(Stream stream, int maxFrameBytes = Protocol
                 await stream.WriteAsync(frame, token).ConfigureAwait(false);
                 await stream.FlushAsync(token).ConfigureAwait(false);
             }
+            catch (InvalidOperationException ex) when (_closed)
+            {
+                throw Closed(ex);
+            }
             catch (OperationCanceledException ex) when (token.IsCancellationRequested)
             {
                 // El marco pudo quedar a medias: lo que siga en el flujo ya no sería un marco válido.
                 Broken = true;
-                stream.Dispose();
+                _closed = true;
+                Close(stream);
                 if (!cancellationToken.IsCancellationRequested)
                     throw new TimeoutException($"Una escritura no terminó en {writeTimeout!.Value.TotalSeconds:0.#} s: el otro lado no lee.", ex);
                 throw;
@@ -184,7 +193,15 @@ internal sealed class MessageChannel(Stream stream, int maxFrameBytes = Protocol
         int read = 0;
         while (read < buffer.Length)
         {
-            int n = await stream.ReadAsync(buffer[read..], cancellationToken).ConfigureAwait(false);
+            int n;
+            try
+            {
+                n = await stream.ReadAsync(buffer[read..], cancellationToken).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex) when (_closed)
+            {
+                throw Closed(ex);
+            }
             if (n == 0)
             {
                 if (read == 0) return false;
@@ -204,5 +221,42 @@ internal sealed class MessageChannel(Stream stream, int maxFrameBytes = Protocol
     /// tampoco lo retiene para siempre si el otro lado deja de leer: <see cref="ModuleClient"/> escribe con un plazo
     /// (<c>writeTimeout</c>) y con el token del llamador, y al vencer falla y cierra (defecto 5 de <c>ProtocolDefectTests</c>).
     /// </summary>
-    public void Dispose() => stream.Dispose();
+    public void Dispose()
+    {
+        _closed = true;
+        Close(stream);
+    }
+
+    /// <summary>
+    /// Entre <c>Disconnect</c> y <c>Dispose</c> de <see cref="Close(Stream)"/>, una lectura o escritura de otro hilo ve la
+    /// tubería «desconectada» y lanza <see cref="InvalidOperationException"/>; para quien usa el canal es lo mismo que un
+    /// flujo ya cerrado.
+    /// </summary>
+    private static ObjectDisposedException Closed(InvalidOperationException ex) => new("La conexión ya se cerró.", ex);
+
+    /// <summary>
+    /// Cierra un flujo de la conexión. Si es el lado servidor de una tubería con nombre (el editor), primero la desconecta
+    /// (<c>DisconnectNamedPipe</c>). En Windows, solo cerrar el asa con una lectura propia pendiente (el bucle de lectura
+    /// de <see cref="ModuleClient"/>) y datos aún sin leer del otro lado deja a veces la lectura pendiente del módulo sin
+    /// completar nunca: ni datos ni fin de flujo, aunque una escritura del módulo ya falla con «Pipe is broken». El
+    /// módulo no se enteraba del cierre y seguía vivo hasta que lo mataran. Lo cazó la CI de Windows (tarea 137): con la
+    /// CPU llena, en 2 de cada 9 rondas de <c>Cancel_racing_the_end_of_a_call_does_not_close_the_connection</c> solo con
+    /// <c>Dispose</c>, y en ninguna desconectando antes. Desconectar descarta lo que el módulo no leyó y le completa la
+    /// lectura con fin de flujo.
+    /// </summary>
+    internal static void Close(Stream stream)
+    {
+        if (stream is NamedPipeServerStream { IsConnected: true } server)
+        {
+            try
+            {
+                server.Disconnect();
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or ObjectDisposedException)
+            {
+                // Ya se había cortado o cerrado: basta con desechar.
+            }
+        }
+        stream.Dispose();
+    }
 }
