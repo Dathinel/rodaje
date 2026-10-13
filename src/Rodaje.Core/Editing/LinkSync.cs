@@ -77,10 +77,31 @@ public static class LinkSync
 
     /// <summary>
     /// Material de <paramref name="clip"/> menos material de <paramref name="reference"/> en un mismo instante de la
-    /// línea de tiempo, o <c>null</c> si no se pueden comparar (velocidades que mueven distinto el origen, cuadro congelado, o
-    /// curva o reversa en otro lugar).
+    /// línea de tiempo, o <c>null</c> si no se pueden comparar (velocidades que mueven distinto el origen o cuadro
+    /// congelado). Hacia adelante y en reversa, a velocidad constante o con la misma curva en la misma fase, el desfase es
+    /// exacto; con la misma curva en otra fase cambia a lo largo del clip y se da el mayor de los dos extremos del tramo
+    /// común.
     /// </summary>
     public static Time? OffsetBetween(Clip reference, Clip clip)
+    {
+        if (Relate(reference, clip) is not { } relation)
+        {
+            return null;
+        }
+
+        return relation.Phase == Time.Zero ? relation.Offset : OffsetAtKnots(reference.Speed!, relation);
+    }
+
+    /// <summary>
+    /// La relación entre los mapeos de dos enlazados, que recortar y dividir no cambian: el desfase y, con curva, la
+    /// diferencia de fase (<c>Offset − Start</c>). A velocidad constante la fase entra en el desfase y vale cero.
+    /// </summary>
+    internal readonly record struct Relation(Time Offset, Time Phase)
+    {
+        public bool InSync => Offset == Time.Zero && Phase == Time.Zero;
+    }
+
+    private static Relation? Relate(Clip reference, Clip clip)
     {
         ArgumentNullException.ThrowIfNull(reference);
         ArgumentNullException.ThrowIfNull(clip);
@@ -98,42 +119,139 @@ public static class LinkSync
 
         if (plain)
         {
-            return (clip.SourceIn - clip.Start) - (reference.SourceIn - reference.Start);
+            return new Relation((clip.SourceIn - clip.Start) - (reference.SourceIn - reference.Start), Time.Zero);
         }
 
-        // Con curva el Offset es la posición en la curva, y en reversa el origen se ancla en SourceOut: solo se reconoce el
-        // par idéntico en lo que mueve el origen.
-        if (referenceSpeed!.Curve is not null || referenceSpeed.Reverse)
+        if (referenceSpeed!.Curve is { } curve && RetimeMath.CurveProblem(curve) is not null)
         {
-            bool sameAnchor = referenceSpeed.Reverse ? clip.SourceOut == reference.SourceOut : clip.SourceIn == reference.SourceIn;
-            return clip.Start == reference.Start && sameAnchor && clipSpeed!.Offset == referenceSpeed.Offset ? Time.Zero : null;
+            return null;
         }
 
-        // Con la misma velocidad constante el desfase es exacto: el clip muestra SourceIn + ⌊I(Offset + τ)⌋ − ⌊I(Offset)⌋,
-        // así que se restan las entradas sin la base de cada una y lo que recorre el origen entre los dos inicios, medido en
-        // el mapeo (medir un instante con el mapeo arrastra el redondeo de cada clip). Con el mismo Offset, la base se anula.
+        // Con p(τ) = ⌊I(Offset + τ)⌋ − ⌊I(Offset)⌋ y τ = t − Start, el clip muestra A + ⌊I(t + φ)⌋ hacia adelante, con
+        // A = SourceIn − ⌊I(Offset)⌋, y A − 1 − ⌊I(t + φ)⌋ en reversa, con A = SourceOut + ⌊I(Offset)⌋; φ = Offset − Start.
+        // Recortar y dividir conservan A y φ (es lo que pide ClipTimeMap.SameCourse), así que se comparan esos dos.
+        RetimeMath math = RetimeMath.Of(referenceSpeed);
+        bool reverse = referenceSpeed.Reverse;
+        Int128 anchors = reverse
+            ? ((Int128)clip.SourceOut.Ticks + math.Floor(clipSpeed!.Offset.Ticks)) - ((Int128)reference.SourceOut.Ticks + math.Floor(referenceSpeed.Offset.Ticks))
+            : ((Int128)clip.SourceIn.Ticks - math.Floor(clipSpeed!.Offset.Ticks)) - ((Int128)reference.SourceIn.Ticks - math.Floor(referenceSpeed.Offset.Ticks));
+        Int128 phase = ((Int128)clipSpeed.Offset.Ticks - clip.Start.Ticks) - ((Int128)referenceSpeed.Offset.Ticks - reference.Start.Ticks);
+        if (referenceSpeed.Curve is not null)
+        {
+            // Con la misma fase los dos recorren la curva a la par y el desfase es A_clip − A_ref en todo instante.
+            return new Relation(Time.FromTicks((long)anchors), Time.FromTicks((long)phase));
+        }
+
+        // A velocidad constante r, ⌊r(t + φ_clip)⌋ − ⌊r(t + φ_ref)⌋ vale ⌊r·Δφ⌋ o ⌈r·Δφ⌉ según el instante: se toma r·Δφ
+        // truncado (exacto si es entero, y antisimétrico al cambiar de referencia). En reversa el origen corre hacia atrás,
+        // así que lo recorrido se resta.
         Rational rate = referenceSpeed.Rate;
-        RetimeMath math = RetimeMath.Constant(rate);
-        long bases = math.Floor(clipSpeed!.Offset.Ticks) - math.Floor(referenceSpeed.Offset.Ticks);
-        Int128 mapped = (Int128)(clip.Start - reference.Start).Ticks - (clipSpeed.Offset - referenceSpeed.Offset).Ticks;
-        Int128 travelled = mapped * rate.Num / rate.Den;
-        return Time.FromTicks((long)((Int128)(clip.SourceIn - reference.SourceIn).Ticks - bases - travelled));
+        Int128 travelled = phase * rate.Num / rate.Den;
+        return new Relation(Time.FromTicks((long)(reverse ? anchors - travelled : anchors + travelled)), Time.Zero);
     }
 
-    /// <summary>Los desfases de ahora, sin signo (cuál mide a cuál depende del orden de las pistas).</summary>
-    internal static HashSet<Time> Snapshot(Sequence sequence) =>
-        [.. Find(sequence).Select(o => o.Offset < Time.Zero ? -o.Offset : o.Offset)];
-
-    /// <summary>Falla si la edición dejó un desfase que no estaba (la edición se deshace entera).</summary>
-    internal static void EnsureNoNewDesync(Sequence sequence, HashSet<Time> before, string action)
+    /// <summary>
+    /// Dos enlazados con la misma curva en distinta fase: el desfase cambia a lo largo del clip. Se mide con el recorrido de
+    /// cada uno (<c>A + ⌊I(t + φ)⌋</c>, también fuera del clip) en los instantes en que alguno pasa por un nudo de la curva
+    /// y se da el de mayor tamaño (el primero si empatan). Así no depende de dónde estén recortados, cambia solo de signo
+    /// al invertir el par y no se anula aunque los dos empiecen en el mismo cuadro; <c>null</c> si esos instantes salen
+    /// del rango del mapeo.
+    /// </summary>
+    private static Time? OffsetAtKnots(ClipSpeed speed, Relation relation)
     {
-        foreach (SyncOffset offset in Find(sequence))
+        RetimeMath math = RetimeMath.Of(speed);
+        SpeedCurve curve = speed.Curve!;
+        Int128 phase = relation.Phase.Ticks;
+        Int128 best = 0;
+        Int128 bestAt = Int128.MaxValue;
+        foreach (SpeedPoint point in curve.Points)
         {
-            Time size = offset.Offset < Time.Zero ? -offset.Offset : offset.Offset;
-            if (!before.Contains(size))
+            long knot = (long)((Int128)point.At * curve.Span.Ticks / SpeedCurve.AtScale);
+            // Argumento de la referencia en el instante en que ella (fase 0) o el clip (fase φ) pasan por el nudo.
+            foreach (Int128 atReference in (Int128[])[knot, knot - phase])
             {
-                throw new EditException($"{action} desincronizaría «{offset.ClipId}» de su enlazado «{offset.PartnerId}»: hazlo sin ripple o con todas las pistas.");
+                Int128 atClip = atReference + phase;
+                if (Int128.Abs(atReference) > RetimeMath.MaxArgument || Int128.Abs(atClip) > RetimeMath.MaxArgument)
+                {
+                    return null;
+                }
+
+                Int128 travelled = (Int128)math.Floor((long)atClip) - math.Floor((long)atReference);
+                Int128 value = relation.Offset.Ticks + (speed.Reverse ? -travelled : travelled);
+                if (Int128.Abs(value) > Int128.Abs(best) || (Int128.Abs(value) == Int128.Abs(best) && atReference < bestAt))
+                {
+                    best = value;
+                    bestAt = atReference;
+                }
             }
+        }
+
+        return Time.FromTicks((long)best);
+    }
+
+    /// <summary>
+    /// Cada par de enlazados del mismo medio una sola vez, con el de menor <see cref="Clip.Id"/> como referencia (así el
+    /// signo no depende del orden de las pistas).
+    /// </summary>
+    private static IEnumerable<(Clip Reference, Clip Clip)> Pairs(Sequence sequence)
+    {
+        foreach (IGrouping<(string, string), Clip> same in sequence.VideoTracks.Concat(sequence.AudioTracks)
+            .SelectMany(t => t.Clips)
+            .Where(c => c.LinkId is not null && c.Generator is null && !c.IsCompound)
+            .GroupBy(c => (c.LinkId!, c.MediaId)))
+        {
+            Clip[] members = [.. same.OrderBy(c => c.Id, StringComparer.Ordinal)];
+            for (int i = 0; i < members.Length; i++)
+            {
+                for (int j = i + 1; j < members.Length; j++)
+                {
+                    yield return (members[i], members[j]);
+                }
+            }
+        }
+    }
+
+    /// <summary>La relación de cada par de enlazados que se puede medir, por los ids del par.</summary>
+    internal sealed class SyncSnapshot
+    {
+        internal SyncSnapshot(Dictionary<(string, string), Relation> pairs) => PairRelations = pairs;
+
+        internal Dictionary<(string, string), Relation> PairRelations { get; }
+    }
+
+    /// <summary>Cómo está cada par de enlazados ahora: lo que <see cref="EnsureNoNewDesync"/> compara después.</summary>
+    internal static SyncSnapshot Snapshot(Sequence sequence)
+    {
+        ArgumentNullException.ThrowIfNull(sequence);
+        var pairs = new Dictionary<(string, string), Relation>();
+        foreach ((Clip reference, Clip clip) in Pairs(sequence))
+        {
+            if (Relate(reference, clip) is { } relation)
+            {
+                pairs[(reference.Id, clip.Id)] = relation;
+            }
+        }
+
+        return new SyncSnapshot(pairs);
+    }
+
+    /// <summary>
+    /// Falla si la edición dejó desfasado un par que no lo estaba, o desfasado de otra manera (la edición se deshace
+    /// entera). Se compara par a par: un desfase nuevo del mismo tamaño que el de otro par ya no pasa.
+    /// </summary>
+    internal static void EnsureNoNewDesync(Sequence sequence, SyncSnapshot before, string action)
+    {
+        ArgumentNullException.ThrowIfNull(sequence);
+        ArgumentNullException.ThrowIfNull(before);
+        foreach ((Clip reference, Clip clip) in Pairs(sequence))
+        {
+            if (Relate(reference, clip) is not { InSync: false } relation
+                || (before.PairRelations.TryGetValue((reference.Id, clip.Id), out Relation previous) && previous == relation))
+            {
+                continue;
+            }
+
+            throw new EditException($"{action} desincronizaría «{clip.Id}» de su enlazado «{reference.Id}»: hazlo sin ripple o con todas las pistas.");
         }
     }
 
