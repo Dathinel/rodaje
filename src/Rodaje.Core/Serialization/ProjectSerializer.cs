@@ -50,7 +50,7 @@ public static class ProjectSerializer
     /// y comprueba sus reglas con <see cref="ModelValidator"/>.
     /// </summary>
     /// <exception cref="ProjectFormatException">Si el texto no es un proyecto válido; el mensaje lo explica.</exception>
-    public static Project Deserialize(string json) => Deserialize(json, ModelValidator.Validate, out _);
+    public static Project Deserialize(string json) => Deserialize(json, ModelValidator.Validate, out ClampSummary _);
 
     /// <summary>
     /// Igual que <see cref="Deserialize(string)"/>; además dice cuántos valores de la v1.0.0 fuera de rango se acotaron
@@ -59,15 +59,27 @@ public static class ProjectSerializer
     /// memoria ya no es igual al archivo: quien lo abre debe avisarlo y tratarlo como modificado.
     /// </summary>
     /// <exception cref="ProjectFormatException">Si el texto no es un proyecto válido; el mensaje lo explica.</exception>
-    public static Project Deserialize(string json, out int clampedValues) => Deserialize(json, ModelValidator.Validate, out clampedValues);
+    public static Project Deserialize(string json, out int clampedValues)
+    {
+        Project project = Deserialize(json, ModelValidator.Validate, out ClampSummary clamped);
+        clampedValues = clamped.Total;
+        return project;
+    }
+
+    /// <summary>
+    /// Igual que <see cref="Deserialize(string, out int)"/>, pero dice qué se acotó por clase (tasas, clips recortados,
+    /// clips quitados y valores) para que el aviso lo cuente.
+    /// </summary>
+    /// <exception cref="ProjectFormatException">Si el texto no es un proyecto válido; el mensaje lo explica.</exception>
+    public static Project Deserialize(string json, out ClampSummary clamped) => Deserialize(json, ModelValidator.Validate, out clamped);
 
     /// <summary>Igual que <see cref="Deserialize(string)"/> con el validador inyectable, para las pruebas.</summary>
-    internal static Project Deserialize(string json, Func<Project, IReadOnlyList<string>> validate) => Deserialize(json, validate, out _);
+    internal static Project Deserialize(string json, Func<Project, IReadOnlyList<string>> validate) => Deserialize(json, validate, out ClampSummary _);
 
-    private static Project Deserialize(string json, Func<Project, IReadOnlyList<string>> validate, out int clampedValues)
+    private static Project Deserialize(string json, Func<Project, IReadOnlyList<string>> validate, out ClampSummary clamped)
     {
         ArgumentNullException.ThrowIfNull(json);
-        clampedValues = 0;
+        clamped = ClampSummary.None;
 
         JsonObject root = ParseRoot(json);
         ProjectMigrator.Default.Migrate(root);
@@ -111,7 +123,9 @@ public static class ProjectSerializer
             {
                 // Lo que la v1.0.0 guardaba sin límite (posición, ancla, giro, tasa de la secuencia, clips más allá del
                 // final) se acota al abrir en vez de rechazarse.
-                clampedValues = Rodaje.Core.Effects.ParameterLimits.Normalize(project!) + TimelineLimits.Normalize(project!);
+                int values = Rodaje.Core.Effects.ParameterLimits.Normalize(project!);
+                (int rates, int trimmed, List<Clip> removed) = TimelineLimits.NormalizeByKind(project!);
+                clamped = new ClampSummary(rates, trimmed, removed, values);
                 problems = validate(project!);
             }
         }
@@ -211,7 +225,7 @@ public static class ProjectSerializer
     /// <summary>Abre un proyecto desde disco.</summary>
     /// <exception cref="ProjectFormatException">Si el archivo no es un proyecto válido.</exception>
     /// <exception cref="IOException">Si el archivo no existe o no se puede leer.</exception>
-    public static Project Load(string path) => Load(path, out _);
+    public static Project Load(string path) => Load(path, out ClampSummary _);
 
     /// <summary>
     /// Abre un proyecto desde disco y dice cuántos valores fuera de rango se acotaron al leerlo (ver
@@ -221,8 +235,21 @@ public static class ProjectSerializer
     /// <exception cref="IOException">Si el archivo no existe o no se puede leer.</exception>
     public static Project Load(string path, out int clampedValues)
     {
+        Project project = Load(path, out ClampSummary clamped);
+        clampedValues = clamped.Total;
+        return project;
+    }
+
+    /// <summary>
+    /// Abre un proyecto desde disco y dice qué se acotó al leerlo, por clase (ver
+    /// <see cref="Deserialize(string, out ClampSummary)"/>).
+    /// </summary>
+    /// <exception cref="ProjectFormatException">Si el archivo no es un proyecto válido.</exception>
+    /// <exception cref="IOException">Si el archivo no existe o no se puede leer.</exception>
+    public static Project Load(string path, out ClampSummary clamped)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        clampedValues = 0;
+        clamped = ClampSummary.None;
 
         string json;
         try
@@ -238,7 +265,7 @@ public static class ProjectSerializer
 
         try
         {
-            return Deserialize(json, out clampedValues);
+            return Deserialize(json, out clamped);
         }
         catch (ProjectFormatException ex)
         {

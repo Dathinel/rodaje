@@ -1,4 +1,5 @@
 using Rodaje.App.Services.Settings;
+using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -58,14 +59,14 @@ public sealed partial class EditorSession
 
         BeginBusy();
         Project loaded;
-        int clamped;
+        ClampSummary clamped;
         try
         {
             (loaded, clamped) = await Task.Run(() =>
             {
-                Project project = ProjectSerializer.Load(full, out int count);
+                Project project = ProjectSerializer.Load(full, out ClampSummary summary);
                 ProjectPaths.MakeAbsolute(project, Path.GetDirectoryName(full)!);
-                return (project, count);
+                return (project, summary);
             });
         }
         catch (Exception ex) when (ex is ProjectFormatException or IOException or UnauthorizedAccessException or ArgumentException)
@@ -86,23 +87,61 @@ public sealed partial class EditorSession
         }
 
         // Un proyecto de la v1.0.0 con valores más allá del límite de hoy (posición, ancla, giro, tasa, clips tras el final)
-        // se acota al leerlo. Antes era en
-        // silencio y el proyecto quedaba «Guardado» aunque ya no era igual al archivo: ahora se avisa y queda con cambios.
-        ReplaceProject(loaded, first.Id, full, "Proyecto abierto", unsaved: clamped > 0);
-        if (clamped > 0)
+        // se acota al leerlo. Antes era en silencio y el proyecto quedaba «Guardado» aunque ya no era igual al archivo:
+        // ahora queda con cambios y el aviso dice qué se acotó y cuánto de cada clase.
+        ReplaceProject(loaded, first.Id, full, "Proyecto abierto", unsaved: clamped.Total > 0);
+        if (clamped.Total > 0)
         {
-            Notify(NotificationSeverity.Warning, "Se ajustaron valores fuera de rango", ClampedNotice(clamped));
+            Notify(NotificationSeverity.Warning, "Se ajustaron valores fuera de rango", ClampedNotice(loaded, clamped));
         }
 
         return true;
     }
 
-    /// <summary>El aviso de una línea al abrir un proyecto con valores acotados.</summary>
-    internal static string ClampedNotice(int count) =>
-        (count == 1
-            ? "Un valor (posición, ancla, giro, tasa de cuadros o un clip más allá del final) estaba fuera del rango y se acotó al límite"
-            : $"{count} valores (posición, ancla, giro, tasa de cuadros o clips más allá del final) estaban fuera del rango y se acotaron al límite") +
-        "; guarda el proyecto para conservar el cambio.";
+    /// <summary>
+    /// El aviso de una línea al abrir un proyecto con valores acotados: qué clase se acotó y cuántos de cada una (tasas de
+    /// secuencia, clips recortados, clips quitados y valores de efecto). Un único clip quitado se nombra, porque desaparece
+    /// de la línea de tiempo; <paramref name="project"/> es el proyecto ya abierto, donde siguen su medio o su compuesto.
+    /// </summary>
+    internal static string ClampedNotice(Project project, ClampSummary clamped)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(clamped);
+        var parts = new List<string>(4);
+        if (clamped.FrameRates > 0)
+        {
+            parts.Add(clamped.FrameRates == 1
+                ? $"la tasa de cuadros de 1 secuencia se llevó al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps"
+                : $"las tasas de cuadros de {clamped.FrameRates} secuencias se llevaron al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps");
+        }
+
+        if (clamped.TrimmedClips > 0)
+        {
+            parts.Add(clamped.TrimmedClips == 1
+                ? "1 clip que pasaba del final de la línea de tiempo se recortó"
+                : $"{clamped.TrimmedClips} clips que pasaban del final de la línea de tiempo se recortaron");
+        }
+
+        if (clamped.RemovedClips.Count > 0)
+        {
+            string name = clamped.RemovedClips.Count == 1 ? ClipLabels.Name(project, clamped.RemovedClips[0]) : "";
+            parts.Add(clamped.RemovedClips.Count > 1
+                ? $"{clamped.RemovedClips.Count} clips que pasaban del final de la línea de tiempo se quitaron"
+                : name.Length > 0
+                    ? $"el clip «{name}», que pasaba del final de la línea de tiempo, se quitó"
+                    : "1 clip que pasaba del final de la línea de tiempo se quitó");
+        }
+
+        if (clamped.Values > 0)
+        {
+            parts.Add(clamped.Values == 1
+                ? "1 valor de efecto (posición, ancla o giro) se acotó al límite"
+                : $"{clamped.Values} valores de efecto (posición, ancla o giro) se acotaron al límite");
+        }
+
+        string list = parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + " y " + parts[^1];
+        return "Al abrir, " + list + ". Guarda el proyecto para conservar el cambio.";
+    }
 
     /// <summary>Guarda en el archivo del proyecto; si nunca se guardó, pregunta dónde.</summary>
     public Task<bool> SaveAsync() => FilePath is { } path ? SaveToAsync(path) : SaveAsAsync();
