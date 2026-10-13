@@ -24,6 +24,9 @@ public sealed partial class LibraryOrganization
     public const int MaxNameLength = 80;
 
     private readonly List<LibraryFolder> _folders = [];
+
+    /// <summary>Índice de <see cref="_folders"/> por id: buscar en la lista hacía cúbica la carga de un archivo con miles de carpetas.</summary>
+    private readonly Dictionary<string, LibraryFolder> _byId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _mediaFolders = new(StringComparer.Ordinal);
     private readonly HashSet<string> _favorites = new(StringComparer.Ordinal);
 
@@ -37,8 +40,16 @@ public sealed partial class LibraryOrganization
     /// <summary>Sube con cada cambio; la vista lo usa para saber si hay que guardar.</summary>
     public int Revision { get; private set; }
 
-    public LibraryFolder? FindFolder(string? folderId) =>
-        folderId is null ? null : _folders.Find(f => f.Id == folderId);
+    public LibraryFolder? FindFolder(string? folderId)
+    {
+        if (folderId is null)
+        {
+            return null;
+        }
+
+        // El id de una carpeta tiene setter: si alguien lo cambió, el índice ya no lo encuentra y se busca en la lista.
+        return _byId.TryGetValue(folderId, out LibraryFolder? folder) && folder.Id == folderId ? folder : _folders.Find(f => f.Id == folderId);
+    }
 
     /// <summary>Las carpetas que cuelgan directamente de <paramref name="parentId"/>, por nombre.</summary>
     public IReadOnlyList<LibraryFolder> Children(string? parentId)
@@ -62,19 +73,54 @@ public sealed partial class LibraryOrganization
     }
 
     /// <summary>Todas las carpetas en orden de árbol, con su profundidad (0 en la raíz), para el menú «Mover a».</summary>
+    /// <remarks>
+    /// Agrupa los hijos una sola vez y recorre sin recursión: pedir los hijos de cada carpeta era cuadrático y una cadena
+    /// de miles de carpetas anidadas (un archivo dañado) desbordaba la pila del hilo de la interfaz.
+    /// </remarks>
     public IReadOnlyList<(LibraryFolder Folder, int Depth)> Tree()
     {
-        var result = new List<(LibraryFolder, int)>();
-        void Walk(string? parent, int depth)
+        var root = new List<LibraryFolder>();
+        var children = new Dictionary<string, List<LibraryFolder>>(StringComparer.Ordinal);
+        foreach (LibraryFolder folder in _folders)
         {
-            foreach (LibraryFolder folder in Children(parent))
+            if (ParentOf(folder) is { } parent)
             {
-                result.Add((folder, depth));
-                Walk(folder.Id, depth + 1);
+                if (!children.TryGetValue(parent, out List<LibraryFolder>? list))
+                {
+                    children[parent] = list = [];
+                }
+
+                list.Add(folder);
+            }
+            else
+            {
+                root.Add(folder);
             }
         }
 
-        Walk(null, 0);
+        // El mismo orden que Children: por nombre sin tildes ni mayúsculas y luego por id.
+        static List<LibraryFolder> Sorted(List<LibraryFolder> list) =>
+            [.. list.OrderBy(f => SearchText.Fold(f.Name), StringComparer.Ordinal).ThenBy(f => f.Id, StringComparer.Ordinal)];
+
+        var result = new List<(LibraryFolder, int)>();
+        var stack = new Stack<(LibraryFolder Folder, int Depth)>();
+        foreach (LibraryFolder folder in Enumerable.Reverse(Sorted(root)))
+        {
+            stack.Push((folder, 0));
+        }
+
+        while (stack.TryPop(out (LibraryFolder Folder, int Depth) item))
+        {
+            result.Add(item);
+            if (children.TryGetValue(item.Folder.Id, out List<LibraryFolder>? list))
+            {
+                foreach (LibraryFolder child in Enumerable.Reverse(Sorted(list)))
+                {
+                    stack.Push((child, item.Depth + 1));
+                }
+            }
+        }
+
         return result;
     }
 
@@ -94,7 +140,7 @@ public sealed partial class LibraryOrganization
         }
 
         var folder = new LibraryFolder { Id = NewId(), Name = unique, ParentId = parent };
-        _folders.Add(folder);
+        AddFolder(folder);
         Revision++;
         return folder;
     }
@@ -158,6 +204,7 @@ public sealed partial class LibraryOrganization
         }
 
         _folders.Remove(folder);
+        _byId.Remove(folder.Id);
         Revision++;
         return true;
     }
@@ -247,20 +294,20 @@ public sealed partial class LibraryOrganization
 
     /// <summary>Arma la organización desde lo leído del disco, descartando lo que no tiene sentido.</summary>
     /// <remarks>
-    /// Se descartan carpetas sin id o repetidas; un padre que no existe o que forma un ciclo pasa a la raíz, y los nombres
-    /// vacíos o repetidos al lado reciben uno libre.
+    /// Se descartan carpetas sin id o repetidas; un padre que no existe pasa a la raíz, igual que la primera carpeta de un
+    /// ciclo, y los nombres vacíos o repetidos al lado reciben uno libre.
     /// </remarks>
     public static LibraryOrganization From(IEnumerable<LibraryFolder>? folders, IReadOnlyDictionary<string, string>? mediaFolders, IEnumerable<string>? favorites)
     {
         var organization = new LibraryOrganization();
         foreach (LibraryFolder folder in folders ?? [])
         {
-            if (folder is null || string.IsNullOrWhiteSpace(folder.Id) || organization.FindFolder(folder.Id) is not null)
+            if (folder is null || string.IsNullOrWhiteSpace(folder.Id) || organization._byId.ContainsKey(folder.Id))
             {
                 continue;
             }
 
-            organization._folders.Add(new LibraryFolder { Id = folder.Id, Name = Clean(folder.Name), ParentId = folder.ParentId });
+            organization.AddFolder(new LibraryFolder { Id = folder.Id, Name = Clean(folder.Name), ParentId = folder.ParentId });
         }
 
         foreach (LibraryFolder folder in organization._folders)
@@ -271,25 +318,8 @@ public sealed partial class LibraryOrganization
             }
         }
 
-        // Un ciclo (a dentro de b y b dentro de a) no tiene raíz: la carpeta donde se detecta sube a la raíz.
-        foreach (LibraryFolder folder in organization._folders)
-        {
-            var seen = new HashSet<string>(StringComparer.Ordinal) { folder.Id };
-            for (LibraryFolder? up = organization.FindFolder(folder.ParentId); up is not null; up = organization.FindFolder(up.ParentId))
-            {
-                if (!seen.Add(up.Id))
-                {
-                    folder.ParentId = null;
-                    break;
-                }
-            }
-        }
-
-        foreach (LibraryFolder folder in organization._folders)
-        {
-            string name = folder.Name.Length == 0 ? DefaultFolderName : folder.Name;
-            folder.Name = organization.FreeName(folder.ParentId, name, folder.Id);
-        }
+        organization.BreakCycles();
+        organization.AssignFreeNames();
 
         foreach ((string mediaId, string folderId) in mediaFolders ?? new Dictionary<string, string>())
         {
@@ -319,6 +349,104 @@ public sealed partial class LibraryOrganization
     }
 
     private string? ParentOf(LibraryFolder folder) => FindFolder(folder.ParentId)?.Id;
+
+    private void AddFolder(LibraryFolder folder)
+    {
+        _folders.Add(folder);
+        _byId[folder.Id] = folder;
+    }
+
+    /// <summary>
+    /// Un ciclo (a dentro de b y b dentro de a) no tiene raíz: la primera de sus carpetas en el orden del archivo sube a la
+    /// raíz y las demás, y las que colgaban del ciclo, quedan donde estaban. Cada carpeta se recorre una sola vez: subir por
+    /// la cadena desde cada carpeta era cúbico con miles de carpetas encadenadas (la app se colgaba al abrir el proyecto).
+    /// </summary>
+    private void BreakCycles()
+    {
+        var order = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (int i = 0; i < _folders.Count; i++)
+        {
+            order[_folders[i].Id] = i;
+        }
+
+        // 1: en el camino que se está recorriendo; 2: ya se sabe que llega a la raíz.
+        var state = new Dictionary<string, int>(StringComparer.Ordinal);
+        var path = new List<LibraryFolder>();
+        foreach (LibraryFolder start in _folders)
+        {
+            path.Clear();
+            LibraryFolder? up = start;
+            while (up is not null && !state.ContainsKey(up.Id))
+            {
+                state[up.Id] = 1;
+                path.Add(up);
+                up = FindFolder(up.ParentId);
+            }
+
+            if (up is not null && state[up.Id] == 1)
+            {
+                // Cerró un ciclo: desde «up» hasta el final del camino.
+                int first = path.FindIndex(f => f.Id == up.Id);
+                LibraryFolder cut = path.Skip(first).MinBy(f => order[f.Id])!;
+                cut.ParentId = null;
+            }
+
+            foreach (LibraryFolder folder in path)
+            {
+                state[folder.Id] = 2;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Nombres vacíos o repetidos al lado reciben uno libre, en orden y comparando con el nombre actual de las demás (como
+    /// <see cref="FreeName"/>), pero con un recuento por carpeta en vez de recorrer todas las carpetas por cada intento.
+    /// </summary>
+    private void AssignFreeNames()
+    {
+        var taken = new Dictionary<(string? Parent, string Folded), int>();
+        foreach (LibraryFolder folder in _folders)
+        {
+            Count(taken, (folder.ParentId, SearchText.Fold(folder.Name)), +1);
+        }
+
+        var nextNumber = new Dictionary<(string? Parent, string Base), int>();
+        foreach (LibraryFolder folder in _folders)
+        {
+            Count(taken, (folder.ParentId, SearchText.Fold(folder.Name)), -1);
+            string name = folder.Name.Length == 0 ? DefaultFolderName : folder.Name;
+            string unique = name;
+            if (taken.ContainsKey((folder.ParentId, SearchText.Fold(unique))))
+            {
+                // Se sigue desde el último número que se dio a este nombre aquí: cien mil carpetas iguales no son cuadráticas.
+                int n = nextNumber.GetValueOrDefault((folder.ParentId, name), 2);
+                do
+                {
+                    unique = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{name} {n}");
+                    n++;
+                }
+                while (taken.ContainsKey((folder.ParentId, SearchText.Fold(unique))));
+
+                nextNumber[(folder.ParentId, name)] = n;
+            }
+
+            folder.Name = unique;
+            Count(taken, (folder.ParentId, SearchText.Fold(unique)), +1);
+        }
+
+        static void Count(Dictionary<(string?, string), int> counts, (string?, string) key, int delta)
+        {
+            int value = counts.GetValueOrDefault(key) + delta;
+            if (value > 0)
+            {
+                counts[key] = value;
+            }
+            else
+            {
+                counts.Remove(key);
+            }
+        }
+    }
 
     private void SetFolder(string mediaId, string? folderId)
     {
