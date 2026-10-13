@@ -258,20 +258,30 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
         (await first).Dispose();
         using var cancel = new CancellationTokenSource();
         // Hilo propio y no del pool: con el runner cargado, Task.Run tardaba más de 1 s en empezar y la prueba medía la
-        // espera del pool, no la cancelación. El tiempo se cuenta desde que se cancela.
+        // espera del pool, no la cancelación. Por lo mismo, el tiempo va de cancelar a que Render sale en ese hilo: la
+        // continuación del await espera a un hilo libre de xUnit, y en la CI cargada eso sumó casi 2 s.
         using var started = new ManualResetEventSlim();
+        long returnedAt = 0;
         Task<CompositionFrame> stuck = Task.Factory.StartNew(() =>
         {
             started.Set();
-            return offline.Render(200, cancel.Token);
+            try
+            {
+                return offline.Render(200, cancel.Token);
+            }
+            finally
+            {
+                Volatile.Write(ref returnedAt, Stopwatch.GetTimestamp());
+            }
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         Assert.True(started.Wait(TimeSpan.FromSeconds(30)), "El hilo del render no arrancó.");
         Thread.Sleep(100);
         Assert.False(stuck.IsCompleted);
-        var watch = Stopwatch.StartNew();
+        long cancelledAt = Stopwatch.GetTimestamp();
         cancel.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stuck.WaitAsync(TimeSpan.FromSeconds(30)));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), $"Tardó {watch.Elapsed.TotalMilliseconds:0} ms desde cancelar.");
+        TimeSpan latency = Stopwatch.GetElapsedTime(cancelledAt, Volatile.Read(ref returnedAt));
+        Assert.True(latency < TimeSpan.FromSeconds(1), $"Tardó {latency.TotalMilliseconds:0} ms desde cancelar.");
 
         offline.Dispose();
         Assert.Equal(0, backend.Live.Value);

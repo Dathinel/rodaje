@@ -308,7 +308,7 @@ public sealed class SafeZonesHostileTests(ITestOutputHelper output)
     /// zonas pegadas al borde. Lo que debería pasar: el escritor da un archivo que su lector acepta (por ejemplo,
     /// redondeando x + ancho y no el ancho, o sin redondear).
     /// </summary>
-    [Fact(Skip = "Defecto: WriteSafeZones redondea x y ancho por separado y escribe zonas que ReadSafeZones rechaza (semilla 20262012, x = 0,98415).")]
+    [Fact]
     public void El_escritor_da_un_archivo_que_su_lector_acepta()
     {
         AssertRoundTrip(new SafeZone("Borde", SafeZoneKind.Interface, 0.98415, 0, 1 - 0.98415, 0.5));

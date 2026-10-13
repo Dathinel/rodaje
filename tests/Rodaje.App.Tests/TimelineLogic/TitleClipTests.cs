@@ -16,6 +16,8 @@ using Rodaje.Render.Text;
 namespace Rodaje.App.Tests.TimelineLogic;
 
 /// <summary>Un título en la línea de tiempo: nombre, recortes sin tope de material y gestos que no le aplican.</summary>
+/// <remarks>Sin paralelismo por <see cref="ElTituloSeVeEnElVisor"/>, que compila los shaders con WARP en la CPU.</remarks>
+[Collection(GpuCompositionGroup.Name)]
 public class TitleClipTests
 {
     private static Time S(double seconds) => Time.FromSeconds(seconds);

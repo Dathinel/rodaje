@@ -251,6 +251,13 @@ public static class ManifestReader
             string? name = Text(element, "name", local, SafeText.MaxName);
             string? file = OptionalText(element, "file", local);
             string? preview = OptionalText(element, "preview", local);
+            foreach (string property in (string[])["file", "preview"])
+            {
+                if (IsUncleanPath(element, property))
+                {
+                    local.Add(UncleanPathMessage(property));
+                }
+            }
             foreach (string? relative in new[] { file, preview })
             {
                 if (relative is not null && CheckRelativeFile(relative, directory) is { } problem)
@@ -300,9 +307,15 @@ public static class ManifestReader
     /// </summary>
     private static List<string>? FontFiles(JsonElement element, string? file, string? directory, List<string> local)
     {
-        if (!element.TryGetProperty("license", out JsonElement license) || license.ValueKind != JsonValueKind.String)
+        if (!element.TryGetProperty("license", out JsonElement license) || license.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(SafeText.Clean(license.GetString()!)))
         {
             local.Add("una fuente necesita «license» con la licencia de la familia (por ejemplo OFL-1.1)");
+        }
+
+        if (IsUncleanPath(element, "files"))
+        {
+            local.Add(UncleanPathMessage("files"));
         }
 
         List<string>? files = element.TryGetProperty("files", out _) ? Strings(element, "files", local, MaxShortText) : file is null ? null : [file];
@@ -363,6 +376,10 @@ public static class ManifestReader
         }
 
         string? entry = Text(module, "entry", errors);
+        if (IsUncleanPath(module, "entry"))
+        {
+            errors.Add("module.entry: " + UncleanPathMessage("entry") + ".");
+        }
         if (entry is not null && CheckRelativeFile(entry, directory) is { } problem)
         {
             errors.Add("module.entry: " + problem + ".");
@@ -421,6 +438,11 @@ public static class ManifestReader
             }
 
             string? file = Text(element, "file", local);
+            if (IsUncleanPath(element, "file"))
+            {
+                local.Add(UncleanPathMessage("file"));
+            }
+
             if (file is not null && CheckRelativeFile(file, null) is { } problem)
             {
                 local.Add(problem);
@@ -582,6 +604,24 @@ public static class ManifestReader
 
         return text;
     }
+
+    /// <summary>
+    /// Una ruta (o lista de rutas) con controles, marcas de dirección o espacios en los bordes se rechaza: limpiarla daría
+    /// otra ruta distinta de la escrita (<c>x\u202Efdp.ttf</c> pasaría como <c>xfdp.ttf</c>).
+    /// </summary>
+    private static bool IsUncleanPath(JsonElement element, string property)
+    {
+        if (!element.TryGetProperty(property, out JsonElement value))
+        {
+            return false;
+        }
+
+        IEnumerable<JsonElement> paths = value.ValueKind == JsonValueKind.Array ? value.EnumerateArray() : [value];
+        return paths.Any(p => p.ValueKind == JsonValueKind.String && p.GetString() is { } raw && raw != SafeText.Clean(raw));
+    }
+
+    private static string UncleanPathMessage(string property) =>
+        $"una ruta de «{property}» trae caracteres de control, marcas de dirección o espacios en los bordes";
 
     private static string? OptionalText(JsonElement element, string property, List<string> errors, int maxLength = MaxShortText, bool multiline = false)
     {
