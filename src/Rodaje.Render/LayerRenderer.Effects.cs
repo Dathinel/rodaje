@@ -589,7 +589,7 @@ internal sealed unsafe partial class LayerRenderer
         EffectConstants effects = default;
         int samples = motion != 0 ? ShutterSamples : 1;
         effects.Mix0 = new(MixCode(kind), progress, middle, samples);
-        effects.Fx0 = transition.Shutter is { } open ? new(Math.Clamp(open.From, 0, 1), Math.Clamp(open.To, 0, 1), 0, 0) : default;
+        effects.Fx0 = transition.Shutter is { } open ? new(Shutter(open.From, progress), Shutter(open.To, progress), 0, 0) : default;
         effects.Canvas = new(destination.Width, destination.Height, 0, 0);
         ID3D11ShaderResourceView* gradient = null;
         if (kind == GpuEffectKind.BlurDissolve)
@@ -667,6 +667,9 @@ internal sealed unsafe partial class LayerRenderer
 
     /// <summary>Muestras de la mezcla a lo largo del obturador abierto (desenfoque de movimiento de la transición).</summary>
     internal const int ShutterSamples = 16;
+
+    /// <summary>Un extremo del obturador entre 0 y 1; si no es un número, el avance (sin desenfoque de ese lado).</summary>
+    private static float Shutter(float value, float progress) => float.IsNaN(value) ? progress : Math.Clamp(value, 0, 1);
 
     /// <summary>
     /// Número de la mezcla en <c>PsTransition</c>, o 0 si la GPU no la conoce; el desenfoque llega ya aplicado y mezcla como
