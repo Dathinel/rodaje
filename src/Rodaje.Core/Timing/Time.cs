@@ -32,7 +32,8 @@ public readonly record struct Time : IComparable<Time>
     /// </remarks>
     public static Time FromFrames(long frame, Rational rate)
     {
-        Int128 numerator = (Int128)frame * TicksPerSecond * rate.Den;
+        // checked: con un denominador grande el producto pasa de 2^127 y se envolvía en un instante inventado
+        Int128 numerator = checked((Int128)frame * TicksPerSecond * rate.Den);
         return new(checked((long)CeilDiv(numerator, rate.Num)));
     }
 
@@ -44,11 +45,17 @@ public readonly record struct Time : IComparable<Time>
     }
 
     /// <summary>Lleva el instante al inicio del cuadro más cercano.</summary>
+    /// <remarks>
+    /// En <see cref="Int128"/>: el inicio del cuadro que se descarta puede no caber en un <c>long</c> (al final del rango)
+    /// sin que eso impida devolver el otro. Solo lanza si el más cercano no cabe.
+    /// </remarks>
     public Time SnapToFrame(Rational rate)
     {
-        Time floor = FromFrames(ToFrames(rate), rate);
-        Time next = FromFrames(ToFrames(rate) + 1, rate);
-        return (Ticks - floor.Ticks) * 2 < next.Ticks - floor.Ticks ? floor : next;
+        Int128 perSecond = (Int128)TicksPerSecond * rate.Den;
+        Int128 frame = FloorDiv((Int128)Ticks * rate.Num, perSecond);
+        Int128 floor = CeilDiv(frame * perSecond, rate.Num);
+        Int128 next = CeilDiv((frame + 1) * perSecond, rate.Num);
+        return new(checked((long)((Ticks - floor) * 2 < next - floor ? floor : next)));
     }
 
     public static Time FromSamples(long sample, int sampleRate)
