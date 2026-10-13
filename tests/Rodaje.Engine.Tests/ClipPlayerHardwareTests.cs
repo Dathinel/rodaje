@@ -7,6 +7,7 @@ using Rodaje.TestMedia;
 
 namespace Rodaje.Engine.Tests;
 
+[Collection(GpuHardwareGroup.Name)]
 public sealed class ClipPlayerHardwareTests
 {
     [HardwareFact(VideoCodec.H264, Audio = AudioCodec.Aac)]

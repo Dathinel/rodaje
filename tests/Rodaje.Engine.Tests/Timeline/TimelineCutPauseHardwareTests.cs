@@ -24,6 +24,7 @@ namespace Rodaje.Engine.Tests.Timeline;
 /// El corte del PiP necesita un segundo decodificador: abrirlo es la pausa que queda (FFmpeg crea el decodificador de
 /// D3D11VA con el candado del contexto tomado). Se informa como <c>MEDIDA</c> y no se exige; todo lo demás, sí.
 /// </remarks>
+[Collection(GpuHardwareGroup.Name)]
 public sealed class TimelineCutPauseHardwareTests(ITestOutputHelper output)
 {
     private static readonly Rational SequenceRate = Rational.Fps30;

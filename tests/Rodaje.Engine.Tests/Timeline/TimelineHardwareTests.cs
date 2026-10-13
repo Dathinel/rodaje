@@ -18,6 +18,7 @@ namespace Rodaje.Engine.Tests.Timeline;
 /// Secuencia real de tres pistas con FFmpeg y D3D11VA: tres archivos de 24, 25 y 29,97 fps con el número de cuadro
 /// dibujado, cortes cada 2 s en una secuencia de 30 fps. Se omite con el motivo si falta la GPU o FFmpeg.
 /// </summary>
+[Collection(GpuHardwareGroup.Name)]
 public sealed class TimelineHardwareTests(ITestOutputHelper output)
 {
     private const int Tracks = 3;
