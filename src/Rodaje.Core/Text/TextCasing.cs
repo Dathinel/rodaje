@@ -12,7 +12,9 @@ public static class TextCasing
     /// <summary>Escala de las minúsculas convertidas en las versalitas sintéticas.</summary>
     public const double SmallCapsScale = 0.75;
 
-    private static readonly CultureInfo Spanish = CultureInfo.GetCultureInfo("es-ES");
+    // La invariante y no «es-ES»: la app publica con InvariantGlobalization y pedir una cultura por nombre lanza
+    // (CultureNotFoundException al iniciar el tipo, y ningún título en mayúsculas se dibujaría). En español da lo mismo.
+    private static readonly CultureInfo Casing = CultureInfo.InvariantCulture;
 
     /// <summary>
     /// El texto para dibujar; en versalitas, <paramref name="lowered"/> marca las minúsculas que se agrandaron (para
@@ -31,7 +33,7 @@ public static class TextCasing
             for (int i = 0; i < chars.Length; i++)
             {
                 char c = state.text[i];
-                chars[i] = state.textCase == TextCase.Lower ? char.ToLower(c, Spanish) : char.ToUpper(c, Spanish);
+                chars[i] = state.textCase == TextCase.Lower ? char.ToLower(c, Casing) : char.ToUpper(c, Casing);
             }
         }) is var result && textCase == TextCase.SmallCaps && lowered.Length >= text.Length
             ? Mark(text, result, lowered)

@@ -359,6 +359,10 @@ try
     Exigir(frame + frame == Time.FromFrames(2, Rational.Ntsc30), "sumar cuadros NTSC no acumula error");
     Avance("Tiempo exacto en cuadros NTSC sin error de redondeo.");
 
+    // Se publica con InvariantGlobalization, como la app: si el núcleo pidiera una cultura por nombre, lanzaría aquí.
+    Exigir(Rodaje.Core.Text.TextCasing.Apply("Ñandú en istmo", TextCase.Upper) == "ÑANDÚ EN ISTMO", "las mayúsculas de un título se calculan sin culturas");
+    Avance("Mayúsculas de títulos sin culturas (InvariantGlobalization).");
+
     reloj.Stop();
     Console.WriteLine();
     Console.WriteLine($"RESULTADO: todo bien. El núcleo funciona compilado con Native AOT ({reloj.Elapsed.TotalMilliseconds:0} ms).");
