@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Rodaje.App.Tests.Support;
 using Rodaje.App.Views.Library;
 
 namespace Rodaje.App.Tests.Library;
@@ -9,22 +10,34 @@ namespace Rodaje.App.Tests.Library;
 /// </summary>
 public sealed class LibraryOrganizationLooseIdsTests
 {
+    // En la CI se mira cómo crece el tiempo (Growth), no el reloj: con el runner de Windows cargado, una carga de 0,3 s
+    // llegó a tardar 33,7 s en otra prueba de la biblioteca. El tope de 4 s queda en la gemela TiempoReal.
     [Fact]
-    public void MilesDePadresYCarpetasDeMedioInexistentes_CarganEnTiempoLineal()
+    public void MilesDePadresYCarpetasDeMedioInexistentes_CarganEnTiempoLineal() =>
+        Growth.AssertLinear(LoadLoose, 4_000, 32_000, "Ids sueltos");
+
+    [Fact]
+    [Trait("Categoria", "TiempoReal")]
+    public void MilesDePadresYCarpetasDeMedioInexistentes_CarganEnMenosDeCuatroSegundos()
     {
-        const int count = 20_000;
+        var watch = Stopwatch.StartNew();
+        LoadLoose(20_000);
+        watch.Stop();
+
+        // Con la búsqueda lineal tardaba unos 8 s en Release; ahora, menos de medio segundo.
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(4), $"Tardó {watch.Elapsed.TotalSeconds:F1} s");
+    }
+
+    private static void LoadLoose(int count)
+    {
         List<LibraryFolder> folders = [.. Enumerable.Range(0, count).Select(i => new LibraryFolder { Id = $"f{i}", Name = $"Carpeta {i}", ParentId = $"falta{i}" })];
         Dictionary<string, string> media = Enumerable.Range(0, count).ToDictionary(i => $"m{i}", i => $"nada{i}");
 
-        var watch = Stopwatch.StartNew();
         LibraryOrganization org = LibraryOrganization.From(folders, media, null);
-        watch.Stop();
 
         Assert.Equal(count, org.Folders.Count);
         Assert.All(org.Folders, f => Assert.Null(f.ParentId));
         Assert.Empty(org.MediaFolders);
-        // Con la búsqueda lineal tardaba unos 8 s en Release; ahora, menos de medio segundo.
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(4), $"Tardó {watch.Elapsed.TotalSeconds:F1} s");
     }
 
     [Fact]
