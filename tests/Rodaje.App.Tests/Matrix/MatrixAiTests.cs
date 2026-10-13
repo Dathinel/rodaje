@@ -314,7 +314,7 @@ public sealed class MatrixAiTests(ITestOutputHelper output) : IDisposable
                 highQuality: false, _folder.Path, "Quitar fondo", CancellationToken.None);
             Assert.True(matte.Frames > 0 && File.Exists(matte.Path));
             string sequenceId = session.SequenceId;
-            proposals.Show(new ModuleProposal("Quitar fondo", sequenceId, [], _ => [Edits.SetImageMask(sequenceId, video.Id, LutReference.ForFile(matte.Path, null), matte.Start)]));
+            proposals.Show(new ModuleProposal("Quitar fondo", sequenceId, [], _ => [Edits.SetImageMask(sequenceId, video.Id, LutReference.ForFile(matte.Path), matte.Start)]));
             Assert.True(proposals.Apply());
             return Invariant($"{matte.Frames} cuadros de máscara {matte.Width}×{matte.Height}");
         });

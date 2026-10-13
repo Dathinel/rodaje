@@ -522,7 +522,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
                 return;
             }
 
-            value = LutReference.ForFile(path, _services.Session.FilePath);
+            value = LutReference.ForFile(path);
         }
 
         if (!_services.Session.Execute(EffectCommands.SetLut(_services.Session.SequenceId, _clipId!, effectId, value)))

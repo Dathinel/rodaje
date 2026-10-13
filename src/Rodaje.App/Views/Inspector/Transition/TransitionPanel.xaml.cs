@@ -700,7 +700,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
                 ("Imágenes", "*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff;*.webp"), FileDialogs.AllFilter);
             if (picked.Count > 0)
             {
-                editor.SetOption(id, Tr.LumaOptions.Image, LutReference.ForFile(picked[0], _services.Session.FilePath));
+                editor.SetOption(id, Tr.LumaOptions.Image, LutReference.ForFile(picked[0]));
             }
         }
         catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)

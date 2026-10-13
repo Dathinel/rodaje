@@ -20,7 +20,7 @@ public class ProjectFileReferencesTests
     {
         using var dir = new TempDirectory();
         string lut = dir.File(Path.Combine("luts", "mi look ñ.cube"));
-        Project project = WithLut(LutReference.ForFile(lut, projectFile: null));
+        Project project = WithLut(LutReference.ForFile(lut));
 
         Project copy = ProjectPaths.ForSaving(project, dir.Path);
 
@@ -60,9 +60,9 @@ public class ProjectFileReferencesTests
         Assert.True(session.AppendToTimeline(imported.MediaIds[0]));
         Assert.True(await session.SaveAsAsync(Path.Combine(folderA, "corto")));
 
-        // Como VisionDialogs: con el proyecto ya guardado, la referencia queda relativa a su carpeta.
-        string reference = LutReference.ForFile(matte, session.FilePath);
-        Assert.Equal("file:máscaras/fondo.mp4", reference);
+        // Como VisionDialogs: en memoria la referencia es absoluta aunque el proyecto ya esté guardado (tarea 236).
+        string reference = LutReference.ForFile(matte);
+        Assert.Equal("file:" + matte.Replace('\\', '/'), reference);
         string clipId = session.Sequence.VideoTracks[0].Clips[0].Id;
         Assert.True(session.Execute(Edits.SetImageMask(session.SequenceId, clipId, reference, Time.Zero)));
         Assert.True(await session.SaveAsAsync(Path.Combine(folderB, "corto")));
