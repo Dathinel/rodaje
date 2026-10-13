@@ -19,6 +19,7 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 
 - **v1.0.0 publicada** (release `v1.0.0`, commit 8b1e4c1; la completa trae los 16 complementos). No se publica nada nuevo hasta que el autor lo pida.
 - **Primero, al abrir:** revisar la ronda de depuración de 24 h de la nube (13-oct 04:24 → 14-oct 05:00 UTC): rutina «Rodaje: ronda de depuración (13–14 oct)» (`trig_015zPXdY6meRLBGvkb5XEXMF`, cada hora; `RemoteTrigger list_runs`), tareas 90–99 en `.proceso/nube/cola.md`, informe en `.proceso/nube/informe-depuracion.md`, PR unidos (`gh pr list --state merged`) y la CI de main. Después, cambiar la rutina a otro cometido o desactivarla.
+- **Limpiar los worktrees** de `.claude\worktrees\` (unos 110; aprobado por el autor): antes de borrar cada uno, comprobar que no quede trabajo sin unir.
 - **Bug grave reportado:** la app se cierra al elegir «escala» sin dejar registro (tareas 90 y 91).
 - **Después, la 1.0.1:** `.proceso/propuestas/v1.0.1-personalizacion.md` (personalización, tutorial, correcciones visuales como la pestaña Audio).
 - La nube une sus PR al pasar la CI (sin `--auto`: no hay protección de rama).
