@@ -277,15 +277,19 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Ninguna evaluación reserva. El calentamiento recorre las mismas 10 000 posiciones (0 a 100 s) que la medida, así
-    /// cada tramo de las curvas (antes, entre y después de los puntos clave) ya se ejecutó una vez; y se miden hasta
-    /// <c>Batches</c> tandas exigiendo 0 en la menor: lo que el runtime reserve en el hilo una sola vez (subir de nivel
-    /// en el JIT, la cobertura) puede caer en una tanda, pero una reserva real de un efecto aparece en todas.
+    /// Ninguna evaluación reserva: una sola tanda de 10 000 evaluaciones, medida tras un calentamiento explícito, debe
+    /// reservar 0 B. El calentamiento recorre <c>WarmUpPasses</c> veces las mismas 10 000 posiciones (0 a 100 s) que la
+    /// medida, así cada tramo de las curvas (antes, entre y después de los puntos clave) ya se ejecutó y lo que el runtime
+    /// reserve una vez en el hilo (compilar, cargar tipos) queda fuera; a mitad hay una pausa para que la compilación por
+    /// niveles termine de subir los métodos calientes, que si no podría caer en la medida. Antes (#180) se aceptaba la menor
+    /// de 5 tandas, y una reserva que solo apareciera en algunas pasaba. El mensaje de fallo lista también lo que reservó
+    /// cada pasada del calentamiento: si la medida falla en Windows con un calentamiento que va bajando, es del runtime;
+    /// si todas reservan lo mismo, es de un efecto.
     /// </summary>
     [Fact]
     public void Effect_evaluation_itself_reserves_nothing()
     {
-        const int Batches = 5;
+        const int WarmUpPasses = 4;
         var clip = new Clip();
         clip.Effects.Add(Effect(BuiltInEffects.Transform, (BuiltInEffects.TransformParameters.X, 4)));
         clip.Effects.Add(Animated(BuiltInEffects.Color, C.Exposure));
@@ -295,19 +299,29 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
         EffectPlan plan = EffectPlan.From(clip.Effects)!;
         var list = new EffectList();
         var content = new FakeEffectContent();
-        Evaluate(plan, list, content, 10_000);
 
-        var batches = new List<long>(Batches);
-        double sum = 0;
-        while (batches.Count < Batches && (batches.Count == 0 || batches[^1] != 0))
+        var warmUp = new long[WarmUpPasses];
+        for (int pass = 0; pass < WarmUpPasses; pass++)
         {
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            sum = Evaluate(plan, list, content, 10_000);
-            batches.Add(GC.GetAllocatedBytesForCurrentThread() - before);
+            if (pass == WarmUpPasses / 2)
+            {
+                // La compilación por niveles sube los métodos en otro hilo tras 100 ms sin código nuevo de nivel 0.
+                Thread.Sleep(500);
+            }
+
+            long start = GC.GetAllocatedBytesForCurrentThread();
+            Evaluate(plan, list, content, 10_000);
+            warmUp[pass] = GC.GetAllocatedBytesForCurrentThread() - start;
         }
 
-        output.WriteLine($"MEDIDA bytes_por_tanda = {string.Join(", ", batches)}");
-        Assert.True(batches.Min() == 0, $"Las {batches.Count} tandas de 10 000 evaluaciones reservaron {string.Join(", ", batches)} B.");
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        double sum = Evaluate(plan, list, content, 10_000);
+        long measured = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        output.WriteLine($"MEDIDA bytes_calentamiento = {string.Join(", ", warmUp)}");
+        output.WriteLine($"MEDIDA bytes_medida = {measured}");
+        Assert.True(measured == 0,
+            $"Las 10 000 evaluaciones medidas reservaron {measured} B (calentamiento: {string.Join(", ", warmUp)} B por pasada).");
         Assert.True(sum > 0);
     }
 
