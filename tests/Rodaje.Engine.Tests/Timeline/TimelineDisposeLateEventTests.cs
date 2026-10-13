@@ -18,7 +18,12 @@ namespace Rodaje.Engine.Tests.Timeline;
 /// </remarks>
 public sealed class TimelineDisposeLateEventTests
 {
-    private static readonly TimeSpan Limit = TimeSpan.FromSeconds(20);
+    /// <summary>
+    /// Tope anticuelgue: no mide nada, solo corta si algo se cuelga. La continuación del cuadro colgado corre en el pool de
+    /// hilos (la tarea del doble termina con <c>RunContinuationsAsynchronously</c>), y en la CI de Windows, con el pool
+    /// saturado por otros testhost, 20 s no alcanzaban para que llegara su turno.
+    /// </summary>
+    private static readonly TimeSpan AntiHang = TimeSpan.FromMinutes(5);
 
     [Fact]
     public void A_frame_that_fails_after_Dispose_raises_no_DecodeFailed_and_is_traced()
@@ -57,9 +62,9 @@ public sealed class TimelineDisposeLateEventTests
 
         session.Dispose();
 
-        // La cancelación de Dispose hace fallar el cuadro y la continuación corre en otro hilo: termina con el aviso o
-        // con la línea del registro.
-        Assert.True(raised.Wait(Limit), "La continuación del cuadro colgado no terminó.");
+        // La cancelación de Dispose hace fallar el cuadro y la continuación corre en el pool: termina con el aviso o con
+        // la línea del registro, cuando el pool le dé turno.
+        Assert.True(raised.Wait(AntiHang), "La continuación del cuadro colgado no terminó.");
         Assert.Equal(0, Volatile.Read(ref failures));
         Assert.Contains(trace.Lines, l => l.Contains("no se avisa", StringComparison.Ordinal)
             && l.Contains("Cuadro de prueba perdido al cerrar.", StringComparison.Ordinal));

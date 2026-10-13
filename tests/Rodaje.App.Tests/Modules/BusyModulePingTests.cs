@@ -161,26 +161,36 @@ public sealed class BusyModulePingTests : IDisposable
     /// El cableado de verdad (<c>WatchAsync</c>): el vigilante cuenta como señal de vida los mensajes que llegan al cliente
     /// (<see cref="ModuleClient.ReceivedMessages"/>) y espera por ventanas de <c>PingTimeout</c>. El módulo eco avisa su
     /// avance y la prueba retiene su <c>pong</c> hasta haber recibido, después de mandar el <c>ping</c>, avisos que cubren al
-    /// menos dos ventanas y media: <see cref="ModuleHost"/> no manda dos avisos de la misma etapa a menos de
+    /// menos una ventana y media: <see cref="ModuleHost"/> no manda dos avisos de la misma etapa a menos de
     /// <see cref="ProgressSpacing"/> (lo mide con <c>Stopwatch</c> en el proceso del módulo), así que entre el primero y el
     /// último de <c>n</c> avisos recibidos después del <c>ping</c> pasan al menos (<c>n</c> − 1) × 50 ms de reloj (los pocos
     /// que el editor tuviera sin leer al mandarlo los cubre la media ventana de margen). No hay espera fija: con la máquina
     /// cargada los avisos llegan más despacio y la prueba espera más, nunca menos.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Sigue cayendo si el vigilante ignorara la actividad (<c>() =&gt; 0</c>): la primera ventana empieza justo después del
-    /// <c>ping</c> y vence (diez segundos de reloj) mucho antes de que lleguen los avisos que sueltan el <c>pong</c>; al vencer
-    /// sin <c>pong</c> y con la actividad igual, <c>PingRoundAsync</c> lo da por colgado, la llamada termina con
-    /// <see cref="ModuleHungException"/> y el segundo <c>ping</c> no llega. Con la actividad de verdad, cada ventana de 10 s
-    /// recibe unos doscientos avisos (antes eran 2 s: con la CPU llena, el proceso eco podía pasar 2 s sin escribir y se
-    /// daba por colgado un módulo sano). Solo un pool tan saturado que retrasara el temporizador de la ventana más de quince
-    /// segundos la haría pasar sin probar nada, nunca caer en falso.
+    /// <c>ping</c> y vence (cinco segundos de reloj) antes de que lleguen los avisos que sueltan el <c>pong</c> (siete y medio
+    /// como mínimo); al vencer sin <c>pong</c> y con la actividad igual, <c>PingRoundAsync</c> lo da por colgado, la llamada
+    /// termina con <see cref="ModuleHungException"/> y el segundo <c>ping</c> no llega. Solo un temporizador de ventana
+    /// atrasado más de dos segundos y medio la haría pasar sin probar nada, nunca caer en falso.
+    /// </para>
+    /// <para>
+    /// La duración la marca el reloj del vigilante (<c>Task.Delay(PingTimeout)</c> en <c>ModuleConnection</c>, sin costura):
+    /// el <c>pong</c> tiene que atrasarse más que una ventana de verdad, así que la prueba dura algo más que
+    /// <c>PingTimeout</c> y acortar el espaciado de avisos de <see cref="ModuleHost"/> no la abreviaría. Por eso se acorta con
+    /// menos ventanas y una ventana menor: antes, 10 s y dos ventanas y media (501 avisos, unos 25 s por construcción); ahora,
+    /// 5 s y una ventana y media (151 avisos, unos 7,5 s). Basta con que venza una ventana con actividad: que el vigilante
+    /// siga esperando ventana tras ventana lo prueba sin reloj, con cinco ventanas,
+    /// <see cref="Un_modulo_que_avisa_avance_sin_contestar_el_ping_a_tiempo_no_se_mata"/>. Una ventana de 5 s sigue lejos de
+    /// la de 2 s con la que, en la CI con la CPU llena, el eco (que avisa cada 50 ms) pasaba una ventana entera sin escribir.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task El_vigilante_no_mata_a_un_modulo_que_avisa_avance_aunque_su_pong_se_atrase_varias_ventanas()
     {
-        TimeSpan pingTimeout = TimeSpan.FromSeconds(10);
-        long heldMessages = (long)Math.Ceiling(pingTimeout * 2.5 / ProgressSpacing) + 1;
+        TimeSpan pingTimeout = TimeSpan.FromSeconds(5);
+        long heldMessages = (long)Math.Ceiling(pingTimeout * 1.5 / ProgressSpacing) + 1;
         await using ModuleManager manager = _modules.Manager(new ModuleManagerOptions
         {
             PingInterval = TimeSpan.FromMilliseconds(50),

@@ -38,6 +38,14 @@ public sealed partial class ModuleManager : IAsyncDisposable
 
     public ModuleJobList Jobs { get; }
 
+    /// <summary>
+    /// Lo que debe esperar a <see cref="DisposeAsync"/> quien lo espere con un tope (la ventana al cerrarse): los módulos
+    /// se cierran a la vez, y cada uno tarda a lo sumo <see cref="ModuleProcess.DisposeBudget"/> si no sale tras
+    /// <c>shutdown</c>, más <see cref="ModuleProcess.DisposeMargin"/>. Con menos, la ventana seguía con el módulo colgado
+    /// todavía vivo y solo lo cubría el Job Object (tarea 197).
+    /// </summary>
+    public TimeSpan CloseTimeout => ModuleProcess.DisposeBudget(_options.ClientOptions) + ModuleProcess.DisposeMargin;
+
     private VramBudget? _budget;
 
     /// <summary>Se arma con la primera llamada: la GPU del reproductor abre después que la ventana.</summary>

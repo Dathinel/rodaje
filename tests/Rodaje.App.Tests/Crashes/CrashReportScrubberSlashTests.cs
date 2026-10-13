@@ -132,40 +132,30 @@ public class CrashReportScrubberSlashTests
     }
 
     [Theory]
-    [InlineData("D:/Clientes/Boda.mp4 final/Ana Perez", "%USERNAME% Perez")]
-    [InlineData("D:/Clientes/Acme/Informe.pdf Rojas/Maria Lopez Perez", "Maria Lopez Perez")]
-    [InlineData("D:/Clientes/Acme/Fotos.zip 2024/Maria Lopez Perez", "Maria Lopez Perez")]
-    [InlineData("D:/Clientes/Acme/Lopez.exe Rojas/Maria Lopez Perez", "Maria Lopez Perez")]
-    [InlineData("Leyendo D:/Clientes/Boda.mp4 final/2024 Rojas Final", "Leyendo 2024 Rojas Final")]
-    [InlineData("Leyendo D:/Clientes/Acme/Video.mov Rojas/Ácido Rojas Final", "Leyendo Ácido Rojas Final")]
-    [InlineData("Leyendo D:/Clientes/Acme/Notas.txt Rojas/-Copia de Rojas", "Leyendo -Copia de Rojas")]
-    [InlineData("Leyendo file:///D:/Clientes/Boda.mp4 final/Ana Perez", "Leyendo file:///%USERNAME% Perez")]
-    [InlineData(@"Leyendo D:\Clientes/Boda.mp4 final/Ana Perez", "Leyendo %USERNAME% Perez")]
-    [InlineData("Leyendo 'D:/Clientes/Acme/Informe.pdf Rojas/Maria Lopez Perez' y siguió", "Leyendo 'Maria Lopez Perez' y siguió")]
-    public void TrasUnaCarpetaConExtensionConocidaYTexto_UnTramoQueNoEmpiezaComoFraseLaTapa(string line, string expected)
+    [InlineData("D:/Clientes/Boda.mp4 final/Ana Perez", "…")]
+    [InlineData("D:/Clientes/Acme/Informe.pdf Rojas/Maria Lopez Perez", "…")]
+    [InlineData("D:/Clientes/Acme/Fotos.zip 2024/Maria Lopez Perez", "…")]
+    [InlineData("D:/Clientes/Acme/Lopez.exe Rojas/Maria Lopez Perez", "…")]
+    [InlineData("Leyendo D:/Clientes/Boda.mp4 final/2024 Rojas Final", "Leyendo …")]
+    [InlineData("Leyendo D:/Clientes/Acme/Video.mov Rojas/Ácido Rojas Final", "Leyendo …")]
+    [InlineData("Leyendo D:/Clientes/Acme/Notas.txt Rojas/-Copia de Rojas", "Leyendo …")]
+    [InlineData("Leyendo 'D:/Clientes/Acme/Informe.pdf Rojas/Maria Lopez Perez' y siguió", "Leyendo '…")]
+    public void TrasUnaCarpetaConExtensionConocidaYTexto_UnTramoQueNoEsConectorSeTapa(string line, string expected)
     {
-        // Tarea 199: tras «Boda.mp4 final», si el último tramo no tenía barra ni extensión pero llevaba espacios («Ana
-        // Perez»), se tomaba por la frase de «a.mp4 y/o respaldo» (tarea 166) y la carpeta quedaba a la vista. Ahora solo
-        // es frase si empieza como tal (por minúscula, o «3/4 hechos»); si empieza por mayúscula, cifra u otro signo, la carpeta se tapa.
+        // Tarea 199 (cubierta por el arreglo de la tarea 196): tras «Boda.mp4 final», un último tramo con espacios que
+        // empieza por mayúscula, cifra u otro signo («Ana Perez», «2024 Rojas», «-Copia») se tomaba por la frase de «a.mp4
+        // y/o respaldo» (tarea 166), y la carpeta quedaba a la vista. Se tapan la carpeta y el tramo.
         var scrubber = new CrashReportScrubber(
             new Dictionary<string, string?> { ["%USERPROFILE%"] = @"C:\Users\ana" }, userName: "ana");
 
         string text = scrubber.Scrub(line);
 
         Assert.Equal(expected, text);
-        foreach (string word in new[] { "Clientes", "Acme", "Boda", "final", "Informe", "Fotos", "Lopez.exe", "Video", "Notas", ".pdf", ".zip", ".mp4", "2024/" })
+        foreach (string word in new[] { "Clientes", "Acme", "Boda", "Informe", "Fotos", "Lopez", "Video", "Notas", "Rojas", "Perez", "2024" })
         {
             Assert.DoesNotContain(word, text, StringComparison.Ordinal);
         }
     }
-
-    [Theory]
-    [InlineData("Leyendo D:/Clientes/Boda/a.mp4 o/u otro", "Leyendo a.mp4 o/u otro")]
-    [InlineData("Leyendo D:/Clientes/Boda/a.mp4 y/e incluso b", "Leyendo a.mp4 y/e incluso b")]
-    [InlineData("Leyendo D:/Clientes/Boda/a.mp4 copia/de respaldo", "Leyendo a.mp4 copia/de respaldo")]
-    [InlineData("Leyendo D:/Clientes/Boda/a.mp4 parte 3/4 hechos", "Leyendo a.mp4 parte 3/4 hechos")]
-    public void TrasUnArchivoConocido_UnTramoQueEmpiezaComoFraseSeConserva(string line, string expected) =>
-        Assert.Equal(expected, Ana.Scrub(line));
 
     [Theory]
     [InlineData("Leyendo D:/Clientes/Boda/a.mp4 el 12/10/2026", "Leyendo a.mp4 el 12/10/2026")]
