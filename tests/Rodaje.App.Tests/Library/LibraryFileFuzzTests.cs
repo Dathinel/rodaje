@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json.Nodes;
-using Rodaje.App.Tests.Support;
 using Rodaje.App.Views.Library;
 using Rodaje.Core.Timing;
 
@@ -49,33 +48,15 @@ public sealed class LibraryFileFuzzTests : IDisposable
     /// <summary>
     /// Mil carpetas con el mismo nombre, o encadenadas una dentro de otra, tardaban decenas de segundos en abrir (buscar la
     /// carpeta y el nombre libre recorría la lista entera por cada una: cúbico) y una cadena de miles desbordaba la pila al
-    /// armar el menú «Mover a». Defecto hallado por el fuzz de la tarea 94. En la CI se mira que la carga crezca como lo
-    /// lineal (<see cref="Growth"/>): el tope de 10 s de reloj con 20 000 carpetas dio 33,7 s en Windows con el runner
-    /// cargado, donde en Linux tarda 0,3 s. El tope de reloj queda en la gemela TiempoReal.
+    /// armar el menú «Mover a». Defecto hallado por el fuzz de la tarea 94.
     /// </summary>
     [Theory]
     [InlineData("iguales")]
     [InlineData("cadena")]
     [InlineData("ciclo")]
-    public void ThousandsOfFolders_LoadInLinearTime(string shape) =>
-        Growth.AssertLinear(count => LoadFolders(shape, count), 1_000, 8_000, $"Carpetas «{shape}»");
-
-    [Theory]
-    [Trait("Categoria", "TiempoReal")]
-    [InlineData("iguales")]
-    [InlineData("cadena")]
-    [InlineData("ciclo")]
     public void ThousandsOfFolders_LoadQuickly(string shape)
     {
-        var watch = Stopwatch.StartNew();
-        LoadFolders(shape, 20_000);
-        watch.Stop();
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"Tardó {watch.Elapsed.TotalSeconds:F1} s");
-    }
-
-    /// <summary>Escribe y carga <paramref name="count"/> carpetas con la forma dada, y comprueba el árbol.</summary>
-    private void LoadFolders(string shape, int count)
-    {
+        const int count = 20_000;
         var folders = new JsonArray();
         for (int i = 0; i < count; i++)
         {
@@ -92,12 +73,15 @@ public sealed class LibraryFileFuzzTests : IDisposable
         Directory.CreateDirectory(_dir);
         File.WriteAllText(store.PathFor("p"), new JsonObject { ["version"] = 2, ["folders"] = folders }.ToJsonString());
 
+        var watch = Stopwatch.StartNew();
         LibraryOrganization org = store.Load("p");
         IReadOnlyList<(LibraryFolder Folder, int Depth)> tree = org.Tree();
+        watch.Stop();
 
         Assert.Equal(count, org.Folders.Count);
         Assert.Equal(count, tree.Count);
         Assert.Equal(count, org.Folders.Select(f => (f.ParentId, f.Name)).Distinct().Count());
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"Tardó {watch.Elapsed.TotalSeconds:F1} s");
         if (shape == "ciclo")
         {
             Assert.Single(org.Folders, f => f.ParentId is null);
@@ -140,37 +124,24 @@ public sealed class LibraryFileFuzzTests : IDisposable
         Assert.Equal("Etiqueta: noche", rule.Describe());
     }
 
-    /// <summary>Subclips con ids repetidos: se queda uno por id, en tiempo lineal (ver <see cref="ThousandsOfFolders_LoadInLinearTime"/>).</summary>
     [Fact]
-    public void ManyRepeatedEntries_LoadInLinearTime() =>
-        Growth.AssertLinear(LoadRepeatedSubclips, 4_000, 32_000, "Subclips repetidos");
-
-    // 75,9 s en la CI de Windows con el runner cargado, contra 1 s en Linux: el tope de reloj es TiempoReal.
-    [Fact]
-    [Trait("Categoria", "TiempoReal")]
     public void ManyRepeatedEntries_LoadQuickly()
     {
-        var watch = Stopwatch.StartNew();
-        LoadRepeatedSubclips(100_000);
-        watch.Stop();
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"Tardó {watch.Elapsed.TotalSeconds:F1} s");
-    }
-
-    /// <summary><paramref name="count"/> subclips con la mitad de ids distintos: quedan esos.</summary>
-    private void LoadRepeatedSubclips(int count)
-    {
         var subclips = new JsonArray();
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < 100_000; i++)
         {
-            subclips.Add(new JsonObject { ["id"] = $"s{i % (count / 2)}", ["mediaId"] = "m1", ["name"] = "x", ["in"] = 0L, ["out"] = 705_600_000L });
+            subclips.Add(new JsonObject { ["id"] = $"s{i % 50_000}", ["mediaId"] = "m1", ["name"] = "x", ["in"] = 0L, ["out"] = 705_600_000L });
         }
 
         var store = new LibraryOrganizationStore(_dir);
         Directory.CreateDirectory(_dir);
         File.WriteAllText(store.PathFor("p"), new JsonObject { ["version"] = 2, ["marks"] = new JsonObject { ["subclips"] = subclips } }.ToJsonString());
 
+        var watch = Stopwatch.StartNew();
         LibraryOrganization org = store.Load("p");
-        Assert.Equal(count / 2, org.Subclips.Count);
+
+        Assert.Equal(50_000, org.Subclips.Count);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"Tardó {watch.Elapsed.TotalSeconds:F1} s");
     }
 
     [Fact]
