@@ -16,27 +16,16 @@ namespace Rodaje.App.Views.Plugins;
 internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader downloader, bool othersOpen, bool hasUpdate, DownloadState download,
     long missingModelBytes = 0) : INotifyPropertyChanged, IDisposable
 {
-    private PropertyChangedRelay? _relay;
+    private readonly RelayedPropertyChanged _notices = new(download, "Download");
 
     public event PropertyChangedEventHandler? PropertyChanged
     {
-        add
-        {
-            _relay ??= new PropertyChangedRelay(Download, name => _propertyChanged?.Invoke(this, new PropertyChangedEventArgs(
-                string.IsNullOrEmpty(name) ? name : "Download" + name)));
-            _propertyChanged += value;
-        }
-        remove => _propertyChanged -= value;
+        add => _notices.Add(this, value);
+        remove => _notices.Remove(value);
     }
-
-    private PropertyChangedEventHandler? _propertyChanged;
 
     /// <summary>Suelta la suscripción a la descarga; la página lo hace antes de rehacer la lista.</summary>
-    public void Dispose()
-    {
-        _relay?.Dispose();
-        _propertyChanged = null;
-    }
+    public void Dispose() => _notices.Dispose();
 
     public double DownloadPercent => Download.Percent;
 

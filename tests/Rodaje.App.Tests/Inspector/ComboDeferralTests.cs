@@ -22,6 +22,35 @@ public class ComboDeferralTests
         { "src/Rodaje.App/Views/Mixer/StripView.cs", "OnOutputSelected" },
     };
 
+    /// <summary>
+    /// Los desplegables de las vistas que se refrescan con la lista abierta (archivo y campo): cada uno repite el refresco al
+    /// cerrarla (<c>RetryWhenClosed</c>) con el mismo <see cref="ClosedListRetry"/> que anota lo pendiente (<c>retry:</c> en
+    /// su <c>ComboBoxChoices.Show</c> o <c>Defer(caja.IsDropDownOpen)</c> antes de él). Tareas 126 y 141.
+    /// </summary>
+    public static TheoryData<string, string> RetriedBoxes => new()
+    {
+        { "src/Rodaje.App/Views/Inspector/Properties/PropertiesPanel.xaml.cs", "GraphParameterBox" },
+        { "src/Rodaje.App/Views/Inspector/Filters/FiltersPanel.xaml.cs", "LutBox" },
+        { "src/Rodaje.App/Views/Inspector/Transition/TransitionPanel.xaml.cs", "TypeBox" },
+        { "src/Rodaje.App/Views/Inspector/Masks/MasksPanel.xaml.cs", "TargetBox" },
+        { "src/Rodaje.App/Views/Inspector/Dynamics/DynamicsPanel.cs", "_targetBox" },
+        { "src/Rodaje.App/Views/Inspector/Dynamics/DynamicsPanel.cs", "_presetBox" },
+        { "src/Rodaje.App/Views/Inspector/Dynamics/DynamicsPanel.cs", "_sidechain" },
+        { "src/Rodaje.App/Views/Mixer/StripView.cs", "_output" },
+        { "src/Rodaje.App/Views/Inspector/Text/TextPanel.xaml.cs", "_styleBox" },
+        { "src/Rodaje.App/Views/Inspector/Tracking/TrackingPanel.xaml.cs", "UseBox" },
+        { "src/Rodaje.App/Views/Inspector/Tracking/TrackingPanel.xaml.cs", "TargetBox" },
+    };
+
+    /// <summary>
+    /// Las vistas cuyos <c>ComboBoxChoices.Show</c> no necesitan <c>retry:</c>, y por qué. Exportar refresca toda la vista en
+    /// su propio <c>DropDownClosed</c>.
+    /// </summary>
+    private static readonly Dictionary<string, string> WithoutRetry = new(StringComparer.Ordinal)
+    {
+        ["src/Rodaje.App/Views/Export/ExportView.xaml.cs"] = "DropDownClosed",
+    };
+
     private static ChoiceList<string> List(params string[] values)
     {
         var list = new ChoiceList<string>();
@@ -195,6 +224,100 @@ public class ComboDeferralTests
         calls = calls.Replace("DispatcherQueue.Choose(", "CHOOSE(", StringComparison.Ordinal);
         Assert.DoesNotMatch(@"\b(Refresh|Update\w*|Choose\w*|Show\w*|Run)\(", calls);
         Assert.DoesNotMatch(@"\.(Execute|SetOutput|Set\w+)\(", calls);
+    }
+
+    [Theory]
+    [MemberData(nameof(Handlers))]
+    public void LasVistasDelRelevo_RepitenAlCerrarLaLista(string file, string method)
+    {
+        // Las seis vistas de #126: sin RetryWhenClosed, o sin Defer/retry:, un refresco con la lista abierta deja el
+        // desplegable desfasado hasta el próximo cambio.
+        _ = method;
+        string source = File.ReadAllText(Path.Combine(RepositoryRoot(), file));
+        Assert.True(Regex.IsMatch(source, @"\.RetryWhenClosed\("), $"{file} debe llamar a RetryWhenClosed.");
+        Assert.True(Regex.IsMatch(source, @"\.Defer\(|\bretry:"), $"{file} debe anotar lo pendiente con Defer( o retry:.");
+    }
+
+    [Theory]
+    [MemberData(nameof(RetriedBoxes))]
+    public void CadaDesplegable_RepiteAlCerrar_ConElMismoReintentoQueAnota(string file, string box)
+    {
+        string source = File.ReadAllText(Path.Combine(RepositoryRoot(), file));
+        string? retry = RetryOf(source, box);
+        Assert.True(retry is not null, $"{box} de {file} debe llamar a RetryWhenClosed.");
+        List<string> shows = [.. ShowCalls(source).Where(c => c.Box == box).Select(c => c.Arguments)];
+        Assert.True(shows.Count > 0, $"No encuentro el ComboBoxChoices.Show de {box} en {file}.");
+        foreach (string arguments in shows)
+        {
+            Assert.True(Guarded(source, box, retry!, arguments), $"El ComboBoxChoices.Show de {box} en {file} debe pasar «retry: {retry}» o ir tras «{retry}.Defer({box}.IsDropDownOpen)».");
+        }
+    }
+
+    [Fact]
+    public void TodoShowDeLasVistas_PasaRetry_SalvoLaListaBlanca()
+    {
+        // Un desplegable nuevo sin relevo al cerrar falla aquí: o pasa retry: (con su RetryWhenClosed), o va tras Defer, o
+        // entra en WithoutRetry con su causa.
+        string root = RepositoryRoot();
+        var missing = new List<string>();
+        int count = 0;
+        foreach (string path in Directory.EnumerateFiles(Path.Combine(root, "src", "Rodaje.App", "Views"), "*.cs", SearchOption.AllDirectories))
+        {
+            string file = Path.GetRelativePath(root, path).Replace('\\', '/');
+            string source = File.ReadAllText(path);
+            foreach ((string box, string arguments) in ShowCalls(source))
+            {
+                count++;
+                if (WithoutRetry.TryGetValue(file, out string? cause))
+                {
+                    Assert.Contains(cause, source, StringComparison.Ordinal);
+                    continue;
+                }
+
+                if (RetryOf(source, box) is not { } retry || !Guarded(source, box, retry, arguments))
+                {
+                    missing.Add($"{file}: {box}");
+                }
+            }
+        }
+
+        Assert.True(count >= 12, $"Solo encuentro {count} llamadas a ComboBoxChoices.Show: ¿cambió su forma?");
+        Assert.True(missing.Count == 0, "Sin relevo al cerrar la lista: " + string.Join("; ", missing));
+    }
+
+    /// <summary>El <see cref="ClosedListRetry"/> con que <paramref name="box"/> llama a <c>RetryWhenClosed</c>, o nulo.</summary>
+    private static string? RetryOf(string source, string box)
+    {
+        Match match = Regex.Match(source, @"\b" + Regex.Escape(box) + @"\??\.RetryWhenClosed\(\s*(\w+)\s*,");
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    /// <summary>Si la llamada pasa <c>retry: <paramref name="retry"/></c> o el archivo anota con <c>Defer</c> antes de ella.</summary>
+    private static bool Guarded(string source, string box, string retry, string arguments) =>
+        Regex.IsMatch(arguments, @"\bretry:\s*" + Regex.Escape(retry) + @"\b")
+        || Regex.IsMatch(source, @"\b" + Regex.Escape(retry) + @"\.Defer\(\s*" + Regex.Escape(box) + @"\.IsDropDownOpen\s*\)");
+
+    /// <summary>Cada <c>ComboBoxChoices.Show(</c> del archivo: el desplegable (primer argumento) y todos sus argumentos.</summary>
+    private static IEnumerable<(string Box, string Arguments)> ShowCalls(string source)
+    {
+        foreach (Match call in Regex.Matches(source, @"\bComboBoxChoices\.Show\("))
+        {
+            int depth = 1;
+            int i = call.Index + call.Length;
+            int start = i;
+            for (; depth > 0; i++)
+            {
+                depth += source[i] switch
+                {
+                    '(' => 1,
+                    ')' => -1,
+                    _ => 0,
+                };
+            }
+
+            string arguments = source[start..(i - 1)];
+            yield return (Regex.Match(arguments, @"^\s*(\w+)").Groups[1].Value, arguments);
+        }
     }
 
     private static string MethodBody(string source, string method)
