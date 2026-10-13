@@ -132,6 +132,11 @@ public static class ExportEstimator
         double pixelScale = Math.Max(0.05, width * (double)height / (1920.0 * 1080));
         double speed = framesPerSecond1080 / pixelScale * (settings.Performance == ExportPerformance.Fastest ? 1 : 0.6);
         int passes = video.RateControl.Passes;
-        return TimeSpan.FromSeconds(seconds * fps / speed * passes);
+        // Un preajuste importado puede traer pasadas o tamaños absurdos (el diálogo los avisa como problema): la estimación
+        // no puede lanzar OverflowException por ello.
+        double total = seconds * fps / speed * passes;
+        return double.IsNaN(total) || total <= 0 ? TimeSpan.Zero
+            : total >= TimeSpan.MaxValue.TotalSeconds ? TimeSpan.MaxValue
+            : TimeSpan.FromSeconds(total);
     }
 }

@@ -39,6 +39,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Corredor y mutaciones del fuzz de archivos, compartidos con las pruebas del núcleo y de paquetes -->
+    <Compile Include="..\Rodaje.Core.Tests\Fuzz\FuzzRunner.cs" Link="Fuzz\FuzzRunner.cs" />
+    <Compile Include="..\Rodaje.Packages.Tests\Fuzz\ContentReaderFuzz.cs" Link="Fuzz\ContentReaderFuzz.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="..\..\src\Rodaje.App\Services\**\*.cs" Link="Services\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Completa un método parcial de Shell (EditorServices.cs), que las pruebas no compilan. -->
     <Compile Remove="..\..\src\Rodaje.App\Services\Effects\EffectContentFactory.cs" />

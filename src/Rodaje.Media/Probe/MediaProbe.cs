@@ -163,7 +163,9 @@ public static unsafe class MediaProbe
             return Av.ToTime(stream->duration, stream->time_base);
         }
 
-        return containerDuration is { } d ? d - (start - containerStart) : null;
+        // Un flujo que dice empezar después del final del contenedor (archivo dañado) daba una duración negativa, y con
+        // ella la del medio entero: se toma como desconocida.
+        return containerDuration is { } d && d - (start - containerStart) is { Ticks: > 0 } rest ? rest : null;
     }
 
     private static VideoStreamInfo ReadVideo(AVFormatContext* format, int index, Time containerStart, Time? containerDuration, bool scan)
