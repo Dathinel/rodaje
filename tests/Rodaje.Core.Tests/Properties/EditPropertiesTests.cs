@@ -149,49 +149,63 @@ public class EditPropertiesTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// Semilla del sorteo de <see cref="ElSorteo_EjercitaLasVelocidades"/> (cualquier semilla válida de CsCheck sirve; esta es
+    /// la de la propiedad 11). Con ella los conteos son siempre los mismos: si se cambia, hay que volver a medir los umbrales.
+    /// </summary>
+    private const string SpeedDrawSeed = "4mihSLRcQtT6";
+
     /// <summary>Los proyectos y las operaciones de velocidad del sorteo de verdad llegan a aplicarse, no solo a rechazarse.</summary>
     [Fact]
     public void ElSorteo_EjercitaLasVelocidades()
     {
         int projectsWithSpeed = 0;
         var applied = new int[Enum.GetValues<OpKind>().Length];
-        GenScenario.Sample(
-            s =>
+        // CsCheck solo usa la semilla en la primera iteración: para que los 2 000 escenarios sean siempre los mismos se
+        // sortean todos juntos como un único arreglo con semilla fija.
+        GenScenario.Array[2000].Sample(
+            scenarios =>
             {
-                BuiltProject built = RandomTimeline.Build(s.Project);
-                if (built.Sequence.AllTracks.SelectMany(t => t.Clips).Any(c => c.Speed is not null))
+                foreach ((ProjectSpec project, OpSpec[] ops) in scenarios)
                 {
-                    Interlocked.Increment(ref projectsWithSpeed);
-                }
-
-                foreach (OpSpec spec in s.Ops)
-                {
-                    ResolvedOp op = RandomTimeline.Resolve(built, spec);
-                    if (op.Command is null)
+                    BuiltProject built = RandomTimeline.Build(project);
+                    if (built.Sequence.AllTracks.SelectMany(t => t.Clips).Any(c => c.Speed is not null))
                     {
-                        continue;
+                        projectsWithSpeed++;
                     }
 
-                    try
+                    foreach (OpSpec spec in ops)
                     {
-                        op.Command.Apply(built.Project);
-                        Interlocked.Increment(ref applied[(int)op.Kind]);
-                    }
-                    catch (EditException)
-                    {
+                        ResolvedOp op = RandomTimeline.Resolve(built, spec);
+                        if (op.Command is null)
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            op.Command.Apply(built.Project);
+                            applied[(int)op.Kind]++;
+                        }
+                        catch (EditException)
+                        {
+                        }
                     }
                 }
             },
-            iter: 2000,
+            seed: SpeedDrawSeed,
+            iter: 1,
             threads: 1);
 
         output.WriteLine($"proyectos con velocidad: {projectsWithSpeed}; aplicadas: {string.Join(", ", Enum.GetValues<OpKind>().Select(k => $"{k} {applied[(int)k]}"))}");
         Assert.True(projectsWithSpeed > 400, $"solo {projectsWithSpeed} proyectos con velocidad");
         foreach (OpKind kind in (OpKind[])[OpKind.SetSpeed, OpKind.RateStretch, OpKind.FreezeFrame, OpKind.SetCurve, OpKind.SetReverse, OpKind.SetPreservePitch, OpKind.ApplySpeedPreset])
         {
-            // El sorteo no tiene semilla fija: FreezeFrame queda entre 100 y 135 de 2 000 (100 justos en una corrida de la CI
-            // de #109). Lo que se comprueba es que cada operación se aplica de verdad, no una frecuencia: 40 deja margen.
-            Assert.True(applied[(int)kind] > 40, $"{kind} solo se aplicó {applied[(int)kind]} veces");
+            // Con la semilla fija los conteos son deterministas: 1 875 proyectos con velocidad y, de estas operaciones, la que
+            // menos se aplica es FreezeFrame con 124 (SetPreservePitch 169, ApplySpeedPreset 223, SetCurve 271, SetReverse 369,
+            // RateStretch 513, SetSpeed 648). El umbral de 100, el original, deja un 20 % de margen bajo el mínimo para que un
+            // retoque menor del generador no lo rompa, y salta si una operación de velocidad deja de aplicarse casi siempre.
+            Assert.True(applied[(int)kind] > 100, $"{kind} solo se aplicó {applied[(int)kind]} veces");
         }
     }
 
