@@ -162,6 +162,61 @@ public sealed class LinkSyncReverseTests
         }
     }
 
+    /// <summary>
+    /// Curva de dos nudos (0 y 100 cuadros) de <paramref name="from"/> a <paramref name="to"/> centésimas. El audio va 6
+    /// cuadros detrás del video en la línea de tiempo (otra fase) y se desliza para que las diferencias extremas, en el
+    /// cuadro 30 (el video pasa por el primer nudo) y en el 136 (el audio pasa por el último), valgan +d y −d.
+    /// </summary>
+    private static (Clip Video, Clip Audio, Time Early, Time Late) TiedPair(int from, int to, bool reverse)
+    {
+        SpeedCurve Curve() => new() { Span = F(100), Points = [new SpeedPoint(0, from), new SpeedPoint(SpeedCurve.AtScale, to)] };
+        var speed = new ClipSpeed { Curve = Curve(), Reverse = reverse, Offset = -F(20) };
+        Clip video = Make("v", 0, 0, 0, speed, 1);
+        ClipTimeMap.Create(F(10), F(160), reverse ? F(800) : F(5), speed).ApplyTo(video);
+        ClipTimeMap v = ClipTimeMap.Of(video);
+        ClipTimeMap moved = v.MoveTo(F(16));
+        Time early = moved.Source(F(30)) - v.Source(F(30)), late = moved.Source(F(136)) - v.Source(F(136));
+        Clip audio = Make("a", 0, 0, 0, new ClipSpeed { Curve = Curve(), Reverse = reverse }, 1);
+        moved.Slip(Time.FromTicks(-(early + late).Ticks / 2)).ApplyTo(audio);
+
+        ClipTimeMap a = ClipTimeMap.Of(audio);
+        return (video, audio, a.Source(F(30)) - v.Source(F(30)), a.Source(F(136)) - v.Source(F(136)));
+    }
+
+    /// <summary>
+    /// Con otra fase, dos nudos cuyas diferencias tienen el mismo tamaño y distinto signo: se da la del instante más
+    /// temprano (la regla de <c>OffsetAtKnots</c>). Invertir el desempate no hacía caer ninguna prueba.
+    /// </summary>
+    [Fact]
+    public void Curva_en_otra_fase_con_empate_de_tamano_da_el_nudo_mas_temprano()
+    {
+        foreach (bool reverse in (bool[])[false, true])
+        {
+            // Acelera de 1× a 3×: el audio, rezagado, recorre 6 cuadros menos al entrar y 18 menos al salir.
+            (Clip video, Clip audio, Time early, Time late) = TiedPair(100, 300, reverse);
+
+            Assert.Equal(reverse ? -F(6) : F(6), early);
+            Assert.Equal(-early, late);
+            Assert.Equal(early, LinkSync.OffsetBetween(video, audio));
+            Assert.Equal(-early, LinkSync.OffsetBetween(audio, video));
+        }
+    }
+
+    [Fact]
+    public void Curva_en_otra_fase_con_empate_de_tamano_y_signo_cambiado_da_el_nudo_mas_temprano()
+    {
+        foreach (bool reverse in (bool[])[false, true])
+        {
+            // Frena de 3× a 1×: el mismo empate con los signos cambiados.
+            (Clip video, Clip audio, Time early, Time late) = TiedPair(300, 100, reverse);
+
+            Assert.Equal(reverse ? F(6) : -F(6), early);
+            Assert.Equal(-early, late);
+            Assert.Equal(early, LinkSync.OffsetBetween(video, audio));
+            Assert.Equal(-early, LinkSync.OffsetBetween(audio, video));
+        }
+    }
+
     // --- Ediciones que lo desfasaban sin rechazo ----------------------------------------------------------------------
 
     /// <summary>Pone en reversa a 1× los clips dados, con el mismo tramo del origen.</summary>
