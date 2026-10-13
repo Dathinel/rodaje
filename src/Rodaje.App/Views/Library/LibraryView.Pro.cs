@@ -181,20 +181,9 @@ internal sealed partial class LibraryView
     private List<MediaItem> VisibleItems(Project project, LibraryQuery query)
     {
         IReadOnlyList<MediaFacts> shown = LibraryFilter.Apply(Facts(project), _organization, query, DateTimeOffset.Now);
-        var items = new List<MediaItem>(shown.Count);
-        foreach (MediaFacts facts in shown)
-        {
-            if (!_itemsById.TryGetValue(facts.Media.Id, out MediaItem? item))
-            {
-                continue;
-            }
-
-            items.Add(item);
-            foreach (Subclip subclip in _organization.Subclips.Where(s => s.MediaId == facts.Media.Id))
-            {
-                items.Add(SubclipItem(subclip, facts.Media));
-            }
-        }
+        // Los subclips se agrupan por medio una vez por lista, no se filtran por cada medio visible.
+        List<MediaItem> items = SubclipsByMedia.Interleave(shown, facts => facts.Media.Id, _organization.Subclips,
+            facts => _itemsById.GetValueOrDefault(facts.Media.Id), (subclip, facts) => SubclipItem(subclip, facts.Media));
 
         foreach (string stale in _subclipItems.Keys.Where(id => _organization.FindSubclip(id) is null).ToList())
         {
