@@ -70,21 +70,29 @@ public sealed class ExtremeProjectValuesTests
         Assert.Single(ModelValidator.Validate(OneClip(Rational.Fps25, Sequence.MaxTime.Ticks - 10, 11)));
     }
 
+    /// <summary>
+    /// Los marcadores y las regiones no alargan la secuencia: pueden llegar a long.MaxValue (la ida y vuelta del archivo
+    /// lo comprueba), y una edición que los correría fuera del rango es una EditException, no una OverflowException.
+    /// </summary>
     [Fact]
-    public void AMarkerOrARegionAfterTheEndOfTheTimeline_IsRejected()
+    public void AMarkerOrARegionAtLongMax_IsValid_AndShiftingThemPastItIsAnEditException()
     {
-        Project project = OneClip(Rational.Fps25, 0, 10);
+        Project project = OneClip(Rational.Fps25, Time.TicksPerSecond, Time.TicksPerSecond);
         Sequence sequence = project.Sequences[0];
-        sequence.Markers.Add(new Marker { Id = "mk", Time = Sequence.MaxTime });
-        sequence.Regions.Add(new Region { Id = "rg", Start = Time.Zero, End = Sequence.MaxTime });
+        sequence.Markers.Add(new Marker { Id = "mk", Time = Time.FromTicks(long.MaxValue) });
+        sequence.Regions.Add(new Region { Id = "rg", Start = Time.Zero, End = Time.FromTicks(long.MaxValue) });
         Assert.Empty(ModelValidator.Validate(project));
+        string before = ProjectSerializer.Serialize(project);
 
-        sequence.Markers[0].Time = Time.FromTicks(long.MaxValue);
-        sequence.Regions[0].End = Time.FromTicks(long.MaxValue);
+        // Alargar el clip con ripple de marcadores correría el marcador y el final de la región más allá de long.MaxValue.
+        var history = new UndoStack(project);
+        Assert.Throws<EditException>(() => history.Execute(
+            Edits.RippleTrim("s", "c", TrimEdge.Out, Time.FromTicks(Time.TicksPerSecond), RippleScope.AllTracksAndMarkers)));
+        Assert.Equal(before, ProjectSerializer.Serialize(project));
 
-        IReadOnlyList<string> errors = ModelValidator.Validate(project);
-        Assert.Equal(2, errors.Count);
-        Assert.All(errors, e => Assert.Contains("después del final de la línea de tiempo", e, StringComparison.Ordinal));
+        // Sin correr marcadores, la misma edición se hace.
+        history.Execute(Edits.RippleTrim("s", "c", TrimEdge.Out, Time.FromTicks(Time.TicksPerSecond), RippleScope.AllTracks));
+        Assert.Empty(ModelValidator.Validate(project));
     }
 
     /// <summary>

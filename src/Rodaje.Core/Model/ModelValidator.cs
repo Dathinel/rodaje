@@ -264,10 +264,6 @@ public static partial class ModelValidator
             {
                 errors.Add($"El marcador «{marker.Id}» está antes del inicio de la línea de tiempo.");
             }
-            else if (marker.Time > Sequence.MaxTime)
-            {
-                errors.Add($"El marcador «{marker.Id}» está después del final de la línea de tiempo ({Sequence.MaxTime.Ticks} ticks).");
-            }
 
             ValidateMarkerStyle("El marcador", marker.Id, marker.Color, marker.Note, errors);
         }
@@ -283,10 +279,6 @@ public static partial class ModelValidator
             if (region.End <= region.Start)
             {
                 errors.Add($"La región «{region.Id}» tiene duración cero o negativa.");
-            }
-            else if (region.End > Sequence.MaxTime)
-            {
-                errors.Add($"La región «{region.Id}» termina después del final de la línea de tiempo ({Sequence.MaxTime.Ticks} ticks).");
             }
 
             ValidateMarkerStyle("La región", region.Id, region.Color, region.Note, errors);

@@ -13,9 +13,10 @@ public sealed class Sequence
     public Rational FrameRate { get; set; } = Rational.Fps30;
 
     /// <summary>
-    /// Último instante de la línea de tiempo: ningún clip, marcador ni región termina después (2^62 ticks, unos 207 años).
-    /// Deja la mitad del rango de un <c>long</c> de margen, así sumar dos instantes válidos o llevar uno al cuadro
-    /// siguiente nunca desborda.
+    /// Último instante de la línea de tiempo: ningún clip termina después (2^62 ticks, unos 207 años). Deja la mitad del
+    /// rango de un <c>long</c> de margen, así sumar dos instantes válidos o llevar el cursor al cuadro siguiente nunca
+    /// desborda. Los marcadores y las regiones no cuentan para el largo de la secuencia ni para el cursor, así que pueden
+    /// llegar a <see cref="long.MaxValue"/>; una edición que los correría fuera del rango se rechaza (EditException).
     /// </summary>
     public static Time MaxTime { get; } = Time.FromTicks(1L << 62);
 

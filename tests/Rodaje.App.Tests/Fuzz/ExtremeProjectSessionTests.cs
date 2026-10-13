@@ -14,7 +14,7 @@ namespace Rodaje.App.Tests.Fuzz;
 
 /// <summary>
 /// Proyectos con números extremos que el formato admite (tarea 220): tasas de 1 a 1000 fps con términos enormes, clips
-/// pegados al final de la línea de tiempo (<see cref="Sequence.MaxTime"/>), velocidades y curvas en sus topes, generadores
+/// pegados al final de la línea de tiempo (<see cref="Sequence.MaxTime"/>), marcadores y regiones en <see cref="long.MaxValue"/>, velocidades y curvas en sus topes, generadores
 /// con el origen muy negativo, keyframes en <see cref="long.MinValue"/> y <see cref="long.MaxValue"/> y muchas pistas.
 /// Se abren en la sesión, se editan con desplazamientos de un tick a casi todo el rango, se guardan y se vuelven a leer:
 /// ninguna excepción escapa y el proyecto sigue siendo válido. Lo que el formato admite pero no se puede editar (una tasa
@@ -221,8 +221,8 @@ public class ExtremeProjectSessionTests
         }
 
         sequence.Markers.Add(new Marker { Id = "mk0", Time = Time.Zero, Name = "inicio" });
-        sequence.Markers.Add(new Marker { Id = "mk1", Time = Sequence.MaxTime, Name = "final" });
-        sequence.Regions.Add(new Region { Id = "rg", Start = Time.Zero, End = Sequence.MaxTime, Name = "todo" });
+        sequence.Markers.Add(new Marker { Id = "mk1", Time = Time.FromTicks(long.MaxValue), Name = "final" });
+        sequence.Regions.Add(new Region { Id = "rg", Start = Time.Zero, End = Time.FromTicks(long.MaxValue), Name = "todo" });
         return project;
     }
 
@@ -346,7 +346,7 @@ public class ExtremeProjectSessionTests
             7 => session.Undo(),
             8 => session.Redo(),
             9 => session.Execute(Edits.Trim(seq, id, edge, delta)),
-            10 => session.Execute(Edits.RippleTrim(seq, id, edge, delta, RippleScope.AllTracks)),
+            10 => session.Execute(Edits.RippleTrim(seq, id, edge, delta, (RippleScope)random.Next(3))),
             11 => session.Execute(Edits.Roll(seq, id, delta)),
             12 => session.Execute(Edits.Slip(seq, id, delta)),
             13 => session.Execute(Edits.Slide(seq, id, delta)),
