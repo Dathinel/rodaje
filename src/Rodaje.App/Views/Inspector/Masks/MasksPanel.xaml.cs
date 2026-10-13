@@ -341,33 +341,59 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         ViewOverlay.IsChecked = session.MaskView == MaskViewMode.Overlay;
     }
 
+    /// <remarks>
+    /// Elegir un destino edita y refresca el panel dentro del SelectionChanged del desplegable: los elementos solo se
+    /// rehacen si cambió la lista, porque cambiarlos ahí (o con la lista abierta) falla dentro de WinUI y cierra la app.
+    /// </remarks>
     private void ShowTargets(Clip clip, EffectInstance mask)
     {
-        TargetBox.Items.Clear();
-        _targets.Clear();
-        TargetBox.Items.Add("La capa (recorta el clip)");
-        _targets.Add("");
-        TargetBox.Items.Add("Zona de los efectos con «Dónde» (no recorta)");
-        _targets.Add(EffectsZone);
+        var labels = new List<string> { "La capa (recorta el clip)", "Zona de los efectos con «Dónde» (no recorta)" };
+        var targets = new List<string> { "", EffectsZone };
         foreach (EffectInstance effect in clip.Effects)
         {
             if (MaskEdits.CanBeMasked(effect.Type))
             {
-                TargetBox.Items.Add("Solo «" + EffectUi.Name(effect.Type) + "»" + (effect.Enabled ? "" : " (desactivado)"));
-                _targets.Add(effect.Id);
+                labels.Add("Solo «" + EffectUi.Name(effect.Type) + "»" + (effect.Enabled ? "" : " (desactivado)"));
+                targets.Add(effect.Id);
             }
         }
 
         string current = mask.Options.GetValueOrDefault(O.Target) is { Length: > 0 } target ? target
             : mask.Options.GetValueOrDefault(O.Use) == "effects" ? EffectsZone : "";
-        if (!_targets.Contains(current))
+        if (!targets.Contains(current))
         {
-            TargetBox.Items.Add("Un efecto que ya no está");
-            _targets.Add(current);
+            labels.Add("Un efecto que ya no está");
+            targets.Add(current);
         }
 
-        TargetBox.SelectedIndex = _targets.IndexOf(current);
+        if (TargetBox.IsDropDownOpen)
+        {
+            return;
+        }
+
+        if (ComboChoices.NeedsRebuild(_targetLabels, labels) || ComboChoices.NeedsRebuild(_targets, targets))
+        {
+            TargetBox.SelectedIndex = -1;
+            TargetBox.Items.Clear();
+            foreach (string label in labels)
+            {
+                TargetBox.Items.Add(label);
+            }
+
+            _targetLabels = labels;
+            _targets.Clear();
+            _targets.AddRange(targets);
+        }
+
+        int index = _targets.IndexOf(current);
+        if (TargetBox.SelectedIndex != index)
+        {
+            TargetBox.SelectedIndex = index;
+        }
     }
+
+    /// <summary>Lo que muestra ahora el desplegable de destino, en su orden (va con <see cref="_targets"/>).</summary>
+    private List<string> _targetLabels = [];
 
     private void ShowWeight(MaskShape shape, MaskVertex[] points, IReadOnlyList<int> selected)
     {

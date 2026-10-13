@@ -117,15 +117,15 @@ internal sealed partial class ParameterRow : UserControl
         ArgumentNullException.ThrowIfNull(state);
         ParameterSpec spec = Spec;
         _updating = true;
-        double display = spec.ToDisplay(state.Value);
+        // Siempre un número dentro del rango: un NaN en el deslizador lanza dentro de WinUI y cierra la app.
         if (!_changing)
         {
-            ValueSlider.Value = Math.Clamp(display, spec.Minimum, spec.Maximum);
+            ValueSlider.Value = spec.ToSlider(state.Value);
         }
 
         if (ValueBox.FocusState == FocusState.Unfocused)
         {
-            ValueBox.Value = Math.Round(display, spec.Decimals);
+            ValueBox.Value = spec.ToBox(state.Value);
         }
 
         bool editable = !state.IsAnimated || playheadInside;
@@ -251,7 +251,11 @@ internal sealed partial class ParameterRow : UserControl
             double value = startValue + ((e.GetCurrentPoint(this).Position.X - startX) * perPixel);
             double step = _spec.Step * (factor < 1 ? 0.1 : 1);
             value = Math.Round(value / step) * step;
-            ValueSlider.Value = Math.Clamp(value, _spec.Minimum, _spec.Maximum);
+            if (double.IsFinite(value))
+            {
+                ValueSlider.Value = Math.Clamp(value, _spec.Minimum, _spec.Maximum);
+            }
+
             e.Handled = true;
         };
         void End()
@@ -289,7 +293,7 @@ internal sealed partial class ParameterRow : UserControl
 
     private void OnSliderValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
-        if (_updating || _spec is null)
+        if (_updating || _spec is null || !double.IsFinite(e.NewValue))
         {
             return;
         }

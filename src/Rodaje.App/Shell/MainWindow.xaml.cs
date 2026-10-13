@@ -780,8 +780,9 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         _activatedOnce = true;
         Program.Metrics.Milestone("ventana_activada");
-        double scale = Root.XamlRoot?.RasterizationScale ?? 1;
-        TitleBar.CaptionInset.Width = new GridLength(AppWindow.TitleBar.RightInset / scale);
+        // Escala de la interfaz: si aún no se conoce (0), GridLength con infinito lanzaría.
+        double scale = Root.XamlRoot?.RasterizationScale is double s && s > 0 && double.IsFinite(s) ? s : 1;
+        TitleBar.CaptionInset.Width = new GridLength(Math.Max(0, AppWindow.TitleBar.RightInset / scale));
     }
 
     private void OnRendering(object? sender, object e) => Session.UpdateTransport(_engine.Snapshot);

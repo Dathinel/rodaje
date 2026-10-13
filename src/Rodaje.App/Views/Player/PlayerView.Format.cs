@@ -16,12 +16,7 @@ namespace Rodaje.App.Views.Player;
 /// </summary>
 internal sealed partial class PlayerView
 {
-    private static readonly (ClipFit Fit, string Label, string Help)[] FitChoices =
-    [
-        (ClipFit.Fit, "Encajar", "Cada clip entero, con barras si no tiene la forma del proyecto."),
-        (ClipFit.Fill, "Rellenar", "Cada clip llena el cuadro; lo que sobra queda fuera."),
-        (ClipFit.Keep, "Mantener tamaño", "Cada clip conserva su tamaño en píxeles."),
-    ];
+    private static IReadOnlyList<(ClipFit Fit, string Label, string Help)> FitChoices => ProjectFormats.FitChoices;
 
     private void AttachFormat(EditorServices services)
     {
@@ -112,7 +107,7 @@ internal sealed partial class PlayerView
         var fit = new MenuFlyoutSubItem { Text = "Ajustar clips" };
         foreach ((ClipFit value, string label, string help) in FitChoices)
         {
-            var item = new RadioMenuFlyoutItem { Text = label, GroupName = "ProjectFit", IsChecked = _services.Settings.Current.FormatClipFit == value };
+            var item = new RadioMenuFlyoutItem { Text = label, GroupName = "ProjectFit", IsChecked = ProjectFormats.Normalize(_services.Settings.Current.FormatClipFit) == value };
             ToolTipService.SetToolTip(item, help);
             item.Click += (_, _) => _services.Settings.Current.FormatClipFit = value;
             fit.Items.Add(item);
@@ -134,16 +129,18 @@ internal sealed partial class PlayerView
     }
 
     private void ApplyFormat(int width, int height, Rational frameRate) =>
-        ApplyFormat(width, height, frameRate, _services?.Settings.Current.FormatClipFit ?? ClipFit.Fit);
+        ApplyFormat(width, height, frameRate, ProjectFormats.Normalize(_services?.Settings.Current.FormatClipFit ?? ClipFit.Fit));
 
     private void ApplyFormat(int width, int height, Rational frameRate, ClipFit fit)
     {
-        if (Session is not { } session || !session.ChangeFormat(width, height, frameRate, fit))
+        // Un ajuste fuera de la lista (ajustes guardados a mano) ya no lanza aquí: antes «First» cerraba la app desde el clic.
+        fit = ProjectFormats.Normalize(fit);
+        if (Session is not { } session || !ProjectFormats.IsValidSize(width, height) || !session.ChangeFormat(width, height, frameRate, fit))
         {
             return;
         }
 
-        string how = FitChoices.First(f => f.Fit == fit).Label.ToLowerInvariant();
+        string how = ProjectFormats.FitLabel(fit).ToLowerInvariant();
         session.Notify(NotificationSeverity.Success, "Formato del proyecto", $"Ahora es {ProjectFormats.Describe(session.Sequence)} (clips: {how}).",
             new NotificationAction("Deshacer", () => session.Undo()));
     }
@@ -185,7 +182,7 @@ internal sealed partial class PlayerView
         var fitButtons = new List<RadioButton>();
         foreach ((ClipFit value, string label, string help) in FitChoices)
         {
-            var radio = new RadioButton { Content = $"{label}: {help}", GroupName = "DialogFit", Tag = value, IsChecked = services.Settings.Current.FormatClipFit == value };
+            var radio = new RadioButton { Content = $"{label}: {help}", GroupName = "DialogFit", Tag = value, IsChecked = ProjectFormats.Normalize(services.Settings.Current.FormatClipFit) == value };
             fitButtons.Add(radio);
             fitPanel.Children.Add(radio);
         }

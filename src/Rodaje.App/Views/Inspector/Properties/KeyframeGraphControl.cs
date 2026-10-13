@@ -175,7 +175,7 @@ internal sealed partial class KeyframeGraphControl : Grid
         }
 
         ((RectangleGeometry)_canvas.Clip).Rect = new Rect(0, 0, width, Height - 2);
-        if (Parameter is not { } parameter || _spec is null)
+        if (Parameter is not { } parameter || _spec is null || !IsDrawable(parameter))
         {
             _empty.Text = _spec is null
                 ? "Ningún parámetro animado. Pon dos keyframes con el rombo de una fila para ver su curva aquí."
@@ -262,6 +262,21 @@ internal sealed partial class KeyframeGraphControl : Grid
         {
             _playhead.Visibility = Visibility.Collapsed;
         }
+    }
+
+    /// <summary>
+    /// Si la curva se puede dibujar: valores y rango finitos (el validador ya los exige; un NaN en los puntos de una
+    /// forma de XAML no debe llegar a la composición).
+    /// </summary>
+    private bool IsDrawable(Parameter parameter)
+    {
+        if (!parameter.Keyframes.TrueForAll(k => double.IsFinite(k.Value)))
+        {
+            return false;
+        }
+
+        (double low, double high) = CurrentRange(parameter);
+        return double.IsFinite(low) && double.IsFinite(high) && high > low;
     }
 
     private static PathGeometry Diamond(double x, double y, double r)

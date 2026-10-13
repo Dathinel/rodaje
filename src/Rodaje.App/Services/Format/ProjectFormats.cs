@@ -65,6 +65,35 @@ public static class ProjectFormats
         (Rational.Fps50, "50"), (Rational.Ntsc60, "59,94"), (Rational.Fps60, "60"),
     ];
 
+    /// <summary>Cómo quedan los clips, en el orden del menú «Ajustar clips» y del diálogo, con su ayuda.</summary>
+    public static IReadOnlyList<(ClipFit Fit, string Label, string Help)> FitChoices { get; } =
+    [
+        (ClipFit.Fit, "Encajar", "Cada clip entero, con barras si no tiene la forma del proyecto."),
+        (ClipFit.Fill, "Rellenar", "Cada clip llena el cuadro; lo que sobra queda fuera."),
+        (ClipFit.Keep, "Mantener tamaño", "Cada clip conserva su tamaño en píxeles."),
+    ];
+
+    /// <summary>
+    /// El ajuste si es uno de la lista; si no (un número suelto en los ajustes guardados), <see cref="ClipFit.Fit"/>. Así
+    /// ningún valor fuera de la lista llega al menú ni al cambio de formato.
+    /// </summary>
+    public static ClipFit Normalize(ClipFit fit) => Enum.IsDefined(fit) ? fit : ClipFit.Fit;
+
+    /// <summary>Nombre del ajuste para el aviso («encajar»…); el de <see cref="ClipFit.Fit"/> si no está en la lista.</summary>
+    public static string FitLabel(ClipFit fit)
+    {
+        ClipFit normalized = Normalize(fit);
+        foreach ((ClipFit value, string label, string _) in FitChoices)
+        {
+            if (value == normalized)
+            {
+                return label;
+            }
+        }
+
+        return FitChoices[0].Label;
+    }
+
     /// <summary>La proporción de la lista con esa forma (1 % de tolerancia), o «Personalizado».</summary>
     public static AspectChoice Match(int width, int height)
     {

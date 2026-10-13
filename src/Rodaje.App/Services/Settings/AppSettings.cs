@@ -160,6 +160,8 @@ public sealed partial class AppSettings
         {
             PreviewQuality = PreviewQuality.Auto;
         }
+
+        FormatClipFit = Format.ProjectFormats.Normalize(FormatClipFit);
     }
 
     private static double Clamp(double value, double min, double max, double fallback) =>
