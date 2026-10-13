@@ -13,8 +13,16 @@ namespace Rodaje.App.Services.Crashes;
 /// comunes de <c>X:\Users</c> (<c>Public</c>, <c>Default</c>…);</item>
 /// <item>las rutas de compilación del runner (<c>D:\a\rodaje\…\Archivo.cs:line 12</c>);</item>
 /// <item>las variables <c>%…%</c> (<c>%LOCALAPPDATA%\Rodaje\fallos</c>), salvo <c>%USERPROFILE%</c> y las de OneDrive,
-/// que solo conservan lo que cuelga de <c>AppData</c>.</item>
+/// que solo conservan lo que cuelga de <c>AppData</c>, y <c>%TEMP%</c>, que solo conserva las carpetas de Rodaje
+/// (<c>%TEMP%\rodaje-…</c>; las demás quedan en <c>%TEMP%\…\</c>).</item>
 /// </list>
+/// <c>%SystemDrive%</c>, <c>%HOMEDRIVE%</c> y <c>\Device\HarddiskVolumeN</c> cuentan como una unidad.
+/// <para>
+/// Una ruta usa como separador el primero que sigue a su raíz. La otra barra solo separa si el segmento que la precede no
+/// parece texto: así la «/» de «y/o» o de «12/10/2026» no se come la frase que sigue a <c>D:\…\a.mp4</c>. El último
+/// segmento de una ruta se conserva tal cual (también si no tiene extensión: puede ser un archivo como <c>notas</c>) y
+/// termina en su extensión seguida de un espacio, ante « (» o ante dos espacios.
+/// </para>
 /// Antes, las carpetas del usuario (<c>%LOCALAPPDATA%</c>, <c>%APPDATA%</c>, <c>%TEMP%</c>, <c>%USERPROFILE%</c>) pasan a
 /// su variable, y cualquier otro <c>X:\Users\&lt;nombre&gt;</c> a <c>%USERPROFILE%</c>. Fuera de las rutas, el nombre del
 /// usuario y el del equipo pasan a <c>%USERNAME%</c> y <c>%COMPUTERNAME%</c>.
@@ -202,6 +210,17 @@ public sealed class CrashReportScrubber
             return (token!, path.TailEnd);
         }
 
+        // En «%TEMP%» solo quedan las carpetas de Rodaje («rodaje-exportar-3»); las demás pueden llevar nombres del
+        // usuario («%TEMP%\Boda Pérez\…»): quedan en «%TEMP%\…\».
+        int folders = path.HasTail ? components.Count - 1 : components.Count;
+        if (token is not null && matched < folders
+            && (token.Equals("%TEMP%", StringComparison.OrdinalIgnoreCase) || token.Equals("%TMP%", StringComparison.OrdinalIgnoreCase))
+            && !line.AsSpan(components[matched].Start, components[matched].End - components[matched].Start).StartsWith("rodaje", StringComparison.OrdinalIgnoreCase))
+        {
+            return (token + line[components[matched - 1].End..components[matched].Start] + "…"
+                + line[components[folders - 1].End..path.TailStart], path.TailStart);
+        }
+
         bool keep;
         if (token is not null)
         {
@@ -271,11 +290,21 @@ public sealed class CrashReportScrubber
         var components = new List<Span>();
         RootKind kind;
         int p;
+        char separator;
         if (IsDrive(s, i))
         {
             kind = RootKind.Drive;
             components.Add(new Span(i, i + 2, char.ToUpperInvariant(s[i]) + ":"));
+            separator = s[i + 2];
             p = SkipSeparators(s, i + 2);
+        }
+        else if (IsDeviceVolume(s, i, out int volumeEnd))
+        {
+            // «\Device\HarddiskVolume3\…»: la ruta de un volumen, como una unidad.
+            kind = RootKind.Drive;
+            components.Add(new Span(i, volumeEnd, @"\Device\HarddiskVolume"));
+            separator = '\\';
+            p = SkipSeparators(s, volumeEnd);
         }
         else if (s[i] == '%')
         {
@@ -290,8 +319,12 @@ public sealed class CrashReportScrubber
                 return false;
             }
 
-            kind = RootKind.Variable;
-            components.Add(new Span(i, j + 1, null));
+            // «%SystemDrive%» y «%HOMEDRIVE%» son una unidad: se limpian como «C:\».
+            ReadOnlySpan<char> name = s.AsSpan(i, j + 1 - i);
+            bool drive = name.Equals("%SystemDrive%", StringComparison.OrdinalIgnoreCase) || name.Equals("%HOMEDRIVE%", StringComparison.OrdinalIgnoreCase);
+            kind = drive ? RootKind.Drive : RootKind.Variable;
+            components.Add(new Span(i, j + 1, drive ? "%SYSTEMDRIVE%" : null));
+            separator = s[j + 1];
             p = SkipSeparators(s, j + 1);
         }
         else if (IsSeparator(s[i]))
@@ -325,8 +358,9 @@ public sealed class CrashReportScrubber
                 {
                     kind = RootKind.Drive;
                     components.Add(new Span(p, p + 2, char.ToUpperInvariant(s[p]) + ":"));
+                    separator = s[p + 2];
                     p = SkipSeparators(s, p + 2);
-                    return ParseSegments(s, i, p, kind, components, out path);
+                    return ParseSegments(s, i, p, kind, components, separator, out path);
                 }
 
                 if (p + 3 < s.Length && s.AsSpan(p, 3).Equals("UNC", StringComparison.OrdinalIgnoreCase) && IsSeparator(s[p + 3]))
@@ -337,29 +371,40 @@ public sealed class CrashReportScrubber
 
             kind = RootKind.Unc;
             components.Add(new Span(i, p, @"\\"));
+            separator = s[i];
         }
         else
         {
             return false;
         }
 
-        return ParseSegments(s, i, p, kind, components, out path) && (kind != RootKind.Unc || path.HasSegments);
+        return ParseSegments(s, i, p, kind, components, separator, out path) && (kind != RootKind.Unc || path.HasSegments);
     }
 
-    private static bool ParseSegments(string s, int start, int p, RootKind kind, List<Span> components, out ParsedPath path)
+    // «separator» es la barra de la ruta (la primera tras la raíz). La otra también separa, salvo tras un segmento que ya
+    // parece texto («a.mp4 (no válido / corrupto)», «a.mp4 y/o»): con ella la ruta termina y el segmento es el último.
+    private static bool ParseSegments(string s, int start, int p, RootKind kind, List<Span> components, char separator, out ParsedPath path)
     {
         bool hasSegments = false;
         int tailStart;
+        int tailEnd;
         while (true)
         {
             int segment = p;
+            int textStart = -1;
             while (p < s.Length && IsSegmentChar(s[p]))
             {
+                if (textStart < 0 && char.IsWhiteSpace(s[p]) && EndsName(s, segment, p))
+                {
+                    textStart = p;
+                }
+
                 p++;
             }
 
-            if (p > segment && p < s.Length && IsSeparator(s[p]))
+            if (p > segment && p < s.Length && IsSeparator(s[p]) && (s[p] == separator || textStart < 0))
             {
+                // Con la barra de la ruta, el segmento es una carpeta aunque parezca texto: ante la duda, se tapa.
                 components.Add(new Span(segment, p, null));
                 hasSegments = true;
                 p = SkipSeparators(s, p);
@@ -367,18 +412,63 @@ public sealed class CrashReportScrubber
             }
 
             tailStart = segment;
+            tailEnd = textStart < 0 ? p : textStart;
             break;
         }
 
         // Lo que sigue a la última barra tras un espacio («C:\Users\ana\ (12 s)») no es un nombre de la ruta.
-        bool hasTail = p > tailStart && !char.IsWhiteSpace(s[tailStart]);
+        bool hasTail = tailEnd > tailStart && !char.IsWhiteSpace(s[tailStart]);
         if (hasTail)
         {
-            components.Add(new Span(tailStart, p, null));
+            components.Add(new Span(tailStart, tailEnd, null));
         }
 
-        path = new ParsedPath(start, kind, components, hasSegments, tailStart, p, hasTail);
+        path = new ParsedPath(start, kind, components, hasSegments, tailStart, tailEnd, hasTail);
         return true;
+    }
+
+    // Si el espacio en «space» cierra el nombre que empieza en «segment»: va seguido de « (» o de otro espacio, o el
+    // nombre acaba en una extensión («a.mp4», «a.mp4'», «ana.lopez»). Mira como mucho 7 caracteres hacia atrás.
+    private static bool EndsName(string s, int segment, int space)
+    {
+        if (space + 1 < s.Length && (s[space + 1] == '(' || char.IsWhiteSpace(s[space + 1])))
+        {
+            return true;
+        }
+
+        int end = space;
+        if (end - 1 > segment && s[end - 1] is '\'' or ')' or ']' or ',' or '.')
+        {
+            end--;
+        }
+
+        int k = end;
+        bool letter = false;
+        while (k > segment && end - k < 6 && char.IsAsciiLetterOrDigit(s[k - 1]))
+        {
+            letter |= char.IsAsciiLetter(s[k - 1]);
+            k--;
+        }
+
+        return letter && end - k is >= 1 and <= 5 && k - 1 > segment && s[k - 1] == '.';
+    }
+
+    // «\Device\HarddiskVolumeN» seguido de «\»; «end» queda en esa barra.
+    private static bool IsDeviceVolume(string s, int i, out int end)
+    {
+        const string prefix = @"\Device\HarddiskVolume";
+        end = i + prefix.Length;
+        if ((i > 0 && IsSeparator(s[i - 1])) || end >= s.Length || !s.AsSpan(i, prefix.Length).Equals(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        while (end < s.Length && char.IsAsciiDigit(s[end]))
+        {
+            end++;
+        }
+
+        return end > i + prefix.Length && end < s.Length && s[end] == '\\';
     }
 
     private static bool IsDrive(string s, int i) =>
