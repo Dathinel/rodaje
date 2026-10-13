@@ -42,6 +42,12 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
     internal Func<ModuleClient, Task> SendPing { get; set; } = static c => c.PingAsync();
 
     /// <summary>
+    /// Una ventana de espera del vigilante: termina cuando vence <see cref="ModuleManagerOptions.PingTimeout"/>. Costura
+    /// para las pruebas (por reflexión): vencen la ventana cuando quieren, sin depender del reloj ni del pool.
+    /// </summary>
+    internal Func<TimeSpan, Task> PingWindow { get; set; } = static timeout => Task.Delay(timeout);
+
+    /// <summary>
     /// <paramref name="process"/> se mató por no responder al <c>ping</c>. Va por proceso y no por conexión: si la llamada
     /// siguiente ya abrió otro, la que falló con el colgado sigue sabiendo por qué.
     /// </summary>
@@ -259,8 +265,9 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
 
                 ModuleClient client = process.Client;
                 Func<ModuleClient, Task> sendPing = SendPing;
+                Func<TimeSpan, Task> pingWindow = PingWindow;
                 if (await PingRoundAsync(() => sendPing(client), () => client.ReceivedMessages,
-                    () => Task.WhenAny(process.Exited, Task.Delay(options.PingTimeout))).ConfigureAwait(false))
+                    () => Task.WhenAny(process.Exited, pingWindow(options.PingTimeout))).ConfigureAwait(false))
                 {
                     continue;
                 }
