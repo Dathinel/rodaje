@@ -43,12 +43,15 @@ internal static class ThreadDump
     /// <summary>
     /// Corre <paramref name="capture"/> en un hilo propio (de fondo, para no retener el proceso si se cuelga) y devuelve su
     /// texto, o el de plazo vencido si no vuelve antes de <paramref name="timeout"/>; en ese caso intenta matar el
-    /// <c>createdump</c> hijo que pudo quedar. La costura de las pruebas: la captura real es
-    /// <see cref="CaptureSnapshot"/>.
+    /// <c>createdump</c> hijo que pudo dejar esta captura (no los que ya estaban antes de empezarla, que son de otra). La
+    /// costura de las pruebas: la captura real es <see cref="CaptureSnapshot"/>.
     /// </summary>
     internal static string Capture(Func<string> capture, TimeSpan timeout)
     {
         ArgumentNullException.ThrowIfNull(capture);
+
+        // Los createdump hijos que ya había: si vence el plazo, esos no son de esta captura y no se tocan.
+        HashSet<(int Pid, ulong StartTime)> before = CreateDumpChildren();
         string? result = null;
         var thread = new Thread(() =>
         {
@@ -67,7 +70,7 @@ internal static class ThreadDump
         thread.Start();
         if (!thread.Join(timeout))
         {
-            KillCreateDumpChildren();
+            KillCreateDumpChildren(before);
             return string.Create(CultureInfo.InvariantCulture, $"{TimedOutPrefix} {timeout.TotalSeconds:0.###} s)");
         }
 
@@ -76,13 +79,42 @@ internal static class ThreadDump
 
     /// <summary>
     /// En Linux, ClrMD escribe el volcado con un <c>createdump</c> hijo de este proceso: si la instantánea venció, se mata
-    /// para que no siga escribiendo un volcado enorme ni quede huérfano. En Windows (<c>PssCaptureSnapshot</c>) no hay hijo.
+    /// para que no siga escribiendo un volcado enorme ni quede huérfano. Solo los que nacieron después de empezar la
+    /// captura: los de <paramref name="before"/> (pid y hora de inicio, para no confundir un pid reciclado) son de otra
+    /// captura en curso. En Windows (<c>PssCaptureSnapshot</c>) no hay hijo.
     /// </summary>
-    private static void KillCreateDumpChildren()
+    private static void KillCreateDumpChildren(HashSet<(int Pid, ulong StartTime)> before)
     {
+        foreach ((int pid, ulong startTime) in CreateDumpChildren())
+        {
+            if (before.Contains((pid, startTime)))
+            {
+                continue;
+            }
+
+            try
+            {
+                using var child = System.Diagnostics.Process.GetProcessById(pid);
+                child.Kill();
+            }
+#pragma warning disable CA1031 // El proceso pudo terminar entre leerlo y matarlo: matarlo es un intento.
+            catch (Exception)
+#pragma warning restore CA1031
+            {
+            }
+        }
+    }
+
+    /// <summary>
+    /// Los procesos hijos de este cuyo nombre empieza por <c>createdump</c>, con su hora de inicio (en tics desde el
+    /// arranque del sistema), leídos de <c>/proc</c>. Fuera de Linux, o si <c>/proc</c> no se puede leer, ninguno.
+    /// </summary>
+    private static HashSet<(int Pid, ulong StartTime)> CreateDumpChildren()
+    {
+        var children = new HashSet<(int Pid, ulong StartTime)>();
         if (!OperatingSystem.IsLinux())
         {
-            return;
+            return children;
         }
 
         try
@@ -97,7 +129,8 @@ internal static class ThreadDump
 
                 try
                 {
-                    // /proc/<pid>/stat: «pid (comm) estado ppid …»; el comm puede llevar espacios y paréntesis.
+                    // /proc/<pid>/stat: «pid (comm) estado ppid …», con la hora de inicio en el campo 22; el comm puede
+                    // llevar espacios y paréntesis, así que los campos se cuentan desde el último «)».
                     string stat = File.ReadAllText(Path.Combine(dir, "stat"));
                     int close = stat.LastIndexOf(')');
                     int open = stat.IndexOf('(', StringComparison.Ordinal);
@@ -108,24 +141,28 @@ internal static class ThreadDump
 
                     string comm = stat[(open + 1)..close];
                     string[] rest = stat[(close + 1)..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    if (rest.Length > 1 && rest[1] == self && comm.StartsWith("createdump", StringComparison.Ordinal))
+                    if (rest.Length > 19
+                        && rest[1] == self
+                        && comm.StartsWith("createdump", StringComparison.Ordinal)
+                        && ulong.TryParse(rest[19], NumberStyles.None, CultureInfo.InvariantCulture, out ulong startTime))
                     {
-                        using var child = System.Diagnostics.Process.GetProcessById(pid);
-                        child.Kill();
+                        children.Add((pid, startTime));
                     }
                 }
-#pragma warning disable CA1031 // El proceso pudo terminar entre leerlo y matarlo.
+#pragma warning disable CA1031 // El proceso pudo terminar entre listarlo y leerlo.
                 catch (Exception)
 #pragma warning restore CA1031
                 {
                 }
             }
         }
-#pragma warning disable CA1031 // Matar el hijo es un intento: el plazo vencido se informa igual.
+#pragma warning disable CA1031 // Buscar el hijo es un intento: el plazo vencido se informa igual.
         catch (Exception)
 #pragma warning restore CA1031
         {
         }
+
+        return children;
     }
 
     /// <summary>La captura real: la instantánea con ClrMD, sin los hilos <paramref name="caller"/> ni el que la toma.</summary>
