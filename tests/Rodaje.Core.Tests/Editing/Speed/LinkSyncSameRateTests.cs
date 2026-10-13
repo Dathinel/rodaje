@@ -95,7 +95,10 @@ public sealed class LinkSyncSameRateTests
         Assert.NotEqual(Time.Zero, LinkSync.OffsetBetween(video, shifted));
     }
 
-    /// <summary>Con curva, el Offset es la posición en la curva y sí mueve el origen: dos Offset distintos no se miden.</summary>
+    /// <summary>
+    /// Con curva, el Offset es la posición en la curva y sí mueve el origen: con dos Offset distintos y el mismo inicio van
+    /// en otra fase. Antes no se medían («no comparable») y su desfase no se veía; ahora se miden (tarea 144, D-044).
+    /// </summary>
     [Fact]
     public void ConCurva_ElOffsetCuenta()
     {
@@ -109,7 +112,8 @@ public sealed class LinkSyncSameRateTests
         Clip same = Clip("b", 10 * Frame, 0, 200 * Frame, 50 * Frame, Curve(0));
         same.Speed!.PreservePitch = false;
 
-        Assert.Null(LinkSync.OffsetBetween(video, audio));
+        Assert.NotNull(LinkSync.OffsetBetween(video, audio));
+        Assert.NotEqual(Time.Zero, LinkSync.OffsetBetween(video, audio));
         Assert.Equal(Time.Zero, LinkSync.OffsetBetween(video, same));
     }
 }

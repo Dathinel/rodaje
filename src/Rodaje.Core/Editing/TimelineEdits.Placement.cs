@@ -207,7 +207,7 @@ public static partial class TimelineEdits
 
         if (scope == RippleScope.Track)
         {
-            HashSet<Time> sync = LinkSync.Snapshot(ctx.Sequence);
+            LinkSync.SyncSnapshot sync = LinkSync.Snapshot(ctx.Sequence);
             var removed = new HashSet<Clip>(targets.Select(t => t.Clip));
 
             // Cada hueco se cierra en su pista y en las de los enlazados de lo que se corre; un mismo tramo que llega a
