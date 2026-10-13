@@ -64,6 +64,21 @@ public sealed class ClientFuzzTests(ITestOutputHelper output)
         output.WriteLine(tally.ToString());
     }
 
+    /// <summary>
+    /// Regresión de la tarea 201: con esta semilla de la corrida larga, en Linux, una llamada salió con
+    /// <see cref="NullReferenceException"/> desde <c>PipeStream.WriteAsyncCore</c> (el cliente cortaba con
+    /// <c>Disconnect</c>, que fuera de Windows deja el asa en <c>null</c> con una escritura en vuelo). Es una carrera: la
+    /// semilla solo da el guion; la prueba determinista del defecto es
+    /// <see cref="ProtocolDefectTests.Abort_leaves_the_pipe_handle_closed_and_the_module_sees_the_end"/>.
+    /// </summary>
+    [Fact]
+    public async Task Seed_that_threw_null_reference_on_linux_finishes()
+    {
+        Tally tally = new();
+        await Task.WhenAll(Enumerable.Range(0, 40).Select(_ => Task.Run(() => RunCaseAsync(21261214, tally))));
+        output.WriteLine(tally.ToString());
+    }
+
     private static async Task RunCaseAsync(int seed, Tally tally)
     {
         Random random = new(seed);

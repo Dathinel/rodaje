@@ -257,9 +257,19 @@ internal sealed class MessageChannel(Stream stream, int maxFrameBytes = Protocol
     /// <c>Dispose</c>, y ninguna desconectando antes. Desconectar descarta lo que el módulo no leyó y le completa la
     /// lectura con fin de flujo; por eso solo se usa al cortar por un fallo (<see cref="Abort"/>).
     /// </summary>
+    /// <remarks>
+    /// Solo en Windows. Fuera de Windows la tubería es un socket de dominio Unix: cerrarlo ya le da al otro lado el fin de
+    /// flujo (o el corte), y <c>Disconnect</c> deja el asa de <see cref="PipeStream"/> en <c>null</c> en vez de cerrarla.
+    /// Una escritura o lectura de otro hilo que ya había pasado las comprobaciones de estado tomaba ese asa nula y salía
+    /// con <see cref="NullReferenceException"/> desde <c>PipeStream.WriteAsyncCore</c> (o <c>ReadAsyncCore</c>): ni
+    /// <see cref="ModuleException"/> ni cancelación, así que una llamada en curso fallaba con un error inesperado y el bucle
+    /// de lectura del cliente terminaba sin pasar por <c>Fail</c> (tarea 201, semilla 21261214 del fuzz del cliente).
+    /// Solo desechando, esa operación ve el asa cerrada y sale con <see cref="ObjectDisposedException"/> o
+    /// <see cref="IOException"/>, que el canal y el cliente ya tratan como un corte.
+    /// </remarks>
     internal static void Close(Stream stream)
     {
-        if (stream is NamedPipeServerStream { IsConnected: true } server)
+        if (OperatingSystem.IsWindows() && stream is NamedPipeServerStream { IsConnected: true } server)
         {
             try
             {

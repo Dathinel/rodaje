@@ -228,6 +228,31 @@ public sealed class ProtocolDefectTests
         }
     }
 
+    /// <summary>
+    /// Defecto 7 (tarea 201, solo fuera de Windows): <see cref="MessageChannel.Abort"/> desconectaba el lado servidor antes
+    /// de desecharlo, y en Linux <c>NamedPipeServerStream.Disconnect</c> deja el asa en <c>null</c> en vez de cerrarla. Una
+    /// escritura (o la lectura del bucle) de otro hilo que ya había pasado las comprobaciones de estado salía con
+    /// <see cref="NullReferenceException"/> desde <c>PipeStream.WriteAsyncCore</c>: el fuzz largo del cliente lo dio en 1 de
+    /// cada 12 corridas (semilla 21261214). Ahora fuera de Windows solo se desecha: el asa queda cerrada, no nula, y quien
+    /// llega tarde ve <see cref="ObjectDisposedException"/>. El módulo ve el fin del flujo igual que antes.
+    /// </summary>
+    [Fact]
+    public async Task Abort_leaves_the_pipe_handle_closed_and_the_module_sees_the_end()
+    {
+        (NamedPipeServerStream editor, NamedPipeClientStream module) = await Support.PipePairAsync();
+        using (module)
+        {
+            MessageChannel channel = new(editor);
+            await channel.SendAsync(new PingMessage(1));
+            channel.Abort();
+            // Con el asa en null sería InvalidOperationException («handle not set»), y la escritura en vuelo, NullReferenceException.
+            Assert.Throws<ObjectDisposedException>(() => editor.SafePipeHandle);
+            await Assert.ThrowsAsync<ObjectDisposedException>(() => channel.SendAsync(new PingMessage(2)).AsTask());
+            // El módulo llega al fin del flujo (en Windows, el ping sin leer se descarta al desconectar; en Linux, puede llegar).
+            Assert.True((await FuzzSupport.Capped(FuzzSupport.DrainAsync(module), "el fin del flujo en el módulo")).Count <= 1);
+        }
+    }
+
     /// <summary>Una tubería cuyo búfer de escritura está lleno: las escrituras esperan hasta que se cancelen.</summary>
     private sealed class StalledWrites(Stream inner) : Stream
     {
