@@ -36,6 +36,12 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
     internal Action<ModuleProcess> KillProcess { get; set; } = static p => p.Kill();
 
     /// <summary>
+    /// Manda el <c>ping</c> del vigilante y termina con el <c>pong</c>. Costura para las pruebas (por reflexión): atrasan
+    /// el <c>pong</c> de un módulo de verdad sin depender del reloj.
+    /// </summary>
+    internal Func<ModuleClient, Task> SendPing { get; set; } = static c => c.PingAsync();
+
+    /// <summary>
     /// <paramref name="process"/> se mató por no responder al <c>ping</c>. Va por proceso y no por conexión: si la llamada
     /// siguiente ya abrió otro, la que falló con el colgado sigue sabiendo por qué.
     /// </summary>
@@ -252,7 +258,8 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
                 }
 
                 ModuleClient client = process.Client;
-                if (await PingRoundAsync(() => client.PingAsync(), () => client.ReceivedMessages,
+                Func<ModuleClient, Task> sendPing = SendPing;
+                if (await PingRoundAsync(() => sendPing(client), () => client.ReceivedMessages,
                     () => Task.WhenAny(process.Exited, Task.Delay(options.PingTimeout))).ConfigureAwait(false))
                 {
                     continue;
