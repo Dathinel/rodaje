@@ -83,10 +83,14 @@ public sealed class ExportQueueStore(string path)
         try
         {
             SavedExportFile? file = JsonSerializer.Deserialize(File.ReadAllText(Path), ExportQueueJsonContext.Default.SavedExportFile);
-            return [.. (file?.Exports ?? []).Select(e => (new ExportRequest(ProjectSerializer.Deserialize(e.ProjectJson), e.SequenceId, e.OutputPath,
-                e.Settings, e.Range) { ProjectDirectory = e.ProjectDirectory }, e.ContinueWithoutMissing))];
+
+            // Una entrada nula o sin proyecto, secuencia, salida o ajustes (un archivo dañado) lanzaba NullReference o
+            // ArgumentNull fuera de este catch: se salta.
+            return [.. (file?.Exports ?? []).Where(e => e is { ProjectJson: not null, SequenceId: not null, OutputPath.Length: > 0, Settings: not null })
+                .Select(e => (new ExportRequest(ProjectSerializer.Deserialize(e.ProjectJson), e.SequenceId, e.OutputPath,
+                    e.Settings, e.Range) { ProjectDirectory = e.ProjectDirectory }, e.ContinueWithoutMissing))];
         }
-        catch (Exception ex) when (ex is JsonException or ProjectFormatException or IOException or NotSupportedException)
+        catch (Exception ex) when (ex is JsonException or ProjectFormatException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
             AppDataPaths.SetAside(Path, ".dañado");
             return [];

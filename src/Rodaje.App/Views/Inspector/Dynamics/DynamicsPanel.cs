@@ -6,7 +6,6 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Audio;
 using Rodaje.App.Services.Inspector;
-using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector.Properties;
 using Rodaje.Core.Model;
@@ -29,8 +28,11 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
     private static readonly string[] Limiter = [K.Ceiling];
 
     private readonly List<ParameterRow> _rows = [];
-    private readonly List<DynamicsOwner> _targets = [];
-    private readonly List<string?> _sidechains = [];
+    // Lo que muestran ahora los desplegables (ver ComboBoxChoices): Refresh corre en cada cuadro al reproducir y dentro de
+    // los SelectionChanged; rehacerlos ahí o con la lista abierta cerraba la app desde WinUI.
+    private ChoiceList<DynamicsOwner> _targets = new();
+    private ChoiceList<string?> _sidechains = new();
+    private ChoiceList<int> _presets = new();
     private readonly ComboBox _targetBox = new() { HorizontalAlignment = HorizontalAlignment.Stretch, MinWidth = 200 };
     private readonly ComboBox _presetBox = new() { HorizontalAlignment = HorizontalAlignment.Stretch, MinWidth = 200 };
     private readonly ToggleSwitch _enabled = new() { OnContent = "Activado", OffContent = "Desactivado", MinWidth = 0 };
@@ -109,9 +111,11 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         _limiter.Toggled += (_, _) => Toggle(K.Limiter, _limiter.IsOn, "Cambiar limitador");
         _sidechain.SelectionChanged += (_, _) =>
         {
-            if (!_updating && _sidechain.SelectedIndex >= 0)
+            if (!_updating && _sidechains.TryGet(_sidechain.SelectedIndex, out string? key))
             {
-                Run(e => e.SetSidechain(_sidechains[_sidechain.SelectedIndex]));
+                // Puede quitar «Una pista que ya no está» y rehacer este desplegable: va después del evento, y solo al
+                // compresor que se mostraba al elegir.
+                LaterForChosen(e => e.SetSidechain(key));
             }
         };
         IsVisibleChanged();
@@ -297,31 +301,12 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         }
 
         _lastClip = clip;
-        _targets.Clear();
-        if (clip is not null)
-        {
-            _targets.Add(new DynamicsOwner(DynamicsOwnerKind.Clip, clip));
-        }
-
-        _targets.AddRange(sequence.AudioTracks.Select(t => new DynamicsOwner(DynamicsOwnerKind.Track, t.Id)));
-        _targets.AddRange(sequence.AudioBuses.Select(b => new DynamicsOwner(DynamicsOwnerKind.Bus, b.Id)));
-        _targets.Add(DynamicsOwner.Mix(sequence));
-        if (_chosen is null || !_targets.Contains(_chosen))
-        {
-            _chosen = _targets.Count > 1 && clip is null ? DynamicsOwner.Mix(sequence) : _targets[0];
-        }
-
+        (ChoiceList<DynamicsOwner> targets, _chosen) = DynamicsChoices.Targets(session.Project, sequence, clip, _chosen);
         editor.Owner = _chosen;
         _updating = true;
         try
         {
-            _targetBox.Items.Clear();
-            foreach (DynamicsOwner owner in _targets)
-            {
-                _targetBox.Items.Add(TargetName(sequence, owner));
-            }
-
-            _targetBox.SelectedIndex = _targets.IndexOf(_chosen);
+            _targets = ComboBoxChoices.Show(_targetBox, _targets, targets, targets.IndexOf(_chosen));
             ShowEditor(editor, sequence);
         }
         finally
@@ -331,14 +316,6 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
 
         UpdateMonitor();
     }
-
-    private string TargetName(Sequence sequence, DynamicsOwner owner) => owner.Kind switch
-    {
-        DynamicsOwnerKind.Clip => "Clip «" + ClipLabels.Name(_services!.Session.Project, sequence.GetClip(owner.Id).Clip, "audio") + "»",
-        DynamicsOwnerKind.Track => "Pista «" + sequence.GetTrack(owner.Id).Name + "»",
-        DynamicsOwnerKind.Bus => "Bus «" + (sequence.FindBus(owner.Id)?.Name ?? "") + "»",
-        _ => "Mezcla",
-    };
 
     private void ShowEditor(DynamicsEditor editor, Sequence sequence)
     {
@@ -352,17 +329,23 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         _enabled.IsOn = compressor?.Enabled ?? false;
 
         AudioPreset? preset = editor.MatchingPreset(out bool hasEffects);
-        _presetBox.Items.Clear();
-        _presetBox.Items.Add("Sin compresor");
-        foreach (AudioPreset p in AudioPresets.All)
+        // Valor de cada elemento: −1 «Sin compresor», el índice del preajuste o −2 «Personalizado».
+        (ChoiceList<int> presets, int presetIndex) = DynamicsChoices.Presets(has, preset);
+        _presets = ComboBoxChoices.Show(_presetBox, _presets, presets, presetIndex, i =>
         {
-            var item = new ComboBoxItem { Content = p.Name };
-            ToolTipService.SetToolTip(item, p.Description);
-            _presetBox.Items.Add(item);
-        }
+            if (presets.Values[i] == -1)
+            {
+                return presets.Labels[i];
+            }
 
-        _presetBox.Items.Add(new ComboBoxItem { Content = "Personalizado", IsEnabled = false });
-        _presetBox.SelectedIndex = !has ? 0 : preset is null ? _presetBox.Items.Count - 1 : 1 + AudioPresets.All.ToList().IndexOf(preset);
+            var item = new ComboBoxItem { Content = presets.Labels[i], IsEnabled = presets.Values[i] >= 0 };
+            if (presets.Values[i] >= 0)
+            {
+                ToolTipService.SetToolTip(item, AudioPresets.All[presets.Values[i]].Description);
+            }
+
+            return item;
+        });
         if (!has)
         {
             return;
@@ -389,24 +372,8 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         _limiter.IsOn = editor.Read(K.Limiter).Value >= 0.5;
         _limiterRows.Visibility = _limiter.IsOn ? Visibility.Visible : Visibility.Collapsed;
 
-        _sidechains.Clear();
-        _sidechain.Items.Clear();
-        _sidechains.Add(null);
-        _sidechain.Items.Add("Su propio audio");
-        foreach (Track track in editor.SidechainCandidates())
-        {
-            _sidechains.Add(track.Id);
-            _sidechain.Items.Add("Pista «" + track.Name + "»");
-        }
-
-        string? key = editor.Sidechain;
-        if (!string.IsNullOrEmpty(key) && !_sidechains.Contains(key))
-        {
-            _sidechains.Add(key);
-            _sidechain.Items.Add("Una pista que ya no está");
-        }
-
-        _sidechain.SelectedIndex = Math.Max(0, _sidechains.IndexOf(string.IsNullOrEmpty(key) ? null : key));
+        (ChoiceList<string?> sidechains, int sidechain) = DynamicsChoices.Sidechains(editor.SidechainCandidates(), editor.Sidechain);
+        _sidechains = ComboBoxChoices.Show(_sidechain, _sidechains, sidechains, sidechain);
         _sidechain.IsEnabled = editor.Owner?.Kind is DynamicsOwnerKind.Clip or DynamicsOwnerKind.Track;
         _listen.IsEnabled = true;
 
@@ -439,26 +406,52 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
 
     private void OnTargetChosen()
     {
-        if (_updating || _targetBox.SelectedIndex < 0 || _targetBox.SelectedIndex >= _targets.Count)
+        if (_updating || !_targets.TryGet(_targetBox.SelectedIndex, out DynamicsOwner chosen) || chosen == _chosen)
         {
             return;
         }
 
-        _chosen = _targets[_targetBox.SelectedIndex];
+        _chosen = chosen;
         _bypass.IsChecked = false;
         _listen.IsChecked = false;
-        Refresh();
+        // El refresco va después del evento: tocar el desplegable dentro de su propio SelectionChanged lo rompe.
+        DispatcherQueue.RunAfterEvent(Refresh);
+    }
+
+    /// <summary>
+    /// Hace <paramref name="action"/> después del evento en curso, solo si el panel sigue con el mismo dueño y el mismo clip
+    /// que al elegir: si antes del despacho cambió la selección o el compresor elegido, la elección no se aplica a otro.
+    /// </summary>
+    private void LaterForChosen(Func<DynamicsEditor, bool> action)
+    {
+        if (_chosen is not { } owner)
+        {
+            return;
+        }
+
+        var picked = new DeferredChoice<DynamicsOwner>(owner, _lastClip);
+        DispatcherQueue.RunAfterEvent(() =>
+        {
+            if (picked.StillApplies(_chosen, _lastClip) && _editor2?.Owner == picked.Owner)
+            {
+                Run(action);
+            }
+            else
+            {
+                Refresh();
+            }
+        });
     }
 
     private void OnPresetChosen()
     {
-        if (_updating || _presetBox.SelectedIndex < 0 || _presetBox.SelectedIndex > AudioPresets.All.Count)
+        if (_updating || !_presets.TryGet(_presetBox.SelectedIndex, out int index) || index == -2)
         {
             return;
         }
 
-        AudioPreset? preset = _presetBox.SelectedIndex == 0 ? null : AudioPresets.All[_presetBox.SelectedIndex - 1];
-        Run(e => preset is null ? e.Remove() : e.ApplyPreset(preset));
+        AudioPreset? preset = index < 0 ? null : AudioPresets.All[index];
+        LaterForChosen(e => preset is null ? e.Remove() : e.ApplyPreset(preset));
     }
 
     /// <summary>Con la pestaña a la vista, la mezcla publica el medidor del compresor elegido; la escucha solo dura mientras se ve.</summary>

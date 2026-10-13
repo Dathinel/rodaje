@@ -35,8 +35,8 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     private bool _updatingTransform;
     private string? _graphName;
 
-    /// <summary>Los parámetros que muestra ahora el desplegable de la gráfica, en su orden.</summary>
-    private List<string> _graphNames = [];
+    /// <summary>Los parámetros que muestra ahora el desplegable de la gráfica, en su orden (ver <see cref="ComboBoxChoices"/>).</summary>
+    private ChoiceList<string> _graphChoices = new();
     private readonly List<(Button Button, string Id)> _presetTiles = [];
 
     public PropertiesPanel()
@@ -435,31 +435,15 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     /// </remarks>
     private void ShowGraph(Clip clip, List<ParameterRow> animated)
     {
-        List<string> names = [.. animated.Select(r => r.Spec.Name)];
-        (IReadOnlyList<string> offered, int selected) = GraphParameterChoice.Choose(names, _graphName);
+        (ChoiceList<string> offered, int selected) = GraphParameterChoice.Build([.. animated.Select(r => (r.Spec.Name, r.Spec.Label))], _graphName);
         ParameterRow? shown = selected >= 0 ? animated[selected] : null;
         if (!GraphParameterBox.IsDropDownOpen)
         {
             _updatingTransform = true;
             try
             {
-                if (ComboChoices.NeedsRebuild(_graphNames, offered))
-                {
-                    GraphParameterBox.SelectedIndex = -1;
-                    GraphParameterBox.Items.Clear();
-                    foreach (ParameterRow row in animated)
-                    {
-                        GraphParameterBox.Items.Add(new ComboBoxItem { Content = row.Spec.Label, Tag = row.Spec.Name });
-                    }
-
-                    _graphNames = [.. offered];
-                }
-
-                if (GraphParameterBox.SelectedIndex != selected)
-                {
-                    GraphParameterBox.SelectedIndex = selected;
-                }
-
+                _graphChoices = ComboBoxChoices.Show(GraphParameterBox, _graphChoices, offered, selected,
+                    i => new ComboBoxItem { Content = offered.Labels[i], Tag = offered.Values[i] });
                 GraphParameterBox.IsEnabled = animated.Count > 0;
             }
             finally
@@ -474,17 +458,14 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private void OnGraphParameterSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (_updatingTransform || ComboChoices.Picked(_graphNames, GraphParameterBox.SelectedIndex) is not { } name || name == _graphName)
+        if (_updatingTransform || !_graphChoices.TryGet(GraphParameterBox.SelectedIndex, out string name) || name == _graphName)
         {
             return;
         }
 
         _graphName = name;
         // El refresco va después del evento: tocar el desplegable dentro de su propio SelectionChanged lo rompe.
-        if (!DispatcherQueue.TryEnqueue(Refresh))
-        {
-            Refresh();
-        }
+        DispatcherQueue.RunAfterEvent(Refresh);
     }
 
     private void OnGraphModeClick(object sender, RoutedEventArgs e)

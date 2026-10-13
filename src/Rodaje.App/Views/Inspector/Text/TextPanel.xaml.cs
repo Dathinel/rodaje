@@ -20,7 +20,8 @@ namespace Rodaje.App.Views.Inspector.Text;
 internal sealed partial class TextPanel : UserControl, IEditorView
 {
     private readonly List<Action<TextStyle>> _refreshers = [];
-    private readonly List<LibraryElement> _styles = [];
+    /// <summary>Lo que muestra ahora el desplegable de estilos (ver <see cref="ComboBoxChoices"/>).</summary>
+    private ChoiceList<LibraryElement> _styles = new();
     private EditorServices? _services;
     private TitleEditor? _editor;
     private string? _clipId;
@@ -272,22 +273,15 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         }
 
         PackageScan scan = _services.Packages.Installed;
-        if (!ReferenceEquals(scan, _stylesScan))
+        // Con la lista abierta (los paquetes cambian en cualquier momento) no se toca: el próximo refresco la pone al día.
+        ChoiceList<LibraryElement> styles = _styles;
+        if (!ReferenceEquals(scan, _stylesScan) && !_styleBox.IsDropDownOpen)
         {
             _stylesScan = scan;
-            _styles.Clear();
-            _styles.AddRange(LibraryElements.For(LibraryCategory.Text, scan));
-            _styleBox.Items.Clear();
-            foreach (LibraryElement element in _styles)
-            {
-                _styleBox.Items.Add(element.IsBuiltIn ? element.Name : $"{element.Name} · {element.Source}");
-            }
+            styles = TextStyleChoices.Build(scan);
         }
 
-        int index = style.Source is { } source
-            ? _styles.FindIndex(e => e.Reference == source)
-            : _styles.FindIndex(e => e.IsBuiltIn && style.ContentEquals(TitleStyles.Default()));
-        _styleBox.SelectedIndex = index;
+        _styles = ComboBoxChoices.Show(_styleBox, _styles, styles, TextStyleChoices.IndexOf(styles, style));
         _styleBox.PlaceholderText = style.Name is { Length: > 0 } name ? $"{name} (cambiado)" : "Personalizado";
         if (_sourceText is not null)
         {
@@ -303,16 +297,23 @@ internal sealed partial class TextPanel : UserControl, IEditorView
 
     private async void OnStyleChosen(object sender, SelectionChangedEventArgs e)
     {
-        if (_updating || _services is not { } services || _editor is not { } editor || _styleBox is not { SelectedIndex: >= 0 } box
-            || box.SelectedIndex >= _styles.Count)
+        if (_updating || _services is not { } services || _editor is not { } editor || _styleBox is not { } box
+            || !_styles.TryGet(box.SelectedIndex, out LibraryElement element))
         {
             return;
         }
 
-        LibraryElement element = _styles[box.SelectedIndex];
+        // Aplicar el estilo refresca el panel: va después del evento, no dentro del SelectionChanged del desplegable. Solo
+        // se aplica si el panel sigue con el mismo editor y el mismo título, y el editor sigue apuntando a él.
+        var picked = new DeferredChoice<TitleEditor>(editor, _clipId);
+        await Task.Yield();
+        if (!DeferredChoices.TitleStillApplies(picked, _editor, _clipId))
+        {
+            return;
+        }
+
         var applier = new ElementApplier(services.Session, new InstalledContentLoader(() => services.Packages.Installed));
-        string? clipId = _clipId;
-        if (await applier.LoadTextStyleAsync(element) is { } style && clipId == _clipId)
+        if (await applier.LoadTextStyleAsync(element) is { } style && DeferredChoices.TitleStillApplies(picked, _editor, _clipId))
         {
             editor.ApplyStyle(style);
         }
