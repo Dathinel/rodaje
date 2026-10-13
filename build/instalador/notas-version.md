@@ -2,16 +2,19 @@ Rodaje {{VERSION}} ({{FECHA}}): editor de video nativo para Windows, compilado d
 
 ## Qué trae
 
-- **Edición por capas** al cuadro exacto: cortar, recortar, ripple, roll, slip, slide, insertar y sobrescribir, marcadores, audio y video enlazados, clips compuestos, edición de tres y cuatro puntos. Todo se deshace con Ctrl+Z, con autoguardado y recuperación tras un cierre inesperado.
+- **Edición por capas** al cuadro exacto: cuchilla, ripple, roll, slip, slide y rango; edición de tres y cuatro puntos con insertar, sobrescribir, reemplazar, ajustar y superponer; grupos, colores de clip, búsqueda y cierre de huecos, aviso y arreglo de desincronía; multicámara y sincronía de audio externo por forma de onda. Todo se deshace con Ctrl+Z, con autoguardado y recuperación.
 - **Velocidad y reversa:** constante o por curva, congelar cuadro y reversa exacta, con el tono del audio conservado.
-- **Imagen en la GPU:** corrección de color con ruedas y curvas, comparación antes/después, LUT `.cube`, croma, máscaras, recorte con proporción, desenfoque, nitidez, viñeta, modos de mezcla, transformación con keyframes y transiciones.
-- **Audio:** volumen por clip y mezcla con LUFS, ecualizador, compresor, ducking y voz en off.
-- **Títulos y subtítulos** editables sobre el visor, con plantillas; escritos a mano o generados por la IA, con el tiempo de cada palabra para corregirlos.
-- **Exportación:** MP4, MOV, MKV y WebM; H.264 y HEVC por GPU, AV1, VP9 y ProRes; AAC, Opus y PCM; normalización a LUFS, capítulos, formatos verticales y verificación del archivo final; varias versiones a la vez y cola que sobrevive a cerrar la app.
-- **IA local por módulos:** subtítulos (Whisper), traducción, texto a voz, reducción de ruido, silencios y ritmo, estabilización, color automático, quitar fondo y reencuadre automático, importar CinemaDNG. Nada se envía a internet.
-- **Complementos:** transiciones, filtros y módulos desde la app, con catálogo firmado y la huella de cada archivo verificada.
-- **Atajos configurables** de teclado y ratón, con tres estilos de partida.
-- **Flujo de trabajo:** proxies automáticos, espacios de trabajo, pantalla completa y segunda pantalla, carpetas vigiladas, zonas seguras de redes y recorrido inicial.
+- **Color e imagen en la GPU:** ruedas, curvas (también de tono y saturación), corrección secundaria por tono/saturación/luma, monitores en tiempo real (forma de onda, desfile RGB, vectorscopio e histograma), LUT `.cube`, croma, desenfoques de lente, direccional y radial, grano, resplandor, aberración, reducción de ruido temporal, y pila de efectos con A/B y presets.
+- **Transformación y animación:** ancla, inclinación y volteo, keyframes con curvas Bézier, rebote y elástico, trayectorias en el visor, desenfoque de movimiento, editor de gráficas y animaciones de un clic.
+- **Máscaras y seguimiento:** pluma Bézier y formas, borde por vértice, combinaciones y máscara por efecto; tracker de 1, 2 o 4 puntos con precisión subpíxel para pegar títulos, anclar esquinas con perspectiva, pixelar caras o estabilizar.
+- **Audio profesional:** mezclador con buses, envíos, paneo y automatización; compresor con sidechain, anticipación y multibanda, limitador de pico verdadero, puerta, de-esser, reverb, delay, saturación, ecualizadores, cambio de tono y medidores LUFS.
+- **Títulos y subtítulos:** tipografía completa, degradados, varios bordes y sombras, texto en arco, animación por letra, palabra o línea, karaoke; subtítulos SRT/VTT escritos a mano o generados por la IA.
+- **Transiciones:** 45 en el catálogo, con alineación, curva de avance, borde, desenfoque de movimiento y cruces de audio de potencia constante.
+- **Exportación:** MP4, MOV, MKV, MXF y WebM; H.264, HEVC y AV1 por GPU (NVIDIA, AMD e Intel), VP9, ProRes, DNxHR y FFV1; copia directa sin recodificar cuando se puede; LUFS, capítulos, entrelazado, video 360 y verificación del archivo final; cola con varias exportaciones a la vez.
+- **IA local que se adapta al equipo:** subtítulos (Whisper), traducción, texto a voz, reducción de ruido, silencios y ritmo, estabilización, color automático, quitar fondo y reencuadre. Elige modelo y memoria según la GPU y la RAM, y avisa el tiempo estimado. Nada se envía a internet.
+- **Complementos:** transiciones, filtros, looks de cámara log, sonidos, preajustes profesionales, video 360, fuentes, títulos, zonas seguras y módulos de IA, con catálogo firmado y la huella de cada archivo verificada.
+- **Biblioteca:** carpetas, colecciones inteligentes, valoración, etiquetas, subclips, metadatos de cámara y avisos de medios repetidos o sin conexión.
+- **Flujo de trabajo:** proxies automáticos, aceleración según la GPU, espacios de trabajo, atajos configurables, segunda pantalla y recorrido inicial.
 
 ## Descargas
 
