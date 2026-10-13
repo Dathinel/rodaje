@@ -597,14 +597,25 @@ internal sealed partial class TimelineScheduler
     }
 
     /// <summary>
-    /// En el ejecutor de servicio: libera el decodificador en su propio hilo, después de lo que ya tenía en cola, espera a
-    /// que ese hilo termine (con plazo, ver <see cref="StopExecutor"/>) y sigue con lo demás. El hilo de la ventana nunca
+    /// En el ejecutor de servicio: encarga la liberación del decodificador a su propio hilo, después de lo que ya tenía en
+    /// cola, y le pide que termine sin esperarlo. Antes se lo esperaba hasta 5 s aquí: con varios decodificadores colgados
+    /// al liberarse, el servicio quedaba N × 5 s sin atender keyframes, liberaciones de cuadros ni otros cierres. Ese hilo
+    /// es de fondo y deja de contar el decodificador cuando de verdad lo liberó (ver <see cref="PostRetire"/>); si sigue
+    /// vivo al cerrar la sesión, <see cref="Dispose"/> lo espera con su plazo y lo registra. El hilo de la ventana nunca
     /// espera esto.
     /// </summary>
     private void Reap(DecoderState decoder)
     {
         PostRetire(decoder);
-        StopExecutor(decoder, Stopwatch.GetTimestamp() + (long)(DecodeThread.DefaultJoinTimeout.TotalSeconds * Stopwatch.Frequency));
+        switch (decoder.Executor)
+        {
+            case DecodeThread thread:
+                thread.RequestStop();
+                break;
+            case IDisposable disposable:
+                disposable.Dispose();
+                break;
+        }
     }
 
     /// <summary>
@@ -642,8 +653,7 @@ internal sealed partial class TimelineScheduler
         switch (decoder.Executor)
         {
             case DecodeThread thread:
-                TimeSpan left = TimeSpan.FromSeconds(Math.Max(0, deadline - Stopwatch.GetTimestamp()) / (double)Stopwatch.Frequency);
-                if (!thread.Stop(left < thread.JoinTimeout ? left : thread.JoinTimeout))
+                if (!thread.Stop(Remaining(deadline, Stopwatch.GetTimestamp(), Stopwatch.Frequency, thread.JoinTimeout)))
                 {
                     Trace.WriteLine($"Rodaje: el decodificador {decoder.Id} de «{decoder.Media.Key.Path}» no terminó de cerrarse a tiempo; su hilo lo libera cuando vuelva.");
                 }
@@ -653,6 +663,16 @@ internal sealed partial class TimelineScheduler
                 disposable.Dispose();
                 break;
         }
+    }
+
+    /// <summary>
+    /// Lo que queda hasta <paramref name="deadline"/> (en marcas de <see cref="Stopwatch"/>, con su frecuencia) sin pasar de
+    /// <paramref name="cap"/> ni bajar de cero: cuánto esperar a un hilo más cuando todos comparten un plazo.
+    /// </summary>
+    internal static TimeSpan Remaining(long deadline, long now, long frequency, TimeSpan cap)
+    {
+        TimeSpan left = TimeSpan.FromSeconds(Math.Max(0, deadline - now) / (double)frequency);
+        return left < cap ? left : cap;
     }
 
     /// <summary>Deja de contar la VRAM del decodificador ya liberado y lo saca de la lista.</summary>

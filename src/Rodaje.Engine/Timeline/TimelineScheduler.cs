@@ -516,15 +516,30 @@ internal sealed partial class TimelineScheduler : IDisposable
             PostRetire(decoder);
         }
 
-        // Un plazo para todos (y no uno por decodificador): con varios colgados, cerrar tarda como mucho eso.
-        long deadline = Stopwatch.GetTimestamp() + (long)(DecodeThread.DefaultJoinTimeout.TotalSeconds * Stopwatch.Frequency);
+        // Un plazo para todos (y no uno por decodificador ni otro aparte para el servicio): con varios colgados, cerrar
+        // tarda como mucho eso. Antes el servicio tenía sus propios 5 s detrás de los de los decodificadores.
+        long deadline = Stopwatch.GetTimestamp() + (long)(CloseTimeout.TotalSeconds * Stopwatch.Frequency);
         foreach (DecoderState decoder in decoders)
         {
             StopExecutor(decoder, deadline);
         }
 
-        (_service as IDisposable)?.Dispose();
+        switch (_service)
+        {
+            case DecodeThread service:
+                service.Stop(Remaining(deadline, Stopwatch.GetTimestamp(), Stopwatch.Frequency, service.JoinTimeout));
+                break;
+            case IDisposable disposable:
+                disposable.Dispose();
+                break;
+        }
     }
+
+    /// <summary>
+    /// Lo que espera <see cref="Dispose"/>, en total, a los hilos de los decodificadores y al de servicio. Interno para que
+    /// las pruebas lo acorten; ningún hilo se espera más que su propio <see cref="DecodeThread.JoinTimeout"/>.
+    /// </summary>
+    internal TimeSpan CloseTimeout { get; init; } = DecodeThread.DefaultJoinTimeout;
 
     /// <summary>
     /// Los carriles cuyo clip bajo el cursor es otro (o el mismo con otros tiempos) por la edición: lo que muestren después

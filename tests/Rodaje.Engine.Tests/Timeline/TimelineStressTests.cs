@@ -30,7 +30,7 @@ public sealed class TimelineStressTests
         {
             RealThreads = true,
             AsyncDecode = asyncDecode,
-            DecodeDelay = index => TimeSpan.FromMilliseconds(Math.Abs(HashCode.Combine(seed, index)) % 3),
+            DecodeDelay = index => StressSeeds.ShortDelay(seed, index),
             DisposeDelay = TimeSpan.FromMilliseconds(1),
         };
         var setup = new Random(seed);
@@ -106,14 +106,15 @@ public sealed class TimelineStressTests
         for (int round = 0; round < rounds; round++)
         {
             // Los cuadros lentos no terminan solos antes del tope de Dispose: si el cierre no los cancela, la vuelta falla
-            // por eso y no por lo cargada que esté la máquina.
+            // por eso y no por lo cargada que esté la máquina. Cuáles son lentos depende solo de la semilla y la vuelta.
+            int current = round;
             var backend = new FakeTimelineBackend
             {
                 RealThreads = true,
                 AsyncDecode = random.Next(2) == 0,
-                DecodeDelay = _ => Random.Shared.Next(2) == 0 ? TimeSpan.FromMilliseconds(1) : TimeSpan.FromMinutes(2),
+                DecodeDelay = index => StressSeeds.SlowOrFast(seed, current, index),
             };
-            TimelineBuilder b = Build(backend, new Random(HashCode.Combine(seed, round)));
+            TimelineBuilder b = Build(backend, new Random(StressSeeds.Seed(seed, round)));
             TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { DecoderIdleTimeout = TimeSpan.FromMilliseconds(20) });
             int operation = random.Next(4);
             switch (operation)
