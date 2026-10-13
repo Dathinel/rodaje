@@ -76,6 +76,20 @@ public sealed class CrashReportScrubberShortTempTests
         Assert.Equal(expected, scrubber.Scrub(file));
     }
 
+    [Theory]
+    [InlineData(LongTemp + @"\rodaje pruebas app\carpeta 1a2b\2026-10-13_16-01-02-941.dmp", @"%TEMP%\…\2026-10-13_16-01-02-941.dmp")]
+    [InlineData(LongTemp + @"\rodaje-pruebas\2026-10-13_16-01-02-941.dmp", @"%TEMP%\rodaje-pruebas\2026-10-13_16-01-02-941.dmp")]
+    public void LineaDelMinivolcado_ConTempEn83_LaRutaEsperadaCoincide(string dump, string expected)
+    {
+        // Como en el runner de Windows: TEMP en 8.3 y el minivolcado en nombre largo. La ruta esperada de las pruebas de
+        // minivolcado (ExpectedDumpPath) la calcula aparte y debe dar lo mismo que el limpiador.
+        var scrubber = CrashReportScrubber.FromEnvironment(
+            v => ShortEnvironment.GetValueOrDefault(v), () => ShortTemp + @"\", ToLong);
+
+        Assert.Equal("Minivolcado: " + expected, scrubber.Scrub("Minivolcado: " + dump));
+        Assert.Equal(expected, ExpectedDumpPath.Of(dump, v => ShortEnvironment.GetValueOrDefault(v), ShortTemp + @"\", p => ToLong(p)!));
+    }
+
     [Fact]
     public void SiLaExpansionFalla_QuedaLaFormaQueHay()
     {
