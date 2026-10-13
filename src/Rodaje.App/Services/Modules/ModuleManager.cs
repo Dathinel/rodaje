@@ -46,6 +46,14 @@ public sealed partial class ModuleManager : IAsyncDisposable
     /// </summary>
     public TimeSpan CloseTimeout => ModuleProcess.DisposeBudget(_options.ClientOptions) + ModuleProcess.DisposeMargin;
 
+    /// <summary>
+    /// El cierre de la ventana: cierra los módulos (<see cref="DisposeAsync"/>) y da <c>true</c> si terminó dentro de
+    /// <see cref="CloseTimeout"/>, o después si al vencer seguía matando el árbol de un módulo colgado
+    /// (<see cref="ModuleProcess.WaitForCloseAsync(Task, TimeSpan)"/>); <c>false</c> si no. Nunca espera sin tope: la
+    /// ventana lo espera con <c>Wait()</c>. Un fallo del cierre se relanza (tarea 206).
+    /// </summary>
+    public Task<bool> CloseOnExitAsync() => ModuleProcess.WaitForCloseAsync(DisposeAsync().AsTask(), CloseTimeout);
+
     private VramBudget? _budget;
 
     /// <summary>Se arma con la primera llamada: la GPU del reproductor abre después que la ventana.</summary>
