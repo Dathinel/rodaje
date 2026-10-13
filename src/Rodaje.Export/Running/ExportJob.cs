@@ -393,19 +393,24 @@ public sealed class ExportJob : IDisposable
     }
 
     // Solo con tasa conocida; en calidad constante no se sabe y el sink comprueba el disco mientras escribe.
-    private static long? EstimateBytes(ExportPlan plan)
+    /// <summary>Bytes que ocupará el archivo, para comprobar el disco; <c>null</c> si la tasa no se sabe (calidad constante).</summary>
+    /// <remarks>
+    /// En double: con un tamaño objetivo y un rango de pocos milisegundos la tasa pasaba de <see cref="int.MaxValue"/>, la
+    /// suma con el audio se envolvía en negativo y el disco no se comprobaba.
+    /// </remarks>
+    internal static long? EstimateBytes(ExportPlan plan)
     {
         double seconds = (plan.End - plan.Start).ToSeconds();
         RateControl? video = plan.Settings.Video?.RateControl;
-        int? videoKbps = video switch
+        double? videoKbps = video switch
         {
             null => 0,
-            { TargetSizeBytes: { } bytes } => (int)(bytes * 8 / 1000 / Math.Max(seconds, 0.001)),
+            { TargetSizeBytes: { } bytes } => bytes * 8.0 / 1000 / Math.Max(seconds, 0.001),
             { Mode: RateControlMode.Cbr or RateControlMode.Vbr or RateControlMode.Abr, BitrateKbps: { } kbps } => kbps,
             _ => null,
         };
         int audioKbps = plan.Settings.Audio?.RateControl.BitrateKbps ?? 0;
-        return videoKbps is { } v ? (long)((v + audioKbps) * 125L * seconds) : null;
+        return videoKbps is { } v ? (long)Math.Min((v + audioKbps) * 125 * seconds, long.MaxValue) : null;
     }
 
     private void Publish(ExportJobState state, long done, bool force = false)

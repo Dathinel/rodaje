@@ -70,8 +70,9 @@ public sealed record RateControl
             throw new ArgumentOutOfRangeException(nameof(duration), duration, "La duración debe ser positiva.");
         }
 
-        double totalKbps = targetBytes * 8 * 0.98 / 1000 / duration.TotalSeconds;
-        return (int)Math.Max(1, Math.Floor(totalKbps - audioKbps));
+        // En double desde el principio: targetBytes * 8 en long se envolvía en negativo pasado 2^60 bytes.
+        double totalKbps = targetBytes * 8.0 * 0.98 / 1000 / duration.TotalSeconds;
+        return (int)Math.Clamp(Math.Floor(totalKbps - audioKbps), 1, int.MaxValue);
     }
 }
 

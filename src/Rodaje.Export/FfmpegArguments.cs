@@ -301,7 +301,7 @@ public static class FfmpegArguments
 
                 if (max is { } cap)
                 {
-                    args.AddRange(["-maxrate", Kbps(cap), "-bufsize", Kbps(buffer ?? cap * 2)]);
+                    args.AddRange(["-maxrate", Kbps(cap), "-bufsize", Kbps(buffer ?? cap * 2L)]);
                 }
 
                 break;
@@ -317,7 +317,7 @@ public static class FfmpegArguments
                 args.AddRange(["-b:v", Kbps(average!.Value)]);
                 if (max is { } peak && family != EncoderFamily.SvtAv1)
                 {
-                    args.AddRange(["-maxrate", Kbps(peak), "-bufsize", Kbps(buffer ?? peak * 2)]);
+                    args.AddRange(["-maxrate", Kbps(peak), "-bufsize", Kbps(buffer ?? peak * 2L)]);
                 }
 
                 break;
@@ -331,7 +331,7 @@ public static class FfmpegArguments
                     EncoderFamily.SvtAv1 => ["-b:v", kbps, "-svtav1-params", "rc=2:pred-struct=1"],
                     _ => ["-b:v", kbps, "-minrate", kbps, "-maxrate", kbps],
                 });
-                args.AddRange(["-bufsize", Kbps(buffer ?? average.Value * 2)]);
+                args.AddRange(["-bufsize", Kbps(buffer ?? average.Value * 2L)]);
                 break;
             case RateControlMode.Abr:
                 RequireBitrate(average, encoder, mode);
@@ -389,7 +389,8 @@ public static class FfmpegArguments
         _ => EncoderFamily.Other,
     };
 
-    private static string Kbps(int kbps) => Text(kbps) + "k";
+    // long: el búfer por defecto es el doble de la tasa, que en int se envolvía en negativo pasado int.MaxValue / 2.
+    private static string Kbps(long kbps) => Text(kbps) + "k";
 
     private static string Text(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
