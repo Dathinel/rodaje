@@ -143,14 +143,27 @@ public class CrashReporterTests
         // De otro proceso: volcar el de las pruebas desde dentro puede trabarse con los demás hilos.
         using var dir = new TempDirectory();
         string path = dir.File("prueba.dmp");
-        using var child = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c ping -n 30 127.0.0.1 >nul")
+        // El hijo avisa por su salida cuando ya corre: volcar un proceso recién creado, con el cargador a medias, falla
+        // (ERROR_PARTIAL_COPY) y hacía caer la prueba de vez en cuando a los pocos milisegundos.
+        using var child = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c echo listo& ping -n 30 127.0.0.1 >nul")
         {
             CreateNoWindow = true,
             UseShellExecute = false,
+            RedirectStandardOutput = true,
         })!;
         try
         {
-            Assert.True(NativeCrashHandler.WriteMinidump(path, child));
+            Assert.Equal("listo", child.StandardOutput.ReadLine()?.Trim());
+            // Aun así, si el sistema está cargado, unos reintentos breves antes de darlo por fallido.
+            bool written = false;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            while (!(written = NativeCrashHandler.WriteMinidump(path, child)) && clock.Elapsed < TimeSpan.FromSeconds(10))
+            {
+                Thread.Sleep(200);
+            }
+
+            Assert.True(written, string.Create(CultureInfo.InvariantCulture,
+                $"MiniDumpWriteDump falló durante {clock.Elapsed.TotalSeconds:0.0} s (último error de Win32: {NativeCrashHandler.LastMinidumpError})."));
             AssertMinidump(path);
         }
         finally

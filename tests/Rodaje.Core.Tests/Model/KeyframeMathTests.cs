@@ -95,17 +95,21 @@ public sealed class KeyframeMathTests
         Gen.Double[0, 1].Sample(t => Assert.Equal(KeyframeMath.Ease(Interpolation.EaseInOut, null, t), KeyframeMath.Ease(Interpolation.Bezier, null, t)));
     }
 
+    // Con tolerancia y no con decimales: redondear a 9 decimales separa dos valores a 1e-13 que caen a cada lado de un
+    // ...5 (859,99996486550003 y 859,99996486549992 con la semilla a9AypEUiv-q2, CI de Windows de #123).
     [Fact]
-    public void Segment_WithoutTangents_OrWithThirds_IsAStraightLine()
+    public void Segment_WithoutTangents_OrWithThirds_IsAStraightLine() =>
+        Gen.Select(Gen.Double[-1000, 1000], Gen.Double[-1000, 1000], Gen.Double[0, 1]).Sample(AssertStraight);
+
+    [Fact]
+    public void Segment_WithoutTangents_OrWithThirds_IsAStraightLine_SemillaDeLaCi() =>
+        Gen.Select(Gen.Double[-1000, 1000], Gen.Double[-1000, 1000], Gen.Double[0, 1]).Sample(AssertStraight, seed: "a9AypEUiv-q2", iter: 1);
+
+    private static void AssertStraight(double a, double b, double u)
     {
-        Gen.Select(Gen.Double[-1000, 1000], Gen.Double[-1000, 1000], Gen.Double[0, 1]).Sample((a, b, u) =>
-        {
-            // Con tolerancia y no con decimales: redondear los dos a 9 decimales falla cuando caen a cada lado de un
-            // redondeo aunque difieran en 1e-13 (semilla aFldh-YC9ikf).
-            double straight = a + ((b - a) * u);
-            Assert.Equal(straight, KeyframeMath.Segment(a, null, null, b, u), 1e-9);
-            Assert.Equal(straight, KeyframeMath.Segment(a, (b - a) / 3, -(b - a) / 3, b, u), 1e-9);
-        });
+        double straight = a + ((b - a) * u);
+        Assert.Equal(straight, KeyframeMath.Segment(a, null, null, b, u), 1e-9);
+        Assert.Equal(straight, KeyframeMath.Segment(a, (b - a) / 3, -(b - a) / 3, b, u), 1e-9);
     }
 
     [Fact]
