@@ -24,8 +24,8 @@ public sealed class LibrarySubclipLookupTests
     }
 
     /// <summary>
-    /// Lo que hace la vista al rehacer la lista: buscar cada subclip. Se cuentan los bytes y el tiempo sin pausas del
-    /// recolector (<see cref="WorkGrowth"/>); con la búsqueda lineal, de 2 000 a 16 000 se multiplicaban por unas 64 veces.
+    /// Lo que hace la vista al rehacer la lista: buscar cada subclip. Se cuentan las lecturas del id de los subclips y los
+    /// bytes (<see cref="WorkGrowth"/>); con la búsqueda lineal, de 2 000 a 16 000 se multiplicaban por unas 64 veces.
     /// </summary>
     [Fact]
     public void FindingEverySubclip_GrowsLinearly() =>
@@ -34,12 +34,12 @@ public sealed class LibrarySubclipLookupTests
             {
                 foreach (string id in input.Ids)
                 {
-                    if (input.Org.FindSubclip(id) is null)
+                    if (input.Org.FindSubclip(id)?.Id != id)
                     {
                         Assert.Fail($"Falta {id}");
                     }
                 }
-            }, 2_000, 16_000, "Buscar cada subclip");
+            }, static () => Subclip.KeyReads, 2_000, 16_000, "Buscar cada subclip");
 
     [Fact]
     public void Lookup_FollowsAddRenameRemoveAndPrune()
