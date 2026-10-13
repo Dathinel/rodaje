@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Render;
 using Windows.Foundation;
 

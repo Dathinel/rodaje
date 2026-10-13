@@ -18,6 +18,7 @@ using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Views.Export;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Player;
 using Rodaje.App.Views.Plugins;
 using Rodaje.App.Views.Shortcuts;
@@ -132,7 +133,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         packages.Changed += (_, _) => UiTask.Run(Task.Run(_modules.Refresh));
         Program.Metrics.Milestone("modulos");
         _longActions = new LongActionService(session);
-        _longActions.Changed += (_, _) => _dispatcher.TryEnqueueGuarded(ShowLongActions);
+        _longActions.Changed += (_, _) => _dispatcher.RunLater(ShowLongActions);
         _services = new EditorServices(session, _router, settings, engine, this)
         {
             Visuals = _visuals, Packages = packages, Content = content, Exports = _exports,

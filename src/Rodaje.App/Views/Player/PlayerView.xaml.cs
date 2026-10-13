@@ -6,6 +6,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Player;
@@ -58,13 +59,13 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         _shortcuts = services.Shortcuts;
         _engine = services.Player;
         DispatcherQueue dispatcher = DispatcherQueue;
-        _engine.SwapChainCreated += swapChain => dispatcher.TryEnqueueGuarded(() =>
+        _engine.SwapChainCreated += swapChain => dispatcher.RunLater(() =>
         {
             SwapChainPanelNative.SetSwapChain(VideoPanel, swapChain);
             Program.Metrics.Milestone("cadena_en_panel");
         });
-        _engine.Failed += message => dispatcher.TryEnqueueGuarded(() => ShowError(message));
-        _engine.Warning += message => dispatcher.TryEnqueueGuarded(() =>
+        _engine.Failed += message => dispatcher.RunLater(() => ShowError(message));
+        _engine.Warning += message => dispatcher.RunLater(() =>
             Session.Notify(NotificationSeverity.Warning, "Reproductor", message));
         if (_engine.FailureMessage is { } early)
         {

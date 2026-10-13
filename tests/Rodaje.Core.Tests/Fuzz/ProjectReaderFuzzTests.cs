@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Rodaje.Core.Model;
 using Rodaje.Core.Serialization;
+using Rodaje.Tests.Fuzz;
 
 namespace Rodaje.Core.Tests.Fuzz;
 
@@ -17,7 +18,15 @@ public class ProjectReaderFuzzTests
     private const int Seed = 20261011;
     private const int CasesPerSeedFile = 2000;
     private const int LoadEvery = 20;
-    private const int MinimumCasesPerRun = 5000;
+    private const int MinimumCasesPerFullRun = 5000;
+
+    /// <summary>
+    /// Sin pruebas largas corre uno de cada cuatro casos (tardaban de 4 a 30 s cada prueba). Las mutaciones se generan
+    /// igual, así que los casos que corren son los mismos que en el modo largo, que los corre todos.
+    /// </summary>
+    private static int Stride => FuzzRunner.Long ? 1 : 4;
+
+    private static int MinimumCasesPerRun => MinimumCasesPerFullRun / Stride;
     private const double MinimumValidatorShare = 0.25;
     private static readonly TimeSpan Budget = TimeSpan.FromSeconds(30);
 
@@ -181,6 +190,11 @@ public class ProjectReaderFuzzTests
                 for (int i = 0; i < CasesPerSeedFile; i++)
                 {
                     byte[] bytes = MutateBytes(source, random);
+                    if (i % Stride != 0)
+                    {
+                        continue;
+                    }
+
                     if (i % LoadEvery == 0)
                     {
                         File.WriteAllBytes(path, bytes);
@@ -242,6 +256,11 @@ public class ProjectReaderFuzzTests
                     {
                         MutateTargeted(root, random);
                     }
+                }
+
+                if (i % Stride != 0)
+                {
+                    continue;
                 }
 
                 string mutated = root.ToJsonString();

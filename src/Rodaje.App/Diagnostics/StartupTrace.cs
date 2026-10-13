@@ -1,5 +1,6 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Media;
+using Rodaje.App.Views.Inspector;
 
 namespace Rodaje.App.Diagnostics;
 
@@ -17,7 +18,7 @@ internal static class StartupTrace
         {
             CompositionTarget.Rendering -= handler;
             metrics.Milestone("primer_render");
-            _ = dispatcher.TryEnqueueGuarded(DispatcherQueuePriority.Low, () =>
+            _ = dispatcher.RunLater(DispatcherQueuePriority.Low, () =>
             {
                 metrics.Milestone("interfaz_usable");
                 whenUsable();

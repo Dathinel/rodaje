@@ -3,7 +3,24 @@ namespace Rodaje.App.Views.Library;
 /// <summary>Una carpeta de la biblioteca: solo organiza la vista, nunca mueve archivos en el disco.</summary>
 public sealed class LibraryFolder
 {
-    public string Id { get; set; } = "";
+    /// <summary>
+    /// Lecturas de <see cref="Id"/> en este hilo: las pruebas de rendimiento cuentan con esto las operaciones de una carga en
+    /// vez de medir segundos (una búsqueda lineal por id lee el de cada carpeta).
+    /// </summary>
+    [ThreadStatic]
+    internal static long IdReads;
+
+    /// <summary>Solo se da al crearla: la organización la indexa por id y no vuelve a mirar la lista.</summary>
+    public string Id
+    {
+        get
+        {
+            IdReads++;
+            return field;
+        }
+
+        init;
+    } = "";
 
     public string Name { get; set; } = "";
 
@@ -23,10 +40,18 @@ public sealed partial class LibraryOrganization
     /// <summary>Largo máximo de un nombre de carpeta, para que quepa en la ficha.</summary>
     public const int MaxNameLength = 80;
 
+    /// <summary>
+    /// Nombres de carpeta plegados en este hilo (<see cref="FoldName"/>): las pruebas de rendimiento cuentan con esto las
+    /// operaciones de buscar un nombre libre en vez de medir segundos.
+    /// </summary>
+    [ThreadStatic]
+    internal static long NameFolds;
+
     private readonly List<LibraryFolder> _folders = [];
 
     /// <summary>Índice de <see cref="_folders"/> por id: buscar en la lista hacía cúbica la carga de un archivo con miles de carpetas.</summary>
     private readonly Dictionary<string, LibraryFolder> _byId = new(StringComparer.Ordinal);
+
     private readonly Dictionary<string, string> _mediaFolders = new(StringComparer.Ordinal);
     private readonly HashSet<string> _favorites = new(StringComparer.Ordinal);
 
@@ -40,16 +65,7 @@ public sealed partial class LibraryOrganization
     /// <summary>Sube con cada cambio; la vista lo usa para saber si hay que guardar.</summary>
     public int Revision { get; private set; }
 
-    public LibraryFolder? FindFolder(string? folderId)
-    {
-        if (folderId is null)
-        {
-            return null;
-        }
-
-        // El id de una carpeta tiene setter: si alguien lo cambió, el índice ya no lo encuentra y se busca en la lista.
-        return _byId.TryGetValue(folderId, out LibraryFolder? folder) && folder.Id == folderId ? folder : _folders.Find(f => f.Id == folderId);
-    }
+    public LibraryFolder? FindFolder(string? folderId) => folderId is null ? null : _byId.GetValueOrDefault(folderId);
 
     /// <summary>Las carpetas que cuelgan directamente de <paramref name="parentId"/>, por nombre.</summary>
     public IReadOnlyList<LibraryFolder> Children(string? parentId)
@@ -133,12 +149,7 @@ public sealed partial class LibraryOrganization
     {
         string? parent = FindFolder(parentId)?.Id;
         string baseName = Clean(name) is { Length: > 0 } clean ? clean : DefaultFolderName;
-        string unique = baseName;
-        for (int n = 2; NameTaken(parent, unique, exceptId: null); n++)
-        {
-            unique = $"{baseName} {n}";
-        }
-
+        string unique = FreeName(SiblingNames(parent, exceptId: null), baseName);
         var folder = new LibraryFolder { Id = NewId(), Name = unique, ParentId = parent };
         AddFolder(folder);
         Revision++;
@@ -192,10 +203,14 @@ public sealed partial class LibraryOrganization
         }
 
         string? parent = ParentOf(folder);
+        // Los nombres de la carpeta de destino se pliegan una vez y se suman los de las hijas que van subiendo: buscarlos de
+        // nuevo por cada hija y cada número probado era cúbico con miles de subcarpetas iguales. La borrada aún cuenta.
+        HashSet<string> taken = SiblingNames(parent, exceptId: null);
         foreach (LibraryFolder child in _folders.Where(f => f.ParentId == folder.Id))
         {
             child.ParentId = parent;
-            child.Name = FreeName(parent, child.Name, child.Id);
+            child.Name = FreeName(taken, child.Name);
+            taken.Add(FoldName(child.Name));
         }
 
         foreach (string mediaId in _mediaFolders.Where(p => p.Value == folder.Id).Select(p => p.Key).ToList())
@@ -224,7 +239,7 @@ public sealed partial class LibraryOrganization
         }
 
         folder.ParentId = target;
-        folder.Name = FreeName(target, folder.Name, folder.Id);
+        folder.Name = FreeName(SiblingNames(target, folder.Id), folder.Name);
         Revision++;
         return true;
     }
@@ -407,31 +422,34 @@ public sealed partial class LibraryOrganization
         var taken = new Dictionary<(string? Parent, string Folded), int>();
         foreach (LibraryFolder folder in _folders)
         {
-            Count(taken, (folder.ParentId, SearchText.Fold(folder.Name)), +1);
+            Count(taken, (folder.ParentId, FoldName(folder.Name)), +1);
         }
 
-        var nextNumber = new Dictionary<(string? Parent, string Base), int>();
+        var nextNumber = new Dictionary<(string? Parent, string FoldedBase), int>();
         foreach (LibraryFolder folder in _folders)
         {
-            Count(taken, (folder.ParentId, SearchText.Fold(folder.Name)), -1);
+            Count(taken, (folder.ParentId, FoldName(folder.Name)), -1);
             string name = folder.Name.Length == 0 ? DefaultFolderName : folder.Name;
             string unique = name;
-            if (taken.ContainsKey((folder.ParentId, SearchText.Fold(unique))))
+            string folded = FoldName(unique);
+            if (taken.ContainsKey((folder.ParentId, folded)))
             {
                 // Se sigue desde el último número que se dio a este nombre aquí: cien mil carpetas iguales no son cuadráticas.
-                int n = nextNumber.GetValueOrDefault((folder.ParentId, name), 2);
+                // El número se recuerda por el nombre plegado, que es como se comparan: con la forma exacta, «Tomas»,
+                // «tomas» y «TOMÁS» empezaban cada una desde el 2 y miles de variantes volvían a probar todos los números.
+                int n = nextNumber.GetValueOrDefault((folder.ParentId, folded), 2);
                 do
                 {
                     unique = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{name} {n}");
                     n++;
                 }
-                while (taken.ContainsKey((folder.ParentId, SearchText.Fold(unique))));
+                while (taken.ContainsKey((folder.ParentId, FoldName(unique))));
 
-                nextNumber[(folder.ParentId, name)] = n;
+                nextNumber[(folder.ParentId, folded)] = n;
             }
 
             folder.Name = unique;
-            Count(taken, (folder.ParentId, SearchText.Fold(unique)), +1);
+            Count(taken, (folder.ParentId, FoldName(unique)), +1);
         }
 
         static void Count(Dictionary<(string?, string), int> counts, (string?, string) key, int delta)
@@ -462,17 +480,42 @@ public sealed partial class LibraryOrganization
 
     private bool NameTaken(string? parentId, string name, string? exceptId)
     {
-        string folded = SearchText.Fold(name);
-        return _folders.Any(f => f.Id != exceptId && ParentOf(f) == parentId && SearchText.Fold(f.Name) == folded);
+        string folded = FoldName(name);
+        return _folders.Any(f => f.Id != exceptId && ParentOf(f) == parentId && FoldName(f.Name) == folded);
     }
 
-    /// <summary>El nombre, o el nombre con un número, que no choca con otra carpeta en <paramref name="parentId"/>.</summary>
-    private string FreeName(string? parentId, string name, string exceptId)
+    private static string FoldName(string name)
+    {
+        NameFolds++;
+        return SearchText.Fold(name);
+    }
+
+    /// <summary>Los nombres plegados de las carpetas que cuelgan de <paramref name="parentId"/>, salvo <paramref name="exceptId"/>.</summary>
+    private HashSet<string> SiblingNames(string? parentId, string? exceptId)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (LibraryFolder folder in _folders)
+        {
+            if (folder.Id != exceptId && ParentOf(folder) == parentId)
+            {
+                names.Add(FoldName(folder.Name));
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// El nombre, o el nombre con un número, que no está en <paramref name="taken"/> (nombres plegados). Cada número probado
+    /// cuesta una búsqueda en el conjunto, no un recorrido de todas las carpetas: con miles de «Carpeta nueva N» al lado,
+    /// crear una más era cuadrático.
+    /// </summary>
+    private static string FreeName(HashSet<string> taken, string name)
     {
         string unique = name;
-        for (int n = 2; NameTaken(parentId, unique, exceptId); n++)
+        for (int n = 2; taken.Contains(FoldName(unique)); n++)
         {
-            unique = $"{name} {n}";
+            unique = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{name} {n}");
         }
 
         return unique;

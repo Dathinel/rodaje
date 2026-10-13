@@ -35,8 +35,8 @@ public sealed class ModuleManagerTests : IDisposable
         await manager.InvokeAsync("eco-a", "eco", null, "Eco otra vez");
         Assert.Equal(pid, Assert.Single(manager.ProcessIds));
 
-        // Se cierra solo tras 300 ms ocioso; con el runner cargado, salir le llevó más de los 3 s de HasExited.
-        await WaitUntil(() => EchoModules.HasExited(pid));
+        // Se cierra solo tras 300 ms ocioso; con el runner cargado, salir le llevó más de 3 s. Tope de WaitUntil: 45 s.
+        Assert.True(await EchoModules.HasExitedAsync(pid, TimeSpan.FromSeconds(45)), $"No se cerró en 45 s. {UiThread.PoolState()}");
         await WaitUntil(() => manager.ProcessIds.Count == 0);
         Assert.All(manager.Jobs.Jobs, j => Assert.Equal(ModuleJobState.Completed, j.State));
     }
@@ -162,11 +162,13 @@ public sealed class ModuleManagerTests : IDisposable
         // El tope de la espera es contra cuelgues; lo que se exige es la cota de abajo.
         ModuleHungException error = await Assert.ThrowsAsync<ModuleHungException>(() => call.WaitAsync(TimeSpan.FromSeconds(30)));
         Assert.True(watch.Elapsed < bound, $"{watch.ElapsedMilliseconds} ms");
-        Assert.True(EchoModules.HasExited(pid));
+        Assert.True(await EchoModules.HasExitedAsync(pid));
         Assert.Contains("dejó de responder", manager.Jobs.Jobs[0].Error, StringComparison.Ordinal);
         Assert.Contains("dejó de responder", ModuleManager.Friendly(manager.Find("eco-a")!, error), StringComparison.Ordinal);
 
+        // La llamada siguiente, en seguida, abre otro proceso: tomaba el muerto si su aviso de salida no había llegado aún.
         await manager.InvokeAsync("eco-a", "eco", null, "Eco");
+        Assert.NotEqual(pid, Assert.Single(manager.ProcessIds));
     }
 
     [Fact]
@@ -206,7 +208,10 @@ public sealed class ModuleManagerTests : IDisposable
 
         await manager.DisposeAsync();
         await Assert.ThrowsAnyAsync<Exception>(() => busy);
-        Assert.All(pids, pid => Assert.True(EchoModules.HasExited(pid)));
+        foreach (int pid in pids)
+        {
+            Assert.True(await EchoModules.HasExitedAsync(pid));
+        }
         await Assert.ThrowsAsync<ObjectDisposedException>(() => manager.InvokeAsync("eco-a", "eco", null, "Eco"));
     }
 
@@ -245,7 +250,7 @@ public sealed class ModuleManagerTests : IDisposable
 
         // Dos pesados no caben a la vez: el ocioso se cierra para dejar lugar.
         await manager.InvokeAsync("voz-gpu", "eco", null, "Voz");
-        Assert.True(EchoModules.HasExited(visionPid));
+        Assert.True(await EchoModules.HasExitedAsync(visionPid));
         Assert.Equal(["voz-gpu"], manager.Budget.Resident);
         Assert.Equal(2, preview.Lowered);
     }

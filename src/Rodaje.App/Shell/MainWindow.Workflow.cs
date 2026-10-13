@@ -246,6 +246,11 @@ internal sealed partial class MainWindow
         }
 
         IReadOnlyList<(Rodaje.Export.ExportRequest Request, bool ContinueWithoutMissing)> pending = await Task.Run(store.Load).ConfigureAwait(true);
+        if (store.DamagedNotice is { } damaged && !_closed)
+        {
+            Session.Notify(NotificationSeverity.Warning, "Exportaciones sin terminar", damaged);
+        }
+
         if (pending.Count == 0 || _closed)
         {
             return;

@@ -14,6 +14,7 @@ using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Plugins;
 using Rodaje.App.Views.Shared;
 using Rodaje.Core.Editing;
@@ -339,7 +340,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     {
         if (!_coverScanScheduled && _dispatcher is not null)
         {
-            _coverScanScheduled = _dispatcher.TryEnqueueGuarded(DispatcherQueuePriority.Low, ScanVisibleCovers);
+            _coverScanScheduled = _dispatcher.RunLater(DispatcherQueuePriority.Low, ScanVisibleCovers);
         }
     }
 
@@ -730,7 +731,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
         if (_watchedResolvers.Add(resolver))
         {
-            resolver.StatusChanged += (_, e) => _dispatcher?.TryEnqueueGuarded(() => ShowProxyStatus(e.Status));
+            resolver.StatusChanged += (_, e) => _dispatcher?.RunLater(() => ShowProxyStatus(e.Status));
         }
 
         try

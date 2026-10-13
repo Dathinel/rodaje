@@ -130,8 +130,9 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         InstancesText.Text = othersOpen
             ? $"Hay {_instances} ventanas de Rodaje abiertas. {PackageService.OtherInstancesMessage} Instalar complementos nuevos sí se puede."
             : "";
-        ContentPackages.Clear();
-        Modules.Clear();
+        // Las filas viejas sueltan su suscripción a la descarga, que vive en la página: si no, cada vuelta dejaba otra.
+        PropertyChangedRelay.Release(ContentPackages);
+        PropertyChangedRelay.Release(Modules);
         foreach (PluginEntry entry in packages.Entries())
         {
             (entry.Kind == PackageKind.Module ? Modules : ContentPackages).Add(

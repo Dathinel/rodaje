@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Diagnostics;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Player;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
@@ -266,7 +267,7 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
         while (_pinging)
         {
             long sent = Stopwatch.GetTimestamp();
-            _dispatcher.TryEnqueueGuarded(DispatcherQueuePriority.Normal, () => metrics.UiQueueLatency(Stopwatch.GetElapsedTime(sent).TotalMilliseconds));
+            _dispatcher.RunLater(DispatcherQueuePriority.Normal, () => metrics.UiQueueLatency(Stopwatch.GetElapsedTime(sent).TotalMilliseconds));
             Thread.Sleep(50);
         }
     }

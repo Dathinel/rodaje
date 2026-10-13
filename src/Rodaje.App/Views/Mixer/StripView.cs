@@ -98,6 +98,7 @@ internal sealed partial class StripView : UserControl
 
     /// <summary>Lo que muestra ahora el desplegable de salida: la mezcla (nulo) y cada bus por su id (ver <see cref="ComboBoxChoices"/>).</summary>
     private ChoiceList<string?> _outputs = new();
+    private readonly ClosedListRetry _outputsRetry = new();
     private string _insertSignature = "";
     private string _sendSignature = "";
 
@@ -142,6 +143,7 @@ internal sealed partial class StripView : UserControl
             AutomationProperties.SetName(_output, "Salida");
             ToolTipService.SetToolTip(_output, "Adónde sale la pista: la mezcla o un bus.");
             _output.SelectionChanged += (_, _) => OnOutputSelected();
+            _output.RetryWhenClosed(_outputsRetry, () => Update(Strip));
             Grid.SetRow(_output, 1);
             stack.Children.Add(_output);
         }
@@ -323,26 +325,26 @@ internal sealed partial class StripView : UserControl
         // abierta, lo que puede cerrar la app desde WinUI sin rastro (tarea 91). Ahora solo se rehace si cambiaron los buses.
         // Una salida a un bus que ya no está se muestra como la mezcla, como antes.
         (ChoiceList<string?> next, int selected) = StripOutputChoices.Build(_host.Buses, Strip.Output);
-        _outputs = ComboBoxChoices.Show(_output, _outputs, next, selected);
+        _outputs = ComboBoxChoices.Show(_output, _outputs, next, selected, retry: _outputsRetry);
     }
 
     private void OnOutputSelected()
     {
-        if (_updating || !_outputs.TryGet(_output.SelectedIndex, out string? busId))
-        {
-            return;
-        }
-
         // Elegir una salida edita y el mezclador refresca esta tira, que puede rehacer este desplegable: va después del evento.
-        DispatcherQueue.RunAfterEvent(() => ChooseOutput(busId));
+        DispatcherQueue.Choose(_outputs, _output.SelectedIndex, _updating, busId => () => ChooseOutput(busId));
     }
 
     private void ChooseOutput(string? busId)
     {
-        // Entre el evento y ahora pudo quitarse el bus elegido.
-        if (StripOutputChoices.StillThere(_host.Buses, busId))
+        // Entre el evento y ahora pudo quitarse el bus elegido: entonces no se aplica y se refresca la tira, para que el
+        // desplegable no siga mostrando la salida que no se aplicó (como hace Máscaras con su destino).
+        if (DeferredChoices.StripOutput(_host.Buses, busId) == DeferredOutcome.Apply)
         {
             _host.SetOutput(Strip, busId);
+        }
+        else
+        {
+            Update(Strip);
         }
     }
 

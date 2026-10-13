@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Model;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
@@ -114,7 +115,7 @@ internal sealed partial class LibraryView
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    dispatcher?.TryEnqueueGuarded(() =>
+                    dispatcher?.RunLater(() =>
                     {
                         if (ReferenceEquals(organization, _organization))
                         {

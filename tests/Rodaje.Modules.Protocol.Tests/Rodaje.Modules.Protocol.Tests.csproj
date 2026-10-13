@@ -11,6 +11,19 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!--
+    Pool de hilos con un mínimo de 32, como Rodaje.App.Tests. En todo testhost dos hilos del pool quedan bloqueados toda
+    la corrida: el bucle de mensajes de vstest (Socket.Poll en TcpClientExtensions.MessageLoopAsync) y el adaptador de
+    xUnit (WaitOne en VsTestRunner.RunTestsInAssembly). Con el mínimo por omisión (un hilo por procesador, 4 en la CI)
+    las pruebas del protocolo, que encadenan cientos de continuaciones por ronda, dependen de que el pool inyecte hilos,
+    y con la CPU llena eso tarda: Cancel_racing_the_end_of_a_call_does_not_close_the_connection se dio por colgada
+    (RunAsync no terminó en 10 s) en la CI de Windows. En Linux, con DOTNET_PROCESSOR_COUNT=1, una ronda de esa prueba
+    tardaba hasta 0,9 s en cerrar (el resto, menos de 25 ms) y con el mínimo de 32 ninguna pasó de 100 ms.
+  -->
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.Threading.ThreadPool.MinThreads" Value="32" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <!-- Solo para que Rodaje.Module.Echo.exe quede junto a las pruebas. -->

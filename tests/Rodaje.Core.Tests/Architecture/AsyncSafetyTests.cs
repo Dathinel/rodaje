@@ -12,12 +12,11 @@ namespace Rodaje.Core.Tests.Architecture;
 /// </summary>
 public sealed partial class AsyncSafetyTests
 {
-    // Archivos de src/Rodaje.App/ (ruta con «/») que pueden llamar a DispatcherQueue.TryEnqueue sin la red de GuardedDispatch.
+    // Archivos de src/Rodaje.App/ (ruta con «/») que pueden llamar a DispatcherQueue.TryEnqueue sin la red de
+    // DispatcherQueueLater (RunLater, RunAfterEvent).
     private static readonly Dictionary<string, string> RawTryEnqueueAllowed = new(StringComparer.Ordinal)
     {
-        ["GuardedDispatch.cs"] = "es la red: envuelve el callback.",
-        ["App.xaml.cs"] = "el aviso de un error ya informado no puede pasar por la red (informar volvería a avisar sin fin); atrapa lo suyo.",
-        ["Views/Inspector/DispatcherQueueLater.cs"] = "encola la acción ya envuelta por UiDeferral.Run (informe y aviso).",
+        ["Views/Inspector/DispatcherQueueLater.cs"] = "es la red: encola la acción ya envuelta por UiDeferral.Run (informe y aviso).",
     };
 
     // async void que no son manejadores de eventos.
@@ -187,7 +186,7 @@ public sealed partial class AsyncSafetyTests
             {
                 if (!RawTryEnqueueAllowed.ContainsKey(local))
                 {
-                    problems.Add($"{file}:{Line(code, m.Index)}: TryEnqueue sin red: si el callback lanza, la app se cierra (TryEnqueueGuarded).");
+                    problems.Add($"{file}:{Line(code, m.Index)}: TryEnqueue sin red: si el callback lanza, la app se cierra (RunLater o RunAfterEvent).");
                 }
             }
 
@@ -257,6 +256,17 @@ public sealed partial class AsyncSafetyTests
         Assert.Single(AsyncVoidRegex().Matches(stripped));
         Assert.DoesNotMatch(DiscardRegex(), stripped);
         Assert.Equal(code.Length, stripped.Length);
+    }
+
+    [Fact]
+    public void LoopDetectionSkipsHandlersSubscribedInTheLoop()
+    {
+        const string InLoop = "foreach (var x in xs) { queue.RunLater(() => Show(x)); }";
+        const string InHandler = "foreach (var x in xs) { box.SelectionChanged += (_, _) => { if (ok) { queue.RunAfterEvent(() => Set(x)); } }; }";
+        const string LoopInHandler = "box.Changed += (_, _) => { while (more) { queue.TryEnqueue(Next); } };";
+        Assert.True(InsideLoop(InLoop, InLoop.IndexOf(".RunLater", StringComparison.Ordinal)));
+        Assert.False(InsideLoop(InHandler, InHandler.IndexOf(".RunAfterEvent", StringComparison.Ordinal)));
+        Assert.True(InsideLoop(LoopInHandler, LoopInHandler.IndexOf(".TryEnqueue", StringComparison.Ordinal)));
     }
 
     // --- Lectura de los fuentes ---
@@ -394,7 +404,21 @@ public sealed partial class AsyncSafetyTests
             }
         }
 
-        return headers.Any(h => LoopHeaderRegex().IsMatch(h));
+        // De dentro hacia fuera: un bloque de lambda (un manejador suscrito en el bucle) corre después, no en cada vuelta.
+        foreach (string header in headers)
+        {
+            if (LoopHeaderRegex().IsMatch(header))
+            {
+                return true;
+            }
+
+            if (header.TrimEnd().EndsWith("=>", StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return false;
     }
 
     private static string First(string statement) => statement.Trim().Split('\n')[0].Trim();
@@ -543,7 +567,7 @@ public sealed partial class AsyncSafetyTests
     [GeneratedRegex(@"\.TryEnqueue\s*\(")]
     private static partial Regex RawTryEnqueueRegex();
 
-    [GeneratedRegex(@"\.TryEnqueue(Guarded)?\s*\(")]
+    [GeneratedRegex(@"\.(TryEnqueue|RunLater|RunAfterEvent)\s*\(")]
     private static partial Regex AnyTryEnqueueRegex();
 
     [GeneratedRegex(@"\bawait\b")]

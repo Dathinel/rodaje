@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Views.Player;
@@ -46,7 +47,7 @@ internal sealed partial class PlayerView
         };
         services.ShortcutRegistry.Register(new ShortcutAction(SecondScreenActionId, "Visor en otra pantalla (abrir o cerrar)", ShortcutGroups.Windows, []));
         _bindings.Add(services.Shortcuts.Bind(SecondScreenActionId, ToggleExternal));
-        _engine!.ExternalSwapChainCreated += swapChain => DispatcherQueue.TryEnqueueGuarded(() =>
+        _engine!.ExternalSwapChainCreated += swapChain => DispatcherQueue.RunLater(() =>
         {
             if (_externalWindow?.Content is Grid { Children: [SwapChainPanel panel, ..] })
             {

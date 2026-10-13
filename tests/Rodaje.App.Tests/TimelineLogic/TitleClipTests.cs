@@ -130,8 +130,11 @@ public class TitleClipTests
     /// y en el compositor; en pausa, el aviso <c>Changed</c> hace volver a componer. La captura «texto» de la autoprueba
     /// lo comprueba en la app publicada.
     /// </summary>
+    // Espera a los shaders y al título en bloque: en un hilo propio, no en el del pool en que xUnit corre la prueba.
     [GpuFact]
-    public void ElTituloSeVeEnElVisor()
+    public Task ElTituloSeVeEnElVisor() => OwnThread.Run(TitleShowsInViewer);
+
+    private static void TitleShowsInViewer()
     {
         const int width = 640;
         const int height = 360;

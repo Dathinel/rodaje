@@ -34,6 +34,14 @@ internal static class Program
         try
         {
             AppOptions options = AppOptions.Parse(args);
+            // Con las opciones ya leídas: una corrida automática no abre la copia del registro ni recupera sesiones.
+            _ = Crashes.BeginSession(options.IsAutomated);
+            if (options.SelfTest && Crashes.Version == "?")
+            {
+                // Sin la versión, los informes de fallo no sirven para saber qué compilación falló (AOT recorta atributos).
+                AppendErrorFile("autoprueba: la versión del informe de fallos es «?» (falta AssemblyInformationalVersionAttribute en el exe).");
+            }
+
             var settings = new SettingsStore(SettingsStore.DefaultPath);
             string? settingsWarning = settings.Load();
             Metrics.Milestone("ajustes");
@@ -60,6 +68,9 @@ internal static class Program
                     new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread()), OnDispatcherException));
                 Instance = new App(options, engine, prober, settings, settingsWarning);
             });
+            // Application.Exit (o la última ventana cerrada) vuelve aquí: cierre limpio antes de soltar el motor, que
+            // puede tardar o quedar a medias si alguien mata el proceso mientras tanto.
+            Crashes.EndSession();
         }
 #pragma warning disable CA1031 // Último recurso: deja el motivo en un archivo junto al exe.
         catch (Exception ex)
@@ -81,67 +92,58 @@ internal static class Program
     /// </summary>
     public static void WriteCrash(string? text)
     {
-        AppendErrorFile(text);
-        Crashes.Write(CrashKind.Caught, text, fatal: false);
+        _ = Crashes.Write(CrashKind.Caught, text, fatal: false, out bool repeated);
+        if (!repeated)
+        {
+            AppendErrorFile(text);
+        }
     }
 
     /// <summary>Informa una excepción que llegó por una de las vías sin atrapar (también en <c>rodaje-error.txt</c>).</summary>
-    public static string? ReportException(CrashKind kind, Exception exception, bool fatal)
+    public static string? ReportException(CrashKind kind, Exception exception, bool fatal) => ReportException(kind, exception, fatal, out _);
+
+    /// <summary>
+    /// Como <see cref="ReportException(CrashKind, Exception, bool)"/>; <paramref name="repeated"/> dice que era una
+    /// repetición sin informe propio (ráfaga): ni <c>rodaje-error.txt</c> ni aviso otra vez.
+    /// </summary>
+    public static string? ReportException(CrashKind kind, Exception exception, bool fatal, out bool repeated)
     {
-        AppendErrorFile(exception.ToString());
-        return Crashes.Write(kind, exception, fatal);
+        string? path = Crashes.Write(kind, exception, fatal, out repeated);
+        if (!repeated)
+        {
+            AppendErrorFile(exception.ToString());
+        }
+
+        return path;
     }
 
+    // Las vías de excepción y el filtro nativo, antes que nada; la recuperación de sesiones y la copia en disco del
+    // registro esperan a las opciones (Crashes.BeginSession en Main).
     private static void InstallCrashReporting()
     {
-        // Las vías de excepción y el filtro nativo, antes que nada: un fallo al leer los ajustes también deja rastro.
-        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-        {
-            AppendErrorFile(e.ExceptionObject?.ToString());
-            Crashes.OnAppDomainUnhandled(AppDomain.CurrentDomain, e);
-        };
-        TaskScheduler.UnobservedTaskException += Crashes.OnUnobservedTask;
-        // Las tareas sueltas de los manejadores y los callbacks de DispatcherQueue (UiTask, GuardedDispatch).
+        CrashRouting.Install(Crashes, new CrashHooks(), AppendErrorFile, Environment.CommandLine);
+        // Las tareas sueltas de los manejadores y las excepciones que atrapan (UiTask).
         UiTask.Reporter = ReportHandlerException;
-        NativeCrashHandler.Install(Crashes);
-        System.Diagnostics.Trace.Listeners.Add(new SessionLogTraceListener(Log));
-        Log.Append($"Rodaje {Crashes.Version} arranca: {Environment.CommandLine}");
-        // Las sesiones anteriores que terminaron sin cerrarse ni dejar informe se vuelven informe; después, la copia en
-        // disco del registro de esta sesión.
-        _ = Crashes.RecoverUncleanSessions();
-        Crashes.StartSession();
-        // La GPU se lee ahora, fuera de cualquier fallo: un fallo nativo no debe tocar DXGI.
-        UiTask.Run(Task.Run(async () =>
-        {
-            await Task.Delay(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-            Crashes.WarmUp();
-        }));
     }
 
     /// <summary>
-    /// Excepción de una tarea suelta de un manejador o de un callback de DispatcherQueue (<see cref="UiTask"/>): informe
-    /// «recuperado» y, si <paramref name="notify"/>, aviso en la ventana; la app sigue. Desde cualquier hilo.
+    /// Excepción de una tarea suelta de un manejador o atrapada en él (<see cref="UiTask"/>): informe «recuperado» y, si
+    /// <paramref name="notify"/> y no es una repetición de la ráfaga, aviso en la ventana; la app sigue. Desde cualquier hilo.
     /// </summary>
     private static void ReportHandlerException(Exception exception, bool notify)
     {
-        ReportException(CrashKind.DispatcherCallback, exception, fatal: false);
-        if (notify)
+        _ = ReportException(CrashKind.DispatcherCallback, exception, fatal: false, out bool repeated);
+        if (notify && !repeated)
         {
             Instance?.NotifyUnexpectedError(exception.Message);
         }
     }
 
-    internal static bool OnDispatcherException(Exception exception)
-    {
-        if (Instance is { } app)
-        {
-            return app.HandleDispatcherException(exception);
-        }
-
-        // Sin ventana todavía, sigue su camino (y la app se cierra), pero con informe.
-        ReportException(CrashKind.DispatcherCallback, exception, fatal: true);
-        return false;
-    }
+    internal static bool OnDispatcherException(Exception exception) =>
+        Instance is { } app
+            ? app.HandleDispatcherException(exception)
+            // Sin ventana todavía, sigue su camino (y la app se cierra), pero con informe.
+            : CrashRouting.OnDispatcherException(exception, null, ReportException);
 
     private static void AppendErrorFile(string? text)
     {

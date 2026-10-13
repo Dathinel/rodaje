@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Input;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Shared;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -463,7 +464,7 @@ internal sealed partial class LibraryView
                 }
             }
 
-            dispatcher.TryEnqueueGuarded(DispatcherQueuePriority.Low, () =>
+            dispatcher.RunLater(DispatcherQueuePriority.Low, () =>
             {
                 if (Volatile.Read(ref _healthScan) != scan)
                 {

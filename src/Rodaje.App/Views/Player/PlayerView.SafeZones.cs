@@ -8,6 +8,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.SafeZones;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Packages.Content;
 using Windows.Foundation;
 
@@ -61,7 +62,7 @@ internal sealed partial class PlayerView
         }
 
         RefreshSafeZoneChoices();
-        services.Packages.Changed += (_, _) => DispatcherQueue.TryEnqueueGuarded(() =>
+        services.Packages.Changed += (_, _) => DispatcherQueue.RunLater(() =>
         {
             RefreshSafeZoneChoices();
             UpdateSafeAreas();

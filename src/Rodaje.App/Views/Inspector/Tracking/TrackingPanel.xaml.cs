@@ -99,7 +99,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
                 DrawGraph();
             }
         };
-        services.LongActions.Changed += (_, _) => DispatcherQueue.TryEnqueueGuarded(ShowRunning);
+        services.LongActions.Changed += (_, _) => DispatcherQueue.RunLater(ShowRunning);
         Refresh();
         Bindings.Update();
     }
@@ -437,7 +437,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
             });
             try
             {
-                await PointTracking.RunAsync(request, f => DispatcherQueue.TryEnqueueGuarded(() => Tracked(f)), both, scope.Token);
+                await PointTracking.RunAsync(request, f => DispatcherQueue.RunLater(() => Tracked(f)), both, scope.Token);
             }
             catch (OperationCanceledException)
             {

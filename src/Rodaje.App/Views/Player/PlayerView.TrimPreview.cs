@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Shared;
 
 namespace Rodaje.App.Views.Player;

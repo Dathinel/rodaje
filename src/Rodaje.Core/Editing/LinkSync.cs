@@ -83,8 +83,12 @@ public static class LinkSync
     {
         ArgumentNullException.ThrowIfNull(reference);
         ArgumentNullException.ThrowIfNull(clip);
-        bool plain = reference.Speed is null && clip.Speed is null;
-        if (!plain && (reference.Speed is null || clip.Speed is null || !reference.Speed.ContentEquals(clip.Speed) || reference.Speed.Freeze))
+        // Una velocidad a 1× sin curva, reversa ni congelado (la que deja recortar o quitar la reversa) mueve el origen como
+        // un clip sin velocidad, sea cual sea su Offset: compararla por contenido escondía el desfase de un par así.
+        ClipSpeed? referenceSpeed = reference.Speed is { IsIdentity: false } rs ? rs : null;
+        ClipSpeed? clipSpeed = clip.Speed is { IsIdentity: false } cs ? cs : null;
+        bool plain = referenceSpeed is null && clipSpeed is null;
+        if (!plain && (referenceSpeed is null || clipSpeed is null || !referenceSpeed.ContentEquals(clipSpeed) || referenceSpeed.Freeze))
         {
             return null;
         }
@@ -96,12 +100,12 @@ public static class LinkSync
 
         // Con la misma velocidad constante el desfase es exacto: la diferencia de entradas menos lo que recorre el origen
         // entre los dos inicios (medir un instante con el mapeo arrastra el redondeo de cada clip).
-        if (reference.Speed!.Curve is not null || reference.Speed.Reverse)
+        if (referenceSpeed!.Curve is not null || referenceSpeed.Reverse)
         {
             return clip.Start == reference.Start && clip.SourceIn == reference.SourceIn ? Time.Zero : null;
         }
 
-        Rational rate = reference.Speed.Rate;
+        Rational rate = referenceSpeed.Rate;
         Int128 travelled = (Int128)(clip.Start - reference.Start).Ticks * rate.Num / rate.Den;
         return Time.FromTicks((long)((Int128)(clip.SourceIn - reference.SourceIn).Ticks - travelled));
     }

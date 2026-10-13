@@ -44,6 +44,21 @@ public sealed class ExportQueueStore(string path)
 
     public string Path { get; } = System.IO.Path.GetFullPath(path);
 
+    /// <summary>Cuántas entradas saltó el último <see cref="Load"/> por estar dañadas, para avisar de que no se recuperan.</summary>
+    public int Skipped { get; private set; }
+
+    /// <summary>
+    /// Copia del archivo original que dejó el último <see cref="Load"/> al saltar entradas (o el archivo apartado, si no se
+    /// pudo leer entero); <c>null</c> si no hubo nada dañado o no se pudo copiar.
+    /// </summary>
+    public string? DamagedPath { get; private set; }
+
+    /// <summary>El aviso para quien usa la app tras el último <see cref="Load"/>; <c>null</c> si no se perdió nada.</summary>
+    public string? DamagedNotice { get; private set; }
+
+    /// <summary>Nombre de la copia del archivo con lo que no se pudo leer, junto a él.</summary>
+    public string DamagedCopyPath => System.IO.Path.ChangeExtension(Path, null) + ".dañado" + System.IO.Path.GetExtension(Path);
+
     /// <summary>Escribe las peticiones (o borra el archivo si no queda ninguna).</summary>
     public void Save(IEnumerable<(ExportRequest Request, bool ContinueWithoutMissing)> pending)
     {
@@ -72,9 +87,15 @@ public sealed class ExportQueueStore(string path)
         AppDataPaths.WriteAllTextAtomic(Path, JsonSerializer.Serialize(file, ExportQueueJsonContext.Default.SavedExportFile));
     }
 
-    /// <summary>Lo que quedó de la última vez; vacío si no hay archivo o está dañado (entonces se aparta).</summary>
+    /// <summary>
+    /// Lo que quedó de la última vez; vacío si no hay archivo o está dañado (entonces se aparta). Una entrada dañada se salta
+    /// sola y se cuenta en <see cref="Skipped"/>: las demás se recuperan.
+    /// </summary>
     public IReadOnlyList<(ExportRequest Request, bool ContinueWithoutMissing)> Load()
     {
+        Skipped = 0;
+        DamagedPath = null;
+        DamagedNotice = null;
         if (!File.Exists(Path))
         {
             return [];
@@ -83,17 +104,59 @@ public sealed class ExportQueueStore(string path)
         try
         {
             SavedExportFile? file = JsonSerializer.Deserialize(File.ReadAllText(Path), ExportQueueJsonContext.Default.SavedExportFile);
+            List<(ExportRequest Request, bool ContinueWithoutMissing)> loaded = [];
+            foreach (SavedExport? e in file?.Exports ?? [])
+            {
+                // Una entrada nula o sin proyecto, secuencia, salida o ajustes (un archivo dañado) lanzaba NullReference o
+                // ArgumentNull fuera de este catch: se salta.
+                if (e is not { ProjectJson: not null, SequenceId: not null, OutputPath.Length: > 0, Settings: not null })
+                {
+                    Skipped++;
+                    continue;
+                }
 
-            // Una entrada nula o sin proyecto, secuencia, salida o ajustes (un archivo dañado) lanzaba NullReference o
-            // ArgumentNull fuera de este catch: se salta.
-            return [.. (file?.Exports ?? []).Where(e => e is { ProjectJson: not null, SequenceId: not null, OutputPath.Length: > 0, Settings: not null })
-                .Select(e => (new ExportRequest(ProjectSerializer.Deserialize(e.ProjectJson), e.SequenceId, e.OutputPath,
-                    e.Settings, e.Range) { ProjectDirectory = e.ProjectDirectory }, e.ContinueWithoutMissing))];
+                // Un ProjectJson roto apartaba el archivo entero como «.dañado» y se perdían también las entradas buenas.
+                try
+                {
+                    loaded.Add((new ExportRequest(ProjectSerializer.Deserialize(e.ProjectJson), e.SequenceId, e.OutputPath,
+                        e.Settings, e.Range) { ProjectDirectory = e.ProjectDirectory }, e.ContinueWithoutMissing));
+                }
+                catch (Exception ex) when (ex is JsonException or ProjectFormatException or NotSupportedException)
+                {
+                    Skipped++;
+                }
+            }
+
+            // El siguiente Save reescribe el archivo sin las entradas saltadas: sin esta copia se perdían sin rastro (y, si
+            // estaban todas rotas, sin aviso, porque solo se preguntaba con alguna pendiente).
+            if (Skipped > 0)
+            {
+                DamagedPath = CopyDamaged();
+                DamagedNotice = (Skipped == 1 ? "Una exportación de la última vez no se pudo leer" : $"{Skipped} exportaciones de la última vez no se pudieron leer")
+                    + (DamagedPath is null ? "." : $"; el archivo original quedó en «{DamagedPath}».");
+            }
+
+            return loaded;
         }
         catch (Exception ex) when (ex is JsonException or ProjectFormatException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            AppDataPaths.SetAside(Path, ".dañado");
+            DamagedPath = AppDataPaths.SetAside(Path, ".dañado");
+            DamagedNotice = "La cola de exportaciones de la última vez no se pudo leer"
+                + (DamagedPath is null ? "." : $"; el archivo quedó en «{DamagedPath}».");
             return [];
+        }
+    }
+
+    private string? CopyDamaged()
+    {
+        try
+        {
+            File.Copy(Path, DamagedCopyPath, overwrite: true);
+            return DamagedCopyPath;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 

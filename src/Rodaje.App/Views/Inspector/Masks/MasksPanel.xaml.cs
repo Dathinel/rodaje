@@ -86,9 +86,6 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
 {
     private const string TrackActionId = "mascaras.seguir";
 
-    /// <summary>Elección de «Aplicar a» que es el uso «limitar efectos» de color y filtros (no un efecto).</summary>
-    private const string EffectsZone = MaskTargetChoices.EffectsZone;
-
     private static readonly string[] BoxNames = [M.X, M.Y, M.Width, M.Height, M.Rotation];
 
     private static readonly (string Name, string Value)[] ColorNames =
@@ -105,6 +102,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
     private string? _maskId;
     // Lo que muestra ahora el desplegable de destino (ver ComboBoxChoices).
     private ChoiceList<string> _targets = new();
+    private readonly ClosedListRetry _targetsRetry = new();
     private Time _shownPosition;
     private bool _updating;
     private bool _weightGesture;
@@ -114,6 +112,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
     public MasksPanel()
     {
         InitializeComponent();
+        TargetBox.RetryWhenClosed(_targetsRetry, Refresh);
         RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => Publish());
         foreach (string mode in EffectRegistry.MaskModes)
         {
@@ -158,7 +157,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
             }
         };
         // Llega también desde los hilos de fondo que informan avance.
-        services.LongActions.Changed += (_, _) => DispatcherQueue.TryEnqueueGuarded(ShowTracking);
+        services.LongActions.Changed += (_, _) => DispatcherQueue.RunLater(ShowTracking);
         Refresh();
         Bindings.Update();
     }
@@ -351,7 +350,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
     private void ShowTargets(Clip clip, EffectInstance mask)
     {
         (ChoiceList<string> targets, int selected) = MaskTargetChoices.Build(clip, mask);
-        _targets = ComboBoxChoices.Show(TargetBox, _targets, targets, selected);
+        _targets = ComboBoxChoices.Show(TargetBox, _targets, targets, selected, retry: _targetsRetry);
     }
 
     private void ShowWeight(MaskShape shape, MaskVertex[] points, IReadOnlyList<int> selected)
@@ -644,20 +643,24 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
 
     private void OnTargetSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (_updating || !_targets.TryGet(TargetBox.SelectedIndex, out string choice) || _clipId is not { } clipId || _maskId is not { } id)
-        {
-            return;
-        }
-
         // Elegir otro destino puede quitar «Un efecto que ya no está» y rehacer este desplegable al refrescar: la edición va
         // después del evento, y solo si el panel sigue en la misma máscara del mismo clip.
-        var picked = new DeferredChoice<string>(id, clipId);
-        DispatcherQueue.RunAfterEvent(() => ChooseTarget(picked, choice));
+        DispatcherQueue.Choose(_targets, TargetBox.SelectedIndex, _updating, choice =>
+        {
+            if (_clipId is not { } clipId || _maskId is not { } id)
+            {
+                return null;
+            }
+
+            var picked = new DeferredChoice<string>(id, clipId);
+            return () => ChooseTarget(picked, choice);
+        });
     }
 
     private void ChooseTarget(DeferredChoice<string> picked, string choice)
     {
-        if (!DeferredChoices.MaskStillApplies(picked, _maskId, _clipId, CurrentClip()))
+        // La decisión (aplicar o solo refrescar, y qué se guarda) es DeferredChoices.MaskTarget, que las pruebas ejercen.
+        if (DeferredChoices.MaskTarget(picked, choice, _maskId, _clipId, CurrentClip()) is not { } edit)
         {
             Refresh();
             return;
@@ -667,8 +670,8 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         string id = picked.Owner;
         Run(new SequenceEditCommand("Cambiar a qué se aplica la máscara", SequenceId, ctx =>
         {
-            MaskEdits.SetTarget(ctx, clipId, id, choice == EffectsZone ? "" : choice);
-            EffectEdits.SetOption(ctx, clipId, id, O.Use, choice == EffectsZone ? "effects" : "");
+            MaskEdits.SetTarget(ctx, clipId, id, edit.Target);
+            EffectEdits.SetOption(ctx, clipId, id, O.Use, edit.Use);
         }));
     }
 
@@ -855,7 +858,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
             });
             try
             {
-                await RegionTracking.RunAsync(request, f => DispatcherQueue.TryEnqueueGuarded(() => Tracked(f)), both, scope.Token);
+                await RegionTracking.RunAsync(request, f => DispatcherQueue.RunLater(() => Tracked(f)), both, scope.Token);
             }
             catch (OperationCanceledException)
             {
