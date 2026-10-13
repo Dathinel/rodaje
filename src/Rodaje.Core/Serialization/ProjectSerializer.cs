@@ -63,7 +63,15 @@ public static class ProjectSerializer
         Project? project;
         try
         {
-            project = root.Deserialize(ProjectJson.ProjectInfo);
+            project = root.Deserialize(ProjectJson.ReadInfo);
+        }
+        catch (JsonException ex) when (ex.Message == FiniteDoubleConverter.ReadProblem)
+        {
+            // Abrirlo como infinito dejaría editar un proyecto que después no se puede guardar.
+            throw new ProjectFormatException(
+                $"El valor de «{ex.Path}» {FiniteDoubleConverter.ReadProblem} y no se puede abrir. " +
+                "Es posible que se haya editado a mano o que esté dañado.",
+                ex);
         }
         catch (JsonException ex)
         {

@@ -7,14 +7,25 @@ namespace Rodaje.Core.Serialization;
 
 /// <summary>
 /// Al guardar, un número que JSON no puede representar (NaN o infinito) se rechaza con un error que dice dónde está,
-/// en vez de la <see cref="ArgumentException"/> en inglés del escritor.
+/// en vez de la <see cref="ArgumentException"/> en inglés del escritor. Al abrir, un número que desborda
+/// <see cref="double"/> (<c>1e400</c>) se rechaza igual, en vez de leerse como infinito.
 /// </summary>
-/// <remarks>Solo se usa al escribir: el lector ya rechaza esos valores porque no son JSON.</remarks>
+/// <remarks>
+/// NaN e <c>Infinity</c> no son JSON y el analizador ya los rechaza, pero un número escrito con más dígitos de los que
+/// caben sí es JSON y el lector lo daba como ±∞: el proyecto se abría y después el guardado lo rechazaba (tarea 226).
+/// </remarks>
 internal sealed class FiniteDoubleConverter(bool locate = false) : JsonConverter<double>
 {
     public const string Problem = "no es un número finito (NaN o infinito)";
 
-    public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => reader.GetDouble();
+    /// <summary>Mensaje del <see cref="JsonException"/> al leer un número que desborda.</summary>
+    public const string ReadProblem = "es un número demasiado grande (desborda a infinito)";
+
+    public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        double value = reader.GetDouble();
+        return double.IsFinite(value) ? value : throw new JsonException(ReadProblem);
+    }
 
     public override void Write(Utf8JsonWriter writer, double value, JsonSerializerOptions options)
     {

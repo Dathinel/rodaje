@@ -51,6 +51,13 @@ internal static class ProjectJson
         (JsonTypeInfo<Project>)FileOptions.GetTypeInfo(typeof(Project));
 
     /// <summary>
+    /// Las mismas opciones para abrir, más el control que rechaza un número que desborda (ver <see cref="FiniteDoubleConverter"/>).
+    /// Aparte de <see cref="ProjectInfo"/>: con un convertidor propio para <see cref="double"/>, el esquema perdería el tipo «number».
+    /// </summary>
+    public static JsonTypeInfo<Project> ReadInfo { get; } =
+        (JsonTypeInfo<Project>)CreateFileOptions(checkedReads: true).GetTypeInfo(typeof(Project));
+
+    /// <summary>
     /// Las mismas opciones para escribir, más los controles que rechazan lo que no se puede guardar sin perderlo
     /// (números no finitos y sustitutos UTF-16 sueltos). Aparte de <see cref="ProjectInfo"/>, que también describe el esquema.
     /// </summary>
@@ -61,12 +68,17 @@ internal static class ProjectJson
     public static JsonTypeInfo<Project> LocateInfo { get; } =
         (JsonTypeInfo<Project>)CreateFileOptions(checkedWrites: true, locate: true).GetTypeInfo(typeof(Project));
 
-    private static JsonSerializerOptions CreateFileOptions(bool checkedWrites = false, bool locate = false)
+    private static JsonSerializerOptions CreateFileOptions(bool checkedWrites = false, bool locate = false, bool checkedReads = false)
     {
         var options = new JsonSerializerOptions(ProjectJsonContext.Default.Options)
         {
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
+        if (checkedReads)
+        {
+            options.Converters.Add(new FiniteDoubleConverter());
+        }
+
         if (checkedWrites)
         {
             options.Converters.Add(new FiniteDoubleConverter(locate));
