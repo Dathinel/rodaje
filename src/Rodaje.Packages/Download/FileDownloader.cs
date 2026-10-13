@@ -55,7 +55,7 @@ public sealed class FileDownloader(HttpClient http)
         destination = Path.GetFullPath(destination);
         if (File.Exists(destination))
         {
-            if (new FileInfo(destination).Length == target.Size && await HashFileAsync(destination, cancellationToken) == target.Sha256)
+            if (new FileInfo(destination).Length == target.Size && await HashFileAsync(destination, cancellationToken).ConfigureAwait(false) == target.Sha256)
             {
                 progress?.Report(new DownloadProgress(target.Size, target.Size));
                 return;
@@ -81,7 +81,7 @@ public sealed class FileDownloader(HttpClient http)
             string? actual;
             try
             {
-                actual = await ReceiveAsync(target, partial, offset, progress, cancellationToken);
+                actual = await ReceiveAsync(target, partial, offset, progress, cancellationToken).ConfigureAwait(false);
             }
             catch (NetworkCutException ex)
             {
@@ -90,7 +90,7 @@ public sealed class FileDownloader(HttpClient http)
                     throw new PackageDownloadException("Se cortó la conexión y no volvió; lo descargado se guarda para seguir más tarde. " + ex.Message, ex.InnerException ?? ex);
                 }
 
-                await Task.Delay(RetryDelay, cancellationToken);
+                await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
                 continue;
             }
 
@@ -134,7 +134,7 @@ public sealed class FileDownloader(HttpClient http)
     {
         if (offset == target.Size)
         {
-            return await HashFileAsync(partial, cancellationToken);
+            return await HashFileAsync(partial, cancellationToken).ConfigureAwait(false);
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, target.Url);
@@ -146,7 +146,7 @@ public sealed class FileDownloader(HttpClient http)
         HttpResponseMessage response;
         try
         {
-            response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         }
         catch (HttpRequestException ex)
         {
@@ -191,14 +191,14 @@ public sealed class FileDownloader(HttpClient http)
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             if (append)
             {
-                await HashPrefixAsync(partial, hash, cancellationToken);
+                await HashPrefixAsync(partial, hash, cancellationToken).ConfigureAwait(false);
             }
 
             using var file = new FileStream(partial, append ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16);
             Stream body;
             try
             {
-                body = await response.Content.ReadAsStreamAsync(cancellationToken);
+                body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is HttpRequestException or IOException)
             {
@@ -218,7 +218,7 @@ public sealed class FileDownloader(HttpClient http)
                         stall.CancelAfter(StallTimeout);
                         try
                         {
-                            read = await body.ReadAsync(buffer, stall.Token);
+                            read = await body.ReadAsync(buffer, stall.Token).ConfigureAwait(false);
                         }
                         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
                         {
@@ -244,7 +244,7 @@ public sealed class FileDownloader(HttpClient http)
                     }
 
                     hash.AppendData(buffer, 0, read);
-                    await file.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    await file.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
                     received += read;
                     progress?.Report(new DownloadProgress(received, target.Size));
                 }
@@ -264,7 +264,7 @@ public sealed class FileDownloader(HttpClient http)
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16, FileOptions.SequentialScan | FileOptions.Asynchronous);
         byte[] buffer = new byte[1 << 16];
         int read;
-        while ((read = await stream.ReadAsync(buffer, cancellationToken)) > 0)
+        while ((read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
         {
             hash.AppendData(buffer, 0, read);
         }
@@ -273,7 +273,7 @@ public sealed class FileDownloader(HttpClient http)
     private static async Task<string> HashFileAsync(string path, CancellationToken cancellationToken)
     {
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16, FileOptions.SequentialScan | FileOptions.Asynchronous);
-        return Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, cancellationToken));
+        return Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false));
     }
 
     private static void TryDelete(string path)

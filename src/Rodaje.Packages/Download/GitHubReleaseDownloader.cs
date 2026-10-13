@@ -74,7 +74,7 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
             throw new PackageDownloadException(UnavailableReason!);
         }
 
-        await _indexGate.WaitAsync(cancellationToken);
+        await _indexGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (!refresh && _index is not null && Environment.TickCount64 - _indexTime < _options.IndexMaxAge.TotalMilliseconds)
@@ -83,8 +83,8 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
             }
 
             Uri signatureUrl = _options.SignatureUrl ?? new Uri(_options.IndexUrl.AbsoluteUri + ".sig");
-            byte[] json = await FetchSmallAsync(_options.IndexUrl, SignedIndex.MaxBytes, cancellationToken);
-            byte[] signature = await FetchSmallAsync(signatureUrl, IndexSignature.MaxSignatureBytes, cancellationToken);
+            byte[] json = await FetchSmallAsync(_options.IndexUrl, SignedIndex.MaxBytes, cancellationToken).ConfigureAwait(false);
+            byte[] signature = await FetchSmallAsync(signatureUrl, IndexSignature.MaxSignatureBytes, cancellationToken).ConfigureAwait(false);
             var problems = new List<string>();
             SignedIndex index;
             try
@@ -117,7 +117,7 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
     /// <summary>La versión más nueva publicada de cada paquete o módulo que funciona con este programa.</summary>
     public async Task<IReadOnlyDictionary<string, PackageVersion>> AvailableVersionsAsync(CancellationToken cancellationToken)
     {
-        SignedIndex index = await GetIndexAsync(cancellationToken: cancellationToken);
+        SignedIndex index = await GetIndexAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         return index.Entries.Where(e => e.Kind != IndexEntryKind.Model && e.WorksWith(_options.AppVersion))
             .GroupBy(e => e.Id, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.Max(e => e.Version)!, StringComparer.Ordinal);
@@ -126,7 +126,7 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
     public async Task<DownloadedPackage> DownloadAsync(CatalogEntry entry, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        SignedIndex index = await GetIndexAsync(cancellationToken: cancellationToken);
+        SignedIndex index = await GetIndexAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         IndexEntryKind kind = entry.Kind == PackageKind.Module ? IndexEntryKind.Module : IndexEntryKind.Content;
         IndexEntry? found = index.Latest(entry.Id, _options.AppVersion, kind);
         if (found is null)
@@ -138,7 +138,7 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
 
         string path = Path.Combine(_options.DownloadFolder, found.Sha256 + PackageManifest.FileExtension);
         IProgress<DownloadProgress>? bytes = progress is null ? null : new SyncProgress(p => progress.Report(p.Fraction));
-        await Files.DownloadAsync(new DownloadTarget(found.Url, found.Sha256, found.Size), path, bytes, cancellationToken);
+        await Files.DownloadAsync(new DownloadTarget(found.Url, found.Sha256, found.Size), path, bytes, cancellationToken).ConfigureAwait(false);
         return new DownloadedPackage(path, found.Sha256);
     }
 
@@ -146,7 +146,7 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
     {
         try
         {
-            using HttpResponseMessage response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            using HttpResponseMessage response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 throw new PackageDownloadException($"No se pudo leer el catálogo de complementos ({(int)response.StatusCode} {response.ReasonPhrase}).");
@@ -157,11 +157,11 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
                 throw new DownloadVerificationException("El índice de complementos es demasiado grande; no se usó.");
             }
 
-            await using Stream body = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using Stream body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             using var buffer = new MemoryStream();
             byte[] chunk = new byte[16384];
             int read;
-            while ((read = await body.ReadAsync(chunk, cancellationToken)) > 0)
+            while ((read = await body.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
             {
                 if (buffer.Length + read > maxBytes)
                 {
