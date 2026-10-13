@@ -54,6 +54,16 @@ public sealed class CrashReporter
     public const int KeepDumps = 3;
 
     /// <summary>
+    /// Copias del registro de sesiones sin cerrar que se conservan cuando su informe no se pudo escribir: sin tope, con el
+    /// disco aún sin permitirlo, se acumulaba una por arranque fallido.
+    /// </summary>
+    public const int KeepUnreportedSessions = 10;
+
+    // Marca junto a la copia del registro de una sesión cuyo informe ya se escribió pero que no se pudo borrar: el siguiente
+    // arranque la borra sin escribir otro informe igual.
+    private const string ReportedSuffix = ".informada";
+
+    /// <summary>
     /// Un error recuperado que se repite (la misma <see cref="Signature"/>: tipo, mensaje sin números y primera línea de
     /// la pila) deja un solo informe en este intervalo; las repeticiones se cuentan y se anotan en ese informe
     /// («repetido N veces»).
@@ -112,7 +122,7 @@ public sealed class CrashReporter
     /// volcar un proceso sano desde dentro puede trabarse. Escribe en la ruta que recibe (una <c>.dmp.tmp</c> que después
     /// se renombra) y devuelve 0 si lo logró, o el código del error, que se anota en el informe.
     /// </summary>
-    public Func<string, nint, int> MinidumpWriter { get; init; } = WriteOwnMinidump;
+    internal Func<string, nint, int> MinidumpWriter { get; init; } = WriteOwnMinidump;
 
     /// <summary>
     /// Cuánto se espera el cerrojo de los informes si otro hilo quedó a mitad de uno (el fallo lo detuvo, o se traba el
@@ -124,7 +134,10 @@ public sealed class CrashReporter
     /// Quién escribe un informe de texto (ruta, texto); devuelve si quedó en disco. Las pruebas lo cambian para simular
     /// un disco lleno o una carpeta sin permiso (como administrador, una carpeta de solo lectura no impide escribir).
     /// </summary>
-    public Func<string, string, bool> ReportWriter { get; init; } = TryWrite;
+    internal Func<string, string, bool> ReportWriter { get; init; } = TryWrite;
+
+    /// <summary>Borra la copia del registro de una sesión ya informada; las pruebas lo cambian para simular que falla.</summary>
+    internal Action<string> SessionDeleter { get; init; } = File.Delete;
 
     /// <summary>Lee la GPU ahora (fuera de un fallo), para que un fallo nativo no tenga que tocar DXGI.</summary>
     public void WarmUp() => _ = DescribeGpu(probe: true);
@@ -392,10 +405,24 @@ public sealed class CrashReporter
             return written;
         }
 
+        var kept = new List<string>();
         foreach (string file in files)
         {
             if (file == _log.MirrorPath || !TryParseSession(Path.GetFileNameWithoutExtension(file), out int pid, out long ticks) || isAlive(pid, ticks))
             {
+                continue;
+            }
+
+            string marker = Path.ChangeExtension(file, ReportedSuffix);
+            if (File.Exists(marker))
+            {
+                // Su informe ya se escribió en un arranque anterior: solo falta borrarla.
+                if (TryDeleteReported(file, marker))
+                {
+                    continue;
+                }
+
+                kept.Add(file);
                 continue;
             }
 
@@ -422,18 +449,28 @@ public sealed class CrashReporter
                 // conserva para el siguiente arranque.
                 if (reported)
                 {
-                    File.Delete(file);
+                    // Si no se puede borrar, se marca como informada: antes el siguiente arranque escribía otro informe igual.
+                    if (!TryDeleteReported(file, marker: null))
+                    {
+                        MarkReported(file, marker);
+                        kept.Add(file);
+                    }
                 }
                 else
                 {
                     _log.Append($"No se pudo escribir el informe de la sesión anterior {Path.GetFileName(file)}; se conserva su registro para el próximo arranque.");
+                    kept.Add(file);
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 _log.Append($"No se pudo recuperar la sesión anterior {Path.GetFileName(file)}: {ex.Message}");
+                kept.Add(file);
             }
         }
+
+        PruneUnreportedSessions(kept);
+        RemoveOrphanMarkers(folder);
 
         if (written.Count > 0)
         {
@@ -441,6 +478,96 @@ public sealed class CrashReporter
         }
 
         return written;
+    }
+
+    private bool TryDeleteReported(string file, string? marker)
+    {
+        try
+        {
+            SessionDeleter(file);
+            if (marker is not null)
+            {
+                File.Delete(marker);
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.Append($"No se pudo borrar el registro de la sesión anterior {Path.GetFileName(file)}, ya informada: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void MarkReported(string file, string marker)
+    {
+        try
+        {
+            File.WriteAllText(marker, "");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.Append($"No se pudo marcar como informada la sesión anterior {Path.GetFileName(file)}: {ex.Message}");
+        }
+    }
+
+    // Deja como mucho KeepUnreportedSessions copias que siguen esperando (las más nuevas): sin informe y sin tope, un disco
+    // que no lo permite durante muchos arranques las acumulaba sin fin.
+    private void PruneUnreportedSessions(List<string> kept)
+    {
+        if (kept.Count <= KeepUnreportedSessions)
+        {
+            return;
+        }
+
+        foreach (string old in kept.OrderByDescending(SafeLastWrite).ThenByDescending(f => f, StringComparer.Ordinal).Skip(KeepUnreportedSessions))
+        {
+            try
+            {
+                File.Delete(old);
+                File.Delete(Path.ChangeExtension(old, ReportedSuffix));
+                _log.Append($"Se descartó el registro de la sesión anterior {Path.GetFileName(old)}: ya había {KeepUnreportedSessions} esperando informe.");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _log.Append($"No se pudo descartar el registro de la sesión anterior {Path.GetFileName(old)}: {ex.Message}");
+            }
+        }
+
+        static DateTime SafeLastWrite(string file)
+        {
+            try
+            {
+                return File.GetLastWriteTimeUtc(file);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return DateTime.MinValue;
+            }
+        }
+    }
+
+    // Una marca cuya copia ya no está (se borró a mano o en un arranque en que borrar la marca falló) no sirve de nada.
+    private static void RemoveOrphanMarkers(string folder)
+    {
+        try
+        {
+            if (!Directory.Exists(folder))
+            {
+                return;
+            }
+
+            foreach (string marker in Directory.GetFiles(folder, "*" + ReportedSuffix))
+            {
+                if (!File.Exists(Path.ChangeExtension(marker, ".log")))
+                {
+                    File.Delete(marker);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     // ---- Aviso al siguiente arranque ----
