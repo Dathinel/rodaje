@@ -1299,6 +1299,44 @@ internal static class FfmpegPipeArguments
         return Path.Combine(Path.GetFullPath(temporaryDirectory ?? Path.GetTempPath()), name);
     }
 
+    /// <summary>
+    /// Largo desde el que <see cref="FilePath"/> pasa una ruta de Windows con <c>\\?\</c>. MAX_PATH (260) cuenta el NUL
+    /// final y Win32 limita las carpetas a 248; con ese margen tampoco queda en el borde el patrón «_%06d» de las
+    /// secuencias de imágenes, que crece dos caracteres al expandirse.
+    /// </summary>
+    public const int LongPathThreshold = 248;
+
+    /// <summary>
+    /// Ruta de un archivo que ffmpeg.exe abre por nombre (entradas <c>-i</c> y salida). ffmpeg.exe no declara
+    /// <c>longPathAware</c>, así que una ruta de Windows de <see cref="LongPathThreshold"/> caracteres o más (la mezcla en
+    /// una carpeta temporal larga, una salida o un medio en una carpeta profunda) va con el prefijo <c>\\?\</c>
+    /// (<c>\\?\UNC\</c> en una ruta de red), que la API ancha de Windows acepta sin límite. La ruta se normaliza antes,
+    /// porque con el prefijo Windows no resuelve «..» ni «/». Las rutas cortas, las que ya llevan el prefijo y las que no
+    /// son de Windows quedan igual. No sirve dentro de un filtro (<c>-vf</c>): ahí ffmpeg no abre la ruta con su protocolo
+    /// de archivos.
+    /// </summary>
+    public static string FilePath(string path)
+    {
+        if (path.StartsWith(@"\\?\", StringComparison.Ordinal) || path.StartsWith(@"\\.\", StringComparison.Ordinal))
+        {
+            return path;
+        }
+
+        string full = OperatingSystem.IsWindows() && Path.IsPathFullyQualified(path) ? Path.GetFullPath(path) : path;
+        if (full.Length < LongPathThreshold)
+        {
+            return path;
+        }
+
+        if (full.StartsWith(@"\\", StringComparison.Ordinal))
+        {
+            return @"\\?\UNC\" + full[2..];
+        }
+
+        bool drive = full.Length >= 3 && char.IsAsciiLetter(full[0]) && full[1] == ':' && full[2] == '\\';
+        return drive ? @"\\?\" + full : path;
+    }
+
     public static IReadOnlyList<string> Build(ExportSinkRequest request, string? temporaryOutput, string? metadataFile,
         IReadOnlyList<string>? subtitleFiles = null)
     {
@@ -1313,7 +1351,7 @@ internal static class FfmpegPipeArguments
         int thumbnailInput = -1;
         if (request.VideoCopy is { } copy)
         {
-            args.AddRange(["-ss", copy.SeekSeconds.ToString("0.######", CultureInfo.InvariantCulture), "-i", copy.SourcePath]);
+            args.AddRange(["-ss", copy.SeekSeconds.ToString("0.######", CultureInfo.InvariantCulture), "-i", FilePath(copy.SourcePath)]);
             videoInput = inputs++;
         }
         else if (request.HasVideo)
@@ -1336,13 +1374,13 @@ internal static class FfmpegPipeArguments
 
         if (request.HasAudio && !request.IsAnalysisPass)
         {
-            args.AddRange(["-i", request.AudioPath!]);
+            args.AddRange(["-i", FilePath(request.AudioPath!)]);
             audioInput = inputs++;
         }
 
         if (metadataFile is not null)
         {
-            args.AddRange(["-f", "ffmetadata", "-i", metadataFile]);
+            args.AddRange(["-f", "ffmetadata", "-i", FilePath(metadataFile)]);
             metadataInput = inputs++;
         }
 
@@ -1350,7 +1388,7 @@ internal static class FfmpegPipeArguments
             && File.Exists(thumb) && AllowsAttachedPicture(request.Container);
         if (thumbnail)
         {
-            args.AddRange(["-i", request.Metadata.ThumbnailPath!]);
+            args.AddRange(["-i", FilePath(request.Metadata.ThumbnailPath!)]);
             thumbnailInput = inputs++;
         }
 
@@ -1358,7 +1396,7 @@ internal static class FfmpegPipeArguments
         IReadOnlyList<string> subtitles = request.IsAnalysisPass ? [] : subtitleFiles ?? [];
         foreach (string file in subtitles)
         {
-            args.AddRange(["-f", "srt", "-i", file]);
+            args.AddRange(["-f", "srt", "-i", FilePath(file)]);
             inputs++;
         }
 
@@ -1475,11 +1513,11 @@ internal static class FfmpegPipeArguments
             Directory.CreateDirectory(temporaryOutput!);
             string name = Path.GetFileName(Path.TrimEndingDirectorySeparator(request.OutputPath));
             string extension = ImageExtension(request.VideoEncoder!.Codec);
-            args.AddRange(["-start_number", "0", Path.Combine(temporaryOutput!, $"{name}_%06d.{extension}")]);
+            args.AddRange(["-start_number", "0", FilePath(Path.Combine(temporaryOutput!, $"{name}_%06d.{extension}"))]);
         }
         else
         {
-            args.Add(temporaryOutput!);
+            args.Add(FilePath(temporaryOutput!));
         }
 
         return args;
