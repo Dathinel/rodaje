@@ -390,7 +390,12 @@ public sealed class TimelineTitleTests(ITestOutputHelper output)
         var b = new TimelineBuilder(1, 0);
         b.AddTitle(0, S(1), S(2), "Uno", id: "uno");
         b.AddTitle(0, S(4), S(2), "Dos", id: "dos");
-        using TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { Titles = titles });
+
+        // Reloj de la espera a mano: con el del sistema, una pausa de más de PartialFrameTimeout (400 ms) entre el Seek y
+        // el Tick en un runner cargado agotaba el tope y el cuadro salía con «uno» sin estar listo (CI de Windows, 13-oct:
+        // «Assert.Empty() Failure: Collection was not empty» en el primer Tick). Lo que se prueba es la espera, no el tope.
+        var time = new ManualTimeProvider();
+        using TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { Titles = titles, TimeProvider = time });
 
         session.Seek(S(1.5));
         using (CompositionFrame waiting = session.Tick())
