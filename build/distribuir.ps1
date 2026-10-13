@@ -219,7 +219,10 @@ function Publicar-Modulos([string]$destino) {
             $r = Invocar-Dotnet (Join-Path $Raiz "TestResults\distribuir-$($m.id).log") @('publish', $csproj.FullName, '-c', 'Release',
                 '-o', (Split-Path -Parent $entrada), '--nologo', '-v', 'q', '-p:SelfContained=true')
             if ($r.Codigo -ne 0 -or -not (Test-Path -LiteralPath $entrada)) { throw "No se pudo publicar el módulo $($m.id) (TestResults\distribuir-$($m.id).log)." }
-            Get-ChildItem -LiteralPath $carpeta -Recurse -Filter '*.pdb' -File | Remove-Item -Force
+            # Fuera lo que solo sirve para compilar: símbolos, bibliotecas de importación y la documentación XML de cada DLL.
+            Get-ChildItem -LiteralPath $carpeta -Recurse -File | Where-Object {
+                $_.Extension -in '.pdb', '.lib' -or ($_.Extension -eq '.xml' -and (Test-Path -LiteralPath ([IO.Path]::ChangeExtension($_.FullName, '.dll'))))
+            } | Remove-Item -Force
             foreach ($f in 'paquete.json', 'LICENCIAS.md', 'README.md') {
                 $origen = Join-Path $dir.FullName $f
                 if (Test-Path -LiteralPath $origen) { Copy-Item -LiteralPath $origen -Destination $carpeta -Force }
