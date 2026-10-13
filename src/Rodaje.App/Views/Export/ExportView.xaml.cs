@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Timing;
 using Rodaje.Export;
 using Rodaje.Media.Export;
@@ -147,16 +148,18 @@ internal sealed partial class ExportView : UserControl
         }
 
         _refreshQueued = true;
-        if (!DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.RunAfterEvent(() =>
         {
             _refreshQueued = false;
             Refresh();
-        }))
-        {
-            _refreshQueued = false;
-            Refresh();
-        }
+        });
     }
+
+    /// <summary>
+    /// Un refresco que llegó con la lista abierta no tocó ese desplegable (ver <c>Fill</c>): al cerrarse, otro refresco
+    /// lo pone al día, también si se cerró sin elegir nada.
+    /// </summary>
+    private void OnDropDownClosed(object sender, object e) => QueueRefresh();
 
     private void Refresh()
     {
@@ -561,7 +564,7 @@ internal sealed partial class ExportView : UserControl
     private void OnChangeProjectFormatClick(object sender, RoutedEventArgs e)
     {
         CloseRequested?.Invoke(this, EventArgs.Empty);
-        DispatcherQueue.TryEnqueue(() => _services.Shortcuts.Invoke(Views.Player.PlayerActionIds.ProjectFormat));
+        DispatcherQueue.RunLater(() => _services.Shortcuts.Invoke(Views.Player.PlayerActionIds.ProjectFormat));
     }
 
     private void OnAdvancedClick(object sender, RoutedEventArgs e)
