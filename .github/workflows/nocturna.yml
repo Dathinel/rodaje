@@ -49,6 +49,7 @@ jobs:
       # Rodaje.Engine.Tests es net10.0-windows, pero VoiceOverRecorder y WaveFileWriter son código administrado puro:
       # compila con EnableWindowsTargeting y corre en Linux. Si las dos pruebas salen omitidas, el paso falla.
       - name: Disco lleno (/dev/full)
+        if: success() || failure()
         shell: bash
         run: |
           set -euo pipefail
