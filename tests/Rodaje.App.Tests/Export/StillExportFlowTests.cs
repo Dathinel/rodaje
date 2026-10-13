@@ -312,7 +312,7 @@ public sealed class StillExportFlowTests
         await second.WaitAsync(Wait);
     }
 
-    [Fact(Skip = "Defecto: con una exportación ya cancelada que aún no termina, el atajo o «Exportar sin él» no hacen nada y no avisan (StillExportFlow.StartAsync solo avisa si la que va no está cancelada).")]
+    [Fact]
     public async Task El_reintento_mientras_termina_una_cancelada_no_se_traga_sin_avisar()
     {
         var h = new Harness { Exporter = { OnCancel = null } };

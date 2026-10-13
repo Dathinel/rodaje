@@ -66,8 +66,14 @@ internal sealed partial class StillExportFlow : IDisposable
 
         if (_running is { } current)
         {
-            // Ctrl+Mayús+E repetido: no se lanza otra; se recuerda la que va y cómo pararla.
-            if (!current.IsCancellationRequested)
+            // Ctrl+Mayús+E repetido: no se lanza otra; se recuerda la que va y cómo pararla. Si ya se canceló y aún no
+            // termina, se avisa de que hay que esperar: sin aviso, el atajo o «Exportar sin él» parecerían no hacer nada.
+            if (current.IsCancellationRequested)
+            {
+                _notify(new EditorNotification(NotificationSeverity.Informational, "Cancelando el fotograma...",
+                    "La exportación anterior aún se está deteniendo; vuelve a intentarlo cuando termine."));
+            }
+            else
             {
                 NotifyExporting(current);
             }
