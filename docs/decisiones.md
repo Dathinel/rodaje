@@ -424,4 +424,4 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
 - **Decisión.**
   - **Q/W con ripple por pista sigue la regla de `RippleDelete` por pista:** si al cerrar los tramos algún grupo enlazado quedaría desfasado (`LinkSync.EnsureNoNewDesync`), la edición se rechaza entera. Con todas las pistas no hace falta: se quita el mismo tramo de todas.
   - **Un recortado arrastra a sus parejas solo si alguna no se recortó** (con Q, la que empieza en el cursor): así se corre con él. Si se recortaron todas, cada una ya cierra su propio tramo.
-- **Consecuencia.** Q sobre un video y su audio enlazados que empiezan en instantes distintos no hace nada con ripple por pista (la app lo dice); con «todas las pistas» sí se puede.
+- **Consecuencia.** Q sobre un video y su audio enlazados que empiezan en instantes distintos no hace nada con ripple por pista; con «todas las pistas» sí se puede.
