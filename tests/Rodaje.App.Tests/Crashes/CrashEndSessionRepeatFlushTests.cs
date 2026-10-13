@@ -45,39 +45,61 @@ public class CrashEndSessionRepeatFlushTests
         using var dir = new TempDirectory();
         using var entered = new ManualResetEventSlim(false);
         using var release = new ManualResetEventSlim(false);
+        DateTime now = Start;
         var log = new SessionLog();
         bool block = false;
-        var reporter = new CrashReporter(dir.Path, "1.0.0+prueba", log)
+        var reporter = new CrashReporter(dir.Path, "1.0.0+prueba", log, clock: () => now)
         {
             // Un plazo largo: si la segunda llamada esperara el cerrojo, la prueba se quedaría aquí.
             GateTimeout = TimeSpan.FromMinutes(5),
-            ReportWriter = (_, _) =>
+            ReportWriter = (path, text) =>
             {
                 if (block)
                 {
                     entered.Set();
                     _ = release.Wait(TimeSpan.FromSeconds(60));
+                    return true;
                 }
 
+                // Los informes de antes de bloquear sí quedan en disco: ahí se anotan las repeticiones.
+                File.WriteAllText(path, text);
                 return true;
             },
         };
         reporter.StartSession(processId: 22, processStartTicks: 22);
         reporter.EndSession();
 
+        // Un fallo repetido tras el primer cierre: su repetición queda pendiente de anotar.
+        string? report = reporter.Write(CrashKind.Caught, "System.InvalidOperationException: algo falló", fatal: false, out bool first);
+        now = now.AddSeconds(1);
+        reporter.Write(CrashKind.Caught, "System.InvalidOperationException: algo falló", fatal: false, out bool repeated);
+        Assert.NotNull(report);
+        Assert.False(first);
+        Assert.True(repeated);
+        Assert.DoesNotContain("Repetido", File.ReadAllText(report), StringComparison.Ordinal);
+
+        // Otro fallo, distinto, se queda a mitad de su informe con el cerrojo tomado en otro hilo.
         block = true;
-        Task stuck = Task.Run(() => reporter.Write(CrashKind.Caught, "algo", fatal: false));
+        Task stuck = Task.Run(() => reporter.Write(CrashKind.Caught, "System.ArgumentException: otro fallo distinto", fatal: false));
         Assert.True(entered.Wait(TimeSpan.FromSeconds(30)));
         try
         {
             Task second = Task.Run(reporter.EndSession);
             Assert.Same(second, await Task.WhenAny(second, Task.Delay(TimeSpan.FromSeconds(30))));
             Assert.DoesNotContain(log.Tail(), l => l.Contains("Cierre de la sesión sin esperar", StringComparison.Ordinal));
+
+            // Sin el cerrojo no se toca el informe: la repetición sigue pendiente.
+            Assert.DoesNotContain("Repetido", File.ReadAllText(report), StringComparison.Ordinal);
         }
         finally
         {
             release.Set();
             await stuck.WaitAsync(TimeSpan.FromSeconds(30));
         }
+
+        // Con el cerrojo libre, la siguiente llamada sí la anota.
+        reporter.EndSession();
+
+        Assert.Contains("Repetido 1 veces más hasta las 10:00:01.000", File.ReadAllText(report), StringComparison.Ordinal);
     }
 }
